@@ -124,7 +124,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
 const s = StyleSheet.create({
   card: {
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderLeftWidth: 4,
     overflow: "hidden",
   },
@@ -142,10 +142,10 @@ const s = StyleSheet.create({
   },
   avatarText: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  sub2: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  date: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  sub2: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  date: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   badge: {
     flexDirection: "row",
     alignItems: "center",

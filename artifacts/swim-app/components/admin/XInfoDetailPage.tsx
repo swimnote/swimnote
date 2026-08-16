@@ -86,7 +86,7 @@ const s = StyleSheet.create({
   sectionCard: { borderRadius: 16, padding: 16, gap: 6, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 },
   sectionLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: X_ACCENT, letterSpacing: 0.3 },
   sectionBody: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 22 },
-  noteBox:     { borderRadius: 12, backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: C.border, padding: 14 },
+  noteBox:     { borderRadius: 12, backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: C.border, padding: 14 },
   noteText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 },
   cta:         { borderRadius: 14, backgroundColor: "#0F2742", paddingVertical: 15, alignItems: "center" },
   ctaText:     { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },

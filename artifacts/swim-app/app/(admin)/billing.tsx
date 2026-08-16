@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (admin)/billing.tsx — 구독관리 (RevenueCat Apple/Google IAP)
  *
@@ -46,7 +48,7 @@ const PAYMENT_FAILED_STATUSES = new Set(["payment_failed", "pending_deletion", "
 
 // 티어별 색상
 const TIER_COLOR: Record<string, string> = {
-  free:     "#64748B",
+  free:     C.textSecondary,
   starter:  "#4EA7D8",
   basic:    "#2E9B6F",
   standard: "#2EC4B6",
@@ -230,11 +232,11 @@ export default function BillingScreen() {
             billingInfo?.subscription_status === "deleted" ? s.failBannerDeleted : s.failBannerActive]}>
             <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
               {billingInfo?.subscription_status === "deleted"
-                ? <LucideIcon name="x-circle" size={18} color="#64748B" />
+                ? <LucideIcon name="x-circle" size={18} color={C.textSecondary} />
                 : <LucideIcon name="alert-triangle" size={18} color="#DC2626" />
               }
               <View style={{ flex: 1 }}>
-                <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: "#64748B" }]}>
+                <Text style={[s.failTitle, billingInfo?.subscription_status === "deleted" && { color: C.textSecondary }]}>
                   {billingInfo?.subscription_status === "deleted"
                     ? "계정이 삭제되었습니다"
                     : billingInfo?.subscription_status === "pending_deletion"
@@ -266,7 +268,7 @@ export default function BillingScreen() {
                 </Text>
               </View>
               <View style={[s.statusBadge, isSubscribed ? s.badgeGreen : s.badgeGray]}>
-                <Text style={[s.badgeText, isSubscribed ? { color: "#2EC4B6" } : { color: "#64748B" }]}>
+                <Text style={[s.badgeText, isSubscribed ? { color: "#2EC4B6" } : { color: C.textSecondary }]}>
                   {isSubscribed ? "구독 중" : "무료"}
                 </Text>
               </View>
@@ -390,11 +392,11 @@ export default function BillingScreen() {
                 </Text>
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                   <View style={s.detailChip}>
-                    <LucideIcon name="users" size={11} color="#64748B" />
+                    <LucideIcon name="users" size={11} color={C.textSecondary} />
                     <Text style={s.detailChipText}>최대 {billingInfo?.member_limit ?? 10}명</Text>
                   </View>
                   <View style={s.detailChip}>
-                    <LucideIcon name="hard-drive" size={11} color="#64748B" />
+                    <LucideIcon name="hard-drive" size={11} color={C.textSecondary} />
                     <Text style={s.detailChipText}>{billingInfo?.display_storage ?? "100MB"}</Text>
                   </View>
                 </View>
@@ -495,25 +497,25 @@ export default function BillingScreen() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: "#fff" },
   section:       { gap: 10 },
-  sectionTitle:  { fontSize: 13, fontWeight: "600", color: "#374151" },
+  sectionTitle:  { fontSize: 13, fontWeight: "600", color: C.textPrimary },
 
   failBanner:        { borderRadius: 10, padding: 14, gap: 10, borderWidth: 1 },
   failBannerActive:  { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
-  failBannerDeleted: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
+  failBannerDeleted: { backgroundColor: "#F9FAFB", borderColor: C.border },
   failTitle:         { fontSize: 14, fontWeight: "600", color: "#DC2626" },
-  failDesc:          { fontSize: 13, color: "#64748B", marginTop: 2, lineHeight: 18 },
+  failDesc:          { fontSize: 13, color: C.textSecondary, marginTop: 2, lineHeight: 18 },
 
   subCard:    { borderWidth: 1, borderRadius: 12, padding: 14, gap: 8 },
   planDot:    { width: 10, height: 10, borderRadius: 5 },
-  planName:   { fontSize: 16, fontWeight: "700", color: "#14283D" },
-  planMeta:   { fontSize: 12, color: "#64748B" },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB" },
+  planName:   { fontSize: 16, fontWeight: "700", color: C.textPrimary },
+  planMeta:   { fontSize: 12, color: C.textSecondary },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: C.border },
   badgeGreen: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  badgeGray:  { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
+  badgeGray:  { backgroundColor: "#F9FAFB", borderColor: C.border },
   badgeText:  { fontSize: 12, fontWeight: "600" },
   infoRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  metaLabel:  { fontSize: 13, color: "#64748B" },
-  metaValue:  { fontSize: 13, fontWeight: "600", color: "#374151" },
+  metaLabel:  { fontSize: 13, color: C.textSecondary },
+  metaValue:  { fontSize: 13, fontWeight: "600", color: C.textPrimary },
 
   downgradeBanner:     { backgroundColor: "#FFFBEB", borderColor: "#FCD34D", borderWidth: 1, borderRadius: 10, padding: 12, marginTop: 8 },
   downgradeTitle:      { fontSize: 13, fontWeight: "700", color: "#92400E" },
@@ -521,38 +523,38 @@ const s = StyleSheet.create({
   downgradeDateBold:   { fontWeight: "700" },
   downgradeNote:       { fontSize: 12, color: "#A16207", lineHeight: 20, marginTop: 4 },
 
-  storageBar:        { height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" },
+  storageBar:        { height: 6, backgroundColor: C.backgroundSoft, borderRadius: 3, overflow: "hidden" },
   storageBarFill:    { height: 6, borderRadius: 3 },
   storageBanner:     { flexDirection: "row", gap: 8, padding: 10, borderRadius: 8, alignItems: "center", borderWidth: 1 },
   storageBannerTitle:{ fontSize: 13, fontWeight: "500" },
-  storageBannerDesc: { fontSize: 12, color: "#64748B", marginTop: 2 },
+  storageBannerDesc: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   storageActionBtn:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, borderWidth: 1 },
   storageActionTxt:  { fontSize: 12, fontWeight: "600" },
 
-  platformBanner:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0" },
+  platformBanner:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: C.border },
   platformBannerText:{ fontSize: 13, color: "#475569", flex: 1, fontFamily: "Pretendard-Regular" },
-  platformBannerBold:{ color: "#14283D", fontWeight: "600" },
+  platformBannerBold:{ color: C.textPrimary, fontWeight: "600" },
   platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F0FDFB", borderWidth: 1, borderColor: "#2EC4B6" },
   platformManageTxt: { fontSize: 12, color: "#2EC4B6", fontWeight: "600" },
 
   detailCard:       { borderWidth: 1, borderRadius: 14, overflow: "hidden" },
   detailHeader:     { padding: 14, paddingBottom: 12 },
   detailPlanName:   { fontSize: 17, fontWeight: "700" },
-  detailChip:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB" },
-  detailChipText:   { fontSize: 11, color: "#64748B", fontWeight: "500" },
+  detailChip:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: C.border },
+  detailChipText:   { fontSize: 11, color: C.textSecondary, fontWeight: "500" },
   featureIconWrap:  { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  featureLabel:     { fontSize: 13, color: "#374151", flex: 1 },
-  featureNote:      { fontSize: 11, color: "#9CA3AF" },
+  featureLabel:     { fontSize: 13, color: C.textPrimary, flex: 1 },
+  featureNote:      { fontSize: 11, color: C.textMuted },
 
-  pendingPlanPreview:      { margin: 14, marginTop: 0, padding: 12, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  pendingPlanPreviewTitle: { fontSize: 12, fontWeight: "700", color: "#374151" },
-  pendingPlanPreviewDesc:  { fontSize: 11, color: "#9CA3AF", marginTop: 2 },
+  pendingPlanPreview:      { margin: 14, marginTop: 0, padding: 12, backgroundColor: "#F9FAFB", borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  pendingPlanPreviewTitle: { fontSize: 12, fontWeight: "700", color: C.textPrimary },
+  pendingPlanPreviewDesc:  { fontSize: 11, color: C.textMuted, marginTop: 2 },
 
   changePlanBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1.5, borderRadius: 10, paddingVertical: 12, marginTop: 4 },
   changePlanBtnText: { fontSize: 14, fontWeight: "700" },
 
-  iapNote:    { fontSize: 11, color: "#9CA3AF", textAlign: "center", lineHeight: 16, marginTop: 4 },
-  restoreDesc:    { fontSize: 13, color: "#64748B", lineHeight: 18 },
+  iapNote:    { fontSize: 11, color: C.textMuted, textAlign: "center", lineHeight: 16, marginTop: 4 },
+  restoreDesc:    { fontSize: 13, color: C.textSecondary, lineHeight: 18 },
   restoreBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 8, paddingVertical: 12, marginTop: 4 },
   restoreBtnText: { fontSize: 14, fontWeight: "600" },
 });

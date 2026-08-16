@@ -13,13 +13,16 @@ import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useAuth, apiRequest } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 // ── 색상 상수 ────────────────────────────────────────────────────────────────
 const P       = "#7C3AED";
 const GREEN   = "#2EC4B6";
 const WARN    = "#D97706";
 const DANGER  = "#DC2626";
-const GRAY    = "#64748B";
+const GRAY    = C.textSecondary;
 
 // ── 상태 설정 ─────────────────────────────────────────────────────────────────
 type InfraStatus = "normal" | "warning" | "danger" | "full" | "error" | "inactive" | "delay" | "critical_delay";
@@ -86,7 +89,7 @@ function UsageBar({ pct, color }: { pct: number; color: string }) {
   );
 }
 const bar = StyleSheet.create({
-  track: { height: 5, borderRadius: 3, backgroundColor: "#E5E7EB", overflow: "hidden", marginTop: 4 },
+  track: { height: 5, borderRadius: 3, backgroundColor: C.border, overflow: "hidden", marginTop: 4 },
   fill:  { height: 5, borderRadius: 3 },
 });
 
@@ -179,25 +182,25 @@ function CoreCard({
 }
 
 const cc = StyleSheet.create({
-  card:       { borderRadius: 14, padding: 14, gap: 10, backgroundColor: "#fff" },
+  card:       { borderRadius: 14, padding: 14, gap: 10, backgroundColor: C.surface },
   header:     { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  title:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  desc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  title:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  desc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
   usageBox:   { gap: 0 },
-  usageMain:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  usageSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  usageMain:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  usageSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   pctTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular" },
   latRow:     { flexDirection: "row", alignItems: "center", gap: 4 },
   latTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: GRAY },
   metricsGrid:{ flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  metricItem: { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
-  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 2 },
-  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 8 },
-  checkedTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metricItem: { backgroundColor: C.surface, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: "30%" },
+  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  metricVal:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 2 },
+  footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8 },
+  checkedTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   footBtn:    { height: 28, minWidth: 28, borderRadius: 8, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
   detailTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: P },
 });
@@ -210,7 +213,7 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
       <View style={dp.header}>
         <Text style={dp.title}>{title} 상세</Text>
         <Pressable onPress={onClose}>
-          <LucideIcon name="x" size={18} color="#14283D" />
+          <LucideIcon name="x" size={18} color={C.textPrimary} />
         </Pressable>
       </View>
       {rows.map((r, i) => (
@@ -228,14 +231,14 @@ function DetailPanel({ title, rows, onClose }: { title: string; rows: DetailRow[
   );
 }
 const dp = StyleSheet.create({
-  container: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 0 },
+  container: { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 0 },
   header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  title:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  key:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
-  val:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "right", flex: 1 },
-  closeBtn:  { marginTop: 12, backgroundColor: "#FFFFFF", borderRadius: 10, paddingVertical: 12, alignItems: "center" },
-  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  title:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  row:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  key:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
+  val:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "right", flex: 1 },
+  closeBtn:  { marginTop: 12, backgroundColor: C.surface, borderRadius: 10, paddingVertical: 12, alignItems: "center" },
+  closeTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });
 
 // ── 서비스 행 (그룹 리스트용) ─────────────────────────────────────────────────
@@ -291,15 +294,15 @@ function ServiceRow({ sv, refreshing, onRefresh }: {
 }
 
 const svc = StyleSheet.create({
-  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: "#F5F5F5", borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: C.border },
   iconBox:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  name:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  name:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   badgeTxt:    { fontSize: 9, fontFamily: "Pretendard-Regular" },
   placeholder: { backgroundColor: "#F3F4F6", borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
   placeholderTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: GRAY },
-  msg:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
-  checked:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  msg:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  checked:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   refreshBtn:  { width: 28, height: 28, borderRadius: 7, backgroundColor: "#EEDDF5", alignItems: "center", justifyContent: "center" },
 });
 
@@ -319,7 +322,7 @@ const gh = StyleSheet.create({
   row:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   iconBox:{ width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   label:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  line:   { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
+  line:   { flex: 1, height: 1, backgroundColor: C.border },
 });
 
 // ── 이상 감지 아이템 ──────────────────────────────────────────────────────────
@@ -353,9 +356,9 @@ function HistoryRow({ item }: { item: HistoryItem }) {
   );
 }
 const hist = StyleSheet.create({
-  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
+  row:  { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: C.border },
   time: { fontSize: 11, fontFamily: "Pretendard-Regular", color: GRAY, minWidth: 42 },
-  msg:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  msg:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -840,15 +843,15 @@ export default function InfraStatusPanel() {
 const ps = StyleSheet.create({
   container:       { gap: 12 },
   topHeader:       { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  mainSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  mainTitle:       { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  mainSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   refreshAll:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: "#EEDDF5" },
   refreshAllTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: P },
   summaryBadgeRow: { flexDirection: "row", gap: 6 },
   summaryBadge:    { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   summaryBadgeTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  groupTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   groupSection:    { gap: 6 },
-  subSection:      { gap: 6, backgroundColor: "#F5F5F5", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  subTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 2 },
+  subSection:      { gap: 6, backgroundColor: C.backgroundSoft, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+  subTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 2 },
 });

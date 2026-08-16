@@ -285,8 +285,8 @@ export function RequestThreadModal({ visible, request, token, themeColor, onClos
 }
 
 const m = StyleSheet.create({
-  container:     { flex: 1, backgroundColor: "#F8FAFC" },
-  header:        { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  container:     { flex: 1, backgroundColor: C.backgroundSoft },
+  header:        { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border },
   typeBadge:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   typeLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },
   headerMid:     { flex: 1, flexDirection: "row", alignItems: "center", gap: 4 },
@@ -308,7 +308,7 @@ const m = StyleSheet.create({
   bubble:        { maxWidth: "80%", borderRadius: 16, padding: 12, gap: 4 },
   bubbleTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   bubbleTime:    { fontSize: 11, fontFamily: "Pretendard-Regular", alignSelf: "flex-end" },
-  footer:        { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, backgroundColor: "#fff" },
+  footer:        { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, backgroundColor: C.surface },
   input:         { flex: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", maxHeight: 100, minHeight: 44 },
   sendBtn:       { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
 });

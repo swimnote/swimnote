@@ -337,14 +337,14 @@ export default function ParentInquiriesScreen() {
             {!newTarget ? (
               <View style={{ gap: 10, marginTop: 8 }}>
                 <Pressable style={[s.targetBtn, { backgroundColor: "#E6FAF8" }]} onPress={() => setNewTarget("super")}>
-                  <LucideIcon name="headphones" size={20} color="#14283D" />
+                  <LucideIcon name="headphones" size={20} color={C.textPrimary} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.targetBtnLabel, { color: C.text }]}>스윔노트에 문의</Text>
                     <Text style={[s.targetBtnSub, { color: C.textMuted }]}>앱 이용 문제, 서비스 문의</Text>
                   </View>
                 </Pressable>
                 <Pressable style={[s.targetBtn, { backgroundColor: "#FFF7ED" }]} onPress={() => setNewTarget("admin")}>
-                  <LucideIcon name="user-circle" size={20} color="#14283D" />
+                  <LucideIcon name="user-circle" size={20} color={C.textPrimary} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.targetBtnLabel, { color: C.text }]}>원장님에게 문의</Text>
                     <Text style={[s.targetBtnSub, { color: C.textMuted }]}>수업, 수영장 관련 문의</Text>
@@ -397,35 +397,35 @@ const s = StyleSheet.create({
   detailHeader: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: "#F1F5F9",
+    borderBottomWidth: 1, borderBottomColor: C.backgroundSoft,
   },
   backBtn: { padding: 4 },
   detailTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   detailSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   myBubbleWrap: { alignItems: "flex-end" },
   otherBubbleWrap: { alignItems: "flex-start" },
-  senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4, marginLeft: 4 },
+  senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4, marginLeft: 4 },
   myBubble: {
     backgroundColor: "#0F2742", borderRadius: 16, borderBottomRightRadius: 4,
     padding: 12, maxWidth: "80%", alignSelf: "flex-end",
   },
   otherBubble: {
-    backgroundColor: "#F1F5F9", borderRadius: 16, borderBottomLeftRadius: 4,
+    backgroundColor: C.backgroundSoft, borderRadius: 16, borderBottomLeftRadius: 4,
     padding: 12, maxWidth: "80%",
   },
   myBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 20 },
-  otherBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
+  otherBubbleText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   bubbleTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.6)", marginTop: 4, textAlign: "right" },
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
     paddingHorizontal: 16, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: "#F1F5F9",
+    borderTopWidth: 1, borderTopColor: C.backgroundSoft,
     backgroundColor: "#fff",
   },
   textInput: {
-    flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16,
+    flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 16,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary,
     maxHeight: 100, minHeight: 42,
   },
   sendBtn: {

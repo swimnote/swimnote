@@ -375,7 +375,7 @@ export default function MessagesInboxScreen() {
                         {!isTeacher && <Text style={[s.msgSenderName, { color: C.textSecondary }]}>{msg.sender_name}</Text>}
                         <View style={[s.msgBubble, isTeacher
                           ? { backgroundColor: themeColor, borderBottomRightRadius: 4 }
-                          : { backgroundColor: "#F1F5F9", borderBottomLeftRadius: 4 }
+                          : { backgroundColor: C.backgroundSoft, borderBottomLeftRadius: 4 }
                         ]}>
                           {msg.image_url ? <Image source={{ uri: msg.image_url }} style={s.msgImage} resizeMode="cover" /> : null}
                           {msg.content ? <Text style={[s.msgText, { color: isTeacher ? "#fff" : C.text }]}>{msg.content}</Text> : null}
@@ -590,7 +590,7 @@ export default function MessagesInboxScreen() {
                   }
                 }}
               >
-                <View style={[s.threadIcon, { backgroundColor: hasUnread ? (isComment ? "#10B98120" : themeColor + "20") : "#F1F5F9" }]}>
+                <View style={[s.threadIcon, { backgroundColor: hasUnread ? (isComment ? "#10B98120" : themeColor + "20") : C.backgroundSoft }]}>
                   <LucideIcon name={isComment ? "message-circle" : "message-square"} size={20} color={hasUnread ? (isComment ? "#10B981" : themeColor) : C.textMuted} />
                 </View>
                 <View style={{ flex: 1, gap: 3 }}>

@@ -1339,8 +1339,8 @@ export default function TeacherDiaryScreen() {
   );
 }
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#FFFFFF" },
-  subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  safe:         { flex: 1, backgroundColor: C.surface },
+  subHeader:    { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   tabBtnText:   { fontSize: 12, lineHeight: 17 },
   dateLabelRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2 },

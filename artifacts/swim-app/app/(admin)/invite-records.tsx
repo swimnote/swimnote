@@ -23,7 +23,7 @@ const C = Colors.light;
 
 type FilterKey = "all" | InviteTargetType;
 
-const _IC = "#14283D"; const _IB = "#E6FAF8";
+const _IC = C.textPrimary; const _IB = "#E6FAF8";
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
   { key: "all",      label: "전체",   icon: "list"   },
   { key: "guardian", label: "학부모", icon: "users",      activeColor: _IC, activeBg: _IB },
@@ -76,7 +76,7 @@ function InviteCard({ record }: { record: InviteRecord }) {
             <View style={[s.typeBadge, { backgroundColor: tc.bg }]}>
               <Text style={[s.typeBadgeTxt, { color: tc.color }]}>{tc.label}</Text>
             </View>
-            <View style={[s.countBadge, { backgroundColor: record.callCount >= 3 ? "#F9DEDA" : "#F1F5F9" }]}>
+            <View style={[s.countBadge, { backgroundColor: record.callCount >= 3 ? "#F9DEDA" : C.backgroundSoft }]}>
               <LucideIcon name="phone-call" size={10} color={record.callCount >= 3 ? "#D96C6C" : C.textMuted} />
               <Text style={[s.countTxt, { color: record.callCount >= 3 ? "#D96C6C" : C.textMuted }]}>
                 {record.callCount}회
@@ -119,9 +119,9 @@ function InviteCard({ record }: { record: InviteRecord }) {
               <LucideIcon
                 name={record.senderRole === "teacher" ? "user-check" : "shield"}
                 size={11}
-                color={"#14283D"}
+                color={C.textPrimary}
               />
-              <Text style={[s.roleLabel, { color: "#14283D" }]}>
+              <Text style={[s.roleLabel, { color: C.textPrimary }]}>
                 {record.senderRole === "teacher" ? "선생님" : "관리자"} · {record.senderName}
               </Text>
             </View>
@@ -171,7 +171,7 @@ export default function InviteRecordsScreen() {
 
       {/* 안내 배너 */}
       <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
-        <LucideIcon name="info" size={13} color="#14283D" />
+        <LucideIcon name="info" size={13} color={C.textPrimary} />
         <Text style={s.infoTxt}>
           플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.
         </Text>
@@ -179,21 +179,21 @@ export default function InviteRecordsScreen() {
 
       {/* 요약 카드 */}
       <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { backgroundColor: "#F1F5F9", flex: 1 }]}>
+        <View style={[s.summaryCard, { backgroundColor: C.backgroundSoft, flex: 1 }]}>
           <Text style={[s.summaryNum, { color: C.text }]}>{operatorRecords.length}</Text>
           <Text style={[s.summaryLbl, { color: C.textSecondary }]}>전체 안내 건</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#14283D" }]}>{guardianCount}</Text>
-          <Text style={[s.summaryLbl, { color: "#64748B" }]}>학부모</Text>
+          <Text style={[s.summaryNum, { color: C.textPrimary }]}>{guardianCount}</Text>
+          <Text style={[s.summaryLbl, { color: C.textSecondary }]}>학부모</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#14283D" }]}>{teacherCount}</Text>
-          <Text style={[s.summaryLbl, { color: "#64748B" }]}>선생님</Text>
+          <Text style={[s.summaryNum, { color: C.textPrimary }]}>{teacherCount}</Text>
+          <Text style={[s.summaryLbl, { color: C.textSecondary }]}>선생님</Text>
         </View>
         <View style={[s.summaryCard, { backgroundColor: "#FFFFFF", flex: 1 }]}>
-          <Text style={[s.summaryNum, { color: "#14283D" }]}>{totalCalls}</Text>
-          <Text style={[s.summaryLbl, { color: "#64748B" }]}>총 호출</Text>
+          <Text style={[s.summaryNum, { color: C.textPrimary }]}>{totalCalls}</Text>
+          <Text style={[s.summaryLbl, { color: C.textSecondary }]}>총 호출</Text>
         </View>
       </View>
 
@@ -231,7 +231,7 @@ export default function InviteRecordsScreen() {
 const s = StyleSheet.create({
   infoBanner:    { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 16, marginBottom: 12,
                    marginTop: 8, padding: 10, borderRadius: 10 },
-  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 17 },
+  infoTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 17 },
 
   summaryRow:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   summaryCard:   { borderRadius: 12, paddingVertical: 10, alignItems: "center" },

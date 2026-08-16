@@ -141,8 +141,8 @@ export default function DiaryIndexScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
               {isNote
-                ? <><LucideIcon name="user" size={10} color="#14283D" /><Text style={[di.typeBadgeText, { color: "#14283D" }]}>{item.student_name} 추가</Text></>
-                : <><LucideIcon name="user" size={10} color="#14283D" /><Text style={[di.typeBadgeText, { color: "#14283D" }]}>반 공통</Text></>
+                ? <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>{item.student_name} 추가</Text></>
+                : <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>반 공통</Text></>
               }
             </View>
             <Pressable

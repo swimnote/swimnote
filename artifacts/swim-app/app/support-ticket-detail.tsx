@@ -23,14 +23,14 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
   emergency: { label: "긴급",  color: "#DC2626", bg: "#FEF2F2" },
   security:  { label: "보안",  color: "#7C3AED", bg: "#EEDDF5" },
   refund:    { label: "환불",  color: "#D97706", bg: "#FFF7ED" },
-  other:     { label: "기타",  color: "#64748B", bg: "#F8FAFC" },
+  other:     { label: "기타",  color: C.textSecondary, bg: C.backgroundSoft },
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open:        { label: "답변 대기중",  color: "#D97706" },
   in_progress: { label: "처리중",       color: "#0284C7" },
   resolved:    { label: "해결됨",       color: "#16A34A" },
-  closed:      { label: "종료",         color: "#64748B" },
+  closed:      { label: "종료",         color: C.textSecondary },
 };
 
 interface Reply {
@@ -154,7 +154,7 @@ export default function SupportTicketDetailScreen() {
   }
 
   const typeCfg   = TYPE_LABELS[ticket.ticket_type]  ?? TYPE_LABELS.other;
-  const statusCfg = STATUS_LABELS[ticket.status]     ?? { label: ticket.status, color: "#64748B" };
+  const statusCfg = STATUS_LABELS[ticket.status]     ?? { label: ticket.status, color: C.textSecondary };
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
@@ -325,7 +325,7 @@ const s = StyleSheet.create({
                   backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   inputRow:     { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   imgPickBtn:   { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  textInput:    { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+  textInput:    { flex: 1, backgroundColor: C.backgroundSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
                   fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, maxHeight: 100 },
   sendBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: P,
                   alignItems: "center", justifyContent: "center" },

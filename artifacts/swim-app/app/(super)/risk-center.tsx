@@ -221,7 +221,7 @@ export default function RiskCenterScreen() {
               { label: "SLA 초과",   count: support.overdue_count,   color: "#F87171" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
-                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#64748B" }]}>{item.count}</Text>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : C.textSecondary }]}>{item.count}</Text>
                 <Text style={s.riskLbl}>{item.label}</Text>
               </View>
             ))}
@@ -383,7 +383,7 @@ export default function RiskCenterScreen() {
             </View>
           ))}
           <View style={s.backupRow}>
-            <LucideIcon name="database" size={13} color="#64748B" />
+            <LucideIcon name="database" size={13} color={C.textSecondary} />
             <Text style={s.backupTxt}>마지막 백업 이벤트: {fmtAgo(backup.last_at)}</Text>
           </View>
         </View>
@@ -403,27 +403,27 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: C.background },
   summaryCard:   { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
   summaryRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#F1F5F9" },
+  summaryTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.backgroundSoft },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskTile:      { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
-  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, textAlign: "center" },
+  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, textAlign: "center" },
   supportRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
   supportTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#38BDF8" },
   supportLink:   { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   supportLinkTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14,
-                   borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
-  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
+                   borderWidth: 1, borderColor: C.border, gap: 4 },
+  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
   serviceRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                    borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   serviceDot:    { width: 8, height: 8, borderRadius: 4 },
-  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   serviceStatus: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   serviceActions:{ flexDirection: "row", gap: 4 },
   backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   allClear:      { alignItems: "center", paddingVertical: 40, gap: 12 },
   allClearTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#2E9B6F" },
@@ -431,10 +431,10 @@ const s = StyleSheet.create({
 
 const g = StyleSheet.create({
   group:       { backgroundColor: "#fff", borderRadius: 14, padding: 12,
-                 borderWidth: 1, borderColor: "#E5E7EB" },
+                 borderWidth: 1, borderColor: C.border },
   groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   countBadge:  { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   countTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   viewAll:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -442,12 +442,12 @@ const g = StyleSheet.create({
   item:        { flexDirection: "row", alignItems: "center", gap: 8,
                  paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   itemLeft:    { flex: 1 },
-  itemName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  itemName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   itemActions: { flexDirection: "row", gap: 4 },
 
   barRow:      { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB", overflow: "hidden" },
+  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.border, overflow: "hidden" },
   barFill:     { height: 6, borderRadius: 3 },
   pctTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", minWidth: 30 },
 

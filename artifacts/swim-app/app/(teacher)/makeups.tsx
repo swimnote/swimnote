@@ -97,7 +97,7 @@ function formatExpireAt(expire_at: string | null) {
   const d = new Date(expire_at);
   const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
   const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#64748B";
+  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : C.textSecondary;
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
 }
@@ -789,7 +789,7 @@ export default function MakeupsScreen() {
                     style={[
                       s.card,
                       { backgroundColor: C.card },
-                      mk.is_expired && { borderLeftWidth: 3, borderLeftColor: "#94A3B8" },
+                      mk.is_expired && { borderLeftWidth: 3, borderLeftColor: C.textMuted },
                     ]}
                   >
                     <View style={s.cardTop}>
@@ -803,8 +803,8 @@ export default function MakeupsScreen() {
                         )}
                       </View>
                       {mk.is_expired ? (
-                        <View style={[s.statusBadge, { backgroundColor: "#F1F5F9" }]}>
-                          <Text style={[s.statusTxt, { color: "#64748B" }]}>기간 지난 보강</Text>
+                        <View style={[s.statusBadge, { backgroundColor: C.backgroundSoft }]}>
+                          <Text style={[s.statusTxt, { color: C.textSecondary }]}>기간 지난 보강</Text>
                         </View>
                       ) : mk.handed_to_teacher_id === adminUser?.id ? (
                         <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
@@ -1027,7 +1027,7 @@ export default function MakeupsScreen() {
                         style={s.classRow}
                         onPress={() => selectClass(cg.id)}
                       >
-                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : "#9CA3AF"} />
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : C.textMuted} />
                         <View style={{ flex: 1 }}>
                           <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
                           <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
@@ -1045,7 +1045,7 @@ export default function MakeupsScreen() {
                         )}
                         {otherClasses.length > 0 && (
                           <>
-                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.textMuted }]}>
                               다른 선생님 반 (인계 처리)
                             </Text>
                             {otherClasses.map(renderClassRow)}
@@ -1220,7 +1220,7 @@ export default function MakeupsScreen() {
                     const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
                     const renderDcClassRow = (cg: any) => (
                       <Pressable key={cg.id} style={s.classRow} onPress={() => selectClass(cg.id)}>
-                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? "#059669" : "#9CA3AF"} />
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? "#059669" : C.textMuted} />
                         <View style={{ flex: 1 }}>
                           <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
                           <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
@@ -1238,7 +1238,7 @@ export default function MakeupsScreen() {
                         )}
                         {otherClasses.length > 0 && (
                           <>
-                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.textMuted }]}>
                               다른 선생님 반 (인계 처리)
                             </Text>
                             {otherClasses.map(renderDcClassRow)}
@@ -1601,7 +1601,7 @@ export default function MakeupsScreen() {
   );
 }
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:            { flex: 1, backgroundColor: C.surface },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:          { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
@@ -1637,14 +1637,14 @@ const s = StyleSheet.create({
   menuTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 3 },
   menuDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 17 },
   expiredSection:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
-  expiredSectionLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  expiredSectionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  expiredSectionLine: { flex: 1, height: 1, backgroundColor: C.border },
+  expiredSectionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   // 검색 인덱스
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.backgroundSoft,
     borderRadius: 10,
     marginHorizontal: 14,
     marginTop: 10,

@@ -737,7 +737,7 @@ export default function BulkRegisterScreen() {
                     <View style={{ flex: 2, justifyContent: "center", paddingLeft: 4 }}>
                       <Text
                         style={[s.tdTxt, {
-                          color: hasErr ? "#DC2626" : isSkipped ? "#9CA3AF" : C.text,
+                          color: hasErr ? "#DC2626" : isSkipped ? C.textMuted : C.text,
                           textAlign: "left",
                         }]}
                         numberOfLines={1}
@@ -748,13 +748,13 @@ export default function BulkRegisterScreen() {
                         <Text style={[s.tdSub, { color: "#DC2626" }]}>{row._rowError}</Text>
                       )}
                       {isSkipped && (
-                        <Text style={[s.tdSub, { color: "#9CA3AF" }]}>중복 자동 제거</Text>
+                        <Text style={[s.tdSub, { color: C.textMuted }]}>중복 자동 제거</Text>
                       )}
                       {!hasErr && !isSkipped && hasWarn && (
                         <Text style={[s.tdSub, { color: "#D97706" }]}>{row._rowWarn}</Text>
                       )}
                     </View>
-                    <Text style={[s.tdTxt, { flex: 3, color: isSkipped ? "#9CA3AF" : C.textSecondary }]} numberOfLines={1}>
+                    <Text style={[s.tdTxt, { flex: 3, color: isSkipped ? C.textMuted : C.textSecondary }]} numberOfLines={1}>
                       {row.parent_phone ? formatPhone(row.parent_phone) : "-"}
                     </Text>
                   </View>

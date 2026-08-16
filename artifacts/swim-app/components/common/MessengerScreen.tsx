@@ -525,7 +525,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               )}
               {isDirected && (
                 <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <LucideIcon name="at-sign" size={10} color="#64748B" />
+                  <LucideIcon name="at-sign" size={10} color={C.textSecondary} />
                   <Text style={s.directedTagText}>
                     {isMine
                       ? `@${extra.target_user_name} 언급`
@@ -824,7 +824,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
-            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
+            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
             <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {staff.map((member) => {
                 const isMe = member.id === myUserId;
@@ -1000,7 +1000,7 @@ function AttachFileBubble({
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
           <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : "#F1F5F9" }]}>
+            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : C.backgroundSoft }]}>
               <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={s.fileInfo}>
@@ -1034,7 +1034,7 @@ const s = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
@@ -1082,7 +1082,7 @@ const s = StyleSheet.create({
   bubbleRowRight: { flexDirection: "row-reverse" },
   bubble: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
   bubbleMine: { borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: "#fff", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: C.border },
+  bubbleOther: { backgroundColor: C.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: C.border },
   bubbleText: { fontSize: 14, lineHeight: 20, fontFamily: "Pretendard-Regular" },
   bubbleTextMine: { color: "#fff" },
   bubbleTextOther: { color: C.text },
@@ -1093,7 +1093,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.surface,
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -1122,7 +1122,7 @@ const s = StyleSheet.create({
 
   /* 회원정보 카드 */
   memberCard: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderWidth: 1.5,
     borderColor: C.tintLight,
     borderRadius: 14,
@@ -1145,7 +1145,7 @@ const s = StyleSheet.create({
   fileCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 12,
@@ -1173,12 +1173,12 @@ const s = StyleSheet.create({
   targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Pretendard-Regular" },
 
   /* 입력창 */
-  inputArea: { backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
+  inputArea: { backgroundColor: C.backgroundSoft, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
   noticeInputArea: { backgroundColor: NOTICE_YELLOW_BG, borderTopColor: NOTICE_YELLOW_BORDER },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
   sideBtn: { width: 36, height: 38, justifyContent: "center", alignItems: "center" },
   textInput: {
-    flex: 1, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 20,
+    flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 20,
     paddingHorizontal: 14, paddingTop: Platform.OS === "ios" ? 9 : 7, paddingBottom: Platform.OS === "ios" ? 9 : 7,
     fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, maxHeight: 120, minHeight: 38,
   },
@@ -1198,7 +1198,7 @@ const s = StyleSheet.create({
 
   /* 첨부 메뉴 시트 */
   attachSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1214,7 +1214,7 @@ const s = StyleSheet.create({
 
   /* 범용 모달 시트 */
   modalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1254,7 +1254,7 @@ const s = StyleSheet.create({
 
   /* 회원카드 상세 팝업 */
   cardDetailSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,

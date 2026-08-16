@@ -126,7 +126,7 @@ export default function WithdrawnMembersScreen() {
 
   const TABS: { key: MainTab; label: string; color: string }[] = [
     { key: "withdrawn", label: "퇴원자",  color: "#D96C6C" },
-    { key: "archived",  label: "아카이브", color: "#64748B" },
+    { key: "archived",  label: "아카이브", color: C.textSecondary },
   ];
 
   return (
@@ -161,7 +161,7 @@ export default function WithdrawnMembersScreen() {
             퇴원자는 과금에 포함되지 않습니다. 최종 퇴원 처리 시 학부모 앱 접근이 차단됩니다. 복구 가능 기간 내에는 관리자가 복구할 수 있습니다.
           </Text>
         ) : (
-          <Text style={[styles.infoText, { color: "#14283D" }]}>
+          <Text style={[styles.infoText, { color: C.textPrimary }]}>
             아카이브는 과금 제외, 학부모 접근 차단, 기록 보존 상태입니다. 관리자만 열람 가능합니다.
           </Text>
         )}
@@ -331,7 +331,7 @@ function MemberCard({
     <View style={[styles.card, { backgroundColor: C.card }]}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <View style={[styles.avatar, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#FFFFFF" }]}>
-          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#D96C6C" : "#64748B" }]}>{item.name[0]}</Text>
+          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#D96C6C" : C.textSecondary }]}>{item.name[0]}</Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -343,8 +343,8 @@ function MemberCard({
               </View>
             )}
             {tab === "archived" && (
-              <View style={[styles.tagBadge, { backgroundColor: "#E5E7EB" }]}>
-                <Text style={[styles.tagTxt, { color: "#64748B" }]}>아카이브</Text>
+              <View style={[styles.tagBadge, { backgroundColor: C.border }]}>
+                <Text style={[styles.tagTxt, { color: C.textSecondary }]}>아카이브</Text>
               </View>
             )}
           </View>
@@ -380,9 +380,9 @@ function MemberCard({
                   <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>최종 퇴원처리</Text>
                 </Pressable>
               )}
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#F1F5F9", borderColor: "#E5E7EB" }]} onPress={onArchive}>
-                <LucideIcon name="archive" size={12} color="#64748B" />
-                <Text style={[styles.actionBtnTxt, { color: "#64748B" }]}>아카이브로 이동</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: C.backgroundSoft, borderColor: C.border }]} onPress={onArchive}>
+                <LucideIcon name="archive" size={12} color={C.textSecondary} />
+                <Text style={[styles.actionBtnTxt, { color: C.textSecondary }]}>아카이브로 이동</Text>
               </Pressable>
             </>
           )}
@@ -405,7 +405,7 @@ function MemberCard({
 }
 
 const styles = StyleSheet.create({
-  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:         { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
   tabText:     { fontSize: 14, lineHeight: 20 },
   infoBanner:  { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 8 },

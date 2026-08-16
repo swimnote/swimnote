@@ -300,7 +300,7 @@ const s = StyleSheet.create({
 
   threadWrap: { gap: 4 },
   bubble: { borderRadius: 12, padding: 12, gap: 6 },
-  bubbleParent: { backgroundColor: "#F8FAFC" },
+  bubbleParent: { backgroundColor: C.backgroundSoft },
   bubbleReply: { marginLeft: 20 },
   bubbleHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   bubbleName: { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },

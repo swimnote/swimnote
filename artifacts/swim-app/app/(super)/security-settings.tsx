@@ -286,7 +286,7 @@ export default function SecuritySettingsScreen() {
               <View key={acc.id} style={s.accountCardWrap}>
                 <Pressable style={s.accountCard} onPress={() => !isSuperManager && setAccountDetail(acc.id)}>
                   <View style={[s.accountAvatar, { backgroundColor: isSuperManager ? "#E0F2FE" : acc.isActive ? "#EEDDF5" : "#FFFFFF" }]}>
-                    <Text style={[s.accountAvatarTxt, { color: isSuperManager ? "#0284C7" : acc.isActive ? P : "#64748B" }]}>{acc.name[0]}</Text>
+                    <Text style={[s.accountAvatarTxt, { color: isSuperManager ? "#0284C7" : acc.isActive ? P : C.textSecondary }]}>{acc.name[0]}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={s.accountNameRow}>
@@ -307,7 +307,7 @@ export default function SecuritySettingsScreen() {
                       )}
                       {!isSuperManager && (acc.twoFactorEnabled
                         ? <View style={s.twoFaBadgeOn}><LucideIcon name="shield" size={9} color={GREEN} /><Text style={s.twoFaTxtOn}>2FA</Text></View>
-                        : <View style={s.twoFaBadgeOff}><LucideIcon name="shield-off" size={9} color="#64748B" /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
+                        : <View style={s.twoFaBadgeOff}><LucideIcon name="shield-off" size={9} color={C.textSecondary} /><Text style={s.twoFaTxtOff}>2FA 없음</Text></View>)}
                       {acc.loginFailCount > 0 && (
                         <View style={s.failBadge}><Text style={s.failTxt}>실패 {acc.loginFailCount}회</Text></View>
                       )}
@@ -343,7 +343,7 @@ export default function SecuritySettingsScreen() {
             <Text style={s.infoValue}>{lastPwChange}</Text>
           </View>
           <View style={s.infoRow}>
-            <LucideIcon name="info" size={14} color="#64748B" />
+            <LucideIcon name="info" size={14} color={C.textSecondary} />
             <Text style={s.infoLabel}>비밀번호 정책</Text>
             <Text style={s.infoValue}>8자 이상 · 영문+숫자+특수문자</Text>
           </View>
@@ -510,7 +510,7 @@ export default function SecuritySettingsScreen() {
               <Save size={16} color={P} />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P }}>백업 관리</Text>
-                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 }}>수동 백업 · 자동 설정 · 복구</Text>
+                <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 }}>수동 백업 · 자동 설정 · 복구</Text>
               </View>
               <ChevronRight size={14} color={P} />
             </Pressable>
@@ -542,7 +542,7 @@ export default function SecuritySettingsScreen() {
               <View style={m.handle} />
               <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <View style={[m.avatar, { backgroundColor: detailAcc.isActive ? "#EEDDF5" : "#FFFFFF" }]}>
-                  <Text style={[m.avatarTxt, { color: detailAcc.isActive ? P : "#64748B" }]}>{detailAcc.name[0]}</Text>
+                  <Text style={[m.avatarTxt, { color: detailAcc.isActive ? P : C.textSecondary }]}>{detailAcc.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={m.modalName}>{detailAcc.name}</Text>
@@ -554,7 +554,7 @@ export default function SecuritySettingsScreen() {
                 {([
                   ["권한 등급",   ROLE_LABELS[detailAcc.role] ?? detailAcc.role,                                  undefined],
                   ["2차 인증",    detailAcc.twoFactorEnabled ? "활성" : "비활성",                                  detailAcc.twoFactorEnabled ? GREEN : DANGER],
-                  ["계정 상태",   detailAcc.isActive ? "활성" : "비활성",                                          detailAcc.isActive ? GREEN : "#64748B"],
+                  ["계정 상태",   detailAcc.isActive ? "활성" : "비활성",                                          detailAcc.isActive ? GREEN : C.textSecondary],
                   ["로그인 실패", `${detailAcc.loginFailCount}회`,                                                  detailAcc.loginFailCount > 0 ? DANGER : undefined],
                   ["마지막 로그인", relTime(detailAcc.lastLoginAt),                                                 undefined],
                   ["마지막 IP",   detailAcc.lastLoginIp ?? "—",                                                    undefined],
@@ -609,14 +609,14 @@ export default function SecuritySettingsScreen() {
             ) : (
               <>
                 <TextInput style={m.input} value={currentPw} onChangeText={setCurrentPw}
-                  placeholder="현재 비밀번호" placeholderTextColor="#64748B" secureTextEntry />
+                  placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />
                 <TextInput style={m.input} value={newPw} onChangeText={setNewPw}
-                  placeholder="새 비밀번호 (8자 이상)" placeholderTextColor="#64748B" secureTextEntry />
+                  placeholder="새 비밀번호 (8자 이상)" placeholderTextColor={C.textMuted} secureTextEntry />
                 <TextInput style={m.input} value={confirmPw} onChangeText={setConfirmPw}
-                  placeholder="새 비밀번호 확인" placeholderTextColor="#64748B" secureTextEntry />
+                  placeholder="새 비밀번호 확인" placeholderTextColor={C.textMuted} secureTextEntry />
                 {pwError ? <Text style={{ fontSize: 12, color: DANGER, fontFamily: "Pretendard-Regular" }}>{pwError}</Text> : null}
                 <View style={{ backgroundColor: "#FFFFFF", borderRadius: 8, padding: 10 }}>
-                  <Text style={{ fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" }}>정책: 8자 이상 · 영문+숫자+특수문자 포함</Text>
+                  <Text style={{ fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>정책: 8자 이상 · 영문+숫자+특수문자 포함</Text>
                 </View>
                 <View style={m.btnRow}>
                   <Pressable style={m.cancelBtn} onPress={() => { setPwModal(false); setPwError(""); }}>
@@ -677,8 +677,8 @@ export default function SecuritySettingsScreen() {
                   <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: "#DCFCE7", alignItems: "center", justifyContent: "center" }}>
                     <CircleCheck size={32} color="#16A34A" />
                   </View>
-                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" }}>OTP 등록 완료</Text>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 }}>
+                  <Text style={{ fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>OTP 등록 완료</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
                     Google Authenticator와 연결되었습니다.{"\n"}다음 로그인부터 OTP 코드가 필요합니다.
                   </Text>
                 </View>
@@ -693,13 +693,13 @@ export default function SecuritySettingsScreen() {
               /* 로딩 */
               <View style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
                 <ActivityIndicator color={P} size="large" />
-                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>QR 코드 생성 중...</Text>
+                <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>QR 코드 생성 중...</Text>
               </View>
             ) : (
               /* QR + 코드 입력 */
               <>
                 <Text style={m.modalTitle}>{totpEnabled ? "OTP 재등록 (QR 갱신)" : "Google OTP 연결"}</Text>
-                <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 19 }}>
+                <Text style={{ fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 19 }}>
                   {totpEnabled
                     ? "새 QR 코드를 생성하면 기존 OTP 앱 연결이 끊깁니다. 새 코드로 재등록 후 사용하세요."
                     : "Google Authenticator 앱에서 QR 코드를 스캔한 후 6자리 코드를 입력해주세요."}
@@ -707,7 +707,7 @@ export default function SecuritySettingsScreen() {
 
                 {/* QR 코드 */}
                 {!!otpSetupQr ? (
-                  <View style={{ alignItems: "center", padding: 16, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: "#E5E7EB" }}>
+                  <View style={{ alignItems: "center", padding: 16, backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: C.border }}>
                     <Image source={{ uri: otpSetupQr }} style={{ width: 200, height: 200 }} resizeMode="contain" />
                   </View>
                 ) : !!otpSetupError ? (
@@ -729,7 +729,7 @@ export default function SecuritySettingsScreen() {
                     </View>
                     {otpShowSecret && (
                       <>
-                        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" }}>
+                        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
                           앱 → "설정 키 입력" 선택 후 아래 키 입력 (계정 유형: 시간 기반)
                         </Text>
                         <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: P }} selectable>
@@ -750,12 +750,12 @@ export default function SecuritySettingsScreen() {
 
                 {/* 6자리 코드 입력 */}
                 <View style={{ gap: 8 }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" }}>스캔 후 앱의 6자리 코드 입력</Text>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>스캔 후 앱의 6자리 코드 입력</Text>
                   <TextInput
                     ref={otpCodeRef}
                     style={{
                       height: 52, borderRadius: 12, borderWidth: 2,
-                      borderColor: otpSetupCode.length === 6 ? P : "#E5E7EB",
+                      borderColor: otpSetupCode.length === 6 ? P : C.border,
                       paddingHorizontal: 16, fontSize: 24, fontFamily: "Pretendard-Regular",
                       textAlign: "center", color: P,
                     }}
@@ -777,7 +777,7 @@ export default function SecuritySettingsScreen() {
                     <Text style={m.cancelTxt}>취소</Text>
                   </Pressable>
                   <Pressable
-                    style={[m.confirmBtn, { backgroundColor: otpSetupCode.length === 6 ? P : "#E5E7EB" }]}
+                    style={[m.confirmBtn, { backgroundColor: otpSetupCode.length === 6 ? P : C.border }]}
                     onPress={verifyOtpSetup}
                     disabled={otpSetupBusy || otpSetupCode.length !== 6}
                   >
@@ -811,9 +811,9 @@ export default function SecuritySettingsScreen() {
               </View>
             ) : (
               <>
-                <TextInput style={m.input} placeholder="이름" value={smName} onChangeText={setSmName} placeholderTextColor="#64748B" />
-                <TextInput style={m.input} placeholder="이메일 (로그인 ID)" value={smEmail} onChangeText={setSmEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#64748B" />
-                <TextInput style={m.input} placeholder="초기 비밀번호 (8자 이상)" value={smPw} onChangeText={setSmPw} secureTextEntry placeholderTextColor="#64748B" />
+                <TextInput style={m.input} placeholder="이름" value={smName} onChangeText={setSmName} placeholderTextColor={C.textMuted} />
+                <TextInput style={m.input} placeholder="이메일 (로그인 ID)" value={smEmail} onChangeText={setSmEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.textMuted} />
+                <TextInput style={m.input} placeholder="초기 비밀번호 (8자 이상)" value={smPw} onChangeText={setSmPw} secureTextEntry placeholderTextColor={C.textMuted} />
                 {!!smError && <Text style={m.errorTxt}>{smError}</Text>}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                   <Pressable style={m.cancelBtn} onPress={() => { setSmAddModal(false); setSmError(""); setSmName(""); setSmEmail(""); setSmPw(""); }}>
@@ -838,10 +838,10 @@ export default function SecuritySettingsScreen() {
         <Pressable style={m.backdrop} onPress={() => setSmDeleteId(null)}>
           <Pressable style={m.sheet} onPress={e => e.stopPropagation()}>
             <Text style={m.sheetTitle}>슈퍼매니저 삭제</Text>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 }}>
               <Text style={{ fontFamily: "Pretendard-Regular" }}>{smDeleteTarget?.name}</Text> 계정을 삭제하시겠습니까?
             </Text>
-            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 16 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 16 }}>
               {smDeleteTarget?.email} · 삭제 후 복구 불가
             </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -891,7 +891,7 @@ export default function SecuritySettingsScreen() {
           <Pressable style={m.sheet} onPress={() => {}}>
             <View style={m.handle} />
             <Text style={m.modalTitle}>2차 인증 방식 변경</Text>
-            <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" }}>
+            <Text style={{ fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>
               {TWO_FA_OPTIONS.find(o => o.key === twoFAMode)?.label}
               {" → "}
               {TWO_FA_OPTIONS.find(o => o.key === pendingMode)?.label}
@@ -923,13 +923,13 @@ export default function SecuritySettingsScreen() {
 const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: C.background },
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-                      borderWidth: 1, borderColor: "#E5E7EB" },
-  emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 12 },
+                      borderWidth: 1, borderColor: C.border },
+  emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", paddingVertical: 12 },
 
   infoRow:          { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                       borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  infoValue:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  infoLabel:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  infoValue:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
                       paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#EEDDF5",
                       borderWidth: 1, borderColor: "#E6FAF8" },
@@ -940,8 +940,8 @@ const s = StyleSheet.create({
   accountAvatar:    { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   accountAvatarTxt: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   accountNameRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
-  accountName:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  accountEmail:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  accountName:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  accountEmail:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   accountMetaRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
   roleBadge:        { backgroundColor: "#EEDDF5", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   roleTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: P },
@@ -950,13 +950,13 @@ const s = StyleSheet.create({
   twoFaTxtOn:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: GREEN },
   twoFaBadgeOff:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFFFFF",
                       borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  twoFaTxtOff:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  twoFaTxtOff:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   failBadge:        { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   failTxt:          { fontSize: 9, fontFamily: "Pretendard-Regular", color: DANGER },
   lockedBadge:      { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   lockedTxt:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER },
   inactiveBadge:    { backgroundColor: "#FFFFFF", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
-  inactiveTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  inactiveTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   smDeleteBtn:      { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FEF2F2",
                       alignItems: "center", justifyContent: "center" },
@@ -970,48 +970,48 @@ const s = StyleSheet.create({
 
   currentTwoFa:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8,
                       borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  currentTwoFaLabel:{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   currentTwoFaTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   twoFaOption:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 12,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 10, borderWidth: 1, borderColor: C.border },
   twoFaOptionActive:{ borderColor: P, backgroundColor: "#EEDDF5" },
   twoFaRadio:       { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center" },
   twoFaRadioActive: { borderColor: P },
   twoFaRadioDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: P },
-  twoFaOptLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  twoFaOptDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  twoFaOptLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  twoFaOptDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   triggerSection:   { borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 10, gap: 8 },
-  triggerHeader:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  triggerHeader:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   triggerRow:       { flexDirection: "row", alignItems: "center", gap: 10 },
-  triggerLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  triggerLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   forceRow:           { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
                         borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  forceLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  forceSub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  forceLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  forceSub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   forceBadge:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
   forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#E6FFFA" },
   forceBadgeOff:      { borderColor: DANGER, backgroundColor: "#F9DEDA" },
   forceBadgeTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
-  recoveryCodesBox:   { backgroundColor: "#F1F5F9", borderRadius: 12, padding: 14, gap: 10,
-                        borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCodesTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  recoveryCodesBox:   { backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14, gap: 10,
+                        borderWidth: 1, borderColor: C.border },
+  recoveryCodesTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   recoveryCodesGrid:  { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   recoveryCodeItem:   { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-                        borderWidth: 1, borderColor: "#E5E7EB" },
-  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  recoveryCodesHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+                        borderWidth: 1, borderColor: C.border },
+  recoveryCode:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  recoveryCodesHint:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   regenBtn:           { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8 },
   regenTxt:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
 
   failLogSection:     { borderTopWidth: 1, borderTopColor: "#FFFFFF", paddingTop: 10, gap: 8 },
-  failLogTitle:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  failLogTitle:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   failLogRow:         { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                         borderRadius: 8, backgroundColor: "#FFF5F5", paddingHorizontal: 10 },
-  failLogDevice:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  failLogMeta:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  failLogDevice:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  failLogMeta:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   failLogBadge:       { backgroundColor: "#F9DEDA", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   failLogBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER },
 });
@@ -1023,29 +1023,29 @@ const m = StyleSheet.create({
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
   avatar:     { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
   avatarTxt:  { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  modalName:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  modalEmail: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  modalName:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  modalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  modalEmail: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   detailGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  detailItem: { width: "47%", backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10,
-                borderWidth: 1, borderColor: "#E5E7EB" },
-  detailKey:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  detailVal:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 3 },
+  detailItem: { width: "47%", backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 10,
+                borderWidth: 1, borderColor: C.border },
+  detailKey:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  detailVal:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 3 },
   actBtn:     { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14,
                 paddingVertical: 10, borderRadius: 10 },
   actBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   closeBtn:   { backgroundColor: "#FFFFFF", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
-  closeTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  input:      { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  closeTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  input:      { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 12,
+                fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   btnRow:     { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn:  { flex: 1, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  cancelTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   confirmBtn: { flex: 1, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   confirmTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sheetSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, marginBottom: 12 },
-  fieldLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 10, marginBottom: 4 },
+  sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sheetSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, marginBottom: 12 },
+  fieldLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 10, marginBottom: 4 },
   infoBox:    { flexDirection: "row", gap: 6, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 10, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 17 },
   successRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
@@ -1057,22 +1057,22 @@ const m = StyleSheet.create({
                        padding: 20, paddingBottom: 36, maxHeight: "80%" },
   svcHeader:         { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   svcIconBig:        { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  svcName:           { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  svcType:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  svcName:           { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  svcType:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   svcStatusRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 10,
                        padding: 10, marginBottom: 14, flexWrap: "wrap" },
   svcStatusTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
   svcStatusMsg:      { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   svcDetailRow:      { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", gap: 3 },
-  svcDetailKey:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  svcDetailVal:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  svcDetailKey:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  svcDetailVal:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   svcPlaceholderBanner: { flexDirection: "row", alignItems: "flex-start", gap: 6, backgroundColor: "#F3F4F6",
                           borderRadius: 8, padding: 10, marginTop: 10 },
-  svcPlaceholderTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  svcPlaceholderTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   svcFooter:         { flexDirection: "row", gap: 8, marginTop: 16 },
   svcRefreshBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                        gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: P },
   svcRefreshTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   svcCloseBtn:       { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  svcCloseTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  svcCloseTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });

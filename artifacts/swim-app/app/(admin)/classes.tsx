@@ -333,15 +333,15 @@ const sl = StyleSheet.create({
   backBtn:         { padding: 4, marginRight: 2 },
 
   teacherCard:     { flexDirection: "row", alignItems: "center", gap: 12,
-                     backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14,
+                     backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14,
                      borderWidth: 1, borderColor: C.border },
-  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#F1F5F9",
+  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.backgroundSoft,
                      alignItems: "center", justifyContent: "center" },
   teacherCardName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, fontWeight: "600" },
   teacherCardSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   classCard:       { flexDirection: "row", alignItems: "center", gap: 10,
-                     backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
+                     backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 12,
                      borderWidth: 1, borderColor: C.border },
   colorBar:        { width: 3, height: 36, borderRadius: 2 },
   className:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -373,7 +373,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
             </View>
             <View style={dy.headerActions}>
-              <Pressable style={[dy.headerBtn, { backgroundColor: "#F1F5F9" }]} onPress={onOpenMakeup}>
+              <Pressable style={[dy.headerBtn, { backgroundColor: C.backgroundSoft }]} onPress={onOpenMakeup}>
                 <LucideIcon name="repeat" size={13} color={C.textSecondary} />
                 <Text style={[dy.headerBtnTxt, { color: C.textSecondary }]}>보강</Text>
               </Pressable>
@@ -414,7 +414,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <LucideIcon name="user" size={9} color="#64748B" />
+                              <LucideIcon name="user" size={9} color={C.textSecondary} />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
@@ -460,7 +460,7 @@ const dy = StyleSheet.create({
                     paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   classCard:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12,
+                    backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12,
                     borderWidth: 1, borderColor: C.border },
   colorBar:       { width: 3, height: 40, borderRadius: 2 },
   classTime:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -468,7 +468,7 @@ const dy = StyleSheet.create({
   classSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   instructorBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
                     paddingVertical: 2, borderRadius: 6, backgroundColor: "#FFFFFF" },
-  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
                     paddingVertical: 2, borderRadius: 6, backgroundColor: "#E6FFFA" },
   attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
@@ -672,7 +672,7 @@ export default function ClassesScreen() {
             </Text>
           </View>
           <View style={s.rightBtns}>
-            <Pressable style={[s.iconBtn, { backgroundColor: "#F1F5F9" }]}
+            <Pressable style={[s.iconBtn, { backgroundColor: C.backgroundSoft }]}
               onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
               <LucideIcon name="rotate-ccw" size={13} color={C.textSecondary} />
               <Text style={[s.iconBtnTxt, { color: C.textSecondary }]}>보강</Text>
@@ -845,7 +845,7 @@ export default function ClassesScreen() {
             <LucideIcon name="trash-2" size={28} color="#E11D48" style={{ marginBottom: 12 }} />
             <Text style={s.confirmTitle}>반을 삭제할까요?</Text>
             <Text style={s.confirmSub}>
-              <Text style={{ fontFamily: "Pretendard-Bold", color: "#1E293B" }}>{deletingClass?.name}</Text>
+              <Text style={{ fontFamily: "Pretendard-Bold", color: C.textStrong }}>{deletingClass?.name}</Text>
               {" 반이 삭제됩니다.\n이 작업은 되돌릴 수 없습니다."}
             </Text>
             <View style={s.confirmBtnRow}>
@@ -885,8 +885,8 @@ const s = StyleSheet.create({
   titleArea:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   rightBtns:   { flexDirection: "row", gap: 4, alignItems: "center" },
   iconBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },
@@ -903,16 +903,16 @@ const s = StyleSheet.create({
 
   emptyBox:    { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
   emptyHintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   modalOverlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
   confirmBox:     { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: 300, alignItems: "center", gap: 4 },
-  confirmTitle:   { fontSize: 17, fontFamily: "Pretendard-Bold", color: "#1E293B", marginBottom: 6 },
-  confirmSub:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 22, marginBottom: 16 },
+  confirmTitle:   { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.textStrong, marginBottom: 6 },
+  confirmSub:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 16 },
   confirmBtnRow:  { flexDirection: "row", gap: 10, width: "100%" },
-  confirmCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: "#F1F5F9", alignItems: "center" },
-  confirmCancelTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  confirmCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: C.backgroundSoft, alignItems: "center" },
+  confirmCancelTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   confirmDeleteBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: "#E11D48", alignItems: "center" },
   confirmDeleteTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

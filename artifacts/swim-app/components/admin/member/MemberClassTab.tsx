@@ -130,7 +130,7 @@ export function MemberClassTab({
         ) : (
           <View style={{ gap: 10 }}>
             {(data.recent_diaries || []).map(d => (
-              <View key={d.id} style={{ backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
+              <View key={d.id} style={{ backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12, gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text }}>{d.lesson_date}</Text>
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{d.teacher_name}</Text>

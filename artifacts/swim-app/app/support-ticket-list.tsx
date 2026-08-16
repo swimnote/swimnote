@@ -36,7 +36,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open:        { label: "대기중",  color: "#D97706" },
   in_progress: { label: "처리중",  color: "#0284C7" },
   resolved:    { label: "해결됨",  color: "#16A34A" },
-  closed:      { label: "종료",    color: "#64748B" },
+  closed:      { label: "종료",    color: C.textSecondary },
 };
 
 function relDate(iso: string) {
@@ -96,8 +96,8 @@ export default function SupportTicketListScreen() {
   }
 
   function renderItem({ item }: { item: Ticket }) {
-    const typeCfg = TYPE_LABELS[item.ticket_type] ?? { label: item.ticket_type, color: "#64748B", bg: "#F8FAFC" };
-    const statusCfg = STATUS_LABELS[item.status] ?? { label: item.status, color: "#64748B" };
+    const typeCfg = TYPE_LABELS[item.ticket_type] ?? { label: item.ticket_type, color: C.textSecondary, bg: C.backgroundSoft };
+    const statusCfg = STATUS_LABELS[item.status] ?? { label: item.status, color: C.textSecondary };
 
     return (
       <Pressable
@@ -147,7 +147,7 @@ export default function SupportTicketListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <LucideIcon name="message-circle" size={40} color="#E2E8F0" />
+              <LucideIcon name="message-circle" size={40} color={C.border} />
               <Text style={s.emptyTxt}>아직 문의 내역이 없습니다</Text>
               <Pressable style={s.emptyBtn} onPress={goWrite}>
                 <Text style={s.emptyBtnTxt}>문의하기</Text>

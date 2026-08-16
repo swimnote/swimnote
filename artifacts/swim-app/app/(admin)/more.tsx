@@ -42,7 +42,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
-const N = "#14283D"; const N_BG = "#E6FAF8";
+const N = C.textPrimary; const N_BG = "#E6FAF8";
 
 const SHORTCUTS = [
   { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
@@ -332,59 +332,59 @@ export default function MoreScreen() {
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel:       { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  roleSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  roleSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   activeBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   activeBadgeText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  closeBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  closeBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const s = StyleSheet.create({
-  tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabBar:   { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   tabItem:  { flex: 1, paddingVertical: 14, alignItems: "center" },
   tabText:  { fontSize: 14, lineHeight: 20 },
 
   profileCard:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   profileAvatar:  { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   profileInitial: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  profileName:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  profileRole:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  profileName:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  profileRole:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   switchBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
   switchBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
-  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 12 },
-  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
+  infoBanner: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12 },
+  infoBannerText: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
 
-  groupTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8, paddingHorizontal: 4 },
+  groupTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 8, paddingHorizontal: 4 },
   groupCard:  { borderRadius: 18, overflow: "hidden", shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   menuRow:    { flexDirection: "row", alignItems: "center", gap: 14, padding: 16 },
   menuRowBorder: { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   menuIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  menuLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   empty:      { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyText:  { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   logCard:       { borderRadius: 16, padding: 14, gap: 8, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   logHeader:     { flexDirection: "row", alignItems: "center", gap: 10 },
   logIcon:       { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  logName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  logName:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   logAction:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 1 },
-  logDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  logTime:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  logChange:     { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10, gap: 4 },
+  logDate:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  logTime:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  logChange:     { backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 10, gap: 4 },
   logValueRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
-  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  logValueLabel: { width: 50, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   logValue:      { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular" },
-  logNote:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", fontStyle: "italic" },
+  logNote:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, fontStyle: "italic" },
   logFooter:     { flexDirection: "row", alignItems: "center", gap: 4 },
-  logActor:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  logActorRole:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  logActor:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  logActorRole:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   otpBanner:     { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1.5, padding: 14 },
   otpBannerIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   otpBannerTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular" },

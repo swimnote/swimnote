@@ -306,13 +306,13 @@ export default function FeedbackCustomScreen() {
               >
                 {isMyTab || !selectedLevelName ? "레벨 선택" : selectedLevelName}
               </Text>
-              <LucideIcon name="chevron-down" size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : "#94A3B8"} />
+              <LucideIcon name="chevron-down" size={14} color={!isMyTab && selectedLevelName ? "#2EC4B6" : C.textMuted} />
             </Pressable>
           </View>
 
           {/* 안내 문구 */}
           <View style={s.hintRow}>
-            <LucideIcon name="eye" size={12} color="#94A3B8" />
+            <LucideIcon name="eye" size={12} color={C.textMuted} />
             <Text style={s.hintText}>스위치를 끄면 "문장 불러오기"에서 숨겨집니다</Text>
           </View>
 
@@ -342,8 +342,8 @@ export default function FeedbackCustomScreen() {
                             <Switch
                               value={!!t.is_active}
                               onValueChange={v => handleToggleActive(t, v)}
-                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
-                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              trackColor={{ false: C.border, true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : C.textMuted}
                               style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                             />
                           )}
@@ -353,7 +353,7 @@ export default function FeedbackCustomScreen() {
                             setEditTitle(t.title ?? "");
                             setEditError("");
                           }}>
-                            <LucideIcon name="edit-2" size={14} color="#64748B" />
+                            <LucideIcon name="edit-2" size={14} color={C.textSecondary} />
                             <Text style={s.editBtnText}>수정</Text>
                           </Pressable>
                           <Pressable style={[s.editBtn, { borderColor: "#FCA5A5" }]} onPress={() => setDeleteTarget(t)}>
@@ -368,7 +368,7 @@ export default function FeedbackCustomScreen() {
                       )}
                       {!t.is_active && (
                         <View style={s.hiddenBadgeRow}>
-                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
+                          <LucideIcon name="eye-off" size={11} color={C.textMuted} />
                           <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
                         </View>
                       )}
@@ -402,8 +402,8 @@ export default function FeedbackCustomScreen() {
                             <Switch
                               value={!!t.is_active}
                               onValueChange={v => handleToggleActive(t, v)}
-                              trackColor={{ false: "#E2E8F0", true: "#2EC4B640" }}
-                              thumbColor={t.is_active ? "#2EC4B6" : "#94A3B8"}
+                              trackColor={{ false: C.border, true: "#2EC4B640" }}
+                              thumbColor={t.is_active ? "#2EC4B6" : C.textMuted}
                               style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                             />
                           )}
@@ -413,14 +413,14 @@ export default function FeedbackCustomScreen() {
                             setEditTitle(t.title ?? "");
                             setEditError("");
                           }}>
-                            <LucideIcon name="edit-2" size={14} color="#64748B" />
+                            <LucideIcon name="edit-2" size={14} color={C.textSecondary} />
                             <Text style={s.editBtnText}>수정</Text>
                           </Pressable>
                         </View>
                       </View>
                       {!t.is_active && (
                         <View style={s.hiddenBadgeRow}>
-                          <LucideIcon name="eye-off" size={11} color="#94A3B8" />
+                          <LucideIcon name="eye-off" size={11} color={C.textMuted} />
                           <Text style={s.hiddenBadgeText}>문장 불러오기에서 숨겨짐</Text>
                         </View>
                       )}
@@ -428,14 +428,14 @@ export default function FeedbackCustomScreen() {
                         <View style={s.overriddenRow}>
                           <View style={s.myBadge}><Text style={s.myBadgeText}>내 수정</Text></View>
                           <Pressable style={s.resetBtn} onPress={() => setResetTarget(t)}>
-                            <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
+                            <LucideIcon name="refresh-ccw" size={11} color={C.textSecondary} />
                             <Text style={s.resetBtnText}>초기화</Text>
                           </Pressable>
                         </View>
                       )}
                       {t.is_overridden && !t.is_active && (
                         <Pressable style={[s.resetBtn, { alignSelf: "flex-start", marginTop: 4 }]} onPress={() => setResetTarget(t)}>
-                          <LucideIcon name="refresh-ccw" size={11} color="#64748B" />
+                          <LucideIcon name="refresh-ccw" size={11} color={C.textSecondary} />
                           <Text style={s.resetBtnText}>수정 초기화</Text>
                         </Pressable>
                       )}
@@ -464,7 +464,7 @@ export default function FeedbackCustomScreen() {
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           {kbHeight > 0 && (
-            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.backgroundSoft, borderTopWidth: 1, borderTopColor: C.border }}>
               <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
                 <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
               </Pressable>
@@ -486,7 +486,7 @@ export default function FeedbackCustomScreen() {
                 placeholder="제목 (선택)"
                 value={editTitle}
                 onChangeText={setEditTitle}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
                 returnKeyType="next"
               />
               <TextInput
@@ -496,7 +496,7 @@ export default function FeedbackCustomScreen() {
                 onChangeText={setEditText}
                 multiline
                 scrollEnabled
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
               />
               {!!editError && <Text style={s.errorText}>{editError}</Text>}
               <View style={[s.modalBtns, { marginTop: 12 }]}>
@@ -517,7 +517,7 @@ export default function FeedbackCustomScreen() {
         <View style={s.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
           {kbHeight > 0 && (
-            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+            <View style={{ position: "absolute", bottom: kbHeight, left: 0, right: 0, zIndex: 100, flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.backgroundSoft, borderTopWidth: 1, borderTopColor: C.border }}>
               <Pressable onPress={Keyboard.dismiss} hitSlop={12}>
                 <Text style={{ color: "#2A9D8F", fontWeight: "600", fontSize: 16 }}>완료</Text>
               </Pressable>
@@ -556,7 +556,7 @@ export default function FeedbackCustomScreen() {
                 placeholder="제목 (선택)"
                 value={addTitle}
                 onChangeText={setAddTitle}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
                 returnKeyType="next"
               />
               <TextInput
@@ -566,7 +566,7 @@ export default function FeedbackCustomScreen() {
                 onChangeText={setAddText}
                 multiline
                 scrollEnabled
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
               />
               {!!addError && <Text style={s.errorText}>{addError}</Text>}
               <View style={[s.modalBtns, { marginTop: 12 }]}>
@@ -616,7 +616,7 @@ export default function FeedbackCustomScreen() {
                 value={newCatName}
                 onChangeText={t => { setNewCatName(t); setNewCatError(""); }}
                 placeholder="카테고리 이름 (50자 이내)"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
                 autoFocus
                 maxLength={50}
                 returnKeyType="done"
@@ -639,13 +639,13 @@ export default function FeedbackCustomScreen() {
           {/* 검색 */}
           {!newCatMode && (
             <View style={s.pickerSearchRow}>
-              <Search size={15} color="#94A3B8" />
+              <Search size={15} color={C.textMuted} />
               <TextInput
                 style={s.pickerSearchInput}
                 value={pickerSearch}
                 onChangeText={setPickerSearch}
                 placeholder="카테고리 검색..."
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
                 autoFocus
                 clearButtonMode="while-editing"
               />
@@ -715,10 +715,10 @@ export default function FeedbackCustomScreen() {
 const s = StyleSheet.create({
   // ── 탭 바 ──
   tabBarWrapper:     { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  tabDivider:        { width: 1, height: 22, backgroundColor: "#E2E8F0" },
-  tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  tabDivider:        { width: 1, height: 22, backgroundColor: C.border },
+  tab:               { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, borderWidth: 1.5, borderColor: C.border },
   tabActive:         { backgroundColor: "#2EC4B620", borderColor: "#2EC4B6" },
-  tabText:           { fontSize: 11, lineHeight: 16, color: "#64748B" },
+  tabText:           { fontSize: 11, lineHeight: 16, color: C.textSecondary },
   tabTextActive:     { color: "#2EC4B6" },
   tabMine:           { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
   tabMineActive:     { backgroundColor: "#6B5BCD", borderColor: "#6B5BCD" },
@@ -726,9 +726,9 @@ const s = StyleSheet.create({
   tabMineTextActive: { color: "#fff" } as any,
 
   // ── 레벨 피커 버튼 ──
-  pickerBtn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#fff" },
+  pickerBtn:          { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface },
   pickerBtnActive:    { borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
-  pickerBtnText:      { flex: 1, fontSize: 12, color: "#94A3B8", fontFamily: "Pretendard-Regular" } as any,
+  pickerBtnText:      { flex: 1, fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" } as any,
   pickerBtnTextActive:{ color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
 
   // ── 레벨 피커 바텀시트 ──
@@ -742,87 +742,87 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 0,
   },
-  pickerHandle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginBottom: 14 },
+  pickerHandle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 14 },
   pickerTitleRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  pickerTitle:       { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#14283D" },
+  pickerTitle:       { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
   pickerAddCatBtn:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: "#2EC4B6", backgroundColor: "#F0FAFB" },
   pickerAddCatBtnText:{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" } as any,
-  newCatBox:         { backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 12, marginBottom: 8 },
-  newCatInput:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#fff", marginBottom: 6 },
+  newCatBox:         { backgroundColor: C.backgroundSoft, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 8 },
+  newCatInput:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: C.surface, marginBottom: 6 },
   newCatError:       { fontSize: 12, color: "#EF4444", marginBottom: 6, fontFamily: "Pretendard-Regular" },
   newCatActions:     { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
-  newCatCancelBtn:   { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-  newCatCancelText:  { fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" },
+  newCatCancelBtn:   { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface },
+  newCatCancelText:  { fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   newCatSaveBtn:     { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8, backgroundColor: "#2EC4B6", minWidth: 52, alignItems: "center" },
   newCatSaveText:    { fontSize: 13, color: "#fff", fontFamily: "Pretendard-SemiBold" } as any,
-  pickerSearchRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8 },
-  pickerSearchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", padding: 0 },
+  pickerSearchRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: C.border, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 8 },
+  pickerSearchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, padding: 0 },
   pickerList:        { flex: 1 },
-  pickerRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  pickerRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   pickerRowSelected: { backgroundColor: "#F0FAFB" },
-  pickerRowText:     { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#334155", lineHeight: 20 },
+  pickerRowText:     { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textStrong, lineHeight: 20 },
   pickerRowTextSelected: { color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" } as any,
   pickerEmpty:       { alignItems: "center", paddingVertical: 32 },
-  pickerEmptyText:   { fontSize: 13, color: "#94A3B8", fontFamily: "Pretendard-Regular" },
+  pickerEmptyText:   { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
 
   hintRow:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingBottom: 6 },
-  hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  hintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   listContent:  { paddingHorizontal: 16, paddingTop: 4, gap: 14 },
 
-  card:           { backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:           { backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   cardOverridden: { backgroundColor: "#FFF8EC", borderColor: "#FCD34D" },
   cardMine:       { backgroundColor: "#F5F3FF", borderColor: "#DDD6FE" },
-  cardInactive:   { backgroundColor: "#F1F5F9", borderColor: "#E2E8F0", opacity: 0.7 },
+  cardInactive:   { backgroundColor: C.backgroundSoft, borderColor: C.border, opacity: 0.7 },
   cardTop:        { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  cardNum:        { width: 22, height: 22, borderRadius: 11, backgroundColor: "#E2E8F0", textAlign: "center", lineHeight: 22, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: "#64748B" },
-  cardNumInactive:{ backgroundColor: "#CBD5E1", color: "#94A3B8" },
+  cardNum:        { width: 22, height: 22, borderRadius: 11, backgroundColor: C.border, textAlign: "center", lineHeight: 22, fontSize: 12, fontFamily: "Pretendard-SemiBold", color: C.textSecondary },
+  cardNumInactive:{ backgroundColor: "#CBD5E1", color: C.textMuted },
   cardTitle:      { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#7C3AED", marginBottom: 2 },
-  cardText:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
-  cardTextInactive:{ color: "#94A3B8" },
+  cardText:       { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
+  cardTextInactive:{ color: C.textMuted },
   cardActions:    { flexDirection: "row", alignItems: "center", gap: 4 },
-  editBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-  editBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  editBtn:        { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface },
+  editBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
-  hiddenBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#E2E8F0" },
-  hiddenBadgeText:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  hiddenBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: C.border },
+  hiddenBadgeText:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   overriddenRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#FDE68A" },
   myBadge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, backgroundColor: "#FCD34D" },
   myBadgeText:    { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#92400E" },
-  resetBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-  resetBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  resetBtn:       { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface },
+  resetBtnText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   sectionDivider: { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 10 },
-  sectionLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  sectionLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: "#94A3B8" },
+  sectionLine:    { flex: 1, height: 1, backgroundColor: C.border },
+  sectionLabel:   { fontSize: 11, fontFamily: "Pretendard-SemiBold", color: C.textMuted },
 
   levelTagRow:  { flexDirection: "row", marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#EDE9FE" },
   levelTag:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: "#EDE9FE" },
   levelTagText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B5BCD" },
 
   levelPickerRow:        { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  levelPickerBtn:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC" },
+  levelPickerBtn:        { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
   levelPickerBtnActive:  { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
-  levelPickerText:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" } as any,
+  levelPickerText:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary } as any,
   levelPickerTextActive: { color: "#6B5BCD", fontFamily: "Pretendard-SemiBold" } as any,
 
   emptyBox:   { paddingTop: 48, alignItems: "center" },
-  emptyText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptyText:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   fab:        { position: "absolute", right: 16, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#2EC4B6", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, elevation: 4, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   fabText:    { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
   modalBox:     { width: "100%", backgroundColor: "#fff", borderRadius: 16, padding: 20, maxHeight: "85%" },
-  modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: "#14283D" },
-  modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  input:        { borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  modalTitle:   { fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.textPrimary },
+  modalHint:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  input:        { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   textArea:     { minHeight: 90, textAlignVertical: "top" },
   errorText:    { fontSize: 12, color: "#EF4444", fontFamily: "Pretendard-Regular" },
   modalBtns:    { flexDirection: "row", gap: 10, marginTop: 4 },
-  cancelBtn:    { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", alignItems: "center" },
-  cancelBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelBtn:    { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  cancelBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   saveBtn:      { flex: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: "#2EC4B6", alignItems: "center" },
   saveBtnText:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
 });

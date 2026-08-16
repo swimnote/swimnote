@@ -233,7 +233,7 @@ export default function StorageScreen() {
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy?backTo=storage" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
-            <LucideIcon name="settings" size={18} color="#64748B" />
+            <LucideIcon name="settings" size={18} color={C.textSecondary} />
           </Pressable>
         }
       />
@@ -315,7 +315,7 @@ export default function StorageScreen() {
                   ))}
                 </View>
                 <TextInput style={m.input} value={newStorageGb} onChangeText={setNewStorageGb}
-                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#64748B" />
+                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor={C.textMuted} />
                 {parseFloat(newStorageGb) > 0 && (
                   <View style={m.costEstimate}>
                     <LucideIcon name="dollar-sign" size={13} color={GREEN} />
@@ -410,10 +410,10 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#DFF3EC" },
   policyBanner:   { flexDirection: "row", backgroundColor: "#F0F9FF", paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#BAE6FD" },
   policyBannerTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1" },
-  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   tabActive:      { backgroundColor: "#E6FFFA" },
-  tabTxt:         { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxt:         { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:   { color: GREEN },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
   tabBadgeTxt:    { fontSize: 10, lineHeight: 14, color: DANGER },
@@ -425,7 +425,7 @@ const s = StyleSheet.create({
   rowWarn:        { borderLeftWidth: 3, borderLeftColor: "#FCD34D" },
   rowMain:        { flex: 1, gap: 4 },
   rowTop:         { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  opName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   blockedTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   blockedTagTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: DANGER },
   dangerTag:      { backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
@@ -438,7 +438,7 @@ const s = StyleSheet.create({
   barMark:        { position: "absolute", top: 0, bottom: 0, width: 1.5, backgroundColor: WARN, opacity: 0.5 },
   pctTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", width: 34, textAlign: "right" },
   rowMeta:        { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   ctaBar:         { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF1BF",
                     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "#FED7AA" },
   ctaBarTxt:      { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9A3412" },
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
   actionBtn:      { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minWidth: 44, alignItems: "center" },
   actionTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
   empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
@@ -456,28 +456,28 @@ const m = StyleSheet.create({
   sheet:          { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                     borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "80%", gap: 14 },
   handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:            { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -8 },
+  title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:            { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -8 },
   infoBar:        { marginVertical: 4 },
   barBg:          { height: 8, borderRadius: 4, backgroundColor: "#FFFFFF", overflow: "hidden" },
   barFill:        { height: 8 },
   section:        { gap: 8 },
-  label:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  label:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   qtyRow:         { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  qtyBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  qtyBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: C.border },
   qtyBtnActive:   { backgroundColor: GREEN, borderColor: GREEN },
-  qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  input:          { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  input:          { backgroundColor: C.backgroundSoft, borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E6FFFA", padding: 8, borderRadius: 8 },
   costTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#065F46" },
   btnRow:         { flexDirection: "row", gap: 10 },
   cancelBtn:      { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   saveBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center" },
   saveTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  ctaOptionDesc:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+  ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  ctaOptionDesc:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   ctaBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
   ctaBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   cancelBtnFull:  { padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },

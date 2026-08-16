@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/subscription-products.tsx — 구독 상품 설정
  * 구독 플랜 관리 (Coach30/50/100, Premier200/300/500/1000)
@@ -58,7 +60,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
         <View style={[pc.tierBadge, { backgroundColor: isCenter ? "#FEF3C7" : "#EEDDF5" }]}>
           <Text style={[pc.tierTxt, { color: accentColor }]}>{plan.code.toUpperCase()}</Text>
         </View>
-        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: "#64748B" }]}>{plan.name}</Text>
+        <Text style={[pc.name, (!plan.isActive || plan.isArchived) && { color: C.textSecondary }]}>{plan.name}</Text>
         <Text style={[pc.price, { color: accentColor }]}>{priceStr}</Text>
       </View>
       <View style={pc.row}>
@@ -72,7 +74,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
         </View>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>영상</Text>
-          <Text style={[pc.infoVal, { color: plan.includesVideo ? G : "#94A3B8" }]}>{plan.includesVideo ? "포함" : "미포함"}</Text>
+          <Text style={[pc.infoVal, { color: plan.includesVideo ? G : C.textMuted }]}>{plan.includesVideo ? "포함" : "미포함"}</Text>
         </View>
         <View style={pc.infoItem}>
           <Text style={pc.infoLabel}>상태</Text>
@@ -103,23 +105,23 @@ function PlanCard({ plan, onEdit, onToggle }: {
 }
 
 const pc = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: C.border },
   cardInactive:{ opacity: 0.55, borderStyle: "dashed" },
   top:         { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   tierBadge:   { backgroundColor: "#EEDDF5", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   tierTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: P },
-  name:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
+  name:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
   price:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: G },
   row:         { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  infoItem:    { flex: 1, minWidth: "20%", backgroundColor: "#F1F5F9", borderRadius: 8, padding: 8 },
-  infoLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 2 },
+  infoItem:    { flex: 1, minWidth: "20%", backgroundColor: C.backgroundSoft, borderRadius: 8, padding: 8 },
+  infoLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  infoVal:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 2 },
   noteBox:     { backgroundColor: "#FFF1BF", borderRadius: 8, padding: 8, marginBottom: 10 },
   noteTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
   actions:     { flexDirection: "row", gap: 8, alignItems: "center" },
   btn:         { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
+  updatedAt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: "auto" },
 });
 
 // ── 구독 플랜 폼 모달 ───────────────────────────────────────────
@@ -156,9 +158,9 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.backgroundSoft }} edges={["top"]}>
         <View style={fm.header}>
-          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><LucideIcon name="x" size={22} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} style={fm.close} hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
           <Text style={fm.title}>{isEdit ? "구독 플랜 수정" : "구독 플랜 생성"}</Text>
           <View style={{ width: 28 }} />
         </View>
@@ -168,11 +170,11 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
               <View key={f.key}>
                 <Text style={fm.label}>{f.label}</Text>
                 <TextInput
-                  style={[fm.input, (f as any).disabled && { backgroundColor: "#F1F5F9", color: "#94A3B8" }]}
+                  style={[fm.input, (f as any).disabled && { backgroundColor: C.backgroundSoft, color: C.textMuted }]}
                   value={String(form[f.key])}
                   onChangeText={v => setVal(f.key, v)}
                   placeholder={f.placeholder ?? ""}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={C.textMuted}
                   keyboardType={f.numeric ? "numeric" : "default"}
                   editable={!(f as any).disabled}
                 />
@@ -181,7 +183,7 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 4 }}>
               <Text style={[fm.label, { marginBottom: 0, flex: 1 }]}>영상 업로드 포함</Text>
               <Switch value={form.includesVideo} onValueChange={v => setVal("includesVideo", v)}
-                trackColor={{ false: "#E5E7EB", true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : "#64748B"} />
+                trackColor={{ false: C.border, true: "#C4B5FD" }} thumbColor={form.includesVideo ? P : C.textSecondary} />
             </View>
           </KeyboardAwareScrollView>
           <View style={fm.bottomBar}>
@@ -205,13 +207,13 @@ function PlanFormModal({ visible, initial, onClose, onSave }: {
 }
 
 const fm = StyleSheet.create({
-  header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  header:        { flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   close:         { padding: 10 },
-  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  title:         { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveTxt:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  label:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 6 },
-  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", minHeight: 42 },
-  bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: "#E5E7EB", backgroundColor: "#F1F5F9" },
+  label:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 6 },
+  input:         { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 10, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, minHeight: 42 },
+  bottomBar:     { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.backgroundSoft },
   bottomSaveBtn: { backgroundColor: P, borderRadius: 14, height: 52, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
 });
 
@@ -389,7 +391,7 @@ export default function SubscriptionProductsScreen() {
                       <Text style={s.guideCellTxt}>{p.price}</Text>
                       <Text style={s.guideCellTxt}>{p.members}</Text>
                       <Text style={s.guideCellTxt}>{p.storage}</Text>
-                      <Text style={[s.guideCellTxt, { color: p.video ? G : "#94A3B8" }]}>{p.video ? "O" : "X"}</Text>
+                      <Text style={[s.guideCellTxt, { color: p.video ? G : C.textMuted }]}>{p.video ? "O" : "X"}</Text>
                     </View>
                   ))}
                 </View>
@@ -424,17 +426,17 @@ const s = StyleSheet.create({
                 backgroundColor: P, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16 },
   createBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 
-  guideBox:   { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  guideBox:   { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   guideGroupTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", marginBottom: 8 },
   guideTable: { gap: 0 },
-  guideHeader: { flexDirection: "row", paddingBottom: 6, borderBottomWidth: 1, borderColor: "#F1F5F9", gap: 4 },
-  guideHeaderTxt: { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  guideRow:   { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderColor: "#F8FAFC", gap: 4 },
-  guideCellTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  guideHeader: { flexDirection: "row", paddingBottom: 6, borderBottomWidth: 1, borderColor: C.backgroundSoft, gap: 4 },
+  guideHeaderTxt: { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  guideRow:   { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderColor: C.backgroundSoft, gap: 4 },
+  guideCellTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
-  divider:    { height: 1, backgroundColor: "#E5E7EB", marginVertical: 8 },
-  sectionLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  divider:    { height: 1, backgroundColor: C.border, marginVertical: 8 },
+  sectionLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
 
   empty:      { alignItems: "center", paddingTop: 40, gap: 8 },
-  emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
+  emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
 });

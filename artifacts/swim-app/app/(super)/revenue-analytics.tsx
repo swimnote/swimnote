@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/revenue-analytics.tsx — 플랫폼 매출 분석 (API 연동)
  * GET /billing/revenue-logs → 실제 revenue_logs DB 기반 집계
@@ -78,7 +80,7 @@ function pct(current: number, prev: number): string {
 }
 
 function pctColor(current: number, prev: number): string {
-  if (prev === 0) return current > 0 ? "#2EC4B6" : "#64748B";
+  if (prev === 0) return current > 0 ? "#2EC4B6" : C.textSecondary;
   return current >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
@@ -304,7 +306,7 @@ export default function RevenueAnalyticsScreen() {
         <SectionHeader title="할인 및 수수료" icon="percent" />
         <View style={st.cardGrid}>
           <StatCard label="첫 달 50% 할인액" value={fmtKRW(totalDiscount)} sub="할인 합계" color="#DC2626" />
-          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color="#64748B" />
+          <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color={C.textSecondary} />
           <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#2EC4B6" />
         </View>
 
@@ -354,7 +356,7 @@ export default function RevenueAnalyticsScreen() {
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={[st.recordAmt, { color: P }]}>{fmtKRW(r.charged_amount)}</Text>
                 {r.store_fee > 0 && (
-                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" }}>
+                  <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
                     수수료 -{fmtKRW(r.store_fee)}
                   </Text>
                 )}
@@ -374,10 +376,10 @@ export default function RevenueAnalyticsScreen() {
       <Modal visible={cleanModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setCleanModal(false)}>
         <Pressable style={st.backdrop} onPress={() => !cleaning && setCleanModal(false)}>
           <Pressable style={st.sheet} onPress={() => {}}>
-            <View style={{ width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
+            <View style={{ width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 16 }} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <LucideIcon name="trash-2" size={18} color="#D97706" />
-              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" }}>매출 기록 정리</Text>
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>매출 기록 정리</Text>
             </View>
 
             {!cleanAllConfirm ? (
@@ -400,8 +402,8 @@ export default function RevenueAnalyticsScreen() {
                   <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", opacity: cleaning ? 0.6 : 1 }]} onPress={() => setCleanAllConfirm(true)} disabled={cleaning}>
                     <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>전체 초기화 ({totalCount}건)</Text>
                   </Pressable>
-                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanModal(false)} disabled={cleaning}>
-                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>취소</Text>
+                  <Pressable style={[st.modalBtn, { backgroundColor: C.backgroundSoft }]} onPress={() => setCleanModal(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>취소</Text>
                   </Pressable>
                 </View>
               </>
@@ -413,8 +415,8 @@ export default function RevenueAnalyticsScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", gap: 10 }}>
-                  <Pressable style={[st.modalBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setCleanAllConfirm(false)} disabled={cleaning}>
-                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" }}>뒤로</Text>
+                  <Pressable style={[st.modalBtn, { backgroundColor: C.backgroundSoft }]} onPress={() => setCleanAllConfirm(false)} disabled={cleaning}>
+                    <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>뒤로</Text>
                   </Pressable>
                   <Pressable style={[st.modalBtn, { backgroundColor: "#DC2626", flex: 1.5, opacity: cleaning ? 0.6 : 1 }]} onPress={cleanAllData} disabled={cleaning}>
                     {cleaning
@@ -432,30 +434,30 @@ export default function RevenueAnalyticsScreen() {
 }
 
 const st = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:          { flex: 1, backgroundColor: C.backgroundSoft },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                   borderBottomWidth: 1, borderBottomColor: C.border },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:  { color: "#fff" },
   noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                    borderRadius: 8, padding: 10, marginTop: 4 },
   noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, flex: 1, minWidth: "45%",
-                   borderWidth: 1, borderColor: "#E5E7EB" },
-  cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
-  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+                   borderWidth: 1, borderColor: C.border },
+  cardLabel:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
+  cardValue:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   empty:         { alignItems: "center", paddingVertical: 32, gap: 8 },
-  emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   recordRow:     { backgroundColor: "#fff", borderRadius: 10, padding: 12, flexDirection: "row",
-                   alignItems: "flex-start", borderWidth: 1, borderColor: "#E5E7EB" },
-  recordName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+                   alignItems: "flex-start", borderWidth: 1, borderColor: C.border },
+  recordName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  recordSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   recordAmt:     { fontSize: 15, fontFamily: "Pretendard-Regular" },
   linkBtn:       { flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
                    backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

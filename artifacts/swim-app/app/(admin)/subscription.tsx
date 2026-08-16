@@ -318,8 +318,8 @@ export default function SubscriptionScreen() {
               <Text style={[s.featurePillText, { color: "#7C3AED" }]}>사진 가능</Text>
             </View>
             <View style={[s.featurePill, s.featurePillGray]}>
-              <LucideIcon name="video" size={12} color="#9CA3AF" />
-              <Text style={[s.featurePillText, { color: "#9CA3AF" }]}>영상 불가</Text>
+              <LucideIcon name="video" size={12} color={C.textMuted} />
+              <Text style={[s.featurePillText, { color: C.textMuted }]}>영상 불가</Text>
             </View>
           </View>
 
@@ -368,7 +368,7 @@ export default function SubscriptionScreen() {
 
           {/* ── 결제 수단 안내 ── */}
           <View style={s.storePlatformBox}>
-            <LucideIcon name="credit-card" size={14} color="#64748B" />
+            <LucideIcon name="credit-card" size={14} color={C.textSecondary} />
             <Text style={s.storePlatformText}>
               이 기기 결제 수단: <Text style={s.storePlatformBold}>{STORE_NAME}</Text>
             </Text>
@@ -474,11 +474,11 @@ function PlanCard({
 
       <View style={s.planMeta}>
         <View style={s.metaItem}>
-          <LucideIcon name="users" size={12} color="#64748B" />
+          <LucideIcon name="users" size={12} color={C.textSecondary} />
           <Text style={s.metaText}>최대 {plan.limit.toLocaleString()}명</Text>
         </View>
         <View style={s.metaItem}>
-          <LucideIcon name="hard-drive" size={12} color="#64748B" />
+          <LucideIcon name="hard-drive" size={12} color={C.textSecondary} />
           <Text style={s.metaText}>{plan.storage}</Text>
         </View>
       </View>
@@ -486,9 +486,9 @@ function PlanCard({
       {!isFree && (
         <View style={[
           s.cardAction,
-          { backgroundColor: isCurrent ? "#F1F5F9" : accentColor + "14", borderColor: isCurrent ? "#E2E8F0" : accentColor + "40" },
+          { backgroundColor: isCurrent ? C.backgroundSoft : accentColor + "14", borderColor: isCurrent ? C.border : accentColor + "40" },
         ]}>
-          <Text style={[s.cardActionText, { color: isCurrent ? "#94A3B8" : accentColor }]}>
+          <Text style={[s.cardActionText, { color: isCurrent ? C.textMuted : accentColor }]}>
             {actionLabel}
           </Text>
         </View>
@@ -534,7 +534,7 @@ const s = StyleSheet.create({
   featurePillText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   planCard: {
     backgroundColor: "#fff", borderRadius: 14, padding: 14,
-    borderWidth: 1.5, borderColor: "#E2E8F0",
+    borderWidth: 1.5, borderColor: C.border,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
     overflow: "visible",
   },
@@ -543,20 +543,20 @@ const s = StyleSheet.create({
   planRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   planName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   planPrice: { fontSize: 19, fontFamily: "Pretendard-Regular" },
-  planPriceSub: { fontSize: 12, color: "#9CA3AF" },
+  planPriceSub: { fontSize: 12, color: C.textMuted },
   planMeta: { flexDirection: "row", gap: 14, marginTop: 6 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  divider: { height: 1, backgroundColor: "#E2E8F0", marginVertical: 6 },
+  metaText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  divider: { height: 1, backgroundColor: C.border, marginVertical: 6 },
   cardAction:     { marginTop: 10, paddingVertical: 9, borderRadius: 10, borderWidth: 1, alignItems: "center" },
   cardActionText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  storePlatformBox: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: "#F8FAFC", borderRadius: 10, borderWidth: 1, borderColor: "#E2E8F0", marginTop: 4 },
-  storePlatformText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
-  storePlatformBold: { fontFamily: "Pretendard-Regular", color: "#14283D" },
+  storePlatformBox: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginTop: 4 },
+  storePlatformText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
+  storePlatformBold: { fontFamily: "Pretendard-Regular", color: C.textPrimary },
   billingBtn:     { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
   billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
-  manageBtn:      { borderColor: "#64748B" },
-  manageBtnText:  { color: "#64748B", fontSize: 14, fontFamily: "Pretendard-Regular" },
+  manageBtn:      { borderColor: C.textSecondary },
+  manageBtnText:  { color: C.textSecondary, fontSize: 14, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },
   legalRow:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10, marginBottom: 8 },
   legalBtn:     { paddingVertical: 4, paddingHorizontal: 2 },

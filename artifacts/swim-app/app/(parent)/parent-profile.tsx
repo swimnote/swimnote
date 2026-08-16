@@ -23,7 +23,7 @@ function Field({ label, value, onChangeText, placeholder, secureEntry = false, k
     <View style={f.wrap}>
       <Text style={[f.label, { color: C.textSecondary }]}>{label}</Text>
       <TextInput
-        style={[f.input, { backgroundColor: "#FFFFFF", color: C.text }]}
+        style={[f.input, { backgroundColor: C.surface, color: C.text }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -277,7 +277,7 @@ const s = StyleSheet.create({
   deleteModalTitle: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   deleteWarnBox: { backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12 },
   deleteWarnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 20 },
-  deleteInputLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  deleteInputLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   deleteInput: { borderWidth: 1.5, borderColor: "#D96C6C", borderRadius: 12, paddingHorizontal: 14, height: 46, fontSize: 15, fontFamily: "Pretendard-Regular" },
   deleteCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, paddingVertical: 13, alignItems: "center" },
   deleteConfirmBtn: { flex: 2, backgroundColor: "#D96C6C", borderRadius: 12, paddingVertical: 13, alignItems: "center" },

@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/notices.tsx — 공지 관리
  * 슈퍼관리자가 대상별 공지를 등록/수정/삭제.
@@ -75,7 +77,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
 }
 
 const nc = StyleSheet.create({
-  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
   cardLatest:   { borderColor: "#2EC4B6", borderWidth: 1.5 },
   latestBadge:  { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
                   backgroundColor: "#E6FFFA", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
@@ -88,10 +90,10 @@ const nc = StyleSheet.create({
   forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA",
                   paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
   forcedTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
-  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 },
-  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
+  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: "auto" },
+  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18, marginBottom: 6 },
+  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 8 },
   actions:      { flexDirection: "row", gap: 6 },
   btn:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   btnTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -280,7 +282,7 @@ export default function NoticesScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <LucideIcon name="x" size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
@@ -361,7 +363,7 @@ export default function NoticesScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#14283D", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, color: C.textPrimary, marginBottom: 8 }}>
               이 공지를 삭제하면 앱에서 더 이상 노출되지 않습니다.
             </Text>
             <Text style={{ fontSize: 13, color: "#D96C6C", marginBottom: 20 }}>
@@ -383,39 +385,39 @@ export default function NoticesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:         { flex: 1, backgroundColor: C.backgroundSoft },
   infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
                   padding: 10, paddingHorizontal: 16 },
   infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
   filterRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterActive: { backgroundColor: P },
-  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterActiveTxt: { color: "#fff" },
   addBtn:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                   paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   empty:        { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%" },
   header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4, marginTop: 12 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 12 },
   input:        { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                  fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
+                  fontFamily: "Pretendard-Regular", color: C.textPrimary, backgroundColor: C.backgroundSoft },
   segRow:       { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
-  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 10, marginTop: -8 },
+  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 10, marginTop: -8 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

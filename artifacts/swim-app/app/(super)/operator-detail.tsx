@@ -36,7 +36,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   active:    { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
   expired:   { label: "만료됨",    color: "#D96C6C", bg: "#F9DEDA" },
   suspended: { label: "일시 정지", color: "#D97706", bg: "#FFF1BF" },
-  cancelled: { label: "해지됨",    color: "#64748B", bg: "#F1F5F9" },
+  cancelled: { label: "해지됨",    color: C.textSecondary, bg: C.backgroundSoft },
   payment_failed: { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
 };
 const APPROVAL_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -51,7 +51,7 @@ const CAT_CFG: Record<string, { color: string; bg: string }> = {
   삭제:         { color: "#D96C6C", bg: "#F9DEDA" },
   정책:         { color: "#2EC4B6", bg: "#E6FFFA" },
   결제:         { color: "#2EC4B6", bg: "#ECFEFF" },
-  "읽기전용 전환": { color: "#64748B", bg: "#F1F5F9" },
+  "읽기전용 전환": { color: C.textSecondary, bg: C.backgroundSoft },
 };
 const ROLE_LABEL: Record<string, string> = {
   pool_admin: "대표관리자", sub_admin: "관리자", teacher: "선생님",
@@ -337,7 +337,7 @@ export default function OperatorDetailScreen() {
       <SafeAreaView style={d.safe} edges={[]}>
         <SubScreenHeader title="운영처 상세" homePath="/(super)/pools" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: "#64748B", fontFamily: "Pretendard-Regular" }}>수영장 정보를 불러올 수 없습니다.</Text>
+          <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>수영장 정보를 불러올 수 없습니다.</Text>
         </View>
       </SafeAreaView>
     );
@@ -379,15 +379,15 @@ export default function OperatorDetailScreen() {
 
       {/* 핵심 통계 박스 */}
       <View style={d.statsRow}>
-        <StatBox label="활성회원" value={memberCount} color="#14283D" />
+        <StatBox label="활성회원" value={memberCount} color={C.textPrimary} />
         <View style={d.statDivider} />
-        <StatBox label="전체회원" value={memberTotal} color="#14283D" />
+        <StatBox label="전체회원" value={memberTotal} color={C.textPrimary} />
         <View style={d.statDivider} />
         <StatBox label="선생님" value={teacherCount} color={P} />
         <View style={d.statDivider} />
         <StatBox label="수업" value={pool.total_class_count ?? 0} />
         <View style={d.statDivider} />
-        <StatBox label="고객센터" value={support.open_count > 0 ? `${support.open_count}건` : "0"} color={support.open_count > 0 ? "#D97706" : "#64748B"} />
+        <StatBox label="고객센터" value={support.open_count > 0 ? `${support.open_count}건` : "0"} color={support.open_count > 0 ? "#D97706" : C.textSecondary} />
       </View>
 
       {!!feedback && (
@@ -454,10 +454,10 @@ export default function OperatorDetailScreen() {
                     <Text style={[d.infoLabel, { width: 80, paddingTop: 2 }]}>{ROLE_LABEL[t.role] ?? t.role}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={d.infoVal}>{t.name}</Text>
-                      <Text style={{ fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" }}>
+                      <Text style={{ fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" }}>
                         {t.email ?? "—"}{t.phone ? ` · ${t.phone}` : ""}
                       </Text>
-                      <Text style={{ fontSize: 10, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>
+                      <Text style={{ fontSize: 10, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>
                         최근 접속: {fmtDate(t.last_login_at)}
                       </Text>
                     </View>
@@ -493,11 +493,11 @@ export default function OperatorDetailScreen() {
                 <Text style={d.infoLabel}>X 사용권</Text>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: pool.xmode_entitlement ? "#E6FAF8" : "#F1F5F9",
+                  backgroundColor: pool.xmode_entitlement ? "#E6FAF8" : C.backgroundSoft,
                 }}>
                   <Text style={{
                     fontSize: 12, fontFamily: "Pretendard-Regular",
-                    color: pool.xmode_entitlement ? "#2EC4B6" : "#64748B",
+                    color: pool.xmode_entitlement ? "#2EC4B6" : C.textSecondary,
                   }}>
                     {pool.xmode_entitlement ? "X 활성" : "X 비활성"}
                   </Text>
@@ -510,7 +510,7 @@ export default function OperatorDetailScreen() {
                 {(() => {
                   const cs: string = (pool.xmode_config_status as string) ?? "NOT_CONFIGURED";
                   const cfgMap: Record<string, { label: string; color: string; bg: string }> = {
-                    NOT_CONFIGURED:     { label: "미설정",  color: "#64748B", bg: "#F1F5F9" },
+                    NOT_CONFIGURED:     { label: "미설정",  color: C.textSecondary, bg: C.backgroundSoft },
                     CURRICULUM_PENDING: { label: "심사 중", color: "#D97706", bg: "#FFF1BF" },
                     READY:              { label: "승인 완료", color: "#2EC4B6", bg: "#E6FAF8" },
                   };
@@ -540,7 +540,7 @@ export default function OperatorDetailScreen() {
                   <>
                     {!isReady && (
                       <>
-                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 14 }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18, marginBottom: 14 }}>
                           {"설정 심사를 통과한 운영처에 승인을 부여합니다.\n승인 시 X 사용권이 활성이면 즉시 X MODE가 시작됩니다."}
                         </Text>
                         <Pressable
@@ -549,13 +549,13 @@ export default function OperatorDetailScreen() {
                           style={{
                             flexDirection: "row", alignItems: "center", justifyContent: "center",
                             paddingVertical: 10, borderRadius: 10,
-                            backgroundColor: configLoading ? "#F1F5F9" : "#EDE9FE",
-                            borderWidth: 1, borderColor: configLoading ? "#E2E8F0" : "#7C3AED",
+                            backgroundColor: configLoading ? C.backgroundSoft : "#EDE9FE",
+                            borderWidth: 1, borderColor: configLoading ? C.border : "#7C3AED",
                             opacity: configLoading ? 0.6 : 1,
                           }}
                         >
                           {configLoading
-                            ? <ActivityIndicator size="small" color="#94A3B8" />
+                            ? <ActivityIndicator size="small" color={C.textMuted} />
                             : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#7C3AED" }}>X 설정 승인</Text>
                           }
                         </Pressable>
@@ -563,7 +563,7 @@ export default function OperatorDetailScreen() {
                     )}
                     {isReady && (
                       <>
-                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 14 }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18, marginBottom: 14 }}>
                           {"현재 승인 완료 상태입니다.\n설정을 재검토가 필요한 경우 심사 상태로 되돌릴 수 있습니다."}
                         </Text>
                         <Pressable
@@ -572,13 +572,13 @@ export default function OperatorDetailScreen() {
                           style={{
                             flexDirection: "row", alignItems: "center", justifyContent: "center",
                             paddingVertical: 10, borderRadius: 10,
-                            backgroundColor: configLoading ? "#F1F5F9" : "#FFF9EC",
-                            borderWidth: 1, borderColor: configLoading ? "#E2E8F0" : "#D97706",
+                            backgroundColor: configLoading ? C.backgroundSoft : "#FFF9EC",
+                            borderWidth: 1, borderColor: configLoading ? C.border : "#D97706",
                             opacity: configLoading ? 0.6 : 1,
                           }}
                         >
                           {configLoading
-                            ? <ActivityIndicator size="small" color="#94A3B8" />
+                            ? <ActivityIndicator size="small" color={C.textMuted} />
                             : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D97706" }}>심사 상태로 되돌리기</Text>
                           }
                         </Pressable>
@@ -592,10 +592,10 @@ export default function OperatorDetailScreen() {
             {/* X 사용권 수동 제어 */}
             <View style={d.card}>
               <Text style={d.cardTitle}>X 사용권 수동 제어</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18, marginBottom: 6 }}>
                 {"결제 여부와 관계없이 이 운영처에\nSWIMNOTE X 사용권을 직접 부여하거나 회수합니다."}
               </Text>
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 17, marginBottom: 14 }}>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 17, marginBottom: 14 }}>
                 {"사용권이 활성화되어도 설정 상태가 READY가 아니면\nX모드는 심사 대기 상태로 유지됩니다."}
               </Text>
               {pool.xmode_entitlement ? (
@@ -605,13 +605,13 @@ export default function OperatorDetailScreen() {
                   style={{
                     flexDirection: "row", alignItems: "center", justifyContent: "center",
                     paddingVertical: 10, borderRadius: 10,
-                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#FFF5F5",
-                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#FCA5A5",
+                    backgroundColor: xmodeLoading ? C.backgroundSoft : "#FFF5F5",
+                    borderWidth: 1, borderColor: xmodeLoading ? C.border : "#FCA5A5",
                     opacity: xmodeLoading ? 0.6 : 1,
                   }}
                 >
                   {xmodeLoading
-                    ? <ActivityIndicator size="small" color="#94A3B8" />
+                    ? <ActivityIndicator size="small" color={C.textMuted} />
                     : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#D96C6C" }}>X 사용권 비활성화</Text>
                   }
                 </Pressable>
@@ -622,13 +622,13 @@ export default function OperatorDetailScreen() {
                   style={{
                     flexDirection: "row", alignItems: "center", justifyContent: "center",
                     paddingVertical: 10, borderRadius: 10,
-                    backgroundColor: xmodeLoading ? "#F1F5F9" : "#7C3AED",
-                    borderWidth: 1, borderColor: xmodeLoading ? "#E2E8F0" : "#6D28D9",
+                    backgroundColor: xmodeLoading ? C.backgroundSoft : "#7C3AED",
+                    borderWidth: 1, borderColor: xmodeLoading ? C.border : "#6D28D9",
                     opacity: xmodeLoading ? 0.6 : 1,
                   }}
                 >
                   {xmodeLoading
-                    ? <ActivityIndicator size="small" color="#94A3B8" />
+                    ? <ActivityIndicator size="small" color={C.textMuted} />
                     : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" }}>X 사용권 활성화</Text>
                   }
                 </Pressable>
@@ -717,7 +717,7 @@ export default function OperatorDetailScreen() {
             <Pressable style={d.actionCard} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
               <LucideIcon name="hard-drive" size={18} color={P} />
               <Text style={d.actionCardTxt}>추가 용량 부여</Text>
-              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color={C.textSecondary} style={{ marginLeft: "auto" }} />
             </Pressable>
           </>
         )}
@@ -736,7 +736,7 @@ export default function OperatorDetailScreen() {
               onPress={() => router.push("/(super)/policy?backTo=operator-detail" as any)}>
               <LucideIcon name="file-text" size={18} color={P} />
               <Text style={d.actionCardTxt}>정책 편집</Text>
-              <LucideIcon name="chevron-right" size={16} color="#64748B" style={{ marginLeft: "auto" }} />
+              <LucideIcon name="chevron-right" size={16} color={C.textSecondary} style={{ marginLeft: "auto" }} />
             </Pressable>
           </View>
         )}
@@ -747,7 +747,7 @@ export default function OperatorDetailScreen() {
             <Text style={d.cardTitle}>운영 이벤트 로그 ({logs.length})</Text>
             {logs.length === 0 && <Text style={d.empty}>이벤트 로그가 없습니다</Text>}
             {logs.map((log: any) => {
-              const catCfg = CAT_CFG[log.category] ?? { color: "#64748B", bg: "#F1F5F9" };
+              const catCfg = CAT_CFG[log.category] ?? { color: C.textSecondary, bg: C.backgroundSoft };
               return (
                 <View key={log.id} style={d.logItem}>
                   <View style={[d.logCat, { backgroundColor: catCfg.bg }]}>
@@ -790,19 +790,19 @@ export default function OperatorDetailScreen() {
               <Pressable style={d.quickLink} onPress={() => router.push("/(super)/kill-switch?backTo=operator-detail" as any)}>
                 <LucideIcon name="alert-triangle" size={15} color="#D96C6C" />
                 <Text style={[d.quickLinkTxt, { color: "#D96C6C" }]}>킬스위치 (데이터 삭제)</Text>
-                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color={C.textSecondary} style={{ marginLeft: "auto" }} />
               </Pressable>
               <Pressable style={d.quickLink} onPress={() => router.push(`/(super)/storage?operatorId=${id}&backTo=operator-detail` as any)}>
                 <LucideIcon name="hard-drive" size={15} color={P} />
                 <Text style={[d.quickLinkTxt, { color: P }]}>저장공간 조정</Text>
-                <LucideIcon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: "auto" }} />
+                <LucideIcon name="chevron-right" size={14} color={C.textSecondary} style={{ marginLeft: "auto" }} />
               </Pressable>
             </View>
 
             {/* 운영처 완전 삭제 */}
             <View style={[d.card, { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" }]}>
               <Text style={[d.cardTitle, { color: "#D96C6C" }]}>위험 구역</Text>
-              <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular", marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 8 }}>
                 운영처를 완전히 삭제합니다. 회원, 수업, 출결, 스태프 등 모든 데이터가 영구 삭제되며 복구할 수 없습니다.
               </Text>
               <Pressable style={d.deleteBtn} onPress={() => setDeleteModal(true)}>
@@ -827,7 +827,7 @@ export default function OperatorDetailScreen() {
               </Text>
               {(action === "reject" || action === "restrict") && (
                 <TextInput style={m.input} value={reason} onChangeText={setReason}
-                  placeholder="사유 (선택)" placeholderTextColor="#64748B" />
+                  placeholder="사유 (선택)" placeholderTextColor={C.textMuted} />
               )}
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setAction(null)}>
@@ -864,7 +864,7 @@ export default function OperatorDetailScreen() {
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <View style={m.handle} />
               <Text style={m.title}>구독 직접 조정</Text>
-              <Text style={{ fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular", marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 12 }}>
                 {pool.name} — 빈 칸은 변경하지 않습니다.
               </Text>
 
@@ -894,16 +894,16 @@ export default function OperatorDetailScreen() {
 
               <Text style={m.fieldLabel}>구독 만료일 (빈칸=변경 없음, "null"=삭제)</Text>
               <TextInput style={m.input} value={subEndAt} onChangeText={setSubEndAt}
-                placeholder="예: 2026-12-31T23:59:59Z" placeholderTextColor="#94A3B8"
+                placeholder="예: 2026-12-31T23:59:59Z" placeholderTextColor={C.textMuted}
                 autoCapitalize="none" />
 
               <Text style={m.fieldLabel}>크레딧 잔액 (원)</Text>
               <TextInput style={m.input} value={subCredit} onChangeText={setSubCredit}
-                placeholder="예: 50000" placeholderTextColor="#94A3B8" keyboardType="numeric" />
+                placeholder="예: 50000" placeholderTextColor={C.textMuted} keyboardType="numeric" />
 
               <Text style={m.fieldLabel}>회원 한도 (명)</Text>
               <TextInput style={m.input} value={subMemberLimit} onChangeText={setSubMemberLimit}
-                placeholder="예: 50" placeholderTextColor="#94A3B8" keyboardType="numeric" />
+                placeholder="예: 50" placeholderTextColor={C.textMuted} keyboardType="numeric" />
 
               <View style={[m.btnRow, { marginTop: 8 }]}>
                 <Pressable style={m.cancelBtn} onPress={() => setSubModal(false)}>
@@ -931,11 +931,11 @@ export default function OperatorDetailScreen() {
             </View>
             <View style={{ backgroundColor: "#FFF5F5", borderRadius: 10, padding: 14, marginBottom: 16, gap: 6 }}>
               <Text style={{ fontSize: 14, fontWeight: "700", color: "#B91C1C" }}>⚠ 이 작업은 되돌릴 수 없습니다</Text>
-              <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
-                {`· 운영처: `}<Text style={{ fontWeight: "700", color: "#14283D" }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
+              <Text style={{ fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 20 }}>
+                {`· 운영처: `}<Text style={{ fontWeight: "700", color: C.textPrimary }}>{pool.name}</Text>{`\n· 회원, 수업, 출결, 선생님 등 모든 데이터 영구 삭제\n· 삭제 후 복구 불가`}
               </Text>
             </View>
-            <Text style={{ fontSize: 13, color: "#374151", fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
+            <Text style={{ fontSize: 13, color: C.textPrimary, fontFamily: "Pretendard-SemiBold", marginBottom: 16 }}>
               정말로 이 운영처를 삭제하시겠습니까?
             </Text>
             <View style={m.btnRow}>
@@ -976,36 +976,36 @@ const d = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: C.background },
   banner:         { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                    borderBottomWidth: 1, borderBottomColor: C.border },
   bannerLeft:     { flex: 1 },
-  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  bannerOwner:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  bannerName:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  bannerOwner:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   badge:          { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular" },
   statsRow:       { flexDirection: "row", backgroundColor: "#fff", paddingVertical: 10,
-                    paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+                    paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: C.border,
                     alignItems: "center" },
   statBox:        { flex: 1, alignItems: "center", gap: 2 },
-  statNum:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  statLabel:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  statDivider:    { width: 1, height: 28, backgroundColor: "#E5E7EB" },
+  statNum:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  statLabel:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  statDivider:    { width: 1, height: 28, backgroundColor: C.border },
   feedbackBanner: { flexDirection: "row", alignItems: "center", gap: 8,
                     backgroundColor: "#E6FFFA", paddingHorizontal: 16, paddingVertical: 8 },
   feedbackTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
-  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tabContent:     { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                    borderWidth: 1.5, borderColor: "#E5E7EB" },
+                    borderWidth: 1.5, borderColor: C.border },
   tabActive:      { backgroundColor: P, borderColor: P },
-  tabTxt:         { fontSize: 12, lineHeight: 17, color: "#64748B" },
+  tabTxt:         { fontSize: 12, lineHeight: 17, color: C.textSecondary },
   tabActiveTxt:   { color: "#fff" },
   card:           { backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: "#E5E7EB", gap: 8 },
-  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
-  infoRow:        { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  empty:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 12 },
+                    borderWidth: 1, borderColor: C.border, gap: 8 },
+  cardTitle:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  infoRow:        { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  infoLabel:      { width: 90, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  infoVal:        { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  empty:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", paddingVertical: 12 },
   alertBox:       { flexDirection: "row", alignItems: "flex-start", gap: 8,
                     backgroundColor: "#FEF2F2", borderRadius: 8, padding: 10, marginTop: 4 },
   alertTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
@@ -1013,12 +1013,12 @@ const d = StyleSheet.create({
   storageCircle:  { width: 80, height: 80, borderRadius: 40, borderWidth: 5, borderColor: P,
                     alignItems: "center", justifyContent: "center" },
   storageCircleNum:{ fontSize: 18, fontFamily: "Pretendard-Regular", color: P },
-  storageCircleSub:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  storageCircleSub:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   storageDetails: { flex: 1, gap: 4 },
   actionCard:     { flexDirection: "row", alignItems: "center", gap: 12,
                     backgroundColor: "#fff", borderRadius: 14, padding: 14,
-                    borderWidth: 1, borderColor: "#E5E7EB" },
-  actionCardTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+                    borderWidth: 1, borderColor: C.border },
+  actionCardTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                     backgroundColor: P, borderRadius: 14, padding: 14 },
   primaryBtnTxt:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -1027,19 +1027,19 @@ const d = StyleSheet.create({
   deleteBtnTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   forceCard:      { flexDirection: "row", alignItems: "center", gap: 14,
                     backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                    borderWidth: 1, borderColor: "#E5E7EB" },
+                    borderWidth: 1, borderColor: C.border },
   forceIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  forceSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  forceTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  forceSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   quickLink:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+                    paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.backgroundSoft },
   quickLinkTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular" },
   logItem:        { flexDirection: "row", alignItems: "flex-start", gap: 8,
-                    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+                    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   logCat:         { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginTop: 2 },
   logCatTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  logTime:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  logDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  logTime:        { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 });
 
 const m = StyleSheet.create({
@@ -1047,19 +1047,19 @@ const m = StyleSheet.create({
   sheet:         { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, gap: 12 },
   handle:        { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:         { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
-  input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                   fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 8 },
+  title:         { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  fieldLabel:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6 },
+  input:         { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 12,
+                   fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
   pickerRow:     { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   chip:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-                   borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
+                   borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
   chipActive:    { backgroundColor: P, borderColor: P },
-  chipTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  chipTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   chipActiveTxt: { color: "#fff" },
   btnRow:        { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
-  cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F1F5F9" },
-  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  cancelBtn:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: C.backgroundSoft },
+  cancelTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   confirmBtn:    { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   confirmTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

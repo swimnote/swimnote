@@ -1854,11 +1854,11 @@ export default function ParentHomeScreen() {
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
               성장 리포트 보기
             </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 }}>
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 }}>
               AI가 분석한 수영 성장 현황
             </Text>
           </View>
-          <LucideIcon name="chevron-right" size={16} color="#64748B" />
+          <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
         </Pressable>
       )}
 
@@ -2235,7 +2235,7 @@ const s = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: "rgba(255,255,255,0.96)",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: C.border,
   },
   bottomBarTxt: {
     fontSize: 11,

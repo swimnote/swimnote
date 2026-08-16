@@ -152,52 +152,52 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 공지함 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/notices?backTo=settings" as any)}
         >
-          <LucideIcon name="bell" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>공지함</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="bell" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>공지함</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* ── 선생님 설정 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)}
         >
-          <LucideIcon name="user-cog" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>선생님 설정</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="user-cog" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>선생님 설정</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* ── 일지 템플릿 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)}
         >
-          <LucideIcon name="edit" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>일지 템플릿</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="edit" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>일지 템플릿</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* ── 쪽지보관함 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/messages-inbox" as any)}
         >
-          <LucideIcon name="inbox" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>알림함</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="inbox" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>알림함</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* ── 사진·영상 업로드/앨범 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)}
         >
-          <LucideIcon name="camera" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>사진·영상 업로드/앨범</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="camera" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>사진·영상 업로드/앨범</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* ── 수업료 납부 관리 ── */}
@@ -400,12 +400,12 @@ export default function TeacherSettingsScreen() {
 
         {/* ── 문의하기 — 목록 최하단 ── */}
         <Pressable
-          style={[s.actionBtn, { borderColor: "#14283D" }]}
+          style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/inquiries" as any)}
         >
-          <LucideIcon name="message-circle" size={18} color="#14283D" />
-          <Text style={[s.actionBtnText, { color: "#14283D" }]}>문의하기</Text>
-          <LucideIcon name="chevron-right" size={16} color="#14283D" />
+          <LucideIcon name="message-circle" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>문의하기</Text>
+          <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
         {/* 앱 업데이트 */}
@@ -433,19 +433,19 @@ export default function TeacherSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:             { flex: 1, backgroundColor: C.surface },
   card:             { backgroundColor: C.card, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
   storageSummary:   { padding: 14, borderRadius: 14, borderWidth: 1 },
   storageUsedLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", marginBottom: 2 },
   storageUsedBytes: { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  storageQuotaLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 2 },
+  storageQuotaLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 2 },
   storageQuotaBytes:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  gaugeWrap:        { height: 10, backgroundColor: "#E5E7EB", borderRadius: 5, overflow: "hidden" },
+  gaugeWrap:        { height: 10, backgroundColor: C.border, borderRadius: 5, overflow: "hidden" },
   gaugeBar:         { height: 10, borderRadius: 5 },
   gaugePct:         { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  gaugeRemain:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  gaugeRemain:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   usageRow:         { flexDirection: "row", alignItems: "center", gap: 12 },
   usageIcon:        { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.background },
   usageLabel:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },

@@ -8,6 +8,9 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 import type { WriteGuardModal } from "@/hooks/useWriteGuard";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 interface Props {
   kind: WriteGuardModal;
@@ -86,13 +89,13 @@ export function ReadOnlyModal({ kind, onClose }: Props) {
 
 const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
-  card: { width: "100%", maxWidth: 340, backgroundColor: "#FFF", borderRadius: 18, padding: 24, alignItems: "center", gap: 12 },
+  card: { width: "100%", maxWidth: 340, backgroundColor: C.surface, borderRadius: 18, padding: 24, alignItems: "center", gap: 12 },
   iconWrap: { width: 60, height: 60, borderRadius: 30, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   title: { fontSize: 17, fontWeight: "700", color: "#1A1714", textAlign: "center" },
-  desc: { fontSize: 14, color: "#64748B", textAlign: "center", lineHeight: 21 },
+  desc: { fontSize: 14, color: C.textSecondary, textAlign: "center", lineHeight: 21 },
   btnRow: { flexDirection: "row", gap: 8, marginTop: 8, width: "100%" },
-  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB", alignItems: "center" },
-  cancelTxt: { fontSize: 14, fontWeight: "600", color: "#64748B" },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
+  cancelTxt: { fontSize: 14, fontWeight: "600", color: C.textSecondary },
   confirmBtn: { flex: 1.4, paddingVertical: 12, borderRadius: 10, backgroundColor: "#2EC4B6", alignItems: "center" },
   confirmTxt: { fontSize: 14, fontWeight: "700", color: "#FFF" },
 });

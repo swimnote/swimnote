@@ -145,12 +145,12 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                   {
                     flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2,
                     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10,
-                    backgroundColor: p.link_status === "approved" ? "#E6FFFA" : "#F1F5F9",
+                    backgroundColor: p.link_status === "approved" ? "#E6FFFA" : C.backgroundSoft,
                   }
                 ]}>
                   <Text style={{
                     fontSize: 10, fontFamily: "Pretendard-Regular",
-                    color: p.link_status === "approved" ? "#2EC4B6" : "#64748B",
+                    color: p.link_status === "approved" ? "#2EC4B6" : C.textSecondary,
                   }}>
                     {p.link_status === "approved" ? "앱 연결됨" : p.link_status}
                   </Text>

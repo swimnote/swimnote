@@ -222,7 +222,7 @@ export default function FeedbackSettingsScreen() {
         ListFooterComponent={
           <View style={[s.addBtnWrap, { paddingBottom: insets.bottom + 16 }]}>
             <Pressable
-              style={[s.addBtn, { backgroundColor: isFull ? "#64748B" : activeColor }]}
+              style={[s.addBtn, { backgroundColor: isFull ? C.textSecondary : activeColor }]}
               onPress={openAdd}
               disabled={isFull}
             >
@@ -408,7 +408,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
     borderWidth: 1, borderColor: C.border, backgroundColor: "#fff",
   },
-  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  catBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   listContent: { paddingHorizontal: 14, paddingTop: 8, gap: 8 },
 

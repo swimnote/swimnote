@@ -98,7 +98,7 @@ export default function ParentLoginScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: pressed ? "#1E293B" : C.primaryAction }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: pressed ? C.textStrong : C.primaryAction }]}
             onPress={handleLogin}
             disabled={loading}
           >

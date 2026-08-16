@@ -287,7 +287,7 @@ export default function FeeCheckScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F8FAFC" },
+  safe:           { flex: 1, backgroundColor: C.backgroundSoft },
   monthRow:       { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, gap: 16, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   monthArrow:     { padding: 6 },
   monthLabel:     { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text, minWidth: 100, textAlign: "center" },

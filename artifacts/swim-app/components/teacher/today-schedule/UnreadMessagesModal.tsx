@@ -196,7 +196,7 @@ const um = StyleSheet.create({
   title:      { fontSize: 17, fontFamily: "Pretendard-Regular", flex: 1 },
   countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   countTxt:   { color: "#fff", fontSize: 12, fontFamily: "Pretendard-Regular" },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
   empty:      { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
   item:       { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
@@ -207,6 +207,6 @@ const um = StyleSheet.create({
   itemMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   typeBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   typeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  inboxBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: 20, marginTop: 8, marginBottom: 4, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" },
+  inboxBtn:   { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: 20, marginTop: 8, marginBottom: 4, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "#F9FAFB" },
   inboxBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600" },
 });

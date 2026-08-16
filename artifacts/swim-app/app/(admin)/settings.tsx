@@ -23,7 +23,7 @@ import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
-const N = "#14283D";
+const N = C.textPrimary;
 const NB = "#E6FAF8";
 
 const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
@@ -461,8 +461,8 @@ const s = StyleSheet.create({
 const sx = StyleSheet.create({
   xCard:         { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   xIconWrap:     { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  xLabel:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  xDesc:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  xLabel:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  xDesc:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   modeBadge:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   modeBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
@@ -485,14 +485,14 @@ const sc = StyleSheet.create({
 const sm = StyleSheet.create({
   overlay:         { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:           { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  title:           { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:             { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   roleRow:         { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14 },
   roleIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel:       { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  roleSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  roleSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   activeBadge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   activeBadgeText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
-  closeBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  closeBtn:        { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: C.backgroundSoft },
+  closeBtnText:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

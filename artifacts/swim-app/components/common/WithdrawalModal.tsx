@@ -156,7 +156,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
                 90일간 데이터가 보존됩니다.{"\n"}
                 이 기간 중 앱을 읽기 전용으로 사용할 수 있으며,{"\n"}
                 동일 플랜 재구독 시 계정이 완전히 복구됩니다.{"\n"}
-                <Text style={{ color: "#64748B" }}>90일 후 완전히 삭제됩니다.</Text>
+                <Text style={{ color: C.textSecondary }}>90일 후 완전히 삭제됩니다.</Text>
               </Text>
             </Pressable>
           </View>
@@ -201,30 +201,30 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 12,
   },
   handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0",
+    width: 40, height: 4, borderRadius: 2, backgroundColor: C.border,
     alignSelf: "center", marginBottom: 16,
   },
   header: { marginBottom: 20 },
-  title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 6 },
-  subtitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
+  title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 6 },
+  subtitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
 
   options: { gap: 12, marginBottom: 20 },
   option: {
-    borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 16,
-    padding: 16, backgroundColor: "#F8FAFC",
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 16,
+    padding: 16, backgroundColor: C.backgroundSoft,
   },
   optionSelected: { borderColor: "#D96C6C", backgroundColor: "#FFF5F5" },
   optionSelectedBlue: { borderColor: "#2EC4B6", backgroundColor: "#F0FDFB" },
   optionTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  optionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
+  optionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
   badge: {
     paddingHorizontal: 8, paddingVertical: 2,
     borderRadius: 8,
@@ -238,7 +238,7 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#F1F5F9",
   },
-  cancelText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   confirmBtn: {
     flex: 2, height: 50, borderRadius: 14,
     alignItems: "center", justifyContent: "center",

@@ -109,10 +109,10 @@ export default function AbsenceModal({
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[ab.choiceBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color="#64748B" /> : <>
-                  <LucideIcon name="x-circle" size={18} color="#64748B" />
-                  <Text style={[ab.choiceBtnText, { color: "#14283D" }]}>없음</Text>
+              <Pressable style={[ab.choiceBtn, { backgroundColor: C.surface, flex: 1 }]} onPress={handleNoTransfer} disabled={loading}>
+                {loading ? <ActivityIndicator size="small" color={C.textSecondary} /> : <>
+                  <LucideIcon name="x-circle" size={18} color={C.textSecondary} />
+                  <Text style={[ab.choiceBtnText, { color: C.textPrimary }]}>없음</Text>
                   <Text style={ab.choiceSub}>전원 미실시(선생님)</Text>
                 </>}
               </Pressable>
@@ -167,8 +167,8 @@ export default function AbsenceModal({
 
 const ab = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, maxHeight: "85%" },
-  handle:       { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  sheet:        { backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14, maxHeight: "85%" },
+  handle:       { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
   title:        { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
   warnBox:      { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
   warnText:     { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },

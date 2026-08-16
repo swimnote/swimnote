@@ -118,7 +118,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
               </View>
             )}
             {entry.is_edited && (
-              <View style={[ds.badge, { backgroundColor: "#FFFFFF" }]}>
+              <View style={[ds.badge, { backgroundColor: C.surface }]}>
                 <Text style={[ds.badgeTxt, { color: C.textMuted }]}>수정됨</Text>
               </View>
             )}

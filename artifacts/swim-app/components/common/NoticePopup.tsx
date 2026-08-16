@@ -27,6 +27,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNoticeStore, NOTICE_TYPE_CFG, type NoticeType } from "@/store/noticeStore";
 import { useAuth, apiRequest } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 콜드런치 감지 플래그
@@ -242,29 +245,29 @@ export function NoticePopup() {
 const s = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.65)",
                   alignItems: "center", justifyContent: "center", padding: 24 },
-  card:         { backgroundColor: "#fff", borderRadius: 20, padding: 24,
+  card:         { backgroundColor: C.surface, borderRadius: 20, padding: 24,
                   width: "100%", maxWidth: 400, maxHeight: "80%" },
   headerRow:    { flexDirection: "row", alignItems: "center",
                   justifyContent: "space-between", marginBottom: 12 },
   scopeBadge:   { flexDirection: "row", alignItems: "center", gap: 5,
                   paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   scopeTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  counter:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  counter:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   typeBadge:    { flexDirection: "row", alignItems: "center", gap: 5,
                   alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4,
                   borderRadius: 8, marginBottom: 12 },
   typeTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
   title:        { fontSize: 18, fontFamily: "Pretendard-Regular",
-                  color: "#14283D", marginBottom: 12 },
+                  color: C.textPrimary, marginBottom: 12 },
   contentScroll:{ maxHeight: 200, marginBottom: 12 },
   content:      { fontSize: 14, fontFamily: "Pretendard-Regular",
-                  color: "#14283D", lineHeight: 22 },
+                  color: C.textPrimary, lineHeight: 22 },
   date:         { fontSize: 11, fontFamily: "Pretendard-Regular",
-                  color: "#64748B", marginBottom: 14 },
+                  color: C.textSecondary, marginBottom: 14 },
   btnRow:       { flexDirection: "row", gap: 8 },
   dismissBtn:   { flex: 1, padding: 13, borderRadius: 12,
-                  backgroundColor: "#FFFFFF", alignItems: "center" },
-  dismissTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+                  backgroundColor: C.surface, alignItems: "center" },
+  dismissTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   confirmBtn:   { flex: 1, padding: 13, borderRadius: 12,
                   backgroundColor: P, alignItems: "center" },
   confirmTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },

@@ -161,11 +161,11 @@ export default function DataStorageOverviewScreen() {
           {/* 수치 카드 3개 */}
           {[
             { label: "사용량",    display: fmtBytes(used),   icon: "hard-drive"   as const, color: gaugeColor },
-            { label: "제공 용량", display: quotaLabel,        icon: "server"       as const, color: "#64748B" },
+            { label: "제공 용량", display: quotaLabel,        icon: "server"       as const, color: C.textSecondary },
             { label: "남은 용량", display: fmtBytes(free),   icon: "check-circle" as const, color: "#2EC4B6" },
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
-              <View style={[s.statIcon, { backgroundColor: "#F1F5F9" }]}>
+              <View style={[s.statIcon, { backgroundColor: C.backgroundSoft }]}>
                 <LucideIcon name={item.icon} size={22} color={item.color} />
               </View>
               <View style={{ flex: 1 }}>
@@ -261,7 +261,7 @@ function CleanupCard({ label, preview, onDelete, deleting, themeColor }: Cleanup
   return (
     <View style={[s.cleanCard, { backgroundColor: C.card }]}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
-        <View style={[s.cleanIcon, { backgroundColor: "#F1F5F9" }]}>
+        <View style={[s.cleanIcon, { backgroundColor: C.backgroundSoft }]}>
           <LucideIcon name="image" size={20} color={C.textSecondary} />
         </View>
         <View style={{ flex: 1 }}>
@@ -294,40 +294,40 @@ function CleanupCard({ label, preview, onDelete, deleting, themeColor }: Cleanup
 const C2 = Colors.light;
 const s = StyleSheet.create({
   card:        { borderRadius: 18, padding: 20, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
-  cardTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  cardTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   bigNum:      { fontSize: 40, fontFamily: "Pretendard-Regular" },
-  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
-  gaugeWrap:   { height: 12, backgroundColor: "#E5E7EB", borderRadius: 6, overflow: "hidden" },
+  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6 },
+  gaugeWrap:   { height: 12, backgroundColor: C.border, borderRadius: 6, overflow: "hidden" },
   gaugeBar:    { height: 12, borderRadius: 6 },
   statCard:    { flexDirection: "row", alignItems: "center", gap: 16, padding: 16, borderRadius: 18, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   statIcon:    { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  statLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 2 },
+  statLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 2 },
   statValue:   { fontSize: 22, fontFamily: "Pretendard-Regular" },
 
-  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
-  sectionDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  sectionTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  sectionDesc:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   cleanCard:   { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 18, gap: 12, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   cleanIcon:   { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cleanLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 2 },
+  cleanLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 2 },
   cleanCount:  { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  cleanSize:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
-  cleanEmpty:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 2 },
+  cleanSize:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  cleanEmpty:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   deleteButton:     { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
-  deleteBtnDisabled:{ backgroundColor: "#F1F5F9" },
+  deleteBtnDisabled:{ backgroundColor: C.backgroundSoft },
   deleteBtnTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#FFF" },
 
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   modal:       { width: "100%", borderRadius: 24, padding: 28, alignItems: "center", gap: 6 },
   modalIconWrap:{ width: 56, height: 56, borderRadius: 16, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  modalTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  modalTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   modalCount:  { fontSize: 32, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 4 },
-  modalSize:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  modalWarn:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8", textAlign: "center", marginTop: 12, lineHeight: 20 },
+  modalSize:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  modalWarn:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center", marginTop: 12, lineHeight: 20 },
   modalBtns:   { flexDirection: "row", gap: 12, marginTop: 20, width: "100%" },
   modalBtn:    { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center" },
-  cancelBtn:   { backgroundColor: "#F1F5F9" },
-  cancelTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelBtn:   { backgroundColor: C.backgroundSoft },
+  cancelTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   deleteBtn:   { backgroundColor: "#D96C6C" },
   deleteTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#FFF" },
 });

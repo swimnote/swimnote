@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * branding.tsx — 수영장 브랜드 설정
  * 테마 색상, 로고 이모지, 로고 URL을 변경한다.
@@ -158,7 +160,7 @@ export default function BrandingScreen() {
                   <LucideIcon
                     name={i === 0 ? "grid" : i === 1 ? "users" : "check-square"}
                     size={18}
-                    color={i === 0 ? selectedColor : "#64748B"}
+                    color={i === 0 ? selectedColor : C.textSecondary}
                   />
                   <Text style={[styles.previewTabLabel, i === 0 && { color: selectedColor }]}>{tab}</Text>
                 </View>
@@ -201,7 +203,7 @@ export default function BrandingScreen() {
               value={hexInput}
               onChangeText={handleHexChange}
               placeholder="#2EC4B6"
-              placeholderTextColor="#64748B"
+              placeholderTextColor={C.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               maxLength={7}
@@ -223,7 +225,7 @@ export default function BrandingScreen() {
             value={logoUrl}
             onChangeText={setLogoUrl}
             placeholder="https://example.com/logo.png"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={C.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -304,20 +306,20 @@ const styles = StyleSheet.create({
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase" },
-  sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
+  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase" },
+  sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
 
   // 미리보기
-  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden", backgroundColor: "#fff" },
-  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", backgroundColor: "#fff" },
+  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: C.border },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
-  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  previewNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
+  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  previewNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
 
   // 팔레트
   palette:         { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -327,13 +329,13 @@ const styles = StyleSheet.create({
 
   // Hex 입력
   hexRow:          { flexDirection: "row", alignItems: "center", gap: 10 },
-  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
+  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
   hexError:        { fontSize: 12, color: "#D96C6C", fontFamily: "Pretendard-Regular" },
-  hint:            { fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular" },
+  hint:            { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
 
   // URL 입력
-  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
+  urlInput:        { height: 44, borderWidth: 1.5, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
 
   // 안내 박스
   infoBox:         { flexDirection: "row", gap: 10, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

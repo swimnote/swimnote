@@ -53,7 +53,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
       <View>
         {/* 요일 헤더 */}
         <View style={wb.headerRow}>
-          <View style={[wb.timeCell, { backgroundColor: "#F1F5F9" }]} />
+          <View style={[wb.timeCell, { backgroundColor: C.backgroundSoft }]} />
           {COLS.map(day => (
             <View key={day} style={[wb.dayHeader, { width: COL_W }]}>
               <Text style={wb.dayHeaderText}>{day}</Text>
@@ -98,7 +98,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
 
 const wb = StyleSheet.create({
   headerRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F1F5F9" },
+  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: C.backgroundSoft },
   dayHeaderText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   timeCell: { width: TIME_W, alignItems: "center", justifyContent: "flex-start", paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },

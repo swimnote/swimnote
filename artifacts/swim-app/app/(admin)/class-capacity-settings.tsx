@@ -188,5 +188,5 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: "#BAE6FD", gap: 8,
   },
   guideTitle: { fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1" },
-  guideDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  guideDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
 });

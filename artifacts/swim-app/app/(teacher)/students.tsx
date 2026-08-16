@@ -80,12 +80,12 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",    color: "#14283D" },
+  { key: "all",              label: "전체",    color: C.textPrimary },
   { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
-  { key: "withdraw_pending", label: "퇴원예정", color: "#64748B" },
+  { key: "withdraw_pending", label: "퇴원예정", color: C.textSecondary },
   { key: "suspended",        label: "연기",    color: "#7C3AED" },
-  { key: "withdrawn",        label: "퇴원",    color: "#374151" },
+  { key: "withdrawn",        label: "퇴원",    color: C.textPrimary },
 ];
 
 export default function WaitingListScreen() {
@@ -351,7 +351,7 @@ function WaitingActionSheet({
               <Text style={[sh.optLabel, { color: isX ? XT.accent : "#2EC4B6" }]}>회원 정보보기</Text>
               <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
             </View>
-            <LucideIcon name="chevron-right" size={16} color="#64748B" />
+            <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
           </Pressable>
 
           {/* 회원상태변경 */}
@@ -363,7 +363,7 @@ function WaitingActionSheet({
               <Text style={[sh.optLabel, { color: "#B45309" }]}>회원상태변경</Text>
               <Text style={sh.optSub}>연기 · 퇴원 · 정상 복귀 등 상태 선택</Text>
             </View>
-            <LucideIcon name="chevron-right" size={16} color="#64748B" />
+            <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
           </Pressable>
         </View>
 

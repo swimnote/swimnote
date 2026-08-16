@@ -666,7 +666,7 @@ const s = StyleSheet.create({
     maxWidth: "100%",
   },
   userBubbleFailed: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: C.border,
   },
   userText: {
     fontSize: 14,

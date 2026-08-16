@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/kill-switch.tsx — 데이터·킬스위치
  * 안전장치 보강: 해지 확정 조건 + 비밀번호 재입력 + 체크박스 2개 + 스냅샷 강제 생성
@@ -293,7 +295,7 @@ export default function KillSwitchScreen() {
                     );
                   })}
                   {operators.length === 0 && (
-                    <Text style={{ color: "#64748B", fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
+                    <Text style={{ color: C.textSecondary, fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
                   )}
                 </KeyboardAwareScrollView>
             }
@@ -329,7 +331,7 @@ export default function KillSwitchScreen() {
               );
             })}
             <TextInput style={s.reasonInput} value={reason} onChangeText={setReason}
-              placeholder="상세 사유 입력 (필수)" placeholderTextColor="#64748B" />
+              placeholder="상세 사유 입력 (필수)" placeholderTextColor={C.textMuted} />
           </StepCard>
 
           <StepCard step="3" title="삭제 방식">
@@ -350,10 +352,10 @@ export default function KillSwitchScreen() {
             {deleteMode === "period" && (
               <View style={s.dateRow}>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={fromDate} onChangeText={setFromDate}
-                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor="#64748B" />
+                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor={C.textMuted} />
                 <Text style={s.dateSep}>~</Text>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={toDate} onChangeText={setToDate}
-                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor="#64748B" />
+                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor={C.textMuted} />
               </View>
             )}
             {deleteMode === "item" && (
@@ -408,7 +410,7 @@ export default function KillSwitchScreen() {
                   </Pressable>
                   <Pressable style={s.cancelScheduleBtn} disabled={actionLoading === `cancel-${op.id}`}
                     onPress={() => doCancelSchedule(op.id)}>
-                    {actionLoading === `cancel-${op.id}` ? <ActivityIndicator size="small" color="#64748B" />
+                    {actionLoading === `cancel-${op.id}` ? <ActivityIndicator size="small" color={C.textSecondary} />
                       : <Text style={s.cancelScheduleTxt}>취소</Text>}
                   </Pressable>
                   {!terminated && (
@@ -514,13 +516,13 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
-                    secureTextEntry placeholder="로그인 비밀번호 입력" placeholderTextColor="#64748B" />
+                    secureTextEntry placeholder="로그인 비밀번호 입력" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>D. '영구삭제' 정확히 입력</Text>
                   <TextInput style={m.confirmInput} value={confirmText} onChangeText={setConfirmText}
-                    placeholder="영구삭제" placeholderTextColor="#64748B" />
+                    placeholder="영구삭제" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.btnRow}>
@@ -569,57 +571,57 @@ const s = StyleSheet.create({
   dangerBanner:     { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: DANGER,
                       paddingHorizontal: 14, paddingVertical: 10 },
   bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 16 },
-  tabBar:           { flexGrow: 0, borderBottomWidth: 1, borderColor: "#E5E7EB" },
+  tabBar:           { flexGrow: 0, borderBottomWidth: 1, borderColor: C.border },
   tab:              { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   tabActive:        { backgroundColor: DANGER, borderColor: DANGER },
-  tabTxt:           { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxt:           { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:     { color: "#fff" },
 
-  stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
+  stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border,
                       overflow: "hidden" },
   stepHeader:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
                       backgroundColor: "#FFF5F5", borderBottomWidth: 1, borderColor: "#FECACA" },
   stepBadge:        { width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER,
                       alignItems: "center", justifyContent: "center" },
   stepBadgeTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
-  stepTitle:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  stepTitle:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   stepBody:         { padding: 12, gap: 8 },
 
   opChip:           { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   opChipActive:     { borderColor: DANGER, backgroundColor: "#FFF5F5" },
   opChipDisabled:   { opacity: 0.5 },
-  opChipTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  opChipTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   warnBox:          { flexDirection: "row", alignItems: "flex-start", gap: 6,
                       backgroundColor: "#FFFBEB", borderRadius: 8, padding: 10, marginTop: 6 },
   warnTxt:          { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
 
   reasonRow:        { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  reasonLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  reasonDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  reasonInput:      { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
-                      fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 4 },
+                      borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  reasonLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  reasonDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  reasonInput:      { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10,
+                      fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 4 },
 
   radio:            { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center", marginTop: 1 },
   radioDot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
 
   modeRow:          { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 10, borderWidth: 1, borderColor: C.border },
   modeLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  modeDesc:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  modeDesc:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   dateRow:          { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  dateInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
-                      fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  dateSep:          { fontSize: 14, color: "#64748B" },
+  dateInput:        { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10,
+                      fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  dateSep:          { fontSize: 14, color: C.textSecondary },
   itemWrap:         { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   itemChip:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   itemChipActive:   { backgroundColor: "#FFF5F5", borderColor: DANGER },
-  itemChipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+  itemChipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   execBtn:          { flexDirection: "row", alignItems: "center", justifyContent: "center",
                       gap: 8, backgroundColor: DANGER, borderRadius: 14, padding: 16, marginTop: 4 },
@@ -627,7 +629,7 @@ const s = StyleSheet.create({
 
   queueCard:        { flexDirection: "row", alignItems: "center", backgroundColor: "#fff",
                       borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#FECACA", gap: 10 },
-  queueName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  queueName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   queueTimer:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   queueMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   queueActions:     { gap: 6 },
@@ -636,40 +638,40 @@ const s = StyleSheet.create({
   deferTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: WARN },
   cancelScheduleBtn:{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
                       backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB" },
-  cancelScheduleTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+  cancelScheduleTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   termBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
                       backgroundColor: DANGER },
   termTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   logCard:          { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#fff",
-                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
   logLeft:          { width: 28, height: 28, borderRadius: 8, backgroundColor: "#FFF5F5",
                       alignItems: "center", justifyContent: "center" },
-  logTitle:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  logMeta:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  logDetail:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 2 },
+  logTitle:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  logMeta:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  logDetail:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 
   impactBadge:      { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, alignSelf: "flex-start" },
   impactTxt:        { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   empty:            { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
 
 const m = StyleSheet.create({
   backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:            { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
                       maxHeight: "92%", paddingBottom: 40 },
-  handle:           { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2,
+  handle:           { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2,
                       alignSelf: "center", marginTop: 10, marginBottom: 4 },
   dangerHeader:     { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: DANGER,
                       padding: 16 },
   dangerHeaderTxt:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
   confirmInfo:      { margin: 16, backgroundColor: "#FFF5F5", borderRadius: 12, padding: 14,
                       borderWidth: 1, borderColor: "#FECACA" },
-  confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   safeSection:      { marginHorizontal: 16, marginBottom: 14, gap: 8 },
-  safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
                       borderRadius: 10, padding: 12 },
   snapshotDoneTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
@@ -680,16 +682,16 @@ const m = StyleSheet.create({
   checkbox:         { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center", marginTop: 1 },
   checkboxActive:   { backgroundColor: DANGER, borderColor: DANGER },
-  checkTxt:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 17 },
-  pwInput:          { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  pwHint:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  checkTxt:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 17 },
+  pwInput:          { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12,
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  pwHint:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   confirmInput:     { borderWidth: 2, borderColor: DANGER, borderRadius: 10, padding: 12,
-                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   btnRow:           { flexDirection: "row", gap: 10, marginHorizontal: 16, marginTop: 6, marginBottom: 20 },
   cancelBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#F3F4F6",
                       alignItems: "center" },
-  cancelTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151" },
+  cancelTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   deleteBtn:        { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
                       gap: 6, padding: 14, borderRadius: 12, backgroundColor: DANGER },
   deleteTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },

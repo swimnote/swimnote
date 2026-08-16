@@ -8,17 +8,11 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
-const C = {
-  background: "#FFFFFF",
-  card: "#FFFFFF",
-  border: "#E5E7EB",
-  text: "#1A1A1A",
-  textMuted: "#8A8A8A",
-  primary: "#2EC4B6",
-};
+const C = Colors.light;
 
 interface PushSettings {
   notice: boolean;

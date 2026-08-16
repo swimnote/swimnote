@@ -475,7 +475,7 @@ export default function ParentAlbumScreen() {
               </View>
             ) : (
               <View style={[st.vdThumbWrap, st.vdThumbEmpty]}>
-                <LucideIcon name="video" size={40} color="#64748B" />
+                <LucideIcon name="video" size={40} color={C.textSecondary} />
                 <Text style={st.vdThumbEmptyTxt}>썸네일 없음</Text>
               </View>
             )}
@@ -503,8 +503,8 @@ export default function ParentAlbumScreen() {
                   <Text style={st.vdBtnTxt}>해당 일지 보기</Text>
                 </Pressable>
               )}
-              <Pressable style={[st.vdBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setVideoDetail(null)}>
-                <Text style={[st.vdBtnTxt, { color: "#374151" }]}>닫기</Text>
+              <Pressable style={[st.vdBtn, { backgroundColor: C.backgroundSoft }]} onPress={() => setVideoDetail(null)}>
+                <Text style={[st.vdBtnTxt, { color: C.textPrimary }]}>닫기</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -517,14 +517,14 @@ export default function ParentAlbumScreen() {
 const st = StyleSheet.create({
   root: { flex: 1 },
 
-  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
+  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
   tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
-  tabTxt: { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxt: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive: { color: "#2EC4B6" },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
-  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   row: { flexDirection: "row", gap: 2, paddingHorizontal: 2 },
   cell: { borderRadius: 2, overflow: "hidden", backgroundColor: "#E2E8F0", marginBottom: 2 },
@@ -539,7 +539,7 @@ const st = StyleSheet.create({
 
   empty: { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 28 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
-  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: "#64748B" },
+  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: C.textSecondary },
 
   lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
   lbTop: {
@@ -576,13 +576,13 @@ const st = StyleSheet.create({
 
   vdOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   vdSheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, gap: 16 },
-  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   vdThumbWrap: { width: "100%", height: 200, borderRadius: 14, overflow: "hidden", backgroundColor: "#E2E8F0" },
   vdThumb: { width: "100%", height: "100%" },
   vdThumbEmpty: { alignItems: "center", justifyContent: "center", gap: 8 },
-  vdThumbEmptyTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  vdThumbEmptyTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   vdPlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
-  vdLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center" },
+  vdLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
   vdBtnCol: { gap: 10 },
   vdBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   vdBtnTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },

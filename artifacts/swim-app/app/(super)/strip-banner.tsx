@@ -21,7 +21,7 @@ const P = "#7C3AED";
 const STATUS_CFG: Record<AdStatus, { label: string; dot: string; badge: string }> = {
   active:    { label: "노출 중",  dot: "#22C55E", badge: "#DCFCE7" },
   scheduled: { label: "예약됨",  dot: "#D97706", badge: "#FEF9C3" },
-  inactive:  { label: "비활성",  dot: "#94A3B8", badge: "#F1F5F9" },
+  inactive:  { label: "비활성",  dot: C.textMuted, badge: C.backgroundSoft },
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -86,7 +86,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
 
       <View style={ac.dateRow}>
-        <LucideIcon name="calendar" size={11} color="#94A3B8" />
+        <LucideIcon name="calendar" size={11} color={C.textMuted} />
         <Text style={ac.dateTxt}>
           {ad.displayStart.slice(0, 10)} ~ {ad.displayEnd.slice(0, 10)}
         </Text>
@@ -99,8 +99,8 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
           </Pressable>
         )}
         {ad.status === "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#F1F5F9" }]} onPress={() => onStatusChange(ad.id, "inactive")}>
-            <Text style={[ac.btnTxt, { color: "#64748B" }]}>중지</Text>
+          <Pressable style={[ac.btn, { backgroundColor: C.backgroundSoft }]} onPress={() => onStatusChange(ad.id, "inactive")}>
+            <Text style={[ac.btnTxt, { color: C.textSecondary }]}>중지</Text>
           </Pressable>
         )}
         <Pressable style={[ac.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => onEdit(ad)}>
@@ -115,20 +115,20 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
 }
 
 const ac = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
   top:         { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   statusDot:   { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  target:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  title:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  target:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   badgeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewStrip:{ flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, height: 36, paddingHorizontal: 10, marginBottom: 8 },
   stripIconWrap:{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   stripTitle:  { flex: 1, fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   previewImg:  { width: "100%", height: 60, borderRadius: 8, marginBottom: 8 },
-  desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6, lineHeight: 18 },
+  desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6, lineHeight: 18 },
   dateRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
-  dateTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  dateTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actions:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -308,8 +308,8 @@ export default function StripBannerScreen() {
           <Text style={[s.sumNum, { color: "#D97706" }]}>{counts.scheduled}</Text>
           <Text style={s.sumLabel}>예약됨</Text>
         </View>
-        <View style={[s.summaryCard, { borderColor: "#F1F5F9" }]}>
-          <Text style={[s.sumNum, { color: "#64748B" }]}>{counts.inactive}</Text>
+        <View style={[s.summaryCard, { borderColor: C.backgroundSoft }]}>
+          <Text style={[s.sumNum, { color: C.textSecondary }]}>{counts.inactive}</Text>
           <Text style={s.sumLabel}>비활성</Text>
         </View>
       </View>
@@ -361,7 +361,7 @@ export default function StripBannerScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "가로 배너 수정" : "가로 배너 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <LucideIcon name="x" size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -484,10 +484,10 @@ export default function StripBannerScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { gap: 14 }]}>
             <Text style={[m.title, { textAlign: "center" }]}>배너를 삭제할까요?</Text>
-            <Text style={{ fontSize: 13, color: "#64748B", textAlign: "center", fontFamily: "Pretendard-Regular" }}>삭제 후 복구가 불가합니다.</Text>
+            <Text style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" }}>삭제 후 복구가 불가합니다.</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#F1F5F9" }]} onPress={() => setDeleteConfirm(null)}>
-                <Text style={[m.saveTxt, { color: "#64748B" }]}>취소</Text>
+              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: C.backgroundSoft }]} onPress={() => setDeleteConfirm(null)}>
+                <Text style={[m.saveTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#DC2626" }]} onPress={() => deleteConfirm && handleDelete(deleteConfirm)}>
                 <Text style={m.saveTxt}>삭제</Text>
@@ -501,34 +501,34 @@ export default function StripBannerScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:             { flex: 1, backgroundColor: C.backgroundSoft },
   summaryRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                      borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                      borderBottomWidth: 1, borderBottomColor: C.border },
   summaryCard:      { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },
   sumNum:           { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  sumLabel:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  sumLabel:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterRow:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterBtnActive:  { backgroundColor: P },
-  filterTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  filterTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterTxtActive:  { color: "#fff" },
   addBtn:           { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   addTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   empty:            { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
 
 const m = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%", gap: 12 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  label:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", marginBottom: 4, marginTop: 8 },
-  input:       { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111", marginBottom: 4 },
+  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 8 },
+  input:       { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111", marginBottom: 4 },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-  segBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F1F5F9" },
+  segBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: C.backgroundSoft },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt:{ color: "#fff" },
   colorChip:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   colorDot:    { width: 10, height: 10, borderRadius: 5 },
@@ -544,7 +544,7 @@ const m = StyleSheet.create({
   saveBtn:     { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   labelRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 8 },
-  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   charCountOver:{ color: "#DC2626" },
   inputError:  { borderColor: "#DC2626" },
   errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },

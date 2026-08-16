@@ -102,23 +102,23 @@ export function MemberInfoTab({
       <View style={{
         marginHorizontal: 16, marginBottom: 8,
         borderRadius: 12, padding: 12,
-        backgroundColor: isParentLinked ? "#E6FAF8" : "#F8FAFC",
+        backgroundColor: isParentLinked ? "#E6FAF8" : C.backgroundSoft,
         flexDirection: "row", alignItems: "center", gap: 10,
-        borderWidth: 1, borderColor: isParentLinked ? "#2EC4B6" : "#E2E8F0",
+        borderWidth: 1, borderColor: isParentLinked ? "#2EC4B6" : C.border,
       }}>
-        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? "#2EC4B6" : "#94A3B8"} />
+        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? "#2EC4B6" : C.textMuted} />
         <View style={{ flex: 1 }}>
           {isParentLinked ? (
             <>
               <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>학부모 앱 연결됨</Text>
               {parentAccountName ? (
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 1 }}>{parentAccountName}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 1 }}>{parentAccountName}</Text>
               ) : null}
             </>
           ) : (
             <>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" }}>학부모 앱 미연결</Text>
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 }}>학부모 연락처 저장 시 자동 연결됩니다</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>학부모 앱 미연결</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 }}>학부모 연락처 저장 시 자동 연결됩니다</Text>
             </>
           )}
         </View>

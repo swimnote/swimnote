@@ -253,7 +253,7 @@ const m = StyleSheet.create({
   container: {
     width: "92%",
     // height는 인라인으로 (useWindowDimensions 값 사용)
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderRadius: 20,
     overflow: "hidden",
     display: "flex",
@@ -268,7 +268,7 @@ const m = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: C.border,
     flexShrink: 0,
   },
   headerIcon: {
@@ -280,7 +280,7 @@ const m = StyleSheet.create({
     flex: 1,
     fontSize: 22,
     fontFamily: "Pretendard-Bold",
-    color: "#14283D",
+    color: C.textPrimary,
   },
   closeBtn: {
     marginLeft: 8,
@@ -315,7 +315,7 @@ const m = StyleSheet.create({
   },
   bodyFirstPara: {
     fontFamily: "Pretendard-Bold",
-    color: "#14283D",
+    color: C.textPrimary,
   },
   emText: {
     fontFamily: "Pretendard-SemiBold",
@@ -335,7 +335,7 @@ const m = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: C.border,
     flexShrink: 0,
   },
   confirmBtn: {

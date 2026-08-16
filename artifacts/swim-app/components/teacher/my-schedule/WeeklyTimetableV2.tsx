@@ -18,6 +18,10 @@ import {
   addDaysStr, classColor, getWeekDates, parseHour, todayDateStr,
 } from "./utils";
 
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
+
 const SCREEN_W  = Dimensions.get("window").width;
 const TIME_W    = 28;
 const ALL_DAYS  = ["월", "화", "수", "목", "금", "토"];
@@ -124,8 +128,8 @@ export default function WeeklyTimetableV2({
         {hasDot && <View style={wt.changeDot} />}
         {selectionMode && (
           <View style={[wt.checkBox, {
-            borderColor:     "#374151",
-            backgroundColor: selected ? "#374151" : "transparent",
+            borderColor:     C.textPrimary,
+            backgroundColor: selected ? C.textPrimary : "transparent",
           }]}>
             {selected && <LucideIcon name="check" size={6} color="#fff" />}
           </View>
@@ -151,7 +155,7 @@ export default function WeeklyTimetableV2({
       {/* 주간 네비게이션 */}
       <View style={wt.weekNav}>
         <Pressable style={wt.weekNavBtn} onPress={onPrevWeek}>
-          <LucideIcon name="chevron-left" size={18} color="#9CA3AF" />
+          <LucideIcon name="chevron-left" size={18} color={C.textMuted} />
         </Pressable>
         <Text style={wt.weekNavTitle}>
           {(() => {
@@ -162,7 +166,7 @@ export default function WeeklyTimetableV2({
           })()}
         </Text>
         <Pressable style={wt.weekNavBtn} onPress={onNextWeek}>
-          <LucideIcon name="chevron-right" size={18} color="#9CA3AF" />
+          <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
@@ -226,43 +230,43 @@ export default function WeeklyTimetableV2({
 }
 
 const wt = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#FFFFFF" },
+  root: { flex: 1, backgroundColor: C.surface },
 
   weekNav: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 4, paddingVertical: 6, backgroundColor: "#FFFFFF",
-    borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
+    paddingHorizontal: 4, paddingVertical: 6, backgroundColor: C.surface,
+    borderBottomWidth: 0.5, borderBottomColor: C.border,
   },
   weekNavBtn:   { padding: 10 },
   weekNavTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280" },
 
   gridRow:   { flexDirection: "row" },
-  headerRow: { borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
+  headerRow: { borderBottomWidth: 0.5, borderBottomColor: C.border },
 
   timeTop: {
-    backgroundColor: "#FFFFFF",
-    borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
+    backgroundColor: C.surface,
+    borderRightWidth: 0.5, borderRightColor: C.border,
   },
   timeCell: {
-    backgroundColor: "#FFFFFF",
-    borderRightWidth: 0.5, borderRightColor: "#E5E7EB",
+    backgroundColor: C.surface,
+    borderRightWidth: 0.5, borderRightColor: C.border,
     alignItems: "center", justifyContent: "flex-start", paddingTop: 4,
   },
-  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  timeText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   dayHeader: {
     alignItems: "center", justifyContent: "center",
-    borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",
-    backgroundColor: "#FFFFFF", paddingVertical: 6,
+    borderLeftWidth: 0.5, borderLeftColor: C.border,
+    backgroundColor: C.surface, paddingVertical: 6,
   },
   dayHeaderToday: { backgroundColor: "#F0FFFE" },
-  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 12 },
+  dayHeaderDate:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 12 },
   dayHeaderText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 15 },
 
   cell: {
-    borderLeftWidth: 0.5, borderLeftColor: "#E5E7EB",
-    borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
-    padding: 2, gap: 2, backgroundColor: "#FFFFFF",
+    borderLeftWidth: 0.5, borderLeftColor: C.border,
+    borderBottomWidth: 0.5, borderBottomColor: C.border,
+    padding: 2, gap: 2, backgroundColor: C.surface,
   },
 
   card: {
@@ -280,8 +284,8 @@ const wt = StyleSheet.create({
     borderRadius: 3, backgroundColor: "#FCD34D", zIndex: 10,
   },
 
-  cardName:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 12 },
-  cardStudents: { fontSize: 8, fontFamily: "Pretendard-Regular", color: "#9CA3AF", lineHeight: 11 },
+  cardName:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 12 },
+  cardStudents: { fontSize: 8, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 11 },
   cardAtt:      { fontSize: 8, fontFamily: "Pretendard-Regular", lineHeight: 11 },
   attDone:      { color: "#059669" },
   attPend:      { color: "#D97706" },

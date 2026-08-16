@@ -118,7 +118,7 @@ export default function AdditionalGuardiansScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, backgroundColor: C.backgroundSoft }}>
       <ParentScreenHeader
         title="추가 보호자 관리"
         onBack={() => router.back()}
@@ -192,7 +192,7 @@ export default function AdditionalGuardiansScreen() {
 
                 {/* 주 보호자 (slot 1) */}
                 {s.phones.filter(p => p.slot === 1).map(p => (
-                  <View key={1} style={[slotRow, { backgroundColor: "#F1F5F9", opacity: 0.85 }]}>
+                  <View key={1} style={[slotRow, { backgroundColor: C.backgroundSoft, opacity: 0.85 }]}>
                     <View style={dotBadge("connected")}>
                       <LucideIcon name="shield-check" size={13} color="#2EC4B6" />
                     </View>
@@ -222,7 +222,7 @@ export default function AdditionalGuardiansScreen() {
                       </Text>
                       <Text style={slotPhone}>{formatPhone(p.phone)}</Text>
                       {p.connected_name ? (
-                        <Text style={{ fontSize: 11, color: "#64748B", marginTop: 1 }}>연결 계정: {p.connected_name}</Text>
+                        <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 1 }}>연결 계정: {p.connected_name}</Text>
                       ) : null}
                     </View>
                     <Pressable
@@ -246,7 +246,7 @@ export default function AdditionalGuardiansScreen() {
                 )}
 
                 {!hasEmpty && filledSlots.length >= 3 && (
-                  <Text style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: C.textMuted, textAlign: "center", marginTop: 4 }}>
                     보호자 번호가 최대 개수(3개)에 도달했습니다
                   </Text>
                 )}
@@ -256,20 +256,20 @@ export default function AdditionalGuardiansScreen() {
           {/* FAQ */}
           <View style={{ backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <LucideIcon name="help-circle" size={16} color="#64748B" />
-              <Text style={{ fontSize: 14, color: "#14283D", fontFamily: "Pretendard-Bold" }}>자주 묻는 질문</Text>
+              <LucideIcon name="help-circle" size={16} color={C.textSecondary} />
+              <Text style={{ fontSize: 14, color: C.textPrimary, fontFamily: "Pretendard-Bold" }}>자주 묻는 질문</Text>
             </View>
             <View style={{ gap: 4 }}>
               <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
                 <Text style={{ fontSize: 13, color: TEAL, fontFamily: "Pretendard-Bold", lineHeight: 20 }}>Q.</Text>
-                <Text style={{ flex: 1, fontSize: 13, color: "#14283D", fontFamily: "Pretendard-SemiBold", lineHeight: 20 }}>
+                <Text style={{ flex: 1, fontSize: 13, color: C.textPrimary, fontFamily: "Pretendard-SemiBold", lineHeight: 20 }}>
                   왜 승인 대기 상태인가요?
                 </Text>
               </View>
               <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start", paddingLeft: 2 }}>
-                <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Bold", lineHeight: 20 }}>A.</Text>
+                <Text style={{ fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Bold", lineHeight: 20 }}>A.</Text>
                 <Text style={{ flex: 1, fontSize: 13, color: "#475569", lineHeight: 20 }}>
-                  추가 보호자는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>연결된 보호자가 전화번호를 등록</Text>하면 자동으로 승인됩니다.{"\n"}
+                  추가 보호자는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>연결된 보호자가 전화번호를 등록</Text>하면 자동으로 승인됩니다.{"\n"}
                   별도의 수영장 승인이나 관리자 승인은 필요하지 않습니다.
                 </Text>
               </View>
@@ -307,7 +307,7 @@ export default function AdditionalGuardiansScreen() {
               <TextInput
                 style={phoneInputStyle}
                 placeholder="010-0000-0000"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={C.textMuted}
                 keyboardType="phone-pad"
                 value={phoneInput}
                 onChangeText={setPhoneInput}
@@ -318,7 +318,7 @@ export default function AdditionalGuardiansScreen() {
                   style={({ pressed }) => [cancelBtn, { opacity: pressed ? 0.7 : 1 }]}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Text style={{ fontSize: 15, color: "#64748B", fontFamily: "Pretendard-Medium" }}>취소</Text>
+                  <Text style={{ fontSize: 15, color: C.textSecondary, fontFamily: "Pretendard-Medium" }}>취소</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [confirmBtn, { opacity: pressed ? 0.85 : 1 }]}
@@ -358,12 +358,12 @@ function dotBadge(status: string) {
 const slotRow: object = {
   flexDirection: "row", alignItems: "center",
   paddingVertical: 10, paddingHorizontal: 10,
-  borderRadius: 10, backgroundColor: "#F8FAFC",
+  borderRadius: 10, backgroundColor: C.backgroundSoft,
   marginBottom: 6,
 };
 
-const slotLabel: object = { fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" };
-const slotPhone: object = { fontSize: 14, color: "#14283D", fontFamily: "Pretendard-SemiBold", marginTop: 1 };
+const slotLabel: object = { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" };
+const slotPhone: object = { fontSize: 14, color: C.textPrimary, fontFamily: "Pretendard-SemiBold", marginTop: 1 };
 
 const deleteBtn: object = {
   padding: 8, borderRadius: 8, backgroundColor: "#FEE2E2",
@@ -386,18 +386,18 @@ const sheet: object = {
   padding: 24, paddingBottom: 40, gap: 12,
 };
 
-const sheetTitle: object = { fontSize: 17, color: "#14283D", fontFamily: "Pretendard-SemiBold" };
-const sheetDesc: object = { fontSize: 13, color: "#64748B", fontFamily: "Pretendard-Regular" };
+const sheetTitle: object = { fontSize: 17, color: C.textPrimary, fontFamily: "Pretendard-SemiBold" };
+const sheetDesc: object = { fontSize: 13, color: C.textSecondary, fontFamily: "Pretendard-Regular" };
 
 const phoneInputStyle: object = {
-  borderWidth: 1.5, borderColor: "#E2E8F0", borderRadius: 10,
-  padding: 14, fontSize: 16, color: "#14283D",
-  fontFamily: "Pretendard-Regular", backgroundColor: "#F8FAFC",
+  borderWidth: 1.5, borderColor: C.border, borderRadius: 10,
+  padding: 14, fontSize: 16, color: C.textPrimary,
+  fontFamily: "Pretendard-Regular", backgroundColor: C.backgroundSoft,
 };
 
 const cancelBtn: object = {
   flex: 1, paddingVertical: 13, borderRadius: 10,
-  backgroundColor: "#F1F5F9", alignItems: "center",
+  backgroundColor: C.backgroundSoft, alignItems: "center",
 };
 const confirmBtn: object = {
   flex: 2, paddingVertical: 13, borderRadius: 10,

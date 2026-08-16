@@ -207,7 +207,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
                     <Text style={[s.editedBadgeText, { color: "#7C3AED" }]}>수정됨</Text>
                   </View>
                 )}
-                <Text style={[s.sectionValue, { color: "#14283D", paddingLeft: 0 }]}>{entry.student_note.note_content}</Text>
+                <Text style={[s.sectionValue, { color: C.textPrimary, paddingLeft: 0 }]}>{entry.student_note.note_content}</Text>
               </View>
             </>
           )}

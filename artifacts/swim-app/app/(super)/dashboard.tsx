@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/dashboard.tsx — 슈퍼관리자 운영 대시보드
  *
@@ -92,12 +94,12 @@ function KpiCard({
 
 const k = StyleSheet.create({
   card:      { flex: 1, minWidth: "22%", backgroundColor: "#FFF", borderRadius: 12, padding: 11,
-               borderWidth: 1, borderColor: "#E5E7EB", position: "relative" },
+               borderWidth: 1, borderColor: C.border, position: "relative" },
   cardAlert: { borderColor: "#FCA5A5", backgroundColor: "#FEF2F2" },
   dot:       { position: "absolute", top: 7, right: 7, width: 6, height: 6,
                borderRadius: 3, backgroundColor: "#D96C6C" },
-  num:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  label:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, lineHeight: 13 },
+  num:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, lineHeight: 13 },
   note:      { fontSize: 8, fontFamily: "Pretendard-Regular", color: "#CBD5E1", marginTop: 1 },
 });
 
@@ -114,8 +116,8 @@ function ActionRow({
         <LucideIcon name={icon as any} size={14} color={iconColor} />
       </View>
       <Text style={a.label}>{label}</Text>
-      <View style={[a.badge, { backgroundColor: count > 0 ? (urgent ? "#D96C6C" : P) : "#E5E7EB" }]}>
-        <Text style={[a.badgeTxt, { color: count > 0 ? "#fff" : "#94A3B8" }]}>{count}</Text>
+      <View style={[a.badge, { backgroundColor: count > 0 ? (urgent ? "#D96C6C" : P) : C.border }]}>
+        <Text style={[a.badgeTxt, { color: count > 0 ? "#fff" : C.textMuted }]}>{count}</Text>
       </View>
       <LucideIcon name="chevron-right" size={13} color="#CBD5E1" />
     </Pressable>
@@ -124,9 +126,9 @@ function ActionRow({
 
 const a = StyleSheet.create({
   row:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
-              paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+              paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   iconBox:  { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  label:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  label:    { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   badge:    { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 26, alignItems: "center" },
   badgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
@@ -156,10 +158,10 @@ function PoolPreviewRow({ item }: { item: TodoItem }) {
 
 const pp = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10,
-               paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+               paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: "#D97706" },
-  name:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
+  name:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   statusPill:{ backgroundColor: "#FFF1BF", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   statusTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" },
 });
@@ -191,11 +193,11 @@ function Card({
 }
 
 const c = StyleSheet.create({
-  wrap:     { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
+  wrap:     { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1, borderColor: C.border,
               marginBottom: 12, overflow: "hidden" },
   header:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-              paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  title:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "600" as const },
+              paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  title:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, fontWeight: "600" as const },
   right:    { flexDirection: "row", alignItems: "center", gap: 3 },
   rightTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT },
 });
@@ -277,7 +279,7 @@ export default function SuperDashboard() {
             <LucideIcon name="menu" size={18} color={P} />
           </Pressable>
           <Pressable style={s.logoutBtn} onPress={logout}>
-            <LucideIcon name="log-out" size={15} color="#94A3B8" />
+            <LucideIcon name="log-out" size={15} color={C.textMuted} />
           </Pressable>
         </View>
       </View>
@@ -449,34 +451,34 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#FFFFFF" },
   header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                     paddingHorizontal: 18, paddingTop: 10, paddingBottom: 12,
-                    backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  headerTitle:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "700" as const },
-  headerSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
+                    backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  headerTitle:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary, fontWeight: "700" as const },
+  headerSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   menuBtn:        { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F5F3FF",
                     alignItems: "center", justifyContent: "center" },
-  logoutBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F1F5F9",
+  logoutBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: C.backgroundSoft,
                     alignItems: "center", justifyContent: "center" },
 
   kpiRow:         { flexDirection: "row", gap: 8, marginBottom: 12 },
 
   emptyRow:       { paddingVertical: 18, alignItems: "center" },
-  emptyTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptyTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   moreRow:        { paddingVertical: 11, alignItems: "center",
-                    borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+                    borderTopWidth: 1, borderTopColor: C.backgroundSoft },
   moreTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT },
 
   healthOk:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 14 },
   healthOkTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#16A34A" },
   healthWarnRow:  { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 14, paddingVertical: 9,
-                    borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  healthWarnName: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  healthWarnTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+                    borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  healthWarnName: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  healthWarnTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   contentRow:     { flexDirection: "row", padding: 14, gap: 10 },
   contentBtn:     { flex: 1, alignItems: "center", gap: 8, paddingVertical: 14,
                     backgroundColor: "#F8F8FC", borderRadius: 12 },
   contentIcon:    { width: 38, height: 38, borderRadius: 10, backgroundColor: "#F5F3FF",
                     alignItems: "center", justifyContent: "center" },
-  contentLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#374151" },
+  contentLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });

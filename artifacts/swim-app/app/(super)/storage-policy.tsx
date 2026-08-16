@@ -114,7 +114,7 @@ export default function StoragePolicyScreen() {
       <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 12 }}>
         {policies.map(p => {
-          const meta = TIER_META[p.tier] ?? { label: p.tier, color: "#64748B", bg: "#FFFFFF", memberRange: "" };
+          const meta = TIER_META[p.tier] ?? { label: p.tier, color: C.textSecondary, bg: "#FFFFFF", memberRange: "" };
           return (
             <View key={p.tier} style={[styles.card, { shadowColor: PURPLE + "22" }]}>
               <View style={[styles.cardHeader, { backgroundColor: meta.bg }]}>
@@ -131,19 +131,19 @@ export default function StoragePolicyScreen() {
               <View style={styles.cardBody}>
                 <View style={styles.policyRow}>
                   <View style={styles.policyItem}>
-                    <LucideIcon name="hard-drive" size={14} color="#64748B" />
+                    <LucideIcon name="hard-drive" size={14} color={C.textSecondary} />
                     <Text style={styles.policyKey}>기본 용량</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{fmtGB(p.quota_gb)}</Text>
                   </View>
                   <View style={styles.dividerV} />
                   <View style={styles.policyItem}>
-                    <LucideIcon name="user" size={14} color="#64748B" />
+                    <LucideIcon name="user" size={14} color={C.textSecondary} />
                     <Text style={styles.policyKey}>회원당 평균</Text>
                     <Text style={[styles.policyVal, { color: meta.color }]}>{p.per_member_mb} MB</Text>
                   </View>
                 </View>
-                <View style={[styles.extraRow, { borderColor: "#E5E7EB" }]}>
-                  <LucideIcon name="plus-circle" size={13} color="#64748B" />
+                <View style={[styles.extraRow, { borderColor: C.border }]}>
+                  <LucideIcon name="plus-circle" size={13} color={C.textSecondary} />
                   <Text style={styles.extraText}>추가 용량 단가</Text>
                   <Text style={[styles.extraPrice, { color: meta.color }]}>{fmtPrice(p.extra_price_per_gb)}</Text>
                 </View>
@@ -170,7 +170,7 @@ export default function StoragePolicyScreen() {
                 {editTarget ? (TIER_META[editTarget.tier]?.label ?? editTarget.tier) : ""} 용량 수정
               </Text>
               <Pressable onPress={() => setEditTarget(null)}>
-                <LucideIcon name="x" size={22} color="#64748B" />
+                <LucideIcon name="x" size={22} color={C.textSecondary} />
               </Pressable>
             </View>
 
@@ -189,7 +189,7 @@ export default function StoragePolicyScreen() {
                   value={form[key as keyof typeof form]}
                   onChangeText={v => setForm(f => ({ ...f, [key]: v }))}
                   placeholder={placeholder}
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={C.textMuted}
                   keyboardType={keyboardType}
                 />
               </View>
@@ -234,27 +234,27 @@ const styles = StyleSheet.create({
   cardBody:      { padding: 14, gap: 10 },
   policyRow:     { flexDirection: "row", alignItems: "center" },
   policyItem:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-  policyKey:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  policyKey:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   policyVal:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  dividerV:      { width: 1, height: 32, backgroundColor: "#E5E7EB", marginHorizontal: 10 },
+  dividerV:      { width: 1, height: 32, backgroundColor: C.border, marginHorizontal: 10 },
   extraRow:      { flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, paddingTop: 10 },
-  extraText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  extraText:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   extraPrice:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  desc:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 16 },
+  desc:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
   thresholdNote: { flexDirection: "row", gap: 8, alignItems: "flex-start", borderWidth: 1.5,
                    borderRadius: 12, padding: 12, backgroundColor: "#FFFBEB" },
   thresholdText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   overlay:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   sheet:         { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24,
                    padding: 24, gap: 14 },
-  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   modalHeader:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   modalTitle:    { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#1F1235" },
   errorText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   field:         { gap: 5 },
-  fieldLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  input:         { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingHorizontal: 14,
-                   height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
+  fieldLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  input:         { borderWidth: 1.5, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14,
+                   height: 46, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, backgroundColor: C.backgroundSoft },
   saveBtn:       { height: 50, borderRadius: 14, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", marginTop: 4 },
   saveBtnText:   { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 });

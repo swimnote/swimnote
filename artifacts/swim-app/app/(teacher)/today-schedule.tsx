@@ -267,7 +267,7 @@ export default function TodayScheduleScreen() {
           </Pressable>
         </View>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 20 }}>
-          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", marginBottom: 4 }}>
             <Sun size={36} color={C.textMuted} />
           </View>
           <Text style={{ fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" }}>
@@ -279,7 +279,7 @@ export default function TodayScheduleScreen() {
           <View style={{ borderRadius: 16, backgroundColor: C.card, padding: 16, width: "100%", gap: 10,
             shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>1</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
@@ -287,7 +287,7 @@ export default function TodayScheduleScreen() {
               </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>2</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
@@ -295,7 +295,7 @@ export default function TodayScheduleScreen() {
               </Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>3</Text>
               </View>
               <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>
@@ -347,15 +347,15 @@ export default function TodayScheduleScreen() {
                   h.switchChip,
                   isX
                     ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: XT.surfaceNavySoft, opacity: pressed || switching ? 0.7 : 1 }
-                    : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                    : { borderColor: C.textPrimary + "30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToAdmin} disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : "#14283D"} />
+                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : C.textPrimary} />
                   : <>
-                      <Repeat size={10} color={isX ? XT.textOnNavy : "#14283D"} />
-                      <Text style={[h.switchChipTxt, { color: isX ? XT.textOnNavy : "#14283D" }]}>관리자로 전환</Text>
+                      <Repeat size={10} color={isX ? XT.textOnNavy : C.textPrimary} />
+                      <Text style={[h.switchChipTxt, { color: isX ? XT.textOnNavy : C.textPrimary }]}>관리자로 전환</Text>
                     </>
                 }
               </Pressable>
@@ -474,20 +474,20 @@ export default function TodayScheduleScreen() {
           <Pressable
             style={({ pressed }) => ({
               flexDirection: "row", alignItems: "center", gap: 8,
-              backgroundColor: mode === "x" ? "#E9EEF3" : "#F8FAFC",
+              backgroundColor: mode === "x" ? "#E9EEF3" : C.backgroundSoft,
               borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-              borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#E2E8F0",
+              borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : C.border,
               opacity: pressed && mode === "x" ? 0.75 : 1,
             })}
             onPress={() => mode === "x" && router.push("/(teacher)/x-growth" as any)}
             disabled={mode !== "x"}
           >
-            <LucideIcon name="trending-up" size={14} color={mode === "x" ? "#355C7D" : "#94A3B8"} />
-            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#23415C" : "#94A3B8", flex: 1 }}>
+            <LucideIcon name="trending-up" size={14} color={mode === "x" ? "#355C7D" : C.textMuted} />
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#23415C" : C.textMuted, flex: 1 }}>
               {mode === "x" ? "성장 추적 →" : "X 설정 완료 후 이용 가능"}
             </Text>
-            <View style={{ backgroundColor: mode === "x" ? "#E9EEF3" : "#E2E8F0", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#CBD5E1" }}>
-              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : "#94A3B8" }}>
+            <View style={{ backgroundColor: mode === "x" ? "#E9EEF3" : C.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#CBD5E1" }}>
+              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : C.textMuted }}>
                 SWIMNOTE X
               </Text>
             </View>
@@ -497,7 +497,7 @@ export default function TodayScheduleScreen() {
       <View style={[h.classCardWrap, { paddingBottom: insets.bottom + 12 }]}>
         <View style={[h.sectionCard, { flex: 1, backgroundColor: C.card }]}>
           <View style={h.sectionHeaderRow}>
-            <View style={[h.sectionIconBox, { backgroundColor: "#F1F5F9" }]}>
+            <View style={[h.sectionIconBox, { backgroundColor: C.backgroundSoft }]}>
               <LucideIcon name="layers" size={13} color={C.textSecondary} />
             </View>
             <Text style={h.sectionTitle}>오늘 수업</Text>
@@ -524,7 +524,7 @@ export default function TodayScheduleScreen() {
               </View>
             ) : sortedItems.length === 0 ? (
               <View style={h.badgeEmpty}>
-                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
+                <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
                   <Sun size={26} color={C.textMuted} />
                 </View>
                 <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }}>오늘 배정된 수업이 없습니다</Text>
@@ -640,11 +640,11 @@ const h = StyleSheet.create({
   switchChipTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   scroll:         { padding: 12, gap: 8 },
   todayBanner:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  todayDate:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
+  todayDate:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6 },
   todayStatRow:   { flexDirection: "row", alignItems: "center" },
   todayStat:      { flex: 1, alignItems: "center", gap: 1, paddingVertical: 0 },
-  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  todayStatLabel: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  todayStatNum:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  todayStatLabel: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   todayDivider:   { width: 1, height: 18, backgroundColor: C.border },
   sectionCard:    { borderRadius: 14, padding: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   sectionHeaderRow:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },

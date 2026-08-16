@@ -519,7 +519,7 @@ const s = StyleSheet.create({
   // 진행 상태
   progressRow: { gap: 6 },
   progressText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "right" },
-  progressBar: { height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, overflow: "hidden" },
+  progressBar: { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: "hidden" },
   progressFill:{ height: 4, backgroundColor: C.tint, borderRadius: 2 },
 
   // 카드

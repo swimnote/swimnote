@@ -29,7 +29,7 @@ function getRoleDisplay(roleKey: string) {
   if (roleKey === "parent" || roleKey === "parent_account") {
     return { label: "학부모", icon: "heart" as any, color: "#E4A93A", bg: "#FFFBEB" };
   }
-  return { label: roleKey, icon: "user" as any, color: "#64748B", bg: "#F1F5F9" };
+  return { label: roleKey, icon: "user" as any, color: C.textSecondary, bg: C.backgroundSoft };
 }
 
 export default function OrgRoleSelectScreen() {

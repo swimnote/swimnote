@@ -261,7 +261,7 @@ export default function MyInfoScreen() {
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               {profile?.position ? <Text style={s.profileSub}>{profile.position}</Text> : null}
               <Text style={s.profileSub}>{profile?.phone || "-"}</Text>
-              <Text style={[s.profileSub, { color: "#64748B" }]}>{profile?.email || "-"}</Text>
+              <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile?.email || "-"}</Text>
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={openEdit}>
               <LucideIcon name="edit-2" size={14} color={themeColor} />
@@ -288,7 +288,7 @@ export default function MyInfoScreen() {
                 <Text style={s.permLabel}>보유 역할</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   {adminUser.roles.map((r: string) => (
-                    <View key={r} style={[s.permBadge, { backgroundColor: "#FFFFFF" }]}>
+                    <View key={r} style={[s.permBadge, { backgroundColor: C.surface }]}>
                       <Text style={[s.permBadgeText, { color: C.textSecondary }]}>{ROLE_LABEL[r] ?? r}</Text>
                     </View>
                   ))}
@@ -505,7 +505,7 @@ export default function MyInfoScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:             { flex: 1, backgroundColor: C.surface },
   card:             { backgroundColor: C.card, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow:          { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 12 },

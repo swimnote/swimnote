@@ -15,6 +15,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBrand, APP_PLATFORM_NAME } from "@/context/BrandContext";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 interface PoolHeaderProps {
   /** 우측 영역에 표시할 커스텀 버튼들 */
@@ -30,7 +33,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
   const paddingTop = Platform.OS === "web" ? 12 : Math.max(insets.top, 12);
 
   return (
-    <View style={[styles.container, { paddingTop, backgroundColor: "#fff" }]}>
+    <View style={[styles.container, { paddingTop, backgroundColor: C.surface }]}>
       <View style={styles.row}>
         {/* 좌측 버튼 (뒤로가기 등) */}
         {left ? <View style={styles.side}>{left}</View> : null}
@@ -143,7 +146,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
-    color: "#14283D"
+    color: C.textPrimary
   },
   subtitle: {
     fontSize: 10,
@@ -152,7 +155,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: C.border,
     marginHorizontal: 0,
   },
 });

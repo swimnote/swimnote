@@ -268,8 +268,8 @@ export default function LoginScreen() {
           {/* 아이디 */}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>아이디</Text>
-            <View style={[s.inputRow, { borderColor: identifier ? MINT : "#E2E8F0" }]}>
-              <LucideIcon name="user" size={16} color={identifier ? MINT : "#94A3B8"} />
+            <View style={[s.inputRow, { borderColor: identifier ? MINT : C.border }]}>
+              <LucideIcon name="user" size={16} color={identifier ? MINT : C.textMuted} />
               <TextInput
                 style={s.input}
                 value={identifier}
@@ -291,8 +291,8 @@ export default function LoginScreen() {
           {/* 비밀번호 */}
           <View style={s.fieldWrap}>
             <Text style={s.fieldLabel}>비밀번호</Text>
-            <View style={[s.inputRow, { borderColor: password ? MINT : "#E2E8F0" }]}>
-              <LucideIcon name="lock" size={16} color={password ? MINT : "#94A3B8"} />
+            <View style={[s.inputRow, { borderColor: password ? MINT : C.border }]}>
+              <LucideIcon name="lock" size={16} color={password ? MINT : C.textMuted} />
               <TextInput
                 ref={pwRef}
                 style={s.input}
@@ -308,7 +308,7 @@ export default function LoginScreen() {
                 editable={!loading}
               />
               <Pressable onPress={() => setShowPw(v => !v)} hitSlop={8}>
-                <LucideIcon name={showPw ? "eye-off" : "eye"} size={16} color="#94A3B8" />
+                <LucideIcon name={showPw ? "eye-off" : "eye"} size={16} color={C.textMuted} />
               </Pressable>
             </View>
           </View>
@@ -338,7 +338,7 @@ export default function LoginScreen() {
             style={s.forgotRow}
             onPress={() => router.push({ pathname: "/forgot-password", params: { identifier } } as any)}
           >
-            <LucideIcon name="key" size={12} color="#94A3B8" />
+            <LucideIcon name="key" size={12} color={C.textMuted} />
             <Text style={s.forgotText}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </View>
@@ -470,7 +470,7 @@ const s = StyleSheet.create({
   },
   logoImage: { width: 80, height: 80, borderRadius: 19, overflow: "hidden", backgroundColor: "#0a2540" },
   wordmark:  { fontSize: 32, fontWeight: "700", color: "#0a0909", marginBottom: 6 },
-  tagline:   { fontSize: 16, color: "#334155", fontFamily: "Pretendard-Regular", textAlign: "center" },
+  tagline:   { fontSize: 16, color: C.textStrong, fontFamily: "Pretendard-Regular", textAlign: "center" },
   taglineSub:{ fontSize: 13, color: "#242222", fontFamily: "Pretendard-Regular", textAlign: "center", marginTop: 4 },
 
   /* 폼 */
@@ -480,9 +480,9 @@ const s = StyleSheet.create({
   inputRow:  {
     flexDirection: "row", alignItems: "center", gap: 10,
     borderWidth: 1.5, borderRadius: 12,
-    paddingHorizontal: 14, height: 52, backgroundColor: "#F8FAFC",
+    paddingHorizontal: 14, height: 52, backgroundColor: C.backgroundSoft,
   },
-  input:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  input:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   errBox:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, backgroundColor: "#FEF2F2" },
   errText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#EF4444", flex: 1 },
@@ -497,12 +497,12 @@ const s = StyleSheet.create({
   loginBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },
 
   forgotRow: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-end", paddingVertical: 2 },
-  forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  forgotText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   /* or 구분선 */
   divider:   { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: C.border },
+  dividerLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   /* 가입 버튼 영역 */
   signupCol: { gap: 14 },
@@ -555,11 +555,11 @@ const s = StyleSheet.create({
     shadowOpacity: 0.15, shadowRadius: 24, elevation: 10,
   },
   modalIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF1BF", marginBottom: 4 },
-  modalTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
-  modalDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
+  modalTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
+  modalDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
   modalBtns:     { flexDirection: "row", gap: 10, marginTop: 6, width: "100%" },
   modalBtn:      { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  modalBtnOutline: { borderWidth: 1.5, borderColor: "#E2E8F0" },
-  modalBtnOutlineText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  modalBtnOutline: { borderWidth: 1.5, borderColor: C.border },
+  modalBtnOutlineText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   modalBtnText:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

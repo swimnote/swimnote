@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/db-status.tsx — DB 이원화 모니터링 (4탭)
  * 탭: DB 개요 / 수영장별 / 이벤트 로그 / 서비스 상태
@@ -17,7 +19,7 @@ const P      = "#7C3AED";
 const GREEN  = "#2EC4B6";
 const ORANGE = "#D97706";
 const RED    = "#D96C6C";
-const GRAY   = "#64748B";
+const GRAY   = C.textSecondary;
 const BLUE   = "#2563EB";
 
 // ── 타입 ──────────────────────────────────────────────────────────
@@ -138,7 +140,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
                   <Text style={s.tableName} numberOfLines={1}>{t.table}</Text>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={s.tableSize}>{t.pretty}</Text>
-                    {t.index_size && <Text style={[s.tableSize, { fontSize: 9, color: "#64748B" }]}>idx {t.index_size}</Text>}
+                    {t.index_size && <Text style={[s.tableSize, { fontSize: 9, color: C.textSecondary }]}>idx {t.index_size}</Text>}
                   </View>
                 </View>
               ))}
@@ -631,7 +633,7 @@ const s = StyleSheet.create({
   retryBtn:{ backgroundColor: P, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   retryTxt:{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 14 },
 
-  tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:       { flex: 1, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: P },
   tabTxt:    { fontSize: 12, lineHeight: 17, color: GRAY },
@@ -640,7 +642,7 @@ const s = StyleSheet.create({
   badgeTxt:  { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
 
   sectionTitle:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitleTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  sectionTitleTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   separationBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   separationTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
@@ -658,7 +660,7 @@ const s = StyleSheet.create({
   card:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 8, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   dbIcon:    { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   cardSub:   { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular", marginTop: 1 },
   sizeLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   barBg:     { height: 6, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" },
@@ -668,23 +670,23 @@ const s = StyleSheet.create({
   expandTxt: { fontSize: 12, color: P, fontFamily: "Pretendard-Regular" },
   tableList: { gap: 0, borderRadius: 8, overflow: "hidden", marginTop: 4 },
   tableRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6, paddingHorizontal: 8 },
-  tableName: { flex: 1, fontSize: 12, color: "#374151", fontFamily: "Pretendard-Regular" },
+  tableName: { flex: 1, fontSize: 12, color: C.textPrimary, fontFamily: "Pretendard-Regular" },
   tableSize: { fontSize: 12, color: GRAY, fontFamily: "Pretendard-Regular" },
 
   statsGrid: { flexDirection: "row", gap: 8 },
   statBox:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 2, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   statLabel: { fontSize: 10, color: GRAY, fontFamily: "Pretendard-Regular" },
-  checkedAt: { fontSize: 11, color: "#64748B", textAlign: "center", fontFamily: "Pretendard-Regular" },
+  checkedAt: { fontSize: 11, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" },
 
   poolCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 14, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 10 },
+  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 10 },
   poolStats: { flexDirection: "row" },
 
   logList: { gap: 0, backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
   logRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
   logDot:  { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   logMeta: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
   logTime: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
 
@@ -699,7 +701,7 @@ const s = StyleSheet.create({
   diagSubTxt:    { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   typeRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
-  typeLabel:{ flex: 1, fontSize: 12, color: "#374151", fontFamily: "Pretendard-Regular" },
+  typeLabel:{ flex: 1, fontSize: 12, color: C.textPrimary, fontFamily: "Pretendard-Regular" },
   typeCnt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   recCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF8E6", padding: 12, borderRadius: 10 },

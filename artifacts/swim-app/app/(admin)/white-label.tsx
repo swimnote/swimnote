@@ -227,9 +227,9 @@ function ToggleRow({
         value={value}
         onValueChange={onToggle}
         disabled={disabled}
-        trackColor={{ false: "#E5E7EB", true: tint + "88" }}
+        trackColor={{ false: C.border, true: tint + "88" }}
         thumbColor={value ? tint : "#fff"}
-        ios_backgroundColor="#E5E7EB"
+        ios_backgroundColor={C.border}
       />
     </View>
   );
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   preview: { margin: 16, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   previewIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  previewPoolName: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   previewPowered: {},
   previewPoweredTxt: { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewNote: { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },

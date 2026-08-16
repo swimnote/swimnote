@@ -17,6 +17,9 @@ import {
   View,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 // ── 캔버스 크기 (pixelRatio 3 → 1080×1920) ───────────────────────────────
 export const STORY_W = 360;
@@ -343,7 +346,7 @@ const StoryPageRenderer = forwardRef<View, { page: StoryPageData }>(
                           key={photo.id}
                           source={{ uri: photo.uri }}
                           style={[
-                            { flex: col.flex, backgroundColor: "#E5E7EB" },
+                            { flex: col.flex, backgroundColor: C.border },
                             ci > 0 && { marginLeft: GAP },
                           ]}
                           contentFit="cover"
@@ -429,7 +432,7 @@ const s = StyleSheet.create({
   },
   photoCell: {
     flex:            1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: C.border,
   },
   summaryWrap: {
     paddingHorizontal: 20,
@@ -438,7 +441,7 @@ const s = StyleSheet.create({
   summaryText: {
     fontSize:   14,
     fontFamily: "Pretendard-Medium",
-    color:      "#1E293B",
+    color:      C.textStrong,
     lineHeight: 22,
   },
   footer: {

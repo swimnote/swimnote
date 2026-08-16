@@ -135,7 +135,7 @@ export default function AdminMyInfoScreen() {
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               <Text style={[s.profileSub, { color: C.textSecondary }]}>{ROLE_CONFIGS[adminUser?.role ?? ""]?.title || "관리자"}</Text>
               <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile?.phone || "-"}</Text>
-              {profile?.email ? <Text style={[s.profileSub, { color: "#64748B" }]}>{profile.email}</Text> : null}
+              {profile?.email ? <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile.email}</Text> : null}
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={() => {
               setEditName(profile?.name || ""); setEditPhone(profile?.phone || ""); setEditMsg(""); setEditVisible(true);

@@ -165,7 +165,7 @@ const s = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#fff",
+    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
   },
   chipTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   card: {

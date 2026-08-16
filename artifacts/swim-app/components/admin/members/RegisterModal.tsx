@@ -233,7 +233,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose, initialPare
 const reg = StyleSheet.create({
   backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet:       { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingBottom: 32, maxHeight: "85%" },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
   errorRow:    { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10, marginBottom: 10 },

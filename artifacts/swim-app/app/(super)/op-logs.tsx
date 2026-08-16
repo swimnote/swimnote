@@ -177,7 +177,7 @@ export default function OpLogsScreen() {
           )}
 
           {logs.map(log => {
-            const cfg = CAT_CFG[log.category] ?? { color: "#64748B", bg: "#FFFFFF", icon: "activity" as const };
+            const cfg = CAT_CFG[log.category] ?? { color: C.textSecondary, bg: "#FFFFFF", icon: "activity" as const };
             const isExpanded = expanded.has(log.id);
             const dateLabel = getDateLabel(log.created_at);
             let showDate = false;
@@ -270,32 +270,32 @@ export default function OpLogsScreen() {
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
   countBanner:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  countTxt:     { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#14283D" },
-  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  countTxt:     { fontFamily: "Pretendard-Regular", fontSize: 13, color: C.textPrimary },
+  tabBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tabContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   tab:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7,
-                  borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+                  borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
   tabAllActive: { backgroundColor: P, borderColor: P },
-  tabTxt:       { fontSize: 12, lineHeight: 17, color: "#64748B" },
+  tabTxt:       { fontSize: 12, lineHeight: 17, color: C.textSecondary },
   dateDivider:  { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  dateLine:     { flex: 1, height: 1, backgroundColor: "#E5E7EB" },
-  dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  dateLine:     { flex: 1, height: 1, backgroundColor: C.border },
+  dateLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   logCard:      { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   logIcon:      { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
   logBody:      { flex: 1, gap: 5 },
   logTop:       { flexDirection: "row", alignItems: "flex-start", gap: 6 },
-  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 19 },
-  logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flexShrink: 0 },
+  logDesc:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 19 },
+  logSubDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  logTime:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, flexShrink: 0 },
   logMeta:      { flexDirection: "row", alignItems: "center", gap: 5 },
   catBadge:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   catTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  logMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  logMetaTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   logMetaDot:   { fontSize: 10, color: "#D1D5DB" },
-  logDetail:    { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, gap: 5 },
+  logDetail:    { backgroundColor: C.backgroundSoft, borderRadius: 8, padding: 10, gap: 5 },
   detailRow:    { flexDirection: "row", gap: 8 },
-  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  detailLabel:  { width: 48, fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  detailVal:    { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   empty:        { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

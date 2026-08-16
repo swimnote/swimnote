@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   backBtn:         { width: 40, height: 40, justifyContent: "center", alignItems: "center" },
   headerTitle:     { flex: 1, textAlign: "center", fontSize: 17, fontFamily: "Pretendard-Regular" },
   content:         { paddingHorizontal: 20, paddingTop: 12, gap: 16 },
-  effectiveDate:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  effectiveDate:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   coreBanner:      { backgroundColor: "#FFF7ED", borderRadius: 12, padding: 14,
                      borderWidth: 1, borderColor: "#FED7AA", gap: 8 },

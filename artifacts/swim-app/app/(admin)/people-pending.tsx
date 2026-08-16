@@ -33,7 +33,7 @@ interface UnregItem {
 type ParseRow = { name: string; parent_phone: string; result: "ok" | "duplicate" | "error"; reason?: string };
 
 const INVITE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  none:    { label: "초대 전",   color: "#64748B", bg: "#F1F5F9" },
+  none:    { label: "초대 전",   color: C.textSecondary, bg: C.backgroundSoft },
   invited: { label: "초대 완료", color: "#2EC4B6", bg: "#E6FFFA" },
   joined:  { label: "가입 완료", color: "#2EC4B6", bg: "#E6FFFA" },
 };
@@ -344,7 +344,7 @@ const s = StyleSheet.create({
 
   searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#FFFFFF", borderRadius: 10 },
   searchInput:    { flex: 1, fontSize: 14, color: C.text },
-  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   allSelectTxt:   { flex: 1, fontSize: 13, color: C.textSecondary },
   countBadge:     { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   countBadgeTxt:  { color: "#fff", fontSize: 11, fontWeight: "700" },
@@ -360,7 +360,7 @@ const s = StyleSheet.create({
   empty:          { paddingVertical: 40, alignItems: "center" },
   emptyTxt:       { color: C.textSecondary, fontSize: 14 },
 
-  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border },
   inviteCount:    { fontSize: 14, fontWeight: "600", color: C.text },
   inviteBtn:      { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   inviteBtnTxt:   { fontSize: 14, fontWeight: "700", color: "#fff" },
@@ -373,7 +373,7 @@ const s = StyleSheet.create({
   summaryChip:    { flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
   summaryLabel:   { fontSize: 13, fontWeight: "700" },
   validateNote:   { fontSize: 12, color: "#4338CA", paddingHorizontal: 16, marginBottom: 8, fontWeight: "600" },
-  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.backgroundSoft },
   rowOk:          { backgroundColor: "#DFF3EC" },
   rowDup:         { backgroundColor: "#FFFBEB" },
   rowErr:         { backgroundColor: "#FFF1F2" },

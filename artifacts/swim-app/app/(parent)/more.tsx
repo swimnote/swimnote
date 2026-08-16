@@ -27,7 +27,7 @@ const C = Colors.light;
 
 const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
 const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY_C = "#14283D"; const NAVY_BG = "#E6FAF8";
+const NAVY_C = C.textPrimary; const NAVY_BG = "#E6FAF8";
 
 function MenuItem({
   icon, label, sub, onPress, danger = false,

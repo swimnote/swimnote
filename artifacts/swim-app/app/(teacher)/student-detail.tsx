@@ -335,8 +335,8 @@ export default function StudentDetailScreen() {
                   style={[s.statusBadge, s.weeklyBadgeBtn, { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D1D5DB", borderStyle: "dashed" }]}
                   onPress={() => setShowWeeklyPicker(true)}
                 >
-                  <LucideIcon name="plus" size={10} color="#64748B" />
-                  <Text style={[s.statusText, { color: "#64748B", marginLeft: 3 }]}>주 횟수</Text>
+                  <LucideIcon name="plus" size={10} color={C.textSecondary} />
+                  <Text style={[s.statusText, { color: C.textSecondary, marginLeft: 3 }]}>주 횟수</Text>
                 </Pressable>
               )}
               {pendingBadge && (
@@ -658,7 +658,7 @@ export default function StudentDetailScreen() {
                         key={lv.level_order}
                         style={[
                           s.levelPickerItem,
-                          isCurrent && !isPending && { borderColor: "#94A3B8", backgroundColor: "#F8FAFC" },
+                          isCurrent && !isPending && { borderColor: C.textMuted, backgroundColor: C.backgroundSoft },
                           isPending && { borderColor: themeColor, borderWidth: 2, backgroundColor: themeColor + "12" },
                         ]}
                         onPress={() => setPendingLevelOrder(lv.level_order)}
@@ -667,7 +667,7 @@ export default function StudentDetailScreen() {
                         <Text style={[s.levelPickerLabel, isPending && { color: themeColor, fontFamily: "Pretendard-SemiBold" }]}>
                           {lv.level_name}
                         </Text>
-                        {isCurrent && !isPending && <Text style={{ fontSize: 9, color: "#94A3B8" }}>현재</Text>}
+                        {isCurrent && !isPending && <Text style={{ fontSize: 9, color: C.textMuted }}>현재</Text>}
                         {isPending && <LucideIcon name="check" size={12} color={themeColor} />}
                       </Pressable>
                     );
@@ -860,15 +860,15 @@ const s = StyleSheet.create({
   weeklyBadgeBtn: { flexDirection: "row", alignItems: "center" },
   pickerOverlay:  { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 32 },
   pickerSheet:    { width: "100%", borderRadius: 20, padding: 24, gap: 16 },
-  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D", textAlign: "center" },
-  pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", marginTop: -8 },
+  pickerTitle:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
+  pickerSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", marginTop: -8 },
   pickerOptions:  { flexDirection: "row", gap: 10 },
   pickerOption:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
                     paddingVertical: 14, borderRadius: 14, borderWidth: 2 },
   pickerOptionText: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   pickerCancel:   { alignItems: "center", paddingVertical: 12, borderRadius: 12,
-                    borderWidth: 1.5, borderColor: "#E5E7EB" },
-  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+                    borderWidth: 1.5, borderColor: C.border },
+  pickerCancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   levelPickerItem: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
@@ -899,10 +899,10 @@ const s = StyleSheet.create({
   changeBtnText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   infoRow:        { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 12,
-                    borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+                    borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   infoLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 80 },
   infoValue:      { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right" },
-  divider:        { height: 1, backgroundColor: "#F1F5F9", marginHorizontal: 14 },
+  divider:        { height: 1, backgroundColor: C.backgroundSoft, marginHorizontal: 14 },
   classRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
   colorBar:       { width: 4, height: 40, borderRadius: 2 },
   className:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -925,7 +925,7 @@ const s = StyleSheet.create({
                     alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   connBadgeText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   phoneIconBtn:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center",
-                    backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E5E7EB" },
+                    backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: C.border },
   addPhoneRow:    { flexDirection: "row", alignItems: "center", gap: 8,
                     paddingHorizontal: 16, paddingVertical: 14 },
   addPhoneText:   { fontSize: 14, fontFamily: "Pretendard-Regular" },

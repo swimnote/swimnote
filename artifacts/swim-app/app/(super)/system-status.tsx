@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/system-status.tsx — 시스템 상태
  * 실제 API(/super/system-health)에서 각 서비스의 상태/지연/메모를 가져와 표시.
@@ -87,16 +89,16 @@ function ServiceCard({ item }: { item: ServiceItem }) {
   );
 }
 const sc = StyleSheet.create({
-  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
-  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
+  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
 });
 
 function MemoryCard({ info }: { info: MemoryInfo }) {
@@ -136,7 +138,7 @@ function MemoryCard({ info }: { info: MemoryInfo }) {
 }
 
 const mem = StyleSheet.create({
-  track: { height: 8, borderRadius: 4, backgroundColor: "#E5E7EB", overflow: "hidden", marginTop: 8 },
+  track: { height: 8, borderRadius: 4, backgroundColor: C.border, overflow: "hidden", marginTop: 8 },
   fill:  { height: 8, borderRadius: 4 },
 });
 
@@ -198,13 +200,13 @@ export default function SystemStatusScreen() {
       <SubScreenHeader title="시스템 상태" homePath="/(super)/more" />
 
       {/* 전체 상태 배너 */}
-      <View style={[s.overallBanner, { backgroundColor: loading ? "#F1F5F9" : overallCfg.bg }]}>
+      <View style={[s.overallBanner, { backgroundColor: loading ? C.backgroundSoft : overallCfg.bg }]}>
         {loading
           ? <ActivityIndicator size="small" color={P} />
           : <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
         }
         <View style={{ flex: 1 }}>
-          <Text style={[s.overallTitle, { color: loading ? "#94A3B8" : overallCfg.color }]}>
+          <Text style={[s.overallTitle, { color: loading ? C.textMuted : overallCfg.color }]}>
             {loading
               ? "점검 중..."
               : fetchError
@@ -212,7 +214,7 @@ export default function SystemStatusScreen() {
                 : overallStatus === "normal" ? "모든 시스템 정상"
                   : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
           </Text>
-          <Text style={[s.overallSub, { color: loading ? "#94A3B8" : overallCfg.color }]}>
+          <Text style={[s.overallSub, { color: loading ? C.textMuted : overallCfg.color }]}>
             {loading
               ? "서버에서 실측 중..."
               : fetchError
@@ -221,7 +223,7 @@ export default function SystemStatusScreen() {
           </Text>
         </View>
         <Pressable style={s.refreshBtn} onPress={() => load(true)} disabled={loading || refreshing}>
-          <LucideIcon name="refresh-cw" size={14} color={loading ? "#94A3B8" : overallCfg.color} />
+          <LucideIcon name="refresh-cw" size={14} color={loading ? C.textMuted : overallCfg.color} />
         </Pressable>
       </View>
 
@@ -257,7 +259,7 @@ export default function SystemStatusScreen() {
         )}
 
         <View style={s.noteBox}>
-          <LucideIcon name="info" size={12} color="#64748B" />
+          <LucideIcon name="info" size={12} color={C.textSecondary} />
           <Text style={s.noteTxt}>
             이 화면을 열거나 새로고침할 때 각 서비스에 실시간으로 연결해 상태를 확인합니다.
           </Text>
@@ -268,16 +270,16 @@ export default function SystemStatusScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:           { flex: 1, backgroundColor: C.backgroundSoft },
   overallBanner:  { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, margin: 16,
                     borderRadius: 14 },
   overallTitle:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
   overallSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   refreshBtn:     { padding: 6 },
-  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase", marginTop: 4 },
+  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase", marginTop: 4 },
   noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFFFFF",
                     borderRadius: 8, padding: 10 },
-  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   loadingBox:     { alignItems: "center", gap: 10, paddingVertical: 40 },
-  loadingTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  loadingTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

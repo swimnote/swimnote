@@ -55,7 +55,7 @@ function pctStr(cur: number, prev: number): string {
 }
 
 function pctColor(cur: number, prev: number): string {
-  if (prev === 0) return cur > 0 ? "#2EC4B6" : "#64748B";
+  if (prev === 0) return cur > 0 ? "#2EC4B6" : C.textSecondary;
   return cur >= prev ? "#2EC4B6" : "#D96C6C";
 }
 
@@ -294,11 +294,11 @@ export default function BillingAnalyticsScreen() {
 
           <View style={s.kpiGrid}>
             <KpiCard label="결제 성공" value={`${revenue.successCount}건`} color="#2EC4B6" />
-            <KpiCard label="결제 실패" value={`${revenue.failedCount}건`} color={revenue.failedCount > 0 ? "#D96C6C" : "#64748B"} />
+            <KpiCard label="결제 실패" value={`${revenue.failedCount}건`} color={revenue.failedCount > 0 ? "#D96C6C" : C.textSecondary} />
             <KpiCard label="신규 결제" value={`${revenue.newCount}건`} />
             <KpiCard label="구독 갱신" value={`${revenue.renewalCount}건`} />
-            <KpiCard label="환불 건수" value={`${revenue.refundCount}건`} color={revenue.refundCount > 0 ? "#D97706" : "#64748B"} />
-            <KpiCard label="환불 금액" value={fmtKRW(revenue.refundAmt)} small color={revenue.refundAmt > 0 ? "#D97706" : "#64748B"} />
+            <KpiCard label="환불 건수" value={`${revenue.refundCount}건`} color={revenue.refundCount > 0 ? "#D97706" : C.textSecondary} />
+            <KpiCard label="환불 금액" value={fmtKRW(revenue.refundAmt)} small color={revenue.refundAmt > 0 ? "#D97706" : C.textSecondary} />
           </View>
         </View>
 
@@ -453,91 +453,91 @@ const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: C.background },
   periodRow:        { flexDirection: "row", gap: 8 },
   periodTab:        { flex: 1, padding: 10, borderRadius: 10, backgroundColor: "#fff",
-                      borderWidth: 1.5, borderColor: "#E5E7EB", alignItems: "center" },
+                      borderWidth: 1.5, borderColor: C.border, alignItems: "center" },
   periodTabActive:  { backgroundColor: P, borderColor: P },
-  periodTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  periodTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   periodTxtActive:  { color: "#fff" },
-  periodLabel:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", marginTop: -8 },
+  periodLabel:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", marginTop: -8 },
 
   section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 12,
-                      borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderWidth: 1, borderColor: C.border },
   sectionHdr:       { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   sectionIconBox:   { width: 28, height: 28, borderRadius: 8, backgroundColor: "#EEDDF5",
                       alignItems: "center", justifyContent: "center" },
-  sectionTitle:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  estimateNote:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", paddingVertical: 20 },
+  sectionTitle:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  estimateNote:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", paddingVertical: 20 },
 
   heroCard:         { backgroundColor: "#EEDDF5", borderRadius: 14, padding: 18, gap: 6,
                       borderWidth: 1, borderColor: "#E6FAF8" },
   heroLabel:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  heroValue:        { fontSize: 30, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  heroValue:        { fontSize: 30, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   heroCompareRow:   { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   heroCompare:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  heroPrev:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  heroPrev:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   kpiGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  kpiCard:          { width: "30%", minWidth: 95, backgroundColor: "#F1F5F9", borderRadius: 10,
+  kpiCard:          { width: "30%", minWidth: 95, backgroundColor: C.backgroundSoft, borderRadius: 10,
                       padding: 10, gap: 3, borderWidth: 1, borderColor: "#FFFFFF" },
-  kpiLabel:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  kpiValue:         { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  kpiSub:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  kpiLabel:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  kpiValue:         { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  kpiSub:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   planRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
                       borderBottomWidth: 1, borderColor: "#FFFFFF" },
   planLeft:         { flex: 1, gap: 2 },
-  planName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  planSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  planName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  planSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   planRight:        { alignItems: "flex-end", gap: 2 },
-  planAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  planCount:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  planAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  planCount:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   planRowExtra:     { paddingTop: 6 },
-  planSubNote:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  planSubNote:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   estimateNoteBanner: { flexDirection: "row", gap: 6, backgroundColor: "#E0F2FE",
                         borderRadius: 8, padding: 10, alignItems: "flex-start" },
   estimateNoteTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1, lineHeight: 16 },
   realBadge:          { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   realBadgeTxt:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  fixedBadge:         { backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  fixedBadgeTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  fixedBadge:         { backgroundColor: C.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  fixedBadgeTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   costRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 8,
                       borderBottomWidth: 1, borderColor: "#FFFFFF" },
-  costLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  costNote:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  costLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  costNote:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   costAmount:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   costTotalRow:     { flexDirection: "row", alignItems: "center", paddingTop: 10,
                       borderTopWidth: 2, borderColor: "#D96C6C" },
-  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  costTotalLabel:   { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   costTotalAmount:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
-  profitCard:       { backgroundColor: "#F1F5F9", borderRadius: 14, padding: 16, gap: 10 },
+  profitCard:       { backgroundColor: C.backgroundSoft, borderRadius: 14, padding: 16, gap: 10 },
   profitRow:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  profitLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  profitVal:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  profitLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  profitVal:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   profitDivider:    { borderBottomWidth: 1, borderStyle: "dashed", borderColor: "#D1D5DB" },
-  marginTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
-  profitNote:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 16 },
+  marginTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "right" },
+  profitNote:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
 
   poolRow:          { flexDirection: "row", alignItems: "center", paddingVertical: 10,
-                      borderBottomWidth: 1, borderColor: "#F1F5F9" },
+                      borderBottomWidth: 1, borderColor: C.backgroundSoft },
   poolLeft:         { flex: 1, gap: 2 },
-  poolName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  poolSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  poolName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  poolSub:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   poolRight:        { alignItems: "flex-end", gap: 2 },
-  poolAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  poolNet:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  poolAmount:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  poolNet:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   txRow:            { paddingVertical: 12, flexDirection: "row", gap: 8 },
-  txRowBorder:      { borderBottomWidth: 1, borderColor: "#F1F5F9" },
+  txRowBorder:      { borderBottomWidth: 1, borderColor: C.backgroundSoft },
   txLeft:           { flex: 1, gap: 3 },
   txRight:          { alignItems: "flex-end", gap: 3 },
-  txPool:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  txPool:           { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   txPlan:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  txDate:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  txAmount:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  txNet:            { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  txDate:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  txAmount:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  txNet:            { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   refundBadge:      { backgroundColor: "#FEE2E2", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   refundBadgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 });

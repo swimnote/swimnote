@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/cost-analytics.tsx — 비용·지출 분석
  * - 스토어 수수료·세금: revenue_logs 실데이터 기반
@@ -149,7 +151,7 @@ export default function CostAnalyticsScreen() {
         label: "기타 운영비", icon: "box",
         amount: other,
         note: `백업 DB + 인프라·모니터링 고정비 (${fmtKRW(UNIT_COSTS.other_monthly)}/월)`,
-        color: "#64748B", isFixed: true,
+        color: C.textSecondary, isFixed: true,
       },
     ];
   }, [period, mult, realStoreFee, realNet, actualStorageGb, metrics]);
@@ -216,12 +218,12 @@ export default function CostAnalyticsScreen() {
             <View style={[s.metricCard, { borderColor: "#E6FFFA" }]}>
               <Text style={s.metricLabel}>청구 매출</Text>
               <Text style={[s.metricValue, { color: P }]}>{fmtKRW(apiRevenue)}</Text>
-              <Text style={{ fontSize: 9, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>{summary.count}건</Text>
+              <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>{summary.count}건</Text>
             </View>
             <View style={[s.metricCard, { borderColor: "#FFF1BF" }]}>
               <Text style={s.metricLabel}>수수료 차감 후</Text>
               <Text style={[s.metricValue, { color: "#2EC4B6" }]}>{fmtKRW(realNet)}</Text>
-              <Text style={{ fontSize: 9, color: "#94A3B8", fontFamily: "Pretendard-Regular" }}>환불 전 순매출</Text>
+              <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>환불 전 순매출</Text>
             </View>
             {totalRefund > 0 && (
               <View style={[s.metricCard, { borderColor: "#F9DEDA" }]}>
@@ -293,14 +295,14 @@ export default function CostAnalyticsScreen() {
 
         {/* 손익 계산 */}
         <View style={[s.profitBox, { borderColor: netProfit >= 0 ? "#E6FFFA" : "#F9DEDA" }]}>
-          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 10 }}>손익 계산</Text>
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 10 }}>손익 계산</Text>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>청구 매출</Text>
             <Text style={[s.profitVal, { color: P }]}>{fmtKRW(apiRevenue)}</Text>
           </View>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>스토어 수수료</Text>
-            <Text style={[s.profitVal, { color: "#64748B" }]}>− {fmtKRW(realStoreFee)}</Text>
+            <Text style={[s.profitVal, { color: C.textSecondary }]}>− {fmtKRW(realStoreFee)}</Text>
           </View>
           {totalRefund > 0 && (
             <View style={s.profitRow}>
@@ -308,7 +310,7 @@ export default function CostAnalyticsScreen() {
               <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalRefund)}</Text>
             </View>
           )}
-          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 6, paddingTop: 8 }]}>
+          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
             <Text style={[s.profitLabel, { color: "#2EC4B6" }]}>수수료 후 순매출</Text>
             <Text style={[s.profitVal, { color: "#2EC4B6" }]}>{fmtKRW(Math.max(0, realNet - totalRefund))}</Text>
           </View>
@@ -316,7 +318,7 @@ export default function CostAnalyticsScreen() {
             <Text style={s.profitLabel}>운영비 합계</Text>
             <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(opsCost)}</Text>
           </View>
-          <View style={[s.profitRow, { borderTopWidth: 2, borderTopColor: "#E5E7EB", marginTop: 6, paddingTop: 8 }]}>
+          <View style={[s.profitRow, { borderTopWidth: 2, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
             <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular", fontSize: 14 }]}>최종 순이익</Text>
             <Text style={[s.profitVal, { fontSize: 16, color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
@@ -330,47 +332,47 @@ export default function CostAnalyticsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:          { flex: 1, backgroundColor: C.backgroundSoft },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                   borderBottomWidth: 1, borderBottomColor: C.border },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, lineHeight: 18, color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:  { color: "#fff" },
   infoBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E0F2FE",
                    borderRadius: 8, padding: 10, marginTop: 4 },
   infoTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1", flex: 1 },
   metricsRow:    { flexDirection: "row", gap: 8 },
   metricCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, alignItems: "center",
-                   borderWidth: 1, borderColor: "#E5E7EB", gap: 3 },
-  metricLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricValue:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+                   borderWidth: 1, borderColor: C.border, gap: 3 },
+  metricLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  metricValue:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   summaryRow:    { flexDirection: "row", gap: 10 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
-  summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   summaryValue:  { fontSize: 20, fontFamily: "Pretendard-Regular" },
   sectionHdr:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   costRow:       { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
-                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   costIcon:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  costLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  costLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   costAmt:       { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  fixedBadge:    { backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  fixedBadge:    { backgroundColor: C.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#FFFFFF" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   legendItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot:     { width: 8, height: 8, borderRadius: 4 },
-  legendTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  legendTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   profitBox:     { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1 },
   profitRow:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   profitVal:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

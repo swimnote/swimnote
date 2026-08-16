@@ -55,7 +55,7 @@ const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon:
 };
 
 function snapTypeChip(snap: BackupSnapshot) {
-  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#64748B", bg: "#FFFFFF", label: "기타", icon: "archive" };
+  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: C.textSecondary, bg: "#FFFFFF", label: "기타", icon: "archive" };
 }
 
 // ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
@@ -126,7 +126,7 @@ function SnapshotDeleteModal({
           </>
         ) : (
           <>
-            <View style={[rm.checkRow, { backgroundColor: "#F1F5F9" }]}>
+            <View style={[rm.checkRow, { backgroundColor: C.backgroundSoft }]}>
               <Switch value={confirmed} onValueChange={setConfirmed} />
               <Text style={rm.checkTxt}>
                 이 스냅샷이 영구 삭제됨을 이해했으며, 삭제 이후 이전 데이터 복구가 불가능함을 확인합니다.
@@ -137,7 +137,7 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>뒤로</Text>
               </Pressable>
               <Pressable
-                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : "#64748B", flex: 1.5 }]}
+                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : C.textSecondary, flex: 1.5 }]}
                 onPress={execDelete}
                 disabled={!confirmed}
               >
@@ -380,7 +380,7 @@ function RestoreModal({
             <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
           <Pressable
-            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : "#64748B", flex: 1.5 }]}
+            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : C.textSecondary, flex: 1.5 }]}
             onPress={execRestore}
             disabled={running || !check1 || !check2}
           >
@@ -471,7 +471,7 @@ export default function RecoveryScreen() {
             )}
           </View>
           <Pressable
-            style={[s.manualBtn, { backgroundColor: creating ? "#1E293B" : C.primaryAction }]}
+            style={[s.manualBtn, { backgroundColor: creating ? C.textStrong : C.primaryAction }]}
             onPress={handleManualSnapshot}
             disabled={creating}
           >
@@ -629,7 +629,7 @@ const s = StyleSheet.create({
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   statusTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginTop: 2 },
+  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
   manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -639,8 +639,8 @@ const s = StyleSheet.create({
   doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4 },
-  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 18 },
+  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
 
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
@@ -702,7 +702,7 @@ const rm = StyleSheet.create({
   targetTime:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   targetNote:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B" },
 
-  previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
+  previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, gap: 8 },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   previewKey:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flexShrink: 0 },
   previewVal:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right", flex: 1 },
@@ -720,7 +720,7 @@ const rm = StyleSheet.create({
   affectedDetail:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
 
   checkRow:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4,
-                  backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10 },
+                  backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 10 },
   checkTxt:     { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 18 },
 
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 6 },

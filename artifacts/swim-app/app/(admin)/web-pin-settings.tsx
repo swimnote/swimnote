@@ -217,7 +217,7 @@ export default function WebPinSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
+  root: { flex: 1, backgroundColor: C.backgroundSoft },
   scroll: { padding: 20 },
 
   infoCard: {
@@ -262,17 +262,17 @@ const s = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#1E293B", marginBottom: 20 },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: C.textStrong, marginBottom: 20 },
 
   fieldGroup: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: "600", color: "#64748B", marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: "600", color: C.textSecondary, marginBottom: 6 },
   input: {
     height: 48,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: C.backgroundSoft,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 14,
-    color: "#1E293B",
+    color: C.textStrong,
   },
 
   msg: { padding: 12, borderRadius: 10, marginBottom: 16 },
@@ -303,7 +303,7 @@ const s = StyleSheet.create({
   hint: {
     marginTop: 24,
     fontSize: 12,
-    color: "#94A3B8",
+    color: C.textMuted,
     textAlign: "center",
     lineHeight: 18,
   },

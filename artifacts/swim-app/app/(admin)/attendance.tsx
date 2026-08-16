@@ -884,7 +884,7 @@ export default function AttendanceScreen() {
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <LucideIcon name="info" size={13} color="#64748B" />
+                <LucideIcon name="info" size={13} color={C.textSecondary} />
                 <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
               </View>
             }
@@ -907,7 +907,7 @@ export default function AttendanceScreen() {
                     )}
                   </View>
                   <View style={a.readonlyTag}>
-                    <Lock size={11} color="#64748B" />
+                    <Lock size={11} color={C.textSecondary} />
                     <Text style={a.readonlyTagTxt}>선생님 전용</Text>
                   </View>
                 </View>
@@ -1050,10 +1050,10 @@ const a = StyleSheet.create({
   noStatus:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5E7EB" },
-  readonlyTagTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: C.border },
+  readonlyTagTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   readonlyBanner:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF9E6", borderRadius: 10, padding: 10, marginHorizontal: 0, marginBottom: 8 },
-  readonlyBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  readonlyBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
 
   empty:     { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Pretendard-Regular" },

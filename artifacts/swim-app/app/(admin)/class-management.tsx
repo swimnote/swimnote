@@ -154,7 +154,7 @@ export default function ClassManagementScreen() {
             <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#D96C6C" : C.textSecondary} />
             <StatBox label="배정됨" value={data.makeups.assigned} color="#D97706" />
             <StatBox label="완료" value={data.makeups.completed} color="#2EC4B6" />
-            <StatBox label="소멸" value={data.makeups.extinguished} color="#64748B" />
+            <StatBox label="소멸" value={data.makeups.extinguished} color={C.textSecondary} />
           </View>
 
           {/* 반 목록 */}

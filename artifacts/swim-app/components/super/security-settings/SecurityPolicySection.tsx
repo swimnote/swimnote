@@ -7,6 +7,9 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SectionTitle } from "./SectionTitle";
 import { P, REAUTH_ACTIONS } from "./types";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 interface Props {
   maxFail: number;
@@ -60,7 +63,7 @@ export function SecurityPolicySection({
         {REAUTH_ACTIONS.map(act => (
           <View key={act} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 }}>
             <LucideIcon name="check-circle" size={12} color={P} />
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" }}>{act}</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary }}>{act}</Text>
           </View>
         ))}
       </View>
@@ -69,18 +72,18 @@ export function SecurityPolicySection({
 }
 
 const s = StyleSheet.create({
-  section:          { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-                      borderWidth: 1, borderColor: "#E5E7EB" },
+  section:          { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 10,
+                      borderWidth: 1, borderColor: C.border },
   policyRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF",
+                      borderBottomWidth: 1, borderBottomColor: C.border },
+  policyLabel:      { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  policyBtn:        { width: 30, height: 30, borderRadius: 8, backgroundColor: C.surface,
                       alignItems: "center", justifyContent: "center" },
-  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 22 },
-  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D",
+  policyBtnTxt:     { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 22 },
+  policyVal:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary,
                       minWidth: 32, textAlign: "center" },
-  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF" },
+  policyChip:       { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: C.surface },
   policyChipActive: { backgroundColor: P },
-  policyChipTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  policyChipTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   policyChipTxtActive: { color: "#fff" },
 });

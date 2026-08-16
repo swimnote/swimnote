@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 import { useFonts } from "expo-font";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, usePathname } from "expo-router";
@@ -225,7 +227,7 @@ function UploadProgressModal() {
             }
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>
               {isComplete
                 ? (hasFailed ? `업로드 완료 (일부 실패)` : "업로드 완료 🎉")
                 : "사진 업로드 중..."}
@@ -242,7 +244,7 @@ function UploadProgressModal() {
               hitSlop={12}
               style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center" }}
             >
-              <LucideIcon name="x" size={14} color="#9CA3AF" />
+              <LucideIcon name="x" size={14} color={C.textMuted} />
             </Pressable>
           )}
         </View>
@@ -259,7 +261,7 @@ function UploadProgressModal() {
 
         {/* 하단 힌트 */}
         {!isComplete && (
-          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 8, textAlign: "center" }}>
+          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 8, textAlign: "center" }}>
             화면을 이동해도 계속 업로드됩니다
           </Text>
         )}
@@ -802,12 +804,12 @@ function RootNav() {
               }}>
                 <Text style={{ fontSize: 26 }}>🆕</Text>
               </View>
-              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>
                 업데이트 준비 완료
               </Text>
             </View>
             <Text style={{
-              fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B",
+              fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary,
               textAlign: "center", lineHeight: 22, marginBottom: 24,
             }}>
               새로운 기능이 포함된 업데이트가{"\n"}준비됐습니다. 지금 적용하시겠어요?
@@ -859,12 +861,12 @@ function RootNav() {
               }}>
                 <Text style={{ fontSize: 26 }}>🔔</Text>
               </View>
-              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: "#14283D" }}>
+              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>
                 업데이트 필요
               </Text>
             </View>
             <Text style={{
-              fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B",
+              fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary,
               textAlign: "center", lineHeight: 22, marginBottom: 24,
             }}>
               더 나은 서비스를 위해{"\n"}최신 버전으로 업데이트해주세요.{"\n"}업데이트 후 계속 이용할 수 있습니다.

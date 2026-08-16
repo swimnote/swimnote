@@ -164,7 +164,7 @@ const s = StyleSheet.create({
   root:           { flex: 1, backgroundColor: C.background },
   header:         { flexDirection: "row", alignItems: "center",
                     paddingHorizontal: 16, paddingVertical: 12,
-                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+                    borderBottomWidth: 1, borderBottomColor: C.border,
                     backgroundColor: C.card },
   backBtn:        { padding: 4 },
   headerTitle:    { flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular",
@@ -177,7 +177,7 @@ const s = StyleSheet.create({
                     justifyContent: "center", alignItems: "center" },
   title:          { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular",
-                    color: "#64748B", textAlign: "center" },
+                    color: C.textSecondary, textAlign: "center" },
 
   daysCard:       { flexDirection: "row", alignItems: "flex-start", gap: 12,
                     borderRadius: 14, borderWidth: 1.5, padding: 16 },
@@ -201,15 +201,15 @@ const s = StyleSheet.create({
   warningText:    { fontSize: 12, fontFamily: "Pretendard-Regular",
                     color: "#B91C1C", lineHeight: 18 },
 
-  teacherCard:    { backgroundColor: "#F8FAFC", borderRadius: 14, padding: 14,
-                    borderWidth: 1, borderColor: "#E2E8F0" },
+  teacherCard:    { backgroundColor: C.backgroundSoft, borderRadius: 14, padding: 14,
+                    borderWidth: 1, borderColor: C.border },
   teacherText:    { fontSize: 13, fontFamily: "Pretendard-Regular",
-                    color: "#64748B", lineHeight: 20, textAlign: "center" },
+                    color: C.textSecondary, lineHeight: 20, textAlign: "center" },
 
   resubBtn:       { backgroundColor: PURPLE, borderRadius: 14, paddingVertical: 16,
                     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   resubBtnText:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   backTextBtn:    { alignItems: "center", paddingVertical: 8 },
-  backTextBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  backTextBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

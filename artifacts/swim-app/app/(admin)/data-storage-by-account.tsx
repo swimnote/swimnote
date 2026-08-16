@@ -156,12 +156,12 @@ export default function DataStorageByAccountScreen() {
 const sm = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:       { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  title:       { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   catIcon:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   total:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, marginTop: 4 },
   closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const s = StyleSheet.create({
@@ -170,9 +170,9 @@ const s = StyleSheet.create({
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  bytes:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  miniGaugeWrap:{ height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
+  name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  bytes:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  miniGaugeWrap:{ height: 5, backgroundColor: C.border, borderRadius: 3, overflow: "hidden" },
   miniGaugeBar: { height: 5, borderRadius: 3 },
-  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

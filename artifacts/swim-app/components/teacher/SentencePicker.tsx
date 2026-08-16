@@ -502,7 +502,7 @@ export default function SentencePicker({ visible, onClose, onInsert }: Props) {
 const s = StyleSheet.create({
   kvWrapper:  { flex: 1, justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     flexDirection: "column",
@@ -549,7 +549,7 @@ const s = StyleSheet.create({
   },
   tabBtn: {
     paddingVertical: Platform.OS === "android" ? 7 : 5, paddingHorizontal: 11,
-    borderRadius: 14, borderWidth: 1.5, borderColor: "#E2E8F0", backgroundColor: "#fff",
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface,
   },
   tabText: { fontSize: 11, lineHeight: 16, color: C.textSecondary, includeFontPadding: false } as any,
   myTabBtn:        { borderColor: "#6B5BCD", backgroundColor: "#F5F3FF" },
@@ -562,7 +562,7 @@ const s = StyleSheet.create({
   pickerBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6,
     paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface,
   },
   pickerBtnActive:     { borderColor: PRIMARY, backgroundColor: PRIMARY + "10" },
   pickerBtnText:       { flex: 1, fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" } as any,
@@ -572,7 +572,7 @@ const s = StyleSheet.create({
   inlinePicker: {
     marginHorizontal: 16, marginBottom: 8,
     borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    backgroundColor: "#F8FAFC", overflow: "hidden",
+    backgroundColor: C.backgroundSoft, overflow: "hidden",
   },
   inlinePickerSearch: {
     flexDirection: "row", alignItems: "center", gap: 8,
@@ -617,7 +617,7 @@ const s = StyleSheet.create({
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
     borderWidth: 1.5, borderColor: C.tintLight, borderRadius: 12,
-    backgroundColor: "#FFFFFF", overflow: "hidden",
+    backgroundColor: C.surface, overflow: "hidden",
   },
   previewHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -636,7 +636,7 @@ const s = StyleSheet.create({
   previewBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.surface, borderRadius: 8, borderWidth: 1, borderColor: C.border,
   },
   previewBtnDisabled: { opacity: 0.4 },
   previewBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
@@ -662,7 +662,7 @@ const s = StyleSheet.create({
     justifyContent: "center", alignItems: "center", padding: 24,
   },
   fullPreviewBox: {
-    width: "100%", backgroundColor: "#fff", borderRadius: 18,
+    width: "100%", backgroundColor: C.surface, borderRadius: 18,
     maxHeight: SCREEN_H * 0.78, overflow: "hidden",
   },
   fullPreviewHeader: {

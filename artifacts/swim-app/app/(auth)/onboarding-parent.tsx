@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * onboarding-parent.tsx — 학부모 온보딩
  * 슬라이드 1: 환영
@@ -20,7 +22,7 @@ const { width: W } = Dimensions.get("window");
 
 const MINT   = "#2EC4B6";
 const NAVY_BG   = "#0F2742";
-const NAVY_TEXT = "#14283D";
+const NAVY_TEXT = C.textPrimary;
 const ORANGE = "#F97316"; // status/warning only — CTA에 사용 금지
 const GREEN  = "#2E9B6F";
 
@@ -223,13 +225,13 @@ function SlideNickname({ onGo }: { onGo: () => void }) {
 const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: "#FAFAFA" },
   progressRow:{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 14 },
-  dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB" },
+  dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: C.border },
   dotActive:  { width: 20, backgroundColor: NAVY_BG },
   dotDone:    { backgroundColor: NAVY_BG, opacity: 0.35 },
   footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                 paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderColor: "#F0F0F0" },
   skipBtn:    { paddingHorizontal: 16, paddingVertical: 12 },
-  skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
   nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: NAVY_BG,
                 paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   nextTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -239,23 +241,23 @@ const sw = StyleSheet.create({
   root:    { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
   iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: "#E8EDF4",
              alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#F1F5F9" },
+  badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: C.backgroundSoft },
   title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, textAlign: "center", lineHeight: 36 },
-  sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 24 },
+  sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 24 },
   tagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
   tag:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#F3F4F6",
-             borderWidth: 1, borderColor: "#E5E7EB" },
-  tagTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+             borderWidth: 1, borderColor: C.border },
+  tagTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });
 
 const sa = StyleSheet.create({
   root:       { flex: 1, padding: 24, gap: 14 },
   header:     { flexDirection: "row", alignItems: "center", gap: 10 },
   title:      { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
-  sub:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -8 },
+  sub:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -8 },
   mockCard:   { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-                borderWidth: 1, borderColor: "#E5E7EB" },
-  mockTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+                borderWidth: 1, borderColor: C.border },
+  mockTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attendRow:  { flexDirection: "row", alignItems: "center", gap: 10 },
   statusDot:  { width: 10, height: 10, borderRadius: 5 },
   attendName: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
@@ -265,21 +267,21 @@ const sa = StyleSheet.create({
                 borderTopWidth: 1, borderColor: "#F3F4F6" },
   makeupTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: ORANGE },
   guideRow:   { flexDirection: "row", alignItems: "flex-start", gap: 10,
-                backgroundColor: "#fff", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+                backgroundColor: "#fff", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border },
   guideIcon:  { fontSize: 18, width: 26 },
-  guideText:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  guideText:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
 });
 
 const sco = StyleSheet.create({
   root:      { flex: 1, padding: 24, gap: 12 },
   header:    { flexDirection: "row", alignItems: "center", gap: 10 },
   title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
-  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
+  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
   card:      { flexDirection: "row", alignItems: "flex-start", gap: 14, backgroundColor: "#fff",
-               borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+               borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
   iconBox:   { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 3 },
-  cardDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
+  cardDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
 });
 
 const sn = StyleSheet.create({
@@ -287,12 +289,12 @@ const sn = StyleSheet.create({
   iconWrap:    { width: 100, height: 100, borderRadius: 28, backgroundColor: "#E6FAF8",
                  alignItems: "center", justifyContent: "center", marginBottom: 8 },
   title:       { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
-  sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#64748B",
+  sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary,
                  textAlign: "center", lineHeight: 26 },
   previewBox:  { backgroundColor: "#E6FAF8", borderRadius: 20, padding: 24, alignItems: "center", gap: 6, width: "100%" },
   previewLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT, textTransform: "uppercase"},
   previewNickname: { fontSize: 28, fontFamily: "Pretendard-Regular", color: MINT },
-  previewDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  previewDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: NAVY_BG,
                  paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, marginTop: 8 },
   btnTxt:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },

@@ -12,8 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+
+const C = Colors.light;
 
 interface Notice {
   id: string;
@@ -60,7 +63,7 @@ export default function TeacherNoticesScreen() {
   const regular = notices.filter(n => !n.is_pinned);
 
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: "#FFFFFF" }]} edges={[]}>
+    <SafeAreaView style={[s.safe, { backgroundColor: C.surface }]} edges={[]}>
       <SubScreenHeader title="공지함" homePath="/(teacher)/today-schedule" />
 
       {loading ? (
@@ -85,7 +88,7 @@ export default function TeacherNoticesScreen() {
               ))}
               {regular.length > 0 && (
                 <View style={s.sectionRow}>
-                  <Text style={[s.sectionLabel, { color: "#64748B" }]}>일반 공지</Text>
+                  <Text style={[s.sectionLabel, { color: C.textSecondary }]}>일반 공지</Text>
                 </View>
               )}
             </>
@@ -121,7 +124,7 @@ function NoticeCard({
           {n.is_pinned && <LucideIcon name="pin" size={12} color={themeColor} />}
           <Text style={s.noticeTitle} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
         </View>
-        <LucideIcon name={isOpen ? "chevron-up" : "chevron-down"} size={16} color="#64748B" />
+        <LucideIcon name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textSecondary} />
       </View>
 
       {isOpen && (
@@ -152,13 +155,13 @@ const s = StyleSheet.create({
                 shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05,
                 shadowRadius: 4, elevation: 2 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#14283D", flex: 1 },
+  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
   content:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#4B5563", lineHeight: 22 },
   meta:       { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   indiBadge:  { flexDirection: "row", alignItems: "center", gap: 3,
                 backgroundColor: "#EEDDF5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   indiBadgeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  metaTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   empty:      { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

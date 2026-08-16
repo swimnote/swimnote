@@ -22,7 +22,7 @@ const P = "#7C3AED";
 const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: string }> = {
   active:    { label: "노출 중",   color: "#2EC4B6", bg: "#E6FFFA", icon: "eye" },
   scheduled: { label: "예약됨",   color: "#D97706", bg: "#FFF1BF", icon: "clock" },
-  inactive:  { label: "비활성",   color: "#64748B", bg: "#FFFFFF", icon: "eye-off" },
+  inactive:  { label: "비활성",   color: C.textSecondary, bg: "#FFFFFF", icon: "eye-off" },
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -71,7 +71,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       {img ? <RNImage source={{ uri: img }} style={ac.cardImg} resizeMode="cover" /> : null}
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
       <View style={ac.dateRow}>
-        <LucideIcon name="calendar" size={11} color="#64748B" />
+        <LucideIcon name="calendar" size={11} color={C.textSecondary} />
         <Text style={ac.dateTxt}>
           {new Date(ad.displayStart).toLocaleDateString("ko-KR")} ~ {new Date(ad.displayEnd).toLocaleDateString("ko-KR")}
         </Text>
@@ -84,7 +84,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
         )}
         {ad.status !== "inactive" && (
           <Pressable style={[ac.btn, { backgroundColor: "#FFFFFF" }]} onPress={() => onStatusChange(ad.id, "inactive")}>
-            <Text style={[ac.btnTxt, { color: "#64748B" }]}>비활성</Text>
+            <Text style={[ac.btnTxt, { color: C.textSecondary }]}>비활성</Text>
           </Pressable>
         )}
         <Pressable style={[ac.btn, { backgroundColor: "#7C3AED" }]} onPress={() => onEdit(ad)}>
@@ -99,16 +99,16 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
 }
 
 const ac = StyleSheet.create({
-  card:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
   top:        { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   statusDot:  { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  target:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  title:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  target:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   badge:      { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   badgeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  desc:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6, lineHeight: 18 },
+  desc:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6, lineHeight: 18 },
   dateRow:    { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
-  dateTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  dateTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actions:    { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -277,7 +277,7 @@ export default function AdsScreen() {
           <Text style={s.sumLabel}>예약됨</Text>
         </View>
         <View style={[s.summaryCard, { borderColor: "#FFFFFF" }]}>
-          <Text style={[s.sumNum, { color: "#64748B" }]}>{counts.inactive}</Text>
+          <Text style={[s.sumNum, { color: C.textSecondary }]}>{counts.inactive}</Text>
           <Text style={s.sumLabel}>비활성</Text>
         </View>
       </View>
@@ -324,7 +324,7 @@ export default function AdsScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "광고 수정" : "광고 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <LucideIcon name="x" size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
             <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -424,7 +424,7 @@ export default function AdsScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 220 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>광고 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#14283D", marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
+            <Text style={{ fontSize: 14, color: C.textPrimary, marginBottom: 20 }}>이 광고를 삭제하시겠습니까? 복구되지 않습니다.</Text>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setDeleteConfirm(null)}>
                 <Text style={m.cancelTxt}>취소</Text>
@@ -441,40 +441,40 @@ export default function AdsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:           { flex: 1, backgroundColor: C.backgroundSoft },
   summaryRow:     { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                    borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                    borderBottomWidth: 1, borderBottomColor: C.border },
   summaryCard:    { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },
   sumNum:         { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  sumLabel:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  sumLabel:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterRow:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterBtnActive:{ backgroundColor: P },
-  filterTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  filterTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterTxtActive:{ color: "#fff" },
   addBtn:         { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   empty:          { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
   overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:      { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "85%" },
   header:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#14283D", marginBottom: 4, marginTop: 10 },
+  title:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 10 },
   input:      { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                fontFamily: "Pretendard-Regular", color: "#14283D", backgroundColor: "#F1F5F9" },
+                fontFamily: "Pretendard-Regular", color: C.textPrimary, backgroundColor: C.backgroundSoft },
   segRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   segBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:  { backgroundColor: P },
-  segTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20, marginBottom: 12 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
   imgPreview:   { width: "100%", height: 120, borderRadius: 10, marginBottom: 8 },
@@ -487,7 +487,7 @@ const m = StyleSheet.create({
   colorDot:     { width: 10, height: 10, borderRadius: 5 },
   colorLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   labelRow:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 10 },
-  charCount:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  charCount:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   charCountOver:{ color: "#DC2626" },
   inputError:   { borderColor: "#DC2626" },
   errorTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },

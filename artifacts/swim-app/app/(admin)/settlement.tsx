@@ -63,9 +63,9 @@ interface SummaryData {
 }
 
 const GROUP_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  weekly_1: { color: "#14283D", bg: "#FFFFFF", border: "#CBD5E1" },
-  weekly_2: { color: "#14283D", bg: "#FFFFFF", border: "#CBD5E1" },
-  weekly_3: { color: "#14283D", bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_1: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_2: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_3: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
 };
 
 export default function SettlementScreen() {
@@ -175,7 +175,7 @@ export default function SettlementScreen() {
             </View>
           ) : (
             data.groups.map(g => {
-              const palette = GROUP_COLORS[g.type_key] || { color: "#64748B", bg: "#FFFFFF", border: C.border };
+              const palette = GROUP_COLORS[g.type_key] || { color: C.textSecondary, bg: "#FFFFFF", border: C.border };
               return (
                 <View key={g.type_key} style={[s.groupCard, { borderColor: palette.border, backgroundColor: palette.bg }]}>
                   {/* 헤더 */}
@@ -253,13 +253,13 @@ export default function SettlementScreen() {
 function CalcCell({ label, value, color, bold }: { label: string; value: string; color: string; bold?: boolean }) {
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={{ fontSize: 10, color: "#64748B", marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 10, color: C.textSecondary, marginBottom: 2 }}>{label}</Text>
       <Text style={{ fontSize: 13, fontWeight: bold ? "800" : "700", color }}>{value}</Text>
     </View>
   );
 }
 function CalcOp({ op }: { op: string }) {
-  return <Text style={{ fontSize: 16, color: "#64748B", paddingTop: 10 }}>{op}</Text>;
+  return <Text style={{ fontSize: 16, color: C.textSecondary, paddingTop: 10 }}>{op}</Text>;
 }
 
 const s = StyleSheet.create({
@@ -291,11 +291,11 @@ const s = StyleSheet.create({
   extraRow:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14 },
   extraName:      { fontSize: 14, fontWeight: "700", color: C.text },
   extraSub:       { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  extraCount:     { fontSize: 16, fontWeight: "700", color: "#64748B" },
+  extraCount:     { fontSize: 16, fontWeight: "700", color: C.textSecondary },
   settingBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, marginBottom: 16 },
   settingBtnTxt:  { fontSize: 14, fontWeight: "700" },
   warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
-  warningTxt:     { flex: 1, fontSize: 12, color: "#14283D", fontWeight: "600" },
+  warningTxt:     { flex: 1, fontSize: 12, color: C.textPrimary, fontWeight: "600" },
   infoCard:       { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, gap: 5 },
   infoTitle:      { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 3 },
   infoItem:       { fontSize: 11, color: C.textSecondary, lineHeight: 17 },

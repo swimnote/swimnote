@@ -888,7 +888,7 @@ export default function SignupScreen() {
 
           {/* 로그인 화면으로 이동 */}
           <Pressable
-            style={({ pressed }) => ({ backgroundColor: pressed ? "#1E293B" : C.primaryAction, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" })}
+            style={({ pressed }) => ({ backgroundColor: pressed ? C.textStrong : C.primaryAction, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" })}
             onPress={() => router.replace("/" as any)}
           >
             <Text style={{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" }}>로그인 화면으로 이동</Text>
@@ -944,7 +944,7 @@ export default function SignupScreen() {
         <Pressable
           style={({ pressed }) => [
             styles.primaryBtn,
-            { backgroundColor: (step === 3 && !role) ? "#CCC" : (pressed || loading) ? "#1E293B" : C.primaryAction },
+            { backgroundColor: (step === 3 && !role) ? "#CCC" : (pressed || loading) ? C.textStrong : C.primaryAction },
           ]}
           onPress={isLastStep ? handleSubmit : nextStep}
           disabled={loading || (step === 3 && !role)}

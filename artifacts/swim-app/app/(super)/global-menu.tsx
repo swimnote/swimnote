@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/global-menu.tsx — 슈퍼관리자 전체 메뉴
  *
@@ -49,7 +51,7 @@ function MenuItem({ icon, label, sub, onPress, badge, badgeColor }: SectionItem)
           <Text style={s.badgeTxt}>{badge}</Text>
         </View>
       )}
-      <LucideIcon name="chevron-right" size={14} color="#94A3B8" />
+      <LucideIcon name="chevron-right" size={14} color={C.textMuted} />
     </Pressable>
   );
 }
@@ -187,7 +189,7 @@ export default function GlobalMenuScreen() {
       {/* ── 헤더 ── */}
       <View style={s.header}>
         <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <LucideIcon name="x" size={20} color="#14283D" />
+          <LucideIcon name="x" size={20} color={C.textPrimary} />
         </Pressable>
         <Text style={s.headerTitle}>전체 메뉴</Text>
         <View style={{ width: 36 }} />
@@ -210,24 +212,24 @@ const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: "#FFFFFF" },
   header:       { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                   paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12,
-                  borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F1F5F9",
+                  borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  backBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: C.backgroundSoft,
                   alignItems: "center", justifyContent: "center" },
-  headerTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#14283D", fontWeight: "600" as const },
+  headerTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, fontWeight: "600" as const },
 
   section:      { marginBottom: 20 },
-  sectionTitle: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8",
+  sectionTitle: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted,
                   textTransform: "uppercase" as const, letterSpacing: 0.5,
                   marginBottom: 6, paddingLeft: 2 },
   sectionCard:  { backgroundColor: "#FFFFFF", borderRadius: 14, borderWidth: 1,
-                  borderColor: "#E5E7EB", overflow: "hidden" },
+                  borderColor: C.border, overflow: "hidden" },
 
   item:         { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
   itemIcon:     { width: 32, height: 32, borderRadius: 8, backgroundColor: "#F5F3FF",
                   alignItems: "center", justifyContent: "center" },
-  itemLabel:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
-  itemSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 },
-  divider:      { height: 1, backgroundColor: "#F1F5F9", marginLeft: 58 },
+  itemLabel:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  itemSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
+  divider:      { height: 1, backgroundColor: C.backgroundSoft, marginLeft: 58 },
 
   badge:        { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, marginRight: 4 },
   badgeTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#fff" },

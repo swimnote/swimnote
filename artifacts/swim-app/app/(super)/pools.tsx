@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/pools.tsx — 운영처 관리 (대규모 운영 콘솔)
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
@@ -19,14 +21,14 @@ import { formatDateSafe, calcPercent } from "@/domain/formatters";
 const P = "#7C3AED";
 
 const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: string }[] = [
-  { key: "all",              label: "전체",         color: "#14283D", bg: "#FFFFFF" },
+  { key: "all",              label: "전체",         color: C.textPrimary, bg: "#FFFFFF" },
   { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FFF1BF" },
   { key: "payment_failed",   label: "결제 실패",     color: "#D96C6C", bg: "#F9DEDA" },
   { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EEDDF5" },
   { key: "deletion_pending", label: "삭제 예정",     color: "#2EC4B6", bg: "#ECFEFF" },
   { key: "credit",           label: "크레딧 보유",   color: "#2EC4B6", bg: "#E6FFFA" },
-  { key: "new_this_week",    label: "이번 주 신규", color: "#64748B", bg: "#FFFFFF" },
-  { key: "free_over10",      label: "무료 체험",     color: "#64748B", bg: "#FFFFFF" },
+  { key: "new_this_week",    label: "이번 주 신규", color: C.textSecondary, bg: "#FFFFFF" },
+  { key: "free_over10",      label: "무료 체험",     color: C.textSecondary, bg: "#FFFFFF" },
   { key: "policy_unsigned",  label: "정책 미확인",   color: "#2EC4B6", bg: "#E6FFFA" },
   { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FFF1BF" },
   { key: "refund_repeat",    label: "반복 환불",     color: "#D96C6C", bg: "#F9DEDA" },
@@ -48,7 +50,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   pending:    { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
   active:     { label: "운영",   color: "#2EC4B6", bg: "#E6FFFA" },
   rejected:   { label: "반려",   color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:  { label: "해지",   color: "#64748B", bg: "#FFFFFF" },
+  cancelled:  { label: "해지",   color: C.textSecondary, bg: "#FFFFFF" },
   readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EEDDF5" },
   restricted: { label: "제한",   color: "#D96C6C", bg: "#F9DEDA" },
 };
@@ -57,7 +59,7 @@ const BILLING_CFG: Record<string, { label: string; color: string }> = {
   active:                { label: "정상",  color: "#2EC4B6" },
   payment_failed:        { label: "실패",  color: "#D96C6C" },
   grace:                 { label: "유예",  color: "#D97706" },
-  cancelled:             { label: "해지",  color: "#64748B" },
+  cancelled:             { label: "해지",  color: C.textSecondary },
   auto_delete_scheduled: { label: "삭제예정", color: "#2EC4B6" },
   readonly:              { label: "읽기전용", color: "#7C3AED" },
   free:                  { label: "무료",  color: "#2EC4B6" },
@@ -195,7 +197,7 @@ export default function SuperPoolsScreen() {
   const renderItem = ({ item }: { item: Operator }) => {
     const isSelected = selected.has(item.id);
     const sCfg   = STATUS_CFG[item.status] ?? STATUS_CFG.pending;
-    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#64748B" };
+    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: C.textSecondary };
     const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#2EC4B6" };
     const pct    = Math.round((item.storageUsedMb / Math.max(item.storageTotalMb, 1)) * 100);
     const pctStr = `${pct}%`;
@@ -257,7 +259,7 @@ export default function SuperPoolsScreen() {
               <View style={[s.storageBarFill,
                 { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
             </View>
-            <Text style={[s.storagePct, { color: isDanger ? "#D96C6C" : "#64748B" }]}>{pctStr}</Text>
+            <Text style={[s.storagePct, { color: isDanger ? "#D96C6C" : C.textSecondary }]}>{pctStr}</Text>
           </View>
 
           <View style={s.rowBottom}>
@@ -283,7 +285,7 @@ export default function SuperPoolsScreen() {
             {!isPending && (
               <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]}
                 onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=pools` as any)}>
-                <Text style={[s.actTxt, { color: "#14283D" }]}>상세</Text>
+                <Text style={[s.actTxt, { color: C.textPrimary }]}>상세</Text>
               </Pressable>
             )}
           </View>
@@ -307,11 +309,11 @@ export default function SuperPoolsScreen() {
             )}
             <View style={s.sheetBtns}>
               <Pressable style={[s.sheetBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setBulkModal(null)}>
-                <Text style={{ color: "#14283D", fontFamily: "Pretendard-Regular" }}>취소</Text>
+                <Text style={{ color: C.textPrimary, fontFamily: "Pretendard-Regular" }}>취소</Text>
               </Pressable>
               <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#FFFFFF" }]}
                 disabled={processing} onPress={() => executeBulk(bulkModal!)}>
-                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#14283D", fontFamily: "Pretendard-Regular" }}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? C.textPrimary, fontFamily: "Pretendard-Regular" }}>
                   확인
                 </Text>
               </Pressable>
@@ -325,12 +327,12 @@ export default function SuperPoolsScreen() {
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <LucideIcon name="search" size={14} color="#64748B" />
+          <LucideIcon name="search" size={14} color={C.textSecondary} />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
-            placeholder="운영처명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
+            placeholder="운영처명, 코드, 담당자 검색" placeholderTextColor={C.textMuted} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <LucideIcon name="x" size={14} color="#64748B" />
+              <LucideIcon name="x" size={14} color={C.textSecondary} />
             </Pressable>
           )}
         </View>
@@ -374,7 +376,7 @@ export default function SuperPoolsScreen() {
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
-            <LucideIcon name="check-square" size={14} color={multiSelect ? P : "#64748B"} />
+            <LucideIcon name="check-square" size={14} color={multiSelect ? P : C.textSecondary} />
             <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
               {multiSelect ? "완료" : "다중선택"}
             </Text>
@@ -405,28 +407,28 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: "#fff" },
   overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
-  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: "#14283D" },
-  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#14283D", fontFamily: "Pretendard-Regular", minHeight: 60 },
+  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: C.textPrimary },
+  sheetInput:        { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10, color: C.textPrimary, fontFamily: "Pretendard-Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
-  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
-  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#14283D" },
+  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: C.backgroundSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
+  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
   sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#FFFFFF", marginRight: 6 },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
-  sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   sortChipTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
   chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#FFFFFF" },
-  chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#14283D" },
+  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: C.textPrimary },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
   bulkTxt:           { fontFamily: "Pretendard-Regular", fontSize: 11 },
   multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#FFFFFF" },
   multiBtnActive:    { backgroundColor: "#EEDDF5" },
-  multiBtnTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  multiBtnTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#FFFFFF" },
   rowSelected:       { borderColor: P, backgroundColor: "#EEDDF5" },
   rowDanger:         { borderColor: "#BAE6FD" },
@@ -435,23 +437,23 @@ const s = StyleSheet.create({
   checkboxChecked:   { backgroundColor: P, borderColor: P },
   rowMain:           { flex: 1, gap: 4 },
   rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: "#14283D", flex: 1 },
+  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: C.textPrimary, flex: 1 },
   badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeTxt:          { fontFamily: "Pretendard-Regular", fontSize: 10 },
   rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   rowDot:            { color: "#D1D5DB", fontSize: 10 },
-  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#14283D" },
+  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textPrimary },
   storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
   storageBarBg:      { flex: 1, height: 4, backgroundColor: "#FFFFFF", borderRadius: 2, overflow: "hidden" },
   storageBarFill:    { height: 4, borderRadius: 2 },
   storagePct:        { fontFamily: "Pretendard-Regular", fontSize: 11, minWidth: 34, textAlign: "right" },
   rowBottom:         { flexDirection: "row", alignItems: "center", gap: 4 },
   billingBadge:      { fontFamily: "Pretendard-Regular", fontSize: 11 },
-  loginDate:         { fontFamily: "Pretendard-Regular", fontSize: 11, color: "#64748B" },
+  loginDate:         { fontFamily: "Pretendard-Regular", fontSize: 11, color: C.textSecondary },
   actions:           { flexDirection: "column", gap: 4, marginLeft: 8 },
   actBtn:            { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
   actTxt:            { fontFamily: "Pretendard-Regular", fontSize: 11 },
   empty:             { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:          { fontFamily: "Pretendard-Regular", fontSize: 14, color: "#64748B" },
+  emptyTxt:          { fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textSecondary },
 });

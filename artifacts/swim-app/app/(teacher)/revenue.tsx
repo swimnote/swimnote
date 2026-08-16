@@ -43,7 +43,7 @@ interface SettlementSummary {
 type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
 
 const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#FFFFFF", text: "#64748B" },
+  "미정산":    { bg: C.surface, text: C.textSecondary },
   "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
   "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
@@ -323,7 +323,7 @@ export default function RevenueScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[rv.studentName, { color: C.text }]}>{s.student_name}</Text>
                       {s.is_trial && <View style={[rv.tag, { backgroundColor: "#FFF1BF" }]}><Text style={[rv.tagText, { color: "#D97706" }]}>체험</Text></View>}
-                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#FFFFFF" }]}><Text style={[rv.tagText, { color: "#64748B" }]}>미등록</Text></View>}
+                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: C.surface }]}><Text style={[rv.tagText, { color: C.textSecondary }]}>미등록</Text></View>}
                       {s.temp_transfer_sessions > 0 && <View style={[rv.tag, { backgroundColor: "#EEDDF5" }]}><Text style={[rv.tagText, { color: "#7C3AED" }]}>임시이동</Text></View>}
                     </View>
                     <Text style={[rv.studentSub, { color: C.textSecondary }]}>
@@ -458,7 +458,7 @@ export default function RevenueScreen() {
             >
               <Text style={rv.confirmBtnText}>확정 후 다음 달 시작</Text>
             </Pressable>
-            <Pressable style={[rv.confirmBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setNextMonthModal(false)}>
+            <Pressable style={[rv.confirmBtn, { backgroundColor: C.surface }]} onPress={() => setNextMonthModal(false)}>
               <Text style={[rv.confirmBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
           </View>
@@ -469,7 +469,7 @@ export default function RevenueScreen() {
 }
 
 const rv = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:             { flex: 1, backgroundColor: C.surface },
   tabHeader:        { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   tabHeaderTitle:   { fontSize: 20, fontFamily: "Pretendard-Regular" },
   monthRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
@@ -510,7 +510,7 @@ const rv = StyleSheet.create({
   statusTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
   statusDesc:       { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   summaryGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: "#F1F5F9", borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
+  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
   summaryGridVal:   { fontSize: 18, fontFamily: "Pretendard-Regular" },
   summaryGridLabel: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   saveBtn:          { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
@@ -521,7 +521,7 @@ const rv = StyleSheet.create({
   nextBtnText:      { fontSize: 15, fontFamily: "Pretendard-Regular" },
   overlay:          { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   confirmSheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
-  confirmHandle:    { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center" },
+  confirmHandle:    { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center" },
   confirmTitle:     { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   confirmSub:       { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },

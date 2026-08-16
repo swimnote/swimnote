@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   rowPressed: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: C.backgroundSoft,
   },
   iconWrap: {
     width:  44,

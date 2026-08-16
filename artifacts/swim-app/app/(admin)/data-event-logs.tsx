@@ -31,7 +31,7 @@ const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   "권한":     { icon: "shield",      color: "#2EC4B6", bg: "#E6FFFA" },
   "선생님":   { icon: "user-check",  color: "#0D9488", bg: "#CCFBF1" },
   "저장공간": { icon: "hard-drive",  color: "#EC4899", bg: "#F6D8E1" },
-  "휴무일":   { icon: "calendar",    color: "#64748B", bg: "#FFFFFF" },
+  "휴무일":   { icon: "calendar",    color: C.textSecondary, bg: "#FFFFFF" },
 };
 const CATEGORIES = ["전체", "삭제", "결제", "구독", "해지", "권한", "선생님", "저장공간", "휴무일"] as const;
 
@@ -163,15 +163,15 @@ export default function DataEventLogsScreen() {
 }
 
 const s = StyleSheet.create({
-  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
   chipText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   card:      { borderRadius: 16, padding: 14, gap: 6, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 20 },
-  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  actor:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
+  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  actor:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

@@ -257,7 +257,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >
-          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? "#64748B" : C.tint} />
+          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? C.textSecondary : C.tint} />
         </Pressable>
         <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
@@ -425,7 +425,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
     backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB",
   },
-  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   activeToggle: {
     width: 32, height: 32, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", marginLeft: 8,

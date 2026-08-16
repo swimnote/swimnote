@@ -40,12 +40,12 @@ function formatWon(n: number) {
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   trial:           { label: "체험 중",   color: "#7C3AED", bg: "#E6FAF8" },
   active:          { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
-  expired:         { label: "만료됨",    color: "#64748B", bg: "#FFFFFF" },
+  expired:         { label: "만료됨",    color: C.textSecondary, bg: "#FFFFFF" },
   suspended:       { label: "정지됨",    color: "#D97706", bg: "#FFF1BF" },
   cancelled:       { label: "해지됨",    color: "#D96C6C", bg: "#F9DEDA" },
   payment_failed:  { label: "결제 실패", color: "#DC2626", bg: "#FEE2E2" },
   pending_deletion:{ label: "삭제 예약", color: "#9B1C1C", bg: "#FEE2E2" },
-  deleted:         { label: "삭제됨",    color: "#64748B", bg: "#E5E7EB" },
+  deleted:         { label: "삭제됨",    color: C.textSecondary, bg: C.border },
 };
 
 
@@ -218,7 +218,7 @@ export default function DashboardScreen() {
     ? { Icon: Crown, color: "#F59E0B", bg: "#FEF3C7", label: "Premier" }
     : COACH_TIERS.has(subTier)
     ? { Icon: Zap,   color: "#7C3AED", bg: "#EDE9FE", label: "Coach" }
-    : { Icon: null,  color: "#94A3B8", bg: "#F1F5F9", label: "Free" };
+    : { Icon: null,  color: C.textMuted, bg: C.backgroundSoft, label: "Free" };
 
   const roleLabel = adminUser?.role === "pool_admin" ? "대표" : adminUser?.role === "sub_admin" ? "관리자" : "선생님";
 
@@ -244,9 +244,9 @@ export default function DashboardScreen() {
   // loading 중이 아닌데도 modeInitialized가 false이면 skeleton 표시.
   if (!modeInitialized && !loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F5F6FA", alignItems: "center", justifyContent: "center" }}>
+      <View style={{ flex: 1, backgroundColor: C.background, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={themeColor} size="large" />
-        <Text style={{ marginTop: 12, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+        <Text style={{ marginTop: 12, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
           수영장 정보 불러오는 중…
         </Text>
       </View>
@@ -254,7 +254,7 @@ export default function DashboardScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: isX ? XT.background : "#F5F6FA" }}>
+    <View style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }}>
       {/* ── 상단 헤더 ── Normal: 흰색 / X: 네이비 */}
       <View style={[
         s.topBar,
@@ -318,9 +318,9 @@ export default function DashboardScreen() {
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : "#14283D"} />
+                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : C.textPrimary} />
                   : <>
-                      <LucideIcon name="repeat" size={10} color={isX ? XT.textOnNavy : "#14283D"} />
+                      <LucideIcon name="repeat" size={10} color={isX ? XT.textOnNavy : C.textPrimary} />
                       <Text style={[s.switchChipTxt, { color: isX ? XT.textOnNavy : C.text }]}>선생님으로 전환</Text>
                     </>
                 }
@@ -379,7 +379,7 @@ export default function DashboardScreen() {
                   style={[wz.step, idx < steps.length - 1 && wz.stepBorder]}
                   onPress={() => router.push((step.route + "?backTo=dashboard") as any)}
                 >
-                  <View style={[wz.stepIcon, { backgroundColor: step.done ? "#D1FAE5" : "#F1F5F9" }]}>
+                  <View style={[wz.stepIcon, { backgroundColor: step.done ? "#D1FAE5" : C.backgroundSoft }]}>
                     {step.done
                       ? <LucideIcon name="check" size={16} color="#16A34A" />
                       : <LucideIcon name="user" size={16} color={C.textMuted} />
@@ -641,7 +641,7 @@ export default function DashboardScreen() {
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
-                    <LucideIcon name="alert-circle" size={14} color="#14283D" />
+                    <LucideIcon name="alert-circle" size={14} color={C.textPrimary} />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
@@ -651,7 +651,7 @@ export default function DashboardScreen() {
                 <View style={s.splitStatDivider} />
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
                   <View style={s.splitStatIcon}>
-                    <LucideIcon name="user-x" size={14} color="#14283D" />
+                    <LucideIcon name="user-x" size={14} color={C.textPrimary} />
                   </View>
                   <View>
                     <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
@@ -896,7 +896,7 @@ const s = StyleSheet.create({
   },
   iconLabel:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   directBadge: { position: "absolute", bottom: 4, right: 4, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: "#F5F6FA" },
+  notiBadge:   { position: "absolute", top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.background },
   notiBadgeTxt:{ color: "#fff", fontSize: 9, fontWeight: "700" },
 
   splitStatRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.card, borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
@@ -917,12 +917,12 @@ const wz = StyleSheet.create({
   card:      { backgroundColor: "#EFF6FF", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#BFDBFE", gap: 4 },
   header:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
   title:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#1D4ED8" },
-  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 8 },
   step:      { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   stepBorder:{ borderBottomWidth: 1, borderBottomColor: "#BFDBFE" },
   stepIcon:  { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   stepLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
-  stepDone:  { color: "#64748B", textDecorationLine: "line-through" },
+  stepDone:  { color: C.textSecondary, textDecorationLine: "line-through" },
   doneTag:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", backgroundColor: "#D1FAE5", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
 });
 

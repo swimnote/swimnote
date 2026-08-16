@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * route-error.tsx
  * 세션은 있으나 라우팅에 실패했을 때 표시되는 안전망 화면.
@@ -64,11 +66,11 @@ const s = StyleSheet.create({
   },
   emoji: { fontSize: 48, marginBottom: 20 },
   title: {
-    fontSize: 18, fontWeight: "700", color: "#1E293B",
+    fontSize: 18, fontWeight: "700", color: C.textStrong,
     textAlign: "center", marginBottom: 12,
   },
   desc: {
-    fontSize: 14, color: "#64748B", textAlign: "center",
+    fontSize: 14, color: C.textSecondary, textAlign: "center",
     lineHeight: 22,
   },
   btnRow: { flexDirection: "column", gap: 12, marginTop: 36, width: "100%" },
@@ -78,7 +80,7 @@ const s = StyleSheet.create({
   },
   retryTxt: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   logoutBtn: {
-    backgroundColor: "#F1F5F9", paddingVertical: 14,
+    backgroundColor: C.backgroundSoft, paddingVertical: 14,
     borderRadius: 12, alignItems: "center",
   },
   logoutTxt: { color: "#475569", fontSize: 15, fontWeight: "600" },

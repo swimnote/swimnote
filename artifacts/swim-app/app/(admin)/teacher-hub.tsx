@@ -32,7 +32,7 @@ const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = 
   assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
   completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
-  cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
+  cancelled:   { label: "취소",   color: C.textSecondary, bg: "#FFFFFF" },
 };
 
 export default function TeacherHubScreen() {
@@ -170,7 +170,7 @@ export default function TeacherHubScreen() {
             </Pressable>
           );
           if (tab === "출결") {
-            const ast = ATT_STATUS[item.status] || { label: item.status, color: "#64748B", bg: "#FFFFFF" };
+            const ast = ATT_STATUS[item.status] || { label: item.status, color: C.textSecondary, bg: "#FFFFFF" };
             return (
               <View style={s.card}>
                 <View style={s.row}>
@@ -199,7 +199,7 @@ export default function TeacherHubScreen() {
               </View>
             </View>
           );
-          const mst = MK_STATUS[item.status] || { label: item.status, color: "#64748B", bg: "#FFFFFF" };
+          const mst = MK_STATUS[item.status] || { label: item.status, color: C.textSecondary, bg: "#FFFFFF" };
           return (
             <View style={s.card}>
               <View style={s.row}>
@@ -250,7 +250,7 @@ const s = StyleSheet.create({
   statVal:   { fontSize: 22, fontWeight: "700", color: C.text },
   statLabel: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
   chipRow:   { flexGrow: 0, paddingVertical: 8 },
-  chip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1.5, borderColor: "#94A3B8", backgroundColor: "#fff" },
+  chip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1.5, borderColor: C.textMuted, backgroundColor: "#fff" },
   chipTxt:   { fontSize: 13, fontWeight: "600", color: C.text },
   card:      { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:       { flexDirection: "row", alignItems: "center" },

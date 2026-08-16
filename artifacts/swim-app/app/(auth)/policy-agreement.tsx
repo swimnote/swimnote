@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (auth)/policy-agreement.tsx — 환불 정책 동의 온보딩 화면
  *
@@ -16,7 +18,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const PURPLE = "#7C3AED";
-const NAVY   = "#14283D";
+const NAVY   = C.textPrimary;
 
 export default function PolicyAgreementScreen() {
   const { token } = useAuth() as any;
@@ -153,11 +155,11 @@ const s = StyleSheet.create({
   center:       { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAFAFA" },
 
   hero:         { alignItems: "center", paddingHorizontal: 24, paddingTop: 28, paddingBottom: 20,
-                  backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                  backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   heroIcon:     { width: 72, height: 72, borderRadius: 20, backgroundColor: "#F5F3FF",
                   alignItems: "center", justifyContent: "center", marginBottom: 12 },
   heroTitle:    { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 6 },
-  heroSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B",
+  heroSub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary,
                   textAlign: "center", lineHeight: 20, marginBottom: 10 },
   versionBadge: { backgroundColor: "#EDE9FE", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   versionTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: PURPLE },
@@ -169,11 +171,11 @@ const s = StyleSheet.create({
   scroll:       { padding: 16, gap: 12 },
 
   policyBox:    { backgroundColor: "#fff", borderRadius: 14, padding: 16,
-                  borderWidth: 1, borderColor: "#E5E7EB", gap: 10 },
+                  borderWidth: 1, borderColor: C.border, gap: 10 },
   policyHeader: { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
   line:         { flexDirection: "row", gap: 8, alignItems: "flex-start" },
   lineText:     { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular",
-                  color: "#374151", lineHeight: 20 },
+                  color: C.textPrimary, lineHeight: 20 },
 
   noticeBox:    { flexDirection: "row", gap: 10, alignItems: "flex-start",
                   backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14,
@@ -182,8 +184,8 @@ const s = StyleSheet.create({
                   color: "#0369A1", lineHeight: 20 },
 
   footer:       { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24, gap: 8,
-                  backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  footerHint:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
+                  backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border },
+  footerHint:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
   agreeBtn:     { backgroundColor: PURPLE, borderRadius: 14, paddingVertical: 15,
                   alignItems: "center" },
   agreeTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },

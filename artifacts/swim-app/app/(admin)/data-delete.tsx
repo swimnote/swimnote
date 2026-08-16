@@ -352,7 +352,7 @@ const s = StyleSheet.create({
   retentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, padding: 14 },
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chipRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#F1F5F9" },
+  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft },
   chipText:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   saveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 46, borderRadius: 14, marginTop: 10 },
@@ -361,7 +361,7 @@ const s = StyleSheet.create({
   warnBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF2F2", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA" },
   warnText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 18 },
 
-  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   typeRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   monthChip:    { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   monthChipText:{ fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -369,15 +369,15 @@ const s = StyleSheet.create({
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 16 },
   primaryBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#14283D" },
+  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   previewValue: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
-  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: "#F1F5F9" },
-  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: "#F1F5F9", borderRadius: 18 },
+  pwInput:   { height: 50, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: C.backgroundSoft },
+  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: C.backgroundSoft, borderRadius: 18 },
   resultIcon:{ width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   resultMsg: { fontSize: 16, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 16 },
 });

@@ -161,7 +161,7 @@ export default function ChildProfileScreen() {
             <InfoRow icon="map-pin" label="소속 수영장" value={parentAccount?.pool_name || "수영장"} accentColor={accentColor} />
             {classGroup?.name
               ? <InfoRow icon="users" label="반" value={classGroup.name} accentColor={accentColor} />
-              : <InfoRow icon="users" label="반" value="배정 전" accentColor="#64748B" />
+              : <InfoRow icon="users" label="반" value="배정 전" accentColor={C.textSecondary} />
             }
             {scheduleChips.length > 0 && (
               <View style={ir.row}>
@@ -255,8 +255,8 @@ const s = StyleSheet.create({
   emptyTxt: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   unlinkBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: "#FECACA", backgroundColor: "#FEF2F2" },
   unlinkTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" },
-  unlinkLocked: { borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#F8FAFC", padding: 14, gap: 6 },
+  unlinkLocked: { borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft, padding: 14, gap: 6 },
   unlinkLockedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  unlinkLockedTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
-  unlinkLockedDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8", lineHeight: 18 },
+  unlinkLockedTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  unlinkLockedDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 18 },
 });

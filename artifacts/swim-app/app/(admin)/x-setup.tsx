@@ -31,9 +31,9 @@ const C = Colors.light;
 const MINT       = "#355C7D";   // xAccent
 const MINT_LIGHT = "#E9EEF3";   // xAccentLight
 const NAVY       = "#23415C";   // xAccentStrong
-const SLATE      = "#64748B";
-const SLATE_LIGHT = "#F8FAFC";
-const BORDER     = "#E2E8F0";
+const SLATE      = C.textSecondary;
+const SLATE_LIGHT = C.backgroundSoft;
+const BORDER     = C.border;
 
 interface CurriculumRequest {
   id: string;

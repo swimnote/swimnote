@@ -166,9 +166,9 @@ export default function DiaryEditView({
                     {linkedVideos.map(video => (
                       <View key={video.id} style={s.albumThumb}>
                         {video.status === 'expired' ? (
-                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <LucideIcon name="alert-circle" size={14} color="#94A3B8" />
-                            <Text style={{ fontSize: 8, color: "#94A3B8", textAlign: "center", marginTop: 2 }}>보관기간{"\n"}만료</Text>
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center", padding: 4 }}>
+                            <LucideIcon name="alert-circle" size={14} color={C.textMuted} />
+                            <Text style={{ fontSize: 8, color: C.textMuted, textAlign: "center", marginTop: 2 }}>보관기간{"\n"}만료</Text>
                           </View>
                         ) : video.thumbnail_presigned_url ? (
                           <ExpoImage
@@ -422,10 +422,10 @@ const s = StyleSheet.create({
   cardHeader:    { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   cardTitle:     { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
-  cardSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
+  cardSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: C.surface },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
   sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
@@ -436,13 +436,13 @@ const s = StyleSheet.create({
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D", lineHeight: 18 },
+  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
-  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
+  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: C.surface },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  footer:        { gap: 8, padding: 12, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   saveBtn:       { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
@@ -453,9 +453,9 @@ const s = StyleSheet.create({
   mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   photoSection:  { gap: 10 },
-  photoSectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6 },
+  photoSectionLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6 },
   albumPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: "#F1F5F9" },
+  albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: C.backgroundSoft },
   albumThumbRemove: { position: "absolute", top: 2, right: 2 },
   albumPickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: "#EFF6FF", alignSelf: "flex-start", marginTop: 4 },
   albumPickerBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#3B82F6" },
