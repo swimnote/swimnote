@@ -289,7 +289,7 @@ function PoolSelectModal({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            backgroundColor: "#F4F6FA",
+            backgroundColor: C.backgroundSoft,
             borderRadius: 12,
             marginHorizontal: 20,
             marginBottom: 8,
@@ -348,7 +348,7 @@ function PoolSelectModal({
                   paddingHorizontal: 20,
                   paddingVertical: 14,
                   gap: 12,
-                  backgroundColor: pressed ? "#F0FAF9" : "#fff",
+                  backgroundColor: pressed ? C.brandMist : "#fff",
                 })}
               >
                 <View

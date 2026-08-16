@@ -669,11 +669,11 @@ export default function ParentNotificationsScreen() {
                 disabled={submitting || students.length === 0}
               >
                 {submitting ? (
-                  <ActivityIndicator color="#1B3A70" size="small" />
+                  <ActivityIndicator color={C.brandStrong} size="small" />
                 ) : (
                   <>
-                    <LucideIcon name="send" size={16} color="#1B3A70" />
-                    <Text style={[st.submitBtnText, { color: "#1B3A70" }]}>요청 보내기</Text>
+                    <LucideIcon name="send" size={16} color={C.brandStrong} />
+                    <Text style={[st.submitBtnText, { color: C.brandStrong }]}>요청 보내기</Text>
                   </>
                 )}
               </Pressable>
