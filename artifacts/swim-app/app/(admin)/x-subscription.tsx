@@ -1,26 +1,34 @@
 /**
- * x-subscription — SWIMNOTE X 정기결제 신청 (X02-D)
+ * x-subscription — SWIMNOTE X 정기결제 신청 / 구독 관리 (X02-D, X02-D2)
  *
  * 결제 흐름:
  *  IDLE → [신청] → RESERVING → RESERVED → LOADING_PRODUCT → READY_TO_PURCHASE
  *       → [결제] → PURCHASING → SYNCING → X_ACTIVE / PURCHASED_X_PENDING
  *
+ * X02-D2 추가:
+ *  - Restore 구매 복원 (pool_admin)
+ *  - 구독 상태 세부 조회 (ACTIVE / CANCELLED_BUT_ACTIVE / BILLING_ISSUE / EXPIRED)
+ *  - 구독 관리 deep-link (Apple 구독 관리)
+ *  - CANCELLED_BUT_ACTIVE / BILLING_ISSUE UI
+ *
  * 서버 정책:
  *  - sequence / tier / product 서버 결정 (클라이언트 계산 금지)
  *  - RevenueCat V2 server verification
- *  - pool_admin only 구매
+ *  - pool_admin only 구매/복원
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useMode } from "@/context/ModeContext";
 import { X as XT } from "@/constants/xTheme";
-import { getXOffering } from "@/lib/revenuecat";
+import { getXOffering, X_ENTITLEMENT } from "@/lib/revenuecat";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,6 +37,12 @@ import {
 } from "react-native";
 import Purchases, { PURCHASES_ERROR_CODE } from "react-native-purchases";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Apple 구독 관리 URL (iOS App Store)
+const APPLE_SUBSCRIPTION_MANAGE_URL =
+  Platform.OS === "ios"
+    ? "itms-apps://apps.apple.com/account/subscriptions"
+    : "https://play.google.com/store/account/subscriptions";
 
 const C      = Colors.light;
 const NAVY   = XT.primary;   // Nautic Primary (xTheme single source)
@@ -49,6 +63,31 @@ const X_FEATURES = [
   "AI 기반 일지 작성 지원",
   "학부모 AI 기능 (성장 리포트 등)",
 ];
+
+// ── X 구독 상태 (서버 응답) ────────────────────────────────────────────────────
+type XSubscriptionStatus = {
+  subscription_status: "ACTIVE" | "CANCELLED_BUT_ACTIVE" | "EXPIRED" | "BILLING_ISSUE" | "PENDING" | "UNKNOWN";
+  tier_key: string | null;
+  krw_price: string | null;
+  franchise_number: string | null;
+  purchased_at: string | null;
+  subscription_end_at: string | null;
+  payment_failed_at: string | null;
+  auto_renew_cancelled: boolean;
+  synced_at: string | null;
+  source: "paid" | "manual" | null;
+};
+
+// ── 구독 상태 표시 텍스트 ─────────────────────────────────────────────────────
+function formatSubscriptionDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "—";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${dd}`;
+}
 
 // ── 구매 상태 ─────────────────────────────────────────────────────────────────
 type PurchasePhase =
@@ -124,6 +163,11 @@ export default function XSubscriptionScreen() {
   const [pkg, setPkg]     = useState<any | null>(null);
   const [offeringError, setOfferingError] = useState<string | null>(null);
 
+  // X02-D2: 구독 상태 세부 정보
+  const [subscriptionStatus, setSubscriptionStatus] = useState<XSubscriptionStatus | null>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+
   // in-flight 잠금 (double tap defense)
   const inFlight = useRef(false);
   // purchase-succeeded guard: purchasePackage 성공 후 재진입 절대 방지
@@ -148,6 +192,26 @@ export default function XSubscriptionScreen() {
     }
     // normal/null → IDLE 유지
   }, [mode]);
+
+  // X02-D2: mode==="x" 시 구독 상태 세부 정보 fetch
+  useEffect(() => {
+    if (mode !== "x" || !token) return;
+    let cancelled = false;
+    const fetch = async () => {
+      setIsLoadingStatus(true);
+      try {
+        const res = await apiRequest(token, "/billing/x-subscription-status", { method: "GET" });
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setSubscriptionStatus(data);
+        }
+      } catch { /* silent — transient failure, UI will show data if available */ }
+      finally { if (!cancelled) setIsLoadingStatus(false); }
+    };
+    fetch();
+    return () => { cancelled = true; };
+  }, [mode, token]);
 
   // 결제 성공 후 X_ACTIVE 전환 시 대시보드로 이동 (구매 직후에만)
   // purchaseSucceeded.current = true일 때만 내비게이션 — 단순 화면 진입은 무시
@@ -318,6 +382,81 @@ export default function XSubscriptionScreen() {
   // handleSyncRef를 항상 최신 handleSync로 유지 (handlePurchase 클로저에서 사용)
   useEffect(() => { handleSyncRef.current = handleSync; }, [handleSync]);
 
+  // X02-D2: 구매 복원 (Restore Purchases)
+  // spec §5: RC restore → server confirm → refreshMode
+  // spec §5 E: server sync 실패 시 client entitlement만으로 X 확정 금지
+  const handleRestore = useCallback(async () => {
+    if (!isPoolAdmin || isRestoring) return;
+    setIsRestoring(true);
+
+    try {
+      // Step 1: RC restore
+      const customerInfo = await Purchases.restorePurchases();
+      const activeEntitlements = customerInfo.entitlements.active ?? {};
+      const hasXEntitlement = X_ENTITLEMENT in activeEntitlements;
+
+      if (!hasXEntitlement) {
+        // spec §6 B: X entitlement 없음
+        Alert.alert(
+          "복원할 구독 없음",
+          "이 Apple ID에 복원 가능한 SWIMNOTE X 구독이 없습니다.",
+          [{ text: "확인" }],
+        );
+        return;
+      }
+
+      // Step 2: server sync (spec §5: 최종 truth = server)
+      const res = await apiRequest(token, "/billing/restore-x-subscription", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.error === "RC_ENTITLEMENT_INACTIVE") {
+          // spec §6 D: wrong Apple ID / no server-confirmed purchase
+          Alert.alert(
+            "복원 실패",
+            "서버에서 X 구독을 확인하지 못했습니다. 다른 Apple ID로 로그인한 경우 해당 계정으로 복원해주세요.",
+            [{ text: "확인" }],
+          );
+          return;
+        }
+        // spec §6 E: server sync failure
+        Alert.alert(
+          "서버 동기화 실패",
+          "구독 정보를 서버와 동기화하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          [{ text: "확인" }],
+        );
+        return;
+      }
+
+      // Step 3: mode refresh
+      await refreshMode();
+      Alert.alert(
+        "복원 완료",
+        "SWIMNOTE X 구독이 복원되었습니다.",
+        [{ text: "확인" }],
+      );
+    } catch (e: any) {
+      // spec §6 C: network/transient failure — confirmed state 보존
+      const msg: string = e?.message ?? "";
+      const isCancel = msg.toLowerCase().includes("cancel") || e?.userCancelled === true;
+      if (!isCancel) {
+        Alert.alert(
+          "복원 오류",
+          "구매 복원 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+          [{ text: "확인" }],
+        );
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [isPoolAdmin, isRestoring, token, refreshMode]);
+
+  // X02-D2: Apple 구독 관리 (spec §7: Apple subscription management)
+  const handleManageSubscription = useCallback(() => {
+    Linking.openURL(APPLE_SUBSCRIPTION_MANAGE_URL).catch(() => {
+      Alert.alert("오류", "구독 관리 화면을 열 수 없습니다. 기기 설정 → Apple ID → 구독에서 확인해주세요.");
+    });
+  }, []);
+
   // 취소 후 재시도: 기존 slot+pkg 재사용
   const handleRetryFromCancelled = useCallback(() => {
     if (!pkg || !slot) return;
@@ -367,7 +506,15 @@ export default function XSubscriptionScreen() {
 
         {/* ── X_ACTIVE ─────────────────────────────────────────────────────── */}
         {phase === "X_ACTIVE" && (
-          <ActiveView franchiseNumber={slot?.franchiseNumber ?? null} />
+          <ActiveView
+            franchiseNumber={slot?.franchiseNumber ?? null}
+            subscriptionStatus={subscriptionStatus}
+            isLoadingStatus={isLoadingStatus}
+            isRestoring={isRestoring}
+            isPoolAdmin={isPoolAdmin}
+            onManage={handleManageSubscription}
+            onRestore={handleRestore}
+          />
         )}
 
         {/* ── PURCHASED_X_PENDING ──────────────────────────────────────────── */}
@@ -668,32 +815,183 @@ function ReservationCard({
   );
 }
 
-function ActiveView({ franchiseNumber }: { franchiseNumber: string | null }) {
+// ── 구독 상태 배지 UI ──────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: XSubscriptionStatus["subscription_status"] }) {
+  const config: Record<string, { label: string; bg: string; color: string }> = {
+    ACTIVE:              { label: "이용 중",          bg: "#E8F5F0", color: "#166534" },
+    CANCELLED_BUT_ACTIVE:{ label: "해지 예정",         bg: "#FEF3C7", color: "#92400E" },
+    EXPIRED:             { label: "이용 종료",         bg: "#FEF2F2", color: "#DC2626" },
+    BILLING_ISSUE:       { label: "결제 확인 필요",    bg: "#FEF2F2", color: "#DC2626" },
+    PENDING:             { label: "처리 중",           bg: "#F0F9FF", color: "#0369A1" },
+    UNKNOWN:             { label: "구독 상태 확인 중",  bg: "#F8FAFC", color: "#6B7280" },
+  };
+  const c = config[status] ?? config.UNKNOWN;
   return (
-    <View style={[s.card, { backgroundColor: X_LIGHT, padding: 20, gap: 14 }]}>
-      <View style={{ alignItems: "center", gap: 8 }}>
-        <View style={[s.xBadge, { width: 52, height: 52, borderRadius: 16 }]}>
-          <Text style={[s.xBadgeText, { fontSize: 22 }]}>X</Text>
+    <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: c.bg }}>
+      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: c.color }}>{c.label}</Text>
+    </View>
+  );
+}
+
+function ActiveView({
+  franchiseNumber,
+  subscriptionStatus,
+  isLoadingStatus,
+  isRestoring,
+  isPoolAdmin,
+  onManage,
+  onRestore,
+}: {
+  franchiseNumber: string | null;
+  subscriptionStatus: XSubscriptionStatus | null;
+  isLoadingStatus: boolean;
+  isRestoring: boolean;
+  isPoolAdmin: boolean;
+  onManage: () => void;
+  onRestore: () => void;
+}) {
+  const isCancelledButActive = subscriptionStatus?.subscription_status === "CANCELLED_BUT_ACTIVE";
+  const isBillingIssue       = subscriptionStatus?.subscription_status === "BILLING_ISSUE";
+  const endDate = subscriptionStatus?.subscription_end_at;
+
+  return (
+    <View style={{ gap: 16 }}>
+      {/* 상태 카드 */}
+      <View style={[s.card, { backgroundColor: X_LIGHT, padding: 20, gap: 14 }]}>
+        {/* 헤더 */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={[s.xBadge, { width: 48, height: 48, borderRadius: 14 }]}>
+            <Text style={[s.xBadgeText, { fontSize: 20 }]}>X</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.planName, { color: X_ACCENT, fontSize: 17 }]}>SWIMNOTE X</Text>
+            {subscriptionStatus && (
+              <StatusBadge status={subscriptionStatus.subscription_status} />
+            )}
+          </View>
+          {isLoadingStatus && <ActivityIndicator size="small" color={X_ACCENT} />}
         </View>
-        <Text style={[s.planName, { color: X_ACCENT, fontSize: 18 }]}>SWIMNOTE X 사용 중</Text>
+
+        {/* 구독 상세 정보 */}
+        {subscriptionStatus && (
+          <View style={{ gap: 0 }}>
+            {/* 가맹번호 */}
+            {(subscriptionStatus.franchise_number || franchiseNumber) && (
+              <View style={s.reserveRow}>
+                <Text style={s.reserveLabel}>X 가맹번호</Text>
+                <Text style={[s.reserveValue, { color: X_ACCENT }]}>
+                  {subscriptionStatus.franchise_number ?? franchiseNumber}
+                </Text>
+              </View>
+            )}
+
+            {/* 월 결제 */}
+            {subscriptionStatus.krw_price && (
+              <View style={s.reserveRow}>
+                <Text style={s.reserveLabel}>월 결제</Text>
+                <Text style={s.reserveValue}>{subscriptionStatus.krw_price} / 월</Text>
+              </View>
+            )}
+
+            {/* 구독 시작일 */}
+            {subscriptionStatus.purchased_at && (
+              <View style={s.reserveRow}>
+                <Text style={s.reserveLabel}>구독 시작일</Text>
+                <Text style={s.reserveValue}>{formatSubscriptionDate(subscriptionStatus.purchased_at)}</Text>
+              </View>
+            )}
+
+            {/* 다음 갱신일 or 이용 종료일 */}
+            {endDate && (
+              <View style={s.reserveRow}>
+                <Text style={s.reserveLabel}>
+                  {isCancelledButActive ? "이용 종료 예정일" : "다음 갱신일"}
+                </Text>
+                <Text style={[s.reserveValue, isCancelledButActive ? { color: "#D97706" } : {}]}>
+                  {formatSubscriptionDate(endDate)}
+                </Text>
+              </View>
+            )}
+
+            {/* 자동갱신 상태 */}
+            <View style={s.reserveRow}>
+              <Text style={s.reserveLabel}>자동갱신</Text>
+              <Text style={[s.reserveValue, { color: subscriptionStatus.auto_renew_cancelled ? "#D97706" : "#166534" }]}>
+                {subscriptionStatus.auto_renew_cancelled ? "해지 예정" : "유지 중"}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* CANCELLED_BUT_ACTIVE 안내 */}
+        {isCancelledButActive && endDate && (
+          <View style={{ borderRadius: 10, backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FCD34D", padding: 12 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 }}>
+              구독 해지 예정입니다.{"\n"}
+              {formatSubscriptionDate(endDate)}까지 SWIMNOTE X를 계속 사용할 수 있습니다.
+            </Text>
+          </View>
+        )}
+
+        {/* BILLING_ISSUE 안내 */}
+        {isBillingIssue && (
+          <View style={{ borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA", padding: 12 }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 4 }}>
+              <LucideIcon name="alert-circle" size={14} color="#DC2626" />
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>결제 확인 필요</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 18 }}>
+              결제 처리에 문제가 있습니다. 구독 관리에서 결제 정보를 확인해주세요.
+            </Text>
+          </View>
+        )}
       </View>
-      {franchiseNumber && (
-        <View style={s.reserveRow}>
-          <Text style={s.reserveLabel}>X 가맹번호</Text>
-          <Text style={[s.reserveValue, { color: X_ACCENT }]}>{franchiseNumber}</Text>
-        </View>
-      )}
-      <View style={[s.deadlineNote, { borderTopColor: X_ACCENT + "20", marginTop: 0 }]}>
-        <Text style={s.deadlineNoteText}>
-          구독 관리·해지는 기기 설정 → Apple ID → 구독에서 할 수 있습니다.
-        </Text>
+
+      {/* 액션 버튼 영역 */}
+      <View style={{ gap: 10 }}>
+        {/* X모드 세팅하기 */}
+        <Pressable
+          style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
+          onPress={() => router.push("/(admin)/x-setup" as any)}
+        >
+          <LucideIcon name="settings" size={16} color="#fff" />
+          <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
+        </Pressable>
+
+        {/* 구독 관리 (Apple subscription management) — pool_admin만 */}
+        {isPoolAdmin && (
+          <Pressable
+            style={({ pressed }) => [
+              s.ctaBtn,
+              { backgroundColor: "transparent", borderWidth: 1.5, borderColor: X_ACCENT, opacity: pressed ? 0.7 : 1 },
+            ]}
+            onPress={onManage}
+          >
+            <LucideIcon name="external-link" size={16} color={X_ACCENT} />
+            <Text style={[s.ctaBtnText, { color: X_ACCENT }]}>구독 관리</Text>
+          </Pressable>
+        )}
+
+        {/* 구매 복원 — pool_admin만, CANCELLED_BUT_ACTIVE가 아닌 경우 */}
+        {isPoolAdmin && !isCancelledButActive && (
+          <Pressable
+            style={({ pressed }) => [
+              s.ctaBtn,
+              { backgroundColor: "transparent", borderWidth: 1, borderColor: C.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+            onPress={onRestore}
+            disabled={isRestoring}
+          >
+            {isRestoring
+              ? <ActivityIndicator size="small" color={C.textMuted} />
+              : <LucideIcon name="refresh-cw" size={15} color={C.textMuted} />
+            }
+            <Text style={[s.ctaBtnText, { color: C.textMuted, fontSize: 14 }]}>
+              {isRestoring ? "복원 중..." : "구매 복원"}
+            </Text>
+          </Pressable>
+        )}
       </View>
-      <Pressable
-        style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
-        onPress={() => router.push("/(admin)/x-setup" as any)}
-      >
-        <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
-      </Pressable>
     </View>
   );
 }

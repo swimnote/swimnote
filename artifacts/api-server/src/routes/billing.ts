@@ -31,6 +31,8 @@ import {
   reserveXSlot,
   syncXSubscription,
   processXWebhookEvent,
+  fetchRCSubscriberEntitlement,
+  auditXEvent,
 } from "../lib/x-billing.js";
 
 const router = Router();
@@ -634,6 +636,163 @@ router.post("/sync-x-subscription", requireAuth, requireRole("pool_admin"), asyn
   }
 });
 
+// ── GET /billing/x-subscription-status — X 구독 상태 조회 (pool_admin) ───────
+// billingEnabled 체크 없음 — 상태 조회는 결제 기능이 아님
+router.get("/x-subscription-status", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // pool 구독 상태 조회
+    const [pool] = (await superAdminDb.execute(sql`
+      SELECT x_paid_entitlement,
+             x_manual_entitlement,
+             x_force_disabled,
+             COALESCE(x_auto_renew_cancelled, false) AS x_auto_renew_cancelled,
+             xmode_subscription_end_at,
+             xmode_payment_failed_at,
+             xmode_purchased_at
+      FROM swimming_pools
+      WHERE id = ${poolId}
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!pool) {
+      res.status(404).json({ error: "POOL_NOT_FOUND" });
+      return;
+    }
+
+    // 가장 최근 PURCHASED slot 조회 (tier, franchise 정보)
+    const [slot] = (await superAdminDb.execute(sql`
+      SELECT tier_key, franchise_number, purchased_at, updated_at
+      FROM x_subscription_slots
+      WHERE pool_id = ${poolId} AND status = 'PURCHASED'
+      ORDER BY purchased_at DESC
+      LIMIT 1
+    `)).rows as any[];
+
+    // subscription_status 계산 (spec §4 상태)
+    const paid             = Boolean(pool.x_paid_entitlement);
+    const manual           = Boolean(pool.x_manual_entitlement);
+    const forceDisabled    = Boolean(pool.x_force_disabled);
+    const autoRenewCancelled = Boolean(pool.x_auto_renew_cancelled);
+    const paymentFailed    = pool.xmode_payment_failed_at != null;
+    const endAt: string | null = pool.xmode_subscription_end_at ?? null;
+
+    let subscription_status: string;
+    if (forceDisabled) {
+      subscription_status = "UNKNOWN";
+    } else if (paid) {
+      if (paymentFailed) {
+        subscription_status = "BILLING_ISSUE";
+      } else if (autoRenewCancelled) {
+        subscription_status = "CANCELLED_BUT_ACTIVE";
+      } else {
+        subscription_status = "ACTIVE";
+      }
+    } else if (manual) {
+      subscription_status = "ACTIVE";
+    } else if (endAt && new Date(endAt) > new Date()) {
+      // paid=false지만 end_at이 미래 (race condition 방어)
+      subscription_status = "CANCELLED_BUT_ACTIVE";
+    } else if (pool.xmode_purchased_at) {
+      subscription_status = "EXPIRED";
+    } else {
+      subscription_status = "UNKNOWN";
+    }
+
+    // KRW 정책 가격 (서버 tier_key 기준)
+    const X_KRW_PRICE: Record<string, string> = {
+      tier1: "₩75,000", tier2: "₩105,000", tier3: "₩135,000", standard: "₩150,000",
+    };
+    const tierKey: string | null = slot?.tier_key ?? null;
+    const krw_price = tierKey ? (X_KRW_PRICE[tierKey] ?? null) : null;
+
+    res.json({
+      subscription_status,
+      tier_key: tierKey,
+      krw_price,
+      franchise_number: slot?.franchise_number ?? null,
+      purchased_at: pool.xmode_purchased_at ?? null,
+      subscription_end_at: endAt,
+      payment_failed_at: pool.xmode_payment_failed_at ?? null,
+      auto_renew_cancelled: autoRenewCancelled,
+      synced_at: slot?.updated_at ?? pool.xmode_purchased_at ?? null,
+      source: paid ? "paid" : manual ? "manual" : null,
+    });
+  } catch (err) {
+    console.error("[x-subscription-status]", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── POST /billing/restore-x-subscription — RC 구매 복원 후 서버 검증 ──────────
+// billingEnabled 체크 없음 — sync-x-subscription과 동일 패턴
+// spec §5: 최종 truth = server. RC client 결과만으로 X 확정 금지.
+router.post("/restore-x-subscription", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // RC V2 API로 현재 x_mode entitlement 확인
+    const { entitlement, originalAppUserId } = await fetchRCSubscriberEntitlement(userId, "x_mode");
+
+    if (!entitlement || !entitlement.isActive) {
+      res.status(422).json({
+        error: "RC_ENTITLEMENT_INACTIVE",
+        message: "복원 가능한 X 구독이 없습니다.",
+      });
+      return;
+    }
+
+    // entitlement 활성 확인됨 → DB 갱신
+    await superAdminDb.execute(sql`
+      UPDATE swimming_pools
+      SET x_paid_entitlement        = true,
+          xmode_subscription_end_at = ${entitlement.expiresAt ?? null},
+          xmode_payment_failed_at   = NULL,
+          xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
+          x_auto_renew_cancelled    = false,
+          updated_at                = NOW()
+      WHERE id = ${poolId}
+    `);
+
+    // audit 기록
+    await auditXEvent({
+      action: "x_restore",
+      poolId,
+      actorId: userId,
+      before: {},
+      after: {
+        x_paid_entitlement: true,
+        source:             "restore",
+        rc_user:            originalAppUserId,
+        expires_at:         entitlement.expiresAt ?? null,
+      },
+      reason: "pool_admin 구매 복원: RC x_mode entitlement 서버 확인 후 활성화",
+    });
+
+    console.log(`[restore-x-subscription] pool=${poolId} user=${userId} expires=${entitlement.expiresAt}`);
+    res.json({ ok: true, expires_at: entitlement.expiresAt ?? null });
+  } catch (err: any) {
+    const code: string = err?.code ?? "";
+    if (code === "RC_ENTITLEMENT_INACTIVE") {
+      res.status(422).json({ error: code, message: err.message });
+      return;
+    }
+    console.error("[restore-x-subscription]", err);
+    res.status(500).json({ error: err?.message ?? "복원 오류" });
+  }
+});
+
 // ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
 router.use((_req, res, next) => {
   if (!billingEnabled) {
@@ -724,6 +883,11 @@ startupCleanupRevenueLogs().catch(console.error);
 import("../migrations/pool-db-x-billing-contract.js")
   .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
   .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
+
+// X02-D2: x_auto_renew_cancelled 컬럼 보장 (startup migration)
+import("../migrations/pool-db-x-lifecycle.js")
+  .then(({ runXLifecycleMigration }) => runXLifecycleMigration())
+  .catch((e: any) => console.error("[x-lifecycle-init] migration failed:", e?.message));
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
 // subscription.tsx 화면에서 서버 값으로 플랜 목록 표시

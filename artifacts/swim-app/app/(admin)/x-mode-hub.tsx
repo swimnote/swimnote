@@ -167,7 +167,7 @@ export default function XModeHubScreen() {
                     </View>
                   </View>
                   <Pressable
-                    style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
+                    style={({ pressed }) => [s.row, s.rowBorder, { opacity: pressed ? 0.7 : 1 }]}
                     onPress={() => router.push("/(admin)/x-setup" as any)}
                   >
                     <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
@@ -176,6 +176,20 @@ export default function XModeHubScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.rowLabel}>X모드 세팅하기</Text>
                       <Text style={s.rowDesc}>커리큘럼 설정 및 X 운영 설정 관리</Text>
+                    </View>
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                  </Pressable>
+                  {/* X02-D2: 구독 상태 확인 / Restore / 구독 관리 */}
+                  <Pressable
+                    style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
+                    onPress={() => router.push("/(admin)/x-subscription" as any)}
+                  >
+                    <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
+                      <LucideIcon name="credit-card" size={18} color={X_ACCENT} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rowLabel}>X 구독 관리</Text>
+                      <Text style={s.rowDesc}>구독 상태 확인 · 구독 관리 · 구매 복원</Text>
                     </View>
                     <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>

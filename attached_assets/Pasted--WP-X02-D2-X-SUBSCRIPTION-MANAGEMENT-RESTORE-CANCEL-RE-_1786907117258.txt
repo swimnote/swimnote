@@ -1,0 +1,911 @@
+[WP-X02-D2 — X SUBSCRIPTION MANAGEMENT / RESTORE / CANCEL / RE-SUBSCRIBE / DUPLICATE PROTECTION]
+
+목적:
+
+SWIMNOTE X 유료 구독의
+구매 이후 생명주기를 완성한다.
+
+이번 WP 범위:
+
+1. 구매 복원 Restore
+2. 구독 관리 진입
+3. 구독 해지 / 자동갱신 종료
+4. 결제기간 종료일까지 X 유지
+5. 만료 후 Normal 전환
+6. 재구독
+7. 중복구매 방지
+8. sync retry
+9. 결제/entitlement 상태 불일치 보호
+10. X 데이터 보존
+
+중요:
+
+이번 작업은
+"구독 상태 관리"만 한다.
+
+X setup
+홈페이지 자료
+커리큘럼 자료
+Super Admin 개편
+
+은 다음 WP에서 별도 진행한다.
+
+==================================================
+0. FIXED PRODUCT POLICY
+==================================================
+
+X 구독 정책:
+
+- 구매 성공 → pool 전체 X 즉시 활성
+- X entitlement는 pool-wide
+- pool_admin만 구매/구독관리 권한
+- teacher/parent는 구매하지 않음
+- paid entitlement가 active면 config와 무관하게 X
+- 해지해도 결제기간 종료일까지 X 사용
+- 만료 시 Normal
+- X 데이터 삭제 금지
+- 재구독 시 기존 X 데이터/설정 복구
+
+Basic SWIMNOTE 구독과
+X 구독은 완전히 별개.
+
+Basic 해지/갱신일과
+X 해지/갱신일을 섞지 않는다.
+
+==================================================
+1. CURRENT REVENUECAT STRUCTURE — LOCK
+==================================================
+
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+
+Packages:
+
+$rc_custom_x_tier1
+$rc_custom_x_tier2
+$rc_custom_x_tier3
+$rc_custom_x_standard
+
+Products:
+
+com.swimnote.x.monthly.tier1
+com.swimnote.x.monthly.tier2
+com.swimnote.x.monthly.tier3
+com.swimnote.x.monthly.standard
+
+기존 webhook:
+
+https://swimnote-api.onrender.com/api/billing/revenuecat-webhook
+
+변경 금지 unless root cause confirmed.
+
+==================================================
+2. FIRST — AUDIT CURRENT PURCHASE FLOW
+==================================================
+
+먼저 repository에서 현재 X 구매 전체 흐름 감사.
+
+찾을 것:
+
+- X purchase screen
+- reservation
+- RevenueCat purchase
+- sync endpoint
+- entitlement refresh
+- ModeContext update
+- Settings X screen
+- restore 관련 기존 코드
+- subscription management 관련 기존 코드
+- duplicate tap protection
+- pending purchase state
+- purchase cancellation handling
+- active entitlement check
+
+수정 전 current flow map 작성.
+
+==================================================
+3. X SETTINGS FINAL STRUCTURE
+==================================================
+
+Normal SWIMNOTE Settings 안:
+
+SWIMNOTE X모드
+  ├─ X모드 알아보기 / 현재 X 상태
+  ├─ X 구독 상태
+  ├─ X모드 세팅하기
+  └─ X 구독 관리
+
+구매 전:
+→ X모드 알아보기 / 구독하기
+
+구매 후:
+→ 현재 X 이용중 표시
+→ X모드 세팅하기
+→ X 구독 관리
+
+teacher / parent:
+→ 구매 CTA 금지
+→ X 사용 상태만 필요 시 표시
+
+==================================================
+4. SUBSCRIPTION STATUS DISPLAY
+==================================================
+
+pool_admin X 구독 관리 화면에서 최소 표시:
+
+- 현재 상태
+- 현재 X tier
+- 월 구독료
+- 구독 시작일
+- 다음 갱신일 또는 이용 종료 예정일
+- 자동갱신 상태
+- entitlement 상태
+- 결제 플랫폼
+- 마지막 sync 시간
+
+상태 예:
+
+ACTIVE
+CANCELLED_BUT_ACTIVE
+EXPIRED
+BILLING_ISSUE
+PENDING
+UNKNOWN
+
+UI에는 사용자 친화 문구 사용.
+
+예:
+
+ACTIVE
+→ 이용 중
+
+CANCELLED_BUT_ACTIVE
+→ 해지 예정 / YYYY.MM.DD까지 이용 가능
+
+EXPIRED
+→ 이용 종료
+
+BILLING_ISSUE
+→ 결제 확인 필요
+
+UNKNOWN
+→ 구독 상태 확인 중
+
+==================================================
+5. RESTORE PURCHASE
+==================================================
+
+`구매 복원`
+
+필수 구현.
+
+pool_admin만 실행 가능.
+
+Flow:
+
+Restore Purchases
+→ RevenueCat restore
+→ current customer entitlement 확인
+→ server sync
+→ server confirmed entitlement
+→ ModeContext refresh
+→ UI status refresh
+
+중요:
+
+RevenueCat client 결과만 보고
+X를 최종 확정하지 않는다.
+
+최종 truth:
+server entitlement.
+
+==================================================
+6. RESTORE RESULT CASES
+==================================================
+
+A.
+valid x_mode entitlement 존재
+→ server sync
+→ X 활성
+→ 성공 안내
+
+B.
+X entitlement 없음
+→ Normal 유지
+→ "복원 가능한 X 구독이 없습니다"
+
+C.
+network/transient failure
+→ 기존 confirmed mode 유지
+→ error 안내
+→ retry 가능
+
+D.
+wrong Apple ID / no purchase
+→ X 신규 생성 금지
+
+E.
+server sync failure
+→ local entitlement만으로 강제 X 금지
+→ retry 제공
+
+==================================================
+7. SUBSCRIPTION MANAGEMENT
+==================================================
+
+`구독 관리`
+
+버튼 제공.
+
+iOS에서는
+Apple subscription management flow
+또는 RevenueCat에서 권장하는 platform-native management path 사용.
+
+직접 임의의 cancellation API 구현 금지.
+
+사용자가 App Store에서:
+
+- 자동갱신 해지
+- 요금제 상태 확인
+
+할 수 있게 연결.
+
+==================================================
+8. CANCEL POLICY
+==================================================
+
+중요:
+
+구독 해지 버튼을 눌렀다고
+SWIMNOTE server에서 즉시 X entitlement를 제거하면 안 된다.
+
+정책:
+
+cancel auto-renew
+→ 현재 결제기간 유지
+→ expiration date까지 X
+→ expiration confirmed 후 Normal
+
+예:
+
+8/1 결제
+8/20 해지
+8/31 기간 종료
+
+8/20~8/31:
+X 유지
+
+9/1:
+entitlement expired confirmed
+→ Normal
+
+==================================================
+9. CANCELLED_BUT_ACTIVE
+==================================================
+
+RevenueCat/server에서
+auto-renew off + expiration future
+
+이면:
+
+status =
+CANCELLED_BUT_ACTIVE
+
+UI:
+
+"구독 해지 예정"
+
+"YYYY년 MM월 DD일까지 SWIMNOTE X를 사용할 수 있습니다."
+
+구독하기 CTA를 중복 표시하지 않는다.
+
+필요하면:
+
+"다시 구독 관리"
+
+정도로만 제공.
+
+==================================================
+10. EXPIRATION
+==================================================
+
+expiration date가 지나고
+server가 entitlement expired/no entitlement 확정하면:
+
+→ ModeContext normal
+→ X 기능 접근 Normal policy
+→ X subscription screen = 이용 종료
+
+중요:
+
+삭제 금지:
+
+X config
+curriculum
+growth data
+website submission
+logo/photos
+X setup
+AI configuration
+X history
+
+soft preserve.
+
+==================================================
+11. RE-SUBSCRIBE
+==================================================
+
+만료 후 사용자가 다시 X 구독 가능.
+
+Flow:
+
+expired
+→ 구독하기
+→ slot/tier policy 확인
+→ RevenueCat purchase
+→ server sync
+→ entitlement active
+→ X 즉시 복귀
+
+재구독 후:
+
+기존 X 설정
+기존 커리큘럼
+기존 홈페이지 자료
+기존 X data
+
+복구.
+
+새 빈 X workspace 생성 금지.
+
+==================================================
+12. EARLY-BIRD / SLOT PROTECTION
+==================================================
+
+기존 early-bird 정책 보존.
+
+- slot은 최초 reservation/application 기준
+- 번호 재사용 금지
+- 36개월 고정 정책
+- 재구독 시 기존 slot/조건 처리 규칙 현재 DB 정책 확인
+
+추측해서 새 정책 만들지 않는다.
+
+현재 repository/DB 기준 확인 후 report.
+
+==================================================
+13. DUPLICATE PURCHASE PROTECTION
+==================================================
+
+현재 물리 테스트에서
+purchase sheet가 반복 등장한 사례가 있었으므로
+이번 WP에서 반드시 audit.
+
+확인:
+
+- CTA double tap
+- purchase promise pending 중 재탭
+- reserve 재호출
+- RevenueCat purchase 재호출
+- screen rerender
+- focus effect
+- navigation return
+- sync timeout 후 purchase 재시작
+
+구매 진행 중:
+
+purchaseInFlight = true
+
+등 기존 패턴 있으면 활용.
+
+사용자가 한 번 눌렀을 때
+하나의 purchase transaction만 시작.
+
+==================================================
+14. ACTIVE ENTITLEMENT PURCHASE BLOCK
+==================================================
+
+이미 active X이면:
+
+`X 구독하기`
+
+CTA 표시 금지.
+
+서버 active entitlement 확인된 상태에서
+purchase API 재호출 금지.
+
+CANCELLED_BUT_ACTIVE도
+아직 entitlement active이므로
+신규 구매 CTA 금지.
+
+==================================================
+15. SYNC RETRY
+==================================================
+
+Purchase 성공 후:
+
+RevenueCat success
+→ server sync 실패
+
+상황을 반드시 처리.
+
+이 경우:
+
+구매 자체를 다시 시키면 안 된다.
+
+UI:
+
+"구매는 완료되었지만 구독 상태를 동기화하는 중입니다."
+
+[다시 확인]
+
+Flow:
+
+sync only
+→ entitlement confirmation
+
+새 purchase 금지.
+
+==================================================
+16. SYNC STATE
+==================================================
+
+필요하면 내부 state:
+
+PURCHASE_IDLE
+PURCHASE_IN_PROGRESS
+PURCHASE_SUCCEEDED_SYNC_PENDING
+SYNCING
+ACTIVE
+ERROR
+
+정도로 명확히 분리.
+
+단 과도한 state machine 새로 만들지 말고
+현재 구조를 최대한 사용.
+
+==================================================
+17. PURCHASE CANCEL BY USER
+==================================================
+
+Apple purchase sheet에서
+사용자가 취소한 경우:
+
+- error처럼 강한 경고 금지
+- entitlement 생성 금지
+- reservation 처리 현재 정책 확인
+- purchase CTA 다시 사용 가능
+
+UI:
+"구매가 취소되었습니다"
+
+정도.
+
+==================================================
+18. BILLING ISSUE
+==================================================
+
+RevenueCat/server에서 billing issue가 있더라도
+entitlement가 아직 active인 grace period 구조면
+X를 즉시 끄지 않는다.
+
+최종 mode 결정은
+server entitlement policy.
+
+UI에는:
+
+"결제 상태 확인 필요"
+
+표시 가능.
+
+==================================================
+19. TRANSIENT FAILURE
+==================================================
+
+P0 원칙 유지:
+
+UNKNOWN != NORMAL
+
+subscription status fetch 실패를
+expired로 해석하지 않는다.
+
+restore 실패를
+no entitlement로 해석하지 않는다.
+
+sync timeout을
+purchase failure로 해석하지 않는다.
+
+==================================================
+20. SERVER SOURCE OF TRUTH
+==================================================
+
+확인할 server fields:
+
+- entitlement source
+- entitlement active
+- expiration
+- product/tier
+- auto renew state 가능 여부
+- RevenueCat customer
+- synced_at
+- slot
+- reservation
+
+현재 DB/API로 충분한지 감사.
+
+정말 필요한 field만 추가.
+
+DB migration은 최소화.
+
+==================================================
+21. REVENUECAT V2
+==================================================
+
+현재 server는 RevenueCat V2:
+
+GET /v2/projects/{projectId}/customers/{id}
+subscriptions
+
+사용.
+
+V1 재도입 금지.
+
+secret key 노출 금지.
+
+client가 secret 직접 사용 금지.
+
+==================================================
+22. WEBHOOK
+==================================================
+
+기존 RevenueCat webhook audit.
+
+최소 이벤트 처리 확인:
+
+initial purchase
+renewal
+cancellation / auto-renew off
+expiration
+billing issue
+uncancellation / resubscribe
+
+실제 event naming은
+현재 RevenueCat contract 기준 사용.
+
+추측 이벤트명 하드코딩 금지.
+
+Webhook idempotency 유지.
+
+==================================================
+23. SERVER / CLIENT CONSISTENCY
+==================================================
+
+상태:
+
+RevenueCat
+Server DB
+ModeContext
+Settings UI
+
+네 곳이 서로 다를 때
+priority 정의.
+
+최종 entitlement:
+SERVER
+
+RevenueCat:
+external billing source
+
+ModeContext:
+server-confirmed runtime state
+
+UI:
+server state representation
+
+==================================================
+24. X DATA PRESERVATION TEST
+==================================================
+
+해지/만료 테스트 시
+다음 데이터가 삭제되지 않는지 확인:
+
+- x config
+- curriculum setup
+- growth events
+- growth reports
+- AI setup
+- website submission
+- uploaded documents
+- logo
+- photos
+- setup status
+
+현재 아직 없는 website table은
+존재하지 않는 항목으로 report만 하고
+이번 WP에서 새로 만들지 않는다.
+
+==================================================
+25. PERMISSION
+==================================================
+
+구매 / Restore / 구독관리:
+
+pool_admin only.
+
+sub_admin:
+현재 Basic billing authority 정책과 동일하게
+구매 권한이 없다면 X도 금지.
+
+teacher:
+금지.
+
+parent:
+금지.
+
+서버에서도 authorization 필요.
+
+UI hide만으로 끝내지 않는다.
+
+==================================================
+26. UI SIMPLICITY
+==================================================
+
+구독 관리 화면은 단순하게.
+
+예:
+
+SWIMNOTE X
+
+현재 이용 중
+월 75,000원
+다음 결제일 2026.09.17
+
+[구독 관리]
+[구매 복원]
+
+해지예정이면:
+
+구독 해지 예정
+2026.09.17까지 이용 가능합니다.
+
+복잡한 RevenueCat 원문 상태값 그대로 노출 금지.
+
+==================================================
+27. TEST MATRIX
+==================================================
+
+X-D2-01
+Normal pool admin
+→ X purchase CTA visible
+
+X-D2-02
+active X pool admin
+→ purchase CTA hidden
+
+X-D2-03
+active X teacher
+→ purchase CTA absent
+
+X-D2-04
+active X parent
+→ purchase CTA absent
+
+X-D2-05
+active entitlement Restore
+→ X confirmed
+
+X-D2-06
+no entitlement Restore
+→ no fake X
+
+X-D2-07
+Restore network failure
+→ confirmed state preserved
+
+X-D2-08
+double tap purchase
+→ only one purchase request
+
+X-D2-09
+purchase success + sync fail
+→ no repurchase
+→ sync retry
+
+X-D2-10
+purchase cancel by user
+→ no entitlement
+→ CTA re-enabled
+
+X-D2-11
+auto-renew cancellation
+→ X remains until expiration
+
+X-D2-12
+cancelled-but-active
+→ no repurchase CTA
+
+X-D2-13
+expiration confirmed
+→ Normal
+
+X-D2-14
+expiration
+→ X data preserved
+
+X-D2-15
+re-subscribe
+→ X returns
+
+X-D2-16
+re-subscribe
+→ previous X data restored
+
+X-D2-17
+billing issue but entitlement active
+→ X remains
+
+X-D2-18
+server confirmed no entitlement
+→ Normal
+
+X-D2-19
+server transient failure
+→ UNKNOWN != NORMAL
+
+X-D2-20
+wrong role API purchase attempt
+→ rejected
+
+==================================================
+28. PHYSICAL TEST
+==================================================
+
+실제 TestFlight 검증이 필요한 항목은
+코드 테스트와 분리해서 report.
+
+특히:
+
+- Restore
+- App Store subscription management
+- cancellation
+- repurchase
+- actual renewal/expiration
+
+실기기 미검증을 PASS로 쓰지 말 것.
+
+==================================================
+29. DO NOT TOUCH
+==================================================
+
+변경 금지 unless required:
+
+X theme
+Normal theme
+ModeContext P0 fix
+AI
+scheduler
+growth report
+curriculum
+support AI
+Partner Analytics
+homepage setup
+Super Admin architecture
+
+==================================================
+30. DEPLOYMENT
+==================================================
+
+client 변경:
+production OTA
+preview OTA
+
+server 변경:
+현재 APP API deployment 구조 확인 후
+필요한 deployment만 수행.
+
+DB migration 발생 시
+migration 내용 먼저 명확히 report.
+
+production fake data 금지.
+
+==================================================
+31. FINAL REPORT
+==================================================
+
+CURRENT_PURCHASE_FLOW =
+CURRENT_RESTORE_FLOW =
+CURRENT_SUBSCRIPTION_MANAGEMENT_FLOW =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+RESTORE_IMPLEMENTED =
+RESTORE_SERVER_CONFIRMED =
+
+SUBSCRIPTION_MANAGEMENT_IMPLEMENTED =
+
+ACTIVE_STATUS_UI =
+CANCELLED_BUT_ACTIVE_UI =
+EXPIRED_STATUS_UI =
+BILLING_ISSUE_UI =
+
+CANCEL_IMMEDIATE_DOWNGRADE =
+EXPIRATION_DOWNGRADE =
+
+X_DATA_PRESERVED_ON_CANCEL =
+X_DATA_PRESERVED_ON_EXPIRATION =
+
+RESUBSCRIBE_IMPLEMENTED =
+RESUBSCRIBE_DATA_RESTORED =
+
+DUPLICATE_PURCHASE_PATHS_FOUND =
+DUPLICATE_PURCHASE_PATHS_FIXED =
+
+ACTIVE_ENTITLEMENT_REPURCHASE_BLOCKED =
+
+PURCHASE_SUCCESS_SYNC_FAIL_BEHAVIOR =
+SYNC_RETRY_IMPLEMENTED =
+
+PURCHASE_CANCEL_BEHAVIOR =
+
+TRANSIENT_FAILURE_BEHAVIOR =
+
+ROLE_PERMISSION_RESULT =
+
+WEBHOOK_EVENTS_AUDITED =
+WEBHOOK_CHANGE =
+
+REVENUECAT_V1_USED =
+REVENUECAT_V2_USED =
+
+SERVER_SOURCE_OF_TRUTH_CONFIRMED =
+
+SERVER_CHANGED =
+CLIENT_CHANGED =
+DB_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+PHYSICAL_TEST_STATUS =
+PHYSICAL_TEST_REMAINING =
+
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+RESTORE_IMPLEMENTED = YES
+RESTORE_SERVER_CONFIRMED = YES
+
+CANCEL_IMMEDIATE_DOWNGRADE = NO
+EXPIRATION_DOWNGRADE = YES
+
+X_DATA_PRESERVED_ON_CANCEL = YES
+X_DATA_PRESERVED_ON_EXPIRATION = YES
+
+ACTIVE_ENTITLEMENT_REPURCHASE_BLOCKED = YES
+
+PURCHASE_SUCCESS_SYNC_FAIL_BEHAVIOR =
+SYNC_ONLY_RETRY_NO_REPURCHASE
+
+TRANSIENT_FAILURE_BEHAVIOR =
+PRESERVE_CONFIRMED_STATE
+
+REVENUECAT_V1_USED = NO
+REVENUECAT_V2_USED = YES
+
+SERVER_SOURCE_OF_TRUTH_CONFIRMED = YES
+
+실기기 미검증 항목 허위 PASS 금지.
+
+완료 문구:
+
+WP_X02_D2_X_SUBSCRIPTION_LIFECYCLE_COMPLETE ✅

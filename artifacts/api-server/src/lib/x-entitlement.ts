@@ -119,13 +119,15 @@ export async function handleXEntitlementEvent(
       // purchased_at: 이미 값이 있으면 덮어쓰지 않음 (COALESCE)
       // xmode_config_status: 절대 수정 안 함
       // x_manual_entitlement: 수정 금지
+      // x_auto_renew_cancelled: 갱신/재구독 시 false 복원
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET x_paid_entitlement        = true,
             xmode_subscription_end_at = ${expiresAt ?? null},
-            xmode_payment_failed_at  = NULL,
-            xmode_purchased_at       = COALESCE(xmode_purchased_at, NOW()),
-            updated_at               = NOW()
+            xmode_payment_failed_at   = NULL,
+            xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
+            x_auto_renew_cancelled    = false,
+            updated_at                = NOW()
         WHERE id = ${poolId}
       `);
       break;
@@ -133,11 +135,12 @@ export async function handleXEntitlementEvent(
 
     case "CANCELLATION": {
       // 자동갱신 취소 — paid period 동안 entitlement 유지
-      // subscription_end_at만 갱신하여 만료 시점 기록
-      // x_paid_entitlement 불변
+      // subscription_end_at 갱신 + x_auto_renew_cancelled=true 기록
+      // x_paid_entitlement 불변 (spec §8: 만료일까지 X 유지)
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET xmode_subscription_end_at = ${expiresAt ?? null},
+            x_auto_renew_cancelled    = true,
             updated_at                = NOW()
         WHERE id = ${poolId}
       `);
