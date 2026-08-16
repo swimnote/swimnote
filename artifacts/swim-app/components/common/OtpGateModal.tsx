@@ -16,7 +16,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 const P      = "#7C3AED";
 const DANGER = "#D96C6C";
-const GREEN  = "#2EC4B6";
+const GREEN  = C.success;
 
 interface OtpGateModalProps {
   visible: boolean;

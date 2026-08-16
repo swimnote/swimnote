@@ -42,12 +42,12 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 뒤로가기 */}
       <Pressable onPress={onBack} style={[p.backRow, { borderBottomColor: C.border }]}>
-        <LucideIcon name="chevron-left" size={20} color={C.tint} />
-        <Text style={[p.backText, { color: C.tint }]}>반 목록으로</Text>
+        <LucideIcon name="chevron-left" size={20} color={C.brandStrong} />
+        <Text style={[p.backText, { color: C.brandStrong }]}>반 목록으로</Text>
       </Pressable>
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView contentContainerStyle={{ paddingBottom: bottomInset }} showsVerticalScrollIndicator={false}>
           {/* 반 요약 카드 */}
@@ -60,8 +60,8 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 </Text>
                 <Text style={[p.subInfo, { color: C.textMuted }]}>{cg?.schedule_days}</Text>
               </View>
-              <View style={[p.badge, { backgroundColor: diary ? "#E6FFFA" : "#FFF1BF" }]}>
-                <Text style={[p.badgeText, { color: diary ? "#2EC4B6" : "#D97706" }]}>
+              <View style={[p.badge, { backgroundColor: diary ? C.brandSoft : "#FFF1BF" }]}>
+                <Text style={[p.badgeText, { color: diary ? C.brandStrong : "#D97706" }]}>
                   {diary ? "일지 완료" : "일지 미작성"}
                 </Text>
               </View>
@@ -69,9 +69,9 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
             <View style={[p.statRow, { borderTopColor: C.border }]}>
               {[
                 { val: students.length, label: "총 학생", color: C.text },
-                { val: present, label: "출석", color: "#2EC4B6" },
+                { val: present, label: "출석", color: C.brandStrong },
                 { val: absent, label: "결석", color: "#D96C6C" },
-                { val: students.filter(s => s.has_makeup).length, label: "보강", color: C.tint },
+                { val: students.filter(s => s.has_makeup).length, label: "보강", color: C.brandStrong },
               ].map((st, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && <View style={[p.divider, { backgroundColor: C.border }]} />}
@@ -89,8 +89,8 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
             {(["students", "attendance", "diary", "absent"] as DashTab[]).map((key, i) => {
               const labels = ["학생", "출결", "일지", "결석"];
               return (
-                <Pressable key={key} style={[p.tabItem, tab === key && { borderBottomColor: C.tint, borderBottomWidth: 2.5 }]} onPress={() => setTab(key)}>
-                  <Text style={[p.tabLabel, { color: tab === key ? C.tint : C.textSecondary }]}>{labels[i]}</Text>
+                <Pressable key={key} style={[p.tabItem, tab === key && { borderBottomColor: C.brandStrong, borderBottomWidth: 2.5 }]} onPress={() => setTab(key)}>
+                  <Text style={[p.tabLabel, { color: tab === key ? C.brandStrong : C.textSecondary }]}>{labels[i]}</Text>
                 </Pressable>
               );
             })}
@@ -103,15 +103,15 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 ? <Text style={[p.empty, { color: C.textMuted }]}>등록된 학생이 없습니다</Text>
                 : students.map(s => (
                   <View key={s.id} style={[p.listRow, { backgroundColor: C.card }]}>
-                    <View style={[p.avatar, { backgroundColor: C.tintLight }]}>
-                      <LucideIcon name="user" size={15} color={C.tint} />
+                    <View style={[p.avatar, { backgroundColor: C.brandSoft }]}>
+                      <LucideIcon name="user" size={15} color={C.brandStrong} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{s.name}</Text>
                     {s.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
                     <StatusBadge
                       label={s.status === "active" ? "정상" : s.status}
-                      bg={s.status === "active" ? "#E6FFFA" : "#FFF1BF"}
-                      color={s.status === "active" ? "#2EC4B6" : "#D97706"}
+                      bg={s.status === "active" ? C.brandSoft : "#FFF1BF"}
+                      color={s.status === "active" ? C.brandStrong : "#D97706"}
                     />
                   </View>
                 ))
@@ -123,15 +123,15 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
                 ? <Text style={[p.empty, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
                 : attendance.map(a => (
                   <View key={a.student_id} style={[p.listRow, { backgroundColor: C.card }]}>
-                    <View style={[p.avatar, { backgroundColor: a.status === "present" ? "#E6FFFA" : "#F9DEDA" }]}>
-                      <LucideIcon name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? "#2EC4B6" : "#D96C6C"} />
+                    <View style={[p.avatar, { backgroundColor: a.status === "present" ? C.brandSoft : "#F9DEDA" }]}>
+                      <LucideIcon name={a.status === "present" ? "check" : "x"} size={13} color={a.status === "present" ? C.brandStrong : "#D96C6C"} />
                     </View>
                     <Text style={[p.listName, { color: C.text }]}>{a.student_name}</Text>
                     {a.has_makeup && <StatusBadge label="보강" bg="#EEDDF5" color="#7C3AED" />}
                     <StatusBadge
                       label={a.status === "present" ? "출석" : a.status === "absent" ? "결석" : a.status}
-                      bg={a.status === "present" ? "#E6FFFA" : a.status === "absent" ? "#F9DEDA" : "#FFFFFF"}
-                      color={a.status === "present" ? "#2EC4B6" : a.status === "absent" ? "#D96C6C" : C.textSecondary}
+                      bg={a.status === "present" ? C.brandSoft : a.status === "absent" ? "#F9DEDA" : "#FFFFFF"}
+                      color={a.status === "present" ? C.brandStrong : a.status === "absent" ? "#D96C6C" : C.textSecondary}
                     />
                   </View>
                 ))
@@ -140,9 +140,9 @@ export default function ClassDetailPanel({ detail, loading, date, onBack, bottom
             {/* 일지 탭 */}
             {tab === "diary" && (
               diary ? (
-                <View style={[p.diaryCard, { backgroundColor: C.card, borderLeftColor: C.tint }]}>
+                <View style={[p.diaryCard, { backgroundColor: C.card, borderLeftColor: C.brandStrong }]}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <Text style={[p.diaryTeacher, { color: C.tint }]}>{diary.teacher_name}</Text>
+                    <Text style={[p.diaryTeacher, { color: C.brandStrong }]}>{diary.teacher_name}</Text>
                     <Text style={[p.diaryTime, { color: C.textMuted }]}>
                       {new Date(diary.created_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
                     </Text>

@@ -224,7 +224,7 @@ export default function DaySheet({
                 <LucideIcon name="users" size={13} color="#4F46E5" />
                 <Text style={[dy.headerBtnTxt, { color: "#4F46E5" }]}>보충수업</Text>
               </Pressable>
-              <Pressable style={[dy.headerBtn, { backgroundColor: C.tint }]} onPress={onAddClass}>
+              <Pressable style={[dy.headerBtn, { backgroundColor: C.brandStrong }]} onPress={onAddClass}>
                 <LucideIcon name="plus" size={13} color="#fff" />
                 <Text style={[dy.headerBtnTxt, { color: "#fff" }]}>수업 추가</Text>
               </Pressable>
@@ -254,10 +254,10 @@ export default function DaySheet({
               <View style={dy.emptyBox}>
                 <LucideIcon name="calendar" size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
-                <Pressable style={[dy.emptyAction, { borderColor: C.tint }]}
+                <Pressable style={[dy.emptyAction, { borderColor: C.brandStrong }]}
                   onPress={() => { onClose(); setTimeout(onAddClass, 200); }}>
-                  <LucideIcon name="plus-circle" size={13} color={C.tint} />
-                  <Text style={[dy.emptyActionTxt, { color: C.tint }]}>수업 추가</Text>
+                  <LucideIcon name="plus-circle" size={13} color={C.brandStrong} />
+                  <Text style={[dy.emptyActionTxt, { color: C.brandStrong }]}>수업 추가</Text>
                 </Pressable>
               </View>
             )}
@@ -290,7 +290,7 @@ export default function DaySheet({
                           <Text style={[dy.classSub, done && { color: C.textMuted }]}>{capLabel}</Text>
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <LucideIcon name="check" size={9} color="#2EC4B6" />
+                              <LucideIcon name="check" size={9} color={C.brandStrong} />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
@@ -326,7 +326,7 @@ export default function DaySheet({
                   <Text style={dy.memoLabel}>날짜 메모</Text>
                   {!editingMemo && (
                     <Pressable onPress={() => setEditingMemo(true)} style={dy.memoEditBtn}>
-                      <Text style={[dy.memoEditBtnTxt, { color: C.tint }]}>
+                      <Text style={[dy.memoEditBtnTxt, { color: C.brandStrong }]}>
                         {memo ? "수정" : "추가"}
                       </Text>
                     </Pressable>
@@ -347,7 +347,7 @@ export default function DaySheet({
                       <Pressable style={dy.memoCancelBtn} onPress={() => setEditingMemo(false)}>
                         <Text style={dy.memoCancelBtnTxt}>취소</Text>
                       </Pressable>
-                      <Pressable style={[dy.memoSaveBtn, { backgroundColor: C.tint }]}
+                      <Pressable style={[dy.memoSaveBtn, { backgroundColor: C.brandStrong }]}
                         onPress={() => { onSaveMemo(); setEditingMemo(false); }}>
                         <Text style={dy.memoSaveBtnTxt}>저장</Text>
                       </Pressable>
@@ -370,9 +370,9 @@ export default function DaySheet({
                       <Text style={[dy.audioBtnTxt, { color: "#D96C6C" }]}>저장</Text>
                     </Pressable>
                   ) : (
-                    <Pressable style={[dy.audioBtn, { backgroundColor: C.tintLight }]} onPress={startRecording}>
-                      <LucideIcon name="mic" size={15} color={C.tint} />
-                      <Text style={[dy.audioBtnTxt, { color: C.tint }]}>녹음</Text>
+                    <Pressable style={[dy.audioBtn, { backgroundColor: C.brandSoft }]} onPress={startRecording}>
+                      <LucideIcon name="mic" size={15} color={C.brandStrong} />
+                      <Text style={[dy.audioBtnTxt, { color: C.brandStrong }]}>녹음</Text>
                     </Pressable>
                   )}
                 </View>
@@ -394,11 +394,11 @@ export default function DaySheet({
                           <Text style={dy.audioListLabel}>녹음 {idx + 1}  <Text style={dy.audioListTime}>{timeLabel}</Text></Text>
                           <View style={{ flex: 1 }} />
                           <Pressable
-                            style={[dy.audioPlayBtn, isThis && { backgroundColor: C.tintLight }]}
+                            style={[dy.audioPlayBtn, isThis && { backgroundColor: C.brandSoft }]}
                             onPress={() => playAudio(item.uri)}>
                             <LucideIcon name={isThis ? "volume-2" : "play"} size={14}
-                              color={C.tint} />
-                            <Text style={[dy.audioBtnTxt, { color: C.tint }]}>
+                              color={C.brandStrong} />
+                            <Text style={[dy.audioBtnTxt, { color: C.brandStrong }]}>
                               {isThis ? "재생중" : "재생"}
                             </Text>
                           </Pressable>
@@ -637,8 +637,8 @@ const dy = StyleSheet.create({
   classSub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   strikeText:       { textDecorationLine: "line-through" },
   attBadge:         { flexDirection: "row", alignItems: "center", gap: 3,
-                      backgroundColor: "#E6FFFA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  attBadgeTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+                      backgroundColor: C.brandSoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  attBadgeTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   diaryBadge:       { flexDirection: "row", alignItems: "center", gap: 3,
                       backgroundColor: "#EDE9FE", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   diaryBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
@@ -689,6 +689,6 @@ const dy = StyleSheet.create({
                       backgroundColor: "#fff", padding: 8, borderRadius: 8 },
   audioListLabel:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E" },
   audioListTime:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  audioPlayBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#E6FFFA" },
+  audioPlayBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: C.brandSoft },
   audioDelBtn:      { padding: 4 },
 });

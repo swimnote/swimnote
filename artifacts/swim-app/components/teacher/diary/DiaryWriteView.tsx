@@ -136,7 +136,7 @@ export default function DiaryWriteView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
-              <LucideIcon name="book-open" size={13} color={C.tint} />
+              <LucideIcon name="book-open" size={13} color={C.brandStrong} />
               <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
@@ -157,9 +157,9 @@ export default function DiaryWriteView({
               {groupMedia.map((m, i) => (
                 <View key={i} style={s.mediaThumb}>
                   {m.kind === "photo"
-                    ? <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#E4A93A"} />
-                    : <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#2EC4B6"} />}
-                  {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
+                    ? <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#E4A93A"} />
+                    : <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? C.success : m.error ? "#D96C6C" : C.brandStrong} />}
+                  {m.uploading && <ActivityIndicator size="small" color={C.brandStrong} style={{ position: "absolute" }} />}
                 </View>
               ))}
             </View>
@@ -187,7 +187,7 @@ export default function DiaryWriteView({
               )}
               {selectedAlbumVideos.length > 0 && (
                 <View>
-                  <Text style={[s.albumLabel, { color: "#2EC4B6" }]}>첨부 영상 {selectedAlbumVideos.length}개</Text>
+                  <Text style={[s.albumLabel, { color: C.brandStrong }]}>첨부 영상 {selectedAlbumVideos.length}개</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.albumPreviewRow} alwaysBounceHorizontal={false}>
                     {selectedAlbumVideos.map(video => (
                       <View key={video.id} style={s.albumThumb}>
@@ -258,7 +258,7 @@ export default function DiaryWriteView({
                             <ExpoImage source={{ uri: m.uri }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
                           ) : (
                             <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
-                              color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
+                              color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#7C3AED"} />
                           )}
                           {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
                         </View>
@@ -390,10 +390,10 @@ export default function DiaryWriteView({
             </View>
           )}
           {saveMsg && (
-            <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
+            <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? C.iconGreenBg : "#F9DEDA" }]}>
               <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
-                color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
-              <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
+                color={saveMsg.type === "success" ? C.success : C.error} />
+              <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? C.success : C.error }]}>{saveMsg.text}</Text>
             </View>
           )}
           <View style={{ flexDirection: "row", gap: 10 }}>
@@ -447,8 +447,8 @@ export const s = StyleSheet.create({
   textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: C.surface },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
-  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
+  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.brandSoft, backgroundColor: "#F0F5FF" },
+  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.brandStrong },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   emptyStudentsText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -488,7 +488,7 @@ export const s = StyleSheet.create({
   tabBtnText:    { fontSize: 12, lineHeight: 17 },
   diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: C.brandSoft },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   diaryCardDate: { fontSize: 15, fontFamily: "Pretendard-Regular" },

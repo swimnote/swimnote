@@ -21,7 +21,7 @@ export default function OnboardingTooltip({
   storageKey,
   title,
   message,
-  accentColor = C.tint,
+  accentColor = C.brandStrong,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;

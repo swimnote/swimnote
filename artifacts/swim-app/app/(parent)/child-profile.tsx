@@ -17,7 +17,7 @@ import { useParent } from "@/context/ParentContext";
 import { normalizeKoreanName } from "@/utils/validation";
 
 const C = Colors.light;
-const CHILD_COLORS = [C.tint, "#2EC4B6", "#7C3AED", "#D97706", "#0EA5E9"];
+const CHILD_COLORS = [C.brandStrong, C.brandPrimary, "#7C3AED", "#D97706", "#0EA5E9"];
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 
 function parseScheduleChips(days: string, time: string): string[] {
@@ -32,8 +32,8 @@ interface InfoRowProps { icon: any; label: string; value: string; accentColor?: 
 function InfoRow({ icon, label, value, accentColor }: InfoRowProps) {
   return (
     <View style={ir.row}>
-      <View style={[ir.iconBox, { backgroundColor: (accentColor || C.tint) + "15" }]}>
-        <LucideIcon name={icon} size={16} color={accentColor || C.tint} />
+      <View style={[ir.iconBox, { backgroundColor: (accentColor || C.brandStrong) + "15" }]}>
+        <LucideIcon name={icon} size={16} color={accentColor || C.brandStrong} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[ir.label, { color: C.textMuted }]}>{label}</Text>
@@ -103,7 +103,7 @@ export default function ChildProfileScreen() {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
         <ParentScreenHeader title="자녀 프로필" />
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       </View>
     );
   }

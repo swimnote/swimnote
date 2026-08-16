@@ -477,16 +477,16 @@ export default function StudentDetailScreen() {
                       </View>
                       <View style={[
                         s.connBadge,
-                        { backgroundColor: connStatus === "linked" ? "#E6FFFA" : "#FFF7ED" }
+                        { backgroundColor: connStatus === "linked" ? C.brandMist : "#FFF7ED" }
                       ]}>
                         <LucideIcon
                           name={connStatus === "linked" ? "check-circle" : "clock"}
                           size={11}
-                          color={connStatus === "linked" ? "#2EC4B6" : "#EA580C"}
+                          color={connStatus === "linked" ? C.brandStrong : "#EA580C"}
                         />
                         <Text style={[
                           s.connBadgeText,
-                          { color: connStatus === "linked" ? "#2EC4B6" : "#EA580C" }
+                          { color: connStatus === "linked" ? C.brandStrong : "#EA580C" }
                         ]}>
                           {connStatus === "linked" ? "연결됨" : "가입 대기"}
                         </Text>
@@ -567,13 +567,13 @@ export default function StudentDetailScreen() {
             <View style={[s.card, s.attRow]}>
               <AttBox label="전체" value={attStat.total} color={themeColor} />
               <View style={s.attDivider} />
-              <AttBox label="출석" value={attStat.present} color="#2EC4B6" />
+              <AttBox label="출석" value={attStat.present} color={C.brandStrong} />
               <AttBox label="결석" value={attStat.absent} color="#D96C6C" />
               <AttBox label="지각" value={attStat.late} color="#D97706" />
               <AttBox
                 label="출석률"
                 value={attStat.total > 0 ? `${Math.round((attStat.present / attStat.total) * 100)}%` : "-"}
-                color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? "#2EC4B6" : "#D97706"}
+                color={attStat.total > 0 && (attStat.present / attStat.total) >= 0.8 ? C.brandStrong : "#D97706"}
               />
             </View>
           </View>

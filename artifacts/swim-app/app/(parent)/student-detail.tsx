@@ -56,7 +56,7 @@ export default function ParentStudentDetailScreen() {
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <SubScreenHeader title={name as string || "학생 정보"} showHome={false} homePath="/(parent)/children" />
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
+      {loading ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} /> : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 4 }}
@@ -69,8 +69,8 @@ export default function ParentStudentDetailScreen() {
           {chips.length > 0 ? (
             <View style={styles.chipsRow}>
               {chips.map((chip, i) => (
-                <View key={i} style={[styles.chip, { backgroundColor: C.tint + "18" }]}>
-                  <Text style={[styles.chipText, { color: C.tint }]}>{chip}</Text>
+                <View key={i} style={[styles.chip, { backgroundColor: C.brandMist }]}>
+                  <Text style={[styles.chipText, { color: C.brandStrong }]}>{chip}</Text>
                 </View>
               ))}
             </View>

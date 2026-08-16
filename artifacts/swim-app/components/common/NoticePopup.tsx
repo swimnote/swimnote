@@ -55,7 +55,7 @@ interface ApiNotice {
 
 // 공지 scope 뱃지 설정
 const SCOPE_CFG = {
-  global: { label: "전체 공지",    color: "#2EC4B6", bg: "#E6FFFA" },
+  global: { label: "전체 공지",    color: C.brandStrong, bg: C.brandSoft },
   pool:   { label: "수영장 공지",  color: P,         bg: "#EEDDF5" },
 } as const;
 

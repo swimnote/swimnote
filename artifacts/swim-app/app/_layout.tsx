@@ -140,7 +140,7 @@ sendAppLaunchDiagnostics();
 function AppLoadingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
-      <ActivityIndicator size="large" color="#2EC4B6" />
+      <ActivityIndicator size="large" color={C.brandStrong} />
     </View>
   );
 }
@@ -196,7 +196,7 @@ function UploadProgressModal() {
   const isComplete = !isActive && done + failed >= total;
   const hasFailed  = failed > 0;
   const percent    = total > 0 ? Math.round((done + failed) / total * 100) : 0;
-  const accentColor = isComplete ? (hasFailed ? "#F59E0B" : "#10B981") : "#2EC4B6";
+  const accentColor = isComplete ? (hasFailed ? "#F59E0B" : "#10B981") : C.brandStrong;
 
   return (
     <Animated.View style={{
@@ -324,7 +324,7 @@ async function setupNotificationChannels(N: NotificationsModule) {
       description: "선생님이 작성한 수업 일지 알림",
       importance: N.AndroidImportance.HIGH,
       vibrationPattern: [0, 300, 200, 300],
-      lightColor: "#2EC4B6",
+      lightColor: C.brandStrong,
       sound: "default",
       enableLights: true,
       enableVibrate: true,
@@ -779,7 +779,7 @@ function RootNav() {
           }}
           pointerEvents="box-only"
         >
-          <ActivityIndicator size="large" color="#2EC4B6" />
+          <ActivityIndicator size="large" color={C.brandStrong} />
         </View>
       )}
       <OtaUpdateBanner />
@@ -969,7 +969,7 @@ export default function RootLayout() {
   if (!fontsReady) {
     return (
       <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#2EC4B6" />
+        <ActivityIndicator size="large" color={C.brandStrong} />
       </View>
     );
   }

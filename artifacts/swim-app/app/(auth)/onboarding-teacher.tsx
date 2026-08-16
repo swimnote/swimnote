@@ -22,7 +22,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const { width: W } = Dimensions.get("window");
 
-const MINT   = "#2EC4B6";
+const MINT   = C.brandStrong;
 const NAVY_BG   = "#0F2742";
 const NAVY_TEXT = C.textPrimary;
 const ORANGE = "#F97316";
@@ -150,7 +150,7 @@ function SlideToday() {
             <Text style={st.className}>중급반 B · 11:00–12:00</Text>
             <Text style={st.classMeta}>학생 6명 · 출석 완료 ✓</Text>
           </View>
-          <View style={[st.attendBtn, { backgroundColor: "#E6FAF8" }]}>
+          <View style={[st.attendBtn, { backgroundColor: C.brandSoft }]}>
             <Text style={[st.attendBtnTxt, { color: MINT }]}>완료</Text>
           </View>
         </View>
@@ -272,7 +272,7 @@ function SlideSettlement() {
         <Text style={sse.flowTitle}>📋 정산 제출 순서</Text>
         {[
           { step: "1", color: BLUE, bg: "#EFF4FF", title: "이번 달 수업 종료", desc: "자동으로 수업 횟수가 집계됩니다" },
-          { step: "2", color: MINT, bg: "#E6FAF8", title: "정산 탭에서 확인", desc: "학생별 수업 횟수와 금액을 검토하세요" },
+          { step: "2", color: MINT, bg: C.brandSoft, title: "정산 탭에서 확인", desc: "학생별 수업 횟수와 금액을 검토하세요" },
           { step: "3", color: GREEN, bg: "#DFF3EC", title: "기타 수기 항목 추가", desc: "수업 외 수당, 특이사항 직접 입력 가능" },
           { step: "4", color: PURPLE, bg: "#EEDDF5", title: "정산 저장 · 제출", desc: "저장 후 '제출완료'로 상태 변경하면 관리자에게 전달" },
           { step: "5", color: ORANGE, bg: "#FFF3E0", title: "관리자 확인", desc: "관리자가 확인 처리하면 정산 완료" },
@@ -297,8 +297,8 @@ function SlideSettlement() {
         <View style={sse.statusRow}>
           {[
             { label: "미정산", color: C.textSecondary, bg: C.backgroundSoft },
-            { label: "저장됨", color: MINT, bg: "#E6FAF8" },
-            { label: "제출완료", color: MINT, bg: "#E6FAF8" },
+            { label: "저장됨", color: MINT, bg: C.brandSoft },
+            { label: "제출완료", color: MINT, bg: C.brandSoft },
             { label: "관리자확인", color: PURPLE, bg: "#EEDDF5" },
           ].map(st => (
             <View key={st.label} style={[sse.statusBadge, { backgroundColor: st.bg }]}>
@@ -434,7 +434,7 @@ const st = StyleSheet.create({
   classDot:    { width: 10, height: 10, borderRadius: 5 },
   className:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   classMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  attendBtn:   { backgroundColor: MINT, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  attendBtn:   { backgroundColor: C.primaryAction, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   attendBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
   guideBox:    { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 10,
                  borderWidth: 1, borderColor: C.border },

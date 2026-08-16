@@ -127,7 +127,7 @@ export default function WebPinSettingsScreen() {
 
         {/* Status Badge */}
         {loading ? (
-          <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginVertical: 16 }} />
         ) : (
           <View style={[s.statusBadge, { backgroundColor: webPinSet ? "#DCFCE7" : "#FEF9C3" }]}>
             <LucideIcon name={webPinSet ? "shield-check" : "alert-circle"} size={14} color={webPinSet ? "#16A34A" : "#CA8A04"} />

@@ -162,7 +162,7 @@ export default function DataStorageOverviewScreen() {
           {[
             { label: "사용량",    display: fmtBytes(used),   icon: "hard-drive"   as const, color: gaugeColor },
             { label: "제공 용량", display: quotaLabel,        icon: "server"       as const, color: C.textSecondary },
-            { label: "남은 용량", display: fmtBytes(free),   icon: "check-circle" as const, color: "#2EC4B6" },
+            { label: "남은 용량", display: fmtBytes(free),   icon: "check-circle" as const, color: C.brandStrong },
           ].map(item => (
             <View key={item.label} style={[s.statCard, { backgroundColor: C.card }]}>
               <View style={[s.statIcon, { backgroundColor: C.backgroundSoft }]}>

@@ -134,8 +134,8 @@ export default function PolicyScreen() {
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setVersionModal(true); }}>
-              <LucideIcon name="plus-circle" size={16} color="#2EC4B6" />
-              <Text style={[s.actionTxt, { color: "#2EC4B6" }]}>새 버전 저장</Text>
+              <LucideIcon name="plus-circle" size={16} color={C.brandStrong} />
+              <Text style={[s.actionTxt, { color: C.brandStrong }]}>새 버전 저장</Text>
               <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
             </Pressable>
           </View>
@@ -221,8 +221,8 @@ export default function PolicyScreen() {
                     <Text style={s.unsignedSub}>{item.representativeName} · {fmtDate(item.createdAt)} 가입</Text>
                   </View>
                 </View>
-                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? "#E6FFFA" : "#FFF1BF" }]}>
-                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? "#2EC4B6" : "#D97706" }]}>
+                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? C.brandSoft : "#FFF1BF" }]}>
+                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? C.brandStrong : "#D97706" }]}>
                     {item.isApproved ? "승인" : "대기"}
                   </Text>
                 </View>
@@ -293,8 +293,8 @@ const s = StyleSheet.create({
   policyIconBg:    { width: 34, height: 34, borderRadius: 10, backgroundColor: "#EEDDF5",
                      alignItems: "center", justifyContent: "center" },
   policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  activeBadge:     { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  activeBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  activeBadge:     { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  activeBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   policyBody:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 22 },
   actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: "hidden" },
   actionRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },

@@ -20,7 +20,7 @@ const C = Colors.light;
 const P = "#7C3AED";
 
 const STATUS_CFG: Record<AdStatus, { label: string; color: string; bg: string; icon: string }> = {
-  active:    { label: "노출 중",   color: "#2EC4B6", bg: "#E6FFFA", icon: "eye" },
+  active:    { label: "노출 중",   color: C.brandStrong, bg: C.brandSoft, icon: "eye" },
   scheduled: { label: "예약됨",   color: "#D97706", bg: "#FFF1BF", icon: "clock" },
   inactive:  { label: "비활성",   color: C.textSecondary, bg: "#FFFFFF", icon: "eye-off" },
 };
@@ -39,11 +39,11 @@ function imageUrl(key: string) {
 
 const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
 const THEME_COLORS: Record<string, string> = {
-  teal: "#2EC4B6", purple: "#7C3AED", orange: "#F97316",
+  teal: C.brandStrong, purple: "#7C3AED", orange: "#F97316",
   blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
 };
 const THEME_BG: Record<string, string> = {
-  teal: "#E6FAF8", purple: "#EDE9FE", orange: "#FFF7ED",
+  teal: C.brandSoft, purple: "#EDE9FE", orange: "#FFF7ED",
   blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
 };
 
@@ -78,8 +78,8 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       </View>
       <View style={ac.actions}>
         {ad.status !== "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => onStatusChange(ad.id, "active")}>
-            <Text style={[ac.btnTxt, { color: "#2EC4B6" }]}>활성화</Text>
+          <Pressable style={[ac.btn, { backgroundColor: C.brandSoft }]} onPress={() => onStatusChange(ad.id, "active")}>
+            <Text style={[ac.btnTxt, { color: C.brandStrong }]}>활성화</Text>
           </Pressable>
         )}
         {ad.status !== "inactive" && (
@@ -268,8 +268,8 @@ export default function AdsScreen() {
 
       {/* 요약 */}
       <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
-          <Text style={[s.sumNum, { color: "#2EC4B6" }]}>{counts.active}</Text>
+        <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
+          <Text style={[s.sumNum, { color: C.brandStrong }]}>{counts.active}</Text>
           <Text style={s.sumLabel}>노출 중</Text>
         </View>
         <View style={[s.summaryCard, { borderColor: "#FFF1BF" }]}>

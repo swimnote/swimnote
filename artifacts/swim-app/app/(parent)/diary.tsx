@@ -104,7 +104,7 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
   return (
     <View style={[ds.card, { backgroundColor: C.card }]}>
       <Pressable onPress={() => setOpen(o => !o)} style={ds.cardHeader}>
-        <View style={[ds.dateBadge, { backgroundColor: C.tint }]}>
+        <View style={[ds.dateBadge, { backgroundColor: C.brandStrong }]}>
           <Text style={ds.dateMonth}>{month}월</Text>
           <Text style={ds.dateDay}>{day}</Text>
           <Text style={ds.dateWeekday}>{weekday}</Text>
@@ -113,8 +113,8 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           <View style={ds.metaRow}>
             <Text style={[ds.teacher, { color: C.text }]}>{entry.teacher_name} 선생님</Text>
             {entry.class_group_name && (
-              <View style={[ds.badge, { backgroundColor: "#E6FFFA" }]}>
-                <Text style={[ds.badgeTxt, { color: "#2EC4B6" }]}>{entry.class_group_name}</Text>
+              <View style={[ds.badge, { backgroundColor: C.brandMist }]}>
+                <Text style={[ds.badgeTxt, { color: C.brandStrong }]}>{entry.class_group_name}</Text>
               </View>
             )}
             {entry.is_edited && (
@@ -135,8 +135,8 @@ function DiaryCard({ entry, studentId, studentName, classGroupId, initialOpen }:
           {entry.common_content?.trim() ? (
             <>
               <View style={ds.section}>
-                <View style={[ds.dot, { backgroundColor: C.tint }]} />
-                <Text style={[ds.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+                <View style={[ds.dot, { backgroundColor: C.brandStrong }]} />
+                <Text style={[ds.sectionLabel, { color: C.brandStrong }]}>수업 내용</Text>
               </View>
               <Text style={[ds.content, { color: C.text }]}>{entry.common_content}</Text>
             </>
@@ -246,7 +246,7 @@ export default function ParentDiaryScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={ds.empty}>
           <LucideIcon name="user-round" size={44} color={C.textMuted} />

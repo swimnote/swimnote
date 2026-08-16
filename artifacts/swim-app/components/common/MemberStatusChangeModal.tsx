@@ -29,7 +29,7 @@ interface Props {
 }
 
 const OPTIONS = [
-  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (복귀일 선택)",      color: "#2EC4B6", bg: "#E6FFFA", emoji: "✅", hasTiming: false },
+  { key: "active" as ActionStatus,    label: "정상",  sub: "active 상태로 복귀 (복귀일 선택)",      color: C.success, bg: "#E6F5EF", emoji: "✅", hasTiming: false },
   { key: "unassigned" as ActionStatus, label: "미배정", sub: "반 배정 해제, 미배정 대기 상태",      color: "#D96C6C", bg: "#F9DEDA", emoji: "📋", hasTiming: false },
   { key: "suspended" as ActionStatus,  label: "연기",  sub: "연기 처리, 이동 시점 선택 가능",       color: "#B45309", bg: "#FFF1BF", emoji: "⏸️", hasTiming: true  },
   { key: "withdrawn" as ActionStatus,  label: "퇴원",  sub: "수강 종료, 이동 시점 선택 가능",       color: "#991B1B", bg: "#FEF2F2", emoji: "🚪", hasTiming: true  },
@@ -128,8 +128,8 @@ export function MemberStatusChangeModal({
 
             <View style={{ flexDirection: "row", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
               {currentStatus === "active" && (
-                <View style={[m.badge, { backgroundColor: "#E6FFFA" }]}>
-                  <Text style={[m.badgeText, { color: "#2EC4B6" }]}>현재: 정상</Text>
+                <View style={[m.badge, { backgroundColor: "#E6F5EF" }]}>
+                  <Text style={[m.badgeText, { color: C.success }]}>현재: 정상</Text>
                 </View>
               )}
               {currentStatus === "suspended" && (
@@ -279,10 +279,10 @@ export function MemberStatusChangeModal({
                 return (
                   <Pressable key={ds} onPress={() => setCalSelected(ds)}
                     style={{ width: `${100/7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center",
-                      ...(isSel ? { backgroundColor: C.tint, borderRadius: 20 } : {}) }}>
+                      ...(isSel ? { backgroundColor: C.brandStrong, borderRadius: 20 } : {}) }}>
                     {isToday && !isSel && (
                       <View style={{ position: "absolute", bottom: 3, width: 4, height: 4,
-                        borderRadius: 2, backgroundColor: C.tint }} />
+                        borderRadius: 2, backgroundColor: C.brandStrong }} />
                     )}
                     <Text style={{ fontSize: 13, fontFamily: isSel ? "Pretendard-SemiBold" : "Pretendard-Regular",
                       color: isSel ? "#fff" : dow === 0 ? "#EF4444" : dow === 6 ? "#3B82F6" : "#222" }}>
@@ -303,7 +303,7 @@ export function MemberStatusChangeModal({
                 onPress={() => { setStep("select"); setPickedStatus(null); }}>
                 <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>뒤로</Text>
               </Pressable>
-              <Pressable style={[m.actionBtn, { backgroundColor: C.tint, flex: 1 }]}
+              <Pressable style={[m.actionBtn, { backgroundColor: C.primaryAction, flex: 1 }]}
                 onPress={() => doChange("active", "immediate", calSelected)}>
                 <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" }}>복귀 확인</Text>
               </Pressable>

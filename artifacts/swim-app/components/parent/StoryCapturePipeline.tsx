@@ -182,7 +182,7 @@ export default function StoryCapturePipeline({ input, onDone }: Props) {
       {/* 반투명 오버레이 */}
       <View style={p.overlay}>
         <View style={p.card}>
-          <ActivityIndicator size="large" color="#2EC4B6" />
+          <ActivityIndicator size="large" color="#4F6F67" />
           <Text style={p.label}>{statusLabel[status]}</Text>
         </View>
       </View>

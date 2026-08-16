@@ -124,7 +124,7 @@ export default function GrowthReportScreen() {
   if (loading) {
     return (
       <View style={[gr.root, { paddingTop: PT }]}>
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} size="large" />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} size="large" />
       </View>
     );
   }

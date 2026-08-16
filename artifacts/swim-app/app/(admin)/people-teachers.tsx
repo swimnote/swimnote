@@ -225,7 +225,7 @@ export default function PeopleTeachersScreen() {
                       )}
                       {status === "approved" && (
                         <View style={s.activeBadge}>
-                          <LucideIcon name="check" size={10} color="#2EC4B6" />
+                          <LucideIcon name="check" size={10} color={C.brandStrong} />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
                         </View>
                       )}
@@ -261,8 +261,8 @@ export default function PeopleTeachersScreen() {
                     </View>
                     {status === "pending" && (
                       <View style={s.hintRow}>
-                        <LucideIcon name="arrow-right" size={11} color={C.tint} />
-                        <Text style={[s.hintTxt, { color: C.tint }]}>탭하여 승인/거절 처리</Text>
+                        <LucideIcon name="arrow-right" size={11} color={C.brandStrong} />
+                        <Text style={[s.hintTxt, { color: C.brandStrong }]}>탭하여 승인/거절 처리</Text>
                       </View>
                     )}
                     {status === "rejected" && (
@@ -325,8 +325,8 @@ const s = StyleSheet.create({
   pendingBadgeTxt:  { fontSize: 11, fontWeight: "600", color: "#D97706" },
   rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D96C6C" },
-  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#2EC4B6" },
+  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.brandSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: C.brandStrong },
   adminRoleBadge:    { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
   adminRoleBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#C2410C" },
   teacherRoleBadge:  { backgroundColor: "#EFF6FF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#BFDBFE" },

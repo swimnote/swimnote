@@ -245,11 +245,11 @@ export default function NoticesScreen() {
         rightSlot={
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Pressable
-              style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.tintLight }]}
+              style={[styles.selBtn, sel.selectionMode && { backgroundColor: C.brandSoft }]}
               onPress={sel.toggleSelectionMode}
             >
-              <SquareCheck size={16} color={sel.selectionMode ? C.tint : C.textSecondary} />
-              <Text style={[styles.selBtnText, sel.selectionMode && { color: C.tint }]}>
+              <SquareCheck size={16} color={sel.selectionMode ? C.brandStrong : C.textSecondary} />
+              <Text style={[styles.selBtnText, sel.selectionMode && { color: C.brandStrong }]}>
                 {sel.selectionMode ? "취소" : "선택"}
               </Text>
             </Pressable>
@@ -263,7 +263,7 @@ export default function NoticesScreen() {
         }
       />
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
+      {loading ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} /> : (
         <KeyboardAwareScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 100, paddingTop: 8, gap: 10 }}
           showsVerticalScrollIndicator={false}
@@ -271,8 +271,8 @@ export default function NoticesScreen() {
           {pinned.length > 0 && (
             <>
               <View style={styles.sectionLabel}>
-                <LucideIcon name="pin" size={13} color={C.tint} />
-                <Text style={[styles.sectionText, { color: C.tint }]}>고정 공지</Text>
+                <LucideIcon name="pin" size={13} color={C.brandStrong} />
+                <Text style={[styles.sectionText, { color: C.brandStrong }]}>고정 공지</Text>
               </View>
               {pinned.map(n => (
                 <NoticeCard key={n.id} n={n} expanded={sel.selectionMode ? null : expanded} onExpand={sel.selectionMode ? () => sel.toggleItem(n.id) : handleExpand} handleDelete={handleDelete} readStats={readStats[n.id]} C={C}
@@ -347,8 +347,8 @@ export default function NoticesScreen() {
                   <Text style={[styles.label, { color: C.textSecondary }]}>사진 첨부 ({pickedImages.length}/{MAX_IMAGES})</Text>
                   {pickedImages.length < MAX_IMAGES && (
                     <Pressable style={[styles.addImageBtn, { borderColor: C.border }]} onPress={pickImages}>
-                      <LucideIcon name="camera" size={16} color={C.tint} />
-                      <Text style={[styles.addImageText, { color: C.tint }]}>사진 추가</Text>
+                      <LucideIcon name="camera" size={16} color={C.brandStrong} />
+                      <Text style={[styles.addImageText, { color: C.brandStrong }]}>사진 추가</Text>
                     </Pressable>
                   )}
                 </View>
@@ -367,11 +367,11 @@ export default function NoticesScreen() {
               </View>
 
               <Pressable
-                style={[styles.pinToggle, { backgroundColor: form.is_pinned ? C.tintLight : C.background, borderColor: form.is_pinned ? C.tint : C.border }]}
+                style={[styles.pinToggle, { backgroundColor: form.is_pinned ? C.brandSoft : C.background, borderColor: form.is_pinned ? C.brandStrong : C.border }]}
                 onPress={() => setForm(f => ({ ...f, is_pinned: !f.is_pinned }))}
               >
-                <LucideIcon name="pin" size={16} color={form.is_pinned ? C.tint : C.textMuted} />
-                <Text style={[styles.pinText, { color: form.is_pinned ? C.tint : C.textSecondary }]}>상단 고정</Text>
+                <LucideIcon name="pin" size={16} color={form.is_pinned ? C.brandStrong : C.textMuted} />
+                <Text style={[styles.pinText, { color: form.is_pinned ? C.brandStrong : C.textSecondary }]}>상단 고정</Text>
               </Pressable>
 
               <Pressable
@@ -409,21 +409,21 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
     <Pressable
       style={[
         styles.card,
-        { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.tint },
-        isSelected && { borderWidth: 2, borderColor: C.tint, borderLeftWidth: 2 },
+        { backgroundColor: C.card, shadowColor: C.shadow, borderLeftWidth: n.is_pinned ? 3 : 0, borderLeftColor: C.brandStrong },
+        isSelected && { borderWidth: 2, borderColor: C.brandStrong, borderLeftWidth: 2 },
       ]}
       onPress={() => onExpand(n.id)}
     >
       <View style={styles.cardHeader}>
         {selectionMode && (
           <Pressable onPress={onToggle} style={[styles.deleteBtn, { marginRight: 4 }]}>
-            <View style={[styles.selCheckbox, isSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+            <View style={[styles.selCheckbox, isSelected && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
               {isSelected && <LucideIcon name="check" size={11} color="#fff" />}
             </View>
           </Pressable>
         )}
         <View style={styles.cardTop}>
-          {n.is_pinned ? <LucideIcon name="pin" size={12} color={C.tint} /> : null}
+          {n.is_pinned ? <LucideIcon name="pin" size={12} color={C.brandStrong} /> : null}
           <Text style={[styles.noticeTitle, { color: C.text }]} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
           {images.length > 0 && <LucideIcon name="image" size={13} color={C.textMuted} />}
         </View>

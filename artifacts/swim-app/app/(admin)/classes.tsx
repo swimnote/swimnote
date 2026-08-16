@@ -420,7 +420,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           )}
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <LucideIcon name="check" size={9} color="#2EC4B6" />
+                              <LucideIcon name="check" size={9} color={C.brandStrong} />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
@@ -470,8 +470,8 @@ const dy = StyleSheet.create({
                     paddingVertical: 2, borderRadius: 6, backgroundColor: "#FFFFFF" },
   instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#E6FFFA" },
-  attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: C.brandSoft },
+  attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
 });
 
 // ══════════════════ 메인 스크린 ══════════════════════════════════

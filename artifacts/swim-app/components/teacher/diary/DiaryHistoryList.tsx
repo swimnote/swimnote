@@ -99,7 +99,7 @@ export default function DiaryHistoryList({
                     </View>
                   )}
                   {isMine && (
-                    <View style={[s.statusBadge, { backgroundColor: "#E6FFFA", marginLeft: "auto" }]}>
+                    <View style={[s.statusBadge, { backgroundColor: C.brandSoft, marginLeft: "auto" }]}>
                       <LucideIcon name="edit-2" size={10} color="#4EA7D8" />
                       <Text style={[s.statusBadgeText, { color: "#4EA7D8" }]}>탭하여 수정</Text>
                     </View>
@@ -197,7 +197,7 @@ export default function DiaryHistoryList({
 const s = StyleSheet.create({
   diaryList:     { padding: 12, gap: 10 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: C.brandSoft },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   statusBadge:   { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
   statusBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },

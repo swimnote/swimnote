@@ -79,13 +79,13 @@ export function AdminQuickRegisterModal({
           <View style={qr.handle} />
           {done ? (
             <View style={qr.doneWrap}>
-              <View style={[qr.doneIcon, { backgroundColor: "#2EC4B6" + "18" }]}>
-                <LucideIcon name="check-circle" size={36} color="#2EC4B6" />
+              <View style={[qr.doneIcon, { backgroundColor: C.primaryAction + "18" }]}>
+                <LucideIcon name="check-circle" size={36} color={C.primaryAction} />
               </View>
               <Text style={qr.doneTitle}>등록 완료</Text>
               <Text style={qr.doneSub}>{doneName} 학생이{"\n"}정식 회원으로 등록됐습니다.</Text>
               <Text style={[qr.doneSub, { fontSize: 12, color: C.textMuted }]}>회원 관리에서 초대코드를 확인할 수 있습니다.</Text>
-              <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6" }]} onPress={handleClose}>
+              <Pressable style={[qr.saveBtn, { backgroundColor: C.primaryAction }]} onPress={handleClose}>
                 <Text style={qr.saveBtnTxt}>확인</Text>
               </Pressable>
             </View>
@@ -139,7 +139,7 @@ export function AdminQuickRegisterModal({
                 <LucideIcon name="info" size={13} color={C.textMuted} />
                 <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
-              <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6", opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>
+              <Pressable style={[qr.saveBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={qr.saveBtnTxt}>등록하기</Text>}
               </Pressable>
             </>
@@ -164,7 +164,7 @@ const qr = StyleSheet.create({
   weekRow:  { flexDirection: "row", gap: 10 },
   weekBtn:  { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular" },
-  notice:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  notice:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandMist, padding: 12, borderRadius: 12 },
   noticeTxt:{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
   saveBtn:  { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   saveBtnTxt:{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

@@ -43,7 +43,7 @@ export default function ParentLoginScreen() {
         </Pressable>
 
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: "#E6FFFA" }]}>
+          <View style={[styles.iconBox, { backgroundColor: C.brandSoft }]}>
             <LucideIcon name="user" size={30} color={C.success} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>학부모 로그인</Text>
@@ -115,8 +115,8 @@ export default function ParentLoginScreen() {
           style={({ pressed }) => [styles.joinRequestBtn, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}
           onPress={() => router.push("/pool-join-request" as any)}
         >
-          <View style={[styles.joinIconBox, { backgroundColor: C.tintLight }]}>
-            <LucideIcon name="user-plus" size={18} color={C.tint} />
+          <View style={[styles.joinIconBox, { backgroundColor: C.brandSoft }]}>
+            <LucideIcon name="user-plus" size={18} color={C.brandStrong} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.joinBtnTitle, { color: C.text }]}>수영장 가입 요청</Text>

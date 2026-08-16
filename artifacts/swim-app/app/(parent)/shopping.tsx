@@ -14,8 +14,8 @@ export default function ShoppingScreen() {
         <Text style={[s.title, { color: C.text }]}>쇼핑</Text>
       </View>
       <View style={s.body}>
-        <View style={[s.icon, { backgroundColor: C.tintLight }]}>
-          <LucideIcon name="shopping-bag" size={48} color={C.tint} />
+        <View style={[s.icon, { backgroundColor: C.brandMist }]}>
+          <LucideIcon name="shopping-bag" size={48} color={C.brandStrong} />
         </View>
         <Text style={[s.heading, { color: C.text }]}>쇼핑 준비중</Text>
         <Text style={[s.sub, { color: C.textMuted }]}>

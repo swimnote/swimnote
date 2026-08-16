@@ -76,9 +76,9 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
   "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: "#E6FAF8", text: "#14283D" },
-  "제출완료":  { bg: "#E6FAF8", text: "#14283D" },
-  "관리자확인": { bg: "#E6FAF8", text: "#14283D" },
+  "저장됨":    { bg: C.brandSoft, text: "#14283D" },
+  "제출완료":  { bg: C.brandSoft, text: "#14283D" },
+  "관리자확인": { bg: C.brandSoft, text: "#14283D" },
 };
 
 export default function AdminRevenueScreen() {
@@ -200,7 +200,7 @@ export default function AdminRevenueScreen() {
         </View>
 
         <Pressable
-          style={[s.holiBtn, { backgroundColor: "#E6FAF8", borderColor: "#CBD5E1" }]}
+          style={[s.holiBtn, { backgroundColor: C.brandSoft, borderColor: "#CBD5E1" }]}
           onPress={() => setHoliModal(true)}
         >
           <LucideIcon name="calendar" size={14} color="#14283D" />
@@ -219,12 +219,12 @@ export default function AdminRevenueScreen() {
         >
           {/* ── 바로가기 버튼 ── */}
           <View style={s.quickRow}>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
               <LucideIcon name="rotate-ccw" size={16} color="#14283D" />
               <Text style={[s.quickLabel, { color: "#14283D" }]}>보강 이월</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
               <LucideIcon name="list" size={16} color="#14283D" />
               <Text style={[s.quickLabel, { color: "#14283D" }]}>휴무 목록</Text>
@@ -379,7 +379,7 @@ export default function AdminRevenueScreen() {
               <Text style={s.actionBtnTxt}>이번 달 저장</Text>
             </Pressable>
             <Pressable
-              style={[s.actionBtn, { backgroundColor: "#2EC4B6" }]}
+              style={[s.actionBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => setNextMonthModal(true)}
             >
               <LucideIcon name="arrow-right-circle" size={16} color="#fff" />
@@ -405,7 +405,7 @@ export default function AdminRevenueScreen() {
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable
-                style={[s.modalBtn, { backgroundColor: "#2EC4B6" }]}
+                style={[s.modalBtn, { backgroundColor: C.primaryAction }]}
                 onPress={async () => {
                   try {
                     await apiRequest(token, "/settlement/finalize", {

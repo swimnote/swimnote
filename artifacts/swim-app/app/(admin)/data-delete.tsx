@@ -25,18 +25,18 @@ function fmtBytes(b: number) {
 }
 
 const KS_TYPES = [
-  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#EA580C", bg: "#E6FAF8" },
-  { key: "video",  label: "영상",      icon: "video"     as const, color: "#7C3AED", bg: "#E6FAF8" },
-  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#16A34A", bg: "#E6FAF8" },
+  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#EA580C", bg: C.brandSoft },
+  { key: "video",  label: "영상",      icon: "video"     as const, color: "#7C3AED", bg: C.brandSoft },
+  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#16A34A", bg: C.brandSoft },
 ];
 
 const MONTH_OPTIONS = [1, 3, 6, 12];
 
 const RETENTION_TYPES = [
-  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#EA580C", bg: "#E6FAF8" },
-  { key: "video",     label: "영상",       icon: "video"      as const, color: "#7C3AED", bg: "#E6FAF8" },
-  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#16A34A", bg: "#E6FAF8" },
-  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#7C3AED", bg: "#E6FAF8" },
+  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#EA580C", bg: C.brandSoft },
+  { key: "video",     label: "영상",       icon: "video"      as const, color: "#7C3AED", bg: C.brandSoft },
+  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#16A34A", bg: C.brandSoft },
+  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#7C3AED", bg: C.brandSoft },
 ];
 const RETENTION_OPTIONS = [6, 12, 24, 36, 0]; // 0 = 영구 보관
 
@@ -130,7 +130,7 @@ export default function DataDeleteScreen() {
         {/* ═══ A. 복구 가능 데이터 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
+            <View style={[s.sectionDot, { backgroundColor: C.brandStrong }]} />
             <View>
               <Text style={s.sectionTitle}>복구 가능 데이터</Text>
               <Text style={s.sectionSub}>소프트 삭제된 회원·데이터 — 아직 복구 가능</Text>
@@ -141,8 +141,8 @@ export default function DataDeleteScreen() {
               style={({ pressed }) => [s.menuRow, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => router.push("/(admin)/withdrawn-members?backTo=data-delete" as any)}
             >
-              <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
-              <LucideIcon name="user-x" size={20} color="#2EC4B6" />
+              <View style={[s.menuIcon, { backgroundColor: C.brandSoft }]}>
+              <LucideIcon name="user-x" size={20} color={C.brandStrong} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>탈퇴·삭제 회원</Text>
@@ -152,7 +152,7 @@ export default function DataDeleteScreen() {
             </Pressable>
           </View>
           <View style={s.infoBox}>
-            <LucideIcon name="info" size={13} color="#2EC4B6" />
+            <LucideIcon name="info" size={13} color={C.brandStrong} />
             <Text style={s.infoText}>탈퇴 후 보존 기간 안에는 관리자가 데이터를 복구할 수 있습니다. 보존 기간 초과 시 자동 파기됩니다.</Text>
           </View>
         </View>
@@ -160,7 +160,7 @@ export default function DataDeleteScreen() {
         {/* ═══ B. 보존 기간 정책 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
+            <View style={[s.sectionDot, { backgroundColor: C.brandStrong }]} />
             <View>
               <Text style={s.sectionTitle}>보존 기간 정책</Text>
               <Text style={s.sectionSub}>데이터 유형별 자동 파기 기간 설정</Text>
@@ -183,10 +183,10 @@ export default function DataDeleteScreen() {
                       onPress={() => { setRetention(prev => ({ ...prev, [rt.key]: m })); setRetentionSaved(false); }}
                       style={[
                         s.chip,
-                        retention[rt.key] === m && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" },
+                        retention[rt.key] === m && { backgroundColor: C.brandSoft, borderColor: C.brandStrong },
                       ]}
                     >
-                      <Text style={[s.chipText, retention[rt.key] === m && { color: "#2EC4B6" }]}>
+                      <Text style={[s.chipText, retention[rt.key] === m && { color: C.brandStrong }]}>
                         {retentionLabel(m)}
                       </Text>
                     </Pressable>
@@ -196,7 +196,7 @@ export default function DataDeleteScreen() {
             ))}
           </View>
           <Pressable
-            style={[s.saveBtn, { backgroundColor: retentionSaved ? "#2EC4B6" : themeColor }]}
+            style={[s.saveBtn, { backgroundColor: retentionSaved ? C.brandStrong : themeColor }]}
             onPress={() => setRetentionSaved(true)}
           >
             <LucideIcon name={retentionSaved ? "check" : "save"} size={15} color="#fff" />
@@ -317,10 +317,10 @@ export default function DataDeleteScreen() {
           {step === "done" && result && (
             <View style={{ gap: 12, marginTop: 12 }}>
               <View style={s.resultCard}>
-                <View style={[s.resultIcon, { backgroundColor: result.ok ? "#E6FFFA" : "#F9DEDA" }]}>
-                  <LucideIcon name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#2EC4B6" : "#D96C6C"} />
+                <View style={[s.resultIcon, { backgroundColor: result.ok ? C.brandSoft : "#F9DEDA" }]}>
+                  <LucideIcon name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? C.brandStrong : "#D96C6C"} />
                 </View>
-                <Text style={[s.resultMsg, { color: result.ok ? "#2EC4B6" : "#D96C6C" }]}>{result.message}</Text>
+                <Text style={[s.resultMsg, { color: result.ok ? C.brandStrong : "#D96C6C" }]}>{result.message}</Text>
               </View>
               <Pressable style={[s.primaryBtn, { backgroundColor: C.primaryAction }]} onPress={resetKs}>
                 <Text style={s.primaryBtnText}>다시 시작</Text>

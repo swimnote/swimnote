@@ -19,7 +19,7 @@ interface AttRecord {
 const C = Colors.light;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  present: { label: "출석",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  present: { label: "출석",  color: "#2EC4B6", bg: C.brandSoft, icon: "check-circle" },
   absent:  { label: "결석",  color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle" },
   late:    { label: "지각",  color: "#D97706", bg: "#FFF1BF", icon: "clock" },
   makeup:  { label: "보강",  color: "#7C3AED", bg: "#EEDDF5", icon: "refresh-cw" },
@@ -85,7 +85,7 @@ export default function ParentAttendanceScreen() {
       <ParentScreenHeader title="출결 기록" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={listData}
@@ -96,7 +96,7 @@ export default function ParentAttendanceScreen() {
             total > 0 ? (
               <View style={[styles.statsCard, { backgroundColor: C.card }]}>
                 <View style={styles.rateCol}>
-                  <Text style={[styles.rateNum, { color: C.tint }]}>{rate}%</Text>
+                  <Text style={[styles.rateNum, { color: C.brandStrong }]}>{rate}%</Text>
                   <Text style={[styles.rateLabel, { color: C.textSecondary }]}>출석률</Text>
                 </View>
                 <View style={[styles.divider, { backgroundColor: C.border }]} />

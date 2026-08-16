@@ -96,6 +96,6 @@ const s = StyleSheet.create({
   btnRow: { flexDirection: "row", gap: 8, marginTop: 8, width: "100%" },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center" },
   cancelTxt: { fontSize: 14, fontWeight: "600", color: C.textSecondary },
-  confirmBtn: { flex: 1.4, paddingVertical: 12, borderRadius: 10, backgroundColor: "#2EC4B6", alignItems: "center" },
+  confirmBtn: { flex: 1.4, paddingVertical: 12, borderRadius: 10, backgroundColor: C.primaryAction, alignItems: "center" },
   confirmTxt: { fontSize: 14, fontWeight: "700", color: "#FFF" },
 });

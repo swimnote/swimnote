@@ -32,7 +32,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const SCREEN_H = Dimensions.get("window").height;
 const C = Colors.light;
-const PRIMARY = C.tint;
+const PRIMARY = C.brandStrong;
 
 interface DiaryLevel {
   id: string;
@@ -616,13 +616,13 @@ const s = StyleSheet.create({
 
   previewBox: {
     marginHorizontal: 16, marginTop: 10,
-    borderWidth: 1.5, borderColor: C.tintLight, borderRadius: 12,
+    borderWidth: 1.5, borderColor: C.brandSoft, borderRadius: 12,
     backgroundColor: C.surface, overflow: "hidden",
   },
   previewHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: C.tintLight,
+    borderBottomWidth: 1, borderBottomColor: C.brandSoft,
   },
   previewLabel: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
   previewCount: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Regular" },
@@ -631,7 +631,7 @@ const s = StyleSheet.create({
   previewLine: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   previewActions: {
     flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8,
-    borderTopWidth: 1, borderTopColor: C.tintLight,
+    borderTopWidth: 1, borderTopColor: C.brandSoft,
   },
   previewBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,

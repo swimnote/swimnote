@@ -22,12 +22,12 @@ const TABS = ["전체", "운영자관리", "구독", "저장공간", "삭제", "
 const CAT_CFG: Record<string, { color: string; bg: string; icon: string }> = {
   운영자관리:   { color: "#D97706", bg: "#FFF1BF", icon: "shield" },
   구독:         { color: P,         bg: "#EEDDF5", icon: "credit-card" },
-  저장공간:     { color: "#2EC4B6", bg: "#E6FFFA", icon: "hard-drive" },
+  저장공간:     { color: C.brandStrong, bg: C.brandSoft, icon: "hard-drive" },
   삭제:         { color: "#D96C6C", bg: "#F9DEDA", icon: "trash-2" },
-  정책:         { color: "#2EC4B6", bg: "#E6FFFA", icon: "file-text" },
-  결제:         { color: "#2EC4B6", bg: "#ECFEFF", icon: "dollar-sign" },
+  정책:         { color: C.brandStrong, bg: C.brandSoft, icon: "file-text" },
+  결제:         { color: C.brandStrong, bg: "#ECFEFF", icon: "dollar-sign" },
   보안:         { color: "#991B1B", bg: "#F9DEDA", icon: "lock" },
-  "기능 플래그":{ color: "#2EC4B6", bg: "#E6FFFA", icon: "toggle-left" },
+  "기능 플래그":{ color: C.brandStrong, bg: C.brandSoft, icon: "toggle-left" },
   읽기전용:     { color: "#7C3AED", bg: "#EEDDF5", icon: "eye-off" },
   고객센터:     { color: "#0284C7", bg: "#E0F2FE", icon: "message-circle" },
 };

@@ -28,7 +28,7 @@ const C = Colors.light;
 const P = "#7C3AED";
 const RED = "#D96C6C";
 const AMBER = "#D97706";
-const TEAL = "#2EC4B6";
+const TEAL = C.brandStrong;
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
 
@@ -41,9 +41,9 @@ const TYPE_CFG: Record<string, {
   refund:     { label: "환불",    color: RED,    bg: "#F9DEDA", icon: "rotate-ccw" },
   payment:    { label: "결제",    color: TEAL,   bg: "#ECFEFF", icon: "credit-card" },
   deletion:   { label: "삭제",    color: AMBER,  bg: "#FFF1BF", icon: "trash-2" },
-  policy:     { label: "정책",    color: TEAL,   bg: "#E6FFFA", icon: "file-text" },
+  policy:     { label: "정책",    color: TEAL,   bg: C.brandSoft, icon: "file-text" },
   technical:  { label: "기술",    color: P,      bg: "#EEDDF5", icon: "tool" },
-  storage:    { label: "저장공간", color: TEAL,   bg: "#E6FFFA", icon: "hard-drive" },
+  storage:    { label: "저장공간", color: TEAL,   bg: C.brandSoft, icon: "hard-drive" },
   chargeback: { label: "차지백",  color: "#991B1B", bg: "#F9DEDA", icon: "alert-triangle" },
   other:      { label: "기타",    color: C.textSecondary, bg: "#FFFFFF", icon: "help-circle" },
 };
@@ -52,11 +52,11 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
   received:          { label: "접수",    color: RED,    bg: "#F9DEDA" },
   in_progress:       { label: "처리 중", color: AMBER,  bg: "#FFF1BF" },
   on_hold:           { label: "보류",    color: C.textSecondary, bg: "#FFFFFF" },
-  refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#E6FAF8" },
+  refund_linked:     { label: "환불연계", color: "#9333EA", bg: C.brandSoft },
   policy_sent:       { label: "정책발송", color: TEAL,   bg: "#ECFEFF" },
   need_recheck:      { label: "재확인",  color: "#E4A93A", bg: "#FFF1BF" },
   escalated_to_tech: { label: "에스컬",  color: P,      bg: "#EEDDF5" },
-  resolved:          { label: "해결됨",  color: TEAL,   bg: "#E6FFFA" },
+  resolved:          { label: "해결됨",  color: TEAL,   bg: C.brandSoft },
 };
 
 const REQUESTER_CFG: Record<string, { label: string; color: string }> = {

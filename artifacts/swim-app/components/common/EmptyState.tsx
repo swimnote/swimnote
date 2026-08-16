@@ -23,8 +23,8 @@ export function EmptyState({ icon = "inbox", title, subtitle }: EmptyStateProps)
   const { mode } = useMode();
   const isX = isXMode(mode);
 
-  const iconBg    = isX ? XT.aiSoft   : C.tintLight;
-  const iconColor = isX ? XT.ai       : C.tint;
+  const iconBg    = isX ? XT.aiSoft   : C.brandMist;
+  const iconColor = isX ? XT.ai       : C.brandStrong;
 
   return (
     <View style={s.root}>

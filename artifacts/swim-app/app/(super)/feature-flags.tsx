@@ -39,9 +39,9 @@ const FLAG_IMPACT: Record<string, { scope: string; risk: string; riskColor: stri
 
 const CAT_CFG: Record<string, { color: string; bg: string }> = {
   기능:     { color: "#7C3AED", bg: "#EEDDF5" },
-  구독:     { color: "#2EC4B6", bg: "#ECFEFF" },
+  구독:     { color: C.brandStrong, bg: "#ECFEFF" },
   데이터:   { color: DANGER,    bg: "#F9DEDA" },
-  저장공간: { color: "#2EC4B6", bg: "#E6FFFA" },
+  저장공간: { color: C.brandStrong, bg: C.brandSoft },
   보안:     { color: "#991B1B", bg: "#F9DEDA" },
   general:  { color: C.textSecondary, bg: "#FFFFFF" },
 };
@@ -228,7 +228,7 @@ export default function FeatureFlagsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} tintColor={P} onRefresh={onRefresh} />}
       >
         <View style={s.infoBanner}>
-          <LucideIcon name="info" size={13} color="#2EC4B6" />
+          <LucideIcon name="info" size={13} color={C.brandStrong} />
           <Text style={s.infoBannerTxt}>위험 플래그(🔴)는 변경 시 경고 확인 필수. 모든 변경은 사유 입력 후 감사 로그 기록됩니다. 롤백 버튼으로 이전 상태 복원 가능.</Text>
         </View>
 

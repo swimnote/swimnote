@@ -170,7 +170,7 @@ export default function GrowthReportReviewScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <ActivityIndicator size="large" color={C.primaryAction} />
         <Text style={styles.loadingText}>리포트 불러오는 중…</Text>
       </View>
     );
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
   center:          { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   loadingText:     { marginTop: 12, fontSize: 14, color: C.textSecondary },
   errorText:       { marginTop: 8, fontSize: 14, color: C.error, textAlign: "center" },
-  retryBtn:        { marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.primary, borderRadius: 8 },
+  retryBtn:        { marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: C.primaryAction, borderRadius: 8 },
   retryText:       { color: "#fff", fontWeight: "600" },
 
   header:          {
@@ -496,10 +496,10 @@ const styles = StyleSheet.create({
     borderColor: "#CED4DA", padding: 12, alignItems: "center",
     backgroundColor: "#fff",
   },
-  actionBtnSelected:  { borderColor: C.primary, backgroundColor: "#EEF3FF" },
+  actionBtnSelected:  { borderColor: C.primaryAction, backgroundColor: C.brandMist },
   actionBtnDisabled:  { opacity: 0.4 },
   actionBtnLabel:     { fontSize: 14, fontWeight: "700", color: C.text },
-  actionBtnLabelSelected: { color: C.primary },
+  actionBtnLabelSelected: { color: C.primaryAction },
   actionBtnSublabel:  { fontSize: 10, color: C.textSecondary, marginTop: 2 },
 
   reasonItem:      {
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     width: 18, height: 18, borderRadius: 9,
     borderWidth: 2, borderColor: "#CED4DA", backgroundColor: "#fff",
   },
-  radioCircleSelected: { borderColor: C.primary, backgroundColor: C.primary },
+  radioCircleSelected: { borderColor: C.primaryAction, backgroundColor: C.primaryAction },
   reasonLabel:     { flex: 1, fontSize: 13, color: C.text },
 
   noteInput:       {
@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
 
   submitBtn:       {
     marginTop: 16, paddingVertical: 14,
-    borderRadius: 10, backgroundColor: C.primary,
+    borderRadius: 10, backgroundColor: C.primaryAction,
     alignItems: "center",
   },
   submitBtnDisabled: { backgroundColor: "#CED4DA" },

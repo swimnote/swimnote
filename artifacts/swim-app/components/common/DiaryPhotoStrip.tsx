@@ -17,7 +17,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiRequest, API_BASE } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import Colors from "@/constants/colors";
 
+const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
 const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
 
@@ -287,7 +289,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
   return (
     <View style={s.container}>
       <View style={s.labelRow}>
-        <LucideIcon name="image" size={12} color="#2EC4B6" />
+        <LucideIcon name="image" size={12} color={C.brandStrong} />
         <Text style={s.label}>
           수업 미디어{photos.length > 0 ? ` 사진 ${photos.length}장` : ""}{videos.length > 0 ? ` 영상 ${videos.length}개` : ""}
         </Text>
@@ -303,7 +305,7 @@ export default function DiaryPhotoStrip({ token, classGroupId, lessonDate, diary
               <Text style={s.allDlBtnTxt}>저장 {downloadProgress}/{photos.length}</Text>
             ) : (
               <>
-                <LucideIcon name="upload-cloud" size={10} color="#2EC4B6" />
+                <LucideIcon name="upload-cloud" size={10} color={C.brandStrong} />
                 <Text style={s.allDlBtnTxt}>전체 저장</Text>
               </>
             )}
@@ -533,14 +535,14 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingLeft: 14, paddingRight: 14,
   },
-  label: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flexShrink: 0 },
+  label: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong, flexShrink: 0 },
   labelHint: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#94A3B8", flexShrink: 1 },
   allDlBtn: {
     flexDirection: "row", alignItems: "center", gap: 3,
     marginLeft: "auto" as any, paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: 8, borderWidth: 1, borderColor: "#2EC4B6", flexShrink: 0,
+    borderRadius: 8, borderWidth: 1, borderColor: C.brandStrong, flexShrink: 0,
   },
-  allDlBtnTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  allDlBtnTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   strip: { paddingLeft: 14, paddingRight: 8, gap: 8, paddingBottom: 4 },
   thumb: {
     width: 88, height: 88, borderRadius: 12,
@@ -628,7 +630,7 @@ const s = StyleSheet.create({
   },
   dlBtnAll: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "#2EC4B6",
+    backgroundColor: C.brandStrong,
     paddingHorizontal: 16, paddingVertical: 12,
     borderRadius: 30,
   },

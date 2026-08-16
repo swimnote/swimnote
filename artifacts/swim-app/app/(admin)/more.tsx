@@ -29,8 +29,8 @@ interface ActivityLog {
 }
 
 const ACTION_META: Record<string, { label: string; icon: string; color: string }> = {
-  update:  { label: "정보 수정",  icon: "edit-2",      color: "#2EC4B6" },
-  create:  { label: "신규 등록",  icon: "plus-circle", color: "#2EC4B6" },
+  update:  { label: "정보 수정",  icon: "edit-2",      color: C.brandStrong },
+  create:  { label: "신규 등록",  icon: "plus-circle", color: C.brandStrong },
   delete:  { label: "삭제",       icon: "trash-2",     color: "#D96C6C" },
   restore: { label: "복구",       icon: "rotate-ccw",  color: "#7C3AED" },
   assign:  { label: "반 배정",    icon: "link",        color: "#D97706" },
@@ -42,7 +42,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 // 바로가기 (대시보드에 없는 보조 메뉴만)
-const N = C.textPrimary; const N_BG = "#E6FAF8";
+const N = C.textPrimary; const N_BG = C.brandSoft;
 
 const SHORTCUTS = [
   { label: "일지 템플릿",      icon: "file-text"  as const, color: N, bg: N_BG, route: "/(admin)/diary-template-settings"     },
@@ -153,7 +153,7 @@ export default function MoreScreen() {
 
           {/* 안내 배너 */}
           <View style={s.infoBanner}>
-            <LucideIcon name="info" size={14} color="#2EC4B6" />
+            <LucideIcon name="info" size={14} color={C.brandStrong} />
             <Text style={s.infoBannerText}>
               메뉴 대부분은 홈 화면 아이콘(운영 관리·데이터 관리·수업 설정·운영 설정)에서 바로 접근할 수 있습니다.
             </Text>
@@ -267,7 +267,7 @@ export default function MoreScreen() {
                     {log.after_value && (
                       <View style={s.logValueRow}>
                         <Text style={s.logValueLabel}>변경 후</Text>
-                        <Text style={[s.logValue, { color: "#2EC4B6" }]}>{log.after_value}</Text>
+                        <Text style={[s.logValue, { color: C.brandStrong }]}>{log.after_value}</Text>
                       </View>
                     )}
                   </View>

@@ -14,7 +14,7 @@ import { X as XT, isXMode } from "@/constants/xTheme";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
-const NB = "#E6FAF8";
+const NB = C.brandSoft;
 
 type MenuItem = { label: string; icon: string; color: string; route: string; desc: string };
 

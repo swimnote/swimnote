@@ -46,7 +46,7 @@ export default function ParentProgramScreen() {
       <ParentScreenHeader title="교육 프로그램" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : program ? (
         <ScrollView
           showsVerticalScrollIndicator={false}

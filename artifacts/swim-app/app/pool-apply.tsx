@@ -82,8 +82,8 @@ export default function PoolApplyScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-            <LucideIcon name="map-pin" size={28} color={C.tint} />
+          <View style={[styles.iconBox, { backgroundColor: C.brandSoft }]}>
+            <LucideIcon name="map-pin" size={28} color={C.brandStrong} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>수영장 등록 신청</Text>
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -157,9 +157,9 @@ export default function PoolApplyScreen() {
               placeholder="010-0000-0000" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
           </Field>
 
-          <View style={[styles.notice, { backgroundColor: C.tintLight, borderRadius: 10, padding: 12 }]}>
-            <LucideIcon name="info" size={14} color={C.tint} />
-            <Text style={[styles.noticeText, { color: C.tint }]}>
+          <View style={[styles.notice, { backgroundColor: C.brandSoft, borderRadius: 10, padding: 12 }]}>
+            <LucideIcon name="info" size={14} color={C.brandStrong} />
+            <Text style={[styles.noticeText, { color: C.brandStrong }]}>
               신청 내용은 플랫폼 운영자가 검토 후 승인합니다.{"\n"}승인 후 입력한 아이디로 로그인할 수 있습니다.
             </Text>
           </View>

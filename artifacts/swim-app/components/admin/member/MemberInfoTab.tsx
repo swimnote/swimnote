@@ -102,15 +102,15 @@ export function MemberInfoTab({
       <View style={{
         marginHorizontal: 16, marginBottom: 8,
         borderRadius: 12, padding: 12,
-        backgroundColor: isParentLinked ? "#E6FAF8" : C.backgroundSoft,
+        backgroundColor: isParentLinked ? C.brandMist : C.backgroundSoft,
         flexDirection: "row", alignItems: "center", gap: 10,
-        borderWidth: 1, borderColor: isParentLinked ? "#2EC4B6" : C.border,
+        borderWidth: 1, borderColor: isParentLinked ? C.brandStrong : C.border,
       }}>
-        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? "#2EC4B6" : C.textMuted} />
+        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? C.brandStrong : C.textMuted} />
         <View style={{ flex: 1 }}>
           {isParentLinked ? (
             <>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>학부모 앱 연결됨</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>학부모 앱 연결됨</Text>
               {parentAccountName ? (
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 1 }}>{parentAccountName}</Text>
               ) : null}

@@ -17,8 +17,8 @@ import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
-const TEAL_BG = "#E6FAF8";
+const TEAL = C.brandStrong;
+const TEAL_BG = C.brandMist;
 const GRAY_BG = "#F4F6FA";
 const NAVY = "#1B3A70";
 

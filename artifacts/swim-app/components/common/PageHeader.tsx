@@ -34,7 +34,7 @@ export function PageHeader({ title, subtitle, action, rightSlot }: PageHeaderPro
       {rightSlot ?? null}
       {action && !rightSlot ? (
         <Pressable
-          style={({ pressed }) => [s.btn, { backgroundColor: action.color ?? C.tint, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [s.btn, { backgroundColor: action.color ?? C.primaryAction, opacity: pressed ? 0.85 : 1 }]}
           onPress={action.onPress}
         >
           <LucideIcon name={action.icon} size={16} color="#fff" />

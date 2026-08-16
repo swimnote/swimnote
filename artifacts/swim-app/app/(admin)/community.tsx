@@ -51,8 +51,8 @@ export default function CommunityScreen() {
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
     general:    { label: "일반",     color: C.textPrimary, bg: "#FFFFFF" },
     important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
-    event:      { label: "이벤트",   color: "#7C3AED", bg: "#E6FAF8" },
-    class_info: { label: "수업 안내", color: "#2EC4B6", bg: "#E6FFFA" },
+    event:      { label: "이벤트",   color: "#7C3AED", bg: C.brandSoft },
+    class_info: { label: "수업 안내", color: C.brandStrong, bg: C.brandSoft },
     fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
 
@@ -71,12 +71,12 @@ export default function CommunityScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} size="large" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} size="large" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={notices}
           keyExtractor={n => n.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.brandStrong} />}
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           ListEmptyComponent={
             <View style={s.empty}>
@@ -101,9 +101,9 @@ export default function CommunityScreen() {
                     <Text style={[s.typeBadgeText, { color: type.color }]}>{type.label}</Text>
                   </View>
                   {n.is_pinned && (
-                    <View style={[s.typeBadge, { backgroundColor: "#E6FFFA" }]}>
-                      <LucideIcon name="pin" size={11} color="#2EC4B6" />
-                      <Text style={[s.typeBadgeText, { color: "#2EC4B6" }]}>고정</Text>
+                    <View style={[s.typeBadge, { backgroundColor: C.brandSoft }]}>
+                      <LucideIcon name="pin" size={11} color={C.brandStrong} />
+                      <Text style={[s.typeBadgeText, { color: C.brandStrong }]}>고정</Text>
                     </View>
                   )}
                   <Text style={s.noticeDate}>

@@ -75,7 +75,7 @@ type TabKey = "waiting" | "assigned" | "history";
 type HandoverStep = "menu" | "teacher_select" | "done";
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   pending:   { bg: "#FFF1BF", text: "#D97706" },
-  approved:  { bg: "#E6FFFA", text: "#2EC4B6" },
+  approved:  { bg: C.brandMist, text: C.brandStrong },
   rejected:  { bg: "#F9DEDA", text: "#D96C6C" },
   completed: { bg: "#EEDDF5", text: "#7C3AED" },
 };
@@ -662,8 +662,8 @@ export default function MakeupsScreen() {
         </View>
         {item.makeup_date ? (
           <View style={s.infoRow}>
-            <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
-            <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>
+            <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
+            <Text style={[s.infoTxt, { color: C.brandStrong }]}>
               보강일: {fmtDate(item.makeup_date)}{item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
           </View>
@@ -828,8 +828,8 @@ export default function MakeupsScreen() {
                     )}
                     {mk.assigned_class_group_name && (
                       <View style={s.infoRow}>
-                        <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
-                        <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                        <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
+                        <Text style={[s.infoTxt, { color: C.brandStrong }]}>배정반: {mk.assigned_class_group_name}</Text>
                       </View>
                     )}
                     <View style={s.btnRow}>
@@ -907,8 +907,8 @@ export default function MakeupsScreen() {
                           )}
                           {mk.assigned_class_group_name && (
                             <View style={s.infoRow}>
-                              <LucideIcon name="check-circle" size={12} color="#2EC4B6" />
-                              <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                              <LucideIcon name="check-circle" size={12} color={C.brandStrong} />
+                              <Text style={[s.infoTxt, { color: C.brandStrong }]}>배정반: {mk.assigned_class_group_name}</Text>
                             </View>
                           )}
                           {expireInfo && (
@@ -1123,7 +1123,7 @@ export default function MakeupsScreen() {
                     )}
                     {today.length > 0 && (
                       <>
-                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#2EC4B6" }]}>오늘</Text>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.brandStrong }]}>오늘</Text>
                         {today.map(renderOccRow)}
                       </>
                     )}
@@ -1321,7 +1321,7 @@ export default function MakeupsScreen() {
                   <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                     {todayOccs.length > 0 && (
                       <>
-                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#2EC4B6" }]}>오늘</Text>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.brandStrong }]}>오늘</Text>
                         {todayOccs.map(renderDcOccRow)}
                       </>
                     )}
@@ -1405,8 +1405,8 @@ export default function MakeupsScreen() {
               {/* ── 완료 단계 ── */}
               {handoverStep === "done" && (
                 <View style={{ alignItems: "center", padding: 32, gap: 16 }}>
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
-                    <LucideIcon name="check" size={28} color="#2EC4B6" />
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brandMist, alignItems: "center", justifyContent: "center" }}>
+                    <LucideIcon name="check" size={28} color={C.brandStrong} />
                   </View>
                   <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>인계 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
@@ -1415,7 +1415,7 @@ export default function MakeupsScreen() {
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }}>
                     메신저 대화방에 자동 알림이 전송되었습니다.
                   </Text>
-                  <Pressable style={[s.confirmBtn, { backgroundColor: "#2EC4B6", alignSelf: "stretch" }]} onPress={closeHandover}>
+                  <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, alignSelf: "stretch" }]} onPress={closeHandover}>
                     <Text style={s.confirmTxt}>확인</Text>
                   </Pressable>
                 </View>

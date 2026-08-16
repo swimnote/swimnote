@@ -299,7 +299,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 자동삭제 예정 ── */}
-        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#2EC4B6" bg="#ECFEFF"
+        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color={C.brandStrong} bg="#ECFEFF"
           count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch?backTo=risk-center" as any)}>
           {deletionPending.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -311,8 +311,8 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => deferDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
-                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>해제</Text>
+                <Pressable style={[g.btn, { backgroundColor: C.brandSoft }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
+                  <Text style={[g.btnTxt, { color: C.brandStrong }]}>해제</Text>
                 </Pressable>
                 <Pressable style={[g.btn, { backgroundColor: "#7C3AED" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
@@ -344,7 +344,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 정책 미확인 ── */}
-        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#2EC4B6" bg="#E6FFFA"
+        <RiskGroup title="정책 미확인 운영자" icon="file-text" color={C.brandStrong} bg={C.brandSoft}
           count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
           {policyUnsigned.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -356,8 +356,8 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>재알림</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
-                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>상세</Text>
+                <Pressable style={[g.btn, { backgroundColor: C.brandSoft }]} onPress={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
+                  <Text style={[g.btnTxt, { color: C.brandStrong }]}>상세</Text>
                 </Pressable>
               </View>
             </View>

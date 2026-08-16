@@ -156,7 +156,7 @@ const treg = StyleSheet.create({
   weekRow:     { flexDirection: "row", gap: 10 },
   weekBtn:     { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandMist, padding: 12, borderRadius: 12 },
   noticeText:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   saveBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

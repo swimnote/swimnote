@@ -8,9 +8,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-const MINT = "#2EC4B6";
+const MINT = C.brandStrong;
 const MINT_DARK = "#1BA89B";
-const MINT_LIGHT = "#E6FAF8";
+const MINT_LIGHT = C.brandSoft;
 
 type RoleKey = "admin" | "teacher" | "parent";
 
@@ -151,7 +151,7 @@ export default function SignupRoleScreen() {
         <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
           <Text style={[styles.loginLinkText, { color: C.textSecondary }]}>
             이미 계정이 있으신가요?{" "}
-            <Text style={{ color: C.tint }}>로그인</Text>
+            <Text style={{ color: C.brandStrong }}>로그인</Text>
           </Text>
         </Pressable>
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>

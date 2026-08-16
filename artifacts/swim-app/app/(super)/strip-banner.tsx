@@ -30,11 +30,11 @@ const TARGET_LABELS: Record<string, string> = {
 
 const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
 const THEME_COLORS: Record<string, string> = {
-  teal: "#2EC4B6", purple: "#7C3AED", orange: "#F97316",
+  teal: C.brandStrong, purple: "#7C3AED", orange: "#F97316",
   blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
 };
 const THEME_BG: Record<string, string> = {
-  teal: "#E6FAF8", purple: "#EDE9FE", orange: "#FFF7ED",
+  teal: C.brandSoft, purple: "#EDE9FE", orange: "#FFF7ED",
   blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
 };
 
@@ -300,8 +300,8 @@ export default function StripBannerScreen() {
 
       {/* 요약 */}
       <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
-          <Text style={[s.sumNum, { color: "#2EC4B6" }]}>{counts.active}</Text>
+        <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
+          <Text style={[s.sumNum, { color: C.brandStrong }]}>{counts.active}</Text>
           <Text style={s.sumLabel}>노출 중</Text>
         </View>
         <View style={[s.summaryCard, { borderColor: "#FFF1BF" }]}>

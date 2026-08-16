@@ -84,9 +84,9 @@ export default function ParentRegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* 안내 */}
-        <View style={[styles.infoBox, { backgroundColor: C.tintLight }]}>
-          <LucideIcon name="info" size={15} color={C.tint} />
-          <Text style={[styles.infoText, { color: C.tint }]}>
+        <View style={[styles.infoBox, { backgroundColor: C.brandSoft }]}>
+          <LucideIcon name="info" size={15} color={C.brandStrong} />
+          <Text style={[styles.infoText, { color: C.brandStrong }]}>
             가입 후 홈에서 자녀를 수영장과 연결할 수 있습니다.
           </Text>
         </View>
@@ -115,8 +115,8 @@ export default function ParentRegisterScreen() {
           {/* 전화번호 */}
           <View style={{ gap: 6 }}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호 *</Text>
-            <View style={[styles.inputRow, { borderColor: isSocialSignup ? "#2EC4B6" : C.border, backgroundColor: C.card }]}>
-              <LucideIcon name="phone" size={16} color={isSocialSignup ? "#2EC4B6" : C.textMuted} />
+            <View style={[styles.inputRow, { borderColor: isSocialSignup ? C.brandStrong : C.border, backgroundColor: C.card }]}>
+              <LucideIcon name="phone" size={16} color={isSocialSignup ? C.brandStrong : C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={phone} onChangeText={setPhone}
@@ -124,10 +124,10 @@ export default function ParentRegisterScreen() {
                 keyboardType="phone-pad"
                 editable={!isSocialSignup}
               />
-              {isSocialSignup && <LucideIcon name="check-circle" size={16} color="#2EC4B6" />}
+              {isSocialSignup && <LucideIcon name="check-circle" size={16} color={C.brandStrong} />}
             </View>
             {isSocialSignup && (
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>
                 ✓ 휴대폰 인증이 완료되었습니다.
               </Text>
             )}
@@ -201,8 +201,8 @@ export default function ParentRegisterScreen() {
             <View style={[
               styles.checkbox,
               {
-                borderColor: (termsAgreed && privacyAgreed && refundAgreed) ? C.tint : C.border,
-                backgroundColor: (termsAgreed && privacyAgreed && refundAgreed) ? C.tint : "transparent",
+                borderColor: (termsAgreed && privacyAgreed && refundAgreed) ? C.brandStrong : C.border,
+                backgroundColor: (termsAgreed && privacyAgreed && refundAgreed) ? C.brandStrong : "transparent",
               }
             ]}>
               {termsAgreed && privacyAgreed && refundAgreed && <LucideIcon name="check" size={12} color="#fff" />}
@@ -216,7 +216,7 @@ export default function ParentRegisterScreen() {
           <Pressable style={styles.termsRow} onPress={() => setTermsAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
-              { borderColor: termsAgreed ? C.tint : C.border, backgroundColor: termsAgreed ? C.tint : "transparent" }
+              { borderColor: termsAgreed ? C.brandStrong : C.border, backgroundColor: termsAgreed ? C.brandStrong : "transparent" }
             ]}>
               {termsAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
@@ -230,7 +230,7 @@ export default function ParentRegisterScreen() {
           <Pressable style={styles.termsRow} onPress={() => setPrivacyAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
-              { borderColor: privacyAgreed ? C.tint : C.border, backgroundColor: privacyAgreed ? C.tint : "transparent" }
+              { borderColor: privacyAgreed ? C.brandStrong : C.border, backgroundColor: privacyAgreed ? C.brandStrong : "transparent" }
             ]}>
               {privacyAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
@@ -244,7 +244,7 @@ export default function ParentRegisterScreen() {
           <Pressable style={styles.termsRow} onPress={() => setRefundAgreed(v => !v)} >
             <View style={[
               styles.checkbox,
-              { borderColor: refundAgreed ? C.tint : C.border, backgroundColor: refundAgreed ? C.tint : "transparent" }
+              { borderColor: refundAgreed ? C.brandStrong : C.border, backgroundColor: refundAgreed ? C.brandStrong : "transparent" }
             ]}>
               {refundAgreed && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
@@ -269,7 +269,7 @@ export default function ParentRegisterScreen() {
 
         <Pressable style={styles.loginLink} onPress={() => router.replace("/parent-login" as any)}>
           <Text style={[styles.loginLinkTxt, { color: C.textMuted }]}>
-            이미 계정이 있으신가요? <Text style={{ color: C.tint }}>로그인</Text>
+            이미 계정이 있으신가요? <Text style={{ color: C.brandStrong }}>로그인</Text>
           </Text>
         </Pressable>
       </KeyboardAwareScrollView>

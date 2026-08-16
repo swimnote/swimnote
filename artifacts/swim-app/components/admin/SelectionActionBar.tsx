@@ -39,7 +39,7 @@ export function SelectionActionBar({
       <View style={s.row}>
         {/* 전체선택 / 전체해제 */}
         <Pressable style={s.checkRow} onPress={isAllSelected ? onClearSelection : onSelectAll}>
-          <View style={[s.checkbox, isAllSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
+          <View style={[s.checkbox, isAllSelected && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
             {isAllSelected && <LucideIcon name="check" size={12} color="#fff" />}
           </View>
           <Text style={s.checkLabel}>{isAllSelected ? "전체해제" : "전체선택"}</Text>
@@ -101,10 +101,10 @@ const s = StyleSheet.create({
   checkLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   countBadge: {
     flex: 1,
-    backgroundColor: C.tintLight, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: C.brandSoft, paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 8, alignItems: "center",
   },
-  countText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
+  countText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,

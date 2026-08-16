@@ -25,7 +25,7 @@ interface PricingItem {
 }
 
 const WEEKLY_TYPES = [
-  { key: "weekly_1", label: "주1회 수업", defaultSessions: 4, color: "#2EC4B6" },
+  { key: "weekly_1", label: "주1회 수업", defaultSessions: 4, color: C.brandStrong },
   { key: "weekly_2", label: "주2회 수업", defaultSessions: 8, color: "#7C3AED" },
   { key: "weekly_3", label: "주3회 수업", defaultSessions: 12, color: "#D97706" },
 ];
@@ -195,8 +195,8 @@ export default function UnitPricingScreen() {
           {/* 저장 결과 메시지 */}
           {savedMsg ? (
             <View style={[s.msgBox, {
-              backgroundColor: savedMsg === "저장되었습니다." ? "#E6FFFA" : "#FEE2E2",
-              borderColor: savedMsg === "저장되었습니다." ? "#2EC4B6" : "#FCA5A5",
+              backgroundColor: savedMsg === "저장되었습니다." ? C.brandSoft : "#FEE2E2",
+              borderColor: savedMsg === "저장되었습니다." ? C.brandStrong : "#FCA5A5",
             }]}>
               <Text style={[s.msgTxt, { color: savedMsg === "저장되었습니다." ? "#0F766E" : "#DC2626" }]}>
                 {savedMsg}

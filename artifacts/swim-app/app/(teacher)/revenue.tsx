@@ -44,8 +44,8 @@ type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확�
 
 const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
   "미정산":    { bg: C.surface, text: C.textSecondary },
-  "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
-  "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
+  "저장됨":    { bg: C.brandMist, text: C.brandStrong },
+  "제출완료":  { bg: C.brandMist, text: C.brandStrong },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
@@ -262,8 +262,8 @@ export default function RevenueScreen() {
                   { label: "수업인원", val: students.length, color: C.text },
                   { label: "수업시간", val: summary?.total_sessions ?? 0, color: C.text },
                   { label: "보강", val: summary?.total_makeup_sessions ?? 0, color: "#7C3AED" },
-                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#2EC4B6" },
-                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#2EC4B6" },
+                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: C.brandStrong },
+                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: C.brandStrong },
                   { label: "연기", val: summary?.postpone_count ?? 0, color: "#D97706" },
                   { label: "탈퇴", val: summary?.withdrawn_count ?? students.filter(s => s.is_unregistered).length, color: "#D96C6C" },
                 ].map(item => (
@@ -383,8 +383,8 @@ export default function RevenueScreen() {
 
             {/* ─── 저장 메시지 ─────────────────────────── */}
             {savedMsg ? (
-              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
-                <LucideIcon name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#2EC4B6"} />
+              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : C.brandMist }]}>
+                <LucideIcon name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : C.brandStrong} />
                 <Text style={[rv.msgText, { color: savedMsg.includes("실패") ? "#D96C6C" : "#065F46" }]}>{savedMsg}</Text>
               </View>
             ) : null}
@@ -401,17 +401,17 @@ export default function RevenueScreen() {
             </Pressable>
 
             <Pressable
-              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#E6FFFA" : themeColor, opacity: submitting ? 0.6 : 1 }]}
+              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandMist : themeColor, opacity: submitting ? 0.6 : 1 }]}
               onPress={handleSubmit}
               disabled={submitting || saving || submitStatus === "관리자확인"}
             >
-              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#2EC4B6" : "#fff"} /> : <>
+              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? C.brandStrong : "#fff"} /> : <>
                 <LucideIcon
                   name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : "send"}
                   size={16}
-                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff"}
+                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandStrong : "#fff"}
                 />
-                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff" }]}>
+                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandStrong : "#fff" }]}>
                   {submitStatus === "제출완료" ? "제출완료 (재제출 가능)" :
                    submitStatus === "관리자확인" ? "관리자 확인 완료" :
                    "이번 달 정산 제출"}

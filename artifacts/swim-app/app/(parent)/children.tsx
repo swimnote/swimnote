@@ -18,7 +18,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
-const CHILD_COLORS = [C.tint, "#7C3AED", "#D97706", "#0EA5E9", "#16A34A"];
+const CHILD_COLORS = [C.brandStrong, "#7C3AED", "#D97706", "#0EA5E9", "#16A34A"];
 
 const DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일"];
 function parseScheduleText(days: string, time: string): string {
@@ -68,14 +68,14 @@ export default function ChildrenScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.tint} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.brandStrong} />}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 14, paddingTop: 8 }}
       >
         {/* 연결 중 인디케이터 */}
         {linking && (
-          <View style={[s.linkingBanner, { backgroundColor: C.tint + "18" }]}>
-            <ActivityIndicator size="small" color={C.tint} />
-            <Text style={[s.linkingTxt, { color: C.tint }]}>전화번호로 자녀 연결 중...</Text>
+          <View style={[s.linkingBanner, { backgroundColor: C.brandMist }]}>
+            <ActivityIndicator size="small" color={C.brandStrong} />
+            <Text style={[s.linkingTxt, { color: C.brandStrong }]}>전화번호로 자녀 연결 중...</Text>
           </View>
         )}
 

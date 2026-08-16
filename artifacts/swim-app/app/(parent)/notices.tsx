@@ -33,8 +33,8 @@ function TypeBadge({ type, scope }: { type?: string; scope?: string }) {
   const isClass   = type === "class";
   const isGlobal  = scope === "global";
   const label     = isGlobal ? "플랫폼 전체" : isClass ? "우리반 공지" : "수영장 공지";
-  const bg        = isGlobal ? "#EEDDF5" : isClass ? "#F3EDFE" : "#E6FFFA";
-  const color     = isGlobal ? "#7C3AED" : isClass ? "#6D28D9" : "#2EC4B6";
+  const bg        = isGlobal ? "#EEDDF5" : isClass ? "#F3EDFE" : C.brandMist;
+  const color     = isGlobal ? "#7C3AED" : isClass ? "#6D28D9" : C.brandStrong;
   return (
     <View style={[tb.badge, { backgroundColor: bg }]}>
       <Text style={[tb.txt, { color }]}>{label}</Text>
@@ -102,7 +102,7 @@ export default function ParentNoticesScreen() {
           return (
             <Pressable
               key={k}
-              style={[s.chip, active && { backgroundColor: C.tint, borderColor: C.tint }]}
+              style={[s.chip, active && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
               onPress={() => setFilter(k)}
             >
               <Text style={[s.chipTxt, { color: active ? "#fff" : C.textSecondary }]}>{labels[k]}</Text>
@@ -112,7 +112,7 @@ export default function ParentNoticesScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -135,8 +135,8 @@ export default function ParentNoticesScreen() {
                 <View style={s.cardTop}>
                   <TypeBadge type={n.notice_type} scope={n.audience_scope} />
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    {!n.is_read && <View style={[s.dot, { backgroundColor: C.tint }]} />}
-                    {n.is_pinned && <LucideIcon name="bookmark" size={13} color={C.tint} />}
+                    {!n.is_read && <View style={[s.dot, { backgroundColor: C.brandStrong }]} />}
+                    {n.is_pinned && <LucideIcon name="bookmark" size={13} color={C.brandStrong} />}
                   </View>
                 </View>
                 <Text style={[s.title, { color: C.text }]}>{n.title}</Text>
@@ -146,7 +146,7 @@ export default function ParentNoticesScreen() {
                 }
                 <View style={s.cardBottom}>
                   <Text style={[s.meta, { color: C.textMuted }]}>{n.author_name} · {fmtDate(n.created_at)}</Text>
-                  <Text style={[s.expandHint, { color: C.tint }]}>{isExpanded ? "접기" : "펼치기"}</Text>
+                  <Text style={[s.expandHint, { color: C.brandStrong }]}>{isExpanded ? "접기" : "펼치기"}</Text>
                 </View>
               </Pressable>
             );
@@ -173,7 +173,7 @@ const s = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  cardUnread: { borderLeftWidth: 3, borderLeftColor: C.tint },
+  cardUnread: { borderLeftWidth: 3, borderLeftColor: C.brandStrong },
   cardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   dot: { width: 7, height: 7, borderRadius: 4 },
   title: { fontSize: 15, fontFamily: "Pretendard-Regular" },

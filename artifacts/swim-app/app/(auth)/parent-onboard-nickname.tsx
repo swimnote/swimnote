@@ -71,8 +71,8 @@ export default function ParentOnboardNicknameScreen() {
           <View style={[styles.step, { backgroundColor: "#2E9B6F" }]}>
             <LucideIcon name="check" size={14} color="#fff" />
           </View>
-          <View style={[styles.stepLine, { backgroundColor: C.tint }]} />
-          <View style={[styles.step, { backgroundColor: C.tint }]}>
+          <View style={[styles.stepLine, { backgroundColor: C.brandStrong }]} />
+          <View style={[styles.step, { backgroundColor: C.brandStrong }]}>
             <Text style={styles.stepText}>3</Text>
           </View>
         </View>
@@ -86,9 +86,9 @@ export default function ParentOnboardNicknameScreen() {
         </Text>
 
         {/* 미리보기 */}
-        <View style={[styles.previewCard, { backgroundColor: C.tintLight }]}>
-          <Text style={[styles.previewLabel, { color: C.tint }]}>미리보기</Text>
-          <Text style={[styles.previewNickname, { color: C.tint }]}>
+        <View style={[styles.previewCard, { backgroundColor: C.brandSoft }]}>
+          <Text style={[styles.previewLabel, { color: C.brandStrong }]}>미리보기</Text>
+          <Text style={[styles.previewNickname, { color: C.brandStrong }]}>
             {finalNickname || "김민준 엄마"}
           </Text>
         </View>
@@ -96,7 +96,7 @@ export default function ParentOnboardNicknameScreen() {
         {/* 자녀 이름 입력 */}
         <View style={styles.field}>
           <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>자녀 이름</Text>
-          <View style={[styles.inputRow, { borderColor: prefix ? C.tint : C.border, backgroundColor: C.card }]}>
+          <View style={[styles.inputRow, { borderColor: prefix ? C.brandStrong : C.border, backgroundColor: C.card }]}>
             <TextInput
               style={[styles.input, { color: C.text }]}
               value={prefix}
@@ -117,7 +117,7 @@ export default function ParentOnboardNicknameScreen() {
                 key={s}
                 style={({ pressed }) => [
                   styles.suffixBtn,
-                  suffix === s && { backgroundColor: C.tint, borderColor: C.tint },
+                  suffix === s && { backgroundColor: C.brandStrong, borderColor: C.brandStrong },
                   suffix !== s && { backgroundColor: C.card, borderColor: C.border },
                   { opacity: pressed ? 0.8 : 1 },
                 ]}
@@ -128,7 +128,7 @@ export default function ParentOnboardNicknameScreen() {
             ))}
           </View>
           {suffix === "직접입력" && (
-            <View style={[styles.inputRow, { borderColor: customSuffix ? C.tint : C.border, backgroundColor: C.card, marginTop: 8 }]}>
+            <View style={[styles.inputRow, { borderColor: customSuffix ? C.brandStrong : C.border, backgroundColor: C.card, marginTop: 8 }]}>
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={customSuffix}

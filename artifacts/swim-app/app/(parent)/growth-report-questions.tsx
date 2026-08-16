@@ -337,7 +337,7 @@ export default function GrowthReportQuestionsScreen() {
     return (
       <View style={[s.root, { paddingTop: PT }]}>
         <TopBar onBack={() => router.back()} title="성장 리포트 질문" />
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} size="large" />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} size="large" />
       </View>
     );
   }
@@ -374,7 +374,7 @@ export default function GrowthReportQuestionsScreen() {
           <LucideIcon
             name={isReadOnly ? "lock" : "help-circle"}
             size={16}
-            color={isReadOnly ? C.textMuted : C.tint}
+            color={isReadOnly ? C.textMuted : C.brandStrong}
           />
           <View style={{ flex: 1, gap: 2 }}>
             {isReadOnly ? (
@@ -456,7 +456,7 @@ export default function GrowthReportQuestionsScreen() {
             disabled={saving || completing}
           >
             {saving ? (
-              <ActivityIndicator size="small" color={C.tint} />
+              <ActivityIndicator size="small" color={C.brandStrong} />
             ) : (
               <Text style={s.saveBtnText}>답변 저장</Text>
             )}
@@ -508,19 +508,19 @@ const s = StyleSheet.create({
   // 안내 배너
   infoBanner: {
     flexDirection: "row", gap: 10, alignItems: "flex-start",
-    backgroundColor: C.tintLight, borderRadius: 12, padding: 14,
+    backgroundColor: C.brandSoft, borderRadius: 12, padding: 14,
     borderWidth: 1, borderColor: C.border,
   },
   infoBannerClosed: { backgroundColor: "#F3F4F6", borderColor: C.border },
   infoText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 20 },
   infoHint:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
-  infoDeadline: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint, lineHeight: 18, marginTop: 2 },
+  infoDeadline: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong, lineHeight: 18, marginTop: 2 },
 
   // 진행 상태
   progressRow: { gap: 6 },
   progressText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "right" },
   progressBar: { height: 4, backgroundColor: C.border, borderRadius: 2, overflow: "hidden" },
-  progressFill:{ height: 4, backgroundColor: C.tint, borderRadius: 2 },
+  progressFill:{ height: 4, backgroundColor: C.brandStrong, borderRadius: 2 },
 
   // 카드
   card: {
@@ -529,8 +529,8 @@ const s = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
   cardHeader:   { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  seqBadge:     { width: 24, height: 24, borderRadius: 12, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" },
-  seqText:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
+  seqBadge:     { width: 24, height: 24, borderRadius: 12, backgroundColor: C.brandSoft, alignItems: "center", justifyContent: "center" },
+  seqText:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   questionText: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 22 },
   behaviorHint: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", lineHeight: 18, paddingHorizontal: 4 },
   multiHint:    { fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" },
@@ -543,7 +543,7 @@ const s = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 14,
     backgroundColor: C.background,
   },
-  optRowSelected: { borderColor: C.tint, backgroundColor: C.tintLight },
+  optRowSelected: { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
   optRowDisabled: { opacity: 0.55 },
   optCheck: {
     width: 20, height: 20, borderRadius: 10,
@@ -551,7 +551,7 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: C.background,
   },
-  optCheckSelected: { backgroundColor: C.tint, borderColor: C.tint },
+  optCheckSelected: { backgroundColor: C.brandStrong, borderColor: C.brandStrong },
   optLabel:         { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   optLabelDisabled: { color: C.textSecondary },
 

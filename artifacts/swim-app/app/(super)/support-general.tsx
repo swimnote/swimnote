@@ -28,7 +28,7 @@ interface Ticket {
 }
 
 const REQUESTER_LABELS: Record<string, { label: string; color: string }> = {
-  teacher:  { label: "선생님", color: "#2EC4B6" },
+  teacher:  { label: "선생님", color: C.brandStrong },
   parent:   { label: "학부모", color: "#7C3AED" },
   operator: { label: "관리자", color: "#1D4ED8" },
 };

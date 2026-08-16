@@ -88,7 +88,7 @@ function formatDate(iso: string): string {
   } catch { return iso; }
 }
 
-const _IC = C.textPrimary; const _IB = "#E6FAF8";
+const _IC = C.textPrimary; const _IB = C.brandSoft;
 const FILTER_CHIPS_TEACHER: FilterChipItem<StatusFilter>[] = [
   { key: "pending",  label: "대기",   icon: "clock",        activeColor: _IC, activeBg: _IB },
   { key: "approved", label: "승인",   icon: "check-circle", activeColor: _IC, activeBg: _IB },
@@ -150,7 +150,7 @@ function StudentPickerModal({
             autoFocus
           />
 
-          {searching && <ActivityIndicator color={C.tint} style={{ marginTop: 12 }} />}
+          {searching && <ActivityIndicator color={C.brandStrong} style={{ marginTop: 12 }} />}
 
           {!searching && query.trim().length > 0 && students.length === 0 && (
             <Text style={[sp.empty, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
@@ -398,9 +398,9 @@ export default function ApprovalsScreen() {
 
   // ── 공통 헤더 ──
   const PARENT_FILTER_CHIPS: FilterChipItem<StatusFilter>[] = [
-    { key: "pending",  label: "대기",   icon: "clock",        activeColor: _IC, activeBg: _IB },
-    { key: "approved", label: "승인됨", icon: "check-circle", activeColor: _IC, activeBg: _IB },
-    { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: _IC, activeBg: _IB },
+    { key: "pending",  label: "대기",   icon: "clock",        activeColor: _IC, activeBg: C.brandSoft },
+    { key: "approved", label: "승인됨", icon: "check-circle", activeColor: _IC, activeBg: C.brandSoft },
+    { key: "rejected", label: "거절됨", icon: "x-circle",     activeColor: _IC, activeBg: C.brandSoft },
   ];
 
   const header = (
@@ -412,7 +412,7 @@ export default function ApprovalsScreen() {
           style={[s.tabBtn, tab === "teacher" && s.tabBtnActive]}
           onPress={() => setTab("teacher")}
         >
-          <LucideIcon name="graduation-cap" size={15} color={tab === "teacher" ? C.tint : C.textMuted} />
+          <LucideIcon name="graduation-cap" size={15} color={tab === "teacher" ? C.brandStrong : C.textMuted} />
           <Text style={[s.tabTxt, tab === "teacher" && s.tabTxtActive]}>선생님</Text>
           {pendingCnt > 0 && (
             <View style={s.badge}><Text style={s.badgeTxt}>{pendingCnt}</Text></View>
@@ -422,7 +422,7 @@ export default function ApprovalsScreen() {
           style={[s.tabBtn, tab === "parent" && s.tabBtnActive]}
           onPress={() => setTab("parent")}
         >
-          <LucideIcon name="users" size={15} color={tab === "parent" ? C.tint : C.textMuted} />
+          <LucideIcon name="users" size={15} color={tab === "parent" ? C.brandStrong : C.textMuted} />
           <Text style={[s.tabTxt, tab === "parent" && s.tabTxtActive]}>학부모 연결</Text>
           {parentFilter === "pending" && parentPending.length > 0 && (
             <View style={s.badge}><Text style={s.badgeTxt}>{parentPending.length}</Text></View>
@@ -448,7 +448,7 @@ export default function ApprovalsScreen() {
     if (loadingTeacher) {
       return (
         <ScreenLayout header={header}>
-          <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} />
         </ScreenLayout>
       );
     }
@@ -497,7 +497,7 @@ export default function ApprovalsScreen() {
           teacherDetailLoading ? (
             <Modal visible transparent animationType="fade">
               <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)" }}>
-                <ActivityIndicator color={C.tint} size="large" />
+                <ActivityIndicator color={C.brandStrong} size="large" />
               </View>
             </Modal>
           ) : (
@@ -539,7 +539,7 @@ export default function ApprovalsScreen() {
     <>
       <ScreenLayout header={header}>
         {loadingParent ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} />
         ) : (
           <FlatList
             data={parentPending}
@@ -620,7 +620,7 @@ function ParentPendingCard({
       {/* 학생 이름 + 요청 시간 */}
       <View style={pc.topRow}>
         <View style={pc.studentBadge}>
-          <LucideIcon name="user" size={14} color={C.tint} />
+          <LucideIcon name="user" size={14} color={C.brandStrong} />
           <Text style={[pc.studentName, { color: C.text }]}>{item.child_name_raw || "—"}</Text>
         </View>
         <Text style={[pc.time, { color: C.textMuted }]}>{formatDate(item.created_at)}</Text>
@@ -695,9 +695,9 @@ const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", paddingHorizontal: 16, gap: 8, paddingBottom: 4 },
   tabBtn:      { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                  gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-  tabBtnActive:{ borderColor: C.tint, backgroundColor: C.tintLight },
+  tabBtnActive:{ borderColor: C.brandStrong, backgroundColor: C.brandSoft },
   tabTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  tabTxtActive:{ color: C.tint },
+  tabTxtActive:{ color: C.brandStrong },
   badge:       { backgroundColor: "#EF4444", borderRadius: 8, minWidth: 18, height: 18,
                  alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   badgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -707,7 +707,7 @@ const pc = StyleSheet.create({
   card:       { borderRadius: 12, borderWidth: 1, padding: 14, gap: 8 },
   topRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   studentBadge:{ flexDirection: "row", alignItems: "center", gap: 6,
-                 backgroundColor: C.tintLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+                 backgroundColor: C.brandSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   studentName:{ fontSize: 15, fontFamily: "Pretendard-Regular", fontWeight: "600" },
   time:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
   infoRow:    { flexDirection: "row", alignItems: "center", gap: 6 },

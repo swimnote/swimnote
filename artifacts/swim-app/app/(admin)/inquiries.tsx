@@ -203,7 +203,7 @@ export default function AdminInquiriesScreen() {
         </View>
 
         {detailLoading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
         ) : (
           <KeyboardAwareScrollView
             ref={scrollRef}
@@ -275,7 +275,7 @@ export default function AdminInquiriesScreen() {
           const badge = t === "received" ? unreadRecv : unreadSent;
           return (
             <Pressable key={t} style={[s.tab, tab === t && s.tabActive]} onPress={() => setTab(t)}>
-              <Text style={[s.tabText, { color: tab === t ? C.tint : C.textMuted }]}>
+              <Text style={[s.tabText, { color: tab === t ? C.brandStrong : C.textMuted }]}>
                 {t === "received" ? "수신함" : "발신함"}
               </Text>
               {badge > 0 && (
@@ -287,12 +287,12 @@ export default function AdminInquiriesScreen() {
       </View>
 
       {listLoading && currentList.length === 0 ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadLists(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadLists(); }} tintColor={C.brandStrong} />}
         >
           {currentList.length === 0 && (
             <View style={s.empty}>

@@ -376,8 +376,8 @@ export default function AdminDiaryAllScreen() {
 
       {/* 삭제 결과 메시지 */}
       {deleteMsg && (
-        <View style={[s.msgBar, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
-          <Text style={[s.msgTxt, { color: deleteMsg.includes("실패") ? C.error : "#2EC4B6" }]}>
+        <View style={[s.msgBar, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : C.brandSoft }]}>
+          <Text style={[s.msgTxt, { color: deleteMsg.includes("실패") ? C.error : C.brandStrong }]}>
             {deleteMsg}
           </Text>
         </View>

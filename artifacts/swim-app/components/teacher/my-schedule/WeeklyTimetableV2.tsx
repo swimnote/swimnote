@@ -180,10 +180,10 @@ export default function WeeklyTimetableV2({
             return (
               <View key={day}
                 style={[wt.dayHeader, { width: COL_W }, info.isToday && wt.dayHeaderToday]}>
-                <Text style={[wt.dayHeaderDate, info.isToday && { color: "#2EC4B6" }]}>
+                <Text style={[wt.dayHeaderDate, info.isToday && { color: C.brandStrong }]}>
                   {info.label}
                 </Text>
-                <Text style={[wt.dayHeaderText, info.isToday && { color: "#2EC4B6" }]}>
+                <Text style={[wt.dayHeaderText, info.isToday && { color: C.brandStrong }]}>
                   {day}
                 </Text>
               </View>

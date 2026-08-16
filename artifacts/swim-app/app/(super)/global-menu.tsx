@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
-const MINT = "#2EC4B6";
+const MINT = C.brandStrong;
 const BG = "#F8F8FC";
 
 type SectionItem = {

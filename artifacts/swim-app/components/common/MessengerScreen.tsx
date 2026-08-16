@@ -38,7 +38,7 @@ import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
-const PRIMARY = C.tint;
+const PRIMARY = C.brandStrong;
 const NOTICE_YELLOW_BG = "#FFFBEB";
 const NOTICE_YELLOW_BORDER = "#FDE68A";
 const AMBER_SOFT = "#FFF1BF";
@@ -754,7 +754,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>첨부</Text>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
-              <View style={[s.sheetIcon, { backgroundColor: "#E6FFFA" }]}>
+              <View style={[s.sheetIcon, { backgroundColor: "#E0F2FE" }]}>
                 <Paperclip size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
@@ -842,7 +842,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                     activeOpacity={0.7}
                     disabled={isMe}
                   >
-                    <View style={[s.staffAvatar, { backgroundColor: member.role === "pool_admin" ? C.tintLight : "#E0F2FE" }]}>
+                    <View style={[s.staffAvatar, { backgroundColor: member.role === "pool_admin" ? C.brandSoft : "#E0F2FE" }]}>
                       <Text style={[s.staffAvatarText, { color: member.role === "pool_admin" ? PRIMARY : "#0369A1" }]}>
                         {member.name.charAt(0)}
                       </Text>
@@ -1000,7 +1000,7 @@ function AttachFileBubble({
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
           <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : C.backgroundSoft }]}>
+            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E0F2FE" : C.backgroundSoft }]}>
               <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={s.fileInfo}>
@@ -1124,7 +1124,7 @@ const s = StyleSheet.create({
   memberCard: {
     backgroundColor: C.surface,
     borderWidth: 1.5,
-    borderColor: C.tintLight,
+    borderColor: C.brandSoft,
     borderRadius: 14,
     padding: 12,
     minWidth: 200,
@@ -1133,7 +1133,7 @@ const s = StyleSheet.create({
   memberCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   memberCardIcon: {
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center",
   },
   memberCardLabel: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Regular" },
   memberCardName: { fontSize: 16, color: C.text, fontFamily: "Pretendard-Regular" },
@@ -1166,9 +1166,9 @@ const s = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    backgroundColor: C.tintLight,
+    backgroundColor: C.brandSoft,
     borderTopWidth: 1,
-    borderTopColor: C.tintLight,
+    borderTopColor: C.brandSoft,
   },
   targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Pretendard-Regular" },
 
@@ -1233,7 +1233,7 @@ const s = StyleSheet.create({
   },
   studentAvatar: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center",
   },
   studentAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: PRIMARY },
   studentInfo: { flex: 1 },
@@ -1245,7 +1245,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  staffRowSelected: { backgroundColor: C.tintLight + "80" },
+  staffRowSelected: { backgroundColor: C.brandSoft + "80" },
   staffAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
   staffAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   staffInfoCol: { flex: 1 },
@@ -1264,7 +1264,7 @@ const s = StyleSheet.create({
   cardDetailBody: { alignItems: "center", paddingTop: 8 },
   cardDetailAvatar: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginBottom: 8,
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center", marginBottom: 8,
   },
   cardDetailAvatarText: { fontSize: 26, fontFamily: "Pretendard-Regular", color: PRIMARY },
   cardDetailName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 16 },

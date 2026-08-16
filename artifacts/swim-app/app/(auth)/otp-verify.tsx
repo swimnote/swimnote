@@ -82,7 +82,7 @@ export default function OtpVerifyScreen() {
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
             <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
-          <View style={[styles.idChip, { backgroundColor: "#E6FAF8" }]}>
+          <View style={[styles.idChip, { backgroundColor: C.brandSoft }]}>
             <LucideIcon name="shield" size={13} color="#7C3AED" />
             <Text style={[styles.idChipText, { color: "#7C3AED" }]} numberOfLines={1}>2단계 인증</Text>
           </View>
@@ -90,7 +90,7 @@ export default function OtpVerifyScreen() {
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
           <View style={styles.otpIconRow}>
-            <View style={[styles.otpIconBg, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[styles.otpIconBg, { backgroundColor: C.brandSoft }]}>
               <LucideIcon name="smartphone" size={28} color="#7C3AED" />
             </View>
           </View>
@@ -116,7 +116,7 @@ export default function OtpVerifyScreen() {
                   styles.otpBox,
                   {
                     borderColor: d ? "#7C3AED" : C.border,
-                    backgroundColor: d ? "#E6FAF8" : C.background,
+                    backgroundColor: d ? C.brandSoft : C.background,
                     fontSize: 22,
                     fontFamily: "Pretendard-Regular",
                     color: "#7C3AED",
@@ -155,7 +155,7 @@ export default function OtpVerifyScreen() {
           </Pressable>
         </View>
 
-        <View style={[styles.otpGuideCard, { backgroundColor: "#F5F3FF", borderColor: "#E6FAF8" }]}>
+        <View style={[styles.otpGuideCard, { backgroundColor: "#F5F3FF", borderColor: C.brandSoft }]}>
           <LucideIcon name="info" size={14} color="#7C3AED" />
           <Text style={[styles.otpGuideText, { color: "#5B21B6" }]}>
             Google Authenticator 앱을 열고 계정 이름 옆의 6자리 숫자를 입력하세요. 코드는 30초마다 갱신됩니다.

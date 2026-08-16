@@ -16,7 +16,7 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-const GREEN = "#2EC4B6";
+const GREEN = C.brandStrong;
 const WARN  = "#D97706";
 const DANGER= "#D96C6C";
 
@@ -218,7 +218,7 @@ export default function StorageScreen() {
                 : <Text style={[s.actionTxt, { color: GREEN }]}>24h허용</Text>}
             </Pressable>
           )}
-          <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
+          <Pressable style={[s.actionBtn, { backgroundColor: C.brandSoft }]}
             onPress={() => { setEditOp(r); setNewStorageGb("0"); }}>
             <Text style={[s.actionTxt, { color: GREEN }]}>용량↑</Text>
           </Pressable>
@@ -384,7 +384,7 @@ export default function StorageScreen() {
               </View>
 
               <View style={m.ctaOption}>
-                <LucideIcon name="clock" size={20} color="#2EC4B6" />
+                <LucideIcon name="clock" size={20} color={C.brandStrong} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>
@@ -412,7 +412,7 @@ const s = StyleSheet.create({
   policyBannerTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1" },
   tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  tabActive:      { backgroundColor: "#E6FFFA" },
+  tabActive:      { backgroundColor: C.brandSoft },
   tabTxt:         { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:   { color: GREEN },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
@@ -468,7 +468,7 @@ const m = StyleSheet.create({
   qtyBtnActive:   { backgroundColor: GREEN, borderColor: GREEN },
   qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   input:          { backgroundColor: C.backgroundSoft, borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E6FFFA", padding: 8, borderRadius: 8 },
+  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brandSoft, padding: 8, borderRadius: 8 },
   costTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#065F46" },
   btnRow:         { flexDirection: "row", gap: 10 },
   cancelBtn:      { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },

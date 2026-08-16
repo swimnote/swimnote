@@ -169,7 +169,7 @@ const rm = StyleSheet.create({
   list:        { flexShrink: 1 },
   row:         { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#F8FAFC" },
   name:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
-  weeklyBadge: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint, marginTop: 2 },
+  weeklyBadge: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong, marginTop: 2 },
   classSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
   moveBtn:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, minWidth: 52, alignItems: "center" },
   moveTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular" },

@@ -90,9 +90,9 @@ export default function AbsenceModal({
         <View style={ab.handle} />
         {result ? (
           <View style={{ gap: 16, padding: 4 }}>
-            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : "#E6FFFA" }]}>
+            <View style={[ab.resultBox, { backgroundColor: result.startsWith("오류") ? "#F9DEDA" : C.iconGreenBg }]}>
               <LucideIcon name={result.startsWith("오류") ? "alert-circle" : "check-circle"} size={20}
-                color={result.startsWith("오류") ? "#D96C6C" : "#2EC4B6"} />
+                color={result.startsWith("오류") ? "#D96C6C" : C.success} />
               <Text style={[ab.resultText, { color: result.startsWith("오류") ? "#D96C6C" : "#065F46" }]}>{result}</Text>
             </View>
             <Pressable style={[ab.btn, { backgroundColor: themeColor }]} onPress={() => { onDone(); onClose(); }}>

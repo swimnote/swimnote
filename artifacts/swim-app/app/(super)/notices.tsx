@@ -18,10 +18,10 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 const P = "#7C3AED";
 
 const TARGET_CFG: Record<NoticeTarget, { label: string; color: string; bg: string }> = {
-  all:     { label: "전체",     color: "#2EC4B6", bg: "#E6FFFA" },
+  all:     { label: "전체",     color: C.brandStrong, bg: C.brandSoft },
   admin:   { label: "관리자",   color: P,         bg: "#EEDDF5" },
-  teacher: { label: "선생님",   color: "#2EC4B6", bg: "#E6FFFA" },
-  parent:  { label: "학부모",   color: "#2EC4B6", bg: "#E0F2FE" },
+  teacher: { label: "선생님",   color: C.brandStrong, bg: C.brandSoft },
+  parent:  { label: "학부모",   color: C.brandStrong, bg: "#E0F2FE" },
 };
 
 function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
@@ -39,7 +39,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
     <View style={[nc.card, isLatest && nc.cardLatest]}>
       {isLatest && (
         <View style={nc.latestBadge}>
-          <LucideIcon name="radio" size={9} color="#2EC4B6" />
+          <LucideIcon name="radio" size={9} color={C.brandStrong} />
           <Text style={nc.latestTxt}>현재 노출 중</Text>
         </View>
       )}
@@ -78,10 +78,10 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
 
 const nc = StyleSheet.create({
   card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
-  cardLatest:   { borderColor: "#2EC4B6", borderWidth: 1.5 },
+  cardLatest:   { borderColor: C.brandStrong, borderWidth: 1.5 },
   latestBadge:  { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
-                  backgroundColor: "#E6FFFA", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
-  latestTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+                  backgroundColor: C.brandSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
+  latestTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   typeBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   typeTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular" },
   top:          { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8, flexWrap: "wrap" },
@@ -235,7 +235,7 @@ export default function NoticesScreen() {
 
       {/* 안내 */}
       <View style={s.infoBanner}>
-        <LucideIcon name="bell" size={12} color="#2EC4B6" />
+        <LucideIcon name="bell" size={12} color={C.brandStrong} />
         <Text style={s.infoTxt}>
           최신 공지 1개가 대상 역할에 맞게 앱 실행 시 팝업으로 노출됩니다. 새 공지 등록 시 이전 공지는 대체됩니다.
         </Text>
@@ -386,9 +386,9 @@ export default function NoticesScreen() {
 
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.backgroundSoft },
-  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
+  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandSoft,
                   padding: 10, paddingHorizontal: 16 },
-  infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
+  infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong, flex: 1 },
   filterRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterActive: { backgroundColor: P },

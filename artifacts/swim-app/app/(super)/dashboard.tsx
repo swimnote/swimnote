@@ -22,7 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 
 const P = "#7C3AED";
-const MINT = "#2EC4B6";
+const MINT = C.brandStrong;
 const BG = "#F8F8FC";
 
 /* ── 타입 ── */
@@ -366,7 +366,7 @@ export default function SuperDashboard() {
                 path="/(super)/inquiries?backTo=dashboard"
               />
               <ActionRow
-                icon="file-text" iconBg="#E6FAF8" iconColor={MINT}
+                icon="file-text" iconBg={C.brandSoft} iconColor={MINT}
                 label="정책 미확인"
                 count={todo?.policy_unsigned.length ?? 0}
                 path="/(super)/policy?backTo=dashboard"

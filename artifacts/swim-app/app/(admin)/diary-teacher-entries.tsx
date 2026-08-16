@@ -322,10 +322,10 @@ export default function DiaryTeacherEntriesScreen() {
       )}
 
       {deleteMsg && (
-        <View style={[s.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
+        <View style={[s.msg, { backgroundColor: deleteMsg.includes("실패") ? "#F9DEDA" : C.brandSoft }]}>
           <LucideIcon name={deleteMsg.includes("실패") ? "alert-circle" : "check-circle"} size={13}
-            color={deleteMsg.includes("실패") ? C.error : "#2EC4B6"} />
-          <Text style={[s.msgText, { color: deleteMsg.includes("실패") ? C.error : "#2EC4B6" }]}>{deleteMsg}</Text>
+            color={deleteMsg.includes("실패") ? C.error : C.brandStrong} />
+          <Text style={[s.msgText, { color: deleteMsg.includes("실패") ? C.error : C.brandStrong }]}>{deleteMsg}</Text>
         </View>
       )}
 

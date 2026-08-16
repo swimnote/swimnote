@@ -27,8 +27,8 @@ const MENUS = [
     title: "백업/복구/스냅샷",
     sub: "스냅샷 목록·단일복구·비교복구·배치잡",
     path: "/(super)/backup",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "toggle-left" as const,

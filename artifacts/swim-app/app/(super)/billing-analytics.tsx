@@ -55,8 +55,8 @@ function pctStr(cur: number, prev: number): string {
 }
 
 function pctColor(cur: number, prev: number): string {
-  if (prev === 0) return cur > 0 ? "#2EC4B6" : C.textSecondary;
-  return cur >= prev ? "#2EC4B6" : "#D96C6C";
+  if (prev === 0) return cur > 0 ? C.brandStrong : C.textSecondary;
+  return cur >= prev ? C.brandStrong : "#D96C6C";
 }
 
 // ─── 고정 비용 단가 (실제 계약 단가, 교체 가능) ─────────────────────────────
@@ -293,7 +293,7 @@ export default function BillingAnalyticsScreen() {
           </View>
 
           <View style={s.kpiGrid}>
-            <KpiCard label="결제 성공" value={`${revenue.successCount}건`} color="#2EC4B6" />
+            <KpiCard label="결제 성공" value={`${revenue.successCount}건`} color={C.brandStrong} />
             <KpiCard label="결제 실패" value={`${revenue.failedCount}건`} color={revenue.failedCount > 0 ? "#D96C6C" : C.textSecondary} />
             <KpiCard label="신규 결제" value={`${revenue.newCount}건`} />
             <KpiCard label="구독 갱신" value={`${revenue.renewalCount}건`} />
@@ -423,7 +423,7 @@ export default function BillingAnalyticsScreen() {
           <View style={s.profitCard}>
             <View style={s.profitRow}>
               <Text style={s.profitLabel}>총 매출</Text>
-              <Text style={[s.profitVal, { color: "#2EC4B6" }]}>{fmtKRW(revenue.total)}</Text>
+              <Text style={[s.profitVal, { color: C.brandStrong }]}>{fmtKRW(revenue.total)}</Text>
             </View>
             <View style={s.profitDivider} />
             <View style={s.profitRow}>
@@ -433,7 +433,7 @@ export default function BillingAnalyticsScreen() {
             <View style={[s.profitDivider, { borderStyle: "solid", borderColor: "#14283D" }]} />
             <View style={s.profitRow}>
               <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular", fontSize: 15 }]}>순이익</Text>
-              <Text style={[s.profitVal, { fontSize: 20, color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+              <Text style={[s.profitVal, { fontSize: 20, color: netProfit >= 0 ? C.brandStrong : "#D96C6C" }]}>
                 {fmtKRW(netProfit)}
               </Text>
             </View>
@@ -469,7 +469,7 @@ const s = StyleSheet.create({
   emptyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", paddingVertical: 20 },
 
   heroCard:         { backgroundColor: "#EEDDF5", borderRadius: 14, padding: 18, gap: 6,
-                      borderWidth: 1, borderColor: "#E6FAF8" },
+                      borderWidth: 1, borderColor: C.brandSoft },
   heroLabel:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   heroValue:        { fontSize: 30, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   heroCompareRow:   { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
@@ -497,8 +497,8 @@ const s = StyleSheet.create({
   estimateNoteBanner: { flexDirection: "row", gap: 6, backgroundColor: "#E0F2FE",
                         borderRadius: 8, padding: 10, alignItems: "flex-start" },
   estimateNoteTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1, lineHeight: 16 },
-  realBadge:          { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  realBadgeTxt:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  realBadge:          { backgroundColor: C.brandSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  realBadgeTxt:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   fixedBadge:         { backgroundColor: C.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   fixedBadgeTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 

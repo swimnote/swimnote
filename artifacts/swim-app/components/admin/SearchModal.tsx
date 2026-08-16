@@ -58,11 +58,11 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
             )}
           </View>
           <Pressable onPress={onClose} style={sm.closeBtn}>
-            <Text style={{ color: C.tint, fontSize: 15, fontFamily: "Pretendard-Regular" }}>취소</Text>
+            <Text style={{ color: C.brandStrong, fontSize: 15, fontFamily: "Pretendard-Regular" }}>취소</Text>
           </Pressable>
         </View>
         {loading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : result ? (
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
             {total === 0 ? (
@@ -74,7 +74,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>회원 ({result.students.length})</Text>
                     {result.students.map((s: any) => (
                       <Pressable key={s.id} style={sm.row} onPress={() => { onClose(); router.push({ pathname: "/(admin)/member-detail", params: { id: s.id } }); }}>
-                        <View style={[sm.avatar, { backgroundColor: C.tint + "20" }]}><Text style={[sm.avatarText, { color: C.tint }]}>{s.name[0]}</Text></View>
+                        <View style={[sm.avatar, { backgroundColor: C.brandStrong + "20" }]}><Text style={[sm.avatarText, { color: C.brandStrong }]}>{s.name[0]}</Text></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{s.name}</Text><Text style={sm.rowSub}>{s.class_name || "미배정"}</Text></View>
                         <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                       </Pressable>
@@ -110,7 +110,7 @@ export function SearchModal({ visible, onClose, token }: SearchModalProps) {
                     <Text style={sm.sectionLabel}>선생님 ({result.teachers.length})</Text>
                     {result.teachers.map((t: any) => (
                       <View key={t.id} style={sm.row}>
-                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><LucideIcon name="user" size={16} color="#2EC4B6" /></View>
+                        <View style={[sm.avatar, { backgroundColor: "#1F8F8620" }]}><LucideIcon name="user" size={16} color={C.brandStrong} /></View>
                         <View style={{ flex: 1 }}><Text style={sm.rowTitle}>{t.name}</Text><Text style={sm.rowSub}>{t.phone || "연락처 없음"}</Text></View>
                       </View>
                     ))}

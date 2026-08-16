@@ -178,7 +178,7 @@ export default function TeacherInquiriesScreen() {
         </View>
 
         {detailLoading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
         ) : (
           <KeyboardAwareScrollView
             ref={scrollRef}
@@ -239,12 +239,12 @@ export default function TeacherInquiriesScreen() {
       <SubScreenHeader title="문의하기" homePath="/(teacher)/today-schedule" />
 
       {listLoading && list.length === 0 ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.brandStrong} />}
         >
           {list.length === 0 && (
             <View style={s.empty}>

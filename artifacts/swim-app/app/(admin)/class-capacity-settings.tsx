@@ -67,7 +67,7 @@ export default function ClassCapacitySettingsScreen() {
       <SubScreenHeader title="반 개설 관리" />
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 60 }} color={C.tint} />
+        <ActivityIndicator style={{ marginTop: 60 }} color={C.brandStrong} />
       ) : (
         <View style={[s.content, { paddingBottom: insets.bottom + 32 }]}>
 
@@ -112,11 +112,11 @@ export default function ClassCapacitySettingsScreen() {
 
           {/* ── 저장 메시지 ── */}
           {msg && (
-            <View style={[s.msgBox, { backgroundColor: msg.ok ? "#E6FFFA" : "#FEE2E2" }]}>
+            <View style={[s.msgBox, { backgroundColor: msg.ok ? C.brandSoft : "#FEE2E2" }]}>
               {msg.ok
-                ? <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
+                ? <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
                 : <LucideIcon name="alert-circle" size={14} color={C.error} />}
-              <Text style={[s.msgText, { color: msg.ok ? "#2EC4B6" : C.error }]}>{msg.text}</Text>
+              <Text style={[s.msgText, { color: msg.ok ? C.brandStrong : C.error }]}>{msg.text}</Text>
             </View>
           )}
 
@@ -167,7 +167,7 @@ const s = StyleSheet.create({
   },
   stepBtnDisabled: { borderColor: C.border, opacity: 0.4 },
   valueBox:  { alignItems: "center", minWidth: 72 },
-  valueText: { fontSize: 40, fontFamily: "Pretendard-SemiBold", color: C.tint, lineHeight: 46 },
+  valueText: { fontSize: 40, fontFamily: "Pretendard-SemiBold", color: C.brandStrong, lineHeight: 46 },
   valueUnit: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -2 },
   rangeHint: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 

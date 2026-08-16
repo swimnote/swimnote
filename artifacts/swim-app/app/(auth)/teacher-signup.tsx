@@ -157,13 +157,13 @@ export default function TeacherSignupScreen() {
             {stepLabels.map((s, i) => (
               <React.Fragment key={s}>
                 <View style={styles.stepItem}>
-                  <View style={[styles.stepDot, { backgroundColor: i <= stepIndex ? C.tint : C.border }]}>
+                  <View style={[styles.stepDot, { backgroundColor: i <= stepIndex ? C.brandStrong : C.border }]}>
                     <Text style={[styles.stepNum, { color: i <= stepIndex ? "#fff" : C.textMuted }]}>{i + 1}</Text>
                   </View>
-                  <Text style={[styles.stepLabel, { color: i <= stepIndex ? C.tint : C.textMuted }]}>{s}</Text>
+                  <Text style={[styles.stepLabel, { color: i <= stepIndex ? C.brandStrong : C.textMuted }]}>{s}</Text>
                 </View>
                 {i < stepLabels.length - 1 && (
-                  <View style={[styles.stepLine, { backgroundColor: i < stepIndex ? C.tint : C.border }]} />
+                  <View style={[styles.stepLine, { backgroundColor: i < stepIndex ? C.brandStrong : C.border }]} />
                 )}
               </React.Fragment>
             ))}
@@ -202,8 +202,8 @@ export default function TeacherSignupScreen() {
               style={({ pressed }) => [styles.typeCard, { backgroundColor: C.card, opacity: pressed ? 0.88 : 1 }]}
               onPress={() => { setSignupType("solo"); setStep("workspace"); }}
             >
-              <View style={[styles.typeIconBox, { backgroundColor: "#E6FFFA" }]}>
-                <LucideIcon name="briefcase" size={28} color="#2EC4B6" />
+              <View style={[styles.typeIconBox, { backgroundColor: C.brandSoft }]}>
+                <LucideIcon name="briefcase" size={28} color={C.brandStrong} />
               </View>
               <View style={styles.typeInfo}>
                 <Text style={[styles.typeCardTitle, { color: C.text }]}>소속 없음 (대표)</Text>
@@ -223,7 +223,7 @@ export default function TeacherSignupScreen() {
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>소속될 수영장을 검색해주세요</Text>
 
             <View style={styles.field}>
-              <View style={[styles.searchRow, { borderColor: query ? C.tint : C.border, backgroundColor: C.background }]}>
+              <View style={[styles.searchRow, { borderColor: query ? C.brandStrong : C.border, backgroundColor: C.background }]}>
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={query}
@@ -256,7 +256,7 @@ export default function TeacherSignupScreen() {
                       onPress={() => selectPool(p)}
                     >
                       <View style={[styles.poolIcon, { backgroundColor: "#EFF4FF" }]}>
-                        <LucideIcon name="map-pin" size={14} color={C.tint} />
+                        <LucideIcon name="map-pin" size={14} color={C.brandStrong} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.poolName, { color: C.text }]}>{p.name}</Text>
@@ -287,8 +287,8 @@ export default function TeacherSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>워크스페이스 이름 *</Text>
-              <View style={[styles.inputRow, { borderColor: workspaceName ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="briefcase" size={15} color={workspaceName ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: workspaceName ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="briefcase" size={15} color={workspaceName ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={wsRef}
                   style={[styles.input, { color: C.text }]}
@@ -324,14 +324,14 @@ export default function TeacherSignupScreen() {
             {/* 배지 */}
             {signupType === "affiliated" && selectedPool && (
               <View style={[styles.poolBadge, { backgroundColor: "#EFF4FF" }]}>
-                <LucideIcon name="map-pin" size={13} color={C.tint} />
-                <Text style={[styles.poolBadgeText, { color: C.tint }]}>{selectedPool.name}</Text>
+                <LucideIcon name="map-pin" size={13} color={C.brandStrong} />
+                <Text style={[styles.poolBadgeText, { color: C.brandStrong }]}>{selectedPool.name}</Text>
               </View>
             )}
             {signupType === "solo" && (
-              <View style={[styles.poolBadge, { backgroundColor: "#E6FFFA" }]}>
-                <LucideIcon name="briefcase" size={13} color="#2EC4B6" />
-                <Text style={[styles.poolBadgeText, { color: "#2EC4B6" }]}>{workspaceName}</Text>
+              <View style={[styles.poolBadge, { backgroundColor: C.brandSoft }]}>
+                <LucideIcon name="briefcase" size={13} color={C.brandStrong} />
+                <Text style={[styles.poolBadgeText, { color: C.brandStrong }]}>{workspaceName}</Text>
               </View>
             )}
 
@@ -340,8 +340,8 @@ export default function TeacherSignupScreen() {
             {/* 이름 */}
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>이름 *</Text>
-              <View style={[styles.inputRow, { borderColor: name ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="user" size={15} color={name ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: name ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="user" size={15} color={name ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={name}
@@ -359,8 +359,8 @@ export default function TeacherSignupScreen() {
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
                 아이디 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text>
               </Text>
-              <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: loginId ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="at-sign" size={15} color={loginId ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={loginIdRef}
                   style={[styles.input, { color: C.text }]}
@@ -381,8 +381,8 @@ export default function TeacherSignupScreen() {
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
                 비밀번호 * <Text style={{ color: C.textMuted }}>(4자 이상)</Text>
               </Text>
-              <View style={[styles.inputRow, { borderColor: pw ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="lock" size={15} color={pw ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: pw ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="lock" size={15} color={pw ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -405,8 +405,8 @@ export default function TeacherSignupScreen() {
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>
                 전화번호 {isSocialPhone ? "" : <Text style={{ color: C.textMuted }}>(선택)</Text>}
               </Text>
-              <View style={[styles.inputRow, { borderColor: isSocialPhone ? "#2EC4B6" : (phone ? C.tint : C.border), backgroundColor: C.background }]}>
-                <LucideIcon name="phone" size={15} color={isSocialPhone ? "#2EC4B6" : (phone ? C.tint : C.textMuted)} />
+              <View style={[styles.inputRow, { borderColor: isSocialPhone ? C.brandStrong : (phone ? C.brandStrong : C.border), backgroundColor: C.background }]}>
+                <LucideIcon name="phone" size={15} color={isSocialPhone ? C.brandStrong : (phone ? C.brandStrong : C.textMuted)} />
                 <TextInput
                   ref={phoneRef}
                   style={[styles.input, { color: C.text }]}
@@ -421,7 +421,7 @@ export default function TeacherSignupScreen() {
                 />
               </View>
               {isSocialPhone && (
-                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>
+                <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>
                   ✓ 휴대폰 인증이 완료되었습니다.
                 </Text>
               )}

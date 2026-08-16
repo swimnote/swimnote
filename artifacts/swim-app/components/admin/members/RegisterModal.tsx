@@ -218,7 +218,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose, initialPare
                 <LucideIcon name="info" size={13} color={C.textMuted} />
                 <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
-              <Pressable style={[reg.saveBtn, { backgroundColor: C.tint }]} onPress={() => submit(false)} disabled={saving}>
+              <Pressable style={[reg.saveBtn, { backgroundColor: C.primaryAction }]} onPress={() => submit(false)} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={reg.saveBtnText}>등록하기</Text>}
               </Pressable>
               <View style={{ height: 16 }} />
@@ -244,7 +244,7 @@ const reg = StyleSheet.create({
   weekRow:     { flexDirection: "row", gap: 10 },
   weekBtn:     { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12, marginBottom: 14 },
+  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandMist, padding: 12, borderRadius: 12, marginBottom: 14 },
   noticeText:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
   saveBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

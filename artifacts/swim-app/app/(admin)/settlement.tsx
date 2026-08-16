@@ -294,7 +294,7 @@ const s = StyleSheet.create({
   extraCount:     { fontSize: 16, fontWeight: "700", color: C.textSecondary },
   settingBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, marginBottom: 16 },
   settingBtnTxt:  { fontSize: 14, fontWeight: "700" },
-  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
+  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandMist, borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
   warningTxt:     { flex: 1, fontSize: 12, color: C.textPrimary, fontWeight: "600" },
   infoCard:       { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, gap: 5 },
   infoTitle:      { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 3 },

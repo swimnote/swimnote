@@ -130,8 +130,8 @@ export default function ParentCodeSignupScreen() {
             </Text>
 
             <View style={styles.field}>
-              <View style={[styles.inputRow, { borderColor: code ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="hash" size={15} color={code ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: code ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="hash" size={15} color={code ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.codeInput, { color: C.text }]}
                   value={code}
@@ -211,7 +211,7 @@ export default function ParentCodeSignupScreen() {
         {step === "account" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <LucideIcon name="lock" size={24} color={C.tint} />
+              <LucideIcon name="lock" size={24} color={C.brandStrong} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>학부모 계정 설정</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -220,8 +220,8 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>학부모 이름</Text>
-              <View style={[styles.inputRow, { borderColor: parentName ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="user" size={15} color={parentName ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: parentName ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="user" size={15} color={parentName ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={parentNameRef}
                   style={[styles.input, { color: C.text }]}
@@ -238,8 +238,8 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>아이디 (3자 이상)</Text>
-              <View style={[styles.inputRow, { borderColor: loginId ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="at-sign" size={15} color={loginId ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: loginId ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="at-sign" size={15} color={loginId ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={loginId}
@@ -256,8 +256,8 @@ export default function ParentCodeSignupScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 (4자리 이상)</Text>
-              <View style={[styles.inputRow, { borderColor: password ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="lock" size={15} color={password ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: password ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="lock" size={15} color={password ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={pwRef}
                   style={[styles.input, { color: C.text }]}
@@ -278,10 +278,10 @@ export default function ParentCodeSignupScreen() {
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
               <View style={[styles.inputRow, {
-                borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.tint : C.border),
+                borderColor: passwordConfirm && password !== passwordConfirm ? C.error : (passwordConfirm ? C.brandStrong : C.border),
                 backgroundColor: C.background,
               }]}>
-                <LucideIcon name="lock" size={15} color={passwordConfirm ? C.tint : C.textMuted} />
+                <LucideIcon name="lock" size={15} color={passwordConfirm ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}

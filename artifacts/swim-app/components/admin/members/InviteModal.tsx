@@ -115,9 +115,9 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
 
           {/* 문자 / 복사 / 공유 */}
           <View style={inv.btnRow}>
-            <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={openSms}>
-              <LucideIcon name="message-circle" size={14} color={C.tint} />
-              <Text style={[inv.btnText, { color: C.tint }]}>문자</Text>
+            <Pressable style={[inv.btn, { backgroundColor: C.brandSoft }]} onPress={openSms}>
+              <LucideIcon name="message-circle" size={14} color={C.brandStrong} />
+              <Text style={[inv.btnText, { color: C.brandStrong }]}>문자</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={copyMessage}>
               <LucideIcon name="copy" size={14} color={C.textSecondary} />
@@ -139,7 +139,7 @@ const inv = StyleSheet.create({
   sheet:       { backgroundColor: C.card, borderRadius: 20, padding: 20, gap: 14 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title:       { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
-  studentRow:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.tintLight, padding: 12, borderRadius: 12, flexWrap: "wrap" },
+  studentRow:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brandSoft, padding: 12, borderRadius: 12, flexWrap: "wrap" },
   studentLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   studentName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   msgBox:      { backgroundColor: C.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },

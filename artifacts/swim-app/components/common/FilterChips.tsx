@@ -50,9 +50,9 @@ function Chip<T extends string>({
 }) {
   const isActive = chip.key === active;
 
-  // X 모드에서는 caller가 override하지 않으면 X accent 색상 사용
-  const color = chip.activeColor ?? (isX ? XT.accent : C.tint);
-  const bg    = chip.activeBg   ?? (isX ? XT.accentSoft : C.tintLight);
+  // X 모드: XT.accent / accentSoft; Normal: brandStrong / brandSoft (WP-N3)
+  const color = chip.activeColor ?? (isX ? XT.accent : C.brandStrong);
+  const bg    = chip.activeBg   ?? (isX ? XT.accentSoft : C.brandSoft);
 
   return (
     <Pressable

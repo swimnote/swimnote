@@ -145,7 +145,7 @@ export default function DiaryReactionsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -189,7 +189,7 @@ export default function DiaryReactionsScreen() {
                   <View style={[s.bubble, s.bubbleParent]}>
                     <View style={s.bubbleHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.bubbleName, { color: C.tint }]}>
+                        <Text style={[s.bubbleName, { color: C.brandStrong }]}>
                           {thread.display_name}
                           {thread.student_name ? <Text style={[s.bubbleStudentTag, { color: C.textMuted }]}>  {thread.student_name}</Text> : null}
                         </Text>
@@ -219,13 +219,13 @@ export default function DiaryReactionsScreen() {
                         s.bubbleReply,
                         reply.author_role === "teacher" || reply.author_role === "pool_admin"
                           ? { backgroundColor: "#F0F4FF" }
-                          : { backgroundColor: C.tint + "12" },
+                          : { backgroundColor: C.brandSoft },
                       ]}
                     >
                       <View style={s.bubbleHeader}>
                         <Text style={[s.bubbleName, {
                           color: reply.author_role === "teacher" || reply.author_role === "pool_admin"
-                            ? "#3B82F6" : C.tint,
+                            ? "#3B82F6" : C.brandStrong,
                         }]}>
                           {reply.author_role === "teacher" || reply.author_role === "pool_admin" ? "📘 " : ""}{reply.author_name}
                         </Text>

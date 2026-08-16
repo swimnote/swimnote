@@ -25,7 +25,7 @@ import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const P = "#7C3AED";
-const GREEN = "#2EC4B6";
+const GREEN = C.brandStrong;
 const DANGER = "#D96C6C";
 const WARN = "#D97706";
 
@@ -99,7 +99,7 @@ function fmtSize(bytes: number | string | null | undefined): string {
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "대기 중", color: WARN,    bg: "#FFF1BF" },
   running: { label: "진행 중", color: GREEN,   bg: "#ECFEFF" },
-  done:    { label: "완료",    color: GREEN,   bg: "#E6FFFA" },
+  done:    { label: "완료",    color: GREEN,   bg: C.brandSoft },
   failed:  { label: "실패",    color: DANGER,  bg: "#F9DEDA" },
 };
 
@@ -180,7 +180,7 @@ interface BackupStatusData {
 }
 
 const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: string }> = {
-  normal:         { color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  normal:         { color: C.brandStrong, bg: C.brandSoft, icon: "check-circle" },
   warning:        { color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:          { color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
   not_configured: { color: C.textSecondary, bg: "#FFFFFF", icon: "minus-circle" },
@@ -486,7 +486,7 @@ function BackupCard({
 
       {item.status === "done" && (
         <View style={bc.actions}>
-          <Pressable style={[bc.btn, { backgroundColor: "#E6FAF8" }]} onPress={() => onDownload(item)}>
+          <Pressable style={[bc.btn, { backgroundColor: C.brandSoft }]} onPress={() => onDownload(item)}>
             <LucideIcon name="download" size={12} color="#0284C7" />
             <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
@@ -568,7 +568,7 @@ const cr = StyleSheet.create({
   input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 12, alignItems: "flex-start" },
+  infoBox:    { flexDirection: "row", gap: 8, backgroundColor: C.brandSoft, borderRadius: 8, padding: 12, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 18 },
 });
 
@@ -832,7 +832,7 @@ function FullRestoreModal({
           /* 결과 화면 */
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? C.brandSoft : "#F9DEDA",
             }]}>
               <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
@@ -1059,7 +1059,7 @@ function PoolRestoreModal({
         {result ? (
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? C.brandSoft : "#F9DEDA",
             }]}>
               <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}

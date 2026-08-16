@@ -227,7 +227,7 @@ export function AIFeatureModal({ visible, type, onClose }: Props) {
               onPress={onClose}
               style={({ pressed }) => [
                 m.confirmBtn,
-                { backgroundColor: pressed ? "#27B8AC" : TEAL },
+                { backgroundColor: pressed ? C.primaryActionPressed : C.primaryAction },
               ]}
             >
               <Text style={m.confirmTxt}>확인</Text>

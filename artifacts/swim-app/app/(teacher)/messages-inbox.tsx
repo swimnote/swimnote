@@ -659,7 +659,7 @@ export default function MessagesInboxScreen() {
                   style={({ pressed }) => [
                     s.reqCard,
                     isUnread && { borderColor: "#3B82F6", borderWidth: 1.5, backgroundColor: "#F0F7FF" },
-                    isHighlighted && { borderColor: "#2EC4B6", borderWidth: 2, backgroundColor: "#E6FFFA" },
+                    isHighlighted && { borderColor: C.brandStrong, borderWidth: 2, backgroundColor: C.brandMist },
                     { opacity: pressed ? 0.92 : 1 },
                   ]}
                   onPress={() => {

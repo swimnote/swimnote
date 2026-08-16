@@ -131,7 +131,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
     <View style={[s.card, { backgroundColor: C.card }]}>
       <Pressable onPress={handleOpen} style={s.cardHeader}>
         {/* 날짜 배지 */}
-        <View style={[s.dateBadge, { backgroundColor: C.tint }]}>
+        <View style={[s.dateBadge, { backgroundColor: C.brandStrong }]}>
           <Text style={s.dateMonth}>{month}월</Text>
           <Text style={s.dateDay}>{day}</Text>
           <Text style={s.dateWeekday}>{weekday}</Text>
@@ -175,8 +175,8 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
           {entry.common_content ? (
             <View style={s.section}>
               <View style={s.sectionHeader}>
-                <View style={[s.dot, { backgroundColor: C.tint }]} />
-                <Text style={[s.sectionLabel, { color: C.tint }]}>수업 내용</Text>
+                <View style={[s.dot, { backgroundColor: C.brandStrong }]} />
+                <Text style={[s.sectionLabel, { color: C.brandStrong }]}>수업 내용</Text>
               </View>
               <Text style={[s.sectionValue, { color: C.text }]}>{entry.common_content}</Text>
             </View>
@@ -214,7 +214,7 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
 
           {/* 사진 섹션 */}
           {photoLoading && (
-            <ActivityIndicator size="small" color={C.tint} style={{ marginTop: 4 }} />
+            <ActivityIndicator size="small" color={C.brandStrong} style={{ marginTop: 4 }} />
           )}
           {!photoLoading && photos !== null && (
             <>
@@ -222,8 +222,8 @@ function DiaryCard({ entry, defaultOpen, token }: { entry: DiaryEntry; defaultOp
               {photos.common.length > 0 && (
                 <View style={s.photoSection}>
                   <View style={s.sectionHeader}>
-                    <LucideIcon name="image" size={13} color={C.tint} />
-                    <Text style={[s.sectionLabel, { color: C.tint }]}>수업 사진</Text>
+                    <LucideIcon name="image" size={13} color={C.brandStrong} />
+                    <Text style={[s.sectionLabel, { color: C.brandStrong }]}>수업 사진</Text>
                   </View>
                   <PhotoGrid photos={photos.common} token={token} />
                 </View>
@@ -303,7 +303,7 @@ export default function SwimDiaryScreen() {
       <SubScreenHeader title={`${name} 수업 일지`} showHome={false} homePath="/(parent)/children" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}

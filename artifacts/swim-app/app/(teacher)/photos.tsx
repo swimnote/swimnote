@@ -111,8 +111,8 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
   icon: string; title: string; sub: string; color: string; bg: string;
 }> = {
   photo_group:   { icon: "image",  title: "사진", sub: "전체앨범", color: "#E4A93A", bg: "#FFF1BF" },
-  photo_private: { icon: "user",   title: "사진", sub: "개인앨범", color: "#2EC4B6", bg: "#E6FFFA" },
-  video_group:   { icon: "video",  title: "영상", sub: "전체앨범", color: "#2EC4B6", bg: "#E6FFFA" },
+  photo_private: { icon: "user",   title: "사진", sub: "개인앨범", color: C.brandStrong, bg: C.brandMist },
+  video_group:   { icon: "video",  title: "영상", sub: "전체앨범", color: C.brandStrong, bg: C.brandMist },
   video_private: { icon: "video",  title: "영상", sub: "개인앨범", color: "#7C3AED", bg: "#EEDDF5" },
 };
 // ─────────────────────────────────────────────────────────────────────────
@@ -530,7 +530,7 @@ export default function TeacherPhotosScreen() {
                 <Text style={s.limitText}>사진: 1장 최대 <Text style={{ color: C.textPrimary }}>8MB</Text> · 최대 <Text style={{ color: C.textPrimary }}>100장</Text> 동시 업로드</Text>
               </View>
               <View style={s.limitRow}>
-                <LucideIcon name="video" size={13} color="#2EC4B6" />
+                <LucideIcon name="video" size={13} color={C.brandStrong} />
                 <Text style={s.limitText}>영상: 1개 최대 <Text style={{ color: C.textPrimary }}>100MB</Text> · <Text style={{ color: "#7C3AED" }}>프리미어 플랜</Text> 이상만 사용 가능</Text>
               </View>
               <View style={s.limitRow}>
@@ -708,7 +708,7 @@ export default function TeacherPhotosScreen() {
                   style={[
                     s.photoCell,
                     { width: PHOTO_SIZE, height: PHOTO_SIZE },
-                    isSaved && !isSel && { borderWidth: 2, borderColor: "#2EC4B6" },
+                    isSaved && !isSel && { borderWidth: 2, borderColor: C.brandStrong },
                     isSel && { borderWidth: 3, borderColor: cfg.color },
                   ]}
                 >
@@ -1136,7 +1136,7 @@ const s = StyleSheet.create({
   selectBarLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   selectBarAllText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   selectBarCount: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
-  selectBarSave: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#2EC4B6", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  selectBarSave: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: C.primaryAction, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   selectBarSaveText: { color: "#fff", fontSize: 13, lineHeight: 18 },
   selectBarDel: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
   selectBarDelText: { color: "#fff", fontSize: 13, lineHeight: 18 },
@@ -1155,7 +1155,7 @@ const s = StyleSheet.create({
   photoLabelBar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 5, paddingVertical: 4 },
   photoLabelText: { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
   checkCircle: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(255,255,255,0.3)", alignItems: "center", justifyContent: "center" },
-  savedBadge: { position: "absolute", top: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
+  savedBadge: { position: "absolute", top: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: C.brandStrong, alignItems: "center", justifyContent: "center" },
   videoRow: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 12, gap: 12 },
   videoThumb: { width: 52, height: 52, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   videoLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
@@ -1169,7 +1169,7 @@ const s = StyleSheet.create({
   lbImageWrap: { width: W, height: W * 1.1 },
   lbImage: { width: "100%", height: "100%" },
   lbImagePlaceholder: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
-  lbLabel: { color: "#E6FFFA", fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
+  lbLabel: { color: C.brandSoft, fontSize: 13, fontFamily: "Pretendard-Regular", paddingHorizontal: 24, paddingTop: 14, textAlign: "center" },
   lbMeta: { color: "rgba(255,255,255,0.45)", fontSize: 12, fontFamily: "Pretendard-Regular", paddingTop: 4, textAlign: "center" },
   lbArrowRow: { position: "absolute", left: 0, right: 0, flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8, top: "35%", zIndex: 5 },
   lbArrow: { width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },

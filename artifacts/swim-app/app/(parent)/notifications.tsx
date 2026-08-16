@@ -50,13 +50,13 @@ type RequestType = (typeof REQUEST_TYPES)[number]["key"];
 const STATUS_LABEL: Record<string, string> = { pending: "처리 대기", done: "처리 완료", rejected: "거절됨" };
 const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
   pending:  { text: "#D97706", bg: "#FFF7ED" },
-  done:     { text: "#2EC4B6", bg: "#E6FFFA" },
+  done:     { text: C.brandStrong, bg: C.brandMist },
   rejected: { text: "#EF4444", bg: "#FEF2F2" },
 };
 
 const NOTIF_CONFIG: Record<string, { icon: "book-open" | "image" | "bell" | "clipboard-list" | "bar-chart-2"; color: string; bg: string }> = {
-  diary_upload:             { icon: "book-open",   color: "#2EC4B6", bg: "#E6FFFA" },
-  photo_upload:             { icon: "image",       color: "#2EC4B6", bg: "#E6FFFA" },
+  diary_upload:             { icon: "book-open",   color: C.brandStrong, bg: C.brandMist },
+  photo_upload:             { icon: "image",       color: C.brandStrong, bg: C.brandMist },
   parent_request_result:    { icon: "clipboard-list", color: "#3B82F6", bg: "#DBEAFE" },
   GROWTH_REPORT_PUBLISHED:  { icon: "bar-chart-2", color: "#8B5CF6", bg: "#EDE9FE" },
 };
@@ -327,7 +327,7 @@ export default function ParentNotificationsScreen() {
   );
 
   /* ─────────────── 렌더 ─────────────── */
-  const accentColor = isX ? XT.accent : C.tint;
+  const accentColor = isX ? XT.accent : C.brandStrong;
 
   return (
     <View style={[st.root, { backgroundColor: isX ? XT.background : C.background }]}>
@@ -423,7 +423,7 @@ export default function ParentNotificationsScreen() {
               {students.map(st2 => (
                 <Pressable
                   key={st2.id}
-                  style={[st.studentChip, { backgroundColor: selStudentId === st2.id ? (isX ? XT.accentSoft : C.tint) : C.card }]}
+                  style={[st.studentChip, { backgroundColor: selStudentId === st2.id ? (isX ? XT.accentSoft : C.brandStrong) : C.card }]}
                   onPress={() => setSelStudentId(st2.id)}
                 >
                   <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: selStudentId === st2.id ? (isX ? XT.accent : "#fff") : C.text }}>
@@ -455,7 +455,7 @@ export default function ParentNotificationsScreen() {
                 <RefreshControl
                   refreshing={reqRefreshing}
                   onRefresh={() => { setReqRefreshing(true); fetchRequests(); }}
-                  tintColor={C.tint}
+                  tintColor={C.brandStrong}
                 />
               }
             >
@@ -477,12 +477,12 @@ export default function ParentNotificationsScreen() {
                     style={[
                       st.reqCard,
                       { backgroundColor: C.card },
-                      isHighlighted && { borderWidth: 2, borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
+                      isHighlighted && { borderWidth: 2, borderColor: C.brandStrong, backgroundColor: C.brandMist },
                     ]}
                   >
                     {isHighlighted && (
                       <View style={st.highlightBanner}>
-                        <LucideIcon name="bell" size={12} color="#2EC4B6" />
+                        <LucideIcon name="bell" size={12} color={C.brandStrong} />
                         <Text style={st.highlightText}>알림에서 이동한 요청</Text>
                       </View>
                     )}
@@ -584,7 +584,7 @@ export default function ParentNotificationsScreen() {
               {students.length === 1 && (
                 <View style={{ marginBottom: 16 }}>
                   <Text style={[st.label, { color: C.textSecondary }]}>자녀</Text>
-                  <View style={[st.studentChip, { backgroundColor: C.tint, alignSelf: "flex-start" }]}>
+                  <View style={[st.studentChip, { backgroundColor: C.brandStrong, alignSelf: "flex-start" }]}>
                     <Text style={{ fontSize: 13, color: "#fff", fontFamily: "Pretendard-Regular" }}>
                       {students[0].name}
                     </Text>
@@ -599,7 +599,7 @@ export default function ParentNotificationsScreen() {
                     {students.map(s => (
                       <Pressable
                         key={s.id}
-                        style={[st.studentChip, { backgroundColor: selStudentId === s.id ? C.tint : C.card }]}
+                        style={[st.studentChip, { backgroundColor: selStudentId === s.id ? C.brandStrong : C.card }]}
                         onPress={() => setSelStudentId(s.id)}
                       >
                         <Text style={{ fontSize: 13, color: selStudentId === s.id ? "#fff" : C.text, fontFamily: "Pretendard-Regular" }}>
@@ -661,7 +661,7 @@ export default function ParentNotificationsScreen() {
                   {
                     backgroundColor: students.length === 0 ? C.border : "#fff",
                     borderWidth: 1.5,
-                    borderColor: students.length === 0 ? C.border : C.tint,
+                    borderColor: students.length === 0 ? C.border : C.brandStrong,
                     opacity: pressed || submitting || students.length === 0 ? 0.7 : 1,
                   },
                 ]}
@@ -691,7 +691,7 @@ const st = StyleSheet.create({
   /* 탭 바 */
   tabBar: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
   tabItem: { flex: 1, alignItems: "center", paddingVertical: 12, flexDirection: "row", justifyContent: "center", gap: 6 },
-  tabItemActive: { borderBottomWidth: 2, borderBottomColor: "#2EC4B6" },
+  tabItemActive: { borderBottomWidth: 2, borderBottomColor: C.brandStrong },
   tabText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   badgeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#2EC4B6" },
 
@@ -720,7 +720,7 @@ const st = StyleSheet.create({
   /* 요청 카드 */
   reqCard: { borderRadius: 16, padding: 16, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   highlightBanner: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
-  highlightText: { fontSize: 11, color: "#2EC4B6", fontFamily: "Pretendard-Regular" },
+  highlightText: { fontSize: 11, color: C.brandStrong, fontFamily: "Pretendard-Regular" },
   reqCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   typeBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   typeText: { fontSize: 13, fontFamily: "Pretendard-Regular" },

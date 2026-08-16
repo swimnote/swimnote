@@ -109,7 +109,7 @@ export function DatePickerModal({ visible, value, onConfirm, onClose }: DatePick
               return (
                 <Pressable
                   key={dateStr}
-                  style={[dp.cell, isSelected && { backgroundColor: C.tint, borderRadius: 20 }]}
+                  style={[dp.cell, isSelected && { backgroundColor: C.brandStrong, borderRadius: 20 }]}
                   onPress={() => handleSelect(day)}
                 >
                   {isToday && !isSelected && <View style={dp.todayDot} />}
@@ -137,7 +137,7 @@ export function DatePickerModal({ visible, value, onConfirm, onClose }: DatePick
             <Pressable style={[dp.btn, dp.cancelBtn]} onPress={onClose}>
               <Text style={[dp.btnTxt, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
-            <Pressable style={[dp.btn, { backgroundColor: C.tint }]} onPress={handleConfirm}>
+            <Pressable style={[dp.btn, { backgroundColor: C.primaryAction }]} onPress={handleConfirm}>
               <Text style={[dp.btnTxt, { color: "#fff" }]}>확인</Text>
             </Pressable>
           </View>
@@ -158,7 +158,7 @@ const dp = StyleSheet.create({
   grid:          { flexDirection: "row", flexWrap: "wrap" },
   cell:          { width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center" },
   dayText:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#222" },
-  todayDot:      { position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: C.tint },
+  todayDot:      { position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: C.brandStrong },
   selectedLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
   btnRow:        { flexDirection: "row", gap: 10, marginTop: 4 },
   btn:           { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },

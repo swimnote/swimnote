@@ -369,7 +369,7 @@ function MemberCard({
       </View>
 
       {saving ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 8 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 8 }} />
       ) : (
         <View style={styles.actionRow}>
           {tab === "withdrawn" && (
@@ -388,9 +388,9 @@ function MemberCard({
           )}
           {tab === "archived" && (
             <>
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#E6FAF8" }]} onPress={onRestore}>
-                <LucideIcon name="rotate-ccw" size={12} color="#2EC4B6" />
-                <Text style={[styles.actionBtnTxt, { color: "#2EC4B6" }]}>복원</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: C.brandSoft, borderColor: C.brandSoft }]} onPress={onRestore}>
+                <LucideIcon name="rotate-ccw" size={12} color={C.brandStrong} />
+                <Text style={[styles.actionBtnTxt, { color: C.brandStrong }]}>복원</Text>
               </Pressable>
               <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onPermanentDelete}>
                 <LucideIcon name="trash-2" size={12} color="#D96C6C" />
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   tagBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   tagTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular" },
   attBadge:    { alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 50 },
-  attNum:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.tint },
+  attNum:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   attLabel:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   dateRow:     { marginBottom: 8 },
   dateText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },

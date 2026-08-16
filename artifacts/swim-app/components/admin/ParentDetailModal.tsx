@@ -12,7 +12,7 @@ import type { ParentJoinRequest, JoinStatus, MatchStatus } from "@/store/parentJ
 const C = Colors.light;
 
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
-  full_match:  { label: "자동 일치",  color: "#2EC4B6", bg: "#E6FFFA", icon: "zap"         },
+  full_match:  { label: "자동 일치",  color: C.brandStrong, bg: C.brandSoft, icon: "zap"         },
   phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"       },
   no_match:    { label: "미일치",     color: "#64748B", bg: "#F8FAFC", icon: "alert-circle" },
 };
@@ -85,8 +85,8 @@ export function ParentDetailModal({
           <View style={pd.handle} />
           <View style={pd.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[pd.avatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[pd.avatarTxt, { color: C.tint }]}>{req.parentName[0]}</Text>
+              <View style={[pd.avatar, { backgroundColor: C.brandSoft }]}>
+                <Text style={[pd.avatarTxt, { color: C.brandStrong }]}>{req.parentName[0]}</Text>
               </View>
               <View>
                 <Text style={pd.name}>{req.parentName}</Text>
@@ -120,8 +120,8 @@ export function ParentDetailModal({
               <Text style={pd.sTitle}>신청 자녀 정보 ({req.children.length}명)</Text>
               {req.children.map((c, i) => (
                 <View key={i} style={pd.childRow}>
-                  <View style={[pd.childNum, { backgroundColor: C.tintLight }]}>
-                    <Text style={[pd.childNumTxt, { color: C.tint }]}>{i + 1}</Text>
+                  <View style={[pd.childNum, { backgroundColor: C.brandSoft }]}>
+                    <Text style={[pd.childNumTxt, { color: C.brandStrong }]}>{i + 1}</Text>
                   </View>
                   <View>
                     <Text style={pd.childName}>{c.name || "이름 미입력"}</Text>
@@ -181,8 +181,8 @@ const pd = StyleSheet.create({
   nameSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   matchBadge:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12, marginBottom: 8 },
   matchTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  autoChip:      { backgroundColor: "#E6FAF8", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  autoChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  autoChip:      { backgroundColor: C.brandSoft, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  autoChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   section:       { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 12 },
   sTitle:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary,
                    textTransform: "uppercase", marginBottom: 2 },

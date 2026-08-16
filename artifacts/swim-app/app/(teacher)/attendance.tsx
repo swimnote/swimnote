@@ -449,8 +449,8 @@ export default function TeacherAttendanceScreen() {
                         </View>
                         <Text style={s.eligSub}>{ec.schedule_days} {ec.schedule_time} · {ec.instructor}</Text>
                       </View>
-                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? "#E6FFFA" : "#F9DEDA" }]}>
-                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? "#2EC4B6" : "#D96C6C" }]}>
+                      <View style={[s.slotBadge, { backgroundColor: ec.available_slots > 0 ? C.brandMist : "#F9DEDA" }]}>
+                        <Text style={[s.slotText, { color: ec.available_slots > 0 ? C.brandStrong : "#D96C6C" }]}>
                           {ec.current_members}/{ec.capacity}
                         </Text>
                       </View>
@@ -624,7 +624,7 @@ export default function TeacherAttendanceScreen() {
                   ) : (
                     <>
                       <Pressable
-                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: "#2EC4B6", borderColor: "#2EC4B6" }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
+                        style={({ pressed }) => [s.attBtn, isPresent && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }, pressed && { opacity: 0.7, transform: [{ scale: 0.95 }] }]}
                         onPress={() => saveOne(item.id, "present")}
                       >
                         <Text style={[s.attBtnText, isPresent && { color: "#fff" }]}>출석</Text>
@@ -722,7 +722,7 @@ export default function TeacherAttendanceScreen() {
               refreshControl={<RefreshControl refreshing={makeupRefresh} onRefresh={() => { setMakeupRefresh(true); loadMakeups(); }} />}
               ListEmptyComponent={
                 <View style={s.emptyBox}>
-                  <LucideIcon name="check-circle" size={40} color="#E6FFFA" />
+                  <LucideIcon name="check-circle" size={40} color={C.brandMist} />
                   <Text style={[s.emptyText, { marginTop: 8 }]}>보강 대기 중인 학생이 없습니다</Text>
                 </View>
               }
@@ -739,7 +739,7 @@ export default function TeacherAttendanceScreen() {
                 }
                 if (item._type === "pendingHeader") {
                   return (
-                    <View style={[s.mkSectionHeader, { backgroundColor: C.tintLight || "#E6FFFA" }]}>
+                    <View style={[s.mkSectionHeader, { backgroundColor: C.brandMist }]}>
                       <Text style={[s.mkSectionTitle, { color: themeColor }]}>
                         보강 대기 ({makeupList.length}명)
                       </Text>
@@ -822,7 +822,7 @@ const s = StyleSheet.create({
   // 출결 요약
   attSummary:     { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   attSummaryText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  attSummaryPresent: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  attSummaryPresent: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   attSummaryAbsent:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   summaryDot:     { width: 3, height: 3, borderRadius: 2, backgroundColor: C.border },
   // 학생 리스트
@@ -862,8 +862,8 @@ const s = StyleSheet.create({
   eligRow:        { flexDirection: "row", alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 12, marginBottom: 8 },
   eligName:       { fontSize: 14, fontFamily: "Pretendard-Regular" },
   eligSub:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
-  sameTeacherBadge: { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  sameTeacherText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  sameTeacherBadge: { backgroundColor: C.brandMist, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  sameTeacherText:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   slotBadge:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, minWidth: 44, alignItems: "center" },
   slotText:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
   confirmBtn:     { paddingVertical: 14, borderRadius: 12, alignItems: "center" },

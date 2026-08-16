@@ -306,8 +306,8 @@ export default function KillSwitchScreen() {
               </View>
             )}
             {poolId && isTerminated && (
-              <View style={[s.warnBox, { backgroundColor: "#E6FFFA" }]}>
-                <LucideIcon name="check-circle" size={13} color="#2EC4B6" />
+              <View style={[s.warnBox, { backgroundColor: C.brandSoft }]}>
+                <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
                 <Text style={[s.warnTxt, { color: "#065F46" }]}>해지 확정 완료 — 삭제 실행 가능합니다.</Text>
               </View>
             )}
@@ -489,9 +489,9 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
-                    ? <View style={m.snapshotDone}><LucideIcon name="check-circle" size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
+                    ? <View style={m.snapshotDone}><LucideIcon name="check-circle" size={14} color={C.brandStrong} /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
                     : <Pressable style={m.snapshotBtn} onPress={doCreateSnapshot}>
-                        <LucideIcon name="archive" size={14} color="#2EC4B6" />
+                        <LucideIcon name="archive" size={14} color={C.brandStrong} />
                         <Text style={m.snapshotBtnTxt}>지금 스냅샷 생성</Text>
                       </Pressable>
                   }
@@ -672,12 +672,12 @@ const m = StyleSheet.create({
   confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   safeSection:      { marginHorizontal: 16, marginBottom: 14, gap: 8 },
   safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
+  snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft,
                       borderRadius: 10, padding: 12 },
   snapshotDoneTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
-  snapshotBtn:      { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
-                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#2EC4B6" },
-  snapshotBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  snapshotBtn:      { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft,
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.brandStrong },
+  snapshotBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   checkRow:         { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   checkbox:         { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center", marginTop: 1 },

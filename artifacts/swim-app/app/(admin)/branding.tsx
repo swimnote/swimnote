@@ -202,7 +202,7 @@ export default function BrandingScreen() {
               style={[styles.hexInput, hexError ? { borderColor: "#D96C6C" } : {}]}
               value={hexInput}
               onChangeText={handleHexChange}
-              placeholder="#2EC4B6"
+              placeholder="#4F6F67"
               placeholderTextColor={C.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -238,7 +238,7 @@ export default function BrandingScreen() {
         {/* ── 앱 아이콘 안내 ─────────────────────────────────── */}
         <Section title="앱 아이콘 커스터마이징">
           <View style={styles.infoBox}>
-            <LucideIcon name="info" size={16} color="#2EC4B6" style={{ marginTop: 2 }} />
+            <LucideIcon name="info" size={16} color={C.brandStrong} style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
               앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
               수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요합니다. 문의: support@swimnote.kr

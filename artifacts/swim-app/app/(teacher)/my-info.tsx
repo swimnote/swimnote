@@ -187,7 +187,7 @@ export default function MyInfoScreen() {
   /* ── 회원 목록 서브뷰 ── */
   if (memberView) {
     const labels: Record<string, string> = { active: "정상회원", suspended: "연기회원", withdrawn: "탈퇴회원" };
-    const colors: Record<string, string> = { active: "#2EC4B6", suspended: "#E4A93A", withdrawn: "#D96C6C" };
+    const colors: Record<string, string> = { active: C.brandStrong, suspended: "#E4A93A", withdrawn: "#D96C6C" };
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={labels[memberView]} onBack={() => setMemberView(null)} homePath="/(teacher)/today-schedule" />
@@ -357,7 +357,7 @@ export default function MyInfoScreen() {
             </Text>
           </View>
           {([
-            { key: "active",    label: "정상회원", count: memStatus.active,    color: "#2EC4B6" },
+            { key: "active",    label: "정상회원", count: memStatus.active,    color: C.brandStrong },
             { key: "suspended", label: "연기회원", count: memStatus.suspended, color: "#E4A93A" },
             { key: "withdrawn", label: "탈퇴회원", count: memStatus.withdrawn, color: "#D96C6C" },
           ] as const).map((row, i) => (
@@ -377,12 +377,12 @@ export default function MyInfoScreen() {
         {/* ── 관리자 모드 전환 ── */}
         {hasMultipleRoles && (
           <Pressable
-            style={[s.actionBtn, { borderColor: "#2EC4B6" }]}
+            style={[s.actionBtn, { borderColor: C.brandStrong }]}
             onPress={() => setSwitchModalVisible(true)}
           >
-            <LucideIcon name="refresh-ccw" size={18} color="#2EC4B6" />
-            <Text style={[s.actionBtnText, { color: "#2EC4B6" }]}>모드 전환 (관리자↔선생님)</Text>
-            <LucideIcon name="chevron-right" size={16} color="#2EC4B6" />
+            <LucideIcon name="refresh-ccw" size={18} color={C.brandStrong} />
+            <Text style={[s.actionBtnText, { color: C.brandStrong }]}>모드 전환 (관리자↔선생님)</Text>
+            <LucideIcon name="chevron-right" size={16} color={C.brandStrong} />
           </Pressable>
         )}
 
@@ -415,8 +415,8 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>직급 / 직책</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPos} onChangeText={setEditPos} placeholder="예: 수석강사" placeholderTextColor={C.textMuted} />
             {editMsg ? (
-              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? C.brandStrong : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
@@ -441,8 +441,8 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>요청 사유</Text>
             <TextInput style={[s.input, s.textArea, { borderColor: C.border, color: C.text }]} value={resignReason} onChangeText={setResignReason} placeholder="퇴직 사유 또는 권한 종료 이유를 입력해주세요..." placeholderTextColor={C.textMuted} multiline numberOfLines={4} textAlignVertical="top" />
             {resignMsg ? (
-              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: resignMsg.includes("접수") ? "#2EC4B6" : "#D96C6C" }}>{resignMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: resignMsg.includes("접수") ? C.brandStrong : "#D96C6C" }}>{resignMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: resignSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitResign} disabled={resignSaving}>
@@ -467,8 +467,8 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>새 비밀번호 확인</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
             {pwMsg ? (
-              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? C.brandStrong : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>

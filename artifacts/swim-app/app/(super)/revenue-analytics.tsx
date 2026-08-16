@@ -80,8 +80,8 @@ function pct(current: number, prev: number): string {
 }
 
 function pctColor(current: number, prev: number): string {
-  if (prev === 0) return current > 0 ? "#2EC4B6" : C.textSecondary;
-  return current >= prev ? "#2EC4B6" : "#D96C6C";
+  if (prev === 0) return current > 0 ? C.brandStrong : C.textSecondary;
+  return current >= prev ? C.brandStrong : "#D96C6C";
 }
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
@@ -276,7 +276,7 @@ export default function RevenueAnalyticsScreen() {
           onRefresh={async () => { setRefreshing(true); await fetchLogs(period); setRefreshing(false); }} />}
       >
         <View style={st.noticeBox}>
-          <LucideIcon name="info" size={12} color="#2EC4B6" />
+          <LucideIcon name="info" size={12} color={C.brandStrong} />
           <Text style={st.noticeTxt}>revenue_logs DB 실측 기반. 추정·미결제 금액 제외.</Text>
         </View>
 
@@ -297,7 +297,7 @@ export default function RevenueAnalyticsScreen() {
         <View style={st.cardGrid}>
           <StatCard label="기간 내 청구액" value={fmtKRW(totalRevenue)} sub="결제 기준" color={P} />
           <StatCard label="순 매출" value={fmtKRW(netRevenue)} sub="청구 - 환불"
-            color={netRevenue >= 0 ? "#2EC4B6" : "#D96C6C"} />
+            color={netRevenue >= 0 ? C.brandStrong : "#D96C6C"} />
           <StatCard label="전기 대비" value={growth} color={growthColor} sub="이전 기간" />
           <StatCard label="추정 기간 합산" value={fmtKRW(projected)} sub="현재 속도 기준" color="#D97706" />
         </View>
@@ -307,14 +307,14 @@ export default function RevenueAnalyticsScreen() {
         <View style={st.cardGrid}>
           <StatCard label="첫 달 50% 할인액" value={fmtKRW(totalDiscount)} sub="할인 합계" color="#DC2626" />
           <StatCard label="스토어 수수료 (30%)" value={fmtKRW(totalStoreFee)} sub="앱스토어/구글플레이" color={C.textSecondary} />
-          <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color="#2EC4B6" />
+          <StatCard label="순이익 (수수료 후)" value={fmtKRW(netRevenue - totalStoreFee)} color={C.brandStrong} />
         </View>
 
         {/* 결제 현황 */}
         <SectionHeader title="결제 현황" icon="credit-card" />
         <View style={st.cardGrid}>
           <StatCard label="전체 건수" value={`${logs.length}건`} color={P} />
-          <StatCard label="신규 구독" value={`${newSubs}건`} color="#2EC4B6" />
+          <StatCard label="신규 구독" value={`${newSubs}건`} color={C.brandStrong} />
           <StatCard label="갱신" value={`${renewals}건`} color="#6366F1" />
           <StatCard label="업그레이드" value={`${upgrades}건`} color="#D97706" />
         </View>
@@ -441,9 +441,9 @@ const st = StyleSheet.create({
   tabActive:     { backgroundColor: P },
   tabTxt:        { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:  { color: "#fff" },
-  noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
+  noticeBox:     { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandSoft,
                    borderRadius: 8, padding: 10, marginTop: 4 },
-  noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
+  noticeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong, flex: 1 },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   cardGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },

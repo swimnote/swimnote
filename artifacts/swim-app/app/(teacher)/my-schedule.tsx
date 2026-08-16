@@ -316,7 +316,7 @@ export default function MyScheduleScreen() {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="스케줄러" homePath="/(teacher)/today-schedule" />
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
   }
@@ -344,15 +344,15 @@ export default function MyScheduleScreen() {
             </Pressable>
           } />
         <View style={s.subHeader}>
-          <Pressable style={[s.subActionBtn, { backgroundColor: C.tintLight, flex: 1 }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: C.brandMist, flex: 1 }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
-            <Users size={13} color={C.tint} />
-            <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
+            <Users size={13} color={C.brandStrong} />
+            <Text style={[s.subActionText, { color: C.brandStrong }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? C.brandMist : "#FFF1BF", flex: 1 }]}
             onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, backTo:"my-schedule"} } as any)}>
-            <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
-            <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
+            <Pencil size={13} color={diarDone ? C.brandStrong : "#D97706"} />
+            <Text style={[s.subActionText, { color: diarDone ? C.brandStrong : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
 
@@ -406,11 +406,11 @@ export default function MyScheduleScreen() {
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   <Pressable
                     disabled={saving}
-                    style={[s.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
+                    style={[s.stBtn, isPresent && { backgroundColor: C.brandSoft, borderColor: C.brandStrong }]}
                     onPress={() => markDayAtt(item.id, "present")}>
                     {saving && !isPresent
-                      ? <ActivityIndicator size="small" color="#2EC4B6" style={{ width: 20 }} />
-                      : <Text style={[s.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>}
+                      ? <ActivityIndicator size="small" color={C.brandStrong} style={{ width: 20 }} />
+                      : <Text style={[s.stBtnTxt, { color: isPresent ? C.brandStrong : C.textMuted }]}>출석</Text>}
                   </Pressable>
                   <Pressable
                     disabled={saving}
@@ -459,7 +459,7 @@ export default function MyScheduleScreen() {
                   <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{og.schedule_days} · {og.schedule_time}</Text>
                 </View>
                 {moveSheetSaving
-                  ? <ActivityIndicator size="small" color={C.tint} />
+                  ? <ActivityIndicator size="small" color={C.brandStrong} />
                   : <ChevronRight size={16} color={C.textMuted} />}
               </Pressable>
             ))}
@@ -504,9 +504,9 @@ export default function MyScheduleScreen() {
                   <SquareCheck size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
-                <Pressable style={[s.mgmtBtn, { borderColor: C.tint }]} onPress={() => setShowManagement(true)}>
-                  <Users size={13} color={C.tint} />
-                  <Text style={[s.mgmtBtnText, { color: C.tint }]}>수강생관리</Text>
+                <Pressable style={[s.mgmtBtn, { borderColor: C.brandStrong }]} onPress={() => setShowManagement(true)}>
+                  <Users size={13} color={C.brandStrong} />
+                  <Text style={[s.mgmtBtnText, { color: C.brandStrong }]}>수강생관리</Text>
                 </Pressable>
                 <Pressable style={[s.createBtn, { backgroundColor: C.primaryAction }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
                   <Plus size={14} color="#fff" />
@@ -524,17 +524,17 @@ export default function MyScheduleScreen() {
               const isActive = viewMode === mode;
               return (
                 <Pressable key={mode}
-                  style={[s.toggleBtn, isActive && { backgroundColor: C.tint, borderColor: C.tint }]}
+                  style={[s.toggleBtn, isActive && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
                   onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); if (mode !== "monthly") setSelectedDate(null); }}>
                   <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <Pressable style={[s.diaryIndexBtn, { borderColor: C.tint, backgroundColor: C.tintLight }]}
+          <Pressable style={[s.diaryIndexBtn, { borderColor: C.brandStrong, backgroundColor: C.brandMist }]}
             onPress={() => router.push("/(teacher)/diary-index?backTo=my-schedule" as any)}>
-            <BookOpen size={13} color={C.tint} />
-            <Text style={[s.diaryIndexBtnText, { color: C.tint }]}>수업 일지</Text>
+            <BookOpen size={13} color={C.brandStrong} />
+            <Text style={[s.diaryIndexBtnText, { color: C.brandStrong }]}>수업 일지</Text>
           </Pressable>
         </View>
       </View>

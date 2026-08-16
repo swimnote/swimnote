@@ -34,8 +34,8 @@ type ParseRow = { name: string; parent_phone: string; result: "ok" | "duplicate"
 
 const INVITE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
   none:    { label: "초대 전",   color: C.textSecondary, bg: C.backgroundSoft },
-  invited: { label: "초대 완료", color: "#2EC4B6", bg: "#E6FFFA" },
-  joined:  { label: "가입 완료", color: "#2EC4B6", bg: "#E6FFFA" },
+  invited: { label: "초대 완료", color: C.brandStrong, bg: C.brandSoft },
+  joined:  { label: "가입 완료", color: C.brandStrong, bg: C.brandSoft },
 };
 
 async function readFileText(uri: string): Promise<string> {
@@ -230,8 +230,8 @@ export default function PeoplePendingScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <Text style={s.name}>{item.name}</Text>
                       {hasParent && (
-                        <View style={[s.pill, { backgroundColor: "#E6FFFA" }]}>
-                          <Text style={[s.pillTxt, { color: "#2EC4B6" }]}>학부모 연결됨</Text>
+                        <View style={[s.pill, { backgroundColor: C.brandSoft }]}>
+                          <Text style={[s.pillTxt, { color: C.brandStrong }]}>학부모 연결됨</Text>
                         </View>
                       )}
                       {!hasParent && (
@@ -281,7 +281,7 @@ export default function PeoplePendingScreen() {
               <Pressable onPress={() => setShowValidate(false)}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
             </View>
             <View style={s.validateSummary}>
-              <SummaryChip label="정상" count={okCount} color="#2EC4B6" bg="#E6FFFA" />
+              <SummaryChip label="정상" count={okCount} color={C.brandStrong} bg={C.brandSoft} />
               <SummaryChip label="중복" count={dupCount} color="#D97706" bg="#FFF1BF" />
               <SummaryChip label="오류" count={errCount} color="#D96C6C" bg="#F9DEDA" />
             </View>
@@ -299,7 +299,7 @@ export default function PeoplePendingScreen() {
                     {row.reason && <Text style={s.validateReason}>{row.reason}</Text>}
                   </View>
                   <Text style={[s.validateBadge,
-                    row.result === "ok" ? { color: "#2EC4B6" } :
+                    row.result === "ok" ? { color: C.brandStrong } :
                     row.result === "duplicate" ? { color: "#D97706" } : { color: "#D96C6C" }
                   ]}>
                     {row.result === "ok" ? "정상" : row.result === "duplicate" ? "중복" : "오류"}
@@ -339,7 +339,7 @@ const s = StyleSheet.create({
   root:           { flex: 1, backgroundColor: C.background },
 
   uploadRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
-  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: "#E6FFFA" },
+  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: C.brandSoft },
   tplBtnTxt:      { fontSize: 12, fontWeight: "700", color: "#4338CA" },
 
   searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#FFFFFF", borderRadius: 10 },

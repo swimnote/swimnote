@@ -345,10 +345,10 @@ function WaitingActionSheet({
           {/* 회원 정보보기 */}
           <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
             <View style={[sh.optIcon, { backgroundColor: isX ? XT.accentSoft : "#E6F9F7" }]}>
-              <LucideIcon name="user-check" size={20} color={isX ? XT.accent : "#2EC4B6"} />
+              <LucideIcon name="user-check" size={20} color={isX ? XT.accent : C.brandStrong} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: isX ? XT.accent : "#2EC4B6" }]}>회원 정보보기</Text>
+              <Text style={[sh.optLabel, { color: isX ? XT.accent : C.brandStrong }]}>회원 정보보기</Text>
               <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
             </View>
             <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />

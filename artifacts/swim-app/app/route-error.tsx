@@ -44,7 +44,7 @@ export default function RouteErrorScreen() {
       </Text>
 
       {loading ? (
-        <ActivityIndicator color="#2EC4B6" style={{ marginTop: 32 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 32 }} />
       ) : (
         <View style={s.btnRow}>
           <TouchableOpacity style={s.retryBtn} onPress={handleRetry}>
@@ -75,7 +75,7 @@ const s = StyleSheet.create({
   },
   btnRow: { flexDirection: "column", gap: 12, marginTop: 36, width: "100%" },
   retryBtn: {
-    backgroundColor: "#2EC4B6", paddingVertical: 14,
+    backgroundColor: C.primaryAction, paddingVertical: 14,
     borderRadius: 12, alignItems: "center",
   },
   retryTxt: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },

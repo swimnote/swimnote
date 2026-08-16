@@ -134,7 +134,7 @@ export default function LevelSettingsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
@@ -142,8 +142,8 @@ export default function LevelSettingsScreen() {
         >
           {/* 안내 카드 */}
           <View style={[s.infoCard, { backgroundColor: "#EEF9F8", borderColor: "#C2E8E5" }]}>
-            <LucideIcon name="info" size={16} color={C.tint} />
-            <Text style={[s.infoTxt, { color: C.tint }]}>
+            <LucideIcon name="info" size={16} color={C.brandStrong} />
+            <Text style={[s.infoTxt, { color: C.brandStrong }]}>
               레벨 1~10의 표시명·설명·뱃지를 자유롭게 설정할 수 있습니다.{"\n"}설정하지 않은 항목은 기본값(숫자)으로 표시됩니다.
             </Text>
           </View>
@@ -253,11 +253,11 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           )}
         </View>
         <Pressable
-          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : "#E6FFFA", borderColor: inactive ? C.border : "#A7D9D6" }]}
+          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : C.brandSoft, borderColor: inactive ? C.border : "#A7D9D6" }]}
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >
-          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? C.textSecondary : C.tint} />
+          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? C.textSecondary : C.brandStrong} />
         </Pressable>
         <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
@@ -334,7 +334,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
               {BADGE_TYPES.map(bt => (
                 <Pressable
                   key={bt.key}
-                  style={[s.typeBtn, lv.badge_type === bt.key && { backgroundColor: C.tint, borderColor: C.tint }]}
+                  style={[s.typeBtn, lv.badge_type === bt.key && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
                   onPress={() => setBadgeType(bt.key)}
                 >
                   <Text style={[s.typeBtnTxt, lv.badge_type === bt.key && { color: "#fff" }]}>{bt.label}</Text>

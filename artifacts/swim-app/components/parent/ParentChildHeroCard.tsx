@@ -24,8 +24,8 @@ interface Props {
 export function ParentChildHeroCard({ student, attended, total, todaySchedule, currentLevel, levelDef, onPress }: Props) {
   const cg = student.class_group;
   const hasClass = !!cg?.name;
-  const chipBg = levelDef?.badge_color ? levelDef.badge_color + "22" : C.tintLight;
-  const chipTxt = levelDef?.badge_color ?? C.tint;
+  const chipBg = levelDef?.badge_color ? levelDef.badge_color + "22" : C.brandSoft;
+  const chipTxt = levelDef?.badge_color ?? C.brandStrong;
 
   return (
     <Pressable
@@ -37,8 +37,8 @@ export function ParentChildHeroCard({ student, attended, total, todaySchedule, c
         {currentLevel && levelDef ? (
           <LevelBadge level={levelDef} size="sm" />
         ) : (
-          <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-            <LucideIcon name="award" size={20} color={C.tint} />
+          <View style={[styles.avatar, { backgroundColor: C.brandSoft }]}>
+            <LucideIcon name="award" size={20} color={C.brandStrong} />
           </View>
         )}
         <View style={{ flex: 1 }}>
@@ -82,9 +82,9 @@ export function ParentChildHeroCard({ student, attended, total, todaySchedule, c
 
         {/* 오늘 수업 */}
         {todaySchedule ? (
-          <View style={[styles.todayChip, { backgroundColor: "#E6FAF8", borderColor: "#2EC4B6" }]}>
-            <LucideIcon name="clock" size={13} color="#2EC4B6" />
-            <Text style={[styles.chipTxt, { color: "#2EC4B6", fontFamily: "Pretendard-SemiBold" }]}>
+          <View style={[styles.todayChip, { backgroundColor: C.brandSoft, borderColor: C.brandStrong }]}>
+            <LucideIcon name="clock" size={13} color={C.brandStrong} />
+            <Text style={[styles.chipTxt, { color: C.brandStrong, fontFamily: "Pretendard-SemiBold" }]}>
               오늘 {todaySchedule} 수업
             </Text>
           </View>

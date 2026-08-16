@@ -25,8 +25,8 @@ export function DuplicateModal({ candidates, onForceCreate, onCancel }: Duplicat
           <View style={dup.list}>
             {candidates.slice(0, 3).map((c: any) => (
               <View key={c.id} style={dup.row}>
-                <View style={[dup.avatar, { backgroundColor: C.tintLight }]}>
-                  <Text style={[dup.avatarText, { color: C.tint }]}>{c.name[0]}</Text>
+                <View style={[dup.avatar, { backgroundColor: C.brandSoft }]}>
+                  <Text style={[dup.avatarText, { color: C.brandStrong }]}>{c.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={dup.name}>{c.name}</Text>

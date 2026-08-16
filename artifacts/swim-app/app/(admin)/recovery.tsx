@@ -48,8 +48,8 @@ function fmtSize(mb: number) {
 }
 
 const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon: string }> = {
-  auto:           { color: "#2EC4B6", bg: "#E6FFFA", label: "자동",    icon: "clock"      },
-  manual:         { color: "#2EC4B6", bg: "#E6FFFA", label: "수동",    icon: "save"       },
+  auto:           { color: C.brandStrong, bg: C.brandSoft, label: "자동",    icon: "clock"      },
+  manual:         { color: C.brandStrong, bg: C.brandSoft, label: "수동",    icon: "save"       },
   before_restore: { color: "#D97706", bg: "#FFF1BF", label: "복구 전", icon: "rotate-ccw" },
   before_delete:  { color: "#D96C6C", bg: "#F9DEDA", label: "삭제 전", icon: "alert-triangle" },
 };
@@ -213,11 +213,11 @@ function SnapshotCard({
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
             </Pressable>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: "#E6FFFA", flex: 0.65 }]}
+              style={[s.restoreBtn, { backgroundColor: C.brandSoft, flex: 0.65 }]}
               onPress={handleCompare}
             >
-              <LucideIcon name="git-branch" size={14} color="#2EC4B6" />
-              <Text style={[s.restoreBtnTxt, { color: "#2EC4B6" }]}>비교</Text>
+              <LucideIcon name="git-branch" size={14} color={C.brandStrong} />
+              <Text style={[s.restoreBtnTxt, { color: C.brandStrong }]}>비교</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#F9DEDA", flex: 0.55 }]}
@@ -340,7 +340,7 @@ function RestoreModal({
           <Text style={[rm.sectionTitle, { marginTop: 12 }]}>복구 대상 데이터 종류</Text>
           {AFFECTED_ITEMS.map(item => (
             <View key={item.label} style={rm.affectedRow}>
-              <LucideIcon name={item.icon} size={13} color="#2EC4B6" />
+              <LucideIcon name={item.icon} size={13} color={C.brandStrong} />
               <View style={{ flex: 1 }}>
                 <Text style={rm.affectedLabel}>{item.label}</Text>
                 <Text style={rm.affectedDetail}>{item.detail}</Text>
@@ -459,11 +459,11 @@ export default function RecoveryScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 상태 요약 */}
-        <View style={[s.statusCard, { backgroundColor: latestSnap ? "#E6FFFA" : "#F9DEDA" }]}>
+        <View style={[s.statusCard, { backgroundColor: latestSnap ? C.brandSoft : "#F9DEDA" }]}>
           <LucideIcon name={latestSnap ? "shield" : "alert-circle"} size={18}
-            color={latestSnap ? "#2EC4B6" : "#D96C6C"} />
+            color={latestSnap ? C.brandStrong : "#D96C6C"} />
           <View style={{ flex: 1 }}>
-            <Text style={[s.statusTitle, { color: latestSnap ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={[s.statusTitle, { color: latestSnap ? C.brandStrong : "#D96C6C" }]}>
               {latestSnap ? "최근 백업 있음" : "백업 없음"}
             </Text>
             {latestSnap && (
@@ -488,7 +488,7 @@ export default function RecoveryScreen() {
         {/* 자동 백업 정책 안내 */}
         <View style={[s.autoBackupBox, { backgroundColor: "#DFF3EC" }]}>
           <View style={s.autoBackupRow}>
-            <Clock size={14} color="#2EC4B6" />
+            <Clock size={14} color={C.brandStrong} />
             <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
           </View>
           <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Pretendard-Regular" }}>1시간</Text></Text>
@@ -509,7 +509,7 @@ export default function RecoveryScreen() {
         {/* 복구 완료 배너 */}
         {doneSnap && (
           <View style={s.doneBanner}>
-            <CircleCheck size={14} color="#2EC4B6" />
+            <CircleCheck size={14} color={C.brandStrong} />
             <Text style={s.doneTxt}>복구가 실행 중입니다. 완료 후 화면을 새로고침하세요.</Text>
           </View>
         )}
@@ -523,7 +523,7 @@ export default function RecoveryScreen() {
         )}
 
         {/* 복구 원칙 안내 */}
-        <View style={[s.infoBox, { backgroundColor: "#E6FFFA" }]}>
+        <View style={[s.infoBox, { backgroundColor: C.brandSoft }]}>
           <Text style={s.infoTitle}>복구 데이터 정책</Text>
           <Text style={s.infoLine}>• 회원 정보·승인 상태·반/수업 설정·출결·일지 텍스트·설정값 복구 가능</Text>
           <Text style={s.infoLine}>• 사진·영상 원본 복구는 보장되지 않습니다</Text>
@@ -549,10 +549,10 @@ export default function RecoveryScreen() {
             {myJobs.slice(0, 3).map(job => (
               <View key={job.id} style={[s.jobRow, { backgroundColor: C.card }]}>
                 <View style={[s.jobStatus, {
-                  backgroundColor: job.status === "done" ? "#E6FFFA" : job.status === "running" ? "#E6FFFA" : "#FFF1BF",
+                  backgroundColor: job.status === "done" ? C.brandSoft : job.status === "running" ? C.brandSoft : "#FFF1BF",
                 }]}>
                   <Text style={[s.jobStatusTxt, {
-                    color: job.status === "done" ? "#2EC4B6" : job.status === "running" ? "#2EC4B6" : "#D97706",
+                    color: job.status === "done" ? C.brandStrong : job.status === "running" ? C.brandStrong : "#D97706",
                   }]}>{job.status === "done" ? "완료" : job.status === "running" ? "실행 중" : "대기"}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
@@ -585,7 +585,7 @@ export default function RecoveryScreen() {
             <Text style={s.sectionTitle}>최근 이벤트 로그</Text>
             {eventLogs.map(log => (
               <View key={log.id} style={[s.logRow, { backgroundColor: C.card }]}>
-                <Activity size={13} color={C.tint} />
+                <Activity size={13} color={C.brandStrong} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.logSummary} numberOfLines={1}>{log.summary}</Text>
                   <Text style={s.logMeta}>{fmtDateTime(log.createdAt)} · {log.actorName}</Text>
@@ -635,7 +635,7 @@ const s = StyleSheet.create({
   manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   doneBanner:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12,
-                  backgroundColor: "#E6FFFA", borderRadius: 12 },
+                  backgroundColor: C.brandSoft, borderRadius: 12 },
   doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
@@ -647,7 +647,7 @@ const s = StyleSheet.create({
 
   autoBackupBox:  { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, gap: 4 },
   autoBackupRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   autoBackupLine: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#166534", lineHeight: 18 },
 
   snapCard:     { backgroundColor: C.card, borderRadius: 14, overflow: "hidden" },
@@ -666,8 +666,8 @@ const s = StyleSheet.create({
   snapBody:     { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   includesTitle:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   tagsRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tag:          { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  tag:          { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   excludeBox:   { flexDirection: "row", alignItems: "center", gap: 6,
                   backgroundColor: "#FFF1BF", padding: 8, borderRadius: 8 },
   excludeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
@@ -715,7 +715,7 @@ const rm = StyleSheet.create({
 
   sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
   affectedRow:  { flexDirection: "row", gap: 10, paddingVertical: 6,
-                  borderLeftWidth: 2, borderLeftColor: "#E6FFFA", paddingLeft: 10 },
+                  borderLeftWidth: 2, borderLeftColor: C.brandSoft, paddingLeft: 10 },
   affectedLabel:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   affectedDetail:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
 

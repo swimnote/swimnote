@@ -144,12 +144,12 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
               onPress={() => setChoice("retain")}
             >
               <View style={s.optionTop}>
-                <View style={[s.dot, { backgroundColor: "#2EC4B6" }]} />
-                <Text style={[s.optionTitle, choice === "retain" && { color: "#2EC4B6" }]}>
+                <View style={[s.dot, { backgroundColor: C.brandStrong }]} />
+                <Text style={[s.optionTitle, choice === "retain" && { color: C.brandStrong }]}>
                   90일 보존 후 삭제
                 </Text>
-                <View style={[s.badge, { backgroundColor: "#E6FFFA" }]}>
-                  <Text style={[s.badgeText, { color: "#2EC4B6" }]}>복구 가능</Text>
+                <View style={[s.badge, { backgroundColor: C.brandSoft }]}>
+                  <Text style={[s.badgeText, { color: C.brandStrong }]}>복구 가능</Text>
                 </View>
               </View>
               <Text style={s.optionDesc}>
@@ -171,7 +171,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
                 s.confirmBtn,
                 !choice && { backgroundColor: "#CBD5E1" },
                 choice === "immediate" && { backgroundColor: "#D96C6C" },
-                choice === "retain" && { backgroundColor: "#2EC4B6" },
+                choice === "retain" && { backgroundColor: C.primaryAction },
                 loading && { opacity: 0.7 },
               ]}
               onPress={handleConfirm}
@@ -221,7 +221,7 @@ const s = StyleSheet.create({
     padding: 16, backgroundColor: C.backgroundSoft,
   },
   optionSelected: { borderColor: "#D96C6C", backgroundColor: "#FFF5F5" },
-  optionSelectedBlue: { borderColor: "#2EC4B6", backgroundColor: "#F0FDFB" },
+  optionSelectedBlue: { borderColor: C.brandStrong, backgroundColor: C.brandMist },
   optionTop: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   optionTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },

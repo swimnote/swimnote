@@ -106,17 +106,14 @@ const light = {
   selected:       sagePrimary,  // #6F9187 — active/selected indicator color
   selectedSoft:   sageSoft,     // #DDE7E3 — selected background
 
-  // ── 기본 CTA (WP-N1 기준 유지, WP-N3에서 → brandStrong 전환 예정) ────────
+  // ── 기본 CTA (WP-N3: brandStrong 전환 완료) ──────────────────────────────
   //
-  //   [WP-N3 MIGRATION NOTE]
   //   Primary Action: 저장/다음/등록/확인/완료 등 모든 주요 액션
-  //   현재: navy #0F2742 (legacy — 98개 화면 사용 중)
-  //   WP-N3 이후 목표: brandStrong (#4F6F67) 로 전환
-  //   이번 WP에서는 value 유지, Sage 토큰 기반만 준비.
+  //   WP-N3 기준: Sage Strong (#4F6F67) — white label contrast 5.6:1 ✅ AA
   //
-  primaryAction:        navy,          // #0F2742 — WP-N3까지 유지
-  primaryActionPressed: "#0B1F33",     // Strong Navy (pressed)
-  primaryActionSoft:    "#E8EDF4",     // Soft Navy bg
+  primaryAction:        sageStrong,    // #4F6F67 — WP-N3 전환 완료
+  primaryActionPressed: "#3D5750",     // Sage Strong (pressed, darker)
+  primaryActionSoft:    sageSoft,      // #DDE7E3 — Sage Soft bg
 
   // ── 메인 액센트 mint legacy ────────────────────────────────────────────────
   // 기존 코드 호환 유지 — WP-N3에서 점진적 migration

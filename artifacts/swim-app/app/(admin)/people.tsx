@@ -149,8 +149,8 @@ export default function PeopleHubScreen() {
               <HubCard
                 icon="users"
                 title="회원관리"
-                color="#2EC4B6"
-                bg="#E6FFFA"
+                color={C.brandStrong}
+                bg={C.brandSoft}
                 onPress={() => router.push("/(admin)/members?backTo=people" as any)}
                 rows={[
                   { label: "전체", value: summary.totalMembers },

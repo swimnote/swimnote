@@ -39,7 +39,7 @@ export interface ServiceItem {
 }
 
 const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
-  normal:  { label: "정상",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  normal:  { label: "정상",  color: C.brandStrong, bg: C.brandSoft, icon: "check-circle" },
   warning: { label: "주의",  color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:   { label: "장애",  color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
 };
@@ -79,7 +79,7 @@ function ServiceCard({ item }: { item: ServiceItem }) {
         </View>
         <View style={sc.metricItem}>
           <Text style={sc.metricLabel}>가동률</Text>
-          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : "#2EC4B6" }]}>
+          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : C.brandStrong }]}>
             {item.uptimePct.toFixed(2)}%
           </Text>
         </View>
@@ -104,7 +104,7 @@ const sc = StyleSheet.create({
 function MemoryCard({ info }: { info: MemoryInfo }) {
   const cfg = STATUS_CFG[info.status];
   const pct = Math.min(info.rssPct, 100);
-  const barColor = info.status === "error" ? "#D96C6C" : info.status === "warning" ? "#D97706" : "#2EC4B6";
+  const barColor = info.status === "error" ? "#D96C6C" : info.status === "warning" ? "#D97706" : C.brandStrong;
   const rssMB  = Math.round(info.rssBytes / (1024 * 1024));
   const heapMB = Math.round(info.heapUsedBytes / (1024 * 1024));
 

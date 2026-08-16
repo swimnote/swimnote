@@ -108,7 +108,7 @@ export default function OrgRoleSelectScreen() {
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={styles.headerNameWrap} pointerEvents="none">
           <View style={styles.orgNameRow}>
-            <LucideIcon name="droplet" size={16} color={C.tint} />
+            <LucideIcon name="droplet" size={16} color={C.brandStrong} />
             <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
           </View>
         </View>
@@ -119,7 +119,7 @@ export default function OrgRoleSelectScreen() {
 
       <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={C.tint} size="large" />
+          <ActivityIndicator color={C.brandStrong} size="large" />
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>

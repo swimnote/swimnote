@@ -20,7 +20,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const { width: W } = Dimensions.get("window");
 
-const MINT   = "#2EC4B6";
+const MINT   = C.brandStrong;
 const NAVY_BG   = "#0F2742";
 const NAVY_TEXT = C.textPrimary;
 const ORANGE = "#F97316"; // status/warning only — CTA에 사용 금지
@@ -179,7 +179,7 @@ function SlideCommunication() {
       <Text style={sco.sub}>선생님과 직접 소통할 수 있어요</Text>
 
       {[
-        { icon: "📖", color: MINT, bg: "#E6FAF8", title: "수업 일지 확인", desc: "선생님이 작성한 수업 내용과 피드백을 확인하세요" },
+        { icon: "📖", color: MINT, bg: C.brandSoft, title: "수업 일지 확인", desc: "선생님이 작성한 수업 내용과 피드백을 확인하세요" },
         { icon: "💬", color: "#7C3AED", bg: "#EEDDF5", title: "메시지 소통", desc: "선생님에게 직접 문의하거나 메시지를 주고받을 수 있어요" },
         { icon: "📢", color: ORANGE, bg: "#FFF3E0", title: "공지 확인", desc: "수영장 공지사항을 앱에서 바로 확인하세요" },
         { icon: "🖼", color: GREEN, bg: "#DFF3EC", title: "수업 사진", desc: "선생님이 올린 수업 사진을 확인할 수 있어요" },
@@ -286,12 +286,12 @@ const sco = StyleSheet.create({
 
 const sn = StyleSheet.create({
   root:        { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
-  iconWrap:    { width: 100, height: 100, borderRadius: 28, backgroundColor: "#E6FAF8",
+  iconWrap:    { width: 100, height: 100, borderRadius: 28, backgroundColor: C.brandSoft,
                  alignItems: "center", justifyContent: "center", marginBottom: 8 },
   title:       { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary,
                  textAlign: "center", lineHeight: 26 },
-  previewBox:  { backgroundColor: "#E6FAF8", borderRadius: 20, padding: 24, alignItems: "center", gap: 6, width: "100%" },
+  previewBox:  { backgroundColor: C.brandSoft, borderRadius: 20, padding: 24, alignItems: "center", gap: 6, width: "100%" },
   previewLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: MINT, textTransform: "uppercase"},
   previewNickname: { fontSize: 28, fontFamily: "Pretendard-Regular", color: MINT },
   previewDesc: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },

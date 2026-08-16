@@ -45,15 +45,15 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
       <View style={ms.section}>
         <Text style={ms.sectionTitle}>학부모 앱 연결</Text>
         <View style={[ms.connCard, {
-          backgroundColor: connStatus === "linked" ? "#E6FFFA" : "#FFFFFF",
+          backgroundColor: connStatus === "linked" ? C.brandSoft : "#FFFFFF",
         }]}>
           <LucideIcon
             name={connStatus === "linked" ? "check-circle" : "x-circle"}
             size={24}
-            color={connStatus === "linked" ? "#2EC4B6" : C.textMuted}
+            color={connStatus === "linked" ? C.brandStrong : C.textMuted}
           />
           <View style={{ flex: 1 }}>
-            <Text style={[ms.connStatus, { color: connStatus === "linked" ? "#2EC4B6" : C.textMuted }]}>
+            <Text style={[ms.connStatus, { color: connStatus === "linked" ? C.brandStrong : C.textMuted }]}>
               {connStatus === "linked" ? "학부모 앱 연결 완료" : "학부모 미연결"}
             </Text>
             {data.parent_account_name && (
@@ -109,17 +109,17 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                     {
                       flexDirection: "row", alignItems: "center", gap: 4,
                       paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
-                      backgroundColor: status === "linked" ? "#E6FFFA" : "#FFF7ED",
+                      backgroundColor: status === "linked" ? C.brandSoft : "#FFF7ED",
                     }
                   ]}>
                     <LucideIcon
                       name={status === "linked" ? "check-circle" : "clock"}
                       size={10}
-                      color={status === "linked" ? "#2EC4B6" : "#EA580C"}
+                      color={status === "linked" ? C.brandStrong : "#EA580C"}
                     />
                     <Text style={{
                       fontSize: 11, fontFamily: "Pretendard-Regular",
-                      color: status === "linked" ? "#2EC4B6" : "#EA580C",
+                      color: status === "linked" ? C.brandStrong : "#EA580C",
                     }}>
                       {status === "linked" ? "연결됨" : "가입 대기"}
                     </Text>
@@ -137,7 +137,7 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
           <Text style={ms.sectionTitle}>연결된 학부모 계정</Text>
           {(data as any).parents.map((p: ParentLink) => (
             <View key={p.id} style={ms.infoRow}>
-              <LucideIcon name="user-check" size={13} color="#2EC4B6" />
+              <LucideIcon name="user-check" size={13} color={C.brandStrong} />
               <Text style={[ms.infoLabel, { width: 100 }]}>{p.name || "이름 없음"}</Text>
               <View style={{ flex: 1, alignItems: "flex-end" }}>
                 <Text style={[ms.infoValue, { color: CALL_COLOR }]}>{formatPhone(p.phone)}</Text>
@@ -145,12 +145,12 @@ export function MemberParentTab({ data, themeColor, connStatus, poolName, onAler
                   {
                     flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2,
                     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10,
-                    backgroundColor: p.link_status === "approved" ? "#E6FFFA" : C.backgroundSoft,
+                    backgroundColor: p.link_status === "approved" ? C.brandSoft : C.backgroundSoft,
                   }
                 ]}>
                   <Text style={{
                     fontSize: 10, fontFamily: "Pretendard-Regular",
-                    color: p.link_status === "approved" ? "#2EC4B6" : C.textSecondary,
+                    color: p.link_status === "approved" ? C.brandStrong : C.textSecondary,
                   }}>
                     {p.link_status === "approved" ? "앱 연결됨" : p.link_status}
                   </Text>

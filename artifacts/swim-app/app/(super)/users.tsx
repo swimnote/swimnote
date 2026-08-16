@@ -47,8 +47,8 @@ const PERM_LABELS: { key: keyof Permissions; label: string; desc: string; icon: 
 ];
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
-  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#E6FAF8" },
-  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#E6FFFA" },
+  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: C.brandSoft },
+  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: C.brandSoft },
 };
 
 
@@ -161,7 +161,7 @@ export default function UsersScreen() {
       <View style={{ gap: 8 }}>
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
-            <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#FFFFFF" }]}>
+            <View style={[ps.icon, { backgroundColor: perms[key] ? C.brandSoft : "#FFFFFF" }]}>
               <LucideIcon name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
@@ -334,7 +334,7 @@ const ps = StyleSheet.create({
   icon:         { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   permLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
   permDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 1 },
-  badge:        { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badge:        { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   badgeText:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   noPerm:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 6, fontStyle: "italic" },
   superTag:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   userEmail:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleBadge:       { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   roleText:        { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FFFA",
+  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandSoft,
                      alignItems: "center", justifyContent: "center" },
   empty:           { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText:       { fontSize: 15, fontFamily: "Pretendard-Regular" },

@@ -242,14 +242,14 @@ export default function SecurityScreen() {
                   <Text style={m.sectionTitle}>관리 액션</Text>
                   <View style={m.actions}>
                     {!selected.twoFactorEnabled && (
-                      <ActionBtn label="2FA 강제 활성" icon="shield" color="#2EC4B6" bg="#E6FFFA"
+                      <ActionBtn label="2FA 강제 활성" icon="shield" color={C.brandStrong} bg={C.brandSoft}
                         loading={actionLoading === `2fa-${selected.id}`}
                         onPress={() => doForceTwoFactor(selected)} />
                     )}
                     <ActionBtn label="권한 변경" icon="user-check" color={P} bg="#EEDDF5"
                       onPress={() => setRoleModal(true)} />
                     {isLocked(selected)
-                      ? <ActionBtn label="잠금 해제" icon="unlock" color="#2EC4B6" bg="#E6FFFA"
+                      ? <ActionBtn label="잠금 해제" icon="unlock" color={C.brandStrong} bg={C.brandSoft}
                           onPress={() => doUnlock(selected)} />
                       : <ActionBtn label="계정 잠금" icon="lock" color={DANGER} bg="#F9DEDA"
                           onPress={() => setLockModal(true)} />
@@ -417,7 +417,7 @@ const m = StyleSheet.create({
   devRow:       { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 6,
                   borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   devLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  devCurrent:   { color: "#2EC4B6", fontFamily: "Pretendard-Regular" },
+  devCurrent:   { color: C.brandStrong, fontFamily: "Pretendard-Regular" },
   devMeta:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actions:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   actionBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,

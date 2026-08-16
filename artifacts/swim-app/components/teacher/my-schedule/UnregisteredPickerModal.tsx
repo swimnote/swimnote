@@ -82,8 +82,8 @@ export default function UnregisteredPickerModal({
                     <Text style={um.name}>{item.name}</Text>
                     <Text style={um.phone}>{item.parent_phone || "-"}</Text>
                     <Text style={[um.invTag,
-                      item.invite_status === "invited" ? { color: "#2EC4B6" } :
-                      item.invite_status === "joined"  ? { color: "#2EC4B6" } : { color: "#6B7280" }
+                      item.invite_status === "invited" ? { color: C.brandStrong } :
+                      item.invite_status === "joined"  ? { color: C.brandStrong } : { color: "#6B7280" }
                     ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
                   </View>
                   <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}

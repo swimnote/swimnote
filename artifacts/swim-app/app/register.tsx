@@ -12,6 +12,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
+const C = Colors.light; // module-level for StyleSheet
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { API_BASE, safeJson } from "@/context/auth/SessionContext";
 
@@ -236,8 +237,8 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
             <View style={styles.phoneRow}>
-              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#2EC4B6" : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="phone" size={16} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="phone" size={16} color={phoneVerified ? C.brandStrong : C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={form.phone}
@@ -250,7 +251,7 @@ export default function RegisterScreen() {
                   keyboardType="phone-pad"
                   editable={!phoneVerified}
                 />
-                {phoneVerified && <LucideIcon name="check-circle" size={16} color="#2EC4B6" />}
+                {phoneVerified && <LucideIcon name="check-circle" size={16} color={C.brandStrong} />}
               </View>
               {!phoneVerified && (
                 <Pressable
@@ -288,7 +289,7 @@ export default function RegisterScreen() {
                     )}
                   </View>
                   <Pressable
-                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : "#2EC4B6" }]}
+                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : C.brandStrong }]}
                     onPress={handleVerifySms}
                     disabled={smsState === "verifying"}
                   >
@@ -298,7 +299,7 @@ export default function RegisterScreen() {
                     }
                   </Pressable>
                 </View>
-                <Text style={[styles.codeSent, { color: "#2EC4B6" }]}>
+                <Text style={[styles.codeSent, { color: C.brandStrong }]}>
                   인증번호를 {form.phone}으로 보냈습니다.
                 </Text>
                 {!!devCode && (
@@ -439,7 +440,7 @@ export default function RegisterScreen() {
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: C.textSecondary }]}>이미 계정이 있으신가요?</Text>
           <Pressable onPress={() => router.replace("/login")}>
-            <Text style={[styles.footerLink, { color: C.tint }]}> 로그인</Text>
+            <Text style={[styles.footerLink, { color: C.brandStrong }]}> 로그인</Text>
           </Pressable>
         </View>
       </KeyboardAwareScrollView>
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
   codeRow:      { flexDirection: "row", gap: 8, alignItems: "center" },
   timerTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", marginRight: 4 },
   codeSent:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  verifiedTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  verifiedTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   smsErrTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   devCodeBox:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
                     backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },

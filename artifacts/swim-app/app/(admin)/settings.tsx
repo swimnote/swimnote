@@ -24,7 +24,7 @@ import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 const N = C.textPrimary;
-const NB = "#E6FAF8";
+const NB = C.brandSoft;
 
 const DEFAULT_LOGIN_MODE_KEY = "@swimnote:default_login_mode";
 

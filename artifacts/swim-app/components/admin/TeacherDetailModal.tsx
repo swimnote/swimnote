@@ -103,8 +103,8 @@ export function TeacherDetailModal({
           <View style={dm.handle} />
           <View style={dm.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[dm.headerAvatar, { backgroundColor: "#E6FFFA" }]}>
-                <Text style={[dm.headerAvatarText, { color: "#2EC4B6" }]}>{detail.name[0]}</Text>
+              <View style={[dm.headerAvatar, { backgroundColor: C.brandSoft }]}>
+                <Text style={[dm.headerAvatarText, { color: C.brandStrong }]}>{detail.name[0]}</Text>
               </View>
               <View>
                 <Text style={dm.headerName}>{detail.name}</Text>
@@ -173,7 +173,7 @@ export function TeacherDetailModal({
                   </Pressable>
                 )}
                 {onTransfer && (
-                  <Pressable style={[dm.smBtn, { backgroundColor: C.tint }]} onPress={onTransfer} disabled={processing}>
+                  <Pressable style={[dm.smBtn, { backgroundColor: C.primaryAction }]} onPress={onTransfer} disabled={processing}>
                     <LucideIcon name="repeat" size={13} color="#fff" />
                     <Text style={[dm.smBtnText, { color: "#fff" }]}>수업 인수</Text>
                   </Pressable>

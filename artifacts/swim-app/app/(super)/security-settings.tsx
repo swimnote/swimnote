@@ -430,9 +430,9 @@ export default function SecuritySettingsScreen() {
           {/* OTP 연결/재등록 */}
           {(twoFAMode === "otp" || twoFAMode === "otp_sms_backup") && (
             <Pressable style={s.actionBtn} onPress={openOtpModal}>
-              <LucideIcon name={totpEnabled ? "refresh-cw" : "smartphone"} size={15} color={totpEnabled ? "#2EC4B6" : P} />
+              <LucideIcon name={totpEnabled ? "refresh-cw" : "smartphone"} size={15} color={totpEnabled ? C.brandStrong : P} />
               <View style={{ flex: 1 }}>
-                <Text style={[s.actionBtnTxt, { color: totpEnabled ? "#2EC4B6" : P }]}>
+                <Text style={[s.actionBtnTxt, { color: totpEnabled ? C.brandStrong : P }]}>
                   {totpEnabled ? "OTP 재등록 (QR 갱신)" : "Google OTP 연결하기"}
                 </Text>
                 {totpEnabled === false && (
@@ -568,7 +568,7 @@ export default function SecuritySettingsScreen() {
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {isAccountLocked(detailAcc) ? (
-                  <Pressable style={[m.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => doUnlock(detailAcc.id)}>
+                  <Pressable style={[m.actBtn, { backgroundColor: C.brandSoft }]} onPress={() => doUnlock(detailAcc.id)}>
                     <Unlock size={14} color={GREEN} />
                     <Text style={[m.actBtnTxt, { color: GREEN }]}>잠금 해제</Text>
                   </Pressable>
@@ -579,9 +579,9 @@ export default function SecuritySettingsScreen() {
                   </Pressable>
                 )}
                 {detailAcc.loginFailCount > 0 && (
-                  <Pressable style={[m.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => doResetFail(detailAcc.id)}>
-                    <RefreshCw size={14} color="#2EC4B6" />
-                    <Text style={[m.actBtnTxt, { color: "#2EC4B6" }]}>실패 초기화</Text>
+                  <Pressable style={[m.actBtn, { backgroundColor: C.brandSoft }]} onPress={() => doResetFail(detailAcc.id)}>
+                    <RefreshCw size={14} color={C.brandStrong} />
+                    <Text style={[m.actBtnTxt, { color: C.brandStrong }]}>실패 초기화</Text>
                   </Pressable>
                 )}
               </View>
@@ -719,7 +719,7 @@ export default function SecuritySettingsScreen() {
                 {/* 수동 입력 키 */}
                 {!!otpSetupSecret && (
                   <Pressable
-                    style={{ borderWidth: 1.5, borderColor: "#E6FAF8", borderRadius: 12, padding: 12, gap: 6, backgroundColor: "#F5F3FF" }}
+                    style={{ borderWidth: 1.5, borderColor: C.brandSoft, borderRadius: 12, padding: 12, gap: 6, backgroundColor: "#F5F3FF" }}
                     onPress={() => setOtpShowSecret(v => !v)}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -932,7 +932,7 @@ const s = StyleSheet.create({
   infoValue:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actionBtn:        { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
                       paddingHorizontal: 14, borderRadius: 12, backgroundColor: "#EEDDF5",
-                      borderWidth: 1, borderColor: "#E6FAF8" },
+                      borderWidth: 1, borderColor: C.brandSoft },
   actionBtnTxt:     { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: P },
 
   accountCardWrap:  { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
@@ -945,7 +945,7 @@ const s = StyleSheet.create({
   accountMetaRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, flexWrap: "wrap" },
   roleBadge:        { backgroundColor: "#EEDDF5", borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   roleTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: P },
-  twoFaBadgeOn:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E6FFFA",
+  twoFaBadgeOn:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.brandSoft,
                       borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
   twoFaTxtOn:       { fontSize: 9, fontFamily: "Pretendard-Regular", color: GREEN },
   twoFaBadgeOff:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FFFFFF",
@@ -962,9 +962,9 @@ const s = StyleSheet.create({
                       alignItems: "center", justifyContent: "center" },
   smAddBtn:         { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10,
                       paddingVertical: 11, paddingHorizontal: 14, borderRadius: 10,
-                      backgroundColor: "#E6FAF8", borderWidth: 1, borderColor: "#E6FAF8", borderStyle: "dashed" },
+                      backgroundColor: C.brandSoft, borderWidth: 1, borderColor: C.brandSoft, borderStyle: "dashed" },
   smAddBtnTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0284C7" },
-  smInfoBox:        { flexDirection: "row", gap: 6, backgroundColor: "#E6FAF8", borderRadius: 8,
+  smInfoBox:        { flexDirection: "row", gap: 6, backgroundColor: C.brandSoft, borderRadius: 8,
                       padding: 10, marginTop: 8, alignItems: "flex-start" },
   smInfoTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 16 },
 
@@ -991,7 +991,7 @@ const s = StyleSheet.create({
   forceLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   forceSub:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   forceBadge:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  forceBadgeOn:       { borderColor: GREEN, backgroundColor: "#E6FFFA" },
+  forceBadgeOn:       { borderColor: GREEN, backgroundColor: C.brandSoft },
   forceBadgeOff:      { borderColor: DANGER, backgroundColor: "#F9DEDA" },
   forceBadgeTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 
@@ -1046,10 +1046,10 @@ const m = StyleSheet.create({
   sheetTitle:  { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   sheetSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, marginBottom: 12 },
   fieldLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 10, marginBottom: 4 },
-  infoBox:    { flexDirection: "row", gap: 6, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 10, alignItems: "flex-start" },
+  infoBox:    { flexDirection: "row", gap: 6, backgroundColor: C.brandSoft, borderRadius: 8, padding: 10, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 17 },
   successRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
-  successTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  successTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   errorTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
 
   // ── 외부 서비스 상세 모달 ──

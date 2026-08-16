@@ -19,7 +19,7 @@ const C = Colors.light;
 
 // ── 색상 상수 ────────────────────────────────────────────────────────────────
 const P       = "#7C3AED";
-const GREEN   = "#2EC4B6";
+const GREEN   = C.brandStrong;
 const WARN    = "#D97706";
 const DANGER  = "#DC2626";
 const GRAY    = C.textSecondary;
@@ -28,7 +28,7 @@ const GRAY    = C.textSecondary;
 type InfraStatus = "normal" | "warning" | "danger" | "full" | "error" | "inactive" | "delay" | "critical_delay";
 
 const STATUS_CFG: Record<InfraStatus, { label: string; color: string; bg: string; border: string; icon: string }> = {
-  normal:         { label: "정상",     color: GREEN,   bg: "#E6FFFA", border: "#A7D9D4", icon: "check-circle"   },
+  normal:         { label: "정상",     color: GREEN,   bg: C.brandSoft, border: "#A7D9D4", icon: "check-circle"   },
   warning:        { label: "임박",     color: WARN,    bg: "#FEF3C7", border: "#FCD34D", icon: "alert-triangle" },
   danger:         { label: "위험",     color: "#C05621", bg: "#FFEDD5", border: "#FB923C", icon: "alert-circle"  },
   full:           { label: "가득 참",  color: DANGER,  bg: "#FEE2E2", border: "#FCA5A5", icon: "x-circle"       },
@@ -329,7 +329,7 @@ const gh = StyleSheet.create({
 interface AnomalyItem { level: "error" | "warning" | "info"; message: string }
 function AnomalyRow({ item }: { item: AnomalyItem }) {
   const color = item.level === "error" ? DANGER : item.level === "warning" ? WARN : "#0284C7";
-  const bg    = item.level === "error" ? "#FEE2E2" : item.level === "warning" ? "#FEF3C7" : "#E6FAF8";
+  const bg    = item.level === "error" ? "#FEE2E2" : item.level === "warning" ? "#FEF3C7" : C.brandSoft;
   const icon  = item.level === "error" ? "x-circle" : item.level === "warning" ? "alert-triangle" : "info";
   return (
     <View style={[anom.row, { backgroundColor: bg }]}>
@@ -685,7 +685,7 @@ export default function InfraStatusPanel() {
       {/* 전체 상태 요약 배지 */}
       <View style={ps.summaryBadgeRow}>
         {[
-          { label: `정상 ${totals.ok_count}개`,     color: GREEN,   bg: "#E6FFFA" },
+          { label: `정상 ${totals.ok_count}개`,     color: GREEN,   bg: C.brandSoft },
           { label: `주의 ${totals.warning_count}개`, color: WARN,    bg: "#FEF3C7" },
           { label: `오류 ${totals.error_count}개`,   color: DANGER,  bg: "#FEE2E2" },
         ].map((b, i) => (

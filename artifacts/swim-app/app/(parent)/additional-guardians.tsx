@@ -11,8 +11,8 @@ import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
-const TEAL_BG = "#E6FAF8";
+const TEAL = C.brandStrong;
+const TEAL_BG = C.brandMist;
 const NAVY = "#0F3460";
 
 interface PhoneSlot {
@@ -194,7 +194,7 @@ export default function AdditionalGuardiansScreen() {
                 {s.phones.filter(p => p.slot === 1).map(p => (
                   <View key={1} style={[slotRow, { backgroundColor: C.backgroundSoft, opacity: 0.85 }]}>
                     <View style={dotBadge("connected")}>
-                      <LucideIcon name="shield-check" size={13} color="#2EC4B6" />
+                      <LucideIcon name="shield-check" size={13} color={C.brandStrong} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={slotLabel}>주 보호자 (관리자 설정)</Text>
@@ -210,7 +210,7 @@ export default function AdditionalGuardiansScreen() {
                       <LucideIcon
                         name={p.status === "connected" ? "link" : "clock"}
                         size={13}
-                        color={p.status === "connected" ? "#2EC4B6" : "#F59E0B"}
+                        color={p.status === "connected" ? C.brandStrong : "#F59E0B"}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -372,7 +372,7 @@ const deleteBtn: object = {
 const addBtn: object = {
   flexDirection: "row", alignItems: "center", justifyContent: "center",
   gap: 6, paddingVertical: 10,
-  borderRadius: 10, borderWidth: 1.5, borderColor: "#2EC4B6",
+  borderRadius: 10, borderWidth: 1.5, borderColor: C.brandStrong,
   borderStyle: "dashed", marginTop: 4,
 };
 
@@ -401,5 +401,5 @@ const cancelBtn: object = {
 };
 const confirmBtn: object = {
   flex: 2, paddingVertical: 13, borderRadius: 10,
-  backgroundColor: "#2EC4B6", alignItems: "center",
+  backgroundColor: C.primaryAction, alignItems: "center",
 };

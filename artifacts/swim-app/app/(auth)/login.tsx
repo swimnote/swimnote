@@ -75,8 +75,8 @@ export default function LoginPasswordScreen() {
             <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
           <View style={styles.idChip}>
-            <LucideIcon name="user" size={13} color={C.tint} />
-            <Text style={[styles.idChipText, { color: C.tint }]} numberOfLines={1}>{identifier}</Text>
+            <LucideIcon name="user" size={13} color={C.brandStrong} />
+            <Text style={[styles.idChipText, { color: C.brandStrong }]} numberOfLines={1}>{identifier}</Text>
             <Pressable onPress={() => router.replace("/")} style={{ marginLeft: 2 }}>
               <Text style={[styles.changeIdText, { color: C.textMuted }]}>{LOGIN_LABELS.backToId}</Text>
             </Pressable>
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   idChip: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#E6FFFA", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: C.brandSoft, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
   idChipText: { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
   changeIdText: { fontSize: 12, fontFamily: "Pretendard-Regular" },

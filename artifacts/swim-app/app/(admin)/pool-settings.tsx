@@ -226,7 +226,7 @@ export default function PoolSettingsScreen() {
     finally { setSavingCapacity(false); }
   }
 
-  if (loading) return <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}><ActivityIndicator color={C.tint} /></View>;
+  if (loading) return <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}><ActivityIndicator color={C.brandStrong} /></View>;
 
   return (
     <View style={[styles.root, { backgroundColor: C.background }]}>
@@ -328,9 +328,9 @@ export default function PoolSettingsScreen() {
           </View>
 
           {form.name_en ? (
-            <View style={[styles.previewBox, { backgroundColor: C.tintLight }]}>
-              <LucideIcon name="file" size={14} color={C.tint} />
-              <Text style={[styles.previewText, { color: C.tint }]}>
+            <View style={[styles.previewBox, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="file" size={14} color={C.brandStrong} />
+              <Text style={[styles.previewText, { color: C.brandStrong }]}>
                 파일명 예시: {form.name_en}_20260314_154530_a3f8.jpg
               </Text>
             </View>
@@ -340,7 +340,7 @@ export default function PoolSettingsScreen() {
         {/* 반 기본 설정 */}
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <LucideIcon name="users" size={16} color={C.tint} />
+            <LucideIcon name="users" size={16} color={C.brandStrong} />
             <Text style={[styles.sectionTitle, { color: C.text }]}>반 기본 설정</Text>
           </View>
           <Text style={[styles.hint, { color: C.textMuted }]}>
@@ -363,10 +363,10 @@ export default function PoolSettingsScreen() {
             </View>
           </View>
           {capacityMsg ? (
-            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
+            <View style={[styles.msgBox, { backgroundColor: capacityMsg === "저장되었습니다." ? C.brandSoft : "#F9DEDA" }]}>
               <LucideIcon name={capacityMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                color={capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
-              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{capacityMsg}</Text>
+                color={capacityMsg === "저장되었습니다." ? C.brandStrong : C.error} />
+              <Text style={[styles.errText, { color: capacityMsg === "저장되었습니다." ? C.brandStrong : C.error }]}>{capacityMsg}</Text>
             </View>
           ) : null}
           <Pressable
@@ -432,10 +432,10 @@ export default function PoolSettingsScreen() {
               </View>
             ))}
             {pricingMsg ? (
-              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
+              <View style={[styles.msgBox, { backgroundColor: pricingMsg === "저장되었습니다." ? C.brandSoft : "#F9DEDA" }]}>
                 <LucideIcon name={pricingMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                  color={pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
-                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{pricingMsg}</Text>
+                  color={pricingMsg === "저장되었습니다." ? C.brandStrong : C.error} />
+                <Text style={[styles.errText, { color: pricingMsg === "저장되었습니다." ? C.brandStrong : C.error }]}>{pricingMsg}</Text>
               </View>
             ) : null}
             <Pressable
@@ -450,13 +450,13 @@ export default function PoolSettingsScreen() {
         {/* ── 수영정보 콘텐츠 관리 ───────────────────────────────────────────── */}
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <BookOpen size={16} color="#2EC4B6" />
+            <BookOpen size={16} color={C.brandStrong} />
             <Text style={[styles.sectionTitle, { color: C.text }]}>수영정보 콘텐츠</Text>
           </View>
           <Text style={[styles.hint, { color: C.textMuted }]}>학부모 앱 → 수영정보 화면에 표시됩니다.</Text>
 
           {[
-            { key: "introduction",    label: "수영장 소개",       Icon: BookOpen,     color: "#2EC4B6" },
+            { key: "introduction",    label: "수영장 소개",       Icon: BookOpen,     color: C.brandStrong },
             { key: "tuition_info",    label: "수업료 안내",       Icon: CreditCard,   color: "#16A34A" },
             { key: "level_test_info", label: "레벨 테스트 안내", Icon: Award,        color: "#7C3AED" },
             { key: "event_info",      label: "이벤트 소식",       Icon: Gift,         color: "#D97706" },
@@ -481,14 +481,14 @@ export default function PoolSettingsScreen() {
           ))}
 
           {contentMsg ? (
-            <View style={[styles.msgBox, { backgroundColor: contentMsg === "저장되었습니다." ? "#E6FFFA" : "#F9DEDA" }]}>
+            <View style={[styles.msgBox, { backgroundColor: contentMsg === "저장되었습니다." ? C.brandSoft : "#F9DEDA" }]}>
               <LucideIcon name={contentMsg === "저장되었습니다." ? "check-circle" : "alert-circle"} size={14}
-                color={contentMsg === "저장되었습니다." ? "#2EC4B6" : C.error} />
-              <Text style={[styles.errText, { color: contentMsg === "저장되었습니다." ? "#2EC4B6" : C.error }]}>{contentMsg}</Text>
+                color={contentMsg === "저장되었습니다." ? C.brandStrong : C.error} />
+              <Text style={[styles.errText, { color: contentMsg === "저장되었습니다." ? C.brandStrong : C.error }]}>{contentMsg}</Text>
             </View>
           ) : null}
           <Pressable
-            style={[styles.saveBtn, { backgroundColor: "#2EC4B6", opacity: savingContent ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
+            style={[styles.saveBtn, { backgroundColor: C.primaryAction, opacity: savingContent ? 0.6 : 1, alignSelf: "flex-start", marginTop: 4 }]}
             onPress={handleSaveContent}
             disabled={savingContent}
           >
@@ -502,10 +502,10 @@ export default function PoolSettingsScreen() {
             <View style={styles.statusRow}>
               <Text style={[styles.statusLabel, { color: C.textSecondary }]}>승인 상태</Text>
               <View style={[styles.badge, {
-                backgroundColor: settings.approval_status === "approved" ? "#E6FFFA" : "#FFF1BF"
+                backgroundColor: settings.approval_status === "approved" ? C.brandSoft : "#FFF1BF"
               }]}>
                 <Text style={[styles.badgeText, {
-                  color: settings.approval_status === "approved" ? "#2EC4B6" : "#D97706"
+                  color: settings.approval_status === "approved" ? C.brandStrong : "#D97706"
                 }]}>
                   {settings.approval_status === "approved" ? "승인됨" : settings.approval_status === "pending" ? "심사 중" : "반려"}
                 </Text>

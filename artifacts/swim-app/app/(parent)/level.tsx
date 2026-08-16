@@ -29,8 +29,8 @@ interface LevelInfo {
   all_levels: LevelDef[];
 }
 
-const LEVEL_COLORS = ["#E6FFFA", "#DFF3EC", "#FFF1BF", "#FDF4FF", "#FFF1F2"];
-const LEVEL_ACCENTS = ["#2EC4B6", "#16A34A", "#D97706", "#9333EA", "#E11D48"];
+const LEVEL_COLORS = [C.brandMist, "#DFF3EC", "#FFF1BF", "#FDF4FF", "#FFF1F2"];
+const LEVEL_ACCENTS = [C.brandStrong, "#16A34A", "#D97706", "#9333EA", "#E11D48"];
 
 export default function ParentLevelScreen() {
   const insets = useSafeAreaInsets();
@@ -69,7 +69,7 @@ export default function ParentLevelScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : !selectedStudent ? (
         <View style={s.empty}>
           <LucideIcon name="user-round" size={44} color={C.textMuted} />
@@ -89,7 +89,7 @@ export default function ParentLevelScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 8 }}
         >
           {/* 현재 레벨 카드 */}
-          <View style={[s.currentCard, { backgroundColor: C.tint }]}>
+          <View style={[s.currentCard, { backgroundColor: C.brandStrong }]}>
             <Text style={s.currentLabel}>현재 레벨</Text>
             {currentLevel ? (
               <View style={{ alignItems: "center", gap: 8 }}>
@@ -115,8 +115,8 @@ export default function ParentLevelScreen() {
               {currentLevel.level_description ? (
                 <View style={s.descBlock}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <LucideIcon name="info" size={14} color={C.tint} />
-                    <Text style={[s.descTitle, { color: C.tint }]}>레벨 소개</Text>
+                    <LucideIcon name="info" size={14} color={C.brandStrong} />
+                    <Text style={[s.descTitle, { color: C.brandStrong }]}>레벨 소개</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.level_description}</Text>
                 </View>

@@ -93,8 +93,8 @@ export function ConfirmModal({
     else handleConfirm();
   }
 
-  // X 모드: confirm 버튼 기본색 = XT.primary (네이비), Normal = C.tint (민트)
-  const defaultConfirmColor = destructive ? C.error : (isX ? XT.primary : C.tint);
+  // X 모드: confirm 버튼 기본색 = XT.primary (Nautic); Normal = C.primaryAction (Sage Strong, WP-N3)
+  const defaultConfirmColor = destructive ? C.error : (isX ? XT.primary : C.primaryAction);
 
   return (
     <Modal

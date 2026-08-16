@@ -38,8 +38,8 @@ function formatWon(n: number) {
 }
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  trial:           { label: "체험 중",   color: "#7C3AED", bg: "#E6FAF8" },
-  active:          { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
+  trial:           { label: "체험 중",   color: "#7C3AED", bg: C.brandSoft },
+  active:          { label: "구독 중",   color: C.brandStrong, bg: C.brandSoft },
   expired:         { label: "만료됨",    color: C.textSecondary, bg: "#FFFFFF" },
   suspended:       { label: "정지됨",    color: "#D97706", bg: "#FFF1BF" },
   cancelled:       { label: "해지됨",    color: "#D96C6C", bg: "#F9DEDA" },
@@ -233,7 +233,7 @@ export default function DashboardScreen() {
     finally { setSwitching(false); }
   }
 
-  const _BIB = "#E6FAF8";
+  const _BIB = C.brandSoft;
 
   /** §24: x_pending도 X UI / isXMode 헬퍼 사용 */
   const isX = isXMode(mode);
@@ -312,7 +312,7 @@ export default function DashboardScreen() {
                   s.switchChip,
                   isX
                     ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: XT.surfaceNavySoft, opacity: pressed || switching ? 0.7 : 1 }
-                    : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                    : { borderColor: "#14283D30", backgroundColor: C.brandSoft, opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}

@@ -436,12 +436,12 @@ export default function SignupScreen() {
           const done   = n < step;
           return (
             <View key={n} style={styles.stepItem}>
-              <View style={[styles.stepDot, { backgroundColor: done ? C.tint : active ? C.tint : C.border }]}>
+              <View style={[styles.stepDot, { backgroundColor: done ? C.brandStrong : active ? C.brandStrong : C.border }]}>
                 {done
                   ? <LucideIcon name="check" size={12} color="#fff" />
                   : <Text style={[styles.stepNum, { color: active ? "#fff" : C.textMuted }]}>{visibleSteps.findIndex(s => s.n === n) + 1}</Text>}
               </View>
-              <Text style={[styles.stepLabel, { color: active ? C.tint : C.textMuted }]}>{label}</Text>
+              <Text style={[styles.stepLabel, { color: active ? C.brandStrong : C.textMuted }]}>{label}</Text>
             </View>
           );
         })}
@@ -552,8 +552,8 @@ export default function SignupScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>인증번호</Text>
             <View style={styles.codeRow}>
-              <View style={[styles.inputBox, { flex: 1, borderColor: verified ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="hash" size={15} color={verified ? C.tint : C.textMuted} style={{ marginRight: 8 }} />
+              <View style={[styles.inputBox, { flex: 1, borderColor: verified ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="hash" size={15} color={verified ? C.brandStrong : C.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   placeholder="6자리 입력"
@@ -565,7 +565,7 @@ export default function SignupScreen() {
                   editable={!verified}
                 />
                 {timer > 0 && !verified && (
-                  <Text style={[styles.timerTxt, { color: C.tint }]}>{fmtTimer(timer)}</Text>
+                  <Text style={[styles.timerTxt, { color: C.brandStrong }]}>{fmtTimer(timer)}</Text>
                 )}
               </View>
               {!verified && (
@@ -582,8 +582,8 @@ export default function SignupScreen() {
             </View>
             {verified && (
               <View style={styles.verifiedRow}>
-                <LucideIcon name="check-circle" size={14} color={C.tint} />
-                <Text style={[styles.verifiedTxt, { color: C.tint }]}>인증 완료</Text>
+                <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
+                <Text style={[styles.verifiedTxt, { color: C.brandStrong }]}>인증 완료</Text>
               </View>
             )}
           </View>
@@ -614,7 +614,7 @@ export default function SignupScreen() {
                 style={[
                   styles.roleCard,
                   selected
-                    ? { backgroundColor: C.tint, borderColor: "#0099AA", borderWidth: 2 }
+                    ? { backgroundColor: C.brandStrong, borderColor: "#0099AA", borderWidth: 2 }
                     : { backgroundColor: "#fff", borderColor: "#E5E5E5", borderWidth: 1.5 },
                 ]}
                 onPress={() => setRole(r.role)}
@@ -775,8 +775,8 @@ export default function SignupScreen() {
             <Text style={[styles.cardTitle, { color: C.text }]}>수영장 선택</Text>
             {selectedPool ? (
               <View style={styles.selectedPool}>
-                <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                  <LucideIcon name="check" size={14} color={C.tint} />
+                <View style={[styles.poolIconSm, { backgroundColor: C.brandSoft }]}>
+                  <LucideIcon name="check" size={14} color={C.brandStrong} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.poolNameSm, { color: C.text }]}>{selectedPool.name}</Text>
@@ -802,7 +802,7 @@ export default function SignupScreen() {
                   <Text style={[styles.emptyTxt, { color: C.textMuted }]}>등록된 수영장 이름을 입력해 주세요.</Text>
                 )}
                 {poolSearchState === "loading" && (
-                  <ActivityIndicator size="small" color={C.tint} style={{ marginTop: 8 }} />
+                  <ActivityIndicator size="small" color={C.brandStrong} style={{ marginTop: 8 }} />
                 )}
                 {poolSearchState === "empty" && (
                   <Text style={[styles.emptyTxt, { color: C.textMuted }]}>일치하는 수영장이 없습니다.</Text>
@@ -811,7 +811,7 @@ export default function SignupScreen() {
                   <View style={{ marginTop: 8, gap: 6 }}>
                     <Text style={[styles.emptyTxt, { color: C.error }]}>{poolSearchError}</Text>
                     <Pressable onPress={() => { setPoolSearchState("idle"); setPoolSearch(p => p + " "); setTimeout(() => setPoolSearch(p => p.trimEnd()), 0); }}>
-                      <Text style={{ fontSize: 12, color: C.tint, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" }}>다시 시도</Text>
+                      <Text style={{ fontSize: 12, color: C.brandStrong, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" }}>다시 시도</Text>
                     </Pressable>
                   </View>
                 )}
@@ -821,8 +821,8 @@ export default function SignupScreen() {
                     style={({ pressed }) => [styles.poolItem, { backgroundColor: pressed ? "#F0FAF9" : C.background, borderColor: C.border }]}
                     onPress={() => { setSelectedPool(p); setPoolSearch(""); setPools([]); setPoolSearchState("idle"); }}
                   >
-                    <View style={[styles.poolIconSm, { backgroundColor: "#E6FAF8" }]}>
-                      <LucideIcon name="map-pin" size={13} color={C.tint} />
+                    <View style={[styles.poolIconSm, { backgroundColor: C.brandSoft }]}>
+                      <LucideIcon name="map-pin" size={13} color={C.brandStrong} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.poolNameSm, { color: C.text }]}>{p.name}</Text>
@@ -854,8 +854,8 @@ export default function SignupScreen() {
         >
           {/* 아이콘 */}
           <View style={{ alignItems: "center", marginBottom: 28 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" }}>
-              <LucideIcon name="check-circle" size={42} color={C.tint} />
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: C.brandSoft, alignItems: "center", justifyContent: "center" }}>
+              <LucideIcon name="check-circle" size={42} color={C.brandStrong} />
             </View>
           </View>
 
@@ -878,8 +878,8 @@ export default function SignupScreen() {
               "문의는 가입한 수영장에 직접 연락해 주세요.",
             ].map((txt, i) => (
               <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center", marginTop: 1 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.tint }}>{i + 1}</Text>
+                <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: C.brandSoft, alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>{i + 1}</Text>
                 </View>
                 <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 }}>{txt}</Text>
               </View>
@@ -957,7 +957,7 @@ export default function SignupScreen() {
         <Pressable style={({ pressed }) => [styles.loginLink, { opacity: pressed ? 0.6 : 1 }]} onPress={() => router.back()}>
           <Text style={[styles.loginLinkTxt, { color: C.textSecondary }]}>
             이미 계정이 있으신가요?{" "}
-            <Text style={{ color: C.tint, fontFamily: "Pretendard-Regular" }}>로그인</Text>
+            <Text style={{ color: C.brandStrong, fontFamily: "Pretendard-Regular" }}>로그인</Text>
           </Text>
         </Pressable>
       </KeyboardAwareScrollView>

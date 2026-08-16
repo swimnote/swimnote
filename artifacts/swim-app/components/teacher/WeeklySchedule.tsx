@@ -184,11 +184,11 @@ export function WeeklySchedule({
                   </Text>
                   {!inactive && (
                     <View style={ws.dots}>
-                      <View style={[ws.dot, { backgroundColor: attDone ? "#E6FFFA" : "#F9DEDA" }]}>
-                        <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
+                      <View style={[ws.dot, { backgroundColor: attDone ? C.iconGreenBg : "#F9DEDA" }]}>
+                        <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? C.success : "#D96C6C"} />
                       </View>
-                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <LucideIcon name={diaryDone ? "check" : "edit"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
+                      <View style={[ws.dot, { backgroundColor: diaryDone ? C.iconGreenBg : "#FFF1BF" }]}>
+                        <LucideIcon name={diaryDone ? "check" : "edit"} size={7} color={diaryDone ? C.success : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>

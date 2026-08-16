@@ -1,5 +1,8 @@
 import type { LevelDef } from "@/components/common/LevelBadge";
 import type { StudentMember } from "@/utils/studentUtils";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 export interface ClassGroup {
   id: string;
@@ -55,7 +58,7 @@ export interface LevelInfo {
 }
 
 export const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  active:    { label: "재원",   color: "#2EC4B6", bg: "#E6FFFA" },
+  active:    { label: "재원",   color: C.brandStrong, bg: C.brandSoft },
   inactive:  { label: "연기",   color: "#D97706", bg: "#FFF1BF" },
   suspended: { label: "연기",   color: "#D97706", bg: "#FFF1BF" },
   withdrawn: { label: "퇴원",   color: "#D96C6C", bg: "#F9DEDA" },

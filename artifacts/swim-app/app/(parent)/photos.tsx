@@ -351,7 +351,7 @@ export default function ParentAlbumScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={isX ? XT.accent : C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={isX ? XT.accent : C.brandStrong} style={{ marginTop: 60 }} />
       ) : rows.length === 0 ? (
         <View style={st.empty}>
           <LucideIcon name="image" size={44} color={C.textMuted} />
@@ -519,9 +519,9 @@ const st = StyleSheet.create({
 
   tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
-  tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
+  tabBtnActive: { borderColor: C.brandStrong, backgroundColor: C.brandMist },
   tabTxt: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
-  tabTxtActive: { color: "#2EC4B6" },
+  tabTxtActive: { color: C.brandStrong },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
   monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
@@ -555,7 +555,7 @@ const st = StyleSheet.create({
   },
   lbImageWrap: { width: "100%", height: "60%" },
   lbImage: { width: "100%", height: "100%" },
-  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
+  lbSource: { color: C.brandSoft, fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
 
   lbArrowRow: {
     position: "absolute", left: 0, right: 0,

@@ -36,8 +36,8 @@ export default function MessagesScreen() {
     <View style={[s.root, { backgroundColor: C.background }]}>
       <ParentScreenHeader title="쪽지함" />
       <View style={[s.body, { paddingBottom: insets.bottom + 24 }]}>
-        <View style={[s.iconWrap, { backgroundColor: "#E6FFFA" }]}>
-          <LucideIcon name="message-circle" size={36} color={C.tint} />
+        <View style={[s.iconWrap, { backgroundColor: C.brandMist }]}>
+          <LucideIcon name="message-circle" size={36} color={C.brandStrong} />
         </View>
         <Text style={[s.title, { color: C.text }]}>쪽지함이 댓글로 바뀌었어요</Text>
         <Text style={[s.desc, { color: C.textSecondary }]}>

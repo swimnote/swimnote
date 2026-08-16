@@ -9,9 +9,9 @@ const C = Colors.light;
 
 const MAKEUP_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
+  assigned:    { label: "배정",   color: C.brandStrong, bg: C.brandSoft },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  completed:   { label: "완료",   color: C.brandStrong, bg: C.brandSoft },
   cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
 };
 
@@ -46,7 +46,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
                   <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>배정반: {mk.assigned_class_group_name}</Text>
                 )}
                 {mk.is_substitute && mk.substitute_teacher_name && (
-                  <Text style={{ fontSize: 12, color: "#2EC4B6", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
+                  <Text style={{ fontSize: 12, color: C.brandStrong, marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
                 )}
                 {mk.transferred_to_teacher_name && (
                   <Text style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>이동→ {mk.transferred_to_teacher_name}</Text>

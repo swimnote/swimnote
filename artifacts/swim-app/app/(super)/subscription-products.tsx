@@ -19,7 +19,7 @@ import type { SubscriptionPlan } from "@/domain/types";
 import { LucideIcon } from "@/components/common/LucideIcon";
 
 const P = "#7C3AED";
-const G = "#2EC4B6";
+const G = C.brandStrong;
 
 const EMPTY_FORM = {
   name:          "",
@@ -90,7 +90,7 @@ function PlanCard({ plan, onEdit, onToggle }: {
           <Text style={[pc.btnTxt, { color: P }]}>수정</Text>
         </Pressable>
         <Pressable
-          style={[pc.btn, { backgroundColor: plan.isActive ? "#FFF1BF" : "#E6FFFA" }]}
+          style={[pc.btn, { backgroundColor: plan.isActive ? "#FFF1BF" : C.brandSoft }]}
           onPress={() => onToggle(plan)}>
           <LucideIcon name={plan.isActive ? "pause-circle" : "play-circle"} size={13}
             color={plan.isActive ? "#D97706" : G} />

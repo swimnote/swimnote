@@ -11,8 +11,8 @@ export const STATUS_COLORS = {
     icon:   "clock" as const,
   },
   approved: {
-    color:  "#2EC4B6",
-    bg:     "#E6FFFA",
+    color:  "#2E9B6F",
+    bg:     "#E6F5EF",
     border: "#2E9B6F",
     label:  "승인",
     icon:   "check-circle" as const,
@@ -26,7 +26,7 @@ export const STATUS_COLORS = {
   },
   invited: {
     color:  "#4EA7D8",
-    bg:     "#E6FFFA",
+    bg:     "#E0F2FE",
     border: "#4EA7D8",
     label:  "초대 보냄",
     icon:   "send" as const,
@@ -39,15 +39,15 @@ export const STATUS_COLORS = {
     icon:   "clock" as const,
   },
   free: {
-    color:  "#2EC4B6",
-    bg:     "#E6FFFA",
-    border: "#2E9B6F",
+    color:  "#4F6F67",
+    bg:     "#DDE7E3",
+    border: "#4F6F67",
     label:  "무료 이용",
     icon:   "gift" as const,
   },
   paid: {
-    color:  "#2EC4B6",
-    bg:     "#E6FFFA",
+    color:  "#4F6F67",
+    bg:     "#DDE7E3",
     border: "#4EA7D8",
     label:  "유료 이용",
     icon:   "credit-card" as const,
@@ -72,7 +72,7 @@ export type StatusKey = keyof typeof STATUS_COLORS;
 
 /** 출결 전용 */
 export const ATT_COLORS = {
-  present: { color: "#2EC4B6", bg: "#E6FFFA", label: "출석", icon: "check-circle" as const },
+  present: { color: "#2E9B6F", bg: "#E6F5EF", label: "출석", icon: "check-circle" as const },
   absent:  { color: "#D96C6C", bg: "#F9DEDA", label: "결석", icon: "x-circle"    as const },
   late:    { color: "#D97706", bg: "#FFF1BF", label: "지각", icon: "clock"        as const },
 } as const;

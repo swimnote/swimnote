@@ -106,7 +106,7 @@ export function MemberClassTab({
         <Text style={ms.sectionTitle}>최근 출결 현황</Text>
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           {[
-            { label: "출석", color: "#2EC4B6", key: "present" },
+            { label: "출석", color: C.present, key: "present" },
             { label: "결석", color: "#D96C6C", key: "absent" },
             { label: "지각", color: "#D97706", key: "late" },
             { label: "공결", color: "#7C3AED", key: "excused" },

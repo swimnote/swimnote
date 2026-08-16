@@ -324,7 +324,7 @@ export default function DiaryTemplateSettingsScreen() {
       />
 
       {levelsLoading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <KeyboardAwareScrollView
           contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
@@ -348,11 +348,11 @@ export default function DiaryTemplateSettingsScreen() {
                 <Text style={s.emptyText}>레벨이 없습니다.</Text>
                 <Text style={s.emptySubText}>"기본 복원" 버튼으로 SwimNote 기본 템플릿을 불러오세요.</Text>
                 <Pressable
-                  style={[s.addLevelBtn, { borderColor: C.tint, marginTop: 12 }]}
+                  style={[s.addLevelBtn, { borderColor: C.brandStrong, marginTop: 12 }]}
                   onPress={() => { setAddLevelText("레벨 1"); setAddLevelError(""); setAddLevelVisible(true); }}
                 >
-                  <LucideIcon name="plus" size={14} color={C.tint} />
-                  <Text style={[s.addLevelBtnText, { color: C.tint }]}>레벨 추가</Text>
+                  <LucideIcon name="plus" size={14} color={C.brandStrong} />
+                  <Text style={[s.addLevelBtnText, { color: C.brandStrong }]}>레벨 추가</Text>
                 </Pressable>
               </View>
             ) : (
@@ -392,13 +392,13 @@ export default function DiaryTemplateSettingsScreen() {
                     style={s.addTemplateBtn}
                     onPress={() => { setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError(""); setAddTemplateVisible(true); }}
                   >
-                    <LucideIcon name="plus" size={13} color={C.tint} />
+                    <LucideIcon name="plus" size={13} color={C.brandStrong} />
                     <Text style={s.addTemplateBtnText}>추가</Text>
                   </Pressable>
                 </View>
 
                 {templatesLoading ? (
-                  <ActivityIndicator color={C.tint} style={{ marginTop: 24 }} />
+                  <ActivityIndicator color={C.brandStrong} style={{ marginTop: 24 }} />
                 ) : templates.length === 0 ? (
                   <View style={s.emptyBox}>
                     <Text style={s.emptyText}>템플릿이 없습니다.</Text>
@@ -569,8 +569,8 @@ function LevelChip({
       onLongPress={onLongPress}
       delayLongPress={400}
     >
-      <Text style={[s.levelChipName, selected && { color: C.tint }]} numberOfLines={1}>{lv.level_name}</Text>
-      <Text style={[s.levelChipCount, selected && { color: C.tint + "CC" }]}>({lv.template_count})</Text>
+      <Text style={[s.levelChipName, selected && { color: C.brandStrong }]} numberOfLines={1}>{lv.level_name}</Text>
+      <Text style={[s.levelChipCount, selected && { color: C.brandStrong + "CC" }]}>({lv.template_count})</Text>
     </Pressable>
   );
 }
@@ -588,7 +588,7 @@ function TemplateItem({
         <Switch
           value={template.is_active}
           onValueChange={onToggle}
-          trackColor={{ false: C.border, true: C.tint }}
+          trackColor={{ false: C.border, true: C.brandStrong }}
           thumbColor="#fff"
           style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
         />
@@ -630,7 +630,7 @@ function TemplateItem({
             <LucideIcon name="copy" size={13} color={C.textSecondary} />
           </Pressable>
           <Pressable style={s.actionBtn} onPress={onEdit} hitSlop={6}>
-            <LucideIcon name="edit-2" size={13} color={C.tint} />
+            <LucideIcon name="edit-2" size={13} color={C.brandStrong} />
           </Pressable>
           <Pressable style={s.actionBtn} onPress={onDelete} hitSlop={6}>
             <LucideIcon name="trash-2" size={13} color="#D96C6C" />
@@ -780,8 +780,8 @@ function TemplateInputModal({
 const s = StyleSheet.create({
   levelSection: { padding: 16, paddingBottom: 12 },
   levelSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 0 },
-  levelManageBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.tint },
-  levelManageBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
+  levelManageBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: C.brandStrong },
+  levelManageBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   sectionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   sectionCount: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   levelGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
@@ -790,7 +790,7 @@ const s = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 4, borderRadius: 12,
     borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card, minHeight: 54,
   },
-  levelChipSelected: { borderColor: C.tint, backgroundColor: "#E6FFFA" },
+  levelChipSelected: { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
   levelChipName: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   levelChipCount: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 3 },
   addChip: {
@@ -807,8 +807,8 @@ const s = StyleSheet.create({
   divider: { height: 1, backgroundColor: C.border },
   templateSection: { padding: 16 },
   templateSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  addTemplateBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, borderWidth: 1.5, borderColor: C.tint },
-  addTemplateBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
+  addTemplateBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, borderWidth: 1.5, borderColor: C.brandStrong },
+  addTemplateBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   templateList: { gap: 8 },
   templateItem: {
     flexDirection: "row", alignItems: "center", gap: 6,

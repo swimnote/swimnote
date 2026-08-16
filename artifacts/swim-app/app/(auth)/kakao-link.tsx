@@ -167,13 +167,13 @@ export default function KakaoLinkScreen() {
                   style={[
                     styles.roleBtn,
                     {
-                      borderColor: role === key ? C.primary : C.border,
-                      backgroundColor: role === key ? C.primary + "15" : C.background,
+                      borderColor: role === key ? C.brandStrong : C.border,
+                      backgroundColor: role === key ? C.brandSoft : C.background,
                     },
                   ]}
                   onPress={() => { setRole(key); setError(""); setPendingMsg(""); }}
                 >
-                  <Text style={[styles.roleBtnText, { color: role === key ? C.primary : C.textSecondary }]}>
+                  <Text style={[styles.roleBtnText, { color: role === key ? C.brandStrong : C.textSecondary }]}>
                     {label}
                   </Text>
                 </Pressable>

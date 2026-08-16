@@ -23,7 +23,7 @@ const C = Colors.light;
 const BRAND   = "#F97316";
 const KAKAO   = "#FEE500";
 const NAVY    = "#1B3A70";   // 네이비 기본색 (버튼 fill)
-const MINT    = "#2EC4B6";   // 민트 테두리·액센트
+const MINT    = C.brandStrong;   // 브랜드 액센트
 
 function KakaoIcon({ size = 22 }: { size?: number }) {
   return (

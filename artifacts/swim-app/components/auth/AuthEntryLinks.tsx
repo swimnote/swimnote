@@ -26,7 +26,7 @@ export function AuthEntryLinks({ links }: Props) {
             <LucideIcon name={item.icon as any} size={12} color={C.textMuted} />
             <Text style={styles.label}>{item.label}</Text>
             <Text style={styles.action}>{item.action}</Text>
-            <LucideIcon name="chevron-right" size={12} color={C.tint} />
+            <LucideIcon name="chevron-right" size={12} color={C.brandStrong} />
           </Pressable>
         </React.Fragment>
       ))}
@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
   action: {
     fontSize: 13,
     fontFamily: "Pretendard-Regular",
-    color: C.tint,
+    color: C.brandStrong,
   },
 });

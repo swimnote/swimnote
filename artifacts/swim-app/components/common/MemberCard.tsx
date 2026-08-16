@@ -55,7 +55,7 @@ interface UnifiedMemberCardProps {
 
 export function UnifiedMemberCard({
   student,
-  themeColor = C.tint,
+  themeColor = C.primaryAction,
   actions,
   onPress,
   showInvite,

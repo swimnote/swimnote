@@ -1,11 +1,13 @@
 /**
- * AppButton — A1-2 Design System Primary Button Primitive
+ * AppButton — WP-N3 Design System Primary Button Primitive
  *
  * variant:
- *   primary     → Navy solid (#0F172A) — 저장/다음/등록/확인/완료
- *   secondary   → Light surface (#F1F5F9) — 취소/보조
- *   tertiary    → Transparent + Navy text — 텍스트 전용
+ *   primary     → Sage Strong (#4F6F67) — 저장/다음/등록/확인/완료 (white label 5.6:1 ✅)
+ *   secondary   → Sage Soft bg (#DDE7E3) + Sage Strong text — 보조/취소
+ *   tertiary    → Transparent + textPrimary — 텍스트 전용
  *   destructive → Red (#D96C6C) — 삭제/위험
+ *
+ * X mode: primary → XT.primary (Nautic), X 변경 금지.
  *
  * 규칙:
  *   - 기능이 다르다는 이유로 색을 다르게 하지 않는다.
@@ -46,22 +48,22 @@ const VARIANT_CONFIG: Record<
   { bg: string; pressedBg: string; textColor: string; borderColor?: string }
 > = {
   primary: {
-    bg:        C.primaryAction,        // #0F2742 navy
-    pressedBg: C.primaryActionPressed, // #0B1F33
-    textColor: "#FFFFFF",
+    bg:        C.primaryAction,        // #4F6F67 Sage Strong (WP-N3)
+    pressedBg: C.primaryActionPressed, // #3D5750
+    textColor: "#FFFFFF",              // 5.6:1 on Sage Strong ✅ AA
   },
   secondary: {
-    bg:        "#F1F5F9",
-    pressedBg: "#E2E8F0",
-    textColor: C.text,
+    bg:        C.brandSoft,            // #DDE7E3 Sage Soft
+    pressedBg: C.brandMid,            // #91ABA3 Sage Mid (pressed)
+    textColor: C.brandStrong,          // #4F6F67 Sage Strong text
   },
   tertiary: {
     bg:        "transparent",
-    pressedBg: "#F1F5F9",
-    textColor: C.text,
+    pressedBg: C.backgroundSoft,       // #ECF2F0 Sage Mist
+    textColor: C.textPrimary,
   },
   destructive: {
-    bg:        C.error,           // #D96C6C
+    bg:        C.error,                // #D96C6C
     pressedBg: "#B85C5C",
     textColor: "#FFFFFF",
   },
@@ -86,7 +88,7 @@ export function AppButton({
   const { mode } = useMode();
   const isX = isXMode(mode);
 
-  // Primary CTA: X → Nautic Primary (#1A4070), Normal → C.primaryAction (#0F2742)
+  // Primary CTA: X → Nautic Primary (#1A4070), Normal → C.primaryAction (#4F6F67 Sage Strong)
   const vCfg = variant === "primary" && isX
     ? { ...VARIANT_CONFIG.primary, bg: XT.primary, pressedBg: XT.primaryPressed }
     : VARIANT_CONFIG[variant];

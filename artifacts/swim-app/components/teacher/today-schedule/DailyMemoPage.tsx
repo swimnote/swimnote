@@ -208,7 +208,7 @@ export default function DailyMemoPage({
                 </View>
               ) : (
                 <Pressable style={dm.startRecBtn} onPress={startRecording}>
-                  <View style={[dm.micCircle, { backgroundColor: "#E6FFFA" }]}>
+                  <View style={[dm.micCircle, { backgroundColor: C.brandSoft }]}>
                     <LucideIcon name="mic" size={22} color="#4EA7D8" />
                   </View>
                   <Text style={[dm.startRecText, { color: C.text }]}>녹음 시작</Text>

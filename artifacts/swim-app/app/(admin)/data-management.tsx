@@ -46,8 +46,8 @@ const SECTIONS: { title: string; desc?: string; items: MenuItem[] }[] = [
         label: "저장공간 현황",
         desc: "총 사용량 · 제공 용량 · 게이지",
         icon: "pie-chart",
-        color: "#2EC4B6",
-        bg: "#E6FFFA",
+        color: C.brandStrong,
+        bg: C.brandSoft,
         route: "/(admin)/data-storage-overview",
       },
       {

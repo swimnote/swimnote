@@ -139,7 +139,7 @@ export default function DiaryIndexScreen() {
         <View style={di.cardTop}>
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[di.typeBadge, { backgroundColor: C.brandMist }]}>
               {isNote
                 ? <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>{item.student_name} 추가</Text></>
                 : <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>반 공통</Text></>

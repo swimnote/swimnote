@@ -18,8 +18,8 @@ const MENUS = [
     title: "운영 로그·감사",
     sub: "결제·삭제·승인·보안 이벤트 전체 로그",
     path: "/(super)/op-logs",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "shield" as const,
@@ -27,7 +27,7 @@ const MENUS = [
     sub: "오늘 처리 큐·서비스 상태·알림 내역",
     path: "/(super)/risk-center",
     color: "#9333EA",
-    bg: "#E6FAF8",
+    bg: C.brandSoft,
   },
   {
     icon: "alert-octagon" as const,
@@ -42,7 +42,7 @@ const MENUS = [
     title: "민감 작업 로그",
     sub: "킬스위치·권한변경·플랜변경·강제해지 기록",
     path: "/(super)/op-logs",
-    color: "#2EC4B6",
+    color: C.brandStrong,
     bg: "#ECFEFF",
   },
 ];
@@ -115,7 +115,7 @@ export default function AuditGroupScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
         {/* 요약 */}
         {loading
-          ? <ActivityIndicator color="#2EC4B6" style={{ marginTop: 20 }} />
+          ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 20 }} />
           : (
             <View style={[s.summaryRow, { flexWrap: "wrap" }]}>
               <View style={s.summaryCard}>
@@ -189,12 +189,12 @@ const s = StyleSheet.create({
   summaryLabel:    { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, textAlign: "center" },
   logRow:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
                      borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.border },
-  catBadge:        { backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  catTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  catBadge:        { backgroundColor: C.brandSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  catTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   logTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   logMeta:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   viewAllBtn:      { alignItems: "center", paddingVertical: 10 },
-  viewAllTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  viewAllTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   divider:         { height: 1, backgroundColor: C.border, marginVertical: 4 },
   card:            { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
                      borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border },

@@ -349,7 +349,7 @@ export default function ClassAssignScreen() {
       >
         {classInfo && (
           <View style={[s.classCard, { backgroundColor: C.card }]}>
-            <View style={[s.classIcon, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[s.classIcon, { backgroundColor: C.brandSoft }]}>
               <LucideIcon name="layers" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
@@ -407,13 +407,13 @@ export default function ClassAssignScreen() {
                   onPress={() => { setTeacherSearch(""); setShowTeacherModal(true); }}
                   disabled={coTeacherSaving}
                 >
-                  <LucideIcon name="user-plus" size={12} color={C.tint} />
-                  <Text style={[s.meta, { color: C.tint }]}>선생님 추가</Text>
+                  <LucideIcon name="user-plus" size={12} color={C.brandStrong} />
+                  <Text style={[s.meta, { color: C.brandStrong }]}>선생님 추가</Text>
                 </Pressable>
               )}
             </View>
-            <View style={[s.countBadge, { backgroundColor: capacityOver ? "#F9DEDA" : C.tintLight }]}>
-              <Text style={[s.countText, { color: capacityOver ? C.error : C.tint }]}>{capacityLabel}</Text>
+            <View style={[s.countBadge, { backgroundColor: capacityOver ? "#F9DEDA" : C.brandSoft }]}>
+              <Text style={[s.countText, { color: capacityOver ? C.error : C.brandStrong }]}>{capacityLabel}</Text>
             </View>
           </View>
         )}
@@ -481,7 +481,7 @@ export default function ClassAssignScreen() {
         </View>
 
         {loadingStudents ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 24, marginBottom: 8 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 24, marginBottom: 8 }} />
         ) : assignable.length === 0 ? (
           <View style={s.emptyRow}>
             <Text style={[s.emptyText, { color: C.textMuted }]}>
@@ -594,7 +594,7 @@ export default function ClassAssignScreen() {
               )}
             </View>
             {mainTeacherSaving ? (
-              <ActivityIndicator color={C.tint} style={{ marginVertical: 32 }} />
+              <ActivityIndicator color={C.brandStrong} style={{ marginVertical: 32 }} />
             ) : (
               <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
                 {teachers
@@ -677,7 +677,7 @@ export default function ClassAssignScreen() {
               )}
             </View>
             {coTeacherSaving ? (
-              <ActivityIndicator color={C.tint} style={{ marginVertical: 32 }} />
+              <ActivityIndicator color={C.brandStrong} style={{ marginVertical: 32 }} />
             ) : (
               <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} keyboardShouldPersistTaps="handled">
                 {teachers
@@ -861,9 +861,9 @@ function StudentRow({
 const sr = StyleSheet.create({
   row:          { flexDirection: "row", alignItems: "center", backgroundColor: C.card,
                   borderRadius: 12, padding: 12, gap: 10 },
-  avatar:       { width: 38, height: 38, borderRadius: 19, backgroundColor: C.tint + "18",
+  avatar:       { width: 38, height: 38, borderRadius: 19, backgroundColor: C.brandStrong + "18",
                   alignItems: "center", justifyContent: "center" },
-  avatarText:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.tint },
+  avatarText:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   phone:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   progressBadge:   { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
@@ -882,8 +882,8 @@ const wp = StyleSheet.create({
   title:    { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center" },
   sub:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" },
   btnRow:   { flexDirection: "row", gap: 10, marginTop: 8 },
-  optBtn:   { flex: 1, backgroundColor: C.tintLight, borderRadius: 12, padding: 14, alignItems: "center", gap: 4 },
-  optNum:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.tint },
+  optBtn:   { flex: 1, backgroundColor: C.brandSoft, borderRadius: 12, padding: 14, alignItems: "center", gap: 4 },
+  optNum:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   optSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   cancelBtn:{ paddingVertical: 14, alignItems: "center" },
   cancelTxt:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted },

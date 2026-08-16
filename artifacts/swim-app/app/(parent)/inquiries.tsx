@@ -200,7 +200,7 @@ export default function ParentInquiriesScreen() {
         </View>
 
         {detailLoading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
         ) : (
           <KeyboardAwareScrollView
             ref={scrollRef}
@@ -267,12 +267,12 @@ export default function ParentInquiriesScreen() {
       <ParentScreenHeader title="문의하기" showHome={false} />
 
       {listLoading && list.length === 0 ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.brandStrong} />}
         >
           {list.length === 0 && (
             <View style={s.empty}>
@@ -336,7 +336,7 @@ export default function ParentInquiriesScreen() {
 
             {!newTarget ? (
               <View style={{ gap: 10, marginTop: 8 }}>
-                <Pressable style={[s.targetBtn, { backgroundColor: "#E6FAF8" }]} onPress={() => setNewTarget("super")}>
+                <Pressable style={[s.targetBtn, { backgroundColor: C.brandMist }]} onPress={() => setNewTarget("super")}>
                   <LucideIcon name="headphones" size={20} color={C.textPrimary} />
                   <View style={{ flex: 1 }}>
                     <Text style={[s.targetBtnLabel, { color: C.text }]}>스윔노트에 문의</Text>

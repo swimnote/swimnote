@@ -25,17 +25,17 @@ const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: str
   { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FFF1BF" },
   { key: "payment_failed",   label: "결제 실패",     color: "#D96C6C", bg: "#F9DEDA" },
   { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EEDDF5" },
-  { key: "deletion_pending", label: "삭제 예정",     color: "#2EC4B6", bg: "#ECFEFF" },
-  { key: "credit",           label: "크레딧 보유",   color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "deletion_pending", label: "삭제 예정",     color: C.brandStrong, bg: "#ECFEFF" },
+  { key: "credit",           label: "크레딧 보유",   color: C.brandStrong, bg: C.brandSoft },
   { key: "new_this_week",    label: "이번 주 신규", color: C.textSecondary, bg: "#FFFFFF" },
   { key: "free_over10",      label: "무료 체험",     color: C.textSecondary, bg: "#FFFFFF" },
-  { key: "policy_unsigned",  label: "정책 미확인",   color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "policy_unsigned",  label: "정책 미확인",   color: C.brandStrong, bg: C.brandSoft },
   { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FFF1BF" },
   { key: "refund_repeat",    label: "반복 환불",     color: "#D96C6C", bg: "#F9DEDA" },
-  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: C.brandStrong, bg: C.brandSoft },
   { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EEDDF5" },
   { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EEDDF5" },
-  { key: "xmode",            label: "⚡ X MODE",     color: "#2EC4B6", bg: "#E6FAF8" },
+  { key: "xmode",            label: "⚡ X MODE",     color: C.brandStrong, bg: C.brandSoft },
 ];
 
 const SORT_OPTS = [
@@ -48,7 +48,7 @@ const SORT_OPTS = [
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending:    { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  active:     { label: "운영",   color: "#2EC4B6", bg: "#E6FFFA" },
+  active:     { label: "운영",   color: C.brandStrong, bg: C.brandSoft },
   rejected:   { label: "반려",   color: "#D96C6C", bg: "#F9DEDA" },
   cancelled:  { label: "해지",   color: C.textSecondary, bg: "#FFFFFF" },
   readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EEDDF5" },
@@ -56,28 +56,28 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
 };
 
 const BILLING_CFG: Record<string, { label: string; color: string }> = {
-  active:                { label: "정상",  color: "#2EC4B6" },
+  active:                { label: "정상",  color: C.brandStrong },
   payment_failed:        { label: "실패",  color: "#D96C6C" },
   grace:                 { label: "유예",  color: "#D97706" },
   cancelled:             { label: "해지",  color: C.textSecondary },
-  auto_delete_scheduled: { label: "삭제예정", color: "#2EC4B6" },
+  auto_delete_scheduled: { label: "삭제예정", color: C.brandStrong },
   readonly:              { label: "읽기전용", color: "#7C3AED" },
-  free:                  { label: "무료",  color: "#2EC4B6" },
+  free:                  { label: "무료",  color: C.brandStrong },
 };
 
 const TYPE_CFG: Record<string, { label: string; color: string }> = {
-  swimming_pool: { label: "수영장",    color: "#2EC4B6" },
-  solo_coach:    { label: "1인 코치",  color: "#2EC4B6" },
+  swimming_pool: { label: "수영장",    color: C.brandStrong },
+  solo_coach:    { label: "1인 코치",  color: C.brandStrong },
   rental_team:   { label: "대관팀",    color: "#D97706" },
   franchise:     { label: "프랜차이즈", color: P },
 };
 
 const BULK_ACTIONS = [
-  { key: "approve",         label: "승인",       color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "approve",         label: "승인",       color: C.brandStrong, bg: C.brandSoft },
   { key: "reject",          label: "반려",       color: "#D96C6C", bg: "#F9DEDA" },
   { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EEDDF5" },
   { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FFF1BF" },
-  { key: "policy_reminder", label: "정책 재알림", color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "policy_reminder", label: "정책 재알림", color: C.brandStrong, bg: C.brandSoft },
   { key: "terminate",       label: "종료",       color: "#7F1D1D", bg: "#F9DEDA" },
 ];
 
@@ -198,7 +198,7 @@ export default function SuperPoolsScreen() {
     const isSelected = selected.has(item.id);
     const sCfg   = STATUS_CFG[item.status] ?? STATUS_CFG.pending;
     const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: C.textSecondary };
-    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#2EC4B6" };
+    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: C.brandStrong };
     const pct    = Math.round((item.storageUsedMb / Math.max(item.storageTotalMb, 1)) * 100);
     const pctStr = `${pct}%`;
     const isDanger  = item.storageBlocked95;
@@ -233,7 +233,7 @@ export default function SuperPoolsScreen() {
             </View>
             {isDeletion && (
               <View style={[s.badge, { backgroundColor: "#ECFEFF" }]}>
-                <Text style={[s.badgeTxt, { color: "#2EC4B6" }]}>삭제예정</Text>
+                <Text style={[s.badgeTxt, { color: C.brandStrong }]}>삭제예정</Text>
               </View>
             )}
             {item.uploadSpikeFlag && (
@@ -274,8 +274,8 @@ export default function SuperPoolsScreen() {
           <View style={s.actions}>
             {isPending && (
               <>
-                <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => quickAction(item, "approve")}>
-                  <Text style={[s.actTxt, { color: "#2EC4B6" }]}>승인</Text>
+                <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft }]} onPress={() => quickAction(item, "approve")}>
+                  <Text style={[s.actTxt, { color: C.brandStrong }]}>승인</Text>
                 </Pressable>
                 <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => quickAction(item, "reject")}>
                   <Text style={[s.actTxt, { color: "#D96C6C" }]}>반려</Text>

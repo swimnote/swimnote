@@ -13,7 +13,7 @@ export default function ParentInviteInfoScreen() {
   const insets = useSafeAreaInsets();
 
   const steps = [
-    { icon: "message-circle" as const, color: "#2EC4B6", bg: "#E6FFFA", title: "담당 선생님에게 요청", desc: "자녀의 담당 선생님 또는 수영장 관리자에게 초대 링크를 요청하세요." },
+    { icon: "message-circle" as const, color: C.brandStrong, bg: C.brandSoft, title: "담당 선생님에게 요청", desc: "자녀의 담당 선생님 또는 수영장 관리자에게 초대 링크를 요청하세요." },
     { icon: "link-2" as const,         color: "#7C3AED", bg: "#EDE9FE", title: "초대 링크 수신",      desc: "선생님이 문자 또는 카카오톡으로 전용 초대 링크를 보내드립니다." },
     { icon: "heart" as const,          color: "#E4A93A", bg: "#FFFBEB", title: "링크로 간편 가입",    desc: "받은 링크를 누르면 자녀 정보가 미리 채워진 가입 화면이 열립니다." },
   ];

@@ -15,7 +15,7 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { billingEnabled } from "@/config/billing";
 
-const P = "#2EC4B6";
+const P = C.brandStrong;
 
 const TABS = [
   { key: "all",        label: "전체" },
@@ -41,8 +41,8 @@ const TIER_NAME: Record<string, string> = {
 };
 
 const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  active:      { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
-  trial:       { label: "무료 체험", color: "#2EC4B6", bg: "#ECFEFF" },
+  active:      { label: "구독 중",   color: C.brandStrong, bg: C.brandSoft },
+  trial:       { label: "무료 체험", color: C.brandStrong, bg: "#ECFEFF" },
   expired:     { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
   suspended:   { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
   cancelled:   { label: "해지",      color: C.textSecondary, bg: "#FFFFFF" },
@@ -282,7 +282,7 @@ export default function SubscriptionsScreen() {
               <Text style={[s.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
             {refundIds.has(item.id) && (
-              <View style={[s.badge, { backgroundColor: "#E6FAF8" }]}>
+              <View style={[s.badge, { backgroundColor: C.brandSoft }]}>
                 <Text style={[s.badgeTxt, { color: "#9333EA" }]}>환불</Text>
               </View>
             )}
@@ -305,7 +305,7 @@ export default function SubscriptionsScreen() {
         </View>
         <View style={s.rowActions}>
           {failed && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
+            <Pressable style={[s.actionBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => triggerAction("retry", item)}>
               <Text style={[s.actionTxt, { color: P }]}>재시도</Text>
             </Pressable>

@@ -212,9 +212,9 @@ export default function TeachersScreen() {
         }
         onBack={nav.step !== "main" ? goBack : undefined}
         rightSlot={
-          <Pressable style={[s.accountsBtn, { backgroundColor: C.tintLight }]} onPress={() => setShowAccounts(true)}>
-            <LucideIcon name="users" size={15} color={C.tint} />
-            <Text style={[s.accountsBtnText, { color: C.tint }]}>계정</Text>
+          <Pressable style={[s.accountsBtn, { backgroundColor: C.brandSoft }]} onPress={() => setShowAccounts(true)}>
+            <LucideIcon name="users" size={15} color={C.brandStrong} />
+            <Text style={[s.accountsBtnText, { color: C.brandStrong }]}>계정</Text>
           </Pressable>
         }
       />
@@ -223,8 +223,8 @@ export default function TeachersScreen() {
       {nav.step === "main" && (
         <View style={[s.tabBar, { borderBottomColor: C.border }]}>
           {(["daily", "monthly"] as ScheduleTab[]).map(tab => (
-            <Pressable key={tab} style={[s.tabItem, scheduleTab === tab && { borderBottomColor: C.tint, borderBottomWidth: 2.5 }]} onPress={() => switchTab(tab)}>
-              <Text style={[s.tabLabel, { color: scheduleTab === tab ? C.tint : C.textSecondary }]}>
+            <Pressable key={tab} style={[s.tabItem, scheduleTab === tab && { borderBottomColor: C.brandStrong, borderBottomWidth: 2.5 }]} onPress={() => switchTab(tab)}>
+              <Text style={[s.tabLabel, { color: scheduleTab === tab ? C.brandStrong : C.textSecondary }]}>
                 {tab === "daily" ? "일간" : "월간"}
               </Text>
             </Pressable>
@@ -237,12 +237,12 @@ export default function TeachersScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           style={[s.breadcrumb, { borderBottomColor: C.border }]}
           contentContainerStyle={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 20, paddingVertical: 8 }}>
-          <Pressable onPress={() => setNav({ step: "main" })}><Text style={[s.crumb, { color: C.tint }]}>시간표</Text></Pressable>
+          <Pressable onPress={() => setNav({ step: "main" })}><Text style={[s.crumb, { color: C.brandStrong }]}>시간표</Text></Pressable>
           {(nav.step === "timeslots" || nav.step === "teachers" || nav.step === "classes" || nav.step === "detail") && crumbDate && (
             <>
               <LucideIcon name="chevron-right" size={12} color={C.textMuted} />
               <Pressable onPress={() => { if (nav.step !== "timeslots") setNav({ step: "timeslots", date: crumbDate }); }}>
-                <Text style={[s.crumb, { color: nav.step === "timeslots" ? C.text : C.tint, fontWeight: nav.step === "timeslots" ? "700" : "500" }]}>
+                <Text style={[s.crumb, { color: nav.step === "timeslots" ? C.text : C.brandStrong, fontWeight: nav.step === "timeslots" ? "700" : "500" }]}>
                   {dateLabel(crumbDate)}
                 </Text>
               </Pressable>
@@ -252,7 +252,7 @@ export default function TeachersScreen() {
             <>
               <LucideIcon name="chevron-right" size={12} color={C.textMuted} />
               <Pressable onPress={() => { if (nav.step !== "teachers") setNav({ step: "teachers", time: crumbTime, day: crumbDay, date: crumbDate }); }}>
-                <Text style={[s.crumb, { color: nav.step === "teachers" ? C.text : C.tint, fontWeight: nav.step === "teachers" ? "700" : "500" }]}>
+                <Text style={[s.crumb, { color: nav.step === "teachers" ? C.text : C.brandStrong, fontWeight: nav.step === "teachers" ? "700" : "500" }]}>
                   {crumbDay ? `${crumbDay}요일 ` : ""}{crumbTime}
                 </Text>
               </Pressable>
@@ -262,7 +262,7 @@ export default function TeachersScreen() {
             <>
               <LucideIcon name="chevron-right" size={12} color={C.textMuted} />
               <Pressable onPress={() => nav.step !== "classes" && setNav({ step: "classes", time: crumbTime, day: crumbDay, date: crumbDate, teacherId: (nav as any).teacherId })}>
-                <Text style={[s.crumb, { color: nav.step === "classes" ? C.text : C.tint, fontWeight: nav.step === "classes" ? "700" : "500" }]}>{crumbTeacher}</Text>
+                <Text style={[s.crumb, { color: nav.step === "classes" ? C.text : C.brandStrong, fontWeight: nav.step === "classes" ? "700" : "500" }]}>{crumbTeacher}</Text>
               </Pressable>
             </>
           )}
@@ -276,7 +276,7 @@ export default function TeachersScreen() {
       )}
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <>
           {nav.step === "detail" && (
@@ -308,13 +308,13 @@ export default function TeachersScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
                         <Text style={[s.className, { color: C.text }]}>{g.name}</Text>
-                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? "#E6FFFA" : "#FFF1BF" }]}>
-                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? "#2EC4B6" : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
+                        <View style={[s.diaryBadge, { backgroundColor: hasDiary ? C.brandSoft : "#FFF1BF" }]}>
+                          <Text style={[s.diaryBadgeTxt, { color: hasDiary ? C.brandStrong : "#D97706" }]}>{hasDiary ? "일지 완료" : "일지 미작성"}</Text>
                         </View>
                       </View>
                       <View style={{ flexDirection: "row", gap: 12 }}>
                         <Text style={[s.classStat, { color: C.textSecondary }]}>학생 {g.student_count}명</Text>
-                        <Text style={[s.classStat, { color: "#2EC4B6" }]}>출석 {present}</Text>
+                        <Text style={[s.classStat, { color: C.brandStrong }]}>출석 {present}</Text>
                         <Text style={[s.classStat, { color: "#D96C6C" }]}>결석 {absent}</Text>
                       </View>
                     </View>
@@ -338,7 +338,7 @@ export default function TeachersScreen() {
                     <Text style={[s.sectionTitle, { color: C.text }]}>오늘 확인할 것</Text>
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                       {[
-                        { icon: "calendar", val: todayGroups.length, label: "오늘 수업", color: C.tint },
+                        { icon: "calendar", val: todayGroups.length, label: "오늘 수업", color: C.brandStrong },
                         { icon: "alert-circle", val: todayUnchecked, label: "출결 미확인", color: todayUnchecked > 0 ? "#E4A93A" : "#2E9B6F" },
                         { icon: "edit-3", val: todayUnwritten, label: "일지 미작성", color: todayUnwritten > 0 ? "#E4A93A" : "#2E9B6F" },
                       ].map((st, i) => (
@@ -363,9 +363,9 @@ export default function TeachersScreen() {
                       return (
                         <Pressable key={time} style={[s.timeCard, { backgroundColor: C.card }]}
                           onPress={() => onSelectTime(time, todayKo())}>
-                          <View style={[s.timeBox, { backgroundColor: C.tintLight }]}>
-                            <LucideIcon name="clock" size={14} color={C.tint} />
-                            <Text style={[s.timeText, { color: C.tint }]}>{time}</Text>
+                          <View style={[s.timeBox, { backgroundColor: C.brandSoft }]}>
+                            <LucideIcon name="clock" size={14} color={C.brandStrong} />
+                            <Text style={[s.timeText, { color: C.brandStrong }]}>{time}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text style={[s.timeCardMain, { color: C.text }]}>{count}개 반 · {teacherCount}명 선생님</Text>
@@ -385,9 +385,9 @@ export default function TeachersScreen() {
               {/* 월간 탭 — main: 달력 */}
               {scheduleTab === "monthly" && nav.step === "main" && (
                 <>
-                  <View style={[s.hintRow, { backgroundColor: C.tintLight }]}>
-                    <LucideIcon name="info" size={13} color={C.tint} />
-                    <Text style={[s.hintTxt, { color: C.tint }]}>수업이 있는 날짜를 눌러 탐색하세요</Text>
+                  <View style={[s.hintRow, { backgroundColor: C.brandMist }]}>
+                    <LucideIcon name="info" size={13} color={C.brandStrong} />
+                    <Text style={[s.hintTxt, { color: C.brandStrong }]}>수업이 있는 날짜를 눌러 탐색하세요</Text>
                   </View>
                   <MonthlyCalendar classGroups={classGroups} onSelectDate={onSelectDate} />
                 </>
@@ -406,9 +406,9 @@ export default function TeachersScreen() {
                     return (
                       <Pressable key={time} style={[s.timeCard, { backgroundColor: C.card }]}
                         onPress={() => onSelectTime(time, koDay, (nav as any).date)}>
-                        <View style={[s.timeBox, { backgroundColor: C.tintLight }]}>
-                          <LucideIcon name="clock" size={14} color={C.tint} />
-                          <Text style={[s.timeText, { color: C.tint }]}>{time}</Text>
+                        <View style={[s.timeBox, { backgroundColor: C.brandSoft }]}>
+                          <LucideIcon name="clock" size={14} color={C.brandStrong} />
+                          <Text style={[s.timeText, { color: C.brandStrong }]}>{time}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[s.timeCardMain, { color: C.text }]}>{slotGroups.length}개 반 · {teacherCount}명 선생님</Text>

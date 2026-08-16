@@ -50,9 +50,9 @@ import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
+const TEAL = C.brandStrong;
 const NAVY = "#1B3A70";   // 네이비 기본색 (버튼 fill, 선택된 탭)
-const IB = "#E6FAF8";
+const IB = C.brandMist;
 
 // ── 타입 ──────────────────────────────────────────────────────────────────
 interface DiaryEntry {
@@ -356,7 +356,7 @@ function PoolSelectModal({
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: "#E6FAF8",
+                    backgroundColor: IB,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
@@ -1465,7 +1465,7 @@ export default function ParentHomeScreen() {
           },
         ]}
       >
-        <ActivityIndicator color={C.tint} size="large" />
+        <ActivityIndicator color={C.brandStrong} size="large" />
       </View>
     );
   }
@@ -1684,7 +1684,7 @@ export default function ParentHomeScreen() {
                 width: 88,
                 height: 88,
                 borderRadius: 44,
-                backgroundColor: "#E6FAF8",
+                backgroundColor: IB,
                 alignItems: "center",
                 justifyContent: "center",
                 marginBottom: 20,
@@ -2081,7 +2081,7 @@ export default function ParentHomeScreen() {
   // ── 피드 하단 ──────────────────────────────────────────────────────────────
   const ListFooter = loading ? (
     <View style={{ paddingVertical: 24, alignItems: "center" }}>
-      <ActivityIndicator color={C.tint} size="small" />
+      <ActivityIndicator color={C.brandStrong} size="small" />
     </View>
   ) : entries.length > 0 ? (
     <View style={{ paddingVertical: 28, alignItems: "center" }}>
@@ -2111,7 +2111,7 @@ export default function ParentHomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.tint}
+            tintColor={C.brandStrong}
           />
         }
         contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}

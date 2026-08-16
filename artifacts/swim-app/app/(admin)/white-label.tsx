@@ -10,7 +10,7 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const TINT = "#2EC4B6";
+const TINT = C.primaryAction;
 
 interface WhiteLabelSettings {
   white_label_enabled: boolean;
@@ -84,7 +84,7 @@ export default function WhiteLabelScreen() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 20 }}
         >
           {/* 설명 카드 */}
-          <View style={[styles.descCard, { backgroundColor: "#E6FAF8", borderColor: "#E6FAF8" }]}>
+          <View style={[styles.descCard, { backgroundColor: C.brandSoft, borderColor: C.brandSoft }]}>
             <LucideIcon name="tag" size={18} color="#1D4ED8" />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.descTitle, { color: "#1D4ED8" }]}>화이트라벨이란?</Text>

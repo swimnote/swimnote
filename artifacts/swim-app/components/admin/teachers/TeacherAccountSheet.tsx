@@ -129,7 +129,7 @@ export function TeacherAccountSheet({
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 }}>
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 관리</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable style={[ts.addBtn, { backgroundColor: C.tint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
+                <Pressable style={[ts.addBtn, { backgroundColor: C.brandStrong }]} onPress={() => { resetForm(); setShowAdd(true); }}>
                   <LucideIcon name="plus" size={16} color="#fff" />
                   <Text style={ts.addBtnText}>계정 추가</Text>
                 </Pressable>
@@ -145,7 +145,7 @@ export function TeacherAccountSheet({
                 <View key={t.id} style={[ts.teacherCard, { backgroundColor: C.background }]}>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
-                      <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><LucideIcon name="user" size={18} color={C.tint} /></View>
+                      <View style={[ts.avatar, { backgroundColor: C.brandSoft }]}><LucideIcon name="user" size={18} color={C.brandStrong} /></View>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
@@ -156,10 +156,10 @@ export function TeacherAccountSheet({
                           )}
                         </View>
                         <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
-                        {t.position && <Text style={[ts.teacherSub, { color: C.tint }]}>{t.position}</Text>}
+                        {t.position && <Text style={[ts.teacherSub, { color: C.brandStrong }]}>{t.position}</Text>}
                       </View>
-                      <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
+                      <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? C.brandSoft : "#FFF1BF" }]}>
+                        <Text style={[ts.statusText, { color: t.is_activated ? C.brandStrong : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
                       </View>
                       <LucideIcon name="edit-2" size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
                     </Pressable>
@@ -185,9 +185,9 @@ export function TeacherAccountSheet({
                   </View>
                   {!t.is_activated && (
                     <Pressable style={[ts.codeBtn, { borderTopColor: C.border }]} onPress={() => handleViewCode(t.id)} disabled={loadingCode === t.id}>
-                      {loadingCode === t.id ? <ActivityIndicator size={14} color={C.tint} />
-                        : codeVisible[t.id] ? <Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드: {codeVisible[t.id]}</Text>
-                        : <><LucideIcon name="eye" size={13} color={C.tint} /><Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드 보기</Text></>}
+                      {loadingCode === t.id ? <ActivityIndicator size={14} color={C.brandStrong} />
+                        : codeVisible[t.id] ? <Text style={[ts.codeBtnText, { color: C.brandStrong }]}>인증코드: {codeVisible[t.id]}</Text>
+                        : <><LucideIcon name="eye" size={13} color={C.brandStrong} /><Text style={[ts.codeBtnText, { color: C.brandStrong }]}>인증코드 보기</Text></>}
                     </Pressable>
                   )}
                 </View>
@@ -223,13 +223,13 @@ export function TeacherAccountSheet({
                 <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={form.password} onChangeText={v => setForm(f => ({ ...f, password: v }))} placeholder="6자 이상" placeholderTextColor={C.textMuted} secureTextEntry /></View>
               <View style={[ts.switchRow, { borderTopColor: C.border }]}>
                 <Text style={[ts.switchLabel, { color: C.text }]}>관리자 본인용 선생님 계정</Text>
-                <Switch value={form.is_admin_self_teacher} onValueChange={v => setForm(f => ({ ...f, is_admin_self_teacher: v }))} trackColor={{ true: C.tint }} />
+                <Switch value={form.is_admin_self_teacher} onValueChange={v => setForm(f => ({ ...f, is_admin_self_teacher: v }))} trackColor={{ true: C.brandStrong }} />
               </View>
               <View style={ts.modalActions}>
                 <Pressable style={[ts.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowAdd(false); resetForm(); }}>
                   <Text style={[ts.cancelText, { color: C.textSecondary }]}>취소</Text>
                 </Pressable>
-                <Pressable style={[ts.submitBtn, { backgroundColor: saving ? C.textMuted : C.tint }]} onPress={handleCreate} disabled={saving}>
+                <Pressable style={[ts.submitBtn, { backgroundColor: saving ? C.textMuted : C.brandStrong }]} onPress={handleCreate} disabled={saving}>
                   <Text style={ts.submitText}>{saving ? "생성 중…" : "계정 생성"}</Text>
                 </Pressable>
               </View>
@@ -242,15 +242,15 @@ export function TeacherAccountSheet({
       <Modal visible={!!newTeacher} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={[ts.overlay, { justifyContent: "center" }]}>
           <View style={[ts.successCard, { backgroundColor: C.card }]}>
-            <View style={[ts.successIcon, { backgroundColor: "#E6FFFA" }]}><LucideIcon name="check-circle" size={36} color="#2EC4B6" /></View>
+            <View style={[ts.successIcon, { backgroundColor: C.brandSoft }]}><LucideIcon name="check-circle" size={36} color={C.brandStrong} /></View>
             <Text style={[ts.sheetTitle, { color: C.text, textAlign: "center" }]}>계정 생성 완료</Text>
             <Text style={[ts.label, { color: C.textSecondary, textAlign: "center" }]}>
               {newTeacher?.teacher.name} 선생님 계정이 생성되었습니다.{"\n"}아래 인증코드를 전달해 주세요.
             </Text>
-            <View style={[ts.codeBox, { backgroundColor: C.tintLight, borderRadius: 12 }]}>
-              <Text style={[ts.codeText, { color: C.tint }]}>{newTeacher?.code}</Text>
+            <View style={[ts.codeBox, { backgroundColor: C.brandSoft, borderRadius: 12 }]}>
+              <Text style={[ts.codeText, { color: C.brandStrong }]}>{newTeacher?.code}</Text>
             </View>
-            <Pressable style={[ts.submitBtn, { backgroundColor: C.tint, width: "100%" }]} onPress={() => setNewTeacher(null)}>
+            <Pressable style={[ts.submitBtn, { backgroundColor: C.brandStrong, width: "100%" }]} onPress={() => setNewTeacher(null)}>
               <Text style={ts.submitText}>확인</Text>
             </Pressable>
           </View>
@@ -314,7 +314,7 @@ export function TeacherAccountSheet({
               <Pressable style={[ts.cancelBtn, { borderColor: "#D96C6C" }]} onPress={() => { const t = selectedDetail; setSelectedDetail(null); setDeleteTarget(t); }}>
                 <Text style={[ts.cancelText, { color: "#D96C6C" }]}>삭제</Text>
               </Pressable>
-              <Pressable style={[ts.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.tint }]} onPress={handleSaveTeacher} disabled={editSaving}>
+              <Pressable style={[ts.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.brandStrong }]} onPress={handleSaveTeacher} disabled={editSaving}>
                 <Text style={ts.submitText}>{editSaving ? "저장 중…" : "저장"}</Text>
               </Pressable>
             </View>

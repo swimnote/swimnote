@@ -22,16 +22,16 @@ const TABS = ["담당 회원", "출결", "수업일지", "보강"] as const;
 type HubTab = typeof TABS[number];
 
 const ATT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  present: { label: "출석", color: "#2EC4B6", bg: "#E6FFFA" },
+  present: { label: "출석", color: C.brandStrong, bg: C.brandSoft },
   absent:  { label: "결석", color: "#D96C6C", bg: "#F9DEDA" },
   late:    { label: "지각", color: "#D97706", bg: "#FFF1BF" },
 };
 
 const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
+  assigned:    { label: "배정",   color: C.brandStrong, bg: C.brandSoft },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  completed:   { label: "완료",   color: C.brandStrong, bg: C.brandSoft },
   cancelled:   { label: "취소",   color: C.textSecondary, bg: "#FFFFFF" },
 };
 
@@ -207,7 +207,7 @@ export default function TeacherHubScreen() {
                   <Text style={s.name}>{item.student_name}</Text>
                   <Text style={s.sub}>결석일: {item.absence_date}  {item.original_class_group_name || ""}</Text>
                   {item.is_substitute && <Text style={[s.sub, { color: "#7C3AED" }]}>대리: {item.substitute_teacher_name}</Text>}
-                  {item.transferred_to_teacher_name && <Text style={[s.sub, { color: "#2EC4B6" }]}>이동→ {item.transferred_to_teacher_name}</Text>}
+                  {item.transferred_to_teacher_name && <Text style={[s.sub, { color: C.brandStrong }]}>이동→ {item.transferred_to_teacher_name}</Text>}
                 </View>
                 <View style={[s.badge, { backgroundColor: mst.bg }]}>
                   <Text style={[s.badgeTxt, { color: mst.color }]}>{mst.label}</Text>

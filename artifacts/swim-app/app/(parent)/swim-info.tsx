@@ -52,15 +52,15 @@ const SECTIONS: Section[] = [
     key: "introduction",
     icon: "map-pin",
     label: "수영장 소개",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandMist,
     placeholder: "수영장 소개 정보가 등록되면 여기에 표시됩니다.",
   },
   {
     key: "tuition_info",
     icon: "credit-card",
     label: "수업료 안내",
-    color: "#2EC4B6",
+    color: C.brandStrong,
     bg: "#DFF3EC",
     placeholder: "수업료 안내 정보가 등록되면 여기에 표시됩니다.",
   },
@@ -157,7 +157,7 @@ export default function SwimInfoScreen() {
       <ParentScreenHeader title="수영정보" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -170,7 +170,7 @@ export default function SwimInfoScreen() {
             const phone = info?.phone || pool?.phone;
             if (!poolName && !address && !phone) return null;
             return (
-              <View style={[s.poolCard, { backgroundColor: C.tint }]}>
+              <View style={[s.poolCard, { backgroundColor: C.brandStrong }]}>
                 {poolName && <Text style={s.poolName}>{poolName}</Text>}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
                   {address && (

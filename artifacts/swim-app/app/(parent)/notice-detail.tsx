@@ -50,7 +50,7 @@ export default function NoticeDetailScreen() {
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <SubScreenHeader title="공지 상세" showHome={false} homePath="/(parent)/notices" />
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : !notice ? (
+      {loading ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} /> : !notice ? (
         <View style={styles.empty}>
           <LucideIcon name="alert-circle" size={40} color={C.textMuted} />
           <Text style={[styles.emptyText, { color: C.textMuted }]}>공지를 불러올 수 없습니다</Text>
@@ -58,15 +58,15 @@ export default function NoticeDetailScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
           {notice.is_pinned && (
-            <View style={[styles.pinnedTag, { backgroundColor: C.tintLight }]}>
-              <LucideIcon name="pin" size={13} color={C.tint} />
-              <Text style={[styles.pinnedText, { color: C.tint }]}>고정 공지</Text>
+            <View style={[styles.pinnedTag, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="pin" size={13} color={C.brandStrong} />
+              <Text style={[styles.pinnedText, { color: C.brandStrong }]}>고정 공지</Text>
             </View>
           )}
           {notice.student_name && (
-            <View style={[styles.individualTag, { backgroundColor: C.tint + "18" }]}>
-              <LucideIcon name="user" size={13} color={C.tint} />
-              <Text style={[styles.individualText, { color: C.tint }]}>{notice.student_name} 학생 개별 공지</Text>
+            <View style={[styles.individualTag, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="user" size={13} color={C.brandStrong} />
+              <Text style={[styles.individualText, { color: C.brandStrong }]}>{notice.student_name} 학생 개별 공지</Text>
             </View>
           )}
           <Text style={[styles.title, { color: C.text }]}>{notice.title}</Text>

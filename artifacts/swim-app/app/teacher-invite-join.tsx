@@ -89,8 +89,8 @@ export default function TeacherInviteJoinScreen() {
       {/* ── 토큰 입력 단계 ────────────────────────────────────── */}
       {step === "token" && (
         <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
-          <View style={[styles.illustBox, { backgroundColor: C.tintLight }]}>
-            <LucideIcon name="send" size={40} color={C.tint} />
+          <View style={[styles.illustBox, { backgroundColor: C.brandSoft }]}>
+            <LucideIcon name="send" size={40} color={C.brandStrong} />
           </View>
           <Text style={[styles.sectionTitle, { color: C.text }]}>초대 코드를 입력하세요</Text>
           <Text style={[styles.sectionSub, { color: C.textSecondary }]}>
@@ -104,8 +104,8 @@ export default function TeacherInviteJoinScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.tokenInputRow, { borderColor: token ? C.tint : C.border, backgroundColor: C.card }]}>
-            <LucideIcon name="key" size={18} color={token ? C.tint : C.textMuted} />
+          <View style={[styles.tokenInputRow, { borderColor: token ? C.brandStrong : C.border, backgroundColor: C.card }]}>
+            <LucideIcon name="key" size={18} color={token ? C.brandStrong : C.textMuted} />
             <TextInput
               style={[styles.tokenInput, { color: C.text }]}
               value={token}
@@ -142,11 +142,11 @@ export default function TeacherInviteJoinScreen() {
       {step === "form" && inviteInfo && (
         <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]} keyboardShouldPersistTaps="handled">
           {/* 수영장/초대 정보 */}
-          <View style={[styles.inviteInfoCard, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <LucideIcon name="droplet" size={20} color={C.tint} />
+          <View style={[styles.inviteInfoCard, { backgroundColor: C.brandSoft, borderColor: C.brandStrong }]}>
+            <LucideIcon name="droplet" size={20} color={C.brandStrong} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.invitePoolName, { color: C.tint }]}>{inviteInfo.pool_name}</Text>
-              {inviteInfo.position && <Text style={[styles.invitePosition, { color: C.tint }]}>{inviteInfo.position}</Text>}
+              <Text style={[styles.invitePoolName, { color: C.brandStrong }]}>{inviteInfo.pool_name}</Text>
+              {inviteInfo.position && <Text style={[styles.invitePosition, { color: C.brandStrong }]}>{inviteInfo.position}</Text>}
             </View>
             <View style={[styles.statusDot, { backgroundColor: C.success }]} />
           </View>

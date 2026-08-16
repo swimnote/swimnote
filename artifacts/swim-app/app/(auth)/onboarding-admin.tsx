@@ -21,7 +21,8 @@ import { useAuth } from "@/context/AuthContext";
 
 const { width: W } = Dimensions.get("window");
 
-const MINT   = "#2EC4B6";
+const MINT   = C.brandStrong;
+const MINT_BG = C.brandSoft;
 const NAVY_BG   = "#0F2742";  // fill/button/progress
 const NAVY_TEXT = C.textPrimary;  // text/icon
 const ORANGE = "#F97316";
@@ -54,7 +55,7 @@ const CHECKLIST = [
     id: "classes",
     icon: "graduation-cap",
     color: MINT,
-    bg: "#E6FAF8",
+    bg: MINT_BG,
     title: "레벨 · 수업 등록",
     desc: "수업 종류(초급·중급·상급)와 시간표",
     path: "/(admin)/classes",
@@ -193,7 +194,7 @@ function SlideWelcome({ name }: { name: string }) {
 /* ── 슬라이드 2: 핵심 기능 ────────────────────────────────────────── */
 const FEATURES = [
   { icon: "users", color: BLUE, bg: "#EFF4FF", title: "회원 · 학부모 관리", desc: "회원 등록부터 학부모 앱 연동, 탈퇴·보류까지 한 화면에서 처리합니다." },
-  { icon: "clipboard-list", color: MINT, bg: "#E6FAF8", title: "수업 · 출결 관리", desc: "수업별 출결을 실시간으로 기록하고, 결석·보강 처리를 자동으로 트래킹합니다." },
+  { icon: "clipboard-list", color: MINT, bg: MINT_BG, title: "수업 · 출결 관리", desc: "수업별 출결을 실시간으로 기록하고, 결석·보강 처리를 자동으로 트래킹합니다." },
   { icon: "circle-dollar-sign", color: GREEN, bg: "#DFF3EC", title: "매출 · 정산 확인", desc: "선생님별 정산 내역을 확인하고, 수업 단가 기반 매출을 자동 집계합니다." },
   { icon: "settings", color: ORANGE, bg: "#FFF3E0", title: "수영장 설정 · 운영", desc: "레벨 분류, 보강 정책, 일지 문구, 공지까지 수영장 맞춤 설정을 관리합니다." },
 ];
@@ -285,7 +286,7 @@ function SlideChecklist({ checkedIds, onToggle }: {
 /* ── 슬라이드 4: 회원·수업 흐름 ──────────────────────────────────── */
 const FLOW_STEPS = [
   { num: "1", color: BLUE, bg: "#EFF4FF", title: "수영장 정보 입력", desc: "수영장명·주소·단가 설정" },
-  { num: "2", color: MINT, bg: "#E6FAF8", title: "선생님 초대", desc: "초대코드 → 선생님 앱 가입" },
+  { num: "2", color: MINT, bg: MINT_BG, title: "선생님 초대", desc: "초대코드 → 선생님 앱 가입" },
   { num: "3", color: GREEN, bg: "#DFF3EC", title: "회원 등록 & 수업 배정", desc: "학생을 수업에 연결하고 학부모 앱 연동" },
   { num: "4", color: ORANGE, bg: "#FFF3E0", title: "일일 운영", desc: "출결 체크 → 일지 작성 → 보강 관리" },
   { num: "5", color: "#7C3AED", bg: "#EEDDF5", title: "월말 정산", desc: "선생님 정산 확인 → 매출 리포트" },
@@ -382,10 +383,10 @@ const s = StyleSheet.create({
 
 const sw = StyleSheet.create({
   root:    { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
-  iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: "#E6FAF8",
+  iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: C.brandSoft,
              alignItems: "center", justifyContent: "center", marginBottom: 8 },
   badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-             backgroundColor: "#E6FAF8", marginBottom: 4 },
+             backgroundColor: C.brandSoft, marginBottom: 4 },
   title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, textAlign: "center", lineHeight: 36 },
   sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 24 },
   tagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
@@ -447,7 +448,7 @@ const sfl = StyleSheet.create({
 
 const sd = StyleSheet.create({
   root:        { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
-  iconWrap:    { width: 110, height: 110, borderRadius: 30, backgroundColor: "#E6FAF8",
+  iconWrap:    { width: 110, height: 110, borderRadius: 30, backgroundColor: C.brandSoft,
                  alignItems: "center", justifyContent: "center", marginBottom: 8 },
   title:       { fontSize: 28, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary,

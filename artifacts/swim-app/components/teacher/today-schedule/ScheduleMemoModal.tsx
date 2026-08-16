@@ -76,7 +76,7 @@ export default function ScheduleMemoModal({
                 onSelectDate={setSelectedDate}
                 onChangeMonth={handleChangeMonth}
               />
-              <View style={[sm.tipBox, { backgroundColor: C.tintLight }]}>
+              <View style={[sm.tipBox, { backgroundColor: C.brandSoft }]}>
                 <LucideIcon name="info" size={13} color={themeColor} />
                 <Text style={[sm.tipText, { color: themeColor }]}>
                   날짜를 탭하면 메모를 작성하거나 편집할 수 있습니다.

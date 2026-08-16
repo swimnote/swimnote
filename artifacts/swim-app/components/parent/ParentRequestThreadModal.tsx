@@ -56,7 +56,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
   pending:  { text: "#D97706", bg: "#FFF7ED" },
-  done:     { text: "#2EC4B6", bg: "#E6FFFA" },
+  done:     { text: C.success, bg: "#E6F5EF" },
   rejected: { text: "#EF4444", bg: "#FEF2F2" },
 };
 

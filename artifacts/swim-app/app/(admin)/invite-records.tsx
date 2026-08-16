@@ -23,7 +23,7 @@ const C = Colors.light;
 
 type FilterKey = "all" | InviteTargetType;
 
-const _IC = C.textPrimary; const _IB = "#E6FAF8";
+const _IC = C.textPrimary; const _IB = C.brandSoft;
 const FILTER_CHIPS: FilterChipItem<FilterKey>[] = [
   { key: "all",      label: "전체",   icon: "list"   },
   { key: "guardian", label: "학부모", icon: "users",      activeColor: _IC, activeBg: _IB },
@@ -115,7 +115,7 @@ function InviteCard({ record }: { record: InviteRecord }) {
 
           {/* 발송자 정보 */}
           <View style={s.senderRow}>
-            <View style={[s.roleBadge, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[s.roleBadge, { backgroundColor: C.brandSoft }]}>
               <LucideIcon
                 name={record.senderRole === "teacher" ? "user-check" : "shield"}
                 size={11}
@@ -128,9 +128,9 @@ function InviteCard({ record }: { record: InviteRecord }) {
           </View>
 
           {/* 재안내 버튼 */}
-          <Pressable style={[s.reNotifyBtn, { backgroundColor: C.tintLight }]} onPress={handleReNotify}>
-            <LucideIcon name="message-circle" size={14} color={C.tint} />
-            <Text style={[s.reNotifyTxt, { color: C.tint }]}>재안내 (문자 앱 열기)</Text>
+          <Pressable style={[s.reNotifyBtn, { backgroundColor: C.brandSoft }]} onPress={handleReNotify}>
+            <LucideIcon name="message-circle" size={14} color={C.brandStrong} />
+            <Text style={[s.reNotifyTxt, { color: C.brandStrong }]}>재안내 (문자 앱 열기)</Text>
           </Pressable>
 
           {record.lastReSentAt && (
@@ -170,7 +170,7 @@ export default function InviteRecordsScreen() {
     <ScreenLayout header={<SubScreenHeader title="초대 안내 기록" />}>
 
       {/* 안내 배너 */}
-      <View style={[s.infoBanner, { backgroundColor: "#E6FAF8" }]}>
+      <View style={[s.infoBanner, { backgroundColor: C.brandSoft }]}>
         <LucideIcon name="info" size={13} color={C.textPrimary} />
         <Text style={s.infoTxt}>
           플랫폼은 문자 전송 성공·실패를 추적하지 않습니다. "재안내" 버튼으로 문자 앱을 다시 열 수 있습니다.

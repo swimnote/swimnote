@@ -144,7 +144,7 @@ const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
         <Pressable
           style={[
             cds.stBtn,
-            isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" },
+            isPresent && { backgroundColor: C.brandSoft, borderColor: C.brandStrong },
             attBusy && { opacity: 0.45 },
           ]}
           onPress={() => onAttendance(student.id)}
@@ -152,8 +152,8 @@ const StudentAttendanceRow = React.memo(function StudentAttendanceRow({
           hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
         >
           {pendingAction === "attendance"
-            ? <ActivityIndicator size="small" color="#2EC4B6" style={{ width: 18 }} />
-            : <Text style={[cds.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>
+            ? <ActivityIndicator size="small" color={C.brandStrong} style={{ width: 18 }} />
+            : <Text style={[cds.stBtnTxt, { color: isPresent ? C.brandStrong : C.textMuted }]}>출석</Text>
           }
         </Pressable>
         {/* 결석 버튼 */}
@@ -929,7 +929,7 @@ export default function ClassDetailSheet({
           <Text style={cds.emptyText}>학생 명단을 불러오지 못했습니다</Text>
           {onRetryStudentsByDate && (
             <Pressable onPress={onRetryStudentsByDate} style={{ marginTop: 8 }}>
-              <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+              <Text style={{ color: C.brandStrong, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
             </Pressable>
           )}
         </View>
@@ -938,7 +938,7 @@ export default function ClassDetailSheet({
     if (groupStudents === null) {
       return (
         <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
-          <ActivityIndicator size="small" color={C.tint} />
+          <ActivityIndicator size="small" color={C.brandStrong} />
           <Text style={cds.emptyText}>학생 목록 불러오는 중...</Text>
         </View>
       );
@@ -983,7 +983,7 @@ export default function ClassDetailSheet({
               </Pressable>
             </View>
             <View style={cds.actionRow}>
-              <Pressable style={[cds.actionBtn, { backgroundColor: "#E6FFFA", flex: 1 }]}
+              <Pressable style={[cds.actionBtn, { backgroundColor: C.brandSoft, flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push({
                 pathname: "/class-assign",
                 params: {
@@ -1002,10 +1002,10 @@ export default function ClassDetailSheet({
                 <LucideIcon name="users" size={13} color="#4338CA" />
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
-              <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
+              <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? C.brandSoft : "#FFF1BF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name, lessonDate: effectiveDate, backTo: "my-schedule"} } as any), group.id)}>
-                <LucideIcon name="edit" size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
-                <Text style={[cds.actionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
+                <LucideIcon name="edit" size={13} color={diarDone ? C.brandStrong : "#D97706"} />
+                <Text style={[cds.actionText, { color: diarDone ? C.brandStrong : "#D97706" }]}>수업일지</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: "#EEF2FF", flex: 1 }]}
                 onPress={() => onNavigateTo?.(() => router.push("/(teacher)/makeups?backTo=my-schedule" as any))}>
@@ -1101,13 +1101,13 @@ export default function ClassDetailSheet({
                   <Text style={cds.emptyText}>반 목록을 불러오지 못했습니다</Text>
                   {onRetryClassGroups && (
                     <Pressable onPress={onRetryClassGroups} style={{ marginTop: 8 }}>
-                      <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                      <Text style={{ color: C.brandStrong, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
                     </Pressable>
                   )}
                 </View>
               ) : (
                 <View style={[cds.empty, { flexDirection: "row", gap: 8 }]}>
-                  <ActivityIndicator size="small" color={C.tint} />
+                  <ActivityIndicator size="small" color={C.brandStrong} />
                   <Text style={cds.emptyText}>반 목록 불러오는 중...</Text>
                 </View>
               )
@@ -1300,7 +1300,7 @@ export default function ClassDetailSheet({
                     {makeupOccErrorDetail ? `\n오류 코드: ${makeupOccErrorDetail.status} / ${makeupOccErrorDetail.code}` : ""}
                   </Text>
                   <Pressable onPress={() => selectMakeupClass(selectedMakeupStudent, selectedMakeupClassId)} style={{ marginTop: 8 }}>
-                    <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    <Text style={{ color: C.brandStrong, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
                   </Pressable>
                 </View>
               ) : makeupOccurrences.length === 0 ? (
@@ -1362,7 +1362,7 @@ export default function ClassDetailSheet({
                         )}
                         {today.length > 0 && (
                           <>
-                            <Text style={[cds.moveClassSub, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 11, color: "#2EC4B6" }]}>오늘</Text>
+                            <Text style={[cds.moveClassSub, { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, fontSize: 11, color: C.brandStrong }]}>오늘</Text>
                             {today.map(renderOccRow)}
                           </>
                         )}

@@ -347,7 +347,7 @@ export default function TodayScheduleScreen() {
                   h.switchChip,
                   isX
                     ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: XT.surfaceNavySoft, opacity: pressed || switching ? 0.7 : 1 }
-                    : { borderColor: C.textPrimary + "30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                    : { borderColor: C.textPrimary + "30", backgroundColor: C.brandMist, opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToAdmin} disabled={switching}
               >
@@ -447,7 +447,7 @@ export default function TodayScheduleScreen() {
                   <Text style={[h.weekDate, isToday && { color: "#fff" }]}>{dateNum}</Text>
                 </View>
                 {hasClass
-                  ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : isX ? XT.accent : C.tint }]} />
+                  ? <View style={[h.weekDot, { backgroundColor: isToday ? themeColor : isX ? XT.accent : C.brandStrong }]} />
                   : <View style={h.weekDotEmpty} />
                 }
               </View>
@@ -503,7 +503,7 @@ export default function TodayScheduleScreen() {
             <Text style={h.sectionTitle}>오늘 수업</Text>
             <View style={h.sectionHeaderRight}>
               {!loading && sortedItems.length > 0 && (
-                <Text style={[h.classCnt, { color: isX ? XT.accent : C.tint }]}>{sortedItems.length}개</Text>
+                <Text style={[h.classCnt, { color: isX ? XT.accent : C.brandStrong }]}>{sortedItems.length}개</Text>
               )}
               <Pressable
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -546,10 +546,10 @@ export default function TodayScheduleScreen() {
                     haptic.light();
                     router.push({ pathname: "/(teacher)/diary", params: { classGroupId: item.id, className: item.name, backTo: "today-schedule" } } as any);
                   }}>
-                  <View style={[h.diaryStatusBar, { backgroundColor: diaryDone ? "#2EC4B6" : "#F59E0B" }]} />
+                  <View style={[h.diaryStatusBar, { backgroundColor: diaryDone ? C.brandStrong : "#F59E0B" }]} />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                      <Text style={[h.listTime, { color: C.tint }]}>{item.schedule_time}</Text>
+                      <Text style={[h.listTime, { color: C.brandStrong }]}>{item.schedule_time}</Text>
                       <Text style={h.listName}>{item.name}</Text>
                       <Text style={[h.listCount, { color: C.textMuted }]}>({item.student_count}명)</Text>
                     </View>
@@ -557,8 +557,8 @@ export default function TodayScheduleScreen() {
                       <Text style={h.listNames} numberOfLines={1}>{nameStr}</Text>
                     )}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
-                      <LucideIcon name="book-open" size={11} color={diaryDone ? "#2EC4B6" : "#F59E0B"} />
-                      <Text style={[h.diaryStatusTxt, { color: diaryDone ? "#2EC4B6" : "#F59E0B" }]}>
+                      <LucideIcon name="book-open" size={11} color={diaryDone ? C.brandStrong : "#F59E0B"} />
+                      <Text style={[h.diaryStatusTxt, { color: diaryDone ? C.brandStrong : "#F59E0B" }]}>
                         {diaryDone ? "일지 완료" : "일지 미작성"}
                       </Text>
                     </View>

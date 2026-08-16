@@ -202,7 +202,7 @@ export default function ForgotPasswordScreen() {
         {step === "phone" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <LucideIcon name="phone" size={24} color={C.tint} />
+              <LucideIcon name="phone" size={24} color={C.brandStrong} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>휴대폰 번호 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -211,8 +211,8 @@ export default function ForgotPasswordScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>휴대폰 번호</Text>
-              <View style={[styles.inputRow, { borderColor: phone ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="phone" size={15} color={phone ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: phone ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="phone" size={15} color={phone ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={phone}
@@ -250,7 +250,7 @@ export default function ForgotPasswordScreen() {
         {step === "sms" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <LucideIcon name="hash" size={24} color={C.tint} />
+              <LucideIcon name="hash" size={24} color={C.brandStrong} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>인증번호 입력</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -260,8 +260,8 @@ export default function ForgotPasswordScreen() {
 
             <View style={styles.field}>
               <View style={styles.phoneRow}>
-                <View style={[styles.inputRow, { flex: 1, borderColor: smsCode ? C.tint : C.border, backgroundColor: C.background }]}>
-                  <LucideIcon name="hash" size={15} color={smsCode ? C.tint : C.textMuted} />
+                <View style={[styles.inputRow, { flex: 1, borderColor: smsCode ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                  <LucideIcon name="hash" size={15} color={smsCode ? C.brandStrong : C.textMuted} />
                   <TextInput
                     style={[styles.input, { color: C.text }]}
                     value={smsCode}
@@ -309,7 +309,7 @@ export default function ForgotPasswordScreen() {
         {step === "select" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <LucideIcon name="user" size={24} color={C.tint} />
+              <LucideIcon name="user" size={24} color={C.brandStrong} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>계정 선택</Text>
             <Text style={[styles.cardDesc, { color: C.textSecondary }]}>
@@ -330,14 +330,14 @@ export default function ForgotPasswordScreen() {
                       key={idx}
                       style={[
                         styles.accountItem,
-                        { borderColor: isSelected ? C.tint : C.border, backgroundColor: isSelected ? "#EFF4FF" : C.background },
+                        { borderColor: isSelected ? C.brandStrong : C.border, backgroundColor: isSelected ? "#EFF4FF" : C.background },
                       ]}
                       onPress={() => setSelectedIdx(idx)}
                     >
                       <View style={[styles.accountIcon, {
                         backgroundColor: acc.social_provider === "kakao" ? "#FEE500"
                           : acc.social_provider === "apple" ? "#000"
-                          : isSelected ? C.tint : C.border,
+                          : isSelected ? C.brandStrong : C.border,
                       }]}>
                         {acc.social_provider === "kakao"
                           ? <Text style={{ fontSize: 16 }}>K</Text>
@@ -354,7 +354,7 @@ export default function ForgotPasswordScreen() {
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <Text style={[styles.accountName, { color: C.text }]}>{acc.name}</Text>
                           <View style={[styles.roleBadge, { backgroundColor: isSelected ? "#D6E4FF" : "#F1F5F9" }]}>
-                            <Text style={[styles.roleBadgeTxt, { color: isSelected ? C.tint : C.textSecondary }]}>
+                            <Text style={[styles.roleBadgeTxt, { color: isSelected ? C.brandStrong : C.textSecondary }]}>
                               {acc.type === "parent" ? "학부모" : roleLabel(acc.role)}
                             </Text>
                           </View>
@@ -374,8 +374,8 @@ export default function ForgotPasswordScreen() {
                           </Text>
                         )}
                       </View>
-                      <View style={[styles.radioOuter, { borderColor: isSelected ? C.tint : C.border }]}>
-                        {isSelected && <View style={[styles.radioInner, { backgroundColor: C.tint }]} />}
+                      <View style={[styles.radioOuter, { borderColor: isSelected ? C.brandStrong : C.border }]}>
+                        {isSelected && <View style={[styles.radioInner, { backgroundColor: C.brandStrong }]} />}
                       </View>
                     </Pressable>
                   );
@@ -421,7 +421,7 @@ export default function ForgotPasswordScreen() {
         {step === "pw" && selectedAccount && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={[styles.iconWrap, { backgroundColor: "#EFF4FF" }]}>
-              <LucideIcon name="lock" size={24} color={C.tint} />
+              <LucideIcon name="lock" size={24} color={C.brandStrong} />
             </View>
             <Text style={[styles.cardTitle, { color: C.text }]}>새 비밀번호 설정</Text>
 
@@ -443,8 +443,8 @@ export default function ForgotPasswordScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>새 비밀번호 (4자 이상)</Text>
-              <View style={[styles.inputRow, { borderColor: newPw ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="lock" size={15} color={newPw ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: newPw ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="lock" size={15} color={newPw ? C.brandStrong : C.textMuted} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={newPw}
@@ -464,8 +464,8 @@ export default function ForgotPasswordScreen() {
 
             <View style={styles.field}>
               <Text style={[styles.fieldLabel, { color: C.textSecondary }]}>비밀번호 확인</Text>
-              <View style={[styles.inputRow, { borderColor: newPw2 ? C.tint : C.border, backgroundColor: C.background }]}>
-                <LucideIcon name="lock" size={15} color={newPw2 ? C.tint : C.textMuted} />
+              <View style={[styles.inputRow, { borderColor: newPw2 ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="lock" size={15} color={newPw2 ? C.brandStrong : C.textMuted} />
                 <TextInput
                   ref={pw2Ref}
                   style={[styles.input, { color: C.text }]}

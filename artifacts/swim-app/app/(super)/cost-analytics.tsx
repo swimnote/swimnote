@@ -125,7 +125,7 @@ export default function CostAnalyticsScreen() {
         label: "데이터베이스", icon: "database",
         amount: db,
         note: `Supabase Pro 고정 비용 (${fmtKRW(UNIT_COSTS.db_monthly)}/월)`,
-        color: "#2EC4B6", isFixed: true,
+        color: C.brandStrong, isFixed: true,
       },
       {
         label: "스토리지 (R2)", icon: "hard-drive",
@@ -215,14 +215,14 @@ export default function CostAnalyticsScreen() {
         {/* 매출 요약 카드 */}
         {summary && (
           <View style={s.metricsRow}>
-            <View style={[s.metricCard, { borderColor: "#E6FFFA" }]}>
+            <View style={[s.metricCard, { borderColor: C.brandSoft }]}>
               <Text style={s.metricLabel}>청구 매출</Text>
               <Text style={[s.metricValue, { color: P }]}>{fmtKRW(apiRevenue)}</Text>
               <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>{summary.count}건</Text>
             </View>
             <View style={[s.metricCard, { borderColor: "#FFF1BF" }]}>
               <Text style={s.metricLabel}>수수료 차감 후</Text>
-              <Text style={[s.metricValue, { color: "#2EC4B6" }]}>{fmtKRW(realNet)}</Text>
+              <Text style={[s.metricValue, { color: C.brandStrong }]}>{fmtKRW(realNet)}</Text>
               <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>환불 전 순매출</Text>
             </View>
             {totalRefund > 0 && (
@@ -240,9 +240,9 @@ export default function CostAnalyticsScreen() {
             <Text style={s.summaryLabel}>총 지출</Text>
             <Text style={[s.summaryValue, { color: "#D96C6C" }]}>{fmtKRW(totalCost)}</Text>
           </View>
-          <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
+          <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
             <Text style={s.summaryLabel}>순이익</Text>
-            <Text style={[s.summaryValue, { color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>{fmtKRW(netProfit)}</Text>
+            <Text style={[s.summaryValue, { color: netProfit >= 0 ? C.brandStrong : "#D96C6C" }]}>{fmtKRW(netProfit)}</Text>
           </View>
         </View>
 
@@ -294,7 +294,7 @@ export default function CostAnalyticsScreen() {
         </View>
 
         {/* 손익 계산 */}
-        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? "#E6FFFA" : "#F9DEDA" }]}>
+        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? C.brandSoft : "#F9DEDA" }]}>
           <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 10 }}>손익 계산</Text>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>청구 매출</Text>
@@ -311,8 +311,8 @@ export default function CostAnalyticsScreen() {
             </View>
           )}
           <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
-            <Text style={[s.profitLabel, { color: "#2EC4B6" }]}>수수료 후 순매출</Text>
-            <Text style={[s.profitVal, { color: "#2EC4B6" }]}>{fmtKRW(Math.max(0, realNet - totalRefund))}</Text>
+            <Text style={[s.profitLabel, { color: C.brandStrong }]}>수수료 후 순매출</Text>
+            <Text style={[s.profitVal, { color: C.brandStrong }]}>{fmtKRW(Math.max(0, realNet - totalRefund))}</Text>
           </View>
           <View style={s.profitRow}>
             <Text style={s.profitLabel}>운영비 합계</Text>
@@ -320,7 +320,7 @@ export default function CostAnalyticsScreen() {
           </View>
           <View style={[s.profitRow, { borderTopWidth: 2, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
             <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular", fontSize: 14 }]}>최종 순이익</Text>
-            <Text style={[s.profitVal, { fontSize: 16, color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={[s.profitVal, { fontSize: 16, color: netProfit >= 0 ? C.brandStrong : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
@@ -361,8 +361,8 @@ const s = StyleSheet.create({
   costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   costAmt:       { fontSize: 14, fontFamily: "Pretendard-Regular" },
   costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  realBadge:     { backgroundColor: C.brandSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   fixedBadge:    { backgroundColor: C.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#FFFFFF" },

@@ -84,7 +84,7 @@ export default function MonthlyCalendar({
           <View key={wd} style={[mc.weekHeader, { width: CELL_W }]}>
             <Text style={[mc.weekHeaderText,
               i === 0 && { color: "#D96C6C" },
-              i === 6 && { color: C.tint },
+              i === 6 && { color: C.brandStrong },
             ]}>{wd}</Text>
           </View>
         ))}
@@ -112,9 +112,9 @@ export default function MonthlyCalendar({
               <Pressable key={dateStr}
                 style={[
                   mc.dayCell, { width: CELL_W, height: CELL_H },
-                  isSelected && { backgroundColor: C.tintLight, borderRadius: 8 },
+                  isSelected && { backgroundColor: C.brandSoft, borderRadius: 8 },
                   isMultiPicked && { backgroundColor: "#2E9B6F" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#2E9B6F" },
-                  isToday && !isSelected && !isMultiPicked && { backgroundColor: C.tintLight },
+                  isToday && !isSelected && !isMultiPicked && { backgroundColor: C.brandSoft },
                   isHoliday && !isMultiPicked && { backgroundColor: "#FEF2F2" },
                 ]}
                 onPress={() => onSelectDate(dateStr)}>
@@ -127,11 +127,11 @@ export default function MonthlyCalendar({
                 )}
 
                 <View style={[mc.dayNumWrap,
-                  isToday && { backgroundColor: C.tint },
-                  isSelected && !isToday && { backgroundColor: C.tintLight },
+                  isToday && { backgroundColor: C.brandStrong },
+                  isSelected && !isToday && { backgroundColor: C.brandSoft },
                 ]}>
                   <Text style={[mc.dayNum,
-                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: C.tint } : {},
+                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: C.brandStrong } : {},
                     isToday && { color: "#fff" },
                   ]}>{dayNum}</Text>
                 </View>

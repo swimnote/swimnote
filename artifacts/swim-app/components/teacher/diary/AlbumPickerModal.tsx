@@ -100,7 +100,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         )}
         {isSel && (
           <View style={s.checkOverlay}>
-            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill={C.brandStrong} />
           </View>
         )}
       </Pressable>
@@ -124,7 +124,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         </View>
         {isSel && (
           <View style={s.checkOverlay}>
-            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill={C.brandStrong} />
           </View>
         )}
       </Pressable>
@@ -175,7 +175,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         </View>
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 60 }} color="#2EC4B6" />
+          <ActivityIndicator style={{ marginTop: 60 }} color={C.brandStrong} />
         ) : isEmpty ? (
           <View style={s.empty}>
             <Text style={s.emptyText}>
@@ -227,14 +227,14 @@ const s = StyleSheet.create({
   countText:          { width: 44, textAlign: "right", fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterRow:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   filterBtn:          { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
-  filterBtnActive:    { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
+  filterBtnActive:    { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
   filterBtnText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  filterBtnTextActive:{ color: "#2EC4B6" },
+  filterBtnTextActive:{ color: C.brandStrong },
   grid:               { padding: 2 },
   item:               { width: ITEM_SIZE, height: ITEM_SIZE, margin: 2, borderRadius: 4, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
-  itemSelected:       { borderColor: "#2EC4B6" },
+  itemSelected:       { borderColor: C.brandStrong },
   image:              { width: "100%", height: "100%" },
-  checkOverlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(46,196,182,0.18)", alignItems: "flex-end", justifyContent: "flex-start", padding: 4 },
+  checkOverlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(79,111,103,0.18)", alignItems: "flex-end", justifyContent: "flex-start", padding: 4 },
   videoPlayBadge:     { position: "absolute", bottom: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   empty:              { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 32 },
   emptyText:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
@@ -242,7 +242,7 @@ const s = StyleSheet.create({
   footer:             { flexDirection: "row", gap: 10, paddingHorizontal: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
   cancelBtn:          { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
   cancelText:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  confirmBtn:         { flex: 2, height: 50, borderRadius: 14, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  confirmBtn:         { flex: 2, height: 50, borderRadius: 14, backgroundColor: C.primaryAction, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
   confirmDisabled:    { opacity: 0.45 },
   confirmText:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff", textAlign: "center" },
 });

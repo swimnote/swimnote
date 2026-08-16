@@ -25,9 +25,9 @@ import { useParent } from "@/context/ParentContext";
 
 const C = Colors.light;
 
-const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
+const MINT_C = C.brandStrong; const MINT_BG = C.brandMist;
 const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY_C = C.textPrimary; const NAVY_BG = "#E6FAF8";
+const NAVY_C = C.textPrimary; const NAVY_BG = C.brandMist;
 
 function MenuItem({
   icon, label, sub, onPress, danger = false,
@@ -105,7 +105,7 @@ export default function ParentMoreScreen() {
             onPress={() => router.push("/(parent)/my-info?backTo=more" as any)}
           >
             <View style={s.accountAvatar}>
-              <LucideIcon name="user-round" size={26} color={C.tint} />
+              <LucideIcon name="user-round" size={26} color={C.brandStrong} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.accountName, { color: C.text }]}>{parentAccount.name}님</Text>

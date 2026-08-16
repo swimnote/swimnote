@@ -54,7 +54,7 @@ export default function MiniCalendar({
           const isSat    = dayIdx === 6;
           return (
             <Pressable key={dateStr} style={cal.cell} onPress={() => onSelectDate(dateStr)}>
-              <View style={[cal.dayBox, isToday && { backgroundColor: C.tint }]}>
+              <View style={[cal.dayBox, isToday && { backgroundColor: C.brandStrong }]}>
                 <Text style={[
                   cal.dayNum,
                   isToday  ? { color: "#fff", fontFamily: "Pretendard-Regular" } :

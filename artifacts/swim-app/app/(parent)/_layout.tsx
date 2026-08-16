@@ -46,14 +46,14 @@ function ApprovalPendingScreen({ status }: { status: string }) {
         {!isRejected && (
           <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
-            <InfoRow icon="user-check"  color="#2EC4B6" text="관리자 수동 승인 시 알림 발송" />
+            <InfoRow icon="user-check"  color={C.brandStrong} text="관리자 수동 승인 시 알림 발송" />
             <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}
 
-        <View style={[g.waitBanner, { backgroundColor: C.tintLight }]}>
-          <LucideIcon name="info" size={14} color={C.tint} />
-          <Text style={[g.waitTxt, { color: C.tint }]}>
+        <View style={[g.waitBanner, { backgroundColor: C.brandMist }]}>
+          <LucideIcon name="info" size={14} color={C.brandStrong} />
+          <Text style={[g.waitTxt, { color: C.brandStrong }]}>
             {isRejected
               ? "문의: 수영장에 직접 연락해 주세요"
               : "승인 후 자동으로 홈 화면으로 이동합니다"}

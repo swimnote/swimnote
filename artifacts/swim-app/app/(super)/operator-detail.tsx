@@ -33,7 +33,7 @@ const TIER_LABEL: Record<string, string> = {
 };
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   trial:     { label: "체험 중",   color: P,         bg: "#EEDDF5" },
-  active:    { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
+  active:    { label: "구독 중",   color: C.brandStrong, bg: C.brandSoft },
   expired:   { label: "만료됨",    color: "#D96C6C", bg: "#F9DEDA" },
   suspended: { label: "일시 정지", color: "#D97706", bg: "#FFF1BF" },
   cancelled: { label: "해지됨",    color: C.textSecondary, bg: C.backgroundSoft },
@@ -41,16 +41,16 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
 };
 const APPROVAL_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending:  { label: "대기",    color: "#D97706", bg: "#FFF1BF" },
-  approved: { label: "운영",    color: "#2EC4B6", bg: "#E6FFFA" },
+  approved: { label: "운영",    color: C.brandStrong, bg: C.brandSoft },
   rejected: { label: "반려",    color: "#D96C6C", bg: "#F9DEDA" },
 };
 const CAT_CFG: Record<string, { color: string; bg: string }> = {
   권한:         { color: "#D97706", bg: "#FFF1BF" },
   구독:         { color: P,         bg: "#EEDDF5" },
-  저장공간:     { color: "#2EC4B6", bg: "#E6FFFA" },
+  저장공간:     { color: C.brandStrong, bg: C.brandSoft },
   삭제:         { color: "#D96C6C", bg: "#F9DEDA" },
-  정책:         { color: "#2EC4B6", bg: "#E6FFFA" },
-  결제:         { color: "#2EC4B6", bg: "#ECFEFF" },
+  정책:         { color: C.brandStrong, bg: C.brandSoft },
+  결제:         { color: C.brandStrong, bg: "#ECFEFF" },
   "읽기전용 전환": { color: C.textSecondary, bg: C.backgroundSoft },
 };
 const ROLE_LABEL: Record<string, string> = {
@@ -392,7 +392,7 @@ export default function OperatorDetailScreen() {
 
       {!!feedback && (
         <View style={d.feedbackBanner}>
-          <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
+          <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
           <Text style={d.feedbackTxt}>{feedback}</Text>
         </View>
       )}
@@ -493,11 +493,11 @@ export default function OperatorDetailScreen() {
                 <Text style={d.infoLabel}>X 사용권</Text>
                 <View style={{
                   paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8,
-                  backgroundColor: pool.xmode_entitlement ? "#E6FAF8" : C.backgroundSoft,
+                  backgroundColor: pool.xmode_entitlement ? C.brandSoft : C.backgroundSoft,
                 }}>
                   <Text style={{
                     fontSize: 12, fontFamily: "Pretendard-Regular",
-                    color: pool.xmode_entitlement ? "#2EC4B6" : C.textSecondary,
+                    color: pool.xmode_entitlement ? C.brandStrong : C.textSecondary,
                   }}>
                     {pool.xmode_entitlement ? "X 활성" : "X 비활성"}
                   </Text>
@@ -512,7 +512,7 @@ export default function OperatorDetailScreen() {
                   const cfgMap: Record<string, { label: string; color: string; bg: string }> = {
                     NOT_CONFIGURED:     { label: "미설정",  color: C.textSecondary, bg: C.backgroundSoft },
                     CURRICULUM_PENDING: { label: "심사 중", color: "#D97706", bg: "#FFF1BF" },
-                    READY:              { label: "승인 완료", color: "#2EC4B6", bg: "#E6FAF8" },
+                    READY:              { label: "승인 완료", color: C.brandStrong, bg: C.brandSoft },
                   };
                   const cfg = cfgMap[cs] ?? cfgMap.NOT_CONFIGURED;
                   return (
@@ -629,7 +629,7 @@ export default function OperatorDetailScreen() {
                 >
                   {xmodeLoading
                     ? <ActivityIndicator size="small" color={C.textMuted} />
-                    : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#2EC4B6" }}>X 사용권 활성화</Text>
+                    : <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.brandStrong }}>X 사용권 활성화</Text>
                   }
                 </Pressable>
               )}
@@ -768,7 +768,7 @@ export default function OperatorDetailScreen() {
           <>
             {[
               ...((pool.approval_status === "rejected" || pool.subscription_status === "suspended") ? [
-                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "정지·반려 → 운영 상태로 복구", color: "#2EC4B6", bg: "#E6FFFA" },
+                { act: "approve", icon: "check-circle" as const, label: "운영 재승인", sub: "정지·반려 → 운영 상태로 복구", color: C.brandStrong, bg: C.brandSoft },
               ] : []),
               { act: "reject",   icon: "x-circle" as const,     label: "반려",       sub: "운영 자격 박탈 · 사유 기록",   color: "#D96C6C", bg: "#F9DEDA" },
               { act: "restrict", icon: "pause-circle" as const,  label: "일시 제한",  sub: "구독 일시 정지 처리",           color: "#D97706", bg: "#FFF1BF" },
@@ -990,7 +990,7 @@ const d = StyleSheet.create({
   statLabel:      { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   statDivider:    { width: 1, height: 28, backgroundColor: C.border },
   feedbackBanner: { flexDirection: "row", alignItems: "center", gap: 8,
-                    backgroundColor: "#E6FFFA", paddingHorizontal: 16, paddingVertical: 8 },
+                    backgroundColor: C.brandSoft, paddingHorizontal: 16, paddingVertical: 8 },
   feedbackTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
   tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tabContent:     { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },

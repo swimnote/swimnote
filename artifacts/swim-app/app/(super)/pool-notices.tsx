@@ -21,7 +21,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 
 const P    = "#7C3AED";
-const TEAL = "#2EC4B6";
+const TEAL = C.brandStrong;
 const RED  = "#D96C6C";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ function NoticeRow({
   const isGlobal  = notice.audience_scope === "global";
   const scopeLabel = isGlobal ? "전체" : (poolNameMap[notice.swimming_pool_id ?? ""] || "수영장별");
   const scopeColor = isGlobal ? P : TEAL;
-  const scopeBg    = isGlobal ? "#EEDDF5" : "#E6FFFA";
+  const scopeBg    = isGlobal ? "#EEDDF5" : C.brandSoft;
 
   return (
     <Pressable style={r.row} onPress={() => onEdit(notice)}>
@@ -122,7 +122,7 @@ const r = StyleSheet.create({
   date:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   pushRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
   pushBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  pushSent:  { backgroundColor: "#E6FFFA" },
+  pushSent:  { backgroundColor: C.brandSoft },
   pushNot:   { backgroundColor: "#FFFFFF" },
   pushTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
   pushDate:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
@@ -314,7 +314,7 @@ export default function PoolNoticesScreen() {
           </Text>
         </View>
       ) : (
-        <View style={[s.banner, { backgroundColor: "#E6FFFA", borderBottomColor: "#A7F3D0" }]}>
+        <View style={[s.banner, { backgroundColor: C.brandSoft, borderBottomColor: "#A7F3D0" }]}>
           <LucideIcon name="home" size={12} color={TEAL} />
           <Text style={[s.bannerTxt, { color: TEAL }]}>
             수영장별 공지는 선택한 수영장 구성원에게만 발송됩니다.{"\n"}
@@ -424,7 +424,7 @@ export default function PoolNoticesScreen() {
 
             {/* 공지 범위 표시 */}
             {!editNotice && (
-              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA" }]}>
+              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : C.brandSoft }]}>
                 <LucideIcon name={activeScope === "global" ? "globe" : "home"} size={11}
                   color={activeScope === "global" ? P : TEAL} />
                 <Text style={[fm.scopeTagTxt, { color: activeScope === "global" ? P : TEAL }]}>
@@ -436,7 +436,7 @@ export default function PoolNoticesScreen() {
             {/* 수정 시 공지 범위 표시 */}
             {editNotice && (
               <View style={[fm.scopeTag, {
-                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : "#E6FFFA",
+                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : C.brandSoft,
               }]}>
                 <LucideIcon name={editNotice.audience_scope === "global" ? "globe" : "home"} size={11}
                   color={editNotice.audience_scope === "global" ? P : TEAL} />
@@ -476,7 +476,7 @@ export default function PoolNoticesScreen() {
               {/* 등록 시 푸시 안내 */}
               {!editNotice && (
                 <View style={[fm.infoBanner, {
-                  backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA",
+                  backgroundColor: activeScope === "global" ? "#EEDDF5" : C.brandSoft,
                 }]}>
                   <LucideIcon name="send" size={12} color={activeScope === "global" ? P : TEAL} />
                   <Text style={[fm.infoBannerTxt, { color: activeScope === "global" ? P : TEAL }]}>
@@ -591,7 +591,7 @@ const pm = StyleSheet.create({
   search:    { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 10, marginBottom: 12,
                fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   item:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10 },
-  itemActive:{ backgroundColor: "#E6FFFA" },
+  itemActive:{ backgroundColor: C.brandSoft },
   itemName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   itemAddr:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   empty:     { textAlign: "center", fontSize: 13, color: C.textSecondary, padding: 20 },

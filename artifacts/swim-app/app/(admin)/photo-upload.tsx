@@ -137,14 +137,14 @@ export default function PhotoUploadScreen() {
         {/* 전체 선택 */}
         {filtered.length > 0 && (
           <Pressable style={[styles.selectAllRow, { borderColor: C.border }]} onPress={() => toggleAll(filtered)}>
-            <View style={[styles.checkbox, { borderColor: allFiltered ? C.tint : C.border, backgroundColor: allFiltered ? C.tint : "transparent" }]}>
+            <View style={[styles.checkbox, { borderColor: allFiltered ? C.brandStrong : C.border, backgroundColor: allFiltered ? C.brandStrong : "transparent" }]}>
               {allFiltered && <LucideIcon name="check" size={12} color="#fff" />}
             </View>
             <Text style={[styles.selectAllText, { color: C.textSecondary }]}>전체 선택 ({filtered.length}명)</Text>
           </Pressable>
         )}
 
-        {loadingStudents ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
+        {loadingStudents ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} /> : (
           <FlatList
             data={filtered}
             keyExtractor={s => s.id}
@@ -153,14 +153,14 @@ export default function PhotoUploadScreen() {
               const sel = selected.has(s.id);
               return (
                 <Pressable
-                  style={[styles.studentCard, { borderColor: sel ? C.tint : C.border, backgroundColor: sel ? C.tint + "0D" : C.card }]}
+                  style={[styles.studentCard, { borderColor: sel ? C.brandStrong : C.border, backgroundColor: sel ? C.brandSoft : C.card }]}
                   onPress={() => toggleStudent(s.id)}
                 >
-                  <View style={[styles.checkbox, { borderColor: sel ? C.tint : C.border, backgroundColor: sel ? C.tint : "transparent" }]}>
+                  <View style={[styles.checkbox, { borderColor: sel ? C.brandStrong : C.border, backgroundColor: sel ? C.brandStrong : "transparent" }]}>
                     {sel && <LucideIcon name="check" size={12} color="#fff" />}
                   </View>
-                  <View style={[styles.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[styles.avatarText, { color: C.tint }]}>{(s.name || "?")[0]}</Text>
+                  <View style={[styles.avatar, { backgroundColor: C.brandSoft }]}>
+                    <Text style={[styles.avatarText, { color: C.brandStrong }]}>{(s.name || "?")[0]}</Text>
                   </View>
                   <View style={styles.studentInfo}>
                     <Text style={[styles.studentName, { color: C.text }]}>{s.name}</Text>
@@ -190,7 +190,7 @@ export default function PhotoUploadScreen() {
         onBack={() => setStep("students")}
         rightSlot={
           <Pressable
-            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? "#2EC4B6" : C.border, opacity: compressing ? 0.6 : 1 }]}
+            style={[styles.nextBtn, { backgroundColor: images.length > 0 ? C.primaryAction : C.border, opacity: compressing ? 0.6 : 1 }]}
             onPress={handleUpload}
             disabled={compressing || images.length === 0}
           >
@@ -210,8 +210,8 @@ export default function PhotoUploadScreen() {
             {[...selected].map(id => {
               const s = students.find(s => s.id === id);
               return s ? (
-                <View key={id} style={[styles.chip, { backgroundColor: C.tintLight }]}>
-                  <Text style={[styles.chipText, { color: C.tint }]}>{s.name}</Text>
+                <View key={id} style={[styles.chip, { backgroundColor: C.brandSoft }]}>
+                  <Text style={[styles.chipText, { color: C.brandStrong }]}>{s.name}</Text>
                 </View>
               ) : null;
             })}
@@ -240,7 +240,7 @@ export default function PhotoUploadScreen() {
             </>
           ) : (
             <Pressable style={[styles.pickBtn, { borderColor: C.border, backgroundColor: C.card, marginTop: 12 }]} onPress={pickImages}>
-              <LucideIcon name="camera" size={28} color={C.tint} />
+              <LucideIcon name="camera" size={28} color={C.brandStrong} />
               <Text style={[styles.pickText, { color: C.text }]}>사진 선택하기</Text>
               <Text style={[styles.pickSub, { color: C.textMuted }]}>갤러리에서 여러 장 선택 가능</Text>
             </Pressable>
@@ -248,9 +248,9 @@ export default function PhotoUploadScreen() {
         </View>
 
         {images.length > 0 && (
-          <View style={[styles.infoBox, { backgroundColor: C.tintLight, borderRadius: 12, padding: 14 }]}>
-            <LucideIcon name="info" size={14} color={C.tint} />
-            <Text style={[styles.infoText, { color: C.tint }]}>
+          <View style={[styles.infoBox, { backgroundColor: C.brandMist, borderRadius: 12, padding: 14 }]}>
+            <LucideIcon name="info" size={14} color={C.brandStrong} />
+            <Text style={[styles.infoText, { color: C.brandStrong }]}>
               {selected.size}명의 사진첩에 {images.length}장씩{"\n"}총 {selected.size * images.length}장이 업로드됩니다
             </Text>
           </View>

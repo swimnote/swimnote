@@ -38,21 +38,21 @@ export default function TeacherPickerList({
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 뒤로가기 */}
       <Pressable onPress={onBack} style={[t.backRow, { borderBottomColor: C.border }]}>
-        <LucideIcon name="chevron-left" size={20} color={C.tint} />
-        <Text style={[t.backText, { color: C.tint }]}>
+        <LucideIcon name="chevron-left" size={20} color={C.brandStrong} />
+        <Text style={[t.backText, { color: C.brandStrong }]}>
           {day ? `${day}요일` : date ? dateLabel(date) : "시간표"}으로
         </Text>
       </Pressable>
 
       {/* 컨텍스트 헤더 */}
-      <View style={[t.contextBar, { backgroundColor: C.tintLight }]}>
-        {date && <Text style={[t.contextText, { color: C.tint }]}>{dateLabel(date)}</Text>}
-        {day && !date && <Text style={[t.contextText, { color: C.tint }]}>{day}요일</Text>}
-        <View style={[t.timePill, { backgroundColor: C.tint }]}>
+      <View style={[t.contextBar, { backgroundColor: C.brandSoft }]}>
+        {date && <Text style={[t.contextText, { color: C.brandStrong }]}>{dateLabel(date)}</Text>}
+        {day && !date && <Text style={[t.contextText, { color: C.brandStrong }]}>{day}요일</Text>}
+        <View style={[t.timePill, { backgroundColor: C.brandStrong }]}>
           <LucideIcon name="clock" size={12} color="#fff" />
           <Text style={t.timePillText}>{time}</Text>
         </View>
-        <Text style={[t.contextText, { color: C.tint }]}>선생님 선택</Text>
+        <Text style={[t.contextText, { color: C.brandStrong }]}>선생님 선택</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: bottomInset, gap: 1 }} showsVerticalScrollIndicator={false}>
@@ -76,7 +76,7 @@ export default function TeacherPickerList({
             <View style={{ flex: 1 }}>
               <Text style={[t.name, { color: C.text }]}>{teacher.name}</Text>
               {teacher.position ? (
-                <Text style={[t.position, { color: C.tint }]}>{teacher.position}</Text>
+                <Text style={[t.position, { color: C.brandStrong }]}>{teacher.position}</Text>
               ) : null}
               <Text style={[t.sub, { color: C.textMuted }]}>{teacher.classCount}개 반 운영 중</Text>
             </View>

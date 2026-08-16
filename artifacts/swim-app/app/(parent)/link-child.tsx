@@ -24,8 +24,8 @@ function DoneAutoRedirect({ linkedNames, poolName }: { linkedNames: string[]; po
   const nameStr = linkedNames.join(", ");
   return (
     <View style={st.resultBox}>
-      <View style={[st.resultIcon, { backgroundColor: "#E6FFFA" }]}>
-        <LucideIcon name="check-circle" size={44} color="#2EC4B6" />
+      <View style={[st.resultIcon, { backgroundColor: C.brandMist }]}>
+        <LucideIcon name="check-circle" size={44} color={C.brandStrong} />
       </View>
       <Text style={[st.resultTitle, { color: C.text }]}>연결 완료!</Text>
       <Text style={[st.resultSub, { color: C.textSecondary }]}>
@@ -211,7 +211,7 @@ export default function LinkChildScreen() {
               onSubmitEditing={searchPools}
             />
             {searching
-              ? <ActivityIndicator size="small" color={C.tint} />
+              ? <ActivityIndicator size="small" color={C.brandStrong} />
               : <Pressable onPress={searchPools} style={[st.searchBtn, { backgroundColor: C.primaryAction }]}>
                   <Text style={st.searchBtnTxt}>검색</Text>
                 </Pressable>
@@ -231,8 +231,8 @@ export default function LinkChildScreen() {
               style={({ pressed }) => [st.poolCard, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.8 : 1 }]}
               onPress={() => { setSelectedPool(pool); setStep("child"); setError(""); }}
             >
-              <View style={[st.poolIcon, { backgroundColor: C.tintLight }]}>
-                <LucideIcon name="droplet" size={20} color={C.tint} />
+              <View style={[st.poolIcon, { backgroundColor: C.brandMist }]}>
+                <LucideIcon name="droplet" size={20} color={C.brandStrong} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[st.poolName, { color: C.text }]}>{pool.name}</Text>
@@ -262,11 +262,11 @@ export default function LinkChildScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* 선택된 수영장 */}
-          <View style={[st.selectedPool, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-            <LucideIcon name="droplet" size={16} color={C.tint} />
-            <Text style={[st.selectedPoolName, { color: C.tint }]}>{selectedPool.name}</Text>
+          <View style={[st.selectedPool, { backgroundColor: C.brandMist, borderColor: C.brandStrong }]}>
+            <LucideIcon name="droplet" size={16} color={C.brandStrong} />
+            <Text style={[st.selectedPoolName, { color: C.brandStrong }]}>{selectedPool.name}</Text>
             <Pressable onPress={() => { setStep("pool"); setError(""); }}>
-              <Text style={{ color: C.tint, fontSize: 13, fontFamily: "Pretendard-Regular" }}>변경</Text>
+              <Text style={{ color: C.brandStrong, fontSize: 13, fontFamily: "Pretendard-Regular" }}>변경</Text>
             </Pressable>
           </View>
 
@@ -331,9 +331,9 @@ export default function LinkChildScreen() {
               </View>
             ))}
             {/* 자녀 추가 버튼 */}
-            <Pressable style={[st.addBtn, { borderColor: C.tint }]} onPress={addChild}>
-              <LucideIcon name="plus" size={16} color={C.tint} />
-              <Text style={[st.addBtnTxt, { color: C.tint }]}>자녀 추가</Text>
+            <Pressable style={[st.addBtn, { borderColor: C.brandStrong }]} onPress={addChild}>
+              <LucideIcon name="plus" size={16} color={C.brandStrong} />
+              <Text style={[st.addBtnTxt, { color: C.brandStrong }]}>자녀 추가</Text>
             </Pressable>
 
             {/* 출생 연도 (공통) */}
@@ -382,9 +382,9 @@ export default function LinkChildScreen() {
           <Text style={[st.resultTitle, { color: C.text }]}>추가 보호자 승인 대기</Text>
 
           {!!pendingStudentName && (
-            <View style={[st.pendingInfoBox, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-              <LucideIcon name="user" size={16} color={C.tint} />
-              <Text style={[st.pendingInfoTxt, { color: C.tint }]}>{pendingStudentName}</Text>
+            <View style={[st.pendingInfoBox, { backgroundColor: C.brandMist, borderColor: C.brandStrong }]}>
+              <LucideIcon name="user" size={16} color={C.brandStrong} />
+              <Text style={[st.pendingInfoTxt, { color: C.brandStrong }]}>{pendingStudentName}</Text>
             </View>
           )}
 

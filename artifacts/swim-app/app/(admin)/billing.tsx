@@ -51,7 +51,7 @@ const TIER_COLOR: Record<string, string> = {
   free:     C.textSecondary,
   starter:  "#4EA7D8",
   basic:    "#2E9B6F",
-  standard: "#2EC4B6",
+  standard: C.brandStrong,
   center_200: "#F59E0B",
   advance:  "#F59E0B",
   pro:      "#F59E0B",
@@ -268,7 +268,7 @@ export default function BillingScreen() {
                 </Text>
               </View>
               <View style={[s.statusBadge, isSubscribed ? s.badgeGreen : s.badgeGray]}>
-                <Text style={[s.badgeText, isSubscribed ? { color: "#2EC4B6" } : { color: C.textSecondary }]}>
+                <Text style={[s.badgeText, isSubscribed ? { color: C.brandStrong } : { color: C.textSecondary }]}>
                   {isSubscribed ? "구독 중" : "무료"}
                 </Text>
               </View>
@@ -375,7 +375,7 @@ export default function BillingScreen() {
               style={s.platformManageBtn}
               onPress={() => Linking.openURL(STORE_MANAGE)}
             >
-              <LucideIcon name="external-link" size={12} color="#2EC4B6" />
+              <LucideIcon name="external-link" size={12} color={C.brandStrong} />
               <Text style={s.platformManageTxt}>구독 관리·해지</Text>
             </Pressable>
           )}
@@ -534,8 +534,8 @@ const s = StyleSheet.create({
   platformBanner:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: C.border },
   platformBannerText:{ fontSize: 13, color: "#475569", flex: 1, fontFamily: "Pretendard-Regular" },
   platformBannerBold:{ color: C.textPrimary, fontWeight: "600" },
-  platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: "#F0FDFB", borderWidth: 1, borderColor: "#2EC4B6" },
-  platformManageTxt: { fontSize: 12, color: "#2EC4B6", fontWeight: "600" },
+  platformManageBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: C.brandSoft, borderWidth: 1, borderColor: C.brandStrong },
+  platformManageTxt: { fontSize: 12, color: C.brandStrong, fontWeight: "600" },
 
   detailCard:       { borderWidth: 1, borderRadius: 14, overflow: "hidden" },
   detailHeader:     { padding: 14, paddingBottom: 12 },

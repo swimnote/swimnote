@@ -25,9 +25,9 @@ type MkTab = typeof TABS[number];
 
 const MK_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
+  assigned:    { label: "배정",   color: C.brandStrong, bg: C.brandSoft },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  completed:   { label: "완료",   color: C.brandStrong, bg: C.brandSoft },
   cancelled:   { label: "취소",   color: C.textSecondary, bg: "#FFFFFF" },
   expired:     { label: "만료",   color: C.textSecondary, bg: "#F3F4F6" },
 };
@@ -412,7 +412,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
             <Text style={[s.sub, { color: "#7C3AED" }]}>이동선생님: {item.transferred_to_teacher_name}</Text>
           )}
           {item.is_substitute && item.substitute_teacher_name && (
-            <Text style={[s.sub, { color: "#2EC4B6", fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
+            <Text style={[s.sub, { color: C.brandStrong, fontWeight: "600" }]}>대리보강: {item.substitute_teacher_name}</Text>
           )}
           {expireInfo && (
             <Text style={[s.sub, { color: expireInfo.color, fontWeight: "600" }]}>{expireInfo.text}</Text>
@@ -443,9 +443,9 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {tab === "담당 보강" && (
         <View style={{ gap: 8, marginTop: 10 }}>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flex: 1 }]} onPress={onComplete}>
-              <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
-              <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>보강 완료 처리</Text>
+            <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft, flex: 1 }]} onPress={onComplete}>
+              <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
+              <Text style={[s.actBtnTxt, { color: C.brandStrong }]}>보강 완료 처리</Text>
             </Pressable>
             <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]} onPress={onCancel}>
               <Text style={[s.actBtnTxt, { color: C.textSecondary }]}>취소</Text>
@@ -461,9 +461,9 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 다른선생님 탭 액션 */}
       {tab === "다른선생님" && (
         <View style={{ gap: 8, marginTop: 10 }}>
-          <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA", flexDirection: "row", gap: 6 }]} onPress={onComplete}>
-            <LucideIcon name="check-circle" size={14} color="#2EC4B6" />
-            <Text style={[s.actBtnTxt, { color: "#2EC4B6" }]}>대리보강 완료</Text>
+          <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft, flexDirection: "row", gap: 6 }]} onPress={onComplete}>
+            <LucideIcon name="check-circle" size={14} color={C.brandStrong} />
+            <Text style={[s.actBtnTxt, { color: C.brandStrong }]}>대리보강 완료</Text>
           </Pressable>
           <Pressable style={s.revertBtn} onPress={onRevert}>
             <LucideIcon name="rotate-ccw" size={13} color="#D97706" />
@@ -475,7 +475,7 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
       {/* 완료 기록 탭 — 읽기 전용 */}
       {tab === "완료 기록" && item.substitute_teacher_name && (
         <View style={[s.completedBanner]}>
-          <LucideIcon name="user-check" size={12} color="#2EC4B6" />
+          <LucideIcon name="user-check" size={12} color={C.brandStrong} />
           <Text style={s.completedTxt}>
             대리 진행: {item.substitute_teacher_name} 선생님
           </Text>
@@ -510,8 +510,8 @@ const s = StyleSheet.create({
   actBtnTxt:     { fontSize: 13, fontWeight: "700", color: "#fff" },
   revertBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#D97706", backgroundColor: "#FFF8EE" },
   revertTxt:     { fontSize: 13, fontWeight: "600", color: "#D97706" },
-  completedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: "#E6FFFA", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
-  completedTxt:  { fontSize: 12, fontWeight: "600", color: "#2EC4B6" },
+  completedBanner:{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, backgroundColor: C.brandSoft, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
+  completedTxt:  { fontSize: 12, fontWeight: "600", color: C.brandStrong },
   empty:         { paddingVertical: 50, alignItems: "center", gap: 10 },
   emptyTxt:      { color: C.textSecondary, fontSize: 14 },
   modalSub:      { paddingHorizontal: 16, fontSize: 12, color: C.textSecondary, marginBottom: 4 },

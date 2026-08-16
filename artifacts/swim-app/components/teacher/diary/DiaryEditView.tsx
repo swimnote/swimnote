@@ -114,7 +114,7 @@ export default function DiaryEditView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{editContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setEditPickerFor("common")} activeOpacity={0.7}>
-              <LucideIcon name="book-open" size={13} color={C.tint} />
+              <LucideIcon name="book-open" size={13} color={C.brandStrong} />
               <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
@@ -191,7 +191,7 @@ export default function DiaryEditView({
               )}
               {newAlbumVideos.length > 0 && (
                 <View>
-                  <Text style={[s.photoSectionLabel, { color: "#2EC4B6" }]}>추가할 영상 ({newAlbumVideos.length}개)</Text>
+                  <Text style={[s.photoSectionLabel, { color: C.brandStrong }]}>추가할 영상 ({newAlbumVideos.length}개)</Text>
                   <View style={s.albumPreviewRow}>
                     {newAlbumVideos.map(video => (
                       <View key={video.id} style={s.albumThumb}>
@@ -292,10 +292,10 @@ export default function DiaryEditView({
               <View key={idx} style={[s.editNoteItem, { backgroundColor: "#DFF3EC", borderColor: "#6EE7B7" }]}>
                 <View style={s.editNoteHeader}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <View style={[s.statusBadge, { backgroundColor: "#E6FFFA" }]}>
-                      <Text style={[s.statusBadgeText, { color: "#2EC4B6" }]}>신규</Text>
+                    <View style={[s.statusBadge, { backgroundColor: C.brandSoft }]}>
+                      <Text style={[s.statusBadgeText, { color: C.brandStrong }]}>신규</Text>
                     </View>
-                    <Text style={[s.noteName, { color: "#2EC4B6" }]}>{note.student_name}</Text>
+                    <Text style={[s.noteName, { color: C.brandStrong }]}>{note.student_name}</Text>
                   </View>
                   <Pressable onPress={() => onRemoveNewNote(idx)}>
                     <LucideIcon name="x-circle" size={15} color={C.error} />
@@ -426,8 +426,8 @@ const s = StyleSheet.create({
   textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: C.surface },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
-  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
+  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.brandSoft, backgroundColor: "#F0F5FF" },
+  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.brandStrong },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   emptyStudentsText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular" },

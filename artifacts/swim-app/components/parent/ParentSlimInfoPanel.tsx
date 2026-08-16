@@ -98,7 +98,7 @@ export function ParentSlimInfoPanel({
       {/* 오른쪽: 오늘 수업 Badge — 오늘 수업이 있을 때만 렌더링 */}
       {hasToday ? (
         <View style={styles.todayBadge}>
-          <LucideIcon name="clock" size={11} color="#2EC4B6" />
+          <LucideIcon name="clock" size={11} color={C.brandStrong} />
           <Text style={styles.todayTxt}>{todaySchedule}</Text>
         </View>
       ) : null}
@@ -179,17 +179,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#E6FAF8",
+    backgroundColor: C.brandSoft,
     borderRadius: 20,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: "#2EC4B6",
+    borderColor: C.brandStrong,
   },
   todayTxt: {
     fontSize: 12,
     fontFamily: "Pretendard-Regular",
-    color: "#2EC4B6",
+    color: C.brandStrong,
   },
   arrow: {
     marginLeft: 2,

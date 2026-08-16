@@ -545,7 +545,7 @@ export default function BulkRegisterScreen() {
               onPress={() => setShowGuide(v => !v)}
             >
               <View style={[s.cardRow, { marginBottom: 0 }]}>
-                <LucideIcon name="file-text" size={16} color={C.tint} />
+                <LucideIcon name="file-text" size={16} color={C.brandStrong} />
                 <Text style={[s.cardTitle, { flex: 1, color: C.text }]}>
                   파일 형식 및 열 이름 안내
                 </Text>
@@ -559,8 +559,8 @@ export default function BulkRegisterScreen() {
                   {/* 지원 형식 뱃지 */}
                   <View style={[s.badgeRow, { marginTop: 12 }]}>
                     {[".xlsx", ".xls", ".csv"].map(f => (
-                      <View key={f} style={[s.badge, { backgroundColor: C.tint + "15" }]}>
-                        <Text style={[s.badgeTxt, { color: C.tint }]}>{f}</Text>
+                      <View key={f} style={[s.badge, { backgroundColor: C.brandMist }]}>
+                        <Text style={[s.badgeTxt, { color: C.brandStrong }]}>{f}</Text>
                       </View>
                     ))}
                     <Text style={[s.badgeNote, { color: C.textMuted }]}>
@@ -635,12 +635,12 @@ export default function BulkRegisterScreen() {
           <>
             {/* 파일명 + 다시선택 */}
             <View style={[s.card, s.cardRow, { backgroundColor: C.card }]}>
-              <LucideIcon name="grid" size={16} color={C.tint} />
+              <LucideIcon name="grid" size={16} color={C.brandStrong} />
               <Text style={[s.cardTitle, { flex: 1, color: C.text }]} numberOfLines={1}>
                 {fileName}
               </Text>
               <Pressable onPress={resetAll} style={s.changeBtn}>
-                <Text style={[s.changeBtnTxt, { color: C.tint }]}>다시 선택</Text>
+                <Text style={[s.changeBtnTxt, { color: C.brandStrong }]}>다시 선택</Text>
               </Pressable>
             </View>
 

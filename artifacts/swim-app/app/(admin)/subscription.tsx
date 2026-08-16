@@ -297,7 +297,7 @@ export default function SubscriptionScreen() {
 
       {loading ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <ActivityIndicator color={C.tint} size="large" />
+          <ActivityIndicator color={C.brandStrong} size="large" />
         </View>
       ) : (
         <ScrollView
@@ -402,11 +402,11 @@ export default function SubscriptionScreen() {
 
           <View style={s.legalRow}>
             <Pressable onPress={() => router.push("/terms" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
-              <Text style={[s.legalBtnText, { color: C.tint }]}>이용약관 (EULA)</Text>
+              <Text style={[s.legalBtnText, { color: C.brandStrong }]}>이용약관 (EULA)</Text>
             </Pressable>
             <Text style={[s.legalSep, { color: C.textMuted }]}>·</Text>
             <Pressable onPress={() => router.push("/privacy" as any)} style={({ pressed }) => [s.legalBtn, { opacity: pressed ? 0.6 : 1 }]}>
-              <Text style={[s.legalBtnText, { color: C.tint }]}>개인정보처리방침</Text>
+              <Text style={[s.legalBtnText, { color: C.brandStrong }]}>개인정보처리방침</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -553,8 +553,8 @@ const s = StyleSheet.create({
   storePlatformBox: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: C.border, marginTop: 4 },
   storePlatformText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
   storePlatformBold: { fontFamily: "Pretendard-Regular", color: C.textPrimary },
-  billingBtn:     { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#2EC4B6", alignItems: "center" },
-  billingBtnText: { color: "#2EC4B6", fontSize: 15, fontFamily: "Pretendard-Regular" },
+  billingBtn:     { marginTop: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.brandStrong, alignItems: "center" },
+  billingBtnText: { color: C.brandStrong, fontSize: 15, fontFamily: "Pretendard-Regular" },
   manageBtn:      { borderColor: C.textSecondary },
   manageBtnText:  { color: C.textSecondary, fontSize: 14, fontFamily: "Pretendard-Regular" },
   disclaimer: { fontSize: 12, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 18 },

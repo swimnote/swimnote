@@ -78,8 +78,8 @@ export default function TeacherActivateScreen() {
   if (success) {
     return (
       <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
-        <View style={[styles.successIcon, { backgroundColor: "#E6FFFA" }]}>
-          <LucideIcon name="check-circle" size={48} color="#2EC4B6" />
+        <View style={[styles.successIcon, { backgroundColor: C.brandSoft }]}>
+          <LucideIcon name="check-circle" size={48} color={C.brandStrong} />
         </View>
         <Text style={[styles.successTitle, { color: C.text }]}>계정 활성화 완료!</Text>
         <Text style={[styles.successSub, { color: C.textSecondary }]}>잠시 후 이동합니다...</Text>
@@ -90,8 +90,8 @@ export default function TeacherActivateScreen() {
   return (
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48) }]}>
-        <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-          <LucideIcon name="shield" size={32} color={C.tint} />
+        <View style={[styles.iconBox, { backgroundColor: C.brandSoft }]}>
+          <LucideIcon name="shield" size={32} color={C.brandStrong} />
         </View>
         <Text style={[styles.title, { color: C.text }]}>계정 활성화</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -113,8 +113,8 @@ export default function TeacherActivateScreen() {
               style={[
                 styles.otpInput,
                 {
-                  borderColor: val ? C.tint : C.border,
-                  backgroundColor: val ? C.tintLight : C.card,
+                  borderColor: val ? C.brandStrong : C.border,
+                  backgroundColor: val ? C.brandSoft : C.card,
                   color: C.text,
                 }
               ]}

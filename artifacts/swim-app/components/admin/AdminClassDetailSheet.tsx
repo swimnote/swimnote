@@ -846,9 +846,9 @@ const sh = StyleSheet.create({
 
   studentRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10,
                 borderBottomWidth: 1, borderBottomColor: "#F8FAFC", gap: 10 },
-  studentAvatar:{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.tint + "20",
+  studentAvatar:{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.brandStrong + "20",
                   alignItems: "center", justifyContent: "center" },
-  studentAvatarText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.tint },
+  studentAvatarText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   studentName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
@@ -862,7 +862,7 @@ const sh = StyleSheet.create({
   listRow:    { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10,
                 borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
   listRowRight:{ flexDirection: "row", alignItems: "center", gap: 6 },
-  addBtn:     { backgroundColor: C.tint, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+  addBtn:     { backgroundColor: C.brandStrong, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
                 minWidth: 48, alignItems: "center" },
   addBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
   transferBtn:{ backgroundColor: "#E4A93A", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,

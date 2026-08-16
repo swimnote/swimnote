@@ -86,8 +86,8 @@ function PlatformSection({
           <Text style={ps.title}>플랫폼 전체 읽기전용</Text>
           <Text style={ps.sub}>모든 운영자의 쓰기 기능을 일시 중단합니다</Text>
         </View>
-        <View style={[ps.badge, { backgroundColor: enabled ? "#F9DEDA" : "#E6FFFA" }]}>
-          <Text style={[ps.badgeTxt, { color: enabled ? "#D96C6C" : "#2EC4B6" }]}>
+        <View style={[ps.badge, { backgroundColor: enabled ? "#F9DEDA" : C.brandSoft }]}>
+          <Text style={[ps.badgeTxt, { color: enabled ? "#D96C6C" : C.brandStrong }]}>
             {enabled ? "활성화 중" : "정상 운영"}
           </Text>
         </View>
@@ -101,10 +101,10 @@ function PlatformSection({
       )}
 
       <Pressable
-        style={[ps.btn, enabled ? { backgroundColor: "#E6FFFA" } : { backgroundColor: "#F9DEDA" }]}
+        style={[ps.btn, enabled ? { backgroundColor: C.brandSoft } : { backgroundColor: "#F9DEDA" }]}
         onPress={() => { setInputReason(""); setShowModal(true); }}>
-        <LucideIcon name={enabled ? "unlock" : "lock"} size={14} color={enabled ? "#2EC4B6" : "#D96C6C"} />
-        <Text style={[ps.btnTxt, { color: enabled ? "#2EC4B6" : "#D96C6C" }]}>
+        <LucideIcon name={enabled ? "unlock" : "lock"} size={14} color={enabled ? C.brandStrong : "#D96C6C"} />
+        <Text style={[ps.btnTxt, { color: enabled ? C.brandStrong : "#D96C6C" }]}>
           {enabled ? "읽기전용 해제" : "읽기전용 활성화"}
         </Text>
       </Pressable>
@@ -269,7 +269,7 @@ export default function ReadonlyControlScreen() {
   const SCOPE_INFO = [
     { scope: "플랫폼 전체", color: "#D96C6C", bg: "#F9DEDA", icon: "globe" as const, desc: "모든 운영자에 동시 적용. 긴급 상황 시 사용." },
     { scope: "운영자별",    color: "#D97706", bg: "#FFF1BF", icon: "users" as const, desc: "특정 운영자의 쓰기 기능만 차단. 개별 조치 시 사용." },
-    { scope: "기능별",      color: "#2EC4B6", bg: "#E6FFFA", icon: "toggle-left" as const, desc: "기능 플래그와 연동. 특정 기능 읽기전용 전환." },
+    { scope: "기능별",      color: C.brandStrong, bg: C.brandSoft, icon: "toggle-left" as const, desc: "기능 플래그와 연동. 특정 기능 읽기전용 전환." },
   ];
 
   if (loading) {
@@ -338,7 +338,7 @@ export default function ReadonlyControlScreen() {
                   {op.readonly_reason && <Text style={[or.sub, { color: "#D97706" }]}>{op.readonly_reason}</Text>}
                 </View>
                 <Pressable style={or.releaseBtn} onPress={() => releaseOperator(op)}>
-                  <Unlock size={12} color="#2EC4B6" />
+                  <Unlock size={12} color={C.brandStrong} />
                   <Text style={or.releaseTxt}>해제</Text>
                 </Pressable>
               </View>
@@ -348,7 +348,7 @@ export default function ReadonlyControlScreen() {
 
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <LucideIcon name="toggle-left" size={15} color="#2EC4B6" />
+            <LucideIcon name="toggle-left" size={15} color={C.brandStrong} />
             <Text style={s.sectionTitle}>기능별 읽기전용 (기능 플래그)</Text>
           </View>
           {!data?.feature_readonly?.filter(f => !f.global_enabled).length ? (
@@ -384,7 +384,7 @@ export default function ReadonlyControlScreen() {
               const isActivate = log.enabled;
               return (
                 <View key={log.id} style={lr.row}>
-                  <View style={[lr.dot, { backgroundColor: isActivate ? "#D96C6C" : "#2EC4B6" }]} />
+                  <View style={[lr.dot, { backgroundColor: isActivate ? "#D96C6C" : C.brandStrong }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={lr.desc} numberOfLines={1}>
                       {log.scope === "platform" ? "플랫폼 전체" : log.target_name ?? log.feature_key ?? log.target_id} — {isActivate ? "활성화" : "해제"}
@@ -392,8 +392,8 @@ export default function ReadonlyControlScreen() {
                     <Text style={lr.time}>{log.actor_name} · {fmtRelative(log.created_at)}</Text>
                     {log.reason && <Text style={[lr.time, { color: "#D97706" }]} numberOfLines={1}>{log.reason}</Text>}
                   </View>
-                  <View style={[lr.badge, { backgroundColor: isActivate ? "#F9DEDA" : "#E6FFFA" }]}>
-                    <Text style={[lr.badgeTxt, { color: isActivate ? "#D96C6C" : "#2EC4B6" }]}>
+                  <View style={[lr.badge, { backgroundColor: isActivate ? "#F9DEDA" : C.brandSoft }]}>
+                    <Text style={[lr.badgeTxt, { color: isActivate ? "#D96C6C" : C.brandStrong }]}>
                       {isActivate ? "활성화" : "해제"}
                     </Text>
                   </View>
@@ -427,8 +427,8 @@ const or = StyleSheet.create({
   row:        { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   name:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   sub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#E6FFFA", borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
-  releaseTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  releaseBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.brandSoft, borderRadius: 7, paddingHorizontal: 10, paddingVertical: 6 },
+  releaseTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong },
 });
 
 const lr = StyleSheet.create({

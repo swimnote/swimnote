@@ -16,13 +16,13 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
-const IC = C.textPrimary; const IB = "#E6FAF8";
+const IC = C.textPrimary; const IB = C.brandSoft;
 
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
   mint:    { bg: IB, icon: IC },
   orange:  { bg: IB, icon: IC },
   navy:    { bg: IB, icon: IC },
-  purple:  { bg: "#E6FAF8", icon: PURPLE },
+  purple:  { bg: C.brandSoft, icon: PURPLE },
   violet:  { bg: IB, icon: IC },
   blue:    { bg: IB, icon: IC },
   green:   { bg: IB, icon: IC },

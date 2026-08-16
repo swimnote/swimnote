@@ -60,7 +60,7 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
       <View style={{ flexDirection: "row" }}>
         {DAY_KO.map((wd, i) => (
           <View key={wd} style={[mc.weekHeader, { width: CELL }]}>
-            <Text style={[mc.weekHeaderText, i === 0 && { color: "#D96C6C" }, i === 6 && { color: C.tint }]}>{wd}</Text>
+            <Text style={[mc.weekHeaderText, i === 0 && { color: "#D96C6C" }, i === 6 && { color: C.brandStrong }]}>{wd}</Text>
           </View>
         ))}
       </View>
@@ -73,11 +73,11 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
             const dayNum = parseInt(dateStr.split("-")[2]);
             return (
               <Pressable key={dateStr}
-                style={[mc.dayCell, { width: CELL }, isToday && { backgroundColor: C.tintLight, borderRadius: 8 }]}
+                style={[mc.dayCell, { width: CELL }, isToday && { backgroundColor: C.brandSoft, borderRadius: 8 }]}
                 onPress={() => hasClasses(dateStr) ? onSelectDate(dateStr) : undefined}
               >
-                <View style={[mc.dayNumWrap, isToday && { backgroundColor: C.tint }]}>
-                  <Text style={[mc.dayNum, { color: di === 0 ? "#D96C6C" : di === 6 ? C.tint : C.text }, isToday && { color: "#fff" }]}>
+                <View style={[mc.dayNumWrap, isToday && { backgroundColor: C.brandStrong }]}>
+                  <Text style={[mc.dayNum, { color: di === 0 ? "#D96C6C" : di === 6 ? C.brandStrong : C.text }, isToday && { color: "#fff" }]}>
                     {dayNum}
                   </Text>
                 </View>

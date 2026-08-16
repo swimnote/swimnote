@@ -714,7 +714,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  remaining: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  remaining: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   actionBtn: {
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     alignItems: "center", justifyContent: "center",

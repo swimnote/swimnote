@@ -195,7 +195,7 @@ export default function TotpSetupScreen() {
           <>
             <View style={[styles.card, { backgroundColor: C.card }]}>
               <View style={styles.iconRow}>
-                <View style={[styles.iconBg, { backgroundColor: totpEnabled ? "#DCFCE7" : "#E6FAF8" }]}>
+                <View style={[styles.iconBg, { backgroundColor: totpEnabled ? "#DCFCE7" : C.brandSoft }]}>
                   <LucideIcon name="smartphone" size={32} color={totpEnabled ? "#16A34A" : PURPLE} />
                 </View>
               </View>
@@ -233,7 +233,7 @@ export default function TotpSetupScreen() {
 
             {/* 설치 안내 */}
             {!totpEnabled && (
-              <View style={[styles.guideCard, { backgroundColor: "#F5F3FF", borderColor: "#E6FAF8" }]}>
+              <View style={[styles.guideCard, { backgroundColor: "#F5F3FF", borderColor: C.brandSoft }]}>
                 <Text style={[styles.guideTitle, { color: PURPLE }]}>Google Authenticator 설치 방법</Text>
                 <View style={styles.guideRow}>
                   <View style={[styles.guideNum, { backgroundColor: PURPLE }]}><Text style={styles.guideNumTxt}>1</Text></View>
@@ -293,7 +293,7 @@ export default function TotpSetupScreen() {
             </Pressable>
 
             {showSecret && (
-              <View style={[styles.secretBox, { backgroundColor: "#F5F3FF", borderColor: "#E6FAF8" }]}>
+              <View style={[styles.secretBox, { backgroundColor: "#F5F3FF", borderColor: C.brandSoft }]}>
                 <Text style={[styles.secretLabel, { color: C.textMuted }]}>
                   Google Authenticator에서 "설정 키 입력" 선택 후 아래 키를 입력하세요
                 </Text>
@@ -320,7 +320,7 @@ export default function TotpSetupScreen() {
         {step === "verify" && (
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <View style={styles.iconRow}>
-              <View style={[styles.iconBg, { backgroundColor: "#E6FAF8" }]}>
+              <View style={[styles.iconBg, { backgroundColor: C.brandSoft }]}>
                 <LucideIcon name="check-square" size={28} color={PURPLE} />
               </View>
             </View>

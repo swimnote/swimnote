@@ -173,7 +173,7 @@ export default function AttendanceHistoryScreen() {
       <ParentScreenHeader title="출결 기록" subtitle={name || undefined} />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : allRecords.length === 0 ? (
         <View style={s.empty}>
           <LucideIcon name="calendar" size={40} color={C.textMuted} />
@@ -192,7 +192,7 @@ export default function AttendanceHistoryScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchAll(); }}
-              tintColor={C.tint}
+              tintColor={C.brandStrong}
             />
           }
         />
@@ -217,7 +217,7 @@ const s = StyleSheet.create({
   dividerRow:     { flexDirection: "row", alignItems: "center", marginVertical: 10, gap: 8 },
   dividerLine:    { height: 1, backgroundColor: C.border },
   dividerContent: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
-  dividerUpper:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint },
+  dividerUpper:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   dividerSep:     { fontSize: 11, color: C.border },
   dividerStats:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

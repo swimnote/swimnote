@@ -31,7 +31,7 @@ import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
-const _IC = C.textPrimary; const _IB = "#E6FAF8";
+const _IC = C.textPrimary; const _IB = C.brandSoft;
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
   { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },
@@ -401,13 +401,13 @@ export default function MembersScreen() {
                   }
                 </Pressable>
                 <Pressable
-                  style={[ms.pendingBtn, { backgroundColor: "#E6FFFA" }]}
+                  style={[ms.pendingBtn, { backgroundColor: C.brandSoft }]}
                   onPress={() => handleApprove(req.id, req.name)}
                   disabled={approvingId === req.id || rejectingId === req.id}
                 >
                   {approvingId === req.id
-                    ? <ActivityIndicator size="small" color="#2EC4B6" />
-                    : <Text style={[ms.pendingBtnTxt, { color: "#2EC4B6" }]}>승인</Text>
+                    ? <ActivityIndicator size="small" color={C.brandStrong} />
+                    : <Text style={[ms.pendingBtnTxt, { color: C.brandStrong }]}>승인</Text>
                   }
                 </Pressable>
               </View>
@@ -712,14 +712,14 @@ export default function MembersScreen() {
 }
 
 const ms = StyleSheet.create({
-  pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", padding: 12, gap: 8 },
+  pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: C.brandSoft, borderWidth: 1.5, borderColor: "#CBD5E1", padding: 12, gap: 8 },
   pendingHeader:      { flexDirection: "row", alignItems: "center", gap: 8 },
-  pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
+  pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: C.brandStrong, alignItems: "center", justifyContent: "center" },
   pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
   pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   pendingCard:        { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#CBD5E1" },
   pendingCardLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" },
+  pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandSoft, alignItems: "center", justifyContent: "center" },
   pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   pendingName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pendingMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
@@ -733,7 +733,7 @@ const ms = StyleSheet.create({
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   list: { paddingTop: 10 },
-  suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
+  suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
   suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
 });

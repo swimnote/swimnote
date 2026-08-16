@@ -27,8 +27,8 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { RegisterModal } from "@/components/admin/members/RegisterModal";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
-const TEAL_BG = "#E6FAF8";
+const TEAL = C.brandStrong;
+const TEAL_BG = C.brandSoft;
 
 type FilterKey = "all" | "app" | "guardian";
 

@@ -22,7 +22,7 @@ const C = {
   border: "#E5E7EB",
   text: "#1A1A1A",
   textMuted: "#8A8A8A",
-  primary: "#2EC4B6",
+  primary: "#4F6F67",
 };
 
 interface Settings {
