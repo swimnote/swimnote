@@ -1,0 +1,930 @@
+[P0+P1 — SWIMNOTE X PURCHASE ACTIVATION PERSISTENCE + FULL X UI/UX CONVERSION]
+
+현재 실기기 TestFlight에서 확인된 문제를 한 번에 수정한다.
+
+현재 상황:
+
+1. X 정기결제 승인까지 진행됨
+2. 서버 entitlement가 X로 전환되어 X badge가 표시되는 경우가 있음
+3. 그러나 결제 직후 앱 전체가 확실하게 X모드로 전환되지 않음
+4. 앱을 완전히 종료하고 다시 실행해도 Normal UI가 그대로 남거나 X 상태 반영이 불완전함
+5. X모드로 진입해도 UI/UX가 일반 SWIMNOTE와 사실상 동일함
+
+최종 제품 기준으로 모두 불합격.
+
+이번 작업의 최종 목표:
+
+PURCHASE SUCCESS
+→ SERVER X CONFIRM
+→ POOL-WIDE X ACTIVATION
+→ CURRENT APP SESSION 즉시 X 전환
+→ 필요 시 APP SHELL 재초기화
+→ APP 재실행 후에도 SERVER 기준 X 자동 복원
+→ ADMIN / SUB_ADMIN / TEACHER / PARENT 모두 X모드
+→ 전체 핵심 화면이 SWIMNOTE X 전용 UI/UX로 변경
+
+==================================================
+0. 절대 원칙
+==================================================
+
+X entitlement의 source of truth는 서버다.
+
+클라이언트 local flag만으로
+X 활성 상태를 영구 결정하지 않는다.
+
+하지만 서버에서 X가 확인된 이후에는:
+
+- 현재 세션
+- navigation
+- ModeContext
+- theme
+- dashboard
+- settings
+- bottom tabs
+- role-specific screens
+
+모두 즉시 동일한 X 상태를 사용해야 한다.
+
+"서버는 X인데 앱 화면은 Normal"
+
+상태가 존재해서는 안 된다.
+
+==================================================
+1. PURCHASE SUCCESS FINAL FLOW
+==================================================
+
+X 결제 성공의 최종 정상 흐름을 다음으로 고정한다.
+
+사용자:
+[결제 계속하기]
+
+→ RevenueCat purchasePackage()
+
+성공
+
+→ POST /api/billing/sync-x-subscription
+
+성공
+
+→ 서버에서 해당 pool:
+
+x_paid_entitlement = true
+effective mode = x
+
+확인
+
+→ ModeContext 강제 refresh
+
+→ pool/session/current-user 관련 stale query/cache invalidate
+
+→ currentPool mode 재조회
+
+→ mode === "x" 확인
+
+→ X app shell 적용
+
+→ X dashboard 또는 적절한 X 현재 화면으로 전환
+
+→ 사용자에게:
+
+"SWIMNOTE X 이용이 시작되었습니다."
+
+표시
+
+→ 이후 purchase CTA 재노출 금지
+
+==================================================
+2. PURCHASE SUCCESS 후 즉시 전환
+==================================================
+
+현재 결제 완료 후
+사용자가 앱을 직접 껐다 켜거나
+화면을 수동으로 이동해야 X가 반영되는 구조 금지.
+
+sync 성공 후 반드시:
+
+await refreshMode()
+
+만 호출하고 끝내지 말고
+실제로 provider/component tree가 새로운 mode=x를 소비하는지 확인한다.
+
+필요한 경우:
+
+- ModeContext state 갱신
+- SessionContext refresh
+- pool state refresh
+- React Query/cache invalidate
+- router replace
+- root layout remount
+
+를 사용한다.
+
+==================================================
+3. APP RESTART / RELOAD POLICY
+==================================================
+
+목표는 "X 전환을 확실히 보장"하는 것.
+
+우선순위:
+
+A.
+서버 mode=x 확인
+→ state/cache/navigation을 정상 갱신하여
+앱 재실행 없이 즉시 X 전환
+
+이 방법이 완전하게 가능하면
+강제 app reload는 하지 않아도 된다.
+
+하지만 기존 architecture상
+Normal/X app shell이 root 단계에서 고정되어
+runtime state 변경만으로 완전 전환이 보장되지 않는 경우:
+
+B.
+서버 mode=x 확인 후
+안전한 APP SHELL reload를 1회 수행한다.
+
+Expo 환경에서 현재 프로젝트에 이미 사용하는
+안전한 reload mechanism이 있으면 재사용한다.
+
+예:
+expo-updates reloadAsync 계열
+
+단:
+
+서버에서 mode=x 확인 BEFORE reload.
+
+결제 성공 여부가 불명확한 상태에서
+reload 금지.
+
+무한 reload 금지.
+
+reload loop 금지.
+
+==================================================
+4. RELOAD LOOP PROTECTION
+==================================================
+
+강제 reload를 사용할 경우 반드시 보호장치.
+
+예:
+
+purchase activation transition에 대해서만
+session-scoped one-shot flag 사용.
+
+SERVER mode=x
++
+CURRENT rendered mode != x
++
+reload not already attempted
+
+일 때만 1회 reload.
+
+재실행 후 mode=x이면 flag 제거.
+
+절대:
+
+앱 실행할 때마다 reload
+mode=x일 때마다 reload
+theme 변경마다 reload
+
+하지 않는다.
+
+==================================================
+5. COLD START — 가장 중요
+==================================================
+
+앱을 완전히 종료한 뒤 다시 실행했을 때:
+
+서버 pool이 paid X이면
+무조건 X모드로 시작해야 한다.
+
+현재 cached/local mode를 먼저 확정값처럼 사용해서
+Normal shell을 고정하는 구조가 있는지 전수 확인.
+
+Cold start 흐름:
+
+JWT/session restore
+
+→ current user 확인
+
+→ current pool 확인
+
+→ SERVER mode/entitlement fetch
+
+→ mode resolve
+
+→ mode=x이면 X App Shell
+
+→ 그 후 dashboard render
+
+가능하면 server mode가 확정되기 전에는
+잘못된 Normal dashboard를 먼저 보여주지 않는다.
+
+필요하면 짧은 bootstrap/loading 상태 사용.
+
+==================================================
+6. MODE SOURCE AUDIT
+==================================================
+
+다음 전체를 전수 확인:
+
+ModeContext.tsx
+SessionContext
+root _layout
+admin layout
+teacher layout
+parent layout
+dashboard
+settings
+bottom navigation
+role switch
+currentPool state
+cached pool data
+
+각 위치가 mode를 어디에서 읽는지 확인.
+
+다음과 같은 서로 다른 source 금지:
+
+A 화면 → cached pool.xmode
+B 화면 → ModeContext.mode
+C 화면 → legacy xmode_entitlement
+D 화면 → localStorage flag
+
+최종적으로 하나의 canonical client mode source를 사용.
+
+SERVER RESPONSE
+→ ModeContext / canonical app state
+→ 모든 UI 소비
+
+==================================================
+7. LEGACY X STATE 제거
+==================================================
+
+현재 최종 서버 정책:
+
+force_disabled=true
+→ normal
+
+paid=true && !force_disabled
+→ x
+(config 무관)
+
+manual=true && paid=false
+→ 현재 manual policy 유지 가능
+READY 여부에 따라 x / x_pending
+
+no entitlement
+→ normal
+
+클라이언트에서 과거 정책:
+
+effective entitlement + config READY여야 x
+
+를 다시 계산하고 있다면 제거.
+
+클라이언트가 서버 canonical mode를
+다시 옛 로직으로 downgrade하면 안 된다.
+
+==================================================
+8. POOL-WIDE PROPAGATION
+==================================================
+
+X는 사용자 개인 구매 기능이 아니다.
+
+pool X entitlement다.
+
+한 swimming pool이 paid X가 되면:
+
+pool_admin
+sub_admin
+teacher
+parent
+
+모두 해당 pool에서 mode=x.
+
+단:
+
+결제 권한은 별도.
+
+pool_admin = 구매 가능
+다른 role = 구매 불가 가능
+
+하지만 PURCHASE AUTHORITY와
+X USAGE AUTHORITY를 혼동하지 않는다.
+
+==================================================
+9. ROLE SWITCH
+==================================================
+
+관리자 → 선생님 전환 등
+role switching에서도 X 상태 유지.
+
+예:
+
+pool_admin X
+→ 선생님으로 전환
+→ teacher X UI
+
+다시 관리자
+→ admin X UI
+
+role switch 때문에 Normal mode로 떨어지면 안 된다.
+
+==================================================
+10. LOGIN / LOGOUT / RELOGIN
+==================================================
+
+다음 모두 검증:
+
+X pool admin logout
+→ login
+→ X
+
+X pool teacher login
+→ X
+
+X pool parent login
+→ X
+
+앱 kill
+→ relaunch
+→ X
+
+token refresh
+→ X
+
+OTA restart
+→ X
+
+==================================================
+11. PURCHASED STATE UX
+==================================================
+
+결제가 성공하여 서버 mode=x가 확인되면
+x-subscription 화면은 더 이상 구매 화면을 기본으로 보여주지 않는다.
+
+대신:
+
+SWIMNOTE X 이용 중
+
+X 가맹번호
+현재 X 이용 상태
+필요 시 구독 관리
+[X모드 세팅하기]
+
+등 기존 구현 범위 안에서 표시.
+
+같은 상품을 다시 구매하라는 CTA가
+즉시 재출현하면 안 된다.
+
+==================================================
+12. X MODE FULL UI/UX
+==================================================
+
+이제 X모드가 활성화되면
+일반 SWIMNOTE UI에 배지만 붙이는 구조 금지.
+
+SWIMNOTE X 전용 UI/UX로 전환한다.
+
+NORMAL SWIMNOTE
+= 운영 관리 앱
+
+SWIMNOTE X
+= AI + 교육 데이터 + 커리큘럼 + 성장 분석 중심의 프리미엄 운영 플랫폼
+
+사용자가 스크린샷 하나만 봐도
+Normal / X를 바로 구분할 수 있어야 한다.
+
+==================================================
+13. X DESIGN SYSTEM
+==================================================
+
+중앙 X theme/source of truth 생성.
+
+예:
+
+theme.normal
+theme.x
+
+또는 현재 architecture에 맞는
+mode-aware theme system.
+
+X token 예:
+
+xBackground
+xSurface
+xSurfaceElevated
+xPrimary
+xPrimaryStrong
+xPrimarySoft
+xBorder
+xTextPrimary
+xTextSecondary
+xAccent
+xAccentSoft
+
+화면별 hex 하드코딩 금지.
+
+==================================================
+14. X VISUAL LANGUAGE
+==================================================
+
+X는 단순 Mint → Blue 치환이 아니다.
+
+다음 전체가 X 전용 visual hierarchy를 가져야 한다.
+
+- app background
+- header
+- section headers
+- dashboard cards
+- KPI cards
+- AI cards
+- buttons
+- CTA
+- badges
+- chips
+- settings rows
+- modals
+- sheets
+- empty state
+- active bottom tabs
+- X feature entry cards
+
+하지만 다음은 금지:
+
+neon
+gaming UI
+과도한 gradient
+검은 futuristic dashboard
+과도한 glassmorphism
+
+목표:
+
+전문적
+프리미엄
+AI/data 기반
+수영교육 플랫폼
+신뢰감
+
+==================================================
+15. HEADER
+==================================================
+
+현재 작은 SWIMNOTE X badge 하나만 추가된 수준 금지.
+
+X header 자체를 mode identity로 만든다.
+
+포함:
+
+- SWIMNOTE X identity
+- 수영장 정보
+- role 표시
+- role switch
+- search
+- logout/action icons
+
+모두 X theme 사용.
+
+Normal header와 분명히 구분되어야 한다.
+
+==================================================
+16. ADMIN X DASHBOARD
+==================================================
+
+현재 X admin dashboard가
+Normal dashboard와 동일한 카드 UI인 문제 수정.
+
+기존 데이터는 유지:
+
+매출
+전체 회원
+보강 상태
+인원관리
+통합 사용량
+미배정
+학부모 미연결
+처리 필요
+
+단 presentation / grouping / hierarchy는 X 전용으로 재구성.
+
+그리고 이미 구현된 X 기능에 대한 진입성을 강화:
+
+- AI 일지
+- 커리큘럼
+- 성장 리포트
+- X모드 세팅하기
+- 기타 실제 구현 완료 X 기능
+
+새 기능 창작 금지.
+
+==================================================
+17. TEACHER X UI
+==================================================
+
+teacher도 paid X pool이면
+전체 teacher UI에 X design language 적용.
+
+특히:
+
+AI 일지
+수업관리
+학생/반 관련 화면
+AI 기능 entry
+
+Normal teacher UI 그대로 + X badge 수준 금지.
+
+==================================================
+18. PARENT X UI
+==================================================
+
+parent도 paid X pool이면
+X design system 적용.
+
+특히:
+
+홈
+수업피드
+커리큘럼 검색
+AI 기능
+성장 리포트
+관련 X entry
+
+학부모는 결제자가 아니더라도
+pool entitlement가 X면 X experience를 사용한다.
+
+==================================================
+19. SETTINGS
+==================================================
+
+Normal Settings:
+
+SWIMNOTE X모드
+subcopy:
+"X모드 알아보기"
+
+X mode Settings:
+
+X 전용 theme
+
++
+명확한
+
+"X모드 세팅하기"
+
+entry 제공.
+
+X subscription info와
+X operational setup을 혼동하지 않는다.
+
+==================================================
+20. BOTTOM NAVIGATION
+==================================================
+
+X active 상태에서는
+bottom navigation 전체도 X design system 사용.
+
+현재 Normal mint active color 그대로 사용 금지.
+
+Normal로 돌아가면
+Normal nav style 완전 복원.
+
+==================================================
+21. SEMANTIC COLORS
+==================================================
+
+의미색은 유지:
+
+danger = red
+warning = orange/yellow
+success = green
+
+하지만 일반 KPI마다
+파랑/주황/초록/보라를 장식용으로 난립시키지 않는다.
+
+X 일반 정보는 X primary family 중심.
+
+==================================================
+22. COMMON COMPONENT STRATEGY
+==================================================
+
+공통 source/component를 Normal/X가 공유하면
+중복 파일 생성 금지.
+
+mode-aware component로 처리.
+
+예:
+
+<AppCard mode={mode}>
+<AppButton mode={mode}>
+<SectionHeader mode={mode}>
+
+또는 ThemeProvider.
+
+공통 source of truth 한 곳 수정.
+
+==================================================
+23. NORMAL SWIMNOTE 보호
+==================================================
+
+가장 중요.
+
+Normal SWIMNOTE의 기존 기능/디자인을 망가뜨리지 않는다.
+
+NORMAL:
+기존 UI 유지
+
+X:
+X UI/UX
+
+X → NORMAL:
+Normal UI 완전 복원
+
+==================================================
+24. CONFIG READINESS와 MODE 분리
+==================================================
+
+paid X이면 config 미완료여도
+앱 전체 mode는 X다.
+
+예:
+
+paid=true
+config=NOT_CONFIGURED
+
+결과:
+
+APP MODE = X
+
+단 커리큘럼 연결이 필요한 특정 기능만:
+
+"X모드 세팅하기에서 커리큘럼을 연결해주세요."
+
+등 feature-level gate.
+
+절대 전체 앱을 x_pending/Normal로 downgrade하지 않는다.
+
+==================================================
+25. X SETUP
+==================================================
+
+X 활성 후:
+
+[X모드 세팅하기]
+
+에서 실제 설정 진행.
+
+예:
+- 수영장별 커리큘럼 제작/연결
+- 현재 구현된 X operational settings
+
+결제 여부와 config readiness를 한 화면/상태로 섞지 않는다.
+
+==================================================
+26. PURCHASE FLOW REGRESSION
+==================================================
+
+이번 UI 작업으로 다음 깨뜨리지 않는다:
+
+RevenueCat
+purchasePackage
+x-reserve-slot
+sync-x-subscription
+slot
+franchise number
+discount tier
+webhook
+transaction binding
+
+==================================================
+27. BOOTSTRAP UX
+==================================================
+
+cold start 시 서버 mode 확인이 필요하여
+아주 짧은 대기 시간이 발생한다면:
+
+Normal dashboard를 먼저 보여줬다가
+갑자기 X로 바꾸는 flash보다
+
+SWIMNOTE branded loading/bootstrap 화면을
+잠깐 보여주는 것이 낫다.
+
+단 불필요하게 startup을 느리게 하지 않는다.
+
+==================================================
+28. REQUIRED TEST MATRIX
+==================================================
+
+ACTIVATION-1
+paid purchase success
+→ sync success
+→ mode=x
+
+ACTIVATION-2
+mode=x 확인 후
+현재 세션 즉시 X UI
+
+ACTIVATION-3
+앱 kill
+→ relaunch
+→ X
+
+ACTIVATION-4
+logout/login
+→ X
+
+ACTIVATION-5
+pool_admin X
+→ teacher switch
+→ teacher X
+
+ACTIVATION-6
+parent login
+→ parent X
+
+ACTIVATION-7
+paid + config NOT READY
+→ X
+
+ACTIVATION-8
+force_disabled
+→ Normal
+
+ACTIVATION-9
+purchase success 후
+purchase CTA 재표시 없음
+
+RELOAD-1
+필요 시 reload 최대 1회
+
+RELOAD-2
+reload loop 없음
+
+UI-1
+Normal screenshot / X screenshot 즉시 구분 가능
+
+UI-2
+admin X UI
+
+UI-3
+teacher X UI
+
+UI-4
+parent X UI
+
+UI-5
+settings X UI
+
+UI-6
+bottom nav X UI
+
+UI-7
+Normal regression 없음
+
+==================================================
+29. IMPLEMENTATION ORDER
+==================================================
+
+순서 변경 금지.
+
+STEP 1
+현재 mode/session/bootstrap architecture audit
+
+STEP 2
+결제 성공 후 mode refresh 실패 원인 확인
+
+STEP 3
+cold start persistence 실패 원인 확인
+
+STEP 4
+canonical client mode source 정리
+
+STEP 5
+purchase success → immediate X transition 완성
+
+STEP 6
+cold start → server X restore 완성
+
+STEP 7
+role-wide propagation 검증
+
+STEP 8
+X theme/design system 구축
+
+STEP 9
+admin X UI
+
+STEP 10
+teacher X UI
+
+STEP 11
+parent X UI
+
+STEP 12
+settings/X screens
+
+STEP 13
+bottom navigation/common components
+
+STEP 14
+Normal/X regression
+
+==================================================
+30. DEPLOYMENT
+==================================================
+
+서버 mode contract 수정이 필요하지 않다면
+서버를 불필요하게 건드리지 않는다.
+
+Client-only:
+production OTA
+preview OTA
+
+Server 변경이 실제 필요한 경우:
+왜 필요한지 먼저 보고하고
+최소 수정.
+
+반복 deploy polling 금지.
+
+==================================================
+31. FINAL REPORT
+==================================================
+
+ACTIVATION_ROOT_CAUSE =
+COLD_START_ROOT_CAUSE =
+CANONICAL_MODE_SOURCE =
+
+PURCHASE_SUCCESS_MODE_REFRESH =
+CACHE_INVALIDATION =
+SESSION_REFRESH =
+POOL_REFRESH =
+NAVIGATION_REFRESH =
+
+APP_RELOAD_REQUIRED = YES / NO
+APP_RELOAD_METHOD =
+RELOAD_LOOP_PROTECTION =
+
+COLD_START_SERVER_MODE_FETCH =
+COLD_START_X_RESULT =
+
+POOL_ADMIN_X =
+SUB_ADMIN_X =
+TEACHER_X =
+PARENT_X =
+
+PAID_NOT_READY_RESULT =
+FORCE_DISABLED_RESULT =
+
+X_THEME_ARCHITECTURE =
+X_THEME_SOURCE =
+COMMON_COMPONENTS_CHANGED =
+
+ADMIN_X_UI =
+TEACHER_X_UI =
+PARENT_X_UI =
+SETTINGS_X_UI =
+BOTTOM_NAV_X_UI =
+
+PURCHASE_FLOW_REGRESSION =
+NORMAL_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+CLIENT_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+최종 성공 조건:
+
+1.
+결제 승인 후 사용자가 아무 작업을 하지 않아도
+앱이 즉시 SWIMNOTE X로 전환된다.
+
+2.
+architecture상 필요하면
+서버 X 확인 후 app shell을 안전하게 1회 reload한다.
+
+3.
+앱을 완전히 종료하고 다시 실행해도
+서버가 X인 pool은 처음부터 X로 시작한다.
+
+4.
+pool_admin / sub_admin / teacher / parent 모두
+동일 pool entitlement를 따라 X가 된다.
+
+5.
+paid X는 config READY 여부와 무관하게 X다.
+
+6.
+X모드는 Normal UI에 badge만 붙인 형태가 아니라
+전체 핵심 화면에 X 전용 UI/UX가 적용된다.
+
+7.
+Normal SWIMNOTE는 기존 상태를 유지한다.
+
+성공:
+
+P0_X_ACTIVATION_PERSISTENCE_COMPLETE ✅
+P1_SWIMNOTE_X_FULL_UI_UX_CONVERSION_COMPLETE ✅
