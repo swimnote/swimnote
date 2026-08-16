@@ -83,3 +83,4 @@
 - [WP-N3 Button Role Normalization 완료](wp-n3-done-state.md) — SHA 23c4e82c; primaryAction→Sage Strong+228파일 mint sweep; OTA 01a00ba4
 - [WP-N4 Scheduler Control UI 완료](wp-n4-done-state.md) — SHA f8e37f88; 3파일 neutral surface→C.*; themeColor=pool brand→FEATURE_FIXED 전체; OTA 01a00bc1
 - [WP-N5 Icon/Emoji 정규화 완료](wp-n5-done-state.md) — SHA 1adcf0d6; 6파일 blue/purple→Sage/neutral; route-error ⚠️→AlertTriangle; OTA 01a00bce
+- [WP-N6 Parent Theme Frame 완료](wp-n6-done-state.md) — SHA cdb6a810; 2파일; ParentScreenHeader 이미 mode-aware; AI/feed/badgeDot FEATURE_FIXED 확인; OTA 01a00bd9
