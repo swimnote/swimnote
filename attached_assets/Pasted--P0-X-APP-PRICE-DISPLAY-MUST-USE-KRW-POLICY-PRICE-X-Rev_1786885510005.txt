@@ -1,0 +1,270 @@
+[P0 — X APP PRICE DISPLAY MUST USE KRW POLICY PRICE]
+
+현재 X 정기결제 화면에서:
+
+RevenueCat:
+pkg.product.priceString
+
+을 그대로 표시하기 때문에
+TestFlight Apple ID storefront가 US인 경우
+
+앱 내부에도:
+US$49.99
+
+가 표시되고 있다.
+
+실제 Apple Purchase Sheet에도
+US$49.99가 다시 표시되어
+가격이 두 번 보이고,
+
+SWIMNOTE 앱 내부의 X 상품 가격 안내까지
+미국 storefront 가격으로 바뀌는 문제가 있다.
+
+==================================================
+1. FINAL DISPLAY POLICY
+==================================================
+
+SWIMNOTE 앱 내부의 X 가격 안내는
+한국 서비스 정책 가격을 원화로 표시한다.
+
+앱 내부 표시:
+
+tier1 / 50%
+→ ₩75,000 / 월
+
+tier2 / 30%
+→ ₩105,000 / 월
+
+tier3 / 10%
+→ ₩135,000 / 월
+
+standard
+→ ₩150,000 / 월
+
+Apple Purchase Sheet는 건드리지 않는다.
+
+Apple 결제창 가격은
+StoreKit / RevenueCat이 반환하는
+실제 storefront 가격을 그대로 사용한다.
+
+==================================================
+2. IMPORTANT SEPARATION
+==================================================
+
+APP DISPLAY PRICE
+≠
+STORE TRANSACTION PRICE SOURCE
+
+앱 화면:
+
+SWIMNOTE X 한국 정책 가격 안내
+
+Apple 결제창:
+
+실제 App Store transaction price
+
+purchasePackage()에 전달하는 package는
+기존 RevenueCat package 그대로 유지.
+
+결제 금액 조작 금지.
+
+==================================================
+3. SERVER TIER IS SOURCE
+==================================================
+
+앱이 가격 tier를 임의 선택하면 안 된다.
+
+기존:
+
+POST /billing/x-reserve-slot
+
+서버 응답의:
+
+tierKey
+discountPercent
+storeProductId
+
+를 기준으로
+앱 표시용 KRW 가격을 결정한다.
+
+mapping:
+
+tier1
+→ 75000
+
+tier2
+→ 105000
+
+tier3
+→ 135000
+
+standard
+→ 150000
+
+가능하면 한 helper/source에서만 관리.
+
+여러 화면에 숫자 중복 hardcode 금지.
+
+==================================================
+4. DISPLAY FORMAT
+==================================================
+
+한국어 화면:
+
+₩75,000 / 월
+₩105,000 / 월
+₩135,000 / 월
+₩150,000 / 월
+
+또는 현재 디자인 grammar에 맞춰:
+
+월 ₩75,000
+
+중 하나로 통일.
+
+US$
+$
+USD
+
+앱 내부 X 가격 안내에서는 표시 금지.
+
+==================================================
+5. APPLE PURCHASE SHEET
+==================================================
+
+Apple Purchase Sheet는 수정하지 않는다.
+
+다음 유지:
+
+purchasePackage(pkg)
+
+실제 Store product:
+com.swimnote.x.monthly.tier1
+com.swimnote.x.monthly.tier2
+com.swimnote.x.monthly.tier3
+com.swimnote.x.monthly.standard
+
+Apple storefront 가격은
+Apple이 최종 표시/청구.
+
+==================================================
+6. OPTIONAL CLARITY COPY
+==================================================
+
+필요하면 앱 가격 아래 작은 안내:
+
+"앱스토어 계정의 국가/지역에 따라
+결제창의 표시 통화가 다를 수 있습니다."
+
+추가 가능.
+
+단 UI가 복잡해지면 넣지 않아도 됨.
+
+==================================================
+7. LOCATIONS
+==================================================
+
+x-subscription.tsx에서
+
+pkg.product.priceString
+localizedPrice
+
+가 사용자에게 직접 표시되는 위치를 전수 확인.
+
+실제 결제 전:
+
+예약 확인 카드
+가격 요약
+CTA 주변
+
+등 X 가격 안내는 KRW policy price로 변경.
+
+RevenueCat package matching과
+purchasePackage에는 기존 localized product 사용 유지.
+
+==================================================
+8. DO NOT CHANGE
+==================================================
+
+금지:
+
+RevenueCat 상품
+App Store Connect 가격
+purchasePackage
+server tier 결정
+slot
+sequence
+discountPercent
+36개월 정책
+sync-x-subscription
+webhook
+DB
+mode resolver
+
+이번 수정은 APP DISPLAY ONLY.
+
+==================================================
+9. TEST
+==================================================
+
+CASE 1
+tier1 + US TestFlight account
+→ 앱: ₩75,000
+→ Apple Sheet: US storefront 가격 가능
+→ 정상
+
+CASE 2
+tier2
+→ 앱: ₩105,000
+
+CASE 3
+tier3
+→ 앱: ₩135,000
+
+CASE 4
+standard
+→ 앱: ₩150,000
+
+CASE 5
+purchasePackage product identifier
+→ 기존 server-selected product 그대로
+
+CASE 6
+Basic SWIMNOTE 결제 화면
+→ 변경 없음
+
+==================================================
+10. DEPLOY
+==================================================
+
+APP display only.
+
+Server deploy 없음.
+DB 없음.
+
+production OTA
+preview OTA
+
+==================================================
+11. REPORT
+==================================================
+
+ROOT_CAUSE =
+APP_PRICE_SOURCE_BEFORE =
+APP_PRICE_SOURCE_AFTER =
+TIER1_DISPLAY =
+TIER2_DISPLAY =
+TIER3_DISPLAY =
+STANDARD_DISPLAY =
+APPLE_PURCHASE_PRICE_SOURCE_CHANGED = NO
+PURCHASE_PACKAGE_CHANGED = NO
+SERVER_CHANGE = NO
+DB_CHANGE = NO
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공:
+
+P0_X_APP_KRW_PRICE_DISPLAY_COMPLETE ✅
