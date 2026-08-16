@@ -20,6 +20,9 @@ import {
   View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { X as XT } from "@/constants/xTheme";
+import { useMode } from "@/context/ModeContext";
+import { isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -80,7 +83,13 @@ export function AppButton({
   fullWidth = false,
   icon,
 }: Props) {
-  const vCfg = VARIANT_CONFIG[variant];
+  const { mode } = useMode();
+  const isX = isXMode(mode);
+
+  // Primary CTA: X → Nautic Primary (#1A4070), Normal → C.primaryAction (#0F2742)
+  const vCfg = variant === "primary" && isX
+    ? { ...VARIANT_CONFIG.primary, bg: XT.primary, pressedBg: XT.primaryPressed }
+    : VARIANT_CONFIG[variant];
   const sCfg = SIZE_CONFIG[size];
   const isDisabled = disabled || loading;
 

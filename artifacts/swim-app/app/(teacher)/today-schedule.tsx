@@ -346,7 +346,7 @@ export default function TodayScheduleScreen() {
                 style={({ pressed }) => [
                   h.switchChip,
                   isX
-                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed || switching ? 0.7 : 1 }
+                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: XT.surfaceNavySoft, opacity: pressed || switching ? 0.7 : 1 }
                     : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToAdmin} disabled={switching}
@@ -364,7 +364,7 @@ export default function TodayScheduleScreen() {
         </View>
         <Pressable
           onPress={() => setNotePopupVisible(true)}
-          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: XT.surfaceNavySoft }]}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <View>
@@ -375,13 +375,13 @@ export default function TodayScheduleScreen() {
           </View>
         </Pressable>
         <Pressable
-          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+          style={[h.logoutBtn, { marginRight: 8 }, isX && { backgroundColor: XT.surfaceNavySoft }]}
           onPress={() => Linking.openURL("https://swimnote.kr")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18, opacity: isX ? 0.85 : 1 }} resizeMode="contain" />
         </Pressable>
-        <Pressable onPress={logout} style={[h.logoutBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Pressable onPress={logout} style={[h.logoutBtn, isX && { backgroundColor: XT.surfaceNavySoft }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <LogOut size={18} color={isX ? XT.textOnNavy : C.textMuted} />
         </Pressable>
       </View>

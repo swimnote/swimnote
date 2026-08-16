@@ -1,0 +1,272 @@
+[WP-X0 — X COMMON CONTROL THEME GAP HOTFIX]
+
+목적:
+
+SWIMNOTE X의 Nautic + Yacht Blue 테마는 이미 적용되어 있으나,
+감사 결과 공통 UI 일부가 X mode를 인식하지 못해
+old navy / Normal mint가 X 화면 안에 남아 있다.
+
+이번 WP는 그 3개 gap만 수정한다.
+
+한 번에 다른 Normal 테마 작업으로 확장 금지.
+
+==================================================
+0. CURRENT AUDIT FINDINGS
+==================================================
+
+확정된 문제:
+
+1. AppButton.tsx
+   - X mode 미인식
+   - primary가 기존 Normal old navy #0F2742 사용
+   - X에서는 XT.primary #1A4070 계열을 사용해야 함
+
+2. MainTabs.tsx
+   - X mode 미인식
+   - active가 C.tint #2EC4B6 mint
+   - X 화면에서도 mint 탭이 표시됨
+
+3. teacher/today-schedule.tsx
+   - X header action button background가
+     rgba(255,255,255,0.12) old pattern
+   - 현재 X token XT.surfaceNavySoft 사용 누락
+
+이번 작업은 정확히 위 3개만.
+
+==================================================
+1. GLOBAL RULE
+==================================================
+
+본 작업은 Normal SWIMNOTE + SWIMNOTE X 공통 component 수정이다.
+
+공통 source를 한 곳에서 mode-aware 처리하고
+Normal/X 양쪽을 검증한다.
+
+컴포넌트 복제 금지.
+
+==================================================
+2. AppButton X MODE SUPPORT
+==================================================
+
+components/common/AppButton.tsx 감사 후
+현재 variant contract를 유지하면서 mode-aware 처리.
+
+Normal:
+
+primary
+→ 현재 기존 동작 그대로 유지
+
+X:
+
+primary
+→ XT.primary
+
+중요:
+
+Normal의 최종 Ocean Wave Green 전환은
+이후 WP-N 계열에서 별도로 한다.
+
+이번 WP에서 Normal primary 색을 Ocean/Navy로 재설계하지 않는다.
+
+즉:
+
+이번 작업 =
+X에서 old #0F2742가 보이는 문제만 수정.
+
+variant 의미:
+
+primary
+secondary
+tertiary
+destructive
+
+는 변경 금지.
+
+destructive semantic color도 변경 금지.
+
+==================================================
+3. MainTabs X MODE SUPPORT
+==================================================
+
+components/common/MainTabs.tsx를 mode-aware 처리.
+
+Normal:
+active = 기존 C.tint 유지
+이번 WP에서는 Normal 변경 금지.
+
+X:
+active text / indicator / selected state
+→ XT.accent 또는 현재 X 디자인 시스템에서
+secondary active control에 지정된 Yacht 계열 token 사용.
+
+임의 hex 금지.
+
+inactive:
+현재 neutral hierarchy 유지하되
+X에서 가독성 부족 여부 확인.
+
+IMPORTANT:
+
+AI Report / AI Curriculum 등
+FEATURE_FIXED color를 사용하는 별도 feature tab이 존재하면
+강제로 XT.accent로 덮지 않는다.
+
+MainTabs 일반 component의 theme-controlled state만 변경.
+
+==================================================
+4. TODAY-SCHEDULE HEADER BUTTON
+==================================================
+
+teacher/today-schedule.tsx의
+X header action button background:
+
+rgba(255,255,255,0.12)
+
+old pattern 제거.
+
+X:
+→ XT.surfaceNavySoft
+
+icon/text:
+→ X text/icon hierarchy token 사용.
+
+Normal:
+→ 기존 스타일 유지.
+
+==================================================
+5. X TEXT READABILITY — 이번 WP 범위
+==================================================
+
+전체 X text refinement는 WP-X1에서 별도로 한다.
+
+이번 WP에서는 수정한 3개 component에 대해서만:
+
+- 버튼 text
+- tab text
+- header action icon
+
+이 현재 X background에서
+가독성이 충분한지 확인.
+
+다른 화면 text sweep 금지.
+
+==================================================
+6. ABSOLUTE PROTECTION
+==================================================
+
+변경 금지:
+
+Normal 전체 palette
+Ocean Wave Green 설계
+scheduler classColor()
+요일별 구분색
+반 식별색
+출결 semantic colors
+AI Report feature colors
+AI Curriculum feature colors
+Feed reaction colors
+RevenueCat
+billing
+ModeContext behavior
+server
+DB
+AI Engine
+
+==================================================
+7. TEST MATRIX
+==================================================
+
+CASE X-1
+X AppButton primary
+→ XT.primary
+
+CASE X-2
+Normal AppButton primary
+→ 기존 결과와 동일
+
+CASE X-3
+X MainTabs active
+→ X Yacht/Nautic token
+→ mint 없음
+
+CASE X-4
+Normal MainTabs
+→ 기존 mint 유지
+(향후 Normal theme WP에서 변경 예정)
+
+CASE X-5
+X teacher today-schedule header action
+→ XT.surfaceNavySoft
+
+CASE X-6
+Normal teacher today-schedule
+→ 기존 스타일 유지
+
+CASE X-7
+destructive semantic colors 변화 없음
+
+CASE X-8
+scheduler classification colors 변화 없음
+
+CASE X-9
+AI report/curriculum/feed feature-fixed colors 변화 없음
+
+==================================================
+8. CODE QUALITY
+==================================================
+
+- 화면별 hex 추가 금지
+- xTheme.ts token 재사용
+- Colors / XT source of truth 유지
+- duplicate component 생성 금지
+- hook ordering regression 금지
+- TypeScript errors 0
+
+==================================================
+9. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+10. REPORT
+==================================================
+
+APPBUTTON_ROOT_CAUSE =
+APPBUTTON_NORMAL_RESULT =
+APPBUTTON_X_RESULT =
+
+MAINTABS_ROOT_CAUSE =
+MAINTABS_NORMAL_ACTIVE =
+MAINTABS_X_ACTIVE =
+
+TODAY_HEADER_OLD_BG =
+TODAY_HEADER_NEW_X_BG =
+
+NORMAL_VISUAL_CHANGE =
+SCHEDULER_PROTECTED_COLORS_CHANGED =
+FEATURE_FIXED_COLORS_CHANGED =
+SEMANTIC_COLORS_CHANGED =
+
+BUSINESS_LOGIC_CHANGE =
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+완료:
+
+WP_X0_X_COMMON_CONTROL_THEME_GAP_COMPLETE ✅
