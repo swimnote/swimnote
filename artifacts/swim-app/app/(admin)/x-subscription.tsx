@@ -148,6 +148,28 @@ export default function XSubscriptionScreen() {
     // normal/null → IDLE 유지
   }, [mode]);
 
+  // 결제 성공 후 X_ACTIVE 전환 시 대시보드로 이동 (구매 직후에만)
+  // purchaseSucceeded.current = true일 때만 내비게이션 — 단순 화면 진입은 무시
+  useEffect(() => {
+    if (phase !== "X_ACTIVE" || !purchaseSucceeded.current) return;
+    const t = setTimeout(() => {
+      Alert.alert(
+        "SWIMNOTE X 시작! 🎉",
+        "결제가 완료되어 X모드가 활성화되었습니다.\n지금 바로 프리미엄 기능을 이용하세요.",
+        [{
+          text: "확인",
+          onPress: () => {
+            purchaseSucceeded.current = false; // 완료 처리 후 리셋
+            router.replace("/(admin)/" as any);
+          },
+        }],
+        { cancelable: false },
+      );
+    }, 400); // mode 반영 완료 후 짧은 딜레이
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   // ── STEP 1: 예약 (reserve slot) ────────────────────────────────────────────
   const handleReserve = useCallback(async () => {
     if (inFlight.current) return;

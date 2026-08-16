@@ -5,7 +5,6 @@
  * SearchModal, AdminQuickRegisterModal → components/admin/ 로 이동됨
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { XModeBadge } from "@/components/common/XModeBadge";
 import { Crown, Zap } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
@@ -16,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { X as XT } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
@@ -235,28 +235,45 @@ export default function DashboardScreen() {
 
   const _BIB = "#E6FAF8";
 
+  const isX = mode === "x" || mode === "x_pending";
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#F5F6FA" }}>
-      {/* ── 상단 헤더 ── */}
-      <View style={[s.topBar, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 14) }]}>
+    <View style={{ flex: 1, backgroundColor: isX ? XT.background : "#F5F6FA" }}>
+      {/* ── 상단 헤더 ── Normal: 흰색 / X: 네이비 */}
+      <View style={[
+        s.topBar,
+        { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 14) },
+        isX && { backgroundColor: XT.surfaceNavy, borderBottomColor: XT.surfaceNavyStrong },
+      ]}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={s.poolName} numberOfLines={1}>{pool?.name || "수영장"}</Text>
-            <XModeBadge />
+            <Text style={[s.poolName, isX && { color: XT.textOnNavy }]} numberOfLines={1}>
+              {pool?.name || "수영장"}
+            </Text>
+            {/* X 모드: 헤더 자체가 X identity — 배지 대신 레이블 */}
+            {isX && (
+              <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
+                  SWIMNOTE X
+                </Text>
+              </View>
+            )}
             {canSwitchToTeacher && (
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
-                  { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
+                  isX
+                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed || switching ? 0.7 : 1 }
+                    : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color="#14283D" />
+                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : "#14283D"} />
                   : <>
-                      <LucideIcon name="repeat" size={10} color="#14283D" />
-                      <Text style={[s.switchChipTxt, { color: C.text }]}>선생님으로 전환</Text>
+                      <LucideIcon name="repeat" size={10} color={isX ? XT.textOnNavy : "#14283D"} />
+                      <Text style={[s.switchChipTxt, { color: isX ? XT.textOnNavy : C.text }]}>선생님으로 전환</Text>
                     </>
                 }
               </Pressable>
@@ -269,27 +286,32 @@ export default function DashboardScreen() {
               hitSlop={8}
               style={({ pressed }) => [
                 s.tierBadge,
-                { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
+                isX
+                  ? { backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed ? 0.75 : 1 }
+                  : { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
               ]}
             >
-              {tierInfo.Icon
+              {tierInfo.Icon && !isX
                 ? <tierInfo.Icon size={11} color={tierInfo.color} strokeWidth={2.5} />
                 : null
               }
-              <Text style={[s.tierBadgeTxt, { color: tierInfo.color }]}>{tierInfo.label}</Text>
+              <Text style={[s.tierBadgeTxt, { color: isX ? XT.textOnNavySoft : tierInfo.color }]}>
+                {tierInfo.label}
+              </Text>
             </Pressable>
-            {/* 관리자 자격 표시 */}
-            <Text style={s.greet}>{pool?.name ?? adminUser?.name ?? ""}</Text>
-            <View style={[s.roleChip]}>
-              <Text style={s.roleChipTxt}>{roleLabel}</Text>
+            <Text style={[s.greet, isX && { color: XT.textOnNavySoft }]}>
+              {pool?.name ?? adminUser?.name ?? ""}
+            </Text>
+            <View style={[s.roleChip, isX && { backgroundColor: "rgba(255,255,255,0.14)" }]}>
+              <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]}>{roleLabel}</Text>
             </View>
           </View>
         </View>
-        <Pressable onPress={() => setShowSearch(true)} style={s.headerBtn} hitSlop={8}>
-          <LucideIcon name="search" size={20} color={C.textSecondary} />
+        <Pressable onPress={() => setShowSearch(true)} style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={8}>
+          <LucideIcon name="search" size={20} color={isX ? XT.textOnNavy : C.textSecondary} />
         </Pressable>
-        <Pressable onPress={logout} style={s.headerBtn} hitSlop={8}>
-          <LucideIcon name="log-out" size={18} color={C.textSecondary} />
+        <Pressable onPress={logout} style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={8}>
+          <LucideIcon name="log-out" size={18} color={isX ? XT.textOnNavy : C.textSecondary} />
         </Pressable>
       </View>
 
@@ -381,6 +403,97 @@ export default function DashboardScreen() {
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
+            {/* ── SWIMNOTE X 기능 진입 — X모드 전용, 최상단 ── */}
+            {isX && (
+              <View style={{ gap: 10 }}>
+                {/* 섹션 헤더 */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: XT.accent, letterSpacing: 0.3 }}>
+                    SWIMNOTE X
+                  </Text>
+                  {mode === "x" ? (
+                    <View style={{ backgroundColor: XT.accentSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: XT.accentMid }}>
+                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.accentStrong }}>활성</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: XT.pendingLight, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.pending }}>설정 필요</Text>
+                    </View>
+                  )}
+                </View>
+                {/* 2열 주요 기능 카드 */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {/* AI 성장 추적 — 네이비 강조 카드 */}
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.primary, borderRadius: 14, padding: 14,
+                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      shadowColor: XT.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+                      elevation: 4,
+                    })}
+                    onPress={() => router.push("/(admin)/x-growth")}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="bar-chart-2" size={19} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>성장 추적</Text>
+                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 분석</Text>
+                    </View>
+                  </Pressable>
+                  {/* AI 일지 — 액센트 카드 */}
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.accent, borderRadius: 14, padding: 14,
+                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      shadowColor: XT.accent, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+                      elevation: 3,
+                    })}
+                    onPress={() => router.push("/(admin)/diary-list" as any)}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="brain" size={19} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지</Text>
+                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>수업 일지 자동 생성</Text>
+                    </View>
+                  </Pressable>
+                </View>
+                {/* 2열 보조 기능 카드 */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                    })}
+                    onPress={() => router.push("/(admin)/x-mode-hub")}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="book-open" size={17} color={XT.accentStrong} />
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>커리큘럼</Text>
+                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>수준별 교육과정</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                    })}
+                    onPress={() => router.push(mode === "x" ? "/(admin)/x-subscription" : "/(admin)/x-setup")}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="settings-2" size={17} color={XT.accentStrong} />
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>X 세팅</Text>
+                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>X모드 설정 관리</Text>
+                  </Pressable>
+                </View>
+                {/* 구분선 */}
+                <View style={{ height: 1, backgroundColor: XT.divider, marginVertical: 2 }} />
+              </View>
+            )}
+
             {/* ── 운영 현황 카드 ── */}
             <View style={{ gap: 8 }}>
               {/* 1행: 이번 달 매출 + 전체 회원 */}
@@ -624,64 +737,7 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            {/* ── SWIMNOTE X 섹션 (mode === "x" | "x_pending" 일 때만 표시) ── */}
-            {(mode === "x" || mode === "x_pending") && (
-              <View style={{
-                backgroundColor: "#fff",
-                borderRadius: 14,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: "#E9EEF3",
-              }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "#E9EEF3", alignItems: "center", justifyContent: "center" }}>
-                    <LucideIcon name="trending-up" size={15} color="#355C7D" />
-                  </View>
-                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
-                    SWIMNOTE X
-                  </Text>
-                  <View style={{ backgroundColor: "#E9EEF3", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "#355C7D" }}>
-                    <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
-                      {mode === "x" ? "활성" : "준비중"}
-                    </Text>
-                  </View>
-                </View>
-                {mode === "x" ? (
-                  <Pressable
-                    style={({ pressed }) => ({
-                      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                      backgroundColor: "#E9EEF3", borderRadius: 10, padding: 12,
-                      opacity: pressed ? 0.75 : 1,
-                    })}
-                    onPress={() => router.push("/(admin)/x-growth" as any)}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <LucideIcon name="bar-chart-2" size={15} color="#23415C" />
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#23415C" }}>
-                        성장 추적 관리
-                      </Text>
-                    </View>
-                    <LucideIcon name="chevron-right" size={14} color="#64748B" />
-                  </Pressable>
-                ) : (
-                  // x_pending (manual entitlement + config not READY) → x-setup
-                  <Pressable
-                    style={({ pressed }) => ({
-                      backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
-                      flexDirection: "row", alignItems: "center", gap: 8,
-                      opacity: pressed ? 0.7 : 1,
-                    })}
-                    onPress={() => router.push("/(admin)/x-setup" as any)}
-                  >
-                    <LucideIcon name="settings" size={13} color="#355C7D" />
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#475569", flex: 1 }}>
-                      X 커리큘럼 설정을 진행해주세요
-                    </Text>
-                    <LucideIcon name="chevron-right" size={13} color="#94A3B8" />
-                  </Pressable>
-                )}
-              </View>
-            )}
+            {/* 하단 X 카드 → 최상단 isX 섹션으로 통합됨 */}
 
           </>
         )}

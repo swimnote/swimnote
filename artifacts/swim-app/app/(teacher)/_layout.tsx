@@ -6,6 +6,8 @@ import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { X } from "@/constants/xTheme";
 import { emitTabReset } from "@/utils/tabReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
@@ -15,6 +17,12 @@ const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  const isX = mode === "x";
+  const activeTabColor  = isX ? X.tabActive  : themeColor;
+  const tabInactiveColor = isX ? X.tabInactive : Colors.light.text;
+  const tabBarBg        = isX ? X.surfaceNavy  : "transparent";
+  const tabBorderColor  = isX ? X.surfaceNavyStrong : "#E2E8F0";
   const { kind, isLoading, adminUser, token, pool } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -89,20 +97,22 @@ export default function TeacherLayout() {
     <FeedbackTemplateProvider>
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: themeColor,
-        tabBarInactiveTintColor: C.text,
+        tabBarActiveTintColor: activeTabColor,
+        tabBarInactiveTintColor: tabInactiveColor,
         headerShown: false,
         tabBarStyle: {
           height: Platform.OS === "android" ? 60 + Math.max(insets.bottom, 24) : 72,
-          backgroundColor: "transparent",
+          backgroundColor: tabBarBg,
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: "#E2E8F0",
+          borderTopColor: tabBorderColor,
           paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2, lineHeight: 14 },
         tabBarBackground: () =>
-          isIOS ? (
+          isX ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: X.surfaceNavy }]} />
+          ) : isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
           ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />

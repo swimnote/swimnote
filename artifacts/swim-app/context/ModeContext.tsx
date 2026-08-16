@@ -55,6 +55,11 @@ export interface ModeContextValue {
   error: string | null;
   /** 명시적 재조회 (foreground 복귀, WP4 등). 동시 호출 자동 차단. */
   refreshMode: () => Promise<void>;
+  /**
+   * 첫 번째 서버 mode 응답이 완료된 이후 true.
+   * cold start 시 Normal 화면 flash 방지용 — true 이전에는 skeleton/loading 처리 권장.
+   */
+  modeInitialized: boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -65,6 +70,7 @@ const DEFAULT_VALUE: ModeContextValue = {
   status: "idle",
   error: null,
   refreshMode: async () => {},
+  modeInitialized: false,
 };
 
 const ModeContext = createContext<ModeContextValue>(DEFAULT_VALUE);
@@ -110,6 +116,8 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const supported = _isSupportedRole(kind, activeRole, adminUser?.role);
 
   const [state, setState] = useState<_ModeState>(IDLE_STATE);
+  /** 첫 번째 mode 응답이 완료된 이후 true (cold start flash 방지) */
+  const [modeInitialized, setModeInitialized] = useState(false);
 
   // 최신 값을 비동기 콜백에서 읽기 위한 Ref
   const tokenRef = useRef(token);
@@ -172,6 +180,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
 
       if (seqRef.current !== seq) return;
       setState({ status: "ready", result: data, error: null });
+      setModeInitialized(true);
     } catch (e: any) {
       if (seqRef.current !== seq) return;
       const msg: string = e?.message ?? "";
@@ -216,6 +225,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     status: state.status,
     error: state.error,
     refreshMode,
+    modeInitialized,
   };
 
   return (

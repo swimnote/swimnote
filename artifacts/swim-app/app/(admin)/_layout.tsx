@@ -5,6 +5,8 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { X } from "@/constants/xTheme";
 import { emitTabReset } from "@/utils/tabReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +14,12 @@ const C = Colors.light;
 
 export default function AdminLayout() {
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  const isX = mode === "x";
+  /** X 모드: 네이비 탭바 / Normal: 기본 민트 */
+  const activeTabColor = isX ? X.tabActive : themeColor;
+  const tabBarBg = isX ? X.surfaceNavy : "#fff";
+  const tabBorderColor = isX ? X.surfaceNavyStrong : C.border;
   const { kind, isLoading, adminUser, token, pool } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -100,13 +108,13 @@ export default function AdminLayout() {
     )}
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: themeColor,
-        tabBarInactiveTintColor: C.text,
+        tabBarActiveTintColor: activeTabColor,
+        tabBarInactiveTintColor: isX ? X.tabInactive : C.text,
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: tabBarBg,
           borderTopWidth: 1,
-          borderTopColor: C.border,
+          borderTopColor: tabBorderColor,
           height: Platform.OS === "android" ? 60 + Math.max(insets.bottom, 24) : 72,
           paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
