@@ -93,59 +93,95 @@ export function formatFranchiseNumber(sequence: number): string {
   return `x-${String(Math.max(1, Math.floor(sequence))).padStart(4, "0")}`;
 }
 
-// ── §14/15 RevenueCat Server-side Verification ───────────────────────────────
+// ── §14/15 RevenueCat Server-side Verification (V2) ──────────────────────────
 
-const RC_API_BASE = "https://api.revenuecat.com/v1";
+const RC_V2_BASE = "https://api.revenuecat.com/v2";
 
 /**
- * RevenueCat server-side subscriber → entitlement 조회.
- * REVENUECAT_SECRET_API_KEY 미설정 시 throw.
+ * RevenueCat V2 server-side 구독 검증.
+ *
+ * 경로:
+ *   GET /v2/projects/{project_id}/customers/{customer_id}          → original_app_user_id
+ *   GET /v2/projects/{project_id}/customers/{customer_id}/subscriptions → gives_access + X product
+ *
+ * REVENUECAT_SECRET_API_KEY / REVENUECAT_PROJECT_ID 미설정 시 throw.
  * secret은 절대 로그에 출력하지 않는다.
+ * entitlementId 파라미터는 V2에서 직접 사용되지 않음 — X product IDs 기반 필터로 대체.
  */
 export async function fetchRCSubscriberEntitlement(
   appUserId: string,
-  entitlementId: string = "x_mode",
+  _entitlementId: string = "x_mode",
 ): Promise<{ entitlement: RCEntitlementData | null; originalAppUserId: string }> {
   const secret = process.env.REVENUECAT_SECRET_API_KEY;
+  const projectId = process.env.REVENUECAT_PROJECT_ID;
   if (!secret) throw new Error("REVENUECAT_SECRET_API_KEY not configured");
+  if (!projectId) throw new Error("REVENUECAT_PROJECT_ID not configured");
 
-  const url = `${RC_API_BASE}/subscribers/${encodeURIComponent(appUserId)}`;
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${secret}` },
+  const headers = { Authorization: `Bearer ${secret}` };
+  const customerBase =
+    `${RC_V2_BASE}/projects/${projectId}/customers/${encodeURIComponent(appUserId)}`;
+
+  // ── Step 1: customer → original_app_user_id ───────────────────────────────
+  const custResp = await fetch(customerBase, { headers });
+  if (!custResp.ok) {
+    if (custResp.status === 404) {
+      return { entitlement: null, originalAppUserId: appUserId };
+    }
+    const body = await custResp.text().catch(() => "");
+    throw new Error(`RC V2 customer ${custResp.status}: ${body.slice(0, 200)}`);
+  }
+  const custData = (await custResp.json()) as any;
+  const originalAppUserId: string = custData.original_app_user_id ?? appUserId;
+
+  // ── Step 2: subscriptions → gives_access=true + X product 필터 ───────────
+  const subResp = await fetch(`${customerBase}/subscriptions`, { headers });
+  if (!subResp.ok) {
+    const body = await subResp.text().catch(() => "");
+    throw new Error(`RC V2 subscriptions ${subResp.status}: ${body.slice(0, 200)}`);
+  }
+  const subData = (await subResp.json()) as any;
+
+  const xProductIds = new Set<string>(
+    (process.env.REVENUECAT_X_PRODUCT_IDS ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+
+  // gives_access=true + X product인 구독만 허용
+  const activeSubs: any[] = ((subData.items ?? []) as any[]).filter((sub: any) => {
+    const storeId: string = sub.product?.store_identifier ?? "";
+    return (
+      sub.gives_access === true &&
+      (xProductIds.size === 0 || xProductIds.has(storeId))
+    );
   });
 
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
-    throw new Error(`RC API ${resp.status}: ${body.slice(0, 200)}`);
-  }
+  if (activeSubs.length === 0) return { entitlement: null, originalAppUserId };
 
-  const data = (await resp.json()) as any;
-  const subscriber = data.subscriber ?? {};
-  const originalAppUserId: string = subscriber.original_app_user_id ?? appUserId;
-  const subscriptions: Record<string, any> = subscriber.subscriptions ?? {};
-  const rawEnt = subscriber.entitlements?.[entitlementId] as any;
+  // 여러 개면 expiry가 가장 늦은 것 선택 (가장 활성)
+  const best = activeSubs.sort((a: any, b: any) => {
+    const aTs = a.current_period_end_at ? new Date(a.current_period_end_at).getTime() : 0;
+    const bTs = b.current_period_end_at ? new Date(b.current_period_end_at).getTime() : 0;
+    return bTs - aTs;
+  })[0];
 
-  if (!rawEnt) return { entitlement: null, originalAppUserId };
-
-  const productId: string | null = rawEnt.product_identifier ?? null;
-  const subDetails = productId ? (subscriptions[productId] ?? null) : null;
-  const expiresDate: string | null = rawEnt.expires_date ?? subDetails?.expires_date ?? null;
-  const isActive = expiresDate ? new Date(expiresDate) > new Date() : true;
-
-  const storeRaw: string = (subDetails?.store ?? "").toLowerCase();
+  const productId: string | null = best.product?.store_identifier ?? null;
+  const expiresAt: string | null = best.current_period_end_at ?? null;
+  const envStr: string = (best.environment ?? "").toLowerCase();
   const environment: "SANDBOX" | "PRODUCTION" =
-    storeRaw.includes("sandbox") || storeRaw.includes("test") ? "SANDBOX" : "PRODUCTION";
+    envStr === "sandbox" ? "SANDBOX" : "PRODUCTION";
 
   return {
     originalAppUserId,
     entitlement: {
-      isActive,
+      isActive: true, // gives_access=true → active
       productIdentifier: productId,
-      expiresAt: expiresDate,
-      purchaseDate: rawEnt.purchase_date ?? subDetails?.purchase_date ?? null,
-      originalPurchaseDate: subDetails?.original_purchase_date ?? null,
-      originalTransactionId: subDetails?.original_transaction_id ?? null,
-      latestTransactionId: subDetails?.store_transaction_id ?? null,
+      expiresAt,
+      purchaseDate: best.purchase_date ?? null,
+      originalPurchaseDate: best.original_purchase_date ?? null,
+      originalTransactionId: best.original_transaction_id ?? null,
+      latestTransactionId: best.store_transaction_id ?? null,
       environment,
     },
   };

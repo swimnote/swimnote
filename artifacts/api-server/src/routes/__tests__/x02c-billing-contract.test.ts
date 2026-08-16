@@ -261,12 +261,58 @@ describe("reserveXSlot — RESERVE-4 (ALREADY_SUBSCRIBED)", () => {
   });
 });
 
+// V2 fetch mock 헬퍼: customer + subscriptions 2회 호출 시뮬레이션
+function makeV2FetchMock(opts: {
+  customerId?: string;
+  originalAppUserId?: string;
+  subscriptionItems?: object[];
+  customerStatus?: number;
+  subscriptionStatus?: number;
+}) {
+  const {
+    customerId = "user_001",
+    originalAppUserId = "user_001",
+    subscriptionItems = [],
+    customerStatus = 200,
+    subscriptionStatus = 200,
+  } = opts;
+
+  let callCount = 0;
+  return vi.fn().mockImplementation((url: string) => {
+    callCount++;
+    if (url.includes("/subscriptions")) {
+      return Promise.resolve({
+        ok: subscriptionStatus === 200,
+        status: subscriptionStatus,
+        json: async () => ({
+          items: subscriptionItems,
+          object: "list",
+          next_page: null,
+        }),
+        text: async () => JSON.stringify({ error: "test error" }),
+      });
+    }
+    // customer endpoint
+    return Promise.resolve({
+      ok: customerStatus === 200,
+      status: customerStatus,
+      json: async () => ({
+        id: customerId,
+        object: "customer",
+        original_app_user_id: originalAppUserId,
+      }),
+      text: async () => JSON.stringify({ error: "test error" }),
+    });
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SYNC-1: active x_mode + matching product → PURCHASED + paid=true
 // ══════════════════════════════════════════════════════════════════════════════
 describe("syncXSubscription — SYNC-1", () => {
-  it("RC active + product match → PURCHASED + paid=true", async () => {
+  it("RC V2 active + product match → PURCHASED + paid=true", async () => {
     const deadline = new Date(Date.now() + 3600000).toISOString();
+    const expires = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
     setupResponses([
       // RESERVED slot 조회
       {
@@ -288,34 +334,25 @@ describe("syncXSubscription — SYNC-1", () => {
       { rows: [] },
     ]);
 
-    // fetch mock: RC API
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        subscriber: {
-          original_app_user_id: "user_001",
-          entitlements: {
-            x_mode: {
-              expires_date: new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
-              product_identifier: "com.swimnote.x.monthly.tier1",
-              purchase_date: new Date(Date.now() - 1000).toISOString(),
-            },
-          },
-          subscriptions: {
-            "com.swimnote.x.monthly.tier1": {
-              expires_date: new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
-              purchase_date: new Date(Date.now() - 1000).toISOString(),
-              original_purchase_date: new Date(Date.now() - 1000).toISOString(),
-              original_transaction_id: "TX_001",
-              store_transaction_id: "TX_001",
-              store: "app_store",
-            },
-          },
-        },
-      }),
+    // RC V2 mock: customer + subscriptions
+    vi.stubGlobal("fetch", makeV2FetchMock({
+      originalAppUserId: "user_001",
+      subscriptionItems: [{
+        product: { store_identifier: "com.swimnote.x.monthly.tier1" },
+        gives_access: true,
+        current_period_end_at: expires,
+        purchase_date: new Date(Date.now() - 1000).toISOString(),
+        original_purchase_date: new Date(Date.now() - 1000).toISOString(),
+        original_transaction_id: "TX_001",
+        store_transaction_id: "TX_001",
+        environment: "production",
+        status: "active",
+      }],
     }));
 
     process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard";
     try {
       const result = await syncXSubscription({ poolId: "pool_001", userId: "user_001" });
       expect(result.synced).toBe(true);
@@ -323,6 +360,8 @@ describe("syncXSubscription — SYNC-1", () => {
       expect(result.tierKey).toBe("tier1");
     } finally {
       delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
     }
   });
 });
@@ -331,8 +370,9 @@ describe("syncXSubscription — SYNC-1", () => {
 // SYNC-2: wrong product → reject PRODUCT_MISMATCH
 // ══════════════════════════════════════════════════════════════════════════════
 describe("syncXSubscription — SYNC-2", () => {
-  it("RC product ≠ slot product → PRODUCT_MISMATCH throw", async () => {
+  it("RC V2 product ≠ slot product → PRODUCT_MISMATCH throw", async () => {
     const deadline = new Date(Date.now() + 3600000).toISOString();
+    const expires = new Date(Date.now() + 30 * 24 * 3600000).toISOString();
     setupResponses([
       {
         rows: [{
@@ -348,44 +388,40 @@ describe("syncXSubscription — SYNC-2", () => {
       { rows: [] },
     ]);
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        subscriber: {
-          original_app_user_id: "user_001",
-          entitlements: {
-            x_mode: {
-              expires_date: new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
-              product_identifier: "com.swimnote.x.monthly.standard", // ← MISMATCH
-              purchase_date: new Date(Date.now() - 1000).toISOString(),
-            },
-          },
-          subscriptions: {
-            "com.swimnote.x.monthly.standard": {
-              expires_date: new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
-              store: "app_store",
-            },
-          },
-        },
-      }),
+    // RC V2: standard 구독 active (tier1 예약과 mismatch)
+    vi.stubGlobal("fetch", makeV2FetchMock({
+      originalAppUserId: "user_001",
+      subscriptionItems: [{
+        product: { store_identifier: "com.swimnote.x.monthly.standard" }, // ← MISMATCH
+        gives_access: true,
+        current_period_end_at: expires,
+        original_transaction_id: "TX_002",
+        store_transaction_id: "TX_002",
+        environment: "production",
+        status: "active",
+      }],
     }));
 
     process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard";
     try {
       await expect(
         syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
       ).rejects.toMatchObject({ code: "PRODUCT_MISMATCH" });
     } finally {
       delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
     }
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SYNC-3: RC entitlement inactive → reject
+// SYNC-3: RC entitlement inactive (gives_access=false) → reject
 // ══════════════════════════════════════════════════════════════════════════════
 describe("syncXSubscription — SYNC-3", () => {
-  it("RC entitlement inactive → RC_ENTITLEMENT_INACTIVE throw", async () => {
+  it("RC V2 gives_access=false (expired/inactive) → RC_ENTITLEMENT_INACTIVE throw", async () => {
     const deadline = new Date(Date.now() + 3600000).toISOString();
     setupResponses([
       {
@@ -398,30 +434,29 @@ describe("syncXSubscription — SYNC-3", () => {
       },
     ]);
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        subscriber: {
-          original_app_user_id: "user_001",
-          entitlements: {
-            x_mode: {
-              expires_date: new Date(Date.now() - 1000).toISOString(), // ← 만료
-              product_identifier: "com.swimnote.x.monthly.tier1",
-              purchase_date: new Date(Date.now() - 10000).toISOString(),
-            },
-          },
-          subscriptions: {},
-        },
-      }),
+    // RC V2: subscription exists but gives_access=false (expired)
+    vi.stubGlobal("fetch", makeV2FetchMock({
+      originalAppUserId: "user_001",
+      subscriptionItems: [{
+        product: { store_identifier: "com.swimnote.x.monthly.tier1" },
+        gives_access: false, // ← inactive
+        current_period_end_at: new Date(Date.now() - 1000).toISOString(),
+        environment: "production",
+        status: "expired",
+      }],
     }));
 
     process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard";
     try {
       await expect(
         syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
       ).rejects.toMatchObject({ code: "RC_ENTITLEMENT_INACTIVE" });
     } finally {
       delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
     }
   });
 });
@@ -796,6 +831,181 @@ describe("processXWebhookEvent — SECURITY-2 (client product manipulation)", ()
     // dedup(1) + RESERVED SELECT(1) + auditVersion(1) + auditInsert(1) = 4 calls
     // commitXPurchaseTransaction (idempotency SELECT + UPDATE) 없음
     expect(mockExecute).toHaveBeenCalledTimes(4);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2-1: RC API 401/403 → safe failure (throw, not silent)
+// ══════════════════════════════════════════════════════════════════════════════
+describe("fetchRCSubscriberEntitlement — V2-1 (401 safe failure)", () => {
+  it("RC V2 customer endpoint 401 → Error throw (secret 미노출)", async () => {
+    setupResponses([
+      {
+        rows: [{
+          id: "10", pool_id: "pool_001", store_product_id: "com.swimnote.x.monthly.tier1",
+          tier_key: "tier1",
+          payment_deadline_at: new Date(Date.now() + 3600000).toISOString(),
+          status: "RESERVED", rc_original_transaction_id: null,
+        }],
+      },
+    ]);
+
+    vi.stubGlobal("fetch", makeV2FetchMock({ customerStatus: 401 }));
+
+    process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1";
+    try {
+      await expect(
+        syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
+      ).rejects.toThrow(/RC V2 customer 401/);
+    } finally {
+      delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2-2: RC API 404 (customer not found) → entitlement null → RC_ENTITLEMENT_INACTIVE
+// ══════════════════════════════════════════════════════════════════════════════
+describe("fetchRCSubscriberEntitlement — V2-2 (404 → inactive)", () => {
+  it("RC V2 customer 404 → entitlement null → RC_ENTITLEMENT_INACTIVE", async () => {
+    setupResponses([
+      {
+        rows: [{
+          id: "10", pool_id: "pool_001", store_product_id: "com.swimnote.x.monthly.tier1",
+          tier_key: "tier1",
+          payment_deadline_at: new Date(Date.now() + 3600000).toISOString(),
+          status: "RESERVED", rc_original_transaction_id: null,
+        }],
+      },
+    ]);
+
+    vi.stubGlobal("fetch", makeV2FetchMock({ customerStatus: 404 }));
+
+    process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1";
+    try {
+      await expect(
+        syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
+      ).rejects.toMatchObject({ code: "RC_ENTITLEMENT_INACTIVE" });
+    } finally {
+      delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2-3: malformed subscriptions response (items missing) → inactive
+// ══════════════════════════════════════════════════════════════════════════════
+describe("fetchRCSubscriberEntitlement — V2-3 (malformed response)", () => {
+  it("RC V2 subscriptions items 없음 → entitlement null → RC_ENTITLEMENT_INACTIVE", async () => {
+    setupResponses([
+      {
+        rows: [{
+          id: "10", pool_id: "pool_001", store_product_id: "com.swimnote.x.monthly.tier1",
+          tier_key: "tier1",
+          payment_deadline_at: new Date(Date.now() + 3600000).toISOString(),
+          status: "RESERVED", rc_original_transaction_id: null,
+        }],
+      },
+    ]);
+
+    // items 키 없는 malformed response
+    vi.stubGlobal("fetch", makeV2FetchMock({ subscriptionItems: [] }));
+
+    process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1";
+    try {
+      await expect(
+        syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
+      ).rejects.toMatchObject({ code: "RC_ENTITLEMENT_INACTIVE" });
+    } finally {
+      delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2-4: non-X product subscription active → 필터링되어 entitlement null
+// ══════════════════════════════════════════════════════════════════════════════
+describe("fetchRCSubscriberEntitlement — V2-4 (non-X product filtered)", () => {
+  it("gives_access=true지만 X product 아닌 상품 → 필터링 → RC_ENTITLEMENT_INACTIVE", async () => {
+    setupResponses([
+      {
+        rows: [{
+          id: "10", pool_id: "pool_001", store_product_id: "com.swimnote.x.monthly.tier1",
+          tier_key: "tier1",
+          payment_deadline_at: new Date(Date.now() + 3600000).toISOString(),
+          status: "RESERVED", rc_original_transaction_id: null,
+        }],
+      },
+    ]);
+
+    // 일반 구독 (X product 아님) — xProductIds 필터에서 제거됨
+    vi.stubGlobal("fetch", makeV2FetchMock({
+      subscriptionItems: [{
+        product: { store_identifier: "center_200" }, // ← X product 아님
+        gives_access: true,
+        current_period_end_at: new Date(Date.now() + 30 * 24 * 3600000).toISOString(),
+        environment: "production",
+        status: "active",
+      }],
+    }));
+
+    process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.standard";
+    try {
+      await expect(
+        syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
+      ).rejects.toMatchObject({ code: "RC_ENTITLEMENT_INACTIVE" });
+    } finally {
+      delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// V2-5: subscriptions endpoint 403 → safe failure
+// ══════════════════════════════════════════════════════════════════════════════
+describe("fetchRCSubscriberEntitlement — V2-5 (subscriptions 403)", () => {
+  it("RC V2 subscriptions 403 → Error throw", async () => {
+    setupResponses([
+      {
+        rows: [{
+          id: "10", pool_id: "pool_001", store_product_id: "com.swimnote.x.monthly.tier1",
+          tier_key: "tier1",
+          payment_deadline_at: new Date(Date.now() + 3600000).toISOString(),
+          status: "RESERVED", rc_original_transaction_id: null,
+        }],
+      },
+    ]);
+
+    vi.stubGlobal("fetch", makeV2FetchMock({ subscriptionStatus: 403 }));
+
+    process.env.REVENUECAT_SECRET_API_KEY = "sk_test_dummy";
+    process.env.REVENUECAT_PROJECT_ID = "projc8b01266";
+    process.env.REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1";
+    try {
+      await expect(
+        syncXSubscription({ poolId: "pool_001", userId: "user_001" }),
+      ).rejects.toThrow(/RC V2 subscriptions 403/);
+    } finally {
+      delete process.env.REVENUECAT_SECRET_API_KEY;
+      delete process.env.REVENUECAT_PROJECT_ID;
+      delete process.env.REVENUECAT_X_PRODUCT_IDS;
+    }
   });
 });
 
