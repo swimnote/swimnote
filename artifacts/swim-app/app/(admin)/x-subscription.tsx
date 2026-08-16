@@ -112,6 +112,12 @@ export default function XSubscriptionScreen() {
 
   // in-flight 잠금 (double tap defense)
   const inFlight = useRef(false);
+  // purchase-succeeded guard: purchasePackage 성공 후 재진입 절대 방지
+  // handleReserve 재실행 시에만 false로 리셋
+  const purchaseSucceeded = useRef(false);
+  // handleSync를 handlePurchase 클로저에서 안전하게 최신값으로 참조하기 위한 ref
+  // (handleSync는 handlePurchase 이후에 선언되므로 deps 대신 ref 사용)
+  const handleSyncRef = useRef<() => Promise<void>>(async () => {});
 
   // activeRole이 null(초기화 전)일 때 adminUser.role로 fallback
   const isPoolAdmin = (activeRole ?? adminUser?.role) === "pool_admin";
@@ -133,6 +139,7 @@ export default function XSubscriptionScreen() {
   const handleReserve = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
+    purchaseSucceeded.current = false; // 새 예약 시작 시 purchase guard 리셋
     setPhase("RESERVING");
     setOfferingError(null);
 
@@ -200,7 +207,9 @@ export default function XSubscriptionScreen() {
 
   // ── STEP 3: Store 구매 ─────────────────────────────────────────────────────
   const handlePurchase = useCallback(async () => {
-    if (inFlight.current || !pkg || !slot) return;
+    // purchaseSucceeded guard: 이미 성공한 구매를 절대 재호출하지 않음
+    // (phase 복귀, component remount, sandbox deferred transaction 등 모든 경로 차단)
+    if (inFlight.current || !pkg || !slot || purchaseSucceeded.current) return;
 
     // deadline 만료 확인
     if (new Date(slot.paymentDeadlineAt) <= new Date()) {
@@ -217,9 +226,11 @@ export default function XSubscriptionScreen() {
 
     try {
       await Purchases.purchasePackage(pkg);
+      // 성공 즉시 flag 설정 — 이후 어떤 상태 변화에서도 재구매 불가
+      purchaseSucceeded.current = true;
     } catch (e: any) {
       if (isUserCancelled(e)) {
-        // 취소: slot 유지, 다시 결제 가능
+        // 취소: slot 유지, 다시 결제 가능 (purchaseSucceeded는 false 유지)
         setPhase("USER_CANCELLED");
         inFlight.current = false;
         return;
@@ -229,9 +240,10 @@ export default function XSubscriptionScreen() {
       return;
     }
 
-    // 구매 성공 → sync
+    // 구매 성공 → sync (inFlight을 false로 해제해야 handleSync가 진입 가능)
+    // handleSync는 이 useCallback 이후에 선언되므로 deps 대신 ref를 통해 최신값 참조
     inFlight.current = false;
-    await handleSync();
+    await handleSyncRef.current();
   }, [pkg, slot, token]);
 
   // ── STEP 4: 서버 sync ──────────────────────────────────────────────────────
@@ -266,6 +278,9 @@ export default function XSubscriptionScreen() {
       inFlight.current = false;
     }
   }, [token, refreshMode]);
+
+  // handleSyncRef를 항상 최신 handleSync로 유지 (handlePurchase 클로저에서 사용)
+  useEffect(() => { handleSyncRef.current = handleSync; }, [handleSync]);
 
   // 취소 후 재시도: 기존 slot+pkg 재사용
   const handleRetryFromCancelled = useCallback(() => {
