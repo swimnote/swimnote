@@ -104,8 +104,8 @@ export default function WeeklyTimetableV2({
     const selected  = selectedIds.has(g.id);
     const accent    = classColor(g.id, g.color);
     const hasDot    = changedClassIds.has(g.id);
-    const cardBg    = accent + "18";
-    const cardBdr   = accent + "55";
+    const cardBg    = accent + "28";   // ~16% fill — class color clearly visible
+    const cardBdr   = accent + "99";   // ~60% border — strong outline
 
     const names     = classStudentMap[g.id] ?? [];
     const namesLine = names.length > 0 ? names.join(" · ") : null;

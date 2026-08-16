@@ -677,7 +677,7 @@ const h = StyleSheet.create({
   weekDot:      { width: 5, height: 5, borderRadius: 3 },
   weekDotEmpty: { width: 5, height: 5 },
   miniDateToday:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#2DD4BF", marginTop: -2 },
+  miniDot:          { width: 4, height: 4, borderRadius: 2, backgroundColor: "#25B7CF", marginTop: -2 },
   fab:              { position: "absolute", right: 20, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 6 },
   fabText:          { color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold", lineHeight: 20 },
 });

@@ -1,0 +1,727 @@
+[WP-N7S — NORMAL A CLEAR POOL THEME + SHARED SCHEDULER VISIBILITY RECOVERY]
+
+목적:
+
+1. Normal SWIMNOTE의 Sage/회녹색 테마를 폐기하고
+   최종 확정한 A안 "Clear Pool" 테마로 변경한다.
+
+2. X모드의 기존 Nautic/Yacht
+   배경 / 프레임 / 헤더 / 테두리 / 탭바는 그대로 유지한다.
+
+3. 단, 스케줄러는 Normal/X에서 공통으로 사용하는 업무 화면이므로
+   스케줄러 내부의 GENERAL CONTROL 색상은
+   양 모드에서 동일한 Clear Pool 규칙을 사용한다.
+
+4. 스케줄러의 사용자 지정 반 색상(classColor),
+   요일 구분색,
+   출결/보강 등 semantic 색상은
+   테마 색상과 완전히 분리하여 보호한다.
+
+==================================================
+0. FINAL NORMAL PALETTE — LOCK
+==================================================
+
+Normal SWIMNOTE 공식 테마를 A안으로 확정한다.
+
+Clear Pool:
+
+brandStrong  = #1683A3
+brandPrimary = #25B7CF
+brandMid     = #6BD2DE
+
+brandSoft    = #D9F2F6
+brandMist    = #EEF9FB
+
+background   = #F5FAFB
+surface      = #FFFFFF
+
+textStrong   = #163842
+
+기존 textPrimary / textSecondary / textMuted는
+현재 가독성 체계를 감사한 뒤
+Clear Pool 계열에 자연스럽게 맞추되
+불필요하게 밝게 만들지 않는다.
+
+목표:
+
+밝고 산뜻함
+깨끗한 수영장 물
+Fresh Aqua / Pool Blue
+초록 앱처럼 보이지 않음
+회색 앱처럼 보이지 않음
+X와 명확히 구분
+
+==================================================
+1. X THEME ABSOLUTE LOCK
+==================================================
+
+변경 금지:
+
+xTheme.ts의 기존 Nautic/Yacht 기본 palette
+
+XT.primary
+XT.primaryStrong
+XT.surfaceNavyStrong
+XT.surfaceNavySoft
+XT.accent
+XT.ai
+XT dark text hierarchy
+
+X의:
+
+header
+screen shell
+background
+card frame
+border
+main navigation
+X identity
+
+그대로 유지.
+
+단 스케줄러 내부 GENERAL CONTROL만
+아래 shared scheduler rule 적용.
+
+==================================================
+2. FIRST — AUDIT BEFORE CHANGE
+==================================================
+
+먼저 실제 repository를 감사.
+
+A. Normal theme source
+B. legacy Sage hardcode
+C. legacy mint/teal hardcode
+D. settlement/정산 화면 old mint
+E. scheduler 관련 전체 파일
+F. classColor/storedColor/themeColor 사용경로
+G. 요일색
+H. semantic 색
+
+각 color 사용처를 반드시 분류:
+
+NORMAL_THEME
+SCHEDULER_GENERAL_CONTROL
+CLASSIFICATION_USER_COLOR
+WEEKDAY_COLOR
+SEMANTIC_PROTECTED
+FEATURE_FIXED
+USER_CONFIGURED
+X_SHELL
+AMBIGUOUS
+
+AMBIGUOUS 자동 변경 금지.
+
+==================================================
+3. NORMAL THEME CHANGE
+==================================================
+
+기존 Sage:
+
+#4F6F67
+#6F9187
+#91ABA3
+#DDE7E3
+#ECF2F0
+#F4F7F6
+
+를 검색.
+
+NORMAL_THEME으로 사용 중인 것만
+새 Clear Pool C.* token으로 교체.
+
+blind replace 금지.
+
+기존 WP-N1~N6에서 tokenized 된 곳은
+source of truth 수정으로 처리.
+
+==================================================
+4. NORMAL HOME VISUAL
+==================================================
+
+사용자가 제공한 실제 화면 기준으로 확인.
+
+현재 문제:
+
+- 무채색 화면 + 회녹색
+- 일부 버튼만 예전 민트
+- 브랜드 중심색 불명확
+
+수정 목표:
+
+general navigation
+active tab
+primary action
+general selected chip
+general highlight
+general icon active state
+
+→ Clear Pool
+
+단 홈의:
+
+매출 정보색
+회원 정보색
+보강 semantic
+사용량 feature colors
+
+등 의미가 있는 색은 보호.
+
+==================================================
+5. TEACHER HOME
+==================================================
+
+현재:
+
+날짜 선택
+일지 바로쓰기
+하단 active tab
+
+등의 예전 mint와
+neutral/Sage가 혼재.
+
+Clear Pool로 통일.
+
+기능/레이아웃 변경 금지.
+
+==================================================
+6. MEMBER MANAGEMENT
+==================================================
+
+현재 selected filter가
+거의 검정/회녹색처럼 보이는 문제 수정.
+
+예:
+
+전체
+미배정
+연기예정
+퇴원예정
+연기
+퇴원
+
+여기서:
+
+general selected filter
+→ Clear Pool strong/primary
+
+unselected
+→ Clear Pool soft/mist + readable neutral text
+
+단 상태 자체에 semantic 의미색이 있다면 보호.
+
+==================================================
+7. SETTLEMENT / 정산 — REQUIRED
+==================================================
+
+사용자가 제공한 화면에서
+정산이 다른 앱처럼 보이는 문제 존재.
+
+반드시 전수 감사.
+
+현재 old mint/teal로 남은:
+
+- 정산 title
+- 월 prev/next
+- 예상매출 large card
+- general icon
+- active bottom navigation
+- general controls
+
+등 THEME_MUTABLE은
+Clear Pool로 통일.
+
+하지만 다음은 보호:
+
+보강
+연기
+탈퇴
+체험
+기타 status/metric 의미색
+
+예:
+보라 / 주황 / 빨강 등
+기능 의미가 있는 색은 유지.
+
+정산 전체를 단색 Clear Pool로 만들지 않는다.
+
+==================================================
+8. SCHEDULER PRINCIPLE — CRITICAL
+==================================================
+
+스케줄러 목표는
+"예쁜 통일"이 아니라
+"한눈에 구분되는 운영성"이다.
+
+스케줄러 안에서는 색을 4계층으로 분리한다.
+
+A. GENERAL CONTROL
+B. USER CLASS COLOR
+C. WEEKDAY COLOR
+D. SEMANTIC COLOR
+
+절대 혼합하지 않는다.
+
+==================================================
+9. SHARED SCHEDULER GENERAL CONTROL
+==================================================
+
+Normal과 X 모두 동일 Clear Pool control system 사용.
+
+대상:
+
+- 월 / 주 / 일 selector
+- 수강생관리
+- 반 등록
+- 수업 일지
+- prev / next
+- selected date
+- today highlight
+- 일반 filter
+- 일반 selection
+- scheduler navigation button
+- scheduler generic action icon
+- neutral scheduler control border/background
+
+Normal:
+Clear Pool controls
+
+X:
+X shell/background/header는 그대로 +
+scheduler 내부 control만 동일 Clear Pool
+
+즉 X 스케줄러 안에
+Nautic 버튼을 강제로 유지하지 않는다.
+
+==================================================
+10. CLASS COLOR — ABSOLUTE PROTECTION
+==================================================
+
+선생님/관리자가 반 생성 시 선택한 색상이
+실제 스케줄러에서 사용된다.
+
+다음은 절대 브랜드색으로 덮지 않는다:
+
+classColor
+storedColor
+schedule class color
+class chip color
+class bar color
+calendar class dot
+week/day schedule classification
+
+기존 대표 palette도 보호:
+
+#4EA7D8
+#2E9B6F
+#E4A93A
+#D96C6C
+#8B5CF6
+#EC4899
+#06B6D4
+#84CC16
+
+하지만 단순 "보존"으로 끝내지 않는다.
+
+==================================================
+11. CLASS COLOR VISIBILITY RECOVERY
+==================================================
+
+실제 스케줄러에서 반 색상이
+희미해지거나 잘 안 보이는 위치 전수 감사.
+
+확인:
+
+MONTH
+WEEK
+DAY
+schedule card
+class chip
+calendar dot
+time block
+list item
+
+문제 예:
+
+- opacity 과도
+- white overlay 과도
+- Sage tint가 위에 덮임
+- border만 너무 연함
+- classColor가 backgroundSoft로 대체됨
+
+수정 목표:
+
+사용자가 고른 반 색상이
+한눈에 식별될 만큼 선명해야 한다.
+
+단:
+
+원본 classColor 값 자체를 변조하지 않는다.
+
+필요 시:
+
+- solid dot
+- stronger left bar
+- readable chip
+- controlled light tint + solid indicator
+
+등 기존 UI 구조 안에서
+최소한의 visual correction 가능.
+
+레이아웃 대개편 금지.
+
+==================================================
+12. WEEKDAY COLORS
+==================================================
+
+요일색은 브랜드와 별개.
+
+일요일:
+red 계열 유지
+
+토요일:
+현재 지정된 blue/teal 계열 유지
+
+평일:
+neutral
+
+요일색이 WP-N1~N6 과정에서
+Sage/theme color로 덮였는지 감사.
+
+원래 의미구분 복구.
+
+요일 헤더를 모두 Clear Pool로 통일하면 FAIL.
+
+==================================================
+13. SELECTED DATE VS CLASS COLOR
+==================================================
+
+오늘 / 선택 날짜는 Clear Pool.
+
+반 색은 classColor.
+
+둘이 겹칠 때
+무엇이 선택 날짜이고 무엇이 수업인지
+구분 가능해야 한다.
+
+예:
+
+오늘:
+Clear Pool circle/ring
+
+수업:
+classColor dot/bar/block
+
+같은 pixel 역할을
+두 의미가 경쟁하지 않게 한다.
+
+==================================================
+14. SEMANTIC PROTECTION
+==================================================
+
+변경 금지:
+
+출석
+결석
+보강
+연기
+퇴원
+오류
+경고
+성공
+미처리
+승인
+거절
+
+등 상태 의미색.
+
+Normal/X 공통.
+
+==================================================
+15. USER CONFIGURED BRANDING PROTECTION
+==================================================
+
+pool_admin가 설정한
+themeColor/branding 값이
+실제 사용자 설정 의미로 쓰이는 곳은 보호.
+
+단순 legacy hardcode와 혼동 금지.
+
+==================================================
+16. FEATURE FIXED PROTECTION
+==================================================
+
+변경 금지:
+
+AI Growth
+AI Curriculum
+Feed
+Reactions
+LevelBadge
+Unread dot
+Charts/legend
+Report-specific identity
+user logo/branding
+
+==================================================
+17. COMMON COMPONENT FIRST
+==================================================
+
+먼저 source of truth 확인:
+
+theme/colors.ts
+AppButton
+MainTabs
+FilterChips
+scheduler shared components
+calendar components
+schedule cards
+day/week/month components
+
+공통 component 수정으로 해결되면
+개별 screen 중복 수정 금지.
+
+==================================================
+18. VISUAL ACCEPTANCE — NORMAL
+==================================================
+
+PASS:
+
+Normal SWIMNOTE를 봤을 때
+밝고 시원한 수영장 앱 느낌.
+
+A안 이미지의
+Clear Pool / Fresh Aqua 인상.
+
+FAIL:
+
+회녹색
+Sage
+칙칙한 회색
+형광 민트
+X와 비슷한 Navy
+온 화면이 cyan 한 색으로 도배됨
+
+==================================================
+19. VISUAL ACCEPTANCE — SCHEDULER
+==================================================
+
+PASS:
+
+- 월/주/일 조작 상태 즉시 구분
+- 오늘/선택 날짜 즉시 구분
+- 반별 사용자 지정 색 즉시 구분
+- 일요일/토요일 구분
+- X에서도 동일 scheduler control 사용
+- X 전체 프레임은 그대로
+
+FAIL:
+
+- 반색이 흐림
+- 반색이 theme color로 덮임
+- 요일색이 사라짐
+- 모든 버튼/수업이 같은 Aqua 색
+- X 전체가 Normal처럼 변함
+
+==================================================
+20. FUNCTION LOCK
+==================================================
+
+절대 변경 금지:
+
+button position
+touch target
+onPress
+route
+state
+API
+DB
+server
+ModeContext
+RevenueCat
+billing
+X entitlement
+schedule business logic
+class assignment logic
+
+visual only.
+
+==================================================
+21. TEST MATRIX
+==================================================
+
+N7S-01
+Normal admin home → Clear Pool
+
+N7S-02
+Normal teacher home → Clear Pool
+
+N7S-03
+Normal member management → Clear Pool
+
+N7S-04
+Normal settlement → legacy mint/Sage 제거
+
+N7S-05
+settlement semantic colors preserved
+
+N7S-06
+Normal scheduler month
+
+N7S-07
+Normal scheduler week
+
+N7S-08
+Normal scheduler day
+
+N7S-09
+X scheduler month
+
+N7S-10
+X scheduler week
+
+N7S-11
+X scheduler day
+
+N7S-12
+X shell remains Nautic/Yacht
+
+N7S-13
+classColor visible in all scheduler modes
+
+N7S-14
+stored user classColor unchanged
+
+N7S-15
+Sunday/Saturday colors visible
+
+N7S-16
+today/selected date distinguishable
+
+N7S-17
+semantic states unchanged
+
+N7S-18
+feature-fixed unchanged
+
+N7S-19
+TS 0 new errors
+
+==================================================
+22. DEPLOYMENT
+==================================================
+
+이 작업은 client-only.
+
+Render 사용 금지.
+server deploy 금지.
+DB 변경 금지.
+
+Render pipeline quota와 무관하게 진행 가능.
+
+production OTA
+preview OTA
+
+현재 프로젝트가 iOS/Android OTA를 별도로 관리한다면
+기존 release convention대로 둘 다 처리.
+
+==================================================
+23. FINAL REPORT
+==================================================
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+NORMAL_OLD_THEME =
+NORMAL_NEW_THEME = CLEAR_POOL_A
+
+BRAND_STRONG =
+BRAND_PRIMARY =
+BRAND_MID =
+BRAND_SOFT =
+BRAND_MIST =
+BACKGROUND =
+
+LEGACY_SAGE_FOUND =
+LEGACY_SAGE_CHANGED =
+
+LEGACY_MINT_FOUND =
+LEGACY_MINT_CHANGED =
+
+SETTLEMENT_FILES_AUDITED =
+SETTLEMENT_THEME_FIXED =
+SETTLEMENT_SEMANTIC_PRESERVED =
+
+SCHEDULER_FILES_AUDITED =
+SCHEDULER_FILES_CHANGED =
+
+NORMAL_SCHEDULER_CONTROL_SYSTEM =
+X_SCHEDULER_CONTROL_SYSTEM =
+
+X_SHELL_THEME_PRESERVED =
+
+CLASS_COLOR_PATHS_AUDITED =
+CLASS_COLOR_VALUE_CHANGED =
+CLASS_COLOR_VISIBILITY_FIXED =
+
+WEEKDAY_COLOR_PATHS_AUDITED =
+WEEKDAY_COLOR_CHANGED =
+WEEKDAY_VISIBILITY_RESULT =
+
+TODAY_SELECTED_COLOR =
+CLASSIFICATION_COLLISION_RESULT =
+
+SEMANTIC_COLOR_CHANGED =
+FEATURE_FIXED_CHANGED =
+USER_CONFIG_COLOR_CHANGED =
+
+BUTTON_POSITION_CHANGED =
+ONPRESS_CHANGED =
+ROUTE_CHANGED =
+STATE_LOGIC_CHANGED =
+API_CHANGED =
+
+SERVER_CHANGED =
+DB_CHANGED =
+
+TEST_RESULT =
+
+COMMIT_SHA =
+IOS_PRODUCTION_OTA =
+IOS_PREVIEW_OTA =
+ANDROID_PRODUCTION_OTA =
+ANDROID_PREVIEW_OTA =
+
+성공 조건:
+
+NORMAL_NEW_THEME = CLEAR_POOL_A
+
+SETTLEMENT_THEME_FIXED = YES
+SETTLEMENT_SEMANTIC_PRESERVED = YES
+
+X_SHELL_THEME_PRESERVED = YES
+
+NORMAL_SCHEDULER_CONTROL_SYSTEM = CLEAR_POOL_SHARED
+X_SCHEDULER_CONTROL_SYSTEM = CLEAR_POOL_SHARED
+
+CLASS_COLOR_VALUE_CHANGED = NO
+CLASS_COLOR_VISIBILITY_FIXED = YES
+
+WEEKDAY_COLOR_CHANGED =
+NO_UNLESS_RESTORING_BROKEN_ORIGINAL
+
+SEMANTIC_COLOR_CHANGED = NO
+FEATURE_FIXED_CHANGED = NO
+USER_CONFIG_COLOR_CHANGED = NO
+
+BUTTON_POSITION_CHANGED = NO
+ONPRESS_CHANGED = NO
+ROUTE_CHANGED = NO
+STATE_LOGIC_CHANGED = NO
+API_CHANGED = NO
+
+SERVER_CHANGED = NO
+DB_CHANGED = NO
+
+완료:
+
+WP_N7S_CLEAR_POOL_SHARED_SCHEDULER_COLOR_RECOVERY_COMPLETE ✅

@@ -22,7 +22,7 @@ interface MainTabsProps<T extends string> {
 export function MainTabs<T extends string>({ tabs, active, onChange, accentColor }: MainTabsProps<T>) {
   const { mode } = useMode();
   const isX = isXMode(mode);
-  // X mode: Yacht accent (#2A5EA8); Normal: brandStrong (#4F6F67) (WP-N3)
+  // X mode: Yacht accent (#2A5EA8); Normal: brandStrong (#1683A3) (WP-N3)
   // accentColor prop always wins (allows FEATURE_FIXED callers to override)
   const tint = accentColor ?? (isX ? XT.accent : C.brandStrong);
   return (

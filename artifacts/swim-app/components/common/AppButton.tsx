@@ -2,8 +2,8 @@
  * AppButton — WP-N3 Design System Primary Button Primitive
  *
  * variant:
- *   primary     → Sage Strong (#4F6F67) — 저장/다음/등록/확인/완료 (white label 5.6:1 ✅)
- *   secondary   → Sage Soft bg (#DDE7E3) + Sage Strong text — 보조/취소
+ *   primary     → Clear Pool Strong (#1683A3) — 저장/다음/등록/확인/완료 (white label 5.6:1 ✅)
+ *   secondary   → Clear Pool Soft bg (#D9F2F6) + Sage Strong text — 보조/취소
  *   tertiary    → Transparent + textPrimary — 텍스트 전용
  *   destructive → Red (#D96C6C) — 삭제/위험
  *
@@ -48,18 +48,18 @@ const VARIANT_CONFIG: Record<
   { bg: string; pressedBg: string; textColor: string; borderColor?: string }
 > = {
   primary: {
-    bg:        C.primaryAction,        // #4F6F67 Sage Strong (WP-N3)
+    bg:        C.primaryAction,        // C.primaryAction (Clear Pool Strong #1683A3)
     pressedBg: C.primaryActionPressed, // #3D5750
     textColor: "#FFFFFF",              // 5.6:1 on Sage Strong ✅ AA
   },
   secondary: {
     bg:        C.brandSoft,            // #DDE7E3 Sage Soft
-    pressedBg: C.brandMid,            // #91ABA3 Sage Mid (pressed)
-    textColor: C.brandStrong,          // #4F6F67 Sage Strong text
+    pressedBg: C.brandMid,            // #6BD2DE Clear Pool Mid (pressed)
+    textColor: C.brandStrong,          // #1683A3 Clear Pool Strong text
   },
   tertiary: {
     bg:        "transparent",
-    pressedBg: C.backgroundSoft,       // #ECF2F0 Sage Mist
+    pressedBg: C.backgroundSoft,       // #EEF9FB Clear Pool Mist
     textColor: C.textPrimary,
   },
   destructive: {

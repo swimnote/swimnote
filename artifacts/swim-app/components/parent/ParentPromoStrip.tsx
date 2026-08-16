@@ -20,7 +20,7 @@ interface Banner {
 }
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
-  teal:   { bg: "#F8F9FA", accent: "#4F6F67", text: "#1B3A70" },
+  teal:   { bg: "#EEF9FB", accent: "#1683A3", text: "#163842" },
   purple: { bg: "#EDE9FE", accent: "#7C3AED", text: "#4C1D95" },
   orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412" },
   blue:   { bg: "#DBEAFE", accent: "#2563EB", text: "#1E40AF" },
@@ -102,7 +102,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     gap: 6,
     borderWidth: 1.5,
-    borderColor: "#4F6F67",
+    borderColor: "#1683A3",
   },
   stripImg: {
     marginHorizontal: 20,

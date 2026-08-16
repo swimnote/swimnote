@@ -644,7 +644,7 @@ const dy = StyleSheet.create({
   diaryBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
   teacherChip:      { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
                       paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, marginTop: 5,
-                      backgroundColor: "#F0FDF9", borderWidth: 1, borderColor: "#C2E8E5" },
+                      backgroundColor: "#EEF9FB", borderWidth: 1, borderColor: "#D9F2F6" },
   teacherChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
   rosterRow:        { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
   rosterRowBorder:  { borderBottomWidth: 1, borderBottomColor: C.border },
