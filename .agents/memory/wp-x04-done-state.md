@@ -18,6 +18,14 @@ description: Document Structuring / Website Build Package Foundation
 - 홈페이지 DOCX SHA-256: 9921f96d11ee5a9d7c3b94563abf740ad3b3fdf9b6ccdf931646db230fe6507d
 - T1_FULL_PASS = YES
 
+## 핫픽스 (SHA bc3f0105)
+
+- pool_id INTEGER → TEXT: swimming_pools.id는 TEXT 타입 (INTEGER 아님)
+- x_curriculum_profiles / x_website_profiles / x_website_packages 전체 수정
+- x04-structuring.ts: parseInt 제거 → String(poolId) 직접 사용
+- 로컬 dev `[x04-migration] x04 structuring tables OK` 확인 ✅
+- Render: dep-da134lc9v7es73af 배포 트리거
+
 ## 신규 파일
 
 | 파일 | 역할 |
