@@ -52,6 +52,7 @@ EXPO_PUBLIC_SWIMNOTE_AI_MODE = "grounded"
 MATCH_TOKEN_KEY_ID = "v1"
 EXPO_PUBLIC_API_URL = "https://swimnote-api.onrender.com/api"
 EXPO_PUBLIC_DOMAIN = "swimnote-api.onrender.com"
+REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard"
 
 [userenv.development]
 SMS_DEV_EXPOSE_CODE = "true"
