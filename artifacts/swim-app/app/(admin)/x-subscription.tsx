@@ -134,7 +134,16 @@ export default function XSubscriptionScreen() {
 
     try {
       const res  = await apiRequest(token, "/billing/x-reserve-slot", { method: "POST" });
-      const data = await res.json();
+
+      // §7: HTML / non-JSON 응답 방어 (구버전 dist, 프록시 오류 등)
+      const ct = res.headers.get("content-type") ?? "";
+      if (res.status >= 500 || !ct.includes("application/json")) {
+        throw new Error("예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
+      let data: any;
+      try { data = await res.json(); } catch {
+        throw new Error("예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
 
       if (!res.ok) {
         if (data?.error === "ALREADY_SUBSCRIBED") {
@@ -229,7 +238,15 @@ export default function XSubscriptionScreen() {
 
     try {
       const res  = await apiRequest(token, "/billing/sync-x-subscription", { method: "POST" });
-      const data = await res.json();
+
+      // §7: HTML / non-JSON 응답 방어
+      const ct2 = res.headers.get("content-type") ?? "";
+      if (res.status >= 500 || !ct2.includes("application/json")) {
+        setPhase("SYNC_FAILED");
+        return;
+      }
+      let data: any;
+      try { data = await res.json(); } catch { setPhase("SYNC_FAILED"); return; }
 
       if (!res.ok) {
         setPhase("SYNC_FAILED");
