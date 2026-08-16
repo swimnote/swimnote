@@ -1,16 +1,16 @@
 // wp2-billing-webhook.test.ts -- WP2 RevenueCat X Entitlement Sync
 //
+// X02-B2 업데이트:
+//   - handleXEntitlementEvent → x_paid_entitlement만 수정
+//   - mock pool row → x_paid_entitlement / x_manual_entitlement / x_force_disabled
+//   - effective = (paid OR manual) AND NOT force
+//   - collision 시나리오: EXPIRATION + manual=true → effective 유지, audit 없음
+//
 // 검증 대상:
 //   A. isXProduct() -- env 기반 X product 판정
 //   B. handleXEntitlementEvent() -- X 이벤트별 DB call count + 상태 분기
-//
-// 불변 보장 (call count 기반):
-//   - 일반 center/solo product: isXProduct=false
-//   - CANCELLATION: entitlement 변경 없음 (audit call 0개)
-//   - BILLING_ISSUE: entitlement 즉시 false 금지 (audit call 0개)
-//   - INITIAL_PURCHASE 재전송 (이미 true): audit call 0개
-//   - TRANSFER: log-only (SELECT 1회, UPDATE 0회)
-//   - xmode_config_status: UPDATE SQL에 포함 안 됨
+//   C. 일반 구독 regression -- isXProduct separation
+//   D. X02-B2 collision tests
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -41,15 +41,19 @@ function withXProducts(ids: string, fn: () => void) {
   }
 }
 
-// ── DB mock 헬퍼 ───────────────────────────────────────────────────────────
+// ── DB mock 헬퍼 (X02-B2: 새 컬럼 구조) ───────────────────────────────────
 // handleXEntitlementEvent 호출 시 DB execute 순서:
-//   1) SELECT pool (current state)
+//   1) SELECT pool (x_paid / x_manual / x_force + 기타 필드)
 //   2) UPDATE (이벤트 처리)
-//   3) SELECT next_audit_version (entitlement 변경 시만)
-//   4) INSERT audit_logs (entitlement 변경 시만)
+//   3) SELECT next_audit_version (effective 변경 시만)
+//   4) INSERT audit_logs (effective 변경 시만)
 function mockPoolRow(overrides: Record<string, unknown> = {}) {
   return {
-    xmode_entitlement:         false,
+    // X02-B2: 새 소스 분리 컬럼
+    x_paid_entitlement:    false,
+    x_manual_entitlement:  false,
+    x_force_disabled:      false,
+    // 기타 필드
     xmode_config_status:       "NOT_CONFIGURED",
     xmode_purchased_at:        null,
     xmode_subscription_end_at: null,
@@ -65,7 +69,7 @@ function setupResponses(responses: Array<{ rows: unknown[] }>) {
   );
 }
 
-/** entitlement 변경이 있는 이벤트용 (4번 execute) */
+/** effective entitlement 변경이 있는 이벤트용 (4번 execute) */
 function setupWithAudit(poolOverrides: Record<string, unknown> = {}) {
   setupResponses([
     { rows: [mockPoolRow(poolOverrides)] }, // SELECT pool
@@ -75,11 +79,11 @@ function setupWithAudit(poolOverrides: Record<string, unknown> = {}) {
   ]);
 }
 
-/** entitlement 변경 없는 이벤트용 (2번 execute) */
+/** effective entitlement 변경 없는 이벤트용 (2번 execute) */
 function setupNoAudit(poolOverrides: Record<string, unknown> = {}) {
   setupResponses([
     { rows: [mockPoolRow(poolOverrides)] }, // SELECT pool
-    { rows: [] },                           // UPDATE
+    { rows: [] },                           // UPDATE (or no-op)
   ]);
 }
 
@@ -96,14 +100,12 @@ const BASE = {
 // A. isXProduct() 단위 테스트 (pure function, DB 없음)
 // ══════════════════════════════════════════════════════════════════════
 describe("isXProduct()", () => {
-  // Test 1: secret 미설정 / REVENUECAT_X_PRODUCT_IDS 미설정 동작
   it("REVENUECAT_X_PRODUCT_IDS 미설정 -> 항상 false", () => {
     delete process.env.REVENUECAT_X_PRODUCT_IDS;
     expect(isXProduct("swimnote_x_monthly")).toBe(false);
     expect(isXProduct("center_200")).toBe(false);
   });
 
-  // Test 2: 설정된 X product ID만 true
   it("설정된 product ID -> true", () => {
     withXProducts("swimnote_x_monthly,swimnote_x_monthly:monthly", () => {
       expect(isXProduct("swimnote_x_monthly")).toBe(true);
@@ -111,7 +113,6 @@ describe("isXProduct()", () => {
     });
   });
 
-  // Test 3: 일반 center/solo product -> false
   it("일반 center/solo product -> false (X 상품 아님)", () => {
     withXProducts("swimnote_x_monthly", () => {
       expect(isXProduct("center_200")).toBe(false);
@@ -139,109 +140,94 @@ describe("isXProduct()", () => {
 
 // ══════════════════════════════════════════════════════════════════════
 // B. handleXEntitlementEvent() -- call count 기반 행위 검증
+//    X02-B2: x_paid_entitlement 기반, effective 변경 시 audit
 // ══════════════════════════════════════════════════════════════════════
 describe("handleXEntitlementEvent()", () => {
   beforeEach(() => {
     mockExecute.mockReset();
   });
 
-  // Test 4: X INITIAL_PURCHASE -> entitlement=true, audit 기록 (4 calls)
-  it("X INITIAL_PURCHASE: entitlement false->true, audit 4 calls", async () => {
-    setupWithAudit({ xmode_entitlement: false });
+  // Test 1: X INITIAL_PURCHASE (paid=false → true): effective false→true, audit 4 calls
+  it("X INITIAL_PURCHASE: paid false->true, effective 변경, audit 4 calls", async () => {
+    setupWithAudit({ x_paid_entitlement: false, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "INITIAL_PURCHASE" });
-    // SELECT + UPDATE + next_audit_version + INSERT audit
     expect(mockExecute).toHaveBeenCalledTimes(4);
   });
 
-  // Test 5: X RENEWAL -> 이미 true인 경우 audit 없음 (2 calls)
-  it("X RENEWAL: 이미 true, audit 없음 (2 calls)", async () => {
-    setupNoAudit({ xmode_entitlement: true });
+  // Test 2: X RENEWAL (paid=true → true): effective 변경 없음, audit 없음 2 calls
+  it("X RENEWAL: 이미 paid=true, effective 변경 없음, audit 없음 (2 calls)", async () => {
+    setupNoAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "RENEWAL" });
     expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 
-  // Test 5b: X RENEWAL -> false->true인 경우 audit 있음 (4 calls)
-  it("X RENEWAL: false->true, audit 기록 (4 calls)", async () => {
-    setupWithAudit({ xmode_entitlement: false });
+  // Test 3: X RENEWAL (paid=false → true): effective 변경, audit 4 calls
+  it("X RENEWAL: paid false->true, effective 변경, audit 기록 (4 calls)", async () => {
+    setupWithAudit({ x_paid_entitlement: false, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "RENEWAL" });
     expect(mockExecute).toHaveBeenCalledTimes(4);
   });
 
-  // Test 6: X UNCANCELLATION -> entitlement=true, audit 기록
-  it("X UNCANCELLATION: false->true, audit 기록 (4 calls)", async () => {
-    setupWithAudit({ xmode_entitlement: false });
+  // Test 4: X UNCANCELLATION (paid=false → true): effective 변경, audit 4 calls
+  it("X UNCANCELLATION: paid false->true, effective 변경, audit 기록 (4 calls)", async () => {
+    setupWithAudit({ x_paid_entitlement: false, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "UNCANCELLATION" });
     expect(mockExecute).toHaveBeenCalledTimes(4);
   });
 
-  // Test 7: X CANCELLATION -> 즉시 false 되지 않음, audit 없음 (2 calls)
-  it("X CANCELLATION: entitlement 변경 없음, audit 없음 (2 calls)", async () => {
-    setupNoAudit({ xmode_entitlement: true });
+  // Test 5: X CANCELLATION: paid 불변, effective 불변, audit 없음 (2 calls)
+  it("X CANCELLATION: paid 불변, effective 변경 없음, audit 없음 (2 calls)", async () => {
+    setupNoAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "CANCELLATION" });
-    // SELECT + UPDATE(end_at only) -- audit 없음 (entitlement 불변)
     expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 
-  // Test 8: X EXPIRATION -> entitlement=false, audit 기록 (4 calls)
-  it("X EXPIRATION: true->false, audit 기록 (4 calls)", async () => {
-    setupWithAudit({ xmode_entitlement: true });
+  // Test 6: X EXPIRATION (paid=true → false, manual=false): effective true→false, audit 4 calls
+  it("X EXPIRATION: paid true->false, manual=false, effective 변경, audit 4 calls", async () => {
+    setupWithAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "EXPIRATION" });
     expect(mockExecute).toHaveBeenCalledTimes(4);
   });
 
-  // Test 9: X REFUND -> entitlement=false, audit 기록 (4 calls)
-  it("X REFUND: true->false, audit 기록 (4 calls)", async () => {
-    setupWithAudit({ xmode_entitlement: true });
+  // Test 7: X REFUND (paid=true → false, manual=false): effective true→false, audit 4 calls
+  it("X REFUND: paid true->false, manual=false, effective 변경, audit 4 calls", async () => {
+    setupWithAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "REFUND" });
     expect(mockExecute).toHaveBeenCalledTimes(4);
   });
 
-  // Test 10: X BILLING_ISSUE -> payment_failed_at만 기록, entitlement 유지 (2 calls)
-  it("X BILLING_ISSUE: payment_failed_at 기록, entitlement 즉시 false 금지 (2 calls)", async () => {
-    setupNoAudit({ xmode_entitlement: true });
+  // Test 8: X BILLING_ISSUE: payment_failed_at만 기록, paid 불변, audit 없음 (2 calls)
+  it("X BILLING_ISSUE: payment_failed_at 기록, paid 불변, audit 없음 (2 calls)", async () => {
+    setupNoAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
     await handleXEntitlementEvent({ ...BASE, eventType: "BILLING_ISSUE" });
-    // SELECT + UPDATE(payment_failed_at only) -- audit 없음
     expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 
-  // Test 11: duplicate INITIAL_PURCHASE (이미 true) -> purchased_at 보존, audit 없음 (2 calls)
-  it("INITIAL_PURCHASE 재전송 (이미 true): audit 없음, purchased_at 보존 (2 calls)", async () => {
+  // Test 9: INITIAL_PURCHASE 재전송 (이미 paid=true): audit 없음 (2 calls)
+  it("INITIAL_PURCHASE 재전송 (이미 paid=true): audit 없음 (2 calls)", async () => {
     setupNoAudit({
-      xmode_entitlement:  true,
-      xmode_purchased_at: "2026-01-01T00:00:00.000Z",
+      x_paid_entitlement:  true,
+      x_manual_entitlement: false,
+      xmode_purchased_at:  "2026-01-01T00:00:00.000Z",
     });
     await handleXEntitlementEvent({ ...BASE, eventType: "INITIAL_PURCHASE" });
-    // entitlement true -> true: audit 없음
     expect(mockExecute).toHaveBeenCalledTimes(2);
   });
 
-  // Test 12: pool 없음 -> early return (SELECT 1회 후 즉시 종료)
+  // Test 10: pool 없음 → early return (SELECT 1회 후 즉시 종료)
   it("pool 없음 -> early return (1 call)", async () => {
-    setupResponses([{ rows: [] }]); // SELECT returns empty
+    setupResponses([{ rows: [] }]);
     await handleXEntitlementEvent({ ...BASE, eventType: "INITIAL_PURCHASE" });
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 
-  // Test 13: TRANSFER -> log-only, SELECT 1회 후 default 분기 return (1 call)
-  it("TRANSFER: log-only, SELECT 후 return (1 call from SELECT, no UPDATE)", async () => {
+  // Test 11: TRANSFER → log-only, SELECT 1회 (no UPDATE)
+  it("TRANSFER: log-only, SELECT 후 return (1 call, no UPDATE)", async () => {
     setupResponses([
-      { rows: [mockPoolRow({ xmode_entitlement: true })] },
+      { rows: [mockPoolRow({ x_paid_entitlement: true })] },
     ]);
     await handleXEntitlementEvent({ ...BASE, eventType: "TRANSFER" });
-    // SELECT 1회만 (UPDATE 없음)
     expect(mockExecute).toHaveBeenCalledTimes(1);
-  });
-
-  // Test 14: EXPIRATION audit -- before/after 검증
-  it("EXPIRATION audit: 4번 호출, 마지막 호출이 audit INSERT", async () => {
-    setupWithAudit({ xmode_entitlement: true });
-    await handleXEnticulamentEvent_safe({ ...BASE, eventType: "EXPIRATION" });
-    // 4번: SELECT, UPDATE, next_audit_version, INSERT
-    expect(mockExecute).toHaveBeenCalledTimes(4);
-    // 3번째 호출(index 2)이 next_audit_version SELECT
-    // 4번째 호출(index 3)이 audit INSERT -- 두 호출 모두 execute로 확인
-    const allCallCount = mockExecute.mock.calls.length;
-    expect(allCallCount).toBe(4);
   });
 });
 
@@ -259,15 +245,80 @@ describe("일반 구독 X 상태 독립 보장", () => {
         "swimnote_center_monthly", "center_monthly",
         "SWIMNOTE_200", "SWIMNOTE_30",
         "coach_30", "coach_50",
+        // X02-B2 제품 목록
+        "com.swimnote.x.monthly.tier1",
+        "com.swimnote.x.monthly.tier2",
+        "com.swimnote.x.monthly.tier3",
+        "com.swimnote.x.monthly.standard",
       ];
+      // X product IDs 목록에 없는 것들은 false여야 함
       for (const id of normalIds) {
-        expect(isXProduct(id), `${id} should not be X product`).toBe(false);
+        expect(isXProduct(id), `${id} should not be X product (env='swimnote_x_monthly')`).toBe(false);
       }
+    });
+  });
+
+  it("X product ID 목록에 있는 것만 true", () => {
+    const xIds = [
+      "com.swimnote.x.monthly.tier1",
+      "com.swimnote.x.monthly.tier2",
+      "com.swimnote.x.monthly.tier3",
+      "com.swimnote.x.monthly.standard",
+    ];
+    withXProducts(xIds.join(","), () => {
+      for (const id of xIds) {
+        expect(isXProduct(id), `${id} should be X product`).toBe(true);
+      }
+      expect(isXProduct("center_200")).toBe(false);
+      expect(isXProduct("solo_30")).toBe(false);
     });
   });
 });
 
-// ── Test 14 helper (타입 오류 방지) ────────────────────────────────────────
-async function handleXEnticulamentEvent_safe(params: Parameters<typeof handleXEntitlementEvent>[0]) {
-  return handleXEntitlementEvent(params);
-}
+// ══════════════════════════════════════════════════════════════════════
+// D. X02-B2 collision tests
+//    paid / manual 동시 존재 시 충돌 없음 보장
+// ══════════════════════════════════════════════════════════════════════
+describe("X02-B2 collision tests", () => {
+  beforeEach(() => { mockExecute.mockReset(); });
+
+  // 시나리오 1: manual=true, paid=false → EXPIRATION(paid→false) → effective 유지
+  it("시나리오 1: manual=true + EXPIRATION → paid=false, effective=true 유지, audit 없음 (2 calls)", async () => {
+    // before: paid=false, manual=true → effective=true
+    // EXPIRATION: paid=false(no change), manual=true → effective=true (변경 없음)
+    setupNoAudit({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false });
+    await handleXEntitlementEvent({ ...BASE, eventType: "EXPIRATION" });
+    // effective 변경 없음 → audit 없음 → 2 calls (SELECT + UPDATE)
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+  });
+
+  // 시나리오 2: paid=true, manual=false → Super Admin OFF (manual API) = 별도 경로
+  //   이 테스트에서는 EXPIRATION(paid→false)이 manual에 영향 없음을 확인
+  it("시나리오 2: paid=true + REFUND → paid=false, manual=false → effective false (audit 4 calls)", async () => {
+    // before: paid=true, manual=false → effective=true
+    // REFUND: paid=false, manual=false → effective=false (변경 있음)
+    setupWithAudit({ x_paid_entitlement: true, x_manual_entitlement: false });
+    await handleXEntitlementEvent({ ...BASE, eventType: "REFUND" });
+    expect(mockExecute).toHaveBeenCalledTimes(4);
+  });
+
+  // 시나리오 3: paid=true + manual=true → REFUND → manual=true, effective=true 유지
+  it("시나리오 3: paid=true + manual=true + REFUND → manual=true 유지, effective=true, audit 없음 (2 calls)", async () => {
+    // before: paid=true, manual=true → effective=true
+    // REFUND: paid=false, manual=true → effective=true (변경 없음)
+    setupNoAudit({ x_paid_entitlement: true, x_manual_entitlement: true, x_force_disabled: false });
+    await handleXEntitlementEvent({ ...BASE, eventType: "REFUND" });
+    // effective 변경 없음 → audit 없음 → 2 calls
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+  });
+
+  // force_disabled=true → effective=false (force override)
+  it("force_disabled=true → INITIAL_PURCHASE → paid=true이지만 effective=false (force), audit 없음 (2 calls)", async () => {
+    // before: paid=false, manual=false, force=true → effective=false
+    // INITIAL_PURCHASE: paid=true, force=true → effective=false (변경 없음)
+    setupNoAudit({ x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: true });
+    await handleXEntitlementEvent({ ...BASE, eventType: "INITIAL_PURCHASE" });
+    // effective 변경 없음 (force=true로 override) → audit 없음 → 2 calls
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+  });
+});

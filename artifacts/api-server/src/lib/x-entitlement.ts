@@ -1,7 +1,7 @@
 /**
- * lib/x-entitlement.ts — SWIMNOTE X Entitlement 동기화 (WP2)
+ * lib/x-entitlement.ts — SWIMNOTE X Entitlement 동기화
  *
- * RevenueCat webhook → xmode_entitlement 상태 관리
+ * RevenueCat webhook → x_paid_entitlement 상태 관리 (X02-B2)
  *
  * 원칙:
  *  - 일반 구독(solo_*, center_*) 이벤트에 영향 없음
@@ -9,11 +9,18 @@
  *  - xmode_config_status는 절대 수정하지 않음
  *  - CANCELLATION은 즉시 false 처리 금지 (paid period 유지)
  *  - BILLING_ISSUE는 payment_failed_at 기록, entitlement 유지
- *  - xmode_entitlement 변경 시에만 audit_logs 기록
+ *  - effective entitlement 변경 시에만 audit_logs 기록
+ *
+ * X02-B2 write path:
+ *  - paid 출처(RevenueCat) → x_paid_entitlement만 수정
+ *  - x_manual_entitlement 수정 금지
+ *  - x_force_disabled 수정 금지
+ *  - effective = (paid OR manual) AND NOT force_disabled
  */
 
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { resolveEffectiveXEntitlement } from "./xmode";
 
 // ── X Product ID 설정 ──────────────────────────────────────────────────────
 // env: REVENUECAT_X_PRODUCT_IDS=swimnote_x_monthly,swimnote_x_monthly:monthly
@@ -49,17 +56,23 @@ export interface XEntitlementEventParams {
 /**
  * X 상품 RevenueCat 이벤트 처리.
  *
+ * X02-B2: x_paid_entitlement만 수정. x_manual_entitlement / x_force_disabled 무변경.
+ *
  * 이벤트별 처리:
- *   INITIAL_PURCHASE / RENEWAL / UNCANCELLATION → entitlement=true
- *   CANCELLATION → subscription_end_at 갱신만, entitlement 불변
- *   EXPIRATION   → entitlement=false
- *   REFUND       → entitlement=false
- *   BILLING_ISSUE→ payment_failed_at 기록, entitlement 불변 (grace period 유지)
+ *   INITIAL_PURCHASE / RENEWAL / UNCANCELLATION → x_paid_entitlement=true
+ *   CANCELLATION → subscription_end_at 갱신만, paid 불변
+ *   EXPIRATION   → x_paid_entitlement=false
+ *   REFUND       → x_paid_entitlement=false
+ *   BILLING_ISSUE→ payment_failed_at 기록, paid 불변 (grace period 유지)
  *   기타          → log-only
  *
  * idempotency:
  *   - INITIAL_PURCHASE: xmode_purchased_at은 COALESCE로 최초값 보존
  *   - 상태 변경 없는 재전송: DB UPDATE는 실행되나 audit_log는 미생성
+ *
+ * collision safety:
+ *   - EXPIRATION 시 manual=true이면 effective=true 유지 (X 유지)
+ *   - audit는 effective 변경 시에만 기록
  */
 export async function handleXEntitlementEvent(
   params: XEntitlementEventParams,
@@ -67,11 +80,14 @@ export async function handleXEntitlementEvent(
   const { eventType, poolId, productId, eventId, expiresAt, isSandbox } =
     params;
 
-  // ── 현재 상태 조회 ────────────────────────────────────────────────────────
+  // ── 현재 상태 조회 (effective 계산용 + audit용) ───────────────────────────
   const [currentPool] = (
     await superAdminDb.execute(sql`
-      SELECT xmode_entitlement, xmode_config_status, xmode_purchased_at,
-             xmode_subscription_end_at
+      SELECT xmode_config_status, xmode_purchased_at,
+             xmode_subscription_end_at,
+             COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+             COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+             COALESCE(x_force_disabled,    false) AS x_force_disabled
       FROM swimming_pools
       WHERE id = ${poolId}
       LIMIT 1
@@ -83,20 +99,29 @@ export async function handleXEntitlementEvent(
     return;
   }
 
-  const beforeEntitlement = Boolean(currentPool.xmode_entitlement);
-  let afterEntitlement = beforeEntitlement;
+  const beforePaid     = Boolean(currentPool.x_paid_entitlement);
+  const beforeManual   = Boolean(currentPool.x_manual_entitlement);
+  const beforeForce    = Boolean(currentPool.x_force_disabled);
+  const beforeEffective = resolveEffectiveXEntitlement({
+    x_paid_entitlement:  beforePaid,
+    x_manual_entitlement: beforeManual,
+    x_force_disabled:    beforeForce,
+  });
 
-  // ── 이벤트 분기 ───────────────────────────────────────────────────────────
+  let newPaid = beforePaid; // paid 필드 예상값 (실제 UPDATE 후 결정)
+
+  // ── 이벤트 분기 — x_paid_entitlement만 수정 ───────────────────────────────
   switch (eventType) {
     case "INITIAL_PURCHASE":
     case "RENEWAL":
     case "UNCANCELLATION": {
-      afterEntitlement = true;
+      newPaid = true;
       // purchased_at: 이미 값이 있으면 덮어쓰지 않음 (COALESCE)
       // xmode_config_status: 절대 수정 안 함
+      // x_manual_entitlement: 수정 금지
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
-        SET xmode_entitlement        = true,
+        SET x_paid_entitlement        = true,
             xmode_subscription_end_at = ${expiresAt ?? null},
             xmode_payment_failed_at  = NULL,
             xmode_purchased_at       = COALESCE(xmode_purchased_at, NOW()),
@@ -109,34 +134,36 @@ export async function handleXEntitlementEvent(
     case "CANCELLATION": {
       // 자동갱신 취소 — paid period 동안 entitlement 유지
       // subscription_end_at만 갱신하여 만료 시점 기록
+      // x_paid_entitlement 불변
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
         SET xmode_subscription_end_at = ${expiresAt ?? null},
             updated_at                = NOW()
         WHERE id = ${poolId}
       `);
-      // afterEntitlement = beforeEntitlement (변경 없음)
+      // newPaid = beforePaid (변경 없음)
       break;
     }
 
     case "EXPIRATION": {
-      afterEntitlement = false;
+      newPaid = false;
+      // x_manual_entitlement가 true이면 effective는 여전히 true일 수 있음 (collision safety)
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
-        SET xmode_entitlement         = false,
+        SET x_paid_entitlement        = false,
             xmode_subscription_end_at = ${expiresAt ?? null},
-            updated_at                = NOW()
+            updated_at               = NOW()
         WHERE id = ${poolId}
       `);
       break;
     }
 
     case "REFUND": {
-      afterEntitlement = false;
+      newPaid = false;
       await superAdminDb.execute(sql`
         UPDATE swimming_pools
-        SET xmode_entitlement = false,
-            updated_at        = NOW()
+        SET x_paid_entitlement = false,
+            updated_at         = NOW()
         WHERE id = ${poolId}
       `);
       break;
@@ -151,7 +178,7 @@ export async function handleXEntitlementEvent(
             updated_at              = NOW()
         WHERE id = ${poolId}
       `);
-      // afterEntitlement = beforeEntitlement (변경 없음)
+      // newPaid = beforePaid (변경 없음)
       break;
     }
 
@@ -163,8 +190,16 @@ export async function handleXEntitlementEvent(
       return;
   }
 
-  // ── audit_log: xmode_entitlement 변경 시만 기록 ──────────────────────────
-  if (afterEntitlement !== beforeEntitlement) {
+  // ── effective 재계산 (UPDATE 후) ──────────────────────────────────────────
+  // manual / force는 이 write path에서 변경하지 않으므로 재조회 불필요.
+  const afterEffective = resolveEffectiveXEntitlement({
+    x_paid_entitlement:  newPaid,
+    x_manual_entitlement: beforeManual,
+    x_force_disabled:    beforeForce,
+  });
+
+  // ── audit_log: effective entitlement 변경 시만 기록 ──────────────────────
+  if (afterEffective !== beforeEffective) {
     try {
       const versionRes = await superAdminDb.execute(sql`
         SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
@@ -172,18 +207,22 @@ export async function handleXEntitlementEvent(
       const version = (versionRes.rows[0] as any)?.v ?? 1;
 
       const beforeData = {
-        xmode_entitlement: beforeEntitlement,
-        xmode_config_status: currentPool.xmode_config_status,
-        xmode_purchased_at: currentPool.xmode_purchased_at ?? null,
+        xmode_entitlement:        beforeEffective,   // effective (backward compat key)
+        x_paid_entitlement:       beforePaid,
+        x_manual_entitlement:     beforeManual,
+        x_force_disabled:         beforeForce,
+        xmode_config_status:      currentPool.xmode_config_status,
+        xmode_purchased_at:       currentPool.xmode_purchased_at ?? null,
         xmode_subscription_end_at: currentPool.xmode_subscription_end_at ?? null,
       };
       const afterData = {
-        xmode_entitlement: afterEntitlement,
-        source: "revenuecat",
-        event_type: eventType,
-        product_id: productId,
-        event_id: eventId ?? null,
-        expires_at: expiresAt ?? null,
+        xmode_entitlement:    afterEffective,        // effective (backward compat key)
+        x_paid_entitlement:   newPaid,
+        source:               "revenuecat_paid",     // X02-B2: source 명시
+        event_type:           eventType,
+        product_id:           productId,
+        event_id:             eventId ?? null,
+        expires_at:           expiresAt ?? null,
       };
 
       await superAdminDb.execute(sql`
@@ -209,7 +248,8 @@ export async function handleXEntitlementEvent(
 
   console.log(
     `[x-entitlement] ${eventType}: pool=${poolId}` +
-      ` entitlement: ${beforeEntitlement} → ${afterEntitlement}` +
+      ` paid: ${beforePaid} → ${newPaid}` +
+      ` effective: ${beforeEffective} → ${afterEffective}` +
       (isSandbox ? " [sandbox]" : ""),
   );
 }

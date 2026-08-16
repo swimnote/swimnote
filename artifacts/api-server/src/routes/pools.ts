@@ -738,8 +738,12 @@ router.post(
 
       await db.transaction(async (tx) => {
         // A. pool SELECT FOR UPDATE
+        // X02-B2: x_paid / x_manual / x_force 포함하여 effective 계산
         const poolRows = await tx.execute(sql`
-          SELECT id, xmode_entitlement, xmode_config_status
+          SELECT id, xmode_config_status,
+                 COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+                 COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+                 COALESCE(x_force_disabled,    false) AS x_force_disabled
           FROM swimming_pools
           WHERE id = ${poolId}
           LIMIT 1
@@ -751,9 +755,12 @@ router.post(
           throw e;
         }
         const pool = poolRows.rows[0] as any;
+        const effectiveEntitlement =
+          (Boolean(pool.x_paid_entitlement) || Boolean(pool.x_manual_entitlement))
+          && !Boolean(pool.x_force_disabled);
 
         // B. entitlement 확인
-        if (!pool.xmode_entitlement) {
+        if (!effectiveEntitlement) {
           const e: any = new Error("X entitlement 없음");
           e.status = 403; e.code = "NO_ENTITLEMENT";
           throw e;
@@ -809,11 +816,13 @@ router.post(
         const inserted = insertedRows.rows[0] as any;
 
         // 2. swimming_pools UPDATE → CURRICULUM_PENDING
+        // X02-B2: effective 조건으로 guard (AND 조건은 race condition 방지용)
         await tx.execute(sql`
           UPDATE swimming_pools
           SET xmode_config_status = 'CURRICULUM_PENDING'
           WHERE id = ${poolId}
-            AND xmode_entitlement = true
+            AND (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+            AND NOT COALESCE(x_force_disabled, false)
             AND xmode_config_status = 'NOT_CONFIGURED'
         `);
 

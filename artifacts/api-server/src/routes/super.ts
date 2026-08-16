@@ -87,9 +87,10 @@ router.get(
                 AND subscription_end_at > NOW()
                 AND subscription_end_at <= NOW() + INTERVAL '24 hours'
             )::int AS deletion_pending_count,
-            -- X MODE 활성 수영장: canonical rule = entitlement=TRUE AND config='READY'
+            -- X MODE 활성 수영장: canonical rule = effective=(paid OR manual) AND NOT force AND config='READY'
             COUNT(*) FILTER (
-              WHERE COALESCE(xmode_entitlement, FALSE) = TRUE
+              WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+                AND NOT COALESCE(x_force_disabled, false)
                 AND xmode_config_status = 'READY'
             )::int AS xmode_operators
           FROM swimming_pools
@@ -241,8 +242,8 @@ router.get(
       if (filter === "deletion_pending") conditions.push(`p.subscription_end_at IS NOT NULL AND p.subscription_end_at > NOW() AND p.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
       if (filter === "policy_unsigned")  conditions.push(`p.approval_status = 'approved' AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = p.id AND pc.policy_key = 'refund_policy')`);
       if (filter === "upload_spike")     conditions.push(`p.upload_blocked = TRUE`);
-      // X MODE 활성 필터: canonical rule = entitlement=TRUE AND config_status='READY'
-      if (filter === "xmode")           conditions.push(`COALESCE(p.xmode_entitlement, FALSE) = TRUE AND p.xmode_config_status = 'READY'`);
+      // X MODE 활성 필터: canonical rule = effective=(paid OR manual) AND NOT force AND config='READY'
+      if (filter === "xmode")           conditions.push(`(COALESCE(p.x_paid_entitlement, false) OR COALESCE(p.x_manual_entitlement, false)) AND NOT COALESCE(p.x_force_disabled, false) AND p.xmode_config_status = 'READY'`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const rows = (await db.execute(sql.raw(`
@@ -254,8 +255,9 @@ router.get(
           COALESCE(p.is_readonly, FALSE)        AS is_readonly,
           COALESCE(p.upload_blocked, FALSE)     AS upload_blocked,
           COALESCE(p.credit_balance, 0)         AS credit_balance,
-          -- X MODE 필드 (additive, canonical rule용)
-          COALESCE(p.xmode_entitlement, FALSE)             AS xmode_entitlement,
+          -- X MODE 필드 (X02-B2: effective=(paid OR manual) AND NOT force)
+          (COALESCE(p.x_paid_entitlement, false) OR COALESCE(p.x_manual_entitlement, false))
+            AND NOT COALESCE(p.x_force_disabled, false)    AS xmode_entitlement,
           COALESCE(p.xmode_config_status, 'NOT_CONFIGURED') AS xmode_config_status,
           p.created_at,
           p.updated_at,
@@ -2040,6 +2042,7 @@ router.patch(
     };
 
     // ── Transaction 밖: 입력 검증 ────────────────────────────────
+    // X02-B2: xmode_entitlement 입력 → x_manual_entitlement 쓰기 (backward compat body key 유지)
     const hasEntitlement      = xmode_entitlement      !== undefined;
     const hasConfigStatus     = xmode_config_status    !== undefined;
     const hasPurchasedAt      = xmode_purchased_at     !== undefined;
@@ -2079,9 +2082,13 @@ router.patch(
     try {
       await db.transaction(async (tx) => {
         // 1. SELECT FOR UPDATE — pool 확인 + row lock + beforeData 확보
+        // X02-B2: x_paid / x_manual / x_force 포함하여 effective 계산
         const poolRows = await tx.execute(sql`
-          SELECT id, xmode_entitlement, xmode_config_status,
-                 xmode_purchased_at, xmode_subscription_end_at
+          SELECT id, xmode_config_status,
+                 xmode_purchased_at, xmode_subscription_end_at,
+                 COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+                 COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+                 COALESCE(x_force_disabled,    false) AS x_force_disabled
           FROM swimming_pools
           WHERE id = ${poolId}
           LIMIT 1
@@ -2093,10 +2100,17 @@ router.patch(
           throw err;
         }
         const pool = poolRows.rows[0] as any;
+        const beforePaid   = Boolean(pool.x_paid_entitlement);
+        const beforeManual = Boolean(pool.x_manual_entitlement);
+        const beforeForce  = Boolean(pool.x_force_disabled);
+        const beforeEffective = (beforePaid || beforeManual) && !beforeForce;
 
-        // 2. beforeData 구성
+        // 2. beforeData 구성 (X02-B2: source 구분 포함)
         const beforeData = {
-          xmode_entitlement:         Boolean(pool.xmode_entitlement),
+          xmode_entitlement:         beforeEffective,   // effective
+          x_paid_entitlement:        beforePaid,
+          x_manual_entitlement:      beforeManual,
+          x_force_disabled:          beforeForce,
           xmode_config_status:       pool.xmode_config_status as XModeStatus,
           xmode_purchased_at:        pool.xmode_purchased_at
             ? new Date(pool.xmode_purchased_at).toISOString() : null,
@@ -2104,10 +2118,11 @@ router.patch(
             ? new Date(pool.xmode_subscription_end_at).toISOString() : null,
         };
 
-        // 3. UPDATE — 승인된 필드만, 제공되지 않은 필드는 기존 값 유지
-        const entitlementFrag = hasEntitlement
-          ? sql`xmode_entitlement = ${xmode_entitlement}`
-          : sql`xmode_entitlement = xmode_entitlement`;
+        // 3. UPDATE — X02-B2: xmode_entitlement 입력값 → x_manual_entitlement 쓰기
+        //    x_paid_entitlement / x_force_disabled 수정 금지
+        const manualFrag = hasEntitlement
+          ? sql`x_manual_entitlement = ${xmode_entitlement}`
+          : sql`x_manual_entitlement = x_manual_entitlement`;
         const configStatusFrag = hasConfigStatus
           ? sql`xmode_config_status = ${xmode_config_status}`
           : sql`xmode_config_status = xmode_config_status`;
@@ -2120,24 +2135,35 @@ router.patch(
 
         const updatedRows = await tx.execute(sql`
           UPDATE swimming_pools SET
-            ${entitlementFrag},
+            ${manualFrag},
             ${configStatusFrag},
             ${purchasedAtFrag},
             ${subscriptionEndFrag}
           WHERE id = ${poolId}
-          RETURNING id, xmode_entitlement, xmode_config_status,
-                    xmode_purchased_at, xmode_subscription_end_at
+          RETURNING id, xmode_config_status,
+                    xmode_purchased_at, xmode_subscription_end_at,
+                    COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+                    COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+                    COALESCE(x_force_disabled,    false) AS x_force_disabled
         `);
         const updated = updatedRows.rows[0] as any;
+        const newManual    = Boolean(updated.x_manual_entitlement);
+        const newPaid      = Boolean(updated.x_paid_entitlement);
+        const newForce     = Boolean(updated.x_force_disabled);
+        const afterEffective = (newPaid || newManual) && !newForce;
 
-        // 4. afterData 구성
+        // 4. afterData 구성 (X02-B2: source 명시)
         const afterData = {
-          xmode_entitlement:         Boolean(updated.xmode_entitlement),
+          xmode_entitlement:         afterEffective,    // effective
+          x_paid_entitlement:        newPaid,
+          x_manual_entitlement:      newManual,
+          x_force_disabled:          newForce,
           xmode_config_status:       updated.xmode_config_status as XModeStatus,
           xmode_purchased_at:        updated.xmode_purchased_at
             ? new Date(updated.xmode_purchased_at).toISOString() : null,
           xmode_subscription_end_at: updated.xmode_subscription_end_at
             ? new Date(updated.xmode_subscription_end_at).toISOString() : null,
+          source: "super_admin_manual",   // X02-B2: paid / manual 구분
         };
 
         // 5. next_audit_version 발급
@@ -2164,15 +2190,12 @@ router.patch(
           )
         `);
 
-        // 7. PoolModeResult 구성 (RETURNING 결과 사용, resolvePoolMode 재조회 안 함)
-        const mode = computeMode(
-          Boolean(updated.xmode_entitlement),
-          updated.xmode_config_status as XModeStatus,
-        );
+        // 7. PoolModeResult 구성 (X02-B2: effective entitlement 사용)
+        const mode = computeMode(afterEffective, updated.xmode_config_status as XModeStatus);
         responseResult = {
           pool_id:             updated.id,
           mode,
-          xmode_entitlement:   Boolean(updated.xmode_entitlement),
+          xmode_entitlement:   afterEffective,  // effective 값 (backward compat 필드명 유지)
           xmode_config_status: updated.xmode_config_status as XModeStatus,
         };
       });
@@ -4079,11 +4102,15 @@ router.get(
             )::int                                                           AS active_pools,
             COUNT(*) FILTER (
               WHERE approval_status = 'approved'
-                AND COALESCE(xmode_entitlement, false) = true
+                AND (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+                AND NOT COALESCE(x_force_disabled, false)
             )::int                                                           AS x_mode_pools,
             COUNT(*) FILTER (
               WHERE approval_status = 'approved'
-                AND COALESCE(xmode_entitlement, false) = false
+                AND NOT (
+                  (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+                  AND NOT COALESCE(x_force_disabled, false)
+                )
                 AND subscription_status NOT IN ('expired','suspended','cancelled')
             )::int                                                           AS basic_pools,
             COUNT(*) FILTER (WHERE approval_status = 'pending')::int        AS pending_pools,

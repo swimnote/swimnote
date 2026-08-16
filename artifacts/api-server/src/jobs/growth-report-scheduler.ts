@@ -177,16 +177,17 @@ function emptyResult(runAt: string): GrowthReportSchedulerRunResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * getXEligiblePools — xmode_entitlement=true + xmode_config_status='READY' pool 목록
+ * getXEligiblePools — effective X entitlement + xmode_config_status='READY' pool 목록
  *
- * 기존 resolvePoolMode() 로직을 bulk 버전으로 적용.
+ * X02-B2: xmode_entitlement(legacy) → effective=(paid OR manual) AND NOT force
  * non-X pool에 신규 Cycle 생성 금지.
  */
 export async function getXEligiblePools(db: Db): Promise<Array<{ id: string }>> {
   const res = await db.execute(sql`
     SELECT id
     FROM swimming_pools
-    WHERE xmode_entitlement = true
+    WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+      AND NOT COALESCE(x_force_disabled, false)
       AND xmode_config_status = 'READY'
       AND approval_status = 'approved'
   `);

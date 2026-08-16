@@ -100,8 +100,8 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
 
     calls.push(q.substring(0, 80).replace(/\s+/g, " ").trim());
 
-    // X-eligible pools
-    if (q.includes("xmode_entitlement") && q.includes("xmode_config_status")) {
+    // X-eligible pools (X02-B2: effective formula uses x_paid_entitlement / x_manual_entitlement)
+    if ((q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) && q.includes("xmode_config_status")) {
       return { rows: xPools };
     }
 
@@ -327,7 +327,7 @@ describe("J–K. X Mode Eligibility", () => {
     expect(result.cycles_opened).toBe(1);
   });
 
-  it("K-2: getXEligiblePools query에 xmode_entitlement+READY 조건 포함", async () => {
+  it("K-2: getXEligiblePools query에 x_paid/x_manual+READY 조건 포함 (X02-B2 effective formula)", async () => {
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
     }) as any;
@@ -584,8 +584,8 @@ describe("AC. Scheduler Failure Isolation", () => {
           ).join("")
         : "";
 
-      // X-eligible pools → 2개 반환
-      if (q.includes("xmode_entitlement")) {
+      // X-eligible pools → 2개 반환 (X02-B2: effective formula)
+      if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
         return { rows: [{ id: "pool_1" }, { id: "pool_2" }] };
       }
 

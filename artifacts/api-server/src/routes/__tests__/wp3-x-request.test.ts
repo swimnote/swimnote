@@ -140,7 +140,8 @@ describe("POST /pools/x-request", () => {
   it("4. pool_admin entitlement=false → 403", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: false, xmode_config_status: "NOT_CONFIGURED" }] },
+      // X02-B2: x_paid/x_manual/x_force 구조
+      { rows: [{ id: POOL_ID, x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
     ]);
     const res = await request(makeApp(POOL_ADMIN_USER)).post("/pools/x-request").send({});
     expect(res.status).toBe(403);
@@ -151,7 +152,7 @@ describe("POST /pools/x-request", () => {
   it("5. NOT_CONFIGURED → 201, request 생성", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] }, // pool FOR UPDATE
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] }, // pool FOR UPDATE
       { rows: [] },                                                                                   // dup check (없음)
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "SWIMNOTE X 커리큘럼 설정 요청", created_at: new Date().toISOString() }] }, // INSERT
       { rows: [] },                                                                                   // UPDATE swimming_pools
@@ -168,7 +169,7 @@ describe("POST /pools/x-request", () => {
   it("6. response request_status = pending", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
       { rows: [] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "SWIMNOTE X 커리큘럼 설정 요청", created_at: new Date().toISOString() }] },
       { rows: [] },
@@ -183,7 +184,7 @@ describe("POST /pools/x-request", () => {
   it("7. response pool_mode.xmode_config_status = CURRICULUM_PENDING", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
       { rows: [] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "t", created_at: new Date().toISOString() }] },
       { rows: [] },
@@ -198,7 +199,7 @@ describe("POST /pools/x-request", () => {
   it("8. response pool_mode.mode = x_pending", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
       { rows: [] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "t", created_at: new Date().toISOString() }] },
       { rows: [] },
@@ -213,7 +214,7 @@ describe("POST /pools/x-request", () => {
   it("9. audit log: next_audit_version + INSERT audit_logs 호출", async () => {
     setupUserRow();
     const txExecute = setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
       { rows: [] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "t", created_at: new Date().toISOString() }] },
       { rows: [] },
@@ -229,7 +230,7 @@ describe("POST /pools/x-request", () => {
   it("10. transaction callback 호출됨 (원자성 보장)", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "NOT_CONFIGURED" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }] },
       { rows: [] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "t", created_at: new Date().toISOString() }] },
       { rows: [] },
@@ -244,7 +245,7 @@ describe("POST /pools/x-request", () => {
   it("11. pending 요청 있을 때 ALREADY_PENDING (CURRICULUM_PENDING config_status) → 409", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "CURRICULUM_PENDING" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" }] },
       { rows: [{ id: REQUEST_ID, request_status: "pending", title: "t", created_at: new Date().toISOString() }] }, // active request
     ]);
     const res = await request(makeApp(POOL_ADMIN_USER)).post("/pools/x-request").send({});
@@ -256,7 +257,7 @@ describe("POST /pools/x-request", () => {
   it("12. config_status=CURRICULUM_PENDING + reviewing 요청 → 409", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "CURRICULUM_PENDING" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" }] },
       { rows: [{ id: REQUEST_ID, request_status: "reviewing", title: "t", created_at: new Date().toISOString() }] },
     ]);
     const res = await request(makeApp(POOL_ADMIN_USER)).post("/pools/x-request").send({});
@@ -268,7 +269,7 @@ describe("POST /pools/x-request", () => {
   it("13. READY pool → 새 request 금지 → 409 ALREADY_READY", async () => {
     setupUserRow();
     setupTransactionMock([
-      { rows: [{ id: POOL_ID, xmode_entitlement: true, xmode_config_status: "READY" }] },
+      { rows: [{ id: POOL_ID, x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" }] },
     ]);
     const res = await request(makeApp(POOL_ADMIN_USER)).post("/pools/x-request").send({});
     expect(res.status).toBe(409);
