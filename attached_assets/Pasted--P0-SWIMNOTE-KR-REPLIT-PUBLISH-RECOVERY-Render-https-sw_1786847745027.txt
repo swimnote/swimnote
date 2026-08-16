@@ -1,0 +1,166 @@
+[P0 — SWIMNOTE.KR REPLIT PUBLISH RECOVERY]
+
+현재 상태:
+
+Render:
+https://swimnote-api.onrender.com
+→ 정상
+→ ok:true
+→ uptime 34분 이상
+→ Group 8 42P07 hotfix 적용 완료
+
+Replit Published:
+https://swimnote.kr
+→ 503 initializing
+→ 구버전 dist/index.mjs 실행 중
+
+현재 새 dist/hotfix 준비 완료:
+
+Commit SHA:
+ad0e554f
+
+artifact.toml build command:
+pnpm --filter @workspace/api-server run build
+
+목적:
+
+코드 추가 수정 없이
+Replit Published deployment만 새 commit 기준으로 Publish하여
+swimnote.kr production API를 정상화한다.
+
+==================================================
+1. DO NOT CHANGE CODE
+==================================================
+
+금지:
+
+- source 수정
+- migration 수정
+- DB 수정
+- RevenueCat 수정
+- X payment 구현
+- Render 재배포
+- AI ENGINE 수정
+- 새로운 commit 생성
+
+현재 ad0e554f 그대로 사용.
+
+==================================================
+2. REPLIT PUBLISH
+==================================================
+
+Replit Published deployment를
+현재 HEAD / ad0e554f 기준으로 Publish.
+
+Build 단계에서 반드시:
+
+pnpm --filter @workspace/api-server run build
+
+실행 확인.
+
+Runtime:
+
+node artifacts/api-server/dist/index.mjs
+
+새 dist가 실행되는지 확인.
+
+==================================================
+3. BUILD VERIFY
+==================================================
+
+Publish log에서 확인:
+
+- clone/source checkout 성공
+- build 성공
+- api-server build 성공
+- dist/index.mjs 생성
+- deployment start 성공
+
+==================================================
+4. HOTFIX VERIFY
+==================================================
+
+Published runtime의 dist에
+Group 8 hotfix가 포함되어 있는지 확인:
+
+- to_regclass precheck
+- duplicate_table handling
+- duplicate_object handling
+
+OLD pattern만 실행되고 있지 않은지 확인.
+
+==================================================
+5. STARTUP VERIFY
+==================================================
+
+swimnote.kr deployment에서:
+
+WP1 Group 8 완료
+WP1 migration 전체 완료
+X-payment init 완료
+
+확인.
+
+==================================================
+6. HEALTH VERIFY
+==================================================
+
+GET:
+
+https://swimnote.kr/api/health
+
+반드시:
+
+HTTP 200
+ok:true
+
+확인.
+
+그리고 uptime 최소 5분 이상 연속 증가 확인.
+
+restart/reset 없어야 함.
+
+==================================================
+7. RENDER VERIFY
+==================================================
+
+기존 Render:
+
+https://swimnote-api.onrender.com
+
+도 계속 정상인지 확인.
+
+Render 쪽에는 변경/재배포하지 않는다.
+
+==================================================
+8. REPORT
+==================================================
+
+보고:
+
+REPLIT_PUBLISH =
+DEPLOYED_SHA =
+BUILD_COMMAND =
+BUILD_RESULT =
+DIST_REBUILT =
+GROUP8_COMPLETE =
+WP1_COMPLETE =
+X_PAYMENT_INIT_COMPLETE =
+SWIMNOTE_KR_HTTP_STATUS =
+SWIMNOTE_KR_RESPONSE =
+SWIMNOTE_KR_UPTIME =
+RESTARTED =
+RENDER_HEALTH =
+CODE_CHANGE =
+DB_CHANGE =
+NEW_COMMIT =
+
+성공:
+
+P0_SWIMNOTE_KR_REPLIT_PUBLISH_RECOVERY_COMPLETE ✅
+
+실패:
+
+P0_SWIMNOTE_KR_REPLIT_PUBLISH_RECOVERY_BLOCKED ❌
+
+PASS 전 X02-B2 시작 금지.
