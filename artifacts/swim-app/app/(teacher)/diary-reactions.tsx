@@ -174,7 +174,7 @@ export default function DiaryReactionsScreen() {
           <View style={[s.section, { backgroundColor: C.card }]}>
             <View style={s.sectionHeaderRow}>
               <Text style={[s.sectionTitle, { color: C.text }]}>댓글</Text>
-              <Text style={[s.commentCountBadge, { color: "#6366F1" }]}>{commentCount}개</Text>
+              <Text style={[s.commentCountBadge, { color: C.brandStrong }]}>{commentCount}개</Text>
             </View>
 
             {threads.length === 0 ? (
@@ -197,11 +197,11 @@ export default function DiaryReactionsScreen() {
                       </View>
                       {!thread.is_deleted && (
                         <Pressable
-                          style={[s.replyBtn, { backgroundColor: "#EEF2FF" }]}
+                          style={[s.replyBtn, { backgroundColor: C.brandMist }]}
                           onPress={() => { setReplyTarget(thread); setReplyInput(""); setTimeout(() => inputRef.current?.focus(), 100); }}
                         >
-                          <LucideIcon name="corner-down-right" size={12} color="#6366F1" />
-                          <Text style={[s.replyBtnText, { color: "#6366F1" }]}>답글</Text>
+                          <LucideIcon name="corner-down-right" size={12} color={C.brandStrong} />
+                          <Text style={[s.replyBtnText, { color: C.brandStrong }]}>답글</Text>
                         </Pressable>
                       )}
                     </View>
@@ -218,14 +218,14 @@ export default function DiaryReactionsScreen() {
                         s.bubble,
                         s.bubbleReply,
                         reply.author_role === "teacher" || reply.author_role === "pool_admin"
-                          ? { backgroundColor: "#F0F4FF" }
+                          ? { backgroundColor: C.backgroundSoft }
                           : { backgroundColor: C.brandSoft },
                       ]}
                     >
                       <View style={s.bubbleHeader}>
                         <Text style={[s.bubbleName, {
                           color: reply.author_role === "teacher" || reply.author_role === "pool_admin"
-                            ? "#3B82F6" : C.brandStrong,
+                            ? C.textPrimary : C.brandStrong,
                         }]}>
                           {reply.author_role === "teacher" || reply.author_role === "pool_admin" ? "📘 " : ""}{reply.author_name}
                         </Text>
@@ -246,8 +246,8 @@ export default function DiaryReactionsScreen() {
       {/* 답글 입력창 */}
       {replyTarget && (
         <View style={[s.inputBar, { borderTopColor: C.border, backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 8) }]}>
-          <View style={[s.replyContext, { backgroundColor: "#EEF2FF", borderLeftColor: "#6366F1" }]}>
-            <Text style={[s.replyContextText, { color: "#6366F1" }]} numberOfLines={1}>
+          <View style={[s.replyContext, { backgroundColor: C.brandMist, borderLeftColor: C.brandStrong }]}>
+            <Text style={[s.replyContextText, { color: C.brandStrong }]} numberOfLines={1}>
               {replyTarget.display_name}에게 답글
             </Text>
             <Pressable onPress={() => { setReplyTarget(null); setReplyInput(""); }} hitSlop={8}>
@@ -268,7 +268,7 @@ export default function DiaryReactionsScreen() {
             <Pressable
               onPress={sendReply}
               disabled={!replyInput.trim() || sending}
-              style={[s.sendBtn, { backgroundColor: !replyInput.trim() || sending ? C.border : "#6366F1" }]}
+              style={[s.sendBtn, { backgroundColor: !replyInput.trim() || sending ? C.border : C.primaryAction }]}
             >
               {sending
                 ? <ActivityIndicator size="small" color="#fff" />

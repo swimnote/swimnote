@@ -142,7 +142,7 @@ export default function DiaryEditView({
               )}
               {newAlbumPhotos.length > 0 && (
                 <View>
-                  <Text style={[s.photoSectionLabel, { color: "#3B82F6" }]}>추가할 사진 ({newAlbumPhotos.length}장)</Text>
+                  <Text style={[s.photoSectionLabel, { color: C.brandStrong }]}>추가할 사진 ({newAlbumPhotos.length}장)</Text>
                   <View style={s.albumPreviewRow}>
                     {newAlbumPhotos.map(photo => (
                       <View key={photo.id} style={s.albumThumb}>
@@ -218,15 +218,15 @@ export default function DiaryEditView({
           )}
 
           <Pressable style={s.albumPickerBtn} onPress={onOpenAlbumPicker}>
-            <LucideIcon name="image" size={14} color="#3B82F6" />
+            <LucideIcon name="image" size={14} color={C.brandStrong} />
             <Text style={s.albumPickerBtnText}>앨범에서 선택</Text>
           </Pressable>
         </View>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
-            <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <LucideIcon name="users" size={15} color="#8B5CF6" />
+            <View style={[s.cardIcon, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="users" size={15} color={C.textSecondary} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>개별 코멘트 수정</Text>
@@ -237,21 +237,21 @@ export default function DiaryEditView({
             const stPhotos = studentAlbumPhotos[note.student_id] ?? [];
             const stVideos = studentAlbumVideos[note.student_id] ?? [];
             return (
-              <View key={note.id} style={[s.editNoteItem, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}>
+              <View key={note.id} style={[s.editNoteItem, { backgroundColor: C.brandSoft, borderColor: C.brandSoft }]}>
                 <View style={s.editNoteHeader}>
                   <Text style={s.noteName}>{note.student_name}</Text>
                   <Pressable onPress={() => onMarkNoteDeleted(note.id)}>
                     <LucideIcon name="trash-2" size={15} color={C.error} />
                   </Pressable>
                 </View>
-                <TextInput style={[s.noteTextarea, { borderColor: "#C4B5FD", color: C.text }]}
+                <TextInput style={[s.noteTextarea, { borderColor: C.brandSoft, color: C.text }]}
                   value={note.note_content}
                   onChangeText={t => onUpdateNoteContent(note.id, t)}
                   multiline numberOfLines={6} textAlignVertical="top"
                   placeholder="개별 코멘트를 입력하세요" placeholderTextColor={C.textMuted} />
                 <View style={s.mediaRow}>
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
-                    <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                    <LucideIcon name="image" size={13} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
                   </Pressable>
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
@@ -304,7 +304,7 @@ export default function DiaryEditView({
                 <Text style={[s.noteContent, { color: C.text }]}>{note.note_content}</Text>
                 <View style={s.mediaRow}>
                   <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
-                    <LucideIcon name="image" size={13} color="#3B82F6" /><Text style={[s.mediaBtnText, { color: "#3B82F6" }]}>앨범에서 선택</Text>
+                    <LucideIcon name="image" size={13} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
                   </Pressable>
                 </View>
                 {(stPhotos.length > 0 || stVideos.length > 0) && (
@@ -350,18 +350,18 @@ export default function DiaryEditView({
                   {classStudents.filter(st => !usedStudentIds.has(st.id)).map(st => (
                     <Pressable key={st.id}
                       style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border },
-                        editAddStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
+                        editAddStudent?.id === st.id && { borderColor: C.brandStrong, backgroundColor: C.brandSoft }]}
                       onPress={() => { if (editAddStudent?.id === st.id) { setEditAddStudent(null); setEditAddInput(""); } else { setEditAddStudent(st); setEditAddInput(""); } }}>
-                      <Text style={[s.studentChipText, { color: editAddStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                      <LucideIcon name="plus-circle" size={15} color={editAddStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                      <Text style={[s.studentChipText, { color: editAddStudent?.id === st.id ? C.brandStrong : C.text }]}>{st.name}</Text>
+                      <LucideIcon name="plus-circle" size={15} color={editAddStudent?.id === st.id ? C.brandStrong : C.textMuted} />
                     </Pressable>
                   ))}
                 </View>
               )}
               {editAddStudent && (
-                <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]}>
-                  <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{editAddStudent.name} 추가 일지</Text>
-                  <TextInput style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
+                <View style={[s.noteInput, { backgroundColor: C.brandSoft, borderColor: C.brandSoft }]}>
+                  <Text style={[s.noteName, { color: C.brandStrong, marginBottom: 6 }]}>{editAddStudent.name} 추가 일지</Text>
+                  <TextInput style={[s.noteTextarea, { borderColor: C.brandSoft, color: C.text }]}
                     value={editAddInput} onChangeText={setEditAddInput}
                     placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
                     placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" autoFocus />
@@ -369,7 +369,7 @@ export default function DiaryEditView({
                     <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setEditAddStudent(null); setEditAddInput(""); }}>
                       <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 13 }}>취소</Text>
                     </Pressable>
-                    <Pressable style={[s.noteBtn, { backgroundColor: "#8B5CF6", borderColor: "#8B5CF6", flex: 1 }]} onPress={onEditAddNote} disabled={!editAddInput.trim()}>
+                    <Pressable style={[s.noteBtn, { backgroundColor: C.primaryAction, borderColor: C.primaryAction, flex: 1 }]} onPress={onEditAddNote} disabled={!editAddInput.trim()}>
                       <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 13 }}>추가</Text>
                     </Pressable>
                   </View>
@@ -435,7 +435,7 @@ const s = StyleSheet.create({
   studentChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", flex: 1 },
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
+  noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
   noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: C.surface },
@@ -458,5 +458,5 @@ const s = StyleSheet.create({
   albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: C.backgroundSoft },
   albumThumbRemove: { position: "absolute", top: 2, right: 2 },
   albumPickerBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: "#EFF6FF", alignSelf: "flex-start", marginTop: 4 },
-  albumPickerBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#3B82F6" },
+  albumPickerBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
 });

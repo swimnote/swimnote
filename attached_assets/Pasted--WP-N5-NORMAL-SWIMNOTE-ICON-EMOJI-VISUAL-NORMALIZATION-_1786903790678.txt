@@ -1,0 +1,551 @@
+[WP-N5 — NORMAL SWIMNOTE ICON / EMOJI VISUAL NORMALIZATION]
+
+목적:
+
+Normal SWIMNOTE 전반의 일반 기능 아이콘과 장식용 이모지를
+완성형 앱 수준의 일관된 visual language로 정리한다.
+
+이번 WP는:
+
+- icon color
+- decorative emoji → vector icon
+- active/inactive icon hierarchy
+
+만 정리한다.
+
+기능, 위치, 버튼 동작, route, API는 변경 금지.
+
+==================================================
+0. FINAL NORMAL ICON POLICY
+==================================================
+
+Normal SWIMNOTE 일반 기능 아이콘:
+
+DEFAULT / NORMAL
+→ C.textPrimary 또는 C.textStrong 계열
+
+ACTIVE / SELECTED
+→ C.brandStrong 또는 C.brandPrimary
+
+SECONDARY / LOW PRIORITY
+→ C.textSecondary
+
+MUTED / META
+→ C.textMuted
+단 중요한 조작 아이콘에는 사용 금지.
+
+아이콘을 예쁘게 보이게 하려고
+blue / purple / orange / mint를 임의 사용하지 않는다.
+
+==================================================
+1. CORE PRINCIPLE
+==================================================
+
+색은 장식이 아니라 의미와 상태를 표현한다.
+
+일반 기능:
+→ mono / neutral
+
+활성:
+→ Sage
+
+semantic:
+→ semantic 고유색
+
+feature identity:
+→ 기능 고유색
+
+==================================================
+2. FIRST — ICON / EMOJI AUDIT
+==================================================
+
+바로 전수 치환하지 않는다.
+
+admin / teacher / parent 전체에서:
+
+- LucideIcon
+- Ionicons
+- MaterialIcons
+- SVG
+- image icon
+- text emoji
+- unicode emoji
+
+사용처를 감사한다.
+
+각 항목:
+
+SCREEN =
+ELEMENT =
+ICON_OR_EMOJI =
+CURRENT_COLOR =
+ROLE =
+
+NORMAL_FUNCTION
+ACTIVE_FUNCTION
+DECORATIVE_COLOR
+SEMANTIC_FIXED
+FEATURE_FIXED
+USER_CONFIGURED
+AMBIGUOUS
+
+AMBIGUOUS는 자동 변경 금지.
+
+==================================================
+3. GENERAL FUNCTION ICONS
+==================================================
+
+대상 예:
+
+- 회원
+- 일정
+- 검색
+- 설정
+- 메시지
+- 사진
+- 수업
+- 관리
+- 편집
+- 더보기
+- 이동
+- 문서
+- 프로필
+- 일반 navigation
+
+Normal 기본 상태:
+→ C.textPrimary 또는 C.textStrong
+
+활성/선택:
+→ C.brandStrong / C.brandPrimary
+
+==================================================
+4. DO NOT USE PURE BLACK
+==================================================
+
+일반 icon을 #000000으로 통일하지 않는다.
+
+Normal 공식 텍스트 계열을 사용:
+
+C.textStrong
+C.textPrimary
+C.textSecondary
+
+목표:
+
+선명하지만 너무 쨍하지 않음.
+
+==================================================
+5. LEGACY 3-COLOR ICON SYSTEM AUDIT
+==================================================
+
+현재 감사 결과:
+
+iconBlue   #007AFF
+iconGreen  #00704A
+iconOrange #FF6F0F
+
+사용 중.
+
+각 사용처 의미를 다시 분류.
+
+iconBlue가 단순 navigation/general function이면:
+→ Normal neutral/Sage system으로 migration 후보.
+
+iconGreen이 실제 success/complete 의미면:
+→ semantic 유지.
+
+iconOrange가 실제 warning/alert 의미면:
+→ semantic 유지.
+
+단순 decoration 목적으로 색을 나눈 경우:
+→ 제거.
+
+==================================================
+6. DECORATIVE EMOJI → VECTOR ICON
+==================================================
+
+다음처럼 UI 기능/안내 역할인데
+OS 컬러 emoji를 쓰는 경우 교체 후보:
+
+⚠️
+✅
+❌
+📋
+🔔
+
+가능하면 현재 프로젝트 icon library의
+동등한 mono vector icon 사용.
+
+예:
+
+⚠️
+→ AlertTriangle
+
+✅
+→ CheckCircle
+
+❌
+→ XCircle
+
+📋
+→ Clipboard/List
+
+🔔
+→ Bell
+
+정확한 icon name은
+현재 설치된 icon library 기준.
+
+새 icon dependency 추가 금지.
+
+==================================================
+7. EMOJI PROTECTION
+==================================================
+
+다음은 무조건 제거 대상 아님.
+
+FEATURE_FIXED:
+
+AI Growth Report identity:
+🏊
+🏅
+📚
+
+pool logo_emoji:
+사용자가 직접 지정한 identity
+
+가입 축하 🎉 등
+실제 celebration content
+
+좋아요/감사 등
+피드 reaction identity
+
+이런 것은 기능 의미/브랜드 콘텐츠이므로 유지.
+
+==================================================
+8. SEMANTIC ICON COLORS
+==================================================
+
+다음 고유색 유지:
+
+ERROR / DANGER
+→ red
+
+WARNING
+→ amber/orange
+
+SUCCESS / COMPLETE
+→ green
+
+ATTENDANCE STATUS
+→ existing semantic color
+
+PENDING / APPROVAL
+→ existing semantic system
+
+단:
+
+일반 기능 아이콘을
+"중요해 보여서" red/orange/green으로 쓰는 것은 금지.
+
+==================================================
+9. BUTTON ICONS
+==================================================
+
+WP-N3 button role system과 맞춘다.
+
+Primary button icon:
+→ label과 동일 tone
+
+Secondary:
+→ C.brandStrong / C.textPrimary
+
+Neutral:
+→ C.textPrimary
+
+Destructive:
+→ semantic danger
+
+X:
+→ 기존 XT.* 유지.
+
+==================================================
+10. TAB / NAVIGATION ICONS
+==================================================
+
+Normal:
+
+inactive:
+→ C.textSecondary 또는 현재 neutral nav token
+
+active:
+→ C.brandStrong
+
+기존 mint / bright blue가
+단순 active navigation 용도면 Sage로 정리.
+
+단:
+
+X mode:
+→ XT.* 유지.
+
+==================================================
+11. HEADER ICONS
+==================================================
+
+Normal header:
+
+search
+logout
+settings
+notifications
+role switch
+back
+
+등 일반 아이콘은
+Normal neutral/Sage hierarchy 사용.
+
+X header는 Nautic/Yacht + X text/icon token 유지.
+
+==================================================
+12. PARENT UI PROTECTION
+==================================================
+
+Parent에서도 일반 frame icon은 정리.
+
+하지만 보호:
+
+- feed reaction
+- AI report
+- AI curriculum
+- photo/content identity
+- level badges
+- attendance status
+- advertisement content
+
+==================================================
+13. SCHEDULER PROTECTION
+==================================================
+
+Scheduler 안의:
+
+classColor
+요일/반 구분 아이콘
+상태 semantic
+
+변경 금지.
+
+일반 calendar navigation icon만
+Normal icon system 적용 가능.
+
+==================================================
+14. USER CONFIG PROTECTION
+==================================================
+
+pool branding / logo emoji / custom color
+사용자가 설정하는 identity는 변경 금지.
+
+==================================================
+15. X MODE PROTECTION
+==================================================
+
+xTheme.ts 수정 금지.
+
+X mode에서:
+
+header icon
+active tab
+AI emphasis
+Nautic/Yacht control
+
+전부 현재 X token 유지.
+
+공통 component 수정 시:
+
+Normal → Sage/neutral
+X → XT.*
+
+분기 검증.
+
+==================================================
+16. NO LAYOUT CHANGE
+==================================================
+
+이번 WP에서 변경 금지:
+
+icon position
+button position
+icon size 구조
+touch target
+layout
+padding
+gap
+
+단 emoji → vector 교체 시
+기존 시각적 크기와 alignment를 가능한 유지.
+
+==================================================
+17. FUNCTION LOCK
+==================================================
+
+절대 변경 금지:
+
+onPress
+handler
+route
+API
+state
+modal flow
+permission
+disabled
+loading
+role gate
+
+visual only.
+
+==================================================
+18. ACCESSIBILITY
+==================================================
+
+일반 actionable icon은
+배경과 충분한 대비 확보.
+
+C.textMuted는
+중요 버튼/icon에 사용하지 않는다.
+
+작은 active icon은
+C.brandPrimary보다
+C.brandStrong이 더 적절하면 Strong 사용.
+
+==================================================
+19. VISUAL TARGET
+==================================================
+
+최종 느낌:
+
+- 알록달록한 기능 아이콘 감소
+- 검정/차콜 계열 중심의 차분한 일반 icon
+- active만 Sage
+- warning/error/success만 의미색
+- OS emoji가 기능 UI에서 난립하지 않음
+- 전체 화면이 개발단계 느낌에서 벗어남
+
+==================================================
+20. TEST MATRIX
+==================================================
+
+N5-1
+Normal general icons → neutral/charcoal
+
+N5-2
+Normal active icons → Sage
+
+N5-3
+semantic success/warning/error preserved
+
+N5-4
+AI feature icons preserved
+
+N5-5
+feed reactions preserved
+
+N5-6
+pool logo emoji preserved
+
+N5-7
+scheduler classification preserved
+
+N5-8
+X icon theme preserved
+
+N5-9
+button handler unchanged
+
+N5-10
+layout/touch target unchanged
+
+N5-11
+TS 0 new errors
+
+==================================================
+21. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+22. FINAL REPORT
+==================================================
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+ICONS_AUDITED =
+EMOJIS_AUDITED =
+
+NORMAL_FUNCTION_ICONS_CHANGED =
+ACTIVE_FUNCTION_ICONS_CHANGED =
+DECORATIVE_EMOJIS_REPLACED =
+
+ICON_BLUE_REMAINS =
+ICON_GREEN_REMAINS =
+ICON_ORANGE_REMAINS =
+
+SEMANTIC_FIXED_PRESERVED =
+FEATURE_FIXED_PRESERVED =
+USER_CONFIG_PRESERVED =
+SCHEDULER_PROTECTED_PRESERVED =
+X_THEME_PRESERVED =
+
+EMOJI_REPLACEMENT_LIST =
+
+ICON_POSITION_CHANGED =
+TOUCH_TARGET_CHANGED =
+ONPRESS_CHANGED =
+ROUTE_CHANGED =
+API_CHANGED =
+STATE_CHANGED =
+
+ADMIN_RESULT =
+TEACHER_RESULT =
+PARENT_RESULT =
+
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+SEMANTIC_FIXED_PRESERVED = YES
+FEATURE_FIXED_PRESERVED = YES
+USER_CONFIG_PRESERVED = YES
+SCHEDULER_PROTECTED_PRESERVED = YES
+X_THEME_PRESERVED = YES
+
+ICON_POSITION_CHANGED = NO
+TOUCH_TARGET_CHANGED = NO
+ONPRESS_CHANGED = NO
+ROUTE_CHANGED = NO
+API_CHANGED = NO
+STATE_CHANGED = NO
+
+완료:
+
+WP_N5_NORMAL_ICON_EMOJI_VISUAL_NORMALIZATION_COMPLETE ✅

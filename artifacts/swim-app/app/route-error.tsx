@@ -1,4 +1,5 @@
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 const C = Colors.light;
 /**
  * route-error.tsx
@@ -36,7 +37,7 @@ export default function RouteErrorScreen() {
 
   return (
     <View style={s.container}>
-      <Text style={s.emoji}>⚠️</Text>
+      <LucideIcon name="alert-triangle" size={48} color={C.textSecondary} style={{ marginBottom: 20 }} />
       <Text style={s.title}>화면 전환에 실패했습니다</Text>
       <Text style={s.desc}>
         서버 응답이 지연되거나 네트워크 오류가 발생했습니다.{"\n"}

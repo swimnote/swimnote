@@ -146,8 +146,8 @@ export default function DiaryHistoryList({
                     <Text style={[s.countText, { color: "#E8003D" }]}>{item.like_count ?? 0}</Text>
                   </View>
                   <View style={s.countBadge}>
-                    <LucideIcon name="message-circle" size={12} color="#6366F1" />
-                    <Text style={[s.countText, { color: "#6366F1" }]}>{item.comment_count ?? 0}</Text>
+                    <LucideIcon name="message-circle" size={12} color={C.textSecondary} />
+                    <Text style={[s.countText, { color: C.textSecondary }]}>{item.comment_count ?? 0}</Text>
                   </View>
                   {onPressReactions && (
                     <LucideIcon name="chevron-right" size={13} color="#94A3B8" />

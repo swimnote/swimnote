@@ -125,8 +125,8 @@ export default function ParentLevelScreen() {
               {currentLevel.learning_content ? (
                 <View style={[s.descBlock, currentLevel.level_description && s.descBorderTop]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <LucideIcon name="book-open" size={14} color="#3B82F6" />
-                    <Text style={[s.descTitle, { color: "#3B82F6" }]}>이 레벨에서 배우는 내용</Text>
+                    <LucideIcon name="book-open" size={14} color={C.textSecondary} />
+                    <Text style={[s.descTitle, { color: C.textSecondary }]}>이 레벨에서 배우는 내용</Text>
                   </View>
                   <Text style={[s.descText, { color: C.text }]}>{currentLevel.learning_content}</Text>
                 </View>
