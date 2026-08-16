@@ -323,7 +323,7 @@ const ds = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
   emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   homeBtn:  { marginTop: 4, paddingHorizontal: 24, paddingVertical: 10,
-               backgroundColor: "#0F2742", borderRadius: 12 },
+               backgroundColor: XT.primary, borderRadius: 12 },
   homeBtnTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
 

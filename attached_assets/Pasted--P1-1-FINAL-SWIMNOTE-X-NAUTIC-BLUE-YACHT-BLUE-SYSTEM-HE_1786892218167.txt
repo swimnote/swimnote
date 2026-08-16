@@ -1,0 +1,737 @@
+[P1.1 FINAL — SWIMNOTE X NAUTIC BLUE + YACHT BLUE SYSTEM
++ HEADER POOL NAME TRUNCATION FIX]
+
+현재 SWIMNOTE X의 전체 UI 구조와 묵직한 분위기는 유지한다.
+
+이번 작업의 핵심은
+현재 너무 어두운 단일 네이비 중심 테마를
+"노틱블루 + 요트블루" 2-tone X color system으로 정리하는 것이다.
+
+중요:
+
+이번 작업은
+화이트/light theme로 재설계하는 것이 아니다.
+
+현재 X의 장점:
+
+- 묵직함
+- 일반 SWIMNOTE와 명확한 구분
+- 프리미엄 느낌
+- 깊은 블루 기반의 안정감
+- dark header / bottom navigation의 X identity
+- X dashboard 상단 기능영역 존재감
+
+은 유지한다.
+
+현재 문제:
+
+1. 현재 primary navy가 너무 검고 어두워 답답함
+2. 모든 strong surface가 비슷한 어두운 파랑으로 뭉침
+3. 블루 계열 안에서 깊이/고급스러운 층위가 부족함
+4. 헤더의 수영장명이 "토이키즈스..."처럼 과도하게 잘림
+
+==================================================
+1. FINAL X COLOR CONCEPT
+==================================================
+
+SWIMNOTE X의 최종 color identity는:
+
+NAUTIC BLUE
++
+YACHT BLUE
+
+두 계열을 혼합한 X 전용 blue family로 구성한다.
+
+역할은 다음처럼 구분한다.
+
+NAUTIC BLUE
+= 깊이
+= 묵직함
+= 브랜드 중심
+= 강한 surface
+= header / bottom nav / primary strong emphasis
+
+YACHT BLUE
+= 세련됨
+= 조금 더 밝은 청색감
+= elevated surface
+= icon / selected state / secondary accent
+= X 기능카드 보조 강조
+
+두 색을 경쟁시키지 말고
+하나의 동일한 premium blue family처럼 구성한다.
+
+==================================================
+2. DESIRED VISUAL FEEL
+==================================================
+
+원하는 느낌:
+
+- Mercedes-Benz Nautic Blue 계열의 깊이감
+- 고급 요트 외장/인테리어에서 느껴지는 Yacht Blue 계열의 청량한 고급감
+- 검정에 가까운 남색은 아님
+- royal blue 아님
+- cobalt blue 아님
+- neon blue 아님
+- 밝은 SaaS blue 아님
+
+한마디로:
+
+"깊고 묵직한 블루인데,
+한 단계 밝은 요트블루가 섞여서
+답답하지 않고 세련된 느낌"
+
+==================================================
+3. CURRENT → TARGET
+==================================================
+
+현재 체감:
+
+무게감 = 100
+청색감 = 30
+밝기 = 너무 낮음
+surface variation = 부족
+
+목표:
+
+무게감 = 약 85~90
+청색감 = 약 55~65
+밝기 = 현재보다 아주 조금 상승
+surface variation = 명확
+
+dark identity는 유지하되
+"검정색에 가까운 앱"처럼 보이지 않게 한다.
+
+==================================================
+4. DO NOT LIGHTEN THE WHOLE UI
+==================================================
+
+금지:
+
+- header white 변경
+- bottom navigation white 변경
+- dark cards 전부 제거
+- X를 light theme로 재설계
+- dashboard 구조 변경
+- 현재의 묵직한 X identity 제거
+
+이번 작업은
+구조 변경이 아니라
+COLOR SYSTEM refinement.
+
+==================================================
+5. X COLOR FAMILY ARCHITECTURE
+==================================================
+
+constants/xTheme.ts를
+단일 source of truth로 유지한다.
+
+화면별 hex 하드코딩 금지.
+
+기존 token을 audit하고
+NAUTIC / YACHT 역할을 명확히 나눈다.
+
+예시 구조:
+
+nauticPrimary
+nauticStrong
+nauticSurface
+
+yachtPrimary
+yachtSoft
+yachtSurface
+
+primary
+primaryStrong
+accent
+accentSoft
+surfaceNavy
+surfaceElevated
+tabBackground
+tabActive
+tabInactive
+
+기존 naming을 유지해도 되지만
+내부 color hierarchy는 위 개념으로 정리한다.
+
+==================================================
+6. NAUTIC BLUE USAGE
+==================================================
+
+노틱블루는
+가장 강하고 묵직한 X identity에 사용.
+
+예:
+
+- main X header
+- bottom navigation background
+- primary X CTA
+- strongest dashboard card
+- strong icon containers
+- SWIMNOTE X identity strong state
+- selected high-priority controls
+
+중요:
+노틱블루가 전체 화면을 먹어버리면 안 된다.
+
+==================================================
+7. YACHT BLUE USAGE
+==================================================
+
+요트블루는
+노틱블루보다 조금 밝고 세련된 보조 blue.
+
+예:
+
+- secondary feature cards
+- icon surfaces
+- selected chips
+- active secondary controls
+- borderStrong
+- info highlights
+- elevated surfaces
+- AI-related emphasis
+- secondary CTA
+
+Yacht Blue가
+royal/cobalt처럼 튀지 않게 한다.
+
+==================================================
+8. COLOR MIXING RULE
+==================================================
+
+노틱블루와 요트블루는
+화면마다 제멋대로 섞지 않는다.
+
+원칙:
+
+NAUTIC
+= foundation / anchor
+
+YACHT
+= elevation / emphasis / movement
+
+즉:
+
+darkest
+→ Nautic Strong
+
+main
+→ Nautic Primary
+
+mid
+→ Yacht Primary
+
+soft
+→ Yacht Soft / blue-gray surface
+
+이 흐름을 전체 앱에서 일관되게 사용한다.
+
+==================================================
+9. X HEADER
+==================================================
+
+현재 X header의
+full dark identity는 유지 가능.
+
+단 current navy를
+새 Nautic Blue 계열로 교체.
+
+search/logout/button surfaces는
+같은 색을 반복하지 말고
+Yacht Blue / elevated blue surface로 층위를 만든다.
+
+예:
+
+header background:
+Nautic Primary
+
+search/logout button:
+Nautic Elevated or Yacht Dark
+
+SWIMNOTE X label:
+Yacht accent / white
+
+role switch:
+semi-light Yacht/Nautic mix
+
+결과:
+
+"검은 헤더"
+
+가 아니라
+
+"깊은 고급 블루 헤더"
+
+처럼 보여야 한다.
+
+==================================================
+10. X DASHBOARD STRONG CARDS
+==================================================
+
+현재 성장추적 / AI일지 등
+strong X cards가 모두 비슷한 dark blue면
+2-tone hierarchy를 적용한다.
+
+예시 개념:
+
+성장 추적
+→ Nautic Primary
+
+AI 일지
+→ Yacht Primary
+
+커리큘럼
+→ light Yacht surface
+
+X 설정
+→ light Nautic/Yacht neutral surface
+
+모든 카드에 색을 강제로 다르게 쓰라는 뜻은 아니다.
+
+중요:
+같은 blue family 안에서
+depth를 만든다.
+
+==================================================
+11. BOTTOM NAVIGATION
+==================================================
+
+현재 full dark bottom nav 구조 유지 가능.
+
+단:
+
+background
+→ Nautic Primary
+
+active icon/text
+→ White
+
+inactive
+→ muted Yacht Blue / blue-gray
+
+active / inactive가 명확해야 한다.
+
+bottom nav도
+header와 동일한 단일 dark color 덩어리처럼 보이지 않게
+미세한 tone hierarchy를 적용할 수 있다.
+
+==================================================
+12. X PRIMARY CTA
+==================================================
+
+primary action은
+Nautic Blue 기반 유지.
+
+secondary action은
+Yacht Blue 사용 가능.
+
+같은 화면에서
+primary/secondary hierarchy가 즉시 보여야 한다.
+
+==================================================
+13. COMMON COMPONENTS
+==================================================
+
+다음 공통 component에도
+새 2-tone X system 적용:
+
+- FilterChips
+- EmptyState
+- ConfirmModal
+- SubScreenHeader
+- ParentScreenHeader
+- buttons
+- chips
+- badges
+- sheets
+- modal actions
+- selected controls
+
+각 컴포넌트마다 임의 blue 생성 금지.
+
+==================================================
+14. APPLY TO ALL X SCREENS
+==================================================
+
+이번 color system은
+일부 화면만 적용하지 않는다.
+
+X mode에서 노출되는
+admin / sub_admin / teacher / parent
+모든 화면에 동일한 X blue system 적용.
+
+적용 예:
+
+ADMIN
+- dashboard
+- class-hub
+- ops-hub
+- members
+- messenger
+- diary
+- settings
+- X setup
+- X hub
+- growth/report
+
+TEACHER
+- today schedule
+- diary
+- students
+- attendance
+- makeups
+- messages
+- schedule
+
+PARENT
+- home
+- diary
+- notifications
+- photos
+- curriculum
+- growth report
+
+공통 component를 우선 수정해
+자동 파급시키고
+개별 화면 하드코딩은 최소화한다.
+
+==================================================
+15. NORMAL SWIMNOTE PROTECTION
+==================================================
+
+Normal SWIMNOTE theme는 변경 금지.
+
+이번 color system은 X only.
+
+Normal mode:
+
+기존 mint / white design 그대로.
+
+X mode:
+
+Nautic + Yacht blue system.
+
+theme leakage 금지.
+
+==================================================
+16. SEMANTIC COLORS
+==================================================
+
+다음 의미색은 유지:
+
+danger = red
+warning = orange/yellow
+success = green
+
+매출 orange
+보강 green/orange
+error red
+
+같은 의미 정보는 그대로 허용.
+
+X blue는
+semantic color를 덮어쓰지 않는다.
+
+==================================================
+17. COLOR ACCEPTANCE
+==================================================
+
+FAIL:
+
+- 거의 검정처럼 보임
+- 모든 dark surface가 동일한 navy
+- royal/cobalt/neon blue 느낌
+- 색이 너무 밝아 X 무게감 사라짐
+- 화면마다 다른 blue
+- Yacht Blue가 튀는 포인트컬러처럼 보임
+
+PASS:
+
+- Nautic Blue가 중심을 잡음
+- Yacht Blue가 자연스럽게 층위 제공
+- 기존보다 아주 조금 밝음
+- blue tone은 더 잘 느껴짐
+- 여전히 묵직함
+- 프리미엄 자동차/요트 느낌의 깊이감
+- 전체 앱이 하나의 X color family로 보임
+
+==================================================
+18. HEADER POOL NAME TRUNCATION BUG
+==================================================
+
+현재 X admin header에서:
+
+"토이키즈스윔클럽"
+
+이:
+
+"토이키즈스..."
+
+처럼 과도하게 잘린다.
+
+불합격.
+
+"토이키즈스윔클럽" 정도 길이는
+전체 표시되어야 한다.
+
+==================================================
+19. HEADER INFORMATION PRIORITY
+==================================================
+
+header layout priority:
+
+1. 수영장명
+2. 주요 actions(search/logout)
+3. SWIMNOTE X identity
+4. role switch
+5. Premier / 대표 등 보조 badge
+
+보조 chip 때문에
+수영장명이 먼저 잘리는 구조 금지.
+
+==================================================
+20. HEADER LAYOUT ROOT CAUSE AUDIT
+==================================================
+
+다음 실제 값을 확인:
+
+- flex
+- flexGrow
+- flexShrink
+- width
+- minWidth
+- maxWidth
+- gap
+- paddingHorizontal
+- numberOfLines
+- ellipsizeMode
+
+ROOT_CAUSE 먼저 특정.
+
+추측 수정 금지.
+
+==================================================
+21. HEADER FIX
+==================================================
+
+수정 우선순위:
+
+A.
+pool name 영역 flex 확대
+
+B.
+불필요한 horizontal gap 축소
+
+C.
+badge/chip padding 소폭 축소
+
+D.
+보조 badge 재배치
+
+E.
+필요할 경우 2-row header
+
+수영장명을
+억지로 작은 font로 축소해서 해결 금지.
+
+==================================================
+22. TWO-ROW HEADER ALLOWED
+==================================================
+
+한 줄에 모든 요소를 넣느라
+수영장명이 잘린다면
+정돈된 2-row layout 허용.
+
+예시:
+
+ROW 1:
+수영장명                 search / logout
+
+ROW 2:
+SWIMNOTE X · Premier · 대표 · 선생님으로 전환
+
+또는 현재 UI에 더 자연스러운 구조.
+
+중요:
+X premium hierarchy 유지.
+
+==================================================
+23. LONG NAME POLICY
+==================================================
+
+다음은 전체 표시 목표:
+
+토이키즈스윔클럽
+
+가능하면:
+
+토이키즈스윔클럽 화정센터
+
+도 자연스럽게 대응.
+
+정말 긴 상호명에서만
+최종적으로 ellipsis 허용.
+
+==================================================
+24. NORMAL / X HEADER COMMON FIX
+==================================================
+
+본 작업은 특별히 X 전용으로 지정된 경우가 아니면
+Normal SWIMNOTE와 SWIMNOTE X 공통 기능으로 간주한다.
+
+header가 동일 source/component를 공유하면:
+
+pool-name layout fix는
+source of truth 한 곳 수정 후
+Normal/X 양쪽 검증.
+
+색상은 X에만 적용.
+
+==================================================
+25. SCOPE LOCK
+==================================================
+
+이번 작업에서 금지:
+
+- dashboard layout 재설계
+- 카드 위치 재배치
+- 기능 추가/삭제
+- RevenueCat
+- 결제
+- entitlement
+- ModeContext behavior
+- navigation logic
+- server
+- DB
+- AI Engine
+
+이번 작업은:
+
+A.
+Nautic + Yacht Blue X color system
+
+B.
+header pool-name truncation fix
+
+딱 두 가지.
+
+==================================================
+26. TEST MATRIX
+==================================================
+
+COLOR-1
+X header → Nautic Blue
+
+COLOR-2
+X strong card → Nautic/Yacht hierarchy
+
+COLOR-3
+X bottom nav → Nautic foundation
+
+COLOR-4
+secondary X controls → Yacht family
+
+COLOR-5
+white text/icon contrast 정상
+
+COLOR-6
+active/inactive tab contrast 정상
+
+COLOR-7
+Normal theme unchanged
+
+COLOR-8
+admin/teacher/parent 동일 X family
+
+HEADER-1
+"토이키즈스윔클럽" full visible
+
+HEADER-2
+X admin header 정상
+
+HEADER-3
+Normal admin header 정상
+
+HEADER-4
+role switch 유지
+
+HEADER-5
+search/logout 유지
+
+HEADER-6
+touch target regression 없음
+
+HEADER-7
+작은 iPhone width에서
+일반 길이 수영장명 과도한 truncation 없음
+
+==================================================
+27. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+28. FINAL REPORT
+==================================================
+
+OLD_X_PRIMARY =
+NEW_NAUTIC_PRIMARY =
+
+OLD_X_PRIMARY_STRONG =
+NEW_NAUTIC_STRONG =
+
+OLD_X_SURFACE_NAVY =
+NEW_NAUTIC_SURFACE =
+
+NEW_YACHT_PRIMARY =
+NEW_YACHT_SOFT =
+NEW_YACHT_SURFACE =
+
+NAUTIC_USAGE =
+YACHT_USAGE =
+
+DARK_WEIGHT_PRESERVED =
+BLUE_TONE_INCREASED =
+TWO_TONE_HIERARCHY =
+
+ADMIN_COLOR_SYSTEM =
+TEACHER_COLOR_SYSTEM =
+PARENT_COLOR_SYSTEM =
+
+POOL_NAME_ROOT_CAUSE =
+POOL_NAME_FULL_VISIBLE =
+HEADER_LAYOUT_CHANGE =
+HEADER_TWO_ROW_USED = YES / NO
+
+SEARCH_ACTION_PRESERVED =
+LOGOUT_ACTION_PRESERVED =
+ROLE_SWITCH_PRESERVED =
+
+NORMAL_HEADER_REGRESSION =
+NORMAL_THEME_REGRESSION =
+
+BUSINESS_LOGIC_CHANGE =
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공:
+
+P1_1_X_NAUTIC_YACHT_BLUE_SYSTEM_COMPLETE ✅
+P1_2_HEADER_POOL_NAME_TRUNCATION_FIX_COMPLETE ✅

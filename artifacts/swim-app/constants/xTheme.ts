@@ -1,47 +1,70 @@
 /**
  * SWIMNOTE X — 단일 디자인 토큰 소스
  *
- * 모든 X 관련 색상은 여기서만 관리한다.
- * 개별 파일에 X_ACCENT 등을 하드코딩하지 않는다.
+ * ┌──────────────────────────────────────────────────────────────────┐
+ * │  NAUTIC BLUE + YACHT BLUE  2-tone X Color System               │
+ * │                                                                  │
+ * │  NAUTIC BLUE  — 깊이 · 묵직함 · 브랜드 중심 · 강한 surface     │
+ * │                 header / bottom nav / primary CTA               │
+ * │                                                                  │
+ * │  YACHT BLUE   — 세련됨 · 청색감 · elevated surface              │
+ * │                 icon · selected state · secondary accent        │
+ * └──────────────────────────────────────────────────────────────────┘
  *
- * 목표: 전문적·프리미엄·AI/데이터 기반·수영교육 플랫폼·신뢰감
- * 금지: neon, gaming, 과도한 gradient, dark futuristic, 과도한 glassmorphism
+ * 목표: 깊고 묵직한 블루인데, 한 단계 밝은 요트블루가 섞여서
+ *       답답하지 않고 세련된 느낌 (프리미엄 자동차/요트 감성)
+ *
+ * 금지: neon, gaming, 과도한 gradient, dark futuristic, 화면별 hex 하드코딩
  */
 
 export const X = {
   // ── 앱 구조 ──────────────────────────────────────────────────────────────
-  /** X 모드 앱 배경 (Normal #F5F6FA보다 살짝 차가운 톤) */
-  background:         '#F3F6FA',
-  backgroundStrong:   '#EBF0F7',
+  /** X 모드 앱 배경 — 살짝 차가운 청색 톤 */
+  background:         '#EEF3FA',
+  backgroundStrong:   '#E4EDF8',
 
   // ── 서피스 ───────────────────────────────────────────────────────────────
   /** 카드/모달 배경 */
   surface:            '#FFFFFF',
-  surfaceElevated:    '#F8FAFC',
-  /** X 헤더/강조 영역 — 딥 네이비 */
-  surfaceNavy:        '#0F2742',
-  surfaceNavyStrong:  '#0A1E30',
-  surfaceNavySoft:    '#1A3655',
+  surfaceElevated:    '#F6F9FD',
+
+  // ── NAUTIC BLUE — 헤더/탭/강조 영역 ─────────────────────────────────────
+  /** Nautic Primary — header background, bottom nav, primary strong state */
+  surfaceNavy:        '#1A4070',
+  /** Nautic Strong — absolute darkest (tab bar border, deep shadow) */
+  surfaceNavyStrong:  '#0E2A4E',
+  /** Nautic Surface Elevated — button/chip surface ON nautic header */
+  surfaceNavySoft:    '#1F4C80',
   /** AI 기능 카드 배경 */
-  surfaceAI:          '#EBF4FB',
+  surfaceAI:          '#DCE9F8',
 
-  // ── 프라이머리 (네이비) ───────────────────────────────────────────────────
-  primary:            '#0F2742',
-  primaryStrong:      '#0A1E30',
-  primaryPressed:     '#162F4E',
-  primarySoft:        '#E4EBF4',
-  primarySoftest:     '#F0F4F9',
+  // ── 프라이머리 = NAUTIC BLUE ──────────────────────────────────────────────
+  /** Nautic Primary — main X identity (header bg, strong CTA) */
+  primary:            '#1A4070',
+  /** Nautic Strong — absolute darkest emphasis */
+  primaryStrong:      '#0E2A4E',
+  /** Nautic Pressed — press feedback */
+  primaryPressed:     '#1F4C80',
+  /** Nautic Light Surface — light bg on white screens */
+  primarySoft:        '#E0EAF5',
+  primarySoftest:     '#EEF3FA',
 
-  // ── 액센트 (스틸 블루) ────────────────────────────────────────────────────
-  accent:             '#355C7D',
-  accentStrong:       '#23415C',
-  accentSoft:         '#EEF4FA',
-  accentMid:          '#D0DCE8',
+  // ── 액센트 = YACHT BLUE ───────────────────────────────────────────────────
+  /** Yacht Primary — secondary accent, feature cards, active chips */
+  accent:             '#2A5EA8',
+  /** Yacht Deep — strongest yacht emphasis */
+  accentStrong:       '#1D4880',
+  /** Yacht Surface Light — chip/badge bg on white surface */
+  accentSoft:         '#E8F2FC',
+  /** Yacht Mid — borders, dividers on light */
+  accentMid:          '#BACDE8',
 
-  // ── AI 하이라이트 ─────────────────────────────────────────────────────────
-  ai:                 '#2C6FAD',
-  aiSoft:             '#E8F2FB',
-  aiMid:              '#BAD7F0',
+  // ── AI 하이라이트 = YACHT SOFT ────────────────────────────────────────────
+  /** Yacht Soft — AI icons, active secondary controls */
+  ai:                 '#4878BC',
+  /** Yacht Airsurface — AI card / message bg */
+  aiSoft:             '#DBE9F8',
+  aiMid:              '#A4C5EC',
 
   // ── 네이비 서피스 위 텍스트 ────────────────────────────────────────────────
   textOnNavy:         '#FFFFFF',
@@ -51,27 +74,28 @@ export const X = {
 
   // ── 라이트 서피스 위 텍스트 ───────────────────────────────────────────────
   text:               '#14283D',
-  textStrong:         '#0F2742',
+  textStrong:         '#1A4070',   // = Nautic Primary
   textSecondary:      '#4A6080',
   textMuted:          '#7A92A8',
 
   // ── 테두리 ───────────────────────────────────────────────────────────────
-  border:             '#D0DCE8',
-  borderStrong:       '#B4CADA',
-  divider:            '#E8EFF6',
-  borderCard:         '#E2EAF2',
+  border:             '#CAD6E8',
+  borderStrong:       '#A6BEDA',
+  divider:            '#E2EDF8',
+  borderCard:         '#DCE8F4',
 
   // ── 바텀 탭 ──────────────────────────────────────────────────────────────
-  // 탭바 배경 = surfaceNavy (#0F2742).
-  // tabActive는 배경과 충분한 contrast 필요 → 흰색
-  tabActive:          '#FFFFFF',   // 액티브 탭 — 흰색 (contrast on navy bg)
-  tabInactive:        '#5F89B0',   // 비활성 탭 — 중간 톤 (muted blue, not too dark)
+  // 탭바 배경 = surfaceNavy (Nautic Primary)
+  // tabActive: 배경과 충분한 contrast → 흰색 유지
+  tabActive:          '#FFFFFF',
+  /** Yacht muted — inactive tab icon/text (더 밝아서 Yacht feel) */
+  tabInactive:        '#72A0CC',
 
   // ── 배지 ─────────────────────────────────────────────────────────────────
-  badge:              '#0F2742',
+  badge:              '#1A4070',
   badgeText:          '#FFFFFF',
-  badgeSoft:          '#E4EBF4',
-  badgeSoftText:      '#23415C',
+  badgeSoft:          '#E0EAF5',
+  badgeSoftText:      '#1D4880',
 
   // ── pending ───────────────────────────────────────────────────────────────
   pending:            '#B7791F',

@@ -14,6 +14,7 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useMode } from "@/context/ModeContext";
+import { X as XT } from "@/constants/xTheme";
 import { getXOffering } from "@/lib/revenuecat";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -30,7 +31,7 @@ import Purchases, { PURCHASES_ERROR_CODE } from "react-native-purchases";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C      = Colors.light;
-const NAVY   = "#0F2742";
+const NAVY   = XT.primary;   // Nautic Primary (xTheme single source)
 const X_ACCENT = "#355C7D";
 const X_LIGHT  = "#EEF4FA";
 

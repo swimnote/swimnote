@@ -261,25 +261,57 @@ export default function DashboardScreen() {
         { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 14) },
         isX && { backgroundColor: XT.surfaceNavy, borderBottomColor: XT.surfaceNavyStrong },
       ]}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={[s.poolName, isX && { color: XT.textOnNavy }]} numberOfLines={1}>
-              {pool?.name || "수영장"}
-            </Text>
-            {/* X 모드: 헤더 자체가 X identity — 배지 대신 레이블 */}
+        {/* ── LEFT: pool info (2-row) ─────────────────────────────────────── */}
+        <View style={{ flex: 1, gap: 4 }}>
+          {/* ROW 1: 수영장명 — 전체 너비 확보 (truncation 방지) */}
+          <Text
+            style={[s.poolName, isX && { color: XT.textOnNavy }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {pool?.name || "수영장"}
+          </Text>
+
+          {/* ROW 2: SWIMNOTE X badge · 등급 · role · 선생님 전환 */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "nowrap" }}>
+            {/* SWIMNOTE X identity badge */}
             {isX && (
-              <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <View style={{ backgroundColor: XT.surfaceNavySoft, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
                   SWIMNOTE X
                 </Text>
               </View>
             )}
+            {/* 구독 등급 — 누르면 구독 화면 */}
+            <Pressable
+              onPress={() => router.push("/(admin)/subscription")}
+              hitSlop={8}
+              style={({ pressed }) => [
+                s.tierBadge,
+                isX
+                  ? { backgroundColor: XT.surfaceNavySoft, opacity: pressed ? 0.75 : 1 }
+                  : { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
+              ]}
+            >
+              {tierInfo.Icon && !isX
+                ? <tierInfo.Icon size={11} color={tierInfo.color} strokeWidth={2.5} />
+                : null
+              }
+              <Text style={[s.tierBadgeTxt, { color: isX ? XT.textOnNavySoft : tierInfo.color }]}>
+                {tierInfo.label}
+              </Text>
+            </Pressable>
+            {/* role chip */}
+            <View style={[s.roleChip, isX && { backgroundColor: XT.surfaceNavySoft }]}>
+              <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]}>{roleLabel}</Text>
+            </View>
+            {/* 선생님으로 전환 */}
             {canSwitchToTeacher && (
               <Pressable
                 style={({ pressed }) => [
                   s.switchChip,
                   isX
-                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed || switching ? 0.7 : 1 }
+                    ? { borderColor: "rgba(255,255,255,0.3)", backgroundColor: XT.surfaceNavySoft, opacity: pressed || switching ? 0.7 : 1 }
                     : { borderColor: "#14283D30", backgroundColor: "#E6FAF8", opacity: pressed || switching ? 0.7 : 1 },
                 ]}
                 onPress={handleSwitchToTeacher}
@@ -295,38 +327,21 @@ export default function DashboardScreen() {
               </Pressable>
             )}
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
-            {/* 구독 등급 아이콘 — 누르면 구독 옵션 화면으로 이동 */}
-            <Pressable
-              onPress={() => router.push("/(admin)/subscription")}
-              hitSlop={8}
-              style={({ pressed }) => [
-                s.tierBadge,
-                isX
-                  ? { backgroundColor: "rgba(255,255,255,0.12)", opacity: pressed ? 0.75 : 1 }
-                  : { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
-              ]}
-            >
-              {tierInfo.Icon && !isX
-                ? <tierInfo.Icon size={11} color={tierInfo.color} strokeWidth={2.5} />
-                : null
-              }
-              <Text style={[s.tierBadgeTxt, { color: isX ? XT.textOnNavySoft : tierInfo.color }]}>
-                {tierInfo.label}
-              </Text>
-            </Pressable>
-            <Text style={[s.greet, isX && { color: XT.textOnNavySoft }]}>
-              {pool?.name ?? adminUser?.name ?? ""}
-            </Text>
-            <View style={[s.roleChip, isX && { backgroundColor: "rgba(255,255,255,0.14)" }]}>
-              <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]}>{roleLabel}</Text>
-            </View>
-          </View>
         </View>
-        <Pressable onPress={() => setShowSearch(true)} style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={8}>
+
+        {/* ── RIGHT: action buttons ──────────────────────────────────────── */}
+        <Pressable
+          onPress={() => setShowSearch(true)}
+          style={[s.headerBtn, isX && { backgroundColor: XT.surfaceNavySoft }]}
+          hitSlop={8}
+        >
           <LucideIcon name="search" size={20} color={isX ? XT.textOnNavy : C.textSecondary} />
         </Pressable>
-        <Pressable onPress={logout} style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]} hitSlop={8}>
+        <Pressable
+          onPress={logout}
+          style={[s.headerBtn, isX && { backgroundColor: XT.surfaceNavySoft }]}
+          hitSlop={8}
+        >
           <LucideIcon name="log-out" size={18} color={isX ? XT.textOnNavy : C.textSecondary} />
         </Pressable>
       </View>

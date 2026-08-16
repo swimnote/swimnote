@@ -445,7 +445,7 @@ export default function ParentAlbumScreen() {
             </Pressable>
             {lightboxItem?.journal_id && (
               <Pressable
-                style={[st.lbBtn, { backgroundColor: "#0F2742" }]}
+                style={[st.lbBtn, { backgroundColor: XT.primary }]}
                 onPress={() => goToDiary(lightboxItem?.journal_id)}
               >
                 <LucideIcon name="book-open" size={16} color="#fff" />

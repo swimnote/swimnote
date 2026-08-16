@@ -6,13 +6,14 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useMode } from "@/context/ModeContext";
+import { X as XT } from "@/constants/xTheme";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const C = Colors.light;
-const NAVY = "#0F2742";
+const NAVY = XT.primary;   // Nautic Primary (xTheme single source)
 const X_ACCENT = "#355C7D";
 const X_LIGHT = "#EEF4FA";
 

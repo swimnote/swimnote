@@ -631,7 +631,7 @@ function PhotosGrid({
           animationType="fade"
           onRequestClose={closeViewer}
         >
-          <View style={{ flex: 1, backgroundColor: "#0F2742" }}>
+          <View style={{ flex: 1, backgroundColor: XT.primary }}>
             {/* 상단: N/M + 닫기 */}
             <View
               style={{
