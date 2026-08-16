@@ -26,6 +26,12 @@ import {
   isUpgradeTier,
 } from "../lib/subscriptionService.js";
 import { isXProduct, handleXEntitlementEvent } from "../lib/x-entitlement.js";
+import {
+  resolveXProductForSequence,
+  reserveXSlot,
+  syncXSubscription,
+  processXWebhookEvent,
+} from "../lib/x-billing.js";
 
 const router = Router();
 
@@ -181,14 +187,17 @@ router.post("/revenuecat-webhook", async (req, res) => {
         res.json({ received: true });
         return;
       }
-      await handleXEntitlementEvent({
-        eventType,
-        poolId,
-        appUserId,
-        productId,
+      // X02-C: event dedup + slot binding + cross-pool defense
+      await processXWebhookEvent({
         eventId: (event.id as string | null) ?? null,
+        eventType,
+        appUserId,
+        poolId,
+        productId,
         expiresAt,
         isSandbox,
+        originalTransactionId: (event.original_transaction_id as string | null) ?? null,
+        latestTransactionId: (event.transaction_id as string | null) ?? null,
       });
       res.json({ received: true });
       return;
@@ -566,6 +575,65 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
   }
 });
 
+// ── POST /billing/x-reserve-slot — X subscription slot 예약 (pool_admin 전용) ──
+// X02-C §3~10: sequence/tier/product 서버 결정, client에서 받지 않음
+// billingEnabled 체크 없음 — Store 결제 흐름, 내부 결제와 무관
+router.post("/x-reserve-slot", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+    const slot = await reserveXSlot(poolId, userId);
+    res.status(slot.existing ? 200 : 201).json({ ok: true, slot });
+  } catch (err: any) {
+    if (err?.code === "ALREADY_SUBSCRIBED") {
+      res.status(409).json({ error: "ALREADY_SUBSCRIBED", message: err.message });
+      return;
+    }
+    console.error("[x-reserve-slot]", err);
+    res.status(500).json({ error: err?.message ?? "slot 예약 오류" });
+  }
+});
+
+// ── POST /billing/sync-x-subscription — RC 구매 후 서버 검증·동기화 (pool_admin 전용) ─
+// X02-C §11~19: server-side RC 검증 + slot binding + paid entitlement 동기화
+// billingEnabled 체크 없음 — Store 결제 흐름
+router.post("/sync-x-subscription", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+    const result = await syncXSubscription({ poolId, userId });
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    const code: string = err?.code ?? "";
+    if (code === "ALREADY_SUBSCRIBED" || code === "NO_RESERVED_SLOT") {
+      res.status(409).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "RC_ENTITLEMENT_INACTIVE") {
+      res.status(422).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "PRODUCT_MISMATCH") {
+      res.status(409).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "PAYMENT_DEADLINE_EXPIRED") {
+      res.status(410).json({ error: code, message: err.message });
+      return;
+    }
+    console.error("[sync-x-subscription]", err);
+    res.status(500).json({ error: err?.message ?? "동기화 오류" });
+  }
+});
+
 // ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
 router.use((_req, res, next) => {
   if (!billingEnabled) {
@@ -651,6 +719,11 @@ async function startupCleanupRevenueLogs() {
   }
 }
 startupCleanupRevenueLogs().catch(console.error);
+
+// X02-C: revenuecat_webhook_events 테이블 보장 (startup migration)
+import("../migrations/pool-db-x-billing-contract.js")
+  .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
+  .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
 // subscription.tsx 화면에서 서버 값으로 플랜 목록 표시
