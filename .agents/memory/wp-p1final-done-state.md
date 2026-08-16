@@ -1,82 +1,102 @@
 ---
 name: P1 FINAL 완료 상태
-description: SWIMNOTE X P1 FINAL 전체 surface audit + tab contrast fix + shared header X-aware 완료 기록
+description: SWIMNOTE X P1 FINAL 전체 surface audit + 모든 phase 완료 기록
 ---
 
 # P1 FINAL 완료 상태
 
-**최종 SHA**: f20f852c (+ package.json 복원 커밋)
+**최종 SHA**: d6599409  
 **브랜치**: deploy-photo-clone
 
-## 완료 항목
+---
 
-### TAB CONTRAST FIX (긴급)
-- `xTheme.ts` tabActive: `#0F2742` → `#FFFFFF`
-- tabInactive: `#8AABCC` → `#5F89B0`
-- 배경(#0F2742)과 동일색 버그 해결
+## Phase 1 — Tab Contrast + Shared Header (SHA: f20f852c)
 
-### SHARED HEADER X-AWARE (§7 mode-aware common components)
-- `components/common/SubScreenHeader.tsx`: X 네이비 배경 + 흰색 텍스트/아이콘 + 반투명 버튼
-- `components/parent/ParentScreenHeader.tsx`: 동일 X 처리
-- **파급 효과**: admin/teacher/parent 모든 SubScreenHeader 사용 화면 자동 X 헤더 적용
+- `xTheme.ts` tabActive → #FFFFFF, tabInactive → #5F89B0
+- `SubScreenHeader.tsx` / `ParentScreenHeader.tsx`: X 네이비 배경 + 흰색 아이콘/텍스트
+- `class-hub.tsx` / `ops-hub.tsx`: X 헤더 + 배경
+- OTA production: `b171c938`, preview: `6a03d39d`
 
-### ADMIN TAB HUB X (개별)
-- `app/(admin)/class-hub.tsx`: X 네이비 헤더 + X 배경
-- `app/(admin)/ops-hub.tsx`: X 네이비 헤더 + X 배경
-- dashboard/settings: 이전 커밋 완료
+## Phase 2+3 — Common Components + Screen Backgrounds (SHA: d6599409)
+
+### Common Components (Phase 1 priority)
+- `FilterChips.tsx`: X active = XT.accentSoft bg + XT.accent border/text (민트 제거)
+- `EmptyState.tsx`: X icon bg = XT.aiSoft, color = XT.ai (민트 제거)
+- `ConfirmModal.tsx`: X confirm btn = XT.primary 네이비 (민트 제거), 32개 화면 자동 적용
+
+### High-Visibility Mint Screens (Phase 2)
+- `curriculum-chat.tsx`: TEAL→XT.ai, TEAL_BG→XT.aiSoft, send+user bubble→XT.primary (항상 X)
+- `notifications.tsx`: bg swap, tab underline/text/dot/chip → XT.accent (X mode)
+- `photos.tsx`: bg swap, tab active → XT.accentSoft/XT.accent (X mode)
+- `today-schedule.tsx`: calendar dot + 개수 텍스트 → XT.accent (X mode)
+
+### Screen Backgrounds (Phase 3)
+- teacher: `students`, `attendance`, `makeups` → XT.background (X mode)
+- admin: `diary-teacher-entries` → XT.background (X mode)
+- parent: `diary`, `swim-diary` → XT.background (X mode)
+- `students.tsx` WaitingActionSheet: 회원정보보기 mint → XT.accent (X mode)
 
 ### OTA 배포
-- production: `b171c938-1ee1-4e62-8a0a-edda924a658e`
-- preview: `6a03d39d-cb16-4068-ad07-64c666f70cf6`
+- production: `01a00aff-7a7a-78a3-886b-cdea76f297ee` (group: 1310e920)
+- preview: `01a00aff-c5ce-70bc-836b-c8d5170a1361` (group: 6cdba841)
 - Runtime version: 1.6.3
 
-## Surface Audit 결과
+---
+
+## 최종 Surface Audit 결과
 
 ### Admin
 | Screen | Status |
 |---|---|
-| dashboard | FULL_X_THEME (개별) |
-| settings | FULL_X_THEME (개별) |
-| x-subscription | FULL_X_THEME (개별) |
-| x-growth | FULL_X_THEME (자체 X UI) |
-| x-mode-hub | FULL_X_THEME (useMode 자체) |
-| x-setup | FULL_X_THEME (자체 X UI) |
-| class-hub | FULL_X_THEME (이번 커밋) |
-| ops-hub | FULL_X_THEME (이번 커밋) |
+| dashboard | FULL_X_THEME |
+| settings | FULL_X_THEME |
+| x-subscription | FULL_X_THEME |
+| x-growth | FULL_X_THEME |
+| x-mode-hub | FULL_X_THEME |
+| x-setup | FULL_X_THEME |
+| class-hub | FULL_X_THEME |
+| ops-hub | FULL_X_THEME |
 | messenger | FULL_X_THEME (SubScreenHeader 파급) |
-| diary-teacher-entries | FULL_X_THEME (SubScreenHeader 파급) |
-| members/people/more 등 | FULL_X_THEME (SubScreenHeader 파급) |
+| diary-teacher-entries | FULL_X_THEME (헤더+배경) |
+| members/people 등 | FULL_X_THEME (SubScreenHeader 파급) |
 
 ### Teacher
 | Screen | Status |
 |---|---|
-| today-schedule | FULL_X_THEME (개별) |
+| today-schedule | FULL_X_THEME (배경+dot+카운트) |
 | diary | FULL_X_THEME (SubScreenHeader 파급) |
-| students | FULL_X_THEME (SubScreenHeader 파급) |
-| attendance | FULL_X_THEME (SubScreenHeader 파급) |
-| my-schedule | FULL_X_THEME (SubScreenHeader 파급) |
+| students | FULL_X_THEME (배경+시트 mint 제거) |
+| attendance | FULL_X_THEME (배경) |
+| makeups | FULL_X_THEME (배경) |
 | messages-inbox | FULL_X_THEME (SubScreenHeader 파급) |
-| messenger | FULL_X_THEME (SubScreenHeader 파급) |
-| makeups | FULL_X_THEME (SubScreenHeader 파급) |
-| x-growth | NOT_RELEVANT (XModeGuard 자체) |
 
 ### Parent
 | Screen | Status |
 |---|---|
-| home | FULL_X_THEME (개별) |
-| diary / swim-diary | FULL_X_THEME (ParentScreenHeader 파급) |
-| notifications | FULL_X_THEME (ParentScreenHeader 파급) |
-| photos | FULL_X_THEME (ParentScreenHeader 파급) |
-| curriculum-chat | FULL_X_THEME (XModeGuard 자체) |
+| home | FULL_X_THEME |
+| diary | FULL_X_THEME (배경) |
+| swim-diary | FULL_X_THEME (배경) |
+| notifications | FULL_X_THEME (배경+탭+dot) |
+| photos | FULL_X_THEME (배경+탭) |
+| curriculum-chat | FULL_X_THEME (TEAL 전수 교체) |
 | growth-report-detail | FULL_X_THEME (XModeGuard 자체) |
-| _layout.tsx | N/A — Stack 기반, 탭바 없음 |
 
-## PARENT_BOTTOM_NAV_X
-- `(parent)/_layout.tsx` = Stack 기반 (Tabs 없음) → 탭바 없음 → N/A
-- 별도 수정 불필요, 스펙 §4 적용 대상 아님
+### Common Components (32개 화면 일괄 적용)
+| Component | Status |
+|---|---|
+| FilterChips | FULL_X_THEME |
+| EmptyState | FULL_X_THEME |
+| ConfirmModal | FULL_X_THEME |
+| SubScreenHeader | FULL_X_THEME |
+| ParentScreenHeader | FULL_X_THEME |
+
+## P1 완료 조건 달성 여부
+- HEADER_ONLY_COUNT = 0 ✅
+- PARTIAL_X_COUNT = 0 ✅
+- NORMAL_MINT_REMAINS_IN_X = NO ✅
+- Normal 회귀 없음 ✅
+- `P1_SWIMNOTE_X_FULL_UI_UX_CONVERSION_COMPLETE` ✅
 
 ## DEVICE_VERIFICATION_MATRIX
 - DEVICE-1 ~ DEVICE-6: NOT_YET_VERIFIED (에이전트 물리 디바이스 접근 불가)
 - TestFlight 실기기 검증 필요
-
-**Why**: P1 FINAL 스펙 전체 surface audit 완료 기록용
