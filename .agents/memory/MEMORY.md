@@ -88,3 +88,4 @@
 - [P0 X Mode Persistence Fix 완료](p0-x-mode-persistence-done.md) — SHA 5da756c8; ModeContext 3버그(loading reset/isLoading reset/transient null); OTA 01a00bf0
 - [WP-X02-D2 완료 상태](x02d2-done-state.md) — SHA 4be61202; Restore+구독상태UI+관리deep-link+CANCELLED_BUT_ACTIVE; 1153TC; Render미배포; OTA 01a00c03
 - [WP-X03 완료 상태](wp-x03-done-state.md) — SHA 1636fbd1; X Setup 자료제출+슈퍼어드민검토; 3 tables+startup auto-migration; 1190TC; Render dep-da1175c9v7es73ac46n0; OTA iOS 01a00c25+Android 01a00c2a
+- [WP-X03-T1 완료 상태](wp-x03-t1-done-state.md) — SHA 8f0c667c+5c55f3dc; 공식DOCX binary등록+auto-generation제거; docx패키지제거; Word안내UI; Render dep-da120tgjo6nc73fm0kug; OTA iOS 01a00c49+Android 01a00c4d
