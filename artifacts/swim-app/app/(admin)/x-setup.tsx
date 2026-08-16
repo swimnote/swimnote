@@ -449,6 +449,14 @@ export default function AdminXSetupScreen() {
               </View>
             )}
 
+            {/* Word 표준 안내 */}
+            <View style={s.wordNotice}>
+              <LucideIcon name="file-text" size={14} color={NAVY} />
+              <Text style={s.wordNoticeText}>
+                {"글로벌 AI 표준 문서는 Microsoft Word(.docx)입니다.\nSWIMNOTE AI ENGINE은 Word(.docx) 형식만 지원합니다."}
+              </Text>
+            </View>
+
             {/* ── 섹션 1: 커리큘럼 자료 ───────────────────────────────── */}
             <SectionCard
               icon="book-open"
@@ -752,6 +760,16 @@ const s = StyleSheet.create({
   statusTitle: { fontSize: 17, fontFamily: "Pretendard-Bold", color: NAVY, marginTop: 4 },
   statusDesc: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 20 },
   submittedAt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textTertiary, marginTop: 2 },
+
+  wordNotice: {
+    flexDirection: "row", gap: 8, alignItems: "flex-start",
+    backgroundColor: "#EFF6FF", borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: "#BFDBFE",
+  },
+  wordNoticeText: {
+    flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular",
+    color: "#1E40AF", lineHeight: 18,
+  },
 
   revisionBanner: {
     flexDirection: "row", gap: 10, alignItems: "flex-start",

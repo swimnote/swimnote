@@ -41,9 +41,21 @@ vi.mock("../../lib/objectStorage.js", () => ({
 
 // xSetupTemplates mock
 vi.mock("../../lib/xSetupTemplates.js", () => ({
-  TEMPLATE_VERSIONS: { curriculum: "1.0.0", website: "1.0.0" },
-  getTemplateR2Key: (type: string) => `x-setup/templates/${type}_v1.0.0.docx`,
+  TEMPLATE_VERSIONS: { curriculum: "1.0", website: "1.0" },
+  TEMPLATE_FILENAMES: {
+    curriculum: "SWIMNOTE_X_커리큘럼_작성양식_v1.0.docx",
+    website:    "SWIMNOTE_X_홈페이지_제작자료_양식_v1.0.docx",
+  },
+  getTemplateR2Key: (type: string) => `x-setup/templates/${type}_v1.0.docx`,
   ensureXSetupTemplates: vi.fn().mockResolvedValue(undefined),
+  getTemplateMeta: (type: string) => ({
+    type,
+    version: "1.0",
+    file_name: type === "curriculum" ? "SWIMNOTE_X_커리큘럼_작성양식_v1.0.docx" : "SWIMNOTE_X_홈페이지_제작자료_양식_v1.0.docx",
+    mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    storage_key: `x-setup/templates/${type}_v1.0.docx`,
+    updated_at: "2026-08-17",
+  }),
 }));
 
 // migrations mock
