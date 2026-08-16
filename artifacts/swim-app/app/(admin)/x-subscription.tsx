@@ -84,15 +84,19 @@ function isUserCancelled(e: any): boolean {
   );
 }
 
-// deadline 남은 시간 표시 (HH:MM)
-function formatDeadline(deadlineAt: string): string {
-  const diff = new Date(deadlineAt).getTime() - Date.now();
-  if (diff <= 0) return "만료";
-  const totalMinutes = Math.floor(diff / 60000);
+// deadline 남은 시간 표시 — §7 NaN-safe
+// Returns a complete display string (never exposes NaN / raw timestamp)
+function formatDeadline(deadlineAt: string | null | undefined): string {
+  if (!deadlineAt) return "결제 기한 확인 필요";
+  const d = new Date(deadlineAt);
+  if (isNaN(d.getTime())) return "결제 기한 확인 필요";
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) return "예약 만료";
+  const totalMinutes = Math.ceil(diff / 60000);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
-  if (h > 0) return `${h}시간 ${m}분`;
-  return `${m}분`;
+  if (h >= 1) return `약 ${h}시간 남음`;
+  return `약 ${m}분 남음`;
 }
 
 // ── 메인 화면 ─────────────────────────────────────────────────────────────────
@@ -537,8 +541,8 @@ function ReservationCard({
         {/* 결제 기한 */}
         <View style={s.reserveRow}>
           <Text style={s.reserveLabel}>결제 기한</Text>
-          <Text style={[s.reserveValue, { color: deadlineRemaining === "만료" ? "#DC2626" : C.textSecondary }]}>
-            {deadlineRemaining === "만료" ? "기한 만료" : `약 ${deadlineRemaining} 남음`}
+          <Text style={[s.reserveValue, { color: deadlineRemaining === "예약 만료" ? "#DC2626" : C.textSecondary }]}>
+            {deadlineRemaining}
           </Text>
         </View>
 
