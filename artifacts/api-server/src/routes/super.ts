@@ -87,11 +87,11 @@ router.get(
                 AND subscription_end_at > NOW()
                 AND subscription_end_at <= NOW() + INTERVAL '24 hours'
             )::int AS deletion_pending_count,
-            -- X MODE 활성 수영장: canonical rule = effective=(paid OR manual) AND NOT force AND config='READY'
+            -- X MODE 활성 수영장: P0 rule = paid+not_force → x; manual+READY+not_force → x
             COUNT(*) FILTER (
-              WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
-                AND NOT COALESCE(x_force_disabled, false)
-                AND xmode_config_status = 'READY'
+              WHERE NOT COALESCE(x_force_disabled, false)
+                AND (COALESCE(x_paid_entitlement, false)
+                  OR (COALESCE(x_manual_entitlement, false) AND xmode_config_status = 'READY'))
             )::int AS xmode_operators
           FROM swimming_pools
         `),
@@ -242,8 +242,8 @@ router.get(
       if (filter === "deletion_pending") conditions.push(`p.subscription_end_at IS NOT NULL AND p.subscription_end_at > NOW() AND p.subscription_end_at <= NOW() + INTERVAL '24 hours'`);
       if (filter === "policy_unsigned")  conditions.push(`p.approval_status = 'approved' AND NOT EXISTS (SELECT 1 FROM policy_consents pc WHERE pc.pool_id = p.id AND pc.policy_key = 'refund_policy')`);
       if (filter === "upload_spike")     conditions.push(`p.upload_blocked = TRUE`);
-      // X MODE 활성 필터: canonical rule = effective=(paid OR manual) AND NOT force AND config='READY'
-      if (filter === "xmode")           conditions.push(`(COALESCE(p.x_paid_entitlement, false) OR COALESCE(p.x_manual_entitlement, false)) AND NOT COALESCE(p.x_force_disabled, false) AND p.xmode_config_status = 'READY'`);
+      // X MODE 활성 필터: P0 rule = paid+not_force → x; manual+READY+not_force → x
+      if (filter === "xmode")           conditions.push(`NOT COALESCE(p.x_force_disabled, false) AND (COALESCE(p.x_paid_entitlement, false) OR (COALESCE(p.x_manual_entitlement, false) AND p.xmode_config_status = 'READY'))`);
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const rows = (await db.execute(sql.raw(`
@@ -2190,8 +2190,13 @@ router.patch(
           )
         `);
 
-        // 7. PoolModeResult 구성 (X02-B2: effective entitlement 사용)
-        const mode = computeMode(afterEffective, updated.xmode_config_status as XModeStatus);
+        // 7. PoolModeResult 구성 (P0: paid→x 즉시, manual→config 기반)
+        const mode = computeMode({
+          x_paid_entitlement:   newPaid,
+          x_manual_entitlement: newManual,
+          x_force_disabled:     newForce,
+          xmode_config_status:  updated.xmode_config_status as XModeStatus,
+        });
         responseResult = {
           pool_id:             updated.id,
           mode,

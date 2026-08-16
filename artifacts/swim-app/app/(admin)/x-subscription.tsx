@@ -613,6 +613,12 @@ function ActiveView({ franchiseNumber }: { franchiseNumber: string | null }) {
           구독 관리·해지는 기기 설정 → Apple ID → 구독에서 할 수 있습니다.
         </Text>
       </View>
+      <Pressable
+        style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
+        onPress={() => router.push("/(admin)/x-setup" as any)}
+      >
+        <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
+      </Pressable>
     </View>
   );
 }
@@ -625,17 +631,17 @@ function PendingView() {
           <Text style={[s.xBadgeText, { fontSize: 22 }]}>X</Text>
         </View>
         <Text style={[s.planName, { color: X_ACCENT, fontSize: 17, textAlign: "center" }]}>
-          X모드 신청이 완료되었습니다.
+          SWIMNOTE X 이용이 시작되었습니다.
         </Text>
         <Text style={[s.planSub, { textAlign: "center", lineHeight: 20 }]}>
-          현재 수영장 커리큘럼 및 X모드 설정을 준비하고 있습니다.
+          우리 수영장 커리큘럼과 X 기능 설정을 진행해주세요.
         </Text>
       </View>
       <Pressable
         style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
         onPress={() => router.push("/(admin)/x-setup" as any)}
       >
-        <Text style={s.ctaBtnText}>X모드 설정 진행하기</Text>
+        <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
       </Pressable>
     </View>
   );

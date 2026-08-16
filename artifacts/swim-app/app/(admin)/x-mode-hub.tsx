@@ -155,15 +155,30 @@ export default function XModeHubScreen() {
               )}
 
               {mode === "x" && (
-                <View style={s.row}>
-                  <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
-                    <LucideIcon name="check-circle" size={18} color={X_ACCENT} />
+                <>
+                  <View style={[s.row, s.rowBorder]}>
+                    <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
+                      <LucideIcon name="check-circle" size={18} color={X_ACCENT} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.rowLabel, { color: X_ACCENT }]}>X모드 사용 중</Text>
+                      <Text style={s.rowDesc}>현재 SWIMNOTE X 기능을 이용하고 있습니다.</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.rowLabel, { color: X_ACCENT }]}>X모드 사용 중</Text>
-                    <Text style={s.rowDesc}>현재 SWIMNOTE X 기능을 이용하고 있습니다.</Text>
-                  </View>
-                </View>
+                  <Pressable
+                    style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
+                    onPress={() => router.push("/(admin)/x-setup" as any)}
+                  >
+                    <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
+                      <LucideIcon name="settings" size={18} color={X_ACCENT} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rowLabel}>X모드 세팅하기</Text>
+                      <Text style={s.rowDesc}>커리큘럼 설정 및 X 운영 설정 관리</Text>
+                    </View>
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                  </Pressable>
+                </>
               )}
             </View>
           </View>

@@ -35,36 +35,47 @@ afterEach(() => { vi.restoreAllMocks(); });
 // ══════════════════════════════════════════════════════════════════════════
 // A. computeMode — canonical X MODE 판정 (순수함수, DB 없음)
 // ══════════════════════════════════════════════════════════════════════════
-describe("A. computeMode — canonical X MODE rule", () => {
-  it("A-1: entitlement=false → mode='normal'", () => {
-    expect(computeMode(false, "NOT_CONFIGURED")).toBe("normal");
-    expect(computeMode(false, "CURRICULUM_PENDING")).toBe("normal");
-    expect(computeMode(false, "READY")).toBe("normal");
+describe("A. computeMode — canonical X MODE rule (P0)", () => {
+  it("A-1: no entitlement → mode='normal'", () => {
+    const noEnt = { x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false };
+    expect(computeMode({ ...noEnt, xmode_config_status: "NOT_CONFIGURED" })).toBe("normal");
+    expect(computeMode({ ...noEnt, xmode_config_status: "CURRICULUM_PENDING" })).toBe("normal");
+    expect(computeMode({ ...noEnt, xmode_config_status: "READY" })).toBe("normal");
   });
 
-  it("A-2: entitlement=true + config NOT_CONFIGURED → mode='x_pending'", () => {
-    expect(computeMode(true, "NOT_CONFIGURED")).toBe("x_pending");
+  it("A-2: paid=true + config NOT_CONFIGURED → mode='x' (P0: paid always x)", () => {
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
   });
 
-  it("A-3: entitlement=true + config CURRICULUM_PENDING → mode='x_pending'", () => {
-    expect(computeMode(true, "CURRICULUM_PENDING")).toBe("x_pending");
+  it("A-3: manual=true + config CURRICULUM_PENDING → mode='x_pending'", () => {
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x_pending");
   });
 
-  it("A-4: entitlement=true + config READY → mode='x'", () => {
-    expect(computeMode(true, "READY")).toBe("x");
+  it("A-4: paid/manual + config READY → mode='x'", () => {
+    expect(computeMode({ x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" })).toBe("x");
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" })).toBe("x");
   });
 
-  it("A-5: X MODE = entitlement=true AND config=READY 두 조건만", () => {
-    const cases: Array<{ e: boolean; c: XModeStatus; expected: boolean }> = [
-      { e: false, c: "NOT_CONFIGURED",    expected: false },
-      { e: false, c: "CURRICULUM_PENDING",expected: false },
-      { e: false, c: "READY",             expected: false },
-      { e: true,  c: "NOT_CONFIGURED",    expected: false },
-      { e: true,  c: "CURRICULUM_PENDING",expected: false },
-      { e: true,  c: "READY",             expected: true  },
+  it("A-5: P0 조합 테이블 — paid+not_force → x; manual+READY+not_force → x; force → normal", () => {
+    type Case = { paid: boolean; manual: boolean; force: boolean; config: XModeStatus; expected: "normal" | "x_pending" | "x" };
+    const cases: Case[] = [
+      { paid: false, manual: false, force: false, config: "NOT_CONFIGURED",     expected: "normal"    },
+      { paid: false, manual: false, force: false, config: "CURRICULUM_PENDING", expected: "normal"    },
+      { paid: false, manual: false, force: false, config: "READY",              expected: "normal"    },
+      { paid: true,  manual: false, force: false, config: "NOT_CONFIGURED",     expected: "x"         },
+      { paid: true,  manual: false, force: false, config: "CURRICULUM_PENDING", expected: "x"         },
+      { paid: true,  manual: false, force: false, config: "READY",              expected: "x"         },
+      { paid: false, manual: true,  force: false, config: "NOT_CONFIGURED",     expected: "x_pending" },
+      { paid: false, manual: true,  force: false, config: "CURRICULUM_PENDING", expected: "x_pending" },
+      { paid: false, manual: true,  force: false, config: "READY",              expected: "x"         },
+      { paid: true,  manual: false, force: true,  config: "READY",              expected: "normal"    },
+      { paid: true,  manual: true,  force: true,  config: "READY",              expected: "normal"    },
     ];
-    for (const { e, c, expected } of cases) {
-      expect(computeMode(e, c) === "x").toBe(expected);
+    for (const { paid, manual, force, config, expected } of cases) {
+      expect(
+        computeMode({ x_paid_entitlement: paid, x_manual_entitlement: manual, x_force_disabled: force, xmode_config_status: config }),
+        `paid=${paid} manual=${manual} force=${force} config=${config}`,
+      ).toBe(expected);
     }
   });
 });
@@ -116,31 +127,32 @@ describe("B. resolveEffectiveXEntitlement — X02-B2 CASE A~H", () => {
     })).toBe(false);
   });
 
-  // CASE G: paid=true, manual=false, config!=READY → x_pending (computeMode level)
-  it("CASE G: paid=true, config NOT_CONFIGURED → effective=true, mode=x_pending", () => {
+  // CASE G: paid=true, manual=false, config!=READY → x (P0: paid always x)
+  it("CASE G: paid=true, config NOT_CONFIGURED → effective=true, mode=x (P0: paid always x)", () => {
     const eff = resolveEffectiveXEntitlement({
       x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false,
     });
     expect(eff).toBe(true);
-    expect(computeMode(eff, "NOT_CONFIGURED")).toBe("x_pending");
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
   });
 
-  // CASE H: paid=false, manual=true, config!=READY → x_pending
+  // CASE H: paid=false, manual=true, config!=READY → x_pending (manual path unchanged)
   it("CASE H: manual=true, config CURRICULUM_PENDING → effective=true, mode=x_pending", () => {
     const eff = resolveEffectiveXEntitlement({
       x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false,
     });
     expect(eff).toBe(true);
-    expect(computeMode(eff, "CURRICULUM_PENDING")).toBe("x_pending");
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe("x_pending");
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
 // C. dashboard-stats xmode_operators SQL 조건 단위 검증 (X02-B2 effective formula)
 // ══════════════════════════════════════════════════════════════════════════
-describe("C. dashboard-stats xmode_operators SQL 조건 (effective formula)", () => {
-  // SQL: (COALESCE(x_paid,false) OR COALESCE(x_manual,false)) AND NOT COALESCE(x_force,false)
-  //      AND xmode_config_status = 'READY'
+describe("C. dashboard-stats xmode_operators SQL 조건 (P0 rule)", () => {
+  // P0 SQL: NOT COALESCE(x_force_disabled,false)
+  //         AND (COALESCE(x_paid_entitlement,false)
+  //           OR (COALESCE(x_manual_entitlement,false) AND xmode_config_status = 'READY'))
   function sqlCountFilter(pools: Array<{
     x_paid_entitlement?: boolean | null;
     x_manual_entitlement?: boolean | null;
@@ -151,8 +163,8 @@ describe("C. dashboard-stats xmode_operators SQL 조건 (effective formula)", ()
       const paid   = p.x_paid_entitlement   ?? false;
       const manual = p.x_manual_entitlement ?? false;
       const force  = p.x_force_disabled     ?? false;
-      const effective = (paid || manual) && !force;
-      return effective && p.xmode_config_status === "READY";
+      // P0: paid+not_force → X; manual+READY+not_force → X
+      return !force && (paid || (manual && p.xmode_config_status === "READY"));
     }).length;
   }
 
@@ -164,12 +176,12 @@ describe("C. dashboard-stats xmode_operators SQL 조건 (effective formula)", ()
     expect(sqlCountFilter(pools)).toBe(0);
   });
 
-  it("C-2: paid=true + config!=READY → xmode_operators=0", () => {
+  it("C-2: paid=true + config!=READY → xmode_operators=2 (P0: paid always x)", () => {
     const pools = [
       { x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" },
       { x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "CURRICULUM_PENDING" },
     ];
-    expect(sqlCountFilter(pools)).toBe(0);
+    expect(sqlCountFilter(pools)).toBe(2);
   });
 
   it("C-3: paid=true + config=READY → xmode_operators=1", () => {
@@ -194,22 +206,23 @@ describe("C. dashboard-stats xmode_operators SQL 조건 (effective formula)", ()
     expect(sqlCountFilter(pools)).toBe(0);
   });
 
-  it("C-6: 복수 X MODE 수영장 → count 정확", () => {
+  it("C-6: 복수 X MODE 수영장 → count 정확 (P0: paid+NOT_CONFIGURED도 포함)", () => {
     const pools = [
-      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },   // X (paid)
-      { x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" },   // X (manual)
-      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }, // x_pending
-      { x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },   // normal
-      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: true,  xmode_config_status: "READY" },   // force disabled
+      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },           // X (paid+READY)
+      { x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" },           // X (manual+READY)
+      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" },  // X (paid+NOT_CONFIGURED → P0)
+      { x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },           // normal
+      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: true,  xmode_config_status: "READY" },           // force disabled
     ];
-    expect(sqlCountFilter(pools)).toBe(2); // paid+READY, manual+READY
+    expect(sqlCountFilter(pools)).toBe(3); // paid+READY, manual+READY, paid+NOT_CONFIGURED
   });
 });
 
 // ══════════════════════════════════════════════════════════════════════════
 // D. pools-summary filter=xmode SQL 조건 단위 검증 (X02-B2 effective formula)
 // ══════════════════════════════════════════════════════════════════════════
-describe("D. pools-summary filter=xmode SQL 조건 (effective formula)", () => {
+describe("D. pools-summary filter=xmode SQL 조건 (P0 rule)", () => {
+  // P0: paid+not_force → x; manual+READY+not_force → x
   function xmodeFilter(pool: {
     x_paid_entitlement?: boolean | null;
     x_manual_entitlement?: boolean | null;
@@ -219,16 +232,16 @@ describe("D. pools-summary filter=xmode SQL 조건 (effective formula)", () => {
     const paid   = pool.x_paid_entitlement   ?? false;
     const manual = pool.x_manual_entitlement ?? false;
     const force  = pool.x_force_disabled     ?? false;
-    return (paid || manual) && !force && pool.xmode_config_status === "READY";
+    return !force && (paid || (manual && pool.xmode_config_status === "READY"));
   }
 
   it("D-1: paid=false, manual=false → filter=xmode 제외", () => {
     expect(xmodeFilter({ x_paid_entitlement: false, x_manual_entitlement: false, xmode_config_status: "READY" })).toBe(false);
   });
 
-  it("D-2: paid=true + config!=READY → filter=xmode 제외", () => {
-    expect(xmodeFilter({ x_paid_entitlement: true, x_manual_entitlement: false, xmode_config_status: "NOT_CONFIGURED" })).toBe(false);
-    expect(xmodeFilter({ x_paid_entitlement: true, x_manual_entitlement: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe(false);
+  it("D-2: paid=true + config!=READY → filter=xmode 포함 (P0: paid always x)", () => {
+    expect(xmodeFilter({ x_paid_entitlement: true, x_manual_entitlement: false, xmode_config_status: "NOT_CONFIGURED" })).toBe(true);
+    expect(xmodeFilter({ x_paid_entitlement: true, x_manual_entitlement: false, xmode_config_status: "CURRICULUM_PENDING" })).toBe(true);
   });
 
   it("D-3: paid=true + config=READY → filter=xmode 포함", () => {
@@ -247,7 +260,7 @@ describe("D. pools-summary filter=xmode SQL 조건 (effective formula)", () => {
     expect(xmodeFilter({ x_paid_entitlement: null, x_manual_entitlement: null, xmode_config_status: "READY" })).toBe(false);
   });
 
-  it("D-7: computeMode(effective) === 'x' ↔ xmodeFilter 일치", () => {
+  it("D-7: computeMode === 'x' ↔ xmodeFilter 일치 (P0)", () => {
     const pools = [
       { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },
       { x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" },
@@ -259,8 +272,12 @@ describe("D. pools-summary filter=xmode SQL 조건 (effective formula)", () => {
       const paid   = p.x_paid_entitlement   ?? false;
       const manual = p.x_manual_entitlement ?? false;
       const force  = p.x_force_disabled     ?? false;
-      const eff = (paid || manual) && !force;
-      const isX = computeMode(eff, p.xmode_config_status as XModeStatus) === "x";
+      const isX = computeMode({
+        x_paid_entitlement:   paid,
+        x_manual_entitlement: manual,
+        x_force_disabled:     force,
+        xmode_config_status:  p.xmode_config_status as XModeStatus,
+      }) === "x";
       const inFilter = xmodeFilter(p);
       expect(isX, `xmodeFilter vs computeMode mismatch for ${JSON.stringify(p)}`).toBe(inFilter);
     }

@@ -220,7 +220,7 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* SWIMNOTE X모드 진입 — pool_admin / sub_admin에게만 노출 */}
+        {/* SWIMNOTE X모드 진입 (알아보기/상품 허브) — pool_admin / sub_admin에게만 노출 */}
         {adminUser?.role !== "teacher" && (
           <Pressable
             style={({ pressed }) => [sx.xCard, { opacity: pressed ? 0.8 : 1, backgroundColor: C.card }]}
@@ -249,6 +249,23 @@ export default function SettingsScreen() {
                 <Text style={[sx.modeBadgeText, { color: "#D97706" }]}>설정 중</Text>
               </View>
             )}
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+          </Pressable>
+        )}
+
+        {/* X모드 세팅하기 — mode=x 상태에서 pool_admin에게만 노출 (알아보기와 분리) */}
+        {adminUser?.role === "pool_admin" && mode === "x" && (
+          <Pressable
+            style={({ pressed }) => [sx.xCard, { opacity: pressed ? 0.8 : 1, backgroundColor: C.card }]}
+            onPress={() => router.push("/(admin)/x-setup" as any)}
+          >
+            <View style={[sx.xIconWrap, { backgroundColor: X_LIGHT }]}>
+              <LucideIcon name="settings" size={20} color={X_ACCENT} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={sx.xLabel}>X모드 세팅하기</Text>
+              <Text style={sx.xDesc}>커리큘럼 설정 및 X 운영 설정 관리</Text>
+            </View>
             <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         )}

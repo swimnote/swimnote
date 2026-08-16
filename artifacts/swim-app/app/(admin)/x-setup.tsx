@@ -56,12 +56,8 @@ export default function AdminXSetupScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // READY이면 즉시 대시보드 redirect
-  useEffect(() => {
-    if (mode === "x" || xmode_config_status === "READY") {
-      router.replace("/(admin)/dashboard");
-    }
-  }, [mode, xmode_config_status]);
+  // P0: x-setup은 "X모드 세팅하기" 화면으로 재정의 — mode=x 상태에서도 진입 허용
+  // (구 로직: mode=x || config=READY → dashboard redirect 제거)
 
   // GET /pools/x-request — 현재 요청 상태 조회
   const fetchRequest = useCallback(async () => {
@@ -131,6 +127,35 @@ export default function AdminXSetupScreen() {
       default:          return "확인 중";
     }
   };
+
+  // ── READY (X모드 활성) 화면 ─────────────────────────────────────────────
+  const renderReady = () => (
+    <View style={s.card}>
+      <View style={[s.iconCircle, { backgroundColor: MINT_LIGHT }]}>
+        <LucideIcon name="check-circle" size={28} color={MINT} />
+      </View>
+      <Text style={s.cardTitle}>X모드 설정 완료</Text>
+      <Text style={s.cardDesc}>
+        수영장 커리큘럼이 연결되어{"\n"}
+        SWIMNOTE X 기능을 모두 사용할 수 있습니다.
+      </Text>
+
+      {/* 커리큘럼 상태 */}
+      <View style={[s.statusRow, { marginTop: 4 }]}>
+        <View style={[s.statusDot, { backgroundColor: MINT }]} />
+        <Text style={[s.statusText, { color: NAVY }]}>커리큘럼 연결 완료</Text>
+      </View>
+
+      {/* 향후 확장 안내 */}
+      <View style={[s.noteBox, { backgroundColor: MINT_LIGHT }]}>
+        <Text style={[s.noteLabel, { color: NAVY }]}>추가 설정</Text>
+        <Text style={[s.noteText, { color: SLATE }]}>
+          AI 기능 설정 및 학부모 리포트 옵션은{"\n"}
+          향후 업데이트에서 추가될 예정입니다.
+        </Text>
+      </View>
+    </View>
+  );
 
   // ── NOT_CONFIGURED 화면 ───────────────────────────────────────────────────
   const renderNotConfigured = () => (
@@ -225,7 +250,7 @@ export default function AdminXSetupScreen() {
         <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
           <LucideIcon name="arrow-left" size={20} color={NAVY} />
         </Pressable>
-        <Text style={s.headerTitle}>SWIMNOTE X 설정</Text>
+        <Text style={s.headerTitle}>X모드 세팅하기</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -242,6 +267,7 @@ export default function AdminXSetupScreen() {
         </View>
 
         {/* 상태별 본문 */}
+        {xmode_config_status === "READY" && renderReady()}
         {xmode_config_status === "NOT_CONFIGURED" && renderNotConfigured()}
         {xmode_config_status === "CURRICULUM_PENDING" && renderCurriculumPending()}
       </ScrollView>

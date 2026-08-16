@@ -129,21 +129,23 @@ describe("formatFranchiseNumber — §8", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 // MODE-1/2 — computeMode + resolveEffectiveXEntitlement
 // ══════════════════════════════════════════════════════════════════════════════
-describe("MODE — computeMode / resolveEffectiveXEntitlement", () => {
-  it("MODE-1: paid=true + config NOT_CONFIGURED → x_pending", () => {
-    const ent = resolveEffectiveXEntitlement({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false });
-    expect(computeMode(ent, "NOT_CONFIGURED")).toBe("x_pending");
+describe("MODE — computeMode / resolveEffectiveXEntitlement (P0)", () => {
+  it("MODE-1: paid=true + config NOT_CONFIGURED → x (P0: paid always x)", () => {
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
   });
 
   it("MODE-2: paid=true + config READY → x", () => {
-    const ent = resolveEffectiveXEntitlement({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false });
-    expect(computeMode(ent, "READY")).toBe("x");
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" })).toBe("x");
   });
 
-  it("force_disabled=true → effective=false → normal", () => {
+  it("MODE-3: manual=true + config NOT_CONFIGURED → x_pending", () => {
+    expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
+  });
+
+  it("force_disabled=true → normal (force override)", () => {
     const ent = resolveEffectiveXEntitlement({ x_paid_entitlement: true, x_manual_entitlement: true, x_force_disabled: true });
     expect(ent).toBe(false);
-    expect(computeMode(ent, "READY")).toBe("normal");
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: true, x_force_disabled: true, xmode_config_status: "READY" })).toBe("normal");
   });
 });
 

@@ -1,0 +1,698 @@
+[SWIMNOTE X PRODUCT POLICY CORRECTION]
+[P0 — DIRECT PAYMENT → POOL-WIDE X ACTIVATION + X SETUP SEPARATION]
+
+목적:
+
+현재 X 상품 흐름을 다음 최종 구조로 수정한다.
+
+1. 수영장 운영자가 X 정기결제를 직접 완료
+2. 결제 성공 즉시 해당 수영장 mode = X
+3. 해당 수영장 소속 관리자/선생님/학부모가 모두 X mode로 진입
+4. 커리큘럼 업로드 및 X 세부 설정은
+   X모드 내부의 별도 "X모드 세팅하기"에서 진행
+5. 설정 미완료는 전체 X 진입을 막지 않고
+   필요한 개별 기능만 준비중 상태로 제한
+
+이번 작업은
+X product/mode UX correction.
+
+RevenueCat 상품/가격/slot/payment server contract는 변경하지 않는다.
+
+==================================================
+0. FINAL PRODUCT CONTRACT
+==================================================
+
+SWIMNOTE X는:
+
+"신청 → 승인 → X모드"
+
+구조가 아니다.
+
+최종 구조:
+
+정기결제
+→ RevenueCat purchase success
+→ APP SERVER sync success
+→ x_paid_entitlement = true
+→ 해당 swimming_pool 전체 X 활성화
+→ 해당 수영장 소속 사용자 X mode 적용
+
+즉:
+
+결제 자체가 X 활성 조건.
+
+별도 Super Admin 승인 대기 없음.
+
+==================================================
+1. POOL-WIDE MODE
+==================================================
+
+X entitlement의 owner는:
+
+individual user가 아니라
+swimming_pool.
+
+따라서 해당 pool의 effective X entitlement가 true이면:
+
+- pool_admin
+- sub_admin
+- teacher
+- parent
+
+해당 수영장에 속한 모든 role이
+X mode를 사용한다.
+
+각 사용자별로 별도 X 결제/승인 필요 없음.
+
+==================================================
+2. PAID MODE RULE
+==================================================
+
+paid X subscription:
+
+x_paid_entitlement = true
+AND x_force_disabled = false
+
+이면:
+
+mode = x
+
+xmode_config_status가 READY인지 여부와 무관.
+
+즉:
+
+PAID + CONFIG NOT READY
+→ x
+
+PAID + CONFIG READY
+→ x
+
+paid 고객은 더 이상
+전체 앱 mode에서 x_pending으로 보내지 않는다.
+
+==================================================
+3. MANUAL ENTITLEMENT
+==================================================
+
+Super Admin manual entitlement는
+운영/지원/테스트 목적.
+
+기존 manual-only 정책은 별도 유지 가능.
+
+권장 resolver:
+
+if x_force_disabled:
+  mode = normal
+
+else if x_paid_entitlement:
+  mode = x
+
+else if x_manual_entitlement:
+  mode = x or x_pending
+  according to current manual/config policy
+
+else:
+  mode = normal
+
+중요:
+
+paid customer가 config 미완료라는 이유로
+x_pending이 되면 안 된다.
+
+==================================================
+4. CONFIG STATUS MEANING
+==================================================
+
+xmode_config_status는
+"X를 사용할 수 있는가?"를 판단하는 값이 아니다.
+
+의미:
+
+- 수영장별 커리큘럼 업로드 상태
+- 커리큘럼 연결 상태
+- X 운영 초기 설정 상태
+- 개별 X 기능 준비 상태
+
+즉:
+
+ENTITLEMENT
+= X 이용권
+
+CONFIG
+= X 안에서 필요한 운영 세팅 상태
+
+둘을 분리한다.
+
+==================================================
+5. NORMAL SWIMNOTE SETTINGS LABEL
+==================================================
+
+일반 SWIMNOTE 설정에서는:
+
+메뉴:
+SWIMNOTE X모드
+
+하위 설명:
+X모드 알아보기
+
+로 사용.
+
+이 영역의 역할:
+
+- X모드 설명
+- AI 설명
+- 학부모 리포트 설명
+- 선생님 AI 일지 설명
+- 커리큘럼 검색 설명
+- 선착순 할인
+- 정기결제
+
+즉 구매 전/상품 안내 허브.
+
+==================================================
+6. X MODE SETTINGS LABEL
+==================================================
+
+X가 활성화된 후
+X모드 내부 설정에는:
+
+X모드 세팅하기
+
+메뉴를 별도로 제공.
+
+이 메뉴는
+"X를 알아보는 화면"이 아니라
+실제 운영 설정 화면.
+
+==================================================
+7. X MODE SETUP CONTENT
+==================================================
+
+"X모드 세팅하기"에서
+현재 실제 구현/정책 범위에 맞춰 다음을 관리할 수 있게 한다.
+
+최소:
+
+1. 우리 수영장 커리큘럼
+   - 업로드
+   - 등록/연결 상태
+   - 준비 상태
+
+2. AI 기능 관련 설정
+   - 실제 존재하는 옵션만
+
+3. 학부모 리포트 관련 설정
+   - 실제 존재하는 옵션만
+
+4. 선생님 AI 일지 관련 설정
+   - 실제 존재하는 옵션만
+
+5. 커리큘럼 검색 관련 상태
+
+6. 기타 현재 구현된 X 설정
+
+중요:
+
+없는 기능을 임의로 만들지 않는다.
+
+이번 P0에서 전체 설정센터를 완성할 필요가 없다면
+기존 x-setup route를
+"X모드 세팅하기"로 재정의/정리하고
+향후 확장 가능한 구조로 만든다.
+
+==================================================
+8. ROUTE ROLE SEPARATION
+==================================================
+
+일반 SWIMNOTE:
+
+Settings
+→ SWIMNOTE X모드
+→ "X모드 알아보기"
+
+X 활성 이후:
+
+Settings 또는 X Settings
+→ "X모드 세팅하기"
+
+두 route의 목적을 명확히 구분.
+
+알아보기:
+상품/설명/결제
+
+세팅하기:
+실제 X 운영 설정
+
+같은 화면을 이름만 바꿔서 재사용하지 말고
+현재 route 구조를 조사하여 역할에 맞게 분리.
+
+==================================================
+9. POST-PURCHASE UX
+==================================================
+
+정기결제 성공 + server sync success:
+
+기존:
+
+"X모드 신청이 완료되었습니다."
+"설정 진행 중"
+
+중심 UX를 수정.
+
+신규:
+
+"SWIMNOTE X 이용이 시작되었습니다."
+
+그리고 필요한 경우:
+
+"우리 수영장 커리큘럼과 X 기능 설정을 진행해주세요."
+
+CTA:
+
+[X모드 세팅하기]
+
+→ X setup route
+
+중요:
+
+설정 전에도 이미 X mode.
+
+==================================================
+10. ALL USERS AFTER PURCHASE
+==================================================
+
+paid entitlement가 pool에 반영되면:
+
+관리자만 X가 되는 것이 아니다.
+
+해당 pool 소속:
+
+teacher
+parent
+
+도 다음 mode refresh / login / app refresh 시
+X mode를 받아야 한다.
+
+확인:
+
+- admin mode resolver
+- teacher mode resolver
+- parent mode resolver
+
+가 각각 다른 entitlement source를 쓰는지 조사.
+
+모두 pool effective entitlement를 공유하도록 한다.
+
+중복 role별 X entitlement 저장 금지.
+
+==================================================
+11. TEACHER X EXPERIENCE
+==================================================
+
+수영장이 X가 되면
+teacher도 X 기능이 노출되어야 한다.
+
+예:
+
+AI 일지
+X 관련 기능
+
+단 커리큘럼/세팅이 필요한 기능이 아직 준비 전이면:
+
+"X모드 설정을 준비하고 있습니다."
+
+또는
+
+"우리 수영장 커리큘럼 설정 후 사용할 수 있습니다."
+
+처럼 개별 기능만 gate.
+
+전체 teacher X mode 차단 금지.
+
+==================================================
+12. PARENT X EXPERIENCE
+==================================================
+
+수영장이 X가 되면
+parent도 X 관련 기능이 노출되어야 한다.
+
+예:
+
+- 커리큘럼 검색
+- X 성장/리포트
+- 기타 구현된 Parent X 기능
+
+커리큘럼이 아직 준비되지 않은 기능:
+
+기능별 준비중.
+
+전체 Parent X mode 차단 금지.
+
+==================================================
+13. FEATURE-LEVEL READINESS
+==================================================
+
+config 미완료 시
+전체 mode를 막지 않고
+
+각 기능이 필요한 dependency를 개별 확인.
+
+예:
+
+CURRICULUM SEARCH
+requires curriculum ready
+→ 아니면 준비중
+
+AI DIARY
+실제 현재 contract상 curriculum required인지 확인
+→ required이면 준비중
+→ required 아니면 바로 사용
+
+GROWTH REPORT
+필요 dependency 실제 코드 확인 후 gate
+
+추측 금지.
+
+==================================================
+14. PURCHASE AUTHORITY
+==================================================
+
+정기결제 자체는
+수영장 전체 X entitlement를 발생시키지만
+
+누가 결제를 실행할 수 있는지는 별도.
+
+기존 Basic subscription의 실제 결제 권한 contract를 조사하여
+그 권한 모델을 X에도 재사용.
+
+현재 실제 권한이 pool_admin only라면
+그 자체는 유지 가능.
+
+하지만 사용자 문구에서:
+
+"관리자에게 신청"
+
+개념 제거.
+
+권한 없는 계정에서는:
+
+"이 계정에는 정기결제 권한이 없습니다.
+수영장 소유자 또는 결제 권한이 있는 계정에서 진행해주세요."
+
+정도로 표현.
+
+중요:
+
+결제 권한이 없는 것과
+X 사용 권한이 없는 것을 혼동하지 않는다.
+
+teacher/parent는
+X를 구매할 수 없더라도
+pool이 X라면 X 기능을 사용 가능.
+
+==================================================
+15. X HUB STATE AFTER PURCHASE
+==================================================
+
+일반 SWIMNOTE의
+"X모드 알아보기" 허브는
+X 활성 이후에도 정보 열람은 가능.
+
+단 상태:
+
+SWIMNOTE X 사용 중
+
+으로 표시.
+
+신규 정기결제 CTA 제거.
+
+대신:
+
+[X모드 세팅하기]
+
+또는
+[X모드 설정]
+
+진입 제공 가능.
+
+==================================================
+16. X SUBSCRIPTION SCREEN AFTER PURCHASE
+==================================================
+
+paid=true이면:
+
+신규 구매 CTA 금지.
+
+표시:
+
+SWIMNOTE X 사용 중
+
+가맹번호
+현재 X 상태
+
+그리고:
+
+[X모드 세팅하기]
+
+CTA.
+
+subscription 관리/restore는 X02-D2에서 별도.
+
+==================================================
+17. EXISTING X_PENDING COPY CLEANUP
+==================================================
+
+paid customer에게 사용되는:
+
+"X모드 설정 진행 중"
+"승인 대기"
+"이용 신청 완료 후 설정 대기"
+
+같은 전체 mode 차단성 문구 전수 검색.
+
+paid path에서는 제거/교체.
+
+단 manual/test x_pending path가 실제로 필요하면
+그쪽에서만 유지.
+
+==================================================
+18. MODECONTEXT
+==================================================
+
+ModeContext가
+admin/teacher/parent에서
+pool effective entitlement를 일관되게 반영하는지 확인.
+
+paid purchase 후:
+
+refreshMode()
+
+또는 재로그인/새로고침 시
+
+pool 전체 role에서:
+mode=x
+
+이어야 한다.
+
+==================================================
+19. DO NOT CHANGE PAYMENT CONTRACT
+==================================================
+
+이번 작업에서 변경 금지:
+
+RevenueCat products
+RevenueCat offering
+RevenueCat packages
+App Store products
+x_subscription_slots
+sequence
+franchise number
+early-bird tier
+36개월 할인
+purchasePackage
+sync-x-subscription
+transaction binding
+webhook idempotency
+cross-pool defense
+
+결제 인프라는 그대로.
+
+==================================================
+20. DO NOT CHANGE AI ENGINE
+==================================================
+
+SWIMNOTE AI ENGINE
+Neon DB
+AI routes
+AI prompts
+
+변경 금지.
+
+이번 작업은 APP mode/UX/settings separation.
+
+==================================================
+21. TEST CASES
+==================================================
+
+MODE-1
+paid=false
+manual=false
+force=false
+→ normal
+
+MODE-2
+paid=true
+config not READY
+→ x
+
+MODE-3
+paid=true
+config READY
+→ x
+
+MODE-4
+paid=true
+force=true
+→ normal
+
+POOL-1
+pool paid=true
+pool_admin
+→ x
+
+POOL-2
+same pool teacher
+→ x
+
+POOL-3
+same pool parent
+→ x
+
+POOL-4
+same pool sub_admin
+→ x
+
+PURCHASE-1
+direct purchase success
+→ sync
+→ refreshMode
+→ x
+
+PURCHASE-2
+purchase success
+→ "SWIMNOTE X 이용이 시작되었습니다."
+
+SETTINGS-1
+Normal settings
+→ SWIMNOTE X모드
+→ subcopy "X모드 알아보기"
+
+SETTINGS-2
+X active
+→ "X모드 세팅하기" 존재
+
+SETTINGS-3
+X모드 세팅하기
+→ curriculum/setup route 진입
+
+FEATURE-1
+paid=true + curriculum not ready
+→ app mode x
+→ curriculum search only 준비중
+
+FEATURE-2
+paid=true + curriculum ready
+→ curriculum search 사용 가능
+
+ROLE-1
+결제 권한 없는 teacher/parent
+→ 구매 CTA 없음
+→ pool X라면 X 기능은 사용 가능
+
+REGRESSION-1
+Basic SWIMNOTE subscription 영향 없음
+
+REGRESSION-2
+manual entitlement 기존 운영 기능 영향 없음
+
+==================================================
+22. IMPLEMENTATION ORDER
+==================================================
+
+1. mode resolver audit
+2. paid mode rule 수정
+3. role별 ModeContext 확인
+4. paid purchase success UX 수정
+5. Normal Settings "X모드 알아보기"
+6. X Settings "X모드 세팅하기"
+7. 기존 x-setup route 역할 정리
+8. feature-level readiness gate 확인
+9. teacher/parent X exposure regression
+10. tests
+11. deploy
+
+==================================================
+23. DEPLOYMENT
+==================================================
+
+server mode resolver 수정 시:
+
+Render deploy
+Replit Published deploy
+
+app UI 수정 시:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+24. REPORT
+==================================================
+
+보고:
+
+1. MODE RESOLVER BEFORE
+2. MODE RESOLVER AFTER
+3. PAID + CONFIG NOT READY RESULT
+4. POOL-WIDE MODE RESULT
+5. ADMIN RESULT
+6. SUB_ADMIN RESULT
+7. TEACHER RESULT
+8. PARENT RESULT
+9. NORMAL SETTINGS LABEL
+10. X SETTINGS LABEL
+11. X MODE SETUP ROUTE
+12. PURCHASE SUCCESS COPY
+13. X_PENDING PAID PATH REMOVED?
+14. CURRICULUM READY GATE
+15. AI DIARY READY GATE
+16. PARENT FEATURE READY GATE
+17. PURCHASE AUTHORITY
+18. BASIC BILLING REGRESSION
+19. MANUAL ENTITLEMENT REGRESSION
+20. MODIFIED FILES
+21. SERVER CHANGE?
+22. DB CHANGE?
+23. NATIVE CHANGE?
+24. TEST RESULT
+25. COMMIT SHA
+26. RENDER DEPLOY ID
+27. REPLIT PUBLISH
+28. PRODUCTION OTA
+29. PREVIEW OTA
+
+성공:
+
+P0_X_POOL_WIDE_IMMEDIATE_ACTIVATION_COMPLETE ✅
+
+실패:
+
+P0_X_POOL_WIDE_IMMEDIATE_ACTIVATION_BLOCKED ❌
+
+이 PASS 전:
+
+X02-D2 Restore 구현 시작 금지.
+X 운영자 설정센터 확장 시작 금지.
+A6 최종 회귀 시작 금지.

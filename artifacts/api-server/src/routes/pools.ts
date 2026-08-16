@@ -468,6 +468,16 @@ router.get("/x-mode", requireAuth, async (req: AuthRequest, res) => {
         return;
       }
       poolId = qPoolId;
+    } else if (role === "sub_admin") {
+      // sub_admin: pool 소속 동일 — users.swimming_pool_id 조회 (pool_admin/teacher와 동일)
+      const userRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
     } else {
       // fail-closed: platform_admin, super_manager, 레거시 parent, 미확인 역할 모두 차단
       res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });

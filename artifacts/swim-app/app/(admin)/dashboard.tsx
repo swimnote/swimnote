@@ -664,7 +664,7 @@ export default function DashboardScreen() {
                     <LucideIcon name="chevron-right" size={14} color="#64748B" />
                   </Pressable>
                 ) : (
-                  // WP3: x_pending → x-setup 화면으로 이동
+                  // x_pending (manual entitlement + config not READY) → x-setup
                   <Pressable
                     style={({ pressed }) => ({
                       backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
@@ -675,7 +675,7 @@ export default function DashboardScreen() {
                   >
                     <LucideIcon name="settings" size={13} color="#355C7D" />
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#475569", flex: 1 }}>
-                      X 설정을 완료하면 이용할 수 있어요
+                      X 커리큘럼 설정을 진행해주세요
                     </Text>
                     <LucideIcon name="chevron-right" size={13} color="#94A3B8" />
                   </Pressable>

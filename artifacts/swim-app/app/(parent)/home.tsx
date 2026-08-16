@@ -1827,26 +1827,25 @@ export default function ParentHomeScreen() {
           style={({ pressed }) => ({
             marginHorizontal: 20, marginBottom: 6,
             flexDirection: "row", alignItems: "center", gap: 10,
-            backgroundColor: mode === "x" ? "#E9EEF3" : "#F8FAFC",
+            backgroundColor: "#E9EEF3",
             borderRadius: 12, padding: 12,
-            borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#E2E8F0",
-            opacity: pressed && mode === "x" ? 0.75 : 1,
+            borderWidth: 1, borderColor: "#355C7D",
+            opacity: pressed ? 0.75 : 1,
           })}
-          onPress={() => mode === "x" && router.push("/(parent)/x-growth" as any)}
-          disabled={mode !== "x"}
+          onPress={() => router.push("/(parent)/x-growth" as any)}
         >
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: mode === "x" ? "#E9EEF3" : "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
-            <LucideIcon name="activity" size={17} color={mode === "x" ? "#355C7D" : "#94A3B8"} />
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#E9EEF3", alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="activity" size={17} color="#355C7D" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : "#94A3B8" }}>
-              {mode === "x" ? "성장 리포트 보기" : "X 설정 완료 후 이용 가능"}
+            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
+              성장 리포트 보기
             </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#64748B" : "#94A3B8", marginTop: 1 }}>
-              {mode === "x" ? "AI가 분석한 수영 성장 현황" : "SWIMNOTE X 기능 준비중"}
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 }}>
+              AI가 분석한 수영 성장 현황
             </Text>
           </View>
-          {mode === "x" && <LucideIcon name="chevron-right" size={16} color="#64748B" />}
+          <LucideIcon name="chevron-right" size={16} color="#64748B" />
         </Pressable>
       )}
 
@@ -1901,8 +1900,8 @@ export default function ParentHomeScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) — X mode 전용 */}
-      {selectedStudent && mode === "x" && (
+      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) — X mode + x_pending */}
+      {selectedStudent && (mode === "x" || mode === "x_pending") && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
           <Pressable
             onPress={() => setAiModalType("report")}

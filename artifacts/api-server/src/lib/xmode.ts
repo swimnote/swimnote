@@ -55,17 +55,24 @@ export function resolveEffectiveXEntitlement(pool: {
 
 // ── 판정 함수 (순수, DB 없음) ─────────────────────────────────────────────
 //
-// READY가 아닌 모든 허용 XModeStatus는 x_pending으로 처리한다.
-// if 구조를 사용하여 XModeStatus에 새 값이 추가되더라도
-// "READY"만 명시적으로 처리하고 나머지를 x_pending으로 흡수한다.
+// P0 정책 (2026-08-16):
+//   x_force_disabled      → normal  (force override 최우선)
+//   x_paid_entitlement    → x       (설정 완료 여부 무관 — 결제 자체가 X 활성 조건)
+//   x_manual_entitlement  → config READY이면 x, 아니면 x_pending
+//   otherwise             → normal
 //
-export function computeMode(
-  entitlement: boolean,
-  configStatus: XModeStatus,
-): PoolMode {
-  if (!entitlement) return "normal";
-  if (configStatus === "READY") return "x";
-  return "x_pending";
+export function computeMode(pool: {
+  x_paid_entitlement: boolean;
+  x_manual_entitlement: boolean;
+  x_force_disabled: boolean;
+  xmode_config_status: XModeStatus;
+}): PoolMode {
+  if (pool.x_force_disabled) return "normal";
+  if (pool.x_paid_entitlement) return "x";
+  if (pool.x_manual_entitlement) {
+    return pool.xmode_config_status === "READY" ? "x" : "x_pending";
+  }
+  return "normal";
 }
 
 // ── pool 조회 + mode 계산 ─────────────────────────────────────────────────
@@ -102,7 +109,12 @@ export async function resolvePoolMode(
 
   return {
     pool_id: row.id,
-    mode: computeMode(entitlement, configStatus),
+    mode: computeMode({
+      x_paid_entitlement:   Boolean(row.x_paid_entitlement),
+      x_manual_entitlement: Boolean(row.x_manual_entitlement),
+      x_force_disabled:     Boolean(row.x_force_disabled),
+      xmode_config_status:  configStatus,
+    }),
     xmode_entitlement: entitlement,   // backward compat: effective 값 반환
     xmode_config_status: configStatus,
   };

@@ -71,12 +71,12 @@ const ModeContext = createContext<ModeContextValue>(DEFAULT_VALUE);
 
 // ─── 지원 역할 판별 ───────────────────────────────────────────────────────────
 /**
- * WP3 자동 조회 허용: pool_admin / teacher / parent_account
- * 제외: sub_admin / super_admin / platform_admin / super_manager / 레거시 parent / 미확인 역할
+ * WP3 자동 조회 허용: pool_admin / teacher / sub_admin / parent_account
+ * 제외: super_admin / platform_admin / super_manager / 레거시 parent / 미확인 역할
  *
- * WP2 서버 GET /pools/x-mode 허용 역할과 1:1 일치시킴.
+ * P0: sub_admin 추가 — 수영장이 X라면 sub_admin도 X mode 수신
  * - kind === "parent"  → JWT role = parent_account → 허용
- * - kind === "admin"   → activeRole 또는 adminUser.role 기준, pool_admin / teacher만 허용
+ * - kind === "admin"   → activeRole 또는 adminUser.role 기준, pool_admin / teacher / sub_admin 허용
  */
 function _isSupportedRole(
   kind: string | null,
@@ -89,7 +89,7 @@ function _isSupportedRole(
   }
   if (kind === "admin") {
     const role = activeRole ?? adminUserRole ?? "";
-    return role === "pool_admin" || role === "teacher";
+    return role === "pool_admin" || role === "teacher" || role === "sub_admin";
   }
   return false;
 }
