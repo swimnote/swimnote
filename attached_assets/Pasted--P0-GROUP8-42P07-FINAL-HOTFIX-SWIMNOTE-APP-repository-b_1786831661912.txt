@@ -1,0 +1,242 @@
+[P0 — GROUP8 42P07 FINAL HOTFIX]
+
+현재 상태 확정:
+
+- SWIMNOTE APP repository
+- branch: deploy-photo-clone
+- Production backend: Render
+- Production DB: APP Supabase
+- AI ENGINE 무관
+- Replit deployment 무관
+
+현재 Render는 매 startup마다:
+
+WP1 Group 1~7 완료
+→ Group 8 진입
+→ Group 8 완료 로그 없음
+→ process exit
+→ 약 82~90초 후 restart
+
+를 반복한다.
+
+현재 Group 8의 pg_constraint precheck만으로
+SQLSTATE 42P07 duplicate_table 충돌을 막지 못하고 있다.
+
+추가 광범위 조사 금지.
+Group 8만 최소 수정한다.
+
+==================================================
+1. TARGET
+==================================================
+
+파일:
+
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+
+대상:
+
+parent_ai_daily_usage_feature_unique
+
+Group 8의 unique constraint 생성 부분만 수정.
+
+다른 migration group 수정 금지.
+
+==================================================
+2. ROOT CAUSE ASSUMPTION
+==================================================
+
+현재 구조:
+
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_constraint
+  WHERE conname = 'parent_ai_daily_usage_feature_unique'
+)
+THEN
+  ALTER TABLE ...
+  ADD CONSTRAINT parent_ai_daily_usage_feature_unique UNIQUE (...);
+END IF;
+
+문제:
+
+pg_constraint에는 없지만
+동일 이름의 INDEX / pg_class relation이 존재하면
+
+ADD CONSTRAINT UNIQUE가 backing index를 만들면서
+
+42P07 duplicate_table
+
+발생 가능.
+
+따라서 pg_constraint만 검사해서는 부족하다.
+
+==================================================
+3. SAFE PRECHECK
+==================================================
+
+constraint와 relation/index 둘 다 검사한다.
+
+실제 schema가 public이면 schema-qualified로:
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint con
+    JOIN pg_class tbl ON tbl.oid = con.conrelid
+    JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+    WHERE con.conname = 'parent_ai_daily_usage_feature_unique'
+      AND tbl.relname = 'parent_ai_daily_usage'
+      AND ns.nspname = 'public'
+  )
+  AND to_regclass('public.parent_ai_daily_usage_feature_unique') IS NULL
+  THEN
+    ALTER TABLE public.parent_ai_daily_usage
+      ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+      UNIQUE (parent_account_id, usage_date, feature);
+  END IF;
+END $$;
+
+주의:
+
+실제 table/schema/column 명은
+현재 repository source와 반드시 대조해서 사용.
+
+임의 추측 금지.
+
+==================================================
+4. EXCEPTION SAFETY NET
+==================================================
+
+위 precheck에 추가하여
+race/legacy object 충돌 안전망으로
+
+EXCEPTION
+  WHEN duplicate_object OR duplicate_table THEN
+    NULL;
+
+처리 가능.
+
+Postgres SQLSTATE:
+
+duplicate_object = 42710
+duplicate_table  = 42P07
+
+현재 장애가 42P07이므로
+duplicate_table을 반드시 포함.
+
+단 다른 에러는 숨기지 않는다.
+
+WHEN OTHERS THEN NULL 금지.
+
+==================================================
+5. IMPORTANT
+==================================================
+
+DROP INDEX 금지.
+DROP CONSTRAINT 금지.
+RENAME 금지.
+데이터 수정 금지.
+
+기존 동일 이름 object가 존재하면
+startup migration에서는 정상 완료 대상으로 취급한다.
+
+현재 목적은
+기존 DB state를 파괴하지 않고
+startup migration을 restart-safe하게 만드는 것.
+
+==================================================
+6. IDEMPOTENCY TEST
+==================================================
+
+수정 후 가능한 로컬/dev 환경에서:
+
+initXModeSchema 실행 1회
+→ PASS
+
+동일 startup 다시 실행
+→ PASS
+
+Group 8 재실행
+→ throw 없음
+
+확인.
+
+==================================================
+7. COMMIT / DEPLOY
+==================================================
+
+테스트 후:
+
+commit
+push origin/deploy-photo-clone
+Render production deploy
+
+==================================================
+8. PRODUCTION PASS CONDITION
+==================================================
+
+새 Render 인스턴스에서 반드시:
+
+Group 8 완료 로그 ✅
+WP1 migration 전체 완료 ✅
+X-payment init 진입 ✅
+X02-B1 P1~P3 완료 ✅
+process restart 없음 ✅
+
+그리고:
+
+GET https://swimnote.kr/api/health
+
+HTTP 200
+ok:true
+
+확인.
+
+uptime 최소 5분 이상 연속 증가 확인.
+
+==================================================
+9. FAIL CONDITION
+==================================================
+
+다음이면 PASS 금지:
+
+- Group 8 완료 로그 없음
+- uptime reset
+- HTTP 503 initializing
+- X-payment init 미도달
+
+그 경우 새 root cause를 추측하지 말고
+실제 새 error 한 건만 보고.
+
+==================================================
+10. REPORT
+==================================================
+
+1. MODIFIED FILE
+2. OLD PRECHECK
+3. NEW PRECHECK
+4. duplicate_table SAFETY ADDED?
+5. LOCAL FIRST RUN
+6. LOCAL SECOND RUN
+7. COMMIT SHA
+8. RENDER DEPLOY ID
+9. GROUP8 COMPLETE
+10. WP1 COMPLETE
+11. X_PAYMENT_INIT_COMPLETE
+12. HTTP STATUS
+13. HEALTH RESPONSE
+14. UPTIME
+15. RESTARTED
+16. DATA CHANGE
+17. DESTRUCTIVE DB CHANGE
+
+성공:
+
+P0_GROUP8_42P07_FINAL_HOTFIX_COMPLETE ✅
+
+실패:
+
+P0_GROUP8_42P07_FINAL_HOTFIX_BLOCKED ❌
+
+이 PASS 전 X02-B2 시작 금지.
