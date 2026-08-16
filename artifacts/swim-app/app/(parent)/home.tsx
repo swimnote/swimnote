@@ -44,10 +44,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { XModeBadge } from "@/components/common/XModeBadge";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 const TEAL = "#2EC4B6";
@@ -1769,53 +1769,66 @@ export default function ParentHomeScreen() {
 
   // ── ListHeaderComponent ────────────────────────────────────────────────────
   const schedule = formatSchedule((selectedStudent as any)?.class_group);
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
+  const iconColor = isX ? XT.textOnNavy : C.textSecondary;
 
   const ListHeader = (
     <View>
-      {/* A. Slim Header */}
-      <View style={[s.header, { paddingTop: PT }]}>
+      {/* A. Slim Header — X: 네이비 / Normal: 기본 */}
+      <View style={[
+        s.header,
+        { paddingTop: PT },
+        isX && { backgroundColor: XT.surfaceNavy, borderBottomWidth: 1, borderBottomColor: XT.surfaceNavyStrong },
+      ]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-          <Text style={[s.poolName, { color: C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
+          <Text style={[s.poolName, { color: isX ? XT.textOnNavy : C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
             {parentPoolName ||
               (parentAccount as any)?.pool_name ||
               pool?.name ||
               "수영장"}
           </Text>
-          <XModeBadge />
+          {isX && (
+            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
+                SWIMNOTE X
+              </Text>
+            </View>
+          )}
         </View>
         <View style={s.headerBtns}>
           <Pressable
-            style={s.headerBtn}
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
             onPress={() => router.push("/(parent)/notifications" as any)}
           >
             <View style={{ position: "relative" }}>
-              <LucideIcon name="inbox" size={19} color={C.textSecondary} />
+              <LucideIcon name="inbox" size={19} color={iconColor} />
               {unreadNotifCount > 0 && (
-                <View style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53E3E", borderWidth: 1.5, borderColor: "#fff" }} />
+                <View style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53E3E", borderWidth: 1.5, borderColor: isX ? XT.surfaceNavy : "#fff" }} />
               )}
             </View>
           </Pressable>
           <Pressable
-            style={s.headerBtn}
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
             onPress={() => Linking.openURL("https://swimnote.kr")}
           >
             <Image
               source={require("@/assets/images/swimnote-logo.png")}
-              style={{ width: 26, height: 26 }}
+              style={{ width: 26, height: 26, opacity: isX ? 0.85 : 1 }}
               resizeMode="contain"
             />
           </Pressable>
           <Pressable
-            style={s.headerBtn}
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
             onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
           >
-            <LucideIcon name="images" size={19} color={C.textSecondary} />
+            <LucideIcon name="images" size={19} color={iconColor} />
           </Pressable>
           <Pressable
-            style={s.headerBtn}
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
             onPress={() => router.push("/(parent)/more" as any)}
           >
-            <LucideIcon name="settings" size={19} color={C.textSecondary} />
+            <LucideIcon name="settings" size={19} color={iconColor} />
           </Pressable>
         </View>
       </View>

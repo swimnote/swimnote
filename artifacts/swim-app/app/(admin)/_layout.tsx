@@ -6,7 +6,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
-import { X } from "@/constants/xTheme";
+import { X, isXMode } from "@/constants/xTheme";
 import { emitTabReset } from "@/utils/tabReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,7 +15,8 @@ const C = Colors.light;
 export default function AdminLayout() {
   const { themeColor } = useBrand();
   const { mode } = useMode();
-  const isX = mode === "x";
+  /** §24: paid X이면 config 미완료(x_pending)여도 X UI 적용 */
+  const isX = isXMode(mode);
   /** X 모드: 네이비 탭바 / Normal: 기본 민트 */
   const activeTabColor = isX ? X.tabActive : themeColor;
   const tabBarBg = isX ? X.surfaceNavy : "#fff";

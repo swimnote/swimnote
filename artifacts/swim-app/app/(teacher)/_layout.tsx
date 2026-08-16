@@ -7,7 +7,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
-import { X } from "@/constants/xTheme";
+import { X, isXMode } from "@/constants/xTheme";
 import { emitTabReset } from "@/utils/tabReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
@@ -18,7 +18,8 @@ const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
   const { mode } = useMode();
-  const isX = mode === "x";
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
   const activeTabColor  = isX ? X.tabActive  : themeColor;
   const tabInactiveColor = isX ? X.tabInactive : Colors.light.text;
   const tabBarBg        = isX ? X.surfaceNavy  : "transparent";

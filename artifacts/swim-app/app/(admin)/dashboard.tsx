@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { X as XT } from "@/constants/xTheme";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
@@ -53,7 +53,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }>
 export default function DashboardScreen() {
   const { adminUser, pool, logout, token, switchRole, setLastUsedRole } = useAuth();
   const { themeColor } = useBrand();
-  const { mode } = useMode();
+  const { mode, modeInitialized } = useMode();
   const insets = useSafeAreaInsets();
   const scrollRef = useTabScrollReset("dashboard");
 
@@ -235,7 +235,23 @@ export default function DashboardScreen() {
 
   const _BIB = "#E6FAF8";
 
-  const isX = mode === "x" || mode === "x_pending";
+  /** §24: x_pending도 X UI / isXMode 헬퍼 사용 */
+  const isX = isXMode(mode);
+
+  // ── COLD START BOOTSTRAP (§5, §27) ──────────────────────────────────────
+  // modeInitialized=false → 서버 mode fetch 아직 완료 안 됨.
+  // Normal dashboard를 먼저 보여줬다가 flash로 X로 바뀌는 것 방지.
+  // loading 중이 아닌데도 modeInitialized가 false이면 skeleton 표시.
+  if (!modeInitialized && !loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#F5F6FA", alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={themeColor} size="large" />
+        <Text style={{ marginTop: 12, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#94A3B8" }}>
+          수영장 정보 불러오는 중…
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: isX ? XT.background : "#F5F6FA" }}>

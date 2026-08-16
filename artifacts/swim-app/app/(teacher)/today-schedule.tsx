@@ -3,7 +3,7 @@
  * 컴포넌트: components/teacher/today-schedule/
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { X as XT } from "@/constants/xTheme";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { router, useFocusEffect } from "expo-router";
 import { Image, Linking, Platform, Pressable } from "react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -313,7 +313,8 @@ export default function TodayScheduleScreen() {
       </SafeAreaView>
     );
   }
-  const isX = mode === "x";
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
 
   return (
     <SafeAreaView style={[h.safe, isX && { backgroundColor: XT.background }]} edges={[]}>

@@ -64,7 +64,7 @@ const MY_SETTINGS: MenuItem[] = [
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
 ];
 
-import { X as XT } from "@/constants/xTheme";
+import { X as XT, isXMode } from "@/constants/xTheme";
 const X_ACCENT = XT.accent;   // xTheme 단일 소스로 통합
 const X_LIGHT  = XT.accentSoft;
 
@@ -188,7 +188,8 @@ export default function SettingsScreen() {
     );
   }
 
-  const isX = mode === "x";
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
 
   return (
     <View style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }}>
