@@ -81,3 +81,4 @@
 - [WP-N1 Sage/Ocean Token Foundation 완료](wp-n1-done-state.md) — SHA e1aded7d; theme/colors.ts Sage palette+4-tier text+bg정리; OTA 01a00b48
 - [WP-N2 Token Sweep 완료](wp-n2-done-state.md) — SHA 4346947b; 165파일 hardcoded hex→C.*; text/bg/border; protected intact; OTA 01a00b6e
 - [WP-N3 Button Role Normalization 완료](wp-n3-done-state.md) — SHA 23c4e82c; primaryAction→Sage Strong+228파일 mint sweep; OTA 01a00ba4
+- [WP-N4 Scheduler Control UI 완료](wp-n4-done-state.md) — SHA f8e37f88; 3파일 neutral surface→C.*; themeColor=pool brand→FEATURE_FIXED 전체; OTA 01a00bc1
