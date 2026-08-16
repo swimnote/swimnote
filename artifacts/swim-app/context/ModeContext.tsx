@@ -149,7 +149,11 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     isRefreshingRef.current = true;
     const seq = ++seqRef.current;
 
-    setState({ status: "loading", result: null, error: null });
+    // P0 FIX A: loading 시작 시 이전 result 보존 (null 리셋 금지)
+    // result: null 즉시 리셋 → mode = null → Normal flash 발생했던 원인
+    setState(prev => ({ ...prev, status: "loading", error: null }));
+
+    if (__DEV__) console.log("[XMODE] SERVER_FETCH_START", { poolId: p });
 
     try {
       const res = await apiRequest(t, "/pools/x-mode", {
@@ -162,10 +166,17 @@ export function ModeProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         let error = "server_error";
+        // P0 FIX C: transient vs auth/not-found 구분
+        // 401/403 = auth invalid → result 폐기 (다른 계정/권한 없음 확정)
+        // 404     = pool_not_found → result 폐기 (pool 삭제 확정)
+        // 5xx     = transient → 마지막 confirmed result 보존 (spec §6 D)
+        let isTransient = false;
         if (res.status === 401) error = "unauthorized";
         else if (res.status === 403) error = "forbidden";
         else if (res.status === 404) error = "pool_not_found";
-        setState({ status: "error", result: null, error });
+        else { isTransient = true; } // 5xx
+        if (__DEV__) console.log("[XMODE] SERVER_" + (isTransient ? "TRANSIENT_ERROR" : "CONFIRMED"), { poolId: p, status: res.status, error, isTransient });
+        setState(prev => ({ status: "error", result: isTransient ? prev.result : null, error }));
         return;
       }
 
@@ -174,22 +185,28 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         data = await res.json();
       } catch {
         if (seqRef.current !== seq) return;
-        setState({ status: "error", result: null, error: "parse_error" });
+        // parse error는 transient로 처리 — 이전 result 보존
+        setState(prev => ({ status: "error", result: prev.result, error: "parse_error" }));
         return;
       }
 
       if (seqRef.current !== seq) return;
+      if (__DEV__) console.log("[XMODE] SERVER_CONFIRMED", { poolId: p, mode: data.mode, entitlement: data.xmode_entitlement });
       setState({ status: "ready", result: data, error: null });
       setModeInitialized(true);
     } catch (e: any) {
       if (seqRef.current !== seq) return;
       const msg: string = e?.message ?? "";
       const isTimeout = msg.includes("시간이 초과") || (e?.name === "AbortError");
-      setState({
+      // P0 FIX C: transient network/timeout → 마지막 confirmed result 보존 (spec §6 D)
+      // UNKNOWN != NORMAL: 네트워크 실패를 Normal entitlement 판정으로 취급하지 않음
+      const errCode = isTimeout ? "timeout" : "network_error";
+      if (__DEV__) console.log("[XMODE] SERVER_TRANSIENT_ERROR", { poolId: p, error: errCode });
+      setState(prev => ({
         status: "error",
-        result: null,
-        error: isTimeout ? "timeout" : "network_error",
-      });
+        result: prev.result,   // 이전 confirmed mode 보존
+        error: errCode,
+      }));
     } finally {
       // 이 요청이 여전히 현재 요청인 경우에만 lock 해제
       if (seqRef.current === seq) {
@@ -204,13 +221,24 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     seqRef.current++;
     isRefreshingRef.current = false;
 
-    if (!token || !poolId || isLoading || !supported) {
-      // 조건 미충족: 이전 결과 즉시 폐기 → idle
+    if (!token || !poolId || !supported) {
+      // 로그아웃 / pool 변경 / 미지원 역할: 이전 결과 폐기 → idle
+      // (다른 계정·pool의 X cache가 누출되지 않도록 명시적 초기화)
+      if (__DEV__) console.log("[XMODE] IDLE_RESET", { hasToken: !!token, hasPool: !!poolId, supported });
       setState(IDLE_STATE);
       return;
     }
 
+    if (isLoading) {
+      // P0 FIX B: auth 로딩 중 (token refresh 등) — result 보존, 재조회 대기
+      // isLoading=false 시 이 useEffect가 다시 실행되어 refreshMode() 호출됨
+      // 이전: IDLE_STATE 리셋 → mode=null → Normal flash 발생했던 원인
+      if (__DEV__) console.log("[XMODE] AUTH_LOADING_WAIT", { poolId });
+      return;
+    }
+
     // 조건 충족: 재조회
+    if (__DEV__) console.log("[XMODE] BOOT_START", { poolId, role: activeRole });
     refreshMode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, poolId, isLoading, supported]);

@@ -1,0 +1,846 @@
+[P0 — X MODE PERSISTENCE / NORMAL FALLBACK ROOT-CAUSE FIX]
+
+목적:
+
+유료 X모드 수영장이 사용 중 또는 앱 재실행 과정에서
+의도치 않게 Normal SWIMNOTE로 풀리는 문제를 근본 해결한다.
+
+이 문제는 UI 문제가 아니라
+"entitlement trust / mode persistence" P0 문제다.
+
+중요:
+
+이번 작업은 먼저 전체 trace로 원인을 확정한 뒤
+최소 범위만 수정한다.
+
+추측성 수정 금지.
+fallback을 무조건 X로 바꾸는 식의 임시방편 금지.
+서버 truth와 entitlement policy를 유지한다.
+
+==================================================
+0. CURRENT SERVER POLICY — LOCK
+==================================================
+
+현재 서버 정책:
+
+force_disabled
+→ normal
+
+paid entitlement
+→ x
+(config 상태와 무관)
+
+manual-only entitlement
+→ config READY ? x : x_pending
+
+no entitlement
+→ normal
+
+이 정책 자체를 임의 변경하지 않는다.
+
+특히:
+
+유료 entitlement가 유효하면
+config 미완료라는 이유로 Normal로 떨어지면 안 된다.
+
+==================================================
+1. P0 FAILURE DEFINITION
+==================================================
+
+다음 중 하나라도 발생하면 FAIL:
+
+- X 수영장이 앱 실행 중 Normal로 변경됨
+- background → foreground 후 Normal
+- kill → relaunch 후 Normal
+- token refresh 후 Normal
+- role switch 후 Normal
+- pool refresh 후 Normal
+- navigation 이동 후 Normal
+- OTA/reload 후 Normal
+- 일시적인 network/API failure 후 Normal
+- `/pools/x-mode` 조회 실패를 Normal로 해석
+- cached pool/session이 서버의 X 상태를 덮음
+- teacher/parent 직접 로그인 시 잠깐 Normal UI 노출 후 X
+- server confirmed X였는데 transient error 한 번으로 Normal 저장
+
+==================================================
+2. FIRST — DO NOT FIX YET
+==================================================
+
+먼저 repository 전체에서
+mode가 결정/저장/초기화/덮어쓰기 되는 모든 경로를 찾는다.
+
+검색 대상 예:
+
+ModeContext
+isX
+mode
+xMode
+x_mode
+x-mode
+modeInitialized
+setMode
+setIsX
+setCurrentMode
+normal
+x_pending
+entitlement
+x_entitlement
+pool cache
+session cache
+auth bootstrap
+role switch
+pool switch
+logout/login
+refresh
+foreground
+AppState
+query invalidation
+storage
+AsyncStorage
+SecureStore
+
+실제 코드 기준으로 추적.
+
+==================================================
+3. MODE SOURCE OF TRUTH MAP 작성
+==================================================
+
+수정 전 반드시 report에
+현재 mode resolution graph 작성.
+
+예:
+
+APP START
+  ↓
+restore session
+  ↓
+restore cached pool
+  ↓
+ModeContext init
+  ↓
+GET /pools/x-mode
+  ↓
+server mode
+  ↓
+client state
+  ↓
+navigation/render
+
+실제 repository 구조대로 작성할 것.
+
+각 단계마다:
+
+SOURCE
+VALUE
+PRIORITY
+WRITE TARGET
+FAILURE BEHAVIOR
+
+기록.
+
+==================================================
+4. ALL NORMAL WRITE PATHS AUDIT
+==================================================
+
+가장 중요.
+
+코드에서 mode를:
+
+normal
+false
+null
+undefined
+
+로 만드는 모든 write path를 목록화한다.
+
+예:
+
+setMode("normal")
+setIsX(false)
+fallback = normal
+catch → normal
+initialState = normal
+logout reset
+role change reset
+pool refresh reset
+
+각각 분류:
+
+LEGIT_NORMAL
+TRANSIENT_FAILURE_FALLBACK
+INIT_PLACEHOLDER
+STALE_CACHE
+UNKNOWN
+
+UNKNOWN 자동수정 금지.
+
+==================================================
+5. SERVER CALL AUDIT
+==================================================
+
+실제 X mode 조회 endpoint 확인.
+
+예상:
+GET /pools/x-mode
+
+정확한 route/response contract 확인.
+
+확인:
+
+- success response
+- paid X
+- manual X
+- x_pending
+- normal
+- 401
+- 403
+- 404
+- 5xx
+- timeout
+- offline
+- malformed response
+
+중요:
+
+"API 호출 실패"
+와
+"서버가 mode=normal이라고 확정 응답"
+
+을 반드시 구분한다.
+
+==================================================
+6. CORE TRUST RULE
+==================================================
+
+이 원칙으로 수정한다.
+
+A. SERVER CONFIRMED NORMAL
+→ normal 전환 가능
+
+B. SERVER CONFIRMED X
+→ x 유지
+
+C. SERVER CONFIRMED X_PENDING
+→ x_pending
+
+D. TRANSIENT FAILURE
+(network / timeout / temporary 5xx / fetch error)
+→ 마지막 server-confirmed mode 유지
+→ retry
+
+즉:
+
+UNKNOWN != NORMAL
+
+이다.
+
+일시적인 조회 실패를
+Normal entitlement 판정으로 취급하지 않는다.
+
+==================================================
+7. LAST CONFIRMED MODE
+==================================================
+
+현재 구조에 없다면
+최소 안전 범위로 도입 검토.
+
+필요하면:
+
+lastConfirmedMode
+lastConfirmedPoolId
+lastConfirmedAt
+
+정도.
+
+단:
+
+client cache는 서버 entitlement를 새로 만들어내는 source가 아니다.
+
+용도는 오직:
+
+"서버 재확인 전 transient failure 동안
+마지막으로 서버가 확인한 UI 상태를 보존"
+
+이다.
+
+다른 pool의 cached X가
+새 pool에 적용되지 않게 poolId key 필수.
+
+==================================================
+8. SECURITY RULE
+==================================================
+
+last confirmed X를 무기한 entitlement로 사용하면 안 된다.
+
+예:
+
+서버에서 명시적으로
+normal / expired / force_disabled
+응답을 받으면 즉시 갱신.
+
+401/403이 auth invalid를 의미하는 구조라면
+정확한 auth flow에 따라 처리.
+
+logout 이후 다른 계정에 이전 X cache 적용 금지.
+
+다른 pool에 이전 X cache 적용 금지.
+
+==================================================
+9. INITIALIZATION FLASH
+==================================================
+
+현재 mode를 알기 전:
+
+default normal
+→ 나중에 x
+
+구조 때문에 Normal UI flash가 생기는지 확인.
+
+modeInitialized가 존재하므로
+실제 사용 상태 감사.
+
+mode 미확정 시:
+
+Normal로 먼저 render 하지 말고
+필요 시 existing loading/bootstrap state 유지.
+
+새 splash UX 제작 금지.
+기존 loading mechanism 재사용.
+
+==================================================
+10. COLD START TRACE
+==================================================
+
+다음 sequence를 실제 코드로 추적:
+
+kill app
+→ open
+→ auth restore
+→ pool restore
+→ role restore
+→ mode init
+→ x-mode API
+→ navigation
+
+어느 순간 Normal이 set되는지 정확히 찾는다.
+
+==================================================
+11. BACKGROUND / FOREGROUND TRACE
+==================================================
+
+AppState:
+
+active
+background
+inactive
+
+관련 refresh audit.
+
+foreground 시:
+
+pool refetch
+auth refresh
+query invalidation
+mode refresh
+
+중 하나가 Normal fallback을 발생시키는지 확인.
+
+==================================================
+12. TOKEN REFRESH TRACE
+==================================================
+
+JWT/session refresh 전후:
+
+- user
+- activeRole
+- activePool
+- mode
+
+초기화 순서 확인.
+
+token refresh 중 mode state를
+normal로 reset하는 코드가 있으면
+필요성 검토.
+
+transient auth refresh 상태와
+confirmed no-entitlement를 구분.
+
+==================================================
+13. ROLE SWITCH TRACE
+==================================================
+
+pool_admin
+sub_admin
+teacher
+parent
+
+role switch 시:
+
+mode가 role별 property처럼 reset되는지 확인.
+
+X entitlement는 pool-wide.
+
+paid X pool이면:
+
+관리자
+선생님
+학부모
+
+모두 X.
+
+역할 변경 자체가
+pool mode를 Normal로 만들면 안 된다.
+
+==================================================
+14. POOL REFRESH / POOL SWITCH
+==================================================
+
+active pool 정보 refresh 시:
+
+cached `xmode_*`
+old pool object
+partial pool response
+
+가 ModeContext를 덮는지 확인.
+
+pool switch가 실제 지원되면:
+
+pool A X
+→ pool B Normal
+
+같은 정상 전환은 유지.
+
+중요:
+
+poolId mismatch cache 방지.
+
+==================================================
+15. QUERY / CACHE AUDIT
+==================================================
+
+React Query / custom cache / AsyncStorage 등
+실제 사용 구조 확인.
+
+다음 패턴 검사:
+
+stale data
+initialData
+placeholderData
+query reset
+query remove
+invalidate
+optimistic state
+persisted query
+
+X mode source와 충돌하는 cache가 있는지 확인.
+
+==================================================
+16. PURCHASE SUCCESS PATH
+==================================================
+
+기존 purchase flow audit.
+
+purchase
+→ reserve
+→ RevenueCat
+→ sync
+→ server entitlement
+→ ModeContext
+→ navigation
+
+이미 결제 직후 X 진입 코드가 있으므로
+이번 작업에서 불필요한 재작성 금지.
+
+다만 purchase success 이후 저장된 X가
+다음 refresh에서 Normal로 덮이는지 연결 확인.
+
+==================================================
+17. X SETUP CONFIG PROTECTION
+==================================================
+
+paid entitlement는 config와 무관하게 X.
+
+다음 잘못된 로직 확인:
+
+if (!configReady) normal
+if (!curriculum) normal
+if (!setupComplete) normal
+
+유료 X에서 존재하면 P0.
+
+config-dependent feature만 gate.
+
+전체 mode는 X 유지.
+
+==================================================
+18. ERROR HANDLING RULE
+==================================================
+
+catch에서:
+
+setMode("normal")
+
+같은 코드가 있다면 우선 의심.
+
+권장 원칙:
+
+catch:
+- preserve last confirmed mode
+- mark mode stale/unconfirmed internally if needed
+- schedule/refetch
+- do not silently downgrade
+
+단 실제 auth revoked가 확인된 경우는 별도.
+
+==================================================
+19. RETRY
+==================================================
+
+transient mode lookup failure가 확인되면
+현재 query retry mechanism 우선 사용.
+
+새로운 복잡한 background worker 금지.
+
+반복 polling 금지.
+
+예:
+
+initial failure
+→ bounded retry
+→ foreground retry
+→ next normal refetch
+
+정도로 최소 구현.
+
+==================================================
+20. LOGGING / TRACE
+==================================================
+
+P0 검증을 위해
+개발 로그 추가 가능.
+
+민감정보 금지.
+
+예:
+
+[XMODE]
+event
+poolId
+role
+previousMode
+candidateMode
+source
+reason
+requestStatus
+confirmed
+
+필요 이벤트:
+
+BOOT_START
+CACHE_RESTORE
+SERVER_FETCH_START
+SERVER_CONFIRMED
+SERVER_TRANSIENT_ERROR
+MODE_PRESERVED
+MODE_CHANGED
+ROLE_CHANGED
+POOL_CHANGED
+APP_FOREGROUND
+
+Production에서 과도한 verbose log는 금지.
+debug/dev 또는 최소 운영 로그.
+
+==================================================
+21. SERVER AUDIT
+==================================================
+
+client 문제로 단정하지 않는다.
+
+현재 두 APP API runtime 모두 고려:
+
+https://swimnote.kr/api
+https://swimnote-api.onrender.com/api
+
+mobile production front door는
+https://swimnote.kr/api
+
+실제 route source 확인.
+
+서버에서 entitlement가 간헐적으로
+normal을 반환할 가능성 감사:
+
+- entitlement query
+- pool id
+- user membership
+- role
+- webhook sync
+- expiration
+- RevenueCat lookup
+- manual entitlement
+- config join
+
+하지만:
+
+원인 없으면 서버 수정 금지.
+
+==================================================
+22. TWO DEPLOYMENT PATHS
+==================================================
+
+swimnote.kr:
+Replit Published runtime
+node artifacts/api-server/dist/index.mjs
+
+Render:
+tsx artifacts/api-server/src/index.ts
+
+서버 수정이 필요하다면
+source/dist divergence 여부 반드시 확인.
+
+한쪽만 고쳐지는 상태 금지.
+
+단 이번 P0 원인이 client-only면
+서버 배포하지 않는다.
+
+==================================================
+23. NO DATA DELETION
+==================================================
+
+절대 금지:
+
+X entitlement 삭제
+X config reset
+X data deletion
+subscription reset
+RevenueCat customer reset
+production fake data
+
+기존 production entitlement를 보존.
+
+==================================================
+24. TEST MATRIX — REQUIRED
+==================================================
+
+DEVICE-X01
+paid X admin login
+→ X
+
+DEVICE-X02
+paid X teacher direct login
+→ X
+
+DEVICE-X03
+paid X parent direct login
+→ X
+
+DEVICE-X04
+X에서 app kill
+→ relaunch
+→ X
+
+DEVICE-X05
+X에서 background 1~5분
+→ foreground
+→ X
+
+DEVICE-X06
+X에서 role switch
+→ X
+
+DEVICE-X07
+token/session refresh 발생
+→ X
+
+DEVICE-X08
+pool data refresh
+→ X
+
+DEVICE-X09
+x-mode endpoint transient failure simulated
+→ last confirmed X 유지
+→ retry 후 X
+
+DEVICE-X10
+server explicitly confirms normal
+→ Normal 전환
+
+DEVICE-X11
+server force_disabled
+→ Normal
+
+DEVICE-X12
+manual entitlement + config not ready
+→ x_pending
+
+DEVICE-X13
+paid entitlement + config not ready
+→ X
+
+DEVICE-X14
+logout X account
+→ normal account login
+→ previous X cache leakage 없음
+
+DEVICE-X15
+pool A X → pool B Normal
+→ correct Normal
+
+DEVICE-X16
+Normal → X pool
+→ correct X
+
+DEVICE-X17
+no Normal flash before mode initialized
+
+==================================================
+25. TEST LEVELS
+==================================================
+
+A. Unit / repository test
+필수.
+
+B. API contract test
+필수.
+
+C. simulated transient error test
+필수.
+
+D. physical TestFlight device
+가능한 범위 코드 완료 후
+사용자 검증 항목 별도 표시.
+
+실기기 미검증을
+PASS라고 쓰지 말 것.
+
+==================================================
+26. FIX SCOPE
+==================================================
+
+원인 확정 후
+최소 수정.
+
+예상 가능 영역:
+
+ModeContext
+auth bootstrap
+pool session/cache
+x-mode query helper
+role switch refresh
+app foreground refresh
+
+하지만 실제 audit 결과 기준.
+
+관련 없는 화면 수정 금지.
+
+==================================================
+27. DO NOT TOUCH
+==================================================
+
+이번 작업에서 관련 없으면 변경 금지:
+
+UI theme
+Normal Sage
+X Nautic/Yacht
+scheduler
+AI
+growth report
+curriculum
+support AI
+website setup
+basic subscription
+RevenueCat product configuration
+App Store metadata
+
+==================================================
+28. DEPLOYMENT RULE
+==================================================
+
+client-only fix:
+→ production OTA + preview OTA
+
+server fix 포함:
+→ 정확한 server deployment path 보고 후 배포
+→ API verification
+→ 그 후 client OTA 필요 시 진행
+
+DB migration은
+정말 필요한 경우가 아니면 금지.
+
+==================================================
+29. FINAL REPORT — ROOT CAUSE REQUIRED
+==================================================
+
+ROOT_CAUSE =
+ROOT_CAUSE_FILE =
+ROOT_CAUSE_FUNCTION =
+
+MODE_SOURCE_OF_TRUTH =
+MODE_RESOLUTION_SEQUENCE =
+
+NORMAL_WRITE_PATHS_FOUND =
+LEGIT_NORMAL_PATHS =
+BAD_FALLBACK_PATHS =
+STALE_CACHE_PATHS =
+
+TRANSIENT_ERROR_BEHAVIOR_BEFORE =
+TRANSIENT_ERROR_BEHAVIOR_AFTER =
+
+LAST_CONFIRMED_MODE_USED =
+POOL_SCOPED_CACHE =
+CACHE_LEAKAGE_RISK =
+
+MODE_INITIALIZED_BEHAVIOR_BEFORE =
+MODE_INITIALIZED_BEHAVIOR_AFTER =
+
+COLD_START_RESULT =
+FOREGROUND_RESULT =
+TOKEN_REFRESH_RESULT =
+ROLE_SWITCH_RESULT =
+POOL_REFRESH_RESULT =
+
+PAID_X_CONFIG_NOT_READY_RESULT =
+MANUAL_X_CONFIG_NOT_READY_RESULT =
+FORCE_DISABLED_RESULT =
+CONFIRMED_NORMAL_RESULT =
+
+SERVER_BUG_FOUND =
+CLIENT_BUG_FOUND =
+
+SERVER_CHANGED =
+CLIENT_CHANGED =
+DB_CHANGED =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+UNIT_TEST =
+API_CONTRACT_TEST =
+TRANSIENT_FAILURE_TEST =
+
+PHYSICAL_TEST_STATUS =
+PHYSICAL_TEST_REMAINING =
+
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+- ROOT_CAUSE가 구체적으로 확정되어 있을 것
+- transient failure != normal
+- server confirmed X가 client fallback 때문에 normal로 내려가지 않을 것
+- paid X + config not ready = X
+- confirmed normal / force_disabled는 정상적으로 Normal
+- pool/account cache leakage 없음
+- mode 초기화 전 Normal flash 없음
+- 관련 없는 기능 변경 없음
+- 실기기 미검증 항목을 완료로 허위 보고하지 않을 것
+
+완료 문구:
+
+P0_X_MODE_PERSISTENCE_ROOT_CAUSE_FIX_COMPLETE ✅
