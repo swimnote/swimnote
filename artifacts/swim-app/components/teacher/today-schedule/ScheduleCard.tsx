@@ -43,10 +43,10 @@ export default function ScheduleCard({
         )}
       </View>
       <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? C.brandSoft : attPartial ? "#FFF1BF" : "#F8FAFC" }]}>
+        <View style={[card.badge, { backgroundColor: attDone ? C.brandSoft : attPartial ? "#FFF1BF" : C.backgroundSoft }]}>
           <LucideIcon name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? C.brandStrong : attPartial ? "#D97706" : "#64748B"} />
-          <Text style={[card.badgeText, { color: attDone ? C.brandStrong : attPartial ? "#D97706" : "#64748B" }]}>
+            color={attDone ? C.brandStrong : attPartial ? "#D97706" : C.textSecondary} />
+          <Text style={[card.badgeText, { color: attDone ? C.brandStrong : attPartial ? "#D97706" : C.textSecondary }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>

@@ -1,0 +1,575 @@
+[WP-N4 — NORMAL SWIMNOTE SCHEDULER CONTROL UI NORMALIZATION]
+
+목적:
+
+Normal SWIMNOTE의 Scheduler / Calendar / Schedule 관련 화면에서
+정보 식별을 위해 사용되는 기존 색상은 100% 보존하고,
+
+사용자가 조작하는 CONTROL UI만
+Normal Sage/Ocean 디자인 시스템으로 정리한다.
+
+이번 WP의 핵심 원칙:
+
+"정보를 구분하는 색은 유지한다.
+조작을 위한 색만 테마에 맞춘다."
+
+==================================================
+0. CURRENT NORMAL THEME SOURCE
+==================================================
+
+Normal 공식 token:
+
+C.brandStrong  = #4F6F67
+C.brandPrimary = #6F9187
+C.brandMid     = #91ABA3
+C.brandSoft    = #DDE7E3
+C.brandMist    = #ECF2F0
+
+C.background   = #F4F7F6
+C.backgroundSoft = #ECF2F0
+C.surface      = #FBFCFC
+
+C.textStrong    = #24302E
+C.textPrimary   = #35413F
+C.textSecondary = #5E6B68
+C.textMuted     = #74817E
+
+C.primaryAction = #4F6F67
+
+==================================================
+1. ABSOLUTE PROTECTED SCHEDULER COLORS
+==================================================
+
+다음 색은 절대 변경하지 않는다.
+
+utils/classColor.ts palette:
+
+#4EA7D8
+#2E9B6F
+#E4A93A
+#D96C6C
+#8B5CF6
+#EC4899
+#06B6D4
+#84CC16
+
+이 색들은:
+
+- 반 식별
+- 일정 식별
+- schedule bar
+- monthly calendar dot
+- weekly board chip
+- today schedule class identity
+- storedColor fallback
+
+용도.
+
+절대 Sage/Ocean으로 통일 금지.
+
+==================================================
+2. OTHER PROTECTED COLORS
+==================================================
+
+Scheduler 내부라도 다음은 semantic이므로 유지:
+
+present / attendance success
+absent
+late
+warning
+error
+makeup status
+special/sub status
+approval/pending/rejected
+
+즉:
+
+C.success
+C.present
+C.error
+C.absent
+C.warning
+C.late
+
+등 semantic token은 그대로.
+
+또한 실제 feature identity가 있는 purple 등도
+의미 확인 없이 변경 금지.
+
+==================================================
+3. CONTROL UI CLASSIFICATION
+==================================================
+
+이번 WP에서 바꿀 수 있는 것은
+THEME_MUTABLE CONTROL UI뿐.
+
+예:
+
+- 오늘 날짜 highlight
+- 현재 선택 날짜
+- 일반 filter
+- 일반 chip
+- 일반 segmented selector
+- 날짜 이동 control
+- 일반 toggle
+- 일반 progress
+- 일반 selected border
+- scheduler 일반 CTA
+- neutral icon surface
+- scheduler section/header neutral background
+- empty state
+- 일반 modal CTA
+- 일반 action sheet control
+
+==================================================
+4. FIRST — FILE / COLOR AUDIT
+==================================================
+
+실제 repository 기준으로 Scheduler 관련 파일을 먼저 조사.
+
+최소 확인:
+
+AdminWeekBoard.tsx
+teacher/today-schedule.tsx
+admin attendance/schedule 관련 화면
+teacher my-schedule
+calendar/week/month 관련 component
+makeup scheduling 관련 component
+
+실제 파일명 기준으로 확장.
+
+각 색상 사용처를:
+
+COLOR =
+ELEMENT =
+CLASS =
+
+THEME_MUTABLE_CONTROL
+SCHEDULE_CLASSIFICATION_PROTECTED
+SEMANTIC_PROTECTED
+FEATURE_FIXED
+AMBIGUOUS
+
+로 분류.
+
+AMBIGUOUS는 자동 변경 금지.
+
+==================================================
+5. TODAY / DATE SELECTION
+==================================================
+
+Normal mode의:
+
+today highlight
+selected date
+selected day
+active calendar day
+
+같은 theme-controlled selection은
+Sage system 사용.
+
+권장:
+
+background:
+C.brandSoft
+
+border / text / icon:
+C.brandStrong
+또는 C.brandPrimary
+
+작은 텍스트 가독성이 부족하면
+C.brandStrong 사용.
+
+기존 mint #2EC4B6 직접 사용 제거.
+
+단 classColor dot는 그대로.
+
+==================================================
+6. WEEK DOT / MONTH DOT RULE
+==================================================
+
+중요.
+
+"오늘임을 나타내는 theme dot"
+와
+"반/일정을 나타내는 classColor dot"
+를 구분한다.
+
+THEME DOT
+→ Sage/Ocean 변경 가능
+
+CLASSIFICATION DOT
+→ 절대 변경 금지
+
+같은 component 안에 두 종류가 존재하면
+의미를 확인해서 각각 다르게 처리.
+
+==================================================
+7. PROGRESS BAR
+==================================================
+
+Scheduler 내부 일반 progress가
+themeColor / mint를 단순 브랜드 강조로 사용하면:
+
+Normal:
+→ C.brandPrimary 또는 C.brandStrong
+
+배경 track:
+→ C.brandSoft / C.backgroundSoft
+
+하지만 progress bar 색 자체가
+상태/출결/위험도를 나타내면 semantic 보호.
+
+==================================================
+8. FILTER / CHIP
+==================================================
+
+일반 scheduler filter / chip:
+
+Normal active:
+background → C.brandSoft
+text/border → C.brandStrong
+
+Normal inactive:
+neutral surface
++ C.textSecondary
+
+X:
+기존 XT.* 유지.
+
+반 이름 chip 자체가 classColor를 사용하는 경우:
+변경 금지.
+
+==================================================
+9. DATE NAVIGATION BUTTONS
+==================================================
+
+이전/다음
+오늘
+주/월 이동
+calendar navigation
+
+등 일반 control은
+Normal Sage system에 맞춘다.
+
+다만 기능 위치/handler는 변경 금지.
+
+색/상태/아이콘 톤만 정리.
+
+==================================================
+10. HEADER / SECTION SURFACES
+==================================================
+
+Scheduler 내부에서:
+
+#F0F9FF
+#F1F5F9
+#F8FAFC
+
+같은 ad-hoc neutral background가
+단순 control/header surface 역할이면:
+
+C.backgroundSoft
+C.surface
+
+등 공식 token으로 정리.
+
+하지만 classColor/tint 정보 영역이면
+보호.
+
+==================================================
+11. GRID / EMPTY CELL
+==================================================
+
+AdminWeekBoard 등의:
+
+grid separator
+empty cell text
+empty cell background
+
+가 단순 neutral UI라면
+Normal Sage/neutral token으로 정리.
+
+예:
+
+empty text
+→ C.textMuted
+
+separator
+→ C.border
+
+neutral cell bg
+→ C.background / C.backgroundSoft
+
+하지만 실제 schedule event cell은
+classColor 유지.
+
+==================================================
+12. TODAY-SCHEDULE
+==================================================
+
+감사 결과에서 확인된 theme-controlled 항목:
+
+- today highlight circle
+- week dot(today)
+- today card header
+- progress bar
+- neutral icon bg
+
+를 실제 의미 확인 후
+Sage token으로 통일.
+
+이미 WP-X0에서 수정한
+X header action:
+
+XT.surfaceNavySoft
+
+는 그대로 유지.
+
+Normal branch만 수정.
+
+==================================================
+13. X MODE PROTECTION
+==================================================
+
+SWIMNOTE X는:
+
+Nautic/Yacht system 유지.
+
+XT.* 변경 금지.
+
+공통 Scheduler component라면:
+
+Normal → Sage
+X → XT.*
+
+mode-aware 분기 유지.
+
+X에서 Sage leakage 금지.
+
+==================================================
+14. BUTTON POSITION / FUNCTION LOCK
+==================================================
+
+이번 WP는 위치 작업 아님.
+
+변경 금지:
+
+button position
+layout order
+onPress
+router
+API
+state
+permission
+disabled
+loading
+modal flow
+form submit
+role gate
+
+UI color/style only.
+
+==================================================
+15. PARENT SCHEDULE
+==================================================
+
+학부모 쪽 일정/출결 화면이 같은 scheduler/calendar component를 공유하면
+Normal/X theme frame은 적용 가능.
+
+하지만:
+
+attendance semantic
+class/date classification
+feed feature color
+
+등은 보호.
+
+==================================================
+16. COLOR OVERUSE 금지
+==================================================
+
+이번 WP의 목적은
+scheduler를 초록색으로 만드는 것이 아니다.
+
+Sage는:
+
+- active control
+- selected state
+- primary interaction
+- neutral accent
+
+에만 사용.
+
+classColor 8색이 이미 강한 시각정보를 제공하므로
+주변 UI는 오히려 차분하게 정리한다.
+
+==================================================
+17. VISUAL TARGET
+==================================================
+
+최종 Scheduler 느낌:
+
+- 일정/반 색상 구분은 지금과 동일
+- 사용성 그대로
+- 주변 control만 정돈됨
+- mint/themeColor 잔재 제거
+- Sage control hierarchy 적용
+- 정보색과 조작색이 명확히 구분됨
+- 복잡한 스케줄 화면이 더 차분하게 보임
+
+==================================================
+18. ACCESSIBILITY
+==================================================
+
+확인:
+
+C.brandStrong on C.brandSoft
+C.textPrimary on C.surface
+C.textSecondary on C.backgroundSoft
+C.textMuted for low priority only
+
+작은 selected label에는
+C.brandPrimary보다
+C.brandStrong 우선 가능.
+
+classColor chip 위 white text는
+기존 contrast/가독성 그대로 유지.
+
+==================================================
+19. TEST MATRIX
+==================================================
+
+N4-1
+classColor() 8색 unchanged
+
+N4-2
+storedColor unchanged
+
+N4-3
+schedule bars unchanged
+
+N4-4
+monthly dots classification unchanged
+
+N4-5
+week-board class chip colors unchanged
+
+N4-6
+attendance semantic unchanged
+
+N4-7
+today highlight → Sage
+
+N4-8
+selected date → Sage
+
+N4-9
+general filter/chip → Sage
+
+N4-10
+general progress → Sage where non-semantic
+
+N4-11
+neutral surfaces → official C.* tokens
+
+N4-12
+X scheduler → XT.* 유지
+
+N4-13
+button positions unchanged
+
+N4-14
+onPress/API/route unchanged
+
+N4-15
+TS 0 new errors
+
+==================================================
+20. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+21. FINAL REPORT
+==================================================
+
+SCHEDULER_FILES_AUDITED =
+SCHEDULER_FILES_CHANGED =
+
+THEME_MUTABLE_CONTROLS_FOUND =
+PROTECTED_CLASSIFICATION_FOUND =
+SEMANTIC_PROTECTED_FOUND =
+AMBIGUOUS_FOUND =
+
+TODAY_HIGHLIGHT_OLD =
+TODAY_HIGHLIGHT_NEW =
+
+SELECTED_DATE_STYLE =
+FILTER_CHIP_STYLE =
+PROGRESS_STYLE =
+NEUTRAL_SURFACE_STYLE =
+
+CLASSCOLOR_CHANGED =
+STORED_COLOR_CHANGED =
+SCHEDULE_BAR_CHANGED =
+MONTH_DOT_CHANGED =
+WEEK_CHIP_CHANGED =
+ATTENDANCE_SEMANTIC_CHANGED =
+
+NORMAL_RESULT =
+X_RESULT =
+PARENT_RESULT =
+
+BUTTON_POSITION_CHANGED =
+ONPRESS_CHANGED =
+API_CHANGED =
+ROUTE_CHANGED =
+STATE_LOGIC_CHANGED =
+
+X_THEME_CHANGED =
+FEATURE_FIXED_CHANGED =
+
+READABILITY_RESULT =
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+CLASSCOLOR_CHANGED = NO
+STORED_COLOR_CHANGED = NO
+SCHEDULE_BAR_CHANGED = NO
+MONTH_DOT_CHANGED = NO
+WEEK_CHIP_CHANGED = NO
+ATTENDANCE_SEMANTIC_CHANGED = NO
+
+BUTTON_POSITION_CHANGED = NO
+ONPRESS_CHANGED = NO
+API_CHANGED = NO
+ROUTE_CHANGED = NO
+STATE_LOGIC_CHANGED = NO
+
+X_THEME_CHANGED = NO
+
+그리고:
+
+WP_N4_SCHEDULER_CONTROL_UI_NORMALIZATION_COMPLETE ✅

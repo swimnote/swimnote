@@ -72,7 +72,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
               return (
                 <Pressable
                   key={day}
-                  style={[wb.cell, { width: COL_W }, cls.length > 0 && { backgroundColor: "#F0F9FF" }]}
+                  style={[wb.cell, { width: COL_W }, cls.length > 0 && { backgroundColor: C.backgroundSoft }]}
                   onPress={() => onCellPress(day, `${String(h).padStart(2, "0")}:00`)}
                 >
                   {cls.map(g => (
