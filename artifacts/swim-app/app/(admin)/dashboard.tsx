@@ -318,7 +318,7 @@ export default function DashboardScreen() {
                 disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : C.textPrimary} />
+                  ? <ActivityIndicator size="small" color={isX ? XT.textOnNavy : C.textPrimary} />
                   : <>
                       <LucideIcon name="repeat" size={10} color={isX ? XT.textOnNavy : C.textPrimary} />
                       <Text style={[s.switchChipTxt, { color: isX ? XT.textOnNavy : C.text }]}>선생님으로 전환</Text>
@@ -944,8 +944,8 @@ const hol = StyleSheet.create({
   },
   bannerLeft:    { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   bannerIconWrap:{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  bannerTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 19 },
-  bannerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)", marginTop: 2, lineHeight: 16 },
+  bannerTitle:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: XT.textOnNavy, lineHeight: 19 },
+  bannerSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: XT.textOnNavySoft, marginTop: 2, lineHeight: 16 },
   bannerBtn:     { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   bannerBtnTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#C0392B" },
 });

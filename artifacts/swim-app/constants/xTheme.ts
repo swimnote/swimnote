@@ -67,7 +67,8 @@ export const X = {
   aiMid:              '#A4C5EC',
 
   // ── 네이비 서피스 위 텍스트 ────────────────────────────────────────────────
-  textOnNavy:         '#FFFFFF',
+  /** Cool off-white — reduces glare vs pure white; 9.0:1 on #1A4070 ✅ AA */
+  textOnNavy:         '#F0F4FF',
   textOnNavySoft:     'rgba(255,255,255,0.80)',
   textOnNavyMuted:    'rgba(255,255,255,0.55)',
   textOnNavyFaint:    'rgba(255,255,255,0.35)',
@@ -88,8 +89,8 @@ export const X = {
   // 탭바 배경 = surfaceNavy (Nautic Primary)
   // tabActive: 배경과 충분한 contrast → 흰색 유지
   tabActive:          '#FFFFFF',
-  /** Yacht muted — inactive tab icon/text (더 밝아서 Yacht feel) */
-  tabInactive:        '#72A0CC',
+  /** Yacht muted — inactive tab icon/text; #0E2A4E 위 ~4.1:1 contrast ✅ */
+  tabInactive:        '#8AB0D4',
 
   // ── 배지 ─────────────────────────────────────────────────────────────────
   badge:              '#1A4070',

@@ -352,7 +352,7 @@ export default function TodayScheduleScreen() {
                 onPress={handleSwitchToAdmin} disabled={switching}
               >
                 {switching
-                  ? <ActivityIndicator size="small" color={isX ? "#FFFFFF" : C.textPrimary} />
+                  ? <ActivityIndicator size="small" color={isX ? XT.textOnNavy : C.textPrimary} />
                   : <>
                       <Repeat size={10} color={isX ? XT.textOnNavy : C.textPrimary} />
                       <Text style={[h.switchChipTxt, { color: isX ? XT.textOnNavy : C.textPrimary }]}>관리자로 전환</Text>
@@ -464,7 +464,7 @@ export default function TodayScheduleScreen() {
               <Text style={h.feedbackBannerSub}>학부모가 기다리고 있어요 · 탭해서 작성</Text>
             </View>
             <Pressable onPress={(e) => { e.stopPropagation(); dismissDiaryBanner(); }} hitSlop={10} style={h.feedbackBannerClose}>
-              <X size={15} color="rgba(255,255,255,0.85)" />
+              <X size={15} color={XT.textOnNavySoft} />
             </Pressable>
           </Pressable>
         )}
@@ -666,8 +666,8 @@ const h = StyleSheet.create({
   detailBtn:      { padding: 8, marginLeft: 4 },
   feedbackBanner:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16 },
   feedbackBannerLeft:  { flex: 1, gap: 2 },
-  feedbackBannerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  feedbackBannerSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.75)" },
+  feedbackBannerTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: XT.textOnNavy },
+  feedbackBannerSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: XT.textOnNavySoft },
   feedbackBannerClose: { padding: 6, marginLeft: 4 },
   weekCard:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   weekCell:     { flex: 1, alignItems: "center", gap: 5 },
