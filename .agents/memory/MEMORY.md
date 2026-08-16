@@ -86,3 +86,4 @@
 - [WP-N6 Parent Theme Frame 완료](wp-n6-done-state.md) — SHA cdb6a810; 2파일; ParentScreenHeader 이미 mode-aware; AI/feed/badgeDot FEATURE_FIXED 확인; OTA 01a00bd9
 - [WP-X1 X 가독성 개선 완료](wp-x1-done-state.md) — SHA 6f076e4b; textOnNavy #F0F4FF+tabInactive #8AB0D4; hardcode→XT.*; OTA 01a00be4
 - [P0 X Mode Persistence Fix 완료](p0-x-mode-persistence-done.md) — SHA 5da756c8; ModeContext 3버그(loading reset/isLoading reset/transient null); OTA 01a00bf0
+- [WP-X02-D2 완료 상태](x02d2-done-state.md) — SHA 4be61202; Restore+구독상태UI+관리deep-link+CANCELLED_BUT_ACTIVE; 1153TC; Render미배포; OTA 01a00c03
