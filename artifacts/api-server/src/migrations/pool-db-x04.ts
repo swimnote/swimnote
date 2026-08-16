@@ -24,8 +24,8 @@ export async function runX04Migration(): Promise<void> {
     await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS x_curriculum_profiles (
         id                 UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-        pool_id            INTEGER     NOT NULL REFERENCES swimming_pools(id),
-        submission_id      UUID        REFERENCES x_setup_submissions(id),
+        pool_id            TEXT        NOT NULL REFERENCES swimming_pools(id),
+        submission_id      TEXT        REFERENCES x_setup_submissions(id),
         source_version     INTEGER     NOT NULL DEFAULT 1,
         template_version   TEXT        NOT NULL DEFAULT '1.0',
         status             TEXT        NOT NULL DEFAULT 'NOT_PROCESSED',
@@ -34,9 +34,9 @@ export async function runX04Migration(): Promise<void> {
         total_declared_levels INTEGER,
         structured_at      TIMESTAMPTZ,
         reviewed_at        TIMESTAMPTZ,
-        reviewed_by        INTEGER,
+        reviewed_by        TEXT,
         edited_at          TIMESTAMPTZ,
-        edited_by          INTEGER,
+        edited_by          TEXT,
         parse_error        TEXT,
         created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -76,8 +76,8 @@ export async function runX04Migration(): Promise<void> {
     await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS x_website_profiles (
         id                    UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-        pool_id               INTEGER     NOT NULL REFERENCES swimming_pools(id),
-        submission_id         UUID        REFERENCES x_setup_submissions(id),
+        pool_id               TEXT        NOT NULL REFERENCES swimming_pools(id),
+        submission_id         TEXT        REFERENCES x_setup_submissions(id),
         source_version        INTEGER     NOT NULL DEFAULT 1,
         template_version      TEXT        NOT NULL DEFAULT '1.0',
         status                TEXT        NOT NULL DEFAULT 'NOT_PROCESSED',
@@ -101,9 +101,9 @@ export async function runX04Migration(): Promise<void> {
         free_notes            TEXT,
         structured_at         TIMESTAMPTZ,
         reviewed_at           TIMESTAMPTZ,
-        reviewed_by           INTEGER,
+        reviewed_by           TEXT,
         edited_at             TIMESTAMPTZ,
-        edited_by             INTEGER,
+        edited_by             TEXT,
         parse_error           TEXT,
         created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -115,13 +115,13 @@ export async function runX04Migration(): Promise<void> {
     await superAdminDb.execute(sql`
       CREATE TABLE IF NOT EXISTS x_website_packages (
         id                       UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-        pool_id                  INTEGER     NOT NULL REFERENCES swimming_pools(id),
+        pool_id                  TEXT        NOT NULL REFERENCES swimming_pools(id),
         profile_id               UUID        NOT NULL REFERENCES x_website_profiles(id),
         package_version          INTEGER     NOT NULL DEFAULT 1,
         package_name             TEXT        NOT NULL,
         r2_key                   TEXT        NOT NULL,
         source_submission_version INTEGER,
-        generated_by             INTEGER,
+        generated_by             TEXT,
         generated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )

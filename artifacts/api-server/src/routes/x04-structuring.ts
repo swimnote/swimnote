@@ -28,13 +28,14 @@ const router = Router();
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 async function getPoolRow(poolId: string | string[]): Promise<any | null> {
+  const id = String(poolId);
   const res = await superAdminDb.execute(
-    sql`SELECT id, name FROM swimming_pools WHERE id = ${parseInt(String(poolId), 10)} LIMIT 1`
+    sql`SELECT id, name FROM swimming_pools WHERE id = ${id} LIMIT 1`
   );
   return (res as any).rows?.[0] ?? null;
 }
 
-async function getSubmissionAndFiles(poolId: number): Promise<{ submission: any; files: any[] }> {
+async function getSubmissionAndFiles(poolId: string): Promise<{ submission: any; files: any[] }> {
   const subRes = await superAdminDb.execute(
     sql`SELECT * FROM x_setup_submissions WHERE pool_id = ${poolId} LIMIT 1`
   );
@@ -54,8 +55,8 @@ async function getSubmissionAndFiles(poolId: number): Promise<{ submission: any;
 
 async function insertAuditLog(
   action: string,
-  actorId: number,
-  poolId: number,
+  actorId: string | number,
+  poolId: string,
   details: Record<string, any>
 ): Promise<void> {
   try {
@@ -65,7 +66,7 @@ async function insertAuditLog(
     const version = (verRes as any).rows?.[0]?.v ?? 1;
     await superAdminDb.execute(sql`
       INSERT INTO audit_logs (entity_type, entity_id, entity_version, action, actor_type, actor_id, pool_id, before_data, after_data, reason)
-      VALUES ('x_structuring', ${poolId}, ${version}, ${action}, 'super_admin', ${actorId}, ${poolId},
+      VALUES ('x_structuring', ${poolId}, ${version}, ${action}, 'super_admin', ${String(actorId)}, ${poolId},
               ${"{}"}::jsonb, ${JSON.stringify(details)}::jsonb, ${action})
     `);
   } catch (e) {
