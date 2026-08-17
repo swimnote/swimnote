@@ -379,7 +379,7 @@ export async function sendPushToSuperAdmins(
   try {
     const superRows = await superAdminDb.execute(sql`
       SELECT id FROM users
-      WHERE role IN ('super_admin', 'platform_admin')
+      WHERE role = 'super_admin'
     `);
     const superIds = (superRows.rows as any[]).map(r => r.id).filter(Boolean);
     if (!superIds.length) return;

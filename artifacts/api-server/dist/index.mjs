@@ -347,7 +347,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
       WHERE swimming_pool_id IS NOT NULL
     `);for(let i of o.rows){let u=i.parent_account_id;if(!await Bo(u,t,!0))continue;let d=await UE(u);d.length&&(await za(d,e,s,n),await qo(u,"parent",t,"sent",s,r))}}catch(a){console.error("[push-service] sendPushToAllUsers \uC624\uB958:",a)}}async function xm(t,e,s={}){try{let r=(await h.execute(c`
       SELECT id FROM users
-      WHERE role IN ('super_admin', 'platform_admin')
+      WHERE role = 'super_admin'
     `)).rows.map(o=>o.id).filter(Boolean);if(!r.length)return;let a=[];for(let o of r){let i=await _.execute(c`
         SELECT DISTINCT token FROM push_tokens
         WHERE user_id = ${o} AND token IS NOT NULL AND token != ''
@@ -1829,11 +1829,11 @@ ${n}`;return mNe("sha256",r).update(a).digest("base64")}async function iX({phone
             `)}catch{}}e.json({success:!0,message:`${n.name} \uD559\uC0DD\uC774 \uD0C8\uD1F4 \uCC98\uB9AC\uB418\uC5C8\uC2B5\uB2C8\uB2E4.`})}catch(s){if(s?.message==="STUDENT_NOT_FOUND"){e.status(404).json({error:"\uD559\uC0DD\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."});return}console.error(s),e.status(500).json({error:"\uC11C\uBC84 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4."})}});de.get("/users",w,aa("canManagePlatformAdmins"),async(t,e)=>{try{let s=await h.execute(c`
       SELECT id, email, name, phone, role, permissions, created_at
       FROM users
-      WHERE role IN ('super_admin', 'platform_admin')
-      ORDER BY CASE role WHEN 'super_admin' THEN 0 ELSE 1 END, created_at DESC
+      WHERE role = 'super_admin'
+      ORDER BY created_at DESC
     `);e.json({success:!0,data:s.rows})}catch(s){return console.error(s),e.status(500).json({success:!1,message:"\uC11C\uBC84 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.",error:String(s)})}});de.post("/users",w,x("super_admin"),async(t,e)=>{let{email:s,password:n,name:r,phone:a,permissions:o}=t.body;if(!s||!n||!r)return e.status(400).json({success:!1,message:"\uD544\uC218 \uC815\uBCF4\uB97C \uC785\uB825\uD574\uC8FC\uC138\uC694.",error:"missing_required_fields"});try{let[i]=await h.select().from(C).where(S(C.email,s)).limit(1);if(i)return e.status(400).json({success:!1,message:"\uC774\uBBF8 \uC0AC\uC6A9 \uC911\uC778 \uC774\uBA54\uC77C\uC785\uB2C8\uB2E4.",error:"email_exists"});let u={...Cx,...o||{}},l=await Wt(n),d=`user_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,p=await h.execute(c`
       INSERT INTO users (id, email, password_hash, name, phone, role, permissions, swimming_pool_id)
-      VALUES (${d}, ${s.trim().toLowerCase()}, ${l}, ${r}, ${a||null}, 'platform_admin', ${JSON.stringify(u)}::jsonb, NULL)
+      VALUES (${d}, ${s.trim().toLowerCase()}, ${l}, ${r}, ${a||null}, 'super_admin', ${JSON.stringify(u)}::jsonb, NULL)
       RETURNING id, email, name, phone, role, permissions, created_at
     `);e.status(201).json({success:!0,data:p.rows[0]})}catch(i){return console.error(i),e.status(500).json({success:!1,message:"\uC11C\uBC84 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.",error:String(i)})}});de.patch("/users/:id/permissions",w,x("super_admin"),async(t,e)=>{let{id:s}=t.params,{permissions:n}=t.body;if(!n||typeof n!="object")return e.status(400).json({success:!1,message:"permissions \uAC1D\uCCB4\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.",error:"missing_permissions"});try{let a=(await h.execute(c`SELECT id, role FROM users WHERE id = ${s} LIMIT 1`)).rows?.[0];if(!a)return e.status(404).json({success:!1,message:"\uC0AC\uC6A9\uC790\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",error:"user_not_found"});if(a.role==="super_admin")return e.status(400).json({success:!1,message:"\uC288\uD37C\uAD00\uB9AC\uC790 \uAD8C\uD55C\uC740 \uBCC0\uACBD\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.",error:"cannot_modify_super_admin"});let o=["canViewPools","canEditPools","canApprovePools","canManageSubscriptions","canManagePlatformAdmins"],i={};for(let l of o)l in n&&(i[l]=!!n[l]);let u=await h.execute(c`
       UPDATE users

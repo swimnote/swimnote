@@ -241,8 +241,8 @@ router.get("/users", requireAuth, requirePermission("canManagePlatformAdmins"), 
     const users = await superAdminDb.execute(sql`
       SELECT id, email, name, phone, role, permissions, created_at
       FROM users
-      WHERE role IN ('super_admin', 'platform_admin')
-      ORDER BY CASE role WHEN 'super_admin' THEN 0 ELSE 1 END, created_at DESC
+      WHERE role = 'super_admin'
+      ORDER BY created_at DESC
     `);
     res.json({ success: true, data: users.rows });
   } catch (err) {
@@ -269,7 +269,7 @@ router.post("/users", requireAuth, requireRole("super_admin"), async (req: AuthR
     const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const result = await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, permissions, swimming_pool_id)
-      VALUES (${id}, ${email.trim().toLowerCase()}, ${password_hash}, ${name}, ${phone || null}, 'platform_admin', ${JSON.stringify(perms)}::jsonb, NULL)
+      VALUES (${id}, ${email.trim().toLowerCase()}, ${password_hash}, ${name}, ${phone || null}, 'super_admin', ${JSON.stringify(perms)}::jsonb, NULL)
       RETURNING id, email, name, phone, role, permissions, created_at
     `);
     res.status(201).json({ success: true, data: result.rows[0] });
