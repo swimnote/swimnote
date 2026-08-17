@@ -1,0 +1,644 @@
+[P0-FORENSIC-AUDIT — CS SUPPORT DEVELOPMENT REPORT INTEGRITY AUDIT]
+
+목적:
+
+현재 Support AI defect를 더 수정하기 전에
+WP-CS-01R ~ 현재 P0까지의 완료보고가
+실제 repository / deployment / production DB / test evidence와
+일치했는지 포렌식 감사한다.
+
+이번 작업은 코드 수정 작업이 아니다.
+
+신규 기능 개발 금지.
+production DB write 금지.
+migration 실행 금지.
+deploy 금지.
+OTA 금지.
+
+중요:
+
+"의도적으로 거짓말했다" 같은 동기 판단은 하지 않는다.
+
+오직 각 기존 보고의 주장에 대해:
+
+PROVEN
+INFERRED
+UNVERIFIED
+CONTRADICTED
+FALSE
+
+중 하나로 판정한다.
+
+==================================================
+0. ABSOLUTE REPORTING RULE
+==================================================
+
+이번 감사에서 금지:
+
+- 예상 결과를 실제 결과처럼 쓰기
+- mock test를 production evidence로 쓰기
+- 코드 존재를 deployment 완료 증거로 쓰기
+- deployment trigger를 LIVE로 쓰기
+- "배포 후 될 것"을 PASS로 쓰기
+- REQUIRES_DEVICE를 DEVICE PASS로 쓰기
+- 추정값에 ACTUAL이라는 이름 붙이기
+- DB schema code를 실제 production schema 증거로 쓰기
+
+증거가 없으면 반드시:
+
+UNVERIFIED
+
+라고 쓴다.
+
+==================================================
+1. AUDIT SCOPE
+==================================================
+
+최소 다음 commit / 작업을 추적:
+
+WP-CS-04R
+e345a5ad
+
+WP-CS-05R
+2808cdfc
+
+WP-CS-07R
+c83dd197
+
+WP-CS-08R
+1e2026a6
+
+P0 CS08 resolver telemetry
+74efb4e2
+
+support DB harden 관련 commit
+
+AI message visibility fix
+b8a13a90
+
+그 사이 실제 존재하는 관련 commit이 있다면
+git history에서 모두 포함.
+
+보고:
+
+AUDITED_COMMITS =
+
+==================================================
+2. GIT EXISTENCE AUDIT
+==================================================
+
+각 보고된 SHA에 대해:
+
+COMMIT_EXISTS =
+BRANCH =
+PARENT =
+FILES_CHANGED =
+COMMIT_MESSAGE =
+
+확인.
+
+보고서에 존재하지만 git에 없는 SHA가 있으면:
+
+FALSE_REPORT
+
+판정.
+
+==================================================
+3. RENDER DEPLOYMENT FORENSICS
+==================================================
+
+가능한 Render deployment metadata에서
+각 시점의 실제 deployed commit 확인.
+
+최소:
+
+1e2026a6
+74efb4e2
+b8a13a90
+
+각각:
+
+DEPLOY_TRIGGERED =
+BUILD_COMPLETED =
+LIVE =
+LIVE_AT =
+DEPLOY_ID =
+
+증거가 없으면 UNVERIFIED.
+
+특히 기존 보고 중:
+
+"Render 배포 완료"
+"Render LIVE"
+"b8a13a90 적용됨"
+
+같은 문장을 실제 deployment history와 대조.
+
+==================================================
+4. KNOWN CONTRADICTION — RENDER COMMIT
+==================================================
+
+기존 보고에서 한 시점에는:
+
+b8a13a90 배포 완료/진행
+
+취지로 보고했고,
+
+후속 보고에서는:
+
+현재 Render live deploy = 1e2026a6
+b8a13a90 ALTER 코드는 미배포
+
+라고 보고했다.
+
+정확한 timeline 복원.
+
+판정:
+
+EARLIER_RENDER_REPORT =
+PROVEN / INFERRED / CONTRADICTED / FALSE
+
+설명 필수.
+
+==================================================
+5. DATABASE ROUTING FORENSICS
+==================================================
+
+Support 관련 실제 DB object trace:
+
+support_cases
+support_tickets
+support_ticket_replies
+support_knowledge_items
+
+각 CRUD가 실제 사용하는:
+
+DB_OBJECT
+ENV
+
+확인.
+
+그리고 기존 보고:
+
+"support_ticket_replies가 POOL_DATABASE_URL(NeonDB)에 없어서 실패"
+
+주장을 검증.
+
+판정:
+
+POOL_DB_ROOT_CAUSE_REPORT =
+PROVEN / CONTRADICTED / FALSE
+
+왜 그렇게 잘못 판정되었는지
+기술적 원인을 설명.
+
+==================================================
+6. PRODUCTION SCHEMA FORENSICS
+==================================================
+
+read-only information_schema만 사용.
+
+현재 primary production DB에서:
+
+support_ticket_replies
+
+컬럼:
+
+ticket_id
+case_id
+author_user_id
+author_role
+message_type
+
+확인.
+
+현재 schema와
+각 migration/ensure function history 비교.
+
+중요:
+
+현재 schema가 맞다는 사실이
+과거 deployment 시점 schema가 맞았다는 증거는 아님.
+
+시간축을 구분.
+
+==================================================
+7. DEVICE TEST CLAIM AUDIT
+==================================================
+
+기존 모든 보고에서 다음 표현 검색:
+
+DEVICE
+PHYSICAL
+PASS
+AI_REPLY_VISIBLE
+CONVERSATION_PERSISTENCE
+ADMIN_DEVICE
+TEACHER_DEVICE
+PARENT_DEVICE
+NORMAL_DEVICE
+X_DEVICE
+SUPER_ADMIN_CASE_VISIBLE
+
+실제 사용자 확인 없이
+PASS/YES로 작성된 항목을 전부 추출.
+
+각각:
+
+CLAIM =
+ACTUAL_EVIDENCE =
+CLASSIFICATION =
+
+사용자 직접 확인이 없었다면:
+
+UNVERIFIED
+
+또는 실제 실패와 충돌하면:
+
+FALSE / CONTRADICTED
+
+==================================================
+8. SPECIFIC FALSE-PASS AUDIT
+==================================================
+
+다음 기존 보고 확인:
+
+AI_REPLY_VISIBLE = YES (배포 후)
+
+당시 실제 user device verification이 있었는지 확인.
+
+없었다면:
+
+CLASSIFICATION = FALSE
+
+또는 최소 CONTRADICTED.
+
+"배포 후 예상"을
+결과 필드 YES로 쓴 원인 설명.
+
+==================================================
+9. HTTP STATUS CLAIM AUDIT
+==================================================
+
+기존 보고:
+
+ACTUAL_RESPONSE_CODE = INFERRED_200
+SERVER_HTTP = INFERRED_200
+
+검토.
+
+실제 HTTP log를 확보하지 못했는데
+왜 ACTUAL 필드로 보고했는지 확인.
+
+정확한 분류:
+
+HTTP_STATUS_EVIDENCE =
+HTTP_STATUS_CLASSIFICATION =
+
+실제 로그 없으면:
+
+UNVERIFIED
+
+이어야 함.
+
+==================================================
+10. ROOT CAUSE CLAIM AUDIT
+==================================================
+
+지금까지 나온 root cause들을 시간순으로 정리.
+
+최소:
+
+A.
+POOL_DATABASE_URL missing table
+
+B.
+gatherEvidence FM omission
+
+C.
+no_evidence llm_used telemetry
+
+D.
+author_user_id NOT NULL
+
+각각:
+
+CLAIM_DATE/ORDER
+CLAIM
+EVIDENCE_AVAILABLE_AT_TIME
+LATER_EVIDENCE
+FINAL_CLASSIFICATION
+
+==================================================
+11. SQLSTATE 23502 CLAIM
+==================================================
+
+author_user_id NOT NULL 원인에 대해:
+
+실제 failed request의 PostgreSQL log에서
+SQLSTATE 23502를 관측했는가?
+
+아니면:
+
+schema NOT NULL
++
+AI authorId=null
++
+AI row=0
+
+를 조합한 inference인가?
+
+둘을 명확히 구분.
+
+보고:
+
+23502_DIRECTLY_OBSERVED =
+23502_INFERRED =
+
+직접 로그가 없다면
+"ACTUAL_DB_ERROR=23502"라고 했던 기존 보고는
+과도한 확정 표현으로 판정.
+
+==================================================
+12. KNOWLEDGE REVIEW CLAIM AUDIT
+==================================================
+
+기존:
+
+REVIEWED_ITEMS = 20
+
+확인.
+
+실제로 Super Admin이 20개 내용을
+검토/승인 판정한 것인가?
+
+아니면 단순히:
+
+20개 PENDING row/list 확인
+
+인가?
+
+보고:
+
+ACTUAL_HUMAN_REVIEW_COUNT =
+PENDING_LIST_COUNT =
+
+기존 REVIEWED_ITEMS=20의 정확성 판정.
+
+==================================================
+13. FRONTEND MAP CLAIM AUDIT
+==================================================
+
+기존:
+
+FRONTEND_MAP_DEVICE = BLOCKED
+because ACTIVE knowledge = 0
+
+주장 감사.
+
+실제 runResolutionChain Frontend Map은
+static registry를 독립 사용했는지 확인.
+
+판정:
+
+FRONTEND_MAP_BLOCKED_REPORT =
+
+gatherEvidence issue와
+resolution layer issue를 혼동했는지 명시.
+
+==================================================
+14. TEST PASS AUDIT
+==================================================
+
+각 단계에서 보고된:
+
+1552/1552
+1600/1600
+1625/1625
+1653/1653
+1672/1672
+1693/1693
+1717/1717
+
+실제로 해당 commit checkout 기준
+test definitions / test counts와 가능한 범위에서 대조.
+
+중요:
+
+테스트 숫자가 맞아도
+mock architecture가 실제 production DB와 달랐다면
+그 사실 별도 표시.
+
+각:
+
+TEST_COUNT_CLAIM =
+TEST_COUNT_VERIFIED =
+PRODUCTION_RELEVANCE =
+
+==================================================
+15. MOCK VS PRODUCTION GAP
+==================================================
+
+특히 왜 1600+ tests가 통과했는데도:
+
+missing table
+wrong schema
+NOT NULL constraint
+
+같은 production defect를 놓쳤는지 분석.
+
+확인:
+
+mock DB schema가 실제 migration schema와 달랐는가
+ensure schema가 실제 startup에서 테스트되지 않았는가
+integration test가 실제 Postgres를 안 썼는가
+failure를 mock이 재현하지 못했는가
+
+보고:
+
+TEST_BLIND_SPOTS =
+
+==================================================
+16. SILENT FAILURE HISTORY
+==================================================
+
+기존 코드에서 실제로:
+
+.catch(() => {})
+empty [] fallback
+insert failure ignored
+
+등이 있었는지 git history 확인.
+
+각 위치:
+
+FILE
+COMMIT INTRODUCED
+FAILURE_SWALLOWED
+
+보고.
+
+==================================================
+17. REPORT INTEGRITY TABLE
+==================================================
+
+가장 중요.
+
+표 작성:
+
+ID
+ORIGINAL CLAIM
+SOURCE REPORT/WP
+EVIDENCE
+CLASSIFICATION
+CORRECT STATEMENT
+
+CLASSIFICATION은 정확히:
+
+PROVEN
+INFERRED
+UNVERIFIED
+CONTRADICTED
+FALSE
+
+사용.
+
+최소 모든 의심 사례 포함.
+
+==================================================
+18. SEVERITY
+==================================================
+
+잘못된 보고를:
+
+S1:
+잘못된 완료/PASS가 production 판단을 왜곡
+
+S2:
+root cause 과도 확정
+
+S3:
+표현 부정확하지만 구현 판단 영향 작음
+
+으로 분류.
+
+==================================================
+19. CURRENT TRUSTED BASELINE
+==================================================
+
+감사 후 오직 실제 증거가 있는 것만으로
+현재 baseline을 다시 만든다.
+
+예:
+
+GIT_COMMIT =
+ACTUAL_RENDER_LIVE_COMMIT =
+PRODUCTION_DB =
+PRODUCTION_SCHEMA =
+MOBILE_OTA =
+DEVICE_BEHAVIOR =
+
+DEVICE_BEHAVIOR는 현재 사용자 보고:
+
+"x모드 알려줘 → AI 채팅 답변이 보이지 않음"
+
+을 source of truth로 사용.
+
+코드가 "돼야 한다"는 이유로 덮지 않는다.
+
+==================================================
+20. CURRENT DEFECT
+==================================================
+
+감사 작업에서는 수정하지 않는다.
+
+현재 실제 defect:
+
+TestFlight Build 246
+production
+"x모드 알려줘"
+→ AI reply not visible
+
+이 상태를:
+
+CURRENT_PRODUCTION_DEFECT = OPEN
+
+으로 유지.
+
+==================================================
+21. NO FIX
+==================================================
+
+이번 감사 중:
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOY = NO
+OTA = NO
+
+이어야 한다.
+
+현재 defect 해결 시도 금지.
+
+먼저 신뢰 가능한 baseline 확보.
+
+==================================================
+22. FINAL REPORT
+==================================================
+
+AUDITED_COMMITS =
+
+FALSE_CLAIMS_COUNT =
+CONTRADICTED_CLAIMS_COUNT =
+UNVERIFIED_CLAIMS_COUNT =
+INFERRED_CLAIMS_COUNT =
+PROVEN_CLAIMS_COUNT =
+
+MOST_SERIOUS_REPORTING_ERRORS =
+
+POOL_DB_ROOT_CAUSE_REPORT =
+RENDER_DEPLOYMENT_REPORT_ACCURACY =
+DEVICE_PASS_REPORT_ACCURACY =
+HTTP_STATUS_REPORT_ACCURACY =
+23502_REPORT_ACCURACY =
+KNOWLEDGE_REVIEW_REPORT_ACCURACY =
+FRONTEND_MAP_REPORT_ACCURACY =
+
+TEST_BLIND_SPOTS =
+
+CURRENT_TRUSTED_GIT_COMMIT =
+CURRENT_ACTUAL_RENDER_COMMIT =
+CURRENT_PRODUCTION_DB =
+CURRENT_PRODUCTION_SCHEMA =
+CURRENT_IOS_OTA =
+
+CURRENT_DEVICE_BEHAVIOR =
+CURRENT_PRODUCTION_DEFECT = OPEN
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOYMENT_TRIGGERED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+마지막에 반드시:
+
+A. 실제로 잘못 보고된 항목
+B. 증거 없이 확정했던 항목
+C. 실제로 증명된 항목
+
+세 그룹으로 나눠 요약.
+
+완료:
+
+P0_SUPPORT_REPORT_INTEGRITY_FORENSIC_AUDIT_COMPLETE ✅
+
+주의:
+
+이 완료는 "Support defect 해결 완료"가 아니다.
+
+오직:
+
+"기존 보고의 신뢰성 감사 완료"
+
+를 의미한다.
