@@ -1,0 +1,385 @@
+[P0 — CS02R DEVICE DEFECT: MESSAGE SEND DOES NOT APPEAR]
+
+실기기 TestFlight Build 246 + production OTA에서
+설정 → AI 문의 화면은 정상 노출된다.
+
+하지만 사용자가 질문을 입력하고 전송해도
+채팅 메시지가 화면에 올라가지 않는다.
+
+CS-02R DEVICE E2E FAIL.
+
+신규 기능 작업 금지.
+CS-03R로 이동 금지.
+
+현재 결함만 root-cause → 최소 수정 → production OTA 재배포 → 재검증한다.
+
+==================================================
+1. REPRODUCE FIRST
+==================================================
+
+SupportChatScreen.tsx의 실제 send flow를 추적한다.
+
+확인 순서:
+
+Send button
+→ onPress handler
+→ validation
+→ POST /support/cases (필요 시)
+→ case_id 확보
+→ POST /support/cases/:id/messages
+→ response
+→ local state append 또는 refetch
+→ UI render
+
+각 단계 실제 코드 파일/함수명 보고.
+
+==================================================
+2. PRODUCTION API TARGET VERIFY
+==================================================
+
+실기기 production OTA가 실제로 호출하는 API base URL 확인.
+
+현재 SWIMNOTE mobile production front door:
+
+https://swimnote.kr/api
+
+Support API가 이 base를 사용하는지 확인.
+
+잘못된 preview/dev/local URL이면 수정.
+
+추측 금지.
+
+보고:
+
+SUPPORT_API_BASE_URL =
+SUPPORT_CASE_CREATE_URL =
+SUPPORT_MESSAGE_URL =
+
+==================================================
+3. NETWORK RESULT
+==================================================
+
+전송 시 실제 HTTP 결과를 확인.
+
+다음 중 무엇인지 확정:
+
+REQUEST_NOT_SENT
+CASE_CREATE_FAILED
+MESSAGE_POST_FAILED
+401
+403
+404
+409
+422
+500
+RESPONSE_PARSE_FAILED
+STATE_UPDATE_FAILED
+RENDER_FAILED
+
+실제 status/error 기준.
+
+Production console에 raw message/JWT 출력 금지.
+
+허용 로그:
+
+case_id
+HTTP status
+error_code
+latency
+message_length
+
+==================================================
+4. CASE CREATE FLOW
+==================================================
+
+Lazy case 생성 구조 확인.
+
+첫 메시지에서:
+
+caseId 없음
+→ POST /support/cases
+→ caseId 저장
+→ 같은 send flow 안에서 message POST
+
+가 반드시 이어져야 한다.
+
+React state setCaseId()가 async라는 이유로
+바로 다음 코드에서 stale caseId(null)를 사용하면 안 된다.
+
+예:
+
+const createdCaseId = response.id;
+setCaseId(createdCaseId);
+await sendMessage(createdCaseId, ...);
+
+형태처럼
+실제 반환 id를 직접 사용.
+
+이 stale-state race 여부를 반드시 검사.
+
+==================================================
+5. MESSAGE POST CONTRACT
+==================================================
+
+POST /support/cases/:id/messages의 실제 request contract와
+SupportChatScreen payload를 1:1 비교.
+
+확인:
+
+content field name
+message_type
+author_role
+case id format
+auth header
+
+client가 author_role='user'를 보내야 하는지,
+server가 auth로 결정하는지
+실제 API 기준으로 맞춘다.
+
+==================================================
+6. SUCCESS RESPONSE CONTRACT
+==================================================
+
+message POST 성공 응답이:
+
+message
+messages
+data
+id
+
+어떤 구조인지 확인.
+
+client parser가 잘못된 shape를 기대하는지 검사.
+
+응답 성공인데 UI 미표시라면
+response normalization 수정.
+
+==================================================
+7. LOCAL UI STATE
+==================================================
+
+성공 후 반드시 둘 중 하나:
+
+A.
+서버가 반환한 saved message를
+messages state에 append
+
+또는
+
+B.
+GET /support/cases/:id
+즉시 refetch
+
+한다.
+
+현재 optimistic UI가 있으면
+서버 저장 실패를 성공처럼 보이면 안 된다.
+
+권장:
+
+server success
+→ append/refetch
+→ input clear
+
+==================================================
+8. INPUT CLEAR ORDER
+==================================================
+
+message 저장 성공 전에
+input을 먼저 clear하는 구조인지 확인.
+
+실패했으면 text 유지 + retry 가능.
+
+성공했을 때만 clear.
+
+==================================================
+9. AUTH / OWNERSHIP
+==================================================
+
+실기기 JWT 기준:
+
+POST /support/cases
+POST /support/cases/:id/messages
+
+가 admin/teacher/parent에서 허용되는지 확인.
+
+특히 newly created case의 actor_id / pool_id가
+현재 JWT와 정확히 매칭되는지.
+
+cross-user 보안을 완화해서 해결 금지.
+
+==================================================
+10. SERVER ROUTE REGISTRATION
+==================================================
+
+routes/support-cases.ts가
+실제 production runtime route index에 등록되어 있는지 확인.
+
+Render source runtime과
+swimnote.kr Replit Published runtime 중
+
+모바일 production front door가 어느 서버 route를 실제 제공하는지 확인.
+
+중요:
+
+mobile front door = https://swimnote.kr/api
+
+만약 support-cases 신규 route가 Render에만 있고
+swimnote.kr runtime에는 반영되지 않았다면
+그게 root cause일 수 있다.
+
+반드시 실제 production front door에서 확인.
+
+==================================================
+11. DIRECT SAFE API TEST
+==================================================
+
+production data를 임의 생성하지 않는다.
+
+가능하면 테스트용 기존 계정/context 또는
+unit/integration fixture로 API contract 확인.
+
+실기기 요청의 request id/case id가 이미 생성된 경우
+그 trace만 read-only 조사.
+
+fake production support case 생성 금지.
+
+==================================================
+12. ERROR UX
+==================================================
+
+현재 실패가 UI에서 조용히 사라지는 구조면 수정.
+
+전송 실패 시 사용자에게:
+
+"메시지를 보내지 못했습니다. 다시 시도해주세요."
+
+정도의 오류 표시.
+
+retry 가능.
+
+raw backend error 노출 금지.
+
+==================================================
+13. TESTS
+==================================================
+
+FIX-01
+first message creates case
+
+FIX-02
+created case id used immediately
+
+FIX-03
+message POST succeeds
+
+FIX-04
+saved message visible immediately
+
+FIX-05
+input clears only after success
+
+FIX-06
+failed send preserves input
+
+FIX-07
+401 visible as safe error
+
+FIX-08
+teacher send
+
+FIX-09
+parent send
+
+FIX-10
+admin send
+
+FIX-11
+production front door route exists
+
+FIX-12
+double send no duplicate
+
+FIX-13
+full existing suite pass
+
+==================================================
+14. DEPLOYMENT POLICY — PERMANENT
+==================================================
+
+iOS OTA는 production branch only.
+
+Preview OTA 금지.
+
+현재 TestFlight Build 246:
+
+channel = production
+runtime = 1.6.3
+
+수정 후:
+
+production branch에 iOS OTA 발행.
+
+Android OTA 금지.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+ROOT_CAUSE =
+
+SEND_HANDLER =
+CASE_CREATE_RESULT =
+MESSAGE_POST_RESULT =
+
+SUPPORT_API_BASE_URL =
+PRODUCTION_FRONT_DOOR_ROUTE =
+
+STALE_CASE_ID_RACE =
+REQUEST_CONTRACT_MATCH =
+RESPONSE_CONTRACT_MATCH =
+
+MESSAGE_SAVED_SERVER =
+MESSAGE_VISIBLE_UI =
+
+INPUT_CLEAR_AFTER_SUCCESS =
+SEND_ERROR_UI =
+
+ADMIN_SEND =
+TEACHER_SEND =
+PARENT_SEND =
+
+FILES_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+IOS_PRODUCTION_OTA_ID =
+IOS_OTA_BRANCH = production
+ANDROID_OTA = NO
+
+성공 조건:
+
+ROOT_CAUSE = CONFIRMED
+
+MESSAGE_SAVED_SERVER = YES
+MESSAGE_VISIBLE_UI = YES
+
+ADMIN_SEND = PASS
+TEACHER_SEND = PASS
+PARENT_SEND = PASS
+
+실패 시 silent failure 없음.
+
+iOS OTA = production only.
+Android OTA = NO.
+
+완료:
+
+P0_CS02R_MESSAGE_SEND_DEFECT_RESOLVED ✅
