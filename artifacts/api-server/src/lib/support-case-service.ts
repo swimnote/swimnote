@@ -79,6 +79,9 @@ export async function ensureCs01rSchema(): Promise<void> {
   for (const ddl of [
     // 기존 테이블이 ticket_id NOT NULL로 생성된 경우 nullable로 변경
     `ALTER TABLE support_ticket_replies ALTER COLUMN ticket_id DROP NOT NULL`,
+    // author_user_id: AI 메시지는 authorId=null → NOT NULL 위반 방지
+    // (기존 support-tickets.ts CREATE TABLE: author_user_id TEXT NOT NULL DEFAULT '')
+    `ALTER TABLE support_ticket_replies ALTER COLUMN author_user_id DROP NOT NULL`,
     // case_id 컬럼: 케이스 기반 메시지 스레드 식별 (신규 테이블에는 이미 포함)
     `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS case_id TEXT`,
     // message_type: content 유형 구분 (신규 테이블에는 이미 포함)
