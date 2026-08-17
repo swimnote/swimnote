@@ -103,3 +103,4 @@
 - [platform_admin enum mismatch 수정](platform-admin-enum-fix.md) — SHA 476b7922; push-service+admin.ts WHERE role=super_admin; DB enum 미변경; 17TC+1500TC
 - [WP-CS-04R 완료 상태](wp-cs04r-done-state.md) — SHA e345a5ad; Frontend Map Registry 검색 엔드포인트; 52TC+1552TC; Render 배포 트리거됨; OTA 없음
 - [WP-CS-05R 완료 상태](wp-cs05r-done-state.md) — SHA 2808cdfc; Knowledge+FAQ Foundation; 48TC+1600TC; Render 배포 트리거됨; OTA 없음
+- [WP-CS-07R 완료 상태](wp-cs07r-done-state.md) — SHA c83dd197; Resolution Router 7-layer chain; 25TC+1625TC; Render 배포 트리거됨; OTA 없음

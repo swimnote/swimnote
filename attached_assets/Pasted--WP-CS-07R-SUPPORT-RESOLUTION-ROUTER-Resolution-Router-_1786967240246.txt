@@ -1,0 +1,368 @@
+[WP-CS-07R — SUPPORT RESOLUTION ROUTER]
+
+목적:
+
+지금까지 만든 지원 자산을
+하나의 실제 Resolution Router로 통합한다.
+
+이번 WP에서는 LLM/OpenAI를 호출하지 않는다.
+
+최종 우선순위:
+
+1. RULE / deterministic state
+2. DB state
+3. Solution DB
+4. Frontend Map
+5. FAQ / Knowledge
+6. Known Issue
+7. NO_MATCH
+
+Semantic Cache / Lightweight AI / High Capability AI는
+후속 WP에서 추가한다.
+
+==================================================
+0. BASELINE
+==================================================
+
+재사용:
+
+- support_cases
+- support_knowledge_items
+- Solution DB
+- Frontend Map Registry
+- super_incidents / KNOWN_ISSUE link
+- event_logs(SUPPORT)
+
+새 병렬 시스템 금지.
+
+==================================================
+1. ROUTER ENTRY
+==================================================
+
+예:
+
+POST /support/resolve
+
+입력:
+
+query
+case_id?
+role
+mode
+pool context
+screen_id?
+app_version?
+
+실제 repository convention 우선.
+
+client가 role/pool을 조작하지 못하게
+auth context 우선.
+
+==================================================
+2. RESOLUTION ORDER
+==================================================
+
+반드시 순서 고정:
+
+RULE
+→ DB_STATE
+→ SOLUTION
+→ FRONTEND_MAP
+→ FAQ_KNOWLEDGE
+→ KNOWN_ISSUE
+→ NO_MATCH
+
+한 단계에서 HIGH-confidence deterministic 해결이 되면
+뒤 단계 실행 중지.
+
+==================================================
+3. RULE
+==================================================
+
+현재 support_knowledge_items item_type=RULE 재사용.
+
+ACTIVE만.
+
+role/mode/pool 조건 적용.
+
+==================================================
+4. DB STATE
+==================================================
+
+실시간 데이터로 확정 가능한 문의만.
+
+예:
+
+구독 상태
+X 활성화 여부
+리포트 생성 상태
+기능 활성화 상태
+
+read-only만.
+
+Production mutation 금지.
+
+==================================================
+5. SOLUTION DB
+==================================================
+
+CS-06R 검색 사용.
+
+MATCHED
+NEEDS_DIAGNOSTIC
+NO_MATCH
+
+계약 존중.
+
+exact ACTIVE solution이면
+llm_required=false.
+
+==================================================
+6. FRONTEND MAP
+==================================================
+
+기능 위치/화면 이동 문의에 사용.
+
+role/mode/version 필터 필수.
+
+다른 role 화면 반환 금지.
+
+==================================================
+7. FAQ / KNOWLEDGE
+==================================================
+
+CS-05R Active Knowledge만.
+
+PENDING/INACTIVE/ARCHIVED 제외.
+
+==================================================
+8. KNOWN ISSUE
+==================================================
+
+현재 활성 Known Issue만.
+
+super_incidents 연결 유지.
+
+resolved incident를 현재 장애처럼 반환 금지.
+
+==================================================
+9. RESPONSE CONTRACT
+==================================================
+
+최소:
+
+resolution_status:
+RESOLVED
+NEEDS_DIAGNOSTIC
+NO_MATCH
+
+source_type:
+RULE
+DB_STATE
+SOLUTION
+FRONTEND_MAP
+FAQ
+KNOWLEDGE
+KNOWN_ISSUE
+NONE
+
+source_id
+confidence
+
+title
+answer
+
+solution_steps?
+screen_id?
+deep_link?
+
+requires_human
+llm_required
+
+==================================================
+10. NO LLM YET
+==================================================
+
+NO_MATCH이면:
+
+llm_required=true
+
+까지만 반환.
+
+실제 OpenAI 호출 금지.
+
+#29 검색→LLM fallback 구현 금지.
+
+==================================================
+11. EVENT LOG
+==================================================
+
+SUPPORT event:
+
+RULE_HIT
+DB_STATE_HIT
+SOLUTION_HIT
+FRONTEND_MAP_HIT
+FAQ_HIT
+KNOWLEDGE_HIT
+KNOWN_ISSUE_HIT
+NO_KNOWLEDGE_MATCH
+
+raw query 저장 금지.
+
+==================================================
+12. LLM AVOIDANCE FOUNDATION
+==================================================
+
+deterministic resolution이면:
+
+llm_required=false
+
+향후 LLM Avoidance Rate 계산 가능하게.
+
+이번 WP에서 KPI 계산은 하지 않는다.
+
+==================================================
+13. DIAGNOSTIC
+==================================================
+
+Solution이 NEEDS_DIAGNOSTIC이면
+required checks 반환.
+
+Router가 임의 root cause 추정 금지.
+
+==================================================
+14. HUMAN ESCALATION
+==================================================
+
+현재 단계에서 자동 human ticket 생성 금지.
+
+requires_human=true 반환 가능.
+
+실제 버튼/전환은 기존 SupportChat 흐름 사용.
+
+==================================================
+15. #29~31 HOLD
+==================================================
+
+이번 WP 중:
+
+#29 AI 상담 답변 Knowledge DB 연결
+→ HOLD
+이유: LLM fallback은 CS-08R 이후.
+
+#30 X04 자료제출 FAQ 자동 추출
+→ HOLD
+자동 추출은 PENDING candidate만 허용하는 별도 WP.
+
+#31 미답변 질문 갭 분석
+→ HOLD
+NO_MATCH/LOW_CONFIDENCE 운영 이벤트가 쌓인 후 수행.
+
+==================================================
+16. TEST
+==================================================
+
+CS07R-01 RULE hit
+CS07R-02 DB state hit
+CS07R-03 Solution hit
+CS07R-04 Frontend Map hit
+CS07R-05 FAQ hit
+CS07R-06 Knowledge hit
+CS07R-07 Known Issue hit
+CS07R-08 priority order
+CS07R-09 first high-confidence stops chain
+CS07R-10 role filter
+CS07R-11 mode filter
+CS07R-12 pool isolation
+CS07R-13 version filter
+CS07R-14 NEEDS_DIAGNOSTIC
+CS07R-15 NO_MATCH
+CS07R-16 llm_required=false deterministic
+CS07R-17 llm_required=true NO_MATCH
+CS07R-18 no raw query analytics
+CS07R-19 OpenAI zero
+CS07R-20 existing Support regression
+CS07R-21 full suite
+
+==================================================
+17. DEPLOYMENT
+==================================================
+
+Server 변경 가능.
+DB 신규 table 기본 금지.
+Web 변경 최소.
+Mobile 변경 없음.
+
+iOS OTA = NO
+Android OTA = NO
+
+Render deploy.
+
+==================================================
+18. FINAL REPORT
+==================================================
+
+ROUTER_ENDPOINT =
+RESOLUTION_ORDER =
+
+RULE_LAYER =
+DB_STATE_LAYER =
+SOLUTION_LAYER =
+FRONTEND_MAP_LAYER =
+FAQ_LAYER =
+KNOWLEDGE_LAYER =
+KNOWN_ISSUE_LAYER =
+
+PRIORITY_SHORT_CIRCUIT =
+
+RESOLVED =
+NEEDS_DIAGNOSTIC =
+NO_MATCH =
+
+LLM_REQUIRED_FLAG =
+OPENAI_CALLS_ADDED =
+
+SUPPORT_EVENTS =
+RAW_QUERY_IN_ANALYTICS =
+
+POOL_ISOLATION =
+ROLE_FILTER =
+MODE_FILTER =
+VERSION_FILTER =
+
+TASK_29_STATUS = HOLD
+TASK_30_STATUS = HOLD
+TASK_31_STATUS = HOLD
+
+FILES_CHANGED =
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+IOS_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+RESOLUTION_ORDER =
+RULE → DB_STATE → SOLUTION → FRONTEND_MAP → FAQ/KNOWLEDGE → KNOWN_ISSUE
+
+OPENAI_CALLS_ADDED = 0
+RAW_QUERY_IN_ANALYTICS = NO
+
+POOL_ISOLATION = PASS
+
+MOBILE_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_07R_SUPPORT_RESOLUTION_ROUTER_COMPLETE ✅
