@@ -1182,6 +1182,35 @@ async function ensureExtraTables() {
     CREATE INDEX IF NOT EXISTS idx_event_logs_pool_id     ON event_logs (pool_id)
   `).catch(() => {});
 
+  // SA0-B: super_incidents 테이블
+  await superAdminDb.execute(sql`
+    CREATE TABLE IF NOT EXISTS super_incidents (
+      id               TEXT PRIMARY KEY,
+      title            TEXT NOT NULL,
+      severity         TEXT NOT NULL CHECK (severity IN ('SEV1','SEV2','SEV3','SEV4')),
+      status           TEXT NOT NULL CHECK (status IN ('OPEN','INVESTIGATING','MITIGATED','RESOLVED')),
+      service          TEXT,
+      description      TEXT,
+      root_cause       TEXT,
+      action_taken     TEXT,
+      started_at       TIMESTAMPTZ,
+      detected_at      TIMESTAMPTZ,
+      resolved_at      TIMESTAMPTZ,
+      affected_pool_ids TEXT[] NOT NULL DEFAULT '{}',
+      affected_users_count INTEGER DEFAULT 0,
+      request_id       TEXT,
+      trace_id         TEXT,
+      reference        TEXT,
+      created_by       TEXT,
+      updated_by       TEXT,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_status   ON super_incidents (status)`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_severity ON super_incidents (severity)`).catch(() => {});
+  await superAdminDb.execute(sql`CREATE INDEX IF NOT EXISTS idx_super_incidents_created  ON super_incidents (created_at DESC)`).catch(() => {});
+
   // WP15.5-C: ad_creatives 테이블
   await superAdminDb.execute(sql`
     CREATE TABLE IF NOT EXISTS ad_creatives (
@@ -4210,6 +4239,494 @@ router.get(
       console.error("[super/analytics-overview] error:", err?.message);
       res.status(500).json({ error: "Analytics 조회 실패" });
     }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// SA0-B: Incidents CRUD  (super_admin only)
+// GET    /super/incidents
+// POST   /super/incidents
+// PATCH  /super/incidents/:id
+// ════════════════════════════════════════════════════════════════
+
+async function logIncidentAudit(
+  action: "INCIDENT_CREATED" | "INCIDENT_UPDATED" | "INCIDENT_RESOLVED",
+  incidentId: string,
+  actorId: string,
+  before: any,
+  after: any,
+) {
+  try {
+    const auditId = `al_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await superAdminDb.execute(sql`
+      INSERT INTO audit_logs (id, entity_type, entity_id, action, actor_type, actor_id, before_data, after_data, created_at)
+      VALUES (${auditId}, 'super_incident', ${incidentId}, ${action}, 'super_admin', ${actorId},
+              ${before ? JSON.stringify(before) : null}::jsonb,
+              ${after  ? JSON.stringify(after)  : null}::jsonb, NOW())
+    `);
+  } catch { /* audit 실패는 무시 — 원본 작업은 이미 완료 */ }
+}
+
+router.get(
+  "/super/incidents",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const {
+        severity, status, service, pool_id, from, to,
+        limit: lq = "50", offset: oq = "0",
+      } = req.query as Record<string, string | undefined>;
+
+      const limit  = Math.min(Math.max(parseInt(lq, 10) || 50, 1), 200);
+      const offset = Math.max(parseInt(oq, 10) || 0, 0);
+
+      const conds: string[] = [];
+      if (severity) conds.push(`severity = '${severity.replace(/'/g, "''")}'`);
+      if (status)   conds.push(`status = '${status.replace(/'/g, "''")}'`);
+      if (service)  conds.push(`service ILIKE '%${service.replace(/'/g, "''")}%'`);
+      if (pool_id)  conds.push(`'${pool_id.replace(/'/g, "''")}' = ANY(affected_pool_ids)`);
+      if (from)     conds.push(`created_at >= '${from.replace(/'/g, "''")}'::timestamptz`);
+      if (to)       conds.push(`created_at <= '${to.replace(/'/g, "''")}'::timestamptz`);
+      const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+
+      const [rows, countRes] = await Promise.all([
+        superAdminDb.execute(sql.raw(`
+          SELECT * FROM super_incidents ${where}
+          ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+        `)),
+        superAdminDb.execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM super_incidents ${where}
+        `)),
+      ]);
+
+      const total = Number((countRes.rows[0] as any)?.total ?? 0);
+      res.json({ incidents: rows.rows, total, limit, offset });
+    } catch (err: any) {
+      console.error("[super/incidents GET]", err?.message);
+      res.status(500).json({ error: "incidents 조회 실패" });
+    }
+  },
+);
+
+router.post(
+  "/super/incidents",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const {
+        title, severity = "SEV3", status = "OPEN", service,
+        description, root_cause, action_taken,
+        started_at, detected_at,
+        affected_pool_ids = [], affected_users_count = 0,
+        request_id, trace_id, reference,
+      } = req.body ?? {};
+
+      if (!title)                                          { res.status(400).json({ error: "title is required" }); return; }
+      if (!["SEV1","SEV2","SEV3","SEV4"].includes(severity)) { res.status(400).json({ error: "invalid severity" });   return; }
+      if (!["OPEN","INVESTIGATING","MITIGATED","RESOLVED"].includes(status)) { res.status(400).json({ error: "invalid status" }); return; }
+
+      const id = `inc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const actorId = req.user?.userId ?? "unknown";
+      const poolIds = Array.isArray(affected_pool_ids) ? affected_pool_ids : [];
+
+      await superAdminDb.execute(sql`
+        INSERT INTO super_incidents (
+          id, title, severity, status, service, description, root_cause, action_taken,
+          started_at, detected_at, affected_pool_ids, affected_users_count,
+          request_id, trace_id, reference, created_by, updated_by
+        ) VALUES (
+          ${id}, ${title}, ${severity}, ${status}, ${service ?? null},
+          ${description ?? null}, ${root_cause ?? null}, ${action_taken ?? null},
+          ${started_at ?? null}, ${detected_at ?? null},
+          ${poolIds}::text[], ${Number(affected_users_count) || 0},
+          ${request_id ?? null}, ${trace_id ?? null}, ${reference ?? null},
+          ${actorId}, ${actorId}
+        )
+      `);
+
+      const row = (await superAdminDb.execute(sql`SELECT * FROM super_incidents WHERE id = ${id}`)).rows[0];
+      await logIncidentAudit("INCIDENT_CREATED", id, actorId, null, row);
+      res.json({ incident: row });
+    } catch (err: any) {
+      console.error("[super/incidents POST]", err?.message);
+      res.status(500).json({ error: "incidents 생성 실패" });
+    }
+  },
+);
+
+router.patch(
+  "/super/incidents/:id",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      await ensureExtraTables();
+      const { id } = req.params;
+      const actorId = req.user?.userId ?? "unknown";
+
+      const beforeRes = await superAdminDb.execute(sql`SELECT * FROM super_incidents WHERE id = ${id} LIMIT 1`);
+      const before = beforeRes.rows[0] as any;
+      if (!before) { res.status(404).json({ error: "incident not found" }); return; }
+
+      const {
+        title, severity, status, service, description, root_cause, action_taken,
+        started_at, detected_at, resolved_at,
+        affected_pool_ids, affected_users_count,
+        request_id, trace_id, reference,
+      } = req.body ?? {};
+
+      if (severity && !["SEV1","SEV2","SEV3","SEV4"].includes(severity)) { res.status(400).json({ error: "invalid severity" }); return; }
+      if (status   && !["OPEN","INVESTIGATING","MITIGATED","RESOLVED"].includes(status)) { res.status(400).json({ error: "invalid status" }); return; }
+
+      const poolIds = Array.isArray(affected_pool_ids) ? affected_pool_ids : null;
+      const isResolving = status === "RESOLVED" && before.status !== "RESOLVED";
+      const resolvedAtVal = isResolving ? new Date().toISOString() : (resolved_at ?? null);
+
+      await superAdminDb.execute(sql`
+        UPDATE super_incidents SET
+          title            = COALESCE(${title        ?? null}, title),
+          severity         = COALESCE(${severity     ?? null}, severity),
+          status           = COALESCE(${status       ?? null}, status),
+          service          = COALESCE(${service      ?? null}, service),
+          description      = COALESCE(${description  ?? null}, description),
+          root_cause       = COALESCE(${root_cause   ?? null}, root_cause),
+          action_taken     = COALESCE(${action_taken ?? null}, action_taken),
+          started_at       = COALESCE(${started_at   ?? null}::timestamptz, started_at),
+          detected_at      = COALESCE(${detected_at  ?? null}::timestamptz, detected_at),
+          resolved_at      = COALESCE(${resolvedAtVal ?? null}::timestamptz, resolved_at),
+          affected_pool_ids = COALESCE(${poolIds}::text[], affected_pool_ids),
+          affected_users_count = COALESCE(${affected_users_count != null ? Number(affected_users_count) : null}, affected_users_count),
+          request_id       = COALESCE(${request_id   ?? null}, request_id),
+          trace_id         = COALESCE(${trace_id     ?? null}, trace_id),
+          reference        = COALESCE(${reference    ?? null}, reference),
+          updated_by       = ${actorId},
+          updated_at       = NOW()
+        WHERE id = ${id}
+      `);
+
+      const after = (await superAdminDb.execute(sql`SELECT * FROM super_incidents WHERE id = ${id} LIMIT 1`)).rows[0];
+      const auditAction = isResolving ? "INCIDENT_RESOLVED" : "INCIDENT_UPDATED";
+      await logIncidentAudit(auditAction as any, id, actorId, before, after);
+      res.json({ incident: after });
+    } catch (err: any) {
+      console.error("[super/incidents PATCH]", err?.message);
+      res.status(500).json({ error: "incidents 수정 실패" });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// SA0-B: Billing Overview List
+// GET /super/billing/list
+// type=basic|x|all  status=ACTIVE|CANCELLED_BUT_ACTIVE|EXPIRED|BILLING_ISSUE|SYNC_PENDING|UNKNOWN
+// anomaly=true
+// ════════════════════════════════════════════════════════════════
+
+function normalizeBillingStatus(sub: string, endAt: Date | null): string {
+  const now = new Date();
+  if (sub === "suspended") return "BILLING_ISSUE";
+  if (sub === "active" || sub === "trial") return "ACTIVE";
+  if (sub === "cancelled" && endAt && endAt > now) return "CANCELLED_BUT_ACTIVE";
+  if (sub === "expired") return "EXPIRED";
+  if (sub === "cancelled") return "EXPIRED";
+  return "UNKNOWN";
+}
+
+function detectAnomalies(pool: any, slot: any | null, lastRcAt: Date | null): Record<string, boolean> {
+  const now = new Date();
+  const hasPaid    = Boolean(pool.x_paid_entitlement);
+  const hasManual  = Boolean(pool.x_manual_entitlement);
+  const hasX       = (hasPaid || hasManual) && !Boolean(pool.x_force_disabled);
+  const sub        = String(pool.subscription_status ?? "").toLowerCase();
+  const endAt      = pool.subscription_end_at ? new Date(pool.subscription_end_at) : null;
+
+  const expired_but_x    = hasX && (sub === "expired" || sub === "suspended");
+  const billing_issue    = sub === "suspended";
+  const x_active_no_slot = hasPaid && !slot;
+  const sync_stale       = hasX && lastRcAt && (now.getTime() - lastRcAt.getTime()) > 48 * 3600 * 1000;
+
+  return {
+    expired_but_x:    Boolean(expired_but_x),
+    billing_issue:    Boolean(billing_issue),
+    x_active_no_slot: Boolean(x_active_no_slot),
+    sync_stale:       Boolean(sync_stale),
+  };
+}
+
+router.get(
+  "/super/billing/list",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { type = "all", status: statusFilter, anomaly, limit: lq = "200", offset: oq = "0" } = req.query as Record<string, string>;
+      const limit  = Math.min(Math.max(parseInt(lq, 10) || 200, 1), 500);
+      const offset = Math.max(parseInt(oq, 10) || 0, 0);
+
+      // ① 전체 pool 데이터 (구독 필드 포함)
+      const poolsRes = await superAdminDb.execute(sql`
+        SELECT
+          p.id, p.name, p.approval_status,
+          p.subscription_status, p.subscription_tier, p.subscription_plan_name,
+          p.subscription_start_at, p.subscription_end_at, p.trial_end_at,
+          p.subscription_source, p.member_limit, p.display_storage,
+          p.x_paid_entitlement, p.x_manual_entitlement, p.x_force_disabled,
+          p.xmode_config_status,
+          p.created_at, p.updated_at,
+          u.name AS admin_name, u.email AS admin_email
+        FROM swimming_pools p
+        LEFT JOIN users u ON u.id = p.admin_user_id
+        WHERE p.approval_status = 'approved'
+        ORDER BY p.name
+        LIMIT ${limit} OFFSET ${offset}
+      `);
+      const pools = poolsRes.rows as any[];
+
+      // ② X slot 데이터 (batch — pool ids)
+      const poolIds = pools.map(p => p.id);
+      let slotMap: Record<string, any> = {};
+      if (poolIds.length > 0) {
+        try {
+          const slotRes = await superAdminDb.execute(sql.raw(`
+            SELECT pool_id, status, tier_key, expires_at, rc_app_user_id, last_sync_at
+            FROM x_subscription_slots
+            WHERE pool_id = ANY(ARRAY[${poolIds.map(id => `'${id.replace(/'/g, "''")}'`).join(",")}])
+              AND status IN ('PURCHASED','CANCELLED','RESERVED')
+            ORDER BY created_at DESC
+          `));
+          for (const s of slotRes.rows as any[]) {
+            if (!slotMap[s.pool_id]) slotMap[s.pool_id] = s;
+          }
+        } catch { /* x_subscription_slots 없으면 무시 */ }
+      }
+
+      // ③ RC webhook 최근 이벤트 (pool 연결은 slot의 app_user_id 기준)
+      let rcLastEventMap: Record<string, Date> = {};
+      try {
+        const rcRes = await superAdminDb.execute(sql`
+          SELECT app_user_id, MAX(processed_at) AS last_at
+          FROM revenuecat_webhook_events
+          GROUP BY app_user_id
+        `);
+        for (const r of rcRes.rows as any[]) {
+          rcLastEventMap[r.app_user_id] = new Date(r.last_at);
+        }
+      } catch { /* ignore */ }
+
+      // ④ 정규화 + anomaly 계산
+      const result = pools.map(pool => {
+        const sub    = String(pool.subscription_status ?? "").toLowerCase();
+        const endAt  = pool.subscription_end_at ? new Date(pool.subscription_end_at) : null;
+        const slot   = slotMap[pool.id] ?? null;
+        const rcAppUserId = slot?.rc_app_user_id ?? null;
+        const lastRcAt = rcAppUserId ? (rcLastEventMap[rcAppUserId] ?? null) : null;
+
+        const normalized_basic_status = normalizeBillingStatus(sub, endAt);
+
+        const hasX = (Boolean(pool.x_paid_entitlement) || Boolean(pool.x_manual_entitlement))
+          && !Boolean(pool.x_force_disabled);
+
+        let normalized_x_status = "NOT_X";
+        if (hasX) {
+          if (slot) {
+            const slotExp = slot.expires_at ? new Date(slot.expires_at) : null;
+            const now = new Date();
+            if (slot.status === "PURCHASED" && (!slotExp || slotExp > now)) normalized_x_status = "ACTIVE";
+            else if (slot.status === "CANCELLED" && slotExp && slotExp > now)    normalized_x_status = "CANCELLED_BUT_ACTIVE";
+            else normalized_x_status = "EXPIRED";
+          } else if (Boolean(pool.x_paid_entitlement)) {
+            normalized_x_status = "ACTIVE"; // RC entitlement, slot 없음
+          } else {
+            normalized_x_status = "UNKNOWN";
+          }
+        }
+
+        const anomalies = detectAnomalies(pool, slot, lastRcAt);
+        const has_anomaly = Object.values(anomalies).some(Boolean);
+
+        return {
+          pool_id:     pool.id,
+          pool_name:   pool.name,
+          // Basic
+          raw_status:             pool.subscription_status,
+          raw_tier:               pool.subscription_tier,
+          raw_plan_name:          pool.subscription_plan_name,
+          raw_source:             pool.subscription_source,
+          normalized_basic_status,
+          subscription_start_at:  pool.subscription_start_at ?? null,
+          subscription_end_at:    pool.subscription_end_at   ?? null,
+          member_limit:           pool.member_limit           ?? null,
+          display_storage:        pool.display_storage        ?? null,
+          // X
+          x_paid_entitlement:     Boolean(pool.x_paid_entitlement),
+          x_manual_entitlement:   Boolean(pool.x_manual_entitlement),
+          x_force_disabled:       Boolean(pool.x_force_disabled),
+          xmode_config_status:    pool.xmode_config_status ?? "NOT_CONFIGURED",
+          normalized_x_status,
+          x_slot_status:          slot?.status ?? null,
+          x_slot_tier:            slot?.tier_key ?? null,
+          x_slot_expires_at:      slot?.expires_at ?? null,
+          x_last_sync_at:         slot?.last_sync_at ?? lastRcAt?.toISOString() ?? null,
+          // Anomaly
+          anomalies,
+          has_anomaly,
+          // Admin
+          admin_name:  pool.admin_name  ?? null,
+          admin_email: pool.admin_email ?? null,
+          updated_at:  pool.updated_at  ?? null,
+        };
+      }).filter(p => {
+        if (type === "basic") return !p.x_paid_entitlement && !p.x_manual_entitlement;
+        if (type === "x")     return p.x_paid_entitlement  || p.x_manual_entitlement;
+        return true; // all
+      }).filter(p => {
+        if (!statusFilter) return true;
+        return p.normalized_basic_status === statusFilter || p.normalized_x_status === statusFilter;
+      }).filter(p => {
+        if (anomaly !== "true") return true;
+        return p.has_anomaly;
+      });
+
+      res.json({ items: result, total: result.length });
+    } catch (err: any) {
+      console.error("[super/billing/list]", err?.message);
+      res.status(500).json({ error: "billing list 조회 실패" });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// SA0-B: Servers Status — per-service, no global 500
+// GET /super/servers/status
+// ════════════════════════════════════════════════════════════════
+
+async function pingDbForStatus(label: string, key: string): Promise<any> {
+  const base = { id: key, name: label, status: "UNKNOWN" as string, latency_ms: null as number | null, note: "", last_checked: new Date().toISOString() };
+  try {
+    const t = Date.now();
+    await superAdminDb.execute(sql`SELECT 1`);
+    const ms = Date.now() - t;
+    return { ...base, status: ms > 300 ? "DEGRADED" : "LIVE", latency_ms: ms, note: `PostgreSQL — ${ms}ms` };
+  } catch (e: any) {
+    return { ...base, status: "DEGRADED", note: `DB 오류: ${e?.message?.slice(0, 80) ?? "unknown"}` };
+  }
+}
+
+async function fetchExtStatus(url: string, label: string, key: string, timeoutMs = 3000): Promise<any> {
+  const base = { id: key, name: label, status: "UNKNOWN" as string, latency_ms: null as number | null, note: "", last_checked: new Date().toISOString() };
+  try {
+    const t = Date.now();
+    const r = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(timeoutMs) });
+    const ms = Date.now() - t;
+    const ok = r.status < 500;
+    return { ...base, status: ok ? "LIVE" : "DEGRADED", latency_ms: ms, note: `HTTP ${r.status} — ${ms}ms` };
+  } catch (e: any) {
+    return { ...base, status: "UNKNOWN", note: `연결 실패: ${e?.message?.slice(0, 60) ?? "unknown"}` };
+  }
+}
+
+router.get(
+  "/super/servers/status",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    // 각 서비스 독립 처리 — 하나 실패해도 전체 500 금지
+    const [dbRes, rcRes, aiRes, storageRes, pushRes] = await Promise.allSettled([
+      // DB
+      pingDbForStatus("Database", "database"),
+      // RevenueCat: recent webhook events count
+      (async () => {
+        const base = { id: "revenuecat", name: "RevenueCat", status: "UNKNOWN", latency_ms: null, note: "", last_checked: new Date().toISOString() };
+        try {
+          const r = await superAdminDb.execute(sql`
+            SELECT
+              COUNT(*)::int AS total_events,
+              MAX(processed_at)  AS last_event_at,
+              COUNT(*) FILTER (WHERE processed_at >= NOW() - INTERVAL '1 hour')::int AS recent_1h
+            FROM revenuecat_webhook_events
+          `);
+          const row = r.rows[0] as any;
+          const total  = Number(row?.total_events ?? 0);
+          const recent = Number(row?.recent_1h ?? 0);
+          const lastAt = row?.last_event_at ? new Date(row.last_event_at) : null;
+          const ageH   = lastAt ? (Date.now() - lastAt.getTime()) / 3600000 : null;
+          const status = total === 0 ? "UNKNOWN" : (ageH !== null && ageH > 48) ? "DEGRADED" : "LIVE";
+          const note   = total === 0
+            ? "webhook 이벤트 없음 — 연동 확인 필요"
+            : `총 ${total}건 · 최근 1h ${recent}건 · 마지막: ${lastAt?.toISOString().slice(0, 16) ?? "—"}`;
+          return { ...base, status, note };
+        } catch {
+          return { ...base, status: "UNKNOWN", note: "revenuecat_webhook_events 조회 실패" };
+        }
+      })(),
+      // AI Engine: ai_traces 최근 1h 기준
+      (async () => {
+        const base = { id: "ai_engine", name: "AI Engine", status: "UNKNOWN", latency_ms: null, note: "", last_checked: new Date().toISOString() };
+        try {
+          const r = await superAdminDb.execute(sql`
+            SELECT
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE status = 'SUCCESS')::int AS success,
+              COUNT(*) FILTER (WHERE status = 'FAILED')::int  AS failed,
+              MAX(created_at) AS last_at
+            FROM ai_traces
+            WHERE created_at >= NOW() - INTERVAL '1 hour'
+          `);
+          const row     = r.rows[0] as any;
+          const total   = Number(row?.total ?? 0);
+          const success = Number(row?.success ?? 0);
+          const failed  = Number(row?.failed  ?? 0);
+          if (total === 0) return { ...base, status: "UNKNOWN", note: "최근 1h AI 호출 없음" };
+          const errRate = total > 0 ? failed / total : 0;
+          const status  = errRate > 0.5 ? "DEGRADED" : "LIVE";
+          return { ...base, status, note: `최근 1h: 성공 ${success}건 / 실패 ${failed}건` };
+        } catch {
+          return { ...base, status: "UNKNOWN", note: "ai_traces 조회 실패" };
+        }
+      })(),
+      // Storage: photo/video 업로드 최근 24h 활동
+      (async () => {
+        const base = { id: "storage", name: "Storage (R2)", status: "UNKNOWN", latency_ms: null, note: "", last_checked: new Date().toISOString() };
+        try {
+          const r = await superAdminDb.execute(sql`
+            SELECT
+              COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours')::int AS uploads_24h,
+              COUNT(*)::int AS total_files
+            FROM photo_assets_meta
+          `);
+          const row    = r.rows[0] as any;
+          const upld   = Number(row?.uploads_24h ?? 0);
+          const total  = Number(row?.total_files ?? 0);
+          return { ...base, status: "LIVE", note: `파일 ${total}개 · 최근 24h 업로드 ${upld}건 (DB 기반, R2 직접 핑 불포함)` };
+        } catch {
+          return { ...base, status: "UNKNOWN", note: "photo_assets_meta 조회 실패" };
+        }
+      })(),
+      // Push: UNKNOWN (no telemetry source)
+      Promise.resolve({ id: "push", name: "Push (APNs/FCM)", status: "UNKNOWN", latency_ms: null, note: "발송 텔레메트리 미구현", last_checked: new Date().toISOString() }),
+    ]);
+
+    const unwrap = (r: PromiseSettledResult<any>, fallback: object) =>
+      r.status === "fulfilled" ? r.value : { ...fallback, status: "UNKNOWN", note: "조회 중 오류" };
+
+    const database  = unwrap(dbRes,      { id: "database",   name: "Database"        });
+    const revenuecat= unwrap(rcRes,      { id: "revenuecat", name: "RevenueCat"       });
+    const ai_engine = unwrap(aiRes,      { id: "ai_engine",  name: "AI Engine"        });
+    const storage   = unwrap(storageRes, { id: "storage",    name: "Storage (R2)"     });
+    const push      = unwrap(pushRes,    { id: "push",       name: "Push (APNs/FCM)"  });
+
+    // APP API: UNKNOWN — server-to-self 호출은 루프 위험, Front Door는 브라우저에서 직접 체크
+    const app_api = { id: "app_api", name: "APP API", status: "UNKNOWN", latency_ms: null,
+      note: "swimnote.kr/api — 클라이언트에서 직접 헬스체크 권장", last_checked: new Date().toISOString() };
+
+    res.json({
+      checked_at: new Date().toISOString(),
+      services: { app_api, database, revenuecat, ai_engine, storage, push },
+    });
   },
 );
 
