@@ -232,7 +232,9 @@ export default function SupportChatScreen({ supportContext }: Props) {
     setInputText("");
 
     try {
-      let caseId = activeCase?.id ?? null;
+      // "__new__" is a UI sentinel — treat it as no real case yet
+      let caseId: string | null =
+        activeCase?.id && activeCase.id !== "__new__" ? activeCase.id : null;
 
       // Case 없으면 생성
       if (!caseId) {

@@ -493,6 +493,168 @@ describe("CS02R-20: no raw message content in event_logs", () => {
 });
 
 // =============================================================================
+// FIX-01~13: P0 Message Send Defect — root cause: "__new__" sentinel bypassed
+//            case creation → POST /support/cases/__new__/messages → 404
+// =============================================================================
+describe("FIX-01: POST /support/cases creates a real case (not __new__)", () => {
+  it("case create returns ok:true and id starting with sc_", async () => {
+    superRows = [];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases")
+      .send({ mode: "normal", context: { feature_id: "SUPPORT" } });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.id).toMatch(/^sc_/);
+    expect(res.body.id).not.toBe("__new__");
+  });
+});
+
+describe("FIX-02: POST /support/cases/:id/messages uses real id (not __new__)", () => {
+  it("POST to real case id returns 200 ok; POST to __new__ returns 404", async () => {
+    superRows = [poolACase({ state: "NEW" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    // Real id → success
+    const okRes = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "안녕하세요", author_role: "user" });
+    expect(okRes.status).toBe(200);
+    expect(okRes.body.ok).toBe(true);
+    // __new__ sentinel → 404 (no such case)
+    superRows = [];
+    const badRes = await request(app)
+      .post("/support/cases/__new__/messages")
+      .send({ content: "안녕하세요", author_role: "user" });
+    expect(badRes.status).toBe(404);
+  });
+});
+
+describe("FIX-03: message POST succeeds and returns message id", () => {
+  it("POST /support/cases/:id/messages returns ok:true with id", async () => {
+    superRows = [poolACase({ state: "NEW" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "테스트 메시지", author_role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body).toHaveProperty("id");
+  });
+});
+
+describe("FIX-04: GET /support/cases/:id returns messages array", () => {
+  it("messages array present in case detail response", async () => {
+    superRows = [poolACase({ state: "NEW" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app).get("/support/cases/sc_test");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.messages)).toBe(true);
+  });
+});
+
+describe("FIX-05: message POST returns ok:true on success (client clears input)", () => {
+  it("200 ok:true response signals success to client", async () => {
+    superRows = [poolACase({ state: "NEW" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "입력 내용", author_role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
+
+describe("FIX-06: failed send returns 4xx so client can preserve input", () => {
+  it("POST to non-existent case returns 404", async () => {
+    superRows = []; // case not found
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases/sc_nonexistent/messages")
+      .send({ content: "안녕", author_role: "user" });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("FIX-07: unauthenticated request returns 401", () => {
+  it("POST /support/cases without auth → 401", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req: any, _res: any, next: any) => { req.user = undefined; next(); });
+    app.use("/", supportCasesRouter);
+    const res = await request(app)
+      .post("/support/cases")
+      .send({ mode: "normal" });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("FIX-08: teacher can send messages", () => {
+  it("teacher role POST /support/cases/:id/messages → 200 ok", async () => {
+    superRows = [poolACase({ state: "NEW", actor_role: "teacher" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "선생님 문의", author_role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
+
+describe("FIX-09: parent_account can send messages", () => {
+  it("parent_account role POST /support/cases/:id/messages → 200 ok", async () => {
+    superRows = [poolACase({ state: "NEW", actor_role: "parent_account", actor_id: "parent_1" })];
+    const app = makeApp("parent_account", "pool_A", "parent_1");
+    const res = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "학부모 문의", author_role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
+
+describe("FIX-10: pool_admin can send messages", () => {
+  it("pool_admin role POST /support/cases/:id/messages → 200 ok", async () => {
+    superRows = [poolACase({ state: "NEW", actor_role: "pool_admin" })];
+    const app = makeApp("pool_admin", "pool_A", "user_1");
+    const res = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "관리자 문의", author_role: "user" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
+
+describe("FIX-11: support-cases router is importable (route registered)", () => {
+  it("GET /support/cases returns 200 (router mounted)", async () => {
+    superRows = [];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const res = await request(app).get("/support/cases");
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("FIX-12: rapid consecutive message POSTs are independent (no state duplication)", () => {
+  it("two sequential POSTs both return 200 ok", async () => {
+    superRows = [poolACase({ state: "NEW" })];
+    const app = makeApp("teacher", "pool_A", "user_1");
+    const r1 = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "첫 번째", author_role: "user" });
+    const r2 = await request(app)
+      .post("/support/cases/sc_test/messages")
+      .send({ content: "두 번째", author_role: "user" });
+    expect(r1.status).toBe(200);
+    expect(r1.body.ok).toBe(true);
+    expect(r2.status).toBe(200);
+    expect(r2.body.ok).toBe(true);
+    // Different message ids confirm no duplication
+    expect(r1.body.id).not.toBe(r2.body.id);
+  });
+});
+
+// FIX-13: full existing suite pass — covered by running the entire file
+
+// =============================================================================
 // CS02R-21: Legacy help route unaffected
 // =============================================================================
 describe("CS02R-21: legacy help routes not handled by support-cases router", () => {
