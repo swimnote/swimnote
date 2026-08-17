@@ -93,3 +93,4 @@
 - [WP-N7S 완료 상태](wp-n7s-done-state.md) — SHA 03e34a60; Sage→Clear Pool(15파일); WeeklyTimetableV2 classColor alpha +18→+28; TS 0; iOS OTA 01a00c74/01a00c75
 - [WP-X04 완료 상태](wp-x04-done-state.md) — SHA 07dac4df; docxParser+websitePackager+x04-structuring+migration; fflate; 35TC+1225TC; Render 배포 트리거
 - [WP-SA0-A 완료 상태](wp-sa0a-done-state.md) — SHA 6a617dd2; SuperGuard+SuperLayout+11페이지+App.tsx라우팅; web전용; Render/OTA 불필요
+- [WP-SA0-B 완료 상태](wp-sa0b-done-state.md) — SHA 7f24da5e; 신규 엔드포인트 4개+웹 7개; Render 배포 트리거됨
