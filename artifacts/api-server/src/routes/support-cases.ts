@@ -1,18 +1,26 @@
 /**
- * support-cases.ts — CS-01R User-facing Support Case APIs
+ * support-cases.ts — CS-01R (HARDEN) User-facing Support Case APIs
+ *
+ * HARDEN 핵심 변경:
+ *   - case_id 컬럼 도입: support_ticket_replies.case_id = 케이스 기준 스레드 식별자
+ *   - ticket_id는 실제 ticket이 있을 때만 저장 (nullable)
+ *   - AI-only 메시지: ticket_id=null, case_id=<caseId>
+ *   - 에스컬레이션 후 메시지: ticket_id=<ticketId>, case_id=<caseId>
+ *   - GET 케이스 상세 메시지 조회: WHERE case_id=<caseId> OR (ticket_id=<ticketId> AND case_id IS NULL)
+ *     → 케이스 메시지 + 레거시 경로 agent reply 모두 포함, 중복 없음
  *
  * Routes:
  *   POST /support/cases                    — AI-only case 생성
  *   GET  /support/cases/:id                — case 상세 (messages 포함)
  *   POST /support/cases/:id/messages       — 메시지 추가 (user/ai/agent/system)
- *   POST /support/cases/:id/request-human  — 상담사 요청 (ticket 생성 + 1:1 연결)
+ *   POST /support/cases/:id/request-human  — 상담사 요청 (ticket 생성 + case 연결)
  *   POST /support/cases/:id/reopen         — 해결 케이스 재오픈
  *
  * 보안:
- *   - Pool isolation: 다른 pool의 case 조회/수정 금지
- *   - Role isolation: 자기 케이스만 접근 (super_admin은 전체)
- *   - ai/agent 메시지는 super_admin만 생성 가능
- *   - 중복 ticket 생성 방지 (idempotent request-human)
+ *   - Pool isolation: 다른 pool의 case 접근 금지
+ *   - Owner isolation: 자기 케이스만 접근 (super_admin은 전체)
+ *   - ai/agent 메시지는 super_admin만 작성 가능
+ *   - request-human idempotent: 이미 ticket 있으면 중복 생성 금지
  */
 
 import { Router } from "express";
@@ -25,13 +33,12 @@ import {
   getMasterState,
   logSupportEvent,
   transitionSupportCase,
-  messageThreadId,
 } from "../lib/support-case-service.js";
 import { SUPPORT_CASE_STATE, SUPPORT_EVENT_TYPE } from "../lib/ai-feature-enum.js";
 
 const router = Router();
 
-// Startup schema migration
+// Startup schema migration (idempotent)
 ensureCs01rSchema().catch(console.error);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -46,19 +53,19 @@ const VALID_AUTHOR_ROLES = ["user", "ai", "agent", "system"] as const;
 // AI-only case 생성. ticket 없음, ticket_id = null.
 
 router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
-  const user     = req.user!;
-  const poolId   = user.poolId  ?? null;
-  const actorId  = user.userId  ?? "";
-  const actorRole= user.role    ?? "unknown";
+  const user      = req.user!;
+  const poolId    = user.poolId  ?? null;
+  const actorId   = user.userId  ?? "";
+  const actorRole = user.role    ?? "unknown";
   const { mode, context = {} } = req.body as any;
 
   try {
     const caseId = `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    // AVAILABLE context only — no PII, no raw text
+    // context: PII 제외 (본문·이름·전화·이메일 저장 금지)
     const contextJson = {
       user_role:         actorRole,
-      service_mode:      mode         ?? null,
+      service_mode:      mode                          ?? null,
       xmode_enabled:     mode === "x",
       subscription_plan: (context as any).subscription_plan ?? null,
       app_version:       (context as any).app_version       ?? null,
@@ -73,7 +80,6 @@ router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
          ${SUPPORT_CASE_STATE.NEW}, ${JSON.stringify(contextJson)}::jsonb)
     `);
 
-    // Best-effort support event
     void logSupportEvent({
       eventType: SUPPORT_EVENT_TYPE.CASE_CREATED,
       caseId,
@@ -92,7 +98,12 @@ router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── GET /support/cases/:id ────────────────────────────────────────────────────
-// case 상세 + messages + ticket (§21 conversation history 구조)
+// case 상세 + messages (thread continuity 보장)
+//
+// 메시지 조회 전략:
+//   1. case_id = caseId → AI/User 메시지 + support-cases.ts 경유 에스컬레이션 메시지
+//   2. ticket_id = ticketId AND case_id IS NULL → 레거시 support-tickets.ts 경유 agent reply
+//   UNION 후 created_at ASC 정렬 → 중복 없는 단일 시간순 대화 이력
 
 router.get("/support/cases/:id", requireAuth, async (req: AuthRequest, res) => {
   const user    = req.user!;
@@ -114,7 +125,7 @@ router.get("/support/cases/:id", requireAuth, async (req: AuthRequest, res) => {
     const sc = caseRows?.rows?.[0];
     if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
 
-    // §15 Tenant isolation + §16 Role isolation
+    // Tenant + owner isolation
     if (!isSuper) {
       const ownerMismatch = sc.actor_id && sc.actor_id !== actorId;
       const poolMismatch  = sc.pool_id  && sc.pool_id  !== (user.poolId ?? "");
@@ -123,24 +134,40 @@ router.get("/support/cases/:id", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    const threadId = messageThreadId(caseId, sc.ticket_id);
-
-    // Load messages from pool db (keyed by threadId)
+    // ── Thread continuity query ──────────────────────────────────────────────
+    // HARDEN: case_id 기준 조회 (ticket_id 위장 저장 금지)
+    // 레거시 support-tickets.ts 경로로 들어온 agent reply (case_id=null)도 포함
     let messages: any[] = [];
     try {
-      const msgRows = (await (db as any).execute(sql`
-        SELECT id, ticket_id, author_user_id, author_name,
-               author_role, message_type, content, image_urls, created_at::text
-        FROM support_ticket_replies
-        WHERE ticket_id = ${threadId}
-        ORDER BY created_at ASC
-      `)) as any;
+      const ticketId = sc.ticket_id ?? null;
+
+      let msgRows: any;
+      if (ticketId) {
+        // 에스컬레이션 케이스: case_id 메시지 + 레거시 ticket 경로 메시지 통합
+        msgRows = (await (db as any).execute(sql`
+          SELECT id, ticket_id, case_id, author_user_id, author_name,
+                 author_role, message_type, content, image_urls, created_at::text
+          FROM support_ticket_replies
+          WHERE case_id = ${caseId}
+             OR (ticket_id = ${ticketId} AND case_id IS NULL)
+          ORDER BY created_at ASC
+        `)) as any;
+      } else {
+        // AI-only case: case_id 기준
+        msgRows = (await (db as any).execute(sql`
+          SELECT id, ticket_id, case_id, author_user_id, author_name,
+                 author_role, message_type, content, image_urls, created_at::text
+          FROM support_ticket_replies
+          WHERE case_id = ${caseId}
+          ORDER BY created_at ASC
+        `)) as any;
+      }
       messages = msgRows?.rows ?? [];
     } catch {
       // pool db 조회 실패 — case는 반환, messages 빈 배열
     }
 
-    // Load linked ticket
+    // Linked ticket
     let ticket: any = null;
     if (sc.ticket_id) {
       try {
@@ -169,7 +196,10 @@ router.get("/support/cases/:id", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /support/cases/:id/messages ─────────────────────────────────────────
-// 메시지 추가. ai/agent 작성은 super_admin만 가능.
+// 메시지 추가.
+// HARDEN: ticket_id 컬럼에 case_id를 저장하지 않는다.
+//   - AI-only case: ticket_id=null, case_id=caseId
+//   - 에스컬레이션 케이스: ticket_id=sc.ticket_id, case_id=caseId
 
 router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest, res) => {
   const user    = req.user!;
@@ -191,7 +221,6 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
   }
 
   try {
-    // Fetch case for ownership check + thread key
     const caseRows = (await (superAdminDb as any).execute(sql`
       SELECT actor_id, pool_id, ticket_id, state
       FROM support_cases WHERE id = ${caseId} LIMIT 1
@@ -199,7 +228,7 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
     const sc = caseRows?.rows?.[0];
     if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
 
-    // §15 + §16 isolation
+    // Tenant + owner isolation
     if (!isSuper) {
       const ownerMismatch = sc.actor_id && sc.actor_id !== actorId;
       const poolMismatch  = sc.pool_id  && sc.pool_id  !== (user.poolId ?? "");
@@ -208,20 +237,23 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
       }
     }
 
-    const threadId = messageThreadId(caseId, sc.ticket_id);
-    const msgId    = `rep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const images   = Array.isArray(image_urls) ? image_urls.slice(0, 3) : [];
-    const imgsLit  = `{${images
+    const msgId = `rep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const images = Array.isArray(image_urls) ? image_urls.slice(0, 3) : [];
+    const imgsLit = `{${images
       .map((u: string) => `"${String(u).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
       .join(",")}}`;
 
+    // HARDEN: case_id 컬럼 사용, ticket_id는 실제 ticket ID만 저장
+    const insertTicketId: string | null = sc.ticket_id ?? null;
+
     await (db as any).execute(sql.raw(`
       INSERT INTO support_ticket_replies
-        (id, ticket_id, author_user_id, author_name, author_role, message_type, content, image_urls)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, '${imgsLit}'::text[])
+        (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${imgsLit}'::text[])
     `, [
       msgId,
-      threadId,
+      insertTicketId,
+      caseId,           // case_id: 항상 케이스 ID 저장
       actorId,
       user.name ?? "",
       role,
@@ -229,16 +261,15 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
       content,
     ]));
 
-    // Increment turn_count (best-effort)
+    // turn_count 증가 (best-effort)
     await (superAdminDb as any).execute(sql`
       UPDATE support_cases
       SET turn_count = turn_count + 1, updated_at = NOW()
       WHERE id = ${caseId}
     `).catch(() => {});
 
-    // Support event — best-effort, no content in analytics
-    const evtType = role === "ai"     ? SUPPORT_EVENT_TYPE.AI_RESPONDED
-                  : role === "agent"  ? SUPPORT_EVENT_TYPE.AGENT_RESPONDED
+    const evtType = role === "ai"    ? SUPPORT_EVENT_TYPE.AI_RESPONDED
+                  : role === "agent" ? SUPPORT_EVENT_TYPE.AGENT_RESPONDED
                   : SUPPORT_EVENT_TYPE.USER_RESPONDED;
 
     void logSupportEvent({
@@ -259,8 +290,8 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
 });
 
 // ── POST /support/cases/:id/request-human ────────────────────────────────────
-// 상담사 요청 — support_ticket 생성 후 case에 1:1 연결.
-// 이미 ticket이 있으면 중복 생성 금지 (idempotent).
+// 상담사 요청 — support_ticket 생성 + case에 1:1 연결.
+// 기존 AI/User 메시지 (case_id 기준)는 이후에도 GET에서 그대로 보임 (continuity 보장).
 
 router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthRequest, res) => {
   const user    = req.user!;
@@ -278,7 +309,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
     const sc = caseRows?.rows?.[0];
     if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
 
-    // §15 + §16 isolation
     if (!isSuper) {
       const ownerMismatch = sc.actor_id && sc.actor_id !== actorId;
       const poolMismatch  = sc.pool_id  && sc.pool_id  !== (user.poolId ?? "");
@@ -287,12 +317,11 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       }
     }
 
-    // §20 Idempotent: 이미 ticket 연결됐으면 중복 생성 금지
+    // Idempotent: 이미 ticket 있으면 중복 생성 금지
     if (sc.ticket_id) {
       return res.json({ ok: true, ticket_id: sc.ticket_id, created: false });
     }
 
-    // Valid transition 확인
     const allowed = VALID_TRANSITIONS[sc.state] ?? [];
     if (!allowed.includes(SUPPORT_CASE_STATE.HUMAN_REQUIRED)) {
       return res.status(422).json({
@@ -300,7 +329,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       });
     }
 
-    // Create support_ticket (pool db) — §20 기존 ticket creation code 재사용 패턴
     const ticketId = `tkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     await (db as any).execute(sql`
       INSERT INTO support_tickets
@@ -313,7 +341,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
          ${24}, ${actorId}, ${true}, ${"open"})
     `);
 
-    // Link case → ticket + transition state (single UPDATE)
     await (superAdminDb as any).execute(sql`
       UPDATE support_cases
       SET ticket_id         = ${ticketId},
@@ -323,7 +350,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       WHERE id = ${caseId}
     `);
 
-    // Support event — best-effort
     void logSupportEvent({
       eventType: SUPPORT_EVENT_TYPE.HUMAN_REQUESTED,
       caseId,
@@ -343,7 +369,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
 });
 
 // ── POST /support/cases/:id/reopen ────────────────────────────────────────────
-// 해결/종료된 케이스 재오픈. RESOLVED → REOPENED.
 
 router.post("/support/cases/:id/reopen", requireAuth, async (req: AuthRequest, res) => {
   const user    = req.user!;
@@ -359,7 +384,6 @@ router.post("/support/cases/:id/reopen", requireAuth, async (req: AuthRequest, r
     const sc = caseRows?.rows?.[0];
     if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
 
-    // §16 Role isolation (super_admin은 전체 가능)
     if (!isSuper) {
       const ownerMismatch = sc.actor_id && sc.actor_id !== actorId;
       const poolMismatch  = sc.pool_id  && sc.pool_id  !== (user.poolId ?? "");

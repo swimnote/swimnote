@@ -38,18 +38,39 @@ export async function ensureCs01rSchema(): Promise<void> {
     await (superAdminDb as any).execute(sql.raw(ddl)).catch(() => {});
   }
 
-  // support_ticket_replies: message_type 컬럼 (pool db)
-  // author_role이 이미 역할을 담당하지만, message_type으로 content 유형도 구분 가능
-  await (db as any)
-    .execute(sql.raw(`ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS message_type TEXT`))
-    .catch(() => {});
-
   // support_cases: actor_id index
   await (superAdminDb as any)
     .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_cases_actor_id_idx ON support_cases(actor_id)`))
     .catch(() => {});
 
-  console.log("[cs-01r] schema migration complete");
+  // ── HARDEN: support_ticket_replies 스키마 확장 (pool db) ──────────────────
+  //
+  // BEFORE: ticket_id TEXT NOT NULL — case_id를 ticket_id로 위장 저장했음 (semantic issue)
+  // AFTER:  ticket_id NULLABLE + case_id TEXT 별도 컬럼
+  //
+  // AI-only case message:       ticket_id=null,       case_id=<case_id>
+  // Human escalated message:    ticket_id=<ticket_id>, case_id=<case_id>
+  // Legacy human-only ticket:   ticket_id=<ticket_id>, case_id=null
+  //
+  // Thread 조회: WHERE case_id = $caseId (case messages) 또는
+  //              WHERE ticket_id = $ticketId AND case_id IS NULL (legacy ticket only)
+  for (const ddl of [
+    // ticket_id를 nullable로 변경 (AI-only case 메시지는 ticket 없음)
+    `ALTER TABLE support_ticket_replies ALTER COLUMN ticket_id DROP NOT NULL`,
+    // case_id 컬럼: 케이스 기반 메시지 스레드 식별
+    `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS case_id TEXT`,
+    // message_type: content 유형 구분 (author_role과 별개)
+    `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS message_type TEXT`,
+  ]) {
+    await (db as any).execute(sql.raw(ddl)).catch(() => {});
+  }
+
+  // case_id 인덱스: 케이스 기반 메시지 조회 성능
+  await (db as any)
+    .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_ticket_replies_case_id_idx ON support_ticket_replies(case_id)`))
+    .catch(() => {});
+
+  console.log("[cs-01r] schema migration complete (HARDEN applied)");
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────
@@ -234,14 +255,16 @@ export async function transitionSupportCase(
   return { ok: true };
 }
 
-// ── Message thread ID helper ──────────────────────────────────────────────────
-
-/**
- * AI-only case (ticket_id=null): case_id 자체가 메시지 스레드 키.
- * Human escalation case: ticket_id가 메시지 스레드 키.
- *
- * support_ticket_replies.ticket_id = messageThreadId(caseId, ticketId)
- */
-export function messageThreadId(caseId: string, ticketId: string | null): string {
-  return ticketId ?? caseId;
+// ── messageThreadId — DEPRECATED (HARDEN) ────────────────────────────────────
+//
+// 과거: ticket_id 컬럼에 case_id를 저장 (semantic issue, 이제 금지됨).
+// 현재: support_ticket_replies.case_id 컬럼으로 케이스 스레드를 식별한다.
+//
+// 새 코드에서 이 함수를 사용하지 말 것.
+// 레거시 ticket 전용 queries (support-tickets.ts) 는 ticket_id 직접 사용.
+//
+// @deprecated — use case_id column directly
+export function messageThreadId(_caseId: string, ticketId: string | null): string {
+  // Kept for backward-compat test references only. Do not use in new code.
+  return ticketId ?? _caseId;
 }

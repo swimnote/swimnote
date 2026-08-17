@@ -341,7 +341,7 @@ router.get(
   requireRole("super_admin"),
   async (req: Request, res: Response) => {
     const { caseId } = req.params;
-    const { getMasterState, messageThreadId } = await import("../lib/support-case-service.js");
+    const { getMasterState } = await import("../lib/support-case-service.js");
     const { db } = await import("@workspace/db");
     const { sql: dbSql } = await import("drizzle-orm");
 
@@ -356,17 +356,29 @@ router.get(
       const sc = (caseRows as any)?.rows?.[0];
       if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
 
-      const threadId = messageThreadId(caseId, sc.ticket_id);
-
+      // HARDEN: case_id 기준 조회 + 레거시 agent reply(case_id=null) 통합
       let messages: any[] = [];
       try {
-        const msgRows = await (db as any).execute(dbSql`
-          SELECT id, ticket_id, author_user_id, author_name,
-                 author_role, message_type, content, image_urls, created_at::text
-          FROM support_ticket_replies
-          WHERE ticket_id = ${threadId}
-          ORDER BY created_at ASC
-        `);
+        const ticketId = sc.ticket_id ?? null;
+        let msgRows: any;
+        if (ticketId) {
+          msgRows = await (db as any).execute(dbSql`
+            SELECT id, ticket_id, case_id, author_user_id, author_name,
+                   author_role, message_type, content, image_urls, created_at::text
+            FROM support_ticket_replies
+            WHERE case_id = ${caseId}
+               OR (ticket_id = ${ticketId} AND case_id IS NULL)
+            ORDER BY created_at ASC
+          `);
+        } else {
+          msgRows = await (db as any).execute(dbSql`
+            SELECT id, ticket_id, case_id, author_user_id, author_name,
+                   author_role, message_type, content, image_urls, created_at::text
+            FROM support_ticket_replies
+            WHERE case_id = ${caseId}
+            ORDER BY created_at ASC
+          `);
+        }
         messages = (msgRows as any)?.rows ?? [];
       } catch { /* pool db unavailable */ }
 
