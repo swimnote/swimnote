@@ -43,23 +43,42 @@ export async function ensureCs01rSchema(): Promise<void> {
     .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_cases_actor_id_idx ON support_cases(actor_id)`))
     .catch(() => {});
 
-  // ── HARDEN: support_ticket_replies 스키마 확장 (pool db) ──────────────────
+  // ── HARDEN: support_ticket_replies 테이블 보장 + 스키마 확장 (pool db) ────────
   //
-  // BEFORE: ticket_id TEXT NOT NULL — case_id를 ticket_id로 위장 저장했음 (semantic issue)
-  // AFTER:  ticket_id NULLABLE + case_id TEXT 별도 컬럼
+  // DEFECT (2026-08-17): support_ticket_replies 테이블 자체가 pool DB에 없으면
+  //   ALTER TABLE이 silent fail → INSERT/SELECT 전부 실패 → 답변이 앱에 표시되지 않음.
   //
-  // AI-only case message:       ticket_id=null,       case_id=<case_id>
-  // Human escalated message:    ticket_id=<ticket_id>, case_id=<case_id>
-  // Legacy human-only ticket:   ticket_id=<ticket_id>, case_id=null
+  // FIX: CREATE TABLE IF NOT EXISTS로 테이블을 먼저 보장한 뒤 ALTER TABLE 적용.
   //
-  // Thread 조회: WHERE case_id = $caseId (case messages) 또는
-  //              WHERE ticket_id = $ticketId AND case_id IS NULL (legacy ticket only)
+  // CS-01R 스키마:
+  //   ticket_id NULLABLE  — AI-only case는 ticket 없음
+  //   case_id TEXT        — 케이스 기반 스레드 식별자 (CS-01R 핵심)
+  //   message_type TEXT   — content 유형 구분
+  //
+  // Thread 조회:
+  //   WHERE case_id = $caseId (case messages)
+  //   WHERE ticket_id = $ticketId AND case_id IS NULL (legacy ticket only)
+  await (db as any).execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS support_ticket_replies (
+      id              TEXT PRIMARY KEY,
+      ticket_id       TEXT,
+      case_id         TEXT,
+      author_user_id  TEXT,
+      author_name     TEXT NOT NULL DEFAULT '',
+      author_role     TEXT NOT NULL DEFAULT 'user',
+      message_type    TEXT,
+      content         TEXT NOT NULL DEFAULT '',
+      image_urls      TEXT[] DEFAULT '{}',
+      created_at      TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)).catch(() => {});
+
   for (const ddl of [
-    // ticket_id를 nullable로 변경 (AI-only case 메시지는 ticket 없음)
+    // 기존 테이블이 ticket_id NOT NULL로 생성된 경우 nullable로 변경
     `ALTER TABLE support_ticket_replies ALTER COLUMN ticket_id DROP NOT NULL`,
-    // case_id 컬럼: 케이스 기반 메시지 스레드 식별
+    // case_id 컬럼: 케이스 기반 메시지 스레드 식별 (신규 테이블에는 이미 포함)
     `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS case_id TEXT`,
-    // message_type: content 유형 구분 (author_role과 별개)
+    // message_type: content 유형 구분 (신규 테이블에는 이미 포함)
     `ALTER TABLE support_ticket_replies ADD COLUMN IF NOT EXISTS message_type TEXT`,
   ]) {
     await (db as any).execute(sql.raw(ddl)).catch(() => {});
@@ -70,7 +89,7 @@ export async function ensureCs01rSchema(): Promise<void> {
     .execute(sql.raw(`CREATE INDEX IF NOT EXISTS support_ticket_replies_case_id_idx ON support_ticket_replies(case_id)`))
     .catch(() => {});
 
-  console.log("[cs-01r] schema migration complete (HARDEN applied)");
+  console.log("[cs-01r] schema migration complete (CREATE TABLE + HARDEN applied)");
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────
