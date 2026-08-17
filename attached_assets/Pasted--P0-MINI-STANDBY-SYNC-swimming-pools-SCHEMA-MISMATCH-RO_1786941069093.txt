@@ -1,0 +1,268 @@
+[P0-MINI — STANDBY-SYNC swimming_pools SCHEMA MISMATCH ROOT-CAUSE FIX]
+
+목적:
+
+현재 로그에서 확인된 standby-sync의
+swimming_pools 컬럼 불일치 오류를 정확히 추적하고 수정한다.
+
+이 작업은 신규 기능이 아니라
+production schema/runtime 정합성 수정이다.
+
+CS-PA0 기능 확장이나 AI 계측 작업을 섞지 않는다.
+
+==================================================
+0. CS-PA0 DEPLOY CHECK
+==================================================
+
+작업 시작 전 read-only 확인:
+
+CS-PA0 server deployment 상태
+CS-PA0 startup migration 상태
+
+신규 테이블:
+
+support_cases
+support_knowledge_items
+partner_analytics_snapshots
+
+실제 production에 생성됐는지 확인.
+
+결과만 보고.
+
+CS-PA0 관련 추가 수정은
+실제 defect 없으면 금지.
+
+==================================================
+1. ROOT CAUSE FIRST
+==================================================
+
+standby-sync 관련:
+
+route
+service
+query
+migration
+swimming_pools schema
+
+전부 추적.
+
+로그에서 발생한 정확한 DB error를 기준으로:
+
+EXPECTED_COLUMN =
+ACTUAL_SCHEMA =
+FAILING_QUERY =
+CALL_PATH =
+
+확정.
+
+추측 수정 금지.
+
+==================================================
+2. SOURCE OF TRUTH
+==================================================
+
+production swimming_pools 실제 schema를 기준으로 한다.
+
+코드가 존재하지 않는 컬럼을 참조하는지,
+
+또는:
+
+- 과거 migration 잔존
+- renamed column
+- environment schema divergence
+- source/dist divergence
+- SELECT *
+- stale query
+
+문제인지 확인.
+
+==================================================
+3. DO NOT ADD FAKE COLUMN
+==================================================
+
+코드가 잘못된 경우
+오류를 없애려고 의미 없는 컬럼을 DB에 추가하지 않는다.
+
+실제 product contract상 필요한 컬럼인지 먼저 판단.
+
+A.
+컬럼이 실제로 필요함
+→ production-safe migration
+
+B.
+코드가 stale/wrong
+→ query/code 수정
+
+최소 수정.
+
+==================================================
+4. STANDBY-SYNC BEHAVIOR
+==================================================
+
+standby-sync가 정확히 무엇을 동기화하는지 보고.
+
+확인:
+
+INPUT
+OUTPUT
+READ TABLES
+WRITE TABLES
+TRIGGER
+FAILURE IMPACT
+
+특히:
+
+실패 시 사용자 기능에 어떤 영향이 있는지
+명확히 보고.
+
+==================================================
+5. swimming_pools.id TYPE
+==================================================
+
+최근 X04에서 확인된 것처럼:
+
+swimming_pools.id = TEXT
+
+임을 잊지 않는다.
+
+standby-sync에서도
+INTEGER / parseInt / numeric cast가 남아있는지 검사.
+
+관련되면 같이 수정.
+
+관련 없으면 건드리지 않는다.
+
+==================================================
+6. NULL / MISSING FIELD
+==================================================
+
+optional field와
+존재하지 않는 column을 혼동하지 않는다.
+
+DB column missing error를
+try/catch로 삼켜서 성공 처리 금지.
+
+==================================================
+7. TWO SERVER RUNTIMES
+==================================================
+
+APP API deployment 구조 확인:
+
+swimnote.kr
+→ Replit Published dist runtime
+
+swimnote-api.onrender.com
+→ Render source runtime
+
+standby-sync가 어느 runtime에서 실행되는지 확정.
+
+source/dist divergence가 원인이면
+양쪽 정합성까지 확인.
+
+==================================================
+8. DATA SAFETY
+==================================================
+
+금지:
+
+production fake row
+entitlement reset
+pool data reset
+X setup reset
+subscription mutation
+bulk update
+destructive migration
+
+실제 운영 데이터 보존.
+
+==================================================
+9. TEST
+==================================================
+
+필수:
+
+SS-01
+failing query reproduction 또는 deterministic test
+
+SS-02
+actual swimming_pools schema contract
+
+SS-03
+standby-sync success
+
+SS-04
+missing/nullable input safe handling
+
+SS-05
+TEXT pool_id handling
+
+SS-06
+existing X03/X04/CS-PA0 regression 없음
+
+SS-07
+전체 기존 TC pass
+
+==================================================
+10. DEPLOYMENT
+==================================================
+
+server fix이면:
+
+GitHub push
+→ Render deploy
+→ live 확인
+→ standby-sync error 재발 여부 확인
+
+Replit Published runtime까지 영향이 있으면
+정확한 이유와 배포 필요 여부 보고.
+
+mobile OTA 없음.
+
+==================================================
+11. FINAL REPORT
+==================================================
+
+CS_PA0_DEPLOYMENT =
+CS_PA0_MIGRATION =
+
+ROOT_CAUSE =
+FAILING_FILE =
+FAILING_FUNCTION =
+FAILING_QUERY =
+
+EXPECTED_COLUMN =
+ACTUAL_SCHEMA =
+
+COLUMN_REALLY_REQUIRED =
+STALE_CODE_FOUND =
+SCHEMA_DIVERGENCE_FOUND =
+
+POOL_ID_TYPE_RESULT =
+
+STANDBY_SYNC_PURPOSE =
+STANDBY_SYNC_FAILURE_IMPACT =
+
+DB_CHANGED =
+SERVER_CHANGED =
+DIST_CHANGED =
+
+DATA_MUTATION_REQUIRED =
+PRODUCTION_DATA_PRESERVED =
+
+TEST_RESULT =
+REGRESSION_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+REPLIT_PUBLISHED_DEPLOYMENT =
+
+성공 조건:
+
+ROOT_CAUSE = CONFIRMED
+PRODUCTION_DATA_PRESERVED = YES
+standby-sync DB error = RESOLVED
+기존 기능 regression = NO
+
+완료:
+
+P0_MINI_STANDBY_SYNC_SCHEMA_MISMATCH_RESOLVED ✅

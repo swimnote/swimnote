@@ -277,6 +277,104 @@ function recordStandbyPingResult(latency_ms: number, ok: boolean) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// Standby swimming_pools 스키마 보수
+// ════════════════════════════════════════════════════════════════
+/**
+ * Production에만 추가된 swimming_pools 컬럼을 standby(backupDb)에 멱등 추가.
+ *
+ * 근본 원인 (SCHEMA_MISMATCH):
+ *   pool-db-x-init / pool-db-x-payment-init / pool-db-x-lifecycle / super-db-init 마이그레이션은
+ *   superAdminDb(SUPABASE_DATABASE_URL)에만 실행됨.
+ *   backupDb(POOL_DATABASE_URL)는 동일 마이그레이션을 받지 못해
+ *   72컬럼 INSERT 시 "column does not exist" 오류 발생.
+ *
+ * 대원칙:
+ *   - ADD COLUMN IF NOT EXISTS → 완전 멱등
+ *   - x_slot_id: standby에 x_subscription_slots가 없으므로 FK 없이 bigint만
+ *   - xmode_config_status: ENUM 타입 먼저 생성 후 컬럼 추가
+ *   - 실패해도 throw하지 않음 — 개별 오류만 warn; 복제 시도는 계속됨
+ */
+async function repairStandbySwimmingPoolsSchema(backupDb: any): Promise<void> {
+  const exec = async (stmt: string, label: string) => {
+    try {
+      await backupDb.execute(sql.raw(stmt));
+    } catch (e: any) {
+      const cause = e?.cause?.message ?? e?.message ?? String(e);
+      console.warn(`[standby-sync] repairStandby warn (${label}): ${cause}`);
+    }
+  };
+
+  // ── 1. ENUM 타입 (xmode_config_status_enum) ──────────────────────────────
+  // PG 14 이전은 CREATE TYPE IF NOT EXISTS 미지원 → DO $$ 패턴 사용
+  await exec(`
+    DO $$ BEGIN
+      CREATE TYPE xmode_config_status_enum AS ENUM
+        ('NOT_CONFIGURED', 'CURRICULUM_PENDING', 'READY');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `, "xmode_config_status_enum");
+
+  // ── 2. xmode 컬럼 5개 (pool-db-x-init.ts) ────────────────────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_entitlement boolean NOT NULL DEFAULT false;`,
+    "xmode_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_config_status xmode_config_status_enum NOT NULL DEFAULT 'NOT_CONFIGURED';`,
+    "xmode_config_status",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_purchased_at timestamptz;`,
+    "xmode_purchased_at",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_subscription_end_at timestamptz;`,
+    "xmode_subscription_end_at",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_payment_failed_at timestamptz;`,
+    "xmode_payment_failed_at",
+  );
+
+  // ── 3. X 결제 컬럼 4개 (pool-db-x-payment-init.ts) ───────────────────────
+  // x_slot_id: FK 없이 bigint만 (standby에 x_subscription_slots 테이블 없을 수 있음)
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_slot_id bigint;`,
+    "x_slot_id",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_paid_entitlement boolean NOT NULL DEFAULT false;`,
+    "x_paid_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_manual_entitlement boolean NOT NULL DEFAULT false;`,
+    "x_manual_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_force_disabled boolean NOT NULL DEFAULT false;`,
+    "x_force_disabled",
+  );
+
+  // ── 4. x_auto_renew_cancelled (pool-db-x-lifecycle.ts) ───────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_auto_renew_cancelled boolean NOT NULL DEFAULT false;`,
+    "x_auto_renew_cancelled",
+  );
+
+  // ── 5. homepage 컬럼 (super-db-init.ts) ──────────────────────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_slug text;`,
+    "homepage_slug",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_enabled boolean NOT NULL DEFAULT false;`,
+    "homepage_enabled",
+  );
+
+  console.log("[standby-sync] repairStandbySwimmingPoolsSchema 완료");
+}
+
+// ════════════════════════════════════════════════════════════════
 // 테이블 단위 복제 (TRUNCATE + INSERT 방식, 30초 타임아웃)
 // ════════════════════════════════════════════════════════════════
 async function replicateTable(
@@ -373,7 +471,11 @@ async function replicateTable(
 
     return { rows: rows.length };
   } catch (e: any) {
-    return { rows: 0, error: e.message ?? String(e) };
+    // e.message는 drizzle 래핑 메시지 ("Failed query: INSERT INTO...")
+    // e.cause?.message가 실제 PG 오류 메시지 (예: "column 'x_paid_entitlement' does not exist")
+    const pgMsg = e?.cause?.message ?? "";
+    const errMsg = pgMsg ? `${e.message ?? ""} | PG: ${pgMsg}` : (e.message ?? String(e));
+    return { rows: 0, error: errMsg };
   }
 }
 
@@ -391,6 +493,13 @@ export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Pro
 
   const backupDb = getBackupDb();
   if (!backupDb) return;
+
+  // ── 스키마 보수: swimming_pools가 대상에 포함되면 standby 컬럼 불일치 먼저 수정 ──
+  // Root-cause fix: production-only migrations (x-init, x-payment-init, x-lifecycle,
+  // super-db-init)이 standby에 실행되지 않아 누적된 컬럼 불일치를 멱등 보정.
+  if (tables.includes("swimming_pools")) {
+    await repairStandbySwimmingPoolsSchema(backupDb);
+  }
 
   const logId = `bl_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const t0 = Date.now();
