@@ -1,5 +1,6 @@
 /**
  * WP-CS-08R — Support AI Engine / LLM Last Fallback
+ * P0-OBSERVABILITY — Stage-level production trace instrumentation
  *
  * POST /support/respond
  *
@@ -15,10 +16,18 @@
  *   4. saveAiTrace (AI_FEATURE.SUPPORT_AI)
  *   5. Response: { answer, confidence, source, llm_used, llm_called, case_state }
  *
+ * Observability (P0-OBSERVABILITY):
+ *   - createSupportTrace() → stage-by-stage trace in memory
+ *   - addStage() at each gate — PII 저장 금지
+ *   - flushSupportTrace() at HTTP_RESPONSE — event_logs에 단일 레코드
+ *   - flushInsertFailStage() on AI INSERT failure — pg error code 즉시 캡처
+ *   - HTTP_RESPONSE stage = actual http_status source of truth
+ *
  * 개인정보 보호:
- *   - user_message 본문은 OpenAI에만 전달, DB에 저장 금지 (saveAiTrace 제외)
+ *   - user_message 본문은 OpenAI에만 전달, DB에 저장 금지
  *   - saveAiTrace에 메시지 본문 저장 금지, token count만
  *   - author_role=ai 직접 DB 삽입 (requireAuth 외부 엔드포인트 우회 불필요)
+ *   - trace: raw message/AI output/prompt/이름/전화/JWT 저장 금지
  *
  * 상태 머신 참고:
  *   NEW/REOPENED → AI_PROCESSING → AI_RESPONDED | HUMAN_REQUIRED
@@ -42,6 +51,14 @@ import {
   tokenize,
   type RouterContext,
 } from "../lib/support-resolver.js";
+import {
+  createSupportTrace,
+  addStage,
+  flushSupportTrace,
+  flushInsertFailStage,
+  classifyPgError,
+  type MessageContract,
+} from "../lib/support-trace.js";
 
 const router = Router();
 
@@ -111,9 +128,29 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   const mode       = ((body.mode      as string) || "normal").toLowerCase();
   const screenId   = (body.screen_id as string) ?? null;
   const appVersion = (body.app_version as string) ?? null;
+  const requestId  = (body.request_id as string) || genId("req_sup");
 
-  if (!caseId) return res.status(400).json({ error: "case_id 필수" });
-  if (!rawMessage.trim()) return res.status(400).json({ error: "message 필수" });
+  if (!caseId) {
+    return res.status(400).json({ error: "case_id 필수" });
+  }
+  if (!rawMessage.trim()) {
+    return res.status(400).json({ error: "message 필수" });
+  }
+
+  // ── Trace init ─────────────────────────────────────────────────────────────
+
+  const trace = createSupportTrace({
+    request_id:   requestId,
+    case_id:      caseId,
+    pool_id:      poolId,
+    user_role:    role,
+    service_mode: mode,
+  });
+
+  addStage(trace, "REQUEST_RECEIVED", {
+    screen_id:   screenId    ?? null,
+    app_version: appVersion  ?? null,
+  });
 
   // ── 케이스 조회 + isolation ────────────────────────────────────────────────
 
@@ -126,8 +163,14 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       LIMIT 1
     `)) as any;
     sc = r.rows?.[0];
-    if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+    if (!sc) {
+      addStage(trace, "HTTP_RESPONSE", { http_status: 404, success: false, safe_error_code: "CASE_NOT_FOUND" });
+      void flushSupportTrace(trace, { http_status: 404, success: false, safe_error_code: "CASE_NOT_FOUND" });
+      return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+    }
   } catch {
+    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "CASE_FETCH_ERROR" });
+    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "CASE_FETCH_ERROR" });
     return res.status(500).json({ error: "케이스 조회 오류" });
   }
 
@@ -135,9 +178,13 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   const isSuperAdmin = role === "super_admin";
   if (!isSuperAdmin) {
     if (sc.actor_id && sc.actor_id !== actorId) {
+      addStage(trace, "HTTP_RESPONSE", { http_status: 403, success: false, safe_error_code: "ACTOR_MISMATCH" });
+      void flushSupportTrace(trace, { http_status: 403, success: false, safe_error_code: "ACTOR_MISMATCH" });
       return res.status(403).json({ error: "접근 권한이 없습니다." });
     }
     if (sc.pool_id && sc.pool_id !== poolId) {
+      addStage(trace, "HTTP_RESPONSE", { http_status: 403, success: false, safe_error_code: "POOL_MISMATCH" });
+      void flushSupportTrace(trace, { http_status: 403, success: false, safe_error_code: "POOL_MISMATCH" });
       return res.status(403).json({ error: "접근 권한이 없습니다." });
     }
   }
@@ -145,12 +192,28 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   // 종료 상태 케이스 거부
   const terminalStates = new Set(["RESOLVED", "CLOSED"]);
   if (terminalStates.has(sc.state)) {
+    addStage(trace, "CASE_RESOLVED", { case_state: sc.state });
+    addStage(trace, "HTTP_RESPONSE", { http_status: 409, success: false, safe_error_code: "TERMINAL_STATE" });
+    void flushSupportTrace(trace, { http_status: 409, success: false, safe_error_code: "TERMINAL_STATE" });
     return res.status(409).json({ error: "종료된 케이스에는 메시지를 보낼 수 없습니다." });
   }
 
   // ── 사용자 메시지 저장 ─────────────────────────────────────────────────────
 
   const userMsgId = genId("rep");
+
+  // §5 Contract trace — content value excluded
+  const userContract: MessageContract = {
+    author_role:            "user",
+    author_user_id_is_null: !actorId,
+    case_id_present:        !!caseId,
+    ticket_id_present:      !!sc.ticket_id,
+    message_type:           "user",
+    content_present:        !!rawMessage.trim(),
+  };
+
+  addStage(trace, "USER_MESSAGE_INSERT_START", { contract: userContract });
+
   try {
     await insertSupportMessage({
       msgId:      userMsgId,
@@ -163,22 +226,35 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       content:    rawMessage,
     });
     await bumpTurnCount(caseId);
+    addStage(trace, "USER_MESSAGE_INSERT_OK", { msg_id: userMsgId });
   } catch (err) {
     console.error("[support/respond] user message insert failed:", err);
+    const pgCode   = (err as any)?.code        ?? null;
+    const category = classifyPgError(err);
+    addStage(trace, "USER_MESSAGE_INSERT_FAIL", {
+      pg_code:        pgCode,
+      error_category: category,
+    });
+    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "USER_MSG_INSERT_FAILED" });
+    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "USER_MSG_INSERT_FAILED" });
     return res.status(500).json({ error: "메시지 저장 실패" });
   }
 
   // ── AI_PROCESSING 전환 ─────────────────────────────────────────────────────
 
   if (AI_PROCESSING_FROM.has(sc.state)) {
+    addStage(trace, "AI_PROCESSING_START", { from_state: sc.state });
     const txResult = await transitionSupportCase({
       caseId,
       toState:   "AI_PROCESSING",
       actorRole: "system",
       poolId:    sc.pool_id ?? poolId,
     });
-    if (!txResult.ok) {
+    if (txResult.ok) {
+      addStage(trace, "AI_PROCESSING_OK");
+    } else {
       console.warn("[support/respond] AI_PROCESSING transition failed:", txResult.error);
+      addStage(trace, "AI_PROCESSING_FAIL", { reason: "TRANSITION_REJECTED" });
       // non-fatal: continue anyway, transition from intermediate states is best-effort
     }
   }
@@ -198,16 +274,41 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     tokens,
   };
 
-  const resolution = await runResolutionChain(ctx);
+  addStage(trace, "RESOLUTION_START");
+
+  let resolution: Awaited<ReturnType<typeof runResolutionChain>>;
+  try {
+    resolution = await runResolutionChain(ctx);
+    addStage(trace, "RESOLUTION_DONE", {
+      llm_required:    resolution.llm_required,
+      resolution_source: (resolution as any).source_type ?? null,
+      confidence:      (resolution as any).confidence    ?? null,
+    });
+  } catch (err) {
+    console.error("[support/respond] resolution chain failed:", err);
+    addStage(trace, "RESOLUTION_FAIL");
+    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "RESOLUTION_CHAIN_ERROR" });
+    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "RESOLUTION_CHAIN_ERROR" });
+    return res.status(500).json({ error: "해결 처리 오류" });
+  }
 
   const traceStartMs = Date.now();
   const internalId   = genId("trace_sup");
-  const requestId    = body.request_id ?? genId("req_sup");
 
   // ── Deterministic answer (no LLM) ────────────────────────────────────────
 
   if (!resolution.llm_required && resolution.answer) {
-    // save AI message
+    // §5 AI message contract
+    const aiContractDet: MessageContract = {
+      author_role:            "ai",
+      author_user_id_is_null: true,
+      case_id_present:        !!caseId,
+      ticket_id_present:      !!sc.ticket_id,
+      message_type:           "ai_deterministic",
+      content_present:        true,
+    };
+    addStage(trace, "AI_MESSAGE_INSERT_START", { contract: aiContractDet, which: "DETERMINISTIC" });
+
     const aiMsgId = genId("rep");
     try {
       await insertSupportMessage({
@@ -221,8 +322,26 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
         content:    resolution.answer,
       });
       await bumpTurnCount(caseId);
+      addStage(trace, "AI_MESSAGE_INSERT_OK", { msg_id: aiMsgId, which: "DETERMINISTIC" });
     } catch (err) {
       console.error("[support/respond] AI message insert failed:", err);
+      const pgCode      = (err as any)?.code        ?? null;
+      const pgConstraint= (err as any)?.constraint  ?? null;
+      const pgColumn    = (err as any)?.column      ?? null;
+      const pgTable     = (err as any)?.table       ?? null;
+      const category    = classifyPgError(err);
+      addStage(trace, "AI_MESSAGE_INSERT_FAIL", {
+        which:          "DETERMINISTIC",
+        pg_code:        pgCode,
+        constraint:     pgConstraint,
+        column:         pgColumn,
+        table:          pgTable,
+        error_category: category,
+      });
+      // Immediate flush so pg error is captured even before HTTP_RESPONSE
+      await flushInsertFailStage(trace, err, "DETERMINISTIC");
+      addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+      void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
       return res.status(500).json({
         error: "AI 메시지 저장 실패",
         code:  "AI_MSG_INSERT_FAILED",
@@ -230,6 +349,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // state transition
+    addStage(trace, "FINAL_STATE_START", { to_state: "AI_RESPONDED" });
     await transitionSupportCase({
       caseId,
       toState:          "AI_RESPONDED",
@@ -237,6 +357,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       poolId:           sc.pool_id ?? poolId,
       resolutionSource: resolution.source_type,
     }).catch(() => {});
+    addStage(trace, "FINAL_STATE_OK", { to_state: "AI_RESPONDED" });
 
     // event log
     void logSupportEvent({
@@ -272,6 +393,23 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       result_generated: true,
     }).catch(() => {});
 
+    // §6 HTTP_RESPONSE — actual status source of truth
+    addStage(trace, "HTTP_RESPONSE", {
+      http_status:    200,
+      success:        true,
+      answer_present: true,
+      case_id_present: !!caseId,
+      resolution_status: "AI_RESPONDED",
+      resolution_source: resolution.source_type,
+      llm_called:    false,
+    });
+    void flushSupportTrace(trace, {
+      http_status:    200,
+      success:        true,
+      answer_present: true,
+      case_id_present: !!caseId,
+    });
+
     return res.json({
       ok: true,
       llm_used:   false,
@@ -286,11 +424,21 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   // ── LLM Fallback ──────────────────────────────────────────────────────────
 
-  const evidence = await gatherEvidence(ctx, 5);
+  addStage(trace, "EVIDENCE_START");
+
+  let evidence: Awaited<ReturnType<typeof gatherEvidence>>;
+  try {
+    evidence = await gatherEvidence(ctx, 5);
+    addStage(trace, "EVIDENCE_DONE", { evidence_count: evidence.length });
+  } catch (err) {
+    console.error("[support/respond] gatherEvidence failed:", err);
+    addStage(trace, "EVIDENCE_FAIL");
+    // fallback to empty evidence — non-fatal, continue to LLM_SKIPPED / no_evidence
+    evidence = [];
+    addStage(trace, "EVIDENCE_DONE", { evidence_count: 0, fallback: true });
+  }
 
   // llm_used = "실제 provider LLM API를 호출했는가"
-  // evidence=0 → no_evidence 분기 → OpenAI 미호출 → llm_used=false
-  // evidence>0 → OpenAI 호출 시도 (error/success 무관) → llm_used=true
   const llmActuallyCalled = evidence.length > 0;
 
   const evidenceBlock = evidence.length > 0
@@ -339,6 +487,7 @@ ${evidenceBlock}
 
   if (evidence.length === 0) {
     // No evidence → cannot ground → immediate LOW + human CTA
+    addStage(trace, "LLM_SKIPPED", { reason: "NO_EVIDENCE" });
     llmOutput = {
       confidence: "LOW",
       answer:
@@ -348,6 +497,7 @@ ${evidenceBlock}
     };
   } else {
     // Call OpenAI
+    addStage(trace, "LLM_START", { model: LLM_MODEL, evidence_count: evidence.length });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
@@ -386,6 +536,15 @@ ${evidenceBlock}
         requires_human:       parsed.requires_human === true,
         suggested_next_action: parsed.suggested_next_action ?? null,
       };
+
+      addStage(trace, "LLM_DONE", {
+        model:         LLM_MODEL,
+        input_tokens:  inputTokens,
+        output_tokens: outputTokens,
+        total_tokens:  totalTokens,
+        confidence:    llmOutput.confidence,
+        requires_human: llmOutput.requires_human,
+      });
     } catch (e: any) {
       clearTimeout(timer);
       const isTimeout =
@@ -394,6 +553,8 @@ ${evidenceBlock}
         String(e?.message ?? "").toLowerCase().includes("aborted");
       llmError = isTimeout ? "TIMEOUT" : "LLM_ERROR";
       console.error("[support/respond] LLM error:", llmError, e?.message);
+
+      addStage(trace, "LLM_FAIL", { error_code: llmError });
 
       llmOutput = {
         confidence:           "LOW",
@@ -465,6 +626,17 @@ ${evidenceBlock}
     ? "HUMAN_REQUIRED"
     : "AI_RESPONDED";
 
+  // §5 AI message contract
+  const aiContractLlm: MessageContract = {
+    author_role:            "ai",
+    author_user_id_is_null: true,
+    case_id_present:        !!caseId,
+    ticket_id_present:      !!sc.ticket_id,
+    message_type:           toState === "HUMAN_REQUIRED" ? "ai_low_confidence" : "ai_llm",
+    content_present:        true,
+  };
+  addStage(trace, "AI_MESSAGE_INSERT_START", { contract: aiContractLlm, which: "LLM" });
+
   const aiMsgId = genId("rep");
   try {
     await insertSupportMessage({
@@ -478,8 +650,26 @@ ${evidenceBlock}
       content:    llmOutput!.answer,
     });
     await bumpTurnCount(caseId);
+    addStage(trace, "AI_MESSAGE_INSERT_OK", { msg_id: aiMsgId, which: "LLM" });
   } catch (err) {
     console.error("[support/respond] AI message insert failed (LLM path):", err);
+    const pgCode      = (err as any)?.code        ?? null;
+    const pgConstraint= (err as any)?.constraint  ?? null;
+    const pgColumn    = (err as any)?.column      ?? null;
+    const pgTable     = (err as any)?.table       ?? null;
+    const category    = classifyPgError(err);
+    addStage(trace, "AI_MESSAGE_INSERT_FAIL", {
+      which:          "LLM",
+      pg_code:        pgCode,
+      constraint:     pgConstraint,
+      column:         pgColumn,
+      table:          pgTable,
+      error_category: category,
+    });
+    // Immediate flush to capture pg error code in DB before HTTP_RESPONSE
+    await flushInsertFailStage(trace, err, "LLM");
+    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
     return res.status(500).json({
       error: "AI 메시지 저장 실패",
       code:  "AI_MSG_INSERT_FAILED",
@@ -487,6 +677,7 @@ ${evidenceBlock}
   }
 
   // Transition: AI_PROCESSING → AI_RESPONDED | HUMAN_REQUIRED
+  addStage(trace, "FINAL_STATE_START", { to_state: toState });
   await transitionSupportCase({
     caseId,
     toState,
@@ -494,6 +685,7 @@ ${evidenceBlock}
     poolId:    sc.pool_id ?? poolId,
     reason:    toState === "HUMAN_REQUIRED" ? "LOW_CONFIDENCE" : null,
   }).catch(() => {});
+  addStage(trace, "FINAL_STATE_OK", { to_state: toState });
 
   // Event log
   void logSupportEvent({
@@ -508,6 +700,26 @@ ${evidenceBlock}
     poolId:    sc.pool_id ?? poolId,
     reason:    toState === "HUMAN_REQUIRED" ? "LOW_CONFIDENCE" : null,
   }).catch(() => {});
+
+  // §6 HTTP_RESPONSE — actual status source of truth
+  addStage(trace, "HTTP_RESPONSE", {
+    http_status:    200,
+    success:        true,
+    answer_present: true,
+    case_id_present: !!caseId,
+    resolution_status: toState,
+    resolution_source: "LLM",
+    llm_called:    llmActuallyCalled,
+    llm_used:      llmActuallyCalled,
+    model:         llmActuallyCalled ? LLM_MODEL : null,
+    evidence_count: evidence.length,
+  });
+  void flushSupportTrace(trace, {
+    http_status:    200,
+    success:        true,
+    answer_present: true,
+    case_id_present: !!caseId,
+  });
 
   return res.json({
     ok:         true,
