@@ -61,6 +61,7 @@ import superSupportRouter from "./super-support.js";
 import frontendMapRouter from "./frontend-map.js";
 import knowledgeSearchRouter from "./knowledge-search.js";
 import resolutionRouter from "./resolution-router.js";
+import supportRespondRouter from "./support-respond.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
@@ -135,6 +136,7 @@ router.use("/", csPa0Router);
 router.use("/", frontendMapRouter);
 router.use("/", knowledgeSearchRouter);
 router.use("/", resolutionRouter);
+router.use("/", supportRespondRouter);
 router.use("/", aiV1Router);
 
 export default router;

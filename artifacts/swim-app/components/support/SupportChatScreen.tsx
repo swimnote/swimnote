@@ -271,17 +271,27 @@ export default function SupportChatScreen({ supportContext }: Props) {
         console.log("[support] case created:", caseId, "status:", cRes.status);
       }
 
-      const mRes = await apiRequest(token, `/support/cases/${caseId}/messages`, {
+      // CS-08R: POST /support/respond — AI Engine 엔드포인트
+      // 사용자 메시지 저장 + resolution chain + LLM fallback을 서버에서 일괄 처리.
+      const deviceCtxForRespond = buildDeviceContext();
+      const mRes = await apiRequest(token, `/support/respond`, {
         method: "POST",
-        body:   JSON.stringify({ content: text, author_role: "user" }),
+        body:   JSON.stringify({
+          case_id:     caseId,
+          message:     text,
+          mode,
+          screen_id:   supportContext?.featureId ?? null,
+          app_version: deviceCtxForRespond.app_version,
+        }),
       });
 
       if (!mRes.ok) {
         const errMsg = mRes.status === 401 ? "로그인 정보가 만료되었습니다."
           : mRes.status === 403             ? "접근 권한이 없습니다."
+          : mRes.status === 409             ? "문의가 이미 종료된 상태입니다. 새 문의를 시작해주세요."
           : mRes.status >= 500              ? "서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
           : "메시지를 저장하지 못했습니다. 다시 시도해주세요.";
-        console.log("[support] message send failed:", mRes.status);
+        console.log("[support] respond failed:", mRes.status);
         setError(errMsg);
         setInputText(text);
         return;
