@@ -1,0 +1,266 @@
+[P0-TRACE-READ — READ THE JUST-FAILED PRODUCTION SUPPORT REQUEST]
+
+방금 실제 iPhone TestFlight Build 246에서
+"x모드 알려줘"를 다시 전송했고,
+
+결과:
+- 채팅이 아예 안 올라옴
+- 실제 production defect 재현됨
+
+중요:
+지금은 코드 수정 금지.
+추측 금지.
+새 테스트 작성 금지.
+
+방금 재현한 가장 최근 request 1건의
+production event_logs trace만 읽는다.
+
+==================================================
+1. FIND LATEST SUPPORT RESPOND TRACE
+==================================================
+
+현재 production Supabase event_logs에서
+가장 최근:
+
+category = SUPPORT
+action = SUPPORT_RESPOND_STAGE
+
+request를 찾는다.
+
+가능하면 현재 사용자의 가장 최근 case 기준으로 묶는다.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+POOL_ID =
+ROLE =
+MODE =
+FIRST_STAGE_AT =
+LAST_STAGE_AT =
+
+==================================================
+2. PRINT EXECUTED STAGES IN ORDER
+==================================================
+
+해당 request_id의 stage를 created_at 순서대로 출력.
+
+형식:
+
+1. REQUEST_RECEIVED — status=
+2. CASE_RESOLVED — status=
+3. ...
+N. HTTP_RESPONSE — status=
+
+실제로 존재하는 stage만.
+
+없는 stage를 예상으로 채우지 않는다.
+
+보고:
+
+STAGES_EXECUTED =
+
+==================================================
+3. FIND LAST SUCCESSFUL STAGE
+==================================================
+
+보고:
+
+LAST_SUCCESS_STAGE =
+FIRST_FAILURE_STAGE =
+
+failure stage가 없고 중간에서 trace가 끊겼다면:
+
+TRACE_STOPPED_AFTER =
+
+로 보고.
+
+==================================================
+4. ACTUAL HTTP RESULT
+==================================================
+
+HTTP_RESPONSE stage가 있으면 실제 값:
+
+ACTUAL_HTTP_STATUS =
+SUCCESS =
+SAFE_ERROR_CODE =
+ANSWER_PRESENT =
+CASE_ID_PRESENT =
+
+HTTP_RESPONSE stage 자체가 없으면:
+
+ACTUAL_HTTP_STATUS = NOT_OBSERVED
+HTTP_RESPONSE_STAGE = MISSING
+
+==================================================
+5. ACTUAL AI INSERT RESULT
+==================================================
+
+다음 stage 확인:
+
+AI_MESSAGE_INSERT_START
+AI_MESSAGE_INSERT_OK
+AI_MESSAGE_INSERT_FAIL
+
+보고:
+
+AI_INSERT_STARTED =
+AI_INSERT_RESULT =
+
+FAIL이면 실제 metadata:
+
+PG_CODE =
+CONSTRAINT =
+COLUMN =
+TABLE =
+SAFE_DB_ERROR_CATEGORY =
+
+실제 값 없으면 NOT_OBSERVED.
+
+==================================================
+6. ACTUAL USER INSERT RESULT
+==================================================
+
+USER_MESSAGE_INSERT_START
+USER_MESSAGE_INSERT_OK
+USER_MESSAGE_INSERT_FAIL
+
+보고:
+
+USER_INSERT_RESULT =
+
+==================================================
+7. ACTUAL RESOLUTION / LLM RESULT
+==================================================
+
+보고:
+
+RESOLUTION_RESULT =
+RESOLUTION_SOURCE =
+EVIDENCE_COUNT =
+
+LLM_STAGE =
+LLM_CALLED =
+MODEL =
+LLM_RESULT =
+
+실제 trace 값만.
+
+==================================================
+8. ACTUAL FINAL STATE
+==================================================
+
+FINAL_STATE_START / OK / FAIL 확인.
+
+보고:
+
+FINAL_STATE_RESULT =
+CASE_STATE =
+
+==================================================
+9. DB ROW CROSS-CHECK
+==================================================
+
+CASE_ID 기준 실제 production Supabase read-only 확인.
+
+support_ticket_replies:
+
+USER_ROWS =
+AI_ROWS =
+
+AI_ROWS > 0이면:
+
+AI_AUTHOR_ROLE =
+AI_AUTHOR_USER_ID =
+AI_CASE_ID =
+AI_TICKET_ID =
+AI_MESSAGE_TYPE =
+
+본문 출력 금지.
+
+==================================================
+10. GET CONVERSATION CROSS-CHECK
+==================================================
+
+AI_ROWS > 0이면
+같은 case 조회 로직으로 실제 반환 여부 확인.
+
+보고:
+
+AI_ROW_RETURNED_BY_GET =
+
+AI_ROWS = 0이면:
+NOT_APPLICABLE
+
+==================================================
+11. ROOT CAUSE GATE
+==================================================
+
+이 8개가 실제 값으로 채워지기 전에는
+코드 수정 금지:
+
+REQUEST_ID
+CASE_ID
+LAST_SUCCESS_STAGE
+FIRST_FAILURE_STAGE 또는 TRACE_STOPPED_AFTER
+ACTUAL_HTTP_STATUS
+AI_INSERT_RESULT
+USER_ROWS
+AI_ROWS
+
+==================================================
+12. FINAL REPORT ONLY
+==================================================
+
+REQUEST_ID =
+CASE_ID =
+
+STAGES_EXECUTED =
+
+LAST_SUCCESS_STAGE =
+FIRST_FAILURE_STAGE =
+TRACE_STOPPED_AFTER =
+
+ACTUAL_HTTP_STATUS =
+SAFE_ERROR_CODE =
+
+USER_INSERT_RESULT =
+AI_INSERT_RESULT =
+
+PG_CODE =
+CONSTRAINT =
+COLUMN =
+TABLE =
+
+RESOLUTION_RESULT =
+RESOLUTION_SOURCE =
+EVIDENCE_COUNT =
+
+LLM_CALLED =
+MODEL =
+LLM_RESULT =
+
+FINAL_STATE_RESULT =
+CASE_STATE =
+
+USER_ROWS =
+AI_ROWS =
+AI_ROW_RETURNED_BY_GET =
+
+FAILURE_LAYER =
+ROOT_CAUSE =
+
+ROOT_CAUSE_CONFIDENCE =
+  OBSERVED
+  or
+  INFERRED
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOYMENT_TRIGGERED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+완료 문구:
+
+P0_SUPPORT_FAILED_REQUEST_TRACE_READ_COMPLETE ✅
