@@ -63,7 +63,7 @@ description: Unified App AI Support Entry + Conversation UI — 완료 기록
 - DB_CHANGED = NO (schema via CS-01R HARDEN 이미 완료)
 - UNIT_TEST = 33 TCs
 - REGRESSION_TEST = 1428/1428
-- IOS_PREVIEW_OTA = PENDING (실기기 확인 후)
+- IOS_PREVIEW_OTA = 01a00e70-b1a6-7636-a804-9807e77c1714 (branch:preview, group:f2d477a9)
 - IOS_PRODUCTION_OTA = NO
 - ANDROID_OTA = NO
 
