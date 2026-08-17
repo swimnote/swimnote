@@ -246,20 +246,23 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
     // HARDEN: case_id 컬럼 사용, ticket_id는 실제 ticket ID만 저장
     const insertTicketId: string | null = sc.ticket_id ?? null;
 
-    await (db as any).execute(sql.raw(`
+    // FIXED: sql.raw(template, params) — drizzle ignores second arg → $1 unbound → 42P02
+    // Use sql template literal so drizzle binds each ${value} as a proper $N parameter.
+    await (db as any).execute(sql`
       INSERT INTO support_ticket_replies
         (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${imgsLit}'::text[])
-    `, [
-      msgId,
-      insertTicketId,
-      caseId,           // case_id: 항상 케이스 ID 저장
-      actorId,
-      user.name ?? "",
-      role,
-      message_type ?? role,
-      content,
-    ]));
+      VALUES (
+        ${msgId},
+        ${insertTicketId},
+        ${caseId},
+        ${actorId},
+        ${user.name ?? ""},
+        ${role},
+        ${message_type ?? role},
+        ${content},
+        ${sql.raw(`'${imgsLit}'::text[]`)}
+      )
+    `);
 
     // turn_count 증가 (best-effort)
     await (superAdminDb as any).execute(sql`

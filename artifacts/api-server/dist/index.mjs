@@ -9054,11 +9054,21 @@ ${n} \xB7 ${m.name}`;for(let y of f)await ps(y.parent_account_id,!0,"makeup_sche
         `))?.rows?.[0]??null}catch{}e.json({case:i,ticket:l,messages:u,state:i.state,master_state:cy(i.state,i.escalation_reason),context:i.context_json??{},created_at:i.created_at,updated_at:i.updated_at})}catch(o){console.error("[GET /support/cases/:id]",o),e.status(500).json({error:"\uC11C\uBC84 \uC624\uB958"})}});Zo.post("/support/cases/:id/messages",w,async(t,e)=>{let s=t.user,n=t.params.id,r=s.userId,a=Nl(s.role),{content:o,author_role:i,message_type:u,image_urls:l}=t.body;if(!o)return e.status(400).json({error:"content \uD544\uC218"});let d=i??"user";if(!zSe.includes(d))return e.status(400).json({error:"author_role: user/ai/agent/system"});if((d==="ai"||d==="agent")&&!a)return e.status(403).json({error:"ai/agent \uBA54\uC2DC\uC9C0\uB294 \uAD00\uB9AC\uC790\uB9CC \uC791\uC131 \uAC00\uB2A5\uD569\uB2C8\uB2E4."});try{let m=(await h.execute(c`
       SELECT actor_id, pool_id, ticket_id, state
       FROM support_cases WHERE id = ${n} LIMIT 1
-    `))?.rows?.[0];if(!m)return e.status(404).json({error:"\uCF00\uC774\uC2A4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."});if(!a){let b=m.actor_id&&m.actor_id!==r,T=m.pool_id&&m.pool_id!==(s.poolId??"");if(b||T)return e.status(403).json({error:"\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."})}let f=`rep_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,E=`{${(Array.isArray(l)?l.slice(0,3):[]).map(b=>`"${String(b).replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`).join(",")}}`,y=m.ticket_id??null;await _.execute(c.raw(`
+    `))?.rows?.[0];if(!m)return e.status(404).json({error:"\uCF00\uC774\uC2A4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."});if(!a){let b=m.actor_id&&m.actor_id!==r,T=m.pool_id&&m.pool_id!==(s.poolId??"");if(b||T)return e.status(403).json({error:"\uC811\uADFC \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."})}let f=`rep_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,E=`{${(Array.isArray(l)?l.slice(0,3):[]).map(b=>`"${String(b).replace(/\\/g,"\\\\").replace(/"/g,'\\"')}"`).join(",")}}`,y=m.ticket_id??null;await _.execute(c`
       INSERT INTO support_ticket_replies
         (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '${E}'::text[])
-    `,[f,y,n,r,s.name??"",d,u??d,o])),await h.execute(c`
+      VALUES (
+        ${f},
+        ${y},
+        ${n},
+        ${r},
+        ${s.name??""},
+        ${d},
+        ${u??d},
+        ${o},
+        ${c.raw(`'${E}'::text[]`)}
+      )
+    `),await h.execute(c`
       UPDATE support_cases
       SET turn_count = turn_count + 1, updated_at = NOW()
       WHERE id = ${n}
