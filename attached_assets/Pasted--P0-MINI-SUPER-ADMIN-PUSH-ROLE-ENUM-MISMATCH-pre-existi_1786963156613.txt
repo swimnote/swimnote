@@ -1,0 +1,194 @@
+[P0-MINI — SUPER ADMIN PUSH ROLE ENUM MISMATCH]
+
+목적:
+
+로그에서 확인된 pre-existing:
+
+sendPushToSuperAdmins()
+→ platform_admin enum 관련 오류
+
+의 실제 원인을 확인하고 최소 수정한다.
+
+이번 작업은 고객센터 기능 확장이 아니다.
+
+Frontend Map
+Knowledge
+Support AI
+Partner Analytics
+
+작업을 섞지 않는다.
+
+==================================================
+1. ROOT CAUSE FIRST
+==================================================
+
+실제 코드 기준 확인:
+
+sendPushToSuperAdmins
+호출 위치
+query
+users.role enum
+실제 허용 role 값
+super_admin 권한 체계
+
+보고:
+
+FAILING_FILE =
+FAILING_FUNCTION =
+QUERY_ROLE_VALUE =
+ACTUAL_USER_ROLE_ENUM =
+
+==================================================
+2. ROLE CONTRACT
+==================================================
+
+현재 SWIMNOTE Super Admin 실제 role이:
+
+super_admin
+
+이면
+
+platform_admin을 임의 별도 role로 만들지 않는다.
+
+기존 auth / SuperGuard / requireRole("super_admin")
+계약과 일치시킨다.
+
+==================================================
+3. DO NOT ALTER ENUM BLINDLY
+==================================================
+
+오류를 없애려고
+DB enum에 platform_admin을 추가하지 않는다.
+
+platform_admin이 실제 product role로
+사용되는 증거가 있는지 먼저 확인.
+
+증거가 없으면 stale code를 수정.
+
+==================================================
+4. PUSH TARGET
+==================================================
+
+sendPushToSuperAdmins()의 목적 확인:
+
+실제 Super Admin 사용자만
+알림 대상이어야 한다.
+
+일반 pool_admin에게
+잘못 보내지 않게 한다.
+
+==================================================
+5. EXISTING SUPPORT IMPACT
+==================================================
+
+현재 상담사 요청 시
+이 함수가 호출되는지 확인.
+
+호출된다면:
+
+request-human
+→ support case/ticket 생성
+→ Super Admin notification
+
+흐름을 테스트.
+
+Push 자체 provider 실패와
+role query 실패를 구분.
+
+==================================================
+6. NO FEATURE EXPANSION
+==================================================
+
+이번 작업에서 금지:
+
+새 알림 시스템
+Support AI
+Frontend Map
+Knowledge
+Partner Analytics
+모바일 UI
+theme
+billing
+X mode
+
+==================================================
+7. TEST
+==================================================
+
+PUSHROLE-01
+actual super_admin query
+
+PUSHROLE-02
+platform_admin stale reference 제거 또는 정당성 확인
+
+PUSHROLE-03
+non-superadmin excluded
+
+PUSHROLE-04
+support human request path
+
+PUSHROLE-05
+push target generation
+
+PUSHROLE-06
+provider failure does not break support request
+
+PUSHROLE-07
+full regression
+
+==================================================
+8. DEPLOYMENT
+==================================================
+
+server-only 수정이면:
+
+GitHub push
+→ Render deploy
+
+mobile OTA:
+NO
+
+Android OTA:
+NO
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+ROOT_CAUSE =
+FAILING_FILE =
+FAILING_FUNCTION =
+
+PLATFORM_ADMIN_REFERENCES =
+PLATFORM_ADMIN_ACTUALLY_VALID_ROLE =
+
+ACTUAL_SUPER_ADMIN_ROLE =
+ROLE_QUERY_FIXED =
+
+SUPPORT_REQUEST_PUSH_PATH =
+NON_SUPERADMIN_EXCLUDED =
+
+DB_ENUM_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+ROOT_CAUSE = CONFIRMED
+ACTUAL_SUPER_ADMIN_ROLE = super_admin
+
+DB_ENUM_CHANGED = NO
+ROLE_QUERY_FIXED = YES
+
+NON_SUPERADMIN_EXCLUDED = YES
+MOBILE_CHANGED = NO
+
+완료:
+
+P0_MINI_SUPER_ADMIN_PUSH_ROLE_MISMATCH_RESOLVED ✅

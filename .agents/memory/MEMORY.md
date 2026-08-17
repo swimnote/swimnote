@@ -100,3 +100,4 @@
 - [WP-CS-01R 완료 상태](wp-cs-01r-done-state.md) — SHA a8282583; 상태머신+conversation/message/ticket/event; 67TC+1372TC; Render 배포 트리거됨
 - [WP-CS-02R 완료 상태](wp-cs-02r-done-state.md) — SHA 4fac1dc2; SupportChatScreen 단일소스+3역할진입점+resolve/list API; 33TC+1428TC; Render 배포 트리거됨
 - [WP-CS-03R 완료 상태](wp-cs-03r-done-state.md) — SHA c636c253; Super Admin Inbox+3컬럼UI+agent-reply/resolve/phone/reopen; 43TC+1483TC; Render 배포 트리거됨; OTA 없음
+- [platform_admin enum mismatch 수정](platform-admin-enum-fix.md) — SHA 476b7922; push-service+admin.ts WHERE role=super_admin; DB enum 미변경; 17TC+1500TC
