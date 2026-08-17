@@ -60,6 +60,7 @@ import csPa0Router from "./cs-pa0.js";
 import superSupportRouter from "./super-support.js";
 import frontendMapRouter from "./frontend-map.js";
 import knowledgeSearchRouter from "./knowledge-search.js";
+import resolutionRouter from "./resolution-router.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
@@ -133,6 +134,7 @@ router.use("/", x04StructuringRouter);
 router.use("/", csPa0Router);
 router.use("/", frontendMapRouter);
 router.use("/", knowledgeSearchRouter);
+router.use("/", resolutionRouter);
 router.use("/", aiV1Router);
 
 export default router;
