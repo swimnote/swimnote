@@ -1,0 +1,887 @@
+[WP-SA0-B — SUPER ADMIN LIVE OPERATIONS DATA / INCIDENT / BILLING / POOL SEARCH]
+
+목적:
+
+WP-SA0-A에서 만든 Super Admin 운영 콘솔 구조에
+실제 운영 데이터를 연결한다.
+
+이번 WP 핵심:
+
+1. Global Pool Search
+2. Pool Operations Detail 실제 데이터
+3. Billing / Subscription 운영화면
+4. incidents DB + CRUD
+5. 서버관리 실제 상태
+6. AI Usage / Errors foundation
+7. 정확한 UNKNOWN 처리
+8. 고객센터/장애 대응용 빠른 drill-down
+
+이번 단계는 "운영 관제 기능" 구현이다.
+
+==================================================
+0. CURRENT SA0-A BASELINE — LOCK
+==================================================
+
+현재 구현:
+
+components/super/SuperGuard.tsx
+components/super/SuperLayout.tsx
+
+pages/super/
+- SuperOverview
+- SuperPools
+- SuperPoolDetail
+- SuperBilling
+- SuperXMode
+- SuperAI
+- SuperSupport
+- SuperServers
+- SuperIncidents
+- SuperPartner
+- SuperAudit
+- SuperSettings
+
+라우팅:
+/super/*
+
+기존 기능 재사용 완료.
+
+이 구조를 유지한다.
+
+==================================================
+1. GLOBAL POOL SEARCH — REQUIRED
+==================================================
+
+SuperLayout 상단 또는
+항상 접근 가능한 위치에
+Global Pool Search 구현.
+
+검색 대상:
+
+- 수영장명
+- 지점명
+- pool_id
+- 대표자명
+- 대표전화
+- 관리자 이메일 가능하면
+
+입력 debounce는 과도하지 않게.
+
+검색 결과:
+
+pool name
+pool id
+Normal / X
+active status
+
+클릭:
+→ /super/pools/:poolId
+
+==================================================
+2. SEARCH ACCURACY
+==================================================
+
+검색 결과에
+다른 tenant 데이터가 섞이지 않게
+super_admin 전용 server endpoint 사용.
+
+fake client-side 전체 pool preload 금지.
+
+필요 시:
+
+GET /super/pools/search?q=
+
+형태.
+
+실제 repository convention 우선.
+
+==================================================
+3. POOL OPERATIONS DETAIL — LIVE DATA
+==================================================
+
+현재 SuperPoolDetail의 A/B/C shell을
+실제 데이터로 채운다.
+
+최소:
+
+A. BASIC INFO
+- pool_id
+- pool name
+- branch
+- created_at
+- status
+- recent activity
+- active users count
+
+B. BASIC SUBSCRIPTION
+- plan
+- status
+- renewal
+- expiration
+- billing source
+- entitlement
+
+C. X SUBSCRIPTION
+- active
+- cancelled-but-active
+- expiration
+- tier
+- slot
+- auto-renew state
+- last sync
+
+D. X SETUP
+- overall status
+- curriculum submission
+- website profile submission
+- logo/photos
+- revision requests
+- approval
+
+E. X04 STRUCTURING
+- curriculum structured
+- website structured
+- approval
+- latest package
+
+F. AI
+- recent AI usage if source exists
+- recent errors if source exists
+
+G. CUSTOMER SUPPORT
+- recent tickets
+- unresolved count
+
+H. INCIDENT
+- recent incidents affecting pool
+
+I. USERS
+- pool admins
+- teachers count
+- parents count
+- students/members count if safe
+
+==================================================
+4. NO FAKE ZERO
+==================================================
+
+중요.
+
+데이터 source가 없거나
+API가 실패하면:
+
+UNKNOWN
+NOT_AVAILABLE
+-
+
+중 하나.
+
+절대:
+
+0
+정상
+없음
+
+으로 추정 표시 금지.
+
+0은 실제 query 결과가 0일 때만.
+
+==================================================
+5. BILLING OVERVIEW
+==================================================
+
+SuperBilling 구현.
+
+Tabs/filters:
+
+Basic
+X
+결제 실패
+해지 예정
+만료
+Sync 문제
+
+최소 columns:
+
+Pool
+Type (Basic/X)
+Plan/Tier
+Status
+Current Period End
+Auto Renew
+Last Payment
+Last Sync
+Billing Issue
+Action
+
+==================================================
+6. BILLING STATUS NORMALIZATION
+==================================================
+
+UI status:
+
+ACTIVE
+CANCELLED_BUT_ACTIVE
+EXPIRED
+BILLING_ISSUE
+SYNC_PENDING
+UNKNOWN
+
+Basic과 X의 내부 필드가 다르면
+service layer에서 normalize.
+
+UI가 raw RevenueCat 값을 직접 해석하지 않게 한다.
+
+==================================================
+7. BILLING ANOMALY DETECTION
+==================================================
+
+최소 anomaly:
+
+- RC active / server inactive
+- server active / RC missing
+- sync stale
+- billing_issue timestamp exists
+- expired but mode still X
+- active entitlement but purchase CTA state mismatch
+
+가능한 source 범위만.
+
+이번 WP에서 자동 수정 금지.
+
+우선 탐지/표시만.
+
+==================================================
+8. BILLING DRILL-DOWN
+==================================================
+
+행 클릭:
+
+→ Pool Operations Detail billing section
+
+또는 상세 panel.
+
+다음 확인:
+
+- Basic
+- X
+- entitlement source
+- RC customer id masked
+- last sync
+- expiration
+- slot/tier
+
+secret/token 노출 금지.
+
+==================================================
+9. INCIDENT DB — REQUIRED
+==================================================
+
+신규 incidents table.
+
+최소 schema concept:
+
+id
+title
+severity
+status
+service
+description
+root_cause
+action_taken
+
+started_at
+detected_at
+resolved_at
+
+affected_pool_ids
+affected_users_count
+
+request_id
+trace_id
+reference
+
+created_by
+updated_by
+created_at
+updated_at
+
+실제 DB convention에 맞게 구현.
+
+==================================================
+10. INCIDENT SEVERITY
+==================================================
+
+SEV1
+SEV2
+SEV3
+SEV4
+
+UI 설명:
+
+SEV1 = 전체/핵심 장애
+SEV2 = 다수 사용자 영향
+SEV3 = 일부 기능/수영장
+SEV4 = 낮은 영향
+
+==================================================
+11. INCIDENT STATUS
+==================================================
+
+OPEN
+INVESTIGATING
+MITIGATED
+RESOLVED
+
+==================================================
+12. INCIDENT CRUD
+==================================================
+
+Super Admin only.
+
+필수:
+
+GET list
+POST create
+PATCH update
+
+DELETE는 우선 불필요.
+
+사고기록 삭제보다
+RESOLVED 유지가 안전.
+
+정말 필요하면 soft-delete 검토만.
+
+==================================================
+13. INCIDENT UI
+==================================================
+
+SuperIncidents:
+
+- 현재 장애
+- 조사중
+- 완화
+- 해결
+
+필터:
+
+severity
+status
+service
+pool
+date
+
+행:
+
+severity
+title
+service
+affected pools
+started
+status
+updated
+
+==================================================
+14. INCIDENT DETAIL
+==================================================
+
+상세에서:
+
+description
+root cause
+action taken
+affected pool
+affected users
+request/trace
+timestamps
+
+수정 가능.
+
+==================================================
+15. POOL INCIDENT LINK
+==================================================
+
+affected_pool_ids에 해당 pool이 있으면
+Pool Detail에서 표시.
+
+Pool Detail:
+최근 장애
+
+클릭:
+→ /super/incidents/:id
+또는 detail panel
+
+==================================================
+16. SERVER MANAGEMENT — LIVE STATUS
+==================================================
+
+SuperServers에서 현재 재사용 중:
+
+db-status
+infra-usage
+system-health
+
+실제 source와 연결.
+
+카드 최소:
+
+APP API
+AI Engine
+Database
+Storage
+RevenueCat
+OpenAI
+Push
+
+==================================================
+17. APP API STATUS
+==================================================
+
+현재 구조:
+
+Front door:
+https://swimnote.kr/api
+
+Render origin:
+https://swimnote-api.onrender.com/api
+
+가능하면 둘 다 safe health 확인.
+
+표시:
+
+status
+latency
+last checked
+
+==================================================
+18. AI ENGINE STATUS
+==================================================
+
+https://swimnote.ai.kr
+
+safe health endpoint 확인.
+
+없으면
+실제 existing lightweight route 사용.
+
+새 무거운 진단 endpoint 금지.
+
+==================================================
+19. DATABASE STATUS
+==================================================
+
+DB:
+
+connection
+last migration
+last error 가능하면
+
+고비용 query 금지.
+
+SELECT 1 수준 또는 기존 db-status 재사용.
+
+==================================================
+20. STORAGE STATUS
+==================================================
+
+R2:
+
+최근 upload success/failure source가 있으면 표시.
+
+실제 health endpoint가 없으면
+UNKNOWN.
+
+운영 bucket list 전체 scan 금지.
+
+==================================================
+21. REVENUECAT STATUS
+==================================================
+
+표시 가능한 것:
+
+last webhook
+recent webhook failures
+sync pending count
+
+Secret key/API key 노출 금지.
+
+RevenueCat admin API를
+브라우저 client에서 직접 호출 금지.
+
+==================================================
+22. OPENAI STATUS
+==================================================
+
+현재 AI 시스템에서
+최근 성공/실패 기록이 있으면 표시.
+
+아직 공통 usage telemetry가 없다면:
+
+STATUS SOURCE = RECENT_AI_CALL
+또는 UNKNOWN
+
+Partner Analytics 전용 계측은
+후속 WP.
+
+==================================================
+23. PUSH STATUS
+==================================================
+
+현재 push system에
+recent failure data가 있으면 표시.
+
+없으면 UNKNOWN.
+
+가짜 "정상" 금지.
+
+==================================================
+24. OVERVIEW LIVE DATA
+==================================================
+
+SuperOverview에 실제 source 기반 연결.
+
+BUSINESS:
+- total pools
+- active pools
+- X pools
+- users
+
+OPERATIONS:
+- unresolved incidents
+- billing issues
+- open support tickets
+- X setup review pending
+
+AI:
+- recent AI calls if source exists
+- errors if source exists
+
+STATUS:
+- server summary
+
+==================================================
+25. SECTION ERROR ISOLATION
+==================================================
+
+한 API 실패 시
+전체 overview crash 금지.
+
+예:
+
+RevenueCat status fail
+→ RevenueCat UNKNOWN
+
+Pools/Billing 등 다른 section 정상.
+
+Promise.all 전체 throw로
+페이지 전체 죽이는 구조 피하기.
+
+==================================================
+26. REFRESH STRATEGY
+==================================================
+
+Overview:
+30~60초 범위의 합리적 polling 가능.
+
+Server status:
+30~60초 가능.
+
+Pools/Billing:
+manual refresh / focus refresh.
+
+Incidents:
+manual + reasonable refresh.
+
+고비용 query 반복 금지.
+
+==================================================
+27. AI USAGE / ERRORS FOUNDATION
+==================================================
+
+SuperAI에 placeholder만 있던:
+
+Usage
+Errors
+
+부분에 현재 존재하는 실제 source만 연결.
+
+예:
+
+AI Diary calls
+Growth report calls
+Parent curriculum calls
+recent AI failures
+
+공통 trace table이 아직 없으면
+부분 데이터만 표시하고
+"Partner Analytics 계측 전" 명시.
+
+새 usage schema 전체 구현은
+Support AI + Partner Analytics WP에서 한다.
+
+==================================================
+28. CUSTOMER SUPPORT LINK
+==================================================
+
+Pool Detail에서
+해당 pool의 ticket만 filter해서 볼 수 있게.
+
+기존 Support ticket API 재사용.
+
+신규 support AI 구현 금지.
+
+==================================================
+29. AUDIT LOG
+==================================================
+
+Incident create/update
+billing manual action if any
+dangerous action
+
+audit_logs에 남길 수 있으면 재사용.
+
+특히 incident:
+INCIDENT_CREATED
+INCIDENT_UPDATED
+INCIDENT_RESOLVED
+
+==================================================
+30. DANGEROUS BILLING ACTIONS
+==================================================
+
+이번 WP에서는
+자동 fix button 만들지 않는다.
+
+우선:
+
+OBSERVE
+DIAGNOSE
+
+중심.
+
+manual entitlement 변경 기능이 기존에 있으면
+기존 confirmation/audit 그대로 유지.
+
+==================================================
+31. SUPER ADMIN DATA ACCESS
+==================================================
+
+모든 신규 endpoint:
+
+require super_admin
+
+필수.
+
+Pool admin 접근 금지.
+
+==================================================
+32. MOBILE LOCK
+==================================================
+
+모바일 앱 변경 금지.
+
+OTA 없음.
+
+==================================================
+33. DB MIGRATION
+==================================================
+
+incidents table만 신규 추가 가능.
+
+idempotent migration.
+
+기존 table 수정은
+정말 필요하지 않으면 금지.
+
+==================================================
+34. TEST MATRIX
+==================================================
+
+SA0-B-01
+global pool search by name
+
+SA0-B-02
+search by pool_id
+
+SA0-B-03
+pool detail live data
+
+SA0-B-04
+unknown shows UNKNOWN
+
+SA0-B-05
+Basic billing list
+
+SA0-B-06
+X billing list
+
+SA0-B-07
+cancelled-but-active
+
+SA0-B-08
+billing issue
+
+SA0-B-09
+sync pending
+
+SA0-B-10
+billing anomaly detection
+
+SA0-B-11
+incident create
+
+SA0-B-12
+incident update
+
+SA0-B-13
+incident resolve
+
+SA0-B-14
+incident pool link
+
+SA0-B-15
+APP API status
+
+SA0-B-16
+AI Engine status
+
+SA0-B-17
+DB status
+
+SA0-B-18
+Storage UNKNOWN/safe status
+
+SA0-B-19
+RevenueCat status
+
+SA0-B-20
+OpenAI status
+
+SA0-B-21
+one status API fails
+→ page survives
+
+SA0-B-22
+overview live metrics
+
+SA0-B-23
+non-superadmin denied
+
+SA0-B-24
+existing X03/X04 no regression
+
+SA0-B-25
+1225+ existing tests pass
+
+==================================================
+35. DO NOT TOUCH
+==================================================
+
+금지:
+
+mobile app
+Normal/X theme
+scheduler
+ModeContext
+RevenueCat purchase flow
+Support AI implementation
+Partner Analytics full instrumentation
+website generation
+curriculum AI generation
+
+==================================================
+36. DEPLOYMENT
+==================================================
+
+Server:
+Render deploy 필요.
+
+Web:
+same deploy if bundled.
+
+DB:
+incidents migration startup-safe.
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+==================================================
+37. FINAL REPORT
+==================================================
+
+GLOBAL_POOL_SEARCH =
+POOL_SEARCH_FIELDS =
+
+POOL_DETAIL_LIVE =
+POOL_DETAIL_SECTIONS =
+
+BILLING_OVERVIEW =
+BASIC_BILLING =
+X_BILLING =
+BILLING_ANOMALY_DETECTION =
+
+INCIDENT_TABLE =
+INCIDENT_CRUD =
+INCIDENT_POOL_LINK =
+
+APP_API_STATUS =
+AI_ENGINE_STATUS =
+DATABASE_STATUS =
+STORAGE_STATUS =
+REVENUECAT_STATUS =
+OPENAI_STATUS =
+PUSH_STATUS =
+
+OVERVIEW_LIVE =
+SECTION_ERROR_ISOLATION =
+UNKNOWN_NOT_FAKE_ZERO =
+
+AI_USAGE_FOUNDATION =
+AI_ERRORS_FOUNDATION =
+
+SUPER_ADMIN_AUTH =
+AUDIT_LOG =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+WEB_TEST =
+SECURITY_TEST =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+GLOBAL_POOL_SEARCH = YES
+POOL_DETAIL_LIVE = YES
+
+BILLING_OVERVIEW = YES
+
+INCIDENT_TABLE = YES
+INCIDENT_CRUD = YES
+
+APP_API_STATUS = LIVE_OR_UNKNOWN
+AI_ENGINE_STATUS = LIVE_OR_UNKNOWN
+DATABASE_STATUS = LIVE_OR_UNKNOWN
+
+UNKNOWN_NOT_FAKE_ZERO = YES
+SECTION_ERROR_ISOLATION = YES
+
+SUPER_ADMIN_AUTH = PASS
+
+MOBILE_CHANGED = NO
+
+완료:
+
+WP_SA0_B_SUPER_ADMIN_LIVE_OPERATIONS_DATA_COMPLETE ✅
