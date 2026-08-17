@@ -250,14 +250,24 @@ export default function SupportChatScreen({ supportContext }: Props) {
           body:   JSON.stringify({ mode, context: ctx }),
         });
         if (!cRes.ok) {
-          setError("문의를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.");
+          const errMsg = cRes.status === 401 ? "로그인 정보가 만료되었습니다."
+            : cRes.status === 403            ? "접근 권한이 없습니다."
+            : cRes.status >= 500             ? "서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            : "문의를 시작할 수 없습니다. 잠시 후 다시 시도해주세요.";
+          console.log("[support] case create failed:", cRes.status);
+          setError(errMsg);
           setInputText(text);
           return;
         }
-        const cData = await cRes.json();
+        let cData: any;
+        try { cData = await cRes.json(); } catch {
+          console.log("[support] case create response parse error");
+          setError("서버 응답을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.");
+          setInputText(text);
+          return;
+        }
         caseId = cData.id as string;
-        // Privacy: caseId만 로그
-        console.log("[support] case created:", caseId);
+        console.log("[support] case created:", caseId, "status:", cRes.status);
       }
 
       const mRes = await apiRequest(token, `/support/cases/${caseId}/messages`, {
@@ -266,16 +276,27 @@ export default function SupportChatScreen({ supportContext }: Props) {
       });
 
       if (!mRes.ok) {
-        setError("메시지를 저장하지 못했습니다. 다시 시도해주세요.");
+        const errMsg = mRes.status === 401 ? "로그인 정보가 만료되었습니다."
+          : mRes.status === 403             ? "접근 권한이 없습니다."
+          : mRes.status >= 500              ? "서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+          : "메시지를 저장하지 못했습니다. 다시 시도해주세요.";
+        console.log("[support] message send failed:", mRes.status);
+        setError(errMsg);
         setInputText(text);
         return;
       }
 
       setError(null);
-      await fetchCaseDetail(caseId);
+      await fetchCaseDetail(caseId!);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-    } catch {
-      setError("전송 중 오류가 발생했습니다. 네트워크를 확인해주세요.");
+    } catch (e: any) {
+      // fetch 자체 실패 (네트워크 단절) 또는 JSON parse 예외
+      const isNetworkErr = e instanceof TypeError && e.message?.includes("fetch");
+      console.log("[support] send exception:", isNetworkErr ? "network" : "parse/unknown");
+      setError(isNetworkErr
+        ? "네트워크 연결을 확인해주세요."
+        : "서버 응답을 처리할 수 없습니다. 잠시 후 다시 시도해주세요."
+      );
       setInputText(text);
     } finally {
       setIsSending(false);
