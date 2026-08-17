@@ -1,0 +1,201 @@
+[PERMANENT RELEASE CONSTITUTION — OTA CHANNEL POLICY]
+
+이 지시는 앞으로 모든 SWIMNOTE APP 작업에 영구 적용한다.
+
+==================================================
+1. IOS OTA 기본 채널
+==================================================
+
+SWIMNOTE iOS TestFlight 현재 Production 검증 빌드:
+
+Version: 1.6.3
+Build: 246
+Runtime: 1.6.3
+EAS Channel: production
+EAS Branch: production
+
+따라서 앞으로 모든 iOS OTA 수정 배포는 기본적으로:
+
+production channel
+→ production branch
+
+에만 발행한다.
+
+Preview OTA를 기본값으로 사용하지 마라.
+
+==================================================
+2. PREVIEW OTA 금지
+==================================================
+
+사용자가 명시적으로:
+
+"preview에 올려"
+"preview build에서 테스트한다"
+
+라고 지시하지 않는 한
+
+preview branch/channel OTA 발행 금지.
+
+임의로:
+
+--branch preview
+
+사용 금지.
+
+==================================================
+3. TESTFLIGHT 검증 방식
+==================================================
+
+현재 실기기 검증 대상은
+TestFlight Build 246이다.
+
+Build 246은:
+
+channel = production
+runtime = 1.6.3
+
+이므로
+
+OTA 수정사항을 실제 TestFlight에서 검증해야 하는 작업은:
+
+production branch에 OTA 발행한다.
+
+==================================================
+4. OTA 전 필수 확인
+==================================================
+
+OTA 발행 전 항상 확인:
+
+CURRENT_TESTFLIGHT_BUILD =
+CURRENT_CHANNEL =
+CURRENT_RUNTIME =
+TARGET_BRANCH =
+
+그리고:
+
+CURRENT_CHANNEL == TARGET_BRANCH mapping
+
+확인 후 발행.
+
+현재 기본값:
+
+CURRENT_CHANNEL = production
+TARGET_BRANCH = production
+
+==================================================
+5. CURRENT CS-02R FIX
+==================================================
+
+현재 잘못 발행된 OTA:
+
+01a00e70-b1a6-7636-a804-9807e77c1714
+
+branch = preview
+
+이 OTA는 TestFlight Build 246이 수신할 수 없다.
+
+코드 변경 없이
+현재 동일 commit/동일 JS bundle을
+
+production branch에 iOS OTA로 다시 발행한다.
+
+Android OTA는 하지 않는다.
+
+==================================================
+6. 배포 후 실제 확인
+==================================================
+
+배포 후 보고:
+
+IOS_PRODUCTION_OTA_ID =
+UPDATE_GROUP =
+BRANCH =
+CHANNEL =
+RUNTIME =
+APP_VERSION =
+PLATFORM =
+
+그리고:
+
+BUILD_246_CAN_RECEIVE = YES
+
+를 실제 EAS mapping 기준으로 확인한다.
+
+==================================================
+7. Android 정책
+==================================================
+
+Android OTA는
+각 WP마다 발행하지 않는다.
+
+기존 누적 정책 유지.
+
+Android 최종 검증 단계에서
+누적 변경을 한 번에 반영한다.
+
+사용자가 별도로 Android OTA를 요청한 경우만 예외.
+
+==================================================
+8. RELEASE POLICY
+==================================================
+
+앞으로 용어도 정확히 사용한다.
+
+"Preview 테스트"
+라고 임의로 해석하지 마라.
+
+현재 TestFlight production build에서 검증하는 OTA는
+production channel OTA다.
+
+TestFlight라는 이유만으로
+preview channel을 사용하지 않는다.
+
+==================================================
+9. CREDIT WASTE 방지
+==================================================
+
+잘못된 channel OTA를 발행한 뒤
+다시 동일 OTA를 재배포하는 작업은
+불필요한 build/credit/작업 낭비다.
+
+따라서 OTA 전 channel/runtime/build compatibility를
+항상 먼저 확인한다.
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+OLD_WRONG_OTA =
+OLD_BRANCH =
+
+NEW_PRODUCTION_OTA =
+NEW_BRANCH =
+NEW_CHANNEL =
+NEW_RUNTIME =
+
+TESTFLIGHT_BUILD =
+TESTFLIGHT_CHANNEL =
+TESTFLIGHT_RUNTIME =
+
+BUILD_CAN_RECEIVE_NEW_OTA =
+
+CODE_CHANGED =
+ANDROID_OTA =
+
+성공 조건:
+
+NEW_BRANCH = production
+NEW_CHANNEL = production
+NEW_RUNTIME = 1.6.3
+
+TESTFLIGHT_CHANNEL = production
+TESTFLIGHT_RUNTIME = 1.6.3
+
+BUILD_CAN_RECEIVE_NEW_OTA = YES
+
+CODE_CHANGED = NO
+ANDROID_OTA = NO
+
+완료:
+
+IOS_PRODUCTION_OTA_POLICY_LOCKED_AND_CS02R_REPUBLISHED ✅

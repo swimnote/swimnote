@@ -11,6 +11,7 @@
 - [영상 다운로드 302 리다이렉트 패턴](video-download-redirect.md) — FileSystem.downloadAsync는 302 불가; fetch로 URL resolve 후 다운로드
 - [OTA 배포 패턴](ota-deploy-pattern.md) — Replit RAM 부족으로 Metro OOM; 2단계(115s 번들→skip-bundler 업로드) 우회법; package.json dev 스크립트에 큰따옴표 금지(JSON 파싱 오류), 반드시 작은따옴표+escaped 큰따옴표 사용
 - [OTA 릴리즈 컨벤션](ota-release-convention.md) — 기본=iOS production+preview만; Android는 최종 검증 단계 누적 배포; 별도 지시 WP만 Android 동시 배포
+- [★ OTA 채널 정책 (영구)](ota-channel-policy.md) — iOS OTA = 항상 --branch production; preview branch 금지(명시 지시 시만 예외); TestFlight≠preview channel
 - [OTA 채널 패턴](ota-channel-pattern.md) — production+preview 브랜치 둘 다 배포 필수; 동시 실행 금지(순차), eas.json preview에 channel:production 추가됨
 - [다음 빌드 포함 변경 사항](pending-build-changes.md) — 1.3.11 빌드 이후 코드 반영됐으나 미배포 변경 목록 (엑셀 업로드 개선, capacity API)
 - [탭 텍스트 Pretendard 금지](tab-font-clipping.md) — 탭 바 Text에 fontFamily Pretendard 사용 시 iOS에서 한글 받침 세로 클리핑 발생; lineHeight 명시로 해결
