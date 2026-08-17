@@ -58,6 +58,7 @@ import xSetupRouter from "./x-setup.js";
 import x04StructuringRouter from "./x04-structuring.js";
 import csPa0Router from "./cs-pa0.js";
 import superSupportRouter from "./super-support.js";
+import frontendMapRouter from "./frontend-map.js";
 import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
@@ -129,6 +130,7 @@ router.use("/", xGrowthRouter);
 router.use("/", xSetupRouter);
 router.use("/", x04StructuringRouter);
 router.use("/", csPa0Router);
+router.use("/", frontendMapRouter);
 router.use("/", aiV1Router);
 
 export default router;
