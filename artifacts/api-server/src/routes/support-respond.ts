@@ -223,6 +223,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       await bumpTurnCount(caseId);
     } catch (err) {
       console.error("[support/respond] AI message insert failed:", err);
+      return res.status(500).json({
+        error: "AI 메시지 저장 실패",
+        code:  "AI_MSG_INSERT_FAILED",
+      });
     }
 
     // state transition
@@ -475,7 +479,11 @@ ${evidenceBlock}
     });
     await bumpTurnCount(caseId);
   } catch (err) {
-    console.error("[support/respond] AI message insert failed:", err);
+    console.error("[support/respond] AI message insert failed (LLM path):", err);
+    return res.status(500).json({
+      error: "AI 메시지 저장 실패",
+      code:  "AI_MSG_INSERT_FAILED",
+    });
   }
 
   // Transition: AI_PROCESSING → AI_RESPONDED | HUMAN_REQUIRED

@@ -163,8 +163,11 @@ router.get("/support/cases/:id", requireAuth, async (req: AuthRequest, res) => {
         `)) as any;
       }
       messages = msgRows?.rows ?? [];
-    } catch {
-      // pool db 조회 실패 — case는 반환, messages 빈 배열
+    } catch (msgErr) {
+      // support_ticket_replies 조회 실패 — messages 없이 200은 금지
+      // (DBSRC §7/§9: 필수 DB read 실패 시 silent empty 금지)
+      console.error("[GET /support/cases/:id] message query failed:", msgErr);
+      return res.status(500).json({ error: "메시지 조회 실패", code: "MSG_QUERY_FAILED" });
     }
 
     // Linked ticket
