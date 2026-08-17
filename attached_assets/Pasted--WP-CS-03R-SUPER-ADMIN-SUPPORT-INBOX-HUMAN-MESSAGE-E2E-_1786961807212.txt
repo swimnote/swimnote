@@ -1,0 +1,506 @@
+[WP-CS-03R — SUPER ADMIN SUPPORT INBOX / HUMAN MESSAGE E2E]
+
+목적:
+
+현재 앱의 공통 AI 문의 UI에서 생성되는
+
+support_case
+support_ticket
+support_ticket_replies
+
+를 Super Admin에서 실제 운영자가
+한 화면에서 확인하고 답변할 수 있도록 한다.
+
+이번 WP가 끝나면:
+
+사용자 앱 문의
+→ Super Admin 확인
+→ 상담사 메시지 답변
+→ 사용자 앱에서 답변 확인
+
+Human Support E2E가 완성된다.
+
+아직 Support AI 자동답변은 구현하지 않는다.
+
+==================================================
+1. 기존 구조 재사용
+==================================================
+
+현재:
+
+SuperSupport
+support_cases
+support_tickets
+support_ticket_replies
+
+전부 재사용.
+
+별도 inbox 시스템 생성 금지.
+
+==================================================
+2. SuperSupport 탭
+==================================================
+
+현재 고객센터 화면에 최소:
+
+상담
+
+탭을 운영 Inbox로 완성.
+
+향후:
+
+Solution DB
+Knowledge
+Frontend Map
+FAQ
+Known Issues
+성장리포트 문의
+Refund / Dispute
+
+탭이 추가될 수 있게 구조만 준비.
+
+이번 WP에서는 상담 Inbox만 완성.
+
+==================================================
+3. 상담 목록
+==================================================
+
+목록 표시:
+
+상태
+수영장
+사용자 Role
+문의 시작 시각
+마지막 메시지 시각
+대기시간
+상담사 요청 여부
+전화 필요 여부
+
+사용자 메시지 전체를 목록에 길게 노출하지 않는다.
+
+짧은 preview만 필요하면 privacy-safe 범위.
+
+==================================================
+4. 필터
+==================================================
+
+최소:
+
+전체
+신규
+AI 처리중/AI 단계
+상담사 요청
+상담중
+전화 필요
+해결
+재오픈
+
+Role:
+
+admin
+teacher
+parent
+
+Mode:
+
+Normal
+X
+
+==================================================
+5. 상담 상세 — 3 COLUMN FOUNDATION
+==================================================
+
+MASTER 구조 기반.
+
+LEFT:
+Conversation
+
+- user
+- system
+- ai
+- agent
+
+시간순 표시
+
+CENTER:
+Resolution Assistant 영역 placeholder
+
+이번 WP에서는 실제 AI 추천 금지.
+
+표시 가능:
+
+상태
+상담사 요청 여부
+attempted solutions 없음/향후
+Known Issue 없음/향후
+
+RIGHT:
+User Context
+
+최소:
+
+수영장
+Role
+Normal/X
+Plan 가능하면
+App Version
+Runtime Version
+Current Route 가능하면
+Device/OS 가능하면
+
+없는 값은 —.
+
+fake 값 금지.
+
+==================================================
+6. 상담사 답변
+==================================================
+
+Super Admin 입력:
+
+메시지 작성
+→ support_ticket_replies
+
+author_role = agent
+
+서버에서 super_admin 권한 확인.
+
+사용자 앱 GET case detail에서
+즉시 같은 conversation에 나타나야 한다.
+
+==================================================
+7. 메시지 연속성
+==================================================
+
+AI-only phase 메시지
++
+사용자 메시지
++
+system 메시지
++
+human escalation 이후 agent reply
+
+모두 하나의 시간순 conversation.
+
+중복 금지.
+
+==================================================
+8. 상태 전환
+==================================================
+
+상담사 답변 시:
+
+HUMAN_REQUIRED
+→ HUMAN_RESPONDED
+
+또는 현재 state machine 기준 정상 transition.
+
+직접 DB update 금지.
+
+transitionSupportCase() 사용.
+
+==================================================
+9. 상담사 요청
+==================================================
+
+앱의:
+
+[상담사에게 문의하기]
+
+이 실행된 case를
+Inbox 상단 우선순위에서 쉽게 확인.
+
+AGENT_REQUESTED 상태가 눈에 띄어야 한다.
+
+==================================================
+10. 해결 처리
+==================================================
+
+Super Admin에서:
+
+[해결 완료]
+
+가능.
+
+정상 transition:
+
+→ RESOLVED
+
+event 기록.
+
+사용자 앱에서도 해결 상태 확인 가능.
+
+==================================================
+11. 전화 필요
+==================================================
+
+[전화 필요]
+
+는 별도 명시 action.
+
+무조건 모든 escalation을 전화로 만들지 않는다.
+
+PHONE_REQUIRED는 기존 master rule 준수.
+
+reason 필수 가능하면:
+
+billing
+refund
+privacy/safety
+complex case
+other
+
+==================================================
+12. 재오픈
+==================================================
+
+RESOLVED case가 사용자에 의해 reopen되면
+
+Inbox에 다시 나타남.
+
+기존 history 유지.
+
+==================================================
+13. 대기시간
+==================================================
+
+Agent requested 이후:
+
+현재까지 경과시간 표시.
+
+예:
+
+3분
+28분
+1시간 12분
+
+가짜 SLA 상태 생성 금지.
+
+실제 timestamps 사용.
+
+==================================================
+14. 알림 foundation
+==================================================
+
+상담사 요청 발생 시
+Super Admin에서 쉽게 감지 가능해야 함.
+
+현재 Notification system 재사용 가능하면 검토.
+
+이번 WP에서 Push까지 커지면
+다음 WP로 넘겨도 됨.
+
+최소 Inbox badge/count 가능.
+
+==================================================
+15. Pool Detail 연동
+==================================================
+
+SuperPoolDetail의 Support 영역에서
+
+최근 상담
+미해결 건수
+
+클릭
+→ 해당 case 상세
+
+가능하면 연결.
+
+중복 UI 구현 금지.
+
+==================================================
+16. Privacy
+==================================================
+
+Super Admin은 실제 상담본문 조회 가능.
+
+하지만:
+
+event_logs
+analytics
+Partner Evidence
+
+에는 raw 상담본문 저장 금지.
+
+==================================================
+17. AI Placeholder 정확성
+==================================================
+
+CENTER 영역에:
+
+“AI 분석”
+“추천 해결책”
+
+같이 실제 기능이 없는 걸
+작동하는 것처럼 보여주지 않는다.
+
+표시한다면:
+
+AI Resolution Assistant
+준비중
+
+정도로 명확히.
+
+==================================================
+18. No OpenAI
+==================================================
+
+이번 WP:
+
+OpenAI calls = 0
+Support AI = NO
+Knowledge search = NO
+Frontend Map search = NO
+
+==================================================
+19. 앱 변경 최소
+==================================================
+
+기본적으로 Web/Super Admin 작업.
+
+앱은 agent reply를 이미 표시 가능하므로
+추가 변경하지 않는다.
+
+실제 defect가 있을 때만 최소 수정.
+
+OTA 기본적으로 없음.
+
+==================================================
+20. 테스트
+==================================================
+
+CS03R-01
+앱 user message → Inbox 표시
+
+CS03R-02
+admin case 표시
+
+CS03R-03
+teacher case 표시
+
+CS03R-04
+parent case 표시
+
+CS03R-05
+Normal/X 구분
+
+CS03R-06
+human requested 우선 표시
+
+CS03R-07
+case 상세 conversation
+
+CS03R-08
+agent reply 저장
+
+CS03R-09
+agent reply 앱에서 확인
+
+CS03R-10
+state HUMAN_REQUIRED → HUMAN_RESPONDED
+
+CS03R-11
+resolve
+
+CS03R-12
+reopen
+
+CS03R-13
+phone required explicit
+
+CS03R-14
+cross-pool context 정확성
+
+CS03R-15
+non-superadmin inbox denied
+
+CS03R-16
+raw message analytics 저장 없음
+
+CS03R-17
+legacy support ticket 유지
+
+CS03R-18
+full regression
+
+==================================================
+21. 배포
+==================================================
+
+Web/server 변경 가능.
+
+DB 변경 최소.
+
+iOS OTA:
+NO unless actual app defect
+
+Android OTA:
+NO
+
+Render deploy 필요 시 진행.
+
+==================================================
+22. FINAL REPORT
+==================================================
+
+SUPER_SUPPORT_INBOX =
+CASE_LIST =
+CASE_FILTERS =
+
+THREE_COLUMN_DETAIL =
+
+CONVERSATION_HISTORY =
+USER_CONTEXT =
+
+AGENT_REPLY =
+AGENT_REPLY_VISIBLE_APP =
+
+STATE_TRANSITION =
+HUMAN_REQUEST_PRIORITY =
+RESOLVE =
+REOPEN =
+PHONE_REQUIRED =
+
+WAIT_TIME =
+INBOX_BADGE =
+
+POOL_DETAIL_LINK =
+
+AI_PLACEHOLDER_ONLY =
+OPENAI_CALLS_ADDED =
+
+RAW_TEXT_IN_ANALYTICS =
+
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+IOS_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+SUPER_SUPPORT_INBOX = YES
+
+AGENT_REPLY = PASS
+AGENT_REPLY_VISIBLE_APP = PASS
+
+STATE_TRANSITION = PASS
+RESOLVE = PASS
+REOPEN = PASS
+
+OPENAI_CALLS_ADDED = 0
+RAW_TEXT_IN_ANALYTICS = NO
+
+IOS_OTA = NO unless defect
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_03R_SUPER_ADMIN_SUPPORT_INBOX_COMPLETE ✅
