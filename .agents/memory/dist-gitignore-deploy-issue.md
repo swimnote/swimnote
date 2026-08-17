@@ -1,29 +1,38 @@
 ---
-name: dist gitignore로 인한 Replit 배포 구버전 문제
-description: artifacts/api-server/dist가 .gitignore → Replit 재배포 없이 새 코드 미적용
+name: dist gitignore 배포 문제
+description: api-server dist가 .gitignored → Replit 재배포 없으면 OLD dist 캐시 사용; swimnote.kr 신규 route 누락 패턴
 ---
 
-## 문제
+## 규칙
 
-- `artifacts/api-server/.gitignore`의 4번째 줄에 `dist` 포함 → dist/ 전체 gitignore
-- Replit 배포: `node artifacts/api-server/dist/index.mjs` 실행
-- **재배포(Publish) 없이 GitHub push만 해도 Replit은 캐시된 OLD dist 계속 사용**
-- dist는 Replit 배포 컨테이너에 캐시됨 (코드 변경이 자동 반영 안됨)
+신규 서버 route 추가 후 swimnote.kr에 반영되지 않는 증상이 나타나면:
+dist/index.mjs를 확인한다 (빌드 일자 vs route 추가 일자 비교).
 
-## 해결 패턴
+## 패턴
 
-1. **Replit 재배포**: Publish 버튼 클릭 → artifact.toml의 build command 실행 → 새 dist 생성
-   - build: `pnpm --filter @workspace/api-server run build`
-   - 이 방법이 권장됨 (dist를 git에 커밋할 필요 없음)
+- swimnote.kr = Replit Published, `node dist/index.mjs` 실행
+- dist/는 .gitignore 등록 → 기본 push에서 제외됨
+- 신규 route를 src에 추가해도 dist 미빌드 시 swimnote.kr에 반영 안 됨
+- SPA fallback이 HTML 200 반환 → client `res.json()` 예외 → catch block → "네트워크 오류" UI
 
-2. **dist 강제 커밋**: `git add -f artifacts/api-server/dist/index.mjs` → commit → push
-   - 단기 핫픽스로 사용 가능 (2026-08-16 P0 대응 시 사용: SHA ad0e554f)
-   - 단점: 빌드 결과를 git에 커밋하는 것은 좋지 않은 관행
+## 증상
 
-## Render vs Replit 차이
+- Render (tsx src/index.ts) = 정상 동작
+- swimnote.kr (node dist/index.mjs) = 404 또는 HTML 200 반환
+- 클라이언트에서 generic network error 표시
 
-- **Render**: GitHub push 시 자동 빌드 (`pnpm run build` 실행) → 항상 최신 코드 반영
-- **Replit 배포**: Publish 버튼 클릭 시에만 빌드 실행
+## 핫픽스 절차
 
-**Why:** 동일한 코드 수정이 Render에서는 정상인데 swimnote.kr(Replit 배포)에서만 구버전인 혼란 발생.
-**How to apply:** 서버 코드 변경 후 항상 Replit 재배포 확인. 긴급 시 dist 강제 커밋 허용.
+1. `pnpm --filter @workspace/api-server run build` (tsx ./build.ts)
+2. 새 dist 확인: `grep -c "route-keyword" dist/index.mjs`
+3. `git add -f artifacts/api-server/dist/index.mjs` (force-add, gitignore 우회)
+4. commit + push
+5. **Replit Published 재배포 필수** (dist 반영 위해)
+
+**Why:** dist는 .gitignore에 있어 일반 push로는 swimnote.kr에 반영 안 됨. force-add + Replit re-publish 조합만 신뢰할 수 있음.
+
+## 재발 방지
+
+- 서버 신규 route 추가 후 항상 build + dist 검증
+- swimnote.kr와 Render는 별개 runtime — Render 배포만으론 swimnote.kr 미반영
+- 2026-08-17 발생: CS-02R support-cases route가 dist 미빌드로 swimnote.kr 누락
