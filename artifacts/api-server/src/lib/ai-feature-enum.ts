@@ -74,15 +74,52 @@ export const SUPPORT_CASE_STATE = {
   NEW:              "NEW",
   AI_PROCESSING:    "AI_PROCESSING",
   AI_RESPONDED:     "AI_RESPONDED",
+  WAITING:          "WAITING",         // CS-01R: AI/Agent 응답 후 사용자 반응 대기
   AI_RESOLVED:      "AI_RESOLVED",
   HUMAN_REQUIRED:   "HUMAN_REQUIRED",
   HUMAN_RESPONDED:  "HUMAN_RESPONDED",
   ESCALATED:        "ESCALATED",
+  PHONE_REQUIRED:   "PHONE_REQUIRED",  // CS-01R: 명시적 전화 에스컬레이션
   RESOLVED:         "RESOLVED",
+  REOPENED:         "REOPENED",        // CS-01R: 해결 후 재오픈
   CLOSED:           "CLOSED",
 } as const;
 
 export type SupportCaseState = (typeof SUPPORT_CASE_STATE)[keyof typeof SUPPORT_CASE_STATE];
+
+/**
+ * MASTER presentation state (7개) — internal state → MASTER state 매핑
+ * getMasterState() in support-case-service.ts 참조
+ */
+export const MASTER_SUPPORT_STATE = {
+  AI_ACTIVE:        "AI_ACTIVE",
+  AGENT_REQUESTED:  "AGENT_REQUESTED",
+  WAITING:          "WAITING",
+  AGENT_ACTIVE:     "AGENT_ACTIVE",
+  PHONE_REQUIRED:   "PHONE_REQUIRED",
+  RESOLVED:         "RESOLVED",
+  REOPENED:         "REOPENED",
+} as const;
+
+/**
+ * Support Event Types — event_logs(category='SUPPORT')에 기록
+ */
+export const SUPPORT_EVENT_TYPE = {
+  CASE_CREATED:         "CASE_CREATED",
+  AI_STARTED:           "AI_STARTED",
+  AI_RESPONDED:         "AI_RESPONDED",
+  USER_RESPONDED:       "USER_RESPONDED",
+  AGENT_RESPONDED:      "AGENT_RESPONDED",
+  RESOLUTION_CONFIRMED: "RESOLUTION_CONFIRMED",
+  HUMAN_REQUESTED:      "HUMAN_REQUESTED",
+  PHONE_REQUIRED:       "PHONE_REQUIRED",
+  CASE_RESOLVED:        "CASE_RESOLVED",
+  CASE_REOPENED:        "CASE_REOPENED",
+  CASE_CLOSED:          "CASE_CLOSED",
+  STATE_TRANSITIONED:   "STATE_TRANSITIONED",
+} as const;
+
+export type SupportEventType = (typeof SUPPORT_EVENT_TYPE)[keyof typeof SUPPORT_EVENT_TYPE];
 
 /**
  * Escalation 사유

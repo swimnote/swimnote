@@ -333,6 +333,103 @@ router.get(
   }
 );
 
+// ── GET /super/support/cases/:id — case 상세 (super_admin) ───────────────────
+
+router.get(
+  "/super/support/cases/:caseId",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: Request, res: Response) => {
+    const { caseId } = req.params;
+    const { getMasterState, messageThreadId } = await import("../lib/support-case-service.js");
+    const { db } = await import("@workspace/db");
+    const { sql: dbSql } = await import("drizzle-orm");
+
+    try {
+      const caseRows = await superAdminDb.execute(sql`
+        SELECT id, pool_id, actor_id, ticket_id, actor_role, mode, state,
+               escalation_reason, resolution_source, llm_used, turn_count,
+               waiting_for, context_json,
+               resolved_at::text, created_at::text, updated_at::text
+        FROM support_cases WHERE id = ${caseId} LIMIT 1
+      `);
+      const sc = (caseRows as any)?.rows?.[0];
+      if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+
+      const threadId = messageThreadId(caseId, sc.ticket_id);
+
+      let messages: any[] = [];
+      try {
+        const msgRows = await (db as any).execute(dbSql`
+          SELECT id, ticket_id, author_user_id, author_name,
+                 author_role, message_type, content, image_urls, created_at::text
+          FROM support_ticket_replies
+          WHERE ticket_id = ${threadId}
+          ORDER BY created_at ASC
+        `);
+        messages = (msgRows as any)?.rows ?? [];
+      } catch { /* pool db unavailable */ }
+
+      let ticket: any = null;
+      if (sc.ticket_id) {
+        try {
+          const tRows = await (db as any).execute(dbSql`
+            SELECT id, subject, status, ticket_type, consultation_requested, created_at::text
+            FROM support_tickets WHERE id = ${sc.ticket_id} LIMIT 1
+          `);
+          ticket = (tRows as any)?.rows?.[0] ?? null;
+        } catch { /* ignore */ }
+      }
+
+      res.json({
+        case:         sc,
+        ticket,
+        messages,
+        state:        sc.state,
+        master_state: getMasterState(sc.state, sc.escalation_reason),
+        context:      sc.context_json ?? {},
+        created_at:   sc.created_at,
+        updated_at:   sc.updated_at,
+      });
+    } catch (err) {
+      console.error("[super/support/cases/:id GET]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
+// ── POST /super/support/cases/:id/transition — super_admin state override ─────
+
+router.post(
+  "/super/support/cases/:caseId/transition",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: Request, res: Response) => {
+    const { caseId } = req.params;
+    const { to_state, reason, waiting_for, resolution_source } = req.body;
+    if (!to_state) return res.status(400).json({ error: "to_state 필수" });
+
+    const { transitionSupportCase } = await import("../lib/support-case-service.js");
+
+    try {
+      const result = await transitionSupportCase({
+        caseId,
+        toState:          to_state,
+        actorRole:        "super_admin",
+        reason:           reason ?? null,
+        waitingFor:       waiting_for ?? null,
+        resolutionSource: resolution_source ?? null,
+      });
+
+      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      res.json({ ok: true, to_state });
+    } catch (err) {
+      console.error("[super/support/cases/:id/transition POST]", err);
+      res.status(500).json({ error: "서버 오류" });
+    }
+  }
+);
+
 // ── GET /super/support/cases ──────────────────────────────────────────────────
 
 router.get(
