@@ -1,0 +1,451 @@
+[P0-OBSERVABILITY — SUPPORT RESPOND PRODUCTION TRACE WITHOUT GUESSING]
+
+목적:
+
+현재 trusted baseline:
+
+Git/Render live commit = b8a13a90
+Primary Support DB = Supabase
+support_ticket_replies.author_user_id nullable = YES
+
+하지만 실제 사용자 iPhone에서:
+
+"x모드 알려줘"
+→ AI reply not visible
+
+현재 defect = OPEN
+
+이번 작업의 목표는
+원인을 추측해서 고치는 것이 아니다.
+
+다음 사용자 재현 1건을
+production에서 DB 기반 structured trace로
+끝까지 관측할 수 있게 만든다.
+
+==================================================
+0. REPORTING CONSTITUTION
+==================================================
+
+이번부터 모든 결과값은 아래 4종만 사용:
+
+OBSERVED
+INFERRED
+NOT_OBSERVED
+NOT_APPLICABLE
+
+PASS/YES를 쓰려면 실제 evidence 필수.
+
+금지:
+
+- 예상값을 실제값으로 보고
+- git push를 Render deploy라고 보고
+- deployment trigger를 LIVE라고 보고
+- mock test를 production evidence로 보고
+- 사용자 실기기 확인 없이 DEVICE PASS
+- 로그 미확보 상태에서 ACTUAL_HTTP_STATUS 작성
+
+==================================================
+1. CURRENT BASELINE VERIFY
+==================================================
+
+먼저 read-only 확인:
+
+Git HEAD =
+Render actual LIVE commit =
+Render deploy id =
+Production DB =
+author_user_id nullable =
+
+Render API / git / information_schema의
+실제 값만 기록.
+
+불일치 시 중지.
+
+==================================================
+2. ADD SAFE SUPPORT TRACE
+==================================================
+
+POST /support/respond 한 요청에 대해
+단계별 trace를 남긴다.
+
+새 raw logging table 생성 기본 금지.
+
+기존 event_logs를 재사용할 수 있으면 재사용.
+
+category:
+SUPPORT
+
+action:
+SUPPORT_RESPOND_STAGE
+
+metadata 최소:
+
+request_id
+case_id
+pool_id
+user_role
+service_mode
+
+stage
+status
+
+http_status if final
+safe_error_code if failure
+
+resolution_status
+resolution_source
+
+evidence_count
+llm_called
+model
+
+user_message_stored
+ai_message_stored
+
+case_state
+
+latency_ms
+
+금지:
+
+raw user message
+raw AI answer
+prompt
+전화번호
+email
+학생 이름
+JWT
+
+==================================================
+3. STAGE MARKERS
+==================================================
+
+정확히 다음 stage를 기록:
+
+REQUEST_RECEIVED
+
+CASE_RESOLVED
+USER_MESSAGE_INSERT_START
+USER_MESSAGE_INSERT_OK
+USER_MESSAGE_INSERT_FAIL
+
+AI_PROCESSING_START
+AI_PROCESSING_OK
+AI_PROCESSING_FAIL
+
+RESOLUTION_START
+RESOLUTION_DONE
+RESOLUTION_FAIL
+
+EVIDENCE_START
+EVIDENCE_DONE
+EVIDENCE_FAIL
+
+LLM_START
+LLM_DONE
+LLM_FAIL
+LLM_SKIPPED
+
+AI_MESSAGE_INSERT_START
+AI_MESSAGE_INSERT_OK
+AI_MESSAGE_INSERT_FAIL
+
+FINAL_STATE_START
+FINAL_STATE_OK
+FINAL_STATE_FAIL
+
+HTTP_RESPONSE
+
+한 request에서 실제 지나간 stage만 기록.
+
+==================================================
+4. DB WRITE ERROR CAPTURE
+==================================================
+
+AI message insert 실패 시:
+
+catch한 실제 PostgreSQL error에서
+민감하지 않은 항목만 기록:
+
+pg_code
+constraint
+column if available
+table if available
+
+safe error message category
+
+예:
+
+NOT_NULL
+FK
+ENUM
+MISSING_TABLE
+OTHER
+
+raw SQL / connection string 기록 금지.
+
+이번에는 23502를 추정해서 쓰지 않는다.
+
+실제 error.code가 있을 때만 기록.
+
+==================================================
+5. SUPPORT MESSAGE CONTRACT TRACE
+==================================================
+
+insertSupportMessage 호출 직전
+본문 제외 구조만 trace 가능하게 확인:
+
+author_role
+author_user_id_is_null
+case_id_present
+ticket_id_present
+message_type
+content_present
+
+content 값 저장 금지.
+
+==================================================
+6. RESPONSE CONTRACT
+==================================================
+
+HTTP_RESPONSE stage에는:
+
+http_status
+success
+safe_error_code
+answer_present
+case_id_present
+
+만 기록.
+
+실제 HTTP status를
+이 stage가 source of truth로 만든다.
+
+더 이상 INFERRED_200 사용 금지.
+
+==================================================
+7. CLIENT FAILURE UX AUDIT
+==================================================
+
+SupportChatScreen은 이번에 우선 read-only audit.
+
+POST /support/respond가:
+
+4xx/5xx
+
+일 때 실제로 사용자에게
+error UI를 표시하는지 확인.
+
+결과:
+
+CLIENT_NON_2XX_VISIBLE_ERROR =
+OBSERVED_FROM_CODE / NOT_OBSERVED
+
+만 보고.
+
+실제 defect가 명확하지 않으면
+아직 모바일 수정 금지.
+
+==================================================
+8. NO ROOT CAUSE FIX YET
+==================================================
+
+이번 작업에서
+현재 AI reply defect를 추측 수정하지 않는다.
+
+예외:
+
+trace instrumentation 자체 때문에 필요한
+최소 server change만.
+
+Production schema 변경 금지.
+Knowledge status 변경 금지.
+Support data 수정 금지.
+
+==================================================
+9. TESTS
+==================================================
+
+OBS-01
+trace contains request_id/case_id
+
+OBS-02
+raw user message absent
+
+OBS-03
+raw AI answer absent
+
+OBS-04
+successful deterministic stage sequence
+
+OBS-05
+no_evidence stage sequence
+
+OBS-06
+LLM stage sequence
+
+OBS-07
+AI insert DB failure records actual pg error code
+
+OBS-08
+AI insert failure produces HTTP non-2xx
+
+OBS-09
+HTTP_RESPONSE records actual status
+
+OBS-10
+telemetry failure does not break support response
+
+OBS-11
+cross-pool data absent from trace
+
+OBS-12
+full regression
+
+Mock test는 production evidence가 아니라고
+최종 보고서에 명시.
+
+==================================================
+10. DEPLOY
+==================================================
+
+Server only.
+
+commit + push 후:
+
+반드시 Render API에서
+해당 exact commit의 deploy가:
+
+build completed
+status = live
+
+인지 확인.
+
+git push만 된 경우:
+
+RENDER_LIVE = NOT_OBSERVED
+
+라고 기록.
+
+Mobile 변경 없음.
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+11. WAIT FOR REAL USER REPRODUCTION
+==================================================
+
+배포 후 작업 완료 선언하지 않는다.
+
+사용자가 실제 iPhone에서 다시:
+
+"x모드 알려줘"
+
+를 보내기 전까지:
+
+CURRENT_DEFECT = OPEN
+DEVICE_RESULT = NOT_OBSERVED
+
+유지.
+
+완료 문구:
+
+P0_SUPPORT_OBSERVABILITY_DEPLOYED ✅
+AWAITING_REAL_DEVICE_REPRODUCTION
+
+==================================================
+12. AFTER USER REPRODUCES
+==================================================
+
+사용자가 재현했다고 알려준 뒤에만
+가장 최근 해당 request trace를 조회한다.
+
+그 한 건에 대해:
+
+REQUEST_ID =
+CASE_ID =
+
+STAGES_EXECUTED =
+
+USER_MESSAGE_INSERT =
+RESOLUTION =
+EVIDENCE =
+LLM =
+AI_MESSAGE_INSERT =
+FINAL_STATE =
+HTTP_RESPONSE =
+
+ACTUAL_HTTP_STATUS =
+ACTUAL_SAFE_ERROR_CODE =
+
+ACTUAL_PG_ERROR_CODE =
+ACTUAL_CONSTRAINT =
+ACTUAL_COLUMN =
+
+AI_MESSAGE_ROW_EXISTS =
+
+FAILURE_STAGE =
+
+를 실제 trace + DB로 판정.
+
+이때 처음으로 ROOT_CAUSE를 확정한다.
+
+==================================================
+13. FINAL REPORT — DEPLOY PHASE
+==================================================
+
+BASELINE_GIT =
+BASELINE_RENDER =
+
+TRACE_STORAGE =
+RAW_USER_MESSAGE_STORED =
+RAW_AI_OUTPUT_STORED =
+
+STAGES_IMPLEMENTED =
+DB_ERROR_CAPTURE =
+HTTP_STATUS_CAPTURE =
+
+CLIENT_NON_2XX_VISIBLE_ERROR =
+
+FILES_CHANGED =
+DB_SCHEMA_CHANGED =
+PRODUCTION_DATA_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+
+RENDER_DEPLOY_ID =
+RENDER_DEPLOY_COMMIT =
+RENDER_STATUS =
+RENDER_LIVE =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+CURRENT_DEFECT = OPEN
+DEVICE_RESULT = NOT_OBSERVED
+
+성공 조건:
+
+raw message/output = NO
+
+actual DB error code 추적 가능
+actual HTTP status 추적 가능
+
+Render exact commit = LIVE
+
+DB schema 변경 = NO
+production support data 변경 = NO
+mobile 변경 = NO
+
+그리고 사용자 재현 전
+defect fixed라고 선언 금지.
+
+완료:
+
+P0_SUPPORT_OBSERVABILITY_DEPLOYED ✅
+AWAITING_REAL_DEVICE_REPRODUCTION
