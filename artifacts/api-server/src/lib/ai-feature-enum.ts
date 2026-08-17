@@ -17,6 +17,8 @@ export const AI_FEATURE = {
   PARENT_CURRICULUM_AI: "parent_curriculum_search",
   /** 성장 리포트 AI 생성 */
   GROWTH_REPORT_AI: "growth_report_ai",
+  /** Instagram Story 요약 (POST /diaries/:id/story-summary) */
+  STORY_SUMMARY: "story_summary",
   /** AI 고객센터 */
   SUPPORT_AI: "support_ai",
   /** 영상 분석 (향후) */
@@ -41,6 +43,7 @@ export const AI_FEATURE_LABEL: Record<AiFeature, string> = {
   teacher_diary:             "교사 AI 일지",
   parent_curriculum_search:  "학부모 커리큘럼 AI",
   growth_report_ai:          "성장 리포트 AI",
+  story_summary:             "Story 요약",
   support_ai:                "AI 고객센터",
   video_analysis:            "영상 분석",
   ai_search:                 "AI 검색",

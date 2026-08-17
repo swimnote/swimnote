@@ -39,6 +39,8 @@ import {
   logDiaryStructured,
   type PipelineMode,
 } from '../lib/ai-diary-utils.js';
+import { saveAiTrace }  from '../lib/ai-trace-service.js';
+import { AI_FEATURE }   from '../lib/ai-feature-enum.js';
 
 export {
   getEffectivePipelineMode,
@@ -585,6 +587,28 @@ router.post(
         },
       });
 
+      // CS-PA1: AI 사용 계측 (응답 전송 후 비동기 — 실패해도 AI 응답에 영향 없음)
+      void saveAiTrace({
+        status:           'SUCCESS',
+        request_id:       externalRequestId,
+        internal_id:      internalId,
+        pool_id:          poolId,
+        actor_id:         (req as any).user?.id,
+        contract_version: '1.0',
+        feature:          AI_FEATURE.TEACHER_AI_DIARY,
+        pool_mode:        null,              // 레거시 엔드포인트 — X mode 판정 없음
+        student_count:    normalizedStudents.length,
+        user_role:        (req as any).user?.role ?? null,
+        result_generated: true,
+        provider:         'openai',
+        generation_mode:  effectiveMode,
+        model:            'gpt-4o-mini',
+        latency_ms:       elapsedMs,
+        input_tokens:     usage?.prompt_tokens     ?? null,
+        output_tokens:    usage?.completion_tokens ?? null,
+        total_tokens:     usage?.total_tokens      ?? null,
+      }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
+
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
 
@@ -611,6 +635,14 @@ router.post(
           status:           'failed',
           error: { code: 'MODEL_TIMEOUT', message: 'Teacher diary generation timed out.', retryable: true },
         });
+        void saveAiTrace({
+          status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+          pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+          feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+          student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+          result_generated: false, provider: 'openai',
+          error_stage: 'PROVIDER_CALL', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs,
+        }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
         return;
       }
 
@@ -644,6 +676,18 @@ router.post(
           status:           'failed',
           error: { code: 'OUTPUT_VALIDATION_FAILED', message: 'Teacher diary output validation failed.', retryable: false },
         });
+        void saveAiTrace({
+          status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+          pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+          feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+          student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+          result_generated: false, provider: 'openai',
+          error_stage: 'OUTPUT_VALIDATION', error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs,
+          model: 'gpt-4o-mini',
+          input_tokens:  (completion as any)?.usage?.prompt_tokens     ?? null,
+          output_tokens: (completion as any)?.usage?.completion_tokens ?? null,
+          total_tokens:  (completion as any)?.usage?.total_tokens      ?? null,
+        }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
         return;
       }
 
@@ -671,6 +715,14 @@ router.post(
         status:           'failed',
         error: { code: e?.code ?? 'INTERNAL_ERROR', message: 'Teacher diary generation failed.', retryable },
       });
+      void saveAiTrace({
+        status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+        pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+        feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+        student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+        result_generated: false, provider: 'openai',
+        error_stage: 'INTERNAL', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs,
+      }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
     }
   },
 );

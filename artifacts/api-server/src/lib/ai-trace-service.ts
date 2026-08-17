@@ -33,23 +33,39 @@ export interface AiTraceContext {
   request_id:        string;   // 클라이언트 제공 외부 ID
   internal_id:       string;   // 서버 내부 trace ID
   pool_id:           string;
-  actor_id?:         string;   // teacher user ID (내부 ID; 이름·전화 미포함)
+  actor_id?:         string;   // teacher/parent user ID (내부 ID; 이름·전화 미포함)
   contract_version:  string;
   pipeline_version?: string | null;
   feature:           string;
   pool_mode?:        string | null;
   student_count?:    number;
+
+  // CS-PA1: 공통 계측 확장 (metadata JSONB 활용 — DB column 추가 없음)
+  /** 실제 인증 role (teacher/parent/pool_admin/super_admin 등). 알 수 없으면 null. */
+  user_role?:        string | null;
+  /** multi-stage 기능의 단계 구분 (예: PREANALYSIS, FINAL_ANALYSIS, RETRY). */
+  sub_feature?:      string | null;
+  /** AI 결과가 사용자에게 정상 반환됐으면 true, parse/validation 실패면 false. */
+  result_generated?: boolean | null;
+  /** AI provider 식별자 (openai | 기타). */
+  provider?:         string;
+  /** 캐시된 토큰 수 (provider가 제공 시에만). */
+  cached_tokens?:    number | null;
+  /** 호출 소스 앱 구분 (app | web | 기타). */
+  source_app?:       string | null;
 }
 
 // ── 성공 Trace ────────────────────────────────────────────────────────────────
 export interface AiTraceSuccess extends AiTraceContext {
   status: "SUCCESS";
   generation_mode:           string;
-  model:                     string;
+  /** 실제 provider model 식별자. 외부 엔진 경유 시 null 허용. */
+  model:                     string | null;
   latency_ms:                number;
-  input_tokens:              number;
-  output_tokens:             number;
-  total_tokens:              number;
+  /** Provider 미제공 시 null (추정 금지). */
+  input_tokens:              number | null;
+  output_tokens:             number | null;
+  total_tokens:              number | null;
   // Template
   template_candidate_count?: number;
   selected_template_id?:     string | null;
@@ -122,22 +138,29 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
     student_count:    params.student_count ?? null,
   };
 
-  if (params.pipeline_version != null) {
-    metadata.pipeline_version = params.pipeline_version;
-  }
+  if (params.pipeline_version  != null) metadata.pipeline_version  = params.pipeline_version;
+
+  // CS-PA1: 공통 계측 확장 필드 (metadata JSONB 활용)
+  if (params.user_role         != null) metadata.user_role         = params.user_role;
+  if (params.sub_feature       != null) metadata.sub_feature       = params.sub_feature;
+  if (params.result_generated  != null) metadata.result_generated  = params.result_generated;
+  if (params.provider          != null) metadata.provider          = params.provider;
+  if (params.cached_tokens     != null) metadata.cached_tokens     = params.cached_tokens;
+  if (params.source_app        != null) metadata.source_app        = params.source_app;
 
   if (params.status === "SUCCESS") {
     const s = params as AiTraceSuccess;
     metadata.generation_mode           = s.generation_mode;
-    metadata.model                     = s.model;
     metadata.latency_ms                = s.latency_ms;
-    metadata.input_tokens              = s.input_tokens;
-    metadata.output_tokens             = s.output_tokens;
-    metadata.total_tokens              = s.total_tokens;
     metadata.template_candidate_count  = s.template_candidate_count ?? null;
     metadata.selected_template_id      = s.selected_template_id     ?? null;
     metadata.curriculum_match_count    = s.curriculum_match_count   ?? null;
     metadata.knowledge_hit_count       = s.knowledge_hit_count      ?? 0;
+    // null 허용 (외부 엔진 경유 시): 값이 있는 경우만 저장
+    if (s.model        != null) metadata.model         = s.model;
+    if (s.input_tokens != null) metadata.input_tokens  = s.input_tokens;
+    if (s.output_tokens!= null) metadata.output_tokens = s.output_tokens;
+    if (s.total_tokens != null) metadata.total_tokens  = s.total_tokens;
     // X-specific: non-X pool에서는 키 자체 absent (undefined → Object.keys에서 제외)
     if (s.x_template_status      != null) metadata.x_template_status      = s.x_template_status;
     if (s.active_template_set_id != null) metadata.active_template_set_id = s.active_template_set_id;
@@ -167,7 +190,7 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
 export async function saveAiTrace(params: AiTraceParams): Promise<void> {
   const metadata    = buildTraceMetadata(params);
   const id          = `ai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const description = `AI 일지 생성 (${params.feature}) — ${params.status}`;
+  const description = `AI ${params.feature} — ${params.status}`;
 
   await superAdminDb.execute(sql`
     INSERT INTO event_logs

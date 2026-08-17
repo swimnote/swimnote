@@ -66,6 +66,8 @@ import {
   getAssistantMessageByRequestId,
   buildRecentConversationContext,
 } from "../lib/parent-curriculum-conversation.js";
+import { saveAiTrace }  from "../lib/ai-trace-service.js";
+import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
 
 const router = Router();
 
@@ -366,6 +368,7 @@ router.post(
     };
 
     // ── 12. ENGINE 호출 ───────────────────────────────────────────────────────
+    const pcEngineStartMs = Date.now();  // CS-PA1: latency 측정
     let engineResponse: ParentCurriculumEngineResponse;
     try {
       engineResponse = await searchParentCurriculum(engineRequest);
@@ -387,6 +390,15 @@ router.post(
           code:      errorCode,
           retryable: err.retryable,
         });
+        // CS-PA1: engine 실패 trace
+        void saveAiTrace({
+          status: 'FAILED', request_id: trimmedRequestId, internal_id: trimmedRequestId,
+          pool_id: poolId, actor_id: parentId, contract_version: '1.0',
+          feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
+          user_role: 'parent_account', result_generated: false,
+          error_stage: 'ENGINE_CALL', error_code: errorCode,
+          latency_ms: Date.now() - pcEngineStartMs,
+        }).catch(() => {});
         return;
       }
       console.error("[parent-curriculum] unexpected ENGINE error:", (err as Error).message);
@@ -394,6 +406,14 @@ router.post(
         error: "AI 분석 서비스에 일시적인 문제가 있습니다.",
         code:  "INTERNAL_ERROR",
       });
+      void saveAiTrace({
+        status: 'FAILED', request_id: trimmedRequestId, internal_id: trimmedRequestId,
+        pool_id: poolId, actor_id: parentId, contract_version: '1.0',
+        feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
+        user_role: 'parent_account', result_generated: false,
+        error_stage: 'ENGINE_CALL', error_code: 'ENGINE_UNKNOWN_ERROR',
+        latency_ms: Date.now() - pcEngineStartMs,
+      }).catch(() => {});
       return;
     }
 
@@ -462,6 +482,27 @@ router.post(
     }
 
     await touchConversation(conversationId).catch(() => undefined);
+
+    // CS-PA1: 성공 trace (finalize 완료 후, 응답 직전)
+    void saveAiTrace({
+      status:           'SUCCESS',
+      request_id:       trimmedRequestId,
+      internal_id:      trimmedRequestId,
+      pool_id:          poolId,
+      actor_id:         parentId,
+      contract_version: '1.0',
+      feature:          AI_FEATURE.PARENT_CURRICULUM_AI,
+      pool_mode:        poolMode,
+      user_role:        'parent_account',
+      result_generated: true,
+      generation_mode:  engineMode,
+      model:            (engineResponse.meta as any)?.model ?? null,
+      latency_ms:       (engineResponse.meta as any)?.latency_ms ?? (Date.now() - pcEngineStartMs),
+      // 외부 엔진 경유 — provider token 미노출
+      input_tokens:  null,
+      output_tokens: null,
+      total_tokens:  null,
+    }).catch(() => {});
 
     // ── 15. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
     const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({

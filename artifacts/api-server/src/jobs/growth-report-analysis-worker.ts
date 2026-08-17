@@ -52,6 +52,8 @@ import {
   EngineResponseValidationError,
   type AnalysisStage,
 } from "../lib/growth-report-result-handler.js";
+import { saveAiTrace }  from "../lib/ai-trace-service.js";
+import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -207,6 +209,7 @@ async function analyzeOneReport(
   );
 
   // 5) ENGINE call
+  const grEngineStartMs = Date.now();  // CS-PA1: latency 측정
   let response: Awaited<ReturnType<typeof analyzeGrowthReport>>;
   try {
     response = await analyzeGrowthReport(request);
@@ -217,6 +220,16 @@ async function analyzeOneReport(
       : "UNKNOWN_ERROR";
 
     await auditAnalysisFailed(db, report.id, report.swimming_pool_id, requestId, errorCode);
+
+    // CS-PA1: engine 실패 trace
+    void saveAiTrace({
+      status: 'FAILED', request_id: requestId, internal_id: requestId,
+      pool_id: report.swimming_pool_id, contract_version: '1.0',
+      feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
+      sub_feature: stage, result_generated: false,
+      error_stage: 'ENGINE_CALL', error_code: errorCode,
+      latency_ms: Date.now() - grEngineStartMs,
+    }).catch(() => {});
 
     if (retryable) {
       // Roll back to previous status so next worker run can retry
@@ -255,6 +268,25 @@ async function analyzeOneReport(
     }
     return;
   }
+
+  // CS-PA1: engine 성공 trace (persist 전)
+  void saveAiTrace({
+    status:           'SUCCESS',
+    request_id:       requestId,
+    internal_id:      requestId,
+    pool_id:          report.swimming_pool_id,
+    contract_version: '1.0',
+    feature:          AI_FEATURE.GROWTH_REPORT_AI,
+    pool_mode:        null,
+    sub_feature:      stage,
+    result_generated: true,
+    generation_mode:  'engine_call',
+    model:            null,           // 외부 엔진 — model 정보 미노출
+    latency_ms:       Date.now() - grEngineStartMs,
+    input_tokens:     null,           // 외부 엔진 — token 정보 미노출
+    output_tokens:    null,
+    total_tokens:     null,
+  }).catch(() => {});
 
   // 6) Persist result
   try {

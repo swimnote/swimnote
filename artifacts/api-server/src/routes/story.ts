@@ -24,6 +24,8 @@ import OpenAI                             from 'openai';
 import { requireAuth, type AuthRequest }  from '../middlewares/auth.js';
 import { db, superAdminDb }               from '@workspace/db';
 import { sql }                            from 'drizzle-orm';
+import { saveAiTrace }                    from '../lib/ai-trace-service.js';
+import { AI_FEATURE }                     from '../lib/ai-feature-enum.js';
 
 const router = Router();
 
@@ -128,6 +130,12 @@ router.post(
       const controller = new AbortController();
       const timer      = setTimeout(() => controller.abort(), 25_000);
 
+      // CS-PA1: 계측용 trace 변수 (provider call 토큰 누계)
+      const storyStartMs  = Date.now();
+      const storyTraceId  = `story_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      let firstCallTokens: { prompt: number; completion: number; total: number } | null = null;
+      let retryCallTokens: { prompt: number; completion: number; total: number } | null = null;
+
       // V3: 자상한 선생님 한마디 스타일 — 50~90자 목표
       const prompt =
 `당신은 수영 선생님이 학부모에게 오늘 수업을 짧게 전하는 한마디를 적는 도우미입니다.
@@ -164,6 +172,14 @@ ${fullText}
         clearTimeout(timer);
         summary = completion.choices[0]?.message?.content?.trim() ?? '';
         if (!summary) throw new Error('empty_response');
+        // CS-PA1: 1차 call 토큰 캡처
+        if (completion.usage) {
+          firstCallTokens = {
+            prompt:     completion.usage.prompt_tokens     ?? 0,
+            completion: completion.usage.completion_tokens ?? 0,
+            total:      completion.usage.total_tokens      ?? 0,
+          };
+        }
       } catch (e: any) {
         clearTimeout(timer);
         // 비개인정보 로그만 (원문/학생명/JWT 로그 금지)
@@ -172,6 +188,14 @@ ${fullText}
           ` diaryId=...${diaryId.slice(-8)}` +
           ` msg=${String(e?.message ?? 'unknown').slice(0, 80)}`
         );
+        void saveAiTrace({
+          status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
+          pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
+          contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
+          pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
+          error_stage: 'PROVIDER_CALL', error_code: 'OPENAI_ERROR',
+          latency_ms: Date.now() - storyStartMs,
+        }).catch(() => {});
         res.status(500).json({ error: 'summary_failed' }); return;
       }
 
@@ -205,6 +229,14 @@ ${fullText}
           );
           clearTimeout(retryTimer);
           retrySummary = retryCompletion.choices[0]?.message?.content?.trim() ?? '';
+          // CS-PA1: 재시도 call 토큰 캡처
+          if (retryCompletion.usage) {
+            retryCallTokens = {
+              prompt:     retryCompletion.usage.prompt_tokens     ?? 0,
+              completion: retryCompletion.usage.completion_tokens ?? 0,
+              total:      retryCompletion.usage.total_tokens      ?? 0,
+            };
+          }
         } catch (e: any) {
           clearTimeout(retryTimer);
           console.error(
@@ -212,6 +244,18 @@ ${fullText}
             ` diaryId=...${diaryId.slice(-8)}` +
             ` msg=${String(e?.message ?? 'unknown').slice(0, 80)}`
           );
+          void saveAiTrace({
+            status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
+            pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
+            contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
+            pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
+            error_stage: 'PROVIDER_CALL', error_code: 'RETRY_OPENAI_ERROR',
+            latency_ms: Date.now() - storyStartMs,
+            sub_feature: 'RETRY',
+            input_tokens:  firstCallTokens?.prompt     ?? null,
+            output_tokens: firstCallTokens?.completion ?? null,
+            total_tokens:  firstCallTokens?.total      ?? null,
+          }).catch(() => {});
           res.status(500).json({ error: 'summary_failed' }); return;
         }
 
@@ -221,10 +265,43 @@ ${fullText}
             `[story-summary] 2차 길이 초과(${retrySummary.length}>${retryMaxChars})` +
             ` diaryId=...${diaryId.slice(-8)}`
           );
+          void saveAiTrace({
+            status: 'FAILED', request_id: storyTraceId, internal_id: storyTraceId,
+            pool_id: diary.swimming_pool_id ?? '', actor_id: userId,
+            contract_version: '1.0', feature: AI_FEATURE.STORY_SUMMARY,
+            pool_mode: null, user_role: role, result_generated: false, provider: 'openai',
+            error_stage: 'OUTPUT_VALIDATION', error_code: 'LENGTH_EXCEEDED_AFTER_RETRY',
+            latency_ms: Date.now() - storyStartMs,
+            sub_feature: 'RETRY',
+          }).catch(() => {});
           res.status(500).json({ error: 'summary_failed' }); return;
         }
         summary = retrySummary;
       }
+
+      // CS-PA1: 성공 trace — 1차 + 재시도 토큰 합산
+      const totalInput  = (firstCallTokens?.prompt     ?? 0) + (retryCallTokens?.prompt     ?? 0);
+      const totalOutput = (firstCallTokens?.completion ?? 0) + (retryCallTokens?.completion ?? 0);
+      const totalAll    = (firstCallTokens?.total      ?? 0) + (retryCallTokens?.total      ?? 0);
+      void saveAiTrace({
+        status:           'SUCCESS',
+        request_id:       storyTraceId,
+        internal_id:      storyTraceId,
+        pool_id:          diary.swimming_pool_id ?? '',
+        actor_id:         userId,
+        contract_version: '1.0',
+        feature:          AI_FEATURE.STORY_SUMMARY,
+        pool_mode:        null,
+        user_role:        role,
+        result_generated: true,
+        provider:         'openai',
+        generation_mode:  retryCallTokens ? 'story_with_retry' : 'story_direct',
+        model:            'gpt-4o-mini',
+        latency_ms:       Date.now() - storyStartMs,
+        input_tokens:     totalInput  > 0 ? totalInput  : null,
+        output_tokens:    totalOutput > 0 ? totalOutput : null,
+        total_tokens:     totalAll    > 0 ? totalAll    : null,
+      }).catch(() => {});
 
       res.json({ summary });
     } catch (e) {
