@@ -1,0 +1,436 @@
+[WP-CS-08R-DEVICE — PRODUCTION SUPPORT AI PHYSICAL E2E]
+
+목적:
+
+WP-CS-08R에서 구현한 실제 Support AI를
+TestFlight Build 246 + production OTA에서 검증한다.
+
+신규 기능 개발 금지.
+
+실제 defect가 발견된 경우만 최소 수정.
+
+==================================================
+0. OTA COMPATIBILITY VERIFY
+==================================================
+
+현재 OTA:
+
+01a00fb3
+
+확인:
+
+OTA_BRANCH =
+OTA_CHANNEL =
+OTA_RUNTIME =
+OTA_PLATFORM =
+
+TestFlight Build 246:
+
+channel = production
+runtime = 1.6.3
+
+보고:
+
+BUILD_246_CAN_RECEIVE = YES/NO
+
+NO면 테스트 중지.
+
+==================================================
+1. RENDER LIVE VERIFY
+==================================================
+
+Commit:
+1e2026a6
+
+Render deployment LIVE 확인.
+
+실제 production:
+
+POST /support/respond
+
+route 존재 확인.
+
+AUTH 없이 실제 데이터 생성하지 말고
+safe route/health 수준으로 확인.
+
+==================================================
+2. DEVICE TEST — DETERMINISTIC QUESTION
+==================================================
+
+실기기에서 실제 ACTIVE Knowledge/Frontend Map으로
+확실히 답할 수 있는 질문 1개 선택.
+
+예시는 repository의 실제 ACTIVE 데이터 기준으로 고른다.
+가짜 seed를 ACTIVE로 만들지 않는다.
+
+검증:
+
+사용자 메시지 저장
+→ /support/respond
+→ Router deterministic match
+→ AI message 표시
+
+필수:
+
+LLM_USED = false
+AI_PROVIDER_CALL = 0
+SOURCE_TYPE = 실제 deterministic source
+AI_MESSAGE_VISIBLE = PASS
+
+==================================================
+3. DEVICE TEST — FRONTEND MAP
+==================================================
+
+화면 위치 질문 1개.
+
+예:
+실제 map에 존재하는 기능 위치 질문.
+
+검증:
+
+FRONTEND_MAP_HIT
+role 일치
+mode 일치
+없는 화면 창작 없음
+
+deep_link가 아직 실제 활성화되지 않았으면
+route 안내만 정확하면 됨.
+
+==================================================
+4. DEVICE TEST — KNOWLEDGE / FAQ
+==================================================
+
+현재 ACTIVE FAQ/Knowledge 중
+실제 항목 하나를 골라 질문.
+
+검증:
+
+FAQ 또는 KNOWLEDGE hit
+OpenAI = 0
+저장된 검증답변 사용
+
+PENDING seed를 테스트 때문에 ACTIVE로 바꾸지 않는다.
+
+==================================================
+5. DEVICE TEST — NO EVIDENCE
+==================================================
+
+SWIMNOTE Knowledge/Frontend Map/Solution/Rule에
+근거가 없는 질문을 입력.
+
+검증:
+
+임의 SWIMNOTE 기능/정책 생성 금지.
+
+기대:
+
+confidence = LOW
+requires_human = true
+또는 추가정보 요청
+
+OpenAI를 호출하더라도
+근거 없는 답변 생성 금지.
+
+실제 구현 정책상 evidence=없음이면
+OpenAI call = 0 이어야 함.
+
+==================================================
+6. DEVICE TEST — LLM FALLBACK
+==================================================
+
+Router exact deterministic 답은 없지만
+관련 evidence는 실제 존재하는 질문 1개를 선택.
+
+검증:
+
+Router first
+→ evidence gathered
+→ LLM fallback
+
+보고:
+
+LLM_USED = true
+MODEL =
+SOURCE_IDS_COUNT =
+CONFIDENCE =
+ANSWER_GROUNDED = PASS/FAIL
+
+근거 밖 기능/정책 추가 시 FAIL.
+
+==================================================
+7. USER ROLE MATRIX
+==================================================
+
+가능한 실제 계정으로:
+
+admin
+teacher
+parent
+
+각각 최소 AI 문의 화면 진입 + 1 message 확인.
+
+같은 질문에서도
+다른 role 전용 화면이 섞이지 않는지 확인.
+
+==================================================
+8. MODE MATRIX
+==================================================
+
+실제 가능한 계정으로:
+
+Normal
+X
+
+검증.
+
+Normal 질문에서
+X 전용 경로를 일반 경로처럼 제시하면 FAIL.
+
+X에서 Normal deprecated 경로 제시하면 FAIL.
+
+==================================================
+9. CONVERSATION STORAGE
+==================================================
+
+사용자 질문
+AI 답변
+
+둘 다 같은 case에서 시간순 저장.
+
+앱 종료
+→ 재실행
+→ AI 문의
+
+기존 conversation에서
+AI 답변 유지 확인.
+
+==================================================
+10. STATE MACHINE
+==================================================
+
+정상 AI 응답:
+
+AI_PROCESSING
+→ AI_RESPONDED
+
+근거 없음/LOW:
+
+→ HUMAN_REQUIRED
+
+사용자:
+[해결됐어요]
+→ RESOLVED/AI_RESOLVED
+
+[아직 안돼요]
+→ 재문의 또는 상담사 CTA
+
+직접 state update 없음.
+
+==================================================
+11. SUPER ADMIN CROSS CHECK
+==================================================
+
+SuperSupport에서 실제 case 확인.
+
+확인:
+
+user message
+AI message
+state
+role
+mode
+pool
+
+AI trace 확인:
+
+feature = support_ai
+llm_used
+model
+tokens if available
+latency
+status
+
+raw message/output가 analytics에 없는지 확인.
+
+==================================================
+12. TOKEN / COST VERIFY
+==================================================
+
+LLM fallback 1건 기준:
+
+model
+input_tokens
+output_tokens
+total_tokens
+estimated_cost
+
+실제 provider usage가 있으면 기록 확인.
+
+없으면 null 허용.
+
+fake token/cost 금지.
+
+==================================================
+13. LLM AVOIDANCE VERIFY
+==================================================
+
+최소:
+
+deterministic 1건
+LLM fallback 1건
+
+비교.
+
+보고:
+
+DETERMINISTIC_REQUEST_LLM_USED = false
+FALLBACK_REQUEST_LLM_USED = true
+
+이를 support event/trace에서 구분 가능해야 함.
+
+==================================================
+14. ERROR TEST
+==================================================
+
+가능하면 provider failure를 production에서
+인위적으로 만들지 않는다.
+
+코드/test evidence로 다음 확인:
+
+AI 실패 시
+사용자 메시지 보존.
+
+중복 AI message 생성 없음.
+
+실제 provider 장애 유발 금지.
+
+==================================================
+15. SECURITY
+==================================================
+
+실기기/서버 trace에서:
+
+client pool_id 무시
+auth pool 사용
+
+확인.
+
+다른 pool source id/knowledge가
+응답 evidence에 섞이면 FAIL.
+
+==================================================
+16. NO NEW FEATURES
+==================================================
+
+이번 검증에서 금지:
+
+Screenshot/Vision
+X04 FAQ extraction
+Gap analysis
+Semantic Cache
+Product Intelligence
+Refund automation
+Partner UI 개선
+
+==================================================
+17. DEFECT POLICY
+==================================================
+
+실기기 defect 발견:
+
+ROOT CAUSE
+→ 최소 수정
+→ 관련 TC
+→ 전체 회귀
+→ Render
+→ iOS production branch OTA
+→ 해당 테스트만 재검증
+
+preview OTA 금지.
+Android OTA 금지.
+
+==================================================
+18. FINAL REPORT
+==================================================
+
+RENDER_LIVE =
+
+IOS_OTA_ID =
+IOS_OTA_BRANCH =
+IOS_OTA_CHANNEL =
+IOS_OTA_RUNTIME =
+BUILD_246_CAN_RECEIVE =
+
+DETERMINISTIC_DEVICE =
+DETERMINISTIC_SOURCE =
+DETERMINISTIC_LLM_USED =
+
+FRONTEND_MAP_DEVICE =
+KNOWLEDGE_FAQ_DEVICE =
+
+NO_EVIDENCE_DEVICE =
+NO_EVIDENCE_HALLUCINATION =
+
+LLM_FALLBACK_DEVICE =
+LLM_MODEL =
+LLM_SOURCE_COUNT =
+LLM_GROUNDED =
+
+ADMIN_DEVICE =
+TEACHER_DEVICE =
+PARENT_DEVICE =
+
+NORMAL_DEVICE =
+X_DEVICE =
+
+AI_MESSAGE_VISIBLE =
+CONVERSATION_PERSISTENCE =
+
+AI_RESPONDED_STATE =
+LOW_TO_HUMAN_STATE =
+RESOLVE_FLOW =
+
+SUPER_ADMIN_VISIBLE =
+SUPPORT_AI_TRACE =
+
+TOKEN_TRACKING =
+COST_TRACKING =
+LLM_AVOIDANCE_TRACKING =
+
+RAW_MESSAGE_IN_ANALYTICS =
+RAW_AI_OUTPUT_IN_ANALYTICS =
+CROSS_POOL_SECURITY =
+
+DEFECTS_FOUND =
+DEFECTS_FIXED =
+
+FILES_CHANGED_AFTER_TEST =
+FULL_TEST_RESULT =
+
+IOS_NEW_OTA_IF_DEFECT =
+ANDROID_OTA = NO
+
+성공 조건:
+
+BUILD_246_CAN_RECEIVE = YES
+
+DETERMINISTIC_LLM_USED = false
+
+NO_EVIDENCE_HALLUCINATION = NO
+
+LLM_FALLBACK_DEVICE = PASS
+LLM_GROUNDED = PASS
+
+AI_MESSAGE_VISIBLE = PASS
+CONVERSATION_PERSISTENCE = PASS
+
+CROSS_POOL_SECURITY = PASS
+
+RAW_MESSAGE_IN_ANALYTICS = NO
+RAW_AI_OUTPUT_IN_ANALYTICS = NO
+
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_08R_SUPPORT_AI_DEVICE_E2E_COMPLETE ✅
