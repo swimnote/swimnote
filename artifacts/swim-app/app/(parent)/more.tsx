@@ -163,7 +163,17 @@ export default function ParentMoreScreen() {
           onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
         />
 
-        {/* 문의하기 */}
+        {/* AI 문의 — CS-02R 단일 지원 UI */}
+        <MenuItem
+          icon="message-circle"
+          label="AI 문의"
+          sub="스윔노트 운영팀에 AI로 문의"
+          iconColor="#7C3AED"
+          iconBg="#FAF5FF"
+          onPress={() => router.push("/(parent)/support-chat" as any)}
+        />
+
+        {/* 문의하기 (기존 레거시 경로) */}
         <Pressable
           style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
           onPress={() => router.push("/(parent)/inquiries" as any)}
@@ -172,7 +182,7 @@ export default function ParentMoreScreen() {
             <LucideIcon name="help-circle" size={18} color={MINT_C} />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={[s.menuLabel, { color: C.text }]}>문의하기</Text>
+            <Text style={[s.menuLabel, { color: C.text }]}>문의하기 (기존)</Text>
             <Text style={[s.menuSub, { color: C.textMuted }]}>스윔노트 · 원장님에게 문의</Text>
           </View>
           {inquiryBadge > 0 && (

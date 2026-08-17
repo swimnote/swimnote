@@ -77,7 +77,7 @@ export async function ensureCs01rSchema(): Promise<void> {
 
 /** 허용된 state transition 맵 */
 export const VALID_TRANSITIONS: Record<string, readonly string[]> = {
-  NEW:             ["AI_PROCESSING", "HUMAN_REQUIRED", "WAITING"],
+  NEW:             ["AI_PROCESSING", "HUMAN_REQUIRED", "WAITING", "AI_RESOLVED"],
   AI_PROCESSING:   ["AI_RESPONDED", "WAITING", "HUMAN_REQUIRED", "AI_RESOLVED"],
   AI_RESPONDED:    ["WAITING", "AI_RESOLVED", "HUMAN_REQUIRED"],
   WAITING:         ["AI_PROCESSING", "AI_RESOLVED", "HUMAN_REQUIRED", "REOPENED"],

@@ -257,6 +257,8 @@ export default function AdminLayout() {
       <Tabs.Screen name="x-info-diary"           options={{ href: null }} />
       <Tabs.Screen name="x-info-curriculum"      options={{ href: null }} />
       <Tabs.Screen name="x-subscription"         options={{ href: null }} />
+      {/* CS-02R — AI 문의 (고객센터) */}
+      <Tabs.Screen name="support-chat"           options={{ href: null }} />
     </Tabs>
     </View>
   );

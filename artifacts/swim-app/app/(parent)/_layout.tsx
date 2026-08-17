@@ -123,6 +123,8 @@ function ParentStack() {
       <Stack.Screen name="add-child" />
       {/* SWIMNOTE X — push로만 접근, XModeGuard로 보호 (WP4) */}
       <Stack.Screen name="x-growth" />
+      {/* CS-02R — AI 문의 (고객센터) */}
+      <Stack.Screen name="support-chat" />
     </Stack>
   );
 }

@@ -368,6 +368,115 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
   }
 });
 
+// ── GET /support/cases (list) ─────────────────────────────────────────────────
+// 현재 사용자의 support case 목록 (최근 10개, active 우선)
+
+router.get("/support/cases", requireAuth, async (req: AuthRequest, res) => {
+  const user    = req.user!;
+  const actorId = user.userId;
+  const poolId  = user.poolId ?? null;
+  const isSuper = isSuperAdmin(user.role);
+
+  try {
+    let rows: any;
+    if (isSuper) {
+      rows = (await (superAdminDb as any).execute(sql`
+        SELECT id, pool_id, actor_id, ticket_id, actor_role, mode, state,
+               escalation_reason, context_json, resolved_at::text,
+               created_at::text, updated_at::text
+        FROM support_cases
+        ORDER BY updated_at DESC
+        LIMIT 20
+      `)) as any;
+    } else {
+      rows = (await (superAdminDb as any).execute(sql`
+        SELECT id, pool_id, actor_id, ticket_id, actor_role, mode, state,
+               escalation_reason, context_json, resolved_at::text,
+               created_at::text, updated_at::text
+        FROM support_cases
+        WHERE actor_id = ${actorId}
+          AND pool_id  = ${poolId}
+        ORDER BY updated_at DESC
+        LIMIT 10
+      `)) as any;
+    }
+
+    const cases = (rows?.rows ?? []).map((sc: any) => ({
+      ...sc,
+      master_state: getMasterState(sc.state, sc.escalation_reason),
+    }));
+
+    res.json({ cases });
+  } catch (err) {
+    console.error("[GET /support/cases]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── POST /support/cases/:id/resolve ──────────────────────────────────────────
+// "해결됐어요" — 현재 state에 따라 AI_RESOLVED 또는 RESOLVED로 전환.
+
+router.post("/support/cases/:id/resolve", requireAuth, async (req: AuthRequest, res) => {
+  const user    = req.user!;
+  const caseId  = req.params.id;
+  const actorId = user.userId;
+  const isSuper = isSuperAdmin(user.role);
+
+  try {
+    const caseRows = (await (superAdminDb as any).execute(sql`
+      SELECT actor_id, pool_id, ticket_id, state, escalation_reason
+      FROM support_cases WHERE id = ${caseId} LIMIT 1
+    `)) as any;
+    const sc = caseRows?.rows?.[0];
+    if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+
+    if (!isSuper) {
+      const ownerMismatch = sc.actor_id && sc.actor_id !== actorId;
+      const poolMismatch  = sc.pool_id  && sc.pool_id  !== (user.poolId ?? "");
+      if (ownerMismatch || poolMismatch) {
+        return res.status(403).json({ error: "접근 권한이 없습니다." });
+      }
+    }
+
+    const alreadyResolved = ["AI_RESOLVED", "RESOLVED", "CLOSED"].includes(sc.state);
+    if (alreadyResolved) {
+      return res.json({ ok: true, state: sc.state });
+    }
+
+    // 전환 대상 결정: AI 단계 → AI_RESOLVED, human 단계 → RESOLVED
+    const humanStates = ["HUMAN_REQUIRED", "HUMAN_RESPONDED", "ESCALATED", "PHONE_REQUIRED"];
+    const toState     = humanStates.includes(sc.state)
+      ? SUPPORT_CASE_STATE.RESOLVED
+      : SUPPORT_CASE_STATE.AI_RESOLVED;
+
+    const result = await transitionSupportCase({
+      caseId,
+      toState,
+      actorRole:       user.role ?? "unknown",
+      poolId:          sc.pool_id ?? null,
+      reason:          "USER_RESOLVED",
+      resolutionSource: "USER_CONFIRMED",
+    });
+
+    if (!result.ok) return res.status(result.status).json({ error: result.error });
+
+    void logSupportEvent({
+      eventType: SUPPORT_EVENT_TYPE.RESOLUTION_CONFIRMED,
+      caseId,
+      ticketId:  sc.ticket_id ?? null,
+      fromState: sc.state,
+      toState,
+      actorRole: user.role ?? "unknown",
+      poolId:    user.poolId ?? null,
+    }).catch(() => {});
+
+    res.json({ ok: true, state: toState });
+  } catch (err) {
+    console.error("[POST /support/cases/:id/resolve]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
 // ── POST /support/cases/:id/reopen ────────────────────────────────────────────
 
 router.post("/support/cases/:id/reopen", requireAuth, async (req: AuthRequest, res) => {

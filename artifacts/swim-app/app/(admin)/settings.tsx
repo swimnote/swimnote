@@ -62,6 +62,7 @@ const MY_SETTINGS: MenuItem[] = [
   { label: "내 정보",            icon: "user",           color: N,         bg: NB, route: "/(admin)/my-info",                   desc: "프로필 및 계정 정보" },
   { label: "웹 접속 비밀번호",   icon: "globe",          color: "#0369A1", bg: NB, route: "/(admin)/web-pin-settings",          desc: "swimnote.kr 웹 관리자 로그인 전용 비밀번호" },
   { label: "앱 사용 도움말",     icon: "life-buoy",      color: "#0EA5E9", bg: NB, route: "/(admin)/help",                      desc: "FAQ 및 기능 사용 가이드" },
+  { label: "AI 문의",            icon: "message-circle", color: "#7C3AED", bg: NB, route: "/(admin)/support-chat",              desc: "스윔노트 운영팀에 문의하기" },
 ];
 
 import { X as XT, isXMode } from "@/constants/xTheme";

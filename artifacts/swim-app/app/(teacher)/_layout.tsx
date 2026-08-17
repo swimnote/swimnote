@@ -203,6 +203,8 @@ export default function TeacherLayout() {
       <Tabs.Screen name="x-growth"              options={{ href: null }} />
       {/* GR5 — 선생님 리포트 검토 화면 */}
       <Tabs.Screen name="growth-report-review"  options={{ href: null }} />
+      {/* CS-02R — AI 문의 (고객센터) */}
+      <Tabs.Screen name="support-chat"           options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

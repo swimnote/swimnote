@@ -398,13 +398,23 @@ export default function TeacherSettingsScreen() {
           ))}
         </View>
 
-        {/* ── 문의하기 — 목록 최하단 ── */}
+        {/* ── AI 문의 — CS-02R 단일 지원 UI ── */}
+        <Pressable
+          style={[s.actionBtn, { borderColor: "#7C3AED" }]}
+          onPress={() => router.push("/(teacher)/support-chat" as any)}
+        >
+          <LucideIcon name="message-circle" size={18} color="#7C3AED" />
+          <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>AI 문의</Text>
+          <LucideIcon name="chevron-right" size={16} color="#7C3AED" />
+        </Pressable>
+
+        {/* ── 문의하기 (기존 레거시 경로) ── */}
         <Pressable
           style={[s.actionBtn, { borderColor: C.textPrimary }]}
           onPress={() => router.push("/(teacher)/inquiries" as any)}
         >
-          <LucideIcon name="message-circle" size={18} color={C.textPrimary} />
-          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>문의하기</Text>
+          <LucideIcon name="help-circle" size={18} color={C.textPrimary} />
+          <Text style={[s.actionBtnText, { color: C.textPrimary }]}>문의하기 (기존)</Text>
           <LucideIcon name="chevron-right" size={16} color={C.textPrimary} />
         </Pressable>
 
