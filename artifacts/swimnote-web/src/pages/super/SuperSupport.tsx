@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
+import SuperKnowledge from "./SuperKnowledge";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ function roleLabel(role: string): string {
 
 export default function SuperSupport() {
   // ── Tab state
-  const [tab, setTab] = useState<"inbox" | "future">("inbox");
+  const [tab, setTab] = useState<"inbox" | "knowledge" | "faq">("inbox");
 
   // ── Inbox filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -325,29 +326,34 @@ export default function SuperSupport() {
 
       {/* Top tabs */}
       <div className="flex gap-0 px-6 mb-0 shrink-0 border-b border-[#eee]">
-        <button
-          onClick={() => setTab("inbox")}
-          className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${
-            tab === "inbox"
-              ? "border-[#002F5F] text-[#002F5F]"
-              : "border-transparent text-[#aaa] hover:text-[#555]"
-          }`}
-        >
-          상담
-        </button>
-        {["Solution DB", "FAQ", "Known Issues"].map((t) => (
+        {([
+          { id: "inbox",     label: "상담" },
+          { id: "knowledge", label: "Knowledge DB" },
+          { id: "faq",       label: "FAQ" },
+        ] as const).map(({ id, label }) => (
           <button
-            key={t}
-            disabled
-            className="px-4 py-2.5 text-[12px] border-b-2 border-transparent text-[#ccc] cursor-not-allowed"
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${
+              tab === id
+                ? "border-[#002F5F] text-[#002F5F]"
+                : "border-transparent text-[#aaa] hover:text-[#555]"
+            }`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      {/* ── Knowledge / FAQ tabs ── */}
+      {(tab === "knowledge" || tab === "faq") && (
+        <div className="flex-1 overflow-hidden">
+          <SuperKnowledge subTab={tab} />
+        </div>
+      )}
+
+      {/* Main content — inbox only */}
+      <div className={`flex flex-1 min-h-0 overflow-hidden ${tab !== "inbox" ? "hidden" : ""}`}>
         {/* ── LEFT: Case list ── */}
         <div className="w-[300px] shrink-0 flex flex-col border-r border-[#eee] bg-[#fafafa]">
           {/* Status filter */}
