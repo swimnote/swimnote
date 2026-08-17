@@ -92,3 +92,4 @@
 - [WP-X03-T1 완료 상태](wp-x03-t1-done-state.md) — SHA 8f0c667c+5c55f3dc; 공식DOCX binary등록+auto-generation제거; docx패키지제거; Word안내UI; Render dep-da120tgjo6nc73fm0kug; OTA iOS 01a00c49+Android 01a00c4d
 - [WP-N7S 완료 상태](wp-n7s-done-state.md) — SHA 03e34a60; Sage→Clear Pool(15파일); WeeklyTimetableV2 classColor alpha +18→+28; TS 0; iOS OTA 01a00c74/01a00c75
 - [WP-X04 완료 상태](wp-x04-done-state.md) — SHA 07dac4df; docxParser+websitePackager+x04-structuring+migration; fflate; 35TC+1225TC; Render 배포 트리거
+- [WP-SA0-A 완료 상태](wp-sa0a-done-state.md) — SHA 6a617dd2; SuperGuard+SuperLayout+11페이지+App.tsx라우팅; web전용; Render/OTA 불필요

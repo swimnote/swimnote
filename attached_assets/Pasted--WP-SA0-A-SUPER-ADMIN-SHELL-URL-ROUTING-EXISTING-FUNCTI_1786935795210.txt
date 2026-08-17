@@ -1,0 +1,700 @@
+[WP-SA0-A — SUPER ADMIN SHELL / URL ROUTING / EXISTING FUNCTION REORGANIZATION]
+
+목적:
+
+기존 SuperAdmin의 8개 탭 구조를
+운영용 사이드바 + URL 기반 라우팅 구조로 전환한다.
+
+이번 단계의 핵심은:
+
+"기존 기능을 잃지 않고 새 정보구조 안으로 안전하게 재배치"
+
+이다.
+
+신규 운영 기능을 대량 구현하는 단계가 아니다.
+
+==================================================
+0. AUDIT RESULT — LOCK
+==================================================
+
+현재 감사 결과:
+
+기존 SuperAdmin:
+- 탭 8개
+- URL 라우팅 없음
+- PoolAdmin.tsx 별도 진입점
+
+기존 기능 분류:
+
+수영장 관리
+→ §2 수영장 관리
+
+지원센터
+→ §6 고객센터
+
+관리자 계정 생성
+→ §11 시스템 설정
+
+글로벌 템플릿
+→ §5 AI 운영
+
+검토 통계
+→ §5 AI 운영
+
+감사 로그
+→ §10 감사/로그
+
+광고 개요/Creative
+→ §9 Partner Analytics
+
+db-status / infra-usage / system-health API
+→ §7 서버 관리
+
+risk-center / op-logs
+→ §8 장애 관리
+
+X03/X04
+→ §4 X MODE 운영
+
+이 분류를 기준으로 구현한다.
+
+==================================================
+1. FIRST PRIORITY
+==================================================
+
+이번 WP의 성공조건은:
+
+기존 SuperAdmin의 모든 기능이
+새 구조 안에서 그대로 동작하는 것.
+
+기능 추가보다
+기능 손실 방지가 우선.
+
+==================================================
+2. TARGET NAVIGATION
+==================================================
+
+Super Admin 최종 top-level:
+
+1. Overview
+2. 수영장 관리
+3. 구독 / 결제
+4. X MODE 운영
+5. AI 운영
+6. 고객센터
+7. 서버 관리
+8. 장애 관리
+9. Partner Analytics
+10. 감사 / 로그
+11. 시스템 설정
+
+사이드바 기반.
+
+Desktop priority.
+
+==================================================
+3. URL ROUTING
+==================================================
+
+기존 탭 state-only 구조를
+URL 기반 routing으로 전환.
+
+예시:
+
+/super
+/super/overview
+
+/super/pools
+/super/pools/:poolId
+
+/super/billing
+
+/super/x-mode
+
+/super/ai
+
+/super/support
+
+/super/servers
+
+/super/incidents
+
+/super/partner
+
+/super/audit
+
+/super/settings
+
+실제 router convention 기준.
+
+==================================================
+4. DEFAULT ROUTE
+==================================================
+
+/super
+
+진입 시:
+
+/super/overview
+
+로 연결.
+
+history/back/refresh가 정상 작동해야 한다.
+
+==================================================
+5. DEEP LINK / REFRESH
+==================================================
+
+중요.
+
+각 메뉴에서 브라우저 refresh 시
+해당 화면 그대로 복원.
+
+예:
+
+/super/x-mode
+refresh
+→ X MODE 운영 그대로
+
+URL만 바뀌고 state 초기화로 Overview로 돌아가면 FAIL.
+
+==================================================
+6. SIDEBAR
+==================================================
+
+왼쪽 sidebar:
+
+SWIMNOTE SUPER ADMIN
+
+Overview
+
+수영장 관리
+
+구독 / 결제
+
+X MODE 운영
+
+AI 운영
+
+고객센터
+
+서버 관리
+
+장애 관리
+
+Partner Analytics
+
+감사 / 로그
+
+시스템 설정
+
+현재 메뉴 강조.
+
+과한 icon/color decoration 금지.
+
+==================================================
+7. EXISTING FUNCTION REUSE
+==================================================
+
+기존 component를 가능하면 그대로 재사용.
+
+기존 로직을 복사해서
+pages/super/* 에 다시 만드는 것 금지.
+
+필요하면 wrapper만 생성.
+
+예:
+
+ExistingAuditLog
+→ AuditLogsPage에서 reuse
+
+ExistingSupport
+→ SupportPage에서 reuse
+
+==================================================
+8. NO DUPLICATE IMPLEMENTATION
+==================================================
+
+반드시 보고:
+
+REUSED_COMPONENTS
+MOVED_COMPONENTS
+WRAPPED_COMPONENTS
+NEW_COMPONENTS
+
+기존 기능을
+새 UI에 복사하여 두 벌 만드는 것 금지.
+
+==================================================
+9. OVERVIEW — SHELL ONLY
+==================================================
+
+이번 A 단계에서는 Overview 전체 telemetry 구현하지 않는다.
+
+최소 shell:
+
+- 서비스 상태
+- 수영장
+- X
+- AI
+- 고객지원
+- 장애
+
+section 자리만 구성 가능.
+
+실제 source가 있는 값만 표시.
+
+없는 값:
+UNKNOWN / 준비중
+
+fake 0 금지.
+
+==================================================
+10. POOLS
+==================================================
+
+기존 수영장 관리 기능을:
+
+/super/pools
+
+로 이동.
+
+기존 기능 전부 유지.
+
+삭제/축소 금지.
+
+==================================================
+11. POOL DETAIL FOUNDATION
+==================================================
+
+/super/pools/:poolId
+
+route foundation 생성.
+
+기존 PoolAdmin.tsx를
+무작정 복제하지 않는다.
+
+먼저 PoolAdmin이:
+
+- pool context
+- API
+- X03
+- X04
+
+를 어떻게 사용 중인지 확인.
+
+재사용 가능한 구조로 연결.
+
+이번 A에서는 최소 상세 진입까지만 가능.
+
+==================================================
+12. BILLING SECTION
+==================================================
+
+구독 / 결제 메뉴 생성.
+
+현재 관련 기존 기능이 있으면 재배치.
+
+아직 SuperAdmin용 통합 billing 화면이 없으면
+placeholder 가능:
+
+"구독/결제 운영 화면 준비중"
+
+단 실제 데이터를 fake로 만들지 않는다.
+
+SA0-B/후속에서 확장.
+
+==================================================
+13. X MODE OPERATIONS
+==================================================
+
+X03 / X04 existing component/service를
+재사용하여:
+
+/super/x-mode
+
+에서 접근 가능하게 한다.
+
+최소:
+
+- 수영장 선택/목록
+- X setup
+- 원본 제출자료
+- 구조화
+- 승인
+- 홈페이지 package
+
+기존 기능 그대로.
+
+==================================================
+14. AI OPERATIONS
+==================================================
+
+기존:
+
+글로벌 템플릿
+검토 통계
+
+를:
+
+AI 운영
+
+안으로 이동.
+
+Sub navigation 가능:
+
+AI 운영
+- 글로벌 템플릿
+- 검토 통계
+- Usage (placeholder)
+- Errors (placeholder)
+
+==================================================
+15. SUPPORT
+==================================================
+
+기존 "지원센터"
+
+→ "고객센터"
+
+로 rename.
+
+기능 삭제/변경 금지.
+
+향후 Support AI가 이 안으로 들어온다.
+
+==================================================
+16. SERVER MANAGEMENT
+==================================================
+
+이번 A에서는 shell + existing API view 재배치.
+
+기존:
+
+db-status
+infra-usage
+system-health
+
+를:
+
+서버 관리
+
+안에서 접근 가능하게 한다.
+
+새 monitoring backend를 아직 만들지 않는다.
+
+==================================================
+17. INCIDENT MANAGEMENT
+==================================================
+
+이번 A에서는:
+
+장애 관리 메뉴 shell 생성.
+
+기존:
+
+risk-center
+op-logs
+
+를 재배치.
+
+신규 incidents CRUD는
+SA0-B에서 구현.
+
+이번 A에서 DB migration 금지.
+
+==================================================
+18. PARTNER ANALYTICS
+==================================================
+
+기존:
+
+광고 개요
+Creative
+
+를 우선 이 메뉴 아래로 이동하되,
+
+광고 기능 자체가
+Partner Analytics와 실제로 별개라면
+무리하게 의미를 바꾸지 않는다.
+
+필요하면 내부 그룹:
+
+Partner Analytics
+- Partner Evidence (준비중)
+- AI Usage (준비중)
+- 광고 개요
+- Creative
+
+로 임시 배치.
+
+향후 Partner Analytics WP에서 재구성.
+
+==================================================
+19. AUDIT LOG
+==================================================
+
+기존 감사 로그:
+
+/super/audit
+
+로 이동.
+
+기능 동일.
+
+==================================================
+20. SYSTEM SETTINGS
+==================================================
+
+기존:
+
+관리자 계정 생성
+
+을 시스템 설정으로 이동.
+
+향후:
+
+maintenance
+feature flags
+global settings
+
+수용 가능한 구조.
+
+이번 A에서는 존재하지 않는 기능 만들지 않는다.
+
+==================================================
+21. COMPONENT STRUCTURE
+==================================================
+
+예:
+
+pages/super/
+  SuperOverview.tsx
+  SuperPools.tsx
+  SuperPoolDetail.tsx
+  SuperBilling.tsx
+  SuperXMode.tsx
+  SuperAI.tsx
+  SuperSupport.tsx
+  SuperServers.tsx
+  SuperIncidents.tsx
+  SuperPartner.tsx
+  SuperAudit.tsx
+  SuperSettings.tsx
+
+components/super/
+  SuperSidebar.tsx
+  SuperLayout.tsx
+
+실제 repository convention 우선.
+
+==================================================
+22. ACTIVE ROUTE
+==================================================
+
+sidebar active state는
+local selectedTab state가 아니라
+현재 URL/router 기반.
+
+==================================================
+23. ACCESS CONTROL
+==================================================
+
+기존 super_admin auth 보호 유지.
+
+URL 직접 입력:
+
+/super/servers
+/super/x-mode
+/super/audit
+
+등도 non-super-admin 차단.
+
+UI hide만으로 끝내지 않는다.
+
+==================================================
+24. EXISTING FUNCTION LOSS TEST
+==================================================
+
+기존 8개 기능 각각:
+
+OLD
+→ NEW ROUTE
+→ WORKS
+
+mapping test 작성.
+
+최소:
+
+수영장 관리
+지원센터
+관리자 계정 생성
+글로벌 템플릿
+검토 통계
+감사 로그
+광고 개요
+Creative
+
+전부 검증.
+
+==================================================
+25. BACK / REFRESH TEST
+==================================================
+
+SA0-A-01
+Overview → Pools → browser back
+→ Overview
+
+SA0-A-02
+/super/x-mode refresh
+→ X Mode
+
+SA0-A-03
+/super/audit direct URL
+→ Audit
+
+SA0-A-04
+non-superadmin direct URL
+→ denied
+
+==================================================
+26. MOBILE
+==================================================
+
+모바일 앱 변경 금지.
+
+Super Admin web이 좁은 브라우저에서
+최소 접근 가능하면 충분.
+
+Desktop priority.
+
+==================================================
+27. VISUAL
+==================================================
+
+simple.
+
+sidebar
+header
+content
+
+3영역이면 충분.
+
+large marketing cards 금지.
+animation 금지.
+gradient 금지.
+
+운영 콘솔 느낌.
+
+==================================================
+28. DO NOT TOUCH
+==================================================
+
+이번 A 단계 변경 금지:
+
+incidents DB
+new monitoring backend
+AI usage analytics
+Partner instrumentation
+Support AI
+mobile
+X billing
+ModeContext
+themes
+scheduler
+website generation
+curriculum AI generation
+
+==================================================
+29. DEPLOYMENT
+==================================================
+
+Web Super Admin 변경 중심.
+
+server 변경이 필요하지 않으면
+Render 배포 금지.
+
+DB 변경 금지.
+
+mobile OTA 없음.
+
+==================================================
+30. FINAL REPORT
+==================================================
+
+OLD_SUPER_ADMIN_STRUCTURE =
+NEW_SUPER_ADMIN_STRUCTURE =
+
+URL_ROUTING_IMPLEMENTED =
+SIDEBAR_IMPLEMENTED =
+
+TOP_LEVEL_ROUTES =
+
+EXISTING_FUNCTIONS_TOTAL =
+EXISTING_FUNCTIONS_PRESERVED =
+
+REUSED_COMPONENTS =
+MOVED_COMPONENTS =
+WRAPPED_COMPONENTS =
+NEW_COMPONENTS =
+
+DUPLICATE_FUNCTION_IMPLEMENTATION =
+
+POOLS_ROUTE =
+POOL_DETAIL_ROUTE =
+BILLING_ROUTE =
+X_MODE_ROUTE =
+AI_ROUTE =
+SUPPORT_ROUTE =
+SERVER_ROUTE =
+INCIDENT_ROUTE =
+PARTNER_ROUTE =
+AUDIT_ROUTE =
+SETTINGS_ROUTE =
+
+X03_REUSED =
+X04_REUSED =
+
+DIRECT_URL_REFRESH =
+BROWSER_BACK =
+ACTIVE_ROUTE_STATE =
+
+NON_SUPER_ADMIN_ACCESS =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+
+COMMIT_SHA =
+DEPLOYMENT =
+
+성공 조건:
+
+URL_ROUTING_IMPLEMENTED = YES
+SIDEBAR_IMPLEMENTED = YES
+
+EXISTING_FUNCTIONS_PRESERVED =
+ALL
+
+DUPLICATE_FUNCTION_IMPLEMENTATION =
+NO
+
+DIRECT_URL_REFRESH = PASS
+BROWSER_BACK = PASS
+ACTIVE_ROUTE_STATE = URL_BASED
+
+X03_REUSED = YES
+X04_REUSED = YES
+
+NON_SUPER_ADMIN_ACCESS =
+DENIED
+
+DB_CHANGED = NO
+MOBILE_CHANGED = NO
+
+완료:
+
+WP_SA0_A_SUPER_ADMIN_SHELL_ROUTING_REORGANIZATION_COMPLETE ✅
