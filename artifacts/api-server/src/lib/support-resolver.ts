@@ -619,13 +619,39 @@ export async function gatherEvidence(
       .sort((a, b) => b.score - a.score)
       .slice(0, maxItems);
 
-    return scored.map(({ r, score }) => ({
+    const knowledgeEvidence = scored.map(({ r, score }) => ({
       id:        r.id,
       item_type: r.item_type,
       title:     r.title,
       answer:    r.answer ?? r.content,
       score,
     }));
+
+    // ── Frontend Map static registry (독립 evidence source) ──────────────────
+    // support_knowledge_items ACTIVE = 0 이어도 FM 레지스트리에서 evidence 수집.
+    // role / mode 필터 필수 — parent에게 admin 화면 노출 금지.
+    const fmEvidence: Array<{ id: string; item_type: string; title: string; answer: string; score: number }> = [];
+    if (ctx.qLower) {
+      for (const screen of FRONTEND_MAP_REGISTRY) {
+        if (!fmPassesFilter(screen, ctx.role, ctx.mode)) continue;
+        const score = fmScore(screen, ctx.qLower, ctx.tokens);
+        if (score > 0) {
+          fmEvidence.push({
+            id:        `fm_${screen.screen_id}`,
+            item_type: "FRONTEND_MAP",
+            title:     screen.screen_name,
+            answer:    screen.purpose +
+              (screen.deep_link ? ` (화면 경로: ${screen.deep_link})` : ""),
+            score,
+          });
+        }
+      }
+    }
+
+    // Merge knowledge + FM evidence, sort by score descending, cap at maxItems
+    return [...knowledgeEvidence, ...fmEvidence]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxItems);
   } catch {
     return [];
   }

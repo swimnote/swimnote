@@ -284,6 +284,11 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   const evidence = await gatherEvidence(ctx, 5);
 
+  // llm_used = "실제 provider LLM API를 호출했는가"
+  // evidence=0 → no_evidence 분기 → OpenAI 미호출 → llm_used=false
+  // evidence>0 → OpenAI 호출 시도 (error/success 무관) → llm_used=true
+  const llmActuallyCalled = evidence.length > 0;
+
   const evidenceBlock = evidence.length > 0
     ? evidence
         .map((e, i) => `[${i + 1}] ${e.item_type} — ${e.title}\n${e.answer}`)
@@ -423,12 +428,12 @@ ${evidenceBlock}
       model:       LLM_MODEL,
     }).catch(() => {});
   } else if (evidence.length === 0) {
-    // No evidence branch — no OpenAI call
+    // No evidence branch — no OpenAI call; model=null (API was never invoked)
     await saveAiTrace({
       ...traceBase,
       status:          "SUCCESS",
       generation_mode: "no_evidence",
-      model:           LLM_MODEL,
+      model:           null,
       latency_ms:      latencyMs,
       input_tokens:    null,
       output_tokens:   null,
@@ -498,8 +503,8 @@ ${evidenceBlock}
 
   return res.json({
     ok:         true,
-    llm_used:   true,
-    llm_called: evidence.length > 0 && !llmError,
+    llm_used:   llmActuallyCalled,
+    llm_called: llmActuallyCalled && !llmError,
     source:     "LLM",
     confidence: llmOutput!.confidence,
     answer:     llmOutput!.answer,
