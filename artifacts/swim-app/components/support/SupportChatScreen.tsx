@@ -111,15 +111,16 @@ function buildDeviceContext() {
   };
 }
 
-function fmtTime(iso: string) {
-  try {
-    const d = new Date(iso);
-    const h = d.getHours().toString().padStart(2, "0");
-    const m = d.getMinutes().toString().padStart(2, "0");
-    return `${h}:${m}`;
-  } catch {
-    return "";
-  }
+function fmtTime(raw: string | null | undefined): string {
+  if (!raw) return "";
+  // PostgreSQL created_at::text → "2026-08-17 08:22:01.123456" (space, no tz)
+  // iOS JSC requires ISO 8601: replace space with T so Date() parses correctly
+  const iso = raw.replace(" ", "T");
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const h = d.getHours().toString().padStart(2, "0");
+  const m = d.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
