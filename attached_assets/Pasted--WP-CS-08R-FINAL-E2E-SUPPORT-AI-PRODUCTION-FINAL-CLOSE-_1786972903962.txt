@@ -1,0 +1,416 @@
+[WP-CS-08R-FINAL-E2E — SUPPORT AI PRODUCTION FINAL CLOSE]
+
+목적:
+
+WP-CS-08R Support AI를 production 실기기에서 최종 검증하고 FULL CLOSE한다.
+
+신규 기능 개발 금지.
+실제 defect가 있을 때만 최소 수정.
+
+==================================================
+0. RENDER VERIFY
+==================================================
+
+Commit:
+74efb4e2
+
+Render production LIVE 확인.
+
+보고:
+
+RENDER_LIVE =
+DEPLOYED_COMMIT =
+
+==================================================
+1. KNOWLEDGE REVIEW — MANUAL APPROVAL ONLY
+==================================================
+
+현재 production의 PENDING Knowledge/FAQ를 검토.
+
+테스트용으로 아무 항목이나 활성화하지 않는다.
+
+실제 내용이 현재 앱과 정확히 일치하는 항목만
+Super Admin UI에서 사람이 검토 후 ACTIVE 전환.
+
+최소 필요:
+
+1. FAQ 또는 Knowledge 1개
+2. Frontend Map screen_id와 연결된 Knowledge/FAQ 1개
+
+중요:
+
+자동 ACTIVE 금지.
+SQL 직접 UPDATE 금지.
+migration 수정 금지.
+seed status 변경 금지.
+
+승인은 반드시 기존 Super Admin approval flow 사용.
+
+보고:
+
+REVIEWED_ITEMS =
+ACTIVATED_ITEMS =
+REJECTED_OR_LEFT_PENDING_ITEMS =
+
+==================================================
+2. DEVICE — DB STATE DETERMINISTIC
+==================================================
+
+TestFlight Build 246에서 실제 pool_admin 계정 사용.
+
+예:
+"현재 X 구독 상태가 어떻게 되나요?"
+
+실제 계정이 X와 무관하면
+현재 DB_STATE layer가 지원하는 다른 안전한 질문 사용.
+
+검증:
+
+MESSAGE_SENT = PASS
+AI_MESSAGE_VISIBLE = PASS
+SOURCE = DB_STATE
+LLM_USED = false
+
+==================================================
+3. DEVICE — FRONTEND MAP DETERMINISTIC
+==================================================
+
+실제 registry에 존재하는 화면 위치 질문.
+
+예시는 repository 기준으로 고른다.
+
+검증:
+
+SOURCE = FRONTEND_MAP
+LLM_USED = false
+ROLE_FILTER = PASS
+MODE_FILTER = PASS
+
+화면/메뉴를 창작하면 FAIL.
+
+==================================================
+4. DEVICE — FAQ / KNOWLEDGE
+==================================================
+
+§1에서 실제 검토 후 ACTIVE한 항목 질문.
+
+검증:
+
+SOURCE = FAQ 또는 KNOWLEDGE
+LLM_USED = false
+ANSWER_MATCHES_APPROVED_CONTENT = PASS
+
+PENDING item 사용 금지.
+
+==================================================
+5. DEVICE — NO EVIDENCE
+==================================================
+
+SWIMNOTE에 없는 기능 질문.
+
+예:
+실제로 존재하지 않는 기능을 repository 확인 후 선정.
+
+검증:
+
+confidence = LOW
+requires_human = true
+llm_used = false
+model = null
+hallucinated feature/policy = NO
+
+==================================================
+6. DEVICE — GROUNDED LLM FALLBACK
+==================================================
+
+exact deterministic 답은 아니지만
+관련 Frontend Map 또는 ACTIVE Knowledge evidence가 존재하는
+자연어 변형/복합 질문 1개.
+
+중요:
+
+exact match로 deterministic 종료되는 질문은 피한다.
+
+기대:
+
+Router
+→ evidence
+→ OpenAI actual call
+→ grounded response
+
+검증:
+
+LLM_USED = true
+MODEL = gpt-4o-mini
+SOURCE_IDS_COUNT > 0
+CONFIDENCE = HIGH or MEDIUM
+GROUNDED = PASS
+
+근거 밖 기능/정책 생성 시 FAIL.
+
+==================================================
+7. DEVICE — CONVERSATION PERSISTENCE
+==================================================
+
+최소 같은 case에서:
+
+user message
+AI answer
+user follow-up
+AI/deterministic answer
+
+확인.
+
+앱 완전 종료
+→ 재실행
+→ AI 문의 진입
+
+기존 대화 유지 확인.
+
+보고:
+
+CONVERSATION_PERSISTENCE = PASS/FAIL
+
+==================================================
+8. DEVICE — RESOLUTION BUTTON
+==================================================
+
+AI 답변 후:
+
+[해결됐어요]
+
+실제 동작 확인.
+
+그리고 별도 case 또는 테스트 가능한 흐름에서:
+
+[아직 안돼요]
+
+확인.
+
+기대:
+
+해결됨 → resolved state
+아직 안돼요 → HUMAN_REQUIRED / human flow
+
+==================================================
+9. ROLE MATRIX
+==================================================
+
+가능한 실제 계정으로:
+
+admin
+teacher
+parent
+
+최소:
+
+AI 문의 화면 진입
+메시지 전송
+답변 표시
+
+검증.
+
+모든 role에서 같은 SupportChatScreen source 사용.
+
+보고:
+
+ADMIN_DEVICE =
+TEACHER_DEVICE =
+PARENT_DEVICE =
+
+계정이 실제로 준비되지 않은 role이 있다면
+NO_SAFE_ACCOUNT와 이유 보고.
+가짜 계정 생성 금지.
+
+==================================================
+10. MODE MATRIX
+==================================================
+
+가능한 실제 production/test 계정으로:
+
+Normal
+X
+
+최소 1회씩 support flow 검증.
+
+보고:
+
+NORMAL_DEVICE =
+X_DEVICE =
+
+실제 안전 계정 없으면
+NO_SAFE_ACCOUNT 허용.
+
+Normal에 X-only 메뉴 안내하면 FAIL.
+
+==================================================
+11. SUPER ADMIN VERIFY
+==================================================
+
+Super Support에서 실제 테스트 case 확인.
+
+필수:
+
+user message
+AI message
+case state
+role
+mode
+pool
+
+확인.
+
+보고:
+
+SUPER_ADMIN_CASE_VISIBLE =
+
+==================================================
+12. TRACE VERIFY
+==================================================
+
+실제 테스트 request 중:
+
+deterministic 1건
+no_evidence 1건
+llm_grounded 1건
+
+trace 확인.
+
+기대:
+
+deterministic:
+generation_mode=deterministic
+llm_used=false
+model=null
+
+no_evidence:
+generation_mode=no_evidence
+llm_used=false
+model=null
+
+llm_grounded:
+generation_mode=llm_grounded
+llm_used=true
+model=gpt-4o-mini
+
+token은 실제 provider usage 사용.
+
+==================================================
+13. ANALYTICS PRIVACY
+==================================================
+
+event_logs / AI trace에서:
+
+raw user message 없음
+raw AI answer 없음
+prompt 전문 없음
+
+확인.
+
+==================================================
+14. DEFECT POLICY
+==================================================
+
+실제 defect 발견 시만:
+
+root cause
+→ 최소 수정
+→ 관련 테스트
+→ full regression
+→ Render
+
+모바일 source 수정이 생긴 경우에만:
+iOS production OTA
+
+절대 preview OTA 금지.
+
+Android OTA = NO.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+RENDER_LIVE =
+DEPLOYED_COMMIT =
+
+REVIEWED_ITEMS =
+ACTIVATED_ITEMS =
+
+DB_STATE_DEVICE =
+DB_STATE_LLM_USED =
+
+FRONTEND_MAP_DEVICE =
+FRONTEND_MAP_LLM_USED =
+
+FAQ_KNOWLEDGE_DEVICE =
+FAQ_KNOWLEDGE_LLM_USED =
+
+NO_EVIDENCE_DEVICE =
+NO_EVIDENCE_LLM_USED =
+NO_EVIDENCE_MODEL =
+NO_EVIDENCE_HALLUCINATION =
+
+LLM_FALLBACK_DEVICE =
+LLM_MODEL =
+LLM_SOURCE_COUNT =
+LLM_CONFIDENCE =
+LLM_GROUNDED =
+
+AI_MESSAGE_VISIBLE =
+CONVERSATION_PERSISTENCE =
+
+RESOLVED_BUTTON =
+NOT_RESOLVED_BUTTON =
+
+ADMIN_DEVICE =
+TEACHER_DEVICE =
+PARENT_DEVICE =
+
+NORMAL_DEVICE =
+X_DEVICE =
+
+SUPER_ADMIN_CASE_VISIBLE =
+
+DETERMINISTIC_TRACE =
+NO_EVIDENCE_TRACE =
+LLM_GROUNDED_TRACE =
+
+RAW_MESSAGE_IN_ANALYTICS =
+RAW_OUTPUT_IN_ANALYTICS =
+
+DEFECTS_FOUND =
+DEFECTS_FIXED =
+
+FILES_CHANGED =
+FULL_TEST_RESULT =
+
+SERVER_DEPLOYMENT_IF_FIX =
+IOS_PRODUCTION_OTA_IF_FIX =
+ANDROID_OTA = NO
+
+성공 조건:
+
+AI_MESSAGE_VISIBLE = PASS
+CONVERSATION_PERSISTENCE = PASS
+
+DB_STATE_LLM_USED = false
+FRONTEND_MAP_LLM_USED = false
+FAQ_KNOWLEDGE_LLM_USED = false
+
+NO_EVIDENCE_LLM_USED = false
+NO_EVIDENCE_MODEL = null
+NO_EVIDENCE_HALLUCINATION = NO
+
+LLM_FALLBACK_DEVICE = PASS
+LLM_GROUNDED = PASS
+
+SUPER_ADMIN_CASE_VISIBLE = PASS
+
+RAW_MESSAGE_IN_ANALYTICS = NO
+RAW_OUTPUT_IN_ANALYTICS = NO
+
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_08R_SUPPORT_AI_FULL_CLOSE ✅
