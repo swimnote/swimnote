@@ -105,3 +105,4 @@
 - [WP-CS-05R 완료 상태](wp-cs05r-done-state.md) — SHA 2808cdfc; Knowledge+FAQ Foundation; 48TC+1600TC; Render 배포 트리거됨; OTA 없음
 - [WP-CS-07R 완료 상태](wp-cs07r-done-state.md) — SHA c83dd197; Resolution Router 7-layer chain; 25TC+1625TC; Render 배포 트리거됨; OTA 없음
 - [WP-CS-08R 완료 상태](wp-cs08r-done-state.md) — SHA 1e2026a6; Support AI Engine(POST /support/respond)+lib/support-resolver; 28TC+1653TC; Render 트리거; OTA iOS 01a00fb3
+- [P0-MINI CS08R Harden 완료](p0-mini-cs08r-harden-done.md) — SHA 74efb4e2; gatherEvidence FM독립+llm_used/model no_evidence fix; 19TC+1672TC; Render 트리거; OTA NO
