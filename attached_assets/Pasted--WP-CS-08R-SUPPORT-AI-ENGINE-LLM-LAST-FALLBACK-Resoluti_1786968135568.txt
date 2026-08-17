@@ -1,0 +1,863 @@
+[WP-CS-08R — SUPPORT AI ENGINE / LLM LAST FALLBACK]
+
+목적:
+
+현재 완성된 Resolution Router 뒤에
+실제 Support AI를 연결한다.
+
+절대 원칙:
+
+SEARCH FIRST
+DB FIRST
+SOLUTION FIRST
+LLM LAST
+
+모든 문의를 OpenAI로 보내지 않는다.
+
+이번 WP에서 Task #29를 흡수한다.
+
+TASK #30 X04 FAQ 자동 추출 = HOLD
+TASK #31 미답변 갭 분석 = HOLD
+
+==================================================
+0. BASELINE
+==================================================
+
+현재 Router:
+
+POST /support/resolve
+
+순서:
+
+RULE
+→ DB_STATE
+→ SOLUTION
+→ FRONTEND_MAP
+→ FAQ / KNOWLEDGE
+→ KNOWN_ISSUE
+→ NO_MATCH
+
+deterministic 결과가 있으면
+LLM 호출 금지.
+
+==================================================
+1. FIRST — EXISTING AI INFRA AUDIT
+==================================================
+
+수정 전 실제 repository 감사.
+
+확인:
+
+OpenAI client/wrapper
+model router
+timeout
+retry
+usage metadata
+ai-trace-service
+AI_FEATURE.SUPPORT_AI
+event_logs category='AI'
+pricing
+request_id/trace_id
+
+기존 abstraction 최대 재사용.
+
+새 OpenAI client 중복 생성 금지.
+
+==================================================
+2. SUPPORT AI INVOCATION CONDITION
+==================================================
+
+LLM 호출 허용:
+
+A. Router = NO_MATCH
+B. Router = NEEDS_DIAGNOSTIC 이고
+   사용자 자연어 해석이 필요한 경우
+C. 여러 검증 Knowledge를 조합해야 하는 경우
+D. 사용자가 자유질문을 했고
+   검색 근거가 존재하지만 저장 답변 그대로는 부족한 경우
+
+LLM 호출 금지:
+
+Rule exact
+DB state exact
+Solution exact
+Frontend Map exact
+FAQ exact
+Known Issue exact
+
+==================================================
+3. ROUTER MUST RUN FIRST
+==================================================
+
+Support AI endpoint에서도
+항상 Resolution Router 먼저 실행.
+
+App
+→ Support endpoint
+→ Router
+→ deterministic answer 가능?
+    YES → 그대로 반환
+    NO → AI fallback
+
+클라이언트에서 바로 OpenAI 호출 금지.
+
+==================================================
+4. SUPPORT AI ENDPOINT
+==================================================
+
+기존 /support/resolve를 확장하거나
+명확한 orchestration endpoint 추가.
+
+예:
+
+POST /support/respond
+
+입력:
+
+case_id
+message
+support context
+
+실제 repository convention 우선.
+
+반드시 auth 기반:
+
+user_id
+pool_id
+role
+mode
+
+확정.
+
+==================================================
+5. CONTEXT
+==================================================
+
+현재 확보 가능한 context 사용:
+
+user_id
+pool_id
+user_role
+service_mode
+subscription_plan if available
+xmode_enabled if available
+app_version
+runtime_version
+current_route
+current_screen
+feature_id
+request_id
+
+없는 값 추정 금지.
+
+==================================================
+6. RETRIEVAL BEFORE LLM
+==================================================
+
+LLM 호출 전 관련 근거만 수집.
+
+가능 source:
+
+Resolution Router candidate
+Knowledge
+FAQ
+Frontend Map
+Solution
+Known Issue
+DB state
+
+전체 Knowledge DB를 prompt에 넣지 않는다.
+
+==================================================
+7. GROUNDED SUPPORT PROMPT
+==================================================
+
+Support AI는
+검색된 SWIMNOTE 근거 범위 안에서만 답변.
+
+금지:
+
+없는 메뉴 창작
+없는 정책 창작
+없는 기능 창작
+임의 환불정책 창작
+임의 DB 상태 추정
+임의 X 기능 설명
+수영 전문 판단 확장
+
+근거 부족:
+LOW confidence
+→ 추가 질문 또는 human escalation.
+
+==================================================
+8. RESPONSE CONFIDENCE
+==================================================
+
+HIGH:
+검증된 근거 충분
+
+MEDIUM:
+근거 있으나 추가 context 필요
+
+LOW:
+근거 부족 / 여러 원인 가능
+
+LOW일 때
+그럴듯한 정답 생성 금지.
+
+행동:
+
+ASK_CLARIFYING
+REQUEST_SCREENSHOT
+REQUIRES_HUMAN
+
+중 하나.
+
+==================================================
+9. RESPONSE CONTRACT
+==================================================
+
+최소:
+
+case_id
+request_id
+
+resolution_source
+AI or deterministic
+
+answer
+
+confidence
+
+source_ids[]
+screen_id?
+deep_link?
+
+requires_human
+needs_more_info
+suggested_next_action
+
+llm_used
+model?
+usage?
+
+==================================================
+10. DETERMINISTIC RESPONSE
+==================================================
+
+Router에서 해결되면:
+
+llm_used = false
+model = null
+usage = null
+
+저장된 answer/solution을 반환.
+
+필요하면 deterministic formatting만.
+
+OpenAI wording polish도 금지.
+
+==================================================
+11. LLM RESPONSE
+==================================================
+
+AI fallback 시:
+
+llm_used = true
+
+사용:
+
+retrieved evidence
+current context
+사용자 현재 메시지
+
+만.
+
+대화 전체를 무조건 다 넣지 않는다.
+
+필요한 recent turns만 제한.
+
+==================================================
+12. PRIVACY
+==================================================
+
+OpenAI에 불필요하게 보내지 말 것:
+
+학생 이름
+전화번호
+email
+JWT
+전체 수업피드
+불필요한 리포트 본문
+다른 사용자 정보
+
+현재 문의 해결에 필요한 최소 context만.
+
+==================================================
+13. SUPPORT MESSAGE STORAGE
+==================================================
+
+사용자 메시지는 기존 message stream 저장.
+
+AI 답변 성공:
+
+author_role = ai
+
+로 같은 conversation에 저장.
+
+별도 AI conversation table 생성 금지.
+
+==================================================
+14. SYSTEM ACK 제거/전환
+==================================================
+
+현재 CS02R의:
+
+"문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+
+system acknowledgement는
+
+실제 Support AI가 응답하는 flow에서는
+AI 답변을 가리지 않게 정리.
+
+단 AI 호출 실패/사람 연결 시
+필요한 system message는 유지 가능.
+
+==================================================
+15. CASE STATE MACHINE
+==================================================
+
+사용자 message
+→ AI_PROCESSING
+
+deterministic/AI response
+→ AI_RESPONDED
+
+사용자 해결 확인
+→ AI_RESOLVED
+
+AI LOW confidence / human 필요
+→ HUMAN_REQUIRED
+
+기존 transitionSupportCase() 사용.
+
+직접 state update 금지.
+
+==================================================
+16. HUMAN ESCALATION
+==================================================
+
+다음 경우:
+
+LOW confidence
+ACCOUNT_ACTION_REQUIRED
+BILLING_REQUIRED
+REFUND_REQUIRED
+SAFETY_OR_PRIVACY
+반복 실패
+
+requires_human=true 가능.
+
+그러나 자동 ticket 생성은
+정책에 따라 확인.
+
+기본적으로 사용자에게:
+
+[상담사에게 문의하기]
+
+CTA 제공.
+
+무조건 전화 연결 금지.
+
+==================================================
+17. MODEL ROUTING
+==================================================
+
+현재 기존 model abstraction 있으면 재사용.
+
+이번 WP에서는 과도한 multi-model router 금지.
+
+간단한 Support text:
+저비용 적절 모델
+
+복합 reasoning:
+필요 시 고성능
+
+실제 현재 provider/model 구조 기준.
+
+모델 이름 하드코딩 여러 곳 금지.
+
+==================================================
+18. TOKEN / COST TRACE
+==================================================
+
+CS-PA1 instrumentation 재사용.
+
+feature:
+SUPPORT_AI
+
+sub_feature 최소:
+
+SUPPORT_RESPONSE
+
+필요하면:
+
+SUPPORT_CLASSIFICATION
+
+하지만 불필요한 분류용 별도 AI 호출 금지.
+
+기록:
+
+request_id
+trace_id
+pool_id
+role
+mode
+provider
+model
+tokens
+estimated_cost
+latency
+status
+result_generated
+
+==================================================
+19. LLM AVOIDANCE EVENT
+==================================================
+
+deterministic 해결:
+
+llm_used=false
+
+AI fallback:
+
+llm_used=true
+
+향후:
+
+LLM Avoidance Rate
+
+계산 가능하도록 SUPPORT event metadata에 기록.
+
+==================================================
+20. SUPPORT EVENTS
+==================================================
+
+최소:
+
+ROUTER_RESOLVED
+LLM_REQUIRED
+LLM_CALLED
+AI_RESPONDED
+AI_LOW_CONFIDENCE
+HUMAN_RECOMMENDED
+
+raw user query/AI 답변 전체를
+event_logs에 저장 금지.
+
+==================================================
+21. KNOWLEDGE SOURCE CITATION INTERNAL
+==================================================
+
+사용자에게 기술적인 source ID를
+굳이 보여줄 필요 없음.
+
+하지만 운영 trace에는:
+
+source_type
+source_ids
+screen_id
+knowledge revision
+
+추적 가능.
+
+==================================================
+22. NO KNOWLEDGE = NO HALLUCINATION
+==================================================
+
+Router NO_MATCH
++
+retrieval evidence 없음
+
+이면:
+
+LLM에게 일반 SWIMNOTE 답변을
+상상해서 만들게 하지 않는다.
+
+가능:
+
+추가 질문
+화면/스크린샷 요청
+상담사 연결
+
+==================================================
+23. SCREENSHOT
+==================================================
+
+이번 WP에서 Vision 구현 금지.
+
+이미지 첨부가 들어오면:
+
+"스크린샷 분석 기능 준비중"
+처럼 fake AI 분석 금지.
+
+Vision은 후속 WP-CS-09.
+
+==================================================
+24. GROWTH REPORT
+==================================================
+
+일반 Support AI가
+개별 성장리포트 평가를 새로 해석/추론하지 않는다.
+
+Report-specific Support는 후속 WP.
+
+현재는 기능/상태/위치 Knowledge만.
+
+==================================================
+25. BILLING / REFUND
+==================================================
+
+AI 가능:
+
+정책 안내
+상태 설명
+담당자 연결
+
+금지:
+
+refund 실행
+subscription 변경
+entitlement 변경
+
+==================================================
+26. ACCOUNT ACTION
+==================================================
+
+AI가 직접:
+
+계정 삭제
+권한 변경
+비밀번호 변경
+membership 변경
+
+금지.
+
+existing safe flow 안내만.
+
+==================================================
+27. APP CONNECTION
+==================================================
+
+현재 SupportChatScreen에서
+사용자 message 전송 후
+
+Support AI response endpoint를 호출하도록 연결.
+
+공통 source 한 곳만 수정.
+
+admin/teacher/parent
+Normal/X 공통.
+
+==================================================
+28. LOADING UX
+==================================================
+
+실제로 AI가 호출되는 경우에만:
+
+"답변을 확인하고 있어요"
+
+정도 가능.
+
+가짜:
+
+Knowledge 검색 중
+AI 분석 중
+
+단계 표시 금지 unless actual event source.
+
+==================================================
+29. ERROR UX
+==================================================
+
+AI provider failure:
+
+사용자 message는 보존.
+
+AI 실패 때문에 case/message가 사라지면 안 됨.
+
+표시:
+
+"자동 답변을 완료하지 못했습니다."
+
++ 다시 시도
++ 상담사 문의
+
+가능.
+
+==================================================
+30. RETRY
+==================================================
+
+provider retry가 기존 wrapper에 있으면 재사용.
+
+사용자 Send 재시도와
+provider internal retry 구분.
+
+중복 AI message 저장 금지.
+
+==================================================
+31. TASK #29
+==================================================
+
+Task #29:
+"AI 상담 답변 Knowledge DB 연결
+검색 → LLM fallback"
+
+이번 WP에 흡수.
+
+단 정확한 구조는:
+
+Resolution Router
+→ Retrieval
+→ LLM LAST
+
+이다.
+
+"검색 한 번 실패 → 바로 GPT"
+구조 금지.
+
+==================================================
+32. TASK #30 / #31
+==================================================
+
+#30 X04 FAQ 자동 추출 = HOLD
+#31 미답변 질문 갭 분석 = HOLD
+
+이번 WP에서 구현 금지.
+
+==================================================
+33. SECURITY
+==================================================
+
+다른 pool Knowledge/DB state
+LLM prompt에 포함 금지.
+
+Server-side tenant filter.
+
+client pool_id 신뢰 금지.
+
+==================================================
+34. ANALYTICS FAILURE
+==================================================
+
+AI trace/event logging 실패가
+실제 답변 반환을 깨면 안 됨.
+
+best-effort telemetry.
+
+==================================================
+35. TEST MATRIX
+==================================================
+
+CS08R-01
+Rule exact → OpenAI 0
+
+CS08R-02
+Solution exact → OpenAI 0
+
+CS08R-03
+FAQ exact → OpenAI 0
+
+CS08R-04
+Frontend Map exact → OpenAI 0
+
+CS08R-05
+Known Issue exact → OpenAI 0
+
+CS08R-06
+NO_MATCH + evidence → AI fallback
+
+CS08R-07
+NO_MATCH + no evidence → no hallucination
+
+CS08R-08
+AI response stored author_role=ai
+
+CS08R-09
+AI_PROCESSING → AI_RESPONDED
+
+CS08R-10
+LOW confidence → human recommendation
+
+CS08R-11
+cross-pool retrieval blocked
+
+CS08R-12
+role context
+
+CS08R-13
+mode context
+
+CS08R-14
+token trace
+
+CS08R-15
+cost trace
+
+CS08R-16
+latency trace
+
+CS08R-17
+LLM avoidance flag
+
+CS08R-18
+provider failure keeps user message
+
+CS08R-19
+retry no duplicate AI message
+
+CS08R-20
+raw prompt absent analytics
+
+CS08R-21
+raw answer absent analytics
+
+CS08R-22
+refund/action forbidden
+
+CS08R-23
+SupportChat common source
+
+CS08R-24
+admin/teacher/parent
+
+CS08R-25
+Normal/X
+
+CS08R-26
+Task #30 untouched
+
+CS08R-27
+Task #31 untouched
+
+CS08R-28
+full regression
+
+==================================================
+36. DEPLOYMENT
+==================================================
+
+Server + mobile 변경 가능.
+
+DB 신규 table 기본 금지.
+
+Render deploy.
+
+iOS OTA:
+production branch only.
+
+TestFlight Build 246:
+production channel
+runtime 1.6.3
+
+Preview OTA 금지.
+
+Android OTA:
+NO.
+
+==================================================
+37. FINAL REPORT
+==================================================
+
+SUPPORT_AI_ENDPOINT =
+
+ROUTER_FIRST =
+DETERMINISTIC_NO_LLM =
+
+LLM_INVOCATION_CONDITIONS =
+
+RETRIEVAL_SOURCES =
+NO_EVIDENCE_BEHAVIOR =
+
+CONFIDENCE =
+LOW_CONFIDENCE_BEHAVIOR =
+
+AI_MESSAGE_STORAGE =
+AI_AUTHOR_ROLE =
+
+STATE_TRANSITIONS =
+
+MODEL_PROVIDER =
+MODEL =
+MODEL_ROUTER_REUSED =
+
+SUPPORT_AI_TRACE =
+TOKEN_TRACKING =
+COST_TRACKING =
+LATENCY_TRACKING =
+
+LLM_AVOIDANCE_TRACKING =
+
+RAW_PROMPT_ANALYTICS =
+RAW_OUTPUT_ANALYTICS =
+
+CROSS_POOL_SECURITY =
+
+ACCOUNT_MUTATION =
+BILLING_MUTATION =
+REFUND_AUTOMATION =
+
+TASK_29 = COMPLETE
+TASK_30 = HOLD
+TASK_31 = HOLD
+
+SERVER_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+IOS_PRODUCTION_OTA =
+IOS_OTA_BRANCH =
+IOS_OTA_RUNTIME =
+BUILD_246_CAN_RECEIVE =
+
+ANDROID_OTA =
+
+성공 조건:
+
+ROUTER_FIRST = YES
+
+exact deterministic 해결:
+OpenAI call = 0
+
+NO evidence:
+hallucinated answer = NO
+
+AI response:
+same support conversation에 저장.
+
+CROSS_POOL_SECURITY = PASS
+
+ACCOUNT_MUTATION = NO
+BILLING_MUTATION = NO
+REFUND_AUTOMATION = NO
+
+RAW_PROMPT_ANALYTICS = NO
+RAW_OUTPUT_ANALYTICS = NO
+
+TASK_29 = COMPLETE
+TASK_30 = HOLD
+TASK_31 = HOLD
+
+IOS_OTA_BRANCH = production
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_08R_SUPPORT_AI_LLM_LAST_COMPLETE ✅
