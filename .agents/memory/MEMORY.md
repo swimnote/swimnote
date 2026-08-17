@@ -95,3 +95,4 @@
 - [WP-X04 완료 상태](wp-x04-done-state.md) — SHA 07dac4df; docxParser+websitePackager+x04-structuring+migration; fflate; 35TC+1225TC; Render 배포 트리거
 - [WP-SA0-A 완료 상태](wp-sa0a-done-state.md) — SHA 6a617dd2; SuperGuard+SuperLayout+11페이지+App.tsx라우팅; web전용; Render/OTA 불필요
 - [WP-SA0-B 완료 상태](wp-sa0b-done-state.md) — SHA 7f24da5e; 신규 엔드포인트 4개+웹 7개; Render 배포 트리거됨
+- [CS-PA1 완료 상태](cs-pa1-done-state.md) — SHA f83a0101; 4개 라우트 saveAiTrace 계측+STORY_SUMMARY+AiTraceContext 확장; 1305TC; Render 배포 트리거됨
