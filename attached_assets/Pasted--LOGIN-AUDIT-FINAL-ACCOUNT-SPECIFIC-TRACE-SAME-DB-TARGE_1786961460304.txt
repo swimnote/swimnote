@@ -1,0 +1,281 @@
+[LOGIN AUDIT — FINAL ACCOUNT-SPECIFIC TRACE]
+
+이전 감사 반복 금지.
+
+이미 확정:
+
+SAME_DB_TARGET = YES
+LOGIN_DB = Supabase
+ROUTE_ENTER = PASS
+USER_LOOKUP = PASS
+bcrypt = bcryptjs $2b$10$
+users total = 20
+valid password hash = 17
+empty password hash = 3
+
+현재 ROOT_CAUSE가 미확정인 유일한 이유:
+
+실제로 로그인 실패하는 계정을 아직 특정하지 않았기 때문이다.
+
+이번에는 반드시 실제 실패 계정 1개를 기준으로만 조사한다.
+
+==================================================
+1. FAILING ACCOUNT
+==================================================
+
+사용자가 실제로 로그인을 시도하는 계정의
+email/login identifier를 지정한다.
+
+비밀번호 원문은 로그/보고서에 출력 금지.
+
+필요한 실제 비밀번호는
+Replit의 안전한 일회성 입력 또는
+사용자가 직접 입력한 값으로만 compare에 사용.
+
+==================================================
+2. EXACT USER ROW
+==================================================
+
+해당 계정 하나만 조회.
+
+보고:
+
+FAILING_EMAIL_MASKED =
+USER_EXISTS =
+
+USER_ID =
+ROLE =
+SWIMMING_POOL_ID =
+IS_ACTIVATED =
+
+PASSWORD_HASH_EXISTS =
+PASSWORD_HASH_EMPTY =
+PASSWORD_HASH_LENGTH =
+PASSWORD_HASH_PREFIX =
+PASSWORD_HASH_FINGERPRINT =
+
+hash 원문 출력 금지.
+
+==================================================
+3. PASSWORD COMPARE
+==================================================
+
+실제 사용자가 입력하는 비밀번호와
+DB의 password_hash를
+
+bcrypt.compare()
+
+로 직접 비교.
+
+보고:
+
+PASSWORD_COMPARE_RESULT =
+TRUE / FALSE / ERROR
+
+ERROR면 safe error message만.
+
+비밀번호 원문 출력 금지.
+
+==================================================
+4. LOGIN ENDPOINT
+==================================================
+
+같은 credential로 실제 Production:
+
+https://swimnote.kr/api
+
+로그인 endpoint 호출.
+
+가능하면 Render origin도 동일하게 비교.
+
+보고:
+
+SWIMNOTE_KR_HTTP =
+SWIMNOTE_KR_RESPONSE_SAFE =
+
+RENDER_HTTP =
+RENDER_RESPONSE_SAFE =
+
+==================================================
+5. INTERNAL FLOW
+==================================================
+
+해당 실제 계정 기준으로:
+
+ROUTE_ENTER =
+USER_LOOKUP =
+ACCOUNT_ACTIVE_CHECK =
+PASSWORD_COMPARE =
+JWT_GENERATION =
+SESSION_OPERATION =
+RESPONSE_RETURN =
+
+각각:
+
+PASS
+FAIL
+NOT_REACHED
+
+==================================================
+6. ROOT CAUSE BRANCH
+==================================================
+
+CASE A:
+
+PASSWORD_HASH_EMPTY = YES
+
+이면:
+
+FIRST_FAIL_STEP = PASSWORD_VERIFICATION
+ROOT_CAUSE = FAILING USER HAS EMPTY PASSWORD HASH
+
+이 경우 추가 확인:
+
+해당 계정이
+어떤 방식으로 생성됐는지 추적.
+
+- 일반 가입
+- 관리자 생성
+- migration/import
+- social login
+- 테스트 계정
+- 기타
+
+그리고 OLD DB/backup에 동일 user의
+정상 password hash가 남아 있는지 read-only 조회.
+
+OLD_HASH_EXISTS =
+OLD_HASH_FINGERPRINT =
+
+현재 DB에 임의 hash 생성 금지.
+비밀번호 reset 금지.
+
+--------------------------------------------------
+
+CASE B:
+
+HASH 존재
++
+PASSWORD_COMPARE_RESULT = FALSE
+
+이면:
+
+현재 hash가 이전 데이터와 동일한지 확인.
+
+OLD_HASH_EXISTS =
+OLD_HASH_FINGERPRINT =
+NEW_HASH_FINGERPRINT =
+HASH_CHANGED = YES/NO
+
+--------------------------------------------------
+
+CASE C:
+
+PASSWORD_COMPARE_RESULT = TRUE
+
+인데 로그인 실패하면:
+
+JWT generation까지 계속 추적.
+
+JWT_SECRET 존재 여부
+issuer/audience
+expiry
+token generation
+response payload
+
+확인.
+
+--------------------------------------------------
+
+CASE D:
+
+JWT까지 PASS인데 앱 로그인 실패면
+
+그때만 client 조사:
+
+API response parse
+token storage
+refresh token
+/me call
+AuthContext
+
+==================================================
+7. EMPTY HASH 3 ACCOUNTS
+==================================================
+
+추가로 read-only로만
+빈 password_hash 3계정의 생성 특성을 분류.
+
+보고:
+
+EMPTY_HASH_ACCOUNT_COUNT = 3
+
+각 계정에 대해 원문 이메일 대신:
+
+masked identifier
+role
+created_at
+social provider id presence
+activation status
+creation source 추정 가능한 근거
+
+정도만.
+
+이 3개가 정상적으로 password가 없어야 하는
+social-only 계정인지도 확인.
+
+빈 hash라고 무조건 migration 손실이라고 단정 금지.
+
+==================================================
+8. STOP CONDITION
+==================================================
+
+아래 네 개가 증거로 확정되면 즉시 중단:
+
+FIRST_FAIL_STEP =
+FAILING_FUNCTION =
+DIRECT_EVIDENCE =
+ROOT_CAUSE =
+
+그 전까지:
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+PASSWORD_RESET = NO
+MIGRATION = NO
+DEPLOYMENT = NO
+
+==================================================
+FINAL
+==================================================
+
+FAILING_ACCOUNT_FOUND =
+USER_EXISTS =
+PASSWORD_HASH_EMPTY =
+PASSWORD_COMPARE_RESULT =
+
+LOGIN_HTTP_STATUS =
+
+ROUTE_ENTER =
+USER_LOOKUP =
+ACCOUNT_ACTIVE_CHECK =
+PASSWORD_COMPARE =
+JWT_GENERATION =
+SESSION_OPERATION =
+RESPONSE_RETURN =
+
+OLD_HASH_EXISTS =
+HASH_CHANGED =
+
+FIRST_FAIL_STEP =
+FAILING_FUNCTION =
+DIRECT_EVIDENCE =
+ROOT_CAUSE =
+
+CODE_FIX_REQUIRED =
+DB_REPAIR_REQUIRED =
+ENV_FIX_REQUIRED =
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOYMENT = NO
