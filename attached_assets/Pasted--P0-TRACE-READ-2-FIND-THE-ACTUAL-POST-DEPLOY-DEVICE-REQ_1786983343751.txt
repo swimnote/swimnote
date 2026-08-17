@@ -1,0 +1,442 @@
+[P0-TRACE-READ-2 — FIND THE ACTUAL POST-DEPLOY DEVICE REQUEST]
+
+이전 보고 판정:
+
+REJECTED.
+
+이유:
+
+사용자는 observability deploy 이후 실제 iPhone에서
+다시 Support message를 전송했고
+"채팅이 아예 안 올라간다"고 보고했다.
+
+그런데 이전 분석은:
+
+USER_REPRODUCTION_AT = 13:48 UTC
+
+라는 observability 배포 이전의 오래된 event를
+방금 사용자 재현으로 잘못 선택했다.
+
+Observability Render LIVE:
+
+2026-08-17T15:52:55 UTC
+
+따라서 이번 감사에서는
+절대로 15:52:55 UTC 이전 request/event를
+"최신 재현"으로 사용하지 않는다.
+
+신규 코드 수정 금지.
+DB write 금지.
+deploy 금지.
+OTA 금지.
+
+==================================================
+1. TIME WINDOW HARD FILTER
+==================================================
+
+production Supabase event_logs를
+다음 조건으로 조회:
+
+created_at > 2026-08-17T15:52:55Z
+
+현재 DB server time까지.
+
+Support 관련 모든 event를 조회.
+
+category / action을
+SUPPORT_RESPOND_STAGE 하나로 제한하지 않는다.
+
+최소 다음 관련 action 전체 검색:
+
+SUPPORT_RESPOND_STAGE
+SUPPORT_MESSAGE_SENT
+HUMAN_REQUESTED
+AI_TRACE
+ROUTER_RESOLVED
+LLM_REQUIRED
+LLM_CALLED
+AI_RESPONDED
+AI_LOW_CONFIDENCE
+및 실제 repository의 SUPPORT category action 전체.
+
+보고:
+
+POST_DEPLOY_SUPPORT_EVENTS_COUNT =
+POST_DEPLOY_FIRST_EVENT_AT =
+POST_DEPLOY_LAST_EVENT_AT =
+
+==================================================
+2. FIND THE USER'S ACTUAL POST-DEPLOY ACTIVITY
+==================================================
+
+기존 실제 사용자:
+
+actor/user id가 이미 production case에서 확인되어 있다면
+그 사용자 기준으로
+
+15:52:55 UTC 이후
+가장 최근 Support 관련 event를 찾는다.
+
+raw message 검색 금지.
+
+보고:
+
+LATEST_USER_SUPPORT_EVENT_AT =
+LATEST_USER_SUPPORT_ACTION =
+LATEST_CASE_ID =
+LATEST_REQUEST_ID_IF_PRESENT =
+
+15:52:55 이후 이벤트가 하나라도 있다면
+13:48 event를 다시 사용 금지.
+
+==================================================
+3. SUPPORT_RESPOND TRACE CHECK
+==================================================
+
+15:52:55 UTC 이후에만:
+
+category=SUPPORT
+action=SUPPORT_RESPOND_STAGE
+
+조회.
+
+보고:
+
+POST_DEPLOY_RESPOND_TRACE_COUNT =
+
+0보다 크면
+가장 최근 request_id 하나를 선택해
+stage trace 진행.
+
+0이면 매우 중요한 결과:
+
+POST_DEPLOY_RESPOND_TRACE_COUNT = 0
+
+로 확정하고 §4로 이동.
+
+==================================================
+4. IF SUPPORT ACTIVITY EXISTS BUT RESPOND TRACE = 0
+==================================================
+
+다음 상황:
+
+POST_DEPLOY_SUPPORT_EVENTS_COUNT > 0
+하지만
+POST_DEPLOY_RESPOND_TRACE_COUNT = 0
+
+이면:
+
+사용자 interaction은 서버 어딘가에 도달했지만
+POST /support/respond instrumentation을
+통과하지 않았다는 의미.
+
+이때 조사:
+
+SupportChatScreen 실제 deployed mobile bundle이
+어떤 endpoint를 호출하는가.
+
+코드가 아니라
+현재 production OTA manifest / update metadata를 확인.
+
+현재 예상 OTA:
+
+01a00fb3-b5c7-7478-842c-89066c0bb394
+
+확인:
+
+UPDATE_ID =
+BRANCH =
+CHANNEL =
+RUNTIME =
+CREATED_AT =
+
+그리고 해당 OTA artifact가 실제로
+SupportChatScreen 변경:
+
+handleSend → /support/respond
+
+를 포함하는 commit/build인지 추적.
+
+보고:
+
+OTA_CONTAINS_SUPPORT_RESPOND_CLIENT =
+EVIDENCE =
+
+git 현재 HEAD에 코드가 있다는 것만으로
+YES 판정 금지.
+
+OTA 생성 시점의 source/commit 기준 확인.
+
+==================================================
+5. IF ZERO POST-DEPLOY SUPPORT EVENTS
+==================================================
+
+만약:
+
+POST_DEPLOY_SUPPORT_EVENTS_COUNT = 0
+
+이면 사용자가 앱에서 메시지를 눌렀는데
+production server event가 하나도 생기지 않은 것.
+
+이 경우 조사 범위를 client/network로 이동.
+
+확인:
+
+A.
+현재 앱에서 Send 버튼이 실제 handleSend를 실행하는가
+
+B.
+handleSend가 /support/respond를 호출하기 전에
+return 되는 조건이 있는가
+
+C.
+activeCase / "__new__" / state 조건
+
+D.
+API base URL
+
+E.
+auth token 존재
+
+F.
+fetch 시작 전에 발생 가능한 exception
+
+G.
+현재 OTA에 해당 코드가 실제 포함되었는가
+
+아직 수정 금지.
+
+==================================================
+6. API FRONT DOOR CHECK
+==================================================
+
+SupportChatScreen이 실제 사용하는 API base를 확인.
+
+가능:
+
+https://swimnote.kr/api
+또는
+https://swimnote-api.onrender.com/api
+
+실제 current client code/OTA 기준.
+
+보고:
+
+CLIENT_API_BASE =
+CLIENT_SUPPORT_ENDPOINT =
+
+그리고 서버 route:
+
+POST <base>/support/respond
+
+존재 여부 확인.
+
+==================================================
+7. OTA / CLIENT VERSION FORENSICS
+==================================================
+
+현재 TestFlight Build 246:
+
+runtime 1.6.3
+channel production
+
+현재 production channel의
+실제 최신 iOS update 목록 확인.
+
+보고:
+
+LATEST_PRODUCTION_IOS_UPDATE_ID =
+LATEST_PRODUCTION_IOS_UPDATE_CREATED_AT =
+LATEST_PRODUCTION_IOS_RUNTIME =
+
+01a00fb3가 여전히 최신인지 확인.
+
+그리고 가능하면:
+
+01a00fb3가 어느 git state/source에서 발행됐는지 확인.
+
+중요:
+
+현재 server commit 4124c1c9와
+mobile OTA는 별개다.
+
+==================================================
+8. DO NOT ASSUME DEVICE RECEIVED OTA
+==================================================
+
+"Build 246 CAN receive OTA"와
+"이 iPhone이 실제 OTA를 적용했다"는 다르다.
+
+따라서:
+
+BUILD_CAN_RECEIVE = YES
+
+만으로 device bundle 적용 완료라고 하지 않는다.
+
+확인 가능한 앱 update metadata/runtime marker가 있으면 사용.
+
+없으면:
+
+DEVICE_ACTUAL_UPDATE_ID = NOT_OBSERVED
+
+라고 기록.
+
+==================================================
+9. IF POST-DEPLOY TRACE EXISTS
+==================================================
+
+15:52:55 이후 실제 trace가 발견되면
+가장 최근 request 하나만 분석.
+
+REQUEST_ID =
+CASE_ID =
+
+STAGES_EXECUTED =
+LAST_SUCCESS_STAGE =
+FIRST_FAILURE_STAGE =
+
+ACTUAL_HTTP_STATUS =
+SAFE_ERROR_CODE =
+
+USER_INSERT_RESULT =
+AI_INSERT_RESULT =
+
+PG_CODE =
+CONSTRAINT =
+COLUMN =
+TABLE =
+
+LLM_CALLED =
+MODEL =
+
+USER_ROWS =
+AI_ROWS =
+
+실제 trace만.
+
+==================================================
+10. REPORTING CORRECTION
+==================================================
+
+이전 문구:
+
+TRACE_MISSED_TIMING_CONFIRMED
+
+는 철회.
+
+새 판정:
+
+PREVIOUS_TRACE_SELECTION =
+WRONG_OLD_EVENT
+
+이유:
+
+13:48 UTC event는 observability deploy 전이며
+사용자의 최신 post-deploy 재현이 아님.
+
+==================================================
+11. ROOT CAUSE GATE
+==================================================
+
+이번에는 아래 중 하나로만 끝낸다.
+
+CASE A:
+POST_DEPLOY_TRACE_FOUND
+
+→ trace 기반 failure stage 보고.
+
+CASE B:
+POST_DEPLOY_SUPPORT_ACTIVITY_FOUND_BUT_RESPOND_TRACE_ZERO
+
+→ /support/respond를 client가 호출하지 않는 경로 조사.
+
+CASE C:
+POST_DEPLOY_SUPPORT_ACTIVITY_ZERO
+
+→ client request가 server까지 도달하지 않은 것으로 분류.
+
+CASE D:
+INSUFFICIENT_EVIDENCE
+
+추측 root cause 금지.
+
+==================================================
+12. NO FIX
+==================================================
+
+이번 조사에서:
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOYMENT_TRIGGERED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+==================================================
+13. FINAL REPORT
+==================================================
+
+OBSERVABILITY_LIVE_AT =
+DB_SERVER_NOW =
+
+PREVIOUS_TRACE_SELECTION =
+PREVIOUS_13_48_EVENT_REUSED = NO
+
+POST_DEPLOY_SUPPORT_EVENTS_COUNT =
+POST_DEPLOY_FIRST_EVENT_AT =
+POST_DEPLOY_LAST_EVENT_AT =
+
+LATEST_USER_SUPPORT_EVENT_AT =
+LATEST_USER_SUPPORT_ACTION =
+LATEST_CASE_ID =
+
+POST_DEPLOY_RESPOND_TRACE_COUNT =
+
+TRACE_CASE =
+  A / B / C / D
+
+REQUEST_ID =
+STAGES_EXECUTED =
+LAST_SUCCESS_STAGE =
+FIRST_FAILURE_STAGE =
+
+ACTUAL_HTTP_STATUS =
+SAFE_ERROR_CODE =
+
+USER_INSERT_RESULT =
+AI_INSERT_RESULT =
+PG_CODE =
+
+CLIENT_API_BASE =
+CLIENT_SUPPORT_ENDPOINT =
+
+LATEST_PRODUCTION_IOS_UPDATE_ID =
+LATEST_PRODUCTION_IOS_UPDATE_CREATED_AT =
+LATEST_PRODUCTION_IOS_RUNTIME =
+OTA_CONTAINS_SUPPORT_RESPOND_CLIENT =
+
+DEVICE_ACTUAL_UPDATE_ID =
+
+FAILURE_LAYER =
+ROOT_CAUSE =
+ROOT_CAUSE_CONFIDENCE =
+  OBSERVED / INFERRED / NOT_OBSERVED
+
+CODE_CHANGED = NO
+DB_CHANGED = NO
+DEPLOYMENT_TRIGGERED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+중요:
+
+사용자는 이미 post-deploy에서 실패를 재현했다.
+
+"다시 재현해주세요"로 끝내지 않는다.
+
+먼저 현재 존재하는 post-deploy evidence를
+끝까지 조사한다.
+
+완료:
+
+P0_POST_DEPLOY_SUPPORT_REQUEST_FORENSIC_COMPLETE ✅
