@@ -46,6 +46,29 @@ PHONE_REQUIRED: HUMAN_REQUIRED/ESCALATED에서만 전환 가능.
 - ai/agent 메시지 작성: super_admin만
 - event_logs(SUPPORT): PII 없음 (case_id/ticket_id/role/state/event_type만)
 
+## HARDEN 완료 (WP-CS-01R-HARDEN, SHA 별도)
+
+### 핵심 수정
+- `support_ticket_replies.ticket_id` → nullable (DROP NOT NULL)
+- `support_ticket_replies.case_id TEXT` 컬럼 추가 — case 기준 스레드 식별자
+- AI-only 메시지: `ticket_id=null, case_id=caseId`
+- 에스컬레이션 메시지: `ticket_id=ticketId, case_id=caseId` (둘 다 설정)
+- GET 케이스 상세 쿼리: `WHERE case_id=caseId OR (ticket_id=ticketId AND case_id IS NULL)`
+- `messageThreadId()` deprecated (하위호환 유지, 신규 코드 사용 금지)
+- Super transition → `transitionSupportCase()` 서비스 통과 확인 (force override 없음)
+- HARDEN 23 TC 추가 | 전체 1395/1395
+
+### FINAL REPORT
+- CASE_ID_STORED_IN_TICKET_ID_AFTER = NO
+- THREAD_CONTINUITY = PASS
+- LEGACY_TICKET_COMPATIBILITY = PASS
+- SUPER_TRANSITION_USES_SERVICE = YES
+- INVALID_TRANSITION_BLOCKED = YES
+- DIRECT_STATE_UPDATE_EXISTS = NO
+- FORCE_OVERRIDE_EXISTS = NO
+- RAW_TEXT_IN_EVENT_LOG = NO
+- MOBILE_CHANGED = NO
+
 ## 다음 WP 후보
 - **CS-PE1**: Partner Evidence 차트 3개 + CSV export + Measurement Start Date (deferred)
 - **PARTNER_REPORTING_MAP**: 내부 feature enum → Partner reporting enum 매핑

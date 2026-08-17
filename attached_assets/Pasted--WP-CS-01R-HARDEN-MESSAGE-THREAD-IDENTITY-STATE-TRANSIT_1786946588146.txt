@@ -1,0 +1,293 @@
+[WP-CS-01R-HARDEN — MESSAGE THREAD IDENTITY + STATE TRANSITION SAFETY]
+
+목적:
+
+WP-CS-01R 구현 전체를 다시 감사하지 않는다.
+
+아래 두 항목만 확인하고,
+필요한 경우 최소 수정한다.
+
+1. AI-only support case message thread identity
+2. Super Admin state transition safety
+
+그 외 고객센터 기능 확장 금지.
+
+==================================================
+1. AI-ONLY MESSAGE STORAGE — VERIFY
+==================================================
+
+현재 보고:
+
+ticket_id = null인 AI-only case에서
+case_id를 thread key로 사용하여
+support_ticket_replies에 메시지 저장.
+
+정확한 실제 schema 확인:
+
+support_ticket_replies.ticket_id
+- type
+- FK 여부
+- index
+- NOT NULL 여부
+- 기존 조회 query
+- 기존 support ticket reply API assumptions
+
+확인 후 보고:
+
+REPLIES_TICKET_ID_HAS_FK =
+REPLIES_TICKET_ID_SEMANTICS =
+CASE_ID_STORED_IN_TICKET_ID =
+COLLISION_RISK =
+LEGACY_QUERY_RISK =
+
+==================================================
+2. SEMANTIC SAFETY RULE
+==================================================
+
+ticket_id 컬럼에
+ticket이 아닌 case_id를 저장하는 구조가
+
+기존 query / future join / analytics / migration에서
+semantic ambiguity를 만들면 수정한다.
+
+권장 우선순위:
+
+A. 기존 replies table에 nullable case_id 추가
+   - human ticket message: ticket_id=<ticket>, case_id=<linked case if exists>
+   - AI-only message: ticket_id=null, case_id=<case>
+
+또는
+
+B. 기존 schema에 이미 thread_id/thread_type과 같은
+명확한 구조가 있으면 그것을 재사용.
+
+금지:
+
+case_id를 ticket_id로 위장하여 장기 저장.
+
+새 message table 생성은 기본적으로 금지.
+
+최소 schema extension 우선.
+
+==================================================
+3. THREAD QUERY CONTRACT
+==================================================
+
+message thread 조회는 명확히 분리:
+
+AI-only case
+→ case_id 기준
+
+Human escalated case
+→ case_id 기준으로 전체 conversation을 보되
+   linked ticket/replies도 포함
+
+Legacy human-only ticket
+→ ticket_id 기준 기존 동작 유지
+
+한 conversation이 human escalation 되었다고
+AI 이전 메시지가 사라지면 FAIL.
+
+==================================================
+4. HUMAN ESCALATION CONTINUITY
+==================================================
+
+AI-only case:
+
+AI/User messages 존재
+↓
+request-human
+↓
+ticket 생성
+↓
+agent reply
+
+후에도 case 상세 API에서:
+
+기존 AI/User 메시지
++
+agent 메시지
+
+가 시간순으로 하나의 history로 보여야 한다.
+
+중복 메시지 금지.
+
+==================================================
+5. SUPER TRANSITION ENDPOINT — VERIFY
+==================================================
+
+현재:
+
+POST /super/support/cases/:id/transition
+
+보고상 "강제 전환"이라고 되어 있음.
+
+확인:
+
+이 endpoint가
+transitionSupportCase() 또는 동일 중앙 service를 사용하는가?
+
+valid transition 검증을 우회하는가?
+
+보고:
+
+SUPER_TRANSITION_USES_SERVICE =
+INVALID_TRANSITION_BLOCKED =
+DIRECT_STATE_UPDATE_EXISTS =
+
+==================================================
+6. SUPER ADMIN DOES NOT MEAN INVALID STATE
+==================================================
+
+super_admin도
+기본적으로 invalid state jump를 하면 안 된다.
+
+예:
+
+NEW → RESOLVED
+AI_PROCESSING → PHONE_REQUIRED
+RESOLVED → HUMAN_RESPONDED
+
+등 contract 밖 jump를
+아무 이유 없이 허용 금지.
+
+운영상 정말 override가 필요하다면:
+
+명시적 force=true
++
+reason 필수
++
+audit event 필수
+
+형태의 별도 override contract가 필요.
+
+하지만 이번 WP에서는
+가능하면 override 자체를 만들지 않는다.
+
+정상 transition service 사용 우선.
+
+==================================================
+7. EVENT HISTORY
+==================================================
+
+모든 실제 state 변경:
+
+from_state
+to_state
+actor_role
+reason
+case_id
+ticket_id if any
+
+를 SUPPORT event로 남김.
+
+본문 저장 금지.
+
+==================================================
+8. REGRESSION LOCK
+==================================================
+
+다음은 건드리지 않는다:
+
+Support AI
+Knowledge
+Frontend Map
+Partner Analytics
+Refund
+Semantic Cache
+mobile UI
+X mode
+billing
+AI instrumentation
+
+==================================================
+9. TEST
+==================================================
+
+HARDEN-01
+AI-only case first message
+
+HARDEN-02
+AI-only multiple messages
+
+HARDEN-03
+request-human after AI conversation
+
+HARDEN-04
+old AI messages preserved after ticket creation
+
+HARDEN-05
+agent reply joins same conversation
+
+HARDEN-06
+legacy human-only ticket replies unchanged
+
+HARDEN-07
+cross-pool case message denied
+
+HARDEN-08
+cross-pool ticket message denied
+
+HARDEN-09
+valid super transition
+
+HARDEN-10
+invalid super transition blocked
+
+HARDEN-11
+no direct state mutation bypass
+
+HARDEN-12
+support event contains no raw message
+
+HARDEN-13
+full existing suite pass
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+REPLIES_TICKET_ID_HAS_FK =
+CASE_ID_STORED_IN_TICKET_ID_BEFORE =
+CASE_ID_STORED_IN_TICKET_ID_AFTER =
+
+MESSAGE_THREAD_MODEL =
+CASE_ID_COLUMN_ADDED =
+THREAD_CONTINUITY =
+LEGACY_TICKET_COMPATIBILITY =
+
+SUPER_TRANSITION_USES_SERVICE =
+INVALID_TRANSITION_BLOCKED =
+DIRECT_STATE_UPDATE_EXISTS =
+FORCE_OVERRIDE_EXISTS =
+
+SUPPORT_EVENT_HISTORY =
+RAW_TEXT_IN_EVENT_LOG =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+CASE_ID_STORED_IN_TICKET_ID_AFTER = NO
+THREAD_CONTINUITY = PASS
+LEGACY_TICKET_COMPATIBILITY = PASS
+
+SUPER_TRANSITION_USES_SERVICE = YES
+INVALID_TRANSITION_BLOCKED = YES
+DIRECT_STATE_UPDATE_EXISTS = NO
+
+RAW_TEXT_IN_EVENT_LOG = NO
+MOBILE_CHANGED = NO
+
+완료:
+
+WP_CS_01R_HARDEN_COMPLETE ✅
