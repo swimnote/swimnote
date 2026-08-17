@@ -43,6 +43,22 @@ import UnitPricing from "@/pages/admin/settings/UnitPricing";
 import Permissions from "@/pages/admin/settings/Permissions";
 import Branding from "@/pages/admin/settings/Branding";
 
+// ── Super Admin 새 구조 ──────────────────────────────────────────────────────
+import SuperGuard from "@/components/super/SuperGuard";
+import SuperLayout from "@/components/super/SuperLayout";
+import SuperOverview  from "@/pages/super/SuperOverview";
+import SuperPools     from "@/pages/super/SuperPools";
+import SuperPoolDetail from "@/pages/super/SuperPoolDetail";
+import SuperBilling   from "@/pages/super/SuperBilling";
+import SuperXMode     from "@/pages/super/SuperXMode";
+import SuperAI        from "@/pages/super/SuperAI";
+import SuperSupport   from "@/pages/super/SuperSupport";
+import SuperServers   from "@/pages/super/SuperServers";
+import SuperIncidents from "@/pages/super/SuperIncidents";
+import SuperPartner   from "@/pages/super/SuperPartner";
+import SuperAudit     from "@/pages/super/SuperAudit";
+import SuperSettings  from "@/pages/super/SuperSettings";
+
 const queryClient = new QueryClient();
 
 function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -60,6 +76,15 @@ function AdminPage({ children }: { children: React.ReactNode }) {
     <AdminGuard>
       <AdminLayout>{children}</AdminLayout>
     </AdminGuard>
+  );
+}
+
+/** Super Admin 페이지 공통 wrapper — SuperGuard + SuperLayout */
+function SuperPage({ children }: { children: React.ReactNode }) {
+  return (
+    <SuperGuard>
+      <SuperLayout>{children}</SuperLayout>
+    </SuperGuard>
   );
 }
 
@@ -86,8 +111,51 @@ function Router() {
       {/* 인증 */}
       <Route path="/login" component={Login} />
 
-      {/* 슈퍼관리자 */}
+      {/* ─── Super Admin (구 레거시 → redirect) ─── */}
       <Route path="/super-admin" component={SuperAdmin} />
+
+      {/* ─── Super Admin 새 URL-based 구조 ─── */}
+      {/* 주의: /super/pools/:poolId 가 /super/pools 보다 먼저 와야 함 */}
+      <Route path="/super/pools/:poolId">
+        <SuperPage><SuperPoolDetail /></SuperPage>
+      </Route>
+      <Route path="/super/pools">
+        <SuperPage><SuperPools /></SuperPage>
+      </Route>
+      <Route path="/super/billing">
+        <SuperPage><SuperBilling /></SuperPage>
+      </Route>
+      <Route path="/super/x-mode">
+        <SuperPage><SuperXMode /></SuperPage>
+      </Route>
+      <Route path="/super/ai">
+        <SuperPage><SuperAI /></SuperPage>
+      </Route>
+      <Route path="/super/support">
+        <SuperPage><SuperSupport /></SuperPage>
+      </Route>
+      <Route path="/super/servers">
+        <SuperPage><SuperServers /></SuperPage>
+      </Route>
+      <Route path="/super/incidents">
+        <SuperPage><SuperIncidents /></SuperPage>
+      </Route>
+      <Route path="/super/partner">
+        <SuperPage><SuperPartner /></SuperPage>
+      </Route>
+      <Route path="/super/audit">
+        <SuperPage><SuperAudit /></SuperPage>
+      </Route>
+      <Route path="/super/settings">
+        <SuperPage><SuperSettings /></SuperPage>
+      </Route>
+      <Route path="/super/overview">
+        <SuperPage><SuperOverview /></SuperPage>
+      </Route>
+      {/* /super → /super/overview */}
+      <Route path="/super">
+        <SuperPage><SuperOverview /></SuperPage>
+      </Route>
 
       {/* ─── 웹 관리자 대시보드 ─── */}
       <Route path="/admin">

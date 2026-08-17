@@ -115,7 +115,7 @@ function XSectionBadge({ status }: { status: XSectionStatus }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${xSectionCls[status]}`}>{xSectionLabel[status]}</span>;
 }
 
-function XSetupTab({ poolId, token, apiBase }: { poolId: string; token: string; apiBase: string }) {
+export function XSetupTab({ poolId, token, apiBase }: { poolId: string; token: string; apiBase: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [revSection, setRevSection] = useState("curriculum");
