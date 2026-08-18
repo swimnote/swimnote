@@ -1,0 +1,733 @@
+[WP-CS13~17 FINAL CLOSURE PATCH — Remaining Evidence & Governance Closure]
+
+목적:
+
+CS12는 CLOSED 상태를 유지한다.
+
+CS13~CS17에서 이미 구현된 기능을 다시 만들지 않고,
+이전 Closure에서도 아직 증명되지 않은 **잔여 4개 항목만 정확히 검증·수정하여 최종 CLOSE**한다.
+
+이번 WP는 신규 기능 개발이 아니다.
+
+핵심 잔여 항목:
+
+1. CS13 — legacy `/support/tickets/:id/replies` ownership / tenant isolation
+2. CS14 — 실제 generated answer의 claim/action grounding
+3. CS15 — 실제 ACTIVE Knowledge conflict audit + Incident scope enforcement
+4. CS16 — `knowledge-search.ts /approve`가 CS16 approval governance를 우회하지 않는지 검증
+
+CS17은 CS16 서버 경계가 최종 검증되면 함께 CLOSED 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. CS12~17 기존 구현 재작성 금지.
+2. 새로운 OpenAI/LLM 호출 추가 금지.
+3. Production DB write 금지.
+4. Production 배포 금지.
+5. ACTIVE Knowledge 임의 변경 금지.
+6. CS12 PENDING Candidate 승인/활성화 금지.
+7. 테스트 통과를 위해 권한/scope 완화 금지.
+8. 이미 PASS한 항목을 대규모로 다시 테스트하지 말 것.
+9. 이번 WP는 아래 명시된 잔여 항목만 처리.
+10. UNIT/MOCK 결과와 실제 route/query/runtime 증거를 구분.
+11. NOT_IMPLEMENTED / NOT_APPLICABLE / NOT_MEASURABLE이면 그대로 기록.
+12. 하지만 종료조건에 필요한 보안·Grounding 경계는 미검증 상태로 CLOSED 처리하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. BASELINE
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+기준 SHA:
+
+489b09e2
+
+먼저 보고:
+
+* Git HEAD
+* Branch
+* Remote SHA
+* Working tree
+* 이전 Closure 이후 추가 변경 여부
+
+현재 확인된 기존 상태:
+
+CS12 = CLOSED
+
+CS13 = HOLD
+CS14 = HOLD
+CS15 = HOLD
+CS16 = HOLD
+CS17 = CONDITIONALLY CLOSED
+
+이를 임의로 변경하지 말고 아래 검증 결과로만 최종 상태를 결정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. CS13 — LEGACY TICKET / REPLIES OWNERSHIP
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 검증은:
+
+GET /support/cases/:id
+
+경로 중심이었다.
+
+이번에는 반드시 실제 legacy 경로를 직접 감사한다.
+
+대상 최소:
+
+/support/tickets/:id
+/support/tickets/:id/replies
+
+및 실제 repository에 존재하는 관련:
+
+GET
+POST
+PATCH
+DELETE
+reply read/write
+
+경로.
+
+확인 체인:
+
+req.user
+→ actor identity
+→ actor role
+→ actor pool
+→ ticket owner
+→ ticket pool
+→ reply ticket relation
+→ DB WHERE / authorization gate
+
+필수 Negative Test:
+
+A. User A → User B ticket read
+B. User A → User B ticket reply write
+C. Pool A → Pool B ticket read
+D. Pool A → Pool B reply read
+E. Pool A → Pool B reply write
+F. forged ticket_id
+G. forged pool_id
+H. parent → admin-only ticket
+I. teacher → 다른 tenant ticket
+J. ticket_id만 알고 직접 접근
+
+각 테스트 결과:
+
+* route
+* actor role
+* actor pool
+* target pool
+* HTTP/result
+* deny gate
+* PASS/FAIL
+
+목표:
+
+LEGACY_TICKET_CROSS_USER_ACCESS = 0
+LEGACY_TICKET_CROSS_POOL_ACCESS = 0
+LEGACY_REPLY_CROSS_USER_ACCESS = 0
+LEGACY_REPLY_CROSS_POOL_ACCESS = 0
+LEGACY_TICKET_IDOR = 0
+
+문제가 있으면 최소 변경으로 수정.
+
+STUDENT_SCOPE_STATUS는 기존 Closure대로:
+
+NOT_APPLICABLE
+
+유지.
+
+현재 Support RouterContext에 student actor/context가 없으므로
+STUDENT_LEAKAGE=0 PASS처럼 재표현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CS14 — ACTUAL GENERATED ANSWER GROUNDING
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+아래는 더 이상 증거로 인정하지 않는다.
+
+* 프롬프트에 "창작 금지"가 있음
+* gatherEvidence가 ACTIVE만 조회함
+* PENDING이 LLM에 전달되지 않음
+
+이것들은 input grounding 증거이지,
+최종 answer가 근거 밖 claim을 만들지 않았다는 증거가 아니다.
+
+이번에는 실제 Support answer 결과 또는
+실제 resolver/generation output을 검증한다.
+
+최소 Golden Scenario:
+
+10개 이상.
+
+반드시 포함:
+
+1. 정상 FAQ
+2. teacher permission
+3. parent permission
+4. NORMAL → X-only 문의
+5. X_PENDING → X active 문의
+6. 존재하지 않는 메뉴 질문
+7. 서버 장애라고 사용자가 단정
+8. OpenAI 장애라고 사용자가 단정
+9. 환불/결제 action 문의
+10. no-knowledge / unknown question
+
+각 scenario에서 최종 answer의 actionable claim을 분해.
+
+분류:
+
+SUPPORTED
+PARTIALLY_SUPPORTED
+UNSUPPORTED
+CONTRADICTED
+
+각 claim마다:
+
+* claim text 또는 normalized claim
+* supporting knowledge_id / code/policy
+* action
+* classification
+
+필수 검증:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+UNSUPPORTED_FALLBACK_ANSWER = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CS14 — KNOWLEDGE RELEVANCE
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 관련성 증거가 아니다:
+
+maxItems=5
+slice(0,5)
+
+각 Golden Scenario에 대해:
+
+allowed_knowledge_ids
+forbidden_knowledge_ids
+
+를 정의하고 실제 selected evidence와 비교.
+
+필수:
+
+FORBIDDEN_KNOWLEDGE_SELECTED = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+
+Knowledge ID가 완전히 고정되지 않는 구조라면
+feature/type/role/mode/category 기반 allowed/forbidden condition으로 검증 가능.
+
+단 "top 5이므로 관련 있다"는 식의 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CS14 — 최종 QUALITY METRICS
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 숫자로 제출:
+
+GROUNDING_TESTS_TOTAL
+GROUNDING_TESTS_PASS
+
+SUPPORTED_CLAIMS
+PARTIALLY_SUPPORTED_CLAIMS
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+IRRELEVANT_KNOWLEDGE_IN_ANSWER
+UNSUPPORTED_FALLBACK_ANSWER
+
+GROUNDED_RESOLUTION
+SAFE_GUIDANCE
+ESCALATION_REQUIRED
+REVIEW_REQUIRED
+UNSAFE_OR_UNGROUNDED
+
+KNOWLEDGE_GAP_COUNT
+KNOWLEDGE_GAP_ITEMS
+
+P0
+P1
+P2
+P3
+
+종료 목표:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+UNSUPPORTED_FALLBACK_ANSWER = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CS15 — ACTIVE KNOWLEDGE ACTUAL AUDIT
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고:
+
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND
+= NOT_MEASURABLE_IN_UNIT
+
+이 상태로 CS15 CLOSED 처리하지 않는다.
+
+단 Production DB write는 여전히 금지.
+
+가능한 안전한 방법 중 하나 사용:
+
+A. Production read-only query
+B. Production DB read-only replica/snapshot
+C. 최신 DB export
+D. 실제 운영 Knowledge dataset의 read-only dump
+
+어떤 방법을 사용했는지 명확히 보고.
+
+실제 ACTIVE Knowledge set 대상으로:
+
+ACTIVE_KNOWLEDGE_TOTAL
+
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND
+HARD_CONFLICTS
+CONTEXT_CONFLICTS
+VERSION_CONFLICTS
+AUTHORITY_CONFLICTS
+UNRESOLVED_CONFLICTS
+
+DUPLICATE_ACTIVE_FOUND
+SUPERSEDED_ACTIVE_FOUND
+STALE_ACTIVE_FOUND
+
+계산.
+
+중요:
+
+발견했다고 자동 수정/삭제/ARCHIVE하지 말 것.
+
+발견 결과는:
+
+REVIEW_REQUIRED
+
+목록으로만 남긴다.
+
+P0/P1 conflict가 실제 retrieval에 노출되면 blocker.
+
+단순 duplicate/freshness review는 비차단 P2/P3 가능.
+
+Production read 권한 자체가 없어 실제 dataset 감사가 불가능하면
+임의 PASS 금지.
+
+그 경우:
+
+CS15_CLOSE = NO
+
+로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CS15 — INCIDENT SCOPE ENFORCEMENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+pool_support_incidents에 pool_id 컬럼이 있다는 사실만으로
+INCIDENT_SCOPE_LEAKAGE=0 처리 금지.
+
+실제 incident 조회/선택/query 경로를 확인.
+
+검사:
+
+A. Pool A → Pool B incident
+B. wrong feature
+C. wrong mode
+D. wrong platform
+E. wrong app/version scope가 있다면 해당 mismatch
+F. RESOLVED incident를 active outage로 사용
+G. INVESTIGATING을 CONFIRMED처럼 표현
+H. 사용자 주장만으로 incident confirmed 처리
+
+각각 실제 selector/query/domain logic 기준.
+
+목표:
+
+INCIDENT_SCOPE_LEAKAGE = 0
+FALSE_INCIDENT_CLAIM = 0
+INCIDENT_STATUS_MISREPRESENTATION = 0
+
+Incident model만 존재하고 아직 actual retrieval path가 미구현이면:
+
+INCIDENT_RUNTIME_STATUS = NOT_IMPLEMENTED
+
+로 기록.
+
+이 경우 현재 Support 답변에서 incident를 사용하지 않는다면
+leakage PASS가 아니라
+"NOT_APPLICABLE — no runtime incident retrieval"
+로 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CS16 — DUAL APPROVE PATH GOVERNANCE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ACTIVE 변경 가능 경로가 두 개 존재:
+
+1.
+
+routes/knowledge-search.ts
+/approve
+
+2.
+
+routes/knowledge-approval.ts
+approve
+
+이번 WP의 핵심 중 하나.
+
+두 경로를 나란히 비교표로 제출.
+
+각 경로에서 반드시 검사:
+
+* JWT actor role
+* super_admin/platform_admin 제한
+* client role 무시
+* candidate status gate
+* revision/concurrency guard
+* source/provenance validation
+* role scope validation
+* mode scope validation
+* feature scope validation
+* unresolved HARD_CONFLICT 차단
+* rejected/edit_required state transition
+* audit log 생성
+* reviewer identity = JWT actor
+* request_id 기록
+* resulting knowledge_id 추적
+* duplicate ACTIVE 방지
+
+표:
+
+CHECK | knowledge-search /approve | knowledge-approval approve
+
+형태로 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. GOVERNANCE BYPASS POLICY
+━━━━━━━━━━━━━━━━━━━━━━
+
+만약 legacy:
+
+knowledge-search.ts /approve
+
+가 CS16의 canonical approval governance보다 검증이 약하면
+그 상태를 유지하지 말 것.
+
+권장 수정:
+
+legacy /approve
+→ CS16 canonical approval service/domain function 호출
+
+즉 approval business logic을 두 군데 독립 구현하지 않는다.
+
+가능한 형태:
+
+approveKnowledgeCandidate(...)
+validateApproval(...)
+recordApprovalAudit(...)
+
+등 기존 CS16 domain logic 재사용.
+
+대규모 refactor 금지.
+
+목표는:
+
+모든 PENDING→ACTIVE path가
+동일 Human Approval Governance를 통과하게 하는 것.
+
+검증 목표:
+
+APPROVAL_GOVERNANCE_BYPASS_PATHS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. CS16 — APPROVAL NEGATIVE TESTS
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 approve endpoint 모두 대상으로:
+
+1. teacher
+2. parent
+3. pool_admin
+4. forged reviewer
+5. missing source
+6. hard conflict
+7. wrong role scope
+8. wrong mode scope
+9. wrong feature
+10. rejected candidate
+11. stale revision
+12. concurrent approval
+13. client status='active' injection
+
+목표:
+
+UNAUTHORIZED_APPROVAL = 0
+APPROVAL_WITHOUT_SOURCE = 0
+APPROVAL_WITH_HARD_CONFLICT = 0
+APPROVAL_WITH_SCOPE_MISMATCH = 0
+REJECTED_REACTIVATED_WITHOUT_REVIEW = 0
+CONCURRENT_APPROVAL_DUPLICATE = 0
+APPROVAL_GOVERNANCE_BYPASS_PATHS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. CS17 — CONDITIONAL CLOSE
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS17 UI 자체는 대규모 재검사하지 않는다.
+
+다만 CS16 server governance 수정이 있다면
+다음만 regression:
+
+* Approve
+* Reject
+* Edit Required
+* Concurrent approval
+* REVIEW_REQUIRED protection
+* UI bypass → API direct call
+
+목표:
+
+UI_BYPASS_APPROVAL = 0
+CONCURRENT_APPROVAL_UI_ERROR = 0
+REVIEW_REQUIRED_APPROVED = 0
+
+CS16 governance가 CLOSED이면
+CS17도 최종 CLOSED 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. TEST LEVEL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 최종 Patch는 테스트 개수 경쟁이 아니다.
+
+각 검증의 수준 표시:
+
+UNIT
+MOCK
+COMPONENT
+INTEGRATION
+READ_ONLY_PRODUCTION_AUDIT
+E2E
+STAGING
+PRODUCTION
+
+특히:
+
+legacy ticket authorization
+dual approval endpoints
+incident query
+
+는 가능한 범위에서 실제 route/domain integration 검증 우선.
+
+Production DB는 read-only audit 외 write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PRODUCTION SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production deploy = NO
+
+Production DB write = NO
+
+rows inserted = 0
+rows modified = 0
+ACTIVE modified = 0
+PENDING modified = 0
+incident modified = 0
+
+Read-only Production audit를 했다면:
+
+PRODUCTION_READ_ONLY_AUDIT = YES
+
+별도로 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. FINAL CLOSURE 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS12:
+기존 CLOSED 유지.
+
+CS13 CLOSED 조건:
+
+LEGACY_TICKET_CROSS_USER_ACCESS = 0
+LEGACY_TICKET_CROSS_POOL_ACCESS = 0
+LEGACY_REPLY_CROSS_USER_ACCESS = 0
+LEGACY_REPLY_CROSS_POOL_ACCESS = 0
+LEGACY_TICKET_IDOR = 0
+
+CS14 CLOSED 조건:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+UNSUPPORTED_FALLBACK_ANSWER = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+CS15 CLOSED 조건:
+
+실제 ACTIVE dataset audit 완료
+또는 운영 Knowledge dataset이 실제로 아직 존재하지 않음을 증명.
+
+INCIDENT_SCOPE 상태도
+PASS / NOT_APPLICABLE / NOT_IMPLEMENTED를 정확히 분류.
+
+P0/P1 unresolved conflict = 0
+
+CS16 CLOSED 조건:
+
+APPROVAL_GOVERNANCE_BYPASS_PATHS = 0
+UNAUTHORIZED_APPROVAL = 0
+APPROVAL_WITHOUT_SOURCE = 0
+APPROVAL_WITH_HARD_CONFLICT = 0
+APPROVAL_WITH_SCOPE_MISMATCH = 0
+CONCURRENT_APPROVAL_DUPLICATE = 0
+
+CS17 CLOSED 조건:
+
+CS16 CLOSED
++
+UI_BYPASS_APPROVAL = 0
+CONCURRENT_APPROVAL_UI_ERROR = 0
+REVIEW_REQUIRED_APPROVED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. COMPLETE REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS13~17 FINAL CLOSURE PATCH COMPLETE REPORT
+
+BASELINE
+Git HEAD:
+Branch:
+Remote SHA:
+Working tree:
+
+FIXES
+Files changed:
+P0:
+P1:
+P2:
+P3:
+
+CS13 LEGACY OWNERSHIP
+Routes audited:
+LEGACY_TICKET_CROSS_USER_ACCESS:
+LEGACY_TICKET_CROSS_POOL_ACCESS:
+LEGACY_REPLY_CROSS_USER_ACCESS:
+LEGACY_REPLY_CROSS_POOL_ACCESS:
+LEGACY_TICKET_IDOR:
+Test level:
+
+CS14 ACTUAL ANSWER GROUNDING
+Golden scenarios:
+GROUNDING_TESTS_TOTAL:
+GROUNDING_TESTS_PASS:
+SUPPORTED_CLAIMS:
+PARTIALLY_SUPPORTED_CLAIMS:
+UNSUPPORTED_CLAIMS:
+CONTRADICTED_CLAIMS:
+HALLUCINATED_UI_PATH:
+INVALID_ACTIONS:
+IRRELEVANT_KNOWLEDGE_IN_ANSWER:
+UNSUPPORTED_FALLBACK_ANSWER:
+UNSAFE_OR_UNGROUNDED:
+KNOWLEDGE_GAP_COUNT:
+Quality A/B/C/D/F:
+Test level:
+
+CS15 ACTIVE KNOWLEDGE AUDIT
+Audit source:
+ACTIVE_KNOWLEDGE_TOTAL:
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND:
+HARD_CONFLICTS:
+CONTEXT_CONFLICTS:
+VERSION_CONFLICTS:
+AUTHORITY_CONFLICTS:
+UNRESOLVED_CONFLICTS:
+DUPLICATE_ACTIVE_FOUND:
+SUPERSEDED_ACTIVE_FOUND:
+STALE_ACTIVE_FOUND:
+Review items:
+
+CS15 INCIDENT
+Runtime status:
+INCIDENT_SCOPE_LEAKAGE:
+FALSE_INCIDENT_CLAIM:
+INCIDENT_STATUS_MISREPRESENTATION:
+Test level:
+
+CS16 APPROVAL PATHS
+knowledge-search /approve:
+knowledge-approval approve:
+Canonical approval path:
+APPROVAL_GOVERNANCE_BYPASS_PATHS:
+UNAUTHORIZED_APPROVAL:
+APPROVAL_WITHOUT_SOURCE:
+APPROVAL_WITH_HARD_CONFLICT:
+APPROVAL_WITH_SCOPE_MISMATCH:
+REJECTED_REACTIVATED_WITHOUT_REVIEW:
+CONCURRENT_APPROVAL_DUPLICATE:
+Test level:
+
+CS17 REGRESSION
+UI_BYPASS_APPROVAL:
+CONCURRENT_APPROVAL_UI_ERROR:
+REVIEW_REQUIRED_APPROVED:
+
+FULL SUITE:
+RUNTIME/INTEGRATION SUITE:
+
+PRODUCTION
+deployed: NO
+DB write: NO
+PRODUCTION_READ_ONLY_AUDIT:
+rows inserted: 0
+rows modified: 0
+ACTIVE modified: 0
+PENDING modified: 0
+
+FINAL CLOSURE MATRIX
+CS12:
+CS13:
+CS14:
+CS15:
+CS16:
+CS17:
+
+Remaining non-blocking REVIEW_REQUIRED:
+
+Critical blockers:
+
+ALL_CS12_TO_CS17_CLOSED: YES / NO
+
+WP_CS13_17_FINAL_CLOSURE_PATCH_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+위 보고서를 제출한 뒤 멈춘다.
+
+CS18 또는 다음 신규 WP로 자동 진행하지 말 것.
+
+ALL_CS12_TO_CS17_CLOSED = YES가
+실제 증거로 확인된 후에만 다음 작업을 진행한다.
