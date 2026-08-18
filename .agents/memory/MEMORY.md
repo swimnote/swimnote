@@ -127,3 +127,4 @@
 - [WP-CS20 완료 상태](wp-cs20-done-state.md) — SHA 000bf765; 21 CS12 approval+6 corrections; 로컬API→SUPABASE; AUDIT=21; Render 재배포 트리거
 - [WP-CS21 완료 상태](wp-cs21-done-state.md) — 23/23 retrieval, 0 leakage, 0 quality defects, runtime imports clean; CS21_CLOSE=YES
 - [WP-CS22 완료 상태](wp-cs22-done-state.md) — 3개 신규 Knowledge(XModeGuard/ParentPhoto/Makeup) ACTIVE; TOTAL=26; CS22_CLOSE=YES; SUPPORT_SYSTEM_CORE_COMPLETE=YES
+- [WP-CS23A 완료 상태](wp-cs23a-done-state.md) — SHA 12cb55e4; Layer0 Direct DB matcher+agent-reply push+circular fallback 제거; 40TC+3035TC; Render 트리거; OTA 없음
