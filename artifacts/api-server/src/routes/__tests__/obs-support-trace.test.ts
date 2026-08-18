@@ -132,10 +132,11 @@ vi.mock("../../lib/support-case-service.js", () => ({
 }));
 
 vi.mock("../../lib/support-resolver.js", () => ({
-  runResolutionChain: mockRunResolutionChain,
-  gatherEvidence:     mockGatherEvidence,
-  tokenize:           vi.fn((s: string) => s.split(/\s+/)),
-  normalizeQuery:     vi.fn((s: string) => s.toLowerCase().trim()),
+  runResolutionChain:   mockRunResolutionChain,
+  gatherEvidence:       mockGatherEvidence,
+  deriveEvidenceContext: vi.fn().mockReturnValue(null), // no-op in OBS tests
+  tokenize:             vi.fn((s: string) => s.split(/\s+/)),
+  normalizeQuery:       vi.fn((s: string) => s.toLowerCase().trim()),
 }));
 
 vi.mock("../../lib/ai-trace-service.js", () => ({

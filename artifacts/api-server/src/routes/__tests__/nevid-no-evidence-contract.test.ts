@@ -111,6 +111,7 @@ vi.mock("../../lib/ai-trace-service.js", () => ({
 vi.mock("../../lib/support-resolver.js", () => ({
   runResolutionChain: (...args: any[]) => mockRunResolutionChain(...args),
   gatherEvidence:     (...args: any[]) => mockGatherEvidence(...args),
+  deriveEvidenceContext: () => null,
   tokenize:           (s: string) =>
     s.toLowerCase().replace(/[^\w\s가-힣]/g, " ").split(/\s+/).filter((t: string) => t.length >= 2),
   normalizeQuery:     (s: string) => s.toLowerCase().trim(),

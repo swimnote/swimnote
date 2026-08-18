@@ -48,9 +48,11 @@ import {
 import {
   runResolutionChain,
   gatherEvidence,
+  deriveEvidenceContext,
   tokenize,
   normalizeQuery,
   type RouterContext,
+  type EvidenceItem,
 } from "../lib/support-resolver.js";
 import {
   createSupportTrace,
@@ -276,9 +278,11 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   const tokens  = tokenize(qLower);
 
   // WP-CS09: extract previous resolution context from case (same-case boundary enforced here).
-  // raw query / answer is never stored in context_json — metadata only (§2, §6).
+  // context_json holds multiple sub-keys (session metadata + resolution_context).
+  // WP-CS09 reads from the 'resolution_context' sub-key to avoid collision with session data.
+  // raw query / answer is never stored — metadata only (§2, §6).
   const previousContext: import("../lib/support-resolver.js").PreviousResolutionContext | null =
-    sc.context_json ?? null;
+    (sc.context_json as any)?.resolution_context ?? null;
 
   const ctx: RouterContext = {
     query:      rawMessage,
@@ -378,20 +382,23 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     addStage(trace, "FINAL_STATE_OK", { to_state: "AI_RESPONDED" });
 
     // WP-CS09: persist resolution context for follow-up queries (§6 source-of-truth rule).
+    // JSONB merge (||) into 'resolution_context' sub-key preserves existing session metadata.
     // Only metadata stored — raw query/answer forbidden (§2 no-raw-analytics rule).
     // Fire-and-forget; never blocks HTTP response.
     if (resolution.feature ?? resolution.entity_key ?? resolution.screen_id) {
       void (superAdminDb as any).execute(sql`
         UPDATE support_cases
-        SET context_json = ${JSON.stringify({
-          source_type:  resolution.source_type,
-          source_id:    resolution.source_id  ?? null,
-          feature:      resolution.feature    ?? null,
-          category:     resolution.category   ?? null,
-          entity_key:   resolution.entity_key ?? null,
-          screen_id:    resolution.screen_id  ?? null,
-          resolved_at:  new Date().toISOString(),
-        })}::jsonb
+        SET context_json = COALESCE(context_json, '{}'::jsonb) || jsonb_build_object(
+          'resolution_context', ${JSON.stringify({
+            source_type:  resolution.source_type,
+            source_id:    resolution.source_id  ?? null,
+            feature:      resolution.feature    ?? null,
+            category:     resolution.category   ?? null,
+            entity_key:   resolution.entity_key ?? null,
+            screen_id:    resolution.screen_id  ?? null,
+            resolved_at:  new Date().toISOString(),
+          })}::jsonb
+        )
         WHERE id = ${caseId}
       `).catch(() => {});
     }
@@ -463,7 +470,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   addStage(trace, "EVIDENCE_START");
 
-  let evidence: Awaited<ReturnType<typeof gatherEvidence>>;
+  let evidence: EvidenceItem[];
   try {
     evidence = await gatherEvidence(ctx, 5);
     addStage(trace, "EVIDENCE_DONE", { evidence_count: evidence.length });
@@ -723,6 +730,30 @@ ${evidenceBlock}
     reason:    toState === "HUMAN_REQUIRED" ? "LOW_CONFIDENCE" : null,
   }).catch(() => {});
   addStage(trace, "FINAL_STATE_OK", { to_state: toState });
+
+  // WP-CS09 §5/6: persist evidence-derived context for LLM grounded path.
+  // Conditions: no error + evidence_count > 0 + HIGH/MEDIUM confidence (not LOW).
+  // Forbidden: no_evidence, provider_failure, LOW confidence, LLM output text mining.
+  // JSONB merge preserves existing session metadata (context_json sub-key pattern).
+  if (!llmError && evidence.length > 0 && llmOutput!.confidence !== "LOW") {
+    const evidenceCtx = deriveEvidenceContext(evidence);
+    if (evidenceCtx && (evidenceCtx.entity_key || evidenceCtx.source_id)) {
+      void (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET context_json = COALESCE(context_json, '{}'::jsonb) || jsonb_build_object(
+          'resolution_context', ${JSON.stringify({
+            source_type: evidenceCtx.source_type,
+            source_id:   evidenceCtx.source_id  ?? null,
+            entity_key:  evidenceCtx.entity_key ?? null,
+            feature:     evidenceCtx.feature    ?? null,
+            category:    evidenceCtx.category   ?? null,
+            resolved_at: new Date().toISOString(),
+          })}::jsonb
+        )
+        WHERE id = ${caseId}
+      `).catch(() => {});
+    }
+  }
 
   // Event log
   void logSupportEvent({

@@ -43,14 +43,23 @@ export function hasExplanationIntent(qLower: string): boolean {
   return EXPLANATION_INTENT_MARKERS.some((m) => qLower.includes(m));
 }
 
-// ── Follow-up context signals (WP-CS09) ───────────────────────────────────────
-// Pronoun/anaphora signals that indicate the user is referring to a previous answer.
-// Only activate augmentation when previous context ALSO exists (§4 contract).
-// Navigation queries without pronouns ("출결 어디서 해?") are NOT listed here.
-const FOLLOWUP_SIGNALS = [
+// ── Follow-up context signals (WP-CS09, §8 referential-expression contract) ───
+// Referential pronouns / discourse connectors that indicate the user is referring
+// to the *topic of the previous answer*, not introducing a new topic.
+//
+// §8 rule: follow-up augmentation requires a referential expression + previousContext.
+// Standalone topic queries ("스윔노트 만든사람 누구야") do NOT qualify even if they
+// contain subject words like "만든사람" — because the entity is explicit in the query.
+//
+// Excluded (standalone topic words, not referential expressions):
+//   "만든사람", "만든 사람", "만들었어", "누가 만들었어"  ← entity is in the query itself
+export const FOLLOWUP_SIGNALS = [
+  // Referential demonstratives (core — always qualify)
   "이거", "그거", "이 기능", "이 서비스", "이 화면", "여기", "그 기능", "그 서비스",
-  "아까 말한거", "그건", "그러면", "누가 만들었어", "가격은", "어디서 해", "학부모도 돼",
-  "만든사람", "만든 사람", "만들었어",
+  // Discourse connectors (continuation from previous topic)
+  "아까 말한거", "그건", "그러면",
+  // Implicit referential (ambiguous subject → context resolves)
+  "가격은", "어디서 해", "학부모도 돼",
 ];
 
 export function hasFollowupSignal(qLower: string): boolean {
@@ -765,17 +774,107 @@ export async function runResolutionChain(ctx: RouterContext): Promise<Resolution
   return buildNoMatch(ctx);
 }
 
+// ── Evidence context derivation (WP-CS09 §5/6) ───────────────────────────────
+
+/** Evidence context derived from verified gatherEvidence results for LLM grounded path. */
+export interface EvidenceContext {
+  source_type: string;
+  source_id:   string | null;
+  entity_key:  string | null;
+  feature:     string | null;
+  category:    string | null;
+}
+
+/**
+ * §5/6: LLM grounded response에서 verified evidence로부터 follow-up context를 파생.
+ * LLM output에서 직접 entity 추출 금지 — evidence metadata만 사용.
+ *
+ * §6 selection:
+ *   A. Single qualifying KI evidence (score ≥ HIGH_CONFIDENCE) → use it
+ *   B. Multiple KI evidence with same feature → use common entity
+ *   C. Conflicting KI features → return null (don't persist)
+ *   FM fallback when no KI evidence meets threshold.
+ *
+ * Returns null if:
+ *   - no qualifying evidence (score < HIGH_CONFIDENCE for all)
+ *   - conflicting KI evidence (§6C)
+ */
+export function deriveEvidenceContext(
+  evidence: Array<{ id: string; item_type: string; title: string; answer: string; score: number; feature?: string | null; category?: string | null }>
+): EvidenceContext | null {
+  if (evidence.length === 0) return null;
+
+  const kiEvidence = evidence.filter((e) => e.item_type !== "FRONTEND_MAP");
+  const qualifyingKI = kiEvidence.filter((e) => e.score >= HIGH_CONFIDENCE);
+
+  if (qualifyingKI.length === 1) {
+    // §6A: single dominant KI evidence
+    const top = qualifyingKI[0];
+    return {
+      source_type: top.item_type,
+      source_id:   top.id,
+      entity_key:  top.feature ?? top.id,
+      feature:     top.feature ?? null,
+      category:    top.category ?? null,
+    };
+  }
+
+  if (qualifyingKI.length > 1) {
+    // §6B: multiple — check if same feature entity
+    const topFeature = qualifyingKI[0].feature;
+    if (topFeature && qualifyingKI.every((e) => e.feature === topFeature)) {
+      const top = qualifyingKI[0];
+      return {
+        source_type: top.item_type,
+        source_id:   top.id,
+        entity_key:  topFeature,
+        feature:     topFeature,
+        category:    top.category ?? null,
+      };
+    }
+    // §6C: conflicting features → cannot determine entity, don't persist
+    return null;
+  }
+
+  // No qualifying KI → FM fallback
+  const fmEvidence = evidence.filter((e) => e.item_type === "FRONTEND_MAP");
+  const qualifyingFM = fmEvidence.filter((e) => e.score >= HIGH_CONFIDENCE);
+  if (qualifyingFM.length > 0) {
+    const top = qualifyingFM[0];
+    return {
+      source_type: "FRONTEND_MAP",
+      source_id:   top.id,
+      entity_key:  top.id.replace(/^fm_/, ""),
+      feature:     null,
+      category:    null,
+    };
+  }
+
+  return null;
+}
+
 // ── Public: gatherEvidence (for LLM context) ─────────────────────────────────
+
+/** Evidence item returned by gatherEvidence — includes feature/category for context derivation. */
+export interface EvidenceItem {
+  id:        string;
+  item_type: string;
+  title:     string;
+  answer:    string;
+  score:     number;
+  feature:   string | null;
+  category:  string | null;
+}
 
 /**
  * 쿼리와 관련된 상위 K개 knowledge 항목을 수집.
- * LLM 프롬프트 context 구성에 사용.
+ * LLM 프롬프트 context 구성 + evidence context 파생(WP-CS09 §5/6)에 사용.
  * raw query 저장 금지 — evidence는 metadata만 포함.
  */
 export async function gatherEvidence(
   ctx: RouterContext,
   maxItems = 5
-): Promise<Array<{ id: string; item_type: string; title: string; answer: string; score: number }>> {
+): Promise<EvidenceItem[]> {
   try {
     const rows = (await superAdminDb.execute(sql`
       SELECT id, item_type, title, content, question, answer,
@@ -784,7 +883,7 @@ export async function gatherEvidence(
              null::text AS deep_link, null::text AS frontend_screen_id,
              null::jsonb AS solution_steps, null::jsonb AS conditions,
              null::text AS incident_id,
-             null::text AS category, null::text AS feature
+             category, feature
       FROM support_knowledge_items
       WHERE status = 'active'
         AND item_type IN ('FAQ', 'KNOWLEDGE', 'RULE', 'SOLUTION')
@@ -804,18 +903,20 @@ export async function gatherEvidence(
       .sort((a, b) => b.score - a.score)
       .slice(0, maxItems);
 
-    const knowledgeEvidence = scored.map(({ r, score }) => ({
+    const knowledgeEvidence: EvidenceItem[] = scored.map(({ r, score }) => ({
       id:        r.id,
       item_type: r.item_type,
       title:     r.title,
       answer:    r.answer ?? r.content,
       score,
+      feature:   r.feature ?? null,
+      category:  r.category ?? null,
     }));
 
     // ── Frontend Map static registry (독립 evidence source) ──────────────────
     // support_knowledge_items ACTIVE = 0 이어도 FM 레지스트리에서 evidence 수집.
     // role / mode 필터 필수 — parent에게 admin 화면 노출 금지.
-    const fmEvidence: Array<{ id: string; item_type: string; title: string; answer: string; score: number }> = [];
+    const fmEvidence: EvidenceItem[] = [];
     if (ctx.qLower) {
       for (const screen of FRONTEND_MAP_REGISTRY) {
         if (!fmPassesFilter(screen, ctx.role, ctx.mode)) continue;
@@ -828,6 +929,8 @@ export async function gatherEvidence(
             answer:    screen.purpose +
               (screen.deep_link ? ` (화면 경로: ${screen.deep_link})` : ""),
             score,
+            feature:   null,
+            category:  null,
           });
         }
       }
