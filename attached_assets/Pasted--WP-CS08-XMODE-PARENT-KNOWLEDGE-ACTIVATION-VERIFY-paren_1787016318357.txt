@@ -1,0 +1,296 @@
+[WP-CS08-XMODE-PARENT-KNOWLEDGE-ACTIVATION-VERIFY]
+
+목적:
+
+실제 parent / normal mode에서:
+
+"스윔노트X에 대해 알려줘"
+
+질문이 검증된 X MODE 소개 Knowledge로
+deterministic하게 해결되는지 확인한다.
+
+신규 기능 개발 금지.
+LLM 수정 금지.
+다른 Knowledge 대량 활성화 금지.
+
+==================================================
+1. MANUAL REVIEW ONLY
+==================================================
+
+Super Admin UI에서:
+
+ki_x_mode_intro
+
+내용을 사람이 직접 검토.
+
+확인:
+
+TYPE = FAQ
+CATEGORY = X_MODE
+FEATURE = X_MODE_INTRO
+
+QUESTION =
+"스윔노트X에 대해 알려줘"
+
+ROLES includes:
+parent
+
+MODES:
+normal에서도 접근 가능
+
+frontend_screen_id:
+parent에게 관리자 전용 화면을 노출하지 않는 상태인지 확인.
+
+내용이 현재 실제 SWIMNOTE X 설명과 일치할 때만:
+
+PENDING → ACTIVE
+
+전환.
+
+SQL 직접 UPDATE 금지.
+자동 ACTIVE 금지.
+
+보고:
+
+KNOWLEDGE_REVIEWED =
+KNOWLEDGE_APPROVED =
+KNOWLEDGE_STATUS_AFTER =
+
+==================================================
+2. DO NOT ACTIVATE SECOND ITEM YET
+==================================================
+
+ki_seed_subscription_x_features
+
+는 이번 테스트에서 ACTIVE 금지.
+
+이유:
+
+frontend_screen_id = ADMIN_SUBSCRIPTION
+
+이 parent에게 노출될 위험이 있으므로
+별도 검토 후 처리.
+
+보고:
+
+SECOND_X_ITEM_STATUS = pending
+
+==================================================
+3. REAL IPHONE TEST
+==================================================
+
+실제 iPhone
+TestFlight Build 246
+production OTA
+
+학부모 계정
+service_mode = normal
+
+질문:
+
+"스윔노트X에 대해 알려줘"
+
+전송.
+
+실제 화면 기준 기록:
+
+USER_MESSAGE_VISIBLE =
+AI_REPLY_VISIBLE =
+ANSWER_TEXT_PRESENT =
+HUMAN_REQUIRED_VISIBLE =
+LEGACY_ACK_VISIBLE =
+
+==================================================
+4. REAL TRACE VERIFY
+==================================================
+
+방금 실제 request trace 확인.
+
+기대:
+
+RESOLUTION_STATUS = RESOLVED
+RESOLUTION_SOURCE = FAQ 또는 KNOWLEDGE
+SOURCE_ID = ki_x_mode_intro
+
+EVIDENCE_COUNT =
+LLM_START =
+LLM_USED =
+MODEL =
+
+성공 조건:
+
+LLM_START = NO
+LLM_USED = false
+MODEL = null
+
+==================================================
+5. ROLE / MODE VERIFY
+==================================================
+
+실제 request context:
+
+USER_ROLE = parent
+SERVICE_MODE = normal
+
+확인.
+
+X intro Knowledge가:
+
+parent + normal
+
+에서 반환되어야 함.
+
+하지만 관리자 X 설정 화면/딥링크는
+반환되면 안 됨.
+
+보고:
+
+ADMIN_SCREEN_EXPOSED =
+ADMIN_DEEP_LINK_EXPOSED =
+
+둘 다 NO여야 함.
+
+==================================================
+6. RESPONSE QUALITY CHECK
+==================================================
+
+실제 답변이:
+
+승인한 ki_x_mode_intro 내용 범위 안에서만
+나오는지 확인.
+
+금지:
+
+없는 X 기능 추가
+없는 가격/정책 추가
+관리자 전용 설정 안내
+환불/결제 정책 창작
+
+보고:
+
+ANSWER_MATCHES_APPROVED_KNOWLEDGE =
+UNSUPPORTED_CLAIM_FOUND =
+
+==================================================
+7. HUMAN FALLBACK CHECK
+==================================================
+
+이번 exact FAQ hit에서는:
+
+HUMAN_REQUIRED
+
+로 넘어가면 FAIL.
+
+상담사 연결 카드가
+기존 case state 때문에 남아 있는지 확인.
+
+만약 답변은 정상인데
+기존 HUMAN_REQUIRED UI가 계속 남아 있다면:
+
+UI_STATE_STALE = YES
+
+로 별도 defect 기록.
+
+이번 작업에서 바로 UI redesign 금지.
+
+==================================================
+8. LEGACY ACK CHECK
+==================================================
+
+현재 화면에 보였던:
+
+"문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+
+문구가 exact FAQ resolved 상태에서도
+계속 나타나는지 확인.
+
+보고:
+
+LEGACY_ACK_VISIBLE =
+
+FAQ 정상답변과 동시에 보이면:
+DUPLICATE_UI = YES
+
+후속 cleanup 대상으로 기록.
+
+==================================================
+9. DB VERIFY
+==================================================
+
+production Supabase에서 해당 case:
+
+USER_MESSAGE_STORED =
+SYSTEM/AI_REPLY_STORED =
+
+정상 conversation 조회에 답변 포함 확인.
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+KNOWLEDGE_REVIEWED =
+KNOWLEDGE_APPROVED =
+KNOWLEDGE_STATUS_AFTER =
+
+SECOND_X_ITEM_STATUS =
+
+USER_ROLE =
+SERVICE_MODE =
+
+DEVICE_QUERY =
+USER_MESSAGE_VISIBLE =
+AI_REPLY_VISIBLE =
+ANSWER_TEXT_PRESENT =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+
+LLM_START =
+LLM_USED =
+MODEL =
+
+ADMIN_SCREEN_EXPOSED =
+ADMIN_DEEP_LINK_EXPOSED =
+
+ANSWER_MATCHES_APPROVED_KNOWLEDGE =
+UNSUPPORTED_CLAIM_FOUND =
+
+HUMAN_REQUIRED_VISIBLE =
+UI_STATE_STALE =
+
+LEGACY_ACK_VISIBLE =
+DUPLICATE_UI =
+
+USER_MESSAGE_STORED =
+REPLY_STORED =
+
+DEFECTS_FOUND =
+
+CODE_CHANGED = NO
+DB_SCHEMA_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+ki_x_mode_intro = ACTIVE by manual approval
+
+parent + normal:
+"스윔노트X에 대해 알려줘"
+→ RESOLVED
+
+SOURCE_ID = ki_x_mode_intro
+
+LLM_USED = false
+MODEL = null
+
+ADMIN_SCREEN_EXPOSED = NO
+ADMIN_DEEP_LINK_EXPOSED = NO
+
+ANSWER_MATCHES_APPROVED_KNOWLEDGE = YES
+UNSUPPORTED_CLAIM_FOUND = NO
+
+완료:
+
+WP_CS08_XMODE_PARENT_KNOWLEDGE_VERIFIED ✅
