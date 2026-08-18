@@ -81,7 +81,8 @@ export type ComplaintClass =
   | "COMPLAINT_SESSION_EXPIRED"     // "자꾸 로그아웃돼요"
   | "COMPLAINT_PERMISSION_DENIED"   // "권한이 없다고 나와요"
   | "COMPLAINT_KEEP_FAILING"        // "또 안돼요"
-  | "COMPLAINT_NOTHING_SHOWS"       // "아무것도 안 떠요";
+  | "COMPLAINT_NOTHING_SHOWS"       // "아무것도 안 떠요"
+  | "COMPLAINT_NOT_RECEIVED"        // "못 받았어요" (수신 미확인 유형)
 
 export type KnowledgeCoverageStatus =
   | "ACTIVE_COVERED"   // 현재 ACTIVE knowledge item이 커버함

@@ -463,20 +463,36 @@ router.patch(
 
     try {
       const existing = await superAdminDb.execute(sql`
-        SELECT id, status, pool_id FROM support_knowledge_items WHERE id = ${id} LIMIT 1
+        SELECT id, status, pool_id, revision FROM support_knowledge_items WHERE id = ${id} LIMIT 1
       `) as any;
       const row = (existing.rows ?? [])[0];
       if (!row) return res.status(404).json({ error: "항목을 찾을 수 없습니다." });
       if (row.status === "active") {
         return res.status(400).json({ error: "이미 활성화된 항목입니다." });
       }
+      // § 상태 가드: pending / edit_required 만 activate 허용
+      if (row.status !== "pending" && row.status !== "edit_required") {
+        return res.status(400).json({ error: `${row.status} 상태는 activate 불가`, code: "INVALID_STATUS_TRANSITION" });
+      }
 
-      await superAdminDb.execute(sql`
+      // § 동시 승인 방지 — revision guard (CONCURRENT_APPROVAL_DUPLICATE 차단)
+      const currentRevision = row.revision ?? 1;
+      const updateResult = await superAdminDb.execute(sql`
         UPDATE support_knowledge_items
         SET status = 'active', reviewed_by = ${actorId}, reviewed_at = NOW(),
             revision = revision + 1, updated_at = NOW()
         WHERE id = ${id}
-      `);
+          AND revision = ${currentRevision}
+        RETURNING id
+      `) as any;
+
+      if (!(updateResult?.rows ?? [])[0]) {
+        return res.status(409).json({
+          ok:    false,
+          error: "동시 상태 변경 감지 — 최신 상태를 다시 조회하세요",
+          code:  "CONCURRENT_APPROVAL_CONFLICT",
+        });
+      }
 
       await logKnowledgeAudit("KNOWLEDGE_ACTIVATED", id, actorId, row.pool_id);
       res.json({ ok: true, id, status: "active" });

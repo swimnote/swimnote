@@ -136,8 +136,13 @@ vi.mock("@workspace/db", () => {
 
     // ── UPDATE support_knowledge_items ──────────────────────────────────────
     if (text.includes("UPDATE support_knowledge_items")) {
-      // id is always the last param (both sql.raw and sql template use WHERE id = $N)
-      const itemId = params[params.length - 1];
+      // With revision guard: WHERE id = ${id} AND revision = ${currentRevision}
+      // params order: [...SET params..., id, currentRevision]
+      // Without revision guard: WHERE id = ${id} — last param is id
+      const hasRevisionGuard = text.includes("AND revision =");
+      const itemId = hasRevisionGuard
+        ? params[params.length - 2]   // id is second-to-last when revision is last
+        : params[params.length - 1];  // id is last when no revision guard
       const item = knowledgeStore.find((r) => r.id === itemId);
       if (item) {
         if (text.includes("status = 'active'"))   { item.status = "active";   item.reviewed_by = "reviewer"; }
@@ -145,6 +150,8 @@ vi.mock("@workspace/db", () => {
         if (text.includes("status = 'archived'")) { item.status = "archived"; }
         if (text.includes("revision = revision")) { item.revision = (item.revision ?? 1) + 1; }
         if (text.includes("usage_count = usage_count")) { item.usage_count = (item.usage_count ?? 0) + 1; }
+        // RETURNING id — return the updated item id for revision guard success check
+        if (text.includes("RETURNING id")) return { rows: [{ id: item.id }] };
       }
       return { rows: [] };
     }
