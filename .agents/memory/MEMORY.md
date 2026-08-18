@@ -119,3 +119,4 @@
 - [WP-CS12 완료 상태](wp-cs12-done-state.md) — SHA 62c8c0c5; 21 candidates(FAQ×11/SOLUTION×10) PENDING; P0 10/10; CS12-01~15 42TC; 2146TC; DB write 없음; Render/OTA 없음
 - [WP-CS13 완료 상태](wp-cs13-done-state.md) — SHA caa49480; P1 MODE_TRUST_CLIENT_ONLY+P2 isSuperAdmin 수정; 80TC; 2226TC; Render 트리거; OTA 없음
 - [WP-CS14 완료 상태](wp-cs14-done-state.md) — SHA fcebb10f; 품질·근거 감사; GoldenSet 50+93TC; 9지표=0; 2319TC; Render/OTA 없음
+- [WP-CS15 완료 상태](wp-cs15-done-state.md) — SHA c275eeba; Traceability+Conflict+Incident; knowledge-governance.ts+91TC; 2410TC; Render/OTA 없음
