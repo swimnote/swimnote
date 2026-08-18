@@ -110,3 +110,4 @@
 - [P0 Support DB Source-of-Truth Harden 완료](p0-dbsrc-done.md) — SHA 202f9a6e; DDL 로그+AI INSERT 500+GET msg 500; DBSRC 21TC; 1693TC; Render 트리거; OTA 없음
 - [P0-DEVICE-DEFECT-2 완료](p0-device-defect-2-done.md) — author_user_id NOT NULL → AI INSERT 실패 → 채팅 빈 화면; ALTER DROP NOT NULL fix; DEF2 24TC; SHA b8a13a90
 - [P0-OBSERVABILITY 완료](p0-observability-done.md) — support-trace.ts+17stage계측+33TC; Render live 4124c1c9; DEFECT=OPEN 사용자 재현 대기
+- [P0-STALE-HUMAN-UI 완료](p0-stale-human-ui-done.md) — SHA fcc5c3f8; VALID_TRANSITIONS[HUMAN_REQUIRED]+=AI_PROCESSING+isAutoHumanRequired gate+UI legacyAck isHuman&&; STALE 18TC+1776TC; Render 트리거; OTA iOS 01a01295
