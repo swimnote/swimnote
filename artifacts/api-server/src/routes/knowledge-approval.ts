@@ -17,7 +17,8 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { requireAuth } from "../middlewares/auth.js";
-import { superAdminDb, sql } from "../db/superAdminDb.js";
+import { superAdminDb } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { detectConflicts, hasUnresolvedConflict } from "../lib/knowledge-governance.js";
 import {
   isApprovalAllowed,
