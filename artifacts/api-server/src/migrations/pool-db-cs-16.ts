@@ -16,7 +16,8 @@
  *   - Production DB write = NO (미배포).
  */
 
-import { superAdminDb, sql } from "../db/superAdminDb.js";
+import { superAdminDb } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 let ran = false;
 
