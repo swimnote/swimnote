@@ -1,0 +1,646 @@
+[WP-CS13 — Role / Mode / Scope Integrity Audit]
+
+목적:
+SWIMNOTE AI 고객지원 시스템에서
+Role / Service Mode / Pool(Tenant) / Student / Feature Scope가
+서로 잘못 교차되지 않는지 Repository 전체 기준으로 감사한다.
+
+이번 WP의 핵심은 기능 추가가 아니다.
+
+잘못된 Role/Mode/Tenant 데이터가
+Knowledge Search, Support Case, AI Context, Deep Link,
+FAQ/SOLUTION Candidate, Human Escalation 등에
+들어갈 가능성을 제거하는 것이 목적이다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+1. 기존 Support UI / AI Engine / Knowledge Search의 정상 동작 변경 금지.
+2. 새로운 OpenAI/LLM 호출 추가 금지.
+3. 테스트 통과를 위해 권한 조건을 완화하지 말 것.
+4. cross-pool / cross-role / cross-student leakage를 절대 허용하지 말 것.
+5. 발견된 취약점은 추정하지 말고 실제 코드경로 기준으로 기록.
+6. 기존 ACTIVE Knowledge를 임의 수정하지 말 것.
+7. CS12의 PENDING Candidate를 ACTIVE로 승격하지 말 것.
+8. Production DB write 금지.
+9. 모든 테스트는 실제 사용자 개인정보 없이 fixture/mock 데이터만 사용.
+10. 감사 결과가 불명확하면 PASS 처리하지 말고 REVIEW_REQUIRED로 남길 것.
+
+==================================================
+1. 감사 대상 ROLE
+==================================================
+
+최소 아래 Role을 전부 검사.
+
+- pool_admin
+- sub_admin
+- teacher
+- parent_account
+
+추가로 시스템에 존재하면:
+
+- super_admin
+- platform_admin
+- super_manager
+
+각 Role마다 다음을 확인.
+
+A. 접근 가능한 Support feature
+B. 조회 가능한 Knowledge
+C. 생성 가능한 Support Case
+D. Human Escalation 가능 여부
+E. Deep Link action 가능 범위
+F. 현재 pool/student context 접근 범위
+G. 다른 role 전용 답변/Knowledge 노출 여부
+
+==================================================
+2. MODE INTEGRITY
+==================================================
+
+최소 Mode:
+
+- NORMAL
+- X
+- X_PENDING
+
+확인:
+
+NORMAL 사용자가
+X 전용 onboarding / billing / X setup /
+X curriculum / X entitlement solution을
+잘못 받지 않는지.
+
+X 사용자가
+Normal 전용 fallback에서
+잘못된 기능 안내를 받지 않는지.
+
+X_PENDING은
+X ACTIVE처럼 취급되지 않는지.
+
+mode 확인 source가
+client 전달값만 신뢰하지 않고
+서버의 authoritative data와 일치하는지.
+
+검사 결과:
+
+MODE_LEAKAGE
+MODE_MISMATCH
+MODE_TRUST_CLIENT_ONLY
+
+각각 0 목표.
+
+==================================================
+3. POOL / TENANT INTEGRITY
+==================================================
+
+가장 중요.
+
+Pool A 사용자에게
+Pool B의 다음 정보가 절대 노출되지 않는지 검사:
+
+- support case
+- ticket
+- conversation
+- knowledge scope
+- pool-specific FAQ
+- pool-specific solution
+- curriculum
+- student
+- subscription
+- billing context
+- support metadata
+- previous resolution context
+
+필수 확인:
+
+JWT poolId
+→ request pool_id
+→ DB WHERE pool_id / center_id
+→ Knowledge Search scope
+→ cache key
+→ support case ownership
+
+전체 체인을 검사.
+
+cross-pool 접근은 반드시
+403 또는 equivalent deny.
+
+client가 pool_id를 임의 변경해도
+다른 pool 데이터 접근 불가해야 함.
+
+==================================================
+4. STUDENT / CHILD SCOPE INTEGRITY
+==================================================
+
+parent_account가 포함되는 모든 Support Context에서:
+
+- 본인 자녀만 접근 가능
+- 다른 학생 ID 주입 차단
+- 다른 parent의 child context 차단
+- teacher/admin context의 student 범위와 혼동 금지
+
+AI Support에 향후 student_id를 전달하는 구조가
+DESIGNED 상태라면
+현재는 실제 구현과 계획을 구분해서 기록.
+
+미구현인데 PASS로 처리하지 말 것.
+
+==================================================
+5. KNOWLEDGE ACCESS INTEGRITY
+==================================================
+
+FAQ / SOLUTION / KNOWN ISSUE / POLICY / GUIDE에 대해
+각 item의 scope 조건 전수검사.
+
+검사 필드가 있다면:
+
+- allowed_roles
+- role_scope
+- mode_scope
+- pool_scope
+- feature_scope
+- status
+- visibility
+- knowledge_type
+
+확인:
+
+teacher 전용 diary solution이 parent에게 노출되지 않음.
+
+parent 전용 기능이 teacher/admin에게
+잘못된 사용자 절차로 안내되지 않음.
+
+pool_admin 전용 billing/X setup이
+teacher/parent에게 노출되지 않음.
+
+PENDING candidate는
+production retrieval에 포함되지 않음.
+
+ACTIVE만 정상 검색되는 구조 확인.
+
+==================================================
+6. CS12 CANDIDATE INTEGRITY
+==================================================
+
+CS12에서 생성한 21개 PENDING Candidate 전수 감사.
+
+각 candidate마다:
+
+- intended role
+- intended mode
+- scope
+- type
+- source
+- P0 issue mapping
+
+검사.
+
+특히:
+
+AUTH_ACCOUNT_WITHDRAWAL
+AUTH_POOL_ACCESS_DENIED
+ATTENDANCE_PERMISSION_DENIED
+NOTIFICATION_PERMISSION_OS
+DATA_NOT_VISIBLE_ROLE_MISMATCH
+DATA_NOT_VISIBLE_FILTER
+KNOWN_ISSUE_SERVER_API
+KNOWN_ISSUE_AI_PROVIDER
+KNOWN_ISSUE_PUSH
+KNOWN_ISSUE_BILLING
+
+각 항목에 대해
+잘못된 role/mode 사용자가 검색했을 때
+후보가 노출되지 않는지 확인.
+
+PENDING 상태이므로
+실제 production answer source로 사용되면 안 됨.
+
+==================================================
+7. SUPPORT CASE OWNERSHIP
+==================================================
+
+support_cases / support_tickets / replies / events
+전체 ownership 검사.
+
+확인:
+
+사용자 A가 사용자 B의 case_id를 넣었을 때 차단.
+
+Pool A가 Pool B case 접근 차단.
+
+Parent가 다른 parent case 접근 차단.
+
+Teacher가 admin-only case 접근 차단.
+
+Human agent용 endpoint가 있으면
+agent 권한과 일반 사용자 권한 분리.
+
+case_id만 알면 접근 가능한 IDOR 취약점 존재 여부 검사.
+
+==================================================
+8. PREVIOUS CONTEXT / CONVERSATION LEAKAGE
+==================================================
+
+PreviousResolutionContext
+previous answer
+conversation history
+case continuation
+
+등이 존재하면:
+
+동일 사용자/동일 case/동일 tenant 조건에서만 재사용.
+
+새 case에 다른 사용자의 이전 context가 붙지 않음.
+
+Cache 또는 in-memory context가 있다면
+cache key에 최소:
+
+tenant/pool
+user/case
+role
+
+중 필요한 isolation key가 포함되는지 확인.
+
+==================================================
+9. DEEP LINK / ACTION INTEGRITY
+==================================================
+
+AI Support action:
+
+{
+  type: "NAVIGATE",
+  target: screen_id
+}
+
+구조 감사.
+
+필수:
+
+frontend-map registry에 없는 target 거부.
+
+AI가 raw route 문자열 실행 불가.
+
+Role에 허용되지 않은 screen 이동 차단.
+
+Mode에 없는 feature 화면 이동 차단.
+
+Pool/student context가 필요한 화면은
+navigation 전 authorization 재확인.
+
+예:
+
+parent → admin billing
+teacher → pool settings
+normal → X-only config
+
+등 불가.
+
+==================================================
+10. FEATURE SCOPE
+==================================================
+
+AI_FEATURE registry 전체 확인.
+
+예:
+
+teacher_diary
+parent_curriculum_search
+growth_report_ai
+story_summary
+support_ai
+video_analysis
+ai_search
+report_summary
+
+각 feature마다:
+
+allowed roles
+allowed modes
+allowed scope
+implemented/planned status
+
+Matrix 작성.
+
+PLANNED 기능이
+실제 available 기능처럼 Support에서 안내되지 않는지 확인.
+
+==================================================
+11. BILLING / SUBSCRIPTION CONTEXT
+==================================================
+
+Billing/X Mode 관련 Support에서 특히 검사.
+
+teacher 또는 parent에게:
+
+- 결제수단 변경
+- 구독 해지
+- X entitlement 변경
+- pool billing
+- invoice
+- admin subscription
+
+등 관리자 전용 action을 수행하도록
+안내하지 않는지.
+
+정보 설명과 실제 action permission을 구분.
+
+==================================================
+12. KNOWN ISSUE SCOPE
+==================================================
+
+KNOWN ISSUE가 향후 incident_id와 연결될 예정이라면:
+
+현재 구현된 부분과
+CS15 예정 부분을 명확히 구분.
+
+이번 WP에서 존재하지 않는 incident 연결을
+가짜로 구현하거나 테스트하지 말 것.
+
+현재 Knowledge의 role/mode/scope 안전성만 감사.
+
+==================================================
+13. ROLE NORMALIZATION
+==================================================
+
+Role 명칭 alias가 있다면 전수 확인.
+
+예:
+
+admin
+pool_admin
+manager
+sub_admin
+teacher
+parent
+parent_account
+
+서버 내부 canonical role 변환이
+일관적인지 확인.
+
+문자열 비교가 여러 파일에 흩어져
+role bypass 가능성이 있는지 검사.
+
+가능하면 central role normalization/helper 사용 여부 보고.
+
+단 이번 WP에서 대규모 refactor는 하지 말 것.
+
+==================================================
+14. SERVER AUTHORITATIVE CONTEXT
+==================================================
+
+다음 값 중
+client가 임의로 보내는 값을 그대로 신뢰하는지 조사:
+
+role
+pool_id
+mode
+subscription
+student_id
+feature permission
+
+보안상 중요한 Context는
+가능하면 JWT/DB/server state를 authoritative source로 사용.
+
+client context와 server state가 불일치하면
+deny 또는 server value 우선.
+
+각 필드별 authoritative source 표 작성.
+
+==================================================
+15. NEGATIVE TESTS
+==================================================
+
+반드시 정상 성공 테스트보다
+실패/차단 테스트를 충분히 작성.
+
+최소 시나리오:
+
+1. Teacher → Parent-only knowledge
+2. Parent → Teacher diary knowledge
+3. Parent → Pool admin billing
+4. Normal → X-only knowledge
+5. X_PENDING → X ACTIVE 기능
+6. Pool A → Pool B case
+7. Pool A → Pool B knowledge
+8. Parent A → Parent B student
+9. User A → User B case_id
+10. Invalid role
+11. Missing role
+12. forged pool_id
+13. forged mode
+14. forged student_id
+15. arbitrary deep-link target
+16. inactive/PENDING knowledge retrieval
+17. wrong feature_id
+18. mismatched previous context
+19. cross-tenant cache key
+20. role alias bypass
+
+각각 deny/pass 기준 명확히.
+
+==================================================
+16. AUDIT RESULT CLASSIFICATION
+==================================================
+
+발견사항은 아래 중 하나로 분류.
+
+PASS
+FIXED
+REVIEW_REQUIRED
+NOT_IMPLEMENTED
+NOT_APPLICABLE
+
+그리고 issue severity:
+
+P0 = 다른 tenant/student의 데이터 노출 또는 권한 action 가능
+P1 = role/mode 제한 우회
+P2 = 잘못된 안내/feature leakage
+P3 = metadata/UX scope inconsistency
+
+P0/P1 남아 있으면 CS13_CLOSE = NO.
+
+==================================================
+17. SECURITY FIX POLICY
+==================================================
+
+문제가 발견되면:
+
+최소 변경으로 수정.
+
+AI 결과 품질/Knowledge 내용/Support UX를
+임의 변경하지 말 것.
+
+Security boundary만 수정.
+
+수정 전/후 behavior test 작성.
+
+==================================================
+18. REQUIRED TEST OUTPUT
+==================================================
+
+최소 보고:
+
+ROLE_MATRIX:
+pool_admin
+sub_admin
+teacher
+parent_account
+
+MODE_MATRIX:
+NORMAL
+X
+X_PENDING
+
+TENANT_TEST:
+cross-pool deny count
+
+STUDENT_SCOPE_TEST:
+cross-student deny count
+
+KNOWLEDGE_SCOPE:
+role leakage
+mode leakage
+pool leakage
+pending leakage
+
+CASE_SCOPE:
+cross-user
+cross-pool
+IDOR
+
+DEEPLINK:
+invalid target
+role-invalid target
+mode-invalid target
+
+FULL TEST SUITE 결과.
+
+==================================================
+19. PARTNER EVIDENCE METRICS
+==================================================
+
+이번 WP 결과에서 아래 숫자를 반드시 최종 보고서에 포함.
+
+ROLE_LEAKAGE: N
+MODE_LEAKAGE: N
+POOL_LEAKAGE: N
+STUDENT_LEAKAGE: N
+PENDING_KNOWLEDGE_LEAKAGE: N
+CASE_IDOR: N
+INVALID_DEEPLINK_ALLOWED: N
+
+목표:
+
+전부 0.
+
+추가:
+
+ROLE_MODE_SCOPE_TESTS_TOTAL
+ROLE_MODE_SCOPE_TESTS_PASS
+FULL_SUITE_PASS/TOTAL
+
+단:
+UNIT/MOCK인지
+INTEGRATION인지
+PRODUCTION인지
+정확히 표시.
+
+==================================================
+20. PRODUCTION WRITE
+==================================================
+
+이번 WP는 audit/fix/test 목적.
+
+Production DB write 금지.
+
+migration이 필요한 경우에도
+배포 전 상태로 코드만 준비.
+
+ACTIVE Knowledge 자동 수정 금지.
+
+CS12 PENDING Candidate status 변경 금지.
+
+==================================================
+21. COMPLETE REPORT FORMAT
+==================================================
+
+완료 시 아래 형식으로 보고.
+
+WP-CS13 COMPLETE REPORT
+
+Git HEAD:
+Files changed:
+
+AUDIT SCOPE:
+  Roles:
+  Modes:
+  Pools:
+  Student scope:
+  Knowledge:
+  Cases:
+  Deep links:
+
+RESULT:
+  ROLE_LEAKAGE:
+  MODE_LEAKAGE:
+  POOL_LEAKAGE:
+  STUDENT_LEAKAGE:
+  PENDING_KNOWLEDGE_LEAKAGE:
+  CASE_IDOR:
+  INVALID_DEEPLINK_ALLOWED:
+
+FIXES:
+  P0:
+  P1:
+  P2:
+  P3:
+
+AUTHORITATIVE CONTEXT:
+  role:
+  pool_id:
+  mode:
+  student_id:
+  subscription:
+
+TEST:
+  CS13:
+  FULL SUITE:
+  TEST LEVEL:
+
+PRODUCTION WRITE:
+  YES / NO
+  rows inserted:
+  rows modified:
+  ACTIVE rows modified:
+  PENDING candidate status modified:
+
+Critical blockers:
+
+CS13_CLOSE: YES / NO
+
+WP_CS13_ROLE_MODE_SCOPE_INTEGRITY_AUDIT_COMPLETE ✅
+
+
+==================================================
+22. 종료 조건
+==================================================
+
+아래 전부 충족해야 CLOSE 가능.
+
+ROLE_LEAKAGE = 0
+MODE_LEAKAGE = 0
+POOL_LEAKAGE = 0
+STUDENT_LEAKAGE = 0
+PENDING_KNOWLEDGE_LEAKAGE = 0
+CASE_IDOR = 0
+INVALID_DEEPLINK_ALLOWED = 0
+
+P0 = 0
+P1 = 0
+
+FULL SUITE PASS
+
+Production write = NO
+ACTIVE Knowledge modification = 0
+CS12 PENDING status modification = 0
