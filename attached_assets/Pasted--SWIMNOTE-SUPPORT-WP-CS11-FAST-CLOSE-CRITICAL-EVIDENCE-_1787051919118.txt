@@ -1,0 +1,256 @@
+[SWIMNOTE SUPPORT — WP-CS11 FAST CLOSE / CRITICAL EVIDENCE ONLY]
+
+## 1. 목적
+
+WP-CS11 `SUPPORT COVERAGE GAP CLASSIFICATION`을 빠르게 최종 종료한다.
+
+현재 보고:
+
+* TOTAL = 75
+* COVERED_ACTIVE = 7
+* COVERED_PENDING = 1
+* PARTIAL = 46
+* MISSING = 21
+* 합계 = 75
+* P0 MISSING = 10
+* 신규 61TC
+* 전체 TEST = 2104/2104 PASS
+
+이번 작업에서 사소한 숫자나 비치명적 차이를 전수 재감사하지 않는다.
+
+확인 대상은 CS11을 잘못 PASS시킬 수 있는 **치명적 integrity 문제**로 제한한다.
+
+---
+
+## 2. TRUSTED BASELINE
+
+현재 repository에 구현된 CS11 classification 결과를 우선 baseline으로 사용한다.
+
+다시 앱 전체 Coverage Scan을 하지 않는다.
+
+CS10 재실행 금지.
+
+전체 Support architecture 재감사 금지.
+
+이미 검증된 APP API / Support DB / Support Engine 구조를 다시 조사하지 않는다.
+
+---
+
+## 3. 절대 범위
+
+이번 WP에서 금지:
+
+* CS12 후보 생성
+* FAQ 생성
+* Knowledge 생성
+* Solution 생성
+* Knowledge ACTIVE 전환
+* DB write
+* migration
+* production data 수정
+* Support architecture 변경
+* deploy
+* OTA
+* 새로운 기능 구현
+
+필요하면 **CS11 classification 자체의 명백한 오류만 최소 수정 가능**하다.
+
+단 수정이 발생하면 무엇을 왜 수정했는지 최종보고에 명시한다.
+
+---
+
+## 4. FAST INTEGRITY CHECK
+
+다음 5가지만 확인한다.
+
+### CHECK 1 — Classification 총계
+
+현재 실제 classification source에서 계산:
+
+TOTAL
+COVERED_ACTIVE
+COVERED_PENDING
+PARTIAL
+MISSING
+UNCLASSIFIED
+
+성공:
+
+`UNCLASSIFIED = 0`
+
+75개 합계에 단순 오차가 있으면 실제 값을 사용하고 이유만 보고한다.
+
+---
+
+### CHECK 2 — COVERED_ACTIVE 치명적 오분류
+
+COVERED_ACTIVE 7개만 검사한다.
+
+각 ACTIVE record가 다음 중 실제 source를 가지고 있는지만 확인:
+
+* ACTIVE FAQ/Knowledge
+* 실제 deterministic DB_STATE
+* 실제 Rule
+* 실제 ACTIVE Solution
+* 기타 production에서 실제 사용 가능한 source
+
+다음은 치명적 오류:
+
+* 존재하지 않는 source
+* PENDING source를 ACTIVE로 분류
+* INACTIVE/ARCHIVED source를 ACTIVE로 분류
+* Frontend Map `WHERE_IS`만 있는데 HOW_TO/ERROR까지 ACTIVE 처리
+* 실제로 답변할 수 없는 record를 ACTIVE 처리
+
+성공:
+
+`CRITICAL_FALSE_ACTIVE = 0`
+
+7개 전체 상세 provenance를 장황하게 출력할 필요는 없다.
+
+문제가 있는 record만 상세 출력.
+
+---
+
+### CHECK 3 — PENDING leakage
+
+COVERED_PENDING으로 보고된 항목과 production Support search contract를 확인.
+
+PENDING Knowledge가 production 답변에 사용될 수 있는 구조인지 검사.
+
+성공:
+
+`PENDING_PRODUCTION_LEAKAGE = 0`
+
+PENDING을 ACTIVE로 바꾸지 않는다.
+
+---
+
+### CHECK 4 — P0 MISSING
+
+보고된 P0 MISSING 10개가 실제 classification source에 존재하는지만 확인.
+
+최종보고에는 ID + 짧은 feature명만 출력.
+
+P0 항목을 이번 WP에서 해결하지 않는다.
+
+이들은 CS12 이후 입력이다.
+
+---
+
+### CHECK 5 — Tests
+
+현재 HEAD에서 CS11 관련 기존 테스트만 확인한다.
+
+새 테스트 대량 작성 금지.
+
+보고:
+
+* CS11 tests PASS/FAIL
+* 전체 suite가 현재 HEAD에서 이미 2104/2104라면 그 결과 확인
+* UNIT/MOCK인지 명시
+
+Production/device 검증이 필요 없는 classification WP이므로
+실기기 테스트 요구하지 않는다.
+
+---
+
+## 5. PASS / HOLD 기준
+
+다음이면 바로 PASS:
+
+* UNCLASSIFIED = 0
+* CRITICAL_FALSE_ACTIVE = 0
+* PENDING_PRODUCTION_LEAKAGE = 0
+* P0 MISSING 목록 확인됨
+* CS11 test PASS
+
+다음과 같은 사소한 문제는 CS11 HOLD 사유로 만들지 않는다:
+
+* description wording 차이
+* naming 미세 차이
+* 비-P0 priority 조정
+* PARTIAL/MISSING 사이의 비치명적 경계 차이
+* 향후 alias 개선 필요
+* 향후 FAQ 품질 개선 필요
+* 추가 analytics 개선 필요
+
+이런 항목은 다음 WP에서 다룬다.
+
+---
+
+## 6. HOLD가 필요한 경우
+
+다음 중 하나만 HOLD:
+
+1. 미분류 Coverage 존재
+2. PENDING/INACTIVE source가 ACTIVE로 오분류
+3. 존재하지 않는 source가 ACTIVE
+4. role/mode/pool security를 명백히 우회하는 classification
+5. production에서 PENDING Knowledge 사용 가능
+6. CS11 핵심 테스트 실패
+
+HOLD 시 대형 재감사 금지.
+
+실제 blocker만 최소 수정 후 다시 확인.
+
+---
+
+## 7. 최종보고 형식
+
+다음 형식으로 짧게 제출:
+
+WP-CS11 FAST CLOSE
+
+Git HEAD:
+
+TOTAL:
+COVERED_ACTIVE:
+COVERED_PENDING:
+PARTIAL:
+MISSING:
+UNCLASSIFIED:
+
+CRITICAL_FALSE_ACTIVE:
+PENDING_PRODUCTION_LEAKAGE:
+
+P0_MISSING_COUNT:
+P0_MISSING_IDS:
+
+* ...
+* ...
+
+TEST:
+
+* CS11:
+* FULL SUITE:
+* TEST LEVEL: UNIT/MOCK | INTEGRATION
+
+Critical contradictions:
+
+* NONE
+  또는 실제 blocker만 작성
+
+Changes made:
+
+* NONE
+  또는 최소 수정 목록
+
+CS11_CLOSE:
+YES / NO
+
+최종 완료 시:
+
+`WP_CS11_SUPPORT_COVERAGE_GAP_CLASSIFICATION_COMPLETE ✅`
+
+---
+
+## 8. 성공 후 중지
+
+`CS11_CLOSE=YES`가 나오면 CS12를 임의 구현하지 말고 멈춘다.
+
+다음 WP는:
+
+`WP-CS12 — FAQ / KNOWLEDGE / SOLUTION CANDIDATE GENERATION`
+
+이며 별도 지시를 받는다.
