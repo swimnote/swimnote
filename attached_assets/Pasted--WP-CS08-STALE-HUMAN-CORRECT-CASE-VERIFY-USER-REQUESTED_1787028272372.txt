@@ -1,0 +1,246 @@
+[WP-CS08-STALE-HUMAN-CORRECT-CASE-VERIFY]
+
+목적:
+
+잘못된 USER_REQUESTED_HUMAN 케이스가 아니라,
+실제 auto-fallback 케이스에서 stale-human fix를
+실기기로 검증한다.
+
+신규 코드 수정 금지.
+DB 직접 수정 금지.
+새 ticket 생성 금지.
+
+==================================================
+1. TARGET CASE
+==================================================
+
+우선 기존 auto-fallback 케이스 사용 가능 여부 확인:
+
+CASE_ID = sc_1787014563357_c1akn4
+
+조건:
+
+ticket_id = null
+escalation_reason = null
+state = HUMAN_REQUIRED
+
+소유자:
+pa_v2_1784491905588_k293trwaz
+
+실제 해당 parent_account로 안전하게 로그인 가능하면
+이 케이스를 사용.
+
+로그인 불가능하면:
+NO_SAFE_ACCOUNT
+
+로 보고하고 §2 방식 사용.
+
+==================================================
+2. ALTERNATIVE — NEW AUTO-FALLBACK CASE
+==================================================
+
+기존 케이스 사용 불가 시
+현재 실제 로그인 가능한 parent_account에서
+새 문의를 생성.
+
+먼저 Knowledge와 매칭되지 않는 질문으로:
+
+NO_MATCH
+→ HUMAN_REQUIRED
+
+유도.
+
+중요:
+
+[아직 안돼요]
+[상담사에게 문의하기]
+
+절대 누르지 않는다.
+
+즉:
+
+ticket_id = null
+escalation_reason = null
+
+인 auto-fallback 상태를 만든다.
+
+그 뒤 같은 case에서
+현재 ACTIVE FAQ:
+
+"스윔노트X에 대해 알려줘"
+
+전송.
+
+==================================================
+3. BEFORE SECOND QUESTION VERIFY
+==================================================
+
+두 번째 질문 전 DB 확인:
+
+CASE_STATE_BEFORE =
+TICKET_ID =
+ESCALATION_REASON =
+
+성공 조건:
+
+CASE_STATE_BEFORE = HUMAN_REQUIRED
+TICKET_ID = null
+ESCALATION_REASON = null
+
+하나라도 다르면 테스트 중지.
+
+==================================================
+4. REAL IPHONE SECOND QUESTION
+==================================================
+
+같은 case에서:
+
+"스윔노트X에 대해 알려줘"
+
+전송.
+
+실제 화면 기준:
+
+FAQ_REPLY_VISIBLE =
+HEADER_TEXT =
+LEGACY_ACK_VISIBLE =
+HUMAN_CARD_VISIBLE =
+HUMAN_WAITING_TEXT_VISIBLE =
+
+예상값 작성 금지.
+
+==================================================
+5. REAL TRACE
+==================================================
+
+방금 request 실제 trace 확인.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+
+AI_PROCESSING_STAGE =
+CASE_STATE_AFTER =
+
+기대:
+
+RESOLUTION_STATUS = RESOLVED
+SOURCE_ID = ki_x_mode_intro
+
+AI_PROCESSING_STAGE = OBSERVED
+CASE_STATE_AFTER = AI_RESPONDED
+
+==================================================
+6. UI SUCCESS CONDITION
+==================================================
+
+auto-fallback case에서 FAQ 성공 후:
+
+HEADER_TEXT != "상담사 연결 대기"
+
+LEGACY_ACK_VISIBLE = NO
+
+HUMAN_CARD_VISIBLE = NO
+
+HUMAN_WAITING_TEXT_VISIBLE = NO
+
+과거 NO_MATCH 메시지는 그대로 남아야 함.
+
+==================================================
+7. EXPLICIT HUMAN CASE REGRESSION
+==================================================
+
+기존 실제 USER_REQUESTED_HUMAN 케이스:
+
+sc_1786954919570_s2lvxd
+
+는 read-only 확인만.
+
+기대:
+
+ticket_id != null
+escalation_reason = USER_REQUESTED_HUMAN
+state = HUMAN_REQUIRED
+
+그 상태를 변경하지 않는다.
+
+즉:
+
+explicit human escalation 보존 = PASS
+
+==================================================
+8. PERSISTENCE
+==================================================
+
+auto-fallback 케이스에서 FAQ 성공 후:
+
+화면 나가기
+→ 다시 진입
+
+확인:
+
+FAQ_REPLY_PERSISTED =
+STALE_HUMAN_UI_RETURNED =
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+TARGET_CASE =
+
+CASE_STATE_BEFORE =
+TICKET_ID =
+ESCALATION_REASON =
+
+FAQ_REPLY_VISIBLE =
+HEADER_TEXT =
+LEGACY_ACK_VISIBLE =
+HUMAN_CARD_VISIBLE =
+HUMAN_WAITING_TEXT_VISIBLE =
+
+REQUEST_ID =
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+AI_PROCESSING_STAGE =
+CASE_STATE_AFTER =
+
+FAQ_REPLY_PERSISTED =
+STALE_HUMAN_UI_RETURNED =
+
+EXPLICIT_HUMAN_CASE_STATE =
+EXPLICIT_HUMAN_REQUEST_PRESERVED =
+
+DEFECTS_FOUND =
+
+CODE_CHANGED = NO
+DB_SCHEMA_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+auto-fallback case에서:
+
+HUMAN_REQUIRED
+→ AI_PROCESSING
+→ AI_RESPONDED
+
+FAQ_REPLY_VISIBLE = YES
+
+HEADER stale human = NO
+legacy ack = NO
+human card = NO
+waiting text = NO
+
+explicit USER_REQUESTED_HUMAN case는
+HUMAN_REQUIRED 유지.
+
+완료:
+
+WP_CS08_STALE_HUMAN_CORRECT_CASE_DEVICE_VERIFIED ✅
