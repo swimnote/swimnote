@@ -56,8 +56,29 @@ description: Direct DB Answer Engine & Human Escalation Completion — CS23A imp
 - EXISTING_ACTIVE_CHANGED = 0
 - RUNTIME_IMPORT_ERROR = 0
 
-## 미완료 (향후 WP)
+## WP-CS23A-R Closure (2026-08-19)
 
-- iOS OTA: SupportChatScreen "직접 문의하기" UI 변경 — 별도 지시 시 배포
-- Production 실 utterance 등록: TEST_ 접두어 fixture만 존재; 실제 운영 utterance는 별도 등록 필요
-- WP-CS23B (향후): GROUNDED_GPT answer_mode — 기존 GPT chain 통해 처리됨 (현재 지원)
+**SHA**: 3d216db7
+**iOS OTA**: production branch 01a0168d (직접 문의하기 버튼)
+
+### Production Fixture Cleanup
+- PRODUCTION_TEST_UTTERANCES_BEFORE: 23 → REMOVED: 23 → AFTER: 0
+- PRODUCTION_TEST_KNOWLEDGE_BEFORE: 4 → REMOVED: 4 → AFTER: 0
+- EXISTING_ACTIVE_KNOWLEDGE_PRESERVED: 26
+
+### Boot Regression
+- PROD_BOOT_FIXTURE_INSERTS = 0 (both boots)
+- Guard: NODE_ENV=development||test 에서만 fixture 삽입
+
+### JS Fuzzy Matcher (서버 전용)
+- Execution: server-side only (support-direct-answer.ts)
+- Client-side DB load: NONE (전체 row는 LIMIT 500으로 서버에서만 조회)
+- Role/mode/pool 서버 권위적 검증 후 답변 반환
+
+### CS23A_CLOSE = YES
+- DIRECT_ANSWER_ENGINE_READY = YES
+- HUMAN_ESCALATION_COMPLETE = YES
+- READY_FOR_CANONICAL_ANSWER_BUILD = YES
+
+## 향후 (다음 WP)
+- SWIMNOTE 전체 기능 전수 조사 → Function Tree + Canonical Answer Catalog 제작
