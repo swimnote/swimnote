@@ -1,0 +1,342 @@
+[WP-CS23A-R — Production Fixture Cleanup & Runtime Closure]
+
+목적:
+
+WP-CS23A의 Direct Answer Engine / Human Escalation 구현은 승인한다.
+
+다만 Production runtime에 TEST fixture가 자동 삽입되는 구조와
+아직 실제 기기에 배포되지 않은 Human CTA를 정리하여
+CS23A를 최종 CLOSED 상태로 만든다.
+
+이번 WP는 신규 기능 개발이 아니다.
+
+Production hygiene + runtime closure만 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. TEST FIXTURE PRODUCTION 차단
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+support_intent_utterances Production rows=0
+
+단 서버 기동 시 TEST_ fixture 자동 삽입.
+
+이를 수정한다.
+
+Production runtime에서는:
+
+TEST fixture 자동 INSERT 금지.
+
+허용 환경:
+
+test
+CI
+explicit local development
+
+Production:
+
+fixture loader 실행 금지.
+
+환경 판정은
+기존 프로젝트의 production environment convention을 따른다.
+
+새로운 임의 env 규칙을 중복 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION TEST DATA 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB 실제 확인.
+
+다음 prefix/marker에 해당하는
+CS23A test fixture가 존재하면 제거:
+
+TEST_
+또는 이번 WP에서 생성한 fixture identifier.
+
+단 기존 ACTIVE Support Knowledge 26개는 절대 변경하지 않는다.
+
+보고:
+
+PRODUCTION_TEST_UTTERANCES_BEFORE
+PRODUCTION_TEST_UTTERANCES_REMOVED
+PRODUCTION_TEST_UTTERANCES_AFTER
+
+목표:
+
+AFTER = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. BOOT REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production-equivalent 환경에서 API server를 두 번 기동.
+
+각 기동 후:
+
+support_intent_utterances
+
+TEST fixture count가 증가하지 않는지 확인.
+
+필수:
+
+PROD_BOOT_FIXTURE_INSERTS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DIRECT MATCHER EMPTY DATA BEHAVIOR
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production utterance rows=0인 상태에서:
+
+사용자 질문
+→ Direct Matcher
+→ NO_MATCH
+→ 기존 runResolutionChain
+
+정상 fallback 되는지 runtime 검증.
+
+Direct table이 비어 있다고:
+
+500
+timeout
+undefined
+null answer
+잘못된 HUMAN_ONLY
+
+등이 발생하면 안 됨.
+
+필수:
+
+EMPTY_DIRECT_DB_RUNTIME_ERRORS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 SUPPORT REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 ACTIVE 26 Knowledge가
+Direct table empty 상태에서도 기존과 동일하게 동작하는지 확인.
+
+최소:
+
+deterministic resolution
+grounded GPT fallback
+human-required
+
+경로 smoke.
+
+기존 Knowledge content/status/revision 변경 금지.
+
+EXISTING_ACTIVE_CHANGED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. JS FUZZY MATCH IMPLEMENTATION 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+pg_trgm Production 미지원으로
+JS token-overlap을 사용 중.
+
+이번 WP에서는 구조 교체하지 않는다.
+
+다만 확인:
+
+* DB 전체 row를 클라이언트로 보내는 구조가 아님
+* 앱/mobile에서 matching하지 않음
+* server-side에서만 실행
+* raw cross-pool/cross-role data가 matcher에 노출되지 않음
+* bounded query/candidate 처리 여부 기록
+
+현재 rows가 적으므로 performance 최적화는 다음 Content WP에서 실제 dataset으로 측정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HUMAN CTA OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+SupportChatScreen의:
+
+[직접 문의하기]
+
+구현을 실제 사용 가능한 OTA 채널에 배포.
+
+현재 앱 OTA 정책/환경을 그대로 따른다.
+
+별도 native build가 필요하지 않은 변경이면
+불필요한 store build 금지.
+
+배포 후 실제 기기에서:
+
+GPT/지원 응답
+→ 직접 문의하기 노출
+→ 탭
+→ request-human 성공
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. HUMAN FLOW REAL DEVICE
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 최소 1회:
+
+사용자
+→ 상담 질문
+→ 직접 문의하기
+→ Support Case/ticket 생성 또는 재사용
+→ Super Admin Push
+→ Super Admin agent-reply
+→ User Push
+→ 기존 동일 conversation에 답변 표시
+
+검증.
+
+필수:
+
+DUPLICATE_OPEN_CASE = 0
+
+HUMAN_CASE_WITHOUT_ADMIN_NOTIFICATION = 0
+
+AGENT_REPLY_WITHOUT_USER_NOTIFICATION = 0
+
+SAME_CONVERSATION_FAILURE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. CIRCULAR FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 runtime에서 다음 문구가 다시 나오지 않는지 확인:
+
+“고객지원으로 문의해 주세요”
+“앱 내 고객센터로 문의하세요”
+
+대신:
+
+“담당자 확인이 필요합니다.”
+
+[직접 문의하기]
+
+구조 사용.
+
+CIRCULAR_SUPPORT_FALLBACK = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 WP에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+* Canonical Answer 대량 등록
+* Expected Question 대량 등록
+* AI support_kf 생성
+* Vector DB 추가
+* 기존 ACTIVE Knowledge 수정
+* Function Tree content 제작
+* 가격/환불 등 정책 임의 작성
+
+이번 WP는 CS23A closure만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+3035/3035
+
+regression 유지.
+
+변경 후 전체 suite 실행.
+
+추가로:
+
+Production boot fixture guard
+empty utterance fallback
+real-device direct inquiry
+
+검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS23A-R COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Deployed SHA:
+
+FIXTURE
+
+Production test utterances before:
+Removed:
+After:
+
+Production boot #1 inserts:
+Production boot #2 inserts:
+
+EMPTY DIRECT DB
+
+Runtime errors:
+Fallback to existing resolver:
+Existing Knowledge regression:
+
+JS MATCHER
+
+Execution location:
+Client-side DB load:
+Full table scan behavior:
+Candidate strategy:
+
+OTA
+
+SupportChatScreen deployed:
+OTA identifier/version:
+
+REAL DEVICE HUMAN FLOW
+
+Direct inquiry button:
+Request-human:
+Super Admin push:
+Duplicate ticket:
+Agent reply:
+User push:
+Same conversation:
+
+METRICS
+
+PROD_BOOT_FIXTURE_INSERTS:
+EMPTY_DIRECT_DB_RUNTIME_ERRORS:
+EXISTING_ACTIVE_CHANGED:
+
+DUPLICATE_OPEN_CASE:
+HUMAN_CASE_WITHOUT_ADMIN_NOTIFICATION:
+AGENT_REPLY_WITHOUT_USER_NOTIFICATION:
+SAME_CONVERSATION_FAILURE:
+CIRCULAR_SUPPORT_FALLBACK:
+
+TEST
+
+Full suite:
+
+FINAL
+
+CS23A_CLOSE: YES / NO
+DIRECT_ANSWER_ENGINE_READY: YES / NO
+HUMAN_ESCALATION_COMPLETE: YES / NO
+READY_FOR_CANONICAL_ANSWER_BUILD: YES / NO
+
+WP_CS23A_PRODUCTION_RUNTIME_CLOSED ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고 후 멈춘다.
+
+다음 WP에서
+SWIMNOTE 실제 Repository 전체 기능을 전수 조사하여
+Function Tree + Canonical Answer Catalog를 제작한다.
+
+[/끝]

@@ -81,7 +81,19 @@ export async function runCs23aMigration(): Promise<void> {
   `));
 
   // ── 3. Test fixture knowledge items ───────────────────────────────────────
-  // 이번 WP에서는 TEST_ 접두어 4개만 삽입. Production canonical answer 아님.
+  // TEST_ 접두어 fixture는 개발/테스트 환경에서만 삽입.
+  // Production(Render)에서는 절대 삽입 금지.
+  // Convention: 기존 프로젝트 패턴 — dev script에서만 NODE_ENV=development 설정.
+  //   - development: 로컬 개발 (package.json "dev" 스크립트)
+  //   - test:        vitest 실행 시 자동으로 NODE_ENV=test 설정
+  //   - production / undefined: Render 배포 → fixture 삽입 금지
+  const env = process.env.NODE_ENV;
+  const isDevOrTest = env === "development" || env === "test";
+  if (!isDevOrTest) {
+    console.log("[cs23a] Production 환경 감지 — TEST fixture 삽입 건너뜀 (NODE_ENV:", env ?? "undefined", ")");
+    return;
+  }
+  console.log("[cs23a] 개발/테스트 환경 — TEST fixture 삽입 진행 (NODE_ENV:", env, ")");
 
   const fixtures: Array<{
     id: string; intentId: string; title: string; question: string;
