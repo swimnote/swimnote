@@ -158,7 +158,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   let sc: any;
   try {
     const r = (await (superAdminDb as any).execute(sql`
-      SELECT id, state, pool_id, ticket_id, actor_id, escalation_reason
+      SELECT id, state, pool_id, ticket_id, actor_id, escalation_reason, context_json
       FROM support_cases
       WHERE id = ${caseId}
       LIMIT 1
@@ -274,6 +274,12 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   // 원본 rawMessage는 사용자 메시지 저장/LLM 프롬프트에만 사용.
   const qLower  = normalizeQuery(rawMessage);
   const tokens  = tokenize(qLower);
+
+  // WP-CS09: extract previous resolution context from case (same-case boundary enforced here).
+  // raw query / answer is never stored in context_json — metadata only (§2, §6).
+  const previousContext: import("../lib/support-resolver.js").PreviousResolutionContext | null =
+    sc.context_json ?? null;
+
   const ctx: RouterContext = {
     query:      rawMessage,
     role,
@@ -283,6 +289,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     appVersion,
     qLower,
     tokens,
+    previousContext,
   };
 
   addStage(trace, "RESOLUTION_START");
@@ -369,6 +376,25 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       resolutionSource: resolution.source_type,
     }).catch(() => {});
     addStage(trace, "FINAL_STATE_OK", { to_state: "AI_RESPONDED" });
+
+    // WP-CS09: persist resolution context for follow-up queries (§6 source-of-truth rule).
+    // Only metadata stored — raw query/answer forbidden (§2 no-raw-analytics rule).
+    // Fire-and-forget; never blocks HTTP response.
+    if (resolution.feature ?? resolution.entity_key ?? resolution.screen_id) {
+      void (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET context_json = ${JSON.stringify({
+          source_type:  resolution.source_type,
+          source_id:    resolution.source_id  ?? null,
+          feature:      resolution.feature    ?? null,
+          category:     resolution.category   ?? null,
+          entity_key:   resolution.entity_key ?? null,
+          screen_id:    resolution.screen_id  ?? null,
+          resolved_at:  new Date().toISOString(),
+        })}::jsonb
+        WHERE id = ${caseId}
+      `).catch(() => {});
+    }
 
     // event log
     void logSupportEvent({

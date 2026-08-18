@@ -1,7 +1,8 @@
 /**
- * support-resolver.ts — WP-CS-07R/08R 공유 Resolution Chain
+ * support-resolver.ts — WP-CS-07R/08R/09 공유 Resolution Chain
  *
- * runResolutionChain(ctx) — 7-layer 우선순위 체인:
+ * runResolutionChain(ctx) — 7-layer 우선순위 체인 + Follow-up Context Augmentation:
+ *   0. Follow-up Context Augmentation (WP-CS09) — 선택적
  *   1. RULE        — support_knowledge_items item_type=RULE (active only)
  *   2. DB_STATE    — 실시간 DB (구독/X/리포트 상태) — read-only
  *   3. SOLUTION    — support_knowledge_items item_type=SOLUTION (active only)
@@ -12,8 +13,9 @@
  *
  * 보안:
  *   - Auth context 기반 pool isolation (클라이언트 pool_id 무시)
- *   - raw query 저장 금지
+ *   - raw query 저장 금지 (event_logs에 raw text 저장 금지)
  *   - OpenAI 호출 없음 (deterministic only)
+ *   - Follow-up context: 동일 case 경계 내에서만 (support-respond가 보장)
  */
 
 import { superAdminDb } from "@workspace/db";
@@ -39,6 +41,20 @@ const EXPLANATION_INTENT_MARKERS = ["알려줘", "뭐야", "뭔지", "설명", "
 
 export function hasExplanationIntent(qLower: string): boolean {
   return EXPLANATION_INTENT_MARKERS.some((m) => qLower.includes(m));
+}
+
+// ── Follow-up context signals (WP-CS09) ───────────────────────────────────────
+// Pronoun/anaphora signals that indicate the user is referring to a previous answer.
+// Only activate augmentation when previous context ALSO exists (§4 contract).
+// Navigation queries without pronouns ("출결 어디서 해?") are NOT listed here.
+const FOLLOWUP_SIGNALS = [
+  "이거", "그거", "이 기능", "이 서비스", "이 화면", "여기", "그 기능", "그 서비스",
+  "아까 말한거", "그건", "그러면", "누가 만들었어", "가격은", "어디서 해", "학부모도 돼",
+  "만든사람", "만든 사람", "만들었어",
+];
+
+export function hasFollowupSignal(qLower: string): boolean {
+  return FOLLOWUP_SIGNALS.some((s) => qLower.includes(s));
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -98,6 +114,29 @@ export interface ResolutionResult {
   requires_human: boolean;
   llm_required: boolean;
   diagnostic_checks?: string[] | null;
+  // WP-CS09: resolution context metadata (persisted to support_cases.context_json)
+  feature?: string | null;
+  category?: string | null;
+  entity_key?: string | null;
+  // WP-CS09: follow-up trace flag (not persisted — trace metadata only)
+  followup_context_used?: boolean;
+}
+
+// ── Previous resolution context (WP-CS09) ─────────────────────────────────────
+
+/**
+ * 이전 성공적 resolution에서 추출한 최소 context.
+ * support_cases.context_json에 저장.
+ * raw query/answer 저장 금지 — metadata만.
+ */
+export interface PreviousResolutionContext {
+  source_type: string;
+  source_id: string | null;
+  feature: string | null;
+  category: string | null;
+  entity_key: string | null;
+  screen_id: string | null;
+  resolved_at: string | null;
 }
 
 export interface RouterContext {
@@ -109,6 +148,44 @@ export interface RouterContext {
   appVersion: string | null;
   qLower: string;
   tokens: string[];
+  // WP-CS09: previous resolution context from same case (support-respond reads from context_json)
+  previousContext?: PreviousResolutionContext | null;
+}
+
+// ── WP-CS09 Follow-up context helpers ────────────────────────────────────────
+
+/**
+ * feature / source_id에서 검색 보강에 사용할 entity_key를 도출.
+ * raw query는 건드리지 않음 — 내부 검색 보강 전용.
+ */
+export function deriveEntityKey(
+  feature: string | null | undefined,
+  sourceId: string | null | undefined
+): string | null {
+  if (feature) return feature;
+  if (sourceId) return sourceId;
+  return null;
+}
+
+/**
+ * previous context의 entity_key / feature를 token list에 추가해
+ * 내부 augmented search에서 점수를 높인다.
+ * 사용자 원문 수정 금지 — tokens list만 보강.
+ */
+export function buildAugmentedTokens(
+  baseTokens: string[],
+  entityKey: string | null | undefined,
+  feature: string | null | undefined
+): string[] {
+  const extraSources = [entityKey, feature].filter(Boolean) as string[];
+  const extra: string[] = extraSources.flatMap((s) =>
+    s
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .split(/\s+/)
+      .filter((t) => t.length >= 2)
+  );
+  return [...new Set([...baseTokens, ...extra])];
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -333,6 +410,9 @@ async function tryRule(ctx: RouterContext): Promise<ResolutionResult | null> {
         deep_link:    row.deep_link ?? null,
         requires_human: false,
         llm_required: false,
+        feature:      row.feature ?? null,
+        category:     row.category ?? null,
+        entity_key:   deriveEntityKey(row.feature, row.id),
       };
     }
   }
@@ -456,12 +536,17 @@ async function trySolution(ctx: RouterContext): Promise<ResolutionResult | null>
     return { resolution_status: "NEEDS_DIAGNOSTIC", source_type: "SOLUTION", source_id: bestRow.id,
       confidence: bestScore, title: bestRow.title, answer: bestRow.answer ?? bestRow.content,
       solution_steps: bestRow.solution_steps ?? null, screen_id: bestRow.frontend_screen_id ?? null,
-      deep_link: bestRow.deep_link ?? null, requires_human: false, llm_required: false, diagnostic_checks: checks };
+      deep_link: bestRow.deep_link ?? null, requires_human: false, llm_required: false,
+      diagnostic_checks: checks,
+      feature: bestRow.feature ?? null, category: bestRow.category ?? null,
+      entity_key: deriveEntityKey(bestRow.feature, bestRow.id) };
   }
   return { resolution_status: "RESOLVED", source_type: "SOLUTION", source_id: bestRow.id,
     confidence: bestScore, title: bestRow.title, answer: bestRow.answer ?? bestRow.content,
     solution_steps: bestRow.solution_steps ?? null, screen_id: bestRow.frontend_screen_id ?? null,
-    deep_link: bestRow.deep_link ?? null, requires_human: false, llm_required: false };
+    deep_link: bestRow.deep_link ?? null, requires_human: false, llm_required: false,
+    feature: bestRow.feature ?? null, category: bestRow.category ?? null,
+    entity_key: deriveEntityKey(bestRow.feature, bestRow.id) };
 }
 
 // ── Layer 4: FRONTEND_MAP ─────────────────────────────────────────────────────
@@ -490,6 +575,8 @@ function buildFmResult(screen: FrontendScreen, confidence: number): ResolutionRe
     title: screen.screen_name, answer: screen.purpose,
     screen_id: screen.screen_id, deep_link: screen.deep_link ?? null,
     requires_human: false, llm_required: false,
+    feature: null, category: null,
+    entity_key: screen.screen_id,
   };
 }
 
@@ -556,6 +643,9 @@ async function tryFaqKnowledge(ctx: RouterContext): Promise<ResolutionResult | n
     answer: best.answer ?? best.content,
     screen_id: best.frontend_screen_id ?? null, deep_link: best.deep_link ?? null,
     requires_human: false, llm_required: false,
+    feature: best.feature ?? null,
+    category: best.category ?? null,
+    entity_key: deriveEntityKey(best.feature, best.id),
   };
 }
 
@@ -604,6 +694,9 @@ async function tryKnownIssue(ctx: RouterContext): Promise<ResolutionResult | nul
     title: inc ? `[알려진 문제] ${inc.title} (${inc.severity})` : best.title,
     answer: best.answer ?? best.content ?? (inc ? `${inc.description ?? ""} 복구 작업 중입니다.` : null),
     requires_human: false, llm_required: false,
+    feature: best.feature ?? null,
+    category: best.category ?? null,
+    entity_key: deriveEntityKey(best.feature, best.id),
   };
 }
 
@@ -622,7 +715,21 @@ async function buildNoMatch(ctx: RouterContext): Promise<ResolutionResult> {
 
 // ── Public: runResolutionChain ────────────────────────────────────────────────
 
-export async function runResolutionChain(ctx: RouterContext): Promise<ResolutionResult> {
+/**
+ * 7-layer resolution chain with optional Follow-up Context Augmentation (WP-CS09).
+ *
+ * §10 order:
+ *   1. Raw query through all layers
+ *   2. If NO_MATCH AND hasFollowupSignal AND previousContext → augmented search
+ *   3. If still NO_MATCH → buildNoMatch (llm_required=true)
+ *
+ * §11 guarantee:
+ *   Raw chain runs FIRST. If it resolves (new explicit topic), follow-up augmentation is skipped.
+ * §12/13 security:
+ *   previousContext is same-case-only (enforced by support-respond before passing ctx).
+ *   role/mode/pool filters remain unchanged in augmented chain.
+ */
+async function runChain(ctx: RouterContext): Promise<ResolutionResult | null> {
   return (
     (await tryRule(ctx)) ??
     (await tryDbState(ctx)) ??
@@ -630,8 +737,32 @@ export async function runResolutionChain(ctx: RouterContext): Promise<Resolution
     (await tryFrontendMap(ctx)) ??
     (await tryFaqKnowledge(ctx)) ??
     (await tryKnownIssue(ctx)) ??
-    (await buildNoMatch(ctx))
+    null
   );
+}
+
+export async function runResolutionChain(ctx: RouterContext): Promise<ResolutionResult> {
+  // §10: raw query first
+  const raw = await runChain(ctx);
+  if (raw) return raw; // §11: resolved → skip follow-up augmentation
+
+  // §10: follow-up context augmentation
+  const prev = ctx.previousContext;
+  if (prev && hasFollowupSignal(ctx.qLower)) {
+    const augTokens = buildAugmentedTokens(ctx.tokens, prev.entity_key, prev.feature);
+    // Only augment if we actually added new tokens (prevent no-op re-run)
+    if (augTokens.length > ctx.tokens.length) {
+      // §§12/13: same role/mode/poolId preserved; previousContext=null prevents infinite recursion
+      const augCtx: RouterContext = { ...ctx, tokens: augTokens, previousContext: null };
+      const augmented = await runChain(augCtx);
+      if (augmented) {
+        // §16 trace: mark followup_context_used for RESOLUTION_DONE metadata
+        return { ...augmented, followup_context_used: true };
+      }
+    }
+  }
+
+  return buildNoMatch(ctx);
 }
 
 // ── Public: gatherEvidence (for LLM context) ─────────────────────────────────
