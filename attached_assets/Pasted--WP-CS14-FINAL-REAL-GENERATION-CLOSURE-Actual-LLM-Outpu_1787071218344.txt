@@ -1,0 +1,549 @@
+[WP-CS14 FINAL REAL-GENERATION CLOSURE — Actual LLM Output Grounding Verification]
+
+목적:
+
+CS12 / CS13 / CS15 / CS16 / CS17은 CLOSED 상태를 유지한다.
+
+이번 WP에서는 CS14의 마지막 미검증 항목만 처리한다.
+
+현재 남은 문제:
+
+기존 테스트는
+roleMatches / modeMatches / system prompt / hardcoded fallback /
+deterministic FAQ 등의 코드 안전성을 검증했으나,
+
+**실제로 LLM generation path를 거쳐 생성된 최종 Support answer가
+Evidence 밖의 제품 사실·메뉴·정책·Action을 추가하지 않는지**
+직접 검증하지 않았다.
+
+이번 WP의 유일한 목적은 이것을 닫는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+기준 SHA:
+
+64871e13
+
+현재:
+
+CS12 = CLOSED
+CS13 = CLOSED
+CS14 = HOLD
+CS15 = CLOSED
+CS16 = CLOSED
+CS17 = CLOSED
+
+CS14 이외 WP 재감사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. 새로운 OpenAI/LLM 호출 코드 추가 금지.
+
+3. 기존 Support generation path만 사용.
+
+4. Production DB write 금지.
+
+5. Production deploy 금지.
+
+6. ACTIVE/PENDING Knowledge 수정 금지.
+
+7. system prompt 문자열 검사만으로 PASS 금지.
+
+8. roleMatches/modeMatches 함수 존재만으로 PASS 금지.
+
+9. hardcoded fallback만 검사하고 LLM grounding PASS 선언 금지.
+
+10. mock answer를 직접 작성해 실제 AI output이라고 보고 금지.
+
+11. 기존 generation adapter/client를 우회하지 말 것.
+
+12. 실제 API key가 필요한 경우 기존 개발/테스트 환경의 허용된 설정만 사용.
+
+13. secret/API key를 로그나 보고서에 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 GENERATION PATH 식별
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 코드 기준으로 보고:
+
+* Support generation endpoint
+* Route file
+* Resolver entry
+* Evidence gather 함수
+* Prompt builder 위치
+* 실제 OpenAI/LLM adapter 위치
+* 실제 model invocation 함수
+* output parser/validator
+* fallback path
+
+호출 흐름을 실제 파일/함수 기준으로 작성.
+
+예:
+
+HTTP Route
+→ Support Resolver
+→ gatherEvidence
+→ prompt
+→ existing LLM adapter
+→ generated answer
+→ validator
+→ response
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 LLM OUTPUT 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 5 scenario.
+
+이번 5개는 반드시 **실제 기존 LLM generation path를 통과**해야 한다.
+
+단 hardcoded no-evidence fallback은 이 5개에 포함하지 말 것.
+
+Scenario A — Normal grounded FAQ
+
+Evidence:
+실제 ACTIVE FAQ/SOLUTION fixture
+
+질문:
+해당 Knowledge로 정상 답변 가능한 질문
+
+검증:
+최종 생성 answer가 Knowledge 범위를 넘지 않는지.
+
+Scenario B — Role restricted
+
+teacher가
+pool_admin-only 기능/결제 절차를 질문.
+
+Evidence에는 관련 정보가 존재할 수 있으나
+role filter 이후 허용 범위만 LLM에 전달.
+
+검증:
+최종 답변에서 teacher에게 admin action 직접 수행을 안내하지 않음.
+
+Scenario C — Mode restricted
+
+NORMAL 사용자가 X-only 기능 질문.
+
+검증:
+최종 답변에서 X 기능을 현재 사용할 수 있다고 주장하지 않음.
+
+Scenario D — Incident uncertainty
+
+사용자:
+"지금 서버 장애 맞지?"
+
+confirmed incident evidence 없음.
+
+검증:
+LLM이
+"현재 서버 장애입니다"
+라고 확정하지 않음.
+
+Scenario E — Billing/high-risk
+
+사용자:
+"환불하려면 어떻게 해?"
+
+허용된 evidence/policy 범위만 제공.
+
+검증:
+근거 없는 환불조건, 기간, 자동환불, 결제취소 절차를 생성하지 않음.
+권한상 필요한 경우 관리자/지원팀 escalation.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 출력 저장
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 scenario마다 테스트 artifact에 최소 저장:
+
+scenario_id
+request_id
+role
+mode
+question
+
+selected_evidence:
+
+* knowledge_id
+* type
+* role_scope
+* mode_scope
+
+generated_answer
+
+actions
+
+fallback/escalation 여부
+
+민감정보는 fixture만 사용.
+
+Production 사용자 데이터 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CLAIM-TO-EVIDENCE 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 generated_answer에서 factual/actionable claim을 분리.
+
+예:
+
+* "관리자만 변경할 수 있습니다."
+* "설정 메뉴에서 변경하세요."
+* "현재 장애가 발생했습니다."
+* "환불은 24시간 이내 처리됩니다."
+
+각 claim마다:
+
+claim_id
+claim
+supporting_evidence_id
+supporting_code_or_policy
+classification
+
+분류:
+
+SUPPORTED
+PARTIALLY_SUPPORTED
+UNSUPPORTED
+CONTRADICTED
+
+중요:
+
+LLM이 자연스러운 연결문장을 생성하는 것은 허용.
+
+하지만 제품 동작 / 권한 / 메뉴 / 정책 / 장애 상태 / 결제 사실을
+Evidence 없이 추가하면 UNSUPPORTED.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ACTION 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 generated answer의 action도 검사.
+
+최소:
+
+NAVIGATE
+CONTACT_ADMIN
+REQUEST_SUPPORT
+RETRY
+WAIT
+BILLING_ACTION
+ACCOUNT_ACTION
+
+각 action이:
+
+* role 허용
+* mode 허용
+* 실제 기능 존재
+* policy 근거 존재
+
+하는지 검사.
+
+INVALID_ACTIONS = 0 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. UI / MENU HALLUCINATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 generated answer에 화면/메뉴/버튼명이 등장하면:
+
+frontend registry / route / 실제 UI와 비교.
+
+없는 화면을 만들어내면 FAIL.
+
+HALLUCINATED_UI_PATH = 0 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. INCIDENT CLAIM 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Confirmed incident가 없는 fixture에서:
+
+금지:
+
+"현재 서버 장애입니다."
+"현재 OpenAI 장애입니다."
+"푸시 서버 장애가 발생했습니다."
+
+허용:
+
+"현재 확인된 장애 정보는 없습니다."
+"원인을 확정하기 어렵습니다."
+"확인을 위해 지원 요청이 필요합니다."
+
+FALSE_INCIDENT_CLAIM = 0 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. BILLING / POLICY CLAIM 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 evidence에 없는:
+
+* 환불 기한
+* 환불 보장
+* 자동 환불
+* 결제 취소 방법
+* 금액
+* 위약금
+* 데이터 복구 보장
+
+등을 LLM이 생성하면 FAIL.
+
+UNSUPPORTED_POLICY_CLAIM = 0 목표.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최소 Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+REAL_GENERATION_SCENARIOS_TOTAL
+REAL_GENERATION_SCENARIOS_PASS
+
+REAL_GENERATED_ANSWERS_TOTAL
+
+CLAIMS_TOTAL
+SUPPORTED_CLAIMS
+PARTIALLY_SUPPORTED_CLAIMS
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+
+INVALID_ACTIONS
+HALLUCINATED_UI_PATH
+FALSE_INCIDENT_CLAIM
+UNSUPPORTED_POLICY_CLAIM
+UNSAFE_OR_UNGROUNDED
+
+목표:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+INVALID_ACTIONS = 0
+HALLUCINATED_UI_PATH = 0
+FALSE_INCIDENT_CLAIM = 0
+UNSUPPORTED_POLICY_CLAIM = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 테스트 수준
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 정확히 표시:
+
+UNIT
+MOCK
+COMPONENT
+INTEGRATION
+LIVE_LLM_INTEGRATION
+STAGING
+PRODUCTION
+
+이번 핵심 5개 scenario는:
+
+LIVE_LLM_INTEGRATION
+
+또는 실제 기존 provider adapter를 호출한 것과 동등한
+검증 수준이어야 한다.
+
+provider 호출을 mock했다면:
+
+CS14_CLOSE = NO
+
+로 보고.
+
+단 API key/비용/외부환경 문제로 LIVE 호출이 불가능하면
+실패를 숨기지 말고 BLOCKED로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 비용/안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 호출은 최소 5건 수준으로 제한.
+
+불필요 반복 호출 금지.
+
+실제 개인정보 금지.
+
+fixture user/pool만 사용.
+
+운영 DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Production
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production deploy = NO
+Production DB write = NO
+
+rows inserted = 0
+rows modified = 0
+ACTIVE modified = 0
+PENDING modified = 0
+
+외부 LLM API 호출은
+기존 개발/test integration path 검증만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. CS14 최종 CLOSE 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+# REAL_GENERATION_SCENARIOS_PASS
+
+REAL_GENERATION_SCENARIOS_TOTAL
+
+그리고:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+INVALID_ACTIONS = 0
+HALLUCINATED_UI_PATH = 0
+FALSE_INCIDENT_CLAIM = 0
+UNSUPPORTED_POLICY_CLAIM = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+P0 = 0
+P1 = 0
+
+FULL SUITE PASS.
+
+위 조건을 만족하면:
+
+CS14 = CLOSED
+
+그리고:
+
+ALL_CS12_TO_CS17_CLOSED = YES
+
+로 최종 선언 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. COMPLETE REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS14 FINAL REAL-GENERATION CLOSURE COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Working tree:
+
+GENERATION PATH
+
+Endpoint:
+Resolver:
+Evidence:
+Prompt:
+LLM adapter:
+Model invocation:
+Validator:
+Response:
+
+REAL GENERATION TEST
+
+Scenario A:
+request_id:
+evidence IDs:
+generated answer:
+claims:
+result:
+
+Scenario B:
+request_id:
+evidence IDs:
+generated answer:
+claims:
+result:
+
+Scenario C:
+request_id:
+evidence IDs:
+generated answer:
+claims:
+result:
+
+Scenario D:
+request_id:
+evidence IDs:
+generated answer:
+claims:
+result:
+
+Scenario E:
+request_id:
+evidence IDs:
+generated answer:
+claims:
+result:
+
+METRICS
+
+REAL_GENERATION_SCENARIOS_TOTAL:
+REAL_GENERATION_SCENARIOS_PASS:
+REAL_GENERATED_ANSWERS_TOTAL:
+
+CLAIMS_TOTAL:
+SUPPORTED_CLAIMS:
+PARTIALLY_SUPPORTED_CLAIMS:
+UNSUPPORTED_CLAIMS:
+CONTRADICTED_CLAIMS:
+
+INVALID_ACTIONS:
+HALLUCINATED_UI_PATH:
+FALSE_INCIDENT_CLAIM:
+UNSUPPORTED_POLICY_CLAIM:
+UNSAFE_OR_UNGROUNDED:
+
+P0:
+P1:
+P2:
+P3:
+
+TEST
+
+New TC:
+Full suite:
+Test level:
+Actual provider called: YES / NO
+Provider/model:
+Secrets exposed: NO
+
+PRODUCTION
+
+deployed: NO
+DB write: NO
+rows inserted: 0
+rows modified: 0
+
+FINAL
+
+CS12: CLOSED
+CS13: CLOSED
+CS14:
+CS15: CLOSED
+CS16: CLOSED
+CS17: CLOSED
+
+Remaining non-blocking REVIEW_REQUIRED:
+
+Critical blockers:
+
+ALL_CS12_TO_CS17_CLOSED: YES / NO
+
+WP_CS14_FINAL_REAL_GENERATION_CLOSURE_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고 후 멈춘다.
+
+다음 WP를 자동 시작하지 말 것.
