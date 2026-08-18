@@ -23,7 +23,7 @@ const mockBackupDb = {
       : String(q?.sql ?? q ?? "");
     backupExecCalls.push(raw.trim());
     // Simulate TRUNCATE success and INSERT success by default
-    return { rows: [] };
+    return { rows: [] as any[] };
   }),
 };
 
@@ -34,7 +34,7 @@ const mockMainDb = {
       : String(q?.sql ?? q ?? "");
     mainExecCalls.push(raw.trim());
     // Default: return empty rows (SELECT * and column type queries)
-    return { rows: [] };
+    return { rows: [] as any[] };
   }),
 };
 
@@ -66,7 +66,7 @@ beforeEach(() => {
       ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
       : String(q?.sql ?? q ?? "");
     backupExecCalls.push(raw.trim());
-    return { rows: [] };
+    return { rows: [] as any[] };
   });
 
   mockMainDb.execute.mockImplementation(async (q: any) => {
@@ -74,7 +74,7 @@ beforeEach(() => {
       ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
       : String(q?.sql ?? q ?? "");
     mainExecCalls.push(raw.trim());
-    return { rows: [] };
+    return { rows: [] as any[] };
   });
 });
 
