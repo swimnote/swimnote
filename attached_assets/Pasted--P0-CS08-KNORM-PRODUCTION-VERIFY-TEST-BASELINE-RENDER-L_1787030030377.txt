@@ -1,0 +1,387 @@
+[P0-CS08-KNORM-PRODUCTION-VERIFY — TEST BASELINE + RENDER LIVE + REAL DEVICE]
+
+목적:
+
+Commit accb2fae의 Knowledge query normalization을
+production에서 최종 검증한다.
+
+신규 기능 개발 금지.
+Knowledge 추가/수정 금지.
+DB schema 변경 금지.
+
+이번 작업에서 반드시 확인할 것:
+
+1. 83 test failures의 정확한 성격
+2. accb2fae exact commit Render LIVE
+3. 실제 iPhone natural query deterministic FAQ hit
+
+==================================================
+0. REPORTING RULE
+==================================================
+
+금지:
+
+git push = Render deploy
+deploy trigger = LIVE
+simulation = device PASS
+pre-existing라고 이름 붙이고 failure 무시
+
+실제 evidence만 사용.
+
+==================================================
+1. TEST BASELINE FORENSIC
+==================================================
+
+현재 보고:
+
+1718 passed
+83 failed
+
+그런데 이전 baseline:
+
+1776/1776 PASS
+
+였다.
+
+먼저 원인을 조사.
+
+보고:
+
+CURRENT_TEST_COMMAND =
+PREVIOUS_TEST_COMMAND =
+
+CURRENT_TOTAL_DISCOVERED =
+CURRENT_PASSED =
+CURRENT_FAILED =
+
+83 failure를 파일별/원인별 분류:
+
+FAILED_TEST_FILES =
+FAILURE_GROUPS =
+
+각 failure에 대해:
+
+A. accb2fae가 새로 발생시킴
+B. 실행환경/command/config 차이
+C. 실제 이전부터 실패
+D. 기타
+
+중 하나로 판정.
+
+"pre-existing"은 git/test evidence가 있을 때만 사용.
+
+==================================================
+2. NORMALIZATION REGRESSION CHECK
+==================================================
+
+특히 accb2fae 변경 파일:
+
+support-resolver.ts
+support-respond.ts
+
+때문에 새로 실패한 테스트 수:
+
+NEW_FAILURES_FROM_ACCB2FAE =
+
+성공 조건:
+
+NEW_FAILURES_FROM_ACCB2FAE = 0
+
+83개 중 accb2fae 관련 failure가 하나라도 있으면
+먼저 최소 수정.
+
+==================================================
+3. EXPECTED FULL SUITE BASELINE
+==================================================
+
+이전 1776/1776과 현재 test discovery가 다른 이유 확인.
+
+예:
+
+test files 추가/제외
+mock setup 차이
+환경변수
+runner option
+timeout
+unrelated external dependency
+
+추측 금지.
+
+보고:
+
+WHY_1776_1776_BECAME_1718_PLUS_83 =
+
+TOTAL:
+1718 + 83 = 1801
+
+왜 총 discovered test 수가 바뀌었는지도 설명.
+
+==================================================
+4. RENDER EXACT COMMIT VERIFY
+==================================================
+
+Render API 직접 확인.
+
+반드시:
+
+COMMIT_SHA = accb2fae...
+
+인 deployment 찾기.
+
+보고:
+
+RENDER_DEPLOY_ID =
+RENDER_DEPLOY_COMMIT =
+RENDER_STATUS =
+RENDER_LIVE_AT_KST =
+
+성공:
+
+RENDER_DEPLOY_COMMIT = accb2fae
+RENDER_STATUS = live
+
+없으면:
+
+RENDER_LIVE = NO
+
+로 보고.
+
+==================================================
+5. REAL DEVICE QUERY
+==================================================
+
+Render accb2fae LIVE 확인 후에만 수행.
+
+실제 iPhone / production Support에서:
+
+"스윔노트x에대해서알려줘"
+
+전송.
+
+실제 화면 결과:
+
+USER_MESSAGE_VISIBLE =
+REPLY_VISIBLE =
+REPLY_TEXT_PRESENT =
+NO_MATCH_MESSAGE_VISIBLE =
+HUMAN_REQUIRED_UI_VISIBLE =
+
+이번 테스트는 현재 로그인된 실제 account/case 그대로 사용 가능.
+
+단 stale-human UI 판정과
+Knowledge normalization 판정은 분리.
+
+==================================================
+6. REAL REQUEST TRACE
+==================================================
+
+방금 실제 request의 SUPPORT trace 조회.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+MATCH_SCORE =
+
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+성공 기대:
+
+RESOLUTION_STATUS = RESOLVED
+RESOLUTION_SOURCE = FAQ
+SOURCE_ID = ki_x_mode_intro
+
+LLM_START_OBSERVED = NO
+LLM_CALLED = false
+LLM_USED = false
+MODEL = null
+
+==================================================
+7. NORMALIZATION VARIANT CONTRACT
+==================================================
+
+실제 code test에서 최소:
+
+"스윔노트X에 대해 알려줘"
+"스윔노트x에대해알려줘"
+"스윔노트 X에 대해 알려줘"
+"스윔노트x에대해서알려줘"
+
+→ ki_x_mode_intro
+
+확인.
+
+그리고:
+
+"X모드 알려줘"
+"X모드가 뭐야"
+
+가 실제로도 같은 item으로 매칭되는지 확인.
+
+만약 현재 normalizeQuery만으로 이 둘이
+ki_x_mode_intro에 매칭되지 않는다면
+
+REPORT ONLY.
+
+이번 production verification에서
+추가 alias 기능 개발 금지.
+
+==================================================
+8. SECURITY REGRESSION
+==================================================
+
+Normalization 이후에도:
+
+status=active only
+scope
+pool
+role
+mode
+
+filter가 match scoring 전에 적용되는지 확인.
+
+보고:
+
+ROLE_FILTER_PRESERVED =
+MODE_FILTER_PRESERVED =
+SCOPE_FILTER_PRESERVED =
+
+parent에게 admin-only screen 노출:
+
+NO
+
+==================================================
+9. STALE HUMAN SEPARATION
+==================================================
+
+현재 실제 case가:
+
+ticket_id != null
+또는
+USER_REQUESTED_HUMAN
+
+이면 상담사 UI가 남는 것은 정상.
+
+따라서 이번 WP의 PASS 기준에는
+상담사 UI 제거 여부를 넣지 않는다.
+
+오직:
+
+natural query → correct FAQ resolution
+
+만 검증.
+
+STALE_HUMAN_CASE_TYPE =
+
+별도 기록.
+
+==================================================
+10. NO NEW DEPLOY UNLESS DEFECT
+==================================================
+
+accb2fae 그대로 정상이라면
+코드 수정 없음.
+
+실제 regression 발견 시에만 최소 수정.
+
+Server-only:
+Render exact commit LIVE 확인.
+
+Mobile:
+NO expected.
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+11. FINAL REPORT
+==================================================
+
+CURRENT_TEST_COMMAND =
+PREVIOUS_TEST_COMMAND =
+
+CURRENT_TOTAL_DISCOVERED =
+CURRENT_PASSED =
+CURRENT_FAILED =
+
+WHY_1776_1776_BECAME_1718_PLUS_83 =
+
+NEW_FAILURES_FROM_ACCB2FAE =
+
+FAILED_TEST_FILES =
+FAILURE_GROUPS =
+
+RENDER_DEPLOY_ID =
+RENDER_DEPLOY_COMMIT =
+RENDER_STATUS =
+RENDER_LIVE_AT_KST =
+
+DEVICE_QUERY =
+USER_MESSAGE_VISIBLE =
+REPLY_VISIBLE =
+NO_MATCH_MESSAGE_VISIBLE =
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+MATCH_SCORE =
+
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+ROLE_FILTER_PRESERVED =
+MODE_FILTER_PRESERVED =
+SCOPE_FILTER_PRESERVED =
+ADMIN_SCREEN_EXPOSED_TO_PARENT =
+
+STALE_HUMAN_CASE_TYPE =
+
+FILES_CHANGED_AFTER_VERIFY =
+FULL_TEST_RESULT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+NEW_FAILURES_FROM_ACCB2FAE = 0
+
+83 failures의 원인 및
+1776/1776 대비 차이가 증거로 설명됨.
+
+Render exact accb2fae = LIVE
+
+실제 iPhone:
+
+"스윔노트x에대해서알려줘"
+→ RESOLVED
+→ FAQ
+→ ki_x_mode_intro
+
+LLM_CALLED = false
+LLM_USED = false
+MODEL = null
+
+NO_MATCH_MESSAGE_VISIBLE = NO
+
+role/mode/scope security 유지.
+
+완료:
+
+P0_CS08_KNOWLEDGE_NORMALIZATION_PRODUCTION_VERIFIED ✅
