@@ -135,8 +135,19 @@ router.get("/support/tickets/:id", requireAuth, async (req: AuthRequest, res) =>
     if (!rows.length) { res.status(404).json({ error: "문의를 찾을 수 없습니다." }); return; }
     const ticket = rows[0] as any;
 
-    if (!isSuper && ticket.submitter_user_id !== userId) {
-      res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+    if (!isSuper) {
+      // §CS13-1 User ownership check
+      if (ticket.submitter_user_id !== userId) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_OWNER_MISMATCH" }); return;
+      }
+      // §CS13-2 Explicit pool isolation (defense in depth):
+      // ticket.pool_id must match the JWT-derived poolId.
+      // This prevents a rogue user who somehow shares a userId from accessing
+      // tickets belonging to a different pool.
+      const jwtPool = (req.user as any)?.poolId ?? null;
+      if (jwtPool && ticket.pool_id && ticket.pool_id !== jwtPool) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_POOL_MISMATCH" }); return;
+      }
     }
 
     const replies = (await db.execute(sql`
@@ -168,8 +179,16 @@ router.post("/support/tickets/:id/replies", requireAuth, async (req: AuthRequest
     if (!rows.length) { res.status(404).json({ error: "문의를 찾을 수 없습니다." }); return; }
     const ticket = rows[0] as any;
 
-    if (!isSuper && ticket.submitter_user_id !== userId) {
-      res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+    if (!isSuper) {
+      // §CS13-1 User ownership check
+      if (ticket.submitter_user_id !== userId) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_OWNER_MISMATCH" }); return;
+      }
+      // §CS13-2 Explicit pool isolation
+      const jwtPool = (req.user as any)?.poolId ?? null;
+      if (jwtPool && ticket.pool_id && ticket.pool_id !== jwtPool) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_POOL_MISMATCH" }); return;
+      }
     }
 
     const replyId    = `rep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
