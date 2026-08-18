@@ -35,6 +35,7 @@ import {
   transitionSupportCase,
 } from "../lib/support-case-service.js";
 import { SUPPORT_CASE_STATE, SUPPORT_EVENT_TYPE } from "../lib/ai-feature-enum.js";
+import { resolvePoolMode } from "../lib/xmode.js";
 
 const router = Router();
 
@@ -57,7 +58,19 @@ router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
   const poolId    = user.poolId  ?? null;
   const actorId   = user.userId  ?? "";
   const actorRole = user.role    ?? "unknown";
-  const { mode, context = {} } = req.body as any;
+  const { mode: clientMode, context = {} } = req.body as any;
+
+  // CS13-P1: Server-authoritative mode — client-sent mode는 참고값. pool이 있으면 DB에서 실제 mode를 결정.
+  // super_admin/platform_admin은 poolId가 없으므로 client mode를 신뢰.
+  let resolvedMode: string = ((clientMode ?? "normal") as string).toLowerCase();
+  if (poolId && !isSuperAdmin(actorRole)) {
+    try {
+      const poolModeResult = await resolvePoolMode(poolId);
+      if (poolModeResult) resolvedMode = poolModeResult.mode;
+    } catch {
+      // non-fatal: pool mode DB 조회 실패 시 client mode fallback
+    }
+  }
 
   try {
     const caseId = `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -65,8 +78,8 @@ router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
     // context: PII 제외 (본문·이름·전화·이메일 저장 금지)
     const contextJson = {
       user_role:         actorRole,
-      service_mode:      mode                          ?? null,
-      xmode_enabled:     mode === "x",
+      service_mode:      resolvedMode,
+      xmode_enabled:     resolvedMode === "x",
       subscription_plan: (context as any).subscription_plan ?? null,
       app_version:       (context as any).app_version       ?? null,
       feature_id:        (context as any).feature_id        ?? null,
@@ -76,7 +89,7 @@ router.post("/support/cases", requireAuth, async (req: AuthRequest, res) => {
       INSERT INTO support_cases
         (id, pool_id, actor_id, ticket_id, actor_role, mode, state, context_json)
       VALUES
-        (${caseId}, ${poolId}, ${actorId}, ${null}, ${actorRole}, ${mode ?? null},
+        (${caseId}, ${poolId}, ${actorId}, ${null}, ${actorRole}, ${resolvedMode},
          ${SUPPORT_CASE_STATE.NEW}, ${JSON.stringify(contextJson)}::jsonb)
     `);
 

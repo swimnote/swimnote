@@ -38,6 +38,7 @@ import { sql }       from "drizzle-orm";
 import { db, superAdminDb } from "@workspace/db";
 
 import { requireAuth, type AuthRequest }   from "../middlewares/auth.js";
+import { resolvePoolMode }                 from "../lib/xmode.js";
 import { getOpenAI }                        from "./ai.js";
 import { saveAiTrace }                      from "../lib/ai-trace-service.js";
 import { AI_FEATURE, SUPPORT_EVENT_TYPE }   from "../lib/ai-feature-enum.js";
@@ -177,8 +178,8 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: "케이스 조회 오류" });
   }
 
-  // Tenant isolation (super_admin 제외)
-  const isSuperAdmin = role === "super_admin";
+  // Tenant isolation (super_admin / platform_admin 제외)
+  const isSuperAdmin = role === "super_admin" || role === "platform_admin";
   if (!isSuperAdmin) {
     if (sc.actor_id && sc.actor_id !== actorId) {
       addStage(trace, "HTTP_RESPONSE", { http_status: 403, success: false, safe_error_code: "ACTOR_MISMATCH" });
@@ -270,6 +271,20 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     }
   }
 
+  // ── CS13-P1: Server-authoritative mode resolution ─────────────────────────
+  // client-sent mode는 참고값. pool이 있는 일반 사용자는 DB에서 실제 mode를 결정.
+  // super_admin/platform_admin은 poolId가 없으므로 client mode를 신뢰.
+  // non-fatal: DB 조회 실패 시 client mode fallback (서비스 중단 방지).
+  let resolvedMode = mode; // already normalized to lowercase (line 131)
+  if (poolId && !isSuperAdmin) {
+    try {
+      const poolModeResult = await resolvePoolMode(poolId);
+      if (poolModeResult) resolvedMode = poolModeResult.mode;
+    } catch {
+      // non-fatal: pool mode DB 조회 실패 시 client mode fallback
+    }
+  }
+
   // ── Resolution Chain ──────────────────────────────────────────────────────
 
   // KNORM fix: normalizeQuery로 한글↔ASCII 경계 공백 삽입 + 조사 변형 처리.
@@ -287,7 +302,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   const ctx: RouterContext = {
     query:      rawMessage,
     role,
-    mode,
+    mode:       resolvedMode,   // CS13-P1: DB-authoritative (not raw client value)
     poolId,
     screenId,
     appVersion,
