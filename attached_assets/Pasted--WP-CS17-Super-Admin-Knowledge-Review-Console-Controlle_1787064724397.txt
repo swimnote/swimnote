@@ -1,0 +1,914 @@
+[WP-CS17 — Super Admin Knowledge Review Console & Controlled Promotion UI]
+
+목적:
+
+WP-CS16에서 완성된 Human Review / Approval Governance를
+Super Admin이 실제 화면에서 안전하게 사용할 수 있도록
+Knowledge Review Console을 구현한다.
+
+핵심 목표:
+
+PENDING Knowledge Candidate
+→ 상세 근거 확인
+→ Source / Role / Mode / Scope / Action / Policy 확인
+→ Conflict / Freshness 확인
+→ APPROVE / REJECT / EDIT REQUIRED
+→ 감사이력 확인
+
+전체 흐름을 Super Admin UI에서 수행 가능하게 한다.
+
+이번 WP는
+AI 기능 추가가 아니다.
+
+새 OpenAI 호출 없음.
+
+핵심은:
+
+HUMAN REVIEW UX
+SAFE APPROVAL
+AUDITABILITY
+PARTNER DEMO READINESS
+
+==================================================
+0. 절대 원칙
+==================================================
+
+1. 새로운 OpenAI/LLM 호출 추가 금지.
+2. CS16 approval API/domain logic을 재사용.
+3. UI에서 별도 승인 규칙을 만들지 말 것.
+4. 최종 권한 검증은 반드시 서버가 수행.
+5. CS12 PENDING 21개 자동 승인 금지.
+6. 이번 WP에서도 Production DB write 금지.
+7. 실제 ACTIVE Knowledge 임의 수정 금지.
+8. UI 표시값만 믿고 승인하지 말 것.
+9. client-side role check는 UX용이며 보안경계가 아님.
+10. Super Admin UI에서 PII/secret/raw prompt 노출 금지.
+11. REVIEW_REQUIRED Candidate를 승인 가능 상태처럼 표시 금지.
+12. KNOWN_ISSUE Candidate와 실제 Incident를 혼동하지 말 것.
+
+==================================================
+1. 대상 사용자
+==================================================
+
+UI 접근 허용:
+
+- super_admin
+- platform_admin
+
+접근 금지:
+
+- pool_admin
+- sub_admin
+- teacher
+- parent_account
+
+Client route guard + server authorization 둘 다 확인.
+
+직접 URL 접근도 차단.
+
+==================================================
+2. 기본 화면
+==================================================
+
+Super Admin Knowledge Review Console 구현.
+
+최소 구조:
+
+[Pending]
+[Review Required]
+[Active]
+[Rejected]
+[Archived/Superseded]
+[Audit]
+
+기존 Admin UI 구조/디자인 시스템 재사용.
+
+새로운 독립 디자인 시스템 만들지 말 것.
+
+==================================================
+3. PENDING LIST
+==================================================
+
+Candidate 목록 최소 표시:
+
+- title
+- knowledge_type
+- status
+- feature
+- intended role
+- mode scope
+- pool scope
+- source availability
+- freshness
+- conflict state
+- created_at
+- readiness
+
+Readiness:
+
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+색상/Badge로 명확히 구분.
+
+단 색상만으로 상태를 표현하지 말고 text label도 사용.
+
+==================================================
+4. FILTER / SEARCH
+==================================================
+
+최소 필터:
+
+status
+knowledge_type
+role
+mode
+feature
+readiness
+
+가능하면:
+
+P0 issue mapping
+
+검색:
+
+title
+candidate_id
+feature
+
+대규모 검색엔진 추가 금지.
+
+현재 API/query 범위에서 구현.
+
+==================================================
+5. CANDIDATE DETAIL
+==================================================
+
+상세 화면/모달에서 최소 표시:
+
+Candidate ID
+Title
+Knowledge Type
+Content
+Source / provenance
+Feature
+Intended Roles
+Mode Scope
+Pool Scope
+Issue Mapping
+Created At
+Revision
+Freshness State
+Conflict State
+Readiness State
+
+그리고 Approval Checklist:
+
+SOURCE
+IMPLEMENTATION
+ROLE
+MODE
+POOL
+ACTION
+POLICY
+SECURITY
+GROUNDING
+CONFLICT
+FRESHNESS
+
+각 항목:
+
+PASS
+REVIEW
+BLOCKED
+
+표시.
+
+==================================================
+6. SOURCE DISPLAY
+==================================================
+
+Source가 존재하면:
+
+safe source metadata만 표시.
+
+허용:
+
+source id
+source type
+title
+version/revision
+updated_at
+safe reference
+
+금지:
+
+server file path
+DB credentials
+secret
+API key
+raw prompt
+private user content
+PII
+
+Source가 없으면:
+
+SOURCE MISSING
+
+명확히 표시.
+
+APPROVE 버튼 비활성 또는 서버 reject.
+
+==================================================
+7. CONFLICT DISPLAY
+==================================================
+
+CS15 knowledge-governance 재사용.
+
+표시:
+
+NO_CONFLICT
+HARD_CONFLICT
+CONTEXT_CONFLICT
+VERSION_CONFLICT
+AUTHORITY_CONFLICT
+
+HARD_CONFLICT unresolved:
+APPROVE 불가.
+
+CONTEXT_CONFLICT:
+REVIEW_REQUIRED.
+
+VERSION_CONFLICT:
+old/new revision 비교 가능하면 표시.
+
+AUTHORITY_CONFLICT:
+authority level 표시.
+
+UI에서 conflict를 자동 해결하지 말 것.
+
+==================================================
+8. FRESHNESS DISPLAY
+==================================================
+
+표시:
+
+CURRENT
+REVIEW_DUE
+SUPERSEDED
+STALE
+UNKNOWN
+
+STALE / SUPERSEDED:
+
+APPROVE 제한 또는 명확한 warning.
+
+기존 서버 rule을 그대로 사용.
+
+UI 단독 판단 금지.
+
+==================================================
+9. APPROVE ACTION
+==================================================
+
+APPROVE 클릭:
+
+1. confirmation UI
+2. optional review note
+3. CS16 approve API 호출
+4. server validation
+5. 성공 시 UI state refresh
+6. audit entry 확인 가능
+
+중요:
+
+이번 WP의 테스트/개발 환경에서는
+fixture/mock candidate만 activation test.
+
+Production Candidate 실제 승인 금지.
+
+==================================================
+10. REJECT ACTION
+==================================================
+
+REJECT 시 reason 필수 권장.
+
+Reason options:
+
+UNSUPPORTED_SOURCE
+NOT_IMPLEMENTED
+WRONG_ROLE
+WRONG_MODE
+POLICY_UNVERIFIED
+DUPLICATE
+CONFLICT
+OUTDATED
+SECURITY_RISK
+OTHER
+
+OTHER 선택 시 note 입력.
+
+Reject 후:
+
+status refresh
+audit 기록
+retrieval 제외 유지.
+
+==================================================
+11. REQUEST EDIT
+==================================================
+
+EDIT_REQUIRED action.
+
+review note 필수.
+
+상태:
+
+pending
+→ edit_required
+
+수정 후:
+
+edit_required
+→ pending
+
+재검토 필요.
+
+수정 직후 ACTIVE 금지.
+
+==================================================
+12. EDIT UX
+==================================================
+
+현재 Candidate edit endpoint가 존재한다면 재사용.
+
+없다면 이번 WP에서
+승인대상 핵심 필드 수정 API를 최소 추가 가능.
+
+단:
+
+원본 revision/history 보존.
+
+수정 필드 예:
+
+title
+content
+role scope
+mode scope
+feature scope
+
+수정자/시간/revision 기록.
+
+수정 후 자동 승인 금지.
+
+==================================================
+13. ACTIVE VIEW
+==================================================
+
+ACTIVE Knowledge 목록 최소 표시:
+
+knowledge_id
+title
+type
+role/mode/scope
+revision
+approved_at
+freshness
+conflict state
+
+상세에서:
+
+approval history
+source
+supersedes relation
+
+확인 가능.
+
+이번 WP에서 production ACTIVE 수정 금지.
+
+==================================================
+14. ROLLBACK / ARCHIVE UX
+==================================================
+
+CS16 rollback API 재사용.
+
+ACTIVE → ARCHIVED
+
+action에 confirmation 필요.
+
+가능하면:
+
+rollback reason
+
+기록.
+
+일반 user에게 노출 금지.
+
+Production에서 실제 실행 금지.
+
+==================================================
+15. AUDIT HISTORY UI
+==================================================
+
+최소 표시:
+
+candidate/knowledge id
+decision
+previous_status
+new_status
+reviewer role
+reviewed_at
+review note
+request_id
+revision
+
+reviewer의 불필요한 개인정보는 표시하지 말 것.
+
+필요하면 opaque reviewer id 또는 내부 계정 표시.
+
+==================================================
+16. CS12 21개 표시
+==================================================
+
+CS12 Candidate 21개가 Console에서 정상 분류되는지 test.
+
+Expected:
+
+READY_FOR_HUMAN_REVIEW = 17
+REVIEW_REQUIRED = 4
+BLOCKED = 0
+
+이번 WP에서 상태 변경 금지.
+
+==================================================
+17. KNOWN ISSUE 4개
+==================================================
+
+KNOWN_ISSUE 관련 REVIEW_REQUIRED 4개는
+명확히 별도 warning 표시.
+
+내용:
+
+"General triage knowledge와
+actual operational incident를 구분하여 검토 필요"
+
+Incident CONFIRMED 여부와 관계없이
+일반 Candidate 자체를
+현재 장애 사실처럼 보여주지 말 것.
+
+==================================================
+18. INCIDENT LINK
+==================================================
+
+CS15 incident model이 존재하므로
+KNOWN ISSUE Candidate 상세에서 가능하면:
+
+related incident count
+active confirmed incident presence
+
+정도 표시.
+
+단:
+
+Incident 생성/상태변경은 이번 UI에서 하지 않음.
+
+별도 Incident 관리 UI가 없으면
+read-only만.
+
+==================================================
+19. APPROVAL SAFETY UX
+==================================================
+
+APPROVE 버튼 비활성 조건을 UI에도 표현:
+
+BLOCKED
+missing source
+hard conflict
+invalid scope
+stale/superseded
+server validation failure
+
+단:
+
+버튼 disabled만으로 보안 확보했다고 판단 금지.
+
+server reject test 필수.
+
+==================================================
+20. CONCURRENT REVIEW UX
+==================================================
+
+Admin A가 화면을 열고
+Admin B가 먼저 승인한 상황 테스트.
+
+Admin A approve attempt:
+
+CONCURRENT_APPROVAL_CONFLICT
+
+응답을 받고:
+
+"이미 다른 검토자가 상태를 변경했습니다.
+최신 상태를 다시 불러옵니다."
+
+형태로 처리.
+
+자동 재시도 승인 금지.
+
+==================================================
+21. ROUTE / NAVIGATION
+==================================================
+
+Super Admin 메뉴에서 접근 가능하게 연결.
+
+예:
+
+AI / Support
+→ Knowledge Review
+
+실제 기존 IA에 가장 자연스러운 위치 사용.
+
+임의 메뉴 대규모 재편 금지.
+
+==================================================
+22. RESPONSIVE / DESKTOP
+==================================================
+
+Partner Demo는 Desktop 중심.
+
+Desktop에서:
+
+list
+detail
+review actions
+audit
+
+가 깨지지 않아야 함.
+
+Mobile/Tablet도 기본 사용 가능 여부 확인하되
+이번 WP 핵심은 Desktop Super Admin.
+
+==================================================
+23. ACCESSIBILITY / UX
+==================================================
+
+최소:
+
+button label 명확
+status text 명확
+loading state
+empty state
+error state
+confirmation
+success state
+
+"Approve"와 "Activate" 의미 혼동 금지.
+
+실제 state model에 맞춰 용어 통일.
+
+==================================================
+24. NO DIRECT DB UI WRITE
+==================================================
+
+Frontend에서 DB 직접 수정 금지.
+
+모든:
+
+approve
+reject
+edit-required
+rollback
+
+action은 CS16 server API를 통해 수행.
+
+==================================================
+25. TRACE CONNECTION
+==================================================
+
+승인/거절 action 결과에서
+request_id를 유지/표시 가능하면:
+
+audit detail에서 확인.
+
+CS15 trace 구조와 연결.
+
+Client 화면에는 필요 이상 내부 trace 정보 노출 금지.
+
+==================================================
+26. NEGATIVE TESTS
+==================================================
+
+최소:
+
+1. teacher direct URL
+2. parent direct URL
+3. pool_admin direct URL
+4. forged client role
+5. approve missing source
+6. approve hard conflict
+7. approve review_required
+8. stale candidate approve
+9. duplicate click approve
+10. concurrent admin approve
+11. rejected candidate direct reapprove
+12. edit_required direct active
+13. arbitrary candidate_id
+14. cross-pool candidate
+15. forged reviewer_id
+16. UI disabled bypass via API
+17. raw source metadata leakage
+18. PII leakage
+19. pending item appears active
+20. known issue shown as confirmed incident
+
+==================================================
+27. PARTNER DEMO FLOW
+==================================================
+
+이번 WP 완료 시
+Partner Demo에서 보여줄 수 있는 최소 시나리오 준비.
+
+Demo candidate는 fixture/staging/sample 사용.
+
+Flow:
+
+1. AI/automation-generated candidate appears PENDING
+2. Super Admin opens candidate
+3. Source provenance 확인
+4. Role/Mode/Scope 확인
+5. Freshness 확인
+6. Conflict 확인
+7. Approval checklist 확인
+8. Human Approve
+9. Audit trail 생성
+10. Candidate becomes eligible ACTIVE knowledge
+11. Answer trace에서 approved knowledge 확인
+
+주의:
+
+Production data 없이 demo 가능해야 함.
+
+==================================================
+28. PARTNER EVIDENCE CAPTURE
+==================================================
+
+가능하면 screenshot/demo-ready state 준비:
+
+A.
+Pending Knowledge List
+
+B.
+Candidate Detail + Source/Scope
+
+C.
+Conflict/Freshness Check
+
+D.
+Human Approval Confirmation
+
+E.
+Audit History
+
+F.
+Trace to Knowledge
+
+실제 screenshot 파일 생성은 별도 요청 없으면 불필요.
+화면이 준비되어 있는지만 보고.
+
+==================================================
+29. METRICS
+==================================================
+
+최종 보고:
+
+UI_ROUTES_IMPLEMENTED
+CANDIDATE_LIST_PASS
+CANDIDATE_DETAIL_PASS
+APPROVE_UI_PASS
+REJECT_UI_PASS
+EDIT_REQUIRED_UI_PASS
+AUDIT_UI_PASS
+ROLLBACK_UI_PASS
+
+UNAUTHORIZED_UI_ACCESS
+UI_BYPASS_APPROVAL
+CONCURRENT_APPROVAL_UI_ERROR
+RAW_SOURCE_LEAKAGE
+PII_LEAKAGE
+PENDING_SHOWN_AS_ACTIVE
+KNOWN_ISSUE_SHOWN_AS_INCIDENT
+REVIEW_REQUIRED_APPROVED
+
+목표:
+
+전부 0.
+
+==================================================
+30. CS13 REGRESSION
+==================================================
+
+ROLE_LEAKAGE = 0
+MODE_LEAKAGE = 0
+POOL_LEAKAGE = 0
+CASE_IDOR = 0
+
+==================================================
+31. CS14 REGRESSION
+==================================================
+
+UNSUPPORTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+==================================================
+32. CS15 REGRESSION
+==================================================
+
+TRACE_SCOPE_LEAKAGE = 0
+UNRESOLVED_CONFLICT_EMITTED = 0
+FALSE_INCIDENT_CLAIM = 0
+
+==================================================
+33. CS16 REGRESSION
+==================================================
+
+UNAUTHORIZED_APPROVAL = 0
+UNAUTHORIZED_AUTO_PROMOTION_PATHS = 0
+DUPLICATE_ACTIVE_CREATED = 0
+CONCURRENT_APPROVAL_DUPLICATE = 0
+APPROVAL_WITHOUT_SOURCE = 0
+APPROVAL_WITH_HARD_CONFLICT = 0
+
+==================================================
+34. TEST LEVEL
+==================================================
+
+구분:
+
+UNIT
+MOCK
+COMPONENT
+INTEGRATION
+E2E
+STAGING
+PRODUCTION
+
+UI 테스트가 component/mock 수준이면
+E2E verified라고 표현 금지.
+
+==================================================
+35. PRODUCTION WRITE
+==================================================
+
+NO.
+
+Production Candidate 승인 금지.
+
+Production DB:
+
+rows inserted = 0
+rows modified = 0
+ACTIVE created = 0
+ACTIVE modified = 0
+PENDING modified = 0
+
+==================================================
+36. GIT / REMOTE / RENDER REPORT
+==================================================
+
+이번부터 반드시 아래 포함.
+
+GIT:
+  local commit:
+  SHA:
+  remote push:
+  remote branch:
+
+REMOTE:
+  repository:
+  latest remote SHA:
+
+RENDER:
+  deployed:
+  service:
+  deployed SHA:
+
+PRODUCTION DB:
+  migration applied:
+  rows changed:
+
+Git HEAD만 보고
+remote push 완료로 간주하지 말 것.
+
+==================================================
+37. COMPLETE REPORT FORMAT
+==================================================
+
+WP-CS17 COMPLETE REPORT
+
+Git HEAD:
+
+Files changed:
+
+UI:
+  Route:
+  Menu entry:
+  Candidate list:
+  Candidate detail:
+  Approve:
+  Reject:
+  Edit Required:
+  Rollback:
+  Audit history:
+
+CS12 DISPLAY:
+  TOTAL:
+  READY_FOR_HUMAN_REVIEW:
+  REVIEW_REQUIRED:
+  BLOCKED:
+
+PARTNER DEMO FLOW:
+  pending list:
+  source:
+  scope:
+  freshness:
+  conflict:
+  approve:
+  audit:
+  answer trace:
+
+RESULT:
+  UNAUTHORIZED_UI_ACCESS:
+  UI_BYPASS_APPROVAL:
+  CONCURRENT_APPROVAL_UI_ERROR:
+  RAW_SOURCE_LEAKAGE:
+  PII_LEAKAGE:
+  PENDING_SHOWN_AS_ACTIVE:
+  KNOWN_ISSUE_SHOWN_AS_INCIDENT:
+  REVIEW_REQUIRED_APPROVED:
+
+REGRESSION:
+  CS13:
+  CS14:
+  CS15:
+  CS16:
+
+TEST:
+  CS17:
+  FULL SUITE:
+  TEST LEVEL:
+
+GIT:
+  local commit:
+  SHA:
+  remote push:
+  remote branch:
+
+REMOTE:
+  repository:
+  latest remote SHA:
+
+RENDER:
+  deployed:
+  service:
+  deployed SHA:
+
+PRODUCTION DB:
+  migration applied:
+  rows inserted:
+  rows modified:
+  ACTIVE created:
+  ACTIVE modified:
+  PENDING modified:
+
+Critical blockers:
+
+CS17_CLOSE: YES / NO
+
+WP_CS17_SUPER_ADMIN_KNOWLEDGE_REVIEW_CONSOLE_COMPLETE ✅
+
+==================================================
+38. 종료 조건
+==================================================
+
+Super Admin Review Console usable
+
+UNAUTHORIZED_UI_ACCESS = 0
+UI_BYPASS_APPROVAL = 0
+CONCURRENT_APPROVAL_UI_ERROR = 0
+RAW_SOURCE_LEAKAGE = 0
+PII_LEAKAGE = 0
+PENDING_SHOWN_AS_ACTIVE = 0
+KNOWN_ISSUE_SHOWN_AS_INCIDENT = 0
+REVIEW_REQUIRED_APPROVED = 0
+
+CS13 regression = 0
+CS14 regression = 0
+CS15 regression = 0
+CS16 regression = 0
+
+FULL SUITE PASS
+
+Production write = NO
+Production Candidate activation = 0
