@@ -60,12 +60,20 @@ router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {
       return;
     }
 
-    const { ticket_type, subject, description, image_urls, consultation_requested, pool_id } = req.body as any;
+    const { ticket_type, subject, description, image_urls, consultation_requested, pool_id: bodyPoolId } = req.body as any;
     if (!subject) { res.status(400).json({ error: "제목을 입력해주세요." }); return; }
 
     const userId   = req.user?.userId ?? "";
     const userName = req.user?.name   ?? "";
     const userRole = req.user?.role   ?? "";
+    const isSuper  = SUPER_ROLES.has(userRole);
+
+    // §P1 pool_id forgery prevention:
+    // non-super users may only submit tickets under their own pool (from JWT).
+    // Accepting an arbitrary client-supplied pool_id would allow cross-pool ticket injection.
+    const pool_id = isSuper
+      ? (bodyPoolId ?? null)                       // super can specify any pool
+      : ((req.user as any)?.poolId ?? null);       // non-super: always use JWT poolId
 
     let requesterType = "operator";
     if (userRole === "teacher") requesterType = "teacher";

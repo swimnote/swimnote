@@ -25,9 +25,18 @@
  */
 
 import { Router, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middlewares/auth.js";
+import {
+  isApprovalAllowed,
+  isGlobalApprovalAllowed,
+  isAiReviewerAttempt,
+  validateApprovalChecklist,
+  type CandidateRow,
+} from "../lib/knowledge-approval.js";
+import { detectConflicts } from "../lib/knowledge-governance.js";
 import { SCREEN_BY_ID } from "../config/support/frontend-map.v1.js";
 
 const router = Router();
@@ -452,50 +461,155 @@ router.get(
 );
 
 // ── PATCH /super/support/knowledge/:id/approve ────────────────────────────────
+// §CS16: Canonical governance — delegates to the same domain functions as
+// knowledge-approval.ts to ensure APPROVAL_GOVERNANCE_BYPASS_PATHS = 0.
+
+function requireApprovalRoleForSearch(req: Request, res: Response, next: () => void) {
+  const user = (req as any).user;
+  if (!user) { res.status(401).json({ ok: false, error: "인증이 필요합니다." }); return; }
+  if (!isApprovalAllowed(user.role)) {
+    res.status(403).json({
+      ok: false,
+      error: "승인권한 없음 — super_admin 또는 platform_admin만 접근 가능합니다.",
+      code: "APPROVAL_FORBIDDEN",
+    });
+    return;
+  }
+  next();
+}
 
 router.patch(
   "/super/support/knowledge/:id/approve",
   requireAuth,
-  requireRole("super_admin"),
+  requireApprovalRoleForSearch,
   async (req: Request, res: Response) => {
-    const actorId = (req as any).user?.id ?? "unknown";
+    const user    = (req as any).user;
     const { id }  = req.params;
+    const actorId   = user?.id ?? user?.userId ?? "unknown";
+    const actorRole = user?.role;
+    const requestId = randomUUID(); // §CS15 traceability
+
+    // §CS16 §9: AI reviewer 시도 감지 — client role forging 방지
+    if (isAiReviewerAttempt(actorId, actorRole)) {
+      return res.status(403).json({
+        ok: false, error: "AI는 reviewer로 기록될 수 없습니다.", code: "AI_REVIEWER_FORBIDDEN",
+      });
+    }
+
+    // §CS16 §5: global 승인권한 재확인 (pool_admin 우회 불가)
+    if (!isGlobalApprovalAllowed(actorRole)) {
+      return res.status(403).json({
+        ok: false, error: "global Knowledge 승인권한 없음", code: "GLOBAL_APPROVAL_FORBIDDEN",
+      });
+    }
 
     try {
       const existing = await superAdminDb.execute(sql`
-        SELECT id, status, pool_id, revision FROM support_knowledge_items WHERE id = ${id} LIMIT 1
+        SELECT id, item_type, status, pool_id, revision,
+               source_ref, source_type, affected_roles, affected_modes,
+               feature, category, content, answer, solution_steps, updated_at
+        FROM support_knowledge_items WHERE id = ${id} LIMIT 1
       `) as any;
       const row = (existing.rows ?? [])[0];
-      if (!row) return res.status(404).json({ error: "항목을 찾을 수 없습니다." });
-      if (row.status === "active") {
-        return res.status(400).json({ error: "이미 활성화된 항목입니다." });
-      }
-      // § 상태 가드: pending / edit_required 만 activate 허용
+      if (!row) return res.status(404).json({ ok: false, error: "항목을 찾을 수 없습니다." });
+
+      // §CS16 §6: status gate — PENDING / EDIT_REQUIRED만 승인 가능
       if (row.status !== "pending" && row.status !== "edit_required") {
-        return res.status(400).json({ error: `${row.status} 상태는 activate 불가`, code: "INVALID_STATUS_TRANSITION" });
+        return res.status(409).json({
+          ok: false,
+          error: `현재 상태(${row.status})에서는 승인 불가. PENDING 또는 EDIT_REQUIRED 상태만 승인 가능.`,
+          code: "INVALID_STATUS_TRANSITION",
+          current_status: row.status,
+        });
       }
 
-      // § 동시 승인 방지 — revision guard (CONCURRENT_APPROVAL_DUPLICATE 차단)
+      // §CS16 §6: source / scope / role / mode 서버 검증 (canonical checklist)
+      const candidate: CandidateRow = {
+        id:             row.id,
+        item_type:      row.item_type,
+        status:         row.status,
+        scope:          row.scope ?? null,
+        source_ref:     row.source_ref ?? null,
+        source_type:    row.source_type ?? null,
+        affected_roles: Array.isArray(row.affected_roles) ? row.affected_roles : null,
+        affected_modes: Array.isArray(row.affected_modes) ? row.affected_modes : null,
+        feature:        row.feature ?? null,
+        category:       row.category ?? null,
+        pool_id:        row.pool_id ?? null,
+        content:        row.content ?? null,
+        answer:         row.answer ?? null,
+        solution_steps: row.solution_steps ?? null,
+        updated_at:     row.updated_at ? new Date(row.updated_at).toISOString() : null,
+      };
+      const checklist = validateApprovalChecklist(candidate);
+      if (checklist.blockers.length > 0) {
+        return res.status(422).json({
+          ok: false, error: "Approval checklist 검증 실패", code: "CHECKLIST_BLOCKED",
+          blockers: checklist.blockers,
+        });
+      }
+
+      // §CS16 §12: ACTIVE Knowledge HARD_CONFLICT 검사 (같은 feature의 ACTIVE 항목)
+      if (row.feature) {
+        const activeResult = await superAdminDb.execute(sql`
+          SELECT id, item_type, feature, category, status, revision, updated_at, source_type
+          FROM support_knowledge_items
+          WHERE feature = ${row.feature} AND status = 'active' AND id != ${id}
+          LIMIT 10
+        `) as any;
+        const activeItems = (activeResult.rows ?? []).map((r: any) => ({
+          id: r.id, item_type: r.item_type, feature: r.feature,
+          category: r.category, status: r.status, revision: r.revision ?? 1,
+          updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : null,
+          source_type: r.source_type, title: "", answer: "", score: 0,
+          freshness_state: undefined,
+        }));
+        const conflicts = detectConflicts([...activeItems, {
+          id: row.id, item_type: row.item_type, feature: row.feature,
+          category: row.category, status: "active",
+          revision: row.revision ?? 1,
+          updated_at: row.updated_at ? new Date(row.updated_at).toISOString() : null,
+          source_type: row.source_type, title: "", answer: "", score: 0,
+          freshness_state: undefined,
+        }]);
+        const unresolved = conflicts.filter((c: any) => c.resolution === "UNRESOLVED");
+        if (unresolved.length > 0) {
+          return res.status(422).json({
+            ok: false,
+            error: "HARD_CONFLICT 또는 CONTEXT_CONFLICT 미해소 — 승인 불가 (§12)",
+            code: "UNRESOLVED_CONFLICT",
+            conflicts: unresolved.map((c: any) => ({ type: c.type, item_a: c.item_a_id, item_b: c.item_b_id })),
+          });
+        }
+      }
+
+      // §CS16 §7: 동시 승인 방지 — revision guard
       const currentRevision = row.revision ?? 1;
       const updateResult = await superAdminDb.execute(sql`
         UPDATE support_knowledge_items
-        SET status = 'active', reviewed_by = ${actorId}, reviewed_at = NOW(),
-            revision = revision + 1, updated_at = NOW()
+        SET status      = 'active',
+            reviewed_by = ${actorId}, reviewed_at = NOW(),
+            approved_by = ${actorId}, approved_at = NOW(),
+            revision    = revision + 1, updated_at  = NOW()
         WHERE id = ${id}
+          AND status IN ('pending', 'edit_required')
           AND revision = ${currentRevision}
-        RETURNING id
+        RETURNING id, revision
       `) as any;
 
       if (!(updateResult?.rows ?? [])[0]) {
         return res.status(409).json({
-          ok:    false,
+          ok: false,
           error: "동시 상태 변경 감지 — 최신 상태를 다시 조회하세요",
           code:  "CONCURRENT_APPROVAL_CONFLICT",
         });
       }
 
-      await logKnowledgeAudit("KNOWLEDGE_ACTIVATED", id, actorId, row.pool_id);
-      res.json({ ok: true, id, status: "active" });
+      await logKnowledgeAudit("KNOWLEDGE_ACTIVATED", id, actorId, row.pool_id, {
+        request_id: requestId, actor_role: actorRole,
+        resulting_knowledge_id: id, source_version: row.source_ref ?? undefined,
+      });
+      res.json({ ok: true, id, status: "active", request_id: requestId });
     } catch (err) {
       console.error("[knowledge/approve]", err);
       res.status(500).json({ error: "서버 오류" });

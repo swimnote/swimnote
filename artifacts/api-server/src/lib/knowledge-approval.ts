@@ -167,7 +167,8 @@ export function validateApprovalChecklist(candidate: CandidateRow): ChecklistRes
 
   // ROLE: affected_roles 존재 여부
   const hasRoles = Array.isArray(candidate.affected_roles) && candidate.affected_roles.length > 0;
-  const VALID_ROLES = ["teacher", "pool_admin", "sub_admin", "parent_account", "all"];
+  // "parent" is legacy alias for "parent_account" — accepted as valid
+  const VALID_ROLES = ["teacher", "pool_admin", "sub_admin", "parent_account", "parent", "all"];
   const rolesValid = !hasRoles || (candidate.affected_roles ?? []).every(r => VALID_ROLES.includes(r));
   items.push({
     dimension:  "ROLE",
