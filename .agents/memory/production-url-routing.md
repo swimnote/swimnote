@@ -1,27 +1,22 @@
 ---
-name: Production URL Routing
-description: swimnote.kr vs Render URL 실제 라우팅 구조 — 혼동 방지
+name: Production URL 실제 라우팅
+description: swimnote.kr vs swimnote-api.onrender.com 실제 라우팅 구조. 앱 API는 반드시 Render.com.
 ---
 
-## 실제 URL 구조 (2026-08-16 확인)
+# Production URL 라우팅 (2026-08-18 확정)
 
-- **swimnote.kr** = **Replit 배포** (primaryUrl)
-  - Replit autoscale deployment
-  - 빌드: `pnpm --filter @workspace/api-server run build` (artifact.toml)
-  - 실행: `node artifacts/api-server/dist/index.mjs`
-  - dist가 .gitignore에 있으므로 재배포 없이는 새 코드 미적용
+## 확정된 구조
+- `swimnote.kr` (34.111.179.208) = Replit 배포 = **swimnote-web SPA** (웹 프론트엔드)
+  - ALL routes → index.html (HTTP 200, text/html)
+  - /api/* 라우팅 없음
+  - Linking.openURL("https://swimnote.kr") 용도로만 사용
+- `swimnote-api.onrender.com` (216.24.57.7) = Render.com = **api-server (운영)**
+  - GitHub push → 자동 빌드·배포
+  - DB: SUPABASE_DATABASE_URL (shared)
 
-- **swimnote-api.onrender.com** = **Render.com** 서버
-  - 별도 Render 서비스
-  - GitHub push → Render 자동 배포
-  - Render buildCommand: `pnpm --filter @workspace/api-server run build` (dist 새로 생성)
+## 앱 API_BASE
+`https://swimnote-api.onrender.com/api` (SessionContext.tsx)
+swimnote.kr를 API_BASE로 사용하면 모든 API 호출이 SPA HTML 200 응답 → 무음 실패
 
-## 주의사항
-
-- production-server-rule.md의 "swimnote.kr(Render.com) 연결" 설명은 부정확함
-- swimnote.kr은 Replit 배포이고, Render는 별도 URL (swimnote-api.onrender.com)
-- 서버 코드 수정 후 swimnote.kr에 적용하려면 **Replit 재배포** 필요 (Publish 버튼)
-- Render에 적용하려면 **GitHub push** 필요 (Render 자동 빌드)
-
-**Why:** P0 디버깅 중 발견. swimnote.kr을 Render로 착각하여 Render health 확인으로 P0 해결 착각.
-**How to apply:** swimnote.kr health 이상 시 항상 두 URL 별도 확인.
+## 서버 배포 방법
+GitHub push → Render.com 자동 빌드 완료 확인 → OTA 필요 시 별도 배포
