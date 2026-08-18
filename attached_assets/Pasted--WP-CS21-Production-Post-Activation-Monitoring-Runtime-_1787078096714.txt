@@ -1,0 +1,828 @@
+[WP-CS21 — Production Post-Activation Monitoring & Runtime Integrity Audit]
+
+목적:
+
+CS20에서 Production ACTIVE 상태가 된
+Support Knowledge 23개가 실제 운영환경에서:
+
+* 정상 retrieval
+* 올바른 role/mode scope
+* grounded answer
+* trace 연결
+* audit 유지
+* runtime 안정성
+
+을 지속적으로 만족하는지 확인한다.
+
+동시에 CS20 Render 배포 과정에서 다시 발견된
+dead/nonexistent import 문제의 재발 가능성을
+repository 전체에서 최소 범위로 제거한다.
+
+이번 WP는 신규 Support 기능 개발이 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확정 상태:
+
+CS12 = CLOSED
+CS13 = CLOSED
+CS14 = CLOSED
+CS15 = CLOSED
+CS16 = CLOSED
+CS17 = CLOSED
+CS18 = CLOSED
+CS19 = CLOSED
+CS20 = CLOSED
+
+Production:
+
+ACTIVE Knowledge = 23
+
+구성:
+
+기존 ACTIVE = 2
+CS12 activated = 21
+
+CS20:
+
+P0 approval = 12
+P1 approval = 9
+
+Audit rows = 21
+
+P0 retrieval fail = 0
+P1 retrieval fail = 0
+Grounding smoke = 5/5
+
+Render = LIVE
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. ACTIVE Knowledge 내용 임의 변경 금지.
+
+3. Production Knowledge 추가 승인 금지.
+
+4. P1 Gap Draft 활성화 금지.
+
+5. 새로운 LLM 호출 코드 추가 금지.
+
+6. 운영 사용자 데이터를 테스트 fixture로 사용 금지.
+
+7. 실제 문제가 없는 Knowledge를 테스트 목적으로 rollback 금지.
+
+8. 이미 CLOSED된 CS12~20 전체 재감사 금지.
+
+9. 이번 WP는 post-activation 검증과 runtime integrity만 수행.
+
+10. 문제 발견 시 해당 item/route만 최소 수정.
+
+11. Production에 직접 SQL로 Knowledge status 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION BASELINE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+작업 시작 시 read-only 확인.
+
+보고:
+
+ACTIVE_TOTAL
+PENDING_TOTAL
+ARCHIVED_TOTAL
+
+CS12_ACTIVE_TOTAL
+EXISTING_ACTIVE_TOTAL
+
+EXPECTED:
+
+ACTIVE_TOTAL = 23
+CS12_ACTIVE_TOTAL = 21
+
+다르면:
+
+PRODUCTION_DRIFT = YES
+
+로 보고 후 원인 확인.
+
+임의 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. ACTIVE 23 RETRIEVAL COVERAGE
+━━━━━━━━━━━━━━━━━━━━━━
+
+23개 ACTIVE Knowledge 각각에 대해
+최소 1개의 deterministic retrieval fixture를 사용.
+
+목표:
+
+각 ACTIVE item이
+자기 issue/keyword/context에서 retrieval eligible인지 확인.
+
+보고:
+
+ACTIVE_ITEMS_TOTAL
+ACTIVE_ITEMS_RETRIEVED
+ACTIVE_ITEMS_NOT_RETRIEVED
+
+목표:
+
+ACTIVE_ITEMS_NOT_RETRIEVED = 0
+
+단 topic이 정상적으로 다른 item에 의해 우선되는 경우:
+
+SHADOWED_BY_HIGHER_PRIORITY
+
+로 별도 분류.
+
+억지로 failure로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PENDING / ARCHIVED EXCLUSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 남아 있는:
+
+PENDING
+ARCHIVED
+
+Knowledge가 grounding evidence에 들어가지 않는지 확인.
+
+특히:
+
+CS19 P1 GAP Draft
+
+는 Production insert 자체가 없어야 한다.
+
+검증:
+
+PENDING_RETRIEVED = 0
+ARCHIVED_RETRIEVED = 0
+DRAFT_RETRIEVED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ROLE ISOLATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+ACTIVE Knowledge 대상으로 cross-role negative matrix.
+
+최소:
+
+teacher
+parent_account
+pool_admin
+sub_admin
+
+검증 예:
+
+teacher
+→ pool_admin billing Knowledge
+
+parent
+→ teacher diary write Knowledge
+
+pool_admin
+→ parent-only child-link guidance
+
+허용 범위를 실제 candidate scope와 비교.
+
+목표:
+
+CROSS_ROLE_KNOWLEDGE_LEAKAGE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. MODE ISOLATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+특히:
+
+NORMAL
+X
+X_PENDING
+
+검증.
+
+핵심:
+
+ki_cs12_growth_report_pending
+
+은 CS19 수정 후:
+
+affected_modes = ["x"]
+
+이므로:
+
+NORMAL → retrieval 불가
+X_PENDING → active X guidance로 retrieval 불가
+X → retrieval 가능
+
+목표:
+
+CROSS_MODE_KNOWLEDGE_LEAKAGE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. GROUNDING QUALITY SAMPLE
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production ACTIVE Knowledge를 사용한
+실제 Support generation path를 최소 샘플링.
+
+불필요한 호출 반복 금지.
+
+최소 10 scenario:
+
+P0 6개
+P1 4개
+
+반드시 포함:
+
+* account withdrawal
+* attendance permission
+* notification
+* server/AI error triage
+* billing
+* diary failure
+* parent diary
+* X setup
+* growth report
+
+각 scenario:
+
+request_id
+selected knowledge_id
+role
+mode
+generated answer
+claim classification
+actions
+trace
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 품질 메트릭
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 generated answer에서:
+
+SUPPORTED
+PARTIALLY_SUPPORTED
+UNSUPPORTED
+CONTRADICTED
+
+분류.
+
+필수:
+
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+FALSE_INCIDENT_CLAIM
+UNSUPPORTED_POLICY_CLAIM
+UNSAFE_OR_UNGROUNDED
+
+목표:
+
+전부 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. ACCOUNT WITHDRAWAL 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS19에서 수정된:
+
+ki_cs12_account_withdrawal
+
+운영 ACTIVE row가 실제 수정본인지 확인.
+
+금지 표현:
+
+"무조건 복구 불가능"
+
+허용:
+
+계정 유형/처리 방식에 따라 다름
+→ 복구 가능 여부 고객지원 확인
+
+목표:
+
+ACCOUNT_WITHDRAWAL_POLICY_MISMATCH = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. DIARY SCREEN ID 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+4개 item:
+
+ki_cs12_ai_error_triage
+ki_cs12_diary_ai_failed
+ki_cs12_diary_save_failed
+ki_cs12_diary_photo_upload_failed
+
+Production ACTIVE row:
+
+frontend_screen_id = TEACHER_DIARY
+
+확인.
+
+TEACHER_DIARY_WRITE가 남아 있으면 FAIL.
+
+목표:
+
+INVALID_FRONTEND_SCREEN_ID = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. GROWTH REPORT MODE 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production ACTIVE row:
+
+ki_cs12_growth_report_pending
+
+확인:
+
+affected_modes = ["x"]
+
+NORMAL/X_PENDING에 노출되지 않음.
+
+목표:
+
+GROWTH_REPORT_MODE_MISMATCH = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. KNOWN ISSUE / INCIDENT 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+ACTIVE:
+
+server
+AI provider
+push
+billing
+
+triage Knowledge가:
+
+"현재 장애 발생"
+
+이라고 확정하지 않는지 확인.
+
+Actual Incident가 없는 경우:
+
+safe diagnostic
+→ retry/check
+→ escalation
+
+유지.
+
+목표:
+
+FALSE_INCIDENT_CLAIM = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. TRACE 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+10개 grounding sample에서:
+
+request_id
+knowledge_id
+revision
+source_ref
+status
+approval state
+
+trace 가능 여부 확인.
+
+내부 audit에는:
+
+approved_by
+approved_at
+
+존재 가능.
+
+Client 응답에 reviewer identity/PII 노출 금지.
+
+목표:
+
+TRACE_MISSING = 0
+REVIEWER_PII_EXPOSED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. APPROVAL AUDIT 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS20에서 생성된 audit 21건 확인.
+
+각 activated CS12 item당
+최소 1개의 activation audit 존재.
+
+확인:
+
+candidate_id
+actor role
+timestamp
+revision
+previous state
+new state
+
+목표:
+
+ACTIVE_WITHOUT_AUDIT = 0
+DUPLICATE_ACTIVATION_AUDIT = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. RUNTIME IMPORT INTEGRITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS20 배포 중:
+
+pool-db-cs-16.ts
+
+에서 다시:
+
+../db/superAdminDb.js
+
+nonexistent import가 발견되었다.
+
+이 종류를 repository 전체에서 한 번만 전수 검색.
+
+검색 대상:
+
+src/**/*.ts
+src/**/*.tsx
+
+확인:
+
+* relative .js import
+* 실제 target file 없음
+* test mock 때문에 숨은 import
+* runtime-only route/migration import
+* dynamic import
+* dead migration import
+
+특히:
+
+superAdminDb
+knowledge approval
+CS migrations
+support routes
+queue worker
+
+관련.
+
+목표:
+
+NONEXISTENT_RUNTIME_IMPORTS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. RUNTIME BOOT MATRIX
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 실제 import/boot 검증:
+
+API server boot
+routes/index
+support-respond
+support-tickets
+knowledge-search
+knowledge-approval
+knowledge-governance
+
+CS12 migration
+CS15 migration
+CS16 migration
+CS19 migration
+
+queue-worker
+
+web build
+
+typecheck
+
+목표:
+
+RUNTIME_IMPORT_ERROR = 0
+SERVER_BOOT_ERROR = 0
+WEB_BUILD_ERROR = 0
+TYPECHECK_ERROR = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. P1 GAP DRAFT 정책 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS19 DRAFT:
+
+ki_draft_xmodeguard_lock_states
+
+아직 Production insert 금지.
+
+다음 timing claims:
+
+"결제 후 5분 내"
+
+"1~3 영업일"
+
+"3 영업일 이상"
+
+실제 repository/운영 policy에서 근거 검색.
+
+근거가 있으면:
+
+SOURCE_VERIFIED
+
+없으면:
+
+UNSUPPORTED_TIMING_CLAIM
+
+으로 제거 제안.
+
+중요:
+
+정책이 없으면 숫자를 새로 정하지 말 것.
+
+최종 DRAFT 문구는
+시간 보장 없이 안전하게 작성 가능.
+
+예:
+
+"결제 후 상태가 반영되지 않으면 고객지원에 문의해 주세요."
+
+단 실제 UI/action 검증 후 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. P1 GAP DRAFT 최종 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 Production insert/ACTIVE 금지.
+
+결과만:
+
+DRAFT_READY_FOR_REVIEW
+
+또는
+
+DRAFT_REVIEW_REQUIRED
+
+로 분류.
+
+다음 WP에서 별도 승인 여부 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. OBSERVABILITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Support request에서 운영자가 최소한 다음을 추적할 수 있는지 확인:
+
+request_id
+resolution source
+knowledge_id
+confidence
+case/escalation
+error category
+
+PII 없이 가능한 형태.
+
+필수:
+
+UNTRACEABLE_SUPPORT_RESPONSE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. ERROR RATE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Post-activation internal smoke 동안:
+
+5xx
+retrieval error
+LLM parse failure
+scope deny anomaly
+trace failure
+
+집계.
+
+실제 사용자 트래픽 통계와
+fixture smoke 통계를 섞지 말 것.
+
+보고:
+
+INTERNAL_SMOKE_REQUESTS
+INTERNAL_SMOKE_5XX
+RETRIEVAL_ERRORS
+LLM_PARSE_ERRORS
+TRACE_ERRORS
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. PRODUCTION SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP는 read-heavy audit.
+
+Production Knowledge 수정은
+실제 bug fix가 필요한 경우에만 별도 보고 후 수행.
+
+기본 목표:
+
+KNOWLEDGE_ROWS_MODIFIED = 0
+KNOWLEDGE_STATUS_CHANGED = 0
+NEW_KNOWLEDGE_INSERTED = 0
+
+Code/runtime fix가 필요하면
+Git 수정 및 Render deploy 가능.
+
+단 Knowledge status를 코드배포와 함께 자동 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. REQUIRED METRICS
+━━━━━━━━━━━━━━━━━━━━━━
+
+ACTIVE_TOTAL
+PENDING_TOTAL
+ARCHIVED_TOTAL
+
+ACTIVE_ITEMS_TOTAL
+ACTIVE_ITEMS_RETRIEVED
+ACTIVE_ITEMS_NOT_RETRIEVED
+
+PENDING_RETRIEVED
+ARCHIVED_RETRIEVED
+DRAFT_RETRIEVED
+
+CROSS_ROLE_KNOWLEDGE_LEAKAGE
+CROSS_MODE_KNOWLEDGE_LEAKAGE
+
+GROUNDING_SCENARIOS_TOTAL
+GROUNDING_SCENARIOS_PASS
+
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+FALSE_INCIDENT_CLAIM
+UNSUPPORTED_POLICY_CLAIM
+UNSAFE_OR_UNGROUNDED
+
+ACCOUNT_WITHDRAWAL_POLICY_MISMATCH
+INVALID_FRONTEND_SCREEN_ID
+GROWTH_REPORT_MODE_MISMATCH
+
+TRACE_MISSING
+REVIEWER_PII_EXPOSED
+ACTIVE_WITHOUT_AUDIT
+DUPLICATE_ACTIVATION_AUDIT
+
+NONEXISTENT_RUNTIME_IMPORTS
+RUNTIME_IMPORT_ERROR
+SERVER_BOOT_ERROR
+WEB_BUILD_ERROR
+TYPECHECK_ERROR
+
+INTERNAL_SMOKE_REQUESTS
+INTERNAL_SMOKE_5XX
+RETRIEVAL_ERRORS
+LLM_PARSE_ERRORS
+TRACE_ERRORS
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS21 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Deployed SHA:
+Render status:
+
+PRODUCTION KNOWLEDGE
+
+ACTIVE_TOTAL:
+PENDING_TOTAL:
+ARCHIVED_TOTAL:
+PRODUCTION_DRIFT:
+
+RETRIEVAL COVERAGE
+
+ACTIVE_ITEMS_TOTAL:
+ACTIVE_ITEMS_RETRIEVED:
+ACTIVE_ITEMS_NOT_RETRIEVED:
+
+PENDING_RETRIEVED:
+ARCHIVED_RETRIEVED:
+DRAFT_RETRIEVED:
+
+SCOPE
+
+CROSS_ROLE_KNOWLEDGE_LEAKAGE:
+CROSS_MODE_KNOWLEDGE_LEAKAGE:
+
+GROUNDING
+
+GROUNDING_SCENARIOS_TOTAL:
+GROUNDING_SCENARIOS_PASS:
+
+UNSUPPORTED_CLAIMS:
+CONTRADICTED_CLAIMS:
+HALLUCINATED_UI_PATH:
+INVALID_ACTIONS:
+FALSE_INCIDENT_CLAIM:
+UNSUPPORTED_POLICY_CLAIM:
+UNSAFE_OR_UNGROUNDED:
+
+CORRECTION VERIFICATION
+
+ACCOUNT_WITHDRAWAL_POLICY_MISMATCH:
+INVALID_FRONTEND_SCREEN_ID:
+GROWTH_REPORT_MODE_MISMATCH:
+
+TRACE / AUDIT
+
+TRACE_MISSING:
+REVIEWER_PII_EXPOSED:
+ACTIVE_WITHOUT_AUDIT:
+DUPLICATE_ACTIVATION_AUDIT:
+
+RUNTIME
+
+NONEXISTENT_RUNTIME_IMPORTS:
+RUNTIME_IMPORT_ERROR:
+SERVER_BOOT_ERROR:
+WEB_BUILD_ERROR:
+TYPECHECK_ERROR:
+
+FILES FIXED:
+
+P1 GAP DRAFT
+
+Timing claims:
+5min:
+1-3 business days:
+3 business days:
+
+Final draft:
+Status:
+
+OBSERVABILITY
+
+INTERNAL_SMOKE_REQUESTS:
+INTERNAL_SMOKE_5XX:
+RETRIEVAL_ERRORS:
+LLM_PARSE_ERRORS:
+TRACE_ERRORS:
+
+TEST
+
+New TC:
+Full suite:
+Integration:
+Live grounding calls:
+
+PRODUCTION CHANGES
+
+Code deployed:
+Knowledge rows modified:
+Knowledge status changed:
+New Knowledge inserted:
+
+Critical blockers:
+
+CS21_CLOSE: YES / NO
+
+WP_CS21_POST_ACTIVATION_RUNTIME_INTEGRITY_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 종료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS21_CLOSE = YES 조건:
+
+ACTIVE 23 운영 상태 정상
+
+Active retrieval coverage 이상 없음
+
+cross-role/mode leakage = 0
+
+grounding quality P0/P1 = 0
+
+trace/audit 누락 = 0
+
+runtime nonexistent imports = 0
+
+API boot/build/typecheck 정상
+
+P1 DRAFT timing claim은
+근거 없는 숫자를 제거하거나 검증된 상태
+
+Production Knowledge에
+새로운 무단 변경 없음
+
+완료보고 후 멈춘다.
+
+다음 WP 자동 시작 금지.
