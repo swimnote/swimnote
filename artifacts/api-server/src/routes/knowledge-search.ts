@@ -37,6 +37,10 @@ import("../migrations/pool-db-cs-05r.js")
   .then(({ runCs05rMigration }) => runCs05rMigration())
   .catch((e: any) => console.error("[cs-05r-init]", e?.message));
 
+import("../migrations/pool-db-cs-12.js")
+  .then(({ runCs12Migration }) => runCs12Migration())
+  .catch((e: any) => console.error("[cs-12-init]", e?.message));
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface KnowledgeRow {
