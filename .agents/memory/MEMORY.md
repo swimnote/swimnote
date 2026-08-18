@@ -113,3 +113,4 @@
 - [P0-STALE-HUMAN-UI 완료](p0-stale-human-ui-done.md) — SHA fcc5c3f8; VALID_TRANSITIONS[HUMAN_REQUIRED]+=AI_PROCESSING+isAutoHumanRequired gate+UI legacyAck isHuman&&; STALE 18TC+1776TC; Render 트리거; OTA iOS 01a01295
 - [P0-CS08-KNOWLEDGE-QUERY-NORMALIZATION 완료](p0-knorm-done.md) — normalizeQuery(한글↔ASCII+조사); scoreText 양쪽 정규화; 25TC; SHA accb2fae; Render 트리거; OTA NO
 - [SINTRO ki_swimnote_intro 활성화+stemKorean 수정](sintro-activation-done.md) — scoreText 55→65 Korean particle stem; ki_swimnote_intro ACTIVE; 41TC+1907TC; SHA bcc87891
+- [P0-CS09 Messages GET 조사 결과](p0-cs09-investigation-result.md) — 결함 없음; 올바른 경로=GET /support/cases/:id (messages 포함); /messages suffix는 404; 검증 스크립트 경로 오기입이 원인
