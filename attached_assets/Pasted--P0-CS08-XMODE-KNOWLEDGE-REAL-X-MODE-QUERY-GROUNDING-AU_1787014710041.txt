@@ -1,0 +1,332 @@
+[P0-CS08-XMODE-KNOWLEDGE — REAL X MODE QUERY GROUNDING AUDIT]
+
+실제 iPhone production 검증 결과:
+
+질문:
+"스윔노트X에 대해 알려줘"
+
+실제 결과:
+- user message visible = YES
+- server response visible = YES
+- loading/no-reply defect = FIXED
+- response = 정확한 정보를 찾지 못함
+- HUMAN_REQUIRED flow 표시
+
+따라서 transport/client/server visibility defect는 CLOSED.
+
+이번 작업 목표:
+
+왜 실제 X MODE 질문이
+Rule / Solution / Frontend Map / FAQ / Knowledge에서
+근거를 찾지 못했는지 확인하고,
+검증 가능한 X MODE Knowledge를
+정상적인 승인 절차로 사용할 수 있게 한다.
+
+신규 AI 기능 개발 금지.
+production Knowledge 자동 ACTIVE 금지.
+
+==================================================
+1. ACTUAL REQUEST TRACE
+==================================================
+
+방금 실제 production request trace 확인.
+
+실제 값:
+
+REQUEST_ID =
+CASE_ID =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+EVIDENCE_COUNT =
+LLM_CALLED =
+LLM_USED =
+CASE_STATE =
+
+이번에는 실제 SUPPORT_RESPOND_STAGE 기준.
+
+==================================================
+2. X MODE KNOWLEDGE DATA AUDIT
+==================================================
+
+production support_knowledge_items에서
+X MODE 관련 항목을 read-only 조회.
+
+검색:
+
+category
+feature
+title
+question
+content
+affected_modes
+affected_roles
+status
+frontend_screen_id
+
+보고:
+
+XMODE_ITEMS_TOTAL =
+XMODE_ACTIVE =
+XMODE_PENDING =
+XMODE_INACTIVE =
+XMODE_OTHER_STATUS =
+
+각 XMODE item:
+
+ID
+TYPE
+TITLE
+STATUS
+ROLES
+MODES
+SCREEN_ID
+
+본문 전체 출력 불필요.
+
+==================================================
+3. STATUS CONTRACT VERIFY
+==================================================
+
+현재 production Support search가 인정하는 status 확인.
+
+expected:
+
+active only
+
+DB의 실제 status 값들과 비교.
+
+특히 이전 포렌식에서:
+
+total=20
+active=0
+pending 상태 해석 혼선
+
+이 있었으므로
+실제 DISTINCT status 값을 직접 조회.
+
+보고:
+
+DISTINCT_KNOWLEDGE_STATUSES =
+
+status normalization mismatch가 있으면:
+
+STATUS_CONTRACT_MISMATCH = YES
+
+==================================================
+4. QUERY MATCH AUDIT
+==================================================
+
+실제 query:
+
+"스윔노트X에 대해 알려줘"
+
+를 resolver search 함수에 넣고
+
+각 layer 실제 score 확인:
+
+RULE =
+DB_STATE =
+SOLUTION =
+FRONTEND_MAP =
+FAQ =
+KNOWLEDGE =
+KNOWN_ISSUE =
+
+특히 X_MODE 관련 item이 있는데
+score/status/role/mode 때문에 탈락했다면
+정확한 이유 보고.
+
+==================================================
+5. ROLE / MODE CONTEXT
+==================================================
+
+실제 request context:
+
+USER_ROLE =
+SERVICE_MODE =
+POOL_X_STATUS =
+
+확인.
+
+X Mode 설명은
+Normal 사용자도 "X모드가 무엇인지" 물을 수 있으므로
+
+"X 전용 운영 화면"과
+"X 상품/기능 설명 Knowledge"
+
+를 구분해야 한다.
+
+Normal 사용자가
+X 소개 Knowledge 자체를 못 검색하게 만드는
+잘못된 mode filtering이 있는지 확인.
+
+==================================================
+6. SOURCE OF TRUTH FOR X MODE DESCRIPTION
+==================================================
+
+새 내용을 AI가 창작하지 않는다.
+
+기존 repository / X 설계에서
+실제 검증 가능한 X MODE 설명 source 확인.
+
+예:
+
+Settings X Mode copy
+X onboarding
+X subscription explanation
+X setup
+existing product copy
+
+각 source:
+
+SOURCE =
+CURRENT =
+SAFE_FOR_SUPPORT = YES/NO
+
+==================================================
+7. MANUAL APPROVAL CANDIDATE
+==================================================
+
+검증된 X MODE 설명을 담는
+기존 Knowledge item이 있으면 재사용.
+
+없다면 신규 Knowledge candidate 생성 가능.
+
+단:
+
+status = PENDING
+
+만.
+
+자동 ACTIVE 금지.
+
+Super Admin에서 사람이 검토 후 승인해야 한다.
+
+최소 candidate:
+
+TYPE = FAQ or KNOWLEDGE
+CATEGORY = X
+FEATURE = X_MODE
+
+QUESTION aliases conceptually support:
+
+스윔노트X가 뭐야
+X모드 알려줘
+스윔노트X에 대해 설명해줘
+X모드는 어떤 기능이야
+
+대량 자동 FAQ 생성 금지.
+
+==================================================
+8. SEARCH KEYWORDS
+==================================================
+
+X 관련 정상 표현:
+
+스윔노트X
+스윔노트 X
+X모드
+X MODE
+X mode
+
+가 deterministic retrieval에서
+동일 X_MODE feature로 매칭 가능한지 확인.
+
+단순 spacing/case 때문에 NO_MATCH 나면
+normalization 최소 수정.
+
+==================================================
+9. LEGACY ACK MESSAGE
+==================================================
+
+현재 실제 화면에서 AI 응답 아래에:
+
+"문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+
+legacy acknowledgement가 추가 표시됨.
+
+이번 작업에서는 원인만 확인:
+
+LEGACY_ACK_SOURCE =
+WHY_DISPLAYED =
+
+AI/HUMAN_REQUIRED UI와 중복인지 판정.
+
+아직 별도 UI redesign 금지.
+
+중복이면 후속 minimal cleanup candidate로 기록.
+
+==================================================
+10. NO AUTO ACTIVATION
+==================================================
+
+이번 작업 종료 시:
+
+PRODUCTION_AUTO_ACTIVATION = NO
+
+사용자가 Super Admin에서
+실제 내용을 확인하고 ACTIVE 해야 한다.
+
+==================================================
+11. FINAL REPORT
+==================================================
+
+REQUEST_ID =
+CASE_ID =
+
+RESOLUTION_STATUS =
+EVIDENCE_COUNT =
+LLM_CALLED =
+CASE_STATE =
+
+XMODE_ITEMS_TOTAL =
+XMODE_ACTIVE =
+XMODE_PENDING =
+DISTINCT_KNOWLEDGE_STATUSES =
+
+STATUS_CONTRACT_MISMATCH =
+
+USER_ROLE =
+SERVICE_MODE =
+POOL_X_STATUS =
+
+XMODE_MATCH_RESULTS =
+
+NO_MATCH_REASON =
+
+XMODE_SOURCE_OF_TRUTH =
+
+EXISTING_XMODE_KNOWLEDGE =
+NEW_PENDING_CANDIDATE_CREATED =
+
+PRODUCTION_AUTO_ACTIVATION = NO
+
+LEGACY_ACK_SOURCE =
+LEGACY_ACK_DUPLICATE =
+
+CODE_CHANGED =
+DB_SCHEMA_CHANGED =
+PRODUCTION_DATA_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+실제 X MODE NO_MATCH 이유가 증거로 확정됨.
+
+근거 있는 X MODE Knowledge가
+Super Admin 승인 가능한 PENDING 상태로 존재.
+
+자동 ACTIVE = NO.
+
+완료:
+
+P0_CS08_XMODE_KNOWLEDGE_GROUNDING_AUDIT_COMPLETE ✅
