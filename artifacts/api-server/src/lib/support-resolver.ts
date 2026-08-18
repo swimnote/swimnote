@@ -27,6 +27,7 @@ import {
   type ScreenRole,
   type ScreenMode,
 } from "../config/support/frontend-map.v1.js";
+import { matchDirectAnswer } from "./support-direct-answer.js";
 
 // ── Threshold ─────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export interface ResolutionResult {
     | "FAQ"
     | "KNOWLEDGE"
     | "KNOWN_ISSUE"
+    | "DIRECT_DB"
     | "NONE";
   source_id: string | null;
   confidence: number;
@@ -770,6 +772,10 @@ async function buildNoMatch(ctx: RouterContext): Promise<ResolutionResult> {
  */
 async function runChain(ctx: RouterContext): Promise<ResolutionResult | null> {
   return (
+    // ── Layer 0: Direct DB Answer Matcher (WP-CS23A) ──────────────────────────
+    // utterance 기반 exact/fuzzy match → DIRECT_DB source_type, GPT 호출 없음.
+    // role/mode/pool 서버 권위적 검증 포함. null이면 기존 chain으로 낙하.
+    (await matchDirectAnswer(ctx)) ??
     (await tryRule(ctx)) ??
     (await tryDbState(ctx)) ??
     (await trySolution(ctx)) ??

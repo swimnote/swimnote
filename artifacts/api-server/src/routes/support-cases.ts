@@ -36,6 +36,7 @@ import {
 } from "../lib/support-case-service.js";
 import { SUPPORT_CASE_STATE, SUPPORT_EVENT_TYPE } from "../lib/ai-feature-enum.js";
 import { resolvePoolMode } from "../lib/xmode.js";
+import { sendPushToSuperAdmins, sendPushToUser } from "../lib/push-service.js";
 
 const router = Router();
 
@@ -380,9 +381,98 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       reason:    reason ?? "USER_REQUESTED_HUMAN",
     }).catch(() => {});
 
+    // CS23A: Super Admin Push — HUMAN_CASE_WITHOUT_ADMIN_NOTIFICATION = 0
+    void sendPushToSuperAdmins(
+      "새 직접 문의",
+      "새 고객 문의가 접수되었습니다.",
+      { case_id: caseId, ticket_id: ticketId, actor_role: sc.actor_role ?? "unknown" }
+    ).catch(() => {});
+
     res.json({ ok: true, ticket_id: ticketId, created: true });
   } catch (err) {
     console.error("[POST /support/cases/:id/request-human]", err);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── POST /support/cases/:id/agent-reply ──────────────────────────────────────
+// Super Admin이 직접 문의 케이스에 답변. 동일 conversation 유지.
+// 답변 후 actor에게 Push 전송 — AGENT_REPLY_WITHOUT_USER_NOTIFICATION = 0.
+
+router.post("/support/cases/:id/agent-reply", requireAuth, async (req: AuthRequest, res) => {
+  const user    = req.user!;
+  const caseId  = req.params.id;
+  const isSuper = isSuperAdmin(user.role);
+
+  if (!isSuper) {
+    return res.status(403).json({ error: "슈퍼관리자만 답변할 수 있습니다." });
+  }
+
+  const { content } = req.body as any;
+  if (!content?.trim()) {
+    return res.status(400).json({ error: "답변 내용 필수" });
+  }
+
+  try {
+    const caseRows = (await (superAdminDb as any).execute(sql`
+      SELECT actor_id, pool_id, ticket_id, actor_role, state
+      FROM support_cases WHERE id = ${caseId} LIMIT 1
+    `)) as any;
+    const sc = caseRows?.rows?.[0];
+    if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+
+    const terminal = ["RESOLVED", "CLOSED"];
+    if (terminal.includes(sc.state)) {
+      return res.status(422).json({ error: "종료된 케이스에는 답변할 수 없습니다." });
+    }
+
+    // 메시지 저장 (기존 case 스레드에 append — same conversation)
+    const msgId = `rep_ag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    await (superAdminDb as any).execute(sql`
+      INSERT INTO support_ticket_replies
+        (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
+      VALUES
+        (${msgId}, ${sc.ticket_id ?? null}, ${caseId},
+         ${user.userId}, ${user.name ?? "담당자"}, ${"agent"}, ${"agent"},
+         ${content.trim()}, '{}'::text[])
+    `);
+
+    // 케이스 상태 → HUMAN_RESPONDED
+    await transitionSupportCase({
+      caseId,
+      toState:   SUPPORT_CASE_STATE.HUMAN_RESPONDED ?? "HUMAN_RESPONDED",
+      actorRole: "agent",
+      poolId:    sc.pool_id ?? null,
+      reason:    "AGENT_REPLIED",
+    }).catch(() => {});
+
+    void logSupportEvent({
+      eventType: SUPPORT_EVENT_TYPE.AI_RESPONDED ?? ("HUMAN_RESPONDED" as any),
+      caseId,
+      ticketId:  sc.ticket_id ?? null,
+      fromState: sc.state,
+      toState:   "HUMAN_RESPONDED",
+      actorRole: "agent",
+      poolId:    sc.pool_id ?? null,
+    }).catch(() => {});
+
+    // CS23A: User Push — AGENT_REPLY_WITHOUT_USER_NOTIFICATION = 0
+    if (sc.actor_id) {
+      const isParentActor = sc.actor_role === "parent_account";
+      void sendPushToUser(
+        sc.actor_id,
+        isParentActor,
+        "SUPPORT_REPLY",
+        "문의 답변 도착",
+        "문의에 답변이 도착했습니다. 확인해 보세요.",
+        { case_id: caseId },
+        "support-agent-reply"
+      ).catch(() => {});
+    }
+
+    res.json({ ok: true, msg_id: msgId });
+  } catch (err) {
+    console.error("[POST /support/cases/:id/agent-reply]", err);
     res.status(500).json({ error: "서버 오류" });
   }
 });

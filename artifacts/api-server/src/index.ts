@@ -72,6 +72,10 @@ backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", 
 import("./migrations/strip-oneulun.js")
   .then(m => m.stripOneulun())
   .catch((e) => console.error("[strip-oneulun] 오류:", e.message));
+// CS23A: Direct DB Answer Engine — support_intent_utterances + intent_id/answer_mode
+import("./migrations/pool-db-cs-23a.js")
+  .then(m => m.runCs23aMigration())
+  .catch((e) => console.error("[cs23a] migration 오류:", e.message));
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);

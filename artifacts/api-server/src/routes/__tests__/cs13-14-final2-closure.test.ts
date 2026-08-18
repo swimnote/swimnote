@@ -585,7 +585,7 @@ describe("CS14 § GROUNDING INFRASTRUCTURE [COMPONENT]", () => {
 
   it("CS14-INF-03 no_evidence → hardcoded safe escalation text (not LLM-generated)", () => {
     // The actual hardcoded text (line ~559 in support-respond.ts)
-    const NO_EVIDENCE_SAFE_TEXT = "죄송합니다. 현재 이 질문에 대한 정확한 정보를 찾지 못했습니다. 더 빠른 도움을 위해 상담사 연결을 추천드립니다.";
+    const NO_EVIDENCE_SAFE_TEXT = "죄송합니다. 현재 이 질문에 대한 정확한 정보를 찾지 못했습니다. 담당자 확인이 필요한 경우 아래 [직접 문의하기] 버튼을 이용해 주세요.";
     expect(RESPOND).toContain(NO_EVIDENCE_SAFE_TEXT);
     // This text contains NO:
     expect(NO_EVIDENCE_SAFE_TEXT).not.toMatch(/아마|보통/); // unsupported hedging
@@ -601,7 +601,7 @@ describe("CS14 § GROUNDING INFRASTRUCTURE [COMPONENT]", () => {
   });
 
   it("CS14-INF-05 LLM error fallback is also hardcoded safe text", () => {
-    const LLM_ERROR_FALLBACK = "일시적인 오류로 자동 답변을 완료하지 못했습니다. 상담사에게 문의해주세요.";
+    const LLM_ERROR_FALLBACK = "일시적인 오류로 자동 답변을 완료하지 못했습니다. 담당자에게 직접 문의하시려면 [직접 문의하기] 버튼을 이용해 주세요.";
     expect(RESPOND).toContain(LLM_ERROR_FALLBACK);
     expect(LLM_ERROR_FALLBACK).not.toMatch(/아마|보통|장애|환불/);
   });

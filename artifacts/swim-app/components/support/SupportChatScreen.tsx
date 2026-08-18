@@ -617,12 +617,15 @@ export default function SupportChatScreen({ supportContext }: Props) {
               <Pressable
                 style={({ pressed }) => [
                   s.actionBtn,
-                  { borderColor: C.textMuted, backgroundColor: C.card, opacity: pressed ? 0.8 : 1 },
+                  { borderColor: "#7C3AED", backgroundColor: "#F5F3FF", opacity: pressed || isRequestingHuman ? 0.7 : 1 },
                 ]}
-                onPress={handleNotResolved}
+                onPress={handleRequestHuman}
+                disabled={isRequestingHuman}
               >
-                <LucideIcon name="x-circle" size={16} color={C.textMuted} />
-                <Text style={[s.actionBtnText, { color: C.textMuted }]}>아직 안돼요</Text>
+                {isRequestingHuman
+                  ? <ActivityIndicator size="small" color="#7C3AED" />
+                  : <LucideIcon name="headphones" size={16} color="#7C3AED" />}
+                <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>직접 문의하기</Text>
               </Pressable>
             </View>
           )}

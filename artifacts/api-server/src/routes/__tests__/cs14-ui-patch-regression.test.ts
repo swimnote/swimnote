@@ -47,7 +47,7 @@ describe("[CS14-UI-PATCH] §1 Prompt UI-Path Grounding Rule", () => {
     // 추가된 규칙 핵심 키워드
     expect(respondSrc).toContain("앱 내 특정 메뉴·버튼 이름");
     expect(respondSrc).toContain("근거 자료에 명시된 경우에만 안내합니다");
-    expect(respondSrc).toContain("스윔노트 고객지원으로 문의해 주세요");
+    expect(respondSrc).toContain("담당자 확인이 필요합니다"); // CS23A: 자기참조 fallback 제거됨
   });
 
   it("RULE-02: 기존 규칙(근거에 없는 메뉴 창작 금지)이 유지돼야 한다", () => {

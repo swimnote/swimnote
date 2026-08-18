@@ -517,7 +517,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 [필수 규칙]
 - 아래 제공된 SwimNote 근거 자료 범위 안에서만 답변합니다.
 - 근거에 없는 메뉴, 정책, 기능, 가격을 창작하거나 추측하지 않습니다.
-- 앱 내 특정 메뉴·버튼 이름(예: '도움말', '설정 내 메뉴' 등)은 근거 자료에 명시된 경우에만 안내합니다. 근거에 없으면 '스윔노트 고객지원으로 문의해 주세요'로 대체합니다.
+- 앱 내 특정 메뉴·버튼 이름(예: '도움말', '설정 내 메뉴' 등)은 근거 자료에 명시된 경우에만 안내합니다. 근거에 없으면 "담당자 확인이 필요합니다"라고 답하고 requires_human=true로 설정하세요.
 - 환불 실행, 계정 변경, 구독 변경 등의 직접 실행은 하지 않습니다.
 - 개인정보(이름, 전화, 이메일)를 수집하거나 언급하지 않습니다.
 - 근거 자료가 없거나 부족하면 requires_human=true, confidence=LOW로 응답합니다.
@@ -557,7 +557,7 @@ ${evidenceBlock}
     llmOutput = {
       confidence: "LOW",
       answer:
-        "죄송합니다. 현재 이 질문에 대한 정확한 정보를 찾지 못했습니다. 더 빠른 도움을 위해 상담사 연결을 추천드립니다.",
+        "죄송합니다. 현재 이 질문에 대한 정확한 정보를 찾지 못했습니다. 담당자 확인이 필요한 경우 아래 [직접 문의하기] 버튼을 이용해 주세요.",
       requires_human: true,
       suggested_next_action: "REQUIRES_HUMAN",
     };
@@ -624,7 +624,7 @@ ${evidenceBlock}
 
       llmOutput = {
         confidence:           "LOW",
-        answer:               "일시적인 오류로 자동 답변을 완료하지 못했습니다. 상담사에게 문의해주세요.",
+        answer:               "일시적인 오류로 자동 답변을 완료하지 못했습니다. 담당자에게 직접 문의하시려면 [직접 문의하기] 버튼을 이용해 주세요.",
         requires_human:       true,
         suggested_next_action: "REQUIRES_HUMAN",
       };
