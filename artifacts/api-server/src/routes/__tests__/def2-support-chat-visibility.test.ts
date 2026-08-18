@@ -183,6 +183,7 @@ vi.mock("../../lib/support-resolver.js", () => ({
   gatherEvidence:     (...args: any[]) => mockGatherEvidence(...args),
   tokenize: (s: string) =>
     s.toLowerCase().replace(/[^\w\s가-힣]/g, " ").split(/\s+/).filter((t: string) => t.length >= 2),
+  normalizeQuery: (s: string) => s.toLowerCase().trim(),
 }));
 
 // ── ai-trace-service mock ─────────────────────────────────────────────────────
