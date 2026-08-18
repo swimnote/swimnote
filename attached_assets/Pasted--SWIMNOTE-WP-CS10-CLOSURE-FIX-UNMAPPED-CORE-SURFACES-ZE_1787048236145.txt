@@ -1,0 +1,501 @@
+[SWIMNOTE — WP-CS10 CLOSURE FIX / UNMAPPED CORE SURFACES ZERO]
+
+현재 WP:
+
+WP-CS10
+FULL APP SUPPORT COVERAGE SCAN FOUNDATION
+
+현재 상태:
+
+Evidence verification 결과 Coverage Registry의 기본 구조는 확인되었으나
+24개의 UNMAPPED_SCREENS가 존재한다.
+
+새로운 절대 성공조건:
+
+모든 launch-relevant route/action은 반드시
+
+A. Coverage Record에 매핑
+
+또는
+
+B. EXCLUDED_WITH_REASON으로 명시
+
+되어야 한다.
+
+최종:
+
+UNMAPPED_CORE_SURFACES = 0
+
+이어야 WP-CS10을 PASS할 수 있다.
+
+이번 작업은 새로운 WP가 아니다.
+WP-CS10 종료를 위한 최소 보완 작업이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* 기존 Coverage Registry 보완
+* 실제 누락된 launch-relevant surface의 Coverage Record 추가
+* launch 비대상 surface의 EXCLUDED_WITH_REASON 분류
+* registry statistics 실제값 보정
+* 관련 registry test 보완
+
+금지:
+
+* FAQ 생성
+* Knowledge Candidate 생성
+* Solution Candidate 생성
+* Knowledge DB write
+* ACTIVE 변경
+* Support Router 변경
+* API 변경
+* DB schema 변경
+* UI 변경
+* auth 변경
+* Deploy
+* OTA
+* 다음 WP 시작
+
+현재 CS10만 닫는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 24개 UNMAPPED surface 전수 분류
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 evidence상 UNMAPPED:
+
+ADMIN_CLASS_HUB
+ADMIN_CLASS_CAPACITY_SETTINGS
+ADMIN_TEACHER_HUB
+ADMIN_OPS_HUB
+ADMIN_PEOPLE_PENDING
+ADMIN_WHITE_LABEL
+ADMIN_WEB_PIN_SETTINGS
+ADMIN_ADMIN_GRANT
+ADMIN_ADMIN_REVENUE
+ADMIN_DATA_EVENT_LOGS
+ADMIN_DATA_MANAGEMENT
+ADMIN_DATA_STORAGE_BY_ACCOUNT
+ADMIN_DATA_STORAGE_BY_CATEGORY
+ADMIN_DATA_STORAGE_OVERVIEW
+ADMIN_X_INFO_AI
+ADMIN_X_INFO_CURRICULUM
+ADMIN_X_INFO_DIARY
+ADMIN_X_INFO_OVERVIEW
+ADMIN_X_INFO_PARENT_REPORT
+TEACHER_DIARY_REACTIONS
+TEACHER_DIARY_UNWRITTEN
+TEACHER_FEE_CHECK
+TEACHER_FEEDBACK_CUSTOM
+TEACHER_GROWTH_REPORT_REVIEW
+
+각 항목의 실제 source를 열고 다음 중 하나로 분류한다.
+
+MAPPED
+= launch-relevant이며 기존 Coverage Record가 이미 실제 기능을 커버.
+이 경우 해당 coverage_id와 source_ref를 명시적으로 연결한다.
+
+NEW_COVERAGE_REQUIRED
+= launch-relevant인데 현재 Coverage Record가 실제로 없음.
+이 경우 기존 registry contract를 재사용하여 최소 Coverage Record를 추가한다.
+
+EXCLUDED_WITH_REASON
+= launch support surface에서 의도적으로 제외 가능한 항목.
+
+추측으로 제외하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. EXCLUDED_WITH_REASON 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순히:
+
+"중요하지 않음"
+"내부 기능"
+"나중에"
+
+같은 이유 금지.
+
+각 제외 항목은 최소 다음을 명시한다.
+
+* source_ref
+* route/screen/action
+* exclusion_reason_code
+* human-readable reason
+* launch relevance 판정 근거
+
+허용 가능한 reason 예:
+
+SUPER_ADMIN_INTERNAL_ONLY
+DEVELOPER_DIAGNOSTIC_ONLY
+DEAD_OR_UNREACHABLE_ROUTE
+DUPLICATE_ALIAS_OF_MAPPED_SURFACE
+NON_USER_ACTIONABLE_VIEW
+POST_LAUNCH_FEATURE_DISABLED
+
+실제 repository 근거가 있어야 한다.
+
+특히 일반:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+사용자가 접근 가능한 surface를
+편의상 제외하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Route뿐 아니라 Action도 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면이 Coverage Record에 있다고 해서
+그 화면의 핵심 action이 모두 covered라고 가정하지 않는다.
+
+24개 surface와 관련된 실제 사용자 action을 확인한다.
+
+예:
+
+save
+submit
+approve
+reject
+upload
+delete
+invite
+grant
+filter
+open detail
+review
+retry
+generate
+
+등.
+
+launch-relevant action마다:
+
+* existing coverage_id
+* new coverage_id
+* EXCLUDED_WITH_REASON
+
+중 하나가 있어야 한다.
+
+최종적으로:
+
+UNMAPPED_CORE_ROUTES = 0
+UNMAPPED_CORE_ACTIONS = 0
+
+이어야 한다.
+
+그리고 통합값:
+
+UNMAPPED_CORE_SURFACES = 0
+
+을 산출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 64 Coverage Record 재사용 우선
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 record를 무조건 늘리지 않는다.
+
+기존 Coverage Record가 동일 support intent/failure surface를
+실제로 커버한다면:
+
+source_refs
+related route/action metadata
+
+를 연결하여 재사용한다.
+
+기능적으로 다른 support 문제를
+숫자를 줄이기 위해 억지로 하나의 record에 합치지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 통계 상수 실제값 보정
+━━━━━━━━━━━━━━━━━━━━━━
+
+Evidence에서 확인된 불일치:
+
+SCANNED_SCREENS
+DB_STATE_CHECK_POSSIBLE
+UNMAPPED_SCREENS
+
+를 actual registry/source 계산과 일치시키십시오.
+
+하드코딩 통계와 실제 계산이 다시 어긋나지 않도록
+기존 test 구조 안에서 가능한 범위의 invariant를 추가한다.
+
+숫자는 기존 보고값에 맞추지 말고
+source of truth 계산값에 맞춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ACTIVE_COVERED 표현
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 4개는 production DB를 조회하지 않고
+code reference만으로 ACTIVE_COVERED라고 기록되어 있었다.
+
+이번 WP에서 DB 조회/수정은 하지 않는다.
+
+따라서 registry 의미가 실제 production ACTIVE를 주장한다면
+오해가 없도록 semantics를 정리한다.
+
+예:
+
+CODE_REFERENCE_ONLY
+KNOWN_ACTIVE_FROM_PRIOR_VERIFIED_EVIDENCE
+
+등 실제 근거 수준을 구분.
+
+단 기존 contract 영향이 크면 변경하지 말고
+final report에서 명확히 분류한다.
+
+Production DB write는 절대 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Role / Mode 보안 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Canonical user roles:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+legacy parent를 새로 넣지 않는다.
+
+super_admin은 실제 internal surface에 필요한 경우만 유지.
+
+모든 새/수정 record에 대해:
+
+role
+mode
+source_ref
+
+교차 검증.
+
+parent_account 또는 teacher에게
+admin-only 기능이 노출되는 mapping 금지.
+
+Mode:
+
+normal
+x
+x_pending
+all
+
+현재 registry contract를 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 registry tests를 보완하여 최소 다음을 검증한다.
+
+COV-CLOSE-01
+coverage_id duplicate = 0
+
+COV-CLOSE-02
+모든 launch-relevant route는 mapped 또는 EXCLUDED_WITH_REASON
+
+COV-CLOSE-03
+모든 launch-relevant core action은 mapped 또는 EXCLUDED_WITH_REASON
+
+COV-CLOSE-04
+UNMAPPED_CORE_ROUTES = 0
+
+COV-CLOSE-05
+UNMAPPED_CORE_ACTIONS = 0
+
+COV-CLOSE-06
+UNMAPPED_CORE_SURFACES = 0
+
+COV-CLOSE-07
+EXCLUDED_WITH_REASON에는 reason이 비어 있지 않음
+
+COV-CLOSE-08
+EXCLUDED_WITH_REASON의 source_ref 존재
+
+COV-CLOSE-09
+legacy parent role = 0
+
+COV-CLOSE-10
+unknown role = 0
+
+COV-CLOSE-11
+statistics와 actual calculated counts 일치
+
+COV-CLOSE-12
+AUTO_ACTIVE_KNOWLEDGE_ROWS = 0
+
+전체 기존 test suite도 1회 실행한다.
+
+테스트 결과는 UNIT/MOCK이라고 정확히 표시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 변경 범위 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 closure 작업의 변경은 원칙적으로:
+
+support-coverage.v1.ts
+관련 coverage registry test
+
+범위로 제한한다.
+
+다른 runtime 파일 변경이 필요하다고 판단되면
+수정하지 말고 blocker로 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Git
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 verified history 수정 금지.
+
+force push 금지.
+rebase 금지.
+reset --hard 금지.
+
+새 commit으로 forward.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render deploy NO
+DB deploy/change NO
+iOS OTA NO
+Android OTA NO
+
+이 WP는 static coverage registry foundation이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP:
+WP-CS10 FULL APP SUPPORT COVERAGE SCAN FOUNDATION
+
+BASE_COMMIT:
+0b05f39711d238c4b57fbf8e08399e4d2d78b3f7
+
+CLOSURE_COMMIT: <full SHA>
+
+CHANGED_FILES:
+[...]
+
+SURFACE_CLASSIFICATION:
+
+TOTAL_PREVIOUSLY_UNMAPPED:
+24
+
+MAPPED_TO_EXISTING: <count>
+
+NEW_COVERAGE_REQUIRED: <count>
+
+EXCLUDED_WITH_REASON: <count>
+
+각 24개 항목에 대해:
+
+* surface
+* classification
+* coverage_id 또는 exclusion_reason
+* source_ref
+* launch_relevance evidence
+
+CORE RESULTS:
+
+UNMAPPED_CORE_ROUTES=
+UNMAPPED_CORE_ACTIONS=
+UNMAPPED_CORE_SURFACES=
+
+반드시 숫자로 제출.
+
+REGISTRY:
+
+TOTAL_RECORDS=
+DOMAINS=
+P0=
+P1=
+P2=
+DB_STATE_CHECK_POSSIBLE=
+KNOWLEDGE_REQUIRED=
+SOLUTION_REQUIRED=
+KNOWN_ISSUE_POSSIBLE=
+DUPLICATE_IDS=
+
+ROLE:
+
+LEGACY_PARENT=
+UNKNOWN_ROLE=
+ROLE_SECURITY_ANOMALIES=
+
+STATISTICS:
+
+SCANNED_SOURCE_COUNT=
+REGISTRY_STATISTICS_MATCH_ACTUAL=YES/NO
+
+TESTS:
+
+REGISTRY_TESTS=
+FULL_SUITE=
+FAILED=
+SKIPPED=
+CLASSIFICATION=UNIT/MOCK
+
+SCOPE:
+
+RUNTIME_CHANGE=
+DB_CHANGE=
+KNOWLEDGE_WRITE=
+ACTIVE_CHANGE=
+DEPLOY=
+OTA=
+OUT_OF_SCOPE_CHANGE=
+
+FINAL EVIDENCE CLASSIFICATION:
+
+각 핵심 결과를:
+
+PROVEN
+OBSERVED
+INFERRED
+UNVERIFIED
+CONTRADICTED
+
+중 하나로 표시.
+
+FINAL SELF-ASSESSMENT:
+
+CS10_SUCCESS_CONTRACT_MET=YES/NO
+
+성공조건:
+
+UNMAPPED_CORE_ROUTES = 0
+AND
+UNMAPPED_CORE_ACTIONS = 0
+AND
+UNMAPPED_CORE_SURFACES = 0
+AND
+모든 제외가 EXCLUDED_WITH_REASON
+AND
+role/security invariant PASS
+AND
+statistics actual 일치
+AND
+전체 test PASS
+AND
+scope violation 없음
+
+완료 후 멈춘다.
+
+Coverage Gap Classification WP,
+FAQ/Knowledge/Solution candidate 생성,
+DB 변경,
+Deploy,
+OTA를 시작하지 않는다.
