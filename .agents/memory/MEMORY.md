@@ -122,3 +122,4 @@
 - [WP-CS15 완료 상태](wp-cs15-done-state.md) — SHA c275eeba; Traceability+Conflict+Incident; knowledge-governance.ts+91TC; 2410TC; Render/OTA 없음
 - [WP-CS16 완료 상태](wp-cs16-done-state.md) — SHA e3775864; Human Review/Knowledge Approval; knowledge-approval.ts+6 routes+95TC; 2505TC; Render/OTA 없음
 - [WP-CS17 완료 상태](wp-cs17-done-state.md) — SHA fcb3c9e9; Super Admin Knowledge Review Console; 6-tab UI+4dialogs+90TC; 2595TC; Render/OTA 없음
+- [WP-CS12~17 CLOSURE 완료](wp-cs12-17-closure-done.md) — SHA 489b09e2; P1 revision guard fix+P3 ComplaintClass+81TC; 2676TC; ALL_CLOSED=YES; Render 미배포

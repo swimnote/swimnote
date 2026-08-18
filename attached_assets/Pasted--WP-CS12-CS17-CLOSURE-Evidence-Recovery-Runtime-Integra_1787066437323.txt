@@ -1,0 +1,677 @@
+[WP-CS12~CS17 CLOSURE — Evidence Recovery, Runtime Integration & Security Closure]
+
+목적:
+
+CS12~CS17에서 구현된 기능을 폐기하거나 재구현하지 않는다.
+
+기존 구현은 유지한 채,
+이전 COMPLETE REPORT에서 PASS로 선언되었으나
+실제 증거가 부족하거나,
+NOT_IMPLEMENTED / REVIEW_REQUIRED인데 0으로 계상되었거나,
+UNIT/MOCK 수준의 테스트만으로 runtime 안전성을 주장한 항목을
+실제 Repository/runtime 기준으로 다시 검증하여
+CS12~CS17을 진짜로 CLOSE한다.
+
+이번 WP 종료 전에는 CS18 또는 신규 기능 작업으로 넘어가지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 CS12~CS17 구현을 처음부터 다시 만들지 말 것.
+2. 새로운 OpenAI/LLM 호출 추가 금지.
+3. Production DB write 금지.
+4. Production 배포 금지.
+5. CS12 PENDING Candidate 자동 ACTIVE 금지.
+6. ACTIVE Knowledge 임의 수정 금지.
+7. 테스트 PASS를 만들기 위해 권한/scope 완화 금지.
+8. fixture 결과와 실제 repository/runtime 검증을 구분.
+9. 미구현 기능은 0 PASS로 계산하지 말 것.
+10. NOT_IMPLEMENTED / NOT_APPLICABLE / REVIEW_REQUIRED를 정확히 사용.
+11. full unit suite PASS만으로 API runtime PASS를 선언하지 말 것.
+12. 발견된 문제는 최소 변경으로 수정.
+13. 기존 정상 Support UX/AI Grounding 동작을 임의 변경하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 먼저 BASELINE 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준점:
+
+CS17 reported SHA:
+fcb3c9e9
+
+먼저 실제 repository에서 확인:
+
+- current Git HEAD
+- current branch
+- remote branch
+- latest remote SHA
+- working tree clean/dirty
+- fcb3c9e9 존재 여부
+- CS12~CS17 관련 migration 등록 상태
+- API server 실제 boot 가능 여부
+- Super Admin web 실제 build 가능 여부
+
+중요:
+
+CS17에서
+knowledge-approval.ts가 존재하지 않는
+../db/superAdminDb.js 를 import하고 있었음에도
+이전 full suite가 PASS했던 이유를 설명.
+
+즉,
+기존 FULL SUITE가 무엇을 실행하지 않았는지
+테스트 blind spot으로 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. RUNTIME SMOKE TEST — 신규 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+UNIT/MOCK와 별도로 실제 runtime import chain 검증.
+
+최소:
+
+A. API server boot
+B. routes/index.ts import
+C. support-cases route load
+D. support-respond route load
+E. knowledge-approval route load
+F. CS15 migration module load
+G. CS16 migration module load
+H. Super Admin web production build
+I. SuperKnowledgeReview route/component import
+J. TypeScript compile/typecheck
+
+실제 외부 Production DB에 연결하지 말 것.
+필요하면 isolated test config/test DB 사용.
+
+목표:
+
+RUNTIME_IMPORT_ERROR = 0
+SERVER_BOOT_ERROR = 0
+WEB_BUILD_ERROR = 0
+TYPECHECK_ERROR = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CS12 — Candidate Baseline 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS12의 실제 21 PENDING Candidate를 기준으로 확인.
+
+fixture를 복제하여 "21개"라고 주장하지 말 것.
+
+각 Candidate별 표 작성:
+
+- candidate_id
+- issue mapping
+- type
+- current status
+- source/provenance
+- intended role
+- mode
+- pool scope
+- feature scope
+- retrieval eligible?
+- readiness
+
+반드시 실제 저장/seed/migration source 기준.
+
+확인:
+
+CANDIDATES_TOTAL = 21인지
+PENDING/비활성 상태 유지인지
+ACTIVE로 자동 승격된 항목 = 0인지
+
+P0 10종 mapping도 실제 Candidate 기준 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CS13 — 미종결 Security 항목 완전 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+4-1. Legacy ticket/replies ownership
+
+대상:
+legacy /support/tickets/:id/replies
+및 관련 ticket/reply read/write route 전체.
+
+실제 코드 경로에서 확인:
+
+JWT actor
+→ pool ownership
+→ ticket ownership
+→ reply ownership
+→ DB WHERE
+
+Negative integration test:
+
+- User A → User B ticket
+- Pool A → Pool B ticket
+- Pool A → Pool B reply
+- parent → admin-only ticket
+- forged ticket_id
+- forged pool_id
+
+권한 우회가 가능하면 severity 재분류 후 수정.
+
+4-2. Student scope 정정
+
+현재 student_id가 RouterContext에 없다면:
+
+STUDENT_SCOPE_STATUS =
+NOT_IMPLEMENTED
+또는 NOT_APPLICABLE
+
+로 기록.
+
+절대:
+
+STUDENT_LEAKAGE = 0 PASS
+
+라고 실제 검증된 것처럼 표현하지 말 것.
+
+향후 student context가 실제 Support 경로에 들어오는 경우에만
+cross-student security test를 PASS/FAIL로 계산.
+
+4-3. CS13 metrics 보완
+
+ROLE_MODE_SCOPE_TESTS_TOTAL
+ROLE_MODE_SCOPE_TESTS_PASS
+
+명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CS14 — 실제 Answer Grounding 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+프롬프트에
+"창작 금지"
+라고 적혀 있다는 이유만으로
+UNSUPPORTED_CLAIMS = 0 처리 금지.
+
+Golden Set에서 실제 answer 또는
+실제 resolver output을 대상으로 확인.
+
+각 actionable claim 분류:
+
+SUPPORTED
+PARTIALLY_SUPPORTED
+UNSUPPORTED
+CONTRADICTED
+
+필수 확인:
+
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+UNSUPPORTED_FALLBACK_ANSWER
+
+모두 실제 output 검증 근거로 계산.
+
+5-1. Irrelevant Knowledge
+
+maxItems=5 또는 slice(0,5)는
+관련성 증거가 아님.
+
+Golden scenario의:
+
+allowed_knowledge_ids
+forbidden_knowledge_ids
+
+와 실제 selected evidence를 비교.
+
+IRRELEVANT_KNOWLEDGE_IN_ANSWER를
+이 결과로 계산.
+
+5-2. CS14 Quality counts
+
+반드시 숫자 제출:
+
+GROUNDING_TESTS_TOTAL
+GROUNDING_TESTS_PASS
+
+GROUNDED_RESOLUTION
+SAFE_GUIDANCE
+ESCALATION_REQUIRED
+REVIEW_REQUIRED
+UNSAFE_OR_UNGROUNDED
+
+P0/P1/P2/P3
+
+KNOWLEDGE_GAP count/items
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CS15 — Trace 실제 접근제어
+━━━━━━━━━━━━━━━━━━━━━━
+
+SafeEvidenceRef whitelist는
+data minimization 검증일 뿐
+tenant/user authorization 증거가 아님.
+
+실제 negative integration test:
+
+1. Pool A request_id → Pool B trace
+2. User A → User B trace
+3. parent → admin-only source metadata
+4. arbitrary knowledge_id
+5. arbitrary incident_id
+6. opaque evidence ref guessing
+7. PENDING metadata lookup
+8. cross-pool support_case trace
+
+TRACE_SCOPE_LEAKAGE = 실제 접근결과 기준.
+
+6-1. Incident scope
+
+필수:
+
+INCIDENT_SCOPE_LEAKAGE
+
+테스트:
+
+- wrong pool
+- wrong feature
+- wrong mode
+- wrong platform
+- wrong version
+- inactive/resolved mismatch
+
+6-2. Actual Knowledge Governance Audit
+
+실제 ACTIVE Knowledge set 대상으로:
+
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND
+HARD_CONFLICTS
+CONTEXT_CONFLICTS
+VERSION_CONFLICTS
+AUTHORITY_CONFLICTS
+UNRESOLVED_CONFLICTS
+
+DUPLICATE_ACTIVE_FOUND
+SUPERSEDED_ACTIVE_FOUND
+STALE_ACTIVE_FOUND
+
+계산.
+
+fixture detector 테스트 결과와
+실제 ACTIVE audit 결과를 별도 표기.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CS16 — Approval Governance 실제 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+7-1. 실제 21 Candidate readiness
+
+각 21개 Candidate별:
+
+SOURCE_VALID
+IMPLEMENTATION_VALID
+ROLE_VALID
+MODE_VALID
+SCOPE_VALID
+ACTION_VALID
+POLICY_VALID
+CONFLICT_FREE
+FRESHNESS_VALID
+
+결과표 생성.
+
+최종:
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+숫자가 기존 보고의
+17 / 4 / 0
+과 실제로 일치하는지 검증.
+
+불일치하면 실제 결과를 우선.
+
+7-2. Auto promotion 전수검색
+
+Repository 전체에서
+pending → active mutation 가능 경로 검색.
+
+최소 확인:
+
+- approval route
+- background worker
+- cron
+- seed
+- migration
+- support case close
+- incident resolve
+- AI/LLM output handler
+- admin helper
+- direct update helper
+
+기존 보고의 "9개 경로"를
+파일/함수 단위로 목록 제출.
+
+상수
+NO_AUTO_PROMOTION_GUARANTEE=true
+자체는 증거로 사용하지 말 것.
+
+7-3. Approval IDOR / pool scope
+
+requireApprovalRole만으로 PASS 금지.
+
+실제:
+
+candidate ownership/scope
+global vs pool-specific
+candidate_id authorization
+
+검증.
+
+pool-specific policy가 아직 없으면:
+NOT_IMPLEMENTED / REVIEW_REQUIRED
+
+로 명확히 기록.
+
+7-4. Supersede transaction
+
+새 ACTIVE 생성과
+기존 ACTIVE supersede/archive 관계에서:
+
+동시에 conflict ACTIVE 두 개가 생기는 window가 있는지 확인.
+
+transaction / conditional update / revision guard
+실제 구현 근거 제출.
+
+rollback도 실제 route/domain test.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CS17 — UI + API 경계 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+SuperKnowledgeReview UI 검증.
+
+8-1. Route access
+
+- teacher direct URL
+- parent direct URL
+- pool_admin direct URL
+- forged client role
+
+UI뿐 아니라 API가 차단하는지 확인.
+
+8-2. UI bypass
+
+disabled Approve 버튼을 무시하고
+직접 approve API 호출:
+
+- missing source
+- hard conflict
+- REVIEW_REQUIRED
+- stale/superseded
+- wrong scope
+
+서버 reject 확인.
+
+8-3. Concurrency
+
+Admin A stale screen
+Admin B approval
+Admin A approval attempt
+
+→ CONCURRENT_APPROVAL_CONFLICT
+→ refresh
+→ no auto retry
+
+8-4. Data leakage
+
+화면/API에:
+
+raw file path
+secret
+raw prompt
+PII
+reviewer unnecessary identity
+
+노출 없음.
+
+8-5. CS12 actual display
+
+실제 21 Candidate가 UI에서
+실제 readiness 결과와 동일하게 표시되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. CS13~17 TEST LEVEL 재분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 결과를 반드시:
+
+UNIT
+MOCK
+COMPONENT
+INTEGRATION
+E2E
+STAGING
+PRODUCTION
+
+으로 나눠 보고.
+
+UNIT/MOCK 결과를
+INTEGRATION VERIFIED로 표현 금지.
+
+특히 이번 Closure에서 최소:
+
+API runtime smoke = INTEGRATION 수준
+authorization negative route test = INTEGRATION 수준
+web production build = BUILD/RUNTIME 검증
+
+필요.
+
+실제 Production 검증은 하지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Production 안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRODUCTION WRITE = NO
+PRODUCTION DEPLOY = NO
+
+rows inserted = 0
+rows modified = 0
+ACTIVE created = 0
+ACTIVE modified = 0
+PENDING modified = 0
+incident rows = 0
+
+Production Candidate approval 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 최종 Closure Matrix
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고에 반드시:
+
+CS12: CLOSED / HOLD
+CS13: CLOSED / HOLD
+CS14: CLOSED / HOLD
+CS15: CLOSED / HOLD
+CS16: CLOSED / HOLD
+CS17: CLOSED / HOLD
+
+각 WP별:
+
+- original gap
+- evidence recovered
+- fixes made
+- remaining REVIEW_REQUIRED
+- blocking 여부
+
+작성.
+
+REVIEW_REQUIRED가 있다고 무조건 HOLD는 아님.
+
+단:
+P0/P1
+security boundary 미검증
+grounding unsafe
+auto promotion 위험
+runtime import failure
+
+중 하나라도 남으면 해당 WP HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 필수 최종 Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+RUNTIME:
+RUNTIME_IMPORT_ERROR
+SERVER_BOOT_ERROR
+WEB_BUILD_ERROR
+TYPECHECK_ERROR
+
+CS13:
+ROLE_LEAKAGE
+MODE_LEAKAGE
+POOL_LEAKAGE
+CASE_IDOR
+STUDENT_SCOPE_STATUS
+ROLE_MODE_SCOPE_TESTS_TOTAL
+ROLE_MODE_SCOPE_TESTS_PASS
+
+CS14:
+GROUNDING_TESTS_TOTAL
+GROUNDING_TESTS_PASS
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+IRRELEVANT_KNOWLEDGE_IN_ANSWER
+UNSUPPORTED_FALLBACK_ANSWER
+UNSAFE_OR_UNGROUNDED
+
+CS15:
+TRACE_REQUESTS_TOTAL
+TRACE_REQUESTS_PASS
+TRACE_SCOPE_LEAKAGE
+INCIDENT_SCOPE_LEAKAGE
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND
+HARD_CONFLICTS
+CONTEXT_CONFLICTS
+VERSION_CONFLICTS
+AUTHORITY_CONFLICTS
+UNRESOLVED_CONFLICTS
+DUPLICATE_ACTIVE_FOUND
+SUPERSEDED_ACTIVE_FOUND
+STALE_ACTIVE_FOUND
+
+CS16:
+CANDIDATES_TOTAL
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+UNAUTHORIZED_APPROVAL
+UNAUTHORIZED_AUTO_PROMOTION_PATHS
+APPROVAL_IDOR
+APPROVAL_POOL_LEAKAGE
+CONCURRENT_APPROVAL_DUPLICATE
+
+CS17:
+UNAUTHORIZED_UI_ACCESS
+UI_BYPASS_APPROVAL
+CONCURRENT_APPROVAL_UI_ERROR
+RAW_SOURCE_LEAKAGE
+PII_LEAKAGE
+PENDING_SHOWN_AS_ACTIVE
+KNOWN_ISSUE_SHOWN_AS_INCIDENT
+REVIEW_REQUIRED_APPROVED
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 완료 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS12~17 CLOSURE COMPLETE REPORT
+
+BASELINE
+Git HEAD:
+Branch:
+Remote SHA:
+Working tree:
+
+RUNTIME
+API boot:
+Route import:
+Web build:
+Typecheck:
+Blind spot root cause:
+
+CS12
+Actual candidates:
+P0 mapping:
+Unexpected activation:
+
+CS13
+Legacy ticket/reply ownership:
+Student scope:
+Metrics:
+
+CS14
+Actual claim validation:
+Knowledge relevance:
+Quality metrics:
+
+CS15
+Trace authorization:
+Incident scope:
+Actual ACTIVE conflict audit:
+Metrics:
+
+CS16
+21 Candidate readiness table:
+Auto-promotion paths:
+Approval IDOR:
+Supersede atomicity:
+Rollback:
+
+CS17
+Direct URL:
+API bypass:
+Concurrency:
+Leakage:
+Actual candidate display:
+
+FIXES
+P0:
+P1:
+P2:
+P3:
+
+TEST LEVELS
+UNIT:
+MOCK:
+COMPONENT:
+INTEGRATION:
+E2E:
+STAGING:
+PRODUCTION:
+
+FULL SUITE:
+RUNTIME SUITE:
+
+PRODUCTION
+deployed: NO
+DB write: NO
+rows inserted: 0
+rows modified: 0
+
+CLOSURE MATRIX
+CS12:
+CS13:
+CS14:
+CS15:
+CS16:
+CS17:
+
+Remaining non-blocking REVIEW_REQUIRED:
+
+Critical blockers:
+
+ALL_CS12_TO_CS17_CLOSED: YES / NO
+
+WP_CS12_17_EVIDENCE_RUNTIME_SECURITY_CLOSURE_COMPLETE ✅
