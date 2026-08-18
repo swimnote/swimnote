@@ -312,17 +312,21 @@ describe("[CS18] §9 Role/Mode Scope 감사", () => {
 // §10. POLICY GAPS 감사
 // ─────────────────────────────────────────────────────────────────────────────
 describe("[CS18] §10 Policy Gap 감사", () => {
-  it("CS18-26: 탈퇴 복구 가능성 — ki_cs12_account_withdrawal '복구 불가' vs auth.ts '기간 내 재가입 시 복구 가능' 충돌", () => {
-    // auth.ts:2451 comment: "immediate=false (기본): 90일 유예 후 완전 삭제 (기간 내 재가입 시 데이터 복구 가능)"
-    // ki_cs12_account_withdrawal content: "복구가 불가능합니다"
-    // → POLICY_GAP = 1 (APPROVE_AFTER_EDIT 필요)
+  it("CS18-26: 탈퇴 복구 가능성 — CS18 감사 결과 POLICY_GAP 확인 (CS19에서 수정됨)", () => {
+    // CS18 감사 시점: '복구가 불가능합니다' 절대 표현 → auth.ts:2451 immediate=false 경로와 충돌 → POLICY_GAP=1
+    // CS19 수정: 절대 표현 제거, 조건부 안내로 교체 → 수정 완료
     const idx = migSrc.indexOf('id: "ki_cs12_account_withdrawal"');
     expect(idx).toBeGreaterThan(0);
-    const section = migSrc.slice(idx, idx + 800);
-    const hasNoRecoveryCliam = section.includes("복구가 불가능");
-    expect(hasNoRecoveryCliam).toBe(true); // 현재 문제 존재 확인
-    const POLICY_GAP = 1;
-    expect(POLICY_GAP).toBeGreaterThanOrEqual(1);
+    const section = migSrc.slice(idx, idx + 1500);
+    // CS19 수정 완료 확인: 절대 표현이 제거됨
+    expect(section).not.toContain("복구가 불가능합니다");
+    expect(section).not.toContain("복구는 불가합니다");
+    // 조건부 안내로 교체됨
+    expect(section).toContain("계정 유형에 따라 다릅니다");
+    expect(section).toContain("고객센터에 문의해 주세요");
+    // CS18 감사 당시 기록: POLICY_GAP=1 (→ APPROVE_AFTER_EDIT → CS19 수정됨)
+    const POLICY_GAP_AT_CS18_AUDIT = 1;
+    expect(POLICY_GAP_AT_CS18_AUDIT).toBe(1);
   });
 
   it("CS18-27: 환불 정책 — billing candidates가 스토어 에스컬레이션 사용 (임의 환불 클레임 없음)", () => {

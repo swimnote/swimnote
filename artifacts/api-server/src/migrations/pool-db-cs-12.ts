@@ -50,13 +50,18 @@ export async function runCs12Migration() {
         title: "회원 탈퇴 방법",
         question: "스윔노트 계정을 탈퇴하려면 어떻게 하나요?",
         answer:
+          // CS19: 탈퇴 복구 절대 단정 표현 제거.
+          // auth.ts:2451 — immediate=false(기본): 90일 유예, 기간 내 재가입 시 데이터 복구 가능.
+          // immediate=true: 즉시 익명화. 두 경로 혼재 → 고객센터 안내로 전환.
           "앱 설정 화면에서 '회원 탈퇴'를 선택하면 탈퇴를 신청할 수 있습니다. " +
-          "탈퇴 후에는 계정 정보가 삭제되며 복구가 불가능합니다. " +
-          "수영장 관리자 계정은 유료 구독 중일 경우 90일 유예 기간이 적용됩니다.",
+          "탈퇴 처리 방식은 계정 유형에 따라 다릅니다. " +
+          "수영장 관리자 계정은 유료 구독 중일 경우 90일 유예 기간이 적용됩니다. " +
+          "데이터 복구 가능 여부 등 자세한 사항은 고객센터에 문의해 주세요.",
         content:
           "회원 탈퇴는 앱 > 설정 > 회원 탈퇴에서 신청합니다. " +
-          "강사/학부모는 즉시 탈퇴 처리되고, 유료 구독 중인 수영장 관리자는 90일 후 자동 완료됩니다. " +
-          "탈퇴 처리 중에는 읽기 전용 모드로 전환되며 복구는 불가합니다.",
+          "강사/학부모는 즉시 탈퇴 처리되고, 유료 구독 중인 수영장 관리자는 90일 유예 후 자동 완료됩니다. " +
+          "탈퇴 처리 중에는 읽기 전용 모드로 전환됩니다. " +
+          "유예 기간 중 재가입 등 데이터 복구 가능 여부는 고객센터에서 확인하시기 바랍니다.",
         affected_roles: ["pool_admin", "teacher", "parent_account"],
         affected_modes: ["normal", "x"],
         frontend_screen_id: "TEACHER_SETTINGS",
@@ -318,7 +323,7 @@ export async function runCs12Migration() {
           "AI 일지 생성 실패 시 직접 입력으로 대체 가능합니다.",
         affected_roles: ["pool_admin", "teacher"],
         affected_modes: ["normal", "x"],
-        frontend_screen_id: "TEACHER_DIARY_WRITE",
+        frontend_screen_id: "TEACHER_DIARY", // CS19: screen_id 수정 (frontend-map.v1 실제 TEACHER_DIARY)
         source_type: "CODE_POLICY",
         source_ref:
           "diary.ts (AI generate route) / " +
@@ -416,7 +421,7 @@ export async function runCs12Migration() {
           "해결: 직접 일지 작성 또는 잠시 후 재시도.",
         affected_roles: ["teacher"],
         affected_modes: ["normal", "x"],
-        frontend_screen_id: "TEACHER_DIARY_WRITE",
+        frontend_screen_id: "TEACHER_DIARY", // CS19: screen_id 수정 (frontend-map.v1 실제 TEACHER_DIARY)
         source_type: "CODE_POLICY",
         source_ref:
           "diary.ts (AI generate route) / " +
@@ -453,7 +458,7 @@ export async function runCs12Migration() {
           "확인: 네트워크 상태 → 재시도 → 사진 제거 후 저장 → 이후 사진 별도 추가.",
         affected_roles: ["teacher"],
         affected_modes: ["normal", "x"],
-        frontend_screen_id: "TEACHER_DIARY_WRITE",
+        frontend_screen_id: "TEACHER_DIARY", // CS19: screen_id 수정 (frontend-map.v1 실제 TEACHER_DIARY)
         source_type: "CODE_POLICY",
         source_ref: "diary.ts (POST /diaries + PATCH /diaries/:id routes)",
         solution_steps: [
@@ -488,7 +493,7 @@ export async function runCs12Migration() {
           "확인 순서: 권한 → 네트워크 → 재시도.",
         affected_roles: ["teacher"],
         affected_modes: ["normal", "x"],
-        frontend_screen_id: "TEACHER_DIARY_WRITE",
+        frontend_screen_id: "TEACHER_DIARY", // CS19: screen_id 수정 (frontend-map.v1 실제 TEACHER_DIARY)
         source_type: "CODE_POLICY",
         source_ref: "diary.ts (photo upload routes) / object-storage (R2 uploads)",
         solution_steps: [
@@ -648,19 +653,22 @@ export async function runCs12Migration() {
         title: "성장 리포트 생성 대기 및 확인 방법",
         question: "성장 리포트가 아직 안 만들어졌어요. 언제 볼 수 있나요?",
         answer:
-          "성장 리포트는 수업 데이터를 분석해 자동으로 생성됩니다. " +
-          "생성에 시간이 걸릴 수 있으며, 강사 검토·승인 후 학부모에게 공개됩니다. " +
-          "잠시 후 새로고침해 주세요.",
+          // CS19: affected_modes normal 제거. PARENT_GROWTH_REPORT available_modes=["x"], permissions=["x_entitlement"].
+          // X 모드 전용 기능임을 answer에 명시.
+          "성장 리포트는 스윔노트X(X 모드)가 활성화된 수영장에서만 이용할 수 있습니다. " +
+          "수업 데이터를 분석해 자동으로 생성되며, 강사 검토·승인 후 학부모에게 공개됩니다. " +
+          "생성에 시간이 걸릴 수 있으니 잠시 후 새로고침해 주세요.",
         content:
+          "성장 리포트는 스윔노트X(X 모드) 전용 기능입니다. " +
           "성장 리포트 생성 흐름: " +
           "1) 수업/출결 데이터 누적 " +
-          "2) AI 분석 실행 " +
+          "2) AI 분석 실행(X 모드 엔진) " +
           "3) 강사 검토 및 승인 " +
           "4) 학부모 공개. " +
           "생성 중이면 '분석 중' 상태가 표시되며, " +
           "강사가 아직 승인하지 않은 경우 학부모에게는 보이지 않습니다.",
         affected_roles: ["pool_admin", "teacher", "parent_account"],
-        affected_modes: ["normal", "x"],
+        affected_modes: ["x"], // CS19: x-only 수정 — PARENT_GROWTH_REPORT available_modes=[x]
         frontend_screen_id: "PARENT_GROWTH_REPORT",
         source_type: "CODE_POLICY",
         source_ref:
