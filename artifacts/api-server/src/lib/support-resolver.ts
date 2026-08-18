@@ -110,6 +110,35 @@ export function tokenize(s: string): string[] {
     .filter((t) => t.length >= 2);
 }
 
+/**
+ * 검색 전용 정규화 — 원본 query/content는 절대 수정하지 않음.
+ * scoreText 및 RouterContext 구축에만 사용.
+ *
+ * 적용 규칙:
+ *  1. lowercase
+ *  2. 한글 ↔ ASCII 경계 공백 삽입  ("스윔노트x" → "스윔노트 x", "x에" → "x 에")
+ *  3. 조사 변형 정규화  ("에대해서" / "에대해" → "에 대해 ")
+ *  4. 뭐야 / 뭔지 변형  ("이뭐야" / "가뭐야" → "가 뭐야 ")
+ *  5. 다중 공백 정리
+ */
+export function normalizeQuery(q: string): string {
+  return q
+    .toLowerCase()
+    // 1. 한글 → ASCII
+    .replace(/([\uAC00-\uD7A3])([A-Za-z0-9])/g, "$1 $2")
+    // 2. ASCII → 한글
+    .replace(/([A-Za-z0-9])([\uAC00-\uD7A3])/g, "$1 $2")
+    // 3. 조사 변형 (에대해서 먼저)
+    .replace(/에\s*대해서/g, "에 대해 ")
+    .replace(/에\s*대해/g, "에 대해 ")
+    // 4. 뭐야 / 뭔지 변형
+    .replace(/[이가]\s*뭐야/g, "가 뭐야 ")
+    .replace(/[이가]\s*뭔지/g, "가 뭔지 ")
+    // 5. 다중 공백 정리
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function roleMatches(row: KnowledgeRow, role: string): boolean {
   if (row.affected_roles?.length) return row.affected_roles.includes(role);
   if (!row.affected_role || row.affected_role === "all") return true;
@@ -122,16 +151,25 @@ export function modeMatches(row: KnowledgeRow, mode: string): boolean {
   return row.affected_mode === mode;
 }
 
+/**
+ * Knowledge row와 query의 유사도를 점수로 반환.
+ * qLower / tokens는 반드시 normalizeQuery 처리 후 전달.
+ * row 필드도 동일 정규화 후 비교하여 "에대해서" 등 변형 커버.
+ */
 export function scoreText(
   row: KnowledgeRow,
   qLower: string,
   tokens: string[]
 ): number {
-  if (row.question && row.question.toLowerCase() === qLower) return 90;
-  if (row.title.toLowerCase() === qLower) return 85;
-  if (row.question && row.question.toLowerCase().includes(qLower)) return 78;
-  if (row.title.toLowerCase().includes(qLower)) return 72;
-  if (qLower.length > 2 && row.content.toLowerCase().includes(qLower)) return 65;
+  // 정확한 정규화 비교 (양쪽 모두 normalizeQuery 적용)
+  const nQuestion = row.question ? normalizeQuery(row.question) : null;
+  const nTitle    = normalizeQuery(row.title);
+
+  if (nQuestion !== null && nQuestion === qLower) return 90;
+  if (nTitle === qLower) return 85;
+  if (nQuestion !== null && nQuestion.includes(qLower)) return 78;
+  if (nTitle.includes(qLower)) return 72;
+  if (qLower.length > 2 && normalizeQuery(row.content).includes(qLower)) return 65;
 
   const titleTokens   = tokenize(row.title);
   const contentTokens = tokenize(row.content + " " + (row.question ?? ""));

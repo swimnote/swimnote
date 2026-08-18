@@ -49,6 +49,7 @@ import {
   runResolutionChain,
   gatherEvidence,
   tokenize,
+  normalizeQuery,
   type RouterContext,
 } from "../lib/support-resolver.js";
 import {
@@ -269,8 +270,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   // ── Resolution Chain ──────────────────────────────────────────────────────
 
-  const qLower  = rawMessage.toLowerCase().trim();
-  const tokens  = tokenize(rawMessage);
+  // KNORM fix: normalizeQuery로 한글↔ASCII 경계 공백 삽입 + 조사 변형 처리.
+  // 원본 rawMessage는 사용자 메시지 저장/LLM 프롬프트에만 사용.
+  const qLower  = normalizeQuery(rawMessage);
+  const tokens  = tokenize(qLower);
   const ctx: RouterContext = {
     query:      rawMessage,
     role,
