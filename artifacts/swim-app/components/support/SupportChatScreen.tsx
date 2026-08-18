@@ -181,14 +181,21 @@ export default function SupportChatScreen({ supportContext }: Props) {
       const res = await apiRequest(token, `/support/cases/${caseId}`);
       if (!res.ok) return;
       const data = await res.json();
+      const newMasterState: string = data.master_state ?? "";
       setActiveCase({
-        id:          data.case.id,
-        state:       data.case.state,
-        master_state: data.master_state,
-        ticket_id:   data.case.ticket_id ?? null,
-        messages:    data.messages ?? [],
-        updated_at:  data.case.updated_at,
+        id:           data.case.id,
+        state:        data.case.state,
+        master_state: newMasterState,
+        ticket_id:    data.case.ticket_id ?? null,
+        messages:     data.messages ?? [],
+        updated_at:   data.case.updated_at,
       });
+      // STALE-06 fix: FAQ 성공 후 human CTA local state 자동 해제.
+      // master_state가 human escalation 상태가 아니면 showHumanCta를 false로 리셋.
+      const humanStates = new Set(["AGENT_REQUESTED", "AGENT_ACTIVE", "PHONE_REQUIRED"]);
+      if (!humanStates.has(newMasterState)) {
+        setShowHumanCta(false);
+      }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
     } catch { /* ignore */ }
   }
@@ -574,8 +581,12 @@ export default function SupportChatScreen({ supportContext }: Props) {
           {/* 메시지 목록 */}
           {activeCase.messages.map((msg, idx) => renderMessage(msg, idx))}
 
-          {/* 문의 접수 안내 (시스템 메시지 없을 때) */}
+          {/* 문의 접수 안내 — STALE-05 fix:
+               human escalation이 실제 active인 경우에만 표시.
+               정상 FAQ/deterministic 응답이 존재하는 경우(isHuman=false) 숨김.
+               조건: isHuman=true AND 시스템 메시지 없음 */}
           {!isNewCase &&
+            isHuman &&
             activeCase.messages.length > 0 &&
             !activeCase.messages.some((m) => m.author_role === "system") && (
               <View style={s.systemMsg}>

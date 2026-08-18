@@ -242,7 +242,15 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   // ── AI_PROCESSING 전환 ─────────────────────────────────────────────────────
 
-  if (AI_PROCESSING_FROM.has(sc.state)) {
+  // STALE-02 fix: auto HUMAN_REQUIRED(no ticket, not user-requested) → AI_PROCESSING 허용.
+  // 사용자가 명시적으로 상담사를 요청한 케이스(ticket_id || escalation_reason="USER_REQUESTED_HUMAN")는
+  // 절대 AI 처리로 자동 복귀하지 않는다.
+  const isAutoHumanRequired =
+    sc.state === "HUMAN_REQUIRED" &&
+    !sc.ticket_id &&
+    sc.escalation_reason !== "USER_REQUESTED_HUMAN";
+
+  if (AI_PROCESSING_FROM.has(sc.state) || isAutoHumanRequired) {
     addStage(trace, "AI_PROCESSING_START", { from_state: sc.state });
     const txResult = await transitionSupportCase({
       caseId,
