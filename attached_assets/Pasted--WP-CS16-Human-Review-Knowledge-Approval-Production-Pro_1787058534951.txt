@@ -1,0 +1,896 @@
+[WP-CS16 — Human Review / Knowledge Approval & Production Promotion Governance]
+
+목적:
+CS12에서 생성된 PENDING Knowledge Candidate와
+향후 Support Knowledge Candidate가
+자동으로 ACTIVE가 되지 않고,
+
+반드시 승인권한을 가진 사람이
+근거 / Role / Mode / Scope / Action / Policy / Conflict / Freshness를 검토한 뒤
+
+APPROVE
+REJECT
+REQUEST_EDIT
+
+중 하나의 명시적 결정을 내려야만
+운영 Knowledge로 승격될 수 있도록
+Human-in-the-loop Knowledge Governance를 완성한다.
+
+이번 WP의 핵심:
+
+AI가 Knowledge를 생성할 수는 있다.
+그러나 AI가 Production Truth를 스스로 확정할 수는 없다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+1. 새로운 OpenAI/LLM 호출 추가 금지.
+2. CS12 PENDING 21개 Candidate를 자동 ACTIVE 처리 금지.
+3. 이번 WP에서도 Production DB write 금지.
+4. 테스트를 위해 실제 ACTIVE Knowledge를 변경하지 말 것.
+5. 승인권한을 client claim으로 신뢰하지 말 것.
+6. 승인/거절/수정 결정은 server-authoritative role 기준.
+7. 승인 이력은 감사 가능해야 함.
+8. 승인 전 Candidate는 retrieval/grounding에서 계속 제외.
+9. 승인 과정에서 Role/Mode/Pool scope를 넓히지 말 것.
+10. 불명확한 Candidate는 APPROVE가 아니라 REVIEW_REQUIRED.
+
+==================================================
+1. APPROVAL 대상
+==================================================
+
+최소:
+
+FAQ
+SOLUTION
+GUIDE
+POLICY
+KNOWN_ISSUE
+
+중 Candidate workflow가 존재하는 type 전부 감사.
+
+CS12 Candidate 21개 포함.
+
+각 Candidate에는 최소 다음 검토정보가 보여야 함.
+
+candidate_id
+knowledge_type
+title
+content
+source/provenance
+intended_roles
+mode_scope
+pool_scope
+feature_scope
+issue mapping
+created_at
+status
+
+가능하면:
+
+source_gap
+implementation_gap
+policy_gap
+review_notes
+
+도 포함.
+
+==================================================
+2. 승인 가능한 ROLE
+==================================================
+
+Repository 실제 Role 구조 기준으로 검사.
+
+권고:
+
+super_admin
+platform_admin
+
+만 최종 APPROVE/REJECT 가능.
+
+pool_admin이 global Knowledge를 승인할 수 있게 만들지 말 것.
+
+pool-specific Knowledge가 존재한다면
+별도 권한모델을 명시.
+
+teacher
+sub_admin
+parent_account
+
+→ 승인 불가.
+
+승인 API/route는 JWT req.user.role 기준.
+
+client body role 신뢰 금지.
+
+==================================================
+3. STATUS MODEL
+==================================================
+
+최소 상태:
+
+PENDING
+APPROVED
+REJECTED
+EDIT_REQUIRED
+ACTIVE
+
+가능하면:
+
+ARCHIVED
+SUPERSEDED
+
+기존 schema와 충돌하지 않게 조정.
+
+중요:
+
+APPROVED와 ACTIVE를 반드시 분리할 필요가 있는지
+현재 deployment workflow 기준으로 판단.
+
+만약 승인 즉시 ACTIVE 구조가 더 단순하면:
+
+PENDING
+REJECTED
+ACTIVE
+
+로 유지 가능.
+
+단,
+어떤 경우든 PENDING→ACTIVE는
+명시적 human approval 없이는 절대 불가.
+
+==================================================
+4. STATE TRANSITION
+==================================================
+
+허용 예:
+
+PENDING
+→ APPROVED
+→ ACTIVE
+
+또는
+
+PENDING
+→ ACTIVE
+
+단 human approval 필수.
+
+추가:
+
+PENDING
+→ REJECTED
+
+PENDING
+→ EDIT_REQUIRED
+→ PENDING
+
+ACTIVE
+→ ARCHIVED
+
+ACTIVE
+→ SUPERSEDED
+
+불허:
+
+PENDING → ACTIVE by background job
+PENDING → ACTIVE by AI
+REJECTED → ACTIVE without re-review
+client status injection
+teacher/parent approval
+
+==================================================
+5. APPROVAL CHECKLIST
+==================================================
+
+APPROVE 전에 최소 검증:
+
+SOURCE
+- 근거 source 존재
+- source가 candidate 내용 지원
+
+IMPLEMENTATION
+- 실제 앱/서버 기능 존재
+- 존재하지 않는 메뉴/기능 없음
+
+ROLE
+- intended role 정확
+
+MODE
+- NORMAL/X/X_PENDING scope 정확
+
+POOL
+- global/pool-specific scope 정확
+
+ACTION
+- 안내 action이 실제 수행 가능
+
+POLICY
+- 환불/탈퇴/결제/권한 등 policy claim 검증
+
+SECURITY
+- 민감정보/내부정보 노출 없음
+
+GROUNDING
+- Candidate 내용이 source 범위를 초과하지 않음
+
+CONFLICT
+- 기존 ACTIVE Knowledge와 HARD conflict 없음
+
+FRESHNESS
+- source/version이 현재 유효
+
+이 중 blocker가 있으면 APPROVE 불가.
+
+==================================================
+6. APPROVAL VALIDATION — SERVER SIDE
+==================================================
+
+UI 체크만 믿지 말 것.
+
+APPROVE 요청 시 서버가 최소 재검증:
+
+candidate exists
+status == PENDING 또는 허용 상태
+actor role allowed
+role/mode/scope valid
+candidate not already rejected/archived
+no unresolved hard conflict
+source/provenance exists if required
+
+가능하면 transaction 사용.
+
+동시 승인 요청에서도
+중복 ACTIVE 생성되지 않게 함.
+
+==================================================
+7. OPTIMISTIC / CONCURRENT APPROVAL
+==================================================
+
+두 admin이 동시에 같은 Candidate 승인 테스트.
+
+목표:
+
+ACTIVE_CREATED = 1 이하
+
+duplicate publish 없음.
+
+가능하면:
+
+status condition
+revision
+updated_at
+transaction
+
+등 활용.
+
+==================================================
+8. APPROVAL AUDIT LOG
+==================================================
+
+각 결정마다 최소 기록:
+
+candidate_id
+previous_status
+new_status
+reviewer_id
+reviewer_role
+reviewed_at
+decision
+review_notes
+request_id
+
+가능하면:
+
+source_version
+candidate_revision
+resulting_knowledge_id
+
+포함.
+
+AI가 reviewer로 기록되면 FAIL.
+
+==================================================
+9. REVIEWER IDENTITY
+==================================================
+
+reviewer는 req.user 기반.
+
+client body reviewer_id 무시.
+
+테스트:
+
+body reviewer_id = 다른 관리자
+→ 실제 JWT actor로 기록.
+
+teacher가 super_admin reviewer_id를 넣어도
+승인 불가.
+
+==================================================
+10. EDIT WORKFLOW
+==================================================
+
+Candidate 수정 기능이 있다면:
+
+원본 candidate 내용을 덮어써
+history를 잃지 않게 하는지 검사.
+
+최소:
+
+revision 증가
+edited_by
+edited_at
+
+또는 audit history.
+
+수정 후 자동 ACTIVE 금지.
+
+수정된 Candidate는 재검토 필요.
+
+==================================================
+11. REJECT WORKFLOW
+==================================================
+
+REJECTED Candidate는:
+
+- retrieval 제외
+- grounding 제외
+- approval queue에서 상태 분리
+- 자동 재생성/자동 재활성화 금지
+
+reason 기록.
+
+예:
+
+UNSUPPORTED_SOURCE
+NOT_IMPLEMENTED
+WRONG_ROLE
+WRONG_MODE
+POLICY_UNVERIFIED
+DUPLICATE
+CONFLICT
+OUTDATED
+SECURITY_RISK
+OTHER
+
+==================================================
+12. EXISTING ACTIVE CONFLICT CHECK
+==================================================
+
+CS15 knowledge-governance 재사용.
+
+Candidate 승인 전에:
+
+HARD_CONFLICT
+AUTHORITY_CONFLICT
+VERSION_CONFLICT
+CONTEXT_CONFLICT
+
+검사.
+
+HARD_CONFLICT unresolved:
+APPROVE 금지.
+
+VERSION_CONFLICT:
+새 Candidate가 실제 최신 source인지 확인 후
+기존 item supersede candidate로 처리.
+
+자동으로 기존 ACTIVE 삭제/수정 금지.
+
+==================================================
+13. SUPERSEDE WORKFLOW
+==================================================
+
+새 Candidate가 기존 ACTIVE를 대체하는 경우:
+
+new candidate
+→ human approval
+→ new ACTIVE
+
+기존 Knowledge는:
+
+ARCHIVED 또는 SUPERSEDED
+
+처리를 명시적으로 수행.
+
+가능하면:
+
+supersedes_id
+superseded_by_id
+
+연결.
+
+중간 상태에서 두 개가 동시에 ACTIVE가 되어
+충돌하지 않도록 transaction 검토.
+
+==================================================
+14. CS12 21 CANDIDATE REVIEW READINESS
+==================================================
+
+CS12 21개를 실제 승인하지 말고
+"승인 가능한 상태인지"만 audit.
+
+각 Candidate별:
+
+SOURCE_VALID
+IMPLEMENTATION_VALID
+ROLE_VALID
+MODE_VALID
+SCOPE_VALID
+ACTION_VALID
+POLICY_VALID
+CONFLICT_FREE
+FRESHNESS_VALID
+
+결과 생성.
+
+최종:
+
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+분류.
+
+이번 WP에서 자동 승인 금지.
+
+==================================================
+15. P0 10종 REVIEW READINESS
+==================================================
+
+다음 P0 issue mapping 재검증:
+
+AUTH_ACCOUNT_WITHDRAWAL
+AUTH_POOL_ACCESS_DENIED
+ATTENDANCE_PERMISSION_DENIED
+NOTIFICATION_PERMISSION_OS
+DATA_NOT_VISIBLE_ROLE_MISMATCH
+DATA_NOT_VISIBLE_FILTER
+KNOWN_ISSUE_SERVER_API
+KNOWN_ISSUE_AI_PROVIDER
+KNOWN_ISSUE_PUSH
+KNOWN_ISSUE_BILLING
+
+각 Candidate가
+실제 production Knowledge로 승인될 준비가 되었는지 판정.
+
+KNOWN ISSUE 계열은
+CS15 Incident model과 충돌하지 않게 확인.
+
+"장애가 발생했다"는 고정사실 Knowledge로 쓰면 안 됨.
+
+일반 triage Knowledge와
+actual incident를 분리.
+
+==================================================
+16. GLOBAL VS POOL-SPECIFIC
+==================================================
+
+CS12 Candidate는 현재 scope=global.
+
+global Candidate 승인권한과
+향후 pool-specific Candidate 승인권한을 구분.
+
+global:
+super_admin/platform_admin only 권고.
+
+pool-specific:
+실제 정책이 정해져 있다면 별도 정의.
+
+정책이 없으면:
+NOT_IMPLEMENTED / REVIEW_REQUIRED.
+
+임의로 pool_admin approval 권한 창작 금지.
+
+==================================================
+17. APPROVAL UI / API
+==================================================
+
+기존 Super Admin UI가 있으면 재사용.
+
+없다면 이번 WP에서
+API/domain logic/test를 우선 구현하고
+UI는 최소 또는 후속 scope 가능.
+
+단 Partner 데모를 고려하면
+최종적으로는 Super Admin에서:
+
+Pending Knowledge
+→ 상세보기
+→ Source
+→ Scope
+→ Conflict/Freshness
+→ Approve / Reject / Edit Required
+
+흐름이 보이면 좋음.
+
+이번 WP 완료보고서에는
+UI 구현 여부를 정확히 표시.
+
+==================================================
+18. SAFE ACTIVATION
+==================================================
+
+승인 후 Knowledge가 ACTIVE가 되는 코드 path가 있다면
+반드시 확인:
+
+status='active'
+일 때만 retrieval.
+
+PENDING→ACTIVE 후에만 검색됨.
+
+같은 request transaction에서
+approval과 retrieval이 race condition을 만들지 않는지 검사.
+
+이번 WP에서는 production에 실제 활성화하지 않음.
+
+fixture/mock DB에서만 검증.
+
+==================================================
+19. ROLLBACK
+==================================================
+
+잘못 승인된 Knowledge를 되돌리는 경로 확인.
+
+가능하면:
+
+ACTIVE → ARCHIVED
+
+또는 equivalent.
+
+일반 user/teacher/pool_admin은 rollback 불가.
+
+rollback도 audit log 남김.
+
+Rollback 후 retrieval에서 즉시 제외.
+
+==================================================
+20. APPROVAL TRACE
+==================================================
+
+CS15 traceability와 연결.
+
+Knowledge item이 answer에 사용될 때:
+
+knowledge_id
+revision
+source_ref
+
+뿐 아니라 가능하면:
+
+approved_by
+approved_at
+
+까지 내부 audit에서 추적 가능.
+
+client HTTP에는 reviewer 개인정보 노출하지 않아도 됨.
+
+==================================================
+21. NO AUTO-PROMOTION GUARANTEE
+==================================================
+
+Repository 전체에서:
+
+status='pending'
+→ status='active'
+
+변경 가능한 모든 코드 path 검색.
+
+background worker
+migration
+seed
+cron
+AI response
+LLM result
+support case close
+incident resolve
+
+등에서 자동 promotion 존재 여부 검사.
+
+목표:
+
+UNAUTHORIZED_AUTO_PROMOTION_PATHS = 0
+
+==================================================
+22. NEGATIVE TESTS
+==================================================
+
+최소:
+
+1. teacher approve attempt
+2. parent approve attempt
+3. pool_admin global approve attempt
+4. forged reviewer_id
+5. forged role
+6. PENDING missing source
+7. unresolved hard conflict
+8. wrong role scope
+9. wrong mode scope
+10. wrong feature scope
+11. unsupported policy
+12. outdated source
+13. duplicate approval request
+14. concurrent two-admin approval
+15. rejected candidate reapprove without review
+16. edited candidate auto-active
+17. client direct ACTIVE status
+18. background auto-promotion
+19. candidate IDOR
+20. cross-pool candidate access
+
+==================================================
+23. SECURITY REGRESSION
+==================================================
+
+CS13 재검증:
+
+ROLE_LEAKAGE = 0
+MODE_LEAKAGE = 0
+POOL_LEAKAGE = 0
+CASE_IDOR = 0
+
+Trace/approval API가
+새 IDOR를 만들지 않게 검사.
+
+==================================================
+24. QUALITY REGRESSION
+==================================================
+
+CS14 재검증:
+
+UNSUPPORTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+PENDING_KNOWLEDGE_USED_AS_GROUNDING = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+==================================================
+25. GOVERNANCE REGRESSION
+==================================================
+
+CS15 재검증:
+
+TRACE_SCOPE_LEAKAGE = 0
+UNRESOLVED_CONFLICT_EMITTED = 0
+FALSE_INCIDENT_CLAIM = 0
+PENDING_KNOWLEDGE_EXPOSED_IN_TRACE = 0
+
+==================================================
+26. REQUIRED METRICS
+==================================================
+
+최종 보고:
+
+CANDIDATES_TOTAL
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+APPROVAL_TESTS_TOTAL
+APPROVAL_TESTS_PASS
+
+UNAUTHORIZED_APPROVAL:
+UNAUTHORIZED_AUTO_PROMOTION_PATHS:
+DUPLICATE_ACTIVE_CREATED:
+CONCURRENT_APPROVAL_DUPLICATE:
+APPROVAL_WITHOUT_SOURCE:
+APPROVAL_WITH_HARD_CONFLICT:
+APPROVAL_WITH_SCOPE_MISMATCH:
+REJECTED_REACTIVATED_WITHOUT_REVIEW:
+EDITED_AUTO_ACTIVATED:
+APPROVAL_IDOR:
+APPROVAL_POOL_LEAKAGE:
+
+목표:
+
+전부 0.
+
+==================================================
+27. ISSUE SEVERITY
+==================================================
+
+P0:
+- unauthorized user can activate global Knowledge
+- cross-pool approval/IDOR
+- auto promotion without human approval
+- malicious content activation path
+
+P1:
+- hard conflict candidate can become ACTIVE
+- no-source candidate activation
+- role/mode mismatch activation
+- rejected candidate silently reactivated
+
+P2:
+- missing audit metadata
+- incomplete revision history
+- freshness review weakness
+
+P3:
+- UI/wording/reviewer UX
+
+P0/P1 남으면 CS16_CLOSE = NO.
+
+==================================================
+28. PRODUCTION WRITE
+==================================================
+
+NO.
+
+rows inserted:
+rows modified:
+ACTIVE rows created:
+ACTIVE rows modified:
+PENDING rows modified:
+incident rows modified:
+
+전부 0이어야 함.
+
+Migration code가 추가되어도
+미배포면 Production write = NO.
+
+==================================================
+29. TEST LEVEL
+==================================================
+
+정확히 표시:
+
+UNIT
+MOCK
+INTEGRATION
+STAGING
+PRODUCTION
+
+Production 검증 없으면
+Production-ready / production verified라는 표현 금지.
+
+==================================================
+30. COMPLETE REPORT FORMAT
+==================================================
+
+WP-CS16 COMPLETE REPORT
+
+Git HEAD:
+
+Files changed:
+
+CANDIDATE REVIEW:
+  CANDIDATES_TOTAL:
+  READY_FOR_HUMAN_REVIEW:
+  REVIEW_REQUIRED:
+  BLOCKED:
+
+CS12 P0 COVERAGE:
+  AUTH_ACCOUNT_WITHDRAWAL:
+  AUTH_POOL_ACCESS_DENIED:
+  ATTENDANCE_PERMISSION_DENIED:
+  NOTIFICATION_PERMISSION_OS:
+  DATA_NOT_VISIBLE_ROLE_MISMATCH:
+  DATA_NOT_VISIBLE_FILTER:
+  KNOWN_ISSUE_SERVER_API:
+  KNOWN_ISSUE_AI_PROVIDER:
+  KNOWN_ISSUE_PUSH:
+  KNOWN_ISSUE_BILLING:
+
+APPROVAL GOVERNANCE:
+  Allowed reviewer roles:
+  Server-authoritative role source:
+  Human approval required:
+  Auto promotion allowed:
+
+RESULT:
+  UNAUTHORIZED_APPROVAL:
+  UNAUTHORIZED_AUTO_PROMOTION_PATHS:
+  DUPLICATE_ACTIVE_CREATED:
+  CONCURRENT_APPROVAL_DUPLICATE:
+  APPROVAL_WITHOUT_SOURCE:
+  APPROVAL_WITH_HARD_CONFLICT:
+  APPROVAL_WITH_SCOPE_MISMATCH:
+  REJECTED_REACTIVATED_WITHOUT_REVIEW:
+  EDITED_AUTO_ACTIVATED:
+  APPROVAL_IDOR:
+  APPROVAL_POOL_LEAKAGE:
+
+AUDIT:
+  reviewer identity:
+  decision history:
+  revision:
+  approve/reject reason:
+  request_id:
+  resulting knowledge_id:
+
+SUPERSEDE:
+  supported:
+  duplicate-active prevention:
+  rollback:
+
+UI:
+  implemented:
+  route/screen:
+  test level:
+
+SECURITY REGRESSION:
+  ROLE_LEAKAGE:
+  MODE_LEAKAGE:
+  POOL_LEAKAGE:
+  CASE_IDOR:
+
+QUALITY REGRESSION:
+  UNSUPPORTED_CLAIMS:
+  HALLUCINATED_UI_PATH:
+  INVALID_ACTIONS:
+  PENDING_KNOWLEDGE_USED_AS_GROUNDING:
+  UNSAFE_OR_UNGROUNDED:
+
+CS15 REGRESSION:
+  TRACE_SCOPE_LEAKAGE:
+  UNRESOLVED_CONFLICT_EMITTED:
+  FALSE_INCIDENT_CLAIM:
+  PENDING_KNOWLEDGE_EXPOSED_IN_TRACE:
+
+FIXES:
+  P0:
+  P1:
+  P2:
+  P3:
+
+REVIEW_REQUIRED:
+  items:
+
+TEST:
+  CS16:
+  FULL SUITE:
+  TEST LEVEL:
+
+GIT:
+  local commit: YES/NO
+  remote push: YES/NO
+  remote branch:
+
+RENDER:
+  deployed: YES/NO
+  service:
+  deployed SHA:
+
+PRODUCTION DB:
+  migration applied: YES/NO
+  rows inserted:
+  rows modified:
+  ACTIVE rows created:
+  ACTIVE rows modified:
+  PENDING rows modified:
+
+Critical blockers:
+
+CS16_CLOSE: YES / NO
+
+WP_CS16_HUMAN_REVIEW_KNOWLEDGE_APPROVAL_PRODUCTION_PROMOTION_GOVERNANCE_COMPLETE ✅
+
+==================================================
+31. 종료 조건
+==================================================
+
+P0 = 0
+P1 = 0
+
+UNAUTHORIZED_APPROVAL = 0
+UNAUTHORIZED_AUTO_PROMOTION_PATHS = 0
+DUPLICATE_ACTIVE_CREATED = 0
+CONCURRENT_APPROVAL_DUPLICATE = 0
+APPROVAL_WITHOUT_SOURCE = 0
+APPROVAL_WITH_HARD_CONFLICT = 0
+APPROVAL_WITH_SCOPE_MISMATCH = 0
+REJECTED_REACTIVATED_WITHOUT_REVIEW = 0
+EDITED_AUTO_ACTIVATED = 0
+APPROVAL_IDOR = 0
+APPROVAL_POOL_LEAKAGE = 0
+
+CS13 regression = 0
+CS14 regression = 0
+CS15 regression = 0
+
+FULL SUITE PASS
+
+Production write = NO
+CS12 PENDING auto activation = 0
