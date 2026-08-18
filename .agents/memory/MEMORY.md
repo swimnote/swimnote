@@ -124,3 +124,4 @@
 - [WP-CS17 완료 상태](wp-cs17-done-state.md) — SHA fcb3c9e9; Super Admin Knowledge Review Console; 6-tab UI+4dialogs+90TC; 2595TC; Render/OTA 없음
 - [WP-CS12~17 CLOSURE 완료](wp-cs12-17-closure-done.md) — SHA 489b09e2; P1 revision guard fix+P3 ComplaintClass+81TC; 2676TC; ALL_CLOSED=YES; Render 미배포
 - [WP-CS13~17 FINAL CLOSURE PATCH 완료](wp-cs13-17-final-done.md) — SHA 28c15fcd; CS13 pool_id forgery+CS16 9단계 governance+CS15 Prod감사; 95TC+2771TC; Render 미배포
+- [WP-CS20 완료 상태](wp-cs20-done-state.md) — SHA 000bf765; 21 CS12 approval+6 corrections; 로컬API→SUPABASE; AUDIT=21; Render 재배포 트리거

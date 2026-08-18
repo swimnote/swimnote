@@ -1,0 +1,759 @@
+[WP-CS20 — Controlled Production Knowledge Promotion & Post-Activation Verification]
+
+목적:
+
+CS19에서 최종 검증된 21개 Support Knowledge Candidate를
+Production 환경에 안전하게 반영한다.
+
+이번 WP에서 처음으로 Production Knowledge 변경이 발생할 수 있다.
+
+핵심 원칙:
+
+1. CS19 correction 6건을 먼저 Production PENDING Candidate에 반영
+2. 수정 결과를 다시 read-only 검증
+3. Super Admin Human Approval 경로로만 Candidate 승인
+4. 승인된 Knowledge만 ACTIVE
+5. 실제 Support Retrieval / Grounding / Trace 검증
+6. 이상 발생 시 즉시 rollback 가능 상태 확인
+
+중요:
+
+AI 또는 background process가 자동으로 21개를 ACTIVE로 만들면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. BASELINE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+CS12 = CLOSED
+CS13 = CLOSED
+CS14 = CLOSED
+CS15 = CLOSED
+CS16 = CLOSED
+CS17 = CLOSED
+CS18 = CLOSED
+CS19 = CLOSED
+
+CS19 Git HEAD:
+
+928ea8aa
+
+현재 Production 예상 상태:
+
+기존 ACTIVE Knowledge = 2
+CS12 Candidate = 21 PENDING
+CS19 correction Production 적용 = 0
+Candidate approval = 0
+Candidate activation = 0
+
+작업 시작 전 반드시 실제 Production read-only query로
+위 상태를 확인.
+
+보고:
+
+PRE_ACTIVE_TOTAL
+PRE_PENDING_TOTAL
+PRE_CS12_PENDING_TOTAL
+
+예상과 다르면 즉시 멈추고
+DRIFT_DETECTED로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. 새로운 OpenAI/LLM 호출 코드 추가 금지.
+
+3. Knowledge 자동 승인 금지.
+
+4. AI reviewer 승인 금지.
+
+5. background auto-promotion 금지.
+
+6. Production에서 직접 SQL로 status='active' 변경 금지.
+
+7. ACTIVE 전환은 canonical Human Approval API/domain 경로만 사용.
+
+8. CS19 correction 6건 외 Candidate 내용 임의 변경 금지.
+
+9. 기존 ACTIVE 2개 임의 수정 금지.
+
+10. Production 사용자 PII를 테스트 질문에 사용 금지.
+
+11. 실제 승인 전 correction 결과 검증 필수.
+
+12. 각 단계 실패 시 다음 단계 진행 금지.
+
+13. rollback 경로 확인 없이 대량 승인 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION DRIFT CHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB read-only 확인.
+
+검사:
+
+* support_knowledge_items 존재
+* CS12 candidate 21개 존재
+* candidate ID 정확히 일치
+* status
+* revision
+* source_ref
+* affected_roles
+* affected_modes
+* frontend_screen_id
+
+특히 6개 correction 대상의
+현재 Production 값 확인.
+
+대상:
+
+ki_cs12_account_withdrawal
+ki_cs12_ai_error_triage
+ki_cs12_diary_ai_failed
+ki_cs12_diary_save_failed
+ki_cs12_diary_photo_upload_failed
+ki_cs12_growth_report_pending
+
+DRIFT가 있으면 correction migration 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CS19 CORRECTION DRY-RUN — PRODUCTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production DB를 대상으로 먼저:
+
+runCs19Corrections(
+productionDb,
+{
+dryRun: true
+}
+)
+
+실행.
+
+확인:
+
+planned updates = 6
+unexpected updates = 0
+missing candidate = 0
+already-active target = 0
+
+각 UPDATE가 candidate_id 조건으로만
+정확히 제한되는지 확인.
+
+DRY_RUN_CORRECTIONS_EXPECTED = 6
+DRY_RUN_CORRECTIONS_UNEXPECTED = 0
+
+조건 미충족 시 actual migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CORRECTION BACKUP
+━━━━━━━━━━━━━━━━━━━━━━
+
+Actual update 전에
+6개 row의 현재 상태를 rollback 가능한 형태로 기록.
+
+최소:
+
+candidate_id
+revision
+status
+answer/content
+frontend_screen_id
+affected_modes
+updated_at
+
+secret/PII 없음 확인.
+
+필요하면 transaction 내 이전값 저장 또는
+audit record 사용.
+
+목표:
+
+CORRECTION_ROLLBACK_READY = YES
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PRODUCTION CORRECTION APPLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Human-authorized migration 실행.
+
+실행 대상은 오직 6개.
+
+목표:
+
+CORRECTIONS_APPLIED = 6
+CORRECTION_ERRORS = 0
+
+수정:
+
+A.
+ki_cs12_account_withdrawal
+→ 복구 불가능 절대 단정 제거
+
+B~E.
+4개 diary 관련 Candidate
+→ TEACHER_DIARY_WRITE
+→ TEACHER_DIARY
+
+F.
+ki_cs12_growth_report_pending
+→ affected_modes = ["x"]
+→ X Mode 조건 명시
+
+중요:
+
+status는 PENDING 유지.
+
+CORRECTION_AUTO_ACTIVATED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. POST-CORRECTION READ-ONLY VERIFICATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 다시 읽어 확인.
+
+필수:
+
+CANDIDATES_TOTAL = 21
+PENDING_TOTAL = 21
+
+INVALID_FRONTEND_SCREEN_ID = 0
+MODE_SCOPE_MISMATCH = 0
+UNSUPPORTED_POLICY_CLAIM = 0
+
+CORRECTION_AUTO_ACTIVATED = 0
+
+그리고 6개 revision이
+edit history/audit 구조와 일치하는지 확인.
+
+이 단계 PASS 전 approval 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HUMAN REVIEW
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Review Console 또는
+canonical Human Approval API를 사용.
+
+승인 actor:
+
+super_admin
+또는
+platform_admin
+
+JWT actor 기준.
+
+금지:
+
+* SQL 직접 ACTIVE
+* migration ACTIVE
+* script auto-approve
+* AI approve
+* body reviewer_id 신뢰
+
+각 Candidate마다 사람이 최소 확인:
+
+Source
+Role
+Mode
+Scope
+UI
+Policy
+Conflict
+Freshness
+
+Human reviewer가 실제로 APPROVE 결정을 내려야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. APPROVAL BATCH SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+21개를 한 번에 blind loop로 승인하지 말 것.
+
+권장 batch:
+
+BATCH 1:
+P0 Knowledge
+
+BATCH 2:
+P1 Knowledge
+
+각 batch 후 smoke test.
+
+각 승인마다:
+
+candidate_id
+reviewer role
+request_id
+previous status
+new status
+revision
+audit record
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. P0 BATCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 P0 coverage Knowledge 승인.
+
+P0 issue:
+
+AUTH_ACCOUNT_WITHDRAWAL
+AUTH_POOL_ACCESS_DENIED
+ATTENDANCE_PERMISSION_DENIED
+NOTIFICATION_PERMISSION_OS
+DATA_NOT_VISIBLE_ROLE_MISMATCH
+DATA_NOT_VISIBLE_FILTER
+KNOWN_ISSUE_SERVER_API
+KNOWN_ISSUE_AI_PROVIDER
+KNOWN_ISSUE_PUSH
+KNOWN_ISSUE_BILLING
+
+승인 후:
+
+P0_ACTIVE_COUNT 확인.
+
+각 item:
+
+status='active'
+audit 존재
+approved_by 존재
+source_ref 존재
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. P0 RETRIEVAL SMOKE
+━━━━━━━━━━━━━━━━━━━━━━
+
+fixture 질문 사용.
+
+최소:
+
+1. 탈퇴
+2. 수영장 접근권한
+3. 출결권한
+4. iOS 알림
+5. Android 알림
+6. 데이터 안 보임
+7. 서버오류
+8. AI 오류
+9. PUSH 오류
+10. Billing 오류
+
+확인:
+
+* expected Knowledge retrieval
+* wrong-role Knowledge 미노출
+* wrong-mode Knowledge 미노출
+* PENDING Knowledge 미노출
+* known issue를 confirmed incident로 표현하지 않음
+
+목표:
+
+P0_RETRIEVAL_FAIL = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. P1 BATCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+P0 smoke PASS 후에만 P1 승인.
+
+대상은 CS12 21개 중 P1 Candidate.
+
+동일하게:
+
+Human Approval
+→ audit
+→ ACTIVE
+→ retrieval
+
+순서.
+
+P1 batch 후:
+
+P1_RETRIEVAL_FAIL = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. FINAL ACTIVE COUNT
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 ACTIVE = 2
+
+CS12 승인 = 21
+
+모두 승인 성공했다면 예상:
+
+FINAL_ACTIVE_TOTAL = 23
+
+단 Production에 다른 ACTIVE가 이미 존재하면
+23을 하드코딩하지 말고:
+
+PRE_ACTIVE_TOTAL + ACTIVATED_CS12_TOTAL
+
+로 검증.
+
+필수:
+
+ACTIVATED_CS12_TOTAL = 21
+
+단 Human Reviewer가 하나라도 승인 보류/거절하면
+억지로 21로 맞추지 말 것.
+
+실제 결과를 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. GROUNDING SMOKE
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Support generation path를 최소 호출로 확인.
+
+불필요한 LLM 호출 반복 금지.
+
+최소 5개:
+
+A. account
+B. attendance
+C. notification
+D. diary
+E. billing/X
+
+검증:
+
+selected knowledge_id
+role/mode
+answer
+unsupported claim
+UI path
+action
+trace
+
+목표:
+
+GROUNDING_SMOKE_FAIL = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. TRACE
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 smoke request:
+
+request_id
+→ active knowledge_id
+→ revision
+→ source_ref
+→ approval state
+
+추적.
+
+목표:
+
+ACTIVE_KNOWLEDGE_TRACE_MISSING = 0
+
+PENDING source가 trace에 grounding source로 나오면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. ROLLBACK TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 실제 ACTIVE Knowledge를
+테스트 목적으로 무작위 archive하지 말 것.
+
+대신 기존 CS19 deterministic rollback 검증을 유지하고,
+
+Production에서는 rollback endpoint/path가
+현재 배포 SHA에서 정상 존재하는지만 확인.
+
+실제 문제가 발견된 Knowledge에 대해서만
+Human rollback 실행 가능.
+
+ROLLBACK_PATH_READY = YES
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. P1 GAP DRAFT 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS19에서 만든:
+
+ki_draft_xmodeguard_lock_states
+
+는 이번 21개 승인에 포함하지 않는다.
+
+특히 다음 시간표현을 Product Truth와 대조:
+
+* "결제 후 5분 내"
+* "1~3 영업일"
+* "3 영업일 이상"
+
+실제 source/code/policy에 명시적 근거가 없다면 삭제.
+
+이번 WP에서 Production insert 금지.
+
+최종 분류:
+
+DRAFT_READY
+또는
+DRAFT_REVIEW_REQUIRED
+
+로만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. P2/P3 GAP
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 처리하지 않는다.
+
+P2:
+학부모 앨범/사진 조회 오류
+
+P3:
+보강 신청 실패/기간 초과
+
+Backlog 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. MONITORING WINDOW
+━━━━━━━━━━━━━━━━━━━━━━
+
+Activation 직후 서버 로그/Support trace에서
+최소 smoke window 확인.
+
+확인:
+
+* 5xx
+* approval error
+* retrieval error
+* conflict fallback
+* unauthorized knowledge exposure
+* trace missing
+
+실제 사용자 트래픽을 이용한 실험 금지.
+
+내부 fixture/smoke 요청만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. FAILURE POLICY
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 발생 시 즉시 추가 승인 중단:
+
+P0/P1 wrong answer
+cross-role leakage
+cross-mode leakage
+unsupported policy claim
+hallucinated UI
+confirmed incident false claim
+trace missing
+duplicate ACTIVE
+approval audit missing
+
+이미 승인된 문제 item은
+Human rollback 검토.
+
+자동 대량 rollback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. REQUIRED METRICS
+━━━━━━━━━━━━━━━━━━━━━━
+
+PRE_ACTIVE_TOTAL
+PRE_PENDING_TOTAL
+PRE_CS12_PENDING_TOTAL
+
+DRY_RUN_CORRECTIONS_EXPECTED
+DRY_RUN_CORRECTIONS_UNEXPECTED
+
+CORRECTIONS_APPLIED
+CORRECTION_ERRORS
+CORRECTION_AUTO_ACTIVATED
+
+POST_CORRECTION_PENDING_TOTAL
+
+P0_APPROVED
+P1_APPROVED
+ACTIVATED_CS12_TOTAL
+
+P0_RETRIEVAL_FAIL
+P1_RETRIEVAL_FAIL
+
+GROUNDING_SMOKE_TOTAL
+GROUNDING_SMOKE_PASS
+GROUNDING_SMOKE_FAIL
+
+ACTIVE_KNOWLEDGE_TRACE_MISSING
+
+UNAUTHORIZED_APPROVAL
+PENDING_KNOWLEDGE_USED_AS_GROUNDING
+CROSS_ROLE_KNOWLEDGE_LEAKAGE
+CROSS_MODE_KNOWLEDGE_LEAKAGE
+FALSE_INCIDENT_CLAIM
+HALLUCINATED_UI_PATH
+UNSUPPORTED_POLICY_CLAIM
+
+목표:
+
+DRY_RUN_CORRECTIONS_UNEXPECTED = 0
+CORRECTION_ERRORS = 0
+CORRECTION_AUTO_ACTIVATED = 0
+
+P0_RETRIEVAL_FAIL = 0
+P1_RETRIEVAL_FAIL = 0
+GROUNDING_SMOKE_FAIL = 0
+
+ACTIVE_KNOWLEDGE_TRACE_MISSING = 0
+
+UNAUTHORIZED_APPROVAL = 0
+PENDING_KNOWLEDGE_USED_AS_GROUNDING = 0
+CROSS_ROLE_KNOWLEDGE_LEAKAGE = 0
+CROSS_MODE_KNOWLEDGE_LEAKAGE = 0
+FALSE_INCIDENT_CLAIM = 0
+HALLUCINATED_UI_PATH = 0
+UNSUPPORTED_POLICY_CLAIM = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. PRODUCTION REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+정확히 보고:
+
+Production deploy:
+Deployed SHA:
+
+DB write:
+Correction rows modified:
+Approval rows modified:
+ACTIVE rows created:
+Audit rows created:
+
+Human reviewers:
+role만 보고.
+개인정보 불필요.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. COMPLETE REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS20 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Deployed SHA:
+
+PRE-PRODUCTION STATE
+
+PRE_ACTIVE_TOTAL:
+PRE_PENDING_TOTAL:
+PRE_CS12_PENDING_TOTAL:
+DRIFT_DETECTED:
+
+CORRECTION
+
+Dry run expected:
+Dry run unexpected:
+Backup ready:
+
+Corrections applied:
+Correction errors:
+Auto activated:
+
+Post-correction pending:
+
+HUMAN APPROVAL
+
+P0 approved:
+P1 approved:
+Total CS12 activated:
+
+Approval failures:
+Approval holds:
+
+RETRIEVAL
+
+P0 smoke:
+P1 smoke:
+
+GROUNDING
+
+Total:
+Pass:
+Fail:
+
+TRACE
+
+Missing trace:
+Sample request IDs:
+
+SECURITY / QUALITY
+
+UNAUTHORIZED_APPROVAL:
+PENDING_KNOWLEDGE_USED_AS_GROUNDING:
+CROSS_ROLE_KNOWLEDGE_LEAKAGE:
+CROSS_MODE_KNOWLEDGE_LEAKAGE:
+FALSE_INCIDENT_CLAIM:
+HALLUCINATED_UI_PATH:
+UNSUPPORTED_POLICY_CLAIM:
+
+ACTIVE STATE
+
+PRE_ACTIVE_TOTAL:
+ACTIVATED_CS12_TOTAL:
+FINAL_ACTIVE_TOTAL:
+
+P1 GAP DRAFT
+
+Timing claims verified:
+DRAFT_READY / DRAFT_REVIEW_REQUIRED:
+Reason:
+
+PRODUCTION
+
+deployed:
+DB write:
+Correction rows modified:
+Approval rows modified:
+ACTIVE rows created:
+Audit rows created:
+
+ROLLBACK
+
+Path ready:
+Items rolled back:
+Reason:
+
+Critical blockers:
+
+CS20_CLOSE: YES / NO
+
+WP_CS20_CONTROLLED_PRODUCTION_KNOWLEDGE_PROMOTION_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 종료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS20_CLOSE = YES 조건:
+
+Correction 6건 정확히 적용
+Human Approval governance 우회 없음
+승인된 Candidate만 ACTIVE
+P0/P1 retrieval error = 0
+Grounding smoke error = 0
+Trace missing = 0
+Security/quality regression = 0
+Rollback path ready
+
+보고 후 멈춘다.
+
+Production에서 추가 Candidate를 자동 생성하거나
+P1 Gap Draft를 활성화하지 말 것.
+
+다음 WP 자동 시작 금지.
