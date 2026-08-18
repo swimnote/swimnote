@@ -399,24 +399,24 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     // WP-CS09: persist resolution context for follow-up queries (§6 source-of-truth rule).
     // JSONB merge (||) into 'resolution_context' sub-key preserves existing session metadata.
     // Only metadata stored — raw query/answer forbidden (§2 no-raw-analytics rule).
+    // WP-CS15: origin_request_id 추가 (§19 support case trace).
     // Fire-and-forget; never blocks HTTP response.
-    if (resolution.feature ?? resolution.entity_key ?? resolution.screen_id) {
-      void (superAdminDb as any).execute(sql`
-        UPDATE support_cases
-        SET context_json = COALESCE(context_json, '{}'::jsonb) || jsonb_build_object(
-          'resolution_context', ${JSON.stringify({
-            source_type:  resolution.source_type,
-            source_id:    resolution.source_id  ?? null,
-            feature:      resolution.feature    ?? null,
-            category:     resolution.category   ?? null,
-            entity_key:   resolution.entity_key ?? null,
-            screen_id:    resolution.screen_id  ?? null,
-            resolved_at:  new Date().toISOString(),
-          })}::jsonb
-        )
-        WHERE id = ${caseId}
-      `).catch(() => {});
-    }
+    void (superAdminDb as any).execute(sql`
+      UPDATE support_cases
+      SET context_json = COALESCE(context_json, '{}'::jsonb) || jsonb_build_object(
+        'origin_request_id', ${requestId},
+        'resolution_context', ${JSON.stringify({
+          source_type:  resolution.source_type,
+          source_id:    resolution.source_id  ?? null,
+          feature:      resolution.feature    ?? null,
+          category:     resolution.category   ?? null,
+          entity_key:   resolution.entity_key ?? null,
+          screen_id:    resolution.screen_id  ?? null,
+          resolved_at:  new Date().toISOString(),
+        })}::jsonb
+      )
+      WHERE id = ${caseId}
+    `).catch(() => {});
 
     // event log
     void logSupportEvent({
@@ -469,6 +469,11 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       case_id_present: !!caseId,
     });
 
+    // WP-CS15 §3: meta.trace — opaque reference only; no answer/title/PII exposed.
+    const deterministicRef = resolution.source_id
+      ? [{ ref: resolution.source_id, item_type: resolution.source_type ?? "UNKNOWN" }]
+      : [];
+
     return res.json({
       ok: true,
       llm_used:   false,
@@ -478,6 +483,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       answer:     resolution.answer,
       case_state: "AI_RESPONDED",
       requires_human: resolution.requires_human,
+      meta: { trace: { request_id: requestId, evidence_refs: deterministicRef } },
     });
   }
 
@@ -750,24 +756,28 @@ ${evidenceBlock}
   // Conditions: no error + evidence_count > 0 + HIGH/MEDIUM confidence (not LOW).
   // Forbidden: no_evidence, provider_failure, LOW confidence, LLM output text mining.
   // JSONB merge preserves existing session metadata (context_json sub-key pattern).
-  if (!llmError && evidence.length > 0 && llmOutput!.confidence !== "LOW") {
-    const evidenceCtx = deriveEvidenceContext(evidence);
-    if (evidenceCtx && (evidenceCtx.entity_key || evidenceCtx.source_id)) {
-      void (superAdminDb as any).execute(sql`
-        UPDATE support_cases
-        SET context_json = COALESCE(context_json, '{}'::jsonb) || jsonb_build_object(
-          'resolution_context', ${JSON.stringify({
-            source_type: evidenceCtx.source_type,
-            source_id:   evidenceCtx.source_id  ?? null,
-            entity_key:  evidenceCtx.entity_key ?? null,
-            feature:     evidenceCtx.feature    ?? null,
-            category:    evidenceCtx.category   ?? null,
-            resolved_at: new Date().toISOString(),
-          })}::jsonb
-        )
-        WHERE id = ${caseId}
-      `).catch(() => {});
-    }
+  // WP-CS15: origin_request_id 포함 (§19 support case trace); COALESCE로 최초 값만 보존.
+  {
+    const evidenceCtx = (!llmError && evidence.length > 0 && llmOutput!.confidence !== "LOW")
+      ? deriveEvidenceContext(evidence)
+      : null;
+    void (superAdminDb as any).execute(sql`
+      UPDATE support_cases
+      SET context_json = COALESCE(context_json, '{}'::jsonb)
+        || jsonb_build_object('origin_request_id', ${requestId})
+        ${evidenceCtx && (evidenceCtx.entity_key || evidenceCtx.source_id) ? sql`
+        || jsonb_build_object('resolution_context', ${JSON.stringify({
+            source_type:     evidenceCtx.source_type,
+            source_id:       evidenceCtx.source_id  ?? null,
+            entity_key:      evidenceCtx.entity_key ?? null,
+            feature:         evidenceCtx.feature    ?? null,
+            category:        evidenceCtx.category   ?? null,
+            evidence_count:  evidence.length,
+            resolved_at:     new Date().toISOString(),
+          })}::jsonb)
+        ` : sql``}
+      WHERE id = ${caseId}
+    `).catch(() => {});
   }
 
   // Event log
@@ -804,6 +814,11 @@ ${evidenceBlock}
     case_id_present: !!caseId,
   });
 
+  // WP-CS15 §3: meta.trace — safe evidence refs only; no answer/title/PII.
+  // buildSafeTraceRef는 ref(id), item_type, status, revision, freshness_state만 포함.
+  const { buildSafeTraceRef } = await import("../lib/knowledge-governance.js");
+  const llmEvidenceRefs = evidence.map(buildSafeTraceRef);
+
   return res.json({
     ok:         true,
     llm_used:   llmActuallyCalled,
@@ -814,6 +829,7 @@ ${evidenceBlock}
     case_state: toState,
     requires_human: llmOutput!.requires_human,
     suggested_next_action: llmOutput!.suggested_next_action ?? null,
+    meta: { trace: { request_id: requestId, evidence_refs: llmEvidenceRefs } },
   });
 });
 

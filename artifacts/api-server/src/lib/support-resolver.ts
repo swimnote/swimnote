@@ -885,15 +885,25 @@ export function deriveEvidenceContext(
 
 // ── Public: gatherEvidence (for LLM context) ─────────────────────────────────
 
-/** Evidence item returned by gatherEvidence — includes feature/category for context derivation. */
+/**
+ * Evidence item returned by gatherEvidence.
+ * WP-CS15: status/revision/updated_at/source_type/freshness_state 추가 (§5, §7).
+ * answer/title은 LLM context용 — HTTP response에 직접 노출하면 안 됨.
+ */
 export interface EvidenceItem {
-  id:        string;
-  item_type: string;
-  title:     string;
-  answer:    string;
-  score:     number;
-  feature:   string | null;
-  category:  string | null;
+  id:             string;
+  item_type:      string;
+  title:          string;
+  answer:         string;
+  score:          number;
+  feature:        string | null;
+  category:       string | null;
+  // WP-CS15 additions (§5 Knowledge Version Trace, §7 Freshness)
+  status:         string;         // 'active' (PENDING never in evidence per gatherEvidence WHERE)
+  revision:       number;         // from DB revision column (default 1)
+  updated_at:     string | null;  // ISO timestamp for freshness assessment
+  source_type:    string | null;  // from DB source_type column (e.g. "CODE", "REGISTRY")
+  freshness_state?: import("./knowledge-governance.js").FreshnessState;
 }
 
 /**
@@ -913,7 +923,8 @@ export async function gatherEvidence(
              null::text AS deep_link, null::text AS frontend_screen_id,
              null::jsonb AS solution_steps, null::jsonb AS conditions,
              null::text AS incident_id,
-             category, feature
+             category, feature,
+             revision, updated_at, source_type, source_ref
       FROM support_knowledge_items
       WHERE status = 'active'
         AND item_type IN ('FAQ', 'KNOWLEDGE', 'RULE', 'SOLUTION')
@@ -933,15 +944,31 @@ export async function gatherEvidence(
       .sort((a, b) => b.score - a.score)
       .slice(0, maxItems);
 
-    const knowledgeEvidence: EvidenceItem[] = scored.map(({ r, score }) => ({
-      id:        r.id,
-      item_type: r.item_type,
-      title:     r.title,
-      answer:    r.answer ?? r.content,
-      score,
-      feature:   r.feature ?? null,
-      category:  r.category ?? null,
-    }));
+    // WP-CS15: import lazily to avoid circular — assessFreshness
+    const { assessFreshness } = await import("./knowledge-governance.js");
+
+    const knowledgeEvidence: EvidenceItem[] = scored.map(({ r, score }) => {
+      const updatedAt: string | null = (r as any).updated_at ?? null;
+      const revision: number         = (r as any).revision   ?? 1;
+      return {
+        id:             r.id,
+        item_type:      r.item_type,
+        title:          r.title,
+        answer:         r.answer ?? r.content,
+        score,
+        feature:        r.feature   ?? null,
+        category:       r.category  ?? null,
+        // WP-CS15 trace fields
+        status:         (r as any).status      ?? "active",
+        revision,
+        updated_at:     updatedAt,
+        source_type:    (r as any).source_type ?? null,
+        freshness_state: assessFreshness(
+          updatedAt ? new Date(updatedAt) : null,
+          revision,
+        ),
+      };
+    });
 
     // ── Frontend Map static registry (독립 evidence source) ──────────────────
     // support_knowledge_items ACTIVE = 0 이어도 FM 레지스트리에서 evidence 수집.
@@ -953,14 +980,20 @@ export async function gatherEvidence(
         const score = fmScore(screen, ctx.qLower, ctx.tokens);
         if (score > 0) {
           fmEvidence.push({
-            id:        `fm_${screen.screen_id}`,
-            item_type: "FRONTEND_MAP",
-            title:     screen.screen_name,
-            answer:    screen.purpose +
+            id:             `fm_${screen.screen_id}`,
+            item_type:      "FRONTEND_MAP",
+            title:          screen.screen_name,
+            answer:         screen.purpose +
               (screen.deep_link ? ` (화면 경로: ${screen.deep_link})` : ""),
             score,
-            feature:   null,
-            category:  null,
+            feature:        null,
+            category:       null,
+            // WP-CS15: FM registry is AUTHORITATIVE_PRODUCT_STATE — always CURRENT
+            status:         "active",
+            revision:       1,
+            updated_at:     null,
+            source_type:    "REGISTRY",
+            freshness_state: "CURRENT" as import("./knowledge-governance.js").FreshnessState,
           });
         }
       }
