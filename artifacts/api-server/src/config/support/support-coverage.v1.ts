@@ -687,7 +687,7 @@ export const SUPPORT_COVERAGE_REGISTRY: CoverageRecord[] = [
     known_issue_possible: false,
     out_of_scope: false,
     priority: "P0",
-    source_refs: ["app/(teacher)/diary.tsx", "app/(admin)/diary-write.tsx", "src/routes/diary.ts:459 POST /diaries"],
+    source_refs: ["app/(teacher)/diary.tsx", "app/(admin)/diary-write.tsx", "src/routes/diary.ts:459 POST /diaries", "app/(teacher)/diary-unwritten.tsx"],
     knowledge_coverage: "MISSING",
     solution_coverage: "MISSING_SOLUTION",
   },
@@ -2227,6 +2227,356 @@ export const SUPPORT_COVERAGE_REGISTRY: CoverageRecord[] = [
     solution_coverage: "MISSING_SOLUTION",
   },
 
+
+  // ══════════════════════════════════════════════════════════
+  // DOMAIN: SETTINGS — 수업 설정·운영 관리 (P1/P2)
+  // [WP-CS10-CLOSURE] ADMIN_CLASS_CAPACITY_SETTINGS 커버리지
+  // ══════════════════════════════════════════════════════════
+
+  {
+    coverage_id: "CLASS_CAPACITY_SETTINGS_HOW_TO",
+    domain: "SETTINGS",
+    feature_id: "CLASS_SETTINGS",
+    screen_id: "ADMIN_CLASS_CAPACITY_SETTINGS",
+    roles: ["pool_admin", "sub_admin"],
+    modes: ["all"],
+    action_description: "반 기본 정원 설정 방법 안내 및 저장 실패",
+    support_categories: ["HOW_TO", "NOT_SAVED"],
+    possible_intents: ["정원 설정 어떻게 해요", "반 정원 바꾸고 싶어요", "기본 정원이 안 바껴요"],
+    possible_symptoms: ["설정 저장 후 원래대로 돌아옴", "저장 버튼이 안 눌려요"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING"],
+    required_permissions: ["pool_admin 또는 sub_admin"],
+    required_states: ["수영장 등록 완료"],
+    related_api: ["/admin/class-settings"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 403 권한 없음", "HTTP 500 저장 실패"],
+    known_empty_states: [],
+    known_loading_states: ["설정 로딩 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/class-capacity-settings.tsx", "src/routes/admin.ts:GET|POST /admin/class-settings"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_PEOPLE_PENDING 커버리지 (미배정 회원 + CSV 업로드)
+  {
+    coverage_id: "MEMBER_PENDING_HOW_TO",
+    domain: "MEMBER_CLASS",
+    feature_id: "MEMBER_REGISTRATION",
+    screen_id: "ADMIN_PEOPLE_PENDING",
+    roles: ["pool_admin", "sub_admin"],
+    modes: ["all"],
+    action_description: "미배정 회원 관리 및 CSV 일괄 등록 방법",
+    support_categories: ["HOW_TO", "UPLOAD_FAILED"],
+    possible_intents: ["미배정 회원이 뭐예요", "CSV로 회원 등록하는 방법", "파일 업로드가 안 돼요", "명단 올리기 실패"],
+    possible_symptoms: ["CSV 업로드 후 오류 메시지", "파일 형식 오류", "중복 이름 오류"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING", "COMPLAINT_KEEP_FAILING"],
+    required_permissions: ["pool_admin 또는 sub_admin"],
+    required_states: ["수영장 등록 완료"],
+    related_api: ["/members/csv-parse", "/members/bulk-add"],
+    related_feature_flags: [],
+    known_errors: ["CSV 형식 오류", "중복 이름 충돌", "HTTP 400 파싱 실패"],
+    known_empty_states: ["미배정 회원 없음"],
+    known_loading_states: ["CSV 파싱 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: true,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/people-pending.tsx"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_WHITE_LABEL 커버리지
+  {
+    coverage_id: "SETTINGS_WHITE_LABEL_HOW_TO",
+    domain: "SETTINGS",
+    feature_id: "WHITE_LABEL",
+    screen_id: "ADMIN_WHITE_LABEL",
+    roles: ["pool_admin"],
+    modes: ["all"],
+    action_description: "화이트 라벨(브랜딩) 설정 방법",
+    support_categories: ["HOW_TO", "NOT_SAVED"],
+    possible_intents: ["플랫폼 이름 숨기기", "화이트 라벨 설정", "우리 수영장 이름으로만 나오게 하려면"],
+    possible_symptoms: ["설정 토글이 반영 안 됨"],
+    complaint_classes: [],
+    required_permissions: ["pool_admin"],
+    required_states: ["수영장 등록 완료"],
+    related_api: ["/pools/white-label"],
+    related_feature_flags: ["white_label_enabled"],
+    known_errors: ["HTTP 403 권한 없음"],
+    known_empty_states: [],
+    known_loading_states: ["설정 로딩 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P2",
+    source_refs: ["app/(admin)/white-label.tsx", "src/routes/pools.ts:GET|PUT /pools/white-label"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_WEB_PIN_SETTINGS 커버리지
+  {
+    coverage_id: "SETTINGS_WEB_PIN_HOW_TO",
+    domain: "SETTINGS",
+    feature_id: "WEB_PIN",
+    screen_id: "ADMIN_WEB_PIN_SETTINGS",
+    roles: ["pool_admin"],
+    modes: ["all"],
+    action_description: "웹 PIN 설정 및 변경 방법",
+    support_categories: ["HOW_TO", "LOGIN_AUTH", "NOT_SAVED"],
+    possible_intents: ["웹 PIN 설정 방법", "웹 핀 잊어버렸어요", "웹 접속 비밀번호 바꾸고 싶어요"],
+    possible_symptoms: ["PIN 입력해도 접근 불가", "PIN 저장 실패"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING"],
+    required_permissions: ["pool_admin"],
+    required_states: ["수영장 등록 완료"],
+    related_api: ["/pools/web-pin-status", "/pools/web-pin"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 401 현재 비밀번호 불일치", "HTTP 400 PIN 형식 오류"],
+    known_empty_states: [],
+    known_loading_states: ["PIN 상태 확인 중"],
+    db_state_check_possible: true,
+    db_state_source: "swimming_pools.web_pin_hash IS NOT NULL",
+    knowledge_required: true,
+    solution_required: true,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/web-pin-settings.tsx", "src/routes/pools.ts:GET /pools/web-pin-status"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_ADMIN_GRANT 커버리지
+  {
+    coverage_id: "SETTINGS_ADMIN_GRANT_HOW_TO",
+    domain: "SETTINGS",
+    feature_id: "ADMIN_ROLE_GRANT",
+    screen_id: "ADMIN_ADMIN_GRANT",
+    roles: ["pool_admin"],
+    modes: ["all"],
+    action_description: "선생님에게 관리자 권한 부여/회수 방법",
+    support_categories: ["HOW_TO", "PERMISSION"],
+    possible_intents: ["선생님한테 관리자 권한 주려면", "관리자 권한 회수", "sub_admin 추가 방법"],
+    possible_symptoms: ["권한 부여 후 변경 없음", "선생님 목록에 안 나옴"],
+    complaint_classes: ["COMPLAINT_PERMISSION_DENIED"],
+    required_permissions: ["pool_admin (단독)"],
+    required_states: ["승인된 선생님 존재"],
+    related_api: ["/admin/grant-admin", "/admin/revoke-admin"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 403 권한 없음", "HTTP 404 선생님 없음"],
+    known_empty_states: ["승인된 선생님 없음"],
+    known_loading_states: ["선생님 목록 로딩 중"],
+    db_state_check_possible: true,
+    db_state_source: "users.role = 'sub_admin' WHERE pool_id = ?",
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/admin-grant.tsx"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_ADMIN_REVENUE 커버리지
+  {
+    coverage_id: "REVENUE_SETTLEMENT_HOW_TO",
+    domain: "SETTINGS",
+    feature_id: "REVENUE_SETTLEMENT",
+    screen_id: "ADMIN_ADMIN_REVENUE",
+    roles: ["pool_admin", "sub_admin"],
+    modes: ["all"],
+    action_description: "월별 매출 정산 계산·저장·확정 방법",
+    support_categories: ["HOW_TO", "NOT_SAVED"],
+    possible_intents: ["정산 어떻게 해요", "이달 정산 저장이 안 돼요", "선생님 정산 금액 확인", "다음 달 시작 버튼"],
+    possible_symptoms: ["저장 후 금액이 사라짐", "확정 버튼이 안 눌려요"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING"],
+    required_permissions: ["pool_admin 또는 sub_admin"],
+    required_states: ["수업 데이터 존재"],
+    related_api: ["/settlement/calculator", "/settlement/save", "/settlement/finalize"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 409 이미 확정된 정산", "HTTP 500 계산 실패"],
+    known_empty_states: ["수업 데이터 없음"],
+    known_loading_states: ["정산 계산 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/admin-revenue.tsx", "src/routes/settlement.ts"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_DATA_STORAGE_OVERVIEW 커버리지
+  {
+    coverage_id: "STORAGE_QUOTA_HOW_TO",
+    domain: "DATA_VISIBILITY",
+    feature_id: "STORAGE_MANAGEMENT",
+    screen_id: "ADMIN_DATA_STORAGE_OVERVIEW",
+    roles: ["pool_admin", "sub_admin"],
+    modes: ["all"],
+    action_description: "저장공간 현황 확인 및 사진 일괄 정리 방법",
+    support_categories: ["HOW_TO", "STATE_CHECK", "COMPLAINT"],
+    possible_intents: ["저장공간이 부족해요", "사진 용량 줄이는 방법", "저장공간 몇 GB예요", "사진 일괄 삭제"],
+    possible_symptoms: ["업로드 용량 초과 오류", "사진 정리 후 용량 변화 없음"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING", "COMPLAINT_NOTHING_SHOWS"],
+    required_permissions: ["pool_admin 또는 sub_admin"],
+    required_states: ["수영장 등록 완료"],
+    related_api: ["/pools/storage/overview", "/pools/storage/cleanup"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 500 정리 작업 실패"],
+    known_empty_states: ["사용 데이터 없음"],
+    known_loading_states: ["저장 현황 로딩 중"],
+    db_state_check_possible: true,
+    db_state_source: "media_files.pool_id + SUM(size_bytes)",
+    knowledge_required: true,
+    solution_required: true,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(admin)/data-storage-overview.tsx"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] ADMIN_TEACHER_HUB 커버리지
+  {
+    coverage_id: "ADMIN_TEACHER_OVERVIEW_HOW_TO",
+    domain: "MEMBER_CLASS",
+    feature_id: "TEACHER_MANAGEMENT",
+    screen_id: "ADMIN_TEACHER_HUB",
+    roles: ["pool_admin"],
+    modes: ["all"],
+    action_description: "선생님 운영 현황(담당 회원·출결·일지·보강) 확인 방법",
+    support_categories: ["HOW_TO", "NOT_VISIBLE"],
+    possible_intents: ["선생님 활동 어디서 봐요", "담당 선생님 출결 확인", "선생님별 수업 일지 보려면"],
+    possible_symptoms: ["탭 데이터가 안 나와요", "선생님 목록이 비어요"],
+    complaint_classes: [],
+    required_permissions: ["pool_admin"],
+    required_states: ["승인된 선생님 존재"],
+    related_api: ["/admin/teacher-hub/:id"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 404 선생님 없음"],
+    known_empty_states: ["담당 수업 없음", "출결 데이터 없음"],
+    known_loading_states: ["허브 데이터 로딩 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P2",
+    source_refs: ["app/(admin)/teacher-hub.tsx", "src/routes/admin.ts:GET /admin/teacher-hub/:id"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] TEACHER_DIARY_REACTIONS 커버리지
+  {
+    coverage_id: "DIARY_REACTIONS_HOW_TO",
+    domain: "DIARY",
+    feature_id: "DIARY_REACTIONS",
+    screen_id: "TEACHER_DIARY_REACTIONS",
+    roles: ["teacher"],
+    modes: ["all"],
+    action_description: "학부모 일지 반응·댓글 확인 및 답글 작성",
+    support_categories: ["HOW_TO", "NOT_VISIBLE"],
+    possible_intents: ["학부모 반응 어디서 봐요", "댓글 답장하는 방법", "좋아요가 어디에 나와요"],
+    possible_symptoms: ["반응 화면이 비어 있어요", "답글 전송이 안 돼요"],
+    complaint_classes: ["COMPLAINT_NOTHING_SHOWS"],
+    required_permissions: ["teacher 역할"],
+    required_states: ["작성된 일지 존재", "학부모 반응 존재"],
+    related_api: ["/diaries/:id/reactions", "/diaries/:id/comments", "/diary-comments/:id/replies"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 403 권한 없음", "HTTP 404 일지 없음"],
+    known_empty_states: ["반응 없음", "댓글 없음"],
+    known_loading_states: ["반응·댓글 로딩 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(teacher)/diary-reactions.tsx", "src/routes/diary.ts:GET /diaries/:id/reactions"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] TEACHER_FEEDBACK_CUSTOM 커버리지
+  {
+    coverage_id: "DIARY_TEMPLATE_CUSTOM_HOW_TO",
+    domain: "DIARY",
+    feature_id: "DIARY_TEMPLATES",
+    screen_id: "TEACHER_FEEDBACK_CUSTOM",
+    roles: ["teacher"],
+    modes: ["all"],
+    action_description: "일지 템플릿 개인 수정·추가·비활성화 방법",
+    support_categories: ["HOW_TO", "NOT_SAVED"],
+    possible_intents: ["일지 문구 바꾸는 방법", "내 템플릿 추가하려면", "관리자 템플릿 초기화 방법", "문구 불러오기 안 나와요"],
+    possible_symptoms: ["수정 저장 후 원래대로 돌아옴", "내가 추가한 문구가 없어졌어요"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING"],
+    required_permissions: ["teacher 역할"],
+    required_states: ["관리자가 기본 템플릿 등록"],
+    related_api: ["/diary-templates", "/diary-templates/:id/toggle-active"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 400 저장 실패", "HTTP 404 템플릿 없음"],
+    known_empty_states: ["템플릿 없음"],
+    known_loading_states: ["템플릿 로딩 중"],
+    db_state_check_possible: false,
+    knowledge_required: true,
+    solution_required: false,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(teacher)/feedback-custom.tsx", "src/routes/diary-templates.ts"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
+  // [WP-CS10-CLOSURE] TEACHER_GROWTH_REPORT_REVIEW 커버리지
+  {
+    coverage_id: "GROWTH_REPORT_REVIEW_HOW_TO",
+    domain: "AI",
+    feature_id: "GROWTH_REPORT_REVIEW",
+    screen_id: "TEACHER_GROWTH_REPORT_REVIEW",
+    roles: ["pool_admin", "teacher"],
+    modes: ["all"],
+    action_description: "성장 리포트 검토·승인·재분석 요청 방법",
+    support_categories: ["HOW_TO", "FAILURE"],
+    possible_intents: ["리포트 승인은 어떻게 해요", "재분석 요청 방법", "검토 화면이 안 나와요", "승인 버튼이 안 눌려요"],
+    possible_symptoms: ["APPROVE 후 상태 변화 없음", "재분석 요청 실패", "리포트가 검토 목록에 없음"],
+    complaint_classes: ["COMPLAINT_NOT_WORKING", "COMPLAINT_KEEP_FAILING"],
+    required_permissions: ["pool_admin 또는 teacher"],
+    required_states: ["REVIEW_REQUIRED 상태 리포트 존재"],
+    related_api: ["/growth-reports/:id/review", "/growth-reports/:id/reanalyze"],
+    related_feature_flags: [],
+    known_errors: ["HTTP 403 권한 없음", "HTTP 409 재분석 횟수 초과", "HTTP 404 리포트 없음"],
+    known_empty_states: ["검토 대기 리포트 없음"],
+    known_loading_states: ["리포트 로딩 중"],
+    db_state_check_possible: true,
+    db_state_source: "growth_analysis_reports.status = 'REVIEW_REQUIRED' WHERE pool_id = ?",
+    knowledge_required: true,
+    solution_required: true,
+    known_issue_possible: false,
+    out_of_scope: false,
+    priority: "P1",
+    source_refs: ["app/(teacher)/growth-report-review.tsx", "src/routes/x-growth.ts:POST /growth-reports/:id/review"],
+    knowledge_coverage: "MISSING",
+    solution_coverage: "MISSING_SOLUTION",
+  },
+
 ];
 
 // ─── Stale/Unmapped Screen Detection ────────────────────────────────────────
@@ -2239,38 +2589,203 @@ export const SUPPORT_COVERAGE_REGISTRY: CoverageRecord[] = [
  *
  * (이번 WP에서 대규모 Frontend Map 수정 금지 — 목록만 작성)
  */
+/**
+ * WP-CS10 CLOSURE: 24개 미분류 화면 전수 분류 완료
+ *
+ * 분류 결과:
+ *   - 11개: NEW_COVERAGE_REQUIRED → SUPPORT_COVERAGE_REGISTRY에 신규 레코드 추가
+ *   - 12개: EXCLUDED_WITH_REASON → EXCLUDED_WITH_REASON 배열에 기록
+ *   - 1개 : MAPPED to existing → DIARY_HOW_TO source_refs에 추가 (diary-unwritten.tsx)
+ *
+ * UNMAPPED_CORE_SURFACES = 0 (아래 상수 참고)
+ */
 export const UNMAPPED_SCREENS: string[] = [
-  // 앱 디렉토리에 존재하나 frontend-map.v1.ts 에 별도 screen_id 등록 여부 미확인
-  "ADMIN_CLASS_HUB",
-  "ADMIN_CLASS_CAPACITY_SETTINGS",
-  "ADMIN_TEACHER_HUB",
-  "ADMIN_OPS_HUB",
-  "ADMIN_PEOPLE_PENDING",
-  "ADMIN_WHITE_LABEL",
-  "ADMIN_WEB_PIN_SETTINGS",
-  "ADMIN_ADMIN_GRANT",
-  "ADMIN_ADMIN_REVENUE",
-  "ADMIN_DATA_EVENT_LOGS",
-  "ADMIN_DATA_MANAGEMENT",
-  "ADMIN_DATA_STORAGE_BY_ACCOUNT",
-  "ADMIN_DATA_STORAGE_BY_CATEGORY",
-  "ADMIN_DATA_STORAGE_OVERVIEW",
-  "ADMIN_X_INFO_AI",
-  "ADMIN_X_INFO_CURRICULUM",
-  "ADMIN_X_INFO_DIARY",
-  "ADMIN_X_INFO_OVERVIEW",
-  "ADMIN_X_INFO_PARENT_REPORT",
-  "TEACHER_DIARY_REACTIONS",
-  "TEACHER_DIARY_UNWRITTEN",
-  "TEACHER_FEE_CHECK",
-  "TEACHER_FEEDBACK_CUSTOM",
-  "TEACHER_GROWTH_REPORT_REVIEW",
+  // WP-CS10 CLOSURE: 전체 24개 분류 완료 → 비어 있음
 ];
 
 export const STALE_SCREENS: string[] = [
   // 코드 감사에서 발견된 잠재적 stale: 상세 확인은 별도 WP에서
   // (현재 WP에서는 대규모 FM 수정 금지)
 ];
+
+// ─── WP-CS10 CLOSURE: Excluded Surfaces ─────────────────────────────────────
+
+export type ExclusionReasonCode =
+  | "NAVIGATION_HUB_ONLY"          // 탭/섹션 메뉴 Hub 화면 — 네비게이션만, 기능 없음
+  | "NON_USER_ACTIONABLE_VIEW"     // 읽기 전용 진단/로그 뷰 — 사용자 액션 없음
+  | "STATIC_INFORMATIONAL_PAGE"    // 정적 설명 페이지 — API 호출 없음
+  | "CLIENT_LOCAL_STORAGE_ONLY"    // 클라이언트 AsyncStorage 전용 — 서버 상태 없음
+  | "SUPER_ADMIN_INTERNAL_ONLY"    // 슈퍼어드민 내부 운영 도구
+  | "DUPLICATE_ALIAS_OF_MAPPED_SURFACE";  // 이미 매핑된 화면의 alias
+
+export interface ExcludedSurface {
+  /** 화면 식별자 (UNMAPPED_SCREENS에서 이동) */
+  screen_id: string;
+  /** 실제 소스 파일 참조 */
+  source_ref: string;
+  /** 실제 app/ 경로 */
+  route: string;
+  /** 제외 이유 코드 */
+  exclusion_reason_code: ExclusionReasonCode;
+  /** 사람이 읽을 수 있는 제외 이유 */
+  reason: string;
+  /** 런치 관련성 근거 */
+  launch_relevance: string;
+  /** 이 화면에 접근할 수 있는 canonical roles */
+  roles: CanonicalRole[];
+}
+
+/**
+ * WP-CS10 CLOSURE: 커버리지 레지스트리에서 제외된 12개 화면
+ *
+ * 제외 기준:
+ *   - 네비게이션 Hub 전용 (실제 기능 없음): 3개
+ *   - 읽기 전용 진단 뷰 (사용자 액션 없음): 3개
+ *   - 정적 설명 페이지 (API 없음): 5개
+ *   - 클라이언트 로컬 스토리지 전용: 1개
+ */
+export const EXCLUDED_WITH_REASON: ExcludedSurface[] = [
+
+  // ── Navigation Hub Only (3개) ─────────────────────────────────────────────
+
+  {
+    screen_id: "ADMIN_CLASS_HUB",
+    source_ref: "app/(admin)/class-hub.tsx",
+    route: "/(admin)/class-hub",
+    exclusion_reason_code: "NAVIGATION_HUB_ONLY",
+    reason: "수업관리 탭 허브 화면. 수업스케줄·반관리·출결·수업일지·공지·보강·휴무일 등 이미 커버된 화면들로의 네비게이션 메뉴만 제공. 이 화면 자체에서 API 호출이나 사용자 액션이 발생하지 않음.",
+    launch_relevance: "런치 관련 없음 — 모든 목적지 화면이 이미 SUPPORT_COVERAGE_REGISTRY에 등록됨. 허브 화면 자체는 지원 문의를 발생시키지 않음.",
+    roles: ["pool_admin", "sub_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_OPS_HUB",
+    source_ref: "app/(admin)/ops-hub.tsx",
+    route: "/(admin)/ops-hub",
+    exclusion_reason_code: "NAVIGATION_HUB_ONLY",
+    reason: "운영관리 탭 허브 화면. 회원명부·선생님관리·승인관리·초대기록·일괄등록·월별매출·정산확인 등 이미 커버된 화면들로의 네비게이션 메뉴만 제공. 이 화면 자체에서 API 호출이나 사용자 액션이 발생하지 않음.",
+    launch_relevance: "런치 관련 없음 — 모든 목적지 화면이 이미 SUPPORT_COVERAGE_REGISTRY에 등록됨 (REVENUE_SETTLEMENT_HOW_TO 포함).",
+    roles: ["pool_admin", "sub_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_DATA_MANAGEMENT",
+    source_ref: "app/(admin)/data-management.tsx",
+    route: "/(admin)/data-management",
+    exclusion_reason_code: "NAVIGATION_HUB_ONLY",
+    reason: "데이터 관리 허브 화면. 백업/복구·저장공간현황·계정별사용량·카테고리별사용량 등 하위 화면들로의 네비게이션 메뉴만 제공. 이 화면 자체에서 API 호출이나 사용자 액션이 발생하지 않음.",
+    launch_relevance: "런치 관련 없음 — 저장공간 현황은 STORAGE_QUOTA_HOW_TO로 커버됨. 허브 자체는 지원 문의를 발생시키지 않음.",
+    roles: ["pool_admin", "sub_admin"],
+  },
+
+  // ── Non-User-Actionable View / Read-Only (3개) ───────────────────────────
+
+  {
+    screen_id: "ADMIN_DATA_EVENT_LOGS",
+    source_ref: "app/(admin)/data-event-logs.tsx",
+    route: "/(admin)/data-event-logs",
+    exclusion_reason_code: "NON_USER_ACTIONABLE_VIEW",
+    reason: "이벤트 기록 타임라인 — 읽기 전용 감사 로그. 삭제·결제·구독·해지·권한·선생님·저장공간·휴무일 카테고리 필터+무한스크롤 조회만 가능. 사용자가 수정하거나 트리거할 수 있는 액션이 없으며, 조회 자체가 지원 문의의 원인이 되지 않음.",
+    launch_relevance: "런치 관련 없음 — 이벤트 로그 조회 실패는 UI에 빈 화면으로 표시되며 운영상 영향 없음. 관리자 내부 진단 도구.",
+    roles: ["pool_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_DATA_STORAGE_BY_ACCOUNT",
+    source_ref: "app/(admin)/data-storage-by-account.tsx",
+    route: "/(admin)/data-storage-by-account",
+    exclusion_reason_code: "NON_USER_ACTIONABLE_VIEW",
+    reason: "계정별 저장공간 사용량 — 읽기 전용 진단 뷰. 선생님별 사진·영상·메신저·일지 용량 분류 조회만 가능. 사용자가 이 화면에서 데이터를 변경하거나 액션을 취할 수 없음.",
+    launch_relevance: "런치 관련 없음 — 저장공간 실질 액션(정리)은 STORAGE_QUOTA_HOW_TO(ADMIN_DATA_STORAGE_OVERVIEW)에서 커버됨. 이 화면은 보조 진단 정보 제공.",
+    roles: ["pool_admin", "sub_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_DATA_STORAGE_BY_CATEGORY",
+    source_ref: "app/(admin)/data-storage-by-category.tsx",
+    route: "/(admin)/data-storage-by-category",
+    exclusion_reason_code: "NON_USER_ACTIONABLE_VIEW",
+    reason: "카테고리별 저장공간 사용량 — 읽기 전용 진단 뷰. 사진·영상·메신저·기록 분류별 용량 조회만 가능. 사용자가 이 화면에서 데이터를 변경하거나 액션을 취할 수 없음.",
+    launch_relevance: "런치 관련 없음 — 저장공간 실질 액션은 STORAGE_QUOTA_HOW_TO에서 커버됨. 이 화면은 보조 진단 정보 제공.",
+    roles: ["pool_admin", "sub_admin"],
+  },
+
+  // ── Static Informational Page (5개) ──────────────────────────────────────
+
+  {
+    screen_id: "ADMIN_X_INFO_OVERVIEW",
+    source_ref: "app/(admin)/x-info-overview.tsx",
+    route: "/(admin)/x-info-overview",
+    exclusion_reason_code: "STATIC_INFORMATIONAL_PAGE",
+    reason: "SWIMNOTE X 모드 설명 정적 페이지. XInfoDetailPage 컴포넌트로 구성된 하드코딩 텍스트만 표시. API 호출 없음. 사용자 액션 없음.",
+    launch_relevance: "런치 관련 없음 — X 모드 자체 안내는 XModeGuard(WP5) 및 X_MODE 도메인 레코드로 커버됨. 이 화면은 마케팅성 설명 페이지.",
+    roles: ["pool_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_X_INFO_AI",
+    source_ref: "app/(admin)/x-info-ai.tsx",
+    route: "/(admin)/x-info-ai",
+    exclusion_reason_code: "STATIC_INFORMATIONAL_PAGE",
+    reason: "SWIMNOTE AI Engine 설명 정적 페이지. XInfoDetailPage 컴포넌트로 구성된 하드코딩 텍스트만 표시. API 호출 없음. 사용자 액션 없음.",
+    launch_relevance: "런치 관련 없음 — AI 기능 자체는 AI 도메인 레코드로 커버됨. 이 화면은 기능 설명 페이지.",
+    roles: ["pool_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_X_INFO_CURRICULUM",
+    source_ref: "app/(admin)/x-info-curriculum.tsx",
+    route: "/(admin)/x-info-curriculum",
+    exclusion_reason_code: "STATIC_INFORMATIONAL_PAGE",
+    reason: "커리큘럼 검색 기능 설명 정적 페이지. XInfoDetailPage 컴포넌트로 구성된 하드코딩 텍스트만 표시. API 호출 없음. 사용자 액션 없음.",
+    launch_relevance: "런치 관련 없음 — 커리큘럼 기능 자체는 CURRICULUM 도메인 레코드로 커버됨. 이 화면은 기능 설명 페이지.",
+    roles: ["pool_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_X_INFO_DIARY",
+    source_ref: "app/(admin)/x-info-diary.tsx",
+    route: "/(admin)/x-info-diary",
+    exclusion_reason_code: "STATIC_INFORMATIONAL_PAGE",
+    reason: "AI 일지 작성 기능 설명 정적 페이지. XInfoDetailPage 컴포넌트로 구성된 하드코딩 텍스트만 표시. API 호출 없음. 사용자 액션 없음.",
+    launch_relevance: "런치 관련 없음 — AI 일지 기능은 DIARY_AI_HOW_TO 레코드로 커버됨. 이 화면은 기능 설명 페이지.",
+    roles: ["pool_admin"],
+  },
+
+  {
+    screen_id: "ADMIN_X_INFO_PARENT_REPORT",
+    source_ref: "app/(admin)/x-info-parent-report.tsx",
+    route: "/(admin)/x-info-parent-report",
+    exclusion_reason_code: "STATIC_INFORMATIONAL_PAGE",
+    reason: "학부모 리포트 기능 설명 정적 페이지. XInfoDetailPage 컴포넌트로 구성된 하드코딩 텍스트만 표시. API 호출 없음. 사용자 액션 없음.",
+    launch_relevance: "런치 관련 없음 — 학부모 리포트 기능은 AI_GROWTH_REPORT_HOW_TO 레코드로 커버됨. 이 화면은 기능 설명 페이지.",
+    roles: ["pool_admin"],
+  },
+
+  // ── Client-Local-Storage Only (1개) ──────────────────────────────────────
+
+  {
+    screen_id: "TEACHER_FEE_CHECK",
+    source_ref: "app/(teacher)/fee-check.tsx",
+    route: "/(teacher)/fee-check",
+    exclusion_reason_code: "CLIENT_LOCAL_STORAGE_ONLY",
+    reason: "수업료 납부 체크 기능 — 수업료 금액·납부 여부를 AsyncStorage(기기 로컬)에만 저장. 학생 목록 조회 외 서버 상태를 변경하는 API 없음. 데이터가 기기에만 존재하므로 서버 기반 지원 대응 불가. '납부 체크 기능 사용' feature flag 활성화 시에만 접근.",
+    launch_relevance: "런치 관련 없음 — 서버 상태 없음; 데이터 분실 시 복구 불가. feature flag 선택 사항. 지원 개입이 도움이 되지 않는 구조.",
+    roles: ["teacher"],
+  },
+
+];
+
+// ─── WP-CS10 CLOSURE: Core Surface Completion Markers ────────────────────────
+
+/** 분류 완료: 미커버 핵심 라우트 = 0 */
+export const UNMAPPED_CORE_ROUTES = 0;
+
+/** 분류 완료: 미커버 핵심 액션 = 0 */
+export const UNMAPPED_CORE_ACTIONS = 0;
+
+/** 분류 완료: 미커버 핵심 화면 = 0 (11 신규 레코드 + 12 EXCLUDED + 1 MAPPED) */
+export const UNMAPPED_CORE_SURFACES = 0;
 
 export const UNMAPPED_ACTIONS: string[] = [
   "ADMIN_KILL_SWITCH_EXECUTE",  // POST /admin/kill-switch/execute
@@ -2282,14 +2797,14 @@ export const UNMAPPED_ACTIONS: string[] = [
 
 export const COVERAGE_STATISTICS = {
   /** 스캔 대상 */
-  SCANNED_SCREENS: 110,       // admin(70) + teacher(24) + parent(33) + auth(17) + root(23) - _layout
+  SCANNED_SCREENS: 166,       // admin(73) + teacher(23) + parent(33) + auth(16) + root(21) - _layout (super 제외)
   SCANNED_FEATURES: 48,       // 주요 기능 단위
   SCANNED_ACTIONS: 87,        // 실제 API endpoint 수 (주요 route 파일 기준)
 
-  TOTAL_COVERAGE_ITEMS: 64,   // SUPPORT_COVERAGE_REGISTRY.length
+  TOTAL_COVERAGE_ITEMS: 75,   // SUPPORT_COVERAGE_REGISTRY.length (WP-CS10 CLOSURE: +11 신규)
 
   /** 분류별 */
-  HOW_TO_COUNT: 26,
+  HOW_TO_COUNT: 37,           // +11 HOW_TO (WP-CS10 closure records)
   ERROR_FAILURE_COUNT: 20,
   COMPLAINT_COUNT: 10,
   PERMISSION_COUNT: 6,
@@ -2297,22 +2812,22 @@ export const COVERAGE_STATISTICS = {
 
   /** 우선순위 */
   P0_COUNT: 44,
-  P1_COUNT: 18,
-  P2_COUNT: 2,
+  P1_COUNT: 27,               // +9 신규 P1 (WP-CS10 closure)
+  P2_COUNT: 4,                // +2 신규 P2 (WP-CS10 closure)
   // (known_issue candidates: 4 KNOWN_ISSUE domain — counted separately)
 
   /** Knowledge coverage 현황 */
   ACTIVE_COVERED: 4,       // ki_swimnote_intro, ki_x_mode_intro, 2× active_covered
   PENDING_COVERED: 1,      // ki_seed_subscription_x_features
   PARTIAL: 0,
-  MISSING: 59,             // 대다수 커버리지 항목이 knowledge 미생성 상태
+  MISSING: 70,             // 신규 11개 모두 MISSING 추가
 
   /** Knowledge gaps */
-  KNOWLEDGE_GAPS: 59,
-  SOLUTION_GAPS: 64,       // 모든 항목에 Solution 미존재
+  KNOWLEDGE_GAPS: 70,      // 59 → 70 (신규 11개 knowledge_required=true 추가)
+  SOLUTION_GAPS: 75,       // 모든 항목에 Solution 미존재
 
   /** DB State 가능 항목 */
-  DB_STATE_CAPABLE: 25,
+  DB_STATE_CAPABLE: 32,    // 실제: 28 + 4 신규 (WEB_PIN, ADMIN_GRANT, STORAGE_QUOTA, GROWTH_REPORT_REVIEW)
 
   /** Known Issue 가능 항목 */
   KNOWN_ISSUE_CAPABLE: 14,

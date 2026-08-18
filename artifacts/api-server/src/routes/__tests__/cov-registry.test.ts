@@ -21,8 +21,13 @@ import {
   NEW_SOLUTION_ROWS,
   UNMAPPED_SCREENS,
   STALE_SCREENS,
+  EXCLUDED_WITH_REASON,
+  UNMAPPED_CORE_ROUTES,
+  UNMAPPED_CORE_ACTIONS,
+  UNMAPPED_CORE_SURFACES,
   type CanonicalRole,
   type CoverageRecord,
+  type ExclusionReasonCode,
 } from "../../config/support/support-coverage.v1.js";
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -938,12 +943,118 @@ describe("COV-24: Full regression — schema integrity", () => {
     expect(SUPPORT_COVERAGE_REGISTRY.length).toBeGreaterThanOrEqual(40);
   });
 
-  it("COV-24-K: UNMAPPED_SCREENS는 배열", () => {
+  it("COV-24-K: UNMAPPED_SCREENS는 배열 (WP-CS10 CLOSURE 이후 비어 있음)", () => {
     expect(Array.isArray(UNMAPPED_SCREENS)).toBe(true);
-    expect(UNMAPPED_SCREENS.length).toBeGreaterThan(0);
+    // WP-CS10 CLOSURE: 24개 전체 분류 완료 → UNMAPPED_SCREENS = []
+    expect(UNMAPPED_SCREENS.length).toBe(0);
   });
 
   it("COV-24-L: STALE_SCREENS는 배열 (비어 있어도 됨 — 확인 완료 표시)", () => {
     expect(Array.isArray(STALE_SCREENS)).toBe(true);
+  });
+});
+
+// ─── COV-CLOSE: WP-CS10 Closure Fix Validation ──────────────────────────────
+
+describe("COV-CLOSE: WP-CS10 Closure Fix", () => {
+
+  it("COV-CLOSE-01: UNMAPPED_CORE_SURFACES = 0 (미분류 핵심 화면 없음)", () => {
+    expect(UNMAPPED_CORE_SURFACES).toBe(0);
+  });
+
+  it("COV-CLOSE-02: UNMAPPED_CORE_ROUTES = 0", () => {
+    expect(UNMAPPED_CORE_ROUTES).toBe(0);
+  });
+
+  it("COV-CLOSE-03: UNMAPPED_CORE_ACTIONS = 0", () => {
+    expect(UNMAPPED_CORE_ACTIONS).toBe(0);
+  });
+
+  it("COV-CLOSE-04: UNMAPPED_SCREENS is empty (24개 전체 분류 완료)", () => {
+    expect(UNMAPPED_SCREENS.length).toBe(0);
+  });
+
+  it("COV-CLOSE-05: EXCLUDED_WITH_REASON는 배열이며 12개 항목 포함", () => {
+    expect(Array.isArray(EXCLUDED_WITH_REASON)).toBe(true);
+    expect(EXCLUDED_WITH_REASON.length).toBe(12);
+  });
+
+  it("COV-CLOSE-06: EXCLUDED_WITH_REASON 모든 항목은 필수 필드 보유", () => {
+    const VALID_REASON_CODES = new Set<ExclusionReasonCode>([
+      "NAVIGATION_HUB_ONLY",
+      "NON_USER_ACTIONABLE_VIEW",
+      "STATIC_INFORMATIONAL_PAGE",
+      "CLIENT_LOCAL_STORAGE_ONLY",
+      "SUPER_ADMIN_INTERNAL_ONLY",
+      "DUPLICATE_ALIAS_OF_MAPPED_SURFACE",
+    ]);
+    for (const e of EXCLUDED_WITH_REASON) {
+      expect(e.screen_id, "screen_id must be non-empty").toBeTruthy();
+      expect(e.source_ref, `${e.screen_id}: source_ref must be non-empty`).toBeTruthy();
+      expect(e.route, `${e.screen_id}: route must start with /`).toMatch(/^\//);
+      expect(
+        VALID_REASON_CODES.has(e.exclusion_reason_code),
+        `${e.screen_id}: invalid exclusion_reason_code '${e.exclusion_reason_code}'`
+      ).toBe(true);
+      expect(e.reason.length, `${e.screen_id}: reason must be >= 20 chars`).toBeGreaterThanOrEqual(20);
+      expect(e.launch_relevance.length, `${e.screen_id}: launch_relevance required`).toBeGreaterThan(0);
+      expect(e.roles.length, `${e.screen_id}: roles must not be empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it("COV-CLOSE-07: EXCLUDED_WITH_REASON 항목에 legacy 'parent' role 사용 금지", () => {
+    for (const e of EXCLUDED_WITH_REASON) {
+      expect(
+        (e.roles as string[]).includes("parent"),
+        `${e.screen_id}: must not use legacy 'parent' role`
+      ).toBe(false);
+    }
+  });
+
+  it("COV-CLOSE-08: 신규 11개 CoverageRecord 모두 SUPPORT_COVERAGE_REGISTRY에 존재", () => {
+    const newIds = [
+      "CLASS_CAPACITY_SETTINGS_HOW_TO",
+      "MEMBER_PENDING_HOW_TO",
+      "SETTINGS_WHITE_LABEL_HOW_TO",
+      "SETTINGS_WEB_PIN_HOW_TO",
+      "SETTINGS_ADMIN_GRANT_HOW_TO",
+      "REVENUE_SETTLEMENT_HOW_TO",
+      "STORAGE_QUOTA_HOW_TO",
+      "ADMIN_TEACHER_OVERVIEW_HOW_TO",
+      "DIARY_REACTIONS_HOW_TO",
+      "DIARY_TEMPLATE_CUSTOM_HOW_TO",
+      "GROWTH_REPORT_REVIEW_HOW_TO",
+    ];
+    const registryIds = new Set(SUPPORT_COVERAGE_REGISTRY.map(r => r.coverage_id));
+    for (const id of newIds) {
+      expect(registryIds.has(id), `${id} must exist in SUPPORT_COVERAGE_REGISTRY`).toBe(true);
+    }
+  });
+
+  it("COV-CLOSE-09: DIARY_HOW_TO source_refs에 diary-unwritten.tsx 포함 (MAPPED 확인)", () => {
+    const diary = SUPPORT_COVERAGE_REGISTRY.find(r => r.coverage_id === "DIARY_HOW_TO");
+    expect(diary, "DIARY_HOW_TO must exist").toBeDefined();
+    const hasUnwritten = diary!.source_refs.some(ref => ref.includes("diary-unwritten"));
+    expect(hasUnwritten, "DIARY_HOW_TO.source_refs must include diary-unwritten.tsx").toBe(true);
+  });
+
+  it("COV-CLOSE-10: COVERAGE_STATISTICS.TOTAL_COVERAGE_ITEMS = 실제 registry 길이 (75)", () => {
+    expect(SUPPORT_COVERAGE_REGISTRY.length).toBe(75);
+    expect(COVERAGE_STATISTICS.TOTAL_COVERAGE_ITEMS).toBe(SUPPORT_COVERAGE_REGISTRY.length);
+  });
+
+  it("COV-CLOSE-11: P0+P1+P2 합계 = TOTAL_COVERAGE_ITEMS", () => {
+    const p0 = SUPPORT_COVERAGE_REGISTRY.filter(r => r.priority === "P0").length;
+    const p1 = SUPPORT_COVERAGE_REGISTRY.filter(r => r.priority === "P1").length;
+    const p2 = SUPPORT_COVERAGE_REGISTRY.filter(r => r.priority === "P2").length;
+    expect(p0 + p1 + p2).toBe(SUPPORT_COVERAGE_REGISTRY.length);
+    expect(COVERAGE_STATISTICS.P0_COUNT).toBe(p0);
+    expect(COVERAGE_STATISTICS.P1_COUNT).toBe(p1);
+    expect(COVERAGE_STATISTICS.P2_COUNT).toBe(p2);
+  });
+
+  it("COV-CLOSE-12: DB_STATE_CAPABLE 통계가 실제 db_state_check_possible=true 수와 일치", () => {
+    const actual = SUPPORT_COVERAGE_REGISTRY.filter(r => r.db_state_check_possible).length;
+    expect(COVERAGE_STATISTICS.DB_STATE_CAPABLE).toBe(actual);
   });
 });
