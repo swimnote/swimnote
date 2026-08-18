@@ -30,6 +30,17 @@ import {
 
 export const HIGH_CONFIDENCE = 60;
 
+// ── Explanation intent markers ────────────────────────────────────────────────
+// §4 Routing quality rule (P0-CS08-ANSWER-SOURCE-QUALITY):
+// Queries containing these words seek product/feature explanation, not screen navigation.
+// FAQ/Knowledge items should take priority over Frontend Map purpose metadata.
+// Navigation queries ("어디야", "어디에서", "화면 찾기") are NOT listed here.
+const EXPLANATION_INTENT_MARKERS = ["알려줘", "뭐야", "뭔지", "설명", "소개", "대해"];
+
+export function hasExplanationIntent(qLower: string): boolean {
+  return EXPLANATION_INTENT_MARKERS.some((m) => qLower.includes(m));
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface KnowledgeRow {
@@ -503,6 +514,11 @@ async function tryFrontendMap(ctx: RouterContext): Promise<ResolutionResult | nu
     if (s > bestS) { bestS = s; best = screen; }
   }
   if (best && bestS >= HIGH_CONFIDENCE) {
+    // §4 routing quality rule: explanation-intent queries (알려줘/뭐야/설명/소개/대해)
+    // must be answered by verified FAQ/Knowledge items, not by internal Frontend Map
+    // purpose metadata. Screen-name-level exact matches (score ≥ 85) are safe to bypass.
+    if (hasExplanationIntent(ctx.qLower) && bestS < 85) return null;
+
     await logResolverEvent("FRONTEND_MAP_HIT", {
       source_id: best.screen_id, role: ctx.role, mode: ctx.mode,
       pool_id: ctx.poolId, screen_id: best.screen_id,
