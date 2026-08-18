@@ -1,0 +1,299 @@
+[WP-CS09-SWIMNOTE-INTRO-REAL-DEVICE-CLOSE]
+
+목적:
+
+현재 Render LIVE:
+
+commit = bcc87891
+deploy = dep-da20q1s9v7es738fhdk0
+
+ACTIVE Knowledge:
+
+ki_swimnote_intro
+
+에 대해 실제 iPhone production 요청으로
+
+1. SWIMNOTE 소개 deterministic resolution
+2. LLM 0회
+3. resolution_context 실제 저장
+4. 같은 case follow-up context 사용
+
+을 검증하고 CS09를 FULL CLOSE한다.
+
+신규 기능 개발 금지.
+Knowledge 추가 수정 금지.
+DB 직접 write 금지.
+OTA 금지.
+
+==================================================
+1. REAL DEVICE — INTRO
+==================================================
+
+실제 iPhone에서:
+
+"스윔노트 알려줘"
+
+전송.
+
+실제 화면 기준:
+
+USER_MESSAGE_VISIBLE =
+REPLY_VISIBLE =
+ANSWER_TEXT_PRESENT =
+HUMAN_REQUIRED_VISIBLE =
+
+예상값 작성 금지.
+
+==================================================
+2. ACTUAL TRACE
+==================================================
+
+방금 실제 request의 production trace 조회.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+SCORE =
+
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+성공 조건:
+
+RESOLUTION_STATUS = RESOLVED
+RESOLUTION_SOURCE = FAQ
+SOURCE_ID = ki_swimnote_intro
+
+LLM_START_OBSERVED = NO
+LLM_CALLED = false
+LLM_USED = false
+MODEL = null
+
+==================================================
+3. MESSAGE STORAGE
+==================================================
+
+같은 case production Supabase 확인.
+
+USER_MESSAGE_STORED =
+REPLY_STORED =
+REPLY_RETURNED_BY_GET =
+
+본문 전체 로그 출력 금지.
+
+==================================================
+4. RESOLUTION CONTEXT — ACTUAL DB VERIFY
+==================================================
+
+방금 case의 실제 context_json 조회.
+
+기존 top-level metadata 보존 여부 확인:
+
+user_role
+feature_id
+app_version
+service_mode
+xmode_enabled
+subscription_plan
+
+실제 존재하던 값 기준.
+
+그리고:
+
+context_json.resolution_context
+
+확인.
+
+보고:
+
+TOP_LEVEL_CONTEXT_PRESERVED =
+RESOLUTION_CONTEXT_PRESENT =
+RESOLUTION_ENTITY_KEY =
+RESOLUTION_SOURCE_ID =
+RESOLUTION_SOURCE_TYPE =
+RESOLUTION_FEATURE =
+
+기대:
+
+RESOLUTION_CONTEXT_PRESENT = YES
+RESOLUTION_ENTITY_KEY = SWIMNOTE_INTRO
+RESOLUTION_SOURCE_ID = ki_swimnote_intro
+
+==================================================
+5. REAL FOLLOW-UP
+==================================================
+
+같은 case에서 바로:
+
+"이거 어디서 볼 수 있어?"
+
+전송.
+
+실제 trace 확인:
+
+FOLLOWUP_REQUEST_ID =
+FOLLOWUP_DETECTED =
+PREVIOUS_ENTITY =
+AUGMENTED_QUERY_USED =
+
+FOLLOWUP_RESOLUTION_STATUS =
+FOLLOWUP_RESOLUTION_SOURCE =
+FOLLOWUP_SOURCE_ID =
+
+LLM_CALLED =
+
+중요:
+
+근거가 충분하지 않으면 NO_MATCH 허용.
+
+이번 검증 핵심은:
+
+FOLLOWUP_DETECTED = YES
+PREVIOUS_ENTITY = SWIMNOTE_INTRO
+
+즉 실제 이전 context가 사용됐는지다.
+
+==================================================
+6. NO CROSS-CASE LEAKAGE
+==================================================
+
+다른 case에는
+방금 SWIMNOTE_INTRO resolution_context가
+자동 복제되지 않는지 read-only 확인.
+
+CROSS_CASE_CONTEXT_LEAK =
+
+NO여야 함.
+
+==================================================
+7. X INTRO REGRESSION
+==================================================
+
+실제 server resolver/test evidence로 확인:
+
+"스윔노트X에 대해 알려줘"
+
+→ ki_x_mode_intro
+
+GENERAL_INTRO_STEALS_X_QUERY = NO
+
+==================================================
+8. FRONTEND MAP REGRESSION
+==================================================
+
+"X모드 화면 어디야"
+
+→ FRONTEND_MAP
+
+유지.
+
+NAVIGATION_REGRESSION = NO
+
+==================================================
+9. KNOWN LIMITATION
+==================================================
+
+현재:
+
+"SWIMNOTE가 뭐야"
+→ deterministic match 미지원
+
+이번 WP에서는 수정 금지.
+
+등록:
+
+SUPPORT_CROSS_LANGUAGE_ALIAS_COVERAGE
+
+launch blocker = NO
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+DEVICE_QUERY =
+USER_MESSAGE_VISIBLE =
+REPLY_VISIBLE =
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+SCORE =
+
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+USER_MESSAGE_STORED =
+REPLY_STORED =
+REPLY_RETURNED_BY_GET =
+
+TOP_LEVEL_CONTEXT_PRESERVED =
+RESOLUTION_CONTEXT_PRESENT =
+RESOLUTION_ENTITY_KEY =
+RESOLUTION_SOURCE_ID =
+
+FOLLOWUP_REQUEST_ID =
+FOLLOWUP_DETECTED =
+PREVIOUS_ENTITY =
+AUGMENTED_QUERY_USED =
+FOLLOWUP_RESOLUTION_STATUS =
+FOLLOWUP_RESOLUTION_SOURCE =
+
+CROSS_CASE_CONTEXT_LEAK =
+
+X_INTRO_REGRESSION =
+NAVIGATION_REGRESSION =
+
+CROSS_LANGUAGE_LIMITATION =
+FOLLOWUP_TASK =
+SUPPORT_CROSS_LANGUAGE_ALIAS_COVERAGE
+
+DEFECTS_FOUND =
+
+CODE_CHANGED = NO
+DB_SCHEMA_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+REPLY_VISIBLE = YES
+
+RESOLUTION_STATUS = RESOLVED
+SOURCE_ID = ki_swimnote_intro
+
+LLM_CALLED = false
+LLM_USED = false
+
+USER_MESSAGE_STORED = YES
+REPLY_STORED = YES
+
+RESOLUTION_CONTEXT_PRESENT = YES
+RESOLUTION_ENTITY_KEY = SWIMNOTE_INTRO
+
+FOLLOWUP_DETECTED = YES
+PREVIOUS_ENTITY = SWIMNOTE_INTRO
+
+CROSS_CASE_CONTEXT_LEAK = NO
+
+X intro regression = NO
+navigation regression = NO
+
+완료:
+
+WP_CS09_SWIMNOTE_INTRO_CONTEXT_REAL_DEVICE_VERIFIED ✅
