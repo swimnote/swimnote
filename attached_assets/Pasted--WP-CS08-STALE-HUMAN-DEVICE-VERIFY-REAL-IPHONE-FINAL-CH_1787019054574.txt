@@ -1,0 +1,171 @@
+[WP-CS08-STALE-HUMAN-DEVICE-VERIFY — REAL IPHONE FINAL CHECK]
+
+환경:
+
+TestFlight Build 246
+production channel
+runtime 1.6.3
+iOS OTA = 01a01295
+
+역할:
+parent_account
+mode:
+normal
+
+목적:
+
+이전 NO_MATCH → HUMAN_REQUIRED case에서
+이후 FAQ exact match가 성공했을 때
+stale 상담사 UI가 실제 기기에서 제거되는지 확인한다.
+
+신규 개발 금지.
+실제 defect가 있을 때만 수정.
+
+==================================================
+1. OTA VERIFY
+==================================================
+
+실제 EAS metadata:
+
+UPDATE_ID =
+CHANNEL =
+RUNTIME =
+PLATFORM =
+
+Build 246 수신 가능 여부 확인.
+
+==================================================
+2. REAL DEVICE
+==================================================
+
+앱 완전 종료 → 재실행.
+
+기존 같은 AI 문의 case에서:
+
+"스윔노트X에 대해 알려줘"
+
+전송.
+
+실제 화면 기준:
+
+FAQ_REPLY_VISIBLE =
+HEADER_TEXT =
+LEGACY_ACK_VISIBLE =
+HUMAN_CARD_VISIBLE =
+HUMAN_WAITING_TEXT_VISIBLE =
+
+==================================================
+3. EXPECTED
+==================================================
+
+정상 성공 후:
+
+FAQ_REPLY_VISIBLE = YES
+
+HEADER가:
+"상담사 연결 대기"
+가 아니어야 함.
+
+LEGACY_ACK_VISIBLE = NO
+
+HUMAN_CARD_VISIBLE = NO
+
+"상담사가 확인 중입니다"
+표시 = NO
+
+과거 NO_MATCH 메시지는 삭제하지 않는다.
+
+==================================================
+4. REAL TRACE
+==================================================
+
+방금 request:
+
+CASE_STATE_BEFORE =
+AI_PROCESSING =
+RESOLUTION_STATUS =
+SOURCE_ID =
+CASE_STATE_AFTER =
+
+기대:
+
+기존 auto HUMAN_REQUIRED
+→ AI_PROCESSING
+→ AI_RESPONDED
+
+SOURCE_ID = ki_x_mode_intro
+
+==================================================
+5. EXPLICIT HUMAN SAFETY
+==================================================
+
+코드/기존 테스트로만 확인 가능:
+
+ticket_id 존재
+또는
+escalation_reason=USER_REQUESTED_HUMAN
+
+이면 human 상태 유지.
+
+production에서 인위적으로 ticket 생성 금지.
+
+==================================================
+6. PERSISTENCE
+==================================================
+
+화면 나가기 → 재진입.
+
+확인:
+
+FAQ_REPLY_PERSISTED =
+STALE_HUMAN_UI_RETURNED =
+
+==================================================
+7. FINAL REPORT
+==================================================
+
+OTA_ID =
+OTA_RUNTIME =
+
+FAQ_REPLY_VISIBLE =
+
+HEADER_TEXT =
+LEGACY_ACK_VISIBLE =
+HUMAN_CARD_VISIBLE =
+HUMAN_WAITING_TEXT_VISIBLE =
+
+CASE_STATE_BEFORE =
+RESOLUTION_STATUS =
+SOURCE_ID =
+CASE_STATE_AFTER =
+
+FAQ_REPLY_PERSISTED =
+STALE_HUMAN_UI_RETURNED =
+
+EXPLICIT_HUMAN_REQUEST_PRESERVED =
+
+DEFECTS_FOUND =
+DEFECTS_FIXED =
+
+FILES_CHANGED =
+FULL_TEST_RESULT =
+
+IOS_NEW_OTA_IF_FIX =
+ANDROID_OTA = NO
+
+성공 조건:
+
+FAQ_REPLY_VISIBLE = YES
+CASE_STATE_AFTER = AI_RESPONDED
+
+LEGACY_ACK_VISIBLE = NO
+HUMAN_CARD_VISIBLE = NO
+HUMAN_WAITING_TEXT_VISIBLE = NO
+
+STALE_HUMAN_UI_RETURNED = NO
+
+과거 NO_MATCH message history는 유지.
+
+완료:
+
+WP_CS08_STALE_HUMAN_DEVICE_VERIFIED ✅
