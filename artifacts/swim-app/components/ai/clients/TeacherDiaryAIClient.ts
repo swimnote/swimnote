@@ -55,7 +55,7 @@ export function getAIDiaryMode(): AIDiaryMode {
  * Legacy path — Teacher Diary에서 절대 호출 금지.
  * 이 경로로의 요청은 LEGACY_PATH_BLOCKED 오류를 throw합니다.
  */
-const LEGACY_BASE = 'https://swimnote.kr';
+const LEGACY_BASE = 'https://swimnote-api.onrender.com';
 const LEGACY_PATH = '/api/ai/diary/generate';
 
 /**
@@ -64,7 +64,7 @@ const LEGACY_PATH = '/api/ai/diary/generate';
  * 운영 Teacher Diary의 유일한 권한 경로입니다.
  * 환경변수로 override 불가 — 코드 수준 고정값이 우선합니다.
  */
-const GROUNDED_BASE = 'https://swimnote.kr';
+const GROUNDED_BASE = 'https://swimnote-api.onrender.com';
 const GROUNDED_PATH = '/api/v1/teacher-diary/generate';
 
 /** Teacher Diary에서 절대 호출해서는 안 되는 legacy path 목록 */
@@ -209,7 +209,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
     has_token:     Boolean(token),
   });
   try {
-    fetch('https://swimnote.kr/api/ai/diary/diagnose', {
+    fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -275,7 +275,7 @@ export async function sendRequest(req: AIClientRequest): Promise<AIClientResult>
       endpoint_url:  endpoint.url,
     });
     try {
-      fetch('https://swimnote.kr/api/ai/diary/diagnose', {
+      fetch('https://swimnote-api.onrender.com/api/ai/diary/diagnose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

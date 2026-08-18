@@ -6,8 +6,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const _DOMAIN = process.env.EXPO_PUBLIC_DOMAIN;
-// API_BASE: canonical production front door
-export const API_BASE = "https://swimnote.kr/api";
+// API_BASE: canonical production front door (Render.com api-server)
+export const API_BASE = "https://swimnote-api.onrender.com/api";
 
 const APP_VERSION = "1.2.0-107-b2";
 
