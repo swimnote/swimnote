@@ -253,12 +253,26 @@ export function modeMatches(row: KnowledgeRow, mode: string): boolean {
  * qLower / tokens는 반드시 normalizeQuery 처리 후 전달.
  * row 필드도 동일 정규화 후 비교하여 "에대해서" 등 변형 커버.
  */
+/**
+ * 한국어 조사/어미 제거 (토큰 비교 전처리 전용).
+ * "스윔노트가" → "스윔노트", "강사에게" → "강사"
+ * 영문+숫자 토큰도 한국어 조사가 붙을 수 있으므로 동일 처리.
+ * — 이 함수는 scoreText 내부 토큰 overlap 계산에만 사용.
+ */
+export function stemKorean(token: string): string {
+  // 긴 어미 먼저 (에서, 에게, 이나, 으로 등) → 짧은 것보다 앞서야 정확
+  return token.replace(
+    /(에서|에게|이나|으로|에서|께서|에게서|에도)$|[가이는은를을에의로도만나와과]$/,
+    ""
+  ) || token; // 전체 제거 방지
+}
+
 export function scoreText(
   row: KnowledgeRow,
   qLower: string,
   tokens: string[]
 ): number {
-  // 정확한 정규화 비교 (양쪽 모두 normalizeQuery 적용)
+  // ── §1 정규화 문자열 비교 (양쪽 모두 normalizeQuery 적용) ─────────────────
   const nQuestion = row.question ? normalizeQuery(row.question) : null;
   const nTitle    = normalizeQuery(row.title);
 
@@ -268,12 +282,28 @@ export function scoreText(
   if (nTitle.includes(qLower)) return 72;
   if (qLower.length > 2 && normalizeQuery(row.content).includes(qLower)) return 65;
 
+  // ── §2 형태소-인식 토큰 overlap ───────────────────────────────────────────
+  // 조사 제거 후 비교 → "스윔노트가" ≡ "스윔노트", "강사에게" ≡ "강사"
   const titleTokens   = tokenize(row.title);
   const contentTokens = tokenize(row.content + " " + (row.question ?? ""));
-  const overlap = tokens.filter(
-    (t) => titleTokens.includes(t) || contentTokens.includes(t)
+
+  const qStems    = tokens.map(stemKorean);
+  const tStems    = titleTokens.map(stemKorean);
+  const cStems    = contentTokens.map(stemKorean);
+
+  // 제목에 존재하는 스템 개수
+  const titleOverlap = qStems.filter((s) => tStems.includes(s)).length;
+  // 본문에만 존재하는 스템 개수 (제목 중복 제외)
+  const bodyOverlap  = qStems.filter(
+    (s) => cStems.includes(s) && !tStems.includes(s)
   ).length;
-  if (tokens.length > 0 && overlap / tokens.length >= 0.5) return 55;
+  const totalOverlap = titleOverlap + bodyOverlap;
+
+  // 제목 위주 매칭 (절반 이상이 제목 토큰과 일치) → 65
+  // 예: "스윔노트 알려줘" — "스윔노트" ≡ titleToken "스윔노트" → 1/2 = 0.5 ≥ 0.5
+  if (qStems.length > 0 && titleOverlap / qStems.length >= 0.5) return 65;
+  // 일반 overlap (제목+본문) → 55
+  if (qStems.length > 0 && totalOverlap / qStems.length >= 0.5) return 55;
   return 0;
 }
 
