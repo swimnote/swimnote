@@ -1,0 +1,748 @@
+[SWIMNOTE — WP-CS11 SUPPORT COVERAGE GAP CLASSIFICATION]
+
+현재 trusted baseline:
+
+WP-CS10 FULL APP SUPPORT COVERAGE SCAN FOUNDATION
+= PASS / FULL CLOSE
+
+BASE CLOSURE COMMIT:
+
+9815b361e00f23baf0977c724abb48dff26fe7b1
+
+현재 Coverage Registry:
+
+TOTAL_RECORDS = 75
+UNMAPPED_CORE_ROUTES = 0
+UNMAPPED_CORE_ACTIONS = 0
+UNMAPPED_CORE_SURFACES = 0
+
+Launch-relevant route/action은 전부:
+
+* Coverage Record에 매핑
+  또는
+* EXCLUDED_WITH_REASON
+
+상태다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 WP 목적
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 Coverage Registry 75개를 기준으로
+
+각 support surface가 현재 production Support Engine에서
+실제로 어느 수준까지 답변 가능한지를 분류하는 작업이다.
+
+이번 WP에서 답변 DB를 만들지 않는다.
+
+즉:
+
+Coverage Registry
+→ Gap Classification
+
+까지만 한다.
+
+다음 단계의:
+
+FAQ Candidate
+Knowledge Candidate
+Solution Candidate
+
+생성은 아직 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 절대 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* 기존 Coverage Registry 재사용
+* 실제 Support Knowledge / Solution / Frontend Map / Known Issue / DB State capability 조사
+* Coverage별 현재 지원상태 판정
+* Gap Registry 또는 기존 registry의 classification metadata 추가
+* classification 관련 unit test
+* 통계 생성
+
+금지:
+
+* FAQ 생성
+* Knowledge 생성
+* Solution 생성
+* PENDING row 생성
+* ACTIVE 변경
+* production DB write
+* Support Router behavior 변경
+* LLM behavior 변경
+* UI 변경
+* API 변경
+* Schema 변경
+* Deploy
+* OTA
+
+이번 WP는 AUDIT + CLASSIFICATION ONLY.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 구조를 먼저 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 파일/구조를 만들기 전에 actual repository를 확인한다.
+
+반드시 조사:
+
+1. support-coverage.v1.ts actual structure
+2. support_knowledge_items 접근/search 구조
+3. FAQ/Knowledge 상태 판정 구조
+4. Solution search 구조
+5. Frontend Map registry
+6. Known Issue / super_incidents 연결 구조
+7. DB State resolver/capability
+8. Rule layer
+9. 현재 Support Resolver 실제 order
+10. Coverage record의 existing linkage fields
+
+기존 structure로 classification을 표현할 수 있으면 재사용한다.
+
+새 별도 DB table 금지.
+
+현재 repository를 보지 않고
+새 architecture를 invent하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Classification 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Coverage Record는 최종적으로 정확히 하나의
+coverage readiness 상태를 가져야 한다.
+
+Canonical status:
+
+COVERED_ACTIVE
+COVERED_PENDING
+PARTIAL
+MISSING
+
+정의:
+
+COVERED_ACTIVE
+= 현재 production Support에서 실제 사용 가능한 ACTIVE 근거가 있어
+해당 support intent를 해결할 수 있음.
+
+예:
+
+ACTIVE FAQ/Knowledge
+ACTIVE Solution
+Rule
+DB State
+Frontend Map
+현재 active Known Issue
+
+등.
+
+주의:
+단순 code reference만으로 production ACTIVE라고 판정 금지.
+
+COVERED_PENDING
+= 해결에 필요한 candidate/data/knowledge가 존재하지만
+PENDING 또는 미승인 상태라 production Support가 아직 사용할 수 없음.
+
+PARTIAL
+= 해당 coverage의 일부 intent/category만 현재 해결 가능.
+
+예:
+
+WHERE_IS는 Frontend Map으로 해결되지만
+FAILURE/SOLUTION은 없음.
+
+MISSING
+= 현재 production Support가 해당 coverage에 필요한
+검증된 근거를 사실상 제공하지 못함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Intent별 세부 Gap을 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Coverage Record 하나를 단순히 한 단어 status로만 끝내지 않는다.
+
+각 record에 대해 최소 다음 support capability를 판정한다.
+
+* HOW_TO
+* WHERE_IS
+* PERMISSION
+* STATE_CHECK
+* ERROR / FAILURE
+* NOT_VISIBLE
+* NOT_SAVED
+* NOT_RECEIVED
+* UPLOAD
+* LOGIN_AUTH
+* PAYMENT
+* SUBSCRIPTION
+* X_MODE
+* AI_FAILURE
+* COMPLAINT
+* KNOWN_ISSUE
+* POLICY
+
+해당 record에 적용되지 않는 category는:
+
+NOT_APPLICABLE
+
+로 명시 가능.
+
+중요:
+
+HOW_TO가 ACTIVE라고 해서
+ERROR/SOLUTION까지 COVERED_ACTIVE로 올리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Evidence Source 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 capability는 실제 어떤 source가 존재하는지 기록한다.
+
+허용 source types:
+
+RULE
+DB_STATE
+SOLUTION
+FRONTEND_MAP
+FAQ
+KNOWLEDGE
+KNOWN_ISSUE
+
+필요하면:
+
+NONE
+
+허용.
+
+각 source에 대해 최소:
+
+source_type
+source_id
+status
+scope
+role
+mode
+pool_scope
+evidence_level
+
+기록.
+
+Evidence level:
+
+PROVEN
+OBSERVED
+INFERRED
+UNVERIFIED
+
+Production DB를 실제 조회하지 않았다면
+ACTIVE를 추정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Production ACTIVE 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+COVERED_ACTIVE는 엄격하게 판정한다.
+
+예:
+
+support-coverage.v1.ts에
+ki_swimnote_intro가 적혀 있음
+
+만으로는 production ACTIVE 증거가 아니다.
+
+실제 production DB 조회가 필요한 경우:
+
+READ ONLY
+
+허용.
+
+절대 변경하지 않는다.
+
+확인 대상:
+
+support_knowledge_items
+
+필요 시:
+
+super_incidents
+
+및 현재 Support resolver가 읽는 실제 production source.
+
+Production read를 할 경우:
+
+SUPABASE_DATABASE_URL
+
+기준.
+
+POOL_DATABASE_URL 사용 금지.
+
+Production write = 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Role / Mode / Scope별 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 feature라도 role/mode별 readiness가 다르면
+하나로 뭉개지 않는다.
+
+Canonical user roles:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+Modes:
+
+normal
+x
+x_pending
+all
+
+예:
+
+관리자는 HOW_TO ACTIVE
+parent_account는 해당 feature 접근 불가
+
+라면 동일한 COVERED_ACTIVE로 단순 처리 금지.
+
+Coverage record의 actual role/mode contract를 유지한다.
+
+Pool-specific Knowledge는 GLOBAL로 취급 금지.
+
+cross-pool leakage 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. P0 우선 Gap Map
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 75개를 분류하되
+P0는 별도 summary를 만든다.
+
+특히 반드시 확인:
+
+AUTH_LOGIN_FAILED
+AUTH_SESSION_EXPIRED
+AUTH_PARENT_LOGIN_OTP
+
+ATTENDANCE_SAVE_FAILED
+ATTENDANCE_NOT_VISIBLE
+ATTENDANCE_PERMISSION_DENIED
+
+DIARY_SAVE_FAILED
+DIARY_AI_FAILED
+DIARY_PARENT_NOT_VISIBLE
+
+PHOTO_UPLOAD_FAILED
+VIDEO_UPLOAD_FAILED
+
+BILLING_PAYMENT_FAILED
+BILLING_SUBSCRIPTION_STATUS
+BILLING_SUBSCRIPTION_NOT_ACTIVE
+BILLING_CANCELLED_BUT_ACTIVE
+BILLING_RESTORE
+
+X_ACTIVATION_CHECK
+X_CONFIG_INCOMPLETE
+X_AI_DIARY
+
+NOTIFICATION_NOT_RECEIVED
+NOTIFICATION_PERMISSION_OS
+
+PARENT_CHILD_NOT_LINKED
+
+DATA_NOT_VISIBLE_ROLE_MISMATCH
+DATA_NOT_VISIBLE_FILTER
+
+실제 coverage_id 이름이 다르면
+repository actual ID를 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Gap Reason
+━━━━━━━━━━━━━━━━━━━━━━
+
+COVERED_PENDING / PARTIAL / MISSING에는
+반드시 이유가 있어야 한다.
+
+Canonical gap reason 예:
+
+NO_KNOWLEDGE
+NO_SOLUTION
+NO_DB_STATE_CHECK
+NO_KNOWN_ISSUE_PATH
+NO_FRONTEND_MAP
+PENDING_ONLY
+ROLE_SCOPE_GAP
+MODE_SCOPE_GAP
+POOL_SCOPE_GAP
+MISSING_FAILURE_GUIDANCE
+MISSING_POLICY_SOURCE
+MISSING_VERIFICATION_STEP
+MISSING_ESCALATION_CONTRACT
+SOURCE_STATUS_UNVERIFIED
+
+필요하면 actual 구조에 맞는 enum을 추가하되
+의미 중복 enum을 과도하게 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Candidate Need 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 candidate를 생성하지 않는다.
+
+대신 각 record에 다음 필요 여부만 판정한다.
+
+needs_faq_candidate
+needs_knowledge_candidate
+needs_solution_candidate
+needs_known_issue_candidate
+needs_db_state_support
+needs_frontend_map_update
+
+boolean 또는 NOT_APPLICABLE.
+
+주의:
+
+모든 record에 Solution이 필요한 것은 아니다.
+
+예:
+
+단순 제품 소개
+→ FAQ/Knowledge
+
+오류/실패:
+→ Solution 우선 가능.
+
+위치:
+→ Frontend Map.
+
+현재 장애:
+→ Known Issue.
+
+상태조회:
+→ DB State.
+
+Support source 역할에 맞춰 판정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Cost / LLM 관점
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Coverage Record에서
+현재 deterministic resolution 가능 여부를 표시한다.
+
+deterministic_possible:
+
+YES
+NO
+PARTIAL
+
+목표:
+
+Rule
+DB State
+Solution
+FAQ
+Knowledge
+Known Issue
+Frontend Map
+
+으로 해결 가능한 영역을 명확히 해서
+다음 WP에서 불필요한 LLM candidate를 만들지 않는다.
+
+LLM_REQUIRED 같은 판정을 함부로 만들지 않는다.
+
+근거 DB가 갖춰진 후에도
+문장 조합만 필요한 경우와
+실제 근거가 없는 경우를 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 결과 통계
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 최소 통계:
+
+TOTAL_COVERAGE_RECORDS
+
+COVERED_ACTIVE_COUNT
+COVERED_PENDING_COUNT
+PARTIAL_COUNT
+MISSING_COUNT
+
+P0_ACTIVE
+P0_PENDING
+P0_PARTIAL
+P0_MISSING
+
+P1_ACTIVE
+P1_PENDING
+P1_PARTIAL
+P1_MISSING
+
+P2_ACTIVE
+P2_PENDING
+P2_PARTIAL
+P2_MISSING
+
+NEEDS_FAQ
+NEEDS_KNOWLEDGE
+NEEDS_SOLUTION
+NEEDS_KNOWN_ISSUE
+NEEDS_DB_STATE
+NEEDS_FRONTEND_MAP_UPDATE
+
+DETERMINISTIC_YES
+DETERMINISTIC_PARTIAL
+DETERMINISTIC_NO
+
+UNKNOWN_OR_UNVERIFIED_SOURCE_COUNT
+
+합계 invariant를 테스트한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Success Contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+성공조건:
+
+1.
+
+75개 Coverage Record 전부 classification 존재.
+
+UNCLASSIFIED_COVERAGE_RECORDS = 0
+
+2.
+
+각 record의 적용 가능한 support category가
+ACTIVE / PENDING / PARTIAL / MISSING / NOT_APPLICABLE
+중 하나로 판정.
+
+UNCLASSIFIED_SUPPORT_CAPABILITIES = 0
+
+3.
+
+COVERED_ACTIVE는 실제 source evidence를 보유.
+
+ACTIVE_WITHOUT_EVIDENCE = 0
+
+4.
+
+PENDING/PARTIAL/MISSING에는 gap reason 존재.
+
+GAP_WITHOUT_REASON = 0
+
+5.
+
+role/mode/scope security anomaly 없음.
+
+ROLE_SCOPE_ANOMALIES = 0
+MODE_SCOPE_ANOMALIES = 0
+POOL_SCOPE_ANOMALIES = 0
+
+6.
+
+Candidate need 판정 완료.
+
+UNCLASSIFIED_CANDIDATE_NEEDS = 0
+
+7.
+
+Production write 없음.
+
+PRODUCTION_WRITES = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Tests
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+GAP-01
+75개 record 모두 readiness status 존재
+
+GAP-02
+status enum 유효
+
+GAP-03
+UNCLASSIFIED_COVERAGE_RECORDS=0
+
+GAP-04
+UNCLASSIFIED_SUPPORT_CAPABILITIES=0
+
+GAP-05
+ACTIVE_WITHOUT_EVIDENCE=0
+
+GAP-06
+GAP_WITHOUT_REASON=0
+
+GAP-07
+role scope anomaly=0
+
+GAP-08
+mode scope anomaly=0
+
+GAP-09
+pool scope anomaly=0
+
+GAP-10
+candidate need classification complete
+
+GAP-11
+status totals = TOTAL_RECORDS
+
+GAP-12
+priority totals invariant
+
+GAP-13
+deterministic totals invariant
+
+GAP-14
+PENDING을 ACTIVE로 판정하지 않음
+
+GAP-15
+production Knowledge write=0
+
+기존 full suite도 1회 실행.
+
+UNIT/MOCK와
+PRODUCTION READ evidence를 명확히 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 변경 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면:
+
+support-coverage.v1.ts
+관련 classification/config 파일
+관련 unit test
+
+범위로 제한한다.
+
+Runtime Support Resolver 변경 금지.
+
+DB schema 변경 금지.
+
+Production data 변경 금지.
+
+새 table 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Deploy
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render deploy NO
+DB deploy NO
+iOS OTA NO
+Android OTA NO
+
+이번 WP는 support readiness inventory 작업이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Final Report
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식:
+
+WP:
+WP-CS11 SUPPORT COVERAGE GAP CLASSIFICATION
+
+BASE_COMMIT:
+9815b361e00f23baf0977c724abb48dff26fe7b1
+
+COMMIT: <full SHA>
+
+CHANGED_FILES:
+[...]
+
+TOTAL_RECORDS=
+UNCLASSIFIED_COVERAGE_RECORDS=
+UNCLASSIFIED_SUPPORT_CAPABILITIES=
+
+READINESS:
+COVERED_ACTIVE=
+COVERED_PENDING=
+PARTIAL=
+MISSING=
+
+BY_PRIORITY:
+P0_ACTIVE=
+P0_PENDING=
+P0_PARTIAL=
+P0_MISSING=
+
+P1_ACTIVE=
+P1_PENDING=
+P1_PARTIAL=
+P1_MISSING=
+
+P2_ACTIVE=
+P2_PENDING=
+P2_PARTIAL=
+P2_MISSING=
+
+CANDIDATE_NEEDS:
+FAQ=
+KNOWLEDGE=
+SOLUTION=
+KNOWN_ISSUE=
+DB_STATE=
+FRONTEND_MAP_UPDATE=
+
+DETERMINISTIC:
+YES=
+PARTIAL=
+NO=
+
+INTEGRITY:
+ACTIVE_WITHOUT_EVIDENCE=
+GAP_WITHOUT_REASON=
+ROLE_SCOPE_ANOMALIES=
+MODE_SCOPE_ANOMALIES=
+POOL_SCOPE_ANOMALIES=
+PRODUCTION_WRITES=
+
+PRODUCTION_READS:
+어떤 table/source를 READ ONLY로 확인했는지.
+하지 않았다면 NONE.
+
+TESTS:
+NEW_TESTS=
+FULL_SUITE=
+FAILED=
+SKIPPED=
+CLASSIFICATION=
+
+SCOPE:
+RUNTIME_CHANGE=
+DB_CHANGE=
+SCHEMA_CHANGE=
+KNOWLEDGE_WRITE=
+ACTIVE_CHANGE=
+DEPLOY=
+OTA=
+OUT_OF_SCOPE_CHANGE=
+
+TOP_P0_GAPS:
+실제 가장 중요한 P0 gap을 우선순위 순으로 제출.
+
+EVIDENCE_CLASSIFICATION:
+주요 결과별
+PROVEN / OBSERVED / INFERRED / UNVERIFIED / CONTRADICTED
+
+FINAL:
+
+CS11_SUCCESS_CONTRACT_MET=YES/NO
+
+UNCLASSIFIED_COVERAGE_RECORDS=
+ACTIVE_WITHOUT_EVIDENCE=
+GAP_WITHOUT_REASON=
+PRODUCTION_WRITES=
+
+완료 후 멈춘다.
+
+FAQ / Knowledge / Solution Candidate 생성은
+다음 WP에서만 진행한다.

@@ -115,3 +115,4 @@
 - [SINTRO ki_swimnote_intro 활성화+stemKorean 수정](sintro-activation-done.md) — scoreText 55→65 Korean particle stem; ki_swimnote_intro ACTIVE; 41TC+1907TC; SHA bcc87891
 - [P0-CS09 Messages GET 조사 결과](p0-cs09-investigation-result.md) — 결함 없음; 올바른 경로=GET /support/cases/:id (messages 포함); /messages suffix는 404; 검증 스크립트 경로 오기입이 원인
 - [WP-CS10 완료 상태](wp-cs10-done-state.md) — SHA 0b05f397; 64 coverage records+124 tests; P0=44/P1=18/P2=2; GAPS=59 knowledge+64 solution; Render/OTA 없음
+- [WP-CS11 완료 상태](wp-cs11-done-state.md) — SHA 6ee1a0ce; Gap Registry 75개(ACTIVE×7/PENDING×1/PARTIAL×46/MISSING×21); GAP-01~15 61TC; 2104TC; Render/OTA 없음
