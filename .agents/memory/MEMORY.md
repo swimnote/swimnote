@@ -111,3 +111,4 @@
 - [P0-DEVICE-DEFECT-2 완료](p0-device-defect-2-done.md) — author_user_id NOT NULL → AI INSERT 실패 → 채팅 빈 화면; ALTER DROP NOT NULL fix; DEF2 24TC; SHA b8a13a90
 - [P0-OBSERVABILITY 완료](p0-observability-done.md) — support-trace.ts+17stage계측+33TC; Render live 4124c1c9; DEFECT=OPEN 사용자 재현 대기
 - [P0-STALE-HUMAN-UI 완료](p0-stale-human-ui-done.md) — SHA fcc5c3f8; VALID_TRANSITIONS[HUMAN_REQUIRED]+=AI_PROCESSING+isAutoHumanRequired gate+UI legacyAck isHuman&&; STALE 18TC+1776TC; Render 트리거; OTA iOS 01a01295
+- [P0-CS08-KNOWLEDGE-QUERY-NORMALIZATION 완료](p0-knorm-done.md) — normalizeQuery(한글↔ASCII+조사); scoreText 양쪽 정규화; 25TC; SHA accb2fae; Render 트리거; OTA NO

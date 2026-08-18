@@ -1,0 +1,400 @@
+[P0-CS08-KNOWLEDGE-NORMALIZATION — NATURAL QUERY MATCH + CASE IDENTITY AUDIT]
+
+실제 production iPhone 스크린샷에서 확인된 현상:
+
+1.
+"커리큘럼 검색에대해 알려줘"
+→ 정상 Support 답변 표시
+
+2.
+"스윔노트x에대해서알려줘"
+→
+"정확한 정보를 찾지 못했습니다."
+→ HUMAN_REQUIRED
+
+현재 ACTIVE FAQ:
+
+ki_x_mode_intro
+
+canonical question:
+"스윔노트X에 대해 알려줘"
+
+즉 의미가 사실상 동일한 자연어 변형이
+deterministic Knowledge 검색에서 매칭되지 않는 실제 defect가 확인됨.
+
+또한 이번 스크린샷 하단 UI상
+관리자 계열 화면으로 보이므로,
+이 request가 stale-human 검증용 parent_account case인지도
+실제 trace로 확인해야 함.
+
+신규 AI 기능 개발 금지.
+Knowledge 대량 생성 금지.
+OpenAI 우선 검색 금지.
+
+==================================================
+1. ACTUAL REQUEST IDENTITY
+==================================================
+
+방금 실제 query:
+
+"스윔노트x에대해서알려줘"
+
+의 production SUPPORT_RESPOND_STAGE를 찾는다.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+USER_ID =
+USER_ROLE =
+SERVICE_MODE =
+TICKET_ID =
+ESCALATION_REASON =
+CASE_STATE_BEFORE =
+CASE_STATE_AFTER =
+
+실제 trace/DB 값만.
+
+==================================================
+2. TARGET CASE CHECK
+==================================================
+
+이번 request가 원래 stale-human 검증 대상:
+
+sc_1787014563357_c1akn4
+parent_account
+ticket_id=null
+escalation_reason=null
+
+인지 확인.
+
+보고:
+
+IS_STALE_HUMAN_TARGET_CASE = YES/NO
+
+NO라면:
+
+이번 스크린샷으로 stale-human fix PASS/FAIL 판정 금지.
+
+==================================================
+3. ACTUAL RESOLUTION TRACE
+==================================================
+
+방금 query:
+
+"스윔노트x에대해서알려줘"
+
+실제 layer 결과:
+
+RULE_SCORE =
+DB_STATE_RESULT =
+SOLUTION_SCORE =
+FRONTEND_MAP_SCORE =
+FAQ_SCORE =
+KNOWLEDGE_SCORE =
+KNOWN_ISSUE_RESULT =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+EVIDENCE_COUNT =
+LLM_CALLED =
+
+==================================================
+4. ACTIVE X INTRO VERIFY
+==================================================
+
+production에서:
+
+ki_x_mode_intro
+
+실제 상태 확인:
+
+STATUS =
+QUESTION =
+TITLE =
+FEATURE =
+AFFECTED_ROLES =
+AFFECTED_MODES =
+
+ACTIVE가 아니면 별도 보고.
+
+자동 status 변경 금지.
+
+==================================================
+5. QUERY NORMALIZATION AUDIT
+==================================================
+
+현재 scoreText / normalize logic 확인.
+
+아래 두 문장이 왜 다른 점수를 받는지 분석:
+
+A.
+"스윔노트X에 대해 알려줘"
+
+B.
+"스윔노트x에대해서알려줘"
+
+확인해야 할 차이:
+
+대소문자
+띄어쓰기
+"에 대해" vs "에 대해서"
+조사
+불필요 공백
+특수문자
+
+보고:
+
+CURRENT_NORMALIZATION =
+FAILURE_REASON =
+
+==================================================
+6. REQUIRED NORMALIZATION
+==================================================
+
+Support deterministic retrieval에서
+최소한 다음은 의미 동일 검색으로 처리 가능해야 한다.
+
+예:
+
+스윔노트X에 대해 알려줘
+스윔노트x에대해알려줘
+스윔노트 X에 대해 알려줘
+스윔노트x에 대해서 알려줘
+스윔노트 x가 뭐야
+X모드 알려줘
+X모드가 뭐야
+
+단 LLM을 사용해서 normalize하지 않는다.
+
+deterministic normalization만.
+
+==================================================
+7. NORMALIZATION PRINCIPLE
+==================================================
+
+검색용 normalized string에서만:
+
+lowercase
+whitespace normalization/removal where appropriate
+punctuation normalization
+Korean 조사/표현 variation 최소 normalization
+
+사용 가능.
+
+원본 Knowledge question/content를 변경하지 않는다.
+
+사용자 원문도 analytics에 저장하지 않는다.
+
+==================================================
+8. FEATURE / ALIAS SUPPORT
+==================================================
+
+단 exact string normalization만으로 부족하면
+Knowledge item에 deterministic aliases/keywords 지원 검토.
+
+예:
+
+feature = X_MODE_INTRO
+
+aliases concept:
+
+스윔노트x
+x모드
+x mode
+스윔노트 x
+x가 뭐야
+
+기존 JSON/keyword field가 있으면 재사용.
+
+새 테이블 금지.
+
+==================================================
+9. DO NOT MASS EDIT
+==================================================
+
+이번 fix를 위해:
+
+FAQ 수십 개 복제 생성 금지.
+
+"스윔노트X에 대해 알려줘"
+"스윔노트x에대해서알려줘"
+"X모드 알려줘"
+
+각각 별도 FAQ row 생성 금지.
+
+하나의 Knowledge source
++
+정규화/alias 검색 구조로 해결.
+
+==================================================
+10. ROLE SECURITY PRESERVE
+==================================================
+
+normalization 때문에 role/mode 필터를 우회하면 안 됨.
+
+검색 순서:
+
+eligible rows
+(role/mode/scope/status)
+→ normalized matching
+
+유지.
+
+parent에게 admin X screen 노출 금지.
+
+==================================================
+11. SCORE CONTRACT
+==================================================
+
+ki_x_mode_intro가 ACTIVE이고
+eligible role/mode라면:
+
+canonical exact query
+→ high confidence
+
+자연어 equivalent query
+→ high-confidence deterministic match 또는
+충분한 deterministic threshold
+
+이어야 함.
+
+너무 넓은 fuzzy match로
+다른 기능 FAQ를 잘못 반환하면 안 됨.
+
+==================================================
+12. TEST MATRIX
+==================================================
+
+KNORM-01
+canonical exact X question → ki_x_mode_intro
+
+KNORM-02
+lowercase x → same item
+
+KNORM-03
+no spaces → same item
+
+KNORM-04
+"에 대해서" variation → same item
+
+KNORM-05
+"X모드 알려줘" → same feature/item
+
+KNORM-06
+"X모드가 뭐야" → same feature/item
+
+KNORM-07
+unrelated query does NOT hit X intro
+
+KNORM-08
+parent_account normal allowed
+
+KNORM-09
+admin-only screen still hidden from parent
+
+KNORM-10
+inactive/pending items excluded
+
+KNORM-11
+OpenAI calls = 0 for normalized hit
+
+KNORM-12
+full regression
+
+==================================================
+13. STALE HUMAN TEST SEPARATION
+==================================================
+
+이번 actual request가 explicit-human case면:
+
+HUMAN_REQUIRED UI가 남는 것은 정상.
+
+이번 actual request가 auto-fallback target이면:
+
+FAQ normalized hit 후
+HUMAN_REQUIRED → AI_PROCESSING → AI_RESPONDED
+복구 여부를 함께 실제 trace로 보고.
+
+두 문제를 섞지 않는다.
+
+==================================================
+14. DEPLOYMENT
+==================================================
+
+Server-only normalization이면:
+Render exact commit deploy.
+
+Mobile source 변경 기본 NO.
+
+iOS OTA = NO expected.
+Android OTA = NO.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+TICKET_ID =
+ESCALATION_REASON =
+IS_STALE_HUMAN_TARGET_CASE =
+
+QUERY =
+RESOLUTION_STATUS_BEFORE_FIX =
+FAQ_SCORE_BEFORE =
+
+ACTIVE_X_ITEM =
+ACTIVE_X_ITEM_STATUS =
+
+CURRENT_NORMALIZATION =
+FAILURE_REASON =
+
+NORMALIZATION_FIX =
+ALIASES_USED =
+
+FAQ_SCORE_AFTER =
+RESOLUTION_STATUS_AFTER =
+SOURCE_ID_AFTER =
+
+OPENAI_CALL_AFTER =
+
+ROLE_FILTER_PRESERVED =
+MODE_FILTER_PRESERVED =
+ADMIN_SCREEN_EXPOSED_TO_PARENT =
+
+STALE_HUMAN_TEST_APPLICABLE =
+
+FILES_CHANGED =
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+MOBILE_CHANGED =
+IOS_OTA =
+ANDROID_OTA = NO
+
+성공 조건:
+
+"스윔노트X에 대해 알려줘"
+"스윔노트x에대해서알려줘"
+"X모드 알려줘"
+
+같은 의미의 질문이
+ki_x_mode_intro로 deterministic resolution.
+
+OpenAI call = 0.
+
+FAQ 복제 row 대량 생성 = NO.
+
+role/mode/security filtering 유지.
+
+완료:
+
+P0_CS08_KNOWLEDGE_QUERY_NORMALIZATION_FIXED ✅
