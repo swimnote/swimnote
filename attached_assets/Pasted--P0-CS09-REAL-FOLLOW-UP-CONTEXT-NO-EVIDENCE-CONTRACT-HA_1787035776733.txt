@@ -1,0 +1,517 @@
+[P0-CS09 — REAL FOLLOW-UP CONTEXT + NO-EVIDENCE CONTRACT HARDEN]
+
+현재 WP-CS09 보고는 FULL CLOSE 보류.
+
+실제 production 대화:
+
+Q1:
+"스윔노트 알려줘"
+→ LLM_FALLBACK
+→ 실제 사용자 화면에 SWIMNOTE 설명 표시
+
+Q2:
+"이거 만든사람 누구야"
+→ followup_detected = YES
+→ context_used = NO
+→ NO_MATCH
+
+즉 Follow-up Context Foundation이
+synthetic deterministic test에서는 동작하지만
+실제 production conversation에서는 아직 동작하지 않음.
+
+또 보고:
+
+Q2_EVIDENCE_COUNT = 0
+Q2_LLM_CALLED = YES
+
+는 기존 확정 계약:
+
+evidence=0
+→ LLM_SKIPPED
+→ OpenAI call=0
+→ llm_used=false
+→ model=null
+
+과 충돌함.
+
+신규 기능 확장 금지.
+Creator 이름 창작 금지.
+Knowledge 자동 ACTIVE 금지.
+
+==================================================
+0. COMPLETION STATUS CORRECTION
+==================================================
+
+기존:
+
+WP_CS09_SUPPORT_FOLLOWUP_CONTEXT_FOUNDATION_COMPLETE ✅
+
+철회.
+
+현재:
+
+WP_CS09_IMPLEMENTED_BUT_REAL_FLOW_NOT_VERIFIED
+
+로 둔다.
+
+==================================================
+1. ACTUAL Q1/Q2 TRACE RECHECK
+==================================================
+
+실제 production case:
+
+sc_1786954919570_s2lvxd
+
+가장 최근 실제 Q1/Q2 trace를 다시 조회.
+
+Q1:
+"스윔노트 알려줘"
+
+Q2:
+"이거 만든사람 누구야"
+
+raw text는 DB conversation 확인에만 사용.
+analytics에 새로 저장 금지.
+
+보고:
+
+Q1_REQUEST_ID =
+Q1_RESOLUTION_STATUS =
+Q1_RESOLUTION_SOURCE =
+Q1_EVIDENCE_COUNT =
+Q1_EVIDENCE_SOURCE_IDS =
+Q1_LLM_START_OBSERVED =
+Q1_LLM_CALLED =
+Q1_GENERATION_MODE =
+
+Q2_REQUEST_ID =
+Q2_RESOLUTION_STATUS =
+Q2_EVIDENCE_COUNT =
+Q2_LLM_START_OBSERVED =
+Q2_LLM_SKIPPED_OBSERVED =
+Q2_LLM_CALLED =
+Q2_GENERATION_MODE =
+
+실제 SUPPORT_RESPOND_STAGE / AI_TRACE 값만 사용.
+
+==================================================
+2. NO-EVIDENCE CONTRACT GATE
+==================================================
+
+Q2 evidence_count=0이라면 반드시:
+
+LLM_START_OBSERVED = NO
+LLM_SKIPPED_OBSERVED = YES
+LLM_CALLED = false
+llm_used = false
+model = null
+generation_mode = no_evidence
+
+이어야 한다.
+
+만약 실제 provider call이 있었다면 regression.
+
+원인 확인 후 최소 수정.
+
+이전 보고값이 잘못된 것이면:
+
+REPORTING_ERROR = YES
+
+로 정정하고 코드 수정 금지.
+
+==================================================
+3. WHY Q1 WAS LLM FALLBACK
+==================================================
+
+현재 production에서:
+
+"스윔노트 알려줘"
+
+가 왜 deterministic Knowledge/FAQ로 해결되지 않았는지 확인.
+
+조회:
+
+SWIMNOTE_INTRO active item 존재 여부
+status
+roles
+modes
+aliases/keywords
+score
+
+보고:
+
+SWIMNOTE_INTRO_ACTIVE =
+SWIMNOTE_INTRO_SOURCE_ID =
+SWIMNOTE_INTRO_SCORE =
+Q1_DETERMINISTIC_MISS_REASON =
+
+==================================================
+4. FOLLOW-UP CONTEXT MUST NOT DEPEND ONLY ON
+   DETERMINISTIC FINAL SOURCE
+==================================================
+
+현재 구현의 결함:
+
+context_json이
+deterministic RESOLVED일 때만 기록되고
+
+LLM grounded path에서는:
+
+source_id=null
+feature=null
+entity_key=null
+
+이라 follow-up context가 끊김.
+
+수정 원칙:
+
+LLM output에서 entity를 추측하지 않는다.
+
+대신 LLM fallback 전에 수집한
+VERIFIED EVIDENCE에서 context를 파생한다.
+
+예:
+
+gatherEvidence 결과에:
+
+source_type
+source_id
+feature
+category
+screen_id
+entity_key
+
+가 존재하고
+role/mode/pool eligibility를 통과한 경우
+
+그 verified evidence를
+previous resolution context로 저장 가능.
+
+==================================================
+5. VERIFIED EVIDENCE CONTEXT CONTRACT
+==================================================
+
+LLM grounded response에서도
+다음 조건을 만족하는 evidence가 있으면:
+
+evidence_count > 0
++
+top evidence가 sufficiently relevant
++
+verified repository/Knowledge/FM source
+
+context_json 저장:
+
+previous_source_type
+previous_source_id
+previous_feature
+previous_category
+previous_screen_id
+previous_entity_key
+
+중 실제 존재하는 값만.
+
+LLM answer text에서 새 feature/entity 추출 금지.
+
+==================================================
+6. MULTIPLE EVIDENCE SAFETY
+==================================================
+
+evidence 여러 개일 때
+근거 없이 하나를 entity로 확정 금지.
+
+가능:
+
+A.
+top evidence가 명백히 dominant
+→ context 저장
+
+B.
+동일 feature/entity evidence가 여러 개
+→ 공통 entity 저장
+
+C.
+서로 다른 feature가 경쟁
+→ entity_key=null
+→ follow-up context 사용 안 함
+
+confidence/score 기준은 현재 resolver score contract 재사용.
+
+새 AI classification call 금지.
+
+==================================================
+7. Q1 SWIMNOTE INTRO IDEAL PATH
+==================================================
+
+더 좋은 정상 경로는:
+
+"스윔노트 알려줘"
+→ ACTIVE SWIMNOTE intro FAQ/Knowledge
+→ deterministic RESOLVED
+→ entity_key=SWIMNOTE
+
+이다.
+
+현재 SWIMNOTE intro Knowledge가
+PENDING이라면 자동 ACTIVE 금지.
+
+보고만:
+
+SWIMNOTE_INTRO_APPROVAL_REQUIRED = YES
+
+사용자/Super Admin 승인 후 활성화.
+
+==================================================
+8. FOLLOW-UP DETECTION QUALITY
+==================================================
+
+현재:
+
+"이거 만든사람 누구야"
+
+followup_detected=YES
+
+는 유지.
+
+하지만 "만든사람"이라는 단어 자체만으로
+follow-up을 확정하지 않는다.
+
+핵심은:
+
+"이거"
+"그거"
+"이 서비스"
+"그 기능"
+
+등 referential expression
++
+previousContext 존재
+
+조건.
+
+독립 질문:
+
+"스윔노트 만든사람 누구야"
+
+는 follow-up이 없어도
+SWIMNOTE entity가 query 자체에 있으므로
+독립 검색 가능해야 함.
+
+==================================================
+9. CREATOR KNOWLEDGE BOUNDARY
+==================================================
+
+현재:
+
+CREATOR_ACTIVE_KNOWLEDGE = NONE
+
+이므로 context가 정상 연결되어:
+
+entity = SWIMNOTE
+
+가 되어도:
+
+"SWIMNOTE 만든사람 누구야"
+
+검색 결과에 검증 Knowledge 없으면
+NO_MATCH/HUMAN_REQUIRED가 정상.
+
+절대로 이름 창작 금지.
+
+이번 WP에서 creator candidate도
+검증 source 없으면 생성 금지.
+
+==================================================
+10. CONTEXT STORAGE AFTER LLM GROUNDED
+==================================================
+
+support-respond.ts에서
+LLM grounded 성공 후에도
+
+verified evidence context를
+same case context_json에 기록하도록 검토/수정.
+
+단:
+
+no_evidence
+low confidence with no verified evidence
+provider failure
+
+에서는 context 저장 금지.
+
+==================================================
+11. CONTEXT MUST SURVIVE NEXT MESSAGE
+==================================================
+
+same case next request에서:
+
+context_json fetch
+→ previousContext
+→ follow-up detected
+→ augmented deterministic search
+
+실제 end-to-end contract 검증.
+
+==================================================
+12. TEST MATRIX
+==================================================
+
+CTXH-01
+deterministic SWIMNOTE intro → entity SWIMNOTE stored
+
+CTXH-02
+LLM grounded + verified SWIMNOTE evidence
+→ entity SWIMNOTE stored from evidence, not output
+
+CTXH-03
+LLM grounded multiple conflicting evidence
+→ entity not forced
+
+CTXH-04
+no_evidence → no context stored
+
+CTXH-05
+provider failure → no context stored
+
+CTXH-06
+same case "이거 만든사람 누구야"
+→ previous SWIMNOTE entity used
+
+CTXH-07
+creator Knowledge absent
+→ NO_MATCH, hallucination none
+
+CTXH-08
+creator Knowledge active mock
+→ deterministic hit
+
+CTXH-09
+different case context blocked
+
+CTXH-10
+different user context blocked
+
+CTXH-11
+different pool context blocked
+
+CTXH-12
+role/mode preserved
+
+CTXH-13
+evidence=0 → OpenAI invocation 0
+
+CTXH-14
+evidence=0 → llm_used=false/model=null
+
+CTXH-15
+verified evidence context contains no raw answer/query
+
+CTXH-16
+full regression
+
+==================================================
+13. PRODUCTION DATA
+==================================================
+
+이번 작업에서:
+
+Knowledge 자동 ACTIVE 금지.
+creator row 생성 금지.
+production support messages 수정 금지.
+
+context_json write는 정상 runtime behavior만.
+
+기존 case를 SQL로 강제 수정해서
+테스트 통과시키지 않는다.
+
+==================================================
+14. DEPLOYMENT
+==================================================
+
+server-only 예상.
+
+Render exact commit LIVE 확인.
+
+Mobile 변경 = NO
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+Q1_REQUEST_ID =
+Q1_EVIDENCE_COUNT =
+Q1_EVIDENCE_SOURCE_IDS =
+Q1_LLM_CALLED =
+Q1_GENERATION_MODE =
+
+Q2_REQUEST_ID =
+Q2_EVIDENCE_COUNT =
+Q2_LLM_START_OBSERVED =
+Q2_LLM_SKIPPED_OBSERVED =
+Q2_LLM_CALLED =
+Q2_GENERATION_MODE =
+
+NO_EVIDENCE_CONTRACT_REGRESSION =
+REPORTING_ERROR =
+
+SWIMNOTE_INTRO_ACTIVE =
+SWIMNOTE_INTRO_SOURCE_ID =
+Q1_DETERMINISTIC_MISS_REASON =
+
+LLM_GROUNDED_CONTEXT_SUPPORTED =
+CONTEXT_DERIVED_FROM =
+  VERIFIED_EVIDENCE / NONE
+
+LLM_OUTPUT_USED_FOR_ENTITY_EXTRACTION = NO
+
+CONFLICTING_EVIDENCE_POLICY =
+
+FOLLOWUP_DETECTED =
+PREVIOUS_ENTITY =
+AUGMENTED_ENTITY =
+
+CREATOR_ACTIVE_KNOWLEDGE =
+CREATOR_RESULT_WITHOUT_KNOWLEDGE =
+HALLUCINATED_CREATOR = NO
+
+CASE_BOUNDARY =
+USER_BOUNDARY =
+POOL_BOUNDARY =
+ROLE_MODE_SECURITY =
+
+FILES_CHANGED =
+DB_SCHEMA_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+evidence=0 → provider call 0
+
+LLM grounded response도
+verified evidence가 있으면
+next-turn context를 보존 가능.
+
+LLM output 자체에서 entity 추측 = NO
+
+same-case follow-up가
+previous verified entity를 사용.
+
+creator Knowledge 없음 →
+이름 창작 없이 NO_MATCH.
+
+완료:
+
+P0_CS09_REAL_FOLLOWUP_CONTEXT_HARDEN_COMPLETE ✅
