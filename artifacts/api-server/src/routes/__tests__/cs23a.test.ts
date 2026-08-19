@@ -147,8 +147,12 @@ vi.mock("@workspace/db", () => ({
         return { rows: row ? [{ ...row, utterance: queryParam, normalized_utterance: queryParam }] : [] };
       }
 
-      // Utterance fuzzy full-scan: LIMIT 500
-      if (qs.includes("support_intent_utterances") && qs.includes("LIMIT 500")) {
+      // Utterance fuzzy: keyword-prefiltered (ILIKE + LIMIT 300) or weight-fallback (LIMIT 100)
+      // CS23C replaced blind LIMIT 500 with keyword prefilter + weight-sorted supplement
+      if (
+        qs.includes("support_intent_utterances") &&
+        (qs.includes("ILIKE") || qs.includes("LIMIT 300") || qs.includes("LIMIT 100"))
+      ) {
         // Return all mock utterances with normalized_utterance = the key string
         return {
           rows: Object.entries(MOCK_UTTERANCES).map(([normUtterance, u]) => ({

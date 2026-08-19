@@ -1,0 +1,687 @@
+[WP-CS23C — Expected Question Library, Direct Matcher Import & Runtime QA]
+
+목적:
+
+CS23B에서 확정한 Canonical Answer 72개를 기준으로
+사용자가 실제 고객센터에 입력할 수 있는 자연어 질문 Variant를 대량 생성하고,
+support_intent_utterances에 안전하게 등록한 뒤
+Direct Matcher의 실제 적중률과 오답률을 검증한다.
+
+이번 WP의 목표는:
+
+Canonical Answer 72개
+→ 자연어 예상질문 Library
+→ DB Import
+→ Direct Match Runtime 검증
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+    ━━━━━━━━━━━━━━━━━━━━━━
+2. Canonical Answer 내용 변경 금지.
+3. 기존 ACTIVE 26 Knowledge 임의 수정 금지.
+4. 질문 Variant가 의미를 바꾸면 안 됨.
+5. 한 질문이 여러 intent에 애매하게 걸리면 자동 Direct 등록 금지.
+6. 짧은 질문은 무리하게 특정 intent로 매핑 금지.
+7. 가격/환불 등 HUMAN_ONLY intent는 Direct Answer 반환 금지.
+8. Production 자동 ACTIVE 금지.
+9. Dataset 검증 후에만 active utterance 등록.
+10. GPT를 Variant 생성 결과 검증 없이 그대로 신뢰 금지.
+11. 틀린 Direct Answer보다 NO_MATCH 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 입력 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+기준 파일:
+
+artifacts/api-server/src/content/support-canonical-answers.json
+
+Canonical Answers:
+72개
+
+Gap 파일:
+
+artifacts/api-server/src/content/support-knowledge-gaps.json
+
+Gap에 해당하는 항목은
+정답이 확정되지 않은 상태라면 utterance 생성 대상에서 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Variant 생성 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Canonical Answer마다
+variant_complexity에 따라 생성.
+
+LOW:
+5~10개
+
+MEDIUM:
+10~20개
+
+HIGH:
+20~30개
+
+단 개수 채우기 금지.
+
+자연스럽지 않은 문장은 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 반드시 포함할 한국어 변형
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 intent에서 가능한 범위 내 포함:
+
+정중어
+
+“어떻게 하나요?”
+“가능한가요?”
+“알려주세요.”
+
+반말
+
+“어떻게 해?”
+“돼?”
+“어디서 해?”
+
+초단문
+
+“보강 신청”
+“사진 안보임”
+“x모드 가격”
+
+명령형
+
+“출결 수정 방법 알려줘”
+
+의문형
+
+“교사가 출결 수정할 수 있어?”
+
+띄어쓰기 변형
+
+“x 모드”
+“x모드”
+
+영문/한글 혼용
+
+“SWIMNOTE X”
+“스윔노트 X”
+“x모드”
+
+일반적 오타
+
+실사용 가능성이 높은 수준만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 의미 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+Variant는 반드시 동일 Intent 의미를 유지.
+
+예:
+
+INTENT:
+PARENT_PHOTO_NOT_VISIBLE
+
+허용:
+
+“아이 사진이 안 보여요”
+“앨범에 사진이 안 떠요”
+
+금지:
+
+“사진 업로드가 안돼요”
+
+이건 teacher/admin upload failure 등
+다른 intent일 수 있음.
+
+SEMANTIC_DRIFT = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Ambiguous Short Query
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음과 같은 질문은 Direct mapping 금지 가능:
+
+“가격 얼마야”
+“사진”
+“보강”
+“결제”
+“안돼요”
+“오류”
+
+상품/기능이 불명확하면:
+
+AMBIGUOUS
+
+로 분류.
+
+Direct Matcher가
+임의 intent를 고르면 안 됨.
+
+목표:
+
+AMBIGUOUS_WRONG_DIRECT_ANSWER = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HUMAN_ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+가격
+환불
+
+등 HUMAN_ONLY canonical answer가 존재.
+
+이들의 utterance는 생성 가능.
+
+하지만 match 결과:
+
+DIRECT_DB answer 반환 금지.
+
+동작:
+
+“이 문의는 담당자 확인이 필요합니다.”
+
+[직접 문의하기]
+
+또는 현재 HUMAN_ONLY contract에 따른 응답.
+
+GPT가 가격/환불 내용을 추론하지 않도록 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Dataset 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+machine-readable dataset 생성.
+
+예:
+
+support-intent-utterances.json
+
+fields:
+
+utterance_id
+intent_id
+knowledge_id
+utterance
+normalized_utterance
+language
+weight
+status
+variant_type
+
+variant_type 예:
+
+CANONICAL
+POLITE
+CASUAL
+SHORT
+TYPO
+SPACING
+ALIAS
+COMMAND
+QUESTION
+
+초기 status:
+
+candidate
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 중복 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 검사:
+
+exact duplicate
+
+normalized duplicate
+
+cross-intent duplicate
+
+near-duplicate
+
+특히 cross-intent normalized duplicate는
+자동 active 금지.
+
+보고:
+
+DUPLICATE_EXACT
+DUPLICATE_NORMALIZED
+CROSS_INTENT_COLLISION
+
+목표:
+0 또는 명시적 review.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Normalize 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 normalizeQuery 사용.
+
+각 생성 Variant가 normalization 후
+과도하게 정보가 사라지는지 검사.
+
+예:
+
+서로 다른 질문이
+동일 normalized string으로 충돌하면
+review.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Weight
+━━━━━━━━━━━━━━━━━━━━━━
+
+weight를 무작위로 넣지 않는다.
+
+권장:
+
+canonical/정확한 표현:
+100
+
+일반 변형:
+90
+
+오타/짧은 표현:
+70~85
+
+모호 가능 표현:
+active 금지 또는 낮은 confidence fallback
+
+실제 matcher behavior와 맞춰 조정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Production Import 전 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Import 전:
+
+* intent_id 존재
+* knowledge_id 존재
+* canonical answer 존재
+* role/mode metadata 유효
+* HUMAN_ONLY 구분
+* normalized collision 없음
+
+전부 통과.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Import 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+검증 통과한 utterance만 Production:
+
+support_intent_utterances
+
+등록.
+
+기존 Canonical Answer candidate 상태는
+별도 Approval 조건을 따른다.
+
+Direct Matcher가 참조할 Knowledge가
+ACTIVE/승인 상태인지 확인.
+
+승인되지 않은 canonical answer로
+active utterance가 연결되지 않도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 기존 26 + 신규 Canonical 관계
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 ACTIVE 26과
+CS23B 신규 43개 영역을 중복 생성하지 않는다.
+
+기존 Knowledge에 매핑되는 intent는
+해당 기존 row를 재사용.
+
+새 Canonical Answer는
+Human approval 후 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Runtime Test Set
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 300개 실제 질문 테스트.
+
+유형:
+
+Exact
+Normalized
+Spacing
+Casual
+Polite
+Short
+Typo
+Alias
+Negative
+Ambiguous
+Cross-intent
+HUMAN_ONLY
+
+가능하면 전체 72 intent를 모두 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Runtime Match Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+TEST_QUERIES_TOTAL
+
+CORRECT_DIRECT_MATCH
+
+WRONG_DIRECT_MATCH
+
+NO_MATCH
+
+AMBIGUOUS
+
+HUMAN_ONLY_MATCH
+
+DIRECT_DB_RESPONSES
+
+GROUNDED_GPT_FALLBACK
+
+HUMAN_FALLBACK
+
+DIRECT_DB_LLM_CALLS
+
+목표:
+
+WRONG_DIRECT_MATCH = 0
+DIRECT_DB_LLM_CALLS = 0
+AMBIGUOUS_WRONG_DIRECT_ANSWER = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Security Regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+Variant가 많아져도 기존 role/mode/pool 격리 유지.
+
+필수:
+
+ROLE_LEAKAGE = 0
+MODE_LEAKAGE = 0
+POOL_LEAKAGE = 0
+
+특히 같은 utterance라도
+권한이 맞지 않으면 답변 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Performance
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production-equivalent dataset으로 측정.
+
+최소:
+
+1,000 utterances 이상
+
+가능하면 전체 dataset.
+
+측정:
+
+p50
+p95
+max
+
+Direct Matcher 전체 시간.
+
+현재 JS-side bounded candidate strategy가
+실제 규모에서 충분한지 확인.
+
+LIMIT 500으로 인해
+등록된 utterance 일부가 검색 후보에서 빠지는 구조인지 반드시 확인.
+
+이 부분 매우 중요.
+
+만약 단순히:
+
+SELECT … LIMIT 500
+
+후 JS fuzzy scan이라면
+1,000개 이상에서
+뒤쪽 row가 영구적으로 검색되지 않을 수 있음.
+
+그 경우 반드시 수정안 제시.
+
+Production에 데이터 대량 등록 전에 해결.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. LIMIT 500 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고된:
+
+Full table scan behavior = LIMIT 500 bounded
+
+를 실제 검증.
+
+질문:
+
+1. 정확히 어떤 WHERE/ORDER BY 뒤에 LIMIT 500인가?
+2. exact match는 전체 DB index/query로 검색하는가?
+3. fuzzy match 후보만 500개인가?
+4. 500개보다 많은 utterance에서 특정 intent가 후보에서 누락될 수 있는가?
+
+필수:
+
+UTTERANCE_COUNT > 500에서도
+모든 active intent가 검색 가능해야 함.
+
+만약 불가능:
+
+P0 blocker.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Search Strategy 개선 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production pg_trgm 미지원이면
+새 외부 Vector DB를 추가하지 않는다.
+
+가능한 최소 개선:
+
+* indexed normalized exact DB query
+* token/keyword prefilter
+* category/keyword candidate narrowing
+* intent-aware candidate selection
+
+등.
+
+전체 row를 앱으로 보내는 구조 금지.
+
+server-side 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. GPT Fallback
+━━━━━━━━━━━━━━━━━━━━━━
+
+Direct Match 실패 시
+기존 runResolutionChain / gatherEvidence / Grounded GPT
+정상 유지.
+
+질문 variant dataset이
+기존 GPT 경로를 깨면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Human Flow
+━━━━━━━━━━━━━━━━━━━━━━
+
+HUMAN_ONLY 또는 사용자의 직접문의:
+
+Support Case
+→ Super Admin
+→ reply
+→ user push
+→ same conversation
+
+regression smoke.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Circular Fallback
+━━━━━━━━━━━━━━━━━━━━━━
+
+Dataset 추가 후에도:
+
+“고객지원으로 문의해 주세요.”
+
+같은 self-reference가
+새 Canonical Answer에 들어가지 않도록 검사.
+
+CIRCULAR_FALLBACK = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Content Review
+━━━━━━━━━━━━━━━━━━━━━━
+
+대량 생성된 utterance를
+전부 자동 승인하지 않는다.
+
+검증 단계:
+
+machine validation
+→ semantic collision check
+→ representative human review
+→ activation
+
+가격/환불/법적/개인정보 관련은
+별도 stricter review.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+Duplicate exact:
+Duplicate normalized:
+Cross-intent collision:
+Semantic drift:
+Invalid knowledge ref:
+Invalid intent ref:
+Unsupported policy:
+Circular fallback:
+
+전부 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS23C COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Deployed SHA:
+
+DATASET
+
+Canonical intents:
+Utterances generated:
+
+LOW:
+MEDIUM:
+HIGH:
+
+Candidate:
+Active:
+Rejected:
+
+DUPLICATION
+
+Exact duplicates:
+Normalized duplicates:
+Cross-intent collisions:
+
+SEMANTIC QA
+
+Semantic drift:
+Ambiguous variants:
+Rejected variants:
+
+IMPORT
+
+Production inserted:
+Existing rows changed:
+Invalid refs:
+
+MATCH TEST
+
+Queries total:
+Correct direct:
+Wrong direct:
+No match:
+Ambiguous:
+Human-only:
+
+GPT
+
+Direct DB LLM calls:
+Grounded GPT fallback:
+
+SECURITY
+
+Role leakage:
+Mode leakage:
+Pool leakage:
+
+PERFORMANCE
+
+Utterance rows:
+p50:
+p95:
+max:
+
+LIMIT 500
+
+Exact search whole DB:
+Fuzzy candidate strategy:
+Rows >500 searchable:
+P0 issue:
+
+HUMAN
+
+Human-only CTA:
+Super Admin:
+User push:
+Same conversation:
+
+QA
+
+Unsupported policy claims:
+Circular fallback:
+Auto-active errors:
+
+FINAL
+
+QUESTION_LIBRARY_COMPLETE: YES / NO
+DIRECT_MATCH_RUNTIME_READY: YES / NO
+WRONG_DIRECT_MATCH_ZERO: YES / NO
+READY_FOR_PRODUCTION_SUPPORT_USE: YES / NO
+
+WP_CS23C_COMPLETE: YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 멈춘다.
+
+다음 단계에서는 실제 사용 질문 로그를 기반으로:
+
+NO_MATCH
+AMBIGUOUS
+HUMAN 문의
+
+를 수집해 반복 질문을
+새 utterance/canonical candidate로 승격하는 운영 루프를 설계한다.
+
+[/끝]

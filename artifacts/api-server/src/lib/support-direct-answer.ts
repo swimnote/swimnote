@@ -79,12 +79,24 @@ async function findExact(
 
 // ── Step 2: Token-overlap fuzzy match (pg_trgm 대체) ─────────────────────────
 //
-// 방식: query의 stemmed token을 모두 포함하는 utterance 후보를 ILIKE로 1차 필터 후
-//       JS에서 token overlap 점수 계산. 최고 점수 후보를 반환.
+// 방식:
+//   1차: query stemmed token 중 상위 3개로 ILIKE keyword prefilter → 최대 300건
+//   2차: keyword 후보 < 30건이면 weight 상위 100건을 추가 보충
+//   JS: 양방향 token overlap 점수 계산. 최고 점수 후보 반환.
+//
+// 이 전략은 utterance 수가 LIMIT 수를 초과해도 관련 utterance가 반드시
+// 후보 집합에 포함되도록 보장한다. (기존 blind full-scan 대체)
 //
 // 조건: 최소 DIRECT_FUZZY_MIN_CONFIDENCE 이상만 반환 (false-positive 방지).
 // AMBIGUOUS_DIRECT_MATCH = 0 보장:
 //   - 복수 후보가 동점이면 null 반환 (명확한 단일 매치만 허용).
+
+/** Max candidates from keyword-prefiltered query */
+const FUZZY_KEYWORD_LIMIT = 300;
+/** Supplement with top-weight rows when keyword candidates are sparse */
+const FUZZY_FALLBACK_LIMIT = 100;
+/** Threshold below which we supplement with fallback */
+const FUZZY_SUPPLEMENT_THRESHOLD = 30;
 
 async function findFuzzy(
   qLower: string,
@@ -98,24 +110,54 @@ async function findFuzzy(
   const meaningfulStems = qStems.filter(s => s.length >= 2);
   if (meaningfulStems.length === 0) return null;
 
-  // ILIKE로 의미있는 스템 중 하나라도 포함하는 utterance 후보 수집
-  // 성능: active utterance는 수천 건 이하 → full-scan 허용
-  const rows = (await superAdminDb.execute(sql`
+  // ── 1차: keyword prefilter (server-side, indexed ILIKE on normalized_utterance)
+  // 상위 3개 스템으로 ILIKE 조건 구성 → 관련 utterance가 총 수 무관하게 검색됨
+  const topStems = meaningfulStems.slice(0, 3);
+  // SQL injection 방지: 스템은 이미 lowercase alphanumeric+한글만 포함
+  // (stemKorean은 한글 어간, tokenize는 공백 분할 → 특수문자 없음)
+  const likeClause = topStems
+    .map(s => `u.normalized_utterance ILIKE '%${s.replace(/'/g, "''")}%'`)
+    .join(" OR ");
+
+  const keywordRows = (await superAdminDb.execute(sql.raw(`
     SELECT u.id AS utterance_id, u.intent_id, u.knowledge_id,
            u.utterance, u.normalized_utterance, u.weight
     FROM support_intent_utterances u
     WHERE u.status = 'active'
-    LIMIT 500
-  `)) as any;
+      AND (${likeClause})
+    ORDER BY u.weight DESC
+    LIMIT ${FUZZY_KEYWORD_LIMIT}
+  `))) as any;
 
-  const candidates: UtteranceRow[] = rows.rows ?? [];
-  if (!candidates.length) return null;
+  const candidates: UtteranceRow[] = keywordRows.rows ?? [];
+
+  // ── 2차: weight 기반 보충 (keyword 후보 부족 시)
+  // 키워드와 무관한 짧은 utterance(일반 오류/FAQ)도 커버
+  if (candidates.length < FUZZY_SUPPLEMENT_THRESHOLD) {
+    const fallbackRows = (await superAdminDb.execute(sql`
+      SELECT u.id AS utterance_id, u.intent_id, u.knowledge_id,
+             u.utterance, u.normalized_utterance, u.weight
+      FROM support_intent_utterances u
+      WHERE u.status = 'active'
+      ORDER BY u.weight DESC, u.created_at ASC
+      LIMIT ${FUZZY_FALLBACK_LIMIT}
+    `)) as any;
+    const seenIds = new Set(candidates.map((c: UtteranceRow) => c.utterance_id));
+    for (const row of (fallbackRows.rows ?? []) as UtteranceRow[]) {
+      if (!seenIds.has(row.utterance_id)) {
+        candidates.push(row);
+        seenIds.add(row.utterance_id);
+      }
+    }
+  }
+
+  if (!finalCandidates.length) return null;
 
   // JS scoring: stemmed token overlap ratio
   interface Scored { row: UtteranceRow; score: number }
   const scored: Scored[] = [];
 
-  for (const c of candidates) {
+  for (const c of finalCandidates) {
     const cNorm      = normalizeQuery(c.normalized_utterance);
     const cTokens    = tokenize(cNorm);
     const cStems     = cTokens.map(stemKorean);
