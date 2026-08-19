@@ -1,0 +1,1140 @@
+[WP-CS24 — Support Learning Loop & Knowledge Candidate Operations]
+
+목적:
+
+CS23에서 완성한 SWIMNOTE 고객지원 구조:
+
+User
+→ DIRECT_DB
+→ deterministic resolver
+→ Grounded GPT
+→ Human
+
+위에 실제 사용 데이터를 기반으로
+Knowledge coverage가 계속 확장되는 운영 루프를 추가한다.
+
+최종 목표:
+
+실사용 질문
+→ 분류/그룹핑
+→ Candidate 생성
+→ Super Admin 검토
+→ 승인
+→ 기존 intent/Knowledge DB 반영
+→ 다음부터 DIRECT_DB 처리
+
+단:
+
+AUTO-CANDIDATE = 허용
+AUTO-ACTIVATE = 절대 금지
+
+최종 활성화는 반드시 Human Approval을 거친다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 확정 Baseline
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS23 상태:
+
+SUPPORT_DIRECT_DB_SYSTEM_COMPLETE = YES
+READY_FOR_PRODUCTION_SUPPORT_USE = YES
+
+Canonical 구조:
+
+TOTAL = 72
+
+구성:
+
+* Existing / approved Direct Knowledge
+* 신규 approved Direct Knowledge
+* HUMAN_ONLY 2개
+    * PRICE
+    * REFUND
+
+HUMAN_ONLY 2개는
+공식 정책 Source 확정 전까지
+Direct Answer 활성화 금지.
+
+Utterance Library:
+
+기존 active/pending 구조 유지.
+
+기존 Direct DB / GPT / Human pipeline을
+이번 WP에서 재작성하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 WP 목표
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+구현 범위는 4개 Part.
+
+A. Query Log
+
+B. Candidate Engine
+
+C. Super Admin Review Console
+
+D. Promotion + Regression Tests
+
+새 고객지원 엔진을 만들지 않는다.
+
+기존 Support System 위에
+운영 개선 Layer만 추가한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. PART A — QUERY LOG
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 기존 데이터를 실제 조사한다.
+
+우선 조사 대상:
+
+support_trace
+event_log
+support cases
+support replies
+resolver trace
+GPT trace
+
+질문:
+
+실사용 Query Learning Loop에 필요한 정보가
+이미 충분히 저장되는가?
+
+필요 최소 fields:
+
+request_id
+case_id
+created_at
+
+role
+mode
+pool_scope
+
+normalized_query
+
+resolution_source
+
+matched_intent_id
+matched_knowledge_id
+
+match_method
+match_confidence
+
+llm_called
+
+human_requested
+
+final_state
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 중복 LOG TABLE 금지 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 trace/event 구조만으로
+Candidate Engine 운영이 가능하면:
+
+새 support_query_log 테이블 생성 금지.
+
+기존 데이터가 불충분할 때만
+additive schema 생성.
+
+새 테이블이 필요하다면:
+
+왜 기존 데이터로 불가능한지
+근거와 함께 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. QUERY LOG 개인정보
+━━━━━━━━━━━━━━━━━━━━━━
+
+학습/후보 생성 목적의 로그에는
+PII 최소화.
+
+가능하면:
+
+raw user query 대신
+normalized_query
+
+사용.
+
+단 Candidate 판단에
+원문 일부가 꼭 필요하다면
+기존 conversation/reference를 안전하게 참조하고
+중복 raw text 저장을 최소화.
+
+금지:
+
+학생 이름
+전화번호
+이메일
+주소
+결제정보
+
+등을 Candidate용 정적 Knowledge에 복사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Resolution Outcome 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Query를 최소 다음 outcome 중 하나로 분류:
+
+DIRECT_DB
+
+DETERMINISTIC_RESOLVER
+
+GROUNDED_GPT
+
+NO_MATCH
+
+AMBIGUOUS
+
+HUMAN_REQUIRED
+
+HUMAN_RESPONDED
+
+사용자가:
+
+[직접 문의하기]
+
+를 누른 것도
+별도 signal로 기록 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PART B — CANDIDATE ENGINE
+━━━━━━━━━━━━━━━━━━━━━━
+
+실사용 Query를 분석해서
+Knowledge Candidate를 생성한다.
+
+무조건 Candidate를 생성하지 않는다.
+
+다음 signal이 있을 때만 후보화 가능:
+
+* 동일/유사 NO_MATCH 반복
+* GPT fallback 반복
+* Human 문의 반복
+* 기존 Intent에 가까우나 Direct threshold 미달 반복
+* Super Admin이 직접 Candidate 등록
+* 새로운 표현이 반복적으로 등장
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Candidate Type — 반드시 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+Candidate는 최소 두 종류로 분리.
+
+A. UTTERANCE_EXTENSION
+
+정답은 이미 존재.
+
+기존 intent_id / knowledge_id에
+새 질문 표현만 추가하면 해결.
+
+예:
+
+기존 Intent:
+PARENT_PHOTO_NOT_VISIBLE
+
+신규 반복 질문:
+“우리애 사진 왜 없어”
+
+→ UTTERANCE_EXTENSION
+
+B. NEW_CANONICAL
+
+기존 Canonical Answer 어디에도
+정답 자체가 존재하지 않음.
+
+→ 새로운 Knowledge Candidate 필요.
+
+두 타입을 절대 혼합하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Candidate 추가 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 특수 상태도 분류.
+
+DYNAMIC_DATA_REQUIRED
+
+POLICY_REQUIRED
+
+AMBIGUOUS
+
+HUMAN_JUDGMENT_REQUIRED
+
+예:
+
+“우리 아이 오늘 출석했어?”
+
+→ DYNAMIC_DATA_REQUIRED
+
+“환불 얼마 받아?”
+
+→ POLICY_REQUIRED
+
+“사진”
+
+→ AMBIGUOUS
+
+“특별 결제 예외 처리해줘”
+
+→ HUMAN_JUDGMENT_REQUIRED
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. DYNAMIC DATA 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+Dynamic 질문을
+Static Knowledge Candidate로 승격 금지.
+
+예:
+
+내 아이 오늘 출석 여부
+내 보강 신청 상태
+내 문의 처리 상태
+내 결제 상태
+내 X entitlement
+특정 회원 진도
+
+반복되어도:
+
+DYNAMIC_DATA_REQUIRED
+
+분류 유지.
+
+필요하면 향후
+Product DB 조회 기능 후보로만 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. POLICY 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 Category:
+
+PRICE
+REFUND
+DISCOUNT
+CANCELLATION
+CONTRACT
+SUBSCRIPTION
+PRIVACY
+DATA_RETENTION
+SLA
+
+공식 정책 Source 없으면:
+
+POLICY_REQUIRED
+
+상태.
+
+승인 불가.
+
+GPT가 정책을 만들거나
+Human 답변을 그대로 정책화하는 것도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. AMBIGUOUS 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음과 같은 Query:
+
+가격
+사진
+보강
+결제
+안돼요
+알림
+수업
+
+여러 Intent로 갈 수 있으면:
+
+AMBIGUOUS
+
+유지.
+
+반복 횟수가 많다고
+특정 Intent utterance로 강제 승격 금지.
+
+필요하면 clarification 후보로만 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Candidate Data Model
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 기존 Knowledge Approval 구조 재사용 여부 확인.
+
+새 테이블이 필요할 경우 최소 개념:
+
+support_knowledge_candidates
+
+fields 예:
+
+candidate_id
+
+candidate_type
+
+* UTTERANCE_EXTENSION
+* NEW_CANONICAL
+
+classification
+
+* NORMAL
+* DYNAMIC_DATA_REQUIRED
+* POLICY_REQUIRED
+* AMBIGUOUS
+* HUMAN_JUDGMENT_REQUIRED
+
+source_type
+
+* NO_MATCH
+* GPT_FALLBACK
+* HUMAN
+* ADMIN_CREATED
+
+representative_query
+normalized_query
+
+suggested_intent_id
+suggested_knowledge_id
+
+suggested_answer
+
+occurrence_count
+
+gpt_fallback_count
+human_request_count
+
+first_seen_at
+last_seen_at
+
+affected_roles
+affected_modes
+pool_scope
+
+risk
+
+status
+
+status:
+
+PENDING
+APPROVED
+REJECTED
+MERGED
+
+AUTO_ACTIVE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. GROUPING
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 의미 Query가 반복돼도
+Candidate row를 계속 새로 만들지 않는다.
+
+예:
+
+“아이 사진 안 보여요”
+“사진이 안떠요”
+“우리애 사진 없어”
+
+같은 Intent로 안전하게 묶을 수 있으면:
+
+candidate 1개
+
+occurrence_count 증가.
+
+단 의미가 다른 Query를
+억지 merge 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. Grouping Logic
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+normalizeQuery
+Direct Matcher
+Intent metadata
+
+재사용.
+
+가능하면 다음 순서:
+
+normalized exact
+→ existing intent match
+→ safe token similarity
+→ candidate grouping
+
+AI semantic clustering은
+필요 시 제안용으로만 사용 가능.
+
+AI clustering 결과로
+자동 merge/approve 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Candidate Priority
+━━━━━━━━━━━━━━━━━━━━━━
+
+Review Console에서
+우선순위 정렬 가능하게 한다.
+
+priority signal:
+
+occurrence_count
+recent_frequency
+gpt_fallback_count
+human_request_count
+risk
+last_seen_at
+
+예:
+
+30회 반복
+
+* Human 20회
+
+→ 높은 우선순위
+
+1회 NO_MATCH
+
+→ 낮은 우선순위.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Human Reply → Candidate
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Human 답변을
+자동 Canonical Answer로 복사 금지.
+
+Human reply 이후
+관리자가 직접:
+
+[Knowledge 후보로 등록]
+
+또는 equivalent action을 선택해야
+Candidate 생성.
+
+Candidate 생성 시:
+
+original question reference
+human answer reference
+suggested canonical answer
+
+를 분리.
+
+raw Human 답변은
+정답으로 자동 확정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. PII 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+Human conversation 예:
+
+“김민수 학생 사진이 안 보입니다.”
+
+Candidate Canonical에는:
+
+“학부모 계정에 연결된 학생의 사진이 보이지 않는 경우…”
+
+처럼 일반화.
+
+Raw PII 자동 복사 금지.
+
+필수 테스트:
+
+PII_LEAK_TO_CANONICAL = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. PART C — SUPER ADMIN REVIEW CONSOLE
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+SuperKnowledgeReview.tsx
+
+또는 현재 Knowledge Review Console 패턴을
+최대한 재사용.
+
+가능하면 새 대규모 UI 구축 금지.
+
+필요 시:
+
+SuperKnowledgeCandidates.tsx
+
+추가.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Review Console 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 표시:
+
+Candidate Type
+
+대표 질문
+
+실제 유사 질문 예시
+
+발생 횟수
+
+최근 발생 시각
+
+현재 처리 방식:
+DIRECT / GPT / HUMAN / NO_MATCH
+
+기존 Intent 후보
+
+기존 Knowledge 후보
+
+제안 Canonical Answer
+
+source/reference
+
+role
+
+mode
+
+risk
+
+classification
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. Review Actions
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수 action:
+
+ADD_UTTERANCE_TO_EXISTING_INTENT
+
+CREATE_NEW_CANONICAL
+
+MARK_HUMAN_ONLY
+
+REJECT
+
+MERGE
+
+가능하면:
+
+MARK_DYNAMIC_DATA_REQUIRED
+MARK_POLICY_REQUIRED
+MARK_AMBIGUOUS
+
+지원.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. AUTO-ACTIVATE 전면 차단
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+Candidate Engine이:
+
+Candidate 생성
+
+가능.
+
+하지만 API 레벨에서:
+
+candidate
+→ Knowledge ACTIVE
+
+자동 전환 금지.
+
+필수:
+
+AUTO_CANDIDATE = ENABLED
+AUTO_ACTIVATE = DISABLED
+
+테스트로 강제 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. PART D — UTTERANCE PROMOTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+UTTERANCE_EXTENSION 승인 시:
+
+기존 intent_id
+기존 knowledge_id
+
+사용.
+
+support_intent_utterances에 insert.
+
+기존 Knowledge의:
+
+affected_roles
+affected_modes
+pool_scope
+
+상속.
+
+새 utterance가
+권한 범위를 확대하면 안 됨.
+
+필수:
+
+UTTERANCE_ROLE_EXPANSION = 0
+UTTERANCE_MODE_EXPANSION = 0
+UTTERANCE_POOL_EXPANSION = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. NEW CANONICAL PROMOTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+NEW_CANONICAL 승인 시:
+
+기존 CS16 Knowledge Governance 재사용.
+
+최소:
+
+source verification
+role
+mode
+scope
+conflict check
+human approval
+audit log
+
+통과.
+
+Knowledge ACTIVE 전까지
+관련 utterance도 active 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. CONFLICT
+━━━━━━━━━━━━━━━━━━━━━━
+
+Candidate Answer가
+기존 ACTIVE Knowledge와 충돌하면:
+
+자동 승인 금지.
+
+상태:
+
+CONFLICT_REVIEW
+
+또는 기존 equivalent.
+
+기존 conflict detector 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Existing Knowledge Regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 기존 Canonical 구조:
+
+72 total
+
+기존 ACTIVE Direct Knowledge
+
+HUMAN_ONLY 2
+
+상태를 임의 변경하지 않는다.
+
+특히 HUMAN_ONLY 2개:
+
+PRICE
+REFUND
+
+공식 정책 Source 없으면 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 측정 가능해야 함:
+
+SUPPORT_QUERIES_TOTAL
+
+DIRECT_DB_TOTAL
+DIRECT_DB_RATE
+
+DETERMINISTIC_TOTAL
+
+GPT_FALLBACK_TOTAL
+GPT_FALLBACK_RATE
+
+HUMAN_REQUEST_TOTAL
+HUMAN_REQUEST_RATE
+
+NO_MATCH_TOTAL
+
+AMBIGUOUS_TOTAL
+
+CANDIDATES_CREATED
+
+UTTERANCE_EXTENSION_CANDIDATES
+
+NEW_CANONICAL_CANDIDATES
+
+DYNAMIC_DATA_CANDIDATES
+
+POLICY_REQUIRED_CANDIDATES
+
+CANDIDATES_APPROVED
+CANDIDATES_REJECTED
+CANDIDATES_MERGED
+
+UTTERANCES_ADDED
+
+CANONICALS_ADDED
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. Before / After 분석 가능성
+━━━━━━━━━━━━━━━━━━━━━━
+
+Candidate 승인 효과를
+향후 계산 가능해야 함.
+
+예:
+
+승인 전:
+
+GPT fallback 20
+Human 5
+
+승인 후:
+
+Direct DB 23
+GPT 2
+Human 0
+
+이번 WP에서
+대규모 BI Dashboard는 만들 필요 없음.
+
+Trace/metrics가
+계산 가능하도록만 설계.
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 테스트 — 반복 NO_MATCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 의미 NO_MATCH 10회 발생.
+
+목표:
+
+Candidate 10개 생성 금지.
+
+Candidate 1개
+occurrence_count = 10
+
+또는 equivalent.
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. 테스트 — 기존 Intent 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Canonical 존재.
+
+새 표현 반복.
+
+결과:
+
+UTTERANCE_EXTENSION
+
+이어야 함.
+
+NEW_CANONICAL 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. 테스트 — NEW CANONICAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 72 Answer 어디에도 없는
+검증 가능한 신규 기능 질문.
+
+결과:
+
+NEW_CANONICAL Candidate.
+
+자동 ACTIVE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. 테스트 — Dynamic
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+“오늘 우리 아이 출석했어요?”
+
+결과:
+
+DYNAMIC_DATA_REQUIRED
+
+Static Canonical 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. 테스트 — Policy
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+“환불 얼마 돼요?”
+
+공식 정책 Source 없음.
+
+결과:
+
+POLICY_REQUIRED
+
+Approve API에서
+Direct Knowledge 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. 테스트 — Ambiguous
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+“사진”
+
+결과:
+
+AMBIGUOUS
+
+특정 Intent로 자동 promotion 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. 테스트 — Human Reply
+━━━━━━━━━━━━━━━━━━━━━━
+
+Human 답변 포함 Case.
+
+Candidate 생성:
+
+가능.
+
+하지만:
+
+Human reply raw text
+→ Canonical 자동 복사 금지.
+
+AUTO_ACTIVE = 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+35. Security
+━━━━━━━━━━━━━━━━━━━━━━
+
+Candidate 생성/승격 후에도:
+
+ROLE_LEAKAGE = 0
+
+MODE_LEAKAGE = 0
+
+POOL_LEAKAGE = 0
+
+특히 utterance promotion 시
+기존 Knowledge 제한 상속 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+36. Production Safety
+━━━━━━━━━━━━━━━━━━━━━━
+
+Candidate는 additive.
+
+기존:
+
+support_knowledge_items
+support_intent_utterances
+resolver
+GPT
+Human case
+
+regression 금지.
+
+실사용 Query 원본을
+삭제/수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+37. Test Count
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 최소 40 TC.
+
+포함:
+
+Query log
+Grouping
+Occurrence
+Utterance extension
+New canonical
+Dynamic
+Policy
+Ambiguous
+PII
+Promotion
+Conflict
+Auto-active prevention
+Role/mode/pool
+Regression
+
+Full suite 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+38. Push Device 잔여
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS23에서 남은:
+
+SUPER_ADMIN_PUSH_DEVICE
+USER_REPLY_PUSH_DEVICE
+
+실 iPhone 검증이 가능하면
+이번 WP와 별개 smoke로 수행 가능.
+
+실패 시 CS24 Candidate Engine까지
+재오픈하지 않는다.
+
+별도 Push bug로 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+39. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS24 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Render SHA:
+
+CURRENT SUPPORT
+
+Canonical total:
+Active direct:
+Human-only:
+
+Utterances total:
+Active:
+Pending:
+
+QUERY LOG
+
+Existing sources reused:
+New table required:
+Reason:
+PII strategy:
+
+CANDIDATE ENGINE
+
+Candidate table:
+Candidate types:
+Classifications:
+Grouping method:
+Occurrence count:
+Priority:
+
+REVIEW CONSOLE
+
+Existing console reused:
+New screen:
+Actions:
+
+PROMOTION
+
+Utterance extension:
+New canonical:
+CS16 governance:
+Auto activate:
+
+DYNAMIC / POLICY / AMBIGUOUS
+
+Dynamic handling:
+Policy handling:
+Ambiguous handling:
+
+TEST
+
+Repeated no-match:
+Duplicate candidates:
+Utterance extension:
+New canonical:
+Dynamic rejection:
+Policy guard:
+Ambiguous guard:
+Human reply raw-copy:
+PII leakage:
+
+SECURITY
+
+Role leakage:
+Mode leakage:
+Pool leakage:
+
+AUTO ACTIVATION
+
+Auto candidate:
+Auto activate:
+Unauthorized activate attempts:
+
+METRICS
+
+Support queries:
+Direct DB:
+GPT fallback:
+Human:
+No match:
+Ambiguous:
+
+Candidates created:
+Utterance extensions:
+New canonicals:
+Dynamic:
+Policy:
+Approved:
+Rejected:
+Merged:
+
+REGRESSION
+
+Full test total:
+Pass:
+Fail:
+
+PUSH DEVICE OPTIONAL
+
+Super Admin push:
+User push:
+
+FINAL
+
+SUPPORT_LEARNING_LOOP_READY: YES / NO
+
+QUERY_CAPTURE_READY: YES / NO
+CANDIDATE_ENGINE_READY: YES / NO
+REVIEW_CONSOLE_READY: YES / NO
+PROMOTION_FLOW_READY: YES / NO
+
+AUTO_ACTIVATE_DISABLED: YES / NO
+HUMAN_APPROVAL_REQUIRED: YES / NO
+PRODUCTION_SAFE: YES / NO
+
+WP_CS24_COMPLETE: YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+40. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 멈춘다.
+
+CS24 완료 이후부터
+고객지원은 대규모 사전 질문 생성 단계가 아니라
+실사용 기반 Knowledge 운영 단계로 전환한다.
+
+실제:
+
+NO_MATCH
+GPT FALLBACK
+HUMAN 문의
+
+를 기반으로
+필요한 Knowledge만 점진적으로 확장한다.
+
+[/끝]

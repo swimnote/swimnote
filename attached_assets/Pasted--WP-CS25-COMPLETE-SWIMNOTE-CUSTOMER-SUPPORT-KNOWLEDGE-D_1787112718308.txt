@@ -1,0 +1,812 @@
+[WP-CS25 — COMPLETE SWIMNOTE CUSTOMER SUPPORT KNOWLEDGE DATABASE BUILD]
+
+목적:
+
+현재 CS23에서 고객센터 엔진은 완성되었으나,
+Canonical Answer 72개 / Utterance 610개는 초기 Seed 수준이다.
+
+이번 WP에서는 SWIMNOTE의 실제 전체 기능을 Repository 기준으로 다시 전수 조사하고,
+
+"고객이 SWIMNOTE 사용 중 물어볼 수 있는 정형 질문"
+
+에 대한 전체 Canonical Answer Database를 구축한다.
+
+이번 WP의 목표는 숫자를 맞추는 것이 아니다.
+
+실제 앱 전체 기능에서 답할 수 있는 고객지원 내용을
+빠짐없이 DB화하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 Baseline
+━━━━━━━━━━━━━━━━━━━━━━
+
+Support Engine:
+
+DIRECT DB
+→ deterministic resolver
+→ Grounded GPT
+→ Human
+
+완료.
+
+현재 Dataset:
+
+Canonical Answers = 72
+Utterances = 610
+
+이 72개는 유지하되,
+전체 Product coverage를 다시 조사한다.
+
+기존 답변과 동일한 내용은 중복 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. 실제 Repository 기준.
+
+3. 기억/기획안만으로 현재 기능 판단 금지.
+
+4. 화면만 보고 기능 판단하지 말 것.
+
+5. API/DB/권한/모드까지 조사.
+
+6. 존재하지 않는 UI 안내 금지.
+
+7. 정책 추론 금지.
+
+8. 가격/환불/할인은 공식 Source 없으면 답변 확정 금지.
+
+9. 사용자별 실시간 상태를 Static Answer로 만들지 않음.
+
+10. 기존 72 Canonical 중복 생성 금지.
+
+11. 자동 ACTIVE 금지.
+
+12. 숫자를 채우기 위한 쪼개기 금지.
+
+13. 실제 질문 가치가 있는 Answer만 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 전체 FUNCTION INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체에서 실제 기능을 전수 조사.
+
+대상:
+
+Mobile screens
+Mobile components
+Navigation/routes
+API routes
+Services
+DB schema
+Permission guards
+Role guards
+Mode/X guards
+Feature registry
+Frontend map
+Push/notification
+Support
+Billing
+AI integration
+
+최소 Role:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+super_admin
+
+최소 Mode:
+
+normal
+x_pending
+x
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CATEGORY 전수
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+PRODUCT
+
+ACCOUNT
+LOGIN
+LOGOUT
+SIGNUP
+INVITATION
+PROFILE
+WITHDRAWAL
+
+POOL
+CLASS
+STUDENT
+
+ADMIN
+SUB_ADMIN
+TEACHER
+PARENT
+ROLE_PERMISSION
+
+ATTENDANCE
+
+DIARY
+AI_DIARY
+VOICE_DIARY
+
+PHOTO
+ALBUM
+VIDEO
+
+NOTICE
+SCHEDULE
+
+NOTIFICATION
+PUSH
+
+MAKEUP
+
+CURRICULUM
+AI_CURRICULUM_SEARCH
+
+GROWTH_REPORT
+AI_GROWTH_REPORT
+
+SWIMNOTE_X
+X_ACCESS
+X_SETUP
+X_STATE
+X_ENTITLEMENT
+X_LOCK
+
+SUBSCRIPTION
+PAYMENT
+BILLING
+CANCELLATION
+REFUND
+DISCOUNT
+
+APP_UPDATE
+OTA_UPDATE
+
+DEVICE_PERMISSION
+
+NETWORK
+SERVER_ERROR
+AI_ERROR
+
+PRIVACY
+DATA
+
+SUPPORT
+DIRECT_DB_SUPPORT
+GPT_SUPPORT
+HUMAN_SUPPORT
+
+Repository에서 발견되는 실제 추가 기능 전부 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 각 기능을 질문 단위로 펼친다
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 기능마다 다음을 검토:
+
+WHAT
+WHO
+WHERE
+HOW
+WHEN
+
+CREATE
+VIEW
+EDIT
+DELETE
+
+ROLE
+PERMISSION
+MODE
+
+REQUIREMENT
+LIMIT
+STATUS
+
+ERROR
+CAUSE
+RECOVERY
+
+NOTIFICATION
+
+PRICE
+POLICY
+
+SUPPORT
+
+해당되는 항목만 Answer로 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 예시 — DIARY
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순:
+
+"일지 기능"
+
+한 개로 끝내지 않는다.
+
+실제 기능이 존재하면 최소 검토:
+
+일지가 무엇인가
+누가 작성 가능한가
+누가 열람 가능한가
+교사 작성 범위
+관리자 작성 범위
+학부모 열람
+작성 위치
+작성 방법
+수정
+삭제
+사진
+영상
+사진 제한
+영상 제한
+AI 일지
+음성 일지
+전체학생 입력
+개별학생 입력
+저장 실패
+미디어 실패
+권한 실패
+학부모 미노출
+이전 일지 확인
+교사 변경 시 기록
+X모드 차이
+
+실제 코드가 지원하는 것만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 각 기능의 SUCCESS + FAILURE 둘 다
+━━━━━━━━━━━━━━━━━━━━━━
+
+고객센터 DB는 기능 설명만 있어서는 안 된다.
+
+예:
+
+PHOTO
+
+정상:
+
+사진 보는 방법
+
+오류:
+
+사진이 안 보임
+사진 업로드 실패
+권한 없음
+학생 연결 안 됨
+네트워크 오류
+
+각각 실제 verified 원인이 있으면 별도 Canonical Answer.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ROLE별 답변
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 기능이라도:
+
+pool_admin
+teacher
+parent
+
+답변이 다르면 분리.
+
+예:
+
+보강 취소
+
+관리자 가능
+교사 제한적 가능
+학부모 불가
+
+라면 역할별 사실이 정확히 드러나야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. MODE별 답변
+━━━━━━━━━━━━━━━━━━━━━━
+
+normal
+x_pending
+x
+
+기능/권한/노출이 다르면 분리 또는 metadata 적용.
+
+X-only 기능이
+normal 사용자에게 안내되지 않도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. STATIC vs DYNAMIC
+━━━━━━━━━━━━━━━━━━━━━━
+
+STATIC:
+
+"보강 신청 가능 기간은?"
+
+→ Canonical Answer 가능.
+
+DYNAMIC:
+
+"내 보강 신청 승인됐어?"
+
+→ 실시간 DB 필요.
+
+Static Knowledge 생성 금지.
+
+DYNAMIC_DATA_REQUIRED로 Catalog에 남김.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 공식 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 특별 분리:
+
+PRICE
+REFUND
+DISCOUNT
+CANCELLATION
+CONTRACT
+SUBSCRIPTION
+PRIVACY
+DATA_RETENTION
+SLA
+
+공식 승인 Source 없으면:
+
+POLICY_REQUIRED / HUMAN_ONLY
+
+유지.
+
+임의 답변 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 72개 Mapping
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Canonical 72개를
+새 전체 Function Tree에 mapping.
+
+각각:
+
+KEEP
+EXPAND
+MERGE
+REPLACE_CANDIDATE
+
+분류.
+
+실제 변경은 Human Review 전 금지.
+
+동일 답변 신규 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Canonical Answer Schema
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Answer:
+
+answer_id
+intent_id
+category
+function_id
+topic
+
+canonical_question
+canonical_answer
+
+source_type
+source_ref
+
+affected_roles
+affected_modes
+pool_scope
+
+frontend_screen_id
+actual_ui_label
+route
+
+answer_mode
+
+risk
+status
+revision
+
+variant_complexity
+recommended_variants
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Answer Mode
+━━━━━━━━━━━━━━━━━━━━━━
+
+DIRECT_DB
+
+고정된 검증 사실.
+
+GROUNDED_GPT
+
+복수 Knowledge 조합 필요.
+
+HUMAN_ONLY
+
+사람 판단 또는 정책 필요.
+
+DYNAMIC_DATA_REQUIRED
+
+실시간 Product DB 조회 필요.
+
+이번 WP에서 DYNAMIC_DATA_REQUIRED를
+Static Direct Answer로 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. SOURCE 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 Source:
+
+PRODUCT_CODE
+ROUTE_CODE
+FRONTEND_CODE
+PERMISSION_GUARD
+DATABASE_SCHEMA
+OPERATIONS_CONFIG
+APPROVED_POLICY
+APPROVED_KNOWLEDGE
+
+SOURCE_MISSING은
+사실처럼 답변 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. UI Truth
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제:
+
+화면명
+버튼명
+메뉴명
+경로
+
+확인.
+
+없는데:
+
+"설정에서"
+"도움말에서"
+"홈 하단에서"
+
+등 창작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. ERROR 전수조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드의:
+
+error state
+error message
+failure branch
+HTTP status
+permission failure
+
+등 조사.
+
+고객이 실제 겪을 수 있는 문제를 Answer 후보화.
+
+추정 원인 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. ANSWER 상세도
+━━━━━━━━━━━━━━━━━━━━━━
+
+하나의 Answer에 너무 많은 다른 질문을 섞지 않는다.
+
+반대로:
+
+같은 사실을 표현만 다르게 했다고
+Canonical을 여러 개 만들지 않는다.
+
+정답 하나
+→ 질문 표현 여러 개
+
+구조 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 콘텐츠 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표 숫자 강제 없음.
+
+현재 72개에서:
+
+100
+300
+500
+1,000+
+
+어느 숫자가 나오든 상관없음.
+
+판정 기준:
+
+실제 SWIMNOTE 기능 Coverage.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Coverage Audit
+━━━━━━━━━━━━━━━━━━━━━━
+
+Category마다:
+
+functions_found
+question_topics
+canonical_answers
+gaps
+coverage_percent
+
+계산.
+
+Coverage 100% 의미:
+
+실제 구현 기능에서 파생되는
+정형 고객지원 Topic이
+
+Canonical Answer
+또는
+명확한 Gap
+
+중 하나로 전부 분류됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. GAP 분류
+━━━━━━━━━━━━━━━━━━━━━━
+
+미답변 항목은 반드시:
+
+POLICY_GAP
+SOURCE_GAP
+IMPLEMENTATION_GAP
+UI_GAP
+DYNAMIC_DATA_REQUIRED
+HUMAN_JUDGMENT_REQUIRED
+
+중 하나.
+
+UNKNOWN 방치 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. OUTPUT
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+support-canonical-answers.json
+
+확장.
+
+새 전체 Catalog가
+machine-readable 상태여야 함.
+
+별도:
+
+support-knowledge-gaps.json
+
+도 업데이트.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 신규 Production Insert
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서는 우선 전체 Content Catalog를 완성.
+
+신규 Canonical을 DB에 넣는 경우:
+
+status=PENDING/CANDIDATE
+
+만 허용.
+
+AUTO ACTIVE = 0.
+
+Human Approval 전 Direct Matcher 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 예상질문 수 산정
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 Canonical마다:
+
+LOW
+MEDIUM
+HIGH
+
+variant complexity 지정.
+
+recommended_variants:
+
+5
+10
+20
+30+
+
+등.
+
+이번 WP에서 대량 utterance 생성은 아직 하지 않는다.
+
+최종:
+
+ESTIMATED_UTTERANCES_TOTAL
+
+산정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. QA
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+DUPLICATE_ANSWER_ID = 0
+
+DUPLICATE_INTENT = 0
+
+UNSUPPORTED_POLICY_CLAIMS = 0
+
+UNSUPPORTED_UI_CLAIMS = 0
+
+SOURCE_VERIFIED_WITHOUT_SOURCE = 0
+
+ROLE_METADATA_ERROR = 0
+
+MODE_METADATA_ERROR = 0
+
+AUTO_ACTIVE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS25 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+
+REPOSITORY AUDIT
+
+Screens:
+Components:
+Routes:
+Endpoints:
+Services:
+Guards:
+DB areas:
+
+FUNCTION INVENTORY
+
+Categories:
+Functions:
+Question topics:
+
+CANONICAL DATABASE
+
+Previous canonical:
+New canonical:
+Final canonical total:
+
+DIRECT_DB:
+GROUNDED_GPT:
+HUMAN_ONLY:
+DYNAMIC_DATA_REQUIRED:
+
+EXISTING 72
+
+KEEP:
+EXPAND:
+MERGE:
+REPLACE_CANDIDATE:
+
+CATEGORY COVERAGE
+
+PRODUCT:
+ACCOUNT:
+LOGIN:
+ATTENDANCE:
+DIARY:
+AI_DIARY:
+PHOTO:
+ALBUM:
+VIDEO:
+NOTICE:
+SCHEDULE:
+NOTIFICATION:
+MAKEUP:
+CURRICULUM:
+AI_CURRICULUM_SEARCH:
+GROWTH_REPORT:
+SWIMNOTE_X:
+BILLING:
+SUPPORT:
+...
+
+GAPS
+
+POLICY:
+SOURCE:
+IMPLEMENTATION:
+UI:
+DYNAMIC:
+HUMAN_JUDGMENT:
+
+POLICY
+
+Price:
+Refund:
+Discount:
+Cancellation:
+Contract:
+Subscription:
+Privacy:
+Data retention:
+SLA:
+
+VARIANT PLAN
+
+LOW:
+MEDIUM:
+HIGH:
+
+Estimated utterances total:
+
+QA
+
+Duplicate answer:
+Duplicate intent:
+Unsupported policy:
+Unsupported UI:
+Missing source:
+Role errors:
+Mode errors:
+Auto active:
+
+PRODUCTION
+
+Candidates inserted:
+Activated:
+Existing active changed:
+
+FINAL
+
+FULL_FUNCTION_INVENTORY_COMPLETE:
+CUSTOMER_SUPPORT_DB_COMPLETE:
+ALL_FUNCTIONS_ANSWER_OR_GAP:
+READY_FOR_MASS_UTTERANCE_BUILD:
+
+WP_CS25_COMPLETE: YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고 후 멈춘다.
+
+다음 WP:
+
+전체 Canonical Answer
+→ 예상질문 대량 생성
+→ DB 등록
+→ Direct Matcher QA
+→ Human Approval
+→ Production 활성화
+
+로 진행한다.
+
+[/끝]
