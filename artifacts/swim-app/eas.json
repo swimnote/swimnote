@@ -39,7 +39,8 @@
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
-        "EXPO_PUBLIC_META_APP_ID": "2093655621362240"
+        "EXPO_PUBLIC_META_APP_ID": "2093655621362240",
+        "EXPO_PUBLIC_MAINTENANCE_MODE": "false"
       },
       "android": {
         "buildType": "app-bundle"
