@@ -1,0 +1,387 @@
+[WP-CS26-GR — GROUNDED GPT REASONING CONTRACT CORRECTION]
+
+목적:
+
+Task #41의 concurrency / duplicate Human escalation / state race 수정은 승인한다.
+
+단 현재 Grounded GPT 응답 방식이:
+
+“GPT가 허용 Knowledge를 선택하고,
+서버가 Canonical Answer를 그대로 조합하여 반환”
+
+하는 방식으로 변경되었다.
+
+이는 SWIMNOTE Support의 최종 의도와 다르다.
+
+GPT는 자유지식으로 답하는 Chatbot이어서는 안 되지만,
+동시에 단순 Knowledge selector로 제한되어서도 안 된다.
+
+최종 계약은:
+
+VERIFIED KNOWLEDGE RETRIEVAL
+→ GPT GROUNDED REASONING
+→ NATURAL COUNSELOR RESPONSE
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 GPT 역할
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+GPT는 반드시 SWIMNOTE Support DB에서
+검색된 검증 Knowledge만 사용한다.
+
+하지만 해당 Knowledge를 단순히
+문장 그대로 이어붙이는 것이 아니라:
+
+* 사용자 현재 질문 해석
+* 최근 conversation 이해
+* 이미 시도한 해결방법 확인
+* 적용 가능한 Knowledge 선택
+* 불필요한 Knowledge 제외
+* 해결 순서 판단
+* 여러 Knowledge 관계 조합
+* 자연스러운 상담사 존댓말 생성
+
+을 수행한다.
+
+즉:
+
+GPT = GROUNDED REASONING AGENT
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 허용되는 추론
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+A.
+사용자가 이미 해결책 A를 시도했다고 하면
+A를 반복하지 않고 verified B/C를 다음 순서로 안내.
+
+B.
+여러 verified Knowledge 중
+현재 사용자 조건에 맞는 항목만 선택.
+
+C.
+여러 Knowledge를 하나의 자연스러운
+1~4문장 상담 답변으로 재구성.
+
+D.
+verified 조건에 따라
+확인 순서를 정함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 금지되는 추론
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+DB에 없는 기능 생성
+
+DB에 없는 UI 생성
+
+DB에 없는 오류 원인 생성
+
+DB에 없는 해결방법 생성
+
+DB에 없는 가격 생성
+
+DB에 없는 환불/계약 정책 생성
+
+DB에 없는 처리기간/SLA 생성
+
+일반적인 앱 지식을
+SWIMNOTE 사실처럼 추가
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 서버 검증 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현한:
+
+“GPT가 Knowledge를 선택하면
+서버가 Answer 원문만 반환”
+
+방식은 제거 또는 수정한다.
+
+대신 GPT가 생성한 최종 답변을 허용하되,
+다음 grounding contract를 강제한다.
+
+GPT Input:
+
+USER ISSUE
+CONVERSATION CONTEXT
+PREVIOUS ANSWERS
+RETRIEVED KNOWLEDGE
+ALLOWED KNOWLEDGE IDS
+ROLE
+MODE
+POOL SCOPE
+
+GPT Output:
+
+answer
+used_knowledge_ids
+
+가능하면 structured output 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Knowledge Citation Guard
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT가 반환하는:
+
+used_knowledge_ids
+
+는 반드시
+retrieved / allowed Knowledge ID 집합의 subset이어야 한다.
+
+허용되지 않은 Knowledge ID:
+
+reject.
+
+필수:
+
+UNALLOWED_KNOWLEDGE_REFERENCE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Unsupported Claim Guard
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버가 자연어 전체를 완벽히 검증하려고
+Canonical Answer 그대로 반환하는 방식으로 후퇴하지 않는다.
+
+대신:
+
+Prompt contract
+Structured Knowledge Context
+Allowed ID validation
+High-risk topic guard
+Regression test
+
+조합으로 안전성을 확보.
+
+High-risk:
+
+PRICE
+REFUND
+DISCOUNT
+CONTRACT
+CANCELLATION
+PRIVACY
+
+은 기존 정책 guard 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Knowledge = 0
+━━━━━━━━━━━━━━━━━━━━━━
+
+retrieved Knowledge가 0이면:
+
+GPT에게 자유 SWIMNOTE 답변을 생성시키지 않는다.
+
+Deterministic insufficient response:
+
+“현재 확인 가능한 정보만으로는 문제를 정확히 해결하기 어렵습니다.”
+
+등을 반환.
+
+그 후:
+
+[해결됐어요]
+[아직 해결되지 않았어요]
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Already Tried Context
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT Input에
+previous_answers / user_followups를 전달.
+
+예:
+
+Previous:
+“자녀 연결 상태를 확인해 주세요.”
+
+User:
+“이미 연결되어 있어요.”
+
+GPT는 동일 답변만 반복하면 안 됨.
+
+다른 verified Knowledge가 존재하면
+그 다음 항목을 안내.
+
+다른 근거가 없으면
+새 원인을 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 상담사 문체
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT 최종 출력:
+
+존댓말
+짧고 직접적
+1~4문장 우선
+
+불필요한:
+
+안녕하세요.
+문의 감사합니다.
+도움이 필요하셨군요.
+
+등 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 추가 테스트:
+
+A.
+Knowledge 3개 제공
+→ GPT가 2개만 상황에 맞게 선택/조합
+
+B.
+이미 시도한 Knowledge 제외
+
+C.
+허용 Knowledge에 없는 기능 생성 금지
+
+D.
+허용 Knowledge에 없는 UI 생성 금지
+
+E.
+가격 정책 없는 상태에서 가격 생성 금지
+
+F.
+retrieval 0 → GPT 자유 생성 금지
+
+G.
+used_knowledge_ids가 allowed set 밖
+→ reject
+
+H.
+동일 Canonical 문장 단순 concatenation이 아니라
+grounded 자연어 조합 가능
+
+필수:
+
+GPT_WITHOUT_KNOWLEDGE_CONTEXT = 0
+UNALLOWED_KNOWLEDGE_REFERENCE = 0
+UNSUPPORTED_GPT_CLAIMS = 0
+UNSUPPORTED_POLICY_CLAIMS = 0
+UNSUPPORTED_UI_CLAIMS = 0
+ZERO_KNOWLEDGE_HALLUCINATION = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기존 P0 FIX 보존
+━━━━━━━━━━━━━━━━━━━━━━
+
+Task #41에서 수정한:
+
+원자적 Human ticket claim
+duplicate Push 차단
+resolve-vs-human state race
+ticket create failure rollback
+query log exact row outcome update
+
+전부 regression 금지.
+
+관련 concurrency tests 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Production
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 기존에 결정한 대로:
+
+Render Production 배포 금지.
+OTA 배포 금지.
+실기기 E2E 금지.
+
+현재 branch/local 검증만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS26-GR COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+
+GPT CONTRACT BEFORE:
+GPT CONTRACT AFTER:
+
+GROUNDING
+
+Retrieval:
+Allowed knowledge IDs:
+Structured output:
+Used knowledge validation:
+
+REASONING TEST
+
+Multi-knowledge composition:
+Already-tried exclusion:
+Natural counselor response:
+
+SAFETY
+
+GPT without context:
+Unallowed knowledge references:
+Unsupported claims:
+Unsupported policy:
+Unsupported UI:
+Zero-knowledge hallucination:
+
+CONCURRENCY REGRESSION
+
+Duplicate Human ticket:
+Duplicate Push:
+Resolve-vs-Human race:
+Ticket failure rollback:
+
+TEST
+
+Support tests:
+Full tests:
+Changed-file type errors:
+
+PRODUCTION
+
+Render deploy:
+OTA:
+Device E2E:
+
+모두 NOT PERFORMED 유지.
+
+FINAL
+
+GROUNDED_REASONING_CONTRACT_READY: YES / NO
+FREEFORM_SWIMNOTE_KNOWLEDGE_BLOCKED: YES / NO
+CANONICAL_ONLY_CONCAT_REMOVED: YES / NO
+TASK41_P0_FIXES_PRESERVED: YES / NO
+
+WP_CS26_GR_COMPLETE: YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 멈춘다.
+
+이 작업 완료 후
+Support Sequence 코드는 추가로 확장하지 않고,
+Customer Support Master DB 납품 작업으로 이동한다.
+
+[/끝]
