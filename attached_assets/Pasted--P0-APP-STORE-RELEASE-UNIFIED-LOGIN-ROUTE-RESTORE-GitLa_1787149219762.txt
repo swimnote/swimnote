@@ -1,0 +1,134 @@
+[P0 — APP STORE RELEASE UNIFIED LOGIN ROUTE RESTORE]
+
+GitLab private repository access가 연결되었다.
+
+대상:
+https://gitlab.com/swimnote-group/swimnote-project
+
+branch:
+main
+
+현재 Production live SHA:
+cf03daf354c27445791f133f1f2ba616678301e1
+
+현재 실제 장애:
+POST /api/auth/unified-login
+→ HTTP 404
+→ Cannot POST /api/auth/unified-login
+
+GET /api/healthz
+→ 200
+
+목표:
+현재 App Store 출시 버전이 사용하는
+POST /api/auth/unified-login route를
+Production GitLab main에 최소 수정으로 복구한다.
+
+중요:
+GitHub swimnote/swimnote 및 deploy-photo-clone은 건드리지 않는다.
+TestFlight 코드도 건드리지 않는다.
+DB/schema/AI/customer-support DB도 건드리지 않는다.
+
+1. GitLab main history 조사
+
+현재 live SHA cf03daf3와 이전 commit history를 조사한다.
+
+아래 검색:
+- /api/auth/unified-login
+- unified-login
+- unifiedLogin
+- UNIFIED_LOGIN
+
+찾아야 할 것:
+- unified-login route가 마지막으로 존재했던 정상 commit
+- route 정의 파일
+- router mount 파일
+- auth service/helper dependency
+- route가 빠진 정확한 commit
+
+2. 원인 확정
+
+다음 중 무엇인지 정확히 판단:
+- route file 삭제
+- router mount 누락
+- import 누락
+- path prefix 변경
+- build artifact 누락
+- 다른 auth router로 이동
+
+추측하지 말고 diff로 확인한다.
+
+3. 최소 복구
+
+현재 App Store 앱 contract는 변경하지 않는다.
+
+반드시 유지:
+POST /api/auth/unified-login
+
+이 endpoint만 정상 JSON API 응답을 하도록
+이전 정상 구현을 현재 main에 최소 복구한다.
+
+대규모 auth refactor 금지.
+
+4. 관련 테스트만
+
+수정 후 아래만 확인:
+- POST /api/auth/unified-login route 존재
+- invalid credential → JSON 오류 응답
+- 정상 테스트 계정 → 로그인 성공
+- Content-Type = application/json
+- HTML Cannot POST 응답 제거
+- GET /api/healthz = 200
+
+전체 regression 금지.
+
+5. GitLab main 반영 및 Production 배포
+
+최소 수정 commit을 GitLab main에 반영한다.
+
+Render가 현재 GitLab Production source에서
+해당 fix commit을 배포하도록 한다.
+
+Render source/repository 자체는 변경하지 않는다.
+
+6. Production 직접 검증
+
+배포 후 실제 endpoint:
+
+POST https://swimnote-api.onrender.com/api/auth/unified-login
+
+확인:
+- 404 제거
+- 정상 JSON 응답
+- 실제 App Store 버전 iOS 로그인 성공
+
+7. 완료보고
+
+[APP STORE RELEASE LOGIN RECOVERY FINAL]
+
+- GitLab repo:
+- branch:
+- live SHA before fix:
+- last working commit:
+- route missing since commit:
+- root cause:
+- restored files:
+- code lines changed:
+- DB change: NO
+- schema change: NO
+- AI change: NO
+- customer-support DB change: NO
+- fix commit:
+- Render deployed SHA:
+- POST unified-login HTTP:
+- content-type:
+- invalid login:
+- normal login:
+- /api/healthz:
+- actual App Store iOS login:
+- final status:
+
+완료 기준:
+Production POST /api/auth/unified-login != 404
+AND JSON 정상
+AND App Store 출시 버전 실제 로그인 성공
