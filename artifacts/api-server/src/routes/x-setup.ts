@@ -640,13 +640,9 @@ router.patch("/super/x-setup/:poolId/sections/:section/approve", requireAuth, re
   }
 });
 
-// ── Startup: DB migration + DOCX 템플릿 초기화 ──────────────────────────────
-import("../migrations/pool-db-x-setup.js")
-  .then(({ runXSetupMigration }) => runXSetupMigration())
-  .catch((e: any) => console.error("[x-setup-init] migration failed:", e?.message));
-
-import("../lib/xSetupTemplates.js")
-  .then(({ ensureXSetupTemplates }) => ensureXSetupTemplates())
-  .catch((e: any) => console.error("[x-setup-init] template upload failed:", e?.message));
+// P0 server-boot recovery: X setup migrations and template initialization are
+// intentionally not run as a startup side effect. X remains pending until an
+// explicitly approved maintenance operation runs.
+console.warn("[x-setup] startup migration and template initialization skipped");
 
 export default router;

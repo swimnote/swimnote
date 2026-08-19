@@ -877,17 +877,10 @@ async function startupCleanupRevenueLogs() {
     console.error("[billing-cleanup] 자동 정리 오류:", err);
   }
 }
-startupCleanupRevenueLogs().catch(console.error);
-
-// X02-C: revenuecat_webhook_events 테이블 보장 (startup migration)
-import("../migrations/pool-db-x-billing-contract.js")
-  .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
-  .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
-
-// X02-D2: x_auto_renew_cancelled 컬럼 보장 (startup migration)
-import("../migrations/pool-db-x-lifecycle.js")
-  .then(({ runXLifecycleMigration }) => runXLifecycleMigration())
-  .catch((e: any) => console.error("[x-lifecycle-init] migration failed:", e?.message));
+// P0 server-boot recovery: do not mutate billing data or run X schema
+// migrations as a side effect of loading the billing router. Both operations
+// require separately approved maintenance execution.
+console.warn("[billing] startup cleanup and X migrations skipped");
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
 // subscription.tsx 화면에서 서버 값으로 플랜 목록 표시

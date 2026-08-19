@@ -648,9 +648,8 @@ router.get(
   }
 );
 
-// ── Startup migration ─────────────────────────────────────────────────────────
-import("../migrations/pool-db-x04.js")
-  .then(({ runX04Migration }) => runX04Migration())
-  .catch((e: any) => console.error("[x04-init] migration failed:", e?.message));
+// P0 server-boot recovery: do not execute X04 schema migration while loading
+// routes. It remains pending for a separately approved maintenance operation.
+console.warn("[x04] startup migration skipped");
 
 export default router;
