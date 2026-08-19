@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || "53dff4976d55c17ec94ebe6306d0cffc";
@@ -84,6 +84,58 @@ export async function deleteFromR2(key: string, type: StorageBucket = "photo"): 
 export async function uploadFile(buffer: Buffer, key: string, mimeType: string): Promise<string> {
   await uploadToR2(key, buffer, mimeType, "photo");
   return key;
+}
+
+/**
+ * Generate a presigned PUT URL for direct client-side upload to R2.
+ * Expires in `expiresIn` seconds (default 300 = 5 minutes).
+ * Only photo bucket is supported for direct upload.
+ */
+export async function getPresignedPutUrl(
+  key: string,
+  contentType: string,
+  contentLength: number,
+  expiresIn: number = 300,
+): Promise<{ ok: boolean; url?: string; error?: string }> {
+  try {
+    const url = await getSignedUrl(
+      photoClient as any,
+      new PutObjectCommand({
+        Bucket: PHOTO_BUCKET,
+        Key: key,
+        ContentType: contentType,
+        ContentLength: contentLength,
+      }) as any,
+      { expiresIn },
+    );
+    return { ok: true, url };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
+}
+
+/**
+ * HEAD an object in R2 — returns size and content-type without downloading the body.
+ * Returns null if the object does not exist (404).
+ */
+export async function headObject(
+  key: string,
+  type: StorageBucket = "photo",
+): Promise<{ contentLength: number; contentType: string } | null> {
+  try {
+    const { client, bucket } = getClientAndBucket(type);
+    const result = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return {
+      contentLength: result.ContentLength ?? 0,
+      contentType: result.ContentType ?? "",
+    };
+  } catch (e: any) {
+    // 404 / NoSuchKey → object does not exist
+    if (e.$metadata?.httpStatusCode === 404 || e.name === "NotFound" || e.name === "NoSuchKey") {
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function getPresignedUrl(

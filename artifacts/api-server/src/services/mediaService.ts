@@ -242,6 +242,7 @@ export async function attachPhotosToDiary(
       const photoRow = await db.execute(sql`
         SELECT * FROM photo_assets_meta
         WHERE id = ${photoId} AND pool_id = ${poolId}
+          AND media_status <> 'uploading'
         LIMIT 1
       `);
       const photo = photoRow.rows[0] as any;
@@ -372,6 +373,7 @@ export async function attachPhotosToStudentNote(
       const photoRow = await db.execute(sql`
         SELECT * FROM photo_assets_meta
         WHERE id = ${photoId} AND pool_id = ${poolId}
+          AND media_status <> 'uploading'
         LIMIT 1
       `);
       const photo = photoRow.rows[0] as any;
@@ -479,6 +481,7 @@ export async function detachPhotosFromDiary(
     const photoRow = await db.execute(sql`
       SELECT id, is_clone FROM photo_assets_meta
       WHERE id = ${photoId} AND pool_id = ${poolId}
+        AND media_status <> 'uploading'
       LIMIT 1
     `);
     const photo = photoRow.rows[0] as any;

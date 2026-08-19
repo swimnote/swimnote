@@ -4,6 +4,16 @@ export interface UploadedMedia {
   uploading: boolean;
   uploaded: boolean;
   error?: string;
+  /** Stable client-side ID used for direct-upload tracking and retry */
+  clientId?: string;
+  /** Original file name */
+  fileName?: string;
+  /** MIME type */
+  mimeType?: string;
+  /** Actual byte size (post-compression) */
+  fileSize?: number;
+  /** Upload progress 0–100 (photos only, during direct upload) */
+  progress?: number;
 }
 
 export interface DiaryTemplateLevel { id: string; level_name: string; sort_order: number; template_count: number; }

@@ -44,6 +44,7 @@ export default function DiaryWriteView({
   studentAlbumVideos, onRemoveStudentAlbumVideo,
   onOpenGroupMyAlbum, onOpenStudentMyAlbum, videoEnabled,
   poolId, teacherId, onAIInsert,
+  onRetryGroupPhotoItem, onRetryStudentPhotoItem,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
 
@@ -91,6 +92,10 @@ export default function DiaryWriteView({
   poolId?: string;
   teacherId?: string;
   onAIInsert?: (result: DiaryInsertResult) => void;
+  /** Retry a failed direct-upload photo item (group) */
+  onRetryGroupPhotoItem?: (clientId: string) => void;
+  /** Retry a failed direct-upload photo item (student) */
+  onRetryStudentPhotoItem?: (studentId: string, clientId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -155,11 +160,38 @@ export default function DiaryWriteView({
           {groupMedia.length > 0 && (
             <View style={s.mediaPreviewRow}>
               {groupMedia.map((m, i) => (
-                <View key={i} style={s.mediaThumb}>
-                  {m.kind === "photo"
-                    ? <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#E4A93A"} />
-                    : <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? C.success : m.error ? "#D96C6C" : C.brandStrong} />}
-                  {m.uploading && <ActivityIndicator size="small" color={C.brandStrong} style={{ position: "absolute" }} />}
+                <View key={m.clientId ?? i} style={[s.mediaThumbWrap]}>
+                  <View style={s.mediaThumb}>
+                    {m.kind === "photo" ? (
+                      m.uploaded ? (
+                        <LucideIcon name="check-circle" size={20} color={C.success} />
+                      ) : m.error ? (
+                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
+                      ) : (
+                        <LucideIcon name="image" size={20} color="#E4A93A" />
+                      )
+                    ) : (
+                      m.uploaded ? (
+                        <LucideIcon name="check-circle" size={20} color={C.success} />
+                      ) : m.error ? (
+                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
+                      ) : (
+                        <LucideIcon name="video" size={20} color={C.brandStrong} />
+                      )
+                    )}
+                    {m.uploading && <ActivityIndicator size="small" color={C.brandStrong} style={{ position: "absolute" }} />}
+                  </View>
+                  {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
+                    <Text style={s.mediaProgressText}>{m.progress}%</Text>
+                  )}
+                  {m.kind === "photo" && m.error && (
+                    <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
+                  )}
+                  {m.kind === "photo" && m.error && m.clientId && onRetryGroupPhotoItem && (
+                    <Pressable onPress={() => onRetryGroupPhotoItem(m.clientId!)} hitSlop={4}>
+                      <Text style={s.mediaRetryText}>재시도</Text>
+                    </Pressable>
+                  )}
                 </View>
               ))}
             </View>
@@ -253,14 +285,33 @@ export default function DiaryWriteView({
                   {stMedia.length > 0 && (
                     <View style={s.mediaPreviewRow}>
                       {stMedia.map((m, i) => (
-                        <View key={i} style={s.mediaThumb}>
-                          {m.uri && m.kind === "photo" ? (
-                            <ExpoImage source={{ uri: m.uri }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
-                          ) : (
-                            <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
-                              color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#7C3AED"} />
+                        <View key={m.clientId ?? i} style={s.mediaThumbWrap}>
+                          <View style={s.mediaThumb}>
+                            {m.kind === "photo" ? (
+                              m.uploaded ? (
+                                <LucideIcon name="check-circle" size={16} color={C.success} />
+                              ) : m.error ? (
+                                <LucideIcon name="alert-circle" size={16} color="#D96C6C" />
+                              ) : (
+                                <LucideIcon name="image" size={16} color="#7C3AED" />
+                              )
+                            ) : (
+                              <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={16}
+                                color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#7C3AED"} />
+                            )}
+                            {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
+                          </View>
+                          {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
+                            <Text style={s.mediaProgressText}>{m.progress}%</Text>
                           )}
-                          {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
+                          {m.kind === "photo" && m.error && (
+                            <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
+                          )}
+                          {m.kind === "photo" && m.error && m.clientId && onRetryStudentPhotoItem && (
+                            <Pressable onPress={() => onRetryStudentPhotoItem(note.student_id, m.clientId!)} hitSlop={4}>
+                              <Text style={s.mediaRetryText}>재시도</Text>
+                            </Pressable>
+                          )}
                         </View>
                       ))}
                     </View>
@@ -466,7 +517,11 @@ export const s = StyleSheet.create({
   mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20 },
   mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
+  mediaThumbWrap:{ alignItems: "center", gap: 2 },
   mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  mediaProgressText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  mediaErrorText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  mediaRetryText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong, textDecorationLine: "underline" as const },
   albumLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 6 },
   albumPreviewRow: { flexDirection: "row", gap: 6 },
   albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: C.backgroundSoft },

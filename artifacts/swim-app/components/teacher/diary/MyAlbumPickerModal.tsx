@@ -5,26 +5,32 @@
  * 3가지 방법:
  *  1. 기존 저장된 항목 그리드에서 선택 → 선택 완료 → 일지 첨부
  *  2. 전체앨범에서 가져오기(FullAlbumPickerModal) → 내앨범 저장 + 자동 선택 → 일지 첨부
- *  3. 직접 업로드(갤러리 → /photos|videos/private) → 내앨범 저장 + 자동 선택 → 일지 첨부
+ *  3. 직접 업로드(갤러리 → R2 direct-upload 또는 /videos/group) → 내앨범 저장 + 자동 선택 → 일지 첨부
+ *
+ * Photo path: directUploadPhotos (R2), then POST /photos/saved, reload, auto-select by returned IDs.
+ * Video path: unchanged FormData multipart to /videos/group (no class_id/lesson_date).
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Dimensions, FlatList, Modal,
-  Pressable, StyleSheet, Text, View,
+  Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
+import { getInfoAsync } from "expo-file-system/legacy";
 import Colors from "@/constants/colors";
 import { API_BASE } from "@/context/AuthContext";
 import { compressImageIfNeeded } from "@/utils/compressImage";
+import { directUploadPhotos, DirectUploadFile } from "@/utils/directUploadPhotos";
 import { FullAlbumPickerModal } from "@/components/teacher/album/FullAlbumPickerModal";
 import { AlbumPhotoInfo, AlbumVideoInfo } from "./types";
 
 const C = Colors.light;
 const { width: W } = Dimensions.get("window");
 const CELL = Math.floor((W - 4) / 3);
+const MAX_PHOTOS = 10;
 
 interface RawItem {
   id: string;
@@ -36,6 +42,19 @@ interface RawItem {
   class_name?: string;
   caption?: string;
   status?: string;
+}
+
+/** Per-photo upload state used only while the upload modal is open */
+interface PhotoUploadItem {
+  clientId: string;
+  uri: string;          // compressed URI
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploading: boolean;
+  uploaded: boolean;
+  progress: number;     // 0-100
+  error?: string;
 }
 
 interface Props {
@@ -63,14 +82,16 @@ export default function MyAlbumPickerModal({
   const [selected, setSelected]       = useState<Set<string>>(new Set());
   const [error, setError]             = useState<string | null>(null);
   const [showFullAlbum, setShowFullAlbum] = useState(false);
-  const prevIdsRef = useRef<Set<string>>(new Set());
+
+  // Per-photo upload progress items (photo path only)
+  const [uploadItems, setUploadItems] = useState<PhotoUploadItem[]>([]);
 
   const isPhoto   = mediaType === "photo";
   const color     = isPhoto ? "#C2410C" : "#5B21B6";
   const bgColor   = isPhoto ? "#FFEDD5" : "#EDE9FE";
   const title     = isPhoto ? "내 사진앨범" : "내 영상앨범";
 
-  const loadList = useCallback(async (autoSelectNewIds?: Set<string>) => {
+  const loadList = useCallback(async (autoSelectIds?: Set<string>) => {
     if (!token) return;
     setLoading(true);
     setError(null);
@@ -85,12 +106,12 @@ export default function MyAlbumPickerModal({
       const key  = isPhoto ? "photos" : "videos";
       const raw: RawItem[] = Array.isArray(data[key]) ? data[key] : (Array.isArray(data) ? data : []);
       setItems(raw);
-      if (autoSelectNewIds && autoSelectNewIds.size > 0) {
-        const newIds = raw.map(r => r.id).filter(id => autoSelectNewIds.has(id));
-        if (newIds.length > 0) {
+      if (autoSelectIds && autoSelectIds.size > 0) {
+        const found = raw.map(r => r.id).filter(id => autoSelectIds.has(id));
+        if (found.length > 0) {
           setSelected(prev => {
             const next = new Set(prev);
-            newIds.forEach(id => next.add(id));
+            found.forEach(id => next.add(id));
             return next;
           });
         }
@@ -106,6 +127,7 @@ export default function MyAlbumPickerModal({
     if (visible) {
       setSelected(new Set());
       setError(null);
+      setUploadItems([]);
       loadList();
     }
   }, [visible, loadList]);
@@ -145,92 +167,245 @@ export default function MyAlbumPickerModal({
     }
   }
 
+  // ── Shared photo compression helper ────────────────────────────────
+  async function compressPhoto(asset: ImagePicker.ImagePickerAsset): Promise<{ compressedUri: string; fileName: string; mimeType: string; fileSize: number }> {
+    const originalUri = asset.uri;
+    const compressedUri = await compressImageIfNeeded(originalUri, asset.fileSize ?? undefined);
+    // If compression produced a different file, force JPEG metadata
+    const wasCompressed = compressedUri !== originalUri;
+    const fileName = wasCompressed ? "photo.jpg" : (asset.fileName || "photo.jpg");
+    const mimeType = wasCompressed ? "image/jpeg" : (asset.mimeType || "image/jpeg");
+    // Measure actual byte size of the (possibly compressed) file
+    let fileSize = asset.fileSize ?? 0;
+    try {
+      const info = await getInfoAsync(compressedUri);
+      if (info.exists) fileSize = info.size;
+    } catch {}
+    return { compressedUri, fileName, mimeType, fileSize };
+  }
+
+  async function savePhotoIds(photoIds: string[]): Promise<void> {
+    const response = await fetch(`${API_BASE}/photos/saved`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ photo_ids: photoIds }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? "내 앨범 저장에 실패했습니다.");
+    }
+  }
+
+  // ── PHOTO direct-upload via R2 ──────────────────────────────────────
   async function handleDirectUpload() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: isPhoto ? ["images"] : ["videos"],
       allowsMultipleSelection: isPhoto,
+      selectionLimit: isPhoto ? MAX_PHOTOS : 1,
       quality: isPhoto ? 0.85 : 1,
     });
     if (result.canceled || !result.assets?.length) return;
 
-    setUploading(true);
-    setError(null);
-    const beforeIds = new Set(items.map(it => it.id));
-    prevIdsRef.current = beforeIds;
-    try {
-      const form = new FormData();
-      for (const asset of result.assets) {
-        const uri = isPhoto
-          ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined)
-          : asset.uri;
-        form.append(
-          isPhoto ? "photos" : "video",
-          { uri, name: asset.fileName || (isPhoto ? "photo.jpg" : "video.mp4"), type: asset.mimeType || (isPhoto ? "image/jpeg" : "video/mp4") } as any
-        );
-      }
-      // class_id/student_id 없이 pool 전체 앨범(/photos/group)에 업로드 후 내 앨범에 저장
-      const endpoint = isPhoto ? "/photos/group" : "/videos/group";
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token ?? ""}` },
-        body: form,
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error((d as any)?.error ?? "업로드 실패");
-      }
-      // 업로드된 항목을 내 앨범(saved)에 등록
-      if (isPhoto) {
-        const photoIds: string[] = ((d as any).photos || []).map((p: any) => p.id).filter(Boolean);
-        if (photoIds.length > 0) {
-          await fetch(`${API_BASE}/photos/saved`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ photo_ids: photoIds }),
-          }).catch(() => {});
-        }
-      } else {
-        const videoId: string | undefined = (d as any).video?.id;
+    // ── VIDEO: unchanged FormData path ─────────────────────────────
+    if (!isPhoto) {
+      setUploading(true);
+      setError(null);
+      try {
+        const asset = result.assets[0];
+        const form = new FormData();
+        form.append("video", { uri: asset.uri, name: asset.fileName || "video.mp4", type: asset.mimeType || "video/mp4" } as any);
+        // No class_id / lesson_date – pool-wide saved album
+        const res = await fetch(`${API_BASE}/videos/group`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token ?? ""}` },
+          body: form,
+        });
+        const d = await res.json().catch(() => ({})) as any;
+        if (!res.ok) throw new Error(d?.error ?? "업로드 실패");
+        const videoId: string | undefined = d?.video?.id;
         if (videoId) {
           await fetch(`${API_BASE}/videos/saved`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token ?? ""}`, "Content-Type": "application/json" },
             body: JSON.stringify({ video_ids: [videoId] }),
           }).catch(() => {});
+          const beforeIds = new Set(items.map(it => it.id));
+          await loadList(undefined);
+          // Auto-select newly added item
+          setSelected(prev => {
+            const next = new Set(prev);
+            if (!beforeIds.has(videoId)) next.add(videoId);
+            return next;
+          });
         }
+      } catch (e: any) {
+        setError(e?.message ?? "업로드 중 오류가 발생했습니다.");
+      } finally {
+        setUploading(false);
       }
-      // 목록 재로드 후 새 항목 자동 선택
-      await loadList(undefined);
-      // 재로드 후 새 항목 감지해서 선택
-      const newRes = await fetch(`${API_BASE}/${isPhoto ? "photos" : "videos"}/teacher-all?scope=private`, {
-        headers: { Authorization: `Bearer ${token ?? ""}` },
-      });
-      const newData = await newRes.json().catch(() => ({}));
-      const key = isPhoto ? "photos" : "videos";
-      const newRaw: RawItem[] = Array.isArray(newData[key]) ? newData[key] : [];
-      setItems(newRaw);
-      const newlyAdded = new Set(newRaw.map(r => r.id).filter(id => !beforeIds.has(id)));
-      if (newlyAdded.size > 0) {
-        setSelected(prev => {
-          const next = new Set(prev);
-          newlyAdded.forEach(id => next.add(id));
-          return next;
-        });
+      return;
+    }
+
+    // ── PHOTO: direct-upload to R2 ─────────────────────────────────
+    const assets = result.assets.slice(0, MAX_PHOTOS);
+    if (result.assets.length > MAX_PHOTOS) {
+      setError(`최대 ${MAX_PHOTOS}장까지 선택할 수 있습니다. 처음 ${MAX_PHOTOS}장만 업로드합니다.`);
+    } else {
+      setError(null);
+    }
+
+    setUploading(true);
+
+    // Compress all assets first
+    let compressedList: Array<{ asset: ImagePicker.ImagePickerAsset; compressedUri: string; fileName: string; mimeType: string; fileSize: number; clientId: string }> = [];
+    try {
+      for (const asset of assets) {
+        const { compressedUri, fileName, mimeType, fileSize } = await compressPhoto(asset);
+        const clientId = `myalbum_${Date.now().toString()}_${Math.random().toString(36).substr(2, 9)}`;
+        compressedList.push({ asset, compressedUri, fileName, mimeType, fileSize, clientId });
       }
     } catch (e: any) {
+      setError(e?.message ?? "압축 중 오류가 발생했습니다.");
+      setUploading(false);
+      return;
+    }
+
+    // Initialize per-item upload state
+    const initialItems: PhotoUploadItem[] = compressedList.map(cf => ({
+      clientId: cf.clientId,
+      uri: cf.compressedUri,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+      uploading: true,
+      uploaded: false,
+      progress: 0,
+    }));
+    setUploadItems(initialItems);
+
+    const directFiles: DirectUploadFile[] = compressedList.map(cf => ({
+      clientId: cf.clientId,
+      uri: cf.compressedUri,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+    }));
+
+    let results: Awaited<ReturnType<typeof directUploadPhotos>> = [];
+    try {
+      results = await directUploadPhotos({
+        token: token ?? "",
+        albumType: "group",
+        // No classId or lessonDate – pool-wide saved album session
+        files: directFiles,
+        onItemProgress: (clientId, progress) => {
+          setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, progress } : it));
+        },
+        onItemDone: (clientId) => {
+          setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, progress: 100 } : it));
+        },
+        onItemError: (clientId, err) => {
+          setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, error: err } : it));
+        },
+      });
+    } catch (e: any) {
+      // Unexpected error from directUploadPhotos itself
       setError(e?.message ?? "업로드 중 오류가 발생했습니다.");
+      setUploadItems(prev => prev.map(it => ({ ...it, uploading: false, error: it.error ?? "오류" })));
+      setUploading(false);
+      return;
+    }
+
+    // Apply final per-item states
+    setUploadItems(prev => prev.map(it => {
+      const r = results.find(res => res.clientId === it.clientId);
+      if (!r) return it;
+      if (r.error) return { ...it, uploading: false, uploaded: false, error: r.error };
+      return { ...it, uploading: false, uploaded: true, progress: 100, error: undefined };
+    }));
+
+    // Collect IDs returned from finalize
+    const successPhotoIds: string[] = results
+      .filter(r => !r.error && r.photo?.id)
+      .map(r => r.photo!.id);
+
+    try {
+      if (successPhotoIds.length > 0) {
+        await savePhotoIds(successPhotoIds);
+        // Reload list and auto-select by the known returned IDs
+        await loadList(new Set(successPhotoIds));
+      }
+
+      const failCount = results.filter(r => !!r.error).length;
+      if (failCount > 0 && successPhotoIds.length === 0) {
+        setError(`업로드에 실패했습니다. 재시도 버튼으로 개별 항목을 다시 시도하세요.`);
+      } else if (failCount > 0) {
+        setError(`${failCount}개 업로드 실패. 재시도 버튼으로 개별 항목을 다시 시도하세요.`);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "내 앨범 저장 중 오류가 발생했습니다.");
     } finally {
       setUploading(false);
     }
   }
 
+  // ── Per-item retry (photo) ──────────────────────────────────────────
+  async function retryPhotoItem(clientId: string) {
+    const item = uploadItems.find(it => it.clientId === clientId);
+    if (!item) return;
+
+    // Reset item to uploading state
+    setUploadItems(prev => prev.map(it =>
+      it.clientId === clientId ? { ...it, uploading: true, uploaded: false, error: undefined, progress: 0 } : it
+    ));
+
+    let results: Awaited<ReturnType<typeof directUploadPhotos>> = [];
+    try {
+      results = await directUploadPhotos({
+        token: token ?? "",
+        albumType: "group",
+        files: [{ clientId: item.clientId, uri: item.uri, fileName: item.fileName, mimeType: item.mimeType, fileSize: item.fileSize }],
+        onItemProgress: (_id, progress) => {
+          setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, progress } : it));
+        },
+        onItemError: (_id, err) => {
+          setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, error: err } : it));
+        },
+      });
+    } catch (e: any) {
+      setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, error: e?.message ?? "오류" } : it));
+      return;
+    }
+
+    const r = results[0];
+    if (!r) {
+      setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, error: "업로드 결과를 확인할 수 없습니다." } : it));
+      return;
+    }
+
+    if (r.error) {
+      setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, uploaded: false, error: r.error } : it));
+      return;
+    }
+
+    // Success: apply state, save and select
+    setUploadItems(prev => prev.map(it => it.clientId === clientId ? { ...it, uploading: false, uploaded: true, progress: 100, error: undefined } : it));
+
+    if (r.photo?.id) {
+      try {
+        await savePhotoIds([r.photo.id]);
+        await loadList(new Set([r.photo.id]));
+      } catch (e: any) {
+        setError(e?.message ?? "내 앨범 저장 중 오류가 발생했습니다.");
+      }
+    }
+  }
+
   function handleFullAlbumSaved(count: number) {
-    // 전체앨범에서 가져오기 완료 → 목록 재로드 + 새 항목 자동 선택
     setShowFullAlbum(false);
     const beforeIds = new Set(items.map(it => it.id));
-    // 비동기로 재로드 + 새 항목 감지
     (async () => {
       try {
         const endpoint = isPhoto
@@ -289,6 +464,10 @@ export default function MyAlbumPickerModal({
     );
   };
 
+  // ── Per-item upload progress strip (photo only) ─────────────────────
+  const hasUploadItems = isPhoto && uploadItems.length > 0;
+  const anyUploading   = uploadItems.some(it => it.uploading);
+
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={[s.root, { paddingTop: insets.top }]}>
@@ -323,17 +502,51 @@ export default function MyAlbumPickerModal({
             onPress={handleDirectUpload}
             disabled={uploading}
           >
-            {uploading
+            {uploading && !hasUploadItems
               ? <ActivityIndicator size="small" color={color} />
               : <><LucideIcon name="upload-cloud" size={15} color={color} /><Text style={[s.actionBtnText, { color }]}>직접 업로드</Text></>
             }
           </Pressable>
         </View>
 
-        {/* 에러 */}
+        {/* 에러 배너 */}
         {!!error && (
           <View style={s.errorBanner}>
             <Text style={s.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {/* 업로드 중 항목 진행률 (photo only) */}
+        {hasUploadItems && (
+          <View style={s.uploadStrip}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.uploadStripContent}>
+              {uploadItems.map(it => (
+                <View key={it.clientId} style={s.uploadChip}>
+                  {it.uploading ? (
+                    <>
+                      <ActivityIndicator size="small" color={color} />
+                      <Text style={[s.uploadChipText, { color }]}>{it.progress}%</Text>
+                    </>
+                  ) : it.error ? (
+                    <>
+                      <LucideIcon name="alert-circle" size={14} color="#DC2626" />
+                      <Text style={s.uploadChipError} numberOfLines={1}>실패</Text>
+                      <Pressable onPress={() => retryPhotoItem(it.clientId)} hitSlop={6}>
+                        <Text style={[s.uploadChipRetry, { color }]}>재시도</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      <LucideIcon name="check-circle" size={14} color="#16A34A" />
+                      <Text style={s.uploadChipDone}>완료</Text>
+                    </>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+            {anyUploading && (
+              <ActivityIndicator size="small" color={color} style={{ marginRight: 8 }} />
+            )}
           </View>
         )}
 
@@ -384,8 +597,15 @@ const s = StyleSheet.create({
   actionRow:   { flexDirection: "row", gap: 8, padding: 12 },
   actionBtn:   { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   actionBtnText: { fontSize: 13, fontFamily: "Pretendard-Medium" },
-  errorBanner: { backgroundColor: "#FEF2F2", padding: 10, marginHorizontal: 12, borderRadius: 8 },
+  errorBanner: { backgroundColor: "#FEF2F2", padding: 10, marginHorizontal: 12, borderRadius: 8, marginBottom: 4 },
   errorText:   { color: "#DC2626", fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center" },
+  uploadStrip: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderBottomWidth: 1, borderBottomColor: "#E2E8F0", paddingVertical: 6 },
+  uploadStripContent: { paddingHorizontal: 12, gap: 8 },
+  uploadChip:  { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E2E8F0" },
+  uploadChipText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  uploadChipError: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626" },
+  uploadChipDone:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A" },
+  uploadChipRetry: { fontSize: 11, fontFamily: "Pretendard-Regular", textDecorationLine: "underline" },
   center:      { flex: 1, justifyContent: "center", alignItems: "center", gap: 8 },
   emptyText:   { fontSize: 15, fontFamily: "Pretendard-Medium", color: "#64748B" },
   emptyHint:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#94A3B8" },

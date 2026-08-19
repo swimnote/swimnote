@@ -34,6 +34,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { emitDiaryChanged } from "@/utils/diaryEvents";
 import { BookOpen, Clock } from "lucide-react-native";
 import { haptic } from "@/utils/haptic";
+import { directUploadPhotos } from "@/utils/directUploadPhotos";
+import { getInfoAsync } from "expo-file-system/legacy";
 const C = Colors.light;
 export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
@@ -389,32 +391,135 @@ export default function TeacherDiaryScreen() {
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: kind === "video" ? ["videos"] : ["images"],
-      allowsMultipleSelection: kind !== "video", quality: kind === "video" ? 1 : 0.85,
+      allowsMultipleSelection: kind !== "video",
+      selectionLimit: kind === "photo" ? 10 : 1,
+      quality: kind === "video" ? 1 : 0.85,
     });
     if (result.canceled || !result.assets?.length) return;
     const caption = `${selectedGroup.schedule_days || ""} ${selectedGroup.schedule_time || ""}반 일지`.trim() || `${selectedGroup.name} 일지`;
     setMediaUploading("group");
-    const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
-    setGroupMedia(prev => [...prev, ...newItems]);
+
+    // ── VIDEO: keep existing FormData multipart path ───────────────
+    if (kind === "video") {
+      const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
+      setGroupMedia(prev => [...prev, ...newItems]);
+      try {
+        const form = new FormData();
+        for (const asset of result.assets) {
+          form.append("video", { uri: asset.uri, name: asset.fileName || "video.mp4", type: asset.mimeType || "video/mp4" } as any);
+        }
+        form.append("class_id", selectedGroup.id); form.append("caption", caption);
+        form.append("lesson_date", targetDate);
+        const res = await fetch(`${API_BASE}/videos/group`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({})) as any;
+          throw new Error(errData?.error || `업로드 실패 (${res.status})`);
+        }
+        setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m));
+      } catch (e) {
+        if (__DEV__) console.error("[uploadGroupMedia] video error:", e);
+        setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
+      } finally { setMediaUploading(null); }
+      return;
+    }
+
+    // ── PHOTO: direct-upload to R2 ─────────────────────────────────
+    // Max 10 photos enforced via selectionLimit; slice is a safety net
+    const assets = result.assets.slice(0, 10);
+
+    type CompressedFile = { compressedUri: string; fileName: string; mimeType: string; fileSize: number; clientId: string; origUri: string };
+    let compressedFiles: CompressedFile[] = [];
     try {
-      const form = new FormData();
-      for (const asset of result.assets) {
-        const uri = kind === "photo" ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
-        form.append(kind === "video" ? "video" : "photos", { uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any);
+      for (const asset of assets) {
+        const originalUri = asset.uri;
+        const compressedUri = await compressImageIfNeeded(originalUri, asset.fileSize ?? undefined);
+        const wasCompressed = compressedUri !== originalUri;
+        const fileName = wasCompressed ? "photo.jpg" : (asset.fileName || "photo.jpg");
+        const mimeType = wasCompressed ? "image/jpeg" : (asset.mimeType || "image/jpeg");
+        let fileSize = asset.fileSize ?? 0;
+        try {
+          const info = await getInfoAsync(compressedUri);
+          if (info.exists) fileSize = info.size;
+        } catch {}
+        const clientId = `grp_${Date.now().toString()}_${Math.random().toString(36).substr(2, 9)}`;
+        compressedFiles.push({ compressedUri, fileName, mimeType, fileSize, clientId, origUri: originalUri });
       }
-      form.append("class_id", selectedGroup.id); form.append("caption", caption);
-      form.append("lesson_date", targetDate);
-      const endpoint = kind === "video" ? "/videos/group" : "/photos/group";
-      const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({})) as any;
-        throw new Error(errData?.error || `업로드 실패 (${res.status})`);
-      }
-      setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m));
     } catch (e) {
-      if (__DEV__) console.error("[uploadGroupMedia] error:", e);
-      setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
-    } finally { setMediaUploading(null); }
+      if (__DEV__) console.error("[uploadGroupMedia] compress error:", e);
+      setGroupMedia(prev => prev.filter(m => m.uploading === false || m.uploaded === true));
+      setMediaUploading(null);
+      return;
+    }
+
+    // Add placeholder items with clientIds for progress tracking
+    const newItems: UploadedMedia[] = compressedFiles.map(cf => ({
+      uri: cf.compressedUri,
+      kind: "photo" as const,
+      uploading: true,
+      uploaded: false,
+      clientId: cf.clientId,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+      progress: 0,
+    }));
+    setGroupMedia(prev => [...prev, ...newItems]);
+
+    const directFiles = compressedFiles.map(cf => ({
+      clientId: cf.clientId,
+      uri: cf.compressedUri,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+    }));
+
+    try {
+      const results = await directUploadPhotos({
+        token: token || "",
+        albumType: "group",
+        classId: selectedGroup.id,
+        lessonDate: targetDate,
+        caption,
+        files: directFiles,
+        onItemProgress: (clientId, progress) => {
+          setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, progress } : m));
+        },
+        onItemDone: (clientId) => {
+          setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, progress: 100 } : m));
+        },
+        onItemError: (clientId, error) => {
+          setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: false, error } : m));
+        },
+      });
+
+      // Apply final states
+      setGroupMedia(prev => prev.map(m => {
+        if (!m.clientId) return m;
+        const r = results.find(res => res.clientId === m.clientId);
+        if (!r) return m;
+        if (r.error) return { ...m, uploading: false, uploaded: false, error: r.error };
+        return { ...m, uploading: false, uploaded: true, progress: 100, error: undefined };
+      }));
+
+      // Append successful photos to album for diary-attach (deduplicated)
+      const successPhotos: AlbumPhotoInfo[] = [];
+      const successIds: string[] = [];
+      for (const r of results) {
+        if (!r.error && r.photo) {
+          successIds.push(r.photo.id);
+          successPhotos.push({ id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id });
+        }
+      }
+      if (successIds.length > 0) {
+        setSelectedAlbumIds(prev => { const ex = new Set(prev); return [...prev, ...successIds.filter(id => !ex.has(id))]; });
+        setSelectedAlbumPhotos(prev => { const ex = new Set(prev.map(p => p.id)); return [...prev, ...successPhotos.filter(p => !ex.has(p.id))]; });
+      }
+    } catch (e) {
+      if (__DEV__) console.error("[uploadGroupMedia] photo upload error:", e);
+      setGroupMedia(prev => prev.map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
+    } finally {
+      setMediaUploading(null);
+    }
   }
   async function uploadStudentMedia(student: StudentOption, kind: "photo" | "video") {
     if (!selectedGroup) return;
@@ -424,33 +529,232 @@ export default function TeacherDiaryScreen() {
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: kind === "video" ? ["videos"] : ["images"],
-      allowsMultipleSelection: kind !== "video", quality: kind === "video" ? 1 : 0.85,
+      allowsMultipleSelection: kind !== "video",
+      selectionLimit: kind === "photo" ? 10 : 1,
+      quality: kind === "video" ? 1 : 0.85,
     });
     if (result.canceled || !result.assets?.length) return;
     setMediaUploading(student.id);
-    const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
-    setStudentMedia(prev => ({ ...prev, [student.id]: [...(prev[student.id] || []), ...newItems] }));
+
+    // ── VIDEO: keep existing FormData multipart path ───────────────
+    if (kind === "video") {
+      const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
+      setStudentMedia(prev => ({ ...prev, [student.id]: [...(prev[student.id] || []), ...newItems] }));
+      try {
+        const form = new FormData();
+        for (const asset of result.assets) {
+          form.append("video", { uri: asset.uri, name: asset.fileName || "video.mp4", type: asset.mimeType || "video/mp4" } as any);
+        }
+        if (selectedGroup) form.append("class_id", selectedGroup.id);
+        form.append("student_id", student.id); form.append("caption", `${student.name} 개별 일지`);
+        form.append("lesson_date", targetDate);
+        const res = await fetch(`${API_BASE}/videos/private`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({})) as any;
+          throw new Error(errData?.error || `업로드 실패 (${res.status})`);
+        }
+        setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m) }));
+      } catch (e) {
+        if (__DEV__) console.error("[uploadStudentMedia] video error:", e);
+        setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m) }));
+      } finally { setMediaUploading(null); }
+      return;
+    }
+
+    // ── PHOTO: direct-upload to R2 ─────────────────────────────────
+    // Max 10 photos enforced via selectionLimit; slice is a safety net
+    const assets = result.assets.slice(0, 10);
+    const studentId = student.id;
+
+    type CompressedFile = { compressedUri: string; fileName: string; mimeType: string; fileSize: number; clientId: string };
+    let compressedFiles: CompressedFile[] = [];
     try {
-      const form = new FormData();
-      for (const asset of result.assets) {
-        const uri = kind === "photo" ? await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined) : asset.uri;
-        form.append(kind === "video" ? "video" : "photos", { uri, name: asset.fileName || (kind === "video" ? "video.mp4" : "photo.jpg"), type: asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg") } as any);
+      for (const asset of assets) {
+        const originalUri = asset.uri;
+        const compressedUri = await compressImageIfNeeded(originalUri, asset.fileSize ?? undefined);
+        const wasCompressed = compressedUri !== originalUri;
+        const fileName = wasCompressed ? "photo.jpg" : (asset.fileName || "photo.jpg");
+        const mimeType = wasCompressed ? "image/jpeg" : (asset.mimeType || "image/jpeg");
+        let fileSize = asset.fileSize ?? 0;
+        try {
+          const info = await getInfoAsync(compressedUri);
+          if (info.exists) fileSize = info.size;
+        } catch {}
+        const clientId = `stu_${studentId.slice(-6)}_${Date.now().toString()}_${Math.random().toString(36).substr(2, 9)}`;
+        compressedFiles.push({ compressedUri, fileName, mimeType, fileSize, clientId });
       }
-      if (selectedGroup) form.append("class_id", selectedGroup.id);
-      form.append("student_id", student.id); form.append("caption", `${student.name} 개별 일지`);
-      form.append("lesson_date", targetDate);
-      const endpoint = kind === "video" ? "/videos/private" : "/photos/private";
-      const res = await fetch(`${API_BASE}${endpoint}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({})) as any;
-        throw new Error(errData?.error || `업로드 실패 (${res.status})`);
-      }
-      setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, uploaded: true } : m) }));
     } catch (e) {
-      if (__DEV__) console.error("[uploadStudentMedia] error:", e);
-      setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m) }));
-    } finally { setMediaUploading(null); }
+      if (__DEV__) console.error("[uploadStudentMedia] compress error:", e);
+      setMediaUploading(null);
+      return;
+    }
+
+    const newItems: UploadedMedia[] = compressedFiles.map(cf => ({
+      uri: cf.compressedUri,
+      kind: "photo" as const,
+      uploading: true,
+      uploaded: false,
+      clientId: cf.clientId,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+      progress: 0,
+    }));
+    setStudentMedia(prev => ({ ...prev, [studentId]: [...(prev[studentId] || []), ...newItems] }));
+
+    const directFiles = compressedFiles.map(cf => ({
+      clientId: cf.clientId,
+      uri: cf.compressedUri,
+      fileName: cf.fileName,
+      mimeType: cf.mimeType,
+      fileSize: cf.fileSize,
+    }));
+
+    try {
+      const results = await directUploadPhotos({
+        token: token || "",
+        albumType: "private",
+        classId: selectedGroup.id,
+        studentId,
+        lessonDate: targetDate,
+        caption: `${student.name} 개별 일지`,
+        files: directFiles,
+        onItemProgress: (clientId, progress) => {
+          setStudentMedia(prev => ({
+            ...prev,
+            [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, progress } : m),
+          }));
+        },
+        onItemDone: (clientId) => {
+          setStudentMedia(prev => ({
+            ...prev,
+            [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, progress: 100 } : m),
+          }));
+        },
+        onItemError: (clientId, error) => {
+          setStudentMedia(prev => ({
+            ...prev,
+            [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: false, error } : m),
+          }));
+        },
+      });
+
+      // Apply final states
+      setStudentMedia(prev => ({
+        ...prev,
+        [studentId]: (prev[studentId] || []).map(m => {
+          if (!m.clientId) return m;
+          const r = results.find(res => res.clientId === m.clientId);
+          if (!r) return m;
+          if (r.error) return { ...m, uploading: false, uploaded: false, error: r.error };
+          return { ...m, uploading: false, uploaded: true, progress: 100, error: undefined };
+        }),
+      }));
+
+      // Append successful photos to studentAlbumPhotos so note-attach works — deduplicate
+      const successPhotos: AlbumPhotoInfo[] = [];
+      for (const r of results) {
+        if (!r.error && r.photo) {
+          successPhotos.push({ id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id });
+        }
+      }
+      if (successPhotos.length > 0) {
+        setStudentAlbumPhotos(prev => {
+          const existing = new Set((prev[studentId] ?? []).map(p => p.id));
+          return { ...prev, [studentId]: [...(prev[studentId] ?? []), ...successPhotos.filter(p => !existing.has(p.id))] };
+        });
+      }
+    } catch (e) {
+      if (__DEV__) console.error("[uploadStudentMedia] photo upload error:", e);
+      setStudentMedia(prev => ({
+        ...prev,
+        [studentId]: (prev[studentId] || []).map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m),
+      }));
+    } finally {
+      setMediaUploading(null);
+    }
   }
+
+  // ── Per-item retry for direct-upload photos ────────────────────────
+  async function retryGroupPhotoItem(clientId: string) {
+    if (!selectedGroup) return;
+    const item = groupMedia.find(m => m.clientId === clientId);
+    if (!item || !item.fileName || !item.mimeType || !item.fileSize) return;
+    const caption = `${selectedGroup.schedule_days || ""} ${selectedGroup.schedule_time || ""}반 일지`.trim() || `${selectedGroup.name} 일지`;
+    // Reset item to uploading state
+    setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: true, uploaded: false, error: undefined, progress: 0 } : m));
+    const results = await directUploadPhotos({
+      token: token || "",
+      albumType: "group",
+      classId: selectedGroup.id,
+      lessonDate: targetDate,
+      caption,
+      files: [{ clientId, uri: item.uri, fileName: item.fileName, mimeType: item.mimeType, fileSize: item.fileSize }],
+      onItemProgress: (_id, progress) => {
+        setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, progress } : m));
+      },
+    });
+    const r = results[0];
+    if (!r) return;
+    if (r.error) {
+      setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: false, error: r.error } : m));
+    } else {
+      setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: true, progress: 100, error: undefined } : m));
+      if (r.photo) {
+        const photo: AlbumPhotoInfo = { id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id };
+        setSelectedAlbumIds(prev => prev.includes(r.photo!.id) ? prev : [...prev, r.photo!.id]);
+        setSelectedAlbumPhotos(prev => prev.some(p => p.id === r.photo!.id) ? prev : [...prev, photo]);
+      }
+    }
+  }
+
+  async function retryStudentPhotoItem(studentId: string, clientId: string) {
+    if (!selectedGroup) return;
+    const item = (studentMedia[studentId] || []).find(m => m.clientId === clientId);
+    if (!item || !item.fileName || !item.mimeType || !item.fileSize) return;
+    const student = classStudents.find(s => s.id === studentId) ?? { id: studentId, name: "학생" };
+    setStudentMedia(prev => ({
+      ...prev,
+      [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: true, uploaded: false, error: undefined, progress: 0 } : m),
+    }));
+    const results = await directUploadPhotos({
+      token: token || "",
+      albumType: "private",
+      classId: selectedGroup.id,
+      studentId,
+      lessonDate: targetDate,
+      caption: `${student.name} 개별 일지`,
+      files: [{ clientId, uri: item.uri, fileName: item.fileName, mimeType: item.mimeType, fileSize: item.fileSize }],
+      onItemProgress: (_id, progress) => {
+        setStudentMedia(prev => ({
+          ...prev,
+          [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, progress } : m),
+        }));
+      },
+    });
+    const r = results[0];
+    if (!r) return;
+    if (r.error) {
+      setStudentMedia(prev => ({
+        ...prev,
+        [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: false, error: r.error } : m),
+      }));
+    } else {
+      setStudentMedia(prev => ({
+        ...prev,
+        [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: true, progress: 100, error: undefined } : m),
+      }));
+      if (r.photo) {
+        const photo: AlbumPhotoInfo = { id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id };
+        setStudentAlbumPhotos(prev => {
+          const existing = new Set((prev[studentId] ?? []).map(p => p.id));
+          if (existing.has(photo.id)) return prev;
+          return { ...prev, [studentId]: [...(prev[studentId] ?? []), photo] };
+        });
+      }
+    }
+  }
+
   function insertAtCursor(current: string, insert: string, cursorPos: number, setter: (v: string) => void) {
     const before = current.slice(0, cursorPos);
     const after  = current.slice(cursorPos);
@@ -1201,6 +1505,8 @@ export default function TeacherDiaryScreen() {
             onRemoveStudentAlbumPhoto={(studentId, photoId) => setStudentAlbumPhotos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(p => p.id !== photoId) }))}
             onRemoveStudentAlbumVideo={(studentId, videoId) => setStudentAlbumVideos(prev => ({ ...prev, [studentId]: (prev[studentId] ?? []).filter(v => v.id !== videoId) }))}
             videoEnabled={planFeatures?.video_enabled ?? false}
+            onRetryGroupPhotoItem={retryGroupPhotoItem}
+            onRetryStudentPhotoItem={retryStudentPhotoItem}
           />
         ) : (
           <DiaryHistoryList
