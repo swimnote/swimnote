@@ -108,6 +108,7 @@ interface _ModeState {
 }
 
 const IDLE_STATE: _ModeState = { status: "idle", result: null, error: null };
+const MODE_INITIALIZATION_GRACE_MS = 8_000;
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function ModeProvider({ children }: { children: ReactNode }) {
@@ -116,7 +117,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
   const supported = _isSupportedRole(kind, activeRole, adminUser?.role);
 
   const [state, setState] = useState<_ModeState>(IDLE_STATE);
-  /** 첫 번째 mode 응답이 완료된 이후 true (cold start flash 방지) */
+  /** 첫 번째 mode 조회가 성공·실패·시간 초과 중 하나로 결정된 이후 true */
   const [modeInitialized, setModeInitialized] = useState(false);
 
   // 최신 값을 비동기 콜백에서 읽기 위한 Ref
@@ -155,6 +156,15 @@ export function ModeProvider({ children }: { children: ReactNode }) {
 
     if (__DEV__) console.log("[XMODE] SERVER_FETCH_START", { poolId: p });
 
+    // X mode 조회 실패가 홈 전체를 막지 않도록, 짧은 유예 시간 뒤에는
+    // 안전한 error 상태로 진입시킨다. 늦게 도착한 정상 응답은 아래에서 그대로 반영된다.
+    const initializationTimer = setTimeout(() => {
+      if (seqRef.current !== seq) return;
+      setState(prev => ({ status: "error", result: prev.result, error: "timeout" }));
+      setModeInitialized(true);
+      isRefreshingRef.current = false;
+    }, MODE_INITIALIZATION_GRACE_MS);
+
     try {
       const res = await apiRequest(t, "/pools/x-mode", {
         method: "GET",
@@ -177,6 +187,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         else { isTransient = true; } // 5xx
         if (__DEV__) console.log("[XMODE] SERVER_" + (isTransient ? "TRANSIENT_ERROR" : "CONFIRMED"), { poolId: p, status: res.status, error, isTransient });
         setState(prev => ({ status: "error", result: isTransient ? prev.result : null, error }));
+        setModeInitialized(true);
         return;
       }
 
@@ -187,6 +198,7 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         if (seqRef.current !== seq) return;
         // parse error는 transient로 처리 — 이전 result 보존
         setState(prev => ({ status: "error", result: prev.result, error: "parse_error" }));
+        setModeInitialized(true);
         return;
       }
 
@@ -207,7 +219,9 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         result: prev.result,   // 이전 confirmed mode 보존
         error: errCode,
       }));
+      setModeInitialized(true);
     } finally {
+      clearTimeout(initializationTimer);
       // 이 요청이 여전히 현재 요청인 경우에만 lock 해제
       if (seqRef.current === seq) {
         isRefreshingRef.current = false;
