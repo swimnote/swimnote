@@ -289,29 +289,38 @@ describe("NEVID — No-Evidence LLM Call Contract", () => {
   });
 
   // ── NEVID-04 ─────────────────────────────────────────────────────────────────
+  // CS26: NO_MATCH path does NOT call saveAiTrace (returns before trace code).
+  // Verify response fields confirm no phantom LLM model: llm_used=false, source=NO_MATCH.
 
-  it("NEVID-04 evidence=0 → saveAiTrace model = null (no phantom model)", async () => {
+  it("NEVID-04 evidence=0 → NO saveAiTrace call; response source=NO_MATCH, llm_used=false", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
-    await request(buildApp())
+    const tracesBefore = traceCalls.length;
+
+    const res = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(ADMIN_USER))
       .send({ case_id: sc.id, message: "스윔노트X에 대해 알려줘" });
 
-    const trace = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(trace).toBeDefined();
-    expect(trace.model).toBeNull();
-    expect(trace.generation_mode).toBe("no_evidence");
-    expect(trace.result_generated).toBe(false);
+    // CS26: NO_MATCH returns before saveAiTrace is called
+    expect(traceCalls.length).toBe(tracesBefore);
+    // Response confirms no phantom model was invoked
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe("NO_MATCH");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // ── NEVID-05 ─────────────────────────────────────────────────────────────────
+  // CS26: gatherEvidence is never called for NO_MATCH. Even if evidence mock returns items,
+  // the NO_MATCH early return ensures zero LLM invocations.
 
-  it("NEVID-05 evidence>0 grounded → provider invocation = 1", async () => {
+  it("NEVID-05 CS26 NO_MATCH → gatherEvidence not called, provider invocation = 0", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
+    // Evidence mock set — but should never be called under CS26
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(2, "FAQ"));
     mockCreate.mockResolvedValueOnce(openAiResponse("HIGH"));
 
@@ -321,9 +330,12 @@ describe("NEVID — No-Evidence LLM Call Contract", () => {
       .send({ case_id: sc.id, message: "출결 기록이 안 돼요" });
 
     expect(res.status).toBe(200);
-    expect(res.body.llm_used).toBe(true);
-    expect(res.body.llm_called).toBe(true);
-    expect(mockCreate).toHaveBeenCalledOnce();
+    // CS26: gatherEvidence and OpenAI never reached
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // ── NEVID-06 ─────────────────────────────────────────────────────────────────
@@ -344,40 +356,50 @@ describe("NEVID — No-Evidence LLM Call Contract", () => {
   });
 
   // ── NEVID-07 ─────────────────────────────────────────────────────────────────
+  // CS26: saveAiTrace is only called for the deterministic path.
+  // NO_MATCH (both with and without evidence mock) never emits saveAiTrace, never calls OpenAI.
 
-  it("NEVID-07 saveAiTrace generation_mode exactly mirrors actual call (no phantom)", async () => {
-    // Scenario 1: no_evidence → trace generation_mode=no_evidence, model=null
+  it("NEVID-07 saveAiTrace only emitted for deterministic path; NO_MATCH emits none (no phantom)", async () => {
+    // Scenario 1: NO_MATCH → no saveAiTrace, no OpenAI
     const sc1 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
+    const tracesBefore = traceCalls.length;
     await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(ADMIN_USER))
       .send({ case_id: sc1.id, message: "무관한 질문 A" });
 
-    const traceNoEvidence = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(traceNoEvidence).toBeDefined();
-    expect(traceNoEvidence.model).toBeNull();
-    // OpenAI was NOT called → mockCreate call count = 0
+    // CS26: NO_MATCH path returns before saveAiTrace
+    expect(traceCalls.length).toBe(tracesBefore);
     expect(mockCreate).not.toHaveBeenCalled();
 
-    mockCreate.mockReset();
-
-    // Scenario 2: llm_grounded → trace generation_mode=llm_grounded, model=non-null
+    // Scenario 2: deterministic → saveAiTrace emitted with generation_mode=deterministic
     const sc2 = seedCase();
-    mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
-    mockCreate.mockResolvedValueOnce(openAiResponse("MEDIUM"));
+    mockRunResolutionChain.mockResolvedValueOnce(DET_RESOLVED);
     await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(ADMIN_USER))
-      .send({ case_id: sc2.id, message: "근거 있는 질문 B" });
+      .send({ case_id: sc2.id, message: "결정론 경로" });
 
-    const traceGrounded = traceCalls.find((t) => t.generation_mode === "llm_grounded");
-    expect(traceGrounded).toBeDefined();
-    expect(traceGrounded.model).not.toBeNull();
-    // OpenAI WAS called exactly once
-    expect(mockCreate).toHaveBeenCalledOnce();
+    const traceDet = traceCalls.find((t) => t.generation_mode === "deterministic");
+    expect(traceDet).toBeDefined();
+    expect(traceDet.model).toBeNull(); // deterministic: no model used
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    // Scenario 3: another NO_MATCH with evidence mock set — still no trace, no OpenAI
+    const sc3 = seedCase();
+    mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
+    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1)); // never called
+    mockCreate.mockResolvedValueOnce(openAiResponse("MEDIUM")); // never called
+    const traceCountAfterDet = traceCalls.length;
+    await request(buildApp())
+      .post("/support/respond")
+      .set("x-test-user", JSON.stringify(ADMIN_USER))
+      .send({ case_id: sc3.id, message: "근거 있다고 가정한 질문 B" });
+
+    expect(traceCalls.length).toBe(traceCountAfterDet); // no new trace
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // ── NEVID-08 ─────────────────────────────────────────────────────────────────
@@ -399,24 +421,27 @@ describe("NEVID — No-Evidence LLM Call Contract", () => {
         mode:    "normal",
       });
 
-    // HTTP contract
+    // HTTP contract (CS26)
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.llm_used).toBe(false);
     expect(res.body.llm_called).toBe(false);
-    expect(res.body.requires_human).toBe(true);
+    // CS26: NO_MATCH → requires_human=false (deterministic CTA, not human escalation)
+    expect(res.body.requires_human).toBe(false);
 
     // OpenAI NOT invoked
     expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
 
-    // saveAiTrace: no_evidence path
-    const trace = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(trace).toBeDefined();
-    expect(trace.model).toBeNull();
-    expect(trace.result_generated).toBe(false);
+    // CS26: NO_MATCH → no saveAiTrace (path returns before trace code)
+    // (traceCalls may have 0 entries for this test since no deterministic path was taken)
 
-    // Case transitions to HUMAN_REQUIRED
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
+    // CS26: case stays AI_RESPONDED (not HUMAN_REQUIRED — no auto-escalation)
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    // Source is NO_MATCH, answer is the deterministic CTA string
+    expect(res.body.source).toBe("NO_MATCH");
+    expect(typeof res.body.answer).toBe("string");
+    expect(res.body.answer.length).toBeGreaterThan(0);
   });
 
 });

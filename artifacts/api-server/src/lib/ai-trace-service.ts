@@ -53,6 +53,12 @@ export interface AiTraceContext {
   cached_tokens?:    number | null;
   /** 호출 소스 앱 구분 (app | web | 기타). */
   source_app?:       string | null;
+  /** Grounded 응답에 실제 전달된 검증 Knowledge ID 목록. 원문은 저장하지 않음. */
+  retrieved_knowledge_ids?: string[];
+  /** Knowledge ID별 검증 revision. */
+  knowledge_revisions?: Record<string, number>;
+  /** Retrieval이 적용한 테넌트 범위 설명. pool_id는 event_logs column에 저장됨. */
+  retrieval_scope?: string | null;
 }
 
 // ── 성공 Trace ────────────────────────────────────────────────────────────────
@@ -147,6 +153,9 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
   if (params.provider          != null) metadata.provider          = params.provider;
   if (params.cached_tokens     != null) metadata.cached_tokens     = params.cached_tokens;
   if (params.source_app        != null) metadata.source_app        = params.source_app;
+  if (params.retrieved_knowledge_ids != null) metadata.retrieved_knowledge_ids = params.retrieved_knowledge_ids;
+  if (params.knowledge_revisions     != null) metadata.knowledge_revisions     = params.knowledge_revisions;
+  if (params.retrieval_scope         != null) metadata.retrieval_scope         = params.retrieval_scope;
 
   if (params.status === "SUCCESS") {
     const s = params as AiTraceSuccess;

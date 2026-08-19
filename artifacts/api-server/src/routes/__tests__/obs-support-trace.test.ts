@@ -5,14 +5,21 @@
  * OBS-02: raw user message absent from trace stages
  * OBS-03: raw AI answer absent from trace stages
  * OBS-04: successful deterministic stage sequence
- * OBS-05: no_evidence stage sequence (LLM_SKIPPED)
- * OBS-06: LLM stage sequence (LLM_START/DONE)
+ * OBS-05: no_match stage sequence (CS26 — AI_RESPONDED, LLM never called)
+ * OBS-06: CS26 — NO_MATCH always AI_RESPONDED (LLM path is not reachable via general /support/respond)
  * OBS-07: AI insert DB failure records actual pg error code
  * OBS-08: AI insert failure produces HTTP 500
  * OBS-09: HTTP_RESPONSE stage records actual status
  * OBS-10: telemetry failure does not break support response
  * OBS-11: cross-pool data absent from trace
- * OBS-12: full regression (existing CS-08R behaviour)
+ * OBS-12: full regression (CS26 contract)
+ *
+ * ─── CS26 CONTRACT ────────────────────────────────────────────────────────────
+ * General support/respond no longer automatically calls LLM or transitions to
+ * HUMAN_REQUIRED on NO_MATCH. Every NO_MATCH produces an AI_RESPONDED result
+ * with a deterministic fallback message. LLM escalation requires the explicit
+ * 3-streak CTA → gpt-escalation → unresolved confirmation route.
+ * ─────────────────────────────────────────────────────────────────────────────
  *
  * ─── NOTE — Mock vs Production gap ──────────────────────────────────────────
  * All tests use vi.mock("@workspace/db") — an in-memory store.
@@ -379,15 +386,18 @@ describe("OBS-04: successful deterministic stage sequence", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// OBS-05  no_evidence stage sequence (LLM_SKIPPED)
+// OBS-05  NO_MATCH / CS26 stage sequence
+//
+// CS26 CONTRACT: NO_MATCH produces AI_RESPONDED deterministically.
+// LLM is never called. Evidence gathering is not performed.
+// LLM_SKIPPED stage is added with reason=CS26_EXPLICIT_ESCALATION_REQUIRED.
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("OBS-05: no_evidence stage sequence", () => {
-  it("stages contain EVIDENCE_START → EVIDENCE_DONE → LLM_SKIPPED (no LLM_START)", async () => {
+describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
+  it("NO_MATCH → 200, case_state=AI_RESPONDED, llm_used=false (CS26)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     const res = await request(app)
@@ -396,24 +406,17 @@ describe("OBS-05: no_evidence stage sequence", () => {
       .send(BASE_BODY);
 
     expect(res.status).toBe(200);
-    expect(res.body.requires_human).toBe(true);
-
-    const stages = flushCalls[0].ctx.stages.map((s: any) => s.s) as string[];
-    expect(stages).toContain("EVIDENCE_START");
-    expect(stages).toContain("EVIDENCE_DONE");
-    expect(stages).toContain("LLM_SKIPPED");
-    expect(stages).not.toContain("LLM_START");
-    expect(stages).not.toContain("LLM_DONE");
-
-    const skipped = flushCalls[0].ctx.stages.find((s: any) => s.s === "LLM_SKIPPED");
-    expect(skipped?.reason).toBe("NO_EVIDENCE");
+    // CS26: NO_MATCH is AI_RESPONDED, not HUMAN_REQUIRED
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.requires_human).toBe(false);
   });
 
-  it("AI_MESSAGE_INSERT_START contract: author_user_id_is_null=true (AI has no userId)", async () => {
+  it("NO_MATCH stages contain LLM_SKIPPED with CS26 reason (no LLM_START)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)
@@ -421,27 +424,80 @@ describe("OBS-05: no_evidence stage sequence", () => {
       .set("x-test-user", X_TEST_USER)
       .send(BASE_BODY);
 
-    const stages = flushCalls[0].ctx.stages;
-    const aiInsert = stages.find((s: any) => s.s === "AI_MESSAGE_INSERT_START");
-    expect(aiInsert).toBeDefined();
-    expect(aiInsert.contract.author_role).toBe("ai");
-    expect(aiInsert.contract.author_user_id_is_null).toBe(true);
+    const stages = flushCalls[0].ctx.stages.map((s: any) => s.s) as string[];
+    expect(stages).toContain("LLM_SKIPPED");
+    expect(stages).not.toContain("LLM_START");
+    expect(stages).not.toContain("LLM_DONE");
+
+    const skipped = flushCalls[0].ctx.stages.find((s: any) => s.s === "LLM_SKIPPED");
+    expect(skipped?.reason).toBe("CS26_EXPLICIT_ESCALATION_REQUIRED");
+  });
+
+  it("NO_MATCH: an AI reply is saved to the DB with role=ai", async () => {
+    mockRunResolutionChain.mockResolvedValueOnce({
+      llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
+    });
+
+    const app = await makeApp();
+    await request(app)
+      .post("/support/respond")
+      .set("x-test-user", X_TEST_USER)
+      .send(BASE_BODY);
+
+    const aiMsg = repliesStore.find((r: any) => r.author_role === "ai");
+    expect(aiMsg).toBeDefined();
+    expect(aiMsg.author_user_id).toBeNull();
+  });
+
+  it("NO_MATCH: AI reply message_type is ai_no_match", async () => {
+    mockRunResolutionChain.mockResolvedValueOnce({
+      llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
+    });
+
+    const app = await makeApp();
+    await request(app)
+      .post("/support/respond")
+      .set("x-test-user", X_TEST_USER)
+      .send(BASE_BODY);
+
+    const aiMsg = repliesStore.find((r: any) => r.author_role === "ai");
+    expect(aiMsg?.message_type).toBe("ai_no_match");
+  });
+
+  it("NO_MATCH: OpenAI.create never invoked (CS26 no-auto-LLM)", async () => {
+    mockRunResolutionChain.mockResolvedValueOnce({
+      llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
+    });
+
+    const app = await makeApp();
+    await request(app)
+      .post("/support/respond")
+      .set("x-test-user", X_TEST_USER)
+      .send(BASE_BODY);
+
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
   });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// OBS-06  LLM stage sequence
+// OBS-06  CS26 — LLM path is not reachable via general /support/respond
+//
+// CS26 CONTRACT: The LLM branch (EVIDENCE_START → LLM_START → LLM_DONE) is
+// unreachable code in the finalized CS26 contract. All NO_MATCH responses
+// return AI_RESPONDED deterministically. This test suite confirms that
+// NO_MATCH with evidence still does NOT invoke LLM.
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("OBS-06: LLM stage sequence", () => {
-  it("stages: EVIDENCE_START → EVIDENCE_DONE → LLM_START → LLM_DONE → AI_INSERT_OK → HTTP_RESPONSE", async () => {
+describe("OBS-06: CS26 — NO_MATCH with evidence still does not invoke LLM", () => {
+  it("NO_MATCH + evidence present → LLM still NOT called (CS26 early return)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
     });
+    // gatherEvidence would return items but CS26 returns early before calling it
     mockGatherEvidence.mockResolvedValueOnce([
       { item_type: "FAQ", title: "X모드란", answer: "설명" },
     ]);
-    mockLlmResponse("HIGH");
 
     const app = await makeApp();
     const res = await request(app)
@@ -450,45 +506,31 @@ describe("OBS-06: LLM stage sequence", () => {
       .send(BASE_BODY);
 
     expect(res.status).toBe(200);
-    expect(res.body.llm_used).toBe(true);
-
-    const stages = flushCalls[0].ctx.stages.map((s: any) => s.s) as string[];
-    const idx    = (name: string) => stages.indexOf(name);
-
-    expect(idx("EVIDENCE_START")).toBeGreaterThanOrEqual(0);
-    expect(idx("EVIDENCE_DONE")).toBeGreaterThan(idx("EVIDENCE_START"));
-    expect(idx("LLM_START")).toBeGreaterThan(idx("EVIDENCE_DONE"));
-    expect(idx("LLM_DONE")).toBeGreaterThan(idx("LLM_START"));
-    expect(idx("AI_MESSAGE_INSERT_OK")).toBeGreaterThan(idx("LLM_DONE"));
-    expect(idx("HTTP_RESPONSE")).toBeGreaterThan(idx("AI_MESSAGE_INSERT_OK"));
-    expect(stages).not.toContain("LLM_SKIPPED");
-
-    const llmStart = flushCalls[0].ctx.stages.find((s: any) => s.s === "LLM_START");
-    expect(llmStart?.model).toBe("gpt-4o-mini");
-    expect(llmStart?.evidence_count).toBe(1);
+    // CS26: always AI_RESPONDED, llm_used=false
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
+    // gatherEvidence is not called because CS26 returns before reaching that code
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
   });
 
-  it("LLM_FAIL stage recorded on timeout, response still 200", async () => {
+  it("stages do NOT contain EVIDENCE_START / LLM_START in CS26 NO_MATCH path", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
     });
-    mockGatherEvidence.mockResolvedValueOnce([
-      { item_type: "FAQ", title: "X모드란", answer: "설명" },
-    ]);
-    // Simulate timeout
-    mockCreate.mockRejectedValueOnce(Object.assign(new Error("Request aborted"), { name: "AbortError" }));
 
     const app = await makeApp();
-    const res = await request(app)
+    await request(app)
       .post("/support/respond")
       .set("x-test-user", X_TEST_USER)
       .send(BASE_BODY);
 
-    expect(res.status).toBe(200);
     const stages = flushCalls[0].ctx.stages.map((s: any) => s.s) as string[];
-    expect(stages).toContain("LLM_FAIL");
-    const fail = flushCalls[0].ctx.stages.find((s: any) => s.s === "LLM_FAIL");
-    expect(fail?.error_code).toBe("TIMEOUT");
+    expect(stages).not.toContain("EVIDENCE_START");
+    expect(stages).not.toContain("EVIDENCE_DONE");
+    expect(stages).not.toContain("LLM_START");
+    expect(stages).not.toContain("LLM_DONE");
+    expect(stages).toContain("LLM_SKIPPED");
   });
 });
 
@@ -569,14 +611,11 @@ describe("OBS-08: AI insert failure produces HTTP 500", () => {
     expect(res.body.code).toBe("AI_MSG_INSERT_FAILED");
   });
 
-  it("LLM path AI INSERT failure → 500 with AI_MSG_INSERT_FAILED code", async () => {
+  it("NO_MATCH path AI INSERT failure → 500 with AI_MSG_INSERT_FAILED code (CS26)", async () => {
+    // CS26: NO_MATCH saves ai_no_match message. If that insert fails → 500.
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
     });
-    mockGatherEvidence.mockResolvedValueOnce([
-      { item_type: "FAQ", title: "X모드", answer: "설명" },
-    ]);
-    mockLlmResponse("HIGH");
 
     const { db } = await import("@workspace/db");
     (db as any).__setAiInsertFail(() =>
@@ -783,10 +822,10 @@ describe("OBS-11: cross-pool data absent from trace", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// OBS-12  full regression (existing CS-08R behaviour preserved)
+// OBS-12  full regression (CS26 contract)
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("OBS-12: full regression", () => {
+describe("OBS-12: full regression (CS26 contract)", () => {
   it("200 + llm_used=false on deterministic hit", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: false, answer: "X모드는 특별 기능입니다.", source_type: "RULE", confidence: "HIGH", requires_human: false,
@@ -805,31 +844,12 @@ describe("OBS-12: full regression", () => {
     expect(res.body.case_state).toBe("AI_RESPONDED");
   });
 
-  it("200 + llm_used=true on LLM HIGH confidence → AI_RESPONDED", async () => {
-    mockRunResolutionChain.mockResolvedValueOnce({
-      llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
-    });
-    mockGatherEvidence.mockResolvedValueOnce([
-      { item_type: "FAQ", title: "X모드", answer: "설명" },
-    ]);
-    mockLlmResponse("HIGH");
-
-    const app = await makeApp();
-    const res = await request(app)
-      .post("/support/respond")
-      .set("x-test-user", X_TEST_USER)
-      .send(BASE_BODY);
-
-    expect(res.status).toBe(200);
-    expect(res.body.llm_used).toBe(true);
-    expect(res.body.case_state).toBe("AI_RESPONDED");
-  });
-
-  it("200 + requires_human=true on no_evidence → HUMAN_REQUIRED", async () => {
+  it("200 + AI_RESPONDED on NO_MATCH (CS26 — no LLM fallback)", async () => {
+    // CS26: NO_MATCH no longer triggers LLM. It returns AI_RESPONDED with
+    // a deterministic fallback message.
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     const res = await request(app)
@@ -838,8 +858,14 @@ describe("OBS-12: full regression", () => {
       .send(BASE_BODY);
 
     expect(res.status).toBe(200);
-    expect(res.body.requires_human).toBe(true);
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.requires_human).toBe(false);
+    // The fallback answer must be present
+    expect(res.body.answer).toBeTruthy();
+    // source must be NO_MATCH
+    expect(res.body.source).toBe("NO_MATCH");
   });
 
   it("400 missing case_id", async () => {
@@ -918,7 +944,7 @@ describe("OBS-12: full regression", () => {
     expect(userMsg.content).toBe("x모드 알려줘");
   });
 
-  it("AI message stored in repliesStore (role=ai)", async () => {
+  it("AI message stored in repliesStore (role=ai) — deterministic path", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: false, answer: "AI answer text", source_type: "RULE", confidence: "HIGH", requires_human: false,
     });
@@ -934,5 +960,22 @@ describe("OBS-12: full regression", () => {
     expect(aiMsg.case_id).toBe("sc_obs_001");
     expect(aiMsg.author_user_id).toBeNull();
     expect(aiMsg.content).toBe("AI answer text");
+  });
+
+  it("AI message stored in repliesStore (role=ai) — NO_MATCH CS26 path", async () => {
+    mockRunResolutionChain.mockResolvedValueOnce({
+      llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
+    });
+
+    const app = await makeApp();
+    await request(app)
+      .post("/support/respond")
+      .set("x-test-user", X_TEST_USER)
+      .send(BASE_BODY);
+
+    const aiMsg = repliesStore.find((r: any) => r.author_role === "ai");
+    expect(aiMsg).toBeDefined();
+    expect(aiMsg.author_user_id).toBeNull();
+    expect(aiMsg.message_type).toBe("ai_no_match");
   });
 });

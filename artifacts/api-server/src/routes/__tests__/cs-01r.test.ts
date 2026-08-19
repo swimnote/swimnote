@@ -189,17 +189,18 @@ describe("CS01R-02: case detail", () => {
 // =============================================================================
 describe("CS01R-03: human escalation creates and links ticket", () => {
   it("POST /support/cases/:id/request-human → creates ticket, links to case", async () => {
-    // Setup: case with no ticket, state = NEW
+    // Setup: case with no ticket, state = NEW, cs26_sequence.gpt_status=RESPONDED
     superAdminRows = [{
       id: "sc_2", pool_id: "pool_A", actor_id: "user_1",
       ticket_id: null, actor_role: "teacher", state: "NEW",
+      context_json: { cs26_sequence: { gpt_status: "RESPONDED" } },
     }];
     poolDbRows = [];
 
     const app = makeApp("teacher", "pool_A", "user_1");
     const res = await request(app)
       .post("/support/cases/sc_2/request-human")
-      .send({ subject: "문의 제목", reason: "USER_REQUESTED_HUMAN" });
+      .send({ subject: "문의 제목", reason: "USER_REQUESTED_HUMAN", confirmation: "GPT_UNRESOLVED" });
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);

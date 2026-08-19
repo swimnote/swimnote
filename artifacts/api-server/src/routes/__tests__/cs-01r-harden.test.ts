@@ -186,13 +186,14 @@ describe("HARDEN-03: request-human creates ticket with correct case link", () =>
     superAdminRows = [{
       id: "sc_h03", pool_id: "pool_A", actor_id: "user_1",
       ticket_id: null, actor_role: "teacher", state: "NEW",
+      context_json: { cs26_sequence: { gpt_status: "RESPONDED" } },
     }];
     poolDbRows = [];
 
     const app = makeApp();
     const res = await request(app)
       .post("/support/cases/sc_h03/request-human")
-      .send({ subject: "문의 상담 요청" });
+      .send({ subject: "문의 상담 요청", confirmation: "GPT_UNRESOLVED" });
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);

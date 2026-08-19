@@ -784,12 +784,14 @@ describe("DEF2-14 — full regression: status-code contracts", () => {
     expect(res.body.master_state).toBeDefined();
   });
 
-  it("DEF2-14-H: LLM path → 200, llm_used=true", async () => {
-    const sc = seedCase({ id: "sc_llm" });
+  it("DEF2-14-H: CS26 NO_MATCH → 200, llm_used=false, case_state=AI_RESPONDED, AI reply stored", async () => {
+    // CS26: NO_MATCH never calls gatherEvidence or OpenAI — returns deterministic CTA immediately.
+    const sc = seedCase({ id: "sc_no_match" });
     mockRunResolutionChain.mockResolvedValue({
       resolution_status: "NO_MATCH", llm_required: true, answer: null,
-      confidence: 0, source_type: "LLM", requires_human: false,
+      confidence: 0, source_type: "NONE", requires_human: true,
     });
+    // These mocks should never be reached under CS26:
     mockGatherEvidence.mockResolvedValue([
       { item_type: "FAQ", title: "X모드란", answer: "X 서비스입니다." },
     ]);
@@ -804,12 +806,18 @@ describe("DEF2-14 — full regression: status-code contracts", () => {
     const res = await request(app)
       .post("/support/respond")
       .set("x-test-user", ADMIN)
-      .send({ case_id: "sc_llm", message: "기능 설명해줘", mode: "normal" });
+      .send({ case_id: "sc_no_match", message: "기능 설명해줘", mode: "normal" });
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
-    expect(res.body.llm_used).toBe(true);
-    // AI reply also stored for LLM path
+    // CS26: NO_MATCH → llm_used=false, llm_called=false
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    // AI no-match CTA reply stored in DB
     expect(repliesStore.find((r) => r.author_role === "ai")).toBeDefined();
+    // Security: gatherEvidence and OpenAI were never called
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 });

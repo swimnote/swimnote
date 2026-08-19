@@ -288,20 +288,22 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
     expect(res.body.llm_called).toBe(false);
   });
 
-  // CS08H-09: no evidence → trace model=null (FIXED — was LLM_MODEL before)
-  it("CS08H-09 no evidence → saveAiTrace model=null", async () => {
+  // CS08H-09: no evidence → NO OpenAI call, llm_used=false (CS26: gatherEvidence not invoked for NO_MATCH)
+  it("CS08H-09 no evidence → OpenAI not called, response llm_used=false, llm_called=false", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
-    await request(buildApp())
+    const res = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc.id, message: "전혀 관계없는 질문" });
 
-    const noEvidenceTrace = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(noEvidenceTrace).toBeDefined();
-    expect(noEvidenceTrace.model).toBeNull();
+    // CS26 contract: NO_MATCH → deterministic no-match answer, no LLM, no gatherEvidence
+    expect(res.status).toBe(200);
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
   });
 
   // CS08H-10: deterministic → llm_used=false
@@ -318,10 +320,12 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // CS08H-11: grounded actual call → llm_used=true
-  it("CS08H-11 grounded (evidence>0, OpenAI called) → llm_used=true", async () => {
+  // CS08H-11: CS26 contract — NO_MATCH never triggers gatherEvidence or OpenAI regardless of what
+  //            gatherEvidence mock would return. llm_used=false, case_state=AI_RESPONDED.
+  it("CS08H-11 CS26 NO_MATCH → gatherEvidence NOT called, llm_used=false, case_state=AI_RESPONDED", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
+    // Evidence mock set up — should never be called under CS26
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(2, "FRONTEND_MAP"));
     mockCreate.mockResolvedValueOnce(openAiResponse("HIGH"));
 
@@ -331,48 +335,53 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
       .send({ case_id: sc.id, message: "출결 기록이 가끔 저장 안 돼요" });
 
     expect(res.status).toBe(200);
-    expect(res.body.llm_used).toBe(true);
-    expect(res.body.llm_called).toBe(true);
-    expect(mockCreate).toHaveBeenCalledOnce();
+    // CS26: NO_MATCH → deterministic CTA, no LLM invocation
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
   });
 
-  // CS08H-12: tokens only stored when actual LLM call happened
-  it("CS08H-12 tokens in trace only when evidence>0 (actual call)", async () => {
-    // Case A: no evidence → tokens should be null
+  // CS08H-12: CS26 — NO_MATCH never calls OpenAI; no token consumption regardless of evidence mock.
+  //            The only saveAiTrace call is from the deterministic path (generation_mode=deterministic).
+  it("CS08H-12 CS26 NO_MATCH → OpenAI never called, zero token cost for two consecutive NO_MATCH turns", async () => {
+    // Turn A: NO_MATCH
     const sc1 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
-    await request(buildApp())
+    const res1 = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc1.id, message: "관계없는 주제 A" });
 
-    const noEvidenceTrace = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(noEvidenceTrace?.input_tokens).toBeNull();
-    expect(noEvidenceTrace?.output_tokens).toBeNull();
-    expect(noEvidenceTrace?.total_tokens).toBeNull();
+    expect(res1.body.llm_used).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
 
-    // Case B: with evidence → tokens from OpenAI
+    // Turn B: deterministic hit → trace generated
     const sc2 = seedCase();
-    mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
-    mockCreate.mockResolvedValueOnce(openAiResponse("HIGH"));
+    mockRunResolutionChain.mockResolvedValueOnce(DET_RESOLVED);
 
-    await request(buildApp())
+    const res2 = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
-      .send({ case_id: sc2.id, message: "관계없는 주제 B" });
+      .send({ case_id: sc2.id, message: "결정론 경로 B" });
 
-    const groundedTrace = traceCalls.find((t) => t.generation_mode === "llm_grounded");
-    expect(groundedTrace?.input_tokens).toBe(120);
-    expect(groundedTrace?.output_tokens).toBe(60);
-    expect(groundedTrace?.total_tokens).toBe(180);
+    expect(res2.body.llm_used).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    // Deterministic trace has null tokens (no LLM cost)
+    const detTrace = traceCalls.find((t) => t.generation_mode === "deterministic");
+    expect(detTrace).toBeDefined();
+    expect(detTrace?.input_tokens).toBeNull();
+    expect(detTrace?.output_tokens).toBeNull();
+    expect(detTrace?.total_tokens).toBeNull();
   });
 
-  // CS08H-13: generation_mode consistency across 3 paths
-  it("CS08H-13 generation_mode: deterministic / no_evidence / llm_grounded all distinct", async () => {
-    // Path 1: deterministic
+  // CS08H-13: CS26 generation_mode — only deterministic path emits saveAiTrace.
+  //            NO_MATCH path does NOT call saveAiTrace (CS26: early return before trace code).
+  it("CS08H-13 generation_mode: deterministic trace emitted; NO_MATCH does not emit saveAiTrace", async () => {
+    // Path 1: deterministic → saveAiTrace emitted with generation_mode=deterministic
     const sc1 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(DET_RESOLVED);
     await request(buildApp())
@@ -381,67 +390,77 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
       .send({ case_id: sc1.id, message: "결정론 경로" });
 
     expect(traceCalls.find((t) => t.generation_mode === "deterministic")).toBeDefined();
+    const traceCountAfterDet = traceCalls.length;
 
-    // Path 2: no_evidence
+    // Path 2: NO_MATCH → NO saveAiTrace call (CS26 returns before trace code)
     const sc2 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
-    await request(buildApp())
+    const res2 = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc2.id, message: "증거 없음 경로" });
 
-    expect(traceCalls.find((t) => t.generation_mode === "no_evidence")).toBeDefined();
+    expect(res2.body.llm_used).toBe(false);
+    expect(res2.body.case_state).toBe("AI_RESPONDED");
+    expect(mockCreate).not.toHaveBeenCalled();
+    // No new saveAiTrace entry for NO_MATCH (trace count unchanged)
+    expect(traceCalls.length).toBe(traceCountAfterDet);
 
-    // Path 3: llm_grounded
+    // Path 3: another deterministic → another trace entry
     const sc3 = seedCase();
-    mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
-    mockCreate.mockResolvedValueOnce(openAiResponse("MEDIUM"));
+    mockRunResolutionChain.mockResolvedValueOnce(DET_RESOLVED);
     await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
-      .send({ case_id: sc3.id, message: "LLM 근거 경로" });
+      .send({ case_id: sc3.id, message: "두 번째 결정론 경로" });
 
-    expect(traceCalls.find((t) => t.generation_mode === "llm_grounded")).toBeDefined();
+    expect(traceCalls.filter((t) => t.generation_mode === "deterministic").length).toBe(2);
   });
 
-  // CS08H-14: saveAiTrace no_evidence fields correct
-  it("CS08H-14 saveAiTrace no_evidence: model=null, generation_mode=no_evidence, status=SUCCESS", async () => {
+  // CS08H-14: CS26 NO_MATCH path — saveAiTrace is NOT called. Response is deterministic CTA.
+  //            Verify response fields match CS26 contract: source=NO_MATCH, llm_used=false, answer present.
+  it("CS08H-14 CS26 NO_MATCH: no saveAiTrace call, response source=NO_MATCH, llm_used=false, answer present", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
-    await request(buildApp())
+    const tracesBefore = traceCalls.length;
+
+    const res = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc.id, message: "근거 없는 질문" });
 
-    const trace = traceCalls.find((t) => t.generation_mode === "no_evidence");
-    expect(trace).toBeDefined();
-    expect(trace.model).toBeNull();
-    expect(trace.status).toBe("SUCCESS");
-    expect(trace.result_generated).toBe(false);
-    expect(trace.feature).toBe("support_ai");
-    expect(trace.sub_feature).toBe("SUPPORT_RESPONSE");
+    // CS26: NO_MATCH returns deterministic CTA, no saveAiTrace
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.source).toBe("NO_MATCH");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(typeof res.body.answer).toBe("string");
+    expect(res.body.answer.length).toBeGreaterThan(0);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    // saveAiTrace is NOT called for NO_MATCH path
+    expect(traceCalls.length).toBe(tracesBefore);
   });
 
-  // CS08H-15: partner analytics — no_evidence llm_used=false (call-count semantics)
-  it("CS08H-15 partner analytics: no_evidence → llm_used=false in response (call-count semantics)", async () => {
+  // CS08H-15: partner analytics — NO_MATCH → llm_used=false, llm_called=false (zero cost).
+  //            CS26: confidence=0 (number), requires_human=false, case_state=AI_RESPONDED.
+  it("CS08H-15 partner analytics: NO_MATCH → llm_used=false, confidence=0, requires_human=false", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const res = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc.id, message: "비용 집계 확인용 쿼리" });
 
-    // llm_used drives partner cost analytics — must be false when no actual API call
+    // CS26: NO_MATCH → deterministic CTA, zero LLM cost
     expect(res.body.llm_used).toBe(false);
     expect(res.body.llm_called).toBe(false);
-    expect(res.body.confidence).toBe("LOW");
-    expect(res.body.requires_human).toBe(true);
+    // CS26 returns confidence=0 (number) and requires_human=false for NO_MATCH
+    expect(res.body.confidence).toBe(0);
+    expect(res.body.requires_human).toBe(false);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
   });
 
   // CS08H-19: basic route regression — 400/401/404 still work
@@ -467,8 +486,10 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
     expect(r404.status).toBe(404);
   });
 
-  // CS08H-20: full llm_used contract across all 3 generation modes
-  it("CS08H-20 full llm_used contract: deterministic=false, no_evidence=false, grounded=true", async () => {
+  // CS08H-20: CS26 full llm_used contract — deterministic=false, NO_MATCH=false, NO_MATCH(again)=false.
+  //            The old "grounded=true" path is dead code under CS26.
+  //            All three resolution outcomes return llm_used=false (LLM only via explicit escalation).
+  it("CS08H-20 full CS26 llm_used contract: deterministic=false, NO_MATCH=false, NO_MATCH=false, all case_state=AI_RESPONDED", async () => {
     // Deterministic
     const sc1 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(DET_RESOLVED);
@@ -477,29 +498,32 @@ describe("CS-08H — Response Contract + Telemetry Harden", () => {
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc1.id, message: "결정론" });
     expect(r1.body.llm_used).toBe(false);
+    expect(r1.body.case_state).toBe("AI_RESPONDED");
 
-    // No evidence
+    // NO_MATCH (first)
     const sc2 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce([]);
     const r2 = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc2.id, message: "증거없음" });
     expect(r2.body.llm_used).toBe(false);
+    expect(r2.body.case_state).toBe("AI_RESPONDED");
 
-    // LLM grounded
+    // NO_MATCH (second — CS26: still no LLM even if evidence mock would return items)
     const sc3 = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
-    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
-    mockCreate.mockResolvedValueOnce(openAiResponse("HIGH"));
+    mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1)); // never called
     const r3 = await request(buildApp())
       .post("/support/respond")
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
-      .send({ case_id: sc3.id, message: "LLM경로" });
-    expect(r3.body.llm_used).toBe(true);
+      .send({ case_id: sc3.id, message: "또 다른 NO_MATCH" });
+    expect(r3.body.llm_used).toBe(false);
+    expect(r3.body.case_state).toBe("AI_RESPONDED");
 
-    // All 3 in sequence — no cross-contamination
-    expect([r1.body.llm_used, r2.body.llm_used, r3.body.llm_used]).toEqual([false, false, true]);
+    // All three: zero LLM cost — no cross-contamination
+    expect([r1.body.llm_used, r2.body.llm_used, r3.body.llm_used]).toEqual([false, false, false]);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
   });
 });

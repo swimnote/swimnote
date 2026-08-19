@@ -344,7 +344,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
   async function handleNotResolved() {
     if (!activeCase || isRequestingHuman) return;
     if (callbackRequested && (!callbackPhone.trim() || !callbackConsent)) {
-      setError("전화 상담을 원하시면 연락처를 직접 입력하고 연락 동의에 체크해주세요.");
+      setError("연락 요청을 남기려면 연락처를 직접 입력하고 연락 동의에 체크해주세요.");
       return;
     }
     setIsRequestingHuman(true);
@@ -353,7 +353,9 @@ export default function SupportChatScreen({ supportContext }: Props) {
         method: "POST",
         body:   JSON.stringify({
           subject: "GPT 2차 상담 후 미해결 문의",
-          confirmation: "GPT_UNRESOLVED",
+          confirmation: activeCase.context?.resolution_context?.human_only === true
+            ? "HUMAN_ONLY"
+            : "GPT_UNRESOLVED",
           callback_requested: callbackRequested,
           callback_phone: callbackRequested ? callbackPhone.trim() : undefined,
           callback_consent: callbackRequested ? callbackConsent : undefined,
@@ -414,6 +416,7 @@ export default function SupportChatScreen({ supportContext }: Props) {
   const autonomous = activeCase?.context?.cs26_sequence ?? {};
   const inquiryOffered = !isHuman && !isResolved && autonomous.inquiry_offered === true;
   const gptResponded = !isHuman && !isResolved && autonomous.gpt_status === "RESPONDED";
+  const humanOnly = !isHuman && !isResolved && activeCase?.context?.resolution_context?.human_only === true;
 
   function renderMessage(msg: SupportMessage, idx: number) {
     const isUser   = msg.author_role === "user";
@@ -654,25 +657,29 @@ export default function SupportChatScreen({ supportContext }: Props) {
             </View>
           )}
 
-          {/* GPT 2차 상담 뒤에만 해결 여부와 Human 전환 선택지를 노출한다. */}
-          {!isNewCase && gptResponded && (
+          {/* GPT 2차 상담 또는 검증된 HUMAN_ONLY 답변 뒤에만 Human 전환을 노출한다. */}
+          {!isNewCase && (gptResponded || humanOnly) && (
             <>
-              <Text style={[s.resolutionQuestion, { color: C.text }]}>문제가 해결되었나요?</Text>
+              <Text style={[s.resolutionQuestion, { color: C.text }]}>
+                {humanOnly ? "담당자 확인이 필요한 문의입니다." : "문제가 해결되었나요?"}
+              </Text>
             <View style={s.actionRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  s.actionBtn,
-                  { borderColor: "#16A34A", backgroundColor: "#F0FDF4", opacity: pressed ? 0.8 : 1 },
-                  isResolving && { opacity: 0.5 },
-                ]}
-                onPress={handleResolve}
-                disabled={isResolving}
-              >
-                {isResolving
-                  ? <ActivityIndicator size="small" color="#16A34A" />
-                  : <LucideIcon name="check-circle" size={16} color="#16A34A" />}
-                <Text style={[s.actionBtnText, { color: "#16A34A" }]}>해결됐어요</Text>
-              </Pressable>
+              {!humanOnly && (
+                <Pressable
+                  style={({ pressed }) => [
+                    s.actionBtn,
+                    { borderColor: "#16A34A", backgroundColor: "#F0FDF4", opacity: pressed ? 0.8 : 1 },
+                    isResolving && { opacity: 0.5 },
+                  ]}
+                  onPress={handleResolve}
+                  disabled={isResolving}
+                >
+                  {isResolving
+                    ? <ActivityIndicator size="small" color="#16A34A" />
+                    : <LucideIcon name="check-circle" size={16} color="#16A34A" />}
+                  <Text style={[s.actionBtnText, { color: "#16A34A" }]}>해결됐어요</Text>
+                </Pressable>
+              )}
 
               <Pressable
                 style={({ pressed }) => [
@@ -685,7 +692,9 @@ export default function SupportChatScreen({ supportContext }: Props) {
                 {isRequestingHuman
                   ? <ActivityIndicator size="small" color="#7C3AED" />
                   : <LucideIcon name="headphones" size={16} color="#7C3AED" />}
-                <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>아직 해결되지 않았어요</Text>
+                <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>
+                  {humanOnly ? "담당자 연결 요청" : "아직 해결되지 않았어요"}
+                </Text>
               </Pressable>
             </View>
             <Pressable
@@ -698,7 +707,9 @@ export default function SupportChatScreen({ supportContext }: Props) {
               <View style={[s.checkbox, callbackRequested && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
                 {callbackRequested && <LucideIcon name="check" size={13} color="#fff" />}
               </View>
-              <Text style={[s.callbackToggleText, { color: C.textMuted }]}>전화 상담을 희망합니다</Text>
+              <Text style={[s.callbackToggleText, { color: C.textMuted }]}>
+                전화 문의는 별도로 운영하지 않습니다. 연락 요청을 남길 수 있습니다.
+              </Text>
             </Pressable>
             {callbackRequested && (
               <View style={s.callbackForm}>

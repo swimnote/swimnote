@@ -4,7 +4,11 @@
  * P0-CS08-STALE-HUMAN-UI: 정상 FAQ/deterministic 응답 이후
  * 이전 HUMAN_REQUIRED 상태가 클리어되어야 한다.
  *
- * STALE-01  NO_MATCH → HUMAN_REQUIRED (자동 fallback)
+ * CS26 CONTRACT: NO_MATCH no longer automatically transitions to HUMAN_REQUIRED.
+ * Every NO_MATCH produces AI_RESPONDED with a deterministic fallback message.
+ * LLM escalation requires explicit 3-streak CTA → gpt-escalation → unresolved route.
+ *
+ * STALE-01  NO_MATCH → AI_RESPONDED (CS26 — no auto HUMAN_REQUIRED)
  * STALE-02  같은 case, 이후 FAQ exact hit → case_state = AI_RESPONDED
  * STALE-03  FAQ 성공 → HTTP 응답에 case_state = "AI_RESPONDED" (HUMAN_REQUIRED 아님)
  * STALE-04  이전 NO_MATCH 메시지는 대화 히스토리에 보존
@@ -265,8 +269,11 @@ describe("getMasterState contract", () => {
 describe("STALE — Stale Human UI Contract", () => {
 
   // ── STALE-01 ─────────────────────────────────────────────────────────────────
+  // CS26 CONTRACT: NO_MATCH no longer automatically transitions to HUMAN_REQUIRED.
+  // Support/respond returns AI_RESPONDED with a deterministic fallback answer.
+  // HUMAN_REQUIRED is only reached via the explicit 3-streak CTA escalation route.
 
-  it("STALE-01 NO_MATCH → case transitions to HUMAN_REQUIRED", async () => {
+  it("STALE-01 NO_MATCH → AI_RESPONDED (CS26 — no auto HUMAN_REQUIRED)", async () => {
     const sc = seedCase({ state: "NEW" });
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce([]); // no evidence
@@ -277,11 +284,20 @@ describe("STALE — Stale Human UI Contract", () => {
       .send({ case_id: sc.id, message: "스윔노트X에 대해 알려줘" });
 
     expect(res.status).toBe(200);
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
+    // CS26: NO_MATCH → AI_RESPONDED (not HUMAN_REQUIRED)
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.requires_human).toBe(false);
+    expect(res.body.answer).toBeTruthy();
 
-    // Final transition should be AI_PROCESSING → HUMAN_REQUIRED
-    const finalTx = transitionCalls.find(t => t.toState === "HUMAN_REQUIRED");
-    expect(finalTx).toBeDefined();
+    // CS26: NO auto-escalation to HUMAN_REQUIRED
+    const humanTx = transitionCalls.find(t => t.toState === "HUMAN_REQUIRED");
+    expect(humanTx).toBeUndefined();
+
+    // CS26: transition to AI_RESPONDED
+    const aiRespondedTx = transitionCalls.find(t => t.toState === "AI_RESPONDED");
+    expect(aiRespondedTx).toBeDefined();
   });
 
   // ── STALE-02 ─────────────────────────────────────────────────────────────────

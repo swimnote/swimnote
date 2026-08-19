@@ -107,6 +107,23 @@ describe('WP10 — buildTraceMetadata', () => {
     expect(meta.contract_version).toBe('1.3');
   });
 
+  it('CS26. grounded support trace includes verified evidence IDs, revisions, and tenant scope', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature: 'support_ai',
+      sub_feature: 'SUPPORT_GPT_SECOND_STAGE',
+      user_role: 'parent_account',
+      retrieved_knowledge_ids: ['ki_photo_visibility', 'ki_incident_photo'],
+      knowledge_revisions: { ki_photo_visibility: 3, ki_incident_photo: 1 },
+      retrieval_scope: 'global_or_current_pool:pool_test_001',
+    });
+    expect(meta.user_role).toBe('parent_account');
+    expect(meta.pool_mode).toBe('normal');
+    expect(meta.retrieved_knowledge_ids).toEqual(['ki_photo_visibility', 'ki_incident_photo']);
+    expect(meta.knowledge_revisions).toEqual({ ki_photo_visibility: 3, ki_incident_photo: 1 });
+    expect(meta.retrieval_scope).toBe('global_or_current_pool:pool_test_001');
+  });
+
   // TC-B: X + NOT_CONFIGURED → x_template_status 기록, usage 포함
   it('B. X+NOT_CONFIGURED → x_template_status 기록 + usage 정확', () => {
     const meta = buildTraceMetadata({

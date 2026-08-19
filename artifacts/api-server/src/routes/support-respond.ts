@@ -422,6 +422,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
           category:     resolution.category   ?? null,
           entity_key:   resolution.entity_key ?? null,
           screen_id:    resolution.screen_id  ?? null,
+          // HUMAN_ONLY is set only by the verified deterministic resolver.
+          // It preserves the pre-existing direct-human exception without
+          // trusting a client-provided escalation flag.
+          human_only:   resolution.requires_human === true && resolution.llm_required === false,
           resolved_at:  new Date().toISOString(),
         })}::jsonb
       )

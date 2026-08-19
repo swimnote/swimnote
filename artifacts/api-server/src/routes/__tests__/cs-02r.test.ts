@@ -336,6 +336,29 @@ describe("CS02R-12: human request flow", () => {
     expect(res.body.created).toBe(true);
     expect(res.body.ticket_id).toMatch(/^tkt_/);
   });
+
+  it("preserves the verified HUMAN_ONLY exception without allowing a client flag bypass", async () => {
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { resolution_context: { human_only: true } },
+    })];
+    poolRows = [];
+    const app = makeApp();
+    const res = await request(app)
+      .post("/support/cases/sc_test/request-human")
+      .send({ subject: "가격 문의", confirmation: "HUMAN_ONLY" });
+    expect(res.status).toBe(200);
+    expect(res.body.created).toBe(true);
+  });
+
+  it("rejects HUMAN_ONLY confirmation when the server did not mark the case HUMAN_ONLY", async () => {
+    superRows = [poolACase({ state: "AI_RESPONDED", context_json: {} })];
+    const app = makeApp();
+    const res = await request(app)
+      .post("/support/cases/sc_test/request-human")
+      .send({ confirmation: "HUMAN_ONLY" });
+    expect(res.status).toBe(422);
+  });
 });
 
 // =============================================================================

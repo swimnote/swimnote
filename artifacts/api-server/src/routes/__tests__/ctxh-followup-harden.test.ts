@@ -2,12 +2,12 @@
  * ctxh-followup-harden.test.ts — P0-CS09 REAL Follow-up Context Harden
  *
  * CTXH-01  deterministic resolution → resolution_context sub-key in JSONB merge
- * CTXH-02  deriveEvidenceContext: single qualifying KI → entity from evidence
- * CTXH-03  deriveEvidenceContext: conflicting KI features → null (don't persist)
+ * CTXH-02  CS26: NO_MATCH → AI_RESPONDED deterministically (no LLM/evidence path)
+ * CTXH-03  CS26: NO_MATCH → no resolution_context UPDATE (not a resolved entity)
  * CTXH-04  no_evidence path → no resolution_context UPDATE
- * CTXH-05  provider failure → no resolution_context UPDATE
+ * CTXH-05  CS26: NO_MATCH path always AI_RESPONDED, no provider error path reachable
  * CTXH-06  previousContext read from resolution_context sub-key (not top-level)
- * CTXH-07  creator Knowledge absent → NO_MATCH, no hallucination
+ * CTXH-07  creator Knowledge absent → NO_MATCH → AI_RESPONDED (CS26, no hallucination)
  * CTXH-08  creator Knowledge active → RESOLVED deterministically
  * CTXH-09  session metadata (user_role, app_version) preserved by JSONB merge
  * CTXH-10  different user → 403 (case boundary)
@@ -17,6 +17,13 @@
  * CTXH-14  evidence=0 → response llm_used=false, model=null
  * CTXH-15  PreviousResolutionContext interface contains no raw query/answer
  * CTXH-16  §8 referential requirement: "스윔노트 만든사람 누구야" NOT a follow-up signal
+ *
+ * ─── CS26 CONTRACT ────────────────────────────────────────────────────────────
+ * General support/respond no longer automatically calls LLM or transitions to
+ * HUMAN_REQUIRED on NO_MATCH. Every NO_MATCH produces an AI_RESPONDED result
+ * with a deterministic fallback message. LLM escalation requires the explicit
+ * 3-streak CTA → gpt-escalation → unresolved confirmation route.
+ * ─────────────────────────────────────────────────────────────────────────────
  *
  * + unit tests for deriveEvidenceContext (§6 selection logic)
  * + unit tests for FOLLOWUP_SIGNALS refinement (§8)
@@ -252,60 +259,48 @@ describe("WP-CS09 Harden — Follow-up Context P0", () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CTXH-02: deriveEvidenceContext — single qualifying KI evidence
+  // CTXH-02: CS26 — NO_MATCH → AI_RESPONDED deterministically (no LLM)
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("CTXH-02 LLM grounded + single qualifying KI evidence → evidence context UPDATE fired", async () => {
+  it("CTXH-02 CS26: NO_MATCH → AI_RESPONDED deterministically, no LLM/evidence called", async () => {
     caseStore.push(defCase());
     mockRunResolutionChain.mockResolvedValue(NO_MATCH_RESULT);
-    const evidence = [{ id: "ki_swimnote_intro", item_type: "FAQ", title: "스윔노트", answer: "...", score: 65, feature: "swimnote_intro", category: "product" }];
-    mockGatherEvidence.mockResolvedValue(evidence);
-    // Real deriveEvidenceContext would return entity; mock returns it
-    mockDeriveEvidenceContext.mockReturnValue({ source_type: "FAQ", source_id: "ki_swimnote_intro", entity_key: "swimnote_intro", feature: "swimnote_intro", category: "product" });
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ confidence: "HIGH", answer: "스윔노트는 ...", requires_human: false }) } }],
-      usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-    });
 
     const res = await request(app).post("/api/support/respond")
       .set(authHeader(ADMIN_USER))
       .send(BASE_BODY)
       .expect(200);
 
-    expect(res.body.llm_used).toBe(true);
-    // Evidence context UPDATE should be fired (entity_key exists)
-    const contextUpdate = updateCalls.find((s) => s.includes("resolution_context"));
-    expect(contextUpdate).toBeTruthy();
-    // deriveEvidenceContext must have been called with the evidence
-    expect(mockDeriveEvidenceContext).toHaveBeenCalledWith(evidence);
+    // CS26: NO_MATCH returns AI_RESPONDED, not HUMAN_REQUIRED
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.requires_human).toBe(false);
+    // LLM and evidence gathering are NOT invoked
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(mockDeriveEvidenceContext).not.toHaveBeenCalled();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CTXH-03: deriveEvidenceContext — conflicting KI features → null
+  // CTXH-03: CS26 — NO_MATCH → no resolution_context UPDATE
+  // (not a resolved entity match, no context to persist)
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("CTXH-03 LLM grounded + conflicting evidence → deriveEvidenceContext returns null → no UPDATE", async () => {
+  it("CTXH-03 CS26: NO_MATCH → no resolution_context UPDATE (no entity resolved)", async () => {
     caseStore.push(defCase());
     mockRunResolutionChain.mockResolvedValue(NO_MATCH_RESULT);
-    const evidence = [
-      { id: "ki_a", item_type: "FAQ", title: "A", answer: "...", score: 75, feature: "feature_a", category: null },
-      { id: "ki_b", item_type: "FAQ", title: "B", answer: "...", score: 70, feature: "feature_b", category: null },
-    ];
-    mockGatherEvidence.mockResolvedValue(evidence);
-    mockDeriveEvidenceContext.mockReturnValue(null);   // conflicting → null
-    mockCreate.mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ confidence: "HIGH", answer: "답변", requires_human: false }) } }],
-      usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-    });
 
     await request(app).post("/api/support/respond")
       .set(authHeader(ADMIN_USER))
       .send(BASE_BODY)
       .expect(200);
 
-    // No resolution_context UPDATE should fire when deriveEvidenceContext returns null
+    // No resolution_context UPDATE should fire for NO_MATCH (no entity resolved)
     const contextUpdate = updateCalls.find((s) => s.includes("resolution_context"));
-    expect(contextUpdate, "No context UPDATE when evidence conflicts").toBeUndefined();
+    expect(contextUpdate, "No context UPDATE when NO_MATCH (CS26)").toBeUndefined();
+    // deriveEvidenceContext must NOT be called (CS26 returns before evidence gathering)
+    expect(mockDeriveEvidenceContext).not.toHaveBeenCalled();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -324,31 +319,33 @@ describe("WP-CS09 Harden — Follow-up Context P0", () => {
 
     const contextUpdate = updateCalls.find((s) => s.includes("resolution_context"));
     expect(contextUpdate, "No context UPDATE on no_evidence path").toBeUndefined();
-    // deriveEvidenceContext must NOT be called (evidence=0 → LLM_SKIPPED before reaching that code)
+    // deriveEvidenceContext must NOT be called (CS26 returns before evidence gathering)
     expect(mockDeriveEvidenceContext).not.toHaveBeenCalled();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CTXH-05: provider failure → no context stored
+  // CTXH-05: CS26 — NO_MATCH path is always AI_RESPONDED
+  // Provider errors via OpenAI are not reachable from the general support/respond
+  // endpoint. The LLM path is only accessible via the explicit gpt-escalation route.
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("CTXH-05 provider failure → no resolution_context UPDATE", async () => {
+  it("CTXH-05 CS26: NO_MATCH always AI_RESPONDED (no provider error path reachable)", async () => {
     caseStore.push(defCase());
     mockRunResolutionChain.mockResolvedValue(NO_MATCH_RESULT);
-    const evidence = [{ id: "ki_x", item_type: "FAQ", title: "X", answer: "...", score: 65, feature: "f", category: null }];
-    mockGatherEvidence.mockResolvedValue(evidence);
-    mockCreate.mockRejectedValue(new Error("Provider connection refused"));
+    // Even if gatherEvidence were called (it won't be), a provider rejection should not affect the response
+    mockGatherEvidence.mockRejectedValue(new Error("Provider connection refused"));
 
     const res = await request(app).post("/api/support/respond")
       .set(authHeader(ADMIN_USER))
       .send(BASE_BODY)
       .expect(200);
 
-    // Provider error → LOW confidence → HUMAN_REQUIRED
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
-    // No context UPDATE should fire on provider error
+    // CS26: NO_MATCH is always AI_RESPONDED, never HUMAN_REQUIRED
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
+    // No context UPDATE for NO_MATCH
     const contextUpdate = updateCalls.find((s) => s.includes("resolution_context"));
-    expect(contextUpdate, "No context UPDATE on provider failure").toBeUndefined();
+    expect(contextUpdate, "No context UPDATE on CS26 NO_MATCH path").toBeUndefined();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -390,25 +387,29 @@ describe("WP-CS09 Harden — Follow-up Context P0", () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CTXH-07: creator Knowledge absent → NO_MATCH, no hallucination
-  // (resolver-level, same as CTX-04 but via CTXH format for spec traceability)
+  // CTXH-07: creator Knowledge absent → NO_MATCH → AI_RESPONDED (CS26)
+  // CS26 CONTRACT: NO_MATCH no longer transitions to HUMAN_REQUIRED automatically.
+  // There is no hallucinated creator name; the case gets AI_RESPONDED with a
+  // deterministic fallback message.
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("CTXH-07 creator Knowledge absent → runResolutionChain returns NO_MATCH (LLM path, not hallucinated)", async () => {
+  it("CTXH-07 creator Knowledge absent → NO_MATCH → AI_RESPONDED (CS26, no hallucination, no HUMAN_REQUIRED)", async () => {
     caseStore.push(defCase());
     // runResolutionChain returns NO_MATCH (no creator knowledge found)
     mockRunResolutionChain.mockResolvedValue(NO_MATCH_RESULT);
-    mockGatherEvidence.mockResolvedValue([]);
 
     const res = await request(app).post("/api/support/respond")
       .set(authHeader(ADMIN_USER))
       .send({ ...BASE_BODY, message: "이거 만든사람 누구야" })
       .expect(200);
 
-    // case_state = HUMAN_REQUIRED (no hallucinated creator name)
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
-    expect(res.body.llm_used).toBe(false);     // no_evidence path
+    // CS26: case_state = AI_RESPONDED (no auto HUMAN_REQUIRED escalation)
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.llm_used).toBe(false);
     expect(res.body.llm_called).toBe(false);
+    // No hallucinated creator name; a deterministic fallback answer is present
+    expect(res.body.answer).toBeTruthy();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -513,10 +514,11 @@ describe("WP-CS09 Harden — Follow-up Context P0", () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CTXH-13: evidence=0 → OpenAI.create never invoked (NO_EVIDENCE contract)
+  // CTXH-13: evidence=0 → OpenAI.create never invoked (CS26 NO_EVIDENCE contract)
+  // CS26: gatherEvidence is not even called for NO_MATCH; the route returns early.
   // ─────────────────────────────────────────────────────────────────────────
 
-  it("CTXH-13 evidence=0 → OpenAI invocation = 0", async () => {
+  it("CTXH-13 evidence=0 / NO_MATCH → OpenAI invocation = 0 (CS26 early return)", async () => {
     caseStore.push(defCase());
     mockRunResolutionChain.mockResolvedValue(NO_MATCH_RESULT);
     mockGatherEvidence.mockResolvedValue([]);

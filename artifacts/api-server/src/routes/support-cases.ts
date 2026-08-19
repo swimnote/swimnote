@@ -534,6 +534,9 @@ ${previousConversation}`;
       user_role: ctx.role,
       provider: "openai",
       source_app: "app",
+      retrieved_knowledge_ids: evidence.map((item) => item.id),
+      knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
+      retrieval_scope: `global_or_current_pool:${ctx.poolId ?? "none"}`,
       status: "SUCCESS",
       generation_mode: llmCalled ? "llm_grounded_second_stage" : "insufficient_grounding",
       model: llmCalled ? SUPPORT_GPT_MODEL : null,
@@ -626,7 +629,10 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
     // after the separate grounded GPT response and the user's explicit
     // unresolved confirmation.
     const sequence = getSupportSequence(sc.context_json);
-    if (confirmation !== "GPT_UNRESOLVED" || sequence.gpt_status !== "RESPONDED") {
+    const humanOnly = (sc.context_json as any)?.resolution_context?.human_only === true;
+    const gptUnresolved = confirmation === "GPT_UNRESOLVED" && sequence.gpt_status === "RESPONDED";
+    const directHumanOnly = confirmation === "HUMAN_ONLY" && humanOnly;
+    if (!gptUnresolved && !directHumanOnly) {
       return res.status(422).json({
         error: "추가 상담 답변 후 '아직 해결되지 않았어요'를 선택한 경우에만 담당자에게 전달됩니다.",
       });
