@@ -90,37 +90,90 @@ async function insertInternalCaseMessage(params: {
   `);
 }
 
-function parseGroundedEvidenceSelection(
+const HIGH_RISK_GROUNDING_GUARDS = [
+  { answer: /(?:가격|요금|비용|할인|금액|\d[\d,]*\s*원)/, evidence: /(?:가격|요금|비용|할인|금액|\d[\d,]*\s*원)/ },
+  { answer: /환불/, evidence: /환불/ },
+  { answer: /계약/, evidence: /계약/ },
+  { answer: /(?:해지|취소)/, evidence: /(?:해지|취소)/ },
+  { answer: /(?:개인정보|개인 정보|보관|삭제)/, evidence: /(?:개인정보|개인 정보|보관|삭제)/ },
+  {
+    answer: /(?:화면|메뉴|탭|버튼|경로|페이지|설정|프로필|기능|이동|\b(?:settings?|menu|tab|button|screen|page|navigate|profile)\b)/i,
+    evidence: /(?:화면|메뉴|탭|버튼|경로|페이지|설정|프로필|기능|이동|\b(?:settings?|menu|tab|button|screen|page|navigate|profile)\b)/i,
+  },
+] as const;
+
+function hasUnsupportedHighRiskClaim(answer: string, citedEvidence: string): boolean {
+  return HIGH_RISK_GROUNDING_GUARDS.some(
+    (guard) => guard.answer.test(answer) && !guard.evidence.test(citedEvidence)
+  );
+}
+
+function repeatsPriorGuidance(answer: string, previousAssistantAnswers: string[]): boolean {
+  const answerNormalized = normalizeQuery(answer);
+  const answerTokens = new Set(tokenize(answerNormalized));
+  return previousAssistantAnswers.some((previousAnswer) => {
+    const previousNormalized = normalizeQuery(previousAnswer);
+    if (!previousNormalized) return false;
+    if (
+      previousNormalized === answerNormalized ||
+      previousNormalized.includes(answerNormalized) ||
+      answerNormalized.includes(previousNormalized)
+    ) {
+      return true;
+    }
+
+    // A model can hide a prior instruction inside a longer answer. Reject a
+    // substantial overlap with any earlier assistant guidance rather than
+    // allowing "A again, then B" to bypass the repeat contract.
+    const previousTokens = [...new Set(tokenize(previousNormalized))];
+    if (previousTokens.length < 3) return false;
+    const shared = previousTokens.filter((token) => answerTokens.has(token)).length;
+    return shared / previousTokens.length >= 0.67;
+  });
+}
+
+function isKoreanCounselorResponse(answer: string): boolean {
+  const koreanCharacters = (answer.match(/[가-힣]/g) ?? []).length;
+  const letters = (answer.match(/[A-Za-z가-힣]/g) ?? []).length;
+  const hasHonorificEnding = /(?:주세요|세요|습니다|드립니다|합니다|됩니다)[.!?]?$/.test(answer);
+  return koreanCharacters >= 4 && koreanCharacters >= letters * 0.6 && hasHonorificEnding;
+}
+
+function parseGroundedCounselorAnswer(
   raw: string,
   evidenceById: Map<string, string>,
   previousAssistantAnswers: string[]
-): string | null {
+): { answer: string; usedKnowledgeIds: string[] } | null {
   try {
     const parsed = JSON.parse(raw);
-    const selectedIds = Array.isArray(parsed.selected_evidence_ids)
-      ? parsed.selected_evidence_ids
-      : Array.isArray(parsed.used_evidence_ids)
-        ? parsed.used_evidence_ids
-        : [];
-    const onlyKnownRefs = selectedIds.length > 0 && selectedIds.every((id: unknown) =>
+    const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+    const usedKnowledgeIds = Array.isArray(parsed.used_knowledge_ids)
+      ? parsed.used_knowledge_ids
+      : [];
+    const onlyKnownRefs = usedKnowledgeIds.length > 0 && usedKnowledgeIds.every((id: unknown) =>
       typeof id === "string" && evidenceById.has(id)
     );
-    if (!onlyKnownRefs) return null;
+    if (!answer || !onlyKnownRefs || answer.length > 900) return null;
 
-    const prior = previousAssistantAnswers
-      .map((answer) => normalizeQuery(answer))
-      .filter(Boolean);
-    const selectedAnswers = [...new Set(
-      selectedIds.map((id: string) => evidenceById.get(id)?.trim()).filter(Boolean) as string[]
-    )].filter((answer) => {
-      const normalized = normalizeQuery(answer);
-      return !prior.some((previous) => previous.includes(normalized));
-    });
+    const sentenceCount = answer
+      .split(/[.!?。！？]+/)
+      .map((sentence) => sentence.trim())
+      .filter(Boolean).length;
+    if (sentenceCount > 4 || /^(?:안녕하세요|문의\s*감사합니다|도움이\s*필요하셨군요)/.test(answer)) {
+      return null;
+    }
 
-    // The model only selects verified rows. User-visible text is copied from
-    // those rows verbatim, so an invented claim can never pass through merely
-    // by citing a valid Knowledge ID.
-    return selectedAnswers.length > 0 ? selectedAnswers.join("\n\n") : null;
+    const normalizedAnswer = normalizeQuery(answer);
+    if (!isKoreanCounselorResponse(answer) || !normalizedAnswer || repeatsPriorGuidance(answer, previousAssistantAnswers)) {
+      return null;
+    }
+
+    const citedEvidence = [...new Set(usedKnowledgeIds)]
+      .map((id: string) => evidenceById.get(id) ?? "")
+      .join("\n");
+    if (hasUnsupportedHighRiskClaim(answer, citedEvidence)) return null;
+
+    return { answer, usedKnowledgeIds: [...new Set(usedKnowledgeIds)] };
   } catch {
     return null;
   }
@@ -468,9 +521,7 @@ router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRe
     }).catch(() => {});
 
     const evidence = await gatherEvidence(ctx, 5);
-    const evidenceById = new Map(
-      evidence.map((item) => [item.id, String(item.answer ?? "").trim()])
-    );
+    const evidenceById = new Map(evidence.map((item) => [item.id, String(item.answer ?? "").trim()]));
     const previousAssistantAnswers = recentMessages
       .filter((message: any) => message.author_role !== "user")
       .map((message: any) => String(message.content ?? ""));
@@ -485,18 +536,34 @@ router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRe
     let outputTokens: number | null = null;
     let totalTokens: number | null = null;
     let groundedAnswerAccepted = false;
+    let usedKnowledgeIds: string[] = [];
 
     if (evidence.length > 0) {
       const evidenceBlock = evidence.map((item) =>
-        `[${item.id}] rev ${item.revision} / ${item.item_type}\n${item.answer}`
+        `[Knowledge ID: ${item.id}]
+type=${item.item_type}; revision=${item.revision}; role=${ctx.role}; mode=${ctx.mode}; pool_scope=${ctx.poolId ?? "global"}
+title=${item.title}
+verified_answer=${item.answer}`
       ).join("\n\n");
       const systemPrompt = `당신은 SWIMNOTE의 2차 고객지원 상담사입니다.
-아래 검증 근거 중 현재 문의에 직접 도움이 되고, 최근 대화에서 아직 제공되지 않은 근거 ID만 선택하세요.
-새 답변 문장, 기능, 정책, 가격, 환불 규칙, UI 경로, 권한, 장애 원인, 처리 시간을 작성하지 마세요.
-도움이 되는 새 근거가 없으면 빈 배열을 반환하세요.
-반드시 JSON만 반환하세요: {"selected_evidence_ids":["검증 근거 ID"]}.
+아래 Retrieved Knowledge에 있는 사실·조건·해결 단계만 근거로 사용하여, 현재 사용자 상황에 맞는 자연스러운 상담사 답변을 작성하세요.
+최근 대화에서 사용자가 이미 시도했거나 기존 안내에 포함된 항목은 반복하지 말고, 적용 가능한 다음 검증 단계를 우선하세요.
+DB에 없는 기능, UI, 오류 원인, 해결방법, 가격, 할인, 환불·계약·해지 정책, 개인정보 처리, 처리기간/SLA를 만들거나 일반적인 앱 지식을 SWIMNOTE 사실처럼 말하면 안 됩니다.
+답변은 존댓말 1~4문장으로 짧고 직접적으로 작성하세요. "안녕하세요", "문의 감사합니다", "도움이 필요하셨군요"로 시작하지 마세요.
+반드시 실제로 사용한 Knowledge ID만 used_knowledge_ids에 넣고, 아래 Allowed Knowledge IDs 밖의 ID는 절대 넣지 마세요.
+근거만으로 안전한 답변을 만들 수 없으면 빈 answer와 빈 used_knowledge_ids를 반환하세요.
+반드시 JSON만 반환하세요: {"answer":"자연스러운 상담 답변", "used_knowledge_ids":["Knowledge ID"]}.
 
-[검증 근거]
+[현재 사용자 문의]
+${redactConversationForGrounding(String(latestUserMessage.content))}
+
+[사용자 역할 및 범위]
+role=${ctx.role}; mode=${ctx.mode}; pool_scope=${ctx.poolId ?? "global"}
+
+[Allowed Knowledge IDs]
+${evidence.map((item) => item.id).join(", ")}
+
+[Retrieved Knowledge]
 ${evidenceBlock}
 
 [같은 문의의 최근 대화]
@@ -514,13 +581,14 @@ ${previousConversation}`;
         outputTokens = completion.usage?.completion_tokens ?? null;
         totalTokens = completion.usage?.total_tokens ?? null;
         llmCalled = true;
-        const groundedAnswer = parseGroundedEvidenceSelection(
+        const groundedAnswer = parseGroundedCounselorAnswer(
           completion.choices[0]?.message?.content ?? "{}",
           evidenceById,
           previousAssistantAnswers
         );
         if (groundedAnswer) {
-          answer = groundedAnswer;
+          answer = groundedAnswer.answer;
+          usedKnowledgeIds = groundedAnswer.usedKnowledgeIds;
           groundedAnswerAccepted = true;
         }
       } catch {
@@ -541,6 +609,7 @@ ${previousConversation}`;
       gpt_status: "RESPONDED",
       gpt_request_id: makeId("gpt"),
       retrieved_knowledge_ids: evidence.map((item) => item.id),
+      used_knowledge_ids: usedKnowledgeIds,
       knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
       previous_answers_used: recentMessages.filter((m: any) => m.author_role !== "user").length,
       updated_at: new Date().toISOString(),
@@ -589,7 +658,7 @@ ${previousConversation}`;
       normalizedQuery: normalized,
       representativeQuery: normalized.substring(0, 200),
       resolutionSource: "GPT_SECOND_STAGE",
-      matchedKnowledgeId: evidence[0]?.id ?? null,
+      matchedKnowledgeId: usedKnowledgeIds[0] ?? null,
       matchConfidence: evidence[0]?.score ?? null,
       llmCalled,
       humanRequested: false,

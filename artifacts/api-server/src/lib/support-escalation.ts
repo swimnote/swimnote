@@ -18,6 +18,7 @@ export interface SupportSequence {
   gpt_status: GptEscalationStatus;
   gpt_request_id?: string | null;
   retrieved_knowledge_ids?: string[];
+  used_knowledge_ids?: string[];
   knowledge_revisions?: Record<string, number>;
   previous_answers_used?: number;
   updated_at?: string;

@@ -439,7 +439,7 @@ describe("CS26-01: explicit second-stage support consultation", () => {
         message: {
           content: JSON.stringify({
             answer: "허용되지 않은 근거로 만든 답변",
-            selected_evidence_ids: ["ki_not_allowed"],
+            used_knowledge_ids: ["ki_not_allowed"],
           }),
         },
       }],
@@ -467,20 +467,21 @@ describe("CS26-01: explicit second-stage support consultation", () => {
     expect(res.body.answer).not.toContain("허용되지 않은 근거");
   });
 
-  it("never returns an unsupported generated claim even when the cited ID is allowed", async () => {
+  it("returns a natural grounded response instead of concatenating canonical answers", async () => {
     vi.mocked(gatherEvidence).mockResolvedValueOnce([{
       id: "ki_allowed",
       revision: 8,
       item_type: "SOLUTION",
       answer: "서버에서 검증된 다음 확인 단계입니다.",
+      title: "검증 단계",
       score: 92,
     } as any]);
     aiMocks.create.mockResolvedValueOnce({
       choices: [{
         message: {
           content: JSON.stringify({
-            answer: "근거에는 없는 환불 및 처리시간 안내",
-            selected_evidence_ids: ["ki_allowed"],
+            answer: "먼저 서버에서 검증된 다음 확인 단계를 진행해 주세요.",
+            used_knowledge_ids: ["ki_allowed"],
           }),
         },
       }],
@@ -504,9 +505,224 @@ describe("CS26-01: explicit second-stage support consultation", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.llm_called).toBe(true);
-    expect(res.body.answer).toBe("서버에서 검증된 다음 확인 단계입니다.");
-    expect(res.body.answer).not.toContain("환불");
-    expect(res.body.answer).not.toContain("처리시간");
+    expect(res.body.answer).toBe("먼저 서버에서 검증된 다음 확인 단계를 진행해 주세요.");
+    expect(res.body.answer).not.toBe("서버에서 검증된 다음 확인 단계입니다.");
+  });
+
+  it("lets GPT compose only the relevant two of three verified Knowledge items", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([
+      { id: "ki_tried", revision: 1, item_type: "FAQ", title: "이미 시도함", answer: "앱을 다시 열어 확인해 주세요.", score: 91 },
+      { id: "ki_next", revision: 2, item_type: "SOLUTION", title: "다음 단계", answer: "권한 상태를 확인해 주세요.", score: 89 },
+      { id: "ki_finish", revision: 3, item_type: "SOLUTION", title: "마무리 단계", answer: "저장 후 다시 동기화해 주세요.", score: 87 },
+    ] as any);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "권한 상태를 먼저 확인해 주세요. 확인 후 저장하고 다시 동기화해 보세요.",
+            used_knowledge_ids: ["ki_next", "ki_finish"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 20, completion_tokens: 18, total_tokens: 38 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    poolRows = [{ author_role: "user", content: "이미 앱을 다시 열었는데 계속 안 돼요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toContain("권한 상태");
+    expect(res.body.answer).toContain("동기화");
+    expect(res.body.answer).not.toContain("앱을 다시 열어");
+    const prompt = aiMocks.create.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain("ki_tried");
+    expect(prompt).toContain("ki_next");
+    expect(prompt).toContain("ki_finish");
+  });
+
+  it("uses a different verified step after the user says the prior guidance was already tried", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([
+      { id: "ki_prior", revision: 1, item_type: "FAQ", title: "기존 안내", answer: "자녀 연결 상태를 확인해 주세요.", score: 90 },
+      { id: "ki_alternate", revision: 2, item_type: "SOLUTION", title: "다음 안내", answer: "권한 설정을 다시 확인해 주세요.", score: 88 },
+    ] as any);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "연결 상태가 정상이라면 권한 설정을 다시 확인해 주세요.",
+            used_knowledge_ids: ["ki_alternate"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 19, completion_tokens: 12, total_tokens: 31 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    // DB query order is DESC; the route reverses it before building the prompt.
+    poolRows = [
+      { author_role: "user", content: "이미 연결되어 있어요." },
+      { author_role: "ai", content: "자녀 연결 상태를 확인해 주세요." },
+    ];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toContain("권한 설정");
+    expect(res.body.answer).not.toBe("자녀 연결 상태를 확인해 주세요.");
+    expect(aiMocks.create.mock.calls[0][0].messages[0].content)
+      .toContain("기존 안내: 자녀 연결 상태를 확인해 주세요.");
+  });
+
+  it("rejects a mixed answer that repeats prior guidance before adding a new step", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([
+      { id: "ki_prior", revision: 1, item_type: "FAQ", title: "기존 안내", answer: "자녀 연결 상태를 확인해 주세요.", score: 90 },
+      { id: "ki_alternate", revision: 2, item_type: "SOLUTION", title: "다음 안내", answer: "권한 설정을 다시 확인해 주세요.", score: 88 },
+    ] as any);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "자녀 연결 상태를 다시 확인해 주세요. 이후 권한 설정도 확인해 주세요.",
+            used_knowledge_ids: ["ki_prior", "ki_alternate"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 19, completion_tokens: 16, total_tokens: 35 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    poolRows = [
+      { author_role: "user", content: "이미 연결되어 있어요." },
+      { author_role: "ai", content: "자녀 연결 상태를 확인해 주세요." },
+    ];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    expect(res.body.answer).not.toContain("권한 설정도");
+  });
+
+  it("rejects uncited price and UI claims even when the Knowledge ID itself is allowed", async () => {
+    const ordinaryEvidence = [{
+      id: "ki_safe",
+      revision: 1,
+      item_type: "FAQ",
+      title: "일반 확인",
+      answer: "현재 등록 상태를 확인해 주세요.",
+      score: 95,
+    }] as any;
+    vi.mocked(gatherEvidence).mockResolvedValueOnce(ordinaryEvidence);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "월 요금은 2만원이며 새 결제 메뉴에서 변경할 수 있습니다.",
+            used_knowledge_ids: ["ki_safe"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 12, completion_tokens: 10, total_tokens: 22 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    poolRows = [{ author_role: "user", content: "결제 관련 오류가 나요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.llm_called).toBe(true);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    expect(res.body.answer).not.toContain("2만원");
+    expect(res.body.answer).not.toContain("결제 메뉴");
+  });
+
+  it("rejects a standalone unsupported UI route claim", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([{
+      id: "ki_safe",
+      revision: 1,
+      item_type: "FAQ",
+      title: "일반 확인",
+      answer: "현재 등록 상태를 확인해 주세요.",
+      score: 95,
+    }] as any);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "새로운 설정 화면에서 해당 기능을 확인해 주세요.",
+            used_knowledge_ids: ["ki_safe"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 9, total_tokens: 19 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    poolRows = [{ author_role: "user", content: "등록 상태가 안 보여요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    expect(res.body.answer).not.toContain("설정 화면");
+  });
+
+  it("rejects a non-Korean counselor response even when its Knowledge ID is allowed", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([{
+      id: "ki_safe",
+      revision: 1,
+      item_type: "FAQ",
+      title: "일반 확인",
+      answer: "현재 등록 상태를 확인해 주세요.",
+      score: 95,
+    }] as any);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "Go to Settings to continue.",
+            used_knowledge_ids: ["ki_safe"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 7, total_tokens: 17 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 3, inquiry_offered: true, gpt_status: "OFFERED" } },
+    })];
+    poolRows = [{ author_role: "user", content: "등록 상태가 안 보여요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    expect(res.body.answer).not.toContain("Go to Settings");
   });
 });
 
