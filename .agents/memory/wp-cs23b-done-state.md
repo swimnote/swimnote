@@ -53,7 +53,7 @@ description: Full SWIMNOTE Function Inventory & Canonical Answer Database 완료
 
 ## SHA 정보
 
-(push 후 기록 예정)
+bd558a84
 
 ## 상태: COMPLETE
 
