@@ -8,9 +8,9 @@
  *  - POST /support/cases → case 생성
  *  - POST /support/cases/:id/messages → 메시지 전송 (author_role=user 고정)
  *  - GET /support/cases/:id → 대화 이력 + 상태
- *  - "해결됐어요"  → POST /support/cases/:id/resolve
- *  - "아직 안돼요" → 상담사 CTA 표시
- *  - "상담사에게 문의하기" → POST /support/cases/:id/request-human (idempotent)
+ *  - 동일 문제 3회 반복 → "문의사항 보내기" → Grounded GPT 2차 상담
+ *  - GPT 이후 "해결됐어요" → POST /support/cases/:id/resolve
+ *  - GPT 이후 "아직 해결되지 않았어요" → POST /support/cases/:id/request-human
  *  - focus refresh + 수동 refresh (pull-to-refresh)
  *  - double-tap 방지 (isSending, isResolving, isRequestingHuman)
  *  - 프라이버시: console에 본문·토큰·이름 미출력
@@ -86,6 +86,7 @@ interface SupportCase {
   ticket_id: string | null;
   messages: SupportMessage[];
   updated_at: string;
+  context: Record<string, any>;
 }
 
 interface SupportContext {
@@ -142,7 +143,10 @@ export default function SupportChatScreen({ supportContext }: Props) {
   const [isSending,        setIsSending]        = useState(false);
   const [isResolving,      setIsResolving]      = useState(false);
   const [isRequestingHuman,setIsRequestingHuman]= useState(false);
-  const [showHumanCta,     setShowHumanCta]     = useState(false);
+  const [isStartingGpt,    setIsStartingGpt]    = useState(false);
+  const [callbackRequested,setCallbackRequested]= useState(false);
+  const [callbackPhone,    setCallbackPhone]    = useState("");
+  const [callbackConsent,  setCallbackConsent]  = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
 
@@ -189,13 +193,8 @@ export default function SupportChatScreen({ supportContext }: Props) {
         ticket_id:    data.case.ticket_id ?? null,
         messages:     data.messages ?? [],
         updated_at:   data.case.updated_at,
+          context:      data.context ?? data.case.context_json ?? {},
       });
-      // STALE-06 fix: FAQ 성공 후 human CTA local state 자동 해제.
-      // master_state가 human escalation 상태가 아니면 showHumanCta를 false로 리셋.
-      const humanStates = new Set(["AGENT_REQUESTED", "AGENT_ACTIVE", "PHONE_REQUIRED"]);
-      if (!humanStates.has(newMasterState)) {
-        setShowHumanCta(false);
-      }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 100);
     } catch { /* ignore */ }
   }
@@ -343,28 +342,29 @@ export default function SupportChatScreen({ supportContext }: Props) {
   }
 
   async function handleNotResolved() {
-    // AI 엔진 없는 현재 단계: 상담사 CTA 표시
-    setShowHumanCta(true);
-  }
-
-  async function handleRequestHuman() {
     if (!activeCase || isRequestingHuman) return;
+    if (callbackRequested && (!callbackPhone.trim() || !callbackConsent)) {
+      setError("전화 상담을 원하시면 연락처를 직접 입력하고 연락 동의에 체크해주세요.");
+      return;
+    }
     setIsRequestingHuman(true);
     try {
       const res = await apiRequest(token, `/support/cases/${activeCase.id}/request-human`, {
         method: "POST",
-        body:   JSON.stringify({ subject: "AI 문의 후 상담사 연결 요청" }),
+        body:   JSON.stringify({
+          subject: "GPT 2차 상담 후 미해결 문의",
+          confirmation: "GPT_UNRESOLVED",
+          callback_requested: callbackRequested,
+          callback_phone: callbackRequested ? callbackPhone.trim() : undefined,
+          callback_consent: callbackRequested ? callbackConsent : undefined,
+        }),
       });
       if (res.ok) {
         setError(null);
-        setShowHumanCta(false);
-        await fetchCaseDetail(activeCase.id);
-      } else if (res.status === 422) {
-        // 이미 human 상태 — 무시 (idempotent)
-        setShowHumanCta(false);
         await fetchCaseDetail(activeCase.id);
       } else {
-        setError("상담사 연결 요청 중 오류가 발생했습니다.");
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? "상담사 연결 요청 중 오류가 발생했습니다.");
       }
     } catch {
       setError("네트워크 오류. 다시 시도해주세요.");
@@ -373,11 +373,35 @@ export default function SupportChatScreen({ supportContext }: Props) {
     }
   }
 
+  async function handleStartGpt() {
+    if (!activeCase || isStartingGpt) return;
+    setIsStartingGpt(true);
+    try {
+      const res = await apiRequest(token, `/support/cases/${activeCase.id}/gpt-escalation`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        setError(null);
+        await fetchCaseDetail(activeCase.id);
+      } else {
+        const body = await res.json().catch(() => null);
+        setError(body?.error ?? "추가 상담을 시작하지 못했습니다.");
+      }
+    } catch {
+      setError("네트워크 오류. 다시 시도해주세요.");
+    } finally {
+      setIsStartingGpt(false);
+    }
+  }
+
   async function handleNewCase() {
     setActiveCase(null);
     setCaseList([]);
-    setShowHumanCta(false);
     setError(null);
+    setCallbackRequested(false);
+    setCallbackPhone("");
+    setCallbackConsent(false);
   }
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -387,6 +411,9 @@ export default function SupportChatScreen({ supportContext }: Props) {
   const stateColor   = MASTER_STATE_COLOR[masterState] ?? C.textMuted;
   const isResolved   = masterState === "RESOLVED";
   const isHuman      = ["AGENT_REQUESTED", "AGENT_ACTIVE", "PHONE_REQUIRED"].includes(masterState);
+  const autonomous = activeCase?.context?.cs26_sequence ?? {};
+  const inquiryOffered = !isHuman && !isResolved && autonomous.inquiry_offered === true;
+  const gptResponded = !isHuman && !isResolved && autonomous.gpt_status === "RESPONDED";
 
   function renderMessage(msg: SupportMessage, idx: number) {
     const isUser   = msg.author_role === "user";
@@ -479,7 +506,15 @@ export default function SupportChatScreen({ supportContext }: Props) {
             style={({ pressed }) => [s.startBtn, { opacity: pressed ? 0.8 : 1, backgroundColor: C.brandStrong }]}
             onPress={() => {
               // 빈 케이스 UI로 전환 (첫 메시지 전송 시 생성)
-              setActiveCase({ id: "__new__", state: "NEW", master_state: "AI_ACTIVE", ticket_id: null, messages: [], updated_at: "" });
+              setActiveCase({
+                id: "__new__",
+                state: "NEW",
+                master_state: "AI_ACTIVE",
+                ticket_id: null,
+                messages: [],
+                updated_at: "",
+                context: {},
+              });
             }}
           >
             <LucideIcon name="plus" size={18} color="#fff" />
@@ -596,8 +631,33 @@ export default function SupportChatScreen({ supportContext }: Props) {
               </View>
             )}
 
-          {/* 해결/미해결 버튼 — human 상태 아닐 때 */}
-          {!isNewCase && !isResolved && !isHuman && (
+          {/* 3회 연속 같은 문제일 때만 명시적으로 2차 상담을 시작한다. */}
+          {!isNewCase && inquiryOffered && (
+            <View style={s.inquiryCta}>
+              <LucideIcon name="message-square-more" size={20} color={C.brandStrong} />
+              <Text style={[s.inquiryCtaTitle, { color: C.text }]}>안내된 내용으로 문제가 해결되지 않은 것 같습니다.</Text>
+              <Text style={[s.inquiryCtaDesc, { color: C.textMuted }]}>
+                문의사항을 보내시면 현재 대화와 검증된 안내를 바탕으로 추가 상담을 진행합니다.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  s.inquiryCtaBtn,
+                  { backgroundColor: C.brandStrong, opacity: pressed || isStartingGpt ? 0.7 : 1 },
+                ]}
+                onPress={handleStartGpt}
+                disabled={isStartingGpt}
+              >
+                {isStartingGpt
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.inquiryCtaBtnText}>문의사항 보내기</Text>}
+              </Pressable>
+            </View>
+          )}
+
+          {/* GPT 2차 상담 뒤에만 해결 여부와 Human 전환 선택지를 노출한다. */}
+          {!isNewCase && gptResponded && (
+            <>
+              <Text style={[s.resolutionQuestion, { color: C.text }]}>문제가 해결되었나요?</Text>
             <View style={s.actionRow}>
               <Pressable
                 style={({ pressed }) => [
@@ -619,15 +679,49 @@ export default function SupportChatScreen({ supportContext }: Props) {
                   s.actionBtn,
                   { borderColor: "#7C3AED", backgroundColor: "#F5F3FF", opacity: pressed || isRequestingHuman ? 0.7 : 1 },
                 ]}
-                onPress={handleRequestHuman}
+                onPress={handleNotResolved}
                 disabled={isRequestingHuman}
               >
                 {isRequestingHuman
                   ? <ActivityIndicator size="small" color="#7C3AED" />
                   : <LucideIcon name="headphones" size={16} color="#7C3AED" />}
-                <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>직접 문의하기</Text>
+                <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>아직 해결되지 않았어요</Text>
               </Pressable>
             </View>
+            <Pressable
+              style={s.callbackToggle}
+              onPress={() => {
+                setCallbackRequested((current) => !current);
+                setCallbackConsent(false);
+              }}
+            >
+              <View style={[s.checkbox, callbackRequested && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
+                {callbackRequested && <LucideIcon name="check" size={13} color="#fff" />}
+              </View>
+              <Text style={[s.callbackToggleText, { color: C.textMuted }]}>전화 상담을 희망합니다</Text>
+            </Pressable>
+            {callbackRequested && (
+              <View style={s.callbackForm}>
+                <TextInput
+                  style={[s.callbackInput, { borderColor: C.border, color: C.text, backgroundColor: C.background }]}
+                  placeholder="연락받을 전화번호를 직접 입력하세요"
+                  placeholderTextColor={C.textMuted}
+                  keyboardType="phone-pad"
+                  value={callbackPhone}
+                  onChangeText={setCallbackPhone}
+                  maxLength={24}
+                />
+                <Pressable style={s.callbackToggle} onPress={() => setCallbackConsent((current) => !current)}>
+                  <View style={[s.checkbox, callbackConsent && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
+                    {callbackConsent && <LucideIcon name="check" size={13} color="#fff" />}
+                  </View>
+                  <Text style={[s.callbackConsentText, { color: C.textMuted }]}>
+                    이 문의 처리를 위해 입력한 연락처로 연락받는 것에 동의합니다.
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            </>
           )}
 
           {/* 해결 완료 표시 */}
@@ -641,30 +735,14 @@ export default function SupportChatScreen({ supportContext }: Props) {
             </View>
           )}
 
-          {/* 상담사 CTA (아직 안돼요 누른 후 / 이미 human 상태) */}
-          {(showHumanCta || isHuman) && !isResolved && (
+          {/* 담당자는 GPT 후 미해결 확인이 끝난 Case만 확인한다. */}
+          {isHuman && !isResolved && (
             <View style={s.humanCta}>
               <LucideIcon name="headphones" size={20} color="#7C3AED" />
               <Text style={[s.humanCtaTitle, { color: C.text }]}>상담사에게 문의하기</Text>
               <Text style={[s.humanCtaDesc, { color: C.textMuted }]}>
-                {isHuman
-                  ? "상담사가 확인 중입니다. 잠시 기다려주세요."
-                  : "운영팀 상담사가 직접 답변해드립니다."}
+                상담사가 확인 중입니다. 잠시 기다려주세요.
               </Text>
-              {!isHuman && (
-                <Pressable
-                  style={({ pressed }) => [
-                    s.humanCtaBtn,
-                    { backgroundColor: "#7C3AED", opacity: pressed || isRequestingHuman ? 0.7 : 1 },
-                  ]}
-                  onPress={handleRequestHuman}
-                  disabled={isRequestingHuman}
-                >
-                  {isRequestingHuman
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={s.humanCtaBtnText}>상담사 연결 요청</Text>}
-                </Pressable>
-              )}
             </View>
           )}
         </ScrollView>
@@ -754,6 +832,7 @@ const s = StyleSheet.create({
   emptyText:        { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center" },
 
   // ── Action buttons (해결됐어요 / 아직 안돼요)
+  resolutionQuestion:  { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600", marginTop: 8 },
   actionRow:        { flexDirection: "row", gap: 10, paddingTop: 8 },
   actionBtn:        { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5 },
   actionBtnText:    { fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -769,6 +848,19 @@ const s = StyleSheet.create({
   humanCtaDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   humanCtaBtn:      { borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 4 },
   humanCtaBtnText:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#FFFFFF" },
+
+  // ── Autonomous escalation / callback
+  inquiryCta:       { backgroundColor: "#EFF6FF", borderRadius: 12, padding: 16, gap: 8, borderWidth: 1, borderColor: "#BFDBFE" },
+  inquiryCtaTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600", lineHeight: 20 },
+  inquiryCtaDesc:   { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 19 },
+  inquiryCtaBtn:    { borderRadius: 10, paddingVertical: 12, alignItems: "center", marginTop: 2 },
+  inquiryCtaBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#FFFFFF" },
+  callbackToggle:   { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 4 },
+  checkbox:         { width: 18, height: 18, borderRadius: 5, borderWidth: 1, borderColor: "#9CA3AF", alignItems: "center", justifyContent: "center" },
+  callbackToggleText:{ fontSize: 13, fontFamily: "Pretendard-Regular" },
+  callbackForm:     { gap: 8, borderLeftWidth: 2, borderLeftColor: "#BFDBFE", paddingLeft: 10 },
+  callbackInput:    { borderWidth: 1, borderRadius: 10, minHeight: 42, paddingHorizontal: 12, fontSize: 14, fontFamily: "Pretendard-Regular" },
+  callbackConsentText:{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 
   // ── Error
   errorBanner:      { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10 },

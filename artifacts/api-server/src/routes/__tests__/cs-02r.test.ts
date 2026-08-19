@@ -61,6 +61,12 @@ vi.mock("@workspace/db", () => ({
   },
 }));
 
+vi.mock("../../lib/support-resolver.js", () => ({
+  gatherEvidence: vi.fn().mockResolvedValue([]),
+  normalizeQuery: (value: string) => value.toLowerCase().trim(),
+  tokenize: (value: string) => value.toLowerCase().split(/\s+/).filter(Boolean),
+}));
+
 // ── App setup ─────────────────────────────────────────────────────────────────
 
 import supportCasesRouter from "../support-cases.js";
@@ -302,17 +308,74 @@ describe("CS02R-11: reopen resolved case", () => {
 // CS02R-12: Human request
 // =============================================================================
 describe("CS02R-12: human request flow", () => {
-  it("POST /support/cases/:id/request-human creates ticket from NEW", async () => {
+  it("direct request-human from NEW is rejected before GPT unresolved confirmation", async () => {
     superRows = [poolACase({ state: "NEW" })];
     poolRows  = [];
     const app = makeApp();
     const res = await request(app)
       .post("/support/cases/sc_test/request-human")
       .send({ subject: "상담사 연결 요청" });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toContain("추가 상담");
+    const ticketInsert = poolCalls.find(s => s.includes("INSERT") && s.includes("support_tickets"));
+    expect(ticketInsert).toBeUndefined();
+  });
+
+  it("creates one ticket only after GPT response and explicit unresolved confirmation", async () => {
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { gpt_status: "RESPONDED" } },
+    })];
+    poolRows = [];
+    const app = makeApp();
+    const res = await request(app)
+      .post("/support/cases/sc_test/request-human")
+      .send({ subject: "추가 상담 후 미해결", confirmation: "GPT_UNRESOLVED" });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.created).toBe(true);
     expect(res.body.ticket_id).toMatch(/^tkt_/);
+  });
+});
+
+// =============================================================================
+// CS26-01: explicit grounded second stage
+// =============================================================================
+describe("CS26-01: explicit second-stage support consultation", () => {
+  it("requires a 3-turn offered CTA and does not create a ticket when grounding is insufficient", async () => {
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: true,
+          gpt_status: "OFFERED",
+        },
+      },
+    })];
+    poolRows = [{ author_role: "user", content: "같은 화면에서 계속 오류가 나요" }];
+    const app = makeApp();
+    const res = await request(app)
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.llm_called).toBe(false);
+    expect(res.body.requires_resolution_confirmation).toBe(true);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    const ticketInsert = poolCalls.find(s => s.includes("INSERT") && s.includes("support_tickets"));
+    expect(ticketInsert).toBeUndefined();
+  });
+
+  it("rejects second-stage GPT before the repeat CTA is offered", async () => {
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: { cs26_sequence: { same_intent_streak: 2, inquiry_offered: false } },
+    })];
+    const app = makeApp();
+    const res = await request(app)
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+    expect(res.status).toBe(422);
   });
 });
 

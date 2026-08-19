@@ -37,6 +37,17 @@ import {
 import { SUPPORT_CASE_STATE, SUPPORT_EVENT_TYPE } from "../lib/ai-feature-enum.js";
 import { resolvePoolMode } from "../lib/xmode.js";
 import { sendPushToSuperAdmins, sendPushToUser } from "../lib/push-service.js";
+import { getOpenAI } from "./ai.js";
+import { gatherEvidence, normalizeQuery, tokenize, type RouterContext } from "../lib/support-resolver.js";
+import {
+  getSupportSequence,
+  redactConversationForGrounding,
+  saveSupportSequence,
+  type SupportSequence,
+} from "../lib/support-escalation.js";
+import { saveAiTrace } from "../lib/ai-trace-service.js";
+import { AI_FEATURE } from "../lib/ai-feature-enum.js";
+import { logSupportOutcome, logSupportQuery } from "../lib/support-candidate-engine.js";
 
 const router = Router();
 
@@ -50,6 +61,45 @@ function isSuperAdmin(role: string | undefined) {
 }
 
 const VALID_AUTHOR_ROLES = ["user", "ai", "agent", "system"] as const;
+const SUPPORT_GPT_MODEL = "gpt-4o-mini";
+
+function makeId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isValidCallbackNumber(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9+\-\s()]{8,24}$/.test(value);
+}
+
+async function insertInternalCaseMessage(params: {
+  caseId: string;
+  ticketId: string | null;
+  content: string;
+  messageType: string;
+}): Promise<void> {
+  await (db as any).execute(sql`
+    INSERT INTO support_ticket_replies
+      (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
+    VALUES (
+      ${makeId("rep")}, ${params.ticketId}, ${params.caseId}, ${null}, ${"AI"},
+      ${"ai"}, ${params.messageType}, ${params.content}, '{}'::text[]
+    )
+  `);
+}
+
+function parseGptAnswer(raw: string, allowedEvidenceIds: Set<string>): string | null {
+  try {
+    const parsed = JSON.parse(raw);
+    const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
+    const refs = Array.isArray(parsed.used_evidence_ids) ? parsed.used_evidence_ids : [];
+    const onlyKnownRefs = refs.length > 0 && refs.every((id: unknown) =>
+      typeof id === "string" && allowedEvidenceIds.has(id)
+    );
+    return answer && onlyKnownRefs ? answer : null;
+  } catch {
+    return null;
+  }
+}
 
 // ── POST /support/cases ───────────────────────────────────────────────────────
 // AI-only case 생성. ticket 없음, ticket_id = null.
@@ -309,6 +359,228 @@ router.post("/support/cases/:id/messages", requireAuth, async (req: AuthRequest,
   }
 });
 
+// ── POST /support/cases/:id/gpt-escalation ───────────────────────────────────
+// WP-CS26: explicit, second-stage grounded consultation. This route is the only
+// support route allowed to call GPT. It neither creates a human ticket nor sends
+// a Super Admin notification.
+
+router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRequest, res) => {
+  const user = req.user!;
+  const caseId = req.params.id;
+  const isSuper = isSuperAdmin(user.role);
+
+  try {
+    const caseRows = (await (superAdminDb as any).execute(sql`
+      SELECT id, actor_id, pool_id, ticket_id, actor_role, mode, state, context_json
+      FROM support_cases WHERE id = ${caseId} LIMIT 1
+    `)) as any;
+    const sc = caseRows?.rows?.[0];
+    if (!sc) return res.status(404).json({ error: "케이스를 찾을 수 없습니다." });
+
+    if (!isSuper) {
+      const ownerMismatch = sc.actor_id && sc.actor_id !== user.userId;
+      const poolMismatch = sc.pool_id && sc.pool_id !== (user.poolId ?? "");
+      if (ownerMismatch || poolMismatch) {
+        return res.status(403).json({ error: "접근 권한이 없습니다." });
+      }
+    }
+    if (sc.ticket_id) {
+      return res.status(409).json({ error: "담당자가 확인 중인 문의입니다." });
+    }
+
+    const sequence = getSupportSequence(sc.context_json);
+    if (!sequence.inquiry_offered || sequence.same_intent_streak < 3) {
+      return res.status(422).json({ error: "동일 문제가 3회 연속 확인된 후에만 추가 상담을 시작할 수 있습니다." });
+    }
+
+    const messageRows = (await (db as any).execute(sql`
+      SELECT author_role, content
+      FROM support_ticket_replies
+      WHERE case_id = ${caseId}
+      ORDER BY created_at DESC
+      LIMIT 8
+    `)) as any;
+    const recentMessages = [...(messageRows?.rows ?? [])].reverse();
+    const latestUserMessage = [...recentMessages].reverse().find((m: any) => m.author_role === "user");
+    if (!latestUserMessage?.content?.trim()) {
+      return res.status(422).json({ error: "추가 상담에 사용할 현재 문의를 찾을 수 없습니다." });
+    }
+
+    const normalized = normalizeQuery(String(latestUserMessage.content));
+    const ctx: RouterContext = {
+      query: String(latestUserMessage.content),
+      role: sc.actor_role ?? user.role ?? "unknown",
+      mode: String(sc.mode ?? "normal").toLowerCase(),
+      poolId: sc.pool_id ?? user.poolId ?? null,
+      screenId: null,
+      appVersion: null,
+      qLower: normalized,
+      tokens: tokenize(normalized),
+      previousContext: (sc.context_json as any)?.resolution_context ?? null,
+    };
+
+    const processing: SupportSequence = {
+      ...sequence,
+      inquiry_offered: false,
+      gpt_status: "PROCESSING",
+      updated_at: new Date().toISOString(),
+    };
+    await saveSupportSequence(caseId, processing);
+    await transitionSupportCase({
+      caseId,
+      toState: SUPPORT_CASE_STATE.AI_PROCESSING,
+      actorRole: "system",
+      poolId: sc.pool_id ?? user.poolId ?? null,
+    }).catch(() => {});
+    void logSupportEvent({
+      eventType: "GPT_ESCALATION_REQUESTED",
+      caseId,
+      ticketId: null,
+      fromState: sc.state,
+      toState: SUPPORT_CASE_STATE.AI_PROCESSING,
+      actorRole: "system",
+      poolId: sc.pool_id ?? user.poolId ?? null,
+    }).catch(() => {});
+
+    const evidence = await gatherEvidence(ctx, 5);
+    const evidenceIds = new Set(evidence.map((item) => item.id));
+    const previousConversation = recentMessages
+      .slice(-6)
+      .map((m: any) => `${m.author_role === "user" ? "사용자" : "기존 안내"}: ${redactConversationForGrounding(String(m.content ?? ""))}`)
+      .join("\n");
+
+    let answer = "현재 확인 가능한 안내만으로는 이 문제를 정확히 해결하기 어렵습니다.";
+    let llmCalled = false;
+    let inputTokens: number | null = null;
+    let outputTokens: number | null = null;
+    let totalTokens: number | null = null;
+
+    if (evidence.length > 0) {
+      const evidenceBlock = evidence.map((item) =>
+        `[${item.id}] rev ${item.revision} / ${item.item_type}\n${item.answer}`
+      ).join("\n\n");
+      const systemPrompt = `당신은 SWIMNOTE의 2차 고객지원 상담사입니다.
+반드시 아래 검증 근거만 이용해 사용자의 현재 상황에 맞는 다음 해결 단계를 한국어 존댓말로 안내하세요.
+근거에 없는 기능, 정책, 가격, 환불 규칙, UI 경로, 권한, 장애 원인, 처리 시간을 만들지 마세요.
+이전에 안내된 내용은 그대로 반복하지 말고, 검증 근거에서 가능한 다음 확인 순서를 구성하세요.
+근거가 충분하지 않다면 answer에 정확히 "현재 확인 가능한 안내만으로는 이 문제를 정확히 해결하기 어렵습니다."라고 쓰세요.
+반드시 JSON만 반환하세요: {"answer":"...", "used_evidence_ids":["검증 근거 ID"]}.
+
+[검증 근거]
+${evidenceBlock}
+
+[같은 문의의 최근 대화]
+${previousConversation}`;
+
+      try {
+        const completion = await getOpenAI().chat.completions.create({
+          model: SUPPORT_GPT_MODEL,
+          messages: [{ role: "system", content: systemPrompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+          max_tokens: 420,
+        });
+        inputTokens = completion.usage?.prompt_tokens ?? null;
+        outputTokens = completion.usage?.completion_tokens ?? null;
+        totalTokens = completion.usage?.total_tokens ?? null;
+        const parsedAnswer = parseGptAnswer(
+          completion.choices[0]?.message?.content ?? "{}",
+          evidenceIds
+        );
+        if (parsedAnswer) {
+          answer = parsedAnswer;
+          llmCalled = true;
+        }
+      } catch {
+        // No provider error detail or prompts are logged. The user receives the
+        // same evidence-insufficient path and can decide whether it is unresolved.
+      }
+    }
+
+    await insertInternalCaseMessage({
+      caseId,
+      ticketId: null,
+      content: answer,
+      messageType: "ai_gpt_grounded",
+    });
+
+    const responded: SupportSequence = {
+      ...processing,
+      gpt_status: "RESPONDED",
+      gpt_request_id: makeId("gpt"),
+      retrieved_knowledge_ids: evidence.map((item) => item.id),
+      knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
+      previous_answers_used: recentMessages.filter((m: any) => m.author_role !== "user").length,
+      updated_at: new Date().toISOString(),
+    };
+    await saveSupportSequence(caseId, responded);
+    await transitionSupportCase({
+      caseId,
+      toState: SUPPORT_CASE_STATE.AI_RESPONDED,
+      actorRole: "system",
+      poolId: sc.pool_id ?? user.poolId ?? null,
+      resolutionSource: "GPT_GROUNDED",
+    }).catch(() => {});
+
+    await saveAiTrace({
+      request_id: makeId("req_sup_gpt"),
+      internal_id: makeId("trace_sup_gpt"),
+      pool_id: sc.pool_id ?? "",
+      actor_id: user.userId,
+      contract_version: "CS26-v1",
+      feature: AI_FEATURE.SUPPORT_AI,
+      sub_feature: "SUPPORT_GPT_SECOND_STAGE",
+      pool_mode: ctx.mode,
+      user_role: ctx.role,
+      provider: "openai",
+      source_app: "app",
+      status: "SUCCESS",
+      generation_mode: llmCalled ? "llm_grounded_second_stage" : "insufficient_grounding",
+      model: llmCalled ? SUPPORT_GPT_MODEL : null,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      total_tokens: totalTokens,
+      knowledge_hit_count: evidence.length,
+      result_generated: llmCalled,
+      latency_ms: 0,
+    }).catch(() => {});
+
+    void logSupportQuery({
+      caseId,
+      normalizedQuery: normalized,
+      representativeQuery: normalized.substring(0, 200),
+      resolutionSource: "GPT_SECOND_STAGE",
+      matchedKnowledgeId: evidence[0]?.id ?? null,
+      matchConfidence: evidence[0]?.score ?? null,
+      llmCalled,
+      humanRequested: false,
+      finalCaseState: SUPPORT_CASE_STATE.AI_RESPONDED,
+      role: ctx.role,
+      mode: ctx.mode,
+      poolId: ctx.poolId,
+    }).catch(() => {});
+    void logSupportOutcome(caseId, "GPT_ESCALATION_ACCEPTED").catch(() => {});
+
+    return res.json({
+      ok: true,
+      answer,
+      llm_called: llmCalled,
+      evidence_count: evidence.length,
+      case_state: SUPPORT_CASE_STATE.AI_RESPONDED,
+      requires_resolution_confirmation: true,
+      meta: {
+        trace: {
+          retrieved_knowledge_ids: evidence.map((item) => item.id),
+          knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[POST /support/cases/:id/gpt-escalation]", err);
+    return res.status(500).json({ error: "추가 상담 처리 중 오류가 발생했습니다." });
+  }
+});
+
 // ── POST /support/cases/:id/request-human ────────────────────────────────────
 // 상담사 요청 — support_ticket 생성 + case에 1:1 연결.
 // 기존 AI/User 메시지 (case_id 기준)는 이후에도 GET에서 그대로 보임 (continuity 보장).
@@ -319,11 +591,19 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
   const actorId = user.userId;
   const isSuper = isSuperAdmin(user.role);
 
-  const { reason, subject, description } = req.body as any;
+  const {
+    reason,
+    subject,
+    description,
+    confirmation,
+    callback_requested,
+    callback_phone,
+    callback_consent,
+  } = req.body as any;
 
   try {
     const caseRows = (await (superAdminDb as any).execute(sql`
-      SELECT actor_id, pool_id, ticket_id, actor_role, state
+      SELECT actor_id, pool_id, ticket_id, actor_role, state, context_json
       FROM support_cases WHERE id = ${caseId} LIMIT 1
     `)) as any;
     const sc = caseRows?.rows?.[0];
@@ -340,6 +620,21 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
     // Idempotent: 이미 ticket 있으면 중복 생성 금지
     if (sc.ticket_id) {
       return res.json({ ok: true, ticket_id: sc.ticket_id, created: false });
+    }
+
+    // WP-CS26: no direct client-side bypass. A human case may be opened only
+    // after the separate grounded GPT response and the user's explicit
+    // unresolved confirmation.
+    const sequence = getSupportSequence(sc.context_json);
+    if (confirmation !== "GPT_UNRESOLVED" || sequence.gpt_status !== "RESPONDED") {
+      return res.status(422).json({
+        error: "추가 상담 답변 후 '아직 해결되지 않았어요'를 선택한 경우에만 담당자에게 전달됩니다.",
+      });
+    }
+    if (callback_requested && (!callback_consent || !isValidCallbackNumber(callback_phone))) {
+      return res.status(400).json({
+        error: "전화 상담을 원하시면 연락처를 직접 입력하고 연락 동의가 필요합니다.",
+      });
     }
 
     const allowed = VALID_TRANSITIONS[sc.state] ?? [];
@@ -361,11 +656,22 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
          ${24}, ${actorId}, ${true}, ${"open"})
     `);
 
+    // The optional callback number remains on this case only. It is never
+    // copied into event logs, push previews, query learning, or knowledge.
+    const callbackContext = callback_requested
+      ? {
+          requested: true,
+          phone: String(callback_phone),
+          consented_at: new Date().toISOString(),
+        }
+      : { requested: false };
     await (superAdminDb as any).execute(sql`
       UPDATE support_cases
       SET ticket_id         = ${ticketId},
           state             = ${SUPPORT_CASE_STATE.HUMAN_REQUIRED},
           escalation_reason = ${reason ?? "USER_REQUESTED_HUMAN"},
+          context_json      = COALESCE(context_json, '{}'::jsonb)
+            || jsonb_build_object('cs26_callback', ${JSON.stringify(callbackContext)}::jsonb),
           updated_at        = NOW()
       WHERE id = ${caseId}
     `);
@@ -387,6 +693,7 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       "새 고객 문의가 접수되었습니다.",
       { case_id: caseId, ticket_id: ticketId, actor_role: sc.actor_role ?? "unknown" }
     ).catch(() => {});
+    void logSupportOutcome(caseId, "HUMAN_ESCALATED_AFTER_GPT").catch(() => {});
 
     res.json({ ok: true, ticket_id: ticketId, created: true });
   } catch (err) {
@@ -533,7 +840,7 @@ router.post("/support/cases/:id/resolve", requireAuth, async (req: AuthRequest, 
 
   try {
     const caseRows = (await (superAdminDb as any).execute(sql`
-      SELECT actor_id, pool_id, ticket_id, state, escalation_reason
+      SELECT actor_id, pool_id, ticket_id, state, escalation_reason, context_json
       FROM support_cases WHERE id = ${caseId} LIMIT 1
     `)) as any;
     const sc = caseRows?.rows?.[0];
@@ -578,6 +885,9 @@ router.post("/support/cases/:id/resolve", requireAuth, async (req: AuthRequest, 
       actorRole: user.role ?? "unknown",
       poolId:    user.poolId ?? null,
     }).catch(() => {});
+    if (getSupportSequence(sc.context_json).gpt_status === "RESPONDED") {
+      void logSupportOutcome(caseId, "GPT_RESOLVED").catch(() => {});
+    }
 
     res.json({ ok: true, state: toState });
   } catch (err) {

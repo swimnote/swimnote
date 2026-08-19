@@ -47,6 +47,7 @@ export interface QueryLogEntry {
   role:              string;
   mode:              string;
   poolId:            string | null;
+  autonomousOutcome?: string | null;
 }
 
 // ── Dynamic query patterns (사용자 개인 데이터 조회 → Static Knowledge 불가) ──
@@ -360,7 +361,7 @@ export async function logSupportQuery(entry: QueryLogEntry): Promise<void> {
         id, case_id, role, mode, pool_id,
         normalized_query,
         resolution_source, matched_knowledge_id, match_confidence,
-        llm_called, human_requested, final_case_state
+        llm_called, human_requested, final_case_state, autonomous_outcome
       ) VALUES (
         ${id}, ${entry.caseId}, ${entry.role}, ${entry.mode}, ${entry.poolId},
         ${normalizeQuery(entry.normalizedQuery)},
@@ -369,11 +370,32 @@ export async function logSupportQuery(entry: QueryLogEntry): Promise<void> {
         ${entry.matchConfidence ?? null},
         ${entry.llmCalled},
         ${entry.humanRequested},
-        ${entry.finalCaseState}
+        ${entry.finalCaseState}, ${entry.autonomousOutcome ?? null}
       )
     `);
   } catch (err) {
     // best-effort — never throws
+  }
+}
+
+/**
+ * Records an autonomous sequence outcome against the latest normalized query for
+ * the case. It intentionally never receives or stores raw message/callback data.
+ */
+export async function logSupportOutcome(caseId: string, outcome: string): Promise<void> {
+  try {
+    await superAdminDb.execute(sql`
+      UPDATE support_query_log
+      SET autonomous_outcome = ${outcome}
+      WHERE id = (
+        SELECT id FROM support_query_log
+        WHERE case_id = ${caseId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
+    `);
+  } catch {
+    // Best effort: outcome analytics must never affect the support flow.
   }
 }
 

@@ -134,3 +134,4 @@
 - [WP-CS23-FINAL 완료 상태](wp-cs23-final-done-state.md) — SHA 423ac425; scope='pool'→global(29KI)+41승인+333UTT활성화; 67/67 live direct; 3091TC; DB-only; PENDING_DEVICE
 - [WP-CS23-DEVICE 완료 상태](wp-cs23-device-done-state.md) — API layer ALL PASS; DIRECT_DB/GPT/Agent Reply/SameConv 검증; Push=PENDING_DEVICE; CS23전체완료
 - [WP-CS24 완료 상태](wp-cs24-done-state.md) — SHA 29f90acc; QueryLog+CandidateEngine+ReviewConsole; 50TC+3141TC; Render 트리거; OTA 없음
+- [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함

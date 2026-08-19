@@ -68,6 +68,11 @@ import {
   logSupportQuery,
   evaluateForCandidacy,
 } from "../lib/support-candidate-engine.js";
+import {
+  buildSupportTopicKey,
+  nextSupportSequence,
+  saveSupportSequence,
+} from "../lib/support-escalation.js";
 
 const router = Router();
 
@@ -434,6 +439,30 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       poolId:    sc.pool_id ?? poolId,
     }).catch(() => {});
 
+    // WP-CS26: repeated issues are counted within this case only. The stable
+    // matched source is preferred; unmatched questions only match themselves.
+    const sequence = nextSupportSequence(
+      sc.context_json,
+      buildSupportTopicKey({
+        sourceType: resolution.source_type,
+        sourceId: resolution.source_id,
+        normalizedQuery: qLower,
+      }),
+      Boolean(sc.ticket_id)
+    );
+    await saveSupportSequence(caseId, sequence).catch(() => {});
+    if (sequence.inquiry_offered) {
+      void logSupportEvent({
+        eventType: "REPEAT_STREAK_3",
+        caseId,
+        ticketId: sc.ticket_id ?? null,
+        fromState: "AI_RESPONDED",
+        toState: "AI_RESPONDED",
+        actorRole: "system",
+        poolId: sc.pool_id ?? poolId,
+      }).catch(() => {});
+    }
+
     // trace (deterministic — no model cost)
     await saveAiTrace({
       request_id:       requestId,
@@ -505,11 +534,118 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       answer:     resolution.answer,
       case_state: "AI_RESPONDED",
       requires_human: resolution.requires_human,
+      autonomous_support: {
+        same_intent_streak: sequence.same_intent_streak,
+        inquiry_offered: sequence.inquiry_offered,
+        gpt_status: sequence.gpt_status,
+      },
       meta: { trace: { request_id: requestId, evidence_refs: deterministicRef } },
     });
   }
 
-  // ── LLM Fallback ──────────────────────────────────────────────────────────
+  // ── WP-CS26: no automatic GPT fallback ────────────────────────────────────
+  //
+  // A NO_MATCH must never invoke GPT merely because the deterministic chain did
+  // not answer it. GPT is available only through the explicit case escalation
+  // action after a same-topic 3-turn streak.
+  const noMatchAnswer =
+    "현재 확인 가능한 안내만으로는 이 문의를 정확히 해결하기 어렵습니다. " +
+    "같은 문제가 계속되면 안내된 내용이 해결에 도움이 되었는지 알려주세요.";
+  const noMatchSequence = nextSupportSequence(
+    sc.context_json,
+    buildSupportTopicKey({ normalizedQuery: qLower }),
+    Boolean(sc.ticket_id)
+  );
+
+  const noMatchAiMsgId = genId("rep");
+  try {
+    await insertSupportMessage({
+      msgId: noMatchAiMsgId,
+      caseId,
+      ticketId: sc.ticket_id ?? null,
+      authorId: null,
+      authorName: "AI",
+      role: "ai",
+      msgType: "ai_no_match",
+      content: noMatchAnswer,
+    });
+    await bumpTurnCount(caseId);
+  } catch (err) {
+    console.error("[support/respond] no-match message insert failed:", err);
+    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+    return res.status(500).json({ error: "AI 메시지 저장 실패", code: "AI_MSG_INSERT_FAILED" });
+  }
+
+  await transitionSupportCase({
+    caseId,
+    toState: "AI_RESPONDED",
+    actorRole: "system",
+    poolId: sc.pool_id ?? poolId,
+    resolutionSource: "NO_MATCH",
+  }).catch(() => {});
+  await saveSupportSequence(caseId, noMatchSequence).catch(() => {});
+
+  if (noMatchSequence.inquiry_offered) {
+    void logSupportEvent({
+      eventType: "REPEAT_STREAK_3",
+      caseId,
+      ticketId: sc.ticket_id ?? null,
+      fromState: "AI_RESPONDED",
+      toState: "AI_RESPONDED",
+      actorRole: "system",
+      poolId: sc.pool_id ?? poolId,
+    }).catch(() => {});
+  }
+
+  void logSupportQuery({
+    caseId,
+    normalizedQuery: qLower,
+    representativeQuery: qLower.substring(0, 200),
+    resolutionSource: "NO_MATCH",
+    matchedKnowledgeId: null,
+    matchConfidence: null,
+    llmCalled: false,
+    humanRequested: false,
+    finalCaseState: "AI_RESPONDED",
+    role,
+    mode: resolvedMode,
+    poolId: poolId ?? null,
+  }).catch(() => {});
+
+  addStage(trace, "LLM_SKIPPED", { reason: "CS26_EXPLICIT_ESCALATION_REQUIRED" });
+  addStage(trace, "HTTP_RESPONSE", {
+    http_status: 200,
+    success: true,
+    answer_present: true,
+    case_id_present: true,
+    resolution_status: "AI_RESPONDED",
+    resolution_source: "NO_MATCH",
+    llm_called: false,
+  });
+  void flushSupportTrace(trace, {
+    http_status: 200,
+    success: true,
+    answer_present: true,
+    case_id_present: true,
+  });
+
+  return res.json({
+    ok: true,
+    llm_used: false,
+    llm_called: false,
+    source: "NO_MATCH",
+    confidence: 0,
+    answer: noMatchAnswer,
+    case_state: "AI_RESPONDED",
+    requires_human: false,
+    autonomous_support: {
+      same_intent_streak: noMatchSequence.same_intent_streak,
+      inquiry_offered: noMatchSequence.inquiry_offered,
+      gpt_status: noMatchSequence.gpt_status,
+    },
+    meta: { trace: { request_id: requestId, evidence_refs: [] } },
+  });
 
   addStage(trace, "EVIDENCE_START");
 

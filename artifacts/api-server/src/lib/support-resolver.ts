@@ -976,6 +976,48 @@ export async function gatherEvidence(
       };
     });
 
+    // ── Verified Known Issue / recovery evidence ─────────────────────────────
+    // An incident note is grounding evidence only while the referenced incident
+    // is still operationally active. This keeps old outage explanations and
+    // invented recovery timing out of the second-stage GPT context.
+    const issueCandidates = (await queryKnowledge("KNOWN_ISSUE", ctx)).filter(
+      (row) => roleMatches(row, ctx.role) && modeMatches(row, ctx.mode) && row.incident_id
+    );
+    const incidentIds = [...new Set(issueCandidates.map((row) => row.incident_id!))];
+    const knownIssueEvidence: EvidenceItem[] = [];
+    if (incidentIds.length > 0) {
+      const incidentRows = (await superAdminDb.execute(sql`
+        SELECT id, description, status, started_at::text
+        FROM super_incidents
+        WHERE status IN ('OPEN', 'INVESTIGATING', 'MITIGATED')
+          AND id = ANY(${JSON.stringify(incidentIds)}::text[])
+      `)) as any;
+      const activeIncidents = new Map<string, any>(
+        ((incidentRows.rows ?? []) as any[]).map((incident) => [incident.id, incident])
+      );
+      for (const row of issueCandidates) {
+        const score = scoreText(row, ctx.qLower, ctx.tokens);
+        const incident = activeIncidents.get(row.incident_id!);
+        const answer = row.answer ?? row.content ?? incident?.description ?? "";
+        if (incident && score > 0 && answer.trim()) {
+          knownIssueEvidence.push({
+            id: row.id,
+            item_type: "KNOWN_ISSUE",
+            title: row.title,
+            answer,
+            score,
+            feature: row.feature ?? null,
+            category: row.category ?? null,
+            status: "active",
+            revision: (row as any).revision ?? 1,
+            updated_at: incident.started_at ?? null,
+            source_type: "INCIDENT",
+            freshness_state: "CURRENT" as import("./knowledge-governance.js").FreshnessState,
+          });
+        }
+      }
+    }
+
     // ── Frontend Map static registry (독립 evidence source) ──────────────────
     // support_knowledge_items ACTIVE = 0 이어도 FM 레지스트리에서 evidence 수집.
     // role / mode 필터 필수 — parent에게 admin 화면 노출 금지.
@@ -1005,8 +1047,8 @@ export async function gatherEvidence(
       }
     }
 
-    // Merge knowledge + FM evidence, sort by score descending, cap at maxItems
-    return [...knowledgeEvidence, ...fmEvidence]
+    // Merge Knowledge, active incident, and Frontend Map evidence.
+    return [...knowledgeEvidence, ...knownIssueEvidence, ...fmEvidence]
       .sort((a, b) => b.score - a.score)
       .slice(0, maxItems);
   } catch {

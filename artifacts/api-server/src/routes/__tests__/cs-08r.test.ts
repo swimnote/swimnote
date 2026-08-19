@@ -6,16 +6,12 @@
  * CS08R-03  deterministic (SOLUTION hit) → AI message stored
  * CS08R-04  deterministic (FRONTEND_MAP hit) → llm_used=false
  * CS08R-05  deterministic (FAQ hit) → case_state=AI_RESPONDED
- * CS08R-06  NO_MATCH + evidence → OpenAI called, llm_used=true
- * CS08R-07  NO_MATCH + no evidence → OpenAI NOT called, LOW confidence, requires_human=true
- * CS08R-08  OpenAI HIGH confidence → case_state=AI_RESPONDED
- * CS08R-09  OpenAI MEDIUM confidence → case_state=AI_RESPONDED
- * CS08R-10  OpenAI LOW confidence → case_state=HUMAN_REQUIRED, requires_human=true
- * CS08R-11  OpenAI timeout → LOW confidence + HUMAN_REQUIRED (non-fatal)
- * CS08R-12  OpenAI LLM_ERROR → graceful fallback, not 500
+ * CS08R-06  NO_MATCH + evidence → automatic GPT is blocked
+ * CS08R-07  NO_MATCH + no evidence → automatic GPT/Human are blocked
+ * CS08R-08~12 NO_MATCH response ignores prior automatic-GPT confidence/error paths
  * CS08R-13  user message always stored (author_role=user) regardless of LLM result
  * CS08R-14  AI message stored (author_role=ai) after deterministic
- * CS08R-15  AI message stored (author_role=ai) after LLM
+ * CS08R-15  NO_MATCH message stored without automatic LLM
  * CS08R-16  AI_PROCESSING transition from NEW
  * CS08R-17  AI_PROCESSING from AI_RESPONDED allowed
  * CS08R-18  saveAiTrace called with AI_FEATURE.SUPPORT_AI (deterministic path)
@@ -365,8 +361,8 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
     expect(res.body.case_state).toBe("AI_RESPONDED");
   });
 
-  // CS08R-06: NO_MATCH + evidence → OpenAI called
-  it("CS08R-06 NO_MATCH + evidence → OpenAI called, llm_used=true", async () => {
+  // CS08R-06: NO_MATCH + evidence → automatic GPT is blocked
+  it("CS08R-06 NO_MATCH + evidence does not call GPT automatically", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -378,13 +374,14 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .send({ case_id: sc.id, message: "수영 연습 횟수에 대해 알고 싶어요" });
 
     expect(res.status).toBe(200);
-    expect(res.body.llm_used).toBe(true);
-    expect(res.body.llm_called).toBe(true);
-    expect(mockCreate).toHaveBeenCalledOnce();
+    expect(res.body.llm_used).toBe(false);
+    expect(res.body.llm_called).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(res.body.requires_human).toBe(false);
   });
 
-  // CS08R-07: NO_MATCH + no evidence → OpenAI NOT called
-  it("CS08R-07 NO_MATCH + no evidence → OpenAI NOT called, LOW confidence", async () => {
+  // CS08R-07: NO_MATCH + no evidence → no automatic Human
+  it("CS08R-07 NO_MATCH + no evidence stays in autonomous AI stage", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce([]);
@@ -396,13 +393,13 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
 
     expect(res.status).toBe(200);
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(res.body.confidence).toBe("LOW");
-    expect(res.body.requires_human).toBe(true);
+    expect(res.body.confidence).toBe(0);
+    expect(res.body.requires_human).toBe(false);
     expect(res.body.llm_called).toBe(false);
   });
 
-  // CS08R-08: OpenAI HIGH → AI_RESPONDED
-  it("CS08R-08 OpenAI HIGH → case_state=AI_RESPONDED", async () => {
+  // CS08R-08: an otherwise HIGH mocked response cannot bypass explicit CTA
+  it("CS08R-08 ignores automatic GPT HIGH response", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(2));
@@ -414,11 +411,12 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .send({ case_id: sc.id, message: "수영 발차기 자세 교정은 어떻게 하나요?" });
 
     expect(res.body.case_state).toBe("AI_RESPONDED");
-    expect(res.body.confidence).toBe("HIGH");
+    expect(res.body.confidence).toBe(0);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // CS08R-09: OpenAI MEDIUM → AI_RESPONDED
-  it("CS08R-09 OpenAI MEDIUM → case_state=AI_RESPONDED", async () => {
+  // CS08R-09: an otherwise MEDIUM mocked response cannot bypass explicit CTA
+  it("CS08R-09 ignores automatic GPT MEDIUM response", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -430,11 +428,12 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .send({ case_id: sc.id, message: "레인 예약 방법" });
 
     expect(res.body.case_state).toBe("AI_RESPONDED");
-    expect(res.body.confidence).toBe("MEDIUM");
+    expect(res.body.confidence).toBe(0);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // CS08R-10: OpenAI LOW → HUMAN_REQUIRED
-  it("CS08R-10 OpenAI LOW → case_state=HUMAN_REQUIRED, requires_human=true", async () => {
+  // CS08R-10: no automatic Human transition for a NO_MATCH
+  it("CS08R-10 does not create a HUMAN_REQUIRED state", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -445,12 +444,13 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .set("x-test-user", JSON.stringify(DEFAULT_USER))
       .send({ case_id: sc.id, message: "저수심 수영 방법" });
 
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
-    expect(res.body.requires_human).toBe(true);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(res.body.requires_human).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // CS08R-11: OpenAI timeout → graceful fallback, HUMAN_REQUIRED
-  it("CS08R-11 OpenAI timeout → graceful fallback, HUMAN_REQUIRED", async () => {
+  // CS08R-11: a configured GPT timeout is irrelevant until explicit escalation
+  it("CS08R-11 does not call GPT before explicit escalation", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -463,12 +463,13 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .send({ case_id: sc.id, message: "숨 쉬는 타이밍" });
 
     expect(res.status).toBe(200);
-    expect(res.body.confidence).toBe("LOW");
-    expect(res.body.case_state).toBe("HUMAN_REQUIRED");
+    expect(res.body.confidence).toBe(0);
+    expect(res.body.case_state).toBe("AI_RESPONDED");
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  // CS08R-12: LLM error → graceful fallback, not 500
-  it("CS08R-12 LLM error → graceful fallback, not 500", async () => {
+  // CS08R-12: a configured GPT error is irrelevant until explicit escalation
+  it("CS08R-12 does not call GPT before explicit escalation", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -480,8 +481,9 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
       .send({ case_id: sc.id, message: "입수 자세 교정" });
 
     expect(res.status).toBe(200);
-    expect(res.body.confidence).toBe("LOW");
-    expect(res.body.requires_human).toBe(true);
+    expect(res.body.confidence).toBe(0);
+    expect(res.body.requires_human).toBe(false);
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // CS08R-13: user message always stored
@@ -517,8 +519,8 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
     expect(aiMsg.content).toBe("확인된 AI 답변");
   });
 
-  // CS08R-15: AI message stored after LLM
-  it("CS08R-15 AI message stored (author_role=ai) after LLM", async () => {
+  // CS08R-15: NO_MATCH stores a deterministic safety message, not an LLM reply
+  it("CS08R-15 AI message stored (author_role=ai) after NO_MATCH", async () => {
     const sc = seedCase();
     mockRunResolutionChain.mockResolvedValueOnce(NO_MATCH);
     mockGatherEvidence.mockResolvedValueOnce(makeEvidence(1));
@@ -531,7 +533,8 @@ describe("CS-08R — Support AI Engine / LLM Last Fallback", () => {
 
     const aiMsg = repliesStore.find((r) => r.author_role === "ai");
     expect(aiMsg).toBeDefined();
-    expect(aiMsg.content).toBe("LLM이 생성한 답변입니다.");
+    expect(aiMsg.content).toContain("현재 확인 가능한 안내");
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   // CS08R-16: AI_PROCESSING transition from NEW

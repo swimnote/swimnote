@@ -84,6 +84,10 @@ import("./migrations/pool-db-cs-24a.js")
 import("./migrations/pool-db-cs-24b.js")
   .then(m => m.runCs24bMigration())
   .catch((e) => console.error("[cs24b] migration 오류:", e.message));
+// CS26: autonomous escalation outcomes (normalized queries only; no PII)
+import("./migrations/pool-db-cs-26.js")
+  .then(m => m.runCs26Migration())
+  .catch((e) => console.error("[cs26] migration 오류:", e.message));
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);
