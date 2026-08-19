@@ -1,0 +1,153 @@
+[SWIMNOTE SUPPORT MASTER V1.1 — PRODUCTION DB IMPORT 실행]
+
+사전검증 결과 확인:
+- JSON parse 정상
+- records 1,051
+- Production support_knowledge_items schema와 일치
+- 전체 status=pending
+- answer_mode 정상
+- 아직 DB import는 실행하지 않은 상태
+
+이제 사전검증에서 멈추지 말고 실제 DB import를 진행한다.
+
+목표:
+첨부된 v1.1 Master의 1,051개 Canonical Knowledge를
+현재 Production support_knowledge_items에 안전하게 적재한다.
+
+중요:
+이번 작업은 DB 적재만 한다.
+고객지원 구조 수정, resolver 수정, AI 로직 수정, UI 수정은 하지 않는다.
+
+1. Import 전 기존 DB 비교
+
+첨부 Master의 모든 intent_id와
+현재 Production support_knowledge_items의 intent_id를 비교한다.
+
+각 항목을 다음 3개로 분류한다.
+
+A. NEW
+- Production에 같은 intent_id 없음
+→ INSERT
+
+B. SAME
+- 같은 intent_id 존재
+- 실제 내용도 동일
+→ SKIP
+
+C. CONFLICT
+- 같은 intent_id 존재
+- answer/question/answer_mode 등 내용이 다름
+→ 임의 overwrite 금지
+→ 별도 conflict 목록으로 보고
+
+ACTIVE row가 이미 존재하는 경우
+절대로 자동 overwrite하거나 pending으로 되돌리지 않는다.
+
+2. 실제 적재
+
+transaction 사용.
+
+BEGIN
+
+→ 기존 intent_id 조회
+→ NEW / SAME / CONFLICT 분리
+→ NEW만 support_knowledge_items에 INSERT
+→ INSERT되는 모든 신규 row는 status=pending 유지
+→ ACTIVE 자동전환 금지
+
+COMMIT
+
+중간 오류 발생 시 전체 ROLLBACK.
+
+3. 절대 금지
+
+- JSON 내용 재작성 금지
+- 질문/답변 수정 금지
+- GPT로 내용 보정 금지
+- 새 Canonical 생성 금지
+- 기존 ACTIVE row 덮어쓰기 금지
+- HUMAN_ONLY 변경 금지
+- GROUNDED_GPT 변경 금지
+- pending 자동 ACTIVE 금지
+- migration/schema 변경 금지
+- support_query_log 수정 금지
+- support_knowledge_candidates 수정 금지
+- resolver/escalation 수정 금지
+
+4. Import 후 최소 검증
+
+전체 regression 금지.
+
+아래만 확인한다.
+
+- transaction 성공 여부
+- 신규 INSERT count
+- SAME skip count
+- CONFLICT count
+- duplicate intent_id 0
+- 신규 INSERT row 전체 status=pending
+- 전체 1,051개 intent가
+  INSERT / SAME / CONFLICT 중 하나로 정확히 분류되는지 확인
+
+그리고 DB에서 샘플만 조회한다.
+
+샘플:
+- 일반 FAQ 3개
+- X_ONBOARDING 3개
+- GROWTH_REPORT_FREE 3개
+- SWIMNOTE_AI 3개
+- COMPANY_IP 3개
+- 장애/INCIDENT 3개
+- HUMAN_ONLY 3개
+- GROUNDED_GPT 3개
+- DIRECT_DB 3개
+
+약 20~30건 확인이면 충분하다.
+
+전체 테스트 suite 실행하지 않는다.
+Production deploy 하지 않는다.
+OTA 하지 않는다.
+Device E2E 하지 않는다.
+
+5. 이번 단계에서는 ACTIVE 승인하지 않는다.
+
+이번 작업 목표는
+"1,051개 Master를 Production DB의 pending Knowledge로 안전하게 적재"
+하는 것까지다.
+
+활성화는 import 결과와 conflict를 검토한 뒤 별도로 한다.
+
+6. 완료보고서
+
+[SWIMNOTE SUPPORT MASTER V1.1 DB IMPORT REPORT]
+
+- JSON records: 1,051
+- Production DB comparison: PASS/FAIL
+- NEW:
+- SAME:
+- CONFLICT:
+- INSERT:
+- SKIP:
+- UPDATE: 0
+- ROLLBACK 발생 여부:
+- 신규 row status=pending:
+- 자동 ACTIVE 전환: NO
+- duplicate intent_id:
+- sample retrieval:
+- DIRECT_DB sample:
+- GROUNDED_GPT sample:
+- HUMAN_ONLY sample:
+- X_ONBOARDING sample:
+- GROWTH_REPORT_FREE sample:
+- SWIMNOTE_AI sample:
+- COMPANY_IP sample:
+- INCIDENT sample:
+- schema change: NO
+- code change: NO
+- full regression: NOT RUN
+- Production deploy: NOT RUN
+- OTA: NOT RUN
+- Device E2E: NOT RUN
+
+이번 작업은 실제 DB Import 완료 후 종료한다.
+사전검증 결과만 보고하고 다시 멈추지 말 것.
