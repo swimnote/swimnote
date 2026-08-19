@@ -59,6 +59,7 @@ import SuperPartner   from "@/pages/super/SuperPartner";
 import SuperAudit     from "@/pages/super/SuperAudit";
 import SuperSettings  from "@/pages/super/SuperSettings";
 import SuperKnowledgeReview from "@/pages/super/SuperKnowledgeReview";
+import SuperKnowledgeCandidates from "@/pages/super/SuperKnowledgeCandidates";
 
 const queryClient = new QueryClient();
 
@@ -137,6 +138,9 @@ function Router() {
       </Route>
       <Route path="/super/knowledge-review">
         <SuperPage><SuperKnowledgeReview /></SuperPage>
+      </Route>
+      <Route path="/super/knowledge-candidates">
+        <SuperPage><SuperKnowledgeCandidates /></SuperPage>
       </Route>
       <Route path="/super/servers">
         <SuperPage><SuperServers /></SuperPage>

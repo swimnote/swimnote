@@ -63,6 +63,11 @@ import {
   classifyPgError,
   type MessageContract,
 } from "../lib/support-trace.js";
+// CS24: Learning Loop — Query Log + Candidate Engine (fire-and-forget)
+import {
+  logSupportQuery,
+  evaluateForCandidacy,
+} from "../lib/support-candidate-engine.js";
 
 const router = Router();
 
@@ -474,6 +479,23 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       ? [{ ref: resolution.source_id, item_type: resolution.source_type ?? "UNKNOWN" }]
       : [];
 
+    // CS24: Query Log + Candidate Engine (fire-and-forget — HTTP response 불지연)
+    // normalized_query만 저장 (raw message/PII 금지)
+    void logSupportQuery({
+      caseId,
+      normalizedQuery:     qLower,
+      representativeQuery: qLower.substring(0, 200),
+      resolutionSource:    resolution.source_type ?? "DETERMINISTIC",
+      matchedKnowledgeId:  resolution.source_id ?? null,
+      matchConfidence:     typeof resolution.confidence === "number" ? resolution.confidence : null,
+      llmCalled:           false,
+      humanRequested:      false,
+      finalCaseState:      "AI_RESPONDED",
+      role,
+      mode:                resolvedMode,
+      poolId:              poolId ?? null,
+    }).catch(() => {});
+
     return res.json({
       ok: true,
       llm_used:   false,
@@ -819,6 +841,25 @@ ${evidenceBlock}
   // buildSafeTraceRef는 ref(id), item_type, status, revision, freshness_state만 포함.
   const { buildSafeTraceRef } = await import("../lib/knowledge-governance.js");
   const llmEvidenceRefs = evidence.map(buildSafeTraceRef);
+
+  // CS24: Query Log + Candidate Engine (fire-and-forget — HTTP response 불지연)
+  // normalized_query만 저장 (raw message/PII 금지)
+  const cs24Entry = {
+    caseId,
+    normalizedQuery:     qLower,
+    representativeQuery: qLower.substring(0, 200),
+    resolutionSource:    "LLM",
+    matchedKnowledgeId:  null,
+    matchConfidence:     null,
+    llmCalled:           llmActuallyCalled,
+    humanRequested:      toState === "HUMAN_REQUIRED",
+    finalCaseState:      toState,
+    role,
+    mode:                resolvedMode,
+    poolId:              poolId ?? null,
+  };
+  void logSupportQuery(cs24Entry).catch(() => {});
+  void evaluateForCandidacy(cs24Entry).catch(() => {});
 
   return res.json({
     ok:         true,

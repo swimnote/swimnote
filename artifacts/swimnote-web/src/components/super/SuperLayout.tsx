@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { path: "/super/ai",         label: "AI 운영" },
   { path: "/super/support",          label: "고객센터" },
   { path: "/super/knowledge-review", label: "지식 검토" },
+  { path: "/super/knowledge-candidates", label: "Learning Loop" },
   { path: "/super/servers",          label: "서버 관리" },
   { path: "/super/incidents",  label: "장애 관리" },
   { path: "/super/partner",    label: "Partner Analytics" },

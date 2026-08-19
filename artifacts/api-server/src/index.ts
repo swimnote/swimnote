@@ -76,6 +76,14 @@ import("./migrations/strip-oneulun.js")
 import("./migrations/pool-db-cs-23a.js")
   .then(m => m.runCs23aMigration())
   .catch((e) => console.error("[cs23a] migration 오류:", e.message));
+// CS24A: Support Query Log
+import("./migrations/pool-db-cs-24a.js")
+  .then(m => m.runCs24aMigration())
+  .catch((e) => console.error("[cs24a] migration 오류:", e.message));
+// CS24B: Support Knowledge Candidates
+import("./migrations/pool-db-cs-24b.js")
+  .then(m => m.runCs24bMigration())
+  .catch((e) => console.error("[cs24b] migration 오류:", e.message));
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);

@@ -141,4 +141,8 @@ router.use("/", resolutionRouter);
 router.use("/", supportRespondRouter);
 router.use("/", aiV1Router);
 
+// CS24: Learning Loop — Knowledge Candidates
+import supportLearningRouter from "./support-learning.js";
+router.use("/", supportLearningRouter);
+
 export default router;
