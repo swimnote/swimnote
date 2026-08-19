@@ -17,12 +17,16 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { NoticePopup } from "@/components/common/NoticePopup";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { AuthProvider, useAuth, apiRequest } from "@/context/AuthContext";
 import { ModeProvider, useMode } from "@/context/ModeContext";
 import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
 import { runMediaCleanupV2 } from "@/utils/mediaCleanupV2";
+
+// 긴급 점검은 기본 활성화한다. 명시적으로 "false"일 때만 기존 앱으로 진입한다.
+export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE !== "false";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -34,10 +38,12 @@ const Notifications: NotificationsModule | null = IS_EXPO_GO
   ? null
   : (() => { try { return require("expo-notifications") as NotificationsModule; } catch { return null; } })();
 
-try {
-  initializeRevenueCat();
-} catch (err: any) {
-  console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
+if (!MAINTENANCE_MODE) {
+  try {
+    initializeRevenueCat();
+  } catch (err: any) {
+    console.warn("[RevenueCat] 초기화 실패:", err?.message ?? "Unknown error");
+  }
 }
 
 // ── 전역 에러 핸들러 (Android fatal crash 캡처 + 서버 전송) ──────────
@@ -135,7 +141,8 @@ try {
 }
 
 // 앱 시작 시 즉시 진단 정보 전송 (isEmergencyLaunch 포함)
-sendAppLaunchDiagnostics();
+// 유지보수 모드에서는 사용자/API 진입보다 먼저 화면을 표시하므로 전송하지 않는다.
+if (!MAINTENANCE_MODE) sendAppLaunchDiagnostics();
 
 function AppLoadingScreen() {
   return (
@@ -976,32 +983,36 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary onError={(error, stack) => console.error("[ROOT_ERROR_BOUNDARY]", error?.message, stack)}>
-        <QueryClientProvider client={queryClient}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-            <BrandProvider>
-              <UploadQueueProvider>
-                <AuthProvider>
-                  <ModeProvider>
-                    <SubscriptionProvider>
-                      <BrandSync />
-                      <RcUserSync />
-                      <PushTokenSync />
-                      <PushNavSync />
-                      <NoticePopup />
-                      <ModeForegroundRefresh />
-                      <RootNav />
-                      <UploadProgressModal />
-                    </SubscriptionProvider>
-                  </ModeProvider>
-                </AuthProvider>
-              </UploadQueueProvider>
-            </BrandProvider>
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </QueryClientProvider>
-      </ErrorBoundary>
+      {MAINTENANCE_MODE ? (
+        <MaintenanceScreen />
+      ) : (
+        <ErrorBoundary onError={(error, stack) => console.error("[ROOT_ERROR_BOUNDARY]", error?.message, stack)}>
+          <QueryClientProvider client={queryClient}>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardProvider>
+              <BrandProvider>
+                <UploadQueueProvider>
+                  <AuthProvider>
+                    <ModeProvider>
+                      <SubscriptionProvider>
+                        <BrandSync />
+                        <RcUserSync />
+                        <PushTokenSync />
+                        <PushNavSync />
+                        <NoticePopup />
+                        <ModeForegroundRefresh />
+                        <RootNav />
+                        <UploadProgressModal />
+                      </SubscriptionProvider>
+                    </ModeProvider>
+                  </AuthProvider>
+                </UploadQueueProvider>
+              </BrandProvider>
+              </KeyboardProvider>
+            </GestureHandlerRootView>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      )}
     </SafeAreaProvider>
   );
 }
