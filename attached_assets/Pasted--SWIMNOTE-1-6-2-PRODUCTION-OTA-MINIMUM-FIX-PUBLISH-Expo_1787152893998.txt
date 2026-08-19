@@ -1,0 +1,146 @@
+[SWIMNOTE 1.6.2 PRODUCTION OTA — MINIMUM FIX & PUBLISH]
+
+현재 확인 완료:
+
+Expo app package:
+artifacts/swim-app
+workspace package:
+@workspace/swim-app
+
+Expo:
+55.0.28
+
+expo-updates:
+55.0.26
+
+필요 정합 버전:
+~55.0.27
+
+Local EAS CLI:
+21.7.0
+
+Target:
+runtime 1.6.2
+iOS build 244
+channel production
+environment production
+
+Branch:
+ota/swimnote-1.6.2-maintenance
+
+1.6.3 보호:
+commit a80141c5941ba1e265a4bed5be0f3330c157ed9c
+tag swimnote-1.6.3-protected
+
+목표:
+1.6.2 Production 사용자에게
+긴급 Maintenance Screen OTA를 안전하게 publish한다.
+
+1. expo-updates 최소 정합성 수정
+
+반드시 아래 package만 수정:
+
+artifacts/swim-app/package.json
+
+expo-updates를:
+~55.0.27
+
+로 맞춘다.
+
+금지:
+- root package.json 수정
+- 다른 workspace 수정
+- 1.6.3 branch/tag 수정
+- 기타 dependency upgrade
+- Expo SDK upgrade
+
+2. package install
+
+working directory:
+artifacts/swim-app
+
+monorepo root에 dependency를 추가하지 않는다.
+
+해당 workspace package에만
+expo-updates 정합 버전을 반영한다.
+
+3. OTA 실행 전 확인
+
+- current git branch = ota/swimnote-1.6.2-maintenance
+- runtime = 1.6.2
+- channel = production
+- environment = production
+- maintenance gate = ON
+- login/home/auth 초기화보다 maintenance screen이 먼저 표시됨
+
+4. OTA publish
+
+전역 eas-cli 14.7.1 사용 금지.
+
+local CLI 21.7.0 사용.
+
+artifacts/swim-app directory에서
+production environment/channel로 publish한다.
+
+예:
+npx eas-cli update \
+  --channel production \
+  --environment production \
+  --message "Emergency maintenance screen for 1.6.2"
+
+5. publish 완료 확인
+
+반드시 보고:
+- Update ID
+- Update group ID
+- runtime
+- channel
+- environment
+- platform
+- update URL
+
+6. 실제 1.6.2 확인
+
+Production 1.6.2 설치 기기에서:
+
+- 앱 완전 종료
+- 재실행
+- update 수신
+- 필요 시 다시 완전 종료/재실행
+- Maintenance Screen 표시 확인
+- 로그인 화면 진입 불가
+- 홈 화면 진입 불가
+- 서버 502/404 오류 UI 노출 없음
+
+7. 절대 금지
+
+- server 변경
+- Render 변경
+- DB 변경
+- auth 변경
+- 1.6.3 branch 변경
+- 1.6.3 protected tag 변경
+- 새 native build 생성
+
+완료보고:
+
+[1.6.2 OTA MAINTENANCE FINAL]
+
+- branch:
+- package changed:
+- expo-updates before:
+- expo-updates after:
+- local EAS CLI:
+- runtime:
+- channel:
+- environment:
+- Update ID:
+- Update group ID:
+- publish status:
+- real device received:
+- maintenance screen:
+- login blocked:
+- home blocked:
+- server error hidden:
+- 1.6.3 protected:
+- final status:
