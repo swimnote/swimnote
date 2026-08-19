@@ -130,3 +130,4 @@
 - [WP-CS23A 완료 상태](wp-cs23a-done-state.md) — SHA 12cb55e4; Layer0 Direct DB matcher+agent-reply push+circular fallback 제거; 40TC+3035TC; Render 트리거; OTA 없음
 - [WP-CS23B 완료 상태](wp-cs23b-done-state.md) — SHA bd558a84; 72 canonical answers+27 gaps; 8 병렬 repo audit; guard fix(dev→test); 3035TC; Render 미배포; OTA 없음
 - [WP-CS23C 완료 상태](wp-cs23c-done-state.md) — SHA 81b8f2e8; LIMIT500→ILIKE+weight fallback; 610utterances(239active+371pending); 56TC+3091TC; Render 트리거; OTA 없음
+- [WP-CS23C-R 완료 상태](wp-cs23c-r-done-state.md) — SHA 291652f5; P0×2(finalCandidates+single-token-FP)+DB migration 26 KIs answer_mode; 3091TC; Render live; OTA 없음
