@@ -109,6 +109,8 @@ async function findFuzzy(
   // 최소 토큰 길이 2자 이상만 쿼리에 사용 (단자 토큰은 false-positive 유발)
   const meaningfulStems = qStems.filter(s => s.length >= 2);
   if (meaningfulStems.length === 0) return null;
+  // 단일 meaningful stem 쿼리(예: "결제", "사진")는 너무 모호 → false-positive 방지
+  if (meaningfulStems.length < 2) return null;
 
   // ── 1차: keyword prefilter (server-side, indexed ILIKE on normalized_utterance)
   // 상위 3개 스템으로 ILIKE 조건 구성 → 관련 utterance가 총 수 무관하게 검색됨
@@ -151,13 +153,13 @@ async function findFuzzy(
     }
   }
 
-  if (!finalCandidates.length) return null;
+  if (!candidates.length) return null;
 
   // JS scoring: stemmed token overlap ratio
   interface Scored { row: UtteranceRow; score: number }
   const scored: Scored[] = [];
 
-  for (const c of finalCandidates) {
+  for (const c of candidates) {
     const cNorm      = normalizeQuery(c.normalized_utterance);
     const cTokens    = tokenize(cNorm);
     const cStems     = cTokens.map(stemKorean);
@@ -298,7 +300,8 @@ export async function matchDirectAnswer(
       const knowledge = await fetchKnowledge(exactRow.knowledge_id, ctx);
       if (!knowledge) return null; // role/mode/pool mismatch
 
-      // GROUNDED_GPT or null answer_mode → fall to existing chain
+      // GROUNDED_GPT or null answer_mode → fall to existing chain.
+      // null = legacy KI not yet migrated to explicit DIRECT_DB → must not bypass GPT chain.
       const answerMode: string | null = (knowledge as any).answer_mode ?? null;
       if (answerMode === "GROUNDED_GPT" || answerMode === null) return null;
 
