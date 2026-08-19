@@ -67,6 +67,16 @@ vi.mock("@workspace/db", () => ({
       if (superExecuteOverride) return superExecuteOverride(raw, q);
       return { rows: superRows };
     }),
+    transaction: vi.fn(async (callback: any) => callback({
+      execute: async (q: any) => {
+        const raw = typeof q?.queryChunks !== "undefined"
+          ? q.queryChunks.map((c: any) => typeof c === "string" ? c : String(c?.value ?? "")).join("")
+          : String(q?.sql ?? q ?? "");
+        superCalls.push(raw.trim());
+        if (superExecuteOverride) return superExecuteOverride(raw, q);
+        return { rows: superRows };
+      },
+    })),
   },
   db: {
     execute: vi.fn(async (q: any) => {
@@ -853,7 +863,6 @@ describe("CS02R-13: double human request idempotent", () => {
     const resolved = new Promise<void>((resolve) => {
       resolveCommitted = resolve;
     });
-
     superExecuteOverride = async (raw) => {
       if (raw.includes("SELECT actor_id") && raw.includes("FROM support_cases")) {
         initialReads += 1;
@@ -871,7 +880,7 @@ describe("CS02R-13: double human request idempotent", () => {
       ) {
         currentState = "AI_RESOLVED";
         resolveCommitted();
-        return { rows: [] };
+        return { rows: [{ id: "sc_test" }] };
       }
       if (raw.includes("ticket_id IS NULL") && raw.includes("RETURNING ticket_id")) {
         await resolved;
@@ -899,6 +908,132 @@ describe("CS02R-13: double human request idempotent", () => {
       call.includes("INSERT") && call.includes("support_tickets")
     )).toHaveLength(0);
     expect(pushMocks.sendPushToSuperAdmins).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale resolve that read before a human claim committed", async () => {
+    const activeCase = poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: false,
+          gpt_status: "RESPONDED",
+        },
+      },
+    });
+    let initialReads = 0;
+    let releaseInitialReads!: () => void;
+    const bothInitialReads = new Promise<void>((resolve) => {
+      releaseInitialReads = resolve;
+    });
+    let transitionRead!: () => void;
+    const resolveTransitionRead = new Promise<void>((resolve) => {
+      transitionRead = resolve;
+    });
+    let humanClaimed!: () => void;
+    const humanClaimCommitted = new Promise<void>((resolve) => {
+      humanClaimed = resolve;
+    });
+
+    superExecuteOverride = async (raw) => {
+      if (raw.includes("SELECT actor_id") && raw.includes("FROM support_cases")) {
+        initialReads += 1;
+        if (initialReads === 2) releaseInitialReads();
+        await bothInitialReads;
+        return { rows: [{ ...activeCase, state: "AI_RESPONDED" }] };
+      }
+      if (raw.includes("SELECT state, pool_id") && raw.includes("FROM support_cases")) {
+        transitionRead();
+        return { rows: [{ ...activeCase, state: "AI_RESPONDED" }] };
+      }
+      if (raw.includes("ticket_id IS NULL") && raw.includes("RETURNING ticket_id")) {
+        await resolveTransitionRead;
+        humanClaimed();
+        return { rows: [{ ticket_id: "tkt_human_claim" }] };
+      }
+      if (
+        raw.includes("UPDATE support_cases") &&
+        raw.includes("AND state") &&
+        !raw.includes("ticket_id IS NULL")
+      ) {
+        await humanClaimCommitted;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+    poolExecuteOverride = async () => ({ rows: [] });
+
+    const app = makeApp();
+    const [resolveResponse, humanResponse] = await Promise.all([
+      request(app).post("/support/cases/sc_test/resolve").send({}),
+      request(app)
+        .post("/support/cases/sc_test/request-human")
+        .send({ confirmation: "GPT_UNRESOLVED" }),
+    ]);
+
+    expect(resolveResponse.status).toBe(409);
+    expect(humanResponse.status).toBe(200);
+    expect(poolCalls.filter((call) =>
+      call.includes("INSERT") && call.includes("support_tickets")
+    )).toHaveLength(1);
+    expect(pushMocks.sendPushToSuperAdmins).toHaveBeenCalledTimes(1);
+  });
+});
+
+// =============================================================================
+// CS02R-13B: stale agent reply must not side-effect after resolution
+// =============================================================================
+describe("CS02R-13B: agent reply and resolve concurrency", () => {
+  it("does not insert a reply or notify the user when its state CAS is stale", async () => {
+    const activeCase = poolACase({ state: "HUMAN_REQUIRED", ticket_id: "tkt_human_1" });
+
+    superExecuteOverride = async (raw) => {
+      if (raw.includes("SELECT actor_id") && raw.includes("FROM support_cases")) {
+        return { rows: [activeCase] };
+      }
+      if (raw.includes("SELECT state, pool_id") && raw.includes("FROM support_cases")) {
+        return { rows: [activeCase] };
+      }
+      if (raw.includes("UPDATE support_cases") && raw.includes("AND state")) {
+        // A concurrent resolve has already changed the row after the agent
+        // performed its read, so the conditional update affects zero rows.
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+
+    const agentResponse = await request(makeApp("super_admin", "pool_A", "super_1"))
+      .post("/support/cases/sc_test/agent-reply")
+      .send({ content: "담당자 답변입니다." });
+
+    expect(agentResponse.status).toBe(409);
+    expect(superCalls.some((call) =>
+      call.includes("INSERT") && call.includes("support_ticket_replies")
+    )).toBe(false);
+    expect(pushMocks.sendPushToUser).not.toHaveBeenCalled();
+  });
+
+  it("does not notify the user when the transactional reply insert fails", async () => {
+    const activeCase = poolACase({ state: "HUMAN_REQUIRED", ticket_id: "tkt_human_1" });
+    superExecuteOverride = async (raw) => {
+      if (raw.includes("SELECT actor_id") || raw.includes("SELECT state, pool_id")) {
+        return { rows: [activeCase] };
+      }
+      if (raw.includes("UPDATE support_cases") && raw.includes("AND state")) {
+        return { rows: [{ id: "sc_test" }] };
+      }
+      if (raw.includes("INSERT") && raw.includes("support_ticket_replies")) {
+        throw new Error("reply insert failed");
+      }
+      return { rows: [] };
+    };
+
+    const response = await request(makeApp("super_admin", "pool_A", "super_1"))
+      .post("/support/cases/sc_test/agent-reply")
+      .send({ content: "담당자 답변입니다." });
+
+    expect(response.status).toBe(500);
+    expect(pushMocks.sendPushToUser).not.toHaveBeenCalled();
   });
 });
 

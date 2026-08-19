@@ -212,6 +212,8 @@ export interface TransitionParams {
   caseId:           string;
   toState:          string;
   actorRole:        string;
+  /** Optional caller-read state for compare-and-swap transitions. */
+  expectedFromState?: string;
   poolId?:          string | null;
   reason?:          string | null;
   waitingFor?:      "USER" | "AGENT" | "SYSTEM" | null;
@@ -245,6 +247,14 @@ export async function transitionSupportCase(
   }
 
   const fromState = current.state as string;
+  const expectedFromState = params.expectedFromState ?? fromState;
+  if (expectedFromState !== fromState) {
+    return {
+      ok: false,
+      error: "케이스 상태가 변경되어 요청을 처리할 수 없습니다.",
+      status: 409,
+    };
+  }
   const allowed   = VALID_TRANSITIONS[fromState] ?? [];
 
   if (!allowed.includes(params.toState)) {
@@ -257,7 +267,7 @@ export async function transitionSupportCase(
 
   const isTerminalResolved = ["AI_RESOLVED", "RESOLVED", "CLOSED"].includes(params.toState);
 
-  await (superAdminDb as any).execute(sql`
+  const updated = (await (superAdminDb as any).execute(sql`
     UPDATE support_cases
     SET
       state             = ${params.toState},
@@ -266,7 +276,16 @@ export async function transitionSupportCase(
       resolved_at       = ${isTerminalResolved ? new Date().toISOString() : null} ::timestamptz,
       updated_at        = NOW()
     WHERE id = ${params.caseId}
-  `);
+      AND state = ${expectedFromState}
+    RETURNING id
+  `)) as any;
+  if (!updated?.rows?.length) {
+    return {
+      ok: false,
+      error: "케이스 상태가 변경되어 요청을 처리할 수 없습니다.",
+      status: 409,
+    };
+  }
 
   // Best-effort support event
   void logSupportEvent({

@@ -147,7 +147,7 @@ function parseGroundedCounselorAnswer(
   try {
     const parsed = JSON.parse(raw);
     const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
-    const usedKnowledgeIds = Array.isArray(parsed.used_knowledge_ids)
+    const usedKnowledgeIds: unknown[] = Array.isArray(parsed.used_knowledge_ids)
       ? parsed.used_knowledge_ids
       : [];
     const onlyKnownRefs = usedKnowledgeIds.length > 0 && usedKnowledgeIds.every((id: unknown) =>
@@ -157,7 +157,7 @@ function parseGroundedCounselorAnswer(
 
     const sentenceCount = answer
       .split(/[.!?。！？]+/)
-      .map((sentence) => sentence.trim())
+      .map((sentence: string) => sentence.trim())
       .filter(Boolean).length;
     if (sentenceCount > 4 || /^(?:안녕하세요|문의\s*감사합니다|도움이\s*필요하셨군요)/.test(answer)) {
       return null;
@@ -168,12 +168,18 @@ function parseGroundedCounselorAnswer(
       return null;
     }
 
-    const citedEvidence = [...new Set(usedKnowledgeIds)]
+    const safeUsedKnowledgeIds = usedKnowledgeIds.filter(
+      (id: unknown): id is string => typeof id === "string"
+    );
+    const citedEvidence = [...new Set<string>(safeUsedKnowledgeIds)]
       .map((id: string) => evidenceById.get(id) ?? "")
       .join("\n");
     if (hasUnsupportedHighRiskClaim(answer, citedEvidence)) return null;
 
-    return { answer, usedKnowledgeIds: [...new Set(usedKnowledgeIds)] };
+    return {
+      answer,
+      usedKnowledgeIds: [...new Set<string>(safeUsedKnowledgeIds)],
+    };
   } catch {
     return null;
   }
@@ -820,6 +826,7 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
             updated_at        = NOW()
         WHERE id = ${caseId}
           AND ticket_id = ${ticketId}
+          AND state = ${SUPPORT_CASE_STATE.HUMAN_REQUIRED}
       `).catch(() => {});
       throw ticketError;
     }
@@ -881,25 +888,51 @@ router.post("/support/cases/:id/agent-reply", requireAuth, async (req: AuthReque
       return res.status(422).json({ error: "종료된 케이스에는 답변할 수 없습니다." });
     }
 
-    // 메시지 저장 (기존 case 스레드에 append — same conversation)
     const msgId = `rep_ag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    await (superAdminDb as any).execute(sql`
-      INSERT INTO support_ticket_replies
-        (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
-      VALUES
-        (${msgId}, ${sc.ticket_id ?? null}, ${caseId},
-         ${user.userId}, ${user.name ?? "담당자"}, ${"agent"}, ${"agent"},
-         ${content.trim()}, '{}'::text[])
-    `);
+    const humanRespondedState = SUPPORT_CASE_STATE.HUMAN_RESPONDED ?? "HUMAN_RESPONDED";
+    if (!(VALID_TRANSITIONS[sc.state] ?? []).includes(humanRespondedState)) {
+      return res.status(422).json({
+        error: `${sc.state} → ${humanRespondedState} 전환은 허용되지 않습니다.`,
+      });
+    }
 
-    // 케이스 상태 → HUMAN_RESPONDED
-    await transitionSupportCase({
-      caseId,
-      toState:   SUPPORT_CASE_STATE.HUMAN_RESPONDED ?? "HUMAN_RESPONDED",
-      actorRole: "agent",
-      poolId:    sc.pool_id ?? null,
-      reason:    "AGENT_REPLIED",
-    }).catch(() => {});
+    // State transition and reply insert share one DB transaction. This closes
+    // the post-CAS window in which resolve could otherwise commit between the
+    // state update and the message insert, and rolls the state back if insert
+    // fails. The push is sent only after this transaction commits.
+    let replyCommitted = false;
+    try {
+      await (superAdminDb as any).transaction(async (tx: any) => {
+        const updated = (await tx.execute(sql`
+          UPDATE support_cases
+          SET state       = ${humanRespondedState},
+              waiting_for = ${null},
+              resolution_source = ${null},
+              resolved_at = NULL,
+              updated_at  = NOW()
+          WHERE id = ${caseId}
+            AND state = ${sc.state}
+          RETURNING id
+        `)) as any;
+        if (!updated?.rows?.length) return;
+
+        await tx.execute(sql`
+          INSERT INTO support_ticket_replies
+            (id, ticket_id, case_id, author_user_id, author_name, author_role, message_type, content, image_urls)
+          VALUES
+            (${msgId}, ${sc.ticket_id ?? null}, ${caseId},
+             ${user.userId}, ${user.name ?? "담당자"}, ${"agent"}, ${"agent"},
+             ${content.trim()}, '{}'::text[])
+        `);
+        replyCommitted = true;
+      });
+    } catch (err) {
+      console.error("[POST /support/cases/:id/agent-reply] transaction", err);
+      return res.status(500).json({ error: "답변 저장 중 오류가 발생했습니다." });
+    }
+    if (!replyCommitted) {
+      return res.status(409).json({ error: "케이스 상태가 변경되어 답변을 처리할 수 없습니다." });
+    }
 
     void logSupportEvent({
       eventType: SUPPORT_EVENT_TYPE.AI_RESPONDED ?? ("HUMAN_RESPONDED" as any),
@@ -1016,6 +1049,7 @@ router.post("/support/cases/:id/resolve", requireAuth, async (req: AuthRequest, 
     const result = await transitionSupportCase({
       caseId,
       toState,
+      expectedFromState: sc.state,
       actorRole:       user.role ?? "unknown",
       poolId:          sc.pool_id ?? null,
       reason:          "USER_RESOLVED",
