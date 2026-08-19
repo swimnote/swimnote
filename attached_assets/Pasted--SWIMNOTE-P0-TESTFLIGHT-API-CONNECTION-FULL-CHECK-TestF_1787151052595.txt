@@ -1,0 +1,142 @@
+[SWIMNOTE P0 — TESTFLIGHT API CONNECTION FULL CHECK]
+
+현재 TestFlight에서 로그인뿐 아니라 명단 조회도 되지 않는다.
+
+즉 단일 endpoint 문제가 아니라
+TestFlight 앱 ↔ Production API ↔ DB 연결 전체를 P0로 확인한다.
+
+중요:
+지금부터 수정/배포/DB 변경 금지.
+먼저 읽기 전용 조사만 한다.
+
+1. TestFlight 앱이 실제 사용하는 API BASE URL 확인
+
+현재 설치된 TestFlight build에서 실제 호출 URL 확인:
+- auth
+- students/member list
+- attendance
+- diary
+
+보고:
+- build number
+- API base URL
+- env source
+- production/staging 여부
+
+2. Render 현재 상태 확인
+
+확인:
+- swimnote-api current live status
+- current source repo
+- current branch
+- current deployed SHA
+- start command
+- healthCheckPath
+- GET /api/healthz
+- 최근 runtime error
+
+3. 핵심 endpoint 직접 확인
+
+Production URL 기준으로 직접 호출해서 상태만 확인:
+
+- GET /api/healthz
+- POST /api/auth/unified-login
+- 명단 조회에 사용되는 실제 endpoint
+- 로그인 후 role/pool 확인 endpoint
+
+각 endpoint:
+- HTTP status
+- content-type
+- JSON/text
+- 404/401/403/500 여부
+
+민감정보는 출력 금지.
+
+4. DB 연결 확인
+
+서버 runtime에서:
+- Production DB 연결 성공 여부
+- DATABASE_URL이 실제 production DB를 가리키는지
+- connection error
+- migration/schema mismatch
+- pool/member/student 테이블 조회 가능 여부
+
+쓰기 금지.
+SELECT/connection check만.
+
+5. source drift 확인
+
+현재 TestFlight client가 기대하는 endpoint와
+현재 Render live server가 제공하는 endpoint 비교.
+
+분류:
+- PRESENT
+- MISSING
+- PATH_MISMATCH
+- AUTH_MISMATCH
+- DB_ERROR
+
+6. 환경변수 확인
+
+민감값 출력하지 말고 존재/대상만 확인:
+- API base URL
+- DATABASE_URL
+- auth secret 관련 env
+- production mode
+- Render environment
+
+값 자체 노출 금지.
+
+7. 절대 금지
+
+- repo/branch 변경
+- Render source 변경
+- 새 deploy
+- rollback
+- DB migration
+- DB restore
+- auth refactor
+- 고객센터 DB 변경
+- AI DB 변경
+
+조사 후 보고만 한다.
+
+보고 형식:
+
+[TESTFLIGHT API CONNECTION AUDIT]
+
+CLIENT
+- build:
+- API base URL:
+- environment:
+
+RENDER
+- status:
+- repo:
+- branch:
+- SHA:
+- healthz:
+
+ENDPOINTS
+- unified-login:
+- member/student list:
+- attendance:
+- diary:
+
+DATABASE
+- connection:
+- production DB:
+- schema reachable:
+- member/student query:
+
+ROOT CAUSE
+- client URL issue:
+- server source issue:
+- route issue:
+- auth issue:
+- DB issue:
+- environment issue:
+
+FINAL
+- exact failure point:
+- safest recovery action:
