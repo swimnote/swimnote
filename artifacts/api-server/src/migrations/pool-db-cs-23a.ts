@@ -87,13 +87,17 @@ export async function runCs23aMigration(): Promise<void> {
   //   - development: 로컬 개발 (package.json "dev" 스크립트)
   //   - test:        vitest 실행 시 자동으로 NODE_ENV=test 설정
   //   - production / undefined: Render 배포 → fixture 삽입 금지
+  // TEST_ fixture는 vitest(NODE_ENV=test)에서만 삽입.
+  // 로컬 dev(NODE_ENV=development)도 superAdminDb=운영 DB에 연결되므로 절대 삽입 금지.
+  // Render production(NODE_ENV=production or undefined)도 동일하게 금지.
+  // 필요 시 SEED_TEST_FIXTURES=1 환경변수로 명시 허용 가능.
   const env = process.env.NODE_ENV;
-  const isDevOrTest = env === "development" || env === "test";
-  if (!isDevOrTest) {
-    console.log("[cs23a] Production 환경 감지 — TEST fixture 삽입 건너뜀 (NODE_ENV:", env ?? "undefined", ")");
+  const isTestEnv = env === "test" || process.env.SEED_TEST_FIXTURES === "1";
+  if (!isTestEnv) {
+    console.log("[cs23a] non-test 환경 — TEST fixture 삽입 건너뜀 (NODE_ENV:", env ?? "undefined", ")");
     return;
   }
-  console.log("[cs23a] 개발/테스트 환경 — TEST fixture 삽입 진행 (NODE_ENV:", env, ")");
+  console.log("[cs23a] test 환경 — TEST fixture 삽입 진행 (NODE_ENV:", env, ")");
 
   const fixtures: Array<{
     id: string; intentId: string; title: string; question: string;
