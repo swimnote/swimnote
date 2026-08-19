@@ -1,0 +1,1005 @@
+[WP-CS26 — AUTONOMOUS SUPPORT ESCALATION SEQUENCE REWRITE]
+
+목적:
+
+현재 SWIMNOTE 고객지원의 Human escalation 시퀀스를 수정한다.
+
+기존 구조 일부:
+
+DIRECT DB
+→ GPT 또는 직접 문의
+→ HUMAN
+
+을 다음 최종 원칙으로 변경한다.
+
+최종 구조:
+
+DIRECT DB
+→ 동일 의미 질문 3회 연속 반복
+→ "문의사항 보내기"
+→ Grounded GPT 2차 해결
+→ 사용자 해결 여부 확인
+→ "아직 해결되지 않았어요"
+→ 그때만 Super Admin Human escalation
+
+핵심 목표:
+
+SUPPORT는 무인 자동 고객센터를 기본으로 한다.
+
+Super Admin은
+DB와 GPT로도 해결되지 않은 최종 문의만 처리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 상담 시퀀스
+━━━━━━━━━━━━━━━━━━━━━━
+
+일반 문의:
+
+USER QUESTION
+→ DIRECT DB
+→ 답변
+
+같은 의미 질문 반복:
+
+1회
+→ DIRECT DB
+
+2회 연속
+→ DIRECT DB
+
+3회 연속
+→ DIRECT DB
+→ 문의 제안 CTA 표시
+
+문구:
+
+"안내된 내용으로 문제가 해결되지 않은 것 같습니다.
+문의사항을 보내시겠습니까?"
+
+버튼:
+
+[문의사항 보내기]
+
+버튼을 눌러도
+바로 Super Admin에게 보내지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 문의사항 보내기 후 GPT
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가:
+
+[문의사항 보내기]
+
+선택
+
+→ 기존 conversation context 수집
+→ 현재 문제 intent/context 수집
+→ 관련 verified Support Knowledge 수집
+→ Grounded GPT 호출
+→ GPT 2차 해결 답변 제공
+
+즉:
+
+문의사항 보내기
+≠ HUMAN escalation
+
+문의사항 보내기
+= GPT 고급 무인상담 시작
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. GPT 답변 후 해결 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT 답변 하단에:
+
+"문제가 해결되었나요?"
+
+버튼:
+
+[해결됐어요]
+[아직 해결되지 않았어요]
+
+표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 해결됐어요
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가:
+
+[해결됐어요]
+
+선택:
+
+conversation/case resolution state를
+정상 종료 상태로 변경.
+
+Super Admin 알림 금지.
+
+Human Case 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 아직 해결되지 않았어요
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가:
+
+[아직 해결되지 않았어요]
+
+선택한 경우에만:
+
+→ HUMAN_REQUIRED
+→ Support Case/Ticket 생성 또는 기존 open case 재사용
+→ sendPushToSuperAdmins(...)
+→ Super Admin Support Inbox 노출
+
+즉 Human escalation trigger는:
+
+USER_CONFIRMED_UNRESOLVED_AFTER_GPT
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 같은 질문 3회 연속 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순 raw text 3회 일치로 계산하지 않는다.
+
+같은:
+
+intent_id
+
+또는 안전하게 동일 의미로 판정된 support topic
+
+기준.
+
+예:
+
+1.
+
+"사진이 안 보여요"
+
+2.
+
+"아이 사진 왜 안 떠요?"
+
+3.
+
+"계속 사진이 안 나와요"
+
+모두:
+
+PARENT_PHOTO_NOT_VISIBLE
+
+이면 3회 연속.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 연속성
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 연속 3회.
+
+예:
+
+PHOTO
+PHOTO
+PHOTO
+
+→ streak=3
+
+CTA 표시.
+
+하지만:
+
+PHOTO
+MAKEUP
+PHOTO
+
+→ PHOTO streak는 끊김.
+
+마지막 intent 기준:
+
+same_intent_streak
+
+관리.
+
+다른 intent가 들어오면:
+
+same_intent_streak = 1
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 반복 카운트 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 conversation 내에서만 계산.
+
+다른 support conversation의 과거 질문까지
+합산 금지.
+
+새 conversation이면 streak reset.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 질문이 매칭되지 않는 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+NO_MATCH가 반복되는 경우도 처리 필요.
+
+단 모든 NO_MATCH를 하나의 intent로 묶으면 안 됨.
+
+동일 normalized topic / 안전한 similarity가
+확인되는 경우에만 반복으로 계산.
+
+서로 다른 미분류 질문:
+
+NO_MATCH_A
+NO_MATCH_B
+NO_MATCH_C
+
+를 단순히 NO_MATCH 3회라고 CTA 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Direct DB 답변 반복도 포함
+━━━━━━━━━━━━━━━━━━━━━━
+
+Direct DB Answer가 정확하더라도
+동일 intent 질문이 3회 연속 반복되면:
+
+"DB 답변으로 실제 문제가 해결되지 않았다"
+
+는 신호로 판단.
+
+3회째 답변 후
+문의사항 보내기 CTA 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Deterministic Resolver 답변도 포함
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 resolver의 deterministic response 역시
+동일 intent/topic으로 3회 반복되면
+same_intent_streak에 포함 가능.
+
+목표는:
+
+답변 종류가 아니라
+"같은 문제가 반복되고 있는가"
+
+를 판단하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 일반 GPT 자동 호출 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+매 일반 질문에서
+Direct DB 실패 즉시 GPT를 호출하는 기존 구조가 있다면
+새 원칙과 충돌 여부를 조사.
+
+최종 기본 정책:
+
+일반 질문
+→ DB/deterministic support 우선.
+
+GPT 고급 상담은:
+
+사용자가 3회 반복 후
+[문의사항 보내기]
+
+를 명시적으로 누른 경우에 실행.
+
+단 현재 기존 resolver가 반드시 GPT를 필요로 하는
+특수 기능이 있다면
+기존 기능과 충돌 여부를 보고하고
+최소 변경으로 통합.
+
+무조건 GPT를 제거하지 말고
+현재 실제 pipeline과 비교 후 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. HUMAN_ONLY 예외
+━━━━━━━━━━━━━━━━━━━━━━
+
+HUMAN_ONLY는 3회 반복을 기다리지 않는다.
+
+예:
+
+정책 근거가 없는 환불
+계약 예외
+수동 계정 복구
+특수 개인정보 요청
+개별 운영 판단
+
+첫 질문부터:
+
+"담당자 확인이 필요한 문의입니다."
+
+*
+
+[문의사항 보내기]
+
+표시 가능.
+
+단 중요:
+
+[문의사항 보내기] 클릭 직후
+무조건 Super Admin 알림을 보내는 것이 아니라,
+
+GPT가 안전하게 해결 가능한 일반 안내 범위가 있는지
+먼저 2차 상담 가능.
+
+단 AI가 답하면 안 되는 유형은
+DIRECT_HUMAN_REQUIRED 예외로 별도 구분 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. DIRECT_HUMAN_REQUIRED 예외
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음과 같이 GPT가 개입하면 안 되는
+명백한 운영/법적/계정 조치 요청이 실제 존재하면:
+
+DIRECT_HUMAN_REQUIRED
+
+분류 가능.
+
+이 경우:
+
+문의사항 보내기
+→ 바로 Human escalation
+
+가능.
+
+단 범위를 넓게 잡지 않는다.
+
+기존 HUMAN_ONLY 전체를
+자동 DIRECT_HUMAN_REQUIRED로 취급 금지.
+
+각 유형의 실제 위험을 검토.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 전화 문의 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+전화 문의는 별도로 운영하지 않는다.
+
+예상 질문:
+
+"전화 상담 가능한가요?"
+"전화번호 알려주세요."
+"전화해주세요."
+
+Direct Answer:
+
+"전화 문의는 별도로 운영하지 않습니다.
+전화 상담이 필요한 경우 문의사항을 보내면서
+연락받을 전화번호를 남겨 주세요.
+담당자가 확인 후 필요한 경우 해당 번호로 연락드리겠습니다."
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Callback Request
+━━━━━━━━━━━━━━━━━━━━━━
+
+전화 상담 희망 시:
+
+[문의사항 보내기]
+
+flow에서 선택 가능.
+
+예:
+
+전화 상담 희망
+[ ] 아니요
+[ ] 네
+
+네 선택 시:
+
+연락받을 전화번호 입력
+
+연락 목적 동의 체크
+
+필수 문구 예:
+
+"이 문의 처리를 위해 입력한 연락처로
+연락받는 것에 동의합니다."
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 가입 전화번호 자동 사용 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+Account/Profile에 저장된 전화번호를
+Support callback에 자동 사용하지 않는다.
+
+전화 상담용 번호는
+사용자가 해당 문의에서 직접 입력한 번호만 사용.
+
+기존 profile 전화번호 자동 prefill도 하지 않는 방향 우선.
+
+필요 시 사용자가 직접 입력.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Callback PII
+━━━━━━━━━━━━━━━━━━━━━━
+
+Callback number는
+해당 Support Case에만 연결.
+
+Canonical Knowledge
+Candidate
+Query learning DB
+
+로 복사 금지.
+
+Super Admin Push preview에도
+전화번호 전체 노출 금지.
+
+Super Admin이 case를 열어 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. State Model 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 support state machine을 조사하고
+새 sequence를 최소 변경으로 표현.
+
+필요 개념:
+
+AI_RESPONDED
+REPEAT_UNRESOLVED
+GPT_ESCALATION_OFFERED
+GPT_PROCESSING
+GPT_RESPONDED
+USER_RESOLVED
+USER_CONFIRMED_UNRESOLVED
+HUMAN_REQUIRED
+HUMAN_RESPONDED
+
+실제 기존 state 이름을 최대한 재사용.
+
+새 상태를 과도하게 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. CTA 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 UI 상태:
+
+A.
+streak < 3
+
+→ CTA 없음
+
+B.
+streak >= 3
+
+→ [문의사항 보내기]
+
+C.
+GPT 답변 완료
+
+→ [해결됐어요]
+→ [아직 해결되지 않았어요]
+
+D.
+Human Required
+
+→ "담당자가 확인 중입니다."
+
+E.
+Human Responded
+
+→ 상담사 답변 표시
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 이미 Human Case가 있는 경우
+━━━━━━━━━━━━━━━━━━━━━━
+
+open human case가 존재하면:
+
+3회 streak 계산으로
+새 문의 CTA 생성 금지.
+
+새 case 생성 금지.
+
+사용자 메시지는
+기존 conversation/case에 append.
+
+DUPLICATE_OPEN_CASE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. streak 저장 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 conversation/case context에서 계산.
+
+별도 DB field가 반드시 필요한지 먼저 검토.
+
+가능한 방식:
+
+최근 user messages + matched intent trace
+
+를 이용해 runtime 계산.
+
+불필요한 permanent counter 컬럼 생성 금지.
+
+성능/일관성상 field 저장이 더 안전하면
+최소 additive field 사용.
+
+선택 이유 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. GPT Context
+━━━━━━━━━━━━━━━━━━━━━━
+
+[문의사항 보내기] 이후 GPT에게 전달:
+
+현재 사용자 질문
+최근 동일 문제 대화
+matched intent
+Direct DB 답변
+관련 verified Knowledge
+role
+mode
+필요한 safe product context
+
+금지:
+
+불필요한 전체 계정 PII
+다른 student
+다른 pool
+다른 conversation
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. GPT 역할
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT의 목적:
+
+이미 DB 답변만으로 해결되지 않은 문제를
+조금 더 구체적으로 설명하고 해결을 시도하는 것.
+
+금지:
+
+정책 창작
+가격 창작
+환불 규칙 창작
+UI 창작
+존재하지 않는 해결방법 창작
+
+근거 없으면:
+
+"확인 가능한 정보만으로는 문제를 해결하기 어렵습니다."
+
+등으로 답변.
+
+그 이후 사용자가
+[아직 해결되지 않았어요]
+
+선택 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. Super Admin 알림 시점 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 request-human 시점에
+sendPushToSuperAdmins가 바로 호출되는 구조가 있다면 수정.
+
+일반 flow에서는:
+
+문의사항 보내기
+→ GPT
+
+단계에서는
+Super Admin Push 금지.
+
+Super Admin Push는:
+
+GPT 답변
+→ 사용자 [아직 해결되지 않았어요]
+
+이후에만.
+
+예외:
+
+DIRECT_HUMAN_REQUIRED
+
+만 즉시 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Human Case 생성 시점
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 일반 flow에서:
+
+[문의사항 보내기]
+
+시점에는
+Human ticket을 만들지 않는다.
+
+GPT escalation context만 유지.
+
+사용자:
+
+[아직 해결되지 않았어요]
+
+선택 시
+Human ticket 생성/연결.
+
+현재 case 모델 때문에
+기본 support case 자체가 이미 존재하는 것은 허용.
+
+중요한 것은:
+
+Human open ticket / Super Admin work item
+
+은 최종 실패 시점에만 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. CS24 Learning Loop 연동
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 outcome도 query learning에 기록.
+
+예:
+
+REPEAT_STREAK_3
+GPT_ESCALATION_REQUESTED
+GPT_RESOLVED
+GPT_UNRESOLVED
+HUMAN_ESCALATED_AFTER_GPT
+
+향후 운영 지표:
+
+DB에서 몇 건 해결됐는지
+GPT에서 몇 건 해결됐는지
+Human까지 몇 건 갔는지
+
+측정 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+SUPPORT_QUESTIONS_TOTAL
+
+DIRECT_DB_RESOLVED
+
+REPEAT_STREAK_3_TOTAL
+
+GPT_ESCALATION_OFFERED
+
+GPT_ESCALATION_ACCEPTED
+
+GPT_RESOLVED_BY_USER
+
+GPT_UNRESOLVED_BY_USER
+
+HUMAN_ESCALATED_AFTER_GPT
+
+DIRECT_HUMAN_REQUIRED_TOTAL
+
+SUPER_ADMIN_NOTIFICATIONS
+
+DUPLICATE_OPEN_CASE
+
+CALLBACK_REQUESTS
+
+━━━━━━━━━━━━━━━━━━━━━━
+28. 핵심 비율
+━━━━━━━━━━━━━━━━━━━━━━
+
+향후 계산 가능:
+
+DB_RESOLUTION_RATE
+
+GPT_ESCALATION_RATE
+
+GPT_RESOLUTION_RATE
+
+HUMAN_ESCALATION_RATE
+
+목표 방향:
+
+DB 해결률 ↑
+GPT 호출률 ↓
+Human 개입률 ↓
+
+━━━━━━━━━━━━━━━━━━━━━━
+29. TEST — 3회 연속
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 intent:
+
+Q1
+Q2
+Q3
+
+입력.
+
+기대:
+
+Q1 → CTA 없음
+Q2 → CTA 없음
+Q3 → 문의사항 보내기 CTA
+
+필수:
+
+CTA_BEFORE_3 = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+30. TEST — 연속성 Reset
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHOTO
+PHOTO
+MAKEUP
+PHOTO
+PHOTO
+
+기대:
+
+마지막 PHOTO는 streak=2.
+
+CTA 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+31. TEST — 문장 다른 동일 Intent
+━━━━━━━━━━━━━━━━━━━━━━
+
+"사진이 안 보여요"
+"아이 사진 왜 안 떠요"
+"계속 사진이 안 나와요"
+
+동일 intent라면:
+
+3회 streak 인정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+32. TEST — GPT 시점
+━━━━━━━━━━━━━━━━━━━━━━
+
+3회 반복만으로
+GPT 호출하면 안 됨.
+
+Q3 이후:
+
+CTA 표시
+
+사용자가
+[문의사항 보내기]
+
+선택해야 GPT 호출.
+
+필수:
+
+GPT_CALL_BEFORE_USER_ESCALATION = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+33. TEST — Super Admin 시점
+━━━━━━━━━━━━━━━━━━━━━━
+
+[문의사항 보내기]
+→ GPT 답변
+
+여기까지:
+
+SUPER_ADMIN_PUSH = 0
+
+사용자:
+
+[아직 해결되지 않았어요]
+
+선택 후:
+
+SUPER_ADMIN_PUSH = 1
+
+필수:
+
+PREMATURE_SUPER_ADMIN_NOTIFICATION = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+34. TEST — GPT 해결
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT 답변 후:
+
+[해결됐어요]
+
+선택.
+
+기대:
+
+Human ticket 없음.
+Super Admin Push 없음.
+상태 resolved.
+
+━━━━━━━━━━━━━━━━━━━━━━
+35. TEST — Human escalation
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT 답변
+→ [아직 해결되지 않았어요]
+
+기대:
+
+Human ticket 생성/재사용
+Super Admin Push
+same conversation 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+36. TEST — HUMAN_ONLY
+━━━━━━━━━━━━━━━━━━━━━━
+
+가격/환불 등 현재 HUMAN_ONLY 질문.
+
+3회 기다리지 않음.
+
+1회부터 문의사항 CTA 가능.
+
+단 정책 추론 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+37. TEST — Callback
+━━━━━━━━━━━━━━━━━━━━━━
+
+"전화해주세요"
+
+→ Direct policy answer
+
+→ 문의사항 보내기
+
+→ 전화 상담 희망 선택
+
+→ 사용자가 연락처 직접 입력
+
+→ consent 체크
+
+검증:
+
+profile phone auto-use = 0
+callback phone stored only in case context
+candidate/query learning PII leak = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+38. Regression
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+Direct Matcher
+Knowledge DB
+GPT grounding
+Human conversation
+CS24 candidate loop
+
+전부 regression 없이 유지.
+
+Full suite 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+39. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS26 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Render SHA:
+
+CURRENT FLOW BEFORE
+
+Direct DB:
+GPT trigger:
+Human trigger:
+Super Admin push trigger:
+
+NEW FLOW
+
+Direct DB:
+3-streak:
+Inquiry CTA:
+GPT trigger:
+Resolved CTA:
+Unresolved CTA:
+Human trigger:
+
+STREAK
+
+Storage/calculation method:
+Same intent:
+Reset behavior:
+No-match handling:
+
+GPT
+
+Trigger:
+Context:
+Grounding:
+Calls before inquiry CTA:
+
+HUMAN
+
+Ticket creation point:
+Super Admin push point:
+Duplicate prevention:
+Same conversation:
+
+CALLBACK
+
+Phone policy answer:
+User-entered number:
+Consent:
+Profile phone auto-use:
+PII storage:
+
+METRICS
+
+Questions:
+3-streak:
+Inquiry offered:
+Inquiry accepted:
+GPT resolved:
+GPT unresolved:
+Human escalated:
+Super Admin notifications:
+Callback requests:
+
+TEST
+
+CTA before 3:
+3rd streak CTA:
+Reset:
+Semantic same-intent:
+GPT premature calls:
+Premature admin notifications:
+GPT resolved → human:
+GPT unresolved → human:
+Human-only:
+Callback:
+PII leakage:
+
+SECURITY
+
+Role leakage:
+Mode leakage:
+Pool leakage:
+
+REGRESSION
+
+Full tests:
+Pass:
+Fail:
+
+FINAL
+
+AUTONOMOUS_SUPPORT_SEQUENCE_READY: YES / NO
+THREE_CONSECUTIVE_RULE_READY: YES / NO
+GPT_SECOND_STAGE_READY: YES / NO
+HUMAN_LAST_STAGE_READY: YES / NO
+CALLBACK_PRIVACY_READY: YES / NO
+PRODUCTION_SAFE: YES / NO
+
+WP_CS26_COMPLETE: YES / NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+40. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 멈춘다.
+
+이번 WP 이후 고객지원 최종 대원칙:
+
+DB FIRST
+→ 동일 문제 연속 3회
+→ 사용자 문의 전송
+→ GPT
+→ 사용자 해결 여부 확인
+→ 실패한 경우에만 HUMAN
+
+을 변경하지 않는다.
+
+[/끝]
