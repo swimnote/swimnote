@@ -1,0 +1,152 @@
+[SWIMNOTE 1.6.3 TESTFLIGHT DEPLOY — PHOTO DIRECT R2]
+
+현재 완료된 작업:
+
+branch:
+feature/photo-direct-r2-upload
+
+commit:
+289c68da
+feat: upload diary photos directly to R2
+
+구현 내용:
+- 일지 사진 최대 10장
+- Render multipart 경유 제거
+- R2 presigned PUT direct upload
+- 최대 4개 병렬 업로드
+- 개별 진행률/실패/재시도
+- finalize 후 photo_assets_meta 연결
+- 기존 동영상 multipart 유지
+- 기존 일지 attach/조회 호환 유지
+
+목표:
+이 변경을 현재 1.6.3 앱에 반영하고
+TestFlight에서 사용자가 직접 실기기 테스트할 수 있도록
+iOS 빌드만 올린다.
+
+중요:
+추가 기능 개발 금지.
+전체 regression 금지.
+대규모 테스트 금지.
+구조 감사 금지.
+불필요한 리팩터링 금지.
+
+--------------------------------
+1. 1.6.3 보호본에 변경 반영
+--------------------------------
+
+기준 1.6.3:
+
+branch:
+deploy-photo-clone
+
+protected commit:
+a80141c5941ba1e265a4bed5be0f3330c157ed9c
+
+tag:
+swimnote-1.6.3-protected
+
+feature/photo-direct-r2-upload의
+commit 289c68da만
+1.6.3 branch에 안전하게 반영한다.
+
+가능하면 cherry-pick 방식 사용.
+
+기존 1.6.3 작업 내용 삭제/덮어쓰기 금지.
+
+--------------------------------
+2. GitHub 저장
+--------------------------------
+
+반영 후:
+- deploy-photo-clone push
+- working tree clean 확인
+- 최종 SHA 보고
+
+--------------------------------
+3. iOS 버전
+--------------------------------
+
+현재:
+version 1.6.3
+
+기존 build 246보다
+iOS build number만 증가.
+
+예:
+247
+
+version은 1.6.3 유지.
+
+runtimeVersion/appVersion 기존 정책 유지.
+
+--------------------------------
+4. Production 서버 건드리지 말 것
+--------------------------------
+
+현재 Production Render:
+
+swimnote-api
+hotfix/server-boot-recovery
+live SHA 1e34ea61...
+
+LOCKED 상태 유지.
+
+절대 금지:
+- Render source 변경
+- Render deploy
+- Production server 변경
+- DB migration
+- Production DB 변경
+- X migration
+- AI 변경
+- Cloudflare 변경
+
+이번 작업은 모바일 TestFlight 빌드만.
+
+--------------------------------
+5. 최소 정적 확인만
+--------------------------------
+
+이미 feature branch에서 테스트 완료됐으므로
+다시 전체 테스트하지 않는다.
+
+다음만 확인:
+- merge/cherry-pick conflict 없음
+- iOS build config 정상
+- expo config 읽힘
+- build 시작 가능
+
+3,000개 테스트 재실행 금지.
+전체 TypeScript 검사 금지.
+실기기 자동 테스트 금지.
+
+--------------------------------
+6. TestFlight build
+
+1.6.3 iOS 새 build 생성.
+
+EAS/App Store Connect 업로드까지 진행해서
+TestFlight에서 설치 가능 상태로 만든다.
+
+배포 대상은 TestFlight이며
+App Store Production release는 하지 않는다.
+
+--------------------------------
+7. 완료보고
+
+[1.6.3 PHOTO DIRECT R2 TESTFLIGHT]
+
+- source feature commit:
+- merged/cherry-picked into:
+- final 1.6.3 SHA:
+- version:
+- iOS build:
+- GitHub push:
+- Production server changed: NO
+- DB changed: NO
+- Render deploy: NO
+- EAS build ID:
+- App Store Connect upload:
+- TestFlight processing:
+- final status:
