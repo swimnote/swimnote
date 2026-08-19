@@ -8,15 +8,13 @@
  * - superAdminDb (운영 원본) — 모든 테이블 생성
  * - poolDb (백업 DB, POOL_DATABASE_URL 설정 시) — 백업 스키마 동기화
  *
- * SWIMNOTE X WP1:
- * - initXModeSchema() 호출 (pool-db-x-init.ts)
- * - 실패 시 throw → initPoolDb 전체 실패 → index.ts catch에서 로그
- * - ⚠️  프로덕션 Migration 실행은 별도 승인 후 진행
+ * SWIMNOTE X:
+ * - X schema migrations are intentionally excluded from core server startup.
+ * - Run them only through an explicitly approved, isolated migration operation.
+ * - A blocked X migration must never prevent the core production API from starting.
  */
 import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { initXModeSchema } from "./pool-db-x-init.js";
-import { initXPaymentSchema } from "./pool-db-x-payment-init.js";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
@@ -1373,24 +1371,13 @@ export async function initPoolDb(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_ae_creative_type ON analytics_events (creative_id, event_type, occurred_at);
   `)).catch((e: any) => console.error('[migration] analytics_events:', e));
 
-  // ─── SWIMNOTE X WP1 Migration ─────────────────────────────────────────────
+  // ─── SWIMNOTE X migrations intentionally skipped at startup ───────────────
   //
-  // 실패 시 throw → initPoolDb 전체 실패.
-  // ⚠️  현재 index.ts(54)는 .catch()로 오류를 삼키므로 서버 기동이 중단되지 않음.
-  //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
-  // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
-  await initXModeSchema();
-
-  // ─── SWIMNOTE X02-B1 Payment DB Foundation Migration ──────────────────────
-  //
-  // paid/manual entitlement 분리 + x_subscription_slots + swimming_pools 컬럼 4개.
-  // 멱등성 보장. 기존 xmode_entitlement 수정 금지.
-  // ⚠️  non-FATAL: ALTER TABLE 쿼리가 Supabase statement_timeout(30s)에 걸릴 수 있음.
-  //    실패해도 서버 기동을 중단하지 않음. 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
-  //    X02-B2 코드에서 새 컬럼 사용 전 반드시 migration 완료 확인 필요.
-  try {
-    await initXPaymentSchema();
-  } catch (err) {
-    console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
-  }
+  // P0 server-boot recovery:
+  // - Do not run WP1 (initXModeSchema) or X02 payment schema migrations here.
+  // - Their data-integrity checks / DDL are isolated from core production boot.
+  // - X remains pending until a separately approved migration operation runs.
+  // This prevents X-specific migration failures from blocking auth, pool,
+  // students, attendance, diary, parent, and teacher APIs.
+  console.warn("[SWIMNOTE X] startup migrations skipped — X remains pending until separately approved");
 }
