@@ -1,0 +1,617 @@
+[WP-CS23-FINAL — Production Activation & Real-Device Closure]
+
+목적:
+
+CS23 Direct DB Support System의 코드/데이터 구현은 완료되었다.
+
+이번 WP에서는 신규 기능 개발을 하지 않는다.
+
+남은 세 가지:
+
+1. Render Production 배포 확인
+2. 신규 43 Canonical Knowledge Human Approval
+3. 실제 디바이스 End-to-End 검증
+
+을 완료하여 CS23 전체를 Production CLOSED 상태로 만든다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 확정 기준
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+Canonical Answer:
+
+TOTAL = 72
+
+구성:
+
+EXISTING = 29
+NEW_DIRECT_DB = 41
+HUMAN_ONLY = 2
+
+총합:
+
+29 + 41 + 2 = 72
+
+신규 Pending:
+
+41 DIRECT_DB
+
+* 2 HUMAN_ONLY
+    = 43
+
+이 숫자를 기준으로 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 이번 WP 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+새 기능 개발
+새 matcher 방식
+AI 서버 추가
+Vector DB 추가
+새 Canonical 대량 생성
+새 utterance 대량 생성
+기존 resolver rewrite
+GPT prompt 대규모 수정
+
+이번 WP는 Activation + Runtime Closure만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. RENDER LIVE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+SHA:
+291652f5
+
+Render deployment:
+dep-da2hob7qj5pc73frl7m0
+
+build in progress 상태였음.
+
+배포 완료 후 반드시 확인:
+
+Git HEAD
+Remote SHA
+Render deployed SHA
+Render health
+
+필수:
+
+DEPLOYED_SHA = 검증 대상 SHA
+
+API boot 정상.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. P0 FIX LIVE 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 세션 P0 2개:
+
+A.
+
+finalCandidates 미선언
+→ fuzzy matcher ReferenceError
+→ silent null
+
+수정:
+
+candidates 사용
+
+B.
+
+단일 token false positive
+
+예:
+
+“결제”
+→ “결제가 왜 안 돼?”
+
+수정:
+
+meaningfulStems.length < 2
+→ fuzzy direct 반환 금지
+
+Live Production에서 두 수정이 실제 반영되었는지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FUZZY LIVE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+Exact가 아닌 실제 fuzzy 질문으로 최소 30개 테스트.
+
+포함:
+
+띄어쓰기
+일반적 오타
+말투 변화
+조사 변화
+짧은 자연어 문장
+alias
+
+반드시 exact DB match가 아닌 것을 사용.
+
+보고:
+
+LIVE_FUZZY_TESTS
+LIVE_FUZZY_CORRECT
+LIVE_FUZZY_WRONG
+LIVE_FUZZY_NO_MATCH
+
+목표:
+
+LIVE_FUZZY_WRONG = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 단일 TOKEN NEGATIVE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 계열 테스트:
+
+가격
+결제
+사진
+보강
+알림
+수업
+일지
+환불
+
+이런 단일/초단문 query가
+의미가 불명확한 상태에서 특정 상세 intent로
+강제 Direct Match 되지 않아야 한다.
+
+필수:
+
+SINGLE_TOKEN_FALSE_POSITIVE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. HUMAN APPROVAL — 43
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin Knowledge Review Console에서
+신규 Pending 43개를 실제 검토.
+
+구성:
+
+41 DIRECT_DB
+2 HUMAN_ONLY
+
+자동 승인 금지.
+
+각 row:
+
+canonical answer
+source_ref
+roles
+modes
+answer_mode
+UI reference
+policy risk
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. DIRECT_DB 41 승인 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인 가능한 조건:
+
+실제 코드/DB/UI 근거 존재
+정답 명확
+role/mode 정확
+정책 추론 없음
+UI 창작 없음
+
+근거 부족 시:
+
+승인하지 말고 Pending/Rejected 유지.
+
+43개를 반드시 모두 ACTIVE로 만드는 것이 목표가 아니다.
+
+정확성이 목표다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. HUMAN_ONLY 2
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+PRICE
+REFUND
+
+2개는 HUMAN_ONLY.
+
+공식 정책 Source가 없는 상태라면
+DIRECT_DB로 변경 금지.
+
+동작:
+
+“담당자 확인이 필요합니다.”
+
+[직접 문의하기]
+
+이어야 함.
+
+GPT가 가격/환불을 추론하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 승인 후 UTTERANCE 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+Canonical Knowledge 승인 시
+해당 Pending utterance가
+설계된 승인 flow에 따라 정상 활성화되는지 확인.
+
+보고:
+
+CANONICAL_ACTIVE_AFTER_APPROVAL
+CANONICAL_PENDING_AFTER_REVIEW
+UTTERANCES_ACTIVE
+UTTERANCES_PENDING
+
+필수:
+
+ACTIVE_UTTERANCE_TO_PENDING_KI = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. LIVE DIRECT TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인 후 Production API에서 최소 72 intent 전체를 검증.
+
+각 intent 최소 1개.
+
+가능하면:
+
+exact 1
+variant 1
+
+즉 최소 72,
+권장 144 query.
+
+보고:
+
+LIVE_INTENTS_TESTED
+LIVE_DIRECT_CORRECT
+LIVE_DIRECT_WRONG
+LIVE_NO_MATCH
+
+필수:
+
+LIVE_DIRECT_WRONG = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. DIRECT DB → GPT 0 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Direct DB hit 최소 20건에 대해
+runtime trace/log 확인.
+
+구조 추정이 아니라 실제 runtime 확인.
+
+필수:
+
+LIVE_DIRECT_LLM_CALLS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 RESOLVER
+━━━━━━━━━━━━━━━━━━━━━━
+
+Direct Matcher가 못 찾는 질문에서:
+
+기존 deterministic resolver
+→ Grounded GPT
+→ Human
+
+경로가 정상 유지되는지 live smoke.
+
+각 경로 최소 1건.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. DEVICE E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 사용자 앱에서 테스트.
+
+흐름:
+
+AI 문의 진입
+→ 질문 입력
+→ Direct DB 답변 확인
+
+다음 별도 질문:
+
+→ GPT fallback 확인
+
+다음:
+
+→ 직접 문의하기 탭
+→ request-human
+→ 상담 대기 상태
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. SUPER ADMIN E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 직접문의 발생:
+
+→ Super Admin Push 수신
+→ Support Inbox에서 해당 case 확인
+→ 사용자 질문/대화 context 확인
+
+필수:
+
+SUPER_ADMIN_PUSH = PASS
+CASE_VISIBLE = PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. HUMAN REPLY E2E
+━━━━━━━━━━━━━━━━━━━━━━
+
+Super Admin이 실제 답변.
+
+→ agent-reply 성공
+→ 사용자 Push 수신
+→ 사용자가 SupportChatScreen 진입
+→ 동일 conversation에서 Human 답변 확인
+
+필수:
+
+USER_PUSH = PASS
+SAME_CONVERSATION = PASS
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. DUPLICATE CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 conversation에서:
+
+직접 문의하기 2회
+
+또는 Human Pending 중 추가 메시지
+
+테스트.
+
+새 ticket/case 중복 생성 금지.
+
+필수:
+
+DUPLICATE_OPEN_CASE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. CIRCULAR FALLBACK
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 기기에서 다음 문구가 나오면 실패:
+
+“고객지원으로 문의하세요.”
+“앱 내 고객센터로 문의하세요.”
+
+Support 자체에서 자기 자신으로 안내 금지.
+
+필수:
+
+LIVE_CIRCULAR_FALLBACK = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+p95 = 16ms
+
+Production live에서도 matcher latency 측정.
+
+최소 100 request.
+
+보고:
+
+p50
+p95
+max
+
+갑작스러운 regression 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. SECURITY LIVE SMOKE
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+Parent → teacher-only
+Teacher → admin-only
+Normal → X-only
+Pool A → Pool B
+
+검증.
+
+필수:
+
+LIVE_ROLE_LEAKAGE = 0
+LIVE_MODE_LEAKAGE = 0
+LIVE_POOL_LEAKAGE = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. FULL REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+3091/3091 PASS
+
+최종 배포 코드 기준 full suite 재실행.
+
+보고:
+
+FULL_TEST_TOTAL
+FULL_TEST_PASS
+FULL_TEST_FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 최종 Production Counts
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+CANONICAL_TOTAL = 72
+
+EXISTING:
+NEW_APPROVED:
+HUMAN_ONLY:
+STILL_PENDING:
+REJECTED:
+
+UTTERANCES_TOTAL:
+ACTIVE:
+PENDING:
+REJECTED:
+
+각 합계가 실제 DB와 일치해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS23-FINAL COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Remote SHA:
+Render SHA:
+Render health:
+
+P0 FIX
+
+Fuzzy ReferenceError:
+Single-token guard:
+
+CANONICAL
+
+Total:
+Existing:
+New approved:
+Human-only:
+Pending:
+Rejected:
+
+UTTERANCES
+
+Total:
+Active:
+Pending:
+Rejected:
+
+APPROVAL
+
+Reviewed:
+Approved:
+Rejected:
+Still pending:
+
+LIVE FUZZY
+
+Tests:
+Correct:
+Wrong:
+No match:
+
+SINGLE TOKEN
+
+Tests:
+False positives:
+
+LIVE DIRECT
+
+Intents tested:
+Queries:
+Correct:
+Wrong:
+No match:
+
+GPT
+
+Direct hit LLM calls:
+Grounded GPT fallback:
+
+DEVICE
+
+Direct DB answer:
+GPT fallback:
+Direct inquiry button:
+Request-human:
+
+SUPER ADMIN
+
+Push:
+Case visible:
+Agent reply:
+
+USER
+
+Push:
+Same conversation:
+
+DUPLICATE
+
+Duplicate open case:
+
+CIRCULAR
+
+Fallback violations:
+
+SECURITY
+
+Role leakage:
+Mode leakage:
+Pool leakage:
+
+PERFORMANCE
+
+Requests:
+p50:
+p95:
+max:
+
+REGRESSION
+
+Tests:
+Pass:
+Fail:
+
+FINAL
+
+RENDER_LIVE_VERIFIED: YES / NO
+CANONICAL_APPROVAL_COMPLETE: YES / NO
+DIRECT_DB_LIVE_VERIFIED: YES / NO
+FUZZY_LIVE_VERIFIED: YES / NO
+HUMAN_E2E_VERIFIED: YES / NO
+
+CS23A_CLOSE: YES / NO
+CS23B_CLOSE: YES / NO
+CS23C_CLOSE: YES / NO
+
+SUPPORT_DIRECT_DB_SYSTEM_COMPLETE: YES / NO
+READY_FOR_PRODUCTION_SUPPORT_USE: YES / NO
+
+WP_CS23_FINAL_PRODUCTION_CLOSED ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 후 멈춘다.
+
+새 고객지원 기능을 추가하지 않는다.
+
+CS23 전체가 CLOSED 된 이후에만
+실사용 NO_MATCH / AMBIGUOUS / HUMAN 문의를
+Knowledge Candidate로 승격하는 운영 자동화 단계로 이동한다.
+
+[/끝]
