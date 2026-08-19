@@ -41,6 +41,7 @@ vi.mock("@workspace/db", () => ({
 import {
   classifyQuery,
   logSupportQuery,
+  logSupportQueryWithOutcome,
   evaluateForCandidacy,
   promoteUtteranceExtension,
   promoteNewCanonical,
@@ -141,6 +142,21 @@ describe("CS24-06~10: logSupportQuery", () => {
   it("CS24-10: DB 오류 시 throw 없음 (best-effort)", async () => {
     dbExecute.mockRejectedValueOnce(new Error("DB error"));
     await expect(logSupportQuery(makeEntry())).resolves.not.toThrow();
+  });
+
+  it("CS26: query log INSERT 후 동일 row ID에 outcome을 기록", async () => {
+    await logSupportQueryWithOutcome(makeEntry(), "GPT_ESCALATION_ACCEPTED");
+
+    expect(dbExecute).toHaveBeenCalledTimes(2);
+    const insert = dbExecute.mock.calls[0][0];
+    const update = dbExecute.mock.calls[1][0];
+    const insertedId = insert.__values[0];
+
+    expect(insert.__text).toContain("INSERT INTO support_query_log");
+    expect(update.__text).toContain("UPDATE support_query_log");
+    expect(update.__values).toContain(insertedId);
+    expect(update.__values).toContain("case_test_01");
+    expect(update.__values).toContain("GPT_ESCALATION_ACCEPTED");
   });
 });
 

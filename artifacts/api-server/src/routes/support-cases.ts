@@ -47,7 +47,10 @@ import {
 } from "../lib/support-escalation.js";
 import { saveAiTrace } from "../lib/ai-trace-service.js";
 import { AI_FEATURE } from "../lib/ai-feature-enum.js";
-import { logSupportOutcome, logSupportQuery } from "../lib/support-candidate-engine.js";
+import {
+  logSupportOutcome,
+  logSupportQueryWithOutcome,
+} from "../lib/support-candidate-engine.js";
 
 const router = Router();
 
@@ -87,15 +90,37 @@ async function insertInternalCaseMessage(params: {
   `);
 }
 
-function parseGptAnswer(raw: string, allowedEvidenceIds: Set<string>): string | null {
+function parseGroundedEvidenceSelection(
+  raw: string,
+  evidenceById: Map<string, string>,
+  previousAssistantAnswers: string[]
+): string | null {
   try {
     const parsed = JSON.parse(raw);
-    const answer = typeof parsed.answer === "string" ? parsed.answer.trim() : "";
-    const refs = Array.isArray(parsed.used_evidence_ids) ? parsed.used_evidence_ids : [];
-    const onlyKnownRefs = refs.length > 0 && refs.every((id: unknown) =>
-      typeof id === "string" && allowedEvidenceIds.has(id)
+    const selectedIds = Array.isArray(parsed.selected_evidence_ids)
+      ? parsed.selected_evidence_ids
+      : Array.isArray(parsed.used_evidence_ids)
+        ? parsed.used_evidence_ids
+        : [];
+    const onlyKnownRefs = selectedIds.length > 0 && selectedIds.every((id: unknown) =>
+      typeof id === "string" && evidenceById.has(id)
     );
-    return answer && onlyKnownRefs ? answer : null;
+    if (!onlyKnownRefs) return null;
+
+    const prior = previousAssistantAnswers
+      .map((answer) => normalizeQuery(answer))
+      .filter(Boolean);
+    const selectedAnswers = [...new Set(
+      selectedIds.map((id: string) => evidenceById.get(id)?.trim()).filter(Boolean) as string[]
+    )].filter((answer) => {
+      const normalized = normalizeQuery(answer);
+      return !prior.some((previous) => previous.includes(normalized));
+    });
+
+    // The model only selects verified rows. User-visible text is copied from
+    // those rows verbatim, so an invented claim can never pass through merely
+    // by citing a valid Knowledge ID.
+    return selectedAnswers.length > 0 ? selectedAnswers.join("\n\n") : null;
   } catch {
     return null;
   }
@@ -443,7 +468,12 @@ router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRe
     }).catch(() => {});
 
     const evidence = await gatherEvidence(ctx, 5);
-    const evidenceIds = new Set(evidence.map((item) => item.id));
+    const evidenceById = new Map(
+      evidence.map((item) => [item.id, String(item.answer ?? "").trim()])
+    );
+    const previousAssistantAnswers = recentMessages
+      .filter((message: any) => message.author_role !== "user")
+      .map((message: any) => String(message.content ?? ""));
     const previousConversation = recentMessages
       .slice(-6)
       .map((m: any) => `${m.author_role === "user" ? "사용자" : "기존 안내"}: ${redactConversationForGrounding(String(m.content ?? ""))}`)
@@ -454,17 +484,17 @@ router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRe
     let inputTokens: number | null = null;
     let outputTokens: number | null = null;
     let totalTokens: number | null = null;
+    let groundedAnswerAccepted = false;
 
     if (evidence.length > 0) {
       const evidenceBlock = evidence.map((item) =>
         `[${item.id}] rev ${item.revision} / ${item.item_type}\n${item.answer}`
       ).join("\n\n");
       const systemPrompt = `당신은 SWIMNOTE의 2차 고객지원 상담사입니다.
-반드시 아래 검증 근거만 이용해 사용자의 현재 상황에 맞는 다음 해결 단계를 한국어 존댓말로 안내하세요.
-근거에 없는 기능, 정책, 가격, 환불 규칙, UI 경로, 권한, 장애 원인, 처리 시간을 만들지 마세요.
-이전에 안내된 내용은 그대로 반복하지 말고, 검증 근거에서 가능한 다음 확인 순서를 구성하세요.
-근거가 충분하지 않다면 answer에 정확히 "현재 확인 가능한 안내만으로는 이 문제를 정확히 해결하기 어렵습니다."라고 쓰세요.
-반드시 JSON만 반환하세요: {"answer":"...", "used_evidence_ids":["검증 근거 ID"]}.
+아래 검증 근거 중 현재 문의에 직접 도움이 되고, 최근 대화에서 아직 제공되지 않은 근거 ID만 선택하세요.
+새 답변 문장, 기능, 정책, 가격, 환불 규칙, UI 경로, 권한, 장애 원인, 처리 시간을 작성하지 마세요.
+도움이 되는 새 근거가 없으면 빈 배열을 반환하세요.
+반드시 JSON만 반환하세요: {"selected_evidence_ids":["검증 근거 ID"]}.
 
 [검증 근거]
 ${evidenceBlock}
@@ -483,13 +513,15 @@ ${previousConversation}`;
         inputTokens = completion.usage?.prompt_tokens ?? null;
         outputTokens = completion.usage?.completion_tokens ?? null;
         totalTokens = completion.usage?.total_tokens ?? null;
-        const parsedAnswer = parseGptAnswer(
+        llmCalled = true;
+        const groundedAnswer = parseGroundedEvidenceSelection(
           completion.choices[0]?.message?.content ?? "{}",
-          evidenceIds
+          evidenceById,
+          previousAssistantAnswers
         );
-        if (parsedAnswer) {
-          answer = parsedAnswer;
-          llmCalled = true;
+        if (groundedAnswer) {
+          answer = groundedAnswer;
+          groundedAnswerAccepted = true;
         }
       } catch {
         // No provider error detail or prompts are logged. The user receives the
@@ -538,17 +570,21 @@ ${previousConversation}`;
       knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
       retrieval_scope: `global_or_current_pool:${ctx.poolId ?? "none"}`,
       status: "SUCCESS",
-      generation_mode: llmCalled ? "llm_grounded_second_stage" : "insufficient_grounding",
+      generation_mode: groundedAnswerAccepted
+        ? "llm_grounded_second_stage"
+        : llmCalled
+          ? "llm_grounding_rejected"
+          : "insufficient_grounding",
       model: llmCalled ? SUPPORT_GPT_MODEL : null,
       input_tokens: inputTokens,
       output_tokens: outputTokens,
       total_tokens: totalTokens,
       knowledge_hit_count: evidence.length,
-      result_generated: llmCalled,
+      result_generated: groundedAnswerAccepted,
       latency_ms: 0,
     }).catch(() => {});
 
-    void logSupportQuery({
+    void logSupportQueryWithOutcome({
       caseId,
       normalizedQuery: normalized,
       representativeQuery: normalized.substring(0, 200),
@@ -561,8 +597,7 @@ ${previousConversation}`;
       role: ctx.role,
       mode: ctx.mode,
       poolId: ctx.poolId,
-    }).catch(() => {});
-    void logSupportOutcome(caseId, "GPT_ESCALATION_ACCEPTED").catch(() => {});
+    }, "GPT_ESCALATION_ACCEPTED").catch(() => {});
 
     return res.json({
       ok: true,
@@ -650,18 +685,6 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
       });
     }
 
-    const ticketId = `tkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await (db as any).execute(sql`
-      INSERT INTO support_tickets
-        (id, ticket_type, requester_type, requester_name, pool_id,
-         subject, description, sla_hours, submitter_user_id, consultation_requested, status)
-      VALUES
-        (${ticketId}, ${"support_case"}, ${sc.actor_role}, ${user.name ?? ""},
-         ${user.poolId ?? null},
-         ${subject ?? "AI 문의 상담 요청"}, ${description ?? null},
-         ${24}, ${actorId}, ${true}, ${"open"})
-    `);
-
     // The optional callback number remains on this case only. It is never
     // copied into event logs, push previews, query learning, or knowledge.
     const callbackContext = callback_requested
@@ -671,7 +694,12 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
           consented_at: new Date().toISOString(),
         }
       : { requested: false };
-    await (superAdminDb as any).execute(sql`
+
+    // Concurrency-safe claim: only one unresolved submission may attach a
+    // ticket to this conversation. A simultaneous loser reuses the winning ID
+    // and never inserts a ticket or sends another Super Admin push.
+    const ticketId = `tkt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const claimResult = (await (superAdminDb as any).execute(sql`
       UPDATE support_cases
       SET ticket_id         = ${ticketId},
           state             = ${SUPPORT_CASE_STATE.HUMAN_REQUIRED},
@@ -680,7 +708,52 @@ router.post("/support/cases/:id/request-human", requireAuth, async (req: AuthReq
             || jsonb_build_object('cs26_callback', ${JSON.stringify(callbackContext)}::jsonb),
           updated_at        = NOW()
       WHERE id = ${caseId}
-    `);
+        AND ticket_id IS NULL
+        AND state = ${sc.state}
+      RETURNING ticket_id
+    `)) as any;
+
+    if (!claimResult?.rows?.length) {
+      const existingRows = (await (superAdminDb as any).execute(sql`
+        SELECT ticket_id
+        FROM support_cases
+        WHERE id = ${caseId}
+        LIMIT 1
+      `)) as any;
+      const existingTicketId = existingRows?.rows?.[0]?.ticket_id;
+      if (existingTicketId) {
+        return res.json({ ok: true, ticket_id: existingTicketId, created: false });
+      }
+      return res.status(409).json({ error: "담당자 연결 요청이 이미 처리 중입니다." });
+    }
+
+    try {
+      await (db as any).execute(sql`
+        INSERT INTO support_tickets
+          (id, ticket_type, requester_type, requester_name, pool_id,
+           subject, description, sla_hours, submitter_user_id, consultation_requested, status)
+        VALUES
+          (${ticketId}, ${"support_case"}, ${sc.actor_role}, ${user.name ?? ""},
+           ${user.poolId ?? null},
+           ${subject ?? "AI 문의 상담 요청"}, ${description ?? null},
+           ${24}, ${actorId}, ${true}, ${"open"})
+      `);
+    } catch (ticketError) {
+      // The claim and ticket live behind separate DB handles. If ticket
+      // creation fails, release only this request's claim and restore the
+      // original case metadata so a safe retry remains possible.
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ticket_id         = NULL,
+            state             = ${sc.state},
+            escalation_reason = ${sc.escalation_reason ?? null},
+            context_json      = ${JSON.stringify(sc.context_json ?? {})}::jsonb,
+            updated_at        = NOW()
+        WHERE id = ${caseId}
+          AND ticket_id = ${ticketId}
+      `).catch(() => {});
+      throw ticketError;
+    }
 
     void logSupportEvent({
       eventType: SUPPORT_EVENT_TYPE.HUMAN_REQUESTED,

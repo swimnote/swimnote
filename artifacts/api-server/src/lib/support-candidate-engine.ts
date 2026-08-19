@@ -353,7 +353,7 @@ function genLogId(): string {
   return `sql_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function logSupportQuery(entry: QueryLogEntry): Promise<void> {
+export async function logSupportQuery(entry: QueryLogEntry): Promise<string | null> {
   try {
     const id = genLogId();
     await superAdminDb.execute(sql`
@@ -373,8 +373,10 @@ export async function logSupportQuery(entry: QueryLogEntry): Promise<void> {
         ${entry.finalCaseState}, ${entry.autonomousOutcome ?? null}
       )
     `);
+    return id;
   } catch (err) {
     // best-effort — never throws
+    return null;
   }
 }
 
@@ -382,21 +384,48 @@ export async function logSupportQuery(entry: QueryLogEntry): Promise<void> {
  * Records an autonomous sequence outcome against the latest normalized query for
  * the case. It intentionally never receives or stores raw message/callback data.
  */
-export async function logSupportOutcome(caseId: string, outcome: string): Promise<void> {
+export async function logSupportOutcome(
+  caseId: string,
+  outcome: string,
+  queryLogId?: string | null
+): Promise<void> {
   try {
-    await superAdminDb.execute(sql`
-      UPDATE support_query_log
-      SET autonomous_outcome = ${outcome}
-      WHERE id = (
-        SELECT id FROM support_query_log
-        WHERE case_id = ${caseId}
-        ORDER BY created_at DESC
-        LIMIT 1
-      )
-    `);
+    if (queryLogId) {
+      await superAdminDb.execute(sql`
+        UPDATE support_query_log
+        SET autonomous_outcome = ${outcome}
+        WHERE id = ${queryLogId}
+          AND case_id = ${caseId}
+      `);
+    } else {
+      await superAdminDb.execute(sql`
+        UPDATE support_query_log
+        SET autonomous_outcome = ${outcome}
+        WHERE id = (
+          SELECT id FROM support_query_log
+          WHERE case_id = ${caseId}
+          ORDER BY created_at DESC
+          LIMIT 1
+        )
+      `);
+    }
   } catch {
     // Best effort: outcome analytics must never affect the support flow.
   }
+}
+
+/**
+ * Inserts the query log before attaching its outcome. The explicit row ID avoids
+ * both the previous fire-and-forget ordering race and accidentally updating a
+ * newer query from the same case.
+ */
+export async function logSupportQueryWithOutcome(
+  entry: QueryLogEntry,
+  outcome: string
+): Promise<void> {
+  const queryLogId = await logSupportQuery(entry);
+  if (!queryLogId) return;
+  await logSupportOutcome(entry.caseId, outcome, queryLogId);
 }
 
 // ── Metrics query ─────────────────────────────────────────────────────────────

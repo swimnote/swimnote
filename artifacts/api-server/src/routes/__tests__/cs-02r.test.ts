@@ -39,6 +39,23 @@ let superRows: any[] = [];
 let poolRows:  any[] = [];
 const superCalls: string[] = [];
 const poolCalls:  string[] = [];
+let superExecuteOverride: ((raw: string, query: any) => Promise<{ rows: any[] }> | { rows: any[] }) | null = null;
+let poolExecuteOverride: ((raw: string, query: any) => Promise<{ rows: any[] }> | { rows: any[] }) | null = null;
+
+const pushMocks = vi.hoisted(() => ({
+  sendPushToSuperAdmins: vi.fn().mockResolvedValue(undefined),
+  sendPushToUser: vi.fn().mockResolvedValue(undefined),
+}));
+const aiMocks = vi.hoisted(() => ({
+  create: vi.fn(),
+}));
+
+vi.mock("../../lib/push-service.js", () => pushMocks);
+vi.mock("../ai.js", () => ({
+  getOpenAI: () => ({
+    chat: { completions: { create: aiMocks.create } },
+  }),
+}));
 
 vi.mock("@workspace/db", () => ({
   superAdminDb: {
@@ -47,6 +64,7 @@ vi.mock("@workspace/db", () => ({
         ? q.queryChunks.map((c: any) => typeof c === "string" ? c : String(c?.value ?? "")).join("")
         : String(q?.sql ?? q ?? "");
       superCalls.push(raw.trim());
+      if (superExecuteOverride) return superExecuteOverride(raw, q);
       return { rows: superRows };
     }),
   },
@@ -56,6 +74,7 @@ vi.mock("@workspace/db", () => ({
         ? q.queryChunks.map((c: any) => typeof c === "string" ? c : String(c?.value ?? "")).join("")
         : typeof q === "string" ? q : String(q?.sql ?? q ?? "");
       poolCalls.push(raw.trim());
+      if (poolExecuteOverride) return poolExecuteOverride(raw, q);
       return { rows: poolRows };
     }),
   },
@@ -70,6 +89,7 @@ vi.mock("../../lib/support-resolver.js", () => ({
 // ── App setup ─────────────────────────────────────────────────────────────────
 
 import supportCasesRouter from "../support-cases.js";
+import { gatherEvidence } from "../../lib/support-resolver.js";
 
 function makeApp(role = "teacher", poolId = "pool_A", userId = "user_1") {
   const app = express();
@@ -98,6 +118,11 @@ beforeEach(() => {
   poolRows  = [];
   superCalls.length = 0;
   poolCalls.length  = 0;
+  superExecuteOverride = null;
+  poolExecuteOverride = null;
+  pushMocks.sendPushToSuperAdmins.mockClear();
+  pushMocks.sendPushToUser.mockClear();
+  aiMocks.create.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -400,6 +425,89 @@ describe("CS26-01: explicit second-stage support consultation", () => {
       .send({});
     expect(res.status).toBe(422);
   });
+
+  it("rejects a GPT answer that cites an evidence ID outside the allowed set", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([{
+      id: "ki_allowed",
+      revision: 7,
+      item_type: "FAQ",
+      answer: "검증된 안내",
+      score: 90,
+    } as any]);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "허용되지 않은 근거로 만든 답변",
+            selected_evidence_ids: ["ki_not_allowed"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: true,
+          gpt_status: "OFFERED",
+        },
+      },
+    })];
+    poolRows = [{ author_role: "user", content: "같은 화면에서 계속 오류가 나요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.llm_called).toBe(true);
+    expect(res.body.answer).toContain("현재 확인 가능한 안내");
+    expect(res.body.answer).not.toContain("허용되지 않은 근거");
+  });
+
+  it("never returns an unsupported generated claim even when the cited ID is allowed", async () => {
+    vi.mocked(gatherEvidence).mockResolvedValueOnce([{
+      id: "ki_allowed",
+      revision: 8,
+      item_type: "SOLUTION",
+      answer: "서버에서 검증된 다음 확인 단계입니다.",
+      score: 92,
+    } as any]);
+    aiMocks.create.mockResolvedValueOnce({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            answer: "근거에는 없는 환불 및 처리시간 안내",
+            selected_evidence_ids: ["ki_allowed"],
+          }),
+        },
+      }],
+      usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 },
+    });
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: true,
+          gpt_status: "OFFERED",
+        },
+      },
+    })];
+    poolRows = [{ author_role: "user", content: "같은 오류를 어떻게 확인하나요" }];
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/gpt-escalation")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.llm_called).toBe(true);
+    expect(res.body.answer).toBe("서버에서 검증된 다음 확인 단계입니다.");
+    expect(res.body.answer).not.toContain("환불");
+    expect(res.body.answer).not.toContain("처리시간");
+  });
 });
 
 // =============================================================================
@@ -419,6 +527,162 @@ describe("CS02R-13: double human request idempotent", () => {
     // No new ticket INSERT
     const ticketInsert = poolCalls.find(s => s.includes("INSERT") && s.includes("support_tickets"));
     expect(ticketInsert).toBeUndefined();
+  });
+
+  it("atomically allows one concurrent ticket and one Super Admin push", async () => {
+    const caseWithoutTicket = poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: false,
+          gpt_status: "RESPONDED",
+        },
+      },
+    });
+    let initialReads = 0;
+    let releaseInitialReads!: () => void;
+    const bothInitialReads = new Promise<void>((resolve) => {
+      releaseInitialReads = resolve;
+    });
+    let claimWon = false;
+
+    superExecuteOverride = async (raw) => {
+      if (raw.includes("SELECT actor_id") && raw.includes("FROM support_cases")) {
+        initialReads += 1;
+        if (initialReads === 2) releaseInitialReads();
+        await bothInitialReads;
+        return { rows: [caseWithoutTicket] };
+      }
+      if (raw.includes("AND ticket_id IS NULL") && raw.includes("RETURNING ticket_id")) {
+        if (!claimWon) {
+          claimWon = true;
+          return { rows: [{ ticket_id: "claimed" }] };
+        }
+        return { rows: [] };
+      }
+      if (raw.includes("SELECT ticket_id") && raw.includes("FROM support_cases")) {
+        return { rows: [{ ticket_id: "tkt_claimed_by_first_request" }] };
+      }
+      return { rows: [] };
+    };
+    poolExecuteOverride = async () => ({ rows: [] });
+
+    const app = makeApp();
+    const payload = { subject: "추가 상담 후 미해결", confirmation: "GPT_UNRESOLVED" };
+    const [first, second] = await Promise.all([
+      request(app).post("/support/cases/sc_test/request-human").send(payload),
+      request(app).post("/support/cases/sc_test/request-human").send(payload),
+    ]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect([first.body.created, second.body.created].sort()).toEqual([false, true]);
+    expect(poolCalls.filter((call) =>
+      call.includes("INSERT") && call.includes("support_tickets")
+    )).toHaveLength(1);
+    expect(pushMocks.sendPushToSuperAdmins).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the atomic case claim when ticket creation fails", async () => {
+    superRows = [poolACase({
+      state: "AI_RESPONDED",
+      escalation_reason: null,
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: false,
+          gpt_status: "RESPONDED",
+        },
+      },
+    })];
+    poolExecuteOverride = async (raw) => {
+      if (raw.includes("INSERT") && raw.includes("support_tickets")) {
+        throw new Error("ticket insert failed");
+      }
+      return { rows: [] };
+    };
+
+    const res = await request(makeApp())
+      .post("/support/cases/sc_test/request-human")
+      .send({ confirmation: "GPT_UNRESOLVED" });
+
+    expect(res.status).toBe(500);
+    expect(superCalls.some((call) =>
+      call.includes("SET ticket_id") &&
+      call.includes("NULL") &&
+      call.includes("AND ticket_id")
+    )).toBe(true);
+    expect(pushMocks.sendPushToSuperAdmins).not.toHaveBeenCalled();
+  });
+
+  it("does not create a ticket when resolve wins a concurrent race", async () => {
+    const activeCase = poolACase({
+      state: "AI_RESPONDED",
+      context_json: {
+        cs26_sequence: {
+          same_intent_streak: 3,
+          inquiry_offered: false,
+          gpt_status: "RESPONDED",
+        },
+      },
+    });
+    let currentState = "AI_RESPONDED";
+    let initialReads = 0;
+    let releaseInitialReads!: () => void;
+    const bothInitialReads = new Promise<void>((resolve) => {
+      releaseInitialReads = resolve;
+    });
+    let resolveCommitted!: () => void;
+    const resolved = new Promise<void>((resolve) => {
+      resolveCommitted = resolve;
+    });
+
+    superExecuteOverride = async (raw) => {
+      if (raw.includes("SELECT actor_id") && raw.includes("FROM support_cases")) {
+        initialReads += 1;
+        if (initialReads === 2) releaseInitialReads();
+        await bothInitialReads;
+        return { rows: [{ ...activeCase, state: "AI_RESPONDED" }] };
+      }
+      if (raw.includes("SELECT state, pool_id") && raw.includes("FROM support_cases")) {
+        return { rows: [{ ...activeCase, state: currentState }] };
+      }
+      if (
+        raw.includes("UPDATE support_cases") &&
+        raw.includes("state") &&
+        !raw.includes("ticket_id IS NULL")
+      ) {
+        currentState = "AI_RESOLVED";
+        resolveCommitted();
+        return { rows: [] };
+      }
+      if (raw.includes("ticket_id IS NULL") && raw.includes("RETURNING ticket_id")) {
+        await resolved;
+        return { rows: [] };
+      }
+      if (raw.includes("SELECT ticket_id") && raw.includes("FROM support_cases")) {
+        return { rows: [{ ticket_id: null, state: currentState }] };
+      }
+      return { rows: [] };
+    };
+    poolExecuteOverride = async () => ({ rows: [] });
+
+    const app = makeApp();
+    const [resolveResponse, humanResponse] = await Promise.all([
+      request(app).post("/support/cases/sc_test/resolve").send({}),
+      request(app)
+        .post("/support/cases/sc_test/request-human")
+        .send({ confirmation: "GPT_UNRESOLVED" }),
+    ]);
+
+    expect(resolveResponse.status).toBe(200);
+    expect(resolveResponse.body.state).toBe("AI_RESOLVED");
+    expect(humanResponse.status).toBe(409);
+    expect(poolCalls.filter((call) =>
+      call.includes("INSERT") && call.includes("support_tickets")
+    )).toHaveLength(0);
+    expect(pushMocks.sendPushToSuperAdmins).not.toHaveBeenCalled();
   });
 });
 
