@@ -18,6 +18,8 @@
  *  - 다른 pool template 혼입
  *  - artificial split / inflation
  *  - 빈 내용 생성
+ *  - fireSyncInBackground 또는 error swallow (.catch fire-and-forget 패턴)
+ *    → 모든 호출 지점에서 반드시 await; 실패는 API 응답으로 전파
  */
 
 import { superAdminDb } from "@workspace/db";
@@ -78,10 +80,31 @@ async function fetchEffectiveTemplates(poolId: string): Promise<Array<{
 
 /**
  * 해당 pool의 diary-template managed curriculum_version 확보 (upsert).
+ *
+ * 순서:
+ *  1. 기존 active version 중 diary-templates-v1이 아닌 것을 deactivate
+ *     (uniq_curriculum_versions_one_active partial constraint 충돌 방지)
+ *  2. diary-templates-v1 upsert → is_active=true
+ *  3. version id 조회 반환
+ *
  * Returns version id.
  */
 async function ensureDiaryTemplateVersion(poolId: string): Promise<string> {
-  // Upsert: exists → update timestamps; not exists → insert
+  // Step 1: 경쟁 active version deactivate
+  //   uniq_curriculum_versions_one_active: (swimming_pool_id) WHERE is_active=true
+  //   → pool당 is_active=true 1개 제한. diary-templates-v1 삽입 전 다른 것을 먼저 비활성화.
+  await superAdminDb.execute(sql`
+    UPDATE curriculum_versions
+    SET
+      is_active   = false,
+      archived_at = COALESCE(archived_at, NOW()),
+      updated_at  = NOW()
+    WHERE swimming_pool_id = ${poolId}
+      AND is_active        = true
+      AND version_name     != ${DIARY_TEMPLATE_VERSION_NAME}
+  `);
+
+  // Step 2: Upsert diary-templates-v1 as active
   await superAdminDb.execute(sql`
     INSERT INTO curriculum_versions
       (swimming_pool_id, version_name, is_active, activated_at)
@@ -93,6 +116,7 @@ async function ensureDiaryTemplateVersion(poolId: string): Promise<string> {
       updated_at   = NOW()
   `);
 
+  // Step 3: id 조회
   const res = await superAdminDb.execute(sql`
     SELECT id
     FROM curriculum_versions
@@ -123,19 +147,32 @@ async function ensureDiaryTemplateVersion(poolId: string): Promise<string> {
  *  - diary template DELETE (admin global 삭제)
  *  - restore-default / clear-all
  *
- * 모든 호출은 fire-and-forget (.catch() 패턴). 응답 블로킹 없음.
+ * 모든 호출은 반드시 await. 실패 시 예외 전파 (error swallow 금지).
+ *
+ * ON CONFLICT 전략 (curriculum_items):
+ *  - Partial unique index: (swimming_pool_id, source_template_id)
+ *    WHERE source_template_id IS NOT NULL
+ *    → ON CONFLICT (swimming_pool_id, source_template_id)
+ *       WHERE source_template_id IS NOT NULL
+ *  - PostgreSQL partial index inference: partial unique index가 존재하면
+ *    ON CONFLICT WHERE 절로 정확히 일치시켜야 inference 가능.
+ *
+ * Precondition: source_template_id 컬럼 및 partial unique index가
+ *   artifacts/api-server/src/migrations/diary-template-sync-migration.ts
+ *   으로 별도 실행돼 있어야 한다.
  */
 export async function syncDiaryTemplatesToCurriculumItems(
   poolId: string,
 ): Promise<SyncResult> {
-  // 1. managed version 확보
+  // 1. managed version 확보 (competing versions deactivated first)
   const versionId = await ensureDiaryTemplateVersion(poolId);
 
   // 2. effective templates 조회
   const templates = await fetchEffectiveTemplates(poolId);
 
   // 3. Upsert each → curriculum_item
-  //    ON CONFLICT (swimming_pool_id, source_template_id) WHERE source_template_id IS NOT NULL
+  //    Partial unique: (swimming_pool_id, source_template_id) WHERE source_template_id IS NOT NULL
+  //    ON CONFLICT WHERE 절이 index 조건과 일치해야 PostgreSQL이 inference 가능
   for (const tpl of templates) {
     const title = tpl.levelName ?? "";
     await superAdminDb.execute(sql`
@@ -143,7 +180,8 @@ export async function syncDiaryTemplatesToCurriculumItems(
         (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active, source_template_id)
       VALUES
         (${versionId}, ${poolId}, ${tpl.sortOrder}, ${title}, ${tpl.templateText}, true, ${tpl.templateId})
-      ON CONFLICT (swimming_pool_id, source_template_id) WHERE source_template_id IS NOT NULL
+      ON CONFLICT (swimming_pool_id, source_template_id)
+        WHERE source_template_id IS NOT NULL
       DO UPDATE SET
         curriculum_version_id = EXCLUDED.curriculum_version_id,
         sort_order            = EXCLUDED.sort_order,
@@ -192,19 +230,4 @@ export async function syncDiaryTemplatesToCurriculumItems(
     synced:      row.active_count   ?? 0,
     deactivated: row.inactive_count ?? 0,
   };
-}
-
-/**
- * fireSyncInBackground(poolId)
- *
- * sync를 백그라운드로 실행. 응답 블로킹 없음.
- * diary template mutation 후 항상 이 함수로 호출.
- */
-export function fireSyncInBackground(poolId: string): void {
-  syncDiaryTemplatesToCurriculumItems(poolId).catch((err) => {
-    console.error(
-      `[diary-template-sync] 백그라운드 sync 실패 (pool=${poolId}):`,
-      err?.message ?? err,
-    );
-  });
 }

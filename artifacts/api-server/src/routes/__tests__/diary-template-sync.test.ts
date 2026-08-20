@@ -14,7 +14,9 @@
  * TC-SYNC-11  buildXCurriculumScope: diary-templates-v1 version + ≥300 → eligible
  * TC-SYNC-12  buildXCurriculumScope: diary-templates-v1 + <300 → CURRICULUM_SEARCH_NOT_ELIGIBLE
  * TC-SYNC-13  buildNormalCurriculumScope: separate logic unchanged (no diary-templates-v1 dependency)
- * TC-SYNC-14  fireSyncInBackground: sync failure is logged, not thrown
+ * TC-SYNC-14  sync failure propagates (throws), not swallowed
+ * TC-SYNC-15  ensureDiaryTemplateVersion deactivates competing active version first
+ * TC-SYNC-16  startup: super-db-init does NOT auto-run source_template_id migration
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -29,7 +31,6 @@ vi.mock("@workspace/db", () => ({
 import { superAdminDb } from "@workspace/db";
 import {
   syncDiaryTemplatesToCurriculumItems,
-  fireSyncInBackground,
   DIARY_TEMPLATE_VERSION_NAME,
 } from "../../lib/diary-template-sync.js";
 import {
@@ -77,6 +78,9 @@ function setupSyncDb(opts: {
 }) {
   (superAdminDb.execute as ReturnType<typeof vi.fn>).mockImplementation(async (query: any) => {
     const q: string = extractSql(query);
+
+    // UPDATE curriculum_versions SET is_active=false (deactivate competing)
+    if (q.includes("UPDATE curriculum_versions")) return { rows: [] };
 
     // INSERT INTO curriculum_versions (upsert) → void
     if (q.includes("INSERT INTO curriculum_versions")) return { rows: [] };
@@ -285,21 +289,46 @@ describe("diary-template-sync — syncDiaryTemplatesToCurriculumItems", () => {
     expect(deactivateCalls.length).toBeGreaterThanOrEqual(1);
   });
 
-  // ── TC-SYNC-14: fireSyncInBackground swallows errors ─────────────────────
-  it("TC-SYNC-14: fireSyncInBackground — sync failure is caught, not thrown", async () => {
+  // ── TC-SYNC-14: sync failure propagates (throws) ──────────────────────────
+  it("TC-SYNC-14: sync failure propagates — DB error throws, not swallowed", async () => {
     (superAdminDb.execute as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("DB connection lost"));
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    // Must not throw
-    expect(() => fireSyncInBackground(POOL_A)).not.toThrow();
+    // Must throw — caller is responsible for handling (await + try/catch in route)
+    await expect(syncDiaryTemplatesToCurriculumItems(POOL_A)).rejects.toThrow("DB connection lost");
+  });
 
-    // Wait for microtask queue
-    await new Promise(r => setTimeout(r, 10));
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("diary-template-sync"),
-      expect.stringContaining("DB connection lost"),
-    );
-    consoleSpy.mockRestore();
+  // ── TC-SYNC-15: ensureDiaryTemplateVersion deactivates competing active versions ──
+  it("TC-SYNC-15: ensureDiaryTemplateVersion issues UPDATE to deactivate competing active version first", async () => {
+    setupSyncDb({ versionId: VERSION_A, templateRows: [], activeAfterSync: 0, inactiveAfterSync: 0 });
+
+    await syncDiaryTemplatesToCurriculumItems(POOL_A);
+
+    // Must have an UPDATE curriculum_versions call (deactivate-others step)
+    const deactivateVersionCalls = (superAdminDb.execute as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([q]) => extractSql(q).includes("UPDATE curriculum_versions"));
+    expect(deactivateVersionCalls.length).toBeGreaterThanOrEqual(1);
+
+    const updateSql = extractSql(deactivateVersionCalls[0][0]);
+    // Must set is_active=false
+    expect(updateSql.toLowerCase()).toContain("is_active");
+    expect(updateSql.toLowerCase()).toContain("false");
+    // Must exclude diary-templates-v1 itself
+    expect(updateSql).toContain("diary-templates-v1");
+    expect(updateSql).toContain("!=");
+  });
+
+  // ── TC-SYNC-16: ON CONFLICT for curriculum_versions uses version_name index ──
+  it("TC-SYNC-16: INSERT INTO curriculum_versions uses ON CONFLICT (swimming_pool_id, version_name)", async () => {
+    setupSyncDb({ versionId: VERSION_A, templateRows: [], activeAfterSync: 0, inactiveAfterSync: 0 });
+
+    await syncDiaryTemplatesToCurriculumItems(POOL_A);
+
+    const versionInsert = (superAdminDb.execute as ReturnType<typeof vi.fn>).mock.calls
+      .find(([q]) => extractSql(q).includes("INSERT INTO curriculum_versions"));
+    expect(versionInsert).toBeDefined();
+    const sql = extractSql(versionInsert![0]).toLowerCase();
+    expect(sql).toContain("on conflict");
+    expect(sql).toContain("version_name");
   });
 });
 

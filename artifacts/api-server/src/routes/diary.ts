@@ -23,7 +23,7 @@ import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
 import { resolvePoolMode } from "../lib/xmode.js";
 import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
-import { fireSyncInBackground } from "../lib/diary-template-sync.js";
+import { syncDiaryTemplatesToCurriculumItems } from "../lib/diary-template-sync.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -1636,8 +1636,8 @@ router.post("/diary-templates/restore-default",
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       await insertDefaultTemplates(poolId, req.user!.userId);
       console.log("[restore-default] 완료");
-      // curriculum_items sync: 기본 템플릿 복원 후 재sync
-      fireSyncInBackground(poolId);
+      // curriculum_items sync: 기본 템플릿 복원 후 재sync (await — 실패 시 500 전파)
+      await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error("[restore-default] 오류:", e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1651,8 +1651,8 @@ router.post("/diary-templates/clear-all",
       const poolId = await getUserPoolId(req.user!.userId);
       await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId}`);
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
-      // curriculum_items sync: 전체 삭제 후 모든 item 비활성화
-      fireSyncInBackground(poolId);
+      // curriculum_items sync: 전체 삭제 후 모든 item 비활성화 (await — 실패 시 500 전파)
+      if (poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1698,8 +1698,8 @@ router.post("/diary-templates",
         VALUES (${id}, ${poolId}, ${template_text.trim()}, ${level_id || null}, ${title?.trim() || null},
                 ${sort_order ?? 0}, ${scope}, ${teacherId}, ${req.user!.userId})
       `);
-      // curriculum_items sync: global template 추가 시만 (teacher 개인 추가는 제외)
-      if (scope === "global") fireSyncInBackground(poolId);
+      // curriculum_items sync: global template 추가 시만 (teacher 개인 추가는 제외, await — 실패 시 500 전파)
+      if (scope === "global" && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true, id });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1758,8 +1758,8 @@ router.patch("/diary-templates/:id",
             updated_at    = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
-      // curriculum_items sync: admin이 global 템플릿을 수정한 경우
-      if (isAdmin) fireSyncInBackground(poolId);
+      // curriculum_items sync: admin이 global 템플릿을 수정한 경우 (await — 실패 시 500 전파)
+      if (isAdmin && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1787,8 +1787,8 @@ router.delete("/diary-templates/:id",
         wasGlobal = (check.rows[0] as any)?.scope === "global";
       }
       await db.execute(sql`DELETE FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
-      // curriculum_items sync: global 템플릿 삭제 시 해당 item 비활성화
-      if (wasGlobal) fireSyncInBackground(poolId);
+      // curriculum_items sync: global 템플릿 삭제 시 해당 item 비활성화 (await — 실패 시 500 전파)
+      if (wasGlobal && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
