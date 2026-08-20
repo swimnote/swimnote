@@ -1,0 +1,186 @@
+# [CURRICULUM SEARCH LIVE HANG — CLIENT-SIDE HOTFIX TRACE]
+
+실기기에서 커리큘럼 AI 검색 진입/실행 시
+loading spinner가 무한 지속된다.
+
+Render live log를 같은 시간대 확인한 결과:
+
+- APP_LAUNCH_DIAGNOSTICS 있음
+- v2-home 있음
+- v2-status 있음
+- parent-curriculum request 없음
+- curriculum-search request 없음
+- conversations/history request도 확인되지 않음
+
+따라서 현재 우선 가설:
+
+CLIENT에서 Parent Curriculum API 호출 전 단계에 stuck.
+
+서버/AI engine hang으로 추정하지 말 것.
+
+==================================================
+1. curriculum-chat.tsx 집중 확인
+==================================================
+
+광범위 audit 금지.
+
+다음 state/effect만 추적:
+
+- initial loading state
+- eligibility loading
+- history loading
+- conversations loading
+- selectedStudent loading
+- search submitting state
+
+화면 진입부터 spinner 종료까지
+어떤 조건이 false/true가 되어야 하는지 추적.
+
+특히:
+
+useEffect dependency
+early return
+Promise await
+loading set(true)
+loading set(false)
+finally
+
+확인.
+
+==================================================
+2. API 호출 직전 BLOCK 확인
+==================================================
+
+검색 또는 화면 초기화 시 다음 중 어디에서 멈추는지 확인:
+
+- selectedStudent 없음
+- studentId ref guard
+- conversationId 초기화
+- eligibility state
+- fetchHistory()
+- fetchConversations()
+- createConversation()
+- auth token retrieval
+- API client invocation
+
+실제 API 함수가 호출되기 전에
+return되는 조건이 있는지 확인.
+
+==================================================
+3. WP-D 변경 집중 확인
+==================================================
+
+WP-D에서 추가한:
+
+- 다중 conversation 초기 로딩
+- BottomSheet conversation 목록
+- conversation 선택
+- 새 conversation
+- history?conversation_id=
+- studentId + conversationId + requestId stale guard
+
+중 하나가 initial loading을 영구 유지시키는지 확인.
+
+특히:
+
+conversation list가 빈 경우에도
+loading이 정상 종료되는지 확인.
+
+conversationId가 null일 때
+기존 backward-compatible history path로 진행하는지 확인.
+
+==================================================
+4. OTA 코드와 서버 API PATH 비교
+==================================================
+
+curriculum-chat.tsx가 실제 호출하는 URL을
+현재 Production route와 정확히 비교.
+
+확인:
+
+GET conversations
+POST conversations
+GET history
+POST curriculum-search
+
+- path mismatch
+- 잘못된 prefix
+- studentId 누락
+- API_BASE_URL 문제
+
+있는지 확인.
+
+단,
+Render 로그에 요청이 전혀 없으므로
+fetch 자체가 호출되지 않는 경우를 우선 조사.
+
+==================================================
+5. LOADING FAIL-SAFE
+==================================================
+
+어떤 API가 실패하더라도:
+
+loading/submitting spinner가
+무한 지속되면 안 된다.
+
+각 async path에:
+
+try
+catch
+finally
+
+가 있고
+finally에서 관련 loading state가 반드시 false가 되는지 확인.
+
+silent catch 후 loading 유지 금지.
+
+==================================================
+6. 최소 진단 로그
+
+필요하면 DEV/production-safe 범위에서
+아래 단계에만 임시 로그 추가 가능:
+
+[CURI-CLIENT] screen mounted
+[CURI-CLIENT] student resolved
+[CURI-CLIENT] eligibility request start
+[CURI-CLIENT] history request start
+[CURI-CLIENT] conversations request start
+[CURI-CLIENT] search request start
+[CURI-CLIENT] request finished/error
+
+개인정보/토큰/답변 내용 로그 금지.
+
+==================================================
+7. 아직 금지
+
+- 서버 코드 수정 금지
+- DB 수정 금지
+- AI engine 수정 금지
+- quota 수정 금지
+- 전체 regression 금지
+- Render 재배포 금지
+
+먼저 client root cause만 확정.
+
+==================================================
+8. 보고
+
+[CURRICULUM SEARCH CLIENT HANG ROOT CAUSE REPORT]
+
+- screen mounted:
+- selected student resolved:
+- initial loading state:
+- eligibility fetch called:
+- conversations fetch called:
+- history fetch called:
+- search fetch called:
+- first blocked stage:
+- infinite-loading state variable:
+- exact condition causing hang:
+- API path mismatch:
+- WP-D regression: YES/NO
+- code fix required:
+- files to modify:
+- root cause:
+
+보고 후 멈춘다.
