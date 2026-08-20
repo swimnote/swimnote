@@ -159,9 +159,11 @@ function determineAnswerMode(
     return hasEvidence ? "GROUNDED_GPT" : "DIRECT_DB";
   }
 
-  // NEXT_STEP: next_item이 있으면 GROUNDED_GPT (다음 단계 설명 필요)
+  // NEXT_STEP: next_item이 있으면 GROUNDED_GPT (다음 단계 설명 필요).
+  // next_item이 없더라도 질문 자체가 커리큘럼 순서에 관한 것이므로
+  // pool curriculum_items를 근거로 GPT가 답변 가능 → GROUNDED_GPT.
   if (i === "NEXT_STEP") {
-    return progress.next_item ? "GROUNDED_GPT" : "DIRECT_DB";
+    return "GROUNDED_GPT";
   }
 
   // WHY_CURRENT_STEP: 항상 설명 필요 → GROUNDED_GPT (단, evidence 없으면 DIRECT_DB)
@@ -174,8 +176,9 @@ function determineAnswerMode(
     return hasTracked ? "GROUNDED_GPT" : "DIRECT_DB";
   }
 
-  // CURRICULUM_INFO: 커리큘럼 정보 → GROUNDED_GPT (evidence 여부와 무관)
-  if (i === "CURRICULUM_INFO") {
+  // CURRICULUM_INFO / CURRICULUM_GENERAL: 수영장 커리큘럼 검색 → GROUNDED_GPT (evidence 여부와 무관)
+  // 개인 진도 기록이 없어도 pool curriculum_items를 근거로 답변 가능.
+  if (i === "CURRICULUM_INFO" || i === "CURRICULUM_GENERAL") {
     return "GROUNDED_GPT";
   }
 

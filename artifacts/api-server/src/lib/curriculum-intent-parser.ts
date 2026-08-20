@@ -24,6 +24,7 @@ export type CurriculumIntent =
   | "PROGRESS_CHANGE"    // 변화/발전 ("최근에 나아진 게 있나요?")
   | "WHY_CURRENT_STEP"   // 현재 단계 이유 ("왜 이걸 배워요?")
   | "CURRICULUM_INFO"    // 커리큘럼 정보 ("수업 내용이 뭐예요?")
+  | "CURRICULUM_GENERAL" // 수영장 커리큘럼 일반 검색 — 개인 진도 불필요 ("접영 언제 배워?", "발차기 과정")
   | "HUMAN_ONLY"         // 서버 답변 불가 ("왜 진급 안 시켜줘요?")
   | "UNKNOWN";           // 분류 불가
 
@@ -120,6 +121,33 @@ const CURRICULUM_INFO_TRIGGERS = [
   "어떤 걸 배워", "어떤걸 배워", "뭘 배워요", "뭘 가르쳐",
 ];
 
+// CURRICULUM_GENERAL 트리거 — 수영장 커리큘럼 구조/시점 질문 (개인 진도 불필요)
+// 예: "접영 언제 배워?", "자유형킥은 언제 해?", "발차기 과정", "평영 다음에 뭐 해?"
+const CURRICULUM_GENERAL_TRIGGERS = [
+  "언제 배워", "언제배워",
+  "언제 해요", "언제해요", "언제 하나요", "언제하나요",
+  "언제 시작", "언제시작", "언제 가르쳐", "언제가르쳐",
+  "어떻게 배우는", "어떻게배우는",
+  "배우는 과정", "배우는과정",
+  "과정 알려", "과정알려",
+  "과정이 뭐", "과정이뭐",
+  "어떤 과정", "어떤과정",
+  "뭐부터 배워", "뭐부터배워",
+  "어떤 순서", "어떤순서",
+  "순서가 뭐", "순서가뭐",
+  "몇 단계부터", "몇단계부터",
+  "언제 배우나요", "언제배우나요",
+  "언제 나와요", "언제나와요",
+];
+
+// 개인 진도 질문 마커 — 이 마커가 있으면 CURRICULUM_GENERAL 분류 제외
+const PERSONAL_MARKERS = [
+  "우리 아이", "우리아이",
+  "제 아이", "제아이",
+  "아이가 ", "아이는 ",
+  "아이 지금", "아이지금",
+];
+
 // CURRENT_PROGRESS 트리거 (범용)
 const CURRENT_PROGRESS_TRIGGERS = [
   "어디까지", "어디쯤", "어느 단계", "어느단계",
@@ -160,9 +188,27 @@ function detectStroke(text: string): string | undefined {
 export function parseIntent(query: string): ParsedIntent {
   const text = normalize(query);
 
+  // 0. 개인 진도 마커 여부 (CURRICULUM_GENERAL 분류 제외 기준)
+  const hasPersonalMarker = containsAny(text, PERSONAL_MARKERS);
+
   // 1. HUMAN_ONLY 최우선 (서버가 답변 불가능한 질문)
   if (containsAny(text, HUMAN_ONLY_TRIGGERS)) {
     return { intent: "HUMAN_ONLY", confidence: "HIGH" };
+  }
+
+  // 1b. CURRICULUM_GENERAL — 수영장 커리큘럼 구조/시점 질문
+  //     개인 진도 마커가 없고, 커리큘럼 일반 트리거가 있을 때.
+  //     예: "접영 언제 배워?", "발차기 과정 알려줘", "자유형킥은 언제 해?"
+  //     HUMAN_ONLY 다음으로 검사 — 개인 마커가 있어도 진도 트리거가 없으면
+  //     CURRICULUM_GENERAL로 분류한다(예: "우리 아이 접영 언제 배워?" →
+  //     개인 진도 기록이 없더라도 수영장 커리큘럼 검색으로 답변 가능).
+  if (containsAny(text, CURRICULUM_GENERAL_TRIGGERS)) {
+    const stroke = detectStroke(text);
+    return {
+      intent: "CURRICULUM_GENERAL",
+      ...(stroke ? { stroke } : {}),
+      confidence: "HIGH",
+    };
   }
 
   // 2. STROKE_PROGRESS — 영법 + 진도 질문
@@ -217,8 +263,13 @@ export function parseIntent(query: string): ParsedIntent {
     return { intent: "CURRENT_PROGRESS", confidence: "HIGH" };
   }
 
-  // 11. stroke만 있고 진도/기술 트리거 없음 → STROKE_PROGRESS LOW
+  // 11. stroke만 있고 진도/기술 트리거 없음
+  //     개인 마커 없음 → 수영장 커리큘럼 일반 검색 (예: "자유형킥", "발차기")
+  //     개인 마커 있음 → 개인 진도 질문 (예: "우리 아이 접영") → STROKE_PROGRESS LOW
   if (stroke) {
+    if (!hasPersonalMarker) {
+      return { intent: "CURRICULUM_GENERAL", stroke, confidence: "LOW" };
+    }
     return { intent: "STROKE_PROGRESS", stroke, confidence: "LOW" };
   }
 
