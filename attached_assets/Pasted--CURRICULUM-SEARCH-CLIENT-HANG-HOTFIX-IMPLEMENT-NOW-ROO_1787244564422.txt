@@ -1,0 +1,185 @@
+# [CURRICULUM SEARCH CLIENT HANG HOTFIX — IMPLEMENT NOW]
+
+ROOT CAUSE CONFIRMED.
+
+파일:
+artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+
+문제:
+loadHistory(studentId, null) 호출 시
+requestedConversationId = null
+
+성공 응답에서:
+data.conversation_id 존재
+→ activeConversationIdRef.current = data.conversation_id
+
+그 뒤 finally에서:
+
+activeConversationIdRef.current === requestedConversationId
+
+검사 때문에:
+
+"cv_..." !== null
+
+→ false
+→ setHistoryLoading(false) 미호출
+→ 무한 spinner
+
+==================================================
+1. 수정 목표
+==================================================
+
+stale-response guard는 유지하되,
+현재 요청 자신의 성공 결과로 conversationId가
+null → server-returned conversation_id로 확정된 경우를
+stale로 판정하지 않는다.
+
+학생 전환/다른 conversation 전환에 의한
+진짜 stale response 차단은 계속 유지.
+
+==================================================
+2. 권장 수정 방식
+==================================================
+
+loadHistory 시작 시:
+
+requestedStudentId
+requestedConversationId
+
+캡처 유지.
+
+추가로 함수 내부 local 변수:
+
+let resolvedConversationId = requestedConversationId;
+
+성공 응답에서:
+
+if (data.conversation_id && !requestedConversationId) {
+  resolvedConversationId = data.conversation_id;
+  setActiveConversationId(data.conversation_id);
+  activeConversationIdRef.current = data.conversation_id;
+}
+
+finally guard는:
+
+activeStudentIdRef.current === requestedStudentId
+&&
+(
+  activeConversationIdRef.current === requestedConversationId
+  ||
+  (
+    requestedConversationId === null
+    &&
+    resolvedConversationId !== null
+    &&
+    activeConversationIdRef.current === resolvedConversationId
+  )
+)
+
+일 때 setHistoryLoading(false).
+
+동등하게 더 깔끔한 방식이 있으면 가능하지만
+stale protection 제거 금지.
+
+==================================================
+3. 절대 금지
+==================================================
+
+단순히 finally에서 무조건
+setHistoryLoading(false)
+하도록 바꾸지 않는다.
+
+이유:
+학생 전환/대화 전환 중 이전 request가
+현재 화면 loading state를 건드릴 수 있음.
+
+conversationId guard 전체 삭제 금지.
+
+==================================================
+4. 추가 안전장치
+==================================================
+
+catch/finally 모든 경로에서:
+
+- 진짜 현재 request이면 loading false
+- stale request이면 current screen state 수정 금지
+
+유지.
+
+eligibility state 로직 변경 금지.
+conversation API 변경 금지.
+서버 변경 금지.
+DB 변경 금지.
+quota 변경 금지.
+
+==================================================
+5. TEST
+==================================================
+
+전체 regression 금지.
+
+curriculum-chat 관련 최소 테스트만.
+
+필수 케이스:
+
+1.
+requestedConversationId=null
+server conversation_id="cv_1"
+→ historyLoading=false
+
+2.
+requestedConversationId="cv_1"
+response cv_1
+→ historyLoading=false
+
+3.
+요청 중 사용자가 cv_2로 전환
+old cv_1 response 도착
+→ old request가 current loading/message state 건드리지 않음
+
+4.
+요청 중 student A → student B 전환
+A response 도착
+→ B 화면 state 건드리지 않음
+
+5.
+history API error
+현재 request라면
+→ spinner 종료 + safe error
+
+6.
+eligible response 이후
+showSpinner=false
+
+==================================================
+6. 배포
+==================================================
+
+이번 수정은 앱 클라이언트 파일 1개만.
+
+서버 재배포 금지.
+DB 수정 금지.
+
+코드 수정 + 테스트 + GitHub push 후 보고.
+
+아직 OTA는 하지 않는다.
+
+==================================================
+7. 완료 보고
+==================================================
+
+[CURRICULUM SEARCH CLIENT HANG HOTFIX REPORT]
+
+- modified file:
+- root cause fixed:
+- stale student guard preserved:
+- stale conversation guard preserved:
+- null→server conversation transition handled:
+- error path loading reset:
+- tests:
+- server changed: NO
+- DB changed: NO
+- commit SHA:
+- final status:
+
+보고 후 멈춘다.
