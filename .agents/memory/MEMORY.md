@@ -140,3 +140,4 @@
 - [RT2 Round 6 완료 상태](rt2-round6-done-state.md) — SHA 7fc8e8bf; raw_score ranking+KI slots title+question only+KNOWLEDGE_GAP gate; 80TC; Render 미배포
 - [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함
 - [Render 배포 수동 전용](render-deploy-manual-only.md) — RENDER_API_KEY 사용·요청 금지; repo+branch+SHA만 보고하고 멈춤
+- [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
