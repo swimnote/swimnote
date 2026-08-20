@@ -278,8 +278,12 @@ export default function CurriculumChatScreen() {
   const loadHistory = useCallback(
     async (studentId: string, conversationId: string | null) => {
       if (!studentId || !token) return;
-      const requestedStudentId     = studentId;
+      const requestedStudentId      = studentId;
       const requestedConversationId = conversationId;
+      // Tracks the conversation id as resolved by THIS request.
+      // When the server returns a conversation_id for a null-id request we
+      // update this so the finally guard recognises the transition as valid.
+      let resolvedConversationId = requestedConversationId;
       setHistoryLoading(true);
       try {
         const url = conversationId
@@ -290,15 +294,15 @@ export default function CurriculumChatScreen() {
 
         // Discard stale response — student or conversation changed during await
         if (
-          activeStudentIdRef.current        !== requestedStudentId ||
-          activeConversationIdRef.current   !== requestedConversationId
+          activeStudentIdRef.current      !== requestedStudentId ||
+          activeConversationIdRef.current !== requestedConversationId
         ) return;
 
         if (res.ok) {
           const data = await res.json();
           if (
-            activeStudentIdRef.current        !== requestedStudentId ||
-            activeConversationIdRef.current   !== requestedConversationId
+            activeStudentIdRef.current      !== requestedStudentId ||
+            activeConversationIdRef.current !== requestedConversationId
           ) return;
 
           // Server-authoritative eligibility via additive fields
@@ -315,9 +319,12 @@ export default function CurriculumChatScreen() {
           // eligible: true
           setEligibility("ELIGIBLE");
 
-          // WP-D: server가 반환한 conversation_id로 activeConversationId 동기화
+          // WP-D: server가 반환한 conversation_id로 activeConversationId 동기화.
+          // resolvedConversationId도 업데이트해 finally guard가 이 전환을
+          // stale로 오판하지 않도록 한다.
           if (data.conversation_id && !requestedConversationId) {
             // 기존 앱 호환: conversation_id 없이 요청했을 때 서버가 반환한 id 사용
+            resolvedConversationId = data.conversation_id;
             setActiveConversationId(data.conversation_id);
             activeConversationIdRef.current = data.conversation_id;
           }
@@ -330,15 +337,27 @@ export default function CurriculumChatScreen() {
         }
       } catch {
         if (
-          activeStudentIdRef.current !== requestedStudentId ||
+          activeStudentIdRef.current      !== requestedStudentId ||
           activeConversationIdRef.current !== requestedConversationId
         ) return;
         setEligibility("ELIGIBLE");
       } finally {
-        if (
-          activeStudentIdRef.current        === requestedStudentId &&
-          activeConversationIdRef.current   === requestedConversationId
-        ) {
+        // Guard: only reset loading for the request that is still current.
+        // Two valid cases:
+        //   (a) conversationId was unchanged throughout — straightforward match.
+        //   (b) conversationId was null and this request resolved it from the
+        //       server — ref was updated by us, so match against resolvedConversationId.
+        const isCurrentRequest =
+          activeStudentIdRef.current === requestedStudentId &&
+          (
+            activeConversationIdRef.current === requestedConversationId ||
+            (
+              requestedConversationId === null &&
+              resolvedConversationId  !== null &&
+              activeConversationIdRef.current === resolvedConversationId
+            )
+          );
+        if (isCurrentRequest) {
           setHistoryLoading(false);
         }
       }
