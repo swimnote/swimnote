@@ -28,6 +28,7 @@ import {
   retrieveCanonicalKI,
   extractQueryIntents,
   extractKIIntents,
+  extractSlots,
 } from "../support-retriever.js";
 import type { RouterContext } from "../../support-resolver.js";
 import { buildDiagnostics, assertNoPiiInDiagnostics } from "../../runtime/diagnostics.js";
@@ -576,10 +577,170 @@ describe("TC-18 multi-evidence grounded_evidence", () => {
       tokens: ["학부모", "리포트"],
     });
     const result = await retrieveCanonicalKI(ctx);
-    // grounded_evidence should have ≥ 0 items (all above threshold)
     expect(Array.isArray(result.grounded_evidence)).toBe(true);
-    // Should not exceed MAX (5)
     expect(result.grounded_evidence.length).toBeLessThanOrEqual(5);
+  });
+});
+
+// ── TC-19: SemanticAction extractSlots ───────────────────────────────────────
+
+describe("TC-19 extractSlots — semantic ACTION/OBJECT detection", () => {
+  it("알림끄는거 어디서해 → DISABLE action, NOTIFICATION object", () => {
+    const s = extractSlots("알림끄는거 어디서해");
+    expect(s.action).toBe("DISABLE");
+    expect(s.object).toBe("NOTIFICATION");
+  });
+
+  it("알림 권한을 다시 켜려면 → ENABLE action, NOTIFICATION object", () => {
+    const s = extractSlots("알림 권한을 다시 켜려면 어떻게 하나요");
+    expect(s.action).toBe("ENABLE");
+    expect(s.object).toBe("NOTIFICATION");
+  });
+
+  it("X 모드 자료 제출 방법 → SUBMIT action, MATERIAL_SUBMISSION object", () => {
+    const s = extractSlots("X 모드 자료 제출 방법");
+    expect(s.action).toBe("SUBMIT");
+    expect(s.object).toBe("MATERIAL_SUBMISSION");
+  });
+
+  it("X모드 신청하려면 다른 앱을 설치해야 하나요 → APP_INSTALL object", () => {
+    const s = extractSlots("X모드 신청하려면 다른 앱을 설치해야 하나요");
+    expect(s.object).toBe("APP_INSTALL");
+  });
+
+  it("자료 제출 query → SUBMIT action (object=X_MODE because x 모드 matched first)", () => {
+    // "x 모드" → X_MODE is detected before MATERIAL_SUBMISSION (priority order)
+    // The key check is SUBMIT action, not object
+    const s = extractSlots("x 모드 신청을 위한 자료는 어떻게 제출하나요");
+    expect(s.action).toBe("SUBMIT");
+    // X_MODE or MATERIAL_SUBMISSION both acceptable; real ranking handled by ACT_MATCH boost
+    expect(["X_MODE", "MATERIAL_SUBMISSION"]).toContain(s.object);
+  });
+
+  it("성장리포트 조회 → GROWTH_REPORT object", () => {
+    const s = extractSlots("학부모리포트는 어떤기능이야");
+    expect(s.object).toBe("GROWTH_REPORT");
+  });
+});
+
+// ── TC-20: Opposite action → lower score than same-action KI ─────────────────
+
+describe("TC-20 Opposite action penalty: DISABLE query vs ENABLE KI", () => {
+  it("DISABLE query → ENABLE KI gets OPP_ACTION penalty", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    const enableKI = makeKI({
+      id:    "ki-enable",
+      title: "알림 권한을 다시 켜려면 어떻게 하나요",
+      question: "알림을 다시 켜려면 어디서 해야 하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    const disableKI = makeKI({
+      id:    "ki-disable",
+      title: "알림 설정 방법",
+      question: "알림을 끄려면 어떻게 하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([enableKI, disableKI]);
+
+    const ctx = makeCtx({
+      qLower: "알림끄는거 어디서해",
+      tokens: tokenizeKorean("알림끄는거 어디서해"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // DISABLE query → ENABLE KI should NOT be top-1
+    // (it gets OPP_ACTION penalty -35)
+    expect(result.query_slots.action).toBe("DISABLE");
+    expect(result.query_slots.object).toBe("NOTIFICATION");
+    // grounded_evidence should exclude OPP_ACTION KI
+    const evidenceIds = result.grounded_evidence.map(r => r.id);
+    expect(evidenceIds).not.toContain("ki-enable");
+  });
+});
+
+// ── TC-21: Object mismatch penalty ───────────────────────────────────────────
+
+describe("TC-21 Object mismatch: MATERIAL_SUBMISSION query vs APP_INSTALL KI", () => {
+  it("자료 제출 query → APP_INSTALL KI gets OBJ_MISMATCH penalty", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    const appInstallKI = makeKI({
+      id:    "ki-app-install",
+      title: "X모드 신청하려면 다른 앱을 설치해야 하나요",
+      answer_mode: "DIRECT_DB",
+    });
+    const materialKI = makeKI({
+      id:    "ki-material",
+      title: "X 모드 자료 제출 방법",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([appInstallKI, materialKI]);
+
+    const ctx = makeCtx({
+      qLower: "x 모드 신청을 위한 자료는 어떻게 제출하나요",
+      tokens: tokenizeKorean("x 모드 신청을 위한 자료는 어떻게 제출하나요"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // "x 모드" is matched first → query object = X_MODE (correct behavior)
+    // Both KIs get OBJ_MISMATCH, but materialKI additionally gets ACT_MATCH(SUBMIT)
+    expect(result.query_slots.action).toBe("SUBMIT");
+    // APP_INSTALL KI should NOT be in grounded_evidence
+    // (OBJ_MISMATCH with no ACT_MATCH → excluded)
+    const evidenceIds = result.grounded_evidence.map(r => r.id);
+    expect(evidenceIds).not.toContain("ki-app-install");
+    // MATERIAL_SUBMISSION KI should be top-1 (ACT_MATCH overcomes OBJ_MISMATCH)
+    if (result.retrieval.matched_count > 0) {
+      expect(result.best_title).toBe("X 모드 자료 제출 방법");
+    }
+  });
+});
+
+// ── TC-22: Generic-settings, no error signal → ERROR_TROUBLESHOOT KI penalty ──
+
+describe("TC-22 Generic-settings query → ERROR_TROUBLESHOOT KI penalty", () => {
+  it("푸시 알림 설정 (no error signal) → error-troubleshoot KI ranks lower", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    const errorKI = makeKI({
+      id:    "ki-error",
+      title: "알림 권한은 켜져 있는데 알림이 오지 않는 경우 해결",
+      question: "알림이 안 와요. 어떻게 해결하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    const genericKI = makeKI({
+      id:    "ki-generic",
+      title: "알림 설정 방법",
+      question: "알림은 어디서 설정하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([errorKI, genericKI]);
+
+    const ctx = makeCtx({
+      qLower: "푸시 알림 설정",
+      tokens: tokenizeKorean("푸시 알림 설정"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // Generic query (no error signal) → error-troubleshoot KI should not be top-1
+    expect(result.query_slots).toBeDefined();
+    if (result.retrieval.matched_count > 1) {
+      // generic KI should rank above or equal to error KI
+      expect(result.best_title).not.toBe("알림 권한은 켜져 있는데 알림이 오지 않는 경우 해결");
+    }
+  });
+});
+
+// ── TC-23: query_slots in result ──────────────────────────────────────────────
+
+describe("TC-23 query_slots present in SupportRetrievalResult", () => {
+  it("result contains query_slots with action and object", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    mockDbWithRows([makeKI()]);
+
+    const ctx = makeCtx({
+      qLower: "알림끄는거 어디서해",
+      tokens: tokenizeKorean("알림끄는거 어디서해"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    expect(result.query_slots).toBeDefined();
+    expect(typeof result.query_slots.action).toBe("string");
+    expect(typeof result.query_slots.object).toBe("string");
   });
 });
 

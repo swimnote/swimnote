@@ -87,12 +87,18 @@ export const SUPPORT_LEXICON: ReadonlyArray<LexiconEntry> = [
   },
   {
     concept: "X_MODE",
-    searchTerms: ["x모드", "x mode", "스윔노트x"],
+    searchTerms: ["x모드", "x mode", "스윔노트x", "자료 제출", "서류 제출"],
     aliases: [
       "x모드", "x 모드",
       "xmode", "x mode",
       "스윔노트x", "스윔노트 x",
       "x기능", "x 기능",
+      // X모드 자료 제출 관련 (concept/object 수준 — 문장 전체 alias 금지)
+      "자료제출",  "자료 제출",
+      "서류제출",  "서류 제출",
+      "자료업로드","자료 업로드",
+      "제출자료",  "제출 자료",
+      "신청자료",  "신청 자료",
     ],
   },
   {
