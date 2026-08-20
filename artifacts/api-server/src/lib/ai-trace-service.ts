@@ -17,6 +17,21 @@ import { superAdminDb }             from "@workspace/db";
 import { sql, type SQL }             from "drizzle-orm";
 import { calculateAiCost }           from "../config/ai-pricing.js";
 
+// ── AI01-01: 공통 Usage Contract 타입 ─────────────────────────────────────────
+
+export type TriggerType =
+  | 'USER_ACTION'
+  | 'SYSTEM_MAINTENANCE'
+  | 'ADMIN_MANUAL'
+  | 'BATCH_JOB';
+
+export type CostSource =
+  | 'TOKEN_PRICING'
+  | 'CONFIGURED_UNIT_PRICE'
+  | 'PROVIDER_REPORTED'
+  | 'PUBLIC_PRICING'
+  | 'UNKNOWN';
+
 // ── Stage 상수 ────────────────────────────────────────────────────────────────
 export type AiTraceStage =
   | "POOL_MODE"
@@ -59,6 +74,14 @@ export interface AiTraceContext {
   knowledge_revisions?: Record<string, number>;
   /** Retrieval이 적용한 테넌트 범위 설명. pool_id는 event_logs column에 저장됨. */
   retrieval_scope?: string | null;
+
+  // AI01-01: 공통 Usage Contract 확장
+  /** 호출 트리거 유형 (USER_ACTION / SYSTEM_MAINTENANCE / ADMIN_MANUAL / BATCH_JOB). */
+  trigger_type?: TriggerType;
+  /** provider operation 식별자. 예: 'gpt' | 'whisper' | 'sms' | 'r2_put' | 'search' | 'analysis' */
+  service?: string;
+  /** 비용 계산 출처. 비용 불명 시 UNKNOWN. */
+  cost_source?: CostSource;
 }
 
 // ── 성공 Trace ────────────────────────────────────────────────────────────────
@@ -81,6 +104,21 @@ export interface AiTraceSuccess extends AiTraceContext {
   // Curriculum
   curriculum_match_count?:   number;
   knowledge_hit_count?:      number;
+
+  // AI01-01: Usage 계측 확장
+  /** 이번 logical request에서 발생한 실제 retry 수. 음수 금지. */
+  retry_count?:              number;
+  /** Whisper STT 오디오 길이(초). 클라이언트 미전송 시 null. */
+  audio_seconds?:            number | null;
+  /** 기능 단위 요청 수 (보통 1). 음수 금지. */
+  logical_request_count?:    number;
+  /** 실제 provider HTTP 호출 수 (retry 포함). 음수 금지. */
+  actual_call_count?:        number;
+  /**
+   * 캐시된 입력 토큰 수 (표준 이름).
+   * 기존 cached_tokens와 호환: buildTraceMetadata에서 cached_input_tokens ?? cached_tokens 순으로 읽음.
+   */
+  cached_input_tokens?:      number | null;
 }
 
 // ── 실패 Trace ────────────────────────────────────────────────────────────────
@@ -151,8 +189,20 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
   if (params.sub_feature       != null) metadata.sub_feature       = params.sub_feature;
   if (params.result_generated  != null) metadata.result_generated  = params.result_generated;
   if (params.provider          != null) metadata.provider          = params.provider;
-  if (params.cached_tokens     != null) metadata.cached_tokens     = params.cached_tokens;
-  if (params.source_app        != null) metadata.source_app        = params.source_app;
+  // cached_input_tokens: 신규 표준 이름 우선, legacy cached_tokens fallback (backward compat)
+  const cachedInputTokens =
+    (params as AiTraceSuccess).cached_input_tokens ??
+    params.cached_tokens ??
+    null;
+  if (cachedInputTokens          != null) metadata.cached_input_tokens = cachedInputTokens;
+  // legacy 필드도 유지 (기존 callsite 호환)
+  if (params.cached_tokens       != null) metadata.cached_tokens       = params.cached_tokens;
+  if (params.source_app          != null) metadata.source_app          = params.source_app;
+
+  // AI01-01: 공통 Usage Contract 신규 필드
+  if (params.trigger_type        != null) metadata.trigger_type        = params.trigger_type;
+  if (params.service             != null) metadata.service             = params.service;
+  if (params.cost_source         != null) metadata.cost_source         = params.cost_source;
   if (params.retrieved_knowledge_ids != null) metadata.retrieved_knowledge_ids = params.retrieved_knowledge_ids;
   if (params.knowledge_revisions     != null) metadata.knowledge_revisions     = params.knowledge_revisions;
   if (params.retrieval_scope         != null) metadata.retrieval_scope         = params.retrieval_scope;
@@ -174,6 +224,12 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
     if (s.x_template_status      != null) metadata.x_template_status      = s.x_template_status;
     if (s.active_template_set_id != null) metadata.active_template_set_id = s.active_template_set_id;
     if (costData) metadata.cost = costData;
+
+    // AI01-01: Usage 계측 신규 필드 (음수 방어 후 저장)
+    if (s.retry_count           != null && s.retry_count           >= 0) metadata.retry_count           = s.retry_count;
+    if (s.audio_seconds         != null && s.audio_seconds         >= 0) metadata.audio_seconds         = s.audio_seconds;
+    if (s.logical_request_count != null && s.logical_request_count >= 0) metadata.logical_request_count = s.logical_request_count;
+    if (s.actual_call_count     != null && s.actual_call_count     >= 0) metadata.actual_call_count     = s.actual_call_count;
   } else {
     const f = params as AiTraceFailed;
     metadata.error_stage = f.error_stage;

@@ -255,6 +255,97 @@ describe('WP10 — buildTraceMetadata', () => {
     expect('cost' in meta).toBe(false);
   });
 
+  // ── AI01-01 TCs ──────────────────────────────────────────────────────────────
+
+  // TC1: 기존 payload만 전달 → backward compat 유지
+  it('AI01-01 TC1. 기존 payload → 신규 필드 없어도 metadata 정상 생성', () => {
+    const meta = buildTraceMetadata(BASE_SUCCESS);
+    expect(meta.request_id).toBe('req-test-001');
+    expect(meta.status).toBe('SUCCESS');
+    // 신규 필드는 전달 안 했으므로 absent
+    expect('trigger_type'          in meta).toBe(false);
+    expect('service'               in meta).toBe(false);
+    expect('cost_source'           in meta).toBe(false);
+    expect('retry_count'           in meta).toBe(false);
+    expect('audio_seconds'         in meta).toBe(false);
+    expect('logical_request_count' in meta).toBe(false);
+    expect('actual_call_count'     in meta).toBe(false);
+  });
+
+  // TC2: 신규 필드 전체 전달 → metadata에 정확히 존재
+  it('AI01-01 TC2. 신규 필드 전체 → metadata에 정확히 존재', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type:          'SYSTEM_MAINTENANCE',
+      service:               'gpt',
+      cost_source:           'TOKEN_PRICING',
+      retry_count:           2,
+      audio_seconds:         30.5,
+      logical_request_count: 1,
+      actual_call_count:     3,
+    });
+    expect(meta.trigger_type).toBe('SYSTEM_MAINTENANCE');
+    expect(meta.service).toBe('gpt');
+    expect(meta.cost_source).toBe('TOKEN_PRICING');
+    expect(meta.retry_count).toBe(2);
+    expect(meta.audio_seconds).toBe(30.5);
+    expect(meta.logical_request_count).toBe(1);
+    expect(meta.actual_call_count).toBe(3);
+  });
+
+  // TC3: legacy cached_tokens → cached_input_tokens로 normalize
+  it('AI01-01 TC3. cached_tokens(legacy) → cached_input_tokens로 normalize', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      cached_tokens: 150,
+    });
+    expect(meta.cached_input_tokens).toBe(150);
+    expect(meta.cached_tokens).toBe(150);  // legacy 필드도 유지
+  });
+
+  // TC4: cached_input_tokens 신규 값 우선 적용
+  it('AI01-01 TC4. cached_input_tokens 신규 값 → 우선 적용', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      cached_input_tokens: 200,
+      cached_tokens:       150,  // legacy도 같이 전달 시 신규 우선
+    });
+    expect(meta.cached_input_tokens).toBe(200);
+  });
+
+  // TC5: 기존 cost/status/error metadata 신규 변경으로 깨지지 않음
+  it('AI01-01 TC5. 기존 cost/status/error metadata 불변', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+      input_tokens:  1000,
+      output_tokens: 500,
+      total_tokens:  1500,
+    });
+    expect(meta.status).toBe('SUCCESS');
+    expect(meta.feature).toBe('teacher_diary');
+    expect(meta.generation_mode).toBe('TEMPLATE_ASSISTED');
+    const cost = meta.cost as Record<string, unknown> | undefined;
+    expect(cost).toBeDefined();
+    expect(typeof cost?.total_cost_usd).toBe('number');
+  });
+
+  // TC6: 음수 usage 값 → 저장 거부 (metadata에 absent)
+  it('AI01-01 TC6. 음수 usage 값 → metadata에 저장 안 됨', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      retry_count:           -1,
+      audio_seconds:         -5,
+      logical_request_count: -1,
+      actual_call_count:     -3,
+    });
+    expect('retry_count'           in meta).toBe(false);
+    expect('audio_seconds'         in meta).toBe(false);
+    expect('logical_request_count' in meta).toBe(false);
+    expect('actual_call_count'     in meta).toBe(false);
+  });
+
   // FAILED 경로에서 usage 있으면 cost 포함
   it('E+I. FAILED + usage 있으면 cost도 포함', () => {
     const meta = buildTraceMetadata({
