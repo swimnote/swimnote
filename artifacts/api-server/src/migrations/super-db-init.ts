@@ -531,5 +531,16 @@ export async function initSuperDb(): Promise<void> {
   `)).catch((e: any) => console.warn("[super-db-init] students.parent_phone4 추가 건너뜀:", e.message));
   console.log("[super-db-init] students.parent_phone4 준비 완료");
 
+  // ── curriculum_items.source_template_id — diary-template sync 추적용 ──────
+  await db.execute(sql.raw(`
+    ALTER TABLE curriculum_items ADD COLUMN IF NOT EXISTS source_template_id text;
+  `)).catch((e: any) => console.warn("[super-db-init] curriculum_items.source_template_id 추가 건너뜀:", e.message));
+  await db.execute(sql.raw(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_curriculum_items_pool_source_uniq
+      ON curriculum_items (swimming_pool_id, source_template_id)
+      WHERE source_template_id IS NOT NULL;
+  `)).catch((e: any) => console.warn("[super-db-init] curriculum_items pool+source 인덱스 건너뜀:", e.message));
+  console.log("[super-db-init] curriculum_items.source_template_id + 인덱스 준비 완료");
+
   console.log("[super-db-init] super DB 컬럼 보완 + backup_logs/restore_logs 초기화 완료");
 }
