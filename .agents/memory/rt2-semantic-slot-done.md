@@ -1,6 +1,6 @@
 ---
-name: RT2 Semantic Slot Correction 완료
-description: RT2 Round 3 — SemanticAction/Object extractors, opposite-action penalty, object-mismatch penalty, evidence eligibility rule
+name: RT2 Semantic Slot + Goal Match Correction 완료
+description: RT2 Round 3+4 — SemanticAction/Object/Goal extractors, opposite-action penalty, goal-mismatch penalty, no-forced-wrong-answer policy
 ---
 
 # RT2 Semantic Slot Correction (Round 3)
