@@ -3,11 +3,12 @@
  *
  * WP-C 변경:
  *   - XModeGuard 제거 → Normal 학부모도 진입 가능
- *   - Normal / NOT_READY → 안내 UI (입력창·추천질문 숨김, AI 호출 없음)
- *   - 422 CURRICULUM_NOT_AVAILABLE / CURRICULUM_NOT_READY → inline 처리 (Alert 제거)
+ *   - Normal / x_pending → 즉시 NOT_AVAILABLE (입력창·추천질문 숨김, AI 호출 없음)
+ *   - X 모드 + curriculum ≥ 300 → ELIGIBLE (입력창 표시)
+ *   - 422 수신 시 inline 처리 (Alert 제거)
  *   - 답변 복사 버튼 (expo-clipboard + useToast)
  *   - 추천 질문 spec 기준 업데이트
- *   - 다자녀 학생 switcher (useParent)
+ *   - 다자녀 학생 switcher (useParent) — race-condition free (studentId-scoped)
  *   - 할당량 초과 메시지 spec 기준 업데이트
  *
  * 규칙:
@@ -52,9 +53,10 @@ const USER_BUBBLE_COLOR = XT.primary;  // #0F2742 — 유저 버블 = 네이비
 // ─── Eligibility ──────────────────────────────────────────────────────────────
 
 /**
- * ELIGIBLE   = 검색 가능 (x/x_pending + curriculum ≥ 300)
- * NOT_AVAILABLE = Normal pool (커리큘럼 없음)
- * NOT_READY  = X pool이지만 curriculum < 300
+ * ELIGIBLE       = 검색 가능 (x + curriculum ≥ 300)
+ * NOT_AVAILABLE  = Normal pool 또는 x_pending (커리큘럼 검색 불가)
+ * NOT_READY      = X pool이지만 curriculum < 300 (서버 422 CURRICULUM_NOT_READY 수신 후)
+ * UNKNOWN        = poolMode 아직 로딩 중
  */
 type Eligibility = "ELIGIBLE" | "NOT_AVAILABLE" | "NOT_READY" | "UNKNOWN";
 
@@ -149,9 +151,8 @@ function TypingIndicator() {
   );
 }
 
-/** 커리큘럼 검색 불가 안내 화면 (Normal / NOT_READY) */
-function UnavailableView({ reason }: { reason: "NOT_AVAILABLE" | "NOT_READY" }) {
-  const _ = reason; // suppress unused-var — both codes share same message
+/** 커리큘럼 검색 불가 안내 화면 (Normal / x_pending / NOT_READY) */
+function UnavailableView() {
   return (
     <View style={s.unavailableWrap}>
       <View style={s.unavailableIconWrap}>
@@ -183,12 +184,15 @@ export default function CurriculumChatScreen() {
   const [activeStudentId, setActiveStudentId] = useState<string>(
     paramStudentId ?? "",
   );
+  // Ref mirrors active student ID for race-safe async callbacks
+  const activeStudentIdRef = useRef<string>(paramStudentId ?? "");
+
   const [showStudentPicker, setShowStudentPicker] = useState(false);
 
   const activeStudent: ChildStudent | null =
-    students.find((s) => s.id === activeStudentId) ??
+    students.find((st) => st.id === activeStudentId) ??
     (students.length > 0
-      ? students.find((s) => s.id === paramStudentId) ?? students[0]
+      ? (students.find((st) => st.id === paramStudentId) ?? students[0])
       : null);
 
   const displayName = activeStudent?.name ?? paramStudentName ?? "아이";
@@ -197,7 +201,7 @@ export default function CurriculumChatScreen() {
 
   const [serverMessages, setServerMessages] = useState<CurriculumMsg[]>([]);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState("");
   const [pendingMsg, setPendingMsg] = useState<PendingMsg | null>(null);
@@ -206,67 +210,68 @@ export default function CurriculumChatScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
 
-  // Determine eligibility from pool mode (no API call needed for Normal)
+  // ── Eligibility from pool mode (no API call) ───────────────────────────────
+
   useEffect(() => {
-    if (mode === "normal") {
-      setEligibility("NOT_AVAILABLE");
-      setLoading(false);
-    } else if (mode === "x" || mode === "x_pending") {
-      // eligibility confirmed after history load / first send
-      setEligibility("ELIGIBLE");
+    if (mode === null) {
+      // Still loading — keep UNKNOWN
+      return;
     }
-    // mode === null: still loading, keep UNKNOWN
+    if (mode === "normal" || mode === "x_pending") {
+      // Server rejects both; show unavailable immediately — no history load
+      setEligibility("NOT_AVAILABLE");
+      return;
+    }
+    // mode === "x": allow history load; set ELIGIBLE tentatively
+    // (switches to NOT_READY if server returns 422 CURRICULUM_NOT_READY on send)
+    setEligibility("ELIGIBLE");
   }, [mode]);
 
   const isEligible = eligibility === "ELIGIBLE";
+  const isUnavailable =
+    eligibility === "NOT_AVAILABLE" || eligibility === "NOT_READY";
   const isExhausted = usage !== null && usage.remaining <= 0;
   const canSend = isEligible && !isExhausted && !sending && input.trim().length > 0;
 
-  // ── History load ───────────────────────────────────────────────────────────
+  // ── History load — student-scoped (race safe) ─────────────────────────────
 
   const loadHistory = useCallback(
-    async (studentId: string, quiet = false) => {
-      if (!studentId) return;
-      if (!quiet) setLoading(true);
+    async (studentId: string) => {
+      if (!studentId || !token) return;
+      // Record which student we're loading for
+      const requestedStudentId = studentId;
+      setHistoryLoading(true);
       try {
         const res = await apiRequest(
           token,
-          `/parent/students/${studentId}/curriculum-search/history`,
+          `/parent/students/${requestedStudentId}/curriculum-search/history`,
         );
+        // Guard: discard stale response if active student changed during await
+        if (activeStudentIdRef.current !== requestedStudentId) return;
         if (res.ok) {
           const data = await res.json();
+          // Guard again after second await
+          if (activeStudentIdRef.current !== requestedStudentId) return;
           setServerMessages(data.messages ?? []);
           if (data.usage) setUsage(data.usage);
         }
       } catch {
         // network error on history load — show empty
       } finally {
-        if (!quiet) setLoading(false);
+        if (activeStudentIdRef.current === requestedStudentId) {
+          setHistoryLoading(false);
+        }
       }
     },
     [token],
   );
 
-  // Load history on mount (only if eligible)
+  // Load history when eligibility becomes ELIGIBLE or active student changes
   useEffect(() => {
-    if (mode === "normal") return; // Normal → no history needed
-    if (activeStudentId) loadHistory(activeStudentId);
-  }, [activeStudentId, loadHistory, mode]);
-
-  // ── Student switch ─────────────────────────────────────────────────────────
-
-  function handleStudentSwitch(student: ChildStudent) {
-    setShowStudentPicker(false);
-    if (student.id === activeStudentId) return;
-    setActiveStudentId(student.id);
-    setServerMessages([]);
-    setPendingMsg(null);
-    setInput("");
-    setCurrentRequestId(newRequestId());
-    if (mode !== "normal") {
-      loadHistory(student.id);
+    if (isEligible && activeStudentId) {
+      loadHistory(activeStudentId);
     }
-  }
+  }, [isEligible, activeStudentId, loadHistory]);
 
   // ── Scroll helpers ─────────────────────────────────────────────────────────
 
@@ -275,13 +280,36 @@ export default function CurriculumChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (!loading && serverMessages.length > 0) scrollToBottom(false);
-  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!historyLoading && serverMessages.length > 0) scrollToBottom(false);
+  }, [historyLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Send / Retry ───────────────────────────────────────────────────────────
+  // ── Student switch — resets state, reloads history ────────────────────────
+
+  function handleStudentSwitch(student: ChildStudent) {
+    setShowStudentPicker(false);
+    if (student.id === activeStudentId) return;
+
+    // Update both ref and state atomically (ref first, then state)
+    activeStudentIdRef.current = student.id;
+    setActiveStudentId(student.id);
+
+    // Reset conversation state for the incoming student
+    setServerMessages([]);
+    setPendingMsg(null);
+    setInput("");
+    setSending(false);
+    setCurrentRequestId(newRequestId());
+    setHistoryLoading(false);
+    // usage stays: per parent-account, not per student
+  }
+
+  // ── Send / Retry — student-scoped (race safe) ─────────────────────────────
 
   async function handleSend(queryOverride?: string, retry = false) {
     if (!isEligible || sending || isExhausted) return;
+
+    // Capture the student ID at call time for race safety
+    const sentStudentId = activeStudentIdRef.current;
 
     const content = retry
       ? (pendingMsg?.content ?? "").trim()
@@ -290,7 +318,7 @@ export default function CurriculumChatScreen() {
       ? (pendingMsg?.requestId ?? currentRequestId)
       : currentRequestId;
 
-    if (!content) return;
+    if (!content || !sentStudentId) return;
 
     if (!retry) {
       setInput("");
@@ -304,15 +332,20 @@ export default function CurriculumChatScreen() {
     try {
       const res = await apiRequest(
         token,
-        `/parent/students/${activeStudentId}/curriculum-search`,
+        `/parent/students/${sentStudentId}/curriculum-search`,
         {
           method: "POST",
           body: JSON.stringify({ request_id: requestId, query: content }),
         },
       );
 
+      // Guard: ignore response if student changed while request was in-flight
+      if (activeStudentIdRef.current !== sentStudentId) return;
+
       if (res.ok) {
         const data = await res.json();
+        if (activeStudentIdRef.current !== sentStudentId) return;
+
         if (data.usage) setUsage(data.usage);
         console.log("[curriculum-chat] success", {
           requestId,
@@ -344,7 +377,13 @@ export default function CurriculumChatScreen() {
       } else {
         const errData = await res.json().catch(() => ({}));
         const code: string = errData.code ?? "";
-        console.log("[curriculum-chat] error", { requestId, status: res.status, code });
+        console.log("[curriculum-chat] error", {
+          requestId,
+          status: res.status,
+          code,
+        });
+
+        if (activeStudentIdRef.current !== sentStudentId) return;
 
         if (
           res.status === 429 ||
@@ -354,10 +393,9 @@ export default function CurriculumChatScreen() {
           setPendingMsg(null);
         } else if (res.status === 401) {
           setPendingMsg(null);
-          // 세션 만료 — silent; let AuthContext handle
+          // 세션 만료 — AuthContext가 처리
         } else if (res.status === 403) {
           setPendingMsg(null);
-          // 접근 권한 없음 — silent
         } else if (
           res.status === 422 &&
           (code === "CURRICULUM_NOT_AVAILABLE" ||
@@ -365,7 +403,10 @@ export default function CurriculumChatScreen() {
         ) {
           setPendingMsg(null);
           setEligibility("NOT_AVAILABLE");
-        } else if (res.status === 422 && code === "CURRICULUM_NOT_READY") {
+        } else if (
+          res.status === 422 &&
+          code === "CURRICULUM_NOT_READY"
+        ) {
           setPendingMsg(null);
           setEligibility("NOT_READY");
         } else {
@@ -374,11 +415,13 @@ export default function CurriculumChatScreen() {
         }
       }
     } catch {
-      // Network failure → retryable
+      if (activeStudentIdRef.current !== sentStudentId) return;
       console.log("[curriculum-chat] network error", { requestId });
       setPendingMsg((prev) => (prev ? { ...prev, status: "failed" } : null));
     } finally {
-      setSending(false);
+      if (activeStudentIdRef.current === sentStudentId) {
+        setSending(false);
+      }
     }
   }
 
@@ -421,7 +464,11 @@ export default function CurriculumChatScreen() {
           {time ? (
             <Text style={[s.timeText, { textAlign: "right" }]}>{time}</Text>
           ) : pending?.status === "sending" ? (
-            <ActivityIndicator size="small" color={C.textMuted} style={{ marginRight: 2 }} />
+            <ActivityIndicator
+              size="small"
+              color={C.textMuted}
+              style={{ marginRight: 2 }}
+            />
           ) : null}
         </View>
       </View>
@@ -451,11 +498,14 @@ export default function CurriculumChatScreen() {
                 summary={msg.result.next_step.summary}
               />
             ) : null}
-            {/* Copy button */}
+            {/* Copy button — visible only when there is answer text */}
             {msg.content ? (
               <Pressable
                 onPress={() => handleCopy(msg.content)}
-                style={({ pressed }) => [s.copyBtn, { opacity: pressed ? 0.6 : 1 }]}
+                style={({ pressed }) => [
+                  s.copyBtn,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
                 hitSlop={6}
               >
                 <LucideIcon name="copy" size={12} color={C.textMuted} />
@@ -494,7 +544,10 @@ export default function CurriculumChatScreen() {
           {SAMPLE_QUESTIONS.map((q) => (
             <Pressable
               key={q}
-              style={({ pressed }) => [s.sampleChip, { opacity: pressed ? 0.7 : 1 }]}
+              style={({ pressed }) => [
+                s.sampleChip,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
               onPress={() => {
                 if (!isExhausted && !sending) handleSend(q, false);
               }}
@@ -553,7 +606,10 @@ export default function CurriculumChatScreen() {
           style={s.pickerOverlay}
           onPress={() => setShowStudentPicker(false)}
         >
-          <Pressable style={s.pickerSheet} onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            style={s.pickerSheet}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={s.pickerTitle}>자녀 선택</Text>
             {students.map((st) => (
               <Pressable
@@ -568,7 +624,10 @@ export default function CurriculumChatScreen() {
                 <Text
                   style={[
                     s.pickerItemText,
-                    st.id === activeStudentId && { color: TEAL, fontWeight: "600" as const },
+                    st.id === activeStudentId && {
+                      color: TEAL,
+                      fontWeight: "600" as const,
+                    },
                   ]}
                 >
                   {st.name ?? "자녀"}
@@ -584,16 +643,10 @@ export default function CurriculumChatScreen() {
     );
   }
 
-  // ── Title (with optional student switcher) ─────────────────────────────────
-
-  const headerSubtitle = hasMultipleStudents ? undefined : displayName;
-
   // ── Main render ────────────────────────────────────────────────────────────
 
   const hasMessages = serverMessages.length > 0 || pendingMsg !== null;
-
-  // While poolMode is still loading (null), show loader
-  const modeLoading = mode === null;
+  const modeLoading = mode === null || eligibility === "UNKNOWN";
 
   return (
     <>
@@ -605,14 +658,17 @@ export default function CurriculumChatScreen() {
         {/* Header */}
         <ParentScreenHeader
           title="AI 커리큘럼 검색"
-          subtitle={headerSubtitle}
+          subtitle={hasMultipleStudents ? undefined : displayName}
           onBack={() => router.back()}
         />
 
         {/* Multi-child switcher strip */}
         {hasMultipleStudents && (
           <Pressable
-            style={({ pressed }) => [s.studentStrip, { opacity: pressed ? 0.7 : 1 }]}
+            style={({ pressed }) => [
+              s.studentStrip,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
             onPress={() => setShowStudentPicker(true)}
           >
             <LucideIcon name="user" size={14} color={C.textSecondary} />
@@ -624,12 +680,12 @@ export default function CurriculumChatScreen() {
         {renderUsageBanner()}
 
         {/* ── Message / Content area ── */}
-        {modeLoading || loading ? (
+        {modeLoading ? (
           <View style={s.centerWrap}>
             <ActivityIndicator color={TEAL} size="large" />
           </View>
-        ) : !isEligible && eligibility !== "UNKNOWN" ? (
-          /* Unavailable (Normal / NOT_READY) */
+        ) : isUnavailable ? (
+          /* NOT_AVAILABLE or NOT_READY — no input, no sample questions */
           <ScrollView
             style={s.scroll}
             contentContainerStyle={[
@@ -637,8 +693,12 @@ export default function CurriculumChatScreen() {
               { paddingBottom: Math.max(insets.bottom + 8, 16) },
             ]}
           >
-            <UnavailableView reason={eligibility as "NOT_AVAILABLE" | "NOT_READY"} />
+            <UnavailableView />
           </ScrollView>
+        ) : historyLoading ? (
+          <View style={s.centerWrap}>
+            <ActivityIndicator color={TEAL} size="large" />
+          </View>
         ) : (
           <ScrollView
             ref={scrollRef}
@@ -677,8 +737,8 @@ export default function CurriculumChatScreen() {
           </ScrollView>
         )}
 
-        {/* ── Input bar — only for eligible users ── */}
-        {isEligible && (
+        {/* ── Input bar — only for ELIGIBLE users ── */}
+        {isEligible && !modeLoading && (
           <View
             style={[
               s.inputBar,
@@ -717,7 +777,9 @@ export default function CurriculumChatScreen() {
                   returnKeyType="default"
                   blurOnSubmit={false}
                   editable={!isExhausted && !sending}
-                  onSubmitEditing={() => { /* multiline — prevent accidental send */ }}
+                  onSubmitEditing={() => {
+                    /* multiline — prevent accidental send */
+                  }}
                 />
                 <Pressable
                   onPress={() => handleSend()}
@@ -804,7 +866,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Unavailable state
+  // Unavailable state (Normal / x_pending / NOT_READY)
   unavailableWrap: {
     alignItems: "center",
     paddingTop: 80,
@@ -834,7 +896,7 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
 
-  // Empty state (eligible, no messages)
+  // Empty state (eligible, no messages yet)
   emptyWrap: {
     alignItems: "center",
     paddingTop: 60,
@@ -1102,7 +1164,7 @@ const s = StyleSheet.create({
     borderBottomColor: C.border,
   },
   pickerItemActive: {
-    // active item — text color changed inline
+    // active item — text/icon color handled inline
   },
   pickerItemText: {
     fontSize: 15,
