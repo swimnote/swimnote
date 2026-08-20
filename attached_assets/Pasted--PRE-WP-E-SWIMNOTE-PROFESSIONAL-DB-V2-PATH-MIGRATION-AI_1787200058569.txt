@@ -1,0 +1,300 @@
+# [PRE-WP-E — SWIMNOTE PROFESSIONAL DB V2 PATH MIGRATION]
+
+중요:
+학부모 AI 커리큘럼 검색 WP-A보다 선행 작업이다.
+
+최근 SWIMNOTE 수영 전문 DB의 성격과 저장 경로가 변경되었다.
+
+앞으로 아래 두 기능은 동일한 최신 전문 DB를 사용해야 한다.
+
+1. AI 일지 작성
+2. 학부모 AI 커리큘럼 검색
+
+따라서 기존 DB/search path를 그대로 유지한 상태에서
+APP curriculum-search 구현을 시작하지 않는다.
+
+==================================================
+1. 최신 CANONICAL DB 확인
+==================================================
+
+현재 실제 AI 코드/DB 기준으로 확인:
+
+- 최신 전문 수영 DB provider
+- 실제 database
+- schema/table/index
+- 현재 canonical source
+- 이전/legacy source
+- 경로가 언제/어떻게 변경되었는지
+- 기존 AI 일지가 현재 어느 source를 조회하는지
+- 새 DB에 실제 수영 Knowledge가 존재하는지
+
+특히 아래 knowledge type의 실제 저장 위치 확인:
+
+- technique
+- error
+- cause
+- correction
+- drill
+- sensation
+- timing
+- progression/next relation
+
+추정 금지.
+현재 실제 DB/코드 기준으로 확인.
+
+==================================================
+2. AI 일지 PATH 먼저 수정
+==================================================
+
+현재 AI 일지 검색이
+legacy/deprecated DB를 조회하고 있다면
+최신 canonical DB로 변경한다.
+
+AI 일지 최종 구조:
+
+teacher input
+↓
+input parser
+↓
+최신 SWIMNOTE Professional DB retrieval
+↓
+검색된 수영 전문 Knowledge
+↓
+GPT 문장화
+
+GPT 자체 지식을
+전문 DB 대체재로 사용하지 않는다.
+
+diary_templates를
+공통 전문 Knowledge DB로 사용하지 않는다.
+
+==================================================
+3. 공통 RETRIEVAL LAYER
+==================================================
+
+AI 일지와 parent curriculum search가
+각자 별도 DB access/query 코드를 만들지 않는다.
+
+하나의 공통 Professional Knowledge Retrieval Layer를 사용한다.
+
+개념:
+
+retrieveProfessionalSwimmingKnowledge({
+  feature,
+  query,
+  stroke,
+  skill,
+  level,
+  requested_types,
+  context,
+  limit
+})
+
+feature:
+
+teacher_diary
+parent_curriculum_search
+
+feature에 따라 retrieval profile은 달라도
+canonical DB source는 동일하게 유지.
+
+==================================================
+4. PARENT CURRICULUM SEARCH 지원
+==================================================
+
+기존 contract 후보:
+
+POST /api/v1/parent-curriculum/search
+
+APP가 전달:
+
+- query
+- student progress
+- current stroke/skill
+- pool curriculum
+- recent conversation
+
+Engine:
+
+- 최신 Professional DB 검색
+- 관련 Knowledge grounding
+- knowledge_ids 반환
+- grounded answer 또는 structured knowledge 반환
+
+기존 parent-curriculum-engine-client.ts와
+호환 가능한 계약을 우선 검토.
+
+==================================================
+5. STRUCTURED OUTPUT
+==================================================
+
+전문 검색 결과는 단순 자연어 한 덩어리로만 반환하지 않는다.
+
+최소:
+
+{
+  knowledge: [
+    {
+      knowledge_id,
+      type,
+      stroke,
+      skill,
+      title,
+      content,
+      score
+    }
+  ],
+  retrieval: {
+    source,
+    strategy,
+    result_count
+  }
+}
+
+실제 schema는 현재 AI DB에 맞게 조정 가능.
+
+==================================================
+6. APP에서 DB 직접 접근 금지
+==================================================
+
+APP/API server가
+AI 전문 DB credential을 직접 가지지 않는다.
+
+APP
+→ AI Engine endpoint
+→ Professional DB
+
+구조 유지.
+
+즉 DB 경로가 다시 바뀌어도
+APP 수정 없이 AI Engine 내부만 변경 가능해야 한다.
+
+==================================================
+7. 환경변수
+==================================================
+
+현재 필요한 실제 env 확인:
+
+AI Engine 내부:
+- 최신 Professional DB 관련 env
+- provider 관련 env
+- retrieval 관련 env
+
+APP 연결:
+- PARENT_CURRICULUM_ENGINE_URL
+- PARENT_CURRICULUM_ENGINE_SECRET
+또는 현재 최신 계약에서 사용하는 동일 목적 env
+
+값 자체 출력 금지.
+
+없는 env를 임의 생성 금지.
+
+기존 정상 운영 secret/source가 있으면 그것을 사용.
+
+==================================================
+8. 최소 검증
+==================================================
+
+광범위 테스트 금지.
+
+[TEST 1 — AI Diary]
+
+입력 예:
+
+"자유형 호흡할 때 머리 많이 듦"
+
+확인:
+
+- 최신 canonical DB 조회
+- 관련 technique/error/cause/correction 검색
+- knowledge_id 확인
+- legacy DB 미사용
+- GPT 자체 지식만 사용하지 않음
+
+[TEST 2 — Parent Curriculum]
+
+stroke:
+자유형
+
+skill:
+호흡
+
+query:
+"자유형 호흡은 왜 계속 연습하나요?"
+
+확인:
+
+- AI Diary와 동일한 canonical DB 사용
+- feature-specific retrieval 가능
+- technique/timing/error/correction 등 검색
+- knowledge_ids 반환
+- 실제 Grounding 생성 가능
+
+==================================================
+9. Legacy 분류
+==================================================
+
+현재 수영 Knowledge 관련 source를 전부 분류:
+
+ACTIVE
+LEGACY
+DEPRECATED
+UNUSED
+
+삭제하지 않는다.
+
+최신 canonical source 하나만 확정.
+
+==================================================
+10. 완료 보고
+==================================================
+
+[PRE-WP-E PROFESSIONAL DB V2 REPORT]
+
+A. CANONICAL DB
+- provider:
+- database:
+- schema/table/index:
+- current canonical source:
+- previous source:
+- path change:
+- legacy sources:
+
+B. AI DIARY
+- current old retrieval path:
+- new retrieval path:
+- common retrieval layer used:
+- latest DB used:
+- minimal test:
+- result:
+
+C. PARENT CURRICULUM
+- endpoint:
+- professional retrieval supported:
+- input:
+- output:
+- knowledge_ids:
+- latest DB used:
+- minimal test:
+- result:
+
+D. SHARED CONTRACT
+- AI Diary + Parent Curriculum same DB: YES/NO
+- shared retrieval layer: YES/NO
+- feature-specific retrieval profile:
+- APP direct DB dependency: YES/NO
+
+E. ENV
+- required Engine DB env present: YES/NO
+- PARENT_CURRICULUM_ENGINE_URL ready: YES/NO
+- PARENT_CURRICULUM_ENGINE_SECRET ready: YES/NO
+- missing env:
+- arbitrary new secret created: NO
+
+F. FINAL
+- pre-WP-E PASS: YES/NO
+- APP curriculum WP can proceed: YES/NO
+- blocker:
+
+완료 후 멈춘다.
+커리큘럼 검색 APP WP-A는 아직 시작하지 않는다.
