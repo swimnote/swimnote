@@ -135,5 +135,6 @@
 - [WP-CS23-DEVICE 완료 상태](wp-cs23-device-done-state.md) — API layer ALL PASS; DIRECT_DB/GPT/Agent Reply/SameConv 검증; Push=PENDING_DEVICE; CS23전체완료
 - [WP-CS24 완료 상태](wp-cs24-done-state.md) — SHA 29f90acc; QueryLog+CandidateEngine+ReviewConsole; 50TC+3141TC; Render 트리거; OTA 없음
 - [RT1 완료 상태](rt1-done-state.md) — SHA 5ca35ced; lib/runtime/ 8파일 신규; 37TC; Production behavior 변경 없음; Render/OTA 없음
+- [RT2 Relevance Correction 완료](rt2-relevance-correction-done.md) — SHA 476caeb3; intent scoring+platform penalty+re-sort fix; 6-query prod recheck ✅; Render 미배포
 - [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함
 - [Render 배포 수동 전용](render-deploy-manual-only.md) — RENDER_API_KEY 사용·요청 금지; repo+branch+SHA만 보고하고 멈춤
