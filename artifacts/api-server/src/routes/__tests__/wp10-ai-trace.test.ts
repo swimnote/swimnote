@@ -28,7 +28,8 @@ vi.mock('@workspace/db', () => ({
 
 import { superAdminDb }                    from '@workspace/db';
 import { buildTraceMetadata, saveAiTrace } from '../../lib/ai-trace-service.js';
-import { calculateAiCost }                 from '../../config/ai-pricing.js';
+import { calculateAiCost, calculateSttCost } from '../../config/ai-pricing.js';
+import { AI_MODEL }                          from '../../config/ai-model-config.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // calculateAiCost 단위 테스트
@@ -70,6 +71,72 @@ describe('WP10 — calculateAiCost', () => {
     expect(result.total_tokens).toBe(1000);
     expect(result.input_tokens).toBe(300);
     expect(result.output_tokens).toBe(700);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI01-02 TCs — Pricing + Model Control Point
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-02 — Pricing + Model Config', () => {
+  // TC1: AI_MODEL 값이 실제 사용 모델명과 동일
+  it('TC1. AI_MODEL entries match expected production model names', () => {
+    expect(AI_MODEL.DIARY).toBe('gpt-4o-mini');
+    expect(AI_MODEL.SUPPORT).toBe('gpt-4o-mini');
+    expect(AI_MODEL.STORY).toBe('gpt-4o-mini');
+    expect(AI_MODEL.STT).toBe('whisper-1');
+  });
+
+  // TC2: cached_input_tokens 비용 계산 정상
+  it('TC2. cached_input_tokens cost calculated correctly', () => {
+    // non-cached input 800, cached 200, output 300
+    // input:  800 × $0.00000015  = $0.00012
+    // cached: 200 × $0.000000075 = $0.000015
+    // output: 300 × $0.00000060  = $0.00018
+    const result = calculateAiCost(800, 300, 'gpt-4o-mini', 200);
+    expect(result).not.toBeNull();
+    expect(result!.cached_input_tokens).toBe(200);
+    expect(result!.cached_input_cost_usd).toBeCloseTo(0.000015, 8);
+    expect(result!.input_cost_usd).toBeCloseTo(0.00012, 8);
+    expect(result!.output_cost_usd).toBeCloseTo(0.00018, 8);
+    expect(result!.total_cost_usd).toBeCloseTo(0.000315, 8);
+  });
+
+  // TC3: cached input과 일반 input 이중 과금 안 됨 (단가 50% 할인 확인)
+  it('TC3. cached input is priced at 50% of normal input (no double-counting)', () => {
+    const normal = calculateAiCost(1000, 0, 'gpt-4o-mini', 0)!;
+    const cached = calculateAiCost(0, 0, 'gpt-4o-mini', 1000)!;
+    // cached는 일반의 50%
+    expect(cached.cached_input_cost_usd).toBeCloseTo(normal.input_cost_usd * 0.5, 8);
+  });
+
+  // TC4: Whisper per-second 비용 계산 정상
+  it('TC4. calculateSttCost returns correct per-second cost for whisper-1', () => {
+    // 60초 = $0.006
+    const result = calculateSttCost(60, 'whisper-1');
+    expect(result).not.toBeNull();
+    expect(result!.audio_seconds).toBe(60);
+    expect(result!.total_cost_usd).toBeCloseTo(0.006, 8);
+    expect(result!.pricing_source).toBe('openai_official');
+  });
+
+  it('TC4b. calculateSttCost with null audio_seconds → null (추정 금지)', () => {
+    expect(calculateSttCost(null, 'whisper-1')).toBeNull();
+    expect(calculateSttCost(undefined, 'whisper-1')).toBeNull();
+  });
+
+  it('TC4c. calculateSttCost with unsupported model → null', () => {
+    expect(calculateSttCost(30, 'gpt-4o-mini')).toBeNull();
+  });
+
+  // TC5: 기존 pricing 계산이 깨지지 않음 (cached 미전달 시 backward compat)
+  it('TC5. existing calculateAiCost without cached_input_tokens still works', () => {
+    const result = calculateAiCost(1000, 500, 'gpt-4o-mini');
+    expect(result).not.toBeNull();
+    expect(result!.cached_input_tokens).toBe(0);
+    expect(result!.cached_input_cost_usd).toBe(0);
+    // 기존 total: 1000×0.00000015 + 500×0.00000060 = 0.00015 + 0.00030 = 0.00045
+    expect(result!.total_cost_usd).toBeCloseTo(0.00045, 8);
   });
 });
 

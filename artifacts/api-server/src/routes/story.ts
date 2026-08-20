@@ -26,6 +26,7 @@ import { db, superAdminDb }               from '@workspace/db';
 import { sql }                            from 'drizzle-orm';
 import { saveAiTrace }                    from '../lib/ai-trace-service.js';
 import { AI_FEATURE }                     from '../lib/ai-feature-enum.js';
+import { AI_MODEL }                       from '../config/ai-model-config.js';
 
 const router = Router();
 
@@ -162,7 +163,7 @@ ${fullText}
       try {
         const completion = await openai.chat.completions.create(
           {
-            model:       'gpt-4o-mini',
+            model:       AI_MODEL.STORY,
             messages:    [{ role: 'user', content: prompt }],
             temperature: 0.3,
             max_tokens:  400,
@@ -214,7 +215,7 @@ ${fullText}
         try {
           const retryCompletion = await openai.chat.completions.create(
             {
-              model:       'gpt-4o-mini',
+              model:       AI_MODEL.STORY,
               messages:    [
                 { role: 'user',      content: prompt },
                 { role: 'assistant', content: summary },
@@ -296,7 +297,7 @@ ${fullText}
         result_generated: true,
         provider:         'openai',
         generation_mode:  retryCallTokens ? 'story_with_retry' : 'story_direct',
-        model:            'gpt-4o-mini',
+        model:            AI_MODEL.STORY,
         latency_ms:       Date.now() - storyStartMs,
         input_tokens:     totalInput  > 0 ? totalInput  : null,
         output_tokens:    totalOutput > 0 ? totalOutput : null,

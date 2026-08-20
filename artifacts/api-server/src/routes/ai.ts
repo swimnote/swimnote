@@ -41,6 +41,7 @@ import {
 } from '../lib/ai-diary-utils.js';
 import { saveAiTrace }  from '../lib/ai-trace-service.js';
 import { AI_FEATURE }   from '../lib/ai-feature-enum.js';
+import { AI_MODEL }     from '../config/ai-model-config.js';
 
 export {
   getEffectivePipelineMode,
@@ -113,7 +114,7 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
 
     const transcription = await client.audio.transcriptions.create({
       file:     audioFile,
-      model:    'whisper-1',
+      model:    AI_MODEL.STT,
       language: 'ko',
     });
 
@@ -430,7 +431,7 @@ router.post(
       try {
         completion = await client.chat.completions.create(
           {
-            model:           'gpt-4o-mini',
+            model:           AI_MODEL.DIARY,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user',   content: userPrompt   },
@@ -602,7 +603,7 @@ router.post(
         result_generated: true,
         provider:         'openai',
         generation_mode:  effectiveMode,
-        model:            'gpt-4o-mini',
+        model:            AI_MODEL.DIARY,
         latency_ms:       elapsedMs,
         input_tokens:     usage?.prompt_tokens     ?? null,
         output_tokens:    usage?.completion_tokens ?? null,
@@ -683,7 +684,7 @@ router.post(
           student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
           result_generated: false, provider: 'openai',
           error_stage: 'OUTPUT_VALIDATION', error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs,
-          model: 'gpt-4o-mini',
+          model: AI_MODEL.DIARY,
           input_tokens:  (completion as any)?.usage?.prompt_tokens     ?? null,
           output_tokens: (completion as any)?.usage?.completion_tokens ?? null,
           total_tokens:  (completion as any)?.usage?.total_tokens      ?? null,

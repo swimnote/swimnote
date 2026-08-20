@@ -42,6 +42,7 @@ import { resolvePoolMode }                 from "../lib/xmode.js";
 import { getOpenAI }                        from "./ai.js";
 import { saveAiTrace }                      from "../lib/ai-trace-service.js";
 import { AI_FEATURE, SUPPORT_EVENT_TYPE }   from "../lib/ai-feature-enum.js";
+import { AI_MODEL }                          from "../config/ai-model-config.js";
 import {
   transitionSupportCase,
   logSupportEvent,
@@ -78,7 +79,7 @@ const router = Router();
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const LLM_MODEL       = "gpt-4o-mini";
+const LLM_MODEL       = AI_MODEL.SUPPORT;
 const LLM_TIMEOUT_MS  = 28_000;
 const MAX_ANSWER_TOKENS = 512;
 

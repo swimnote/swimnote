@@ -69,6 +69,7 @@ import { searchCurriculumCandidates }                                           
 import { createMatchToken, newTokenId, MatchTokenError, type MatchTokenPayload }     from '../lib/match-token.js';
 import { DEFAULT_CONFIDENCE_CONFIG_V1 }                                              from '../config/growth-confidence-config.js';
 import { saveAiTrace, type AiTraceStage }                                            from '../lib/ai-trace-service.js';
+import { AI_MODEL }                                                                  from '../config/ai-model-config.js';
 
 const router = Router();
 
@@ -329,7 +330,7 @@ router.post(
       try {
         completion = await getOpenAI().chat.completions.create(
           {
-            model:           'gpt-4o-mini',
+            model:           AI_MODEL.DIARY,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user',   content: userPrompt   },
@@ -531,7 +532,7 @@ router.post(
                   error_stage:      'MATCH_TOKEN',
                   error_code:       'X_MODE_TOKEN_NOT_CONFIGURED',
                   latency_ms:       Date.now() - startMs,
-                  model:            'gpt-4o-mini',
+                  model:            AI_MODEL.DIARY,
                   input_tokens:     _capturedUsage?.prompt_tokens     ?? 0,
                   output_tokens:    _capturedUsage?.completion_tokens ?? 0,
                   total_tokens:     _capturedUsage?.total_tokens      ?? 0,
@@ -609,7 +610,7 @@ router.post(
           pool_mode:                poolMode,
           student_count:            normalizedStudents.length,
           generation_mode,
-          model:                    'gpt-4o-mini',
+          model:                    AI_MODEL.DIARY,
           latency_ms:               elapsedMs,
           input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
           output_tokens:            _capturedUsage?.completion_tokens ?? 0,
@@ -660,7 +661,7 @@ router.post(
         pool_mode:                poolMode,
         student_count:            normalizedStudents.length,
         generation_mode,
-        model:                    'gpt-4o-mini',
+        model:                    AI_MODEL.DIARY,
         latency_ms:               elapsedMs,
         input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
         output_tokens:            _capturedUsage?.completion_tokens ?? 0,
@@ -711,7 +712,7 @@ router.post(
         error_stage:      _failStage,
         error_code:       _failCode,
         latency_ms:       elapsedMs,
-        model:            'gpt-4o-mini',
+        model:            AI_MODEL.DIARY,
         ...(_capturedUsage?.prompt_tokens     != null ? { input_tokens:  _capturedUsage.prompt_tokens     } : {}),
         ...(_capturedUsage?.completion_tokens != null ? { output_tokens: _capturedUsage.completion_tokens } : {}),
         ...(_capturedUsage?.total_tokens      != null ? { total_tokens:  _capturedUsage.total_tokens      } : {}),
