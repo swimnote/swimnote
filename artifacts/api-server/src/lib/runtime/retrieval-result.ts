@@ -51,7 +51,10 @@ export type MissingReason =
   | "TIE_BREAK"       // 동점 처리 실패
   | "SCOPE_EMPTY"     // 검색 대상 자체 없음
   | "EVIDENCE_ZERO"   // 학생 개인 증거 없음
-  | "SYNONYM_MISS";   // 동의어 매핑 실패
+  | "SYNONYM_MISS"    // 동의어 매핑 실패
+  | "KNOWLEDGE_GAP"   // 질문 intent/facet은 명확하지만 해당 canonical KI가 DB에 없음
+  | "RANKING_MISS"    // 적합한 KI가 DB에 있으나 낮은 순위로 밀림 (slot mismatch 등)
+  | "STATUS_EXCLUDED"; // 관련 KI 존재하지만 inactive/pending 상태
 
 // ── RetrievalMatch ────────────────────────────────────────────────────────────
 

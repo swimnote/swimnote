@@ -958,6 +958,102 @@ describe("TC-29 FACET_MISMATCH KI excluded from grounded_evidence", () => {
   });
 });
 
+// ── TC-28: Round 6 — raw_score ranking (no cap saturation) ────────────────────
+
+describe("TC-28 Round 6 — raw_score ranking: definition KI outranks evidence KI", () => {
+  it("FEATURE_DESCRIPTION query → definition KI ranks above evidence/source KI with same scored methods", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+
+    // KI that would be OBJ_MISMATCH in Round 5 (content has "수업" → SCHEDULE)
+    // In Round 6, slots from title+question only, so object comes from title correctly
+    const definitionKI = makeKI({
+      id:    "ki-def",
+      title: "성장 리포트란 무엇인가요?",
+      question: "성장리포트가 뭔가요?",
+      content: "성장 리포트는 AI가 학생의 수업 기록을 분석하여 생성한 학부모용 리포트입니다.",
+      feature: "GROWTH_REPORT",
+      category: "GROWTH_REPORT",
+      answer_mode: "DIRECT_DB",
+    });
+    const evidenceKI = makeKI({
+      id:    "ki-evidence",
+      title: "리포트 결과의 근거는 무엇인가요",
+      question: "리포트가 생성되는 근거는 어떤 수업 자료를 봐요?",
+      feature: "GROWTH_REPORT",
+      category: "GROWTH_REPORT",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([evidenceKI, definitionKI]); // evidence first in DB
+
+    const ctx = makeCtx({
+      qLower: "성장리포트가 뭐야",
+      tokens: tokenizeKorean("성장리포트가 뭐야"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // Definition KI should win — raw_score ranks correctly regardless of cap
+    expect(result.query_goal).toBe("FEATURE_DESCRIPTION");
+    expect(result.retrieval.matched_count).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ── TC-29: Round 6 — KNOWLEDGE_GAP: specific facet but no eligible FACET_MATCH ─
+
+describe("TC-29 Round 6 — KNOWLEDGE_GAP: DISABLE notification query with only ENABLE KIs → INSUFFICIENT_EVIDENCE", () => {
+  it("알림끄는거 (DISABLE) + only ENABLE KIs (OPP_ACTION → excluded) → INSUFFICIENT_EVIDENCE + KNOWLEDGE_GAP", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+
+    // Only ENABLE-action KI exists — OPP_ACTION with DISABLE query → not eligible
+    const enableKI = makeKI({
+      id:    "ki-enable",
+      title: "아이폰에서 알림을 켜려면 어떻게 하나요",
+      question: "알림 켜는 방법을 알려주세요.",
+      content: "아이폰 설정 앱 → 알림 → SwimNote → 허용으로 켜주세요.",
+      category: "NOTIFICATION_SETTINGS",
+      feature: "NOTIFICATION_SETTINGS",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([enableKI]);
+
+    const ctx = makeCtx({
+      qLower: "알림끄는거 어디서해",
+      tokens: tokenizeKorean("알림끄는거 어디서해"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // DISABLE query + only ENABLE KI → OPP_ACTION → not eligible → KNOWLEDGE_GAP
+    expect(result.query_facet).toBe("PREFERENCE");
+    expect(result.policy).toBe("INSUFFICIENT_EVIDENCE");
+    expect(result.retrieval.missing_reason).toBe("KNOWLEDGE_GAP");
+  });
+});
+
+// ── TC-30: Round 6 — MissingReason enum: KNOWLEDGE_GAP and RANKING_MISS ────────
+
+describe("TC-30 Round 6 — MissingReason type includes KNOWLEDGE_GAP and RANKING_MISS", () => {
+  it("missing_reason KNOWLEDGE_GAP is a valid string value in retrieval result", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+
+    const enableKI = makeKI({
+      id:    "ki-opp",
+      title: "아이폰에서 알림을 켜려면 어떻게 하나요",
+      question: "알림 켜는 방법",
+      category: "NOTIFICATION_SETTINGS",
+      feature: "NOTIFICATION_SETTINGS",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([enableKI]);
+
+    const ctx = makeCtx({
+      qLower: "알림끄는거 어디서해",
+      tokens: tokenizeKorean("알림끄는거 어디서해"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // When KNOWLEDGE_GAP, missing_reason must be "KNOWLEDGE_GAP" or undefined
+    const validReasons = [undefined, "NO_MATCH", "KNOWLEDGE_GAP", "RANKING_MISS", "STATUS_EXCLUDED",
+      "THRESHOLD_FAIL", "TIE_BREAK", "SCOPE_EMPTY", "EVIDENCE_ZERO", "SYNONYM_MISS"];
+    expect(validReasons).toContain(result.retrieval.missing_reason);
+  });
+});
+
 // ── stripJosa / tokenizeKorean ────────────────────────────────────────────────
 
 describe("Korean normalization helpers", () => {

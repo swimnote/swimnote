@@ -525,7 +525,8 @@ async function fetchFallbackKI(poolId: string | null): Promise<KiRow[]> {
 
 interface ScoredKI {
   row:          KiRow;
-  score:        number;
+  raw_score:    number;         // Round 6: uncapped, used for ranking
+  score:        number;         // 0–100 normalized for display/output
   methods:      string[];
   queryIntents: QueryIntent[];
   kiIntents:    QueryIntent[];
@@ -533,8 +534,8 @@ interface ScoredKI {
   kiSlots:      SemanticSlots;
   queryGoal:    SemanticGoal;
   kiGoal:       SemanticGoal;
-  queryFacet:   SemanticFacet;  // Round 5
-  kiFacet:      SemanticFacet;  // Round 5
+  queryFacet:   SemanticFacet;
+  kiFacet:      SemanticFacet;
 }
 
 /**
@@ -598,16 +599,20 @@ function scoreKI(
   }
 
   // ── 2. Semantic GOAL match / mismatch ─────────────────────────────────────
-  const kiFullText = [row.title ?? "", row.question ?? "", row.content ?? ""].join(" ");
+  //   kiQueryText = title+question only: 슬롯/팩셋의 "질문 주제" 판별에 사용
+  //   kiFullText  = title+question+content: 목적(goal) 판별에는 전체 맥락 사용
+  //   Round 6: KI content에 "수업" 등 배경어가 포함될 경우 object=SCHEDULE 오감지 방지
+  const kiQueryText = [row.title ?? "", row.question ?? ""].join(" ");
+  const kiFullText  = [row.title ?? "", row.question ?? "", row.content ?? ""].join(" ");
   const kiGoal  = extractGoal(kiFullText);
-  const kiSlots = extractSlots(kiFullText);
+  const kiSlots = extractSlots(kiQueryText);   // Round 6: title+question only
 
   const { delta: goalDelta, tag: goalTag } = goalScore(queryGoal, kiGoal);
   score += goalDelta;
   if (goalTag) methods.push(goalTag);
 
-  // ── 3. Semantic FACET match / mismatch (Round 5) ──────────────────────────
-  const kiFacet = extractFacet(kiFullText, kiSlots.object);
+  // ── 3. Semantic FACET match / mismatch ────────────────────────────────────
+  const kiFacet = extractFacet(kiQueryText, kiSlots.object);  // Round 6: title+question only
   const { delta: facetDelta, tag: facetTag } = facetScore(queryFacet, kiFacet);
   score += facetDelta;
   if (facetTag) methods.push(facetTag);
@@ -677,8 +682,12 @@ function scoreKI(
   // ── 11. Usage bonus (tiebreak only) ────────────────────────────────────────
   score += Math.min(2, Math.floor(Math.log2((row.usage_count ?? 0) + 1)));
 
+  // Round 6: raw_score for ranking (uncapped), score for display (0~100)
   return {
-    row, score: Math.min(100, score), methods,
+    row,
+    raw_score: score,
+    score:     Math.min(100, Math.max(0, score)),
+    methods,
     queryIntents, kiIntents, querySlots, kiSlots, queryGoal, kiGoal,
     queryFacet, kiFacet,
   };
@@ -697,32 +706,66 @@ function kiModeMatches(row: KiRow, mode: string): boolean {
 
 /**
  * DB_DIRECT 조건:
- *   score ≥ HIGH_SCORE
+ *   raw_score ≥ HIGH_SCORE
  *   AND no INTENT_MISMATCH / PLATFORM_PENALTY / OPP_ACTION / OBJ_MISMATCH
- *   AND no GOAL_MISMATCH    (Round 4)
- *   AND no FACET_MISMATCH   (Round 5)
+ *   AND no GOAL_MISMATCH / FACET_MISMATCH
  *
- * No-forced-wrong-answer (Round 4+5):
- *   top-1이 GOAL_MISMATCH 또는 FACET_MISMATCH를 가지고 있으면:
- *   → 관련 KI 여러 개(≥3) → GROUNDED_AI
- *   → 아니면 → INSUFFICIENT_EVIDENCE
+ * No-forced-wrong-answer (extended):
+ *   top-1이 GOAL_MISMATCH → GROUNDED_AI(≥3)/INSUFFICIENT_EVIDENCE
+ *   top-1이 FACET_MISMATCH → INSUFFICIENT_EVIDENCE
+ *     (GROUNDED_AI 금지: FACET_MISMATCH top-1 상황에서 GPT가 창작 위험)
+ *     예외: eligible evidence 중 FACET_MATCH가 존재하면 GROUNDED_AI 허용
+ *
+ * missingReasonHint: KNOWLEDGE_GAP / RANKING_MISS / undefined
+ *   → caller에서 retrieval.missing_reason에 반영
  */
-function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
-  if (scored.length === 0) return "INSUFFICIENT_EVIDENCE";
+export type PolicyWithHint = {
+  policy: AnswerPolicyDecision;
+  missingReasonHint?: "KNOWLEDGE_GAP" | "RANKING_MISS";
+};
+
+function mapAnswerPolicyWithHint(
+  scored: ScoredKI[],
+  eligibleEvidence: ScoredKI[],
+  queryFacet: SemanticFacet,
+): PolicyWithHint {
+  if (scored.length === 0) return { policy: "INSUFFICIENT_EVIDENCE" };
 
   const top = scored[0];
   const answerMode = top.row.answer_mode ?? "DIRECT_DB";
 
-  if (answerMode === "HUMAN_ONLY") return "HUMAN_REQUIRED";
-  if (answerMode === "GROUNDED_GPT") return "GROUNDED_AI";
+  if (answerMode === "HUMAN_ONLY") return { policy: "HUMAN_REQUIRED" };
+  if (answerMode === "GROUNDED_GPT") return { policy: "GROUNDED_AI" };
 
-  const topHasStrongMismatch =
-    top.methods.some(m => m.startsWith("GOAL_MISMATCH")) ||
-    top.methods.some(m => m.startsWith("FACET_MISMATCH"));  // Round 5
+  // Round 6 — Facet gate: queryFacet이 specific(≠OTHER)이고 eligible evidence에
+  // FACET_MATCH KI가 하나도 없으면 → KNOWLEDGE_GAP (DB에 해당 sub-topic KI 부재)
+  // 케이스:
+  //   a. top-1 FACET_MISMATCH (wrong sub-topic KI가 올라온 경우)
+  //   b. top-1 FACET_MATCH이지만 OPP_ACTION으로 eligible 제외 (→ no FACET_MATCH evidence)
+  // 둘 다 eligible evidence에 FACET_MATCH 없음 → KNOWLEDGE_GAP으로 통일
+  if (queryFacet !== "OTHER") {
+    const hasFacetMatchEvidence = eligibleEvidence.some(s =>
+      s.methods.some(m => m.startsWith("FACET_MATCH")),
+    );
+    if (!hasFacetMatchEvidence) {
+      return {
+        policy: "INSUFFICIENT_EVIDENCE",
+        missingReasonHint: "KNOWLEDGE_GAP",
+      };
+    }
+  }
 
-  // No-forced-wrong-answer: top-1이 goal/facet mismatch면 억지 선택 금지
-  if (topHasStrongMismatch) {
-    return scored.length >= 3 ? "GROUNDED_AI" : "INSUFFICIENT_EVIDENCE";
+  const topHasGoalMismatch  = top.methods.some(m => m.startsWith("GOAL_MISMATCH"));
+  const topHasFacetMismatch = top.methods.some(m => m.startsWith("FACET_MISMATCH"));
+
+  // No-forced-wrong-answer: top-1 GOAL_MISMATCH
+  if (topHasGoalMismatch) {
+    return { policy: scored.length >= 3 ? "GROUNDED_AI" : "INSUFFICIENT_EVIDENCE" };
+  }
+
+  // top-1 FACET_MISMATCH (하지만 queryFacet=OTHER이어서 gate를 통과한 경우)
+  if (topHasFacetMismatch) {
+    return { policy: scored.length >= 3 ? "GROUNDED_AI" : "INSUFFICIENT_EVIDENCE" };
   }
 
   const hasConflict = top.methods.some(m =>
@@ -734,9 +777,17 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
     m.startsWith("FACET_MISMATCH"),
   );
 
-  if (top.score >= HIGH_SCORE && !hasConflict) return "DB_DIRECT";
-  if (scored.length > 1 || top.score >= MEDIUM_SCORE) return "GROUNDED_AI";
-  return "INSUFFICIENT_EVIDENCE";
+  if (top.raw_score >= HIGH_SCORE && !hasConflict) return { policy: "DB_DIRECT" };
+  if (scored.length > 1 || top.raw_score >= MEDIUM_SCORE) return { policy: "GROUNDED_AI" };
+  return { policy: "INSUFFICIENT_EVIDENCE" };
+}
+
+// backward-compat wrapper used by legacy call sites in this file
+function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
+  const eligible = scored.filter(isEvidenceEligible);
+  const top = scored[0];
+  const qFacet = top?.queryFacet ?? "OTHER";
+  return mapAnswerPolicyWithHint(scored, eligible, qFacet).policy;
 }
 
 // ── Semantic mismatch guard for grounded evidence ─────────────────────────────
@@ -829,29 +880,49 @@ export async function retrieveCanonicalKI(
   // Role/mode filter
   const eligible = rows.filter(r => kiRoleMatches(r, role) && kiModeMatches(r, mode));
 
-  // Score & rank
+  // Score & rank — Round 6: sort by raw_score (uncapped) for accurate ordering
   const scored = eligible
     .map(r => scoreKI(r, qLower, tokens, searchKeywords, queryIntents, querySlots, queryGoal, queryFacet, hasPlatformHint, queryHasError))
-    .filter(s => s.score >= MIN_SCORE_THRESHOLD)
-    .sort((a, b) => b.score - a.score || b.row.usage_count - a.row.usage_count);
+    .filter(s => s.raw_score >= MIN_SCORE_THRESHOLD)
+    .sort((a, b) => b.raw_score - a.raw_score || b.row.usage_count - a.row.usage_count);
 
-  // Tie handling + re-sort
+  // Tie handling + re-sort (raw_score based)
   if (
     scored.length >= 2 &&
-    scored[0].score === scored[1].score &&
+    scored[0].raw_score === scored[1].raw_score &&
     scored[0].row.id !== scored[1].row.id
   ) {
-    scored[0] = { ...scored[0], score: Math.max(scored[0].score - 10, MIN_SCORE_THRESHOLD) };
-    scored.sort((a, b) => b.score - a.score || b.row.usage_count - a.row.usage_count);
+    scored[0] = {
+      ...scored[0],
+      raw_score: Math.max(scored[0].raw_score - 10, MIN_SCORE_THRESHOLD),
+      score:     Math.min(100, Math.max(0, scored[0].raw_score - 10)),
+    };
+    scored.sort((a, b) => b.raw_score - a.raw_score || b.row.usage_count - a.row.usage_count);
   }
 
-  const policy = mapAnswerPolicy(scored);
+  // grounded_evidence: eligible KIs above display-score threshold, no mismatch flags
+  const eligibleEvidence = scored.filter(
+    s => s.score >= GROUNDED_EVIDENCE_MIN_SCORE && isEvidenceEligible(s),
+  );
+  const groundedEvidence = eligibleEvidence.slice(0, MAX_GROUNDED_EVIDENCE).map(s => s.row);
 
-  // grounded_evidence: eligible KIs above threshold, no mismatch flags
-  const groundedEvidence = scored
-    .filter(s => s.score >= GROUNDED_EVIDENCE_MIN_SCORE && isEvidenceEligible(s))
-    .slice(0, MAX_GROUNDED_EVIDENCE)
-    .map(s => s.row);
+  // Policy with KNOWLEDGE_GAP hint
+  const { policy, missingReasonHint } = mapAnswerPolicyWithHint(scored, eligibleEvidence, queryFacet);
+
+  // Detect RANKING_MISS: correct KI in DB but suppressed by mismatch penalty
+  const hasRankingMiss = scored.length > 0 &&
+    scored.some(s => !s.methods.some(m =>
+      m.startsWith("GOAL_MISMATCH") || m.startsWith("FACET_MISMATCH") || m.startsWith("OBJ_MISMATCH"),
+    )) &&
+    scored[0].methods.some(m =>
+      m.startsWith("GOAL_MISMATCH") || m.startsWith("FACET_MISMATCH"),
+    );
+
+  const missing_reason =
+    scored.length === 0          ? "NO_MATCH"
+    : missingReasonHint === "KNOWLEDGE_GAP" ? "KNOWLEDGE_GAP"
+    : hasRankingMiss             ? "RANKING_MISS"
+    : undefined;
 
   const matches   = buildMatches(scored, poolId);
   const retrieval = buildRetrievalResult({
@@ -860,7 +931,7 @@ export async function retrieveCanonicalKI(
     query:          qLower,
     matches,
     excluded_count: excluded_by_status_count,
-    missing_reason: scored.length === 0 ? "NO_MATCH" : undefined,
+    missing_reason,
   });
 
   const top = scored[0] ?? null;
