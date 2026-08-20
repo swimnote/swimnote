@@ -157,3 +157,10 @@ uri = "file://docs/WP-AI-00-AUDIT-REPORT.md"
 type = "text"
 title = "WP-AI-00 SWIMNOTE AI/API Architecture Audit Report"
 description = "전체 앱·서버·백그라운드 기능 AI/API 전수 감사 보고서. 외부 API 인벤토리, GPT 호출 전수, SYSTEM_MAINTENANCE 비용 위험, 4대 AI 기능 심층 평가, P0 TOP 10 포함."
+
+[[outputs]]
+id = "0u9ENecXzF_2svucUt9Wn"
+uri = "file://docs/WP-AI-01-COST-OBSERVABILITY-DESIGN-REPORT.md"
+type = "text"
+title = "WP-AI-01 Cost Observability Design Report"
+description = "AI/API 비용 관측가능성 설계 감사 보고서. event_logs 재사용 YES, trigger_type 누락, Whisper/SMS/R2/외부엔진 처리 방안, 3-Phase 구현 계획 포함."
