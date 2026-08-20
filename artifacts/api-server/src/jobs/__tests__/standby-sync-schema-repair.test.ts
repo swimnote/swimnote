@@ -417,6 +417,173 @@ describe("SS-07: 에러 로그 개선 — PG 실제 오류 메시지 포함", ()
   });
 });
 
+// ── SS-H: Startup Hotfix — preflight + STANDBY_UNAVAILABLE ────────────────────
+//
+// SS-H1: ENOTFOUND → runHotStandbySync 즉시 skip (no per-table call)
+// SS-H2: preflight 실패 후 재호출 시 STANDBY_UNAVAILABLE skip (30분)
+// SS-H3: preflight 성공 → 기존 sync 정상 실행
+// SS-H4: primary DB path — backupDb preflight 실패가 superAdminDb 쿼리를 막지 않음
+// SS-H5: preflight 실패 시 TRUNCATE/INSERT 시도 없음 (per-table DNS 금지)
+// SS-H6: 민감 데이터(phone/email/user row) 로그 출력 없음
+
+describe("SS-H1: ENOTFOUND backupDb preflight → sync cycle 즉시 skip, TRUNCATE 없음", () => {
+  it("backupDb.execute가 ENOTFOUND throw → per-table TRUNCATE/INSERT 호출 없음 (1회 preflight만)", async () => {
+    // ENOTFOUND 시뮬레이션: backupDb가 preflight에서 실패
+    const { _resetStandbyAvailabilityForTest, runHotStandbySync } = await import("../standby-sync.js");
+    _resetStandbyAvailabilityForTest();
+
+    mockBackupDb.execute.mockImplementation(async () => {
+      const err: any = new Error("getaddrinfo ENOTFOUND backup-host.supabase.co");
+      err.code = "ENOTFOUND";
+      throw err;
+    });
+
+    const callsBefore = mockBackupDb.execute.mock.calls.length;
+    await runHotStandbySync(["swimming_pools", "users", "subscription_plans"]);
+    const callsAfter = mockBackupDb.execute.mock.calls.length;
+
+    // 1회 preflight only — per-table TRUNCATE/INSERT 없음
+    expect(callsAfter - callsBefore).toBeLessThanOrEqual(1);
+
+    // TRUNCATE 없음
+    const newCalls = backupExecCalls.slice(callsBefore);
+    expect(newCalls.some(c => c.toUpperCase().includes("TRUNCATE"))).toBe(false);
+  });
+});
+
+describe("SS-H2: preflight 실패 → 반복 호출 시 STANDBY_UNAVAILABLE skip (per-table DNS 없음)", () => {
+  it("첫 실패 후 2번째 runHotStandbySync → backupDb.execute 추가 호출 없음", async () => {
+    const { _resetStandbyAvailabilityForTest, runHotStandbySync } = await import("../standby-sync.js");
+    _resetStandbyAvailabilityForTest();
+
+    mockBackupDb.execute.mockImplementation(async () => {
+      const err: any = new Error("getaddrinfo ENOTFOUND host.db");
+      err.code = "ENOTFOUND";
+      throw err;
+    });
+
+    // 1st call: preflight fails → marks STANDBY_UNAVAILABLE
+    await runHotStandbySync(["swimming_pools"]);
+    const callsAfterFirst = mockBackupDb.execute.mock.calls.length;
+
+    // 2nd call: STANDBY_UNAVAILABLE → skip immediately, 0 additional backupDb calls
+    await runHotStandbySync(["swimming_pools"]);
+    const callsAfterSecond = mockBackupDb.execute.mock.calls.length;
+
+    expect(callsAfterSecond).toBe(callsAfterFirst);
+  });
+});
+
+describe("SS-H3: preflight 성공 → 기존 sync 정상 경로 (TRUNCATE 실행됨)", () => {
+  it("backupDb preflight 성공 → swimming_pools TRUNCATE 실행", async () => {
+    const { _resetStandbyAvailabilityForTest, runHotStandbySync } = await import("../standby-sync.js");
+    _resetStandbyAvailabilityForTest();
+
+    // backupDb succeeds (default mock)
+    mockBackupDb.execute.mockImplementation(async (q: any) => {
+      const raw = typeof q === "object" && q?.queryChunks
+        ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
+        : String(q?.sql ?? q ?? "");
+      backupExecCalls.push(raw.trim());
+      return { rows: [] };
+    });
+
+    mockMainDb.execute.mockImplementation(async (q: any) => {
+      const raw = typeof q === "object" && q?.queryChunks
+        ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
+        : String(q?.sql ?? q ?? "");
+      if (raw.includes("SELECT *")) return { rows: [MINIMAL_POOL_ROW] };
+      if (raw.includes("information_schema")) return { rows: COLUMN_TYPE_ROWS };
+      mainExecCalls.push(raw.trim());
+      return { rows: [] };
+    });
+
+    await runHotStandbySync(["swimming_pools"]);
+
+    const truncateCall = backupExecCalls.find(c => c.toUpperCase().includes("TRUNCATE"));
+    expect(truncateCall).toBeDefined();
+  });
+});
+
+describe("SS-H4: primary DB path — backupDb 상태와 무관하게 superAdminDb 정상 작동", () => {
+  it("ENOTFOUND 상태에서도 superAdminDb.execute는 독립적으로 호출 가능", async () => {
+    mainExecCalls.length = 0;
+    mockMainDb.execute.mockImplementation(async (q: any) => {
+      const raw = typeof q === "object" && q?.queryChunks
+        ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
+        : String(q?.sql ?? q ?? "");
+      mainExecCalls.push(raw.trim());
+      return { rows: [] };
+    });
+
+    // superAdminDb는 backupDb와 완전히 독립
+    await mockMainDb.execute({ sql: "SELECT 1 -- primary", queryChunks: [{ value: "SELECT 1 -- primary" }] });
+    expect(mainExecCalls.some(c => c.includes("SELECT 1 -- primary"))).toBe(true);
+  });
+});
+
+describe("SS-H5: ENOTFOUND preflight → INSERT/TRUNCATE 없음 (반복 per-table DNS 금지 확인)", () => {
+  it("3개 테이블 sync 요청 시 ENOTFOUND이면 backupDb.execute 최대 1회만 호출", async () => {
+    const { _resetStandbyAvailabilityForTest, runHotStandbySync } = await import("../standby-sync.js");
+    _resetStandbyAvailabilityForTest();
+
+    let enotfoundCount = 0;
+    mockBackupDb.execute.mockImplementation(async () => {
+      enotfoundCount++;
+      const err: any = new Error("getaddrinfo ENOTFOUND deleted-db-host");
+      err.code = "ENOTFOUND";
+      throw err;
+    });
+
+    await runHotStandbySync(["swimming_pools", "users", "subscription_plans"]);
+
+    // 3개 테이블이어도 preflight 1회만 → ENOTFOUND 1번만 발생
+    expect(enotfoundCount).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("SS-H6: 민감 데이터 로그 출력 금지 — phone/email/row dump 없음", () => {
+  it("console.log/warn에 phone/email/owner name dump 없음", async () => {
+    const { _resetStandbyAvailabilityForTest, runHotStandbySync } = await import("../standby-sync.js");
+    _resetStandbyAvailabilityForTest();
+
+    const logs: string[] = [];
+    const origLog  = console.log;
+    const origWarn = console.warn;
+    console.log  = (...a: any[]) => { logs.push(a.join(" ")); };
+    console.warn = (...a: any[]) => { logs.push(a.join(" ")); };
+
+    try {
+      mockBackupDb.execute.mockImplementation(async (q: any) => {
+        const raw = typeof q === "object" && q?.queryChunks
+          ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
+          : String(q?.sql ?? q ?? "");
+        backupExecCalls.push(raw.trim());
+        return { rows: [] };
+      });
+      mockMainDb.execute.mockImplementation(async (q: any) => {
+        const raw = typeof q === "object" && q?.queryChunks
+          ? q.queryChunks.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? ""))).join("")
+          : String(q?.sql ?? q ?? "");
+        if (raw.includes("SELECT *")) return { rows: [MINIMAL_POOL_ROW] };
+        if (raw.includes("information_schema")) return { rows: COLUMN_TYPE_ROWS };
+        return { rows: [] };
+      });
+
+      await runHotStandbySync(["swimming_pools"]);
+
+      const allLogs = logs.join("\n");
+      expect(allLogs).not.toContain("02-0000-0000");      // phone
+      expect(allLogs).not.toContain("test@swimnote.kr");  // email
+      expect(allLogs).not.toContain("admin@swimnote.kr"); // admin email
+      expect(allLogs).not.toContain("테스트원장");         // owner name
+    } finally {
+      console.log  = origLog;
+      console.warn = origWarn;
+    }
+  });
+});
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 /**

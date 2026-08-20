@@ -8,6 +8,19 @@
  *
  * 스탠바이 DB = POOL_DATABASE_URL (pool backup DB)
  * 미설정이면 모든 작업 스킵 (안전하게 무시)
+ *
+ * [HOTFIX — STARTUP BLOCK 제거]
+ *   POOL_DATABASE_URL이 설정되어 있으나 실제 호스트가 삭제/불가 상태일 때
+ *   per-table DNS lookup이 반복되어 deploy/startup이 지연되는 문제 수정.
+ *
+ *   Preflight 정책:
+ *     - cycle 시작 전 backupDb에 3초 preflight ping 1회 실행
+ *     - ENOTFOUND / ECONNREFUSED / timeout → STANDBY_UNAVAILABLE
+ *       → 해당 cycle 전체 즉시 skip (per-table 시도 없음)
+ *       → 30분간 재시도 금지 (standbyUnavailableUntil 플래그)
+ *     - primary DB / startup critical path는 절대 영향받지 않음
+ *     - 로그: status=unavailable reason=ENOTFOUND cycle_skipped=true
+ *     - 민감 row dump (phone/email/user row) 출력 금지
  */
 
 import cron from "node-cron";
@@ -216,6 +229,9 @@ export async function runDbHealthCheck(): Promise<void> {
     // ── 스탠바이 DB 체크 ─────────────────────────────────────
     if (!isDbSeparated) return;
 
+    // [HOTFIX] unavailable 플래그 먼저 확인 — 불필요한 연결 시도 방지
+    if (isStandbyUnavailable()) return;
+
     // 서킷브레이커 오픈 상태면 스킵 (연속 느림으로 30분 대기 중)
     if (!checkStandbyCircuit()) return;
 
@@ -223,6 +239,16 @@ export async function runDbHealthCheck(): Promise<void> {
     if (!backupDb) return;
 
     const standbyPing = await pingDb(backupDb, "standby");
+    // [HOTFIX] ping 실패 종류에 따라 unavailable 플래그 설정
+    if (!standbyPing.ok) {
+      const err = standbyPing.error ?? "";
+      if (err.includes("ENOTFOUND") || err.includes("ECONNREFUSED")) {
+        // 호스트 자체가 없거나 거부 → STANDBY_UNAVAILABLE 30분
+        markStandbyAvailability(false, err.includes("ENOTFOUND") ? "ENOTFOUND" : "ECONNREFUSED");
+      }
+    } else {
+      markStandbyAvailability(true);
+    }
     recordStandbyPingResult(standbyPing.latency_ms, standbyPing.ok);
 
     await writeHealthLog(
@@ -246,6 +272,88 @@ export async function runDbHealthCheck(): Promise<void> {
   } catch (e: any) {
     console.error("[standby-sync] 헬스 체크 오류:", e.message);
   }
+}
+
+// ── STANDBY_UNAVAILABLE 플래그 (preflight 실패 시 30분 skip) ─────────────────
+// Hotfix: per-table DNS lookup 반복 제거 — cycle 시작 전 1회 preflight 실패 시
+// 전체 cycle skip + 30분 재시도 금지
+let standbyUnavailableUntil = 0; // 0=정상, >0=skip-until(epoch ms)
+const UNAVAILABLE_BACKOFF_MS = 30 * 60 * 1000; // 30분
+const PREFLIGHT_TIMEOUT_MS   = 3_000;           // 3초
+
+/**
+ * 스탠바이 DB preflight — 1회 연결 시도.
+ *
+ * ENOTFOUND / ECONNREFUSED / timeout → { ok: false, reason }
+ * 성공 → { ok: true }
+ *
+ * 주의: 이 함수는 절대 throw하지 않는다.
+ */
+async function preflightStandby(backupDb: any): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    await Promise.race([
+      backupDb.execute(sql`SELECT 1`),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("preflight timeout")), PREFLIGHT_TIMEOUT_MS)
+      ),
+    ]);
+    return { ok: true };
+  } catch (e: any) {
+    const msg: string = String(e?.message ?? e ?? "unknown");
+    const reason =
+      msg.includes("ENOTFOUND")     ? "ENOTFOUND"     :
+      msg.includes("ECONNREFUSED")  ? "ECONNREFUSED"  :
+      msg.includes("timeout")       ? "TIMEOUT"       :
+      msg.includes("ECONNRESET")    ? "ECONNRESET"    :
+      "UNKNOWN";
+    return { ok: false, reason };
+  }
+}
+
+/**
+ * 테스트 전용: standby unavailable 플래그 초기화.
+ * production 코드에서 호출 금지.
+ */
+export function _resetStandbyAvailabilityForTest(): void {
+  standbyUnavailableUntil = 0;
+}
+
+/**
+ * standby preflight 결과에 따라 unavailable 플래그를 갱신.
+ * 실패 → 30분간 skip; 성공 → 플래그 초기화.
+ * @returns true=사용 가능, false=skip해야 함
+ */
+function markStandbyAvailability(ok: boolean, reason?: string): boolean {
+  if (ok) {
+    if (standbyUnavailableUntil > 0) {
+      standbyUnavailableUntil = 0;
+      console.log("[standby-sync] preflight 성공 — standby 복구");
+    }
+    return true;
+  }
+  // 이미 skip 중이면 타이머 유지 (갱신하지 않음)
+  if (standbyUnavailableUntil === 0) {
+    standbyUnavailableUntil = Date.now() + UNAVAILABLE_BACKOFF_MS;
+    console.warn(
+      `[standby-sync] status=unavailable reason=${reason} cycle_skipped=true ` +
+      `retry_after=${new Date(standbyUnavailableUntil).toISOString()}`,
+    );
+  }
+  return false;
+}
+
+/**
+ * 현재 standby가 unavailable 상태인지 확인.
+ * 플래그 만료 시 자동 초기화.
+ */
+function isStandbyUnavailable(): boolean {
+  if (standbyUnavailableUntil === 0) return false;
+  if (Date.now() >= standbyUnavailableUntil) {
+    standbyUnavailableUntil = 0;
+    console.log("[standby-sync] standby unavailable 기간 만료 — 다음 cycle에서 preflight 재시도");
+    return false;
+  }
+  return true;
 }
 
 // ── 서킷브레이커: 스탠바이 DB 연속 느림 → 30분 스킵 ────────────────────────
@@ -485,14 +593,23 @@ async function replicateTable(
 export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Promise<void> {
   if (!isDbSeparated) return;
 
+  const backupDb = getBackupDb();
+  if (!backupDb) return;
+
+  // [HOTFIX] Preflight 1회 — STANDBY_UNAVAILABLE이면 cycle 전체 skip
+  // per-table DNS lookup 반복 완전 차단
+  if (isStandbyUnavailable()) {
+    console.log("[standby-sync] status=unavailable cycle_skipped=true (retry after 30min)");
+    return;
+  }
+  const pf = await preflightStandby(backupDb);
+  if (!markStandbyAvailability(pf.ok, pf.reason)) return;
+
   // 서킷브레이커 오픈 상태면 싱크도 스킵
   if (!checkStandbyCircuit()) {
     console.log("[standby-sync] 서킷브레이커 오픈 중 — 핫 싱크 스킵");
     return;
   }
-
-  const backupDb = getBackupDb();
-  if (!backupDb) return;
 
   // ── 스키마 보수: swimming_pools가 대상에 포함되면 standby 컬럼 불일치 먼저 수정 ──
   // Root-cause fix: production-only migrations (x-init, x-payment-init, x-lifecycle,

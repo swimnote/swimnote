@@ -1023,39 +1023,65 @@ export async function initPoolDb(): Promise<void> {
   console.log("[pool-db-init] superAdminDb 운영 테이블 초기화 완료");
 
   // 백업 DB가 분리되어 있으면 동일 스키마 초기화 (에러 무시)
+  // [HOTFIX] preflight ping 3초 → ENOTFOUND/timeout 시 즉시 skip
+  //   primary DB 초기화는 이미 완료된 상태이므로 백업 skip은 API startup에 영향 없음
   if (backupDb) {
+    let backupDbReachable = false;
     try {
-      await backupDb.execute(sql.raw(`
-        DO $$ BEGIN
-          CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE change_type AS ENUM ('create', 'update', 'delete');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE sync_status AS ENUM ('pending', 'synced', 'error');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-      `));
-      // backup_logs 테이블만 생성 (백업 메타데이터 저장용)
-      await backupDb.execute(sql.raw(`
-        CREATE TABLE IF NOT EXISTS backup_snapshots_meta (
-          id           text PRIMARY KEY,
-          source_db    text NOT NULL DEFAULT 'superAdminDb',
-          tables_count integer,
-          row_count    integer,
-          size_bytes   bigint,
-          backup_type  text,
-          created_by   text,
-          note         text,
-          created_at   timestamptz NOT NULL DEFAULT now()
-        );
-      `));
-      console.log("[pool-db-init] pool 백업 DB 스키마 초기화 완료");
-    } catch (e: any) {
-      console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
+      await Promise.race([
+        backupDb.execute(sql.raw("SELECT 1")),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("pool-db-init preflight timeout 3s")), 3000),
+        ),
+      ]);
+      backupDbReachable = true;
+    } catch (pfErr: any) {
+      const pfMsg = String(pfErr?.message ?? pfErr ?? "");
+      const reason =
+        pfMsg.includes("ENOTFOUND")    ? "ENOTFOUND"    :
+        pfMsg.includes("ECONNREFUSED") ? "ECONNREFUSED" :
+        pfMsg.includes("timeout")      ? "TIMEOUT"      :
+        "UNKNOWN";
+      console.warn(
+        `[pool-db-init] status=unavailable reason=${reason} ` +
+        `backup_schema_init=skipped primary_db=unaffected`,
+      );
+    }
+
+    if (backupDbReachable) {
+      try {
+        await backupDb.execute(sql.raw(`
+          DO $$ BEGIN
+            CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE change_type AS ENUM ('create', 'update', 'delete');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE sync_status AS ENUM ('pending', 'synced', 'error');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        `));
+        // backup_logs 테이블만 생성 (백업 메타데이터 저장용)
+        await backupDb.execute(sql.raw(`
+          CREATE TABLE IF NOT EXISTS backup_snapshots_meta (
+            id           text PRIMARY KEY,
+            source_db    text NOT NULL DEFAULT 'superAdminDb',
+            tables_count integer,
+            row_count    integer,
+            size_bytes   bigint,
+            backup_type  text,
+            created_by   text,
+            note         text,
+            created_at   timestamptz NOT NULL DEFAULT now()
+          );
+        `));
+        console.log("[pool-db-init] pool 백업 DB 스키마 초기화 완료");
+      } catch (e: any) {
+        console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
+      }
     }
   }
 
