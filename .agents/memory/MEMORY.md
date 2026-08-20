@@ -137,5 +137,6 @@
 - [RT1 완료 상태](rt1-done-state.md) — SHA 5ca35ced; lib/runtime/ 8파일 신규; 37TC; Production behavior 변경 없음; Render/OTA 없음
 - [RT2 Relevance Correction 완료](rt2-relevance-correction-done.md) — SHA 476caeb3; intent scoring+platform penalty+re-sort fix; 6-query prod recheck ✅; Render 미배포
 - [RT2 Semantic Slot+Goal+Facet 완료](rt2-semantic-slot-done.md) — SHA 258485b2; Round3(ACTION/OBJECT)+Round4(GOAL)+Round5(FACET); 77TC; Render 미배포
+- [RT2 Round 6 완료 상태](rt2-round6-done-state.md) — SHA 7fc8e8bf; raw_score ranking+KI slots title+question only+KNOWLEDGE_GAP gate; 80TC; Render 미배포
 - [Grounded support escalation](grounded-support-escalation.md) — GPT·Human 전환은 동일 Case의 반복·검증 근거·명시적 미해결 확인을 모두 거쳐야 함
 - [Render 배포 수동 전용](render-deploy-manual-only.md) — RENDER_API_KEY 사용·요청 금지; repo+branch+SHA만 보고하고 멈춤
