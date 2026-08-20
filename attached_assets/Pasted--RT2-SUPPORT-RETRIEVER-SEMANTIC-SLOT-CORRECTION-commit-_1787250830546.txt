@@ -1,0 +1,319 @@
+# [RT2 SUPPORT RETRIEVER — SEMANTIC SLOT CORRECTION]
+
+현재 commit:
+476caeb3
+
+Production read-only 결과에서
+concept / intent ranking은 개선됐지만
+semantic false-positive가 아직 존재.
+
+Render deploy 금지.
+
+문제:
+
+Q3
+"알림끄는거 어디서해?"
+→ "알림 권한을 다시 켜려면..."
+DISABLE ↔ ENABLE 반대 의미.
+
+Q4
+"푸시 알림 설정"
+→ "알림은 켜져 있는데 알림이 오지 않는 경우 해결"
+SETTINGS ↔ TROUBLESHOOT mismatch.
+
+Q6
+"X 모드 신청을 위한 자료는 어떻게 제출하나요?"
+→ "X모드 신청하려면 다른 앱을 설치해야 하나요"
+MATERIAL_SUBMISSION ↔ APP_INSTALL mismatch.
+
+==================================================
+1. SEMANTIC SLOT 추가
+==================================================
+
+concept + intent만 보지 말고
+질문의 semantic slot을 최소 다음까지 추출.
+
+ACTION:
+- ENABLE
+- DISABLE
+- CREATE
+- DELETE
+- SUBMIT
+- EDIT
+- VIEW
+- SEARCH
+- REGISTER
+- LOGIN
+- PAY
+- DOWNLOAD
+- UPLOAD
+- UNKNOWN
+
+OBJECT:
+- NOTIFICATION
+- CURRICULUM_SEARCH
+- GROWTH_REPORT
+- X_MODE
+- MATERIAL_SUBMISSION
+- APP_INSTALL
+- LOGIN
+- PHOTO
+- DIARY
+- SCHEDULE
+- SUBSCRIPTION
+- STUDENT
+- POOL
+- UNKNOWN
+
+실제 SWIMNOTE 제품 개념 범위만 사용.
+
+==================================================
+2. ACTION OPPOSITION
+==================================================
+
+반대 행동은 강한 penalty.
+
+예:
+
+ENABLE ↔ DISABLE
+CREATE ↔ DELETE
+REGISTER ↔ REMOVE
+
+query action과 KI action이
+명확히 반대면:
+
+- DB_DIRECT 금지
+- top candidate 우선순위 크게 하락
+
+예:
+
+"알림 끄기"
+vs
+"알림 다시 켜기"
+
+→ 동일 notification concept여도
+반대 행동이므로 top-1 금지.
+
+==================================================
+3. OBJECT MATCH
+==================================================
+
+query object와 KI object가
+명확히 다르면 penalty.
+
+예:
+
+MATERIAL_SUBMISSION
+vs
+APP_INSTALL
+
+→ HOW_TO intent가 같아도
+다른 문제.
+
+Q6:
+
+"자료 제출"
+→ MATERIAL_SUBMISSION
+
+"다른 앱 설치"
+→ APP_INSTALL
+
+따라서 app-install KI가
+자료 제출 질문 top-1이 되면 안 됨.
+
+==================================================
+4. GENERIC SETTINGS 처리
+==================================================
+
+"푸시 알림 설정"
+처럼 action/오류 표현이 없는 일반 설정 질문은:
+
+concept=NOTIFICATION_SETTINGS
+intent=DESCRIPTION/HOW_TO 또는 neutral
+object=NOTIFICATION
+
+으로 취급.
+
+ERROR_TROUBLESHOOT KI는
+query에:
+
+- 안와
+- 오류
+- 안돼
+- 작동 안함
+- 실패
+
+등이 없으면 penalty.
+
+즉 Q4에서
+"알림이 오지 않는 경우 해결"
+KI top-1 금지.
+
+==================================================
+5. QUERY/KI FEATURE EXTRACTION
+==================================================
+
+query와 KI 모두 동일 extractor 사용.
+
+추출 대상:
+
+- concept
+- intent
+- action
+- object
+- platform
+
+ranking에서:
+
+concept match
+intent match
+action match
+object match
+platform match
+
+각각 독립 반영.
+
+==================================================
+6. RANKING 우선순위
+==================================================
+
+최종 ranking에서 relevance 우선순위:
+
+1. concept
+2. object
+3. action
+4. intent
+5. title/question lexical overlap
+6. content overlap
+7. usage_count
+
+usage_count는 여전히 tiebreak only.
+
+==================================================
+7. MULTI-EVIDENCE
+==================================================
+
+GROUNDED_AI에서
+top 2~5 KI를 전달하더라도
+
+semantic slot mismatch KI는
+EvidencePack에 넣지 않는다.
+
+관련성 낮은 KI 여러 개를
+GPT에 던져서 해결시키지 않는다.
+
+==================================================
+8. Q6 utterance 추가 금지
+==================================================
+
+"X 모드 신청을 위한 자료는 어떻게 제출하나요?"
+
+문장 자체 utterance 등록 금지.
+
+자료 제출이라는
+제품 개념/object를 retriever가 이해하도록 수정.
+
+허용:
+
+concept/object lexicon 수준:
+
+MATERIAL_SUBMISSION aliases:
+- 자료 제출
+- 서류 제출
+- 자료 업로드
+- 제출 자료
+- 신청 자료
+
+문장 전체 alias 금지.
+
+==================================================
+9. PRODUCTION READ-ONLY RECHECK
+==================================================
+
+같은 6개 질문 다시 확인.
+
+기대:
+
+Q1
+성장리포트 정의/기능 KI
+
+Q2
+성장리포트 정의/기능 KI
+
+Q3
+알림 끄기/설정 KI
+ENABLE KI top-1 금지
+
+Q4
+일반 알림 설정 KI
+troubleshooting KI top-1 금지
+
+Q5
+커리큘럼 검색 오류/이용 불가 해결 KI
+
+Q6
+X모드 자료 제출 방법 KI
+APP_INSTALL KI top-1 금지
+
+각 질문 보고:
+
+- concept
+- intent
+- action
+- object
+- platform
+- top 5 KI
+- 각 KI semantic slots
+- score
+- final selected evidence
+- answer policy
+
+==================================================
+10. DEPLOYMENT GATE
+==================================================
+
+다음 조건 모두 만족해야
+deployment ready=YES:
+
+- Q1~Q6 semantic match 정상
+- opposite-action top-1 = 0
+- wrong-object top-1 = 0
+- generic settings → troubleshoot misroute = 0
+- cross-pool leak = 0
+
+==================================================
+11. 금지
+==================================================
+
+Render deploy 금지.
+DB write 금지.
+utterance 추가 금지.
+KI status 변경 금지.
+usage_count 조작 금지.
+전체 regression 금지.
+
+==================================================
+12. REPORT
+==================================================
+
+[RT2 SUPPORT SEMANTIC SLOT CORRECTION REPORT]
+
+- action extractor:
+- object extractor:
+- opposite-action penalty:
+- object mismatch penalty:
+- generic-settings handling:
+- ranking changes:
+- grounded evidence filtering:
+- tests:
+- Production six-query results:
+- wrong action top-1 remaining:
+- wrong object top-1 remaining:
+- troubleshoot misroute remaining:
+- DB write: NO
+- Render deploy: NO
+- commit SHA:
+- deployment ready:
+- final status:
+
+보고 후 멈춘다.
