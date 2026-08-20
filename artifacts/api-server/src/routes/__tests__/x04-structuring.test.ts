@@ -271,6 +271,7 @@ describe("WP-X04 Routes", () => {
       levels: [{ level_order: 1, level_name: "기초", objectives: "물 적응" }],
       total_declared_levels: 1,
       parse_warnings: [],
+      searchable_items: [], // PRE-WP-X: empty → curriculum_items 블록 스킵
     });
 
     const res = await request(app)
@@ -710,5 +711,224 @@ describe("WP-X04 Routes", () => {
       .send({});
 
     expect(res.status).toBe(400);
+  });
+});
+
+// ── PRE-WP-X: curriculum_versions + curriculum_items 라우트 통합 테스트 ───────
+// extractCellParagraphs 단위 테스트: prewpx-docxparser.test.ts 참고 (별도 파일)
+//
+// drizzle sql`` queryChunks 추출 헬퍼
+// drizzle-orm의 SQL 객체는 queryChunks: SQLChunk[] 를 가짐
+// StringChunk.value에 SQL text, Param.value에 JS 값이 저장됨
+// JSON.stringify를 통해 모든 포맷에서 SQL text를 탐지할 수 있음
+function getSqlText(call: any[]): string {
+  const q = call[0];
+  if (!q) return "";
+  try {
+    const json = JSON.stringify(q) ?? "";
+    return json;
+  } catch {
+    return String(q ?? "");
+  }
+}
+
+describe("PRE-WP-X: curriculum_versions + curriculum_items ingestion", () => {
+  const MOCK_X_VERSION_ID = "cv_x-managed-001";
+  const MOCK_ITEMS = [
+    { title: "발차기 기초",      description: "기초 1단계 / detailed_skills", sort_order: 0, field_source: "detailed_skills", level_order: 1 },
+    { title: "팔동작 입수 각도", description: "기초 1단계 / detailed_skills", sort_order: 1, field_source: "detailed_skills", level_order: 1 },
+    { title: "6비트 킥",         description: "자유형 2단계 / detailed_skills", sort_order: 2, field_source: "detailed_skills", level_order: 2 },
+  ];
+
+  // PRE-WP-X-10: searchable_items 존재 시 curriculum_versions upsert + curriculum_items INSERT
+  it("PRE-WP-X-10: searchable_items 존재 시 curriculum_versions upsert + curriculum_items INSERT", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockPoolLookup())                               // 1. getPoolRow
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })         // 2. submission
+      .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",             // 3. files
+          r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+      .mockResolvedValueOnce({ rows: [] })                                   // 4. mark PROCESSING
+      .mockResolvedValueOnce({ rows: [] })                                   // 5. UPDATE STRUCTURED
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] }) // 6. SELECT profile id
+      .mockResolvedValueOnce({ rows: [] })                                   // 7. DELETE x_curriculum_levels
+      .mockResolvedValueOnce({ rows: [] })                                   // 8. INSERT x_curriculum_levels (level 1)
+      // PRE-WP-X new:
+      .mockResolvedValueOnce({ rows: [] })                                   // 9.  cv upsert
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })          // 10. SELECT version id
+      .mockResolvedValueOnce({ rows: [] })                                   // 11. DELETE curriculum_items
+      .mockResolvedValueOnce({ rows: [] })                                   // 12. INSERT item 0
+      .mockResolvedValueOnce({ rows: [] })                                   // 13. INSERT item 1
+      .mockResolvedValueOnce({ rows: [] })                                   // 14. INSERT item 2
+      .mockResolvedValueOnce({ rows: [] })                                   // 15. audit version
+      .mockResolvedValueOnce({ rows: [] });                                   // 16. audit insert
+
+    (parseCurriculumDocx as any).mockReturnValue({
+      template_version: "1.0",
+      basic_info: { pool_name: "X수영장" },
+      teaching_summary: {},
+      levels: [{ level_order: 1, level_name: "기초 1단계", detailed_skills: "발차기 기초" }],
+      total_declared_levels: 1,
+      parse_warnings: [],
+      searchable_items: MOCK_ITEMS, // 3개 항목
+    });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.results.curriculum).toBe("STRUCTURED");
+
+    const calls = (superAdminDb.execute as any).mock.calls;
+
+    // curriculum_versions INSERT/ON CONFLICT 확인
+    const hasVersionUpsert = calls.some((c: any[]) =>
+      getSqlText(c).includes("curriculum_versions")
+    );
+    expect(hasVersionUpsert).toBe(true);
+
+    // curriculum_items INSERT INTO 확인
+    const hasItemInsert = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("curriculum_items") && q.includes("INSERT INTO");
+    });
+    expect(hasItemInsert).toBe(true);
+  });
+
+  // PRE-WP-X-11: searchable_items 빈 배열 → curriculum_versions/items 호출 없음
+  it("PRE-WP-X-11: searchable_items 빈 배열 → curriculum_versions 호출 없음", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockPoolLookup())
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
+      .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
+          r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+      .mockResolvedValueOnce({ rows: [] }) // PROCESSING
+      .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
+      .mockResolvedValueOnce({ rows: [] }) // DELETE levels
+      // levels: [] → level INSERT 0회
+      .mockResolvedValueOnce({ rows: [] }) // audit version
+      .mockResolvedValueOnce({ rows: [] }); // audit insert
+
+    (parseCurriculumDocx as any).mockReturnValue({
+      template_version: "1.0",
+      basic_info: {},
+      teaching_summary: {},
+      levels: [],
+      total_declared_levels: 0,
+      parse_warnings: [],
+      searchable_items: [], // 빈 배열 → 블록 스킵
+    });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(200);
+
+    const calls = (superAdminDb.execute as any).mock.calls;
+    const hasVersionUpsert = calls.some((c: any[]) =>
+      getSqlText(c).includes("curriculum_versions")
+    );
+    expect(hasVersionUpsert).toBe(false);
+  });
+
+  // PRE-WP-X-12: pool-wide DELETE 금지 — version_id scope만 사용
+  it("PRE-WP-X-12: pool-wide DELETE 금지 — curriculum_version_id scope DELETE만 사용", async () => {
+    (superAdminDb.execute as any).mockReset();
+    (superAdminDb.execute as any)
+      .mockResolvedValueOnce(mockPoolLookup())
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
+      .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
+          r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+      .mockResolvedValueOnce({ rows: [] }) // PROCESSING
+      .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
+      .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
+      .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
+      .mockResolvedValueOnce({ rows: [] }) // cv upsert
+      .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] }) // SELECT version
+      .mockResolvedValueOnce({ rows: [] }) // DELETE curriculum_items
+      .mockResolvedValueOnce({ rows: [] }) // INSERT item 0
+      .mockResolvedValueOnce({ rows: [] }) // audit version
+      .mockResolvedValueOnce({ rows: [] }); // audit insert
+
+    (parseCurriculumDocx as any).mockReturnValue({
+      template_version: "1.0",
+      basic_info: {},
+      teaching_summary: {},
+      levels: [{ level_order: 1, level_name: "기초" }],
+      total_declared_levels: 1,
+      parse_warnings: [],
+      searchable_items: [
+        { title: "발차기 기초", description: "기초 / detailed_skills", sort_order: 0, field_source: "detailed_skills", level_order: 1 },
+      ],
+    });
+
+    const res = await request(app)
+      .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+      .set("Authorization", "Bearer super_token");
+
+    expect(res.status).toBe(200);
+
+    const calls = (superAdminDb.execute as any).mock.calls;
+    // curriculum_items DELETE는 반드시 curriculum_version_id를 포함해야 함
+    const hasPoolWideDelete = calls.some((c: any[]) => {
+      const q = getSqlText(c);
+      return q.includes("DELETE") && q.includes("curriculum_items") && !q.includes("curriculum_version_id");
+    });
+    expect(hasPoolWideDelete).toBe(false);
+  });
+
+  // PRE-WP-X-13: idempotent — DELETE → INSERT 패턴으로 누적 없음
+  it("PRE-WP-X-13: idempotent — DELETE → INSERT 패턴으로 누적 없음", async () => {
+    for (let run = 0; run < 2; run++) {
+      (superAdminDb.execute as any).mockReset();
+      (superAdminDb.execute as any)
+        .mockResolvedValueOnce(mockPoolLookup())
+        .mockResolvedValueOnce({ rows: [{ id: MOCK_SUBMISSION_ID }] })
+        .mockResolvedValueOnce({ rows: [{ file_type: "curriculum",
+            r2_key: "x-setup/c.docx", submission_version: 1, is_current: true }] })
+        .mockResolvedValueOnce({ rows: [] }) // PROCESSING
+        .mockResolvedValueOnce({ rows: [] }) // STRUCTURED
+        .mockResolvedValueOnce({ rows: [{ id: MOCK_PROFILE_ID_CURRICULUM }] })
+        .mockResolvedValueOnce({ rows: [] }) // DELETE x_curriculum_levels
+        .mockResolvedValueOnce({ rows: [] }) // INSERT x_curriculum_levels (1 level)
+        .mockResolvedValueOnce({ rows: [] }) // cv upsert
+        .mockResolvedValueOnce({ rows: [{ id: MOCK_X_VERSION_ID }] })
+        .mockResolvedValueOnce({ rows: [] }) // DELETE curriculum_items
+        .mockResolvedValueOnce({ rows: [] }) // INSERT item 0
+        .mockResolvedValueOnce({ rows: [] }) // audit version
+        .mockResolvedValueOnce({ rows: [] }); // audit insert
+
+      (parseCurriculumDocx as any).mockReturnValue({
+        template_version: "1.0",
+        basic_info: {},
+        teaching_summary: {},
+        levels: [{ level_order: 1, level_name: "기초" }],
+        total_declared_levels: 1,
+        parse_warnings: [],
+        searchable_items: [
+          { title: "발차기 기초", description: "기초 / detailed_skills", sort_order: 0, field_source: "detailed_skills", level_order: 1 },
+        ],
+      });
+
+      const res = await request(app)
+        .post(`/super/x-setup/${MOCK_POOL_ID}/structure`)
+        .set("Authorization", "Bearer super_token");
+
+      expect(res.status).toBe(200);
+
+      const calls = (superAdminDb.execute as any).mock.calls;
+      // 매 run: curriculum_items DELETE 정확히 1회 → 누적 없음
+      const itemDeletes = calls.filter((c: any[]) => {
+        const q = getSqlText(c);
+        return q.includes("DELETE") && q.includes("curriculum_items");
+      });
+      expect(itemDeletes).toHaveLength(1);
+    }
   });
 });

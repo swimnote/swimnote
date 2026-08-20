@@ -168,6 +168,60 @@ router.post(
               `);
             }
           }
+
+          // ── PRE-WP-X: curriculum_versions upsert + curriculum_items 생성 ──
+          //
+          // 원칙:
+          //   - X managed version_name = 'x-curriculum-v1' (고정)
+          //   - UNIQUE(swimming_pool_id, version_name) ON CONFLICT DO NOTHING
+          //   - 해당 version_id 범위의 curriculum_items만 DELETE → INSERT (idempotent)
+          //   - pool-wide DELETE 금지 — X version scope만 교체
+          //   - 다른 version의 items는 절대 변경하지 않음
+          //
+          if (structured.searchable_items.length > 0) {
+            const X_VERSION_NAME = "x-curriculum-v1";
+
+            // 1. X managed curriculum_version upsert
+            await superAdminDb.execute(sql`
+              INSERT INTO curriculum_versions (swimming_pool_id, version_name, is_active, activated_at)
+              VALUES (${pool.id}, ${X_VERSION_NAME}, true, NOW())
+              ON CONFLICT (swimming_pool_id, version_name) DO UPDATE SET
+                is_active = true,
+                activated_at = COALESCE(curriculum_versions.activated_at, NOW()),
+                updated_at = NOW()
+            `);
+
+            const versionRes = await superAdminDb.execute(sql`
+              SELECT id FROM curriculum_versions
+              WHERE swimming_pool_id = ${pool.id} AND version_name = ${X_VERSION_NAME}
+              LIMIT 1
+            `);
+            const xVersionId = (versionRes as any).rows?.[0]?.id as string | undefined;
+
+            if (xVersionId) {
+              // 2. X managed version scope 내 기존 items만 삭제 (다른 version 보호)
+              await superAdminDb.execute(sql`
+                DELETE FROM curriculum_items
+                WHERE curriculum_version_id = ${xVersionId}
+              `);
+
+              // 3. searchable_items → curriculum_items INSERT (batch)
+              for (const item of structured.searchable_items) {
+                await superAdminDb.execute(sql`
+                  INSERT INTO curriculum_items
+                    (curriculum_version_id, swimming_pool_id, sort_order, title, description, is_active)
+                  VALUES
+                    (${xVersionId}, ${pool.id}, ${item.sort_order},
+                     ${item.title}, ${item.description}, true)
+                `);
+              }
+
+              console.log(
+                `[x04-structuring] curriculum_items: ${structured.searchable_items.length}개 생성 (pool=${pool.id}, version=${xVersionId})`
+              );
+            }
+          }
+
           results.curriculum = "STRUCTURED";
         } catch (parseErr: any) {
           await superAdminDb.execute(sql`
