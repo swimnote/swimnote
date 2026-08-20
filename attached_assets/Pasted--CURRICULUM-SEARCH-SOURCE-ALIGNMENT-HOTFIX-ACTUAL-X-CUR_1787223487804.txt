@@ -1,0 +1,263 @@
+# [CURRICULUM SEARCH SOURCE ALIGNMENT HOTFIX]
+
+ACTUAL X CURRICULUM SOURCE TRACE 결과 확인.
+
+결론:
+
+FIX DIRECTION = A 확정.
+
+기존:
+
+global_template_sets(ACTIVE)
+→ diary_templates(scope=x_global)
+
+경로를 X curriculum search authority로 사용하지 않는다.
+
+최종 canonical:
+
+X DOCX
+→ x_curriculum_profiles
+→ x_curriculum_levels
+→ curriculum_versions
+→ curriculum_items
+→ searchable item count >= 300
+→ curriculum search eligible
+
+==================================================
+1. 작업 목적
+==================================================
+
+현재 buildXCurriculumScope()가
+legacy global_template_sets / diary_templates를 보는 문제 수정.
+
+X curriculum search는 반드시
+현재 pool의 canonical curriculum_items만 사용.
+
+Normal product 정책은 변경하지 않는다.
+
+==================================================
+2. 먼저 최소 코드 확인
+==================================================
+
+광범위 audit 금지.
+
+아래 파일/함수만 확인:
+
+- buildXCurriculumScope()
+- buildNormalCurriculumScope()
+- curriculum_items schema/query
+- curriculum_versions relation
+- parent-curriculum eligibility code
+- CurriculumScope 반환 타입
+
+실제 column/status 이름 확인 후 구현.
+
+추측으로 column 생성/사용 금지.
+
+==================================================
+3. buildXCurriculumScope 변경
+==================================================
+
+X mode일 때:
+
+현재 swimming_pool_id 기준으로
+해당 pool의 active/current canonical curriculum_items 조회.
+
+권위 source:
+
+curriculum_items
+
+필요한 경우 curriculum_versions를 통해
+현재 X-managed version만 scope한다.
+
+중요:
+
+다른 pool item 포함 금지.
+legacy/global item 포함 금지.
+archived/inactive item 포함 금지.
+
+==================================================
+4. ELIGIBILITY
+==================================================
+
+X 검색 가능 조건:
+
+실제 의미 있는 searchable curriculum_items >= 300
+
+300 기준은 절대 완화하지 않는다.
+
+금지:
+
+- level count로 대체
+- weighted count
+- comma split
+- 문장 임의 분할
+- x entitlement만으로 허용
+- xmode_config_status만으로 허용
+- global_template_set 존재만으로 허용
+
+결과:
+
+count >= 300
+→ eligible=true
+
+count < 300
+→ eligible=false
+→ reason=CURRICULUM_NOT_READY
+
+==================================================
+5. SEARCH SCOPE
+==================================================
+
+eligibility count만 curriculum_items를 보고
+실제 검색은 다른 source를 보는 구조 금지.
+
+eligibility와 실제 curriculum search scope 모두
+동일한 pool-specific curriculum_items를 사용.
+
+즉:
+
+eligibility authority
+=
+search authority
+
+이어야 한다.
+
+==================================================
+6. LEGACY GLOBAL TEMPLATE 제거 범위
+==================================================
+
+global_template_sets
+diary_templates scope=x_global
+
+데이터 자체 삭제 금지.
+
+이번 작업에서는
+X parent curriculum search dependency만 제거.
+
+AI diary 경로 등 다른 기능 영향 금지.
+
+기존 global template 관련 코드를
+광범위 삭제/리팩터링하지 않는다.
+
+==================================================
+7. NORMAL SWIMNOTE 정책 유지
+==================================================
+
+Normal pool:
+
+기존 정책 그대로 AI curriculum search 차단.
+
+Normal에 curriculum_items가 300개 이상 있어도
+AI curriculum search 허용하지 않는다.
+
+즉 이번 수정은 X path only.
+
+==================================================
+8. PROGRESS / EVIDENCE 연결
+==================================================
+
+기존:
+
+- growth_events
+- class diary evidence
+- student_levels
+- progress resolver
+- DIRECT_DB / GROUNDED_GPT / HUMAN_ONLY
+- quota
+
+정책 변경 금지.
+
+curriculum item ID는 canonical curriculum_items.id를 사용.
+
+==================================================
+9. FAIL CLOSED
+==================================================
+
+X mode인데:
+
+- curriculum version 없음
+- curriculum_items 없음
+- item count <300
+- query failure
+
+이면 임의 fallback 금지.
+
+특히:
+
+global_template_sets fallback 금지.
+GPT 자체 수영지식 fallback 금지.
+
+안전하게 CURRICULUM_NOT_READY 또는 기존 safe error 처리.
+
+==================================================
+10. TEST
+==================================================
+
+전체 regression 금지.
+
+새/수정 테스트만 실행.
+
+필수 케이스:
+
+1. X + 0 items
+→ NOT_READY
+
+2. X + 299 items
+→ NOT_READY
+
+3. X + 300 items
+→ eligible
+
+4. X + 301 items
+→ eligible
+
+5. 다른 pool items는 count에 포함 안 됨
+
+6. archived/inactive items 제외
+
+7. global_template_sets ACTIVE 여부가
+X eligibility에 영향 없음
+
+8. Normal + 300 items
+→ 여전히 AI search blocked
+
+9. search scope가 eligibility와 동일 pool/version의
+curriculum_items를 사용
+
+==================================================
+11. PRODUCTION DATA
+==================================================
+
+이번 코드 hotfix 단계에서는
+Production curriculum ingestion 금지.
+
+DB write 금지.
+
+먼저 코드 수정 + 테스트 + GitHub push만.
+
+==================================================
+12. 보고
+==================================================
+
+[CURRICULUM SOURCE ALIGNMENT HOTFIX REPORT]
+
+- modified files:
+- old X source:
+- new X source:
+- pool scoping:
+- version scoping:
+- searchable item definition:
+- eligibility threshold:
+- global template fallback removed:
+- Normal policy unchanged:
+- quota unchanged:
+- evidence/progress unchanged:
+- tests:
+- full regression run: NO
+- Production DB write: NO
+- commit SHA:
+- final status:
+
+완료 후 멈춘다.
+배포/ingestion은 아직 하지 않는다.
