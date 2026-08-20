@@ -1,10 +1,10 @@
 /**
- * parent-curriculum-conversation.ts — WP2B / WP2B.2 / WP1.2
+ * parent-curriculum-conversation.ts — WP2B / WP2B.2 / WP1.2 / WP-D
  *
  * 학부모 커리큘럼 상담 Conversation / Message 저장 서비스.
  *
  * 구조:
- *   parent_curriculum_conversations  — parent × student = 1개 (UNIQUE)
+ *   parent_curriculum_conversations  — parent × student 복수 가능 (WP-D: UNIQUE 제거)
  *   parent_curriculum_messages       — USER/ASSISTANT 메시지 (request_id+role UNIQUE)
  *
  * WP2B.2 변경:
@@ -15,12 +15,22 @@
  *   - buildRecentConversationContext() 추가 — ENGINE 전송용 최근 대화 context 구성
  *   - RECENT_CONTEXT_MAX_MESSAGES, RECENT_CONTEXT_MAX_CONTENT_CHARS 상수 추가
  *
+ * WP-D 변경:
+ *   - getOrCreateConversation(): ON CONFLICT 제거 → SELECT-first + INSERT 패턴
+ *     (OLD schema: UNIQUE 있어도 동작, NEW schema: UNIQUE 없어도 동작)
+ *   - createConversation(): 명시적 새 대화 생성
+ *   - listConversations(): 대화 목록 조회
+ *   - getConversationWithOwnership(): ID + ownership 검증
+ *   - generateConversationTitle(): 첫 질문 기반 결정론적 title 생성 (GPT 금지)
+ *   - updateConversationTitle(): title 업데이트
+ *
  * 원칙:
  *   - USER message: 성공/실패 무관, ENGINE 호출 전 저장 (idempotent)
  *   - ASSISTANT message: ENGINE 성공 + validation PASS 후만 저장
  *   - result_payload: safe response fields only (answer/current_progress/next_step)
  *   - 금지: Grounding trace 전체 저장 / raw prompt / knowledge documents
  *   - recent_conversation: 질문 이해 보조용. Grounding source 승격 금지.
+ *   - GPT title generation 금지. AI 비용 0.
  */
 
 import { superAdminDb } from "@workspace/db";
@@ -59,11 +69,79 @@ export interface ConversationHistory {
   messages:        CurriculumMessage[];
 }
 
+/** WP-D: 대화 목록 항목 */
+export interface ConversationListItem {
+  id:                   string;
+  title:                string | null;
+  created_at:           string;
+  updated_at:           string;
+  last_message_at:      string | null;
+  last_message_preview: string | null;
+}
+
+// ─── Title 생성 (GPT 금지, 결정론적) ──────────────────────────────────────────
+
+const TITLE_MAX_LENGTH = 30;
+
+/**
+ * WP-D: 첫 사용자 질문을 기반으로 결정론적 title 생성.
+ * GPT 호출 금지. 추가 AI 비용 0.
+ *
+ * 규칙:
+ *   - trim, 줄바꿈 제거
+ *   - 앞부분 인칭 제거 ("우리 아이 " → 제거)
+ *   - 최대 TITLE_MAX_LENGTH 자
+ *   - 빈 값이면 "새 대화"
+ */
+export function generateConversationTitle(firstUserMessage: string): string {
+  if (!firstUserMessage || !firstUserMessage.trim()) return "새 대화";
+
+  let text = firstUserMessage.trim().replace(/[\n\r]+/g, " ").replace(/\s+/g, " ");
+
+  // 앞부분 인칭/지시어 제거 패턴 (결정론적, 사전기반)
+  const STRIP_PREFIXES = [
+    "우리 아이가 ",
+    "우리 아이는 ",
+    "우리 아이 ",
+    "우리아이 ",
+    "아이가 ",
+    "아이는 ",
+    "저희 아이 ",
+  ];
+  for (const prefix of STRIP_PREFIXES) {
+    const trimmedPrefix = prefix.trimEnd();
+    // prefix 뒤에 공백 또는 문자열 끝 — 단어 경계 매칭
+    if (
+      text.startsWith(trimmedPrefix) &&
+      (text.length === trimmedPrefix.length || text[trimmedPrefix.length] === " ")
+    ) {
+      text = text.slice(trimmedPrefix.length).trim();
+      break;
+    }
+  }
+
+  if (!text) return "새 대화";
+
+  if (text.length > TITLE_MAX_LENGTH) {
+    text = text.slice(0, TITLE_MAX_LENGTH) + "…";
+  }
+
+  return text;
+}
+
 // ─── Conversation 조회/생성 ────────────────────────────────────────────────────
 
 /**
- * parent × student 기준으로 Conversation을 찾거나 새로 생성.
- * 같은 parent가 같은 student를 다시 열면 기존 conversation 재사용.
+ * WP-D: 구버전 앱 fallback — conversation_id 없이 요청 시 사용.
+ *
+ * OLD schema (UNIQUE 있음): SELECT first → 있으면 반환, 없으면 INSERT
+ * NEW schema (UNIQUE 없음): 동일 로직 (UNIQUE 없어도 SELECT로 안전하게 분기)
+ *
+ * advisory lock으로 concurrency 보호:
+ *   - 동시 최초 요청에서 conversation 중복 생성 방지
+ *   - pg_try_advisory_xact_lock(hash) → 선점 실패 시 재조회
+ *
+ * ON CONFLICT(parent_account_id, student_id) 의존 완전 제거.
  *
  * @returns conversation_id
  */
@@ -72,19 +150,171 @@ export async function getOrCreateConversation(
   studentId: string,
   poolId:    string,
 ): Promise<string> {
+  // advisory lock key: parentId + studentId 기반 int4 pair
+  const lockKey1 = Math.abs(hashStr(parentId))   % 2147483647;
+  const lockKey2 = Math.abs(hashStr(studentId))  % 2147483647;
+
+  const result = await superAdminDb.execute(sql`
+    SELECT pg_advisory_xact_lock(${lockKey1}::int, ${lockKey2}::int);
+    SELECT id
+    FROM parent_curriculum_conversations
+    WHERE parent_account_id = ${parentId}
+      AND student_id         = ${studentId}
+      AND status             = 'active'
+    ORDER BY COALESCE(last_message_at, updated_at) DESC
+    LIMIT 1
+  `);
+
+  // drizzle execute returns last statement's result
+  const rows = (result as any).rows ?? [];
+  if (rows.length > 0) {
+    const convId = (rows[0] as any).id as string;
+    // touch updated_at
+    await superAdminDb.execute(sql`
+      UPDATE parent_curriculum_conversations
+      SET updated_at      = NOW(),
+          last_message_at = NOW()
+      WHERE id = ${convId}
+    `).catch(() => undefined);
+    return convId;
+  }
+
+  // 없으면 신규 생성
+  return createConversation(parentId, studentId, poolId);
+}
+
+/** djb2 hash for string → int. */
+function hashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+    h = h | 0; // int32
+  }
+  return h;
+}
+
+/**
+ * WP-D: 명시적 새 대화 생성.
+ * POST /conversations 엔드포인트에서 호출.
+ * quota 차감 없음, AI 호출 없음.
+ *
+ * @returns 새 conversation_id
+ */
+export async function createConversation(
+  parentId:  string,
+  studentId: string,
+  poolId:    string,
+  title:     string | null = null,
+): Promise<string> {
   const result = await superAdminDb.execute(sql`
     INSERT INTO parent_curriculum_conversations
-      (parent_account_id, student_id, swimming_pool_id)
+      (parent_account_id, student_id, swimming_pool_id, title)
     VALUES
-      (${parentId}, ${studentId}, ${poolId})
-    ON CONFLICT (parent_account_id, student_id)
-    DO UPDATE SET
-      updated_at      = NOW(),
-      last_message_at = NOW()
+      (${parentId}, ${studentId}, ${poolId}, ${title})
     RETURNING id
   `);
 
-  return (result.rows[0] as any).id as string;
+  return ((result as any).rows[0] as any).id as string;
+}
+
+/**
+ * WP-D: 대화 목록 조회.
+ * parent_account_id + student_id + swimming_pool_id + status='active' 필터.
+ * updated_at DESC (또는 last_message_at DESC).
+ *
+ * last_message_preview: 가장 최근 ASSISTANT 메시지 앞 100자.
+ */
+export async function listConversations(
+  parentId:  string,
+  studentId: string,
+  poolId:    string,
+): Promise<ConversationListItem[]> {
+  const result = await superAdminDb.execute(sql`
+    SELECT
+      c.id,
+      c.title,
+      c.created_at,
+      c.updated_at,
+      c.last_message_at,
+      (
+        SELECT LEFT(m.content, 100)
+        FROM parent_curriculum_messages m
+        WHERE m.conversation_id = c.id
+          AND m.role = 'ASSISTANT'
+        ORDER BY m.created_at DESC
+        LIMIT 1
+      ) AS last_message_preview
+    FROM parent_curriculum_conversations c
+    WHERE c.parent_account_id = ${parentId}
+      AND c.student_id         = ${studentId}
+      AND c.swimming_pool_id   = ${poolId}
+      AND c.status             = 'active'
+    ORDER BY COALESCE(c.last_message_at, c.updated_at) DESC
+    LIMIT 50
+  `);
+
+  return (result as any).rows.map((row: any) => ({
+    id:                   row.id as string,
+    title:                (row.title as string | null) ?? null,
+    created_at:           row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updated_at:           row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+    last_message_at:      row.last_message_at
+      ? (row.last_message_at instanceof Date ? row.last_message_at.toISOString() : String(row.last_message_at))
+      : null,
+    last_message_preview: (row.last_message_preview as string | null) ?? null,
+  }));
+}
+
+/**
+ * WP-D: conversationId + ownership 검증.
+ * parent_account_id / student_id / swimming_pool_id 불일치 → null 반환.
+ *
+ * @returns conversation row 또는 null
+ */
+export async function getConversationWithOwnership(
+  conversationId: string,
+  parentId:       string,
+  studentId:      string,
+  poolId:         string,
+): Promise<{ id: string; title: string | null; status: string } | null> {
+  const result = await superAdminDb.execute(sql`
+    SELECT id, title, status
+    FROM parent_curriculum_conversations
+    WHERE id                = ${conversationId}
+      AND parent_account_id = ${parentId}
+      AND student_id        = ${studentId}
+      AND swimming_pool_id  = ${poolId}
+      AND status            = 'active'
+    LIMIT 1
+  `);
+
+  const rows = (result as any).rows;
+  if (!rows.length) return null;
+  const row = rows[0] as any;
+  return {
+    id:     row.id as string,
+    title:  (row.title as string | null) ?? null,
+    status: row.status as string,
+  };
+}
+
+/**
+ * WP-D: Conversation title 업데이트.
+ * 첫 USER message 저장 후 호출 — title이 NULL 또는 "새 대화"인 경우만.
+ * GPT 호출 없음.
+ */
+export async function updateConversationTitleIfBlank(
+  conversationId: string,
+  firstUserContent: string,
+): Promise<void> {
+  const newTitle = generateConversationTitle(firstUserContent);
+  await superAdminDb.execute(sql`
+    UPDATE parent_curriculum_conversations
+    SET title      = ${newTitle},
+        updated_at = NOW()
+    WHERE id = ${conversationId}
+      AND (title IS NULL OR title = '새 대화')
+  `).catch(() => undefined);
 }
 
 /** Conversation 마지막 활동 시간 갱신. */
@@ -161,7 +391,7 @@ export async function saveAssistantMessage(params: {
 
 // ─── History 조회 ─────────────────────────────────────────────────────────────
 
-/** 해당 student conversation의 conversation_id 조회 (없으면 null). */
+/** 해당 student conversation의 최신 active conversation_id 조회 (없으면 null). */
 export async function findConversation(
   parentId:  string,
   studentId: string,
@@ -171,9 +401,11 @@ export async function findConversation(
     FROM parent_curriculum_conversations
     WHERE parent_account_id = ${parentId}
       AND student_id         = ${studentId}
+      AND status             = 'active'
+    ORDER BY COALESCE(last_message_at, updated_at) DESC
     LIMIT 1
   `);
-  return result.rows.length ? ((result.rows[0] as any).id as string) : null;
+  return (result as any).rows.length ? (((result as any).rows[0] as any).id as string) : null;
 }
 
 /**
@@ -195,9 +427,9 @@ export async function getAssistantMessageByRequestId(
     LIMIT 1
   `);
 
-  if (!result.rows.length) return null;
+  if (!(result as any).rows.length) return null;
 
-  const row = result.rows[0] as any;
+  const row = (result as any).rows[0] as any;
   return {
     id:         row.id,
     role:       "ASSISTANT",
@@ -229,6 +461,8 @@ export interface PcRecentContextMessage {
 /**
  * ENGINE 전송용 최근 대화 context 구성 (WP1.2).
  *
+ * WP-D: conversationId 스코핑으로 다른 conversation messages 완전 분리.
+ *
  * 규칙:
  *   - 현재 query (excludeRequestId) 제외
  *   - 최대 maxMessages 개 (default: RECENT_CONTEXT_MAX_MESSAGES = 6)
@@ -258,7 +492,7 @@ export async function buildRecentConversationContext(
     LIMIT ${maxMessages}
   `);
 
-  return (result.rows as any[])
+  return ((result as any).rows as any[])
     .filter((row) => {
       const role    = typeof row.role    === "string" ? row.role    : "";
       const content = typeof row.content === "string" ? row.content : "";
@@ -297,7 +531,7 @@ export async function getConversationMessages(
     LIMIT ${limit}
   `);
 
-  return (result.rows as any[]).map((row) => {
+  return ((result as any).rows as any[]).map((row) => {
     const msg: CurriculumMessage = {
       id:         row.id,
       role:       row.role as "USER" | "ASSISTANT",

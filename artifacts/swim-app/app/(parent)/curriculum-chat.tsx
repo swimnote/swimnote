@@ -1,23 +1,31 @@
 /**
- * curriculum-chat.tsx — WP-C: AI 커리큘럼 검색 채팅 (WP-B 서버 연동)
+ * curriculum-chat.tsx — WP-D: Multi-Conversation History
  *
- * WP-C 변경:
+ * WP-C 변경 유지:
  *   - XModeGuard 제거 → Normal 학부모도 진입 가능
- *   - Normal / x_pending → 즉시 NOT_AVAILABLE (fast-path, API 없음)
- *   - X 모드: history GET → eligible/eligibility_code로 composer 렌더 전 결정
- *   - NOT_READY(X + <300) → unavailable UI, composer/추천질문 없음
- *   - 422 POST 응답도 inline 처리 (Alert 제거)
- *   - 답변 복사 버튼 (expo-clipboard + useToast)
- *   - Retryable 실패 → 안전 메시지 + 재시도 버튼 표시
- *   - 추천 질문 spec 기준 업데이트
- *   - 다자녀 학생 switcher (useParent) — studentId-scoped race-safe
- *   - 할당량 초과 메시지 spec 기준 업데이트
+ *   - Normal / x_pending → 이용 불가 UI (입력창/추천질문 없음)
+ *   - 서버 history GET의 eligible/reason authority
+ *   - 답변 복사 버튼, quota 표시, retryable 실패 처리
+ *   - 다자녀 switcher (studentId-scoped race-safe)
+ *
+ * WP-D 신규:
+ *   - activeConversationId + activeConversationIdRef
+ *   - conversationList 대화 목록
+ *   - POST /conversations → 새 대화 생성 (quota 0, AI 0)
+ *   - GET /conversations → 대화 목록 조회
+ *   - GET /history?conversation_id= → 특정 대화 messages
+ *   - POST /curriculum-search 에 conversation_id 포함 (additive)
+ *   - 헤더 우측: 새 대화(+) + 대화목록(list) 버튼
+ *   - 대화 목록 BottomSheet — title, 날짜, preview
+ *   - 대화 선택/복원 (race guard: studentId + conversationId 이중 guard)
+ *   - 학생 전환 시 conversationId/conversationList 초기화
  *
  * 규칙:
  *   - 서버 history가 source of truth
  *   - console.log 허용: request_id / status / error_code / remaining quota
  *   - console.log 금지: 학생 이름 / 질문 내용 / 답변 내용 / JWT
  *   - answer_mode / intent 등 내부 enum 사용자 화면 노출 금지
+ *   - GPT title generation 금지. AI 비용 0.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -93,6 +101,16 @@ interface PendingMsg {
   retryableError?: boolean;
 }
 
+/** WP-D: 대화 목록 항목 */
+interface ConversationItem {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function newRequestId(): string {
@@ -108,6 +126,13 @@ function fmtTime(raw: string): string {
 }
 
 function fmtResetsAt(raw: string): string {
+  try {
+    const d = new Date(raw);
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  } catch { return ""; }
+}
+
+function fmtDate(raw: string): string {
   try {
     const d = new Date(raw);
     return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -183,6 +208,15 @@ export default function CurriculumChatScreen() {
 
   const displayName = activeStudent?.name ?? paramStudentName ?? "아이";
 
+  // ── WP-D: Active conversation ──────────────────────────────────────────────
+
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  // Ref mirrors state for race-safe async callbacks
+  const activeConversationIdRef = useRef<string | null>(null);
+  const [conversationList, setConversationList] = useState<ConversationItem[]>([]);
+  const [showConversationList, setShowConversationList] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+
   // ── Chat state ─────────────────────────────────────────────────────────────
 
   const [serverMessages, setServerMessages] = useState<CurriculumMsg[]>([]);
@@ -210,27 +244,62 @@ export default function CurriculumChatScreen() {
   const isExhausted   = usage !== null && usage.remaining <= 0;
   const canSend       = isEligible && !isExhausted && !sending && input.trim().length > 0;
 
-  // ── History load — server-authoritative eligibility, studentId-scoped ────────
-  // Called on mount and on every student switch.
-  // eligible / reason from server response determines the UI state
-  // before any message is sent — no mode inference on the client.
+  // ── WP-D: Load conversation list ───────────────────────────────────────────
 
-  const loadHistory = useCallback(
+  const loadConversationList = useCallback(
     async (studentId: string) => {
       if (!studentId || !token) return;
       const requestedStudentId = studentId;
-      setHistoryLoading(true);
+      setListLoading(true);
       try {
         const res = await apiRequest(
           token,
-          `/parent/students/${requestedStudentId}/curriculum-search/history`,
+          `/parent/students/${requestedStudentId}/curriculum-search/conversations`,
         );
-        // Discard stale response if student changed during await
         if (activeStudentIdRef.current !== requestedStudentId) return;
-
         if (res.ok) {
           const data = await res.json();
           if (activeStudentIdRef.current !== requestedStudentId) return;
+          setConversationList(data.conversations ?? []);
+        }
+      } catch {
+        // fail silently — not critical path
+      } finally {
+        if (activeStudentIdRef.current === requestedStudentId) {
+          setListLoading(false);
+        }
+      }
+    },
+    [token],
+  );
+
+  // ── History load — server-authoritative eligibility, studentId+conversationId scoped ─
+
+  const loadHistory = useCallback(
+    async (studentId: string, conversationId: string | null) => {
+      if (!studentId || !token) return;
+      const requestedStudentId     = studentId;
+      const requestedConversationId = conversationId;
+      setHistoryLoading(true);
+      try {
+        const url = conversationId
+          ? `/parent/students/${requestedStudentId}/curriculum-search/history?conversation_id=${encodeURIComponent(conversationId)}`
+          : `/parent/students/${requestedStudentId}/curriculum-search/history`;
+
+        const res = await apiRequest(token, url);
+
+        // Discard stale response — student or conversation changed during await
+        if (
+          activeStudentIdRef.current        !== requestedStudentId ||
+          activeConversationIdRef.current   !== requestedConversationId
+        ) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (
+            activeStudentIdRef.current        !== requestedStudentId ||
+            activeConversationIdRef.current   !== requestedConversationId
+          ) return;
 
           // Server-authoritative eligibility via additive fields
           if (data.eligible === false) {
@@ -243,8 +312,16 @@ export default function CurriculumChatScreen() {
             return;
           }
 
-          // eligible: true (or server without the field — treat as eligible)
+          // eligible: true
           setEligibility("ELIGIBLE");
+
+          // WP-D: server가 반환한 conversation_id로 activeConversationId 동기화
+          if (data.conversation_id && !requestedConversationId) {
+            // 기존 앱 호환: conversation_id 없이 요청했을 때 서버가 반환한 id 사용
+            setActiveConversationId(data.conversation_id);
+            activeConversationIdRef.current = data.conversation_id;
+          }
+
           setServerMessages(data.messages ?? []);
           if (data.usage) setUsage(data.usage);
         } else {
@@ -252,10 +329,16 @@ export default function CurriculumChatScreen() {
           setEligibility("ELIGIBLE");
         }
       } catch {
-        if (activeStudentIdRef.current !== requestedStudentId) return;
+        if (
+          activeStudentIdRef.current !== requestedStudentId ||
+          activeConversationIdRef.current !== requestedConversationId
+        ) return;
         setEligibility("ELIGIBLE");
       } finally {
-        if (activeStudentIdRef.current === requestedStudentId) {
+        if (
+          activeStudentIdRef.current        === requestedStudentId &&
+          activeConversationIdRef.current   === requestedConversationId
+        ) {
           setHistoryLoading(false);
         }
       }
@@ -263,12 +346,13 @@ export default function CurriculumChatScreen() {
     [token],
   );
 
-  // Load history on mount — eligibility determined by server, not by global mode
+  // Load history + conversation list on mount
   useEffect(() => {
     if (activeStudentId) {
-      loadHistory(activeStudentId);
+      loadHistory(activeStudentId, activeConversationId);
+      loadConversationList(activeStudentId);
     }
-  }, [activeStudentId, loadHistory]);
+  }, [activeStudentId, loadHistory, loadConversationList]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scroll helpers ─────────────────────────────────────────────────────────
 
@@ -280,35 +364,113 @@ export default function CurriculumChatScreen() {
     if (!historyLoading && serverMessages.length > 0) scrollToBottom(false);
   }, [historyLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Student switch — resets state, reloads history (server re-determines eligibility) ─
+  // ── WP-D: Create new conversation ─────────────────────────────────────────
 
-  function handleStudentSwitch(student: ChildStudent) {
-    setShowStudentPicker(false);
-    if (student.id === activeStudentId) return;
+  async function createNewConversation() {
+    if (!activeStudentId || !token || sending) return;
+    const requestedStudentId = activeStudentIdRef.current;
 
-    // Update ref first (before state) so any in-flight response is discarded
-    activeStudentIdRef.current = student.id;
-    setActiveStudentId(student.id);
+    try {
+      const res = await apiRequest(
+        token,
+        `/parent/students/${requestedStudentId}/curriculum-search/conversations`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      if (activeStudentIdRef.current !== requestedStudentId) return;
 
-    // Reset conversation state for the incoming student
+      if (res.ok) {
+        const data = await res.json();
+        const newConvId: string = data.id;
+
+        // Update ref before state to invalidate in-flight callbacks
+        activeConversationIdRef.current = newConvId;
+        setActiveConversationId(newConvId);
+
+        // Reset chat state for the new empty conversation
+        setServerMessages([]);
+        setPendingMsg(null);
+        setInput("");
+        setSending(false);
+        setCurrentRequestId(newRequestId());
+        setEligibility("ELIGIBLE"); // new conv doesn't change eligibility
+
+        // Refresh list
+        const newItem: ConversationItem = {
+          id:                   newConvId,
+          title:                null,
+          created_at:           data.created_at ?? new Date().toISOString(),
+          updated_at:           data.created_at ?? new Date().toISOString(),
+          last_message_at:      null,
+          last_message_preview: null,
+        };
+        setConversationList((prev) => [newItem, ...prev]);
+      } else {
+        showToast("새 대화를 시작하지 못했습니다.", "error");
+      }
+    } catch {
+      showToast("새 대화를 시작하지 못했습니다.", "error");
+    }
+  }
+
+  // ── WP-D: Switch conversation ──────────────────────────────────────────────
+
+  function switchConversation(conv: ConversationItem) {
+    setShowConversationList(false);
+    if (conv.id === activeConversationId) return;
+
+    const currentStudentId = activeStudentIdRef.current;
+
+    // Update refs before state (invalidate in-flight callbacks)
+    activeConversationIdRef.current = conv.id;
+    setActiveConversationId(conv.id);
+
+    // Reset chat state
     setServerMessages([]);
     setPendingMsg(null);
     setInput("");
     setSending(false);
     setCurrentRequestId(newRequestId());
     setHistoryLoading(false);
-    // Reset eligibility — server will re-determine via history GET for new student
+    setEligibility("UNKNOWN");
+
+    // Load messages for selected conversation
+    loadHistory(currentStudentId, conv.id);
+  }
+
+  // ── Student switch — resets state, reloads history (server re-determines eligibility) ─
+
+  function handleStudentSwitch(student: ChildStudent) {
+    setShowStudentPicker(false);
+    if (student.id === activeStudentId) return;
+
+    // Update refs first (before state) so any in-flight response is discarded
+    activeStudentIdRef.current = student.id;
+    // Reset conversation refs too
+    activeConversationIdRef.current = null;
+    setActiveConversationId(null);
+
+    setActiveStudentId(student.id);
+
+    // Reset all conversation state for the incoming student
+    setConversationList([]);
+    setServerMessages([]);
+    setPendingMsg(null);
+    setInput("");
+    setSending(false);
+    setCurrentRequestId(newRequestId());
+    setHistoryLoading(false);
     setEligibility("UNKNOWN");
     // usage stays: per parent-account, not per student
   }
 
-  // ── Send / Retry — studentId-scoped (race safe) ────────────────────────────
+  // ── Send / Retry — studentId+conversationId scoped (race safe) ────────────
 
   async function handleSend(queryOverride?: string, retry = false) {
     if (!isEligible || sending || isExhausted) return;
 
-    // Capture student ID at call time
-    const sentStudentId = activeStudentIdRef.current;
+    // Capture student + conversation IDs at call time
+    const sentStudentId      = activeStudentIdRef.current;
+    const sentConversationId = activeConversationIdRef.current;
 
     const content = retry
       ? (pendingMsg?.content ?? "").trim()
@@ -329,21 +491,31 @@ export default function CurriculumChatScreen() {
     scrollToBottom();
 
     try {
+      // WP-D: conversation_id additive field
+      const body: Record<string, string> = { request_id: requestId, query: content };
+      if (sentConversationId) body.conversation_id = sentConversationId;
+
       const res = await apiRequest(
         token,
         `/parent/students/${sentStudentId}/curriculum-search`,
         {
           method: "POST",
-          body: JSON.stringify({ request_id: requestId, query: content }),
+          body: JSON.stringify(body),
         },
       );
 
-      // Guard: discard if student changed while in-flight
-      if (activeStudentIdRef.current !== sentStudentId) return;
+      // Guard: discard if student or conversation changed while in-flight
+      if (
+        activeStudentIdRef.current      !== sentStudentId ||
+        activeConversationIdRef.current !== sentConversationId
+      ) return;
 
       if (res.ok) {
         const data = await res.json();
-        if (activeStudentIdRef.current !== sentStudentId) return;
+        if (
+          activeStudentIdRef.current      !== sentStudentId ||
+          activeConversationIdRef.current !== sentConversationId
+        ) return;
 
         if (data.usage) setUsage(data.usage);
         console.log("[curriculum-chat] success", { requestId, remaining: data.usage?.remaining });
@@ -369,6 +541,27 @@ export default function CurriculumChatScreen() {
         setPendingMsg(null);
         setServerMessages((prev) => [...prev, userMsg, assistantMsg]);
         setCurrentRequestId(newRequestId());
+
+        // WP-D: update conversation list with latest preview
+        if (sentConversationId) {
+          setConversationList((prev) =>
+            prev.map((c) =>
+              c.id === sentConversationId
+                ? {
+                    ...c,
+                    last_message_at:      now,
+                    last_message_preview: data.result?.answer?.slice(0, 100) ?? null,
+                    updated_at:           now,
+                    // Update title if it was "새 대화" or null — server already updated DB
+                    title: c.title === null || c.title === "새 대화"
+                      ? (content.length > 30 ? content.slice(0, 30) + "…" : content)
+                      : c.title,
+                  }
+                : c,
+            ),
+          );
+        }
+
         scrollToBottom();
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -401,7 +594,10 @@ export default function CurriculumChatScreen() {
       console.log("[curriculum-chat] network error", { requestId });
       setPendingMsg((prev) => (prev ? { ...prev, status: "failed", retryableError: true } : null));
     } finally {
-      if (activeStudentIdRef.current === sentStudentId) {
+      if (
+        activeStudentIdRef.current      === sentStudentId &&
+        activeConversationIdRef.current === sentConversationId
+      ) {
         setSending(false);
       }
     }
@@ -560,6 +756,77 @@ export default function CurriculumChatScreen() {
     );
   }
 
+  // ── WP-D: Conversation list modal ─────────────────────────────────────────
+
+  function renderConversationList() {
+    return (
+      <Modal
+        visible={showConversationList}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowConversationList(false)}
+      >
+        <Pressable style={s.pickerOverlay} onPress={() => setShowConversationList(false)}>
+          <Pressable style={s.convListSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={s.convListHeader}>
+              <Text style={s.pickerTitle}>대화 목록</Text>
+              <Pressable onPress={() => setShowConversationList(false)} hitSlop={8}>
+                <LucideIcon name="x" size={18} color={C.textMuted} />
+              </Pressable>
+            </View>
+
+            {listLoading ? (
+              <View style={s.convListLoadingWrap}>
+                <ActivityIndicator color={TEAL} />
+              </View>
+            ) : conversationList.length === 0 ? (
+              <View style={s.convListEmptyWrap}>
+                <Text style={s.convListEmptyText}>대화 기록이 없습니다.</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                {conversationList.map((conv) => {
+                  const isActive = conv.id === activeConversationId;
+                  return (
+                    <Pressable
+                      key={conv.id}
+                      style={({ pressed }) => [
+                        s.convItem,
+                        isActive && s.convItemActive,
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                      onPress={() => switchConversation(conv)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[s.convItemTitle, isActive && { color: TEAL }]}
+                          numberOfLines={1}
+                        >
+                          {conv.title ?? "새 대화"}
+                        </Text>
+                        {conv.last_message_preview ? (
+                          <Text style={s.convItemPreview} numberOfLines={1}>
+                            {conv.last_message_preview}
+                          </Text>
+                        ) : null}
+                        <Text style={s.convItemDate}>
+                          {fmtDate(conv.last_message_at ?? conv.created_at)}
+                        </Text>
+                      </View>
+                      {isActive && (
+                        <LucideIcon name="check" size={16} color={TEAL} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
+  }
+
   // ── Student picker modal ───────────────────────────────────────────────────
 
   const hasMultipleStudents = students.length > 1;
@@ -618,11 +885,35 @@ export default function CurriculumChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
       >
-        {/* Header */}
+        {/* Header — WP-D: 새 대화(+) + 대화목록 버튼 우측 추가 */}
         <ParentScreenHeader
           title="AI 커리큘럼 검색"
           subtitle={hasMultipleStudents ? undefined : displayName}
           onBack={() => router.back()}
+          rightSlot={
+            <View style={s.headerActions}>
+              {/* 대화 목록 버튼 */}
+              <Pressable
+                onPress={() => {
+                  loadConversationList(activeStudentId);
+                  setShowConversationList(true);
+                }}
+                style={({ pressed }) => [s.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={8}
+              >
+                <LucideIcon name="history" size={20} color={C.textSecondary} />
+              </Pressable>
+              {/* 새 대화 버튼 */}
+              <Pressable
+                onPress={createNewConversation}
+                disabled={sending}
+                style={({ pressed }) => [s.headerBtn, { opacity: pressed ? 0.6 : 1 }]}
+                hitSlop={8}
+              >
+                <LucideIcon name="square-pen" size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+          }
         />
 
         {/* Multi-child switcher strip */}
@@ -740,6 +1031,7 @@ export default function CurriculumChatScreen() {
       </KeyboardAvoidingView>
 
       {renderStudentPicker()}
+      {renderConversationList()}
       <ToastComponent />
     </>
   );
@@ -749,6 +1041,20 @@ export default function CurriculumChatScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
+
+  // WP-D: 헤더 우측 액션 버튼
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
 
   studentStrip: {
     flexDirection: "row",
@@ -1103,5 +1409,70 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
     color: C.text,
+  },
+
+  // WP-D: Conversation list sheet
+  convListSheet: {
+    backgroundColor: C.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+    gap: 4,
+    maxHeight: "75%",
+  },
+  convListHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  convListLoadingWrap: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  convListEmptyWrap: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  convListEmptyText: {
+    fontSize: 14,
+    fontFamily: "Pretendard-Regular",
+    color: C.textMuted,
+  },
+  convItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+    gap: 8,
+  },
+  convItemActive: {
+    backgroundColor: TEAL_BG,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    marginHorizontal: -10,
+  },
+  convItemTitle: {
+    fontSize: 14,
+    fontFamily: "Pretendard-Regular",
+    fontWeight: "600" as const,
+    color: C.text,
+    lineHeight: 20,
+  },
+  convItemPreview: {
+    fontSize: 12,
+    fontFamily: "Pretendard-Regular",
+    color: C.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  convItemDate: {
+    fontSize: 11,
+    fontFamily: "Pretendard-Regular",
+    color: C.textMuted,
+    marginTop: 2,
   },
 });

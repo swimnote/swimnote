@@ -1,7 +1,9 @@
 /**
- * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3 / WP1.2 / WP-B
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3 / WP1.2 / WP-B / WP-D
  *
  * Routes:
+ *   POST /parent/students/:studentId/curriculum-search/conversations   (WP-D: 새 대화 생성)
+ *   GET  /parent/students/:studentId/curriculum-search/conversations   (WP-D: 대화 목록)
  *   POST /parent/students/:studentId/curriculum-search
  *   GET  /parent/students/:studentId/curriculum-search/history
  *
@@ -68,6 +70,9 @@ import {
 } from "../lib/parent-curriculum-quota.js";
 import {
   getOrCreateConversation,
+  createConversation,
+  listConversations,
+  getConversationWithOwnership,
   findConversation,
   saveUserMessage,
   saveAssistantMessage,
@@ -75,6 +80,7 @@ import {
   getConversationMessages,
   getAssistantMessageByRequestId,
   buildRecentConversationContext,
+  updateConversationTitleIfBlank,
 } from "../lib/parent-curriculum-conversation.js";
 import { saveAiTrace }  from "../lib/ai-trace-service.js";
 import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
@@ -200,12 +206,113 @@ const HUMAN_ONLY_ANSWER =
   "진급 시점이나 다음 단계 전환 여부는 실제 수업 수행 상태와 담당 선생님의 판단이 필요합니다. " +
   "정확한 진급 일정은 담당 선생님께 직접 문의해 주세요.";
 
+// ─── WP-D: POST /conversations — 새 대화 생성 ─────────────────────────────────
+
+/**
+ * POST /parent/students/:studentId/curriculum-search/conversations
+ *
+ * 새 conversation 생성. AI 호출 없음. quota 차감 없음.
+ * 초기 title: null (첫 USER message 저장 시 자동 생성).
+ *
+ * Response: { id, title, created_at }
+ */
+router.post(
+  "/parent/students/:studentId/curriculum-search/conversations",
+  requireAuth,
+  requireParent,
+  async (req: AuthRequest, res) => {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+
+    const ownershipResult = await superAdminDb.execute(sql`
+      SELECT ps.swimming_pool_id
+      FROM parent_students ps
+      WHERE ps.parent_id  = ${parentId}
+        AND ps.student_id = ${studentId}
+        AND ps.status     = 'approved'
+      LIMIT 1
+    `).catch(() => ({ rows: [] as any[] }));
+
+    if (!ownershipResult.rows.length) {
+      res.status(403).json({ error: "접근 권한이 없습니다.", code: "FORBIDDEN" });
+      return;
+    }
+
+    const poolId = (ownershipResult.rows[0] as any).swimming_pool_id as string;
+
+    const conversationId = await createConversation(parentId, studentId, poolId, null)
+      .catch((err) => {
+        console.error("[parent-curriculum] createConversation failed:", err?.message);
+        return null as string | null;
+      });
+
+    if (!conversationId) {
+      res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+      return;
+    }
+
+    res.json({
+      id:         conversationId,
+      title:      null,
+      created_at: new Date().toISOString(),
+    });
+  },
+);
+
+// ─── WP-D: GET /conversations — 대화 목록 ─────────────────────────────────────
+
+/**
+ * GET /parent/students/:studentId/curriculum-search/conversations
+ *
+ * 해당 parent/student의 conversation 목록 반환.
+ * quota 차감 없음. AI 호출 없음.
+ *
+ * Response: { conversations: ConversationListItem[] }
+ */
+router.get(
+  "/parent/students/:studentId/curriculum-search/conversations",
+  requireAuth,
+  requireParent,
+  async (req: AuthRequest, res) => {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+
+    const ownershipResult = await superAdminDb.execute(sql`
+      SELECT ps.swimming_pool_id
+      FROM parent_students ps
+      WHERE ps.parent_id  = ${parentId}
+        AND ps.student_id = ${studentId}
+        AND ps.status     = 'approved'
+      LIMIT 1
+    `).catch(() => ({ rows: [] as any[] }));
+
+    if (!ownershipResult.rows.length) {
+      res.status(403).json({ error: "접근 권한이 없습니다.", code: "FORBIDDEN" });
+      return;
+    }
+
+    const poolId = (ownershipResult.rows[0] as any).swimming_pool_id as string;
+
+    const conversations = await listConversations(parentId, studentId, poolId)
+      .catch((err) => {
+        console.error("[parent-curriculum] listConversations failed:", err?.message);
+        return [] as Awaited<ReturnType<typeof listConversations>>;
+      });
+
+    res.json({ conversations });
+  },
+);
+
 // ─── POST: Curriculum Search ───────────────────────────────────────────────────
 
 /**
  * POST /parent/students/:studentId/curriculum-search
  *
- * Body: { request_id: string, query: string }
+ * Body: { request_id: string, query: string, conversation_id?: string }
+ *
+ * WP-D: conversation_id optional additive field.
+ *   - 있음: ownership 검증 후 해당 conversation 사용
+ *   - 없음: 구버전 fallback (getOrCreateConversation)
  */
 router.post(
   "/parent/students/:studentId/curriculum-search",
@@ -216,7 +323,8 @@ router.post(
     const studentId = req.params.studentId;
 
     // ── Request 유효성 검사 ──────────────────────────────────────────────────
-    const { request_id, query } = req.body ?? {};
+    // WP-D: conversation_id optional additive field
+    const { request_id, query, conversation_id } = req.body ?? {};
 
     if (typeof request_id !== "string" || !request_id.trim()) {
       res.status(400).json({ error: "request_id 필수", code: "INVALID_REQUEST" });
@@ -227,8 +335,12 @@ router.post(
       return;
     }
 
-    const trimmedRequestId = request_id.trim();
-    const trimmedQuery     = query.trim();
+    const trimmedRequestId  = request_id.trim();
+    const trimmedQuery      = query.trim();
+    const clientConvId: string | null =
+      typeof conversation_id === "string" && conversation_id.trim()
+        ? conversation_id.trim()
+        : null;
 
     // ── 1. Parent↔Student 소유권 확인 ────────────────────────────────────────
     const ownershipResult = await superAdminDb.execute(sql`
@@ -297,12 +409,29 @@ router.post(
       return;
     }
 
-    // ── 3. Conversation 조회/생성 ─────────────────────────────────────────────
-    const conversationId = await getOrCreateConversation(parentId, studentId, poolId)
-      .catch((err) => {
-        console.error("[parent-curriculum] conversation upsert failed:", err?.message);
-        return null as string | null;
-      });
+    // ── 3. Conversation 조회/생성 (WP-D) ─────────────────────────────────────
+    //
+    // conversation_id 있음: ownership 검증 → 해당 conversation 사용
+    // conversation_id 없음: 구버전 fallback — 최신 active conversation 또는 신규 생성
+    let conversationId: string | null = null;
+
+    if (clientConvId) {
+      // WP-D: client가 명시한 conversation — ownership 재검증
+      const conv = await getConversationWithOwnership(clientConvId, parentId, studentId, poolId)
+        .catch(() => null);
+      if (!conv) {
+        res.status(403).json({ error: "대화를 찾을 수 없거나 접근 권한이 없습니다.", code: "FORBIDDEN" });
+        return;
+      }
+      conversationId = conv.id;
+    } else {
+      // 구버전 fallback: ON CONFLICT 없는 SELECT-first + INSERT
+      conversationId = await getOrCreateConversation(parentId, studentId, poolId)
+        .catch((err) => {
+          console.error("[parent-curriculum] conversation fallback failed:", err?.message);
+          return null as string | null;
+        });
+    }
 
     if (!conversationId) {
       res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
@@ -442,6 +571,8 @@ router.post(
       }).catch((err) => {
         console.error("[parent-curriculum] USER message save failed (DIRECT_DB):", err?.message);
       });
+      // WP-D: 첫 USER message 기반 title 자동 생성 (GPT 없음)
+      await updateConversationTitleIfBlank(conversationId, trimmedQuery).catch(() => undefined);
 
       const directMeta = {
         intent:            parsedIntent.intent,
@@ -488,6 +619,8 @@ router.post(
       }).catch((err) => {
         console.error("[parent-curriculum] USER message save failed (HUMAN_ONLY):", err?.message);
       });
+      // WP-D: 첫 USER message 기반 title 자동 생성 (GPT 없음)
+      await updateConversationTitleIfBlank(conversationId, trimmedQuery).catch(() => undefined);
 
       const humanMeta = {
         intent:            parsedIntent.intent,
@@ -565,6 +698,8 @@ router.post(
     }).catch((err) => {
       console.error("[parent-curriculum] USER message save failed:", err?.message);
     });
+    // WP-D: 첫 USER message 기반 title 자동 생성 (GPT 없음)
+    await updateConversationTitleIfBlank(conversationId, trimmedQuery).catch(() => undefined);
 
     // ── 16. Recent Conversation Context 구성 (WP1.2) ─────────────────────────
     const recentConversation = await buildRecentConversationContext(
@@ -789,6 +924,10 @@ router.post(
  * GET /parent/students/:studentId/curriculum-search/history
  *
  * 대화 이력 조회. quota 차감 없음. ownership 검증 필수.
+ *
+ * WP-D: ?conversation_id=<id> optional query param
+ *   - 있음: ownership 검증 후 해당 conversation messages 반환
+ *   - 없음: 기존 동작 (최신 active conversation) — backward compat
  */
 router.get(
   "/parent/students/:studentId/curriculum-search/history",
@@ -797,6 +936,12 @@ router.get(
   async (req: AuthRequest, res) => {
     const parentId  = req.user!.userId;
     const studentId = req.params.studentId;
+
+    // WP-D: optional conversation_id query param
+    const clientConvIdQuery: string | null =
+      typeof req.query.conversation_id === "string" && req.query.conversation_id.trim()
+        ? req.query.conversation_id.trim()
+        : null;
 
     const ownershipResult = await superAdminDb.execute(sql`
       SELECT ps.swimming_pool_id
@@ -867,7 +1012,27 @@ router.get(
       }
     }
 
-    const conversationId = await findConversation(parentId, studentId).catch(() => null);
+    // ── WP-D: conversation_id 분기 ────────────────────────────────────────────
+    let conversationId: string | null = null;
+
+    if (clientConvIdQuery) {
+      // WP-D: client 지정 conversation — ownership 검증
+      const poolIdStr = (ownershipResult.rows[0] as any)?.swimming_pool_id as string | null;
+      if (!poolIdStr) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "FORBIDDEN" });
+        return;
+      }
+      const conv = await getConversationWithOwnership(clientConvIdQuery, parentId, studentId, poolIdStr)
+        .catch(() => null);
+      if (!conv) {
+        res.status(403).json({ error: "대화를 찾을 수 없거나 접근 권한이 없습니다.", code: "FORBIDDEN" });
+        return;
+      }
+      conversationId = conv.id;
+    } else {
+      // 기존 동작: 최신 active conversation (backward compat)
+      conversationId = await findConversation(parentId, studentId).catch(() => null);
+    }
 
     if (!conversationId) {
       const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
