@@ -34,12 +34,24 @@ description: diary_templates(scope=global, is_active=true)를 curriculum_items�
 - restore-default, clear-all
 - 패턴: fireSyncInBackground(poolId) — fire-and-forget, .catch() 로그
 
-## 현재 상태 (2026-08-20)
-- SHA 18a50f01
-- 14TC 전체 통과
-- Production DB write NO, Render deploy NO (코드+push만)
-- Toykids (pool_1780849364252_l9k44rbk3): 350 global templates 존재 → backfill 필요
-- backfill은 별도 승인 후 진행
+## Pre-deploy corrections (2026-08-20, SHA 9e8ef38d)
+
+### 수정 사항
+1. **fireSyncInBackground 제거** — 모든 sync 호출 await으로 전환; 실패 → API 500 전파
+2. **startup migration 제거** — super-db-init.ts에서 source_template_id DDL 제거
+   → `artifacts/api-server/src/migrations/diary-template-sync-migration.ts` 독립 파일로 분리
+3. **ON CONFLICT semantics 검증**:
+   - curriculum_versions: `uniq_curriculum_versions_name (swimming_pool_id, version_name)` 존재 → ON CONFLICT 안전
+   - curriculum_items: `WHERE source_template_id IS NOT NULL` 정확히 일치 필요
+4. **uniq_curriculum_versions_one_active 처리**:
+   - `ensureDiaryTemplateVersion`이 경쟁 active version을 먼저 deactivate 후 diary-templates-v1 활성화
+5. **16TC**: TC-SYNC-14(throw 검증), TC-SYNC-15(deactivate competing), TC-SYNC-16(ON CONFLICT version_name)
+
+### 현재 상태
+- 16TC 전체 통과, TS clean
+- Production DB write NO, Render deploy NO
+- Toykids (pool_1780849364252_l9k44rbk3): backfill 별도 승인 후 진행
+- 독립 migration 실행 순서: (1) diary-template-sync-migration.ts 실행, (2) Render 배포, (3) backfill
 
 ## How to apply
 - 신규 X pool: restore-default 또는 template INSERT 시 자동 sync

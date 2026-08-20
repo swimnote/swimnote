@@ -1,0 +1,197 @@
+# [DIARY TEMPLATE MATERIALIZATION — PRE-DEPLOY CORRECTION]
+
+현재 commit:
+18a50f01
+
+MULTI-POOL architecture는 승인.
+
+하지만 Production deploy 전 아래 3개 수정 필수.
+
+==================================================
+1. BACKGROUND SYNC 제거
+==================================================
+
+현재 보고서의:
+
+fireSyncInBackground
++
+error swallow
+
+방식 제거.
+
+diary_templates가 source of truth이고
+curriculum_items가 검색 index이므로
+silent divergence를 허용하지 않는다.
+
+template INSERT / UPDATE / inactive 변경 시
+curriculum sync 결과를 await한다.
+
+가능하면 같은 DB transaction 내에서:
+
+template mutation
++
+curriculum item mutation
+
+처리.
+
+최소한 sync 실패가 API에서 감지되어야 한다.
+
+금지:
+
+sync(...).catch(...)
+fire-and-forget
+error swallow
+
+==================================================
+2. STARTUP MIGRATION 제거
+==================================================
+
+super-db-init.ts에서
+
+ADD COLUMN IF NOT EXISTS source_template_id
+
+자동 startup 실행 제거.
+
+이 프로젝트에서는 schema migration을
+API startup에서 실행하지 않는다.
+
+이유:
+기존 Production boot recovery 원칙 유지.
+
+별도 migration 파일로만 관리:
+
+- source_template_id nullable column
+- duplicate protection index
+
+Render 배포와 DB migration을 분리한다.
+
+API는 migration 전 schema가 없을 경우
+startup 자체가 죽지 않도록 한다.
+
+==================================================
+3. PARTIAL UNIQUE + ON CONFLICT 검증
+==================================================
+
+현재 index:
+
+UNIQUE
+(swimming_pool_id, source_template_id)
+WHERE source_template_id IS NOT NULL
+
+현재 upsert:
+
+ON CONFLICT
+(swimming_pool_id, source_template_id)
+
+이 조합이 실제 PostgreSQL에서
+정상 inference되는지 확인.
+
+mock/문자열 테스트만으로 PASS 금지.
+
+필요 시 실제 PostgreSQL semantics에 맞춰:
+
+ON CONFLICT
+(swimming_pool_id, source_template_id)
+WHERE source_template_id IS NOT NULL
+
+또는 동등하게 안전한 방식 사용.
+
+목표:
+
+- 동일 pool + 동일 source_template_id 중복 0
+- 다른 pool의 동일 source_template_id 허용
+- NULL legacy rows 영향 없음
+- repeated sync idempotent
+
+==================================================
+4. curriculum_versions ON CONFLICT도 검증
+==================================================
+
+현재:
+
+ON CONFLICT
+(swimming_pool_id, version_name)
+
+사용 중이면
+Production schema에 실제 matching UNIQUE constraint/index가
+존재하는지 확인.
+
+없으면 ON CONFLICT 사용 금지.
+
+실제 constraint 기준으로:
+
+- SELECT-first + advisory lock
+또는
+- 별도 안전한 uniqueness migration
+
+중 최소 변경 방식 사용.
+
+임의 constraint 추가는 보고 후 결정.
+
+==================================================
+5. SOURCE RULE 유지
+==================================================
+
+변경하지 말 것:
+
+student
+→ server verified swimming_pool_id
+→ 해당 pool의 effective diary templates
+→ 해당 pool curriculum_items
+
+Toykids hardcoding 금지.
+
+teacher/x_global 제외 유지.
+
+Normal AI search 차단 유지.
+
+300 threshold 유지.
+
+==================================================
+6. TEST
+==================================================
+
+이번 수정 범위 테스트만.
+
+필수:
+
+- sync failure가 swallow되지 않음
+- repeated sync duplicate 0
+- Pool A/B isolation
+- partial unique 실제 SQL semantics 확인
+- managed curriculum_version duplicate 0
+- template update → item update
+- inactive → item inactive
+- Normal 차단 유지
+- startup 시 schema migration 자동 실행 안 됨
+
+전체 regression 금지.
+
+Production DB write 금지.
+
+Render deploy 금지.
+
+==================================================
+7. 완료 보고
+==================================================
+
+[DIARY TEMPLATE MATERIALIZATION PRE-DEPLOY CORRECTION REPORT]
+
+- fireSyncInBackground removed:
+- sync awaited:
+- transaction strategy:
+- startup migration removed:
+- standalone migration file:
+- partial unique definition:
+- ON CONFLICT strategy:
+- PostgreSQL conflict compatibility verified:
+- curriculum_version uniqueness verified:
+- pool isolation:
+- Normal policy unchanged:
+- tests:
+- Production DB write: NO
+- Render deploy: NO
+- new commit SHA:
+- final status:
+
+보고 후 멈춘다.
