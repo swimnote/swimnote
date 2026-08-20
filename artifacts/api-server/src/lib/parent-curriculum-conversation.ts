@@ -33,7 +33,7 @@
  *   - GPT title generation 금지. AI 비용 0.
  */
 
-import { superAdminDb } from "@workspace/db";
+import { superAdminDb, pool as pgPool } from "@workspace/db";
 import { sql }          from "drizzle-orm";
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
@@ -154,19 +154,35 @@ export async function getOrCreateConversation(
   const lockKey1 = Math.abs(hashStr(parentId))   % 2147483647;
   const lockKey2 = Math.abs(hashStr(studentId))  % 2147483647;
 
-  const result = await superAdminDb.execute(sql`
-    SELECT pg_advisory_xact_lock(${lockKey1}::int, ${lockKey2}::int);
-    SELECT id
-    FROM parent_curriculum_conversations
-    WHERE parent_account_id = ${parentId}
-      AND student_id         = ${studentId}
-      AND status             = 'active'
-    ORDER BY COALESCE(last_message_at, updated_at) DESC
-    LIMIT 1
-  `);
-
-  // drizzle execute returns last statement's result
-  const rows = (result as any).rows ?? [];
+  // pg 드라이버는 single connection 트랜잭션 내에서만 advisory lock이 유효하고,
+  // drizzle execute()는 multi-statement SQL을 지원하지 않음.
+  // → raw pg 클라이언트를 checkout해서 BEGIN/pg_advisory_xact_lock/SELECT/COMMIT.
+  const client = await pgPool.connect();
+  let rows: any[] = [];
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock($1::int, $2::int)",
+      [lockKey1, lockKey2],
+    );
+    const result = await client.query(
+      `SELECT id
+       FROM parent_curriculum_conversations
+       WHERE parent_account_id = $1
+         AND student_id         = $2
+         AND status             = 'active'
+       ORDER BY COALESCE(last_message_at, updated_at) DESC
+       LIMIT 1`,
+      [parentId, studentId],
+    );
+    await client.query("COMMIT");
+    rows = result.rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
   if (rows.length > 0) {
     const convId = (rows[0] as any).id as string;
     // touch updated_at
