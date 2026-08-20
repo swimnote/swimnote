@@ -812,33 +812,35 @@ router.get(
       return;
     }
 
-    // ── WP-C eligibility pre-check (non-charging) ─────────────────────────────
-    // Returns eligibility_code so the client can show unavailable UI before
-    // the user sends a message — no AI call, no quota charge.
+    // ── WP-C eligibility pre-check (non-charging, backward-compatible) ──────────
+    // Additive fields: eligible: boolean, reason?: string
+    // No AI/GPT call, no quota charge. Existing fields unchanged.
     const poolId = (ownershipResult.rows[0] as any)?.swimming_pool_id as string | null;
     if (poolId) {
       const modeResult = await resolvePoolMode(poolId).catch(() => null);
       if (modeResult) {
         const pm = modeResult.mode;
-        if (pm === "normal") {
+
+        // Normal pool → never eligible
+        if (pm === "normal" || pm === "x_pending") {
           const u = await getMonthlyUsageInfo(parentId).catch(() => ({
             limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
           }));
-          res.json({ eligible: false, eligibility_code: "CURRICULUM_NOT_AVAILABLE", conversation_id: null, messages: [], usage: u });
+          res.json({
+            eligible: false,
+            reason: "CURRICULUM_NOT_AVAILABLE",
+            conversation_id: null,
+            messages: [],
+            usage: u,
+          });
           return;
         }
-        if (pm === "x_pending") {
-          const u = await getMonthlyUsageInfo(parentId).catch(() => ({
-            limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
-          }));
-          res.json({ eligible: false, eligibility_code: "CURRICULUM_SEARCH_NOT_ELIGIBLE", conversation_id: null, messages: [], usage: u });
-          return;
-        }
+
+        // X pool → check searchable curriculum count (no charge)
         if (pm === "x") {
-          // Check curriculum availability (same guard as POST, no charge)
           try {
             await buildXCurriculumScope();
-            // scope ok — eligible; fall through to normal history load below
+            // scope ok — fall through to normal history load (eligible: true)
           } catch (scopeErr) {
             if (
               scopeErr instanceof CurriculumScopeError &&
@@ -850,10 +852,16 @@ router.get(
               const u = await getMonthlyUsageInfo(parentId).catch(() => ({
                 limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
               }));
-              res.json({ eligible: false, eligibility_code: "CURRICULUM_NOT_READY", conversation_id: null, messages: [], usage: u });
+              res.json({
+                eligible: false,
+                reason: "CURRICULUM_NOT_READY",
+                conversation_id: null,
+                messages: [],
+                usage: u,
+              });
               return;
             }
-            // Unexpected error — treat as eligible; POST will surface the real error
+            // Unexpected scope error — treat as eligible; POST will surface the real error
           }
         }
       }

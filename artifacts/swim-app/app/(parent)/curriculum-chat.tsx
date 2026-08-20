@@ -194,11 +194,11 @@ export default function CurriculumChatScreen() {
   const [currentRequestId, setCurrentRequestId] = useState<string>(newRequestId);
 
   /**
-   * Eligibility lifecycle:
-   *   - Starts as UNKNOWN
-   *   - Normal/x_pending → NOT_AVAILABLE immediately from mode (fast path, no API)
-   *   - X mode → UNKNOWN until history GET responds with eligible field
-   *   - ELIGIBLE / NOT_READY / NOT_AVAILABLE set from history response or POST 422
+   * Eligibility lifecycle — fully server-authoritative:
+   *   - Starts as UNKNOWN (spinner shown)
+   *   - history GET response sets eligible/reason → ELIGIBLE | NOT_AVAILABLE | NOT_READY
+   *   - POST 422 can also update (belt-and-suspenders)
+   *   - Global useMode() NOT used for eligibility (supports multi-pool children)
    */
   const [eligibility, setEligibility] = useState<Eligibility>("UNKNOWN");
 
@@ -210,18 +210,10 @@ export default function CurriculumChatScreen() {
   const isExhausted   = usage !== null && usage.remaining <= 0;
   const canSend       = isEligible && !isExhausted && !sending && input.trim().length > 0;
 
-  // ── Fast-path eligibility from pool mode (no API call) ────────────────────
-
-  useEffect(() => {
-    if (mode === null) return;  // mode still loading — stay UNKNOWN
-    if (mode === "normal" || mode === "x_pending") {
-      // Server always rejects these — show unavailable immediately
-      setEligibility("NOT_AVAILABLE");
-    }
-    // mode === "x": eligibility determined by history GET (done below)
-  }, [mode]);
-
-  // ── History load — studentId-scoped (race safe) ───────────────────────────
+  // ── History load — server-authoritative eligibility, studentId-scoped ────────
+  // Called on mount and on every student switch.
+  // eligible / reason from server response determines the UI state
+  // before any message is sent — no mode inference on the client.
 
   const loadHistory = useCallback(
     async (studentId: string) => {
@@ -240,36 +232,28 @@ export default function CurriculumChatScreen() {
           const data = await res.json();
           if (activeStudentIdRef.current !== requestedStudentId) return;
 
-          // Apply server eligibility from history response
+          // Server-authoritative eligibility via additive fields
           if (data.eligible === false) {
-            const code: string = data.eligibility_code ?? "";
-            if (
-              code === "CURRICULUM_NOT_AVAILABLE" ||
-              code === "CURRICULUM_SEARCH_NOT_ELIGIBLE"
-            ) {
-              setEligibility("NOT_AVAILABLE");
-            } else if (code === "CURRICULUM_NOT_READY") {
-              setEligibility("NOT_READY");
-            } else {
-              setEligibility("NOT_AVAILABLE");
-            }
-            // No messages to load
+            const reason: string = data.reason ?? "";
+            setEligibility(
+              reason === "CURRICULUM_NOT_READY" ? "NOT_READY" : "NOT_AVAILABLE",
+            );
             setServerMessages([]);
             if (data.usage) setUsage(data.usage);
             return;
           }
 
-          // eligible: true (or older server without eligible field — treat as eligible)
+          // eligible: true (or server without the field — treat as eligible)
           setEligibility("ELIGIBLE");
           setServerMessages(data.messages ?? []);
           if (data.usage) setUsage(data.usage);
         } else {
-          // History fetch error — allow retry via ELIGIBLE + normal error flow
+          // HTTP error on history load — allow entry; POST surfaces the real error
           setEligibility("ELIGIBLE");
         }
       } catch {
         if (activeStudentIdRef.current !== requestedStudentId) return;
-        setEligibility("ELIGIBLE"); // network error — allow entry, POST will surface
+        setEligibility("ELIGIBLE");
       } finally {
         if (activeStudentIdRef.current === requestedStudentId) {
           setHistoryLoading(false);
@@ -279,12 +263,12 @@ export default function CurriculumChatScreen() {
     [token],
   );
 
-  // Trigger history load for X mode once mode is confirmed
+  // Load history on mount — eligibility determined by server, not by global mode
   useEffect(() => {
-    if (mode === "x" && activeStudentId) {
+    if (activeStudentId) {
       loadHistory(activeStudentId);
     }
-  }, [mode, activeStudentId, loadHistory]);
+  }, [activeStudentId, loadHistory]);
 
   // ── Scroll helpers ─────────────────────────────────────────────────────────
 
@@ -296,7 +280,7 @@ export default function CurriculumChatScreen() {
     if (!historyLoading && serverMessages.length > 0) scrollToBottom(false);
   }, [historyLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Student switch — resets state, reloads if x mode ─────────────────────
+  // ── Student switch — resets state, reloads history (server re-determines eligibility) ─
 
   function handleStudentSwitch(student: ChildStudent) {
     setShowStudentPicker(false);
@@ -313,8 +297,8 @@ export default function CurriculumChatScreen() {
     setSending(false);
     setCurrentRequestId(newRequestId());
     setHistoryLoading(false);
-    // Reset eligibility for x mode (will be re-determined by history load)
-    if (mode === "x") setEligibility("UNKNOWN");
+    // Reset eligibility — server will re-determine via history GET for new student
+    setEligibility("UNKNOWN");
     // usage stays: per parent-account, not per student
   }
 
@@ -624,10 +608,8 @@ export default function CurriculumChatScreen() {
 
   const hasMessages = serverMessages.length > 0 || pendingMsg !== null;
 
-  // Show spinner when: mode still loading OR (x mode and eligibility still UNKNOWN/loading)
-  const showSpinner =
-    mode === null ||
-    (mode === "x" && (isUnknown || historyLoading));
+  // Show spinner while history is loading or eligibility not yet determined
+  const showSpinner = historyLoading || isUnknown;
 
   return (
     <>
