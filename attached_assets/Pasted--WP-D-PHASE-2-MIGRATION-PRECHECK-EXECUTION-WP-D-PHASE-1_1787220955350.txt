@@ -1,0 +1,206 @@
+# [WP-D PHASE 2 — MIGRATION PRECHECK + EXECUTION]
+
+WP-D PHASE 1 Render 배포 성공.
+
+target SHA:
+724e226d
+
+이제 PHASE 2 migration 진행.
+
+목적:
+
+parent_curriculum_conversations의
+단일 대화 제약을 제거하고
+복수 conversation을 허용한다.
+
+추가:
+title 컬럼
+
+중요:
+기존 conversation/message 데이터는 100% 보존.
+
+==================================================
+1. 먼저 READ-ONLY PRECHECK
+==================================================
+
+Production Supabase에서 확인:
+
+- parent_curriculum_conversations row count
+- parent_curriculum_messages row count
+- parent_curriculum_conversations PK
+- UNIQUE(parent_account_id, student_id) 정확한 constraint/index 이름
+- title 컬럼 존재 여부
+- updated_at 존재 여부
+- messages FK
+- ON DELETE behavior
+- 관련 index
+
+값 보고 후 migration SQL 확정.
+
+blind DROP CONSTRAINT 금지.
+
+==================================================
+2. MIGRATION TARGET
+==================================================
+
+목표:
+
+A.
+기존 UNIQUE(parent_account_id, student_id) 제거
+
+B.
+title TEXT nullable 추가
+(이미 존재하면 추가하지 않음)
+
+C.
+복수 conversation 조회 성능용 index 필요 시 추가
+
+예시 후보:
+
+(parent_account_id, student_id, updated_at DESC)
+
+단,
+실제 기존 index 확인 후 중복 index 만들지 않는다.
+
+==================================================
+3. 데이터 보존
+==================================================
+
+금지:
+
+- conversation DELETE
+- message DELETE
+- 기존 ID 변경
+- message conversation_id 변경
+- 기존 conversation 재생성
+
+migration 전후:
+
+conversation row count 동일
+message row count 동일
+
+필수 확인.
+
+==================================================
+4. TRANSACTION
+==================================================
+
+가능하면 하나의 transaction으로 실행.
+
+BEGIN
+...
+COMMIT
+
+실패 시 rollback.
+
+부분 적용 금지.
+
+==================================================
+5. MIGRATION FILE
+==================================================
+
+이미 작성된:
+
+group8-curriculum-multi-conversation.ts
+
+사용.
+
+단,
+현재 Production constraint/index와 정확히 일치하는지
+PRECHECK 후 검토.
+
+필요하면 최소 수정 후 실행.
+
+광범위 migration 변경 금지.
+
+==================================================
+6. MIGRATION 후 검증
+==================================================
+
+확인:
+
+1.
+기존 conversation row count 동일
+
+2.
+기존 message row count 동일
+
+3.
+title 컬럼 존재
+
+4.
+parent/student 동일 조합으로
+두 번째 conversation 생성 가능한 schema 상태
+
+5.
+기존 conversation 조회 정상
+
+6.
+messages FK 정상
+
+7.
+기존 앱 conversation_id 없는 fallback 유지 가능
+
+==================================================
+7. 최소 API smoke
+==================================================
+
+migration 후:
+
+GET /api/healthz
+→ 200
+
+신규:
+
+GET /parent/students/:id/curriculum-search/conversations
+→ route 정상
+
+POST /parent/students/:id/curriculum-search/conversations
+→ 실제 인증된 test account가 없으면
+미인증 401/403 smoke만
+
+Production 실제 사용자 데이터로
+불필요한 새 conversation 생성 금지.
+
+==================================================
+8. 금지
+==================================================
+
+- iOS OTA 아직 금지
+- WP-D UI 활성화 아직 금지
+- X04 ingestion 금지
+- quota 수정 금지
+- env 변경 금지
+- 전체 regression test 금지
+
+==================================================
+9. 완료 보고
+==================================================
+
+[WP-D PHASE 2 MIGRATION REPORT]
+
+- migration file:
+- conversations before:
+- messages before:
+- unique constraint:
+- title before:
+- migration executed:
+- unique removed:
+- title added:
+- index added:
+- conversations after:
+- messages after:
+- row count preserved:
+- FK valid:
+- rollback required:
+- healthz:
+- API smoke:
+- Production data loss: NO
+- env changed: NO
+- final status:
+
+PASS이면:
+PHASE 3 iOS OTA ready = YES
+
+보고 후 멈춘다.
+아직 OTA 하지 않는다.
