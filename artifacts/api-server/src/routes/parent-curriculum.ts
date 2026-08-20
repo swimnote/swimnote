@@ -812,6 +812,53 @@ router.get(
       return;
     }
 
+    // ── WP-C eligibility pre-check (non-charging) ─────────────────────────────
+    // Returns eligibility_code so the client can show unavailable UI before
+    // the user sends a message — no AI call, no quota charge.
+    const poolId = (ownershipResult.rows[0] as any)?.swimming_pool_id as string | null;
+    if (poolId) {
+      const modeResult = await resolvePoolMode(poolId).catch(() => null);
+      if (modeResult) {
+        const pm = modeResult.mode;
+        if (pm === "normal") {
+          const u = await getMonthlyUsageInfo(parentId).catch(() => ({
+            limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
+          }));
+          res.json({ eligible: false, eligibility_code: "CURRICULUM_NOT_AVAILABLE", conversation_id: null, messages: [], usage: u });
+          return;
+        }
+        if (pm === "x_pending") {
+          const u = await getMonthlyUsageInfo(parentId).catch(() => ({
+            limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
+          }));
+          res.json({ eligible: false, eligibility_code: "CURRICULUM_SEARCH_NOT_ELIGIBLE", conversation_id: null, messages: [], usage: u });
+          return;
+        }
+        if (pm === "x") {
+          // Check curriculum availability (same guard as POST, no charge)
+          try {
+            await buildXCurriculumScope();
+            // scope ok — eligible; fall through to normal history load below
+          } catch (scopeErr) {
+            if (
+              scopeErr instanceof CurriculumScopeError &&
+              (scopeErr.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
+               scopeErr.code === "NO_ACTIVE_CURRICULUM_VERSION" ||
+               scopeErr.code === "X_GLOBAL_SET_UNAVAILABLE" ||
+               scopeErr.code === "X_GLOBAL_DATA_INTEGRITY_ERROR")
+            ) {
+              const u = await getMonthlyUsageInfo(parentId).catch(() => ({
+                limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
+              }));
+              res.json({ eligible: false, eligibility_code: "CURRICULUM_NOT_READY", conversation_id: null, messages: [], usage: u });
+              return;
+            }
+            // Unexpected error — treat as eligible; POST will surface the real error
+          }
+        }
+      }
+    }
+
     const conversationId = await findConversation(parentId, studentId).catch(() => null);
 
     if (!conversationId) {
@@ -822,7 +869,7 @@ router.get(
         period:    "",
         resets_at: "",
       }));
-      res.json({ conversation_id: null, messages: [], usage: usageInfo });
+      res.json({ eligible: true, conversation_id: null, messages: [], usage: usageInfo });
       return;
     }
 
@@ -864,7 +911,7 @@ router.get(
       resets_at: "",
     }));
 
-    res.json({ conversation_id: conversationId, messages, usage: usageInfo });
+    res.json({ eligible: true, conversation_id: conversationId, messages, usage: usageInfo });
   },
 );
 
