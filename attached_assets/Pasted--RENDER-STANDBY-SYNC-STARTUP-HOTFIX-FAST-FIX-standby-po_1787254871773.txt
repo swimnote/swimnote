@@ -1,0 +1,170 @@
+# [RENDER STANDBY SYNC STARTUP HOTFIX — FAST FIX]
+
+현재 목적:
+삭제된 standby/pool backup DB를 API가 계속 찾으면서
+Render deploy/startup이 오래 걸리는 문제만 최소 수정.
+
+현재 RT2 최신 코드:
+7fc8e8bf
+
+이번 작업은 standby-sync hotfix only.
+
+==================================================
+1. 원칙
+==================================================
+
+Primary Production DB는 유지.
+
+삭제된 standby/pool backup DB는
+더 이상 Production 필수 dependency가 아니다.
+
+따라서:
+
+PRIMARY DB 정상
+→ API 정상 startup
+
+STANDBY DB 없음/ENOTFOUND
+→ warning 1회
+→ 해당 standby sync cycle 즉시 skip
+→ API startup 지연 금지
+
+==================================================
+2. 최소 수정
+==================================================
+
+standby-sync 관련 실제 startup entrypoint와
+connection preflight 함수만 수정.
+
+금지:
+- DB 새로 생성
+- env 변경
+- standby URL 추측
+- primary DB 수정
+- X 기능 수정
+- Support RT2 수정
+- Curriculum 수정
+- AI Diary 수정
+
+==================================================
+3. FAIL-FAST
+==================================================
+
+standby DB 접속 전에 preflight 1회.
+
+다음이면:
+
+ENOTFOUND
+ECONNREFUSED
+timeout
+missing connection string
+
+→ STANDBY_UNAVAILABLE
+
+처리하고 그 cycle 전체 skip.
+
+column/table별 반복 connection/retry 금지.
+
+같은 deploy에서 수십 번 DNS lookup 금지.
+
+==================================================
+4. STARTUP BLOCK 제거
+==================================================
+
+standby sync/repair가
+API readiness/startup critical path를 막지 않게 한다.
+
+가능하면:
+
+server startup
+→ primary DB init
+→ listen / health ready
+
+standby sync
+→ non-critical optional task
+
+구조.
+
+단 fire-and-forget으로 무한 loop는 금지.
+1 cycle fail 시 조용히 종료/다음 정상 schedule까지 대기.
+
+==================================================
+5. RETRY 제한
+==================================================
+
+standby unavailable 시:
+
+- startup에서 최대 1회 connection attempt
+- 실패하면 해당 cycle 종료
+
+기존 per-table/per-column retry 제거.
+
+==================================================
+6. LOG 정리
+==================================================
+
+운영 로그에 DB row 전체 dump 금지.
+
+허용:
+
+[standby-sync]
+status=unavailable
+reason=ENOTFOUND
+cycle_skipped=true
+
+정도.
+
+email/phone/user row/pool payload 출력 금지.
+
+==================================================
+7. TEST
+==================================================
+
+전체 regression 금지.
+
+최소 테스트만:
+
+1. standby host ENOTFOUND
+→ startup 정상
+
+2. standby unavailable
+→ cycle skip
+
+3. 반복 per-table DNS attempt 없음
+
+4. primary DB path 정상
+
+5. healthz 정상
+
+6. sensitive row dump 없음
+
+==================================================
+8. 커밋
+==================================================
+
+수정 + 최소 테스트 후
+deploy-photo-clone에 push.
+
+Render deploy는 아직 하지 않는다.
+
+==================================================
+9. 보고
+==================================================
+
+[STANDBY SYNC STARTUP HOTFIX REPORT]
+
+- modified files:
+- startup entrypoint:
+- standby function:
+- fail-fast behavior:
+- retry count:
+- startup blocking removed:
+- cycle skip behavior:
+- sensitive logging removed:
+- tests:
+- primary DB changed: NO
+- env changed: NO
+- RT2 changed: NO
+- commit SHA:
+- final status:
+
+보고 후 멈춘다.
