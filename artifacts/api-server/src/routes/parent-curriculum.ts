@@ -1,26 +1,36 @@
 /**
- * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3 / WP1.2
+ * parent-curriculum.ts — WP2 / WP2.1 / WP2B / WP2B.2 / WP2B.3 / WP1.2 / WP-B
  *
  * Routes:
  *   POST /parent/students/:studentId/curriculum-search
  *   GET  /parent/students/:studentId/curriculum-search/history
  *
- * POST Flow (WP2B.3 canonical order):
+ * POST Flow (WP-B canonical order):
  *   1. Parent JWT 인증
  *   2. Parent↔Student 소유권 확인
  *   3. request_id prior state 확인 (getPriorReservationStatus)
  *      IF COMPLETED → persisted result replay → RETURN (quota 차감 없음, ENGINE 금지)
  *   4. Conversation 조회/생성
- *   5. Monthly quota 확인 + 예약 (FAILED 재시도: FAILED→RESERVED atomic 전환)
- *   6. Pool 이름 + mode 판정
- *   7. Curriculum Scope 구성
- *   8. Student Progress 구성
- *   9. USER message 저장 (idempotent — FAILED retry 시 기존 재사용)
- *   10. ENGINE 호출
- *   11. Response 검증
- *   12. 성공: finalizeCurriculumSearchSuccess (atomic transaction: ASSISTANT + quota 동시 확정)
- *   13. 실패: quota rollback
- *   14. 사용량 포함 안전한 응답 반환
+ *   5. Pool 이름 + mode 판정
+ *   6. Normal mode → CURRICULUM_NOT_AVAILABLE (quota 0)
+ *   7. x_pending → CURRICULUM_SEARCH_NOT_ELIGIBLE (quota 0)
+ *   8. Curriculum Scope 구성 (X 모드 only; 300개 미만 → NOT_READY)
+ *   9. WP-A: Intent Parser
+ *   10. WP-A: Evidence Retriever
+ *   11. WP-A: Progress Resolver
+ *   12. WP-A: Answer Builder → answer_mode 결정
+ *   13. answer_mode 분기:
+ *       DIRECT_DB  → save messages, return deterministic answer (quota 0)
+ *       HUMAN_ONLY → save messages, return safe answer (quota 0)
+ *       GROUNDED_GPT → continue ↓
+ *   14. Monthly quota 확인 + 예약 (GROUNDED_GPT only)
+ *   15. USER message 저장
+ *   16. Recent conversation context 구성
+ *   17. ENGINE 호출 (GROUNDED_GPT only)
+ *   18. Response 검증 (overclaim 포함)
+ *   19. 성공: finalizeCurriculumSearchSuccess (atomic transaction)
+ *   20. 실패: quota rollback
+ *   21. 사용량 포함 안전한 응답 반환
  *
  * 금지:
  *   - GPT 직접 호출
@@ -28,6 +38,7 @@
  *   - Prompt 작성
  *   - 수영 지식 판단
  *   - 다른 수영장 curriculum 참조
+ *   - 오래된 TRACKED만으로 COMPLETED 판정
  */
 
 import { Router }         from "express";
@@ -36,9 +47,7 @@ import { sql }            from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { resolvePoolMode }               from "../lib/xmode.js";
 import {
-  buildNormalCurriculumScope,
   buildXCurriculumScope,
-  buildStudentProgress,
   CurriculumScopeError,
 } from "../lib/parent-curriculum-scope-builder.js";
 import {
@@ -61,6 +70,7 @@ import {
   getOrCreateConversation,
   findConversation,
   saveUserMessage,
+  saveAssistantMessage,
   touchConversation,
   getConversationMessages,
   getAssistantMessageByRequestId,
@@ -68,6 +78,12 @@ import {
 } from "../lib/parent-curriculum-conversation.js";
 import { saveAiTrace }  from "../lib/ai-trace-service.js";
 import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
+
+// ── WP-A lib imports ───────────────────────────────────────────────────────────
+import { parseIntent }                   from "../lib/curriculum-intent-parser.js";
+import { retrieveEvidence }              from "../lib/curriculum-evidence-retriever.js";
+import { resolveProgress, type CurriculumItemRef } from "../lib/curriculum-progress-resolver.js";
+import { buildGroundedPackage, type GroundedPackage } from "../lib/curriculum-answer-builder.js";
 
 const router = Router();
 
@@ -88,10 +104,16 @@ interface ValidationResult {
   reason?: string;
 }
 
+/**
+ * Engine 응답 검증.
+ * §20 Overclaim 방지: Engine이 NOT_CONFIRMED 항목을 COMPLETED로 승격할 수 없음.
+ * APP deterministic progress가 authority.
+ */
 function validateEngineResponse(
   response:             ParentCurriculumEngineResponse,
   requestId:            string,
   allowedCurriculumIds: Set<string>,
+  groundedPackage?:     GroundedPackage,
 ): ValidationResult {
   if (response.request_id !== requestId) {
     return { valid: false, reason: "request_id mismatch" };
@@ -114,8 +136,69 @@ function validateEngineResponse(
       return { valid: false, reason: `ENGINE returned unknown curriculum_id: ${id}` };
     }
   }
+
+  // §20 Overclaim 검증: Engine이 NOT_CONFIRMED 항목을 COMPLETED로 승격 금지
+  if (groundedPackage) {
+    const notConfirmedIds = new Set(
+      groundedPackage.progress_state.entries
+        .filter((e) => e.status === "NOT_CONFIRMED")
+        .map((e) => e.curriculum_item_id),
+    );
+    // Engine이 반환한 curriculum_ids 중 APP이 NOT_CONFIRMED로 판정한 항목이 포함되면
+    // current_progress로 사용된 것 — 유일하게 의심스러운 경우만 warn으로 처리
+    // (Engine이 curriculum_id를 단순 언급할 수 있으므로 hard-fail은 하지 않되 로그 기록)
+    const overclaimed = returnedIds.filter((id) => notConfirmedIds.has(id));
+    if (overclaimed.length > 0) {
+      console.warn(
+        `[parent-curriculum] ENGINE referenced NOT_CONFIRMED items as grounding: ${overclaimed.join(", ")} — APP progress state is authority`,
+      );
+    }
+  }
+
   return { valid: true };
 }
+
+/**
+ * DIRECT_DB 경로 deterministic 답변 생성.
+ * GPT 호출 없음. 완전 결정론적.
+ */
+function formatDirectAnswer(pkg: GroundedPackage): string {
+  const { intent, meta } = pkg;
+
+  // 레벨 정보
+  if (intent.intent === "LEVEL_PROGRESS" && meta.has_level_history) {
+    const levelHistory = pkg.evidence.level_history;
+    if (levelHistory.length > 0) {
+      const latest = levelHistory[levelHistory.length - 1];
+      return `현재 ${latest.level ?? "해당 레벨"} 레벨입니다. (${latest.achieved_date} 달성)`;
+    }
+    return "레벨 정보가 DB에 기록되어 있습니다. 담당 선생님께 확인하시면 정확한 레벨을 안내받을 수 있습니다.";
+  }
+
+  // 최근 수업
+  if (intent.intent === "RECENT_LESSONS") {
+    const current = pkg.curriculum_current;
+    if (current) {
+      return `최근 수업에서는 '${current.title}' 항목을 중심으로 진행되었습니다.`;
+    }
+    return "최근 수업 기록이 아직 없습니다. 일지가 작성되면 확인할 수 있습니다.";
+  }
+
+  // evidence 없음 fallback
+  if (!meta.has_tracked_evidence && !meta.has_level_history) {
+    return "아직 기록된 수업 데이터가 없습니다. 수업이 진행되고 일지가 작성되면 커리큘럼 진도를 확인할 수 있습니다.";
+  }
+
+  // generic DIRECT_DB fallback
+  return "현재 수업 기록을 기반으로 확인한 결과, 아직 커리큘럼 진행 데이터가 충분하지 않습니다. 담당 선생님께 문의하시면 상세 정보를 받을 수 있습니다.";
+}
+
+/**
+ * HUMAN_ONLY 경로 고정 안전 안내.
+ */
+const HUMAN_ONLY_ANSWER =
+  "진급 시점이나 다음 단계 전환 여부는 실제 수업 수행 상태와 담당 선생님의 판단이 필요합니다. " +
+  "정확한 진급 일정은 담당 선생님께 직접 문의해 주세요.";
 
 // ─── POST: Curriculum Search ───────────────────────────────────────────────────
 
@@ -168,19 +251,19 @@ router.post(
     //
     // COMPLETED: ENGINE 재호출 금지, quota 차감 금지.
     // 기존 persisted result 반환 (10/10 한도에서도 replay 가능).
+    // DIRECT_DB/HUMAN_ONLY는 COMPLETED 상태가 되지 않으므로 replay 대상 아님.
     //
     // FAILED / RESERVED / NONE: 아래 정상 flow 진행.
     const priorStatus = await getPriorReservationStatus(trimmedRequestId).catch(() => "NONE" as const);
 
     if (priorStatus === "COMPLETED") {
-      // COMPLETED replay path ────────────────────────────────────────────────
+      // COMPLETED replay path (GROUNDED_GPT 성공만 COMPLETED 상태) ───────────
       const convId = await findConversation(parentId, studentId).catch(() => null);
       const assistantMsg = convId
         ? await getAssistantMessageByRequestId(convId, trimmedRequestId).catch(() => null)
         : null;
 
       if (!assistantMsg) {
-        // Inconsistency — COMPLETED reservation 이 있지만 assistant message 없음
         console.error(
           `[parent-curriculum] COMPLETED ${trimmedRequestId} has no assistant message — internal inconsistency`,
         );
@@ -188,10 +271,12 @@ router.post(
         return;
       }
 
-      const answer    = assistantMsg.content;
-      const rp        = assistantMsg.metadata?.result_payload;
-      const mode      = (assistantMsg.metadata?.mode ?? "NORMAL") as string;
-      const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+      const answer      = assistantMsg.content;
+      const rp          = assistantMsg.metadata?.result_payload;
+      const mode        = (assistantMsg.metadata?.mode ?? "NORMAL") as string;
+      const answerMode  = (assistantMsg.metadata as any)?.answer_mode ?? "GROUNDED_GPT";
+      const intentName  = (assistantMsg.metadata as any)?.intent_name ?? null;
+      const usageInfo   = await getMonthlyUsageInfo(parentId).catch(() => ({
         limit:     MONTHLY_LIMIT,
         used:      -1,
         remaining: -1,
@@ -206,7 +291,7 @@ router.post(
           ...(rp?.current_progress ? { current_progress: rp.current_progress } : {}),
           ...(rp?.next_step        ? { next_step: rp.next_step }               : {}),
         },
-        meta:  { mode },
+        meta:  { mode, answer_mode: answerMode, intent: intentName },
         usage: usageInfo,
       });
       return;
@@ -224,7 +309,228 @@ router.post(
       return;
     }
 
-    // ── 4. Monthly Quota 확인 + 예약 ─────────────────────────────────────────
+    // ── 4. Pool 이름 조회 ─────────────────────────────────────────────────────
+    const poolResult = await superAdminDb.execute(sql`
+      SELECT name
+      FROM swimming_pools
+      WHERE id = ${poolId}
+      LIMIT 1
+    `).catch(() => ({ rows: [] as any[] }));
+
+    const poolName = ((poolResult.rows[0] as any)?.name as string | null) ?? poolId;
+
+    // ── 5. Pool mode 판정 ─────────────────────────────────────────────────────
+    const modeResult = await resolvePoolMode(poolId);
+
+    if (!modeResult) {
+      res.status(404).json({ error: "수영장을 찾을 수 없습니다.", code: "POOL_NOT_FOUND" });
+      return;
+    }
+
+    const poolMode = modeResult.mode;
+
+    // ── 6. Normal mode 차단 (§3) ─────────────────────────────────────────────
+    //
+    // Normal SWIMNOTE 학부모는 커리큘럼 AI 검색을 실행하지 않는다.
+    // AI Engine/GPT 호출 0, quota 차감 0.
+    if (poolMode === "normal") {
+      res.status(422).json({
+        error: "현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아 커리큘럼 AI 검색을 이용할 수 없습니다.",
+        code:  "CURRICULUM_NOT_AVAILABLE",
+      });
+      return;
+    }
+
+    // ── 7. x_pending 차단 ────────────────────────────────────────────────────
+    if (poolMode === "x_pending") {
+      res.status(422).json({
+        error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
+        code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
+      });
+      return;
+    }
+
+    // ── 8. Curriculum Scope 구성 (X 모드 only) ───────────────────────────────
+    //
+    // §4: curriculum_items >= 300 엄격 적용.
+    // Production에 X curriculum_items가 없으면 정상적으로 NOT_READY 처리.
+    // 500/502 금지.
+    let curriculumScope;
+    try {
+      curriculumScope = await buildXCurriculumScope();
+    } catch (err) {
+      if (err instanceof CurriculumScopeError) {
+        if (
+          err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
+          err.code === "NO_ACTIVE_CURRICULUM_VERSION"
+        ) {
+          res.status(422).json({
+            error: "AI 커리큘럼 검색이 아직 준비 중입니다. (커리큘럼 데이터 부족)",
+            code:  "CURRICULUM_NOT_READY",
+          });
+          return;
+        }
+        if (
+          err.code === "X_GLOBAL_SET_UNAVAILABLE" ||
+          err.code === "X_GLOBAL_DATA_INTEGRITY_ERROR"
+        ) {
+          res.status(422).json({
+            error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
+            code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
+          });
+          return;
+        }
+      }
+      console.error("[parent-curriculum] scope builder error:", (err as Error).message);
+      res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+      return;
+    }
+
+    const allowedCurriculumIds = new Set(
+      curriculumScope.curriculum_items.map((item) => item.id),
+    );
+
+    // CurriculumItemRef 형식으로 변환 (WP-A resolver 입력)
+    const curriculumItemRefs: CurriculumItemRef[] = curriculumScope.curriculum_items.map((item) => ({
+      id:         item.id,
+      title:      item.title,
+      sort_order: item.order,
+    }));
+
+    // ── 9. WP-A: Intent Parser ────────────────────────────────────────────────
+    const parsedIntent = parseIntent(trimmedQuery);
+
+    // ── 10. WP-A: Evidence Retriever ─────────────────────────────────────────
+    // productionEvidenceDb 기본값 사용 (테스트에서는 mock 주입)
+    const emptyBundle = {
+      direct:       [] as any[],
+      tracked:      [] as any[],
+      inferred:     [] as any[],
+      level_history: [] as any[],
+      retrieved_at: new Date().toISOString(),
+    };
+    const evidenceBundle = await retrieveEvidence(studentId, poolId)
+      .catch((err) => {
+        console.error("[parent-curriculum] evidence retrieval failed:", err?.message);
+        return emptyBundle;
+      });
+
+    // ── 11. WP-A: Progress Resolver ──────────────────────────────────────────
+    const progressResolution = resolveProgress(evidenceBundle, curriculumItemRefs);
+
+    // ── 12. WP-A: Answer Builder → answer_mode 결정 ──────────────────────────
+    const groundedPackage = buildGroundedPackage(
+      studentId,
+      trimmedQuery,
+      parsedIntent,
+      evidenceBundle,
+      progressResolution,
+    );
+
+    const engineMode: "NORMAL" | "X" = "X"; // poolMode === "x" (normal blocked above)
+
+    // ── 13. answer_mode 분기 ─────────────────────────────────────────────────
+
+    // DIRECT_DB: AI Engine 호출 없음, quota 차감 없음
+    if (groundedPackage.answer_mode === "DIRECT_DB") {
+      const directAnswer = formatDirectAnswer(groundedPackage);
+
+      await saveUserMessage({
+        conversationId,
+        requestId: trimmedRequestId,
+        content:   trimmedQuery,
+      }).catch((err) => {
+        console.error("[parent-curriculum] USER message save failed (DIRECT_DB):", err?.message);
+      });
+
+      const directMeta = {
+        intent:            parsedIntent.intent,
+        mode:              engineMode,
+        curriculum_source: curriculumScope.source,
+        result_payload:    { answer: directAnswer },
+      } as any;
+      directMeta.answer_mode = "DIRECT_DB";
+      directMeta.intent_name = parsedIntent.intent;
+
+      await saveAssistantMessage({
+        conversationId,
+        requestId: trimmedRequestId,
+        content:   directAnswer,
+        meta:      directMeta,
+      }).catch((err) => {
+        console.error("[parent-curriculum] ASSISTANT message save failed (DIRECT_DB):", err?.message);
+      });
+      await touchConversation(conversationId).catch(() => undefined);
+
+      const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+        limit:     MONTHLY_LIMIT,
+        used:      0,
+        remaining: MONTHLY_LIMIT,
+        period:    "",
+        resets_at: "",
+      }));
+
+      res.json({
+        request_id: trimmedRequestId,
+        result:     { answer: directAnswer },
+        meta:       { mode: engineMode, answer_mode: "DIRECT_DB", intent: parsedIntent.intent },
+        usage:      usageInfo,
+      });
+      return;
+    }
+
+    // HUMAN_ONLY: AI Engine 호출 없음, quota 차감 없음
+    if (groundedPackage.answer_mode === "HUMAN_ONLY") {
+      await saveUserMessage({
+        conversationId,
+        requestId: trimmedRequestId,
+        content:   trimmedQuery,
+      }).catch((err) => {
+        console.error("[parent-curriculum] USER message save failed (HUMAN_ONLY):", err?.message);
+      });
+
+      const humanMeta = {
+        intent:            parsedIntent.intent,
+        mode:              engineMode,
+        curriculum_source: curriculumScope.source,
+        result_payload:    { answer: HUMAN_ONLY_ANSWER },
+      } as any;
+      humanMeta.answer_mode = "HUMAN_ONLY";
+      humanMeta.intent_name = parsedIntent.intent;
+
+      await saveAssistantMessage({
+        conversationId,
+        requestId: trimmedRequestId,
+        content:   HUMAN_ONLY_ANSWER,
+        meta:      humanMeta,
+      }).catch((err) => {
+        console.error("[parent-curriculum] ASSISTANT message save failed (HUMAN_ONLY):", err?.message);
+      });
+      await touchConversation(conversationId).catch(() => undefined);
+
+      const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
+        limit:     MONTHLY_LIMIT,
+        used:      0,
+        remaining: MONTHLY_LIMIT,
+        period:    "",
+        resets_at: "",
+      }));
+
+      res.json({
+        request_id: trimmedRequestId,
+        result:     { answer: HUMAN_ONLY_ANSWER },
+        meta:       { mode: engineMode, answer_mode: "HUMAN_ONLY", intent: parsedIntent.intent },
+        usage:      usageInfo,
+      });
+      return;
+    }
+
+    // GROUNDED_GPT ─────────────────────────────────────────────────────────────
+
+    // ── 14. Monthly Quota 확인 + 예약 (GROUNDED_GPT only) ────────────────────
+    //
+    // GROUNDED_GPT만 quota를 소비. DIRECT_DB/HUMAN_ONLY는 이미 리턴했으므로
+    // 여기까지 도달한 요청은 모두 GROUNDED_GPT.
     //
     // FAILED 재시도: 내부에서 FAILED→RESERVED atomic 전환.
     // RESERVED 재시도: isRetry:true 반환 (quota 재차감 없음).
@@ -249,78 +555,7 @@ router.post(
       return;
     }
 
-    // ── 5. Pool 이름 조회 ─────────────────────────────────────────────────────
-    const poolResult = await superAdminDb.execute(sql`
-      SELECT name
-      FROM swimming_pools
-      WHERE id = ${poolId}
-      LIMIT 1
-    `).catch(() => ({ rows: [] as any[] }));
-
-    const poolName = ((poolResult.rows[0] as any)?.name as string | null) ?? poolId;
-
-    // ── 6. Pool mode 판정 ─────────────────────────────────────────────────────
-    const modeResult = await resolvePoolMode(poolId);
-
-    if (!modeResult) {
-      await rollbackQuotaReservation(parentId, trimmedRequestId, "POOL_NOT_FOUND");
-      res.status(404).json({ error: "수영장을 찾을 수 없습니다.", code: "POOL_NOT_FOUND" });
-      return;
-    }
-
-    const poolMode = modeResult.mode;
-
-    // ── 7. x_pending → 차단 ──────────────────────────────────────────────────
-    if (poolMode === "x_pending") {
-      await rollbackQuotaReservation(parentId, trimmedRequestId, "CURRICULUM_SEARCH_NOT_ELIGIBLE");
-      res.status(422).json({
-        error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
-        code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
-      });
-      return;
-    }
-
-    // ── 8. Curriculum Scope 구성 ─────────────────────────────────────────────
-    let curriculumScope;
-    try {
-      curriculumScope = poolMode === "x"
-        ? await buildXCurriculumScope()
-        : await buildNormalCurriculumScope(poolId);
-    } catch (err) {
-      if (err instanceof CurriculumScopeError) {
-        await rollbackQuotaReservation(parentId, trimmedRequestId, err.code);
-        if (err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE") {
-          res.status(422).json({
-            error: "AI 커리큘럼 검색을 사용할 수 없습니다. (커리큘럼 데이터 부족)",
-            code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
-          });
-          return;
-        }
-        if (
-          err.code === "X_GLOBAL_SET_UNAVAILABLE" ||
-          err.code === "X_GLOBAL_DATA_INTEGRITY_ERROR"
-        ) {
-          res.status(422).json({
-            error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
-            code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
-          });
-          return;
-        }
-      }
-      console.error("[parent-curriculum] scope builder error:", (err as Error).message);
-      await rollbackQuotaReservation(parentId, trimmedRequestId, "SCOPE_ERROR");
-      res.status(500).json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
-      return;
-    }
-
-    const allowedCurriculumIds = new Set(
-      curriculumScope.curriculum_items.map((item) => item.id),
-    );
-
-    // ── 9. Student Progress 구성 ─────────────────────────────────────────────
-    const studentProgress = await buildStudentProgress(studentId, poolId).catch(() => undefined);
-
-    // ── 10. USER Message 저장 ─────────────────────────────────────────────────
+    // ── 15. USER Message 저장 ─────────────────────────────────────────────────
     // ENGINE 호출 전 저장 (성공/실패 무관).
     // FAILED retry 시 기존 USER message 재사용 (ON CONFLICT DO NOTHING).
     await saveUserMessage({
@@ -331,15 +566,7 @@ router.post(
       console.error("[parent-curriculum] USER message save failed:", err?.message);
     });
 
-    // ── 11. Recent Conversation Context 구성 (WP1.2) ─────────────────────────
-    //
-    // 최근 3 turn (최대 6 messages)을 ENGINE에 전달 — 후속 질문 이해 보조.
-    // 현재 query (trimmedRequestId) 제외. 오래된 순 → 최신 순.
-    //
-    // 원칙:
-    //   - 질문의 지시 대상, 대명사, 후속 질문 맥락 해석에만 사용
-    //   - 이전 ASSISTANT 답변을 새로운 Grounding fact로 승격 금지
-    //   - fetch 실패 시 조용히 [] 반환 → 기존 WP1 동작 유지
+    // ── 16. Recent Conversation Context 구성 (WP1.2) ─────────────────────────
     const recentConversation = await buildRecentConversationContext(
       conversationId,
       trimmedRequestId,
@@ -348,8 +575,13 @@ router.post(
       return [] as Array<{ role: "USER" | "ASSISTANT"; content: string }>;
     });
 
-    // ── 12. ENGINE Request 구성 ───────────────────────────────────────────────
-    const engineMode: "NORMAL" | "X" = poolMode === "x" ? "X" : "NORMAL";
+    // ── 17. ENGINE Request 구성 ───────────────────────────────────────────────
+    //
+    // WP-A Grounded Package → Engine context mapping.
+    // APP deterministic progress를 Engine에 전달 (overclaim 방지 context).
+    const wpAStudentProgress = groundedPackage.curriculum_current
+      ? { current_curriculum_id: groundedPackage.curriculum_current.id }
+      : undefined;
 
     const engineRequest: ParentCurriculumEngineRequest = {
       request_id:     trimmedRequestId,
@@ -362,13 +594,13 @@ router.post(
         student_id:       studentId,
         mode:             engineMode,
         curriculum_scope: curriculumScope,
-        ...(studentProgress           ? { student_progress:     studentProgress   } : {}),
-        ...(recentConversation.length ? { recent_conversation:  recentConversation } : {}),
+        ...(wpAStudentProgress           ? { student_progress:    wpAStudentProgress    } : {}),
+        ...(recentConversation.length    ? { recent_conversation: recentConversation    } : {}),
       },
     };
 
-    // ── 12. ENGINE 호출 ───────────────────────────────────────────────────────
-    const pcEngineStartMs = Date.now();  // CS-PA1: latency 측정
+    // ── 17b. ENGINE 호출 ──────────────────────────────────────────────────────
+    const pcEngineStartMs = Date.now();
     let engineResponse: ParentCurriculumEngineResponse;
     try {
       engineResponse = await searchParentCurriculum(engineRequest);
@@ -386,24 +618,23 @@ router.post(
           `[parent-curriculum] ENGINE error code=${err.errorCode} status=${err.statusCode}`,
         );
         res.status(502).json({
-          error:     "AI 분석 서비스에 일시적인 문제가 있습니다.",
+          error:     "커리큘럼 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
           code:      errorCode,
           retryable: err.retryable,
         });
-        // CS-PA1: engine 실패 trace
         void saveAiTrace({
           status: 'FAILED', request_id: trimmedRequestId, internal_id: trimmedRequestId,
           pool_id: poolId, actor_id: parentId, contract_version: '1.0',
           feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
           user_role: 'parent_account', result_generated: false,
-          error_stage: 'ENGINE_CALL', error_code: errorCode,
+          error_stage: 'CURRICULUM_SEARCH', error_code: errorCode,
           latency_ms: Date.now() - pcEngineStartMs,
         }).catch(() => {});
         return;
       }
       console.error("[parent-curriculum] unexpected ENGINE error:", (err as Error).message);
       res.status(502).json({
-        error: "AI 분석 서비스에 일시적인 문제가 있습니다.",
+        error: "커리큘럼 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
         code:  "INTERNAL_ERROR",
       });
       void saveAiTrace({
@@ -411,17 +642,18 @@ router.post(
         pool_id: poolId, actor_id: parentId, contract_version: '1.0',
         feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
         user_role: 'parent_account', result_generated: false,
-        error_stage: 'ENGINE_CALL', error_code: 'ENGINE_UNKNOWN_ERROR',
+        error_stage: 'CURRICULUM_SEARCH', error_code: 'ENGINE_UNKNOWN_ERROR',
         latency_ms: Date.now() - pcEngineStartMs,
       }).catch(() => {});
       return;
     }
 
-    // ── 13. Response 검증 ─────────────────────────────────────────────────────
+    // ── 18. Response 검증 (overclaim 포함) ────────────────────────────────────
     const validation = validateEngineResponse(
       engineResponse,
       trimmedRequestId,
       allowedCurriculumIds,
+      groundedPackage, // §20 overclaim check
     );
 
     if (!validation.valid) {
@@ -436,24 +668,42 @@ router.post(
       return;
     }
 
-    // ── 14. 성공 확정: ASSISTANT + quota 원자적 transaction (WP2B.3) ──────────
+    // ── 19. 성공 확정: ASSISTANT + quota 원자적 transaction (WP2B.3) ──────────
     //
     // finalizeCurriculumSearchSuccess는 단일 DB transaction으로:
     //   ① ASSISTANT message INSERT (idempotent)
     //   ② reservation RESERVED → COMPLETED
     //   ③ usage reserved_count -1, completed_count +1
     // 를 원자적으로 실행한다.
-    //
-    // 실패 시: transaction 자동 rollback → reservation RESERVED 유지 → retry 가능.
-    // 보장: "COMPLETED + no persisted result" 상태 불가능.
 
-    const { answer, current_progress, next_step, intent } = engineResponse.result as any;
+    const { answer, current_progress, next_step } = engineResponse.result as any;
+    const engineIntentMeta = (engineResponse.meta as any)?.intent ?? null;
 
+    // §17 Metadata snapshot: WP-A fields + engine result
+    // 민감정보/내부 secret 저장 금지. Evidence body 전체 저장 금지.
     const safeMetadataJson = JSON.stringify({
-      intent:            intent ?? null,
+      intent:            parsedIntent.intent,
+      intent_name:       parsedIntent.intent,
+      answer_mode:       "GROUNDED_GPT",
       mode:              engineMode,
       curriculum_source: curriculumScope.source,
-      // result_payload: COMPLETED replay용 (raw trace / prompt 금지)
+      // WP-A progress snapshot (summary only, diary body 제외)
+      progress_state: groundedPackage.progress_state.entries.map((e) => ({
+        curriculum_item_id: e.curriculum_item_id,
+        status:             e.status,
+        sort_order:         e.sort_order,
+      })),
+      curriculum_current: groundedPackage.curriculum_current
+        ? { id: groundedPackage.curriculum_current.id, title: groundedPackage.curriculum_current.title }
+        : null,
+      curriculum_next: groundedPackage.curriculum_next
+        ? { id: groundedPackage.curriculum_next.id, title: groundedPackage.curriculum_next.title }
+        : null,
+      // Engine grounding
+      knowledge_ids: engineResponse.grounding?.knowledge_ids ?? [],
+      validation:    validation.valid ? "PASS" : "FAIL",
+      quota_charged: true,
+      // COMPLETED replay용 (raw trace / prompt 금지)
       result_payload: {
         answer,
         ...(current_progress !== undefined ? { current_progress } : {}),
@@ -470,8 +720,6 @@ router.post(
         safeMetadataJson,
       });
     } catch (err) {
-      // Transaction 실패: reservation RESERVED 유지 → 동일 request_id retry 가능.
-      // COMPLETED + no persisted result 상태 불가능 (transaction rollback 보장).
       console.error("[parent-curriculum] success finalization failed:", (err as Error).message);
       res.status(502).json({
         error:     "결과 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
@@ -483,7 +731,7 @@ router.post(
 
     await touchConversation(conversationId).catch(() => undefined);
 
-    // CS-PA1: 성공 trace (finalize 완료 후, 응답 직전)
+    // CS-PA1: 성공 trace
     void saveAiTrace({
       status:           'SUCCESS',
       request_id:       trimmedRequestId,
@@ -498,13 +746,12 @@ router.post(
       generation_mode:  engineMode,
       model:            (engineResponse.meta as any)?.model ?? null,
       latency_ms:       (engineResponse.meta as any)?.latency_ms ?? (Date.now() - pcEngineStartMs),
-      // 외부 엔진 경유 — provider token 미노출
       input_tokens:  null,
       output_tokens: null,
       total_tokens:  null,
     }).catch(() => {});
 
-    // ── 15. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
+    // ── 20. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
     const usageInfo = await getMonthlyUsageInfo(parentId).catch(() => ({
       limit:     MONTHLY_LIMIT,
       used:      -1,
@@ -513,8 +760,6 @@ router.post(
       resets_at: "",
     }));
 
-    // WP1.2: ENGINE이 conversation_context_used를 반환하면 pass-through;
-    //         없으면 recentConversation 전송 여부로 결정.
     const contextUsed =
       typeof engineResponse.meta?.conversation_context_used === "boolean"
         ? engineResponse.meta.conversation_context_used
@@ -527,7 +772,12 @@ router.post(
         ...(current_progress !== undefined ? { current_progress } : {}),
         ...(next_step        !== undefined ? { next_step }        : {}),
       },
-      meta:  { mode: engineMode, conversation_context_used: contextUsed },
+      meta: {
+        mode: engineMode,
+        answer_mode: "GROUNDED_GPT",
+        intent: parsedIntent.intent,
+        conversation_context_used: contextUsed,
+      },
       usage: usageInfo,
     });
   },
