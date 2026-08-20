@@ -150,3 +150,10 @@ uri = "file://swimnote_makeup_occurrence_actual_failure.txt"
 type = "text"
 title = "swimnote_makeup_occurrence_actual_failure.txt"
 description = "보강반 선택 실패 실제 데이터 확보 보고서"
+
+[[outputs]]
+id = "KThvFfwwVAmGU67_fs6rq"
+uri = "file://docs/WP-AI-00-AUDIT-REPORT.md"
+type = "text"
+title = "WP-AI-00 SWIMNOTE AI/API Architecture Audit Report"
+description = "전체 앱·서버·백그라운드 기능 AI/API 전수 감사 보고서. 외부 API 인벤토리, GPT 호출 전수, SYSTEM_MAINTENANCE 비용 위험, 4대 AI 기능 심층 평가, P0 TOP 10 포함."
