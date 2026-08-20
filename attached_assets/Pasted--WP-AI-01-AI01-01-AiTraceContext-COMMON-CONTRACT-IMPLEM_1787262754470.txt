@@ -1,0 +1,430 @@
+# [WP-AI-01 / AI01-01 — AiTraceContext COMMON CONTRACT IMPLEMENTATION]
+
+목적:
+
+SWIMNOTE의 모든 AI/API 비용 계측이 이후 동일한 Usage Contract 위에서 동작할 수 있도록
+기존 `ai-trace-service.ts`의 공통 trace metadata contract를 확장한다.
+
+이번 Step에서는 **공통 Contract 기반만 구현**한다.
+
+다음 Step으로 넘어가지 않는다.
+
+---
+
+# 0. 이번 Step 범위
+
+이번에 구현할 것:
+
+* `trigger_type`
+* `service`
+* `cost_source`
+* `retry_count`
+* `audio_seconds`
+* `logical_request_count`
+* `actual_call_count`
+* `cached_input_tokens` 표준 이름
+
+을 기존 AI Trace metadata에 안전하게 추가.
+
+이번 Step에서 하지 않을 것:
+
+* route callsite 수정
+* Whisper logging 연결
+* Curriculum/Growth engine 수정
+* SMS/R2 recorder 구현
+* Dashboard 구현
+* 모델 config 수정
+* Render deploy
+* Expo OTA
+* DB migration
+* Production DB write
+
+---
+
+# 1. 대상 파일
+
+우선 실제 경로를 확인한 뒤 작업:
+
+`artifacts/api-server/src/lib/ai-trace-service.ts`
+
+실제 repository 경로가 다르면
+추측해서 새 파일 만들지 말고
+현재 사용 중인 `saveAiTrace()`, `AiTraceContext`, `buildTraceMetadata()` 정의 파일을 사용한다.
+
+---
+
+# 2. 타입 추가
+
+기존 타입 구조를 최대한 유지한다.
+
+필요 타입:
+
+```ts
+type TriggerType =
+  | 'USER_ACTION'
+  | 'SYSTEM_MAINTENANCE'
+  | 'ADMIN_MANUAL'
+  | 'BATCH_JOB';
+
+type CostSource =
+  | 'TOKEN_PRICING'
+  | 'CONFIGURED_UNIT_PRICE'
+  | 'PROVIDER_REPORTED'
+  | 'PUBLIC_PRICING'
+  | 'UNKNOWN';
+```
+
+중복 타입이 이미 repository에 존재한다면 새로 만들지 말고 재사용한다.
+
+---
+
+# 3. AiTraceContext 확장
+
+기존 `AiTraceContext`에 다음 optional 필드를 추가한다.
+
+```ts
+trigger_type?: TriggerType;
+service?: string;
+cost_source?: CostSource;
+```
+
+기존 callsite가 아직 값을 넘기지 않아도 컴파일이 깨지지 않도록
+이번 Step에서는 optional 유지.
+
+---
+
+# 4. AiTrace Success / Usage 필드 확장
+
+기존 성공 trace 구조에 다음 optional 값을 추가한다.
+
+```ts
+retry_count?: number;
+audio_seconds?: number | null;
+logical_request_count?: number;
+actual_call_count?: number;
+cached_input_tokens?: number | null;
+```
+
+필드 의미:
+
+* `logical_request_count`
+
+  * 기능 단위 요청 수
+  * 일반적으로 1
+
+* `actual_call_count`
+
+  * 실제 provider HTTP/API 호출 횟수
+  * retry 포함
+
+* `retry_count`
+
+  * 이번 logical request 안에서 발생한 실제 retry 수
+
+중요:
+
+`retry_count`를 과거 DB의 누적 업무 retry counter와 자동 동일시하지 않는다.
+
+이번 Step에서는 **필드 정의만 한다.**
+
+실제 Growth/Curriculum retry 계산은 후속 Step에서
+실제 HTTP attempt 기준으로 연결한다.
+
+---
+
+# 5. cached_tokens 호환성
+
+기존:
+
+`cached_tokens`
+
+필드가 이미 사용 중일 수 있으므로
+즉시 제거하지 않는다.
+
+목표 표준 이름:
+
+`cached_input_tokens`
+
+구현 원칙:
+
+### WRITE
+
+신규 metadata는 가능하면:
+
+`cached_input_tokens`
+
+로 기록.
+
+### READ / BUILD 호환
+
+기존 callsite가 아직:
+
+`cached_tokens`
+
+를 전달한다면
+동일 값을 `cached_input_tokens`로 normalize할 수 있어야 한다.
+
+기존 데이터와 기존 code path가 깨지지 않아야 한다.
+
+이번 Step에서 legacy `cached_tokens` 지원을 제거하지 않는다.
+
+예:
+
+```ts
+const cachedInputTokens =
+  input.cached_input_tokens ??
+  input.cached_tokens ??
+  null;
+```
+
+실제 타입 구조에 맞게 최소 변경한다.
+
+---
+
+# 6. buildTraceMetadata() 확장
+
+기존 metadata 구조를 깨뜨리지 말고
+아래 신규 필드를 JSONB metadata에 추가한다.
+
+필요:
+
+```text
+service
+trigger_type
+cost_source
+retry_count
+audio_seconds
+logical_request_count
+actual_call_count
+cached_input_tokens
+```
+
+기존 필드는 그대로 유지.
+
+특히:
+
+* request_id
+* provider
+* model
+* feature
+* latency_ms
+* input_tokens
+* output_tokens
+* status
+* error 정보
+* 기존 cost 객체
+
+를 삭제/이름변경하지 않는다.
+
+---
+
+# 7. 기본값 정책
+
+이번 Step에서는 거짓 값을 자동 생성하지 않는다.
+
+금지:
+
+```text
+trigger_type = USER_ACTION 자동 기본값
+cost_source = TOKEN_PRICING 자동 기본값
+actual_call_count = 1 자동 확정
+retry_count = 0 자동 확정
+```
+
+실제 caller가 아직 값을 제공하지 않는 경우
+undefined/null 상태를 허용한다.
+
+이유:
+
+다음 Step에서 각 실제 route/worker의 의미를 보고 정확하게 입력할 예정.
+
+---
+
+# 8. Validation Rule
+
+값이 전달된 경우 최소한 잘못된 값은 막는다.
+
+예:
+
+* negative retry_count 금지
+* negative actual_call_count 금지
+* negative logical_request_count 금지
+* negative audio_seconds 금지
+* negative token count 금지
+
+기존 validation 구조가 있다면 그 패턴을 재사용한다.
+
+새로운 복잡한 validator framework 만들지 않는다.
+
+---
+
+# 9. 테스트
+
+기존 `wp10-ai-trace.test.ts` 또는 실제 AI trace 관련 test를 확장한다.
+
+전체 regression 실행 금지.
+
+정확한 관련 test만 실행.
+
+최소 TC:
+
+### TC1
+
+기존 trace payload만 전달
+→ 기존 metadata 정상 생성
+→ backward compatibility 유지
+
+### TC2
+
+신규 필드 전체 전달:
+
+* trigger_type
+* service
+* cost_source
+* retry_count
+* audio_seconds
+* logical_request_count
+* actual_call_count
+
+→ metadata에 정확히 존재
+
+### TC3
+
+`cached_tokens` legacy input 전달
+→ `cached_input_tokens`에 정상 normalize
+
+### TC4
+
+`cached_input_tokens` 신규 input 전달
+→ 신규 값 우선 적용
+
+### TC5
+
+기존 cost/status/error metadata가 신규 변경으로 깨지지 않음
+
+### TC6
+
+잘못된 negative usage 값이 기존 validation 정책에 따라 차단되거나 안전하게 처리됨
+
+---
+
+# 10. 절대 금지
+
+이번 Step에서:
+
+* 다른 route 수정 금지
+* 모든 saveAiTrace callsite 일괄 수정 금지
+* Whisper route 수정 금지
+* model config 생성 금지
+* usage-recorder 생성 금지
+* SMS 수정 금지
+* R2 수정 금지
+* Curriculum/Growth client 수정 금지
+* Dashboard 수정 금지
+* feature flag 생성 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-01만 구현한다.
+
+---
+
+# 11. 완료 보고 형식
+
+구현 후 아래 형식으로만 보고하고 STOP.
+
+# [AI01-01 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS
+또는
+FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. Changed Functions / Types
+
+* AiTraceContext
+* AiTraceSuccess 또는 실제 대응 타입
+* buildTraceMetadata
+* 관련 validation 함수
+
+실제 수정된 것만 작성.
+
+## 5. Contract Added
+
+실제 추가된 필드와 타입.
+
+## 6. Backward Compatibility
+
+특히:
+
+`cached_tokens`
+→
+`cached_input_tokens`
+
+호환 방식을 실제 코드 기준으로 설명.
+
+## 7. Tests
+
+반드시:
+
+* 정확한 test command
+* 실행 test file
+* PASS count
+* FAIL count
+
+제출.
+
+## 8. Evidence
+
+관련 핵심 diff 요약.
+
+코드 전체 복붙 금지.
+
+## 9. Scope Check
+
+다음이 수정되지 않았음을 확인:
+
+* routes
+* external engine clients
+* SMS
+* R2
+* Super Admin
+* DB schema
+* deployment config
+
+## 10. Verification Level
+
+이번 Step 완료 상태는:
+
+**UNIT TEST CONFIRMED**
+
+이며
+
+**PRODUCTION CONFIRMED 아님**
+
+이라고 명시.
+
+---
+
+# 12. STOP 조건
+
+AI01-01 완료 보고 후 멈춘다.
+
+AI01-02
+AI01-03
+그 이후 Step을 임의로 시작하지 않는다.
