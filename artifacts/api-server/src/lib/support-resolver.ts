@@ -28,6 +28,7 @@ import {
   type ScreenMode,
 } from "../config/support/frontend-map.v1.js";
 import { matchDirectAnswer } from "./support-direct-answer.js";
+import { retrieveCanonicalKI } from "./retrievers/support-retriever.js";
 
 // ── Threshold ─────────────────────────────────────────────────────────────────
 
@@ -741,6 +742,101 @@ async function tryKnownIssue(ctx: RouterContext): Promise<ResolutionResult | nul
   };
 }
 
+// ── Layer RT2: Canonical KI Retriever (SupportRetriever) ─────────────────────
+//
+// utterance exact/fuzzy miss 이후 concept lexicon + ILIKE + JS ranking으로
+// active canonical Knowledge에 도달하는 RT2 레이어.
+// 기존 Layer 0 (matchDirectAnswer) 결과를 덮지 않음.
+//
+// 정책:
+//   DIRECT_DB + score ≥ 80 → RESOLVED (llm_required=false)
+//   GROUNDED_GPT or 여러 KI → RESOLVED (llm_required=true, source_type=KNOWLEDGE)
+//   HUMAN_ONLY match         → RESOLVED (requires_human=true, llm_required=false)
+//   no usable match          → null (기존 chain 계속)
+
+async function tryCanonicalRetriever(ctx: RouterContext): Promise<ResolutionResult | null> {
+  let result: import("./retrievers/support-retriever.js").SupportRetrievalResult;
+  try {
+    result = await retrieveCanonicalKI(ctx);
+  } catch (err) {
+    // non-fatal: retriever 오류 시 기존 chain 계속
+    console.warn("[support-resolver] tryCanonicalRetriever error (non-fatal):", (err as Error).message);
+    return null;
+  }
+
+  const { retrieval, policy, best_answer, best_title, best_deep_link, grounded_evidence } = result;
+
+  if (policy === "INSUFFICIENT_EVIDENCE" || !retrieval.usable_for_ai) return null;
+
+  const topMatch  = retrieval.matches[0];
+  const sourceId  = topMatch?.source_id ?? null;
+  const confidence = topMatch?.score    ?? 0;
+
+  if (policy === "HUMAN_REQUIRED") {
+    await logResolverEvent("KNOWLEDGE_HIT", {
+      source_id: sourceId, role: ctx.role, mode: ctx.mode,
+      pool_id: ctx.poolId, category: "human_required",
+    });
+    return {
+      resolution_status: "RESOLVED",
+      source_type:       "KNOWLEDGE",
+      source_id:         sourceId,
+      confidence,
+      title:             best_title,
+      answer:            "이 문의는 담당자 확인이 필요합니다.\n\n아래 [직접 문의하기] 버튼을 통해 담당자에게 문의해 주세요.",
+      requires_human:    true,
+      llm_required:      false,
+      deep_link:         best_deep_link ?? null,
+      entity_key:        deriveEntityKey(null, sourceId),
+    };
+  }
+
+  if (policy === "DB_DIRECT") {
+    await logResolverEvent("KNOWLEDGE_HIT", {
+      source_id: sourceId, role: ctx.role, mode: ctx.mode,
+      pool_id: ctx.poolId, category: "canonical_direct",
+    });
+    return {
+      resolution_status: "RESOLVED",
+      source_type:       "DIRECT_DB",
+      source_id:         sourceId,
+      confidence,
+      title:             best_title,
+      answer:            best_answer,
+      requires_human:    false,
+      llm_required:      false,
+      deep_link:         best_deep_link ?? null,
+      entity_key:        deriveEntityKey(null, sourceId),
+    };
+  }
+
+  // GROUNDED_AI: pass evidence to LLM layer
+  if (policy === "GROUNDED_AI" && grounded_evidence.length > 0) {
+    const combinedText = grounded_evidence
+      .map(ki => `[${ki.title}]\n${ki.answer ?? ki.content}`)
+      .join("\n\n");
+    await logResolverEvent("KNOWLEDGE_HIT", {
+      source_id: sourceId, role: ctx.role, mode: ctx.mode,
+      pool_id: ctx.poolId, category: "canonical_grounded",
+    });
+    return {
+      resolution_status: "RESOLVED",
+      source_type:       "KNOWLEDGE",
+      source_id:         sourceId,
+      confidence,
+      title:             best_title,
+      // combinedText는 LLM 프롬프트 context로 사용; answer에 임시 저장
+      answer:            combinedText,
+      requires_human:    false,
+      llm_required:      true,   // LLM이 combinedText를 근거로 문장화
+      deep_link:         best_deep_link ?? null,
+      entity_key:        deriveEntityKey(null, sourceId),
+    };
+  }
+
+  return null;
+}
+
 // ── Layer 7: NO_MATCH ─────────────────────────────────────────────────────────
 
 async function buildNoMatch(ctx: RouterContext): Promise<ResolutionResult> {
@@ -776,6 +872,8 @@ async function runChain(ctx: RouterContext): Promise<ResolutionResult | null> {
     // utterance 기반 exact/fuzzy match → DIRECT_DB source_type, GPT 호출 없음.
     // role/mode/pool 서버 권위적 검증 포함. null이면 기존 chain으로 낙하.
     (await matchDirectAnswer(ctx)) ??
+    // RT2: utterance miss → concept lexicon + ILIKE + JS ranking으로 canonical KI 도달
+    (await tryCanonicalRetriever(ctx)) ??
     (await tryRule(ctx)) ??
     (await tryDbState(ctx)) ??
     (await trySolution(ctx)) ??
