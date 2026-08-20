@@ -1,0 +1,264 @@
+# [CURRICULUM SEARCH — FINAL BLOCKER DECISION]
+
+FINAL SOURCE REPORT 확인 완료.
+
+아직 WP-A 구현 시작하지 않는다.
+
+C1~C4를 아래와 같이 최종 확정한다.
+
+==================================================
+C1. X ELIGIBILITY — ACTIVE PROFILE BYPASS 금지
+==================================================
+
+다음 제안은 채택하지 않는다:
+
+"x_curriculum_profiles active면 검색 허용"
+
+NO.
+
+AI 커리큘럼 검색 사용 조건은 X도 동일하게:
+
+1. 서비스 사용 가능 센터
+2. 실제 AI 검색 가능한 curriculum item >= 300
+
+둘 다 충족해야 한다.
+
+금지:
+
+- x_curriculum_levels row count 사용
+- level count × 임의 가중치
+- active profile만으로 허용
+- 10~20 level row를 300 item으로 간주
+
+==================================================
+1-1. X CURRICULUM DATA ROLE
+==================================================
+
+현재 x_curriculum_levels는:
+
+level 단위
++
+skills/detailed_skills/learning_contents가 TEXT
+
+이므로 AI 검색 최소 단위로 사용하기에 너무 큼.
+
+최종 목표 구조:
+
+x_curriculum_levels
+= 레벨/교육체계의 상위 구조
+
+curriculum_items
+= AI 검색 가능한 최소 커리큘럼 item
+
+기존 curriculum_items 테이블을
+Normal/X 공통 canonical searchable item으로 사용하는 방향을 우선한다.
+
+신규 table부터 만들지 않는다.
+
+==================================================
+1-2. X INGESTION AUDIT
+==================================================
+
+현재 X DOCX import:
+
+DOCX
+→ parseCurriculumDocx
+→ x_curriculum_levels level당 1 row
+
+과정에서 원본의 세부 커리큘럼 정보가
+어디까지 존재하고 어디에서 합쳐지는지 확인한다.
+
+READ-ONLY 확인:
+
+- DOCX parser가 추출하는 원본 section/item 구조
+- level 내부 세부 항목 개수
+- skills 원본 구조
+- detailed_skills 원본 구조
+- learning_contents 원본 구조
+- objectives 원본 구조
+- drills 원본 구조
+- 현재 INSERT 전에 세부 item 정보가 존재하는지
+- parser 단계에서 이미 합쳐지는지
+- DB INSERT 단계에서 합쳐지는지
+
+목표:
+
+X 커리큘럼을 실제 검색 가능한
+최소 curriculum item들로 분리하여
+
+curriculum_items
+
+에 생성할 수 있는 정확한 ingestion point를 찾는다.
+
+==================================================
+1-3. 300 ITEM COUNT
+==================================================
+
+최종 eligibility count source 목표:
+
+SELECT COUNT(*)
+FROM curriculum_items
+WHERE swimming_pool_id = $poolId
+AND is_active = true
+
+X도 동일하게 이 query를 사용할 수 있도록
+X curriculum import 시 curriculum_items 생성/동기화하는 방향 우선.
+
+임의 TEXT comma split만으로 구현하지 않는다.
+
+원본 parser에서 구조화된 항목을 최대한 보존한다.
+
+==================================================
+C2. PARENT CURRICULUM ENGINE — 실제 서비스 확인
+==================================================
+
+코드상 client 존재 확인됨:
+
+parent-curriculum-engine-client.ts
+
+endpoint:
+
+POST
+${PARENT_CURRICULUM_ENGINE_URL}
+/api/v1/parent-curriculum/search
+
+이제 실제 AI Engine 서비스만 확인한다.
+
+READ-ONLY / 최소 호출만.
+
+확인:
+
+- PARENT_CURRICULUM_ENGINE_URL 실제 설정 여부
+- PARENT_CURRICULUM_ENGINE_SECRET 설정 여부
+- 실제 endpoint 도달 여부
+- 인증 성공 여부
+- health 또는 최소 search request 성공 여부
+- timeout
+
+secret 값 자체는 출력 금지.
+
+환경변수 생성/변경 금지.
+
+==================================================
+C3. PROFESSIONAL SWIMMING KNOWLEDGE — 실제 지원 확인
+==================================================
+
+output schema에 knowledge_ids가 있다고 해서
+Knowledge 검색 구현 완료로 간주하지 않는다.
+
+AI Engine 서비스에서 실제로 확인한다.
+
+최소 1~2건만 테스트.
+
+예:
+
+현재 skill:
+자유형 호흡
+
+query:
+"자유형 호흡을 왜 계속 연습하나요?"
+
+확인:
+
+- Knowledge retrieval 실제 수행 여부
+- knowledge_ids 반환 여부
+- 실제 전문 Knowledge source
+- 기술 원리 검색 가능 여부
+- 오류 검색 가능 여부
+- 원인 검색 가능 여부
+- 교정 검색 가능 여부
+- drill 검색 가능 여부
+- Grounded answer에 Knowledge가 실제 반영되는지
+
+전체 회귀테스트 금지.
+
+==================================================
+C4. ENGINE FAILURE FALLBACK — 확정
+==================================================
+
+SWIMNOTE AI Engine 또는 전문 Knowledge가
+사용 불가능한 경우:
+
+GPT 자체 수영 지식으로 fallback 금지.
+
+x_curriculum_levels만으로
+전문 Knowledge Engine을 대체하는 것도 금지.
+
+Engine 장애 시:
+
+- GROUNDED_GPT 호출 중단
+- quota 차감 0
+- 사용자에게 안전한 오류 안내
+
+예:
+
+"커리큘럼 정보를 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+DIRECT_DB로 확실히 답할 수 있는 DB 사실 질문은
+Engine 장애와 무관하게 처리 가능.
+
+==================================================
+C5. QUOTA — 그대로 유지
+==================================================
+
+현재 quota 구현은 수정하지 않는다.
+
+확정:
+
+parent_account_id 기준 월 10회
+
+성공한 유료 AI 응답만 차감
+
+DIRECT_DB:
+0회
+
+HUMAN_ONLY:
+0회
+
+Engine/GPT failure:
+0회
+
+quota exhausted:
+AI 호출 전 차단
+
+==================================================
+다음 보고
+==================================================
+
+아직 구현하지 않는다.
+
+아래만 보고:
+
+[CURRICULUM SEARCH WP-A READINESS REPORT]
+
+A. X INGESTION
+
+- raw DOCX minimum structure:
+- parser minimum item structure:
+- data merge point:
+- curriculum_items generation possible:
+- recommended generation point:
+- X 300-item count achievable:
+- DB migration required:
+- ingestion code change required:
+
+B. AI ENGINE
+
+- ENGINE_URL configured: YES/NO
+- ENGINE_SECRET configured: YES/NO
+- endpoint reachable: YES/NO
+- auth success: YES/NO
+- minimal search success: YES/NO
+- professional knowledge actually retrieved: YES/NO
+- knowledge source:
+- knowledge_ids returned:
+- blocker:
+
+C. FINAL
+
+- WP-A ready: YES/NO
+- remaining blocker:
+- recommended first implementation step:
+
+아직 코드/DB 수정하지 말고 보고 후 멈춘다.
