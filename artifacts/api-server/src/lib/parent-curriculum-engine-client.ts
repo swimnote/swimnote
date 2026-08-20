@@ -46,7 +46,7 @@ export interface PcCurriculumItem {
 }
 
 export interface PcCurriculumScope {
-  source:           "POOL" | "X_GLOBAL";
+  source:           "POOL" | "X_GLOBAL" | "X_POOL";
   template_set_id?: string;
   curriculum_items: PcCurriculumItem[];
 }

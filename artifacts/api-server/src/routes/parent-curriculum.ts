@@ -486,26 +486,14 @@ router.post(
     // 500/502 금지.
     let curriculumScope;
     try {
-      curriculumScope = await buildXCurriculumScope();
+      curriculumScope = await buildXCurriculumScope(poolId);
     } catch (err) {
       if (err instanceof CurriculumScopeError) {
-        if (
-          err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
-          err.code === "NO_ACTIVE_CURRICULUM_VERSION"
-        ) {
+        if (err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
+            err.code === "NO_ACTIVE_CURRICULUM_VERSION") {
           res.status(422).json({
             error: "AI 커리큘럼 검색이 아직 준비 중입니다. (커리큘럼 데이터 부족)",
             code:  "CURRICULUM_NOT_READY",
-          });
-          return;
-        }
-        if (
-          err.code === "X_GLOBAL_SET_UNAVAILABLE" ||
-          err.code === "X_GLOBAL_DATA_INTEGRITY_ERROR"
-        ) {
-          res.status(422).json({
-            error: "AI 커리큘럼 검색이 아직 준비 중입니다.",
-            code:  "CURRICULUM_SEARCH_NOT_ELIGIBLE",
           });
           return;
         }
@@ -984,15 +972,13 @@ router.get(
         // X pool → check searchable curriculum count (no charge)
         if (pm === "x") {
           try {
-            await buildXCurriculumScope();
+            await buildXCurriculumScope(poolId);
             // scope ok — fall through to normal history load (eligible: true)
           } catch (scopeErr) {
             if (
               scopeErr instanceof CurriculumScopeError &&
               (scopeErr.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
-               scopeErr.code === "NO_ACTIVE_CURRICULUM_VERSION" ||
-               scopeErr.code === "X_GLOBAL_SET_UNAVAILABLE" ||
-               scopeErr.code === "X_GLOBAL_DATA_INTEGRITY_ERROR")
+               scopeErr.code === "NO_ACTIVE_CURRICULUM_VERSION")
             ) {
               const u = await getMonthlyUsageInfo(parentId).catch(() => ({
                 limit: MONTHLY_LIMIT, used: 0, remaining: MONTHLY_LIMIT, period: "", resets_at: "",
