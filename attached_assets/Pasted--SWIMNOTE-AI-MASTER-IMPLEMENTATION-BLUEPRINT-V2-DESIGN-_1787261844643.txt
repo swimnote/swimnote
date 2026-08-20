@@ -1,0 +1,1376 @@
+# [SWIMNOTE AI MASTER IMPLEMENTATION BLUEPRINT V2 — DESIGN VERIFICATION & IMPLEMENTATION PLAN]
+
+목적:
+
+SWIMNOTE의 AI/API 구조를 실제 Production에 단계적으로 구현하기 전에
+전체 설계도를 다시 하나로 고정한다.
+
+이번 단계에서 Replit은 코딩하지 않는다.
+
+해야 할 일은:
+
+1. 아래 MASTER 설계도를 실제 repository와 대조
+2. 구현 불가능하거나 실제 코드와 충돌하는 부분 확인
+3. 누락된 필수 연결점 확인
+4. 비용·성능·안전 관점에서 기술 의견 제출
+5. 최종 IMPLEMENTATION PLAN 작성
+
+이다.
+
+코드 수정 금지.
+DB write 금지.
+Migration 금지.
+OpenAI 호출 금지.
+External Engine 호출 금지.
+Render deploy 금지.
+Expo OTA 금지.
+Full regression 금지.
+
+---
+
+# 0. 최상위 사업/기술 목표
+
+SWIMNOTE AI의 목표는:
+
+> AI 호출을 최소화하는 것이 아니다.
+
+목표는:
+
+> 필요한 곳에는 AI/API를 적극적으로 사용하여
+> 병목을 제거하고,
+> 정확도와 사용자 만족도를 높이고,
+> 운영 인건비를 줄이되,
+> 모든 비용을 측정하고 즉시 통제할 수 있는 시스템을 만드는 것.
+
+세 가지 최상위 기준:
+
+## A. PERFORMANCE
+
+AI/API가 들어갔을 때:
+
+* 검색 정확도 증가
+* 응답 품질 증가
+* 자연어 이해 증가
+* 자동화 증가
+* 사용자 만족도 증가
+* 운영 업무 감소
+
+가 크다면 적극적으로 도입한다.
+
+## B. COST CONTROL
+
+운영자는 반드시 알 수 있어야 한다.
+
+* 오늘 얼마 사용했는가
+* 이번 달 얼마 사용했는가
+* 어떤 기능이 돈을 가장 많이 사용하는가
+* USER_ACTION 비용은 얼마인가
+* SYSTEM_MAINTENANCE 비용은 얼마인가
+* 어떤 provider/model이 비싼가
+* pool별 비용은 얼마인가
+* 호출 1건 평균 비용은 얼마인가
+
+그리고 과도한 비용이 발생하면
+운영자가 즉시 억제할 수 있어야 한다.
+
+## C. COST PERFORMANCE
+
+조금 더 좋은 결과를 위해
+몇 배 비싼 모델을 기본 사용하지 않는다.
+
+기본 우선순위:
+
+1. 충분한 품질
+2. 낮은 단가
+3. 빠른 응답
+4. 안정성
+5. 그 다음 최고 품질
+
+즉:
+
+"비싸지만 약간 더 좋음"
+
+보다
+
+"충분히 좋고 훨씬 싸고 빠름"
+
+을 기본 선택한다.
+
+상위 모델은 실제 품질 차이가
+비용 차이를 정당화할 때만 사용한다.
+
+---
+
+# 1. AI 도입 판단 헌법
+
+AI/API를 붙이기 전에 다음을 판단한다.
+
+### AI/API 도입 적극 권장
+
+다음 중 하나 이상을 크게 개선한다면:
+
+* deterministic 검색의 false negative
+* 자연어 variation
+* follow-up context
+* 의미 분류
+* 대규모 candidate selection
+* reranking
+* 요약
+* 구조화
+* 전문 Evidence 종합
+* 불완전한 교사 입력 해석
+* 리포트 분석
+* 자동 고객응대
+* 사람의 반복 업무
+
+AI/API 도입을 적극 검토한다.
+
+### AI 사용 금지 또는 불필요
+
+다음에는 AI를 authority로 사용하지 않는다.
+
+* Auth
+* Role
+* Permission
+* Pool/Tenant isolation
+* Payment
+* Billing
+* Subscription
+* Quota enforcement
+* OTP
+* DB integrity
+* Knowledge activation
+* Security decisions
+* 단순 deterministic CRUD
+
+---
+
+# 2. AI 모델 선택 헌법
+
+모델 선택은 "가장 강한 모델"부터 시작하지 않는다.
+
+기본 escalation ladder:
+
+CHEAP / FAST MODEL
+↓
+품질 충분?
+YES → 종료
+NO
+↓
+상위 모델
+
+현재 OpenAI 계열 및 향후 외부 API에서도
+같은 원칙을 사용한다.
+
+Nano/저비용 모델 사용이 적합한 작업:
+
+* query understanding
+* intent
+* follow-up
+* candidate selection
+* reranking
+* filtering
+* classification
+* normalization
+* summary
+* structured output
+* short grounded answer
+
+상위 모델:
+
+* 복잡한 장기 추론
+* Growth Report 분석
+* 여러 Evidence 간 고난도 reasoning
+* Nano가 실제 평가에서 의미 있게 실패하는 경우
+
+모델 승격은 느낌이 아니라
+실제 테스트 결과로 결정한다.
+
+---
+
+# 3. AI 호출 자체도 최적화
+
+AI 품질을 낮추는 것이 아니라
+불필요한 호출을 없앤다.
+
+예:
+
+나쁜 구조:
+
+Nano classification
+→ Nano reranking
+→ Nano answer
+
+가능하면:
+
+Nano 1회
+→ query 이해
+→ Evidence 선택
+→ answer
+
+로 통합.
+
+단 한 호출에 과도한 Evidence를 넣어
+token cost/latency가 커지는 것도 금지.
+
+---
+
+# 4. 핵심 데이터 흐름
+
+SWIMNOTE의 기본 AI 패턴:
+
+VERIFIED SOURCE
+↓
+BROAD RETRIEVAL
+↓
+CANDIDATE REDUCTION
+↓
+LOW-COST AI
+↓
+EVIDENCE SELECTION / CONTEXT
+↓
+필요 시 HIGHER MODEL
+↓
+SERVER VALIDATION
+↓
+OUTPUT
+↓
+USAGE LOG
+
+AI가 Source of Truth가 되어서는 안 된다.
+
+---
+
+# 5. Retrieval 설계
+
+## Support
+
+Support Knowledge DB
+↓
+Broad Retrieval
+↓
+Candidate KI
+↓
+Nano
+
+* query 이해
+* follow-up 이해
+* Evidence 선택
+* irrelevant 제거
+* 여러 KI 종합
+* grounded answer
+  ↓
+  Validator
+
+더 이상 질문별 regex/facet 무한 튜닝 금지.
+
+---
+
+## Professional Knowledge
+
+약 20k Professional DB
+
+↓
+
+Broad Retrieval
+
+목표 후보:
+약 50~100
+
+↓
+
+light ranking
+
+↓
+
+Top 약 15~30
+
+↓
+
+Nano Evidence Selection
+
+↓
+
+Feature output
+
+전체 20k를 LLM에 전달 금지.
+
+---
+
+## Parent Curriculum
+
+pool-specific curriculum_items
++
+필요한 Professional Evidence
+
+↓
+
+Broad Retrieval
+
+↓
+
+Candidate Set
+
+↓
+
+Nano
+
+↓
+
+Grounded Parent Answer
+
+# `diary_templates`
+
+Authoring Source of Truth
+
+# `curriculum_items`
+
+Parent Search Index
+
+---
+
+## AI Diary
+
+Teacher memo
++
+effective diary_templates
++
+Professional Knowledge
+
+↓
+
+Retrieval
+
+↓
+
+Nano
+
+* memo 이해
+* 학생별 내용 이해
+* template 선택
+* Professional Evidence 선택
+
+↓
+
+필요한 생성 모델
+
+↓
+
+Validator
+
+↓
+
+Diary Draft
+
+Professional AI Engine에 기존 Grounded Teacher Diary Pipeline이 존재하면
+APP 서버에서 다시 구현하지 않는다.
+
+---
+
+## Growth Report
+
+Student Period Evidence
+
+* diary
+* growth_events
+* level
+* attendance
+* curriculum
+* teacher observations
+* Professional Knowledge
+* 필요한 외부 분석 결과
+
+↓
+
+Evidence Pack
+
+↓
+
+Analysis AI
+
+↓
+
+Validator
+
+↓
+
+Report
+
+↓
+
+PPT/PDF
+
+---
+
+# 6. APP ↔ PROFESSIONAL AI ENGINE
+
+APP/API Server:
+
+* Auth
+* Permission
+* pool isolation
+* user context
+* DB authority
+* quota
+* payment
+* request orchestration
+* response validation
+* usage logging
+* UI / storage
+
+Professional AI Engine:
+
+* Professional Knowledge DB
+* Retrieval
+* Hybrid Search
+* normalization
+* specialist pipeline
+* grounded reasoning
+* prompt
+* grounding verification
+
+기존 AI Engine 기능을 APP에서 복제 금지.
+
+---
+
+# 7. 공통 Request Tracking
+
+모든 AI/API 흐름은 가능한 한 동일:
+
+request_id
+
+를 끝까지 유지한다.
+
+예:
+
+Mobile
+↓
+SWIMNOTE API
+↓
+Professional Engine
+↓
+OpenAI/External API
+↓
+Response
+↓
+Usage Event
+
+동일 logical request 내에서
+여러 API call이 있다면:
+
+request_id = 동일
+
+각 실제 provider call은 별도 usage event로 기록.
+
+이를 통해:
+
+"Growth Report 하나를 생성하는 데 실제 외부 호출이 몇 번 발생했는지"
+
+추적 가능해야 한다.
+
+---
+
+# 8. COMMON USAGE EVENT
+
+모든 유료 API 호출은 가능한 한 공통 Contract를 사용한다.
+
+필수:
+
+provider
+service
+model_or_api
+feature
+trigger_type
+
+pool_id
+request_id
+timestamp
+
+usage:
+
+input_tokens
+cached_input_tokens
+output_tokens
+audio_seconds
+request_count
+units
+
+cost:
+
+estimated_cost_usd
+cost_source
+
+runtime:
+
+latency_ms
+retry_count
+success
+error_type
+
+PII 저장 금지.
+
+---
+
+# 9. 비용 Source
+
+CostSource:
+
+TOKEN_PRICING
+CONFIGURED_UNIT_PRICE
+PROVIDER_REPORTED
+PUBLIC_PRICING
+UNKNOWN
+
+원칙:
+
+실제 가격을 모르면:
+
+estimated_cost_usd = null
+cost_source = UNKNOWN
+
+추정 금지.
+
+웹에서 대충 찾은 시장 평균 단가를
+Production 가격으로 사용 금지.
+
+---
+
+# 10. trigger_type
+
+최소:
+
+USER_ACTION
+SYSTEM_MAINTENANCE
+ADMIN_MANUAL
+BATCH_JOB
+
+절대 원칙:
+
+사용자가 아무 행동도 하지 않았는데
+자동으로 발생하는 비용은
+USER_ACTION에 섞이면 안 된다.
+
+SYSTEM_MAINTENANCE 비용을
+운영자가 바로 확인할 수 있어야 한다.
+
+---
+
+# 11. 비용 Dashboard
+
+Super Admin:
+
+AI/API COST
+
+최소:
+
+TODAY
+MONTH
+
+Trigger:
+
+USER ACTION
+SYSTEM MAINTENANCE
+ADMIN MANUAL
+BATCH
+
+Feature:
+
+Feature
+Calls
+Known Cost
+Unknown Cost Calls
+Avg Known Cost/Call
+Input
+Output
+Errors
+
+Provider:
+
+Provider
+Model/API
+Calls
+Known Cost
+Unknown Calls
+
+Pool:
+
+Pool
+Calls
+Cost
+
+Unit economics:
+
+Support 질문당
+Curriculum 질문당
+AI Diary 생성당
+Growth Report당
+STT 호출당
+
+비용.
+
+Dashboard 조회 자체는
+외부 provider API를 호출하지 않는다.
+
+event_logs 기반 SQL aggregate.
+
+---
+
+# 12. 비용 통제 Layer
+
+이번 V2에서 중요한 추가 헌법.
+
+관측만 하고 끝나면 안 된다.
+
+운영자는 비용이 비정상적이라고 판단했을 때
+신속하게 억제할 수 있어야 한다.
+
+다만 현재 단계에서 자동 차단을 바로 활성화하라는 의미는 아니다.
+
+최종 구조상 다음 Control Point를 지원할 수 있어야 한다.
+
+### A. Feature Control
+
+예:
+
+SUPPORT_AI
+CURRICULUM_AI
+AI_DIARY
+GROWTH_REPORT
+STT
+
+별 enabled/disabled 가능.
+
+### B. Provider/Model Control
+
+예:
+
+특정 비싼 model 사용 중단
+↓
+저비용 model로 변경
+
+가능.
+
+### C. Background Control
+
+SYSTEM_MAINTENANCE가 과도하면:
+
+* Worker frequency 감소
+* batch size 감소
+* retry 감소
+* pause
+
+가능.
+
+### D. Quota
+
+필요할 경우:
+
+pool
+user
+feature
+
+별 quota 조정 가능.
+
+### E. Emergency Kill Switch
+
+비용 폭증/Provider 장애 시
+특정 AI 기능 또는 provider 호출을
+운영자가 빠르게 정지할 수 있는 구조.
+
+---
+
+# 13. 자동 비용 제한 정책
+
+현재 즉시 hard automatic shutdown을
+Production 기본값으로 활성화하지 않는다.
+
+먼저 실제 사용 데이터를 수집한다.
+
+순서:
+
+Observability
+↓
+실제 unit cost 측정
+↓
+정상 비용 baseline 확보
+↓
+필요 시 threshold 설정
+↓
+alert
+↓
+필요 시 throttling / kill switch
+
+즉:
+
+"측정 없이 제한"
+
+하지 않는다.
+
+하지만 제한 가능한 구조는 미리 만들어 둔다.
+
+---
+
+# 14. 비용 이상 탐지
+
+향후 최소한 다음은 판단 가능해야 한다.
+
+* 평소보다 calls 급증
+* 평균 cost/call 급증
+* SYSTEM_MAINTENANCE 급증
+* retry 급증
+* error 급증
+* 특정 provider 비정상 증가
+
+초기에는 Dashboard 관찰로 충분.
+
+향후 실제 데이터가 쌓이면
+Alert 기능 추가 가능.
+
+---
+
+# 15. Retry 비용 헌법
+
+Retry도 돈이다.
+
+따라서:
+
+logical request_count
+와
+actual provider call count
+
+를 구분해야 한다.
+
+예:
+
+Growth Report 1건
+
+provider 최초 호출
++
+retry 2회
+
+이면:
+
+logical feature request = 1
+
+actual API calls = 3
+
+retry_count = 2
+
+비용은 3회 실제 사용량 기준.
+
+Retry가 비용 폭증을 만들면
+Dashboard에서 보여야 한다.
+
+---
+
+# 16. AI 성능 평가 원칙
+
+비싼 모델 도입 여부는
+실제 비교로 결정한다.
+
+평가:
+
+Quality
+Latency
+Cost
+
+최소 이 3개를 함께 본다.
+
+예:
+
+Model A
+
+품질 92
+비용 1
+
+Model B
+
+품질 94
+비용 8
+
+이면 B가 무조건 좋은 선택은 아니다.
+
+기능 특성상 2점 차이가 의미 없다면 A 사용.
+
+---
+
+# 17. 병목 우선 AI 투입
+
+향후 구현 중:
+
+* 반복 regex 증가
+* false negative 증가
+* 자연어 variation 문제
+* 사람이 계속 직접 판단
+* DB가 있는데 검색이 못 찾음
+* 여러 결과 중 선택 문제가 큼
+* 사람이 반복 작업
+
+같은 병목이 확인되면
+
+먼저:
+
+"저비용 AI/API를 넣으면 해결되는가?"
+
+를 검토한다.
+
+해결 효과가 크고 단가가 합리적이면
+적극 도입한다.
+
+---
+
+# 18. API 적극 도입
+
+OpenAI 외에도 필요한 경우:
+
+* STT
+* video analysis
+* image analysis
+* OCR
+* document generation
+* PPT/PDF
+* 전문 분석 API
+
+등을 사용 가능.
+
+판단 기준:
+
+성능/자동화 증가
+÷
+실제 호출 비용
+
+가 좋은가.
+
+"외부 API니까 쓰지 않는다"
+
+는 원칙은 없다.
+
+---
+
+# 19. Background AI 주의
+
+가장 위험한 비용은:
+
+사용자가 아무 행동을 하지 않아도
+계속 발생하는 비용.
+
+따라서:
+
+Growth Worker
+Background Retry
+Scheduled AI
+Maintenance AI
+
+등은 반드시:
+
+frequency
+batch size
+retry
+call count
+cost
+
+가 보이도록 한다.
+
+---
+
+# 20. Best-Effort Telemetry
+
+Usage log 실패 때문에
+실제 사용자 요청을 실패시키지 않는다.
+
+AI/API 호출 성공
++
+Usage log 실패
+
+→ 사용자 성공 유지.
+
+하지만 운영 warning 남김.
+
+---
+
+# 21. Validator
+
+AI Output은 항상 필요한 경우
+server validation을 통과해야 한다.
+
+검증 예:
+
+source IDs
+student refs
+pool refs
+generation mode
+Evidence 존재 여부
+HUMAN_ONLY
+permission
+
+AI가 임의의 ID를 만들어도
+server가 accept하지 않는다.
+
+---
+
+# 22. Feature Fallback
+
+Grounded AI가 실패했다고 해서
+사용자 모르게 일반 GPT로 자동 우회 금지.
+
+Fallback 존재 시:
+
+fallback_used
+pipeline_mode
+fallback_reason
+
+추적.
+
+---
+
+# 23. Production Deployment
+
+Replit:
+
+RENDER_API_KEY 요구 금지.
+
+Render deploy:
+
+운영자 수동.
+
+Expo OTA:
+
+운영자 승인 후.
+
+Migration:
+
+승인 후.
+
+Production DB write:
+
+승인 없이 금지.
+
+---
+
+# 24. 작업 진행 방식
+
+앞으로 각 WP는 반드시:
+
+1. 설계
+2. Replit 검증
+3. 실행 계획
+4. 운영자 승인
+5. 구현 Step
+6. Step 결과 보고
+7. 증거 검수
+8. 다음 Step 승인
+9. Production 연결
+10. 실사용 검증
+
+순으로 진행한다.
+
+한 번에 전체 작업을 던지고
+마지막에 "완료했습니다" 식으로 진행하지 않는다.
+
+---
+
+# 25. Replit 허위/과장 보고 방지 규칙
+
+매 구현 Step 완료 보고에는
+주장만 적으면 안 된다.
+
+반드시 증거 제출.
+
+최소:
+
+### 코드 변경
+
+* commit SHA
+* 실제 변경 파일
+* 실제 함수
+* 핵심 diff 요약
+
+### 테스트
+
+* 실행한 정확한 command
+* test 이름
+* PASS/FAIL
+* test 개수
+
+### Route
+
+* 정확한 endpoint
+* 호출 대상
+* feature flag 상태
+
+### DB
+
+DB write가 필요한 WP에 한해서:
+
+* 실제 row/count
+* read-back 결과
+
+### External Engine
+
+* request_id
+* 호출 여부
+* HTTP status
+* latency
+* response contract
+
+민감정보 제외.
+
+### AI Grounding
+
+필요 시:
+
+* selected source IDs
+* validator result
+* fallback_used
+
+### Usage
+
+* provider
+* feature
+* trigger_type
+* call count
+* known/unknown cost
+
+검증 증거 없이:
+
+"정상 동작"
+"완료"
+"연결됨"
+"배포 준비 완료"
+
+라고만 보고하면 PASS 처리하지 않는다.
+
+---
+
+# 26. 불확실성 보고 규칙
+
+코드에서 직접 확인하지 않은 내용은:
+
+CONFIRMED
+
+라고 쓰지 않는다.
+
+다음 중 하나 사용:
+
+CONFIRMED
+INFERRED
+UNKNOWN
+NOT CHECKED
+
+추정과 사실을 분리한다.
+
+---
+
+# 27. 현재 Implementation Roadmap
+
+순서 LOCK:
+
+## PHASE 1
+
+WP-AI-01
+Cost Observability + Cost Control Foundation
+
+## PHASE 2
+
+Support Nano
+
+## PHASE 3
+
+Professional Retrieval Audit / Improvement
+
+## PHASE 4
+
+Parent Curriculum
+
+## PHASE 5
+
+AI Diary
+
+## PHASE 6
+
+Growth Report
+
+## PHASE 7
+
+Real Unit Economics
+
+## PHASE 8
+
+Cost Optimization / Threshold / Alert / Control tuning
+
+단:
+
+WP-AI-01에서
+Feature/Provider/Background를 나중에 통제할 수 있는
+기본 control boundary는 반드시 고려한다.
+
+---
+
+# 28. 이번에 Replit이 검증할 것
+
+전체 repository를 다시 감사하지 않는다.
+
+다음 설계와 관련 있는 실제 코드만 확인한다.
+
+### A. Usage Event
+
+현재 event_logs 구조로
+위 공통 contract를 구현 가능한지.
+
+### B. Cost Controls
+
+현재 feature_flags / env / worker 구조를 이용하여:
+
+* Feature disable
+* Provider/model switch
+* Worker pause
+* Batch/frequency adjustment
+* quota
+
+중 무엇이 이미 가능한지.
+
+새 시스템을 만들기 전에 기존 구조 재사용 검토.
+
+### C. Request Tracking
+
+동일 request_id로:
+
+APP
+→ API
+→ Engine
+→ provider
+→ usage log
+
+추적 가능한지.
+
+### D. Retry
+
+현재 external client / OpenAI route별
+actual retry 구조 확인.
+
+### E. Model Routing
+
+현재 모델이 route마다 직접 하드코딩되어 있는지
+공통 model selection으로 이동 가능한지.
+
+단 대규모 리팩터링 금지.
+
+### F. Existing Bottlenecks
+
+이미 확인된:
+
+Support
+Professional Retrieval
+Curriculum
+AI Diary
+Growth Report
+
+병목에 이 설계가 적용 가능한지.
+
+---
+
+# 29. Replit에게 요구하는 실제 Implementation Plan
+
+설계 검증 후:
+
+# [SWIMNOTE AI MASTER IMPLEMENTATION PLAN]
+
+을 제출한다.
+
+반드시 실제 코드 기준.
+
+## 1. Design Verdict
+
+PASS
+
+또는
+
+CONFLICT
+
+CONFLICT이면 실제 이유.
+
+## 2. Existing Reusable Infrastructure
+
+실제 파일/함수 기준.
+
+## 3. Required New Infrastructure
+
+정말 필요한 것만.
+
+## 4. WP Roadmap
+
+각 WP별:
+
+* 목표
+* 변경 파일
+* 신규 파일
+* 변경 함수
+* 외부 API
+* DB 변경
+* Feature flag
+* Usage logging
+* Validator
+* Test
+* Production validation
+
+## 5. WP-AI-01 Detailed Steps
+
+가장 먼저 구현할 WP-AI-01을
+실제 실행 가능한 작은 Step으로 분해한다.
+
+각 Step은 가능하면:
+
+1 commit
++
+최소 test
++
+보고
+
+단위.
+
+Step마다:
+
+### STEP ID
+
+예: AI01-01
+
+### 목적
+
+### 실제 변경 파일
+
+### 변경 함수
+
+### DB 영향
+
+### 비용 영향
+
+### 테스트 방법
+
+### 완료 증거
+
+### Rollback
+
+을 작성.
+
+## 6. Support Nano Plan
+
+구현하지 말고 계획만.
+
+## 7. Professional Retrieval Plan
+
+구현하지 말고 계획만.
+
+## 8. Curriculum Plan
+
+구현하지 말고 계획만.
+
+## 9. AI Diary Plan
+
+구현하지 말고 계획만.
+
+## 10. Growth Report Plan
+
+구현하지 말고 계획만.
+
+## 11. Cost Control Plan
+
+현재 코드 재사용 기준으로:
+
+* manual kill switch
+* feature disable
+* provider/model switch
+* background pause
+* quota
+* future threshold alerts
+
+를 어떤 구조로 구현할지.
+
+## 12. Cost/Performance Decision Framework
+
+향후 model/API 선택 시
+어떤 숫자를 보고 선택할지.
+
+최소:
+
+quality
+latency
+cost/call
+error rate
+
+## 13. Verification Matrix
+
+각 WP별 완료를 증명하는
+실제 verification 항목.
+
+## 14. Risks
+
+실제 코드에서 확인된 것만.
+
+## 15. First Implementation Step
+
+전체 계획 중
+가장 먼저 수행할 정확한 Step 하나를 지정.
+
+하지만 아직 실행하지 않는다.
+
+---
+
+# 30. 매우 중요한 실행 규칙
+
+Implementation Plan을 제출한 뒤 멈춘다.
+
+코딩 시작 금지.
+
+운영자가 Plan을 검수하고
+첫 Step을 승인한 이후에만 구현한다.
+
+그 이후:
+
+STEP 하나 수행
+↓
+보고
+↓
+운영자 검수
+↓
+다음 STEP
+
+방식으로 진행한다.
+
+중간에 임의로 다음 Step까지 진행 금지.
+
+---
+
+# 31. 절대 금지
+
+* 전체 architecture 임의 변경
+* 대규모 리팩터링
+* 새 DB table 임의 생성
+* 새 vector DB 임의 도입
+* 비싼 모델을 기본값으로 임의 지정
+* 비용을 모르는 provider 가격 추정
+* 테스트하지 않고 완료 선언
+* mock 결과를 Production 성공으로 표현
+* route 존재만 보고 실제 연결됐다고 표현
+* env 존재만 보고 Production 설정됐다고 표현
+* source code만 보고 실사용 경로 확정이라고 표현
+* 자동 deploy
+* Production DB write
+* 다음 Step 선행 구현
+
+---
+
+# FINAL OUTPUT
+
+다음 두 문서만 제출:
+
+1.
+
+[SWIMNOTE AI MASTER DESIGN VERIFICATION REPORT]
+
+2.
+
+[SWIMNOTE AI MASTER IMPLEMENTATION PLAN]
+
+그 후 STOP.
+
+코드 수정하지 마십시오.
