@@ -30,6 +30,7 @@ import {
   extractKIIntents,
   extractSlots,
   extractGoal,
+  extractFacet,
 } from "../support-retriever.js";
 import type { RouterContext } from "../../support-resolver.js";
 import { buildDiagnostics, assertNoPiiInDiagnostics } from "../../runtime/diagnostics.js";
@@ -745,9 +746,61 @@ describe("TC-23 query_slots present in SupportRetrievalResult", () => {
   });
 });
 
-// ── TC-24: extractGoal — goal detection patterns ──────────────────────────────
+// ── TC-24: extractFacet — NOTIFICATION facet patterns ─────────────────────────
 
-describe("TC-24 extractGoal — SemanticGoal detection", () => {
+describe("TC-24 extractFacet — SemanticFacet detection for NOTIFICATION", () => {
+  it("알림끄는거 어디서해 → PREFERENCE", () => {
+    expect(extractFacet("알림끄는거 어디서해", "NOTIFICATION")).toBe("PREFERENCE");
+  });
+
+  it("푸시 알림 설정 → PREFERENCE", () => {
+    expect(extractFacet("푸시 알림 설정", "NOTIFICATION")).toBe("PREFERENCE");
+  });
+
+  it("알림 켜기 → PREFERENCE", () => {
+    expect(extractFacet("알림 켜기", "NOTIFICATION")).toBe("PREFERENCE");
+  });
+
+  it("알림 권한을 거부했어요 → PERMISSION", () => {
+    expect(extractFacet("알림 권한을 거부했어요", "NOTIFICATION")).toBe("PERMISSION");
+  });
+
+  it("알림 권한을 다시 켜려면 → PERMISSION", () => {
+    expect(extractFacet("알림 권한을 다시 켜려면 어떻게 하나요", "NOTIFICATION")).toBe("PERMISSION");
+  });
+
+  it("요청이 처리되면 알림이 오나요 → EVENT_TRIGGER", () => {
+    expect(extractFacet("요청이 처리되면 알림이 오나요", "NOTIFICATION")).toBe("EVENT_TRIGGER");
+  });
+
+  it("새 일정이 등록되면 알림이 오나요 → EVENT_TRIGGER", () => {
+    expect(extractFacet("새 일정이 등록되면 알림이 오나요", "NOTIFICATION")).toBe("EVENT_TRIGGER");
+  });
+
+  it("알림이 안 와요 → DELIVERY_TROUBLESHOOT", () => {
+    expect(extractFacet("알림이 안 와요", "NOTIFICATION")).toBe("DELIVERY_TROUBLESHOOT");
+  });
+
+  it("알림이 두 번 와요 → DELIVERY_TROUBLESHOOT", () => {
+    expect(extractFacet("알림이 두 번 와요", "NOTIFICATION")).toBe("DELIVERY_TROUBLESHOOT");
+  });
+
+  it("알림이 늦게 와요 → DELIVERY_TROUBLESHOOT", () => {
+    expect(extractFacet("알림이 늦게 와요", "NOTIFICATION")).toBe("DELIVERY_TROUBLESHOOT");
+  });
+
+  it("CURRICULUM object → always OTHER", () => {
+    expect(extractFacet("커리큘럼 등록 알림 끄기", "CURRICULUM")).toBe("OTHER");
+  });
+
+  it("UNKNOWN object → always OTHER", () => {
+    expect(extractFacet("알림 끄기 어디서", "UNKNOWN")).toBe("OTHER");
+  });
+});
+
+// ── TC-25: extractGoal — goal detection patterns ──────────────────────────────
+
+describe("TC-25 extractGoal — SemanticGoal detection", () => {
   it("알림끄는거 어디서해 → SETTINGS_MANAGE", () => {
     expect(extractGoal("알림끄는거 어디서해")).toBe("SETTINGS_MANAGE");
   });
@@ -787,7 +840,7 @@ describe("TC-24 extractGoal — SemanticGoal detection", () => {
 
 // ── TC-25: Goal mismatch → BEHAVIOR_CONDITION KI suppressed ──────────────────
 
-describe("TC-25 BEHAVIOR_CONDITION KI suppressed for SETTINGS_MANAGE query", () => {
+describe("TC-27 BEHAVIOR_CONDITION KI suppressed for SETTINGS_MANAGE query", () => {
   it("SETTINGS_MANAGE query → BEHAVIOR_CONDITION KI not top-1", async () => {
     (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
     const behaviorKI = makeKI({
@@ -836,6 +889,72 @@ describe("TC-26 query_goal present in SupportRetrievalResult", () => {
     expect(result.query_goal).toBeDefined();
     expect(typeof result.query_goal).toBe("string");
     expect(result.query_goal).toBe("FEATURE_DESCRIPTION");
+  });
+});
+
+// ── TC-28: result contains query_facet (Round 5) ──────────────────────────────
+
+describe("TC-28 query_facet present in SupportRetrievalResult", () => {
+  it("NOTIFICATION query → PREFERENCE facet in result", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    mockDbWithRows([makeKI()]);
+
+    const ctx = makeCtx({
+      qLower: "알림 설정",
+      tokens: tokenizeKorean("알림 설정"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    expect(result.query_facet).toBeDefined();
+    expect(typeof result.query_facet).toBe("string");
+    expect(result.query_facet).toBe("PREFERENCE");
+  });
+
+  it("non-NOTIFICATION query → OTHER facet in result", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    mockDbWithRows([makeKI()]);
+
+    const ctx = makeCtx({
+      qLower: "성장리포트가 뭐야",
+      tokens: tokenizeKorean("성장리포트가 뭐야"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    expect(result.query_facet).toBe("OTHER");
+  });
+});
+
+// ── TC-29: FACET_MISMATCH KI excluded from grounded_evidence ──────────────────
+
+describe("TC-29 FACET_MISMATCH KI excluded from grounded_evidence", () => {
+  it("EVENT_TRIGGER KI is excluded from evidence when query facet=PREFERENCE", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    // KI that would match NOTIFICATION but is EVENT_TRIGGER facet
+    const eventTriggerKI = makeKI({
+      id:       "ki-event",
+      title:    "요청이 처리되면 알림이 오나요",
+      question: "처리되면 알림이 오나요?",
+      content:  "처리되면 알림이 발송됩니다.",
+      answer_mode: "DIRECT_DB",
+    });
+    // KI with OTHER facet (no facet-specific markers)
+    const otherFacetKI = makeKI({
+      id:       "ki-other",
+      title:    "알림 관련 문의",
+      question: "알림에 대해 문의합니다.",
+      content:  "알림 관련 안내입니다.",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([eventTriggerKI, otherFacetKI]);
+
+    const ctx = makeCtx({
+      qLower: "알림 끄기",
+      tokens: tokenizeKorean("알림 끄기"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    expect(result.query_facet).toBe("PREFERENCE");
+
+    // EVENT_TRIGGER KI (ki-event) must NOT appear in grounded_evidence
+    const evidenceIds = result.grounded_evidence.map(r => r.id);
+    expect(evidenceIds).not.toContain("ki-event");
   });
 });
 

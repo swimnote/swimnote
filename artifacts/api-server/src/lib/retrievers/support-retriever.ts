@@ -1,5 +1,5 @@
 /**
- * support-retriever.ts — RT2 SupportRetriever (Round 4: Goal Match Correction)
+ * support-retriever.ts — RT2 SupportRetriever (Round 5: Facet Precision)
  *
  * 계층 순서:
  *   L0. 기존 exact utterance matcher (matchDirectAnswer) — 결과 최우선
@@ -8,22 +8,24 @@
  * Scoring 우선순위:
  *   1. concept keyword match
  *   2. goal match / mismatch        (Round 4)
- *   3. object match / mismatch
- *   4. action match / opposite-action penalty
- *   5. KI action = UNKNOWN penalty  (Round 4)
- *   6. intent match / mismatch
- *   7. generic-settings error penalty
- *   8. title/question lexical overlap
- *   9. content overlap
- *  10. platform penalty
- *  11. usage_count (tiebreak, +2 max)
+ *   3. facet match / mismatch       (Round 5 — concept-specific sub-topic)
+ *   4. object match / mismatch
+ *   5. action match / opposite-action penalty
+ *   6. KI action = UNKNOWN penalty  (Round 4)
+ *   7. intent match / mismatch
+ *   8. generic-settings error penalty
+ *   9. title/question lexical overlap
+ *  10. content overlap
+ *  11. platform penalty
+ *  12. usage_count (tiebreak, +2 max)
  *
  * 원칙:
  *   - active KI only / pool-scope 필터 / 전체 KI 무조건 로드 금지
  *   - opposite action → DB_DIRECT 금지, 강한 penalty
  *   - goal mismatch → DB_DIRECT 금지, evidence 제외, strong penalty
+ *   - facet mismatch → DB_DIRECT 금지, evidence 제외 (Round 5)
  *   - object mismatch (non-ACT_MATCH) → evidence 제외
- *   - no forced wrong answer: top-1 GOAL_MISMATCH → GROUNDED_AI/INSUFFICIENT_EVIDENCE
+ *   - no forced wrong answer: top-1 GOAL_MISMATCH / FACET_MISMATCH → GROUNDED_AI/INSUFFICIENT_EVIDENCE
  *   - usage_count는 tiebreak 보조만
  */
 
@@ -296,6 +298,89 @@ export function extractSlots(text: string): SemanticSlots {
   return { action: extractAction(text), object: extractObject(text) };
 }
 
+// ── Semantic FACET (Round 5) ───────────────────────────────────────────────────
+
+/**
+ * 개념 내 세부 주제(facet).
+ * 현재 NOTIFICATION object에만 비-OTHER 값 부여.
+ * 다른 object는 항상 OTHER 반환.
+ *
+ * PREFERENCE          : 알림 켜기/끄기/설정/수신 여부 (user preference control)
+ * PERMISSION          : OS 권한, 허용/거부 (system-level permission)
+ * EVENT_TRIGGER       : 어떤 이벤트 시 알림이 오는지 (when/why notification fires)
+ * DELIVERY_TROUBLESHOOT: 알림이 안 오거나 지연되는 문제 (delivery failure/delay)
+ * SUBMISSION_PROCESS  : 자료 제출 절차
+ * FEATURE_OVERVIEW    : 기능 설명/소개
+ * ELIGIBILITY         : 자격 요건
+ * USAGE_POLICY        : 사용 정책/한도
+ * OTHER               : 분류 불가
+ */
+export type SemanticFacet =
+  | "PREFERENCE" | "PERMISSION" | "EVENT_TRIGGER" | "DELIVERY_TROUBLESHOOT"
+  | "SUBMISSION_PROCESS" | "FEATURE_OVERVIEW" | "ELIGIBILITY" | "USAGE_POLICY"
+  | "OTHER";
+
+// NOTIFICATION-specific facet patterns (priority order — first match wins)
+const NOTIFICATION_FACET_PATTERNS: { facet: SemanticFacet; patterns: string[] }[] = [
+  // 1. DELIVERY_TROUBLESHOOT — error/missing delivery
+  { facet: "DELIVERY_TROUBLESHOOT", patterns: [
+      "안와요","안와","안 와","오지않","오지 않","수신안됨","수신 안됨","누락","안오면","늦게","두 번","두번","이중","중복",
+      "안왔","못받","못 받",
+  ]},
+  // 2. PERMISSION — OS-level permission flow
+  { facet: "PERMISSION", patterns: [
+      "권한","허용","거부","os설정","os 설정","알림권한","설정앱","아이폰 설정","안드로이드 설정",
+      "system","시스템설정","시스템 설정",
+  ]},
+  // 3. EVENT_TRIGGER — when/why notification fires
+  { facet: "EVENT_TRIGGER", patterns: [
+      "어떤경우에","어떤 경우에","언제오나요","언제 오나요","어떤때","어떤 때","어떤경우","어떤 경우",
+      "처리되면","등록되면","바뀌면","생기면","변경되면","추가되면","오나요","알림이오나요","알림이 오나요",
+      "알림오나요","알림 오나요","언제알림","언제 알림",
+  ]},
+  // 4. PREFERENCE — user preference control (on/off/setting)
+  { facet: "PREFERENCE", patterns: [
+      "끄기","끄는","끄고","끄려","끄면","켜기","켜는","켜고","켜려","켜면",
+      "설정","수신","알림설정","알림 설정","푸시설정","푸시 설정","수신설정","수신 설정",
+      "알림끄","알림켜",
+  ]},
+];
+
+/**
+ * extractFacet: text에서 semantic facet 추출.
+ * object가 NOTIFICATION일 때만 비-OTHER 값 가능.
+ * 다른 object는 OTHER 반환.
+ */
+export function extractFacet(text: string, object: SemanticObject): SemanticFacet {
+  if (object !== "NOTIFICATION") return "OTHER";
+
+  const ns = text.replace(/\s+/g, "").toLowerCase();
+  const lo = text.toLowerCase();
+  for (const { facet, patterns } of NOTIFICATION_FACET_PATTERNS) {
+    for (const p of patterns) {
+      if (ns.includes(p.replace(/\s+/g, "")) || lo.includes(p)) return facet;
+    }
+  }
+  return "OTHER";
+}
+
+/** facet scoring delta + tag */
+function facetScore(
+  queryFacet: SemanticFacet,
+  kiFacet: SemanticFacet,
+): { delta: number; tag: string } {
+  if (queryFacet === "OTHER") return { delta: 0, tag: "" };
+
+  if (kiFacet === queryFacet) {
+    return { delta: 30, tag: `FACET_MATCH(${queryFacet})` };
+  }
+  if (kiFacet === "OTHER") {
+    return { delta: -10, tag: "FACET_KI_OTHER" };
+  }
+  // different known facets → strong penalty
+  return { delta: -35, tag: `FACET_MISMATCH(${queryFacet}≠${kiFacet})` };
+}
+
 // ── Opposite action pairs ─────────────────────────────────────────────────────
 
 const OPPOSITE_ACTION_PAIRS: [SemanticAction, SemanticAction][] = [
@@ -448,6 +533,8 @@ interface ScoredKI {
   kiSlots:      SemanticSlots;
   queryGoal:    SemanticGoal;
   kiGoal:       SemanticGoal;
+  queryFacet:   SemanticFacet;  // Round 5
+  kiFacet:      SemanticFacet;  // Round 5
 }
 
 /**
@@ -460,11 +547,14 @@ interface ScoredKI {
  *   goal MISMATCH (conflict pair)                = -30
  *   goal KI=OTHER (query goal is specific)       = -10
  *   goal different but not conflict              = -5
+ *   facet MATCH (same sub-topic)                 = +30   (Round 5)
+ *   facet MISMATCH (different known facets)      = -35   (Round 5)
+ *   facet KI=OTHER (query facet is specific)     = -10   (Round 5)
  *   object MATCH                                 = +25
  *   object MISMATCH (different known objects)    = -25
  *   action OPPOSITE                              = -35
  *   action MATCH                                 = +15
- *   KI action UNKNOWN (query action != UNKNOWN)  = -10   (Round 4)
+ *   KI action UNKNOWN (query action != UNKNOWN)  = -10
  *   intent MATCH                                 = +20
  *   intent MISMATCH (conflicting pair)           = -25
  *   generic-settings, KI=ERROR_TROUBLESHOOT      = -20
@@ -484,6 +574,7 @@ function scoreKI(
   queryIntents: QueryIntent[],
   querySlots: SemanticSlots,
   queryGoal: SemanticGoal,
+  queryFacet: SemanticFacet,
   hasPlatformHint: boolean,
   queryHasError: boolean,
 ): ScoredKI {
@@ -506,7 +597,7 @@ function scoreKI(
     }
   }
 
-  // ── 2. Semantic GOAL match / mismatch (Round 4) ────────────────────────────
+  // ── 2. Semantic GOAL match / mismatch ─────────────────────────────────────
   const kiFullText = [row.title ?? "", row.question ?? "", row.content ?? ""].join(" ");
   const kiGoal  = extractGoal(kiFullText);
   const kiSlots = extractSlots(kiFullText);
@@ -515,7 +606,13 @@ function scoreKI(
   score += goalDelta;
   if (goalTag) methods.push(goalTag);
 
-  // ── 3. Semantic OBJECT match / mismatch ────────────────────────────────────
+  // ── 3. Semantic FACET match / mismatch (Round 5) ──────────────────────────
+  const kiFacet = extractFacet(kiFullText, kiSlots.object);
+  const { delta: facetDelta, tag: facetTag } = facetScore(queryFacet, kiFacet);
+  score += facetDelta;
+  if (facetTag) methods.push(facetTag);
+
+  // ── 4. Semantic OBJECT match / mismatch ────────────────────────────────────
   if (querySlots.object !== "UNKNOWN" && kiSlots.object !== "UNKNOWN") {
     if (querySlots.object === kiSlots.object) {
       score += 25; methods.push(`OBJ_MATCH(${querySlots.object})`);
@@ -524,7 +621,7 @@ function scoreKI(
     }
   }
 
-  // ── 4. Semantic ACTION: opposite penalty / match boost / unknown penalty ───
+  // ── 5. Semantic ACTION: opposite penalty / match boost / unknown penalty ───
   if (querySlots.action !== "UNKNOWN") {
     if (kiSlots.action !== "UNKNOWN") {
       if (isOppositeAction(querySlots.action, kiSlots.action)) {
@@ -533,23 +630,22 @@ function scoreKI(
         score += 15; methods.push(`ACT_MATCH(${querySlots.action})`);
       }
     } else {
-      // Round 4: query has specific action, KI action = UNKNOWN → penalty
       score -= 10; methods.push("ACT_KI_UNKNOWN");
     }
   }
 
-  // ── 5. Generic-settings: no error signal in query, KI is error-only ────────
+  // ── 6. Generic-settings: no error signal in query, KI is error-only ────────
   if (!queryHasError && kiIsErrorTroubleshoot(row) && !queryIntents.includes("ERROR_TROUBLESHOOT")) {
     score -= 20; methods.push("GENERIC_SETTINGS_ERR_PENALTY");
   }
 
-  // ── 6. Intent match / mismatch ─────────────────────────────────────────────
+  // ── 7. Intent match / mismatch ─────────────────────────────────────────────
   const kiIntents = extractKIIntents(row);
   const { delta: intentDelta, tag: intentTag } = intentScore(queryIntents, kiIntents);
   score += intentDelta;
   if (intentTag) methods.push(intentTag);
 
-  // ── 7. Exact matches ───────────────────────────────────────────────────────
+  // ── 8. Exact matches ───────────────────────────────────────────────────────
   if (nQuestion && (nQuestion === qLower || nQuestion.includes(qLower))) {
     score += 35; methods.push("Q_EXACT");
   }
@@ -557,7 +653,7 @@ function scoreKI(
     score += 30; methods.push("T_EXACT");
   }
 
-  // ── 8. Token overlap ───────────────────────────────────────────────────────
+  // ── 9. Token overlap ───────────────────────────────────────────────────────
   const qStems = tokens.map(stemKorean);
   const tStems = tokenize(row.title).map(stemKorean);
   const cStems = tokenize((row.content ?? "") + " " + (row.question ?? "")).map(stemKorean);
@@ -573,17 +669,18 @@ function scoreKI(
     else if (allRatio >= 0.5){ score += 10; methods.push("C_TOKEN"); }
   }
 
-  // ── 9. Platform-specific penalty ──────────────────────────────────────────
+  // ── 10. Platform-specific penalty ─────────────────────────────────────────
   if (!hasPlatformHint && kiIsPlatformSpecific(row)) {
     score -= 20; methods.push("PLATFORM_PENALTY");
   }
 
-  // ── 10. Usage bonus (tiebreak only) ────────────────────────────────────────
+  // ── 11. Usage bonus (tiebreak only) ────────────────────────────────────────
   score += Math.min(2, Math.floor(Math.log2((row.usage_count ?? 0) + 1)));
 
   return {
     row, score: Math.min(100, score), methods,
     queryIntents, kiIntents, querySlots, kiSlots, queryGoal, kiGoal,
+    queryFacet, kiFacet,
   };
 }
 
@@ -601,14 +698,12 @@ function kiModeMatches(row: KiRow, mode: string): boolean {
 /**
  * DB_DIRECT 조건:
  *   score ≥ HIGH_SCORE
- *   AND no INTENT_MISMATCH
- *   AND no PLATFORM_PENALTY
- *   AND no OPP_ACTION
- *   AND no OBJ_MISMATCH
+ *   AND no INTENT_MISMATCH / PLATFORM_PENALTY / OPP_ACTION / OBJ_MISMATCH
  *   AND no GOAL_MISMATCH    (Round 4)
+ *   AND no FACET_MISMATCH   (Round 5)
  *
- * No-forced-wrong-answer (Round 4):
- *   top-1이 GOAL_MISMATCH를 가지고 있으면:
+ * No-forced-wrong-answer (Round 4+5):
+ *   top-1이 GOAL_MISMATCH 또는 FACET_MISMATCH를 가지고 있으면:
  *   → 관련 KI 여러 개(≥3) → GROUNDED_AI
  *   → 아니면 → INSUFFICIENT_EVIDENCE
  */
@@ -621,10 +716,12 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
   if (answerMode === "HUMAN_ONLY") return "HUMAN_REQUIRED";
   if (answerMode === "GROUNDED_GPT") return "GROUNDED_AI";
 
-  const topHasGoalMismatch = top.methods.some(m => m.startsWith("GOAL_MISMATCH"));
+  const topHasStrongMismatch =
+    top.methods.some(m => m.startsWith("GOAL_MISMATCH")) ||
+    top.methods.some(m => m.startsWith("FACET_MISMATCH"));  // Round 5
 
-  // No-forced-wrong-answer: top-1이 goal mismatch면 억지 선택 금지
-  if (topHasGoalMismatch) {
+  // No-forced-wrong-answer: top-1이 goal/facet mismatch면 억지 선택 금지
+  if (topHasStrongMismatch) {
     return scored.length >= 3 ? "GROUNDED_AI" : "INSUFFICIENT_EVIDENCE";
   }
 
@@ -632,7 +729,9 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
     m.startsWith("INTENT_MISMATCH") ||
     m.includes("PLATFORM_PENALTY") ||
     m.startsWith("OPP_ACTION") ||
-    m.startsWith("OBJ_MISMATCH"),
+    m.startsWith("OBJ_MISMATCH") ||
+    m.startsWith("GOAL_MISMATCH") ||
+    m.startsWith("FACET_MISMATCH"),
   );
 
   if (top.score >= HIGH_SCORE && !hasConflict) return "DB_DIRECT";
@@ -643,19 +742,22 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
 // ── Semantic mismatch guard for grounded evidence ─────────────────────────────
 
 /**
- * evidence 제외 규칙 (Round 4 추가):
- *   OPP_ACTION             → 항상 제외
+ * evidence 제외 규칙:
+ *   OPP_ACTION               → 항상 제외
  *   OBJ_MISMATCH + no ACT_MATCH → 제외
- *   GOAL_MISMATCH          → 제외 (goal이 다른 KI는 잘못된 방향의 GPT 근거가 됨)
+ *   GOAL_MISMATCH            → 제외 (잘못된 방향의 GPT 근거)
+ *   FACET_MISMATCH           → 제외 (Round 5: 세부 주제 다른 KI는 misleading)
  */
 function isEvidenceEligible(s: ScoredKI): boolean {
-  const hasOppAction   = s.methods.some(m => m.startsWith("OPP_ACTION"));
-  const hasObjMismatch = s.methods.some(m => m.startsWith("OBJ_MISMATCH"));
-  const hasActMatch    = s.methods.some(m => m.startsWith("ACT_MATCH"));
+  const hasOppAction    = s.methods.some(m => m.startsWith("OPP_ACTION"));
+  const hasObjMismatch  = s.methods.some(m => m.startsWith("OBJ_MISMATCH"));
+  const hasActMatch     = s.methods.some(m => m.startsWith("ACT_MATCH"));
   const hasGoalMismatch = s.methods.some(m => m.startsWith("GOAL_MISMATCH"));
+  const hasFacetMismatch = s.methods.some(m => m.startsWith("FACET_MISMATCH"));  // Round 5
 
   if (hasOppAction)               return false;
-  if (hasGoalMismatch)            return false;  // Round 4
+  if (hasGoalMismatch)            return false;
+  if (hasFacetMismatch)           return false;  // Round 5
   if (hasObjMismatch && !hasActMatch) return false;
   return true;
 }
@@ -688,7 +790,8 @@ export interface SupportRetrievalResult {
   concepts:                 SupportConcept[];
   query_intents:            QueryIntent[];
   query_slots:              SemanticSlots;
-  query_goal:               SemanticGoal;  // Round 4
+  query_goal:               SemanticGoal;
+  query_facet:              SemanticFacet;  // Round 5
 }
 
 // ── Main retriever ────────────────────────────────────────────────────────────
@@ -708,6 +811,7 @@ export async function retrieveCanonicalKI(
   const queryIntents    = extractQueryIntents(qLower);
   const querySlots      = extractSlots(qLower);
   const queryGoal       = extractGoal(qLower);
+  const queryFacet      = extractFacet(qLower, querySlots.object);  // Round 5
   const hasPlatformHint = queryHasPlatformHint(qLower);
   const queryHasError   = queryHasErrorSignal(qLower);
 
@@ -727,7 +831,7 @@ export async function retrieveCanonicalKI(
 
   // Score & rank
   const scored = eligible
-    .map(r => scoreKI(r, qLower, tokens, searchKeywords, queryIntents, querySlots, queryGoal, hasPlatformHint, queryHasError))
+    .map(r => scoreKI(r, qLower, tokens, searchKeywords, queryIntents, querySlots, queryGoal, queryFacet, hasPlatformHint, queryHasError))
     .filter(s => s.score >= MIN_SCORE_THRESHOLD)
     .sort((a, b) => b.score - a.score || b.row.usage_count - a.row.usage_count);
 
@@ -774,5 +878,6 @@ export async function retrieveCanonicalKI(
     query_intents:            queryIntents,
     query_slots:              querySlots,
     query_goal:               queryGoal,
+    query_facet:              queryFacet,  // Round 5
   };
 }
