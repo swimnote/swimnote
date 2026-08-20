@@ -68,10 +68,13 @@ async function fetchEffectiveTemplates(poolId: string): Promise<Array<{
     ORDER BY dt.sort_order ASC, dt.created_at ASC
   `);
 
-  return (res as any).rows.map((r: any) => ({
+  // sort_order는 diary_templates 내에서 중복될 수 있음 (같은 level 내 동일값).
+  // curriculum_items에는 (curriculum_version_id, sort_order) unique constraint가 존재하므로
+  // 결과 집합의 순서 인덱스(0,1,2...)를 sort_order로 사용한다.
+  return (res as any).rows.map((r: any, idx: number) => ({
     templateId:   r.template_id   as string,
     templateText: r.template_text as string,
-    sortOrder:    r.sort_order    as number,
+    sortOrder:    idx,                         // sequential — dup-safe
     levelName:    r.level_name    as string | null,
   }));
 }
