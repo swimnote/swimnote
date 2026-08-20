@@ -1913,19 +1913,22 @@ export default function ParentHomeScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) — X mode + x_pending */}
-      {selectedStudent && (mode === "x" || mode === "x_pending") && (
+      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) */}
+      {/* 성장 리포트: X/x_pending 전용 | 커리큘럼 검색: selectedStudent 있으면 항상 표시 */}
+      {selectedStudent && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
-          <Pressable
-            onPress={() => setAiModalType("report")}
-            style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
-          >
-            {/* PNG 상단 아이콘 부분만 크롭 (하단 텍스트 제외) */}
-            <View style={{ width: 33, height: 33, overflow: "hidden" }}>
-              <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
-            </View>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 성장 리포트</Text>
-          </Pressable>
+          {(mode === "x" || mode === "x_pending") && (
+            <Pressable
+              onPress={() => setAiModalType("report")}
+              style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+            >
+              {/* PNG 상단 아이콘 부분만 크롭 (하단 텍스트 제외) */}
+              <View style={{ width: 33, height: 33, overflow: "hidden" }}>
+                <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
+              </View>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 성장 리포트</Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => {
               if (selectedStudent) {
