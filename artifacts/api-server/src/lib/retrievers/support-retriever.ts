@@ -1,27 +1,29 @@
 /**
- * support-retriever.ts — RT2 SupportRetriever (Semantic Slot Correction 반영)
+ * support-retriever.ts — RT2 SupportRetriever (Round 4: Goal Match Correction)
  *
  * 계층 순서:
  *   L0. 기존 exact utterance matcher (matchDirectAnswer) — 결과 최우선
- *   L1-L5. concept → ILIKE candidate → semantic-slot-aware scoring → policy
+ *   L1-L5. concept → ILIKE candidate → slot-aware scoring → policy
  *
- * Scoring 우선순위 (§6):
- *   1. concept match
- *   2. object match / mismatch
- *   3. action match / opposite-action penalty
- *   4. intent match / mismatch
- *   5. title/question lexical overlap
- *   6. content overlap
- *   7. usage_count (tiebreak only, +2 max)
+ * Scoring 우선순위:
+ *   1. concept keyword match
+ *   2. goal match / mismatch        (Round 4)
+ *   3. object match / mismatch
+ *   4. action match / opposite-action penalty
+ *   5. KI action = UNKNOWN penalty  (Round 4)
+ *   6. intent match / mismatch
+ *   7. generic-settings error penalty
+ *   8. title/question lexical overlap
+ *   9. content overlap
+ *  10. platform penalty
+ *  11. usage_count (tiebreak, +2 max)
  *
  * 원칙:
- *   - active KI only / pool-scope / 전체 KI 무조건 로드 금지
- *   - utterance miss → INSUFFICIENT_EVIDENCE 처리 금지
- *   - 동점 시 null 금지 (confidence 낮춤 + re-sort)
- *   - opposite action (ENABLE↔DISABLE 등) → DB_DIRECT 금지, 강한 penalty
- *   - object mismatch (MATERIAL_SUBMISSION ≠ APP_INSTALL 등) → penalty
- *   - generic-settings query에 ERROR_TROUBLESHOOT KI → penalty
- *   - semantic slot mismatch KI → grounded_evidence 제외
+ *   - active KI only / pool-scope 필터 / 전체 KI 무조건 로드 금지
+ *   - opposite action → DB_DIRECT 금지, 강한 penalty
+ *   - goal mismatch → DB_DIRECT 금지, evidence 제외, strong penalty
+ *   - object mismatch (non-ACT_MATCH) → evidence 제외
+ *   - no forced wrong answer: top-1 GOAL_MISMATCH → GROUNDED_AI/INSUFFICIENT_EVIDENCE
  *   - usage_count는 tiebreak 보조만
  */
 
@@ -50,13 +52,13 @@ import type { AnswerPolicyDecision } from "../runtime/answer-policy.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CONCEPT_CANDIDATE_LIMIT    = 80;
-const FALLBACK_CANDIDATE_LIMIT   = 50;
-const MIN_SCORE_THRESHOLD        = 25;
-const HIGH_SCORE                 = 80;   // DB_DIRECT 기준
-const MEDIUM_SCORE               = 50;   // GROUNDED_AI 기준
-const MAX_GROUNDED_EVIDENCE      = 5;
-const GROUNDED_EVIDENCE_MIN_SCORE = 40;
+const CONCEPT_CANDIDATE_LIMIT     = 80;
+const FALLBACK_CANDIDATE_LIMIT    = 50;
+const MIN_SCORE_THRESHOLD         = 20;  // Round 4: 낮춤 (goal mismatch 후 남은 KI 수용)
+const HIGH_SCORE                  = 80;  // DB_DIRECT 기준
+const MEDIUM_SCORE                = 45;  // GROUNDED_AI 기준 (Round 4: 낮춤)
+const MAX_GROUNDED_EVIDENCE       = 5;
+const GROUNDED_EVIDENCE_MIN_SCORE = 35;  // Round 4: 낮춤
 
 // ── KI DB row ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +121,104 @@ export function extractKIIntents(row: KiRow): QueryIntent[] {
   return intents.length > 0 ? intents : ["NONE"];
 }
 
+// ── Semantic GOAL (Round 4) ────────────────────────────────────────────────────
+
+/**
+ * User's high-level goal for asking the question.
+ *
+ * SETTINGS_MANAGE      : wants to change/configure/toggle a setting
+ * BEHAVIOR_CONDITION   : wants to know when/why something happens (descriptive condition)
+ * TROUBLESHOOT         : something is broken, wants fix
+ * FEATURE_DESCRIPTION  : wants to know what a feature is
+ * USAGE_LIMIT          : wants to know usage quotas/limits
+ * REQUIREMENT          : wants to know eligibility/requirements
+ * MATERIAL_SUBMISSION  : wants to submit materials/documents
+ * OTHER                : unclear or catch-all
+ */
+export type SemanticGoal =
+  | "SETTINGS_MANAGE" | "BEHAVIOR_CONDITION" | "TROUBLESHOOT"
+  | "FEATURE_DESCRIPTION" | "USAGE_LIMIT" | "REQUIREMENT"
+  | "MATERIAL_SUBMISSION" | "OTHER";
+
+// Goal patterns listed in priority order (first match wins for most specific goals)
+const GOAL_PATTERNS: { goal: SemanticGoal; patterns: string[] }[] = [
+  // 1. MATERIAL_SUBMISSION — most specific
+  { goal: "MATERIAL_SUBMISSION",  patterns: ["제출","자료제출","서류제출","자료 제출","서류 제출"] },
+  // 2. TROUBLESHOOT — error signal
+  { goal: "TROUBLESHOOT",         patterns: ["안돼","안됨","안 됨","오류","고장","실패","안보여","안 보여","문제","안와요","안와","안 와","작동안함","먹통","등록됐는데","등록 됐는데","검색이안돼","검색 안돼"] },
+  // 3. SETTINGS_MANAGE — action + navigation, or standalone setting
+  { goal: "SETTINGS_MANAGE",      patterns: ["어디서해","어디서 해","끄기","끄는","끄고","끄려","켜기","켜는","켜려","해제","비활성","활성화","설정","변경","바꾸기","수정","어디서","어떻게 끄","어떻게 켜","어디서 끄","어디서 켜"] },
+  // 4. USAGE_LIMIT
+  { goal: "USAGE_LIMIT",          patterns: ["몇번","몇 번","횟수","한도","월 몇회","몇회","사용횟수","사용 횟수"] },
+  // 5. REQUIREMENT
+  { goal: "REQUIREMENT",          patterns: ["조건","필요한가요","필요해요","자격","되려면","되어야","기준은"] },
+  // 6. FEATURE_DESCRIPTION
+  { goal: "FEATURE_DESCRIPTION",  patterns: ["뭐야","뭔지","뭐예요","뭔가요","무엇","이란","어떤기능","어떤 기능","소개","뭔데"] },
+  // 7. BEHAVIOR_CONDITION — when/why something happens (descriptive, passive)
+  { goal: "BEHAVIOR_CONDITION",   patterns: ["어떤경우에","어떤 경우에","언제오나요","언제 오나요","어떤때","어떤 때","언제","경우에","오나요","알림이오나요","알림이 오나요"] },
+];
+
+/**
+ * extractGoal: query or KI text에서 user goal을 추출.
+ * 패턴 우선순위 순으로 첫 번째 매치 반환.
+ */
+export function extractGoal(text: string): SemanticGoal {
+  const ns  = text.replace(/\s+/g, "").toLowerCase();
+  const lo  = text.toLowerCase();
+  for (const { goal, patterns } of GOAL_PATTERNS) {
+    for (const p of patterns) {
+      if (ns.includes(p.replace(/\s+/g, "")) || lo.includes(p)) return goal;
+    }
+  }
+  return "OTHER";
+}
+
+/** Goal이 명확히 다른 pair — 동일 object라도 goal이 이 쌍에 속하면 mismatch */
+const GOAL_CONFLICT_PAIRS: [SemanticGoal, SemanticGoal][] = [
+  ["SETTINGS_MANAGE",    "BEHAVIOR_CONDITION"],
+  ["SETTINGS_MANAGE",    "FEATURE_DESCRIPTION"],
+  ["SETTINGS_MANAGE",    "USAGE_LIMIT"],
+  ["SETTINGS_MANAGE",    "REQUIREMENT"],
+  ["TROUBLESHOOT",       "BEHAVIOR_CONDITION"],
+  ["TROUBLESHOOT",       "FEATURE_DESCRIPTION"],
+  ["TROUBLESHOOT",       "USAGE_LIMIT"],
+  ["TROUBLESHOOT",       "REQUIREMENT"],
+  ["FEATURE_DESCRIPTION","BEHAVIOR_CONDITION"],
+  ["FEATURE_DESCRIPTION","TROUBLESHOOT"],
+  ["FEATURE_DESCRIPTION","USAGE_LIMIT"],
+  ["MATERIAL_SUBMISSION","BEHAVIOR_CONDITION"],
+  ["MATERIAL_SUBMISSION","FEATURE_DESCRIPTION"],
+  ["USAGE_LIMIT",        "BEHAVIOR_CONDITION"],
+];
+
+function goalMismatch(a: SemanticGoal, b: SemanticGoal): boolean {
+  if (a === "OTHER" || b === "OTHER") return false;
+  if (a === b) return false;
+  return GOAL_CONFLICT_PAIRS.some(
+    ([x, y]) => (a === x && b === y) || (a === y && b === x),
+  );
+}
+
+/** goal scoring delta + tag */
+function goalScore(
+  queryGoal: SemanticGoal,
+  kiGoal: SemanticGoal,
+): { delta: number; tag: string } {
+  if (queryGoal === "OTHER") return { delta: 0, tag: "" };
+
+  if (kiGoal === queryGoal) {
+    return { delta: 30, tag: `GOAL_MATCH(${queryGoal})` };
+  }
+  if (goalMismatch(queryGoal, kiGoal)) {
+    return { delta: -30, tag: `GOAL_MISMATCH(${queryGoal}≠${kiGoal})` };
+  }
+  if (kiGoal === "OTHER") {
+    return { delta: -10, tag: "GOAL_KI_OTHER" };
+  }
+  // different but not in conflict pair — mild penalty
+  return { delta: -5, tag: `GOAL_DIFF(${queryGoal}≠${kiGoal})` };
+}
+
 // ── Semantic ACTION ───────────────────────────────────────────────────────────
 
 export type SemanticAction =
@@ -127,15 +227,14 @@ export type SemanticAction =
   | "EDIT" | "UNKNOWN";
 
 const ACTION_PATTERNS: { action: SemanticAction; patterns: string[] }[] = [
-  // ENABLE / DISABLE 먼저 (DISABLE → ENABLE 혼동 방지)
-  { action: "DISABLE",  patterns: ["끄기","끄는","끄고","끄려","끄면","끄고싶","해제하","비활성","차단","중지","알림끄"] },
-  { action: "ENABLE",   patterns: ["켜기","켜는","켜고","켜려","켜면","다시 켜","활성화","허용","켜져","켜달라","켜주세요","권한 켜"] },
-  { action: "SUBMIT",   patterns: ["제출","업로드하","올리기","신청하기","제출하기","자료 제출","서류 제출","자료를 제출","제출 방법"] },
-  { action: "DELETE",   patterns: ["삭제","제거","탈퇴","지우기","삭제하"] },
-  { action: "CREATE",   patterns: ["생성","만들기","작성","새로 만","등록하기","추가하기"] },
-  { action: "VIEW",     patterns: ["보려면","보고싶","조회","확인하려면","볼수있","보는방법","보고 싶"] },
-  { action: "SEARCH",   patterns: ["검색","찾기","찾으려","검색하"] },
-  { action: "REGISTER", patterns: ["등록","가입","추가","등록하면","등록됐","등록되어있는데"] },
+  { action: "DISABLE",  patterns: ["끄기","끄는","끄고","끄려","끄면","해제하","비활성","차단","중지","알림끄"] },
+  { action: "ENABLE",   patterns: ["켜기","켜는","켜고","켜려","다시 켜","활성화","허용","켜져","권한 켜"] },
+  { action: "SUBMIT",   patterns: ["제출","업로드하","신청하기","제출하기","자료 제출","서류 제출","자료를 제출","제출 방법"] },
+  { action: "DELETE",   patterns: ["삭제","제거","탈퇴","지우기"] },
+  { action: "CREATE",   patterns: ["생성","만들기","작성","새로 만","추가하기"] },
+  { action: "VIEW",     patterns: ["보려면","보고싶","조회","확인하려면","보는방법"] },
+  { action: "SEARCH",   patterns: ["검색","찾기","찾으려"] },
+  { action: "REGISTER", patterns: ["등록","가입","추가","등록됐","등록되어있는데"] },
   { action: "LOGIN",    patterns: ["로그인","로그아웃"] },
   { action: "PAY",      patterns: ["결제","구매","구독하"] },
   { action: "DOWNLOAD", patterns: ["다운로드","내려받기"] },
@@ -162,7 +261,6 @@ export type SemanticObject =
   | "SCHEDULE" | "SUBSCRIPTION" | "STUDENT" | "POOL" | "UNKNOWN";
 
 const OBJECT_PATTERNS: { object: SemanticObject; patterns: string[] }[] = [
-  // MATERIAL_SUBMISSION 우선 (앱 설치와 혼동 방지)
   { object: "MATERIAL_SUBMISSION", patterns: ["자료 제출","서류 제출","자료 업로드","제출 자료","신청 자료","자료제출","서류제출","자료업로드","제출자료","신청자료"] },
   { object: "APP_INSTALL",         patterns: ["앱 설치","다른 앱","앱을 설치","설치해야","앱설치","다른앱"] },
   { object: "NOTIFICATION",        patterns: ["알림","푸시"] },
@@ -173,7 +271,7 @@ const OBJECT_PATTERNS: { object: SemanticObject; patterns: string[] }[] = [
   { object: "PHOTO",               patterns: ["사진","앨범","포토"] },
   { object: "DIARY",               patterns: ["일지","수업일지","다이어리"] },
   { object: "SCHEDULE",            patterns: ["시간표","스케줄","수업일정"] },
-  { object: "SUBSCRIPTION",        patterns: ["구독","플랜","subscription"] },
+  { object: "SUBSCRIPTION",        patterns: ["구독","플랜"] },
   { object: "STUDENT",             patterns: ["학생","수강생"] },
   { object: "POOL",                patterns: ["수영장"] },
 ];
@@ -231,7 +329,6 @@ function kiIsPlatformSpecific(row: KiRow): boolean {
 
 // ── Generic-settings detection ─────────────────────────────────────────────────
 
-/** query에 오류/에러 신호가 없는지 확인 (generic settings query) */
 const ERROR_SIGNAL_PATTERNS = ["안돼","안됨","안 됨","오류","고장","실패","안보여","문제","안와","안 와","작동안함","먹통"];
 
 function queryHasErrorSignal(qLower: string): boolean {
@@ -239,7 +336,6 @@ function queryHasErrorSignal(qLower: string): boolean {
   return ERROR_SIGNAL_PATTERNS.some(p => ns.includes(p.replace(/\s+/g, "")) || qLower.includes(p));
 }
 
-/** KI가 ERROR_TROUBLESHOOT 성격인지 확인 (title/question에 오류 신호 포함) */
 function kiIsErrorTroubleshoot(row: KiRow): boolean {
   const text = ((row.title ?? "") + " " + (row.question ?? "")).toLowerCase();
   return ERROR_SIGNAL_PATTERNS.some(p => text.includes(p)) || text.includes("해결") || text.includes("오지 않는");
@@ -350,18 +446,25 @@ interface ScoredKI {
   kiIntents:    QueryIntent[];
   querySlots:   SemanticSlots;
   kiSlots:      SemanticSlots;
+  queryGoal:    SemanticGoal;
+  kiGoal:       SemanticGoal;
 }
 
 /**
  * KI row와 query의 종합 유사도 점수 계산.
  *
- * 점수 구성 (우선순위 순):
+ * 점수 구성:
  *   concept keyword match (title/cat/feature)   = +50
  *   concept keyword match (question)             = +45
+ *   goal MATCH                                   = +30
+ *   goal MISMATCH (conflict pair)                = -30
+ *   goal KI=OTHER (query goal is specific)       = -10
+ *   goal different but not conflict              = -5
  *   object MATCH                                 = +25
  *   object MISMATCH (different known objects)    = -25
- *   action OPPOSITE (ENABLE↔DISABLE 등)          = -35
+ *   action OPPOSITE                              = -35
  *   action MATCH                                 = +15
+ *   KI action UNKNOWN (query action != UNKNOWN)  = -10   (Round 4)
  *   intent MATCH                                 = +20
  *   intent MISMATCH (conflicting pair)           = -25
  *   generic-settings, KI=ERROR_TROUBLESHOOT      = -20
@@ -380,6 +483,7 @@ function scoreKI(
   searchKeywords: string[],
   queryIntents: QueryIntent[],
   querySlots: SemanticSlots,
+  queryGoal: SemanticGoal,
   hasPlatformHint: boolean,
   queryHasError: boolean,
 ): ScoredKI {
@@ -402,10 +506,16 @@ function scoreKI(
     }
   }
 
-  // ── 2. Semantic OBJECT match / mismatch ────────────────────────────────────
+  // ── 2. Semantic GOAL match / mismatch (Round 4) ────────────────────────────
   const kiFullText = [row.title ?? "", row.question ?? "", row.content ?? ""].join(" ");
+  const kiGoal  = extractGoal(kiFullText);
   const kiSlots = extractSlots(kiFullText);
 
+  const { delta: goalDelta, tag: goalTag } = goalScore(queryGoal, kiGoal);
+  score += goalDelta;
+  if (goalTag) methods.push(goalTag);
+
+  // ── 3. Semantic OBJECT match / mismatch ────────────────────────────────────
   if (querySlots.object !== "UNKNOWN" && kiSlots.object !== "UNKNOWN") {
     if (querySlots.object === kiSlots.object) {
       score += 25; methods.push(`OBJ_MATCH(${querySlots.object})`);
@@ -414,27 +524,32 @@ function scoreKI(
     }
   }
 
-  // ── 3. Semantic ACTION: opposite penalty / match boost ─────────────────────
-  if (querySlots.action !== "UNKNOWN" && kiSlots.action !== "UNKNOWN") {
-    if (isOppositeAction(querySlots.action, kiSlots.action)) {
-      score -= 35; methods.push(`OPP_ACTION(${querySlots.action}↔${kiSlots.action})`);
-    } else if (querySlots.action === kiSlots.action) {
-      score += 15; methods.push(`ACT_MATCH(${querySlots.action})`);
+  // ── 4. Semantic ACTION: opposite penalty / match boost / unknown penalty ───
+  if (querySlots.action !== "UNKNOWN") {
+    if (kiSlots.action !== "UNKNOWN") {
+      if (isOppositeAction(querySlots.action, kiSlots.action)) {
+        score -= 35; methods.push(`OPP_ACTION(${querySlots.action}↔${kiSlots.action})`);
+      } else if (querySlots.action === kiSlots.action) {
+        score += 15; methods.push(`ACT_MATCH(${querySlots.action})`);
+      }
+    } else {
+      // Round 4: query has specific action, KI action = UNKNOWN → penalty
+      score -= 10; methods.push("ACT_KI_UNKNOWN");
     }
   }
 
-  // ── 4. Generic-settings: no error signal in query, KI is error-only ────────
+  // ── 5. Generic-settings: no error signal in query, KI is error-only ────────
   if (!queryHasError && kiIsErrorTroubleshoot(row) && !queryIntents.includes("ERROR_TROUBLESHOOT")) {
     score -= 20; methods.push("GENERIC_SETTINGS_ERR_PENALTY");
   }
 
-  // ── 5. Intent match / mismatch ─────────────────────────────────────────────
+  // ── 6. Intent match / mismatch ─────────────────────────────────────────────
   const kiIntents = extractKIIntents(row);
   const { delta: intentDelta, tag: intentTag } = intentScore(queryIntents, kiIntents);
   score += intentDelta;
   if (intentTag) methods.push(intentTag);
 
-  // ── 6. Exact matches ───────────────────────────────────────────────────────
+  // ── 7. Exact matches ───────────────────────────────────────────────────────
   if (nQuestion && (nQuestion === qLower || nQuestion.includes(qLower))) {
     score += 35; methods.push("Q_EXACT");
   }
@@ -442,7 +557,7 @@ function scoreKI(
     score += 30; methods.push("T_EXACT");
   }
 
-  // ── 7. Token overlap ───────────────────────────────────────────────────────
+  // ── 8. Token overlap ───────────────────────────────────────────────────────
   const qStems = tokens.map(stemKorean);
   const tStems = tokenize(row.title).map(stemKorean);
   const cStems = tokenize((row.content ?? "") + " " + (row.question ?? "")).map(stemKorean);
@@ -453,22 +568,22 @@ function scoreKI(
     const tRatio   = titleOverlap / qStems.length;
     const allRatio = (titleOverlap + bodyOverlap) / qStems.length;
 
-    if (tRatio >= 0.8)      { score += 25; methods.push("T_TOKEN_HIGH"); }
-    else if (tRatio >= 0.5) { score += 15; methods.push("T_TOKEN_MED"); }
+    if (tRatio >= 0.8)       { score += 25; methods.push("T_TOKEN_HIGH"); }
+    else if (tRatio >= 0.5)  { score += 15; methods.push("T_TOKEN_MED"); }
     else if (allRatio >= 0.5){ score += 10; methods.push("C_TOKEN"); }
   }
 
-  // ── 8. Platform-specific penalty ──────────────────────────────────────────
+  // ── 9. Platform-specific penalty ──────────────────────────────────────────
   if (!hasPlatformHint && kiIsPlatformSpecific(row)) {
     score -= 20; methods.push("PLATFORM_PENALTY");
   }
 
-  // ── 9. Usage bonus (tiebreak only) ────────────────────────────────────────
+  // ── 10. Usage bonus (tiebreak only) ────────────────────────────────────────
   score += Math.min(2, Math.floor(Math.log2((row.usage_count ?? 0) + 1)));
 
   return {
     row, score: Math.min(100, score), methods,
-    queryIntents, kiIntents, querySlots, kiSlots,
+    queryIntents, kiIntents, querySlots, kiSlots, queryGoal, kiGoal,
   };
 }
 
@@ -481,7 +596,7 @@ function kiModeMatches(row: KiRow, mode: string): boolean {
   return modeMatches(row as unknown as KnowledgeRow, mode);
 }
 
-// ── Policy mapping ─────────────────────────────────────────────────────────────
+// ── Policy mapping (Round 4: no-forced-wrong-answer) ─────────────────────────
 
 /**
  * DB_DIRECT 조건:
@@ -490,6 +605,12 @@ function kiModeMatches(row: KiRow, mode: string): boolean {
  *   AND no PLATFORM_PENALTY
  *   AND no OPP_ACTION
  *   AND no OBJ_MISMATCH
+ *   AND no GOAL_MISMATCH    (Round 4)
+ *
+ * No-forced-wrong-answer (Round 4):
+ *   top-1이 GOAL_MISMATCH를 가지고 있으면:
+ *   → 관련 KI 여러 개(≥3) → GROUNDED_AI
+ *   → 아니면 → INSUFFICIENT_EVIDENCE
  */
 function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
   if (scored.length === 0) return "INSUFFICIENT_EVIDENCE";
@@ -499,6 +620,13 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
 
   if (answerMode === "HUMAN_ONLY") return "HUMAN_REQUIRED";
   if (answerMode === "GROUNDED_GPT") return "GROUNDED_AI";
+
+  const topHasGoalMismatch = top.methods.some(m => m.startsWith("GOAL_MISMATCH"));
+
+  // No-forced-wrong-answer: top-1이 goal mismatch면 억지 선택 금지
+  if (topHasGoalMismatch) {
+    return scored.length >= 3 ? "GROUNDED_AI" : "INSUFFICIENT_EVIDENCE";
+  }
 
   const hasConflict = top.methods.some(m =>
     m.startsWith("INTENT_MISMATCH") ||
@@ -515,22 +643,21 @@ function mapAnswerPolicy(scored: ScoredKI[]): AnswerPolicyDecision {
 // ── Semantic mismatch guard for grounded evidence ─────────────────────────────
 
 /**
- * semantic slot mismatch KI를 grounded_evidence에서 제외.
- *
- * 제외 규칙:
- *   - OPP_ACTION (반대 행동): 항상 제외 — 내용이 오해를 일으킴
- *   - OBJ_MISMATCH + no ACT_MATCH: 제외 — 완전히 다른 대상
- *   - OBJ_MISMATCH + ACT_MATCH: 허용 — 행동이 맞으면 객체 카테고리 차이는 보조 근거로 허용
- *     (예: query object=X_MODE, KI object=MATERIAL_SUBMISSION 이지만 ACT_MATCH(SUBMIT) 있음)
+ * evidence 제외 규칙 (Round 4 추가):
+ *   OPP_ACTION             → 항상 제외
+ *   OBJ_MISMATCH + no ACT_MATCH → 제외
+ *   GOAL_MISMATCH          → 제외 (goal이 다른 KI는 잘못된 방향의 GPT 근거가 됨)
  */
 function isEvidenceEligible(s: ScoredKI): boolean {
-  const hasOppAction  = s.methods.some(m => m.startsWith("OPP_ACTION"));
+  const hasOppAction   = s.methods.some(m => m.startsWith("OPP_ACTION"));
   const hasObjMismatch = s.methods.some(m => m.startsWith("OBJ_MISMATCH"));
-  const hasActMatch   = s.methods.some(m => m.startsWith("ACT_MATCH"));
+  const hasActMatch    = s.methods.some(m => m.startsWith("ACT_MATCH"));
+  const hasGoalMismatch = s.methods.some(m => m.startsWith("GOAL_MISMATCH"));
 
-  if (hasOppAction) return false;                   // 반대 행동 → 항상 제외
-  if (hasObjMismatch && !hasActMatch) return false; // object mismatch + action miss → 제외
-  return true;                                       // object mismatch + action match → 허용
+  if (hasOppAction)               return false;
+  if (hasGoalMismatch)            return false;  // Round 4
+  if (hasObjMismatch && !hasActMatch) return false;
+  return true;
 }
 
 // ── Build RetrievalMatches ────────────────────────────────────────────────────
@@ -556,12 +683,12 @@ export interface SupportRetrievalResult {
   best_title:               string | null;
   best_deep_link:           string | null;
   policy:                   AnswerPolicyDecision;
-  /** top-N evidence KIs (score ≥ threshold AND no semantic mismatch) */
   grounded_evidence:        KiRow[];
   excluded_by_status_count: number;
   concepts:                 SupportConcept[];
   query_intents:            QueryIntent[];
   query_slots:              SemanticSlots;
+  query_goal:               SemanticGoal;  // Round 4
 }
 
 // ── Main retriever ────────────────────────────────────────────────────────────
@@ -580,6 +707,7 @@ export async function retrieveCanonicalKI(
   const searchKeywords  = buildSearchKeywordsFromConcepts(concepts);
   const queryIntents    = extractQueryIntents(qLower);
   const querySlots      = extractSlots(qLower);
+  const queryGoal       = extractGoal(qLower);
   const hasPlatformHint = queryHasPlatformHint(qLower);
   const queryHasError   = queryHasErrorSignal(qLower);
 
@@ -599,7 +727,7 @@ export async function retrieveCanonicalKI(
 
   // Score & rank
   const scored = eligible
-    .map(r => scoreKI(r, qLower, tokens, searchKeywords, queryIntents, querySlots, hasPlatformHint, queryHasError))
+    .map(r => scoreKI(r, qLower, tokens, searchKeywords, queryIntents, querySlots, queryGoal, hasPlatformHint, queryHasError))
     .filter(s => s.score >= MIN_SCORE_THRESHOLD)
     .sort((a, b) => b.score - a.score || b.row.usage_count - a.row.usage_count);
 
@@ -615,7 +743,7 @@ export async function retrieveCanonicalKI(
 
   const policy = mapAnswerPolicy(scored);
 
-  // grounded_evidence: score ≥ threshold AND no semantic mismatch
+  // grounded_evidence: eligible KIs above threshold, no mismatch flags
   const groundedEvidence = scored
     .filter(s => s.score >= GROUNDED_EVIDENCE_MIN_SCORE && isEvidenceEligible(s))
     .slice(0, MAX_GROUNDED_EVIDENCE)
@@ -645,5 +773,6 @@ export async function retrieveCanonicalKI(
     concepts,
     query_intents:            queryIntents,
     query_slots:              querySlots,
+    query_goal:               queryGoal,
   };
 }

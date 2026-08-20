@@ -29,6 +29,7 @@ import {
   extractQueryIntents,
   extractKIIntents,
   extractSlots,
+  extractGoal,
 } from "../support-retriever.js";
 import type { RouterContext } from "../../support-resolver.js";
 import { buildDiagnostics, assertNoPiiInDiagnostics } from "../../runtime/diagnostics.js";
@@ -741,6 +742,100 @@ describe("TC-23 query_slots present in SupportRetrievalResult", () => {
     expect(result.query_slots).toBeDefined();
     expect(typeof result.query_slots.action).toBe("string");
     expect(typeof result.query_slots.object).toBe("string");
+  });
+});
+
+// ── TC-24: extractGoal — goal detection patterns ──────────────────────────────
+
+describe("TC-24 extractGoal — SemanticGoal detection", () => {
+  it("알림끄는거 어디서해 → SETTINGS_MANAGE", () => {
+    expect(extractGoal("알림끄는거 어디서해")).toBe("SETTINGS_MANAGE");
+  });
+
+  it("푸시 알림 설정 → SETTINGS_MANAGE", () => {
+    expect(extractGoal("푸시 알림 설정")).toBe("SETTINGS_MANAGE");
+  });
+
+  it("어떤 경우에 알림이 오나요 → BEHAVIOR_CONDITION", () => {
+    expect(extractGoal("어떤 경우에 알림이 오나요")).toBe("BEHAVIOR_CONDITION");
+  });
+
+  it("알림이 안 와요 → TROUBLESHOOT", () => {
+    expect(extractGoal("알림이 안 와요")).toBe("TROUBLESHOOT");
+  });
+
+  it("성장리포트가 뭐야 → FEATURE_DESCRIPTION", () => {
+    expect(extractGoal("성장리포트가 뭐야")).toBe("FEATURE_DESCRIPTION");
+  });
+
+  it("학부모리포트는 어떤기능이야 → FEATURE_DESCRIPTION", () => {
+    expect(extractGoal("학부모리포트는 어떤기능이야")).toBe("FEATURE_DESCRIPTION");
+  });
+
+  it("커리큘럼 등록은 되어있는데 검색이 안돼 → TROUBLESHOOT", () => {
+    expect(extractGoal("커리큘럼 등록은 되어있는데 검색이 안돼")).toBe("TROUBLESHOOT");
+  });
+
+  it("X 모드 신청을 위한 자료는 어떻게 제출하나요 → MATERIAL_SUBMISSION", () => {
+    expect(extractGoal("x 모드 신청을 위한 자료는 어떻게 제출하나요")).toBe("MATERIAL_SUBMISSION");
+  });
+
+  it("월 몇 번 써 → USAGE_LIMIT", () => {
+    expect(extractGoal("월 몇 번 써")).toBe("USAGE_LIMIT");
+  });
+});
+
+// ── TC-25: Goal mismatch → BEHAVIOR_CONDITION KI suppressed ──────────────────
+
+describe("TC-25 BEHAVIOR_CONDITION KI suppressed for SETTINGS_MANAGE query", () => {
+  it("SETTINGS_MANAGE query → BEHAVIOR_CONDITION KI not top-1", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    const behaviorKI = makeKI({
+      id:    "ki-behavior",
+      title: "어떤 경우에 알림이 오나요?",
+      question: "알림은 언제 발생하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    const settingsKI = makeKI({
+      id:    "ki-settings",
+      title: "알림 권한을 거부했어요",
+      question: "알림 허용은 어디서 하나요?",
+      answer_mode: "DIRECT_DB",
+    });
+    mockDbWithRows([behaviorKI, settingsKI]);
+
+    const ctx = makeCtx({
+      qLower: "알림 설정",
+      tokens: tokenizeKorean("알림 설정"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    // SETTINGS_MANAGE query: BEHAVIOR_CONDITION KI should be penalized
+    expect(result.query_goal).toBe("SETTINGS_MANAGE");
+    // settings KI should rank above behavior KI
+    if (result.retrieval.matched_count > 0) {
+      expect(result.best_title).not.toBe("어떤 경우에 알림이 오나요?");
+    }
+    // BEHAVIOR_CONDITION KI should NOT be in evidence (goal mismatch)
+    const evidenceIds = result.grounded_evidence.map(r => r.id);
+    expect(evidenceIds).not.toContain("ki-behavior");
+  });
+});
+
+// ── TC-26: result contains query_goal ────────────────────────────────────────
+
+describe("TC-26 query_goal present in SupportRetrievalResult", () => {
+  it("result contains query_goal field", async () => {
+    (superAdminDb.execute as ReturnType<typeof vi.fn>).mockReset();
+    mockDbWithRows([makeKI()]);
+
+    const ctx = makeCtx({
+      qLower: "성장리포트가 뭐야",
+      tokens: tokenizeKorean("성장리포트가 뭐야"),
+    });
+    const result = await retrieveCanonicalKI(ctx);
+    expect(result.query_goal).toBeDefined();
+    expect(typeof result.query_goal).toBe("string");
+    expect(result.query_goal).toBe("FEATURE_DESCRIPTION");
   });
 });
 
