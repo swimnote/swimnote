@@ -1,0 +1,153 @@
+# [WP-B APPROVAL + RENDER DEPLOY BEFORE WP-C]
+
+WP-B COMPLETION REPORT 확인 완료.
+
+결론:
+
+WP-B = PASS
+
+현재 서버 파이프라인:
+
+- Normal → AI 실행 전 차단
+- curriculum <300 → AI 실행 전 차단
+- DIRECT_DB → Engine 0 / quota 0
+- HUMAN_ONLY → Engine 0 / quota 0
+- GROUNDED_GPT → Engine 1 / 성공 시 quota +1
+- Engine/validation failure → rollback
+- 월 10회 quota 유지
+- metadata snapshot 저장
+- GPT 자체 수영지식 fallback 없음
+
+정상.
+
+==================================================
+1. 정책 문구 수정
+==================================================
+
+보고서의 다음 표현은 수정:
+
+"Normal은 버튼 비활성화 또는 미노출"
+
+→ NO.
+
+최종 제품 정책:
+
+Normal SWIMNOTE 학부모에게도
+기존 "커리큘럼 검색" 버튼은 표시한다.
+
+버튼 탭:
+→ curriculum-chat 또는 eligibility 안내 flow 진입
+→ AI 입력창은 열지 않음
+→ 안내 표시
+
+문구:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+즉:
+
+버튼 표시 = YES
+AI 실행 = NO
+quota 차감 = NO
+
+WP-C에서 이 정책 그대로 적용.
+
+==================================================
+2. WP-C 전에 WP-B Render 배포
+==================================================
+
+현재 WP-B는 server route 변경이므로
+WP-C 앱 UI 작업 전에 Render에 먼저 반영한다.
+
+현재 merge된 WP-B 정확한 SHA 기준으로 deploy.
+
+금지:
+
+- 추가 코드 수정
+- WP-C 시작
+- migration
+- Production X04 ingestion
+- curriculum 데이터 생성
+- env 변경
+- secret 변경
+- 전체 regression test
+
+==================================================
+3. 배포 후 최소 smoke만
+==================================================
+
+전체 테스트 재실행 금지.
+
+아래만 확인:
+
+1. service boot 정상
+
+2.
+GET /api/healthz
+→ 200
+
+3.
+기존 auth smoke
+→ 정상 JSON
+
+4.
+POST /parent/students/:studentId/curriculum-search
+
+미인증 요청
+→ 정상 auth rejection
+→ 500/502 아님
+
+5.
+서버 startup/import error 없음
+
+6.
+WP-B 신규 module import error 없음
+
+Production에 실제 X curriculum_items가 아직 없으므로
+실사용 GROUNDED_GPT Production 테스트는 억지로 만들지 않는다.
+
+Production DB mutation 금지.
+
+==================================================
+4. SOURCE 확인
+==================================================
+
+배포 전후 확인:
+
+- repo
+- branch
+- deployed SHA
+- Render deploy id
+- live status
+
+현재 Render가 실제 어떤 branch를 추적하는지
+반드시 확인.
+
+source/branch 자동 변경 금지.
+
+==================================================
+5. 완료 보고
+==================================================
+
+[WP-B DEPLOY REPORT]
+
+- repo:
+- branch:
+- deployed SHA:
+- Render deploy id:
+- live:
+- service boot:
+- healthz:
+- auth smoke:
+- curriculum route auth smoke:
+- WP-B import/startup error:
+- Production DB mutation: NO
+- env changed: NO
+- final status:
+
+PASS이면:
+WP-C ready = YES
+
+보고 후 멈춘다.
+아직 WP-C 시작하지 않는다.
