@@ -1,0 +1,254 @@
+# [CURRICULUM SEARCH — ACTUAL REGISTERED CURRICULUM SOURCE TRACE]
+
+방금 ROOT CAUSE REPORT의 최종 결론은 아직 승인하지 않는다.
+
+중요:
+
+사용자는 X entitlement만 켜져 있다고 말한 것이 아니다.
+
+현재 실제 X 수영장에
+"커리큘럼이 등록되어 있다"고 명확히 확인한 상태다.
+
+따라서 아래 문장:
+
+"사용자가 커리큘럼이 등록되었다고 인지한 것은
+X mode entitlement 활성화를 의미"
+
+→ 근거 없는 추정이므로 폐기.
+
+코드/DB 수정하지 말고
+현재 실제 등록된 커리큘럼의 저장 경로부터 추적한다.
+
+==================================================
+1. 중요 설계 기준 재확인
+==================================================
+
+우리가 확정한 AI 커리큘럼 검색 canonical 구조:
+
+X curriculum source
+↓
+searchable curriculum_items
+↓
+active searchable item count >= 300
+↓
+AI curriculum search eligibility
+
+x_curriculum_levels
+= 상위 level 구조
+
+curriculum_items
+= AI 검색 최소 단위
+
+global_template_sets + diary_templates x_global
+= AI 커리큘럼 검색 최종 canonical source로 확정한 적 없음.
+
+==================================================
+2. 현재 구현 불일치 확인
+==================================================
+
+현재 보고:
+
+buildXCurriculumScope()
+→ getActiveGlobalTemplateSet()
+→ global_template_sets ACTIVE
+→ diary_templates scope=x_global
+
+이 구조가 현재 curriculum search에서 사용되고 있음.
+
+확인:
+
+- 이 로직이 언제 만들어졌는지
+- legacy WP 코드인지
+- WP-B에서 왜 curriculum_items >=300 기준 대신 이 경로가 유지됐는지
+- eligibility와 실제 search scope가 각각 어느 source를 보는지
+
+보고서에서
+"code bug = NO"
+라고 바로 결론내리지 않는다.
+
+현재 확정 설계와 구현 source가 불일치하는지 확인한다.
+
+==================================================
+3. 실제 등록 커리큘럼 UI → DB TRACE
+==================================================
+
+사용자가 현재 앱/관리자에서 확인하는
+"등록된 커리큘럼" 화면의 실제 코드부터 역추적한다.
+
+찾을 것:
+
+- 해당 화면/component
+- GET API
+- server route
+- query
+- 실제 table
+- pool_id
+- row count
+- status
+- curriculum content
+
+즉:
+
+UI에서 보이는 커리큘럼
+↓
+어떤 API
+↓
+어떤 table
+
+인지 정확히 추적.
+
+추정 금지.
+
+==================================================
+4. 대상 X POOL 확인
+==================================================
+
+현재 X entitlement pool 3개 중
+실제 사용자가 테스트 중인 pool을
+계정/student relation을 통해 확정.
+
+후보:
+
+pool_1784310621737_qryl1x79s
+pool_1780849364252_l9k44rbk3
+pool_1784865333802_mi7k4fsa4
+
+실제 로그인 학부모/student가
+어느 pool에 속하는지 확인.
+
+그 pool 기준으로만 조사.
+
+==================================================
+5. 관련 curriculum source 전수 확인
+==================================================
+
+해당 pool_id 기준 READ-ONLY로
+curriculum 관련 table을 검색.
+
+이미 확인된 것 외에도
+실제 코드가 사용하는 curriculum 관련 source를 찾아라.
+
+예:
+
+- curriculum_items
+- curriculum_versions
+- x_curriculum_profiles
+- x_curriculum_levels
+- global_template_sets
+- diary_templates
+- 기타 curriculum/template/program 관련 table
+
+중요:
+테이블명 추측만 하지 말고
+실제 "등록 커리큘럼 UI/API" 코드가 조회하는 source를 따라간다.
+
+==================================================
+6. global_template_sets 의미 확인
+==================================================
+
+현재 buildXCurriculumScope가 보는:
+
+global_template_sets
+diary_templates scope=x_global
+
+이 데이터가 정확히 무엇인지 확인.
+
+- X 교육 커리큘럼 자체인지
+- AI 일지 template set인지
+- 과거 WP 테스트용 구조인지
+- 현재 AI curriculum search에서 계속 써야 하는 source인지
+
+현재 ACTIVE 0이고
+ARCHIVED test set만 존재하므로
+이를 실제 production curriculum이라고 가정하지 않는다.
+
+==================================================
+7. curriculum_items 연결 여부
+==================================================
+
+PRE-WP-X에서 구현한:
+
+DOCX
+→ parser
+→ searchable_items
+→ curriculum_items
+
+구조와 현재 curriculum-search route가
+실제로 연결되어 있는지 확인.
+
+현재 root cause report대로라면
+eligibility/search scope에서 curriculum_items를 안 보고 있을 가능성이 높음.
+
+정확히 보고.
+
+==================================================
+8. 절대 금지
+==================================================
+
+아직:
+
+- global_template_sets ACTIVE 생성 금지
+- diary_templates x_global 임의 생성 금지
+- X04 re-ingestion 금지
+- curriculum_items 임의 삽입 금지
+- DB migration 금지
+- eligibility 우회 금지
+- 300 기준 제거 금지
+
+먼저 실제 등록 데이터 위치를 확정한다.
+
+==================================================
+9. 보고 형식
+==================================================
+
+[ACTUAL X CURRICULUM SOURCE TRACE REPORT]
+
+A. TEST ACCOUNT
+
+- parent:
+- student:
+- pool_id:
+- server mode:
+
+B. USER-VISIBLE REGISTERED CURRICULUM
+
+- UI screen/component:
+- API:
+- server route:
+- DB source:
+- pool row count:
+- status:
+- sample data type:
+
+C. CURRENT CURRICULUM SEARCH
+
+- eligibility source:
+- search scope source:
+- global_template_sets role:
+- diary_templates x_global role:
+- curriculum_items currently used: YES/NO
+- PRE-WP-X canonical structure currently connected: YES/NO
+
+D. DESIGN MISMATCH
+
+- agreed canonical source:
+- current implemented source:
+- mismatch: YES/NO
+- why:
+
+E. ROOT CAUSE
+
+- actual registered curriculum exists: YES/NO
+- registered but curriculum-search cannot see it: YES/NO
+- data missing: YES/NO
+- source mismatch/code integration issue: YES/NO
+- exact root cause:
+
+F. FIX DIRECTION
+
+- source that should become curriculum-search authority:
+- re-ingestion required:
+- code change required:
+- DB write required:
+
+아직 수정하지 말고 보고 후 멈춘다.
