@@ -1,0 +1,657 @@
+# [WP-D IMPLEMENTATION APPROVED — TWO-PHASE SAFE MULTI-CONVERSATION]
+
+WP-D PRE-IMPLEMENTATION REPORT 확인 완료.
+
+결론:
+
+WP-D implementation ready = YES
+
+구현 승인.
+
+단, 기존 제안의 실행 순서:
+
+Migration
+→ Server
+→ App
+
+은 금지한다.
+
+현재 live server의 getOrCreateConversation()이
+
+ON CONFLICT (parent_account_id, student_id)
+
+UNIQUE constraint에 의존하므로,
+DB UNIQUE를 먼저 제거하면 기존 Production server가 깨질 수 있다.
+
+따라서 WP-D는 반드시 TWO-PHASE BACKWARD-COMPATIBLE 방식으로 구현한다.
+
+아직 Production migration 실행 금지.
+아직 OTA 금지.
+
+==================================================
+1. 최종 배포 순서 — 확정
+==================================================
+
+순서:
+
+PHASE 1
+서버 코드를 OLD schema + NEW schema 모두에서 동작하도록 수정
+
+↓
+
+관련 테스트
+
+↓
+
+Render 서버 먼저 배포
+
+↓
+
+기존 앱 정상 smoke
+
+↓
+
+PHASE 2
+Production UNIQUE constraint 이름/count 확인
+
+↓
+
+DB migration 실행
+- UNIQUE 제거
+- title 추가
+- index 추가
+
+↓
+
+서버 smoke
+- 기존 앱 compatibility
+- multi-conversation API
+
+↓
+
+PHASE 3
+앱 WP-D UI 반영
+
+↓
+
+iOS OTA
+
+절대:
+
+DB migration 먼저 실행 금지.
+
+==================================================
+2. getOrCreateConversation() 수정 — 중요
+==================================================
+
+현재:
+
+INSERT ...
+ON CONFLICT (parent_account_id, student_id)
+DO UPDATE ...
+
+구조는 UNIQUE 제거 후 사용할 수 없다.
+
+WP-D에서 이 의존성을 제거한다.
+
+conversation_id가 없는 구버전 요청의 fallback:
+
+1. parent_account_id + student_id + status='active'
+   기준 최신 conversation 조회
+
+2. 존재하면 해당 conversation 사용
+
+3. 없으면 신규 conversation 생성
+
+즉 기존 앱은 계속
+"최근/default conversation 하나"를 사용하는 것처럼 동작.
+
+ON CONFLICT(parent_account_id, student_id)
+의존 금지.
+
+==================================================
+3. FALLBACK CONCURRENCY
+==================================================
+
+conversation_id 없는 구버전 요청이 동시에 최초 진입할 경우
+불필요한 conversation 여러 개가 생기지 않도록 보호한다.
+
+가능하면 기존 transaction/pool 패턴 안에서:
+
+- parent_account_id + student_id 단위 advisory lock
+또는
+- 동등한 최소 동시성 보호
+
+사용 검토.
+
+목적:
+
+구버전 앱 fallback에서만
+동시 최초 요청으로 conversation이 중복 생성되는 것을 방지.
+
+새 대화 API는 의도적으로 복수 conversation 생성 가능.
+
+==================================================
+4. NEW CONVERSATION
+==================================================
+
+신규 endpoint:
+
+POST
+/parent/students/:studentId/curriculum-search/conversations
+
+동작:
+
+- parent/student ownership 확인
+- 신규 conversation 생성
+- AI 호출 없음
+- quota 차감 없음
+
+초기 title:
+
+"새 대화"
+
+또는 NULL
+
+둘 중 현재 UI에 적합한 방식.
+
+첫 user message가 저장될 때
+title이 비어 있거나 "새 대화"라면
+첫 질문을 deterministic하게 축약해서 title 설정.
+
+GPT title generation 금지.
+추가 AI 비용 금지.
+
+==================================================
+5. TITLE 생성 규칙
+==================================================
+
+첫 사용자 질문 기반.
+
+예:
+
+"우리 아이 자유형 어디까지 했어요?"
+→
+"자유형 어디까지 했어요?"
+
+복잡한 AI 요약 필요 없음.
+
+권장:
+
+- trim
+- 줄바꿈 제거
+- 최대 길이 제한
+- 너무 길면 말줄임
+- 빈 값이면 "새 대화"
+
+title 생성 때문에 GPT 호출 금지.
+
+==================================================
+6. CONVERSATION LIST
+==================================================
+
+신규:
+
+GET
+/parent/students/:studentId/curriculum-search/conversations
+
+필터:
+
+parent_account_id
+student_id
+swimming_pool_id
+status='active'
+
+정렬:
+
+updated_at DESC
+또는
+COALESCE(last_message_at, updated_at) DESC
+
+응답:
+
+{
+  conversations: [
+    {
+      id,
+      title,
+      created_at,
+      updated_at,
+      last_message_at,
+      last_message_preview
+    }
+  ]
+}
+
+다른 parent/student conversation 노출 금지.
+
+==================================================
+7. HISTORY
+==================================================
+
+기존:
+
+GET
+/parent/students/:studentId/curriculum-search/history
+
+확장:
+
+?conversation_id=<id>
+
+optional.
+
+conversation_id 있음:
+→ ownership 검증
+→ 해당 conversation messages만 반환
+
+conversation_id 없음:
+→ 기존 앱 compatibility
+→ 해당 parent/student의 최신 active conversation 반환
+
+기존 eligible/reason additive contract 유지.
+
+==================================================
+8. SEARCH POST
+==================================================
+
+기존:
+
+POST
+/parent/students/:studentId/curriculum-search
+
+body에 additive:
+
+conversation_id?: string
+
+추가.
+
+conversation_id 있음:
+
+- conversation 존재 확인
+- parent_account_id 일치
+- student_id 일치
+- swimming_pool_id 일치
+- status active 확인
+
+후 해당 conversation 사용.
+
+불일치:
+403 또는 기존 안전한 ownership error contract.
+
+conversation_id 없음:
+
+→ 구버전 fallback 사용.
+
+==================================================
+9. RECENT CONTEXT
+==================================================
+
+기존:
+
+buildRecentConversationContext(
+  conversationId,
+  excludeRequestId,
+  maxMessages
+)
+
+그대로 사용.
+
+반드시 현재 선택 conversationId만 전달.
+
+Conversation A의 context가
+Conversation B에 들어가면 안 됨.
+
+==================================================
+10. SAVE MESSAGE
+==================================================
+
+기존:
+
+saveUserMessage
+saveAssistantMessage
+
+conversationId 직접 받으므로 재사용.
+
+첫 USER message 저장 성공 후:
+
+conversation title이 NULL/"새 대화"이면
+deterministic title update.
+
+ASSISTANT message 저장 시:
+
+last_message_at / updated_at
+
+기존 동작 확인 후 유지.
+
+==================================================
+11. MIGRATION FILE은 구현하되 아직 실행 금지
+==================================================
+
+migration file 작성 허용.
+
+예:
+
+group8-curriculum-multi-conversation.ts
+
+하지만 Production 실행은 서버 compatibility deploy PASS 후 별도 승인.
+
+migration 내용:
+
+1. 실제 UNIQUE constraint 이름 확인
+2. UNIQUE(parent_account_id, student_id) 제거
+3. title TEXT NULL 추가
+4. conversation list index 추가
+
+blind constraint name 사용 금지.
+
+실제 pg_constraint에서 찾아서 안전하게 처리.
+
+==================================================
+12. INDEX
+==================================================
+
+기존:
+
+idx_pcc_parent_student
+(parent_account_id, student_id)
+
+존재.
+
+신규 list 정렬을 위해:
+
+(parent_account_id, student_id, updated_at DESC)
+
+또는 last_message_at 기반 index 검토.
+
+기존 index와 완전히 중복이면
+불필요한 index 남발 금지.
+
+이번 migration에서 기존 index DROP은
+필수 아니면 하지 않는다.
+
+==================================================
+13. MIGRATION 사전 검증
+==================================================
+
+Production migration 직전 READ-ONLY:
+
+- 정확한 UNIQUE constraint name
+- conversations row count
+- messages row count
+- duplicate parent/student pair 현재 존재 여부
+- title column 존재 여부
+- target index 존재 여부
+
+값 기록.
+
+migration 이후:
+
+- conversations row count 동일
+- messages row count 동일
+- 기존 IDs 동일
+- 기존 messages ownership 동일
+
+==================================================
+14. ROLLBACK 주의
+==================================================
+
+migration 후 실제 복수 conversation이 생성된 이후에는
+기존 UNIQUE를 단순히 다시 추가할 수 없다.
+
+따라서 rollback plan을:
+
+"무조건 UNIQUE 재생성"
+
+으로 보지 않는다.
+
+Migration 직후,
+아직 복수 conversation 생성 전까지만
+UNIQUE 복원이 단순 rollback 가능.
+
+복수 conversation 생성 이후 rollback 필요 시
+데이터 보존 계획이 별도로 필요.
+
+기존 conversation 삭제해서 UNIQUE 맞추는 방식 금지.
+
+==================================================
+15. APP UI
+==================================================
+
+curriculum-chat.tsx:
+
+필수:
+
+- activeConversationId
+- activeConversationIdRef
+- conversationList
+- loadConversations()
+- createNewConversation()
+- switchConversation()
+
+상단:
+
+- 새 대화 버튼
+- history 버튼
+
+History:
+
+Modal / Sheet
+기존 SWIMNOTE ModalSheet 패턴 우선 재사용.
+
+표시:
+
+- title
+- 날짜
+- 최근 message preview
+
+==================================================
+16. MULTI-CHILD
+==================================================
+
+WP-C 다자녀 switcher 유지.
+
+학생 전환:
+
+- activeConversationId reset
+- conversationList reset
+- messages reset
+- 해당 student history/conversations 재조회
+
+student A conversation을
+student B에서 표시 금지.
+
+==================================================
+17. RACE GUARD
+==================================================
+
+기존:
+
+activeStudentIdRef
+
+유지.
+
+추가:
+
+activeConversationIdRef
+
+비동기 응답 적용 조건:
+
+requestedStudentId === activeStudentIdRef.current
+AND
+requestedConversationId === activeConversationIdRef.current
+
+아니면 stale response discard.
+
+질문 전송 중 conversation 전환 시
+이전 conversation의 답변이 새 화면에 붙지 않게 한다.
+
+==================================================
+18. ELIGIBILITY / QUOTA 변경 금지
+==================================================
+
+WP-C/WP-B 정책 그대로.
+
+Normal:
+AI 차단
+
+X searchable curriculum <300:
+AI 차단
+
+quota:
+parent_account_id 기준 월 10회
+
+새 대화 생성:
+0
+
+conversation list:
+0
+
+history:
+0
+
+message retrieval:
+0
+
+conversation 수가 늘어도 quota 증가 없음.
+
+==================================================
+19. DELETE V1 제외
+==================================================
+
+이번 WP-D에서는 conversation DELETE 구현하지 않는다.
+
+이유:
+
+현재 soft-delete 구조 없음.
+ON DELETE CASCADE는 실제 message 삭제까지 발생.
+
+V1 우선 범위:
+
+- 새 대화
+- 목록
+- 선택
+- 복원
+
+삭제는 후속 WP로 분리.
+
+==================================================
+20. SERVER PHASE TEST
+==================================================
+
+전체 regression 금지.
+
+WP-D 관련 테스트만.
+
+최소:
+
+1. old schema 상태에서 서버 코드 동작
+2. conversation_id 없이 기존 POST 동작
+3. conversation_id 없이 history 동작
+4. 신규 create endpoint quota 0
+5. conversation ownership mismatch → 차단
+6. student mismatch → 차단
+7. conversation A/B context 완전 분리
+8. list student-scoped
+9. first message title 생성
+10. GPT title call 0
+11. quota unaffected
+12. eligibility unaffected
+
+==================================================
+21. MIGRATION TEST
+==================================================
+
+안전한 test/local DB에서:
+
+- UNIQUE 제거 전 복수 conversation 불가
+- migration 후 복수 conversation 가능
+- title nullable
+- 기존 row/message 유지
+- index 생성
+- migration 자체 데이터 delete 0
+
+==================================================
+22. APP TEST
+==================================================
+
+최소:
+
+- 새 대화 생성
+- history 목록
+- conversation 선택/복원
+- 학생 전환
+- conversation 전환 race guard
+- 기존 입력/typing/copy/quota UI 유지
+
+전체 앱 regression 금지.
+
+==================================================
+23. 구현 완료 보고
+==================================================
+
+먼저 코드만 구현한다.
+
+Production migration / deploy / OTA는 하지 않는다.
+
+보고:
+
+[WP-D IMPLEMENTATION REPORT]
+
+A. SERVER COMPATIBILITY
+- getOrCreate ON CONFLICT dependency removed:
+- old schema compatible:
+- new schema compatible:
+- fallback concurrency protection:
+- old app compatible:
+
+B. API
+- create conversation:
+- list conversations:
+- history conversation_id:
+- search conversation_id:
+- ownership validation:
+
+C. TITLE
+- initial title:
+- first message title update:
+- GPT used: NO
+
+D. MIGRATION
+- migration file:
+- unique constraint handling:
+- title:
+- index:
+- production executed: NO
+
+E. APP
+- activeConversationId:
+- history UI:
+- new conversation UI:
+- multi-child:
+- race guard:
+
+F. QUOTA/ELIGIBILITY
+- quota changed: NO
+- eligibility changed: NO
+- create/list/history AI calls: 0
+
+G. TEST
+- new/updated tests:
+- passed:
+- full regression: NO
+
+H. PRODUCTION
+- migration: NO
+- Render deploy: NO
+- OTA: NO
+
+I. FINAL
+- WP-D code PASS: YES/NO
+- server compatibility deploy ready: YES/NO
+- blocker:
+- next exact step:
+
+완료 후 멈춘다.
+Production migration 실행 금지.
+Render deploy 금지.
+OTA 금지.
