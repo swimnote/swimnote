@@ -1,0 +1,394 @@
+# [PRE-WP-X — OPTION A APPROVED / REAL DOCX PREVIEW]
+
+PRE-WP-X PARSER DESIGN REPORT 확인 완료.
+
+결정:
+
+OPTION A 진행.
+
+실제 X DOCX 1건으로 parser preview를 먼저 검증한다.
+
+아직:
+- Production DB write 금지
+- X04 Production re-ingestion 금지
+- WP-A 시작 금지
+
+==================================================
+1. 실제 X DOCX 1건 확보
+==================================================
+
+기존 X 수영장 DOCX 1건을 R2에서 READ-ONLY로 임시 다운로드한다.
+
+목적:
+parser 검증용 local sample
+
+금지:
+- R2 원본 수정
+- 삭제
+- Production curriculum 수정
+
+기존 정상 credential이 있으면 그것만 사용한다.
+
+credential이 없으면 새 credential 생성하지 말고 BLOCKED 보고.
+
+==================================================
+2. curriculum_versions 먼저 READ-ONLY 확인
+==================================================
+
+parser 구현 전에 해당 X pool에:
+
+- curriculum_versions row 존재 여부
+- 기존 version 개수
+- 현재 active/current version 판정 방식
+- version 식별 컬럼
+- name/title/source/type/metadata 계열 컬럼 존재 여부
+
+를 확인한다.
+
+목적:
+
+X ingestion 전용 curriculum version을
+기존 schema 안에서 안전하게 식별할 방법 확정.
+
+신규 migration은 아직 하지 않는다.
+
+==================================================
+3. 중요 수정 — POOL 전체 DELETE 금지
+==================================================
+
+기존 보고서 제안:
+
+DELETE FROM curriculum_items
+WHERE swimming_pool_id = poolId
+
+→ 사용 금지.
+
+이 방식은 해당 pool이 직접 등록한 curriculum 또는
+다른 version의 item까지 삭제할 위험이 있다.
+
+최종 원칙:
+
+X ingestion이 관리하는
+특정 curriculum_version_id의 item만 교체한다.
+
+개념:
+
+DELETE FROM curriculum_items
+WHERE swimming_pool_id = $poolId
+AND curriculum_version_id = $xManagedVersionId
+
+기존 사용자 작성/다른 version item:
+절대 변경 금지.
+
+==================================================
+4. PARSER LOCAL IMPLEMENTATION
+==================================================
+
+Production ingestion은 하지 않되
+local parser 수정/preview 구현은 허용.
+
+현재 손실:
+
+<w:p>
+<w:br>
+list paragraph
+
+경계를 보존한다.
+
+신규:
+
+extractCellParagraphs()
+
+또는 현재 코드 구조에 가장 적합한 동등 함수.
+
+기존 CurriculumLevel string field는
+하위 호환을 위해 유지한다.
+
+추가:
+
+searchable_items[]
+
+개념:
+
+{
+  field_source,
+  title,
+  content?,
+  item_order
+}
+
+==================================================
+5. ITEMIZATION 우선순위
+==================================================
+
+PRIMARY:
+
+1. detailed_skills
+2. skills
+3. learning_contents
+
+SECONDARY:
+
+4. objectives
+5. drills
+
+단,
+objectives/drills는 독립적인 교육 검색 가치가 있을 때만 item 생성.
+
+현재 단계에서는:
+
+common_errors
+correction_methods
+promotion_criteria
+test_method
+
+를 억지로 300개 count를 늘리기 위한 item으로 만들지 않는다.
+
+향후 검색 목적상 독립 item이 필요한지는 별도 판단.
+
+==================================================
+6. 절대 숫자 부풀리기 금지
+==================================================
+
+300개는 eligibility 기준이지
+parser가 반드시 만들어야 하는 목표 숫자가 아니다.
+
+실제 결과:
+
+240개
+→ 240개
+
+297개
+→ 297개
+
+350개
+→ 350개
+
+로 그대로 보고.
+
+금지:
+
+- 의미 없는 문장 분할
+- 쉼표마다 무조건 split
+- 동일 내용 표현만 바꿔 여러 item 생성
+- 짧은 파편 생성
+- 300개 맞추기 위한 artificial expansion
+
+==================================================
+7. DEDUP
+==================================================
+
+같은 level 내:
+
+detailed_skills 우선
+→ skills 중복 제거
+→ learning_contents 중복 제거
+
+단순 exact string만 보지 말고
+최소한 normalize 후 비교:
+
+- 앞뒤 공백
+- bullet 문자
+- 반복 whitespace
+- terminal punctuation
+
+정도 제거.
+
+의미 기반 GPT dedup은 이번 parser 단계에서 사용하지 않는다.
+
+AI 호출 비용 없이 deterministic 처리.
+
+==================================================
+8. REAL DOCX PREVIEW
+==================================================
+
+실제 DOCX 1건으로 local parser 실행.
+
+DB INSERT 하지 않는다.
+
+다음 결과를 산출:
+
+- level count
+- 각 level별 raw paragraph count
+- detailed_skills item count
+- skills item count
+- learning_contents item count
+- objectives candidate count
+- drills candidate count
+- dedup 제거 수
+- invalid fragment 제거 수
+- 최종 searchable_items 수
+
+그리고 품질 확인을 위해
+최종 item sample 최소 20개 출력.
+
+한 레벨에서만 20개 뽑지 말고
+여러 level에서 분산해서 보여준다.
+
+각 sample:
+
+- level
+- field_source
+- title/content
+- order
+
+==================================================
+9. 300 GATE 판정
+==================================================
+
+실제 sample 결과를 기준으로:
+
+final_searchable_items >= 300
+→ PASS
+
+< 300
+→ FAIL
+
+FAIL이어도 parser가 실패한 것으로 간주하지 않는다.
+
+실제 curriculum 자체가 300개 미만이면
+해당 센터는 AI 커리큘럼 검색 eligibility 미충족.
+
+억지 확장 금지.
+
+==================================================
+10. X curriculum version 전략
+==================================================
+
+READ-ONLY 확인 결과를 바탕으로
+X ingestion 전용 managed version을 어떻게 만들지 제안한다.
+
+목표:
+
+x_curriculum_levels
+= 상위 level 구조
+
+X-managed curriculum_version
+= 해당 DOCX ingestion version
+
+curriculum_items
+= 실제 searchable item
+
+새 ingestion 시:
+
+BEGIN
+
+1. X managed curriculum_version 확보/upsert
+2. 해당 X managed version의 기존 curriculum_items만 제거
+3. x_curriculum_levels 안전 교체
+4. searchable_items → curriculum_items INSERT
+
+COMMIT
+
+단,
+이번 단계에서는 실행하지 않는다.
+
+transaction plan만 확정한다.
+
+==================================================
+11. IDEMPOTENCY
+==================================================
+
+같은 DOCX를 두 번 ingestion해도
+item이 누적되면 안 된다.
+
+X managed curriculum_version 범위 안에서
+완전 교체 또는 안전한 upsert 전략 사용.
+
+기존 다른 curriculum version은 건드리지 않는다.
+
+==================================================
+12. ENV MAPPING 기록
+==================================================
+
+추가 확인된 Engine env mapping은 확정 기록:
+
+URL:
+PARENT_CURRICULUM_ENGINE_URL
+
+Bearer token:
+PARENT_CURRICULUM_ENGINE_SECRET
+
+APP_PARENT_CURRICULUM_SERVICE_TOKEN:
+parent-curriculum-engine-client.ts에서는 사용하지 않음.
+
+WP-B 연결 시 위 실제 key를 사용한다.
+
+env 값 변경은 이번 작업에서 하지 않는다.
+
+==================================================
+13. 완료 보고 형식
+==================================================
+
+[PRE-WP-X REAL DOCX PREVIEW REPORT]
+
+A. SAMPLE
+
+- pool:
+- DOCX source:
+- local pull success:
+- production mutation: NO
+
+B. VERSION AUDIT
+
+- existing curriculum_versions:
+- current version:
+- X managed version distinguishable:
+- recommended X version strategy:
+- migration required:
+
+C. PARSER
+
+- old merge behavior:
+- new paragraph preservation:
+- <w:br> preservation:
+- list preservation:
+- existing CurriculumLevel compatibility:
+- searchable_items generated:
+
+D. ACTUAL COUNTS
+
+- level count:
+- raw paragraphs:
+- detailed_skills:
+- skills:
+- learning_contents:
+- objectives candidates:
+- drills candidates:
+- duplicates removed:
+- invalid fragments removed:
+- final searchable items:
+
+E. QUALITY SAMPLE
+
+최종 item 20개 이상:
+- level
+- field_source
+- content
+
+F. ELIGIBILITY
+
+- final item count:
+- >=300: YES/NO
+- artificial expansion used: NO
+
+G. INGESTION SAFETY
+
+- pool-wide DELETE used: NO
+- X-managed version scoped replacement possible:
+- transaction plan:
+- idempotency:
+- existing other curriculum protected:
+
+H. FINAL
+
+- PRE-WP-X PASS: YES/NO
+- production ingestion ready: YES/NO
+- remaining blocker:
+- next recommended step:
+
+아직 Production DB write 금지.
+아직 re-ingestion 금지.
+아직 WP-A 시작 금지.
+
+보고 후 멈춘다.
