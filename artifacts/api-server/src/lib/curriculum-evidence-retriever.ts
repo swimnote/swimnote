@@ -48,6 +48,8 @@ export interface TrackedEvidence {
   /** 최근 확인 날짜 (YYYY-MM-DD 또는 null) */
   last_seen: string | null;
   confidence_avg: number;
+  /** 수집된 모든 evidence_text (명시적 완료 키워드 탐지에 사용) */
+  evidence_texts: string[];
 }
 
 export interface InferredEvidence {
@@ -256,6 +258,9 @@ export async function retrieveEvidence(
         first_seen: dates[0] ?? null,
         last_seen: dates[dates.length - 1] ?? null,
         confidence_avg: Math.round(avgConf * 1000) / 1000,
+        evidence_texts: recentRows
+          .map((r) => r.evidence_text)
+          .filter((t): t is string => t !== null),
       });
     } else {
       // DIRECT: 각 row를 개별 evidence로 변환 (중복 diary 허용)

@@ -191,11 +191,11 @@ describe("WP-A Evidence Retriever — TRACKED", () => {
   });
 });
 
-// ── WPA-08: completed + recent repeat → REVIEW ───────────────────────────────
+// ── WPA-08: 과거 완료 근거 + 최근 재등장 → REVIEW ───────────────────────────
 
 describe("WP-A Progress Resolver — REVIEW", () => {
-  it("WPA-08 오래된 첫 기록 + 최근 재등장 → REVIEW", async () => {
-    // first_seen이 60일 이상 이전, last_seen이 최근 30일 이내
+  it("WPA-08 명시적 완료 증거 + 최근 재등장 → REVIEW", async () => {
+    // 첫 기록에 명시적 완료 키워드("완료") 포함 + 최근에 다시 등장
     const db = mockDb([
       makeRow({
         curriculum_item_id: "item-3",
@@ -203,6 +203,7 @@ describe("WP-A Progress Resolver — REVIEW", () => {
         diary_note_id:      "dn-old",
         diary_date:         daysAgo(70),
         confidence:         0.72,
+        evidence_text:      "팔 동작 완료. 정확도 확인됨.",
       }),
       makeRow({
         curriculum_item_id: "item-3",
@@ -210,6 +211,7 @@ describe("WP-A Progress Resolver — REVIEW", () => {
         diary_note_id:      "dn-recent",
         diary_date:         daysAgo(8),
         confidence:         0.68,
+        evidence_text:      "팔 동작 복습 중",
       }),
     ]);
 
@@ -220,8 +222,73 @@ describe("WP-A Progress Resolver — REVIEW", () => {
     const progress = resolveProgress(evidence, items);
     const entry = progress.entries.find((e) => e.curriculum_item_id === "item-3");
 
-    // 오래된 기록 + 최근 재등장 → REVIEW
+    // 명시적 완료 근거("완료") + 최근 재등장 → REVIEW
     expect(entry?.status).toBe("REVIEW");
+  });
+
+  it("WPA-08b TRACKED 반복만 있고 완료 근거 없음 + 오래됨 → NOT_CONFIRMED (COMPLETED 금지)", async () => {
+    // 반복(2회)됐지만 evidence_text에 완료 키워드 없음 + last_seen > 30일
+    const db = mockDb([
+      makeRow({
+        curriculum_item_id: "item-4",
+        curriculum_title:   "호흡 연습",
+        diary_note_id:      "dn-A",
+        diary_date:         daysAgo(80),
+        confidence:         0.75,
+        evidence_text:      "호흡 연습 진행",
+      }),
+      makeRow({
+        curriculum_item_id: "item-4",
+        curriculum_title:   "호흡 연습",
+        diary_note_id:      "dn-B",
+        diary_date:         daysAgo(50),
+        confidence:         0.80,
+        evidence_text:      "호흡 패턴 반복 수행",
+      }),
+    ]);
+
+    const evidence = await retrieveEvidence("stu-3b", "pool-1", db);
+    const items: CurriculumItemRef[] = [
+      { id: "item-4", title: "호흡 연습", sort_order: 4 },
+    ];
+    const progress = resolveProgress(evidence, items);
+    const entry = progress.entries.find((e) => e.curriculum_item_id === "item-4");
+
+    // 오래된 반복만 있고 완료 근거 없음 → NOT_CONFIRMED (COMPLETED 절대 금지)
+    expect(entry?.status).toBe("NOT_CONFIRMED");
+    expect(entry?.status).not.toBe("COMPLETED");
+  });
+
+  it("WPA-08c 명시적 완료 증거 + 최근 수행 없음 → COMPLETED", async () => {
+    // evidence_text에 "통과" 키워드 포함 + last_seen > 30일
+    const db = mockDb([
+      makeRow({
+        curriculum_item_id: "item-5",
+        curriculum_title:   "발차기",
+        diary_note_id:      "dn-A",
+        diary_date:         daysAgo(60),
+        confidence:         0.8,
+        evidence_text:      "발차기 통과 확인됨",
+      }),
+      makeRow({
+        curriculum_item_id: "item-5",
+        curriculum_title:   "발차기",
+        diary_note_id:      "dn-B",
+        diary_date:         daysAgo(45),
+        confidence:         0.85,
+        evidence_text:      "발차기 통과 후 다음 단계 준비",
+      }),
+    ]);
+
+    const evidence = await retrieveEvidence("stu-3c", "pool-1", db);
+    const items: CurriculumItemRef[] = [
+      { id: "item-5", title: "발차기", sort_order: 5 },
+    ];
+    const progress = resolveProgress(evidence, items);
+    const entry = progress.entries.find((e) => e.curriculum_item_id === "item-5");
+
+    // 명시적 완료 근거("통과") + 최근 수행 없음 → COMPLETED
+    expect(entry?.status).toBe("COMPLETED");
   });
 });
 

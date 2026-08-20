@@ -5,18 +5,20 @@
  * 각 항목의 progress 상태를 결정.
  *
  * 출력 상태:
- *   COMPLETED     — 충분한 실제 Evidence가 있고 최근 30일 내 반복 없음
+ *   COMPLETED     — 강한 구조적 근거(student_levels 달성 또는 명시적 완료 증거)가 있음
  *   IN_PROGRESS   — 최근 30일 내 반복적으로 수행 중
- *   REVIEW        — 과거 확인됐던 기술이 최근 다시 등장 (재확인)
- *   NOT_CONFIRMED — 확인 가능한 근거 없거나 1회 diary만 있음
+ *   REVIEW        — 과거 COMPLETED 뒷받침 근거가 있고 최근에 다시 등장 (재확인)
+ *   NOT_CONFIRMED — 확인 가능한 근거 없거나 1회 diary만 있음, 또는 반복됐으나 완료 근거 없음
  *   NEXT          — 현재 progress 이후 curriculum 순서상 다음 항목
  *
  * 원칙:
  *   - GPT가 상태를 결정하지 않음 (완전 deterministic)
  *   - diary 1회 등장만으로 COMPLETED 판정 금지
+ *   - "오래됐다"는 이유만으로 COMPLETED 판정 금지
+ *   - TRACKED 반복만으로 COMPLETED 금지 — 강한 완료 근거 필수
+ *   - 강한 완료 근거 = student_levels 달성 OR evidence_text 명시적 완료 키워드
  *   - INFERRED type은 NEXT 항목에만 사용
  *   - 빈 curriculum → NEXT 생성 금지
- *   - student_levels 달성 기록은 레벨 완료의 강한 근거로 사용
  */
 
 import type {
@@ -62,10 +64,24 @@ export interface ProgressResolution {
 
 /** IN_PROGRESS 판정 기준: last_seen이 이 일수 이내 */
 const IN_PROGRESS_WINDOW_DAYS = 30;
-/** COMPLETED 판정에 필요한 최소 confidence 평균 */
-const COMPLETED_MIN_CONFIDENCE = 0.5;
-/** REVIEW 판정: COMPLETED인데 최근 N일 이내 다시 등장 */
-const REVIEW_RECENT_DAYS = 30;
+
+/**
+ * 명시적 완료 키워드 (evidence_text에서 탐지).
+ * 단순 수행·반복·언급이 아닌, 명확한 완료/통과/마스터 의미의 표현.
+ */
+const EXPLICIT_COMPLETION_KEYWORDS = [
+  "완료",
+  "통과",
+  "마스터",
+  "완성",
+  "성공",
+  "합격",
+  "달성",
+  "마침",
+  "끝냄",
+  "다 했",
+  "완전히",
+];
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +92,22 @@ function todayStr(): string {
 function daysSince(date: string | null, today: string): number {
   if (!date) return Infinity;
   return (new Date(today).getTime() - new Date(date).getTime()) / 86_400_000;
+}
+
+/**
+ * evidence_text에 명시적 완료 키워드가 포함돼 있는지 확인.
+ * confidence >= 0.6 조건 추가로 낮은 신뢰도 매핑은 제외.
+ */
+function hasExplicitCompletionText(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return EXPLICIT_COMPLETION_KEYWORDS.some((kw) => text.includes(kw));
+}
+
+/**
+ * TrackedEvidence 내 모든 evidence_texts 중 명시적 완료 키워드가 있는지 확인.
+ */
+function trackedHasExplicitCompletion(tracked: TrackedEvidence): boolean {
+  return tracked.evidence_texts.some((t) => hasExplicitCompletionText(t));
 }
 
 // ── 메인 함수 ─────────────────────────────────────────────────────────────────
@@ -111,7 +143,7 @@ export function resolveProgress(
     directByItem.get(d.curriculum_item_id)!.push(d);
   }
 
-  // student_levels에서 달성 level_order 집합 추출 (level 완료 근거)
+  // student_levels에서 달성 level_order 집합 추출 (level 완료의 강한 구조적 근거)
   const achievedLevelOrders = new Set<number>(
     evidence.level_history
       .map((l) => l.level_order)
@@ -126,44 +158,62 @@ export function resolveProgress(
     let status: ProgressStatus = "NOT_CONFIRMED";
     const supporting: Array<DirectEvidence | TrackedEvidence | InferredEvidence> = [];
 
+    // ── 강한 완료 근거 판별 ───────────────────────────────────────────────────
+    // A. student_levels 달성 기록으로 sort_order 매핑
+    const hasStructuredCompletion = achievedLevelOrders.has(item.sort_order);
+    // B. evidence_text 내 명시적 완료 키워드
+    const hasExplicitDiaryCompletion = tracked
+      ? trackedHasExplicitCompletion(tracked)
+      : directs.some((d) => hasExplicitCompletionText(d.evidence_text));
+    // 강한 완료 근거 = A OR B
+    const hasStrongCompletionBasis = hasStructuredCompletion || hasExplicitDiaryCompletion;
+
     if (tracked) {
-      // TRACKED evidence 존재 → COMPLETED / IN_PROGRESS / REVIEW 판정
+      // TRACKED evidence 존재 → 최근 여부 + 완료 근거로 상태 결정
       const daysSinceLast = daysSince(tracked.last_seen, today);
       const isRecentlyActive = daysSinceLast <= IN_PROGRESS_WINDOW_DAYS;
-      const hasMinConfidence = tracked.confidence_avg >= COMPLETED_MIN_CONFIDENCE;
 
-      // first_seen과 last_seen의 간격 (반복 기간)
-      const spanDays =
-        tracked.first_seen && tracked.last_seen
-          ? daysSince(tracked.first_seen, tracked.last_seen)
-          : 0;
+      supporting.push(tracked);
 
       if (isRecentlyActive) {
-        if (spanDays > REVIEW_RECENT_DAYS && hasMinConfidence) {
-          // 오래된 기록도 있고, 최근에도 등장 → REVIEW (이미 익혔던 기술을 재확인)
+        if (hasStrongCompletionBasis) {
+          // 과거 완료 근거 있음 + 최근 재등장 → REVIEW (재확인)
           status = "REVIEW";
         } else {
-          // 최근에 반복 진행 중
+          // 완료 근거 없이 최근 반복 → IN_PROGRESS
           status = "IN_PROGRESS";
         }
       } else {
-        // 최근 30일 이내가 아님 → 완료 판정 가능
-        if (hasMinConfidence) {
+        // 최근 30일 이내가 아님
+        if (hasStrongCompletionBasis) {
+          // 강한 완료 근거 있고 최근 반복 없음 → COMPLETED
           status = "COMPLETED";
         } else {
-          // confidence 낮음 → 완료 단정 불가
+          // 반복 기록만 있고 명시적 완료 근거 없음 → NOT_CONFIRMED
+          // (오래됐다는 이유만으로 COMPLETED 판정 금지)
           status = "NOT_CONFIRMED";
         }
       }
-
-      supporting.push(tracked);
     } else if (directs.length > 0) {
-      // DIRECT evidence만 있음 (1회 diary) → NOT_CONFIRMED (diary 1회 = 완료 불가)
-      // 단, student_levels로 level 달성이 확인되면 COMPLETED 가능 — 이는 레벨 전체에 적용
-      status = "NOT_CONFIRMED";
+      // DIRECT evidence만 있음 (1회 diary)
       supporting.push(...directs);
+
+      if (hasExplicitDiaryCompletion) {
+        // 1회 diary라도 명시적 완료 표현이 있으면 COMPLETED candidate
+        // (단, 단순 언급·반복 수행만으로는 불가)
+        status = "COMPLETED";
+      } else {
+        // diary 1회 = COMPLETED 금지 → NOT_CONFIRMED
+        status = "NOT_CONFIRMED";
+      }
     }
     // else: evidence 없음 → NOT_CONFIRMED (기본값)
+
+    // student_levels 달성 기록으로 NOT_CONFIRMED → COMPLETED 격상
+    // (해당 sort_order에 매핑되는 level 달성이 있으면 강한 근거로 승격)
+    if (status === "NOT_CONFIRMED" && hasStructuredCompletion) {
+      status = "COMPLETED";
+    }
 
     entries.push({
       curriculum_item_id: item.id,
@@ -172,19 +222,6 @@ export function resolveProgress(
       sort_order: item.sort_order,
       supporting_evidence: supporting,
     });
-  }
-
-  // student_levels 달성 기록으로 COMPLETED 보강
-  // (level_order 기반으로 sort_order와 매핑 — 동일 개념이면 COMPLETED 격상)
-  if (achievedLevelOrders.size > 0) {
-    for (const entry of entries) {
-      if (
-        entry.status === "NOT_CONFIRMED" &&
-        achievedLevelOrders.has(entry.sort_order)
-      ) {
-        entry.status = "COMPLETED";
-      }
-    }
   }
 
   // highest_confirmed_item: COMPLETED 또는 IN_PROGRESS 중 가장 높은 sort_order
