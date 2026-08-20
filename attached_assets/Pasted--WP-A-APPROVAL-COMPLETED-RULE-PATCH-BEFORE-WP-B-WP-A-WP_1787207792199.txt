@@ -1,0 +1,185 @@
+# [WP-A APPROVAL + COMPLETED RULE PATCH BEFORE WP-B]
+
+WP-A 보고 확인.
+
+결론:
+WP-A 전체 구조 PASS.
+
+다만 WP-B 연결 전에
+Progress Resolver의 COMPLETED 판정 규칙 1개만 보정한다.
+
+아직 WP-B 시작 금지.
+
+==================================================
+1. 현재 문제
+==================================================
+
+현재 COMPLETED:
+
+TRACKED
++ confidence_avg >= 0.5
++ last_seen > 30일 전
+
+→ 이 규칙은 사용 금지.
+
+이유:
+
+"과거에 반복 기록됐고 최근에 안 나왔다"
+는 사실만으로
+해당 기술을 완료했다고 단정할 수 없다.
+
+수영은 동일 기술 반복 수업이 많으므로
+오래된 반복 기록 ≠ 완료.
+
+==================================================
+2. COMPLETED 신규 원칙
+==================================================
+
+COMPLETED는 강한 완료 근거가 있을 때만 허용.
+
+우선순위:
+
+A. STRUCTURED COMPLETION EVIDENCE
+
+예:
+
+- student_levels의 명시적 level 달성
+- promotion / level achievement
+- curriculum-specific completion marker
+- 명시적 완료/통과 기록
+
+이런 강한 구조적 근거가 있으면
+COMPLETED 가능.
+
+B. EXPLICIT DIARY EVIDENCE
+
+원본 diary/evidence_text에
+명확한 완료/성공/통과 의미가 구조적으로 확인되고,
+mapping confidence가 충분한 경우
+COMPLETED candidate 가능.
+
+단,
+단순 기술 언급이나 반복 수행만으로 완료 금지.
+
+==================================================
+3. TRACKED 처리
+==================================================
+
+TRACKED evidence가 반복되더라도:
+
+최근 반복 중
+→ IN_PROGRESS
+
+과거 반복 기록만 있고
+명시적 완료 근거 없음
+→ NOT_CONFIRMED 또는 내부 historical state로 처리
+
+WP-A public state enum을 유지해야 한다면
+NOT_CONFIRMED 사용.
+
+오래됐다는 이유만으로 COMPLETED 금지.
+
+==================================================
+4. REVIEW
+==================================================
+
+REVIEW는:
+
+과거에 COMPLETED를 뒷받침하는 강한 근거 존재
++
+최근 동일/연결 기술이 다시 등장
+
+일 때만 사용.
+
+단순:
+
+span > 30일
++
+최근 기록 있음
+
+만으로 REVIEW 금지.
+
+==================================================
+5. SINGLE DIARY
+==================================================
+
+기존 규칙 유지:
+
+단일 diary 1회 등장
+→ 자동 COMPLETED 금지
+
+==================================================
+6. NEXT
+==================================================
+
+NEXT는:
+
+가장 높은 확정 progress
++
+curriculum sort_order
+
+기준.
+
+여기서 "확정 progress"에
+잘못된 COMPLETED가 포함되지 않도록 수정.
+
+IN_PROGRESS 다음 항목을 NEXT로 표시할 수 있는지 여부는
+현재 설계대로 유지하되
+"커리큘럼상 다음 단계"임을 분리.
+
+==================================================
+7. TEST
+==================================================
+
+전체 regression 금지.
+
+기존 WP-A test + 아래 최소 case만 추가/수정:
+
+1.
+TRACKED repeated
++ last_seen > 30일
++ 완료 근거 없음
+→ COMPLETED 금지
+
+2.
+student_levels explicit achievement
+→ COMPLETED 가능
+
+3.
+explicit completion evidence
+→ COMPLETED 가능
+
+4.
+past COMPLETED evidence
++ recent repeat
+→ REVIEW
+
+5.
+recent repeated evidence
+→ IN_PROGRESS
+
+6.
+single diary
+→ NOT_CONFIRMED
+
+==================================================
+8. REPORT
+==================================================
+
+[WP-A COMPLETED RULE PATCH REPORT]
+
+- old completed rule removed:
+- structured completion sources:
+- explicit diary completion rule:
+- historical tracked behavior:
+- review rule:
+- next calculation impact:
+- tests added/updated:
+- passed:
+- full regression run: NO
+- Production write: NO
+- WP-A final PASS:
+- WP-B ready:
+
+완료 후 멈춘다.
+WP-B는 아직 시작하지 않는다.
