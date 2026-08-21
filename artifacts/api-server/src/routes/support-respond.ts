@@ -481,6 +481,8 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       user_role:        role,
       provider:         "openai",
       source_app:       "app",
+      trigger_type:     "USER_ACTION",
+      service:          "gpt",
       status:           "SUCCESS",
       generation_mode:  "deterministic",
       model:            null,
@@ -810,6 +812,8 @@ ${evidenceBlock}
     user_role:        role,
     provider:         "openai",
     source_app:       "app",
+    trigger_type:     'USER_ACTION' as const,
+    service:          'gpt',
   };
 
   if (llmError) {

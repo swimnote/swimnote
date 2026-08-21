@@ -543,6 +543,8 @@ router.post("/support/cases/:id/gpt-escalation", requireAuth, async (req: AuthRe
     let totalTokens: number | null = null;
     let groundedAnswerAccepted = false;
     let usedKnowledgeIds: string[] = [];
+    // AI01-03: GPT 호출 latency 타이머 (기존 latency_ms=0 고정 버그 수정)
+    const gptStartMs = Date.now();
 
     if (evidence.length > 0) {
       const evidenceBlock = evidence.map((item) =>
@@ -644,6 +646,8 @@ ${previousConversation}`;
       retrieved_knowledge_ids: evidence.map((item) => item.id),
       knowledge_revisions: Object.fromEntries(evidence.map((item) => [item.id, item.revision])),
       retrieval_scope: `global_or_current_pool:${ctx.poolId ?? "none"}`,
+      trigger_type: "USER_ACTION",
+      service: "gpt",
       status: "SUCCESS",
       generation_mode: groundedAnswerAccepted
         ? "llm_grounded_second_stage"
@@ -656,7 +660,7 @@ ${previousConversation}`;
       total_tokens: totalTokens,
       knowledge_hit_count: evidence.length,
       result_generated: groundedAnswerAccepted,
-      latency_ms: 0,
+      latency_ms: Date.now() - gptStartMs,
     }).catch(() => {});
 
     void logSupportQueryWithOutcome({

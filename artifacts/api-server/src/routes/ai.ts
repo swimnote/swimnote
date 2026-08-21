@@ -602,6 +602,8 @@ router.post(
         user_role:        (req as any).user?.role ?? null,
         result_generated: true,
         provider:         'openai',
+        trigger_type:     'USER_ACTION',
+        service:          'gpt',
         generation_mode:  effectiveMode,
         model:            AI_MODEL.DIARY,
         latency_ms:       elapsedMs,
@@ -642,6 +644,7 @@ router.post(
           feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
           student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
           result_generated: false, provider: 'openai',
+          trigger_type: 'USER_ACTION', service: 'gpt',
           error_stage: 'PROVIDER_CALL', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs,
         }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
         return;
@@ -683,6 +686,7 @@ router.post(
           feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
           student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
           result_generated: false, provider: 'openai',
+          trigger_type: 'USER_ACTION', service: 'gpt',
           error_stage: 'OUTPUT_VALIDATION', error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs,
           model: AI_MODEL.DIARY,
           input_tokens:  (completion as any)?.usage?.prompt_tokens     ?? null,
@@ -722,6 +726,7 @@ router.post(
         feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
         student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
         result_generated: false, provider: 'openai',
+        trigger_type: 'USER_ACTION', service: 'gpt',
         error_stage: 'INTERNAL', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs,
       }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
     }

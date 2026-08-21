@@ -750,6 +750,7 @@ router.post(
           pool_id: poolId, actor_id: parentId, contract_version: '1.0',
           feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
           user_role: 'parent_account', result_generated: false,
+          trigger_type: 'USER_ACTION', service: 'search',
           error_stage: 'CURRICULUM_SEARCH', error_code: errorCode,
           latency_ms: Date.now() - pcEngineStartMs,
         }).catch(() => {});
@@ -765,6 +766,7 @@ router.post(
         pool_id: poolId, actor_id: parentId, contract_version: '1.0',
         feature: AI_FEATURE.PARENT_CURRICULUM_AI, pool_mode: poolMode,
         user_role: 'parent_account', result_generated: false,
+        trigger_type: 'USER_ACTION', service: 'search',
         error_stage: 'CURRICULUM_SEARCH', error_code: 'ENGINE_UNKNOWN_ERROR',
         latency_ms: Date.now() - pcEngineStartMs,
       }).catch(() => {});
@@ -866,6 +868,8 @@ router.post(
       pool_mode:        poolMode,
       user_role:        'parent_account',
       result_generated: true,
+      trigger_type:     'USER_ACTION',
+      service:          'search',
       generation_mode:  engineMode,
       model:            (engineResponse.meta as any)?.model ?? null,
       latency_ms:       (engineResponse.meta as any)?.latency_ms ?? (Date.now() - pcEngineStartMs),

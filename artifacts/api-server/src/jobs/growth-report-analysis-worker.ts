@@ -227,6 +227,7 @@ async function analyzeOneReport(
       pool_id: report.swimming_pool_id, contract_version: '1.0',
       feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
       sub_feature: stage, result_generated: false,
+      trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
       error_stage: 'ENGINE_CALL', error_code: errorCode,
       latency_ms: Date.now() - grEngineStartMs,
     }).catch(() => {});
@@ -280,6 +281,8 @@ async function analyzeOneReport(
     pool_mode:        null,
     sub_feature:      stage,
     result_generated: true,
+    trigger_type:     'SYSTEM_MAINTENANCE',
+    service:          'analysis',
     generation_mode:  'engine_call',
     model:            null,           // 외부 엔진 — model 정보 미노출
     latency_ms:       Date.now() - grEngineStartMs,

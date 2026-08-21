@@ -439,6 +439,91 @@ describe('WP10 — buildTraceMetadata', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AI01-03 TCs — Callsite Classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-03 — Callsite Classification', () => {
+  const BASE_SUCCESS = {
+    status:           'SUCCESS' as const,
+    request_id:       'req-03-001',
+    internal_id:      'int-03-001',
+    pool_id:          'pool_test_001',
+    contract_version: '1.0',
+    feature:          'teacher_diary',
+    pool_mode:        'normal',
+    generation_mode:  'TEMPLATE_ASSISTED',
+    model:            'gpt-4o-mini',
+    latency_ms:       1200,
+    input_tokens:     800,
+    output_tokens:    300,
+    total_tokens:     1100,
+  } as const;
+
+  // TC1: Diary trace → trigger_type=USER_ACTION, service=gpt
+  it('TC1. Diary trace: trigger_type=USER_ACTION, service=gpt', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('gpt');
+  });
+
+  // TC2: Support trace → trigger_type=USER_ACTION, service=gpt
+  it('TC2. Support trace: trigger_type=USER_ACTION, service=gpt', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'support_ai',
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('gpt');
+  });
+
+  // TC3: Parent Curriculum trace → trigger_type=USER_ACTION, service=search
+  it('TC3. Parent Curriculum trace: trigger_type=USER_ACTION, service=search', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'parent_curriculum_ai',
+      trigger_type: 'USER_ACTION',
+      service:      'search',
+      model:        null,
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('search');
+  });
+
+  // TC4: Growth Worker trace → trigger_type=SYSTEM_MAINTENANCE, service=analysis
+  it('TC4. Growth Worker trace: trigger_type=SYSTEM_MAINTENANCE, service=analysis', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'growth_report_ai',
+      trigger_type: 'SYSTEM_MAINTENANCE',
+      service:      'analysis',
+      model:        null,
+    });
+    expect(meta.trigger_type).toBe('SYSTEM_MAINTENANCE');
+    expect(meta.service).toBe('analysis');
+  });
+
+  // TC5: latency_ms는 number타입이어야 함 (0 고정 버그 수정 구조 확인)
+  it('TC5. latency_ms stored as-is (not hardcoded 0)', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+      latency_ms:   350,
+    });
+    expect(meta.latency_ms).toBe(350);
+    // 0이 전달돼도 저장되지만, 실제 timer 값이 들어오면 정상 반영됨
+    const metaZero = buildTraceMetadata({ ...BASE_SUCCESS, trigger_type: 'USER_ACTION', service: 'gpt', latency_ms: 0 });
+    expect(typeof metaZero.latency_ms).toBe('number');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // saveAiTrace (DB 호출 확인)
 // ─────────────────────────────────────────────────────────────────────────────
 
