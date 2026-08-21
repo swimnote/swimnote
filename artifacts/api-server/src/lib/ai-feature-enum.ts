@@ -27,6 +27,8 @@ export const AI_FEATURE = {
   AI_SEARCH: "ai_search",
   /** 리포트 요약 (향후) */
   REPORT_SUMMARY: "report_summary",
+  /** Whisper STT 음성 전사 */
+  STT: "stt",
   /** 기타 */
   OTHER: "other",
 } as const;
@@ -48,6 +50,7 @@ export const AI_FEATURE_LABEL: Record<AiFeature, string> = {
   video_analysis:            "영상 분석",
   ai_search:                 "AI 검색",
   report_summary:            "리포트 요약",
+  stt:                       "Whisper STT",
   other:                     "기타",
 };
 

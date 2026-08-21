@@ -123,6 +123,34 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
     console.log(`[AI/whisper:${internalId}] 완료 elapsed=${elapsedMs}ms len=${transcript.length}chars`);
 
     res.json({ request_id: internalId, transcript });
+
+    // AI01-04: Whisper usage trace (best-effort — 응답 이후 비동기)
+    void saveAiTrace({
+      status:                'SUCCESS',
+      request_id:            internalId,
+      internal_id:           internalId,
+      pool_id:               (req as any).user?.poolId ?? '',
+      actor_id:              (req as any).user?.id,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.STT,
+      pool_mode:             null,
+      provider:              'openai',
+      trigger_type:          'USER_ACTION',
+      service:               'whisper',
+      cost_source:           'UNKNOWN',
+      generation_mode:       'stt',
+      model:                 AI_MODEL.STT,
+      latency_ms:            elapsedMs,
+      input_tokens:          null,
+      output_tokens:         null,
+      total_tokens:          null,
+      audio_seconds:         null,    // client duration_ms 미전송 → 추정 금지
+      logical_request_count: 1,
+      actual_call_count:     1,
+      retry_count:           0,
+      result_generated:      true,
+    }).catch((err) => console.error('[AI/whisper] trace save error:', err?.message));
+
   } catch (e: any) {
     const elapsedMs = Date.now() - startMs;
     const safeMsg   = String(e?.message ?? 'Whisper API 호출 실패').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
@@ -132,6 +160,28 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
       request_id: internalId,
       error: { code: e?.code ?? 'WHISPER_ERROR', message: safeMsg, retryable },
     });
+
+    // AI01-04: Whisper 실패 trace — provider 호출 후 실패이므로 actual_call_count=1
+    void saveAiTrace({
+      status:                'FAILED',
+      request_id:            internalId,
+      internal_id:           internalId,
+      pool_id:               (req as any).user?.poolId ?? '',
+      actor_id:              (req as any).user?.id,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.STT,
+      pool_mode:             null,
+      provider:              'openai',
+      trigger_type:          'USER_ACTION',
+      service:               'whisper',
+      cost_source:           'UNKNOWN',
+      error_stage:           'PROVIDER_CALL',
+      error_code:            e?.code ?? 'WHISPER_ERROR',
+      latency_ms:            elapsedMs,
+      audio_seconds:         null,
+      actual_call_count:     1,
+      retry_count:           0,
+    }).catch((traceErr) => console.error('[AI/whisper] fail-trace save error:', traceErr?.message));
   }
 }
 

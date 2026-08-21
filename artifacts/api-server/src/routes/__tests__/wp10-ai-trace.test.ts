@@ -524,6 +524,115 @@ describe('AI01-03 — Callsite Classification', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AI01-04 TCs — Whisper Usage Trace
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-04 — Whisper Usage Trace', () => {
+  const WHISPER_SUCCESS_BASE = {
+    status:           'SUCCESS' as const,
+    request_id:       'whisper-req-001',
+    internal_id:      'whisper-int-001',
+    pool_id:          'pool_test_001',
+    contract_version: '1.0',
+    feature:          'stt',
+    pool_mode:        null,
+    provider:         'openai',
+    trigger_type:     'USER_ACTION'  as const,
+    service:          'whisper',
+    cost_source:      'UNKNOWN'      as const,
+    generation_mode:  'stt',
+    model:            'whisper-1',
+    latency_ms:       850,
+    input_tokens:     null,
+    output_tokens:    null,
+    total_tokens:     null,
+    audio_seconds:    null,
+    logical_request_count: 1,
+    actual_call_count:     1,
+    retry_count:           0,
+    result_generated: true,
+  } as const;
+
+  // TC1: 성공 trace → provider=openai, service=whisper, trigger_type=USER_ACTION
+  it('TC1. Whisper success: provider=openai, service=whisper, trigger_type=USER_ACTION', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.provider).toBe('openai');
+    expect(meta.service).toBe('whisper');
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.feature).toBe('stt');
+  });
+
+  // TC2: 성공 trace → logical_request_count=1, actual_call_count=1, retry_count=0
+  it('TC2. Whisper success: logical_request_count=1, actual_call_count=1, retry_count=0', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.logical_request_count).toBe(1);
+    expect(meta.actual_call_count).toBe(1);
+    expect(meta.retry_count).toBe(0);
+  });
+
+  // TC3: audio_seconds=null → cost 생성하지 않음, cost_source=UNKNOWN
+  it('TC3. audio_seconds=null → no cost calculated, cost_source=UNKNOWN', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.audio_seconds == null || !('audio_seconds' in meta)).toBe(true);
+    expect(meta.cost_source).toBe('UNKNOWN');
+    // token 없으면 cost 필드 absent
+    expect('cost' in meta).toBe(false);
+  });
+
+  // TC4: provider 호출 후 실패 → FAILED trace에 실제 latency/error 기록
+  it('TC4. Whisper provider failure: FAILED trace with latency and error', () => {
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'whisper-req-fail',
+      internal_id:      'whisper-int-fail',
+      pool_id:          'pool_test_001',
+      contract_version: '1.0',
+      feature:          'stt',
+      pool_mode:        null,
+      provider:         'openai',
+      trigger_type:     'USER_ACTION',
+      service:          'whisper',
+      cost_source:      'UNKNOWN',
+      error_stage:      'PROVIDER_CALL',
+      error_code:       'WHISPER_ERROR',
+      latency_ms:       1200,
+      audio_seconds:    null,
+      actual_call_count: 1,
+      retry_count:       0,
+    });
+    expect(meta.status).toBe('FAILED');
+    expect(meta.error_stage).toBe('PROVIDER_CALL');
+    expect(meta.error_code).toBe('WHISPER_ERROR');
+    expect(meta.latency_ms).toBe(1200);
+    expect(meta.service).toBe('whisper');
+    expect(meta.cost_source).toBe('UNKNOWN');
+  });
+
+  // TC5: validation 실패 (provider 호출 없음) → actual_call_count=1 기록 안 됨
+  it('TC5. Pre-provider validation failure: no actual_call_count=1 assertion', () => {
+    // validation 실패 시 saveAiTrace 자체를 호출하지 않으므로,
+    // 만약 호출된다면 actual_call_count가 전달되지 않아야 함 (absent or 0)
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'whisper-req-val',
+      internal_id:      'whisper-int-val',
+      pool_id:          'pool_test_001',
+      contract_version: '1.0',
+      feature:          'stt',
+      pool_mode:        null,
+      trigger_type:     'USER_ACTION',
+      service:          'whisper',
+      error_stage:      'UNKNOWN',
+      error_code:       'NO_FILE',
+      latency_ms:       5,
+      // actual_call_count 전달 안 함 (validation 실패 = provider 미호출)
+    });
+    // actual_call_count가 absent 이거나 0이어야 함
+    expect(meta.actual_call_count == null || meta.actual_call_count === 0).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // saveAiTrace (DB 호출 확인)
 // ─────────────────────────────────────────────────────────────────────────────
 
