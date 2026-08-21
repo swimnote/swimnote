@@ -1,0 +1,178 @@
+[WP-SUPPORT-NANO-04 — FINAL PRODUCTION CLOSE]
+
+목적:
+Support Nano의 마지막 observability 수정사항을
+Render production에 반영하고 실제 Nano 1건 trace로 확인한다.
+
+이번 Step 완료 시:
+SUPPORT NANO WP를 완전히 종료한다.
+
+──────────────────────────────────
+0. 크레딧 절약
+
+전체 repo 조사 금지.
+코드 수정 금지.
+새 기능 구현 금지.
+전체 regression 금지.
+
+──────────────────────────────────
+1. Git 상태 최소 확인
+
+현재 deploy-photo-clone의:
+
+LOCAL_HEAD
+origin/deploy-photo-clone HEAD
+
+확인.
+
+WP-SUPPORT-NANO-04 SHA:
+18329841cc5b673b6d361b8fa8b6b4e4951d8ef9
+
+현재 HEAD가 이 SHA 이후라면,
+18329841이 ancestor로 포함됐는지만 확인.
+
+명령 예:
+git merge-base --is-ancestor 18329841 HEAD
+
+결과 YES여야 함.
+
+──────────────────────────────────
+2. Remote sync
+
+local HEAD와 origin/deploy-photo-clone가 다를 경우에만
+정상 push:
+
+git push origin deploy-photo-clone
+
+force push 금지.
+rebase 금지.
+merge 금지.
+새 commit 금지.
+
+이미 동일하면 push하지 않는다.
+
+──────────────────────────────────
+3. Render 배포
+
+Replit이 직접 Render deploy 실행하지 않는다.
+
+사용자가 Render에서 최신
+origin/deploy-photo-clone HEAD를 수동 배포할 수 있도록
+배포 대상 SHA만 보고한다.
+
+여기서 STOP하여 사용자 배포 완료를 기다린다.
+
+──────────────────────────────────
+4. 사용자 배포 완료 후 Production Validation
+
+실제 Render deployed SHA가
+보고한 최신 remote HEAD와 동일한지 확인.
+
+health 200 확인.
+
+기존에 Nano path를 실제로 탔던 유형의
+semantic variation 질문 최대 3개만 사용.
+
+목표:
+
+deterministic miss
+→ fallback candidates
+→ Nano 1회
+→ validator
+→ event_logs
+
+Nano 실제 호출 1건만 잡히면 추가 probe 중지.
+
+──────────────────────────────────
+5. 반드시 실제 event_logs read-back
+
+확인:
+
+provider = openai
+service = gpt
+model
+feature = support_ai
+trigger_type = USER_ACTION
+
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+
+input_tokens
+output_tokens
+estimated_cost_usd
+cost_source = TOKEN_PRICING
+
+candidate_knowledge_count
+selected_knowledge_count
+retrieved_knowledge_ids
+
+latency_ms
+request_id
+
+──────────────────────────────────
+6. Selected KI 검증
+
+selected_knowledge_count는
+candidate 20개 전체 수와 구분돼야 함.
+
+retrieved_knowledge_ids에는
+validator 통과 후 Nano가 실제 선택한 KI만 존재해야 함.
+
+모든 selected ID가 candidate subset인지 확인.
+
+──────────────────────────────────
+7. Deterministic 1건
+
+AI 호출 없는 경로에서:
+
+provider = null
+service = internal
+logical_request_count = 0
+actual_call_count = 0
+retry_count = 0
+
+확인.
+
+──────────────────────────────────
+8. 금지
+
+- Support retrieval 수정
+- prompt 수정
+- fallbackMax 수정
+- model 변경
+- KI 수정
+- DB migration
+- Professional Retrieval 작업 시작
+- Curriculum/Diary/Growth 수정
+- full regression
+
+──────────────────────────────────
+9. 완료 보고
+
+[WP-SUPPORT-NANO-04 FINAL PRODUCTION REPORT]
+
+- Result
+- Local HEAD
+- Remote HEAD
+- Deployed SHA
+- health
+- Nano request_id
+- candidate count
+- selected count
+- selected IDs
+- logical_request_count
+- actual_call_count
+- retry_count
+- input/output tokens
+- estimated_cost_usd
+- cost_source
+- deterministic trace 확인
+- Verification Level
+
+모든 항목 정상:
+
+SUPPORT NANO — FULLY PRODUCTION CONFIRMED
+
+STOP.
+다음 WP 선행 금지.
