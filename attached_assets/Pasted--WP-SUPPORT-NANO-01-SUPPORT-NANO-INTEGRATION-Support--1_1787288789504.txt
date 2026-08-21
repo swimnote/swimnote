@@ -1,0 +1,406 @@
+# [WP-SUPPORT-NANO-01 — SUPPORT NANO INTEGRATION]
+
+목적:
+
+현재 Support의 규칙/검색 기반 구조를 유지하면서,
+검색 결과 후보를 저비용 AI가 한 번에 해석·선별·정리하도록 연결한다.
+
+목표는 AI 호출 수를 늘리는 것이 아니라
+**false negative를 줄이고, follow-up 문맥과 의미 변형 대응력을 높이는 것**이다.
+
+이번 Step에서는 Support만 수정한다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 조사 금지.
+
+이미 Support에 관련된 최소 파일만 확인:
+
+* `routes/support-respond.ts`
+* Support retrieval/search helper
+* Support knowledge item 타입/저장 구조
+* AI model config
+* 관련 Support 테스트
+
+전체 regression 금지.
+
+---
+
+# 1. 현재 구조 보존
+
+기존 Support의:
+
+* auth
+* pool/tenant
+* support DB
+* deterministic retrieval
+* hard safety rules
+* response validator
+* fallback policy
+
+를 유지한다.
+
+이번 Step에서 Support 전체를 AI chatbot으로 교체하지 않는다.
+
+---
+
+# 2. Target Pipeline
+
+목표 흐름:
+
+```text
+사용자 질문
++ 최근 대화 2~3턴
+→ Support DB broad retrieval
+→ candidate KI
+→ Nano/저가 모델 1회
+   - 현재 질문 의미 해석
+   - follow-up 연결
+   - 관련 KI 선택
+   - 불필요 KI 제거
+   - 여러 KI 필요 시 근거 범위 내 통합
+   - grounded short answer 생성
+→ server validator
+→ 응답
+```
+
+---
+
+# 3. AI 호출 원칙
+
+가능하면 **한 번의 저가 모델 호출**로 끝낸다.
+
+금지:
+
+```text
+질문분석 AI
+→ KI선택 AI
+→ 답변생성 AI
+```
+
+처럼 같은 Support 요청에 AI를 불필요하게 2~3회 연속 호출하는 구조.
+
+목표:
+
+```text
+1 logical support request
+→ 1 AI call
+```
+
+품질상 꼭 필요한 경우가 확인되기 전까지 escalation 추가 금지.
+
+---
+
+# 4. Model Control
+
+모델명 route hardcoding 금지.
+
+AI01-02의 중앙 model config를 사용한다.
+
+Support 전용 key가 이미 있으므로:
+
+```text
+AI_MODEL.SUPPORT
+```
+
+사용.
+
+이번 Step에서 임의로 상위 모델로 변경하지 않는다.
+
+---
+
+# 5. Retrieval
+
+DB 전체를 AI에 보내지 않는다.
+
+금지:
+
+* support_knowledge_items 전체 dump
+* 전체 utterance dump
+
+먼저 기존 deterministic retrieval로 broad candidate를 만든다.
+
+후보 수는 현재 retrieval 구조에서 합리적인 범위를 유지한다.
+
+불필요한 새 vector DB 도입 금지.
+
+---
+
+# 6. Canonical Source
+
+최종 근거 source of truth:
+
+```text
+support_knowledge_items
+```
+
+utterances/facets/keywords는 retrieval aid로만 사용.
+
+AI가 utterance 자체를 최종 사실근거로 취급하지 않는다.
+
+---
+
+# 7. Follow-up Context
+
+최근 2~3턴 정도만 사용한다.
+
+전체 채팅 history dump 금지.
+
+예:
+
+```text
+Q1: 환불은 어떻게 해요?
+Q2: 그럼 기간은?
+```
+
+Q2를 standalone “기간”으로 처리하지 않고
+Q1의 환불 문맥을 이어서 해석할 수 있어야 한다.
+
+---
+
+# 8. Grounding
+
+AI 답변은 선택된 KI 내용 범위 안에서만 생성한다.
+
+AI가:
+
+* SWIMNOTE 정책
+* 환불 규정
+* 수강권 정책
+* 기능 존재 여부
+
+를 새로 만들어내면 안 된다.
+
+관련 근거가 없으면:
+
+```text
+insufficient_knowledge
+```
+
+또는 기존 Support fallback contract 사용.
+
+generic GPT로 몰래 떨어지는 fallback 금지.
+
+---
+
+# 9. Output Contract
+
+가능하면 structured output:
+
+```json
+{
+  "selected_knowledge_ids": [],
+  "answer": "",
+  "confidence": 0,
+  "insufficient_knowledge": false
+}
+```
+
+실제 기존 코드 스타일에 맞춰 최소 변경 가능.
+
+필수는:
+
+* 선택한 KI ID 추적 가능
+* grounded 여부 검증 가능
+* insufficient 분리 가능
+
+---
+
+# 10. Server Validator
+
+AI 응답 후 서버가 최소 검증:
+
+* selected KI가 candidate 목록 안에 존재하는지
+* 없는 KI ID를 만들어내지 않았는지
+* answer가 비어 있지 않은지
+* insufficient 상태와 selected KI 상태가 모순되지 않는지
+
+검증 실패 시 generic GPT success로 처리하지 않는다.
+
+---
+
+# 11. Usage Trace
+
+AI01-01~09에서 만든 기존 trace 구조를 사용한다.
+
+최소:
+
+```text
+provider=openai
+service=gpt
+feature=SUPPORT_AI
+trigger_type=USER_ACTION
+model=AI_MODEL.SUPPORT
+logical_request_count=1
+actual_call_count=실제 호출 기준
+retry_count=실제 retry 기준
+latency_ms
+estimated_cost_usd
+cost_source
+```
+
+새 비용 recorder 만들지 않는다.
+
+---
+
+# 12. 기존 fallback 보호
+
+현재 deterministic support path가
+명확한 단순 질의에서 이미 잘 동작한다면
+무조건 Nano를 거치게 바꾸지 않아도 된다.
+
+단, 기존 구조가 broad retrieval 후 항상 AI를 쓰는 방향으로 이미 정리돼 있다면
+그 흐름을 유지한다.
+
+이번 Step에서 fallback 철학을 새로 설계하지 않는다.
+
+---
+
+# 13. 테스트
+
+전체 regression 금지.
+
+Support 관련 최소 테스트만 실행.
+
+필수 TC:
+
+### TC1
+
+정확한 질문
+→ 관련 KI 선택
+→ grounded answer
+
+### TC2
+
+표현 변형/동의어
+→ 기존 keyword miss 상황에서도 candidate 중 올바른 KI 선택
+
+### TC3
+
+follow-up 질문
+→ 최근 context를 사용해 올바른 KI 유지
+
+### TC4
+
+candidate 여러 개
+→ irrelevant KI 제거
+
+### TC5
+
+candidate에 근거 없음
+→ insufficient/fallback
+→ generic GPT hallucination 없음
+
+### TC6
+
+AI가 candidate 밖 KI ID 반환
+→ validator reject
+
+### TC7
+
+Support 요청 1회
+→ 실제 AI call 1회
+
+### TC8
+
+usage trace
+→ feature/provider/model/actual_call_count 정상
+
+---
+
+# 14. 절대 금지
+
+이번 Step에서:
+
+* Professional AI Engine 수정 금지
+* Parent Curriculum 수정 금지
+* AI Diary 수정 금지
+* Growth Report 수정 금지
+* Support DB 전체 재구축 금지
+* vector DB 신규 도입 금지
+* 상위 모델 escalation 신규 구현 금지
+* 전체 prompt architecture 재작성 금지
+* DB migration 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+Support Nano 최소 연결만 수행한다.
+
+---
+
+# 15. 완료 보고
+
+# [WP-SUPPORT-NANO-01 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. Pipeline
+
+기존 retrieval → candidate → Nano → validator 흐름 설명.
+
+## 5. AI Calls
+
+logical request당 실제 AI call 수.
+
+## 6. Grounding
+
+* candidate KI 수
+* selected KI ID
+* candidate 밖 ID 방어 방식
+* insufficient 처리
+
+## 7. Context
+
+최근 몇 턴을 사용했는지.
+
+## 8. Usage Trace
+
+provider / model / actual call / retry / cost 기록 방식.
+
+## 9. Tests
+
+* command
+* test file
+* PASS
+* FAIL
+
+## 10. Scope Check
+
+다음 미수정 확인:
+
+* Professional Engine
+* Curriculum
+* Diary
+* Growth
+* DB schema
+* deployment
+
+## 11. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# STOP
+
+완료 보고 후 멈춘다.
+
+다음 Support 단계나 Professional Retrieval을 선행하지 않는다.
