@@ -474,6 +474,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // trace (deterministic — no model cost)
+    // provider=null: 실제 LLM 호출 없음 (deterministic only)
     await saveAiTrace({
       request_id:       requestId,
       internal_id:      internalId,
@@ -484,10 +485,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       sub_feature:      "SUPPORT_RESPONSE",
       pool_mode:        mode,
       user_role:        role,
-      provider:         "openai",
+      provider:         undefined,
       source_app:       "app",
       trigger_type:     "USER_ACTION",
-      service:          "gpt",
+      service:          "internal",
       status:           "SUCCESS",
       generation_mode:  "deterministic",
       model:            null,
@@ -646,6 +647,7 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       poolId:              poolId ?? null,
     }).catch(() => {});
 
+    // provider=undefined: 실제 LLM 호출 없음 (no-evidence deterministic fallback)
     await saveAiTrace({
       request_id:       requestId,
       internal_id:      internalId,
@@ -656,10 +658,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
       sub_feature:      "SUPPORT_RESPONSE",
       pool_mode:        mode,
       user_role:        role,
-      provider:         "openai",
+      provider:         undefined,
       source_app:       "app",
       trigger_type:     "USER_ACTION" as const,
-      service:          "gpt",
+      service:          "internal",
       status:           "SUCCESS",
       generation_mode:  "no_evidence",
       model:            null,
