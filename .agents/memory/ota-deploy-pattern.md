@@ -15,12 +15,13 @@ Replit 환경에서 `eas update`는 bash tool 120초 제한 때문에 직접 완
 1. `package.json` dev 스크립트를 더미 포트 + export로 임시 교체:
    ```
    iOS:
-   "dev": "node -e \"require('http').createServer((_,r)=>r.end('building')).listen(process.env.PORT||22317,()=>console.log('dummy port open'))\" & EXPO_NO_TELEMETRY=1 node_modules/.bin/expo export --platform ios --output-dir /tmp/ios-new ; kill %1 2>/dev/null; [기존 expo start 명령]"
+   "dev": "node -e \"require('http').createServer((_,r)=>r.end('building')).listen(process.env.PORT||22317,()=>console.log('dummy port open'))\" & EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_META_APP_ID=2093655621362240 node_modules/.bin/expo export --platform ios --output-dir /tmp/ios-new ; kill %1 2>/dev/null; [기존 expo start 명령]"
 
    Android:
-   "dev": "node -e \"require('http').createServer((_,r)=>r.end('building')).listen(process.env.PORT||22317,()=>console.log('dummy port open'))\" & EXPO_NO_TELEMETRY=1 node_modules/.bin/expo export --platform android --output-dir /tmp/android-new ; kill %1 2>/dev/null; [기존 expo start 명령]"
+   "dev": "node -e \"require('http').createServer((_,r)=>r.end('building')).listen(process.env.PORT||22317,()=>console.log('dummy port open'))\" & EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_META_APP_ID=2093655621362240 node_modules/.bin/expo export --platform android --output-dir /tmp/android-new ; kill %1 2>/dev/null; [기존 expo start 명령]"
    ```
    **핵심**: 더미 HTTP 서버를 즉시 $PORT에 열어 Replit의 60s 포트 체크를 통과시킴.
+   **필수**: EXPO_PUBLIC_META_APP_ID=2093655621362240 반드시 expo export 앞에 명시 — 미주입 시 Instagram Story META_APP_ID가 "" bake-in되어 공유 불가.
 
 2. `restart_workflow` 실행 (30s timeout)
 
