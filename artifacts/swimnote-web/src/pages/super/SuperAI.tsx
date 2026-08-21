@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import GlobalTemplateSets from "@/pages/super/GlobalTemplateSets";
 import GrowthReviewStats from "@/pages/super/GrowthReviewStats";
+import AiCostDashboard from "@/pages/super/AiCostDashboard";
 
 interface AiTrace {
   id: string;
@@ -28,7 +29,7 @@ interface TracesResponse {
   total: number;
 }
 
-type TabKey = "templates" | "growth_stats" | "usage" | "errors";
+type TabKey = "templates" | "growth_stats" | "usage" | "errors" | "ai_cost";
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" });
@@ -180,6 +181,7 @@ export default function SuperAI() {
     { key: "growth_stats", label: "Growth Review Stats" },
     { key: "usage",        label: "AI 사용현황" },
     { key: "errors",       label: "AI 오류" },
+    { key: "ai_cost",      label: "AI 비용" },
   ];
 
   return (
@@ -208,6 +210,7 @@ export default function SuperAI() {
       {tab === "growth_stats" && <GrowthReviewStats />}
       {tab === "usage"        && <UsageTab mode="usage" />}
       {tab === "errors"       && <UsageTab mode="errors" />}
+      {tab === "ai_cost"      && <AiCostDashboard />}
     </div>
   );
 }
