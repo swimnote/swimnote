@@ -1,0 +1,187 @@
+# [AI01-07 FIX — R2 ACTUAL CALL COUNT]
+
+목적:
+
+R2 `actual_call_count`를
+`S3Client.send()` 호출 횟수가 아니라
+실제 provider HTTP attempt 기준으로 기록한다.
+
+AI01-07 전체를 다시 작업하지 않는다.
+
+---
+
+# 0. 범위
+
+현재 AI01-07 변경 파일 중 필요한 부분만 수정:
+
+* `lib/objectStorage.ts`
+* `ai01-07-r2-usage.test.ts`
+
+필요한 경우에만 test helper/mock 최소 수정.
+
+전체 repository 조사 금지.
+전체 regression 금지.
+
+---
+
+# 1. 현재 문제
+
+현재 구현은:
+
+```text
+S3Client.send() 진입
+→ actual_call_count = 1
+```
+
+로 간주한다.
+
+하지만 SDK가:
+
+* credentials resolution
+* local config
+* request serialization
+
+등 HTTP 전송 이전 단계에서 실패할 수 있으므로
+실제 Cloudflare R2 operation과 동일하다고 보장할 수 없다.
+
+---
+
+# 2. 수정 원칙
+
+`actual_call_count`는 가능한 범위에서
+**실제 HTTP request attempt**를 기준으로 한다.
+
+가장 작은 구현으로 처리한다.
+
+AWS SDK middleware stack에서
+실제 request transmission 직전/전송 단계가 확인 가능하면
+그 지점에서 counter를 증가시킨다.
+
+예:
+
+```text
+HTTP request attempt 시작
+→ actual_call_count += 1
+```
+
+단순히 `client.send()` 직전에 증가시키지 않는다.
+
+---
+
+# 3. HTTP attempt를 신뢰성 있게 계측할 수 없는 경우
+
+현재 wrapper 구조에서
+실제 transport attempt를 안전하게 확인하는 것이 과도하게 복잡하면
+억지 middleware framework를 만들지 않는다.
+
+그 경우:
+
+* 명확한 성공 응답 → actual_call_count=1
+* 명확하게 HTTP 응답을 받은 provider error → actual_call_count=1
+* HTTP 전송 여부를 판별할 수 없는 SDK/local error → actual_call_count=null 또는 metadata absent
+
+처럼 **UNKNOWN 상태**로 둔다.
+
+절대:
+
+```text
+모르지만 1로 기록
+```
+
+하지 않는다.
+
+현재 타입에서 null을 허용하지 않는다면
+최소한 해당 event에서 `actual_call_count` 필드를 omit한다.
+
+---
+
+# 4. 테스트 수정
+
+필수:
+
+### TC1
+
+R2 성공
+→ actual_call_count=1
+
+### TC2
+
+실제 HTTP provider response/error가 확인된 실패
+→ actual_call_count=1
+
+### TC3
+
+credentials/local config 등
+HTTP request 전송 이전 실패
+
+→ `actual_call_count=1`로 기록하지 않음
+
+즉:
+
+```text
+0 또는 absent/unknown
+```
+
+중 실제 구현 contract에 맞게 검증.
+
+기존 PUT/GET/DELETE/bytes 테스트는
+관련 없는 부분 다시 만들지 않는다.
+
+---
+
+# 5. 금지
+
+* R2 architecture 변경 금지
+* AWS SDK 대규모 wrapper 생성 금지
+* SMS 수정 금지
+* AI 수정 금지
+* Dashboard 수정 금지
+* pricing 수정 금지
+* DB schema 변경 금지
+* deployment 금지
+* full regression 금지
+
+---
+
+# 6. 완료 보고
+
+# [AI01-07 FIX REPORT]
+
+## Result
+
+PASS / FAIL
+
+## Commit
+
+* Before SHA
+* After SHA
+* Commit message
+
+## Changed Files
+
+## actual_call_count Rule
+
+아래 3개를 각각 보고:
+
+* success
+* confirmed HTTP/provider failure
+* pre-HTTP/local SDK failure
+
+## Tests
+
+* command
+* PASS
+* FAIL
+
+## Verification
+
+UNIT TEST CONFIRMED
+PRODUCTION CONFIRMED 아님
+
+---
+
+# STOP
+
+수정 완료 후 멈춘다.
+
+AI01-08 선행 금지.
