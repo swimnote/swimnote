@@ -15,6 +15,11 @@ import { sendSensSmS }  from "./providers/sens.js";
 import { sendCoolSms }  from "./providers/coolsms.js";
 import { sendAligoSms } from "./providers/aligo.js";
 import { sendDevSms }   from "./providers/dev.js";
+import {
+  saveExternalUsage,
+  EXTERNAL_USAGE_CATEGORY,
+  type ExternalTriggerType,
+} from "../external-usage-service.js";
 
 export type SmsProvider = "dev" | "sens" | "coolsms" | "aligo";
 
@@ -105,29 +110,83 @@ export function sendDevVerification({
 }
 
 /**
+ * AI01-06: Optional usage tracking metadata for sendSms().
+ * Callers that don't pass this get best-effort recording with defaults.
+ */
+export interface SmsUsageMeta {
+  /** pool_id for event_logs correlation (empty string if unknown) */
+  poolId?:      string;
+  /** request_id for cross-system tracing */
+  requestId?:   string;
+  /** actor_id (user or system) */
+  actorId?:     string | null;
+  /** USER_ACTION (default) | SYSTEM_MAINTENANCE */
+  triggerType?: ExternalTriggerType;
+}
+
+/**
  * 실제 SMS 발송 (sens/coolsms/aligo provider 전용)
  *
  * dev provider는 이 함수를 사용하지 않음.
  * auth.ts 에서 provider 종류에 따라 분기함.
+ *
+ * AI01-06: _usage 파라미터 추가 (optional, 기존 callers 영향 없음).
+ * SMS 본 동작 성공/실패와 무관하게 usage는 best-effort 기록.
  */
 export async function sendSms({
   phone,
   message,
+  _usage,
 }: {
   phone: string;
   message: string;
+  /** Optional: AI01-06 usage tracking metadata. Existing callers need not pass this. */
+  _usage?: SmsUsageMeta;
 }): Promise<void> {
   const provider = getActiveProvider();
 
   if (!provider || provider === "dev") {
+    // Validation failure — no HTTP request sent, no usage event
     throw new Error("sendSms()는 실제 SMS provider(sens/coolsms/aligo)에서만 사용합니다.");
   }
 
-  const from = process.env.NAVER_SENS_SENDER_PHONE ?? process.env.SMS_SENDER_PHONE ?? "";
+  const from     = process.env.NAVER_SENS_SENDER_PHONE ?? process.env.SMS_SENDER_PHONE ?? "";
+  const startMs  = Date.now();
+  let   success  = false;
+  let   errorType: string | undefined;
 
-  switch (provider) {
-    case "sens":     return sendSensSmS({ phone, message });
-    case "coolsms":  return sendCoolSms({ phone, message, from });
-    case "aligo":    return sendAligoSms({ phone, message, from });
+  try {
+    switch (provider) {
+      case "sens":     await sendSensSmS({ phone, message }); break;
+      case "coolsms":  await sendCoolSms({ phone, message, from }); break;
+      case "aligo":    await sendAligoSms({ phone, message, from }); break;
+    }
+    success = true;
+  } catch (smsErr) {
+    errorType = (smsErr instanceof Error) ? smsErr.message.slice(0, 120) : String(smsErr);
+    throw smsErr; // re-throw so caller retains original error handling
+  } finally {
+    // AI01-06: best-effort usage recording (never blocks or throws to caller)
+    const latencyMs = Date.now() - startMs;
+    void saveExternalUsage({
+      provider:              provider,
+      service:               "sms_send",
+      feature:               EXTERNAL_USAGE_CATEGORY.SMS,
+      trigger_type:          _usage?.triggerType ?? "USER_ACTION",
+      pool_id:               _usage?.poolId     ?? "",
+      request_id:            _usage?.requestId,
+      actor_id:              _usage?.actorId    ?? null,
+      logical_request_count: 1,
+      actual_call_count:     1,   // HTTP was attempted (validation passed)
+      retry_count:           0,   // no retry in any provider adapter
+      success,
+      ...(errorType != null ? { error_type: errorType } : {}),
+      latency_ms:            latencyMs,
+      estimated_cost_usd:    null,   // no configured unit price
+      cost_source:           "UNKNOWN",
+      units:                 1,      // 1 SMS message
+    }).catch((recErr) =>
+      console.error("[SMS/usage] recording failed:", (recErr as Error)?.message)
+    );
   }
 }
