@@ -17,10 +17,11 @@ import type { AiFeature } from "./ai-feature-enum.js";
 
 /**
  * Non-AI 외부 서비스 category.
- * R2는 AI01-07에서 추가.
+ * AI01-06: SMS  |  AI01-07: R2
  */
 export const EXTERNAL_USAGE_CATEGORY = {
   SMS: "SMS",
+  R2:  "R2",
 } as const;
 
 export type ExternalUsageCategory =
@@ -80,8 +81,12 @@ export interface ExternalUsageParams {
   /** CONFIGURED_UNIT_PRICE | UNKNOWN */
   cost_source: ExternalCostSource;
 
-  /** 서비스별 단위 (예: SMS 건수) */
-  units?: number | null;
+  /** 서비스별 단위.
+   * SMS: number (건수)
+   * R2:  { bytes: number } (payload 크기)
+   * 알 수 없으면 null/absent.
+   */
+  units?: number | Record<string, unknown> | null;
   /** 추가 메타데이터 */
   metadata?: Record<string, unknown>;
 }
