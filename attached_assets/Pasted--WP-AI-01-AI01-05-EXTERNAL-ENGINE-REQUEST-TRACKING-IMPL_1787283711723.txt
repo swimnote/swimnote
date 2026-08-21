@@ -1,0 +1,400 @@
+# [WP-AI-01 / AI01-05 — EXTERNAL ENGINE REQUEST TRACKING IMPLEMENTATION]
+
+목적:
+
+Parent Curriculum Engine과 Growth Report Engine 호출을
+동일 `request_id`로 추적할 수 있게 하고,
+
+logical request / actual provider call / retry를
+실제 호출 기준으로 구분한다.
+
+이번 Step에서는 외부 Engine request tracking만 처리한다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 조사 금지.
+
+이미 확인된 파일만 사용:
+
+* `lib/parent-curriculum-engine-client.ts`
+* `routes/parent-curriculum.ts`
+* `lib/growth-report-engine-client.ts`
+* `jobs/growth-report-analysis-worker.ts`
+* 관련 기존 test file
+
+위 파일 안에서 실제 engine 호출부만 확인한다.
+
+전체 regression 금지.
+
+---
+
+# 1. request_id 전파
+
+다음 두 경로에서 기존 logical request_id를 외부 Engine으로 전달한다.
+
+## Curriculum
+
+```text
+routes/parent-curriculum.ts
+→ parent-curriculum-engine-client.ts
+→ external Curriculum Engine
+```
+
+## Growth
+
+```text
+growth-report-analysis-worker.ts
+→ growth-report-engine-client.ts
+→ external Growth Engine
+```
+
+가능하면 HTTP header:
+
+```text
+X-Request-Id: <request_id>
+```
+
+사용.
+
+이미 엔진 contract에 request_id body field가 있으면
+기존 contract를 우선하고 중복 필드를 불필요하게 만들지 않는다.
+
+---
+
+# 2. request_id 생성 금지 원칙
+
+기존 logical request_id가 이미 존재하면
+engine client에서 새 ID를 생성하지 않는다.
+
+목표:
+
+```text
+API/Worker request_id
+→ Engine request
+→ Usage trace
+```
+
+동일 ID 유지.
+
+Growth Worker에서 기존에 사용할 request identifier가 있다면 그것을 재사용.
+
+새로운 ID 체계를 만들지 않는다.
+
+---
+
+# 3. Curriculum Call Count
+
+Curriculum Engine 호출에서 실제 retry가 어디에서 발생하는지만
+해당 파일 범위 내에서 확인한다.
+
+추측 금지.
+
+실제 HTTP attempt가:
+
+1회면:
+
+```text
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+```
+
+예를 들어 최초 호출 + retry 1회면:
+
+```text
+logical_request_count = 1
+actual_call_count = 2
+retry_count = 1
+```
+
+실제 HTTP request attempt 기준으로 계산.
+
+`retryable=true`라는 응답 플래그만 보고 retry_count를 증가시키지 않는다.
+
+---
+
+# 4. Growth Call Count
+
+매우 중요.
+
+기존:
+
+`analysis_retry_count`
+
+가 실제 HTTP attempt retry와 동일한 의미인지
+해당 worker/client 코드 범위에서만 확인한다.
+
+동일하지 않다면:
+
+```text
+actual_call_count = analysis_retry_count + 1
+```
+
+방식 사용 금지.
+
+actual_call_count는 반드시
+이번 logical request에서 실제 Engine HTTP 요청이 몇 번 전송됐는지 기준.
+
+가능하면 engine client가 실제 attempt 수를 반환하도록
+최소 변경한다.
+
+예:
+
+```ts
+{
+  response,
+  actualCallCount,
+  retryCount
+}
+```
+
+기존 반환 contract를 크게 깨뜨리지 않는 최소 방식 사용.
+
+---
+
+# 5. Usage Trace 연결
+
+기존 saveAiTrace에 다음 값을 실제 호출 기준으로 넣는다.
+
+## Curriculum
+
+```text
+provider = curriculum_engine
+service = search
+trigger_type = USER_ACTION
+request_id = 기존 APP/API logical request_id
+
+logical_request_count = 1
+actual_call_count = 실제 HTTP attempt 수
+retry_count = 실제 retry 수
+
+estimated_cost_usd = null
+cost_source = UNKNOWN
+```
+
+## Growth
+
+```text
+provider = growth_engine
+service = analysis
+trigger_type = SYSTEM_MAINTENANCE
+request_id = 기존 worker logical request_id
+
+logical_request_count = 1
+actual_call_count = 실제 HTTP attempt 수
+retry_count = 실제 retry 수
+
+estimated_cost_usd = null
+cost_source = UNKNOWN
+```
+
+외부 Engine 내부 비용은 APP에서 추정하지 않는다.
+
+---
+
+# 6. Engine Echo-back
+
+외부 Engine이 `request_id`를 응답에 다시 반환하는지는
+현재 UNKNOWN일 수 있다.
+
+이번 Step에서는:
+
+* APP → Engine 전달 성공
+* APP usage trace에 동일 request_id 기록
+
+까지만 보장하면 된다.
+
+외부 Engine 내부 trace까지 확인하려고
+별도 Engine repository 조사 금지.
+
+Professional AI Engine 조사도 이번 Step 범위 아님.
+
+---
+
+# 7. 실패 처리
+
+Engine 호출 실패 시에도
+실제 HTTP attempt가 발생했다면 actual_call_count에 포함한다.
+
+예:
+
+```text
+첫 호출 timeout
+retry 성공
+
+actual_call_count = 2
+retry_count = 1
+```
+
+validation/config 오류 등으로
+HTTP 요청 자체가 전송되지 않았다면
+provider actual call로 세지 않는다.
+
+---
+
+# 8. 기존 동작 보호
+
+수정 금지:
+
+* Engine URL
+* Engine secret
+* request payload 의미
+* response parser
+* quota
+* curriculum result logic
+* Growth Report 상태 전이
+* worker schedule
+* batch size
+* feature flag
+* external Engine 내부 구현
+
+이번 Step은 request tracking과 실제 call count만 다룬다.
+
+---
+
+# 9. 테스트
+
+전체 regression 금지.
+
+관련 client/route/worker 테스트만 실행.
+
+최소 TC:
+
+### TC1
+
+Curriculum Engine HTTP request
+→ 기존 request_id가 Engine request에 전달
+
+### TC2
+
+Growth Engine HTTP request
+→ 기존 request_id가 Engine request에 전달
+
+### TC3
+
+retry 없는 Curriculum call
+→ actual_call_count=1
+→ retry_count=0
+
+### TC4
+
+실제 retry 발생
+→ actual_call_count = 실제 HTTP attempt 수
+→ retry_count = 실제 retry 수
+
+### TC5
+
+Growth의 기존 `analysis_retry_count`가
+actual provider attempt와 다른 경우
+이를 실제 call count로 잘못 사용하지 않음
+
+### TC6
+
+Engine 호출 전 validation/config 실패
+→ actual provider call이 발생한 것처럼 카운트하지 않음
+
+---
+
+# 10. 절대 금지
+
+이번 Step에서:
+
+* Support 수정 금지
+* AI Diary 수정 금지
+* Whisper 수정 금지
+* SMS 수정 금지
+* R2 수정 금지
+* pricing/model config 수정 금지
+* Dashboard 수정 금지
+* Professional Engine 조사 금지
+* Worker cron/batch 수정 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-05만 수행한다.
+
+---
+
+# 11. 완료 보고
+
+# [AI01-05 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. Request ID Propagation
+
+표:
+
+Feature | Source request_id | Engine 전달 방식 | Usage trace request_id
+
+## 5. Actual Call Counting
+
+Curriculum / Growth 각각:
+
+* logical_request_count
+* actual_call_count 산정 방식
+* retry_count 산정 방식
+
+실제 코드 기준 설명.
+
+## 6. Growth Retry Clarification
+
+`analysis_retry_count`가 무엇을 의미하는지
+실제 코드 기준으로:
+
+CONFIRMED / NOT USED FOR PROVIDER CALL COUNT
+
+중 하나로 명확히 보고.
+
+## 7. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 8. Scope Check
+
+다음 미수정 확인:
+
+* Support
+* Diary
+* Whisper
+* SMS
+* R2
+* Dashboard
+* worker schedule/batch
+* DB schema
+* deployment config
+
+## 9. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 12. STOP
+
+AI01-05 완료 보고 후 멈춘다.
+
+AI01-06 이상 선행 금지.
