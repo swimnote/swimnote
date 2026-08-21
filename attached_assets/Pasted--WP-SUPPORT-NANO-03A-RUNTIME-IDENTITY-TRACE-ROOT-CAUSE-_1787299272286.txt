@@ -1,0 +1,182 @@
+# [WP-SUPPORT-NANO-03A — RUNTIME IDENTITY + TRACE ROOT CAUSE]
+
+목적:
+
+Nano 코드를 추가 수정하기 전에 Production에서
+
+1. 실제 실행 중인 commit이 무엇인지
+2. probe request의 saveAiTrace가 왜 event_logs에 없는지
+
+두 가지만 확정한다.
+
+전체 Support/Nano 재조사 금지.
+
+---
+
+# 0. 크레딧 절약
+
+확인 대상만:
+
+* Render 최근 deploy/build log
+* `routes/support-respond.ts`
+* `lib/ai-trace-service.ts`
+* probe request_id의 event_logs 조회
+
+코드 수정 금지.
+
+전체 regression 금지.
+
+---
+
+# 1. 실제 Deploy SHA 확정
+
+Render 최근 Production Deploy의 Build Log에서:
+
+```text
+Cloning...
+commit / checkout SHA
+```
+
+실제 SHA를 확인한다.
+
+사용자 선택 branch나 Git HEAD 추정으로 대신하지 않는다.
+
+반드시 보고:
+
+```text
+EXPECTED_SHA = 5b9a5617
+ACTUAL_RENDER_BUILD_SHA = ...
+MATCH = YES / NO
+```
+
+## SHA가 다르면
+
+원인 확정:
+
+`WRONG/STALE DEPLOYMENT`
+
+으로 보고하고 즉시 STOP.
+
+Nano 코드 조사 금지.
+
+---
+
+# 2. SHA가 5b9a5617과 정확히 같을 때만 다음 진행
+
+새 Support 요청 1건만 실행한다.
+
+질문은 deterministic/no-evidence 어느 쪽이어도 좋다.
+
+반드시 response의 실제 `request_id` 확보.
+
+그 ID로 `event_logs.target` 및 현재 실제 request correlation 저장 위치를 조회한다.
+
+전체 로그 검색 금지.
+
+---
+
+# 3. saveAiTrace 실행 경로 확인
+
+해당 response가 통과한 branch에서 현재 source 기준:
+
+* `saveAiTrace()`가 호출되는지
+* early return이 trace보다 앞에 있는지
+* `void saveAiTrace(...).catch(...)`인지
+* DB write failure가 console에만 남고 삼켜지는지
+
+만 확인한다.
+
+새 로직 작성 금지.
+
+---
+
+# 4. request_id 불일치 확인
+
+다음 세 값 비교:
+
+```text
+HTTP response request_id
+saveAiTrace에 전달된 request_id
+event_logs target/request correlation 값
+```
+
+동일한지 확인한다.
+
+다르면 정확한 mismatch 지점을 보고한다.
+
+---
+
+# 5. DB Write Failure 확인
+
+SHA와 request_id가 모두 맞는데 row가 없다면
+해당 요청 시각의 서버 로그에서:
+
+* saveAiTrace DB error
+* event_logs insert error
+
+관련 오류만 확인한다.
+
+장시간 전체 로그 탐색 금지.
+
+해당 request 시각 ±2분 정도만 확인한다.
+
+---
+
+# 6. 이번 Step에서 Nano probe 금지
+
+이번에는 Nano가 실제 호출되는지 다시 테스트하지 않는다.
+
+먼저 trace 관측 자체가 정상이어야 한다.
+
+---
+
+# 7. 완료 보고
+
+# [WP-SUPPORT-NANO-03A RUNTIME REPORT]
+
+## Result
+
+PASS / ROOT_CAUSE_FOUND / FAIL
+
+## Deployment Identity
+
+* expected SHA
+* actual Render build SHA
+* match
+
+## Probe
+
+* query
+* response request_id
+* source
+* llm_used
+
+## Trace Path
+
+* source branch에서 saveAiTrace 호출 여부
+* saveAiTrace request_id
+* event_logs correlation key
+* DB row 존재 여부
+
+## Root Cause
+
+다음 중 하나로 하나만 판정:
+
+* STALE_DEPLOY
+* REQUEST_ID_MISMATCH
+* EARLY_RETURN_BEFORE_TRACE
+* EVENT_LOG_INSERT_FAILURE
+* OTHER_CONFIRMED_CAUSE
+
+추측 금지.
+
+## Changed Files
+
+NONE
+
+## Verification
+
+READ-ONLY PRODUCTION DIAGNOSIS
+
+STOP.
+코드 수정 및 추가 배포 금지.
