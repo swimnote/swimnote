@@ -60,8 +60,14 @@ export interface ExternalUsageParams {
 
   /** 논리 요청 수 (일반적으로 1) */
   logical_request_count?: number;
-  /** 실제 HTTP 호출 수 (validation 실패 = 0) */
-  actual_call_count: number;
+  /**
+   * 실제 HTTP 호출 수.
+   * - 성공: 1
+   * - 확인된 provider HTTP 응답(4xx/5xx 포함): 1
+   * - HTTP 전송 여부 판별 불가(credentials/config/serialization 실패): absent(undefined)
+   * optional — unknown 상태는 omit한다. 절대 모르지만 1로 기록하지 않음.
+   */
+  actual_call_count?: number;
   /** 재시도 수 (retry 없으면 0) */
   retry_count?: number;
 
@@ -112,7 +118,9 @@ export async function saveExternalUsage(params: ExternalUsageParams): Promise<vo
     success:               params.success,
     latency_ms:            params.latency_ms,
     logical_request_count: params.logical_request_count ?? 1,
-    actual_call_count:     params.actual_call_count,
+    ...(params.actual_call_count != null
+      ? { actual_call_count: params.actual_call_count }
+      : {}),
     retry_count:           params.retry_count ?? 0,
     cost_source:           params.cost_source,
     ...(params.estimated_cost_usd != null

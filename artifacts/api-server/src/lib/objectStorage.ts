@@ -6,6 +6,29 @@ import {
   type ExternalTriggerType,
 } from "./external-usage-service.js";
 
+// ── AI01-07: HTTP attempt detection ───────────────────────────────────────────
+
+/**
+ * Returns 1 if the AWS SDK error has an HTTP status code, meaning the request
+ * was actually transmitted to Cloudflare R2 and a response was received.
+ * Returns undefined when HTTP transmission cannot be confirmed
+ * (credentials resolution, serialization, or local config failures have no
+ * $metadata.httpStatusCode).
+ *
+ * This prevents false actual_call_count=1 for pre-HTTP SDK failures.
+ */
+function confirmedHttpCount(err: unknown): 1 | undefined {
+  if (
+    err != null &&
+    typeof err === "object" &&
+    "$metadata" in err &&
+    (err as any).$metadata?.httpStatusCode != null
+  ) {
+    return 1;
+  }
+  return undefined;
+}
+
 // ── AI01-07: optional usage context passed by callers ─────────────────────────
 
 /**
@@ -68,6 +91,7 @@ export async function uploadToR2(
   // buffer.length is always known — record bytes
   const bytes     = buffer.length;
 
+  let putErr: unknown;
   try {
     const { client, bucket } = getClientAndBucket(type);
     await client.send(new PutObjectCommand({
@@ -79,10 +103,13 @@ export async function uploadToR2(
     success = true;
     return { ok: true };
   } catch (e: any) {
+    putErr    = e;
     errorType = e.message?.slice(0, 120);
     console.error(`[R2 upload] 실패 key=${key} bucket=${type}:`, e.message);
     return { ok: false, error: e.message };
   } finally {
+    // actual_call_count: 1 on success; on failure only if HTTP response confirmed
+    const actualCallCount = success ? 1 : confirmedHttpCount(putErr);
     void saveExternalUsage({
       provider:              "cloudflare_r2",
       service:               "r2_put",
@@ -92,7 +119,7 @@ export async function uploadToR2(
       request_id:            _usage?.requestId,
       actor_id:              _usage?.actorId     ?? null,
       logical_request_count: 1,
-      actual_call_count:     1,
+      actual_call_count:     actualCallCount,
       retry_count:           0,
       success,
       ...(errorType != null ? { error_type: errorType } : {}),
@@ -117,6 +144,7 @@ export async function downloadFromR2(
   let   errorType: string | undefined;
   let   bytes: number | undefined;
 
+  let getErr: unknown;
   try {
     const { client, bucket } = getClientAndBucket(type);
     const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
@@ -129,10 +157,12 @@ export async function downloadFromR2(
     success    = true;
     return { ok: true, data };
   } catch (e: any) {
+    getErr    = e;
     errorType = e.message?.slice(0, 120);
     console.error(`[R2 download] 실패 key=${key} bucket=${type}:`, e.message);
     return { ok: false, error: e.message };
   } finally {
+    const actualCallCount = success ? 1 : confirmedHttpCount(getErr);
     void saveExternalUsage({
       provider:              "cloudflare_r2",
       service:               "r2_get",
@@ -142,7 +172,7 @@ export async function downloadFromR2(
       request_id:            _usage?.requestId,
       actor_id:              _usage?.actorId     ?? null,
       logical_request_count: 1,
-      actual_call_count:     1,
+      actual_call_count:     actualCallCount,
       retry_count:           0,
       success,
       ...(errorType != null ? { error_type: errorType } : {}),
@@ -165,16 +195,19 @@ export async function deleteFromR2(
   const startMs  = Date.now();
   let   success  = false;
   let   errorType: string | undefined;
+  let   delErr: unknown;
 
   try {
     const { client, bucket } = getClientAndBucket(type);
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     success = true;
   } catch (e: any) {
+    delErr    = e;
     errorType = e.message?.slice(0, 120);
     console.error(`[R2 delete] 실패 key=${key}:`, e.message);
     // original behavior: swallow error, return void
   } finally {
+    const actualCallCount = success ? 1 : confirmedHttpCount(delErr);
     void saveExternalUsage({
       provider:              "cloudflare_r2",
       service:               "r2_delete",
@@ -184,7 +217,7 @@ export async function deleteFromR2(
       request_id:            _usage?.requestId,
       actor_id:              _usage?.actorId     ?? null,
       logical_request_count: 1,
-      actual_call_count:     1,
+      actual_call_count:     actualCallCount,
       retry_count:           0,
       success,
       ...(errorType != null ? { error_type: errorType } : {}),

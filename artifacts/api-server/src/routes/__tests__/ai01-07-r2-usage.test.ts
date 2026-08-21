@@ -1,12 +1,17 @@
 /**
- * AI01-07 — R2 Usage Observability
+ * AI01-07 — R2 Usage Observability (FIX: HTTP-based actual_call_count)
+ *
+ * actual_call_count 규칙:
+ *   success                        → 1
+ *   confirmed HTTP/provider error  → 1  ($metadata.httpStatusCode 존재)
+ *   pre-HTTP SDK failure           → absent (field omitted)
  *
  * TC1: R2 PUT 성공 → provider=cloudflare_r2 / service=r2_put / actual_call_count=1
  * TC2: PUT bytes를 실제로 아는 경우 → units.bytes 정확
  * TC3: R2 GET 성공 → service=r2_get / actual_call_count=1
  * TC4: R2 DELETE 성공 → service=r2_delete / actual_call_count=1
- * TC5: provider 호출 후 실패 → success=false / actual_call_count=1
- * TC6: provider 호출 전 config/validation 실패 → actual call 거짓 기록 안 함
+ * TC5: confirmed HTTP provider error → success=false / actual_call_count=1
+ * TC6: pre-HTTP SDK/credentials failure → actual_call_count absent (field not recorded)
  * TC7: 단가 미확정 → estimated_cost_usd=null / cost_source=UNKNOWN
  * TC8: saveExternalUsage 실패 → R2 본 동작 결과 불변
  */
@@ -180,77 +185,64 @@ describe("TC4. R2 DELETE 성공 → service=r2_delete, actual_call_count=1", () 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC5 — provider 호출 후 실패: success=false / actual_call_count=1
+// TC5 — confirmed HTTP provider error: success=false / actual_call_count=1
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("TC5. provider 호출 후 실패 → success=false, actual_call_count=1", () => {
-  it("S3 PUT 실패 시 success=false, error_type 포함, actual_call_count=1", async () => {
-    s3Mock.on(PutObjectCommand).rejects(new Error("S3 network error"));
+describe("TC5. confirmed HTTP provider error → success=false, actual_call_count=1", () => {
+  it("S3 서버가 4xx 응답 시($metadata.httpStatusCode 존재) → actual_call_count=1 기록", async () => {
+    // Simulate a provider error WITH an HTTP status code (e.g. 403 AccessDenied)
+    // aws-sdk-client-mock: use `.rejects()` then attach $metadata manually via Error object
+    const awsErr = Object.assign(new Error("AccessDenied"), {
+      $metadata: { httpStatusCode: 403 },
+    });
+    s3Mock.on(PutObjectCommand).rejects(awsErr);
 
     const { superAdminDb } = await import("@workspace/db");
     const executeMock = vi.mocked(superAdminDb.execute);
     executeMock.mockClear();
 
     const { uploadToR2 } = await import("../../lib/objectStorage.js");
-    const result = await uploadToR2("test/fail.jpg", Buffer.from("x"), "image/jpeg");
+    const result = await uploadToR2("test/fail5.jpg", Buffer.from("x"), "image/jpeg");
     await new Promise((r) => setTimeout(r, 20));
 
-    // original behavior: returns { ok: false } — does NOT throw
+    // original behavior preserved: returns { ok: false }
     expect(result.ok).toBe(false);
 
     expect(executeMock).toHaveBeenCalled();
     const sqlStr = await getLastSqlStr();
     expect(sqlStr).toContain('"success":false');
+    // HTTP was confirmed (403) → actual_call_count=1
     expect(sqlStr).toContain('"actual_call_count":1');
     expect(sqlStr).toContain('"error_type"');
-    expect(sqlStr).toContain("S3 network error");
+    expect(sqlStr).toContain("AccessDenied");
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TC6 — provider 호출 전 validation 실패 → actual call 거짓 기록 안 함
+// TC6 — pre-HTTP SDK failure → actual_call_count absent (not recorded as 1)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("TC6. provider 호출 전 validation 실패 → EXTERNAL_USAGE event 미생성", () => {
-  it("getClientAndBucket 예외 시 (타입 미지원) → saveExternalUsage 미호출", async () => {
+describe("TC6. pre-HTTP SDK/credentials failure → actual_call_count field absent", () => {
+  it("$metadata.httpStatusCode 없는 오류 → actual_call_count 기록 안 됨", async () => {
+    // Simulate a credentials/serialization error WITHOUT $metadata.httpStatusCode
+    const localErr = new Error("CredentialsProviderError: Could not load credentials");
+    // No $metadata attached — mimics local SDK failure before HTTP
+    s3Mock.on(DeleteObjectCommand).rejects(localErr);
+
     const { superAdminDb } = await import("@workspace/db");
     const executeMock = vi.mocked(superAdminDb.execute);
     executeMock.mockClear();
 
-    // getClientAndBucket은 "photo"|"video" 이외 타입 시 fallback으로 photo를 반환하므로
-    // TC6 검증은 env credentials 누락으로 S3Client 자체가 오류를 내는 경우를 모킹
-    // 실제 production에서는 credentials 없으면 API 호출 전에 실패
-    // 여기서는 uploadToR2가 내부에서 validation throw 하는 시나리오를 직접 시뮬레이션:
-    // Buffer 크기 0인 경우는 아직 api 호출로 가므로, 이 TC는
-    // deleteFromR2가 완전히 내부에서 swallow → actual_call_count=1 항상 기록됨을 보여줌
-    // (R2 helper에는 사전 validation 로직이 없으므로)
-    // 대신 saveExternalUsage 자체를 mock 해서 '본 함수는 실제 HTTP 시도 여부와 무관하게
-    // actual_call_count=1 전달'임을 확인 — 이는 §8 spec 조건 충족 (credentials 불량 시
-    // S3Client.send()가 throw → catch에서 errorType 기록 → finally에서 success=false 기록)
-
-    s3Mock.on(DeleteObjectCommand).rejects(new Error("InvalidAccessKeyId"));
-
     const { deleteFromR2 } = await import("../../lib/objectStorage.js");
-    // deleteFromR2 는 오류를 swallow하므로 아무 throw 없이 리턴
-    await deleteFromR2("ghost/key.jpg");
+    // deleteFromR2 swallows errors — should not throw
+    await deleteFromR2("ghost/key6.jpg");
     await new Promise((r) => setTimeout(r, 20));
 
-    // 기록은 1건 존재하지만 success=false
-    // (helper는 HTTP를 시도했으므로 actual_call_count=1이 정확)
-    const callCount = executeMock.mock.calls.filter((call) => {
-      const sqlStr = (call[0] as any)?.queryChunks
-        ?.map((c: any) => (typeof c === "string" ? c : String(c?.value ?? "")))
-        ?.join("") ?? "";
-      return sqlStr.includes("EXTERNAL_USAGE");
-    }).length;
-
-    // SDK error는 send() 내부이므로 실제 HTTP 시도가 있었음 → actual_call_count=1 정상
-    // TC6의 진짜 보장: 임의로 actual_call_count=2 같이 허위 부풀리기 없음
-    expect(callCount).toBe(1);
-
+    expect(executeMock).toHaveBeenCalled();
     const sqlStr = await getLastSqlStr();
-    expect(sqlStr).toContain('"actual_call_count":1');  // 정확히 1 (inflate 없음)
-    expect(sqlStr).not.toContain('"actual_call_count":2');
+    expect(sqlStr).toContain('"success":false');
+    // actual_call_count must be ABSENT — not "1" — because HTTP was not confirmed
+    expect(sqlStr).not.toContain('"actual_call_count"');
   });
 });
 
