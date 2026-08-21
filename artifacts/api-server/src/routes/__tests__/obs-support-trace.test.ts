@@ -37,6 +37,8 @@ import request from "supertest";
 
 const mockRunResolutionChain = vi.hoisted(() => vi.fn());
 const mockGatherEvidence     = vi.hoisted(() => vi.fn());
+const mockNanoResolve        = vi.hoisted(() => vi.fn());
+const mockBuildRecentContext = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const mockCreate             = vi.hoisted(() => vi.fn());
 const traceCalls             = vi.hoisted(() => [] as any[]);   // saveAiTrace calls
 const flushCalls             = vi.hoisted(() => [] as any[]);   // flushSupportTrace calls
@@ -144,6 +146,12 @@ vi.mock("../../lib/support-resolver.js", () => ({
   deriveEvidenceContext: vi.fn().mockReturnValue(null), // no-op in OBS tests
   tokenize:             vi.fn((s: string) => s.split(/\s+/)),
   normalizeQuery:       vi.fn((s: string) => s.toLowerCase().trim()),
+}));
+
+vi.mock("../../lib/support-nano-resolver.js", () => ({
+  nanoResolve:        mockNanoResolve,
+  buildRecentContext: mockBuildRecentContext,
+  validateNanoOutput: vi.fn().mockReturnValue({ ok: true, reason: null }),
 }));
 
 vi.mock("../../lib/ai-trace-service.js", () => ({
@@ -393,11 +401,14 @@ describe("OBS-04: successful deterministic stage sequence", () => {
 // LLM_SKIPPED stage is added with reason=CS26_EXPLICIT_ESCALATION_REQUIRED.
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
-  it("NO_MATCH → 200, case_state=AI_RESPONDED, llm_used=false (CS26)", async () => {
+// OBS-05: WP-SUPPORT-NANO-01 — NO_MATCH + empty evidence path
+// (CS26 removed; gatherEvidence is now called; when evidence=[] → no LLM, AI_RESPONDED, ai_no_match)
+describe("OBS-05: NO_MATCH + no evidence → deterministic AI_RESPONDED, no LLM", () => {
+  it("NO_MATCH + empty evidence → 200, case_state=AI_RESPONDED, llm_used=false", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     const res = await request(app)
@@ -406,17 +417,17 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
       .send(BASE_BODY);
 
     expect(res.status).toBe(200);
-    // CS26: NO_MATCH is AI_RESPONDED, not HUMAN_REQUIRED
     expect(res.body.case_state).toBe("AI_RESPONDED");
     expect(res.body.llm_used).toBe(false);
     expect(res.body.llm_called).toBe(false);
     expect(res.body.requires_human).toBe(false);
   });
 
-  it("NO_MATCH stages contain LLM_SKIPPED with CS26 reason (no LLM_START)", async () => {
+  it("NO_MATCH + empty evidence: LLM_SKIPPED with reason=NO_EVIDENCE (no LLM_START)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)
@@ -430,13 +441,14 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
     expect(stages).not.toContain("LLM_DONE");
 
     const skipped = flushCalls[0].ctx.stages.find((s: any) => s.s === "LLM_SKIPPED");
-    expect(skipped?.reason).toBe("CS26_EXPLICIT_ESCALATION_REQUIRED");
+    expect(skipped?.reason).toBe("NO_EVIDENCE");
   });
 
-  it("NO_MATCH: an AI reply is saved to the DB with role=ai", async () => {
+  it("NO_MATCH + empty evidence: an AI reply is saved to the DB with role=ai", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)
@@ -449,10 +461,11 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
     expect(aiMsg.author_user_id).toBeNull();
   });
 
-  it("NO_MATCH: AI reply message_type is ai_no_match", async () => {
+  it("NO_MATCH + empty evidence: AI reply message_type is ai_no_match", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)
@@ -464,10 +477,11 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
     expect(aiMsg?.message_type).toBe("ai_no_match");
   });
 
-  it("NO_MATCH: OpenAI.create never invoked (CS26 no-auto-LLM)", async () => {
+  it("NO_MATCH + empty evidence: nanoResolve never invoked (no evidence → no Nano)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)
@@ -476,7 +490,9 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
       .send(BASE_BODY);
 
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(mockNanoResolve).not.toHaveBeenCalled();
+    // gatherEvidence IS now called (CS26 removed)
+    expect(mockGatherEvidence).toHaveBeenCalled();
   });
 });
 
@@ -489,15 +505,19 @@ describe("OBS-05: CS26 NO_MATCH stage sequence (AI_RESPONDED, no LLM)", () => {
 // NO_MATCH with evidence still does NOT invoke LLM.
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe("OBS-06: CS26 — NO_MATCH with evidence still does not invoke LLM", () => {
-  it("NO_MATCH + evidence present → LLM still NOT called (CS26 early return)", async () => {
+// OBS-06: WP-SUPPORT-NANO-01 — NO_MATCH + evidence present → Nano IS called
+describe("OBS-06: NO_MATCH + evidence present → Nano called, grounded AI_RESPONDED", () => {
+  it("NO_MATCH + evidence present → nanoResolve called → 200 AI_RESPONDED", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
     });
-    // gatherEvidence would return items but CS26 returns early before calling it
     mockGatherEvidence.mockResolvedValueOnce([
-      { item_type: "FAQ", title: "X모드란", answer: "설명" },
+      { id: "ki_001", item_type: "FAQ", title: "X모드란", answer: "설명", score: 80 },
     ]);
+    mockNanoResolve.mockResolvedValueOnce({
+      output: { selected_knowledge_ids: ["ki_001"], answer: "X모드 설명입니다.", confidence: "HIGH", insufficient_knowledge: false },
+      inputTokens: 100, outputTokens: 50, totalTokens: 150, error: null,
+    });
 
     const app = await makeApp();
     const res = await request(app)
@@ -506,17 +526,23 @@ describe("OBS-06: CS26 — NO_MATCH with evidence still does not invoke LLM", ()
       .send(BASE_BODY);
 
     expect(res.status).toBe(200);
-    // CS26: always AI_RESPONDED, llm_used=false
     expect(res.body.case_state).toBe("AI_RESPONDED");
-    expect(res.body.llm_used).toBe(false);
-    expect(mockCreate).not.toHaveBeenCalled();
-    // gatherEvidence is not called because CS26 returns before reaching that code
-    expect(mockGatherEvidence).not.toHaveBeenCalled();
+    expect(res.body.llm_used).toBe(true);
+    expect(mockCreate).not.toHaveBeenCalled();      // raw OpenAI.create not called (nanoResolve is mocked)
+    expect(mockGatherEvidence).toHaveBeenCalled();  // gatherEvidence IS called (CS26 removed)
+    expect(mockNanoResolve).toHaveBeenCalled();     // Nano IS called when evidence present
   });
 
-  it("stages do NOT contain EVIDENCE_START / LLM_START in CS26 NO_MATCH path", async () => {
+  it("NO_MATCH + evidence → stages contain EVIDENCE_START + LLM_START + LLM_DONE (no LLM_SKIPPED)", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: false,
+    });
+    mockGatherEvidence.mockResolvedValueOnce([
+      { id: "ki_001", item_type: "FAQ", title: "X모드란", answer: "설명", score: 80 },
+    ]);
+    mockNanoResolve.mockResolvedValueOnce({
+      output: { selected_knowledge_ids: ["ki_001"], answer: "X모드 설명입니다.", confidence: "HIGH", insufficient_knowledge: false },
+      inputTokens: 100, outputTokens: 50, totalTokens: 150, error: null,
     });
 
     const app = await makeApp();
@@ -526,11 +552,11 @@ describe("OBS-06: CS26 — NO_MATCH with evidence still does not invoke LLM", ()
       .send(BASE_BODY);
 
     const stages = flushCalls[0].ctx.stages.map((s: any) => s.s) as string[];
-    expect(stages).not.toContain("EVIDENCE_START");
-    expect(stages).not.toContain("EVIDENCE_DONE");
-    expect(stages).not.toContain("LLM_START");
-    expect(stages).not.toContain("LLM_DONE");
-    expect(stages).toContain("LLM_SKIPPED");
+    expect(stages).toContain("EVIDENCE_START");
+    expect(stages).toContain("EVIDENCE_DONE");
+    expect(stages).toContain("LLM_START");
+    expect(stages).toContain("LLM_DONE");
+    expect(stages).not.toContain("LLM_SKIPPED");
   });
 });
 
@@ -844,12 +870,12 @@ describe("OBS-12: full regression (CS26 contract)", () => {
     expect(res.body.case_state).toBe("AI_RESPONDED");
   });
 
-  it("200 + AI_RESPONDED on NO_MATCH (CS26 — no LLM fallback)", async () => {
-    // CS26: NO_MATCH no longer triggers LLM. It returns AI_RESPONDED with
-    // a deterministic fallback message.
+  it("200 + AI_RESPONDED on NO_MATCH + no evidence (no-evidence fallback path)", async () => {
+    // WP-SUPPORT-NANO-01: NO_MATCH + empty evidence → no LLM, AI_RESPONDED, source=NO_MATCH
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     const res = await request(app)
@@ -864,7 +890,7 @@ describe("OBS-12: full regression (CS26 contract)", () => {
     expect(res.body.requires_human).toBe(false);
     // The fallback answer must be present
     expect(res.body.answer).toBeTruthy();
-    // source must be NO_MATCH
+    // source must be NO_MATCH (no-evidence path)
     expect(res.body.source).toBe("NO_MATCH");
   });
 
@@ -962,10 +988,11 @@ describe("OBS-12: full regression (CS26 contract)", () => {
     expect(aiMsg.content).toBe("AI answer text");
   });
 
-  it("AI message stored in repliesStore (role=ai) — NO_MATCH CS26 path", async () => {
+  it("AI message stored in repliesStore (role=ai) — NO_MATCH no-evidence path", async () => {
     mockRunResolutionChain.mockResolvedValueOnce({
       llm_required: true, answer: null, source_type: "NO_MATCH", confidence: null, requires_human: true,
     });
+    mockGatherEvidence.mockResolvedValueOnce([]);
 
     const app = await makeApp();
     await request(app)

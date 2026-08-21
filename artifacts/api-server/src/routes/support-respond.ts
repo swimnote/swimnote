@@ -74,6 +74,11 @@ import {
   nextSupportSequence,
   saveSupportSequence,
 } from "../lib/support-escalation.js";
+import {
+  nanoResolve,
+  buildRecentContext,
+  validateNanoOutput,
+} from "../lib/support-nano-resolver.js";
 
 const router = Router();
 
@@ -550,109 +555,10 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     });
   }
 
-  // ── WP-CS26: no automatic GPT fallback ────────────────────────────────────
-  //
-  // A NO_MATCH must never invoke GPT merely because the deterministic chain did
-  // not answer it. GPT is available only through the explicit case escalation
-  // action after a same-topic 3-turn streak.
-  const noMatchAnswer =
-    "현재 확인 가능한 안내만으로는 이 문의를 정확히 해결하기 어렵습니다. " +
-    "같은 문제가 계속되면 안내된 내용이 해결에 도움이 되었는지 알려주세요.";
-  const noMatchSequence = nextSupportSequence(
-    sc.context_json,
-    buildSupportTopicKey({ normalizedQuery: qLower }),
-    Boolean(sc.ticket_id)
-  );
-
-  const noMatchAiMsgId = genId("rep");
-  try {
-    await insertSupportMessage({
-      msgId: noMatchAiMsgId,
-      caseId,
-      ticketId: sc.ticket_id ?? null,
-      authorId: null,
-      authorName: "AI",
-      role: "ai",
-      msgType: "ai_no_match",
-      content: noMatchAnswer,
-    });
-    await bumpTurnCount(caseId);
-  } catch (err) {
-    console.error("[support/respond] no-match message insert failed:", err);
-    addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
-    void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
-    return res.status(500).json({ error: "AI 메시지 저장 실패", code: "AI_MSG_INSERT_FAILED" });
-  }
-
-  await transitionSupportCase({
-    caseId,
-    toState: "AI_RESPONDED",
-    actorRole: "system",
-    poolId: sc.pool_id ?? poolId,
-    resolutionSource: "NO_MATCH",
-  }).catch(() => {});
-  await saveSupportSequence(caseId, noMatchSequence).catch(() => {});
-
-  if (noMatchSequence.inquiry_offered) {
-    void logSupportEvent({
-      eventType: "REPEAT_STREAK_3",
-      caseId,
-      ticketId: sc.ticket_id ?? null,
-      fromState: "AI_RESPONDED",
-      toState: "AI_RESPONDED",
-      actorRole: "system",
-      poolId: sc.pool_id ?? poolId,
-    }).catch(() => {});
-  }
-
-  void logSupportQuery({
-    caseId,
-    normalizedQuery: qLower,
-    representativeQuery: qLower.substring(0, 200),
-    resolutionSource: "NO_MATCH",
-    matchedKnowledgeId: null,
-    matchConfidence: null,
-    llmCalled: false,
-    humanRequested: false,
-    finalCaseState: "AI_RESPONDED",
-    role,
-    mode: resolvedMode,
-    poolId: poolId ?? null,
-  }).catch(() => {});
-
-  addStage(trace, "LLM_SKIPPED", { reason: "CS26_EXPLICIT_ESCALATION_REQUIRED" });
-  addStage(trace, "HTTP_RESPONSE", {
-    http_status: 200,
-    success: true,
-    answer_present: true,
-    case_id_present: true,
-    resolution_status: "AI_RESPONDED",
-    resolution_source: "NO_MATCH",
-    llm_called: false,
-  });
-  void flushSupportTrace(trace, {
-    http_status: 200,
-    success: true,
-    answer_present: true,
-    case_id_present: true,
-  });
-
-  return res.json({
-    ok: true,
-    llm_used: false,
-    llm_called: false,
-    source: "NO_MATCH",
-    confidence: 0,
-    answer: noMatchAnswer,
-    case_state: "AI_RESPONDED",
-    requires_human: false,
-    autonomous_support: {
-      same_intent_streak: noMatchSequence.same_intent_streak,
-      inquiry_offered: noMatchSequence.inquiry_offered,
-      gpt_status: noMatchSequence.gpt_status,
-    },
-    meta: { trace: { request_id: requestId, evidence_refs: [] } },
-  });
+  // ── WP-SUPPORT-NANO-01: broad retrieval → Nano AI (or no-evidence fallback) ──
+  // CS26 removed: NO_MATCH now proceeds to broad evidence gathering + single Nano call.
+  // If candidates are empty → deterministic no-evidence reply (no LLM, AI_RESPONDED).
+  // If candidates exist  → Nano resolves in 1 call → grounded answer.
 
   addStage(trace, "EVIDENCE_START");
 
@@ -668,133 +574,170 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     addStage(trace, "EVIDENCE_DONE", { evidence_count: 0, fallback: true });
   }
 
-  // llm_used = "실제 provider LLM API를 호출했는가"
-  const llmActuallyCalled = evidence.length > 0;
-
-  const evidenceBlock = evidence.length > 0
-    ? evidence
-        .map((e, i) => `[${i + 1}] ${e.item_type} — ${e.title}\n${e.answer}`)
-        .join("\n\n")
-    : "(사용 가능한 SwimNote 근거 자료 없음)";
-
-  const systemPrompt = `당신은 SwimNote 앱의 AI 고객지원 도우미입니다.
-
-[필수 규칙]
-- 아래 제공된 SwimNote 근거 자료 범위 안에서만 답변합니다.
-- 근거에 없는 메뉴, 정책, 기능, 가격을 창작하거나 추측하지 않습니다.
-- 앱 내 특정 메뉴·버튼 이름(예: '도움말', '설정 내 메뉴' 등)은 근거 자료에 명시된 경우에만 안내합니다. 근거에 없으면 "담당자 확인이 필요합니다"라고 답하고 requires_human=true로 설정하세요.
-- 환불 실행, 계정 변경, 구독 변경 등의 직접 실행은 하지 않습니다.
-- 개인정보(이름, 전화, 이메일)를 수집하거나 언급하지 않습니다.
-- 근거 자료가 없거나 부족하면 requires_human=true, confidence=LOW로 응답합니다.
-- 답변은 한국어로 작성합니다.
-
-[사용자 역할] ${role}
-[앱 모드] ${mode}
-
-[SwimNote 근거 자료]
-${evidenceBlock}
-
-[응답 JSON 형식]
-{
-  "confidence": "HIGH" | "MEDIUM" | "LOW",
-  "answer": "사용자에게 전달할 한국어 답변",
-  "requires_human": true | false,
-  "suggested_next_action": null | "ASK_CLARIFYING" | "REQUEST_SCREENSHOT" | "REQUIRES_HUMAN"
-}`;
-
-  const userPrompt = rawMessage;
-
-  let llmOutput: {
-    confidence: "HIGH" | "MEDIUM" | "LOW";
-    answer: string;
-    requires_human: boolean;
-    suggested_next_action: string | null;
-  } | null = null;
-
-  let inputTokens:  number | null = null;
-  let outputTokens: number | null = null;
-  let totalTokens:  number | null = null;
-  let llmError: string | null = null;
+  // ── WP-SUPPORT-NANO-01: No-evidence deterministic fallback ──────────────────
+  // No candidates → return AI_RESPONDED with no-match message (no LLM call).
+  // This preserves the core safety property: no fabrication when no grounding exists.
 
   if (evidence.length === 0) {
-    // No evidence → cannot ground → immediate LOW + human CTA
     addStage(trace, "LLM_SKIPPED", { reason: "NO_EVIDENCE" });
-    llmOutput = {
-      confidence: "LOW",
-      answer:
-        "죄송합니다. 현재 이 질문에 대한 정확한 정보를 찾지 못했습니다. 담당자 확인이 필요한 경우 아래 [직접 문의하기] 버튼을 이용해 주세요.",
-      requires_human: true,
-      suggested_next_action: "REQUIRES_HUMAN",
-    };
-  } else {
-    // Call OpenAI
-    addStage(trace, "LLM_START", { model: LLM_MODEL, evidence_count: evidence.length });
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
 
+    const noEvAnswer =
+      "현재 확인 가능한 안내만으로는 이 문의를 정확히 해결하기 어렵습니다. " +
+      "같은 문제가 계속되면 안내된 내용이 해결에 도움이 되었는지 알려주세요.";
+    const noEvSequence = nextSupportSequence(
+      sc.context_json,
+      buildSupportTopicKey({ normalizedQuery: qLower }),
+      Boolean(sc.ticket_id)
+    );
+
+    const noEvMsgId = genId("rep");
     try {
-      const openai     = getOpenAI();
-      const completion = await openai.chat.completions.create(
-        {
-          model:           LLM_MODEL,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user",   content: userPrompt   },
-          ],
-          response_format: { type: "json_object" },
-          temperature:     0.3,
-          max_tokens:      MAX_ANSWER_TOKENS,
-        },
-        { signal: controller.signal }
-      );
-      clearTimeout(timer);
-
-      inputTokens  = completion.usage?.prompt_tokens     ?? null;
-      outputTokens = completion.usage?.completion_tokens ?? null;
-      totalTokens  = completion.usage?.total_tokens      ?? null;
-
-      const raw = completion.choices[0]?.message?.content ?? "{}";
-      let parsed: any;
-      try { parsed = JSON.parse(raw); } catch { parsed = {}; }
-
-      llmOutput = {
-        confidence:           (["HIGH", "MEDIUM", "LOW"].includes(parsed.confidence ?? ""))
-                                ? parsed.confidence as "HIGH" | "MEDIUM" | "LOW"
-                                : "LOW",
-        answer:               typeof parsed.answer === "string" && parsed.answer.trim()
-                                ? parsed.answer.trim()
-                                : "답변을 완료하지 못했습니다. 상담사 연결을 추천드립니다.",
-        requires_human:       parsed.requires_human === true,
-        suggested_next_action: parsed.suggested_next_action ?? null,
-      };
-
-      addStage(trace, "LLM_DONE", {
-        model:         LLM_MODEL,
-        input_tokens:  inputTokens,
-        output_tokens: outputTokens,
-        total_tokens:  totalTokens,
-        confidence:    llmOutput.confidence,
-        requires_human: llmOutput.requires_human,
+      await insertSupportMessage({
+        msgId:      noEvMsgId,
+        caseId,
+        ticketId:   sc.ticket_id ?? null,
+        authorId:   null,
+        authorName: "AI",
+        role:       "ai",
+        msgType:    "ai_no_match",
+        content:    noEvAnswer,
       });
-    } catch (e: any) {
-      clearTimeout(timer);
-      const isTimeout =
-        controller.signal.aborted ||
-        e?.name === "AbortError" ||
-        String(e?.message ?? "").toLowerCase().includes("aborted");
-      llmError = isTimeout ? "TIMEOUT" : "LLM_ERROR";
-      console.error("[support/respond] LLM error:", llmError, e?.message);
-
-      addStage(trace, "LLM_FAIL", { error_code: llmError });
-
-      llmOutput = {
-        confidence:           "LOW",
-        answer:               "일시적인 오류로 자동 답변을 완료하지 못했습니다. 담당자에게 직접 문의하시려면 [직접 문의하기] 버튼을 이용해 주세요.",
-        requires_human:       true,
-        suggested_next_action: "REQUIRES_HUMAN",
-      };
+      await bumpTurnCount(caseId);
+    } catch (err) {
+      console.error("[support/respond] no-evidence message insert failed:", err);
+      addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+      void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
+      return res.status(500).json({ error: "AI 메시지 저장 실패", code: "AI_MSG_INSERT_FAILED" });
     }
+
+    await transitionSupportCase({
+      caseId,
+      toState: "AI_RESPONDED",
+      actorRole: "system",
+      poolId: sc.pool_id ?? poolId,
+      resolutionSource: "NO_MATCH",
+    }).catch(() => {});
+    await saveSupportSequence(caseId, noEvSequence).catch(() => {});
+
+    if (noEvSequence.inquiry_offered) {
+      void logSupportEvent({
+        eventType: "REPEAT_STREAK_3",
+        caseId,
+        ticketId: sc.ticket_id ?? null,
+        fromState: "AI_RESPONDED",
+        toState: "AI_RESPONDED",
+        actorRole: "system",
+        poolId: sc.pool_id ?? poolId,
+      }).catch(() => {});
+    }
+
+    void logSupportQuery({
+      caseId,
+      normalizedQuery:     qLower,
+      representativeQuery: qLower.substring(0, 200),
+      resolutionSource:    "NO_MATCH",
+      matchedKnowledgeId:  null,
+      matchConfidence:     null,
+      llmCalled:           false,
+      humanRequested:      false,
+      finalCaseState:      "AI_RESPONDED",
+      role,
+      mode:                resolvedMode,
+      poolId:              poolId ?? null,
+    }).catch(() => {});
+
+    await saveAiTrace({
+      request_id:       requestId,
+      internal_id:      internalId,
+      pool_id:          poolId ?? "",
+      actor_id:         actorId,
+      contract_version: "CS08R-v1",
+      feature:          AI_FEATURE.SUPPORT_AI,
+      sub_feature:      "SUPPORT_RESPONSE",
+      pool_mode:        mode,
+      user_role:        role,
+      provider:         "openai",
+      source_app:       "app",
+      trigger_type:     "USER_ACTION" as const,
+      service:          "gpt",
+      status:           "SUCCESS",
+      generation_mode:  "no_evidence",
+      model:            null,
+      latency_ms:       Date.now() - traceStartMs,
+      input_tokens:     null,
+      output_tokens:    null,
+      total_tokens:     null,
+      result_generated: false,
+    }).catch(() => {});
+
+    addStage(trace, "HTTP_RESPONSE", {
+      http_status: 200, success: true, answer_present: true,
+      case_id_present: true, resolution_status: "AI_RESPONDED",
+      resolution_source: "NO_MATCH", llm_called: false,
+    });
+    void flushSupportTrace(trace, { http_status: 200, success: true, answer_present: true, case_id_present: true });
+
+    return res.json({
+      ok: true, llm_used: false, llm_called: false,
+      source: "NO_MATCH", confidence: 0, answer: noEvAnswer,
+      case_state: "AI_RESPONDED", requires_human: false,
+      autonomous_support: {
+        same_intent_streak: noEvSequence.same_intent_streak,
+        inquiry_offered:    noEvSequence.inquiry_offered,
+        gpt_status:         noEvSequence.gpt_status,
+      },
+      meta: { trace: { request_id: requestId, evidence_refs: [] } },
+    });
   }
+
+  // ── WP-SUPPORT-NANO-01: Single Nano call for evidence-grounded answer ────────
+  // §3: 1 logical request → 1 AI call.
+  // §7: 최근 2~3턴 context 사용 (전체 dump 금지).
+
+  const recentMsgs = await buildRecentContext(caseId, 3);
+
+  addStage(trace, "LLM_START", { model: LLM_MODEL, evidence_count: evidence.length });
+
+  const nanoResult = await nanoResolve({
+    openai:     getOpenAI(),
+    query:      rawMessage,
+    role,
+    mode:       resolvedMode,
+    candidates: evidence,
+    recentMsgs,
+    model:      LLM_MODEL,
+    timeoutMs:  LLM_TIMEOUT_MS,
+  });
+
+  // §10 server validator: strip fabricated IDs, handle contradiction
+  const candidateIds = new Set(evidence.map((e) => e.id));
+  const validation   = validateNanoOutput(nanoResult.output, candidateIds);
+
+  const llmError      = nanoResult.error;
+  const inputTokens   = nanoResult.inputTokens;
+  const outputTokens  = nanoResult.outputTokens;
+  const totalTokens   = nanoResult.totalTokens;
+  const nanoOut       = nanoResult.output;
+
+  if (llmError) {
+    addStage(trace, "LLM_FAIL", { error_code: llmError });
+  } else {
+    addStage(trace, "LLM_DONE", {
+      model:                   LLM_MODEL,
+      input_tokens:            inputTokens,
+      output_tokens:           outputTokens,
+      total_tokens:            totalTokens,
+      confidence:              nanoOut.confidence,
+      insufficient_knowledge:  nanoOut.insufficient_knowledge,
+      selected_ki_count:       nanoOut.selected_knowledge_ids.length,
+      validator_ok:            validation.ok,
+      validator_reason:        validation.reason ?? null,
+    });
+  }
+
+  // Derive requires_human from Nano output
+  const llmActuallyCalled = true;
+  const requiresHuman = nanoOut.confidence === "LOW" || nanoOut.insufficient_knowledge;
 
   const latencyMs = Date.now() - traceStartMs;
 
@@ -812,8 +755,8 @@ ${evidenceBlock}
     user_role:        role,
     provider:         "openai",
     source_app:       "app",
-    trigger_type:     'USER_ACTION' as const,
-    service:          'gpt',
+    trigger_type:     "USER_ACTION" as const,
+    service:          "gpt",
   };
 
   if (llmError) {
@@ -825,39 +768,24 @@ ${evidenceBlock}
       latency_ms:  latencyMs,
       model:       LLM_MODEL,
     }).catch(() => {});
-  } else if (evidence.length === 0) {
-    // No evidence branch — no OpenAI call; model=null (API was never invoked)
-    await saveAiTrace({
-      ...traceBase,
-      status:          "SUCCESS",
-      generation_mode: "no_evidence",
-      model:           null,
-      latency_ms:      latencyMs,
-      input_tokens:    null,
-      output_tokens:   null,
-      total_tokens:    null,
-      result_generated: false,
-    }).catch(() => {});
   } else {
     await saveAiTrace({
       ...traceBase,
-      status:           "SUCCESS",
-      generation_mode:  "llm_grounded",
-      model:            LLM_MODEL,
-      latency_ms:       latencyMs,
-      input_tokens:     inputTokens,
-      output_tokens:    outputTokens,
-      total_tokens:     totalTokens,
+      status:              "SUCCESS",
+      generation_mode:     "llm_grounded",
+      model:               LLM_MODEL,
+      latency_ms:          latencyMs,
+      input_tokens:        inputTokens,
+      output_tokens:       outputTokens,
+      total_tokens:        totalTokens,
       knowledge_hit_count: evidence.length,
-      result_generated:    llmOutput!.confidence !== "LOW",
+      result_generated:    nanoOut.confidence !== "LOW",
     }).catch(() => {});
   }
 
   // ── AI message store + state transition ──────────────────────────────────
 
-  const toState: string = llmOutput!.confidence === "LOW" || llmOutput!.requires_human
-    ? "HUMAN_REQUIRED"
-    : "AI_RESPONDED";
+  const toState: string = requiresHuman ? "HUMAN_REQUIRED" : "AI_RESPONDED";
 
   // §5 AI message contract
   const aiContractLlm: MessageContract = {
@@ -880,7 +808,7 @@ ${evidenceBlock}
       authorName: "AI",
       role:       "ai",
       msgType:    toState === "HUMAN_REQUIRED" ? "ai_low_confidence" : "ai_llm",
-      content:    llmOutput!.answer,
+      content:    nanoOut.answer,
     });
     await bumpTurnCount(caseId);
     addStage(trace, "AI_MESSAGE_INSERT_OK", { msg_id: aiMsgId, which: "LLM" });
@@ -899,7 +827,6 @@ ${evidenceBlock}
       table:          pgTable,
       error_category: category,
     });
-    // Immediate flush to capture pg error code in DB before HTTP_RESPONSE
     await flushInsertFailStage(trace, err, "LLM");
     addStage(trace, "HTTP_RESPONSE", { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
     void flushSupportTrace(trace, { http_status: 500, success: false, safe_error_code: "AI_MSG_INSERT_FAILED" });
@@ -920,13 +847,9 @@ ${evidenceBlock}
   }).catch(() => {});
   addStage(trace, "FINAL_STATE_OK", { to_state: toState });
 
-  // WP-CS09 §5/6: persist evidence-derived context for LLM grounded path.
-  // Conditions: no error + evidence_count > 0 + HIGH/MEDIUM confidence (not LOW).
-  // Forbidden: no_evidence, provider_failure, LOW confidence, LLM output text mining.
-  // JSONB merge preserves existing session metadata (context_json sub-key pattern).
-  // WP-CS15: origin_request_id 포함 (§19 support case trace); COALESCE로 최초 값만 보존.
+  // WP-CS09 §5/6: persist evidence-derived context (no LLM output mining).
   {
-    const evidenceCtx = (!llmError && evidence.length > 0 && llmOutput!.confidence !== "LOW")
+    const evidenceCtx = (!llmError && nanoOut.confidence !== "LOW")
       ? deriveEvidenceContext(evidence)
       : null;
     void (superAdminDb as any).execute(sql`
@@ -935,13 +858,13 @@ ${evidenceBlock}
         || jsonb_build_object('origin_request_id', ${requestId})
         ${evidenceCtx && (evidenceCtx.entity_key || evidenceCtx.source_id) ? sql`
         || jsonb_build_object('resolution_context', ${JSON.stringify({
-            source_type:     evidenceCtx.source_type,
-            source_id:       evidenceCtx.source_id  ?? null,
-            entity_key:      evidenceCtx.entity_key ?? null,
-            feature:         evidenceCtx.feature    ?? null,
-            category:        evidenceCtx.category   ?? null,
-            evidence_count:  evidence.length,
-            resolved_at:     new Date().toISOString(),
+            source_type:    evidenceCtx.source_type,
+            source_id:      evidenceCtx.source_id  ?? null,
+            entity_key:     evidenceCtx.entity_key ?? null,
+            feature:        evidenceCtx.feature    ?? null,
+            category:       evidenceCtx.category   ?? null,
+            evidence_count: evidence.length,
+            resolved_at:    new Date().toISOString(),
           })}::jsonb)
         ` : sql``}
       WHERE id = ${caseId}
@@ -972,8 +895,9 @@ ${evidenceBlock}
     resolution_source: "LLM",
     llm_called:    llmActuallyCalled,
     llm_used:      llmActuallyCalled,
-    model:         llmActuallyCalled ? LLM_MODEL : null,
+    model:         LLM_MODEL,
     evidence_count: evidence.length,
+    selected_ki_count: nanoOut.selected_knowledge_ids.length,
   });
   void flushSupportTrace(trace, {
     http_status:    200,
@@ -983,20 +907,18 @@ ${evidenceBlock}
   });
 
   // WP-CS15 §3: meta.trace — safe evidence refs only; no answer/title/PII.
-  // buildSafeTraceRef는 ref(id), item_type, status, revision, freshness_state만 포함.
   const { buildSafeTraceRef } = await import("../lib/knowledge-governance.js");
   const llmEvidenceRefs = evidence.map(buildSafeTraceRef);
 
-  // CS24: Query Log + Candidate Engine (fire-and-forget — HTTP response 불지연)
-  // normalized_query만 저장 (raw message/PII 금지)
+  // CS24: Query Log + Candidate Engine (fire-and-forget)
   const cs24Entry = {
     caseId,
     normalizedQuery:     qLower,
     representativeQuery: qLower.substring(0, 200),
     resolutionSource:    "LLM",
-    matchedKnowledgeId:  null,
+    matchedKnowledgeId:  nanoOut.selected_knowledge_ids[0] ?? null,
     matchConfidence:     null,
-    llmCalled:           llmActuallyCalled,
+    llmCalled:           true,
     humanRequested:      toState === "HUMAN_REQUIRED",
     finalCaseState:      toState,
     role,
@@ -1008,14 +930,15 @@ ${evidenceBlock}
 
   return res.json({
     ok:         true,
-    llm_used:   llmActuallyCalled,
-    llm_called: llmActuallyCalled && !llmError,
+    llm_used:   true,
+    llm_called: !llmError,
     source:     "LLM",
-    confidence: llmOutput!.confidence,
-    answer:     llmOutput!.answer,
+    confidence: nanoOut.confidence,
+    answer:     nanoOut.answer,
     case_state: toState,
-    requires_human: llmOutput!.requires_human,
-    suggested_next_action: llmOutput!.suggested_next_action ?? null,
+    requires_human: requiresHuman,
+    insufficient_knowledge: nanoOut.insufficient_knowledge,
+    selected_knowledge_ids: nanoOut.selected_knowledge_ids,
     meta: { trace: { request_id: requestId, evidence_refs: llmEvidenceRefs } },
   });
 });
