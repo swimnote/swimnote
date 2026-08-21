@@ -1,0 +1,254 @@
+[WP-SUPPORT-NANO-03 — CANDIDATE RECALL GATE FIX]
+
+목적:
+
+현재 Nano path가 production에서 사실상 진입하지 못하는 원인을 수정한다.
+
+확정된 원인:
+deterministic miss 이후 gatherEvidence가 TOP-100 후보를 만들더라도
+scoreText > 0 조건을 통과한 KI만 evidence로 반환한다.
+
+따라서 lexical overlap이 없는 semantic variation은:
+candidate=0
+→ nanoResolve SKIPPED
+
+가 되어 Nano 도입 목적을 달성하지 못한다.
+
+이번 Step에서는 candidate recall gate만 수정한다.
+
+──────────────────────────────────
+
+0. 크레딧 절약
+
+전체 repo 조사 금지.
+
+확인 대상:
+- support-respond.ts
+- gatherEvidence 정의 파일
+- support-nano-resolver.ts
+- 관련 Support test
+
+이미 확인된 원인은 재조사하지 않는다.
+
+전체 regression 금지.
+
+──────────────────────────────────
+
+1. 목표 구조
+
+deterministic chain이 해결하지 못한 경우:
+
+query
+→ broad DB retrieval
+→ bounded candidate KI
+→ Nano 1회
+→ selected KI
+→ validator
+→ grounded answer
+
+여기서 lexical score 0이라는 이유만으로
+Nano 이전에 모든 candidate를 버리지 않는다.
+
+──────────────────────────────────
+
+2. 금지
+
+절대 금지:
+
+- support_knowledge_items 1,104개 전체 LLM 전송
+- DB 전체 dump
+- 새 vector DB
+- embedding API 신규 도입
+- regex/facet 규칙 대량 추가
+- threshold 무한 튜닝
+- deterministic chain 약화
+- Nano 2회 이상 호출
+- 상위 모델 escalation
+
+──────────────────────────────────
+
+3. Broad Candidate Fallback
+
+기존 high-confidence lexical candidate가 있으면
+현재 ranking 결과를 그대로 우선 사용한다.
+
+하지만:
+
+scoreText > 0 candidate = 0
+
+인 경우에는 즉시 NO_EVIDENCE로 종료하지 말고
+기존 DB retrieval 결과에서 bounded fallback candidate set을 만든다.
+
+목표 candidate 수:
+최대 15~30 KI.
+
+정확한 수는 현재 KI payload 크기를 보고
+토큰 낭비가 적은 최소값으로 선택.
+
+중요:
+TOP-100 전체를 Nano에 보내지 않는다.
+
+──────────────────────────────────
+
+4. Candidate 내용
+
+Nano에 보내는 각 KI는 필요한 최소 필드만 사용:
+
+- knowledge_id
+- title / short label
+- canonical answer/content의 필요한 부분
+
+불필요한 metadata 전체 전송 금지.
+
+Canonical source는 계속:
+support_knowledge_items
+
+──────────────────────────────────
+
+5. NO_EVIDENCE 의미 변경
+
+NO_EVIDENCE는:
+
+“lexical overlap이 없다”
+
+가 아니라
+
+“bounded broad retrieval 이후에도 Nano가
+관련 KI를 선택하지 못했다”
+
+일 때 최종 확정한다.
+
+즉:
+
+lexical miss ≠ final no evidence
+
+가 되어야 한다.
+
+──────────────────────────────────
+
+6. Nano 1-call 원칙
+
+한 logical Support request에서:
+
+Nano actual call 최대 1회.
+
+Nano가 다음을 한 번에 수행:
+
+- query 의미 해석
+- recent context 해석
+- candidate 관련성 판단
+- selected KI
+- grounded answer
+- insufficient 판단
+
+별도 query classifier AI 추가 금지.
+
+──────────────────────────────────
+
+7. Validator 유지
+
+기존 validator 그대로 유지:
+
+- candidate 밖 KI ID 제거
+- invalid ID 방어
+- insufficient contradiction 처리
+
+Nano가 fallback candidate 중 아무것도 선택하지 못하면:
+
+insufficient_knowledge=true
+→ NO_MATCH / 기존 no-evidence 응답
+
+generic GPT fallback 금지.
+
+──────────────────────────────────
+
+8. 비용 보호
+
+Broad fallback이 생겼다고
+모든 Support 요청에서 Nano를 강제하지 않는다.
+
+기존 deterministic chain이 해결하면:
+Nano 0회.
+
+deterministic miss일 때만:
+Nano 최대 1회.
+
+따라서 일반적인 FAQ는 계속 무료/deterministic 처리.
+
+──────────────────────────────────
+
+9. 테스트
+
+최소 관련 테스트만.
+
+필수 TC:
+
+TC1
+lexical score > 0 candidate 존재
+→ 기존 candidate ranking 유지
+
+TC2
+lexical score 모두 0
+→ 즉시 evidence=0으로 버리지 않음
+→ bounded fallback candidate 생성
+
+TC3
+fallback candidate 수
+→ 설정한 최대치 초과하지 않음
+
+TC4
+semantic variation 질문
+→ candidate > 0
+→ nanoResolve 정확히 1회
+
+TC5
+Nano가 관련 KI 선택
+→ grounded answer
+
+TC6
+Nano가 모두 irrelevant 판단
+→ insufficient=true
+→ NO_MATCH
+→ generic GPT 없음
+
+TC7
+deterministic DIRECT_DB/FRONTEND_MAP 성공
+→ Nano 0회
+
+TC8
+candidate payload
+→ 전체 DB/100개 전송하지 않음
+
+──────────────────────────────────
+
+10. Production Probe
+
+코드 수정 + 최소 테스트 PASS 후
+사용자 승인 없이 Render deploy하지 않는다.
+
+완료 보고 후 STOP.
+
+──────────────────────────────────
+
+11. 완료 보고
+
+[WP-SUPPORT-NANO-03 IMPLEMENTATION REPORT]
+
+- Result
+- Before / After SHA
+- Changed files
+- 기존 scoreText > 0 gate 정확한 위치
+- 수정된 fallback candidate 생성 방식
+- max candidate 수
+- Nano에 전달되는 실제 필드
+- deterministic hit 시 AI call 수
+- semantic miss 시 AI call 수
+- insufficient 처리
+- test command
+- PASS / FAIL
+
+Verification:
+UNIT TEST CONFIRMED
+PRODUCTION CONFIRMED 아님
+
+STOP.
