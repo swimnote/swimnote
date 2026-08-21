@@ -119,6 +119,12 @@ export interface AiTraceSuccess extends AiTraceContext {
    * 기존 cached_tokens와 호환: buildTraceMetadata에서 cached_input_tokens ?? cached_tokens 순으로 읽음.
    */
   cached_input_tokens?:      number | null;
+  /** 비용 계산 결과 (TOKEN_PRICING 기반). 계산 불가 시 null. */
+  estimated_cost_usd?:       number | null;
+  /** Nano/LLM에 전달된 후보 KI 수 (candidate pool 크기). */
+  candidate_knowledge_count?: number;
+  /** Nano가 실제 선택한 KI 수 (candidate subset). */
+  selected_knowledge_count?:  number;
 }
 
 // ── 실패 Trace ────────────────────────────────────────────────────────────────
@@ -223,13 +229,25 @@ export function buildTraceMetadata(params: AiTraceParams): Record<string, unknow
     // X-specific: non-X pool에서는 키 자체 absent (undefined → Object.keys에서 제외)
     if (s.x_template_status      != null) metadata.x_template_status      = s.x_template_status;
     if (s.active_template_set_id != null) metadata.active_template_set_id = s.active_template_set_id;
-    if (costData) metadata.cost = costData;
+    if (costData) {
+      metadata.cost = costData;
+      // estimated_cost_usd: 명시적 값 우선, 없으면 costData에서 채움
+      metadata.estimated_cost_usd = s.estimated_cost_usd ?? costData.total_cost_usd;
+    } else if (s.estimated_cost_usd != null) {
+      metadata.estimated_cost_usd = s.estimated_cost_usd;
+    }
 
     // AI01-01: Usage 계측 신규 필드 (음수 방어 후 저장)
     if (s.retry_count           != null && s.retry_count           >= 0) metadata.retry_count           = s.retry_count;
     if (s.audio_seconds         != null && s.audio_seconds         >= 0) metadata.audio_seconds         = s.audio_seconds;
     if (s.logical_request_count != null && s.logical_request_count >= 0) metadata.logical_request_count = s.logical_request_count;
     if (s.actual_call_count     != null && s.actual_call_count     >= 0) metadata.actual_call_count     = s.actual_call_count;
+
+    // WP-NANO-04: Support Nano candidate/selected KI 구분
+    if (s.candidate_knowledge_count != null && s.candidate_knowledge_count >= 0)
+      metadata.candidate_knowledge_count = s.candidate_knowledge_count;
+    if (s.selected_knowledge_count  != null && s.selected_knowledge_count  >= 0)
+      metadata.selected_knowledge_count  = s.selected_knowledge_count;
   } else {
     const f = params as AiTraceFailed;
     metadata.error_stage = f.error_stage;

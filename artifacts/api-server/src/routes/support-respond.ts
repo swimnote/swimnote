@@ -43,6 +43,7 @@ import { getOpenAI }                        from "./ai.js";
 import { saveAiTrace }                      from "../lib/ai-trace-service.js";
 import { AI_FEATURE, SUPPORT_EVENT_TYPE }   from "../lib/ai-feature-enum.js";
 import { AI_MODEL }                          from "../config/ai-model-config.js";
+import { calculateAiCost }                   from "../config/ai-pricing.js";
 import {
   transitionSupportCase,
   logSupportEvent,
@@ -476,27 +477,30 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     // trace (deterministic — no model cost)
     // provider=null: 실제 LLM 호출 없음 (deterministic only)
     await saveAiTrace({
-      request_id:       requestId,
-      internal_id:      internalId,
-      pool_id:          poolId ?? "",
-      actor_id:         actorId,
-      contract_version: "CS08R-v1",
-      feature:          AI_FEATURE.SUPPORT_AI,
-      sub_feature:      "SUPPORT_RESPONSE",
-      pool_mode:        mode,
-      user_role:        role,
-      provider:         undefined,
-      source_app:       "app",
-      trigger_type:     "USER_ACTION",
-      service:          "internal",
-      status:           "SUCCESS",
-      generation_mode:  "deterministic",
-      model:            null,
-      latency_ms:       Date.now() - traceStartMs,
-      input_tokens:     null,
-      output_tokens:    null,
-      total_tokens:     null,
-      result_generated: true,
+      request_id:           requestId,
+      internal_id:          internalId,
+      pool_id:              poolId ?? "",
+      actor_id:             actorId,
+      contract_version:     "CS08R-v1",
+      feature:              AI_FEATURE.SUPPORT_AI,
+      sub_feature:          "SUPPORT_RESPONSE",
+      pool_mode:            mode,
+      user_role:            role,
+      provider:             undefined,
+      source_app:           "app",
+      trigger_type:         "USER_ACTION",
+      service:              "internal",
+      status:               "SUCCESS",
+      generation_mode:      "deterministic",
+      model:                null,
+      latency_ms:           Date.now() - traceStartMs,
+      input_tokens:         null,
+      output_tokens:        null,
+      total_tokens:         null,
+      result_generated:     true,
+      logical_request_count: 0,
+      actual_call_count:     0,
+      retry_count:           0,
     }).catch(() => {});
 
     // §6 HTTP_RESPONSE — actual status source of truth
@@ -650,27 +654,30 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
     // provider=undefined: 실제 LLM 호출 없음 (no-evidence deterministic fallback)
     await saveAiTrace({
-      request_id:       requestId,
-      internal_id:      internalId,
-      pool_id:          poolId ?? "",
-      actor_id:         actorId,
-      contract_version: "CS08R-v1",
-      feature:          AI_FEATURE.SUPPORT_AI,
-      sub_feature:      "SUPPORT_RESPONSE",
-      pool_mode:        mode,
-      user_role:        role,
-      provider:         undefined,
-      source_app:       "app",
-      trigger_type:     "USER_ACTION" as const,
-      service:          "internal",
-      status:           "SUCCESS",
-      generation_mode:  "no_evidence",
-      model:            null,
-      latency_ms:       Date.now() - traceStartMs,
-      input_tokens:     null,
-      output_tokens:    null,
-      total_tokens:     null,
-      result_generated: false,
+      request_id:           requestId,
+      internal_id:          internalId,
+      pool_id:              poolId ?? "",
+      actor_id:             actorId,
+      contract_version:     "CS08R-v1",
+      feature:              AI_FEATURE.SUPPORT_AI,
+      sub_feature:          "SUPPORT_RESPONSE",
+      pool_mode:            mode,
+      user_role:            role,
+      provider:             undefined,
+      source_app:           "app",
+      trigger_type:         "USER_ACTION" as const,
+      service:              "internal",
+      status:               "SUCCESS",
+      generation_mode:      "no_evidence",
+      model:                null,
+      latency_ms:           Date.now() - traceStartMs,
+      input_tokens:         null,
+      output_tokens:        null,
+      total_tokens:         null,
+      result_generated:     false,
+      logical_request_count: 0,
+      actual_call_count:     0,
+      retry_count:           0,
     }).catch(() => {});
 
     addStage(trace, "HTTP_RESPONSE", {
@@ -762,6 +769,11 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
     service:          "gpt",
   };
 
+  // WP-NANO-04: 비용 계산 (TOKEN_PRICING — gpt-4o-mini 단가)
+  const nanoCostResult = !llmError && inputTokens != null && outputTokens != null
+    ? calculateAiCost(inputTokens, outputTokens, LLM_MODEL)
+    : null;
+
   if (llmError) {
     await saveAiTrace({
       ...traceBase,
@@ -774,15 +786,26 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
   } else {
     await saveAiTrace({
       ...traceBase,
-      status:              "SUCCESS",
-      generation_mode:     "llm_grounded",
-      model:               LLM_MODEL,
-      latency_ms:          latencyMs,
-      input_tokens:        inputTokens,
-      output_tokens:       outputTokens,
-      total_tokens:        totalTokens,
-      knowledge_hit_count: evidence.length,
-      result_generated:    nanoOut.confidence !== "LOW",
+      status:                    "SUCCESS",
+      generation_mode:           "llm_grounded",
+      model:                     LLM_MODEL,
+      latency_ms:                latencyMs,
+      input_tokens:              inputTokens,
+      output_tokens:             outputTokens,
+      total_tokens:              totalTokens,
+      // candidate pool vs Nano-selected 구분 (WP-NANO-04)
+      knowledge_hit_count:       evidence.length,        // backward-compat
+      candidate_knowledge_count: evidence.length,        // candidate pool 크기
+      selected_knowledge_count:  nanoOut.selected_knowledge_ids.length,
+      retrieved_knowledge_ids:   nanoOut.selected_knowledge_ids, // Nano 실제 선택 KI만
+      result_generated:          nanoOut.confidence !== "LOW",
+      // usage counts (1회 동기 호출, retry 없음)
+      logical_request_count:     1,
+      actual_call_count:         1,
+      retry_count:               0,
+      // cost
+      estimated_cost_usd:        nanoCostResult?.total_cost_usd ?? null,
+      cost_source:               nanoCostResult ? "TOKEN_PRICING" : "UNKNOWN",
     }).catch(() => {});
   }
 
