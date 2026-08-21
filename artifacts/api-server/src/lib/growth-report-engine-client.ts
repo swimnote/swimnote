@@ -273,6 +273,15 @@ export const GROUNDING_PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
 
 // ─── Engine HTTP Client ───────────────────────────────────────────────────────
 
+/** AI01-05: Engine call tracking result */
+export interface GrEngineCallResult {
+  response:        GrowthReportAnalysisResponse;
+  /** Total HTTP attempts sent to the engine in this logical request */
+  actualCallCount: number;
+  /** Number of retries (attempts beyond the first) */
+  retryCount:      number;
+}
+
 /**
  * analyzeGrowthReport — sends GrowthReportAnalysisRequest to AI ENGINE
  * POST /api/v1/growth-report/analyze.
@@ -282,12 +291,20 @@ export const GROUNDING_PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
  *
  * If GROWTH_REPORT_ENGINE_URL is not set the call is rejected without a network
  * request (prevents accidental production calls in development).
+ *
+ * AI01-05: Returns GrEngineCallResult so callers can record actual HTTP attempt counts.
+ * The request_id is forwarded as both the body field and X-Request-Id header.
+ *
+ * NOTE: analysis_retry_count in the DB tracks cross-invocation retries (how many
+ * times the worker has been re-scheduled for this report). It is NOT equivalent to
+ * HTTP attempt count within a single invocation. Do NOT use it as actual_call_count.
  */
 export async function analyzeGrowthReport(
   request: GrowthReportAnalysisRequest,
-): Promise<GrowthReportAnalysisResponse> {
+): Promise<GrEngineCallResult> {
   const baseUrl = getEngineUrl();
   if (!baseUrl) {
+    // Validation failure — no HTTP request sent
     throw new EngineCallError(
       "ENGINE_URL_NOT_CONFIGURED",
       0,
@@ -301,11 +318,18 @@ export async function analyzeGrowthReport(
   const controller = new AbortController();
   const timer      = setTimeout(() => controller.abort(), timeoutMs);
 
+  // AI01-05: Single attempt — no retry in this client.
+  // actualCallCount increments only when an HTTP request is actually sent.
+  let actualCallCount = 0;
+
   try {
+    actualCallCount = 1; // HTTP request is about to be sent
     const res = await fetch(`${baseUrl}/api/v1/growth-report/analyze`, {
       method:  "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":  "application/json",
+        // AI01-05: propagate request_id as header for engine-side correlation
+        "X-Request-Id":  request.request_id,
         ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
       },
       body:   JSON.stringify(request),
@@ -332,7 +356,8 @@ export async function analyzeGrowthReport(
       );
     }
 
-    return (await res.json()) as GrowthReportAnalysisResponse;
+    const response = (await res.json()) as GrowthReportAnalysisResponse;
+    return { response, actualCallCount, retryCount: 0 };
   } catch (err) {
     if (err instanceof EngineCallError) throw err;
     const isAbort = (err as Error).name === "AbortError";

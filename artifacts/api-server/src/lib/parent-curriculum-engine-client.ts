@@ -142,6 +142,15 @@ export class ParentCurriculumEngineError extends Error {
 
 // ─── Engine HTTP Client ────────────────────────────────────────────────────────
 
+/** AI01-05: Engine call tracking result */
+export interface PcEngineCallResult {
+  response:        ParentCurriculumEngineResponse;
+  /** Total HTTP attempts sent to the engine in this logical request */
+  actualCallCount: number;
+  /** Number of retries (attempts beyond the first) */
+  retryCount:      number;
+}
+
 /**
  * searchParentCurriculum — sends ParentCurriculumEngineRequest to AI ENGINE
  * POST /api/v1/parent-curriculum/search
@@ -151,12 +160,16 @@ export class ParentCurriculumEngineError extends Error {
  *
  * If PARENT_CURRICULUM_ENGINE_URL is not set the call is rejected without a
  * network request (prevents accidental production calls in development).
+ *
+ * AI01-05: Returns PcEngineCallResult so callers can record actual HTTP attempt counts.
+ * The request_id is forwarded as both the body field and X-Request-Id header.
  */
 export async function searchParentCurriculum(
   request: ParentCurriculumEngineRequest,
-): Promise<ParentCurriculumEngineResponse> {
+): Promise<PcEngineCallResult> {
   const baseUrl = getParentCurriculumEngineUrl();
   if (!baseUrl) {
+    // Validation failure — no HTTP request sent
     throw new ParentCurriculumEngineError(
       "ENGINE_URL_NOT_CONFIGURED",
       0,
@@ -170,11 +183,18 @@ export async function searchParentCurriculum(
   const controller = new AbortController();
   const timer      = setTimeout(() => controller.abort(), timeoutMs);
 
+  // AI01-05: Single attempt — no retry in this client.
+  // actualCallCount increments only when an HTTP request is actually sent.
+  let actualCallCount = 0;
+
   try {
+    actualCallCount = 1; // HTTP request is about to be sent
     const res = await fetch(`${baseUrl}/api/v1/parent-curriculum/search`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type":  "application/json",
+        // AI01-05: propagate request_id as header for engine-side correlation
+        "X-Request-Id":  request.request_id,
         ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
       },
       body:   JSON.stringify(request),
@@ -201,7 +221,8 @@ export async function searchParentCurriculum(
       );
     }
 
-    return (await res.json()) as ParentCurriculumEngineResponse;
+    const response = (await res.json()) as ParentCurriculumEngineResponse;
+    return { response, actualCallCount, retryCount: 0 };
   } catch (err) {
     if (err instanceof ParentCurriculumEngineError) throw err;
     const isAbort = (err as Error).name === "AbortError";

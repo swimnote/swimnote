@@ -41,6 +41,7 @@ import {
   analyzeGrowthReport,
   isRetryableEngineError,
   EngineCallError,
+  type GrowthReportAnalysisResponse,
 } from "../lib/growth-report-engine-client.js";
 import {
   persistEngineResult,
@@ -210,10 +211,24 @@ async function analyzeOneReport(
 
   // 5) ENGINE call
   const grEngineStartMs = Date.now();  // CS-PA1: latency 측정
-  let response: Awaited<ReturnType<typeof analyzeGrowthReport>>;
+  let response: GrowthReportAnalysisResponse;
+  // AI01-05: actual HTTP call counts returned from engine client
+  let grActualCallCount = 0;
+  let grRetryCount      = 0;
   try {
-    response = await analyzeGrowthReport(request);
+    const callResult  = await analyzeGrowthReport(request);
+    response          = callResult.response;
+    grActualCallCount = callResult.actualCallCount;
+    grRetryCount      = callResult.retryCount;
   } catch (engineErr) {
+    // AI01-05: count as 1 attempt if URL was configured (i.e. HTTP was sent).
+    // NOTE: analysis_retry_count in DB is cross-invocation retry count — do NOT
+    // use it as actual_call_count. Use grActualCallCount from the client.
+    const httpWasSent = !(engineErr instanceof EngineCallError &&
+                          (engineErr as EngineCallError).errorCode === "ENGINE_URL_NOT_CONFIGURED");
+    grActualCallCount = httpWasSent ? 1 : 0;
+    grRetryCount      = 0;
+
     const retryable = isRetryableEngineError(engineErr);
     const errorCode = engineErr instanceof EngineCallError
       ? engineErr.errorCode
@@ -229,7 +244,10 @@ async function analyzeOneReport(
       sub_feature: stage, result_generated: false,
       trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
       error_stage: 'ENGINE_CALL', error_code: errorCode,
-      latency_ms: Date.now() - grEngineStartMs,
+      latency_ms:            Date.now() - grEngineStartMs,
+      logical_request_count: 1,
+      actual_call_count:     grActualCallCount,
+      retry_count:           grRetryCount,
     }).catch(() => {});
 
     if (retryable) {
@@ -270,25 +288,28 @@ async function analyzeOneReport(
     return;
   }
 
-  // CS-PA1: engine 성공 trace (persist 전)
+  // CS-PA1 / AI01-05: engine 성공 trace (persist 전)
   void saveAiTrace({
-    status:           'SUCCESS',
-    request_id:       requestId,
-    internal_id:      requestId,
-    pool_id:          report.swimming_pool_id,
-    contract_version: '1.0',
-    feature:          AI_FEATURE.GROWTH_REPORT_AI,
-    pool_mode:        null,
-    sub_feature:      stage,
-    result_generated: true,
-    trigger_type:     'SYSTEM_MAINTENANCE',
-    service:          'analysis',
-    generation_mode:  'engine_call',
-    model:            null,           // 외부 엔진 — model 정보 미노출
-    latency_ms:       Date.now() - grEngineStartMs,
-    input_tokens:     null,           // 외부 엔진 — token 정보 미노출
-    output_tokens:    null,
-    total_tokens:     null,
+    status:                'SUCCESS',
+    request_id:            requestId,
+    internal_id:           requestId,
+    pool_id:               report.swimming_pool_id,
+    contract_version:      '1.0',
+    feature:               AI_FEATURE.GROWTH_REPORT_AI,
+    pool_mode:             null,
+    sub_feature:           stage,
+    result_generated:      true,
+    trigger_type:          'SYSTEM_MAINTENANCE',
+    service:               'analysis',
+    generation_mode:       'engine_call',
+    model:                 null,           // 외부 엔진 — model 정보 미노출
+    latency_ms:            Date.now() - grEngineStartMs,
+    input_tokens:          null,           // 외부 엔진 — token 정보 미노출
+    output_tokens:         null,
+    total_tokens:          null,
+    logical_request_count: 1,
+    actual_call_count:     grActualCallCount,
+    retry_count:           grRetryCount,
   }).catch(() => {});
 
   // 6) Persist result

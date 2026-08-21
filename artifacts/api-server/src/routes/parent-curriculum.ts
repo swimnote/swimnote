@@ -725,9 +725,22 @@ router.post(
     // ── 17b. ENGINE 호출 ──────────────────────────────────────────────────────
     const pcEngineStartMs = Date.now();
     let engineResponse: ParentCurriculumEngineResponse;
+    // AI01-05: actual HTTP call counts returned from engine client
+    let pcActualCallCount = 0;
+    let pcRetryCount      = 0;
     try {
-      engineResponse = await searchParentCurriculum(engineRequest);
+      const callResult = await searchParentCurriculum(engineRequest);
+      engineResponse    = callResult.response;
+      pcActualCallCount = callResult.actualCallCount;
+      pcRetryCount      = callResult.retryCount;
     } catch (err) {
+      // AI01-05: engine client increments actualCallCount before fetch;
+      // on error, count as 1 attempt if URL was configured (i.e. HTTP was sent)
+      const httpWasSent = !(err instanceof ParentCurriculumEngineError &&
+                            (err as ParentCurriculumEngineError).errorCode === "ENGINE_URL_NOT_CONFIGURED");
+      pcActualCallCount = httpWasSent ? 1 : 0;
+      pcRetryCount      = 0;
+
       const errorCode = err instanceof ParentCurriculumEngineError
         ? (err.statusCode === 401 ? "ENGINE_UNAUTHORIZED"
           : err.statusCode === 429 ? "ENGINE_RATE_LIMITED"
@@ -753,6 +766,9 @@ router.post(
           trigger_type: 'USER_ACTION', service: 'search',
           error_stage: 'CURRICULUM_SEARCH', error_code: errorCode,
           latency_ms: Date.now() - pcEngineStartMs,
+          logical_request_count: 1,
+          actual_call_count:     pcActualCallCount,
+          retry_count:           pcRetryCount,
         }).catch(() => {});
         return;
       }
@@ -769,6 +785,9 @@ router.post(
         trigger_type: 'USER_ACTION', service: 'search',
         error_stage: 'CURRICULUM_SEARCH', error_code: 'ENGINE_UNKNOWN_ERROR',
         latency_ms: Date.now() - pcEngineStartMs,
+        logical_request_count: 1,
+        actual_call_count:     pcActualCallCount,
+        retry_count:           pcRetryCount,
       }).catch(() => {});
       return;
     }
@@ -856,26 +875,29 @@ router.post(
 
     await touchConversation(conversationId).catch(() => undefined);
 
-    // CS-PA1: 성공 trace
+    // CS-PA1 / AI01-05: 성공 trace
     void saveAiTrace({
-      status:           'SUCCESS',
-      request_id:       trimmedRequestId,
-      internal_id:      trimmedRequestId,
-      pool_id:          poolId,
-      actor_id:         parentId,
-      contract_version: '1.0',
-      feature:          AI_FEATURE.PARENT_CURRICULUM_AI,
-      pool_mode:        poolMode,
-      user_role:        'parent_account',
-      result_generated: true,
-      trigger_type:     'USER_ACTION',
-      service:          'search',
-      generation_mode:  engineMode,
-      model:            (engineResponse.meta as any)?.model ?? null,
-      latency_ms:       (engineResponse.meta as any)?.latency_ms ?? (Date.now() - pcEngineStartMs),
-      input_tokens:  null,
-      output_tokens: null,
-      total_tokens:  null,
+      status:                'SUCCESS',
+      request_id:            trimmedRequestId,
+      internal_id:           trimmedRequestId,
+      pool_id:               poolId,
+      actor_id:              parentId,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.PARENT_CURRICULUM_AI,
+      pool_mode:             poolMode,
+      user_role:             'parent_account',
+      result_generated:      true,
+      trigger_type:          'USER_ACTION',
+      service:               'search',
+      generation_mode:       engineMode,
+      model:                 (engineResponse.meta as any)?.model ?? null,
+      latency_ms:            (engineResponse.meta as any)?.latency_ms ?? (Date.now() - pcEngineStartMs),
+      input_tokens:          null,
+      output_tokens:         null,
+      total_tokens:          null,
+      logical_request_count: 1,
+      actual_call_count:     pcActualCallCount,
+      retry_count:           pcRetryCount,
     }).catch(() => {});
 
     // ── 20. 사용량 조회 + 안전한 응답 반환 ───────────────────────────────────
