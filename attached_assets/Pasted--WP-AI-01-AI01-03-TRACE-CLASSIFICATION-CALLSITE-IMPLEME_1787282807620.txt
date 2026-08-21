@@ -1,0 +1,331 @@
+# [WP-AI-01 / AI01-03 — TRACE CLASSIFICATION CALLSITE IMPLEMENTATION]
+
+목적:
+
+AI01-01에서 만든 공통 Usage Contract를
+현재 실제 `saveAiTrace()` 호출 경로에 연결한다.
+
+이번 Step에서는:
+
+* `trigger_type`
+* `service`
+
+를 기존 AI trace callsite에 명시하고,
+기존에 확인된 `support-cases.ts latency_ms=0` 버그만 수정한다.
+
+다른 Usage 필드는 후속 Step에서 연결한다.
+
+---
+
+# 0. 크레딧 절약 / 조사 범위
+
+전체 repository 전수조사 금지.
+
+이미 확인된 다음 파일만 작업 대상으로 사용한다.
+
+* `routes/ai.ts`
+* `routes/ai-v1.ts`
+* `routes/support-respond.ts`
+* `routes/support-cases.ts`
+* `routes/story.ts`
+* `routes/parent-curriculum.ts`
+* `jobs/growth-report-analysis-worker.ts`
+
+위 파일 안에서 실제 `saveAiTrace()` callsite만 확인한다.
+
+새 callsite 탐색을 위해 repository 전체를 다시 뒤지지 않는다.
+
+전체 regression 금지.
+
+---
+
+# 1. trigger_type 적용 원칙
+
+현재 확인된 실제 호출 성격을 기준으로 다음과 같이 지정한다.
+
+| 경로                     | trigger_type         |
+| ---------------------- | -------------------- |
+| AI Diary               | `USER_ACTION`        |
+| AI Diary V1            | `USER_ACTION`        |
+| Support Respond        | `USER_ACTION`        |
+| Support GPT Escalation | `USER_ACTION`        |
+| Story Summary          | `USER_ACTION`        |
+| Parent Curriculum      | `USER_ACTION`        |
+| Growth Report Worker   | `SYSTEM_MAINTENANCE` |
+
+중요:
+
+자동 기본값을 만들지 않는다.
+
+각 callsite에서 실제 성격을 명시적으로 전달한다.
+
+---
+
+# 2. service 적용 원칙
+
+다음 값을 사용한다.
+
+| 경로                       | service    |
+| ------------------------ | ---------- |
+| AI Diary                 | `gpt`      |
+| AI Diary V1              | `gpt`      |
+| Support Respond          | `gpt`      |
+| Support GPT Escalation   | `gpt`      |
+| Story Summary            | `gpt`      |
+| Parent Curriculum Engine | `search`   |
+| Growth Report Engine     | `analysis` |
+
+Whisper는 AI01-04에서 새 `saveAiTrace` 자체를 추가할 예정이므로
+이번 Step에서 Whisper 로직을 수정하지 않는다.
+
+---
+
+# 3. 기존 trace 정보 보존
+
+이번 변경으로 기존에 저장하던 다음 값은 변경하지 않는다.
+
+* feature
+* provider
+* model
+* request_id
+* pool_id
+* generation_mode
+* token usage
+* cost
+* status
+* error stage/code
+* latency
+
+이번 Step은 기존 trace에:
+
+`trigger_type`
++
+`service`
+
+를 추가하는 작업이다.
+
+---
+
+# 4. support-cases latency_ms=0 버그 수정
+
+기존 감사에서 확인된
+`support-cases.ts` GPT escalation의 `latency_ms=0` 고정 문제만 함께 수정한다.
+
+원칙:
+
+실제 외부 AI 호출 직전 시간을 기록하고
+호출 성공/실패 시 실제 elapsed time을 저장한다.
+
+임의 상수 금지.
+
+예:
+
+```ts
+const startedAt = Date.now();
+
+try {
+  ...
+  latency_ms: Date.now() - startedAt
+}
+```
+
+실제 기존 코드 패턴에 맞게 최소 수정한다.
+
+관련 없는 support 로직은 변경하지 않는다.
+
+---
+
+# 5. Growth Report 분류
+
+현재 Growth Report Worker의 외부 Engine 호출 trace에는:
+
+```text
+trigger_type = SYSTEM_MAINTENANCE
+service = analysis
+```
+
+를 명시한다.
+
+이번 Step에서는:
+
+* worker frequency
+* retry 구조
+* request_id propagation
+* Engine client
+
+를 수정하지 않는다.
+
+그 항목들은 후속 Step에서 처리한다.
+
+---
+
+# 6. Parent Curriculum 분류
+
+현재 Parent Curriculum Engine trace에는:
+
+```text
+trigger_type = USER_ACTION
+service = search
+```
+
+를 명시한다.
+
+이번 Step에서는:
+
+* Engine request_id propagation
+* retry counting
+* cost_source
+* Engine contract
+
+를 수정하지 않는다.
+
+---
+
+# 7. 테스트
+
+전체 regression 금지.
+
+기존 관련 테스트 중
+이번 변경을 직접 검증할 최소 테스트만 실행한다.
+
+필수 TC:
+
+### TC1
+
+Diary trace
+→ `trigger_type=USER_ACTION`
+→ `service=gpt`
+
+### TC2
+
+Support trace
+→ `trigger_type=USER_ACTION`
+→ `service=gpt`
+
+### TC3
+
+Parent Curriculum trace
+→ `trigger_type=USER_ACTION`
+→ `service=search`
+
+### TC4
+
+Growth Worker trace
+→ `trigger_type=SYSTEM_MAINTENANCE`
+→ `service=analysis`
+
+### TC5
+
+Support GPT escalation
+→ `latency_ms`가 더 이상 hardcoded `0`이 아님
+
+시간 측정 TC는 flaky하게 `> 0`만 강제해서 실패하지 않도록
+실제 구현 구조에 맞는 deterministic 검증을 우선한다.
+
+---
+
+# 8. 절대 금지
+
+이번 Step에서:
+
+* Whisper saveAiTrace 추가 금지
+* pricing 수정 금지
+* model config 수정 금지
+* request_id 외부 Engine 전파 금지
+* retry_count 연결 금지
+* actual_call_count 연결 금지
+* SMS 수정 금지
+* R2 수정 금지
+* usage-recorder 생성 금지
+* Dashboard 수정 금지
+* feature flag 수정 금지
+* Worker cron 수정 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-03 범위만 수행한다.
+
+---
+
+# 9. 완료 보고 형식
+
+# [AI01-03 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 수정 파일만
+
+## 4. Callsite Classification
+
+표로 제출:
+
+File | Feature | trigger_type | service
+
+실제로 변경된 callsite만 작성.
+
+## 5. Latency Fix
+
+`support-cases.ts`에서:
+
+* 기존 문제
+* 변경 방식
+* 실제 변경 함수
+
+간단히 보고.
+
+## 6. Tests
+
+반드시:
+
+* 정확한 test command
+* test file
+* PASS count
+* FAIL count
+
+## 7. Evidence
+
+핵심 diff만 요약.
+
+코드 전체 복붙 금지.
+
+## 8. Scope Check
+
+다음 미수정 확인:
+
+* Whisper logic
+* pricing/model config
+* external engine clients
+* request_id propagation
+* SMS
+* R2
+* Super Admin
+* DB schema
+* deployment config
+
+## 9. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 10. STOP
+
+AI01-03 완료 보고 후 멈춘다.
+
+AI01-04 이상 임의 진행 금지.
