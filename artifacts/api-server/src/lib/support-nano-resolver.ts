@@ -131,8 +131,9 @@ export async function nanoResolve(params: NanoParams): Promise<NanoResult> {
 
   // §6: Canonical source = support_knowledge_items
   // utterance/facets는 이미 retrieval에서 사용됨 — Nano에게는 KI content만 전달
+  // WP-NANO-03: 토큰 예산 보호 — answer는 300자 이하로 제한 (fallback 20개 × 300 ≈ 6,000자)
   const candidateBlock = candidates
-    .map((e, i) => `[KI-${i + 1}] id=${e.id} type=${e.item_type}\n제목: ${e.title}\n내용: ${e.answer}`)
+    .map((e, i) => `[KI-${i + 1}] id=${e.id}\n제목: ${e.title}\n내용: ${e.answer.slice(0, 300)}`)
     .join("\n\n---\n\n");
 
   // §7: 최근 2~3턴만 사용, 전체 history dump 금지

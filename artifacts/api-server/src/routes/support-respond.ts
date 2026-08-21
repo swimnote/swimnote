@@ -565,7 +565,8 @@ router.post("/support/respond", requireAuth, async (req: AuthRequest, res) => {
 
   let evidence: EvidenceItem[];
   try {
-    evidence = await gatherEvidence(ctx, 5);
+    // WP-NANO-03: fallbackMax=20 — lexical miss 시 broad fallback 최대 20개
+    evidence = await gatherEvidence(ctx, 5, 20);
     addStage(trace, "EVIDENCE_DONE", { evidence_count: evidence.length });
   } catch (err) {
     console.error("[support/respond] gatherEvidence failed:", err);

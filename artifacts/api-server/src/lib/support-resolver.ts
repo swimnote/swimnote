@@ -1014,10 +1014,17 @@ export interface EvidenceItem {
  * 쿼리와 관련된 상위 K개 knowledge 항목을 수집.
  * LLM 프롬프트 context 구성 + evidence context 파생(WP-CS09 §5/6)에 사용.
  * raw query 저장 금지 — evidence는 metadata만 포함.
+ *
+ * WP-NANO-03: fallbackMax
+ *   scoreText > 0 candidate가 없을 때 즉시 NO_EVIDENCE로 종료하지 않고
+ *   usage_count 순 상위 fallbackMax개를 Nano broad fallback으로 반환한다.
+ *   score=0으로 표시 — Nano가 semantic ranking 담당.
+ *   Nano에 100개 전체를 보내지 않는다. fallbackMax 상한 엄수.
  */
 export async function gatherEvidence(
   ctx: RouterContext,
-  maxItems = 5
+  maxItems = 5,
+  fallbackMax = 20,
 ): Promise<EvidenceItem[]> {
   try {
     const rows = (await superAdminDb.execute(sql`
@@ -1050,6 +1057,39 @@ export async function gatherEvidence(
 
     // WP-CS15: import lazily to avoid circular — assessFreshness
     const { assessFreshness } = await import("./knowledge-governance.js");
+
+    // ── WP-NANO-03: Broad fallback gate ──────────────────────────────────────
+    // lexical overlap이 없다는 이유만으로 Nano 이전에 모든 candidate를 버리지 않는다.
+    // scored=0이면 usage_count 상위 fallbackMax개를 score=0으로 반환.
+    // Nano가 semantic ranking 담당. 100개 전체 전송 금지 — fallbackMax 상한 엄수.
+    if (scored.length === 0 && eligible.length > 0) {
+      const fallbackEvidence: EvidenceItem[] = eligible
+        .slice(0, fallbackMax)
+        .map((r) => {
+          const updatedAt: string | null = (r as any).updated_at ?? null;
+          const revision: number         = (r as any).revision   ?? 1;
+          return {
+            id:             r.id,
+            item_type:      r.item_type,
+            title:          r.title,
+            // 토큰 예산 보호: fallback 답변은 250자 이하로 제한
+            answer:         ((r.answer ?? r.content) ?? "").slice(0, 250),
+            score:          0,    // lexical=0; Nano가 semantic 판단
+            feature:        r.feature   ?? null,
+            category:       r.category  ?? null,
+            status:         (r as any).status      ?? "active",
+            revision,
+            updated_at:     updatedAt,
+            source_type:    (r as any).source_type ?? null,
+            freshness_state: assessFreshness(
+              updatedAt ? new Date(updatedAt) : null,
+              revision,
+            ),
+          };
+        });
+      return fallbackEvidence;
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     const knowledgeEvidence: EvidenceItem[] = scored.map(({ r, score }) => {
       const updatedAt: string | null = (r as any).updated_at ?? null;
