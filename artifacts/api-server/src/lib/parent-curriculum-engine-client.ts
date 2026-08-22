@@ -5,8 +5,11 @@
  *
  * Environment:
  *   PARENT_CURRICULUM_ENGINE_URL        AI ENGINE base URL (required)
- *   PARENT_CURRICULUM_ENGINE_SECRET     Bearer token for server-to-server auth
+ *   JWT_SECRET                          HS256 shared secret with AI ENGINE (required)
  *   PARENT_CURRICULUM_ENGINE_TIMEOUT_MS Per-call timeout (default 60 000 ms)
+ *
+ * Auth: server-to-server HS256 JWT signed with JWT_SECRET (same secret as AI ENGINE).
+ *       Static PARENT_CURRICULUM_ENGINE_SECRET is no longer used.
  *
  * RESPONSIBILITY BOUNDARY:
  *   - HTTP transport only
@@ -14,6 +17,8 @@
  *   - No curriculum knowledge
  *   - No GPT calls
  */
+
+import jwt from "jsonwebtoken";
 
 // ─── Contract constants ────────────────────────────────────────────────────────
 
@@ -27,9 +32,7 @@ const DEFAULT_TIMEOUT_MS = 60_000; // curriculum search is faster than growth re
 export function getParentCurriculumEngineUrl(): string {
   return (process.env["PARENT_CURRICULUM_ENGINE_URL"] ?? "").trim();
 }
-export function getParentCurriculumEngineSecret(): string {
-  return (process.env["PARENT_CURRICULUM_ENGINE_SECRET"] ?? "").trim();
-}
+
 export function getParentCurriculumEngineTimeoutMs(): number {
   const raw = Number(process.env["PARENT_CURRICULUM_ENGINE_TIMEOUT_MS"]);
   return raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
@@ -140,6 +143,30 @@ export class ParentCurriculumEngineError extends Error {
   }
 }
 
+// ─── Engine JWT generation ─────────────────────────────────────────────────────
+
+/**
+ * Generates a short-lived HS256 JWT for server-to-server auth with the AI ENGINE.
+ * JWT_SECRET must match the AI ENGINE's JWT_SECRET (shared secret).
+ * Throws ParentCurriculumEngineError if JWT_SECRET is not set (fail-closed).
+ */
+export function generateEngineJwt(poolId: string): string {
+  const secret = (process.env["JWT_SECRET"] ?? "").trim();
+  if (!secret) {
+    throw new ParentCurriculumEngineError(
+      "JWT_SECRET_NOT_CONFIGURED",
+      0,
+      false,
+      "JWT_SECRET env var not set — cannot authenticate with AI ENGINE",
+    );
+  }
+  return jwt.sign(
+    { userId: poolId, role: "pool_admin", poolId, tv: 1 },
+    secret,
+    { algorithm: "HS256", expiresIn: "5m" },
+  );
+}
+
 // ─── Engine HTTP Client ────────────────────────────────────────────────────────
 
 /** AI01-05: Engine call tracking result */
@@ -155,7 +182,7 @@ export interface PcEngineCallResult {
  * searchParentCurriculum — sends ParentCurriculumEngineRequest to AI ENGINE
  * POST /api/v1/parent-curriculum/search
  *
- * Auth: Authorization: Bearer <PARENT_CURRICULUM_ENGINE_SECRET>
+ * Auth: Authorization: Bearer <HS256 JWT> signed with JWT_SECRET (shared with AI ENGINE)
  * Timeout: PARENT_CURRICULUM_ENGINE_TIMEOUT_MS (default 60 s)
  *
  * If PARENT_CURRICULUM_ENGINE_URL is not set the call is rejected without a
@@ -178,7 +205,8 @@ export async function searchParentCurriculum(
     );
   }
 
-  const secret     = getParentCurriculumEngineSecret();
+  // generateEngineJwt throws ParentCurriculumEngineError if JWT_SECRET is missing (fail-closed)
+  const engineJwt  = generateEngineJwt(request.context.pool_id);
   const timeoutMs  = getParentCurriculumEngineTimeoutMs();
   const controller = new AbortController();
   const timer      = setTimeout(() => controller.abort(), timeoutMs);
@@ -195,7 +223,8 @@ export async function searchParentCurriculum(
         "Content-Type":  "application/json",
         // AI01-05: propagate request_id as header for engine-side correlation
         "X-Request-Id":  request.request_id,
-        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+        // HS256 JWT signed with shared JWT_SECRET — same secret as AI ENGINE
+        "Authorization": `Bearer ${engineJwt}`,
       },
       body:   JSON.stringify(request),
       signal: controller.signal,
