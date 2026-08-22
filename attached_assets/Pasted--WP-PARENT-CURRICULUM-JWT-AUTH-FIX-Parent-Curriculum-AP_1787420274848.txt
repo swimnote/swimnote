@@ -1,0 +1,197 @@
+[앱] WP-PARENT-CURRICULUM-JWT-AUTH-FIX
+
+목적:
+Parent Curriculum APP → AI Engine 호출 인증을
+잘못된 static Bearer secret 방식에서
+AI Engine의 실제 HS256 JWT 인증 방식으로 수정한다.
+
+확정된 AI Engine auth contract:
+
+route:
+POST /api/v1/parent-curriculum/search
+
+middleware:
+aiJwtAuthMiddleware
+
+AI Engine env:
+JWT_SECRET
+
+auth:
+Authorization: Bearer <HS256 JWT>
+
+required claims:
+- userId 또는 middleware가 요구하는 사용자 식별 claim
+- role
+- iat
+- exp
+- tv 등 middleware가 실제 요구하는 claim
+- poolId가 실제 middleware/pipeline에서 요구되면 포함
+
+허용 role은 AI Engine 코드의 실제 whitelist를 그대로 따른다.
+
+중요:
+- PROFESSIONAL_ENGINE_API_SECRET 사용 금지
+- PARENT_CURRICULUM_ENGINE_SECRET static bearer 사용 금지
+- AI Engine 수정 금지
+- DB schema 변경 금지
+- 전체 repo audit 금지
+
+────────────────────
+1. 최소 코드 확인
+────────────────────
+
+APP:
+parent-curriculum-engine-client.ts
+
+AI Engine contract:
+aiJwtAuthMiddleware의 실제 required claims만 확인.
+
+추측 금지.
+
+────────────────────
+2. APP JWT 생성
+────────────────────
+
+swimnote-api에서 AI Engine 호출 직전에
+HS256 JWT를 생성.
+
+secret:
+process.env.JWT_SECRET
+
+중요:
+swimnote-api와 swimnote-professional-engine의
+JWT_SECRET 값이 동일해야 한다.
+
+JWT payload에는 현재 로그인 사용자 컨텍스트에서
+실제 필요한 claim만 넣는다.
+
+예:
+- userId
+- role
+- poolId
+- tv
+- iat
+- exp
+
+단, 실제 AI middleware contract에 없는 claim 임의 추가 불필요.
+
+짧은 만료시간 사용.
+
+────────────────────
+3. Engine Client 수정
+────────────────────
+
+기존:
+
+Authorization:
+Bearer <PARENT_CURRICULUM_ENGINE_SECRET>
+
+제거.
+
+대신:
+
+Authorization:
+Bearer <generated HS256 JWT>
+
+사용.
+
+PARENT_CURRICULUM_ENGINE_URL은 기존 유지:
+
+https://swimnote-professional-engine.onrender.com
+
+────────────────────
+4. Environment
+────────────────────
+
+APP에서 필요한 env:
+
+JWT_SECRET
+
+swimnote-professional-engine의 JWT_SECRET과
+동일한 값이어야 함.
+
+기존 PARENT_CURRICULUM_ENGINE_SECRET은
+이 route에서 더 이상 사용하지 않는다.
+
+환경변수 값 자체는 출력 금지.
+
+────────────────────
+5. 최소 테스트
+────────────────────
+
+unit:
+- JWT 생성 성공
+- required claims 포함
+- exp 존재
+- Authorization Bearer 설정
+- missing JWT_SECRET fail-closed
+- static secret 미사용
+
+그다음 실제 engine probe 1건:
+
+"자유형킥"
+
+확인:
+- 401 해소
+- engine 200
+- request_id match
+
+probe 성공 후에만 5-query E2E:
+
+1. 자유형킥
+2. 발차기
+3. 롤링 언제 해
+4. 자유형 팔돌리기에 대해
+5. 현재 다음에 뭐 배워?
+
+확인:
+- 실제 student data
+- 실제 pool curriculum 350개
+- Professional V2
+- grounded answer
+- quota
+- cross-pool leakage 없음
+- intent/response path
+
+특히 Q3:
+"롤링 언제 해"
+→ UNKNOWN / DIRECT_DB가 계속 발생하는지 기록.
+이번 Step에서는 routing 수정 금지.
+
+────────────────────
+6. 금지
+────────────────────
+
+- AI Engine 코드 변경 금지
+- DB write/migration 금지
+- 전체 regression 금지
+- Render API 사용 금지
+- 자동 deploy 금지
+
+코드 수정 후 필요한 Render env가 있으면
+사용자 수동 작업 항목만 정확히 보고하고 STOP.
+
+────────────────────
+7. 완료 보고
+────────────────────
+
+[앱] PARENT CURRICULUM JWT AUTH FIX REPORT
+
+- AI auth contract
+- APP JWT claims
+- JWT algorithm
+- static secret removed: YES/NO
+- JWT_SECRET required: YES/NO
+- unit tests
+- production probe result
+- 5-query E2E result
+- Q3 routing result
+- DB changed: NO
+- AI Engine changed: NO
+
+Final Verdict:
+PARENT CURRICULUM JWT AUTH COMPLETE
+또는
+BLOCKED + 정확한 원인
+
+STOP.
