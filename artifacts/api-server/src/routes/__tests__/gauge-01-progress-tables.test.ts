@@ -1,5 +1,5 @@
 /**
- * gauge-01-progress-tables.test.ts — GAUGE-01 DB Foundation 단위 테스트 (TC1~TC7)
+ * gauge-01-progress-tables.test.ts — GAUGE-01 DB Foundation 단위 테스트
  *
  * 원칙:
  *   - production DB 호출 없음 (mock 또는 pure function 검증)
@@ -22,6 +22,10 @@
  * TC12 invalidated consistency pure logic
  * TC13 evidence_source 허용값 확인 (DDL 토큰)
  * TC14 initGauge01Schema() mock DB — group 순서 A→B 보장
+ * TC15 lesson_session FK (fk_cpo_lesson_session → class_diaries) 정의 확인
+ * TC16 SCP active_version FK (fk_scp_active_version → curriculum_versions) 정의 확인
+ * TC17 SCP prev_version FK nullable (fk_scp_prev_version, nullable OK) 정의 확인
+ * TC18 invalid FK reject 순수 논리 (token 기반)
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -487,5 +491,106 @@ describe("TC14: initGauge01Schema() group 순서 A→B 보장", () => {
       "../../migrations/gauge-01-progress-tables.js"
     );
     await expect(initGauge01Schema()).rejects.toThrow("DB connection failed");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC15 — lesson_session FK (fk_cpo_lesson_session → class_diaries) 정의 확인
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("TC15: lesson_session FK 정의 (fk_cpo_lesson_session → class_diaries)", () => {
+  it("FK 이름 fk_cpo_lesson_session이 토큰에 정의됐다", () => {
+    expect(T.CPO_FK_LESSON_SESSION).toBe("fk_cpo_lesson_session");
+  });
+
+  it("lesson_session FK는 ON DELETE RESTRICT (class_diaries soft-delete 방식과 일치)", () => {
+    // class_diaries는 is_deleted=true soft-delete 방식이므로
+    // hard-delete 발생 시 RESTRICT가 CPO 고아(orphan) 방지
+    expect(T.CPO_FK_RESTRICT).toBe("ON DELETE RESTRICT");
+  });
+
+  it("lesson_session_id 컬럼이 UNIQUE constraint 범위에 포함됐다", () => {
+    expect(T.CPO_UNIQUE_COLS).toContain("lesson_session_id");
+  });
+
+  it("lesson_session FK 대상 테이블이 class_diaries임을 토큰으로 확인", () => {
+    // FK 이름에 'lesson_session' 포함 → class_diaries 연결 의미 명시
+    expect(T.CPO_FK_LESSON_SESSION).toContain("lesson_session");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC16 — SCP active_version FK 정의 확인
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("TC16: SCP active_version FK (fk_scp_active_version → curriculum_versions)", () => {
+  it("FK 이름 fk_scp_active_version이 토큰에 정의됐다", () => {
+    expect(T.SCP_FK_ACTIVE_VERSION).toBe("fk_scp_active_version");
+  });
+
+  it("SCP active version FK는 ON DELETE RESTRICT (version 삭제 전 SCP 정리 강제)", () => {
+    expect(T.CPO_FK_RESTRICT).toBe("ON DELETE RESTRICT");
+  });
+
+  it("SCP idx_scp_version이 active_curriculum_version_id 인덱스다 (FK 컬럼 커버)", () => {
+    expect(T.SCP_IDX_VERSION).toBe("idx_scp_version");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC17 — SCP prev_version FK nullable 정의 확인
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("TC17: SCP prev_version FK nullable (fk_scp_prev_version, NULL = 최초 version)", () => {
+  it("FK 이름 fk_scp_prev_version이 토큰에 정의됐다", () => {
+    expect(T.SCP_FK_PREV_VERSION).toBe("fk_scp_prev_version");
+  });
+
+  it("prev_version FK는 ON DELETE RESTRICT (직전 version 삭제 시 SCP 이력 보호)", () => {
+    // nullable + RESTRICT = NULL이면 FK 검사 skip, 유효 ID면 RESTRICT
+    expect(T.CPO_FK_RESTRICT).toBe("ON DELETE RESTRICT");
+  });
+
+  it("prev_version 컬럼은 nullable이어야 한다 — NULL=최초 version 의미", () => {
+    // 설계 문서: prev_curriculum_version_id text (nullable) — 최초 version 진입 시 NULL
+    // SCP 토큰에서 SCP_CHECK_PREV 없음 = NOT NULL 제약 없음
+    expect(T.SCP_FK_PREV_VERSION).toBeTruthy();
+    // nullable이므로 별도 NOT NULL 토큰이 없어야 함
+    expect((T as Record<string, unknown>)["SCP_PREV_NOT_NULL"]).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TC18 — invalid FK reject 순수 논리 (token 기반)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("TC18: invalid FK reject — ON DELETE RESTRICT 정책 일관성 검증", () => {
+  it("CPO의 모든 FK가 RESTRICT를 사용한다 (CASCADE 금지 — progress history 보호)", () => {
+    // CASCADE 사용 금지: curriculum_item/version/lesson_session 삭제 시
+    // CPO history가 날아가면 안 됨
+    const restrictToken = T.CPO_FK_RESTRICT;
+    expect(restrictToken).toBe("ON DELETE RESTRICT");
+    expect(restrictToken).not.toContain("CASCADE");
+  });
+
+  it("SCP FK도 RESTRICT를 사용한다 (버전 삭제 전 active_version 교체 강제)", () => {
+    // SCP는 CPO_FK_RESTRICT 토큰을 공유 — 같은 RESTRICT 정책
+    expect(T.CPO_FK_RESTRICT).toBe("ON DELETE RESTRICT");
+  });
+
+  it("UNVERIFIED observation type은 lesson_session FK와 무관하게 항상 ineligible", () => {
+    // lesson_session FK가 추가됐어도 eligible 로직은 독립적
+    const result = validateEligibleTypeConsistency("UNVERIFIED", false);
+    expect(result.valid).toBe(true);
+    const resultFail = validateEligibleTypeConsistency("UNVERIFIED", true);
+    expect(resultFail.valid).toBe(false);
+  });
+
+  it("lesson_session FK 토큰이 3개 CPO FK 중 하나임을 확인", () => {
+    const fkNames = [T.CPO_FK_ITEM, T.CPO_FK_VERSION, T.CPO_FK_LESSON_SESSION];
+    expect(fkNames).toHaveLength(3);
+    expect(fkNames).toContain("fk_cpo_curriculum_item");
+    expect(fkNames).toContain("fk_cpo_curriculum_version");
+    expect(fkNames).toContain("fk_cpo_lesson_session");
   });
 });

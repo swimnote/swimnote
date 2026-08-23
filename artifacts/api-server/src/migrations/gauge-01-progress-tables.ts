@@ -14,8 +14,8 @@
  *
  * 의존성:
  *   GAUGE-01-A → curriculum_items, curriculum_versions (pool-db-x-init.ts Group 4~5)
- *   GAUGE-01-A → GAUGE-01-A 완료 후 FK 검증 가능
- *   GAUGE-01-B → GAUGE-01-A와 독립 (FK 없음, SCP는 FK 미사용)
+ *   GAUGE-01-A → class_diaries (pool-db-init.ts Group 9) — lesson_session FK
+ *   GAUGE-01-B → curriculum_versions (pool-db-x-init.ts Group 6-1) — active/prev version FK
  *
  * 핵심 설계 원칙 (V3 FINAL):
  *   1. CPO UNIQUE(lesson_session_id, student_id): session당 학생 관찰 1개
@@ -167,6 +167,20 @@ async function runGroupA_CurriculumProgressObservations(db: Db): Promise<void> {
   `));
   console.log("[GAUGE-01] GAUGE-01-A-3: FK curriculum_version_id → curriculum_versions OK");
 
+  // ── FK: lesson_session_id → class_diaries ON DELETE RESTRICT ─────────────
+  // class_diaries는 soft-delete(is_deleted flag) 방식이므로 RESTRICT가 안전.
+  // hard-delete는 업무상 발생하지 않으며, 수업 세션 삭제 시 CPO를 먼저 정리해야 함.
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE curriculum_progress_observations
+        ADD CONSTRAINT fk_cpo_lesson_session
+          FOREIGN KEY (lesson_session_id)
+          REFERENCES class_diaries(id)
+          ON DELETE RESTRICT;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `));
+  console.log("[GAUGE-01] GAUGE-01-A-4: FK lesson_session_id → class_diaries OK");
+
   // ── 인덱스 4개 ───────────────────────────────────────────────────────────────
 
   // 1. 유효 eligible CPO 조회 (confirmation engine 주 쿼리)
@@ -196,7 +210,7 @@ async function runGroupA_CurriculumProgressObservations(db: Db): Promise<void> {
       WHERE is_invalidated = false;
   `));
 
-  console.log("[GAUGE-01] GAUGE-01-A-4~7: indexes 4개 OK");
+  console.log("[GAUGE-01] GAUGE-01-A-5~8: indexes 4개 OK");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -282,6 +296,33 @@ async function runGroupB_StudentCurriculumProgress(db: Db): Promise<void> {
   `));
   console.log("[GAUGE-01] GAUGE-01-B-1: student_curriculum_progress 테이블 OK");
 
+  // ── FK: active_curriculum_version_id → curriculum_versions ON DELETE RESTRICT
+  // SCP는 항상 유효한 active version을 가리켜야 함.
+  // version 삭제 전 SCP 정리(active_version 교체) 필수 — RESTRICT로 강제.
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE student_curriculum_progress
+        ADD CONSTRAINT fk_scp_active_version
+          FOREIGN KEY (active_curriculum_version_id)
+          REFERENCES curriculum_versions(id)
+          ON DELETE RESTRICT;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `));
+  console.log("[GAUGE-01] GAUGE-01-B-2: FK active_curriculum_version_id → curriculum_versions OK");
+
+  // ── FK: prev_curriculum_version_id → curriculum_versions ON DELETE RESTRICT (nullable)
+  // version 전환 이력 추적용. NULL = 최초 version (이전 없음). RESTRICT 유지.
+  await db.execute(sql.raw(`
+    DO $$ BEGIN
+      ALTER TABLE student_curriculum_progress
+        ADD CONSTRAINT fk_scp_prev_version
+          FOREIGN KEY (prev_curriculum_version_id)
+          REFERENCES curriculum_versions(id)
+          ON DELETE RESTRICT;
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  `));
+  console.log("[GAUGE-01] GAUGE-01-B-3: FK prev_curriculum_version_id → curriculum_versions (nullable) OK");
+
   // ── 인덱스 2개 ───────────────────────────────────────────────────────────────
 
   // 1. 게이지 조회 (parent home API 주 경로)
@@ -296,7 +337,7 @@ async function runGroupB_StudentCurriculumProgress(db: Db): Promise<void> {
       ON student_curriculum_progress (active_curriculum_version_id);
   `));
 
-  console.log("[GAUGE-01] GAUGE-01-B-2~3: indexes 2개 OK");
+  console.log("[GAUGE-01] GAUGE-01-B-4~5: indexes 2개 OK");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -367,7 +408,12 @@ export const GAUGE01_SCHEMA_TOKENS = {
   // CPO FK
   CPO_FK_ITEM: "fk_cpo_curriculum_item",
   CPO_FK_VERSION: "fk_cpo_curriculum_version",
+  CPO_FK_LESSON_SESSION: "fk_cpo_lesson_session",   // → class_diaries ON DELETE RESTRICT
   CPO_FK_RESTRICT: "ON DELETE RESTRICT",
+
+  // SCP FK
+  SCP_FK_ACTIVE_VERSION: "fk_scp_active_version",   // → curriculum_versions ON DELETE RESTRICT
+  SCP_FK_PREV_VERSION: "fk_scp_prev_version",        // → curriculum_versions ON DELETE RESTRICT (nullable)
 
   // CPO 허용 observation_type 값
   CPO_ELIGIBLE_TYPES: ["ACTUAL_TAUGHT", "REVIEW", "CORRECTION"] as const,
