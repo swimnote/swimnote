@@ -1,0 +1,216 @@
+[앱] WP-CURRICULUM-PROGRESS-GAUGE-DESIGN-V3-FINAL
+
+목적:
+V2 설계의 구현 전 마지막 3개 무결성 항목만 수정 확정한다.
+
+이번 Step은 READ-ONLY DESIGN ONLY.
+
+코드 수정 금지.
+DB migration 금지.
+production write 금지.
+deploy 금지.
+전체 repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+확정된 사용자 결정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. REVIEW / CORRECTION
+→ 실제 당일 수행 수업이므로 gauge eligible = true
+
+2. 3-LESSON threshold
+→ 서로 다른 lesson_session 3회 유지
+
+3. FUTURE_PLAN / PAST_REFERENCE admin UI
+→ 이번 구현에서 만들지 않음
+
+4. curriculum version 자동 title matching
+→ 이번 구현에서 제외
+
+5. progress reset endpoint
+→ 이번 구현에서 제외
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. VERSION 간 MONOTONIC 기준 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서로 다른 curriculum_version의
+confirmed_progress_rank를 MAX 비교하면 안 된다.
+
+예:
+old: 140 / 200 = 70%
+new: 200 / 400 = 50%
+
+rank는 new가 더 크지만 progress는 낮다.
+
+따라서 SCP에서 최소한:
+
+- active_curriculum_version_id
+- active_version_confirmed_rank
+- active_version_total_count
+- active_version_confirmed_percent
+
+와
+
+- display_confirmed_progress_percent
+
+를 의미상 분리할 것.
+
+학부모에게 보여주는 단일 게이지는
+curriculum version 변경 때문에 내려가면 안 됨.
+
+기본 정책:
+
+display_confirmed_progress_percent =
+MAX(
+  previous_display_confirmed_progress_percent,
+  newly_confirmed_active_version_percent
+)
+
+즉 monotonic 기준은 cross-version rank가 아니라
+학부모 표시 progress percent.
+
+active version 내부 rank는
+해당 version 안에서만 비교.
+
+이 구조를 DB schema와 confirmation logic에 정확히 반영.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. EVIDENCE NULL FAIL-CLOSED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+V2의:
+
+evidence_text = NULL
+→ ACTUAL_TAUGHT
+
+기본값은 폐기.
+
+공식 진도 게이지이므로
+실제 수업 근거가 확인되지 않으면
+게이지를 올리면 안 된다.
+
+원칙:
+
+- teacher manual에서 실제 curriculum item을 명시 선택
+  → eligible 가능
+
+- evidence_text에서
+  ACTUAL_TAUGHT / REVIEW / CORRECTION 명확
+  → eligible
+
+- FUTURE_PLAN / PAST_REFERENCE
+  → ineligible
+
+- 실제 수업 여부를 판별할 evidence가 없음
+  → UNKNOWN 또는 UNVERIFIED
+  → is_gauge_eligible=false
+
+필요하면 observation_type union에
+UNKNOWN 또는 UNVERIFIED 추가.
+
+fail-open 금지.
+fail-closed 고정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. SESSION당 OBSERVATION 1개 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+우리 제품 규칙:
+
+학생 1명 + 실제 lesson_session 1회
+= gauge support observation 최대 1개.
+
+따라서 CPO idempotency를
+diary_note_id 중심이 아니라
+lesson_session_id + student_id 중심으로 설계 검토.
+
+권장:
+
+UNIQUE (lesson_session_id, student_id)
+
+diary_note_id는 evidence trace 용도로 보존.
+
+같은 lesson_session에서
+여러 curriculum item이 매칭되면:
+
+eligible item 중
+가장 높은 progress_rank 하나를
+그 session/student의 대표 observation으로 저장/UPDATE.
+
+note가 수정/재생성되어도
+같은 actual lesson이 두 번 카운트되면 안 됨.
+
+Diary EDIT 시:
+해당 session/student observation을
+현재 유효 growth_event 전체 기준으로 재계산.
+
+Diary DELETE 시:
+해당 session/student에 유효한 evidence가 더 없으면 invalidate.
+다른 유효 note/evidence가 남아 있으면 재계산.
+
+3-lesson confirmation:
+COUNT(DISTINCT lesson_session_id)
+구조적으로 보장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. V3 최종 DB 구조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+위 3개 수정 반영 후:
+
+A. curriculum_progress_observations
+B. student_curriculum_progress
+
+최종 컬럼/UNIQUE/FK/index 구조를 다시 제시.
+
+특히 명확히 구분:
+
+- active version position
+- lifetime/display gauge percent
+- observation evidence state
+- lesson session identity
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 구현 Step 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+V3 수정으로 인해
+STEP-GAUGE-01~08 순서가 바뀌는지 확인.
+
+가능하면 기존 순서 유지:
+
+01 DB foundation
+02 rank calculator
+03 evidence classifier
+04 CPO mapper
+05 confirmation
+06 parent home gauge
+07 Growth Report
+08 Parent Curriculum
+
+단, DB migration 실행은
+사용자 승인 전 절대 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+최종 보고
+
+[앱] CURRICULUM PROGRESS GAUGE DESIGN V3 FINAL REPORT
+
+1. cross-version progress policy
+2. final SCP schema
+3. fail-closed evidence policy
+4. final observation types
+5. session-level CPO uniqueness
+6. diary edit/delete recomputation
+7. final CPO schema
+8. final 3-lesson algorithm
+9. final implementation order
+10. unresolved issues
+
+Final Verdict:
+READY FOR IMPLEMENTATION
+or
+BLOCKED + exact reason
+
+코드 수정 없이 STOP.
