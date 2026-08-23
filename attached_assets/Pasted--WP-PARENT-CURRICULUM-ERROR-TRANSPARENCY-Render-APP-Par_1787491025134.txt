@@ -1,0 +1,130 @@
+[앱] WP-PARENT-CURRICULUM-ERROR-TRANSPARENCY
+
+목적:
+사용자에게 Render 로그 수동 확인을 요구하지 않고,
+APP → Parent Curriculum Engine 실패 원인을
+production probe 응답만으로 정확히 진단 가능하게 한다.
+
+현재 문제:
+parent-curriculum-engine-client.ts는
+engine non-2xx의 HTTP status를 내부적으로 알고 있지만,
+상위 route에서 최종적으로
+502 ENGINE_HTTP_ERROR
+로 마스킹되어 실제 engine status를 확인할 수 없다.
+
+이번 작업은 오류 진단 정보 전달만 최소 수정한다.
+
+────────────────────
+1. Engine client error에 보존
+────────────────────
+
+non-2xx engine response에서 다음을 structured error에 보존:
+
+- engine_status
+- engine_error_code
+- engine_content_type
+- request_id
+
+engine_error_code 우선순위:
+1. body.error.code
+2. body.error_code
+3. fallback ENGINE_HTTP_ERROR
+
+JSON이 아닌 응답이어도
+HTTP status와 content-type은 반드시 보존한다.
+
+────────────────────
+2. APP route 응답
+────────────────────
+
+Parent Curriculum route가 Engine 오류를 502로 변환하더라도
+diagnostic 필드로 다음은 반환 가능하게 한다:
+
+- engine_status
+- engine_error_code
+- request_id
+
+예:
+
+{
+  "error": {
+    "code": "ENGINE_HTTP_ERROR",
+    "engine_status": 404,
+    "engine_error_code": "ENGINE_HTTP_ERROR"
+  }
+}
+
+금지:
+- JWT 출력
+- Authorization header 출력
+- JWT_SECRET 출력
+- engine secret 출력
+- 전체 response body 출력
+- curriculum payload 출력
+- 개인정보 출력
+
+────────────────────
+3. 최소 테스트
+────────────────────
+
+TC1 engine 401
+→ engine_status=401 보존
+
+TC2 engine 403
+→ engine_status=403 보존
+
+TC3 engine 404 HTML
+→ engine_status=404 보존
+
+TC4 engine 422 nested error.code
+→ engine_status=422 + 실제 code 보존
+
+TC5 정상 200
+→ 기존 동작 변경 없음
+
+전체 regression 금지.
+
+────────────────────
+4. 배포 후 Replit이 직접 확인
+────────────────────
+
+사용자에게 Render 로그 확인 요청 금지.
+
+코드 수정 후 필요한 수동 deploy만 보고하고 STOP.
+
+배포 완료 후에는 Replit이 직접 production에
+
+query:
+자유형킥
+
+1건을 호출하여 다음을 보고:
+
+- APP HTTP status
+- engine_status
+- engine_error_code
+- request_id
+
+이 값으로 다음 원인을 직접 판정할 것.
+
+────────────────────
+5. 금지
+────────────────────
+
+AI Engine 수정 금지
+DB 수정 금지
+환경변수 변경 금지
+routing 수정 금지
+추가 기능 금지
+Render API 요구 금지
+
+완료 보고:
+
+[앱] PARENT CURRICULUM ERROR TRANSPARENCY REPORT
+
+- changed file
+- engine_status exposed: YES/NO
+- tests
+- commit SHA
+- manual deploy required: YES/NO
+
+STOP.
