@@ -30,7 +30,7 @@ export const PC_FEATURE        = "parent_curriculum_search" as const;
 const DEFAULT_TIMEOUT_MS = 60_000; // curriculum search is faster than growth report
 
 export function getParentCurriculumEngineUrl(): string {
-  return (process.env["PARENT_CURRICULUM_ENGINE_URL"] ?? "").trim();
+  return (process.env["PARENT_CURRICULUM_ENGINE_URL"] ?? "").trim().replace(/\/+$/, "");
 }
 
 export function getParentCurriculumEngineTimeoutMs(): number {
@@ -232,7 +232,12 @@ export async function searchParentCurriculum(
 
   try {
     actualCallCount = 1; // HTTP request is about to be sent
-    const res = await fetch(`${baseUrl}/api/v1/parent-curriculum/search`, {
+    const engineEndpoint = `${baseUrl}/api/v1/parent-curriculum/search`;
+    const engineUrlObj   = new URL(engineEndpoint);
+    console.log(
+      `[pc-engine] host=${engineUrlObj.host} pathname=${engineUrlObj.pathname} request_id=${request.request_id}`,
+    );
+    const res = await fetch(engineEndpoint, {
       method: "POST",
       headers: {
         "Content-Type":  "application/json",

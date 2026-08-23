@@ -24,6 +24,9 @@
  * TC-DG-03   engine 404 HTML → engineStatus=404 preserved (JSON parse fails)
  * TC-DG-04   engine 422 nested error.code → engineStatus=422 + code preserved
  * TC-DG-05   engine 200 success → no error, existing behaviour unchanged
+ *
+ * TC-URL-01  base URL without trailing slash → correct endpoint (no double slash)
+ * TC-URL-02  base URL WITH trailing slash → trailing slash stripped → no //api double slash
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -441,5 +444,67 @@ describe("searchParentCurriculum — diagnostic transparency (TC-DG)", () => {
     expect(result.response.result.answer).toBe("자유형 킥 설명입니다.");
     expect(result.actualCallCount).toBe(1);
     expect(result.retryCount).toBe(0);
+  });
+});
+
+// ─── URL Normalization Tests (TC-URL) ─────────────────────────────────────────
+
+describe("searchParentCurriculum — URL construction (TC-URL)", () => {
+  const origEnv   = process.env;
+  const origFetch = global.fetch;
+
+  afterEach(() => {
+    process.env  = origEnv;
+    global.fetch = origFetch;
+  });
+
+  const SUCCESS_BODY = {
+    request_id:     "req_url_test",
+    schema_version: "1.0",
+    feature:        "parent_curriculum_search",
+    result: { answer: "OK", current_progress: null, next_step: null },
+    grounding: { curriculum_ids: [], validation: "PASS" },
+  };
+
+  function captureUrl(): { capturedUrl: string | null } {
+    const capture = { capturedUrl: null as string | null };
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      capture.capturedUrl = input.toString();
+      return new Response(JSON.stringify(SUCCESS_BODY), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+    return capture;
+  }
+
+  it("TC-URL-01: base without trailing slash → no double slash in path", async () => {
+    process.env = {
+      ...origEnv,
+      JWT_SECRET:                   TEST_SECRET,
+      PARENT_CURRICULUM_ENGINE_URL: "https://engine.example.com",
+      PARENT_CURRICULUM_ENGINE_TIMEOUT_MS: "5000",
+    };
+    const capture = captureUrl();
+    await searchParentCurriculum(makeRequest());
+    expect(capture.capturedUrl).toBe(
+      "https://engine.example.com/api/v1/parent-curriculum/search",
+    );
+    expect(capture.capturedUrl).not.toContain("//api");
+  });
+
+  it("TC-URL-02: base WITH trailing slash → trailing slash stripped, no //api double slash", async () => {
+    process.env = {
+      ...origEnv,
+      JWT_SECRET:                   TEST_SECRET,
+      PARENT_CURRICULUM_ENGINE_URL: "https://engine.example.com/",
+      PARENT_CURRICULUM_ENGINE_TIMEOUT_MS: "5000",
+    };
+    const capture = captureUrl();
+    await searchParentCurriculum(makeRequest());
+    expect(capture.capturedUrl).toBe(
+      "https://engine.example.com/api/v1/parent-curriculum/search",
+    );
+    expect(capture.capturedUrl).not.toContain("//api");
   });
 });
