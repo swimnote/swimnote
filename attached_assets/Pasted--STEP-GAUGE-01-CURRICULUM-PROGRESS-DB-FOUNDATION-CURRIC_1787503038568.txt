@@ -1,0 +1,224 @@
+[앱] STEP-GAUGE-01 — CURRICULUM PROGRESS DB FOUNDATION
+
+기준 설계:
+[앱] CURRICULUM PROGRESS GAUGE DESIGN V3 FINAL REPORT
+
+목적:
+Curriculum Progress Gauge의 DB foundation만 구현한다.
+
+이번 Step 범위:
+- migration 코드 작성
+- migration 관련 최소 테스트
+- production DB에는 아직 실행하지 않음
+
+중요:
+이번 Step에서 실제 production migration 실행 금지.
+사용자 승인 전 DB CREATE TABLE 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 생성 대상
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+V3 FINAL 설계 그대로 아래 2개 table migration 작성:
+
+A. curriculum_progress_observations
+
+핵심:
+- student_id
+- swimming_pool_id
+- lesson_session_id
+- last_diary_note_id
+- curriculum_version_id
+- curriculum_item_id
+- observed_progress_rank
+- observed_total_count
+- observed_progress_pct
+- observation_type
+- is_gauge_eligible
+- evidence_source
+- evidence_text_snippet
+- mapping_confidence
+- is_invalidated
+- invalidated_at
+- invalidated_reason
+- created_at
+- updated_at
+
+필수 무결성:
+
+UNIQUE:
+(lesson_session_id, student_id)
+
+observation_type:
+ACTUAL_TAUGHT
+REVIEW
+CORRECTION
+FUTURE_PLAN
+PAST_REFERENCE
+UNVERIFIED
+
+CHECK:
+ACTUAL_TAUGHT / REVIEW / CORRECTION
+→ is_gauge_eligible=true
+
+FUTURE_PLAN / PAST_REFERENCE / UNVERIFIED
+→ is_gauge_eligible=false
+
+invalidated consistency CHECK 유지.
+
+FK:
+curriculum_item_id → curriculum_items(id) ON DELETE RESTRICT
+curriculum_version_id → curriculum_versions(id) ON DELETE RESTRICT
+
+V3 설계의 indexes 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. student_curriculum_progress
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+V3 FINAL schema 그대로 구현.
+
+핵심 구분:
+
+ACTIVE VERSION 좌표:
+- active_curriculum_version_id
+- active_confirmed_rank
+- active_confirmed_total
+- active_confirmed_pct
+
+학부모 표시용:
+- display_confirmed_pct
+
+중요:
+cross-version에서 rank MAX 사용 금지.
+
+향후 로직의 불변조건:
+
+display_confirmed_pct =
+MAX(previous_display_confirmed_pct,
+    newly_confirmed_active_version_pct)
+
+필드:
+- confirmed_at
+- display_updated_at
+- observation_session_count
+- prev_curriculum_version_id
+- prev_display_pct
+- updated_at
+
+UNIQUE:
+(student_id, swimming_pool_id)
+
+percent CHECK:
+0 <= pct <= 100
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Migration 작성 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 프로젝트의 기존 migration 패턴을
+필요 최소 범위만 확인하여 동일한 방식 사용.
+
+새 migration 파일 예:
+
+artifacts/api-server/src/migrations/
+gauge-01-progress-tables.ts
+
+실제 repo의 migration naming/convention이 다르면
+기존 convention을 따른다.
+
+중요:
+- startup migration 연결 금지
+- production DB 자동 실행 금지
+- 기존 table 수정 금지
+- 기존 growth_events 수정 금지
+- curriculum tables 수정 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Idempotency
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+migration은 반복 실행 안전하도록 작성.
+
+확인:
+- table already exists
+- index already exists
+- constraint already exists
+
+프로젝트 기존 migration helper가 있으면 재사용.
+
+무작정 DROP/RECREATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production DB 사용 금지.
+
+가능한 test DB / unit schema validation 범위에서만 실행.
+
+필수 확인:
+
+TC1
+CPO table schema 생성 가능
+
+TC2
+SCP table schema 생성 가능
+
+TC3
+동일 migration 두 번 적용해도 실패 없음
+
+TC4
+UNIQUE(lesson_session_id, student_id) 보호
+
+TC5
+eligible/type CHECK:
+ACTUAL_TAUGHT + false → reject
+FUTURE_PLAN + true → reject
+
+TC6
+percent 범위 CHECK
+
+TC7
+FK RESTRICT 정의 확인
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 이번 Step 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- production DB migration 실행 금지
+- DB data INSERT 금지
+- Diary route 수정 금지
+- CPO mapper 구현 금지
+- confirmation engine 구현 금지
+- Parent Home UI 수정 금지
+- Growth Report 수정 금지
+- Parent Curriculum 수정 금지
+- AI Engine 수정 금지
+- Render deploy 금지
+- OTA 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-01 DB FOUNDATION REPORT
+
+- migration file
+- CPO schema implemented: YES/NO
+- SCP schema implemented: YES/NO
+- session-level UNIQUE: YES/NO
+- eligibility CHECK: YES/NO
+- cross-version display field: YES/NO
+- indexes
+- FK
+- tests + pass count
+- production DB touched: NO
+- existing tables changed: NO
+- commit SHA
+- production migration required next: YES/NO
+
+STOP.
