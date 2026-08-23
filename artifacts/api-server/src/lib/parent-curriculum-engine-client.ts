@@ -232,12 +232,27 @@ export async function searchParentCurriculum(
 
     if (!res.ok) {
       let errorCode = "ENGINE_HTTP_ERROR";
+      let errorMessage: string | undefined;
       let retryable = res.status >= 500 || res.status === 429;
       try {
-        const body = (await res.json()) as { error_code?: string };
-        if (typeof body?.error_code === "string") {
-          errorCode = body.error_code;
-          retryable  = PC_RETRYABLE_ERROR_CODES.has(errorCode);
+        const body = (await res.json()) as {
+          error?:      { code?: string; message?: string; retryable?: boolean };
+          error_code?: string;
+          message?:    string;
+        };
+        // Priority 1: nested body.error.code (engine v1 format)
+        // Priority 2: flat body.error_code (legacy format)
+        const code =
+          (typeof body?.error?.code === "string"   ? body.error.code   : undefined) ??
+          (typeof body?.error_code  === "string"   ? body.error_code   : undefined);
+        if (code) {
+          errorCode    = code;
+          errorMessage = body?.error?.message ?? body?.message;
+          // If engine supplies explicit retryable flag, honour it; else derive from code set
+          retryable =
+            typeof body?.error?.retryable === "boolean"
+              ? body.error.retryable
+              : PC_RETRYABLE_ERROR_CODES.has(errorCode);
         }
       } catch {
         // JSON parse failure — keep defaults
@@ -246,7 +261,7 @@ export async function searchParentCurriculum(
         errorCode,
         res.status,
         retryable,
-        `ENGINE ${res.status}: ${errorCode}`,
+        errorMessage ?? `ENGINE ${res.status}: ${errorCode}`,
       );
     }
 

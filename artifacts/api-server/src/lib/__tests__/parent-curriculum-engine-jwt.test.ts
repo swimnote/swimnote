@@ -11,6 +11,13 @@
  * TC-JWT-06  JWT role is pool_admin
  * TC-JWT-07  JWT algorithm is HS256
  * TC-JWT-08  JWT poolId claim matches input
+ *
+ * TC-EP-01   nested body.error.code (engine v1 format) — 401 → UNAUTHORIZED
+ * TC-EP-02   nested body.error.code — 422 → CURRICULUM_SCOPE_UNAVAILABLE
+ * TC-EP-03   legacy flat body.error_code — backwards compatible
+ * TC-EP-04   unknown body → ENGINE_HTTP_ERROR fallback
+ * TC-EP-05   nested error.retryable=false honoured over status-derived value
+ * TC-EP-06   HTTP status preserved on thrown error
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -195,5 +202,124 @@ describe("searchParentCurriculum — JWT auth", () => {
     // Must still be a JWT
     const token = capturedAuth!.slice("Bearer ".length);
     expect(token.split(".")).toHaveLength(3);
+  });
+});
+
+// ─── Error Parser Tests ────────────────────────────────────────────────────────
+
+describe("searchParentCurriculum — error parser (TC-EP)", () => {
+  const origEnv   = process.env;
+  const origFetch = global.fetch;
+
+  beforeEach(() => {
+    process.env = {
+      ...origEnv,
+      JWT_SECRET:                          TEST_SECRET,
+      PARENT_CURRICULUM_ENGINE_URL:        "https://engine.test",
+      PARENT_CURRICULUM_ENGINE_TIMEOUT_MS: "5000",
+    };
+    delete process.env["PARENT_CURRICULUM_ENGINE_SECRET"];
+  });
+
+  afterEach(() => {
+    process.env  = origEnv;
+    global.fetch = origFetch;
+  });
+
+  function mockEngineError(status: number, body: unknown): void {
+    global.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+  }
+
+  it("TC-EP-01: nested body.error.code on 401 → UNAUTHORIZED preserved", async () => {
+    mockEngineError(401, {
+      request_id:     "req_ep_01",
+      schema_version: "1.0",
+      feature:        "parent_curriculum_search",
+      error: { code: "UNAUTHORIZED", message: "인증이 필요합니다.", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode    === "UNAUTHORIZED" &&
+        err.statusCode   === 401            &&
+        err.retryable    === false,
+    );
+  });
+
+  it("TC-EP-02: nested body.error.code on 422 → CURRICULUM_SCOPE_UNAVAILABLE preserved", async () => {
+    mockEngineError(422, {
+      request_id:     "req_ep_02",
+      schema_version: "1.0",
+      feature:        "parent_curriculum_search",
+      error: { code: "CURRICULUM_SCOPE_UNAVAILABLE", message: "유효하지 않은 curriculum source입니다.", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode    === "CURRICULUM_SCOPE_UNAVAILABLE" &&
+        err.statusCode   === 422                             &&
+        err.retryable    === false,
+    );
+  });
+
+  it("TC-EP-03: legacy flat body.error_code → backwards compatible", async () => {
+    mockEngineError(503, {
+      error_code: "SERVICE_UNAVAILABLE",
+      message:    "engine overloaded",
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode  === "SERVICE_UNAVAILABLE" &&
+        err.statusCode === 503                   &&
+        err.retryable  === true, // in PC_RETRYABLE_ERROR_CODES
+    );
+  });
+
+  it("TC-EP-04: unknown body → ENGINE_HTTP_ERROR fallback", async () => {
+    mockEngineError(500, { unexpected: "field" });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode  === "ENGINE_HTTP_ERROR" &&
+        err.statusCode === 500                 &&
+        err.retryable  === true, // 500 >= 500
+    );
+  });
+
+  it("TC-EP-05: nested error.retryable=false honoured over status-derived value", async () => {
+    // 503 would normally be retryable=true by status, but engine says false
+    mockEngineError(503, {
+      error: { code: "GENERATION_FAILED", message: "permanent failure", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode === "GENERATION_FAILED"      &&
+        err.retryable === false,
+    );
+  });
+
+  it("TC-EP-06: HTTP status is preserved on thrown error", async () => {
+    mockEngineError(403, {
+      error: { code: "FORBIDDEN", message: "pool not authorised", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.errorCode  === "FORBIDDEN" &&
+        err.statusCode === 403,
+    );
   });
 });
