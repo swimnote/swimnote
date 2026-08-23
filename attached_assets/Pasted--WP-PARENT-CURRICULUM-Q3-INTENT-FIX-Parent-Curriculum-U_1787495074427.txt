@@ -1,0 +1,154 @@
+[앱] WP-PARENT-CURRICULUM-Q3-INTENT-FIX
+
+목적:
+Parent Curriculum에서
+"롤링 언제 해" 같은 학습시점/순서 질문이
+UNKNOWN → DIRECT_DB로 잘못 빠지는 routing 문제만 최소 수정한다.
+
+현재 production 상태:
+- 실제 APP DB wiring 정상
+- X_POOL 정상
+- JWT 정상
+- Professional V2 정상
+- GPT/grounding 정상
+- live E2E 정상
+- 유일한 잔여 결함:
+  "롤링 언제 해"
+  → intent=UNKNOWN
+  → DIRECT_DB
+  → "아직 기록된 수업 데이터가 없습니다."
+
+이번 작업은 intent routing만 수정한다.
+
+────────────────────
+1. 최소 원인 확인
+────────────────────
+
+Parent Curriculum APP route의
+intent classifier / deterministic routing 부분만 확인.
+
+왜 다음 질문이 UNKNOWN으로 분류되는지 확인:
+
+"롤링 언제 해"
+
+전체 repo audit 금지.
+AI Engine 조사 금지.
+
+────────────────────
+2. routing 수정
+────────────────────
+
+다음 의미의 질문은
+UNKNOWN/DIRECT_DB가 아니라
+Engine GROUNDED_GPT 경로로 보내야 한다.
+
+의도:
+- 언제 배워?
+- 언제 해?
+- 다음에 배워?
+- 몇 단계 뒤에 배워?
+- 지금 배우는 거야?
+- 언제쯤 배우나요?
+- 특정 기술의 학습 순서/시점 문의
+
+가능하면 기존 NEXT_STEP 또는
+가장 적절한 기존 curriculum intent를 재사용.
+
+새 intent 추가는 기존 구조로 해결 불가능할 때만 허용.
+
+중요:
+APP에서 답변 생성 금지.
+APP은 intent 판별 후
+기존 Parent Curriculum Engine으로 전달한다.
+
+────────────────────
+3. 기존 DIRECT_DB 유지 대상
+────────────────────
+
+정말 AI Engine 호출이 필요 없는
+명확한 deterministic DB 조회만
+기존 DIRECT_DB 유지.
+
+"롤링 언제 해"처럼
+커리큘럼 순서/맥락/전문 설명이 필요한 질문은
+DIRECT_DB 금지.
+
+────────────────────
+4. 최소 테스트
+────────────────────
+
+TC1:
+"롤링 언제 해"
+→ UNKNOWN 아님
+→ GROUNDED_GPT path
+
+TC2:
+"롤링은 언제 배워?"
+→ GROUNDED_GPT path
+
+TC3:
+"다음에 뭐 배워?"
+→ 기존 NEXT_STEP 유지
+
+TC4:
+"자유형킥"
+→ 기존 CURRICULUM_GENERAL 유지
+
+TC5:
+기존 명확한 DIRECT_DB query
+→ 기존 DIRECT_DB 유지
+
+전체 regression 금지.
+
+────────────────────
+5. Production 확인
+────────────────────
+
+코드 수정 후 자동 deploy 금지.
+
+먼저 보고:
+- root cause
+- changed file
+- tests
+- commit SHA
+- manual deploy required
+
+배포 후에는 아래 3개만 production 확인:
+
+1. 롤링 언제 해
+2. 롤링은 언제 배워?
+3. 현재 다음에 뭐 배워?
+
+확인:
+- intent
+- answer_mode
+- actual X_POOL curriculum 사용
+- Professional V2
+- grounded answer
+- quota
+
+────────────────────
+6. 금지
+────────────────────
+
+AI Engine 수정 금지
+DB 수정 금지
+JWT 수정 금지
+환경변수 수정 금지
+Professional V2 수정 금지
+GPT 모델 변경 금지
+quota 정책 변경 금지
+
+완료 보고:
+
+[앱] PARENT CURRICULUM Q3 INTENT FIX REPORT
+
+- root cause
+- changed files
+- "롤링 언제 해" intent
+- answer_mode
+- tests
+- commit SHA
+- manual deploy required: YES/NO
+
+STOP.
