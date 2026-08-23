@@ -1,0 +1,143 @@
+[앱] STEP-GAUGE-01A — PRE-MIGRATION INTEGRITY CHECK
+
+목적:
+STEP-GAUGE-01 migration을 production DB에 실행하기 전에
+DB 무결성과 실제 PostgreSQL DDL 실행 가능성만 최종 확인한다.
+
+현재 commit:
+6dd8c1f8
+
+중요:
+- production DB migration 실행 금지
+- production DB write 금지
+- startup migration 연결 금지
+- 기존 기능 수정 금지
+- STEP-GAUGE-02 구현 시작 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. FK 누락 최소 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 CPO FK:
+- curriculum_item_id → curriculum_items
+- curriculum_version_id → curriculum_versions
+
+추가로 아래 관계가 현재 DB 구조에서
+안전하게 FK로 강제 가능한지만 확인:
+
+A.
+curriculum_progress_observations.lesson_session_id
+→ class_diaries.id
+
+B.
+student_curriculum_progress.active_curriculum_version_id
+→ curriculum_versions.id
+
+C.
+prev_curriculum_version_id
+→ curriculum_versions.id
+(nullable)
+
+기존 schema/FK convention상 안전하면 migration에 추가.
+
+중요:
+CASCADE로 기존 수업/커리큘럼 삭제가
+progress history까지 날아가면 안 된다.
+
+기본 선호:
+- lesson_session_id → ON DELETE RESTRICT 또는 기존 soft-delete 정책과 일치
+- active/prev curriculum version → ON DELETE RESTRICT
+
+단, 현재 DB 구조상 FK 추가가 위험하면
+억지로 추가하지 말고 정확한 이유 보고.
+
+student_id / swimming_pool_id FK는
+기존 프로젝트의 tenant DB FK convention을 최소 확인하고,
+현재 구조에서 명백히 안전한 경우에만 제안.
+불필요한 schema 확장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 PostgreSQL DDL 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production DB 사용 금지.
+
+기존 프로젝트에 disposable/test DB가 있으면
+그 환경에서만 migration을 실제 실행하여 확인:
+
+- 1차 실행 성공
+- 2차 실행 성공 또는 idempotent no-op
+- 두 table 존재
+- indexes 존재
+- constraints 존재
+- FK 존재
+- CHECK 동작
+
+실제 PostgreSQL test DB가 프로젝트에 없다면
+새 외부 DB를 만들지 말고
+"TEST DB NOT AVAILABLE"로 보고.
+
+mock 성공을 실제 PostgreSQL 성공으로 표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Migration 자체 안전성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+- DROP 없음
+- 기존 table ALTER 없음
+  (신규 table 자체 FK/constraint 생성은 허용)
+- 기존 data UPDATE/DELETE 없음
+- startup auto-run 없음
+- transaction 사용 가능하면 기존 migration pattern 준수
+- 중간 실패 시 half-created 상태에서도 재실행 안전
+
+특히:
+CREATE TABLE IF NOT EXISTS만으로
+constraint/index idempotency가 완전히 보장되는지 확인.
+
+필요하면 기존 project migration helper 방식으로
+신규 schema 내부에서만 안전하게 보강.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 67 tests 유지.
+
+추가 최소 확인:
+- lesson_session FK 여부
+- SCP active version FK 여부
+- nullable prev version FK 여부
+- invalid FK reject
+- 실제 PostgreSQL execution 여부
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-01A PRE-MIGRATION REPORT
+
+- migration file
+- lesson_session FK: YES/NO + reason
+- active_version FK: YES/NO + reason
+- prev_version FK: YES/NO + reason
+- production DB touched: NO
+- actual PostgreSQL test DB used: YES/NO
+- first DDL run: PASS/NOT RUN
+- second idempotent run: PASS/NOT RUN
+- tests + pass count
+- DROP/UPDATE/DELETE existing data: NO
+- startup migration connected: NO
+- changed files
+- commit SHA
+
+Final Verdict:
+SAFE FOR PRODUCTION MIGRATION
+or
+BLOCKED + exact reason
+
+STOP.
