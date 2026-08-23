@@ -1,0 +1,234 @@
+[앱] STEP-GAUGE-02 — PROGRESS RANK CALCULATOR
+
+기준:
+CURRICULUM PROGRESS GAUGE DESIGN V3 FINAL
++
+GAUGE DB FOUNDATION PRODUCTION READY
+
+목적:
+pool curriculum item의 실제 1-based progress rank /
+total active item count /
+progress percent를 정확히 계산하는
+read-only rank calculator를 구현한다.
+
+이번 Step은 계산 서비스 구현 + 최소 테스트만 한다.
+
+중요:
+- production DB write 금지
+- CPO INSERT 금지
+- SCP INSERT/UPDATE 금지
+- Diary route 수정 금지
+- Parent Home UI 수정 금지
+- Growth Report 수정 금지
+- Parent Curriculum 수정 금지
+- AI Engine 수정 금지
+- deploy 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 신규 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/api-server/src/lib/curriculum-rank-calculator.ts
+
+실제 repo convention이 다르면
+동일 lib 경로 안에서 최소 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+computeItemRank(
+  poolDb,
+  curriculumVersionId,
+  curriculumItemId
+)
+
+return:
+
+{
+  progressRank: number,
+  totalCount: number,
+  progressPct: number
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Rank 계산 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 raw sort_order / total_count 계산 금지.
+
+반드시 active items만 대상으로
+실제 curriculum 순서를 1-based rank로 계산.
+
+개념:
+
+WITH ranked AS (
+  SELECT
+    ci.id,
+    ROW_NUMBER() OVER (
+      ORDER BY ci.sort_order ASC, ci.id ASC
+    ) AS progress_rank,
+    COUNT(*) OVER () AS total_count
+  FROM curriculum_items ci
+  WHERE ci.curriculum_version_id = $versionId
+    AND ci.is_active = true
+)
+SELECT
+  progress_rank,
+  total_count
+FROM ranked
+WHERE id = $itemId
+
+progressPct =
+ROUND(progress_rank / total_count * 100, 1)
+
+중요:
+- sort_order=0 시작 가능
+- gap 가능
+- 비연속 가능
+- inactive item 제외
+- 마지막 active item은 반드시 100.0%
+- deterministic tie-breaker 유지
+  (현재 UNIQUE sort_order가 있어도 id ASC 보조 정렬 가능)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Validation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 경우 fail-closed:
+
+- curriculumVersionId 없음
+- curriculumItemId 없음
+- item이 해당 version에 없음
+- item inactive
+- active item count = 0
+
+임의 rank 생성 금지.
+
+error code는 기존 project error convention 사용.
+
+예:
+CURRICULUM_ITEM_NOT_FOUND
+또는 기존 동일 의미 error.
+
+새 전역 error 체계 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Pool isolation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 함수 자체는 versionId 기준 계산이지만,
+호출자가 전달한 version/item 관계는 DB로 검증.
+
+item이 다른 version에 속하면 실패.
+
+다른 pool/version item이
+rank 계산에 섞이면 안 됨.
+
+Professional V2 / GPT / swimming DB import 금지.
+
+이 함수가 참조 가능한 데이터:
+curriculum_items only
+(+ 필요 시 curriculum_versions validation)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production DB write 없이
+test DB / fixture / query-level test만 사용.
+
+필수:
+
+TC1
+sort_order = 0,1,2
+→ ranks = 1,2,3
+
+TC2
+sort_order = 0,10,50
+→ ranks = 1,2,3
+
+TC3
+중간 inactive item 존재
+→ active items만 연속 rank
+
+TC4
+마지막 active item
+→ progressPct = 100.0
+
+TC5
+첫 active item
+→ 1 / total * 100
+
+TC6
+item이 해당 version에 없음
+→ fail-closed
+
+TC7
+inactive item 요청
+→ fail-closed
+
+TC8
+active item zero
+→ fail-closed
+
+TC9
+다른 version item
+→ fail-closed
+
+TC10
+Professional/AI dependency 없음 확인
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Production read-only sanity check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 테스트 PASS 후
+production DB에서 read-only로
+현재 active curriculum 1개만 sanity check 가능.
+
+예:
+토이키즈스윔클럽 active curriculum
+총 active item count 확인 후:
+
+- 첫 item rank=1
+- 중간 item rank 정상
+- 마지막 item rank=N
+- 마지막 percent=100.0
+
+SELECT/read only만 허용.
+INSERT/UPDATE/DELETE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-02 PROGRESS RANK REPORT
+
+- file
+- function
+- calculation query
+- 1-based rank: YES/NO
+- inactive excluded: YES/NO
+- last item = 100%: YES/NO
+- cross-version guard: YES/NO
+- AI/Professional dependency: NO
+- tests + pass count
+- production read-only sanity check
+- production DB write: NO
+- changed files
+- commit SHA
+
+Final Verdict:
+PROGRESS RANK CALCULATOR COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
