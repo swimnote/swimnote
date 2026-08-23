@@ -18,6 +18,12 @@
  * TC-EP-04   unknown body → ENGINE_HTTP_ERROR fallback
  * TC-EP-05   nested error.retryable=false honoured over status-derived value
  * TC-EP-06   HTTP status preserved on thrown error
+ *
+ * TC-DG-01   engine 401 → engineStatus=401 preserved on error
+ * TC-DG-02   engine 403 → engineStatus=403 preserved on error
+ * TC-DG-03   engine 404 HTML → engineStatus=404 preserved (JSON parse fails)
+ * TC-DG-04   engine 422 nested error.code → engineStatus=422 + code preserved
+ * TC-DG-05   engine 200 success → no error, existing behaviour unchanged
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -321,5 +327,119 @@ describe("searchParentCurriculum — error parser (TC-EP)", () => {
         err.errorCode  === "FORBIDDEN" &&
         err.statusCode === 403,
     );
+  });
+});
+
+// ─── Diagnostic Transparency Tests (TC-DG) ────────────────────────────────────
+
+describe("searchParentCurriculum — diagnostic transparency (TC-DG)", () => {
+  const origEnv   = process.env;
+  const origFetch = global.fetch;
+
+  beforeEach(() => {
+    process.env = {
+      ...origEnv,
+      JWT_SECRET:                          TEST_SECRET,
+      PARENT_CURRICULUM_ENGINE_URL:        "https://engine.test",
+      PARENT_CURRICULUM_ENGINE_TIMEOUT_MS: "5000",
+    };
+    delete process.env["PARENT_CURRICULUM_ENGINE_SECRET"];
+  });
+
+  afterEach(() => {
+    process.env  = origEnv;
+    global.fetch = origFetch;
+  });
+
+  function mockEngineError(status: number, body: unknown, contentType = "application/json"): void {
+    global.fetch = vi.fn(async () =>
+      new Response(
+        typeof body === "string" ? body : JSON.stringify(body),
+        { status, headers: { "Content-Type": contentType } },
+      ),
+    ) as typeof fetch;
+  }
+
+  it("TC-DG-01: engine 401 → engineStatus=401 preserved", async () => {
+    mockEngineError(401, {
+      error: { code: "UNAUTHORIZED", message: "인증 실패", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.engineStatus    === 401            &&
+        err.engineErrorCode === "UNAUTHORIZED",
+    );
+  });
+
+  it("TC-DG-02: engine 403 → engineStatus=403 preserved", async () => {
+    mockEngineError(403, {
+      error: { code: "FORBIDDEN", message: "pool not registered", retryable: false },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.engineStatus    === 403         &&
+        err.engineErrorCode === "FORBIDDEN",
+    );
+  });
+
+  it("TC-DG-03: engine 404 HTML → engineStatus=404 preserved despite JSON parse failure", async () => {
+    mockEngineError(
+      404,
+      "<!DOCTYPE html><html><body><pre>Cannot POST /wrong</pre></body></html>",
+      "text/html",
+    );
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.engineStatus    === 404                &&
+        err.engineErrorCode === "ENGINE_HTTP_ERROR" && // fallback (JSON parse failed)
+        err.engineContentType?.includes("text/html"),
+    );
+  });
+
+  it("TC-DG-04: engine 422 nested error.code → engineStatus=422 + real code preserved", async () => {
+    mockEngineError(422, {
+      request_id:     null,
+      schema_version: "1.0",
+      feature:        "parent_curriculum_search",
+      error: {
+        code:      "CURRICULUM_SCOPE_UNAVAILABLE",
+        message:   "유효하지 않은 curriculum source입니다.",
+        retryable: false,
+      },
+    });
+
+    await expect(searchParentCurriculum(makeRequest())).rejects.toSatisfy(
+      (err: unknown) =>
+        err instanceof ParentCurriculumEngineError &&
+        err.engineStatus    === 422                          &&
+        err.engineErrorCode === "CURRICULUM_SCOPE_UNAVAILABLE",
+    );
+  });
+
+  it("TC-DG-05: engine 200 success → no error thrown, existing behaviour unchanged", async () => {
+    const successBody = {
+      request_id:     "req_jwt_test_001",
+      schema_version: "1.0",
+      feature:        "parent_curriculum_search",
+      result: { answer: "자유형 킥 설명입니다.", current_progress: null, next_step: null },
+      grounding: { curriculum_ids: ["ci_01"], validation: "PASS" },
+    };
+    global.fetch = vi.fn(async () =>
+      new Response(JSON.stringify(successBody), {
+        status:  200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as typeof fetch;
+
+    const result = await searchParentCurriculum(makeRequest());
+    expect(result.response.result.answer).toBe("자유형 킥 설명입니다.");
+    expect(result.actualCallCount).toBe(1);
+    expect(result.retryCount).toBe(0);
   });
 });

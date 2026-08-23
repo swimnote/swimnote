@@ -751,12 +751,16 @@ router.post(
 
       if (err instanceof ParentCurriculumEngineError) {
         console.error(
-          `[parent-curriculum] ENGINE error code=${err.errorCode} status=${err.statusCode}`,
+          `[parent-curriculum] ENGINE error code=${err.engineErrorCode} status=${err.engineStatus} content-type=${err.engineContentType ?? "unknown"}`,
         );
         res.status(502).json({
-          error:     "커리큘럼 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
-          code:      errorCode,
-          retryable: err.retryable,
+          error:              "커리큘럼 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.",
+          code:               errorCode,
+          retryable:          err.retryable,
+          // Diagnostic fields — safe to expose (no secrets, no PII, no payloads)
+          engine_status:      err.engineStatus,
+          engine_error_code:  err.engineErrorCode,
+          request_id:         trimmedRequestId,
         });
         void saveAiTrace({
           status: 'FAILED', request_id: trimmedRequestId, internal_id: trimmedRequestId,

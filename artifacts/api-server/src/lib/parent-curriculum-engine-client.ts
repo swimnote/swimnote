@@ -132,14 +132,29 @@ export const PC_RETRYABLE_ERROR_CODES = new Set([
 ]);
 
 export class ParentCurriculumEngineError extends Error {
+  /** Engine HTTP status code (0 = no HTTP request was sent). */
+  public readonly engineStatus:      number;
+  /** Resolved engine error code (body.error.code → body.error_code → ENGINE_HTTP_ERROR). */
+  public readonly engineErrorCode:   string;
+  /** Content-Type of the engine response (undefined when no HTTP response). */
+  public readonly engineContentType: string | undefined;
+
   constructor(
     public readonly errorCode: string,
     public readonly statusCode: number,
     public readonly retryable: boolean,
     message: string,
+    engineDiag?: {
+      engineStatus?:      number;
+      engineErrorCode?:   string;
+      engineContentType?: string;
+    },
   ) {
     super(message);
-    this.name = "ParentCurriculumEngineError";
+    this.name             = "ParentCurriculumEngineError";
+    this.engineStatus     = engineDiag?.engineStatus      ?? statusCode;
+    this.engineErrorCode  = engineDiag?.engineErrorCode   ?? errorCode;
+    this.engineContentType = engineDiag?.engineContentType;
   }
 }
 
@@ -231,9 +246,12 @@ export async function searchParentCurriculum(
     });
 
     if (!res.ok) {
-      let errorCode = "ENGINE_HTTP_ERROR";
+      let errorCode    = "ENGINE_HTTP_ERROR";
       let errorMessage: string | undefined;
-      let retryable = res.status >= 500 || res.status === 429;
+      let retryable    = res.status >= 500 || res.status === 429;
+      const engineStatus      = res.status;
+      const engineContentType = res.headers.get("content-type") ?? undefined;
+
       try {
         const body = (await res.json()) as {
           error?:      { code?: string; message?: string; retryable?: boolean };
@@ -243,8 +261,8 @@ export async function searchParentCurriculum(
         // Priority 1: nested body.error.code (engine v1 format)
         // Priority 2: flat body.error_code (legacy format)
         const code =
-          (typeof body?.error?.code === "string"   ? body.error.code   : undefined) ??
-          (typeof body?.error_code  === "string"   ? body.error_code   : undefined);
+          (typeof body?.error?.code === "string" ? body.error.code  : undefined) ??
+          (typeof body?.error_code  === "string" ? body.error_code  : undefined);
         if (code) {
           errorCode    = code;
           errorMessage = body?.error?.message ?? body?.message;
@@ -255,13 +273,15 @@ export async function searchParentCurriculum(
               : PC_RETRYABLE_ERROR_CODES.has(errorCode);
         }
       } catch {
-        // JSON parse failure — keep defaults
+        // JSON parse failure (e.g. HTML 404) — keep defaults; status still preserved
       }
+
       throw new ParentCurriculumEngineError(
         errorCode,
         res.status,
         retryable,
         errorMessage ?? `ENGINE ${res.status}: ${errorCode}`,
+        { engineStatus, engineErrorCode: errorCode, engineContentType },
       );
     }
 
