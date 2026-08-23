@@ -184,3 +184,41 @@ describe("curriculum-no-progress-fallback — quota behavior", () => {
     expect(answerMode("어디까지 했나요?")).toBe("DIRECT_DB");
   });
 });
+
+// ── Q3 INTENT FIX — TC1~TC5 ────────────────────────────────────────────────
+// "언제 해" 반말 종결형 → CURRICULUM_GENERAL (not UNKNOWN)
+
+describe("Q3-INTENT-FIX — 반말 종결형 언제 해", () => {
+  // TC1
+  it("TC1: '롤링 언제 해' → CURRICULUM_GENERAL (not UNKNOWN)", () => {
+    const intent = parseIntent("롤링 언제 해");
+    expect(intent.intent).toBe("CURRICULUM_GENERAL");
+    expect(intent.intent).not.toBe("UNKNOWN");
+    expect(answerMode("롤링 언제 해")).toBe("GROUNDED_GPT");
+  });
+
+  // TC2
+  it("TC2: '롤링은 언제 배워?' → CURRICULUM_GENERAL, GROUNDED_GPT", () => {
+    const intent = parseIntent("롤링은 언제 배워?");
+    expect(intent.intent).toBe("CURRICULUM_GENERAL");
+    expect(answerMode("롤링은 언제 배워?")).toBe("GROUNDED_GPT");
+  });
+
+  // TC3 — 기존 NEXT_STEP 유지
+  it("TC3: '다음에 뭐 배워?' → NEXT_STEP 기존 유지", () => {
+    const intent = parseIntent("다음에 뭐 배워?");
+    expect(intent.intent).toBe("NEXT_STEP");
+  });
+
+  // TC4 — 기존 CURRICULUM_GENERAL LOW 유지
+  it("TC4: '자유형킥' (단어만) → CURRICULUM_GENERAL 기존 유지", () => {
+    const intent = parseIntent("자유형킥");
+    expect(intent.intent).toBe("CURRICULUM_GENERAL");
+    expect(answerMode("자유형킥")).toBe("GROUNDED_GPT");
+  });
+
+  // TC5 — 기존 DIRECT_DB 유지
+  it("TC5: '어디까지 했나요?' (CURRENT_PROGRESS+no-evidence) → DIRECT_DB 기존 유지", () => {
+    expect(answerMode("어디까지 했나요?")).toBe("DIRECT_DB");
+  });
+});
