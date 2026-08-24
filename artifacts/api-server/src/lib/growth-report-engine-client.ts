@@ -112,6 +112,14 @@ export interface CurriculumStateSnapshot {
   stage: string | null;
   recent_topics: string[];
   mastery_flags: unknown;
+  // GAUGE-07: curriculum progress snapshot (immutable at report creation time)
+  confirmed_progress_pct: number | null;    // display_confirmed_pct at snapshot time
+  active_confirmed_rank: number;             // SCP.active_confirmed_rank (0 = no data)
+  active_total_count: number;                // SCP.active_confirmed_total (0 = no data)
+  active_version_id: string | null;          // SCP.active_curriculum_version_id
+  period_start_pct: number | null;           // previous PUBLISHED report confirmed_progress_pct
+  progress_delta_pct: number | null;         // confirmed - period_start (null on first report)
+  observation_session_count: number;         // SCP.observation_session_count (0 = no sessions)
 }
 
 export interface TeacherReviewSnapshot {

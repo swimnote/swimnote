@@ -205,6 +205,144 @@ async function queryAttendance(
   );
 }
 
+// ─── Curriculum progress gauge helpers (GAUGE-07) ────────────────────────────
+
+/** Raw SCP fields needed for the progress snapshot. */
+interface ScpGaugeRow {
+  display_confirmed_pct: number | null;
+  active_confirmed_pct: number | null;
+  active_confirmed_rank: number;
+  active_confirmed_total: number;
+  active_curriculum_version_id: string | null;
+  observation_session_count: number;
+}
+
+/**
+ * queryScpGaugeProgress — reads student_curriculum_progress for the given
+ * student+pool.  Returns null if no SCP row exists yet (safe fallback: null
+ * fields, zero counters — meaning "undetermined", not "zero progress").
+ */
+async function queryScpGaugeProgress(
+  db: any,
+  studentId: string,
+  poolId: string,
+): Promise<ScpGaugeRow | null> {
+  const res = await db.execute(sql`
+    SELECT
+      display_confirmed_pct,
+      active_confirmed_pct,
+      active_confirmed_rank,
+      active_confirmed_total,
+      active_curriculum_version_id,
+      observation_session_count
+    FROM student_curriculum_progress
+    WHERE student_id       = ${studentId}
+      AND swimming_pool_id = ${poolId}
+    LIMIT 1
+  `);
+  if (!(res.rows as any[]).length) return null;
+  const r = (res.rows as any[])[0];
+  return {
+    display_confirmed_pct:          r.display_confirmed_pct        != null ? Number(r.display_confirmed_pct)   : null,
+    active_confirmed_pct:           r.active_confirmed_pct         != null ? Number(r.active_confirmed_pct)    : null,
+    active_confirmed_rank:          Number(r.active_confirmed_rank  ?? 0),
+    active_confirmed_total:         Number(r.active_confirmed_total ?? 0),
+    active_curriculum_version_id:   r.active_curriculum_version_id ?? null,
+    observation_session_count:      Number(r.observation_session_count ?? 0),
+  };
+}
+
+/**
+ * queryPreviousReportCurriculumPct — reads the most-recent PUBLISHED report
+ * (same student + pool, excluding currentReportId) and returns its immutable
+ * curriculum_state.confirmed_progress_pct from report_content JSONB.
+ *
+ * Returns null when:
+ *   - no previous PUBLISHED report exists (first report)
+ *   - previous report's curriculum_state is missing/null
+ *   - the snapshot pre-dates GAUGE-07 (field absent)
+ *
+ * IMPORTANT: period_start_pct MUST come from the previous report's immutable
+ * JSONB, never re-computed from current SCP. This preserves monotonicity even
+ * if SCP is later updated.
+ */
+async function queryPreviousReportCurriculumPct(
+  db: any,
+  studentId: string,
+  poolId: string,
+  currentReportId: string,
+): Promise<number | null> {
+  const res = await db.execute(sql`
+    SELECT report_content
+    FROM growth_reports
+    WHERE student_id       = ${studentId}
+      AND swimming_pool_id = ${poolId}
+      AND product_status   = 'PUBLISHED'
+      AND deleted_at       IS NULL
+      AND id               != ${currentReportId}
+    ORDER BY published_at DESC
+    LIMIT 1
+  `);
+  if (!(res.rows as any[]).length) return null;
+  const rc = (res.rows as any[])[0]?.report_content;
+  if (!rc || typeof rc !== "object" || Array.isArray(rc)) return null;
+  const cs = (rc as Record<string, unknown>).curriculum_state;
+  if (!cs || typeof cs !== "object" || Array.isArray(cs)) return null;
+  const pct = (cs as Record<string, unknown>).confirmed_progress_pct;
+  if (pct == null) return null;
+  return typeof pct === "number" ? pct : Number(pct);
+}
+
+/**
+ * mergeGaugeIntoState — merges GAUGE-07 progress fields into a
+ * CurriculumStateSnapshot (or creates a minimal one if base is null but
+ * SCP data exists — ensures gauge info is never silently dropped).
+ */
+function mergeGaugeIntoState(
+  base: CurriculumStateSnapshot | null,
+  scp: ScpGaugeRow | null,
+  periodStartPct: number | null,
+): CurriculumStateSnapshot | null {
+  const confirmedPct  = scp?.display_confirmed_pct  ?? null;
+  const rank          = scp?.active_confirmed_rank   ?? 0;
+  const total         = scp?.active_confirmed_total  ?? 0;
+  const versionId     = scp?.active_curriculum_version_id ?? null;
+  const sessionCount  = scp?.observation_session_count ?? 0;
+
+  const deltaPct: number | null =
+    confirmedPct != null && periodStartPct != null
+      ? Math.round((confirmedPct - periodStartPct) * 10) / 10
+      : null;
+
+  const gaugeFields = {
+    confirmed_progress_pct:   confirmedPct,
+    active_confirmed_rank:    rank,
+    active_total_count:       total,
+    active_version_id:        versionId,
+    period_start_pct:         periodStartPct,
+    progress_delta_pct:       deltaPct,
+    observation_session_count: sessionCount,
+  };
+
+  if (base !== null) {
+    return { ...base, ...gaugeFields };
+  }
+  // base is null: if SCP exists, create a minimal curriculum_state so gauge
+  // data is not silently lost (pool may have curriculum even without assignment)
+  if (scp !== null) {
+    return {
+      curriculum_id:  null,
+      current_level:  null,
+      stage:          null,
+      recent_topics:  [],
+      mastery_flags:  null,
+      ...gaugeFields,
+    };
+  }
+  // Neither curriculum assignment nor SCP — pool truly has no curriculum data
+  return null;
+}
+
 // ─── Curriculum state query ───────────────────────────────────────────────────
 
 /**
@@ -404,9 +542,11 @@ export async function buildAnalysisSnapshot(
     diaries,
     growthEvents,
     attendance,
-    curriculumState,
+    curriculumStateBase,
     parentAnswers,
     publishedHistory,
+    scpGauge,
+    previousCurriculumPct,
   ] = await Promise.all([
     queryDiaries(db, report.student_id, report.swimming_pool_id, cutoffAt),
     queryGrowthEvents(db, report.student_id, report.swimming_pool_id, cutoffAt),
@@ -419,7 +559,23 @@ export async function buildAnalysisSnapshot(
       poolId:    report.swimming_pool_id,
       limit:     maxPeriods,
     }),
+    // GAUGE-07: read current SCP progress gauge
+    queryScpGaugeProgress(db, report.student_id, report.swimming_pool_id),
+    // GAUGE-07: read previous PUBLISHED report's immutable confirmed_progress_pct
+    queryPreviousReportCurriculumPct(
+      db,
+      report.student_id,
+      report.swimming_pool_id,
+      report.id,
+    ),
   ]);
+
+  // GAUGE-07: merge gauge fields into curriculum_state snapshot
+  const curriculumState = mergeGaugeIntoState(
+    curriculumStateBase,
+    scpGauge,
+    previousCurriculumPct,
+  );
 
   const longitudinal = buildLongitudinal(publishedHistory, maxPeriods);
 
