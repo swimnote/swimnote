@@ -1320,6 +1320,17 @@ router.put("/diaries/student-notes/:noteId",
         beforeContent: note.note_content, afterContent: note_content.trim(),
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+
+      // ── GAUGE-04A: note 텍스트 변경 후 CPO 재계산 (evidence_text JOIN → 새 분류) ──
+      // growth_events는 그대로 유지; mapper가 새 note_content로 재분류.
+      upsertSessionObservation(db, {
+        studentId: note.student_id,
+        poolId:    poolId!,
+        lessonSessionId: note.diary_id,
+      })
+        .then((r) => console.log(`[student-note-edit] CPO mapper student=${note.student_id} diary=${note.diary_id} status=${r.status} rank=${r.progressRank}`))
+        .catch((e) => console.error(`[student-note-edit] CPO gauge error student=${note.student_id}:`, e));
+
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1354,6 +1365,27 @@ router.delete("/diaries/student-notes/:noteId",
         beforeContent: note.note_content,
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+
+      // ── GAUGE-04A: note 삭제 후 CPO 재계산 ────────────────────────────────
+      // 1. 삭제된 note에 연결된 growth_events invalidate (순서 보장 필요 → async chain)
+      // 2. 나머지 유효 evidence 기준으로 CPO 재계산
+      // 실패해도 Diary 응답은 그대로 유지 (fire-and-forget).
+      const noteId = req.params.noteId;
+      const _noteStudentId = note.student_id;
+      const _noteDiaryId   = note.diary_id;
+      const _notePoolId    = poolId!;
+      ;(async () => {
+        await db.execute(sql`
+          UPDATE growth_events
+          SET is_invalidated = true, invalidated_at = NOW()
+          WHERE diary_note_id = ${noteId} AND is_invalidated = false
+        `);
+        const r = await upsertSessionObservation(db, {
+          studentId: _noteStudentId, poolId: _notePoolId, lessonSessionId: _noteDiaryId,
+        });
+        console.log(`[student-note-delete] CPO mapper student=${_noteStudentId} diary=${_noteDiaryId} status=${r.status} rank=${r.progressRank}`);
+      })().catch((e) => console.error(`[student-note-delete] CPO gauge error student=${_noteStudentId}:`, e));
+
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
