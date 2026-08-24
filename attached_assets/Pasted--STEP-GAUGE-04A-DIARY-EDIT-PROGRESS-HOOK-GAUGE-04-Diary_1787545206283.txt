@@ -1,0 +1,283 @@
+[앱] STEP-GAUGE-04A — DIARY EDIT PROGRESS HOOK
+
+목적:
+GAUGE-04에서 누락된 Diary EDIT → CPO 재계산 경로를
+기존 Diary 수정 기능을 깨뜨리지 않고 최소 구현한다.
+
+현재 확인된 사실:
+
+PUT /diaries/:id
+파일:
+artifacts/api-server/src/routes/diary.ts
+line ~743–778
+
+현재:
+- common_content UPDATE
+- logAudit
+- response
+
+현재 없는 것:
+- growth_events invalidation/rebuild
+- CPO recomputation
+
+중요:
+지금 PUT이 common_content만 수정하는 구조이므로
+무조건 기존 growth_events를 invalidate하거나
+AI 재분석을 실행하면 안 된다.
+
+먼저 실제 edit contract를 최소 확인하고
+변경된 curriculum evidence가 있을 때만
+progress observation을 재계산한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. EDIT CONTRACT 최소 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인 범위:
+
+A. PUT /diaries/:id request body
+실제로 어떤 필드를 받을 수 있는가
+
+- common_content
+- student notes
+- curriculum_matches
+- match_token
+- 기타
+
+B. Parent/Teacher 앱에서
+Diary 수정 시 실제로 어떤 endpoint/payload를 보내는가
+
+C. 학생별 note 수정 route가
+PUT /diaries/:id 외에 별도로 존재하는가
+
+전체 repo audit 금지.
+Diary edit 관련 파일/route만 최소 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CPO는 실제 student curriculum evidence가 바뀔 때만 재계산.
+
+단순 common_content 수정이
+학생별 growth_events/curriculum_matches와 무관하다면:
+
+→ growth_events 변경 금지
+→ CPO 변경 금지
+
+즉:
+텍스트 일부 편집했다고
+진도 게이지 근거를 임의로 다시 만들면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 student curriculum evidence EDIT 경로
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드에서 학생별 note /
+curriculum_matches를 수정하는 실제 경로가 존재하면
+그 route에 GAUGE hook을 연결한다.
+
+필요 동작:
+
+1. 수정 전 해당 student/session의
+   기존 growth_events 중
+   수정 대상 evidence만 invalidate
+
+2. 수정된 curriculum_matches가 있으면
+   기존 검증된 insertGrowthEvents() 경로 재사용
+
+3. 현재 유효 growth_events 전체 기준으로
+   upsertSessionObservation({
+     sessionId,
+     studentId,
+     poolId,
+     growthEvents
+   })
+   재실행
+
+4. eligible evidence가 하나도 없으면
+   해당 CPO invalidate
+
+중요:
+전체 session의 unrelated growth_events 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PUT /diaries/:id가 common_content 전용이면
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PUT route가 정말
+common_content only edit endpoint라면:
+
+여기에 growth_events rebuild를 억지로 추가하지 말 것.
+
+대신:
+
+- common_content edit
+  → 기존 동작 그대로 유지
+  → CPO untouched
+
+그리고 실제 student note/curriculum 수정 endpoint에만
+CPO recompute hook 추가.
+
+만약 현재 APP에
+student curriculum evidence 수정 기능 자체가 없다면:
+
+→ 새 edit 기능을 이번 Step에서 만들지 말고
+→ "현재 curriculum evidence는 생성 후 수정 불가"
+   사실을 보고
+→ CPO stale risk가 실제로 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. CPO RECOMPUTATION 함수 재사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-04 commit cef32c1e의:
+
+upsertSessionObservation()
+
+또는 동일 mapper 함수 재사용.
+
+새 별도 progress 계산 로직 만들지 말 것.
+
+Progress source:
+- 현재 유효 teacher growth_events
+- pool curriculum only
+
+Professional V2 / GPT / swimming DB 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DELETE 기존 연결도 최소 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-04 보고서상 DELETE는:
+
+TX commit 후
+invalidateSessionObservation()
+fire-and-forget
+
+으로 되어 있음.
+
+하지만 V3 규칙은:
+
+DELETE 후 같은 session/student에
+다른 유효 evidence가 남아 있으면
+CPO invalidate가 아니라 재계산해야 함.
+
+따라서 DELETE hook도 최소 확인:
+
+A. session/student의 모든 evidence가 삭제되는 구조
+→ invalidate 유지 가능
+
+B. 일부 note/evidence만 삭제될 수 있음
+→ 남은 유효 growth_events 기준
+   upsertSessionObservation() 재계산 필요
+
+필요한 경우 이 부분만 같이 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Failure Policy
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Diary production 안정성 우선.
+
+Gauge hook 오류 때문에
+기존 Diary edit/save/delete 자체를 실패시키지 않는다.
+
+정책:
+
+Diary operation 성공
+→ gauge recomputation fire-and-forget 또는 safe async
+→ 오류 시 structured log
+→ 기존 Diary response 유지
+
+단:
+기존 transaction/data integrity convention과
+충돌하면 정확한 이유 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+TC1
+common_content only edit
+→ growth_events 변경 없음
+→ CPO 변경 없음
+
+TC2
+student curriculum evidence edit:
+rank70 → rank50
+→ current CPO rank50
+
+TC3
+evidence edit 후
+eligible item 없음
+→ CPO invalidated
+
+TC4
+same session 다른 valid evidence 남음
+→ remaining evidence 기준 CPO recomputed
+
+TC5
+unrelated student evidence
+→ 변경 없음
+
+TC6
+cross-pool evidence
+→ 차단
+
+TC7
+DELETE 후 evidence 0
+→ CPO invalidated
+
+TC8
+DELETE 후 evidence remaining
+→ CPO recomputed
+
+TC9
+Gauge hook failure
+→ Diary edit/delete 기존 응답 실패시키지 않음
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- STEP-GAUGE-05 구현 시작 금지
+- SCP INSERT/UPDATE 금지
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- 새 Diary edit 기능 임의 추가 금지
+- production DB test row 생성 금지
+- Render deploy 금지
+- OTA 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-04A DIARY EDIT HOOK REPORT
+
+- actual Diary edit endpoints
+- PUT /diaries/:id exact edit scope
+- student curriculum evidence editable: YES/NO
+- exact hook location
+- common_content edit leaves CPO untouched: YES/NO
+- evidence edit recomputes CPO: YES/NO
+- DELETE remaining-evidence behavior
+- fail-safe policy
+- tests + pass count
+- production DB write: NO
+- existing Diary behavior changed: NO
+- changed files
+- commit SHA
+- manual deploy required: YES/NO
+
+Final Verdict:
+GAUGE-04 EDIT LIFECYCLE COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
