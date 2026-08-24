@@ -1,0 +1,489 @@
+[앱] STEP-GAUGE-05 — 3-SESSION CONFIRMATION ENGINE + SCP MONOTONIC
+
+기준:
+- GAUGE-01 DB FOUNDATION production ready
+- GAUGE-02 Progress Rank COMPLETE
+- GAUGE-03 Evidence Classifier COMPLETE
+- GAUGE-04 CPO Mapper COMPLETE
+- GAUGE-04 commit: cef32c1e
+
+목적:
+유효한 curriculum_progress_observations(CPO)을 기반으로
+서로 다른 실제 수업 세션 3회 지지 규칙을 계산하고,
+student_curriculum_progress(SCP)에
+version-aware active progress + cross-version monotonic display gauge를 저장한다.
+
+이번 Step 범위:
+1. GAUGE-04 EDIT hook 존재 여부 최소 확인
+2. Confirmation Engine 구현
+3. CPO 생성/수정/삭제 이후 SCP 재계산 연결
+4. test DB 검증
+5. production data write는 아직 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. GAUGE-04 EDIT HOOK PRECHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-04 보고서에 CREATE/DELETE 연결만 명시되어 있고
+EDIT 연결 보고가 누락되어 있다.
+
+먼저 diary.ts의 기존 EDIT 경로를 최소 확인:
+
+기존 growth_events invalidate
+→ 새 growth_events 생성
+→ 해당 lesson_session/student의
+  upsertSessionObservation() 재실행
+
+이 연결이 실제로 존재하는지 확인.
+
+존재:
+→ 그대로 GAUGE-05 진행.
+
+없음:
+→ GAUGE-05 구현 시작하지 말고
+  [앱] GAUGE-04 EDIT HOOK MISSING
+  으로 정확한 위치만 보고하고 STOP.
+
+불필요한 repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 신규 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/api-server/src/lib/curriculum-confirmation-engine.ts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+computeConfirmedProgress(
+  db,
+  studentId,
+  poolId
+)
+
+또는 기존 project transaction/db convention에 맞는 형태.
+
+return 예:
+
+{
+  status:
+    'CONFIRMED'
+    | 'INSUFFICIENT_SESSIONS'
+    | 'NO_ACTIVE_CURRICULUM'
+    | 'NO_ELIGIBLE_OBSERVATIONS',
+
+  activeCurriculumVersionId,
+  observationSessionCount,
+  activeConfirmedRank,
+  activeConfirmedTotal,
+  activeConfirmedPct,
+  displayConfirmedPct
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Active Curriculum Version 결정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 student/pool의 실제 curriculum version을
+기존 구조에서 정확히 결정.
+
+우선순위는 현재 repo source of truth를 사용.
+
+확인 대상:
+- student_curriculum_assignments의 active assignment
+- 해당 pool의 active curriculum_versions
+
+학생 assignment가 존재하면 그 version을 우선 사용하되,
+현재 기존 X curriculum 구조와 충돌 없는지 최소 확인.
+
+임의 version 선택 금지.
+
+다른 pool version 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 유효 CPO 입력
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 조건:
+
+student_id = studentId
+swimming_pool_id = poolId
+curriculum_version_id = activeVersionId
+is_invalidated = false
+is_gauge_eligible = true
+
+observation_type IN:
+- ACTUAL_TAUGHT
+- REVIEW
+- CORRECTION
+
+제외:
+- FUTURE_PLAN
+- PAST_REFERENCE
+- UNVERIFIED
+
+CPO UNIQUE(lesson_session_id, student_id)로
+session당 최대 1행이 이미 구조적으로 보장됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 3-SESSION CONFIRMATION RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 제품 규칙:
+
+서로 다른 실제 lesson_session 3회가
+어떤 rank P 이상에서 관찰되면
+P를 confirmed rank로 인정.
+
+예:
+
+[56, 70, 87]
+→ 56 이상 3회
+→ confirmed rank = 56
+
+[56, 70, 70, 87]
+→ 70 이상 3회
+→ confirmed rank = 70
+
+[78, 81, 85]
+→ 78 이상 3회
+→ confirmed rank = 78
+
+[70, 87]
+→ 2회뿐
+→ 아직 새로운 confirmed 없음
+
+구현 권장:
+
+ranks DESC unique candidate 순회
+
+각 candidate P에 대해:
+count(r >= P)
+
+최초 count >= 3인
+가장 높은 P 선택.
+
+또는 수학적으로 동일한 더 단순한 구현이 있으면 사용 가능.
+단 결과가 정확히 동일해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Active Version Percent
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+activeConfirmedPct:
+
+activeConfirmedRank / activeConfirmedTotal * 100
+
+1-decimal rounding.
+
+activeConfirmedTotal은
+현재 active version의 실제 active curriculum item count.
+
+raw sort_order 사용 금지.
+
+GAUGE-02 rank calculator 원칙과 동일한
+1-based rank 좌표계 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SCP UPSERT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+student_curriculum_progress:
+
+UNIQUE(student_id, swimming_pool_id)
+
+갱신 대상:
+
+- active_curriculum_version_id
+- active_confirmed_rank
+- active_confirmed_total
+- active_confirmed_pct
+- display_confirmed_pct
+- confirmed_at
+- display_updated_at
+- observation_session_count
+- prev_curriculum_version_id
+- prev_display_pct
+- updated_at
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 동일 Version Monotonic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+같은 curriculum version 안에서도
+display gauge는 내려가지 않는다.
+
+예:
+
+existing:
+active rank 70
+display 70%
+
+CPO 수정/삭제 후 newly computed:
+active rank 50
+
+raw active factual position은
+현재 유효 evidence 기준 50으로 재계산 가능.
+
+하지만:
+
+display_confirmed_pct
+→ 기존 70% 유지
+
+즉:
+
+activeConfirmedRank / activeConfirmedPct
+= 현재 유효 3-session evidence 기준 factual confirmed position
+
+displayConfirmedPct
+= 학부모에게 보여주는 lifetime monotonic progress
+
+둘을 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Cross-Version Monotonic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 rank 비교 금지.
+
+예:
+
+old version:
+140 / 200 = 70%
+
+new version:
+200 / 400 = 50%
+
+새 rank가 더 커도 display는 70% 유지.
+
+공식:
+
+displayConfirmedPct =
+MAX(
+  existing.display_confirmed_pct,
+  newlyComputedActivePct
+)
+
+version 변경 감지 시:
+
+prev_curriculum_version_id
+= old active version
+
+prev_display_pct
+= old display percent
+
+active_curriculum_version_id
+= new version
+
+새 version session < 3이면:
+active rank = 0
+active pct = 0
+display = old display 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 3회 미만 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 active version의 eligible session이 0~2회라면:
+
+- active_confirmed_rank = 0
+- active_confirmed_pct = 0
+- observation_session_count = 실제 0~2
+
+단 기존 display_confirmed_pct는 절대 0으로 내리지 않음.
+
+신규 학생이고 기존 SCP도 없으면:
+display=0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. CPO → SCP 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-04 mapper 성공 이후
+해당 student/pool의 confirmation을 재계산하도록 연결.
+
+필요 시:
+
+CREATE:
+CPO upsert 성공
+→ computeConfirmedProgress()
+
+EDIT:
+CPO recompute 성공
+→ computeConfirmedProgress()
+
+DELETE:
+CPO invalidate/recompute 성공
+→ computeConfirmedProgress()
+
+중요:
+현재 GAUGE-04가 diary 저장 안정성을 위해
+fire-and-forget 정책을 사용하고 있음.
+
+기존 Diary 저장 전체를
+Gauge 오류 때문에 실패시키지 않는 원칙 유지.
+
+즉 confirmation failure:
+- diary 저장 rollback 금지
+- structured error log
+- gauge만 stale 상태 가능
+- 재계산 가능하도록 idempotent 구현
+
+기존 production Diary 안정성 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Race / Idempotency
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+동일 student에 거의 동시에
+수업 저장이 들어올 수 있음.
+
+SCP UPSERT가 race로
+display progress를 낮추면 안 됨.
+
+DB UPDATE에서 가능하면:
+
+display_confirmed_pct =
+GREATEST(
+  student_curriculum_progress.display_confirmed_pct,
+  EXCLUDED.display_confirmed_pct
+)
+
+형태로 DB 레벨 monotonic 보호.
+
+application에서 read→MAX→write만 하는 방식은
+race 위험 있으므로 피한다.
+
+active version fields 역시
+최종 계산 시점 consistency가 깨지지 않도록
+현재 project transaction/UPSERT pattern 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+TC1
+sessions [56,70,87]
+→ confirmed 56
+
+TC2
+[56,70,70,87]
+→ confirmed 70
+
+TC3
+[78,81,85]
+→ confirmed 78
+
+TC4
+2 sessions
+→ active confirmed=0
+
+TC5
+FUTURE_PLAN/UNVERIFIED 포함
+→ eligible=false는 count 제외
+
+TC6
+same lesson_session 중복
+→ 구조적으로 1회
+
+TC7
+기존 display=70
+새 active=50
+→ display=70 유지
+
+TC8
+기존 display=70
+새 active=75
+→ display=75
+
+TC9
+cross-version:
+old 140/200=70
+new 200/400=50
+→ display=70
+
+TC10
+new version 3회 미만
+→ active=0 / display old 유지
+
+TC11
+version 변경 시 prev_version / prev_display 저장
+
+TC12
+CPO 수정:
+old active factual rank=70
+→ recompute 50
+→ active=50
+→ display 기존값 유지
+
+TC13
+CPO delete 후 eligible sessions 3→2
+→ active=0
+→ display 유지
+
+TC14
+다른 pool CPO 제외
+
+TC15
+다른 curriculum version CPO 제외
+
+TC16
+동시 UPSERT에서 display 감소 불가
+(GREATEST 또는 동일 DB guarantee 검증)
+
+TC17
+idempotent 동일 입력 재계산
+→ 동일 결과 / 중복 SCP 없음
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Production DB 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서는
+production CPO/SCP row 생성 테스트 금지.
+
+test/local PostgreSQL만 사용.
+
+production DB read-only schema 확인 가능.
+
+Render deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-05 CONFIRMATION ENGINE REPORT
+
+- GAUGE-04 EDIT hook verified: YES/NO
+- confirmation file
+- active version resolution
+- 3-session algorithm
+- version-aware active progress
+- display monotonic rule
+- DB-level race protection
+- CREATE integration
+- EDIT integration
+- DELETE integration
+- diary failure policy
+- tests + pass count
+- production DB write: NO
+- existing Diary behavior changed: NO
+- changed files
+- commit SHA
+- manual Render deploy required: YES/NO
+
+Final Verdict:
+CONFIRMATION ENGINE COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
