@@ -1,0 +1,173 @@
+[앱] STEP-GAUGE-10 — IOS PRODUCTION OTA FINAL
+
+기준:
+- GAUGE-01 ~ GAUGE-08 COMPLETE
+- STEP-GAUGE-09A SERVER/API PRODUCTION READY FOR OTA
+- production API deployed SHA: 2ee89c03
+
+목적:
+Parent Home Curriculum Progress Gauge UI 변경을
+iOS production OTA로 정확히 1회 배포하고
+배포 결과만 검증한다.
+
+사용자 승인:
+YES — 이번 지시문으로 production OTA 1회 실행 승인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. OTA 대상 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+SWIMNOTE iOS production
+
+포함되어야 하는 UI 변경:
+- CurriculumProgressGauge component
+- Parent Home 단일 "교육과정 진행도"
+- X mode only
+- 3-session 미확정 empty state
+- 큰 중복 "성장 리포트 보기" 버튼 제거
+- 기존 작은 "AI 성장 리포트" 버튼 유지
+- GrowthReportFeedCard 유지
+
+서버 API는 이미 production 배포 완료.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Pre-OTA Check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 직전 최소 확인:
+
+- git status clean
+- current branch = deploy-photo-clone
+- current HEAD가 GAUGE UI commit을 포함
+- production API health = 200
+- curriculum-progress API = 200 JSON
+
+추가 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 프로젝트에서 사용 중인
+기존 iOS production OTA 절차 그대로 사용.
+
+production channel/branch를 정확히 확인.
+
+OTA는 딱 1회만 실행.
+
+금지:
+- preview/staging 배포
+- Android OTA
+- native build
+- App Store/TestFlight build
+- version/build number 변경
+- 추가 코드 수정
+- 서버 재배포
+- Render 변경
+- swimnote-kf-worker 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 결과 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+- platform
+- environment/channel
+- update ID
+- runtime version
+- branch/channel
+- published commit SHA
+- publish status
+
+production 대상이 확실하지 않으면
+실행하지 말고 BLOCKED 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 후 최소 실제기기 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 범위에서 기존 production iOS 앱으로 확인.
+
+필수:
+
+A.
+앱 재시작 후 OTA 적용
+
+B.
+Parent Home 진입
+
+C.
+X-mode 학생 선택
+
+D.
+현재 SCP=0 / session<3 상태라면:
+
+"수업 기록이 쌓이면 교육과정 진행도가 표시됩니다."
+
+empty state 정상 표시
+
+E.
+큰 중복:
+"성장 리포트 보기"
+"AI가 분석한 수영 성장 현황"
+
+버튼 없어야 함.
+
+F.
+기존 작은:
+"AI 성장 리포트"
+
+버튼 유지.
+
+G.
+GrowthReportFeedCard 기존 동작 유지.
+
+H.
+normal/x_pending 학생에서
+Gauge 노출되지 않음.
+
+실제기기 확인을 자동화할 수 없으면
+USER DEVICE CHECK REQUIRED로 보고.
+임의 production data 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 이번 Step에서 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- CPO/SCP test row 생성 금지
+- 가짜 Diary 생성 금지
+- 3-session 강제 생성 금지
+- 추가 Render deploy 금지
+- AI Engine 수정 금지
+- Gauge 코드 수정 금지
+- 전체 regression 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-10 IOS OTA FINAL REPORT
+
+- iOS production OTA executed: YES/NO
+- OTA count: 1
+- channel/environment
+- update ID
+- runtime version
+- published SHA
+- publish status
+- production API health
+- Gauge API health
+- user-device verification: PASS / USER DEVICE CHECK REQUIRED
+- additional code change: NO
+- additional Render deploy: NO
+- production DB write: NO
+- swimnote-kf-worker touched: NO
+
+Final Verdict:
+CURRICULUM PROGRESS GAUGE RELEASE COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
