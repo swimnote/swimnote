@@ -1,0 +1,441 @@
+[앱] STEP-GAUGE-06 — PARENT HOME SINGLE PROGRESS GAUGE
+
+기준:
+- GAUGE-01 DB FOUNDATION production ready
+- GAUGE-02 Progress Rank COMPLETE
+- GAUGE-03 Evidence Classifier COMPLETE
+- GAUGE-04 CPO Mapper COMPLETE
+- GAUGE-04A EDIT LIFECYCLE COMPLETE
+- GAUGE-05 Confirmation Engine COMPLETE
+- latest commit: 1a469d9d
+
+목적:
+학생별 전체 수영 교육과정 진행도
+"단일 게이지 1개"를
+Parent Home의 기존 여백 위치에 표시하고,
+중복된 큰 성장리포트 버튼을 제거한다.
+
+이번 Step 범위:
+1. Parent progress read API
+2. Parent Home 단일 게이지 component
+3. 기존 여백 위치 삽입
+4. Replit이 임의 추가한 큰 가로 Growth Report duplicate 삭제
+5. 기존 원래 AI 성장 리포트 버튼 보존
+
+중요:
+- 레벨별 게이지 금지
+- 학생당 게이지 1개만
+- 게이지 명칭은 "교육과정 진행도"
+- 실력/숙련도 점수처럼 표현 금지
+- Parent Curriculum 수정 금지
+- Growth Report Engine 수정 금지
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- Diary logic 수정 금지
+- SCP/CPO 계산 로직 수정 금지
+- 자동 Render deploy 금지
+- OTA 자동 실행 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Parent Progress API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+신규 endpoint:
+
+GET /parent/students/:studentId/curriculum-progress
+
+기존 parent auth / ownership 패턴 재사용.
+
+필수 검증:
+- authenticated parent
+- 해당 student가 parent에게 승인 연결되어 있음
+- student의 실제 swimming_pool_id 확인
+- 다른 pool/student 접근 차단
+
+조회:
+student_curriculum_progress
+
+WHERE
+student_id=$studentId
+AND swimming_pool_id=$poolId
+
+Response 최소:
+
+{
+  student_id,
+  display_confirmed_pct,
+  active_confirmed_pct,
+  active_confirmed_rank,
+  active_confirmed_total,
+  active_curriculum_version_id,
+  observation_session_count,
+  confirmed_at,
+  display_updated_at,
+  is_version_transition
+}
+
+SCP row 없으면 404보다는
+정상 empty response 선호:
+
+{
+  student_id,
+  display_confirmed_pct: 0,
+  active_confirmed_pct: 0,
+  active_confirmed_rank: 0,
+  active_confirmed_total: 0,
+  active_curriculum_version_id: null,
+  observation_session_count: 0,
+  confirmed_at: null,
+  display_updated_at: null,
+  is_version_transition: false
+}
+
+현재 project API convention에 맞게 최소 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Gauge에 사용할 값
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 UI는 반드시:
+
+display_confirmed_pct
+
+만 사용.
+
+active_confirmed_pct는
+debug/reference용 응답으로만 두고
+학부모 게이지 width/text에는 사용 금지.
+
+이유:
+display_confirmed_pct가
+cross-version monotonic lifetime gauge임.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 신규 Component
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/swim-app/components/CurriculumProgressGauge.tsx
+
+표시:
+
+교육과정 진행도
+
+[██████████████░░░░░░] 42%
+
+보조문구:
+
+최근 수업 기록을 기준으로 확인된 교육과정 위치
+
+중요:
+- "실력"
+- "숙련도"
+- "완성도"
+- "점수"
+
+표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Percent 표시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DB:
+numeric(5,2)
+
+UI:
+정수 % 표시 권장.
+
+예:
+42.4 → 42%
+42.6 → 43%
+
+width:
+0~100 clamp.
+
+NaN / null 방어.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Empty State
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 규칙:
+3-session confirmation 전에는
+display_confirmed_pct=0일 수 있음.
+
+이때 학부모에게
+"0%"를 크게 보여주지 않는 방향.
+
+권장:
+
+observation_session_count < 3
+또는 display_confirmed_pct <= 0
+
+→ 게이지 bar 숨김 또는 아주 간단히:
+
+"수업 기록이 쌓이면 교육과정 진행도가 표시됩니다."
+
+사용자가 일부러 만들어둔 여백을
+과도한 카드로 채우지 말 것.
+
+현재 Home 디자인과 가장 자연스러운 방식을 선택하고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Parent Home 삽입 위치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확정 위치:
+
+artifacts/swim-app/app/(parent)/home.tsx
+
+기존 순서:
+
+A. SlimHeader
+B. child selector tabs
+C. AI action row
+★ 여기 기존 여백에 Gauge 삽입
+D. access_blocked card
+E. promo/ad/feed 영역
+
+즉:
+AI action row 아래
+access_blocked card 위.
+
+새 큰 카드 생성 금지.
+
+기존 padding / margin / typography token 최대한 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 표시 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설계 기준:
+
+selectedStudent
+AND
+mode === "x"
+AND
+!isBlocked
+
+조건에서 표시.
+
+단:
+현재 Parent Home mode 구조상
+x_pending도 실제 Gauge 조회가 가능한지 최소 확인.
+
+원칙:
+실제 X curriculum이 활성화된 학생만 표시.
+
+임의로 normal mode까지 확장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 데이터 Fetch
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+selectedStudent 변경 시:
+GET /parent/students/:studentId/curriculum-progress
+
+기존 app fetch/auth helper 재사용.
+
+불필요한 polling 금지.
+
+화면 진입 / student 변경 시만 fetch.
+
+필요하면 pull-to-refresh 기존 흐름에 포함.
+
+AsyncStorage cache는
+기존 Parent Home data pattern이 실제로 사용 중인 경우에만 재사용.
+새 캐시 구조 임의 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Growth Report 큰 중복 버튼 삭제
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+삭제 대상:
+
+home.tsx
+기존 V3 조사 기준 line ~1837-1862
+
+big horizontal Pressable:
+
+"성장 리포트 보기"
+"AI가 분석한 수영 성장 현황"
+
+onPress:
+router.push("/(parent)/x-growth")
+
+이 블록만 삭제.
+
+중요:
+아래 기존 원래 버튼은 절대 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 보존할 Original Growth Report Button
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+보존:
+
+AI action row의 작은 버튼
+
+"AI 성장 리포트"
+
+onPress:
+setAiModalType("report")
+
+이 버튼은 향후 Growth Report 실제 기능 연결 대상.
+
+삭제/디자인변경 금지.
+
+Feed의 GrowthReportFeedCard도 보존.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. UI Design
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 Parent Home에
+일부러 비워둔 여백을 활용.
+
+금지:
+- 홈 전체 layout 재설계
+- 새로운 배너
+- 큰 카드
+- 새로운 section title 남발
+- 색상체계 변경
+- child selector 이동
+- AI action row 이동
+- 광고/피드 영역 이동
+
+권장:
+작은 label + slim horizontal progress bar + percent.
+
+기존 앱 디자인 token 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Security
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API에서:
+parent ownership 확인 필수.
+
+studentId만 믿고 SCP 조회 금지.
+
+반드시:
+parent_account
+→ approved student relation
+→ student's pool
+→ SCP student+pool
+
+순서.
+
+cross-pool leakage 테스트 필수.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API:
+
+TC1
+authorized parent + linked student
+→ progress response
+
+TC2
+SCP row 없음
+→ empty zero response
+
+TC3
+다른 parent student
+→ forbidden/not found
+
+TC4
+cross-pool mismatch
+→ 차단
+
+TC5
+display_confirmed_pct만 UI source로 사용
+
+UI:
+
+TC6
+display=42.4
+→ 42% 표시
+
+TC7
+display=70
+→ 70% width
+
+TC8
+display=0 / sessions<3
+→ 0% 큰 게이지 미표시
+
+TC9
+selectedStudent 변경
+→ 해당 학생 progress refetch
+
+TC10
+normal mode
+→ gauge 미표시
+
+TC11
+X mode
+→ gauge 표시
+
+TC12
+big horizontal duplicate Growth Report 버튼 제거 확인
+
+TC13
+original "AI 성장 리포트" 버튼 존재 확인
+
+TC14
+GrowthReportFeedCard 유지 확인
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Production DB / Deployment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서는
+production SCP/CPO 테스트 data 생성 금지.
+
+production DB read-only 확인 가능.
+
+코드 구현 후:
+Render 자동 deploy 금지.
+OTA 자동 배포 금지.
+
+필요한 manual actions만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-06 PARENT HOME GAUGE REPORT
+
+- API route/file
+- auth/ownership
+- response schema
+- UI component
+- Home insertion exact location
+- displayed percent source
+- empty state behavior
+- X-mode condition
+- duplicate Growth Report button removed: YES/NO
+- original AI Growth Report button preserved: YES/NO
+- GrowthReportFeedCard preserved: YES/NO
+- cross-pool protection
+- tests + pass count
+- production DB write: NO
+- existing Parent Home behavior changed outside scope: NO
+- changed files
+- commit SHA
+- manual Render deploy required: YES/NO
+- OTA required: YES/NO
+
+Final Verdict:
+PARENT HOME GAUGE COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
