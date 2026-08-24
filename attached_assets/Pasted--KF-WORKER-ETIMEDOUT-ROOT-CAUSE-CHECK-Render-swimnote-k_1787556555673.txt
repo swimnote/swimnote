@@ -1,0 +1,144 @@
+[앱] KF-WORKER ETIMEDOUT ROOT-CAUSE CHECK
+
+목적:
+Render swimnote-kf-worker가 반복적으로
+"KF V2 worker initialization failed"
+error.code=ETIMEDOUT
+로 종료되는 정확한 initialization dependency를 확인한다.
+
+중요:
+- 코드 수정 금지
+- deploy 금지
+- Render 설정 변경 금지
+- SSL 설정 변경 금지
+- DB write 금지
+- 전체 repo audit 금지
+- GAUGE 코드 수정 금지
+
+현재 Render production log:
+
+KF V2 worker startup
+→ ETIMEDOUT
+→ "KF V2 worker initialization failed"
+→ exit status 1
+→ Render restart
+→ 동일 증상 반복
+
+PostgreSQL SSL security warning도 보이나
+현재 직접 fatal error는 ETIMEDOUT임.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Worker startup path 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행 파일:
+
+artifacts/api-server/dist/v2-worker.mjs
+
+source에서 실제 worker startup entry와
+"KF V2 worker initialization failed"
+로그를 발생시키는 정확한 위치만 추적.
+
+보고:
+- source file
+- function
+- initialization sequence
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. ETIMEDOUT 발생 dependency 식별
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+초기화 과정에서 network connection이 필요한 대상만 확인:
+
+예:
+- PostgreSQL
+- Redis
+- external API
+- Render internal service
+- queue/backend
+- 기타
+
+어느 호출에서 ETIMEDOUT이 발생하는지
+정확히 식별.
+
+추측 금지.
+
+가능하면 현재 catch 전에
+어떤 operation인지 코드로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DB라면 connection source 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DB connection timeout이면:
+
+- 어떤 env variable 사용 중인지
+- DATABASE_URL인지 별도 KF DB URL인지
+- host type이 internal/external인지
+- connection timeout 설정
+- worker가 현재 사용해야 하는 DB가 맞는지
+
+값/secret 자체 출력 금지.
+
+env key 이름만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Worker 필요성 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production app에서
+swimnote-kf-worker가 실제 어떤 기능에 사용되는지
+직접 참조 경로만 최소 확인.
+
+확인:
+- active queue/job producer 존재 여부
+- API가 이 worker에 현재 job을 enqueue하는지
+- Parent Curriculum / Growth Report / Gauge와 관계 있는지
+
+특히:
+GAUGE-01~08와 직접 dependency인지 YES/NO.
+
+Professional Engine과 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Failure behavior 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 initialization timeout 1회가 발생하면
+왜 process.exit(1) 하는지 확인.
+
+보고:
+- startup fatal by design: YES/NO
+- retry/backoff 존재: YES/NO
+- Render restart에만 의존: YES/NO
+
+아직 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] KF-WORKER ETIMEDOUT ROOT-CAUSE REPORT
+
+- startup source file
+- startup function
+- exact timed-out dependency
+- exact operation
+- env key used
+- DB/network target type
+- SSL warning fatal: YES/NO
+- GAUGE dependency: YES/NO
+- Parent Curriculum dependency: YES/NO
+- Growth Report dependency: YES/NO
+- worker currently used in production: YES/NO
+- retry/backoff present: YES/NO
+- reason process exits
+- code changed: NO
+- production changed: NO
+
+Final Verdict:
+A) UNUSED/ISOLATED WORKER ISSUE
+B) ACTIVE WORKER ISSUE — FIX REQUIRED
+C) BLOCKED — exact missing evidence
+
+STOP.
