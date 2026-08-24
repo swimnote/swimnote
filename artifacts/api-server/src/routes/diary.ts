@@ -28,6 +28,7 @@ import {
   upsertSessionObservation,
   invalidateSessionObservation,
 } from "../lib/curriculum-progress-mapper.js";
+import { computeConfirmedProgress } from "../lib/curriculum-confirmation-engine.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -601,14 +602,18 @@ router.post("/diaries",
       });
       console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
 
-      // ── GAUGE-04: CPO 매핑 (TX 외부 — fail-safe) ──────────────────────────
-      // X mode일 때만 실행. 일지 저장은 항상 성공; CPO는 eventually consistent.
+      // ── GAUGE-04/05: CPO 매핑 → SCP 재계산 (TX 외부 — fail-safe) ──────────
+      // X mode일 때만 실행. 일지 저장은 항상 성공; CPO/SCP는 eventually consistent.
       if (isXMode && savedNotes.length > 0) {
         const uniqueStudentIds = [...new Set(savedNotes.map((n: any) => n.student_id))];
         for (const studentId of uniqueStudentIds) {
           upsertSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
-            .then((r) => console.log(`[diary-create] CPO mapper student=${studentId} status=${r.status} rank=${r.progressRank}`))
-            .catch((e) => console.error(`[diary-create] CPO mapper error student=${studentId}:`, e));
+            .then((r) => {
+              console.log(`[diary-create] CPO mapper student=${studentId} status=${r.status} rank=${r.progressRank}`);
+              return computeConfirmedProgress(db, studentId, poolId!);
+            })
+            .then((c) => console.log(`[diary-create] SCP confirmed student=${studentId} status=${c.status} display=${c.displayConfirmedPct}`))
+            .catch((e) => console.error(`[diary-create] gauge pipeline error student=${studentId}:`, e));
         }
       }
 
@@ -925,8 +930,8 @@ router.delete("/diaries/:id",
         `);
         console.log(`[DELETE /diaries] TX step6: video(note) affectedRows=${(videoRes2 as any).rowCount ?? 0}`);
       });
-      // ── GAUGE-04: CPO invalidation (TX 외부 — fail-safe) ─────────────────
-      // 노트가 있는 학생들의 CPO를 무효화 또는 재계산.
+      // ── GAUGE-04/05: CPO invalidation → SCP 재계산 (TX 외부 — fail-safe) ──
+      // 노트가 있는 학생들의 CPO를 무효화 후 SCP 재계산.
       {
         const noteStudentRes = await db.execute(sql`
           SELECT DISTINCT student_id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
@@ -934,8 +939,12 @@ router.delete("/diaries/:id",
         const noteStudentIds = (noteStudentRes.rows as any[]).map((r) => r.student_id).filter(Boolean);
         for (const studentId of noteStudentIds) {
           invalidateSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
-            .then((r) => console.log(`[diary-delete] CPO mapper student=${studentId} status=${r.status}`))
-            .catch((e) => console.error(`[diary-delete] CPO mapper error student=${studentId}:`, e));
+            .then((r) => {
+              console.log(`[diary-delete] CPO mapper student=${studentId} status=${r.status}`);
+              return computeConfirmedProgress(db, studentId, poolId!);
+            })
+            .then((c) => console.log(`[diary-delete] SCP confirmed student=${studentId} status=${c.status} display=${c.displayConfirmedPct}`))
+            .catch((e) => console.error(`[diary-delete] gauge pipeline error student=${studentId}:`, e));
         }
       }
 
@@ -1321,15 +1330,19 @@ router.put("/diaries/student-notes/:noteId",
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
 
-      // ── GAUGE-04A: note 텍스트 변경 후 CPO 재계산 (evidence_text JOIN → 새 분류) ──
+      // ── GAUGE-04A/05: note 텍스트 변경 후 CPO 재계산 → SCP 재계산 ────────────
       // growth_events는 그대로 유지; mapper가 새 note_content로 재분류.
       upsertSessionObservation(db, {
         studentId: note.student_id,
         poolId:    poolId!,
         lessonSessionId: note.diary_id,
       })
-        .then((r) => console.log(`[student-note-edit] CPO mapper student=${note.student_id} diary=${note.diary_id} status=${r.status} rank=${r.progressRank}`))
-        .catch((e) => console.error(`[student-note-edit] CPO gauge error student=${note.student_id}:`, e));
+        .then((r) => {
+          console.log(`[student-note-edit] CPO mapper student=${note.student_id} diary=${note.diary_id} status=${r.status} rank=${r.progressRank}`);
+          return computeConfirmedProgress(db, note.student_id, poolId!);
+        })
+        .then((c) => console.log(`[student-note-edit] SCP confirmed student=${note.student_id} status=${c.status} display=${c.displayConfirmedPct}`))
+        .catch((e) => console.error(`[student-note-edit] gauge pipeline error student=${note.student_id}:`, e));
 
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
@@ -1366,9 +1379,10 @@ router.delete("/diaries/student-notes/:noteId",
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
 
-      // ── GAUGE-04A: note 삭제 후 CPO 재계산 ────────────────────────────────
+      // ── GAUGE-04A/05: note 삭제 후 CPO 재계산 → SCP 재계산 ──────────────────
       // 1. 삭제된 note에 연결된 growth_events invalidate (순서 보장 필요 → async chain)
       // 2. 나머지 유효 evidence 기준으로 CPO 재계산
+      // 3. SCP confirmation 재계산
       // 실패해도 Diary 응답은 그대로 유지 (fire-and-forget).
       const noteId = req.params.noteId;
       const _noteStudentId = note.student_id;
@@ -1384,7 +1398,9 @@ router.delete("/diaries/student-notes/:noteId",
           studentId: _noteStudentId, poolId: _notePoolId, lessonSessionId: _noteDiaryId,
         });
         console.log(`[student-note-delete] CPO mapper student=${_noteStudentId} diary=${_noteDiaryId} status=${r.status} rank=${r.progressRank}`);
-      })().catch((e) => console.error(`[student-note-delete] CPO gauge error student=${_noteStudentId}:`, e));
+        const c = await computeConfirmedProgress(db, _noteStudentId, _notePoolId);
+        console.log(`[student-note-delete] SCP confirmed student=${_noteStudentId} status=${c.status} display=${c.displayConfirmedPct}`);
+      })().catch((e) => console.error(`[student-note-delete] gauge pipeline error student=${_noteStudentId}:`, e));
 
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
