@@ -1,0 +1,389 @@
+[앱] STEP-GAUGE-03 — CURRICULUM EVIDENCE CLASSIFIER
+
+기준:
+CURRICULUM PROGRESS GAUGE DESIGN V3 FINAL
++
+STEP-GAUGE-02 PROGRESS RANK CALCULATOR COMPLETE
+
+목적:
+Teacher Diary / growth_event evidence를
+진도 게이지 관찰로 사용할 수 있는지
+fail-closed 방식으로 분류하는
+server-side evidence classifier를 구현한다.
+
+이번 Step은 classifier 구현 + 최소 테스트만 한다.
+
+중요:
+- production DB write 금지
+- CPO INSERT 금지
+- SCP INSERT/UPDATE 금지
+- diary route 수정 금지
+- match_token 구조 변경 금지
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- deploy 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 신규 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/api-server/src/lib/curriculum-evidence-classifier.ts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 observation types
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 6개만 사용:
+
+ACTUAL_TAUGHT
+REVIEW
+CORRECTION
+FUTURE_PLAN
+PAST_REFERENCE
+UNVERIFIED
+
+eligibility:
+
+ACTUAL_TAUGHT  → true
+REVIEW         → true
+CORRECTION     → true
+FUTURE_PLAN    → false
+PAST_REFERENCE → false
+UNVERIFIED     → false
+
+fail-open 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 예:
+
+classifyObservationType({
+  evidenceText,
+  evidenceSource
+})
+
+return:
+
+{
+  observationType:
+    'ACTUAL_TAUGHT'
+    | 'REVIEW'
+    | 'CORRECTION'
+    | 'FUTURE_PLAN'
+    | 'PAST_REFERENCE'
+    | 'UNVERIFIED',
+
+  isGaugeEligible: boolean
+}
+
+필요하면 reasonCode 또는 matchedRule 정도는
+내부 diagnostic으로 추가 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Source 우선 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. evidenceSource = teacher_manual
+
+교사가 실제 curriculum item을
+직접 선택한 경우로 한정.
+
+→ ACTUAL_TAUGHT
+→ isGaugeEligible=true
+
+단:
+teacher_manual이라는 문자열만 있다고
+무조건 실제 수업으로 간주하면 안 되는 구조라면,
+현재 growth_event source 의미를 최소 확인하고
+그 의미가 실제 teacher explicit selection인지 확인 후 적용.
+
+불명확하면 BLOCKED 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. teacher_ai + evidenceText 분류
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+teacher_ai이고 evidenceText가 있는 경우:
+
+우선순위가 중요하다.
+
+권장 priority:
+
+1. FUTURE_PLAN
+2. PAST_REFERENCE
+3. CORRECTION
+4. REVIEW
+5. ACTUAL_TAUGHT
+
+이유:
+"다음 시간에 자유형 교정 예정"
+같은 문장은
+"교정" keyword가 있어도 FUTURE_PLAN이어야 함.
+
+즉 미래/과거 문맥이
+교정/복습보다 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. FUTURE_PLAN patterns
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 한국어 패턴:
+
+- 다음에
+- 다음 시간
+- 다음 수업
+- 다음번
+- 배울 예정
+- 할 예정
+- 해볼 예정
+- 진행할 예정
+- 연습할 예정
+- 할 거예요
+- 할 거야
+- 배우게 될
+- 이후에
+- 다음 단계는
+
+영어 support가 기존 diary에 필요하면 최소:
+- next time
+- will learn
+- plan to
+- going to practice
+
+주의:
+"다음 단계는 평영이지만 오늘은 자유형을 연습했다"
+같은 문장은 문장 단위 evidence_text라면
+future-plan으로 처리 가능.
+
+classifier가 문장 전체를 보는 구조인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PAST_REFERENCE patterns
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- 지난번
+- 저번에
+- 지난 시간
+- 지난 수업
+- 예전에
+- 이전에
+- 전에 배웠던
+- 이전 시간에
+
+영어 최소:
+- last time
+- previously
+- before
+
+중요:
+"지난번에 배운 자유형을 오늘 복습했다"
+는 PAST_REFERENCE로 제외하면 안 됨.
+
+오늘 수행 표현이 같이 있으면
+REVIEW/CORRECTION으로 분류되어야 함.
+
+따라서 단순 keyword 하나만으로 결정하지 말고
+현재 수행 표현과 결합 규칙 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CORRECTION patterns
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- 교정
+- 자세를 고침
+- 자세 수정
+- 수정
+- 고쳐
+- 다시 잡음
+- 다시 잡아
+- 자세를 다시
+- 동작을 바로잡
+- 교정 연습
+
+중요:
+오늘 실제 수행이 확인되어야 eligible.
+
+미래:
+"다음에 자세 교정 예정"
+→ FUTURE_PLAN
+
+과거:
+"지난번에 자세 교정함"
+→ PAST_REFERENCE
+
+오늘:
+"오늘 자유형 자세를 교정했습니다"
+→ CORRECTION true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. REVIEW patterns
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+- 복습
+- 다시 연습
+- 다시 해봄
+- 다시 수행
+- 반복 연습
+- 재확인
+- 확인 연습
+
+오늘 실제 수행이 확인되면 eligible.
+
+예:
+"지난번에 배운 자유형을 오늘 복습했습니다"
+→ REVIEW true
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. ACTUAL_TAUGHT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+teacher_ai + evidenceText 존재하고
+
+- FUTURE_PLAN 아님
+- PAST_REFERENCE only 아님
+- CORRECTION 아님
+- REVIEW 아님
+
+그리고 현재 수업 문장으로 해석 가능한 경우:
+
+→ ACTUAL_TAUGHT true
+
+예:
+"오늘 자유형 롤링과 스트림라인을 연습했습니다."
+→ ACTUAL_TAUGHT
+
+"평영 발차기를 진행했습니다."
+→ ACTUAL_TAUGHT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. UNVERIFIED fail-closed
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+teacher_ai + evidenceText = null/empty
+→ UNVERIFIED false
+
+알 수 없는 source
+→ UNVERIFIED false
+
+분류 불가능
+→ UNVERIFIED false
+
+절대:
+NULL → ACTUAL_TAUGHT
+금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 복합 문장 테스트 중요
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수 테스트:
+
+TC1
+"오늘 자유형 킥을 연습했습니다."
+→ ACTUAL_TAUGHT true
+
+TC2
+"다음 시간에는 접영을 배울 예정입니다."
+→ FUTURE_PLAN false
+
+TC3
+"지난번에 평영을 배웠습니다."
+→ PAST_REFERENCE false
+
+TC4
+"오늘 자유형 자세를 교정했습니다."
+→ CORRECTION true
+
+TC5
+"오늘 배영을 복습했습니다."
+→ REVIEW true
+
+TC6
+"다음 시간에 자유형 자세를 교정할 예정입니다."
+→ FUTURE_PLAN false
+
+TC7
+"지난번에 배운 자유형을 오늘 복습했습니다."
+→ REVIEW true
+
+TC8
+"지난번 자세가 무너져 오늘 다시 교정했습니다."
+→ CORRECTION true
+
+TC9
+teacher_ai + evidenceText=null
+→ UNVERIFIED false
+
+TC10
+teacher_manual explicit selection
+→ ACTUAL_TAUGHT true
+
+TC11
+unknown source
+→ UNVERIFIED false
+
+TC12
+Professional/GPT knowledge input path 없음 확인
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 DB CHECK와 일치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+classifier 결과는
+GAUGE-01의:
+
+chk_cpo_eligible_type_consistency
+
+와 100% 일치해야 한다.
+
+true 가능:
+ACTUAL_TAUGHT
+REVIEW
+CORRECTION
+
+false 가능:
+FUTURE_PLAN
+PAST_REFERENCE
+UNVERIFIED
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-03 EVIDENCE CLASSIFIER REPORT
+
+- file
+- function
+- observation types
+- priority order
+- teacher_manual meaning verified: YES/NO
+- fail-closed: YES/NO
+- composite sentence handling
+- DB CHECK consistency: YES/NO
+- AI/Professional dependency: NO
+- tests + pass count
+- production DB write: NO
+- changed files
+- commit SHA
+
+Final Verdict:
+EVIDENCE CLASSIFIER COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
