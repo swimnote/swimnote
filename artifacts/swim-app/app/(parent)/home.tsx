@@ -48,6 +48,7 @@ import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
+import CurriculumProgressGauge, { CurriculumProgressData } from "@/components/CurriculumProgressGauge";
 
 const C = Colors.light;
 const TEAL = C.brandStrong;
@@ -1275,6 +1276,8 @@ export default function ParentHomeScreen() {
   const [confirmedPool, setConfirmedPool] = useState<PoolResult | null>(null);
 
   const [aiModalType, setAiModalType] = useState<AIModalType | null>(null);
+  const [progressData, setProgressData] = useState<CurriculumProgressData | null>(null);
+  const [progressLoading, setProgressLoading] = useState(false);
   const [v2Status, setV2Status] = useState<
     "no_pool" | "waiting" | "linked" | null
   >("no_pool");
@@ -1289,6 +1292,23 @@ export default function ParentHomeScreen() {
   const showFeed = students.length > 0 && !isBlocked && !!selectedStudent;
 
   // ── 일지 목록 로드 ────────────────────────────────────────────────────────
+  // ── GAUGE-06: 교육과정 진행도 fetch ────────────────────────────────────────
+  async function loadProgress(sid: string) {
+    setProgressLoading(true);
+    try {
+      const res = await apiRequest(token, `/parent/students/${sid}/curriculum-progress`);
+      if (res.ok) {
+        const data = await res.json();
+        setProgressData(data);
+      } else {
+        setProgressData(null);
+      }
+    } catch {
+      setProgressData(null);
+    }
+    setProgressLoading(false);
+  }
+
   async function loadEntries(sid: string) {
     let hasCached = false;
     try {
@@ -1424,13 +1444,21 @@ export default function ParentHomeScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, []));
 
   useEffect(() => {
-    if (selectedStudent?.id) loadEntries(selectedStudent.id);
-    else setEntries([]);
+    if (selectedStudent?.id) {
+      loadEntries(selectedStudent.id);
+      loadProgress(selectedStudent.id);
+    } else {
+      setEntries([]);
+      setProgressData(null);
+    }
   }, [selectedStudent?.id]);
 
   useFocusEffect(
     useCallback(() => {
-      if (selectedStudent?.id) loadEntries(selectedStudent.id);
+      if (selectedStudent?.id) {
+        loadEntries(selectedStudent.id);
+        loadProgress(selectedStudent.id);
+      }
     }, [selectedStudent?.id]),
   );
 
@@ -1834,33 +1862,7 @@ export default function ParentHomeScreen() {
       </View>
 
 
-      {/* SWIMNOTE X 성장 리포트 (mode === "x" | "x_pending" 일 때만) */}
-      {(mode === "x" || mode === "x_pending") && (
-        <Pressable
-          style={({ pressed }) => ({
-            marginHorizontal: 20, marginBottom: 6,
-            flexDirection: "row", alignItems: "center", gap: 10,
-            backgroundColor: "#E9EEF3",
-            borderRadius: 12, padding: 12,
-            borderWidth: 1, borderColor: "#355C7D",
-            opacity: pressed ? 0.75 : 1,
-          })}
-          onPress={() => router.push("/(parent)/x-growth" as any)}
-        >
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#E9EEF3", alignItems: "center", justifyContent: "center" }}>
-            <LucideIcon name="activity" size={17} color="#355C7D" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#23415C" }}>
-              성장 리포트 보기
-            </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 }}>
-              AI가 분석한 수영 성장 현황
-            </Text>
-          </View>
-          <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
-        </Pressable>
-      )}
+      {/* ── GAUGE-06: big duplicate Growth Report button 삭제됨 ── */}
 
       {/* B. 자녀 선택 탭 */}
       <ScrollView
@@ -1949,6 +1951,14 @@ export default function ParentHomeScreen() {
             <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 커리큘럼 검색</Text>
           </Pressable>
         </View>
+      )}
+
+      {/* ★ GAUGE-06: 교육과정 진행도 게이지 (X mode + selectedStudent + !isBlocked) */}
+      {selectedStudent && mode === "x" && !isBlocked && (
+        <CurriculumProgressGauge
+          data={progressData}
+          loading={progressLoading}
+        />
       )}
 
       {/* D. access_blocked 안내 */}

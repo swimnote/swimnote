@@ -2167,6 +2167,90 @@ router.post("/ad-events/click", requireAuth, requireParent, async (req: AuthRequ
   }
 });
 
+// ─── GET /parent/students/:studentId/curriculum-progress ─────────────────────
+// 학생의 SCP(student_curriculum_progress) 조회.
+// 보안: parent → approved student relation → student의 pool → SCP
+router.get("/students/:studentId/curriculum-progress", requireAuth, requireParent, async (req: AuthRequest, res) => {
+  try {
+    const parentId  = req.user!.userId;
+    const { studentId } = req.params;
+
+    // 1. Parent ownership 확인 — parent_students approved 링크 있어야 함
+    const linkRes = await db.execute(sql`
+      SELECT ps.student_id, s.swimming_pool_id
+      FROM parent_students ps
+      JOIN students s ON s.id = ps.student_id
+      WHERE ps.parent_id   = ${parentId}
+        AND ps.student_id  = ${studentId}
+        AND ps.status      = 'approved'
+      LIMIT 1
+    `);
+    if (!linkRes.rows.length) {
+      return res.status(403).json({ error: "접근 권한이 없습니다." });
+    }
+
+    const row = linkRes.rows[0] as { student_id: string; swimming_pool_id: string };
+    const poolId = row.swimming_pool_id;
+
+    if (!poolId) {
+      return res.status(403).json({ error: "학생의 수영장 정보가 없습니다." });
+    }
+
+    // 2. SCP 조회 (student + pool 모두 매칭 — cross-pool leakage 차단)
+    const scpRes = await superAdminDb.execute(sql`
+      SELECT
+        student_id,
+        display_confirmed_pct,
+        active_confirmed_pct,
+        active_confirmed_rank,
+        active_confirmed_total,
+        active_curriculum_version_id,
+        observation_session_count,
+        confirmed_at,
+        display_updated_at,
+        prev_curriculum_version_id
+      FROM student_curriculum_progress
+      WHERE student_id       = ${studentId}
+        AND swimming_pool_id = ${poolId}
+      LIMIT 1
+    `);
+
+    // 3. SCP row 없으면 empty zero response (404 아님)
+    if (!scpRes.rows.length) {
+      return res.json({
+        student_id:                    studentId,
+        display_confirmed_pct:         0,
+        active_confirmed_pct:          0,
+        active_confirmed_rank:         0,
+        active_confirmed_total:        0,
+        active_curriculum_version_id:  null,
+        observation_session_count:     0,
+        confirmed_at:                  null,
+        display_updated_at:            null,
+        is_version_transition:         false,
+      });
+    }
+
+    const scp = scpRes.rows[0] as any;
+    return res.json({
+      student_id:                    scp.student_id,
+      display_confirmed_pct:         Number(scp.display_confirmed_pct ?? 0),
+      active_confirmed_pct:          Number(scp.active_confirmed_pct ?? 0),
+      active_confirmed_rank:         Number(scp.active_confirmed_rank ?? 0),
+      active_confirmed_total:        Number(scp.active_confirmed_total ?? 0),
+      active_curriculum_version_id:  scp.active_curriculum_version_id ?? null,
+      observation_session_count:     Number(scp.observation_session_count ?? 0),
+      confirmed_at:                  scp.confirmed_at ?? null,
+      display_updated_at:            scp.display_updated_at ?? null,
+      is_version_transition:         scp.prev_curriculum_version_id != null,
+    });
+  } catch (err: any) {
+    console.error("[parent/curriculum-progress] error:", err?.message);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
 export default router;
+
 
 
