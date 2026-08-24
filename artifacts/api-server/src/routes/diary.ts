@@ -24,6 +24,10 @@ import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defau
 import { resolvePoolMode } from "../lib/xmode.js";
 import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
 import { syncDiaryTemplatesToCurriculumItems } from "../lib/diary-template-sync.js";
+import {
+  upsertSessionObservation,
+  invalidateSessionObservation,
+} from "../lib/curriculum-progress-mapper.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -597,6 +601,17 @@ router.post("/diaries",
       });
       console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
 
+      // ── GAUGE-04: CPO 매핑 (TX 외부 — fail-safe) ──────────────────────────
+      // X mode일 때만 실행. 일지 저장은 항상 성공; CPO는 eventually consistent.
+      if (isXMode && savedNotes.length > 0) {
+        const uniqueStudentIds = [...new Set(savedNotes.map((n: any) => n.student_id))];
+        for (const studentId of uniqueStudentIds) {
+          upsertSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
+            .then((r) => console.log(`[diary-create] CPO mapper student=${studentId} status=${r.status} rank=${r.progressRank}`))
+            .catch((e) => console.error(`[diary-create] CPO mapper error student=${studentId}:`, e));
+        }
+      }
+
       // 트랜잭션 외부: 감사 로그 (실패해도 일지 생성에 영향 없음)
       await logAudit({
         diaryId, targetType: "common", actionType: "create",
@@ -910,6 +925,20 @@ router.delete("/diaries/:id",
         `);
         console.log(`[DELETE /diaries] TX step6: video(note) affectedRows=${(videoRes2 as any).rowCount ?? 0}`);
       });
+      // ── GAUGE-04: CPO invalidation (TX 외부 — fail-safe) ─────────────────
+      // 노트가 있는 학생들의 CPO를 무효화 또는 재계산.
+      {
+        const noteStudentRes = await db.execute(sql`
+          SELECT DISTINCT student_id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+        `).catch(() => ({ rows: [] }));
+        const noteStudentIds = (noteStudentRes.rows as any[]).map((r) => r.student_id).filter(Boolean);
+        for (const studentId of noteStudentIds) {
+          invalidateSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
+            .then((r) => console.log(`[diary-delete] CPO mapper student=${studentId} status=${r.status}`))
+            .catch((e) => console.error(`[diary-delete] CPO mapper error student=${studentId}:`, e));
+        }
+      }
+
       // ── POST-COMMIT 검증: 트랜잭션 커밋 후 실제 DB 상태 확인 ──────────────
       const verifyRow = await db.execute(sql`
         SELECT id, is_deleted, deleted_at, updated_at FROM class_diaries WHERE id = ${diaryId}
