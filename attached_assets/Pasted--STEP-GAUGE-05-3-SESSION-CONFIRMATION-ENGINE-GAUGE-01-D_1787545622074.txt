@@ -1,0 +1,522 @@
+[앱] STEP-GAUGE-05 — 3-SESSION CONFIRMATION ENGINE
+
+기준:
+- GAUGE-01 DB FOUNDATION production ready
+- GAUGE-02 Progress Rank COMPLETE
+- GAUGE-03 Evidence Classifier COMPLETE
+- GAUGE-04 CPO Mapper COMPLETE
+- GAUGE-04A EDIT LIFECYCLE COMPLETE
+- latest commit: 62c3844c
+
+목적:
+유효한 curriculum_progress_observations(CPO)을 기반으로
+서로 다른 실제 수업 세션 3회 지지 규칙을 계산하고,
+student_curriculum_progress(SCP)에
+active-version progress와
+cross-version monotonic display gauge를 저장한다.
+
+이번 Step 범위:
+- Confirmation Engine 구현
+- CPO 변화 이후 SCP 재계산 연결
+- test/local PostgreSQL 검증
+- production CPO/SCP data write는 아직 금지
+
+중요:
+- Parent Home UI 수정 금지
+- Growth Report 수정 금지
+- Parent Curriculum 수정 금지
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- Render deploy 금지
+- OTA 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 신규 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/api-server/src/lib/curriculum-confirmation-engine.ts
+
+기존 repo convention에 맞게 최소 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+computeConfirmedProgress(
+  db,
+  studentId,
+  poolId
+)
+
+return 예:
+
+{
+  status:
+    'CONFIRMED'
+    | 'INSUFFICIENT_SESSIONS'
+    | 'NO_ACTIVE_CURRICULUM'
+    | 'NO_ELIGIBLE_OBSERVATIONS',
+
+  activeCurriculumVersionId,
+  observationSessionCount,
+  activeConfirmedRank,
+  activeConfirmedTotal,
+  activeConfirmedPct,
+  displayConfirmedPct
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Active Curriculum Version Resolution
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 student/pool의 실제 curriculum version을
+기존 source of truth에서 결정.
+
+우선 확인:
+
+student_curriculum_assignments
+WHERE
+  student_id=$studentId
+  swimming_pool_id=$poolId
+  is_active=true
+
+assignment 존재 시 그 curriculum_version_id 사용.
+
+assignment가 없을 경우:
+해당 pool의 active curriculum_versions를
+기존 X curriculum 정책에 따라 fallback 가능 여부 확인.
+
+임의 version 선택 금지.
+
+다른 pool version 사용 금지.
+
+resolution 결과와 fallback 정책을 보고서에 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Eligible CPO Query
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+student_id=$studentId
+swimming_pool_id=$poolId
+curriculum_version_id=$activeVersionId
+is_invalidated=false
+is_gauge_eligible=true
+
+observation_type IN:
+- ACTUAL_TAUGHT
+- REVIEW
+- CORRECTION
+
+제외:
+- FUTURE_PLAN
+- PAST_REFERENCE
+- UNVERIFIED
+
+CPO UNIQUE(lesson_session_id, student_id)로
+session당 최대 1행 보장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 3-SESSION CONFIRMATION RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 제품 규칙:
+
+어떤 rank P 이상에서
+서로 다른 실제 lesson_session 3회가 관찰되면
+P를 confirmed rank로 인정.
+
+예:
+
+[56,70,87]
+→ 56 이상 3회
+→ confirmed rank=56
+
+[56,70,70,87]
+→ 70 이상 3회
+→ confirmed rank=70
+
+[78,81,85]
+→ 78 이상 3회
+→ confirmed rank=78
+
+[70,87]
+→ 2회
+→ 새 confirmed 없음
+
+결과가 동일하면 구현 방식은 자유.
+
+가장 단순한 방식:
+eligible ranks를 DESC 정렬 후
+세 번째로 높은 rank가
+newly confirmed rank와 동치인지 검증 후 사용 가능.
+
+단:
+중복 session이 구조적으로 1행인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Active Version Percent
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+activeConfirmedPct =
+ROUND(
+  activeConfirmedRank / activeConfirmedTotal * 100,
+  1
+)
+
+activeConfirmedTotal은
+현재 active curriculum version의
+실제 active item count.
+
+raw sort_order 사용 금지.
+
+GAUGE-02의 1-based rank 좌표계와 동일해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SCP Meaning Separation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 구분:
+
+A. activeConfirmedRank / activeConfirmedPct
+→ 현재 active curriculum version의
+   현재 유효 3-session evidence 기준 factual position
+
+B. displayConfirmedPct
+→ 학부모에게 보여주는 lifetime monotonic progress
+
+둘을 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Same-Version Recalculation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+기존:
+activeConfirmedRank=70
+display=70%
+
+일지 수정/삭제 후
+현재 유효 CPO 재계산 결과:
+activeConfirmedRank=50
+
+그러면:
+
+activeConfirmedRank=50
+activeConfirmedPct=현재 version 기준 50 위치 %
+
+BUT
+
+displayConfirmedPct는
+기존 display보다 내려가지 않음.
+
+공식:
+
+displayConfirmedPct =
+MAX(
+  existing.display_confirmed_pct,
+  newlyComputedActivePct
+)
+
+즉 raw factual position은 내려갈 수 있지만
+학부모 lifetime gauge는 내려가지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Cross-Version Monotonic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서로 다른 version의 rank를
+절대 직접 비교하지 않는다.
+
+예:
+
+old:
+140/200=70%
+
+new:
+200/400=50%
+
+new rank가 더 커도:
+
+display =
+MAX(70,50)
+=70%
+
+version 변경 감지 시:
+
+prev_curriculum_version_id
+= old active version
+
+prev_display_pct
+= old display
+
+active_curriculum_version_id
+= new version
+
+새 version session <3:
+active rank=0
+active pct=0
+display old 유지
+
+새 version confirmed pct가 old display 초과:
+display 상승.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Insufficient Sessions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+eligible session 0~2회:
+
+active_confirmed_rank=0
+active_confirmed_pct=0
+observation_session_count=0~2
+
+기존 SCP 존재:
+display 유지
+
+신규 학생:
+display=0
+
+SCP row 자체를 3회 전까지 만들지 않을지,
+0-progress row를 만들지
+V3 schema/향후 UI 요구를 기준으로 판단.
+
+권장:
+관찰 session_count 추적을 위해
+0~2회에도 SCP row 유지.
+
+보고서에 정책 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. SCP UPSERT — RACE SAFE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+UNIQUE(student_id, swimming_pool_id)
+
+DB UPSERT에서
+display progress 하락을 구조적으로 막는다.
+
+가능하면:
+
+display_confirmed_pct =
+GREATEST(
+  student_curriculum_progress.display_confirmed_pct,
+  EXCLUDED.display_confirmed_pct
+)
+
+application read→MAX→write만 사용 금지.
+
+동시 수업 저장/재계산에서도
+display 감소 불가.
+
+version 변경 prev_* 처리도
+race로 이상해지지 않도록
+현재 PostgreSQL UPSERT 패턴 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. confirmed_at / display_updated_at
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+의미 정확히 분리:
+
+confirmed_at:
+activeConfirmedRank 또는 activeConfirmedPct가
+실제로 변경된 시각.
+
+display_updated_at:
+displayConfirmedPct가 실제 상승한 시각.
+
+재계산 결과가 동일하면
+불필요하게 timestamp 갱신하지 않는 방향 선호.
+
+updated_at:
+SCP row 자체 재계산/update 시각.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. GAUGE-04 Mapper 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CPO 상태가 바뀐 뒤
+해당 student/pool confirmation 재계산.
+
+대상:
+
+CREATE
+→ CPO upsert 성공 후
+
+STUDENT NOTE EDIT
+→ CPO recompute 성공 후
+
+STUDENT NOTE DELETE
+→ CPO recompute/invalidate 후
+
+FULL DIARY DELETE
+→ CPO invalidate 후
+
+연결 함수는
+computeConfirmedProgress() 재사용.
+
+새 confirmation 로직 복제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Failure Policy
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 GAUGE-04 정책 유지:
+
+Gauge/confirmation 오류 때문에
+Diary operation 자체 실패 금지.
+
+즉:
+
+Diary 성공
+→ gauge pipeline safe async
+→ confirmation 실패 시 structured log
+→ Diary response 정상 유지
+
+SCP는 idempotent 재계산 가능해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+TC1
+[56,70,87]
+→ confirmed=56
+
+TC2
+[56,70,70,87]
+→ confirmed=70
+
+TC3
+[78,81,85]
+→ confirmed=78
+
+TC4
+2 sessions
+→ active rank=0
+
+TC5
+FUTURE_PLAN / UNVERIFIED
+→ count 제외
+
+TC6
+same session duplicate
+→ 1회만 반영
+
+TC7
+기존 display=70
+새 active pct=50
+→ display=70
+
+TC8
+기존 display=70
+새 active pct=75
+→ display=75
+
+TC9
+cross-version:
+old 140/200=70
+new 200/400=50
+→ display=70
+
+TC10
+new version 3회 미만
+→ active=0 / display old 유지
+
+TC11
+version 변경:
+prev_curriculum_version_id 저장
+prev_display_pct 저장
+
+TC12
+CPO edit:
+active factual position 하락 가능
+display 유지
+
+TC13
+CPO delete:
+eligible sessions 3→2
+active=0
+display 유지
+
+TC14
+다른 pool CPO 제외
+
+TC15
+다른 version CPO 제외
+
+TC16
+DB-level GREATEST race protection
+
+TC17
+동일 입력 재계산
+→ 동일 결과 / SCP 중복 없음
+
+TC18
+confirmed_at:
+active progress 동일하면 불필요 갱신 없음
+
+TC19
+display_updated_at:
+display 상승 없으면 유지
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Test DB / Production
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+local/test PostgreSQL 사용 가능.
+
+production DB:
+- schema read-only 확인만 가능
+- CPO/SCP 실제 테스트 row 생성 금지
+- INSERT/UPDATE/DELETE 금지
+
+Render deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-05 CONFIRMATION ENGINE REPORT
+
+- confirmation file
+- active version resolution
+- insufficient-session policy
+- 3-session algorithm
+- active progress semantics
+- display progress semantics
+- same-version recalculation
+- cross-version handling
+- DB-level GREATEST race protection
+- confirmed_at semantics
+- display_updated_at semantics
+- CREATE integration
+- EDIT integration
+- student-note DELETE integration
+- full Diary DELETE integration
+- failure policy
+- tests + pass count
+- production DB write: NO
+- existing Diary behavior changed: NO
+- changed files
+- commit SHA
+- manual Render deploy required: YES/NO
+
+Final Verdict:
+CONFIRMATION ENGINE COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
