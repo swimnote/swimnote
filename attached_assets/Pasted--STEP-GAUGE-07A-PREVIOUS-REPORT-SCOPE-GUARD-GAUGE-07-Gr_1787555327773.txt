@@ -1,0 +1,133 @@
+[앱] STEP-GAUGE-07A — PREVIOUS REPORT SCOPE GUARD
+
+목적:
+GAUGE-07의 이전 Growth Report 선택이
+반드시 동일 student + 동일 swimming_pool 범위 안에서만
+이루어지는지 확인하고, 누락이면 최소 수정한다.
+
+현재 GAUGE-07 commit:
+90bb110c
+
+중요:
+- GAUGE-08 시작 금지
+- Growth Report AI 로직 수정 금지
+- snapshot 구조 변경 금지
+- production DB write 금지
+- Render deploy 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 실제 Query 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GAUGE-07에서 previous completed report를 찾는
+실제 SQL/query를 확인.
+
+반드시 아래 조건이 모두 있어야 함:
+
+student_id = $studentId
+swimming_pool_id = $poolId
+product_status = 'PUBLISHED'
+deleted_at IS NULL
+id != $currentReportId
+
+ORDER BY published_at DESC
+LIMIT 1
+
+보고서 요약에서 빠진 것뿐이고
+실제 코드에는 student/pool 조건이 있으면
+코드 수정 없이 PASS 보고.
+
+실제 코드에도 없으면 즉시 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Cross-student / Cross-pool 차단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 report 후보가 여러 개 있을 때:
+
+student A / pool X current report
+
+후보:
+- student B / pool X — 더 최근
+- student A / pool Y — 더 최근
+- student A / pool X — 이전
+
+반드시:
+student A / pool X
+만 previous report로 선택.
+
+다른 학생/다른 pool report의
+report_content.curriculum_state를
+절대 period_start_pct source로 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Previous Snapshot Source 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+scope guard 외에는 변경 금지.
+
+period_start_pct source는 계속:
+
+previous PUBLISHED report
+→ report_content.curriculum_state.confirmed_progress_pct
+
+현재 SCP로 과거값 재계산 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 GAUGE-07 tests 유지.
+
+추가 필수:
+
+TC13
+same pool의 다른 student가 더 최근 report 보유
+→ 제외
+
+TC14
+same student의 다른 pool report가 더 최근
+→ 제외
+
+TC15
+same student + same pool의 직전 PUBLISHED
+→ 선택
+
+TC16
+same student/pool이지만 draft/failed/deleted
+→ 제외
+
+TC17
+조건 만족 report 없음
+→ period_start_pct=null
+→ progress_delta_pct=null
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-07A PREVIOUS REPORT SCOPE REPORT
+
+- actual previous-report query
+- student_id filter: YES/NO
+- swimming_pool_id filter: YES/NO
+- PUBLISHED filter: YES/NO
+- deleted filter: YES/NO
+- current report exclusion: YES/NO
+- immutable JSONB source preserved: YES
+- cross-student isolation: YES/NO
+- cross-pool isolation: YES/NO
+- tests + pass count
+- production DB write: NO
+- changed files
+- commit SHA
+
+Final Verdict:
+GAUGE-07 COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.
