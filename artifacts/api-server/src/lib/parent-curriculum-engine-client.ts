@@ -56,6 +56,16 @@ export interface PcCurriculumScope {
 
 export interface PcStudentProgress {
   current_curriculum_id?: string;
+  // GAUGE-08: curriculum progress gauge context (read-only from SCP, optional)
+  // confirmed_progress_pct = SCP.display_confirmed_pct (cross-version monotonic UI gauge)
+  // Meaning: "교육과정 진행 위치 약 N% 지점으로 확인됨" — NOT 실력/숙련도/점수
+  confirmed_progress_pct?:   number | null;
+  active_progress_pct?:      number | null;  // current version factual position (reference only)
+  active_confirmed_rank?:    number;
+  active_total_count?:       number;
+  active_version_id?:        string | null;
+  observation_session_count?: number;
+  confirmed_at?:             string | null;
 }
 
 /**

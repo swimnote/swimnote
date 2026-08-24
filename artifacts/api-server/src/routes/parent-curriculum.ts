@@ -50,6 +50,7 @@ import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
 import { resolvePoolMode }               from "../lib/xmode.js";
 import {
   buildXCurriculumScope,
+  buildStudentProgress,
   CurriculumScopeError,
 } from "../lib/parent-curriculum-scope-builder.js";
 import {
@@ -702,9 +703,24 @@ router.post(
     //
     // WP-A Grounded Package → Engine context mapping.
     // APP deterministic progress를 Engine에 전달 (overclaim 방지 context).
-    const wpAStudentProgress = groundedPackage.curriculum_current
-      ? { current_curriculum_id: groundedPackage.curriculum_current.id }
-      : undefined;
+    //
+    // GAUGE-08: SCP gauge context (optional, fire-and-forget on failure).
+    // confirmed_progress_pct = display_confirmed_pct (학부모 UI gauge 값 — 의미: "진행 위치")
+    // Security: studentId + poolId 둘 다 전달 (단독 조회 금지).
+    const scpProgress = await buildStudentProgress(studentId, poolId).catch((err) => {
+      console.error("[parent-curriculum] SCP progress fetch failed:", err?.message);
+      return undefined;
+    });
+
+    const wpAStudentProgress =
+      (groundedPackage.curriculum_current || scpProgress)
+        ? {
+            ...(groundedPackage.curriculum_current
+              ? { current_curriculum_id: groundedPackage.curriculum_current.id }
+              : {}),
+            ...scpProgress,
+          }
+        : undefined;
 
     const engineRequest: ParentCurriculumEngineRequest = {
       request_id:     trimmedRequestId,

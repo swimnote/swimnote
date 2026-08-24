@@ -224,13 +224,51 @@ export async function buildXCurriculumScope(
  * 따라서: current_curriculum_id를 생략하고 undefined 반환.
  * 향후 canonical current-item helper가 추가되면 여기서 재사용할 것.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * buildStudentProgress — student_curriculum_progress(SCP) 조회 후
+ * ENGINE student_progress context 반환.
+ *
+ * GAUGE-08: confirmed_progress_pct = SCP.display_confirmed_pct
+ *   (cross-version monotonic UI gauge, 학부모에게 표시되는 값과 동일)
+ *
+ * 금지:
+ *   - active_confirmed_pct를 confirmed_progress_pct로 위장
+ *   - 0을 "시작점"으로 단정하여 전송 (SCP 없으면 undefined 반환)
+ *   - SCP를 실력/숙련도/점수로 해석
+ *
+ * SCP 없음 → undefined (기존 Parent Curriculum 동작 그대로 유지).
+ *
+ * Security: student_id + swimming_pool_id 반드시 둘 다 사용 (단독 조회 금지).
+ */
 export async function buildStudentProgress(
-  _studentId: string,
-  _poolId:    string,
+  studentId: string,
+  poolId:    string,
 ): Promise<PcStudentProgress | undefined> {
-  // 현재 DB 구조에서 curriculum_items.id 기반 현재 진도를 확정할 수 없음.
-  // curriculum_version_id(VERSION ID)를 current_curriculum_id로 보내는 것은 금지.
-  // → student_progress 전체 생략.
-  return undefined;
+  const res = await superAdminDb.execute(sql`
+    SELECT
+      display_confirmed_pct,
+      active_confirmed_pct,
+      active_confirmed_rank,
+      active_confirmed_total,
+      active_curriculum_version_id,
+      observation_session_count,
+      confirmed_at
+    FROM student_curriculum_progress
+    WHERE student_id       = ${studentId}
+      AND swimming_pool_id = ${poolId}
+    LIMIT 1
+  `);
+
+  if (!(res.rows as any[]).length) return undefined;
+
+  const r = (res.rows as any[])[0];
+  return {
+    confirmed_progress_pct:    r.display_confirmed_pct  != null ? Number(r.display_confirmed_pct)  : null,
+    active_progress_pct:       r.active_confirmed_pct   != null ? Number(r.active_confirmed_pct)   : null,
+    active_confirmed_rank:     Number(r.active_confirmed_rank  ?? 0),
+    active_total_count:        Number(r.active_confirmed_total ?? 0),
+    active_version_id:         r.active_curriculum_version_id ?? null,
+    observation_session_count: Number(r.observation_session_count ?? 0),
+    confirmed_at:              r.confirmed_at != null ? String(r.confirmed_at) : null,
+  };
 }
