@@ -533,3 +533,160 @@ describe("TC12: existing Growth Report snapshot fields preserved", () => {
     expect(cs!.mastery_flags).toBeNull();               // ENGINE computes
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GAUGE-07A: Scope Guard — TC13~TC17
+// Verify that queryPreviousReportCurriculumPct uses all 5 required filters:
+//   student_id = $studentId
+//   swimming_pool_id = $poolId
+//   product_status = 'PUBLISHED'
+//   deleted_at IS NULL
+//   id != $currentReportId
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Capture the growth_reports query call for previous curriculum pct.
+ * "Previous pct" query selects report_content and excludes the current report id.
+ */
+async function capturePreviousReportQuery(db: ReturnType<typeof buildMockDb>) {
+  await buildAnalysisSnapshot(db as any, { report: BASE_REPORT, cycle: BASE_CYCLE });
+
+  // The previous-report query: targets growth_reports, includes report_content selection
+  const growthCalls = (db.execute as ReturnType<typeof vi.fn>).mock.calls.filter(
+    ([sqlObj]: [any]) => extractSqlText(sqlObj).includes("growth_reports"),
+  );
+  // Find the call that selects report_content (the previous pct query, not the history query)
+  const prevCall = growthCalls.find(([sqlObj]: [any]) =>
+    extractSqlText(sqlObj).includes("report_content"),
+  );
+  return prevCall ? prevCall[0] : null;
+}
+
+// ─── TC13: same-pool 다른 student의 최신 report 제외 ─────────────────────────
+
+describe("TC13: same-pool other-student report excluded — student_id filter present", () => {
+  it("SQL includes student_id param → other-student reports cannot match", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const params = extractParams(sqlObj);
+    // STUDENT_ID must be one of the params
+    expect(params).toContain(STUDENT_ID);
+  });
+
+  it("student_id filter in SQL text (= placeholder present)", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const raw = extractSqlText(sqlObj);
+    expect(raw).toContain("student_id");
+  });
+});
+
+// ─── TC14: same-student 다른 pool report 제외 ────────────────────────────────
+
+describe("TC14: same-student other-pool report excluded — swimming_pool_id filter present", () => {
+  it("SQL includes POOL_ID as param → other-pool reports cannot match", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const params = extractParams(sqlObj);
+    expect(params).toContain(POOL_ID);
+  });
+
+  it("swimming_pool_id column name in SQL text", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+
+    const raw = extractSqlText(sqlObj);
+    expect(raw).toContain("swimming_pool_id");
+  });
+});
+
+// ─── TC15: same student + same pool의 직전 PUBLISHED → 선택 ──────────────────
+
+describe("TC15: same student + same pool PUBLISHED report → selected as period_start source", () => {
+  it("period_start_pct = 55 from previous PUBLISHED report content", async () => {
+    const db = buildMockDb({
+      scpRow: {
+        display_confirmed_pct:        65,
+        active_confirmed_pct:         65,
+        active_confirmed_rank:        13,
+        active_confirmed_total:       20,
+        active_curriculum_version_id: "cv-001",
+        observation_session_count:    6,
+      },
+      previousReportContent: {
+        curriculum_state: { confirmed_progress_pct: 55 },
+      },
+    });
+
+    const { request } = await buildAnalysisSnapshot(db as any, { report: BASE_REPORT, cycle: BASE_CYCLE });
+    const cs = request.snapshot.curriculum_state;
+    expect(cs!.period_start_pct).toBe(55);
+    expect(cs!.progress_delta_pct).toBe(10); // 65 - 55 = 10
+  });
+});
+
+// ─── TC16: draft/failed/deleted report 제외 ──────────────────────────────────
+
+describe("TC16: draft/failed/deleted reports excluded", () => {
+  it("SQL contains product_status = 'published' filter text", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const raw = extractSqlText(sqlObj);
+    // 'published' must appear (case-insensitive, already lowercased)
+    expect(raw).toContain("published");
+  });
+
+  it("SQL contains deleted_at IS NULL filter text", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const raw = extractSqlText(sqlObj);
+    expect(raw).toContain("deleted_at");
+    expect(raw).toContain("null");
+  });
+
+  it("SQL excludes current report id (id != $currentReportId)", async () => {
+    const db = buildMockDb({ scpRow: null });
+    const sqlObj = await capturePreviousReportQuery(db);
+    expect(sqlObj).not.toBeNull();
+
+    const params = extractParams(sqlObj);
+    // REPORT_ID must be a param (used in id != $currentReportId)
+    expect(params).toContain(REPORT_ID);
+
+    const raw = extractSqlText(sqlObj);
+    expect(raw).toContain("!=");
+  });
+});
+
+// ─── TC17: 조건 만족 report 없음 → null ──────────────────────────────────────
+
+describe("TC17: no qualifying previous report → period_start_pct=null, progress_delta_pct=null", () => {
+  it("returns null fields when no PUBLISHED report exists for student+pool", async () => {
+    const db = buildMockDb({
+      scpRow: {
+        display_confirmed_pct:        42,
+        active_confirmed_pct:         42,
+        active_confirmed_rank:        5,
+        active_confirmed_total:       20,
+        active_curriculum_version_id: "cv-001",
+        observation_session_count:    4,
+      },
+      previousReportContent: null, // no matching PUBLISHED report
+    });
+
+    const { request } = await buildAnalysisSnapshot(db as any, { report: BASE_REPORT, cycle: BASE_CYCLE });
+    const cs = request.snapshot.curriculum_state;
+    expect(cs!.period_start_pct).toBeNull();
+    expect(cs!.progress_delta_pct).toBeNull();
+  });
+});
