@@ -17,7 +17,8 @@
 
 import React from "react";
 import { View, Text } from "react-native";
-import { C } from "@/theme/colors";
+import Colors from "@/constants/colors";
+const C = Colors.light;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
