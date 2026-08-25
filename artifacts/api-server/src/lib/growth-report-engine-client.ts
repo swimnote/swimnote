@@ -20,6 +20,7 @@
  */
 
 import { createHash } from "node:crypto";
+import jwt from "jsonwebtoken";
 
 // ─── Contract constants ───────────────────────────────────────────────────────
 
@@ -44,6 +45,41 @@ export function getEngineTimeoutMs(): number {
 export function getMaxHistoryPeriods(): number {
   const raw = Number(process.env["GROWTH_REPORT_MAX_HISTORY_PERIODS"]);
   return raw > 0 ? raw : DEFAULT_MAX_HISTORY_PERIODS;
+}
+
+/**
+ * createServiceJwt — Engine 호출용 단기 서비스 JWT 생성.
+ *
+ * signing secret: GROWTH_REPORT_ENGINE_SECRET
+ * (값이 Engine의 JWT_SECRET과 동일해야 함)
+ *
+ * algorithm: HS256
+ * TTL: 5분
+ * payload: { userId, role: "platform_admin", poolId, tv: 1 }
+ *
+ * raw secret을 HTTP 헤더에 직접 전송하지 않음.
+ * 생성된 token 값을 로그에 출력하지 않음.
+ */
+export function createServiceJwt(poolId: string | null): string {
+  const secret = getEngineSecret();
+  if (!secret) {
+    throw new EngineCallError(
+      "ENGINE_SECRET_NOT_CONFIGURED",
+      0,
+      false,
+      "GROWTH_REPORT_ENGINE_SECRET env var not set — cannot create service JWT",
+    );
+  }
+  return jwt.sign(
+    {
+      userId: "service:growth-report-worker",
+      role:   "platform_admin",
+      poolId,
+      tv:     1,
+    },
+    secret,
+    { algorithm: "HS256", expiresIn: "5m" },
+  );
 }
 
 // ─── Canonical hash ───────────────────────────────────────────────────────────
@@ -323,10 +359,12 @@ export async function analyzeGrowthReport(
     );
   }
 
-  const secret     = getEngineSecret();
   const timeoutMs  = getEngineTimeoutMs();
   const controller = new AbortController();
   const timer      = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Create signed service JWT — never transmit raw secret
+  const serviceJwt = createServiceJwt(request.context.pool_id);
 
   // AI01-05: Single attempt — no retry in this client.
   // actualCallCount increments only when an HTTP request is actually sent.
@@ -340,7 +378,7 @@ export async function analyzeGrowthReport(
         "Content-Type":  "application/json",
         // AI01-05: propagate request_id as header for engine-side correlation
         "X-Request-Id":  request.request_id,
-        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+        "Authorization": `Bearer ${serviceJwt}`,
       },
       body:   JSON.stringify(request),
       signal: controller.signal,
