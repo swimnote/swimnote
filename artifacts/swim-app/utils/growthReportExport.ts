@@ -79,29 +79,33 @@ export class GrowthReportExportException extends Error {
   }
 }
 
-// ── Section title 번역 (GR8 canonical labels) ─────────────────────────────────
+// ── Section labels V2 (PDF Template V2 spec) ──────────────────────────────────
 
 const SECTION_LABELS_PDF: Record<string, string> = {
-  core_growth:             "이번 달에 확인된 성장",
-  swimming_progress:       "수영에서 확인된 변화",
-  behavioral_strengths:    "수업에서 보인 강점",
-  longitudinal_comparison: "지난 기록과 이어서 보기",
-  success_conditions:      "이런 상황에서 더 잘 나타났어요",
-  parent_support:          "가정에서 참고할 포인트",
-  teacher_guidance:        "수업에서 이어갈 포인트",
-  next_growth_direction:   "다음에 관찰할 성장 방향",
+  core_growth:             "이번 달에 가장 좋았던 모습",
+  swimming_progress:       "이번 달 수영에서 배운 것",
+  behavioral_strengths:    "수업에서 좋았던 모습",
+  longitudinal_comparison: "지난달보다 이렇게 이어지고 있어요",
+  success_conditions:      "이럴 때 더 잘하고 있어요",
+  parent_support:          "집에서는 이렇게 함께해주세요",
+  teacher_guidance:        "수업에서는 이렇게 이어갈게요",
+  next_growth_direction:   "앞으로 이렇게 만들어갈게요",
 };
 
-// canonical order (GR8와 동일, spec §6)
-const SECTION_ORDER_PDF = [
+// PAGE 1: 이번 달 이야기
+const PAGE1_SECTIONS = [
   "core_growth",
   "swimming_progress",
   "behavioral_strengths",
   "longitudinal_comparison",
+] as const;
+
+// PAGE 2: 앞으로 어떻게 이어갈지
+const PAGE2_SECTIONS = [
   "success_conditions",
-  "parent_support",
   "teacher_guidance",
   "next_growth_direction",
+  "parent_support",
 ] as const;
 
 // ── 기간 포맷 ─────────────────────────────────────────────────────────────────
@@ -109,6 +113,17 @@ const SECTION_ORDER_PDF = [
 function formatPeriod(period: string): string {
   const [y, m] = period.split("-");
   return y && m ? `${y}년 ${Number(m)}월` : period;
+}
+
+/** "YYYY-MM" → "YYYY.MM.01 – YYYY.MM.DD" */
+function formatPeriodRange(period: string): string {
+  const [y, m] = period.split("-");
+  if (!y || !m) return period;
+  const year  = parseInt(y, 10);
+  const month = parseInt(m, 10);
+  const lastDay = new Date(year, month, 0).getDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${y}.${pad(month)}.01 – ${y}.${pad(month)}.${lastDay}`;
 }
 
 function formatPublishedDate(iso: string): string {
@@ -128,41 +143,116 @@ export function buildPdfFilename(reportPeriod: string): string {
   return `SWIMNOTE_GrowthReport_${safe || "report"}.pdf`;
 }
 
-// ── HTML template ─────────────────────────────────────────────────────────────
-// PDF is a document-quality output: Navy + Mint brand, no score/gauge/diagnostic
+// ── HTML template V2 ──────────────────────────────────────────────────────────
+// PDF TEMPLATE V2: 2-page editorial design
+// Page 1: 이번 달 이야기 (summary + 4 sections)
+// Page 2: 앞으로 어떻게 이어갈지 (4 sections, parent_support highlighted)
+// Design: ivory/white bg, deep navy text, thin aqua accents, no big icon boxes
 
-function buildPdfHtml(params: GrowthReportExportParams): string {
+// SWIMNOTE logo SVG — inlined as data URI (no network dependency)
+const SWIMNOTE_LOGO_SVG_DATA_URI =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    `<svg width="580" height="480" viewBox="0 0 580 480" fill="none" xmlns="http://www.w3.org/2000/svg">` +
+    `<defs><linearGradient id="g1" x1="160" y1="40" x2="160" y2="280" gradientUnits="userSpaceOnUse">` +
+    `<stop offset="0%" stop-color="#154a6d"/><stop offset="100%" stop-color="#0a2540"/></linearGradient></defs>` +
+    `<g transform="translate(130,20)">` +
+    `<rect x="40" y="40" width="240" height="240" rx="60" fill="url(#g1)"/>` +
+    `<rect x="70" y="70" width="180" height="180" rx="16" fill="#6ef5ea"/>` +
+    `<rect x="95" y="105" width="60" height="10" rx="5" fill="#0a2540"/>` +
+    `<rect x="95" y="130" width="80" height="10" rx="5" fill="#0a2540"/>` +
+    `<path d="M200 85 L220 105 L250 75" stroke="#0a2540" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>` +
+    `<path d="M70 175 Q100 168 125 175 T180 175 T235 175 L250 175 L250 234 Q250 250 234 250 L86 250 Q70 250 70 234Z" fill="#0ea5e9"/>` +
+    `</g>` +
+    `<text x="290" y="422" font-family="'Helvetica Neue',Helvetica,sans-serif" font-size="80" font-weight="700" fill="#0a2540" text-anchor="middle">SwimNote</text>` +
+    `</svg>`,
+  );
+
+/** Build one section block (editorial style: label + thin rule + body text) */
+function buildSectionBlock(key: string, text: string, isParentSupport = false): string {
+  const label = escapeHtml(SECTION_LABELS_PDF[key] ?? key);
+  const body  = escapeHtml(text);
+  if (isParentSupport) {
+    return `
+    <div class="section parent-support-section">
+      <div class="section-label">${label}</div>
+      <div class="section-rule"></div>
+      <p class="section-body">${body}</p>
+    </div>`;
+  }
+  return `
+    <div class="section">
+      <div class="section-label">${label}</div>
+      <div class="section-rule"></div>
+      <p class="section-body">${body}</p>
+    </div>`;
+}
+
+/** Shared page header HTML */
+function buildPageHeader(
+  nameLabel: string,
+  poolLabel: string,
+  periodRangeLabel: string,
+): string {
+  return `
+  <div class="page-header">
+    <div class="header-left">
+      <img class="logo-img" src="${SWIMNOTE_LOGO_SVG_DATA_URI}" alt="SwimNote" />
+      <div class="header-title">수영 성장 리포트</div>
+    </div>
+    <div class="header-meta">${nameLabel} · ${poolLabel} · ${periodRangeLabel}</div>
+  </div>`;
+}
+
+/** Shared page footer HTML */
+function buildPageFooter(pageNum: number, totalPages: number): string {
+  const num = String(pageNum).padStart(2, "0");
+  const tot = String(totalPages).padStart(2, "0");
+  return `
+  <div class="page-footer">
+    <div class="footer-brand-wrap">
+      <span class="footer-brand">SWIMNOTE</span>
+      <span class="footer-tagline">수영 피드백의 시대.</span>
+    </div>
+    <div class="footer-page">${num} / ${tot}</div>
+  </div>`;
+}
+
+export function buildPdfHtml(params: GrowthReportExportParams): string {
   const {
     reportPeriod, publishedAt, reportContent,
     displayName = "우리 아이", poolName,
   } = params;
 
-  // Validate content (spec §7 equiv)
+  // Validate content
   if (!reportContent || typeof reportContent !== "object" || Array.isArray(reportContent)) {
     throw new GrowthReportExportException("INVALID_REPORT_CONTENT", "report_content가 유효하지 않습니다.");
   }
 
-  const periodLabel    = formatPeriod(reportPeriod);
-  const publishedLabel = formatPublishedDate(publishedAt);
-  const poolLabel      = poolName ? escapeHtml(poolName) : "SWIMNOTE";
-  const nameLabel      = escapeHtml(displayName);
+  const periodLabel      = formatPeriod(reportPeriod);
+  const periodRangeLabel = formatPeriodRange(reportPeriod);
+  const poolLabel        = poolName ? escapeHtml(poolName) : "SWIMNOTE";
+  const nameLabel        = escapeHtml(displayName);
 
-  // sections — internal data 제외 (spec §10): text only
-  const sectionHtml = SECTION_ORDER_PDF
+  // ── PAGE 1 sections ────────────────────────────────────────────────────────
+  const page1SectionsHtml = PAGE1_SECTIONS
     .map((key) => {
-      const sec = (reportContent.sections as any)?.[key] as ReportSectionForExport | undefined;
+      const sec = (reportContent.sections as Record<string, ReportSectionForExport | undefined>)?.[key];
       if (!sec?.text?.trim()) return "";
-      const label = SECTION_LABELS_PDF[key] ?? key;
-      return `
-        <div class="section-card">
-          <div class="section-header">
-            <span class="section-dot"></span>
-            <h2 class="section-title">${escapeHtml(label)}</h2>
-          </div>
-          <p class="section-text">${escapeHtml(sec.text)}</p>
-        </div>`;
+      return buildSectionBlock(key, sec.text);
     })
-    .join("\n");
+    .join("");
+
+  // ── PAGE 2 sections ────────────────────────────────────────────────────────
+  const page2SectionsHtml = PAGE2_SECTIONS
+    .map((key) => {
+      const sec = (reportContent.sections as Record<string, ReportSectionForExport | undefined>)?.[key];
+      if (!sec?.text?.trim()) return "";
+      return buildSectionBlock(key, sec.text, key === "parent_support");
+    })
+    .join("");
+
+  const headerHtml = buildPageHeader(nameLabel, poolLabel, periodRangeLabel);
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -171,167 +261,206 @@ function buildPdfHtml(params: GrowthReportExportParams): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${nameLabel} 성장리포트 ${periodLabel}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+
+  @page { size: A4 portrait; margin: 0; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
+
   body {
     font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    background: #ffffff;
-    color: #2C3E50;
-    padding: 40px;
-    max-width: 800px;
-    margin: 0 auto;
-    font-size: 14px;
-    line-height: 1.8;
+    background: #F8F7F4;
+    color: #1A2E44;
+    font-size: 15px;
+    line-height: 1.85;
   }
-  .doc-header {
-    background: linear-gradient(135deg, #0D2E5A 0%, #1a4a8a 100%);
-    color: #fff;
-    padding: 32px 36px;
-    border-radius: 16px;
-    margin-bottom: 28px;
+
+  /* ── PAGE ── */
+  .page {
+    background: #FFFFFF;
+    min-height: 297mm;
+    padding: 44px 52px 40px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
   }
-  .doc-header .brand-row {
+  .page + .page {
+    page-break-before: always;
+    border-top: none;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 20px;
+    border-bottom: 1.5px solid #3ECFBA;
+    margin-bottom: 30px;
+  }
+  .header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 16px;
+    gap: 14px;
   }
-  .doc-header .brand-dot {
-    width: 8px; height: 8px;
-    background: #3ECFBA;
-    border-radius: 50%;
+  .logo-img {
+    height: 32px;
+    width: auto;
   }
-  .doc-header .brand-name {
-    font-size: 13px;
+  .header-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0D2E5A;
+    letter-spacing: -0.3px;
+  }
+  .header-meta {
+    font-size: 12.5px;
+    color: #6B8099;
+    letter-spacing: 0.1px;
+  }
+
+  /* ── PAGE SUBTITLE ── */
+  .page-subtitle {
+    font-size: 11px;
     font-weight: 600;
     color: #3ECFBA;
+    text-transform: uppercase;
+    letter-spacing: 1.8px;
+    margin-bottom: 24px;
+  }
+
+  /* ── SUMMARY (PAGE 1) ── */
+  .summary-block {
+    background: #F0F8FF;
+    border-left: 3px solid #3ECFBA;
+    padding: 18px 22px;
+    margin-bottom: 32px;
+  }
+  .summary-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #3ECFBA;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+  }
+  .summary-body {
+    font-size: 15px;
+    color: #1A2E44;
+    line-height: 1.9;
+    white-space: pre-wrap;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    margin-bottom: 28px;
+    page-break-inside: avoid;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #3ECFBA;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    margin-bottom: 6px;
+  }
+  .section-rule {
+    height: 1px;
+    background: #D9EDF8;
+    margin-bottom: 12px;
+  }
+  .section-body {
+    font-size: 15px;
+    color: #1A2E44;
+    line-height: 1.9;
+    white-space: pre-wrap;
+  }
+
+  /* ── PARENT SUPPORT (highlighted) ── */
+  .parent-support-section {
+    background: #F0FAF8;
+    border-left: 3px solid #3ECFBA;
+    padding: 20px 22px;
+    margin-bottom: 28px;
+  }
+  .parent-support-section .section-rule {
+    background: #C0E8E0;
+    margin-bottom: 14px;
+  }
+  .parent-support-section .section-body {
+    font-size: 15px;
+    line-height: 1.95;
+    color: #153A2E;
+  }
+
+  /* ── PAGE FOOTER ── */
+  .page-footer {
+    margin-top: auto;
+    padding-top: 18px;
+    border-top: 1px solid #E8EDF2;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .footer-brand-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .footer-brand {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #0D2E5A;
     letter-spacing: 1.5px;
     text-transform: uppercase;
   }
-  .doc-header .pool-name {
-    font-size: 13px;
-    color: rgba(255,255,255,0.65);
-    margin-left: 4px;
+  .footer-tagline {
+    font-size: 9.5px;
+    color: #A0B4C8;
   }
-  .doc-header .period-title {
-    font-size: 26px;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 4px;
-  }
-  .doc-header .published-meta {
-    font-size: 12px;
-    color: rgba(255,255,255,0.55);
-  }
-  .summary-card {
-    background: #F7FAFD;
-    border-left: 4px solid #3ECFBA;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 20px;
-  }
-  .summary-label {
+  .footer-page {
     font-size: 11px;
-    font-weight: 600;
-    color: #3ECFBA;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 10px;
+    color: #A0B4C8;
+    letter-spacing: 0.5px;
   }
-  .summary-text {
-    font-size: 14px;
-    color: #2C3E50;
-    line-height: 1.9;
-    white-space: pre-wrap;
-  }
-  .section-card {
-    background: #fff;
-    border: 1px solid #E5EDF5;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 16px;
-    page-break-inside: avoid;
-  }
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .section-dot {
-    width: 7px; height: 7px;
-    background: #3ECFBA;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .section-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #0D2E5A;
-  }
-  .section-text {
-    font-size: 14px;
-    color: #2C3E50;
-    line-height: 1.9;
-    white-space: pre-wrap;
-  }
-  .doc-footer {
-    margin-top: 36px;
-    padding-top: 20px;
-    border-top: 1px solid #E5EDF5;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .doc-footer .footer-brand {
-    font-size: 11px;
-    font-weight: 700;
-    color: #0D2E5A;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-  }
-  .doc-footer .footer-tagline {
-    font-size: 10px;
-    color: #8CA0B8;
-    margin-top: 2px;
-  }
-  .doc-footer .footer-date {
-    font-size: 11px;
-    color: #8CA0B8;
-    text-align: right;
-  }
+
   @media print {
-    .section-card { page-break-inside: avoid; }
-    body { padding: 20px; }
+    body { background: #FFFFFF; }
+    .page { min-height: 0; }
+    .section { page-break-inside: avoid; }
   }
 </style>
 </head>
 <body>
-  <div class="doc-header">
-    <div class="brand-row">
-      <span class="brand-dot"></span>
-      <span class="brand-name">SWIMNOTE</span>
-      ${poolLabel ? `<span class="pool-name">· ${poolLabel}</span>` : ""}
-    </div>
-    <div class="period-title">${periodLabel} 성장리포트</div>
-    <div class="published-meta">${publishedLabel} 공개</div>
+
+  <!-- ═══════════════════════════ PAGE 1 ═══════════════════════════ -->
+  <div class="page">
+    ${headerHtml}
+
+    <div class="page-subtitle">이번 달 이야기</div>
+
+    ${reportContent.summary_text?.trim() ? `
+    <div class="summary-block">
+      <div class="summary-label">이번 달 이야기</div>
+      <p class="summary-body">${escapeHtml(reportContent.summary_text)}</p>
+    </div>` : ""}
+
+    ${page1SectionsHtml || ""}
+
+    ${buildPageFooter(1, 2)}
   </div>
 
-  ${reportContent.summary_text ? `
-  <div class="summary-card">
-    <div class="summary-label">리포트 요약</div>
-    <p class="summary-text">${escapeHtml(reportContent.summary_text)}</p>
-  </div>` : ""}
+  <!-- ═══════════════════════════ PAGE 2 ═══════════════════════════ -->
+  <div class="page">
+    ${headerHtml}
 
-  ${sectionHtml}
+    <div class="page-subtitle">앞으로 어떻게 이어갈지</div>
 
-  <div class="doc-footer">
-    <div>
-      <div class="footer-brand">SWIMNOTE</div>
-      <div class="footer-tagline">수영 피드백의 시대.</div>
-    </div>
-    <div class="footer-date">${publishedLabel} 공개</div>
+    ${page2SectionsHtml || ""}
+
+    ${buildPageFooter(2, 2)}
   </div>
+
 </body>
 </html>`;
 }
