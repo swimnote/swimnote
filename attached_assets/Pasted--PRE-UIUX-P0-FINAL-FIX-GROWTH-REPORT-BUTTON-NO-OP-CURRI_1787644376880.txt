@@ -1,0 +1,237 @@
+[앱] PRE-UIUX P0 FINAL FIX
+GROWTH REPORT BUTTON NO-OP + CURRICULUM STILL 3/10
+
+실기기 재확인 결과:
+
+1. "AI 성장 리포트" 버튼
+- 구형 소개 모달은 더 이상 나오지 않음
+- 하지만 버튼을 눌러도 아무 화면으로 이동하지 않음
+
+2. "AI 커리큘럼 검색"
+- 여전히 "이번 달 AI 검색 3/10회" 표시
+- 확정 계약은 월 4회
+
+이전 보고서의 FIX 판정과 실제 Production behavior가 일치하지 않음.
+
+이번 Step은 추측 금지.
+실제 Production request/response와
+실제 onPress path를 확인해서 두 문제만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. GROWTH REPORT BUTTON — NO-OP ROOT CAUSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드가:
+
+grReportId가 있을 때만
+growth-report-detail로 push하고,
+
+grReportId == null이면
+아무 동작도 하지 않는지 확인.
+
+실제 selectedStudent에 대해
+Growth Report status response를 확인:
+
+- product_status
+- analysis_status
+- report_id
+- 기타 현재 route에 필요한 필드
+
+중요:
+Production DB write 금지.
+GET/read-only만.
+
+버튼은 reportId 존재 여부에 따라
+죽어있는 버튼이 되면 안 됨.
+
+최종 contract:
+
+1) PUBLISHED + report_id 존재
+→ growth-report-detail?reportId=...
+
+2) DATA_ACCUMULATING / PARTIAL / GENERATING 등
+→ 해당 학생의 기존 Growth Report status 화면 또는
+   기존 status UX로 명확하게 진입
+
+3) NOT_AVAILABLE
+→ 아무 동작 없음 금지.
+   사용자에게 기존 정상 안내 화면/상태를 보여줘야 함.
+
+즉 어떤 정상 상태에서도
+"눌러도 아무 반응 없음"은 금지.
+
+새 AI 호출 금지.
+새 report 생성 금지.
+
+필요하면 현재 앱에 이미 있는
+growth-report status 전용 route/screen/component를 재사용.
+
+없다면 최소한 기존 Growth Report 화면에서
+studentId 기반 status를 보여주는 기존 구조를 연결.
+새 대형 기능 설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. CURRICULUM QUOTA — ACTUAL PRODUCTION RESPONSE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 앱이 호출하는
+정확한 endpoint를 확인.
+
+그 endpoint에 대해
+실제 Production response의 usage를 직접 확인:
+
+- limit
+- used
+- remaining
+- period
+- resets_at
+
+반드시 보고:
+ACTUAL RESPONSE limit = ?
+
+추측/소스코드 값 보고 금지.
+
+CASE 1
+실제 response limit=10
+→ 현재 Production 서버가 아직 구버전.
+→ 실제 요청을 처리하는 service/source/deployed SHA를 확인.
+→ MONTHLY_LIMIT=4가 포함된 source가 그 service에 배포되도록 수정.
+
+CASE 2
+실제 response limit=4
+→ 앱이 다른 endpoint/cache/legacy state를 사용 중.
+→ 화면의 실제 displayed value source 추적 후 최소 수정.
+
+CASE 3
+response usage 자체가 없고 fallback=10
+→ fallback root cause 수정.
+→ 정상 authority는 server usage.limit.
+
+중요:
+"코드에는 4다"는 증거로 완료 판정 금지.
+실제 production response가 4여야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C. CACHE / OLD OTA 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱이 최신 OTA
+01a037e5-d49f-70e7-9942-962006673262
+를 실제로 로드했는지 확인 가능한 기존 debug/version 정보가 있으면 확인.
+
+없으면 새 debug UI 만들지 말 것.
+
+앱 source SHA / update metadata 확인 가능한 범위만 확인.
+
+문제가 old OTA 수신 실패라면
+코드 재수정 전에 그 사실을 명확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+D. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+두 문제 각각:
+
+실제 root cause 확인
+→ 최소 수정
+→ 관련 테스트
+→ 필요한 경우 OTA/API deploy
+
+불필요한 새 OTA/deploy 반복 금지.
+
+가능하면 두 수정 모두 끝난 뒤
+OTA는 한 번만.
+
+API 수정이 필요하면
+Git push → Render auto-deploy만.
+
+RENDER_API_KEY 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+E. 실기기 기대 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 실제 사용자 화면에서:
+
+Growth Report:
+"AI 성장 리포트" 탭
+→ 반드시 반응
+→ 현재 학생의 실제 report/detail/status 흐름으로 진입
+
+Curriculum:
+현재 used=3이면
+→ "이번 달 AI 검색 3/4회"
+
+이 두 화면이 실제로 보여야 완료.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+F. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 GR button never no-op for valid selected student
+TC2 PUBLISHED → detail
+TC3 DATA_ACCUMULATING/PARTIAL → status UX
+TC4 NOT_AVAILABLE → visible normal 안내
+TC5 selectedStudent.id authority
+TC6 old promo modal remains hidden
+
+TC7 actual production quota contract = 4
+TC8 used=3 → 3/4
+TC9 remaining=1
+TC10 no hardcoded 10
+TC11 429 contract unchanged
+TC12 no AI call
+TC13 no DB write
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+G. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] PRE-UIUX P0 FINAL FIX REPORT
+
+GROWTH REPORT
+- actual status response
+- report_id value
+- root cause of no-op
+- final route behavior
+- NOT_AVAILABLE behavior
+- old promo modal exposed: NO
+
+CURRICULUM
+- exact production endpoint
+- actual production usage response BEFORE
+- actual limit BEFORE
+- actual deployed service/SHA
+- root cause of 10
+- actual production usage response AFTER
+- actual limit AFTER = 4
+
+OTA
+- latest app OTA actually targeted
+- executed YES/NO
+- update ID
+- group ID
+
+API
+- deploy required YES/NO
+- deployed SHA
+- health
+
+tests/pass
+changed files
+commit SHA
+
+AI calls: 0
+DB write: NO
+migration: NO
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+READY FOR DEVICE RECHECK
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
