@@ -256,20 +256,21 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* pt 단위 직접 사용 — 모바일 PDF viewer 가독성 목표 (spec §1) */
   body {
     font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
                  'Helvetica Neue', Arial, sans-serif;
     background: #F8F7F3;
     color: #1A2E44;
-    font-size: 14px;
-    line-height: 1.65;
+    font-size: 12pt;
+    line-height: 1.6;
   }
 
   /* ── PAGE ── */
   .page {
     background: #FFFFFF;
     min-height: 297mm;
-    padding: 40px 50px 36px;
+    padding: 28pt 42pt 24pt;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -283,110 +284,108 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   .page-header {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding-bottom: 16px;
-    border-bottom: 1.5px solid #3ECFBA;
-    margin-bottom: 28px;
+    gap: 5pt;
+    padding-bottom: 10pt;
+    border-bottom: 1.5pt solid #3ECFBA;
+    margin-bottom: 18pt;
   }
   .header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 9pt;
   }
   .logo-img {
-    height: 28px;
+    height: 22pt;
     width: auto;
   }
   .header-title {
-    font-size: 26px;
+    font-size: 26pt;
     font-weight: 700;
     color: #0D2E5A;
-    letter-spacing: -0.5px;
+    letter-spacing: -0.3pt;
   }
   .header-meta {
-    font-size: 11px;
+    font-size: 10pt;
     color: #7A90A8;
-    letter-spacing: 0.1px;
   }
 
   /* ── SECTION HEADING ── */
   .section-heading {
-    font-size: 15px;
+    font-size: 15pt;
     font-weight: 700;
     color: #0D2E5A;
-    margin-bottom: 4px;
+    margin-bottom: 3pt;
   }
 
   /* ── SUMMARY (PAGE 1) ── */
   .summary-block {
     background: #F2FAFD;
-    border-left: 3px solid #3ECFBA;
-    padding: 16px 20px;
-    margin-bottom: 26px;
+    border-left: 3pt solid #3ECFBA;
+    padding: 10pt 14pt;
+    margin-bottom: 16pt;
     page-break-inside: avoid;
   }
   .summary-body {
-    font-size: 14px;
+    font-size: 12pt;
     color: #1A2E44;
-    line-height: 1.7;
+    line-height: 1.6;
     white-space: pre-wrap;
   }
 
   /* ── SECTION ── */
   .section {
-    margin-bottom: 22px;
+    margin-bottom: 14pt;
     page-break-inside: avoid;
   }
   .section-rule {
-    height: 1px;
+    height: 0.75pt;
     background: #DCE9F3;
-    margin: 6px 0 10px;
+    margin: 4pt 0 7pt;
   }
   .section-body {
-    font-size: 14px;
+    font-size: 12pt;
     color: #1A2E44;
-    line-height: 1.65;
+    line-height: 1.6;
     white-space: pre-wrap;
   }
 
   /* ── PARENT SUPPORT (highlighted) ── */
   .parent-support-section {
     background: #EEF9F6;
-    border-left: 3px solid #3ECFBA;
-    padding: 18px 20px 20px;
-    margin-bottom: 22px;
+    border-left: 3pt solid #3ECFBA;
+    padding: 12pt 14pt 14pt;
+    margin-bottom: 14pt;
     page-break-inside: avoid;
   }
   .parent-support-section .section-rule {
     background: #B8E4D8;
-    margin: 6px 0 12px;
+    margin: 4pt 0 8pt;
   }
   .parent-support-section .section-body {
-    font-size: 14px;
-    line-height: 1.7;
+    font-size: 12pt;
+    line-height: 1.65;
     color: #0F3328;
   }
 
   /* ── PAGE FOOTER ── */
   .page-footer {
     margin-top: auto;
-    padding-top: 16px;
-    border-top: 1px solid #E4EBF2;
+    padding-top: 10pt;
+    border-top: 0.75pt solid #E4EBF2;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   .footer-brand {
-    font-size: 10px;
+    font-size: 9pt;
     font-weight: 700;
     color: #0D2E5A;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.2pt;
     text-transform: uppercase;
   }
   .footer-page {
-    font-size: 10px;
+    font-size: 9pt;
     color: #A8BACF;
-    letter-spacing: 0.5px;
   }
 
   @media print {
