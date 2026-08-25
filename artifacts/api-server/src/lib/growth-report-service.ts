@@ -94,7 +94,7 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<ProductStatus, ReadonlyArray<P
   READY_FOR_ANALYSIS: ["ANALYZING"],
   ANALYZING:          ["REVIEW_REQUIRED", "PARTIAL", "FAILED"],
   PARTIAL:            ["ANALYZING", "REVIEW_REQUIRED"],
-  FAILED:             ["ANALYZING"],
+  FAILED:             ["ANALYZING", "OPEN"],  // OPEN: super_admin 운영 재처리 경로
   REVIEW_REQUIRED:    ["APPROVED", "ANALYZING"],
   APPROVED:           ["PUBLISHED"],
   PUBLISHED:          [], // terminal
