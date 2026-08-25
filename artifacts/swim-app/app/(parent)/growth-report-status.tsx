@@ -104,8 +104,9 @@ export default function GrowthReportStatusScreen() {
     else router.replace("/(parent)/home" as any);
   };
 
-  const handleViewSchedule = () => {
-    router.push("/(parent)/today-schedule" as any);
+  const handleViewDiary = () => {
+    // /(parent)/diary — 부모 일지 피드 (실제 존재하는 route)
+    router.push("/(parent)/diary" as any);
   };
 
   const handleRetry = () => {
@@ -219,7 +220,7 @@ export default function GrowthReportStatusScreen() {
                   <Pressable onPress={handleGoHome} style={[s.actionBtn, s.actionBtnFlex]}>
                     <Text style={s.actionTxt}>홈으로 돌아가기</Text>
                   </Pressable>
-                  <Pressable onPress={handleViewSchedule} style={[s.actionBtn, s.actionBtnFlex, s.actionBtnOutline]}>
+                  <Pressable onPress={handleViewDiary} style={[s.actionBtn, s.actionBtnFlex, s.actionBtnOutline]}>
                     <Text style={[s.actionTxt, s.actionTxtOutline]}>수업 기록 확인하기</Text>
                   </Pressable>
                 </View>
@@ -245,7 +246,7 @@ export default function GrowthReportStatusScreen() {
                   <Pressable onPress={handleGoHome} style={[s.actionBtn, s.actionBtnFlex]}>
                     <Text style={s.actionTxt}>홈으로 돌아가기</Text>
                   </Pressable>
-                  <Pressable onPress={handleViewSchedule} style={[s.actionBtn, s.actionBtnFlex, s.actionBtnOutline]}>
+                  <Pressable onPress={handleViewDiary} style={[s.actionBtn, s.actionBtnFlex, s.actionBtnOutline]}>
                     <Text style={[s.actionTxt, s.actionTxtOutline]}>수업 기록 보기</Text>
                   </Pressable>
                 </View>
