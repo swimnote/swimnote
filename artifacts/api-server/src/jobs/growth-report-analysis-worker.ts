@@ -375,8 +375,11 @@ async function analyzeOneReport(
         actorId:   null,
         reason:    code,
       }).catch(() => {});
-      console.warn(`[gr3-worker] ${code} report=${report.id} → FAILED`);
-      return { ok: false, errorCode: code, httpStatus: 0 };
+      const groundingDetails = persistErr instanceof GroundingFailError
+        ? { field: persistErr.field, value: persistErr.value, message: persistErr.message }
+        : undefined;
+      console.warn(`[gr3-worker] ${code} report=${report.id} → FAILED field=${(persistErr as any).field} value=${(persistErr as any).value}`);
+      return { ok: false, errorCode: code, httpStatus: 0, engineDetails: groundingDetails };
     }
     throw persistErr;
   }
