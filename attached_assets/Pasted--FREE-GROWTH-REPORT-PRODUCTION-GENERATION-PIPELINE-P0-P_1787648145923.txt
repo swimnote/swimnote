@@ -1,0 +1,348 @@
+[앱] FREE GROWTH REPORT — PRODUCTION GENERATION PIPELINE P0
+
+실기기에서 확인된 현재 상태:
+
+- Parent Curriculum quota 3/4 정상
+- Growth Report entry는 NEW status screen으로 정상 진입
+- 하지만 현재 학생에게 report가 생성되어 있지 않아 NOT_AVAILABLE 표시
+- "수업 기록 보기" 버튼은 존재하지 않는 route로 이동하여
+  Expo Router:
+  "This screen doesn't exist."
+  오류 발생
+
+현재 핵심 문제:
+
+FREE Growth Report의 월간 생성 파이프라인이
+Production에서 실제 report를 생성하고 있는지 불명확함.
+
+오늘은 2026-08-25 KST이며,
+기존 설계상 월간 Growth Report 생성 cycle이 있는 상태.
+
+이번 Step에서는 UI 디자인 작업 금지.
+
+목적:
+
+1. 왜 현재 학생의 report가 NOT_AVAILABLE인지 정확히 확인
+2. 월간 report generation pipeline을 Production에서 정상 작동 상태로 만듦
+3. "수업 기록 보기" 404 route 수정
+4. 실제 report가 만들어진 뒤 PUBLISHED 이전까지 정상 lifecycle 확인
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CURRENT STUDENT READ-ONLY DIAGNOSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 테스트 중인 selected student에 대해
+Production DB/API read-only로 확인.
+
+확인:
+
+- student_id
+- swimming_pool_id
+- X eligibility
+- 최근 diary/slesson 기록 존재 여부
+- Growth Report 대상 period
+- growth_report_analysis record 존재 여부
+- report_content 존재 여부
+- status
+- analysis_status
+- report_id
+- scheduler/generation queue 대상 여부
+
+중요:
+Production DB 직접 write 금지.
+
+먼저 READ ONLY로 정확한 상태를 확인.
+
+완료 보고에 실제 상태를 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. GENERATION PIPELINE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Growth Report 생성 흐름을 실제 코드 기준으로 추적:
+
+monthly scheduler
+→ eligible pool/student selection
+→ report record creation
+→ snapshot/input build
+→ AI Engine
+POST /api/v1/growth-report/analyze
+→ result 저장
+→ review state
+→ APPROVED
+→ PUBLISHED
+
+각 단계의 실제 파일/함수/trigger를 확인.
+
+repo-wide audit 금지.
+Growth Report generation 관련 파일만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. SCHEDULER 실제 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설계에서 report 생성 cycle이
+25th KST 기준이라면 실제 구현을 확인.
+
+반드시 보고:
+
+- scheduler file/function
+- 실행 cadence
+- timezone
+- next/last run
+- Production에서 scheduler가 실제 실행되고 있는지
+- worker/service가 살아 있는지
+- scheduler가 API server process 내부인지
+- external cron인지
+- Render cron인지
+- 현재 disabled 상태인지
+
+"코드가 있다"가 아니라
+Production에서 실제 실행 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. ELIGIBILITY GATE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 학생이 왜 generation 대상이 아닌지 확인.
+
+가능 후보:
+
+- X mode gate
+- pool eligibility
+- monthly period condition
+- minimum diary/evidence
+- attendance/session threshold
+- duplicate prevention
+- report already exists
+- scheduler date mismatch
+- timezone mismatch
+- student role/status
+- teacher diary not counted
+- required snapshot missing
+
+실제 조건을 하나씩 확인해서
+정확한 root cause를 확정.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. REPORT RECORD CREATION 여부
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+현재 student/month에 대해
+
+- report row 자체가 없음
+- row는 있지만 analysis 미실행
+- analysis 완료됐지만 status route가 못 찾음
+- FAILED
+- DATA_ACCUMULATING
+- READY
+- PUBLISHED
+
+중 어느 상태인지 정확히 구분.
+
+NOT_AVAILABLE을
+모든 미생성 상태의 generic fallback로 사용하고 있다면
+그 원인도 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. CODE BUG이면 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+generation pipeline이 코드/trigger 문제로
+Production에서 실행되지 않는 것이 확인되면
+
+해당 root cause만 최소 수정.
+
+가능한 예:
+
+- scheduler 미등록
+- wrong timezone
+- wrong eligibility query
+- wrong report period
+- worker not attached
+- route mismatch
+- status query mismatch
+
+대규모 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PRODUCTION GENERATION POLICY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+Production DB에 수동으로 report row INSERT해서
+문제를 숨기지 말 것.
+
+정상 pipeline을 고쳐야 함.
+
+단,
+pipeline 수정 후
+현재 selected student가 정상 eligibility를 만족하면
+
+기존 production generation function을
+정상 trigger 방식으로 1회 실행하여
+report 생성 검증 허용.
+
+이 경우:
+
+- manual SQL INSERT 금지
+- manual status patch 금지
+- existing generation service/function만 사용
+- 해당 student/month 1건만
+- AI call 최대 1 report
+- duplicate prevention 유지
+
+실행 전 현재 row 존재 여부 반드시 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. EXPECTED LIFECYCLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정상 결과:
+
+report generation 시작 전:
+NOT_AVAILABLE 또는 DATA_ACCUMULATING
+
+eligible + generation 시작:
+GENERATING
+
+AI 완료:
+READY / APPROVED 등 기존 contract
+
+PUBLISHED 후:
+Growth Report detail
+
+기존 실제 enum/contract를 authority로 사용.
+
+임의 status 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. "수업 기록 보기" 404 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 growth-report-status.tsx의
+"수업 기록 보기" / "수업 기록 확인하기"가
+존재하지 않는 route로 이동해서:
+
+"This screen doesn't exist."
+
+오류 발생.
+
+실제 부모 일지/feed route를 확인하여
+기존 존재하는 screen으로 연결.
+
+새 screen 만들지 말 것.
+
+예:
+부모 홈/feed 또는 실제 diary list route.
+
+정확한 기존 route 재사용.
+
+버튼이 필요 없으면
+단순히 "홈으로 돌아가기"만 유지해도 됨.
+
+절대 존재하지 않는 route 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. MINIMAL TEST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 current student eligibility correctly resolved
+TC2 scheduler/trigger path identified
+TC3 report creation function reachable
+TC4 duplicate prevention maintained
+TC5 report period correct
+TC6 timezone correct
+TC7 AI Engine route correct
+TC8 status API finds generated report
+TC9 NOT_AVAILABLE only when truly unavailable
+TC10 diary action route exists
+TC11 diary action no Expo Router 404
+TC12 no manual SQL INSERT
+TC13 no migration unless absolutely required
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 필요 시:
+
+APP/API:
+deploy-photo-clone push
+→ Render auto-deploy
+
+APP JS 변경:
+Production OTA 1회
+
+RENDER_API_KEY 사용 금지.
+
+AI Engine 변경은
+이번 Step에서 원칙적으로 금지.
+현재 AI Engine Production 0eb91fa 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT PRODUCTION GENERATION PIPELINE REPORT
+
+CURRENT STUDENT
+- student
+- pool
+- report period
+- diary/session evidence count
+- X eligibility
+- report row exists YES/NO
+- report_id
+- analysis_status
+- product/status
+
+GENERATOR
+- scheduler file/function
+- cadence
+- timezone
+- last production run
+- scheduler actually active YES/NO
+- eligibility gate
+- actual root cause of NOT_AVAILABLE
+
+FIX
+- exact fix
+- changed files
+- commit SHA
+
+GENERATION TEST
+- generation triggered YES/NO
+- method
+- report_id
+- AI calls
+- final analysis_status
+- status endpoint result
+
+DIARY BUTTON
+- previous invalid route
+- final valid route
+- Expo Router 404 fixed YES/NO
+
+DEPLOY
+- API deployed SHA
+- OTA update ID/group ID if required
+
+Production manual SQL write: NO
+migration: NO unless explicitly required
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+GROWTH REPORT GENERATION PIPELINE LIVE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
