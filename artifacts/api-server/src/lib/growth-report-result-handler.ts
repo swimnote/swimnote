@@ -427,12 +427,17 @@ export async function persistEngineResult(
   validateEngineResponse(response, requestId, report.id, payloadHash);
 
   // 2) Grounding / framing gate
+  // Engine may return a string ("PASS") or a detail object ({ status: "PASS", ... })
   const { grounding, growth_framing } = response.validation;
-  if (!GROUNDING_PASS_VALUES.has(grounding)) {
-    throw new GroundingFailError("grounding", grounding);
+  const normalizeGating = (v: unknown): string =>
+    typeof v === "string" ? v : ((v as any)?.status ?? "FAIL");
+  const groundingStatus      = normalizeGating(grounding);
+  const growthFramingStatus  = normalizeGating(growth_framing);
+  if (!GROUNDING_PASS_VALUES.has(groundingStatus)) {
+    throw new GroundingFailError("grounding", groundingStatus);
   }
-  if (!GROUNDING_PASS_VALUES.has(growth_framing)) {
-    throw new GroundingFailError("growth_framing", growth_framing);
+  if (!GROUNDING_PASS_VALUES.has(growthFramingStatus)) {
+    throw new GroundingFailError("growth_framing", growthFramingStatus);
   }
 
   // 2.5) DATA_ACCUMULATING — early-exit path
