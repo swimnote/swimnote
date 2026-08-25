@@ -1,0 +1,543 @@
+[앱] FREE GROWTH REPORT — PDF TEMPLATE V2
+
+현재 상태:
+- FREE Growth Report AI core = LOCKED
+- Parent Narrative V2 = LOCKED
+- Parent Guidance Contract = LOCKED
+- 기존 PDF 기능 = READY
+  expo-print → temp PDF → OS share sheet
+- AI 재호출 없음
+- 기존 published report JSON 재사용
+- 이번 작업은 PDF DESIGN / LAYOUT ONLY
+
+목적:
+
+현재 기능은 그대로 유지하면서
+학부모가 실제로 보관하고 싶어지는
+SWIMNOTE 월간 성장리포트 PDF V2를 만든다.
+
+핵심 방향:
+
+“AI가 만든 카드형 리포트” 느낌이 아니라
+깔끔하게 편집된 정식 교육 리포트 느낌.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 전체 디자인 방향
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PDF는 기본 2페이지.
+
+스타일:
+
+- White 중심
+- SWIMNOTE Navy
+- 아주 옅은 Aqua
+- 미세한 Sand/Beige 포인트 허용
+- 하와이/리조트 느낌은 아주 은은하게만
+- 야자수 그림, 어린이 그림, 수영선수 그림 금지
+- AI 스타일 아이콘 전부 제거
+- 큰 장식 아이콘 금지
+- 소제목 / 타이포그래피 / 여백으로 구성
+- 둥근 카드 남발 금지
+- 정보가 잘 정리된 정식 문서처럼 보여야 함
+
+핵심:
+가독성 > 장식
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. SWIMNOTE LOGO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 SWIMNOTE 로고 사용.
+
+기존 asset 우선:
+
+assets/images/swimnote-logo.png
+또는
+assets/images/swimnote-logo.svg
+
+PDF 좌측 상단에 작게 배치.
+
+새로운 가짜 텍스트 로고 생성 금지.
+
+PDF HTML에서 local asset rendering이 불안정하면
+기존 asset을 안전한 data URI/base64 방식으로 사용하는
+현재 Expo 환경에 맞는 최소 구현 사용.
+
+외부 URL logo 의존 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PAGE SIZE / TYPOGRAPHY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A4 portrait.
+
+2페이지 기본 구성.
+
+모바일 PDF viewer에서도
+확대하지 않고 읽기 쉬운 수준을 목표.
+
+본문을 한 페이지에 억지로 압축하지 말 것.
+
+권장 시작값:
+
+- Title: 25~30pt
+- Section heading: 14~17pt
+- Body: 11.5~13pt
+- Metadata: 9.5~10.5pt
+- Line-height: body 1.55~1.7
+
+실제 print 결과 기준으로 조정.
+
+폰트:
+깔끔한 한국어 Sans 계열.
+
+가능하면 앱의 Pretendard 계열 활용 검토.
+
+단 PDF 생성 안정성을 위해
+네트워크 Google Font 다운로드에 의존하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. HEADER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PAGE 1 상단:
+
+[SWIMNOTE 실제 로고]
+
+성장 리포트
+
+그 아래 작은 metadata 한 줄 또는 두 줄:
+
+아이 이름 · 수영장 · 리포트 기간
+
+예:
+
+서태웅 · 토이키즈스윔클럽 · 2026년 8월
+
+현재처럼
+아이 이름/수영장/기간을 크게 강조하지 않는다.
+
+제목보다 확실히 작은 크기.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PAGE 1 역할
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PAGE 1은:
+
+“이번 달 아이에게 어떤 일이 있었는지”
+
+를 빠르게 이해하는 페이지.
+
+권장 순서:
+
+A. summary_text
+표시 제목:
+“이번 달 이야기”
+
+B. core_growth
+“이번 달에 가장 좋았던 모습”
+
+C. swimming_progress
+“이번 달 수영에서 배운 것”
+
+D. behavioral_strengths
+“수업에서 좋았던 모습”
+
+E. longitudinal_comparison
+“지난달보다 이렇게 이어지고 있어요”
+
+각 영역:
+
+- 작은 소제목
+- 본문
+- 필요하면 얇은 divider
+- 아이콘 없음
+
+빈 section은 완전히 숨김.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. PAGE 2 역할
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PAGE 2는:
+
+“이 좋은 과정을 앞으로 어떻게 이어갈지”
+
+를 보여주는 페이지.
+
+권장 순서:
+
+A. success_conditions
+“이럴 때 더 잘하고 있어요”
+
+B. teacher_guidance
+“수업에서는 이렇게 이어갈게요”
+
+C. next_growth_direction
+“앞으로 이렇게 만들어갈게요”
+
+D. parent_support
+최종 핵심 섹션.
+
+표시 제목 후보:
+
+“집에서는 이렇게 함께해주세요”
+
+parent_support는
+PAGE 2 마지막에서
+가장 넉넉한 여백과 가독성을 준다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PARENT SUPPORT VISUAL PRIORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+parent_support는
+리포트의 최종 핵심 메시지.
+
+따라서 다른 section보다
+조금 더 강조.
+
+단,
+큰 아이콘/강한 컬러 카드 사용 금지.
+
+권장:
+
+- 아주 연한 Aqua/Sand background
+또는
+- 왼쪽 얇은 Aqua accent line
+- heading 조금 크게
+- 충분한 padding
+- body line-height 넉넉하게
+
+읽는 사람이:
+
+“결국 이번 달에 내가 아이에게
+이렇게 해주면 되는구나.”
+
+를 바로 알 수 있어야 함.
+
+parent phrase example이 들어가면
+따옴표 문장을 약간 분리해 보여줄 수 있음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. HAWAII FEEL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+하와이 느낌은
+‘그림’이 아니라 문서 분위기로 표현.
+
+허용:
+
+- 아주 옅은 Aqua
+- Warm off-white / sand tint
+- 얇고 부드러운 wave-like divider
+- 넉넉한 여백
+- 부드러운 모서리
+- 깨끗한 리조트 문서 느낌
+
+금지:
+
+- 야자수 일러스트
+- 섬 그림
+- 서핑 그림
+- 어린이 그림
+- 수영선수 그림
+- 컬러풀한 키즈 아이콘
+- AI 생성 이미지 삽입
+
+목표:
+
+SWIMNOTE 브랜드 + 조용한 Hawaii resort 문서 분위기.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 교육과정 표시
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 달 실제 완료된 curriculum item이
+report_content.swimming_progress 등에 존재하면
+그 문장을 그대로 사용.
+
+예:
+
+“이번 달에는 평영 킥 기초 과정을 완료했습니다.”
+
+APP에서 별도의 완료 사실을 새로 창작하지 않는다.
+
+향후 Instagram 공유용
+완료 항목과 source authority가 같아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 2 PAGE LAYOUT POLICY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목표는 기본 2페이지.
+
+하지만 내용을 억지로 잘라내거나
+폰트를 지나치게 줄여
+무조건 2페이지에 넣지 않는다.
+
+우선:
+
+- empty section 제거
+- section spacing 합리화
+- section별 paragraph spacing 조정
+
+으로 2페이지를 맞춘다.
+
+정상 report fixture는
+2페이지에 들어오도록 설계.
+
+예외적으로 긴 report가 존재하면
+text truncation보다 추가 page가 낫다.
+
+내용 삭제/요약을 위해
+AI 재호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. PAGE BREAK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PAGE 1 / PAGE 2 역할을 명확하게 분리.
+
+가능하면:
+
+PAGE 1
+summary
+core_growth
+swimming_progress
+behavioral_strengths
+longitudinal_comparison
+
+PAGE 2
+success_conditions
+teacher_guidance
+next_growth_direction
+parent_support
+
+단 empty section에 따라
+큰 공백이 생기는 경우
+안전한 layout fallback 허용.
+
+parent_support가
+페이지 중간에서 잘리지 않도록
+page-break-inside: avoid 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. FOOTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 페이지 하단:
+
+SWIMNOTE
+
+작은 page number:
+
+01 / 02
+02 / 02
+
+센터명 반복은 선택적으로 작게.
+
+기존:
+
+“수영 피드백의 시대.”
+
+같은 마케팅 문구는
+정식 리포트 느낌을 해치면 제거 가능.
+
+이번 PDF는 광고물이 아니라
+아이의 성장기록물이 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 기존 기능 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+버튼:
+
+“PDF 저장”
+
+향후 피드에서는
+“리포트 발급”
+
+으로 사용할 예정이지만
+이번 Step에서 피드 버튼 구조는 수정하지 않는다.
+
+현재 동작 유지:
+
+Published report JSON
+→ buildPdfHtml()
+→ expo-print
+→ temp PDF
+→ OS share/save
+
+유지:
+
+- AI calls = 0
+- external API = 0
+- persistent storage = 0
+- temp cleanup
+- iOS/Android support
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 데이터 계약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+사용 데이터:
+
+- child name if safe/available
+- pool name
+- report period
+- summary_text
+- canonical 8 sections
+
+AI 문장을 APP에서 재작성 금지.
+
+내용 추가/삭제/의미변경 금지.
+
+같은 published report/version
+→ 같은 source text
+
+원칙 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. PDF CONTENT ORDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 PDF 표시 순서:
+
+PAGE 1
+
+SWIMNOTE LOGO
+성장 리포트
+child / pool / period
+
+이번 달 이야기
+summary_text
+
+이번 달에 가장 좋았던 모습
+core_growth
+
+이번 달 수영에서 배운 것
+swimming_progress
+
+수업에서 좋았던 모습
+behavioral_strengths
+
+지난달보다 이렇게 이어지고 있어요
+longitudinal_comparison
+
+
+PAGE 2
+
+이럴 때 더 잘하고 있어요
+success_conditions
+
+수업에서는 이렇게 이어갈게요
+teacher_guidance
+
+앞으로 이렇게 만들어갈게요
+next_growth_direction
+
+집에서는 이렇게 함께해주세요
+parent_support
+
+footer
+
+empty section은 완전 생략.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fixture 3종 사용:
+
+CASE A
+8 section 대부분 populated
+
+CASE B
+SPARSE report
+일부 section empty
+
+CASE C
+parent_support 길이가 긴 report
+
+확인:
+
+TC1 actual SWIMNOTE logo
+TC2 child/pool/period metadata
+TC3 icon 없음
+TC4 Page 1 order
+TC5 Page 2 order
+TC6 empty section 숨김
+TC7 parent_support 마지막
+TC8 parent_support page split 방지
+TC9 normal fixture 2 pages
+TC10 body readability
+TC11 no AI call
+TC12 same JSON deterministic HTML
+TC13 iOS compatible
+TC14 Android compatible
+TC15 temp cleanup unchanged
+
+가능하면 generated PDF 또는
+HTML render preview artifact를 하나 생성하여
+실제 레이아웃 확인.
+
+Production report 사용 금지.
+fixture만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Growth Report AI 수정
+- Parent Narrative 수정
+- prompt/model 변경
+- DB write
+- DB migration
+- Instagram 기능 수정
+- SNS card 수정
+- feed UI 수정
+- OTA
+- production deploy
+- AI-generated decorative illustration 사용
+- 새로운 icon set 추가
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT PDF TEMPLATE V2 REPORT
+
+- PDF pages/layout
+- logo implementation
+- metadata layout
+- typography
+- colors
+- Hawaii styling
+- Page 1 sections
+- Page 2 sections
+- parent_support treatment
+- long content fallback
+- deterministic behavior
+- AI calls
+- generated preview artifact
+- tests/pass
+- changed files
+- commit SHA
+
+- Production DB write: NO
+- AI pipeline change: NO
+- deploy: NO
+- OTA: NO
+
+Final Verdict:
+
+FREE GROWTH REPORT PDF TEMPLATE V2 READY
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

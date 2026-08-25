@@ -164,3 +164,10 @@ uri = "file://docs/WP-AI-01-COST-OBSERVABILITY-DESIGN-REPORT.md"
 type = "text"
 title = "WP-AI-01 Cost Observability Design Report"
 description = "AI/API 비용 관측가능성 설계 감사 보고서. event_logs 재사용 YES, trigger_type 누락, Whisper/SMS/R2/외부엔진 처리 방안, 3-Phase 구현 계획 포함."
+
+[[outputs]]
+id = "ipjDBTHSS7Cs6ZUihtoiT"
+uri = "file://artifacts/audit/pdf-v2-preview.html"
+type = "text"
+title = "PDF Template V2 — HTML Preview (CASE A fixture)"
+description = "2-page A4 layout preview: Page 1 이번 달 이야기 / Page 2 앞으로 어떻게 이어갈지. SWIMNOTE logo + system fonts (no network) + parent_support highlighted panel."
