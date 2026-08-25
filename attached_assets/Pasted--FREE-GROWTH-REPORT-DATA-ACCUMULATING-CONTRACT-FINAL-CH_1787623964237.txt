@@ -1,0 +1,189 @@
+[앱] FREE GROWTH REPORT — DATA_ACCUMULATING CONTRACT FINAL CHECK
+
+기준:
+- FREE REPORT AI ENGINE = LOCKED
+- APP PHASE 1 commit = c9c5ff95
+- AI engine은 analysis_status = DATA_ACCUMULATING 반환 가능
+- APP/API는 DATA_ACCUMULATING 표시 로직 구현됨
+- 현재 보고상 DB enum gr_analysis_status_enum에는 DATA_ACCUMULATING 미포함
+
+목적:
+DATA_ACCUMULATING이 실제 AI → API → DB → Parent APP 경로에서
+안전하게 전달/저장되는지 정확히 확인한다.
+
+이번 Step은 READ-ONLY CONTRACT CHECK 우선.
+
+금지:
+- production DB write
+- DB migration 실행
+- enum ALTER
+- AI engine 수정
+- prompt/model/threshold 수정
+- APP UI redesign
+- OTA
+- Render deploy
+- broad audit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. ACTUAL WRITE PATH 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인.
+
+AI Growth Report 결과의:
+
+analysis_status
+
+가 어디에서 받아지고
+어디에 저장되는지 정확히 추적.
+
+보고:
+
+ENGINE
+→ API client
+→ orchestrator/service
+→ DB insert/update
+→ parent status endpoint
+
+각 단계의 실제 field/type 이름.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. DB COLUMN 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+read-only로 확인:
+
+- analysis_status가 실제 어떤 table/column에 저장되는지
+- column type
+- gr_analysis_status_enum 사용 여부
+- 현재 enum values
+- nullable 여부
+- DATA_ACCUMULATING 입력 시 PostgreSQL이 허용하는지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. FAILURE SCENARIO 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production schema에서
+AI가 DATA_ACCUMULATING을 반환할 경우:
+
+A. 정상 저장
+B. null/fallback으로 저장
+C. enum violation으로 write 실패
+D. DB에는 저장하지 않고 다른 status로 매핑
+E. 다른 실제 동작
+
+중 정확히 무엇인지 확인.
+
+실제 production write로 시험하지 말 것.
+
+코드 + schema contract로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PARENT STATUS ENDPOINT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 신규 endpoint:
+
+GET /parent/students/:studentId/growth-report-status
+
+에서 DATA_ACCUMULATING을 찾는 로직이
+실제 DB 저장 구조와 맞는지 확인.
+
+특히:
+
+analysis_status 컬럼에 값이 존재하지 못하는 구조인데
+endpoint만 DATA_ACCUMULATING을 기다리고 있는
+dead path인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. REQUIRED FIX 판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나로 결론:
+
+A.
+NO CHANGE REQUIRED
+현재 DB contract에서도 정상 작동
+
+B.
+DB ENUM MIGRATION REQUIRED
+gr_analysis_status_enum에 DATA_ACCUMULATING 추가 필요
+
+C.
+APPLICATION MAPPING REQUIRED
+DB에는 기존 status를 유지하고
+별도 field/state로 DATA_ACCUMULATING을 표현해야 함
+
+D.
+OTHER + exact reason
+
+이번 Step에서는 수정하지 말고
+필요 수정 범위만 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 추가 확인 — FAILED / NOT_AVAILABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+status endpoint가 내부 오류를 전부
+NOT_AVAILABLE로 삼키는 현재 fail-safe가:
+
+- 권한/비X pool에 대한 정상 NOT_AVAILABLE
+- 진짜 서버/DB 오류
+
+를 구분하는지 확인.
+
+실제 server error까지 NOT_AVAILABLE로 숨긴다면
+그 사실만 보고.
+
+이번 Step에서 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 AI call 0.
+Production DB write 0.
+
+가능하면 타입/fixture 기반 최소 테스트만:
+
+TC1 DATA_ACCUMULATING engine result contract
+TC2 persistence compatibility
+TC3 parent status mapping
+TC4 PUBLISHED unaffected
+TC5 SPARSE/NORMAL unaffected
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT DATA_ACCUMULATING CONTRACT REPORT
+
+- engine output field
+- API field
+- persistence table/column
+- DB column type
+- enum values
+- DATA_ACCUMULATING currently persistable: YES/NO
+- actual failure behavior
+- parent status endpoint compatibility
+- fail-safe NOT_AVAILABLE behavior
+- required fix:
+  NO CHANGE / DB MIGRATION / APP MAPPING / OTHER
+- tests/pass
+- code changed: NO
+- production DB write: NO
+- AI call: 0
+- OTA: NO
+
+Final Verdict:
+
+DATA_ACCUMULATING CONTRACT SAFE
+
+또는
+
+BLOCKED + exact required fix
+
+STOP.
