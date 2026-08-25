@@ -1290,6 +1290,8 @@ export default function ParentHomeScreen() {
 
   const [grStatus, setGrStatus] = useState<GrDisplayStatus | null>(null);
   const [grStatusLoading, setGrStatusLoading] = useState(false);
+  // grStatusServerError: true = 서버/DB 오류 (NOT_AVAILABLE과 내부 상태 구분)
+  const [grStatusServerError, setGrStatusServerError] = useState(false);
   const [v2Status, setV2Status] = useState<
     "no_pool" | "waiting" | "linked" | null
   >("no_pool");
@@ -1315,11 +1317,21 @@ export default function ParentHomeScreen() {
       );
       if (res.ok) {
         const data = await res.json();
+        setGrStatusServerError(false);
         setGrStatus((data.status as GrDisplayStatus) ?? null);
+      } else if (res.status >= 500) {
+        // 진짜 서버/DB 오류 — NOT_AVAILABLE과 내부 상태 구분.
+        // 새 카드를 렌더링하지 않되, null(정상 미제공)과 혼동하지 않음.
+        setGrStatusServerError(true);
+        setGrStatus(null);
       } else {
+        // 4xx (auth/403 등) — 표시하지 않음, 오류 아님
+        setGrStatusServerError(false);
         setGrStatus(null);
       }
     } catch {
+      // network/fetch 오류 — 서버 오류 범주로 취급
+      setGrStatusServerError(true);
       setGrStatus(null);
     } finally {
       setGrStatusLoading(false);

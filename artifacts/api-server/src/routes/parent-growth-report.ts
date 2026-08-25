@@ -819,9 +819,15 @@ router.get(
         published_at:  displayStatus === "PUBLISHED" ? (report.published_at ?? null) : null,
       });
     } catch (e: any) {
-      console.error("[parent-growth-report] GET status error:", e);
-      // fail-safe: 앱이 crash하지 않도록 NOT_AVAILABLE 반환
-      res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+      // 진짜 서버/DB 오류 — NOT_AVAILABLE로 숨기지 않음.
+      // 정상적인 NOT_AVAILABLE 분기(비X pool, 리포트 없음)는 이미 위에서 return.
+      console.error(
+        "[parent-growth-report] GET /parent/students/:studentId/growth-report-status error",
+        { errorType: e?.constructor?.name, message: e?.message },
+      );
+      res
+        .status(500)
+        .json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
     }
   },
 );
