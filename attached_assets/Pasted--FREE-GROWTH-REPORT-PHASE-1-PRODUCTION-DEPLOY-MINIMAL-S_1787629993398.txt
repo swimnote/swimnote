@@ -1,0 +1,222 @@
+[앱] FREE GROWTH REPORT PHASE 1 — PRODUCTION DEPLOY + MINIMAL SMOKE
+
+현재 상태:
+- DATA_ACCUMULATING enum = Production DB에 존재
+- contract fix commit = bf77ade3
+- startup migration = REMOVED
+- AI Engine = LOCKED
+- Growth Report APP Phase 1 기능 구현 완료
+- Production code deploy = 아직 안 함
+
+목적:
+bf77ade3 포함 코드를 Production에 반영하고,
+DATA_ACCUMULATING 계약과 학부모 상태 API가 실제로 안전하게 동작하는지만 최소 검증한다.
+
+중요:
+- 기능 추가 금지
+- AI Engine 수정 금지
+- prompt/model/threshold 수정 금지
+- DB migration 재실행 금지
+- Production DB destructive write 금지
+- APP UI redesign 금지
+- OTA 금지
+- broad regression 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DEPLOY SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 전 확인:
+
+- current HEAD
+- bf77ade3 포함 여부
+- 관련 commits 포함 여부:
+  c9c5ff95
+  2cd7a8d1
+  bf77ade3
+
+- Growth Report AI reasoning/prompt/model 변경 없음
+- startup migration auto-run 없음
+
+보고:
+- HEAD SHA
+- branch
+- deploy target service
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Git push → Render auto-deploy 방식만 사용.
+
+금지:
+- Render API deploy trigger
+- RENDER_API_KEY 사용
+- manual migration
+- startup schema write
+
+auto-deploy가 정상 트리거되면
+status만 확인.
+
+확인 불가하면
+MANUAL RENDER DEPLOY REQUIRED
+라고 보고하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. HEALTH CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 최소 확인:
+
+- API process 정상
+- startup crash 없음
+- DB connection 정상
+- enum relation/type error 없음
+- startup migration 실행 흔적 없음
+- 기존 parent feed/detail route 정상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DATA_ACCUMULATING CONTRACT SMOKE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production DB에 실제 Growth Report 생성 write를 만들지 말 것.
+
+가능하면 기존 안전 fixture / non-production fixture path / read-only contract test를 사용.
+
+확인:
+
+A.
+현재 deployed source에서
+
+DATA_ACCUMULATING
+→ product_status PARTIAL
+
+B.
+parent status endpoint가
+
+analysis_status = DATA_ACCUMULATING
+
+을 product_status보다 우선하여
+
+status = DATA_ACCUMULATING
+
+으로 반환하는 구조 유지
+
+C.
+FAILED로 변환되지 않음
+
+실제 production 학생 리포트를 생성해 검증하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. STATUS ENDPOINT SMOKE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET
+/parent/students/:studentId/growth-report-status
+
+안전한 test account/fixture가 있으면 최대 1회.
+
+확인:
+
+- HTTP 정상
+- auth/ownership 정상
+- response shape 정상
+- crash 없음
+
+안전 fixture가 없으면 실제 호출 생략.
+
+운영 학생 데이터 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. EXISTING PUBLISHED FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+read-only로 최소 확인:
+
+- parent feed route 살아있음
+- growth-report detail route 살아있음
+- PUBLISHED gate 유지
+
+실제 report publish 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. FAIL-SAFE FOLLOW-UP 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KNOWN FOLLOW-UP:
+
+현재 status endpoint가
+DB/server exception까지 NOT_AVAILABLE로 반환함.
+
+이번 Step에서는 수정 금지.
+
+보고서에 그대로 남길 것.
+
+다음 reliability Step에서 별도 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만:
+
+TC1 deployed source includes bf77ade3
+TC2 startup migration disabled
+TC3 DATA_ACCUMULATING → PARTIAL
+TC4 DATA_ACCUMULATING parent display mapping
+TC5 FAILED genuine error path unchanged
+TC6 PUBLISHED path unchanged
+TC7 status endpoint response contract
+TC8 Production DB migration not rerun
+TC9 AI Engine untouched
+TC10 OTA not used
+
+Production AI calls: 0
+Production Growth Report write: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT PHASE 1 PRODUCTION REPORT
+
+- HEAD SHA
+- deployed SHA
+- branch
+- service
+- deploy mechanism
+- deploy status
+- startup migration executed: NO
+- DB migration rerun: NO
+
+DATA_ACCUMULATING:
+- product_status behavior
+- parent display behavior
+- FAILED conversion: NO
+
+STATUS ENDPOINT:
+- smoke executed YES/NO
+- HTTP/result
+
+PUBLISHED FLOW:
+- feed route healthy
+- detail route healthy
+
+- Production Growth Report write: 0
+- Production AI calls: 0
+- AI pipeline change: NO
+- OTA: NO
+- RENDER_API_KEY used: NO
+
+KNOWN FOLLOW-UP:
+server/DB errors currently hidden as NOT_AVAILABLE
+
+Final Verdict:
+
+FREE GROWTH REPORT APP PHASE 1 PRODUCTION COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
