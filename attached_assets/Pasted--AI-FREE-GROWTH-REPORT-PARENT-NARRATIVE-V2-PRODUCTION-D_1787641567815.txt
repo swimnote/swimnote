@@ -1,0 +1,122 @@
+[AI] FREE GROWTH REPORT PARENT NARRATIVE V2 — PRODUCTION DEPLOY ONLY
+
+현재 LOCKED commits:
+- cb4595f
+- 778087c
+- f9c80e5
+
+목적:
+Parent Narrative V2 + Parent Guidance Contract를
+AI Engine Production에 반영하고
+실제 출력 1건만 확인한 뒤 종료한다.
+
+중요:
+- 기능 추가 금지
+- prompt 재설계 금지
+- threshold 변경 금지
+- scorer tuning 금지
+- DB migration 금지
+- Production DB write 금지
+- 모델 A/B 금지
+- 실제 LLM 반복 호출 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DEPLOY SOURCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- service = swimnote-professional-engine
+- connected branch = main
+- current HEAD
+- cb4595f 포함
+- 778087c 포함
+- f9c80e5 포함
+
+Growth Report EvidencePolicy /
+Signal Detector /
+Sparse Mode 변경 없음 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GitLab main push → Render auto-deploy만 사용.
+
+별도 Render API deploy trigger 금지.
+RENDER_API_KEY 사용 금지.
+
+보고:
+- HEAD SHA
+- deployed SHA
+- auto-deploy status
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. HEALTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후:
+
+- service healthy
+- startup crash 없음
+- Growth Report route 정상
+- DB connection 정상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. REAL MODEL SMOKE — MAX 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 안전 fixture 하나 사용.
+
+실제 확인:
+
+- 부모용 문장에
+  “긍정 신호 / 분석 결과 / 지표 / confidence / sparse”
+  같은 내부 표현 없음
+
+- parent_support 존재 가능한 fixture 사용
+
+- parent_support가:
+  실제 이번 달 내용
+  → 좋은 의미
+  → 부모 행동
+  → 자연스러운 말 예시
+
+  흐름으로 생성
+
+- teacher_guidance와 parent_support 분리
+
+- 과장된 미래 단정 없음
+
+실제 final parent_support 전문 보고.
+
+총 실제 Growth Report LLM 실행 1회 초과 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[AI] PARENT NARRATIVE V2 PRODUCTION REPORT
+
+- HEAD SHA
+- deployed SHA
+- service
+- health
+- real model calls
+- parent_support exact output
+- prohibited internal language found: YES/NO
+- teacher_guidance separation: PASS/FAIL
+- exaggeration check: PASS/FAIL
+- DB write: NO
+- migration: NO
+- model/threshold change: NO
+
+Final Verdict:
+
+PARENT NARRATIVE V2 PRODUCTION LIVE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
