@@ -20,7 +20,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
-import { isGrowthReportEligiblePool } from "../lib/growth-report-eligibility.js";
+import { isFreeGrowthReportEligiblePool } from "../lib/growth-report-eligibility.js";
 import {
   requireReportXAccess,
   type ReportAuthRequest,
@@ -757,9 +757,10 @@ router.get(
 
       const poolId = (ownerResult.rows[0] as any).swimming_pool_id as string;
 
-      // 2. X mode check — growth reports are X-pool-only
-      // Uses shared isGrowthReportEligiblePool (same gate as Scheduler).
-      // Rule: (paid OR manual) AND NOT force_disabled AND xmode_config_status='READY'
+      // 2. FREE Growth Report eligibility — X pool + entitlement + NOT force
+      // Uses isFreeGrowthReportEligiblePool (same gate as Scheduler).
+      // Rule: (paid OR manual) AND NOT force_disabled
+      // xmode_config_status='READY' 불필요 — legacy paid X pool(TOYKIDS 등) 허용.
       // Legacy xmode_entitlement alone is NOT sufficient (X02-B2).
       const poolRow = await superAdminDb.execute(sql`
         SELECT x_paid_entitlement,
@@ -770,7 +771,7 @@ router.get(
       `);
 
       const pr = poolRow.rows[0] as any;
-      if (!pr || !isGrowthReportEligiblePool(pr)) {
+      if (!pr || !isFreeGrowthReportEligiblePool(pr)) {
         res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
         return;
       }

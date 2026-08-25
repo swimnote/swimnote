@@ -135,9 +135,14 @@ describe("TC1–TC6: X Setup / READY Guard", () => {
     expect(r.blockers.some(b => b.includes("X_FORCE_DISABLED"))).toBe(true);
   });
 
-  it("TC5 paid entitlement → eligible when READY", () => {
+  it("TC5 paid entitlement → FREE eligible regardless of xmode_config_status", () => {
+    // FREE gate: READY and CURRICULUM_PENDING are both eligible (legacy X pool support)
     expect(isGrowthReportEligiblePool(pool({ x_paid_entitlement: true }))).toBe(true);
-    expect(isGrowthReportEligiblePool(pool({ x_paid_entitlement: true, xmode_config_status: "CURRICULUM_PENDING" }))).toBe(false);
+    expect(isGrowthReportEligiblePool(pool({ x_paid_entitlement: true, xmode_config_status: "CURRICULUM_PENDING" }))).toBe(true);
+    // force_disabled always blocks
+    expect(isGrowthReportEligiblePool(pool({ x_paid_entitlement: true, x_force_disabled: true }))).toBe(false);
+    // no entitlement always blocks
+    expect(isGrowthReportEligiblePool(pool())).toBe(false);
   });
 
   it("TC6 manual entitlement → eligible when READY", () => {
@@ -153,19 +158,24 @@ describe("TC1–TC6: X Setup / READY Guard", () => {
 
 describe("TC7–TC10: Eligibility Authority", () => {
 
-  it("TC7 parent status API uses same eligibility as scheduler — shared import", () => {
-    expect(statusSrc).toContain("isGrowthReportEligiblePool");
+  it("TC7 parent status API uses same FREE eligibility as scheduler — shared import", () => {
+    // Both use the shared growth-report-eligibility module
+    expect(statusSrc).toContain("isFreeGrowthReportEligiblePool");
     expect(statusSrc).toContain("growth-report-eligibility");
-    expect(schedulerSrc).toContain("GROWTH_REPORT_ELIGIBLE_SQL");
+    expect(schedulerSrc).toContain("FREE_GROWTH_REPORT_ELIGIBLE_SQL");
     expect(schedulerSrc).toContain("growth-report-eligibility");
   });
 
-  it("TC8 ensureCurrentMonthGrowthReportCycle uses same eligibility gate", () => {
+  it("TC8 ensureCurrentMonthGrowthReportCycle uses FREE eligibility gate — no READY required", () => {
     expect(schedulerSrc).toContain("ensureCurrentMonthGrowthReportCycle");
-    // Uses the same WHERE clause constants (eligible SQL embedded or re-checked)
+    // Uses FREE gate (paid/manual + not force + approved — no READY)
     expect(schedulerSrc).toContain("x_paid_entitlement");
     expect(schedulerSrc).toContain("x_manual_entitlement");
-    expect(schedulerSrc).toContain("xmode_config_status = 'READY'");
+    // xmode_config_status='READY' must NOT be required by ensureCurrentMonthGrowthReportCycle
+    const fnStart = schedulerSrc.indexOf("export async function ensureCurrentMonthGrowthReportCycle");
+    const fnEnd   = schedulerSrc.indexOf("\nexport ", fnStart + 1);
+    const fnBody  = schedulerSrc.slice(fnStart, fnEnd === -1 ? undefined : fnEnd);
+    expect(fnBody).not.toMatch(/xmode_config_status\s*=\s*'READY'/);
   });
 
   it("TC9 legacy xmode_entitlement bypass impossible", () => {
@@ -184,8 +194,9 @@ describe("TC7–TC10: Eligibility Authority", () => {
 
   it("TC10 free/paid base separation documented", () => {
     expect(eligSrc).toContain("isFreeMonthlyReportEligible");
+    expect(eligSrc).toContain("isFreeGrowthReportEligiblePool");
     // Future paid extension point documented
-    expect(eligSrc).toContain("isPaidReportEligible");
+    expect(eligSrc).toContain("isPaidGrowthReportEligiblePool");
     expect(eligSrc).toContain("Extend this file");
     // isFreeMonthlyReportEligible is the alias (same as base)
     expect(isFreeMonthlyReportEligible).toBe(isGrowthReportEligiblePool);
@@ -273,9 +284,10 @@ describe("TC17–TC22: Report Generation", () => {
     expect(workerSrc).toContain("retryable");
   });
 
-  it("TC21 status API consistency — uses current period + pool check", () => {
+  it("TC21 status API consistency — uses current period + FREE pool check", () => {
     expect(statusSrc).toContain("report_period");
-    expect(statusSrc).toContain("isGrowthReportEligiblePool");
+    // Uses isFreeGrowthReportEligiblePool (FREE gate, not READY gate)
+    expect(statusSrc).toContain("isFreeGrowthReportEligiblePool");
     expect(statusSrc).toContain("deleted_at IS NULL");
   });
 
