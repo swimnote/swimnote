@@ -220,12 +220,22 @@ export interface StatusMappingContext {
  *   COMPLETE / COMPLETE_WITH_QUESTIONS_AVAILABLE /
  *   COMPLETE_WITH_PARENT_EVIDENCE / PARTIAL                          → REVIEW_REQUIRED
  *   (PARTIAL is reviewable by teacher — spec §6)
+ *
+ * DATA_ACCUMULATING (any stage):
+ *   Insufficient data signal — handled before this function in persistEngineResult.
+ *   This function is never called with DATA_ACCUMULATING; callers must guard.
  */
 export function mapEngineStatusToProductStatus(
   engineStatus: EngineAnalysisStatus,
   stage: AnalysisStage,
   ctx: StatusMappingContext,
 ): "QUESTION_AVAILABLE" | "READY_FOR_ANALYSIS" | "REVIEW_REQUIRED" | "PARTIAL" {
+  // DATA_ACCUMULATING must be intercepted before calling this function.
+  // If it reaches here, treat as PARTIAL (defensive fallback — should not occur).
+  if (engineStatus === "DATA_ACCUMULATING") {
+    return "PARTIAL";
+  }
+
   if (stage === "PREANALYSIS") {
     switch (engineStatus) {
       case "COMPLETE_WITH_QUESTIONS_AVAILABLE":
@@ -423,6 +433,40 @@ export async function persistEngineResult(
   }
   if (!GROUNDING_PASS_VALUES.has(growth_framing)) {
     throw new GroundingFailError("growth_framing", growth_framing);
+  }
+
+  // 2.5) DATA_ACCUMULATING — early-exit path
+  //   analysis_status 컬럼에 저장 후 product_status → FAILED 전환.
+  //   parent status endpoint가 analysis_status를 먼저 확인하므로
+  //   부모 앱에는 FAILED가 아닌 DATA_ACCUMULATING UX(친절한 안내 메시지)가 표시된다.
+  if (response.analysis_status === "DATA_ACCUMULATING") {
+    await db.execute(sql`
+      UPDATE growth_reports
+      SET
+        analysis_status     = ${"DATA_ACCUMULATING"}::gr_analysis_status_enum,
+        analysis_request_id = ${requestId},
+        updated_at          = now()
+      WHERE id                  = ${report.id}
+        AND analysis_request_id = ${requestId}
+        AND deleted_at IS NULL
+    `);
+    await transitionReportStatus({
+      db,
+      reportId:  report.id,
+      toStatus:  "FAILED",
+      actorType: "system",
+      actorId:   null,
+      reason:    "ENGINE_DATA_ACCUMULATING",
+    });
+    await writeAnalysisAudit(
+      db,
+      report.id,
+      report.swimming_pool_id,
+      "ENGINE_ANALYSIS_SUCCEEDED",
+      requestId,
+      "DATA_ACCUMULATING",
+    );
+    return { productStatus: "FAILED", questionsCount: 0 };
   }
 
   // 3) Status mapping

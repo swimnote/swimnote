@@ -81,38 +81,37 @@ describe("TC2: Persistence compatibility — DB enum cast behavior", () => {
     expect(hasDataAccumulating).toBe(false);
   });
 
-  it("mapEngineStatusToProductStatus(DATA_ACCUMULATING, PREANALYSIS) — silent fallthrough to REVIEW_REQUIRED", () => {
-    // DATA_ACCUMULATING not in switch cases → falls through if block → returns "REVIEW_REQUIRED"
-    // This is a silent mapping — no explicit case, no throw
+  it("mapEngineStatusToProductStatus(DATA_ACCUMULATING, PREANALYSIS) — explicit PARTIAL defensive fallback", () => {
+    // DATA_ACCUMULATING is now an explicit case: returns "PARTIAL" as defensive fallback.
+    // In practice, persistEngineResult intercepts DATA_ACCUMULATING BEFORE calling this
+    // function (early-exit path), so this case should never be reached in production.
     const ctx: StatusMappingContext = { questionsCount: 0, parentInputWindowOpen: false };
     const result = mapEngineStatusToProductStatus(
       "DATA_ACCUMULATING" as EngineAnalysisStatus,
       "PREANALYSIS",
       ctx,
     );
-    // Falls through PREANALYSIS switch → then falls to the FINAL_ANALYSIS return
-    expect(result).toBe("REVIEW_REQUIRED");
+    expect(result).toBe("PARTIAL");
   });
 
-  it("mapEngineStatusToProductStatus(DATA_ACCUMULATING, FINAL_ANALYSIS) — returns REVIEW_REQUIRED", () => {
+  it("mapEngineStatusToProductStatus(DATA_ACCUMULATING, FINAL_ANALYSIS) — explicit PARTIAL defensive fallback", () => {
+    // Same: explicit guard at top of function returns PARTIAL defensively.
     const ctx: StatusMappingContext = { questionsCount: 0, parentInputWindowOpen: false };
     const result = mapEngineStatusToProductStatus(
       "DATA_ACCUMULATING" as EngineAnalysisStatus,
       "FINAL_ANALYSIS",
       ctx,
     );
-    expect(result).toBe("REVIEW_REQUIRED");
+    expect(result).toBe("PARTIAL");
   });
 
-  it("DB cast ${analysis_status}::gr_analysis_status_enum with DATA_ACCUMULATING → PostgreSQL enum violation", () => {
-    // This is a code-level contract: the SQL at result-handler.ts:452 hard-casts the
-    // engine's analysis_status to gr_analysis_status_enum.
-    // Since DATA_ACCUMULATING is not in the enum, PostgreSQL throws:
-    //   "invalid input value for enum gr_analysis_status_enum: 'DATA_ACCUMULATING'"
-    // The UPDATE fails → persistEngineResult throws → orchestrator transitions to FAILED.
-    // analysis_status column in growth_reports is never written for DATA_ACCUMULATING.
-    const FAILURE_MODE = "ENUM_VIOLATION_WRITE_FAILS" as const;
-    expect(FAILURE_MODE).toBe("ENUM_VIOLATION_WRITE_FAILS");
+  it("DB cast with DATA_ACCUMULATING — now safe after gr1b migration adds enum value", () => {
+    // FIXED: gr_analysis_status_enum now includes DATA_ACCUMULATING (gr1b migration).
+    // persistEngineResult early-exit: writes analysis_status=DATA_ACCUMULATING to DB,
+    // then transitions product_status → FAILED.
+    // No more enum violation — write succeeds.
+    const FAILURE_MODE = "RESOLVED_BY_GR1B_MIGRATION" as const;
+    expect(FAILURE_MODE).toBe("RESOLVED_BY_GR1B_MIGRATION");
   });
 
   it("analysis_status column in growth_reports remains NULL after DATA_ACCUMULATING engine response", () => {

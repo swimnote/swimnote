@@ -32,6 +32,16 @@ import {
 
 const router = Router();
 
+// ── 공통 미들웨어 ──────────────────────────────────────────────────────────────
+
+function requireParent(req: AuthRequest, res: any, next: any) {
+  if (!req.user || req.user.role !== "parent_account") {
+    res.status(403).json({ error: "학부모 계정만 접근 가능합니다." });
+    return;
+  }
+  next();
+}
+
 // ── 편의 함수 ─────────────────────────────────────────────────────────────────
 
 function genId(prefix: string) {
