@@ -1,0 +1,568 @@
+[앱] FREE GROWTH REPORT — LEGACY POOL COMPATIBILITY
++ TOYKIDS REAL PRODUCTION E2E FINAL
+
+현재 기준 commit:
+8155d0fe
+
+중요 제품 결정:
+
+TOYKIDS는 최신 X Setup 체계 이전부터 존재하던
+기존 운영 수영장을 업그레이드한 pool이다.
+
+현재 curriculum 구조도 초창기 구조이며,
+향후 사용자가 Level 1~5 기반 최신 curriculum / gauge 체계로
+별도 재정비할 예정.
+
+따라서:
+
+최신 X Setup 제출 또는 curriculum DOCX가 없다는 이유로
+FREE Growth Report 생성 자체를 차단하면 안 된다.
+
+단:
+신규 X 가맹점 READY 검증과
+향후 유료 상품의 엄격한 onboarding 안전성은 그대로 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 개념을 3개로 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. X CONFIG READY
+
+신규 가맹점의 정식 X Setup 완료 여부.
+
+현재 validateXModeReadiness() 유지:
+
+- entitlement
+- force disabled
+- approval
+- setup submission
+- curriculum file
+- 기타 실제 필수조건
+
+이것은 신규 X onboarding용.
+
+TOYKIDS 때문에 이 validator를 약화시키지 말 것.
+
+
+B. FREE GROWTH REPORT ELIGIBILITY
+
+무료 월간 성장리포트를 생성할 수 있는가.
+
+이것은 X CONFIG READY와 별도 판단.
+
+최소 base 조건:
+
+- x_paid_entitlement OR x_manual_entitlement
+- NOT x_force_disabled
+- pool approval 정상
+- active student
+- report generation에 사용할 실제 데이터 source가 존재
+
+중요:
+
+xmode_config_status='READY'
+또는 최신 curriculum DOCX는
+FREE Report의 절대 blocker가 아님.
+
+
+C. FUTURE PAID REPORT ELIGIBILITY
+
+향후 유료 상품은 별도 extension point 유지.
+
+이번 Step에서 paid product 구현 금지.
+
+예:
+
+isPaidGrowthReportEligible(...)
+→ base commercial eligibility
+→ paid product/order/license
+→ 필요 시 stricter config requirement
+
+FREE와 PAID를 하나의 gate로 묶지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. HELPER 구조 정리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 하나로 묶여 있는:
+
+isGrowthReportEligiblePool()
+
+을 역할별로 분리 또는 명확히 재구성.
+
+예:
+
+isXModeReady(pool)
+isFreeGrowthReportEligiblePool(pool)
+isPaidGrowthReportEligiblePool(pool, productContext)
+
+실제 코드 스타일에 맞게 구현.
+
+FREE scheduler / FREE status / FREE generator는
+반드시 isFreeGrowthReportEligiblePool을 authority로 사용.
+
+신규 X Setup READY transition은
+validateXModeReadiness()를 계속 사용.
+
+즉:
+
+FREE report eligibility
+≠
+X onboarding READY
+
+이 계약을 코드에서 명확히 만든다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. TOYKIDS FREE REPORT 허용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TOYKIDS:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재:
+
+x_paid_entitlement = true
+x_force_disabled = false
+approval 정상
+xmode_config_status = CURRICULUM_PENDING
+최신 x_setup_submissions 없음
+최신 curriculum DOCX 없음
+
+이 상태에서도
+FREE Growth Report는 생성 가능해야 한다.
+
+단:
+
+최신 curriculum 정보가 없거나 신뢰할 수 없으면
+그 정보를 억지로 채우지 않는다.
+
+사용 가능한 실제 verified source만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. FREE REPORT INPUT FALLBACK 계약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 생성 input을 확인해서
+curriculum이 없거나 legacy일 때도 정상 작동하도록 한다.
+
+우선 사용할 수 있는 기존 source:
+
+- teacher diaries / 수업일지
+- growth_events
+- attendance
+- 실제 수업 기록
+- longitudinal history
+- teacher_review if available
+- parent_answers if available
+- verified existing curriculum/progress only if trustworthy
+
+중요:
+
+최신 curriculum snapshot이 없으면:
+
+- generation 실패 금지
+- fake curriculum 생성 금지
+- 완료하지 않은 교육과정 추정 금지
+- gauge 값을 임의 생성 금지
+
+대신 해당 section을
+available evidence 범위에서 생성하거나
+근거 없으면 비운다.
+
+Growth Report 전체는 계속 생성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. CURRICULUM은 ENRICHMENT로 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최신 curriculum / gauge 정보가 있으면:
+
+- swimming_progress
+- longitudinal context
+- curriculum completion
+- progress context
+
+를 더 풍성하게 만드는 enrichment source로 사용.
+
+없으면:
+리포트 생성 자체는 계속 진행.
+
+향후 사용자가 Level 1~5 curriculum을 재정비하면
+별도 코드 재설계 없이
+그 데이터가 자동으로 report enrichment에 들어갈 수 있어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. STATUS API도 FREE 기준으로 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent FREE Growth Report Status API는
+X READY가 아니라
+FREE report eligibility를 사용.
+
+따라서 TOYKIDS에서:
+
+CURRICULUM_PENDING이라는 이유만으로
+NOT_AVAILABLE을 반환하면 안 됨.
+
+상태는 실제 report lifecycle에 따라:
+
+- DATA_ACCUMULATING
+- OPEN / GENERATING
+- READY
+- PUBLISHED
+- FAILED
+
+등 기존 contract로 표현.
+
+단 entitlement 자체가 없거나 force disabled면
+not eligible 정상.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. FREE MONTHLY SCHEDULER도 같은 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FREE monthly Growth Report scheduler에서
+READY만 고르는 현재 조건을 수정.
+
+isFreeGrowthReportEligiblePool() 기준으로
+eligible pools를 선정.
+
+그러면:
+
+TOYKIDS 같은 legacy paid X pool도
+당월 cycle 생성 대상이 됨.
+
+신규 미가입/비X 수영장은 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 X READY HARDENING은 보존
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앞 Step에서 만든:
+
+- validateXModeReadiness
+- setup submission requirement
+- curriculum file requirement
+- READY 409 guard
+- super scheduler authorization
+- duplicate protection
+
+삭제/약화 금지.
+
+이것들은
+"신규 X 가맹점 정상 온보딩"을 보호하는 장치다.
+
+FREE Report compatibility를 위해
+신규 가맹점 READY 정책을 허술하게 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 8155d0fe는 지금 따로 배포하지 않아도 됨
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 8155d0fe가 아직 Render live가 아니라면
+이번 수정까지 완료한 최종 HEAD를 만든 뒤
+
+Render Dashboard에서
+최종 HEAD를 Manual Deploy 1회.
+
+중간 SHA 반복 배포 금지.
+
+RENDER_API_KEY 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. TOYKIDS CURRENT-MONTH CYCLE 실제 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 코드 Production 배포 후:
+
+정상 scheduler/service 함수만 사용하여
+TOYKIDS 2026-08 cycle을 생성.
+
+manual SQL INSERT 금지.
+
+확인:
+
+- pool selected by FREE eligibility
+- cycle created
+- duplicate 없음
+- correct period
+- eligible students selected
+
+현재 테스트 학생 1명 추적.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. TOYKIDS REAL REPORT — 반드시 AI까지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 cycle/report row 생성만으로
+E2E 완료 판정 금지.
+
+실제 한 학생에 대해 끝까지 확인:
+
+cycle
+→ report record
+→ snapshot/input
+→ analysis worker
+→ Production AI Engine
+→ result persisted
+→ status API
+
+AI Growth Report real call:
+최대 1건.
+
+반드시 보고:
+
+- report_id
+- input source counts
+- curriculum source available YES/NO
+- curriculum omitted/fallback behavior
+- AI call
+- analysis_status
+- product_status
+- report_content 존재
+- summary_text 존재
+- canonical sections 생성 여부
+- parent_support 존재 여부 또는 근거부족으로 empty
+- internal AI language 검사
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 우리가 기획한 FREE REPORT 기능 누락 검사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 생성된 TOYKIDS report에서
+현재 구현된 기능들이 파이프라인에 연결되어 있는지 확인.
+
+최소:
+
+- verified facts
+- Positive Signal policy
+- longitudinal comparison
+- Strength Amplification
+- swimming progress when supported
+- success conditions
+- Parent Narrative V2
+- Parent Guidance Library
+- cumulative guidance support
+- DATA_ACCUMULATING gate
+- canonical 8 sections
+- summary_text
+- curriculum/progress enrichment when available
+
+중요:
+
+이번 Step에서 알고리즘을 재튜닝하지 않는다.
+
+"연결되어 있는가 / 실제 output에 적용되는가"
+만 확인.
+
+누락된 실제 연결이 있으면
+그 부분만 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. FREE REPORT는 최상의 결과를 목표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FREE라고 기능을 축소하지 않는다.
+
+사용 가능한 verified data가 충분하면
+현재 설계된 기능을 최대한 활용해서
+가장 풍성한 부모용 리포트를 생성.
+
+단:
+
+근거 없는 문장을 채워 분량을 늘리는 것은 금지.
+
+풍성함 =
+여러 verified source와 longitudinal context를
+정확하게 조합하는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. REVIEW / PUBLISH까지 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 분석 결과가 나오면
+현재 lifecycle 확인:
+
+analysis complete
+→ REVIEW_REQUIRED
+→ APPROVED
+→ PUBLISHED
+
+정상 관리자 route를 사용.
+
+가능하면 현재 테스트 report 1건을
+정상 review/publish flow까지 진행.
+
+DB 직접 status 변경 금지.
+
+PUBLISHED 후:
+
+Parent Status API
+→ PUBLISHED
+→ detail route
+
+까지 확인.
+
+사용자 승인 없이 다른 학생/다른 report 발행 금지.
+
+이번 테스트용 한 건만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. PARENT DETAIL 실제 contract
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PUBLISHED test report에서:
+
+- summary_text
+- available 8 sections
+- empty section hidden
+- Parent Narrative V2
+- parent_support
+- curriculum 정보는 실제 근거 있을 때만
+- legacy 출석리포트로 이동하지 않음
+
+확인.
+
+PDF는 이번 Step에서 재설계 금지.
+
+데이터가 연결되는지만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. LEGACY → NEW CURRICULUM 미래 전환
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 TOYKIDS curriculum을
+Level 1~5 최신 구조로 교체하더라도
+
+Growth Report eligibility를 다시 고칠 필요 없이
+
+새 curriculum/progress source가
+enrichment로 자연스럽게 들어가야 함.
+
+현재 legacy curriculum은
+"없거나 제한적인 source"로 취급 가능.
+
+구형 데이터를 최신 구조라고 가장하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. FAILURE SAFETY 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FREE eligibility 분리로 인해 기존 안전장치가 깨지지 않는지 확인:
+
+- no entitlement → 생성 금지
+- force_disabled → 생성 금지
+- inactive pool/student → 생성 금지
+- duplicate scheduler → 중복 없음
+- duplicate worker → 중복 분석 없음
+- AI timeout → retry/FAILED contract
+- PUBLISHED overwrite 금지
+- 같은 월 중복 report 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 legacy X paid pool FREE eligible
+TC2 CURRICULUM_PENDING alone does not block FREE
+TC3 no entitlement blocks FREE
+TC4 force disabled blocks FREE
+TC5 X READY validator remains strict
+TC6 missing setup cannot become X READY
+TC7 FREE status and scheduler same helper
+TC8 FREE generator same helper
+TC9 curriculum missing does not crash generation
+TC10 unsupported curriculum claims omitted
+TC11 diary/growth evidence still usable
+TC12 25th+ cycle recovery
+TC13 duplicate cycle safe
+TC14 report creation
+TC15 analysis worker
+TC16 AI persistence
+TC17 canonical output contract
+TC18 Parent Narrative V2
+TC19 Parent Guidance
+TC20 publish lifecycle
+TC21 parent detail
+TC22 published overwrite protection
+
+관련 테스트만.
+repo-wide regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 최종 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT LEGACY COMPATIBILITY + REAL E2E REPORT
+
+ARCHITECTURE
+- X READY rule
+- FREE eligibility rule
+- PAID future extension rule
+- why separated
+
+TOYKIDS
+- FREE eligible YES/NO
+- curriculum mode: LEGACY/MISSING/CURRENT
+- available input sources
+- unavailable sources
+- cycle_id
+- report_id
+
+REAL AI E2E
+- snapshot/input counts
+- AI calls
+- analysis_status
+- product_status
+- summary generated
+- 8 section keys/results
+- parent_support
+- curriculum fallback behavior
+
+FEATURE INTEGRATION
+- Positive Signal
+- Longitudinal
+- Strength Amplification
+- Parent Narrative V2
+- Parent Guidance
+- DATA_ACCUMULATING
+- curriculum enrichment
+
+REVIEW/PUBLISH
+- review status
+- approved via normal API YES/NO
+- published via normal flow YES/NO
+- parent status
+- detail reachable
+
+SAFETY
+- entitlement
+- force disable
+- duplicate
+- timeout
+- published preservation
+
+SOURCE
+- changed files
+- commit SHA
+- tests/pass
+
+DEPLOY
+- final deployed SHA
+- health
+
+Production manual SQL INSERT/UPDATE: NO
+migration: NO unless genuinely required
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+TOYKIDS FREE GROWTH REPORT REAL E2E VERIFIED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
