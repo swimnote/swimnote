@@ -25,7 +25,8 @@ import jwt from "jsonwebtoken";
 // ─── Contract constants ───────────────────────────────────────────────────────
 
 export const GR_CONTRACT_VERSION  = "1.0" as const;
-export const GR_SNAPSHOT_VERSION  = "1.0"    as const;
+export const GR_SNAPSHOT_VERSION  = "1.0"    as const;  // engine request payload (string)
+export const GR_SNAPSHOT_VERSION_DB = 1      as const;  // DB column persist (numeric)
 
 // ─── Engine configuration ─────────────────────────────────────────────────────
 

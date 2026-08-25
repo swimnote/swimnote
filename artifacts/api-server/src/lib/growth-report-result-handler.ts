@@ -21,7 +21,7 @@
 
 import { sql } from "drizzle-orm";
 import {
-  GR_SNAPSHOT_VERSION,
+  GR_SNAPSHOT_VERSION_DB,
   type GrowthReportAnalysisResponse,
   type EngineAnalysisStatus,
   isValidEngineAnalysisStatus,
@@ -502,7 +502,7 @@ export async function persistEngineResult(
     SET
       analysis_status         = ${response.analysis_status}::gr_analysis_status_enum,
       analysis_request_id     = ${requestId},
-      snapshot_version        = ${GR_SNAPSHOT_VERSION},
+      snapshot_version        = ${GR_SNAPSHOT_VERSION_DB},
       snapshot_hash           = ${payloadHash},
       metric_states           = ${metricJson}::jsonb,
       metric_confidences      = NULL,
