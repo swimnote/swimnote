@@ -1,0 +1,265 @@
+[앱] PARENT CURRICULUM SEARCH V2 — APP INTEGRATION FINALIZATION
+
+현재 상태:
+- AI PCS V2 = PRODUCTION LIVE
+- Production endpoint:
+  https://swimnote-professional-engine.onrender.com
+- monthly quota = 4
+- AI pipeline 변경 금지
+- Growth Report 변경 금지
+
+목적:
+학부모 앱에서 Parent Curriculum Search V2를
+실제 서비스 가능한 상태로 마감한다.
+
+이번 Step 범위:
+
+1. 월 4회 정책 반영
+2. 남은 검색 횟수 표시
+3. quota 초과 UX
+4. Invalid Date 버그 수정
+5. 기존 검색 화면/API contract 연결 확인
+6. 실제 production endpoint 연동 검증
+
+UI/UX 전면 재설계는 이번 Step에서 하지 않는다.
+기능 완성만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CURRENT APP FLOW 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 학부모 커리큘럼 검색 화면에서 최소 확인:
+
+- 화면 component
+- API client
+- endpoint
+- request payload
+- response mapping
+- usage/quota 표시 위치
+- 날짜 표시 로직
+- Invalid Date 발생 원인
+
+broad audit 금지.
+
+관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. MONTHLY QUOTA 4회 반영
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 UI/constant에 10회가 남아 있으면:
+
+10 → 4
+
+로 변경.
+
+표시 예:
+
+이번 달 AI 검색
+3 / 4회 사용
+
+또는
+
+남은 검색 1회
+
+현재 UI 구조에 가장 자연스럽게 맞춰 최소 수정.
+
+중요:
+서버 quota가 authority.
+APP에서 자체적으로 사용횟수를 임의 계산하여
+서버와 다른 값 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. QUOTA RESPONSE CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 AI/API 응답에서 quota 관련 실제 field 확인.
+
+가능하면 다음 상태를 APP에서 처리:
+
+- used
+- limit
+- remaining
+
+정확한 기존 contract field 사용.
+
+없는 필드를 추측해서 만들지 말 것.
+
+만약 현재 API가 quota count를 응답하지 않아
+APP에서 남은 횟수를 표시할 수 없다면:
+
+기존 API 계층에서 가장 작은 수정으로
+quota metadata를 반환하도록 한다.
+
+새 endpoint를 만들기 전에 기존 response 확장 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. QUOTA EXCEEDED UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HTTP 429
+code = QUOTA_EXCEEDED
+
+처리.
+
+학부모 문구는 간단하게:
+
+“이번 달 AI 교육과정 검색 4회를 모두 사용했어요.
+다음 달에 다시 이용할 수 있습니다.”
+
+기존 디자인 시스템/modal/toast 방식 재사용.
+
+결제 유도/추가 구매 기능 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. INVALID DATE FIX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 검색 결과 화면에 발생했던
+Invalid Date 문제의 정확한 root cause 확인.
+
+가능한 원인:
+- null timestamp
+- undefined
+- ISO parsing
+- field mismatch
+
+확인된 원인 하나만 수정.
+
+날짜가 없는 데이터라면
+Invalid Date를 출력하지 말고
+날짜 영역 자체를 숨기거나 기존 fallback 적용.
+
+fake date 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. RESPONSE MAPPING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production AI는 내부 V2를 사용하지만
+외부 response에서 legacy intent label이
+남아 있을 수 있음.
+
+예:
+GENERAL_CURRICULUM
+
+APP가 intent enum을 직접 강하게 해석하는지 확인.
+
+앱이 답변 표시만 하면
+불필요하게 intent contract 변경하지 말 것.
+
+만약 현재 enum parsing 때문에 crash/누락 가능성이 있다면
+현재 production response를 허용하도록 최소 수정.
+
+AI API response contract 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SEARCH RESULT UX — 기능만
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는 디자인 리뉴얼 금지.
+
+반드시 정상 표시할 것:
+
+- 질문
+- AI 답변
+- 관련 교육과정 정보가 이미 있다면 유지
+- 남은 횟수
+- 날짜가 유효할 때만 날짜
+- loading
+- error
+- quota exceeded
+
+검색 결과의 전문 지식 내용은
+AI response 그대로 사용.
+
+APP에서 수영지식 추가/변형 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. PRODUCTION ENDPOINT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 endpoint가:
+
+swimnote-professional-engine.onrender.com
+
+으로 연결되는지 확인.
+
+swimnote.ai.kr를 API endpoint로 사용하면 안 됨.
+
+환경변수/기존 client abstraction 재사용.
+
+URL hardcode 신규 추가는 피할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 검색 성공 → answer 표시
+TC2 loading 정상
+TC3 server quota metadata 표시
+TC4 limit = 4
+TC5 remaining 계산/표시 정상
+TC6 HTTP 429 QUOTA_EXCEEDED UX
+TC7 failed request가 사용횟수 성공처럼 표시되지 않음
+TC8 null date → Invalid Date 없음
+TC9 valid date 정상 표시
+TC10 legacy intent response라도 crash 없음
+TC11 production endpoint mapping 정상
+TC12 X 권한 기존 정책 유지
+TC13 일반 pool 기존 차단 정책 유지
+TC14 Growth Report 영향 없음
+
+관련 테스트만.
+
+Production 실제 AI 호출은
+필요하면 최대 1회.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- AI model 변경 금지
+- PCS pipeline 변경 금지
+- Growth Report 변경 금지
+- DB migration 금지
+- production DB 직접 write 금지
+- Render deploy 작업 금지
+- RENDER_API_KEY 사용 금지
+- OTA 금지
+- 전면 UI/UX redesign 금지
+- repo-wide regression 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] PARENT CURRICULUM SEARCH APP FINAL REPORT
+
+- screen/component
+- API client
+- production endpoint
+- quota before/after
+- quota response fields
+- remaining count UX
+- 429 UX
+- Invalid Date root cause
+- Invalid Date fix
+- intent compatibility
+- tests/pass
+- production AI calls
+- changed files
+- commit SHA
+- DB write: NO
+- AI pipeline change: NO
+- OTA: NO
+
+Final Verdict:
+
+PARENT CURRICULUM SEARCH APP FUNCTION COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
