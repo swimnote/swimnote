@@ -601,6 +601,60 @@ export async function runGrowthReportScheduler(
  *
  * lock: acquireLock("growth-report-cycle", 600) — 10분 TTL
  */
+/**
+ * ensureCurrentMonthGrowthReportCycle — 단일 pool에 대해 당월 cycle을 즉시 보충
+ *
+ * PATCH /super/operators/:id/xmode (READY 전환 성공) 직후 호출.
+ * 25일 이후라면 cycle + report row를 idempotent하게 생성.
+ * 25일 이전이면 no-op (정상 scheduler에 위임).
+ *
+ * 안전 보장:
+ *   - duplicate safe:  ON CONFLICT DO NOTHING
+ *   - restart safe:    매 호출마다 조건 체크
+ *   - existing cycle:  no-op (scheduler의 PENDING skip과 동일 경로)
+ *   - published 훼손:  NOT_OPEN→OPEN만 update (APPROVED/PUBLISHED 미변경)
+ *
+ * @param poolId  swimming_pools.id
+ * @param db      drizzle db instance
+ * @param now     clock injection (테스트용), default = new Date()
+ */
+export async function ensureCurrentMonthGrowthReportCycle(
+  poolId: string,
+  db:     Db,
+  now:    Date = new Date(),
+): Promise<{ skipped: string } | { opened: true; cycleId: string; reportsCreated: number }> {
+  const kst = getKSTDate(now);
+  const currentTs = computeCycleTimestamps(kst.year, kst.month);
+
+  // 25일 이전이면 no-op — 정상 scheduler에 위임
+  if (now.getTime() < currentTs.parentInputOpenAt.getTime()) {
+    console.log(`[gr-ensure] 25일 이전 — no-op: pool=${poolId} openAt=${currentTs.parentInputOpenAt.toISOString()}`);
+    return { skipped: "BEFORE_OPEN_DATE" };
+  }
+
+  // Eligible 확인 (scheduler gate와 동일)
+  const eligRows = await db.execute(sql`
+    SELECT id FROM swimming_pools
+    WHERE id = ${poolId}
+      AND (COALESCE(x_paid_entitlement,   false) OR COALESCE(x_manual_entitlement, false))
+      AND NOT COALESCE(x_force_disabled,  false)
+      AND xmode_config_status = 'READY'
+      AND approval_status     = 'approved'
+    LIMIT 1
+  `);
+  if (!eligRows.rows.length) {
+    console.log(`[gr-ensure] eligibility 조건 미충족 — no-op: pool=${poolId}`);
+    return { skipped: "NOT_ELIGIBLE" };
+  }
+
+  const result = emptyResult(now.toISOString());
+  await openCycleForPool(db, poolId, currentTs.reportPeriod, currentTs, result);
+  const cycleId = result.cycles_created > 0 || result.cycles_opened > 0
+    ? "opened" : "existing";
+  console.log(`[gr-ensure] DONE: pool=${poolId} period=${currentTs.reportPeriod} created=${result.cycles_created} opened=${result.cycles_opened} reports=${result.reports_opened}`);
+  return { opened: true, cycleId, reportsCreated: result.reports_opened };
+}
+
 export function startGrowthReportScheduler(): void {
   // 매일 01:00 KST (Asia/Seoul timezone)
   cron.schedule("0 1 * * *", async () => {

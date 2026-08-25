@@ -29,6 +29,7 @@ import { runRealBackup } from "../lib/backup.js";
 import { resolveSubscription, applySubscriptionState, normalizeTier, backfillPoolSubscriptionFields } from "../lib/subscriptionService.js";
 import { getPoolOperators } from "../lib/poolOperatorService.js";
 import { listAiTraces, getAiTraceByRequestId } from "../lib/ai-trace-service.js";
+import { validateXModeReadiness } from "../lib/xmode-readiness.js";
 
 const router = Router();
 
@@ -2050,6 +2051,10 @@ router.patch(
 //   5. INSERT INTO audit_logs
 //   6. Commit
 // audit INSERT 실패 시 Transaction Rollback으로 UPDATE도 함께 취소된다.
+//
+// READY 전환 guard (validateXModeReadiness):
+//   Transaction 전 실행 — x_pool_setups + curriculum + entitlement 검증
+//   검증 실패 → 409 READY_PREREQUISITES_NOT_MET
 // ════════════════════════════════════════════════════════════════
 router.patch(
   "/super/operators/:id/xmode",
@@ -2101,6 +2106,28 @@ router.patch(
       }
       if (isNaN(new Date(xmode_subscription_end_at).getTime())) {
         res.status(400).json({ error: "xmode_subscription_end_at이 올바른 날짜가 아닙니다." }); return;
+      }
+    }
+
+    // ── READY Transition Guard (Transaction 전 실행) ──────────────
+    // x_setup_submissions + curriculum 파일 + entitlement 확인.
+    // 검증 실패 → 409 READY_PREREQUISITES_NOT_MET (DB write 없음).
+    if (hasConfigStatus && xmode_config_status === "READY") {
+      try {
+        const readiness = await validateXModeReadiness(poolId, superAdminDb);
+        if (!readiness.ready) {
+          res.status(409).json({
+            error:    "READY_PREREQUISITES_NOT_MET",
+            message:  "READY 전환 조건이 충족되지 않았습니다.",
+            missing:  readiness.missing,
+            blockers: readiness.blockers,
+          });
+          return;
+        }
+      } catch (e: any) {
+        console.error("[PATCH /super/operators/:id/xmode] readiness check 오류:", e.message);
+        res.status(500).json({ error: "READINESS_CHECK_FAILED", message: e.message });
+        return;
       }
     }
 
@@ -2242,6 +2269,22 @@ router.patch(
     }
 
     res.json({ ok: true, ...responseResult! });
+
+    // ── READY 전환 후 당월 cycle 즉시 보충 (non-blocking) ─────────
+    // READY로 전환된 경우에만 실행.
+    // 25일 이후라면 당월 cycle + report row를 idempotent하게 생성.
+    if (hasConfigStatus && xmode_config_status === "READY") {
+      setImmediate(async () => {
+        try {
+          const { ensureCurrentMonthGrowthReportCycle } = await import("../jobs/growth-report-scheduler.js");
+          const r = await ensureCurrentMonthGrowthReportCycle(poolId, superAdminDb);
+          console.log(`[xmode-patch] ensureCurrentMonthGrowthReportCycle: pool=${poolId}`, r);
+        } catch (e: any) {
+          // non-fatal: 일별 스케줄러가 복구함
+          console.error(`[xmode-patch] ensureCurrentMonthGrowthReportCycle 실패 (non-fatal): pool=${poolId}`, e.message);
+        }
+      });
+    }
   }
 );
 

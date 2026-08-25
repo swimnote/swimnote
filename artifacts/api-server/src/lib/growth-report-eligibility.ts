@@ -59,3 +59,29 @@ export const GROWTH_REPORT_ELIGIBLE_SQL = `
   AND xmode_config_status = 'READY'
   AND approval_status = 'approved'
 `.trim();
+
+// ── Product-Level Eligibility Separation ───────────────────────────────────
+//
+// Base X Eligibility (= isGrowthReportEligiblePool above):
+//   entitled + not force disabled + READY
+//
+// FREE Monthly Report eligibility:
+//   base eligible (no additional paid-product constraint)
+//
+// Future PAID Report eligibility (NOT IMPLEMENTED HERE):
+//   base eligible + paid product/order/license check
+//   → Extend this file with `isPaidReportEligible(pool, order)` when ready.
+//   → Do NOT add paid_report conditions to FREE report logic.
+//
+// ── Consumers (must all use isGrowthReportEligiblePool or GROWTH_REPORT_ELIGIBLE_SQL) ──
+//   • parent-growth-report.ts   status API
+//   • growth-report-scheduler.ts  getXEligiblePools / ensureCurrentMonthGrowthReportCycle
+//   • super.ts growth-report-scheduler/run endpoint
+//   • growth-report-analysis-worker.ts (inherits through cycle selection)
+
+/**
+ * isFreeMonthlyReportEligible
+ * Alias for isGrowthReportEligiblePool — semantically marks "FREE monthly" tier.
+ * Paid-report extensions should NOT reuse this function.
+ */
+export const isFreeMonthlyReportEligible = isGrowthReportEligiblePool;

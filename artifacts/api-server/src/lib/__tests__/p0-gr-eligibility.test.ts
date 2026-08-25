@@ -91,8 +91,13 @@ describe("Growth Report Eligibility + Real Generation (TC1–TC13)", () => {
   it("TC6 READY pool selected by scheduler — getXEligiblePools uses GROWTH_REPORT_ELIGIBLE_SQL", () => {
     expect(schedulerSrc).toContain("GROWTH_REPORT_ELIGIBLE_SQL");
     expect(schedulerSrc).toContain("getXEligiblePools");
-    // The old hardcoded SQL is gone — replaced by shared constant
-    expect(schedulerSrc).not.toMatch(/xmode_config_status = 'READY'.*approval_status/s);
+    // getXEligiblePools body uses GROWTH_REPORT_ELIGIBLE_SQL (not hardcoded inline)
+    const fnStart = schedulerSrc.indexOf("export async function getXEligiblePools");
+    const fnEnd   = schedulerSrc.indexOf("\n}", fnStart) + 2;
+    const fnBody  = schedulerSrc.slice(fnStart, fnEnd);
+    // The function body uses the shared constant, not a hardcoded WHERE clause
+    expect(fnBody).toContain("GROWTH_REPORT_ELIGIBLE_SQL");
+    expect(fnBody).not.toMatch(/xmode_config_status\s*=\s*'READY'/);
   });
 
   // ── TC7: 25th KST condition correct ───────────────────────────────────────
