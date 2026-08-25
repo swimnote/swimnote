@@ -428,7 +428,7 @@ export async function runGrowthReportAnalysisWorker(
  * fetchSingleReport — reportId로 단일 report+cycle row를 가져온다.
  * super_admin trigger (POST /super/growth-reports/:id/analyze) 전용.
  */
-async function fetchSingleReport(db: any, reportId: string): Promise<PendingReport | null> {
+export async function fetchSingleReport(db: any, reportId: string): Promise<PendingReport | null> {
   const rows = await db.execute(sql`
     SELECT
       gr.id,
