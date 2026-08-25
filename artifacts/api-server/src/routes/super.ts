@@ -4853,5 +4853,81 @@ router.post(
   },
 );
 
+// ── POST /super/growth-reports/:reportId/reopen — FAILED report를 OPEN으로 복구 ──
+//
+// 용도:
+//   ENGINE_URL_NOT_CONFIGURED 등 비즈니스 외부 원인으로 FAILED된 report를
+//   OPEN으로 되돌려 재분석 가능 상태로 만든다.
+//
+// 안전 조건:
+//   - super_admin only
+//   - FAILED 상태만 허용 (다른 상태 → 409)
+//   - transitionReportStatus 정상 service 경로만 사용 (직접 SQL 금지)
+//   - analysis_request_id, retry_count는 초기화 (새 분석 시도를 위해)
+router.post(
+  "/super/growth-reports/:reportId/reopen",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { reportId } = req.params;
+    if (!reportId || typeof reportId !== "string") {
+      res.status(400).json({ error: "INVALID_REPORT_ID" });
+      return;
+    }
+
+    try {
+      const [row] = (await superAdminDb.execute(sql`
+        SELECT product_status, analysis_retry_count FROM growth_reports WHERE id = ${reportId} LIMIT 1
+      `)).rows as any[];
+
+      if (!row) {
+        res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+
+      if (row.product_status !== "FAILED") {
+        res.status(409).json({
+          ok:             false,
+          error:          "NOT_FAILED",
+          report_id:      reportId,
+          product_status: row.product_status,
+          message:        "Only FAILED reports can be reopened",
+        });
+        return;
+      }
+
+      // 정상 transition 경로: FAILED → OPEN
+      const { transitionReportStatus } = await import("../lib/growth-report-service.js");
+      await transitionReportStatus({
+        db:        superAdminDb,
+        reportId,
+        toStatus:  "OPEN",
+        actorType: "super_admin",
+        actorId:   (req as any).user?.id ?? null,
+        reason:    "SUPER_ADMIN_REOPEN",
+      });
+
+      // analysis_request_id 초기화 (새 분석 시도를 위해)
+      await superAdminDb.execute(sql`
+        UPDATE growth_reports
+        SET analysis_request_id = NULL,
+            analysis_retry_count = 0,
+            updated_at = now()
+        WHERE id = ${reportId} AND product_status = 'OPEN'::gr_product_status_enum
+      `);
+
+      res.json({
+        ok:             true,
+        report_id:      reportId,
+        product_status: "OPEN",
+        reopened_at:    new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("[super] growth-reports/reopen 오류:", err.message);
+      res.status(500).json({ error: "REOPEN_FAILED", message: err.message });
+    }
+  },
+);
+
 export default router;
+
 
