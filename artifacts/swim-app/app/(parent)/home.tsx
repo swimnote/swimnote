@@ -1976,13 +1976,15 @@ export default function ParentHomeScreen() {
           {(mode === "x" || mode === "x_pending") && (
             <Pressable
               onPress={() => {
-                // P0 Final Fix: 어떤 grStatus에서도 반드시 화면 전환 발생
+                // P0 Hard Fix: NEW FREE AI Growth Report 전용 라우팅
+                // legacy growth-report.tsx (출석 통계) 호출 완전 금지
                 if (grReportId) {
                   // PUBLISHED / READY / GENERATING / DATA_ACCUMULATING / FAILED + reportId 있음
                   router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(grReportId)}` as any);
                 } else if (selectedStudent) {
-                  // NOT_AVAILABLE / null reportId — 학생 기반 성장 기록 화면으로 fallback
-                  router.push(`/(parent)/growth-report?studentId=${encodeURIComponent(selectedStudent.id)}` as any);
+                  // NOT_AVAILABLE / null reportId → 전용 Growth Report 상태 화면
+                  // (growth-report.tsx = legacy 출석통계 화면, 이 경로에서 금지)
+                  router.push(`/(parent)/growth-report-status?studentId=${encodeURIComponent(selectedStudent.id)}` as any);
                 }
               }}
               style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
