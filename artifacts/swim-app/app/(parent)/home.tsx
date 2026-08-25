@@ -1976,11 +1976,14 @@ export default function ParentHomeScreen() {
           {(mode === "x" || mode === "x_pending") && (
             <Pressable
               onPress={() => {
-                // P0 Fix: 구형 소개 모달 제거 → 실제 Growth Report 흐름으로 직접 연결
+                // P0 Final Fix: 어떤 grStatus에서도 반드시 화면 전환 발생
                 if (grReportId) {
+                  // PUBLISHED / READY / GENERATING / DATA_ACCUMULATING / FAILED + reportId 있음
                   router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(grReportId)}` as any);
+                } else if (selectedStudent) {
+                  // NOT_AVAILABLE / null reportId — 학생 기반 성장 기록 화면으로 fallback
+                  router.push(`/(parent)/growth-report?studentId=${encodeURIComponent(selectedStudent.id)}` as any);
                 }
-                // NOT_AVAILABLE / null: 홈 화면 인라인 status 카드가 이미 표시 중이므로 별도 동작 없음
               }}
               style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
             >

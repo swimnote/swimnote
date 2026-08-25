@@ -20,11 +20,14 @@ const homeSrc = readFileSync(
 
 describe("P0 Fix — Growth Report Entry Routing (TC1–TC8)", () => {
 
-  it("TC1 Growth Report 버튼 onPress — growth-report-detail 라우팅 포함", () => {
+  it("TC1 Growth Report 버튼 onPress — 항상 화면 전환 발생 (no-op 금지)", () => {
+    // reportId 있으면 growth-report-detail
     expect(homeSrc).toContain("growth-report-detail");
     expect(homeSrc).toContain("grReportId");
-    // onPress가 growth-report-detail로 push하는 로직
     expect(homeSrc).toMatch(/router\.push.*growth-report-detail.*grReportId/s);
+    // reportId 없으면 growth-report fallback (NOT_AVAILABLE 포함)
+    expect(homeSrc).toMatch(/growth-report\?studentId=/);
+    expect(homeSrc).toMatch(/else if \(selectedStudent\)/);
   });
 
   it("TC2 구형 소개 모달 미노출 — AI 성장 리포트 버튼이 setAiModalType('report') 호출 안 함", () => {
