@@ -5018,6 +5018,136 @@ router.get(
   },
 );
 
+// ── POST /super/growth-reports/:reportId/mark-review-required ────────────────
+//
+// 용도:
+//   analysis_status=COMPLETE + report_content 존재 + grounding/growth_framing PASS 인
+//   READY_FOR_ANALYSIS report를 super_admin이 수동으로 REVIEW_REQUIRED로 전환.
+//   auto-worker 비활성화 환경에서의 운영 전용 엔드포인트.
+//
+// 전환 조건 (모두 충족 필수):
+//   ① product_status  = READY_FOR_ANALYSIS
+//   ② analysis_status = COMPLETE
+//   ③ report_content  IS NOT NULL
+//   ④ grounding       = PASS or REVISED_PASS  (report_content 내 grounding_result)
+//   ⑤ growth_framing  = PASS or REVISED_PASS  (report_content 내 growth_framing_result)
+//
+// 조건 불충족 → 409
+// 정상 전환   → transitionReportStatus(READY_FOR_ANALYSIS → REVIEW_REQUIRED)
+router.post(
+  "/super/growth-reports/:reportId/mark-review-required",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { reportId } = req.params;
+    if (!reportId || typeof reportId !== "string") {
+      res.status(400).json({ error: "INVALID_REPORT_ID" });
+      return;
+    }
+
+    try {
+      const rows = (await superAdminDb.execute(sql`
+        SELECT
+          product_status,
+          analysis_status,
+          report_content IS NOT NULL                                         AS has_content,
+          report_content->'grounding_result'->>'status'                      AS grounding_status,
+          report_content->'growth_framing_result'->>'status'                 AS growth_framing_status,
+          report_content->'validation'->'grounding'->>'status'               AS val_grounding_status,
+          report_content->'validation'->'growth_framing'->>'status'          AS val_growth_framing_status
+        FROM growth_reports
+        WHERE id = ${reportId} AND deleted_at IS NULL
+        LIMIT 1
+      `)).rows as any[];
+
+      if (!rows.length) {
+        res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+
+      const row = rows[0];
+      const PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
+
+      // ① product_status 확인
+      if (row.product_status !== "READY_FOR_ANALYSIS") {
+        res.status(409).json({
+          ok: false, error: "WRONG_STATUS",
+          report_id: reportId,
+          product_status: row.product_status,
+          message: `product_status must be READY_FOR_ANALYSIS, got ${row.product_status}`,
+        });
+        return;
+      }
+
+      // ② analysis_status 확인
+      if (row.analysis_status !== "COMPLETE") {
+        res.status(409).json({
+          ok: false, error: "NOT_COMPLETE",
+          report_id: reportId,
+          analysis_status: row.analysis_status,
+          message: `analysis_status must be COMPLETE, got ${row.analysis_status}`,
+        });
+        return;
+      }
+
+      // ③ report_content 존재 확인
+      if (!row.has_content) {
+        res.status(409).json({
+          ok: false, error: "NO_REPORT_CONTENT",
+          report_id: reportId,
+          message: "report_content is NULL — analysis result not persisted",
+        });
+        return;
+      }
+
+      // ④ grounding PASS 확인 (grounding_result.status 또는 validation.grounding.status)
+      const groundingStatus = row.grounding_status ?? row.val_grounding_status ?? null;
+      if (!PASS_VALUES.has(groundingStatus)) {
+        res.status(409).json({
+          ok: false, error: "GROUNDING_NOT_PASS",
+          report_id: reportId,
+          grounding_status: groundingStatus,
+          message: `grounding must be PASS/REVISED_PASS, got ${groundingStatus}`,
+        });
+        return;
+      }
+
+      // ⑤ growth_framing PASS 확인
+      const framingStatus = row.growth_framing_status ?? row.val_growth_framing_status ?? null;
+      if (!PASS_VALUES.has(framingStatus)) {
+        res.status(409).json({
+          ok: false, error: "GROWTH_FRAMING_NOT_PASS",
+          report_id: reportId,
+          growth_framing_status: framingStatus,
+          message: `growth_framing must be PASS/REVISED_PASS, got ${framingStatus}`,
+        });
+        return;
+      }
+
+      // 정상 transition: READY_FOR_ANALYSIS → REVIEW_REQUIRED
+      const { transitionReportStatus } = await import("../lib/growth-report-service.js");
+      await transitionReportStatus({
+        db:        superAdminDb,
+        reportId,
+        toStatus:  "REVIEW_REQUIRED",
+        actorType: "super_admin",
+        actorId:   (req as any).user?.id ?? null,
+        reason:    "SUPER_ADMIN_MARK_REVIEW_REQUIRED",
+      });
+
+      console.log(`[super] report=${reportId} READY_FOR_ANALYSIS→REVIEW_REQUIRED (super_admin manual)`);
+      res.json({
+        ok:             true,
+        report_id:      reportId,
+        product_status: "REVIEW_REQUIRED",
+        marked_at:      new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("[super] growth-reports/mark-review-required 오류:", err.message);
+      res.status(500).json({ error: "MARK_REVIEW_REQUIRED_FAILED", message: err.message });
+    }
+  },
+);
+
 export default router;
 
 
