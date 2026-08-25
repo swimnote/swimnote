@@ -20,6 +20,7 @@ import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { superAdminDb } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { isGrowthReportEligiblePool } from "../lib/growth-report-eligibility.js";
 import {
   requireReportXAccess,
   type ReportAuthRequest,
@@ -757,11 +758,11 @@ router.get(
       const poolId = (ownerResult.rows[0] as any).swimming_pool_id as string;
 
       // 2. X mode check — growth reports are X-pool-only
-      // NOTE: Use effective entitlement (paid OR manual) to match scheduler gate.
-      // Legacy xmode_entitlement column is no longer authoritative (X02-B2).
+      // Uses shared isGrowthReportEligiblePool (same gate as Scheduler).
+      // Rule: (paid OR manual) AND NOT force_disabled AND xmode_config_status='READY'
+      // Legacy xmode_entitlement alone is NOT sufficient (X02-B2).
       const poolRow = await superAdminDb.execute(sql`
-        SELECT xmode_entitlement,
-               x_paid_entitlement,
+        SELECT x_paid_entitlement,
                x_manual_entitlement,
                x_force_disabled,
                xmode_config_status
@@ -769,15 +770,7 @@ router.get(
       `);
 
       const pr = poolRow.rows[0] as any;
-      const effectiveEntitlement =
-        (pr?.x_paid_entitlement === true || pr?.x_manual_entitlement === true) &&
-        pr?.x_force_disabled !== true &&
-        pr?.xmode_config_status === "READY";
-
-      // Fallback: legacy flag for pools not yet migrated to paid/manual split
-      const legacyEntitlement = pr?.xmode_entitlement === true;
-
-      if (!effectiveEntitlement && !legacyEntitlement) {
+      if (!pr || !isGrowthReportEligiblePool(pr)) {
         res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
         return;
       }

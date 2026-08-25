@@ -34,6 +34,7 @@ import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import { transitionReportStatus } from "../lib/growth-report-service.js";
+import { GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
 
 type Db = typeof superAdminDb;
 
@@ -181,16 +182,14 @@ function emptyResult(runAt: string): GrowthReportSchedulerRunResult {
  *
  * X02-B2: xmode_entitlement(legacy) → effective=(paid OR manual) AND NOT force
  * non-X pool에 신규 Cycle 생성 금지.
+ *
+ * Uses shared GROWTH_REPORT_ELIGIBLE_SQL from growth-report-eligibility.ts
+ * — same gate as Status API and any future generator.
  */
 export async function getXEligiblePools(db: Db): Promise<Array<{ id: string }>> {
-  const res = await db.execute(sql`
-    SELECT id
-    FROM swimming_pools
-    WHERE (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
-      AND NOT COALESCE(x_force_disabled, false)
-      AND xmode_config_status = 'READY'
-      AND approval_status = 'approved'
-  `);
+  const res = await db.execute(sql.raw(`
+    SELECT id FROM swimming_pools WHERE ${GROWTH_REPORT_ELIGIBLE_SQL}
+  `));
   return res.rows as Array<{ id: string }>;
 }
 

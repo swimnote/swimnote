@@ -4730,5 +4730,30 @@ router.get(
   },
 );
 
+// ── POST /super/growth-report-scheduler/run — 스케줄러 수동 trigger (super_admin only) ──
+// 용도: READY pool이 생긴 직후 cron을 기다리지 않고 즉시 cycle을 생성할 때
+// 금지: AI 호출 없음, report 분석 없음 — cycle 생성 + report row 생성만
+router.post(
+  "/super/growth-report-scheduler/run",
+  requireAuth, requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const { runGrowthReportScheduler } = await import("../jobs/growth-report-scheduler.js");
+      const result = await runGrowthReportScheduler(superAdminDb);
+      res.json({
+        ok: true,
+        cycles_opened:       result.cycles_opened,
+        cycles_input_closed: result.cycles_input_closed,
+        failed:              result.failed,
+        errors:              result.errors,
+        ran_at:              result.ran_at,
+      });
+    } catch (err: any) {
+      console.error("[super] growth-report-scheduler/run 오류:", err.message);
+      res.status(500).json({ error: "SCHEDULER_RUN_FAILED", message: err.message });
+    }
+  },
+);
+
 export default router;
 
