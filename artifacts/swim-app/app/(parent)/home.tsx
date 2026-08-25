@@ -1289,6 +1289,7 @@ export default function ParentHomeScreen() {
     | "FAILED";
 
   const [grStatus, setGrStatus] = useState<GrDisplayStatus | null>(null);
+  const [grReportId, setGrReportId] = useState<string | null>(null);
   const [grStatusLoading, setGrStatusLoading] = useState(false);
   // grStatusServerError: true = 서버/DB 오류 (NOT_AVAILABLE과 내부 상태 구분)
   const [grStatusServerError, setGrStatusServerError] = useState(false);
@@ -1319,6 +1320,7 @@ export default function ParentHomeScreen() {
         const data = await res.json();
         setGrStatusServerError(false);
         setGrStatus((data.status as GrDisplayStatus) ?? null);
+        setGrReportId((data.report_id as string) ?? null);
       } else if (res.status >= 500) {
         // 진짜 서버/DB 오류 — NOT_AVAILABLE과 내부 상태 구분.
         // 새 카드를 렌더링하지 않되, null(정상 미제공)과 혼동하지 않음.
@@ -1973,7 +1975,13 @@ export default function ParentHomeScreen() {
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
           {(mode === "x" || mode === "x_pending") && (
             <Pressable
-              onPress={() => setAiModalType("report")}
+              onPress={() => {
+                // P0 Fix: 구형 소개 모달 제거 → 실제 Growth Report 흐름으로 직접 연결
+                if (grReportId) {
+                  router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(grReportId)}` as any);
+                }
+                // NOT_AVAILABLE / null: 홈 화면 인라인 status 카드가 이미 표시 중이므로 별도 동작 없음
+              }}
               style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
             >
               {/* PNG 상단 아이콘 부분만 크롭 (하단 텍스트 제외) */}
