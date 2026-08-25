@@ -4822,6 +4822,38 @@ router.post(
     }
 
     try {
+      // FAILED 상태인 경우: OPEN으로 복구 후 분석 (super_admin 운영 재처리 경로)
+      const [curRow] = (await superAdminDb.execute(sql`
+        SELECT product_status FROM growth_reports WHERE id = ${reportId} LIMIT 1
+      `)).rows as any[];
+
+      if (!curRow) {
+        res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+
+      if (curRow.product_status === "FAILED") {
+        // 정상 transition 경로: FAILED → OPEN (직접 SQL 금지 준수)
+        const { transitionReportStatus } = await import("../lib/growth-report-service.js");
+        await transitionReportStatus({
+          db:        superAdminDb,
+          reportId,
+          toStatus:  "OPEN",
+          actorType: "super_admin",
+          actorId:   (req as any).user?.id ?? null,
+          reason:    "SUPER_ADMIN_REOPEN_FOR_REANALYSIS",
+        });
+        // analysis_request_id, retry_count 초기화 (새 분석 시도)
+        await superAdminDb.execute(sql`
+          UPDATE growth_reports
+          SET analysis_request_id  = NULL,
+              analysis_retry_count = 0,
+              updated_at           = now()
+          WHERE id = ${reportId} AND product_status = 'OPEN'::gr_product_status_enum
+        `);
+        console.log(`[super] report=${reportId} FAILED→OPEN (super_admin reopen for reanalysis)`);
+      }
+
       const { analyzeSingleReport } = await import("../jobs/growth-report-analysis-worker.js");
       const result = await analyzeSingleReport(superAdminDb, reportId);
 
