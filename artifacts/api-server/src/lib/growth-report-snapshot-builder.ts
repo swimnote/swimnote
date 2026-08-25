@@ -140,19 +140,19 @@ async function queryGrowthEvents(
     SELECT
       id,
       student_id,
-      occurred_at,
-      event_type,
+      created_at  AS occurred_at,
+      source      AS event_type,
       growth_match_status,
       confidence,
       evidence_text,
       evidence_metadata,
       evidence_validation
     FROM growth_events
-    WHERE student_id      = ${studentId}
+    WHERE student_id       = ${studentId}
       AND swimming_pool_id = ${poolId}
-      AND is_invalidated  = false
-      AND occurred_at     < ${cutoffAt}
-    ORDER BY occurred_at ASC
+      AND is_invalidated   = false
+      AND created_at       < ${cutoffAt}
+    ORDER BY created_at ASC
   `);
 
   return (rows.rows as any[]).map(
