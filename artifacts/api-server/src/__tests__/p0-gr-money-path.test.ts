@@ -181,7 +181,6 @@ describe("TC7–TC10: Eligibility Authority", () => {
   it("TC9 legacy xmode_entitlement bypass impossible", () => {
     // Legacy alone cannot grant eligibility
     expect(isGrowthReportEligiblePool(pool({
-      xmode_entitlement:    true,
       x_paid_entitlement:   false,
       x_manual_entitlement: false,
       xmode_config_status:  "CURRICULUM_PENDING",

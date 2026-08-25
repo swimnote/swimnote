@@ -4789,11 +4789,66 @@ router.post(
         cycles_input_closed: result.cycles_input_closed,
         failed:              result.failed,
         errors:              result.errors,
-        ran_at:              result.ran_at,
+        ran_at:              result.run_at,
       });
     } catch (err: any) {
       console.error("[super] growth-report-scheduler/run 오류:", err.message);
       res.status(500).json({ error: "SCHEDULER_RUN_FAILED", message: err.message });
+    }
+  },
+);
+
+// ── POST /super/growth-reports/:reportId/analyze — 단일 report AI 분석 trigger ──
+//
+// 용도:
+//   1. 특정 report 1건만 분석 (auto worker 비활성 상태에서 검증용)
+//   2. 운영 장애 시 개별 report 재처리
+//
+// 안전 조건:
+//   - super_admin only
+//   - 기존 growth-report-analysis-worker의 analyzeOneReport 파이프라인을 그대로 통과
+//   - 직접 status/content 변경 금지
+//   - OPEN/READY_FOR_ANALYSIS 외 상태 = 409 거부 (idempotent)
+//   - duplicate-safe (FOR UPDATE in transitionReportStatus)
+//   - auto worker 비활성(GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false)에도 동작
+router.post(
+  "/super/growth-reports/:reportId/analyze",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { reportId } = req.params;
+    if (!reportId || typeof reportId !== "string") {
+      res.status(400).json({ error: "INVALID_REPORT_ID" });
+      return;
+    }
+
+    try {
+      const { analyzeSingleReport } = await import("../jobs/growth-report-analysis-worker.js");
+      const result = await analyzeSingleReport(superAdminDb, reportId);
+
+      if (result.already_done) {
+        res.status(409).json({
+          ok:             false,
+          error:          "REPORT_NOT_ANALYZABLE",
+          report_id:      result.report_id,
+          product_status: result.product_status,
+          message:        "Only OPEN or READY_FOR_ANALYSIS reports can be analyzed",
+        });
+        return;
+      }
+
+      res.json({
+        ok:             true,
+        report_id:      result.report_id,
+        product_status: result.product_status,
+        triggered_at:   new Date().toISOString(),
+      });
+    } catch (err: any) {
+      if (err.code === "REPORT_NOT_FOUND") {
+        res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+        return;
+      }
+      console.error("[super] growth-reports/analyze 오류:", err.message);
+      res.status(500).json({ error: "ANALYZE_FAILED", message: err.message });
     }
   },
 );

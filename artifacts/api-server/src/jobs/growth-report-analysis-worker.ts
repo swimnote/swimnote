@@ -60,7 +60,28 @@ import { AI_FEATURE }   from "../lib/ai-feature-enum.js";
 
 const ANALYSIS_LOCK    = "growth-report-analysis";
 const LOCK_TTL_SECONDS = 600;  // 10 min (generous for slow GPT)
-const BATCH_LIMIT      = 10;   // reports processed per worker run
+
+/**
+ * GROWTH_REPORT_ANALYSIS_BATCH_SIZE — cron 실행당 최대 처리 report 수 (default 10).
+ * 대량 report가 있는 경우 환경변수로 제어:
+ *   GROWTH_REPORT_ANALYSIS_BATCH_SIZE=1  → 1건씩 처리 (최대 안전)
+ *   GROWTH_REPORT_ANALYSIS_BATCH_SIZE=0  → 비활성화 (auto analysis 없음)
+ */
+function getBatchSize(): number {
+  const raw = process.env["GROWTH_REPORT_ANALYSIS_BATCH_SIZE"];
+  if (raw === undefined) return 10;          // default: 10
+  const n = Number(raw);
+  return isNaN(n) ? 10 : Math.max(0, n);   // 0 = disabled
+}
+
+/**
+ * GROWTH_REPORT_ANALYSIS_AUTO_ENABLED — auto cron 실행 허용 여부 (default true).
+ * "false"로 설정하면 cron/startup auto run을 완전히 차단.
+ * Super Admin의 수동 trigger(POST /super/growth-reports/:id/analyze)는 영향 없음.
+ */
+function isAutoAnalysisEnabled(): boolean {
+  return process.env["GROWTH_REPORT_ANALYSIS_AUTO_ENABLED"] !== "false";
+}
 
 function getMaxRetryCount(): number {
   const raw = Number(process.env["GROWTH_REPORT_MAX_RETRY_COUNT"]);
@@ -94,7 +115,10 @@ interface PendingReport {
   stage: AnalysisStage;
 }
 
-async function fetchPendingReports(db: any): Promise<PendingReport[]> {
+async function fetchPendingReports(db: any, limit?: number): Promise<PendingReport[]> {
+  const batchLimit = limit !== undefined ? limit : getBatchSize();
+  if (batchLimit === 0) return [];  // 0 = disabled
+
   const rows = await db.execute(sql`
     SELECT
       gr.id,
@@ -119,7 +143,7 @@ async function fetchPendingReports(db: any): Promise<PendingReport[]> {
     WHERE gr.product_status IN ('OPEN', 'READY_FOR_ANALYSIS')
       AND gr.deleted_at IS NULL
     ORDER BY gr.updated_at ASC
-    LIMIT ${BATCH_LIMIT}
+    LIMIT ${batchLimit}
   `);
 
   return (rows.rows as any[]).map((r): PendingReport => {
@@ -243,11 +267,8 @@ async function analyzeOneReport(
       feature: AI_FEATURE.GROWTH_REPORT_AI, pool_mode: null,
       sub_feature: stage, result_generated: false,
       trigger_type: 'SYSTEM_MAINTENANCE', service: 'analysis',
-      error_stage: 'ENGINE_CALL', error_code: errorCode,
-      latency_ms:            Date.now() - grEngineStartMs,
-      logical_request_count: 1,
-      actual_call_count:     grActualCallCount,
-      retry_count:           grRetryCount,
+      error_stage: 'UNKNOWN' as const, error_code: errorCode,
+      latency_ms:  Date.now() - grEngineStartMs,
     }).catch(() => {});
 
     if (retryable) {
@@ -393,15 +414,143 @@ export async function runGrowthReportAnalysisWorker(
 
 // ─── Worker registration ──────────────────────────────────────────────────────
 
+// ─── Single report trigger (super_admin) ─────────────────────────────────────
+
+/**
+ * fetchSingleReport — reportId로 단일 report+cycle row를 가져온다.
+ * super_admin trigger (POST /super/growth-reports/:id/analyze) 전용.
+ */
+async function fetchSingleReport(db: any, reportId: string): Promise<PendingReport | null> {
+  const rows = await db.execute(sql`
+    SELECT
+      gr.id,
+      gr.student_id,
+      gr.swimming_pool_id,
+      gr.cycle_id,
+      gr.report_period,
+      gr.product_status,
+      gr.analysis_request_id,
+      COALESCE(gr.analysis_retry_count, 0)  AS analysis_retry_count,
+      gr.teacher_reviewed_by,
+      gr.teacher_reviewed_at,
+      grc.id                                AS cycle_db_id,
+      grc.analysis_from,
+      grc.analysis_cutoff_at,
+      grc.parent_input_open_at,
+      grc.parent_input_close_at,
+      grc.report_period                     AS cycle_report_period,
+      grc.timezone
+    FROM growth_reports gr
+    INNER JOIN growth_report_cycles grc ON grc.id = gr.cycle_id
+    WHERE gr.id = ${reportId}
+      AND gr.deleted_at IS NULL
+    LIMIT 1
+  `);
+
+  if (!rows.rows.length) return null;
+
+  const r = rows.rows[0] as any;
+  const toIso = (v: unknown) =>
+    v instanceof Date ? v.toISOString() : String(v ?? "");
+
+  return {
+    report: {
+      id:                   r.id as string,
+      student_id:           r.student_id as string,
+      swimming_pool_id:     r.swimming_pool_id as string,
+      cycle_id:             r.cycle_id as string,
+      report_period:        r.report_period as string,
+      product_status:       r.product_status as string,
+      analysis_request_id:  (r.analysis_request_id ?? null) as string | null,
+      analysis_retry_count: Number(r.analysis_retry_count ?? 0),
+      teacher_reviewed_by:  (r.teacher_reviewed_by ?? null) as string | null,
+      teacher_reviewed_at:  (r.teacher_reviewed_at ?? null) as string | null,
+    },
+    cycle: {
+      id:                    (r.cycle_db_id ?? r.cycle_id) as string,
+      analysis_from:         (r.analysis_from ?? null)      as string | null,
+      analysis_cutoff_at:    toIso(r.analysis_cutoff_at),
+      parent_input_open_at:  toIso(r.parent_input_open_at),
+      parent_input_close_at: toIso(r.parent_input_close_at),
+      report_period:         r.cycle_report_period          as string,
+      timezone:              (r.timezone ?? "Asia/Seoul")   as string,
+    },
+    stage: r.product_status === "OPEN" ? "PREANALYSIS" : "FINAL_ANALYSIS",
+  };
+}
+
+export type { PendingReport };
+
+/**
+ * analyzeSingleReport — super_admin 전용 단일 report 분석 trigger.
+ *
+ * 기존 analyzeOneReport 파이프라인을 그대로 통과하며,
+ * auto worker와 달리 batch/cron 제어와 무관하게 동작.
+ *
+ * 조건:
+ *   - report OPEN or READY_FOR_ANALYSIS (그 외 → "NOT_ANALYZABLE" 에러)
+ *   - duplicate-safe (FOR UPDATE in transitionReportStatus)
+ *   - retry-safe (analysis_retry_count 체크)
+ *   - 직접 SQL status 변경 금지 — 기존 service 함수만 사용
+ */
+export async function analyzeSingleReport(
+  db: any,
+  reportId: string,
+): Promise<{
+  report_id:      string;
+  product_status: string;
+  already_done:   boolean;
+}> {
+  const pending = await fetchSingleReport(db, reportId);
+
+  if (!pending) {
+    throw Object.assign(new Error(`REPORT_NOT_FOUND: ${reportId}`), { code: "REPORT_NOT_FOUND" });
+  }
+
+  const { product_status } = pending.report;
+  if (product_status !== "OPEN" && product_status !== "READY_FOR_ANALYSIS") {
+    return {
+      report_id:      reportId,
+      product_status,
+      already_done:   true,
+    };
+  }
+
+  await analyzeOneReport(db, pending);
+
+  // Fetch final status
+  const afterRows = await db.execute(sql`
+    SELECT product_status FROM growth_reports WHERE id = ${reportId} LIMIT 1
+  `);
+  const finalStatus = (afterRows.rows[0] as any)?.product_status ?? product_status;
+
+  return { report_id: reportId, product_status: finalStatus, already_done: false };
+}
+
+// ─── Worker registration ──────────────────────────────────────────────────────
+
 /**
  * startGrowthReportAnalysisWorker — registers cron for ENGINE analysis.
  *
  * Runs every 5 minutes (separate from the date-driven scheduler).
  * Distributed lock prevents duplicate runs across instances.
  * Startup run after 45 s (after scheduler 30 s startup run).
+ *
+ * 제어 환경변수:
+ *   GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false → cron/startup 완전 차단
+ *   GROWTH_REPORT_ANALYSIS_BATCH_SIZE=N       → 1회 실행당 N건 처리 (0=차단)
  */
 export function startGrowthReportAnalysisWorker(): void {
   cron.schedule("*/5 * * * *", async () => {
+    if (!isAutoAnalysisEnabled()) {
+      console.log("[gr3-worker] auto analysis disabled (GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false)");
+      return;
+    }
+    const batchSize = getBatchSize();
+    if (batchSize === 0) {
+      console.log("[gr3-worker] auto analysis disabled (GROWTH_REPORT_ANALYSIS_BATCH_SIZE=0)");
+      return;
+    }
     const locked = await acquireLock(ANALYSIS_LOCK, LOCK_TTL_SECONDS);
     if (!locked) {
       console.log("[gr3-worker] lock not acquired — other instance running");
@@ -425,6 +574,14 @@ export function startGrowthReportAnalysisWorker(): void {
 
   // Startup run — 45 s after server start (after scheduler 30 s run)
   setTimeout(async () => {
+    if (!isAutoAnalysisEnabled()) {
+      console.log("[gr3-worker] auto analysis disabled — skipping startup run");
+      return;
+    }
+    if (getBatchSize() === 0) {
+      console.log("[gr3-worker] batch size 0 — skipping startup run");
+      return;
+    }
     const locked = await acquireLock(ANALYSIS_LOCK, LOCK_TTL_SECONDS);
     if (!locked) return;
     try {
@@ -437,5 +594,10 @@ export function startGrowthReportAnalysisWorker(): void {
     }
   }, 45_000);
 
-  console.log("[gr3-worker] Growth Report Analysis Worker 시작 (every 5min + 45s startup)");
+  const autoEnabled = isAutoAnalysisEnabled();
+  const batchSize   = getBatchSize();
+  console.log(
+    `[gr3-worker] Growth Report Analysis Worker 시작 ` +
+    `(auto=${autoEnabled ? "ON" : "OFF"} batch=${batchSize} every 5min + 45s startup)`,
+  );
 }

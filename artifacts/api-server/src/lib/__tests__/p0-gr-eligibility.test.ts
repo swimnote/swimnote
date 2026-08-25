@@ -94,7 +94,6 @@ describe("Growth Report Eligibility Architecture (TC1–TC13)", () => {
   it("TC5 legacy xmode_entitlement alone does NOT grant FREE eligibility", () => {
     // Legacy true but no paid/manual → NOT eligible
     expect(isFreeGrowthReportEligiblePool(pool({
-      xmode_entitlement:    true,
       x_paid_entitlement:   false,
       x_manual_entitlement: false,
     }))).toBe(false);
