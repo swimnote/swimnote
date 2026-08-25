@@ -1,0 +1,307 @@
+[AI] FREE GROWTH REPORT — PARENT GUIDANCE FINAL CONTRACT
+
+현재 기준:
+- Parent Narrative V2 commit cb4595f
+- ParentGuidanceLibrary 7종 구현 완료
+- Narrative language policy 유지
+- EvidencePolicy / signal detector / thresholds 변경 금지
+
+현재 제품상 문제:
+
+CASE A/B는 충분한 verified evidence가 있어
+정상 Growth Report가 생성됐지만,
+
+별도 PARENT_SUPPORT claim이 없다는 이유로
+parent_support가 empty.
+
+하지만 FREE Growth Report에서 parent_support는
+최종 핵심 마무리 영역이다.
+
+목적:
+
+별도의 PARENT_SUPPORT claim을 억지 생성하는 것이 아니라,
+
+이미 존재하는 verified evidence 중
+Parent Guidance로 안전하게 연결 가능한 근거가 있으면
+ParentGuidanceLibrary를 통해
+근거 기반 parent_support를 생성한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CLAIM BOUNDARY 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 금지:
+
+- EvidencePolicy threshold 하향
+- unsupported trait 생성
+- 새로운 심리/행동 특성 추론
+- 별도 가짜 PARENT_SUPPORT claim 생성
+- 일반 육아팁 무조건 삽입
+- Growth Report signal detector 변경
+
+기존 verified facts만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PARENT GUIDANCE ELIGIBLE EVIDENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Guidance source로 사용할 수 있는 기존 근거를
+실제 코드 타입 기준으로 명확히 정의.
+
+후보 예:
+
+- verified positive observation
+- verified longitudinal change
+- verified repeated behavior
+- success_condition
+- StrengthAmplificationBlock의 grounded WHY/HOW
+- verified teacher guidance evidence
+- verified curriculum completion/progress context
+
+단,
+부모 행동으로 직접 연결 가능한 경우에만 사용.
+
+raw diary 자체,
+insufficient candidate,
+contradicted evidence는 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. GUIDANCE MATCHING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+eligible verified evidence
+→ ParentGuidanceLibrary category
+
+예:
+
+교정 후 다시 시도
+→ PROCESS_SPECIFIC_FEEDBACK
+→ PATIENT_WAITING
+
+스스로 다시 시작/선택
+→ AUTONOMY_SUPPORT
+
+작은 단계별 성공
+→ MASTERY_ORIENTATION
+→ SMALL_NEXT_STEP
+
+자신이 잘된 것을 회상할 근거
+→ REFLECTIVE_RECALL
+
+구체적으로 잘한 행동 존재
+→ SPECIFIC_ENCOURAGEMENT
+
+중요:
+매칭되지 않으면 생성하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PARENT_SUPPORT 생성 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 별도 PARENT_SUPPORT claim이 있으면
+그것을 우선 사용 가능.
+
+없더라도:
+
+eligible verified evidence >= 1
+AND
+guidance category match >= 1
+
+이면 parent_support 생성 가능.
+
+반대로:
+
+verified report evidence는 있지만
+부모 행동으로 안전하게 매칭되는 category가 0이면
+
+parent_support = ""
+
+유지.
+
+즉 무조건 채우기가 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 누적 흐름
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+priorGuidanceSummary가 있으면
+새로운 팁을 억지로 만들지 않는다.
+
+이번 달 evidence가 같은 방향이면:
+
+“지난달에 이어 이번 달에도
+지금의 좋은 흐름을 계속 이어주는 것이 좋겠습니다.”
+
+조금 강해졌으면:
+
+“지난달보다 스스로 다시 해보는 모습이 더 자연스러워졌습니다.
+지금까지 해온 방식이 잘 맞고 있으니...”
+
+같은 방향으로 누적 표현.
+
+새로움보다 연속성 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. PARENT LANGUAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+부모용 최종 문장에 다음 표현 금지 유지:
+
+- 긍정 신호
+- 분석
+- 지표
+- 행동 특성
+- confidence
+- signal
+- sparse
+- evidence
+
+출력은 쉬운 자연어.
+
+좋은 예:
+
+“이번 달에는 조금 더디더라도
+다시 해보면서 자기 방법을 찾아가는 모습이 좋았습니다.
+
+한 번에 잘해내는 것보다
+하나씩 익혀가며 자기 것으로 만드는 과정이 더 중요합니다.
+
+조금 느리더라도 스스로 다시 해볼 시간을 기다려주시고,
+‘한 번에 안돼도 괜찮아. 하나씩 해보면 돼.’
+처럼 과정을 인정해주시면 좋습니다.”
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. FIELD SEPARATION 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고서의:
+
+“CASE C parent_support 실제 출력 확인됨
+(teacher_guidance에 내용 포함)”
+
+을 정확히 확인.
+
+반드시:
+
+teacher_guidance
+= 수업에서 선생님이 이어갈 방향
+
+parent_support
+= 집에서 부모가 도와줄 방향
+
+으로 분리.
+
+parent_support 내용이
+teacher_guidance field에 들어가면 안 됨.
+
+두 section의 source/evidence가 겹칠 수는 있지만
+최종 역할과 문장은 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CASE A/B/C 재검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실 모델 최대 3회.
+
+CASE A
+교정 후 다시 시도하는 verified evidence 존재
+
+기대:
+parent_support 생성
+→ 과정 인정 / 기다려주기 등
+→ actual evidence와 연결
+
+CASE B
+지난달보다 점진적 개선
+
+기대:
+parent_support 생성
+→ 지난달과 같은 방향을 누적 강화
+→ 억지 새 조언 없음
+
+CASE C
+큰 변화는 없지만 좋은 방향 유지
+
+기대:
+지금 방식이 잘 맞으면
+“계속 이어주세요” 형태 허용
+
+각 CASE에서 반드시 보고:
+
+- parent_support exact text
+- teacher_guidance exact text
+- evidence IDs/source
+- selected guidance categories
+- prior guidance used YES/NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 품질 판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1 parent_support가 아이 실제 기록과 연결됐는가
+Q2 별도 PARENT_SUPPORT claim 없이도 verified evidence 기반이면 생성되는가
+Q3 unsupported advice가 없는가
+Q4 부모가 실제로 할 행동이 있는가
+Q5 실제 말 예시가 자연스러운가
+Q6 지난달과의 누적 흐름이 자연스러운가
+Q7 억지 novelty가 없는가
+Q8 teacher_guidance와 역할이 구분되는가
+Q9 내부 AI 용어가 없는가
+Q10 모바일 PDF에 적합한 길이인가
+
+scorer/threshold 조작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- EvidencePolicy 변경
+- signal threshold 변경
+- model A/B
+- PDF/UI 변경
+- production DB write
+- deploy
+- broad regression
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[AI] PARENT GUIDANCE FINAL REPORT
+
+- eligible evidence definition
+- guidance matching
+- parent_support generation gate
+- claim boundary protection
+- cumulative guidance behavior
+- teacher_guidance / parent_support separation
+
+CASE A
+- evidence
+- categories
+- parent_support
+- teacher_guidance
+
+CASE B
+...
+
+CASE C
+...
+
+- Q1~Q10
+- LLM calls
+- tests/pass
+- changed files
+- commit SHA
+- production DB write: NO
+- deploy: NO
+
+Final Verdict:
+
+PARENT GUIDANCE CONTRACT LOCKED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
