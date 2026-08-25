@@ -1,0 +1,369 @@
+[앱] PRE-UIUX P0 HARD FIX
+NEW FREE GROWTH REPORT ROUTING + CURRICULUM REAL 4/MONTH
+
+실기기 재확인 결과:
+
+P0-1
+"AI 성장 리포트" 버튼을 누르면
+새 FREE Growth Report가 아니라
+구형 legacy 화면으로 이동함.
+
+실제 노출 화면:
+- "서태웅의 성장 리포트"
+- 출석 0회
+- 결석 0회
+- 수업 일수
+- 출석률
+- 월별 출석 현황
+- 카카오톡으로 공유하기
+
+이 화면은 현재 개발 중인
+FREE AI Growth Report 제품이 아님.
+
+P0-2
+AI 커리큘럼 검색은 여전히
+"이번 달 AI 검색 3/10회"
+
+실기기에서 확인됨.
+
+이전 "OTA cache" root-cause 판정은 폐기.
+실기기 결과가 authority.
+
+이번 Step에서는
+두 문제만 실제 사용자 화면 기준으로 끝낸다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. GROWTH REPORT — LEGACY SCREEN 완전 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 홈 "AI 성장 리포트" entry에서
+
+legacy:
+growth-report.tsx
+
+로 연결되는 fallback을 제거.
+
+중요:
+
+구형 attendance/statistics Growth Report와
+새 FREE AI Growth Report를
+완전히 다른 제품으로 취급.
+
+AI 성장 리포트 버튼에서는
+legacy growth-report.tsx로 절대 이동하면 안 됨.
+
+legacy 화면/component 자체 삭제는 금지.
+다른 기능에서 사용 중일 수 있으므로 보존.
+
+단,
+AI 성장 리포트 entry path에서는 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. NEW FREE GROWTH REPORT ENTRY CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+홈의 "AI 성장 리포트"는
+현재 구현된 NEW FREE Growth Report status를 기준으로 동작.
+
+selectedStudent.id authority.
+
+A. PUBLISHED + report_id
+→ 현재 NEW growth-report-detail 화면으로 진입
+
+B. DATA_ACCUMULATING / PARTIAL / GENERATING
+→ NEW Growth Report 상태 화면/상태 UI 표시
+
+C. NOT_AVAILABLE
+→ NEW FREE Growth Report 전용 안내 표시
+
+예:
+"수업 기록이 쌓이면 이번 달 성장 리포트를 확인할 수 있어요."
+
+중요:
+NOT_AVAILABLE이라고 legacy 출석 리포트로 보내지 말 것.
+
+D. FAILED
+→ 기존 Growth Report error/status contract 사용
+
+어떤 경우에도 버튼 no-op 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. NEW STATUS SCREEN이 없으면 최소 구현
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 NEW Growth Report status 전용 screen이 없다면
+대형 새 기능을 만들지 말고
+최소 전용 screen을 하나 만든다.
+
+예:
+(parent)/growth-report-status.tsx
+
+입력:
+studentId
+
+기존 API:
+GET /parent/students/:studentId/growth-report-status
+
+사용 상태:
+- PUBLISHED
+- DATA_ACCUMULATING / PARTIAL
+- GENERATING
+- NOT_AVAILABLE
+- FAILED
+
+PUBLISHED면 detail로 연결.
+
+NOT_AVAILABLE / DATA_ACCUMULATING이면
+현재 Home에서 이미 사용하는
+Growth Report 상태 문구/카드 로직을 재사용.
+
+새 AI 호출 없음.
+새 report 생성 없음.
+DB write 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. LEGACY COLLISION 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+왜 이름이 같은
+legacy "growth-report.tsx"
+와
+new "growth-report-detail.tsx"
+가 섞였는지
+관련 route 파일만 확인.
+
+이번 완료 보고에 반드시:
+
+- legacy screen path
+- new FREE screen path
+- home entry final route
+
+를 명시.
+
+repo-wide audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. CURRICULUM QUOTA — "CACHE" 추측 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 최신 OTA 이후에도
+3/10이므로 cache라고 단정 금지.
+
+실제 UI source chain을 끝까지 추적:
+
+screen text
+→ usage state
+→ conversations load
+→ exact API response
+→ exact server handler
+→ exact deployed server source
+
+반드시 실제 원인을 하나 확정.
+
+확인 대상:
+
+GET
+/api/parent/students/:studentId/curriculum-search/conversations
+
+및 검색 POST response의 usage.
+
+확인:
+
+{
+ limit,
+ used,
+ remaining,
+ period,
+ resets_at
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. QUOTA 정책은 서버/앱 모두 4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 제품 계약:
+
+MONTHLY_LIMIT = 4
+
+서버:
+limit = 4
+remaining = max(0, 4 - used)
+
+used=3이면:
+{
+ limit: 4,
+ used: 3,
+ remaining: 1
+}
+
+앱:
+"이번 달 AI 검색 3/4회"
+
+4회 도달:
+추가 검색 차단 / 429 정상처리.
+
+중요:
+
+서버가 10을 허용한 채
+UI만 4로 보이는 masking 금지.
+
+반드시 server authority 자체도 4.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. LEGACY 10 SOURCE 찾기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 경로에서만 검색:
+
+- MONTHLY_LIMIT
+- limit: 10
+- usage.limit
+- 10회
+- /curriculum-search/conversations
+- quota response builder
+
+가능한 원인:
+
+- 다른 route handler
+- old server build
+- duplicated service
+- legacy quota constant
+- conversations GET와 POST가 서로 다른 limit 사용
+- fallback response
+- app hitting 다른 base URL
+
+추측하지 말고 실제 코드 경로로 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. BASE URL 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 iOS production 앱이
+커리큘럼 검색에서 어느 API base URL을 호출하는지 확인.
+
+환경변수 / client config 기준으로 보고:
+
+- production base URL
+- conversations endpoint
+- POST endpoint
+
+다른 server/service를 보고 있다면
+그게 root cause.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 실제 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+P0-1:
+AI Growth Report entry가
+NEW FREE Growth Report로만 연결되도록 수정.
+
+P0-2:
+실제 quota authority를 4로 수정.
+
+두 문제 수정 후
+관련 테스트만 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 APP/API 수정 모두 commit.
+
+API 변경 필요 시:
+git push
+→ Render auto-deploy
+
+APP:
+두 P0를 모두 반영한 뒤
+Production OTA 1회.
+
+불필요한 반복 OTA 금지.
+
+RENDER_API_KEY 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report:
+
+TC1 AI Growth Report entry never opens legacy growth-report.tsx
+TC2 PUBLISHED → new detail
+TC3 DATA_ACCUMULATING/PARTIAL → new status UX
+TC4 NOT_AVAILABLE → new FREE report 안내
+TC5 FAILED → existing error/status UX
+TC6 selectedStudent.id authority
+TC7 old promo modal absent
+TC8 legacy attendance report untouched for other callers
+
+Curriculum:
+
+TC9 server MONTHLY_LIMIT=4
+TC10 conversations GET usage.limit=4
+TC11 POST usage.limit=4
+TC12 used=3 → 3/4
+TC13 remaining=1
+TC14 used=4 → blocked
+TC15 429 handling
+TC16 no active legacy 10 path
+TC17 production app base URL verified
+TC18 no AI call
+TC19 no DB write
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] PRE-UIUX P0 HARD FIX REPORT
+
+GROWTH REPORT
+- legacy screen exact path
+- new FREE Growth Report paths
+- previous wrong fallback
+- final home entry route
+- NOT_AVAILABLE actual UI
+- DATA_ACCUMULATING actual UI
+- PUBLISHED route
+- legacy attendance screen reachable from AI button: NO
+
+CURRICULUM
+- production app API base URL
+- GET endpoint handler
+- POST endpoint handler
+- ACTUAL root cause of 10
+- server limit before
+- server limit after
+- GET usage example
+- POST usage example
+- used=3 expected display = 3/4
+
+SOURCE
+- changed files
+- commit SHA
+- tests/pass
+
+API
+- deploy required
+- deployed SHA
+- health
+
+OTA
+- update ID
+- group ID
+- runtime
+
+AI calls: 0
+DB write: NO
+migration: NO
+RENDER_API_KEY: NO
+
+Final Verdict:
+
+READY FOR FINAL DEVICE RECHECK
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
