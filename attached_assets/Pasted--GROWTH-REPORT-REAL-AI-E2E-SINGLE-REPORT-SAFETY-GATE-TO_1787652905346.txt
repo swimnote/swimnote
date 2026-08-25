@@ -1,0 +1,462 @@
+[앱] GROWTH REPORT REAL AI E2E — SINGLE REPORT SAFETY GATE
+
+긴급 중요:
+
+현재 TOYKIDS 2026-08 cycle 생성 결과:
+
+- cycle_id:
+  grc_7ca4d52883ad4fb2aa1328af15f44554
+
+- OPEN reports:
+  254건
+
+- 추적 테스트 report:
+  gr_fe41fb43e105462a86a2eee2bdc4abf0
+  student = 문서윤
+
+현재 a1da3c3a는 아직 Render에 수동 배포하지 않은 상태.
+
+절대 지금 바로 배포하지 않는다.
+
+이유:
+
+254개 OPEN report가 존재하므로
+analysis worker 활성화 시
+254건이 대량 AI 분석으로 들어갈 위험이 있음.
+
+이번 Step의 목표:
+
+1. worker가 실제로 한 번에 몇 건을 처리하는지 확인
+2. 대량 AI 호출 위험 차단
+3. 테스트 report 1건만 실제 AI E2E 실행
+4. 실제 생성된 FREE Growth Report 내용을 전체 검증
+5. 검증 완료 전 나머지 253건 분석 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. ANALYSIS WORKER SELECTION BEHAVIOR 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 worker 파일만 확인:
+
+src/jobs/growth-report-analysis-worker.ts
+
+반드시 보고:
+
+- 한 cron 실행당 SELECT 대상 수
+- LIMIT 존재 여부
+- batch size
+- concurrency
+- loop 여부
+- OPEN 254건이면 실제 몇 건이 호출되는지
+- 5분마다 누적해서 몇 건이 처리될 수 있는지
+- retry가 추가 AI call을 만들 수 있는지
+
+추측 금지.
+
+현재 코드 그대로 a1da3c3a 배포 시
+254건 중 몇 건이 AI 호출될 수 있는지 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. MASS ANALYSIS SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+검증 전에는
+254건 전체 분석 금지.
+
+현재 worker에 안전한 batch/concurrency control이 없다면
+Production-grade guard를 최소 구현.
+
+목표:
+
+- batch size 명시
+- concurrency 제한
+- duplicate-safe
+- retry-safe
+
+가능하면 configurable:
+
+GROWTH_REPORT_ANALYSIS_BATCH_SIZE
+
+등 기존 config 스타일에 맞게 구현.
+
+단,
+환경변수 추가가 불필요하면
+기존 코드 구조에서 안전한 작은 batch 사용 가능.
+
+중요:
+
+이번 검증에서는
+테스트 report 1건만 실행 가능해야 함.
+
+테스트 때문에
+253개 report를 삭제/FAILED 처리/status patch 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. SINGLE REPORT SAFE TRIGGER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 정상 analysis service/function을 재사용하여
+
+report_id:
+
+gr_fe41fb43e105462a86a2eee2bdc4abf0
+
+1건만 정상 pipeline으로 처리할 수 있는
+super_admin 전용 안전 trigger가 이미 있는지 확인.
+
+있으면 재사용.
+
+없다면 최소 운영/검증용 route를 추가 가능:
+
+POST /super/growth-reports/:reportId/analyze
+
+조건:
+
+- super_admin only
+- 실제 기존 worker/service 사용
+- arbitrary status patch 금지
+- report ownership/period 검증
+- 이미 ANALYZING/PUBLISHED면 거부/no-op
+- duplicate-safe
+
+이 route는 향후
+운영 장애 시 개별 report 재처리에도 유용할 수 있음.
+
+직접 AI endpoint를 bypass 호출하지 말고
+정상 Growth Report analysis pipeline을 통과해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. a1da3c3a 계열 FINAL HEAD 구성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 mass-call safety 수정까지 포함한
+최종 HEAD를 만든 뒤에만 Render 배포.
+
+중간 a1da3c3a 반복 배포 금지.
+
+Render Dashboard Manual Deploy 1회.
+
+RENDER_API_KEY 사용 금지.
+
+배포 후:
+
+- /health
+- worker startup
+- scheduler startup
+- error log
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 자동 worker가 253건을 건드리지 않도록 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 직후 테스트 1건을 실행하기 전에:
+
+- OPEN count
+- ANALYZING count
+- REVIEW_REQUIRED count
+- AI request count
+
+확인.
+
+예상:
+
+OPEN ≈ 254
+자동 대량 분석 시작 = 0
+
+만약 worker가 자동으로 여러 report를 잡기 시작하면
+즉시 추가 AI 호출 중단 가능한 정상 제어 경로 사용.
+
+대량 호출을 계속 방치하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. TEST REPORT 1건 REAL AI E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+오직:
+
+gr_fe41fb43e105462a86a2eee2bdc4abf0
+
+1건.
+
+정상 흐름:
+
+OPEN
+→ PREANALYZING
+→ snapshot
+→ evidence gate
+→ AI Engine
+→ composition
+→ persist
+→ REVIEW_REQUIRED
+
+또는 근거 부족이면
+기존 정상 DATA_ACCUMULATING 계열 상태.
+
+실제 AI Growth Report call 최대 1건.
+
+retry 자동 재호출이 발생하면
+그 이유와 실제 call count 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SNAPSHOT 실제 입력 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 학생 report에 실제 들어간 재료를 수치로 보고:
+
+- diary count
+- diary date range
+- growth_event count
+- attendance count
+- longitudinal prior period count
+- teacher_review
+- parent_answers
+- curriculum snapshot
+- gauge/progress
+- 기타 source
+
+중요:
+
+curriculum 없음이면
+MISSING 그대로 보고.
+
+없는 데이터 창작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 REPORT_CONTENT 전체 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI 완료 시 실제 저장된 report_content 확인.
+
+반드시 보고:
+
+summary_text
+
+8 canonical sections:
+
+- core_growth
+- swimming_progress
+- behavioral_strengths
+- longitudinal_comparison
+- success_conditions
+- parent_support
+- teacher_guidance
+- next_growth_direction
+
+각 section:
+
+- 존재 YES/NO
+- exact text
+
+빈 section이면
+빈 이유를 evidence 기준으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 우리가 설계한 기능 실제 적용 여부
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 연결 여부가 아니라
+이번 실제 output에서 적용 여부 확인.
+
+A. Verified Facts
+- 실제 diary/event 근거와 문장이 일치하는가
+
+B. Positive Signal
+- 문제 찾기보다 좋은 성장과정을 포착하는가
+
+C. Longitudinal
+- 이전 기간 근거가 있을 때만 비교하는가
+- 없는데 "지난달보다" 창작하지 않는가
+
+D. Strength Amplification
+- 무엇을 잘했는지
+- 왜 좋은 과정인지
+- 어떻게 이어갈지
+가 연결되는가
+
+E. Parent Narrative V2
+- 평가/AI 용어 없이 자연스러운가
+
+F. Parent Guidance
+- 실제 이번 달 내용 기반인가
+- 부모 행동이 구체적인가
+- 실제 말 예시가 자연스러운가
+
+G. Curriculum
+- 없는데 완료과정/게이지 창작하지 않는가
+
+H. DATA_ACCUMULATING
+- 근거가 부족하면 억지 report를 만들지 않는가
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 부모 관점 품질검사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 생성본을 아래 기준으로 판정.
+
+Q1.
+다른 아이 이름만 바꾸면 쓸 수 있는
+범용 리포트가 아닌가?
+
+Q2.
+이번 달 실제 수업 장면이 느껴지는가?
+
+Q3.
+아이를 계속 관심 있게 지켜본 느낌이 나는가?
+
+Q4.
+문제/부족함보다
+잘하고 있는 방향을 제대로 보여주는가?
+
+Q5.
+과장된 성격/심리 추론이 없는가?
+
+Q6.
+부모가 읽기 편한 쉬운 문장인가?
+
+Q7.
+내용이 너무 빈약하지 않은가?
+
+Q8.
+같은 말을 section마다 반복하지 않는가?
+
+Q9.
+부모가 실제로 어떻게 도와줄지 알 수 있는가?
+
+Q10.
+무료라고 느껴질 정도의 축소판이 아니라
+정식 SWIMNOTE 성장리포트로 가치가 있는가?
+
+이번에는 scorer threshold 임의 조정 금지.
+
+부족하면 그대로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 비용 / LATENCY 기록
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 실제 1건에서:
+
+- AI Engine calls
+- model
+- retries
+- total composition latency
+- total route latency
+- usage/cost log가 있으면 실제 비용
+
+을 기록.
+
+비용을 추정해서 꾸며내지 말 것.
+
+실제 usage log가 없으면
+UNKNOWN이라고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. PUBLISH는 아직 자동으로 하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서는
+실제 리포트 내용을 먼저 확인한다.
+
+REVIEW_REQUIRED까지 도달하면 STOP.
+
+아직 PUBLISHED 하지 않는다.
+
+사용자가 실제 내용을 확인한 뒤
+정상 approve/publish flow를 다음 Step에서 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 나머지 253건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 report 검증 완료 전:
+
+- AI 분석 금지
+- 삭제 금지
+- status 강제 변경 금지
+
+OPEN 상태 그대로 보존.
+
+나중에 품질 승인 후
+production-safe batch strategy로 순차 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 worker batch behavior known
+TC2 mass analysis prevented
+TC3 single report trigger super_admin only
+TC4 duplicate trigger safe
+TC5 published cannot reanalyze
+TC6 exact report ownership validated
+TC7 one report AI E2E
+TC8 253 reports untouched
+TC9 no direct SQL patch
+TC10 no extra AI calls
+
+관련 테스트만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT FIRST REAL OUTPUT REPORT
+
+WORKER SAFETY
+- current batch behavior
+- mass-call risk
+- final batch/concurrency policy
+- remaining OPEN reports
+
+DEPLOY
+- final SHA
+- Render deployed SHA
+- health
+
+TEST REPORT
+- report_id
+- student
+- source counts
+- curriculum availability
+- status transitions
+- AI calls
+- retries
+- latency
+- actual cost if logged
+
+ACTUAL CONTENT
+- summary_text exact text
+- core_growth exact text
+- swimming_progress exact text
+- behavioral_strengths exact text
+- longitudinal_comparison exact text
+- success_conditions exact text
+- parent_support exact text
+- teacher_guidance exact text
+- next_growth_direction exact text
+
+QUALITY
+- Q1~Q10
+- unsupported claim found YES/NO
+- repeated content found YES/NO
+- internal AI terminology found YES/NO
+- curriculum hallucination found YES/NO
+
+REMAINING 253
+- untouched YES/NO
+- AI calls on remaining reports = MUST BE 0
+
+Production manual SQL/status patch: NO
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+FIRST REAL FREE REPORT READY FOR HUMAN REVIEW
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
