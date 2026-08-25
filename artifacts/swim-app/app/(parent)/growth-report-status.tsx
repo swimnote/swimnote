@@ -32,9 +32,9 @@ import {
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import LucideIcon from "@/components/LucideIcon";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { useSession } from "@/context/auth/SessionContext";
-import { apiRequest } from "@/utils/api";
+import { apiRequest } from "@/context/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
