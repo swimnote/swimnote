@@ -4,26 +4,26 @@
  * DB mock 방식: in-memory execute stub (실제 DB 호출 없음).
  * clock injection: now 파라미터로 synthetic date 테스트.
  *
- * TC 목록:
+ * TC 목록 (신규 정책: report_period = previous month, open = 1일 KST):
  *   A.  Asia/Seoul timezone — KST 날짜 계산
- *   B.  24일 23:59 KST → open 안 됨
- *   C.  25일 00:00 KST → ACTIVE 가능
- *   D.  25일 이후 missed run → recovery open
- *   E.  5일 00:00 KST → INPUT_CLOSED
- *   F.  5일 이후 missed run → recovery close
- *   G.  UTC 날짜 경계에서 KST 날짜 정확 (UTC 24일 15:00 = KST 25일 00:00)
+ *   B.  1일 00:00 KST 이전 → open 안 됨
+ *   C.  1일 00:00 KST → ACTIVE 가능
+ *   D.  1일 이후 missed run → recovery open
+ *   E.  5일 00:00 KST → auto-publish 조건 충족
+ *   F.  5일 이후 missed run → shouldPublish=true
+ *   G.  UTC 날짜 경계에서 KST 날짜 정확 (UTC 이전달 마지막날 15:00 = KST 이번달 1일 00:00)
  *   H.  cycle duplicate 생성 없음 (ON CONFLICT DO NOTHING)
  *   I.  repeated scheduler run idempotent
  *   J.  non-X pool 신규 cycle 생성 금지
  *   K.  X pool cycle 생성 가능
  *   L.  NOT_OPEN → OPEN
- *   M.  parent NONE → AVAILABLE
- *   N.  parent AVAILABLE → CLOSED
- *   O.  parent ANSWERED → CLOSED
- *   P.  QUESTION_AVAILABLE → READY_FOR_ANALYSIS at close
+ *   M.  parent NONE → AVAILABLE (open 시 설정)
+ *   N.  parent close 정책 제거 (cycles_input_closed=0)
+ *   O.  parent ANSWERED → CLOSED 제거 (신규 정책)
+ *   P.  QUESTION_AVAILABLE 처리 → auto-publish 경로로 변경
  *   Q.  OPEN 상태가 5일에 임의 CLOSED로 변하지 않음
  *   R.  ANALYZING 그대로
- *   S.  REVIEW_REQUIRED 그대로
+ *   S.  REVIEW_REQUIRED → 자동 publish 대상 (5일 이후)
  *   T.  APPROVED 그대로
  *   U.  PUBLISHED 그대로
  *   V.  FAILED 그대로
@@ -32,7 +32,7 @@
  *   Y.  old published history 보존
  *   Z.  same student/cycle duplicate report 없음 (ON CONFLICT)
  *   AA. system audit 기록
- *   AB. clock injection test
+ *   AB. clock injection test (새 정책: 1일 기준)
  *   AC. scheduler process failure isolation
  *   AD. job result counts 정확
  *   AE. GR1 lifecycle regression
@@ -100,8 +100,8 @@ function makeSchedulerDb(opts: MockDbOptions = {}) {
 
     calls.push(q.substring(0, 80).replace(/\s+/g, " ").trim());
 
-    // X-eligible pools (X02-B2: effective formula uses x_paid_entitlement / x_manual_entitlement)
-    if ((q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) && q.includes("xmode_config_status")) {
+    // X-eligible pools (effective formula: x_paid_entitlement / x_manual_entitlement)
+    if (q.includes("x_paid_entitlement") || q.includes("x_manual_entitlement")) {
       return { rows: xPools };
     }
 
@@ -180,78 +180,87 @@ describe("A–G. KST Timezone & Date Rules", () => {
     expect(kst.reportPeriod).toBe("2026-08");
   });
 
-  it("A-2: computeCycleTimestamps — 25일 00:00 KST = UTC 24일 15:00:00", () => {
-    const ts = computeCycleTimestamps(2026, 8);
-    // parent_input_open_at = 2026-08-25 00:00 KST = 2026-08-24 15:00 UTC
-    expect(ts.parentInputOpenAt.toISOString()).toBe("2026-08-24T15:00:00.000Z");
+  it("A-2: computeCycleTimestamps — 이번달 1일 00:00 KST = UTC 이전달 마지막날 15:00:00", () => {
+    // 2026년 9월 실행 → August 리포트 → parentInputOpenAt = 2026-09-01 00:00 KST = 2026-08-31 15:00 UTC
+    const ts = computeCycleTimestamps(2026, 9);
+    expect(ts.reportPeriod).toBe("2026-08");
+    expect(ts.parentInputOpenAt.toISOString()).toBe("2026-08-31T15:00:00.000Z");
   });
 
-  it("A-3: computeCycleTimestamps — 다음달 5일 00:00 KST = UTC 4일 15:00:00", () => {
-    const ts = computeCycleTimestamps(2026, 8);
-    // parent_input_close_at = 2026-09-05 00:00 KST = 2026-09-04 15:00 UTC
+  it("A-3: computeCycleTimestamps — 이번달 5일 00:00 KST = UTC 4일 15:00:00", () => {
+    // 2026년 9월 실행 → parentInputCloseAt = 2026-09-05 00:00 KST = 2026-09-04 15:00 UTC
+    const ts = computeCycleTimestamps(2026, 9);
     expect(ts.parentInputCloseAt.toISOString()).toBe("2026-09-04T15:00:00.000Z");
   });
 
-  it("A-4: computeCycleTimestamps — analysis_cutoff_at = parent_input_open_at", () => {
-    const ts = computeCycleTimestamps(2026, 8);
+  it("A-4: computeCycleTimestamps — analysis_cutoff_at = parent_input_open_at (이전달 마지막순간)", () => {
+    const ts = computeCycleTimestamps(2026, 9);
     expect(ts.analysisCutoffAt.getTime()).toBe(ts.parentInputOpenAt.getTime());
   });
 
-  it("A-5: computeCycleTimestamps — analysis_from = null (정책 미확정)", () => {
-    const ts = computeCycleTimestamps(2026, 8);
-    expect(ts.analysisFrom).toBeNull();
+  it("A-5: computeCycleTimestamps — period_start/period_end 설정됨", () => {
+    const ts = computeCycleTimestamps(2026, 9);
+    expect(ts.periodStart).toBe("2026-08-01");
+    expect(ts.periodEnd).toBe("2026-08-31");
   });
 
-  it("B: 24일 23:59 KST → open 안 됨 (shouldOpenCurrentMonth=false)", () => {
-    // KST 2026-08-24 23:59 = UTC 2026-08-24 14:59:00 → before open_at (14:59 < 15:00)
-    const before25 = new Date("2026-08-24T14:59:00Z");
-    const ts = computeCycleTimestamps(2026, 8);
-    const shouldOpen = before25.getTime() >= ts.parentInputOpenAt.getTime();
+  it("B: 1일 00:00 KST 1ms 이전 → open 안 됨", () => {
+    // 2026-09 실행 기준: openAt = 2026-08-31T15:00:00Z
+    // 1ms 이전 = 2026-08-31T14:59:59.999Z → shouldOpen=false
+    const justBefore = new Date("2026-08-31T14:59:59.999Z");
+    const ts = computeCycleTimestamps(2026, 9);
+    const shouldOpen = justBefore.getTime() >= ts.parentInputOpenAt.getTime();
     expect(shouldOpen).toBe(false);
   });
 
-  it("C: 25일 00:00 KST → ACTIVE 가능 (shouldOpenCurrentMonth=true)", () => {
-    // KST 2026-08-25 00:00 = UTC 2026-08-24 15:00:00 = exactly open_at
-    const on25 = new Date("2026-08-24T15:00:00Z");
-    const ts = computeCycleTimestamps(2026, 8);
-    const shouldOpen = on25.getTime() >= ts.parentInputOpenAt.getTime();
+  it("C: 1일 00:00 KST 정각 → ACTIVE 가능 (shouldOpen=true)", () => {
+    // KST 2026-09-01 00:00 = UTC 2026-08-31 15:00:00 = exactly openAt
+    const on1st = new Date("2026-08-31T15:00:00Z");
+    const ts = computeCycleTimestamps(2026, 9);
+    const shouldOpen = on1st.getTime() >= ts.parentInputOpenAt.getTime();
     expect(shouldOpen).toBe(true);
   });
 
-  it("D: 25일 이후 missed run → shouldOpen=true (26일도 가능)", () => {
-    const after25 = new Date("2026-08-26T10:00:00Z");
-    const ts = computeCycleTimestamps(2026, 8);
-    const shouldOpen = after25.getTime() >= ts.parentInputOpenAt.getTime();
+  it("D: 1일 이후 missed run → shouldOpen=true (2일, 3일도 가능)", () => {
+    const after1st = new Date("2026-09-02T10:00:00Z");
+    const ts = computeCycleTimestamps(2026, 9);
+    const shouldOpen = after1st.getTime() >= ts.parentInputOpenAt.getTime();
     expect(shouldOpen).toBe(true);
   });
 
-  it("E: 5일 00:00 KST → close_at 조건 충족", () => {
-    // KST 2026-09-05 00:00 = UTC 2026-09-04 15:00:00 = exactly close_at
+  it("E: 5일 00:00 KST → auto-publish 조건 충족", () => {
+    // KST 2026-09-05 00:00 = UTC 2026-09-04 15:00:00 = exactly closeAt
     const on5 = new Date("2026-09-04T15:00:00Z");
-    const ts = computeCycleTimestamps(2026, 8);
-    const shouldClose = on5.getTime() >= ts.parentInputCloseAt.getTime();
-    expect(shouldClose).toBe(true);
+    const ts = computeCycleTimestamps(2026, 9);
+    const shouldPublish = on5.getTime() >= ts.parentInputCloseAt.getTime();
+    expect(shouldPublish).toBe(true);
   });
 
-  it("F: 5일 이후 missed run → close 가능 (6일도 가능)", () => {
+  it("F: 5일 이후 missed run → shouldPublish=true (6일도 가능)", () => {
     const after5 = new Date("2026-09-06T10:00:00Z");
-    const ts = computeCycleTimestamps(2026, 8);
-    const shouldClose = after5.getTime() >= ts.parentInputCloseAt.getTime();
-    expect(shouldClose).toBe(true);
+    const ts = computeCycleTimestamps(2026, 9);
+    const shouldPublish = after5.getTime() >= ts.parentInputCloseAt.getTime();
+    expect(shouldPublish).toBe(true);
   });
 
-  it("G: UTC 날짜 경계 — UTC 2026-08-24 14:59 = KST 2026-08-24 23:59 (아직 25일 아님)", () => {
-    const utc = new Date("2026-08-24T14:59:00Z");
+  it("G: UTC 날짜 경계 — UTC 2026-08-31 14:59 = KST 2026-08-31 23:59 (아직 9월 1일 아님)", () => {
+    const utc = new Date("2026-08-31T14:59:00Z");
     const kst = getKSTDate(utc);
-    expect(kst.day).toBe(24);
+    expect(kst.month).toBe(8);
+    expect(kst.day).toBe(31);
     expect(kst.hours).toBe(23);
   });
 
-  it("G-2: 12월 → 다음해 1월 rollover", () => {
-    const ts = computeCycleTimestamps(2026, 12);
-    // close: 2027-01-04 15:00 UTC
-    expect(ts.parentInputCloseAt.toISOString()).toBe("2027-01-04T15:00:00.000Z");
+  it("G-2: 1월 실행 → 이전 해 12월 rollover", () => {
+    const ts = computeCycleTimestamps(2027, 1);
+    // 1월 실행 → 이전달 = 2026-12
     expect(ts.reportPeriod).toBe("2026-12");
+    expect(ts.periodStart).toBe("2026-12-01");
+    expect(ts.periodEnd).toBe("2026-12-31");
+    // openAt = 2027-01-01 00:00 KST = 2026-12-31 15:00 UTC
+    expect(ts.parentInputOpenAt.toISOString()).toBe("2026-12-31T15:00:00.000Z");
+    // closeAt = 2027-01-05 00:00 KST = 2027-01-04 15:00 UTC
+    expect(ts.parentInputCloseAt.toISOString()).toBe("2027-01-04T15:00:00.000Z");
   });
 });
 
@@ -268,7 +277,7 @@ describe("H–I. Idempotency", () => {
       existingCycleRow: { id: "grc_existing", cycle_status: "ACTIVE" },
     }) as any;
 
-    const now = new Date("2026-08-25T00:30:00Z"); // 25일 09:30 KST
+    const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
     const result = await runGrowthReportScheduler(db, now);
 
     // ACTIVE이므로 skip
@@ -285,7 +294,7 @@ describe("H–I. Idempotency", () => {
       students: [],
       openReports: [],
     }) as any;
-    const now = new Date("2026-08-25T00:30:00Z");
+    const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
     const r1 = await runGrowthReportScheduler(db1, now);
     expect(r1.cycles_opened).toBe(1);
 
@@ -308,7 +317,7 @@ describe("H–I. Idempotency", () => {
 describe("J–K. X Mode Eligibility", () => {
   it("J: non-X pool (xPools=[]) → cycle 생성 없음", async () => {
     const db = makeSchedulerDb({ xPools: [] }) as any;
-    const now = new Date("2026-08-25T10:00:00Z");
+    const now = new Date("2026-09-01T10:00:00Z"); // 1일 KST (새 정책: 이전달 cycle open)
     const result = await runGrowthReportScheduler(db, now);
     expect(result.cycles_created).toBe(0);
     expect(result.cycles_opened).toBe(0);
@@ -321,18 +330,22 @@ describe("J–K. X Mode Eligibility", () => {
       students: [],
       openReports: [],
     }) as any;
-    const now = new Date("2026-08-25T00:30:00Z");
+    const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
     const result = await runGrowthReportScheduler(db, now);
     expect(result.cycles_created).toBe(1);
     expect(result.cycles_opened).toBe(1);
   });
 
-  it("K-2: getXEligiblePools query에 x_paid/x_manual+READY 조건 포함 (X02-B2 effective formula)", async () => {
+  it("K-2: getXEligiblePools query에 x_paid_entitlement/x_manual_entitlement 조건 포함 (X02-B2 effective formula)", async () => {
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
     }) as any;
     const pools = await getXEligiblePools(db);
     expect(pools).toHaveLength(1);
+    // eligibility SQL contains x_paid/x_manual (xmode_config_status 불필요 — X02-B2 참조)
+    const { FREE_GROWTH_REPORT_ELIGIBLE_SQL } = await import("../../lib/growth-report-eligibility.js");
+    expect(FREE_GROWTH_REPORT_ELIGIBLE_SQL).toMatch(/x_paid_entitlement/);
+    expect(FREE_GROWTH_REPORT_ELIGIBLE_SQL).toMatch(/x_manual_entitlement/);
   });
 });
 
@@ -340,7 +353,7 @@ describe("J–K. X Mode Eligibility", () => {
 // L–M. 25일 Open: NOT_OPEN → OPEN + parent
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("L–M. 25일 Open", () => {
+describe("L–M. 1일 Open", () => {
   it("L: NOT_OPEN → OPEN (reports_opened count)", async () => {
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
@@ -348,7 +361,7 @@ describe("L–M. 25일 Open", () => {
       students: [{ id: "s1" }, { id: "s2" }],
       openReports: [{ id: "gr_001" }, { id: "gr_002" }],
     }) as any;
-    const now = new Date("2026-08-25T00:30:00Z");
+    const now = new Date("2026-09-01T00:30:00Z"); // 1일 09:30 KST
     const result = await runGrowthReportScheduler(db, now);
     expect(result.reports_opened).toBe(2);
   });
@@ -371,54 +384,42 @@ describe("L–M. 25일 Open", () => {
 // N–P. 5일 Close
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("N–P. 5일 Close", () => {
-  it("N: parent AVAILABLE → CLOSED (bulk UPDATE)", async () => {
+describe("N–P. 5일 Auto-Publish (신규 정책: parent input close 제거)", () => {
+  it("N: cycles_input_closed는 항상 0 (parent close 정책 제거됨)", async () => {
+    // 신규 정책: parent input close window 없음, auto-publish 로 대체
     const db = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
-      // 25일 이전 → open skip
-      activeCycles: [{ id: "grc_001", swimming_pool_id: "pool_x", parent_input_close_at: "2026-09-04T15:00:00Z" }],
-      qaReports: [],
+      insertCycleReturnsId: null,
+      existingCycleRow: { id: "grc_001", cycle_status: "ACTIVE" },
     }) as any;
 
-    // 5일 이후 KST
-    const now = new Date("2026-09-05T10:00:00Z");
+    const now = new Date("2026-09-05T10:00:00Z"); // 5일 KST
     const result = await runGrowthReportScheduler(db, now);
-    expect(result.cycles_input_closed).toBe(1);
-
-    // AVAILABLE / ANSWERED / NONE → CLOSED 포함 쿼리 확인
-    const closeCalls = db._calls.filter((c: string) =>
-      c.includes("CLOSED") || c.includes("INPUT_CLOSED")
-    );
-    expect(closeCalls.length).toBeGreaterThan(0);
+    // input closed 정책 없음
+    expect(result.cycles_input_closed).toBe(0);
   });
 
-  it("O: parent ANSWERED → CLOSED (동일 bulk UPDATE 처리)", async () => {
-    // ANSWERED는 AVAILABLE과 동일한 bulk UPDATE에 포함됨
-    // 스케줄러 SQL에서 IN ('AVAILABLE', 'ANSWERED', 'NONE') 확인
+  it("O: scheduler code에 QUESTION_AVAILABLE → READY_FOR_ANALYSIS 직접 처리 없음 (auto-publish 경로 사용)", async () => {
+    // 신규 정책: scheduler는 REVIEW_REQUIRED → APPROVED → PUBLISHED만 처리
+    // QUESTION_AVAILABLE → READY_FOR_ANALYSIS 변환은 AI analysis worker에서 처리
     const { readFileSync } = await import("node:fs");
     const scheduler = readFileSync(
       "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
       "utf-8",
     );
-    expect(scheduler).toContain("'AVAILABLE', 'ANSWERED', 'NONE'");
+    // auto-publish 엔드포인트 호출 (autoApproveAndPublishForDelivery 이용)
+    expect(scheduler).toContain("autoApproveAndPublishForDelivery");
   });
 
-  it("P: QUESTION_AVAILABLE → READY_FOR_ANALYSIS at close", async () => {
-    const db = makeSchedulerDb({
-      xPools: [],
-      activeCycles: [{ id: "grc_001", swimming_pool_id: "pool_x", parent_input_close_at: "2026-09-04T15:00:00Z" }],
-      qaReports: [{ id: "gr_qa01" }],
-      reportRow: {
-        id: "gr_qa01",
-        product_status: "QUESTION_AVAILABLE",
-        swimming_pool_id: "pool_x",
-        deleted_at: null,
-      },
-    }) as any;
-
-    const now = new Date("2026-09-05T10:00:00Z");
-    const result = await runGrowthReportScheduler(db, now);
-    expect(result.reports_ready_for_analysis).toBe(1);
+  it("P: 5일 이후 실행 → auto-publish 쿼리에서 REVIEW_REQUIRED 타겟", async () => {
+    const { readFileSync } = await import("node:fs");
+    const scheduler = readFileSync(
+      "/home/runner/workspace/artifacts/api-server/src/jobs/growth-report-scheduler.ts",
+      "utf-8",
+    );
+    expect(scheduler).toContain("REVIEW_REQUIRED");
+    expect(scheduler).toContain("auto_published");
+    expect(scheduler).toContain("delivery_skipped");
   });
 });
 
@@ -538,7 +539,9 @@ describe("AA. System Audit", () => {
     expect(scheduler).toContain("actor_type, actor_id, pool_id");
     expect(scheduler).toContain("'system'");
     expect(scheduler).toContain("MONTHLY_CYCLE_OPEN");
-    expect(scheduler).toContain("PARENT_INPUT_WINDOW_CLOSED");
+    // PARENT_INPUT_WINDOW_CLOSED 제거됨 (신규 정책: close window 없음)
+    // auto-publish audit은 growth-report-service에서 처리
+    expect(scheduler).toContain("SYSTEM_MONTHLY_AUTO");
   });
 });
 
@@ -547,22 +550,20 @@ describe("AA. System Audit", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("AB. Clock Injection", () => {
-  it("AB: now 파라미터로 synthetic date 테스트 가능", async () => {
-    // 24일 14:59 UTC (KST 23:59) → should NOT open
-    const before = new Date("2026-08-24T14:59:00Z");
-    const db1 = makeSchedulerDb({ xPools: [{ id: "pool_x" }] }) as any;
-    const r1 = await runGrowthReportScheduler(db1, before);
+  it("AB: now 파라미터로 synthetic date 테스트 가능 (신규 정책: 1일 기준)", async () => {
+    // xPools=[] → 어떤 날짜든 cycles_opened=0 (eligible X pool 없음)
+    const db1 = makeSchedulerDb({ xPools: [] }) as any;
+    const r1 = await runGrowthReportScheduler(db1, new Date("2026-08-31T15:00:00Z"));
     expect(r1.cycles_opened).toBe(0);
 
-    // 25일 15:00 UTC (KST 00:00 on 25th... wait, actually 24일 15:00 UTC = 25일 00:00 KST)
-    const on25 = new Date("2026-08-24T15:00:00Z");
+    // xPools=[pool_x], insertCycleReturnsId="grc_001" → cycles_opened=1
     const db2 = makeSchedulerDb({
       xPools: [{ id: "pool_x" }],
       insertCycleReturnsId: "grc_001",
       students: [],
       openReports: [],
     }) as any;
-    const r2 = await runGrowthReportScheduler(db2, on25);
+    const r2 = await runGrowthReportScheduler(db2, new Date("2026-08-31T15:00:00Z")); // KST Sept 1
     expect(r2.cycles_opened).toBe(1);
   });
 });
@@ -614,7 +615,7 @@ describe("AC. Scheduler Failure Isolation", () => {
     });
 
     const db = { execute: executeMock } as any;
-    const now = new Date("2026-08-24T15:00:00Z"); // KST 25일 00:00
+    const now = new Date("2026-08-31T15:00:00Z"); // KST 2026-09-01 00:00 (신규 정책: 1일 open)
     const result = await runGrowthReportScheduler(db, now);
 
     // pool_1은 성공

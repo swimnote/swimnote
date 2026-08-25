@@ -209,8 +209,9 @@ export async function notifyGrowthReportPublished(params: {
   const monthLabel = `${month}월`;
 
   // Product 문구 (정적, ENGINE 해석/GPT 생성 금지)
-  const title    = "새 성장리포트가 도착했어요";
-  const body     = `${studentName}의 ${monthLabel} 성장리포트가 등록되었습니다.`;
+  // §I 정책: "지난달 성장리포트가 도착했습니다" / "지난 한 달 동안의 성장 모습을 확인해보세요."
+  const title    = "지난달 성장리포트가 도착했습니다";
+  const body     = "지난 한 달 동안의 성장 모습을 확인해보세요.";
   const deepLink = `/parent/growth-report-detail?reportId=${reportId}`;
 
   // 승인된 보호자 조회 (DISTINCT — 중복 relation 방어)

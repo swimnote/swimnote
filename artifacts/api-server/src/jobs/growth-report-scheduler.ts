@@ -1,40 +1,47 @@
 /**
  * growth-report-scheduler.ts — GR2: Monthly Growth Report Cycle Scheduler
  *
- * 핵심 Product Rule:
- *   매월 25일 Asia/Seoul 00:00 이후 → 해당 month Cycle OPEN
- *   다음달 5일 Asia/Seoul 00:00 이후 → Parent Input CLOSE
+ * 핵심 Product Rule (MONTHLY_FREE 최종 정책):
+ *   report_period = previous month (이번 달 실행 → 지난달 리포트)
+ *   매월 1~4일 KST: cycle ensure → report ensure → AI analysis 준비
+ *   매월 5일 KST: delivery_eligible 학생에게 자동 발행(auto-publish)
  *
  * 원칙:
- *   - 5일은 Report 종료일이 아님. QUESTION_AVAILABLE → READY_FOR_ANALYSIS만 처리.
- *   - product_status = CLOSED 생성 금지
- *   - X Mode 접근 가능 pool만 신규 Cycle 생성
+ *   - analysis_cutoff_at = 1일 00:00 KST (= 이전달 마지막 순간)
+ *   - period_start = 이전달 1일, period_end = 이전달 마지막 날 (KST 기준)
  *   - PUBLISHED history 삭제/무효화 금지
  *   - 동일 날짜 여러 번 실행해도 중복 없음 (idempotent)
- *   - missed-run recovery: now >= open_at AND PENDING → open
- *   - clock injection: now 파라미터로 테스트 가능
- *   - pool 단위 failure isolation: 한 pool 실패가 전체 중단 금지
- *   - PII 로그 금지 (student_id 열거 금지)
+ *   - missed-run recovery: 이전 달 PENDING → open
+ *   - pool 단위 failure isolation
+ *   - PII 로그 금지
+ *
+ * Delivery Eligibility (§E):
+ *   students.status = 'active' → eligible
+ *   suspended / withdrawn → 제외
+ *   scheduled lesson / makeup lesson 존재 여부 무시 (lifecycle 우선)
+ *
+ * Publication Safety (§K):
+ *   analysis_status = COMPLETE, report_content 존재,
+ *   grounding PASS/REVISED_PASS, growth_framing PASS/REVISED_PASS,
+ *   product_status = REVIEW_REQUIRED → auto-approve → PUBLISHED
  *
  * GR2 금지:
  *   - ENGINE API 호출 → GR3
  *   - Parent Question UI → GR4
  *   - Teacher Review UI → GR5
- *   - Push 실제 발송 → GR7
  *
- * analysis_cutoff_at 정책 (GR2 확정):
- *   Cycle open 시점 = 25일 00:00 KST = UTC 전날 15:00:00
- *   ENGINE Snapshot에서 이 시각 이전 데이터만 사용.
- *   이후 데이터(25일 이후 수업/일지)는 다음 cycle에 포함.
- *   → analysis_cutoff_at = parent_input_open_at (= 25일 00:00 KST)
- *   → analysis_from = null (정책 미확정, ENGINE Contract 확정 후 결정)
+ * analysis_cutoff_at 정책:
+ *   1일 00:00 KST = UTC 전날 15:00:00
+ *   이 시각 이전 데이터만 snapshot에 포함 → 이전달 데이터만 포함
  */
 import cron from "node-cron";
-import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { superAdminDb } from "@workspace/db";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
 import { transitionReportStatus } from "../lib/growth-report-service.js";
+import { autoApproveAndPublishForDelivery } from "../lib/growth-report-service.js";
 import { FREE_GROWTH_REPORT_ELIGIBLE_SQL } from "../lib/growth-report-eligibility.js";
+import { notifyGrowthReportPublished } from "../utils/notify.js";
 
 type Db = typeof superAdminDb;
 
@@ -49,8 +56,6 @@ const LOCK_TTL_SECONDS = 600; // 10분
  * getKSTDate — now를 Asia/Seoul 기준으로 변환
  *
  * 한국은 DST 없음. UTC+9 고정.
- * 기존 codebase 패턴(getTime() + 9*60*60*1000) 재사용.
- * clock injection을 위해 now 파라미터 허용.
  */
 export function getKSTDate(now: Date): {
   year: number;
@@ -59,7 +64,7 @@ export function getKSTDate(now: Date): {
   hours: number;
   minutes: number;
   isoDate: string; // "YYYY-MM-DD"
-  reportPeriod: string; // "YYYY-MM"
+  reportPeriod: string; // "YYYY-MM" (current month)
 } {
   const kstMs = now.getTime() + 9 * 60 * 60 * 1000;
   const kst = new Date(kstMs);
@@ -84,49 +89,89 @@ export function getKSTDate(now: Date): {
   };
 }
 
-/**
- * computeCycleTimestamps — report_period에 대한 Cycle 날짜 계산
- *
- * report_period: "YYYY-MM"
- * parent_input_open_at  = 해당 월 25일 00:00 KST (= UTC 전날 15:00:00)
- * analysis_cutoff_at    = parent_input_open_at (Cycle open 시점이 데이터 상한선)
- * parent_input_close_at = 다음달 5일 00:00 KST (= UTC 다음달 4일 15:00:00)
- * analysis_from         = null (정책 미확정)
- */
-export function computeCycleTimestamps(year: number, month: number): {
+// ─────────────────────────────────────────────────────────────────────────────
+// Monthly FREE Period Timestamps
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MonthlyFreePeriodTimestamps {
+  /** "YYYY-MM" — 이전달 */
   reportPeriod: string;
-  parentInputOpenAt: Date;  // 25일 00:00 KST
-  analysisCutoffAt: Date;   // = parentInputOpenAt (Cycle open 시점)
-  parentInputCloseAt: Date; // 다음달 5일 00:00 KST
-  analysisFrom: null;
-} {
-  const mm = String(month).padStart(2, "0");
-  const reportPeriod = `${year}-${mm}`;
+  /** "YYYY-MM-01" — 이전달 1일 (KST 기준) */
+  periodStart: string;
+  /** "YYYY-MM-DD" — 이전달 마지막 날 (KST 기준) */
+  periodEnd: string;
+  /** 이번달 1일 00:00:00 KST = UTC 이전달 마지막날 15:00:00 */
+  parentInputOpenAt: Date;
+  /** = parentInputOpenAt (이번달 1일 00:00 KST = 이전달 데이터 cutoff 상한선) */
+  analysisCutoffAt: Date;
+  /** 이번달 5일 00:00:00 KST = UTC 이번달 4일 15:00:00 (auto-publish 트리거) */
+  parentInputCloseAt: Date;
+}
 
-  // 25일 00:00 KST = UTC 전날(24일) 15:00:00
-  // Date.UTC(year, month-1, 25) = 25일 00:00 UTC → KST는 25일 09:00
-  // 25일 00:00 KST = 24일 15:00 UTC
-  const parentInputOpenAt = new Date(Date.UTC(year, month - 1, 24, 15, 0, 0));
+/**
+ * computeMonthlyFreePeriodTimestamps — 이번달 KST 기준으로 이전달 cycle 타임스탬프 계산
+ *
+ * @param year  KST 이번달 year
+ * @param month KST 이번달 month (1-based)
+ *
+ * 예시: year=2026, month=9 (9월 실행)
+ *   reportPeriod = "2026-08"
+ *   periodStart  = "2026-08-01"
+ *   periodEnd    = "2026-08-31"
+ *   parentInputOpenAt  = 2026-08-31 15:00 UTC = 2026-09-01 00:00 KST
+ *   analysisCutoffAt   = 2026-08-31 15:00 UTC (same)
+ *   parentInputCloseAt = 2026-09-04 15:00 UTC = 2026-09-05 00:00 KST
+ */
+export function computeMonthlyFreePeriodTimestamps(
+  year: number,
+  month: number,
+): MonthlyFreePeriodTimestamps {
+  // 이전달
+  let prevYear = year;
+  let prevMonth = month - 1;
+  if (prevMonth < 1) {
+    prevMonth = 12;
+    prevYear = year - 1;
+  }
+  const prevMM = String(prevMonth).padStart(2, "0");
+  const reportPeriod = `${prevYear}-${prevMM}`;
 
-  // analysis_cutoff_at = Cycle open 시점 (25일 00:00 KST)
+  // 이전달 마지막 날: Date.UTC(year, month-1, 0) = 이전달 마지막 날 00:00 UTC
+  // e.g., Date.UTC(2026, 8, 0) = Aug 31 2026 00:00 UTC
+  const prevLastDayDate = new Date(Date.UTC(year, month - 1, 0));
+  const prevLastDay = prevLastDayDate.getUTCDate();
+  const prevLastDD = String(prevLastDay).padStart(2, "0");
+
+  const periodStart = `${prevYear}-${prevMM}-01`;
+  const periodEnd   = `${prevYear}-${prevMM}-${prevLastDD}`;
+
+  // 이번달 1일 00:00:00 KST = UTC 전날 15:00:00
+  // = Date.UTC(year, month-1, 0, 15, 0, 0)
+  // = 이전달 마지막날 15:00 UTC
+  const parentInputOpenAt = new Date(Date.UTC(year, month - 1, 0, 15, 0, 0));
+
+  // analysisCutoffAt = parentInputOpenAt (이번달 1일 KST = 이전달 데이터 상한)
   const analysisCutoffAt = new Date(parentInputOpenAt.getTime());
 
-  // 다음달 5일 00:00 KST = 다음달 4일 15:00 UTC
-  let closeYear = year;
-  let closeMonth = month + 1;
-  if (closeMonth > 12) {
-    closeMonth = 1;
-    closeYear += 1;
-  }
-  const parentInputCloseAt = new Date(Date.UTC(closeYear, closeMonth - 1, 4, 15, 0, 0));
+  // 이번달 5일 00:00:00 KST = UTC 4일 15:00:00
+  const parentInputCloseAt = new Date(Date.UTC(year, month - 1, 4, 15, 0, 0));
 
   return {
     reportPeriod,
+    periodStart,
+    periodEnd,
     parentInputOpenAt,
     analysisCutoffAt,
     parentInputCloseAt,
-    analysisFrom: null,
   };
+}
+
+/**
+ * @deprecated Use computeMonthlyFreePeriodTimestamps instead.
+ * 구 정책(25일 open/5일 close)은 제거됨. 하위호환 alias만 유지.
+ */
+export function computeCycleTimestamps(year: number, month: number) {
+  return computeMonthlyFreePeriodTimestamps(year, month);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,6 +189,8 @@ export interface GrowthReportSchedulerRunResult {
 
   reports_opened: number;
   reports_ready_for_analysis: number;
+  reports_auto_published: number;
+  reports_delivery_skipped: number;
 
   skipped: number;
   failed: number;
@@ -167,6 +214,8 @@ function emptyResult(runAt: string): GrowthReportSchedulerRunResult {
     cycles_input_closed: 0,
     reports_opened: 0,
     reports_ready_for_analysis: 0,
+    reports_auto_published: 0,
+    reports_delivery_skipped: 0,
     skipped: 0,
     failed: 0,
     errors: [],
@@ -181,11 +230,7 @@ function emptyResult(runAt: string): GrowthReportSchedulerRunResult {
  * getXEligiblePools — FREE Growth Report 대상 pool 목록
  *
  * FREE eligibility = (paid OR manual) AND NOT force AND approval='approved'
- * xmode_config_status='READY' 불필요 — legacy paid X pool(TOYKIDS 등)도 포함.
- *
- * Uses shared FREE_GROWTH_REPORT_ELIGIBLE_SQL from growth-report-eligibility.ts
- * — same gate as Status API and any future generator.
- * non-X pool(entitlement 없음)은 제외됨.
+ * xmode_config_status='READY' 불필요 — legacy paid X pool(TOYKIDS 등) 포함.
  */
 export async function getXEligiblePools(db: Db): Promise<Array<{ id: string }>> {
   const res = await db.execute(sql.raw(`
@@ -195,26 +240,26 @@ export async function getXEligiblePools(db: Db): Promise<Array<{ id: string }>> 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cycle Open (25th rule)
+// Cycle Open — 이전달 cycle 보장
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * openCycleForPool — 단일 pool의 cycle open 처리
+ * openCycleForPool — 단일 pool의 이전달 cycle open 처리
  *
  * 1. Cycle 생성 (이미 있으면 ON CONFLICT DO NOTHING)
  * 2. PENDING → ACTIVE (idempotent: ACTIVE면 skip)
- * 3. 이 pool의 active 학생들에게 NOT_OPEN report 생성 (ON CONFLICT DO NOTHING)
- * 4. NOT_OPEN → OPEN bulk update
- * 5. parent_input_status NONE → AVAILABLE
- * 6. audit (system)
+ * 3. pool의 active 학생들에게 NOT_OPEN report 생성 (ON CONFLICT DO NOTHING)
+ * 4. NOT_OPEN → OPEN bulk update (period_start/period_end 올바른 날짜로 설정)
+ * 5. audit (system)
  */
 async function openCycleForPool(
   db: Db,
   poolId: string,
-  reportPeriod: string,
-  timestamps: ReturnType<typeof computeCycleTimestamps>,
+  timestamps: MonthlyFreePeriodTimestamps,
   result: GrowthReportSchedulerRunResult,
-): Promise<void> {
+): Promise<string | null> {
+  const { reportPeriod, periodStart, periodEnd, analysisCutoffAt, parentInputOpenAt, parentInputCloseAt } = timestamps;
+
   // 1. Cycle 생성 (idempotent)
   const insertCycle = await db.execute(sql`
     INSERT INTO growth_report_cycles (
@@ -225,9 +270,9 @@ async function openCycleForPool(
     ) VALUES (
       ${poolId}, ${reportPeriod},
       ${null},
-      ${timestamps.analysisCutoffAt.toISOString()},
-      ${timestamps.parentInputOpenAt.toISOString()},
-      ${timestamps.parentInputCloseAt.toISOString()},
+      ${analysisCutoffAt.toISOString()},
+      ${parentInputOpenAt.toISOString()},
+      ${parentInputCloseAt.toISOString()},
       'Asia/Seoul', 'PENDING'
     )
     ON CONFLICT (swimming_pool_id, report_period)
@@ -259,7 +304,7 @@ async function openCycleForPool(
     if (row.cycle_status !== "PENDING") {
       result.skipped++;
       console.log(`[gr-scheduler] CYCLE_SKIP (status=${row.cycle_status}): cycle=${cycleId}`);
-      return;
+      return cycleId; // 이미 열린 cycle — return ID for publish phase
     }
   }
 
@@ -277,8 +322,8 @@ async function openCycleForPool(
   // Audit: cycle open
   await writeSchedulerAudit(db, cycleId, poolId, "PENDING", "ACTIVE", "MONTHLY_CYCLE_OPEN");
 
-  // 3. 이 pool의 non-deleted 학생들에게 report 생성 (ON CONFLICT DO NOTHING)
-  //    batch insert: student_id별 ON CONFLICT (student_id, cycle_id) WHERE ... DO NOTHING
+  // 3. pool의 non-deleted 학생들에게 report 생성 (ON CONFLICT DO NOTHING)
+  //    period_start/period_end = 이전달 첫날/마지막날 (KST 기준 날짜)
   const students = await db.execute(sql`
     SELECT id FROM students
     WHERE swimming_pool_id = ${poolId}
@@ -295,7 +340,7 @@ async function openCycleForPool(
       ) VALUES (
         ${s.id}, ${poolId}, ${cycleId}, ${reportPeriod},
         'NOT_OPEN', 'NONE', 0,
-        now()::date, now()::date
+        ${periodStart}::date, ${periodEnd}::date
       )
       ON CONFLICT (student_id, cycle_id)
         WHERE cycle_id IS NOT NULL AND deleted_at IS NULL
@@ -308,11 +353,13 @@ async function openCycleForPool(
     console.log(`[gr-scheduler] REPORTS_ENSURED: cycle=${cycleId} pool=${poolId} students=${reportsCreated}`);
   }
 
-  // 4. NOT_OPEN → OPEN (bulk)
+  // 4. NOT_OPEN → OPEN (bulk) — period_start/period_end도 올바르게 업데이트
   const openRes = await db.execute(sql`
     UPDATE growth_reports
     SET product_status = 'OPEN',
         parent_input_status = 'AVAILABLE',
+        period_start = ${periodStart}::date,
+        period_end   = ${periodEnd}::date,
         updated_at = now()
     WHERE cycle_id = ${cycleId}
       AND product_status = 'NOT_OPEN'
@@ -323,7 +370,6 @@ async function openCycleForPool(
   const openedCount = (openRes.rows as any[]).length;
   result.reports_opened += openedCount;
 
-  // Audit: bulk report open (system)
   if (openedCount > 0) {
     await writeSchedulerAudit(
       db, cycleId, poolId,
@@ -333,85 +379,132 @@ async function openCycleForPool(
     );
     console.log(`[gr-scheduler] REPORTS_OPENED: cycle=${cycleId} count=${openedCount}`);
   }
+
+  return cycleId;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cycle Close (5th rule)
+// Auto-publish — 5일 KST에 delivery eligible 학생에게 자동 발행
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * closeCycleForPool — 단일 cycle의 parent input close 처리
+ * autoPublishMonthlyReports — REVIEW_REQUIRED 상태의 리포트를 자동 publish
  *
- * 1. Cycle ACTIVE → INPUT_CLOSED
- * 2. parent_input_status AVAILABLE/ANSWERED/NONE → CLOSED (bulk)
- * 3. product_status QUESTION_AVAILABLE → READY_FOR_ANALYSIS (transitionReportStatus)
- * 4. 나머지 product_status는 그대로 (ANALYZING, REVIEW_REQUIRED, APPROVED, PUBLISHED, FAILED, PARTIAL)
- * 5. audit
+ * Delivery eligibility (§E):
+ *   students.status = 'active' → eligible
+ *   suspended / withdrawn → 제외
+ *   makeup lesson 존재 여부는 판단 근거로 사용하지 않음
+ *
+ * Publication Safety (§K):
+ *   analysis_status = COMPLETE
+ *   report_content IS NOT NULL
+ *   grounding_status IN ('PASS', 'REVISED_PASS')
+ *   growth_framing_status IN ('PASS', 'REVISED_PASS') OR val_* fallback
+ *   product_status = REVIEW_REQUIRED
+ *
+ * Idempotent: 이미 PUBLISHED인 경우 skip.
  */
-async function closeCycleInput(
+async function autoPublishMonthlyReports(
   db: Db,
-  cycleId: string,
-  poolId: string,
+  reportPeriod: string,
   result: GrowthReportSchedulerRunResult,
 ): Promise<void> {
-  // 1. ACTIVE → INPUT_CLOSED
-  await db.execute(sql`
-    UPDATE growth_report_cycles
-    SET cycle_status = 'INPUT_CLOSED', updated_at = now()
-    WHERE id = ${cycleId}
-      AND cycle_status = 'ACTIVE'
-  `);
-  result.cycles_input_closed++;
-
-  // Audit: cycle close
-  await writeSchedulerAudit(db, cycleId, poolId, "ACTIVE", "INPUT_CLOSED", "PARENT_INPUT_WINDOW_CLOSED");
-
-  // 2. parent_input_status AVAILABLE / ANSWERED / NONE → CLOSED (bulk)
-  //    product_status는 변경하지 않음 (PUBLISHING 계속 진행 가능)
-  await db.execute(sql`
-    UPDATE growth_reports
-    SET parent_input_status = 'CLOSED',
-        parent_input_closed_at = now(),
-        updated_at = now()
-    WHERE cycle_id = ${cycleId}
-      AND parent_input_status IN ('AVAILABLE', 'ANSWERED', 'NONE')
-      AND deleted_at IS NULL
-  `);
-  console.log(`[gr-scheduler] PARENT_INPUT_CLOSED: cycle=${cycleId} pool=${poolId}`);
-
-  // 3. QUESTION_AVAILABLE → READY_FOR_ANALYSIS
-  //    (학부모 미응답이어도 ENGINE 분석 계속 진행 가능)
-  const qaReports = await db.execute(sql`
-    SELECT id FROM growth_reports
-    WHERE cycle_id = ${cycleId}
-      AND product_status = 'QUESTION_AVAILABLE'
-      AND deleted_at IS NULL
+  // 발행 대상: REVIEW_REQUIRED + COMPLETE + report_content 존재 + safety pass
+  const candidates = await db.execute(sql`
+    SELECT
+      gr.id               AS report_id,
+      gr.student_id,
+      gr.swimming_pool_id AS pool_id,
+      gr.report_period,
+      gr.analysis_status,
+      gr.grounding_status,
+      gr.growth_framing_status,
+      gr.val_grounding_status,
+      gr.val_growth_framing_status,
+      gr.report_content,
+      gr.report_fact_package,
+      gr.sns_summary,
+      s.status            AS student_status
+    FROM growth_reports gr
+    INNER JOIN students s ON s.id = gr.student_id
+    WHERE gr.report_period = ${reportPeriod}
+      AND gr.product_status = 'REVIEW_REQUIRED'
+      AND gr.analysis_status = 'COMPLETE'
+      AND gr.report_content IS NOT NULL
+      AND gr.deleted_at IS NULL
+      AND s.deleted_at IS NULL
   `);
 
-  for (const row of qaReports.rows as Array<{ id: string }>) {
-    try {
-      await transitionReportStatus({
-        db,
-        reportId: row.id,
-        toStatus: "READY_FOR_ANALYSIS",
-        actorType: "system",
-        actorId: null,
-        reason: "PARENT_INPUT_WINDOW_CLOSED",
-      });
-      result.reports_ready_for_analysis++;
-    } catch (err: any) {
-      console.warn(
-        `[gr-scheduler] QUESTION_AVAILABLE→READY_FOR_ANALYSIS 실패: report=${row.id}:`,
-        err.message,
+  const PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
+
+  for (const row of candidates.rows as any[]) {
+    const {
+      report_id, student_id, pool_id, report_period: rPeriod,
+      student_status,
+      grounding_status, growth_framing_status,
+      val_grounding_status, val_growth_framing_status,
+    } = row;
+
+    // ── Delivery eligibility check ──────────────────────────────────────────
+    if (student_status !== "active") {
+      result.reports_delivery_skipped++;
+      console.log(
+        `[gr-scheduler] DELIVERY_SKIP lifecycle: report=${report_id} student_status=${student_status}`,
       );
-      result.errors.push({ cycle_id: cycleId, report_id: row.id, code: "QA_TRANSITION_FAILED", message: err.message });
+      continue;
     }
-  }
 
-  if (qaReports.rows.length > 0) {
-    console.log(
-      `[gr-scheduler] QA_TO_READY: cycle=${cycleId} count=${result.reports_ready_for_analysis}`,
-    );
+    // ── Publication safety check ────────────────────────────────────────────
+    const groundingOk = PASS_VALUES.has(grounding_status) || PASS_VALUES.has(val_grounding_status);
+    const framingOk   = PASS_VALUES.has(growth_framing_status) || PASS_VALUES.has(val_growth_framing_status);
+
+    if (!groundingOk || !framingOk) {
+      result.reports_delivery_skipped++;
+      console.log(
+        `[gr-scheduler] DELIVERY_SKIP safety: report=${report_id} grounding=${grounding_status} framing=${growth_framing_status}`,
+      );
+      continue;
+    }
+
+    // ── Auto-approve + Publish ──────────────────────────────────────────────
+    try {
+      const publishResult = await autoApproveAndPublishForDelivery({
+        db,
+        reportId: report_id,
+        actorId:  "SYSTEM_MONTHLY_AUTO",
+      });
+
+      if (publishResult.alreadyPublished) {
+        console.log(`[gr-scheduler] ALREADY_PUBLISHED: report=${report_id}`);
+        continue;
+      }
+
+      result.reports_auto_published++;
+      console.log(`[gr-scheduler] AUTO_PUBLISHED: report=${report_id} period=${rPeriod}`);
+
+      // ── GR7: fire-and-forget notification ──────────────────────────────
+      const studentId    = publishResult.studentId   ?? student_id;
+      const poolId       = publishResult.poolId      ?? pool_id;
+      const reportPeriodFinal = publishResult.reportPeriod ?? rPeriod;
+      const publishedAt  = publishResult.publishedAt ?? new Date().toISOString();
+
+      setImmediate(() => {
+        notifyGrowthReportPublished({
+          reportId:     report_id,
+          studentId,
+          poolId,
+          reportPeriod: reportPeriodFinal,
+          publishedAt,
+          actorId:      "SYSTEM_MONTHLY_AUTO",
+        }).catch(err => {
+          console.error(`[gr-scheduler] GR7 notification failed report=${report_id}:`, err);
+        });
+      });
+    } catch (err: any) {
+      result.failed++;
+      result.errors.push({ report_id, code: "AUTO_PUBLISH_FAILED", message: err.message });
+      console.error(`[gr-scheduler] AUTO_PUBLISH_FAILED: report=${report_id}:`, err.message);
+    }
   }
 }
 
@@ -459,19 +552,19 @@ async function writeSchedulerAudit(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * runGrowthReportScheduler — 25일 open + 5일 close 통합 처리
+ * runGrowthReportScheduler — 이전달 cycle ensure + 5일 auto-publish 통합 처리
  *
  * clock injection: now 파라미터로 synthetic date 테스트 가능.
  * 락 불필요: 호출부(cron)에서 acquireLock 처리.
  *
  * 처리 순서:
  *   1. X-eligible pool 목록 조회
- *   2. 현재 month 25일 이후면: PENDING cycles → ACTIVE + reports OPEN
- *   3. 5일 close: ACTIVE cycles의 close_at <= now → INPUT_CLOSED + parent close
+ *   2. 이전달 cycle/report 보장 (1일 이후면 항상 실행)
+ *   3. 5일 이후면: delivery eligible + safety pass report 자동 publish
  *
  * missed-run recovery:
- *   - now >= parent_input_open_at AND cycle PENDING → open (과거 month 포함)
- *   - now >= parent_input_close_at AND cycle ACTIVE → close
+ *   - PENDING cycles open_at <= now → open
+ *   - 5일 이후면 auto-publish 재실행 (idempotent)
  */
 export async function runGrowthReportScheduler(
   db: Db,
@@ -483,8 +576,7 @@ export async function runGrowthReportScheduler(
   const kst = getKSTDate(now);
   console.log(`[gr-scheduler] RUN: kst=${kst.isoDate} ${kst.hours}:${String(kst.minutes).padStart(2,"0")} KST`);
 
-  // ── Step 1: 25일 open ────────────────────────────────────────────────────────
-  // X-eligible pool 목록
+  // ── Step 1: X-eligible pool 목록 ─────────────────────────────────────────
   let xPools: Array<{ id: string }>;
   try {
     xPools = await getXEligiblePools(db);
@@ -494,30 +586,33 @@ export async function runGrowthReportScheduler(
     return result;
   }
 
-  // 현재 month의 timestamps 계산
-  const currentTs = computeCycleTimestamps(kst.year, kst.month);
+  // ── Step 2: 이전달 period timestamps 계산 ────────────────────────────────
+  const ts = computeMonthlyFreePeriodTimestamps(kst.year, kst.month);
+  console.log(
+    `[gr-scheduler] period=${ts.reportPeriod} ` +
+    `start=${ts.periodStart} end=${ts.periodEnd} ` +
+    `openAt=${ts.parentInputOpenAt.toISOString()} ` +
+    `closeAt=${ts.parentInputCloseAt.toISOString()}`,
+  );
 
-  // 25일 open: now >= parentInputOpenAt (현재 month)
-  const shouldOpenCurrentMonth = now.getTime() >= currentTs.parentInputOpenAt.getTime();
+  // ── Step 3: Cycle/Report ensure (1일 이후면 항상 실행) ───────────────────
+  const shouldOpen = now.getTime() >= ts.parentInputOpenAt.getTime();
 
-  if (shouldOpenCurrentMonth && xPools.length > 0) {
+  if (shouldOpen && xPools.length > 0) {
     for (const pool of xPools) {
       try {
-        await openCycleForPool(db, pool.id, currentTs.reportPeriod, currentTs, result);
+        await openCycleForPool(db, pool.id, ts, result);
       } catch (err: any) {
         console.error(`[gr-scheduler] OPEN 실패: pool=${pool.id}:`, err.message);
         result.failed++;
         result.errors.push({ pool_id: pool.id, code: "CYCLE_OPEN_FAILED", message: err.message });
       }
     }
-  } else {
-    console.log(
-      `[gr-scheduler] 25일 미도달 (kst_day=${kst.day}): open skip`,
-    );
+  } else if (!shouldOpen) {
+    console.log(`[gr-scheduler] 1일 미도달 — open skip`);
   }
 
-  // missed-run recovery: 이전 달의 PENDING cycles (open_at <= now)
-  let pendingCycles: Array<{ id: string; swimming_pool_id: string; report_period: string; parent_input_open_at: Date }>;
+  // missed-run recovery: 이전 주기의 PENDING cycles (open_at <= now)
   try {
     const pRes = await db.execute(sql`
       SELECT id, swimming_pool_id, report_period, parent_input_open_at
@@ -525,62 +620,55 @@ export async function runGrowthReportScheduler(
       WHERE cycle_status = 'PENDING'
         AND parent_input_open_at <= ${now.toISOString()}
     `);
-    pendingCycles = pRes.rows as any[];
+    const pendingCycles = pRes.rows as any[];
+
+    for (const cycle of pendingCycles) {
+      if (cycle.report_period === ts.reportPeriod) continue; // 이미 처리됨
+
+      try {
+        const [pyStr, pmStr] = (cycle.report_period as string).split("-");
+        const py = Number(pyStr); const pm = Number(pmStr);
+        // 해당 period의 current month = pm+1 (because reportPeriod = prevMonth)
+        const cmYear  = pm === 12 ? py + 1 : py;
+        const cmMonth = pm === 12 ? 1 : pm + 1;
+        const missedTs = computeMonthlyFreePeriodTimestamps(cmYear, cmMonth);
+        await openCycleForPool(db, cycle.swimming_pool_id, missedTs, result);
+      } catch (err: any) {
+        console.error(`[gr-scheduler] MISSED OPEN 실패: cycle=${cycle.id}:`, err.message);
+        result.failed++;
+        result.errors.push({ cycle_id: cycle.id, code: "MISSED_OPEN_FAILED", message: err.message });
+      }
+    }
   } catch (err: any) {
     console.error("[gr-scheduler] PENDING cycles 조회 실패:", err.message);
     result.errors.push({ code: "PENDING_CYCLES_FETCH_FAILED", message: err.message });
-    pendingCycles = [];
   }
 
-  for (const cycle of pendingCycles) {
-    // 현재 month는 이미 처리됨 (중복 방지)
-    if (cycle.report_period === currentTs.reportPeriod) continue;
+  // ── Step 4: 5일 이후 → auto-publish ──────────────────────────────────────
+  const shouldPublish = now.getTime() >= ts.parentInputCloseAt.getTime();
 
+  if (shouldPublish) {
     try {
-      const ts = (() => {
-        const [y, m] = cycle.report_period.split("-").map(Number);
-        return computeCycleTimestamps(y!, m!);
-      })();
-      await openCycleForPool(db, cycle.swimming_pool_id, cycle.report_period, ts, result);
+      await autoPublishMonthlyReports(db, ts.reportPeriod, result);
     } catch (err: any) {
-      console.error(`[gr-scheduler] MISSED OPEN 실패: cycle=${cycle.id}:`, err.message);
-      result.failed++;
-      result.errors.push({ cycle_id: cycle.id, code: "MISSED_OPEN_FAILED", message: err.message });
+      console.error("[gr-scheduler] auto-publish 실패:", err.message);
+      result.errors.push({ code: "AUTO_PUBLISH_BATCH_FAILED", message: err.message });
     }
-  }
-
-  // ── Step 2: 5일 close ────────────────────────────────────────────────────────
-  // ACTIVE cycles with close_at <= now
-  let activeCycles: Array<{ id: string; swimming_pool_id: string; parent_input_close_at: string }>;
-  try {
-    const aRes = await db.execute(sql`
-      SELECT id, swimming_pool_id, parent_input_close_at
-      FROM growth_report_cycles
-      WHERE cycle_status = 'ACTIVE'
-        AND parent_input_close_at <= ${now.toISOString()}
-    `);
-    activeCycles = aRes.rows as any[];
-  } catch (err: any) {
-    console.error("[gr-scheduler] ACTIVE cycles 조회 실패:", err.message);
-    result.errors.push({ code: "ACTIVE_CYCLES_FETCH_FAILED", message: err.message });
-    activeCycles = [];
-  }
-
-  for (const cycle of activeCycles) {
-    try {
-      await closeCycleInput(db, cycle.id, cycle.swimming_pool_id, result);
-    } catch (err: any) {
-      console.error(`[gr-scheduler] CLOSE 실패: cycle=${cycle.id}:`, err.message);
-      result.failed++;
-      result.errors.push({ cycle_id: cycle.id, code: "CYCLE_CLOSE_FAILED", message: err.message });
-    }
+  } else {
+    const daysUntilPublish = Math.ceil(
+      (ts.parentInputCloseAt.getTime() - now.getTime()) / (24 * 3600 * 1000),
+    );
+    console.log(
+      `[gr-scheduler] 5일 미도달 (D-${daysUntilPublish}) — auto-publish skip`,
+    );
   }
 
   console.log(
     `[gr-scheduler] DONE: ` +
     `cycles_created=${result.cycles_created} opened=${result.cycles_opened} ` +
-    `input_closed=${result.cycles_input_closed} ` +
-    `reports_opened=${result.reports_opened} ready=${result.reports_ready_for_analysis} ` +
+    `reports_opened=${result.reports_opened} ` +
+    `auto_published=${result.reports_auto_published} ` +
+    `delivery_skipped=${result.reports_delivery_skipped} ` +
     `failed=${result.failed}`,
   );
 
@@ -588,36 +676,15 @@ export async function runGrowthReportScheduler(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// startGrowthReportScheduler — cron 등록 (Worker mode에서 호출)
+// ensureCurrentMonthGrowthReportCycle — READY 전환 직후 즉시 보충 (super.ts용)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * startGrowthReportScheduler — node-cron 등록
- *
- * 실행: 매일 01:00 KST (UTC 16:00) — 25일 자정 직후 충분히 처리됨
- *       + 서버 시작 30초 후 1회 즉시 실행 (missed-run recovery)
- *
- * cron pattern: "0 16 * * *" UTC = "0 1 * * *" KST
- * node-cron timezone option: "Asia/Seoul" (직접 지정 가능)
- *
- * lock: acquireLock("growth-report-cycle", 600) — 10분 TTL
- */
-/**
- * ensureCurrentMonthGrowthReportCycle — 단일 pool에 대해 당월 cycle을 즉시 보충
+ * ensureCurrentMonthGrowthReportCycle — 단일 pool에 대해 이전달 cycle을 즉시 보충
  *
  * PATCH /super/operators/:id/xmode (READY 전환 성공) 직후 호출.
- * 25일 이후라면 cycle + report row를 idempotent하게 생성.
- * 25일 이전이면 no-op (정상 scheduler에 위임).
- *
- * 안전 보장:
- *   - duplicate safe:  ON CONFLICT DO NOTHING
- *   - restart safe:    매 호출마다 조건 체크
- *   - existing cycle:  no-op (scheduler의 PENDING skip과 동일 경로)
- *   - published 훼손:  NOT_OPEN→OPEN만 update (APPROVED/PUBLISHED 미변경)
- *
- * @param poolId  swimming_pools.id
- * @param db      drizzle db instance
- * @param now     clock injection (테스트용), default = new Date()
+ * 1일 이후라면 cycle + report row를 idempotent하게 생성.
+ * 1일 이전이면 no-op (정상 scheduler에 위임).
  */
 export async function ensureCurrentMonthGrowthReportCycle(
   poolId: string,
@@ -625,15 +692,15 @@ export async function ensureCurrentMonthGrowthReportCycle(
   now:    Date = new Date(),
 ): Promise<{ skipped: string } | { opened: true; cycleId: string; reportsCreated: number }> {
   const kst = getKSTDate(now);
-  const currentTs = computeCycleTimestamps(kst.year, kst.month);
+  const ts  = computeMonthlyFreePeriodTimestamps(kst.year, kst.month);
 
-  // 25일 이전이면 no-op — 정상 scheduler에 위임
-  if (now.getTime() < currentTs.parentInputOpenAt.getTime()) {
-    console.log(`[gr-ensure] 25일 이전 — no-op: pool=${poolId} openAt=${currentTs.parentInputOpenAt.toISOString()}`);
+  // 1일 이전이면 no-op
+  if (now.getTime() < ts.parentInputOpenAt.getTime()) {
+    console.log(`[gr-ensure] 1일 이전 — no-op: pool=${poolId} openAt=${ts.parentInputOpenAt.toISOString()}`);
     return { skipped: "BEFORE_OPEN_DATE" };
   }
 
-  // Eligible 확인 (FREE scheduler gate와 동일 — READY 불필요)
+  // Eligible 확인
   const eligRows = await db.execute(sql`
     SELECT id FROM swimming_pools
     WHERE id = ${poolId}
@@ -648,12 +715,14 @@ export async function ensureCurrentMonthGrowthReportCycle(
   }
 
   const result = emptyResult(now.toISOString());
-  await openCycleForPool(db, poolId, currentTs.reportPeriod, currentTs, result);
-  const cycleId = result.cycles_created > 0 || result.cycles_opened > 0
-    ? "opened" : "existing";
-  console.log(`[gr-ensure] DONE: pool=${poolId} period=${currentTs.reportPeriod} created=${result.cycles_created} opened=${result.cycles_opened} reports=${result.reports_opened}`);
-  return { opened: true, cycleId, reportsCreated: result.reports_opened };
+  await openCycleForPool(db, poolId, ts, result);
+  console.log(`[gr-ensure] DONE: pool=${poolId} period=${ts.reportPeriod} created=${result.cycles_created} opened=${result.cycles_opened} reports=${result.reports_opened}`);
+  return { opened: true, cycleId: "opened", reportsCreated: result.reports_opened };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// startGrowthReportScheduler — cron 등록
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function startGrowthReportScheduler(): void {
   // 매일 01:00 KST (Asia/Seoul timezone)
@@ -669,7 +738,7 @@ export function startGrowthReportScheduler(): void {
         ran: true,
         at: new Date().toISOString(),
         cycles_opened: result.cycles_opened,
-        cycles_input_closed: result.cycles_input_closed,
+        auto_published: result.reports_auto_published,
         failed: result.failed,
       });
     } catch (err: any) {

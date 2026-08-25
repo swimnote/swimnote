@@ -776,14 +776,22 @@ router.get(
         return;
       }
 
-      // 3. Current calendar period (Asia/Seoul, YYYY-MM)
-      const nowSeoul  = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
-      );
-      const period    = `${nowSeoul.getFullYear()}-${
-        String(nowSeoul.getMonth() + 1).padStart(2, "0")}`;
+      // 3. Previous calendar period (Asia/Seoul, YYYY-MM)
+      // 정책(§C): report_period = previous month
+      // 예: 2026-09 실행 → report_period 2026-08
+      const nowMs = Date.now() + 9 * 60 * 60 * 1000; // KST offset
+      const kst   = new Date(nowMs);
+      const kstYear  = kst.getUTCFullYear();
+      const kstMonth = kst.getUTCMonth() + 1; // 1-based
 
-      // 4. Fetch report for current period
+      let prevYear  = kstYear;
+      let prevMonth = kstMonth - 1;
+      if (prevMonth < 1) { prevMonth = 12; prevYear = kstYear - 1; }
+
+      const period = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+
+      // 4. Fetch report for previous period (primary)
+      //    fallback: latest PUBLISHED report (any period)
       const reportRow = await superAdminDb.execute(sql`
         SELECT id, product_status, report_period, published_at, analysis_status
         FROM growth_reports
@@ -794,8 +802,31 @@ router.get(
         LIMIT 1
       `);
 
+      // 4a. 이전달 report 없으면 → latest PUBLISHED fallback 조회
+      //     정책(§H): 새 report가 아직 없으면 기존 latest published report 계속 표시
       if (!reportRow.rows.length) {
-        res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+        const latestPubRow = await superAdminDb.execute(sql`
+          SELECT id, product_status, report_period, published_at, analysis_status
+          FROM growth_reports
+          WHERE student_id    = ${studentId}
+            AND product_status = 'PUBLISHED'
+            AND deleted_at IS NULL
+          ORDER BY published_at DESC
+          LIMIT 1
+        `);
+
+        if (!latestPubRow.rows.length) {
+          res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+          return;
+        }
+
+        const pub = latestPubRow.rows[0] as any;
+        res.json({
+          status:        "PUBLISHED" as DisplayStatus,
+          report_id:     pub.id,
+          report_period: pub.report_period,
+          published_at:  pub.published_at ?? null,
+        });
         return;
       }
 
