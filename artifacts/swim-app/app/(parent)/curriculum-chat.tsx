@@ -118,23 +118,29 @@ function newRequestId(): string {
   return `curriculum_${h()}${h()}-${h()}-${h()}-${Date.now().toString(36)}`;
 }
 
-function fmtTime(raw: string): string {
+function fmtTime(raw: string | null | undefined): string {
+  if (!raw) return "";
   try {
     const d = new Date(raw);
+    if (isNaN(d.getTime())) return "";
     return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   } catch { return ""; }
 }
 
-function fmtResetsAt(raw: string): string {
+function fmtResetsAt(raw: string | null | undefined): string {
+  if (!raw) return "";
   try {
     const d = new Date(raw);
+    if (isNaN(d.getTime())) return "";
     return `${d.getMonth() + 1}월 ${d.getDate()}일`;
   } catch { return ""; }
 }
 
-function fmtDate(raw: string): string {
+function fmtDate(raw: string | null | undefined): string {
+  if (!raw) return "";
   try {
     const d = new Date(raw);
+    if (isNaN(d.getTime())) return "";
     return `${d.getMonth() + 1}월 ${d.getDate()}일`;
   } catch { return ""; }
 }
@@ -589,7 +595,7 @@ export default function CurriculumChatScreen() {
 
         if (activeStudentIdRef.current !== sentStudentId) return;
 
-        if (res.status === 429 || code === "PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED") {
+        if (res.status === 429 || code === "PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED" || code === "QUOTA_EXCEEDED") {
           if (errData.usage) setUsage(errData.usage);
           setPendingMsg(null);
         } else if (res.status === 401 || res.status === 403) {
@@ -759,7 +765,7 @@ export default function CurriculumChatScreen() {
         <View style={[s.usageBanner, s.usageBannerExhausted]}>
           <LucideIcon name="lock" size={14} color="#D97706" />
           <Text style={[s.usageTxt, { color: "#D97706" }]}>
-            이번 달 AI 커리큘럼 검색 이용 횟수를 모두 사용했습니다.{" "}
+            이번 달 AI 교육과정 검색 4회를 모두 사용했어요.{" "}
             {resets_at ? `${fmtResetsAt(resets_at)}에 초기화됩니다.` : "다음 달에 다시 이용할 수 있습니다."}
           </Text>
         </View>
@@ -1011,8 +1017,7 @@ export default function CurriculumChatScreen() {
               <View style={s.exhaustedBar}>
                 <LucideIcon name="lock" size={15} color={C.textMuted} />
                 <Text style={[s.exhaustedTxt, { color: C.textSecondary }]}>
-                  이번 달 AI 커리큘럼 검색 이용 횟수를 모두 사용했습니다.
-                  다음 달에 다시 이용할 수 있습니다.
+                  이번 달 AI 교육과정 검색 4회를 모두 사용했어요.{"\n"}다음 달에 다시 이용할 수 있습니다.
                 </Text>
               </View>
             ) : (

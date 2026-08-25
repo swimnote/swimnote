@@ -4,7 +4,7 @@
  * 학부모 커리큘럼 검색 월 사용량 제한.
  *
  * Quota key: parent_account_id + feature + calendar month (Asia/Seoul)
- * Limit:     MONTHLY_LIMIT (10) successful questions / month
+ * Limit:     MONTHLY_LIMIT (4) successful questions / month
  *
  * 기존 tables 재사용:
  *   parent_ai_daily_usage      — feature 컬럼으로 격리 (WP2B.2 추가)
@@ -25,7 +25,7 @@ import { sql }          from "drizzle-orm";
 /** Curriculum Search feature ID — 모든 DB row에서 동일 값 사용. */
 export const CURRICULUM_SEARCH_FEATURE = "parent_curriculum_search" as const;
 
-export const MONTHLY_LIMIT = 10;
+export const MONTHLY_LIMIT = 4;
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
