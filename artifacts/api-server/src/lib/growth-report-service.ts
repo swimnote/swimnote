@@ -89,7 +89,7 @@ export type AnalysisStatus =
 export const ALLOWED_TRANSITIONS: Readonly<Record<ProductStatus, ReadonlyArray<ProductStatus>>> = {
   NOT_OPEN:           ["OPEN"],
   OPEN:               ["PREANALYZING"],
-  PREANALYZING:       ["QUESTION_AVAILABLE", "READY_FOR_ANALYSIS", "PARTIAL", "FAILED"],
+  PREANALYZING:       ["QUESTION_AVAILABLE", "READY_FOR_ANALYSIS", "PARTIAL", "FAILED", "OPEN"],
   QUESTION_AVAILABLE: ["READY_FOR_ANALYSIS"],
   READY_FOR_ANALYSIS: ["ANALYZING"],
   ANALYZING:          ["REVIEW_REQUIRED", "PARTIAL", "FAILED"],

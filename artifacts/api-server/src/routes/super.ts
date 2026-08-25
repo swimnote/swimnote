@@ -4882,6 +4882,15 @@ router.post(
         res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
         return;
       }
+      // Unhandled exception during analysis — recover stuck PREANALYZING → FAILED
+      try {
+        const { transitionReportStatus } = await import("../lib/growth-report-service.js");
+        await transitionReportStatus({
+          db: superAdminDb, reportId,
+          toStatus: "FAILED", actorType: "system", actorId: null,
+          reason: "ANALYZE_EXCEPTION_RECOVERY",
+        }).catch(() => {});
+      } catch (_) {}
       console.error("[super] growth-reports/analyze 오류:", err.message);
       res.status(500).json({ error: "ANALYZE_FAILED", message: err.message });
     }
@@ -4919,18 +4928,18 @@ router.post(
         return;
       }
 
-      if (row.product_status !== "FAILED") {
+      if (row.product_status !== "FAILED" && row.product_status !== "PREANALYZING") {
         res.status(409).json({
           ok:             false,
           error:          "NOT_FAILED",
           report_id:      reportId,
           product_status: row.product_status,
-          message:        "Only FAILED reports can be reopened",
+          message:        "Only FAILED or stuck PREANALYZING reports can be reopened",
         });
         return;
       }
 
-      // 정상 transition 경로: FAILED → OPEN
+      // 정상 transition 경로: FAILED → OPEN, PREANALYZING → OPEN
       const { transitionReportStatus } = await import("../lib/growth-report-service.js");
       await transitionReportStatus({
         db:        superAdminDb,
