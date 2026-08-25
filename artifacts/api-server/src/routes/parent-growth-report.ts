@@ -678,4 +678,142 @@ router.get(
   },
 );
 
+// ── GET /parent/students/:studentId/growth-report-status ─────────────────────
+//
+// 학부모에게 현재 월 성장리포트 상태를 반환한다.
+// product_status → DisplayStatus 매핑:
+//   PUBLISHED                                             → PUBLISHED
+//   APPROVED                                              → READY
+//   FAILED                                                → FAILED
+//   OPEN/PREANALYZING/QUESTION_AVAILABLE/READY_FOR_ANALYSIS/
+//     ANALYZING/REVIEW_REQUIRED/PARTIAL                   → GENERATING
+//   X pool이 없거나 report 없음                            → NOT_AVAILABLE
+//   ENGINE이 DATA_ACCUMULATING 반환한 경우 (미래)          → DATA_ACCUMULATING
+//
+// 원칙:
+//   - report_content/fact_package 비노출 (PUBLISHED 전 열람 금지)
+//   - 실패해도 crash 금지 (NOT_AVAILABLE fallback)
+
+type DisplayStatus =
+  | "NOT_AVAILABLE"
+  | "DATA_ACCUMULATING"
+  | "GENERATING"
+  | "READY"
+  | "PUBLISHED"
+  | "FAILED";
+
+function mapProductStatusToDisplay(productStatus: string): DisplayStatus {
+  switch (productStatus) {
+    case "PUBLISHED": return "PUBLISHED";
+    case "APPROVED":  return "READY";
+    case "FAILED":    return "FAILED";
+    case "OPEN":
+    case "PREANALYZING":
+    case "QUESTION_AVAILABLE":
+    case "READY_FOR_ANALYSIS":
+    case "ANALYZING":
+    case "REVIEW_REQUIRED":
+    case "PARTIAL":
+      return "GENERATING";
+    default:
+      return "NOT_AVAILABLE";
+  }
+}
+
+router.get(
+  "/parent/students/:studentId/growth-report-status",
+  requireAuth,
+  requireParent,
+  async (req: AuthRequest, res) => {
+    const parentId  = req.user!.userId;
+    const studentId = req.params.studentId;
+
+    try {
+      // 1. parent ↔ student ownership
+      const ownerResult = await superAdminDb.execute(sql`
+        SELECT ps.swimming_pool_id
+        FROM parent_students ps
+        WHERE ps.parent_id  = ${parentId}
+          AND ps.student_id = ${studentId}
+          AND ps.status     = 'approved'
+        LIMIT 1
+      `);
+
+      if (!ownerResult.rows.length) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "FORBIDDEN" });
+        return;
+      }
+
+      const poolId = (ownerResult.rows[0] as any).swimming_pool_id as string;
+
+      // 2. X mode check — growth reports are X-pool-only
+      const poolRow = await superAdminDb.execute(sql`
+        SELECT xmode_entitlement FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `);
+
+      const xmodeEntitlement =
+        (poolRow.rows[0] as any)?.xmode_entitlement === true;
+
+      if (!xmodeEntitlement) {
+        res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+        return;
+      }
+
+      // 3. Current calendar period (Asia/Seoul, YYYY-MM)
+      const nowSeoul  = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
+      );
+      const period    = `${nowSeoul.getFullYear()}-${
+        String(nowSeoul.getMonth() + 1).padStart(2, "0")}`;
+
+      // 4. Fetch report for current period
+      const reportRow = await superAdminDb.execute(sql`
+        SELECT id, product_status, report_period, published_at, analysis_status
+        FROM growth_reports
+        WHERE student_id    = ${studentId}
+          AND report_period = ${period}
+          AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+
+      if (!reportRow.rows.length) {
+        res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+        return;
+      }
+
+      const report        = reportRow.rows[0] as any;
+      const productStatus = String(report.product_status ?? "");
+
+      // DATA_ACCUMULATING — ENGINE이 이 analysis_status를 반환하면 서버가
+      // product_status를 FAILED로 전환하고 analysis_status 컬럼에 보존한다.
+      // (현재 DB enum 미지원 → FAILED + analysis_status NULL로 저장될 수 있음)
+      // 향후 DB enum 확장 시 이 분기가 실제로 동작한다.
+      const analysisStatus = String(report.analysis_status ?? "");
+      if (analysisStatus === "DATA_ACCUMULATING") {
+        res.json({
+          status:        "DATA_ACCUMULATING" as DisplayStatus,
+          report_id:     report.id,
+          report_period: report.report_period,
+          published_at:  null,
+        });
+        return;
+      }
+
+      const displayStatus = mapProductStatusToDisplay(productStatus);
+
+      res.json({
+        status:        displayStatus,
+        report_id:     report.id,
+        report_period: report.report_period,
+        published_at:  displayStatus === "PUBLISHED" ? (report.published_at ?? null) : null,
+      });
+    } catch (e: any) {
+      console.error("[parent-growth-report] GET status error:", e);
+      // fail-safe: 앱이 crash하지 않도록 NOT_AVAILABLE 반환
+      res.json({ status: "NOT_AVAILABLE" as DisplayStatus });
+    }
+  },
+);
+
 export default router;

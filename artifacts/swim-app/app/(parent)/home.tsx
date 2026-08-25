@@ -1278,6 +1278,18 @@ export default function ParentHomeScreen() {
   const [aiModalType, setAiModalType] = useState<AIModalType | null>(null);
   const [progressData, setProgressData] = useState<CurriculumProgressData | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
+
+  // ── FREE GROWTH REPORT — 현재 월 리포트 상태 (Phase 1) ───────────────────
+  type GrDisplayStatus =
+    | "NOT_AVAILABLE"
+    | "DATA_ACCUMULATING"
+    | "GENERATING"
+    | "READY"
+    | "PUBLISHED"
+    | "FAILED";
+
+  const [grStatus, setGrStatus] = useState<GrDisplayStatus | null>(null);
+  const [grStatusLoading, setGrStatusLoading] = useState(false);
   const [v2Status, setV2Status] = useState<
     "no_pool" | "waiting" | "linked" | null
   >("no_pool");
@@ -1292,6 +1304,28 @@ export default function ParentHomeScreen() {
   const showFeed = students.length > 0 && !isBlocked && !!selectedStudent;
 
   // ── 일지 목록 로드 ────────────────────────────────────────────────────────
+  // ── FREE GROWTH REPORT: 현재 월 리포트 상태 fetch ─────────────────────────
+  async function loadReportStatus(sid: string) {
+    if (!sid || !token) return;
+    setGrStatusLoading(true);
+    try {
+      const res = await apiRequest(
+        token,
+        `/parent/students/${sid}/growth-report-status`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setGrStatus((data.status as GrDisplayStatus) ?? null);
+      } else {
+        setGrStatus(null);
+      }
+    } catch {
+      setGrStatus(null);
+    } finally {
+      setGrStatusLoading(false);
+    }
+  }
+
   // ── GAUGE-06: 교육과정 진행도 fetch ────────────────────────────────────────
   async function loadProgress(sid: string) {
     setProgressLoading(true);
@@ -1423,7 +1457,10 @@ export default function ParentHomeScreen() {
   async function onRefresh() {
     setRefreshing(true);
     await refresh();
-    if (selectedStudent?.id) await loadEntries(selectedStudent.id);
+    if (selectedStudent?.id) {
+      await loadEntries(selectedStudent.id);
+      loadReportStatus(selectedStudent.id).catch(() => {});
+    }
     setRefreshing(false);
   }
 
@@ -1447,9 +1484,11 @@ export default function ParentHomeScreen() {
     if (selectedStudent?.id) {
       loadEntries(selectedStudent.id);
       loadProgress(selectedStudent.id);
+      loadReportStatus(selectedStudent.id);
     } else {
       setEntries([]);
       setProgressData(null);
+      setGrStatus(null);
     }
   }, [selectedStudent?.id]);
 
@@ -1458,6 +1497,7 @@ export default function ParentHomeScreen() {
       if (selectedStudent?.id) {
         loadEntries(selectedStudent.id);
         loadProgress(selectedStudent.id);
+        loadReportStatus(selectedStudent.id);
       }
     }, [selectedStudent?.id]),
   );
@@ -1987,6 +2027,82 @@ export default function ParentHomeScreen() {
       {/* E-2. 광고 배너 슬롯 (PARENT_HOME_BANNER) */}
       {selectedStudent && !isBlocked && (
         <ParentAdBanner token={token} />
+      )}
+
+      {/* ── FREE GROWTH REPORT: 현재 월 리포트 상태 카드 ────────────────── */}
+      {/* X mode이고 selectedStudent 있고 PUBLISHED가 아닌 상태일 때만 표시  */}
+      {selectedStudent && !isBlocked && isX && (
+        grStatusLoading ? null : (
+          grStatus === "DATA_ACCUMULATING" ? (
+            <View style={{
+              marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+              backgroundColor: "#F0F9FF", borderRadius: 14,
+              padding: 14, flexDirection: "row", alignItems: "flex-start",
+              gap: 10, borderWidth: 1, borderColor: "#BAE6FD",
+            }}>
+              <LucideIcon name="bar-chart-2" size={16} color="#0369A1" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1", marginBottom: 3 }}>
+                  이번 달 성장리포트
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155", lineHeight: 20 }}>
+                  조금 더 수업 기록이 쌓이면{"\n"}이번 달 성장리포트를 만들어드릴게요.
+                </Text>
+              </View>
+            </View>
+          ) : grStatus === "GENERATING" ? (
+            <View style={{
+              marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+              backgroundColor: "#F0F9FF", borderRadius: 14,
+              padding: 14, flexDirection: "row", alignItems: "center",
+              gap: 10, borderWidth: 1, borderColor: "#BAE6FD",
+            }}>
+              <ActivityIndicator size="small" color="#0369A1" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1", marginBottom: 2 }}>
+                  이번 달 성장리포트
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
+                  성장리포트를 만들고 있어요.
+                </Text>
+              </View>
+            </View>
+          ) : grStatus === "READY" ? (
+            <View style={{
+              marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+              backgroundColor: "#F0FDF4", borderRadius: 14,
+              padding: 14, flexDirection: "row", alignItems: "center",
+              gap: 10, borderWidth: 1, borderColor: "#86EFAC",
+            }}>
+              <LucideIcon name="check-circle" size={16} color="#16A34A" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#16A34A", marginBottom: 2 }}>
+                  이번 달 성장리포트
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
+                  검토가 완료되었어요. 곧 공개됩니다.
+                </Text>
+              </View>
+            </View>
+          ) : grStatus === "FAILED" ? (
+            <View style={{
+              marginHorizontal: 16, marginTop: 10, marginBottom: 4,
+              backgroundColor: "#FEF2F2", borderRadius: 14,
+              padding: 14, flexDirection: "row", alignItems: "center",
+              gap: 10, borderWidth: 1, borderColor: "#FECACA",
+            }}>
+              <LucideIcon name="alert-circle" size={16} color="#DC2626" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#DC2626", marginBottom: 2 }}>
+                  이번 달 성장리포트
+                </Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
+                  이번 달 성장리포트 생성에 문제가 발생했습니다.
+                </Text>
+              </View>
+            </View>
+          ) : null
+        )
       )}
 
       {/* F-divider. 상단 UI ↔ 일지 영역 구분선 */}

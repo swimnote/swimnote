@@ -178,13 +178,15 @@ export type EngineAnalysisStatus =
   | "COMPLETE"
   | "COMPLETE_WITH_QUESTIONS_AVAILABLE"
   | "COMPLETE_WITH_PARENT_EVIDENCE"
-  | "PARTIAL";
+  | "PARTIAL"
+  | "DATA_ACCUMULATING"; // Insufficient data — parent UI shows friendly accumulating message
 
 const ENGINE_ANALYSIS_STATUSES = new Set<string>([
   "COMPLETE",
   "COMPLETE_WITH_QUESTIONS_AVAILABLE",
   "COMPLETE_WITH_PARENT_EVIDENCE",
   "PARTIAL",
+  "DATA_ACCUMULATING",
 ]);
 
 export interface EngineQuestion {
