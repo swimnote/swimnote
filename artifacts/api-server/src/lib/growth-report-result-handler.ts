@@ -436,9 +436,11 @@ export async function persistEngineResult(
   }
 
   // 2.5) DATA_ACCUMULATING — early-exit path
-  //   analysis_status 컬럼에 저장 후 product_status → FAILED 전환.
+  //   데이터 축적 중인 정상 상태. FAILED가 아님.
+  //   analysis_status = DATA_ACCUMULATING, product_status = PARTIAL 저장.
+  //   PARTIAL → ["ANALYZING", "REVIEW_REQUIRED"] 전환 가능이므로 재시도 안전.
   //   parent status endpoint가 analysis_status를 먼저 확인하므로
-  //   부모 앱에는 FAILED가 아닌 DATA_ACCUMULATING UX(친절한 안내 메시지)가 표시된다.
+  //   부모 앱에는 DATA_ACCUMULATING UX(친절한 안내 메시지)가 표시된다.
   if (response.analysis_status === "DATA_ACCUMULATING") {
     await db.execute(sql`
       UPDATE growth_reports
@@ -453,7 +455,7 @@ export async function persistEngineResult(
     await transitionReportStatus({
       db,
       reportId:  report.id,
-      toStatus:  "FAILED",
+      toStatus:  "PARTIAL",
       actorType: "system",
       actorId:   null,
       reason:    "ENGINE_DATA_ACCUMULATING",
@@ -466,7 +468,7 @@ export async function persistEngineResult(
       requestId,
       "DATA_ACCUMULATING",
     );
-    return { productStatus: "FAILED", questionsCount: 0 };
+    return { productStatus: "PARTIAL", questionsCount: 0 };
   }
 
   // 3) Status mapping

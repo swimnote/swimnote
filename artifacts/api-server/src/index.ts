@@ -89,9 +89,8 @@ import("./migrations/pool-db-cs-26.js")
   .then(m => m.runCs26Migration())
   .catch((e) => console.error("[cs26] migration 오류:", e.message));
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
-import("./migrations/growth-report-gr1b-data-accumulating.js")
-  .then(m => m.runGr1bMigration())
-  .catch((e) => console.error("[gr1b] migration 오류:", e.message));
+// gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
+// 스타트업 자동 실행 금지 — Render 재시작만으로 DB schema가 변경되어서는 안 됨.
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);
