@@ -74,6 +74,14 @@ const router: IRouter = Router();
 // 읽기전용 풀 쓰기 차단 (결제 실패 / 삭제 예약 상태)
 router.use(requireWritable as any);
 
+// ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
+router.use("/", superSyncRouter);
+router.use("/", superRouter);
+router.use("/", superAiCostRouter);
+router.use("/", superSupportRouter);
+router.use("/super/db-status", dbStatusRouter);
+router.use("/super/infra-usage", infraUsageRouter);
+
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/pools", poolsRouter);
@@ -110,16 +118,10 @@ router.use("/", settlementRouter);
 router.use("/", storageRouter);
 router.use("/", killSwitchRouter);
 router.use("/", unregisteredRouter);
-router.use("/", superSyncRouter);
-router.use("/", superRouter);
-router.use("/", superAiCostRouter);
 router.use("/", supportTicketsRouter);
 router.use("/", supportCasesRouter);
-router.use("/", superSupportRouter);
 router.use("/", pushSettingsRouter);
 router.use("/class-change-logs", classChangeLogsRouter);
-router.use("/super/db-status", dbStatusRouter);
-router.use("/super/infra-usage", infraUsageRouter);
 router.use("/", backupStatusRouter);
 router.use("/", restoreRouter);
 router.use("/", privacyPageRouter);
