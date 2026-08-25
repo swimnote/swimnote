@@ -1,0 +1,207 @@
+[AI ENGINE] PARENT NARRATIVE V2 — PRODUCTION DEPLOY + 1 REAL SMOKE
+
+현재 상황:
+
+APP/API Replit workspace에서는
+swimnote-professional-engine 외부 GitLab repo에 접근할 수 없어
+Production deploy를 수행할 수 없었음.
+
+따라서 이 작업은
+실제 SWIMNOTE AI ENGINE repo에서 수행한다.
+
+대상 repo/service:
+
+GitLab:
+swimnote-group/swimnote-project
+또는 현재 실제 swimnote-professional-engine production source repo
+
+Render service:
+swimnote-professional-engine
+
+Production endpoint:
+https://swimnote-professional-engine.onrender.com
+
+현재 LOCKED Parent Narrative 관련 commits:
+
+- cb4595f
+- 778087c
+- f9c80e5
+
+목적:
+
+위 Parent Narrative V2 + Parent Guidance Contract를
+AI Engine Production에 반영하고
+실제 모델 출력 1건만 확인한 뒤 종료한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 AI ENGINE repo에서 확인:
+
+- current branch = main
+- current HEAD SHA
+- cb4595f 포함 여부
+- 778087c 포함 여부
+- f9c80e5 포함 여부
+
+추가로 확인:
+
+- Growth Report EvidencePolicy unchanged
+- Signal Detector unchanged
+- Sparse Mode unchanged
+- FREE_REPORT_MODE unchanged
+- model/threshold 변경 없음
+
+만약 위 commit들이 이미 main history에 포함되어 있으면
+재적용/재구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필요한 commit이 remote main에 없으면
+정상 main에 push.
+
+기존 방식:
+
+GitLab main push
+→ Render auto-deploy
+
+만 사용.
+
+금지:
+
+- Render API deploy trigger
+- RENDER_API_KEY 요청/사용
+- 수동 deploy API
+- DB migration
+- Production DB write
+
+보고:
+
+- previous HEAD
+- target HEAD
+- pushed YES/NO
+- auto-deploy triggered YES/NO
+- deployed SHA
+
+auto-deploy 확인이 불가능하면
+MANUAL RENDER DASHBOARD CHECK REQUIRED
+라고 보고하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. HEALTH CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 확인:
+
+- service healthy
+- startup crash 없음
+- Growth Report analyze route 정상
+- DB connection 정상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. REAL MODEL SMOKE — MAX 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 안전 fixture 하나 사용.
+
+조건:
+parent_support 생성 가능한 verified evidence가 있는 fixture.
+
+실제 Growth Report Analyze 호출 최대 1회.
+
+확인:
+
+A.
+부모용 출력에 아래 내부 표현 없음:
+
+- 긍정 신호
+- 분석 결과
+- 지표
+- confidence
+- sparse
+- positive signal
+- evidence
+
+B.
+parent_support가 실제 이번 달 내용과 연결
+
+C.
+parent_support 구조:
+
+이번 달 실제 모습
+→ 그 과정의 좋은 의미
+→ 부모가 해줄 행동
+→ 자연스러운 말 예시
+
+D.
+teacher_guidance와 parent_support 분리
+
+E.
+과장된 미래 단정 없음
+
+F.
+새로운 심리/성격 추론 없음
+
+실제 parent_support 전문 보고.
+
+teacher_guidance도 전문 또는 정확한 값 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. COST CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실 모델 호출 1회 초과 금지.
+
+A/B 모델 비교 금지.
+scorer tuning 금지.
+threshold 조정 금지.
+fixture 반복 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[AI] PARENT NARRATIVE V2 PRODUCTION REPORT
+
+SOURCE
+- repo
+- branch
+- previous HEAD
+- deployed HEAD
+- cb4595f included
+- 778087c included
+- f9c80e5 included
+
+DEPLOY
+- push performed YES/NO
+- auto-deploy
+- deployed SHA
+- health
+
+REAL SMOKE
+- calls: 1
+- parent_support exact output
+- teacher_guidance exact output
+- prohibited internal language found: YES/NO
+- field separation: PASS/FAIL
+- exaggeration: PASS/FAIL
+- unsupported trait inference: PASS/FAIL
+
+- Production DB write: NO
+- migration: NO
+- model change: NO
+- threshold change: NO
+- RENDER_API_KEY used: NO
+
+Final Verdict:
+
+PARENT NARRATIVE V2 PRODUCTION LIVE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
