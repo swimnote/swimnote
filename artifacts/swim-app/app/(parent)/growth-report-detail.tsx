@@ -448,7 +448,7 @@ export default function GrowthReportDetailScreen() {
           disabled={isPdfGenerating || isShareGenerating}
           style={[s.actionBtn, s.pdfBtn, (isPdfGenerating || isShareGenerating) && s.actionBtnDisabled]}
           accessibilityRole="button"
-          accessibilityLabel="리포트 발급"
+          accessibilityLabel="PDF 저장"
           accessibilityState={{ disabled: isPdfGenerating || isShareGenerating }}
         >
           {isPdfGenerating
@@ -456,7 +456,7 @@ export default function GrowthReportDetailScreen() {
             : <LucideIcon name="download" size={16} color={NAVY} />
           }
           <Text style={[s.actionBtnText, s.pdfBtnText]}>
-            {isPdfGenerating ? "저장 중..." : "리포트 발급"}
+            {isPdfGenerating ? "저장 중..." : "PDF 저장"}
           </Text>
         </Pressable>
 

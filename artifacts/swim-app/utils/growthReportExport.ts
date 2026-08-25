@@ -168,39 +168,32 @@ const SWIMNOTE_LOGO_SVG_DATA_URI =
     `</svg>`,
   );
 
-/** Build one section block (editorial style: label + thin rule + body text) */
+/** Build one section block (editorial style: heading + thin rule + body text) */
 function buildSectionBlock(key: string, text: string, isParentSupport = false): string {
   const label = escapeHtml(SECTION_LABELS_PDF[key] ?? key);
   const body  = escapeHtml(text);
-  if (isParentSupport) {
-    return `
-    <div class="section parent-support-section">
-      <div class="section-label">${label}</div>
-      <div class="section-rule"></div>
-      <p class="section-body">${body}</p>
-    </div>`;
-  }
+  const wrapClass = isParentSupport ? "section parent-support-section" : "section";
   return `
-    <div class="section">
-      <div class="section-label">${label}</div>
+    <div class="${wrapClass}">
+      <div class="section-heading">${label}</div>
       <div class="section-rule"></div>
       <p class="section-body">${body}</p>
     </div>`;
 }
 
-/** Shared page header HTML */
+/** Shared page header HTML (logo + title + metadata line) */
 function buildPageHeader(
   nameLabel: string,
   poolLabel: string,
-  periodRangeLabel: string,
+  periodLabel: string,
 ): string {
   return `
   <div class="page-header">
     <div class="header-left">
       <img class="logo-img" src="${SWIMNOTE_LOGO_SVG_DATA_URI}" alt="SwimNote" />
-      <div class="header-title">수영 성장 리포트</div>
+      <div class="header-title">성장 리포트</div>
     </div>
-    <div class="header-meta">${nameLabel} · ${poolLabel} · ${periodRangeLabel}</div>
+    <div class="header-meta">${nameLabel} · ${poolLabel} · ${periodLabel}</div>
   </div>`;
 }
 
@@ -210,11 +203,8 @@ function buildPageFooter(pageNum: number, totalPages: number): string {
   const tot = String(totalPages).padStart(2, "0");
   return `
   <div class="page-footer">
-    <div class="footer-brand-wrap">
-      <span class="footer-brand">SWIMNOTE</span>
-      <span class="footer-tagline">수영 피드백의 시대.</span>
-    </div>
-    <div class="footer-page">${num} / ${tot}</div>
+    <span class="footer-brand">SWIMNOTE</span>
+    <span class="footer-page">${num} / ${tot}</span>
   </div>`;
 }
 
@@ -261,25 +251,25 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${nameLabel} 성장리포트 ${periodLabel}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
-
+  /* 시스템 한국어 폰트 — 네트워크 의존 없음 (spec §3) */
   @page { size: A4 portrait; margin: 0; }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    background: #F8F7F4;
+    font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic',
+                 'Helvetica Neue', Arial, sans-serif;
+    background: #F8F7F3;
     color: #1A2E44;
-    font-size: 15px;
-    line-height: 1.85;
+    font-size: 14px;
+    line-height: 1.65;
   }
 
   /* ── PAGE ── */
   .page {
     background: #FFFFFF;
     min-height: 297mm;
-    padding: 44px 52px 40px;
+    padding: 40px 50px 36px;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -293,141 +283,116 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   .page-header {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding-bottom: 20px;
+    gap: 8px;
+    padding-bottom: 16px;
     border-bottom: 1.5px solid #3ECFBA;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
   }
   .header-left {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
   .logo-img {
-    height: 32px;
+    height: 28px;
     width: auto;
   }
   .header-title {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
     color: #0D2E5A;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.5px;
   }
   .header-meta {
-    font-size: 12.5px;
-    color: #6B8099;
+    font-size: 11px;
+    color: #7A90A8;
     letter-spacing: 0.1px;
   }
 
-  /* ── PAGE SUBTITLE ── */
-  .page-subtitle {
-    font-size: 11px;
-    font-weight: 600;
-    color: #3ECFBA;
-    text-transform: uppercase;
-    letter-spacing: 1.8px;
-    margin-bottom: 24px;
+  /* ── SECTION HEADING ── */
+  .section-heading {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0D2E5A;
+    margin-bottom: 4px;
   }
 
   /* ── SUMMARY (PAGE 1) ── */
   .summary-block {
-    background: #F0F8FF;
+    background: #F2FAFD;
     border-left: 3px solid #3ECFBA;
-    padding: 18px 22px;
-    margin-bottom: 32px;
-  }
-  .summary-label {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: #3ECFBA;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 10px;
+    padding: 16px 20px;
+    margin-bottom: 26px;
+    page-break-inside: avoid;
   }
   .summary-body {
-    font-size: 15px;
+    font-size: 14px;
     color: #1A2E44;
-    line-height: 1.9;
+    line-height: 1.7;
     white-space: pre-wrap;
   }
 
   /* ── SECTION ── */
   .section {
-    margin-bottom: 28px;
+    margin-bottom: 22px;
     page-break-inside: avoid;
-  }
-  .section-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: #3ECFBA;
-    text-transform: uppercase;
-    letter-spacing: 1.4px;
-    margin-bottom: 6px;
   }
   .section-rule {
     height: 1px;
-    background: #D9EDF8;
-    margin-bottom: 12px;
+    background: #DCE9F3;
+    margin: 6px 0 10px;
   }
   .section-body {
-    font-size: 15px;
+    font-size: 14px;
     color: #1A2E44;
-    line-height: 1.9;
+    line-height: 1.65;
     white-space: pre-wrap;
   }
 
   /* ── PARENT SUPPORT (highlighted) ── */
   .parent-support-section {
-    background: #F0FAF8;
+    background: #EEF9F6;
     border-left: 3px solid #3ECFBA;
-    padding: 20px 22px;
-    margin-bottom: 28px;
+    padding: 18px 20px 20px;
+    margin-bottom: 22px;
+    page-break-inside: avoid;
   }
   .parent-support-section .section-rule {
-    background: #C0E8E0;
-    margin-bottom: 14px;
+    background: #B8E4D8;
+    margin: 6px 0 12px;
   }
   .parent-support-section .section-body {
-    font-size: 15px;
-    line-height: 1.95;
-    color: #153A2E;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #0F3328;
   }
 
   /* ── PAGE FOOTER ── */
   .page-footer {
     margin-top: auto;
-    padding-top: 18px;
-    border-top: 1px solid #E8EDF2;
+    padding-top: 16px;
+    border-top: 1px solid #E4EBF2;
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-  }
-  .footer-brand-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
   }
   .footer-brand {
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 700;
     color: #0D2E5A;
     letter-spacing: 1.5px;
     text-transform: uppercase;
   }
-  .footer-tagline {
-    font-size: 9.5px;
-    color: #A0B4C8;
-  }
   .footer-page {
-    font-size: 11px;
-    color: #A0B4C8;
+    font-size: 10px;
+    color: #A8BACF;
     letter-spacing: 0.5px;
   }
 
   @media print {
     body { background: #FFFFFF; }
     .page { min-height: 0; }
-    .section { page-break-inside: avoid; }
+    .section, .parent-support-section, .summary-block { page-break-inside: avoid; }
   }
 </style>
 </head>
@@ -437,15 +402,14 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   <div class="page">
     ${headerHtml}
 
-    <div class="page-subtitle">이번 달 이야기</div>
-
     ${reportContent.summary_text?.trim() ? `
     <div class="summary-block">
-      <div class="summary-label">이번 달 이야기</div>
+      <div class="section-heading">이번 달 이야기</div>
+      <div class="section-rule" style="background:#DCE9F3;margin:6px 0 10px"></div>
       <p class="summary-body">${escapeHtml(reportContent.summary_text)}</p>
     </div>` : ""}
 
-    ${page1SectionsHtml || ""}
+    ${page1SectionsHtml}
 
     ${buildPageFooter(1, 2)}
   </div>
@@ -454,9 +418,7 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   <div class="page">
     ${headerHtml}
 
-    <div class="page-subtitle">앞으로 어떻게 이어갈지</div>
-
-    ${page2SectionsHtml || ""}
+    ${page2SectionsHtml}
 
     ${buildPageFooter(2, 2)}
   </div>
