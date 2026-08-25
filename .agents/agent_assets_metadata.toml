@@ -171,3 +171,17 @@ uri = "file://artifacts/audit/pdf-v2-preview.html"
 type = "text"
 title = "PDF Template V2 — HTML Preview (CASE A fixture)"
 description = "2-page A4 layout preview: Page 1 이번 달 이야기 / Page 2 앞으로 어떻게 이어갈지. SWIMNOTE logo + system fonts (no network) + parent_support highlighted panel."
+
+[[outputs]]
+id = "ZDo4X0MiQfZ9joncW0gwz"
+uri = "file://artifacts/audit/pdf-v2-typography-caseA.html"
+type = "text"
+title = "PDF V2 Typography — CASE A Preview (12pt body)"
+description = "CASE A full 8-section, 2-page A4. body 12pt · heading 15pt · title 26pt · metadata 10pt. No Google Fonts."
+
+[[outputs]]
+id = "qiD4vbNRrEybzb65gcGWU"
+uri = "file://artifacts/audit/pdf-v2-typography-caseC.html"
+type = "text"
+title = "PDF V2 Typography — CASE C Preview (Long parent_support)"
+description = "CASE C long parent_support panel. page-break-inside:avoid 확인용."
