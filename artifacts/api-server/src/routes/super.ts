@@ -4873,8 +4873,9 @@ router.post(
         report_id:      result.report_id,
         product_status: result.product_status,
         triggered_at:   new Date().toISOString(),
-        ...(result.error_code  ? { error_code:  result.error_code }  : {}),
-        ...(result.http_status ? { http_status: result.http_status } : {}),
+        ...(result.error_code     ? { error_code:     result.error_code }     : {}),
+        ...(result.http_status    ? { http_status:    result.http_status }    : {}),
+        ...(result.engine_details ? { engine_details: result.engine_details } : {}),
       });
     } catch (err: any) {
       if (err.code === "REPORT_NOT_FOUND") {
@@ -4958,6 +4959,52 @@ router.post(
     } catch (err: any) {
       console.error("[super] growth-reports/reopen 오류:", err.message);
       res.status(500).json({ error: "REOPEN_FAILED", message: err.message });
+    }
+  },
+);
+
+// ── GET /super/growth-reports/:reportId/snapshot-preview — 스냅샷 payload 확인 (엔진 호출 없음) ──
+router.get(
+  "/super/growth-reports/:reportId/snapshot-preview",
+  requireAuth,
+  requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { reportId } = req.params as { reportId: string };
+    try {
+      const { fetchSingleReport } = await import("../jobs/growth-report-analysis-worker.js");
+      const { buildAnalysisSnapshot } = await import("../lib/growth-report-snapshot-builder.js");
+
+      const pending = await fetchSingleReport(superAdminDb, reportId);
+      if (!pending) {
+        return res.status(404).json({ error: "REPORT_NOT_FOUND", report_id: reportId });
+      }
+
+      const { request, payloadHash } = await buildAnalysisSnapshot(superAdminDb, {
+        report:    pending.report,
+        cycle:     pending.cycle,
+        requestId: "preview-only",
+      });
+
+      return res.json({
+        ok:            true,
+        report_id:     reportId,
+        payload_hash:  payloadHash,
+        contract_version: request.contract_version,
+        snapshot_version: request.snapshot.snapshot_version,
+        context:       request.context,
+        snapshot_summary: {
+          diaries_count:       request.snapshot.diaries.length,
+          growth_events_count: request.snapshot.growth_events.length,
+          attendance_count:    request.snapshot.attendance.length,
+          parent_answers_count: request.snapshot.parent_answers.length,
+          has_curriculum_state: request.snapshot.curriculum_state !== null,
+          longitudinal_previous_reports: request.snapshot.longitudinal.previous_report_structured_results.length,
+        },
+        full_request:  request,
+      });
+    } catch (err: any) {
+      console.error("[super] growth-reports/snapshot-preview 오류:", err.message);
+      res.status(500).json({ error: "SNAPSHOT_BUILD_FAILED", message: err.message });
     }
   },
 );

@@ -178,7 +178,9 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
 
 // ─── Single report analysis ───────────────────────────────────────────────────
 
-type OneReportResult = { ok: true } | { ok: false; errorCode: string; httpStatus: number };
+type OneReportResult =
+  | { ok: true }
+  | { ok: false; errorCode: string; httpStatus: number; engineDetails?: unknown };
 
 async function analyzeOneReport(
   db: any,
@@ -304,11 +306,12 @@ async function analyzeOneReport(
       } catch (transErr: any) {
         console.error(`[gr3-worker] FAILED transition error report=${report.id}:`, transErr.message);
       }
-      const httpStatus = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode : 0;
+      const httpStatus     = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode   : 0;
+      const engineDetails  = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).engineDetails : undefined;
       console.error(
         `[gr3-worker] non-retryable ENGINE error report=${report.id} code=${errorCode} http=${httpStatus} msg=${(engineErr as Error).message}`,
       );
-      return { ok: false, errorCode, httpStatus };
+      return { ok: false, errorCode, httpStatus, engineDetails };
     }
     return { ok: false, errorCode, httpStatus: 0 };
   }
@@ -502,11 +505,12 @@ export async function analyzeSingleReport(
   db: any,
   reportId: string,
 ): Promise<{
-  report_id:      string;
-  product_status: string;
-  already_done:   boolean;
-  error_code?:    string;
-  http_status?:   number;
+  report_id:       string;
+  product_status:  string;
+  already_done:    boolean;
+  error_code?:     string;
+  http_status?:    number;
+  engine_details?: unknown;
 }> {
   const pending = await fetchSingleReport(db, reportId);
 
@@ -535,7 +539,11 @@ export async function analyzeSingleReport(
     report_id:      reportId,
     product_status: finalStatus,
     already_done:   false,
-    ...(oneResult && !oneResult.ok ? { error_code: oneResult.errorCode, http_status: oneResult.httpStatus } : {}),
+    ...(oneResult && !oneResult.ok ? {
+      error_code:     oneResult.errorCode,
+      http_status:    oneResult.httpStatus,
+      engine_details: oneResult.engineDetails,
+    } : {}),
   };
 }
 

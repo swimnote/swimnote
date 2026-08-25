@@ -290,6 +290,7 @@ export class EngineCallError extends Error {
     public readonly statusCode: number,
     public readonly retryable: boolean,
     message: string,
+    public readonly engineDetails?: unknown,
   ) {
     super(message);
     this.name = "EngineCallError";
@@ -387,8 +388,16 @@ export async function analyzeGrowthReport(
     if (!res.ok) {
       let errorCode = "ENGINE_HTTP_ERROR";
       let retryable = res.status >= 500 || res.status === 429;
+      let engineDetails: unknown;
       try {
-        const body = (await res.json()) as { error_code?: string };
+        const body = (await res.json()) as {
+          error_code?: string;
+          details?: unknown;
+          validation_errors?: unknown;
+          message?: string;
+          error?: unknown;
+        };
+        engineDetails = body;
         if (typeof body?.error_code === "string") {
           errorCode = body.error_code;
           retryable  = RETRYABLE_ENGINE_ERROR_CODES.has(errorCode);
@@ -401,6 +410,7 @@ export async function analyzeGrowthReport(
         res.status,
         retryable,
         `ENGINE ${res.status}: ${errorCode}`,
+        engineDetails,
       );
     }
 
