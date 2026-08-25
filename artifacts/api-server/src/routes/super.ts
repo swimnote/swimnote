@@ -4869,10 +4869,12 @@ router.post(
       }
 
       res.json({
-        ok:             true,
+        ok:             result.product_status !== "FAILED",
         report_id:      result.report_id,
         product_status: result.product_status,
         triggered_at:   new Date().toISOString(),
+        ...(result.error_code  ? { error_code:  result.error_code }  : {}),
+        ...(result.http_status ? { http_status: result.http_status } : {}),
       });
     } catch (err: any) {
       if (err.code === "REPORT_NOT_FOUND") {

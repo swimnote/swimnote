@@ -178,10 +178,12 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
 
 // ─── Single report analysis ───────────────────────────────────────────────────
 
+type OneReportResult = { ok: true } | { ok: false; errorCode: string; httpStatus: number };
+
 async function analyzeOneReport(
   db: any,
   { report, cycle, stage }: PendingReport,
-): Promise<void> {
+): Promise<OneReportResult> {
   const maxRetry = getMaxRetryCount();
 
   // Guard: too many retries → skip this report
@@ -189,7 +191,7 @@ async function analyzeOneReport(
     console.warn(
       `[gr3-worker] report=${report.id} exceeded max retries (${maxRetry}), skipping`,
     );
-    return;
+    return { ok: false, errorCode: "MAX_RETRY_EXCEEDED", httpStatus: 0 };
   }
 
   // 1) Transition to IN_PROGRESS status (FOR UPDATE prevents concurrent)
@@ -207,7 +209,7 @@ async function analyzeOneReport(
     if (err instanceof InvalidTransitionError) {
       // Another worker instance already transitioned this report
       console.log(`[gr3-worker] report=${report.id} already transitioned (concurrent), skip`);
-      return;
+      return { ok: false, errorCode: "CONCURRENT_TRANSITION", httpStatus: 0 };
     }
     throw err;
   }
@@ -302,11 +304,13 @@ async function analyzeOneReport(
       } catch (transErr: any) {
         console.error(`[gr3-worker] FAILED transition error report=${report.id}:`, transErr.message);
       }
+      const httpStatus = (engineErr instanceof EngineCallError) ? (engineErr as EngineCallError).statusCode : 0;
       console.error(
-        `[gr3-worker] non-retryable ENGINE error report=${report.id} code=${errorCode}`,
+        `[gr3-worker] non-retryable ENGINE error report=${report.id} code=${errorCode} http=${httpStatus} msg=${(engineErr as Error).message}`,
       );
+      return { ok: false, errorCode, httpStatus };
     }
-    return;
+    return { ok: false, errorCode, httpStatus: 0 };
   }
 
   // CS-PA1 / AI01-05: engine 성공 trace (persist 전)
@@ -352,7 +356,7 @@ async function analyzeOneReport(
     if (persistErr instanceof StaleEngineResponseError) {
       await auditStaleRejected(db, report.id, report.swimming_pool_id, requestId);
       console.warn(`[gr3-worker] stale response rejected report=${report.id}`);
-      return;
+      return { ok: false, errorCode: "STALE_RESPONSE", httpStatus: 0 };
     }
     if (
       persistErr instanceof GroundingFailError ||
@@ -369,10 +373,11 @@ async function analyzeOneReport(
         reason:    code,
       }).catch(() => {});
       console.warn(`[gr3-worker] ${code} report=${report.id} → FAILED`);
-      return;
+      return { ok: false, errorCode: code, httpStatus: 0 };
     }
     throw persistErr;
   }
+  return { ok: true };
 }
 
 // ─── Worker run ───────────────────────────────────────────────────────────────
@@ -500,6 +505,8 @@ export async function analyzeSingleReport(
   report_id:      string;
   product_status: string;
   already_done:   boolean;
+  error_code?:    string;
+  http_status?:   number;
 }> {
   const pending = await fetchSingleReport(db, reportId);
 
@@ -516,7 +523,7 @@ export async function analyzeSingleReport(
     };
   }
 
-  await analyzeOneReport(db, pending);
+  const oneResult = await analyzeOneReport(db, pending);
 
   // Fetch final status
   const afterRows = await db.execute(sql`
@@ -524,7 +531,12 @@ export async function analyzeSingleReport(
   `);
   const finalStatus = (afterRows.rows[0] as any)?.product_status ?? product_status;
 
-  return { report_id: reportId, product_status: finalStatus, already_done: false };
+  return {
+    report_id:      reportId,
+    product_status: finalStatus,
+    already_done:   false,
+    ...(oneResult && !oneResult.ok ? { error_code: oneResult.errorCode, http_status: oneResult.httpStatus } : {}),
+  };
 }
 
 // ─── Worker registration ──────────────────────────────────────────────────────
