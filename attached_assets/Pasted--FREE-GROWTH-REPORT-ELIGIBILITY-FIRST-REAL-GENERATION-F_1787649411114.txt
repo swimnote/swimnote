@@ -1,0 +1,291 @@
+[앱] FREE GROWTH REPORT — ELIGIBILITY + FIRST REAL GENERATION FINAL FIX
+
+현재 Production 진단:
+
+- 2026-08 growth_report_cycles = 0
+- 2026-08 growth_reports = 0
+- 실제 generation test = NO
+
+현재 토이키즈스윔클럽:
+- x_paid_entitlement = true
+- xmode_config_status = CURRICULUM_PENDING
+- 따라서 scheduler eligibility gate 미통과
+
+추가 문제:
+Status API는 effective entitlement OR legacy entitlement를 허용하지만,
+Scheduler는 (paid OR manual) + READY만 허용.
+→ 부모 UI와 실제 생성 eligibility가 다시 불일치할 수 있음.
+
+이번 Step 목표:
+
+1. 토이키즈스윔클럽이 왜 CURRICULUM_PENDING인지 정확히 확인
+2. 필요한 X 초기설정을 정상 경로로 완료
+3. Status API와 Scheduler eligibility를 동일한 source-of-truth로 통일
+4. 2026-08 cycle을 정상 generator 경로로 실제 생성
+5. 실제 학생 1명에 대해 Growth Report lifecycle을 최소 1건 검증
+
+UI/UX 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 토이키즈스윔클럽 X CONFIG READ-ONLY 진단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽에 대해 확인:
+
+- swimming_pool_id
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- xmode_config_status
+- curriculum configuration
+- curriculum mapping
+- required onboarding fields
+- 어떤 조건 때문에 CURRICULUM_PENDING인지
+
+반드시 정확한 blocker를 보고.
+
+추측 금지.
+DB 직접 write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. CURRICULUM_PENDING → READY 정상 전환 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 앱/API에 X setup/config completion 경로가 있으면
+그 정상 경로만 사용.
+
+확인:
+
+- 어떤 API/function이 xmode_config_status를 READY로 만드는가
+- READY 전환 필수 조건
+- curriculum 연결에 필요한 실제 값
+- 토이키즈스윔클럽에서 무엇이 미설정인지
+
+중요:
+
+READY 값을 SQL로 강제 update 금지.
+
+필요한 curriculum/config를
+실제 제품 설정 경로로 완료해야 함.
+
+만약 현재 정상 설정 경로가 없다면
+그 사실을 BLOCKER로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. ELIGIBILITY SOURCE-OF-TRUTH 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+Status API:
+effective entitlement OR legacy entitlement
+
+Scheduler:
+effective entitlement + READY
+
+이 불일치를 제거.
+
+Growth Report eligibility는
+하나의 shared helper/function을 authority로 사용.
+
+예:
+
+isGrowthReportEligiblePool(pool)
+
+필수 기준은 기존 제품 계약에 맞게:
+
+- paid OR manual entitlement
+- NOT force_disabled
+- xmode_config_status = READY
+
+legacy xmode_entitlement가 정말 호환성상 필요하면
+그것이 scheduler에도 동일하게 적용돼야 함.
+
+하지만 단순 legacy 값 때문에
+READY가 아닌 pool에 Growth Report UI만 노출되는 것은 금지.
+
+Status API / Scheduler / Generator 모두
+같은 eligibility result 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 왜 25일 cycle이 0건인지 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽 READY 문제와 별개로:
+
+현재 READY인
+샘플수영장 / 스윔노트도 있는데
+2026-08 cycle rows가 왜 0인지 확인.
+
+scheduler가 실제 실행됐는데도
+eligible pool cycle이 0이면
+추가 bug가 있는 것.
+
+확인:
+
+- runGrowthReportScheduler 실제 실행 로그
+- current KST date 판단
+- eligible pools query result
+- openCycleForPool 호출 여부
+- duplicate check
+- transaction error
+- swallowed exception
+
+중요:
+"아마 missed cron"으로 끝내지 말 것.
+
+READY pool이 실제 존재하므로
+cycle 0의 정확한 원인을 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 정상 pipeline으로 8월 cycle 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+root cause 수정 후
+기존 scheduler/generator function을 사용하여
+현재 2026-08 cycle을 정상 생성.
+
+허용:
+
+runGrowthReportScheduler()
+또는 기존 production-safe trigger
+
+금지:
+
+- manual SQL INSERT
+- 직접 growth_report_cycles INSERT
+- report status 강제 patch
+
+정상 함수만 사용.
+
+실행은 1회.
+
+duplicate prevention 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 토이키즈스윔클럽 실제 report generation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽이 READY가 된 뒤:
+
+현재 선택 학생 1명에 대해
+이번 달 eligibility를 확인.
+
+충분한 report evidence가 있다면
+정상 generation pipeline으로 1건 생성.
+
+확인 lifecycle:
+
+cycle
+→ report record
+→ snapshot/input
+→ analysis worker
+→ AI Engine
+→ analysis result
+→ status API
+
+AI Growth Report 호출 최대 1건.
+
+데이터가 부족하면
+DATA_ACCUMULATING이 정상 결과일 수 있음.
+
+근거가 충분한데 report가 생성되지 않는 것은 실패.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 부모 화면 최종 계약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+같은 shared eligibility를 사용하여:
+
+eligible + report 없음
+→ NOT_AVAILABLE / DATA_ACCUMULATING
+
+eligible + generating
+→ GENERATING
+
+eligible + published
+→ detail
+
+not eligible
+→ Growth Report 기능을 생성 가능한 것처럼 보여주지 않음.
+
+UI와 generator가 다른 판단을 해서는 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 Status API eligibility == Scheduler eligibility
+TC2 READY required consistently
+TC3 force_disabled respected
+TC4 paid/manual entitlement respected
+TC5 legacy entitlement cannot create UI/generator mismatch
+TC6 READY pool selected by scheduler
+TC7 25th KST condition correct
+TC8 cycle creation works
+TC9 duplicate prevention works
+TC10 report record creation works
+TC11 status API finds generated report
+TC12 no manual SQL write
+TC13 AI call max 1
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT ELIGIBILITY + REAL GENERATION REPORT
+
+TOYKIDS
+- pool_id
+- entitlement
+- previous config_status
+- exact CURRICULUM_PENDING reason
+- required config completed
+- final config_status
+
+ELIGIBILITY
+- previous Status API rule
+- previous Scheduler rule
+- final shared rule
+- shared function/file
+
+SCHEDULER
+- exact reason 2026-08 cycles were 0
+- scheduler execution confirmed
+- READY pools selected
+- 2026-08 cycle created YES/NO
+- cycle_id
+
+REAL REPORT
+- student_id
+- evidence/session count
+- report created YES/NO
+- report_id
+- analysis worker executed
+- AI calls
+- analysis_status
+- product_status
+- status API response
+
+SOURCE
+- changed files
+- commit SHA
+- tests/pass
+
+DEPLOY
+- API SHA
+- OTA only if actually needed
+
+Production manual SQL INSERT: NO
+migration: NO unless required
+RENDER_API_KEY: NO
+
+Final Verdict:
+
+GROWTH REPORT REAL GENERATION VERIFIED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.
