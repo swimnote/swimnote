@@ -1416,6 +1416,7 @@ export default function ParentHomeScreen() {
             item={item as GrowthReportFeedItem}
             studentName={selectedStudent?.name ?? ""}
             poolName={feedPoolName}
+            progressData={progressData}
           />
         );
       }
@@ -1427,7 +1428,7 @@ export default function ParentHomeScreen() {
         />
       );
     },
-    [selectedStudent?.id, selectedStudent?.name, feedPoolName],
+    [selectedStudent?.id, selectedStudent?.name, feedPoolName, progressData],
   );
 
   const keyExtractor = useCallback((item: FeedItem) => item.id, []);
