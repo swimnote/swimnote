@@ -80,12 +80,12 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
       }}
     >
       {/* 라벨 행 */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <Text
           style={{
-            fontSize: 12,
-            fontFamily: "Pretendard-Medium",
-            color: C.textSecondary,
+            fontSize: 13,
+            fontFamily: "Pretendard-SemiBold",
+            color: "#334155",
             letterSpacing: -0.1,
           }}
         >
@@ -94,8 +94,8 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
         {!isEmpty && (
           <Text
             style={{
-              fontSize: 12,
-              fontFamily: "Pretendard-SemiBold",
+              fontSize: 13,
+              fontFamily: "Pretendard-Bold",
               color: "#1B3A70",
             }}
           >
@@ -107,17 +107,17 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
       {/* 진행 바 — 항상 track 표시, fill은 유효 데이터 있을 때만 */}
       <View
         style={{
-          height: 6,
-          borderRadius: 3,
-          backgroundColor: C.border,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: "#CBD5E1",
           overflow: "hidden",
         }}
       >
         {!isEmpty && (
           <View
             style={{
-              height: 6,
-              borderRadius: 3,
+              height: 8,
+              borderRadius: 4,
               width: barWidth,
               backgroundColor: "#2EC4B6",
             }}
@@ -127,10 +127,10 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
       {/* 보조 문구 */}
       <Text
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontFamily: "Pretendard-Regular",
-          color: C.textMuted,
-          marginTop: 4,
+          color: "#64748B",
+          marginTop: 5,
         }}
       >
         {isEmpty

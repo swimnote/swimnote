@@ -38,13 +38,13 @@ const X_MINT_LIGHT  = "#E6FAF8";   // 핵심 영역 배경 / badge 배경 / high
 const WHITE         = "#FFFFFF";   // 일반 분석 section 배경
 
 // Neutral gray 계열 (보조용)
-const BODY          = "#1A2E44";   // body text — dark neutral, 기존 유지
-const META          = "#526C78";   // metadata gray
-const META_DARK     = "#3D5566";   // action row label — too faint 방지
-const MUTED         = "#7A90A8";   // inactive / hint
-const DIVIDER       = "#E8EDEF";   // neutral gray divider (Type B)
-const DIVIDER_A     = "#C2EDE9";   // mint-tinted divider (Type A 경계)
-const PROGRESS_TRACK = "#D0F0ED"; // progress bar track (mint-light 계열)
+const BODY          = "#111827";   // body text — high contrast
+const META          = "#475569";   // metadata — readable gray
+const META_DARK     = "#334155";   // action row label
+const MUTED         = "#64748B";   // inactive / hint
+const DIVIDER       = "#E2E8F0";   // neutral gray divider
+const DIVIDER_A     = "#E2E8F0";   // neutral divider (mint 제거)
+const PROGRESS_TRACK = "#E2E8F0"; // progress bar track (neutral)
 
 // ─── Typography ──────────────────────────────────────────────────────────────
 const T1: any = { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: X_NAVY };
@@ -233,7 +233,7 @@ function ReportHeader({
       {/* Row 4: 커리큘럼 진도 strip (Type C) */}
       {hasProgress && (
         <View style={{
-          backgroundColor: X_MINT_LIGHT,
+          backgroundColor: "#F0F2F5",
           borderRadius: 8,
           paddingHorizontal: 12,
           paddingVertical: 9,
@@ -290,9 +290,9 @@ function ReportBody({ detail, onDetail }: { detail: GrowthReportDetail; onDetail
       {/* ── TYPE A: 이번 달 한눈에 보기 ────────────────────────────── */}
       {hasSummary && (
         <View style={{
-          backgroundColor: X_MINT_LIGHT,
+          backgroundColor: "#F5F7FA",
           borderBottomWidth: 1,
-          borderBottomColor: DIVIDER_A,
+          borderBottomColor: DIVIDER,
           paddingHorizontal: 16,
           paddingTop: 18,
           paddingBottom: 18,
@@ -325,9 +325,9 @@ function ReportBody({ detail, onDetail }: { detail: GrowthReportDetail; onDetail
       {/* ── TYPE A: 가정에서 함께해요 ───────────────────────────────── */}
       {hasParent && (
         <>
-          <View style={{ height: 1, backgroundColor: DIVIDER_A }} />
+          <View style={{ height: 1, backgroundColor: DIVIDER }} />
           <View style={{
-            backgroundColor: X_MINT_LIGHT,
+            backgroundColor: "#F5F7FA",
             paddingHorizontal: 16,
             paddingTop: 18,
             paddingBottom: 20,
@@ -370,41 +370,41 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
   return (
     <View style={{
       flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 12,
-      paddingVertical: 10,
       borderTopWidth: 1,
       borderTopColor: DIVIDER,
       backgroundColor: WHITE,
+      paddingVertical: 4,
+      paddingHorizontal: 0,
+      justifyContent: "space-around",
     }}>
+      {/* 좋아요 */}
       <Pressable style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: 4,
-        padding: 6, opacity: pressed ? 0.6 : 1,
+        flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
       })}>
-        <LucideIcon name="heart" size={19} color={MUTED} />
-        <Text style={T4}>좋아요</Text>
+        <LucideIcon name="heart" size={20} color={MUTED} />
+        <Text style={{ ...T4, fontSize: 13 }}>좋아요</Text>
       </Pressable>
 
+      {/* 댓글 */}
       <Pressable style={({ pressed }) => ({
-        flexDirection: "row", alignItems: "center", gap: 4,
-        padding: 6, marginLeft: 4, opacity: pressed ? 0.6 : 1,
+        flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
       })}>
-        <LucideIcon name="message-circle" size={19} color={MUTED} />
-        <Text style={T4}>댓글</Text>
+        <LucideIcon name="message-circle" size={18} color={MUTED} />
+        <Text style={{ ...T4, fontSize: 13 }}>댓글</Text>
       </Pressable>
 
-      <View style={{ flex: 1 }} />
-
+      {/* PDF·공유 */}
       <Pressable
         onPress={onDetail}
         style={({ pressed }) => ({
-          flexDirection: "row", alignItems: "center", gap: 4,
-          paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6,
-          backgroundColor: pressed ? X_MINT_LIGHT : "transparent",
+          flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+          paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
         })}
       >
-        <LucideIcon name="download" size={15} color={MUTED} />
-        <Text style={T4}>PDF·공유</Text>
+        <LucideIcon name="file-text" size={18} color={MUTED} />
+        <Text style={{ ...T4, fontSize: 13 }}>PDF·공유</Text>
       </Pressable>
     </View>
   );
