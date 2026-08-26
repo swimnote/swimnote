@@ -429,7 +429,7 @@ async function autoPublishMonthlyReports(
     INNER JOIN students s ON s.id = gr.student_id
     WHERE gr.report_period = ${reportPeriod}
       AND gr.product_status = 'REVIEW_REQUIRED'
-      AND gr.analysis_status = 'COMPLETE'
+      AND gr.analysis_status IN ('COMPLETE', 'COMPLETE_WITH_QUESTIONS_AVAILABLE', 'COMPLETE_WITH_PARENT_EVIDENCE')
       AND gr.report_content IS NOT NULL
       AND gr.report_fact_package IS NOT NULL
       AND gr.sns_summary IS NOT NULL

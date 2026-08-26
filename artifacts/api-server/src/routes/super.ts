@@ -5148,6 +5148,53 @@ router.post(
   },
 );
 
+// ── GET /super/growth-report/push-index-status — 운영 DB push index 진단 (read-only) ─────
+//
+// uq_notifications_gr_published index 존재 + GROWTH_REPORT_PUBLISHED duplicate 확인.
+// safe_for_on_conflict = index_exists && duplicate_group_count === 0
+// DB write/index 생성/삭제 절대 금지.
+
+router.get(
+  "/super/growth-report/push-index-status",
+  requireAuth,
+  requireRole("super_admin"),
+  async (_req: AuthRequest, res) => {
+    try {
+      const [indexRes, dupRes] = await Promise.all([
+        db.execute(sql`
+          SELECT indexname, indexdef
+          FROM pg_indexes
+          WHERE tablename = 'notifications'
+            AND indexname = 'uq_notifications_gr_published'
+        `),
+        db.execute(sql`
+          SELECT type, ref_id, recipient_id, COUNT(*) AS cnt
+          FROM notifications
+          WHERE type = 'GROWTH_REPORT_PUBLISHED'
+          GROUP BY type, ref_id, recipient_id
+          HAVING COUNT(*) > 1
+        `),
+      ]);
+
+      const indexExists          = indexRes.rows.length > 0;
+      const duplicateGroupCount  = dupRes.rows.length;
+      const safeForOnConflict    = indexExists && duplicateGroupCount === 0;
+
+      res.json({
+        index_exists:          indexExists,
+        index_name:            indexExists ? (indexRes.rows[0] as any).indexname : null,
+        duplicate_group_count: duplicateGroupCount,
+        safe_for_on_conflict:  safeForOnConflict,
+        duplicates:            safeForOnConflict ? [] : dupRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super] growth-report/push-index-status 오류:", e?.message);
+      res.status(500).json({ error: "DIAGNOSTIC_FAILED", message: e?.message });
+    }
+  },
+);
+
 export default router;
+
 
 

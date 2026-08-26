@@ -28,6 +28,7 @@ import {
 import {
   transitionReportStatus,
   updateParentInputStatus,
+  getPublishedReportHistory,
   InvalidTransitionError,
 } from "../lib/growth-report-service.js";
 
@@ -879,6 +880,73 @@ router.get(
       res
         .status(500)
         .json({ error: "서버 오류가 발생했습니다.", code: "INTERNAL_ERROR" });
+    }
+  },
+);
+
+// ── GET /parent/students/:studentId/growth-reports — 전체 PUBLISHED 리포트 목록 ──
+//
+// 부모가 메인 feed(최근 5개)에서 확인 불가한 이전 리포트 열람용.
+// product_status = PUBLISHED, deleted_at IS NULL, published_at DESC.
+// pagination: limit + offset (기본 limit=24).
+// ownership: parent_students(status=approved) 검증.
+
+router.get(
+  "/parent/students/:studentId/growth-reports",
+  requireAuth,
+  requireParent,
+  async (req: AuthRequest, res) => {
+    const parentId  = req.user!.userId;
+    const { studentId } = req.params as { studentId: string };
+
+    const limitRaw  = parseInt((req.query.limit  as string) || "24", 10);
+    const offsetRaw = parseInt((req.query.offset as string) || "0",  10);
+    const limit  = isNaN(limitRaw)  || limitRaw  < 1 ? 24 : Math.min(limitRaw,  100);
+    const offset = isNaN(offsetRaw) || offsetRaw < 0 ? 0  : offsetRaw;
+
+    try {
+      // 1. parent → student ownership 검증
+      const linkRes = await superAdminDb.execute(sql`
+        SELECT 1 FROM parent_students
+        WHERE parent_id  = ${parentId}
+          AND student_id = ${studentId}
+          AND status     = 'approved'
+        LIMIT 1
+      `);
+      if (linkRes.rows.length === 0) {
+        res.status(403).json({ success: false, error: "FORBIDDEN", message: "접근 권한이 없습니다." });
+        return;
+      }
+
+      // 2. PUBLISHED 리포트 목록 조회 (기존 서비스 재사용, offset 추가)
+      const rows = await superAdminDb.execute(sql`
+        SELECT
+          id             AS report_id,
+          report_period,
+          published_at
+        FROM growth_reports
+        WHERE student_id    = ${studentId}
+          AND product_status = 'PUBLISHED'
+          AND deleted_at     IS NULL
+        ORDER BY published_at DESC
+        LIMIT  ${limit}
+        OFFSET ${offset}
+      `);
+
+      res.json({
+        success:  true,
+        items:    rows.rows.map((r: any) => ({
+          report_id:     r.report_id,
+          report_period: r.report_period,
+          published_at:  r.published_at,
+        })),
+        limit,
+        offset,
+        has_more: rows.rows.length === limit,
+      });
+    } catch (e: any) {
+      console.error("[parent-growth-report] GET /parent/students/:studentId/growth-reports error", e?.message);
+      res.status(500).json({ success: false, error: "SERVER_ERROR", message: "서버 오류가 발생했습니다." });
     }
   },
 );

@@ -117,6 +117,7 @@ function ParentStack() {
       <Stack.Screen name="link-child" />
       <Stack.Screen name="requests" />
       <Stack.Screen name="growth-report" />
+      <Stack.Screen name="growth-report-history" options={{ headerShown: false }} />
       <Stack.Screen name="growth-report-questions" />
       {/* GR7: GROWTH_REPORT_PUBLISHED deep link target (GR8에서 상세 UI 구현 예정) */}
       <Stack.Screen name="growth-report-detail" options={{ headerShown: false }} />
