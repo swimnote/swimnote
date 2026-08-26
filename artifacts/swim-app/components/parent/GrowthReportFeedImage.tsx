@@ -3,70 +3,57 @@
  *
  * MONTHLY 성장 리포트 전용 Feed Visual Renderer.
  *
+ * Phase 3A: 디자인 미세조정
+ *   - "이번 달 한눈에 보기" 섹션 레이블 제거 → AQUA left-accent 헤드라인 블록으로 대체
+ *   - growth points: 서브 레이블 제거, 최대 2개, 짧은 excerpt 스타일
+ *   - 불필요한 divider 1개 제거 (body 위/아래 padding으로 대체)
+ *   - "MONTHLY 성장리포트" → "리포트" 필badge (짧게)
+ *   - 전체 padding 다이어트 → 카드 높이 단축
+ *   - headline 14 → 15px, body padding 축소
+ *
  * 역할:
  *   - GrowthReportFeedCard 안에서 직접 렌더링 (live View)
  *   - generateFeedImageAsset()에서 off-screen 캡처 대상
  *
- * 설계 원칙:
- *   - canonical source (sns_summary + summary_text) 사용 — 별도 AI 호출 금지
- *   - PDF V3 디자인 언어 공유 (NAVY, AQUA, mist bg, typography hierarchy)
- *   - PDF 레이아웃 복사 금지 — feed-specific composition
- *   - 빈 섹션 렌더 금지
- *   - 커리큘럼 진도는 optional (없으면 해당 행 미노출)
- *   - LOCKED PDF 수정 금지
+ * 금지:
+ *   - PDF V3 수정 금지
+ *   - API / DB / AI 호출 금지
+ *   - Production write 금지
  */
 
 import React, { forwardRef } from "react";
 import { View, Text } from "react-native";
 
 // ─── 색상 상수 (PDF V3와 공유) ──────────────────────────────────────────────
-const NAVY       = "#0F2742";  // Deep Navy — header bg, 강조 텍스트
-const NAVY_DEEP  = "#091D33";  // 더 어두운 네이비
-const AQUA       = "#25B7CF";  // Clear Pool Primary — accent, bullet, bar
-const AQUA_DIM   = "#1a97af";  // progress bar fill
-const AQUA_MIST  = "#EEF9FB";  // Clear Pool Mist — body bg
-const AQUA_SOFT  = "#D9F2F6";  // divider
+const NAVY       = "#0F2742";
+const AQUA       = "#25B7CF";
+const AQUA_DIM   = "#1a97af";
+const AQUA_MIST  = "#EEF9FB";
+const AQUA_SOFT  = "#D9F2F6";
 const WHITE      = "#FFFFFF";
-const TEXT_NAVY  = "#0D2E5A";  // section heading
-const TEXT_BODY  = "#1A2E44";  // body text
-const TEXT_SEC   = "#526C78";  // secondary / meta
-const TEXT_MUTED = "#7A90A8";  // muted / hint
-
-// ─── section label 매핑 (feed용 — PDF보다 간결) ─────────────────────────────
-const FEED_SECTION_LABELS: Record<string, string> = {
-  core_growth:             "이번 달 가장 좋았던 모습",
-  swimming_progress:       "이번 달 수영에서 배운 것",
-  behavioral_strengths:    "수업에서 좋았던 모습",
-  longitudinal_comparison: "지난달보다 이렇게 이어졌어요",
-  success_conditions:      "이럴 때 더 잘하고 있어요",
-  parent_support:          "집에서는 이렇게 함께해주세요",
-  teacher_guidance:        "수업에서 이어갈 내용",
-  next_growth_direction:   "앞으로 이렇게 만들어갈게요",
-};
+const TEXT_NAVY  = "#0D2E5A";
+const TEXT_SEC   = "#526C78";
+const TEXT_MUTED = "#7A90A8";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 export interface GrowthReportFeedImageData {
   reportId:     string;
-  reportPeriod: string;  // "YYYY-MM"
+  reportPeriod: string;
   studentName:  string;
   poolName?:    string;
 
-  // canonical source (sns_summary)
   headline:    string;
-  keyPoints:   string[];  // max 3 used
+  keyPoints:   string[];  // max 2 used for feed (was 3)
   summaryText: string;
 
-  // curriculum progress (optional — from CurriculumProgressData)
-  curriculumPct?: number;   // 0-100
-  hasEnoughData?: boolean;  // observation_session_count >= 3
+  curriculumPct?: number;
+  hasEnoughData?: boolean;
 
-  // growth sections (optional — non-empty only)
   growthSections?: Array<{ key: string; text: string }>;
 }
 
 interface Props {
   data: GrowthReportFeedImageData;
-  /** 캡처용 off-screen 렌더 시 사용할 고정 너비 (기본: undefined = 100%) */
   captureWidth?: number;
 }
 
@@ -90,16 +77,17 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
       typeof curriculumPct === "number" &&
       curriculumPct > 0;
     const pctInt = showCurriculum ? Math.round(curriculumPct!) : 0;
-    const barFill = `${Math.min(100, pctInt)}%`;
 
-    // summary 앞부분 (80자 정도)
-    const shortSummary = (summaryText ?? "").slice(0, 100).trim();
-    const summaryHasTail = (summaryText ?? "").length > 100;
+    // summary: 최대 2줄 분량 (약 72자)
+    const shortSummary = (summaryText ?? "").slice(0, 90).trim();
+    const summaryTail  = (summaryText ?? "").length > 90;
 
-    // growth points: growthSections 우선, 없으면 keyPoints fallback
-    const pointsFromSections = (growthSections ?? []).slice(0, 3);
+    // growth points: sections 우선, 없으면 keyPoints fallback — 최대 2개
+    const pointsFromSections = (growthSections ?? []).slice(0, 2);
     const useKeyPointFallback = pointsFromSections.length === 0;
-    const keyPointsToShow = keyPoints.slice(0, 3);
+    const keyPointsToShow = keyPoints.slice(0, 2);
+    const hasGrowthPoints =
+      useKeyPointFallback ? keyPointsToShow.length > 0 : pointsFromSections.length > 0;
 
     const containerStyle = captureWidth
       ? { width: captureWidth }
@@ -113,26 +101,25 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
           style={{
             backgroundColor: NAVY,
             paddingHorizontal: 20,
-            paddingTop: 18,
-            paddingBottom: 16,
+            paddingTop: 16,
+            paddingBottom: 14,
           }}
         >
-          {/* 브랜드 라인 */}
+          {/* 브랜드 행 */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              marginBottom: 14,
+              marginBottom: 12,
             }}
           >
-            {/* 좌: 브랜드 */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <View
                 style={{
-                  width: 3,
-                  height: 14,
-                  borderRadius: 2,
+                  width: 2,
+                  height: 12,
+                  borderRadius: 1,
                   backgroundColor: AQUA,
                 }}
               />
@@ -148,20 +135,29 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
               </Text>
             </View>
 
-            {/* 우: 리포트 타입 */}
-            <Text
+            {/* 리포트 pill 배지 */}
+            <View
               style={{
-                fontSize: 10,
-                fontFamily: "Pretendard-Medium",
-                color: "#7FA8C9",
-                letterSpacing: 0.8,
+                backgroundColor: "rgba(37,183,207,0.18)",
+                borderRadius: 20,
+                paddingHorizontal: 9,
+                paddingVertical: 3,
               }}
             >
-              MONTHLY 성장리포트
-            </Text>
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontFamily: "Pretendard-SemiBold",
+                  color: "#6ED8EB",
+                  letterSpacing: 0.6,
+                }}
+              >
+                월간 리포트
+              </Text>
+            </View>
           </View>
 
-          {/* 월 + 학생 */}
+          {/* 월 + 학생/수영장 */}
           <View
             style={{
               flexDirection: "row",
@@ -180,6 +176,7 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
             >
               {dateLabel}
             </Text>
+
             <View style={{ alignItems: "flex-end", gap: 2 }}>
               <Text
                 style={{
@@ -194,10 +191,10 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
               {poolName ? (
                 <Text
                   style={{
-                    fontSize: 11,
+                    fontSize: 10,
                     fontFamily: "Pretendard-Regular",
                     color: "#7FA8C9",
-                    lineHeight: 16,
+                    lineHeight: 15,
                   }}
                   numberOfLines={1}
                 >
@@ -208,7 +205,7 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
           </View>
         </View>
 
-        {/* AQUA 구분선 (NAVY → BODY transition) */}
+        {/* AQUA 구분선 */}
         <View style={{ height: 2, backgroundColor: AQUA }} />
 
         {/* ── ZONE B: CONTENT BODY ────────────────────────────────────── */}
@@ -216,39 +213,43 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
           style={{
             backgroundColor: AQUA_MIST,
             paddingHorizontal: 20,
-            paddingTop: 18,
-            paddingBottom: 20,
-            gap: 0,
+            paddingTop: 14,
+            paddingBottom: 16,
           }}
         >
-          {/* ── B1: 이번 달 한눈에 보기 ─────────────────────────────── */}
-          <SectionHeading label="이번 달 한눈에 보기" />
-          <View
-            style={{
-              height: 1,
-              backgroundColor: AQUA_SOFT,
-              marginTop: 5,
-              marginBottom: 10,
-            }}
-          />
-
-          {/* headline — 핵심 1문장 */}
+          {/* ── B1: Headline block (AQUA left-accent, 섹션 레이블 제거) ── */}
           {headline ? (
-            <Text
+            <View
               style={{
-                fontSize: 14,
-                fontFamily: "Pretendard-SemiBold",
-                color: NAVY,
-                lineHeight: 22,
-                marginBottom: 7,
-                letterSpacing: -0.2,
+                flexDirection: "row",
+                alignItems: "stretch",
+                marginBottom: 8,
               }}
             >
-              {headline}
-            </Text>
+              <View
+                style={{
+                  width: 3,
+                  backgroundColor: AQUA,
+                  borderRadius: 2,
+                  marginRight: 10,
+                }}
+              />
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontFamily: "Pretendard-SemiBold",
+                  color: NAVY,
+                  lineHeight: 22,
+                  flex: 1,
+                  letterSpacing: -0.2,
+                }}
+              >
+                {headline}
+              </Text>
+            </View>
           ) : null}
 
-          {/* summary 앞부분 */}
+          {/* summary: 최대 2줄 */}
           {shortSummary ? (
             <Text
               style={{
@@ -256,19 +257,20 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
                 fontFamily: "Pretendard-Regular",
                 color: TEXT_SEC,
                 lineHeight: 20,
-                marginBottom: summaryHasTail ? 0 : 0,
+                marginLeft: 13,  // AQUA bar + gap 정렬
+                marginBottom: 0,
               }}
-              numberOfLines={3}
+              numberOfLines={2}
             >
-              {shortSummary}{summaryHasTail ? "…" : ""}
+              {shortSummary}{summaryTail ? "…" : ""}
             </Text>
           ) : null}
 
           {/* ── B2: 커리큘럼 진도 ───────────────────────────────────── */}
           {showCurriculum ? (
             <>
-              <ThinDivider />
-              <View style={{ gap: 6 }}>
+              <HairlineDivider />
+              <View style={{ gap: 5 }}>
                 <View
                   style={{
                     flexDirection: "row",
@@ -278,16 +280,17 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
                 >
                   <Text
                     style={{
-                      fontSize: 11,
-                      fontFamily: "Pretendard-Medium",
+                      fontSize: 10,
+                      fontFamily: "Pretendard-Regular",
                       color: TEXT_MUTED,
+                      letterSpacing: 0.3,
                     }}
                   >
-                    현재 커리큘럼 진도
+                    커리큘럼 진도
                   </Text>
                   <Text
                     style={{
-                      fontSize: 13,
+                      fontSize: 12,
                       fontFamily: "Pretendard-Bold",
                       color: AQUA_DIM,
                     }}
@@ -295,21 +298,20 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
                     {pctInt}%
                   </Text>
                 </View>
-                {/* Progress bar */}
                 <View
                   style={{
-                    height: 3,
+                    height: 2,
                     backgroundColor: AQUA_SOFT,
-                    borderRadius: 2,
+                    borderRadius: 1,
                     overflow: "hidden",
                   }}
                 >
                   <View
                     style={{
                       height: "100%" as const,
-                      width: barFill as `${number}%`,
+                      width: `${Math.min(100, pctInt)}%` as `${number}%`,
                       backgroundColor: AQUA,
-                      borderRadius: 2,
+                      borderRadius: 1,
                     }}
                   />
                 </View>
@@ -317,81 +319,52 @@ export const GrowthReportFeedImage = forwardRef<View, Props>(
             </>
           ) : null}
 
-          {/* ── B3: 이번 달 성장 포인트 ─────────────────────────────── */}
-          {useKeyPointFallback ? (
-            keyPointsToShow.length > 0 ? (
-              <>
-                <ThinDivider />
-                <SectionHeading label="이번 달 성장 포인트" />
-                <View style={{ marginTop: 8, gap: 8 }}>
-                  {keyPointsToShow.map((pt, idx) => (
-                    <GrowthPointRow key={idx} text={pt} />
-                  ))}
-                </View>
-              </>
-            ) : null
-          ) : (
-            pointsFromSections.length > 0 ? (
-              <>
-                <ThinDivider />
-                <SectionHeading label="이번 달 성장 포인트" />
-                <View style={{ marginTop: 8, gap: 10 }}>
-                  {pointsFromSections.map((sec, idx) => (
-                    <GrowthSectionRow
-                      key={idx}
-                      label={FEED_SECTION_LABELS[sec.key] ?? sec.key}
-                      text={sec.text}
-                    />
-                  ))}
-                </View>
-              </>
-            ) : null
-          )}
+          {/* ── B3: Growth excerpts (레이블 없음, 순수 텍스트 스타일) ── */}
+          {hasGrowthPoints ? (
+            <>
+              <HairlineDivider />
+              <View style={{ gap: 7 }}>
+                {useKeyPointFallback
+                  ? keyPointsToShow.map((pt, idx) => (
+                      <ExcerptRow key={idx} text={pt} />
+                    ))
+                  : pointsFromSections.map((sec, idx) => (
+                      <ExcerptRow key={idx} text={sec.text} />
+                    ))}
+              </View>
+            </>
+          ) : null}
         </View>
       </View>
     );
   },
 );
 
-// ─── 소형 컴포넌트 ────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionHeading({ label }: { label: string }) {
-  return (
-    <Text
-      style={{
-        fontSize: 11,
-        fontFamily: "Pretendard-SemiBold",
-        color: TEXT_MUTED,
-        letterSpacing: 0.4,
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
-
-function ThinDivider() {
+function HairlineDivider() {
   return (
     <View
       style={{
         height: 1,
         backgroundColor: AQUA_SOFT,
-        marginVertical: 14,
+        marginVertical: 12,
       }}
     />
   );
 }
 
-function GrowthPointRow({ text }: { text: string }) {
+/** excerpt 스타일 성장 포인트 — 레이블 없음, 짧은 2줄 */
+function ExcerptRow({ text }: { text: string }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
       <View
         style={{
           width: 4,
           height: 4,
           borderRadius: 2,
           backgroundColor: AQUA,
-          marginTop: 7,
+          marginTop: 8,
           flexShrink: 0,
         }}
       />
@@ -400,48 +373,8 @@ function GrowthPointRow({ text }: { text: string }) {
           fontSize: 13,
           fontFamily: "Pretendard-Regular",
           color: TEXT_SEC,
-          lineHeight: 20,
+          lineHeight: 21,
           flex: 1,
-        }}
-        numberOfLines={2}
-      >
-        {text}
-      </Text>
-    </View>
-  );
-}
-
-function GrowthSectionRow({ label, text }: { label: string; text: string }) {
-  return (
-    <View style={{ gap: 3 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <View
-          style={{
-            width: 3,
-            height: 3,
-            borderRadius: 2,
-            backgroundColor: AQUA,
-            marginTop: 1,
-          }}
-        />
-        <Text
-          style={{
-            fontSize: 11,
-            fontFamily: "Pretendard-SemiBold",
-            color: TEXT_NAVY,
-            letterSpacing: 0.2,
-          }}
-        >
-          {label}
-        </Text>
-      </View>
-      <Text
-        style={{
-          fontSize: 12,
-          fontFamily: "Pretendard-Regular",
-          color: TEXT_SEC,
-          lineHeight: 19,
-          paddingLeft: 9,
         }}
         numberOfLines={2}
       >

@@ -1,19 +1,17 @@
 /**
- * GrowthReportFeedCard — Premium Feed Card
+ * GrowthReportFeedCard — Premium Feed Card (Phase 3A)
  *
- * Phase 2 구조:
+ * 구조:
  *   Pressable shell
- *     └── GrowthReportFeedImage  (canonical visual — contains all report content)
- *     └── ActionBar              (좋아요 / 댓글 / Instagram / PDF — placeholder)
+ *     └── GrowthReportFeedImage  (canonical visual)
+ *     └── ActionBar              (아이콘 전용, 텍스트 레이블 제거)
  *
- * 데이터 흐름:
- *   GrowthReportFeedItem (feed API)
- *     → GrowthReportFeedImageData (buildFeedImageData)
- *     → GrowthReportFeedImage (live view in card)
+ * Phase 3A 변경:
+ *   - Action bar: 텍스트 레이블 제거 → 아이콘만 + "전체 보기 →" CTA
+ *   - 카드 shadow 미세조정 (덜 무겁게)
+ *   - Fallback 유지
  *
- * Fallback: preview 데이터 없으면 MinimalFallback 표시.
- *
- * DO NOT TOUCH: PDF V3 renderer, AI engine, API, DB, OTA
+ * DO NOT TOUCH: PDF V3 / API / DB / Render / OTA / Instagram integration
  */
 
 import React from "react";
@@ -27,9 +25,10 @@ import type { CurriculumProgressData } from "@/components/CurriculumProgressGaug
 
 const C = Colors.light;
 
-// ─── 색상 상수 ────────────────────────────────────────────────────────────────
 const NAVY      = "#0F2742";
+const AQUA      = "#25B7CF";
 const AQUA_SOFT = "#D9F2F6";
+const AQUA_MIST = "#EEF9FB";
 const WHITE     = "#FFFFFF";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -64,7 +63,6 @@ export function GrowthReportFeedCard({
   const hasPreview =
     !!(item.preview?.headline || item.preview?.summary_text || (item.preview?.key_points ?? []).length > 0);
 
-  // canonical data → feed image data
   const imageData = buildFeedImageData({
     reportId:     item.growth_report_id,
     reportPeriod: item.report_period,
@@ -75,7 +73,6 @@ export function GrowthReportFeedCard({
     keyPoints:    item.preview?.key_points ?? [],
     curriculumPct:           progressData?.display_confirmed_pct,
     observationSessionCount: progressData?.observation_session_count,
-    // sections: 피드 API는 full sections 미포함 — key_points fallback 사용
   });
 
   function handlePress() {
@@ -95,35 +92,33 @@ export function GrowthReportFeedCard({
         borderRadius: 20,
         overflow: "hidden",
         backgroundColor: WHITE,
+        // 가볍게 조정된 shadow (덜 무겁게)
         shadowColor: NAVY,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.10,
-        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
         elevation: 3,
         opacity: pressed ? 0.93 : 1,
       })}
     >
-      {/* ── Main Visual ─────────────────────────────────────────────── */}
       {hasPreview ? (
         <GrowthReportFeedImage data={imageData} />
       ) : (
         <MinimalFallback item={item} />
       )}
-
-      {/* ── Action Bar ──────────────────────────────────────────────── */}
-      <ActionBar />
+      <ActionBar onPress={handlePress} />
     </Pressable>
   );
 }
 
-// ─── Fallback (preview 없을 때) ───────────────────────────────────────────────
+// ─── Fallback ─────────────────────────────────────────────────────────────────
 function MinimalFallback({ item }: { item: GrowthReportFeedItem }) {
   const [, mon] = (item.report_period ?? "").split("-");
   const label = mon ? `${Number(mon)}월 성장리포트` : item.title;
   return (
     <View
       style={{
-        backgroundColor: "#EEF9FB",
+        backgroundColor: AQUA_MIST,
         paddingHorizontal: 20,
         paddingVertical: 20,
         alignItems: "center",
@@ -140,21 +135,13 @@ function MinimalFallback({ item }: { item: GrowthReportFeedItem }) {
       >
         {label}
       </Text>
-      <Text
-        style={{
-          fontSize: 12,
-          fontFamily: "Pretendard-Regular",
-          color: C.textMuted,
-        }}
-      >
-        자세히 보기를 탭하세요
-      </Text>
     </View>
   );
 }
 
 // ─── Action Bar ───────────────────────────────────────────────────────────────
-function ActionBar() {
+// Phase 3A: 아이콘 전용 (텍스트 레이블 제거), "전체 보기 →" CTA
+function ActionBar({ onPress }: { onPress: () => void }) {
   return (
     <View
       style={{
@@ -162,41 +149,52 @@ function ActionBar() {
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 16,
-        paddingVertical: 11,
+        paddingVertical: 10,
         borderTopWidth: 1,
         borderTopColor: AQUA_SOFT,
       }}
     >
-      <ActionItem icon="heart"           label="좋아요"    />
-      <ActionItem icon="message-circle"  label="댓글"      />
+      {/* 좌: 소셜 아이콘들 */}
+      <IconBtn icon="heart"          />
+      <IconBtn icon="message-circle" />
+
       <View style={{ flex: 1 }} />
-      <ActionItem icon="instagram"       label="Instagram" />
-      <ActionItem icon="download"        label="PDF"       />
+
+      {/* 전체 보기 CTA */}
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          opacity: pressed ? 0.7 : 1,
+          marginRight: 8,
+        })}
+      >
+        <Text
+          style={{
+            fontSize: 12,
+            fontFamily: "Pretendard-SemiBold",
+            color: AQUA,
+            letterSpacing: 0.2,
+          }}
+        >
+          전체 보기
+        </Text>
+        <LucideIcon name="chevron-right" size={13} color={AQUA} />
+      </Pressable>
+
+      {/* 우: 내보내기 아이콘들 */}
+      <IconBtn icon="instagram" />
+      <IconBtn icon="download"  />
     </View>
   );
 }
 
-function ActionItem({ icon, label }: { icon: string; label: string }) {
+function IconBtn({ icon }: { icon: string }) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-        paddingHorizontal: 9,
-        paddingVertical: 4,
-      }}
-    >
-      <LucideIcon name={icon} size={17} color={C.textMuted} />
-      <Text
-        style={{
-          fontSize: 12,
-          fontFamily: "Pretendard-Regular",
-          color: C.textMuted,
-        }}
-      >
-        {label}
-      </Text>
+    <View style={{ padding: 7 }}>
+      <LucideIcon name={icon} size={18} color={C.textMuted} />
     </View>
   );
 }
