@@ -231,7 +231,9 @@ export async function notifyGrowthReportPublished(params: {
 
   for (const parentId of parentIds) {
     try {
-      // 영구 멱등성: 동일 (type, ref_id, recipient_id) 이미 존재 시 skip (시간 제한 없음)
+      // 영구 멱등성: SELECT pre-check (성능 최적화) + ON CONFLICT DO NOTHING (DB 레벨 최종 보장)
+      // GR-M8: uq_notifications_gr_published partial unique index (type, ref_id, recipient_id)
+      //        WHERE type='GROWTH_REPORT_PUBLISHED' — concurrent 실행 시에도 정확히 1회 보장.
       const dup = (await db.execute(sql`
         SELECT 1 FROM notifications
         WHERE type = 'GROWTH_REPORT_PUBLISHED'
@@ -242,8 +244,9 @@ export async function notifyGrowthReportPublished(params: {
       if (dup.length > 0) continue;
 
       // Notification Center에 저장 (GR7 §13)
+      // ON CONFLICT DO NOTHING: race condition 시 duplicate push 완전 차단
       const id = `notif_gr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-      await db.execute(sql`
+      const insertRes = await db.execute(sql`
         INSERT INTO notifications
           (id, recipient_id, recipient_type, pool_id, type, title, body,
            ref_id, ref_type, deep_link, is_read)
@@ -251,7 +254,17 @@ export async function notifyGrowthReportPublished(params: {
           (${id}, ${parentId}, 'parent_account', ${poolId},
            'GROWTH_REPORT_PUBLISHED', ${title}, ${body},
            ${reportId}, 'growth_report', ${deepLink}, false)
+        ON CONFLICT (type, ref_id, recipient_id)
+          WHERE type = 'GROWTH_REPORT_PUBLISHED'
+        DO NOTHING
+        RETURNING id
       `);
+
+      // CONFLICT로 INSERT 건너뜀 → push 불필요
+      if (!insertRes.rows.length) {
+        console.log(`[notify] GR7 notification already exists (race): report=${reportId} parent=${parentId}`);
+        continue;
+      }
 
       // Push delivery (기존 preference 정책 존중 — sendPushToUser가 ON/OFF 확인)
       await sendPushToUser(

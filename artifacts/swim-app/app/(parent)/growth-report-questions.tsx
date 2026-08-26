@@ -226,6 +226,12 @@ export default function GrowthReportQuestionsScreen() {
         setLocalAnswers(init);
       } else {
         const body = await r.json().catch(() => ({}));
+        // GR-M7: FREE monthly 리포트는 질문 입력 비지원 — 뒤로 이동
+        if (r.status === 403 && body?.error === "FREE_MONTHLY_QUESTIONS_DISABLED") {
+          if (router.canGoBack()) router.back();
+          else router.replace("/(parent)/home" as any);
+          return;
+        }
         setError(body?.message ?? "질문을 불러올 수 없습니다.");
       }
     } catch {

@@ -431,6 +431,8 @@ async function autoPublishMonthlyReports(
       AND gr.product_status = 'REVIEW_REQUIRED'
       AND gr.analysis_status = 'COMPLETE'
       AND gr.report_content IS NOT NULL
+      AND gr.report_fact_package IS NOT NULL
+      AND gr.sns_summary IS NOT NULL
       AND gr.deleted_at IS NULL
       AND s.deleted_at IS NULL
   `);

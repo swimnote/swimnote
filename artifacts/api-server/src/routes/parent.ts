@@ -1635,8 +1635,41 @@ router.get("/students/:id/feed", requireAuth, requireParent, async (req: AuthReq
         teacher_name: p.uploader_name, content: p.caption, created_at: p.created_at, album_type: p.album_type });
     }
 
+    // GR-M6: PUBLISHED growth_reports → feed GROWTH_REPORT items
+    // 물리 feed table 없음. growth_reports projection 방식.
+    // History: 모든 PUBLISHED 보존 (최신부터 최대 5개).
+    // Dedup: uq_growth_reports_student_cycle 보장으로 동일 report_id 중복 없음.
+    const grRows = await db.execute(sql`
+      SELECT id, student_id, report_period, published_at, summary_text
+      FROM growth_reports
+      WHERE student_id = ${req.params.id}
+        AND product_status = 'PUBLISHED'
+        AND deleted_at IS NULL
+      ORDER BY published_at DESC
+      LIMIT 5
+    `);
+    for (const gr of grRows.rows as any[]) {
+      const period: string = gr.report_period ?? "";
+      const month = parseInt((period.split("-")[1]) ?? "0", 10);
+      const title = month > 0 ? `${month}월 성장리포트` : "성장리포트";
+      feed.push({
+        type: "GROWTH_REPORT",
+        id: `gr_feed_${gr.id}`,
+        growth_report_id: gr.id,
+        student_id: gr.student_id,
+        report_period: period,
+        published_at: gr.published_at,
+        created_at: gr.published_at,
+        title,
+        preview: {
+          summary_text: gr.summary_text ?? undefined,
+        },
+        share_safe: false,
+      });
+    }
+
     feed.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    res.json(feed.slice(0, 20));
+    res.json(feed.slice(0, 25));
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
 

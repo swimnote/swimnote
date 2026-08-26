@@ -119,10 +119,11 @@ function makeNotifyDb(opts: NotifyDbOpts = {}) {
         const parentInQuery = existingNotifIds.find(pid => q.includes(pid));
         return parentInQuery ? { rows: [{ "1": 1 }] } : { rows: [] };
       }
-      // notification INSERT
+      // notification INSERT (ON CONFLICT DO NOTHING RETURNING id)
+      // GR-M8: 행 삽입 성공 = rows에 id 반환; CONFLICT 발생 = rows 빈 배열
       if (q.includes("INSERT INTO notifications")) {
         if (insertFail) throw new Error("DB INSERT failure simulation");
-        return { rowCount: 1, rows: [] };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       return { rows: [], rowCount: 0 };
     }),
@@ -259,7 +260,7 @@ describe("A. notifyGrowthReportPublished service", () => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
       if (q.includes("INSERT INTO notifications")) {
         capturedDeepLink = q;
-        return { rowCount: 1 };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       if (q.includes("FROM students")) return { rows: [{ name: "수영학생" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
@@ -278,7 +279,7 @@ describe("A. notifyGrowthReportPublished service", () => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
       if (q.includes("INSERT INTO notifications")) {
         capturedTitle = q;
-        return { rowCount: 1 };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       if (q.includes("FROM students")) return { rows: [{ name: "수영학생" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
@@ -287,17 +288,17 @@ describe("A. notifyGrowthReportPublished service", () => {
     });
     const { notifyGrowthReportPublished } = await import("../../utils/notify.js");
     await notifyGrowthReportPublished({ reportId: REPORT_ID, studentId: STUDENT_ID, poolId: POOL_ID, reportPeriod: PERIOD, publishedAt: "2026-07-21T09:00:00Z", actorId: ADMIN_ID });
-    expect(capturedTitle).toContain("새 성장리포트가 도착했어요");
+    expect(capturedTitle).toContain("지난달 성장리포트가 도착했습니다");
   });
 
-  it("TC14: body contains student name and month", async () => {
+  it("TC14: body = 정적 Product 문구 (학생 이름/월 포함 없음)", async () => {
     const { db } = await import("@workspace/db");
     let capturedBody = "";
     vi.mocked((db as any).execute).mockImplementation(async (query: any) => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
       if (q.includes("INSERT INTO notifications")) {
         capturedBody = q;
-        return { rowCount: 1 };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       if (q.includes("FROM students")) return { rows: [{ name: "김수영" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
@@ -306,8 +307,8 @@ describe("A. notifyGrowthReportPublished service", () => {
     });
     const { notifyGrowthReportPublished } = await import("../../utils/notify.js");
     await notifyGrowthReportPublished({ reportId: REPORT_ID, studentId: STUDENT_ID, poolId: POOL_ID, reportPeriod: PERIOD, publishedAt: "2026-07-21T09:00:00Z", actorId: ADMIN_ID });
-    expect(capturedBody).toContain("김수영");
-    expect(capturedBody).toContain("7월");
+    // §I 정책: 정적 문구 사용. 학생 이름·월 미포함.
+    expect(capturedBody).toContain("지난 한 달 동안의 성장 모습을 확인해보세요");
   });
 
   it("TC15: body does NOT contain raw ENGINE analysis claims", async () => {
@@ -315,7 +316,7 @@ describe("A. notifyGrowthReportPublished service", () => {
     let capturedBody = "";
     vi.mocked((db as any).execute).mockImplementation(async (query: any) => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
-      if (q.includes("INSERT INTO notifications")) { capturedBody = q; return { rowCount: 1 }; }
+      if (q.includes("INSERT INTO notifications")) { capturedBody = q; return { rows: [{ id: "notif_gr_test" }] }; }
       if (q.includes("FROM students")) return { rows: [{ name: "학생" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
       if (q.includes("FROM notifications")) return { rows: [] };
@@ -395,12 +396,12 @@ describe("A. notifyGrowthReportPublished service", () => {
     expect(gptCalls).toHaveLength(0);
   });
 
-  it("TC23: student name not found → defaults to '학생'", async () => {
+  it("TC23: 학생 이름 조회 실패 시에도 정상 insert (정적 body에 학생 이름 미포함)", async () => {
     const { db } = await import("@workspace/db");
-    let capturedBody = "";
+    let insertCalled = false;
     vi.mocked((db as any).execute).mockImplementation(async (query: any) => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
-      if (q.includes("INSERT INTO notifications")) { capturedBody = q; return { rowCount: 1 }; }
+      if (q.includes("INSERT INTO notifications")) { insertCalled = true; return { rows: [{ id: "notif_gr_test" }] }; }
       if (q.includes("FROM students")) return { rows: [] }; // name not found
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
       if (q.includes("FROM notifications")) return { rows: [] };
@@ -408,15 +409,16 @@ describe("A. notifyGrowthReportPublished service", () => {
     });
     const { notifyGrowthReportPublished } = await import("../../utils/notify.js");
     await notifyGrowthReportPublished({ reportId: REPORT_ID, studentId: STUDENT_ID, poolId: POOL_ID, reportPeriod: PERIOD, publishedAt: "2026-07-21T09:00:00Z", actorId: ADMIN_ID });
-    expect(capturedBody).toContain("학생");
+    // §I 정책: 정적 문구. 학생 이름 미조회 시에도 notification INSERT는 정상 실행.
+    expect(insertCalled).toBe(true);
   });
 
-  it("TC24: report_period='2026-01' → body contains '1월'", async () => {
+  it("TC24: report_period 무관하게 정적 body 사용 — title=지난달 성장리포트가 도착했습니다", async () => {
     const { db } = await import("@workspace/db");
-    let capturedBody = "";
+    let capturedTitle = "";
     vi.mocked((db as any).execute).mockImplementation(async (query: any) => {
       const q = query?.queryChunks?.map((c: any) => (typeof c === "string" ? c : (c?.value ?? ""))).join("") ?? "";
-      if (q.includes("INSERT INTO notifications")) { capturedBody = q; return { rowCount: 1 }; }
+      if (q.includes("INSERT INTO notifications")) { capturedTitle = q; return { rows: [{ id: "notif_gr_test" }] }; }
       if (q.includes("FROM students")) return { rows: [{ name: "학생" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
       if (q.includes("FROM notifications")) return { rows: [] };
@@ -424,7 +426,8 @@ describe("A. notifyGrowthReportPublished service", () => {
     });
     const { notifyGrowthReportPublished } = await import("../../utils/notify.js");
     await notifyGrowthReportPublished({ reportId: REPORT_ID, studentId: STUDENT_ID, poolId: POOL_ID, reportPeriod: "2026-01", publishedAt: "2026-01-31T09:00:00Z", actorId: ADMIN_ID });
-    expect(capturedBody).toContain("1월");
+    // §I 정책: 정적 문구 (월 미포함)
+    expect(capturedTitle).toContain("지난달 성장리포트가 도착했습니다");
   });
 
   it("TC25: parent_students query includes status='approved'", async () => {
@@ -462,7 +465,7 @@ describe("A. notifyGrowthReportPublished service", () => {
       if (q.includes("INSERT INTO notifications")) {
         insertCount++;
         if (insertCount === 1) throw new Error("Simulated INSERT fail for first parent");
-        return { rowCount: 1 };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       return { rows: [] };
     });
@@ -624,7 +627,7 @@ describe("D. Deep link contract (spec §9, §12)", () => {
         // The deep_link value appears as '/parent/growth-report-detail?reportId=<id>'
         const match = q.match(/\/parent\/growth-report-detail\?reportId=[^\s'"]+/);
         if (match) deepLinkValue = match[0];
-        return { rowCount: 1 };
+        return { rows: [{ id: "notif_gr_test" }] };
       }
       if (q.includes("FROM students")) return { rows: [{ name: "학생" }] };
       if (q.includes("FROM parent_students")) return { rows: [{ parent_id: PARENT_A }] };
@@ -763,7 +766,7 @@ describe("E. Notification center + existing system regression", () => {
       if (q.includes("FROM notifications") && q.includes("GROWTH_REPORT_PUBLISHED")) {
         return insertCount > 0 ? { rows: [{ "1": 1 }] } : { rows: [] }; // second call sees existing row
       }
-      if (q.includes("INSERT INTO notifications")) { insertCount++; return { rowCount: 1 }; }
+      if (q.includes("INSERT INTO notifications")) { insertCount++; return { rows: [{ id: "notif_gr_test" }] }; }
       return { rows: [] };
     });
     const { notifyGrowthReportPublished } = await import("../../utils/notify.js");

@@ -115,6 +115,7 @@ router.get(
           gr.swimming_pool_id,
           gr.product_status,
           gr.parent_input_status,
+          gr.report_type,
           gr.cycle_id,
           grc.parent_input_open_at,
           grc.parent_input_close_at
@@ -129,6 +130,18 @@ router.get(
       const report = reportRes.rows[0] as any;
       if (!report) {
         res.status(404).json({ success: false, error: "REPORT_NOT_FOUND", message: "리포트를 찾을 수 없습니다." });
+        return;
+      }
+
+      // GR-M7: FREE monthly report는 parent input 사용 안 함
+      // report_type='monthly' = FREE 무료 리포트. parent input 창구 완전 차단.
+      // 향후 PAID report는 다른 report_type 사용 예정 → 이 조건에 걸리지 않음.
+      if (report.report_type === "monthly" || !report.report_type) {
+        res.status(403).json({
+          success: false,
+          error: "FREE_MONTHLY_QUESTIONS_DISABLED",
+          message: "무료 성장리포트는 학부모 질문 입력 기능을 지원하지 않습니다.",
+        });
         return;
       }
 

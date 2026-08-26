@@ -1419,4 +1419,27 @@ export async function initPoolDb(): Promise<void> {
   } catch (err) {
     console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
   }
+
+  // ─── GR-M8: Push idempotency — notifications GROWTH_REPORT_PUBLISHED unique ─
+  //
+  // partial unique index on (type, ref_id, recipient_id) WHERE type='GROWTH_REPORT_PUBLISHED'
+  // 목적: 동일 리포트에 동일 수신자 push 최대 1회 DB-level 보장.
+  // 다른 notification type에 영향 없음 (partial index).
+  //
+  // 기존 duplicate row가 존재하면 CREATE UNIQUE INDEX가 실패하고 경고 로그만 남김.
+  // 이 경우 서버 기동은 계속되고 다음 재시작에서 재시도. 중복 row는 임의 삭제 금지.
+  // ⚠️  non-FATAL
+  try {
+    await db.execute(sql.raw(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_gr_published
+        ON notifications (type, ref_id, recipient_id)
+        WHERE type = 'GROWTH_REPORT_PUBLISHED'
+    `));
+  } catch (err: any) {
+    console.error(
+      "[GR-M8 MIGRATION] notifications uq_notifications_gr_published 생성 실패 — " +
+      "기존 duplicate row 존재 가능. 임의 삭제 금지. 서버 기동 계속:",
+      err?.message ?? err,
+    );
+  }
 }

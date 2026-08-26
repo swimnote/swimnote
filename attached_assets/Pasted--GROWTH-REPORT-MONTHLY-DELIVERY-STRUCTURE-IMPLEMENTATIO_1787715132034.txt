@@ -1,0 +1,323 @@
+[앱]
+
+GROWTH REPORT MONTHLY DELIVERY — STRUCTURE IMPLEMENTATION 1
+
+감사 결과 승인.
+
+단, 최종 제품 정책 기준으로 아래를 수정합니다.
+
+- GR-M6 Parent Feed 통합 = 필수
+- GR-M7 FREE 질문 UX 제거/차단 = 필수
+- GR-M8 Push DB-level idempotency = 필수
+- GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false 유지
+- AI 호출 금지
+- 기존 OPEN report 253건 접근/분석 금지
+
+이번 Step에서 AI 자동 분석은 절대 켜지 않습니다.
+
+==================================================
+0. 먼저 AUTO-PUBLISH SAFETY 최소 확인
+==================================================
+
+수정 전에
+autoApproveAndPublishForDelivery(report)
+및 직전 caller만 read-only 확인.
+
+5일 SYSTEM_MONTHLY_AUTO publish 전에
+실제로 아래를 검증하는지 보고:
+
+- student.status = active
+- report_period = 정확한 previous month
+- product_status = REVIEW_REQUIRED
+- analysis_status가 완료 계열
+- grounding_status가 publish-safe
+- growth_framing_status가 PASS
+- report_content 존재/유효
+- deleted report 아님
+
+이미 모두 검증하면 그대로 사용.
+
+누락된 조건이 있으면
+그 조건만 최소 추가.
+
+REVIEW_REQUIRED라는 상태만으로 자동 승인 금지.
+
+==================================================
+1. PARENT FEED에 GROWTH REPORT 통합
+==================================================
+
+현재 parent feed API가:
+
+class_diaries
++
+student_photos
+
+를 합치는 기존 구조를 유지하면서
+
++
+PUBLISHED growth_reports
+
+를 추가.
+
+별도 물리 feed table 생성 금지.
+
+Growth Report item은 기존 피드 response contract 안에서
+명확한 item type으로 구분.
+
+예:
+type = GROWTH_REPORT
+또는 현재 feed naming convention에 맞는 실제 값.
+
+반드시 실제 기존 타입 구조 확인 후 사용.
+새 naming 추측 금지.
+
+Growth Report feed item 최소 정보:
+
+- report_id
+- student_id
+- report_period
+- published_at
+- type
+- detail route/deep link에 필요한 식별자
+
+정렬:
+기존 feed와 published_at/date 기준으로 자연스럽게 섞임.
+
+==================================================
+2. HISTORY / LATEST 정책
+==================================================
+
+월별 PUBLISHED report는 모두 보존.
+
+예:
+7월 report
+8월 report
+9월 report
+
+각각 피드에 남음.
+
+새 report가:
+OPEN
+FAILED
+REVIEW_REQUIRED
+ANALYZING
+
+등이면
+기존 최근 PUBLISHED report를 숨기면 안 됨.
+
+latest Growth Report 조회는
+가장 최근 PUBLISHED만 기준.
+
+새 미완료 report 때문에
+latest가 교체되지 않게 검증.
+
+==================================================
+3. FEED IDEMPOTENCY
+==================================================
+
+Growth Report는 physical feed row를 새로 만들지 않음.
+
+growth_reports의 PUBLISHED record를
+feed response에 projection하는 방식 사용.
+
+따라서 같은 report_id가
+한 feed response에 중복 포함되지 않도록
+deterministic merge/dedup 적용.
+
+DB migration 불필요.
+
+==================================================
+4. PUSH EXACT-ONCE DB CONSTRAINT
+==================================================
+
+현재:
+
+notifications
+SELECT existing
+→ INSERT
+
+방식은 race condition 존재.
+
+최종 요구:
+동일 growth report에 동일 recipient push 최대 1회.
+
+최소 migration 추가.
+
+현재 notifications schema/index를 먼저 확인하고
+기존 데이터와 충돌 여부 확인.
+
+목표 unique key:
+
+(type, ref_id, recipient_id)
+
+단,
+이 조합이 Growth Report 외 다른 notification type에도
+의미적으로 안전한지 먼저 확인.
+
+전체 notification system에 적용하면 충돌 가능성이 있으면
+GROWTH_REPORT_PUBLISHED에만 적용 가능한
+partial unique index 사용.
+
+예시 개념:
+UNIQUE (type, ref_id, recipient_id)
+WHERE type = 'GROWTH_REPORT_PUBLISHED'
+
+실제 DB dialect/schema에 맞춰 작성.
+
+기존 duplicate row가 존재하면
+migration 실행 전 STOP하고 보고.
+임의 삭제 금지.
+
+==================================================
+5. PUSH INSERT RACE SAFE
+==================================================
+
+DB unique constraint가 들어간 뒤
+notifyGrowthReportPublished()가
+unique conflict를 정상적인 "already sent"로 처리하도록 수정.
+
+중복 충돌을 500 error로 만들지 말 것.
+
+기존 SELECT pre-check는 유지해도 되지만
+최종 보장은 DB constraint.
+
+==================================================
+6. FREE PARENT QUESTIONS UX 제거/차단
+==================================================
+
+현재:
+growth-report-questions.tsx
+
+FREE monthly report에서는 parent input을 사용하지 않음.
+
+확인:
+- 어디서 이 route로 진입하는지
+- FREE report에서 질문 화면으로 갈 수 있는 버튼/link
+- /complete API 호출 경로
+
+FREE flow에서는 진입 불가하게 수정.
+
+단:
+향후 PAID report에서 parent voice/input 기능을 사용할 예정이므로
+공용 기반 코드를 무조건 삭제하지 말 것.
+
+가능하면:
+FREE monthly route에서 노출/진입만 제거.
+
+paid future reuse 가능 구조 보존.
+
+==================================================
+7. STATUS UI
+==================================================
+
+growth-report-status.tsx를 이번 Step에서
+무조건 삭제하지 말 것.
+
+자동 월간 정책에 맞춰 실제 필요한 역할 판정.
+
+부모에게 필요한 것은:
+
+- 아직 이번달 새 report가 없으면
+  기존 latest PUBLISHED 유지
+- 새 report 생성중/실패 상태를
+  메인 경험에 과도하게 노출하지 않음
+- 5일 PUBLISHED 후 detail로 바로 진입 가능
+
+generate/request UI는 금지.
+
+status route가 더 이상 필요 없으면
+진입점만 제거하고 파일 삭제는 별도 판단.
+
+==================================================
+8. HOME
+==================================================
+
+현재 별도 GrowthReportFeedCard가
+피드 통합 이후 중복 노출되는지 확인.
+
+같은 월 report가:
+- 홈 별도 카드
+- 일반 피드
+
+두 번 보이면 안 됨.
+
+최종 UX:
+Growth Report는 기존 학부모 피드 안에서
+자연스럽게 월간 item으로 나타나는 것을 기본으로 함.
+
+별도 홈 카드가 latest shortcut으로 필요하다면
+동일 report를 "새 콘텐츠 두 개"처럼 보이지 않게 설계.
+
+이번 Step에서는 최소 수정.
+
+==================================================
+9. TEST
+==================================================
+
+최소 targeted tests:
+
+A.
+PUBLISHED Growth Report 1건
+→ parent feed에 정확히 1건
+
+B.
+2개월 PUBLISHED
+→ 두 월 report 모두 history 존재
+
+C.
+지난달 PUBLISHED + 이번달 OPEN
+→ latest = 지난달 PUBLISHED
+
+D.
+FAILED/REVIEW_REQUIRED report
+→ feed에 노출 안 됨
+
+E.
+withdrawn/suspended member 새 report
+→ 5일 auto-publish 불가
+
+F.
+같은 publish notification 두 번 호출
+→ notification row 1개
+→ push logical send 최대 1회
+
+G.
+FREE parent flow
+→ growth-report-questions 진입 불가
+
+H.
+기존 diary/photo feed 회귀 없음
+
+I.
+AI 호출 0
+
+==================================================
+10. 절대 금지
+==================================================
+
+- GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true 금지
+- Render env 변경 금지
+- deploy 금지
+- Production DB write 금지
+- 기존 253 OPEN 분석 금지
+- FREE 70-METRIC ENGINE 수정 금지
+- repo-wide audit 금지
+
+==================================================
+완료 보고
+==================================================
+
+- SHA
+- 변경 파일/함수
+- auto-publish safety 조건
+- parent feed Growth Report contract
+- latest/history 동작
+- notification migration
+- duplicate push test
+- FREE questions 진입 차단 방식
+- home/status 변경점
+- targeted tests
+- regression 결과
+- AI calls = 0 증빙
+
+완료 후 STOP.
