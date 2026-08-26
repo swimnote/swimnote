@@ -1,0 +1,172 @@
+[앱]
+
+PARENT HOME — BOTTOM FOOTER OVERLAP FINAL FIX
++ IMMEDIATE iOS PRODUCTION OTA
++ ROLLBACK READY
+
+실기기 확인 결과:
+
+PASS:
+- 상단 navy header fixed 정상
+- 수영장명 top clipping 해결
+- header vertical alignment 정상
+- Growth Report scroll 정상
+
+FAIL:
+- 하단 "Powered by SWIMNOTE AI with OpenAI GPT" footer가
+  여전히 scroll content 위를 덮고 있음.
+- 실제 스크린샷에서 다음 section/content가 footer 뒤로 가려짐.
+
+이번 Step에서는
+BOTTOM FOOTER OVERLAP만 수정한다.
+
+Growth Report 디자인 / header / X palette / typography 수정 금지.
+
+==================================================
+1. ROOT CAUSE 확인
+==================================================
+
+현재 footer가:
+
+- absolute/fixed overlay인지
+- scroll container 밖에 있지만
+  available height 계산이 잘못됐는지
+- bottom safe-area/footer height가
+  ScrollView/FlatList에 반영되지 않았는지
+
+최소 범위로 확인.
+
+==================================================
+2. 최종 구조
+==================================================
+
+권장 구조:
+
+ROOT
+ ├ FIXED TOP HEADER
+ ├ SCROLL AREA (flex: 1)
+ └ FIXED BOTTOM FOOTER
+
+footer가 scroll area 위에 떠 있는 overlay가 아니라
+layout 자체에서 자기 높이를 차지하도록 한다.
+
+absolute positioning보다
+normal flex layout 우선.
+
+==================================================
+3. SCROLL AREA BOTTOM
+==================================================
+
+Growth Report 마지막 내용이
+footer 위까지 완전히 올라올 수 있어야 함.
+
+반드시 보이는 상태:
+
+- 마지막 report section
+- "가정에서 함께해요"
+- 좋아요 / 댓글 / PDF·공유 action row
+- 다음 feed item
+- 일반 diary 본문/사진
+
+footer 아래에 가려지는 content = 0.
+
+==================================================
+4. SAFE AREA
+==================================================
+
+iOS bottom safe-area/home indicator 반영.
+
+footer 자체가 safe-area를 포함하거나
+root layout에서 bottom inset을 정확히 처리.
+
+임의 huge padding 금지.
+
+==================================================
+5. 디자인 유지
+==================================================
+
+절대 변경 금지:
+
+- top navy header
+- 수영장명 / SWIMNOTE X / icons
+- Growth Report header
+- Growth Report sections
+- X color
+- font size
+- spacing
+- PDF
+- AI/API/DB
+
+이번 작업은 footer/scroll layout만.
+
+==================================================
+6. DEVICE TEST
+==================================================
+
+서태웅 Growth Report 실제 화면에서:
+
+TOP
+- header fixed 정상
+
+BOTTOM까지 scroll:
+
+- 가정에서 함께해요 완전히 보임
+- action row 완전히 보임
+- 다음 feed item 완전히 보임
+- Powered footer가 어떤 content도 덮지 않음
+
+실기기 screenshot 제출.
+
+==================================================
+7. OTA 개발 헌법 적용
+==================================================
+
+이번 수정은 JS/TSX layout only이면:
+
+수정
+→ 관련 최소 테스트
+→ 직전 정상 OTA rollback point 기록
+→ iOS production OTA 즉시 배포
+→ 실기기 확인
+
+다시 승인 요청하지 말 것.
+
+native/runtimeVersion 변경이 있으면
+OTA 금지 후 보고.
+
+==================================================
+8. ROLLBACK
+==================================================
+
+OTA 전:
+
+- 직전 정상 update group ID
+- update ID
+- runtimeVersion
+- publish timestamp
+
+기록.
+
+새 OTA 문제 발생 시
+사용자가 "롤백"이라고 하면
+직전 정상 OTA로 즉시 복구 가능하게 준비.
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+보고:
+
+- SHA
+- root cause
+- 변경 파일
+- final layout hierarchy
+- footer height
+- bottom safe-area 처리
+- overlay 0 확인
+- OTA update group ID
+- OTA update ID
+- rollback target
+- 실기기 screenshot
+
+완료 후 STOP.
