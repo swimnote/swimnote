@@ -23,6 +23,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import type { CurriculumProgressData } from "@/components/CurriculumProgressGauge";
@@ -101,9 +102,13 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   const { token } = useAuth();
   const mounted   = useRef(true);
 
-  const [detail,  setDetail]  = useState<GrowthReportDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [failed,  setFailed]  = useState(false);
+  const [detail,     setDetail]     = useState<GrowthReportDetail | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [failed,     setFailed]     = useState(false);
+
+  // ── Like state ──────────────────────────────────────────────────────────────
+  const [myLiked,    setMyLiked]    = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -131,6 +136,47 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   }, [token, item.growth_report_id]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  // ── Reactions fetch (useFocusEffect → 화면 재진입 시마다 최신화) ─────────────
+  const fetchReactions = useCallback(async () => {
+    if (!item.growth_report_id || !token) return;
+    try {
+      const res  = await apiRequest(token, `/parent/growth-reports/${encodeURIComponent(item.growth_report_id)}/reactions`);
+      const data = await res.json();
+      if (!mounted.current) return;
+      if (res.ok && Array.isArray(data?.myReactions)) {
+        setMyLiked((data.myReactions as string[]).includes("like"));
+      }
+    } catch {
+      // 실패 시 기존 상태 유지
+    }
+  }, [token, item.growth_report_id]);
+
+  useFocusEffect(useCallback(() => {
+    fetchReactions();
+  }, [fetchReactions]));
+
+  // ── Like toggle ─────────────────────────────────────────────────────────────
+  async function onLike() {
+    if (isToggling) return;
+    setIsToggling(true);
+    try {
+      const res  = await apiRequest(
+        token,
+        `/parent/growth-reports/${encodeURIComponent(item.growth_report_id)}/reactions`,
+        { method: "POST", body: JSON.stringify({ reaction_type: "like" }) },
+      );
+      const data = await res.json();
+      if (!mounted.current) return;
+      if (res.ok && typeof data?.active === "boolean") {
+        setMyLiked(data.active);
+      }
+    } catch {
+      // 실패 시 기존 상태 유지
+    } finally {
+      if (mounted.current) setIsToggling(false);
+    }
+  }
 
   const pct        = progressData?.display_confirmed_pct;
   const hasProgress =
@@ -164,7 +210,13 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
       ) : failed ? (
         <FailState onRetry={fetchDetail} onDetail={goDetail} />
       ) : detail ? (
-        <ReportBody detail={detail} onDetail={goDetail} />
+        <ReportBody
+          detail={detail}
+          onDetail={goDetail}
+          myLiked={myLiked}
+          isToggling={isToggling}
+          onLike={onLike}
+        />
       ) : null}
 
     </View>
@@ -273,7 +325,15 @@ function ReportHeader({
 }
 
 // ─── Report body ──────────────────────────────────────────────────────────────
-function ReportBody({ detail, onDetail }: { detail: GrowthReportDetail; onDetail: () => void }) {
+function ReportBody({
+  detail, onDetail, myLiked, isToggling, onLike,
+}: {
+  detail:      GrowthReportDetail;
+  onDetail:    () => void;
+  myLiked:     boolean;
+  isToggling:  boolean;
+  onLike:      () => void;
+}) {
   const { report_content } = detail;
   const secs = report_content?.sections ?? {};
 
@@ -339,7 +399,12 @@ function ReportBody({ detail, onDetail }: { detail: GrowthReportDetail; onDetail
       )}
 
       {/* ── ACTION ROW ──────────────────────────────────────────────── */}
-      <ActionRow onDetail={onDetail} />
+      <ActionRow
+        onDetail={onDetail}
+        myLiked={myLiked}
+        isToggling={isToggling}
+        onLike={onLike}
+      />
 
     </View>
   );
@@ -364,7 +429,18 @@ function Hairline() {
 }
 
 // ─── Action row ───────────────────────────────────────────────────────────────
-function ActionRow({ onDetail }: { onDetail: () => void }) {
+function ActionRow({
+  onDetail, myLiked, isToggling, onLike,
+}: {
+  onDetail:   () => void;
+  myLiked:    boolean;
+  isToggling: boolean;
+  onLike:     () => void;
+}) {
+  // DiaryFeedItem(home.tsx) 동일 spec
+  const LIKE_ACTIVE   = "#E8003D";
+  const LIKE_INACTIVE = "#6B7280";
+
   return (
     <View style={{
       flexDirection: "row",
@@ -375,19 +451,32 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
       paddingHorizontal: 0,
       justifyContent: "space-around",
     }}>
-      {/* 좋아요 */}
-      <Pressable style={({ pressed }) => ({
-        flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
-      })}>
-        <LucideIcon name="heart" size={20} color={MUTED} />
-        <Text style={{ ...T4, fontSize: 13 }}>좋아요</Text>
+      {/* 좋아요 — DiaryFeedItem 동일 spec */}
+      <Pressable
+        onPress={onLike}
+        disabled={isToggling}
+        style={({ pressed }) => ({
+          flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+          paddingVertical: 8, borderRadius: 4,
+          opacity: pressed ? 0.7 : (isToggling ? 0.5 : 1),
+          gap: 5,
+        })}
+      >
+        <LucideIcon
+          name="heart"
+          size={20}
+          color={myLiked ? LIKE_ACTIVE : LIKE_INACTIVE}
+          fill={myLiked ? LIKE_ACTIVE : "none"}
+        />
+        <Text style={{ ...T4, fontSize: 13, color: myLiked ? LIKE_ACTIVE : META_DARK }}>
+          좋아요
+        </Text>
       </Pressable>
 
-      {/* 댓글 */}
+      {/* 댓글 — stubbed (PHASE 3-B에서 연결) */}
       <Pressable style={({ pressed }) => ({
         flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
+        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
       })}>
         <LucideIcon name="message-circle" size={18} color={MUTED} />
         <Text style={{ ...T4, fontSize: 13 }}>댓글</Text>
@@ -398,7 +487,7 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
         onPress={onDetail}
         style={({ pressed }) => ({
           flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-          paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.6 : 1, gap: 5,
+          paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
         })}
       >
         <LucideIcon name="file-text" size={18} color={MUTED} />
