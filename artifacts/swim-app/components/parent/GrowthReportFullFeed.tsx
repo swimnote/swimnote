@@ -1,26 +1,17 @@
 /**
- * GrowthReportFullFeed.tsx — VISUAL REFINEMENT ROUND 2
+ * GrowthReportFullFeed.tsx — VISUAL REFINEMENT ROUND 2 + X COLOR CORRECTION
  *
- * 핵심 원칙:
- *   - 하나의 긴 Instagram 게시물처럼 세로 스크롤
- *   - truncation / lineClamp / maxHeight / overflow hidden 전면 금지
- *   - navy 큰 배경 블록 금지 — 전체 배경 white
- *   - section마다 shadow/radius card 금지 — 얇은 divider만 사용
- *   - typography 4단계 고정
+ * COLOR SYSTEM: SWIMNOTE X 전용 팔레트만 사용
+ *   X_NAVY      #0F172A  — 제목 / 구조 / 강한 정보
+ *   X_MINT      #2EC4B6  — accent / active / progress / 강조선
+ *   X_MINT_LIGHT #E6FAF8 — 핵심 영역 배경 / badge 배경 / highlight
+ *   WHITE       #FFFFFF  — 일반 분석 section
+ *   GRAY 계열           — metadata / divider / inactive utility
  *
- * Typography:
- *   T1 section title  15px SemiBold deep navy
- *   T2 body           14px Regular  line-height 22 deep navy/blue-black
- *   T3 meta           12px Regular  muted blue-gray
- *   T4 action         12px Regular  muted
+ * 일반 SWIMNOTE aqua/cyan 계열 (#25B7CF, #E8F7FB, #F0FAFC 등) 전면 제거.
  *
- * Section 3-type system:
- *   Type A (aqua-mist bg)  — 이번 달 한눈에 보기, 가정에서 함께해요
- *   Type B (white bg)      — 분석 섹션 (divider 구분)
- *   Type C (compact strip) — 커리큘럼 진도 progress
- *
- * AI calls = 0 (저장된 report_content만 사용)
- * PDF V3 / API / DB / Render / OTA 수정 금지
+ * 구조 변경 없음. typography 크기 변경 없음.
+ * AI calls = 0. PDF V3 / API / DB / Render / OTA 수정 금지.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -40,26 +31,24 @@ import type { GrowthReportFeedItem } from "@/components/parent/GrowthReportFeedC
 // ─── Asset ───────────────────────────────────────────────────────────────────
 const LOGO = require("@/assets/images/swimnote-ai-report-logo.png");
 
-// ─── Color system ────────────────────────────────────────────────────────────
-const DEEP_NAVY    = "#0D2E5A";
-const AQUA         = "#25B7CF";
-const AQUA_SOFT    = "#D9F2F6";
-const AQUA_MIST    = "#F0FAFC";
-const AQUA_MIST2   = "#E8F7FB";   // Type A 섹션 배경 (살짝 짙게)
-const AQUA_TEXT    = "#1899B5";
-const AQUA_BADGE   = "#EAF8FC";   // badge 배경
-const BODY         = "#1A2E44";
-const META         = "#526C78";
-const META_DARK    = "#3D5566";   // action row — 너무 흐리지 않게
-const MUTED        = "#7A90A8";
-const DIVIDER      = "#EBF1F7";
-const DIVIDER_A    = "#C8EBF3";   // Type A 섹션 구분선
-const WHITE        = "#FFFFFF";
-const TITLE_MAIN   = "#0B2547";   // "월간 성장 리포트" 제목
+// ─── SWIMNOTE X Color System ─────────────────────────────────────────────────
+const X_NAVY        = "#0F172A";   // 제목 / 구조 / 강한 정보
+const X_MINT        = "#2EC4B6";   // accent / active / progress fill / 강조선
+const X_MINT_LIGHT  = "#E6FAF8";   // 핵심 영역 배경 / badge 배경 / highlight
+const WHITE         = "#FFFFFF";   // 일반 분석 section 배경
+
+// Neutral gray 계열 (보조용)
+const BODY          = "#1A2E44";   // body text — dark neutral, 기존 유지
+const META          = "#526C78";   // metadata gray
+const META_DARK     = "#3D5566";   // action row label — too faint 방지
+const MUTED         = "#7A90A8";   // inactive / hint
+const DIVIDER       = "#E8EDEF";   // neutral gray divider (Type B)
+const DIVIDER_A     = "#C2EDE9";   // mint-tinted divider (Type A 경계)
+const PROGRESS_TRACK = "#D0F0ED"; // progress bar track (mint-light 계열)
 
 // ─── Typography ──────────────────────────────────────────────────────────────
-const T1: any = { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: DEEP_NAVY };
-const T2: any = { fontSize: 14, fontFamily: "Pretendard-Regular",  color: BODY,      lineHeight: 22 };
+const T1: any = { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: X_NAVY };
+const T2: any = { fontSize: 14, fontFamily: "Pretendard-Regular",  color: BODY,     lineHeight: 22 };
 const T3: any = { fontSize: 12, fontFamily: "Pretendard-Regular",  color: META };
 const T4: any = { fontSize: 12, fontFamily: "Pretendard-Regular",  color: META_DARK };
 
@@ -143,7 +132,6 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // 커리큘럼 진도
   const pct        = progressData?.display_confirmed_pct;
   const hasProgress =
     (progressData?.observation_session_count ?? 0) >= 3 &&
@@ -159,7 +147,7 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   return (
     <View style={{ backgroundColor: WHITE }}>
 
-      {/* ── HEADER (4-row structure) ───────────────────────────────── */}
+      {/* ── HEADER ────────────────────────────────────────────────── */}
       <ReportHeader
         studentName={studentName}
         poolName={poolName}
@@ -168,18 +156,15 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
         pctInt={pctInt}
       />
 
-      {/* ── CONTENT ────────────────────────────────────────────────── */}
+      {/* ── CONTENT ───────────────────────────────────────────────── */}
       {loading ? (
         <View style={{ paddingVertical: 40, alignItems: "center" }}>
-          <ActivityIndicator size="small" color={AQUA} />
+          <ActivityIndicator size="small" color={X_MINT} />
         </View>
       ) : failed ? (
         <FailState onRetry={fetchDetail} onDetail={goDetail} />
       ) : detail ? (
-        <ReportBody
-          detail={detail}
-          onDetail={goDetail}
-        />
+        <ReportBody detail={detail} onDetail={goDetail} />
       ) : null}
 
     </View>
@@ -217,25 +202,25 @@ function ReportHeader({
         />
         <View style={{ marginLeft: "auto" as any }}>
           <View style={{
-            backgroundColor: AQUA_BADGE,
+            backgroundColor: X_MINT_LIGHT,
             borderWidth: 1,
-            borderColor: AQUA_SOFT,
+            borderColor: X_MINT,
             borderRadius: 4,
             paddingHorizontal: 8,
             paddingVertical: 3,
           }}>
-            <Text style={{ ...T3, color: AQUA_TEXT, fontFamily: "Pretendard-SemiBold" }}>
+            <Text style={{ ...T3, color: X_NAVY, fontFamily: "Pretendard-SemiBold" }}>
               월간 리포트
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Row 2: 월간 성장 리포트 (main title) */}
+      {/* Row 2: 월간 성장 리포트 */}
       <Text style={{
         fontSize: 18,
         fontFamily: "Pretendard-SemiBold",
-        color: TITLE_MAIN,
+        color: X_NAVY,
         letterSpacing: -0.3,
         marginBottom: 6,
       }}>
@@ -247,10 +232,10 @@ function ReportHeader({
         {metaParts.join("  ·  ")}
       </Text>
 
-      {/* Row 4: 커리큘럼 진도 (Type C strip) — progress 있을 때만 */}
+      {/* Row 4: 커리큘럼 진도 strip (Type C) */}
       {hasProgress && (
         <View style={{
-          backgroundColor: AQUA_MIST,
+          backgroundColor: X_MINT_LIGHT,
           borderRadius: 8,
           paddingHorizontal: 12,
           paddingVertical: 9,
@@ -261,28 +246,27 @@ function ReportHeader({
             justifyContent: "space-between",
             marginBottom: 6,
           }}>
-            <Text style={{ ...T3, color: META_DARK, fontFamily: "Pretendard-SemiBold" }}>
+            <Text style={{ ...T3, color: X_NAVY, fontFamily: "Pretendard-SemiBold" }}>
               커리큘럼 진도
             </Text>
             <Text style={{
               fontSize: 13,
               fontFamily: "Pretendard-SemiBold",
-              color: AQUA_TEXT,
+              color: X_MINT,
             }}>
               {pctInt}%
             </Text>
           </View>
-          {/* Progress bar */}
           <View style={{
             height: 4,
-            backgroundColor: AQUA_SOFT,
+            backgroundColor: PROGRESS_TRACK,
             borderRadius: 3,
             overflow: "hidden" as const,
           }}>
             <View style={{
               height: "100%" as const,
               width: `${Math.min(100, pctInt)}%` as `${number}%`,
-              backgroundColor: AQUA,
+              backgroundColor: X_MINT,
               borderRadius: 3,
             }} />
           </View>
@@ -293,12 +277,7 @@ function ReportHeader({
 }
 
 // ─── Report body ──────────────────────────────────────────────────────────────
-function ReportBody({
-  detail, onDetail,
-}: {
-  detail:   GrowthReportDetail;
-  onDetail: () => void;
-}) {
+function ReportBody({ detail, onDetail }: { detail: GrowthReportDetail; onDetail: () => void }) {
   const { report_content } = detail;
   const secs = report_content?.sections ?? {};
 
@@ -313,7 +292,7 @@ function ReportBody({
       {/* ── TYPE A: 이번 달 한눈에 보기 ────────────────────────────── */}
       {hasSummary && (
         <View style={{
-          backgroundColor: AQUA_MIST2,
+          backgroundColor: X_MINT_LIGHT,
           borderBottomWidth: 1,
           borderBottomColor: DIVIDER_A,
           paddingHorizontal: 16,
@@ -350,7 +329,7 @@ function ReportBody({
         <>
           <View style={{ height: 1, backgroundColor: DIVIDER_A }} />
           <View style={{
-            backgroundColor: AQUA_MIST2,
+            backgroundColor: X_MINT_LIGHT,
             paddingHorizontal: 16,
             paddingTop: 18,
             paddingBottom: 20,
@@ -370,19 +349,14 @@ function ReportBody({
   );
 }
 
-// ─── Section title — accent bar + T1 text ────────────────────────────────────
-// Type A: aqua accent bar (강조 섹션)
-// Type B: deep navy accent bar (분석 섹션)
+// ─── Section title ────────────────────────────────────────────────────────────
+// Type A: X_MINT accent bar (핵심 영역)
+// Type B: X_NAVY accent bar (분석 영역)
 function SectionTitle({ label, type }: { label: string; type: "A" | "B" }) {
-  const barColor = type === "A" ? AQUA : DEEP_NAVY;
+  const barColor = type === "A" ? X_MINT : X_NAVY;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-      <View style={{
-        width: 3,
-        height: 17,
-        borderRadius: 2,
-        backgroundColor: barColor,
-      }} />
+      <View style={{ width: 3, height: 17, borderRadius: 2, backgroundColor: barColor }} />
       <Text style={T1}>{label}</Text>
     </View>
   );
@@ -405,51 +379,33 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
       borderTopColor: DIVIDER,
       backgroundColor: WHITE,
     }}>
-      {/* 좋아요 */}
-      <Pressable
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          padding: 6,
-          opacity: pressed ? 0.6 : 1,
-        })}
-      >
-        <LucideIcon name="heart" size={19} color={META_DARK} />
+      <Pressable style={({ pressed }) => ({
+        flexDirection: "row", alignItems: "center", gap: 4,
+        padding: 6, opacity: pressed ? 0.6 : 1,
+      })}>
+        <LucideIcon name="heart" size={19} color={MUTED} />
         <Text style={T4}>좋아요</Text>
       </Pressable>
 
-      {/* 댓글 */}
-      <Pressable
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          padding: 6,
-          marginLeft: 4,
-          opacity: pressed ? 0.6 : 1,
-        })}
-      >
-        <LucideIcon name="message-circle" size={19} color={META_DARK} />
+      <Pressable style={({ pressed }) => ({
+        flexDirection: "row", alignItems: "center", gap: 4,
+        padding: 6, marginLeft: 4, opacity: pressed ? 0.6 : 1,
+      })}>
+        <LucideIcon name="message-circle" size={19} color={MUTED} />
         <Text style={T4}>댓글</Text>
       </Pressable>
 
       <View style={{ flex: 1 }} />
 
-      {/* PDF·공유 */}
       <Pressable
         onPress={onDetail}
         style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-          paddingHorizontal: 10,
-          paddingVertical: 6,
-          borderRadius: 6,
-          backgroundColor: pressed ? AQUA_MIST : "transparent",
+          flexDirection: "row", alignItems: "center", gap: 4,
+          paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6,
+          backgroundColor: pressed ? X_MINT_LIGHT : "transparent",
         })}
       >
-        <LucideIcon name="download" size={15} color={META_DARK} />
+        <LucideIcon name="download" size={15} color={MUTED} />
         <Text style={T4}>PDF·공유</Text>
       </Pressable>
     </View>
@@ -460,35 +416,25 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
 function FailState({ onRetry, onDetail }: { onRetry: () => void; onDetail: () => void }) {
   return (
     <View style={{ padding: 28, alignItems: "center", gap: 12 }}>
-      <Text style={{ ...T3, textAlign: "center" }}>
-        리포트를 불러오지 못했습니다.
-      </Text>
+      <Text style={{ ...T3, textAlign: "center" }}>리포트를 불러오지 못했습니다.</Text>
       <View style={{ flexDirection: "row", gap: 10 }}>
         <Pressable
           onPress={onRetry}
           style={{
-            paddingHorizontal: 14,
-            paddingVertical: 7,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: AQUA_SOFT,
-            backgroundColor: AQUA_MIST,
+            paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8,
+            borderWidth: 1, borderColor: X_MINT, backgroundColor: X_MINT_LIGHT,
           }}
         >
-          <Text style={{ ...T4, color: AQUA_TEXT }}>다시 시도</Text>
+          <Text style={{ ...T4, color: X_NAVY }}>다시 시도</Text>
         </Pressable>
         <Pressable
           onPress={onDetail}
           style={{
-            paddingHorizontal: 14,
-            paddingVertical: 7,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: AQUA_SOFT,
-            backgroundColor: AQUA_MIST,
+            paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8,
+            borderWidth: 1, borderColor: X_MINT, backgroundColor: X_MINT_LIGHT,
           }}
         >
-          <Text style={{ ...T4, color: AQUA_TEXT }}>상세 보기</Text>
+          <Text style={{ ...T4, color: X_NAVY }}>상세 보기</Text>
         </Pressable>
       </View>
     </View>

@@ -1,48 +1,43 @@
 /**
- * GrowthReportCard — Web Mockup Preview (VISUAL REFINEMENT ROUND 2)
+ * GrowthReportCard — Web Mockup Preview
+ * VISUAL REFINEMENT ROUND 2 + X COLOR CORRECTION
  *
- * Header: 4행 구조
- *   Row 1: 로고 (좌) + 월간 리포트 badge (우)
- *   Row 2: "월간 성장 리포트" main title 18px SemiBold
- *   Row 3: 학생 · 수영장 · 월  (T3 meta)
- *   Row 4: 커리큘럼 진도 compact strip (있을 때만)
+ * COLOR SYSTEM: SWIMNOTE X 전용 팔레트만 사용
+ *   X_NAVY       #0F172A  — 제목 / 구조 / 강한 정보
+ *   X_MINT       #2EC4B6  — accent / active / progress fill / 강조선
+ *   X_MINT_LIGHT #E6FAF8  — 핵심 영역 배경 / badge 배경
+ *   WHITE        #FFFFFF  — 일반 분석 section
+ *   GRAY 계열            — metadata / divider / inactive
  *
- * Section 3-type:
- *   Type A (aqua-mist bg, aqua accent bar) — 이번 달 한눈에 보기 / 가정에서 함께해요
- *   Type B (white bg, navy accent bar)     — 분석 섹션들
- *   Type C (compact strip, rounded bg)     — 커리큘럼 진도 progress
- *
- * ?p=1 → showProgress = true
+ * 일반 SWIMNOTE aqua/cyan 계열 전면 제거.
+ * 구조/레이아웃/typography 크기 변경 없음.
  */
 
 import React from "react";
 
-// ─── Color system ─────────────────────────────────────────────────────────────
+// ─── SWIMNOTE X Color System ──────────────────────────────────────────────────
 const C = {
-  deepNavy:   "#0D2E5A",
-  titleMain:  "#0B2547",
-  aqua:       "#25B7CF",
-  aquaSoft:   "#D9F2F6",
-  aquaMist:   "#F0FAFC",
-  aquaMist2:  "#E8F7FB",
-  aquaText:   "#1899B5",
-  aquaBadge:  "#EAF8FC",
-  body:       "#1A2E44",
-  meta:       "#526C78",
-  metaDark:   "#3D5566",
-  muted:      "#7A90A8",
-  divider:    "#EBF1F7",
-  dividerA:   "#C8EBF3",
-  white:      "#FFFFFF",
-  bgPage:     "#F4F7FA",
+  xNavy:         "#0F172A",   // 제목 / 구조 / 강한 정보
+  xMint:         "#2EC4B6",   // accent / progress fill / 강조선
+  xMintLight:    "#E6FAF8",   // 핵심 영역 배경 / badge 배경
+  white:         "#FFFFFF",   // 일반 분석 section 배경
+  // Neutral gray 계열 (보조)
+  body:          "#1A2E44",   // body text
+  meta:          "#526C78",   // metadata
+  metaDark:      "#3D5566",   // action label
+  muted:         "#7A90A8",   // icon / inactive
+  divider:       "#E8EDEF",   // neutral gray divider
+  dividerA:      "#C2EDE9",   // mint-tinted Type A 경계
+  progressTrack: "#D0F0ED",   // progress bar track
+  bgPage:        "#F4F7FA",
 };
 
 // ─── Typography — 4단계 고정 ──────────────────────────────────────────────────
 const T = {
-  t1: { fontSize: 15, fontWeight: "600", color: C.deepNavy }        as React.CSSProperties,
-  t2: { fontSize: 14, color: C.body, lineHeight: "22px" }           as React.CSSProperties,
-  t3: { fontSize: 12, color: C.meta }                               as React.CSSProperties,
-  t4: { fontSize: 12, color: C.metaDark }                           as React.CSSProperties,
+  t1: { fontSize: 15, fontWeight: "600", color: C.xNavy }         as React.CSSProperties,
+  t2: { fontSize: 14, color: C.body, lineHeight: "22px" }         as React.CSSProperties,
+  t3: { fontSize: 12, color: C.meta }                              as React.CSSProperties,
+  t4: { fontSize: 12, color: C.metaDark }                          as React.CSSProperties,
 };
 
 // ─── 실제 데이터 (서태웅 2026-08) ─────────────────────────────────────────────
@@ -75,21 +70,21 @@ const REPORT = {
 // ─── SVG icons ────────────────────────────────────────────────────────────────
 function IconHeart() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.metaDark} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
   );
 }
 function IconComment() {
   return (
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.metaDark} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
 function IconDownload() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.metaDark} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
@@ -97,15 +92,14 @@ function IconDownload() {
   );
 }
 
-// ─── SectionTitle (A/B 타입) ──────────────────────────────────────────────────
+// ─── SectionTitle ─────────────────────────────────────────────────────────────
+// Type A: X_MINT accent bar (핵심 섹션)
+// Type B: X_NAVY accent bar (분석 섹션)
 function SectionTitle({ label, type }: { label: string; type: "A" | "B" }) {
-  const barColor = type === "A" ? C.aqua : C.deepNavy;
+  const barColor = type === "A" ? C.xMint : C.xNavy;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-      <div style={{
-        width: 3, height: 17, borderRadius: 2,
-        backgroundColor: barColor, flexShrink: 0,
-      }} />
+      <div style={{ width: 3, height: 17, borderRadius: 2, backgroundColor: barColor, flexShrink: 0 }} />
       <span style={T.t1}>{label}</span>
     </div>
   );
@@ -138,10 +132,7 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
       }}>
 
         {/* Row 1: 로고 + badge */}
-        <div style={{
-          display: "flex", alignItems: "center",
-          marginBottom: 10,
-        }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
           <img
             src="/__mockup/swimnote-ai-report-logo.png"
             alt="SwimNote AI REPORT"
@@ -149,66 +140,52 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
           />
           <div style={{ marginLeft: "auto" }}>
             <div style={{
-              backgroundColor: C.aquaBadge,
-              border: `1px solid ${C.aquaSoft}`,
+              backgroundColor: C.xMintLight,
+              border: `1px solid ${C.xMint}`,
               borderRadius: 4,
               padding: "3px 8px",
               display: "inline-block",
             }}>
-              <span style={{ ...T.t3, color: C.aquaText, fontWeight: "600" }}>
-                월간 리포트
-              </span>
+              <span style={{ ...T.t3, color: C.xNavy, fontWeight: "600" }}>월간 리포트</span>
             </div>
           </div>
         </div>
 
-        {/* Row 2: 월간 성장 리포트 (main title) */}
+        {/* Row 2: 월간 성장 리포트 */}
         <div style={{
-          fontSize: 18,
-          fontWeight: "600",
-          color: C.titleMain,
-          letterSpacing: "-0.3px",
-          marginBottom: 6,
+          fontSize: 18, fontWeight: "600", color: C.xNavy,
+          letterSpacing: "-0.3px", marginBottom: 6,
         }}>
           월간 성장 리포트
         </div>
 
         {/* Row 3: 학생 · 수영장 · 월 */}
-        <div style={{
-          ...T.t3,
-          marginBottom: showProgress ? 12 : 0,
-        }}>
+        <div style={{ ...T.t3, marginBottom: showProgress ? 12 : 0 }}>
           {metaParts.join("  ·  ")}
         </div>
 
-        {/* Row 4 (Type C): 커리큘럼 진도 strip */}
+        {/* Row 4 (Type C): 커리큘럼 진도 */}
         {showProgress && (
           <div style={{
-            backgroundColor: C.aquaMist,
+            backgroundColor: C.xMintLight,
             borderRadius: 8,
             padding: "9px 12px",
           }}>
             <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
               marginBottom: 6,
             }}>
-              <span style={{ ...T.t3, color: C.metaDark, fontWeight: "600" }}>
-                커리큘럼 진도
-              </span>
-              <span style={{ fontSize: 13, fontWeight: "600", color: C.aquaText }}>
+              <span style={{ ...T.t3, color: C.xNavy, fontWeight: "600" }}>커리큘럼 진도</span>
+              <span style={{ fontSize: 13, fontWeight: "600", color: C.xMint }}>
                 {REPORT.pct}%
               </span>
             </div>
             <div style={{
-              height: 4, backgroundColor: C.aquaSoft, borderRadius: 3, overflow: "hidden",
+              height: 4, backgroundColor: C.progressTrack, borderRadius: 3, overflow: "hidden",
             }}>
               <div style={{
-                height: "100%",
-                width: `${REPORT.pct}%`,
-                backgroundColor: C.aqua,
-                borderRadius: 3,
+                height: "100%", width: `${REPORT.pct}%`,
+                backgroundColor: C.xMint, borderRadius: 3,
               }} />
             </div>
           </div>
@@ -217,7 +194,7 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
 
       {/* ── TYPE A: 이번 달 한눈에 보기 ──────────────────────────────── */}
       <div style={{
-        backgroundColor: C.aquaMist2,
+        backgroundColor: C.xMintLight,
         borderBottom: `1px solid ${C.dividerA}`,
         padding: "18px 16px",
       }}>
@@ -229,10 +206,7 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
       {REPORT.sections.map((sec) => (
         <React.Fragment key={sec.key}>
           <Hairline />
-          <div style={{
-            backgroundColor: C.white,
-            padding: "18px 16px",
-          }}>
+          <div style={{ backgroundColor: C.white, padding: "18px 16px" }}>
             <SectionTitle label={sec.label} type="B" />
             <p style={{ ...T.t2, margin: "10px 0 0 0" }}>{sec.text}</p>
           </div>
@@ -242,7 +216,7 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
       {/* ── TYPE A: 가정에서 함께해요 ────────────────────────────────── */}
       <Hairline color={C.dividerA} />
       <div style={{
-        backgroundColor: C.aquaMist2,
+        backgroundColor: C.xMintLight,
         padding: "18px 16px 20px",
       }}>
         <SectionTitle label="가정에서 함께해요" type="A" />
@@ -251,41 +225,33 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
 
       {/* ── ACTION ROW ───────────────────────────────────────────────── */}
       <div style={{
-        display: "flex",
-        alignItems: "center",
+        display: "flex", alignItems: "center",
         padding: "10px 12px",
         borderTop: `1px solid ${C.divider}`,
         backgroundColor: C.white,
       }}>
-        {/* 좋아요 */}
         <button style={{
           background: "none", border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 4, padding: 6, lineHeight: 0,
+          display: "flex", alignItems: "center", gap: 4, padding: 6,
         }}>
           <IconHeart />
           <span style={T.t4}>좋아요</span>
         </button>
-
-        {/* 댓글 */}
         <button style={{
           background: "none", border: "none", cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 4, padding: 6, marginLeft: 4, lineHeight: 0,
+          display: "flex", alignItems: "center", gap: 4, padding: 6, marginLeft: 4,
         }}>
           <IconComment />
           <span style={T.t4}>댓글</span>
         </button>
-
         <div style={{ flex: 1 }} />
-
-        {/* PDF·공유 */}
         <button style={{
           background: "none", border: "none", cursor: "pointer",
           display: "flex", alignItems: "center", gap: 4,
           padding: "6px 10px", borderRadius: 6,
-          lineHeight: 0,
         }}>
           <IconDownload />
-          <span style={{ ...T.t4, lineHeight: "1" }}>PDF·공유</span>
+          <span style={T.t4}>PDF·공유</span>
         </button>
       </div>
 
