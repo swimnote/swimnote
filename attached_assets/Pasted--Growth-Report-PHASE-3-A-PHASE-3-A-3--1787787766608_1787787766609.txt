@@ -1,0 +1,179 @@
+[앱] Growth Report PHASE 3-A 계획 최종 수정 — 구현 금지
+
+전체 방향은 승인 가능하나,
+PHASE 3-A 구현 전에 아래 3건을 실제 코드 기준으로 수정해서 보고하십시오.
+
+아직 코드 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Reactions API Response Contract 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 인증 TC에서는:
+
+초기 GET reactions:
+myReactions: []
+
+좋아요 후 GET:
+myReactions: ["like"]
+
+로 보고되었습니다.
+
+그런데 현재 PHASE 3-A 계획에는:
+
+{ reactions: [{ reaction_type, active }] }
+
+형태로 작성되어 있습니다.
+
+실제 현재 route 코드를 다시 확인해서 정확히 보고하십시오.
+
+반드시 제출:
+
+GET /parent/growth-reports/:reportId/reactions
+
+- 실제 response JSON 전체 shape
+- 좋아요 없음 상태
+- 좋아요 있음 상태
+
+POST /parent/growth-reports/:reportId/reactions
+
+- 실제 request body
+- 실제 response JSON
+- active true/false 위치
+
+추측이나 기존 Diary contract 복사 금지.
+
+PHASE 3-A 코드는 이 실제 contract에 정확히 맞춰야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. FeedActionRow 공통화 방식 모순 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계획은:
+
+FeedActionRow 공통 component 신규 생성
+
+이라고 하면서 동시에:
+
+DiaryFeedItem은 수정하지 않음
+
+이라고 되어 있습니다.
+
+그러면 실제로는 Diary와 Growth Report가
+같은 component를 쓰는 구조가 아닙니다.
+
+사용자 요구는:
+
+Diary:
+[좋아요] [댓글] [Instagram]
+
+Growth Report:
+[좋아요] [댓글] [PDF·공유]
+
+에서 앞의 좋아요/댓글이
+같은 디자인/동작 체계여야 한다는 것입니다.
+
+다음 중 하나를 최종 선택해서 이유를 보고하십시오.
+
+A.
+PHASE 3-A에서 DiaryFeedItem도 최소 수정하여
+Diary와 Growth Report가 실제 FeedActionRow를 공동 사용
+
+또는
+
+B.
+기존 DiaryFeedItem은 regression 방지를 위해 유지하고,
+이번 단계에서는 Growth Report가 Diary의 정확한 style/icon spec을 재현.
+공통 component 추출은 별도 후속 refactor로 연기
+
+중요:
+실제로 공동 사용하지 않으면서
+"공통 component 재사용"이라고 보고하면 안 됩니다.
+
+이번 기능 구현의 안전성이 더 중요하면 B안을 선택해도 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. isToggling 상태 처리 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계획:
+
+isToggling = useRef(false)
+
+그리고
+
+disabled={isToggling.current}
+
+로 되어 있습니다.
+
+useRef 값 변경은 React render를 발생시키지 않으므로
+disabled prop이 즉시 UI에 반영된다고 볼 수 없습니다.
+
+다음 중 하나로 설계 확정:
+
+A.
+const [isToggling, setIsToggling] = useState(false)
+
+→ Pressable disabled와 중복 탭 방지를 모두 state로 처리
+
+또는
+
+B.
+useRef guard만 사용하여 네트워크 중복 요청만 차단하고
+disabled UI 처리 자체를 하지 않음
+
+어느 방식인지 명확히 선택하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Refresh 경로도 한 줄만 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계획에서:
+
+"home onFocus refresh 또는 pull-to-refresh로 상위에서 재마운트"
+
+라고 되어 있는데,
+재마운트인지 rerender인지 실제로 확인되지 않았습니다.
+
+GrowthReportFullFeed가:
+
+- mount될 때만 GET 하는지
+- Home refresh token/prop 변화로 다시 GET 하는지
+- FlatList refresh 시 실제 unmount/remount 되는지
+
+현재 코드 기준으로 확인.
+
+화면 재진입 후 좋아요 상태가 반드시 최신화되는
+확실한 trigger 하나를 계획서에 적으십시오.
+
+불필요한 architecture 변경은 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[REACTION CONTRACT]
+- GET request/response
+- POST request/response
+
+[ACTION ROW DECISION]
+- A 또는 B
+- 이유
+
+[TOGGLE STATE]
+- A 또는 B
+- 이유
+
+[REFRESH TRIGGER]
+- 실제 현재 코드 기준
+
+[FINAL PHASE 3-A FILES]
+- 수정/신규 파일
+- 변경 범위
+
+코드 수정 금지.
+OTA 금지.
+DB write 금지.
+Render deploy 금지.
+
+수정 계획 제출 후 STOP.
