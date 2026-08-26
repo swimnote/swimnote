@@ -134,6 +134,7 @@
 - [WP-CS23-FINAL 완료 상태](wp-cs23-final-done-state.md) — SHA 423ac425; scope='pool'→global(29KI)+41승인+333UTT활성화; 67/67 live direct; 3091TC; DB-only; PENDING_DEVICE
 - [WP-CS23-DEVICE 완료 상태](wp-cs23-device-done-state.md) — API layer ALL PASS; DIRECT_DB/GPT/Agent Reply/SameConv 검증; Push=PENDING_DEVICE; CS23전체완료
 - [WP-CS24 완료 상태](wp-cs24-done-state.md) — SHA 29f90acc; QueryLog+CandidateEngine+ReviewConsole; 50TC+3141TC; Render 트리거; OTA 없음
+- [GR-M Feed Delivery 완료](grm-feed-delivery-done.md) — SHA 07290b27; GR-M6 feed projection+M7 questions 403+M8 push ON CONFLICT; 23TC; Render 미배포
 - [RT1 완료 상태](rt1-done-state.md) — SHA 5ca35ced; lib/runtime/ 8파일 신규; 37TC; Production behavior 변경 없음; Render/OTA 없음
 - [RT2 Relevance Correction 완료](rt2-relevance-correction-done.md) — SHA 476caeb3; intent scoring+platform penalty+re-sort fix; 6-query prod recheck ✅; Render 미배포
 - [RT2 Semantic Slot+Goal+Facet 완료](rt2-semantic-slot-done.md) — SHA 258485b2; Round3(ACTION/OBJECT)+Round4(GOAL)+Round5(FACET); 77TC; Render 미배포
