@@ -1,0 +1,259 @@
+[앱]
+
+PARENT HOME — CURRICULUM GAUGE + DUPLICATE PARENT REPORT BUTTON REMOVAL
+
+* iOS PRODUCTION OTA
+* ROLLBACK READY
+
+현재 실기기 화면 기준
+아래 2건만 수정한다.
+
+1. 교육과정 진행도 fallback 상태에서도 gauge UI 구조 표시
+2. 광고 카드 아래 "학부모 리포트" 카드 삭제 + 상단 "AI 인사이트 전략 리포트" 버튼으로 기존 Hub 진입 통합
+
+중요:
+크레딧 절약 우선.
+필요한 파일/분기만 확인하고
+관련 최소 테스트만 수행한다.
+
+금지:
+
+* repo-wide audit
+* 전체 regression
+* 이미 확인된 항목 재검증
+* 작업 배경 장문 재설명
+* AI Engine 수정
+* DB 수정/write
+* PDF 수정
+* Render deploy
+* Android OTA
+* native/runtimeVersion 변경
+* Parent Home 전체 재디자인
+
+==================================================
+
+1. 교육과정 진행도
+   ==================================================
+
+현재 문제:
+
+데이터 부족 상태에서
+"수업 기록이 쌓이면..." 안내문만 보이고
+gauge UI 자체가 없음.
+
+수정:
+
+기본 구조는 항상 유지.
+
+교육과정 진행도            XX.X% 또는 fallback 상태
+[ progress gauge ]
+
+A. 유효 데이터 있음
+
+* 기존 progress source 그대로 사용
+* % 표시
+* gauge fill 표시
+* 숫자와 bar 동일 데이터 기준
+* 하드코딩 금지
+* 기존 계산식 변경 금지
+
+B. 데이터 부족
+
+* 가짜 0% 금지
+* gauge track은 표시
+* active fill은 표시하지 않거나 neutral 상태
+* fallback 문구 표시
+
+권장 문구:
+"진행 정보가 쌓이는 중입니다"
+
+색상:
+
+* title / % = navy
+* track = neutral
+* 실제 progress fill만 mint 사용 가능
+
+==================================================
+2. 광고 카드 아래 "학부모 리포트" 카드 삭제
+===========================
+
+현재 광고 카드 아래:
+
+"학부모 리포트"
+"정기 리포트 확인 · 정밀 분석 신청"
+
+카드가 별도로 존재함.
+
+이 Parent Home 노출을 삭제한다.
+
+삭제:
+
+* 카드
+* subtitle
+* chevron
+* 불필요한 wrapper/spacing
+
+단:
+기존 backend/route 자체는 삭제하지 않는다.
+
+==================================================
+3. 상단 "AI 인사이트 전략 리포트" 연결
+=========================
+
+상단 버튼이
+기존 학부모 리포트/정밀 분석 Hub 진입 역할을 가져간다.
+
+먼저 최소 확인:
+
+* 하단 "학부모 리포트" 카드 현재 onPress route
+* 상단 "AI 인사이트 전략 리포트" 현재 onPress route
+
+기존 하단 route가
+심층 리포트 Hub 의도와 맞으면 그대로 재사용.
+
+새 route 생성 금지.
+
+중요:
+"AI 인사이트 전략 리포트"를
+정기 "AI 성장 리포트" 생성으로 연결 금지.
+
+정기 AI 성장 리포트:
+자동 발급 / feed
+
+AI 인사이트 전략 리포트:
+심층 분석 Hub
+
+==================================================
+4. 최종 Parent Home 흐름
+====================
+
+학생 selector
+↓
+AI 인사이트 전략 리포트 / AI 커리큘럼 검색
+↓
+교육과정 진행도
+↓
+광고/프로모션 슬롯
+↓
+성장리포트 전체보기
+↓
+AI 성장 리포트 Feed
+
+중간 "학부모 리포트" 카드 없음.
+
+삭제 후 생기는 spacing만 자연스럽게 정리.
+
+다른 UI는 건드리지 않는다.
+
+==================================================
+5. 최소 테스트만 수행
+=============
+
+아래만 확인:
+
+1. TypeScript error 0
+2. progress valid 상태
+
+   * % 표시
+   * gauge fill 표시
+3. progress insufficient 상태
+
+   * 0% 표시 없음
+   * fallback 문구
+   * gauge track 표시
+4. "학부모 리포트" 카드 제거
+5. 상단 AI 인사이트 전략 리포트 버튼 route 정상
+6. Parent Home 렌더링 오류 없음
+
+그 외 전체 테스트 금지.
+
+==================================================
+6. OTA / ROLLBACK
+=================
+
+JS/TS/TSX only이고
+native/runtimeVersion 변경 없으면
+iOS production OTA 즉시 배포.
+
+OTA 전에 반드시 실제 현재 상태에서 기록:
+
+PREVIOUS STABLE
+
+* update group ID
+* update ID
+* runtimeVersion
+* channel
+* git SHA
+
+추측 금지.
+
+현재 이전 보고상 최신 OTA:
+
+* group: ef3d16a0-1b6c-4f06-9344-d2ea67464ae3
+* update: 01a03e8b-7de3-7de1-87fa-a3124790444d
+
+단 실제 EAS 현재 상태를 확인해서
+이번 작업의 rollback target으로 확정할 것.
+
+그 후:
+
+수정
+→ 최소 테스트
+→ commit
+→ iOS production OTA
+
+Android OTA 금지.
+
+문제 발생 시
+기록한 PREVIOUS STABLE로 즉시 rollback 가능 상태 유지.
+
+==================================================
+7. 완료보고 — 짧게
+============
+
+지시 내용을 다시 길게 설명하지 말 것.
+필요한 정보만 보고.
+
+[CODE]
+
+* before SHA
+* after SHA
+* 변경 파일
+
+[RESULT]
+
+* curriculum gauge: valid/fallback 동작
+* 학부모 리포트 카드 제거 여부
+* 상단 AI 인사이트 전략 리포트 최종 route
+
+[TEST]
+
+* TS error
+* 관련 최소 테스트 결과
+
+[PREVIOUS STABLE]
+
+* group ID
+* update ID
+* runtimeVersion
+* channel
+* git SHA
+
+[NEW OTA]
+
+* group ID
+* update ID
+* runtimeVersion
+* channel
+* git SHA
+* publish 결과
+
+[DEVICE]
+실기기 직접 확인 불가면:
+"사용자 실기기 확인 대기"
+
+불필요한 Before/After 장문 설명,
+PASS 항목 반복 설명,
+전체 구조 재요약 금지.
+
+완료 후 STOP.
