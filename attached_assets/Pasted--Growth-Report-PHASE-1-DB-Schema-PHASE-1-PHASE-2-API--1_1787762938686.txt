@@ -1,0 +1,203 @@
+[앱] Growth Report 좋아요·댓글 — PHASE 1 DB Schema 구현
+
+설계 승인 완료.
+
+이번에는 PHASE 1만 구현하십시오.
+PHASE 2 API 작업으로 넘어가지 마십시오.
+
+중요:
+기존 Diary 좋아요/댓글 코드는 수정하지 않습니다.
+
+parent.ts / comments.ts의 기존 teacher resolve SQL도
+공통 helper로 리팩터링하지 마십시오.
+
+현재 정상 동작하는 Diary 기능은 그대로 LOCK합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report interaction 전용 테이블 2개만 추가.
+
+1.
+growth_report_reactions
+
+2.
+growth_report_comments
+
+기존 diary_reactions / diary_messages는 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Migration 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+repo의 기존 pool DB startup migration 패턴에 맞춰 구현.
+
+신규 migration 파일:
+
+artifacts/api-server/src/migrations/pool-db-x-gr-interactions-init.ts
+
+테이블:
+
+growth_report_reactions
+
+필수 개념:
+- id
+- growth_report_id
+- parent_id
+- reaction_type
+- created_at
+
+reaction_type:
+현재는 'like'만 허용.
+
+중복 방지:
+
+UNIQUE(
+  growth_report_id,
+  parent_id,
+  reaction_type
+)
+
+growth_report_comments
+
+필수 개념:
+- id
+- growth_report_id
+- sender_id
+- sender_name
+- sender_role
+- content
+- parent_comment_id
+- student_id
+- is_deleted
+- deleted_at
+- created_at
+
+기존 Diary comment thread 구조와 호환되는 형태로 설계.
+
+root:
+parent_comment_id IS NULL
+
+reply:
+parent_comment_id = root comment id
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Index
+━━━━━━━━━━━━━━━━━━━━━━
+
+필요 최소 index만.
+
+권장:
+
+growth_report_reactions:
+- growth_report_id
+
+growth_report_comments:
+- (growth_report_id, created_at)
+- parent_comment_id
+- (sender_id, growth_report_id)
+
+불필요한 index 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 DB convention 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+ID prefix / timestamp / FK / CHECK constraint 방식은
+현재 repository의 실제 migration convention을 우선하십시오.
+
+이전 계획서 예시 SQL을 그대로 복붙하지 말고
+기존 growth_reports / diary_reactions / diary_messages schema와
+타입 및 naming convention을 맞추십시오.
+
+특히:
+growth_report_id
+parent_id
+student_id
+
+타입이 실제 referenced table ID 타입과 일치하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Startup migration 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 서버 구조가 startup migration 방식이므로
+기존 패턴에 맞게 migration init 함수를 연결하십시오.
+
+단:
+
+Production Render deploy 금지.
+
+이번 단계는
+코드 작성 + 로컬/개발 검증까지만.
+
+Production DB에는 아직 테이블을 생성하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 단계 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+- TypeScript error 0
+- migration 최초 실행 성공
+- 동일 migration 재실행 성공
+- CREATE TABLE IF NOT EXISTS idempotent
+- CREATE INDEX IF NOT EXISTS idempotent
+- UNIQUE constraint 존재 확인
+- reaction_type 허용값 확인
+- comments root/reply 저장 가능한 schema 확인
+
+실제 Production DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 PHASE 1에서:
+
+- Growth Report API route 생성 금지
+- 좋아요 API 구현 금지
+- 댓글 API 구현 금지
+- Notification 수정 금지
+- Teacher inbox 수정 금지
+- Parent 앱 수정 금지
+- Teacher 앱 수정 금지
+- 기존 Diary 코드 수정 금지
+- Render deploy 금지
+- Production DB write 금지
+- OTA 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[PHASE 1 CODE]
+- SHA
+- 신규/수정 파일
+- 실제 최종 CREATE TABLE schema
+- index
+- constraint
+
+[VALIDATION]
+- TS 결과
+- migration 1차 실행
+- migration 2차 실행
+- idempotency
+- schema 확인
+
+[EXISTING DIARY]
+- 기존 diary_reactions 수정 여부
+- 기존 diary_messages 수정 여부
+- parent.ts 수정 여부
+- comments.ts 수정 여부
+
+모두 "수정 없음"이어야 함.
+
+[DEPLOY]
+- Render deploy 하지 않았음
+- Production DB write 하지 않았음
+
+보고 후 STOP.
+PHASE 2는 사용자 승인 전 시작 금지.
