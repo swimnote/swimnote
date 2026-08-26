@@ -1,0 +1,343 @@
+[앱]
+
+GROWTH REPORT PRODUCTION E2E — REAL USER FAILURE FIX
+
+중요:
+이전 PRODUCTION SINGLE E2E의
+"CONDITIONAL PASS" 판정을 취소한다.
+
+실제 iPhone 사용자 검증 결과 FAIL.
+
+확인된 실제 증상:
+
+1. 성장리포트가 정상적인 parent feed 발급 흐름으로 확인되지 않음
+2. 상세 화면:
+   "Invalid Date 공개"
+3. PDF 저장/공유:
+   "공유 데이터를 준비할 수 없습니다."
+4. 실제 PDF:
+   헤더만 존재하고 본문 없음
+5. 기존 발급 report_period=2026-07
+   서태웅의 7월 diary events=0건
+
+이번 작업은
+실제 사용자 흐름을 정상화하고
+서태웅의 실제 8월 데이터를 사용하여
+Production E2E 1건을 다시 검증하는 작업이다.
+
+디자인/AI 엔진/70 metric 구조 수정 금지.
+
+==================================================
+A. 기존 7월 리포트 원인 확인
+==================================================
+
+기존 report:
+
+gr_dd74a748639a400eb624451c70c0baaf
+
+read-only 확인:
+
+- report_period = 2026-07
+- summary_text
+- sections
+- report_content
+- report_fact_package
+- published_at
+- parent feed projection
+
+7월 diary event가 0건인데
+왜 PUBLISHED까지 허용됐는지 확인.
+
+정책 추가:
+
+실제 성장 근거가 0건이고
+summary + 모든 parent section이 비어 있다면
+
+PUBLISHED 금지.
+
+EMPTY_REPORT 또는 equivalent 상태로 STOP하도록
+기존 publish gate에서 최소 수정.
+
+빈 PDF가 학부모에게 발급되면 안 됨.
+
+==================================================
+B. PARENT FEED 500 — ROOT CAUSE FIX
+==================================================
+
+실제 endpoint:
+
+GET /parent/students/:studentId/feed
+
+현재 Production에서 500 발생.
+
+추측으로 수정하지 말고
+해당 endpoint의 실제 exception/error message를 먼저 확보.
+
+확인 순서:
+
+1. endpoint 재현
+2. exact SQL/query error 확인
+3. failing column/table/alias 특정
+4. production schema와 코드 비교
+5. 최소 수정
+6. feed endpoint 200 확인
+
+repo-wide audit 금지.
+
+성공 조건:
+
+- 서태웅 parent feed HTTP 200
+- 기존 diary/photo feed 정상
+- PUBLISHED growth report item 정상 포함
+- 다른 feed 기능 회귀 없음
+
+==================================================
+C. DETAIL "Invalid Date 공개" 수정
+==================================================
+
+현재 실제 화면에서:
+
+2026년 7월
+Invalid Date 공개
+
+노출됨.
+
+published_at/date parsing 경로를 추적.
+
+확인:
+
+- API published_at value
+- JS Date parsing
+- formatter input
+- null/undefined fallback
+
+정확한 root cause만 수정.
+
+성공 조건:
+
+예:
+2026년 8월 26일 공개
+
+또는 현재 앱 표준 날짜 형식.
+
+"Invalid Date" 문자열은 어떤 경우에도
+사용자 화면에 노출 금지.
+
+날짜가 없으면 공개일 줄 자체 숨김.
+
+==================================================
+D. PDF 저장 / 공유 실패 수정
+==================================================
+
+실제 사용자 증상:
+
+"공유 실패
+공유 데이터를 준비할 수 없습니다."
+
+버튼 tap부터 추적:
+
+- detail report object
+- PDF export input
+- report_content
+- student/pool metadata
+- buildPdfHtml
+- expo-print
+- expo-sharing/share path
+
+어느 값 때문에 early-return 하는지 정확히 확인.
+
+현재 growthReportExport.ts
+BODY/HEADER 디자인은 LOCKED.
+
+SHA 736c575f 이후 디자인 변경 금지.
+
+성공 조건:
+
+PDF 저장:
+- 실제 PDF 생성
+- iOS share/save sheet 정상
+
+공유하기:
+- 동일 PDF 또는 정상 공유 payload 생성
+- iOS share sheet 정상
+
+==================================================
+E. FACT PACKAGE VALIDATION DATA FIX
+==================================================
+
+기존 E2E에서 임시 DATA patch를 사용한 부분:
+
+report_fact_package에
+grounding_result / growth_framing_result가 누락.
+
+임시 patch에 의존하지 말 것.
+
+AI Engine 응답 → app persistence 경로를 확인하여
+
+검증 결과가 publish gate가 읽는
+정식 위치에 자동 저장되게 최소 수정.
+
+단:
+AI 판단 로직 자체 수정 금지.
+저장/매핑 계약만 수정.
+
+==================================================
+F. 8월 실제 데이터 확인
+==================================================
+
+대상:
+
+pool:
+토이키즈스윔클럽
+
+student:
+서태웅
+student_id:
+student_1784491932941_n95eeew89
+
+2026-08-01 ~ 현재 KST의 실제 diary/event 데이터를
+read-only 집계.
+
+보고:
+
+- diary count
+- observation/event count
+- curriculum/progress data count
+- AI 분석에 사용할 수 있는 실제 evidence 존재 여부
+
+실제 evidence가 충분하지 않으면 STOP.
+
+절대 내용을 창작하지 말 것.
+
+==================================================
+G. 8월 SINGLE MANUAL E2E REPORT
+==================================================
+
+F에서 실제 데이터 존재 확인 후에만 진행.
+
+이번 것은 monthly scheduler 자동발급 테스트가 아니라
+"single manual Production E2E sample"이다.
+
+서태웅 1명만 대상으로
+report_period = 2026-08
+
+실제 8월 누적 데이터 범위만 사용.
+
+전체 worker 실행 금지.
+AUTO_ENABLED=false 유지.
+다른 학생 AI 호출 금지.
+
+공식 pipeline을 사용:
+
+OPEN
+→ snapshot
+→ AI analysis
+→ validation
+→ REVIEW_REQUIRED
+→ APPROVED
+→ PUBLISHED
+
+단,
+report content가 실질적으로 비어 있으면 publish 금지.
+
+==================================================
+H. 실제 사용자 출력 검증
+==================================================
+
+PUBLISHED 후 반드시 실제 API 기준 확인:
+
+1. PARENT FEED
+- HTTP 200
+- 성장리포트 카드 1건
+- 2026년 8월
+- 서태웅
+- duplicate 0
+
+2. DETAIL
+- 실제 본문 표시
+- Invalid Date 0
+- report month 정상
+- 공개일 정상
+- 빈 화면 금지
+
+3. PDF
+- 헤더 V3 정상
+- SwimNote AI REPORT 로고
+- MONTHLY 성장 리포트
+- 토이키즈스윔클럽
+- 서태웅
+- 2026년 8월
+- 진도 완료율
+- 실제 summary/section 본문 존재
+- 한글 깨짐 0
+- internal status text 0
+- empty section 숨김
+
+4. PDF 저장
+- iOS에서 실제 생성 가능한 payload 확인
+- share/save path 준비 성공
+
+5. 공유하기
+- 공유 payload 준비 성공
+
+6. HISTORY
+- 8월 report 표시
+- detail 동일 report 연결
+
+==================================================
+I. 기존 빈 7월 리포트 처리
+==================================================
+
+기존 7월 PUBLISHED 빈 report를
+임의 DELETE/UPDATE 하지 말 것.
+
+우선 어떤 공식 retract/unpublish/delete 정책이 존재하는지 조사하고
+보고만 할 것.
+
+사용자 승인 없이 Production row 삭제 금지.
+
+==================================================
+J. ABSOLUTE SAFETY
+==================================================
+
+금지:
+
+- 전체 monthly worker
+- 다른 학생 publish
+- 다른 학생 AI 호출
+- 253 OPEN 처리
+- AUTO_ENABLED=true
+- bulk push
+- 임의 DB status UPDATE
+- Render env 변경
+- broad migration
+- repo-wide audit
+
+==================================================
+K. FINAL REPORT
+==================================================
+
+1. feed 500 exact root cause
+2. 수정 SHA
+3. Invalid Date root cause/fix
+4. share/PDF 실패 root cause/fix
+5. fact_package persistence fix
+6. 서태웅 8월 실제 evidence count
+7. 새 8월 report_id
+8. feed HTTP/status
+9. detail 실제 내용 존재 여부
+10. PDF 본문 존재 여부
+11. save/share readiness
+12. history
+13. 기존 7월 빈 report 처리 제안
+
+FINAL 판정은
+사용자 관점 기준으로:
+
+PASS
+또는
+FAIL
+
+"CONDITIONAL PASS" 사용 금지.
+
+완료 후 STOP.
