@@ -2197,6 +2197,7 @@ export default function ParentHomeScreen() {
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         ListEmptyComponent={ListEmpty}
+        ItemSeparatorComponent={() => <View style={{ height: 120 }} />}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
