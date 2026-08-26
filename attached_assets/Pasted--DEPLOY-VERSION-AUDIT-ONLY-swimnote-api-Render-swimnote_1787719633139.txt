@@ -1,0 +1,107 @@
+[앱]
+
+DEPLOY VERSION AUDIT ONLY — swimnote-api
+
+Render `swimnote-api`에서
+Manual Deploy → Deploy latest commit을 반복해도
+계속 SOURCE `07290b2`가 배포되고 있음.
+
+최종 승인한 local commit은:
+f38cf6f3
+
+이번 Step은 코드 수정/commit/push/deploy 금지.
+오직 branch/remote 상태 확인.
+
+==================================================
+1. CURRENT LOCAL STATE
+==================================================
+
+정확히 보고:
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git log -6 --oneline
+
+기대:
+branch = deploy-photo-clone
+HEAD에 f38cf6f3 또는 그 이후 commit 포함.
+
+==================================================
+2. REMOTE BRANCH STATE
+==================================================
+
+확인:
+
+git remote -v
+
+그리고:
+
+git fetch origin
+
+git rev-parse deploy-photo-clone
+git rev-parse origin/deploy-photo-clone
+
+두 SHA 비교.
+
+또한:
+
+git log origin/deploy-photo-clone -5 --oneline
+
+보고.
+
+==================================================
+3. f38cf6f3 위치 확인
+==================================================
+
+확인:
+
+git cat-file -t f38cf6f3
+git branch --contains f38cf6f3
+git merge-base --is-ancestor f38cf6f3 deploy-photo-clone
+git merge-base --is-ancestor f38cf6f3 origin/deploy-photo-clone
+
+각 결과 보고.
+
+==================================================
+4. 07290b2 위치 확인
+==================================================
+
+확인:
+
+git show -s --oneline 07290b2
+git branch --contains 07290b2
+
+07290b2가 origin/deploy-photo-clone HEAD인지도 확인.
+
+==================================================
+5. ROOT CAUSE 판정
+==================================================
+
+다음 중 하나로 판정:
+
+A. local deploy-photo-clone 최신 commit이 origin에 push 안 됨
+B. Render가 deploy-photo-clone이 아닌 다른 branch를 보고 있음
+C. f38cf6f3가 deploy-photo-clone에 없음
+D. 기타
+
+각 항목:
+CONFIRMED / POSSIBLE / RULED OUT
+
+==================================================
+6. REPORT ONLY
+==================================================
+
+- LOCAL BRANCH
+- LOCAL HEAD
+- ORIGIN/DEPLOY-PHOTO-CLONE HEAD
+- f38cf6f3 remote 포함 여부
+- 07290b2가 remote HEAD인지
+- ROOT CAUSE
+- 필요한 다음 조치
+
+코드 수정 금지.
+push 금지.
+deploy 금지.
+
+STOP.
