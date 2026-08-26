@@ -2188,7 +2188,7 @@ export default function ParentHomeScreen() {
 
       {/* ── SCROLLABLE MAIN AREA (flex: 1) ──────────────────────────────── */}
       <FlatList<FeedItem>
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: isX ? "#F8F9FA" : C.background }}
         data={showFeed ? entries : []}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -2336,7 +2336,7 @@ const s = StyleSheet.create({
 });
 
 const f = StyleSheet.create({
-  item: { paddingHorizontal: 20 },
+  item: { paddingHorizontal: 20, backgroundColor: "#FFFFFF" },
   sep: { height: 1, marginTop: 20, marginBottom: 16 },
   meta: { gap: 3, marginBottom: 12 },
   dateText: {
