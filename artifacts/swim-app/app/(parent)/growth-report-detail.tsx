@@ -165,6 +165,8 @@ export default function GrowthReportDetailScreen() {
   const [error,           setError]           = useState<DetailError | null>(null);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [isShareGenerating, setIsShareGenerating] = useState(false);
+  // 커리큘럼 진도 완료율 — PDF 헤더에 표시 (read-only fetch, 실패 시 null)
+  const [curriculumProgressPercent, setCurriculumProgressPercent] = useState<string | null>(null);
 
   const mounted   = useRef(true);
   const snsCardRef = useRef<View>(null);
@@ -239,6 +241,31 @@ export default function GrowthReportDetailScreen() {
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
+  // ── 커리큘럼 진도 fetch (detail 로드 후 — read-only, 실패 시 null) ──────
+  useEffect(() => {
+    if (!detail?.student_id || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiRequest(
+          token,
+          `/parent/students/${encodeURIComponent(detail.student_id)}/curriculum-progress`,
+        );
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const pct: number = Number(data?.display_confirmed_pct ?? 0);
+        // "48.7%" 형식; 0이면 데이터 없는 것으로 간주하여 null 유지
+        if (pct > 0) {
+          setCurriculumProgressPercent(`${pct.toFixed(1)}%`);
+        }
+      } catch {
+        // 진도 정보 fetch 실패는 silent — fallback 문구로 처리됨
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [detail?.student_id, token]);
+
   // ── 학생 표시이름 (useParent → student_id 검색, 없으면 "우리 아이") ──
 
   const studentDisplayName = detail
@@ -261,6 +288,7 @@ export default function GrowthReportDetailScreen() {
         snsSummary:    detail.sns_summary,
         displayName:   studentDisplayName,
         poolName,
+        curriculumProgressPercent: curriculumProgressPercent ?? undefined,
       };
       await generateGrowthReportPdf(params);
     } catch (e) {
