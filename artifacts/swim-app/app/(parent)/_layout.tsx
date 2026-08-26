@@ -126,6 +126,8 @@ function ParentStack() {
       <Stack.Screen name="x-growth" />
       {/* CS-02R — AI 문의 (고객센터) */}
       <Stack.Screen name="support-chat" />
+      {/* PAID 성장리포트 허브 (학부모 리포트 Hub) */}
+      <Stack.Screen name="growth-report-paid" options={{ headerShown: false }} />
     </Stack>
   );
 }
