@@ -1,5 +1,5 @@
 /**
- * GrowthReportFullFeed.tsx — FULL REDESIGN FROM ZERO (spec §1~§19)
+ * GrowthReportFullFeed.tsx — VISUAL REFINEMENT ROUND 2
  *
  * 핵심 원칙:
  *   - 하나의 긴 Instagram 게시물처럼 세로 스크롤
@@ -8,11 +8,16 @@
  *   - section마다 shadow/radius card 금지 — 얇은 divider만 사용
  *   - typography 4단계 고정
  *
- * Typography (spec §6):
+ * Typography:
  *   T1 section title  15px SemiBold deep navy
  *   T2 body           14px Regular  line-height 22 deep navy/blue-black
  *   T3 meta           12px Regular  muted blue-gray
  *   T4 action         12px Regular  muted
+ *
+ * Section 3-type system:
+ *   Type A (aqua-mist bg)  — 이번 달 한눈에 보기, 가정에서 함께해요
+ *   Type B (white bg)      — 분석 섹션 (divider 구분)
+ *   Type C (compact strip) — 커리큘럼 진도 progress
  *
  * AI calls = 0 (저장된 report_content만 사용)
  * PDF V3 / API / DB / Render / OTA 수정 금지
@@ -35,25 +40,30 @@ import type { GrowthReportFeedItem } from "@/components/parent/GrowthReportFeedC
 // ─── Asset ───────────────────────────────────────────────────────────────────
 const LOGO = require("@/assets/images/swimnote-ai-report-logo.png");
 
-// ─── Color system (spec §5) ───────────────────────────────────────────────────
-const DEEP_NAVY   = "#0D2E5A";
-const AQUA        = "#25B7CF";
-const AQUA_SOFT   = "#D9F2F6";
-const AQUA_MIST   = "#F0FAFC";
-const AQUA_TEXT   = "#1899B5";
-const BODY        = "#1A2E44";
-const META        = "#526C78";
-const MUTED       = "#7A90A8";
-const DIVIDER     = "#EBF1F7";
-const WHITE       = "#FFFFFF";
+// ─── Color system ────────────────────────────────────────────────────────────
+const DEEP_NAVY    = "#0D2E5A";
+const AQUA         = "#25B7CF";
+const AQUA_SOFT    = "#D9F2F6";
+const AQUA_MIST    = "#F0FAFC";
+const AQUA_MIST2   = "#E8F7FB";   // Type A 섹션 배경 (살짝 짙게)
+const AQUA_TEXT    = "#1899B5";
+const AQUA_BADGE   = "#EAF8FC";   // badge 배경
+const BODY         = "#1A2E44";
+const META         = "#526C78";
+const META_DARK    = "#3D5566";   // action row — 너무 흐리지 않게
+const MUTED        = "#7A90A8";
+const DIVIDER      = "#EBF1F7";
+const DIVIDER_A    = "#C8EBF3";   // Type A 섹션 구분선
+const WHITE        = "#FFFFFF";
+const TITLE_MAIN   = "#0B2547";   // "월간 성장 리포트" 제목
 
-// ─── Typography (spec §6) ─────────────────────────────────────────────────────
+// ─── Typography ──────────────────────────────────────────────────────────────
 const T1: any = { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: DEEP_NAVY };
-const T2: any = { fontSize: 14, fontFamily: "Pretendard-Regular",  color: BODY, lineHeight: 22 };
+const T2: any = { fontSize: 14, fontFamily: "Pretendard-Regular",  color: BODY,      lineHeight: 22 };
 const T3: any = { fontSize: 12, fontFamily: "Pretendard-Regular",  color: META };
-const T4: any = { fontSize: 12, fontFamily: "Pretendard-Regular",  color: MUTED };
+const T4: any = { fontSize: 12, fontFamily: "Pretendard-Regular",  color: META_DARK };
 
-// ─── Section config (spec §8, §11) ───────────────────────────────────────────
+// ─── Section config ───────────────────────────────────────────────────────────
 const BODY_SECTIONS = [
   { key: "core_growth",             label: "핵심 성장" },
   { key: "swimming_progress",       label: "수영 교육과정 진행" },
@@ -133,14 +143,13 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // 커리큘럼 진도 (spec §4)
+  // 커리큘럼 진도
   const pct        = progressData?.display_confirmed_pct;
   const hasProgress =
     (progressData?.observation_session_count ?? 0) >= 3 &&
     typeof pct === "number" && pct > 0;
   const pctInt = hasProgress ? Math.round(pct!) : 0;
 
-  // 날짜 포맷
   const periodLabel = formatPeriod(item.report_period);
 
   function goDetail() {
@@ -150,55 +159,14 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   return (
     <View style={{ backgroundColor: WHITE }}>
 
-      {/* ── 1. TOP IDENTITY HEADER (spec §3) ──────────────────────── */}
-      <View style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: DIVIDER,
-        minHeight: 52,
-      }}>
-        {/* LEFT: 실제 로고 — 28px height (20~30% up from 22px), width auto */}
-        <Image
-          source={LOGO}
-          style={{ height: 28, width: undefined, aspectRatio: 2774 / 998 }}
-          resizeMode="contain"
-        />
-
-        {/* RIGHT: 월간 리포트 레이블 + 학생/수영장 */}
-        <View style={{ marginLeft: "auto" as any, alignItems: "flex-end", paddingRight: 2 }}>
-          <Text style={{ ...T3, color: AQUA_TEXT, fontFamily: "Pretendard-SemiBold" }}>
-            월간 리포트
-          </Text>
-          {(studentName || poolName) && (
-            <Text style={{ ...T3, marginTop: 2 }}>
-              {[studentName, poolName].filter(Boolean).join("  ")}
-            </Text>
-          )}
-        </View>
-      </View>
-
-      {/* ── 2. REPORT META STRIP (spec §4) ────────────────────────── */}
-      <View style={{
-        paddingHorizontal: 16,
-        paddingVertical: 9,
-        borderBottomWidth: 1,
-        borderBottomColor: DIVIDER,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 6,
-      }}>
-        <Text style={T3}>{periodLabel}</Text>
-        {hasProgress && (
-          <>
-            <Text style={{ ...T3, color: AQUA_SOFT }}>·</Text>
-            <Text style={{ ...T3, color: AQUA_TEXT }}>현재 진도 {pctInt}%</Text>
-          </>
-        )}
-      </View>
+      {/* ── HEADER (4-row structure) ───────────────────────────────── */}
+      <ReportHeader
+        studentName={studentName}
+        poolName={poolName}
+        periodLabel={periodLabel}
+        hasProgress={hasProgress}
+        pctInt={pctInt}
+      />
 
       {/* ── CONTENT ────────────────────────────────────────────────── */}
       {loading ? (
@@ -210,8 +178,6 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
       ) : detail ? (
         <ReportBody
           detail={detail}
-          hasProgress={hasProgress}
-          pctInt={pctInt}
           onDetail={goDetail}
         />
       ) : null}
@@ -220,14 +186,118 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   );
 }
 
+// ─── Header (4-row) ──────────────────────────────────────────────────────────
+function ReportHeader({
+  studentName, poolName, periodLabel, hasProgress, pctInt,
+}: {
+  studentName?: string;
+  poolName?:    string;
+  periodLabel:  string;
+  hasProgress:  boolean;
+  pctInt:       number;
+}) {
+  const metaParts = [studentName, poolName, periodLabel].filter(Boolean);
+
+  return (
+    <View style={{
+      backgroundColor: WHITE,
+      borderBottomWidth: 1,
+      borderBottomColor: DIVIDER,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 14,
+    }}>
+
+      {/* Row 1: 로고 (좌) + 월간 리포트 badge (우) */}
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+        <Image
+          source={LOGO}
+          style={{ height: 28, width: undefined, aspectRatio: 2774 / 998 }}
+          resizeMode="contain"
+        />
+        <View style={{ marginLeft: "auto" as any }}>
+          <View style={{
+            backgroundColor: AQUA_BADGE,
+            borderWidth: 1,
+            borderColor: AQUA_SOFT,
+            borderRadius: 4,
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+          }}>
+            <Text style={{ ...T3, color: AQUA_TEXT, fontFamily: "Pretendard-SemiBold" }}>
+              월간 리포트
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Row 2: 월간 성장 리포트 (main title) */}
+      <Text style={{
+        fontSize: 18,
+        fontFamily: "Pretendard-SemiBold",
+        color: TITLE_MAIN,
+        letterSpacing: -0.3,
+        marginBottom: 6,
+      }}>
+        월간 성장 리포트
+      </Text>
+
+      {/* Row 3: 학생 · 수영장 · 월 */}
+      <Text style={{ ...T3, color: META, marginBottom: hasProgress ? 12 : 0 }}>
+        {metaParts.join("  ·  ")}
+      </Text>
+
+      {/* Row 4: 커리큘럼 진도 (Type C strip) — progress 있을 때만 */}
+      {hasProgress && (
+        <View style={{
+          backgroundColor: AQUA_MIST,
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 9,
+        }}>
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 6,
+          }}>
+            <Text style={{ ...T3, color: META_DARK, fontFamily: "Pretendard-SemiBold" }}>
+              커리큘럼 진도
+            </Text>
+            <Text style={{
+              fontSize: 13,
+              fontFamily: "Pretendard-SemiBold",
+              color: AQUA_TEXT,
+            }}>
+              {pctInt}%
+            </Text>
+          </View>
+          {/* Progress bar */}
+          <View style={{
+            height: 4,
+            backgroundColor: AQUA_SOFT,
+            borderRadius: 3,
+            overflow: "hidden" as const,
+          }}>
+            <View style={{
+              height: "100%" as const,
+              width: `${Math.min(100, pctInt)}%` as `${number}%`,
+              backgroundColor: AQUA,
+              borderRadius: 3,
+            }} />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Report body ──────────────────────────────────────────────────────────────
 function ReportBody({
-  detail, hasProgress, pctInt, onDetail,
+  detail, onDetail,
 }: {
-  detail:      GrowthReportDetail;
-  hasProgress: boolean;
-  pctInt:      number;
-  onDetail:    () => void;
+  detail:   GrowthReportDetail;
+  onDetail: () => void;
 }) {
   const { report_content } = detail;
   const secs = report_content?.sections ?? {};
@@ -237,138 +307,132 @@ function ReportBody({
   const parentText = secs["parent_support"]?.text ?? "";
   const hasParent  = !isEmpty(parentText);
 
-  // 커리큘럼 진도 bar는 summary 아래에 별도 렌더
   return (
     <View>
 
-      {/* ── 3. SUMMARY (spec §7) ────────────────────────────────── */}
+      {/* ── TYPE A: 이번 달 한눈에 보기 ────────────────────────────── */}
       {hasSummary && (
         <View style={{
-          backgroundColor: AQUA_MIST,
+          backgroundColor: AQUA_MIST2,
+          borderBottomWidth: 1,
+          borderBottomColor: DIVIDER_A,
           paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 16,
+          paddingTop: 18,
+          paddingBottom: 18,
         }}>
-          <SectionTitle label="이번 달 한눈에 보기" />
-          <Text style={{ ...T2, marginTop: 8 }}>
+          <SectionTitle label="이번 달 한눈에 보기" type="A" />
+          <Text style={{ ...T2, marginTop: 10 }}>
             {report_content.summary_text}
           </Text>
         </View>
       )}
 
-      {/* 커리큘럼 진도 바 */}
-      {hasProgress && (
-        <>
-          <Hairline />
-          <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 6,
-            }}>
-              <Text style={T3}>커리큘럼 진도</Text>
-              <Text style={{ ...T3, color: AQUA_TEXT, fontFamily: "Pretendard-SemiBold" }}>
-                {pctInt}%
-              </Text>
-            </View>
-            <View style={{
-              height: 3,
-              backgroundColor: AQUA_SOFT,
-              borderRadius: 2,
-              overflow: "hidden" as const,
-            }}>
-              <View style={{
-                height: "100%" as const,
-                width: `${Math.min(100, pctInt)}%` as `${number}%`,
-                backgroundColor: AQUA,
-                borderRadius: 2,
-              }} />
-            </View>
-          </View>
-        </>
-      )}
-
-      {/* ── 4. REPORT SECTIONS (spec §8) ────────────────────────── */}
+      {/* ── TYPE B: 분석 섹션들 ─────────────────────────────────────── */}
       {bodySecs.map((sec) => (
         <React.Fragment key={sec.key}>
           <Hairline />
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
-            <SectionTitle label={sec.label} />
-            <Text style={{ ...T2, marginTop: 8 }}>
+          <View style={{
+            backgroundColor: WHITE,
+            paddingHorizontal: 16,
+            paddingTop: 18,
+            paddingBottom: 18,
+          }}>
+            <SectionTitle label={sec.label} type="B" />
+            <Text style={{ ...T2, marginTop: 10 }}>
               {secs[sec.key]!.text}
             </Text>
           </View>
         </React.Fragment>
       ))}
 
-      {/* ── 5. PARENT SUPPORT (spec §11) ────────────────────────── */}
+      {/* ── TYPE A: 가정에서 함께해요 ───────────────────────────────── */}
       {hasParent && (
         <>
-          <Hairline />
+          <View style={{ height: 1, backgroundColor: DIVIDER_A }} />
           <View style={{
-            backgroundColor: AQUA_MIST,
-            borderTopWidth: 1,
-            borderTopColor: AQUA_SOFT,
+            backgroundColor: AQUA_MIST2,
             paddingHorizontal: 16,
-            paddingTop: 16,
+            paddingTop: 18,
             paddingBottom: 20,
           }}>
-            <SectionTitle label="가정에서 함께해요" />
-            <Text style={{ ...T2, marginTop: 8 }}>
+            <SectionTitle label="가정에서 함께해요" type="A" />
+            <Text style={{ ...T2, marginTop: 10 }}>
               {parentText}
             </Text>
           </View>
         </>
       )}
 
-      {/* ── 6. ACTION ROW (spec §12) ─────────────────────────────── */}
+      {/* ── ACTION ROW ──────────────────────────────────────────────── */}
       <ActionRow onDetail={onDetail} />
 
     </View>
   );
 }
 
-// ─── Section title (spec §8) — 왼쪽 aqua vertical line + T1 text ─────────────
-function SectionTitle({ label }: { label: string }) {
+// ─── Section title — accent bar + T1 text ────────────────────────────────────
+// Type A: aqua accent bar (강조 섹션)
+// Type B: deep navy accent bar (분석 섹션)
+function SectionTitle({ label, type }: { label: string; type: "A" | "B" }) {
+  const barColor = type === "A" ? AQUA : DEEP_NAVY;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
       <View style={{
         width: 3,
-        height: 16,
+        height: 17,
         borderRadius: 2,
-        backgroundColor: AQUA,
+        backgroundColor: barColor,
       }} />
       <Text style={T1}>{label}</Text>
     </View>
   );
 }
 
-// ─── Hairline divider (spec §8) ───────────────────────────────────────────────
+// ─── Hairline divider ─────────────────────────────────────────────────────────
 function Hairline() {
   return <View style={{ height: 1, backgroundColor: DIVIDER }} />;
 }
 
-// ─── Action row (spec §12) ────────────────────────────────────────────────────
+// ─── Action row ───────────────────────────────────────────────────────────────
 function ActionRow({ onDetail }: { onDetail: () => void }) {
   return (
     <View style={{
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 14,
+      paddingHorizontal: 12,
       paddingVertical: 10,
       borderTopWidth: 1,
       borderTopColor: DIVIDER,
       backgroundColor: WHITE,
     }}>
       {/* 좋아요 */}
-      <View style={{ padding: 6 }}>
-        <LucideIcon name="heart" size={20} color={MUTED} />
-      </View>
+      <Pressable
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          padding: 6,
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <LucideIcon name="heart" size={19} color={META_DARK} />
+        <Text style={T4}>좋아요</Text>
+      </Pressable>
+
       {/* 댓글 */}
-      <View style={{ padding: 6 }}>
-        <LucideIcon name="message-circle" size={20} color={MUTED} />
-      </View>
+      <Pressable
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+          padding: 6,
+          marginLeft: 4,
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <LucideIcon name="message-circle" size={19} color={META_DARK} />
+        <Text style={T4}>댓글</Text>
+      </Pressable>
 
       <View style={{ flex: 1 }} />
 
@@ -385,8 +449,8 @@ function ActionRow({ onDetail }: { onDetail: () => void }) {
           backgroundColor: pressed ? AQUA_MIST : "transparent",
         })}
       >
-        <LucideIcon name="download" size={16} color={MUTED} />
-        <Text style={{ ...T4, marginLeft: 2 }}>PDF·공유</Text>
+        <LucideIcon name="download" size={15} color={META_DARK} />
+        <Text style={T4}>PDF·공유</Text>
       </Pressable>
     </View>
   );
