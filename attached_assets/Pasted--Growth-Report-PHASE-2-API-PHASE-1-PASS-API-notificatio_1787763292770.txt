@@ -1,0 +1,364 @@
+[앱] Growth Report 좋아요·댓글 — PHASE 2 API 구현
+
+PHASE 1 PASS.
+
+이번에는 서버 API + notification까지만 구현합니다.
+Parent 앱 / Teacher 앱 UI는 아직 수정하지 마십시오.
+
+기존 Diary 좋아요/댓글 코드는 계속 LOCK.
+parent.ts / comments.ts 기존 로직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. PHASE 1 startup migration 보완 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 initGrInteractionsSchema()가 fire-and-forget으로 등록됨.
+
+이제 API가 해당 테이블에 의존하므로
+서버가 interaction table 준비 전에 요청을 받을 수 없는 구조인지 확인하십시오.
+
+기존 repository startup/readiness 패턴 기준으로:
+
+- readiness-critical Promise.all에 넣는 것이 맞으면 그렇게 수정
+- 기존 구조상 이미 startup 완료가 보장된다면 근거 보고
+
+임의의 sleep/retry 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Growth Report Like API
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+GET /parent/growth-reports/:reportId/reactions
+
+응답 shape는 기존 Diary와 동일하게:
+
+{
+  "myReactions": ["like"]
+}
+
+또는 비활성:
+{
+  "myReactions": []
+}
+
+POST /parent/growth-reports/:reportId/reactions
+
+request:
+
+{
+  "reaction_type": "like"
+}
+
+동작:
+- 현재 like 없음 → INSERT → active=true
+- 현재 like 있음 → DELETE → active=false
+
+response:
+
+{
+  "active": true | false
+}
+
+기존 Diary의 toggle UX와 동일하게 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Growth Report Comment API
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+GET /parent/growth-reports/:reportId/comments
+
+POST /parent/growth-reports/:reportId/comments
+
+body:
+
+{
+  "body": "댓글 내용"
+}
+
+DELETE /growth-report-comments/:commentId
+
+POST /growth-report-comments/:commentId/replies
+
+body:
+
+{
+  "body": "선생님 답글"
+}
+
+기존 diary-comments의 response/thread shape를 최대한 동일하게 맞추십시오.
+
+Parent 앱에서 별도 복잡한 adapter가 필요하지 않도록
+기존 댓글 UX contract 재사용 우선.
+
+댓글:
+- 최대 1000자
+- empty/whitespace 차단
+- 본인 parent comment만 soft delete
+- 수정 기능 없음
+- root/reply 구조 유지
+
+Teacher reply:
+- teacher 또는 허용된 pool 관리자만
+- sender_role='teacher'
+- parent_comment_id로 root에 연결
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Growth Report 접근권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+모든 Parent interaction API에서 반드시 검증:
+
+growth_reports.id = reportId
+AND product_status = 'PUBLISHED'
+AND deleted_at IS NULL
+
+그리고:
+
+- report.swimming_pool_id가 현재 요청 pool과 일치
+- 기존 X entitlement/report access 검증 재사용
+- parent_students에서
+  parent ↔ report.student_id
+  approved 관계 확인
+
+다른 pool report 접근:
+403 또는 현재 repository 표준 응답으로 차단.
+
+reportId만 알고 있다고 접근 가능하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 담당선생님 Resolve
+━━━━━━━━━━━━━━━━━━━━━━
+
+teacher_reviewed_by 사용 금지.
+
+확정 정책:
+
+Growth Report
+→ report.student_id
+→ students.current_class_id
+→ class_groups.teacher_user_id
+→ 현재 담당선생님
+
+반드시 report.swimming_pool_id와 동일 pool인지 함께 검증.
+
+recipient가 없으면:
+- 임의 teacher fallback 금지
+- notification/push만 생략
+- like/comment 저장 자체는 정상 처리 가능
+- 로그에 recipient_not_found 남김
+
+기존 Diary resolve 코드는 수정하지 않음.
+
+Growth Report route 내부 helper 또는
+Growth Report 전용 최소 helper로 구현 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Like Notification
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 like가 생성될 때만:
+
+notifications INSERT
+
+type:
+growth_report_like
+
+ref_id:
+growth_report_id
+
+recipient_id:
+현재 담당선생님
+
+pool_id:
+report.swimming_pool_id
+
+unlike 때 notification 생성 금지.
+
+기존 Diary like notification/push 패턴을 그대로 참고.
+
+Teacher push 설정도 기존 like 계열 설정을 재사용 가능한지 확인 후
+현재 구조에 가장 가까운 기존 정책 사용.
+
+새 설정 화면/새 push preference 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Comment Notification
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent root comment 생성 시:
+
+notifications INSERT
+
+type:
+growth_report_comment
+
+ref_id:
+growth_report_id
+
+recipient:
+현재 담당선생님
+
++ 기존 Diary comment와 동일한 방식으로 push.
+
+Teacher reply 시:
+
+Parent에게 push.
+
+type:
+growth_report_comment_reply
+
+기존 Diary와 동일하게
+notifications 테이블 INSERT 없이 push only.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Teacher 조회 API
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+GET /teacher/growth-reports/:reportId/interactions
+
+반환:
+- 좋아요 누른 학부모 목록
+- comment thread
+- replies
+
+Teacher 권한 검증 필수.
+
+최소 조건:
+- 같은 swimming_pool
+- 해당 report student의 현재 담당선생님
+또는 repository에서 이미 허용하는 pool_admin 권한
+
+다른 pool teacher 접근 차단.
+
+Teacher 앱 화면은 이번 PHASE에서 만들지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. API/DB 무결성
+━━━━━━━━━━━━━━━━━━━━━━
+
+Like:
+- UNIQUE constraint 기반 중복 방어
+- race condition에서도 duplicate 0
+
+Comment:
+- 존재하지 않는 root에 reply 금지
+- 다른 report의 comment를 parent_comment_id로 연결 금지
+- deleted root 처리 정책은 기존 Diary와 동일하게
+
+sender_id / sender_name / sender_role은
+client 값을 신뢰하지 말고 인증 context에서 서버가 결정.
+
+student_id도 report.student_id 기준으로 서버가 결정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트 — 관련 범위만
+━━━━━━━━━━━━━━━━━━━━━━
+
+전체 regression 금지.
+
+A. Like
+- GET inactive
+- POST like → active=true
+- GET active
+- POST same like → active=false
+- duplicate/race 방어
+
+B. Comment
+- root 작성
+- empty 차단
+- 1000자 초과 차단
+- 본인 삭제
+- 타 parent 삭제 차단
+- Teacher reply
+- 다른 report comment를 reply parent로 사용 차단
+
+C. 권한
+- unpublished report 차단
+- deleted report 차단
+- 미승인 parent 차단
+- 다른 student parent 차단
+- cross-pool 차단
+
+D. Recipient
+- current_class_id → teacher_user_id 정상
+- recipient 없는 경우 저장 성공 + notification 생략
+- 잘못된 pool teacher에게 notification 0
+
+E. Notification
+- 신규 like 1건
+- unlike 0건
+- comment 1건
+- teacher reply parent push
+
+F. 기존 Diary 핵심 회귀
+- Diary like toggle 정상
+- Diary comment 작성 정상
+
+기존 diary_reactions / diary_messages 데이터 영향 0 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 PHASE 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Parent 앱 수정 금지
+- Teacher 앱 수정 금지
+- messages-inbox.tsx 수정 금지
+- GrowthReportFullFeed 수정 금지
+- 신규 앱 화면 생성 금지
+- OTA 금지
+- Production DB write 금지
+- Production Render deploy 금지
+
+개발/로컬 환경에서만 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[PHASE 2 CODE]
+- SHA
+- 신규/수정 파일
+- 최종 endpoints
+- request/response contract
+
+[AUTH]
+- Parent 접근검증
+- Teacher 접근검증
+- Pool isolation
+- published/deleted 검증
+
+[TEACHER RESOLVE]
+- 실제 구현 query/function
+- current_class_id → teacher_user_id 확인
+- recipient 없음 처리
+
+[NOTIFICATION]
+- growth_report_like
+- growth_report_comment
+- growth_report_comment_reply
+- 각각 recipient / ref_id / 저장/push 정책
+
+[TEST]
+각 targeted TC 결과.
+
+[MIGRATION READINESS]
+- fire-and-forget 유지/수정 여부
+- 그 이유
+- API 요청 전에 schema ready가 보장되는 근거
+
+[EXISTING DIARY]
+- 기존 Diary route/code 변경 여부
+- 기존 like/comment 핵심 회귀 결과
+
+[DEPLOY]
+- Production Render deploy 안 함
+- Production DB write 안 함
+
+보고 후 STOP.
+PHASE 3 Parent 앱은 사용자 승인 전 시작 금지.
