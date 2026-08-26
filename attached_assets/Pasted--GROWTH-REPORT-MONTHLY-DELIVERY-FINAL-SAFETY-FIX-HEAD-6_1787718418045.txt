@@ -1,0 +1,127 @@
+[앱]
+
+GROWTH REPORT MONTHLY DELIVERY — FINAL SAFETY FIX
+
+현재 HEAD:
+6da96d91
+branch:
+deploy-photo-clone
+
+아직 deploy 금지.
+
+이번 Step은 아래 2건만 최소 수정.
+
+==================================================
+1. HISTORY ENTRY POINT — X 조건 제거
+==================================================
+
+현재 home.tsx 진입 조건:
+
+selectedStudent && !isBlocked && isX
+
+이 조건은 잘못됨.
+
+FREE monthly Growth Report는
+X 전용 기능이 아님.
+
+최종 정책:
+
+정상적으로 Growth Report 접근 권한이 있는 parent/student라면
+X 여부와 무관하게
+"성장리포트 전체보기" 접근 가능해야 함.
+
+따라서 history entry에서
+isX 조건 제거.
+
+단:
+기존 parent/student block/ownership 조건은 유지.
+
+가능하면 실제 Growth Report eligibility/access 조건을
+기존 코드에서 재사용하고
+새 조건 추측 금지.
+
+테스트:
+
+A. non-X parent + valid student
+→ 전체보기 링크 표시
+
+B. X parent + valid student
+→ 표시
+
+C. blocked / invalid student
+→ 미표시
+
+==================================================
+2. AUTO ANALYSIS FLAG — FAIL CLOSED
+==================================================
+
+현재 코드:
+
+return process.env["GROWTH_REPORT_ANALYSIS_AUTO_ENABLED"] !== "false";
+
+문제:
+env가 누락되면 true가 됨.
+
+최종 안전 원칙:
+
+자동 분석은 명시적으로 true일 때만 켜져야 함.
+
+수정:
+
+return process.env["GROWTH_REPORT_ANALYSIS_AUTO_ENABLED"] === "true";
+
+즉:
+
+env = "true"
+→ enabled
+
+env = "false"
+→ disabled
+
+env missing
+→ disabled
+
+기타 값
+→ disabled
+
+이것은 production AI 비용 및
+기존 OPEN report 보호를 위한 fail-closed 정책.
+
+==================================================
+3. TEST
+==================================================
+
+- env true → enabled
+- env false → disabled
+- env missing → disabled
+- env invalid → disabled
+
+- non-X history entry visible
+- X history entry visible
+- blocked student hidden
+
+기존 monthly/history 관련 테스트 유지.
+
+==================================================
+4. 절대 금지
+==================================================
+
+- Render env 변경 금지
+- deploy 금지
+- AI 호출 금지
+- 기존 253 OPEN 분석 금지
+- FREE 70-METRIC ENGINE 수정 금지
+- 다른 UI 수정 금지
+
+==================================================
+5. REPORT
+==================================================
+
+- exact SHA
+- 변경 파일/함수
+- history entry 최종 조건
+- auto analysis 최종 truth table
+- targeted tests
+- regression
+
+완료 후 STOP.

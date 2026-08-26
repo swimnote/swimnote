@@ -2131,7 +2131,8 @@ export default function ParentHomeScreen() {
       )}
 
       {/* 성장리포트 전체보기 — 메인 feed는 최근 5개, 이전 기록은 history 화면에서 접근 */}
-      {selectedStudent && !isBlocked && isX && (
+      {/* X 여부 무관: Growth Report 접근 권한 있는 parent/student 모두 표시 */}
+      {selectedStudent && !isBlocked && (
         <Pressable
           onPress={() =>
             router.push(`/(parent)/growth-report-history?studentId=${encodeURIComponent(selectedStudent.id)}` as any)

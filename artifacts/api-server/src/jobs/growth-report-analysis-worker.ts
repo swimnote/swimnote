@@ -75,12 +75,13 @@ function getBatchSize(): number {
 }
 
 /**
- * GROWTH_REPORT_ANALYSIS_AUTO_ENABLED — auto cron 실행 허용 여부 (default true).
- * "false"로 설정하면 cron/startup auto run을 완전히 차단.
+ * GROWTH_REPORT_ANALYSIS_AUTO_ENABLED — auto cron 실행 허용 여부.
+ * Fail-closed: 명시적으로 "true"일 때만 활성화.
+ * env missing / "false" / 기타 값 → disabled.
  * Super Admin의 수동 trigger(POST /super/growth-reports/:id/analyze)는 영향 없음.
  */
 function isAutoAnalysisEnabled(): boolean {
-  return process.env["GROWTH_REPORT_ANALYSIS_AUTO_ENABLED"] !== "false";
+  return process.env["GROWTH_REPORT_ANALYSIS_AUTO_ENABLED"] === "true";
 }
 
 function getMaxRetryCount(): number {
