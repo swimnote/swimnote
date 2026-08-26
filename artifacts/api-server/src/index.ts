@@ -88,6 +88,10 @@ import("./migrations/pool-db-cs-24b.js")
 import("./migrations/pool-db-cs-26.js")
   .then(m => m.runCs26Migration())
   .catch((e) => console.error("[cs26] migration 오류:", e.message));
+// GR-Interactions: growth_report_reactions + growth_report_comments (additive, 멱등)
+import("./migrations/pool-db-x-gr-interactions-init.js")
+  .then(m => m.runGrInteractionsMigration())
+  .catch((e) => console.error("[gr-interactions] migration 오류:", e.message));
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
 // gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
 // 스타트업 자동 실행 금지 — Render 재시작만으로 DB schema가 변경되어서는 안 됨.
