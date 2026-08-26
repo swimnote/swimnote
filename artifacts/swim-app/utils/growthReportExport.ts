@@ -161,8 +161,10 @@ const SWIMNOTE_AI_REPORT_LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAAN
 
 /** Build one section block (editorial style: heading + thin rule + body text) */
 function buildSectionBlock(key: string, text: string, isParentSupport = false): string {
+  // empty / placeholder 판별 — 빈 섹션은 아무것도 렌더하지 않음
+  if (isEmptySection(text)) return "";
   const label = escapeHtml(SECTION_LABELS_PDF[key] ?? key);
-  const body  = escapeHtml(text);
+  const body  = escapeHtml(sanitizeSectionText(text));
   const wrapClass = isParentSupport ? "section parent-support-section" : "section";
   return `
     <div class="${wrapClass}">
@@ -248,8 +250,8 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   const page1SectionsHtml = PAGE1_SECTIONS
     .map((key) => {
       const sec = (reportContent.sections as Record<string, ReportSectionForExport | undefined>)?.[key];
-      if (!sec?.text?.trim()) return "";
-      return buildSectionBlock(key, sec.text);
+      if (isEmptySection(sec?.text)) return "";
+      return buildSectionBlock(key, sec!.text);
     })
     .join("");
 
@@ -257,8 +259,8 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   const page2SectionsHtml = PAGE2_SECTIONS
     .map((key) => {
       const sec = (reportContent.sections as Record<string, ReportSectionForExport | undefined>)?.[key];
-      if (!sec?.text?.trim()) return "";
-      return buildSectionBlock(key, sec.text, key === "parent_support");
+      if (isEmptySection(sec?.text)) return "";
+      return buildSectionBlock(key, sec!.text, key === "parent_support");
     })
     .join("");
 
@@ -380,61 +382,81 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
     color: #0D5C8C;
   }
 
-  /* ── SECTION HEADING ── */
+  /* ── SECTION HEADING — 통일 스타일 ── */
   .section-heading {
-    font-size: 15pt;
+    font-size: 13.5pt;
     font-weight: 700;
     color: #0D2E5A;
-    margin-bottom: 3pt;
+    margin-bottom: 0;
+    letter-spacing: -0.1pt;
   }
 
-  /* ── SUMMARY (PAGE 1) ── */
+  /* ── SUMMARY BLOCK (Page 1 최우선 블록) ── */
+  /* summary는 다른 section보다 시각적 중요도가 한 단계 높음 */
   .summary-block {
-    background: #F2FAFD;
+    background: #F0F8FD;
     border-left: 3pt solid #3ECFBA;
-    padding: 10pt 14pt;
-    margin-bottom: 16pt;
+    border-radius: 0 4pt 4pt 0;
+    padding: 13pt 16pt 14pt;
+    margin-bottom: 18pt;
     page-break-inside: avoid;
   }
+  .summary-heading {
+    font-size: 13.5pt;
+    font-weight: 700;
+    color: #0A3050;
+    margin-bottom: 6pt;
+    letter-spacing: -0.1pt;
+  }
+  .summary-rule {
+    height: 0.75pt;
+    background: #C8DFF0;
+    margin: 0 0 9pt;
+  }
   .summary-body {
-    font-size: 12pt;
+    font-size: 11.5pt;
     color: #1A2E44;
-    line-height: 1.6;
+    line-height: 1.75;
     white-space: pre-wrap;
   }
 
   /* ── SECTION ── */
   .section {
-    margin-bottom: 14pt;
+    margin-bottom: 16pt;
     page-break-inside: avoid;
   }
   .section-rule {
     height: 0.75pt;
-    background: #DCE9F3;
-    margin: 4pt 0 7pt;
+    background: #D8E8F4;
+    margin: 5pt 0 8pt;
   }
   .section-body {
-    font-size: 12pt;
-    color: #1A2E44;
-    line-height: 1.6;
+    font-size: 11.5pt;
+    color: #1E3347;
+    line-height: 1.75;
     white-space: pre-wrap;
   }
 
-  /* ── PARENT SUPPORT (highlighted) ── */
+  /* ── 가정에서 함께해요 (parent_support) — 행동 가이드 블록 ── */
+  /* 마지막 섹션으로 부모 행동 지침 강조 — CTA가 아닌 가이드 느낌 */
   .parent-support-section {
-    background: #EEF9F6;
-    border-left: 3pt solid #3ECFBA;
-    padding: 12pt 14pt 14pt;
-    margin-bottom: 14pt;
+    background: #F0FBF7;
+    border-left: 3pt solid #2DB89E;
+    border-radius: 0 4pt 4pt 0;
+    padding: 13pt 16pt 15pt;
+    margin-bottom: 16pt;
     page-break-inside: avoid;
   }
+  .parent-support-section .section-heading {
+    color: #0A4030;
+  }
   .parent-support-section .section-rule {
-    background: #B8E4D8;
-    margin: 4pt 0 8pt;
+    background: #A8DECE;
+    margin: 5pt 0 8pt;
   }
   .parent-support-section .section-body {
-    font-size: 12pt;
-    line-height: 1.65;
+    font-size: 11.5pt;
+    line-height: 1.75;
     color: #0F3328;
   }
 
@@ -442,21 +464,22 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
   .page-footer {
     margin-top: auto;
     padding-top: 10pt;
-    border-top: 0.75pt solid #E4EBF2;
+    border-top: 0.75pt solid #D8E4EE;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   .footer-brand {
-    font-size: 9pt;
-    font-weight: 700;
-    color: #0D2E5A;
-    letter-spacing: 1.2pt;
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #3A5270;
+    letter-spacing: 1.5pt;
     text-transform: uppercase;
   }
   .footer-page {
-    font-size: 9pt;
-    color: #A8BACF;
+    font-size: 8.5pt;
+    font-weight: 500;
+    color: #7A90A8;
   }
 
   @media print {
@@ -474,8 +497,8 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
 
     ${reportContent.summary_text?.trim() ? `
     <div class="summary-block">
-      <div class="section-heading">이번 달 이야기</div>
-      <div class="section-rule" style="background:#DCE9F3;margin:6px 0 10px"></div>
+      <div class="summary-heading">이번 달 한눈에 보기</div>
+      <div class="summary-rule"></div>
       <p class="summary-body">${escapeHtml(reportContent.summary_text)}</p>
     </div>` : ""}
 
@@ -495,6 +518,51 @@ export function buildPdfHtml(params: GrowthReportExportParams): string {
 
 </body>
 </html>`;
+}
+
+// ── Empty section 판별 ────────────────────────────────────────────────────
+// "(이번 기간 해당 내용 없음)" 및 동의어 placeholder 포함 여부 확인
+const EMPTY_PLACEHOLDERS = [
+  "(이번 기간 해당 내용 없음)",
+  "(해당 없음)",
+  "(내용 없음)",
+  "(정보 없음)",
+  "해당 내용 없음",
+  "내용 없음",
+];
+
+function isEmptySection(text: string | null | undefined): boolean {
+  if (!text) return true;
+  const t = text.trim();
+  if (!t) return true;
+  if (EMPTY_PLACEHOLDERS.some((p) => t === p || t.startsWith(p))) return true;
+  return false;
+}
+
+// ── 내부 상태 텍스트 제거 ──────────────────────────────────────────────────
+// 엔진 내부 상태값(REVISED_PASS / PASS / validation / grounding 등)이
+// section text에 혼입된 경우 해당 줄을 제거한다.
+const INTERNAL_TEXT_PATTERNS = [
+  /^분석 품질[：:].*/m,
+  /^REVISED_PASS.*/m,
+  /^PASS.*/m,
+  /^revision_count[：:].*/m,
+  /^회귀 수정.*/m,
+  /^validation[：:].*/m,
+  /^grounding[：:].*/m,
+  /^growth_framing[：:].*/m,
+  /^[QUALITY[^]]*].*/m,
+  /^[STATUS[^]]*].*/m,
+];
+
+function sanitizeSectionText(text: string): string {
+  let t = text;
+  for (const re of INTERNAL_TEXT_PATTERNS) {
+    t = t.replace(new RegExp(re.source, "gm"), "");
+  }
+  // 연속된 빈 줄 2개 이상 → 1개로
+  t = t.replace(/\n{3,}/g, "\n\n").trim();
+  return t;
 }
 
 function escapeHtml(str: string): string {
