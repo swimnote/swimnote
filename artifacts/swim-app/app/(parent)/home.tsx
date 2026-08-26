@@ -1169,6 +1169,7 @@ export default function ParentHomeScreen() {
   const [aiModalType, setAiModalType] = useState<AIModalType | null>(null);
   const [progressData, setProgressData] = useState<CurriculumProgressData | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
+  const [footerHeight, setFooterHeight] = useState(0);
 
   // ── FREE GROWTH REPORT — 현재 월 리포트 상태 (Phase 1) ───────────────────
   type GrDisplayStatus =
@@ -2234,7 +2235,7 @@ export default function ParentHomeScreen() {
             tintColor={C.brandStrong}
           />
         }
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{ paddingBottom: footerHeight || 16 }}
         maxToRenderPerBatch={8}
         windowSize={12}
         initialNumToRender={5}
@@ -2247,7 +2248,10 @@ export default function ParentHomeScreen() {
       />
 
       {/* ── FIXED BOTTOM FOOTER ──────────────────────────────────────────── */}
-      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
+      <View
+        style={[s.bottomBar, { paddingBottom: insets.bottom + 6 }]}
+        onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}
+      >
         <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI with OpenAI GPT</Text>
       </View>
 
