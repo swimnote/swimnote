@@ -132,15 +132,15 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
         minHeight: 52,
         boxSizing: "border-box" as any,
       }}>
-        {/* LEFT: 실제 로고 */}
+        {/* LEFT: 실제 로고 — height 28px (+27%), width auto, ratio 유지 */}
         <img
           src="/__mockup/swimnote-ai-report-logo.png"
           alt="SwimNote AI REPORT"
-          style={{ height: 22, width: "auto", display: "block" }}
+          style={{ height: 28, width: "auto", display: "block" }}
         />
 
         {/* RIGHT: 월간 리포트 + 학생/수영장 */}
-        <div style={{ marginLeft: "auto", textAlign: "right" as any }}>
+        <div style={{ marginLeft: "auto", textAlign: "right" as any, paddingRight: 2 }}>
           <div style={{ ...T.t3, color: C.aquaText, fontWeight: "600" }}>
             월간 리포트
           </div>

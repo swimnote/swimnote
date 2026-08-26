@@ -160,15 +160,15 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
         borderBottomColor: DIVIDER,
         minHeight: 52,
       }}>
-        {/* LEFT: 실제 로고 */}
+        {/* LEFT: 실제 로고 — 28px height (20~30% up from 22px), width auto */}
         <Image
           source={LOGO}
-          style={{ height: 22, width: 120 }}
+          style={{ height: 28, width: undefined, aspectRatio: 2774 / 998 }}
           resizeMode="contain"
         />
 
         {/* RIGHT: 월간 리포트 레이블 + 학생/수영장 */}
-        <View style={{ marginLeft: "auto" as any, alignItems: "flex-end" }}>
+        <View style={{ marginLeft: "auto" as any, alignItems: "flex-end", paddingRight: 2 }}>
           <Text style={{ ...T3, color: AQUA_TEXT, fontFamily: "Pretendard-SemiBold" }}>
             월간 리포트
           </Text>
