@@ -409,11 +409,24 @@ export default function GrowthReportDetailScreen() {
   const { report_period, published_at, report_content, sns_summary } = detail;
   const [year, month] = report_period.split("-");
   const periodLabel = year && month ? `${year}년 ${Number(month)}월` : report_period;
+  // PostgreSQL timestamp는 "2026-08-26 07:35:11.368199+00" 형식(공백, T 없음)을 반환.
+  // JavaScriptCore는 이 포맷을 Invalid Date로 파싱 → 공백을 T로 교체 후 파싱.
   const publishedDate = published_at
-    ? new Date(published_at).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
+    ? (() => {
+        const d = new Date(published_at.replace(" ", "T"));
+        return isNaN(d.getTime())
+          ? null
+          : d.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+      })()
     : null;
 
-  const canShare = sns_summary?.share_safe === true;
+  // share_safe=true + 실제 headline/key_points가 있어야 공유 허용.
+  // headline이 빈 문자열이면 INVALID_SNS_SUMMARY 예외 발생 → 버튼 자체 숨김으로 방지.
+  const canShare =
+    sns_summary?.share_safe === true &&
+    !!sns_summary.headline &&
+    Array.isArray(sns_summary.key_points) &&
+    sns_summary.key_points.length > 0;
   const isGenerating = isPdfGenerating || isShareGenerating;
 
   return (

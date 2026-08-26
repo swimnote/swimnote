@@ -882,6 +882,31 @@ export async function publishGrowthReport(
     );
   }
 
+  // ── A fix: Empty report gate ──────────────────────────────────────────────
+  // 실제 성장 근거가 0건이고 summary + 모든 parent-facing section이 비어 있으면
+  // 빈 PDF가 학부모에게 발급되는 것을 차단.
+  // 확인 대상 섹션: core_growth, swimming_progress, behavioral_strengths,
+  //   longitudinal_comparison, success_conditions, parent_support, next_growth_direction
+  {
+    const PARENT_SECTIONS = [
+      "core_growth", "swimming_progress", "behavioral_strengths",
+      "longitudinal_comparison", "success_conditions",
+      "parent_support", "next_growth_direction",
+    ] as const;
+    const rcObj = rc as Record<string, unknown>;
+    const summaryText: string = (rcObj["summary_text"] as string) ?? "";
+    const sections = (rcObj["sections"] ?? {}) as Record<string, { text?: string }>;
+    const hasContent =
+      summaryText.trim().length > 0 ||
+      PARENT_SECTIONS.some((k) => (sections[k]?.text ?? "").trim().length > 0);
+    if (!hasContent) {
+      throw new PublishPreconditionError(
+        "EMPTY_REPORT: summary_text and all parent sections are empty. " +
+        "Cannot publish a report with no content to the parent.",
+      );
+    }
+  }
+
   // ── Transition APPROVED → PUBLISHED ──────────────────────────────────────
   // transitionReportStatus handles: SELECT FOR UPDATE, published_at, audit
   // ReportTerminalError on concurrent publish → treat as already-published

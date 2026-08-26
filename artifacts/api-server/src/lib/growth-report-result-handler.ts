@@ -493,7 +493,15 @@ export async function persistEngineResult(
   const leversJson    = JSON.stringify(synth?.["support_levers"]         ?? []);
   const growthJson    = JSON.stringify(synth?.["next_growth_targets"]    ?? []);
   const observJson    = JSON.stringify(synth?.["next_observation_targets"] ?? []);
-  const factJson      = JSON.stringify(response.fact_package);
+  // E fix: publish gate가 fp.grounding_result / fp.growth_framing_result 문자열을 요구.
+  // Engine은 이를 response.validation에만 저장하고 fact_package에는 포함하지 않음.
+  // 저장/매핑 계약 수정: fact_package에 두 필드를 병합하여 저장.
+  const factWithValidation = {
+    ...(response.fact_package as Record<string, unknown>),
+    grounding_result:      groundingStatus,
+    growth_framing_result: growthFramingStatus,
+  };
+  const factJson      = JSON.stringify(factWithValidation);
   const contentJson   = JSON.stringify(response.report_content);
   const snsJson       = JSON.stringify(response.sns_summary);
 

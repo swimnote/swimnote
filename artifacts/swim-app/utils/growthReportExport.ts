@@ -129,11 +129,15 @@ function formatPeriodRange(period: string): string {
 
 function formatPublishedDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("ko-KR", {
+    // PostgreSQL timestamp는 공백 구분자를 사용할 수 있음 ("2026-08-26 07:35:11+00").
+    // JavaScriptCore는 이를 Invalid Date로 파싱 → T로 교체.
+    const d = new Date(iso.replace(" ", "T"));
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("ko-KR", {
       year: "numeric", month: "long", day: "numeric",
     });
   } catch {
-    return iso;
+    return "";
   }
 }
 
