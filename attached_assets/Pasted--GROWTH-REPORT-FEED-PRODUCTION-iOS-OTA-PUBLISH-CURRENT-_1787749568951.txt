@@ -1,0 +1,178 @@
+[앱]
+
+GROWTH REPORT FEED — PRODUCTION iOS OTA PUBLISH
+CURRENT HEAD ALLOWED AFTER APP-CODE DIFF CHECK
+
+현재 상태:
+
+precheck target:
+71e789ac
+
+현재 HEAD:
+3e106304
+
+보고상 3e106304는
+precheck 문서만 추가된 commit이며
+앱 코드 변경은 없음.
+
+따라서 이번 Step에서는
+현재 HEAD 3e106304를 허용하되,
+OTA 실행 전 앱 코드 차이가 정말 없는지만 최소 확인한다.
+
+==================================================
+1. APP-CODE DIFF CHECK
+==================================================
+
+다음 범위만 확인:
+
+71e789ac..3e106304
+
+앱 코드/asset 변경 여부 확인.
+
+특히 확인 대상:
+
+artifacts/swim-app/**
+
+아래 Growth Report 관련 파일:
+- components/parent/GrowthReportFullFeed.tsx
+- components/parent/GrowthReportFeedCard.tsx
+- assets/images/swimnote-ai-report-logo.png
+
+조건:
+
+71e789ac 이후
+artifacts/swim-app 아래 앱 코드/asset 변경 = 0
+
+이면 PASS.
+
+docs / screenshots / precheck 문서만 추가된 것이 확인되면
+현재 HEAD 3e106304로 OTA 진행 허용.
+
+앱 코드 변경이 하나라도 있으면
+OTA 실행 금지하고 STOP.
+
+==================================================
+2. FINAL TARGET
+==================================================
+
+현재:
+
+branch = deploy-photo-clone
+HEAD = 3e106304
+
+위 상태 허용.
+
+단,
+§1 app-code diff check PASS가 선행조건.
+
+==================================================
+3. OTA COMMAND VALIDATION
+==================================================
+
+현재 EAS CLI 기준으로:
+
+eas update --help
+
+에서
+--channel production
+--branch production
+
+동시 지정 가능 여부 확인.
+
+현재 프로젝트 production OTA 정책을 우선.
+
+새 channel/branch 생성 금지.
+
+==================================================
+4. iOS PRODUCTION OTA PUBLISH
+==================================================
+
+app-code diff check PASS 후
+artifacts/swim-app에서
+iOS production OTA 실제 실행.
+
+현재 CLI에서 둘 다 유효하면:
+
+eas update \
+  --channel production \
+  --branch production \
+  --message "feat: growth report feed X color system + report UI" \
+  --platform ios
+
+둘 동시 지정이 불가하면
+기존 production channel이 실제 사용하는 올바른 정책으로 실행.
+
+==================================================
+5. 포함되어야 하는 변경
+==================================================
+
+OTA에 반드시 포함:
+
+- GrowthReportFullFeed.tsx
+- GrowthReportFeedCard.tsx
+- swimnote-ai-report-logo.png
+
+최종 Growth Report Feed:
+
+- X_NAVY #0F172A
+- X_MINT #2EC4B6
+- X_MINT_LIGHT #E6FAF8
+- 실제 SwimNote AI REPORT 로고
+- full-length feed
+- report-style section system
+- progress strip
+- action row
+- PDF/share button
+
+==================================================
+6. 배포 후 보고
+==================================================
+
+보고:
+
+- app-code diff check 결과
+- current HEAD
+- update ID
+- channel
+- branch
+- runtimeVersion
+- platform
+- publish timestamp
+- asset upload 결과
+
+==================================================
+7. DEVICE CHECK
+==================================================
+
+실기기에서 앱 완전 종료 후 재실행.
+
+서태웅 학생 피드 확인:
+
+- 최신 Growth Report Feed UI
+- 실제 로고
+- X palette
+- full content
+- 마지막 가정에서 함께해요
+- PDF·공유 버튼
+
+PDF·공유 버튼 tap:
+
+- PDF 생성
+- 2페이지
+- 한글 정상
+- 로고 정상
+- iOS share sheet 정상
+
+==================================================
+8. 금지
+==================================================
+
+- Render deploy 금지
+- native build 금지
+- Android OTA 금지
+- DB write 금지
+- AI 호출 금지
+- 코드 수정 금지
+- 새 OTA channel/branch 생성 금지
+
+완료 후 STOP.
