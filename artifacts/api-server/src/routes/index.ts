@@ -68,6 +68,7 @@ import parentGrowthReportRouter from "./parent-growth-report.js";
 import parentCurriculumRouter    from "./parent-curriculum.js";
 import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
 import publishGrowthReportRouter from "./publish-growth-report.js";
+import growthReportInteractionsRouter from "./growth-report-interactions.js";
 
 const router: IRouter = Router();
 
@@ -95,6 +96,7 @@ router.use("/", parentGrowthReportRouter);
 router.use("/", parentCurriculumRouter);
 router.use("/", teacherGrowthReportReviewRouter);
 router.use("/", publishGrowthReportRouter);
+router.use("/", growthReportInteractionsRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/", photosRouter);
 router.use("/", diaryRouter);
