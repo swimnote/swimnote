@@ -121,7 +121,7 @@ function FeedPage({ width, label, curriculumPct = 0 }: {
             {/* ROW 1: logo + badge */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <img
-                src="/swimnote-ai-report-logo.png"
+                src="/__mockup/swimnote-ai-report-logo.png"
                 alt="SwimNote AI REPORT"
                 style={{ height: 22, width: "auto", objectFit: "contain" }}
               />
@@ -230,7 +230,7 @@ function FeedContext() {
         {/* header */}
         <div style={{ padding: "14px 16px 12px", borderBottom: `1px solid ${BORDER_CLR}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <img src="/swimnote-ai-report-logo.png" alt="SwimNote AI REPORT" style={{ height: 22, width: "auto" }} />
+            <img src="/__mockup/swimnote-ai-report-logo.png" alt="SwimNote AI REPORT" style={{ height: 22, width: "auto" }} />
             <div style={{ background: AQUA_MIST, border: `1px solid ${AQUA_SOFT}`, borderRadius: 20, padding: "3px 9px" }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: AQUA_DIM, letterSpacing: "0.4px" }}>월간 리포트</span>
             </div>
