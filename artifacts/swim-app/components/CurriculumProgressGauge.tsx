@@ -104,51 +104,39 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
         )}
       </View>
 
-      {/* 진행 바 또는 대기 문구 */}
-      {isEmpty ? (
-        <Text
-          style={{
-            fontSize: 11,
-            fontFamily: "Pretendard-Regular",
-            color: C.textMuted,
-            lineHeight: 16,
-          }}
-        >
-          수업 기록이 쌓이면 교육과정 진행도가 표시됩니다.
-        </Text>
-      ) : (
-        <>
-          {/* 슬림 progress bar */}
+      {/* 진행 바 — 항상 track 표시, fill은 유효 데이터 있을 때만 */}
+      <View
+        style={{
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: C.border,
+          overflow: "hidden",
+        }}
+      >
+        {!isEmpty && (
           <View
             style={{
               height: 6,
               borderRadius: 3,
-              backgroundColor: C.border,
-              overflow: "hidden",
+              width: barWidth,
+              backgroundColor: "#2EC4B6",
             }}
-          >
-            <View
-              style={{
-                height: 6,
-                borderRadius: 3,
-                width: barWidth,
-                backgroundColor: "#2EC4B6",
-              }}
-            />
-          </View>
-          {/* 보조 문구 */}
-          <Text
-            style={{
-              fontSize: 10,
-              fontFamily: "Pretendard-Regular",
-              color: C.textMuted,
-              marginTop: 4,
-            }}
-          >
-            최근 수업 기록을 기준으로 확인된 교육과정 위치
-          </Text>
-        </>
-      )}
+          />
+        )}
+      </View>
+      {/* 보조 문구 */}
+      <Text
+        style={{
+          fontSize: 10,
+          fontFamily: "Pretendard-Regular",
+          color: C.textMuted,
+          marginTop: 4,
+        }}
+      >
+        {isEmpty
+          ? "진행 정보가 쌓이는 중입니다"
+          : "최근 수업 기록을 기준으로 확인된 교육과정 위치"}
+      </Text>
     </View>
   );
 }

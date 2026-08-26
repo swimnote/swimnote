@@ -1817,13 +1817,7 @@ export default function ParentHomeScreen() {
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 12, marginBottom: 12 }}>
           {(mode === "x" || mode === "x_pending") && (
             <Pressable
-              onPress={() => {
-                if (grReportId) {
-                  router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(grReportId)}` as any);
-                } else if (selectedStudent) {
-                  router.push(`/(parent)/growth-report-status?studentId=${encodeURIComponent(selectedStudent.id)}` as any);
-                }
-              }}
+              onPress={() => router.push("/(parent)/growth-report-paid" as any)}
               style={({ pressed }) => ({
                 flex: 1,
                 borderRadius: 11,
@@ -2008,47 +2002,6 @@ export default function ParentHomeScreen() {
             성장리포트 전체보기
           </Text>
           <LucideIcon name="chevron-right" size={13} color={C.textSecondary} />
-        </Pressable>
-      )}
-
-      {/* ── 학부모 리포트 허브 진입 버튼 (PAID Hub — FREE monthly와 완전 분리) ── */}
-      {selectedStudent && !isBlocked && (
-        <Pressable
-          onPress={() => router.push("/(parent)/growth-report-paid" as any)}
-          style={({ pressed }) => ({
-            marginHorizontal: 16,
-            marginTop: 4,
-            marginBottom: 8,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            backgroundColor: "#F0F4FF",
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: "#C7D7F7",
-            padding: 14,
-            opacity: pressed ? 0.75 : 1,
-          })}
-        >
-          <View style={{
-            width: 38,
-            height: 38,
-            borderRadius: 11,
-            backgroundColor: "#DBEAFE",
-            alignItems: "center",
-            justifyContent: "center",
-          }}>
-            <LucideIcon name="file-bar-chart" size={18} color="#1D4ED8" />
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#1E3A8A" }}>
-              학부모 리포트
-            </Text>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280" }}>
-              정기 리포트 확인 · 정밀 분석 신청
-            </Text>
-          </View>
-          <LucideIcon name="chevron-right" size={15} color="#93C5FD" />
         </Pressable>
       )}
 
