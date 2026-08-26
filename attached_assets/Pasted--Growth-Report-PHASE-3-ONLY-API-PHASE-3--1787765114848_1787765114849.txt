@@ -1,0 +1,201 @@
+[앱] Growth Report 좋아요·댓글 — PHASE 3 구현계획서 ONLY
+
+현재 서버/API 단계 완료보고까지 확인했습니다.
+
+PHASE 3에서는 아직 코드 수정하지 마십시오.
+먼저 Parent UI + Teacher Mode 연결 구현계획서만 제출하십시오.
+
+최종 목표:
+
+1. Growth Report 하단 좋아요/댓글을
+   기존 일반 Diary Feed의 좋아요/댓글과
+   디자인과 UX 모두 동일하게 재사용
+
+2. Parent가 Growth Report에서 좋아요를 누르면
+   기존에 구현된 Growth Report reaction API와 연결
+
+3. Parent가 댓글을 작성하면
+   기존 Growth Report comments API와 연결
+
+4. 담당 Teacher가 Teacher Mode에서
+   해당 Growth Report의 좋아요와 실제 댓글 내용을 확인
+
+5. Teacher가 Parent 댓글에 답글을 작성할 수 있도록 연결
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Parent UI 재사용 계획
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 기존 Diary Feed의 실제 구현을 기준으로 확인:
+
+- 좋아요 component/file
+- 댓글 component/file
+- active like state
+- reaction count 표시 방식
+- 댓글 count 표시 방식
+- 댓글 modal/sheet/screen
+- loading/error 처리
+- optimistic update 여부
+- interaction refresh 방식
+
+Growth Report에서 이 UI를
+복제할지 / 공통 component로 추출할지 / 기존 component를 그대로 호출할지
+실제 repo 구조 기준으로 결정.
+
+새로운 디자인을 만들지 마십시오.
+
+Growth Report의:
+
+좋아요
+댓글
+
+은 기존 Diary Feed와 최대한 동일해야 합니다.
+
+PDF·공유만 Growth Report 고유 action으로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Parent API 연결 계획
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현된 Growth Report interaction API를 기준으로:
+
+- initial reaction 조회
+- like
+- unlike
+- comments 조회
+- comment 작성
+- comment 삭제
+- teacher reply 조회
+
+각 UI action이 어느 endpoint와 연결되는지
+함수 단위로 계획하십시오.
+
+반드시 포함:
+
+- request state
+- error state
+- retry 정책
+- duplicate tap 방지
+- 화면 재진입 시 최신 상태 반영
+- reportId source
+- unpublished/deleted 응답 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher Mode 연결 계획
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 일반 Diary에서
+학부모 좋아요/댓글을 Teacher가 확인하는 실제 UX를 먼저 조사하십시오.
+
+그리고 Growth Report interaction을
+어느 Teacher 화면에 연결할지 제안하십시오.
+
+반드시 답변:
+
+- Teacher가 notification을 눌렀을 때 어디로 이동할지
+- Growth Report 식별 방법
+- 좋아요한 Parent 정보 표시 여부
+- 좋아요 count 표시 위치
+- Parent 댓글 실제 내용 표시 위치
+- 댓글 thread 표시 방법
+- Teacher reply 입력 위치
+- 답글 작성 후 Parent에게 어떻게 전달되는지
+- 기존 Teacher UI를 재사용할 수 있는지
+
+새로운 별도 Inbox를 만들기 전에
+기존 Teacher interaction/comment 흐름 재사용을 우선 검토하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Notification deep-link 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 서버에서 Growth Report like/comment 시
+담당 teacher notification INSERT까지 구현된 것으로 보고됨.
+
+하지만 notification을 누른 뒤 실제 Teacher UI로 이동하는 흐름이 필요합니다.
+
+확인:
+
+- 현재 notification type
+- ref_id
+- deep_link 값
+- Teacher notification screen의 routing 처리
+- Growth Report interaction으로 직접 진입 가능한지
+- 추가 deep-link 변경 필요 여부
+
+코드 기준으로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Teacher Reply → Parent 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고상 teacher reply는:
+
+DB reply 저장
++ Parent push
+
+이며 notifications table INSERT는 하지 않는 것으로 보고됨.
+
+이 구조가 현재 앱의 Parent UX에서 충분한지 확인하십시오.
+
+특히:
+
+- push를 눌렀을 때 해당 Growth Report 댓글 thread로 이동 가능한가
+- 앱을 열었을 때 reply를 다시 확인할 수 있는가
+- push를 놓친 Parent도 reply를 볼 수 있는가
+
+를 조사.
+
+필요하면 수정안을 제안하되
+이번 단계에서는 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 구현 Phase 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 구현을 한 번에 하지 말고
+최소 단위로 나누십시오.
+
+권장 검토 단위:
+
+PHASE 3-A
+Parent Growth Report 좋아요 연결
+
+PHASE 3-B
+Parent Growth Report 댓글 UI/API 연결
+
+PHASE 3-C
+Teacher Mode interaction 조회 UI
+
+PHASE 3-D
+Teacher reply UI + Parent 재확인 흐름
+
+단 실제 repo 구조상 더 안전한 분리가 있다면 제안 가능.
+
+각 Phase마다:
+
+- 수정 파일
+- 수정 함수/component
+- API
+- DB 변경 여부
+- notification 변경 여부
+- 테스트
+- rollback 범위
+
+를 명확히 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- DB migration 금지
+- Production DB write 금지
+- Render deploy 금지
+- OTA 금지
+- UI 변경 금지
+- PHASE 3 구현 시작 금지
+
+구현계획서 제출 후 STOP.
+
+사용자 승인 후 PHASE 3-A부터 한 단계씩 진행합니다.
