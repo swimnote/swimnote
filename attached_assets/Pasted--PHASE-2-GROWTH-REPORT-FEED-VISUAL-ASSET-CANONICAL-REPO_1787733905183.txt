@@ -1,0 +1,380 @@
+[앱]
+
+PHASE 2 — GROWTH REPORT FEED VISUAL ASSET
+CANONICAL REPORT → PREMIUM FEED IMAGE
+
+현재 상태:
+- GrowthReportFeedCard 전용 UI 생성 완료
+- 기존 일반 텍스트형 카드 제거 완료
+- NAVY/AQUA 기반 premium visual system 적용
+- action bar 위치 placeholder 완료
+- 실제 action logic은 아직 연결하지 않음
+
+이번 Step의 목표:
+
+"리포트 내용을 앱 UI로 다시 조립하는 구조"에서 끝내지 말고,
+우리가 확정한 MONTHLY 성장 리포트 디자인을 기반으로
+
+하나의 canonical report data에서
+피드용 전용 이미지 asset을 생성하는 구조를 만든다.
+
+중요:
+PDF를 단순 screenshot/crop해서 사용하는 방식 금지.
+
+PDF와 feed image가
+같은 원본 데이터와 같은 디자인 시스템을 공유하되,
+각 화면 비율에 맞게 별도로 렌더링해야 한다.
+
+==================================================
+1. CANONICAL SOURCE
+==================================================
+
+성장리포트의 원본 데이터는 하나만 사용.
+
+기존:
+- report_content
+- summary_text
+- sns_summary
+- student metadata
+- pool metadata
+- report_period
+- curriculum progress
+
+를 source of truth로 사용.
+
+피드용 문구를 별도 AI 호출로 다시 만들지 말 것.
+피드용 내용이 PDF 내용과 서로 달라지는 구조 금지.
+
+==================================================
+2. FEED IMAGE ASSET
+==================================================
+
+새로운 feed report visual renderer를 만든다.
+
+목표 output:
+
+GROWTH_REPORT_FEED_IMAGE
+
+권장 비율:
+모바일 feed에서 크게 보이되
+지나치게 세로로 길지 않은 portrait composition.
+
+예:
+1080 × 1350 계열 비율 검토.
+
+단,
+실제 앱 viewport에 가장 자연스러운 비율을 선택하고
+선택 이유를 보고.
+
+==================================================
+3. DESIGN LANGUAGE
+==================================================
+
+현재 확정된 PDF V3 디자인과
+같은 브랜드에서 나온 결과물처럼 보여야 한다.
+
+공통 요소:
+
+- 사용자가 제공한 SwimNote AI REPORT 가로형 로고
+- deep navy
+- aqua
+- white
+- light mist background
+- 동일 typography hierarchy
+- 동일 section heading language
+- 동일 progress visual language
+
+하지만:
+
+PDF 페이지를 그대로 축소해서 넣지 말 것.
+
+Feed 전용 composition으로 다시 배치.
+
+==================================================
+4. FEED IMAGE CONTENT PRIORITY
+==================================================
+
+피드 이미지는 모든 PDF 내용을 넣지 않는다.
+
+시선 순서:
+
+1. SwimNote AI REPORT branding
+2. MONTHLY 성장 리포트
+3. 해당 월
+4. 학생 이름
+5. 현재 커리큘럼 진도
+6. 이번 달 한눈에 보기 핵심
+7. 실제 근거가 있는 핵심 성장 포인트 2~3개
+8. 아주 짧은 가정 포인트가 있으면 1개
+
+내용 없는 section은 렌더 금지.
+
+==================================================
+5. HEADER
+==================================================
+
+Feed visual 상단:
+
+좌측:
+SwimNote AI REPORT 로고
+
+우측 또는 아래:
+MONTHLY 성장 리포트
+
+metadata:
+- 학생명
+- 해당 월
+- 필요 시 수영장명
+
+정보가 많아 보이지 않게 정리.
+
+PDF header를 그대로 복사하지 말고
+feed 비율에 맞게 재구성.
+
+==================================================
+6. CURRICULUM PROGRESS
+==================================================
+
+현재 커리큘럼 진도는
+Feed visual 안에서도 보이게 한다.
+
+단:
+
+- 성적표처럼 보이지 않게
+- 점수처럼 보이지 않게
+
+표현:
+
+현재 커리큘럼
+[thin progress line] 48.7%
+
+같은 구조 권장.
+
+==================================================
+7. MONTHLY STORY AREA
+==================================================
+
+"이번 달 한눈에 보기"가
+피드 visual의 핵심 본문.
+
+너무 긴 summary 전체를 넣지 말 것.
+
+canonical summary에서
+레이아웃 범위 내에서 자연스럽게 보이는 정도까지만 노출.
+
+임의 요약문 생성 금지.
+
+기존 summary의 앞부분 또는
+이미 존재하는 short summary/sns data 활용.
+
+==================================================
+8. GROWTH POINTS
+==================================================
+
+실제 non-empty section에서
+최대 3개만 시각적으로 노출.
+
+예:
+
+• 수영에서 확인된 변화
+• 지난 기록과 이어서 보기
+• 가정에서 참고할 포인트
+
+단,
+section 이름만 나열하는 카드가 아니라
+짧은 실제 내용도 함께 보여야 함.
+
+너무 긴 문장은 line clamp.
+
+==================================================
+9. PREMIUM VISUAL QUALITY
+==================================================
+
+중요.
+
+이 이미지는
+단순 정보 카드가 아니라
+"부모가 저장하고 공유하고 싶은 리포트"처럼 보여야 한다.
+
+금지:
+
+- dashboard widget 느낌
+- 과한 gradient
+- emoji
+- 과한 shadow
+- 너무 많은 박스
+- 모든 정보를 각각 card 안에 넣는 방식
+- 유치한 키즈 스타일
+- 병원 검사표 느낌
+
+권장:
+
+- 큰 white space
+- 정교한 typography
+- 얇은 divider
+- 하나의 주요 accent
+- 차분한 premium education report 느낌
+
+==================================================
+10. GrowthReportFeedCard 연결
+==================================================
+
+GrowthReportFeedCard 안의 visual 영역에
+생성된 feed image asset이 들어가는 구조로 만든다.
+
+카드 자체에서
+동일한 report 내용을 다시 중복 렌더하지 말 것.
+
+즉:
+
+GrowthReportFeedCard
+→ metadata 최소
+→ feed visual image
+→ interaction bar
+
+구조로 단순화.
+
+==================================================
+11. FALLBACK
+==================================================
+
+feed image가 아직 생성되지 않은 경우:
+
+앱 crash 금지.
+
+대신
+기존 minimal GrowthReportFeedCard preview를 fallback으로 사용 가능.
+
+하지만 production 정상 path는
+feed image asset 사용.
+
+==================================================
+12. ASSET ARCHITECTURE
+==================================================
+
+이번 Step에서는
+Production upload/storage 연결까지 하지 않아도 됨.
+
+먼저 renderer와 output 구조를 확정.
+
+output 예:
+
+{
+  width,
+  height,
+  mimeType,
+  localUri or buffer,
+  reportId
+}
+
+향후 publish pipeline에서
+R2 또는 기존 asset storage에 저장할 수 있게
+renderer를 독립 함수로 설계.
+
+PDF renderer와 중복 코드가 지나치게 생기지 않도록
+공통 design token/helper는 공유.
+
+단,
+PDF renderer를 무리하게 추상화해서
+현재 LOCKED PDF가 깨지는 리팩터링 금지.
+
+==================================================
+13. ACTUAL DATA TEST
+==================================================
+
+실제 서태웅 2026-08 report 사용.
+
+report_id:
+gr_13330aa20377484685e91ed62b729929
+
+실제 존재하는 데이터만 사용.
+
+현재 확인된 non-empty content:
+- summary_text
+- swimming_progress
+- longitudinal_comparison
+- parent_support
+
+빈 section 창작 금지.
+
+==================================================
+14. VISUAL OUTPUT 필수
+==================================================
+
+반드시 생성:
+
+A.
+feed image 단독 PNG
+
+B.
+GrowthReportFeedCard 안에
+feed image가 들어간 실제 iPhone screenshot
+
+C.
+전체 parent feed 안에서
+일지 카드와 성장리포트 카드가 함께 보이는 screenshot
+
+D.
+작은 iPhone viewport
+
+E.
+큰 iPhone viewport
+
+==================================================
+15. DESIGN REVIEW DATA
+==================================================
+
+완료보고에 정확히 기재:
+
+- output image size
+- aspect ratio
+- card width
+- visual padding
+- typography sizes
+- logo dimensions
+- progress bar dimensions
+- section spacing
+- image compression format/quality
+- 예상 asset file size
+
+==================================================
+16. DO NOT TOUCH
+==================================================
+
+이번 Step 금지:
+
+- DB schema
+- API
+- Render
+- OTA
+- Production DB
+- Instagram integration
+- PDF download logic
+- Like/comment logic
+- AI Engine
+- Growth Report generation
+- PDF V3 design 수정
+
+Visual renderer + feed card composition만.
+
+==================================================
+17. PASS CONDITION
+==================================================
+
+다음이 모두 YES여야 함:
+
+- 리포트 PDF와 동일 브랜드로 보이는가?
+- PDF를 그냥 축소한 이미지처럼 보이지 않는가?
+- 모바일 피드용으로 별도 디자인된 느낌인가?
+- 부모가 피드에서 내용을 충분히 이해할 수 있는가?
+- 저장하고 싶을 정도로 결과물이 깔끔한가?
+- 일반 일지와 비교했을 때 특별한 콘텐츠로 느껴지는가?
+- 이미지가 너무 길거나 글이 너무 작지 않은가?
+- 피드 카드 UI와 이미지가 중복 정보를 과하게 보여주지 않는가?
+
+완료 후 STOP.
+
+중요:
+자체 PASS 판정만 하지 말고
+실제 PNG와 실제 iPhone screenshot을 반드시 제출.
+최종 디자인 승인은 사용자가 화면을 직접 본 뒤 결정한다.
