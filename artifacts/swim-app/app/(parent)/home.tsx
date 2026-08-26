@@ -11,6 +11,7 @@
  *     각 일지: 날짜 · 선생님 · 본문 · 개별메모 · 사진 · 영상 · 반응
  */
 import { ParentPromoStrip } from "@/components/parent/ParentPromoStrip";
+import { GrowthReportFeedCard } from "@/components/parent/GrowthReportFeedCard";
 import { ParentAdBanner } from "@/components/parent/ParentAdBanner";
 import { AIFeatureModal, AIModalType } from "@/components/parent/AIFeatureModal";
 import StoryCapturePipeline, { StoryInput } from "@/components/parent/StoryCapturePipeline";
@@ -751,118 +752,7 @@ function PhotosGrid({
 }
 
 // ── 개별 일지 피드 아이템 ──────────────────────────────────────────────────
-// ─── GR6: 성장리포트 피드 카드 ────────────────────────────────────────────────
-// GR8에서 상세화면 연결 활성화 (spec §24 — Feed card tap → Detail route)
-function GrowthReportFeedCard({ item }: { item: GrowthReportFeedItem }) {
-  const period = item.report_period ?? "";
-  const [year, month] = period.split("-");
-  const dateLabel = year && month ? `${year}년 ${Number(month)}월` : period;
-
-  function handlePress() {
-    router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(item.growth_report_id)}`);
-  }
-
-  return (
-    <Pressable
-      onPress={handlePress}
-      accessibilityRole="button"
-      accessibilityLabel={`${dateLabel} 성장리포트 보기`}
-      style={({ pressed }) => ({
-        marginHorizontal: 16,
-        marginBottom: 14,
-        backgroundColor: C.card,
-        borderRadius: 16,
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: "#E0EEF9",
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      {/* 헤더 배지 */}
-      <View
-        style={{
-          backgroundColor: "#EAF4FF",
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        <LucideIcon name="bar-chart-2" size={15} color={NAVY} />
-        <Text
-          style={{
-            fontSize: 12,
-            fontFamily: "Pretendard-SemiBold",
-            color: NAVY,
-            letterSpacing: 0.3,
-          }}
-        >
-          성장리포트
-        </Text>
-      </View>
-
-      {/* 본문 */}
-      <View style={{ padding: 14, gap: 6 }}>
-        <Text
-          style={{
-            fontSize: 15,
-            fontFamily: "Pretendard-Bold",
-            color: C.text,
-          }}
-        >
-          {item.title}
-        </Text>
-        <Text
-          style={{
-            fontSize: 12,
-            fontFamily: "Pretendard-Regular",
-            color: C.textMuted,
-          }}
-        >
-          {dateLabel}
-        </Text>
-
-        {/* ENGINE 생성 preview만 표시 (spec §8, §9, §15) */}
-        {!!(item.preview?.headline || item.preview?.summary_text) && (
-          <Text
-            style={{
-              fontSize: 13,
-              fontFamily: "Pretendard-Regular",
-              color: C.textSecondary,
-              lineHeight: 20,
-              marginTop: 4,
-            }}
-            numberOfLines={3}
-          >
-            {item.preview.headline ?? item.preview.summary_text}
-          </Text>
-        )}
-
-        {/* GR8: 상세 affordance 활성화 (spec §24) */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
-            marginTop: 6,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 12,
-              fontFamily: "Pretendard-Regular",
-              color: NAVY,
-            }}
-          >
-            자세히 보기
-          </Text>
-          <LucideIcon name="chevron-right" size={13} color={NAVY} />
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+// GrowthReportFeedCard는 components/parent/GrowthReportFeedCard.tsx에서 import
 
 function DiaryFeedItem({
   entry,
@@ -1258,6 +1148,7 @@ function DiaryFeedItem({
 export default function ParentHomeScreen() {
   const insets = useSafeAreaInsets();
   const { token, parentAccount, pool, parentPoolName, logout } = useAuth();
+  const feedPoolName = parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "";
   const { mode } = useMode();
   const {
     students,
@@ -1520,7 +1411,13 @@ export default function ParentHomeScreen() {
     ({ item }: { item: FeedItem }) => {
       // GR6: GROWTH_REPORT 카드 렌더링 (spec §6, §26)
       if ((item as GrowthReportFeedItem).type === "GROWTH_REPORT") {
-        return <GrowthReportFeedCard item={item as GrowthReportFeedItem} />;
+        return (
+          <GrowthReportFeedCard
+            item={item as GrowthReportFeedItem}
+            studentName={selectedStudent?.name ?? ""}
+            poolName={feedPoolName}
+          />
+        );
       }
       return (
         <DiaryFeedItem
@@ -1530,7 +1427,7 @@ export default function ParentHomeScreen() {
         />
       );
     },
-    [selectedStudent?.id, selectedStudent?.name],
+    [selectedStudent?.id, selectedStudent?.name, feedPoolName],
   );
 
   const keyExtractor = useCallback((item: FeedItem) => item.id, []);
