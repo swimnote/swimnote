@@ -1,0 +1,128 @@
+[앱] Growth Report 좋아요·댓글 — 구현 전 미확정사항 추가 조사 ONLY
+
+현재 구현계획서의 B안 방향은 조건부 승인합니다.
+
+아직 구현하지 마십시오.
+아래 4개만 실제 코드 기준으로 추가 확인하십시오.
+
+1. Growth Report 담당 Teacher 결정
+
+가장 중요.
+
+실제 growth_reports schema와 생성/publish 코드를 확인하여
+각 report가 어떤 teacher와 연결되는지 정확히 추적하십시오.
+
+확인:
+- growth_reports 실제 columns
+- teacher_user_id 존재 여부
+- created_by 존재 여부
+- class_id 존재 여부
+- student_id만 존재하는지
+- report 생성 시 teacher 정보가 저장되는지
+- report_fact_package 등에 teacher source가 있는지
+
+만약 report 자체에 teacher가 없다면:
+
+student
+→ report_period 당시 class
+→ class teacher
+
+로 찾아야 하는지 확인.
+
+현재 active class를 쓰면 과거 report의 teacher와 달라질 수 있으므로
+반드시 "해당 report 기간 당시 담당 teacher"를 판별할 수 있는지도 조사.
+
+결론으로:
+Growth Report like/comment notification recipient를
+어떤 ID로 결정할지 하나로 확정하여 보고.
+
+2. Published 판정 필드 확인
+
+계획서에서:
+
+is_published=true
+
+를 사용했는데 실제 repository 기준으로 존재하는 필드인지 확인.
+
+확인:
+- growth_reports 실제 status 관련 columns
+- product_status
+- analysis_status
+- published_at
+- deleted_at
+- is_published 존재 여부
+
+Parent가 interaction 가능한 report의 정확한 조건식을
+실제 schema 기준으로 작성하십시오.
+
+추측 금지.
+
+3. 기존 Diary와 "동일 기능" 범위 확정용 기술 조사
+
+기존 Parent Diary UI 기준으로:
+
+- like count를 Parent 화면에 실제 표시하는지
+- 내 like active state만 표시하는지
+- comment 작성 후 Teacher reply를 Parent가 같은 thread에서 보는지
+- Teacher reply notification/push 흐름
+
+을 다시 짧게 정리.
+
+Growth Report도 기존 Diary와 동일 UX를 목표로 하므로
+새 UX를 임의로 만들지 마십시오.
+
+4. Migration / Rollback 실제 운영안
+
+B안 신규 테이블 방식은 유지.
+
+단:
+
+DROP TABLE = 항상 안전한 rollback
+
+으로 정의하지 마십시오.
+
+구분해서 보고:
+
+A. migration 직후, interaction data 0건일 때 rollback
+B. 실제 사용자 interaction data가 생긴 뒤 rollback
+
+B의 경우 데이터 보존하면서 코드만 비활성화하는 방법을 우선 검토.
+
+또한 migration이 현재 repo에서:
+- app startup migration인지
+- deploy migration인지
+- 별도 migration command인지
+
+실제 구조를 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+추가로 테스트 계획도 수정하십시오.
+
+"기존 TC 전체 회귀" 금지.
+
+다음만:
+
+- Growth Report reactions 신규 TC
+- Growth Report comments 신규 TC
+- 권한 / cross-pool TC
+- notification recipient TC
+- 기존 Diary like toggle 핵심 회귀
+- 기존 Diary comment 작성/Teacher 확인 핵심 회귀
+
+정도로 제한.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계 절대 금지:
+
+- 코드 수정
+- migration 작성/실행
+- Production DB write
+- Render deploy
+- OTA
+- UI 변경
+- endpoint 생성
+
+위 4개 조사 결과와
+수정된 최종 구현계획서만 제출 후 STOP.
