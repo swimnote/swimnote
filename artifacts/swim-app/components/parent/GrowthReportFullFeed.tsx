@@ -186,8 +186,6 @@ function ReportHeader({
   return (
     <View style={{
       backgroundColor: WHITE,
-      borderBottomWidth: 1,
-      borderBottomColor: DIVIDER,
       paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 14,

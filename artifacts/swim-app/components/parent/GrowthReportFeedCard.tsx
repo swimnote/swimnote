@@ -44,9 +44,6 @@ export function GrowthReportFeedCard({ item, studentName, poolName, progressData
   return (
     <View style={{
       backgroundColor: "#FFFFFF",
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: DIVIDER,
       marginBottom: 0,
     }}>
       <GrowthReportFullFeed

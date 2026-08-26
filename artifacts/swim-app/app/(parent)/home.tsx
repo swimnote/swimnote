@@ -1026,8 +1026,6 @@ function DiaryFeedItem({
 
   return (
     <View style={f.item}>
-      <View style={[f.sep, { backgroundColor: C.border }]} />
-
       <View style={f.meta}>
         <Text style={[f.dateText, { color: C.text }]}>
           {!isCurrentYear && `${year}년 `}
