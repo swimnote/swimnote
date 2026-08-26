@@ -1765,6 +1765,7 @@ export default function ParentHomeScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 20,
+          paddingTop: 14,
           gap: 8,
           paddingBottom: 6,
         }}
@@ -2291,10 +2292,12 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   childTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    height: 42,
+    borderRadius: 11,
     borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
   },
   childTabAdd: {
     flexDirection: "row",
