@@ -98,7 +98,7 @@ async function resolveTeacherByStudent(
   const res = await db.execute(sql`
     SELECT cg.teacher_user_id AS teacher_id, cg.swimming_pool_id
     FROM students s
-    JOIN class_groups cg ON cg.id = s.current_class_id
+    JOIN class_groups cg ON cg.id = s.class_group_id
     WHERE s.id = ${studentId}
       AND s.swimming_pool_id = ${poolId}
       AND cg.teacher_user_id IS NOT NULL
@@ -442,7 +442,7 @@ router.post(
       // 다른 report의 comment를 parent_comment_id로 사용하는 것을 차단하기 위해 report pool도 검증
       const rootRes = await db.execute(sql`
         SELECT grc.id, grc.sender_id AS parent_sender_id, grc.growth_report_id,
-               gr.swimming_pool_id
+               gr.swimming_pool_id, gr.student_id AS growth_report_student_id
         FROM growth_report_comments grc
         JOIN growth_reports gr ON gr.id = grc.growth_report_id
         WHERE grc.id = ${commentId}
@@ -455,7 +455,7 @@ router.post(
         return;
       }
 
-      // pool 권한 확인: teacher/pool_admin은 같은 pool이어야 함
+      // pool 권한 확인 + teacher는 담당선생님 본인 여부 검증
       if (req.user!.role !== "super_admin") {
         const userRes = await db.execute(sql`
           SELECT swimming_pool_id FROM users WHERE id = ${senderId} LIMIT 1
@@ -464,6 +464,17 @@ router.post(
         if (userPool !== root.swimming_pool_id) {
           res.status(403).json({ error: "해당 리포트에 접근 권한이 없습니다." });
           return;
+        }
+        // teacher role이면 반드시 담당선생님 본인이어야 함
+        if (req.user!.role === "teacher") {
+          const responsible = await resolveTeacherByStudent(
+            root.growth_report_student_id ?? "",
+            root.swimming_pool_id,
+          );
+          if (!responsible || responsible.teacher_id !== senderId) {
+            res.status(403).json({ error: "담당 선생님만 답글을 작성할 수 있습니다." });
+            return;
+          }
         }
       }
 
@@ -530,7 +541,7 @@ router.get(
         return;
       }
 
-      // pool 권한 검증 (super_admin 제외)
+      // pool 권한 검증 + teacher는 담당선생님 본인 여부 검증 (super_admin 제외)
       if (req.user!.role !== "super_admin") {
         const userRes = await db.execute(sql`
           SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
@@ -539,6 +550,14 @@ router.get(
         if (userPool !== report.swimming_pool_id) {
           res.status(403).json({ error: "해당 리포트에 접근 권한이 없습니다." });
           return;
+        }
+        // teacher role이면 반드시 담당선생님 본인이어야 함
+        if (req.user!.role === "teacher") {
+          const responsible = await resolveTeacherByStudent(report.student_id, report.swimming_pool_id);
+          if (!responsible || responsible.teacher_id !== userId) {
+            res.status(403).json({ error: "담당 선생님만 조회할 수 있습니다." });
+            return;
+          }
         }
       }
 

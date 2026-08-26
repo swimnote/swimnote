@@ -12,6 +12,7 @@ import { startGrowthReportScheduler }      from "./jobs/growth-report-scheduler.
 import { startGrowthReportAnalysisWorker } from "./jobs/growth-report-analysis-worker.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
+import { runGrInteractionsMigration } from "./migrations/pool-db-x-gr-interactions-init.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
@@ -57,6 +58,7 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 Promise.all([
   initPoolDb(),
   initSuperDb(),
+  runGrInteractionsMigration(),
 ])
   .then(() => {
     setServerReady();
@@ -88,10 +90,7 @@ import("./migrations/pool-db-cs-24b.js")
 import("./migrations/pool-db-cs-26.js")
   .then(m => m.runCs26Migration())
   .catch((e) => console.error("[cs26] migration 오류:", e.message));
-// GR-Interactions: growth_report_reactions + growth_report_comments (additive, 멱등)
-import("./migrations/pool-db-x-gr-interactions-init.js")
-  .then(m => m.runGrInteractionsMigration())
-  .catch((e) => console.error("[gr-interactions] migration 오류:", e.message));
+// GR-Interactions: readiness-critical — Promise.all로 이동됨 (위 참조)
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
 // gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
 // 스타트업 자동 실행 금지 — Render 재시작만으로 DB schema가 변경되어서는 안 됨.
