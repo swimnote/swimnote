@@ -254,54 +254,19 @@ function Post({ width, showProgress }: { width: number; showProgress: boolean })
 }
 
 // ─── Page layout ─────────────────────────────────────────────────────────
+// ?p=1 → progress 있음(49%), 없으면 progress 없음
+// 전체 페이지 너비 = viewport 너비 (단일 포스트)
 export default function GrowthReportCard() {
-  const VIEWPORTS = [375, 390, 430];
+  const showProgress = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("p") === "1";
 
   return (
     <div style={{
       backgroundColor: C.bgPage,
       minHeight: "100vh",
-      padding: "32px 24px 80px",
       fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
     }}>
-
-      {/* Title */}
-      <div style={{ textAlign: "center" as any, marginBottom: 32 }}>
-        <div style={{ fontSize: 13, fontWeight: "600", color: C.deepNavy, letterSpacing: 0.5 }}>
-          Growth Report Feed — Full Redesign
-        </div>
-        <div style={{ ...T.t3, marginTop: 4 }}>
-          375 · 390 · 430   |   progress 없음 (상단) · progress 있음 (하단)
-        </div>
-      </div>
-
-      {/* ROW 1: progress 없음 */}
-      <div style={{ display: "flex", gap: 32, justifyContent: "center" as any, marginBottom: 60, flexWrap: "wrap" as any }}>
-        {VIEWPORTS.map((w) => (
-          <div key={w}>
-            <div style={{ ...T.t3, textAlign: "center" as any, marginBottom: 10 }}>
-              iPhone {w === 375 ? "SE" : w === 430 ? "Pro Max" : ""} {w}
-            </div>
-            <Post width={w} showProgress={false} />
-          </div>
-        ))}
-      </div>
-
-      {/* Divider */}
-      <div style={{ textAlign: "center" as any, marginBottom: 40 }}>
-        <div style={{ ...T.t3, fontWeight: "600" }}>progress 있음 — 49%</div>
-      </div>
-
-      {/* ROW 2: progress 있음 */}
-      <div style={{ display: "flex", gap: 32, justifyContent: "center" as any, flexWrap: "wrap" as any }}>
-        {VIEWPORTS.map((w) => (
-          <div key={w}>
-            <div style={{ ...T.t3, textAlign: "center" as any, marginBottom: 10 }}>iPhone {w}</div>
-            <Post width={w} showProgress={true} />
-          </div>
-        ))}
-      </div>
-
+      <Post width={window?.innerWidth ?? 390} showProgress={showProgress} />
     </div>
   );
 }
