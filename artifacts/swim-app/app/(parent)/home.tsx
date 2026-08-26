@@ -1755,66 +1755,8 @@ export default function ParentHomeScreen() {
 
   const ListHeader = (
     <View>
-      {/* A. Slim Header — X: 네이비 / Normal: 기본 */}
-      <View style={[
-        s.header,
-        { paddingTop: PT },
-        isX && { backgroundColor: XT.surfaceNavy, borderBottomWidth: 1, borderBottomColor: XT.surfaceNavyStrong },
-      ]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-          <Text style={[s.poolName, { color: isX ? XT.textOnNavy : C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
-            {parentPoolName ||
-              (parentAccount as any)?.pool_name ||
-              pool?.name ||
-              "수영장"}
-          </Text>
-          {isX && (
-            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
-                SWIMNOTE X
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={s.headerBtns}>
-          <Pressable
-            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
-            onPress={() => router.push("/(parent)/notifications" as any)}
-          >
-            <View style={{ position: "relative" }}>
-              <LucideIcon name="inbox" size={19} color={iconColor} />
-              {unreadNotifCount > 0 && (
-                <View style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53E3E", borderWidth: 1.5, borderColor: isX ? XT.surfaceNavy : "#fff" }} />
-              )}
-            </View>
-          </Pressable>
-          <Pressable
-            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
-            onPress={() => Linking.openURL("https://swimnote.kr")}
-          >
-            <Image
-              source={require("@/assets/images/swimnote-logo.png")}
-              style={{ width: 26, height: 26, opacity: isX ? 0.85 : 1 }}
-              resizeMode="contain"
-            />
-          </Pressable>
-          <Pressable
-            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
-            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
-          >
-            <LucideIcon name="images" size={19} color={iconColor} />
-          </Pressable>
-          <Pressable
-            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
-            onPress={() => router.push("/(parent)/more" as any)}
-          >
-            <LucideIcon name="settings" size={19} color={iconColor} />
-          </Pressable>
-        </View>
-      </View>
-
-
       {/* ── GAUGE-06: big duplicate Growth Report button 삭제됨 ── */}
+      {/* A. Slim Header는 FlatList 외부 fixed header로 이동됨 */}
 
       {/* B. 자녀 선택 탭 */}
       <ScrollView
@@ -2215,7 +2157,69 @@ export default function ParentHomeScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
+      {/* ── FIXED TOP HEADER ──────────────────────────────────────────────── */}
+      <View style={[
+        s.header,
+        { paddingTop: PT },
+        isX
+          ? { backgroundColor: XT.surfaceNavy, borderBottomWidth: 1, borderBottomColor: XT.surfaceNavyStrong }
+          : { backgroundColor: C.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border },
+      ]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+          <Text style={[s.poolName, { color: isX ? XT.textOnNavy : C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
+            {parentPoolName ||
+              (parentAccount as any)?.pool_name ||
+              pool?.name ||
+              "수영장"}
+          </Text>
+          {isX && (
+            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
+                SWIMNOTE X
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={s.headerBtns}>
+          <Pressable
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+            onPress={() => router.push("/(parent)/notifications" as any)}
+          >
+            <View style={{ position: "relative" }}>
+              <LucideIcon name="inbox" size={19} color={iconColor} />
+              {unreadNotifCount > 0 && (
+                <View style={{ position: "absolute", top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53E3E", borderWidth: 1.5, borderColor: isX ? XT.surfaceNavy : "#fff" }} />
+              )}
+            </View>
+          </Pressable>
+          <Pressable
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+            onPress={() => Linking.openURL("https://swimnote.kr")}
+          >
+            <Image
+              source={require("@/assets/images/swimnote-logo.png")}
+              style={{ width: 26, height: 26, opacity: isX ? 0.85 : 1 }}
+              resizeMode="contain"
+            />
+          </Pressable>
+          <Pressable
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+          >
+            <LucideIcon name="images" size={19} color={iconColor} />
+          </Pressable>
+          <Pressable
+            style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
+            onPress={() => router.push("/(parent)/more" as any)}
+          >
+            <LucideIcon name="settings" size={19} color={iconColor} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── SCROLLABLE MAIN AREA (flex: 1) ──────────────────────────────── */}
       <FlatList<FeedItem>
+        style={{ flex: 1 }}
         data={showFeed ? entries : []}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
@@ -2230,7 +2234,7 @@ export default function ParentHomeScreen() {
             tintColor={C.brandStrong}
           />
         }
-        contentContainerStyle={{ paddingBottom: insets.bottom + 72 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
         maxToRenderPerBatch={8}
         windowSize={12}
         initialNumToRender={5}
@@ -2242,7 +2246,7 @@ export default function ParentHomeScreen() {
         onSelect={handlePoolSelect}
       />
 
-      {/* 하단 고정 문구 */}
+      {/* ── FIXED BOTTOM FOOTER ──────────────────────────────────────────── */}
       <View style={[s.bottomBar, { paddingBottom: insets.bottom + 6 }]}>
         <Text style={s.bottomBarTxt}>Powered by SWIMNOTE AI with OpenAI GPT</Text>
       </View>
@@ -2267,7 +2271,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   poolName: {
     fontSize: 14,
@@ -2343,10 +2347,6 @@ const s = StyleSheet.create({
     lineHeight: 18,
   },
   bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     alignItems: "center",
     paddingTop: 8,
     backgroundColor: "rgba(255,255,255,0.96)",
