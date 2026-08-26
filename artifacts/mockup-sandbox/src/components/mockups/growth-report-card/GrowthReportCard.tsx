@@ -1,39 +1,51 @@
 /**
- * GrowthReportCard Web Preview — Phase 3B
- * Instagram-inspired Full Report Feed UI
- * 실제 서태웅 2026-08 데이터
+ * GrowthReportCard — Web Mockup Preview (REDESIGN FROM ZERO)
+ * spec §1~§19
+ *
+ * 하나의 긴 Instagram 게시물 구조:
+ *   1. TOP IDENTITY HEADER
+ *   2. REPORT META STRIP
+ *   3. SUMMARY
+ *   4. REPORT SECTIONS
+ *   5. PARENT SUPPORT
+ *   6. ACTION ROW
+ *
+ * 3 viewport: 375 · 390 · 430
+ * progress 없음 / 있음(48%) 두 케이스
  */
+
 import React from "react";
 
-// ─── Colors ──────────────────────────────────────────────────────────────────
-const NAVY       = "#0D2E5A";
-const AQUA       = "#25B7CF";
-const AQUA_DIM   = "#1a97af";
-const AQUA_SOFT  = "#D9F2F6";
-const AQUA_MIST  = "#EEF9FB";
-const WHITE      = "#FFFFFF";
-const BODY_TEXT  = "#1A2E44";
-const META_TEXT  = "#526C78";
-const MUTED_TEXT = "#7A90A8";
-const BORDER_CLR = "#E8F0F7";
-const BG         = "#F0F4F8";
-
-const FONT = "'Pretendard Variable', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
-
-// ─── Typography system (4 levels, spec §4) ────────────────────────────────────
-const T = {
-  sectionTitle: { fontSize: 15, fontWeight: "600", color: NAVY } as React.CSSProperties,
-  body:         { fontSize: 14, color: BODY_TEXT, lineHeight: "22px" } as React.CSSProperties,
-  meta:         { fontSize: 12, color: META_TEXT } as React.CSSProperties,
-  action:       { fontSize: 12, color: MUTED_TEXT } as React.CSSProperties,
+// ─── Color system (spec §5) ─────────────────────────────────────────────
+const C = {
+  deepNavy:  "#0D2E5A",
+  aqua:      "#25B7CF",
+  aquaSoft:  "#D9F2F6",
+  aquaMist:  "#F0FAFC",
+  aquaText:  "#1899B5",
+  body:      "#1A2E44",
+  meta:      "#526C78",
+  muted:     "#7A90A8",
+  divider:   "#EBF1F7",
+  white:     "#FFFFFF",
+  bgPage:    "#F4F7FA",
 };
 
-// ─── 실제 서태웅 2026-08 데이터 ─────────────────────────────────────────────
+// ─── Typography (spec §6) — 4단계 고정 ─────────────────────────────────
+const T = {
+  t1: { fontSize: 15, fontWeight: "600", color: C.deepNavy } as React.CSSProperties,
+  t2: { fontSize: 14, color: C.body, lineHeight: "22px" }    as React.CSSProperties,
+  t3: { fontSize: 12, color: C.meta }                         as React.CSSProperties,
+  t4: { fontSize: 12, color: C.muted }                        as React.CSSProperties,
+};
+
+// ─── 실제 데이터 (서태웅 2026-08) ──────────────────────────────────────
 const REPORT = {
-  period:  "2026년 8월",
-  student: "서태웅",
-  pool:    "토이키즈스윔클럽",
-  summary: "이번 수업에서는 자유형 두 바퀴로 몸을 풀고 IM을 수행한 뒤 킥 연습을 이어갔습니다. 이어 접영 글라이딩을 길게 하는 연습과 킥을 짧게 차는 연습을 진행했으며, 1분간 측정값이 기록되었습니다. 지속적인 반복 훈련을 통해 서태웅 학생의 수영 기술이 단계적으로 발전하고 있음을 확인할 수 있었습니다.",
+  student:  "서태웅",
+  pool:     "토이키즈스윔클럽",
+  period:   "2026년 8월",
+  pct:      49,
+  summary:  "이번 수업에서는 자유형 두 바퀴로 몸을 풀고 IM을 수행한 뒤 킥 연습을 이어갔습니다. 이어 접영 글라이딩을 길게 하는 연습과 킥을 짧게 차는 연습을 진행했으며, 1분간 측정값이 기록되었습니다. 지속적인 반복 훈련을 통해 서태웅 학생의 수영 기술이 단계적으로 발전하고 있음을 확인할 수 있었습니다.",
   sections: [
     {
       key:   "swimming_progress",
@@ -46,305 +58,250 @@ const REPORT = {
       text:  "이번 기록이 이후 수업에서의 변화를 비교할 때 기준점이 됩니다. 지속적인 킥 연습과 글라이딩 동작이 이전 기간의 기초 체력 훈련과 자연스럽게 연계되고 있으며, 수업별 기록 데이터가 쌓이면서 보다 정확한 비교 분석이 가능해질 것입니다.",
     },
     {
-      key:   "parent_support",
-      label: "가정에서 함께해요",
-      text:  "오늘 수업에서는 자유형, IM, 킥, 접영 글라이딩을 차례로 연습하고 1분간 측정값을 기록했습니다. 가정에서는 수영 후 충분한 수분 보충과 스트레칭을 함께해 주시고, 아이가 즐겁게 수영을 이어갈 수 있도록 긍정적인 응원을 부탁드립니다.",
+      key:   "next_growth_direction",
+      label: "다음 수업 방향",
+      text:  "다음 수업에서는 IM 연계 구성을 유지하면서 접영 킥의 리듬감을 더욱 발전시키는 것을 목표로 합니다. 자유형 지구력 향상을 위한 반복 훈련도 병행할 예정입니다.",
     },
   ],
+  parentSupport: "오늘 수업에서는 자유형, IM, 킥, 접영 글라이딩을 차례로 연습하고 1분간 측정값을 기록했습니다. 가정에서는 수영 후 충분한 수분 보충과 스트레칭을 함께해 주시고, 아이가 즐겁게 수영을 이어갈 수 있도록 긍정적인 응원을 부탁드립니다.",
 };
 
-export default function Preview() {
-  return (
-    <div style={{ minHeight: "100vh", background: BG, fontFamily: FONT }}>
+// ─── Sub-components ─────────────────────────────────────────────────────
 
-      {/* ── 3 Viewports side-by-side ────────────────────────────── */}
-      <SectionHeader title="Full Report Feed — 3 Viewports" sub="375 · 390 · 430  |  progress 없음 (서태웅)" />
-      <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", padding: "0 20px 32px" }}>
-        <FeedPage width={375} label="iPhone SE 375" />
-        <FeedPage width={390} label="iPhone 390" />
-        <FeedPage width={430} label="iPhone Pro Max 430" />
-      </div>
-
-      {/* ── progress 있음 (48%) ──────────────────────────────────── */}
-      <SectionHeader title="progress 있음 — 48%" sub="Local fixture · X mode 학생 시뮬레이션" />
-      <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", padding: "0 20px 32px" }}>
-        <FeedPage width={390} label="iPhone 390 + progress 48%" curriculumPct={48} />
-        <FeedPage width={430} label="iPhone 430 + progress 48%" curriculumPct={48} />
-      </div>
-
-      {/* ── Feed context (일지 + 리포트 + 일지) ─────────────────── */}
-      <SectionHeader title="Feed Context" sub="일지 카드 + 성장리포트 + 일지 카드" />
-      <div style={{ display: "flex", justifyContent: "center", padding: "0 20px 32px" }}>
-        <FeedContext />
-      </div>
-
-      {/* ── Typography spec table ────────────────────────────────── */}
-      <SectionHeader title="Typography System (4 levels)" sub="spec §4 · §16" />
-      <div style={{ padding: "0 24px 40px" }}>
-        <TypographyTable />
-      </div>
-
-    </div>
-  );
-}
-
-// ─── Feed Page (full card scroll simulation) ──────────────────────────────────
-function FeedPage({ width, label, curriculumPct = 0 }: {
-  width: number; label: string; curriculumPct?: number;
-}) {
-  const showProgress = curriculumPct > 0;
-
-  const metaParts = [
-    REPORT.period,
-    REPORT.student,
-    REPORT.pool,
-    showProgress ? `진도 ${curriculumPct}%` : null,
-  ].filter(Boolean) as string[];
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ textAlign: "center", ...T.action }}>{label}</div>
-      {/* Phone frame */}
-      <div style={{ width, background: BG, borderRadius: 4, overflow: "hidden" }}>
-        {/* Feed card */}
-        <div style={{
-          background: WHITE,
-          borderTop: `1px solid ${AQUA_SOFT}`,
-          borderBottom: `1px solid ${AQUA_SOFT}`,
-          marginBottom: 12,
-        }}>
-          {/* ── COMPACT HEADER ── */}
-          <div style={{
-            padding: "14px 16px 12px",
-            borderBottom: `1px solid ${BORDER_CLR}`,
-          }}>
-            {/* ROW 1: logo + badge */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <img
-                src="/__mockup/swimnote-ai-report-logo.png"
-                alt="SwimNote AI REPORT"
-                style={{ height: 22, width: "auto", objectFit: "contain" }}
-              />
-              <div style={{
-                background: AQUA_MIST,
-                border: `1px solid ${AQUA_SOFT}`,
-                borderRadius: 20,
-                padding: "3px 9px",
-              }}>
-                <span style={{ ...T.action, color: AQUA_DIM, fontWeight: 600, letterSpacing: "0.4px" }}>
-                  월간 리포트
-                </span>
-              </div>
-            </div>
-            {/* ROW 2: metadata */}
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", marginTop: 7, gap: 0 }}>
-              {metaParts.map((p, i) => (
-                <span key={i} style={{ display: "flex", alignItems: "center" }}>
-                  {i > 0 && <span style={{ ...T.meta, color: AQUA_SOFT, margin: "0 5px" }}>·</span>}
-                  <span style={{ ...T.meta }}>{p}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* ── SUMMARY (이번 달 한눈에 보기) ── */}
-          <div style={{ background: AQUA_MIST, padding: "16px 20px" }}>
-            <SectionTitle label="이번 달 한눈에 보기" />
-            <p style={{ ...T.body, margin: "8px 0 0" }}>{REPORT.summary}</p>
-          </div>
-
-          {/* ── PROGRESS ── */}
-          {showProgress && (
-            <>
-              <Hairline />
-              <div style={{ padding: "14px 20px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ ...T.meta }}>커리큘럼 진도</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: AQUA_DIM }}>{curriculumPct}%</span>
-                </div>
-                <div style={{ height: 2, background: AQUA_SOFT, borderRadius: 1, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${curriculumPct}%`, background: AQUA }} />
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── BODY SECTIONS ── */}
-          {REPORT.sections.filter(s => s.key !== "parent_support").map((sec) => (
-            <React.Fragment key={sec.key}>
-              <Hairline />
-              <div style={{ padding: "14px 20px" }}>
-                <SectionTitle label={sec.label} />
-                <p style={{ ...T.body, margin: "8px 0 0" }}>{sec.text}</p>
-              </div>
-            </React.Fragment>
-          ))}
-
-          {/* ── 가정에서 함께해요 ── */}
-          {REPORT.sections.filter(s => s.key === "parent_support").map((sec) => (
-            <React.Fragment key={sec.key}>
-              <Hairline />
-              <div style={{
-                background: AQUA_MIST,
-                borderTop: `1px solid ${AQUA_SOFT}`,
-                padding: "16px 20px 18px",
-              }}>
-                <SectionTitle label={sec.label} />
-                <p style={{ ...T.body, margin: "8px 0 0" }}>{sec.text}</p>
-              </div>
-            </React.Fragment>
-          ))}
-
-          {/* ── ACTION BAR ── */}
-          <div style={{
-            display: "flex", alignItems: "center",
-            padding: "11px 16px",
-            borderTop: `1px solid ${BORDER_CLR}`,
-            background: WHITE,
-          }}>
-            <ActionIcon icon="♡" />
-            <ActionIcon icon="○" />
-            <div style={{ flex: 1 }} />
-            <ActionIcon icon="↓" />
-            <div style={{
-              display: "flex", alignItems: "center", gap: 3,
-              padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-            }}>
-              <span style={{ ...T.action, color: AQUA_DIM, fontWeight: 600 }}>PDF·공유</span>
-              <span style={{ color: AQUA_DIM, fontSize: 11 }}>›</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Feed Context ─────────────────────────────────────────────────────────────
-function FeedContext() {
-  return (
-    <div style={{ width: 390, background: BG }}>
-      <DiaryCard date="2026년 8월 6일 (목)" text="태웅이는 킥을 짧게 차는 것이 잘 안되어 박자 연습을 진행했습니다. 자유형 동작과의 연계를 위해 반복 훈련을 이어갔습니다." />
-      {/* Growth Report — full card */}
-      <div style={{ background: WHITE, borderTop: `1px solid ${AQUA_SOFT}`, borderBottom: `1px solid ${AQUA_SOFT}`, marginBottom: 12 }}>
-        {/* header */}
-        <div style={{ padding: "14px 16px 12px", borderBottom: `1px solid ${BORDER_CLR}` }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <img src="/__mockup/swimnote-ai-report-logo.png" alt="SwimNote AI REPORT" style={{ height: 22, width: "auto" }} />
-            <div style={{ background: AQUA_MIST, border: `1px solid ${AQUA_SOFT}`, borderRadius: 20, padding: "3px 9px" }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: AQUA_DIM, letterSpacing: "0.4px" }}>월간 리포트</span>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", marginTop: 7, gap: 0 }}>
-            {[REPORT.period, REPORT.student, REPORT.pool].map((p, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "center" }}>
-                {i > 0 && <span style={{ ...T.meta, color: AQUA_SOFT, margin: "0 5px" }}>·</span>}
-                <span style={{ ...T.meta }}>{p}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-        <div style={{ background: AQUA_MIST, padding: "14px 20px" }}>
-          <SectionTitle label="이번 달 한눈에 보기" />
-          <p style={{ ...T.body, margin: "8px 0 0" }}>{REPORT.summary}</p>
-        </div>
-        {REPORT.sections.filter(s => s.key !== "parent_support").map(sec => (
-          <React.Fragment key={sec.key}>
-            <Hairline />
-            <div style={{ padding: "14px 20px" }}>
-              <SectionTitle label={sec.label} />
-              <p style={{ ...T.body, margin: "8px 0 0" }}>{sec.text}</p>
-            </div>
-          </React.Fragment>
-        ))}
-        {REPORT.sections.filter(s => s.key === "parent_support").map(sec => (
-          <React.Fragment key={sec.key}>
-            <Hairline />
-            <div style={{ background: AQUA_MIST, borderTop: `1px solid ${AQUA_SOFT}`, padding: "16px 20px 18px" }}>
-              <SectionTitle label={sec.label} />
-              <p style={{ ...T.body, margin: "8px 0 0" }}>{sec.text}</p>
-            </div>
-          </React.Fragment>
-        ))}
-        <div style={{ display: "flex", alignItems: "center", padding: "11px 16px", borderTop: `1px solid ${BORDER_CLR}` }}>
-          <ActionIcon icon="♡" /><ActionIcon icon="○" />
-          <div style={{ flex: 1 }} />
-          <ActionIcon icon="↓" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: AQUA_DIM, padding: "5px 10px" }}>PDF·공유 ›</span>
-        </div>
-      </div>
-      <DiaryCard date="2026년 8월 13일 (목)" text="킥 연습을 중심으로 진행하며 접영 동작 연계 훈련을 시작했습니다." />
-    </div>
-  );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function SectionTitle({ label }: { label: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ width: 3, height: 15, borderRadius: 2, background: AQUA, flexShrink: 0 }} />
-      <span style={{ ...T.sectionTitle }}>{label}</span>
+      <div style={{
+        width: 3, height: 16, borderRadius: 2,
+        backgroundColor: C.aqua, flexShrink: 0,
+      }} />
+      <span style={T.t1}>{label}</span>
     </div>
   );
 }
 
 function Hairline() {
-  return <div style={{ height: 1, background: BORDER_CLR }} />;
+  return <div style={{ height: 1, backgroundColor: C.divider }} />;
 }
 
-function ActionIcon({ icon }: { icon: string }) {
-  return <span style={{ padding: 7, fontSize: 18, color: MUTED_TEXT, cursor: "pointer" }}>{icon}</span>;
-}
-
-function DiaryCard({ date, text }: { date: string; text: string }) {
+// Heart icon (간단한 SVG)
+function IconHeart() {
   return (
-    <div style={{ background: WHITE, borderRadius: 12, margin: "0 16px 12px", padding: "12px 14px", border: `1px solid ${BORDER_CLR}` }}>
-      <div style={{ ...T.action, marginBottom: 5 }}>{date}</div>
-      <p style={{ ...T.body, margin: 0 }}>{text}</p>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
+function IconComment() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function IconDownload() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+// ─── Single Post (하나의 게시물) ────────────────────────────────────────
+function Post({ width, showProgress }: { width: number; showProgress: boolean }) {
+  return (
+    <div style={{
+      width,
+      backgroundColor: C.white,
+      borderTop: `1px solid ${C.divider}`,
+      borderBottom: `1px solid ${C.divider}`,
+      fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+      WebkitFontSmoothing: "antialiased" as any,
+    }}>
+
+      {/* 1. TOP IDENTITY HEADER (spec §3) */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "12px 16px",
+        borderBottom: `1px solid ${C.divider}`,
+        minHeight: 52,
+        boxSizing: "border-box" as any,
+      }}>
+        {/* LEFT: 실제 로고 */}
+        <img
+          src="/__mockup/swimnote-ai-report-logo.png"
+          alt="SwimNote AI REPORT"
+          style={{ height: 22, width: "auto", display: "block" }}
+        />
+
+        {/* RIGHT: 월간 리포트 + 학생/수영장 */}
+        <div style={{ marginLeft: "auto", textAlign: "right" as any }}>
+          <div style={{ ...T.t3, color: C.aquaText, fontWeight: "600" }}>
+            월간 리포트
+          </div>
+          <div style={{ ...T.t3, marginTop: 2 }}>
+            {REPORT.student}  {REPORT.pool}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. REPORT META STRIP (spec §4) */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 16px",
+        borderBottom: `1px solid ${C.divider}`,
+        flexWrap: "wrap" as any,
+      }}>
+        <span style={T.t3}>{REPORT.period}</span>
+        {showProgress && (
+          <>
+            <span style={{ ...T.t3, color: C.aquaSoft }}>·</span>
+            <span style={{ ...T.t3, color: C.aquaText }}>현재 진도 {REPORT.pct}%</span>
+          </>
+        )}
+      </div>
+
+      {/* 3. SUMMARY (spec §7) */}
+      <div style={{
+        backgroundColor: C.aquaMist,
+        padding: "16px 16px",
+      }}>
+        <SectionTitle label="이번 달 한눈에 보기" />
+        <p style={{ ...T.t2, margin: "8px 0 0 0" }}>
+          {REPORT.summary}
+        </p>
+      </div>
+
+      {/* 커리큘럼 진도 바 */}
+      {showProgress && (
+        <>
+          <Hairline />
+          <div style={{ padding: "12px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={T.t3}>커리큘럼 진도</span>
+              <span style={{ ...T.t3, color: C.aquaText, fontWeight: "600" }}>{REPORT.pct}%</span>
+            </div>
+            <div style={{ height: 3, backgroundColor: C.aquaSoft, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${REPORT.pct}%`,
+                backgroundColor: C.aqua,
+                borderRadius: 2,
+              }} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 4. REPORT SECTIONS (spec §8) */}
+      {REPORT.sections.map((sec) => (
+        <React.Fragment key={sec.key}>
+          <Hairline />
+          <div style={{ padding: "16px 16px" }}>
+            <SectionTitle label={sec.label} />
+            <p style={{ ...T.t2, margin: "8px 0 0 0" }}>{sec.text}</p>
+          </div>
+        </React.Fragment>
+      ))}
+
+      {/* 5. PARENT SUPPORT (spec §11) */}
+      <Hairline />
+      <div style={{
+        backgroundColor: C.aquaMist,
+        borderTop: `1px solid ${C.aquaSoft}`,
+        padding: "16px 16px 20px",
+      }}>
+        <SectionTitle label="가정에서 함께해요" />
+        <p style={{ ...T.t2, margin: "8px 0 0 0" }}>
+          {REPORT.parentSupport}
+        </p>
+      </div>
+
+      {/* 6. ACTION ROW (spec §12) */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        padding: "10px 14px",
+        borderTop: `1px solid ${C.divider}`,
+        backgroundColor: C.white,
+      }}>
+        <button style={{ background: "none", border: "none", padding: 6, cursor: "pointer", lineHeight: 0 }}>
+          <IconHeart />
+        </button>
+        <button style={{ background: "none", border: "none", padding: 6, cursor: "pointer", lineHeight: 0 }}>
+          <IconComment />
+        </button>
+        <div style={{ flex: 1 }} />
+        <button style={{
+          background: "none", border: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
+          borderRadius: 6,
+        }}>
+          <IconDownload />
+          <span style={T.t4}>PDF·공유</span>
+        </button>
+      </div>
+
     </div>
   );
 }
 
-function SectionHeader({ title, sub }: { title: string; sub: string }) {
-  return (
-    <div style={{ textAlign: "center", padding: "28px 0 16px" }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: NAVY, letterSpacing: "0.3px" }}>{title}</div>
-      <div style={{ ...T.action, marginTop: 4 }}>{sub}</div>
-    </div>
-  );
-}
+// ─── Page layout ─────────────────────────────────────────────────────────
+export default function GrowthReportCard() {
+  const VIEWPORTS = [375, 390, 430];
 
-function TypographyTable() {
-  const rows = [
-    ["T1", "Section Title", "15px", "SemiBold (600)", NAVY, "핵심 성장, 수영 교육과정 진행, …"],
-    ["T2", "Body Text",     "14px", "Regular (400)",  BODY_TEXT, "리포트 본문 내용"],
-    ["T3", "Metadata",      "12px", "Regular (400)",  META_TEXT, "월·학생·수영장·진도% 메타"],
-    ["T4", "Action / Footer","12px","Regular / SemiBold", MUTED_TEXT, "액션바, PDF·공유"],
-  ];
   return (
-    <table style={{ width: "100%", maxWidth: 680, margin: "0 auto", borderCollapse: "collapse", fontSize: 12, color: BODY_TEXT }}>
-      <thead>
-        <tr style={{ background: AQUA_MIST }}>
-          {["레벨","용도","Size","Weight","Color","예시"].map(h => (
-            <th key={h} style={{ padding: "7px 12px", textAlign: "left", color: MUTED_TEXT, fontWeight: 600, borderBottom: `1px solid ${AQUA_SOFT}` }}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(([level, role, size, weight, color, ex], i) => (
-          <tr key={i} style={{ background: i % 2 === 0 ? WHITE : AQUA_MIST }}>
-            <td style={{ padding: "6px 12px", fontWeight: 700, color: AQUA_DIM }}>{level}</td>
-            <td style={{ padding: "6px 12px" }}>{role}</td>
-            <td style={{ padding: "6px 12px", fontFamily: "monospace" }}>{size}</td>
-            <td style={{ padding: "6px 12px", fontFamily: "monospace" }}>{weight}</td>
-            <td style={{ padding: "6px 12px" }}>
-              <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: color, marginRight: 5, verticalAlign: "middle" }} />
-              <span style={{ fontFamily: "monospace", fontSize: 11 }}>{color}</span>
-            </td>
-            <td style={{ padding: "6px 12px", color: META_TEXT }}>{ex}</td>
-          </tr>
+    <div style={{
+      backgroundColor: C.bgPage,
+      minHeight: "100vh",
+      padding: "32px 24px 80px",
+      fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+    }}>
+
+      {/* Title */}
+      <div style={{ textAlign: "center" as any, marginBottom: 32 }}>
+        <div style={{ fontSize: 13, fontWeight: "600", color: C.deepNavy, letterSpacing: 0.5 }}>
+          Growth Report Feed — Full Redesign
+        </div>
+        <div style={{ ...T.t3, marginTop: 4 }}>
+          375 · 390 · 430   |   progress 없음 (상단) · progress 있음 (하단)
+        </div>
+      </div>
+
+      {/* ROW 1: progress 없음 */}
+      <div style={{ display: "flex", gap: 32, justifyContent: "center" as any, marginBottom: 60, flexWrap: "wrap" as any }}>
+        {VIEWPORTS.map((w) => (
+          <div key={w}>
+            <div style={{ ...T.t3, textAlign: "center" as any, marginBottom: 10 }}>
+              iPhone {w === 375 ? "SE" : w === 430 ? "Pro Max" : ""} {w}
+            </div>
+            <Post width={w} showProgress={false} />
+          </div>
         ))}
-      </tbody>
-    </table>
+      </div>
+
+      {/* Divider */}
+      <div style={{ textAlign: "center" as any, marginBottom: 40 }}>
+        <div style={{ ...T.t3, fontWeight: "600" }}>progress 있음 — 49%</div>
+      </div>
+
+      {/* ROW 2: progress 있음 */}
+      <div style={{ display: "flex", gap: 32, justifyContent: "center" as any, flexWrap: "wrap" as any }}>
+        {VIEWPORTS.map((w) => (
+          <div key={w}>
+            <div style={{ ...T.t3, textAlign: "center" as any, marginBottom: 10 }}>iPhone {w}</div>
+            <Post width={w} showProgress={true} />
+          </div>
+        ))}
+      </div>
+
+    </div>
   );
 }
