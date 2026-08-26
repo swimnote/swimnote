@@ -96,7 +96,7 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
             style={{
               fontSize: 12,
               fontFamily: "Pretendard-SemiBold",
-              color: C.text,
+              color: "#1B3A70",
             }}
           >
             {displayInt}%
@@ -132,7 +132,7 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
                 height: 6,
                 borderRadius: 3,
                 width: barWidth,
-                backgroundColor: C.brandStrong,
+                backgroundColor: "#2EC4B6",
               }}
             />
           </View>

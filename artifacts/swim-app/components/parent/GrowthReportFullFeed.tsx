@@ -202,15 +202,13 @@ function ReportHeader({
         />
         <View style={{ marginLeft: "auto" as any }}>
           <View style={{
-            backgroundColor: X_MINT_LIGHT,
-            borderWidth: 1,
-            borderColor: X_MINT,
+            backgroundColor: X_NAVY,
             borderRadius: 4,
             paddingHorizontal: 8,
             paddingVertical: 3,
           }}>
-            <Text style={{ ...T3, color: X_NAVY, fontFamily: "Pretendard-SemiBold" }}>
-              월간 리포트
+            <Text style={{ ...T3, color: "#FFFFFF", fontFamily: "Pretendard-SemiBold", letterSpacing: 0.5 }}>
+              MONTHLY
             </Text>
           </View>
         </View>
@@ -224,7 +222,7 @@ function ReportHeader({
         letterSpacing: -0.3,
         marginBottom: 6,
       }}>
-        월간 성장 리포트
+        AI 성장 리포트
       </Text>
 
       {/* Row 3: 학생 · 수영장 · 월 */}

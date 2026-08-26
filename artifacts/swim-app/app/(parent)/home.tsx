@@ -1811,31 +1811,36 @@ export default function ParentHomeScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* C. AI 기능 버튼 (AI 성장 리포트 + AI 커리큘럼 검색) */}
-      {/* 성장 리포트: X/x_pending 전용 | 커리큘럼 검색: selectedStudent 있으면 항상 표시 */}
+      {/* C. AI 기능 버튼 (AI 인사이트 전략 리포트 + AI 커리큘럼 검색) */}
+      {/* 리포트: X/x_pending 전용 | 커리큘럼 검색: selectedStudent 있으면 항상 표시 */}
       {selectedStudent && (
-        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 16, marginTop: 14, marginBottom: 14 }}>
+        <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 12, marginBottom: 12 }}>
           {(mode === "x" || mode === "x_pending") && (
             <Pressable
               onPress={() => {
-                // P0 Hard Fix: NEW FREE AI Growth Report 전용 라우팅
-                // legacy growth-report.tsx (출석 통계) 호출 완전 금지
                 if (grReportId) {
-                  // PUBLISHED / READY / GENERATING / DATA_ACCUMULATING / FAILED + reportId 있음
                   router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(grReportId)}` as any);
                 } else if (selectedStudent) {
-                  // NOT_AVAILABLE / null reportId → 전용 Growth Report 상태 화면
-                  // (growth-report.tsx = legacy 출석통계 화면, 이 경로에서 금지)
                   router.push(`/(parent)/growth-report-status?studentId=${encodeURIComponent(selectedStudent.id)}` as any);
                 }
               }}
-              style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+              style={({ pressed }) => ({
+                flex: 1,
+                borderRadius: 11,
+                borderWidth: 1,
+                borderColor: "#DDE3EE",
+                backgroundColor: "#F5F7FA",
+                paddingHorizontal: 10,
+                paddingVertical: 12,
+                alignItems: "center",
+                gap: 8,
+                opacity: pressed ? 0.72 : 1,
+              })}
             >
-              {/* PNG 상단 아이콘 부분만 크롭 (하단 텍스트 제외) */}
-              <View style={{ width: 33, height: 33, overflow: "hidden" }}>
-                <Image source={require("@/assets/images/ai-report-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
-              </View>
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 성장 리포트</Text>
+              <LucideIcon name="bar-chart-2" size={22} color={NAVY} />
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
+                {"AI 인사이트\n전략 리포트"}
+              </Text>
             </Pressable>
           )}
           <Pressable
@@ -1850,12 +1855,23 @@ export default function ParentHomeScreen() {
                 });
               }
             }}
-            style={({ pressed }) => ({ alignItems: "center", opacity: pressed ? 0.7 : 1 })}
+            style={({ pressed }) => ({
+              flex: 1,
+              borderRadius: 11,
+              borderWidth: 1,
+              borderColor: "#DDE3EE",
+              backgroundColor: "#F5F7FA",
+              paddingHorizontal: 10,
+              paddingVertical: 12,
+              alignItems: "center",
+              gap: 8,
+              opacity: pressed ? 0.72 : 1,
+            })}
           >
-            <View style={{ width: 33, height: 33, overflow: "hidden" }}>
-              <Image source={require("@/assets/images/ai-curriculum-icon.png")} style={{ width: 33, height: 44 }} resizeMode="stretch" />
-            </View>
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.text, marginTop: 3, textAlign: "center" }}>AI 커리큘럼 검색</Text>
+            <LucideIcon name="book-open" size={22} color={NAVY} />
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
+              AI 커리큘럼 검색
+            </Text>
           </Pressable>
         </View>
       )}
