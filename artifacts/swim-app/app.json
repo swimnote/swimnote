@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-new.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": false,
@@ -46,7 +46,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.swimnote.app",
-      "versionCode": 236,
+      "versionCode": 237,
       "allowBackup": false,
       "permissions": [
         "android.permission.CAMERA",
