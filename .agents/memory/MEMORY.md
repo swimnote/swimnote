@@ -41,7 +41,8 @@
 - [WP7 완료 상태](wp7-done-state.md) — SHA 16501ba7→5a66e9e8; growth-event-service.ts+diary.ts+앱 변경; 234/234; Render+OTA 완료; PROD_WRITE_PENDING(NO_SAFE_TEST_CONTEXT)
 - [WP8 완료 상태](wp8-done-state.md) — SHA 8a9660d9; growth read API(x-growth route+service); 247/247; Render 완료; OTA 없음
 - [WP9 완료 상태](wp9-done-state.md) — SHA 1a5089df; Growth Board App UI; 5파일; TS오류 0; iOS OTA production+preview 배포; Render 재배포 없음
-- [PHASE 3 diary-hub 완료](wp-phase3-done-state.md) — SHA cdf85657; diary-hub+admin API+viewOnly; TS 0; OTA 01a042dd; Render 수동배포 대기
+- [PHASE 3 diary-hub 완료](wp-phase3-done-state.md) — SHA 69bf7c1d(route path fix); 401 JSON ✅; OTA 01a042e3; Render live
+- [PHASE 4 curriculum-hub 완료](wp-phase4-done-state.md) — SHA c1c74fc8; curriculum-hub+2 API; TS 0; OTA 01a04309; Render live; admin.ts 이중prefix 금지 원칙 적용
 - [WP10 완료 상태](wp10-done-state.md) — SHA ea0906d4; AI Trace/Cost Observability; buildTraceMetadata export 패턴; 18TC+305TC; Render live; OTA 없음
 - [WP11 완료 상태](wp11-done-state.md) — SHA a196ce64; Background Worker(retry-queue 5분+makeup-expiry 1시간); 13TC+318TC; Render live; OTA 없음
 - [WP2 X Entitlement Sync 구현 상태](wp2-x-entitlement-state.md) — IMPLEMENTED/NOT_DEPLOYED; SHA 07335f67; WEBHOOK_SECRET=EXISTS; X_PRODUCT_IDS=MISSING(정상); Render/OTA 미배포

@@ -1,0 +1,871 @@
+[SWIMNOTE X 관리자 운영허브 — PHASE 4 IMPLEMENT]
+
+승인된 전체 계획 중
+이번 작업은 PHASE 4 ONLY.
+
+대상:
+AI 커리큘럼
+route:
+`/(admin)/curriculum-hub`
+
+중요:
+PHASE 5/6 시작 금지.
+계획 변경 금지.
+기능 추가 금지.
+이번 PHASE 계약 범위만 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. PHASE 4 고정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 화면은
+X모드의 실제 교육 커리큘럼과
+학생 배정/성장 이벤트/학부모 AI 검색 사용 현황을
+관리자가 조회하고 탐색하는 운영 허브.
+
+관리자 전용 fake curriculum 생성 금지.
+
+반드시 실제:
+
+curriculum_versions
+→ curriculum_items
+→ student_curriculum_assignments
+→ growth_events
+
+및
+
+Parent AI curriculum search
+→ event_logs
+
+실제 데이터를 사용.
+
+그리고 매우 중요:
+
+global_template_sets
++
+diary_templates(scope='x_global')
+
+은 교육 커리큘럼 시스템과 별개.
+
+두 시스템을 절대 하나의 pipeline처럼 합치지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━━━
+
+교육 커리큘럼:
+
+- curriculum_versions
+- curriculum_items
+- student_curriculum_assignments
+- growth_events
+- students
+- class_groups
+- student_class_history
+
+X Global AI 일지 템플릿:
+
+- global_template_sets
+- diary_templates
+  scope='x_global'
+
+학부모 AI 검색:
+
+- event_logs
+- 실제 parent curriculum search trace
+
+구현 전 필요한 join column은
+repository 실제 schema 기준으로 재확인.
+
+이전 문서 예시 SQL 그대로 복붙 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 시스템 분리 헌법
+━━━━━━━━━━━━━━━━━━━━━━
+
+UI에서 반드시 2개 독립 section 유지.
+
+A. 교육 커리큘럼
+
+curriculum_versions
+→ curriculum_items
+→ student_curriculum_assignments
+→ growth_events
+
+B. X Global AI 일지 템플릿
+
+global_template_sets
+→ diary_templates(scope='x_global')
+→ AI Diary
+
+금지:
+
+- global_template_sets와 curriculum_versions를 JOIN해서
+  동일 curriculum처럼 표시
+- FK 없는 관계를 연결된 것처럼 표현
+- X Global template 수를 교육 curriculum item 수에 포함
+- 교육 curriculum 진행률에 template 데이터를 섞음
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. V1에서 제외하는 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 curriculum_items에는:
+
+- level
+- stroke
+- category
+
+명시 컬럼 없음.
+
+따라서 이번 V1에서 구현 금지:
+
+- 레벨별 INDEX
+- 영법별 INDEX
+- 초급/중급/고급 자동분류
+- title 파싱 기반 임의 category
+- 학생 진행률 %
+- 완료율 %
+- 다음 단계 자동 판정
+- 커리큘럼 편집
+- 커리큘럼 순서 변경
+- 배정 변경
+- curriculum schema 변경
+
+진행률은 정확한 정의 이후 별도.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. KPI — 교육 커리큘럼
+━━━━━━━━━━━━━━━━━━━━━━
+
+V1 KPI는 실제 DB로 정확히 계산 가능한 것만.
+
+권장 4개:
+
+1. 활성 커리큘럼
+= curriculum_versions
+  WHERE swimming_pool_id = currentPool
+  AND is_active = true
+  COUNT
+
+2. 커리큘럼 항목
+= 활성 curriculum_versions에 속한
+  curriculum_items 실제 COUNT
+
+3. 배정 학생
+= active student_curriculum_assignments
+  기준 DISTINCT student_id
+
+4. 미배정 학생
+= 현재 재원 학생 중
+  active curriculum assignment가 없는 학생 수
+
+중요:
+
+기존 보고서의 "미배정 반" 대신
+실제 assignment가 student_id 기준이므로
+V1 KPI는 "미배정 학생"으로 통일.
+
+반 단위 assignment처럼 표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 학생 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+미배정 학생 계산 시
+현재 재원 학생 기준을
+기존 실제 enrollment 규칙에 맞춰 사용.
+
+기준 후보:
+
+student_class_history.left_at IS NULL
+
+단 repository 현재 학생 활성상태 조건이
+추가로 있다면 기존 로직 재사용.
+
+임의 기준 생성 금지.
+
+다른 pool 학생 포함 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. SERVER API
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Admin API 구현.
+
+권장:
+
+GET /admin/curriculum/summary
+
+GET /admin/curriculum/students
+
+실제 adminRouter가
+`/api/admin` 아래 mount되어 있으므로
+route 파일 내부 path는
+기존 PHASE 2/3에서 확인된 pattern을 그대로 따를 것.
+
+이중 `/admin/admin/...` prefix 재발 금지.
+
+예:
+
+adminRouter 내부:
+`/curriculum/summary`
+`/curriculum/students`
+
+production:
+`/api/admin/curriculum/summary`
+`/api/admin/curriculum/students`
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. SUMMARY RESPONSE CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+{
+  summary: {
+    active_versions: number,
+    active_items: number,
+    assigned_students: number,
+    unassigned_students: number
+  },
+
+  versions: [
+    {
+      curriculum_version_id,
+      version_name,
+      is_active,
+      item_count,
+      assigned_student_count
+    }
+  ],
+
+  parent_ai: {
+    current_month_search_count: number
+  },
+
+  x_global: {
+    active_set_id,
+    active_set_name,
+    template_count
+  }
+}
+
+실제 repository response convention에 맞춰 조정 가능.
+
+하지만:
+
+교육 커리큘럼
+vs
+X Global
+
+데이터는 response에서도
+별도 object로 분리 권장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. STUDENT API CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /admin/curriculum/students
+
+params 후보:
+
+- q
+- initial
+- class_group_id
+- assignment
+- curriculum_version_id
+- page
+- limit
+
+response:
+
+{
+  students: [
+    {
+      student_id,
+      student_name,
+      class_group_id,
+      class_name,
+      teacher_id,
+      teacher_name,
+
+      assignment: {
+        curriculum_version_id,
+        curriculum_version_name,
+        is_active
+      } | null,
+
+      recent_growth_event_count,
+      latest_growth_event_at
+    }
+  ],
+
+  pagination: {
+    page,
+    limit,
+    total,
+    has_more
+  }
+}
+
+없는 데이터를 임의 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. STUDENT FINDER — INDEX 헌법
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생을 전체 나열 금지.
+
+반드시:
+
+[검색]
+학생명
+
+[가나다 INDEX]
+
+전체
+ㄱ ㄴ ㄷ ㄹ ㅁ ㅂ ㅅ ㅇ ㅈ ㅊ ㅋ ㅌ ㅍ ㅎ
+
+[FILTER]
+
+- 반
+- 배정 상태
+- 커리큘럼 버전
+
+배정 상태:
+
+전체
+배정됨
+미배정
+
+[결과]
+
+FlatList
++
+pagination
+
+기본 30~50건.
+
+ScrollView + map 전체 렌더링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. CURRICULUM VERSION INDEX
+━━━━━━━━━━━━━━━━━━━━━━
+
+curriculum_versions는
+수량이 상대적으로 적으므로
+version_name 기준 compact index/list 사용 가능.
+
+예:
+
+전체
+2026 기본 커리큘럼
+X Center A curriculum
+...
+
+실제 version_name만 사용.
+
+level/stroke/category INDEX 생성 금지.
+
+version 선택 시:
+
+- 해당 version item_count
+- assigned student count
+- 해당 학생 Finder filter
+
+연결.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 학생 row UI
+━━━━━━━━━━━━━━━━━━━━━━
+
+compact row 예:
+
+서경민
+파랑반 · 김선생님
+[2026 기본 커리큘럼]
+
+최근 성장 이벤트 3건
+
+또는
+
+서경민
+파랑반 · 김선생님
+[미배정]
+
+표시 항목:
+
+- 학생명
+- 현재 반
+- 담당 선생님
+- 배정 커리큘럼
+- 최근 growth_event 존재 여부/수
+- 최근 event 시점 가능하면 표시
+
+진행률 % 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. GROWTH EVENTS 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_events는
+학생 커리큘럼 활동 흔적 확인용.
+
+가능한 표시:
+
+- 해당 학생 curriculum_item_id 연결 event 수
+- 최근 event 시점
+
+금지:
+
+- event count를 완료율로 변환
+- item 총수 대비 % 계산
+- event가 있으면 해당 item 완료라고 임의 판정
+
+이번 V1에서는
+"최근 성장 이벤트" 정도만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PARENT AI 검색 현황
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 parent curriculum search가
+event_logs에 saveAiTrace로 기록되는 것을 사용.
+
+이번 V1 표시:
+
+- 이번 달 AI 커리큘럼 검색 건수
+
+가능하면:
+
+- 최근 검색 시각
+- 검색한 학생 수
+
+정도는 실제 로그로 정확히 계산 가능한 경우에만.
+
+금지:
+
+- 질문 내용 전체 노출
+- Parent 개인정보 과도 노출
+- AI 답변 내용 관리자 노출
+- 새로운 trace 저장 방식 추가
+
+이번 PHASE는 usage 현황만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. X GLOBAL AI 일지 템플릿 섹션
+━━━━━━━━━━━━━━━━━━━━━━
+
+교육 커리큘럼 아래와
+시각적으로 완전히 분리된 별도 section.
+
+표시:
+
+- ACTIVE global_template_set
+- set name/version
+- x_global diary_templates 수
+
+가능하면:
+- 현재 활성 여부
+
+금지:
+
+- curriculum_versions와 합산
+- 학생 배정과 연결
+- growth_events와 연결
+- Parent curriculum search와 연결
+
+문구 예:
+
+"X Global AI 일지 템플릿"
+
+subtitle:
+"AI 일지 생성에 사용되는 글로벌 템플릿"
+
+교육 커리큘럼과 혼동되지 않게 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. UI 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+`curriculum-hub.tsx`
+
+순서:
+
+[SubScreenHeader]
+AI 커리큘럼
+
+[교육 커리큘럼 KPI]
+활성 커리큘럼
+커리큘럼 항목
+배정 학생
+미배정 학생
+
+[커리큘럼 버전]
+version_name compact list/index
+
+[학생 탐색]
+검색
+가나다 INDEX
+반 filter
+배정상태 filter
+커리큘럼 filter
+
+[학생 결과]
+FlatList
+pagination
+
+[Parent AI 사용]
+이번 달 AI 커리큘럼 검색 N건
+
+[독립 section]
+X Global AI 일지 템플릿
+ACTIVE set
+template count
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. DETAIL / MANAGEMENT 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 PHASE는 조회 중심.
+
+학생 row tap 시:
+
+- 현재 repository에 curriculum assignment 상세나
+  student curriculum detail이 실제 존재하면 재사용
+- 없으면 row expand 정도의 read-only 상세까지만 허용
+
+신규 편집/배정 UI 생성 금지.
+
+관리자가 커리큘럼 편집하거나
+학생 assignment를 바꾸는 기능은
+이번 PHASE 범위 아님.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. PERMISSION / SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+- requireAuth
+- pool_admin / super_admin
+- requireXMode
+- getAdminPoolId(req)
+- swimming_pool_id isolation
+
+학생 query:
+
+students.swimming_pool_id
+
+curriculum:
+
+curriculum_versions.swimming_pool_id
+
+assignment:
+
+student_curriculum_assignments.swimming_pool_id
+
+모두 동일 pool 기준 확인.
+
+client 임의 pool_id 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. NORMAL MODE REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 route는 X-only.
+
+하지만 shared:
+
+- students
+- curriculum tables
+- growth_events
+- parent curriculum search logs
+
+조회 시 기존 기능 영향 없어야 함.
+
+금지:
+
+- Parent curriculum search write flow 변경
+- Teacher diary 변경
+- growth_event write 변경
+- assignment write 변경
+- X Global template write 변경
+
+이번 PHASE는 read/aggregation 중심.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. TARGETED PRE-CHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 전 아래만 확인:
+
+C1.
+curriculum_versions 실제:
+- pool column
+- version_name column
+- is_active column
+
+C2.
+curriculum_items 실제 FK:
+- curriculum_version_id
+- is_active 존재 여부
+- item count 가능한 정확한 조건
+
+C3.
+student_curriculum_assignments 실제:
+- student_id
+- curriculum_version_id
+- is_active
+- swimming_pool_id
+컬럼 확인
+
+C4.
+growth_events:
+- student_id
+- curriculum_item_id
+- created_at
+실제 연결 확인
+
+C5.
+event_logs Parent AI curriculum search:
+- 실제 category
+- feature
+- pool/student 식별 column
+
+C6.
+global_template_sets:
+- ACTIVE 판정 column
+- set name/version column
+
+C7.
+diary_templates x_global:
+- global_template_set_id
+- scope
+- 실제 count 조건
+
+C8.
+현재 재원 학생 판정 조건
+
+이 8개만 targeted 확인.
+
+광범위한 재조사 금지.
+
+만약 schema가 이전 보고와 달라
+KPI 정의 자체가 불가능해지는 blocker가 있으면
+임의 변경하지 말고 STOP 후 보고.
+
+그 외는 바로 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+T1.
+X 관리자 → curriculum-hub 정상
+
+T2.
+활성 커리큘럼 수 실제 DB 동일
+
+T3.
+활성 curriculum item 수 실제 DB 동일
+
+T4.
+배정 학생 DISTINCT count 정확
+
+T5.
+미배정 학생 count 정확
+
+T6.
+curriculum version list 정확
+
+T7.
+version별 item_count 정확
+
+T8.
+version별 assigned count 정확
+
+T9.
+학생 검색 정상
+
+T10.
+가나다 index 정상
+
+T11.
+반 filter 정상
+
+T12.
+배정됨/미배정 filter 정상
+
+T13.
+curriculum version filter 정상
+
+T14.
+복수 filter 조합 정상
+
+T15.
+pagination 중복/누락 없음
+
+T16.
+학생 현재 반/선생님 표시 정확
+
+T17.
+student assignment 표시 정확
+
+T18.
+growth_event count 실제 동일
+
+T19.
+latest growth_event 시점 정확
+
+T20.
+Parent AI 이번 달 검색 count 정확
+
+T21.
+X Global ACTIVE set 정확
+
+T22.
+x_global template count 정확
+
+T23.
+교육 curriculum과 X Global UI 분리
+
+T24.
+두 시스템 데이터 합산 없음
+
+T25.
+다른 pool 데이터 노출 없음
+
+T26.
+Normal Parent curriculum search 영향 없음
+
+T27.
+X Parent curriculum search 영향 없음
+
+T28.
+Teacher diary/X Global template 영향 없음
+
+T29.
+error UI 정상
+
+T30.
+empty UI 정상
+
+T31.
+TS error 0
+
+T32.
+production API route JSON 정상
+
+T33.
+OTA 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 server API가 생기므로:
+
+- migration 없는지 확인
+- Render production 수동 배포
+- route path double-prefix 주의
+- health check
+- production API 401/403 JSON 확인
+- 가능하면 authenticated 200 contract 확인
+- OTA production
+- runtimeVersion 기존값 유지
+
+DB migration 필요하면
+임의 실행 금지.
+STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[PHASE 4 RESULT]
+
+[PRE-CHECK]
+C1~C8
+
+[SERVER]
+- route
+- query source
+- permission
+- pool isolation
+- migration
+
+[CURRICULUM]
+- active versions
+- item count
+- assigned
+- unassigned
+
+[INDEX]
+- version
+- 가나다
+- search
+- filters
+- pagination
+
+[CONNECTION]
+curriculum_versions
+→ curriculum_items
+→ student_curriculum_assignments
+→ growth_events
+
+Parent curriculum search
+→ event_logs
+
+X Global
+→ global_template_sets
+→ diary_templates(scope='x_global')
+
+각각 실제 연결 결과
+
+[PARENT AI]
+- usage source
+- count 기준
+
+[X GLOBAL]
+- active set
+- template count
+- 교육 curriculum과 독립 여부
+
+[UI]
+- KPI
+- student finder
+- parent AI usage
+- X Global section
+- loading/empty/error
+
+[TEST]
+T1~T33 PASS/FAIL
+
+[CODE]
+- SHA
+- 수정 파일
+- 신규 파일
+
+[RENDER]
+- deploy SHA
+- build
+- live
+- health
+- production route
+
+[OTA]
+- rollback target
+- new OTA ID
+- runtimeVersion
+
+[REGRESSION]
+- Normal Parent
+- X Parent
+- Teacher Diary
+- X Global Template
+
+완료 후 STOP.
+
+PHASE 5 시작 금지.
