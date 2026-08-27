@@ -202,6 +202,12 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
     router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(item.growth_report_id)}`);
   }
 
+  function goComments() {
+    router.push(
+      `/(parent)/gr-comments?reportId=${encodeURIComponent(item.growth_report_id)}&studentId=${encodeURIComponent(item.student_id)}&studentName=${encodeURIComponent(studentName ?? "")}&reportPeriod=${encodeURIComponent(item.report_period)}` as any,
+    );
+  }
+
   // ── PDF·공유 직접 실행 ──────────────────────────────────────────────────────
   const handlePdfShare = useCallback(async () => {
     if (isGeneratingPdf) return;
@@ -264,6 +270,7 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
         <ReportBody
           detail={detail}
           onDetail={goDetail}
+          onComments={goComments}
           onPdfShare={handlePdfShare}
           isGeneratingPdf={isGeneratingPdf}
           myLiked={myLiked}
@@ -379,10 +386,11 @@ function ReportHeader({
 
 // ─── Report body ──────────────────────────────────────────────────────────────
 function ReportBody({
-  detail, onDetail, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
+  detail, onDetail, onComments, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
 }: {
   detail:          GrowthReportDetail;
   onDetail:        () => void;
+  onComments:      () => void;
   onPdfShare:      () => void;
   isGeneratingPdf: boolean;
   myLiked:         boolean;
@@ -456,6 +464,7 @@ function ReportBody({
       {/* ── ACTION ROW ──────────────────────────────────────────────── */}
       <ActionRow
         onDetail={onDetail}
+        onComments={onComments}
         onPdfShare={onPdfShare}
         isGeneratingPdf={isGeneratingPdf}
         myLiked={myLiked}
@@ -487,9 +496,10 @@ function Hairline() {
 
 // ─── Action row ───────────────────────────────────────────────────────────────
 function ActionRow({
-  onDetail, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
+  onDetail, onComments, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
 }: {
   onDetail:        () => void;
+  onComments:      () => void;
   onPdfShare:      () => void;
   isGeneratingPdf: boolean;
   myLiked:         boolean;
@@ -529,11 +539,14 @@ function ActionRow({
         />
       </Pressable>
 
-      {/* 댓글 — stubbed (PHASE 3-B에서 연결) */}
-      <Pressable style={({ pressed }) => ({
-        flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-        paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
-      })}>
+      {/* 댓글 — gr-comments 화면으로 이동 */}
+      <Pressable
+        onPress={onComments}
+        style={({ pressed }) => ({
+          flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+          paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
+        })}
+      >
         <LucideIcon name="message-circle" size={18} color={MUTED} />
       </Pressable>
 
