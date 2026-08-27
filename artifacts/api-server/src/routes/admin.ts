@@ -3895,7 +3895,7 @@ function todayKstStr(): string {
 }
 
 router.get(
-  "/admin/diaries/summary",
+  "/diaries/summary",
   requireAuth, requireRole("pool_admin", "super_admin"), requireXMode,
   async (req: AuthRequest, res) => {
     try {
