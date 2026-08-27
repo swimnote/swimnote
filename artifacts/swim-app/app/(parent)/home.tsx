@@ -1856,6 +1856,7 @@ export default function ParentHomeScreen() {
               paddingHorizontal: 10,
               paddingVertical: 12,
               alignItems: "center",
+              justifyContent: "center",
               gap: 8,
               opacity: pressed ? 0.72 : 1,
             })}

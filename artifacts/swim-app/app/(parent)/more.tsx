@@ -13,7 +13,7 @@
  *
  * 기존 route/logic 전부 보존. UI 구조만 변경.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -182,23 +182,10 @@ export default function ParentMoreScreen() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [inquiryBadge,  setInquiryBadge] = useState(0);
-
   const [expandA, setExpandA] = useState(false);
   const [expandB, setExpandB] = useState(false);
   const [expandC, setExpandC] = useState(false);
   const [expandD, setExpandD] = useState(false);
-
-  const fetchBadge = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await apiRequest(token, "/inquiries/unread-count");
-      if (res.ok) { const d = await res.json(); setInquiryBadge(d.count ?? 0); }
-    } catch { /* ignore */ }
-  }, [token]);
-
-  useEffect(() => { fetchBadge(); }, [fetchBadge]);
-  useFocusEffect(useCallback(() => { fetchBadge(); }, [fetchBadge]));
 
   async function handleDeleteAccount(immediate: boolean) {
     setDeleteLoading(true);
@@ -254,11 +241,10 @@ export default function ParentMoreScreen() {
             onPress={() => router.push("/(parent)/requests?backTo=more" as any)}
           />
           <Row
-            icon="message-circle"
-            label="문의하기"
-            sub="수영장 · 고객센터 문의"
-            badge={inquiryBadge > 0 ? inquiryBadge : undefined}
-            onPress={() => router.push("/(parent)/inquiries" as any)}
+            icon="bot"
+            label="AI 고객센터"
+            sub="SWIMNOTE 앱 · AI 기능 이용 문의"
+            onPress={() => router.push("/(parent)/support-chat" as any)}
             last
           />
         </SectionBox>
@@ -325,12 +311,6 @@ export default function ParentMoreScreen() {
             onToggle={() => setExpandD(v => !v)}
             last
           >
-            <SubRow icon="bot" label="AI 문의" sub="스윔노트 운영팀에 AI로 문의"
-              onPress={() => router.push("/(parent)/support-chat" as any)} />
-            <SubRow icon="help-circle" label="고객센터 문의"
-              sub="스윔노트 · 원장님에게 문의"
-              badge={inquiryBadge > 0 ? inquiryBadge : undefined}
-              onPress={() => router.push("/(parent)/inquiries" as any)} />
             <SubRow icon="file-text" label="이용약관"
               onPress={() => router.push("/terms" as any)} />
             <SubRow icon="lock" label="개인정보처리방침"

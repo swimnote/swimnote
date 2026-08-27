@@ -150,6 +150,90 @@ async function teacherOwnsStudent(params: {
   return histRes.rows.length > 0;
 }
 
+// ── GET /teacher/growth-reports — 담당 학생 리포트 목록 (Teacher용) ───────────
+
+teacherGrowthReportReviewRouter.get(
+  "/teacher/growth-reports",
+  requireAuth,
+  requireRole("teacher"),
+  requireReportXAccess,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const teacherId = (req.user!.userId ?? req.user!.id) as string;
+      const poolId    = (req as any).resolvedReportPoolId as string;
+
+      if (!poolId) {
+        res.status(403).json({ success: false, error: "POOL_REQUIRED" });
+        return;
+      }
+
+      // 담당 학생 ID 목록 (current_class_id + history fallback)
+      const stuRows = await superAdminDb.execute(sql`
+        SELECT DISTINCT s.id AS student_id, s.name AS student_name
+        FROM students s
+        JOIN class_groups cg ON cg.id = s.current_class_id
+        WHERE cg.teacher_user_id = ${teacherId}
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
+        UNION
+        SELECT DISTINCT s.id AS student_id, s.name AS student_name
+        FROM students s
+        JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        JOIN class_groups cg ON cg.id = sch.class_id
+        WHERE cg.teacher_user_id = ${teacherId}
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
+      `);
+
+      if (!stuRows.rows.length) {
+        res.json({ success: true, reports: [] });
+        return;
+      }
+
+      const studentIds = (stuRows.rows as any[]).map(r => r.student_id as string);
+      const nameMap: Record<string, string> = {};
+      for (const r of stuRows.rows as any[]) nameMap[r.student_id] = r.student_name ?? "";
+
+      // 담당 학생 리포트 (REVIEW_REQUIRED / APPROVED / PUBLISHED)
+      const rRows = await superAdminDb.execute(sql`
+        SELECT
+          gr.id,
+          gr.student_id,
+          gr.product_status,
+          gr.report_period,
+          gr.published_at,
+          gr.teacher_review_action,
+          gr.created_at
+        FROM growth_reports gr
+        WHERE gr.student_id = ANY(${studentIds}::uuid[])
+          AND gr.swimming_pool_id = ${poolId}
+          AND gr.product_status IN ('REVIEW_REQUIRED','APPROVED','PUBLISHED')
+          AND gr.deleted_at IS NULL
+        ORDER BY
+          CASE gr.product_status WHEN 'REVIEW_REQUIRED' THEN 0 ELSE 1 END,
+          gr.created_at DESC
+        LIMIT 100
+      `);
+
+      const reports = (rRows.rows as any[]).map(r => ({
+        id:                   r.id,
+        student_id:           r.student_id,
+        student_name:         nameMap[r.student_id] ?? "",
+        product_status:       r.product_status,
+        report_period:        r.report_period,
+        published_at:         r.published_at ?? null,
+        teacher_review_action:r.teacher_review_action ?? null,
+        created_at:           r.created_at,
+      }));
+
+      res.json({ success: true, reports });
+    } catch (err: any) {
+      console.error("[teacher/growth-reports list]", err.message);
+      res.status(500).json({ success: false, error: "INTERNAL_ERROR" });
+    }
+  },
+);
+
 // ── GET /teacher/growth-reports/:reportId/review ─────────────────────────────
 
 teacherGrowthReportReviewRouter.get(

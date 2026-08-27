@@ -207,6 +207,8 @@ export default function TeacherLayout() {
       <Tabs.Screen name="growth-report-reactions"   options={{ href: null }} />
       {/* CS-02R — AI 문의 (고객센터) */}
       <Tabs.Screen name="support-chat"           options={{ href: null }} />
+      {/* SMALL-FIX-3 — AI 학생리포트 목록 */}
+      <Tabs.Screen name="growth-report-list"     options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );
