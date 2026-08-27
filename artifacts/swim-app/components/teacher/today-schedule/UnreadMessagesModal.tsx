@@ -116,7 +116,9 @@ export default function UnreadMessagesModal({
                   <Pressable key={`msg-${msg.id}`} style={[um.item, { borderBottomColor: C.border }]}
                     onPress={() => {
                       onClose();
-                      router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
+                      requestAnimationFrame(() => {
+                        router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
+                      });
                     }}>
                     <View style={[um.iconBox, { backgroundColor: themeColor + "18" }]}>
                       <LucideIcon name="mail" size={16} color={themeColor} />
@@ -140,10 +142,12 @@ export default function UnreadMessagesModal({
                   <Pressable key={`req-${req.id}`} style={[um.item, { borderBottomColor: C.border }]}
                     onPress={() => {
                       onClose();
-                      router.push({
-                        pathname: "/(teacher)/messages-inbox",
-                        params: { tab: "requests", requestId: req.id },
-                      } as any);
+                      requestAnimationFrame(() => {
+                        router.push({
+                          pathname: "/(teacher)/messages-inbox",
+                          params: { tab: "requests", requestId: req.id },
+                        } as any);
+                      });
                     }}>
                     <View style={[um.iconBox, { backgroundColor: typeColor + "18" }]}>
                       <LucideIcon name="clipboard-list" size={16} color={typeColor} />
@@ -176,7 +180,9 @@ export default function UnreadMessagesModal({
             style={um.inboxBtn}
             onPress={() => {
               onClose();
-              router.push("/(teacher)/messages-inbox" as any);
+              requestAnimationFrame(() => {
+                router.push("/(teacher)/messages-inbox" as any);
+              });
             }}
           >
             <LucideIcon name="inbox" size={15} color={C.text} />

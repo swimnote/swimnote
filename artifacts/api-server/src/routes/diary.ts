@@ -2034,10 +2034,12 @@ router.get("/teacher/overview",
       const newsSettings: Record<string, boolean> = {};
       for (const r of (psRows.rows as any[])) newsSettings[r.notification_type] = Boolean(r.is_enabled);
       // 기본값 ON
+      // news_like: diary_like + growth_report_like 동일 preference 공유
+      // news_comment: diary_comment + growth_report_comment 동일 preference 공유
       const enabledNewsTypes: string[] = [];
-      if (newsSettings.news_like    !== false) enabledNewsTypes.push('diary_like');
+      if (newsSettings.news_like    !== false) enabledNewsTypes.push('diary_like', 'growth_report_like');
       if (newsSettings.news_thanks  !== false) enabledNewsTypes.push('diary_thanks');
-      if (newsSettings.news_comment !== false) enabledNewsTypes.push('diary_comment');
+      if (newsSettings.news_comment !== false) enabledNewsTypes.push('diary_comment', 'growth_report_comment');
       let unreadNews = 0;
       if (enabledNewsTypes.length > 0) {
         const typeList = enabledNewsTypes.map(t => `'${t}'`).join(",");
