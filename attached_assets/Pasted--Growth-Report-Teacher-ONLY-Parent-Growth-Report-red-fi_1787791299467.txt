@@ -1,0 +1,205 @@
+[앱] Growth Report 좋아요 — Teacher 알림 미표시 원인 조사 ONLY
+
+실기기 확인 결과:
+
+Parent Growth Report 좋아요:
+✅ 하트 red filled 정상
+→ reaction API / Parent UI 동작 정상
+
+Teacher Mode 알림함:
+❌ Growth Report 좋아요 알림이 보이지 않음
+
+현재 문제 범위는 Teacher notification 경로로 한정합니다.
+
+이번 단계에서는 코드 수정하지 마십시오.
+원인 조사와 수정계획서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Growth Report 좋아요 notification DB 생성 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production에서 Growth Report 좋아요 ON 직후:
+
+notifications table에
+
+type = growth_report_like
+
+row가 생성됐는지 확인하십시오.
+
+확인:
+
+- row 존재 여부
+- recipient_id
+- recipient_type
+- swimming_pool_id
+- ref_id
+- ref_type
+- deep_link
+- created_at
+
+민감정보는 마스킹.
+
+중요:
+좋아요 reaction row 생성과
+notification row 생성을 별도로 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 담당 Teacher resolve 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 좋아요 서버 코드에서:
+
+growth_report
+→ student
+→ class_group_id
+→ class_groups.teacher_user_id
+→ notification recipient_id
+
+경로를 실제 Production fixture 기준으로 확인하십시오.
+
+보고:
+
+- growth_report_id
+- student_id
+- class_group_id 존재 여부
+- teacher_user_id resolve 여부
+- 현재 로그인한 Teacher 계정 userId와 일치 여부
+
+동명이인/다른 반/퇴원 student 등으로 잘못 resolve되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. notification INSERT 코드 실제 실행 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST reaction 성공 후 코드에서:
+
+reaction toggle
+→ active=true
+→ teacher resolve
+→ notifications INSERT
+
+가 실제로 실행되는지 확인.
+
+특히:
+
+- active=false(unlike)에서는 알림 생성하지 않는지
+- active=true에서만 INSERT하는지
+- INSERT 실패를 catch로 삼키는지
+- notification 실패가 reaction 성공 응답에 영향을 주지 않도록 비동기 처리되어 있는지
+
+현재 Parent 좋아요는 성공하므로
+notification 부분에서만 실패해도 사용자에게는 성공처럼 보일 수 있습니다.
+
+이 가능성을 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Teacher Inbox 조회/필터 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+DB에 growth_report_like notification이 존재한다면
+Teacher inbox 쪽을 조사하십시오.
+
+현재 알림함 화면:
+app/(teacher)/messages-inbox.tsx
+
+또는 실제 사용 route 기준으로:
+
+- 어떤 endpoint로 notification 목록을 가져오는지
+- 서버 query가 허용하는 notification type 목록
+- client에서 filter하는 type 목록
+- growth_report_like가 목록에서 제외되는지
+- unknown type으로 drop되는지
+- "소식" 탭 조건에 포함되는지
+
+확인하십시오.
+
+즉:
+
+DB에는 있음
+→ API response에도 있음
+→ UI에서 안 보임
+
+인지,
+
+DB에는 있음
+→ API query에서 제외
+
+인지 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 Diary 좋아요와 1:1 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 동작하는 diary_like와 비교하십시오.
+
+Diary:
+
+POST diary reaction
+→ notification INSERT
+→ Teacher inbox query
+→ "새 좋아요" 카드 표시
+
+Growth Report:
+
+POST GR reaction
+→ notification INSERT?
+→ Teacher inbox query?
+→ card 표시?
+
+두 흐름에서 처음 갈라지는 지점을 정확히 찾으십시오.
+
+전체 repo audit 금지.
+관련 notification/server/inbox 코드만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 이번 단계에서 deep-link는 별도
+━━━━━━━━━━━━━━━━━━━━━━
+
+지금 목표는:
+
+"Teacher 알림함에 Growth Report 좋아요 알림이 보이는 것"
+
+까지입니다.
+
+알림 클릭 후 Growth Report 전용 화면으로 이동하는 기능은
+기존 PHASE 3-C 범위이므로 지금 구현하지 마십시오.
+
+단 현재 deep_link NULL 여부는 조사 결과에 기록만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[REACTION]
+- Growth Report reaction row 생성 여부
+
+[NOTIFICATION DB]
+- growth_report_like row 존재 여부
+- recipient resolve 결과
+- INSERT 성공/실패
+
+[TEACHER INBOX]
+- 조회 endpoint
+- server filter
+- client filter
+- growth_report_like 포함 여부
+
+[ROOT CAUSE]
+아래 중 하나로 명확히 분류:
+
+A. notification INSERT 자체 실패
+B. recipient 잘못 resolve
+C. DB에는 있으나 Teacher API가 제외
+D. API에는 있으나 Teacher UI가 제외
+E. 기타
+
+[FIX PLAN]
+원인이 확정된 최소 수정안만 작성.
+
+코드 수정 금지
+DB write 금지
+Render deploy 금지
+OTA 금지
+PHASE 3-B/3-C 구현 금지
+
+조사 후 STOP.
