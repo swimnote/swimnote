@@ -1,0 +1,226 @@
+[앱]
+
+GROWTH REPORT FINAL SIMPLE CHECK
+CLEANUP + ONE ISOLATED REPORT OUTPUT ONLY
+
+목표:
+기존에 8월 리포트를 삭제/재발행하려고 만들었던
+maintenance 우회 작업을 더 이상 사용하지 않는다.
+
+복잡한 in-place reanalysis / delete / republish 작업은 중단.
+
+최종적으로 할 일은 딱 하나:
+
+토이키즈스윔클럽 서태웅 학생의
+2026-08 실제 APP source를 읽어서
+FINAL LOCK AI ENGINE에 1회 isolated 호출하고
+새 AI 성장 리포트 결과를 출력한다.
+
+DB 저장 없음.
+기존 report 수정 없음.
+재발행 없음.
+push 없음.
+
+==================================================
+0. CLEANUP SCOPE
+==================================================
+
+이번 리포트 검증을 위해 새로 만든
+maintenance 전용 우회 코드가 있다면
+그 코드만 제거한다.
+
+예:
+POST /api/super/maintenance/growth-report/:reportId/reanalyze
+
+및 이 endpoint만을 위해 추가한
+temporary helper / parser / route wiring.
+
+주의:
+기존 Growth Report 정상 production code는 건드리지 않는다.
+
+FINAL LOCK AI ENGINE 관련 코드는 건드리지 않는다.
+
+기존 report row / DB data는 건드리지 않는다.
+
+cleanup 후 최소 관련 테스트만 실행.
+
+==================================================
+1. TARGET
+==================================================
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Student:
+student_1784491932941_n95eeew89
+
+Period:
+2026-08
+
+기존 PUBLISHED report:
+그대로 유지.
+
+삭제 금지.
+수정 금지.
+
+==================================================
+2. REAL SOURCE SNAPSHOT
+==================================================
+
+APP의 기존 정상 Growth Report request builder를 사용해서
+해당 학생의 2026-08 실제 source snapshot을 만든다.
+
+새 schema 만들지 않는다.
+
+실제 production contract 그대로 사용.
+
+읽기만 수행.
+
+보고:
+- diary count
+- lesson dates
+- curriculum/progress
+- previous report/history 포함 여부
+
+==================================================
+3. ISOLATED ENGINE CALL
+==================================================
+
+현재 production APP에 설정된
+Growth Report Engine env를 사용해서
+
+FINAL LOCK production engine에
+딱 1회 분석 요청.
+
+Stage B:
+OFF
+
+중요:
+이 결과를 growth_reports 테이블에 저장하지 않는다.
+
+report_id 생성 금지.
+publish 금지.
+
+==================================================
+4. OUTPUT ONLY
+==================================================
+
+엔진에서 받은 새 리포트 결과를
+로컬 파일 또는 로그로 출력.
+
+가능하면 파일:
+
+/tmp/seotaewoong-growth-report-2026-08-final.json
+
+그리고 사람이 읽을 수 있게
+최종 parent-facing 내용도 보고.
+
+반드시 출력:
+
+summary_text
+
+core_growth
+
+swimming_progress
+
+behavioral_strengths
+
+longitudinal_comparison
+
+success_conditions
+
+teacher_guidance
+
+next_growth_direction
+
+parent_support
+
+빈 section은 빈 것으로 표시.
+
+==================================================
+5. QUALITY INFO
+==================================================
+
+같이 보고:
+
+analysis_status
+grounding_result
+growth_framing_result
+
+F065 count
+F068 count
+verified_relationships count
+
+unsupported claims count
+
+==================================================
+6. ABSOLUTE PROHIBITIONS
+==================================================
+
+금지:
+
+- 기존 8월 report 삭제
+- 기존 8월 report 수정
+- 새 report 생성
+- DB write
+- publish
+- push
+- likes/comments/notifications 변경
+- Stage B enable
+- model 변경
+- AI ENGINE 코드 변경
+- metric/prompt/threshold 변경
+
+==================================================
+7. COST
+==================================================
+
+이번 isolated 호출:
+
+APP → ENGINE calls
+composition calls
+retry calls
+Stage B calls
+latency
+estimated USD
+
+딱 1건만.
+
+==================================================
+8. FINAL REPORT
+==================================================
+
+A. CLEANUP
+maintenance 우회 코드 제거 여부
+변경 파일
+SHA
+
+B. SOURCE
+diary count / dates / progress / history
+
+C. ENGINE
+HTTP
+analysis_status
+grounding
+growth framing
+
+D. FINAL REPORT TEXT
+summary + 8 sections
+
+E. F065 / F068 / verified relations
+
+F. SAFETY
+unsupported claims
+
+G. COST
+
+H. DB WRITES
+반드시 0
+
+I. EXISTING PUBLISHED REPORT
+UNCHANGED 확인
+
+J. FINAL
+ONE ISOLATED REPORT OUTPUT COMPLETE
+
+완료 후 STOP.
