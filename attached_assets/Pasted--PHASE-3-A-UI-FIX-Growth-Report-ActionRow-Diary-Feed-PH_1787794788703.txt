@@ -1,0 +1,165 @@
+[앱] PHASE 3-A UI FIX — Growth Report ActionRow를 Diary Feed와 동일 디자인으로 정리
+
+PHASE 3-A 기능은 최종 PASS.
+
+이번 단계는 UI FIX만 진행합니다.
+
+목표:
+Growth Report 하단 ActionRow의 좋아요/댓글 디자인을
+기존 Parent Diary Feed와 동일하게 맞추기.
+
+현재 Growth Report:
+[heart + "좋아요"] [message-circle + "댓글"] [PDF·공유]
+
+변경 목표:
+[heart] [message-circle] [PDF·공유]
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Growth Report 좋아요 텍스트 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+components/parent/GrowthReportFullFeed.tsx
+
+좋아요 버튼에서
+"좋아요" Text 제거.
+
+heart icon만 표시.
+
+기존 DiaryFeedItem 기준 spec 유지:
+
+- heart size = 20
+- active:
+  color = #E8003D
+  fill = #E8003D
+- inactive:
+  color = #6B7280
+  fill = none
+- pressed opacity = 0.7
+
+좋아요 기능/API 로직은 절대 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Growth Report 댓글 텍스트 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 stubbed 댓글 버튼에서
+"댓글" Text 제거.
+
+message-circle icon만 표시.
+
+DiaryFeedItem 기준:
+
+- size = 18
+- color = 기존 Diary comment icon과 동일
+- pressed opacity = 0.7
+
+댓글 기능은 아직 PHASE 3-B 대기이므로
+onPress 기능 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PDF·공유는 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+PDF·공유는 Growth Report 고유 action이므로
+현재 텍스트 유지.
+
+최종 구조:
+
+Diary:
+[heart] [message-circle] [Instagram Story]
+
+Growth Report:
+[heart] [message-circle] [PDF·공유]
+
+앞의 2개는 실제 Diary Feed와
+아이콘 크기/색상/간격/press 영역을 최대한 동일하게 맞출 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. ActionRow spacing
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 DiaryFeedItem ActionRow 기준으로:
+
+- 3개 action이 균형 있게 배치
+- heart / comment의 터치 영역 크기 유지
+- 텍스트 제거 후 아이콘이 어색하게 좌우로 치우치지 않게 center 정렬
+- PDF·공유만 텍스트가 있다고 해서 전체 row 균형이 깨지지 않도록 조정
+
+새 디자인 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 좋아요 API 수정 금지
+- Teacher notification 수정 금지
+- Growth Report Teacher reaction 화면 수정 금지
+- Parent 댓글 기능 구현 금지
+- PHASE 3-B 시작 금지
+- Server 수정 금지
+- DB 변경 금지
+- Render deploy 금지
+
+UI-only 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+A1.
+Growth Report 좋아요 = heart icon only
+
+A2.
+Growth Report 댓글 = message-circle icon only
+
+A3.
+PDF·공유 = 기존 유지
+
+A4.
+좋아요 ON/OFF 기능 정상
+
+A5.
+기존 Diary Feed ActionRow 영향 없음
+
+A6.
+Growth Report ActionRow 정렬 깨짐 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TSX UI-only이면:
+
+수정
+→ TS 확인
+→ rollback target 기록
+→ iOS production OTA
+→ 사용자 실기기 확인
+
+Android OTA 금지.
+
+완료보고:
+
+[CODE]
+- SHA
+- 변경 파일
+
+[UI]
+- 좋아요 텍스트 제거
+- 댓글 텍스트 제거
+- Diary 동일 spec 적용
+
+[OTA]
+- previous stable
+- new update group
+- new update ID
+- runtimeVersion
+
+[DEVICE]
+- 사용자 실기기 확인 대기
+
+완료 후 STOP.
+PHASE 3-B 시작하지 마십시오.
