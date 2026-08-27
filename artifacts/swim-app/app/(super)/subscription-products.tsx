@@ -349,7 +349,7 @@ export default function SubscriptionProductsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="구독 플랜 설정" subtitle="Coach · Premier 플랜 관리" homePath="/(super)/dashboard" />
 
       <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 8 }}>
         <Pressable style={[s.createBtn, { flex: 1 }]} onPress={() => { setEditPlan(null); setShowPlanForm(true); }}>

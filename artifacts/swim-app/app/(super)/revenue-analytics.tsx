@@ -251,7 +251,7 @@ export default function RevenueAnalyticsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={st.safe} edges={[]}>
-        <SubScreenHeader title="매출 분석" homePath="/(super)/more" />
+        <SubScreenHeader title="매출 분석" homePath="/(super)/dashboard" />
         <ActivityIndicator style={{ flex: 1 }} color={P} />
       </SafeAreaView>
     );
@@ -259,7 +259,7 @@ export default function RevenueAnalyticsScreen() {
 
   return (
     <SafeAreaView style={st.safe} edges={[]}>
-      <SubScreenHeader title="매출 분석" homePath="/(super)/more" />
+      <SubScreenHeader title="매출 분석" homePath="/(super)/dashboard" />
 
       <View style={st.tabRow}>
         {TABS.map(t => (

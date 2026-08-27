@@ -146,7 +146,7 @@ export default function SecurityScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="슈퍼관리자 보안관리" homePath="/(super)/more" />
+      <SubScreenHeader title="슈퍼관리자 보안관리" homePath="/(super)/dashboard" />
 
       {/* KPI 요약 */}
       <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}

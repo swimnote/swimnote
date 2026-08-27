@@ -156,7 +156,7 @@ export default function SuperSyncScreen() {
   if (loading) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
-        <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
+        <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/dashboard" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={ACCENT} size="large" />
         </View>
@@ -166,7 +166,7 @@ export default function SuperSyncScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/dashboard" />
 
       <ScrollView showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}

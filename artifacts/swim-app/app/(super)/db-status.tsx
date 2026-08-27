@@ -301,7 +301,7 @@ export default function DbStatusScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="DB 이원화 모니터링" homePath="/(super)/more" />
+      <SubScreenHeader title="DB 이원화 모니터링" homePath="/(super)/dashboard" />
 
       {/* 탭 바 */}
       <View style={s.tabBar}>

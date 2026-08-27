@@ -197,7 +197,7 @@ export default function SystemStatusScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="시스템 상태" homePath="/(super)/more" />
+      <SubScreenHeader title="시스템 상태" homePath="/(super)/dashboard" />
 
       {/* 전체 상태 배너 */}
       <View style={[s.overallBanner, { backgroundColor: loading ? C.backgroundSoft : overallCfg.bg }]}>

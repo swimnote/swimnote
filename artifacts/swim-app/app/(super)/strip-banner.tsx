@@ -296,7 +296,7 @@ export default function StripBannerScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="가로 배너 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="가로 배너 관리" homePath="/(super)/dashboard" />
 
       {/* 요약 */}
       <View style={s.summaryRow}>

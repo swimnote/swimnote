@@ -272,7 +272,7 @@ export default function SecuritySettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="보안·설정" homePath="/(super)/more" />
+      <SubScreenHeader title="보안·설정" homePath="/(super)/dashboard" />
 
       <KeyboardAwareScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: 60 }}>
 

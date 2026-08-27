@@ -322,7 +322,7 @@ export default function SuperPoolsScreen() {
         </Pressable>
       </Modal>
 
-      <SubScreenHeader title="운영처 관리" homePath="/(super)/op-group" />
+      <SubScreenHeader title="운영처 관리" homePath="/(super)/dashboard" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
