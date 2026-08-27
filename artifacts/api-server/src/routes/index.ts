@@ -37,6 +37,7 @@ import privacyPageRouter from "./privacy-page.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
 import superAiCostRouter from "./super-ai-cost.js";
+import superMaintenanceGrRouter from "./super-maintenance-gr.js";
 import supportTicketsRouter from "./support-tickets.js";
 import supportCasesRouter from "./support-cases.js";
 import pushSettingsRouter from "./push-settings.js";
@@ -80,6 +81,7 @@ router.use("/", superSyncRouter);
 router.use("/", superRouter);
 router.use("/", superAiCostRouter);
 router.use("/", superSupportRouter);
+router.use("/", superMaintenanceGrRouter);
 router.use("/super/db-status", dbStatusRouter);
 router.use("/super/infra-usage", infraUsageRouter);
 
