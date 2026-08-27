@@ -379,7 +379,7 @@ export default function TodayScheduleScreen() {
           onPress={() => Linking.openURL("https://swimnote.kr")}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 18, height: 18, opacity: isX ? 0.85 : 1 }} resizeMode="contain" />
+          <Image source={require("@/assets/images/swimnote-logo.png")} style={{ width: 32, height: 32, opacity: 1 }} resizeMode="contain" />
         </Pressable>
         <Pressable onPress={logout} style={[h.logoutBtn, isX && { backgroundColor: XT.surfaceNavySoft }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <LogOut size={18} color={isX ? XT.textOnNavy : C.textMuted} />
