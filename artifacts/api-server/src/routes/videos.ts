@@ -118,9 +118,10 @@ async function checkVideoUploadAllowed(poolId: string): Promise<{
   const extraGb = Number(meta?.extra_gb ?? 0);
   const limitMb = Math.round((planGb + extraGb) * 1024);
 
+  // Bug Fix #1: expired/deleted row는 R2 binary가 이미 삭제됐으므로 quota에서 제외
   const [usage] = (await db.execute(sql`
     SELECT COALESCE(SUM(file_size), 0) AS used_bytes
-    FROM video_assets_meta WHERE pool_id = ${poolId}
+    FROM video_assets_meta WHERE pool_id = ${poolId} AND status = 'active'
   `)).rows as any[];
   const usedMb = Math.round(Number(usage?.used_bytes ?? 0) / (1024 * 1024));
 
@@ -581,6 +582,10 @@ router.delete("/videos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
         if (!video) continue;
         if (role === "teacher" && video.uploaded_by !== userId) continue;
         await deleteFromR2(video.object_key, "video");
+        // Bug Fix #2: 대량 삭제 시에도 thumbnail R2 orphan 방지
+        if (video.thumbnail_key) {
+          try { await deleteFromR2(video.thumbnail_key, "photo"); } catch (_) {}
+        }
         await db.execute(sql`DELETE FROM video_assets_meta WHERE id = ${id}`);
         deletedCount++;
       }
@@ -878,6 +883,15 @@ router.delete("/videos/:videoId", requireAuth,
       }
 
       await deleteFromR2(video.object_key, "video");
+      // Bug Fix #2: 사용자 직접 삭제 시 thumbnail R2 orphan 방지
+      if (video.thumbnail_key) {
+        try {
+          await deleteFromR2(video.thumbnail_key, "photo");
+        } catch (thumbErr) {
+          // thumbnail 삭제 실패는 경고만 — main video 삭제는 진행
+          console.warn("[video-delete] thumbnail R2 삭제 실패 (무시):", thumbErr);
+        }
+      }
       await db.execute(sql`DELETE FROM video_assets_meta WHERE id = ${videoId}`);
       res.json({ success: true });
     } catch (e) { res.status(500).json({ error: "삭제 중 오류" }); }

@@ -1,0 +1,369 @@
+[SWIMNOTE FINAL RELEASE — PRICE RESET + VIDEO FIX + BUILD/RELEASE]
+
+목표:
+SWIMNOTE 출시 전 마지막 정리 작업이다.
+
+이번 작업에서 아래 범위만 수정하고,
+검증 완료 후 새 production build를 생성하여 출시 준비까지 끝낸다.
+
+중간에 새로운 기능 추가 금지.
+가격정책 재설계 금지.
+UI 재디자인 금지.
+기존 정상 기능 변경 금지.
+
+==================================================
+1. 최종 가격정책
+==================================================
+
+아래 가격을 FINAL SOURCE OF TRUTH로 사용한다.
+
+FREE
+- 최대회원 10명
+- ₩0
+
+SOLO
+- 최대회원 100명
+- 관리자 = 선생님 1인 구조
+- 월 ₩4,900
+- X 가입 불가
+
+PREMIER 300
+- 최대회원 300명
+- 기본 월 ₩11,900
+- X 추가 월 ₩90,000
+- X 포함 총액 ₩101,900
+
+PREMIER 500
+- 최대회원 500명
+- 기본 월 ₩19,900
+- X 추가 월 ₩150,000
+- X 포함 총액 ₩169,900
+
+PREMIER 1000
+- 최대회원 1000명
+- 기본 월 ₩29,900
+- X 추가 월 ₩300,000
+- X 포함 총액 ₩329,900
+
+중요:
+- PREMIER 200 제거
+- 기존 SOLO 30/50/100 분할 상품 제거 또는 신규가입 경로에서 사용되지 않도록 정리
+- SOLO는 100명 단일 SKU
+- X는 PREMIER 전용
+- X 가격은 최대회원 기준 회원당 ₩300
+- FREE/SOLO에서는 X 구매 불가
+
+==================================================
+2. 가격 관련 전체 영향범위 조사 후 일괄 정합성 수정
+==================================================
+
+다음 위치에서 기존 가격/SKU/플랜 코드가 남아 있는지 검색:
+
+- subscription_plans seed / production DB
+- server subscription routes
+- RevenueCat entitlement/product mapping
+- Apple IAP product identifiers
+- Google Play product identifiers
+- billing UI
+- subscription screen
+- admin subscription UI
+- upgrade/downgrade logic
+- plan capacity logic
+- plan labels
+- storage quota mapping
+- X billing
+- X entitlement sync
+- promotional tier logic
+- purchase restore logic
+- receipt validation
+- analytics/revenue logs
+- hardcoded price strings
+- old PREMIER 200 references
+- old SOLO30/SOLO50 references
+
+가격 표시와 실제 결제 SKU가 다른 상태가 절대 생기면 안 된다.
+
+현재 Store product를 가격만 수정해야 하는지,
+새 product identifier가 필요한지
+실제 현재 billing architecture 기준으로 판단한다.
+
+기존 구독자 migration이 필요하면
+데이터 삭제 없이 안전한 migration으로 처리.
+
+==================================================
+3. 기존 영상 정책 유지
+==================================================
+
+현재 영상정책은 유지한다.
+
+PREMIER 300
+- 10GB
+
+PREMIER 500
+- 20GB
+
+PREMIER 1000
+- 50GB
+
+영상:
+- PREMIER only
+- max 100MB
+- 14일 expires_at
+- R2 binary storage
+- Supabase metadata only
+- presigned playback
+- transcoding 없음
+
+영상정책 자체를 새로 변경하지 말 것.
+
+==================================================
+4. VIDEO BUG FIX #1 — expired row quota
+==================================================
+
+현재 문제:
+
+video_assets_meta의 expired row가 quota 사용량 SUM에 계속 포함되어
+R2 binary는 이미 삭제되었는데도
+사용가능 저장용량이 복구되지 않을 수 있음.
+
+수정 목표:
+
+quota 계산에서는
+실제로 현재 storage를 점유하는 active video만 포함.
+
+expired / deleted 상태 object는 quota에서 제외.
+
+중요:
+- 기존 active row 계산 훼손 금지
+- pool isolation 유지
+- storage quota 10/20/50GB 유지
+- 사용자 직접 삭제 시 즉시 quota 복구 유지
+
+테스트:
+1. active video upload → quota 증가
+2. expire 처리 → quota 감소
+3. user hard delete → quota 감소
+4. expired row DB에 존재해도 quota 미포함
+5. 다른 pool row 영향 없음
+
+==================================================
+5. VIDEO BUG FIX #2 — thumbnail orphan
+==================================================
+
+현재 문제:
+
+사용자가 직접 DELETE /api/videos/:videoId 실행 시
+video binary는 R2에서 삭제되지만
+thumbnail object가 남을 수 있음.
+
+수정 목표:
+
+사용자 직접 삭제에서도
+video binary + thumbnail을 모두 R2에서 삭제.
+
+중요:
+- thumbnail 없는 기존 영상도 delete 성공
+- R2 delete 일부 실패 시 처리방식 기존 error policy와 일관성 유지
+- DB hard delete 타이밍 검토
+- 다른 pool object 삭제 불가
+
+테스트:
+1. video + thumbnail 삭제
+2. thumbnail 없는 video 삭제
+3. 잘못된 pool 접근 차단
+4. 이미 object 없는 경우 안전 처리
+5. DB row 처리 정상
+
+==================================================
+6. 가격정책 관련 기존 PROMOTION 영향 확인
+==================================================
+
+기존 코드에 아래 구형 정책이 남아 있는지 확인:
+
+- X ₩150,000 단일 정상가
+- tier1 50%
+- tier2 30%
+- tier3 10%
+- 36개월 할인
+- 100/300/500 선착순 구조
+
+위 정책이 현재 FINAL 가격과 충돌하면
+자동으로 새 임의 정책을 만들지 말고
+충돌 지점을 목록화.
+
+단,
+구형 가격이 실제 결제에 적용되어
+새 가격 출시를 막는 경우에는
+새 FINAL 정상가격이 결제 기준이 되도록 정합성 수정.
+
+“1개월 무료 이용권 / 신규 선착순 프로모션”은
+이번 release 핵심 가격정책과 별도 캠페인 기능이므로
+현재 production에 이미 완성된 기능이 아니라면
+이번 작업에서 새로 개발하지 말 것.
+
+==================================================
+7. Regression Test
+==================================================
+
+반드시 검증:
+
+A. FREE
+- 10명 limit
+- 영상 불가
+- X 불가
+
+B. SOLO
+- 100명 limit
+- 월 4,900 표시
+- 관리자=선생님 구조 유지
+- 영상 불가
+- X 불가
+
+C. PREMIER 300
+- 300명
+- 11,900
+- 10GB
+- 영상 가능
+- X 90,000
+
+D. PREMIER 500
+- 500명
+- 19,900
+- 20GB
+- 영상 가능
+- X 150,000
+
+E. PREMIER 1000
+- 1000명
+- 29,900
+- 50GB
+- 영상 가능
+- X 300,000
+
+F. Purchase
+- RevenueCat entitlement sync
+- restore purchase
+- plan upgrade/downgrade
+- X entitlement
+- renewal
+- expired subscription
+- purchase failure
+- app restart persistence
+
+G. Core App
+- admin login
+- teacher login
+- parent login
+- students
+- classes
+- diary
+- photo
+- video
+- notifications
+- parent requests
+- X hub
+- growth reports
+- curriculum
+
+==================================================
+8. Production DB / Migration Safety
+==================================================
+
+가격변경 때문에 기존 customer data 삭제 금지.
+
+subscription_plans를 수정해야 한다면:
+- plan ID continuity 확인
+- existing swimming_pool subscription references 확인
+- old plan subscriber mapping 확인
+- migration rollback 가능하게 처리
+
+기존 플랜 ID를 삭제하면 참조가 깨지는 구조라면
+삭제하지 말고 inactive/deprecated 처리.
+
+신규가입 화면에서는 FINAL 5개만 노출:
+
+FREE
+SOLO
+PREMIER300
+PREMIER500
+PREMIER1000
+
+==================================================
+9. RELEASE
+==================================================
+
+모든 검증 PASS 후:
+
+1. commit
+2. production server deploy
+3. health check
+4. production API smoke test
+5. 새 iOS production build
+6. 새 Android production build
+7. Store submission/release에 필요한 version/build number 증가
+8. 실제 production pricing/entitlement 확인
+
+현재 iOS production runtimeVersion 정책을 함부로 변경하지 말 것.
+기존 프로젝트 release convention을 그대로 따른다.
+
+OTA로 가능한 변경과
+native build가 필요한 변경을 구분하되,
+사용자 지시는 “새 빌드 출시”이므로
+최종적으로 iOS/Android 새 production build를 생성한다.
+
+==================================================
+10. 완료보고
+==================================================
+
+최종 보고 형식:
+
+1. PRICE MIGRATION
+- old →
+- new →
+- modified files
+- DB changes
+- Store product changes
+
+2. VIDEO FIX
+- expired quota fix =
+- thumbnail orphan fix =
+
+3. TEST
+- FREE =
+- SOLO =
+- P300 =
+- P500 =
+- P1000 =
+- X =
+- video =
+- purchase =
+- regression =
+
+4. SERVER
+- commit SHA =
+- Render deploy =
+- health =
+- production smoke =
+
+5. IOS
+- version =
+- build =
+- runtimeVersion =
+- build result =
+
+6. ANDROID
+- version =
+- versionCode =
+- build result =
+
+7. STORE
+- Apple pricing/SKU status =
+- Google pricing/SKU status =
+- submission status =
+
+8. FINAL
+PASS / HOLD
+
+HOLD가 있으면 정확한 blocker만 보고.
+
+이번 작업 완료 후 STOP.
