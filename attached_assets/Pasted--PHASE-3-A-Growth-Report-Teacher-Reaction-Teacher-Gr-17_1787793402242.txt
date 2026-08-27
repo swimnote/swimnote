@@ -1,0 +1,299 @@
+[앱] PHASE 3-A Growth Report Teacher Reaction 연결 — 구현 승인
+
+현재 조사/설계 방향 승인.
+
+이번 단계 목표:
+
+Teacher 소식
+→ Growth Report 좋아요 알림
+→ Growth Report 전용 반응 화면
+→ 실제 Growth Report 좋아요 수 / 학부모 목록 확인
+
+까지 완성합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Notification 문구 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/api-server/src/routes/growth-report-interactions.ts
+
+growth_report_like notification body:
+
+현재:
+"${parentName}님이 성장리포트에 좋아요를 눌렀습니다."
+
+변경:
+"${parentName}님이 AI 성장 리포트에 좋아요를 눌렀습니다."
+
+title:
+"새 좋아요"
+
+유지.
+
+ref_id:
+growth_report_id
+
+ref_type:
+growth_report
+
+유지.
+
+중요:
+기존 notification row의 body를 UPDATE하지 마십시오.
+
+새 배포 후 새로 발생하는 좋아요 notification부터
+새 문구가 적용되면 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher Growth Report Reaction 화면 신규 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+artifacts/swim-app/app/(teacher)/growth-report-reactions.tsx
+
+기존 diary-reactions.tsx의
+레이아웃/시각 구조를 최대한 재사용.
+
+단 데이터 source는 반드시 Growth Report 전용 API:
+
+GET /teacher/growth-reports/:reportId/interactions
+
+사용.
+
+Diary API 사용 금지.
+
+반드시 매핑:
+
+reactions.like.count
+→ 좋아요 인원 수
+
+reactions.like.parents
+→ 좋아요를 누른 학부모 목록
+
+reportId를 diaryId로 변환하거나 재사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 화면 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+Header:
+
+반응 & 댓글
+
+Growth Report임을 구분할 subtitle:
+
+AI 성장 리포트
+
+가능하면 API/현재 context에서 안전하게 확인 가능한 경우
+리포트 기간도 함께 표시 가능.
+
+예:
+AI 성장 리포트 · 2026년 8월
+
+단 기간을 추측하거나 Diary lessonDate를 사용하지 마십시오.
+
+좋아요 영역:
+
+- 실제 count 표시
+- 실제 parent name 목록 표시
+
+예:
+
+♡
+1명
+
+서경민
+
+0명일 경우에만 0명 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 댓글 영역 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계는 PHASE 3-A 좋아요 마무리입니다.
+
+따라서:
+
+- Parent Growth Report 댓글 작성 구현 금지
+- Teacher reply 입력 구현 금지
+- growth_report_comment notification 연결 금지
+- 답글 버튼 추가 금지
+
+GET interactions 응답에 threads가 존재하더라도
+이번 단계에서 새로운 댓글 기능을 확장하지 마십시오.
+
+기존 화면 구조상 댓글 영역이 필요한 경우
+read-only empty/list rendering 수준까지만 허용.
+
+기능 구현은 후속 PHASE에서 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Teacher News press handler
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+growth_report_like 탭:
+
+현재 early return 제거.
+
+변경:
+
+growth_report_like
+→ /(teacher)/growth-report-reactions
+→ reportId = item.ref_id
+
+로 이동.
+
+기존:
+
+diary_like
+diary_comment
+diary_thanks
+
+라우팅은 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Teacher Route 등록 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 teacher _layout 구조를 확인하십시오.
+
+만약 명시적으로 Stack.Screen을 등록하는 구조라면:
+
+artifacts/swim-app/app/(teacher)/_layout.tsx
+
+에 growth-report-reactions route를 hidden screen으로 등록.
+
+Expo Router가 현재 구조에서 자동 route 처리하여
+별도 등록이 필요 없다면 수정하지 말 것.
+
+추측하지 말고 현재 _layout 코드 기준으로 결정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 잘못된 0명 문제 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+GET /diaries/:reportId/comments
+
+또는
+
+diary-reactions.tsx에 reportId 전달
+
+Growth Report 알림에서는 절대 사용하지 마십시오.
+
+올바른 흐름:
+
+growth_report_like
+→ reportId
+→ growth-report-reactions
+→ GET /teacher/growth-reports/:reportId/interactions
+→ reactions.like.count / parents
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server:
+
+growth-report-interactions.ts body 수정
+→ commit
+→ Production Render deploy
+
+App:
+
+messages-inbox.tsx
+growth-report-reactions.tsx
+필요 시 teacher/_layout.tsx
+
+→ commit
+→ iOS production OTA
+
+Android OTA 금지.
+
+OTA rollback target 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER:
+
+A1.
+새 Growth Report 좋아요 발생
+
+A2.
+GET /teacher/news
+→ type = growth_report_like
+
+A3.
+body:
+"AI 성장 리포트에 좋아요를 눌렀습니다."
+포함
+
+A4.
+GET /teacher/growth-reports/:reportId/interactions
+→ 실제 like count ≥ 1
+
+A5.
+parents 목록에 실제 좋아요 Parent 포함
+
+APP:
+
+B1.
+Teacher 소식 탭에 새 좋아요 카드 표시
+
+B2.
+문구에서 "수업피드"가 아니라
+"AI 성장 리포트" 표시
+
+B3.
+알림 탭
+→ Growth Report 전용 반응 화면 진입
+
+B4.
+좋아요 숫자가 실제 값과 일치
+
+B5.
+좋아요 Parent 이름 표시
+
+B6.
+기존 Diary 좋아요 알림 탭
+→ 기존 diary-reactions 정상 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- PHASE 3-B Parent 댓글 구현 금지
+- growth_report_comment notification 구현 금지
+- Teacher reply 구현 금지
+- Parent reply notification 구현 금지
+- 기존 Diary interaction 변경 금지
+- 추가 DB migration 금지
+
+완료보고:
+
+[CODE]
+- SHA
+- 변경 파일
+
+[SERVER]
+- Render Live SHA
+- GET /teacher/news 새 notification body
+- interactions API count/parents 결과
+
+[OTA]
+- update group
+- update ID
+- rollback target
+
+[DEVICE]
+- 사용자 실기기 확인 대기
+
+완료 후 STOP.
