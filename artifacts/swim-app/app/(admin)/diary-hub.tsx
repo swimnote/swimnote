@@ -318,7 +318,7 @@ export default function DiaryHubScreen() {
       <View style={s.kpiRow}>
         <View style={s.kpiCard}>
           <Text style={s.kpiValue}>{summary.total_diaries}</Text>
-          <Text style={s.kpiLabel}>오늘 일지</Text>
+          <Text style={s.kpiLabel}>일지</Text>
         </View>
         <View style={[s.kpiCard, s.kpiCardRight]}>
           <Text style={s.kpiValue}>{summary.total_notes}</Text>
