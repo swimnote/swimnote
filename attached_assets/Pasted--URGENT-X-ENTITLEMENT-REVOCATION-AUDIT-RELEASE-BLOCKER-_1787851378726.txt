@@ -1,0 +1,270 @@
+[URGENT X ENTITLEMENT REVOCATION AUDIT — RELEASE BLOCKER]
+
+현재 발견된 문제:
+
+슈퍼관리자에서 특정 수영장에
+결제 없이 X 권한을 수동 부여한 뒤,
+해당 X 권한을 회수하려고 했으나
+회수가 정상적으로 되지 않는다.
+
+이 문제는 실제 X 유료구독 취소 시에도
+X 권한이 남을 가능성이 있으므로
+ANDROID RELEASE 전에 반드시 원인을 확인한다.
+
+중요:
+지금은 가격변경 작업 금지.
+새 X 기능 개발 금지.
+UI 재설계 금지.
+먼저 권한 상태의 SOURCE OF TRUTH와 revoke 흐름만 조사한다.
+
+==================================================
+1. X 권한 SOURCE OF TRUTH 전수조사
+==================================================
+
+현재 repository / production DB 기준으로
+X 활성 여부를 결정하는 모든 값을 찾는다.
+
+반드시 조사:
+
+- swimming_pools.xmode_enabled
+- swimming_pools.xmode_status
+- swimming_pools.xmode_subscription_status
+- swimming_pools.xmode_purchased_at
+- x_subscription 관련 table
+- RevenueCat entitlement
+- 수동 superadmin grant/revoke 관련 column/table
+- entitlement sync logic
+- middleware / route guard
+- frontend X-mode visibility condition
+- cached auth/user/pool data
+- AsyncStorage/local persisted state
+- server-side cache가 있다면 그것까지
+
+실제 앱이 최종적으로
+"이 수영장은 X를 사용할 수 있다"
+라고 판단하는 조건을 정확하게 작성한다.
+
+==================================================
+2. SUPERADMIN MANUAL GRANT / REVOKE 조사
+==================================================
+
+슈퍼관리자에서:
+
+A. X 권한 수동 부여
+B. X 권한 수동 회수
+
+각 버튼이 호출하는:
+
+- frontend function
+- API endpoint
+- server handler
+- DB update
+- resulting DB values
+
+전부 추적한다.
+
+현재 테스트 수영장에서
+왜 revoke 후에도 X가 활성 상태로 남는지
+실제 데이터 기준으로 원인을 찾는다.
+
+추측 금지.
+
+예:
+- xmode_enabled=false가 되었으나 다른 status가 ACTIVE
+- manual_grant row가 남음
+- RevenueCat entitlement가 다시 true로 덮어씀
+- frontend cache가 stale
+- route guard가 다른 column을 보고 있음
+- revoke API 자체가 실패
+- DB UPDATE WHERE 조건 오류
+
+중 실제 원인을 증거로 확인.
+
+==================================================
+3. REAL SUBSCRIPTION CANCELLATION PATH
+==================================================
+
+실제 RevenueCat/Store X 구독이:
+
+- cancel
+- expires
+- billing issue
+- refund
+- revoke
+
+되었을 때 어떤 webhook / sync / API 경로로
+X 권한이 회수되는지 추적한다.
+
+반드시 확인:
+
+1. 구독취소 버튼을 누른 직후
+   entitlement가 언제까지 유지되는가
+
+2. 실제 billing period 종료 시
+   entitlement가 false 되는가
+
+3. false 이벤트가 서버 DB에 반영되는가
+
+4. swimming_pools의 X 상태가 비활성화되는가
+
+5. 앱을 재시작했을 때 X 화면 접근이 막히는가
+
+6. 서버 API도 X 전용 endpoint 접근을 거부하는가
+
+단순 UI 숨김만으로 PASS 금지.
+
+==================================================
+4. MANUAL X vs PAID X 분리 확인
+==================================================
+
+매우 중요:
+
+슈퍼관리자 수동 X grant와
+실제 RevenueCat 유료 X subscription이
+어떻게 구분되는지 확인.
+
+다음 상태가 가능해야 한다:
+
+- manual grant only
+- paid entitlement only
+- both
+- neither
+
+그리고 revoke 규칙을 확인:
+
+SUPERADMIN manual revoke:
+→ manual grant만 제거하는지
+→ paid subscription이 있으면 X는 유지해야 하는지
+
+PAID subscription expiry:
+→ paid entitlement만 제거하는지
+→ manual grant가 있으면 X는 유지해야 하는지
+
+최종 X access는
+manual OR paid
+같은 합성 조건인지,
+현재 구현이 무엇인지 정확히 보고.
+
+==================================================
+5. TEST MATRIX
+==================================================
+
+아래 6개를 실제 코드/DB 기준으로 검증:
+
+CASE 1
+manual grant = ON
+paid entitlement = OFF
+→ X ACTIVE
+
+CASE 2
+manual grant = OFF
+paid entitlement = OFF
+→ X INACTIVE
+
+CASE 3
+manual grant = OFF
+paid entitlement = ON
+→ X ACTIVE
+
+CASE 4
+manual grant = ON
+paid entitlement = ON
+→ X ACTIVE
+
+CASE 5
+manual grant revoke
+paid entitlement = OFF
+→ 즉시 X INACTIVE
+
+CASE 6
+paid subscription expire/revoke
+manual grant = OFF
+→ X INACTIVE
+
+각 케이스에서 확인:
+
+- DB
+- API
+- admin app
+- teacher app
+- parent app
+- X route/API guard
+
+==================================================
+6. FIX POLICY
+==================================================
+
+원인이 명확하게 확인된 뒤에만 수정한다.
+
+권장 최종 원칙:
+
+X_ACCESS =
+VALID_PAID_X_ENTITLEMENT
+OR
+ACTIVE_SUPERADMIN_MANUAL_GRANT
+
+둘 다 false면
+반드시 X 비활성.
+
+단순히 과거 xmode_enabled=true 하나가 남아서
+영구적으로 X가 유지되는 구조는 금지.
+
+RevenueCat sync가
+manual grant를 지우거나,
+manual grant가 paid entitlement를 가짜로 생성하는 구조도 금지.
+
+==================================================
+7. RELEASE BLOCKER
+==================================================
+
+다음 중 하나라도 실패하면:
+
+- manual revoke 실패
+- paid expiry 후 revoke 실패
+- server X API 접근 차단 실패
+
+ANDROID RELEASE = HOLD
+
+가격변경보다 이 문제를 우선한다.
+
+==================================================
+8. 완료보고
+==================================================
+
+X ENTITLEMENT REVOCATION AUDIT
+
+FINAL X ACCESS CONDITION =
+MANUAL GRANT SOURCE =
+PAID ENTITLEMENT SOURCE =
+
+SUPERADMIN GRANT ENDPOINT =
+SUPERADMIN REVOKE ENDPOINT =
+
+TEST POOL CURRENT DB STATE =
+REVOKE FAILURE ROOT CAUSE =
+
+PAID CANCEL FLOW =
+PAID EXPIRY FLOW =
+REVENUECAT SYNC FLOW =
+
+CASE 1 =
+CASE 2 =
+CASE 3 =
+CASE 4 =
+CASE 5 =
+CASE 6 =
+
+SERVER API GUARD =
+CLIENT UI GUARD =
+
+FILES CHANGED =
+DB CHANGED =
+COMMIT =
+
+FINAL:
+PASS — manual/paid X revoke verified
+or
+HOLD — exact blocker
+
+STOP.
+다른 가격/빌드 작업으로 넘어가지 말 것.
