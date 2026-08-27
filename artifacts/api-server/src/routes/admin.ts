@@ -3,7 +3,7 @@ import { db, superAdminDb } from "@workspace/db";
 import { swimmingPoolsTable, usersTable, subscriptionsTable, membersTable, parentAccountsTable, parentStudentsTable, studentsTable, studentRegistrationRequestsTable, classGroupsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
-import { requireAuth, requireRole, requirePermission, type AuthRequest } from "../middlewares/auth.js";
+import { requireAuth, requireRole, requirePermission, requireXMode, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword, DEFAULT_PLATFORM_ADMIN_PERMISSIONS, type PlatformPermissions } from "../lib/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
@@ -3684,6 +3684,206 @@ router.delete("/maintenance/delete-parent-by-phone", requireAuth, requireRole("s
     return res.json({ success: true, deleted: rows.length, accounts: rows.map((r: any) => ({ id: r.id, name: r.name, login_id: r.login_id })) });
   } catch (e) { console.error(e); return res.status(500).json({ error: "서버 오류" }); }
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// GET /admin/reports/summary — AI 학생리포트 발급현황 (PHASE 2)
+// pool_admin + X entitlement 필수
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+router.get("/reports/summary",
+  requireAuth,
+  requireRole("pool_admin", "super_admin"),
+  requireXMode as any,
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "소속된 수영장이 없습니다." });
+
+      // ── 파라미터 파싱 ─────────────────────────────────
+      const now = new Date();
+      const year  = parseInt((req.query.year  as string) || String(now.getFullYear()), 10);
+      const month = parseInt((req.query.month as string) || String(now.getMonth() + 1), 10);
+      const q           = ((req.query.q        as string) || "").trim();
+      const initial     = ((req.query.initial  as string) || "").trim();   // 가나다 초성 필터
+      const classGroupId= (req.query.class_group_id as string) || null;
+      const teacherId   = (req.query.teacher_id    as string) || null;
+      const statusFilter= (req.query.status         as string) || null;
+      const page  = Math.max(1, parseInt((req.query.page  as string) || "1",  10));
+      const limit = Math.min(50, Math.max(10, parseInt((req.query.limit as string) || "30", 10)));
+      const offset = (page - 1) * limit;
+
+      if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+        return res.status(400).json({ error: "year/month 파라미터가 올바르지 않습니다." });
+      }
+
+      // ── period_start 범위 (해당 월 전체) ─────────────
+      const periodFrom = `${year}-${String(month).padStart(2,"0")}-01`;
+      const periodTo   = `${year}-${String(month).padStart(2,"0")}-31`; // DB는 실제 날짜로 자름
+
+      // ── 한국어 초성 → LIKE 패턴 변환 ─────────────────
+      // Unicode 가나다 초성 범위: 각 초성 시작 코드포인트
+      const CHOSUNG_RANGES: Record<string, [number, number]> = {
+        "ㄱ": [0xAC00, 0xB097], "ㄴ": [0xB098, 0xB2E3], "ㄷ": [0xB2E4, 0xB55B],
+        "ㄹ": [0xB55C, 0xB77B], "ㅁ": [0xB77C, 0xB9C7], "ㅂ": [0xB9C8, 0xBC13],
+        "ㅅ": [0xBC14, 0xBE5B], "ㅇ": [0xBE5C, 0xC0AB], "ㅈ": [0xC0AC, 0xC543],
+        "ㅊ": [0xC544, 0xC78F], "ㅋ": [0xC790, 0xC9AB], "ㅌ": [0xC9AC, 0xCB97],
+        "ㅍ": [0xCB98, 0xCDAB], "ㅎ": [0xCDAC, 0xD7A3],
+      };
+      let chosungCondition = "";
+      if (initial && CHOSUNG_RANGES[initial]) {
+        const [lo, hi] = CHOSUNG_RANGES[initial];
+        const loChar = String.fromCodePoint(lo);
+        const hiChar = String.fromCodePoint(hi);
+        chosungCondition = `AND s.name >= '${loChar}' AND s.name <= '${hiChar}'`;
+      }
+
+      // ── WHERE 절 조각 ─────────────────────────────────
+      const qCondition          = q            ? `AND s.name ILIKE '%${q.replace(/'/g,"''")}%'` : "";
+      const classGroupCondition = classGroupId ? `AND gr.class_group_id_at_creation = '${classGroupId}'` : "";
+      const teacherCondition    = teacherId    ? `AND cg.teacher_user_id = '${teacherId}'` : "";
+
+      // 상태 필터: 분석중은 5개 enum 합산
+      const ANALYZING_STATUSES = ["OPEN","PREANALYZING","QUESTION_AVAILABLE","READY_FOR_ANALYSIS","ANALYZING"];
+      let statusCondition = "";
+      if (statusFilter && statusFilter !== "ALL") {
+        if (statusFilter === "ANALYZING") {
+          const inList = ANALYZING_STATUSES.map(s => `'${s}'`).join(",");
+          statusCondition = `AND gr.product_status IN (${inList})`;
+        } else {
+          statusCondition = `AND gr.product_status = '${statusFilter}'`;
+        }
+      }
+
+      // ── KPI 집계 (월 전체, 필터 없이) ────────────────
+      const kpiResult = await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE product_status = 'PUBLISHED')                                                  AS published,
+          COUNT(*) FILTER (WHERE product_status = 'REVIEW_REQUIRED')                                            AS review_required,
+          COUNT(*) FILTER (WHERE product_status IN ('OPEN','PREANALYZING','QUESTION_AVAILABLE','READY_FOR_ANALYSIS','ANALYZING')) AS analyzing,
+          COUNT(*) FILTER (WHERE product_status = 'FAILED')                                                     AS failed
+        FROM growth_reports
+        WHERE swimming_pool_id = ${poolId}
+          AND product_status != 'NOT_OPEN'
+          AND period_start >= ${periodFrom}::date
+          AND period_start <= ${periodTo}::date
+          AND deleted_at IS NULL
+      `);
+      const kpi = kpiResult.rows[0] as any;
+
+      // ── 총 건수 ───────────────────────────────────────
+      const countSql = `
+        SELECT COUNT(*) AS cnt
+        FROM growth_reports gr
+        JOIN students s ON s.id = gr.student_id
+        LEFT JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
+        WHERE gr.swimming_pool_id = '${poolId}'
+          AND gr.product_status != 'NOT_OPEN'
+          AND gr.period_start >= '${periodFrom}'::date
+          AND gr.period_start <= '${periodTo}'::date
+          AND gr.deleted_at IS NULL
+          ${qCondition} ${chosungCondition} ${classGroupCondition} ${teacherCondition} ${statusCondition}
+      `;
+      const countResult = await db.execute(sql.raw(countSql));
+      const total = parseInt(String((countResult.rows[0] as any)?.cnt ?? "0"), 10);
+
+      // ── 메인 학생 목록 쿼리 ───────────────────────────
+      const listSql = `
+        SELECT
+          gr.id                     AS report_id,
+          gr.student_id,
+          s.name                    AS student_name,
+          gr.period_start,
+          gr.period_end,
+          gr.product_status,
+          gr.analysis_status,
+          gr.teacher_review_action,
+          gr.teacher_reviewed_at,
+          gr.published_at,
+          CASE WHEN gr.file_url IS NOT NULL AND gr.file_url != '' THEN true ELSE false END AS has_file,
+          sch.class_group_id,
+          COALESCE(cg.name, '') AS class_name,
+          cg.teacher_user_id   AS teacher_id,
+          COALESCE(u.name, '') AS teacher_name
+        FROM growth_reports gr
+        JOIN students s ON s.id = gr.student_id
+        LEFT JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        WHERE gr.swimming_pool_id = '${poolId}'
+          AND gr.product_status != 'NOT_OPEN'
+          AND gr.period_start >= '${periodFrom}'::date
+          AND gr.period_start <= '${periodTo}'::date
+          AND gr.deleted_at IS NULL
+          ${qCondition} ${chosungCondition} ${classGroupCondition} ${teacherCondition} ${statusCondition}
+        ORDER BY s.name ASC, gr.period_start DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+      const listResult = await db.execute(sql.raw(listSql));
+
+      // ── display_status 정규화 ─────────────────────────
+      const STATUS_LABEL: Record<string, string> = {
+        OPEN: "분석 준비", PREANALYZING: "분석 중", QUESTION_AVAILABLE: "분석 중",
+        READY_FOR_ANALYSIS: "분석 중", ANALYZING: "분석 중",
+        REVIEW_REQUIRED: "검토 대기", APPROVED: "승인 완료",
+        PUBLISHED: "발행 완료", PARTIAL: "일부 완료", FAILED: "실패",
+      };
+
+      const students = (listResult.rows as any[]).map(r => ({
+        report_id:           r.report_id,
+        student_id:          r.student_id,
+        student_name:        r.student_name,
+        class_group_id:      r.class_group_id ?? null,
+        class_name:          r.class_name || null,
+        teacher_id:          r.teacher_id ?? null,
+        teacher_name:        r.teacher_name || null,
+        period_start:        r.period_start,
+        period_end:          r.period_end,
+        product_status:      r.product_status,
+        display_status:      STATUS_LABEL[r.product_status] ?? r.product_status,
+        analysis_status:     r.analysis_status,
+        teacher_reviewed_at: r.teacher_reviewed_at,
+        published_at:        r.published_at,
+        has_file:            r.has_file === true || r.has_file === "true",
+      }));
+
+      // ── 반/선생님 목록 (필터 드롭다운용) ─────────────
+      const groupsResult = await db.execute(sql`
+        SELECT DISTINCT cg.id, cg.name AS class_name,
+          cg.teacher_user_id AS teacher_id,
+          u.name AS teacher_name
+        FROM growth_reports gr
+        JOIN students s ON s.id = gr.student_id
+        LEFT JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
+        WHERE gr.swimming_pool_id = ${poolId}
+          AND gr.period_start >= ${periodFrom}::date
+          AND gr.period_start <= ${periodTo}::date
+          AND gr.deleted_at IS NULL
+          AND cg.id IS NOT NULL
+        ORDER BY cg.name
+      `);
+
+      res.json({
+        summary: {
+          published:       parseInt(String(kpi.published ?? "0"), 10),
+          review_required: parseInt(String(kpi.review_required ?? "0"), 10),
+          analyzing:       parseInt(String(kpi.analyzing ?? "0"), 10),
+          failed:          parseInt(String(kpi.failed ?? "0"), 10),
+        },
+        filters: { year, month },
+        students,
+        class_groups: (groupsResult.rows as any[]).map(r => ({
+          id: r.id, name: r.class_name, teacher_id: r.teacher_id, teacher_name: r.teacher_name,
+        })),
+        pagination: { page, limit, total, has_more: offset + students.length < total },
+      });
+    } catch (e) {
+      console.error("[admin/reports/summary]", e);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
 
 export { checkRefundPolicyAgreed };
 
