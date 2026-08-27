@@ -1,0 +1,342 @@
+[앱] Teacher 알림 UX — Back Navigation + Home Modal 소식 통합 구현 승인
+
+구현계획서 승인.
+
+추가 조사 없이 아래 범위 그대로 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 알림함 → 반응&댓글 → Back 복귀 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+
+Home
+→ 알림함
+→ 반응&댓글
+→ Back
+→ 알림함
+→ Back
+→ Home
+
+반드시 이 순서.
+
+1) diary-reactions.tsx
+
+source === "news_inbox"
+→ messages-inbox로 명시적 복귀
+
+기존:
+
+source === "teacher_home_inbox"
+→ today-schedule
+
+그 외
+→ router.back()
+
+동작은 유지.
+
+2) growth-report-reactions.tsx
+
+source param 추가.
+
+source === "news_inbox"
+→ messages-inbox로 명시적 복귀
+
+그 외
+→ 기존 router.back()
+
+3) messages-inbox.tsx
+
+growth_report_like / growth_report_comment에서
+growth-report-reactions 진입 시:
+
+source = "news_inbox"
+
+반드시 전달.
+
+기존 diary_like / diary_comment의
+source="news_inbox"도 유지.
+
+중요:
+Tabs 구조 자체 수정 금지.
+_layout.tsx 구조 변경 금지.
+새 Stack 도입 금지.
+
+현재 구조에서 source 기반 최소 수정으로 해결.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. Home 중간 Modal에 "새 소식" 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+UnreadMessagesModal.tsx
+
+현재:
+
+쪽지 · 학부모 요청
+
+영역은 유지.
+
+여기에:
+
+"새 소식"
+
+영역 추가.
+
+대상:
+
+- diary_like
+- diary_thanks
+- diary_comment
+- growth_report_like
+- growth_report_comment
+
+기존 notification system 그대로 재사용.
+
+새 API 생성 금지.
+새 DB 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+소식 데이터
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+GET /teacher/news
+
+그대로 사용.
+
+unread_only / limit 파라미터 지원 여부를
+추가 조사하느라 작업 늘리지 마십시오.
+
+기존 응답을 받아:
+
+is_read === false
+
+만 필터하고
+
+created_at 최신순 기준
+최대 3건만 Modal에 표시.
+
+서버 title/body 그대로 사용.
+클라이언트에서 알림 문구 새로 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+Modal 표시 형태
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Modal 전체 디자인은 유지.
+
+소식은 compact row 형태.
+
+각 row:
+
+[아이콘] 제목
+         본문
+
+정도.
+
+최대 3개.
+
+기존 messages-inbox icon family를 재사용:
+
+diary_like
+growth_report_like
+→ heart
+
+diary_thanks
+→ 기존 thanks icon
+
+diary_comment
+growth_report_comment
+→ message 계열
+
+큰 카드 반복 금지.
+Modal이 지나치게 길어지지 않게 compact하게.
+
+하단 버튼:
+
+"알림함 전체보기"
+
+→ 기존 /(teacher)/messages-inbox
+
+기존 쪽지보관함 전체보기 구조와 자연스럽게 통합.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. Modal 소식 항목 Tap
+━━━━━━━━━━━━━━━━━━━━━━
+
+소식 항목을 누르면:
+
+1. POST /notifications/:id/read
+2. 해당 notification만 읽음 처리
+3. Modal close
+4. 해당 target으로 이동
+
+Diary 계열:
+→ diary-reactions
+→ source="news_inbox"
+
+Growth Report 계열:
+→ growth-report-reactions
+→ source="news_inbox"
+
+중요:
+
+Modal을 열었다는 이유만으로
+소식 전체 read 처리 금지.
+
+항목을 실제로 눌렀을 때만
+해당 notification read.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. Home Red Dot 즉시 동기화
+━━━━━━━━━━━━━━━━━━━━━━
+
+소식 항목 read 성공 후
+15초 polling만 기다리지 마십시오.
+
+기존 today-schedule의 overview refresh 구조를 재사용하여
+Modal → Home unread 상태가 즉시 갱신되도록 연결.
+
+가능하면 기존 onMessagesRead / loadOverview 계열 callback을
+최소 확장하여 재사용.
+
+불필요한 새 global state/context 만들지 말 것.
+
+결과:
+
+마지막 unread 소식을 읽음
+→ Home 복귀
+→ 편지함 red dot 즉시 제거
+
+아직 unread가 남아 있음
+→ red dot 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+기존 쪽지 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 쪽지 read-all 동작 등
+기존 쪽지/학부모 요청 정책은 이번 작업에서 변경하지 마십시오.
+
+이번 작업은 "소식(news)" 추가만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+TARGETED TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. Diary 알림
+
+Home
+→ Modal
+→ 새 소식 diary_like tap
+→ diary-reactions
+→ Back
+→ messages-inbox
+→ Back
+→ Home
+
+PASS 필요.
+
+B. Growth Report 알림
+
+Home
+→ Modal
+→ growth_report_comment tap
+→ growth-report-reactions
+→ Back
+→ messages-inbox
+→ Back
+→ Home
+
+PASS 필요.
+
+C. 알림함 직접 진입
+
+messages-inbox
+→ diary_like
+→ Back
+→ messages-inbox
+
+messages-inbox
+→ growth_report_comment
+→ Back
+→ messages-inbox
+
+둘 다 PASS.
+
+D. Modal 표시
+
+unread 소식 5건 존재
+→ 최신 unread 3건만 표시
+
+read 항목
+→ Modal recent list에서 제거
+
+E. Red Dot
+
+unread 1건
+→ red dot ON
+
+마지막 unread item tap/read
+→ Home overview 즉시 refresh
+→ red dot OFF
+
+F. 기존 기능
+
+- 쪽지
+- 학부모 요청
+- Diary 직접 진입
+- Teacher Diary → reactions
+
+기존 navigation regression 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경은 앱 JS/TSX 범위면:
+
+최소 테스트
+→ rollback target 기록
+→ iOS production OTA
+
+Render 변경 없음.
+DB 변경 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[BACK]
+- diary-reactions 결과
+- growth-report-reactions 결과
+- source 처리
+
+[MODAL NEWS]
+- 표시 type
+- unread filtering
+- 최대 표시 개수
+- item tap/read 처리
+- 전체보기
+
+[RED DOT]
+- read 직후 overview refresh 방식
+- ON/OFF 결과
+
+[CODE]
+- SHA
+- 변경 파일
+
+[OTA]
+- previous rollback target
+- new OTA ID
+- runtimeVersion
+
+[DEVICE]
+Replit이 실기기를 직접 확인하지 못하면
+"사용자 실기기 확인 대기"로 보고.
+
+완료 후 STOP.
