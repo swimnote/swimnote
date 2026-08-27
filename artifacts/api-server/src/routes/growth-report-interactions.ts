@@ -347,7 +347,7 @@ router.post(
           return;
         }
 
-        const pushBody = `${senderName}이(가) 성장리포트에 댓글을 남겼습니다.`;
+        const pushBody = `${senderName}님이 AI 성장 리포트에 댓글을 남겼습니다.`;
         const newsId = genId("notif_grc");
 
         await db.execute(sql`

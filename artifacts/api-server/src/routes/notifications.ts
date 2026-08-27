@@ -66,7 +66,7 @@ router.get("/teacher/news", requireAuth, async (req: AuthRequest, res: Response)
       LEFT JOIN class_diaries cd ON cd.id = n.ref_id AND n.ref_type = 'diary'
       LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
       WHERE n.recipient_id = ${userId} AND n.recipient_type = 'user'
-        AND n.type IN ('diary_like', 'diary_thanks', 'diary_comment', 'growth_report_like')
+        AND n.type IN ('diary_like', 'diary_thanks', 'diary_comment', 'growth_report_like', 'growth_report_comment')
       ORDER BY n.created_at DESC LIMIT 100
     `);
     const unread = (rows.rows as any[]).filter((n: any) => !n.is_read).length;

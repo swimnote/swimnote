@@ -120,7 +120,7 @@ export default function MessagesInboxScreen() {
   // ── 소식 탭 상태 ──
   interface NewsItem {
     id: string;
-    type: "diary_like" | "diary_thanks" | "diary_comment" | "growth_report_like";
+    type: "diary_like" | "diary_thanks" | "diary_comment" | "growth_report_like" | "growth_report_comment";
     title: string;
     body: string;
     ref_id: string;   // diary_id or growth_report_id
@@ -321,7 +321,8 @@ export default function MessagesInboxScreen() {
     if (type === "diary_like")         return { name: "heart" as const,          color: "#EF4444" };
     if (type === "diary_thanks")        return { name: "hand-heart" as const,     color: "#F59E0B" };
     if (type === "diary_comment")       return { name: "message-circle" as const, color: "#10B981" };
-    if (type === "growth_report_like")  return { name: "heart" as const,          color: "#EF4444" };
+    if (type === "growth_report_like")    return { name: "heart" as const,           color: "#EF4444" };
+    if (type === "growth_report_comment") return { name: "message-circle" as const,  color: "#10B981" };
     return { name: "bell" as const, color: "#6B7280" };
   }
   /** 소식 날짜 포맷 */
@@ -506,7 +507,7 @@ export default function MessagesInboxScreen() {
                     }
                     // 해당 화면으로 이동
                     if (item.ref_id) {
-                      if (item.type === "growth_report_like") {
+                      if (item.type === "growth_report_like" || item.type === "growth_report_comment") {
                         router.push({
                           pathname: "/(teacher)/growth-report-reactions",
                           params: { reportId: item.ref_id },
