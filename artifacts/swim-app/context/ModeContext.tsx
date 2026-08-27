@@ -23,6 +23,7 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 
 // ─── 공개 타입 ────────────────────────────────────────────────────────────────
@@ -228,6 +229,26 @@ export function ModeProvider({ children }: { children: ReactNode }) {
       }
     }
   }, []); // 안정적 참조 — 내부는 모두 ref로 읽음
+
+  // ─── AppState foreground 복귀 시 재조회 ──────────────────────────────────
+  //
+  // 슈퍼관리자가 X 사용권을 revoke/grant한 뒤 pool_admin/teacher가 앱을
+  // foreground로 복귀하면 즉시 서버 source-of-truth를 다시 확인한다.
+  // 폴링 없음 — background→active 전환 시점에만 1회 호출.
+  //
+  useEffect(() => {
+    let prevState: AppStateStatus = AppState.currentState;
+    const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (
+        (prevState === "background" || prevState === "inactive") &&
+        nextState === "active"
+      ) {
+        refreshMode();
+      }
+      prevState = nextState;
+    });
+    return () => sub.remove();
+  }, [refreshMode]);
 
   // ─── 자동 트리거: token / poolId / isLoading / supported 변화 감지 ─────────
   useEffect(() => {
