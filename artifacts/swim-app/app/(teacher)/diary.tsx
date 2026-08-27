@@ -848,6 +848,13 @@ export default function TeacherDiaryScreen() {
 
   // 초기 mount focus는 skip — 이후 복귀 시만 diaries refetch
   const isMountFocusRef = useRef(true);
+  // diary-reactions 화면을 열었던 diaryId 추적 — 복귀 시 해당 item만 pinpoint 갱신
+  const lastOpenedReactionDiaryIdRef = useRef<string | null>(null);
+  // useFocusEffect closure에서 최신 token/selectedGroup 참조를 위한 ref
+  const tokenRef = useRef(token);
+  const selectedGroupIdRef = useRef(selectedGroup?.id);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { selectedGroupIdRef.current = selectedGroup?.id; }, [selectedGroup?.id]);
 
   // Android 하드웨어 Back — draft 있으면 확인 Alert 호출
   // + 화면 복귀 시 like_count 자동 갱신 (messages-inbox 등 다른 화면 갔다 돌아올 때)
@@ -863,12 +870,34 @@ export default function TeacherDiaryScreen() {
 
       if (isMountFocusRef.current) {
         isMountFocusRef.current = false; // 초기 mount는 기존 useEffect가 처리
-      } else if (selectedGroup?.id) {
-        loadDiaries(selectedGroup.id); // 복귀 시 최신 like_count 반영
+      } else {
+        const reactionDiaryId = lastOpenedReactionDiaryIdRef.current;
+        const curGroupId = selectedGroupIdRef.current;
+        const curToken = tokenRef.current;
+        if (reactionDiaryId && curToken) {
+          // diary-reactions에서 복귀: 해당 diary item의 count만 pinpoint 갱신
+          lastOpenedReactionDiaryIdRef.current = null;
+          (async () => {
+            try {
+              const r = await apiRequest(curToken, `/diaries/${reactionDiaryId}/comment-count`);
+              if (r.ok) {
+                const d = await r.json();
+                setDiaries(prev => prev.map(item =>
+                  item.id === reactionDiaryId
+                    ? { ...item, like_count: d.like_count ?? item.like_count, comment_count: d.comment_count ?? item.comment_count }
+                    : item
+                ));
+              }
+            } catch {}
+          })();
+        } else if (curGroupId) {
+          // 다른 화면(메시지함 등)에서 복귀: 전체 refetch
+          loadDiaries(curGroupId);
+        }
       }
 
       return () => sub.remove();
-    }, [handleExitDiary, selectedGroup?.id]),
+    }, [handleExitDiary]),
   );
 
   async function handleSave() {
@@ -1530,7 +1559,10 @@ export default function TeacherDiaryScreen() {
             onDeleteConfirm={confirmDelete}
             onDeleteCancel={() => setDeleteTarget(null)}
             onWriteDiary={() => setSubView("write")}
-            onPressReactions={(diary) => router.push({ pathname: "/(teacher)/diary-reactions" as any, params: { diaryId: diary.id, lessonDate: diary.lesson_date } })}
+            onPressReactions={(diary) => {
+              lastOpenedReactionDiaryIdRef.current = diary.id;
+              router.push({ pathname: "/(teacher)/diary-reactions" as any, params: { diaryId: diary.id, lessonDate: diary.lesson_date } });
+            }}
             token={token}
             classGroupId={group.id}
           />
