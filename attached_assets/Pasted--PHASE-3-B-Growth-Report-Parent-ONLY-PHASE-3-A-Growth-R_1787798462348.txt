@@ -1,0 +1,330 @@
+[앱] PHASE 3-B — Growth Report Parent 댓글 기능 구현계획서 ONLY
+
+PHASE 3-A 좋아요 기능 완료.
+
+다음 단계는 Growth Report 댓글 기능입니다.
+
+최종 목표:
+
+Parent Growth Report Feed
+→ 댓글 아이콘 탭
+→ Growth Report 댓글 화면
+→ Parent 댓글 작성/조회/삭제
+→ 해당 댓글이 Growth Report comment 데이터로 저장
+→ 담당 Teacher에게 Growth Report 댓글 알림이 전달
+
+이번 단계에서는 아직 구현하지 마십시오.
+현재 HEAD 기준 조사 + 구현계획서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Parent Feed 댓글 버튼 현재 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Growth Report Feed:
+
+components/parent/GrowthReportFullFeed.tsx
+
+하단 ActionRow:
+
+[heart] [message-circle] [PDF·공유]
+
+중 comment button의 현재 상태 확인.
+
+보고:
+
+- 실제 component/file
+- onPress 연결 여부
+- reportId source
+- studentId source
+- studentName source
+- report_period source
+- 현재 Feed item에서 댓글 화면에 필요한 값 전달 가능 여부
+
+최종 동작:
+
+message-circle 탭
+→ Growth Report 전용 댓글 화면
+
+이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 Diary 댓글 UX 재조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Parent Diary 댓글 화면을 기준본으로 사용.
+
+확인:
+
+app/(parent)/diary-comments.tsx
+
+실제 현재 구조:
+
+- route params
+- header
+- thread 조회
+- parent comment bubble
+- teacher reply bubble
+- TextInput
+- send
+- delete
+- pull-to-refresh
+- loading/error
+- keyboard handling
+
+Growth Report 댓글 화면은
+새 디자인을 만들지 말고 이 UX를 최대한 그대로 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Growth Report 댓글 API 실제 Contract 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이미 서버에 구현된 API를 현재 코드 기준으로 다시 확인.
+
+GET
+/parent/growth-reports/:reportId/comments
+
+POST
+/parent/growth-reports/:reportId/comments
+
+DELETE
+/growth-report-comments/:commentId
+
+반드시 실제 request/response shape 제출.
+
+특히 POST body:
+
+- studentId가 필요한지
+- body field 이름
+- reportId 외 추가 context 필요 여부
+
+추측 금지.
+
+GET response:
+
+- threads shape
+- root comment fields
+- replies fields
+- parent name
+- teacher name
+- created_at
+- deleted state 처리
+
+를 실제 route 기준으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Parent 전용 댓글 화면 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 route 후보:
+
+app/(parent)/gr-comments.tsx
+
+기존 diary-comments.tsx 구조를 기준으로 설계.
+
+route params:
+
+- reportId
+- studentId
+- studentName
+- reportPeriod
+
+필요 여부를 실제 코드 기준으로 확정.
+
+화면:
+
+Header:
+댓글
+
+Subtitle 예:
+서태웅 · 2026년 8월 AI 성장 리포트
+
+단 실제 전달 가능한 값만 사용.
+
+본문:
+
+Parent root comment
+Teacher replies
+
+하단:
+
+TextInput
+전송 버튼
+
+기존 Diary 댓글 UX와 동일 계열.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 댓글 작성/삭제 동작 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+댓글 작성:
+
+Parent
+→ POST Growth Report comment
+→ 성공
+→ thread 최신화
+
+댓글 삭제:
+
+본인 comment만 삭제 가능.
+
+확인:
+
+- delete endpoint
+- soft delete 여부
+- reply가 있는 root comment 삭제 정책
+- 삭제 후 UI 표시 방식
+
+기존 서버 정책을 그대로 따를 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Teacher Notification 연결 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report comment 작성 시 서버에서:
+
+type = growth_report_comment
+
+notification이 생성되는 코드가 이미 있는지 확인.
+
+보고:
+
+- title
+- body
+- recipient_id resolve
+- ref_id
+- ref_type
+- deep_link
+- active server code 존재 여부
+
+그리고 현재:
+
+GET /teacher/news allowlist
+
+에 growth_report_comment가 포함되어 있는지 확인.
+
+현재 좋아요 단계에서는
+growth_report_like만 추가했으므로,
+growth_report_comment는 아직 제외되어 있을 가능성이 큼.
+
+실제 코드 기준으로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. PHASE 3-B 범위 분리 제안
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계 구현을 아래처럼 나누는 게 안전한지 검토:
+
+PHASE 3-B1
+Parent Growth Report 댓글 화면/API 연결
+
+PHASE 3-B2
+Teacher 소식 탭에 Growth Report 댓글 notification 표시
+
+각 단계마다:
+
+- 수정 파일
+- server 변경
+- app 변경
+- Render 필요 여부
+- OTA 필요 여부
+- 테스트
+
+제출.
+
+Teacher가 댓글 내용을 실제 thread 화면에서 보고 답글하는 기능은
+PHASE 3-C/3-D 범위로 유지.
+
+즉 이번 3-B에서는:
+
+Parent 댓글 작성
+→ Teacher에게 "AI 성장 리포트에 새 댓글" 알림 도착
+
+까지 우선 닫는 방향.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Notification 문구
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 댓글 알림은
+Diary와 명확히 구분해야 함.
+
+예:
+
+title:
+새 댓글
+
+body:
+"{parentName}님이 AI 성장 리포트에 댓글을 남겼습니다."
+
+현재 서버 문구가 무엇인지 먼저 조사.
+
+바로 수정하지 말고 계획에 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 보안/권한
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 승인된 Parent만 해당 Growth Report 댓글 접근
+- unpublished report 접근 차단
+- deleted report 접근 차단
+- 다른 pool report 접근 차단
+- 다른 Parent comment 삭제 차단
+- comment author 위조 차단
+- teacher recipient 잘못 resolve되지 않음
+
+기존 서버 auth를 재사용.
+
+새 권한 시스템 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CURRENT COMMENT BUTTON]
+- file/component
+- onPress 상태
+- 사용 가능한 params
+
+[DIARY COMMENT REUSE]
+- 기존 Diary 댓글 UX
+- 재사용 방식
+
+[COMMENT API CONTRACT]
+- GET
+- POST
+- DELETE
+- 실제 request/response
+
+[TEACHER NOTIFICATION]
+- growth_report_comment 생성 코드
+- 문구
+- recipient
+- /teacher/news 포함 여부
+
+[PHASE 3-B1 PLAN]
+- Parent 댓글 UI/API
+- 수정/신규 파일
+- 테스트
+
+[PHASE 3-B2 PLAN]
+- Teacher notification 표시
+- 수정 파일
+- Render/OTA 여부
+- 테스트
+
+[RISK]
+- Diary regression
+- auth/pool isolation
+- notification recipient
+- rollback
+
+이번 단계:
+코드 수정 금지
+DB write 금지
+Render deploy 금지
+OTA 금지
+PHASE 3-C/3-D 구현 금지
+
+구현계획서 제출 후 STOP.
