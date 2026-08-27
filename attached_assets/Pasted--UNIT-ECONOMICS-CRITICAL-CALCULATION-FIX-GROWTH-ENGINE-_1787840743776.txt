@@ -1,0 +1,259 @@
+[UNIT ECONOMICS — CRITICAL CALCULATION FIX + GROWTH ENGINE COST AUDIT]
+
+현재 Unit Economics 보고서에 통화 환산 오류가 있습니다.
+
+코드 수정 금지.
+가격 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. USD → KRW 환산 오류 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+기준 환율:
+1 USD = 1,400 KRW
+
+따라서:
+
+$0.000069
+=
+0.0966 KRW
+
+₩97이 아님.
+
+$0.000408
+=
+0.5712 KRW
+
+₩571이 아님.
+
+현재 보고서의 AI Diary / Support AI 계산에
+약 1,000배 환산 오류가 있음.
+
+전부 재계산할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. AI Diary 재계산
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 measured cost:
+
+$0.000069 / call
+
+환율 1,400원 기준:
+
+₩0.0966 / call
+
+따라서:
+
+300명 428 calls:
+약 ₩41/month
+
+500명 714 calls:
+약 ₩69/month
+
+기존:
+₩41,560
+₩69,062
+
+계산은 오류.
+
+Premier 300/500 적자 결론도 철회 후 재계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Support AI telemetry 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+AVG:
+$0.000408/call
+
+64 calls
+
+TOTAL:
+$0.0008
+
+세 숫자가 수학적으로 서로 맞지 않음.
+
+원본 event_logs를 다시 집계:
+
+COUNT
+SUM(estimated_cost_usd)
+AVG(estimated_cost_usd)
+P50
+P90
+
+제출.
+
+USD와 KRW 둘 다 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. R2 계산 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 가정:
+
+$0.015 / GB-month
+≈ ₩21 / GB-month
+
+0.73GB × ₩21
+≈ ₩15/month
+
+기존 ₩10,241/month 계산은 오류.
+
+R2 storage:
+- storage GB-month
+- Class A
+- Class B
+- egress
+
+각각 분리해서 다시 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 가장 중요한 미확인 비용
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report AI 원가를 최우선 조사.
+
+현재:
+growth_reports 510건
+growth_report_ai event_logs 17건
+estimated_cost_usd = NULL
+
+External Engine repository에서 실제:
+
+- provider
+- model
+- PREANALYSIS model calls
+- FINAL_ANALYSIS model calls
+- input tokens
+- output tokens
+- reasoning/cached tokens
+- embedding
+- validator model call
+- retry
+- average calls/report
+
+찾을 것.
+
+가능하면 Engine의 provider usage/log에서
+실제 1건당 비용 계산.
+
+최종:
+
+Growth Report 1건:
+LOW
+BASE
+P90
+
+USD
+KRW
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 300/500 Growth Report 월 비용
+━━━━━━━━━━━━━━━━━━━━━━
+
+무료 AI 성장리포트 대상률:
+
+70%
+85%
+100%
+
+300명:
+210
+255
+300건
+
+500명:
+350
+425
+500건
+
+각각 월 Growth Report AI 비용 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. App Store 수수료 민감도
+━━━━━━━━━━━━━━━━━━━━━━
+
+X tier별로:
+
+15%
+30%
+
+둘 다 계산.
+
+tier1 75,000
+tier2 105,000
+tier3 135,000
+standard 150,000
+
+각각:
+
+gross
+fee
+net
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Supabase 실제 plan
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드/DB에서 확인 불가하면
+MISSING 그대로 유지.
+
+사용자 console 정보 없이는 임의 $25 가정 금지.
+
+단:
+
+현재 고정비에서
+Supabase 제외
+라고 명확히 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 원가표 재작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+300 Normal
+500 Normal
+300 + X tier1/2/3/standard
+500 + X tier1/2/3/standard
+
+각각:
+
+Revenue
+App Store fee
+Base infra
+Diary AI
+Growth Report AI
+Curriculum AI
+Support AI
+Storage
+Supabase(MISSING separate)
+
+Total known COGS
+Contribution
+Margin
+
+작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 결론 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 비용이 밝혀지기 전에는
+현재 X promo를:
+
+SAFE / UNSAFE
+
+최종 판정하지 말 것.
+
+현재 확인 가능한 비용 기준으로만:
+
+KNOWN-COST SAFE / UNKNOWN-RISK
+
+형태로 판정.
+
+보고 후 STOP.
