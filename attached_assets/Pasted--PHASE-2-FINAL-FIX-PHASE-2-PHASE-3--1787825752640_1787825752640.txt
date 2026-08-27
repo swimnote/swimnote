@@ -1,0 +1,162 @@
+[PHASE 2 FINAL FIX 승인]
+
+PHASE 2 범위 내 최소 수정 승인.
+
+PHASE 3 시작 금지.
+기능 추가 금지.
+설계 변경 금지.
+
+이번 작업은 아래 2개만 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. x-growth 실제 학생 자동선택 연결 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+report-hub
+→ /(admin)/x-growth
+→ preselect_student_id 전달
+
+까지는 정상.
+
+하지만 x-growth.tsx가
+route param을 읽지 않아서 학생 자동선택이 되지 않음.
+
+제출한 최소 수정안대로 구현 승인.
+
+대상:
+
+artifacts/swim-app/app/(admin)/x-growth.tsx
+
+수정:
+
+- useLocalSearchParams 추가
+- preselect_student_id 수신
+- students 로드 완료 후 해당 id 학생 탐색
+- selectedStu 자동 설정
+
+원칙:
+
+- 기존 학생 수동 선택 기능 유지
+- 기존 Growth Board UI 변경 금지
+- 기존 API 변경 금지
+- 새로운 상세화면 생성 금지
+- Normal mode 영향 금지
+- 기존 x-growth 직접 진입 시 param이 없으면 현재 동작 그대로
+
+중복 effect 또는 반복 자동선택이 발생하지 않도록
+현재 selectedStu가 이미 있으면 다시 덮어쓰지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DETAIL 실제 E2E 재검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 반드시 확인:
+
+report-hub
+→ 학생 row tap
+→ x-growth
+→ preselect_student_id 수신
+→ students 로드
+→ 해당 학생 자동 선택
+→ 해당 학생 Growth Report 실제 데이터 표시
+
+단순 selectedStu 설정까지만 PASS 금지.
+
+최종적으로 해당 학생 리포트가 화면에 실제 표시되는지 확인.
+
+테스트:
+
+D1. param 없는 x-growth 직접 진입 정상
+D2. param 있는 report-hub 진입 정상
+D3. 해당 학생 자동 선택
+D4. 다른 학생이 선택되지 않음
+D5. 해당 학생 report 실제 조회
+D6. 이후 사용자가 다른 학생 chip 수동 선택 가능
+D7. back → report-hub 정상
+D8. TS error 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Render production 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 server 코드 추가 수정 금지.
+
+89bbd628 또는
+이후 이번 client fix commit과 관계없이
+server 신규 route가 실제 production에 올라왔는지만 확인.
+
+반드시:
+
+GET /admin/reports/summary
+
+가 SPA HTML이 아니라
+API route로 응답하는지 확인.
+
+인증 없이 호출했을 때:
+
+401/403 JSON
+
+등 API middleware 응답이 나오면
+route registration 자체는 production 반영된 것으로 판정 가능.
+
+가능하면 실제 인증된 X 관리자 세션으로도 호출하여:
+
+200
++
+summary/students/pagination contract
+
+확인.
+
+Render가 아직 deploy 중이면
+코드를 또 수정하거나 재배포 트리거하지 말고
+완료 상태를 확인한 뒤 테스트.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+x-growth.tsx 수정이므로
+production OTA 배포.
+
+runtimeVersion 기존 1.6.3 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[DETAIL FIX]
+
+- SHA
+- 수정 파일
+- useLocalSearchParams 적용
+- 자동선택 effect
+- 기존 수동선택 보존
+
+[DETAIL E2E]
+
+D1~D8 PASS/FAIL
+
+[RENDER FINAL]
+
+- deploy status
+- API route production 반영 여부
+- unauthenticated response
+- authenticated response
+- status code
+- server error
+
+[OTA]
+
+- rollback target
+- new OTA ID
+- runtimeVersion
+
+[PHASE 2 FINAL]
+
+PASS / FAIL
+
+완료 후 STOP.
+
+PHASE 3 시작 금지.
