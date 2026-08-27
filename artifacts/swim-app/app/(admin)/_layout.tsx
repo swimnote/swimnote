@@ -246,6 +246,11 @@ export default function AdminLayout() {
       <Tabs.Screen name="parents-list"            options={{ href: null }} />
       <Tabs.Screen name="refund-policy"           options={{ href: null }} />
       <Tabs.Screen name="web-pin-settings"        options={{ href: null }} />
+      {/* 4대 X 운영허브 — PHASE 0/1 shell (PHASE 2~5에서 내용 구현) */}
+      <Tabs.Screen name="report-hub"             options={{ href: null }} />
+      <Tabs.Screen name="diary-hub"              options={{ href: null }} />
+      <Tabs.Screen name="curriculum-hub"         options={{ href: null }} />
+      <Tabs.Screen name="x-hub"                  options={{ href: null }} />
       {/* SWIMNOTE X — 탭 노출 없이 push로만 접근 (WP4) */}
       <Tabs.Screen name="x-growth"               options={{ href: null }} />
       {/* SWIMNOTE X — X01 정보 허브 및 설명 화면 */}

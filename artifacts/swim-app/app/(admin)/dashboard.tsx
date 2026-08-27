@@ -462,13 +462,13 @@ export default function DashboardScreen() {
                       shadowColor: XT.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
                       elevation: 4,
                     })}
-                    onPress={() => router.push("/(admin)/x-growth")}
+                    onPress={() => router.push("/(admin)/report-hub")}
                   >
                     <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
                       <LucideIcon name="bar-chart-2" size={19} color="#FFFFFF" />
                     </View>
                     <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>성장 추적</Text>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 학생리포트</Text>
                       <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 분석</Text>
                     </View>
                   </Pressable>
@@ -480,13 +480,13 @@ export default function DashboardScreen() {
                       shadowColor: XT.accent, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
                       elevation: 3,
                     })}
-                    onPress={() => router.push("/(admin)/diary-list" as any)}
+                    onPress={() => router.push("/(admin)/diary-hub")}
                   >
                     <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
                       <LucideIcon name="brain" size={19} color="#FFFFFF" />
                     </View>
                     <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지</Text>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지피드</Text>
                       <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>수업 일지 자동 생성</Text>
                     </View>
                   </Pressable>
@@ -498,12 +498,12 @@ export default function DashboardScreen() {
                       flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
                       borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
                     })}
-                    onPress={() => router.push("/(admin)/x-mode-hub")}
+                    onPress={() => router.push("/(admin)/curriculum-hub")}
                   >
                     <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
                       <LucideIcon name="book-open" size={17} color={XT.accentStrong} />
                     </View>
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>커리큘럼</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>AI 커리큘럼</Text>
                     <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>수준별 교육과정</Text>
                   </Pressable>
                   <Pressable
@@ -511,12 +511,12 @@ export default function DashboardScreen() {
                       flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
                       borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
                     })}
-                    onPress={() => router.push(mode === "x" ? "/(admin)/x-subscription" : "/(admin)/x-setup")}
+                    onPress={() => router.push("/(admin)/x-hub")}
                   >
                     <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
                       <LucideIcon name="settings-2" size={17} color={XT.accentStrong} />
                     </View>
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>X 세팅</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>SWIMNOTE X 관리</Text>
                     <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>X모드 설정 관리</Text>
                   </Pressable>
                 </View>
