@@ -31,9 +31,14 @@ description: AI 일지피드 허브 구현 완료 상태, PRE-CHECK 결과, 배�
 - AI 생성 KPI: ai_status 컬럼 없음 → 이번 PHASE 제외
 - 미작성 KPI: common_content NOT NULL + 작성 시 생성 → 계산 불가
 
-## Render 배포 상태
-- `cdf85657` GitHub push 완료 (2026-08-27)
-- Render 재배포 미실행 (수동 배포 대기 중)
-- 현재 live: `16ae6299` (PHASE 2)
+## Route path 버그 (수정 완료)
+- admin.ts route를 `"/admin/diaries/summary"`로 등록 → index.ts가 `router.use("/admin", adminRouter)` 마운트이므로 이중 prefix 발생
+- 올바른 path: `"/diaries/summary"` (admin.ts 내부)
+- 수정 SHA: `69bf7c1d`
 
-**Why:** production API /api/admin/diaries/summary는 Render 재배포 후 활성화됨
+## Render 배포 상태
+- `69bf7c1d` live (2026-08-27 11:26:40 UTC)
+- dep-da81rqbbc2fs73chpt8g — LIVE ✅
+- T27 PASS: `GET /api/admin/diaries/summary` → 401 JSON
+
+**Why:** admin.ts는 index.ts에서 `/admin` prefix로 마운트됨. admin.ts 내부 route path에 `/admin` 중복 금지.
