@@ -705,24 +705,12 @@ router.get("/x-subscription-status", requireAuth, requireRole("pool_admin"), asy
       subscription_status = "UNKNOWN";
     }
 
-    // KRW 정책 가격 — 2026-08-28: pool 플랜 기준 단일가 (회원당 ₩300)
-    const [poolPlanRow] = (await superAdminDb.execute(sql`
-      SELECT COALESCE(ps.tier, 'free') AS tier
-      FROM swimming_pools p
-      LEFT JOIN pool_subscriptions ps
-        ON ps.swimming_pool_id = p.id AND ps.status = 'active'
-      WHERE p.id = ${poolId}
-      LIMIT 1
-    `)).rows as any[];
-    const poolTier = (poolPlanRow?.tier ?? 'free') as string;
-    const X_KRW_PRICE_BY_POOL_TIER: Record<string, string> = {
-      advance:    "₩90,000",   // PREMIER 300 (300명 × ₩300)
-      pro:        "₩150,000",  // PREMIER 500 (500명 × ₩300)
-      max:        "₩300,000",  // PREMIER 1000 (1000명 × ₩300)
-      center_200: "₩90,000",   // 구형 Premier 200 호환 (deprecated)
+    // KRW 정책 가격 (서버 tier_key 기준)
+    const X_KRW_PRICE: Record<string, string> = {
+      tier1: "₩75,000", tier2: "₩105,000", tier3: "₩135,000", standard: "₩150,000",
     };
     const tierKey: string | null = slot?.tier_key ?? null;
-    const krw_price = X_KRW_PRICE_BY_POOL_TIER[poolTier] ?? null;
+    const krw_price = tierKey ? (X_KRW_PRICE[tierKey] ?? null) : null;
 
     res.json({
       subscription_status,

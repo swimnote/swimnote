@@ -2589,16 +2589,15 @@ router.post("/super/plans/reinit", requireAuth, requireRole("super_admin"), asyn
   try {
     await ensurePlansTables();
     // ── 확정 기준값 (pool-db-init.ts 와 동일하게 유지) ──
-    // 2026-08-28 가격 재설계: SOLO ₩4,900 / P300=₩11,900 / P500=₩19,900 / P1000=₩29,900
     const PLAN_ROWS: [string, string, string, number, number, number, number, string][] = [
       ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
       ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
       ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
-      ['standard',   'solo_100',    'SOLO',         4900,    100,  1024,   1,    '1GB'  ],
+      ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
       ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
-      ['advance',    'center_300',  'Premier 300',  11900,   300,  10240,  10,   '10GB' ],
-      ['pro',        'center_500',  'Premier 500',  19900,   500,  20480,  20,   '20GB' ],
-      ['max',        'center_1000', 'Premier 1000', 29900,   1000, 51200,  50,   '50GB' ],
+      ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
+      ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
+      ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
     ];
     let upserted = 0;
     for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {

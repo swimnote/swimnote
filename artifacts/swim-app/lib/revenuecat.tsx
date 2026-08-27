@@ -35,42 +35,39 @@ export interface PlanMeta {
   features: string[];
 }
 
-// 2026-08-28 가격 재설계: storage 기준값 실제 플랜과 일치하도록 수정
 export const PACKAGE_META: Record<string, PlanMeta> = {
-  // ── Active Plans ─────────────────────────────────────────────────────────
-  solo_100: {
-    name: "SOLO", memberLimit: 100, storage: "1GB",
-    includesVideo: false, includesWhiteLabel: false,
-    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
-  },
-  center_300: {
-    name: "Premier 300", memberLimit: 300, storage: "10GB",
-    includesVideo: true, includesWhiteLabel: true,
-    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
-  },
-  center_500: {
-    name: "Premier 500", memberLimit: 500, storage: "20GB",
-    includesVideo: true, includesWhiteLabel: true,
-    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
-  },
-  center_1000: {
-    name: "Premier 1000", memberLimit: 1000, storage: "50GB",
-    includesVideo: true, includesWhiteLabel: true,
-    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
-  },
-  // ── Deprecated Plans (기존 구독자 호환 유지) ──────────────────────────────
   solo_30: {
-    name: "Coach 30", memberLimit: 30, storage: "300MB",
+    name: "Coach 30", memberLimit: 30, storage: "3GB",
     includesVideo: false, includesWhiteLabel: false,
     features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
   },
   solo_50: {
-    name: "Coach 50", memberLimit: 50, storage: "500MB",
+    name: "Coach 50", memberLimit: 50, storage: "5GB",
+    includesVideo: false, includesWhiteLabel: false,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
+  },
+  solo_100: {
+    name: "Coach 100", memberLimit: 100, storage: "10GB",
     includesVideo: false, includesWhiteLabel: false,
     features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드"],
   },
   center_200: {
-    name: "Premier 200", memberLimit: 200, storage: "5GB",
+    name: "Premier 200", memberLimit: 200, storage: "50GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_300: {
+    name: "Premier 300", memberLimit: 300, storage: "80GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_500: {
+    name: "Premier 500", memberLimit: 500, storage: "130GB",
+    includesVideo: true, includesWhiteLabel: true,
+    features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
+  },
+  center_1000: {
+    name: "Premier 1000", memberLimit: 1000, storage: "500GB",
     includesVideo: true, includesWhiteLabel: true,
     features: ["출결 관리", "수업 일지", "학부모 연동", "사진 업로드", "영상 업로드", "화이트라벨"],
   },

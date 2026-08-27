@@ -49,8 +49,13 @@ const NAVY   = XT.primary;   // Nautic Primary (xTheme single source)
 const X_ACCENT = "#355C7D";
 const X_LIGHT  = "#EEF4FA";
 
-// 2026-08-28: 할인 정책 제거 — X 가격은 플랜 기준 단일가 (회원당 ₩300/월)
-// PREMIER 300 → ₩90,000 / PREMIER 500 → ₩150,000 / PREMIER 1000 → ₩300,000
+// ── 할인 정책 (표시 전용) ─────────────────────────────────────────────────────
+const DISCOUNT_TIERS = [
+  { range: "1~100호",   rate: "50% 할인", highlight: true  },
+  { range: "101~300호", rate: "30% 할인", highlight: false },
+  { range: "301~500호", rate: "10% 할인", highlight: false },
+  { range: "501호 이후", rate: "정상가",   highlight: false },
+];
 
 const X_FEATURES = [
   "SWIMNOTE AI ENGINE",
@@ -112,11 +117,16 @@ interface SlotInfo {
 }
 
 // ── X 한국 정책 가격 (앱 내 표시 전용) ─────────────────────────────────────────
-// 2026-08-28: pool 플랜 기준 단일가로 변경 (회원당 ₩300/월)
-// Apple Purchase Sheet / purchasePackage / RC product는 별도 관리
-// 서버 /x-subscription-status 응답의 krw_price를 우선 사용 (pool 플랜 기반)
-function getXKrwPrice(krwPriceFromServer: string | null): string {
-  return krwPriceFromServer ? `${krwPriceFromServer} / 월` : "₩- / 월";
+// Apple Purchase Sheet / purchasePackage / RC product 는 변경 없음.
+// 서버 slot.tierKey 기준으로 앱 내부 원화 안내 가격만 결정.
+const X_KRW_PRICE: Record<string, string> = {
+  tier1:    "₩75,000 / 월",
+  tier2:    "₩105,000 / 월",
+  tier3:    "₩135,000 / 월",
+  standard: "₩150,000 / 월",
+};
+function getXKrwPrice(tierKey: string): string {
+  return X_KRW_PRICE[tierKey] ?? "₩- / 월";
 }
 
 // RC 취소 오류 감지 (userCancelled deprecated → PURCHASES_ERROR_CODE 사용)
@@ -560,16 +570,34 @@ export default function XSubscriptionScreen() {
               </View>
             </View>
 
-            {/* X 가격 안내 (단일가, 플랜 기준) */}
+            {/* 선착순 할인 정책 (퍼센트만 — 실제 금액 없음) */}
             <View style={s.section}>
-              <Text style={s.sectionTitle}>X 요금 안내</Text>
-              <View style={[s.card, { backgroundColor: C.card, padding: 16 }]}>
-                <Text style={{ color: C.textSecondary, fontSize: 13, lineHeight: 20 }}>
-                  {"X 요금은 센터 구독 플랜의 최대 회원수 기준으로 산정됩니다.\n\n"}
-                  {"PREMIER 300 → ₩90,000 / 월\n"}
-                  {"PREMIER 500 → ₩150,000 / 월\n"}
-                  {"PREMIER 1000 → ₩300,000 / 월"}
-                </Text>
+              <Text style={s.sectionTitle}>선착순 X모드 가맹 할인</Text>
+              <View style={[s.card, { backgroundColor: C.card, overflow: "hidden" }]}>
+                {DISCOUNT_TIERS.map((tier, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      s.tierRow,
+                      i < DISCOUNT_TIERS.length - 1 && s.tierRowBorder,
+                      tier.highlight && { backgroundColor: X_LIGHT },
+                    ]}
+                  >
+                    <Text style={[s.tierRange, tier.highlight && { color: X_ACCENT }]}>
+                      {tier.range}
+                    </Text>
+                    <View style={[s.tierBadge, { backgroundColor: tier.highlight ? X_ACCENT : "#F1F5F9" }]}>
+                      <Text style={[s.tierRate, { color: tier.highlight ? "#fff" : C.textSecondary }]}>
+                        {tier.rate}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+                <View style={s.discountNote}>
+                  <Text style={s.discountNoteText}>
+                    이 할인은 X모드 정기결제에만 적용됩니다. SWIMNOTE 기본 플랜과 무관합니다.
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -670,9 +698,8 @@ function ReservationCard({
   onSync: () => void;
 }) {
   // RC localizedPrice는 purchasePackage/package matching에만 사용 (표시 불가 — storefront 의존)
-  // 앱 내 가격 안내: 구독 확정 후 subscriptionStatus.krw_price에서 표시됨
-  // 예약 단계에서는 X 요금 안내 섹션 참조 안내
-  const krwPrice: string = getXKrwPrice(null);
+  // 앱 내 가격 안내는 서버 slot.tierKey 기준 KRW 정책 가격으로 고정
+  const krwPrice: string = getXKrwPrice(slot.tierKey);
   const deadlineRemaining = formatDeadline(slot.paymentDeadlineAt);
 
   const isLoading = phase === "LOADING_PRODUCT" || phase === "RESERVED";
