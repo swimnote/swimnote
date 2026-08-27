@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { XModeGuard } from "@/components/common/XModeGuard";
@@ -64,11 +64,20 @@ const SOURCE_FILTER_OPTIONS = [
 export default function AdminXGrowthScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { preselect_student_id } = useLocalSearchParams<{ preselect_student_id?: string }>();
 
   // 학생 목록
   const [students,      setStudents]      = useState<Student[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [selectedStu,   setSelectedStu]   = useState<Student | null>(null);
+
+  // report-hub에서 전달된 학생 자동선택 (students 로드 완료 후)
+  // 이미 선택된 학생이 있으면 덮어쓰지 않음
+  useEffect(() => {
+    if (!preselect_student_id || students.length === 0 || selectedStu) return;
+    const target = students.find(s => s.id === preselect_student_id);
+    if (target) setSelectedStu(target);
+  }, [preselect_student_id, students]);
 
   // 필터
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
