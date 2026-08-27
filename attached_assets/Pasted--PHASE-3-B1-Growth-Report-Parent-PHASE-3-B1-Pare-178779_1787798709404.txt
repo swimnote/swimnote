@@ -1,0 +1,366 @@
+[앱] PHASE 3-B1 — Growth Report Parent 댓글 기능 구현 승인
+
+구현계획서 승인.
+
+이번 단계에서는 PHASE 3-B1만 구현하십시오.
+
+목표:
+Parent Growth Report Feed
+→ 댓글 아이콘 탭
+→ Growth Report 전용 댓글 화면
+→ Parent 댓글 조회/작성/삭제
+→ Teacher reply read-only 표시
+
+Teacher notification 연결은 아직 하지 않습니다.
+PHASE 3-B2 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Feed 댓글 버튼 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/components/parent/GrowthReportFullFeed.tsx
+
+현재 stubbed comment Pressable에 onPress 연결.
+
+탭 시:
+
+/(parent)/gr-comments
+
+로 이동.
+
+전달 params:
+
+- reportId = item.growth_report_id
+- studentId = item.student_id
+- studentName = 현재 prop
+- reportPeriod = item.report_period
+
+기존 like/PDF 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Growth Report 댓글 화면 신규 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+artifacts/swim-app/app/(parent)/gr-comments.tsx
+
+기존:
+
+app/(parent)/diary-comments.tsx
+
+의 UX/레이아웃을 기준으로 최대한 동일하게 구현.
+
+새 디자인 만들지 말 것.
+
+구조:
+
+ParentScreenHeader
+→ thread ScrollView
+→ parent comment bubble
+→ teacher reply bubble
+→ 하단 TextInput + 전송 버튼
+
+KeyboardAvoidingView
+RefreshControl
+
+기존 Diary 댓글 화면 패턴 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Header
+━━━━━━━━━━━━━━━━━━━━━━
+
+제목:
+
+댓글
+
+subtitle:
+
+"{studentName} · {YYYY년 M월} AI 성장 리포트"
+
+reportPeriod:
+
+YYYY-MM
+
+을 안전하게 변환.
+
+studentName이 없으면:
+
+우리 아이
+
+사용 가능.
+
+Diary lessonDate나 teacherName을 억지로 재사용하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 댓글 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET:
+
+/parent/growth-reports/:reportId/comments
+
+응답:
+
+{
+  threads: [...]
+}
+
+사용.
+
+화면 진입 시 조회.
+
+pull-to-refresh 지원.
+
+Parent root comment와
+Teacher reply를 구분하여 표시.
+
+server response의:
+
+author_role
+author_name
+body
+created_at
+is_deleted
+replies
+
+를 실제 contract 기준으로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 댓글 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST:
+
+/parent/growth-reports/:reportId/comments
+
+body:
+
+{
+  "body": "<comment>"
+}
+
+studentId를 POST body에 넣지 마십시오.
+
+서버가 report에서 student를 resolve합니다.
+
+전송 전:
+
+- trim
+- empty 차단
+- 최대 1000자 기준 UI 처리
+
+성공 응답:
+
+{
+  comment: {...}
+}
+
+이므로:
+
+data.comment
+
+를 thread로 append.
+
+sending state로 중복 전송 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 댓글 삭제
+━━━━━━━━━━━━━━━━━━━━━━
+
+DELETE:
+
+/growth-report-comments/:commentId
+
+본인 Parent root comment에만 삭제 UI 표시.
+
+삭제 확인 후 실행.
+
+서버는 soft delete.
+
+삭제 성공 후:
+
+해당 thread body를
+"(삭제된 댓글입니다)"
+
+상태로 반영하거나
+GET 재조회.
+
+Teacher reply 삭제 기능 추가 금지.
+
+다른 Parent comment 삭제 기능 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Teacher reply 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET response의:
+
+threads[].replies
+
+가 존재하면 read-only bubble로 표시.
+
+author_role = teacher
+
+기준.
+
+이번 단계에서:
+
+- Teacher reply 작성 기능 금지
+- Parent가 Teacher reply에 reply하는 기능 금지
+
+조회만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Route 등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 parent _layout 구조 확인.
+
+명시적 route 등록이 필요한 경우:
+
+artifacts/swim-app/app/(parent)/_layout.tsx
+
+에 gr-comments 등록.
+
+현재 Expo Router 구조상 자동 처리되면 불필요한 수정 금지.
+
+repo 실제 구조 기준으로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 오류/상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+- initial loading
+- pull refresh
+- sending
+- deleting
+- network error
+- 403/404
+
+403/404에서 내부 오류 원문 노출 금지.
+
+사용자에게 일반적인 안내만 표시.
+
+화면 crash 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 보안 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client에서 권한 판정을 새로 만들지 말 것.
+
+서버의 기존:
+
+resolveParentReportAccess
+
+및 comment ownership 검증을 신뢰.
+
+다른 pool/report 접근 우회 로직 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A1.
+Growth Report 댓글 아이콘 탭
+→ gr-comments 화면 진입
+
+A2.
+댓글 없는 상태 정상
+
+A3.
+댓글 작성
+→ POST 성공
+→ 즉시 thread 표시
+
+A4.
+화면 나갔다 재진입
+→ 작성 댓글 유지
+
+A5.
+pull-to-refresh
+→ 최신 thread 유지
+
+A6.
+본인 댓글 삭제
+→ soft deleted 표시
+
+A7.
+1000자 초과
+→ 전송 차단 또는 서버 400 정상 처리
+
+A8.
+empty/whitespace
+→ 전송 안 됨
+
+A9.
+Teacher reply가 존재하면 read-only 표시
+
+A10.
+기존 diary-comments 기능 영향 없음
+
+A11.
+Growth Report 좋아요 기능 영향 없음
+
+A12.
+PDF·공유 기능 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- growth_report_comment Teacher notification allowlist 수정 금지
+- notifications.ts 수정 금지
+- growth-report-interactions.ts 문구 수정 금지
+- Teacher messages-inbox 수정 금지
+- Teacher reply 구현 금지
+- PHASE 3-B2 시작 금지
+- PHASE 3-C/3-D 시작 금지
+- Server 수정 금지
+- DB migration 금지
+- Render deploy 금지
+
+Parent APP 댓글 연결만 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+APP TS/TSX only이면:
+
+수정
+→ TS 확인
+→ rollback target 기록
+→ iOS production OTA
+→ 사용자 실기기 확인
+
+Android OTA 금지.
+
+완료보고:
+
+[CODE]
+- SHA
+- 변경/신규 파일
+
+[COMMENT FLOW]
+- Feed → gr-comments
+- GET/POST/DELETE 실제 연결
+
+[TEST]
+- 관련 테스트 결과
+
+[OTA]
+- previous stable
+- new update group
+- new update ID
+- runtimeVersion
+
+[DEVICE]
+- 사용자 실기기 확인 대기
+
+완료 후 STOP.
+PHASE 3-B2 시작하지 마십시오.
