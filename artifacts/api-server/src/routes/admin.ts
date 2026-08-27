@@ -3885,6 +3885,174 @@ router.get("/reports/summary",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// X Admin — AI 일지피드 허브
+// GET /admin/diaries/summary
+// requireRole(pool_admin, super_admin) + requireXMode
+// ════════════════════════════════════════════════════════════════════════
+function todayKstStr(): string {
+  return new Date().toLocaleString("en-CA", { timeZone: "Asia/Seoul" }).slice(0, 10);
+}
+
+router.get(
+  "/admin/diaries/summary",
+  requireAuth, requireRole("pool_admin", "super_admin"), requireXMode,
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const {
+        date: dateParam,
+        range = "day",
+        class_group_id,
+        teacher_id,
+        q,
+        page = "1",
+        limit = "30",
+      } = req.query as Record<string, string>;
+
+      const date = (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) ? dateParam : todayKstStr();
+      const pageNum = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 30));
+      const offset = (pageNum - 1) * limitNum;
+
+      // ── 날짜 범위 계산 ─────────────────────────────────────────────────
+      let fromDate: string;
+      let toDate: string;
+      if (range === "week") {
+        const d = new Date(date + "T12:00:00");
+        const dow = d.getDay(); // 0=일,1=월...
+        const diffToMon = dow === 0 ? -6 : 1 - dow;
+        const mon = new Date(d);
+        mon.setDate(d.getDate() + diffToMon);
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        fromDate = mon.toISOString().slice(0, 10);
+        toDate   = sun.toISOString().slice(0, 10);
+      } else {
+        fromDate = date;
+        toDate   = date;
+      }
+
+      // ── pool isolation — client 전달값 사용 금지 ───────────────────────
+      const poolFilter    = sql`AND cd.swimming_pool_id = ${poolId}`;
+      const dateFilter    = fromDate === toDate
+        ? sql`AND cd.lesson_date = ${fromDate}`
+        : sql`AND cd.lesson_date >= ${fromDate} AND cd.lesson_date <= ${toDate}`;
+      const classFilter   = class_group_id ? sql`AND cd.class_group_id = ${class_group_id}` : sql``;
+      const teacherFilter = teacher_id     ? sql`AND cd.teacher_id = ${teacher_id}`          : sql``;
+      const nameFilter    = q              ? sql`AND s.name ILIKE ${'%' + q + '%'}`           : sql``;
+
+      // ── KPI (date range, class/teacher filter 반영, 검색어 제외) ────────
+      const kpiRow = await db.execute(sql`
+        SELECT
+          COUNT(DISTINCT cd.id)::int AS total_diaries,
+          COALESCE(SUM((
+            SELECT COUNT(*)::int FROM class_diary_student_notes csn2
+            WHERE csn2.diary_id = cd.id AND csn2.is_deleted = false
+          )), 0)::int AS total_notes
+        FROM class_diaries cd
+        WHERE cd.is_deleted = false
+          ${poolFilter}
+          ${dateFilter}
+          ${classFilter}
+          ${teacherFilter}
+      `);
+      const kpi = (kpiRow.rows[0] as any) ?? {};
+
+      // ── pagination count (전체 student_notes 수, 검색어 포함) ──────────
+      const countRow = await db.execute(sql`
+        SELECT COUNT(csn.id)::int AS total
+        FROM class_diary_student_notes csn
+        JOIN class_diaries cd ON cd.id = csn.diary_id
+        JOIN students s       ON s.id  = csn.student_id
+        WHERE cd.is_deleted = false AND csn.is_deleted = false
+          ${poolFilter}
+          ${dateFilter}
+          ${classFilter}
+          ${teacherFilter}
+          ${nameFilter}
+      `);
+      const total = Number((countRow.rows[0] as any)?.total ?? 0);
+
+      // ── 목록 (student_notes × diaries JOIN) ───────────────────────────
+      const listRows = await db.execute(sql`
+        SELECT
+          csn.id             AS note_id,
+          cd.id              AS diary_id,
+          cd.lesson_date,
+          cd.teacher_id,
+          cd.teacher_name,
+          cd.class_group_id,
+          cg.name            AS class_name,
+          cg.schedule_time,
+          csn.student_id,
+          s.name             AS student_name,
+          (SELECT COUNT(*)::int FROM diary_reactions dr
+           WHERE dr.diary_id = cd.id
+             AND dr.reaction_type IN ('like','thanks'))                        AS reaction_count,
+          (SELECT COUNT(*)::int FROM diary_messages dm
+           WHERE dm.diary_id = cd.id
+             AND dm.is_deleted = false
+             AND dm.parent_comment_id IS NULL
+             AND dm.message_type = 'diary_comment')                            AS comment_count,
+          (SELECT COUNT(*)::int FROM photo_assets_meta pam
+           WHERE pam.journal_id = cd.id
+             AND pam.media_status = 'attached')                                AS photo_count
+        FROM class_diary_student_notes csn
+        JOIN class_diaries cd  ON cd.id = csn.diary_id
+        JOIN students s        ON s.id  = csn.student_id
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.is_deleted = false AND csn.is_deleted = false
+          ${poolFilter}
+          ${dateFilter}
+          ${classFilter}
+          ${teacherFilter}
+          ${nameFilter}
+        ORDER BY cd.lesson_date DESC, cg.schedule_time ASC, s.name ASC
+        LIMIT ${limitNum} OFFSET ${offset}
+      `);
+
+      // ── 필터 UI용 반·선생님 목록 (날짜 범위 기준) ─────────────────────
+      const groupsResult = await db.execute(sql`
+        SELECT DISTINCT cd.class_group_id AS id, cg.name AS class_name,
+               cd.teacher_id, cd.teacher_name
+        FROM class_diaries cd
+        LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+        WHERE cd.is_deleted = false
+          ${poolFilter}
+          ${dateFilter}
+        ORDER BY cg.name
+      `);
+
+      res.json({
+        summary: {
+          total_diaries: Number(kpi.total_diaries ?? 0),
+          total_notes:   Number(kpi.total_notes   ?? 0),
+        },
+        filters: { date, range, from_date: fromDate, to_date: toDate },
+        diaries: listRows.rows,
+        class_groups: (groupsResult.rows as any[]).map(r => ({
+          id:           r.id,
+          name:         r.class_name,
+          teacher_id:   r.teacher_id,
+          teacher_name: r.teacher_name,
+        })),
+        pagination: {
+          page:     pageNum,
+          limit:    limitNum,
+          total,
+          has_more: offset + listRows.rows.length < total,
+        },
+      });
+    } catch (e) {
+      console.error("[admin/diaries/summary]", e);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
 export { checkRefundPolicyAgreed };
 
 export default router;

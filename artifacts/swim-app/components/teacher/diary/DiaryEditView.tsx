@@ -25,7 +25,7 @@ export default function DiaryEditView({
   editPickerFor, setEditPickerFor,
   editCursorRef,
   classStudents,
-  onSave, onBack,
+  onSave, onBack, viewOnly = false,
   onUpdateNoteContent, onMarkNoteDeleted,
   onEditAddNote, onRemoveNewNote,
   insertAtCursor,
@@ -46,6 +46,7 @@ export default function DiaryEditView({
   editCursorRef: MutableRefObject<number>;
   classStudents: StudentOption[];
   onSave: () => void; onBack: () => void;
+  viewOnly?: boolean;
   onUpdateNoteContent: (noteId: string, content: string) => void;
   onMarkNoteDeleted: (noteId: string) => void;
   onEditAddNote: () => void;
@@ -380,20 +381,22 @@ export default function DiaryEditView({
         </View>
 
         <View style={[s.footer, { paddingBottom: insets.bottom }]}>
-          {editError && (
+          {!viewOnly && editError && (
             <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
               <LucideIcon name="alert-circle" size={13} color={C.error} />
               <Text style={[s.inlineErrorText, { color: C.error }]}>{editError}</Text>
             </View>
           )}
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
-              <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>취소</Text>
+            <Pressable style={[s.cancelBtnFt, { borderColor: C.border, flex: viewOnly ? 1 : undefined }]} onPress={onBack}>
+              <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>{viewOnly ? "닫기" : "취소"}</Text>
             </Pressable>
-            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
-              onPress={onSave} disabled={editSaving}>
-              {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
-            </Pressable>
+            {!viewOnly && (
+              <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: editSaving ? 0.5 : 1, flex: 2 }]}
+                onPress={onSave} disabled={editSaving}>
+                {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+              </Pressable>
+            )}
           </View>
         </View>
 

@@ -41,7 +41,7 @@ export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
   const { mode } = useMode();
-  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string; backTo?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string; backTo?: string; viewOnly?: string }>();
   const [targetDate, setTargetDate] = useState<string>(() =>
     (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
       ? params.lessonDate : todayStr()
@@ -1387,7 +1387,7 @@ export default function TeacherDiaryScreen() {
       return (
         <SafeAreaView style={s.safe} edges={[]}>
           <SubScreenHeader
-            title="일지 수정"
+            title={params.viewOnly === "true" ? "일지 보기" : "일지 수정"}
             subtitle={editDiary ? `${editDiary.lesson_date} · ${group.schedule_time}` : ""}
             onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             homePath="/(teacher)/today-schedule"
@@ -1404,6 +1404,7 @@ export default function TeacherDiaryScreen() {
             editCursorRef={editCursorRef}
             classStudents={classStudents}
             onSave={handleEditSave}
+            viewOnly={params.viewOnly === "true"}
             onBack={() => { if (params.editDiaryId) router.back(); else { setSubView("history"); setEditDiary(null); } }}
             onUpdateNoteContent={(noteId, content) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, note_content: content, _modified: true } : n))}
             onMarkNoteDeleted={(noteId) => setEditNotes(prev => prev.map(n => n.id === noteId ? { ...n, _deleted: true } : n))}
