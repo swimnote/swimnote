@@ -1,0 +1,201 @@
+[BUG INVESTIGATION ONLY]
+PHASE 3-B2 — growth_report_comment가 Teacher 소식에서 좋아요로 표시되는 문제
+
+실기기 증거:
+
+Parent가 Growth Report 댓글 작성
+→ Teacher 소식에 알림 도착
+→ 해당 알림 탭
+→ Growth Report 전용 "반응 & 댓글" 화면 정상 진입
+→ 실제 댓글 2개 정상 표시
+
+그러나 Teacher 소식 카드에서는 잘못 표시됨:
+
+현재:
+❤️
+새 좋아요
+"{parentName}님이 성장리포트에 좋아요를 눌렀습니다."
+
+정상:
+💬
+새 댓글
+"{parentName}님이 AI 성장 리포트에 댓글을 남겼습니다."
+
+즉 routing/reportId는 정상으로 보이지만
+notification card의 type/title/body 표시가 잘못됨.
+
+이번 단계에서는 코드 수정 금지.
+현재 HEAD 기준 원인 조사만 수행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 notification row 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+방금 생성된 Growth Report 댓글 notification의 실제 값을 확인.
+
+반드시 보고:
+
+- type
+- title
+- body
+- ref_id
+- ref_type
+- created_at
+
+확인 목표:
+
+A.
+DB/API row 자체가
+
+type = growth_report_comment
+title = 새 댓글
+body = "...AI 성장 리포트에 댓글을 남겼습니다."
+
+로 정상인지
+
+또는
+
+B.
+서버가 실제로 growth_report_like row를 잘못 생성하고 있는지
+
+추측 금지.
+
+GET /teacher/news 실제 response에서도
+같은 notification의 raw JSON을 확인할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. messages-inbox.tsx 렌더링 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+growth_report_comment가 실제로 어디를 통과하는지 끝까지 추적.
+
+확인:
+
+- NewsItem.type union
+- newsIcon()
+- title 표시
+- body 표시
+- 카드 컴포넌트
+- type별 normalization/변환 함수
+- diary/growth report 구분 조건
+- fallback branch
+
+특히 아래 같은 오류가 있는지 확인:
+
+growth_report_comment
+→ growth_report_like와 같은 case로 합쳐짐
+
+또는
+
+growth_report_comment
+→ generic reaction type
+→ like title/body 강제 생성
+
+또는
+
+서버의 item.title/item.body를 그대로 쓰지 않고
+client에서 type에 따라 좋아요 문구를 다시 만드는 구조
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. API response와 화면값 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 notification 1건을 기준으로 비교표 제출:
+
+[SERVER /teacher/news RAW]
+type:
+title:
+body:
+
+[APP AFTER MAPPING]
+type:
+title:
+body:
+icon:
+
+[DEVICE]
+icon:
+title:
+body:
+
+어느 단계에서
+comment → like로 바뀌는지 정확히 특정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Press flow는 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서:
+
+growth_report_comment 알림 탭
+→ growth-report-reactions
+→ 실제 댓글 표시
+
+까지는 정상.
+
+따라서 이번 버그 조사에서는
+press routing 수정 대상에서 제외.
+
+기존 정상 흐름을 건드리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수정안 제안
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확정 후 최소 수정안만 제출.
+
+정상 목표:
+
+growth_report_like:
+❤️
+새 좋아요
+"{parentName}님이 AI 성장 리포트에 좋아요를 눌렀습니다."
+
+growth_report_comment:
+💬
+새 댓글
+"{parentName}님이 AI 성장 리포트에 댓글을 남겼습니다."
+
+두 type을 명확히 분리.
+
+기존 diary_like / diary_comment 영향 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[RAW NOTIFICATION]
+- DB/API 실제 row
+
+[TEACHER NEWS MAPPING]
+- type 처리 코드
+- title/body 처리 코드
+- icon 처리 코드
+
+[ROOT CAUSE]
+- comment가 like로 보이는 정확한 이유
+
+[MINIMAL FIX PLAN]
+- 수정 파일
+- 수정 함수/branch
+- Server 변경 필요 여부
+- OTA 필요 여부
+- Render 필요 여부
+
+[REGRESSION CHECK]
+- growth_report_like
+- growth_report_comment
+- diary_like
+- diary_comment
+
+이번 단계:
+코드 수정 금지
+OTA 금지
+Render deploy 금지
+DB 수정 금지
+
+조사 완료 후 STOP.
