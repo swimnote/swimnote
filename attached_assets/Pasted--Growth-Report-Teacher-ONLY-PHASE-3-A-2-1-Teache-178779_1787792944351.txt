@@ -1,0 +1,248 @@
+[앱] Growth Report Teacher 알림/반응 상세 — 조사 및 수정계획서 ONLY
+
+실기기 확인 결과 PHASE 3-A에서 추가 문제 2건 확인됨.
+
+1. Teacher 소식 탭에 Growth Report 좋아요 알림은 표시되지만
+   문구가 기존 Diary용으로 나옴.
+
+현재 실기기 표시:
+"서경민님이 2026-08-27 수업피드에 좋아요를 눌렀습니다."
+
+원하는 표현:
+"서경민님이 AI 성장 리포트에 좋아요를 눌렀습니다."
+
+또는 report period를 포함한다면:
+"서경민님이 8월 AI 성장 리포트에 좋아요를 눌렀습니다."
+
+2. 해당 알림을 눌렀을 때
+기존 Diary용 "반응 & 댓글" 화면이 열리고
+하트 수가 0명으로 표시됨.
+
+Parent에서는 실제 Growth Report 좋아요가 ON 상태이고
+red filled heart까지 정상 확인됨.
+
+즉 Growth Report reaction은 저장됐는데
+Teacher 상세 화면은 해당 Growth Report reaction을 읽지 못하고 있음.
+
+이번 단계에서는 코드 수정 금지.
+원인 조사 + 수정계획서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. notification 생성 payload 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_report_like 생성 시 notifications INSERT의 실제 값을 확인:
+
+- type
+- title
+- body
+- ref_id
+- ref_type
+- deep_link
+- recipient_id
+
+특히 title/body가 어디서 만들어지는지 확인.
+
+현재 Teacher 화면에:
+
+"수업피드에 좋아요를 눌렀습니다"
+
+라고 표시되는 이유가
+
+A. 서버에서 body 자체를 Diary 문구로 저장
+B. client가 growth_report_like를 diary_like처럼 재가공
+C. 공통 formatter가 type 구분 없이 Diary 문구를 생성
+
+중 어디인지 실제 코드 기준으로 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher News 카드 렌더링 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher 소식 탭에서:
+
+growth_report_like
+
+를 어떤 rendering branch로 처리하는지 확인.
+
+보고:
+
+- 파일
+- 함수/component
+- title 표시 로직
+- body 표시 로직
+- diary_like와 growth_report_like 분기 여부
+- report_period 또는 Growth Report 이름을 사용할 수 있는지
+
+목표 표현은 최소:
+
+새 좋아요
+
+서경민님이 AI 성장 리포트에 좋아요를 눌렀습니다.
+
+로 Diary와 명확히 구분되어야 함.
+
+이번 단계에서는 문구 수정하지 말고 설계만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 알림 press handler 실제 동작 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서는 Growth Report 좋아요 알림을 누르면
+"반응 & 댓글" 화면으로 이동했고
+좋아요 0명으로 표시됨.
+
+현재 press handler가 실제로 어디로 보내는지 확인.
+
+반드시 보고:
+
+growth_report_like notification
+→ press handler
+→ route
+→ route params
+→ screen
+→ API endpoint
+
+특히 다음 여부 확인:
+
+- /(teacher)/diary-reactions 로 이동하는지
+- reportId를 diaryId처럼 전달하는지
+- 기존 Diary API를 호출하는지
+- Growth Report 전용 API를 호출하는지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 0명 표시 root cause 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Growth Report 좋아요는 실제 ON 상태.
+
+그런데 Teacher "반응 & 댓글" 화면에서는 0명.
+
+다음 흐름을 추적:
+
+Teacher reaction screen
+→ GET API
+→ response
+→ like count
+→ parent list
+
+확인:
+
+A. 기존 Diary endpoint를 호출해서 0명
+B. Growth Report endpoint를 호출하지만 reportId 전달 오류
+C. Growth Report endpoint response mapping 오류
+D. 다른 report/period를 조회
+E. 기타
+
+반드시 최초 실패 지점 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Growth Report Teacher 전용 상세 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 설계에서 예정했던:
+
+GET /teacher/growth-reports/:reportId/interactions
+
+를 실제 Teacher UI에 연결하는 최종 구조를 설계.
+
+목표:
+
+Teacher 소식
+→ "AI 성장 리포트 좋아요" 알림
+→ Growth Report 반응 화면
+→ 실제 Growth Report 좋아요 parent 목록/count
+→ 향후 Growth Report 댓글 thread 표시
+
+중요:
+
+기존 Diary reaction DB/API를 Growth Report에 억지로 사용하지 말 것.
+
+UI 디자인은 기존 Diary "반응 & 댓글" 화면의 패턴을 재사용해도 되지만,
+데이터 source는 Growth Report 전용 interaction API를 사용해야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 화면 명칭도 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면 제목:
+
+"반응 & 댓글"
+
+은 재사용 가능.
+
+단 Growth Report 화면이라는 것을 사용자가 구분할 수 있도록
+subtitle 또는 header에:
+
+AI 성장 리포트
+8월 / 2026년 8월
+
+등의 식별 정보가 필요한지 현재 UI 구조 기준으로 제안.
+
+Diary 날짜를 Growth Report 화면에 그대로 표시하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 댓글까지 미리 구현 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사에서는 향후 Growth Report 댓글도
+같은 Teacher interaction 화면에 표시될 수 있도록 구조만 확인.
+
+하지만:
+
+- Parent 댓글 기능 구현 금지
+- Teacher reply 구현 금지
+- growth_report_comment 실제 연결 금지
+
+현재 목표는 Growth Report LIKE flow를 완전히 닫는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[NOTIFICATION PAYLOAD]
+- type
+- title/body 생성 위치
+- ref_id/ref_type
+- 현재 Diary 문구가 나오는 원인
+
+[TEACHER NEWS UI]
+- growth_report_like render branch
+- 문구 생성 방식
+
+[PRESS FLOW]
+growth_report_like
+→ route
+→ params
+→ screen
+→ API
+
+[ZERO COUNT ROOT CAUSE]
+- 실제 최초 실패 지점
+- 왜 Parent ON인데 Teacher 0명인지
+
+[RECOMMENDED FLOW]
+Teacher News
+→ Growth Report reaction screen
+→ Growth Report interaction API
+→ 실제 parent like count/list
+
+[IMPLEMENTATION PLAN]
+- 수정/신규 파일
+- Server 변경 여부
+- App 변경 여부
+- DB 변경 여부
+- Render 필요 여부
+- OTA 필요 여부
+- 테스트 계획
+
+이번 단계:
+코드 수정 금지
+Render deploy 금지
+OTA 금지
+DB write 금지
+PHASE 3-B/3-C/3-D 구현 금지
+
+조사/구현계획서 제출 후 STOP.
