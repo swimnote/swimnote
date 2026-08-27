@@ -1,0 +1,507 @@
+[앱]
+
+SWIMNOTE GROWTH REPORT
+2026-08 SAFE IN-PLACE REANALYSIS
+PRESERVE REPORT ID / LIKES / COMMENTS / PUSH
+
+목표:
+토이키즈스윔클럽 서태웅 학생의
+기존 2026-08 PUBLISHED AI 성장 리포트를 삭제하지 않고,
+
+기존 report_id를 그대로 유지한 채
+FINAL LOCK AI ENGINE으로 재분석한 새 content/fact_package로 교체한다.
+
+핵심:
+
+- report_id 유지
+- 좋아요 유지
+- 댓글 유지
+- 기존 feed reference 유지
+- 기존 notification 유지
+- 새 push 금지
+
+==================================================
+0. TARGET
+==================================================
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+Student:
+student_1784491932941_n95eeew89
+
+Period:
+2026-08
+
+Existing report_id:
+gr_13330aa20377484685e91ed62b729929
+
+현재:
+PUBLISHED
+
+좋아요:
+4
+
+댓글:
+3
+
+GROWTH_REPORT_PUBLISHED notifications:
+4
+
+이 row를 삭제하지 않는다.
+
+==================================================
+1. ABSOLUTE PROHIBITIONS
+==================================================
+
+금지:
+
+- report hard delete
+- report soft delete
+- 새 report_id 생성
+- 좋아요 삭제
+- 댓글 삭제
+- notification 삭제
+- 새 GROWTH_REPORT_PUBLISHED push
+- bulk operation
+- Stage B enable
+- model 변경
+- ENGINE 코드 변경
+- 다른 학생/월 수정
+
+==================================================
+2. ENGINE ENV READ-ONLY VERIFY
+==================================================
+
+현재 APP growth report engine client가 요구:
+
+GROWTH_REPORT_ENGINE_URL
+GROWTH_REPORT_ENGINE_SECRET
+
+현재 환경에 존재:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+먼저 코드와 env name만 READ-ONLY 확인.
+
+확인할 것:
+
+A.
+두 env pair가 같은
+swimnote-professional-engine service를 위한 것인지
+
+B.
+auth contract가 동일한지
+
+C.
+기존 PROFESSIONAL_ENGINE_API_SECRET이
+Growth Report service JWT secret과 같은 용도인지
+
+secret value 출력 금지.
+
+==================================================
+3. ENV DECISION
+==================================================
+
+만약 동일 service / 동일 auth contract가
+코드상 확실히 확인되면:
+
+기존 secret value를 노출하지 않고
+Render APP service에 필요한 alias env:
+
+GROWTH_REPORT_ENGINE_URL
+GROWTH_REPORT_ENGINE_SECRET
+
+설정이 필요하다고 보고.
+
+Replit이 Render secret을 임의 변경하지 않는다.
+
+사용자가 Render Dashboard에서 직접 설정할 수 있도록
+정확한 env NAME만 보고.
+
+이미 필요한 env가 실제 production에 존재하면
+추가 변경 없이 진행.
+
+동일 secret인지 불확실하면 STOP.
+
+==================================================
+4. EXISTING REPORT BACKUP
+==================================================
+
+기존 backup 재확인:
+
+/tmp/growth-report-backup-seotaewoong-2026-08.json
+
+백업에 반드시 포함:
+
+- report_id
+- product_status
+- analysis_status
+- content_json
+- fact_package_json
+- published_at
+- cycle_id
+- timestamps
+
+좋아요/댓글/notification row IDs도
+read-only 목록으로 별도 기록.
+
+==================================================
+5. SOURCE SNAPSHOT
+==================================================
+
+APP production DB의 실제
+Growth Report request builder를 사용해서
+
+서태웅 / 2026-08
+source snapshot 생성.
+
+현재 확인 diary_count=1.
+
+정확한 diary raw text와
+curriculum/progress/history가
+request에 실제 포함되는지 확인.
+
+ENGINE call 전에 snapshot local artifact 생성.
+
+DB write 0.
+
+==================================================
+6. ENGINE DRY-RUN
+==================================================
+
+기존 report 상태를 건드리지 않고
+현재 source snapshot을
+FINAL LOCK production ENGINE에 직접 분석 요청.
+
+APP의 정상 service JWT/auth contract 사용.
+
+Stage B:
+OFF
+
+ENGINE:
+현재 deployed main HEAD 사용.
+
+중요:
+이 단계에서는 기존 report row 수정 금지.
+
+==================================================
+7. DRY-RUN PASS CONDITIONS
+==================================================
+
+다음 모두 확인:
+
+- HTTP success
+- analysis_status publish-safe
+- summary_text 존재
+- content 존재
+- fact_package 존재
+- grounding PASS / REVISED_PASS
+- growth framing PASS / REVISED_PASS
+- unsupported fatal 없음
+
+그리고 section:
+
+core_growth
+swimming_progress
+behavioral_strengths
+longitudinal_comparison
+success_conditions
+teacher_guidance
+next_growth_direction
+parent_support
+
+각각:
+NON_EMPTY / GOOD_EMPTY / BAD_EMPTY
+
+==================================================
+8. QUALITY CHECK BEFORE WRITE
+==================================================
+
+기존 OLD와 dry-run NEW 비교.
+
+특히 source diary가 1개뿐이므로
+8/8을 억지로 요구하지 않는다.
+
+판정 기준:
+
+NEW가
+- 실제 diary 근거를 정확히 사용
+- unsupported claim 0
+- teacher action invent 0
+- success condition invent 0
+- context generalization 0
+
+이면 진행 가능.
+
+명백한 품질 후퇴가 있으면
+기존 report 유지 후 STOP.
+
+==================================================
+9. IN-PLACE REANALYSIS DESIGN
+==================================================
+
+PUBLISHED row를 삭제하지 않고
+동일 report_id에 새 분석 결과를 적용한다.
+
+우선순위:
+
+1.
+기존 repository에 maintenance/reanalysis service가 있으면 사용.
+
+2.
+없다면 최소 one-off maintenance path 구현 검토.
+
+중요:
+일반 사용자용 PUBLISHED 상태 규칙을 완화하지 않는다.
+
+즉 일반 analyze endpoint에서
+PUBLISHED 허용으로 바꾸면 안 됨.
+
+별도 관리자/maintenance operation으로만 제한.
+
+==================================================
+10. SAME REPORT ID GUARANTEE
+==================================================
+
+작업 전후 반드시 동일:
+
+report_id =
+gr_13330aa20377484685e91ed62b729929
+
+student_id 동일
+cycle_id 동일
+period 동일
+
+likes/comments foreign key가
+그대로 같은 report_id를 가리켜야 함.
+
+==================================================
+11. UPDATE SCOPE
+==================================================
+
+dry-run PASS 후
+동일 report row에서 필요한 분석 결과 필드만 교체.
+
+예상 대상:
+
+- analysis_status
+- content_json
+- fact_package_json
+- sns/share derived content if analysis-dependent
+- analysis metadata
+- updated_at
+
+현재 schema/service 실제 필드 기준으로만 처리.
+
+절대 임의 필드 추가 금지.
+
+published_at은 기존 발행 시각을
+가능하면 유지.
+
+재발행 이벤트로 취급하지 않는다.
+
+==================================================
+12. PRODUCT STATUS
+==================================================
+
+최종 product_status:
+
+PUBLISHED 유지.
+
+가능하면 중간 상태를
+외부 부모에게 노출하지 않는
+transactional maintenance operation 사용.
+
+일반 lifecycle rule 변경 금지.
+
+==================================================
+13. PUSH
+==================================================
+
+새 push:
+
+0
+
+새 GROWTH_REPORT_PUBLISHED notification:
+
+0
+
+기존 notification 4건:
+
+그대로 유지.
+
+exact-once index를
+새 notification 생성으로 시험하지 않는다.
+
+==================================================
+14. LIKES / COMMENTS
+==================================================
+
+작업 전:
+
+likes=4
+comments=3
+
+작업 후:
+
+likes=4
+comments=3
+
+모든 foreign key:
+기존 report_id 유지.
+
+orphan:
+0
+
+==================================================
+15. PARENT FEED
+==================================================
+
+작업 후 실제 parent feed에서:
+
+2026-08 report count=1
+
+feed report_id 동일
+
+새 content 반영
+
+좋아요 count 유지
+
+댓글 유지
+
+중복 card 없음
+
+==================================================
+16. ROLLBACK
+==================================================
+
+업데이트는 반드시 transaction 또는
+안전한 rollback path 확보 후 진행.
+
+실패 시 backup의 기존:
+
+content_json
+fact_package_json
+analysis metadata
+
+복원.
+
+report_id/published_at/interactions는
+애초에 변경하지 않는 방식 우선.
+
+==================================================
+17. CODE CHANGE POLICY
+==================================================
+
+기존 maintenance operation이 없어서
+새 one-off admin function이 필요하면:
+
+최소 범위로 구현.
+
+일반 lifecycle 변경 금지.
+
+특히 금지:
+
+POST /growth-reports/:id/analyze 에서
+PUBLISHED를 일반 허용 상태에 추가하는 것.
+
+maintenance-only route/function이어야 함.
+
+production에서 1건 작업 후
+재사용 여부와 접근 제어를 보고.
+
+==================================================
+18. FINAL VALIDATION
+==================================================
+
+보고:
+
+OLD report_id
+NEW report_id
+→ 반드시 동일
+
+OLD likes/comments
+NEW likes/comments
+
+OLD notification count
+NEW notification count
+
+NEW section coverage
+
+F065 count
+F068 count
+verified relationship count
+
+unsupported claims
+safety violations
+
+==================================================
+19. COST
+==================================================
+
+AI calls:
+
+dry-run
+final analysis
+
+각각 보고.
+
+Stage B calls:
+0
+
+input/output tokens
+latency
+USD estimate
+
+==================================================
+20. FINAL REPORT
+==================================================
+
+A. ENGINE ENV CONTRACT
+MATCH / MISMATCH / BLOCKED
+
+B. DRY RUN
+PASS / FAIL
+
+C. OLD vs NEW QUALITY
+
+D. IN-PLACE UPDATE
+DONE / NOT DONE
+
+E. REPORT ID
+before / after
+
+F. LIKES
+before / after
+
+G. COMMENTS
+before / after
+
+H. NOTIFICATIONS
+before / after
+
+I. PUSH
+0 expected
+
+J. PARENT FEED
+PASS / FAIL
+
+K. NEW CONTENT
+section coverage
+
+L. SAFETY
+
+M. AI COST
+
+N. CODE CHANGES
+files / SHA if any
+
+O. FINAL
+
+IN-PLACE REANALYSIS COMPLETE
+또는
+BLOCKED + exact reason
+
+완료 후 STOP.
