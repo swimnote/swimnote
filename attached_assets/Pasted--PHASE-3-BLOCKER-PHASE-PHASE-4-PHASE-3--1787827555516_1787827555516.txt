@@ -1,0 +1,299 @@
+[PHASE 3 BLOCKER 결정 — 구현 계속 승인]
+
+두 블로커에 대한 결정 확정.
+
+전체 PHASE 계획 변경 금지.
+PHASE 4 시작 금지.
+PHASE 3 범위 안에서만 계속 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+결정 A — ai_status
+━━━━━━━━━━━━━━━━━━━━━━
+
+선택:
+
+AI KPI 제외.
+
+class_diaries에 ai_status migration 하지 않는다.
+
+이번 PHASE에서 구현 금지:
+
+- AI 생성 KPI
+- AI 실패 KPI
+- AI/직접작성 filter
+- AI 생성 상태 chip
+- AI 실패 warning
+- growth_events를 AI 생성 여부 대리값으로 사용
+
+이유:
+
+현재 DB에는
+"이 일지가 AI로 생성되었는지"
+정확하게 영속 저장되는 source of truth가 없음.
+
+클라이언트 useDiaryAIV2 state는
+저장 후 서버 데이터가 아니므로
+관리자 현황 근거로 사용 금지.
+
+growth_events도
+AI 생성 사실과 동일하지 않으므로
+대리 판정 금지.
+
+정확하지 않은 AI 현황을 만들어내지 말 것.
+
+DB migration / Teacher write flow 변경은
+이번 PHASE 범위 밖.
+
+완료보고의 MISSING 항목에:
+
+"AI 생성 출처/상태 영속 데이터 없음"
+
+으로 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+결정 B — 미작성/작성완료 KPI
+━━━━━━━━━━━━━━━━━━━━━━
+
+class_diaries는 일지 저장 시에만 row가 생성되고
+common_content NOT NULL이므로:
+
+- 작성완료 = total
+- 미작성 = 계산 불가
+
+따라서 중복/허위 KPI를 만들지 않는다.
+
+PHASE 3 KPI는 정확한 실제 데이터 2개만 사용:
+
+1. 오늘 일지
+= 선택 날짜의 실제 class_diaries row 수
+
+2. 학생 노트
+= 해당 일지 범위의 class_diary_student_notes 실제 count
+
+4칸 KPI 숫자를 맞추려고
+중복 카드나 추정 수치를 추가하지 말 것.
+
+"작성 완료"
+"미작성"
+문구는 이번 V1 KPI에서 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━
+UI 최종 구조 보정
+━━━━━━━━━━━━━━━━━━━━━━
+
+[SubScreenHeader]
+AI 일지피드
+
+[KPI]
+오늘 일지 N
+학생 노트 N
+
+[DATE INDEX]
+오늘 / 어제 / 이번 주 / 날짜 선택
+
+[학생 검색]
+
+[FILTER]
+반 / 선생님
+
+작성상태 filter 제거.
+AI filter 제거.
+
+[결과 수]
+
+[FlatList]
+
+각 row 실제 표시:
+
+- 수업 날짜/시간
+- 학생명
+- 반
+- 선생님
+- 사진 수
+- 좋아요 수
+- 댓글 수
+
+AI 여부 chip 금지.
+미작성 chip 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+실제 반응 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+그대로 구현:
+
+reaction_count:
+diary_reactions
+WHERE diary_id = class_diaries.id
+AND reaction_type IN ('like','thanks')
+
+comment_count:
+diary_messages
+WHERE diary_id = class_diaries.id
+AND is_deleted = false
+AND parent_comment_id IS NULL
+AND message_type = 'diary_comment'
+
+관리자 표시값이
+Parent 실제 반응 데이터와 같아야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+사진 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+그대로 구현:
+
+photo_assets_meta
+WHERE journal_id = class_diaries.id
+AND media_status = 'attached'
+
+→ photo_count
+
+임의 0값 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+학생 노트 KPI
+━━━━━━━━━━━━━━━━━━━━━━
+
+class_diary_student_notes 실제 schema를 확인하여
+선택된 날짜/range의 class_diaries와 실제 FK로 JOIN.
+
+실제 존재하는 diary FK/column명만 사용.
+
+학생 노트 KPI는
+해당 조회 범위에 속한 실제 note count.
+
+━━━━━━━━━━━━━━━━━━━━━━
+DETAIL 연결 승인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+GET /diaries/:id
+
+가 pool_admin을 이미 허용하므로 서버 API 재사용.
+
+앱 기존 teacher diary 화면을
+관리자 read-only detail로 재사용하기 위한
+최소 수정 승인.
+
+필요한 경우:
+
+viewOnly=true
+
+param 추가 허용.
+
+viewOnly일 때:
+
+- 내용 확인 가능
+- 사진 확인 가능
+- 저장 버튼 숨김
+- 수정 기능 숨김
+- 삭제 기능 숨김
+- AI 생성/재생성 기능 숨김
+
+기존 Teacher 직접 진입에서는
+현재 write 기능 그대로 유지.
+
+새 Admin diary detail 화면 생성 금지.
+
+수정 범위가 단순 viewOnly 처리보다 커지면
+임의 확장하지 말고 STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+DATE INDEX
+━━━━━━━━━━━━━━━━━━━━━━
+
+계획대로 유지:
+
+오늘
+어제
+이번 주
+날짜 선택
+
+class_datetime가 아니라
+실제 class_diaries schema에 확정된 날짜 컬럼:
+
+lesson_date
+
+를 기본 조회 기준으로 사용할 것.
+
+시간 표시가 필요한 경우
+실제 저장된 시간 source가 있는지 확인.
+
+없는 시간을 임의 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+INDEX / LIST 헌법 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+일지 전체 단순 나열 금지.
+
+- 날짜 INDEX
+- 학생 검색
+- 반 filter
+- 선생님 filter
+- FlatList
+- pagination
+
+유지.
+
+학생명 검색은 실제 students relation을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PHASE 3 수정 TEST SET
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 T1~T28 중
+존재하지 않는 ai_status / 미작성 관련 테스트는 제거.
+
+최종 테스트:
+
+T1. X 관리자 → diary-hub 정상
+T2. 선택 날짜 일지 total 실제 DB와 동일
+T3. 학생 노트 count 실제 DB와 동일
+T4. 오늘 index 정상
+T5. 어제 index 정상
+T6. 이번 주 range 정상
+T7. 날짜 선택 정상
+T8. 학생 검색 정상
+T9. 반 filter 정상
+T10. 선생님 filter 정상
+T11. 복수 filter 조합 정상
+T12. pagination 중복/누락 없음
+T13. reaction_count 실제 데이터 동일
+T14. comment_count 실제 데이터 동일
+T15. photo_count 실제 데이터 동일
+T16. row → 기존 diary detail 정상
+T17. Admin viewOnly에서 수정 UI 없음
+T18. Teacher 기존 diary write UI 정상 유지
+T19. 다른 pool 데이터 노출 없음
+T20. Normal Teacher diary 영향 없음
+T21. Normal Parent feed 영향 없음
+T22. X Teacher diary 영향 없음
+T23. X Parent feed 영향 없음
+T24. error UI 정상
+T25. empty UI 정상
+T26. TS error 0
+T27. production API JSON 정상
+T28. OTA 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+금지사항 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+- DB migration 금지
+- ai_status 추가 금지
+- growth_events로 AI 여부 추정 금지
+- 미작성 추정 금지
+- 중복 KPI 금지
+- Teacher diary 생성 로직 변경 금지
+- AI Engine 변경 금지
+- Parent feed 변경 금지
+- reactions/comments 변경 금지
+- PHASE 4 시작 금지
+
+이 결정 반영 후
+PHASE 3 구현을 바로 계속 진행.
+
+완료보고 후 STOP.
