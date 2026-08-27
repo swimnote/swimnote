@@ -47,21 +47,26 @@ function normalizeGating(v: unknown): string {
 
 const GROUNDING_PASS = new Set(["PASS", "REVISED_PASS"]);
 
-function summarizeSections(content: Record<string, unknown> | null) {
+function extractSections(content: Record<string, unknown> | null) {
   const SECTION_KEYS = [
     "core_growth", "swimming_progress", "behavioral_strengths",
     "longitudinal_comparison", "success_conditions", "teacher_guidance",
     "next_growth_direction", "parent_support",
   ];
-  const result: Record<string, string> = {};
+  // Production contract: sections live under content.sections[key] (not content[key])
+  const sectionsObj = (content as any)?.sections ?? null;
+  const coverage: Record<string, string> = {};
+  const text: Record<string, unknown> = {};
   for (const k of SECTION_KEYS) {
-    const sec = content?.[k];
-    if (!sec) { result[k] = "MISSING"; continue; }
-    const text = typeof sec === "string" ? sec
-      : ((sec as any).content ?? (sec as any).text ?? JSON.stringify(sec));
-    result[k] = (typeof text === "string" && text.trim().length > 0) ? "NON_EMPTY" : "BAD_EMPTY";
+    const sec = sectionsObj?.[k] ?? null;
+    if (!sec) { coverage[k] = "MISSING"; text[k] = null; continue; }
+    const t = typeof sec === "string" ? sec
+      : ((sec as any).content ?? (sec as any).text ?? (sec as any).body ?? sec);
+    const hasText = typeof t === "string" && t.trim().length > 0;
+    coverage[k] = hasText ? "NON_EMPTY" : "BAD_EMPTY";
+    text[k] = sec; // full section object for human review
   }
-  return result;
+  return { coverage, text };
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -219,12 +224,16 @@ router.post(
       growth_framing_result: growthFramingStatus,
     };
 
+    const { coverage: sectionCoverage, text: sectionText } = extractSections(content);
+
     const dryRunSummary = {
       analysis_status:     response.analysis_status,
       grounding_result:    groundingStatus,
       growth_framing_result: growthFramingStatus,
       summary_text:        (content as any)?.summary_text ?? null,
-      sections:            summarizeSections(content),
+      section_coverage:    sectionCoverage,
+      sections:            sectionText,          // actual section objects for human review
+      sns_summary:         snsSummary,
       questions_count:     response.questions?.length ?? 0,
       fact_f065:           (factPkg as any)?.f065_count ?? null,
       fact_f068:           (factPkg as any)?.f068_count ?? null,
@@ -239,10 +248,13 @@ router.post(
     // ── 8. DRY RUN — return without writing ──────────────────────────────────
     if (mode === "dry_run") {
       return res.json({
-        mode:     "dry_run",
+        mode:      "dry_run",
         report_id: reportId,
         snapshot:  snapshotInfo,
         engine:    dryRunSummary,
+        // Full raw content for isolated output (no DB write)
+        raw_report_content:  content,
+        raw_fact_package:    factWithValidation,
         latency: {
           snapshot_ms: snapshotMs,
           engine_ms:   engineMs,
