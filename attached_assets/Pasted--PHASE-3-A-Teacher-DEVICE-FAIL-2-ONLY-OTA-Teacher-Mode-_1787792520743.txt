@@ -1,0 +1,192 @@
+[앱] PHASE 3-A Teacher 좋아요 알림 — DEVICE FAIL 2차 원인확정 ONLY
+
+실기기 최신 OTA 적용 후에도
+Teacher Mode → 알림함 → 소식에
+Growth Report 좋아요 알림이 표시되지 않음.
+
+이번 단계에서는 수정 금지.
+실제 Production 경로를 단계별로 확인해서
+최초 실패 지점만 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 실제 Live SHA 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 FIX commit:
+
+7bd00f39
+
+완료보고에는 Render "자동 빌드 트리거"만 있었고
+7bd00f39가 실제 Production Live가 됐다는 확인은 없었습니다.
+
+현재 swimnote-api Production Live SHA를 확인하십시오.
+
+반드시 보고:
+
+- current Live SHA
+- deploy status
+- deploy timestamp
+
+판정:
+
+A. Live SHA = 7bd00f39
+→ 다음 단계 조사
+
+B. Live SHA != 7bd00f39
+→ 이것이 1차 원인 후보
+→ 아직 재배포하지 말고 보고 후 계속 원인 범위만 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production notification row 실제 존재 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+추측 금지.
+
+최근 Growth Report 좋아요에 대해
+Production notifications DB를 실제 조회하십시오.
+
+확인:
+
+type = 'growth_report_like'
+
+그리고:
+
+- row 존재 여부
+- created_at
+- recipient_id
+- recipient_type
+- ref_id
+- ref_type
+
+민감값은 마스킹 가능.
+
+중요:
+growth_report_reactions row와
+notifications row를 별도로 확인.
+
+결과를 아래처럼 분리:
+
+REACTION ROW = 있음 / 없음
+NOTIFICATION ROW = 있음 / 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 담당 Teacher recipient 일치 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+notification row가 있다면:
+
+notification.recipient_id
+
+와
+
+현재 실기기에서 로그인한 Teacher userId
+
+가 실제로 동일한지 확인.
+
+또한:
+
+growth report student
+→ class_group_id
+→ class_groups.teacher_user_id
+
+resolve 결과와도 비교.
+
+다른 teacher에게 들어가고 있으면
+recipient resolve 문제로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production GET /teacher/news 실제 응답 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 Teacher 계정과 동일 userId 기준으로
+
+GET /teacher/news
+
+응답을 확인.
+
+확인:
+
+- HTTP status
+- growth_report_like item 포함 여부
+- 해당 notification id/ref_id
+- 응답 내 type 값
+
+결과 분기:
+
+A.
+DB row 없음
+→ notification INSERT 단계 실패
+
+B.
+DB row 있음 + recipient 잘못됨
+→ teacher resolve 실패
+
+C.
+DB row 있음 + recipient 정상
++ GET /teacher/news에 없음
+→ Production allowlist/query 문제
+
+D.
+GET /teacher/news에는 있음
++ 앱 화면에는 없음
+→ Teacher app rendering/state 문제
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Teacher App 쪽은 API에 있을 때만 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /teacher/news 응답에
+growth_report_like가 실제 포함된 경우에만:
+
+messages-inbox.tsx에서 확인:
+
+- NewsItem.type에 growth_report_like 실제 포함 여부
+- response mapping 과정에서 drop되는지
+- "소식" 탭 render 조건
+- pagination / stale state
+- refresh trigger
+- 화면 진입 시 재조회 여부
+
+API에 없는 상태에서 앱 코드를 다시 고치지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[RENDER]
+- Live SHA
+- status
+
+[DB]
+- reaction row 있음/없음
+- growth_report_like notification row 있음/없음
+- recipient 일치 여부
+
+[TEACHER NEWS API]
+- HTTP status
+- growth_report_like 포함 여부
+
+[APP]
+- API에는 있는데 UI에서 누락되는지 여부
+
+[ROOT CAUSE]
+아래 중 하나로 정확히 확정:
+
+A. Render 최신 FIX 미배포
+B. notification INSERT 실패
+C. teacher recipient resolve 오류
+D. /teacher/news query에서 여전히 제외
+E. API 응답에는 있으나 앱 UI에서 누락
+F. 기타
+
+[FIX PLAN]
+확정된 최초 실패 지점만 최소 수정안 작성.
+
+이번 단계:
+- 코드 수정 금지
+- Render deploy 금지
+- OTA 금지
+- Production DB write 금지
+- PHASE 3-B/3-C/3-D 금지
+
+조사 후 STOP.
