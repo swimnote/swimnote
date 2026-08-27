@@ -1,0 +1,202 @@
+[PHASE 4 FINAL FIX — INDEX 헌법 복구 ONLY]
+
+PHASE 4 서버/API/KPI/X Global/Parent AI 구현은 PASS.
+
+새 기능 추가 금지.
+서버 API 변경 금지.
+DB 수정 금지.
+PHASE 5 시작 금지.
+
+이번 수정은 학생 탐색 UI 2건만 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 학생 결과를 FlatList로 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+pagination:
+"load more 버튼 방식 (ScrollView 내부 inline)"
+
+이 구조는 승인된 INDEX 헌법과 불일치.
+
+학생 결과 목록은 반드시:
+
+FlatList
++
+pagination/load more
+
+구조로 변경.
+
+금지:
+
+ScrollView 안에서
+students.map(...)
+형태로 학생 전체 렌더링.
+
+목표:
+
+- FlatList virtualization
+- 기존 page/limit/has_more API 그대로 재사용
+- 기존 load more 버튼 유지 가능
+- 또는 onEndReached 사용 가능
+
+중요:
+API/SQL 수정하지 말 것.
+
+학생 수가 증가해도
+목록 전체를 한 번에 렌더링하지 않는 구조여야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 반 FILTER 실제 UI 연결 확인/수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 TEST에는:
+
+T11 반 filter PASS
+
+라고 되어 있지만
+INDEX/UI 보고에는:
+
+- 배정 상태
+- 커리큘럼 버전
+
+만 표시되어 있음.
+
+실제 curriculum-hub UI를 확인.
+
+반 filter가 실제 UI에 없으면 추가.
+
+최종 학생 Finder:
+
+[검색]
+
+[가나다 INDEX]
+
+[FILTER]
+- 반
+- 배정 상태
+- 커리큘럼 버전
+
+반 선택값:
+
+class_group_id
+
+기존 GET /admin/curriculum/students
+query param을 그대로 사용.
+
+새 API 생성 금지.
+
+이미 반 filter UI가 실제 존재한다면
+코드 수정하지 말고
+존재 위치와 동작 증빙만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 기능 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- KPI 4개
+- curriculum version index
+- 가나다 index
+- 검색
+- assignment filter
+- curriculum version filter
+- growth_events 표시
+- Parent AI 현황
+- X Global section
+- API
+- SQL
+- permissions
+- pool isolation
+
+교육 커리큘럼과
+X Global AI 일지 템플릿 분리 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+F1.
+학생 결과가 실제 FlatList인지 확인
+
+F2.
+ScrollView + map 학생 전량 렌더링 없음
+
+F3.
+첫 페이지 정상
+
+F4.
+Load more 후 중복 없음
+
+F5.
+Load more 후 누락 없음
+
+F6.
+가나다 index + pagination 조합 정상
+
+F7.
+검색 + pagination 정상
+
+F8.
+반 filter 실제 UI 존재
+
+F9.
+반 선택 → class_group_id API 전달
+
+F10.
+반 + 배정상태 + 커리큘럼버전 복수 filter 정상
+
+F11.
+TS error 0
+
+F12.
+기존 Parent AI/X Global/KPI 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트 UI 수정만이라면
+Render 재배포 금지.
+
+production OTA만 배포.
+
+runtimeVersion:
+1.6.3 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[INDEX FIX]
+- 학생 list component:
+- virtualization:
+- pagination:
+- ScrollView map 제거 여부:
+
+[CLASS FILTER]
+- 기존 존재 여부:
+- UI 위치:
+- class_group_id 전달:
+- 복수 filter:
+
+[TEST]
+F1~F12 PASS/FAIL
+
+[CODE]
+- SHA
+- 수정 파일
+
+[OTA]
+- rollback target
+- new OTA ID
+- runtimeVersion
+
+[PHASE 4 FINAL]
+PASS / FAIL
+
+완료 후 STOP.
+
+PHASE 5 시작 금지.
