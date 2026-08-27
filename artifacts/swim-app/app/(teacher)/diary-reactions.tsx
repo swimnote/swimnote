@@ -74,7 +74,9 @@ export default function DiaryReactionsScreen() {
   const { diaryId, lessonDate, source } = useLocalSearchParams<{ diaryId: string; lessonDate: string; source?: string }>();
 
   const handleBack = useCallback(() => {
-    if (source === "teacher_home_inbox") {
+    if (source === "news_inbox") {
+      router.navigate("/(teacher)/messages-inbox" as any);
+    } else if (source === "teacher_home_inbox") {
       router.replace("/(teacher)/today-schedule" as any);
     } else {
       router.back();

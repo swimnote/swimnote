@@ -63,7 +63,15 @@ function fmtTime(iso: string) {
 export default function GrowthReportReactionsScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
-  const { reportId } = useLocalSearchParams<{ reportId: string }>();
+  const { reportId, source } = useLocalSearchParams<{ reportId: string; source?: string }>();
+
+  const handleBack = useCallback(() => {
+    if (source === "news_inbox") {
+      router.navigate("/(teacher)/messages-inbox" as any);
+    } else {
+      router.back();
+    }
+  }, [source]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,7 +110,7 @@ export default function GrowthReportReactionsScreen() {
       <SubScreenHeader
         title="반응 & 댓글"
         subtitle={subtitle}
-        onBack={() => router.back()}
+        onBack={handleBack}
       />
 
       {loading ? (
