@@ -304,8 +304,8 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
 
-        {/* ── 2. X모드 상태 ──────────────────────────────────────────────── */}
-        {adminUser?.role !== "teacher" && (
+        {/* ── 2. X모드 상태 — X모드/x_pending일 때만 표시 (일반모드 관리자 미표시) */}
+        {adminUser?.role !== "teacher" && isX && (
           <View style={[s.card, { marginBottom: 12 }]}>
             {/* X모드 상태 row */}
             <Pressable
