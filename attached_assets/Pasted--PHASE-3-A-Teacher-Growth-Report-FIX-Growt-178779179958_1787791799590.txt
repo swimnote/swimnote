@@ -1,0 +1,144 @@
+[앱] PHASE 3-A Teacher Growth Report 좋아요 알림 FIX — 구현 승인
+
+원인 조사 완료.
+이번에는 실제 코드 수정까지 진행하십시오.
+
+목표:
+Growth Report 좋아요가 Teacher Mode "소식" 탭에 정상 표시되게 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Server allowlist 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/api-server/src/routes/notifications.ts
+
+현재:
+
+AND n.type IN (
+  'diary_like',
+  'diary_thanks',
+  'diary_comment'
+)
+
+변경:
+
+AND n.type IN (
+  'diary_like',
+  'diary_thanks',
+  'diary_comment',
+  'growth_report_like'
+)
+
+이번 단계에서는 growth_report_comment 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher Inbox 타입 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+NewsItem.type union에:
+
+'growth_report_like'
+
+추가.
+
+기존 diary type 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Growth Report 좋아요 알림 카드 표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /teacher/news 응답의 growth_report_like가
+Teacher "소식" 탭에 기존 notification card UI로 정상 표시되게 연결.
+
+새 디자인 만들지 말 것.
+
+기존 카드 스타일 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 알림 탭 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 growth_report_like를 누르면
+기존 diary fallback으로 잘못 이동할 수 있으므로 막으십시오.
+
+PHASE 3-C 전까지:
+
+growth_report_like 탭
+→ read 처리
+→ 현재 Teacher 소식 화면 유지
+
+잘못된 Diary 화면 이동 금지.
+
+Growth Report 전용 화면 신규 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+SERVER:
+- GET /teacher/news에 growth_report_like 포함
+- diary_like / diary_comment / diary_thanks 기존 포함 유지
+- 다른 teacher notification 노출 없음
+
+APP:
+- Teacher 소식 탭에 Growth Report 좋아요 카드 표시
+- 카드 title/body 정상
+- 탭해도 Diary 화면으로 잘못 이동하지 않음
+- 기존 Diary 알림 카드 동작 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+server 변경:
+→ commit
+→ Production Render deploy
+
+app TSX 변경:
+→ commit
+→ iOS production OTA publish
+
+OTA 전 rollback target 기록.
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CODE]
+- SHA
+- 변경 파일
+
+[SERVER]
+- Render deploy SHA
+- deploy status
+- GET /teacher/news 결과
+
+[OTA]
+- previous stable group/update
+- new update group ID
+- new update ID
+- runtimeVersion
+- channel
+
+[DEVICE]
+Replit이 실기기 PASS라고 쓰지 말고
+사용자 실기기 확인 대기라고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- growth_report_comment 추가 금지
+- PHASE 3-B 시작 금지
+- PHASE 3-C 시작 금지
+- PHASE 3-D 시작 금지
+- Teacher Growth Report 상세 화면 생성 금지
+- DB schema 변경 금지
+
+완료 후 STOP.
