@@ -4053,6 +4053,258 @@ router.get(
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// X Admin — AI 커리큘럼 허브
+// GET /curriculum/summary   → /api/admin/curriculum/summary
+// GET /curriculum/students  → /api/admin/curriculum/students
+// ════════════════════════════════════════════════════════════════════════
+
+// 가나다 초성 → BETWEEN 범위 변환
+const INITIAL_MAP: Record<string, [string, string]> = {
+  ㄱ: ["가", "낗"], ㄴ: ["나", "닣"], ㄷ: ["다", "랗"], ㄹ: ["라", "맣"],
+  ㅁ: ["마", "밯"], ㅂ: ["바", "삳"], ㅅ: ["사", "앟"], ㅇ: ["아", "잫"],
+  ㅈ: ["자", "찿"], ㅊ: ["차", "칳"], ㅋ: ["카", "탛"], ㅌ: ["타", "팧"],
+  ㅍ: ["파", "핳"], ㅎ: ["하", "힣"],
+};
+
+router.get(
+  "/curriculum/summary",
+  requireAuth, requireRole("pool_admin", "super_admin"), requireXMode,
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      // ── KPI 1: 활성 커리큘럼 수 ───────────────────────────────────────
+      const [kpi1, kpi2, kpi3, kpi4, versionsRes, parentAiRes, xGlobalRes] = await Promise.all([
+        db.execute(sql`
+          SELECT COUNT(*)::int AS cnt
+          FROM curriculum_versions
+          WHERE swimming_pool_id = ${poolId} AND is_active = true
+        `),
+        // KPI 2: 활성 version의 활성 item 수
+        db.execute(sql`
+          SELECT COUNT(ci.id)::int AS cnt
+          FROM curriculum_items ci
+          JOIN curriculum_versions cv ON cv.id = ci.curriculum_version_id
+          WHERE cv.swimming_pool_id = ${poolId} AND cv.is_active = true AND ci.is_active = true
+        `),
+        // KPI 3: 배정 학생 DISTINCT count
+        db.execute(sql`
+          SELECT COUNT(DISTINCT student_id)::int AS cnt
+          FROM student_curriculum_assignments
+          WHERE swimming_pool_id = ${poolId} AND is_active = true
+        `),
+        // KPI 4: 미배정 학생 (현재 재원 기준: student_class_history.left_at IS NULL)
+        db.execute(sql`
+          SELECT COUNT(DISTINCT s.id)::int AS cnt
+          FROM students s
+          JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+          WHERE s.swimming_pool_id = ${poolId}
+            AND NOT EXISTS (
+              SELECT 1 FROM student_curriculum_assignments sca
+              WHERE sca.student_id = s.id
+                AND sca.swimming_pool_id = ${poolId}
+                AND sca.is_active = true
+            )
+        `),
+        // 커리큘럼 버전 목록 (item_count + assigned_student_count)
+        db.execute(sql`
+          SELECT
+            cv.id                                                                  AS curriculum_version_id,
+            cv.version_name,
+            cv.is_active,
+            COUNT(DISTINCT ci.id) FILTER (WHERE ci.is_active = true)::int         AS item_count,
+            COUNT(DISTINCT sca.student_id)::int                                    AS assigned_student_count
+          FROM curriculum_versions cv
+          LEFT JOIN curriculum_items ci  ON ci.curriculum_version_id = cv.id
+          LEFT JOIN student_curriculum_assignments sca
+            ON sca.curriculum_version_id = cv.id AND sca.is_active = true
+          WHERE cv.swimming_pool_id = ${poolId}
+          GROUP BY cv.id, cv.version_name, cv.is_active
+          ORDER BY cv.is_active DESC, cv.version_name ASC
+        `),
+        // Parent AI 커리큘럼 검색 — 이번 달
+        db.execute(sql`
+          SELECT COUNT(*)::int AS cnt,
+                 MAX(created_at)::text AS latest_at,
+                 COUNT(DISTINCT actor_id)::int AS searcher_count
+          FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND category = 'AI'
+            AND metadata->>'feature' = 'parent_curriculum_search'
+            AND created_at >= date_trunc('month', now())
+        `),
+        // X Global AI 일지 템플릿
+        db.execute(sql`
+          SELECT gts.id, gts.version_name,
+                 COUNT(dt.id)::int AS template_count
+          FROM global_template_sets gts
+          LEFT JOIN diary_templates dt
+            ON dt.global_template_set_id = gts.id AND dt.scope = 'x_global'
+          WHERE gts.status = 'ACTIVE'
+          GROUP BY gts.id, gts.version_name
+          LIMIT 1
+        `),
+      ]);
+
+      const k1 = (kpi1.rows[0] as any)?.cnt ?? 0;
+      const k2 = (kpi2.rows[0] as any)?.cnt ?? 0;
+      const k3 = (kpi3.rows[0] as any)?.cnt ?? 0;
+      const k4 = (kpi4.rows[0] as any)?.cnt ?? 0;
+      const pai = (parentAiRes.rows[0] as any) ?? {};
+      const xg  = xGlobalRes.rows[0] as any ?? null;
+
+      res.json({
+        summary: {
+          active_versions:    Number(k1),
+          active_items:       Number(k2),
+          assigned_students:  Number(k3),
+          unassigned_students: Number(k4),
+        },
+        versions: (versionsRes.rows as any[]).map(r => ({
+          curriculum_version_id:  r.curriculum_version_id,
+          version_name:           r.version_name,
+          is_active:              r.is_active,
+          item_count:             Number(r.item_count ?? 0),
+          assigned_student_count: Number(r.assigned_student_count ?? 0),
+        })),
+        parent_ai: {
+          current_month_search_count: Number(pai.cnt ?? 0),
+          latest_at:                  pai.latest_at ?? null,
+          searcher_count:             Number(pai.searcher_count ?? 0),
+        },
+        x_global: xg ? {
+          active_set_id:    xg.id,
+          active_set_name:  xg.version_name,
+          template_count:   Number(xg.template_count ?? 0),
+        } : null,
+      });
+    } catch (e) {
+      console.error("[admin/curriculum/summary]", e);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
+router.get(
+  "/curriculum/students",
+  requireAuth, requireRole("pool_admin", "super_admin"), requireXMode,
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getAdminPoolId(req);
+      if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
+
+      const {
+        q, initial, class_group_id, assignment,
+        curriculum_version_id, page = "1", limit = "30",
+      } = req.query as Record<string, string>;
+
+      const pageNum  = Math.max(1, parseInt(page) || 1);
+      const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 30));
+      const offset   = (pageNum - 1) * limitNum;
+
+      // 필터 조건 조립
+      const nameFilter    = q ? sql`AND s.name ILIKE ${"%" + q + "%"}` : sql``;
+      let initialFilter = sql``;
+      if (initial && INITIAL_MAP[initial]) {
+        const [lo, hi] = INITIAL_MAP[initial];
+        initialFilter = sql`AND s.name >= ${lo} AND s.name <= ${hi}`;
+      }
+      const classFilter  = class_group_id ? sql`AND cg.id = ${class_group_id}` : sql``;
+      const cvFilter     = curriculum_version_id ? sql`AND sca.curriculum_version_id = ${curriculum_version_id}` : sql``;
+      let assignFilter   = sql``;
+      if (assignment === "assigned")   assignFilter = sql`AND sca.id IS NOT NULL`;
+      if (assignment === "unassigned") assignFilter = sql`AND sca.id IS NULL`;
+
+      // total count
+      const countRow = await db.execute(sql`
+        SELECT COUNT(DISTINCT s.id)::int AS total
+        FROM students s
+        JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
+        LEFT JOIN student_curriculum_assignments sca
+          ON sca.student_id = s.id AND sca.swimming_pool_id = ${poolId} AND sca.is_active = true
+        WHERE s.swimming_pool_id = ${poolId}
+          ${nameFilter}
+          ${initialFilter}
+          ${classFilter}
+          ${cvFilter}
+          ${assignFilter}
+      `);
+      const total = Number((countRow.rows[0] as any)?.total ?? 0);
+
+      // 학생 목록
+      const listRows = await db.execute(sql`
+        SELECT
+          s.id              AS student_id,
+          s.name            AS student_name,
+          cg.id             AS class_group_id,
+          cg.name           AS class_name,
+          sch.teacher_id,
+          u.name            AS teacher_name,
+          sca.curriculum_version_id,
+          cv.version_name   AS curriculum_version_name,
+          sca.is_active     AS assignment_is_active,
+          (
+            SELECT COUNT(*)::int FROM growth_events ge
+            WHERE ge.student_id = s.id
+              AND ge.swimming_pool_id = ${poolId}
+              AND ge.is_invalidated = false
+          ) AS recent_growth_event_count,
+          (
+            SELECT MAX(ge2.created_at)::text FROM growth_events ge2
+            WHERE ge2.student_id = s.id
+              AND ge2.swimming_pool_id = ${poolId}
+              AND ge2.is_invalidated = false
+          ) AS latest_growth_event_at
+        FROM students s
+        JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
+        LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
+        LEFT JOIN users u ON u.id = sch.teacher_id
+        LEFT JOIN student_curriculum_assignments sca
+          ON sca.student_id = s.id AND sca.swimming_pool_id = ${poolId} AND sca.is_active = true
+        LEFT JOIN curriculum_versions cv ON cv.id = sca.curriculum_version_id
+        WHERE s.swimming_pool_id = ${poolId}
+          ${nameFilter}
+          ${initialFilter}
+          ${classFilter}
+          ${cvFilter}
+          ${assignFilter}
+        ORDER BY s.name ASC
+        LIMIT ${limitNum} OFFSET ${offset}
+      `);
+
+      res.json({
+        students: (listRows.rows as any[]).map(r => ({
+          student_id:                r.student_id,
+          student_name:             r.student_name,
+          class_group_id:           r.class_group_id,
+          class_name:               r.class_name,
+          teacher_id:               r.teacher_id,
+          teacher_name:             r.teacher_name,
+          assignment: r.curriculum_version_id ? {
+            curriculum_version_id:   r.curriculum_version_id,
+            curriculum_version_name: r.curriculum_version_name,
+            is_active:               r.assignment_is_active,
+          } : null,
+          recent_growth_event_count: Number(r.recent_growth_event_count ?? 0),
+          latest_growth_event_at:   r.latest_growth_event_at ?? null,
+        })),
+        pagination: {
+          page:     pageNum,
+          limit:    limitNum,
+          total,
+          has_more: offset + listRows.rows.length < total,
+        },
+      });
+    } catch (e) {
+      console.error("[admin/curriculum/students]", e);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
 export { checkRefundPolicyAgreed };
 
 export default router;
