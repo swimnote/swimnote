@@ -1,0 +1,264 @@
+[앱+서버] PHASE 3-B2 — Growth Report 댓글 Teacher 알림 구현 승인
+
+PHASE 3-B1 Parent 댓글 기능 실기기 PASS.
+
+이번 단계 목표:
+
+Parent가 AI 성장 리포트에 댓글 작성
+→ 담당 Teacher에게 notification 생성
+→ Teacher 소식 탭에 표시
+→ 알림 탭 시 Growth Report 전용 반응&댓글 화면 진입
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Server notification 문구 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/api-server/src/routes/growth-report-interactions.ts
+
+현재 growth_report_comment body:
+
+"{senderName}이(가) 성장리포트에 댓글을 남겼습니다."
+
+변경:
+
+"{senderName}님이 AI 성장 리포트에 댓글을 남겼습니다."
+
+title:
+"새 댓글"
+
+유지.
+
+기존 notification row UPDATE 금지.
+변경 후 새로 발생하는 댓글 notification에만 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Teacher News allowlist 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/api-server/src/routes/notifications.ts
+
+GET /teacher/news allowlist에:
+
+'growth_report_comment'
+
+추가.
+
+기존:
+
+diary_like
+diary_thanks
+diary_comment
+growth_report_like
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher messages-inbox type/UI 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+NewsItem.type union에:
+
+growth_report_comment
+
+추가.
+
+아이콘:
+기존 diary_comment와 동일 계열의 comment/message-circle 계열 사용.
+
+title/body는 서버 notification 값을 그대로 표시.
+
+별도의 "수업피드" 문구로 치환 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Press flow
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_report_comment 알림 탭:
+
+→ /(teacher)/growth-report-reactions
+→ reportId = item.ref_id
+
+기존 Growth Report like 알림과 동일한 전용 화면 재사용.
+
+절대:
+
+growth_report_comment
+→ diary-reactions
+
+로 보내지 말 것.
+
+Diary endpoint에 reportId 전달 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Growth Report reaction screen
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+app/(teacher)/growth-report-reactions.tsx
+
+재사용.
+
+이번 단계에서는 화면 자체 기능 확장 최소화.
+
+현재 API:
+
+GET /teacher/growth-reports/:reportId/interactions
+
+를 사용해서
+해당 Growth Report interaction 정보를 표시.
+
+기존 like count/parent names 동작 영향 금지.
+
+이번 단계에서 Teacher reply 기능은 구현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Notification 생성 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent가 새 Growth Report 댓글 작성:
+
+POST
+/parent/growth-reports/:reportId/comments
+
+성공 후 notification 생성 확인:
+
+type:
+growth_report_comment
+
+title:
+새 댓글
+
+body:
+"{parentName}님이 AI 성장 리포트에 댓글을 남겼습니다."
+
+recipient_id:
+해당 student 담당 Teacher
+
+ref_id:
+reportId
+
+ref_type:
+growth_report
+
+deep_link/payload:
+기존 서버 구현 유지
+
+Teacher resolve 실패 시
+댓글 INSERT 자체는 실패시키지 않는 기존 정책 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+S1.
+Parent 새 Growth Report 댓글 작성
+
+S2.
+notification DB row 생성:
+type = growth_report_comment
+
+S3.
+GET /teacher/news
+→ 해당 notification 포함
+
+S4.
+body에:
+"AI 성장 리포트"
+포함
+
+S5.
+Teacher 소식 탭에서
+"새 댓글" 카드 표시
+
+S6.
+알림 탭
+→ growth-report-reactions 화면 진입
+
+S7.
+Diary reaction 화면으로 잘못 이동하지 않음
+
+S8.
+기존 growth_report_like 알림 정상
+
+S9.
+기존 diary_comment 알림 정상
+
+S10.
+Parent 댓글 작성/삭제 기능 regression 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계 금지:
+
+- Teacher reply 작성 UI 구현 금지
+- Parent reply-to-teacher 기능 금지
+- Growth Report comments DB schema 변경 금지
+- DB migration 금지
+- Diary notification 로직 수정 금지
+- Growth Report like API 수정 금지
+- PHASE 3-C/3-D 시작 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Server 변경 있음:
+
+코드 수정
+→ 테스트
+→ commit
+→ Render Production deploy
+
+App 변경 있음:
+
+→ iOS production OTA
+
+Android OTA 금지.
+
+Render는 실제 Live SHA 확인할 것.
+"deploy triggered"만으로 완료 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CODE]
+- SHA
+- 변경 파일
+
+[SERVER]
+- Render deploy ID
+- Live SHA
+- 실제 deploy 완료 여부
+
+[NOTIFICATION]
+- type
+- title
+- body
+- recipient
+- ref_id/ref_type
+
+[TEST]
+- /teacher/news 포함 확인
+- Growth Report like regression
+- Diary comment regression
+
+[OTA]
+- previous stable
+- new update group
+- new iOS update ID
+- runtimeVersion
+
+[DEVICE]
+- 사용자 실기기 확인 대기
+
+완료 후 STOP.
+Teacher reply 단계로 넘어가지 마십시오.
