@@ -468,9 +468,6 @@ function ActionRow({
           color={myLiked ? LIKE_ACTIVE : LIKE_INACTIVE}
           fill={myLiked ? LIKE_ACTIVE : "none"}
         />
-        <Text style={{ ...T4, fontSize: 13, color: myLiked ? LIKE_ACTIVE : META_DARK }}>
-          좋아요
-        </Text>
       </Pressable>
 
       {/* 댓글 — stubbed (PHASE 3-B에서 연결) */}
@@ -479,7 +476,6 @@ function ActionRow({
         paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
       })}>
         <LucideIcon name="message-circle" size={18} color={MUTED} />
-        <Text style={{ ...T4, fontSize: 13 }}>댓글</Text>
       </Pressable>
 
       {/* PDF·공유 */}
