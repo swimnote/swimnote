@@ -274,12 +274,20 @@ export default function SuperDashboard() {
           <Text style={s.headerTitle}>SWIMNOTE</Text>
           <Text style={s.headerSub}>{today}</Text>
         </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Pressable style={s.menuBtn} onPress={() => router.push("/(super)/global-menu" as any)}>
             <LucideIcon name="menu" size={18} color={P} />
           </Pressable>
-          <Pressable style={s.logoutBtn} onPress={logout}>
-            <LucideIcon name="log-out" size={15} color={C.textMuted} />
+          <Pressable
+            style={s.logoutBtn}
+            onPress={() =>
+              Alert.alert("로그아웃", "로그아웃하시겠습니까?", [
+                { text: "취소", style: "cancel" },
+                { text: "로그아웃", style: "destructive", onPress: logout },
+              ])
+            }
+          >
+            <Text style={s.logoutTxt}>로그아웃</Text>
           </Pressable>
         </View>
       </View>
@@ -456,8 +464,10 @@ const s = StyleSheet.create({
   headerSub:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   menuBtn:        { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F5F3FF",
                     alignItems: "center", justifyContent: "center" },
-  logoutBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: C.backgroundSoft,
+  logoutBtn:      { borderRadius: 10, backgroundColor: C.backgroundSoft,
+                    paddingHorizontal: 12, paddingVertical: 8,
                     alignItems: "center", justifyContent: "center" },
+  logoutTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   kpiRow:         { flexDirection: "row", gap: 8, marginBottom: 12 },
 
