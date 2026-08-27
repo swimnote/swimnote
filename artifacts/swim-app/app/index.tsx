@@ -457,8 +457,8 @@ const s = StyleSheet.create({
   /* iPad: 가운데 정렬 + 최대 폭 제한 */
   bottomSection: { gap: 0 },
   bottomSectionTablet: { maxWidth: 480, width: "100%", alignSelf: "center" },
-  logoImg: { width: 234, height: 215, alignSelf: "center", marginBottom: 12, marginTop: 8 },
-  logoImgTablet: { width: 320, height: 265 },
+  logoImg: { width: Math.min(SCREEN_W * 0.51, 220), alignSelf: "center", marginBottom: 12, marginTop: 8 },
+  logoImgTablet: { width: Math.min(SCREEN_W * 0.51, 220) },
 
   /* 로고 */
   logoArea:  { alignItems: "center", marginBottom: Math.min(48, SCREEN_W * 0.07) },
