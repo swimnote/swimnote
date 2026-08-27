@@ -181,10 +181,11 @@ function BottomSheet({
 
 const REPORT_SECTIONS = [
   "현재 성장 요약",
-  "수영 기술 및 학습 진행",
   "행동·학습 강점",
   "반복되는 성장 패턴",
   "잘 되는 조건",
+  "집중·자기조절 및 학습 반응",
+  "수영 기술 및 운동학습 진행",
   "수업 전략",
   "다음 성장 방향",
   "가정에서의 지원 방법",
@@ -196,24 +197,23 @@ function ReportPreviewSheet({ visible, onClose }: { visible: boolean; onClose: (
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
         <Text style={s.sheetTitle}>어떤 리포트가 나오나요?</Text>
 
-        {/* 행동·학습 분석 가치 */}
+        {/* 행동 추적 → 성장 방향 */}
         <View style={s.sheetValueBlock}>
           <Text style={s.sheetValueTitle}>
-            수영 기록을 넘어,{"\n"}아이가 배우는 방식까지
+            행동을 추적해,{"\n"}성장의 방향까지 찾아냅니다
           </Text>
           <Text style={s.sheetValueBody}>
-            일반적인 수영 리포트가 영법이나 기록 중심으로 끝나는 것과 달리,{"\n"}
-            AI 인사이트 전략 리포트는 수업 중 반복되는 행동,{"\n"}
-            새로운 과제를 받아들이는 방식, 집중과 자기조절,{"\n"}
-            성공했을 때의 조건, 어려움 이후 다시 적응하는 과정까지{"\n"}
-            누적 수업 데이터 안에서 함께 살펴봅니다.
+            AI 인사이트 전략 리포트는{"\n"}
+            단순히 무엇을 잘했는지를 정리하지 않습니다.{"\n\n"}
+            수업 속 행동과 변화의 흐름을 추적하여
           </Text>
           <View style={s.sheetBullets}>
             {[
-              "무엇을 잘했는가",
-              "어떤 조건에서 더 잘 배우는가",
-              "어떤 방식으로 성장하고 있는가",
-              "다음 수업에서 무엇을 우선해야 하는가",
+              "어떤 방식으로 배우는지",
+              "어떤 조건에서 더 잘 성장하는지",
+              "어떤 부분이 반복해서 강점으로 나타나는지",
+              "어떤 환경과 접근이 긍정적으로 작용하는지",
+              "앞으로 무엇을 우선하면 더 좋은 성장으로 이어질지",
             ].map((b, i) => (
               <View key={i} style={s.bulletRow}>
                 <View style={s.bulletDot} />
@@ -221,6 +221,37 @@ function ReportPreviewSheet({ visible, onClose }: { visible: boolean; onClose: (
               </View>
             ))}
           </View>
+          <Text style={[s.sheetValueBody, { marginTop: 10 }]}>까지 연결해 보여줍니다.</Text>
+        </View>
+
+        {/* 수영은 분석의 재료 */}
+        <View style={[s.sheetValueBlock, { marginTop: 10 }]}>
+          <Text style={s.sheetValueTitle}>
+            수영은 분석의 재료,{"\n"}리포트는 아이의 성장 전체를 봅니다
+          </Text>
+          <Text style={s.sheetValueBody}>
+            수영 수업은 아이의 다양한 행동과 반응이 반복적으로 나타나는 환경입니다.{"\n\n"}
+            새로운 과제를 받아들이는 방식, 집중이 유지되는 조건, 실패 이후 다시 적응하는 과정, 성공했을 때 나타나는 변화, 교사의 피드백에 반응하는 방식 등 수업 안에서 나타나는 여러 행동 단서를 지속적으로 관찰하고 추적할 수 있습니다.{"\n\n"}
+            AI 인사이트 전략 리포트는 이러한 수영 수업 데이터를 분석 재료로 활용해
+          </Text>
+          <View style={s.sheetBullets}>
+            {[
+              "학습 방식",
+              "집중과 자기조절",
+              "자신감과 도전 반응",
+              "회복과 적응",
+              "운동학습",
+              "신체협응",
+              "학습태도",
+              "성장 패턴",
+            ].map((b, i) => (
+              <View key={i} style={s.bulletRow}>
+                <View style={s.bulletDot} />
+                <Text style={s.bulletTxt}>{b}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[s.sheetValueBody, { marginTop: 10 }]}>등 아이의 학습과 성장 전 영역을 함께 평가합니다.</Text>
         </View>
 
         {/* 8개 섹션 목록 */}
@@ -245,11 +276,12 @@ function ReportPreviewSheet({ visible, onClose }: { visible: boolean; onClose: (
           {[
             "전문 평가체계 참고",
             "약 330개 평가 후보항목",
-            "SWIMNOTE 누적 수업·성장 데이터 분석",
+            "수업 중 행동 단서 수집",
+            "행동 단서 분해·추적",
+            "누적 성장 패턴 분석",
             "학부모 관찰정보 결합",
-            "SWIMNOTE AI 추론",
-            "OpenAI GPT 활용 교차 검증",
-            "근거 있는 항목만 선별",
+            "SWIMNOTE AI 추론 + OpenAI GPT 활용 교차 검증",
+            "성장 방향 인사이트 도출",
             "AI 인사이트 전략 리포트",
           ].map((step, i, arr) => (
             <View key={i} style={s.stepRow}>
@@ -270,9 +302,9 @@ function ReportPreviewSheet({ visible, onClose }: { visible: boolean; onClose: (
             전문 평가체계를 AI 분석으로 연결합니다
           </Text>
           <Text style={s.sheetNoteTxt}>
-            AI 인사이트 전략 리포트의 평가항목은 SWIMNOTE가 임의로 만든 질문만으로 구성하지 않습니다.{"\n\n"}
-            아동·학습·행동·운동 분야에서 사용되는 전문적인 평가 지표와 관찰 기준을 참고하고,{"\n\n"}
-            SWIMNOTE AI가 실제 수업 기록과 누적 성장 데이터를 분석한 뒤, OpenAI GPT를 활용한 교차 검증 단계를 거쳐 근거가 있는 내용만 부모용 인사이트로 정리합니다.
+            AI 인사이트 전략 리포트는 아동·학습·행동·운동 분야에서 사용되는 전문적인 평가 지표와 관찰 기준을 참고합니다.{"\n\n"}
+            SWIMNOTE AI는 실제 수업에서 나타나는 행동과 반응을 작은 단서 단위로 분해하고, 시간에 따라 반복되는 패턴과 변화를 추적합니다.{"\n\n"}
+            여기에 학부모 관찰정보와 누적 성장 데이터를 결합하고, OpenAI GPT를 활용한 교차 검증 단계를 거쳐 아이에게 의미 있는 성장 인사이트를 정리합니다.
           </Text>
         </View>
       </ScrollView>
@@ -391,15 +423,21 @@ export default function InsightReportHub() {
           <Text style={s.heroTitle}>AI 인사이트 전략 리포트</Text>
           <Text style={s.heroDesc}>
             수업 기록과 누적 성장 데이터,{"\n"}
-            학부모가 제공한 관찰정보를 함께 분석해{"\n"}
-            아이의 성장 신호와 잘 되는 조건,{"\n"}
-            다음 성장 전략을 더 깊게 분석합니다.
+            학부모가 제공한 관찰정보를 함께 분석해{"\n\n"}
+            아이에게 반복해서 나타나는 행동 단서와{"\n"}
+            배우는 방식, 잘 되는 조건, 변화의 흐름을 추적합니다.{"\n\n"}
+            그 과정에서 성장에 긍정적으로 작용할 수 있는{"\n"}
+            인사이트를 찾아{"\n"}
+            현재보다 더 좋은 방향으로 성장할 수 있도록 돕습니다.
           </Text>
 
           {/* 핵심 카피 */}
           <View style={s.heroCopyBlock}>
-            <Text style={s.heroCopy}>평가항목은 넓게,{"\n"}리포트에는 근거 있는 내용만.</Text>
+            <Text style={s.heroCopy}>행동의 단서를 분해하고 추적해,{"\n"}더 나은 성장 방향을 찾아냅니다.</Text>
           </View>
+          <Text style={s.heroSubCopy}>
+            수영은 분석을 위한 재료를 찾는 과정입니다.{"\n"}리포트는 수영기술을 넘어 학습과 성장 전 영역을 함께 살펴봅니다.
+          </Text>
 
           <View style={s.pillRow}>
             <Pill label="1회 심층 분석" />
@@ -469,10 +507,10 @@ export default function InsightReportHub() {
               <View style={s.infoBox}>
                 <Text style={s.infoBoxTitle}>330개 심층 평가항목</Text>
                 <Text style={s.infoBoxBody}>
-                  수영기술, 운동학습, 집중·자기조절, 학습태도, 자신감, 회복탄력성, 신체협응, 균형·운동능력 등 아이의 성장과 관련된 약 330개의 평가 후보항목을 폭넓게 검토합니다.
+                  수영기술, 운동학습, 집중·자기조절, 학습태도, 자신감, 회복탄력성, 신체협응, 균형·운동능력 등 아이의 학습과 성장에 관련된 약 330개의 평가 후보항목을 폭넓게 살펴봅니다.
                 </Text>
                 <Text style={[s.infoBoxBody, { marginTop: 8, color: MUTED }]}>
-                  330개 항목 모두에 점수를 매기는 방식이 아닙니다. 실제 수업 기록과 누적 데이터에서 근거가 확인되는 항목만 선별해 아이에게 의미 있는 성장 신호를 리포트에 반영합니다.
+                  모든 항목에 일괄적으로 점수를 매기는 방식이 아닙니다.{"\n\n"}수업에서 실제로 나타나는 행동 단서와 변화의 흐름을 분해하고 추적한 뒤, 아이에게 의미 있게 나타나는 영역을 선별하여 리포트에 반영합니다.
                 </Text>
               </View>
             </View>
@@ -561,6 +599,7 @@ const s = StyleSheet.create({
   heroDesc:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.72)", lineHeight: 22, marginBottom: 20 },
   heroCopyBlock:  { borderLeftWidth: 2, borderLeftColor: "rgba(255,255,255,0.3)", paddingLeft: 14, marginBottom: 22 },
   heroCopy:       { fontSize: 15, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "rgba(255,255,255,0.92)", lineHeight: 24 },
+  heroSubCopy:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.62)", lineHeight: 20, marginTop: 10 },
   pillRow:        { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   pill:           { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.10)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" },
   pillTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.85)" },
