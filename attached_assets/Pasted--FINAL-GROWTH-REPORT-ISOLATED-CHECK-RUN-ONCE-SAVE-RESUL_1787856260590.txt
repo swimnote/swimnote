@@ -1,0 +1,241 @@
+[앱]
+
+FINAL GROWTH REPORT ISOLATED CHECK
+RUN ONCE + SAVE RESULT + FULL CLEANUP
+
+Render production 배포 완료됨.
+
+배포 SHA:
+ad7270e5
+
+이제 계획했던 마지막 작업을 순서대로 실행한다.
+
+==================================================
+1. FINAL DRY_RUN — 딱 1회
+==================================================
+
+대상:
+
+report_id:
+gr_13330aa20377484685e91ed62b729929
+
+mode:
+dry_run
+
+production APP API를 통해 1회만 실행.
+
+금지:
+- apply
+- DB write
+- 기존 report 수정
+- 새 report 생성
+- publish
+- push
+- Stage B
+- 추가 AI 재호출
+
+==================================================
+2. RESULT SAVE
+==================================================
+
+dry_run 응답의 실제 parent-facing 결과를 저장.
+
+파일:
+ /tmp/seotaewoong-growth-report-2026-08-final.json
+
+반드시 포함:
+
+summary_text
+
+core_growth
+
+swimming_progress
+
+behavioral_strengths
+
+longitudinal_comparison
+
+success_conditions
+
+teacher_guidance
+
+next_growth_direction
+
+parent_support
+
+analysis_status
+grounding_result
+growth_framing_result
+
+F065
+F068
+verified_relationships
+
+unsupported_claims
+
+본문 전체가 실제로 들어왔는지 확인.
+
+==================================================
+3. FINAL RESULT REPORT
+==================================================
+
+사람이 읽을 수 있게 아래를 그대로 보고:
+
+SUMMARY
+
+CORE_GROWTH
+
+SWIMMING_PROGRESS
+
+BEHAVIORAL_STRENGTHS
+
+LONGITUDINAL_COMPARISON
+
+SUCCESS_CONDITIONS
+
+TEACHER_GUIDANCE
+
+NEXT_GROWTH_DIRECTION
+
+PARENT_SUPPORT
+
+빈 section은 EMPTY라고 명시.
+
+그리고:
+
+HTTP status
+analysis_status
+grounding_result
+growth_framing_result
+
+diary count
+lesson dates
+previous report/history 사용 여부
+
+F065 count
+F068 count
+verified_relationships count
+
+unsupported claims count
+
+APP → ENGINE calls
+retry calls
+Stage B calls
+latency
+estimated USD
+
+==================================================
+4. FULL MAINTENANCE CLEANUP
+==================================================
+
+위 결과 저장 완료 후,
+이번 검증을 위해 임시로 만든 maintenance 코드를 전부 제거.
+
+반드시 제거:
+
+POST /api/super/maintenance/growth-report/:reportId/reanalyze
+
+그리고 해당 route만을 위해 만든:
+
+- super-maintenance-gr.ts
+- dry_run/apply handler
+- temporary parser
+- temporary section extractor
+- temporary response summarizer
+- route wiring/import
+- maintenance-only types/tests/helpers
+
+실제 존재하는 것만 제거.
+
+==================================================
+5. DO NOT TOUCH
+==================================================
+
+절대 수정 금지:
+
+- 정상 Growth Report production routes
+- 정상 Growth Report request builder
+- Growth Report engine client
+- monthly generation logic
+- report lifecycle
+- parent feed
+- likes/comments/notifications
+- DB schema
+- FINAL LOCK AI ENGINE
+- model/prompt/metrics/threshold
+
+==================================================
+6. VERIFY CLEANUP
+==================================================
+
+git diff 확인.
+
+maintenance 검증 코드 외 변경이 있으면 되돌린다.
+
+최소 관련:
+
+- TypeScript/typecheck
+- server compile
+- 정상 Growth Report route/client 영향 없음
+
+repo-wide regression 금지.
+
+==================================================
+7. COMMIT + PUSH
+==================================================
+
+cleanup만 포함해서 commit + push.
+
+branch:
+deploy-photo-clone
+
+보고:
+
+cleanup SHA
+changed/deleted files
+working tree 상태
+
+==================================================
+8. DATA SAFETY FINAL
+==================================================
+
+반드시 확인:
+
+existing report:
+gr_13330aa20377484685e91ed62b729929
+UNCHANGED
+
+DB writes:
+0
+
+new reports:
+0
+
+push:
+0
+
+likes/comments/notifications:
+UNCHANGED
+
+==================================================
+9. FINAL STATUS
+==================================================
+
+다음 형식으로 종료:
+
+FINAL ISOLATED REPORT:
+PASS / FAIL
+
+MAINTENANCE CODE:
+FULLY REMOVED / NOT FULLY REMOVED
+
+DB WRITE:
+0
+
+STAGE B:
+0
+
+CLEANUP SHA:
+<sha>
+
+완료 후 STOP.
