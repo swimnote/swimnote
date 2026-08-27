@@ -1980,29 +1980,6 @@ export default function ParentHomeScreen() {
         )
       )}
 
-      {/* 성장리포트 전체보기 — 메인 feed는 최근 5개, 이전 기록은 history 화면에서 접근 */}
-      {/* X 여부 무관: Growth Report 접근 권한 있는 parent/student 모두 표시 */}
-      {selectedStudent && !isBlocked && (
-        <Pressable
-          onPress={() =>
-            router.push(`/(parent)/growth-report-history?studentId=${encodeURIComponent(selectedStudent.id)}` as any)
-          }
-          style={({ pressed }) => ({
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            paddingHorizontal: 20,
-            paddingVertical: 8,
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
-            성장리포트 전체보기
-          </Text>
-          <LucideIcon name="chevron-right" size={13} color={C.textSecondary} />
-        </Pressable>
-      )}
-
       {/* F-divider. 상단 UI ↔ 일지 영역 구분선 */}
       {selectedStudent && !isBlocked && (
         <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: C.border, marginTop: 12, marginHorizontal: 0 }} />
@@ -2167,7 +2144,7 @@ export default function ParentHomeScreen() {
           >
             <Image
               source={require("@/assets/images/swimnote-logo.png")}
-              style={{ width: 26, height: 26, opacity: isX ? 0.85 : 1 }}
+              style={{ width: 32, height: 32, opacity: 1 }}
               resizeMode="contain"
             />
           </Pressable>
