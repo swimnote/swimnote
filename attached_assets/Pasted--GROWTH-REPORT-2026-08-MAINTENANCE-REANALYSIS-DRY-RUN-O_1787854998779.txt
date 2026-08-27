@@ -1,0 +1,191 @@
+[앱]
+
+GROWTH REPORT 2026-08
+MAINTENANCE REANALYSIS — DRY RUN ONLY
+
+Render 배포 완료됨.
+
+배포 대상:
+swimnote-api
+
+배포 커밋:
+20206850
+
+이제 아래 기존 maintenance endpoint의
+dry_run만 실행한다.
+
+대상 report_id:
+gr_13330aa20377484685e91ed62b729929
+
+Endpoint:
+POST /api/super/maintenance/growth-report/:reportId/reanalyze
+
+Body:
+{
+  "mode": "dry_run"
+}
+
+Auth:
+현재 production super_admin JWT 사용.
+
+==================================================
+1. 절대 금지
+==================================================
+
+이번 Step에서는:
+
+- mode=apply 실행 금지
+- DB write 금지
+- report content 변경 금지
+- likes/comments 변경 금지
+- notification 변경 금지
+- push 금지
+- 새 report 생성 금지
+- Stage B enable 금지
+- 코드 수정 금지
+
+dry_run 결과 확인만 한다.
+
+==================================================
+2. DRY RUN 실행
+==================================================
+
+실제 production APP API를 통해
+maintenance dry_run 호출.
+
+APP이 현재 Render production에 설정된:
+
+GROWTH_REPORT_ENGINE_URL
+GROWTH_REPORT_ENGINE_SECRET
+
+을 사용하여
+FINAL LOCK AI ENGINE을 호출해야 함.
+
+==================================================
+3. 반드시 보고할 것
+==================================================
+
+HTTP status
+
+analysis_status
+
+grounding_result
+
+growth_framing_result
+
+summary_text 존재 여부
+
+content_json 존재 여부
+
+fact_package 존재 여부
+
+section coverage:
+
+- core_growth
+- swimming_progress
+- behavioral_strengths
+- longitudinal_comparison
+- success_conditions
+- teacher_guidance
+- next_growth_direction
+- parent_support
+
+각각:
+NON_EMPTY / GOOD_EMPTY / BAD_EMPTY
+
+그리고:
+
+F065 count
+F068 count
+verified_relationships count
+
+unsupported claim count
+
+stable trait violation count
+
+context overgeneralization count
+
+contradiction overclaim count
+
+future/speculation-as-fact count
+
+==================================================
+4. OLD vs NEW
+==================================================
+
+기존 PUBLISHED 2026-08 report와
+dry_run NEW 결과를 비교.
+
+보고:
+
+OLD section coverage
+NEW section coverage
+
+OLD summary
+NEW summary
+
+품질 판정:
+
+BETTER
+SAME
+WORSE
+
+특히 source diary가 1건뿐이므로
+8/8을 억지로 요구하지 않는다.
+
+근거 없는 section이 추가되면 FAIL.
+
+==================================================
+5. COST
+==================================================
+
+보고:
+
+APP → ENGINE calls
+composition calls
+retry calls
+Stage B calls
+
+input tokens
+output tokens
+latency
+estimated USD
+
+Stage B calls는 반드시 0.
+
+==================================================
+6. PASS CONDITION
+==================================================
+
+다음 전부 만족해야 PASS:
+
+HTTP 200
+
+analysis_status 정상
+
+grounding_result:
+PASS 또는 REVISED_PASS
+
+growth_framing_result:
+PASS 또는 REVISED_PASS
+
+summary_text 존재
+
+content/fact_package 존재
+
+unsupported fatal 없음
+
+기존 대비 명백한 품질 후퇴 없음
+
+==================================================
+7. FINAL
+==================================================
+
+DRY_RUN:
+PASS / FAIL
+
+PASS여도
+이번 Step에서 apply 실행하지 말고 STOP.
+
+apply는 dry_run 결과를 내가 검토한 뒤
+별도 지시한다.
