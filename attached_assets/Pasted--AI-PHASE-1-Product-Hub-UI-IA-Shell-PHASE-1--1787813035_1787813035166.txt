@@ -1,0 +1,502 @@
+[앱] AI 인사이트 전략 리포트 — PHASE 1 Product Hub UI/IA Shell 구현
+
+전체 상품화 설계는 조건부 승인합니다.
+
+이번에는 PHASE 1만 구현하십시오.
+DB/API/결제/AI Engine은 아직 건드리지 마십시오.
+
+중요:
+현재 growth-report-paid.tsx의 "준비 중 메뉴 목록" 형태를 폐기하고,
+실제 출시용 AI 인사이트 전략 리포트 Product Hub UI로 교체합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 제품명
+━━━━━━━━━━━━━━━━━━━━━━
+
+부모-facing 최종 제품명:
+
+AI 인사이트 전략 리포트
+
+기존 화면의:
+
+- 학부모 리포트
+- 정밀 성장리포트
+- 정밀 성장 리포트
+
+표현은 제거.
+
+정기 리포트:
+AI 성장 리포트
+
+심층 상품:
+AI 인사이트 전략 리포트
+
+둘을 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. PHASE 1 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 PHASE 목적:
+
+"실제 기능만 연결하면 바로 오픈 가능한 Product Hub"
+
+의 UI/IA shell 완성.
+
+단순 mockup이 아니라
+향후 API state를 그대로 연결할 수 있는 component/state contract까지 설계.
+
+금지:
+
+- "준비 중입니다" Alert
+- dummy 메뉴 7개 나열
+- 모든 메뉴 동일 카드
+- 느낌표 아이콘 반복
+- 일반 SWIMNOTE cyan/mint 중심 화면
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 화면 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+위에서 아래 순서:
+
+A. Product Intro
+B. 분석 준비 상태
+C. 정보 준비
+D. 분석에 활용되는 정보
+E. 리포트 구성 미리보기
+F. 발급 전 확인 / 가격 / CTA
+G. 내 리포트
+H. 지원
+
+한 화면에 모든 내용을 과하게 펼치지 말 것.
+
+중요 정보만 메인 화면에,
+세부 설명/입력은 BottomSheet 또는 compact expandable UI 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Product Intro
+━━━━━━━━━━━━━━━━━━━━━━
+
+최상단:
+
+AI 인사이트 전략 리포트
+
+설명은 짧게:
+
+수업 기록과 누적 성장 데이터,
+학부모가 제공한 관찰정보를 함께 분석해
+아이의 성장 신호와 잘 되는 조건,
+다음 성장 전략을 더 깊게 분석합니다.
+
+특징은 최대 3~4개 compact tag/pill:
+
+- 1회 심층 분석
+- 누적 데이터 기반
+- 여러 성장 영역 종합
+- 근거 있는 항목만 분석
+
+쇼핑몰처럼 과하게 홍보하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 분석 준비 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 향후 API와 연결 가능한 contract를 먼저 정의.
+
+예:
+
+type InsightReadiness = {
+  lessonDataReady: boolean;
+  lessonDataCount?: number;
+
+  basicInfo: {
+    birthDate: boolean;
+    height: boolean;
+    weight: boolean;
+  };
+
+  parentObservation: {
+    answered: number;
+    total?: number;
+  };
+
+  preflightConfirmed: boolean;
+};
+
+이번 PHASE에서는 실제 서버 연결 금지.
+
+하지만 UI 내부에 여기저기 숫자 하드코딩하지 말고
+단일 local fixture/state object를 통해 렌더.
+
+향후 API response만 교체하면
+UI 수정 없이 동작할 구조.
+
+표시 예:
+
+분석 준비
+
+수업·성장 데이터        준비됨
+아이 기본정보           1/3
+학부모 관찰정보         미입력
+발급 전 확인            미완료
+
+[준비 계속하기]
+
+거짓 수치/실제 학생 데이터 표시 금지.
+
+PHASE 1 fixture는 명확하게 개발용으로만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정보 준비
+━━━━━━━━━━━━━━━━━━━━━━
+
+메뉴는 2개 중심으로 단순화.
+
+1.
+아이 기본정보
+
+설명:
+분석에 참고할 기본 정보를 확인합니다.
+
+향후:
+- 생년월일
+- 키
+- 몸무게
+
+현재 PHASE에서는 실제 저장 금지.
+
+눌렀을 때:
+UI shell/BottomSheet까지만 가능.
+
+"준비 중" Alert 금지.
+
+실제 저장 CTA는 disabled 또는
+"다음 단계에서 연결 예정" 같은 개발 문구를
+부모-facing 화면에 노출하지 말 것.
+
+기능이 아직 없으면
+읽기 전용 preview 구조까지만.
+
+2.
+학부모 관찰정보
+
+설명:
+수업 밖에서 보이는 아이의 변화와 특징을 보충합니다.
+
+향후:
+- 질문형
+- 선택형
+- 자유 텍스트
+- 음성
+
+PHASE 1에서는
+입력 Flow의 UI shell까지만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 분석에 활용되는 정보
+━━━━━━━━━━━━━━━━━━━━━━
+
+compact accordion 또는 한 줄 설명.
+
+실제 사용 가능한 source만:
+
+- 누적 수업 기록
+- 수영 교육과정 진행
+- 반복된 성장·변화 신호
+- 수업 중 성공 조건
+- 교사 관찰 내용
+- 학부모가 제공한 추가 정보
+- 이전 AI 성장 리포트
+
+너무 길게 설명하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 리포트 구성 미리보기
+━━━━━━━━━━━━━━━━━━━━━━
+
+"어떤 리포트가 나오나요?"
+
+같은 한 개의 compact row/button.
+
+누르면 BottomSheet.
+
+내용:
+
+- 현재 성장 요약
+- 수영 기술 및 학습 진행
+- 행동·학습 강점
+- 반복되는 성장 패턴
+- 잘 되는 조건
+- 수업 전략
+- 다음 성장 방향
+- 가정에서의 지원 방법
+
+하단 설명:
+
+모든 항목을 억지로 채우는 방식이 아니라,
+누적 데이터에서 근거가 확인되는 성장 신호를 선별해
+깊이 있게 분석합니다.
+
+330 metric 숫자는
+현재 부모-facing UI에 직접 노출하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 발급 전 확인 / 가격
+━━━━━━━━━━━━━━━━━━━━━━
+
+메인 CTA 영역은 단순하게.
+
+AI 인사이트 전략 리포트
+29,000원 · 1회
+
+[발급 준비 확인]
+
+PHASE 1에서는 결제 버튼을 직접 실행하지 마십시오.
+
+눌렀을 때 Preflight Sheet UI shell:
+
+- 학생
+- 분석 기간
+- 수업 데이터
+- 기본정보
+- 학부모 관찰정보
+- 금액
+
+를 보여주는 구조.
+
+실제 데이터/결제 연결은 후속 PHASE.
+
+"결제하고 분석 시작"은
+결제 구현 전까지 실제 활성화 금지.
+
+부모-facing 화면에서
+"준비 중" Alert를 띄우는 대신
+CTA 자체를 disabled state로 둘 수 있음.
+
+단 disabled 이유를
+"준비 중" 같은 개발 문구로 노출하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 내 리포트
+━━━━━━━━━━━━━━━━━━━━━━
+
+과거 "발급한 리포트 다시보기" 메뉴는 폐기.
+
+새 섹션:
+
+내 리포트
+
+PHASE 1에서는 빈 상태 UI:
+
+아직 발급된 AI 인사이트 전략 리포트가 없습니다.
+
+또는 fixture 0건으로 렌더.
+
+향후 API만 연결하면:
+
+- 발급 날짜
+- 분석 기간
+- 상태
+- 보기
+- PDF
+
+가 들어갈 수 있는 구조.
+
+정기 AI 성장 리포트 history와
+UI/데이터를 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 지원
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면 최하단 compact support.
+
+도움이 필요하신가요?
+결제 · 발급 · 리포트 문의
+
+[문의하기]
+
+기존 support-chat route가 실제 있으면 연결 가능.
+
+없으면 새 route 만들지 말고
+이번 PHASE에서는 비활성/보류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 디자인
+━━━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X 기준.
+
+NAVY / WHITE / NEUTRAL 중심.
+
+Mint:
+- 완료 상태
+- 진행 상태
+- 작은 accent
+
+만.
+
+현재 screenshot의 cyan/sky 계열 대형 CTA 폐기.
+
+금지:
+- 민트/청록 도배
+- 느낌표 icon 반복
+- 같은 카드 7개
+- 과한 shadow
+- gradient
+- sparkle
+- cartoon
+- 과한 가격 강조
+
+느낌:
+
+"전문 분석 서비스 신청 허브"
+
+깔끔하고 차분하고
+29,000원 상품에 맞는 신뢰감.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Component 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 growth-report-paid.tsx를
+무조건 신규 route로 바꿀 필요 없음.
+
+기존 Parent Home 연결을 깨지 않도록
+현재 route:
+
+/(parent)/growth-report-paid
+
+유지 우선.
+
+내부 component만 분리 가능.
+
+권장:
+
+growth-report-paid.tsx
+→ InsightReportHub
+
+components/parent/insight/
+- InsightProductIntro
+- InsightReadinessPanel
+- InsightInfoSection
+- InsightPreviewSheet
+- InsightPreflightSheet
+- InsightReportHistory
+- InsightSupportFooter
+
+단 파일을 과도하게 잘게 쪼개지 말 것.
+실제 재사용/가독성에 필요한 수준만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 향후 state contract
+━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 1에서 아래 부모-facing 상태 UI를
+component 구조상 받을 수 있게만 준비:
+
+NOT_STARTED
+PREPARING
+READY
+PAYMENT_REQUIRED
+PAID
+ANALYZING
+COMPLETED
+FAILED
+
+하지만 현재 UI에서
+모든 상태를 실제 구현/노출하지 말 것.
+
+이번에는 기본 상태 중심.
+
+각 내부 enum이 화면 문구로 그대로 보이면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 이번 PHASE에서 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+- students height/weight migration 금지
+- insight_reports table 생성 금지
+- insight questions/answers DB 금지
+- RevenueCat 수정 금지
+- product 생성 금지
+- 결제 코드 금지
+- AI Engine 수정 금지
+- Growth Report 70 metric 수정 금지
+- Render deploy 금지
+- Production DB write 금지
+
+UI/IA shell only.
+
+JS/TSX OTA-compatible 변경만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+- 기존 Parent Home → AI 인사이트 전략 리포트 진입 정상
+- back 정상
+- 화면 scroll 정상
+- 기존 dummy menu 완전 제거
+- Product Intro 표시
+- Readiness 표시
+- 정보 준비 2개 영역
+- 분석 데이터 설명
+- 리포트 구성 미리보기 BottomSheet
+- Preflight Sheet
+- 29,000원 · 1회 표시
+- 내 리포트 empty state
+- support 영역
+- X color system
+- 기존 AI 성장 리포트 기능 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+JS/TSX only이면:
+
+최소 테스트
+→ rollback target 기록
+→ iOS production OTA
+
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[UI]
+- 화면 위→아래 최종 구성
+- 삭제된 기존 메뉴
+- 각 CTA 현재 동작
+
+[STATE CONTRACT]
+- fixture/state 구조
+- 향후 API 연결점
+
+[DESIGN]
+- 주요 색상
+- mint 사용 위치
+- typography
+
+[CODE]
+- SHA
+- 변경 파일
+
+[TEST]
+- targeted test
+
+[OTA]
+- previous rollback target
+- new OTA ID
+- runtimeVersion
+
+[DEVICE]
+사용자 실기기 확인 대기
+
+완료 후 STOP.
+PHASE 2 시작 금지.
