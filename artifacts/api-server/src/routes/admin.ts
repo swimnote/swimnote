@@ -4272,7 +4272,7 @@ router.get(
           enabled:             paid || manual,
           subscription_status,
           tier_key:            p.tier_key ?? null,
-          started_at:          p.slot_purchased_at ?? p.xmode_purchased_at ?? null,
+          started_at:          p.xmode_purchased_at ?? null,
           expires_at:          endAt,
           setup_completion: setup ? {
             overall:    setup.setup_status,
