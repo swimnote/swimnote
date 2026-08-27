@@ -87,14 +87,16 @@ async function resolveParentReportAccess(
 
 /**
  * 담당선생님 resolve
- * student_id → students.current_class_id → class_groups.teacher_user_id
+ * 1차: students.class_group_id → class_groups.teacher_user_id (fast path)
+ * 2차: student_class_history(left_at IS NULL) → class_groups.teacher_user_id (canonical fallback)
  * pool 검증 포함 (report.swimming_pool_id 와 동일한 pool인지)
- * recipient 없으면 null 반환 (임의 fallback 금지)
+ * recipient 없으면 null 반환 — pool_admin/owner fallback 금지
  */
 async function resolveTeacherByStudent(
   studentId: string,
   poolId: string,
 ): Promise<{ teacher_id: string; swimming_pool_id: string } | null> {
+  // 1차: students.class_group_id (denormalized fast path)
   const res = await db.execute(sql`
     SELECT cg.teacher_user_id AS teacher_id, cg.swimming_pool_id
     FROM students s
@@ -105,8 +107,23 @@ async function resolveTeacherByStudent(
     LIMIT 1
   `);
   const row = res.rows[0] as any;
-  if (!row || !row.teacher_id) return null;
-  return { teacher_id: row.teacher_id, swimming_pool_id: row.swimming_pool_id };
+  if (row?.teacher_id) return { teacher_id: row.teacher_id, swimming_pool_id: row.swimming_pool_id };
+
+  // 2차: student_class_history (canonical enrollment source)
+  const res2 = await db.execute(sql`
+    SELECT cg.teacher_user_id AS teacher_id, sch.swimming_pool_id
+    FROM student_class_history sch
+    JOIN class_groups cg ON cg.id = sch.class_group_id
+    WHERE sch.student_id = ${studentId}
+      AND sch.swimming_pool_id = ${poolId}
+      AND sch.left_at IS NULL
+      AND cg.teacher_user_id IS NOT NULL
+    LIMIT 1
+  `);
+  const row2 = res2.rows[0] as any;
+  if (row2?.teacher_id) return { teacher_id: row2.teacher_id, swimming_pool_id: row2.swimming_pool_id };
+
+  return null;
 }
 
 // ── 1. GET /parent/growth-reports/:reportId/reactions ─────────────────────────

@@ -846,7 +846,11 @@ export default function TeacherDiaryScreen() {
     doExit();
   }, [params.backTo, resetWriteSession]);
 
+  // 초기 mount focus는 skip — 이후 복귀 시만 diaries refetch
+  const isMountFocusRef = useRef(true);
+
   // Android 하드웨어 Back — draft 있으면 확인 Alert 호출
+  // + 화면 복귀 시 like_count 자동 갱신 (messages-inbox 등 다른 화면 갔다 돌아올 때)
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -856,8 +860,15 @@ export default function TeacherDiaryScreen() {
         }
         return false;
       });
+
+      if (isMountFocusRef.current) {
+        isMountFocusRef.current = false; // 초기 mount는 기존 useEffect가 처리
+      } else if (selectedGroup?.id) {
+        loadDiaries(selectedGroup.id); // 복귀 시 최신 like_count 반영
+      }
+
       return () => sub.remove();
-    }, [handleExitDiary]),
+    }, [handleExitDiary, selectedGroup?.id]),
   );
 
   async function handleSave() {
