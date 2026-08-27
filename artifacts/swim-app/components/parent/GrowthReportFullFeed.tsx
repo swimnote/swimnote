@@ -17,12 +17,19 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   Text,
   View,
 } from "react-native";
 import { router } from "expo-router";
+import {
+  generateGrowthReportPdf,
+  GrowthReportExportException,
+  getPdfErrorMessage,
+  type GrowthReportExportParams,
+} from "@/utils/growthReportExport";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { LucideIcon } from "@/components/common/LucideIcon";
@@ -86,7 +93,9 @@ interface ReportContent {
 interface GrowthReportDetail {
   report_id:      string;
   report_period:  string;
+  published_at:   string;
   report_content: ReportContent;
+  sns_summary?:   unknown;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -107,8 +116,11 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
   const [failed,     setFailed]     = useState(false);
 
   // ── Like state ──────────────────────────────────────────────────────────────
-  const [myLiked,    setMyLiked]    = useState(false);
-  const [isToggling, setIsToggling] = useState(false);
+  const [myLiked,         setMyLiked]         = useState(false);
+  const [isToggling,      setIsToggling]      = useState(false);
+
+  // ── PDF share state ─────────────────────────────────────────────────────────
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -190,6 +202,45 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
     router.push(`/(parent)/growth-report-detail?reportId=${encodeURIComponent(item.growth_report_id)}`);
   }
 
+  // ── PDF·공유 직접 실행 ──────────────────────────────────────────────────────
+  const handlePdfShare = useCallback(async () => {
+    if (isGeneratingPdf) return;
+    setIsGeneratingPdf(true);
+    try {
+      // detail이 이미 로드된 경우 재사용, 없으면 fetch
+      let d = detail;
+      if (!d) {
+        const res = await apiRequest(token, `/parent/growth-reports/${encodeURIComponent(item.growth_report_id)}`);
+        if (!res.ok) throw new Error("FETCH_FAILED");
+        d = (await res.json()) as GrowthReportDetail;
+      }
+      if (!d?.report_content) throw new Error("INVALID_REPORT_CONTENT");
+
+      // Detail.handlePdfSave와 동일한 params 구성
+      const pct = progressData?.display_confirmed_pct;
+      const hasP = (progressData?.observation_session_count ?? 0) >= 3 &&
+                   typeof pct === "number" && pct > 0;
+      const params: GrowthReportExportParams = {
+        reportId:                  d.report_id,
+        reportPeriod:              d.report_period,
+        publishedAt:               d.published_at,
+        reportContent:             d.report_content as any,
+        snsSummary:                d.sns_summary as any,
+        displayName:               studentName ?? "우리 아이",
+        poolName:                  poolName ?? undefined,
+        curriculumProgressPercent: hasP ? `${Number(pct).toFixed(1)}%` : undefined,
+      };
+      await generateGrowthReportPdf(params);
+    } catch (e) {
+      const msg = e instanceof GrowthReportExportException
+        ? getPdfErrorMessage(e.code as any)
+        : "PDF를 생성할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+      Alert.alert("PDF 저장 실패", msg);
+    } finally {
+      if (mounted.current) setIsGeneratingPdf(false);
+    }
+  }, [isGeneratingPdf, detail, token, item.growth_report_id, progressData, studentName, poolName]);
+
   return (
     <View style={{ backgroundColor: WHITE }}>
 
@@ -213,6 +264,8 @@ export function GrowthReportFullFeed({ item, studentName, poolName, progressData
         <ReportBody
           detail={detail}
           onDetail={goDetail}
+          onPdfShare={handlePdfShare}
+          isGeneratingPdf={isGeneratingPdf}
           myLiked={myLiked}
           isToggling={isToggling}
           onLike={onLike}
@@ -326,13 +379,15 @@ function ReportHeader({
 
 // ─── Report body ──────────────────────────────────────────────────────────────
 function ReportBody({
-  detail, onDetail, myLiked, isToggling, onLike,
+  detail, onDetail, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
 }: {
-  detail:      GrowthReportDetail;
-  onDetail:    () => void;
-  myLiked:     boolean;
-  isToggling:  boolean;
-  onLike:      () => void;
+  detail:          GrowthReportDetail;
+  onDetail:        () => void;
+  onPdfShare:      () => void;
+  isGeneratingPdf: boolean;
+  myLiked:         boolean;
+  isToggling:      boolean;
+  onLike:          () => void;
 }) {
   const { report_content } = detail;
   const secs = report_content?.sections ?? {};
@@ -401,6 +456,8 @@ function ReportBody({
       {/* ── ACTION ROW ──────────────────────────────────────────────── */}
       <ActionRow
         onDetail={onDetail}
+        onPdfShare={onPdfShare}
+        isGeneratingPdf={isGeneratingPdf}
         myLiked={myLiked}
         isToggling={isToggling}
         onLike={onLike}
@@ -430,12 +487,14 @@ function Hairline() {
 
 // ─── Action row ───────────────────────────────────────────────────────────────
 function ActionRow({
-  onDetail, myLiked, isToggling, onLike,
+  onDetail, onPdfShare, isGeneratingPdf, myLiked, isToggling, onLike,
 }: {
-  onDetail:   () => void;
-  myLiked:    boolean;
-  isToggling: boolean;
-  onLike:     () => void;
+  onDetail:        () => void;
+  onPdfShare:      () => void;
+  isGeneratingPdf: boolean;
+  myLiked:         boolean;
+  isToggling:      boolean;
+  onLike:          () => void;
 }) {
   // DiaryFeedItem(home.tsx) 동일 spec
   const LIKE_ACTIVE   = "#E8003D";
@@ -478,15 +537,19 @@ function ActionRow({
         <LucideIcon name="message-circle" size={18} color={MUTED} />
       </Pressable>
 
-      {/* PDF·공유 */}
+      {/* PDF·공유 — Detail 없이 바로 Share Sheet */}
       <Pressable
-        onPress={onDetail}
+        onPress={onPdfShare}
+        disabled={isGeneratingPdf}
         style={({ pressed }) => ({
           flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-          paddingVertical: 8, borderRadius: 4, opacity: pressed ? 0.7 : 1, gap: 5,
+          paddingVertical: 8, borderRadius: 4,
+          opacity: pressed ? 0.7 : (isGeneratingPdf ? 0.5 : 1), gap: 5,
         })}
       >
-        <LucideIcon name="file-text" size={18} color={MUTED} />
+        {isGeneratingPdf
+          ? <ActivityIndicator size="small" color={MUTED} />
+          : <LucideIcon name="file-text" size={18} color={MUTED} />}
         <Text style={{ ...T4, fontSize: 13 }}>PDF·공유</Text>
       </Pressable>
     </View>
