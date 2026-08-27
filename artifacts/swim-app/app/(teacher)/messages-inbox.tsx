@@ -507,8 +507,10 @@ export default function MessagesInboxScreen() {
                     // 해당 화면으로 이동
                     if (item.ref_id) {
                       if (item.type === "growth_report_like") {
-                        // PHASE 3-C 전까지: 화면 이동 없이 소식 탭 유지
-                        return;
+                        router.push({
+                          pathname: "/(teacher)/growth-report-reactions",
+                          params: { reportId: item.ref_id },
+                        } as any);
                       } else if (
                         item.type === "diary_comment" ||
                         item.type === "diary_like" ||

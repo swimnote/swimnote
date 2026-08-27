@@ -203,7 +203,7 @@ router.post(
         `);
         const parentName = (pRes.rows[0] as any)?.name ?? "학부모";
 
-        const bodyText = `${parentName}님이 성장리포트에 좋아요를 눌렀습니다.`;
+        const bodyText = `${parentName}님이 AI 성장 리포트에 좋아요를 눌렀습니다.`;
         const notifId = genId("notif_grl");
 
         await db.execute(sql`
