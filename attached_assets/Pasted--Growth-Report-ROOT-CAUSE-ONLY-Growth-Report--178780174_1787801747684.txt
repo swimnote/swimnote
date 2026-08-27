@@ -1,0 +1,169 @@
+[앱] Growth Report 댓글 알림 오표시 — ROOT CAUSE 조사 ONLY
+
+실기기 재검증 결과:
+
+Growth Report 댓글 작성
+→ 댓글 자체는 정상 저장되고
+→ Teacher 소식에도 항목이 들어오지만
+→ 소식 문구가 댓글이 아니라
+
+"새 좋아요"
+"{parentName}님이 성장리포트에 좋아요를 눌렀습니다."
+
+로 표시됨.
+
+따라서 이전의
+"Render 미배포가 원인"
+가설은 폐기합니다.
+
+현재 Live에서도 동일 증상이 재현됨.
+
+이번 단계에서는 코드 수정하지 말고
+정확한 ROOT CAUSE만 조사하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 댓글 POST 시 notification 생성 코드 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST
+/parent/growth-reports/:reportId/comments
+
+성공 이후 실제 notification INSERT 직전 값을 확인.
+
+반드시 확인:
+
+- type
+- title
+- body
+- ref_id
+- ref_type
+- recipient_id
+
+특히 실제 코드에서:
+
+growth_report_comment
+
+댓글 branch가
+
+growth_report_like
+
+좋아요 branch의 title/body를 잘못 재사용하거나
+copy/paste한 부분이 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 서버 GET /teacher/news 경로 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+notification DB row
+→ GET /teacher/news
+→ response item
+
+과정에서 다음이 변환되는지 확인:
+
+- type
+- title
+- body
+
+확인할 것:
+
+A.
+DB에 growth_report_comment로 저장되지만
+GET 과정에서 growth_report_like로 변환되는지
+
+B.
+type은 growth_report_comment인데
+title/body만 좋아요 문구인지
+
+C.
+실제 댓글 notification이 따로 존재하지만
+정렬/중복/필터 문제로 기존 like notification을 보여주는지
+
+D.
+같은 reportId의 기존 like notification을
+comment notification 대신 재사용하는 로직이 있는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 클라이언트는 현재 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+messages-inbox.tsx는 보고상:
+
+item.title
+item.body
+
+를 서버 값 그대로 표시한다고 확인됨.
+
+따라서 이번 조사에서는
+클라이언트 문구를 억지로 고치지 마십시오.
+
+서버 raw response가 실제 무엇인지 확인하는 것이 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 RAW response 확보
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능한 개발/인증 fixture에서
+Growth Report 댓글 1건을 작성한 직후:
+
+GET /teacher/news
+
+response 중 해당 reportId 항목을 마스킹하여 제출.
+
+필수 필드:
+
+{
+  id,
+  type,
+  title,
+  body,
+  ref_id,
+  ref_type,
+  recipient_id,
+  created_at
+}
+
+DB 직접 접근이 안 되면
+API response + notification INSERT 직전 서버 변수값으로 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[COMMENT INSERT]
+- 실제 type
+- 실제 title
+- 실제 body
+- ref_id
+- recipient
+
+[TEACHER NEWS RESPONSE]
+- 실제 type
+- 실제 title
+- 실제 body
+- ref_id
+
+[ROOT CAUSE]
+아래 중 정확히 무엇인지 하나로 확정:
+
+1. INSERT 단계 type 오류
+2. INSERT 단계 title/body 오류
+3. GET /teacher/news 변환 오류
+4. notification 중복/정렬 오류
+5. 다른 원인
+
+[MINIMAL FIX PLAN]
+- 수정 파일
+- 수정 함수
+- 변경 내용
+- 기존 diary_like/comment 영향 여부
+
+중요:
+이번 단계는 조사만.
+
+코드 수정 금지
+Render deploy 금지
+OTA 금지
+
+ROOT CAUSE + 최소 수정계획 제출 후 STOP.
