@@ -1,0 +1,299 @@
+[앱] Teacher 알림 Red Dot + 알림 상세 Back Navigation
+조사 및 구현계획서 작성 ONLY
+
+이번 단계에서는 코드 수정하지 마십시오.
+
+실기기에서 추가로 확인된 문제 2건입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+문제 1. Teacher Home 편지함 Red Dot 미표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+Parent에서 좋아요 또는 댓글 등 Teacher에게 소식이 발생
+→ Teacher 소식/알림함에는 알림이 들어올 수 있음
+→ 하지만 Teacher Home의 편지함 아이콘에는
+   읽지 않은 소식이 있다는 빨간 점 표시가 나오지 않음.
+
+목표:
+
+Teacher에게 unread notification/news가 1건 이상 있으면
+
+Teacher Home
+→ 편지함/소식 아이콘
+→ 작은 red dot 표시
+
+모두 읽어서 unread = 0이면
+→ red dot 제거
+
+숫자 badge까지 만들 필요 없음.
+현재 요구는 red dot 유무만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Teacher 알림 unread 구조 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 기준으로 확인:
+
+- Teacher Home 편지함 아이콘 파일/component
+- 편지함 press route
+- messages-inbox.tsx 또는 실제 알림함 화면
+- GET /teacher/news 응답
+- is_read 필드 존재 여부
+- unread count 또는 unread boolean 제공 여부
+- 알림 읽음 처리 API
+- 어느 시점에 is_read=true가 되는지
+- 알림 하나를 열었을 때만 읽음인지
+- 알림함 진입 시 전체 읽음인지
+- 기존 다른 화면에서 unread badge/red dot 기능이 있는지
+
+보고:
+
+[현재 데이터 흐름]
+
+notification INSERT
+→ Teacher news API
+→ unread 상태
+→ inbox
+→ read 처리
+
+를 실제 코드 기준으로 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Home Red Dot 구현 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 notification 시스템 만들지 말고
+현재 notifications.is_read 또는 기존 unread source를 재사용할 것.
+
+조사 후 다음 중 최소 수정안을 제시:
+
+A.
+Teacher Home 진입/focus 시
+기존 news API를 호출하여
+is_read=false 존재 여부만 확인
+
+B.
+기존 unread count API/state가 이미 있으면 그대로 재사용
+
+C.
+기존 global notification state/context가 있으면 재사용
+
+불필요한 polling,
+새 DB 컬럼,
+새 notification table
+만들지 마십시오.
+
+특히:
+
+좋아요
+댓글
+Growth Report 좋아요
+Growth Report 댓글
+기타 기존 Teacher news
+
+중 어떤 type들이 red dot 대상인지
+현재 Teacher news allowlist 기준으로 정리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+문제 2. 알림 상세에서 Back 하면 Home으로 빠짐
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기:
+
+Teacher Home
+→ 소식/알림함
+→ 알림 하나 선택
+→ diary-reactions 또는 growth-report-reactions 등 관련 화면 진입
+→ 뒤로가기
+
+현재:
+→ Home으로 바로 이동
+
+원하는 동작:
+→ 소식/알림함으로 복귀
+→ 다시 뒤로가기
+→ 그때 Home
+
+즉 navigation stack:
+
+Teacher Home
+→ Messages Inbox
+→ Notification Target
+
+이어야 함.
+
+현재 한 단계가 빠져 있음.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Navigation 실제 구조 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 확인:
+
+messages-inbox.tsx에서 알림 선택 시
+
+- router.push
+- router.replace
+- router.navigate
+- dismiss
+- 기타
+
+중 무엇을 쓰는지.
+
+각 notification type별 press handler 확인:
+
+- diary_like
+- diary_comment
+- diary_thanks
+- growth_report_like
+- growth_report_comment
+- 기타 현재 지원 type
+
+그리고 target 화면:
+
+- diary-reactions
+- growth-report-reactions
+
+등의 뒤로가기 구현 확인.
+
+특히:
+
+target 화면에서
+router.replace('/(teacher)/home')
+또는
+직접 Home으로 보내는 custom back handler가 있는지 확인.
+
+Expo Router navigation stack 기준으로
+왜 Inbox가 history에 남지 않는지 ROOT CAUSE를 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 원하는 Back Stack 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+알림함에서 진입한 경우:
+
+Teacher Home
+→ Messages Inbox
+→ Notification Target
+
+Target에서 Back
+→ Messages Inbox
+
+Messages Inbox에서 Back
+→ Teacher Home
+
+이어야 함.
+
+단:
+
+동일 diary-reactions / growth-report-reactions 화면을
+Teacher Diary 화면 등 다른 경로에서도 열 수 있다면
+
+무조건 Back destination을 Inbox로 하드코딩하지 마십시오.
+
+진입 경로에 따라 정상 stack back이 되도록 설계하는 것을 우선.
+
+즉:
+
+Inbox에서 push
+→ Target
+→ router.back()
+
+으로 자연스럽게 복귀할 수 있으면
+그 구조가 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Red Dot 읽음 처리 UX도 같이 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 시점을 정확히 제안:
+
+- 새 notification 도착 → red dot ON
+- Teacher Home focus → unread 확인
+- Inbox 진입만으로 red dot OFF?
+또는
+- 개별 notification을 실제 열어야 해당 row read?
+
+현재 기존 read 정책을 먼저 확인하고
+그 정책을 유지하는 방향 우선.
+
+사용자가 단순히 Inbox 화면을 잠깐 봤다고
+모든 notification을 임의로 읽음 처리하는 새 정책은 만들지 말 것.
+
+Home으로 돌아왔을 때
+최신 unread 상태가 red dot에 반영되는 방법도 설계.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 진행 중인 좋아요/댓글 기능과 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 기능은 현재 추가 중인:
+
+- diary_like
+- diary_comment
+- growth_report_like
+- growth_report_comment
+
+알림들과 정상적으로 연결되어야 함.
+
+각 type마다 별도의 Home dot 로직 만들지 말고
+Teacher unread notification이라는 하나의 상태로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 제출할 구현계획서
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CURRENT UNREAD FLOW]
+- DB field
+- API
+- read 처리 endpoint
+- Inbox state
+- Home과 현재 연결 여부
+
+[RED DOT ROOT CAUSE]
+- 왜 Home에서 현재 표시되지 않는지
+
+[RED DOT PLAN]
+- 수정 파일
+- 사용할 기존 API/state
+- focus/refetch 방식
+- ON/OFF 조건
+
+[CURRENT NAVIGATION]
+- Home → Inbox
+- Inbox → Diary notification target
+- Inbox → Growth Report notification target
+- 현재 사용되는 push/replace 방식
+
+[BACK ROOT CAUSE]
+- Inbox가 stack에서 사라지는 정확한 이유
+
+[BACK NAVIGATION PLAN]
+- 최소 수정 파일
+- 변경할 navigation method
+- Target 화면 custom back 수정 필요 여부
+- 다른 진입 경로 영향 여부
+
+[REGRESSION RISK]
+- Teacher Diary 진입
+- Teacher Growth Report 진입
+- 기존 알림 type
+- Parent 기능
+영향 여부
+
+[IMPLEMENTATION PLAN]
+실제 구현 순서를 작은 단계로 제시.
+
+이번 단계 절대 금지:
+
+- 코드 수정
+- OTA
+- Render deploy
+- DB write
+- navigation 변경
+- red dot 구현
+
+조사 + 구현계획서 제출 후 STOP.
+사용자 승인 전 구현 금지.
