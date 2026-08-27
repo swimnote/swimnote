@@ -120,10 +120,10 @@ export default function MessagesInboxScreen() {
   // ── 소식 탭 상태 ──
   interface NewsItem {
     id: string;
-    type: "diary_like" | "diary_thanks" | "diary_comment";
+    type: "diary_like" | "diary_thanks" | "diary_comment" | "growth_report_like";
     title: string;
     body: string;
-    ref_id: string;   // diary_id
+    ref_id: string;   // diary_id or growth_report_id
     is_read: boolean;
     created_at: string;
     lesson_date?: string;
@@ -318,9 +318,10 @@ export default function MessagesInboxScreen() {
 
   /** 소식 아이콘 반환 */
   function newsIcon(type: string) {
-    if (type === "diary_like")    return { name: "heart" as const,        color: "#EF4444" };
-    if (type === "diary_thanks")  return { name: "hand-heart" as const,   color: "#F59E0B" };
-    if (type === "diary_comment") return { name: "message-circle" as const, color: "#10B981" };
+    if (type === "diary_like")         return { name: "heart" as const,          color: "#EF4444" };
+    if (type === "diary_thanks")        return { name: "hand-heart" as const,     color: "#F59E0B" };
+    if (type === "diary_comment")       return { name: "message-circle" as const, color: "#10B981" };
+    if (type === "growth_report_like")  return { name: "heart" as const,          color: "#EF4444" };
     return { name: "bell" as const, color: "#6B7280" };
   }
   /** 소식 날짜 포맷 */
@@ -503,9 +504,12 @@ export default function MessagesInboxScreen() {
                       setUnreadNewsCount(prev => Math.max(0, prev - 1));
                       apiRequest(token, `/notifications/${item.id}/read`, { method: "POST" }).catch(() => {});
                     }
-                    // 해당 diary로 이동
+                    // 해당 화면으로 이동
                     if (item.ref_id) {
-                      if (
+                      if (item.type === "growth_report_like") {
+                        // PHASE 3-C 전까지: 화면 이동 없이 소식 탭 유지
+                        return;
+                      } else if (
                         item.type === "diary_comment" ||
                         item.type === "diary_like" ||
                         item.type === "diary_thanks"
