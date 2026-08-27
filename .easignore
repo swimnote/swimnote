@@ -11,3 +11,4 @@ artifacts/swim-app/dist
 artifacts/swim-app/build
 artifacts/swim-app/android
 artifacts/swim-app/ios
+.cache
