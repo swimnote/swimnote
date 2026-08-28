@@ -151,4 +151,8 @@ router.use("/", aiV1Router);
 import supportLearningRouter from "./support-learning.js";
 router.use("/", supportLearningRouter);
 
+// Curriculum APP MASTER Import (super_admin)
+import superCurriculumRouter from "./super-curriculum.js";
+router.use("/super/curriculum", superCurriculumRouter);
+
 export default router;
