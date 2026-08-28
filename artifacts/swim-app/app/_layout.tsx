@@ -541,9 +541,16 @@ function RootNav() {
 
   const [showOtaModal,   setShowOtaModal]   = useState(false);
   const [otaUpdating,    setOtaUpdating]    = useState(false);
-  const [showForceModal, setShowForceModal] = useState(false);
-  const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(null);
-  const forcedRef = useRef(false); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
+
+  // V1.6.2 retirement: 해당 버전은 startup 즉시 강제 업데이트 화면으로 보냄
+  const _IS_RETIRED = Constants.expoConfig?.version === "1.6.2";
+  const _RETIREMENT_STORE_URL = Platform.OS === "ios"
+    ? "https://apps.apple.com/app/id6761360360"
+    : "https://play.google.com/store/apps/details?id=com.swimnote.app";
+
+  const [showForceModal, setShowForceModal] = useState(_IS_RETIRED);
+  const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(_IS_RETIRED ? _RETIREMENT_STORE_URL : null);
+  const forcedRef = useRef(_IS_RETIRED); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => { tokenRef.current = token; }, [token]);
