@@ -162,3 +162,14 @@ export const isDbSeparated = !!POOL_URL;
 export const isProtectDbConfigured = !!PROTECT_URL;
 
 export * from "./schema";
+
+// ── Migration stubs (호환성 유지) ──────────────────────────────────────────────
+// app.ts가 import하지만 실제 마이그레이션은 각 라우트/서비스 레이어에서 직접 실행됩니다.
+
+export async function runAdminMigration(): Promise<void> {
+  // no-op: admin migrations are run inline at route/service init
+}
+
+export async function runKfMigration(): Promise<void> {
+  // no-op: KF Worker process handles its own migrations
+}
