@@ -239,7 +239,13 @@ describe("TC-C: level_order 중복 → ERROR", () => {
   it("같은 level_order 두 번 → errors 포함", () => {
     const buf = buildSimpleDoc({ levelCount: 3, nodesPerLevel: 2, dupLevelOrder: true });
     const result = parseAppMasterDocx(buf);
-    expect(result.validation.errors.some(e => /level.*order.*중복/i.test(e) || /LEVEL.*order.*중복/i.test(e))).toBe(true);
+    // parseLegacyFormat: runValidation step2 → "LEVEL order가 오름차순이 아닙니다: N → N"
+    // parseNewFormat:                        → "level_order 중복: N"
+    expect(result.validation.errors.some(e =>
+      /level.*order.*중복/i.test(e) ||
+      /LEVEL.*order.*중복/i.test(e) ||
+      /오름차순이 아닙니다/i.test(e)
+    )).toBe(true);
     expect(result.validation.is_valid).toBe(false);
   });
 });

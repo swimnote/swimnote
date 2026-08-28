@@ -671,7 +671,9 @@ function parseLegacyFormat(
 
   const levels: AppMasterLevel[] = [];
   const relations: AppMasterRelation[] = [];
-  const allDisplayNos = new Set<string>();
+  const allDisplayNos   = new Set<string>();
+  const seenDisplayNos  = new Set<string>(); // 중복 display_no 감지
+  const seenSeqsPerLevel = new Map<number, Set<number>>(); // 레벨별 sequence 중복 감지
 
   type State = "DOCUMENT_HEADER" | "IN_LEVEL" | "IN_NODE" | "IN_DRILL" | "IN_RELATIONS";
   let state: State = "DOCUMENT_HEADER";
@@ -704,6 +706,22 @@ function parseLegacyFormat(
         if (!currentLevel) { errors.push(`NODE "${text}" 가 LEVEL 섹션 밖.`); continue; }
         const seq = parseInt(nodeMatch[1], 10);
         const dn  = nodeMatch[2].toUpperCase();
+
+        // display_no 중복 감지
+        if (seenDisplayNos.has(dn)) {
+          errors.push(`display_no 중복: ${dn}`);
+        }
+        seenDisplayNos.add(dn);
+
+        // sequence 중복 감지 (레벨별)
+        const lo = currentLevel.level_order;
+        if (!seenSeqsPerLevel.has(lo)) seenSeqsPerLevel.set(lo, new Set());
+        const seenSeqs = seenSeqsPerLevel.get(lo)!;
+        if (seenSeqs.has(seq)) {
+          errors.push(`LEVEL ${lo} 내 sequence 중복: ${seq}`);
+        }
+        seenSeqs.add(seq);
+
         currentNode = {
           level_order: currentLevel.level_order,
           sequence_in_level: seq,
@@ -806,9 +824,9 @@ function runValidation(params: {
 }): AppMasterParsed {
   const { meta, levels, relations, nodes, drills, errors, warnings, allDisplayNos } = params;
 
-  // 1. 레벨 수 경고
+  // 1. 레벨 수 검증 (선언값과 실제값 불일치 → 오류)
   if (meta.declared_level_count !== null && levels.length !== meta.declared_level_count) {
-    warnings.push(`선언된 레벨 수(${meta.declared_level_count})와 실제 파싱된 레벨 수(${levels.length})가 다릅니다.`);
+    errors.push(`선언된 레벨 수(${meta.declared_level_count})와 실제 파싱된 레벨 수(${levels.length})가 다릅니다.`);
   }
 
   // 2. level_order ASC
@@ -825,20 +843,20 @@ function runValidation(params: {
     }
   }
 
-  // 4. Drill target 검증
+  // 4. Drill target 검증 (존재하지 않는 노드 → 오류)
   for (const drill of drills) {
     if (drill.node_display_no && !allDisplayNos.has(drill.node_display_no)) {
-      warnings.push(`Drill "${drill.title}" 의 대상 노드 "${drill.node_display_no}" 가 문서에 존재하지 않습니다.`);
+      errors.push(`Drill "${drill.title}" 의 대상 노드 "${drill.node_display_no}" 가 문서에 존재하지 않습니다.`);
     }
   }
 
-  // 5. Relation node 검증
+  // 5. Relation node 검증 (존재하지 않는 노드 → 오류)
   for (const rel of relations) {
     if (rel.from_node_display_no && !allDisplayNos.has(rel.from_node_display_no)) {
-      warnings.push(`Relation 출발 노드 "${rel.from_node_display_no}" 가 문서에 없습니다.`);
+      errors.push(`Relation 출발 노드 "${rel.from_node_display_no}" 가 문서에 없습니다.`);
     }
     if (rel.to_node_display_no && !allDisplayNos.has(rel.to_node_display_no)) {
-      warnings.push(`Relation 대상 노드 "${rel.to_node_display_no}" 가 문서에 없습니다.`);
+      errors.push(`Relation 대상 노드 "${rel.to_node_display_no}" 가 문서에 없습니다.`);
     }
   }
 
