@@ -167,6 +167,23 @@ async function ensureDiaryTemplateVersion(poolId: string): Promise<string> {
 export async function syncDiaryTemplatesToCurriculumItems(
   poolId: string,
 ): Promise<SyncResult> {
+  // Guard: pool에 DOCX import 기반 ACTIVE curriculum(≠ diary-templates-v1)이 존재하면
+  // diary-template sync를 건너뜀 — ensureDiaryTemplateVersion이 새 버전을 강제 비활성화하거나
+  // diary-templates-v1을 재생성하는 것을 방지.
+  const activeDocx = await superAdminDb.execute(sql`
+    SELECT id FROM curriculum_versions
+    WHERE swimming_pool_id = ${poolId}
+      AND is_active        = true
+      AND version_name     != ${DIARY_TEMPLATE_VERSION_NAME}
+    LIMIT 1
+  `);
+  if ((activeDocx as any).rows.length > 0) {
+    console.log(
+      `[diary-template-sync] pool=${poolId} — DOCX curriculum ACTIVE, sync skipped`
+    );
+    return { poolId, versionId: "", synced: 0, deactivated: 0 };
+  }
+
   // 1. managed version 확보 (competing versions deactivated first)
   const versionId = await ensureDiaryTemplateVersion(poolId);
 

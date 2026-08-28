@@ -79,13 +79,17 @@ function setupSyncDb(opts: {
   (superAdminDb.execute as ReturnType<typeof vi.fn>).mockImplementation(async (query: any) => {
     const q: string = extractSql(query);
 
+    // Guard: DOCX curriculum active check (SELECT id FROM curriculum_versions WHERE is_active=true AND version_name!=...)
+    // Returns empty → no competing DOCX curriculum, proceed with diary-template sync
+    if (q.includes("FROM curriculum_versions") && q.includes("is_active")) return { rows: [] };
+
     // UPDATE curriculum_versions SET is_active=false (deactivate competing)
     if (q.includes("UPDATE curriculum_versions")) return { rows: [] };
 
     // INSERT INTO curriculum_versions (upsert) → void
     if (q.includes("INSERT INTO curriculum_versions")) return { rows: [] };
 
-    // SELECT id FROM curriculum_versions
+    // SELECT id FROM curriculum_versions (version_id lookup, no is_active filter)
     if (q.includes("FROM curriculum_versions")) return { rows: [{ id: opts.versionId }] };
 
     // SELECT diary_templates JOIN diary_template_levels
