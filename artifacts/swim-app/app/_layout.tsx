@@ -541,16 +541,9 @@ function RootNav() {
 
   const [showOtaModal,   setShowOtaModal]   = useState(false);
   const [otaUpdating,    setOtaUpdating]    = useState(false);
-
-  // V1.6.2 retirement: 해당 버전은 startup 즉시 강제 업데이트 화면으로 보냄
-  const _IS_RETIRED = Constants.expoConfig?.version === "1.6.2";
-  const _RETIREMENT_STORE_URL = Platform.OS === "ios"
-    ? "https://apps.apple.com/app/id6761360360"
-    : "https://play.google.com/store/apps/details?id=com.swimnote.app";
-
-  const [showForceModal, setShowForceModal] = useState(_IS_RETIRED);
-  const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(_IS_RETIRED ? _RETIREMENT_STORE_URL : null);
-  const forcedRef = useRef(_IS_RETIRED); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
+  const [showForceModal, setShowForceModal] = useState(false);
+  const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(null);
+  const forcedRef = useRef(false); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => { tokenRef.current = token; }, [token]);
@@ -984,6 +977,34 @@ export default function RootLayout() {
     return (
       <View style={{ flex: 1, backgroundColor: "#FFFFFF", justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color={C.brandStrong} />
+      </View>
+    );
+  }
+
+  // V1.6.2 retirement — 모든 startup/auth/provider/router 완전 우회
+  if (Constants.expoConfig?.version === "1.6.2") {
+    const storeUrl = Platform.OS === "ios"
+      ? "https://apps.apple.com/app/id6761360360"
+      : "https://play.google.com/store/apps/details?id=com.swimnote.app";
+    const openStore = () => {
+      Linking.canOpenURL(storeUrl)
+        .then(ok => Linking.openURL(storeUrl))
+        .catch(() => Linking.openURL(storeUrl));
+    };
+    return (
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: "#111827", textAlign: "center", marginBottom: 12 }}>
+          새로운 SWIMNOTE가 출시되었습니다.
+        </Text>
+        <Text style={{ fontSize: 15, color: "#6B7280", textAlign: "center", lineHeight: 24, marginBottom: 36 }}>
+          계속 사용하려면 최신 버전으로 업데이트해주세요.
+        </Text>
+        <Pressable
+          onPress={openStore}
+          style={{ backgroundColor: "#1E3A5F", borderRadius: 12, paddingVertical: 14, paddingHorizontal: 40 }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: "600", color: "#FFFFFF" }}>업데이트하기</Text>
+        </Pressable>
       </View>
     );
   }
