@@ -1,0 +1,328 @@
+[SWIMNOTE APP — APP MASTER Parser 실제 표준 포맷 대응 수정]
+
+현재 E2E 결과:
+PARSER FAIL
+
+중요:
+문서를 파서에 맞게 다시 생성하지 않는다.
+현재 사용자가 승인한 APP MASTER DOCX 포맷을 표준으로 간주하고
+appMasterDocxParser.ts를 실제 문서 포맷에 맞게 수정한다.
+
+현재 실제 표준 DOCX 구조:
+
+Title
+TOYKIDS SWIMNOTE X — APP MASTER IMPORT v1.0
+
+Heading1 META
+Normal key/value pairs
+
+Heading1 LEVELS
+Heading2 LEVEL 1
+Normal key/value pairs
+Heading2 LEVEL 2
+...
+
+Heading2 NODE TOYKIDS-L1-B001
+Normal key/value pairs
+
+Heading3 DRILL TOYKIDS-DR-351
+Normal key/value pairs
+
+Heading1 RELATIONS
+Heading2 RELATION TOYKIDS-REL-L1-001
+Normal key/value pairs
+
+==================================================
+1. META Parser
+==================================================
+
+다음 key/value Normal paragraph 형식을 지원:
+
+pool_id
+pool_name
+curriculum_version
+source_document
+review_status
+reviewed_by
+effective_from
+
+기존 table 기반 META 지원은
+backward compatibility를 위해 가능하면 유지한다.
+
+==================================================
+2. LEVEL Parser
+==================================================
+
+실제 형식:
+
+Heading2:
+LEVEL 1
+
+이후 Normal paragraph key/value:
+
+level_order
+level_name
+level_description
+badge_label
+color
+is_active
+
+LEVEL heading 자체에 level_name이 없어도
+본문 level_name을 사용한다.
+
+level_order는 본문 값을 우선하고
+Heading의 숫자는 보조 검증값으로 사용한다.
+
+둘이 다르면 validation error.
+
+==================================================
+3. NODE Parser
+==================================================
+
+실제 형식:
+
+Heading2:
+NODE TOYKIDS-L1-B001
+
+sequence 숫자가 heading에 없어도 된다.
+
+node_code는 heading의 ID를 사용한다.
+
+본문 Normal key/value:
+
+display_no
+sequence_in_level
+node_id
+node_code
+level_order
+level_name
+stroke
+domain
+skill_group
+atomic_skill
+title
+goal
+movement_sequence
+observable_success
+partial_success
+error_signals
+coaching_point
+is_test_item
+completion_rule
+prerequisite_node
+next_node
+source_text
+
+중요:
+heading node_code와 본문 node_code가 둘 다 있으면
+동일해야 한다.
+
+sequence_in_level은 본문 값을 사용한다.
+
+==================================================
+4. DRILL Parser
+==================================================
+
+실제 형식:
+
+Heading3:
+DRILL TOYKIDS-DR-351
+
+ID 포함 형식을 정상 지원한다.
+
+본문 Normal key/value:
+
+drill_id
+target_node_id
+drill_title
+target_aspect
+movement_sequence
+repetitions
+immediate_feedback
+integration
+sprint_validation
+failure_return_node
+
+heading drill_id와 본문 drill_id가 둘 다 있으면
+동일성 검증.
+
+==================================================
+5. RELATION Parser
+==================================================
+
+실제 형식:
+
+Heading1 RELATIONS
+
+그 아래:
+
+Heading2:
+RELATION TOYKIDS-REL-L1-001
+
+Normal key/value:
+
+relation_id
+from_node_id
+to_node_id
+relation_type
+weight
+note
+
+relation_type은 다음 uppercase 값도 허용:
+
+PREREQUISITE
+NEXT_SKILL
+RELATED_SKILL
+CORRECTION_FOR
+TEST_FOR
+
+필요하면 내부 enum으로 normalize하되
+원래 의미를 바꾸지 않는다.
+
+기존 lowercase/한글 mapping이 있다면
+backward compatibility 유지 가능.
+
+==================================================
+6. Normal key/value reader
+==================================================
+
+현재 실제 DOCX의 핵심 구조는
+2-column table이 아니라
+Normal paragraph key/value 교대 구조다.
+
+예:
+
+Normal: level_order
+Normal: 1
+Normal: level_name
+Normal: 흰색
+
+이 패턴을 공통 helper로 구현한다.
+
+heading이 나오면 현재 section 종료.
+
+빈 value도 허용하되
+필수 필드는 validation 단계에서 error 처리.
+
+==================================================
+7. Backward Compatibility
+==================================================
+
+기존 parser가 지원하던:
+
+- 2-column table
+- 기존 LEVEL 1: 흰색
+- 기존 NODE 1: L1-001
+- 기존 DRILL 1
+- 기존 relation table
+
+형식은 가능하면 제거하지 않는다.
+
+새 표준 포맷을 추가 지원하는 방식으로 구현한다.
+
+==================================================
+8. Validation
+==================================================
+
+실제 Word 기준 기대값:
+
+Levels: 7
+Nodes: 550
+Drills: 500
+Relations: 693
+
+필수 검증:
+
+- level_order 중복 금지
+- level_order ASC
+- display_no 중복 금지
+- node_code 중복 금지
+- drill_id 중복 금지
+- relation_id 중복 금지
+- drill.target_node_id 존재
+- relation.from_node_id 존재
+- relation.to_node_id 존재
+- node.level_order가 Level Master에 존재
+- node.level_name이 해당 level_order와 일치
+- heading ID와 본문 ID 불일치 시 FAIL
+
+자동 의미 보정 금지.
+
+==================================================
+9. 기존 DRAFT 정리
+==================================================
+
+현재 실패로 생성된:
+
+version_id:
+cv_1pb45361mtdb0vvs
+
+status:
+DRAFT
+node_count=0
+
+이 DRAFT는 실제 import 성공 후
+필요 시 archive 또는 안전 삭제 가능한지 확인한다.
+
+기존 ACTIVE:
+
+cv_550732d1c6234f7ba054129c16fe93b7
+
+은 절대 수정/삭제하지 않는다.
+
+==================================================
+10. E2E 재실행
+==================================================
+
+같은 실제 Word 파일로 다시:
+
+upload
+→ preview
+→ validate
+→ import
+→ activate
+
+를 수행한다.
+
+기대값:
+
+Level 7
+Node 550
+Drill 500
+Relation 693
+Errors 0
+
+DB 실제 저장 count까지 확인.
+
+동일 파일 재업로드 멱등성도 검증.
+
+==================================================
+11. 완료보고
+==================================================
+
+CODE
+- commit SHA
+- 수정 파일
+
+PARSER
+- Level / Node / Drill / Relation count
+- errors / warnings
+
+DB
+- version id
+- 실제 저장 count
+
+VERSION
+- 새 ACTIVE
+- 기존 350 version 상태
+
+SAFETY
+- 기존 curriculum_items 350 보존
+- growth_events 참조 보존
+- tenant isolation
+
+DEPLOY
+- Render 금지
+- OTA 금지
+
+완료 후 STOP.
