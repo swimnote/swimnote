@@ -996,8 +996,11 @@ export default function RootLayout() {
         <Text style={{ fontSize: 20, fontWeight: "700", color: "#111827", textAlign: "center", marginBottom: 12 }}>
           새로운 SWIMNOTE가 출시되었습니다.
         </Text>
-        <Text style={{ fontSize: 15, color: "#6B7280", textAlign: "center", lineHeight: 24, marginBottom: 36 }}>
-          계속 사용하려면 최신 버전으로 업데이트해주세요.
+        <Text style={{ fontSize: 15, color: "#6B7280", textAlign: "center", lineHeight: 24, marginBottom: 16 }}>
+          원활한 서비스 이용을 위해 최신 버전으로 업데이트해주세요.
+        </Text>
+        <Text style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", lineHeight: 20, marginBottom: 36 }}>
+          App Store는 현재 업데이트 준비 중입니다.{"\n"}조금만 기다려주시면 감사하겠습니다.
         </Text>
         <Pressable
           onPress={openStore}
