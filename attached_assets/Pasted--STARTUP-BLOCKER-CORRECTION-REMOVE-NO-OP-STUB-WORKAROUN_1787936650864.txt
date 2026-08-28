@@ -1,0 +1,215 @@
+[앱]
+
+STARTUP BLOCKER CORRECTION
+REMOVE NO-OP STUB WORKAROUND — RESTORE REAL SEMANTICS
+
+현재 SHA:
+a914cd68
+
+중요:
+Render 배포 금지.
+
+방금 ERR_MODULE_NOT_FOUND를 막기 위해 만든
+3개의 no-op stub은 최종 해결책으로 승인하지 않는다.
+
+현재 추가된:
+
+1.
+artifacts/api-server/src/lib/kf/job-queue.ts
+initKfJobQueue() no-op
+
+2.
+artifacts/api-server/src/lib/misconception/replitdb-repository.ts
+seedIfEmpty() no-op
+
+3.
+lib/db/src/index.ts
+runAdminMigration()
+runKfMigration()
+no-op exports
+
+이 상태로 production 배포 금지.
+
+==================================================
+1. ROOT CAUSE IS ALREADY KNOWN
+==================================================
+
+83be1903에서 app.ts에 다음 import/call이 추가됐으나
+실제 구현과 repository 상태가 맞지 않음:
+
+initKfJobQueue
+seedIfEmpty
+runAdminMigration
+runKfMigration
+
+이번 작업은 새로운 기능을 만드는 것이 아니라
+잘못 들어간 startup dependency를 정리하는 것.
+
+추가 광범위 조사 금지.
+
+==================================================
+2. DETERMINE EACH SYMBOL
+==================================================
+
+각 symbol에 대해서만 확인:
+
+A. initKfJobQueue
+
+- 83be1903 이전 실제 구현 존재했는가?
+- 현재 production에서 실제 호출되어야 하는 기능인가?
+- UI serving과 관계가 있는가?
+
+B. seedIfEmpty
+
+- c3b07a58에서 실제 구현이 왜 삭제됐는가?
+- 삭제 후에도 호출이 남은 것이 단순 stale import/call인가?
+
+C. runAdminMigration / runKfMigration
+
+- 실제 implementation이 repository history에 존재하는가?
+- 현재 production startup에서 반드시 필요한 migration인가?
+- 아니면 83be1903에서 잘못 추가된 호출인가?
+
+각각:
+
+REAL_REQUIRED
+OBSOLETE_STALE_CALL
+REAL_IMPLEMENTATION_MISSING
+
+중 하나로 판정.
+
+==================================================
+3. FIX RULE
+==================================================
+
+OBSOLETE_STALE_CALL이면:
+
+app.ts에서 해당 import와 call만 제거.
+
+가짜 stub 금지.
+
+REAL_REQUIRED이면:
+
+실제 마지막 정상 implementation이
+repository history에 존재할 경우
+그 구현만 정확히 복원.
+
+새 구현 창작 금지.
+
+REAL_IMPLEMENTATION_MISSING인데
+정확한 복원이 불가능하면:
+
+STOP.
+
+==================================================
+4. REMOVE CURRENT STUBS
+==================================================
+
+이번 a914cd68에서 추가한 no-op이
+실제 필요 없는 workaround였으면 전부 제거:
+
+- kf/job-queue.ts
+- misconception/replitdb-repository.ts
+- lib/db/src/index.ts의 no-op exports
+
+단,
+기존 실제 코드가 있던 파일을 삭제하지 말고
+a914cd68에서 새로 추가한 부분만 되돌린다.
+
+==================================================
+5. PRESERVE ALL CURRENT WORK
+==================================================
+
+절대 건드리지 말 것:
+
+- Growth Report delete feature SHA 33f4292d 내용
+- 현재 진행 완료된 DB 작업
+- Growth Report engine
+- Diary DB
+- Admin UI serving
+- unrelated API routes
+- DB schema/data
+
+==================================================
+6. MINIMAL STARTUP VERIFY
+==================================================
+
+수정 후 실제 server startup 실행.
+
+반드시 확인:
+
+- ERR_MODULE_NOT_FOUND = 0
+- process exit = 없음
+- PORT bind 성공
+- /api/healthz 정상
+- Growth Report DELETE route load 정상
+
+그리고 startup log에서:
+
+initKfJobQueue
+seedIfEmpty
+runAdminMigration
+runKfMigration
+
+관련 runtime error 0.
+
+==================================================
+7. DIFF CHECK
+==================================================
+
+최종 diff에서 startup blocker 해결 외
+새 기능 변경 0.
+
+특히 no-op으로 에러를 숨기는 코드 0.
+
+==================================================
+8. COMMIT
+==================================================
+
+branch:
+deploy-photo-clone
+
+commit + push.
+
+Render deploy:
+0
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+각 symbol:
+
+initKfJobQueue:
+REQUIRED / OBSOLETE
+실제 처리:
+
+seedIfEmpty:
+REQUIRED / OBSOLETE
+실제 처리:
+
+runAdminMigration:
+REQUIRED / OBSOLETE
+실제 처리:
+
+runKfMigration:
+REQUIRED / OBSOLETE
+실제 처리:
+
+NO_OP_STUBS_REMAINING:
+0 이어야 함
+
+CHANGED_FILES:
+
+SERVER_STARTUP:
+PASS / FAIL
+
+HEALTH:
+PASS / FAIL
+
+GROWTH_REPORT_DELETE_ROUTE:
+PASS / FAIL
+
+NEW_SHA:
+
+완료 후 STOP.
