@@ -12,6 +12,7 @@ import {
 } from "../utils/historyUtils.js";
 import { isValidCalendarDate, validateMakeupDateRange } from "../lib/makeup-date-range.js";
 import { getPoolOperators, countPoolOperators } from "../lib/poolOperatorService.js";
+import { deleteGrowthReport } from "../lib/growth-report-service.js";
 
 const router = Router();
 
@@ -3881,6 +3882,55 @@ router.get("/reports/summary",
     } catch (e) {
       console.error("[admin/reports/summary]", e);
       res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// DELETE /admin/growth-reports/:reportId — 성장리포트 삭제
+// requireRole(pool_admin, super_admin)
+// pool_admin: 자기 pool 한정 / super_admin: 전체
+// ════════════════════════════════════════════════════════════════════════
+router.delete(
+  "/growth-reports/:reportId",
+  requireAuth, requireRole("pool_admin", "super_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const { reportId } = req.params;
+      const body = req.body as { confirm?: string };
+
+      if (body?.confirm !== "DELETE_GROWTH_REPORT") {
+        return res.status(400).json({ error: "confirm 값이 올바르지 않습니다." });
+      }
+
+      const callerRole = req.user?.role ?? "";
+      const callerPoolId = callerRole === "pool_admin"
+        ? (await getAdminPoolId(req))
+        : null;
+
+      if (callerRole === "pool_admin" && !callerPoolId) {
+        return res.status(403).json({ error: "수영장 정보가 없습니다." });
+      }
+
+      const result = await deleteGrowthReport({
+        db,
+        reportId,
+        callerRole,
+        callerPoolId,
+      });
+
+      return res.status(200).json({
+        success: true,
+        report_id: result.reportId,
+        deleted: result.deleted,
+      });
+    } catch (e: any) {
+      const status = e?.status;
+      if (status === 404) return res.status(404).json({ error: e.message });
+      if (status === 409) return res.status(409).json({ error: e.message });
+      if (status === 403) return res.status(403).json({ error: e.message });
+      console.error("[admin/growth-reports/delete]", e);
+      return res.status(500).json({ error: "서버 오류가 발생했습니다." });
     }
   }
 );

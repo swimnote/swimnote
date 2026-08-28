@@ -21,6 +21,7 @@ import {
 import { router } from "expo-router";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import Colors from "@/constants/colors";
 
@@ -110,6 +111,11 @@ export default function ReportHubScreen() {
   // ── 필터 모달 ──────────────────────────────────────────
   const [filterModal, setFilterModal] = useState(false);
 
+  // ── 삭제 상태 ──────────────────────────────────────────
+  const [deleteTarget,  setDeleteTarget]  = useState<ReportRow | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+
   // ── debounce ref ───────────────────────────────────────
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -198,6 +204,47 @@ export default function ReportHubScreen() {
     });
   };
 
+  // 삭제 확인 모달 열기
+  const onDeletePress = (row: ReportRow) => {
+    setDeleteTarget(row);
+    setDeleteConfirm(true);
+  };
+
+  // 삭제 실행
+  const onDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleteConfirm(false);
+    setDeleting(true);
+    try {
+      const resp = await apiRequest(
+        token,
+        `/admin/growth-reports/${deleteTarget.report_id}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: "DELETE_GROWTH_REPORT" }),
+        },
+      );
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error((errBody as any)?.error ?? `오류 (${resp.status})`);
+      }
+      // 목록에서 즉시 제거
+      setRows(prev => prev.filter(r => r.report_id !== deleteTarget.report_id));
+      setData(prev =>
+        prev
+          ? { ...prev, pagination: { ...prev.pagination, total: Math.max(0, prev.pagination.total - 1) } }
+          : prev,
+      );
+    } catch (e: any) {
+      // 오류 시 목록 새로 고침
+      fetchData({ pg: 1, reset: true });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget, token, fetchData]);
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 서브 컴포넌트
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -236,6 +283,13 @@ export default function ReportHubScreen() {
               <Text style={s.fileBadgeText}>파일</Text>
             </View>
           )}
+          <TouchableOpacity
+            style={s.menuBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={(e) => { e.stopPropagation(); onDeletePress(item); }}
+          >
+            <LucideIcon name="Trash2" size={15} color="#C62828" />
+          </TouchableOpacity>
         </View>
       </Pressable>
     );
@@ -386,6 +440,16 @@ export default function ReportHubScreen() {
         }
       />
 
+      {/* ── 삭제 확인 모달 ── */}
+      <ConfirmModal
+        visible={deleteConfirm}
+        title="리포트 삭제"
+        message={`이 성장리포트를 삭제하시겠습니까?\n리포트에 남겨진 좋아요와 댓글도 함께 삭제됩니다.`}
+        destructive
+        onConfirm={onDeleteConfirm}
+        onCancel={() => { setDeleteConfirm(false); setDeleteTarget(null); }}
+      />
+
       {/* ── 필터 모달 ── */}
       <Modal visible={filterModal} animationType="slide" transparent onRequestClose={() => setFilterModal(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setFilterModal(false)}>
@@ -515,6 +579,9 @@ const s = StyleSheet.create({
   fileBadge:     { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2,
                    borderRadius: 8, backgroundColor: "#F5F5F5" },
   fileBadgeText: { fontSize: 10, color: "#555", fontFamily: "Pretendard-Regular" },
+
+  // 삭제 버튼
+  menuBtn: { padding: 4, marginLeft: 4 },
 
   // empty / error / loading
   emptyWrap:  { alignItems: "center", paddingTop: 60, gap: 8 },

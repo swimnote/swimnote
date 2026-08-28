@@ -946,3 +946,129 @@ export async function publishGrowthReport(
     reportPeriod: afterRow?.report_period    ?? undefined,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// deleteGrowthReport — Admin soft-delete
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DeleteGrowthReportResult {
+  reportId: string;
+  deleted: {
+    report:        number;
+    reactions:     number;
+    comments:      number;
+    notifications: number;
+  };
+}
+
+/**
+ * deleteGrowthReport — 성장리포트 관리자 삭제
+ *
+ * SOFT DELETE: growth_reports.deleted_at 설정.
+ * HARD DELETE: reactions / comments / notifications (FK 없음).
+ *
+ * 권한:
+ *   pool_admin  → 자기 pool 한정 (callerId poolId 검증 포함)
+ *   super_admin → 전체
+ *
+ * 재발급 안전:
+ *   uq_growth_reports_student_cycle 이 WHERE deleted_at IS NULL partial index이므로
+ *   삭제 후 동일 (student_id, cycle_id)로 새 report 즉시 생성 가능.
+ */
+export async function deleteGrowthReport(params: {
+  db: Db;
+  reportId: string;
+  callerRole: string;
+  callerPoolId: string | null;
+}): Promise<DeleteGrowthReportResult> {
+  const { db, reportId, callerRole, callerPoolId } = params;
+
+  return db.transaction(async (tx) => {
+    // 1. Report 존재 + pool 소유권 확인 (FOR UPDATE)
+    const lockRes = await tx.execute(sql`
+      SELECT id, swimming_pool_id, deleted_at
+      FROM growth_reports
+      WHERE id = ${reportId}
+      FOR UPDATE
+    `);
+
+    if (lockRes.rows.length === 0) {
+      const err: any = new Error("리포트를 찾을 수 없습니다.");
+      err.status = 404;
+      throw err;
+    }
+
+    const row = lockRes.rows[0] as any;
+
+    if (row.deleted_at) {
+      const err: any = new Error("이미 삭제된 리포트입니다.");
+      err.status = 409;
+      throw err;
+    }
+
+    // 2. 권한 / pool ownership 확인
+    if (callerRole === "pool_admin") {
+      if (!callerPoolId || row.swimming_pool_id !== callerPoolId) {
+        const err: any = new Error("접근 권한이 없습니다.");
+        err.status = 403;
+        throw err;
+      }
+    }
+    // super_admin: 전체 허용
+
+    // 3. notifications HARD DELETE
+    const notifRes = await tx.execute(sql`
+      DELETE FROM notifications
+      WHERE ref_id = ${reportId}
+        AND ref_type = 'growth_report'
+        AND type IN ('GROWTH_REPORT_PUBLISHED', 'growth_report_like', 'growth_report_comment')
+    `);
+    const notificationsDeleted = (notifRes as any).rowCount ?? 0;
+
+    // 4. growth_report_comments HARD DELETE (root + replies, is_deleted 무관)
+    const commentsRes = await tx.execute(sql`
+      DELETE FROM growth_report_comments
+      WHERE growth_report_id = ${reportId}
+    `);
+    const commentsDeleted = (commentsRes as any).rowCount ?? 0;
+
+    // 5. growth_report_reactions HARD DELETE
+    const reactionsRes = await tx.execute(sql`
+      DELETE FROM growth_report_reactions
+      WHERE growth_report_id = ${reportId}
+    `);
+    const reactionsDeleted = (reactionsRes as any).rowCount ?? 0;
+
+    // 6. growth_reports SOFT DELETE
+    const updateRes = await tx.execute(sql`
+      UPDATE growth_reports
+      SET deleted_at = now(),
+          updated_at = now()
+      WHERE id = ${reportId}
+        AND deleted_at IS NULL
+    `);
+    const reportDeleted = (updateRes as any).rowCount ?? 0;
+
+    if (reportDeleted === 0) {
+      // 동시 삭제 레이스 (FOR UPDATE 이후 극히 드문 케이스)
+      const err: any = new Error("이미 삭제된 리포트입니다.");
+      err.status = 409;
+      throw err;
+    }
+
+    console.log(
+      `[growth-report] DELETED: report=${reportId} by=${callerRole}(pool=${callerPoolId}) ` +
+      `reactions=${reactionsDeleted} comments=${commentsDeleted} notifications=${notificationsDeleted}`,
+    );
+
+    return {
+      reportId,
+      deleted: {
+        report:        reportDeleted,
+        reactions:     reactionsDeleted,
+        comments:      commentsDeleted,
+        notifications: notificationsDeleted,
+      },
+    };
+  });
+}
