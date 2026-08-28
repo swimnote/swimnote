@@ -539,45 +539,41 @@ function RootNav() {
   const tokenRef = useRef(token);
   const kindRef = useRef<"parent" | "teacher" | "admin" | "super" | "pool_admin" | null>(kind);
 
-  const [showOtaModal,   setShowOtaModal]   = useState(false);
-  const [otaUpdating,    setOtaUpdating]    = useState(false);
   const [showForceModal, setShowForceModal] = useState(false);
   const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(null);
   const forcedRef = useRef(false); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
+  const isSessionCheckedRef = useRef(false); // 세션 내 OTA check 1회 제한
 
   useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => { tokenRef.current = token; }, [token]);
   useEffect(() => { kindRef.current = kind; }, [kind]);
 
-  // OTA 체크 + 다운로드
+  // OTA 체크 + silent 다운로드 (V2: 사용자 알림 없음)
   async function checkAndDownloadOta() {
-    if (__DEV__ || isCheckingRef.current) return;
+    if (__DEV__ || !Updates.isEnabled || isCheckingRef.current) return;
     isCheckingRef.current = true;
     try {
       const { isAvailable } = await Updates.checkForUpdateAsync();
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
         otaDownloadedRef.current = true;
-        setShowOtaModal(true);
+        // popup 없음 — pending flag만 기록
+        console.log("[OTA] update downloaded, pending silent apply");
       }
     } catch (_) {
+      // 실패 시 앱 계속 사용 — 사용자 알림 없음
     } finally {
       isCheckingRef.current = false;
     }
   }
 
-  // OTA 적용 (사용자가 "지금 업데이트" 버튼 누름)
-  async function applyOtaUpdate() {
-    setOtaUpdating(true);
+  // OTA 조용한 적용 (30분+ background 복귀 시 내부 호출)
+  async function silentApplyOta() {
+    otaDownloadedRef.current = false; // reload loop 방지: 플래그 먼저 reset
     try {
       await Updates.reloadAsync();
     } catch (_) {
-      setOtaUpdating(false);
-      Alert.alert(
-        "재시작 실패",
-        "앱을 직접 종료 후 다시 열어주세요.",
-        [{ text: "확인" }]
-      );
+      // 실패 시 앱 계속 사용 — 사용자 알림 없음
     }
   }
 
@@ -632,15 +628,15 @@ function RootNav() {
     return false;
   }
 
-  // 시작/foreground 복귀 통합 check
-  // 우선순위: Native force > OTA > 정상 진입
-  async function runStartupChecks() {
-    const forced = await checkNativeVersion();
-    if (!forced) await checkAndDownloadOta();
-  }
-
-  // 앱 시작 시 통합 check (Native 먼저 → OTA)
-  useEffect(() => { runStartupChecks(); }, []);
+  // 앱 시작 시 1회 통합 check (Native force → OTA silent download)
+  useEffect(() => {
+    if (isSessionCheckedRef.current) return;
+    isSessionCheckedRef.current = true;
+    (async () => {
+      const forced = await checkNativeVersion();
+      if (!forced) await checkAndDownloadOta();
+    })();
+  }, []);
 
   // Legacy media cleanup — documentDirectory 누적 파일 1회 정리
   // UI를 막지 않도록 fire-and-forget; 내부 예외가 앱 부팅에 영향을 주지 않음
@@ -650,11 +646,12 @@ function RootNav() {
   // UploadQueueContext는 in-memory only → 앱 시작 시 항상 isActive=false → 안전
   useEffect(() => { runMediaCleanupV2(false).catch(() => {}); }, []);
 
-  // 백그라운드 복귀 처리
-  // - OTA 준비됨: 재시작
-  // - 그 외: 현재 화면 유지 + 세션 갱신만 (홈 이동 없음)
+  // 백그라운드 복귀 처리 (V2)
+  // - OTA 다운로드 완료 + 30분+ background: silent reload
+  // - 30분 미만 background: OTA reload 없음
   // * inactive만 거친 경우(제어센터·알림 배너 등)는 무시
   useEffect(() => {
+    const THIRTY_MIN = 30 * 60 * 1000;
     const sub = AppState.addEventListener("change", (nextState: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
@@ -669,12 +666,26 @@ function RootNav() {
         if (!didGoBackgroundRef.current) return;
         didGoBackgroundRef.current = false;
 
-        // Native + OTA 통합 check (Native force 먼저, forced면 OTA skip)
-        runStartupChecks();
+        const elapsed = backgroundAtRef.current != null
+          ? Date.now() - backgroundAtRef.current
+          : 0;
+
+        if (elapsed >= THIRTY_MIN) {
+          // 30분+ 복귀
+          if (otaDownloadedRef.current) {
+            // 다운로드된 OTA 있음 → silent reload
+            silentApplyOta();
+            return; // reload 이후 아래 로직 불필요
+          }
+          // 다운로드된 OTA 없음 → 이 시점에 추가 check (30분+ 복귀 시 1회)
+          checkNativeVersion().then(forced => {
+            if (!forced) checkAndDownloadOta();
+          });
+        }
+        // 30분 미만: OTA 관련 아무 것도 하지 않음
 
         // roles 갱신은 RolesPollingGuard의 AppState 리스너가 단독 처리.
         // 여기서 refreshSession을 동시에 호출하면 role 덮어쓰기 race condition 발생.
-        // (RolesPollingGuard → /auth/role-status → _applyServerRoleState 경로만 사용)
 
         // 미읽은 문의 답변 팝업 — 세션당 1회
         if (!inquiryPopupShownRef.current && tokenRef.current && kindRef.current) {
@@ -789,60 +800,6 @@ function RootNav() {
           <ActivityIndicator size="large" color={C.brandStrong} />
         </View>
       )}
-      <OtaUpdateBanner />
-
-      {/* OTA 업데이트 팝업 */}
-      <Modal visible={showOtaModal} transparent animationType="fade" statusBarTranslucent>
-        <View style={{
-          flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
-          alignItems: "center", justifyContent: "center", paddingHorizontal: 32,
-        }}>
-          <View style={{
-            backgroundColor: "#fff", borderRadius: 20, padding: 28,
-            width: "100%", shadowColor: "#000", shadowOpacity: 0.15,
-            shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10,
-          }}>
-            {/* 아이콘 + 제목 */}
-            <View style={{ alignItems: "center", marginBottom: 16 }}>
-              <View style={{
-                width: 56, height: 56, borderRadius: 16,
-                backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center",
-                marginBottom: 12,
-              }}>
-                <Text style={{ fontSize: 26 }}>🆕</Text>
-              </View>
-              <Text style={{ fontSize: 18, fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>
-                업데이트 준비 완료
-              </Text>
-            </View>
-            <Text style={{
-              fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary,
-              textAlign: "center", lineHeight: 22, marginBottom: 24,
-            }}>
-              새로운 기능이 포함된 업데이트가{"\n"}준비됐습니다. 지금 적용하시겠어요?
-            </Text>
-
-            {/* 버튼 */}
-            <Pressable
-              onPress={applyOtaUpdate}
-              disabled={otaUpdating}
-              style={{
-                backgroundColor: "#4F46E5", borderRadius: 12, height: 50,
-                alignItems: "center", justifyContent: "center", marginBottom: 10,
-                opacity: otaUpdating ? 0.7 : 1,
-              }}
-            >
-              {otaUpdating
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={{ fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" }}>
-                    지금 업데이트
-                  </Text>
-              }
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       {/* ── Native 강제 업데이트 Modal — 취소/back button 우회 불가 ──────── */}
       <Modal
         visible={showForceModal}
