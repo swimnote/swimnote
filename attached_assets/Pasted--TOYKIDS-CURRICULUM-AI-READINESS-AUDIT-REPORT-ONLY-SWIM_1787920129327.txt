@@ -1,0 +1,254 @@
+[TOYKIDS CURRICULUM AI-READINESS AUDIT — REPORT ONLY]
+
+목표:
+현재 토이키즈스윔클럽에 등록되어 있는 기존 커리큘럼을
+SWIMNOTE AI가 검색/분류/추론/일지/성장리포트에서
+안정적으로 사용할 수 있는 구조인지 전수 점검한다.
+
+중요:
+이번 단계에서는 수정 금지.
+DB write 금지.
+커리큘럼 삭제/통합/추가 금지.
+
+REPORT ONLY.
+
+==================================================
+1. CURRENT CURRICULUM FULL EXPORT
+==================================================
+
+토이키즈스윔클럽의 현재 production curriculum을
+실제 DB 기준으로 전부 추출한다.
+
+반드시 포함:
+
+- curriculum set
+- version
+- item id
+- category
+- level
+- stroke
+- skill
+- title
+- description
+- sequence/order
+- prerequisites
+- tags
+- assignment relation
+- active/inactive
+- pool-specific/global 여부
+
+실제 schema 이름 기준으로 보고.
+
+==================================================
+2. AI USAGE PATH
+==================================================
+
+현재 이 curriculum data가
+AI에서 실제로 어떻게 사용되는지 추적한다.
+
+반드시 확인:
+
+- curriculum search
+- teacher diary
+- parent curriculum search
+- AI diary
+- growth event
+- growth report
+- curriculum-hub
+- student assignment
+- template/knowledge search와의 관계
+
+각 기능이 어떤 curriculum field를 읽는지 확인.
+
+==================================================
+3. AI-READINESS CHECK
+==================================================
+
+각 curriculum item을 아래 기준으로 점검한다.
+
+A. 한 항목에 여러 기술이 섞여 있는가
+
+B. title이 너무 추상적인가
+
+C. description이 너무 긴가
+
+D. 단계 순서가 애매한가
+
+E. 동일 의미 중복 항목이 있는가
+
+F. 같은 기술인데 명칭이 제각각인가
+
+G. 영법/기술/오류/드릴/평가가 한 항목에 혼합되어 있는가
+
+H. AI가 검색어로 찾기 어려운 표현이 있는가
+
+I. 사람이 읽기 위한 설명과
+   AI 검색용 최소 단위가 분리되어 있지 않은가
+
+J. 레벨과 실제 기술 난이도가 충돌하는가
+
+K. 현재 토이키즈 레벨체계와 불일치하는 항목이 있는가
+
+==================================================
+4. TOYKIDS LEVEL SYSTEM CHECK
+==================================================
+
+현재 토이키즈스윔클럽 레벨체계와
+curriculum mapping을 확인한다.
+
+기준:
+
+흰
+파란
+빨간
+검정
+금
+챔피언
+슈퍼챔피언
+
+현재 curriculum에서:
+
+- 어느 레벨에 어떤 기술이 들어가는지
+- 중복
+- 누락
+- 순서 역전
+- 상위레벨 기술이 하위레벨에 존재
+- 하위기초가 상위레벨에 빠짐
+
+을 보고.
+
+==================================================
+5. AI-FRIENDLY UNIT CHECK
+==================================================
+
+AI가 사용하기 좋은 curriculum 최소 단위 기준으로 평가:
+
+좋은 예:
+- 자유형 스트림라인 유지
+- 자유형 캐치 시작 위치
+- 자유형 롤링 타이밍
+- 평영 킥 회수
+- 평영 글라이드 유지
+- 접영 돌핀킥 리듬
+
+나쁜 예:
+- 자유형 전체 배우기
+- 평영 잘하기
+- 접영 연습
+- 자유형 팔/호흡/킥/롤링 한번에 포함
+
+현재 curriculum을
+이 기준으로 분류한다.
+
+==================================================
+6. DUPLICATION / CONFLICT REPORT
+==================================================
+
+반드시 목록화:
+
+- exact duplicate
+- semantic duplicate
+- naming inconsistency
+- sequence conflict
+- level conflict
+- ambiguous item
+- overly broad item
+- AI search-unfriendly item
+
+==================================================
+7. PRESERVE BUSINESS CURRICULUM
+==================================================
+
+중요:
+
+AI에 맞춘다고
+토이키즈 실제 교육과정의 의미를 바꾸면 안 된다.
+
+목표는:
+
+기존 교육과정 유지
++
+AI가 해석하기 좋은 구조로 정리
+
+이다.
+
+교육 철학/레벨체계/실제 수업순서 임의 변경 금지.
+
+==================================================
+8. FINAL CLASSIFICATION
+==================================================
+
+각 item을 다음 중 하나로 분류:
+
+KEEP
+→ 그대로 사용 가능
+
+RENAME
+→ 명칭만 정리
+
+SPLIT
+→ 하나의 item을 여러 최소 기술단위로 분리 필요
+
+MERGE
+→ 중복 item 통합 필요
+
+REORDER
+→ 순서 조정 필요
+
+REMAP_LEVEL
+→ 레벨 재배치 필요
+
+REWRITE_DESCRIPTION
+→ 설명 구조만 정리 필요
+
+REVIEW
+→ 교육적 판단 필요
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+보고:
+
+A. CURRENT CURRICULUM COUNT
+
+B. CURRICULUM SCHEMA
+
+C. AI USAGE PATH
+
+D. LEVEL DISTRIBUTION
+
+E. KEEP COUNT
+
+F. RENAME COUNT
+
+G. SPLIT COUNT
+
+H. MERGE COUNT
+
+I. REORDER COUNT
+
+J. REMAP_LEVEL COUNT
+
+K. REWRITE_DESCRIPTION COUNT
+
+L. REVIEW COUNT
+
+M. DUPLICATE LIST
+
+N. CONFLICT LIST
+
+O. AI-READINESS PROBLEMS
+
+P. RECOMMENDED NORMALIZED STRUCTURE
+
+Q. SAMPLE BEFORE/AFTER 10건
+
+R. CHANGED FILES
+0
+
+S. DB WRITES
+0
+
+STOP.
+수정하지 말고 보고만 한다.

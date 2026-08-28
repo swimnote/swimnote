@@ -1,0 +1,150 @@
+# [APP ↔ PROFESSIONAL ENGINE CONNECTION FINALIZE]
+
+현재 AI Engine production:
+
+https://swimnote.ai.kr
+
+Professional Engine retrieve:
+POST /api/professional/retrieve
+→ 200 PASS
+
+Professional Engine auth:
+Bearer PROFESSIONAL_ENGINE_API_SECRET
+
+이번 작업은 SWIMNOTE 앱 서버와 독립 AI Engine의
+server-to-server 연결 설정만 정상화한다.
+
+==================================================
+절대 금지
+==================================================
+
+- 모바일 앱 코드에 PROFESSIONAL_ENGINE_API_SECRET 삽입 금지
+- EXPO_PUBLIC_*에 secret 저장 금지
+- AI Engine 코드 수정 금지
+- DB migration 금지
+- Teacher Diary pipeline 수정 금지
+- OpenAI/Voyage 실제 호출 금지
+- DNS/Render 설정 수정 금지
+
+==================================================
+1. SWIMNOTE API SERVER ENV
+==================================================
+
+SWIMNOTE 앱의 서버(Render `swimnote-api`)에서만:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+을 사용한다.
+
+권장 production BASE URL:
+
+PROFESSIONAL_ENGINE_BASE_URL=https://swimnote.ai.kr
+
+PROFESSIONAL_ENGINE_API_SECRET은
+`swimnote-professional-engine`에 설정된 값과
+정확히 동일한 secret을 server-side ENV에 설정한다.
+
+secret 값은 보고서에 출력하지 않는다.
+
+==================================================
+2. CLIENT SECRET EXPOSURE CHECK
+==================================================
+
+다음 위치에 PROFESSIONAL_ENGINE_API_SECRET이
+존재하지 않는지 확인:
+
+- Expo / React Native source
+- EXPO_PUBLIC_*
+- app.config.*
+- client bundle
+- AsyncStorage
+- frontend environment
+
+존재하면 즉시 제거 대상이라고 보고하되,
+이번 작업에서 임의 구조변경하지 않는다.
+
+==================================================
+3. PROFESSIONAL RETRIEVE CONTRACT
+==================================================
+
+SWIMNOTE API server → AI Engine 호출이:
+
+POST https://swimnote.ai.kr/api/professional/retrieve
+
+Authorization:
+Bearer <PROFESSIONAL_ENGINE_API_SECRET>
+
+형태인지 확인.
+
+앱 클라이언트는 AI Engine secret을 알지 못하고
+항상 SWIMNOTE API server를 통해 호출해야 한다.
+
+==================================================
+4. OLD URL CLEANUP CHECK
+==================================================
+
+다음 legacy URL이 production server-to-server 호출에
+실사용되고 있는지 확인:
+
+- old Replit pike URL
+- swimnote-professional-engine.onrender.com
+
+새 production canonical URL은:
+
+https://swimnote.ai.kr
+
+로 통일한다.
+
+단, 현재 실제 기능에 쓰이지 않는 ENV는
+삭제 전에 사용처를 먼저 확인한다.
+
+==================================================
+5. CURRICULUM / GROWTH ENGINE URL
+==================================================
+
+현재 확인된 미설정 ENV:
+
+PARENT_CURRICULUM_ENGINE_URL
+GROWTH_REPORT_ENGINE_URL
+
+각 기능의 실제 AI Engine route가
+현재 swimnote.ai.kr에 존재하는지 먼저 확인한다.
+
+존재하는 경우에만 server-side ENV를:
+
+https://swimnote.ai.kr
+
+기준으로 설정한다.
+
+route가 아직 구현/활성화되지 않았다면
+억지로 ENV를 설정하지 말고 HOLD로 보고한다.
+
+==================================================
+6. TARGETED TEST
+==================================================
+
+유료 AI 호출 없이:
+
+- SWIMNOTE API server에서 Professional Engine health/retrieve auth 연결 확인
+- secret mismatch 없음
+- client secret exposure 없음
+- canonical base URL 확인
+
+실제 OpenAI/Voyage calls = 0.
+
+==================================================
+COMPLETION REPORT
+==================================================
+
+1. PROFESSIONAL_ENGINE_BASE_URL 최종값
+2. PROFESSIONAL_ENGINE_API_SECRET server-side 설정 YES/NO
+3. client secret exposure YES/NO
+4. professional retrieve server-to-server 연결 PASS/FAIL
+5. legacy Replit URL 실사용 여부
+6. PARENT_CURRICULUM_ENGINE_URL 설정 여부
+7. GROWTH_REPORT_ENGINE_URL 설정 여부
+8. 앱 코드 수정 필요 YES/NO
+9. actual paid AI calls = 0
+
+STOP.
