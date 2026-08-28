@@ -1,0 +1,145 @@
+[V1.6.2 ONLY — FORCE UPDATE SCREEN RECREATE]
+
+중요:
+이번 작업은 반드시 V1.6.2 runtime 전용이다.
+
+절대 V1.6.3에 적용하지 말 것.
+
+==================================================
+1. TARGET
+==================================================
+
+APP VERSION:
+1.6.2
+
+RUNTIME VERSION:
+1.6.2
+
+OTA TARGET:
+runtimeVersion 1.6.2 ONLY
+
+V1.6.3:
+- 코드 변경 금지
+- OTA 배포 금지
+- runtime 변경 금지
+- production 상태 변경 금지
+
+==================================================
+2. BASE
+==================================================
+
+rollback 완료된 정상 기준 상태에서
+V1.6.2 전용 update gate만 다시 적용한다.
+
+현재 V1.6.3 HEAD를 기준으로
+일반 production OTA를 publish하지 말 것.
+
+필요하면
+V1.6.2 전용 hotfix branch/worktree를 사용한다.
+
+==================================================
+3. UPDATE SCREEN
+==================================================
+
+V1.6.2 실행 시
+기존 앱 기능으로 진입시키지 않고
+업데이트 안내 화면만 표시한다.
+
+문구:
+
+제목:
+"새로운 SWIMNOTE가 출시되었습니다."
+
+본문:
+"원활한 서비스 이용을 위해 최신 버전으로 업데이트해주세요."
+
+추가 안내:
+"App Store는 현재 업데이트 준비 중입니다.
+조금만 기다려주시면 감사하겠습니다."
+
+버튼:
+"업데이트하기"
+
+==================================================
+4. STORE LINKS
+==================================================
+
+Android:
+https://play.google.com/store/apps/details?id=com.swimnote.app
+
+iOS:
+https://apps.apple.com/app/id6761360360
+
+기존 Linking/openURL 방식 재사용.
+
+==================================================
+5. V1.6.2 ONLY CONDITION
+==================================================
+
+반드시 다음 조건으로 격리:
+
+appVersion === "1.6.2"
+
+또는 실제 현재 프로젝트에서
+1.6.2 runtime 전용으로 확실하게 분리되는 방식 사용.
+
+V1.6.3 이상에서는
+해당 화면/문구/로직이 실행되면 FAIL.
+
+==================================================
+6. OTA
+==================================================
+
+publish 전 반드시 확인:
+
+TARGET RUNTIME = 1.6.2
+
+production branch/channel을 사용하더라도
+runtimeVersion 1.6.2 update만 생성.
+
+V1.6.3 runtime으로 publish 금지.
+
+==================================================
+7. TEST
+==================================================
+
+V1.6.2:
+- update screen 표시
+- App Store 대기 문구 표시
+- Android store button 정상
+- iOS store button 정상
+- crash 없음
+- white screen 없음
+
+V1.6.3:
+- 영향 없음
+- 기존 startup flow 그대로
+- 새 OTA 수신 없음
+
+==================================================
+8. REPORT
+==================================================
+
+V1.6.2 UPDATE GATE REPORT
+
+BASE SHA =
+APP VERSION =
+TARGET RUNTIME =
+FILES CHANGED =
+COMMIT SHA =
+
+V1.6.3 CHANGED = NO
+
+OTA
+RUNTIME =
+BRANCH =
+CHANNEL =
+iOS UPDATE ID =
+Android UPDATE ID =
+UPDATE GROUP ID =
+PUBLISH RESULT =
+
+FINAL:
+PASS — V1.6.2 ONLY
+or
+HOLD
