@@ -90,6 +90,13 @@ import("./migrations/pool-db-cs-24b.js")
 import("./migrations/pool-db-cs-26.js")
   .then(m => m.runCs26Migration())
   .catch((e) => console.error("[cs26] migration 오류:", e.message));
+// Curriculum APP MASTER: import_status/source_r2_key/import_meta 컬럼 + drills/relations 테이블
+import("./migrations/curriculum-app-master-init.js")
+  .then(async (m) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return m.runCurriculumAppMasterMigration(superAdminDb);
+  })
+  .catch((e) => console.error("[curriculum-app-master] migration 오류:", e.message));
 // GR-Interactions: readiness-critical — Promise.all로 이동됨 (위 참조)
 // GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
 // gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
