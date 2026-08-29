@@ -114,9 +114,9 @@ export default function TeacherDiaryScreen() {
   const handledParamKey = useRef<string | undefined>(undefined);
   // [FIX] expo-router가 동일 route 인스턴스를 재사용할 때 targetDate가 stale 상태로 남는 버그 방지.
   // params.classGroupId / params.editDiaryId 가 변경되면(= 새 내비게이션) lessonDate를 재동기화.
-  const lastNavKeyRef = useRef(`${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}`);
+  const lastNavKeyRef = useRef(`${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}|${params.lessonDate ?? ""}`);
   useEffect(() => {
-    const navKey = `${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}`;
+    const navKey = `${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}|${params.lessonDate ?? ""}`;
     if (navKey !== lastNavKeyRef.current) {
       lastNavKeyRef.current = navKey;
       if (params.lessonDate && /^\d{4}-\d{2}-\d{2}$/.test(params.lessonDate)) {
@@ -267,7 +267,7 @@ export default function TeacherDiaryScreen() {
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
     // 학생 로딩 상태 초기화 — 새 그룹 진입 시 stale loaded 상태 방지
     setClassStudentsLoading(false); setClassStudentsLoaded(false); setClassStudentsError(null);
-    loadTemplates(); loadClassStudents(group.id, effectiveDate);
+    loadTemplates(); loadClassStudents(group.id, overrideDate ?? targetDate);
     const reqVer = ++diariesReqVersion.current;
     try {
       const r = await apiRequest(token, `/diaries?class_group_id=${group.id}`);
