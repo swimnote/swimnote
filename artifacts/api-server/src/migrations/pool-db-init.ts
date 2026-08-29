@@ -1420,6 +1420,44 @@ export async function initPoolDb(): Promise<void> {
     console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
   }
 
+  // ─── 2.0.0 Pool-First: parent_accounts(swimming_pool_id, phone) unique ──────
+  //
+  // 같은 pool + 같은 phone 중복 가입 차단. 다른 pool의 같은 phone은 허용.
+  // non-FATAL: 기존 duplicate row가 있으면 index 생성 실패 → 경고 로그만.
+  // additive migration — 기존 데이터 삭제/수정 금지.
+  try {
+    // 먼저 same-pool phone duplicate가 있는지 확인
+    const dupCheck = await db.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM (
+        SELECT swimming_pool_id,
+               REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') AS norm_phone
+        FROM parent_accounts
+        WHERE phone IS NOT NULL AND phone != '' AND swimming_pool_id IS NOT NULL
+        GROUP BY 1,2 HAVING COUNT(*) > 1
+      ) t
+    `));
+    const dupCount = parseInt((dupCheck.rows[0] as any)?.cnt ?? "0", 10);
+    if (dupCount > 0) {
+      console.warn(
+        `[2.0.0 MIGRATION] parent_accounts same-pool phone duplicate ${dupCount}건 발견. ` +
+        "idx_parent_accounts_pool_phone 생성 SKIP. 임의 삭제 금지. 수동 조사 필요."
+      );
+    } else {
+      await db.execute(sql.raw(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_accounts_pool_phone
+          ON parent_accounts (swimming_pool_id, REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g'))
+          WHERE phone IS NOT NULL AND phone != '' AND swimming_pool_id IS NOT NULL
+      `));
+      console.log("[2.0.0 MIGRATION] idx_parent_accounts_pool_phone 생성 완료");
+    }
+  } catch (err: any) {
+    console.error(
+      "[2.0.0 MIGRATION] idx_parent_accounts_pool_phone 생성 실패 — 서버 기동 계속:",
+      err?.message ?? err,
+    );
+  }
+
   // ─── GR-M8: Push idempotency — notifications GROWTH_REPORT_PUBLISHED unique ─
   //
   // partial unique index on (type, ref_id, recipient_id) WHERE type='GROWTH_REPORT_PUBLISHED'

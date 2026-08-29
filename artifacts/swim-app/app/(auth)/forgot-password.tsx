@@ -18,6 +18,7 @@ interface FoundAccount {
   login_id?: string | null;
   name: string;
   role?: string;
+  pool_id?: string | null;
   pool_name?: string | null;
   is_activated?: boolean;
   social_provider?: "kakao" | "apple" | null;
@@ -158,7 +159,12 @@ export default function ForgotPasswordScreen() {
       const res = await fetch(`${API_BASE}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: account.identifier, new_password: newPw }),
+        body: JSON.stringify({
+          identifier: account.identifier,
+          new_password: newPw,
+          // [2.0.0] pool-scoped 재설정: 동일 전화번호가 여러 pool에 있을 때 정확한 계정만 변경
+          ...(account.pool_id ? { pool_id: account.pool_id } : {}),
+        }),
       });
       const data = await safeJson(res);
       if (!res.ok) { setError(data.error || data.message || "변경 실패"); return; }
@@ -167,7 +173,7 @@ export default function ForgotPasswordScreen() {
       if (account.type === "admin") {
         await adminLogin(account.identifier, newPw);
       } else {
-        await parentLogin(cleanedPhone(), newPw);
+        await parentLogin(cleanedPhone(), newPw, account.pool_id ?? undefined);
       }
     } catch (e: any) {
       setError(e.message || "서버 오류가 발생했습니다.");

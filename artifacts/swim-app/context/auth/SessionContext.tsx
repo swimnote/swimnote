@@ -187,7 +187,7 @@ interface SessionContextType {
   unifiedLogin: (identifier: string, password: string) => Promise<{ available_accounts: AccountEntry[] }>;
   completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
-  parentLogin: (identifier: string, password: string) => Promise<void>;
+  parentLogin: (identifier: string, password: string, poolId?: string) => Promise<void>;
   kakaoSocialLogin: (accessToken: string) => Promise<"admin" | "parent">;
   appleSocialLogin: (identityToken: string, fullName?: string | null, traceId?: string) => Promise<"admin" | "parent">;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
@@ -817,10 +817,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await finishLogin("admin", user, null, data.token, data.token);
   }
 
-  async function parentLogin(identifier: string, password: string) {
+  async function parentLogin(identifier: string, password: string, poolId?: string) {
     const res = await fetch(`${API_BASE}/auth/parent-login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, ...(poolId ? { pool_id: poolId } : {}) }),
     });
     const data = await safeJson(res);
     if (!res.ok) throw Object.assign(new Error(data.error || "로그인에 실패했습니다."), { error_code: data.error_code || "unknown" });

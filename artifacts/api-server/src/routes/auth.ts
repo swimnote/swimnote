@@ -1943,6 +1943,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
         identifier: r.phone,             // reset-password는 phone으로 계정 찾음
         login_id: r.login_id || null,    // 표시용 아이디
         name: r.name,
+        pool_id: r.swimming_pool_id || null,   // [2.0.0] pool-scoped reset-password용
         pool_name: poolMap[r.swimming_pool_id] || null,
         social_provider: socialProvider(r),
       })),
