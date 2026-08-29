@@ -1,0 +1,216 @@
+[CRITICAL — 2.0.0 OTA / TESTFLIGHT ISOLATION GATE]
+
+2.0.0 작업을 시작하기 전에
+1.6.3 Production과 2.0.0 Development/TestFlight가
+절대 서로 영향을 주지 않도록 완전 격리한다.
+
+==================================================
+A. Runtime 분리
+==================================================
+
+현재 확인:
+
+1.6.3 runtimeVersion
+→ 1.6.3
+
+2.0.0 runtimeVersion
+→ 2.0.0
+
+반드시 서로 다르게 유지.
+
+2.0.0 OTA는
+runtimeVersion=2.0.0 build에만 전달되어야 한다.
+
+1.6.3 build가 2.0.0 OTA를 받을 가능성:
+0
+
+==================================================
+B. Channel 분리
+==================================================
+
+현재 EAS channel / branch 구조 전수 확인.
+
+1.6.3 Production:
+예)
+channel = production
+branch = production-1.6.3
+
+2.0.0 TestFlight / development:
+예)
+channel = production-v2
+branch = release-2.0.0
+
+실제 repository/EAS 상태를 확인해서
+안전한 이름으로 구성한다.
+
+중요:
+
+2.0.0 TestFlight build를
+기존 1.6.3 production channel에 연결 금지.
+
+==================================================
+C. Existing Production Channel 보호
+==================================================
+
+현재 1.6.3 사용자가 연결된
+production channel의 mapping을 변경하거나
+2.0.0 branch로 재연결 금지.
+
+현재 1.6.3 OTA history 유지.
+
+production channel에
+runtime 2.0.0 OTA publish 금지.
+
+==================================================
+D. 2.0.0 전용 OTA publish
+==================================================
+
+2.0.0 개발 중 OTA는 반드시:
+
+- runtimeVersion = 2.0.0
+- 2.0.0 전용 branch/channel
+
+로만 publish.
+
+2.0.0 OTA 명령 실행 전
+현재 target branch/channel/runtime을 출력해서 검증.
+
+==================================================
+E. TestFlight Build isolation
+==================================================
+
+TestFlight 2.0.0 build가 설치된 기기에서만
+2.0.0 OTA를 수신해야 한다.
+
+기존 App Store/TestFlight 1.6.3 설치본은
+계속 1.6.3 OTA만 수신.
+
+검증 시나리오:
+
+Device A:
+1.6.3 build 설치
+→ 2.0.0 OTA publish 후 재실행
+→ 변경사항 미수신
+
+Device B:
+2.0.0 TestFlight build 설치
+→ 동일 OTA publish
+→ 변경사항 수신
+
+두 결과를 실제로 확인.
+
+==================================================
+F. EAS Config 분리
+==================================================
+
+eas.json 및 app config 확인.
+
+필요하면 profile을 분리:
+
+production-1.6.3
+production-v2
+
+또는 현재 구조에 맞는 동등한 분리.
+
+하지만 기존 1.6.3 profile/채널을
+파괴하거나 재사용하지 않는다.
+
+==================================================
+G. OTA Publish Guard
+==================================================
+
+가능하면 2.0.0 개발 OTA publish script에
+guard 추가:
+
+- current app version
+- runtimeVersion
+- target channel
+- target branch
+
+중 하나라도 2.0.0 기준과 다르면 publish 중단.
+
+최소한 사람이 잘못 production에
+2.0.0 OTA를 보내는 실수를 방지.
+
+==================================================
+H. 서버/API 영향
+==================================================
+
+중요:
+
+APP OTA 격리와 SERVER 배포는 별개다.
+
+2.0.0에서 서버 API를 수정해 Render Production에 배포하면
+1.6.3도 같은 서버를 사용하므로 영향을 받을 수 있다.
+
+따라서 2.0.0 개발 중 서버 변경은
+1.6.3 backward compatibility를 반드시 유지해야 한다.
+
+1.6.3에서 사용하는:
+- 기존 API route
+- request contract
+- response contract
+
+삭제/변경 금지.
+
+2.0.0 전용 API가 필요하면:
+- 신규 route
+- optional field
+- versioned endpoint
+
+방식 우선.
+
+breaking server change 금지.
+
+==================================================
+I. DB 영향
+==================================================
+
+2.0.0 DB migration도
+1.6.3 runtime에 영향을 줄 수 있다.
+
+따라서:
+
+- 기존 column DROP 금지
+- 기존 column rename 금지
+- required NOT NULL 강제 금지
+- 기존 enum 제거 금지
+- 기존 route가 쓰는 data 의미 변경 금지
+
+2.0.0 기간에는 additive migration 원칙.
+
+1.6.3과 2.0.0이 동시에 Production DB를 사용해도
+둘 다 정상 동작해야 한다.
+
+==================================================
+J. 최종 Isolation Report
+==================================================
+
+2.0.0 Native Build 시작 전에 보고:
+
+1.6.3
+- version
+- runtime
+- channel
+- branch
+
+2.0.0
+- version
+- runtime
+- channel
+- branch
+
+OTA CROSS DELIVERY
+- 1.6.3 → 2.0.0 OTA 수신: NO
+- 2.0.0 → 1.6.3 OTA 수신: NO
+
+SERVER COMPATIBILITY
+- 1.6.3 existing API contracts preserved: YES/NO
+
+DB COMPATIBILITY
+- destructive migration: 0
+
+ISOLATION
+PASS / FAIL
+
+PASS일 때만 2.0.0 Native Build 진행.
