@@ -572,3 +572,41 @@ describe("TODAY TIME FILTER — CASE E: 오늘 이미 작성된 수업 → 미�
     expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, written)).toBe(false);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// KST TIMEZONE — UTC 서버에서도 동일 결과 보장
+// getKSTNow() = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
+// nowTimeStr 은 KST 기준 HH:MM → schedule_time("HH:MM") 비교
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** getKSTNow() 동작 재현: UTC 시각 → KST(+9h) 변환 후 HH:MM 추출 */
+function utcToKstTimeStr(utcHour: number, utcMinute: number): string {
+  const kstHour = (utcHour + 9) % 24;
+  return `${String(kstHour).padStart(2, "0")}:${String(utcMinute).padStart(2, "0")}`;
+}
+
+describe("TIMEZONE — UTC 서버 환경에서 KST 기준 비교 동일성", () => {
+  it("UTC 09:00 = KST 18:00 → schedule 19:00 미표시 (아직 시작 전)", () => {
+    const kstNowStr = utcToKstTimeStr(9, 0); // "18:00"
+    expect(kstNowStr).toBe("18:00");
+    expect(isTodaySlotEligible("19:00", kstNowStr)).toBe(false);
+  });
+
+  it("UTC 11:00 = KST 20:00 → schedule 19:00 표시 (이미 시작)", () => {
+    const kstNowStr = utcToKstTimeStr(11, 0); // "20:00"
+    expect(kstNowStr).toBe("20:00");
+    expect(isTodaySlotEligible("19:00", kstNowStr)).toBe(true);
+  });
+
+  it("UTC 09:59 = KST 18:59 → schedule 19:00 미표시 (1분 전)", () => {
+    const kstNowStr = utcToKstTimeStr(9, 59); // "18:59"
+    expect(kstNowStr).toBe("18:59");
+    expect(isTodaySlotEligible("19:00", kstNowStr)).toBe(false);
+  });
+
+  it("UTC 10:00 = KST 19:00 → schedule 19:00 표시 (정각 시작)", () => {
+    const kstNowStr = utcToKstTimeStr(10, 0); // "19:00"
+    expect(kstNowStr).toBe("19:00");
+    expect(isTodaySlotEligible("19:00", kstNowStr)).toBe(true);
+  });
+});

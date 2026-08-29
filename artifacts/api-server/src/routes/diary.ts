@@ -2290,14 +2290,15 @@ router.get("/diaries/unwritten-slots",
       const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
       const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
-      const now = new Date();
+      // KST 기준 현재 시각 — getKSTNow()는 이 파일 상단에 정의된 기존 헬퍼
+      const now = getKSTNow();
       const todayMidnight = new Date(now);
       todayMidnight.setHours(0, 0, 0, 0);
       // 8주 전부터 오늘까지의 날짜를 생성 (오늘 회차는 startTime 기준 필터)
       const fromDate = new Date(todayMidnight);
       fromDate.setDate(fromDate.getDate() - 56);
 
-      // 현재 시각을 "HH:MM" 문자열로 변환 (서버 로컬 시간 그대로 사용)
+      // 현재 시각을 "HH:MM" 문자열로 변환 (KST 기준)
       const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 
       const todayDateStr = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
