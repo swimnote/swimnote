@@ -102,13 +102,17 @@ export function UnwrittenScheduleSheet({ visible, token, onClose, backTo = "toda
     setStatus("loading");
     try {
       const res = await apiRequest(token, "/diaries/unwritten-slots");
-      if (!res.ok) throw new Error("fetch failed");
+      if (!res.ok) {
+        console.warn("[diary-selector-fetch] { path: \"/diaries/unwritten-slots\", authorization_present: true, status:", res.status, "}");
+        throw new Error("fetch failed");
+      }
       const data = await res.json();
       // 서버는 오름차순 → 최근 날짜 우선으로 reverse
       const reversed: UnwrittenSlot[] = [...(data.slots ?? [])].reverse();
       setSlots(reversed);
       setStatus("idle");
-    } catch {
+    } catch (e: any) {
+      console.warn("[diary-selector-fetch] { path: \"/diaries/unwritten-slots\", authorization_present: true, error_name:", e?.name, ", error_message:", String(e?.message ?? "").slice(0, 100), "}");
       setStatus("error");
     }
   }, [token]);

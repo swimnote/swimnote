@@ -80,13 +80,17 @@ export function SessionSelectorSheet({
     setStatus("loading");
     try {
       const res = await apiRequest(token, "/diaries/unwritten-slots?includeWritten=true");
-      if (!res.ok) throw new Error("fetch failed");
+      if (!res.ok) {
+        console.warn("[diary-selector-fetch] { path: \"/diaries/unwritten-slots?includeWritten=true\", authorization_present: true, status:", res.status, "}");
+        throw new Error("fetch failed");
+      }
       const data = await res.json();
       // 최근 날짜 우선
       const all: DiarySession[] = [...(data.slots ?? [])].reverse();
       setSessions(all);
       setStatus("idle");
-    } catch {
+    } catch (e: any) {
+      console.warn("[diary-selector-fetch] { path: \"/diaries/unwritten-slots?includeWritten=true\", authorization_present: true, error_name:", e?.name, ", error_message:", String(e?.message ?? "").slice(0, 100), "}");
       setStatus("error");
     }
   }, [token]);
