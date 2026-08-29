@@ -494,6 +494,9 @@ export default function TodayScheduleScreen() {
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled
+            // [LAYOUT FIX] FAB("일지 바로쓰기")이 position:absolute, bottom: insets.bottom+72 에 위치
+            // FAB 높이 ≈ 46px → 마지막 카드가 FAB에 가리지 않도록 여유 패딩 추가
+            contentContainerStyle={{ paddingBottom: 100 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           >
             {loading ? (

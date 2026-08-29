@@ -53,6 +53,14 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
 
   // 무료 플랜: 선택지 없이 즉시 삭제만 확인
   if (!isPaidPlan) {
+    // [BUG FIX] handleConfirm()은 choice가 null이면 즉시 return 하므로
+    // 무료 플랜에서는 onConfirm(true)을 직접 호출한다.
+    function handleFreeConfirm() {
+      if (loading) return;
+      onClose();
+      onConfirm(true).catch(() => {});
+    }
+
     return (
       <Modal
         visible={visible}
@@ -79,7 +87,7 @@ export function WithdrawalModal({ visible, onClose, onConfirm, loading, isPaidPl
               </Pressable>
               <Pressable
                 style={[s.confirmBtn, { backgroundColor: "#D96C6C" }, loading && { opacity: 0.7 }]}
-                onPress={handleConfirm}
+                onPress={handleFreeConfirm}
                 disabled={loading}
               >
                 {loading ? (
