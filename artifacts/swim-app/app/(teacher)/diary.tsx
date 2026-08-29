@@ -1541,7 +1541,7 @@ export default function TeacherDiaryScreen() {
                   // class_group_id + lesson_date 둘 다 일치해야 정확한 same session
                   const existing = diaries.find(d =>
                     d.class_group_id === group.id &&
-                    d.lesson_date === targetDate &&
+                    String(d.lesson_date ?? "").slice(0, 10) === targetDate &&
                     !d.is_deleted
                   );
                   setReplacingDiaryId(existing?.id ?? null);
