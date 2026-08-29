@@ -18,6 +18,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { UnwrittenScheduleSheet } from "@/components/teacher/diary/UnwrittenScheduleSheet";
 
 const C = Colors.light;
 const KO_DAYS = ["월", "화", "수", "목", "금", "토"];
@@ -61,6 +62,7 @@ export default function DiaryIndexScreen() {
   const [activeTime,  setActiveTime]  = useState<string | null>(null);
   const [showDayPicker,  setShowDayPicker]  = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showQuickWrite, setShowQuickWrite] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* ── 데이터 로드 ── */
   const load = useCallback(async (sName = "", day: string | null = null, time: string | null = null) => {
@@ -176,17 +178,27 @@ export default function DiaryIndexScreen() {
   return (
     <SafeAreaView style={di.safe} edges={[]}>
       <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
-      {/* 일지 작성 버튼 */}
+      {/* 일지 작성 카드 — 미작성 수업 선택 sheet 오픈 */}
       <Pressable
-        style={[di.writeBtn, { backgroundColor: C.primaryAction }]}
-        onPress={() => router.push("/(teacher)/diary-unwritten?backTo=diary-index" as any)}
+        style={[di.writeCard, { backgroundColor: C.primaryAction }]}
+        onPress={() => setShowQuickWrite(true)}
       >
-        <LucideIcon name="edit" size={15} color="#fff" />
-        <Text style={di.writeBtnText}>일지 작성</Text>
-        <View style={di.writeBtnBadgeWrap}>
-          <LucideIcon name="chevron-right" size={15} color="rgba(255,255,255,0.7)" />
+        <View style={di.writeCardIcon}>
+          <LucideIcon name="edit" size={18} color="#fff" />
         </View>
+        <View style={di.writeCardBody}>
+          <Text style={di.writeCardTitle}>일지 작성</Text>
+          <Text style={di.writeCardSub}>아직 작성하지 않은 수업을 선택해 일지를 작성합니다.</Text>
+        </View>
+        <LucideIcon name="chevron-right" size={16} color="rgba(255,255,255,0.7)" />
       </Pressable>
+
+      {/* 지난 일지 섹션 헤더 */}
+      <View style={di.sectionHeader}>
+        <Text style={di.sectionTitle}>지난 일지</Text>
+        <Text style={di.sectionSub}>작성한 수업 일지를 확인하고 수정할 수 있습니다.</Text>
+      </View>
+
       {/* 검색창 */}
       <View style={di.searchRow}>
         <LucideIcon name="search" size={15} color={C.textSecondary} />
@@ -285,29 +297,46 @@ export default function DiaryIndexScreen() {
           ListEmptyComponent={
             <View style={di.empty}>
               <LucideIcon name="book-open" size={36} color={C.textMuted} />
-              <Text style={di.emptyTitle}>일지가 없습니다</Text>
+              <Text style={di.emptyTitle}>작성된 수업 일지가 없습니다.</Text>
               <Text style={di.emptyDesc}>
                 {searchText || activeDay || activeTime
                   ? "검색/필터 조건을 변경해보세요."
-                  : "아직 작성된 수업 일지가 없습니다."}
+                  : "새 일지를 작성하면 여기에 표시됩니다."}
               </Text>
             </View>
           }
         />
       )}
+
+      {/* 미작성 수업 선택 바텀시트 */}
+      <UnwrittenScheduleSheet
+        visible={showQuickWrite}
+        token={token}
+        onClose={() => setShowQuickWrite(false)}
+        backTo="diary-index"
+      />
     </SafeAreaView>
   );
 }
 const di = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
-  writeBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 16, marginBottom: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-    borderRadius: 12,
+  writeCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginBottom: 20,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: 14,
   },
-  writeBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff", flex: 1 },
-  writeBtnBadgeWrap: { opacity: 0.7 },
+  writeCardIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  writeCardBody: { flex: 1, gap: 2 },
+  writeCardTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  writeCardSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
+  sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  sectionSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   backBtn: { marginBottom: 6, width: 32 },
   headerTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
