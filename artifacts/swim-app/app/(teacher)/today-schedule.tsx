@@ -186,8 +186,8 @@ export default function TodayScheduleScreen() {
                     + items.filter(i => i.diary_done).length;
   const progressPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
   const allDone     = totalTasks > 0 && doneTasks === totalTasks;
-  function handleOpenDiaryFromMsg(_diaryId: string) {
-    router.push("/(teacher)/diary?backTo=today-schedule" as any);
+  function handleOpenDiaryFromMsg(diaryId: string) {
+    router.push(`/(teacher)/diary?editDiaryId=${diaryId}&backTo=today-schedule` as any);
   }
   function updateItem(id: string, updated: Partial<ScheduleItem>) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, ...updated } : it));
@@ -420,7 +420,7 @@ export default function TodayScheduleScreen() {
               <Text style={h.todayStatLabel}>출석 미체크</Text>
             </Pressable>
             <View style={h.todayDivider} />
-            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}>
+            <Pressable style={h.todayStat} onPress={() => router.push("/(teacher)/diary-unwritten?backTo=today-schedule" as any)}>
               <Text style={[h.todayStatNum, diaryPending > 0 && { color: C.error }]}>{loading ? "-" : diaryPending}</Text>
               <Text style={h.todayStatLabel}>미작성 일지</Text>
             </Pressable>
@@ -459,7 +459,7 @@ export default function TodayScheduleScreen() {
         {!diaryBannerDismissed && (overview?.pending_diaries_today ?? 0) > 0 && (
           <Pressable
             style={[h.feedbackBanner, { backgroundColor: "#7C3AED" }]}
-            onPress={() => router.push("/(teacher)/diary?backTo=today-schedule" as any)}
+            onPress={() => router.push("/(teacher)/diary-unwritten?backTo=today-schedule" as any)}
           >
             <View style={h.feedbackBannerLeft}>
               <Text style={h.feedbackBannerTitle}>미작성 일지 {overview!.pending_diaries_today}개</Text>
