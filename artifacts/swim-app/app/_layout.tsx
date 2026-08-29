@@ -24,9 +24,14 @@ import { BrandProvider, useBrand, DEFAULT_THEME_COLOR } from "@/context/BrandCon
 import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
 import { runMediaCleanupV2 } from "@/utils/mediaCleanupV2";
+import { DevOtaRestartModal } from "@/components/common/DevOtaRestartModal";
 
 // 1.6.3+: 명시적으로 "true"일 때만 점검 화면 진입. 기본값 = 정상 진입.
 export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE === "true";
+
+// ── 2.0.0 개발 전용: OTA 다운로드 완료 즉시 재시작 모달 표시 ─────────
+// 출시 전 false로 변경하거나 이 파일에서 DevOtaRestartModal 렌더를 제거.
+const DEV_OTA_RESTART_MODAL = Constants.expoConfig?.version === "2.0.0";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -541,6 +546,8 @@ function RootNav() {
 
   const [showForceModal, setShowForceModal] = useState(false);
   const [forceStoreUrl,  setForceStoreUrl]  = useState<string | null>(null);
+  // [2.0.0] DEV OTA Restart Modal — 다운로드 완료 직후 즉시 표시
+  const [otaModalVisible, setOtaModalVisible] = useState(false);
   const forcedRef = useRef(false); // Native force 판정 캐시 (foreground 복귀 중복 Modal 방지)
   const isSessionCheckedRef = useRef(false); // 세션 내 OTA check 1회 제한
 
@@ -557,8 +564,13 @@ function RootNav() {
       if (isAvailable) {
         await Updates.fetchUpdateAsync();
         otaDownloadedRef.current = true;
-        // popup 없음 — pending flag만 기록
         console.log("[OTA] update downloaded, pending silent apply");
+
+        // [2.0.0] DEV OTA Restart Modal: 다운로드 완료 즉시 모달 표시
+        // 1.6.3에서는 DEV_OTA_RESTART_MODAL=false → 기존 silent 동작 유지
+        if (DEV_OTA_RESTART_MODAL) {
+          setOtaModalVisible(true);
+        }
       }
     } catch (_) {
       // 실패 시 앱 계속 사용 — 사용자 알림 없음
@@ -799,6 +811,10 @@ function RootNav() {
         >
           <ActivityIndicator size="large" color={C.brandStrong} />
         </View>
+      )}
+      {/* ── [2.0.0] DEV OTA Restart Modal — 다운로드 완료 즉시 표시 ─────── */}
+      {DEV_OTA_RESTART_MODAL && (
+        <DevOtaRestartModal visible={otaModalVisible} />
       )}
       {/* ── Native 강제 업데이트 Modal — 취소/back button 우회 불가 ──────── */}
       <Modal
