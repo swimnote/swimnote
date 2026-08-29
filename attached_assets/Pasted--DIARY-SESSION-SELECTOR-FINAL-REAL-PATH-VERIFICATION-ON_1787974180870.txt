@@ -1,0 +1,147 @@
+[앱]
+
+DIARY SESSION SELECTOR — FINAL REAL-PATH VERIFICATION ONLY
+
+코드 추가 수정 금지.
+먼저 현재 구현이 실제 실패 케이스를 해결했는지만 검증한다.
+
+==================================================
+1. HOME QUICK WRITE
+==================================================
+
+실제 경로:
+
+X MODE HOME
+→ 일지작성
+→ 작성할 수업 선택
+
+확인:
+
+HTTP status
+endpoint
+response count
+첫 3개 slot의:
+- lessonDate
+- classGroupId
+- startTime
+- hasDiary
+
+"목록을 불러오지 못했습니다"가
+더 이상 발생하지 않는지 확인.
+
+GENERAL MODE에서도 동일 확인.
+
+==================================================
+2. 8/13 → 8/27 BUG
+==================================================
+
+실제 시나리오:
+
+스케줄러
+→ 2026-08-13 선택
+→ 목 19:00반
+→ 수업일지
+
+각 단계 값 출력:
+
+calendarSelectedDate
+ClassDetailSheet date
+router lessonDate
+diary targetDate
+diary startTime
+selected classGroupId
+
+EXPECTED:
+
+모두 2026-08-13 / 19:00 / 해당 반
+
+8/27이 한 번이라도 나오면 FAIL.
+
+==================================================
+3. IN-DIARY SWITCH
+==================================================
+
+현재 diary:
+8/27 목19반
+
+헤더 탭
+→ 8/13 목19반 선택
+
+확인:
+
+header date = 8/13
+targetDate = 8/13
+startTime = 19:00
+classGroupId = 선택 반
+학생목록 = 선택 반 학생만
+
+이전 8/27 학생이 남으면 FAIL.
+
+==================================================
+4. DIRTY CONFIRM
+==================================================
+
+작성 중 텍스트가 있는 상태에서
+다른 수업 선택:
+
+취소
+→ 기존 내용/session 유지
+
+수업 변경
+→ 새 session 적용
+→ draft 초기화
+
+==================================================
+5. WRITTEN SESSION
+==================================================
+
+이미 일지가 있는 회차 선택:
+
+hasDiary=true
+diaryId 존재
+
+→ 기존 replace confirmation 정상
+
+다른 날짜 diary를 replace 대상으로 잡으면 FAIL.
+
+==================================================
+6. FINAL REPORT
+==================================================
+
+HOME_QUICK_WRITE:
+PASS / FAIL
+
+8_13_TO_8_27:
+PASS / FAIL
+
+SESSION_SWITCH:
+PASS / FAIL
+
+STUDENT_RELOAD:
+PASS / FAIL
+
+DIRTY_CONFIRM:
+PASS / FAIL
+
+WRITTEN_REPLACE:
+PASS / FAIL
+
+X_MODE:
+PASS / FAIL
+
+GENERAL_MODE:
+PASS / FAIL
+
+TESTS:
+<executed/passed/failed>
+
+RENDER_REQUIRED:
+YES / NO
+
+OTA_REQUIRED:
+YES / NO
+
+NEW_SHA:
+<sha>
+
+코드 수정 없이 검증만 하고 STOP.
