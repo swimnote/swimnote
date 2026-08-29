@@ -1,0 +1,158 @@
+[앱]
+
+TEACHER DIARY DATE/SLOT FIX — FINAL CORRECTION ONLY
+
+현재 SHA:
+37bd66e9
+
+OTA 아직 금지.
+
+현재 구현에서 아래 2가지만 수정한다.
+범위 확대 금지.
+
+==================================================
+1. MY-SCHEDULE DATE PARAM FIX
+==================================================
+
+현재:
+
+my-schedule.tsx daily mode
+lessonDate: todayDateStr()
+
+이 값이 실제 화면에서 선택한 날짜와 항상 같은지 확인.
+
+과거/미래 날짜를 보고 있을 수 있다면
+todayDateStr() 사용 금지.
+
+반드시 현재 선택된 schedule date / effective date를 전달.
+
+예:
+
+8/13 화면
+→ lessonDate = 2026-08-13
+
+8/20 화면
+→ lessonDate = 2026-08-20
+
+현재 화면의 selectedDate/effectiveDate를
+single source of truth로 사용.
+
+==================================================
+2. REPLACE TARGET IDENTITY FIX
+==================================================
+
+현재 교체 대상 탐색:
+
+diaries.find(
+  d => d.lesson_date === targetDate && !d.is_deleted
+)
+
+금지.
+
+최소한:
+
+lesson_date
++
+class_group_id
+
+둘 다 일치해야 함.
+
+실제 diary 객체/route에
+schedule_id / slot identity가 이미 존재한다면
+기존 필드를 추가로 사용해서
+정확한 same session만 찾는다.
+
+목표:
+
+8/13 A반 diary 재작성
+→ 8/13 A반 diary만 삭제
+
+8/13 B반 diary
+→ 절대 건드리지 않음
+
+8/6 A반 diary
+→ 절대 건드리지 않음
+
+==================================================
+3. VERIFY SESSION IDENTITY CONSISTENCY
+==================================================
+
+아래 3곳이 동일한 기준을 사용해야 함:
+
+A. "이미 작성됨" 판정
+B. 교체 대상 lookup
+C. 새 diary 저장 귀속
+
+최소 기준:
+class_group_id + lesson_date
+
+schedule/slot identifier가 기존 schema에 있다면
+그 값까지 동일하게 사용.
+
+새 migration 금지.
+
+==================================================
+4. TEST
+==================================================
+
+추가/수정 최소 테스트:
+
+CASE 1
+8/13 A반 existing
+8/13 B반 existing
+→ A반 재작성 시 A반만 replace
+
+CASE 2
+8/6 A반 existing
+8/13 A반 existing
+→ 8/13 재작성 시 8/6 untouched
+
+CASE 3
+my-schedule에서 과거 8/13 선택
+→ diary page 8/13 표시
+→ save lesson_date 8/13
+
+CASE 4
+다른 날짜로 이동 후 작성
+→ 선택 날짜 그대로 전달
+
+==================================================
+5. DO NOT TOUCH
+==================================================
+
+- AI Engine
+- curriculum DB
+- Growth Report
+- OTA manager
+- server
+- DB schema
+- unrelated schedule logic
+
+==================================================
+6. FINAL
+==================================================
+
+보고:
+
+MY_SCHEDULE_DATE_SOURCE:
+<actual selected date variable>
+
+REPLACE_LOOKUP_KEY:
+<actual fields>
+
+DUPLICATE_KEY:
+<actual fields>
+
+SAVE_KEY:
+<actual fields>
+
+TESTS:
+PASS / FAIL
+
+NEW_SHA:
+
+Render deploy:
+NO
+
+OTA:
+아직 하지 말고 STOP.
