@@ -1,0 +1,548 @@
+[앱]
+
+DIARY / SCHEDULER SESSION IDENTITY ROOT-CAUSE AUDIT
+NO PATCHING BEFORE TRACE
+
+현재 실제 production iPhone에서
+동시에 3개 문제가 확인됨.
+
+==================================================
+REAL DEVICE FAILURES
+==================================================
+
+FAIL 1.
+
+HOME
+→ "일지작성"
+→ "작성할 수업 선택"
+
+결과:
+"목록을 불러오지 못했습니다."
+
+--------------------------------------------------
+
+FAIL 2.
+
+DIARY 화면
+→ 상단 현재 수업 탭
+→ "수업 변경"
+
+결과:
+"목록을 불러오지 못했습니다."
+
+--------------------------------------------------
+
+FAIL 3.
+
+SCHEDULER
+→ 2026-08-13 선택
+→ 목 19:00반
+→ 수업일지
+
+결과:
+
+DIARY HEADER:
+2026-08-27 · 19:00
+
+EXPECTED:
+2026-08-13 · 19:00
+
+==================================================
+IMPORTANT
+==================================================
+
+이전 수정처럼
+각 화면에 날짜 override를 덧붙이는 식으로
+땜질하지 않는다.
+
+이번 Step의 목표는:
+
+"SCHEDULE OCCURRENCE"
+가 실제 앱에서 어떤 값으로 표현되고,
+어디에서 날짜/반/시간 identity가 깨지는지
+전체 경로를 정확히 추적하는 것.
+
+수정은 root cause 확정 후에만 한다.
+
+==================================================
+1. DEFINE CURRENT REAL SESSION IDENTITY
+==================================================
+
+먼저 코드에서
+한 번의 수업 회차를 실제로 무엇으로 식별하는지 확인.
+
+다음 후보 전부 조사:
+
+- class_group_id
+- lesson_date
+- schedule_date
+- selectedDate
+- effectiveDate
+- schedule_time
+- startTime
+- weekday
+- slot id
+- schedule id
+- attendance date
+- diary lesson_date
+
+현재 코드 기준으로
+"2026-08-13 목 19:00반"
+한 회차를 식별하는 최소 key를 명확히 보고.
+
+예상:
+
+class_group_id + lesson_date
+
+단,
+실제 schema/router/API를 보고 확정할 것.
+
+추측 금지.
+
+==================================================
+2. TRACE PATH A — HOME QUICK WRITE
+==================================================
+
+실제 경로:
+
+today-schedule / X home
+→ "일지작성"
+→ UnwrittenScheduleSheet
+→ API
+→ response
+→ row mapping
+
+확인:
+
+A1.
+실제로 호출되는 URL 전체
+
+A2.
+query params
+
+A3.
+token/auth
+
+A4.
+pool/teacher context
+
+A5.
+HTTP status
+
+A6.
+response JSON shape
+
+A7.
+client가 기대하는 shape
+
+A8.
+어디서 catch로 떨어져
+"목록을 불러오지 못했습니다."
+가 표시되는지
+
+"코드상 정상" 판정 금지.
+
+실제 production API contract와
+현재 frontend expectation을 비교.
+
+==================================================
+3. TRACE PATH B — IN-DIARY SESSION SELECTOR
+==================================================
+
+실제 경로:
+
+diary.tsx
+→ header title tap
+→ SessionSelectorSheet
+→ API
+→ response
+→ row mapping
+
+확인:
+
+B1.
+실제로 호출되는 URL 전체
+
+B2.
+includeWritten=true 전달 여부
+
+B3.
+HTTP status
+
+B4.
+response JSON shape
+
+B5.
+frontend expected shape
+
+B6.
+UnwrittenScheduleSheet와
+SessionSelectorSheet가
+같은 endpoint를 쓰는지 / 다른 endpoint를 쓰는지
+
+B7.
+둘 다 동시에 실패하는 공통 root cause가 있는지
+
+==================================================
+4. CHECK RENDER PRODUCTION VERSION
+==================================================
+
+중요.
+
+최근 서버 코드에는:
+
+GET /diaries/unwritten-slots
+
+및
+includeWritten=true
+
+변경이 있었음.
+
+현재 production Render
+swimnote-api가
+정말 그 코드를 실행 중인지 확인.
+
+확인:
+
+- deployed commit SHA
+- current branch
+- endpoint existence
+- includeWritten=true support
+- response contract
+
+만약 앱 OTA는 최신인데
+Render가 이전 SHA라면
+두 selector가 동시에 실패할 수 있음.
+
+이 경우:
+
+FRONTEND BUG로 오판하지 말 것.
+
+==================================================
+5. TRACE PATH C — SCHEDULER 8/13 → DIARY
+==================================================
+
+실제 경로를 처음부터 끝까지 추적:
+
+Monthly Scheduler
+→ calendar date tap
+→ selectedDate
+→ date bottom sheet
+→ selected class occurrence
+→ ClassDetailSheet
+→ "수업일지"
+→ router.push
+→ diary.tsx params
+→ diary initialization
+→ openGroup
+→ targetDate
+→ header subtitle
+
+아래 값을 단계별로 기록:
+
+C1 calendar selectedDate
+C2 date sheet date
+C3 selected class occurrence date
+C4 ClassDetailSheet date prop
+C5 effectiveDate
+C6 router lessonDate
+C7 router startTime
+C8 diary params.lessonDate
+C9 diary initial targetDate
+C10 openGroup effectiveDate
+C11 final targetDate
+C12 header displayed date
+
+테스트 input:
+
+2026-08-13
+목 19:00반
+
+각 단계에서
+2026-08-13이 언제 2026-08-27로 바뀌는지
+정확한 한 지점을 찾는다.
+
+==================================================
+6. INVESTIGATE NAV PARAM REUSE / STALE SCREEN
+==================================================
+
+특히 확인:
+
+- Expo Router가 diary screen을 reuse하는지
+- same classGroupId로 다른 lessonDate 진입할 때
+  effect가 재실행되는지
+- lastNavKeyRef가
+  classGroupId + editDiaryId만 보고
+  lessonDate 변경을 무시하는지
+- params.lessonDate가 바뀌어도
+  targetDate가 stale state로 남는지
+
+중요:
+
+이전에 보고된:
+
+lastNavKeyRef = classGroupId|editDiaryId
+
+구조라면
+같은 반의 8/13 → 8/27 이동에서
+lessonDate가 key에 없어서
+navigation change를 무시할 가능성을
+반드시 확인.
+
+이건 매우 중요.
+
+==================================================
+7. CHECK SCHEDULER SELECTED DATE VS CLASS SCHEDULE DATE
+==================================================
+
+확인:
+
+ClassDetailSheet의 date prop이
+calendar selectedDate인지,
+
+아니면
+class의 최근 occurrence / schedule 계산 결과인지.
+
+예:
+
+calendar selectedDate = 8/13
+
+인데
+
+ClassDetailSheet date =
+latest occurrence 8/27
+
+로 넘어간다면
+root cause는 diary가 아니라 scheduler side.
+
+반드시 구분.
+
+==================================================
+8. NO FIX UNTIL ROOT CAUSE TABLE
+==================================================
+
+먼저 아래 표를 완성.
+
+HOME_SELECTOR_FAIL:
+- endpoint:
+- status:
+- server SHA:
+- response:
+- frontend expectation:
+- root cause:
+
+DIARY_SELECTOR_FAIL:
+- endpoint:
+- status:
+- server SHA:
+- response:
+- frontend expectation:
+- root cause:
+
+8/13_DATE_MISMATCH:
+- first wrong stage:
+- received value:
+- expected value:
+- exact function/file:
+- root cause:
+
+공통 원인인지
+서로 다른 원인인지 명시.
+
+==================================================
+9. THEN APPLY MINIMUM STRUCTURAL FIX
+==================================================
+
+root cause 확정 후에만 수정.
+
+원칙:
+
+A.
+SCHEDULE OCCURRENCE를 하나의 identity로 유지.
+
+최소:
+
+classGroupId
+lessonDate
+startTime
+
+필요하면 existing schedule/slot id 포함.
+
+B.
+스케줄러에서 선택한 lessonDate는
+diary가 임의로 재계산하지 않음.
+
+C.
+same classGroupId라도 lessonDate가 다르면
+다른 session으로 취급.
+
+D.
+navigation/effect key에도
+lessonDate 포함.
+
+예:
+
+classGroupId|lessonDate|editDiaryId
+
+필요 시 startTime 포함.
+
+E.
+두 selector는 가능하면
+같은 API client/helper + 같은 response parser 사용.
+
+F.
+서버가 원인이면
+frontend workaround 금지.
+서버 contract를 정상화.
+
+==================================================
+10. REQUIRED FINAL TESTS
+==================================================
+
+CASE 1
+
+HOME
+→ 일지작성
+
+EXPECTED:
+실제 수업 목록 표시
+
+--------------------------------------------------
+
+CASE 2
+
+DIARY
+→ 상단 수업 변경
+
+EXPECTED:
+실제 수업 목록 표시
+
+--------------------------------------------------
+
+CASE 3
+
+Scheduler:
+8/13
+→ 목19반
+→ 수업일지
+
+EXPECTED:
+header = 2026-08-13 · 19:00
+
+--------------------------------------------------
+
+CASE 4
+
+Scheduler:
+8/27
+→ 동일 목19반
+→ 수업일지
+
+EXPECTED:
+header = 2026-08-27 · 19:00
+
+--------------------------------------------------
+
+CASE 5
+
+같은 classGroupId에서
+
+8/13 → diary
+뒤로가기
+8/27 → diary
+
+EXPECTED:
+각각 날짜 정확히 변경
+
+--------------------------------------------------
+
+CASE 6
+
+diary 내부 selector:
+
+8/27 → 8/13
+
+EXPECTED:
+
+targetDate = 8/13
+header = 8/13
+attendance date = 8/13
+student list = 8/13 기준
+
+--------------------------------------------------
+
+CASE 7
+
+X MODE / GENERAL MODE
+둘 다 확인.
+
+==================================================
+11. DEPLOYMENT CLASSIFICATION
+==================================================
+
+수정 후:
+
+앱 JS/TS만 변경:
+OTA_REQUIRED = YES
+
+api-server 수정:
+RENDER_REQUIRED = YES
+
+둘 다 변경:
+OTA + RENDER 둘 다 필요.
+
+이번 audit에서는
+실제 production Render SHA도 반드시 확인.
+
+==================================================
+12. DO NOT TOUCH
+==================================================
+
+- AI Engine
+- Growth Report
+- curriculum DB
+- billing
+- native modules
+- OTA manager
+- unrelated UI
+- DB schema
+
+==================================================
+13. FINAL REPORT FORMAT
+==================================================
+
+SESSION_IDENTITY:
+
+HOME_SELECTOR_ROOT_CAUSE:
+
+DIARY_SELECTOR_ROOT_CAUSE:
+
+SERVER_PRODUCTION_SHA:
+
+SERVER_CONTRACT_STATUS:
+
+8_13_TO_8_27_ROOT_CAUSE:
+
+FIRST_WRONG_STAGE:
+
+NAV_REUSE_RESULT:
+
+CHANGED_FILES:
+
+TESTS:
+
+X_MODE:
+PASS / FAIL
+
+GENERAL_MODE:
+PASS / FAIL
+
+RENDER_REQUIRED:
+YES / NO
+
+OTA_REQUIRED:
+YES / NO
+
+NEW_SHA:
+
+완료 후 STOP.
