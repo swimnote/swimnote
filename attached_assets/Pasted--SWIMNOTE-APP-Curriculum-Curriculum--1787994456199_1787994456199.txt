@@ -1,0 +1,702 @@
+[SWIMNOTE APP — Curriculum 전체 교체 + 일지 템플릿 목록 재생성]
+
+목표:
+
+기존에 테스트/구버전으로 들어가 있는 Curriculum 데이터를 전부 제거하고,
+새로 제공하는
+
+TOYKIDS_SWIMNOTE_X_APP_커리큘럼_생성입력_MASTER_v2.0.docx
+
+를 기준으로
+새 APP/API Canonical Curriculum을 처음부터 생성한다.
+
+그리고 새 ACTIVE Curriculum metadata를 사용하여
+관리자 > 일지 템플릿 > [교육과정]
+목록까지 정상 생성/표시되는 상태로 완성한다.
+
+이번 작업은 APP/API 쪽만 수행한다.
+AI Engine 수정/배포는 하지 않는다.
+
+==================================================
+0. 최우선 원칙
+==================================================
+
+이번 파일은 단순 850행 import 파일이 아니다.
+
+파일 앞부분의:
+
+SWIMNOTE X 커리큘럼 APP MASTER 양식 v2.0
+
+규칙을 먼저 읽고,
+뒤의 기존 850개 자료를 "원본 재료"로 사용하여
+새 Canonical Curriculum을 생성해야 한다.
+
+절대 금지:
+
+- 기존 850개를 그대로 850 Node로 import
+- 351~850의 기초확장/중급확장/심화1/심화2/마스터즈를
+  학생 level_order로 변환
+- atomic_skill 문자열만 보고 다른 영법 Node를 merge
+- APP 전용 별도 카테고리 taxonomy 생성
+- 550개를 diary_templates에 복제
+
+핵심:
+
+학생 Level ≠ Drill Progression
+
+APP Template 표시분류 =
+AI 검색분류와 동일한 Curriculum metadata
+
+==================================================
+1. 입력파일
+==================================================
+
+사용 파일:
+
+TOYKIDS_SWIMNOTE_X_APP_커리큘럼_생성입력_MASTER_v2.0.docx
+
+파일 구성:
+
+PART A
+- APP MASTER v2.0 규칙
+- Level / Node / Drill / Relation
+- 일지 템플릿 표시 규격
+- Import 검증 Gate
+
+PART B
+- 기존 기본 Curriculum 350
+- 확장 Drill 자료 500
+- 총 850개 원본 자료
+
+PART B는 Canonical 결과 그 자체가 아니라
+재정규화용 source material이다.
+
+==================================================
+2. 삭제 전 현재 DB 감사
+==================================================
+
+먼저 현재 pool:
+
+pool_1780849364252_l9k44rbk3
+토이키즈스윔클럽
+
+기준으로 아래를 조회하고 보고:
+
+curriculum_versions
+curriculum_items
+curriculum_drills
+curriculum_node_relations
+student_curriculum_progress
+growth_events의 curriculum 참조
+기타 curriculum FK/reference
+
+현재 존재하는:
+
+ACTIVE
+DRAFT
+ARCHIVED
+FAILED
+
+version 전부 확인.
+
+그리고 삭제 영향을 구분한다.
+
+==================================================
+3. 삭제 대상
+==================================================
+
+이번에는 기존 Curriculum을 깨끗하게 교체한다.
+
+삭제 대상:
+
+- 기존 curriculum_versions
+- 해당 version의 curriculum_items
+- 해당 version의 curriculum_drills
+- 해당 version의 curriculum_node_relations
+- 해당 version에 종속된 search/index 파생 데이터가 APP DB에 있으면 같이 삭제
+- 이전 테스트 DRAFT/FAILED version
+
+단,
+FK 순서를 지켜 안전하게 삭제한다.
+
+==================================================
+4. 삭제 금지 데이터
+==================================================
+
+다음은 절대 삭제하지 않는다.
+
+- students
+- classes
+- class_diaries
+- class_diary_student_notes
+- attendance
+- parent data
+- growth reports
+- teacher-created diary_templates
+- diary_template_levels 중 teacher template 보존에 필요한 데이터
+- 알림/피드/과거 일지
+
+특히 기존 실제 class_diaries는 절대 수정하지 않는다.
+
+교사 개인 템플릿도 유지한다.
+
+==================================================
+5. 기존 student curriculum progress 처리
+==================================================
+
+student_curriculum_progress가 존재하는지 확인.
+
+0이면 그대로 진행.
+
+0이 아니면
+무조건 삭제하지 말고:
+
+- row count
+- 실제 student 수
+- 참조 node 수
+
+를 먼저 보고.
+
+구버전 Node와 새 Node 사이 migration mapping이 필요하면
+자동 추측하지 말고 STOP.
+
+==================================================
+6. 새 Canonical Curriculum 생성
+==================================================
+
+APP MASTER v2.0 규칙에 따라
+850 source를 정규화한다.
+
+Canonical 구조:
+
+Level
+→ Stroke
+→ Domain
+→ Skill Group
+→ Atomic Skill Node
+→ Drill
+→ Relation
+
+Node는 실제 서로 다른 학습기술 단위로 생성한다.
+
+개수를 350/500/550/850 등에 맞추지 않는다.
+
+실제 Canonical 결과 개수가 최종 count다.
+
+==================================================
+7. Level 배정 원칙
+==================================================
+
+토이키즈 실제 Level Master를 사용한다.
+
+level_order / level_name은
+현재 pool_level_settings 기준으로 확인하여 사용.
+
+APP 코드에 모자명을 하드코딩하지 않는다.
+
+교육적으로 학생이 배우는 실제 단계에 배치한다.
+
+절대:
+
+기초확장 = 검정
+심화1 = 금
+심화2 = 챔피언
+마스터즈 = 슈퍼챔피언
+
+같은 변환을 하지 않는다.
+
+기초확장/중급확장/심화/마스터즈는
+Drill.progression_stage로만 사용한다.
+
+==================================================
+8. Node Canonicalization
+==================================================
+
+Node 판정은 최소:
+
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- goal
+- movement_sequence
+
+를 함께 사용한다.
+
+다른 stroke이면 기본적으로 별도 Node.
+
+예:
+
+backstroke + pull + 배영 풀 동작
+freestyle + pull + 자유형 풀 동작
+
+→ 반드시 서로 다른 Node.
+
+금지:
+
+atomic_skill = "풀 동작"
+
+하나 아래에
+배영/자유형 Drill 혼합.
+
+==================================================
+9. 기존 기본 350 처리
+==================================================
+
+001~350의 기존 일지형 문장은
+source_text/source_key로 추적 보존.
+
+그러나 한 문장 = 한 Node로 강제하지 않는다.
+
+각 행의 실제 학습 의미를 분석하여:
+
+- Atomic Node
+- Drill
+- Assessment
+- Progress/record
+- Review
+
+성격을 구분한다.
+
+실제 독립 기술이면 Node,
+같은 기술의 반복/연습방법이면 Drill,
+레벨 테스트 항목이면 is_test_item/assessment metadata로 구조화한다.
+
+==================================================
+10. 확장 351~850 처리
+==================================================
+
+351~850은 반드시 Drill source로 우선 해석한다.
+
+예:
+
+안전한 입수와 중심잡기
+
+- 핵심 2회×3세트
+- 3단계 누적
+- 박자 카운트
+- 방향선 유지
+- 균형 우선
+- 느림→보통
+- 부분→전체
+- 1바퀴 통합
+- 연속 2바퀴
+- 통합 확인
+
+은:
+
+Canonical Node 1개
++
+Drill 여러 개
+
+구조다.
+
+각 Drill에 가능한 경우:
+
+- progression_stage
+- target_aspect
+- movement_sequence
+- repetitions
+- immediate_feedback
+- integration
+- sprint_validation
+- failure_return_node
+- difficulty
+- source_text
+
+를 기록한다.
+
+==================================================
+11. Relation 생성
+==================================================
+
+Relation은 새 Canonical Node 기준으로 새로 생성한다.
+
+허용:
+
+NEXT_SKILL
+PREREQUISITE
+FAILURE_RETURN
+
+금지:
+
+단순 display_no 연속이라는 이유만으로
+의미 없는 관계 생성.
+
+실제 수업순서/선행기술 기준으로 생성.
+
+==================================================
+12. 새 Curriculum Version
+==================================================
+
+새 version 생성.
+
+예:
+
+curriculum_version:
+toykids-canonical-v2
+
+schema_version:
+app-master-v2
+
+source_document:
+TOYKIDS_SWIMNOTE_X_APP_커리큘럼_생성입력_MASTER_v2.0.docx
+
+review_status:
+DRAFT
+
+처음부터 ACTIVE로 만들지 않는다.
+
+==================================================
+13. Import 후 DRAFT 검증
+==================================================
+
+반드시 아래 검사:
+
+A. Level
+- 모든 Node의 level_order 유효
+
+B. Progression
+- progression_stage가 level_order로 사용된 행 = 0
+
+C. Mixed Stroke
+- 서로 다른 stroke Drill이 generic Node 하나에 섞인 사례 = 0
+- general 공통기술 예외는 근거 명시
+
+D. Drill
+- orphan = 0
+
+E. Count
+- level별 합계 = 전체 Node count
+
+F. Sequence
+- 각 level sequence_in_level = 1..N
+
+G. Relation
+- broken reference = 0
+
+H. Duplicate
+- 동일 의미의 불필요한 Canonical Node 중복 검사
+
+==================================================
+14. 일지 템플릿 [교육과정] 생성
+==================================================
+
+새 Curriculum을 diary_templates 테이블에 복제하지 않는다.
+
+현재 구현된 Curriculum Diary UI/API를 그대로 사용하여
+ACTIVE Curriculum metadata에서 동적으로 표시한다.
+
+관리자:
+
+일지 템플릿
+→ [교육과정]
+
+표시 구조:
+
+1차:
+Level
+- level_order
+- level_name
+- node_count
+
+2차:
+Stroke
+
+실제 존재하는 값만:
+
+전체
+배영
+자유형
+평영
+접영
+공통/물적응
+IM
+기타 실제 존재 stroke
+
+3차:
+Domain / Skill Group
+
+실제 DB 값에서 동적으로 생성.
+
+Leaf:
+
+Curriculum Node
+
+표시:
+
+- display_no
+- title
+- atomic_skill
+- stroke
+- domain
+- skill_group
+- goal 요약
+
+Canonical Curriculum은 read-only.
+
+==================================================
+15. [내 템플릿]
+==================================================
+
+교사가 만든 개인 템플릿은 그대로 유지.
+
+[교육과정]
+[내 템플릿]
+
+두 탭 구조 유지.
+
+teacher template을 Curriculum Node와 merge하지 않는다.
+
+기존 teacher template count도 전/후 비교 보고.
+
+==================================================
+16. DRAFT Preview 테스트
+==================================================
+
+ACTIVE 전환 전
+새 DRAFT를 대상으로 preview/dry-run.
+
+반드시 확인:
+
+- Level 목록
+- 각 Level node_count
+- Stroke facet
+- Domain facet
+- Skill Group facet
+- Node card
+- Drill 연결
+
+대표 검색:
+
+안전한 입수
+버블 내쉬기
+배영 풀
+자유형 풀
+자유형 호흡
+평영 킥
+평영 글라이드
+접영 첫 번째 킥
+접영 두 번째 킥
+IM
+스프린트
+기록
+벽밀기
+페이스
+
+잘못된 stroke/level 혼합이 없어야 함.
+
+==================================================
+17. Normal AI Diary APP 경로 확인
+==================================================
+
+Normal AI Diary가
+ACTIVE Curriculum의 새 Canonical Node를 검색하도록
+현재 구현 경로가 유지되는지 확인.
+
+기존 legacy global350 searchTemplates에
+다시 의존하면 FAIL.
+
+X mode:
+
+searchXGlobalTemplates
+
+경로는 변경하지 않는다.
+
+==================================================
+18. DRAFT PASS 후 ACTIVE 전환
+==================================================
+
+이번 작업에서는
+모든 검증이 PASS하면
+새 Curriculum을 ACTIVE로 전환해도 된다.
+
+단 다음 조건 전부 만족 필요:
+
+- progression-as-level = 0
+- mixed-stroke invalid node = 0
+- orphan drill = 0
+- broken relation = 0
+- UI preview PASS
+- search preview PASS
+- teacher templates 보존
+- class_diaries 무변경
+
+PASS하면:
+
+새 version → ACTIVE
+
+구버전은 이미 이번 작업에서 삭제되었으므로
+새 version만 남도록 한다.
+
+==================================================
+19. Production API/UI E2E
+==================================================
+
+새 ACTIVE 기준:
+
+GET /curriculum/diary/levels
+GET /curriculum/diary/nodes
+GET /curriculum/diary/facets
+GET /curriculum/diary/teacher-templates
+
+정상 응답 확인.
+
+일지 템플릿 UI 기대:
+
+[교육과정]
+[내 템플릿]
+
+교육과정:
+Level → Stroke → Domain/Skill Group → Node
+
+내 템플릿:
+기존 teacher-created templates
+
+==================================================
+20. 데이터 최종 청소
+==================================================
+
+완료 후 DB에:
+
+curriculum_versions:
+ACTIVE 1개만
+
+DRAFT:
+0
+
+FAILED:
+0
+
+구버전 Curriculum:
+0
+
+orphan drills:
+0
+
+broken relations:
+0
+
+남도록 정리.
+
+단 teacher templates / class diaries는 그대로.
+
+==================================================
+21. 코드 수정 원칙
+==================================================
+
+가능하면 기존 구현된:
+
+curriculum-diary-service.ts
+/curriculum/diary/* routes
+diary-template-settings.tsx
+
+구조를 그대로 사용.
+
+새 Curriculum을 넣기 위해
+UI taxonomy를 다시 만들지 않는다.
+
+Parser/importer가 새 v2 MASTER를 처리하지 못하는 경우에만
+필요 최소한 수정.
+
+수정 시 tests 추가.
+
+==================================================
+22. 테스트
+==================================================
+
+최소:
+
+Parser
+Import
+Version
+Node
+Drill
+Relation
+Curriculum Diary API
+Teacher template preservation
+Legacy independence
+
+테스트 전부 PASS.
+
+==================================================
+23. 배포
+==================================================
+
+이번 작업 완료 후:
+
+Render 배포 금지.
+OTA 배포 금지.
+
+먼저 코드/DB/E2E 완료보고만 한다.
+
+사용자 승인 후 별도 배포.
+
+==================================================
+24. 완료보고 형식
+==================================================
+
+DELETE
+- 삭제한 curriculum_versions
+- 삭제 Nodes
+- 삭제 Drills
+- 삭제 Relations
+- 보존 class_diaries
+- 보존 teacher templates
+
+NEW VERSION
+- version_id
+- curriculum_version
+- status
+
+CANONICAL COUNTS
+- Nodes
+- Drills
+- Relations
+
+LEVEL DISTRIBUTION
+- 각 level_order / level_name / node_count
+
+FACETS
+- stroke
+- domain
+- skill_group
+
+VALIDATION
+- progression-as-level
+- mixed-stroke
+- orphan drills
+- broken relations
+- duplicate audit
+
+TEMPLATE UI
+- 교육과정 탭
+- 내 템플릿 탭
+- Level count
+- Node display
+- teacher template 보존
+
+AI DIARY APP PATH
+- 새 Curriculum 사용 여부
+- legacy fallback 상태
+- X mode 영향 여부
+
+DB FINAL
+- ACTIVE count
+- DRAFT count
+- old curriculum count
+
+CODE
+- 변경 파일
+- tests
+- commit SHA
+- branch
+
+DEPLOY
+- Render: NO
+- OTA: NO
+
+FINAL:
+PASS / FAIL
+
+완료 후 STOP.
