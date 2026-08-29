@@ -2290,11 +2290,17 @@ router.get("/diaries/unwritten-slots",
       const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
       const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      // 8주 전부터 어제까지의 날짜를 생성
-      const fromDate = new Date(today);
+      const now = new Date();
+      const todayMidnight = new Date(now);
+      todayMidnight.setHours(0, 0, 0, 0);
+      // 8주 전부터 오늘까지의 날짜를 생성 (오늘 회차는 startTime 기준 필터)
+      const fromDate = new Date(todayMidnight);
       fromDate.setDate(fromDate.getDate() - 56);
+
+      // 현재 시각을 "HH:MM" 문자열로 변환 (서버 로컬 시간 그대로 사용)
+      const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      const todayDateStr = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
 
       const slots: any[] = [];
 
@@ -2312,16 +2318,25 @@ router.get("/diaries/unwritten-slots",
         `);
         const writtenDates = new Set((writtenRows.rows as any[]).map(r => r.lesson_date?.toString?.().slice(0, 10) || ""));
 
-        // fromDate ~ yesterday 기간 중 schedule_days에 해당하는 날짜 생성
+        const scheduleTime = (cg.schedule_time || "").slice(0, 5); // "HH:MM"
+
+        // fromDate ~ 오늘까지 schedule_days에 해당하는 날짜 생성
         const cursor = new Date(fromDate);
-        while (cursor < today) {
+        while (cursor <= todayMidnight) {
           if (days.includes(cursor.getDay())) {
             const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+
+            // 오늘 회차: startTime이 현재 시각보다 미래이면 제외 (아직 시작 전)
+            if (dateStr === todayDateStr && scheduleTime && scheduleTime > nowTimeStr) {
+              cursor.setDate(cursor.getDate() + 1);
+              continue;
+            }
+
             if (!writtenDates.has(dateStr)) {
               slots.push({
                 classGroupId: cg.id,
                 className: cg.name,
-                scheduleTime: (cg.schedule_time || "").slice(0, 5),
+                scheduleTime,
                 lessonDate: dateStr,
                 dayOfWeek: KO_DAYS[cursor.getDay()],
                 studentCount: Number(cg.student_count) || 0,

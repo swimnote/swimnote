@@ -483,3 +483,92 @@ describe("CASE-F: 미작성 0건 → empty state", () => {
     expect(filterUnwritten([], new Set())).toHaveLength(0);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// TODAY TIME FILTER — 오늘 회차 포함 정책 (서버 로직 재현)
+// 오늘 수업 중 startTime <= nowTime → 포함, startTime > nowTime → 제외
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 서버 /diaries/unwritten-slots 필터 로직 재현
+ * - dateStr < todayStr  → 항상 포함 대상 (미작성이면)
+ * - dateStr === todayStr → scheduleTime <= nowTimeStr 이면 포함, 미래면 제외
+ * - dateStr > todayStr  → 항상 제외 (미래)
+ */
+function isTodaySlotEligible(scheduleTime: string, nowTimeStr: string): boolean {
+  // startTime이 현재 시각보다 미래이면 제외
+  return scheduleTime <= nowTimeStr;
+}
+
+function shouldIncludeSlot(
+  lessonDate: string,
+  scheduleTime: string,
+  todayStr: string,
+  nowTimeStr: string,
+  writtenDates: Set<string>,
+): boolean {
+  if (lessonDate > todayStr) return false;           // 미래 → 제외
+  if (writtenDates.has(lessonDate)) return false;    // 작성됨 → 제외
+  if (lessonDate === todayStr) {
+    return isTodaySlotEligible(scheduleTime, nowTimeStr);
+  }
+  return true; // 과거 + 미작성
+}
+
+describe("TODAY TIME FILTER — CASE A: 어제 미작성 → 표시", () => {
+  it("과거 날짜 미작성은 scheduleTime 무관하게 포함", () => {
+    const YESTERDAY = "2026-08-28";
+    const TODAY     = "2026-08-29";
+    const NOW_TIME  = "20:00";
+    expect(shouldIncludeSlot(YESTERDAY, "19:00", TODAY, NOW_TIME, new Set())).toBe(true);
+    expect(shouldIncludeSlot(YESTERDAY, "08:00", TODAY, NOW_TIME, new Set())).toBe(true);
+  });
+});
+
+describe("TODAY TIME FILTER — CASE B: 오늘 19:00 수업, 현재 20:00 → 표시", () => {
+  it("scheduleTime(19:00) <= nowTime(20:00) → 포함", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "20:00";
+    expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, new Set())).toBe(true);
+  });
+
+  it("scheduleTime === nowTime 경계: 동일 시각도 포함", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "19:00";
+    expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, new Set())).toBe(true);
+  });
+});
+
+describe("TODAY TIME FILTER — CASE C: 오늘 19:00 수업, 현재 18:00 → 미표시", () => {
+  it("scheduleTime(19:00) > nowTime(18:00) → 제외", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "18:00";
+    expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, new Set())).toBe(false);
+  });
+
+  it("scheduleTime(19:00) > nowTime(18:59) → 제외", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "18:59";
+    expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, new Set())).toBe(false);
+  });
+});
+
+describe("TODAY TIME FILTER — CASE D: 내일 수업 → 미표시", () => {
+  it("미래 날짜는 scheduleTime 무관하게 제외", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "23:59";
+    const TOMORROW = "2026-08-30";
+    expect(shouldIncludeSlot(TOMORROW, "08:00", TODAY, NOW_TIME, new Set())).toBe(false);
+    expect(shouldIncludeSlot(TOMORROW, "19:00", TODAY, NOW_TIME, new Set())).toBe(false);
+  });
+});
+
+describe("TODAY TIME FILTER — CASE E: 오늘 이미 작성된 수업 → 미표시", () => {
+  it("오늘 작성 완료 후 written set에 있으면 제외", () => {
+    const TODAY    = "2026-08-29";
+    const NOW_TIME = "20:00";
+    const written  = new Set([TODAY]);
+    // startTime 이 지났어도 작성됐으면 제외
+    expect(shouldIncludeSlot(TODAY, "19:00", TODAY, NOW_TIME, written)).toBe(false);
+  });
+});
