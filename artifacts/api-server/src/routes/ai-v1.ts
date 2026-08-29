@@ -63,6 +63,10 @@ import {
   type TemplateSearchResult,
   type XTemplateStatus,
 } from '../lib/diary-template-search.js';
+import {
+  hasCurriculumBasedDiary,
+  searchCurriculumForDiary,
+} from '../lib/curriculum-diary-service.js';
 import { validateGrounding, purgeStudentLeaksFromCommon, purgeInventedEvaluations } from '../lib/diary-grounding.js';
 import { resolvePoolMode, type PoolMode }                                            from '../lib/xmode.js';
 import { searchCurriculumCandidates }                                                from '../lib/curriculum-candidate-search.js';
@@ -272,7 +276,20 @@ router.post(
           (xTemplateStatus !== 'FOUND' ? ` fallback_reason=${xTemplateStatus}` : ''),
         );
       } else {
-        searchResult = await searchTemplates(poolId, meaning);
+        // Normal mode: ACTIVE Curriculum 있으면 curriculum_items 기반 검색, 없으면 legacy diary_templates
+        const hasCurriculum = await hasCurriculumBasedDiary(poolId);
+        if (hasCurriculum) {
+          searchResult = await searchCurriculumForDiary(poolId, meaning);
+          console.log(
+            `[AI/v1:${internalId}] CURRICULUM_SEARCH_ROUTED` +
+            ` pool=${poolId} hasCurriculum=true` +
+            ` candidates=${searchResult.candidateCount}` +
+            ` used=${searchResult.usedCount}` +
+            ` top_score=${searchResult.topScore.toFixed(2)}`,
+          );
+        } else {
+          searchResult = await searchTemplates(poolId, meaning);
+        }
       }
       const template_ms = Date.now() - t_template;
 

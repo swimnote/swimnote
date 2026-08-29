@@ -17,6 +17,44 @@ export interface UploadedMedia {
 }
 
 export interface DiaryTemplateLevel { id: string; level_name: string; sort_order: number; template_count: number; }
+
+// ── Curriculum-based diary types ─────────────────────────────────────────────
+
+export interface CurriculumLevel {
+  level_order: number;
+  level_name:  string;
+  node_count:  number;
+  test_count:  number;
+}
+
+export interface CurriculumNode {
+  id:               string;
+  display_no:       string;
+  level_order:      number;
+  sequence_in_level: number;
+  stroke:           string;
+  domain:           string;
+  skill_group:      string;
+  atomic_skill:     string;
+  title:            string;
+  source_trace:     string;
+  is_test_item:     boolean;
+  goal?:            string;
+  coaching_point?:  string;
+}
+
+export interface CurriculumLevelsResponse {
+  has_curriculum: boolean;
+  version_id?:    string;
+  version_name?:  string;
+  levels:         CurriculumLevel[];
+}
+
+export interface CurriculumNodesResponse {
+  nodes: CurriculumNode[];
+  total: number;
+}
+
 export interface DiaryTemplate {
   id: string; level_id?: string | null; category: string; level?: string | null;
   title?: string | null; template_text: string; sort_order: number; is_active: boolean;

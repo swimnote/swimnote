@@ -2753,5 +2753,130 @@ router.get("/diaries/media-dashboard",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// 11. Curriculum Diary API — ACTIVE Curriculum 기반 일지 템플릿
+// ════════════════════════════════════════════════════════════════════════
+
+import {
+  getActiveCurriculumVersion,
+  getCurriculumLevels,
+  getCurriculumNodes,
+  getCurriculumFacets,
+  STROKE_LABELS,
+  DOMAIN_LABELS,
+} from "../lib/curriculum-diary-service.js";
+
+/**
+ * GET /curriculum/diary/levels
+ * ACTIVE curriculum의 레벨 목록 + node_count.
+ * level_name은 pool_level_settings 기준.
+ * ACTIVE curriculum이 없으면 { has_curriculum: false }.
+ */
+router.get(
+  "/curriculum/diary/levels",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { version, levels } = await getCurriculumLevels(poolId);
+      if (!version) {
+        return res.json({ has_curriculum: false, levels: [] });
+      }
+      return res.json({
+        has_curriculum: true,
+        version_id:     version.id,
+        version_name:   version.version_name,
+        levels,
+      });
+    } catch (e) { console.error("[curriculum/diary/levels]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/nodes
+ * ACTIVE curriculum의 노드 목록.
+ * Query: level_order?, stroke?, domain?, skill_group?, is_test_item?, limit?, offset?
+ */
+router.get(
+  "/curriculum/diary/nodes",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const {
+        level_order, stroke, domain, skill_group,
+        is_test_item, limit, offset,
+      } = req.query as Record<string, string | undefined>;
+
+      const filters = {
+        level_order:  level_order  != null ? parseInt(level_order,  10) : undefined,
+        stroke:       stroke       || undefined,
+        domain:       domain       || undefined,
+        skill_group:  skill_group  || undefined,
+        is_test_item: is_test_item != null ? is_test_item === "true" : false,
+        limit:        limit  != null ? Math.min(parseInt(limit,  10), 500) : 200,
+        offset:       offset != null ? parseInt(offset, 10)                : 0,
+      };
+
+      const { nodes, total } = await getCurriculumNodes(poolId, filters);
+      return res.json({ nodes, total });
+    } catch (e) { console.error("[curriculum/diary/nodes]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/facets
+ * level_order별 distinct stroke/domain/skill_group 목록.
+ * Query: level_order?
+ * 한글 레이블 포함.
+ */
+router.get(
+  "/curriculum/diary/facets",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      const { level_order } = req.query as Record<string, string | undefined>;
+      const lo = level_order != null ? parseInt(level_order, 10) : undefined;
+      const facets = await getCurriculumFacets(poolId, lo);
+
+      return res.json({
+        strokes:      facets.strokes.map(s => ({ value: s, label: STROKE_LABELS[s] ?? s })),
+        domains:      facets.domains.map(d => ({ value: d, label: DOMAIN_LABELS[d] ?? d })),
+        skill_groups: facets.skill_groups,
+      });
+    } catch (e) { console.error("[curriculum/diary/facets]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/teacher-templates
+ * 교사 본인이 만든 scope='teacher' diary_templates.
+ * Curriculum Nodes와 별도 영역으로 노출.
+ */
+router.get(
+  "/curriculum/diary/teacher-templates",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId  = await getUserPoolId(req.user!.userId);
+      const userId  = req.user!.userId;
+      const rows = await db.execute(sql`
+        SELECT dt.id, dt.level_id, dtl.level_name, dt.title, dt.template_text,
+               dt.sort_order, dt.is_active, dt.scope, dt.teacher_id,
+               dt.source_template_id, dt.created_at
+        FROM diary_templates dt
+        LEFT JOIN diary_template_levels dtl ON dtl.id = dt.level_id
+        WHERE dt.swimming_pool_id = ${poolId}
+          AND dt.scope = 'teacher'
+          AND dt.teacher_id = ${userId}
+          AND dt.is_active = true
+        ORDER BY dt.sort_order ASC, dt.created_at ASC
+      `);
+      return res.json({ templates: rows.rows });
+    } catch (e) { console.error("[curriculum/diary/teacher-templates]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
 export default router;
 
