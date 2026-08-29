@@ -35,7 +35,7 @@ export function MainTabs<T extends string>({ tabs, active, onChange, accentColor
             style={[s.item, isActive && { borderBottomColor: tint }]}
             onPress={() => onChange(tab.key)}
           >
-            <Text style={[s.label, { color: isActive ? tint : C.textSecondary }]}>
+            <Text style={[s.label, { color: isActive ? tint : C.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
               {tab.label}
             </Text>
             {typeof tab.badge === "number" && tab.badge > 0 ? (

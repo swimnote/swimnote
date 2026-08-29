@@ -16,6 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 const C = Colors.light;
 import type { PoolMembership } from "@/context/auth/MembershipsContext";
@@ -45,6 +46,7 @@ export default function PoolSwitcherSheet({
   onClose,
 }: Props) {
   const [switching, setSwitching] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   async function handlePress(m: PoolMembership) {
     if (m.pool_id === currentPoolId && m.role === currentRole) {
@@ -70,7 +72,7 @@ export default function PoolSwitcherSheet({
       onRequestClose={onClose}
     >
       <TouchableOpacity style={styles.overlay} onPress={onClose} activeOpacity={1} />
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
         {/* 헤더 */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>수영장 전환</Text>
@@ -98,11 +100,11 @@ export default function PoolSwitcherSheet({
               >
                 <View style={styles.itemLeft}>
                   <View style={[styles.dot, isActive && styles.dotActive]} />
-                  <View>
-                    <Text style={[styles.poolName, isActive && styles.poolNameActive]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.poolName, isActive && styles.poolNameActive]} numberOfLines={1} ellipsizeMode="tail">
                       {m.pool_name}
                     </Text>
-                    <Text style={styles.roleLabel}>
+                    <Text style={styles.roleLabel} numberOfLines={1}>
                       {ROLE_LABEL[m.role] ?? m.role}
                     </Text>
                   </View>
@@ -168,6 +170,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    flex: 1,
+    minWidth: 0,
   },
   dot: {
     width: 10,

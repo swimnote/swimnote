@@ -49,7 +49,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
           <View style={styles.titles}>
             <Text style={styles.title} numberOfLines={1}>{headerTitle}</Text>
             {headerSubtitle ? (
-              <Text style={[styles.subtitle, { color: themeColor }]}>{headerSubtitle}</Text>
+              <Text style={[styles.subtitle, { color: themeColor }]} numberOfLines={1} ellipsizeMode="tail">{headerSubtitle}</Text>
             ) : null}
           </View>
         </View>

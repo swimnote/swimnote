@@ -29,7 +29,7 @@ const WIZARD_DISMISSED_KEY = "@swimnote:setup_wizard_dismissed";
 const WIZARD_CELEBRATED_KEY = "@swimnote:setup_wizard_celebrated";
 
 const C = Colors.light;
-const TAB_BAR_H = Platform.OS === "web" ? 90 : 72;
+// TAB_BAR_H is computed dynamically in the component using insets to match _layout.tsx
 
 function formatWon(n: number) {
   if (n >= 100_000_000) return (n / 100_000_000).toFixed(1).replace(/\.0$/, "") + "억원";
@@ -273,7 +273,7 @@ export default function DashboardScreen() {
           </Text>
 
           {/* ROW 2: SWIMNOTE X badge · 등급 · role · 선생님 전환 */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "nowrap" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
             {/* SWIMNOTE X identity badge */}
             {isX && (
               <View style={{ backgroundColor: XT.surfaceNavySoft, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -303,7 +303,7 @@ export default function DashboardScreen() {
             </Pressable>
             {/* role chip */}
             <View style={[s.roleChip, isX && { backgroundColor: XT.surfaceNavySoft }]}>
-              <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]}>{roleLabel}</Text>
+              <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]} numberOfLines={1}>{roleLabel}</Text>
             </View>
             {/* 선생님으로 전환 */}
             {canSwitchToTeacher && (
@@ -321,7 +321,7 @@ export default function DashboardScreen() {
                   ? <ActivityIndicator size="small" color={isX ? XT.textOnNavy : C.textPrimary} />
                   : <>
                       <LucideIcon name="repeat" size={10} color={isX ? XT.textOnNavy : C.textPrimary} />
-                      <Text style={[s.switchChipTxt, { color: isX ? XT.textOnNavy : C.text }]}>선생님으로 전환</Text>
+                      <Text style={[s.switchChipTxt, { color: isX ? XT.textOnNavy : C.text }]} numberOfLines={1}>선생님으로 전환</Text>
                     </>
                 }
               </Pressable>
@@ -349,7 +349,7 @@ export default function DashboardScreen() {
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: TAB_BAR_H + 24, paddingTop: 16, gap: 20 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: (Platform.OS === "android" ? 60 + Math.max(insets.bottom, 24) : 72) + 24, paddingTop: 16, gap: 20 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStats(); }} tintColor={themeColor} />
         }

@@ -149,7 +149,7 @@ export default function OrgRoleSelectScreen() {
                   <View style={[styles.roleIconBox, { backgroundColor: display.bg }]}>
                     <LucideIcon name={display.icon} size={36} color={display.color} />
                   </View>
-                  <Text style={[styles.roleTitle, { color: C.text }]}>{display.label}</Text>
+                  <Text style={[styles.roleTitle, { color: C.text }]} numberOfLines={2} adjustsFontSizeToFit>{display.label}</Text>
                 </Pressable>
               );
             })}
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   signupBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
   rolesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "center" },
   roleCard: {
-    width: 140, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
+    flex: 1, minWidth: 120, maxWidth: 180, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
     alignItems: "center", gap: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
   },
