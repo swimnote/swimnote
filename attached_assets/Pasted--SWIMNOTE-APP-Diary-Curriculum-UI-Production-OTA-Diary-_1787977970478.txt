@@ -1,0 +1,182 @@
+[SWIMNOTE APP — Diary Curriculum UI Production OTA 배포]
+
+목표:
+이번 Diary Template / Curriculum UI 전환에 포함된
+모바일 클라이언트 변경사항을 Production OTA로 배포한다.
+
+중요:
+- Render 서버 배포는 사용자가 직접 수행
+- 이번 작업은 OTA만 수행
+- native dependency / native config 변경이 있으면 OTA 금지하고 STOP
+- runtimeVersion 추측 금지
+- 현재 production runtime과 정확히 일치하는 경우에만 배포
+- unrelated 변경 포함 금지
+
+==================================================
+1. OTA 대상 변경 확인
+==================================================
+
+이번 모바일 변경 파일:
+
+- artifacts/swim-app/app/(admin)/diary-template-settings.tsx
+- artifacts/swim-app/components/teacher/diary/types.ts
+
+목표 기능:
+
+ACTIVE Curriculum이 있는 수영장:
+- 기존 legacy 10개 분류 대신 Curriculum 기반 UI
+- [교육과정] / [내 템플릿] 탭
+- Curriculum Level 기반 분류
+- Teacher template 별도 노출
+
+Curriculum이 없는 수영장:
+- 기존 legacy 화면 fallback 유지
+
+==================================================
+2. Git / Branch / Commit 확인
+==================================================
+
+확인 후 보고:
+
+- current branch
+- HEAD SHA
+- working tree clean 여부
+- origin push 여부
+- 위 모바일 변경이 HEAD에 포함되어 있는지
+
+미커밋/미푸시 변경 있으면 OTA 중단.
+
+==================================================
+3. Native 변경 여부 확인
+==================================================
+
+이번 변경 범위에서 아래 확인:
+
+- package.json native dependency 변경
+- app.json / app.config 변경
+- expo plugin 변경
+- ios/android native 파일 변경
+- runtimeVersion 변경 필요 요소
+
+하나라도 있으면:
+
+OTA 금지
+신규 build 필요 여부 보고 후 STOP.
+
+전부 없으면 OTA 진행.
+
+==================================================
+4. Production Runtime 확인
+==================================================
+
+현재 실제 production 앱의 runtimeVersion을
+repository / EAS configuration 기준으로 확인.
+
+절대 과거 기억값으로 추측하지 않는다.
+
+보고:
+
+- production branch/channel
+- runtimeVersion
+- platform 대상
+
+현재 설치된 공개 앱과 호환되는 runtime인지 확인 후 진행.
+
+==================================================
+5. OTA 배포
+==================================================
+
+Production 대상으로 iOS / Android OTA 배포.
+
+메시지 예시:
+
+"Diary curriculum UI migration"
+
+단,
+현재 프로젝트에서 사용하는 실제 production branch/channel 규칙을 그대로 따른다.
+
+배포 후 반드시 확보:
+
+- Update ID
+- Branch
+- Channel
+- RuntimeVersion
+- Platform
+- CreatedAt
+- Commit SHA
+
+==================================================
+6. OTA 후 실기기 검증 항목
+==================================================
+
+앱 완전 종료 후 재실행하여 확인:
+
+토이키즈스윔클럽 관리자
+→ 일지 템플릿
+
+기대:
+
+1. ACTIVE Curriculum 감지
+2. [교육과정] / [내 템플릿] 탭 표시
+3. 기존 10개 legacy 분류가 기본 교육과정 분류로 표시되지 않음
+4. Curriculum Level 7개 표시
+5. 레벨 순서 level_order ASC
+6. Curriculum Node 목록 정상
+7. Teacher template 12개는 [내 템플릿]에서 보존
+8. 기존 class diary 조회 정상
+9. 빈 화면 / crash / 5xx 없음
+
+==================================================
+7. 서버 의존성 확인
+==================================================
+
+OTA 후 새 클라이언트가 호출하는:
+
+GET /curriculum/diary/levels
+GET /curriculum/diary/nodes
+GET /curriculum/diary/facets
+GET /curriculum/diary/teacher-templates
+
+가 Production Render에서 정상 응답하는지 확인.
+
+Render 배포가 아직 완료되지 않았거나
+endpoint가 Production에 없으면
+OTA 실행 전에 STOP.
+
+클라이언트만 먼저 배포하여 깨지는 상태를 만들지 않는다.
+
+==================================================
+8. 완료 보고
+==================================================
+
+GIT
+- branch
+- SHA
+- clean/pushed
+
+NATIVE
+- OTA 가능 여부
+- native build 필요 여부
+
+OTA
+- Update ID
+- Branch
+- Channel
+- RuntimeVersion
+- iOS/Android 대상
+
+DEVICE
+- 교육과정 탭
+- 내 템플릿 탭
+- 7 Level
+- Node 표시
+- teacher template 보존
+- crash/error 여부
+
+SERVER
+- 새 curriculum diary endpoints 정상 여부
+
+FINAL
+- OTA PASS / FAIL
+
+완료 후 STOP.
