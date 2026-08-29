@@ -187,12 +187,12 @@ export default function ParentMoreScreen() {
   const [expandC, setExpandC] = useState(false);
   const [expandD, setExpandD] = useState(false);
 
-  async function handleDeleteAccount(immediate: boolean) {
+  async function handleDeleteAccount(immediate: boolean, password: string) {
     setDeleteLoading(true);
     try {
       const res = await apiRequest(token, "/auth/account", {
         method: "DELETE",
-        body: JSON.stringify({ immediate }),
+        body: JSON.stringify({ immediate, password }),
       });
       if (res.ok) { setDeleteConfirm(false); await logout(); }
     } catch { } finally { setDeleteLoading(false); }

@@ -2470,13 +2470,28 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
   try {
     if (role === "parent_account" || role === "parent") {
       // ── 학부모 탈퇴: 항상 즉시 삭제 (구독 없음) ───────────────
+      // 비밀번호 재확인 필수 (보안 실수 방지)
+      const password = req.body?.password;
+      if (!password || typeof password !== "string" || !password.trim()) {
+        return err(res, 400, "비밀번호를 입력해주세요.");
+      }
+
       const rows = (await db.execute(sql`
-        SELECT id, login_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+        SELECT id, login_id, pin_hash FROM parent_accounts WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
       if (rows[0].login_id === "demo_parent") return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
 
+      // 비밀번호 서버 검증 — 불일치 시 탈퇴 차단
+      const isMatch = await comparePassword(password, rows[0].pin_hash || "");
+      if (!isMatch) {
+        return err(res, 401, "비밀번호가 올바르지 않습니다.");
+      }
+
+      // 탈퇴: parent_accounts 행만 삭제
+      // 학생(students) 정보는 수영장 tenant 데이터이므로 절대 삭제하지 않음
+      // student, attendance, diary, report 등은 관리자만 삭제/퇴원 처리 가능
       await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${userId}`);
       return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
 

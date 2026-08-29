@@ -65,12 +65,12 @@ export default function ParentProfileScreen() {
     })();
   }, []);
 
-  async function deleteAccount(immediate: boolean) {
+  async function deleteAccount(immediate: boolean, password: string) {
     setDeleteLoading(true);
     try {
       const res = await apiRequest(token, "/auth/account", {
         method: "DELETE",
-        body: JSON.stringify({ immediate }),
+        body: JSON.stringify({ immediate, password }),
       });
       if (res.ok) {
         setDeleteConfirm(false);
