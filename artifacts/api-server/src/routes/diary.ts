@@ -2320,11 +2320,24 @@ router.get("/teacher/messages/threads",
 router.get("/diaries/unwritten-slots",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
+    const reqId = Math.random().toString(36).slice(2, 9);
+    const includeWritten = (req.query as any).includeWritten === "true";
+    let stage = "INIT";
+    let teacherId = "";
+    let poolId = "";
+    let classGroupCount = 0;
     try {
       const { userId, role } = req.user!;
-      const poolId = await getUserPoolId(userId);
-      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+      teacherId = userId.slice(-8); // 개인정보 미포함 — 마지막 8자만
+      stage = "RESOLVE_POOL";
 
+      poolId = (await getUserPoolId(userId)) ?? "";
+      if (!poolId) {
+        console.warn(`[unwritten-slots] { request_id: "${reqId}", stage: "RESOLVE_POOL", role: "${role}", teacher_id: "${teacherId}", error: "pool_not_found" }`);
+        return apiErr(res, 403, "수영장 정보가 없습니다.");
+      }
+
+      stage = "LOAD_CLASS_GROUPS";
       // 선생님: 본인 반만, 관리자: 전체
       let classRows;
       if (role === "teacher") {
@@ -2342,10 +2355,12 @@ router.get("/diaries/unwritten-slots",
           WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
         `);
       }
+      classGroupCount = (classRows.rows as any[]).length;
 
       const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
       const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+      stage = "KST_CLOCK";
       // KST 기준 현재 시각 — getKSTNow()는 이 파일 상단에 정의된 기존 헬퍼
       const now = getKSTNow();
       const todayMidnight = new Date(now);
@@ -2359,11 +2374,9 @@ router.get("/diaries/unwritten-slots",
 
       const todayDateStr = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
 
-      // ?includeWritten=true → 수업 변경 selector용: 미작성+기작성 전체 반환
-      const includeWritten = (req.query as any).includeWritten === "true";
-
       const slots: any[] = [];
 
+      stage = "GENERATE_SLOTS";
       for (const cg of classRows.rows as any[]) {
         const days: number[] = [];
         for (const ch of (cg.schedule_days || "")) {
@@ -2371,11 +2384,13 @@ router.get("/diaries/unwritten-slots",
         }
         if (days.length === 0) continue;
 
+        stage = "DIARY_LOOKUP";
         // 이 반의 기작성 일지 날짜 목록
         const writtenRows = await db.execute(sql`
           SELECT id, lesson_date FROM class_diaries
           WHERE class_group_id = ${cg.id} AND is_deleted = false
         `);
+        stage = "NORMALIZE_DATES";
         // normalizeLessonDate: Date 객체/문자열 모두 "YYYY-MM-DD"로 정규화 (single source of truth)
         const writtenDates = new Set((writtenRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
         // diaryId 조회용 맵 (includeWritten 모드에서 사용)
@@ -2388,6 +2403,7 @@ router.get("/diaries/unwritten-slots",
 
         const scheduleTime = (cg.schedule_time || "").slice(0, 5); // "HH:MM"
 
+        stage = "DATE_RANGE";
         // fromDate ~ 오늘까지 schedule_days에 해당하는 날짜 생성
         const cursor = new Date(fromDate);
         while (cursor <= todayMidnight) {
@@ -2418,6 +2434,7 @@ router.get("/diaries/unwritten-slots",
         }
       }
 
+      stage = "SORT_RESPONSE";
       // 날짜 오름차순, 같은 날짜면 시간 오름차순
       slots.sort((a, b) => {
         const dateCmp = a.lessonDate.localeCompare(b.lessonDate);
@@ -2425,8 +2442,12 @@ router.get("/diaries/unwritten-slots",
         return a.scheduleTime.localeCompare(b.scheduleTime);
       });
 
+      console.log(`[unwritten-slots] { request_id: "${reqId}", stage: "OK", role: "${role}", teacher_id: "${teacherId}", pool_id: "${poolId}", includeWritten: ${includeWritten}, class_group_count: ${classGroupCount}, slot_count: ${slots.length} }`);
       res.json({ success: true, slots, total: slots.length });
-    } catch (e) { console.error("[unwritten-slots]", e); apiErr(res, 500, "서버 오류"); }
+    } catch (e: any) {
+      console.error(`[unwritten-slots] { request_id: "${reqId}", stage: "${stage}", teacher_id: "${teacherId}", pool_id: "${poolId}", includeWritten: ${includeWritten}, class_group_count: ${classGroupCount}, error_name: "${e?.name ?? "unknown"}", error_message: "${String(e?.message ?? "").slice(0, 120)}", stack_top: "${String(e?.stack ?? "").split("\n")[1]?.trim().slice(0, 120) ?? ""}" }`);
+      apiErr(res, 500, "서버 오류");
+    }
   }
 );
 
@@ -2778,6 +2799,7 @@ router.get(
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
       const { version, levels } = await getCurriculumLevels(poolId);
       if (!version) {
         return res.json({ has_curriculum: false, levels: [] });
@@ -2803,6 +2825,7 @@ router.get(
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
       const {
         level_order, stroke, domain, skill_group,
         is_test_item, limit, offset,
@@ -2836,6 +2859,7 @@ router.get(
   async (req: AuthRequest, res) => {
     try {
       const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
       const { level_order } = req.query as Record<string, string | undefined>;
       const lo = level_order != null ? parseInt(level_order, 10) : undefined;
       const facets = await getCurriculumFacets(poolId, lo);
