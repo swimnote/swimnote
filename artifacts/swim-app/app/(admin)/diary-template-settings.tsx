@@ -798,8 +798,8 @@ function CurriculumNodeCard({ node }: { node: CurriculumNode }) {
         </View>
       </View>
       <Text style={cs.nodeTitle} numberOfLines={2}>{node.title || node.atomic_skill}</Text>
-      {!!node.source_trace && (
-        <Text style={cs.nodeTrace} numberOfLines={3}>{node.source_trace}</Text>
+      {!!node.goal && (
+        <Text style={cs.nodeGoal} numberOfLines={2}>{node.goal}</Text>
       )}
     </View>
   );
@@ -969,7 +969,7 @@ const cs = StyleSheet.create({
   nodeTagRow: { flexDirection: "row", gap: 4 },
   nodeTag: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong, backgroundColor: C.brandSoft, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
   nodeTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 18 },
-  nodeTrace: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16, marginTop: 4 },
+  nodeGoal: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16, marginTop: 4 },
   empty: { paddingVertical: 32, alignItems: "center" },
   emptyText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
   emptySubText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 4 },

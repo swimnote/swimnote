@@ -19,16 +19,56 @@ import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { apiRequest, useAuth } from "@/context/AuthContext";
-import { DiaryTemplateLevel, DiaryTemplate } from "@/components/teacher/diary/types";
+import {
+  DiaryTemplateLevel, DiaryTemplate,
+  CurriculumLevel, CurriculumNode,
+  CurriculumLevelsResponse, CurriculumNodesResponse,
+} from "@/components/teacher/diary/types";
 
 const C = Colors.light;
 
 const MY_TAB_ID = "__my__";
 
+// ── 한글 레이블 ──────────────────────────────────────────────────────────────
+const STROKE_LABELS: Record<string, string> = {
+  general: "공통/물적응", freestyle: "자유형", backstroke: "배영",
+  breaststroke: "평영", butterfly: "접영", im: "IM",
+};
+const DOMAIN_LABELS: Record<string, string> = {
+  water_adaptation: "물적응", breathing: "호흡", technique: "기술",
+  coordination: "협응", endurance: "지구력",
+};
+
 export default function FeedbackCustomScreen() {
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
 
+  // ── Curriculum 모드 감지 ────────────────────────────────────────────────
+  const [hasCurriculum, setHasCurriculum] = useState<boolean | null>(null);
+
+  // ── Curriculum 탭 state ────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"curriculum" | "teacher">("curriculum");
+  const [curriculumLevels, setCurriculumLevels] = useState<CurriculumLevel[]>([]);
+  const [selectedLevelOrder, setSelectedLevelOrder] = useState<number | null>(null);
+  const [curriculumNodes, setCurriculumNodes] = useState<CurriculumNode[]>([]);
+  const [nodesLoading, setNodesLoading] = useState(false);
+  const [strokeFilter, setStrokeFilter] = useState<string>("");
+  const [availableStrokes, setAvailableStrokes] = useState<{ value: string; label: string }[]>([]);
+  const [teacherTemplates, setTeacherTemplates] = useState<DiaryTemplate[]>([]);
+  const [teacherTemplatesLoading, setTeacherTemplatesLoading] = useState(false);
+  const [addTemplateVisible, setAddTemplateVisible] = useState(false);
+  const [addTemplateTitle, setAddTemplateTitle] = useState("");
+  const [addTemplateText, setAddTemplateText] = useState("");
+  const [addTemplateError, setAddTemplateError] = useState("");
+  const [addTemplateSaving, setAddTemplateSaving] = useState(false);
+  const [editTemplateTarget, setEditTemplateTarget] = useState<DiaryTemplate | null>(null);
+  const [editTemplateTitle, setEditTemplateTitle] = useState("");
+  const [editTemplateText, setEditTemplateText] = useState("");
+  const [editTemplateError, setEditTemplateError] = useState("");
+  const [editTemplateSaving, setEditTemplateSaving] = useState(false);
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<DiaryTemplate | null>(null);
+
+  // ── Legacy state ────────────────────────────────────────────────────────
   const [levels, setLevels] = useState<DiaryTemplateLevel[]>([]);
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
   const [levelsLoading, setLevelsLoading] = useState(true);
@@ -82,7 +122,131 @@ export default function FeedbackCustomScreen() {
   // 삭제 확인 (teacher 신규 항목)
   const [deleteTarget, setDeleteTarget] = useState<DiaryTemplate | null>(null);
 
-  // ── 레벨 로드 ──────────────────────────────────────
+  // ── Curriculum 초기 감지 ────────────────────────────────────────────────
+  useEffect(() => {
+    async function init() {
+      try {
+        const r = await apiRequest(token, "/curriculum/diary/levels");
+        if (r.ok) {
+          const data: CurriculumLevelsResponse = await r.json();
+          if (data.has_curriculum && data.levels.length > 0) {
+            setHasCurriculum(true);
+            setCurriculumLevels(data.levels);
+            setSelectedLevelOrder(data.levels[0]!.level_order);
+            return;
+          }
+        }
+      } catch { /* fallback */ }
+      setHasCurriculum(false);
+    }
+    init();
+  }, [token]);
+
+  // ── Curriculum 노드 로드 ────────────────────────────────────────────────
+  const loadCurriculumNodes = useCallback(async (lo: number, stroke: string) => {
+    setNodesLoading(true);
+    try {
+      const params = new URLSearchParams({ level_order: String(lo), is_test_item: "false", limit: "200" });
+      if (stroke) params.set("stroke", stroke);
+      const r = await apiRequest(token, `/curriculum/diary/nodes?${params}`);
+      if (r.ok) {
+        const data: CurriculumNodesResponse = await r.json();
+        setCurriculumNodes(data.nodes);
+      }
+    } catch {}
+    finally { setNodesLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (!hasCurriculum || selectedLevelOrder == null) return;
+    loadCurriculumNodes(selectedLevelOrder, strokeFilter);
+  }, [hasCurriculum, selectedLevelOrder]);
+
+  useEffect(() => {
+    if (!hasCurriculum || selectedLevelOrder == null) return;
+    loadCurriculumNodes(selectedLevelOrder, strokeFilter);
+  }, [strokeFilter]);
+
+  // ── Stroke facets 로드 ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!hasCurriculum || selectedLevelOrder == null) return;
+    apiRequest(token, `/curriculum/diary/facets?level_order=${selectedLevelOrder}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setAvailableStrokes(data.strokes ?? []); })
+      .catch(() => {});
+  }, [hasCurriculum, selectedLevelOrder]);
+
+  // ── Teacher templates 로드 (curriculum 모드) ────────────────────────────
+  const loadTeacherTemplates = useCallback(async () => {
+    setTeacherTemplatesLoading(true);
+    try {
+      const r = await apiRequest(token, "/curriculum/diary/teacher-templates");
+      if (r.ok) {
+        const data = await r.json();
+        setTeacherTemplates(data.templates ?? []);
+      }
+    } catch {}
+    finally { setTeacherTemplatesLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (!hasCurriculum || activeTab !== "teacher") return;
+    loadTeacherTemplates();
+  }, [hasCurriculum, activeTab]);
+
+  // ── Curriculum 모드 template CRUD ───────────────────────────────────────
+  async function handleAddCurriculumTemplate() {
+    if (!addTemplateText.trim()) { setAddTemplateError("템플릿 내용을 입력해주세요."); return; }
+    setAddTemplateSaving(true);
+    try {
+      const r = await apiRequest(token, "/diary-templates", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: addTemplateTitle.trim() || null, template_text: addTemplateText.trim(), sort_order: teacherTemplates.length }),
+      });
+      if (r.ok) {
+        setAddTemplateVisible(false); setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError("");
+        await loadTeacherTemplates();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        setAddTemplateError(err.error ?? "저장 실패");
+      }
+    } catch { setAddTemplateError("서버 오류가 발생했습니다."); }
+    finally { setAddTemplateSaving(false); }
+  }
+
+  async function handleEditCurriculumTemplate() {
+    if (!editTemplateTarget || !editTemplateText.trim()) { setEditTemplateError("내용을 입력해주세요."); return; }
+    setEditTemplateSaving(true);
+    try {
+      const r = await apiRequest(token, `/diary-templates/${editTemplateTarget.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: editTemplateTitle.trim() || null, template_text: editTemplateText.trim() }),
+      });
+      if (r.ok) {
+        setEditTemplateTarget(null); setEditTemplateTitle(""); setEditTemplateText(""); setEditTemplateError("");
+        await loadTeacherTemplates();
+      } else {
+        const err = await r.json().catch(() => ({}));
+        setEditTemplateError(err.error ?? "수정 실패");
+      }
+    } catch { setEditTemplateError("서버 오류가 발생했습니다."); }
+    finally { setEditTemplateSaving(false); }
+  }
+
+  async function handleToggleCurriculumTemplate(t: DiaryTemplate) {
+    const r = await apiRequest(token, `/diary-templates/${t.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: !t.is_active }),
+    }).catch(() => null);
+    if (r?.ok) setTeacherTemplates(prev => prev.map(x => x.id === t.id ? { ...x, is_active: !x.is_active } : x));
+  }
+
+  async function handleDeleteCurriculumTemplate(t: DiaryTemplate) {
+    const r = await apiRequest(token, `/diary-templates/${t.id}`, { method: "DELETE" }).catch(() => null);
+    if (r?.ok) { setTeacherTemplates(prev => prev.filter(x => x.id !== t.id)); setConfirmDeleteTemplate(null); }
+  }
+
+  // ── 레벨 로드 (legacy) ──────────────────────────────────────
   const loadLevels = useCallback(async () => {
     setLevelsLoading(true);
     try {
@@ -272,6 +436,229 @@ export default function FeedbackCustomScreen() {
   // ── 현재 선택된 레벨 이름 ──────────────────────────
   const selectedLevelName = isMyTab ? null : levels.find(lv => lv.id === selectedLevelId)?.level_name ?? null;
 
+  // ── Curriculum 모드 로딩 ────────────────────────────────────────────────
+  if (hasCurriculum === null) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.background }}>
+        <SubScreenHeader title="일지 템플릿" />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
+      </View>
+    );
+  }
+
+  // ── Curriculum 모드 ─────────────────────────────────────────────────────
+  if (hasCurriculum) {
+    const selectedLevel = curriculumLevels.find(l => l.level_order === selectedLevelOrder);
+    return (
+      <View style={{ flex: 1, backgroundColor: C.background }}>
+        <SubScreenHeader title="일지 템플릿" />
+
+        {/* 탭 */}
+        <View style={cs.tabRow}>
+          <Pressable style={[cs.tab, activeTab === "curriculum" && cs.tabActive]} onPress={() => setActiveTab("curriculum")}>
+            <Text style={[cs.tabText, activeTab === "curriculum" && cs.tabTextActive]}>교육과정</Text>
+          </Pressable>
+          <Pressable style={[cs.tab, activeTab === "teacher" && cs.tabActive]} onPress={() => setActiveTab("teacher")}>
+            <Text style={[cs.tabText, activeTab === "teacher" && cs.tabTextActive]}>
+              내 템플릿 ({teacherTemplates.length})
+            </Text>
+          </Pressable>
+        </View>
+
+        {activeTab === "curriculum" ? (
+          <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+            {/* Level chips */}
+            <View style={{ padding: 16, paddingBottom: 8 }}>
+              <Text style={cs.sectionLabel}>레벨 선택</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {curriculumLevels.map(lv => (
+                    <Pressable
+                      key={lv.level_order}
+                      style={[cs.levelChip, selectedLevelOrder === lv.level_order && cs.levelChipActive]}
+                      onPress={() => { setSelectedLevelOrder(lv.level_order); setStrokeFilter(""); }}
+                    >
+                      <Text style={[cs.levelChipText, selectedLevelOrder === lv.level_order && cs.levelChipTextActive]} numberOfLines={1}>
+                        {lv.level_name}
+                      </Text>
+                      <Text style={[cs.levelChipCount, selectedLevelOrder === lv.level_order && { color: C.brandStrong + "CC" }]}>
+                        ({lv.node_count})
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Stroke filter */}
+            {availableStrokes.length > 1 && (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <Pressable style={[cs.filterChip, !strokeFilter && cs.filterChipActive]} onPress={() => setStrokeFilter("")}>
+                      <Text style={[cs.filterChipText, !strokeFilter && cs.filterChipTextActive]}>전체</Text>
+                    </Pressable>
+                    {availableStrokes.map(fs => (
+                      <Pressable
+                        key={fs.value}
+                        style={[cs.filterChip, strokeFilter === fs.value && cs.filterChipActive]}
+                        onPress={() => setStrokeFilter(fs.value)}
+                      >
+                        <Text style={[cs.filterChipText, strokeFilter === fs.value && cs.filterChipTextActive]}>{fs.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Node list */}
+            <View style={{ paddingHorizontal: 16 }}>
+              <View style={cs.nodeListHeader}>
+                <Text style={cs.sectionLabel}>{selectedLevel?.level_name} — {curriculumNodes.length}개 노드</Text>
+                <Text style={cs.subLabel}>read-only · AI 일지 검색에 사용됨</Text>
+              </View>
+              {nodesLoading ? (
+                <ActivityIndicator color={C.brandStrong} style={{ marginTop: 24 }} />
+              ) : curriculumNodes.length === 0 ? (
+                <View style={cs.empty}><Text style={cs.emptyText}>해당 조건의 노드가 없습니다.</Text></View>
+              ) : (
+                <View style={cs.nodeList}>
+                  {curriculumNodes.map(node => {
+                    const strokeLabel = STROKE_LABELS[node.stroke] ?? node.stroke;
+                    const domainLabel = DOMAIN_LABELS[node.domain] ?? node.domain;
+                    return (
+                      <View key={node.id} style={cs.nodeCard}>
+                        <View style={cs.nodeCardHeader}>
+                          <Text style={cs.nodeDisplayNo}>{node.display_no}</Text>
+                          <View style={cs.nodeTagRow}>
+                            <Text style={cs.nodeTag}>{strokeLabel}</Text>
+                            <Text style={cs.nodeTag}>{domainLabel}</Text>
+                          </View>
+                        </View>
+                        <Text style={cs.nodeTitle} numberOfLines={2}>{node.title || node.atomic_skill}</Text>
+                        {!!node.goal && <Text style={cs.nodeGoal} numberOfLines={2}>{node.goal}</Text>}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        ) : (
+          /* 내 템플릿 탭 */
+          <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 16 }}>
+              <View style={cs.nodeListHeader}>
+                <Text style={cs.sectionLabel}>내 템플릿</Text>
+                <Pressable
+                  style={cs.addBtn}
+                  onPress={() => { setAddTemplateTitle(""); setAddTemplateText(""); setAddTemplateError(""); setAddTemplateVisible(true); }}
+                >
+                  <LucideIcon name="plus" size={13} color={C.brandStrong} />
+                  <Text style={cs.addBtnText}>추가</Text>
+                </Pressable>
+              </View>
+              <Text style={cs.subLabel}>Curriculum 노드와 별개로 내가 만든 문장 템플릿</Text>
+
+              {teacherTemplatesLoading ? (
+                <ActivityIndicator color={C.brandStrong} style={{ marginTop: 24 }} />
+              ) : teacherTemplates.length === 0 ? (
+                <View style={cs.empty}>
+                  <Text style={cs.emptyText}>등록된 내 템플릿이 없습니다.</Text>
+                  <Text style={cs.emptySubText}>"추가" 버튼으로 자주 쓰는 문장을 저장해보세요.</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8, marginTop: 8 }}>
+                  {teacherTemplates.map(t => (
+                    <View key={t.id} style={[cs.nodeCard, !t.is_active && { opacity: 0.65 }]}>
+                      {!!t.title && <Text style={{ fontSize: 11, color: "#7C3AED", fontFamily: "Pretendard-Regular", marginBottom: 2 } as any}>{t.title}</Text>}
+                      <Text style={{ fontSize: 13, color: C.textPrimary, fontFamily: "Pretendard-Regular", lineHeight: 19 } as any} numberOfLines={3}>{t.template_text}</Text>
+                      <View style={{ flexDirection: "row", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+                        <Switch
+                          value={!!t.is_active}
+                          onValueChange={() => handleToggleCurriculumTemplate(t)}
+                          trackColor={{ false: C.border, true: C.brandSoft }}
+                          thumbColor={t.is_active ? C.brandStrong : C.textMuted}
+                          style={{ transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] }}
+                        />
+                        <Pressable
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: C.border }}
+                          onPress={() => { setEditTemplateTarget(t); setEditTemplateTitle(t.title ?? ""); setEditTemplateText(t.template_text); setEditTemplateError(""); }}
+                        >
+                          <LucideIcon name="edit-2" size={13} color={C.textSecondary} />
+                          <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" } as any}>수정</Text>
+                        </Pressable>
+                        <Pressable
+                          style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: "#FECACA" }}
+                          onPress={() => setConfirmDeleteTemplate(t)}
+                        >
+                          <LucideIcon name="trash-2" size={13} color="#EF4444" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* 템플릿 추가 모달 */}
+        <Modal visible={addTemplateVisible} transparent animationType="fade" onRequestClose={() => setAddTemplateVisible(false)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 }}>
+              <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 16 } as any}>내 템플릿 추가</Text>
+                <TextInput style={s.input} placeholder="제목 (선택)" value={addTemplateTitle} onChangeText={setAddTemplateTitle} placeholderTextColor={C.textMuted} />
+                <TextInput style={[s.input, s.textArea, { marginTop: 10 }]} placeholder="내용을 입력하세요" value={addTemplateText} onChangeText={setAddTemplateText} multiline placeholderTextColor={C.textMuted} />
+                {!!addTemplateError && <Text style={{ fontSize: 12, color: "#EF4444", marginTop: 6 }}>{addTemplateError}</Text>}
+                <View style={[s.modalBtns, { marginTop: 14 }]}>
+                  <Pressable style={s.cancelBtn} onPress={() => setAddTemplateVisible(false)}><Text style={s.cancelBtnText}>취소</Text></Pressable>
+                  <Pressable style={[s.saveBtn, addTemplateSaving && { opacity: 0.6 }]} onPress={handleAddCurriculumTemplate} disabled={addTemplateSaving}>
+                    {addTemplateSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>추가</Text>}
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* 템플릿 수정 모달 */}
+        <Modal visible={!!editTemplateTarget} transparent animationType="fade" onRequestClose={() => setEditTemplateTarget(null)}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 24 }}>
+              <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 16 } as any}>템플릿 수정</Text>
+                <TextInput style={s.input} placeholder="제목 (선택)" value={editTemplateTitle} onChangeText={setEditTemplateTitle} placeholderTextColor={C.textMuted} />
+                <TextInput style={[s.input, s.textArea, { marginTop: 10 }]} placeholder="내용을 입력하세요" value={editTemplateText} onChangeText={setEditTemplateText} multiline placeholderTextColor={C.textMuted} />
+                {!!editTemplateError && <Text style={{ fontSize: 12, color: "#EF4444", marginTop: 6 }}>{editTemplateError}</Text>}
+                <View style={[s.modalBtns, { marginTop: 14 }]}>
+                  <Pressable style={s.cancelBtn} onPress={() => setEditTemplateTarget(null)}><Text style={s.cancelBtnText}>취소</Text></Pressable>
+                  <Pressable style={[s.saveBtn, editTemplateSaving && { opacity: 0.6 }]} onPress={handleEditCurriculumTemplate} disabled={editTemplateSaving}>
+                    {editTemplateSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.saveBtnText}>저장</Text>}
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* 삭제 확인 */}
+        <ConfirmModal
+          visible={!!confirmDeleteTemplate}
+          title="템플릿 삭제"
+          message="이 템플릿을 삭제하시겠습니까?"
+          confirmText="삭제"
+          confirmColor="#EF4444"
+          onConfirm={() => { if (confirmDeleteTemplate) handleDeleteCurriculumTemplate(confirmDeleteTemplate); }}
+          onCancel={() => setConfirmDeleteTemplate(null)}
+        />
+      </View>
+    );
+  }
+
+  // ── Legacy 모드 ─────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="일지 템플릿" />
@@ -825,4 +1212,38 @@ const s = StyleSheet.create({
   cancelBtnText:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   saveBtn:      { flex: 2, paddingVertical: 12, borderRadius: 10, backgroundColor: C.primaryAction, alignItems: "center" },
   saveBtnText:  { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+});
+
+// ── Curriculum 스타일 ─────────────────────────────────────────────────────────
+const cs = StyleSheet.create({
+  tabRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
+  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: C.brandStrong },
+  tabText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  tabTextActive: { color: C.brandStrong, fontFamily: "Pretendard-Regular" },
+  sectionLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  subLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  levelChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
+  levelChipActive: { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
+  levelChipText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  levelChipTextActive: { color: C.brandStrong },
+  levelChipCount: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
+  filterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft },
+  filterChipActive: { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
+  filterChipText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  filterChipTextActive: { color: C.brandStrong },
+  nodeListHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4, marginTop: 8 },
+  nodeList: { gap: 8, marginTop: 8 },
+  nodeCard: { backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border },
+  nodeCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  nodeDisplayNo: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  nodeTagRow: { flexDirection: "row", gap: 4 },
+  nodeTag: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong, backgroundColor: C.brandSoft, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
+  nodeTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
+  nodeGoal: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16, marginTop: 4 },
+  empty: { paddingVertical: 32, alignItems: "center" },
+  emptyText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  emptySubText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 4 },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9, borderWidth: 1.5, borderColor: C.brandStrong },
+  addBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
 });
