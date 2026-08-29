@@ -145,7 +145,16 @@
           ]
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-new.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "imageWidth": 140
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
