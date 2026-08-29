@@ -1,0 +1,196 @@
+[앱]
+
+DIARY SESSION SWITCH FINAL PATCH
+FIX ONLY 3 CONFIRMED DEFECTS
+
+현재 HEAD:
+804aa7a0
+
+목표:
+최종 검수에서 확인된 아래 3개 결함만 수정한다.
+
+1. session switch 시 stale targetDate 사용
+2. written diary replace race condition
+3. ClassDetailSheet startTime param 누락
+
+범위 확대 금지.
+
+==================================================
+1. SESSION_SWITCH / STUDENT_RELOAD
+==================================================
+
+현재 문제:
+
+setTargetDate(newDate)
+후 즉시 openGroup()가 실행되면서
+loadClassStudents()가 closure의 OLD targetDate를 사용함.
+
+수정:
+
+loadClassStudents에 explicit date parameter 추가.
+
+예:
+
+loadClassStudents(classId, lessonDate)
+
+내부의 날짜 의존 API:
+
+/today-schedule?date=
+/attendance/makeup-students?date=
+/attendance?...&date=
+
+전부 state targetDate가 아니라
+전달받은 lessonDate 사용.
+
+openGroup(group, overrideDate)에서:
+
+const effectiveDate = overrideDate ?? targetDate
+
+를 정하고,
+loadClassStudents(group.id, effectiveDate)
+
+형태로 전달.
+
+세션 전환 시:
+session.lessonDate가 끝까지 사용되어야 함.
+
+==================================================
+2. WRITTEN_REPLACE RACE CONDITION
+==================================================
+
+현재:
+
+myDiaryExists = diarySet.has(...)
+
+는 session switch 직후 load() 완료 전
+false가 될 수 있음.
+
+수정:
+
+현재 선택된 group + targetDate에 대해
+이미 로드된 diaries를 source of truth로 사용.
+
+예:
+
+diaries.some(
+  d =>
+    d.class_group_id === group.id &&
+    normalizeLessonDate(d.lesson_date) === targetDate &&
+    !d.is_deleted
+)
+
+중요:
+Date/string 형식 차이 있으면
+기존 normalizeLessonDate() 재사용.
+
+replace 대상 diaryId도
+동일한 helper/key 기준으로 찾는다.
+
+즉:
+
+EXISTS CHECK
+REPLACE TARGET LOOKUP
+
+둘이 반드시 동일한 기준 사용.
+
+==================================================
+3. CLASS DETAIL startTime PARAM
+==================================================
+
+스케줄러
+→ ClassDetailSheet
+→ 수업일지
+
+router.push에:
+
+startTime: group.schedule_time
+
+또는 실제 해당 occurrence의 startTime
+
+을 명시적으로 전달.
+
+lessonDate와 startTime 모두
+선택한 schedule occurrence 기준.
+
+diary.tsx에서 params.startTime이 있으면
+그 값을 우선 사용.
+
+==================================================
+4. REQUIRED TESTS
+==================================================
+
+CASE A
+
+8/13 목19반 선택
+→ diary targetDate = 8/13
+→ attendance/makeup query date = 8/13
+→ 학생 목록 = 8/13 기준
+
+CASE B
+
+diary 화면에서 8/27 → 8/13 전환
+→ 모든 날짜 의존 API = 8/13
+
+CASE C
+
+8/13에 기존 diary 있음
+→ session switch 직후 바로 "일지작성" 눌러도
+replace confirmation 표시
+
+CASE D
+
+8/13 diary 없음
+→ 신규 작성
+
+CASE E
+
+ClassDetailSheet에서 8/13 19:00반
+→ params:
+lessonDate=2026-08-13
+startTime=19:00
+
+==================================================
+5. DO NOT TOUCH
+==================================================
+
+- Quick Write 구조
+- UnwrittenScheduleSheet
+- SessionSelectorSheet 구조
+- Growth Report
+- AI Engine
+- curriculum DB
+- server endpoint contract
+- DB schema
+- OTA manager
+- unrelated schedule UI
+
+==================================================
+6. FINAL REPORT
+==================================================
+
+CHANGED_FILES:
+
+SESSION_SWITCH_DATE_SOURCE:
+
+STUDENT_RELOAD_DATE_SOURCE:
+
+WRITTEN_EXISTS_SOURCE:
+
+REPLACE_TARGET_SOURCE:
+
+CLASS_DETAIL_PARAMS:
+
+TESTS:
+
+SERVER_CHANGE:
+YES / NO
+
+RENDER_REQUIRED:
+YES / NO
+
+OTA_REQUIRED:
+YES / NO
+
+NEW_SHA:
+
+완료 후 STOP.
