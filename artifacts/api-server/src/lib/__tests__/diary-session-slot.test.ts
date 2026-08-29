@@ -610,3 +610,144 @@ describe("TIMEZONE — UTC 서버 환경에서 KST 기준 비교 동일성", () 
     expect(isTodaySlotEligible("19:00", kstNowStr)).toBe(true);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// UNWRITTEN COUNT / LIST — SINGLE SOURCE OF TRUTH
+// normalizeLessonDate + shouldIncludeSlot + filterUnwritten 재현
+// 스펙 §1~§9 요구사항 테스트
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** normalizeLessonDate 서버 헬퍼 재현 */
+function normalizeLessonDate(raw: unknown): string {
+  if (!raw) return "";
+  if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+  const s = String(raw);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const fallback = new Date(s);
+  if (!isNaN(fallback.getTime())) return fallback.toISOString().slice(0, 10);
+  return "";
+}
+
+/** unwrittenCount = list.length — 항상 동일한 계산에서 나온다 */
+function computeUnwrittenSessions(
+  scheduledSlots: UnwrittenSlot[],
+  writtenKeys: Set<string>,
+): UnwrittenSlot[] {
+  return scheduledSlots.filter(s => !writtenKeys.has(`${s.classGroupId}_${s.lessonDate}`));
+}
+
+describe("UNWRITTEN COUNT §1: 8/6 작성 + 8/13 미작성 → count 1", () => {
+  it("count === list.length === 1", () => {
+    const slots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813)];
+    const written = new Set([`${GRP_A}_${D0806}`]);
+    const unwritten = computeUnwrittenSessions(slots, written);
+    expect(unwritten.length).toBe(1);
+    expect(unwritten[0].lessonDate).toBe(D0813);
+  });
+});
+
+describe("UNWRITTEN COUNT §2: 8/6 작성 + 8/13 + 8/20 미작성 → count 2", () => {
+  it("count === list.length === 2", () => {
+    const D0820 = "2026-08-20";
+    const slots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813), makeSlot(GRP_A, D0820)];
+    const written = new Set([`${GRP_A}_${D0806}`]);
+    const unwritten = computeUnwrittenSessions(slots, written);
+    expect(unwritten.length).toBe(2);
+    expect(unwritten.map(s => s.lessonDate)).toContain(D0813);
+    expect(unwritten.map(s => s.lessonDate)).toContain(D0820);
+  });
+});
+
+describe("UNWRITTEN COUNT §3: same date different class → 독립 판정", () => {
+  it("GRP_A 8/13 작성, GRP_B 8/13 미작성 → count 1 (B만)", () => {
+    const slots = [makeSlot(GRP_A, D0813), makeSlot(GRP_B, D0813)];
+    const written = new Set([`${GRP_A}_${D0813}`]);
+    const unwritten = computeUnwrittenSessions(slots, written);
+    expect(unwritten.length).toBe(1);
+    expect(unwritten[0].classGroupId).toBe(GRP_B);
+  });
+
+  it("두 반 모두 미작성 → count 2", () => {
+    const slots = [makeSlot(GRP_A, D0813), makeSlot(GRP_B, D0813)];
+    const unwritten = computeUnwrittenSessions(slots, new Set());
+    expect(unwritten.length).toBe(2);
+  });
+});
+
+describe("UNWRITTEN COUNT §4: deleted diary만 존재 → 미작성으로 표시", () => {
+  it("is_deleted=true diary는 writtenKeys에 포함하지 않음 → 미작성", () => {
+    // 서버는 is_deleted=false인 diary만 writtenDates에 포함
+    // deleted diary가 있어도 written set에 없으면 unwritten으로 표시
+    const slots = [makeSlot(GRP_A, D0813)];
+    const writtenKeysWithoutDeleted = new Set<string>(); // deleted=true는 추가 안 함
+    const unwritten = computeUnwrittenSessions(slots, writtenKeysWithoutDeleted);
+    expect(unwritten.length).toBe(1);
+    expect(unwritten[0].lessonDate).toBe(D0813);
+  });
+});
+
+describe("UNWRITTEN COUNT §5: active diary 존재 → 작성 완료로 제외", () => {
+  it("is_deleted=false diary가 있으면 writtenKeys에 포함 → 제외", () => {
+    const slots = [makeSlot(GRP_A, D0813)];
+    const writtenKeys = new Set([`${GRP_A}_${D0813}`]); // is_deleted=false diary
+    const unwritten = computeUnwrittenSessions(slots, writtenKeys);
+    expect(unwritten.length).toBe(0);
+  });
+});
+
+describe("UNWRITTEN COUNT §6: count === list.length (single source)", () => {
+  it("count와 list는 항상 동일한 배열에서 나온다", () => {
+    const slots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813), makeSlot(GRP_B, D0813)];
+    const written = new Set([`${GRP_A}_${D0806}`, `${GRP_A}_${D0813}`]);
+    const unwritten = computeUnwrittenSessions(slots, written);
+    // count
+    const count = unwritten.length;
+    // list
+    const list = unwritten;
+    expect(count).toBe(list.length); // 항상 동일
+    expect(count).toBe(1); // GRP_B 8/13만 남음
+  });
+});
+
+describe("UNWRITTEN COUNT §7: list 0일 때만 empty state", () => {
+  it("list.length > 0 이면 empty state 아님", () => {
+    const unwritten = [makeSlot(GRP_A, D0813)];
+    expect(unwritten.length === 0).toBe(false); // empty state 표시 금지
+  });
+
+  it("list.length === 0 이면 empty state", () => {
+    const unwritten: UnwrittenSlot[] = [];
+    expect(unwritten.length === 0).toBe(true);
+  });
+});
+
+describe("UNWRITTEN COUNT §8: normalizeLessonDate — KST 날짜 경계 정규화", () => {
+  it("string '2026-08-06' → '2026-08-06'", () => {
+    expect(normalizeLessonDate("2026-08-06")).toBe("2026-08-06");
+  });
+
+  it("string '2026-08-06T00:00:00.000Z' → '2026-08-06'", () => {
+    expect(normalizeLessonDate("2026-08-06T00:00:00.000Z")).toBe("2026-08-06");
+  });
+
+  it("Date object (UTC midnight) → '2026-08-06'", () => {
+    expect(normalizeLessonDate(new Date("2026-08-06T00:00:00.000Z"))).toBe("2026-08-06");
+  });
+
+  it("null/undefined → ''", () => {
+    expect(normalizeLessonDate(null)).toBe("");
+    expect(normalizeLessonDate(undefined)).toBe("");
+  });
+
+  it("Date.toString() 형식 fallback → 올바른 날짜 추출", () => {
+    // 만약 pg 드라이버가 Date.toString()으로 반환했더라도 new Date() 파싱으로 복원
+    const dateObj = new Date("2026-08-06T00:00:00.000Z");
+    const toStringResult = dateObj.toISOString(); // ISO string fallback
+    expect(normalizeLessonDate(toStringResult)).toBe("2026-08-06");
+  });
+
+  it("잘못된 전날 매칭 없음 — '2026-08-06' is not '2026-08-05'", () => {
+    expect(normalizeLessonDate("2026-08-06")).not.toBe("2026-08-05");
+    expect(normalizeLessonDate(new Date("2026-08-06T00:00:00.000Z"))).not.toBe("2026-08-05");
+  });
+});

@@ -113,6 +113,27 @@ function getKSTNow(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
 }
 
+/**
+ * DB에서 lesson_date를 가져올 때 pg 드라이버가 Date 객체 또는 문자열로 반환할 수 있음.
+ * 항상 "YYYY-MM-DD" 형식 문자열로 정규화.
+ *
+ * - string "2026-08-06" → "2026-08-06"
+ * - string "2026-08-06T00:00:00.000Z" → "2026-08-06"
+ * - Date object → toISOString().slice(0, 10)
+ * - null/undefined → ""
+ */
+function normalizeLessonDate(raw: unknown): string {
+  if (!raw) return "";
+  if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+  const s = String(raw);
+  // "YYYY-MM-DD..." 형식이면 앞 10자만
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // Date.toString() 형식 "Thu Aug 06 2026 ..." → toISOString 변환
+  const fallback = new Date(s);
+  if (!isNaN(fallback.getTime())) return fallback.toISOString().slice(0, 10);
+  return "";
+}
+
 function isDiaryPushAllowed(kstNow: Date): boolean {
   const h = kstNow.getHours();
   return h >= DIARY_PUSH_START_H && h < DIARY_PUSH_END_H;
@@ -2001,9 +2022,44 @@ router.get("/teacher/overview",
           )
       `);
 
-      // NOTE: 어제까지 미작성 계산은 class_groups 스케줄 + 실제 날짜 비교가 필요하나
-      //       현재는 결석 기록 기반 근사치로 처리 (향후 schedule_dates 테이블로 고도화)
-      const pendingPastCount = 0; // TODO: 정확한 미작성 날짜 계산 구현
+      // 지난 미작성 일지 수 — class_groups 스케줄 + lesson_date 기반 정확히 계산
+      // unwritten-slots 엔드포인트와 동일한 로직 (single source of truth)
+      const DAY_MAP_OV: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
+      const nowKSTOv = getKSTNow();
+      const todayMidnightOv = new Date(nowKSTOv);
+      todayMidnightOv.setHours(0, 0, 0, 0);
+      const fromDateOv = new Date(todayMidnightOv);
+      fromDateOv.setDate(fromDateOv.getDate() - 56);
+      const todayStrOv = `${todayMidnightOv.getFullYear()}-${String(todayMidnightOv.getMonth() + 1).padStart(2, "0")}-${String(todayMidnightOv.getDate()).padStart(2, "0")}`;
+
+      // co-teacher도 포함한 전체 담당 반
+      const allMyClasses = await db.execute(sql`
+        SELECT id, schedule_days FROM class_groups
+        WHERE (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))
+          AND swimming_pool_id = ${poolId} AND is_deleted = false
+      `).catch(() => ({ rows: [] }));
+
+      let pendingPastCount = 0;
+      for (const cg of allMyClasses.rows as any[]) {
+        const cgDays: number[] = [];
+        for (const ch of (cg.schedule_days || "")) {
+          if (DAY_MAP_OV[ch] !== undefined) cgDays.push(DAY_MAP_OV[ch]);
+        }
+        if (cgDays.length === 0) continue;
+        const wRows = await db.execute(sql`
+          SELECT lesson_date FROM class_diaries
+          WHERE class_group_id = ${cg.id} AND is_deleted = false
+        `).catch(() => ({ rows: [] }));
+        const wDates = new Set((wRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
+        const cur = new Date(fromDateOv);
+        while (cur < todayMidnightOv) {
+          if (cgDays.includes(cur.getDay())) {
+            const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+            if (ds < todayStrOv && !wDates.has(ds)) pendingPastCount++;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
 
       // 보강 대기 수
       const makeupCount = await db.execute(sql`
@@ -2317,7 +2373,8 @@ router.get("/diaries/unwritten-slots",
           SELECT lesson_date FROM class_diaries
           WHERE class_group_id = ${cg.id} AND is_deleted = false
         `);
-        const writtenDates = new Set((writtenRows.rows as any[]).map(r => r.lesson_date?.toString?.().slice(0, 10) || ""));
+        // normalizeLessonDate: Date 객체/문자열 모두 "YYYY-MM-DD"로 정규화 (single source of truth)
+        const writtenDates = new Set((writtenRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
 
         const scheduleTime = (cg.schedule_time || "").slice(0, 5); // "HH:MM"
 
