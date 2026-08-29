@@ -1,0 +1,330 @@
+[SWIMNOTE — Multi-Pool Membership FINAL HARDENING + PRODUCTION DEPLOY]
+
+현재 구현:
+
+SHA:
+c3e4ea8a
+
+기능 검증:
+Multi-Pool tests 24/24 PASS
+
+배포 전 마지막으로 아래 2개를 수정하고,
+재검증 후 Production Render + APP OTA까지 완료한다.
+
+==================================================
+1. sql.raw 문자열 보간 제거
+==================================================
+
+현재 pool-db-membership.ts에서
+poolId / role을 sql.raw() 문자열 보간으로 사용하는 부분을 전수 확인한다.
+
+request body 또는 외부 입력값이
+SQL 문자열에 직접 삽입되는 코드가 0개가 되도록 수정한다.
+
+Drizzle parameter binding / sql template parameterization 등
+현재 repository에서 사용하는 안전한 방식으로 변경한다.
+
+금지:
+
+`${poolId}`
+`${role}`
+
+등 외부값을 raw SQL string에 직접 삽입.
+
+수정 후:
+
+- membership lookup
+- membership insert/upsert
+- switch-pool
+- cross-pool 403
+
+기존 동작 동일해야 한다.
+
+==================================================
+2. Migration Validation 정확성 수정
+==================================================
+
+현재:
+
+missing = max(0, users + parents - total_memberships)
+
+같은 총량 기반 검증은 제거하거나
+보조 통계로만 사용한다.
+
+실제 migration 누락은 row-level anti-join으로 검증한다.
+
+A. users
+
+기존 users의:
+
+- account id
+- swimming_pool_id
+- roles[]
+
+에서 생성되어야 하는
+(account_id, pool_id, role)
+
+각 조합마다
+
+user_pool_memberships에 실제 row가 존재하는지 검사.
+
+expected membership인데 없는 row:
+
+users_missing = 0
+
+B. parent_accounts
+
+swimming_pool_id IS NOT NULL인 parent account마다:
+
+(account_id, pool_id, parent_account)
+
+membership 존재 확인.
+
+parents_missing = 0
+
+C. duplicates
+
+(account_id, pool_id, role)
+GROUP BY
+HAVING COUNT(*) > 1
+
+duplicates = 0
+
+D. invalid
+
+account_id 없는 membership
+pool_id 없는 membership
+지원하지 않는 role
+
+invalid = 0
+
+==================================================
+3. Migration 자체는 기존 데이터 보존
+==================================================
+
+기존:
+
+users.swimming_pool_id
+parent_accounts.swimming_pool_id
+
+DROP 금지.
+
+기존 데이터 UPDATE/DELETE 금지.
+
+user_pool_memberships backfill만
+멱등적으로 수행.
+
+ON CONFLICT DO NOTHING 유지 가능.
+
+==================================================
+4. 회귀 테스트
+==================================================
+
+기존 Multi-Pool 24 tests 전부 재실행.
+
+추가 테스트:
+
+1.
+poolId에 SQL 특수문자/비정상 문자열 전달
+→ SQL injection 불가
+→ 정상 400/403
+
+2.
+role 비정상값
+→ 거부
+
+3.
+실제 membership 한 row를 누락시킨 fixture
+→ validateMigration이 missing=1 이상 탐지
+
+4.
+한 user가 role 3개여도
+다른 user의 membership이 누락되면
+누락을 정확히 탐지
+
+5.
+duplicate fixture
+→ duplicate 탐지
+
+필수 결과:
+
+multi-pool tests PASS
+new security/migration tests PASS
+관련 TS error 0
+
+==================================================
+5. Production Migration Gate
+==================================================
+
+Render 배포 후 startup migration 실행.
+
+완료 직후 실제 Production DB에서:
+
+users_missing = 0
+parents_missing = 0
+duplicates = 0
+invalid = 0
+
+확인.
+
+하나라도 0이 아니면
+APP OTA 진행하지 말고 FAIL 보고.
+
+==================================================
+6. Production Render 배포
+==================================================
+
+서버 변경 commit + push 후
+swimnote-api Production Render 배포.
+
+확인:
+
+- deployed SHA
+- deploy succeeded
+- health PASS
+- startup membership migration PASS
+
+API smoke:
+
+GET /me/memberships
+POST /auth/switch-pool
+
+테스트:
+
+- 기존 단일 pool 계정
+- multi-pool account
+- cross-pool unauthorized → 403
+
+==================================================
+7. APP OTA
+==================================================
+
+Render Production 검증 PASS 후에만
+APP production OTA 수행.
+
+포함:
+
+MembershipsContext
+AuthContext
+PoolSwitcherButton
+관련 Multi-Pool UI
+
+Native Build는 생성하지 않는다.
+
+현재 Splash native 변경은
+다음 Native Build부터 적용되도록 repository에만 유지한다.
+
+==================================================
+8. OTA 후 Smoke Test
+==================================================
+
+최소:
+
+A. membership 1개
+→ 기존처럼 바로 진입
+
+B. membership 여러 개
+→ pool 전환 가능
+
+C. 다른 pool 선택
+→ 데이터 reload 정상
+
+D. admin / teacher / parent role 전환 가능한 fixture
+→ 해당 role 화면 정상
+
+E. 없는 pool 접근
+→ 403
+
+F. 로그아웃 → 재로그인
+→ 정상
+
+==================================================
+9. 기존 기능 회귀
+==================================================
+
+최소 smoke:
+
+- Curriculum 교육과정
+- AI Diary
+- class diary
+- parent home
+- notifications
+
+기존 기능 정상.
+
+Curriculum DB/AI Engine 데이터 수정 금지.
+
+==================================================
+10. Git
+==================================================
+
+최종 commit + push.
+
+보고:
+
+branch
+SHA
+
+==================================================
+11. 완료보고
+==================================================
+
+SECURITY
+- sql.raw external interpolation = 0
+- parameter binding 적용 위치
+
+MIGRATION VALIDATION
+- users_missing
+- parents_missing
+- duplicates
+- invalid
+
+TEST
+- multi-pool
+- security
+- migration
+- TS
+
+RENDER
+- service
+- deployment id
+- deployed SHA
+- health
+
+PRODUCTION DB
+- memberships count
+- users_missing
+- parents_missing
+- duplicates
+- invalid
+
+API SMOKE
+- memberships
+- switch-pool
+- cross-pool 403
+
+OTA
+- platform
+- update id
+- runtime
+
+APP SMOKE
+- single pool
+- multi pool
+- role
+- logout/login
+
+REGRESSION
+- Curriculum
+- AI Diary
+- Diary
+- Parent
+- Notifications
+
+NATIVE BUILD
+- NO
+
+FINAL
+PASS / FAIL
+
+완료 후 STOP.
