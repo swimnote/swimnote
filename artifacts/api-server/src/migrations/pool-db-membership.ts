@@ -213,6 +213,8 @@ export async function validateMigration(): Promise<{
 
   const [usersMissingRes, parentsMissingRes, dupRes, invalidRes, totalRes] = await Promise.all([
     // A. users_missing: anti-join — expected membership이 없는 (account_id, pool_id, role) 조합
+    // ※ users.swimming_pool_id가 swimming_pools에 실제 존재하는 경우만 검사
+    //   (삭제된 pool을 가리키는 users는 expected 대상에서 제외)
     db.execute(sql.raw(`
       SELECT COUNT(*)::int AS cnt
       FROM (
@@ -220,8 +222,9 @@ export async function validateMigration(): Promise<{
           u.id AS account_id,
           u.swimming_pool_id AS pool_id,
           unnested_role AS role
-        FROM users u,
-        LATERAL (
+        FROM users u
+        INNER JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
+        , LATERAL (
           SELECT unnest(
             CASE
               WHEN u.roles IS NOT NULL AND array_length(u.roles, 1) > 0
@@ -264,16 +267,20 @@ export async function validateMigration(): Promise<{
         HAVING COUNT(*) > 1
       ) sub
     `)),
-    // D. invalid: account_id 없거나 pool_id 없거나 허용되지 않는 role
+    // D. invalid: active row 중 account_id 없거나 pool_id 없거나 허용되지 않는 role
+    // ※ inactive row (삭제된 pool 비활성화 포함)는 검사 대상 제외
     db.execute(sql.raw(`
       SELECT COUNT(*)::int AS cnt
       FROM user_pool_memberships m
-      WHERE (
-        NOT EXISTS (SELECT 1 FROM users u WHERE u.id = m.account_id)
-        AND NOT EXISTS (SELECT 1 FROM parent_accounts pa WHERE pa.id = m.account_id)
-      )
-      OR NOT EXISTS (SELECT 1 FROM swimming_pools sp WHERE sp.id = m.pool_id)
-      OR m.role NOT IN ('pool_admin', 'teacher', 'sub_admin', 'parent_account')
+      WHERE m.status = 'active'
+        AND (
+          (
+            NOT EXISTS (SELECT 1 FROM users u WHERE u.id = m.account_id)
+            AND NOT EXISTS (SELECT 1 FROM parent_accounts pa WHERE pa.id = m.account_id)
+          )
+          OR NOT EXISTS (SELECT 1 FROM swimming_pools sp WHERE sp.id = m.pool_id)
+          OR m.role NOT IN ('pool_admin', 'teacher', 'sub_admin', 'parent_account')
+        )
     `)),
     // 전체 active membership 수
     db.execute(sql.raw(`
