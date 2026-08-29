@@ -2589,14 +2589,108 @@ router.post("/v2/parent-register", async (req, res) => {
   let createdParentId: string | null = null;
 
   try {
-    // 중복 전화번호 확인
-    const [existingPhone] = (await db.execute(sql`
-      SELECT id FROM parent_accounts
+    // ── 전화번호로 기존 계정 조회 (pool 무관) ──────────────────────────────
+    // Multi-Pool: 같은 전화번호라도 다른 pool에는 가입 가능.
+    // 같은 pool에 active membership이 있을 때만 중복 차단.
+    const [existingPhoneRow] = (await db.execute(sql`
+      SELECT id, swimming_pool_id FROM parent_accounts
       WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph} LIMIT 1
     `)).rows as any[];
-    if (existingPhone) return err(res, 409, "이미 가입된 전화번호입니다.");
 
-    // 중복 아이디 확인
+    if (existingPhoneRow) {
+      const existingParentId: string = existingPhoneRow.id;
+
+      // ── 같은 pool에 active membership이 있으면 중복 차단 ──────────────────
+      const { checkMembership, upsertMembership } = await import("../migrations/pool-db-membership.js");
+      const alreadyInPool = await checkMembership({
+        accountId: existingParentId,
+        poolId,
+        role: "parent_account",
+      });
+      if (alreadyInPool) {
+        return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
+      }
+
+      // ── 소셜 ID 충돌 검사: 다른 사람이 동일 apple/kakao ID를 사용 중인지 확인 ─
+      if (appleId) {
+        const [existingApple] = (await db.execute(sql`
+          SELECT id FROM parent_accounts WHERE apple_id = ${appleId} AND id != ${existingParentId} LIMIT 1
+        `)).rows as any[];
+        if (existingApple) return err(res, 409, "이미 Apple 계정으로 가입된 사용자입니다.");
+      }
+      if (kakaoId) {
+        const [existingKakao] = (await db.execute(sql`
+          SELECT id FROM parent_accounts WHERE kakao_id = ${kakaoId} AND id != ${existingParentId} LIMIT 1
+        `)).rows as any[];
+        if (existingKakao) return err(res, 409, "이미 카카오 계정으로 가입된 사용자입니다.");
+      }
+
+      // ── 수영장 존재 확인 ────────────────────────────────────────────────────
+      const [pool] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
+
+      // ── 기존 계정에 새 pool membership 추가 (parent_accounts row 수정 없음) ─
+      await upsertMembership({
+        accountId: existingParentId,
+        accountType: "parent",
+        poolId,
+        role: "parent_account",
+        status: "active",
+      });
+      console.log(`[v2-register] 기존 계정에 새 pool 추가: parentId=${existingParentId} pool=${poolId}`);
+
+      // ── 새 pool의 student 매칭/연결 시도 ───────────────────────────────────
+      const { matched, studentId, studentName } = await tryMatchStudentV2(
+        existingParentId, poolId, ph, childNorm,
+      );
+      let status: "linked" | "waiting" = "waiting";
+      if (matched && studentId) {
+        const { success } = await linkParentToStudentV2(existingParentId, studentId, poolId);
+        if (success) {
+          status = "linked";
+          console.log(`[v2-register] ✓ 기존 계정 새 pool 즉시 연결: student="${studentName}"`);
+        }
+      }
+      if (status === "waiting") {
+        const pendingReason: string | undefined = matched ? undefined : await (async () => {
+          const nameOnlyRows = await db.execute(sql`
+            SELECT id FROM students
+            WHERE swimming_pool_id = ${poolId}
+              AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
+              AND status NOT IN ('withdrawn','archived','deleted')
+            LIMIT 1
+          `);
+          return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
+        })();
+        await upsertParentV2Pending(existingParentId, poolId, childRaw, childNorm, ph, pendingReason);
+        try {
+          const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+          await sendPushToPoolAdmins(
+            poolId, "parent_join",
+            "새 학부모 가입 대기",
+            `${name} 학부모님이 가입을 요청했습니다. 자녀(${childRaw}) 연결을 확인해주세요.`,
+            { screen: "parent-requests" },
+            `parent_join_${existingParentId}_${poolId}`,
+          );
+        } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
+      }
+
+      const token = signToken({ userId: existingParentId, role: "parent_account", poolId });
+      console.log(`[v2-register] 기존 계정 새 pool 완료: status=${status} parentId=${existingParentId}`);
+      return res.status(201).json({
+        token,
+        status,
+        pool_name: pool.name,
+        matched_student: matched ? { id: studentId, name: studentName } : null,
+        parent: { id: existingParentId, name, phone: ph, swimming_pool_id: poolId },
+      });
+    }
+
+    // ── 신규 계정 가입 흐름 (전화번호 미존재) ─────────────────────────────────
+
+    // 중복 아이디 확인 (login_id는 전역 unique 유지)
     if (lid) {
       const [existingLid] = (await db.execute(sql`
         SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
@@ -2639,7 +2733,7 @@ router.post("/v2/parent-register", async (req, res) => {
         (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid},
          ${appleId}, ${kakaoId}, true, NOW(), NOW())
     `);
-    console.log(`[v2-register] 계정 생성 완료: parentId=${parentId}`);
+    console.log(`[v2-register] 신규 계정 생성 완료: parentId=${parentId}`);
 
     // V2 매칭 시도 (3개 조건: pool_id + phone + child_name)
     const { matched, studentId, studentName } = await tryMatchStudentV2(parentId, poolId, ph, childNorm);
