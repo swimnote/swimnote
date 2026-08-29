@@ -1003,7 +1003,7 @@ export default function ClassDetailSheet({
                 <Text style={[cds.actionText, { color: "#4338CA" }]}>반배정</Text>
               </Pressable>
               <Pressable style={[cds.actionBtn, { backgroundColor: diarDone ? C.brandSoft : "#FFF1BF", flex: 1 }]}
-                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name, lessonDate: effectiveDate, backTo: "my-schedule"} } as any), group.id)}>
+                onPress={() => onNavigateTo?.(() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: group.id, className: group.name, lessonDate: effectiveDate, startTime: group.schedule_time, backTo: "my-schedule"} } as any), group.id)}>
                 <LucideIcon name="edit" size={13} color={diarDone ? C.brandStrong : "#D97706"} />
                 <Text style={[cds.actionText, { color: diarDone ? C.brandStrong : "#D97706" }]}>수업일지</Text>
               </Pressable>

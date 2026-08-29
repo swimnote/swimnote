@@ -267,7 +267,7 @@ export default function TeacherDiaryScreen() {
     setStudentAlbumPhotos({}); setStudentAlbumVideos({});
     // 학생 로딩 상태 초기화 — 새 그룹 진입 시 stale loaded 상태 방지
     setClassStudentsLoading(false); setClassStudentsLoaded(false); setClassStudentsError(null);
-    loadTemplates(); loadClassStudents(group.id);
+    loadTemplates(); loadClassStudents(group.id, effectiveDate);
     const reqVer = ++diariesReqVersion.current;
     try {
       const r = await apiRequest(token, `/diaries?class_group_id=${group.id}`);
@@ -328,7 +328,9 @@ export default function TeacherDiaryScreen() {
       if (lr.ok) setLevels(await lr.json());
     } catch {}
   }
-  async function loadClassStudents(classId: string) {
+  // lessonDate: session switch 시 state targetDate가 아직 반영 전일 때 명시적으로 전달
+  async function loadClassStudents(classId: string, lessonDate?: string) {
+    const dateToUse = lessonDate ?? targetDate;
     // ── 요청 ID 캡처 — stale response 방어 ────────────────────────────────
     const reqId = ++studentsReqRef.current;
     setClassStudentsLoading(true);
@@ -336,10 +338,10 @@ export default function TeacherDiaryScreen() {
     setClassStudentsError(null);
     try {
       const [scheduleRes, makeupRes, attRes] = await Promise.all([
-        apiRequest(token, `/today-schedule?date=${targetDate}`),
-        apiRequest(token, `/attendance/makeup-students?class_group_id=${classId}&date=${targetDate}`),
+        apiRequest(token, `/today-schedule?date=${dateToUse}`),
+        apiRequest(token, `/attendance/makeup-students?class_group_id=${classId}&date=${dateToUse}`),
         // 결석 학생 조회 — 전체일지 대상에서 제외하기 위해 사전 로드
-        apiRequest(token, `/attendance?class_group_id=${classId}&date=${targetDate}`),
+        apiRequest(token, `/attendance?class_group_id=${classId}&date=${dateToUse}`),
       ]);
 
       // stale 응답 폐기
@@ -1436,7 +1438,12 @@ export default function TeacherDiaryScreen() {
   }
   if (selectedGroup) {
     const group = selectedGroup;
-    const myDiaryExists = diarySet.has(`${group.id}_${targetDate}`);
+    // diarySet 대신 diaries를 source of truth로 사용 — session switch 직후 race condition 방지
+    const myDiaryExists = diaries.some(d =>
+      d.class_group_id === group.id &&
+      String(d.lesson_date ?? "").slice(0, 10) === targetDate &&
+      !d.is_deleted
+    );
     if (subView === "edit") {
       return (
         <SafeAreaView style={s.safe} edges={[]}>
