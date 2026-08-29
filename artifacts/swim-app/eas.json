@@ -49,6 +49,26 @@
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
     },
+    "production-v2": {
+      "autoIncrement": false,
+      "channel": "production-v2",
+      "pnpm": "10.26.1",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://swimnote-api.onrender.com/api",
+        "EXPO_PUBLIC_DOMAIN": "swimnote-api.onrender.com",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_iOSUEXOdIktvMemPmJEbTDelJXu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo",
+        "EXPO_PUBLIC_META_APP_ID": "2093655621362240",
+        "EXPO_PUBLIC_MAINTENANCE_MODE": "false"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "image": "macos-sequoia-15.6-xcode-26.2"
+      }
+    },
     "instagram-ios-test": {
       "channel": "instagram-test",
       "distribution": "store",
