@@ -1,0 +1,212 @@
+[긴급 — Curriculum 무단 삭제 사고 수습 / 추가 수정 절대 금지]
+
+현재부터 모든 DB WRITE를 즉시 중단한다.
+
+사고 내용:
+
+- 기존 ACTIVE
+  cv_0l46tk5vmtdbwn3c
+  550 nodes / 500 drills / 693 relations
+  무단 영구 삭제
+
+- 기존 DRAFT
+  cv_80w5mywsrqbeyqqm
+  무단 영구 삭제
+
+- 실제 v2.0 DOCX 파일을 받지 않은 상태에서
+  임의 추정 데이터로
+  cv_yw5cw59lpkgoymyc
+  400 nodes / 500 drills
+  생성 및 ACTIVE 전환
+
+이 작업은 승인되지 않았으며,
+이전 완료보고는 전부 무효다.
+
+==================================================
+1. 즉시 중단
+==================================================
+
+금지:
+
+- 현재 ACTIVE 추가 수정
+- 새 version 생성
+- 삭제
+- activate/deactivate
+- Render
+- OTA
+- parser 수정
+- migration 실행
+
+읽기 전용 조사만 수행.
+
+==================================================
+2. 현재 잘못 생성된 ACTIVE 전체 백업
+==================================================
+
+cv_yw5cw59lpkgoymyc의 현재 데이터를
+삭제하지 말고 먼저 별도 덤프/백업한다.
+
+포함:
+
+- curriculum_version
+- levels
+- nodes/items
+- drills
+- relations
+- 기타 해당 version 종속 데이터
+
+목적:
+현재 사고 상태 자체도 증거/복구자료로 보존.
+
+백업 완료 전 어떤 삭제도 금지.
+
+==================================================
+3. Supabase 복구 가능성 조사
+==================================================
+
+Supabase에서 다음을 확인만 한다.
+
+- PITR 활성화 여부
+- 삭제 직전 복구 가능한 timestamp
+- database backup 존재 여부
+- PITR이 전체 DB 복구인지
+- 특정 table만 별도 복구 가능한 방법이 있는지
+- 별도 restore project/database로 복구 후
+  curriculum 관련 row만 추출 가능한지
+
+중요:
+
+현재 Production DB에 직접 PITR 실행 금지.
+
+전체 DB rollback은 다른 정상 운영 데이터까지
+되돌릴 위험이 있으므로 사용자 승인 전 절대 실행하지 않는다.
+
+==================================================
+4. 삭제 시각 확정
+==================================================
+
+무단 삭제 transaction의 정확한 시각을 찾는다.
+
+보고:
+
+- 삭제 시작 timestamp
+- 삭제 commit timestamp
+- 새 version 생성 timestamp
+- 새 ACTIVE 전환 timestamp
+
+UTC와 KST 둘 다 보고.
+
+==================================================
+5. 삭제 전 Curriculum 외 참조 감사
+==================================================
+
+삭제된:
+
+cv_0l46tk5vmtdbwn3c
+
+에 대해 가능한 로그/기록/코드/감사 테이블을 이용해
+삭제 직전 external reference가 있었는지 조사.
+
+특히:
+
+- student_curriculum_progress
+- growth_events
+- growth_reports
+- class_diaries
+- diary data
+- parent data
+
+삭제 전 외부 참조가 실제로 0이었는지
+추정하지 말고 근거로 확인.
+
+==================================================
+6. 복구 시나리오 3개 비교
+==================================================
+
+A. PITR / Backup 복구
+- 삭제 직전 DB를 별도 restore
+- curriculum 관련 row만 추출
+- Production에 해당 row만 재삽입 가능 여부
+
+B. 기존 Source 파일로 재Import
+- 기존 550/500/693 ACTIVE를 만들었던
+  실제 APP MASTER 원본과 parser/import pipeline이 남아 있는지
+- 동일 version을 재생성 가능한지
+- 동일 IDs까지 복원 가능한지
+
+C. 기존 버전 복구 없이 새 정식 v2 Import
+- 사용자가 실제 v2.0 DOCX 파일을 제공한 뒤
+  현재 임의 400 version을 폐기하고
+  정식 Canonical version을 새로 생성할 수 있는지
+
+각 시나리오별:
+
+- 데이터 손실 위험
+- 다른 운영 데이터 영향
+- 예상 작업량
+- ID 보존 가능 여부
+- 현재 서비스 중단 필요 여부
+
+를 보고.
+
+==================================================
+7. 현재 잘못된 400 version 사용 경로 확인
+==================================================
+
+cv_yw5cw59lpkgoymyc가 현재:
+
+- 일지 템플릿 UI
+- Normal AI Diary
+- Growth Report
+- Parent Curriculum Search
+- curriculum progress
+
+에 즉시 사용되고 있는지 확인.
+
+현재 잘못된 ACTIVE로 인해
+사용자-facing 영향이 있는지 보고.
+
+==================================================
+8. 절대 금지
+==================================================
+
+사용자 승인 전:
+
+- PITR 실행 금지
+- Production DB rollback 금지
+- 현재 400 version 삭제 금지
+- 새 curriculum import 금지
+- Render/OTA 금지
+
+==================================================
+9. 완료 보고
+==================================================
+
+INCIDENT
+- 정확한 삭제/생성/ACTIVE 시각
+
+CURRENT STATE
+- 현재 ACTIVE version
+- nodes
+- drills
+- relations
+
+BACKUP
+- 사고 상태 백업 완료 여부
+
+RECOVERY
+- PITR 가능 여부
+- backup 가능 여부
+- 별도 restore 가능 여부
+
+OLD VERSION
+- source 재생성 가능 여부
+- ID 복구 가능 여부
+
+USER IMPACT
+- 현재 400 version이 실제 어디에 사용 중인지
+
+RECOMMENDATION
+- A / B / C 중 가장 안전한 복구안
+
+이번에는 조사만 하고 STOP.
