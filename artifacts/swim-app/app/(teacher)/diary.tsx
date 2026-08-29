@@ -1480,7 +1480,12 @@ export default function TeacherDiaryScreen() {
               if (subView === "history") {
                 // history → write: 동일 날짜 기존 일지가 있으면 교체 확인
                 if (myDiaryExists) {
-                  const existing = diaries.find(d => d.lesson_date === targetDate && !d.is_deleted);
+                  // class_group_id + lesson_date 둘 다 일치해야 정확한 same session
+                  const existing = diaries.find(d =>
+                    d.class_group_id === group.id &&
+                    d.lesson_date === targetDate &&
+                    !d.is_deleted
+                  );
                   setReplacingDiaryId(existing?.id ?? null);
                   setShowReplaceConfirm(true);
                 } else {

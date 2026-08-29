@@ -245,7 +245,7 @@ describe("TC-9: replace 후 다른 반/슬롯 diary unchanged", () => {
   it("GROUP_A 8/13 replace 후 GROUP_B 8/13 diary는 그대로 유지", () => {
     let diaries = [DIARY_0806, DIARY_0813, DIARY_B_0813];
 
-    // GROUP_A 8/13 replace
+    // GROUP_A 8/13 replace — class_group_id + lesson_date 모두 일치 시에만
     diaries = softDelete(diaries, "diary_0813");
     const newDiary: Diary = { id: "diary_0813_new", class_group_id: GROUP_A, lesson_date: DATE_0813, is_deleted: false };
     diaries = addDiary(diaries, newDiary);
@@ -255,5 +255,98 @@ describe("TC-9: replace 후 다른 반/슬롯 diary unchanged", () => {
     expect(dB?.is_deleted).toBe(false);
     expect(activeDiariesForSlot(diaries, GROUP_B, DATE_0813).length).toBe(1);
     expect(activeDiariesForSlot(diaries, GROUP_B, DATE_0813)[0].id).toBe("diary_B_0813");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CASE 1 (spec)  8/13 A반 + B반 existing → A반 재작성 시 A반만 replace
+// replace lookup은 반드시 class_group_id + lesson_date 둘 다 일치해야 함
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** diary.tsx의 replace 대상 탐색 로직 재현 — class_group_id 가드 포함 */
+function findExistingForReplace(
+  diaries: Diary[],
+  classGroupId: string,
+  lessonDate: string,
+): Diary | undefined {
+  return diaries.find(
+    d => d.class_group_id === classGroupId && d.lesson_date === lessonDate && !d.is_deleted,
+  );
+}
+
+describe("CASE-1: 동일 날짜 다른 반 → A반 재작성이 B반에 영향 없음", () => {
+  it("replace lookup이 class_group_id를 포함해야 B반 diary를 건드리지 않음", () => {
+    const diaries = [DIARY_0813, DIARY_B_0813];
+
+    // A반 8/13 replace 대상 탐색
+    const targetA = findExistingForReplace(diaries, GROUP_A, DATE_0813);
+    expect(targetA).toBeDefined();
+    expect(targetA!.id).toBe("diary_0813");
+    expect(targetA!.class_group_id).toBe(GROUP_A);
+
+    // B반 replace 대상 탐색은 A반 재작성 시 호출되지 않음
+    // 하지만 만약 class_group_id 가드 없이 lesson_date만으로 탐색했다면
+    // B반 diary도 잘못 선택될 수 있었음
+    const wrongLookup = diaries.find(d => d.lesson_date === DATE_0813 && !d.is_deleted);
+    // class_group_id 가드 없으면 첫 번째 일치가 반환됨 (GROUP_A or GROUP_B 순서 의존)
+    // class_group_id 가드 있으면 정확히 GROUP_A만 반환
+    expect(targetA!.class_group_id).toBe(GROUP_A); // 반드시 A반만
+    expect(wrongLookup).toBeDefined(); // 가드 없으면 순서 의존
+
+    // A반만 soft-delete
+    let updated = softDelete(diaries, targetA!.id);
+    const newA: Diary = { id: "diary_0813_new", class_group_id: GROUP_A, lesson_date: DATE_0813, is_deleted: false };
+    updated = addDiary(updated, newA);
+
+    // 결과: A반 활성 1건, B반 활성 1건 (건드리지 않음)
+    expect(activeDiariesForSlot(updated, GROUP_A, DATE_0813).length).toBe(1);
+    expect(activeDiariesForSlot(updated, GROUP_A, DATE_0813)[0].id).toBe("diary_0813_new");
+    expect(activeDiariesForSlot(updated, GROUP_B, DATE_0813).length).toBe(1);
+    expect(activeDiariesForSlot(updated, GROUP_B, DATE_0813)[0].id).toBe("diary_B_0813");
+  });
+});
+
+describe("CASE-2: 8/6 A반 + 8/13 A반 → 8/13 재작성 시 8/6 untouched", () => {
+  it("findExistingForReplace는 lesson_date가 다른 diary를 반환하지 않음", () => {
+    const diaries = [DIARY_0806, DIARY_0813];
+
+    const target = findExistingForReplace(diaries, GROUP_A, DATE_0813);
+    expect(target?.id).toBe("diary_0813");
+
+    let updated = softDelete(diaries, target!.id);
+    const newDiary: Diary = { id: "diary_0813_new", class_group_id: GROUP_A, lesson_date: DATE_0813, is_deleted: false };
+    updated = addDiary(updated, newDiary);
+
+    // 8/6 diary unchanged
+    expect(activeDiariesForSlot(updated, GROUP_A, DATE_0806).length).toBe(1);
+    expect(activeDiariesForSlot(updated, GROUP_A, DATE_0806)[0].id).toBe("diary_0806");
+  });
+});
+
+describe("CASE-3: my-schedule 과거 날짜 선택 → diary targetDate 정확히 전달", () => {
+  it("parseTargetDate('2026-08-13', '2026-08-29') = '2026-08-13'", () => {
+    expect(parseTargetDate("2026-08-13", "2026-08-29")).toBe("2026-08-13");
+  });
+
+  it("저장 시 lesson_date = targetDate = '2026-08-13'", () => {
+    // 클라이언트가 POST /diaries 에 lesson_date: targetDate 를 전달함
+    const payload = { class_group_id: GROUP_A, lesson_date: parseTargetDate("2026-08-13", "2026-08-29") };
+    expect(payload.lesson_date).toBe("2026-08-13");
+  });
+});
+
+describe("CASE-4: 다른 날짜로 이동 후 작성 — 선택 날짜 그대로 전달", () => {
+  const TODAY = "2026-08-29";
+
+  it.each([
+    ["2026-08-06", "2026-08-06"],
+    ["2026-08-13", "2026-08-13"],
+    ["2026-08-20", "2026-08-20"],
+  ])("lessonDate=%s → targetDate=%s", (param, expected) => {
+    expect(parseTargetDate(param, TODAY)).toBe(expected);
+  });
+
+  it("lessonDate 미전달 시 today fallback", () => {
+    expect(parseTargetDate(undefined, TODAY)).toBe(TODAY);
   });
 });
