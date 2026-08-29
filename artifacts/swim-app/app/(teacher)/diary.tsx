@@ -107,6 +107,20 @@ export default function TeacherDiaryScreen() {
   /** WP7: AI generate 결과의 curriculum matches — diary save 시 서버로 전달 */
   const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
   const handledParamKey = useRef<string | undefined>(undefined);
+  // [FIX] expo-router가 동일 route 인스턴스를 재사용할 때 targetDate가 stale 상태로 남는 버그 방지.
+  // params.classGroupId / params.editDiaryId 가 변경되면(= 새 내비게이션) lessonDate를 재동기화.
+  const lastNavKeyRef = useRef(`${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}`);
+  useEffect(() => {
+    const navKey = `${params.classGroupId ?? ""}|${params.editDiaryId ?? ""}`;
+    if (navKey !== lastNavKeyRef.current) {
+      lastNavKeyRef.current = navKey;
+      if (params.lessonDate && /^\d{4}-\d{2}-\d{2}$/.test(params.lessonDate)) {
+        setTargetDate(params.lessonDate);
+      }
+      setSelectedGroup(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.classGroupId, params.editDiaryId, params.lessonDate]);
   const diariesReqVersion = useRef(0);
   const studentsReqRef    = useRef(0); // stale response 방어용 monotonic counter
   const draftKey = selectedGroup
