@@ -1,0 +1,280 @@
+[SWIMNOTE APP — INCIDENT 수습 / 실제 v2.0 DOCX 기준 정식 재Import]
+
+목표:
+
+현재 잘못 생성된 ACTIVE
+
+cv_yw5cw59lpkgoymyc
+400 nodes / 500 drills / 402 relations
+
+는 임의 추정으로 생성된 사고 버전이므로
+정식 Curriculum으로 인정하지 않는다.
+
+이제 실제 제공된 파일:
+
+TOYKIDS_SWIMNOTE_X_APP_커리큘럼_생성입력_MASTER_v2.0.docx
+
+을 기준으로
+새 Curriculum DRAFT를 처음부터 정식 생성하고 검증한다.
+
+이번에는 파일 내용과 v2.0 작성 규칙을 직접 읽어서 처리한다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+현재 잘못된 ACTIVE는
+새 정식 DRAFT 검증 완료 전까지 삭제하지 않는다.
+
+기존 사고 상태 backup:
+curriculum-bad-version-backup.json
+은 보존한다.
+
+PITR 실행 금지.
+
+Render/OTA 금지.
+
+==================================================
+1. 실제 입력파일 확인
+==================================================
+
+파일:
+
+TOYKIDS_SWIMNOTE_X_APP_커리큘럼_생성입력_MASTER_v2.0.docx
+
+파일 앞부분의
+APP MASTER v2.0 규칙을 먼저 적용한다.
+
+뒤의 850개 데이터는 source material이다.
+
+절대:
+850 rows = 850 Nodes
+
+로 해석하지 않는다.
+
+==================================================
+2. 정식 Canonicalization
+==================================================
+
+다음 규칙을 반드시 적용:
+
+- 학생 level_order와 Drill progression_stage 분리
+- stroke가 다르면 generic atomic_skill 동일해도 별도 Node
+- domain / skill_group / goal / movement_sequence까지 함께 판단
+- 351~850은 Drill source 우선 해석
+- 001~350은 source_text/source_key 보존
+- Assessment/Review/Record 문장은 실제 독립 기술이 아니면 Node 강제 생성 금지
+
+==================================================
+3. 현재 사고 버전 값 재사용 금지
+==================================================
+
+cv_yw5cw59lpkgoymyc의:
+
+- 400 node count
+- level distribution
+- drill parent mapping
+- relation count
+
+을 정답으로 간주하지 않는다.
+
+실제 DOCX를 다시 파싱/정규화해서
+결과를 새로 산출한다.
+
+즉:
+"기존 400이 맞으니 그대로 재생성"
+금지.
+
+==================================================
+4. 새 DRAFT 생성
+==================================================
+
+새 curriculum_version 생성.
+
+status:
+DRAFT
+
+기존 잘못된 ACTIVE:
+cv_yw5cw59lpkgoymyc
+
+는 그대로 ACTIVE 유지.
+
+새 DRAFT가 검증되기 전에는
+ACTIVE 전환 금지.
+
+==================================================
+5. Drill 정규화
+==================================================
+
+351~850 Drill 500개는
+가능한 한 전부 보존.
+
+각 Drill을 실제 stroke-specific Canonical Node에 귀속.
+
+검증:
+
+orphan = 0
+
+mixed-stroke invalid parent = 0
+
+==================================================
+6. Relation 생성
+==================================================
+
+새 Node 구조 기준으로 Relation 새로 생성.
+
+NEXT_SKILL
+PREREQUISITE
+FAILURE_RETURN
+
+실제 교육 의미 기준.
+
+단순 번호 연결 금지.
+
+==================================================
+7. Import Validation
+==================================================
+
+새 DRAFT에서 반드시:
+
+- progression-as-level = 0
+- invalid mixed-stroke node = 0
+- orphan drills = 0
+- broken relations = 0
+- invalid level = 0
+- level별 sequence 연속
+- level별 count 합계 = total node
+- generic atomic_skill 때문에 다른 stroke 기술 merge = 0
+
+==================================================
+8. 대표 검증
+==================================================
+
+반드시 확인:
+
+안전한 입수
+버블 내쉬기
+배영 풀
+자유형 풀
+배영 푸시
+자유형 푸시
+자유형 호흡
+평영 호흡
+평영 글라이드
+접영 첫 번째 킥
+접영 두 번째 킥
+IM
+벽밀기
+출발
+페이스
+스프린트
+기록
+
+각 항목의:
+
+- level
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- parent drill
+
+을 보고.
+
+==================================================
+9. 일지 템플릿 Preview
+==================================================
+
+새 DRAFT를 대상으로 Preview:
+
+Level
+→ Stroke
+→ Domain / Skill Group
+→ Node
+
+확인.
+
+특히:
+[교육과정]은 새 Curriculum metadata 사용.
+
+[내 템플릿] teacher-created 데이터는 그대로.
+
+기존 teacher templates / class diaries는 수정하지 않는다.
+
+==================================================
+10. Normal AI Diary Dry-run
+==================================================
+
+새 DRAFT 기준 dry-run 가능한 방식으로:
+
+- 배영 풀
+- 자유형 풀
+- 평영 글라이드
+- 접영 두 번째 킥
+
+검색 확인.
+
+새 Canonical 결과가 영법별로 정확히 분리되는지 확인.
+
+==================================================
+11. ACTIVE 전환 금지
+==================================================
+
+이번 작업에서는 새 DRAFT 생성/검증까지만 수행.
+
+사용자 승인 전:
+
+- 새 DRAFT ACTIVE 전환 금지
+- cv_yw5cw59lpkgoymyc 삭제 금지
+- Render 금지
+- OTA 금지
+
+==================================================
+12. 완료 보고
+==================================================
+
+INPUT
+- 실제 DOCX filename
+- parser result
+
+NEW DRAFT
+- version_id
+- status
+
+COUNTS
+- Nodes
+- Drills
+- Relations
+
+LEVEL DISTRIBUTION
+- 각 level_order / level_name / count
+
+VALIDATION
+- progression-as-level
+- mixed-stroke
+- orphan
+- broken relations
+- duplicate audit
+
+SAMPLES
+- 대표 Node/Drill
+
+TEMPLATE PREVIEW
+- Level
+- Stroke
+- Domain/Skill Group
+- Node
+
+AI DIARY DRY-RUN
+- 결과
+
+SAFETY
+- current bad ACTIVE unchanged
+- teacher templates unchanged
+- class diaries unchanged
+
+DEPLOY
+- Render: NO
+- OTA: NO
+
+완료 후 STOP.
