@@ -1,0 +1,446 @@
+[SWIMNOTE 2.0.0 — PARENT WITHDRAWAL FIX + PARENT/TEACHER HOME RESPONSIVE FINAL]
+
+현재 기준:
+모든 작업은 2.0.0.
+1.6.3 수정 금지.
+
+실기기 발견 오류:
+
+1. 학부모 설정의 "회원 탈퇴" 버튼이 동작하지 않음
+2. 학부모 홈 화면 배열 겹침
+3. 선생님 홈 화면 배열 겹침
+
+이번 작업에서 위 3개만 수정하고
+2.0.0 OTA까지 완료한다.
+
+==================================================
+1. 학부모 회원 탈퇴 실제 경로 추적
+==================================================
+
+첨부 화면:
+
+설정
+→ 계정 및 가족
+→ 회원 탈퇴
+→ 탈퇴 확인
+
+현재 "탈퇴 확인" 버튼을 눌러도
+실제 탈퇴가 진행되지 않는다.
+
+추측 금지.
+
+다음 순서로 실제 trace:
+
+BUTTON PRESS
+→ handler
+→ API function
+→ endpoint
+→ request body
+→ auth token
+→ server route
+→ DB transaction
+→ response
+→ client logout/session clear
+
+어느 단계에서 끊기는지 정확히 특정.
+
+==================================================
+2. 탈퇴 정책
+==================================================
+
+2.0.0 Pool-First 원칙 유지.
+
+학부모가 Pool A 계정에서 탈퇴하면:
+
+Pool A의 현재 account만 탈퇴.
+
+같은 전화번호로 존재하는:
+
+Pool B account
+Pool C account
+
+에는 영향 0.
+
+금지:
+
+phone 기준 모든 account 삭제
+phone 기준 다른 pool account 탈퇴
+다른 pool membership 삭제
+다른 pool student/link 삭제
+
+==================================================
+3. 탈퇴 범위 실제 schema 기준 확인
+==================================================
+
+현재 repository/schema를 확인해서
+학부모 탈퇴 시 어떤 데이터를:
+
+- hard delete
+- soft delete
+- anonymize
+- unlink
+
+하는지 기존 정책을 우선 확인.
+
+임의 정책 생성 금지.
+
+최소 확인:
+
+- parent account
+- membership
+- parent_students link
+- notification token
+- session/token
+- guardian links
+- requests
+- report ownership/access
+
+중요:
+다른 pool 데이터는 절대 변경 금지.
+
+==================================================
+4. 탈퇴 성공 UX
+==================================================
+
+탈퇴 성공 시:
+
+1. API success 확인
+2. 로컬 session/token clear
+3. tenant-specific cache clear
+4. 로그인 화면으로 이동
+5. 탈퇴한 account로 기존 세션 재진입 불가
+
+버튼 연타 방지.
+
+진행 중:
+disabled/loading
+
+실패:
+명확한 오류 표시
+
+성공 전에 modal 닫거나 logout 처리 금지.
+
+==================================================
+5. 재가입 정책 확인
+==================================================
+
+현재 안내 문구:
+
+"동일한 전화번호·이메일로 재가입할 수 있으나,
+기존 데이터는 복구할 수 없습니다."
+
+실제 server 정책과 문구가 맞는지 확인.
+
+문구와 실제 동작 불일치하면
+기존 제품 정책에 맞게 정리.
+
+==================================================
+6. 탈퇴 테스트
+==================================================
+
+동일 전화번호:
+
+Pool A account_A
+Pool B account_B
+
+테스트:
+
+A.
+Pool A account_A 탈퇴
+→ 성공
+
+B.
+account_A 재로그인
+→ 실패 또는 탈퇴 상태 처리
+
+C.
+Pool B account_B
+→ 정상 로그인
+
+D.
+Pool B student/data
+→ 그대로
+
+E.
+Pool B report
+→ 그대로
+
+F.
+Pool B membership
+→ 그대로
+
+즉:
+
+WITHDRAW POOL A
+→ POOL B IMPACT = 0
+
+==================================================
+7. 학부모 홈 배열 겹침 조사
+==================================================
+
+첨부 학부모 홈 화면 기준 확인.
+
+특히:
+
+- 상단 header
+- child selector
+- +추가 버튼
+- AI 카드
+- 교육과정 진행도
+- Growth Report
+- bottom tab
+
+사이에서:
+
+- absolute positioning
+- fixed height
+- fixed top
+- negative margin
+- hardcoded header height
+- ScrollView contentInset
+- SafeArea
+- bottom tab padding
+
+전수 확인.
+
+==================================================
+8. 선생님 홈 배열 겹침 조사
+==================================================
+
+첨부 선생님 홈 화면 기준:
+
+- 상단 pool/title header
+- teacher name / role switch
+- 오늘 수업 요약
+- 주간 날짜
+- 오늘 수업 카드
+- 일지 바로쓰기
+- bottom tab
+
+위 영역에서
+vertical overlap / spacing collapse 원인 확인.
+
+==================================================
+9. 핵심 레이아웃 원칙
+==================================================
+
+고정 top/height에 의존하지 말고:
+
+SafeArea
+→ Header
+→ ScrollView content
+
+순서로 자연스럽게 쌓이게 한다.
+
+권장:
+
+flex
+width: '100%'
+minWidth: 0
+flexShrink
+contentContainerStyle
+useSafeAreaInsets()
+useWindowDimensions()
+
+금지:
+
+특정 iPhone 모델용 offset
+negative margin 땜질
+기기별 숫자 hardcode
+
+==================================================
+10. Header와 Body 분리
+==================================================
+
+Parent / Teacher 모두:
+
+Header 영역의 실제 높이를
+본문이 침범하지 않아야 한다.
+
+본문 첫 카드가
+header 아래에서 시작되도록 보장.
+
+status bar / notch 포함.
+
+==================================================
+11. Small Screen 대응
+==================================================
+
+최소 viewport:
+
+320 x 568
+375 x 812
+390 x 844
+430 x 932
+
+Android:
+360 x 640
+360 x 800
+384 x 854
+412 x 915
+
+모두에서 확인.
+
+필수:
+
+horizontal overflow = 0
+vertical overlap = 0
+header overlap = 0
+bottom tab overlap = 0
+clipped text = 0
+
+==================================================
+12. Parent Home 구조 유지
+==================================================
+
+디자인 변경 금지.
+
+현재 디자인 유지:
+
+- 서태웅 selector
+- +추가
+- AI 인사이트 전략 리포트
+- AI 커리큘럼 검색
+- 교육과정 진행도
+- AI 성장 리포트
+
+위치/간격/반응형만 수정.
+
+==================================================
+13. Teacher Home 구조 유지
+==================================================
+
+현재 디자인 유지:
+
+- 상단 헤더
+- 역할 전환
+- 수업 요약
+- 주간 날짜
+- 오늘 수업
+- 일지 바로쓰기
+- 하단 탭
+
+배열만 정상화.
+
+==================================================
+14. Scroll / Bottom Safe Area
+==================================================
+
+Parent/Teacher 둘 다:
+
+ScrollView 마지막 content가
+bottom tab/home indicator에 가려지지 않도록:
+
+paddingBottom =
+tab bar actual height + safeArea bottom + spacing
+
+고정 TAB_BAR_H 하나만 믿지 않는다.
+
+==================================================
+15. Cache / Pool 전환 회귀
+==================================================
+
+이번 layout 수정 중
+Pool-First state는 건드리지 않는다.
+
+특히:
+
+- selected pool
+- account
+- student
+- reports
+- diary
+- session
+
+로직 변경 금지.
+
+==================================================
+16. 자동 테스트 / 검증
+==================================================
+
+WITHDRAWAL:
+- handler
+- API
+- current pool only
+- other pool unaffected
+- logout/session clear
+
+PARENT HOME:
+- small/normal/large viewport
+
+TEACHER HOME:
+- small/normal/large viewport
+
+TS:
+관련 신규 오류 0
+
+==================================================
+17. 배포
+==================================================
+
+APP JS/TS 수정:
+2.0.0 OTA only
+
+runtime:
+2.0.0
+
+channel:
+production-v2
+
+branch:
+release-2.0.0
+
+SERVER 수정이 있으면:
+Render Production deploy
+
+1.6.3 APP:
+수정 금지
+
+Native Build:
+NO
+
+==================================================
+18. 완료보고
+==================================================
+
+WITHDRAW ROOT CAUSE
+- button
+- handler
+- API
+- server
+- DB
+
+WITHDRAW FIX
+- current pool account only
+- other pool impact 0
+
+PARENT HOME ROOT CAUSE
+- overlap 원인
+- changed files
+
+TEACHER HOME ROOT CAUSE
+- overlap 원인
+- changed files
+
+RESPONSIVE TEST
+- viewport별 PASS/FAIL
+
+TENANT SAFETY
+- Pool A withdraw
+- Pool B unaffected
+
+DEPLOY
+- Git SHA
+- Render 필요 여부 / deployment
+- OTA update id
+
+FINAL:
+
+PARENT WITHDRAWAL = PASS
+PARENT HOME OVERLAP = 0
+TEACHER HOME OVERLAP = 0
+CROSS-POOL WITHDRAW IMPACT = 0
+
+PASS / FAIL
+
+완료 후 STOP.

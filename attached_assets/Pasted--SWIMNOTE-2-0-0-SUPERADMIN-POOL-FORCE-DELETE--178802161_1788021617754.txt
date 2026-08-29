@@ -1,0 +1,637 @@
+[SWIMNOTE 2.0.0 — SUPERADMIN POOL FORCE DELETE / 즉시삭제]
+
+목표:
+
+슈퍼관리자가 특정 수영장을
+즉시 완전 삭제할 수 있는 기능을 제공한다.
+
+사용 사례:
+
+1. 잘못 생성/가입된 테스트 수영장
+2. 가입 정보를 완전히 초기화해야 하는 수영장
+3. 수영장 운영자가 변경되어 기존 데이터를 완전히 폐기하고
+   신규 가입부터 다시 시작해야 하는 경우
+4. 중복/오가입된 수영장 정리
+
+이번 작업은 release/v2.0.0에서만 진행.
+
+1.6.3 APP 수정 금지.
+
+==================================================
+1. 기존 기능 존재 여부 먼저 조사
+==================================================
+
+Superadmin 관련 repository 전체 조사:
+
+- swimming pool delete
+- force delete
+- hard delete
+- pool deactivate
+- owner/admin delete
+- tenant delete
+- account delete
+- superadmin pool management
+
+확인:
+
+A. 기존 UI 버튼 존재 여부
+B. 기존 API endpoint 존재 여부
+C. soft delete인지 hard delete인지
+D. 어떤 테이블까지 삭제하는지
+E. 실제 FK cascade 여부
+F. R2/file storage까지 처리하는지
+
+기존 기능이 있으면 새로 중복 구현하지 않는다.
+
+먼저 실제 기능 범위를 검증하고,
+아래 요구사항보다 부족하면 보강한다.
+
+==================================================
+2. 기능 정의
+==================================================
+
+Superadmin 전용:
+
+"수영장 즉시 삭제"
+
+대상은:
+
+pool_id
+
+하나의 전체 tenant.
+
+수영장 관리자 계정만 삭제하고
+학생/회원 데이터가 남는 방식 금지.
+
+삭제 성공 후 해당 pool_id와 관련된
+서비스 데이터가 운영 DB에서 남아 있지 않아야 한다.
+
+==================================================
+3. 권한
+==================================================
+
+오직 SUPERADMIN만 실행 가능.
+
+일반:
+
+- pool_admin
+- sub_admin
+- teacher
+- parent
+
+호출 시 반드시 403.
+
+client에서 버튼을 숨기는 것만으로 금지.
+
+SERVER authorization 필수.
+
+==================================================
+4. 삭제 UI
+==================================================
+
+Superadmin 수영장 관리 화면에서:
+
+[수영장 즉시 삭제]
+
+위험 버튼 제공.
+
+클릭 시 confirmation modal.
+
+모달에 반드시 표시:
+
+수영장명
+pool_id
+관리자 계정
+회원/학생 수
+
+경고:
+
+"이 작업은 즉시 실행되며 복구할 수 없습니다.
+수영장과 모든 관련 데이터가 영구 삭제됩니다."
+
+==================================================
+5. 오삭제 방지 확인
+==================================================
+
+최소 2단계 확인.
+
+1단계:
+[즉시 삭제]
+
+2단계:
+수영장명을 직접 입력.
+
+입력값이 현재 pool_name과
+정확히 일치할 때만:
+
+[영구 삭제]
+
+버튼 활성화.
+
+추가 confirm alert 사용 가능.
+
+==================================================
+6. 삭제 대상 전수 조사
+==================================================
+
+현재 schema 기준으로
+pool_id 또는 swimming_pool_id에 귀속되는
+모든 테이블을 실제 DB schema에서 전수 확인한다.
+
+최소 포함 여부 확인:
+
+- swimming_pools
+- users / pool admins
+- user_pool_memberships
+- parent_accounts
+- parent_students
+- students
+- guardians
+- teachers
+- classes
+- schedules
+- attendance
+- makeup / absence
+- class_diaries
+- diary templates 중 pool 전용
+- feeds
+- albums
+- photos
+- videos
+- notifications
+- notification tokens 중 해당 tenant 연결
+- parent requests
+- curriculum versions
+- curriculum levels
+- curriculum nodes
+- curriculum drills
+- curriculum relations
+- curriculum progress
+- growth events
+- growth reports
+- AI reports
+- AI usage/history
+- X MODE settings
+- subscription / entitlement tenant state
+- audit records 중 tenant 전용 데이터
+- 기타 pool FK 테이블
+
+실제 schema를 조사해서
+위 목록에 없는 pool-scoped table도 모두 포함.
+
+추측 금지.
+
+==================================================
+7. 데이터 소유권 주의
+==================================================
+
+Pool-First 구조 기준:
+
+일반 학부모 account가 해당 pool 전용 account라면
+해당 pool 삭제와 함께 삭제 가능.
+
+하지만 관리자/선생님의
+명시적 multi-pool account가 존재할 수 있다.
+
+따라서 account 자체를 무조건 DELETE하지 않는다.
+
+반드시 조사:
+
+해당 account가 다른 active pool membership도 보유?
+
+YES:
+→ 현재 pool membership/tenant relation만 삭제
+→ global identity/account 유지
+
+NO:
+→ 해당 account가 정말 이 pool 전용이면
+   현재 auth architecture 기준으로 안전하게 삭제
+
+즉 다른 수영장 계정을 절대 삭제하지 않는다.
+
+==================================================
+8. 전화번호 사용 금지
+==================================================
+
+삭제 대상 결정에 phone 사용 금지.
+
+절대:
+
+WHERE phone = ?
+
+으로 관련 account를 싹 삭제하지 않는다.
+
+삭제 범위 결정은:
+
+pool_id
+account_id
+FK relation
+
+기준.
+
+같은 전화번호로 다른 수영장에 가입된 계정:
+
+영향 0.
+
+==================================================
+9. 학생 / 학부모 데이터
+==================================================
+
+Pool A 삭제 시:
+
+Pool A:
+parents
+students
+links
+reports
+diaries
+photos
+notifications
+
+삭제.
+
+동일 전화번호로 가입된 Pool B:
+
+account
+student
+report
+diary
+notification
+
+모두 그대로 유지.
+
+CROSS-POOL DELETE = 0
+
+==================================================
+10. 외부 파일 Storage
+==================================================
+
+DB row만 삭제하고
+R2/object storage에 파일이 남는지 조사.
+
+해당 pool 소유:
+
+- photos
+- videos
+- report PDFs
+- generated assets
+- uploads
+
+등이 명확하게 tenant-owned라면
+삭제 대상에 포함.
+
+단 shared/global asset 삭제 금지.
+
+삭제 대상 object key를 먼저 식별한 뒤 처리.
+
+==================================================
+11. AI ENGINE 데이터
+==================================================
+
+AI Engine에 pool별 별도 tenant data가 존재하는지 확인.
+
+예:
+
+- curriculum projection
+- search_docs
+- embeddings
+- report/search tenant records
+
+해당 pool 전용 데이터라면
+APP tenant 삭제와 함께 정리해야 한다.
+
+단 글로벌 Knowledge DB / 공통 AI 데이터
+절대 삭제 금지.
+
+AI Engine에서 별도 삭제가 필요하면
+명확한 pool identity mapping을 사용.
+
+==================================================
+12. 결제 / 구독
+==================================================
+
+삭제 전에 해당 pool의:
+
+- subscription
+- X entitlement
+- RevenueCat/App Store/Play entitlement relation
+- pending payment
+
+확인.
+
+외부 결제 provider에서 자동 환불/취소까지 할지는
+현재 기존 정책을 조사.
+
+임의 환불 금지.
+
+최소한 SWIMNOTE 내부 tenant entitlement는
+더 이상 active로 남지 않아야 한다.
+
+외부 구독이 남는 경우
+삭제 전 BLOCK하거나 명확한 경고를 표시.
+
+==================================================
+13. Transaction
+==================================================
+
+가능한 DB 삭제는 transaction으로 처리.
+
+중간 실패 시:
+
+반쯤 삭제된 tenant
+
+가 생기지 않게 한다.
+
+삭제 순서는 실제 FK dependency 기준.
+
+가능하면:
+
+BEGIN
+→ dependent records
+→ memberships/accounts
+→ swimming_pool
+→ COMMIT
+
+외부 storage/AI 삭제는
+안전한 orchestration 구조 사용.
+
+==================================================
+14. Dry Run / Preview
+==================================================
+
+삭제 API 실행 전에 Superadmin이 확인할 수 있도록
+preview endpoint 제공 권장.
+
+예:
+
+GET /superadmin/pools/:poolId/delete-preview
+
+반환:
+
+pool
+admins
+teachers
+parents
+students
+classes
+diaries
+reports
+photos
+notifications
+curriculum
+AI data
+etc.
+
+각 삭제 예정 row 수.
+
+UI confirmation modal에
+요약 개수를 표시.
+
+==================================================
+15. 최종 삭제 Endpoint
+==================================================
+
+예시:
+
+DELETE /superadmin/pools/:poolId/force
+
+정확한 route naming은 현재 repository convention 사용.
+
+필수:
+
+superadmin auth
+pool existence
+confirmation payload
+pool_name confirmation
+transaction
+audit logging
+
+삭제 완료 후:
+
+404 / not found
+
+가 정상.
+
+==================================================
+16. 감사 로그
+==================================================
+
+즉시삭제 자체는 추적 가능해야 한다.
+
+삭제 전에 최소:
+
+- superadmin account id
+- deleted pool_id
+- deleted pool_name
+- 실행시각
+- 삭제 row summary
+
+를 별도 system audit로 남긴다.
+
+중요:
+
+tenant 삭제 transaction에 같이 지워지는
+tenant audit table에만 저장하지 말 것.
+
+superadmin/global audit에 남긴다.
+
+==================================================
+17. 삭제 후 검증
+==================================================
+
+반드시 삭제 후 자동 검사:
+
+swimming_pools = 0
+pool memberships = 0
+students = 0
+parents = 0
+classes = 0
+diaries = 0
+reports = 0
+notifications = 0
+curriculum tenant data = 0
+
+기타 모든 pool-scoped tables:
+
+remaining rows = 0
+
+외부 storage:
+tenant-owned objects = 0
+
+AI Engine:
+tenant projection = 0
+
+==================================================
+18. 다른 Pool 영향 검증
+==================================================
+
+Fixture:
+
+Pool A
+Pool B
+
+같은 전화번호 학부모 각각 존재.
+
+Pool A 즉시삭제.
+
+확인:
+
+Pool A:
+완전 삭제
+
+Pool B:
+account 정상
+student 정상
+diary 정상
+report 정상
+notification 정상
+login 정상
+
+Pool B changed rows = 0
+
+==================================================
+19. 현재 잘못 가입된 테스트 수영장
+==================================================
+
+기능 구현 후
+현재 Production에 존재하는:
+
+스윔노트
+스윔노트2
+스윔노트3
+
+등을 임의로 즉시 삭제하지 않는다.
+
+삭제 기능까지만 구현.
+
+실제 어떤 수영장을 삭제할지는
+Superadmin UI에서 사용자가 직접 선택하여 실행한다.
+
+==================================================
+20. 기존 기능이 이미 있는 경우
+==================================================
+
+이미 Superadmin 수영장 삭제 기능이 있다면:
+
+새 기능 만들기 전에 실제 테스트.
+
+보고:
+
+- endpoint
+- hard/soft delete
+- 삭제 tables
+- 남는 데이터
+- other pool 영향
+- 즉시삭제 가능 여부
+
+모든 요구사항 PASS면
+기존 기능 유지.
+
+부족한 부분만 보강.
+
+==================================================
+21. 테스트
+==================================================
+
+자동 테스트 최소:
+
+A.
+superadmin → preview PASS
+
+B.
+pool_admin → delete 403
+
+C.
+wrong confirmation name → 400
+
+D.
+Pool A force delete → pool 404
+
+E.
+Pool A dependent tenant rows → 0
+
+F.
+same-phone Pool B account → 정상
+
+G.
+shared admin/teacher account가 Pool B membership 보유
+→ account 유지 / Pool A membership만 제거
+
+H.
+없는 pool 재삭제 → 404
+
+I.
+transaction 중 실패 fixture
+→ partial delete 없음
+
+J.
+phone 기반 cross-delete = 0
+
+==================================================
+22. 배포
+==================================================
+
+2.0.0 작업.
+
+Superadmin APP/WEB UI 변경:
+2.0.0 기준만.
+
+SERVER 변경:
+Render Production 필요.
+
+DB migration 필요 시:
+additive / backward-compatible.
+
+1.6.3 APP:
+수정 금지.
+
+Native Build:
+NO unless native dependency change.
+
+==================================================
+23. 완료보고
+==================================================
+
+EXISTING FEATURE
+- 기존 기능 존재 YES/NO
+- 기존 endpoint
+- 기존 delete scope
+
+SCHEMA AUDIT
+- pool-scoped tables 전체 목록
+
+IMPLEMENTATION
+- preview endpoint
+- force delete endpoint
+- superadmin UI
+- transaction
+- storage cleanup
+- AI cleanup
+
+ACCOUNT SAFETY
+- pool-only parent
+- shared admin
+- shared teacher
+- same phone other pool
+
+TEST
+- A~J
+
+DEPLOY
+- SHA
+- Render deployment
+- OTA 필요 여부/update id
+
+FINAL
+
+SUPERADMIN FORCE POOL DELETE = READY
+
+DELETE MODE = IMMEDIATE / PERMANENT
+
+SELECTED POOL REMAINING TENANT DATA = 0
+
+OTHER POOL IMPACT = 0
+
+PASS / FAIL
+
+완료 후 STOP.
