@@ -146,3 +146,4 @@
 - [Render 배포 수동 전용](render-deploy-manual-only.md) — RENDER_API_KEY 사용·요청 금지; repo+branch+SHA만 보고하고 멈춤
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
 - [X Entitlement Revocation Stale Cache Fix](x-entitlement-revoke-fix.md) — ModeContext에 AppState foreground 리스너 추가; OTA 01a0444c
+- [Pool-First 2.0.0 완료](pool-first-2-0-0-done.md) — SHA 761fdfbb; parent-login pool선택+parentLogin(poolId?)+find-identifier pool_id+reset-password pool scope+UNIQUE INDEX migration; 33TC; OTA 01a04e47
