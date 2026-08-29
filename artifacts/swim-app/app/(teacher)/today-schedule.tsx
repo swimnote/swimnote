@@ -471,30 +471,6 @@ export default function TodayScheduleScreen() {
           </Pressable>
         )}
 
-        {/* SWIMNOTE X 빠른 진입 (mode === "x" | "x_pending" 일 때만) */}
-        {(mode === "x" || mode === "x_pending") && (
-          <Pressable
-            style={({ pressed }) => ({
-              flexDirection: "row", alignItems: "center", gap: 8,
-              backgroundColor: mode === "x" ? "#E9EEF3" : C.backgroundSoft,
-              borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-              borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : C.border,
-              opacity: pressed && mode === "x" ? 0.75 : 1,
-            })}
-            onPress={() => mode === "x" && router.push("/(teacher)/growth-report-list" as any)}
-            disabled={mode !== "x"}
-          >
-            <LucideIcon name="file-text" size={14} color={mode === "x" ? "#355C7D" : C.textMuted} />
-            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: mode === "x" ? "#23415C" : C.textMuted, flex: 1 }}>
-              {mode === "x" ? "AI 학생리포트 →" : "X 설정 완료 후 이용 가능"}
-            </Text>
-            <View style={{ backgroundColor: mode === "x" ? "#E9EEF3" : C.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: mode === "x" ? "#355C7D" : "#CBD5E1" }}>
-              <Text style={{ fontSize: 9, fontFamily: "Pretendard-SemiBold", color: mode === "x" ? "#23415C" : C.textMuted }}>
-                SWIMNOTE X
-              </Text>
-            </View>
-          </Pressable>
-        )}
       </View>
       <View style={[h.classCardWrap, { paddingBottom: insets.bottom + 12 }]}>
         <View style={[h.sectionCard, { flex: 1, backgroundColor: C.card }]}>
