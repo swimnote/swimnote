@@ -25,53 +25,61 @@ if [[ -z "$MSG" ]]; then
   exit 1
 fi
 
-# ── 1. app.json version 확인 ─────────────────────────────────
-ACTUAL_VERSION=$(node -e "console.log(require('./app.json').expo.version)")
-if [[ "$ACTUAL_VERSION" != "$REQUIRED_VERSION" ]]; then
-  echo "❌ GUARD FAIL: app.json version = $ACTUAL_VERSION (expected $REQUIRED_VERSION)"
-  echo "   2.0.0 build 전에 app.json version을 $REQUIRED_VERSION 으로 올리세요."
-  exit 1
-fi
+# ── 1. resolved Expo config에서 version / runtimeVersion 추출 ─
+# npx expo config --json 으로 실제 resolved 값 확인
+echo "🔍 Resolving Expo config..."
+RESOLVED_JSON=$(npx expo config --json 2>/dev/null)
 
-# ── 2. runtimeVersion 정책 확인 ──────────────────────────────
-RUNTIME_POLICY=$(node -e "const r=require('./app.json').expo.runtimeVersion; console.log(typeof r === 'object' ? r.policy : r)")
-if [[ "$RUNTIME_POLICY" == "appVersion" ]]; then
+ACTUAL_VERSION=$(echo "$RESOLVED_JSON" | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>console.log(JSON.parse(d).version))" 2>/dev/null || \
+  node -e "console.log(require('./app.json').expo.version)")
+
+# runtimeVersion: policy=appVersion → resolves to version string
+RUNTIME_FIELD=$(echo "$RESOLVED_JSON" | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{const r=JSON.parse(d).runtimeVersion; console.log(typeof r==='object'? r.policy : r)})" 2>/dev/null || \
+  node -e "const r=require('./app.json').expo.runtimeVersion; console.log(typeof r==='object'? r.policy : r)")
+
+if [[ "$RUNTIME_FIELD" == "appVersion" ]]; then
   ACTUAL_RUNTIME="$ACTUAL_VERSION"
 else
-  ACTUAL_RUNTIME="$RUNTIME_POLICY"
+  ACTUAL_RUNTIME="$RUNTIME_FIELD"
 fi
+
+# ── 2. Guard checks ──────────────────────────────────────────
+FAIL=0
+
+if [[ "$ACTUAL_VERSION" != "$REQUIRED_VERSION" ]]; then
+  echo "❌ GUARD FAIL: resolved version = $ACTUAL_VERSION (required: $REQUIRED_VERSION)"
+  FAIL=1
+fi
+
 if [[ "$ACTUAL_RUNTIME" != "$REQUIRED_RUNTIME" ]]; then
-  echo "❌ GUARD FAIL: runtimeVersion = $ACTUAL_RUNTIME (expected $REQUIRED_RUNTIME)"
+  echo "❌ GUARD FAIL: resolved runtimeVersion = $ACTUAL_RUNTIME (required: $REQUIRED_RUNTIME)"
+  FAIL=1
+fi
+
+if [[ "$FAIL" -ne 0 ]]; then
+  echo ""
+  echo "🚫 2.0.0 OTA 배포 중단. app.json version을 $REQUIRED_VERSION 으로 변경 후 재시도."
   exit 1
 fi
 
 # ── 3. Guard 통과 요약 출력 ──────────────────────────────────
 echo ""
-echo "✅ OTA PUBLISH GUARD — 2.0.0"
-echo "   version        : $ACTUAL_VERSION"
-echo "   runtimeVersion : $ACTUAL_RUNTIME"
-echo "   channel        : $REQUIRED_CHANNEL"
-echo "   branch         : $REQUIRED_BRANCH"
-echo "   platform       : $PLATFORM"
-echo "   message        : $MSG"
+echo "✅ OTA PUBLISH GUARD — 2.0.0 PASSED"
+echo "   resolved version        : $ACTUAL_VERSION"
+echo "   resolved runtimeVersion : $ACTUAL_RUNTIME"
+echo "   target channel          : $REQUIRED_CHANNEL"
+echo "   target branch           : $REQUIRED_BRANCH"
+echo "   platform                : $PLATFORM"
+echo "   message                 : $MSG"
 echo ""
 
 # ── 4. 실제 OTA 배포 ─────────────────────────────────────────
-if [[ "$PLATFORM" == "all" ]]; then
-  npx eas-cli update \
-    --branch "$REQUIRED_BRANCH" \
-    --message "$MSG" \
-    --platform all \
-    --environment production \
-    --non-interactive
-else
-  npx eas-cli update \
-    --branch "$REQUIRED_BRANCH" \
-    --message "$MSG" \
-    --platform "$PLATFORM" \
-    --environment production \
-    --non-interactive
-fi
+npx eas-cli update \
+  --branch "$REQUIRED_BRANCH" \
+  --message "$MSG" \
+  --platform "$PLATFORM" \
+  --environment production \
+  --non-interactive
 
 echo ""
 echo "✅ 2.0.0 OTA 배포 완료 — channel: $REQUIRED_CHANNEL, branch: $REQUIRED_BRANCH"
