@@ -328,14 +328,13 @@ export default function DiaryAIModalV2({
               <View style={styles.handle} />
             </View>
 
-            {/* 헤더 — 고정 (flex 없음, 자연 높이) */}
+            {/* 헤더 — 타이틀 제거, X 버튼만 우측 정렬 */}
             <View style={styles.header}>
-              <Text style={styles.headerTitle}>AI 일지 작성</Text>
               {!hook.isLocked && (
                 <Pressable
                   style={styles.closeButton}
                   onPress={hook.handleClose}
-                  hitSlop={8}
+                  hitSlop={12}
                 >
                   <Text style={styles.closeButtonText}>✕</Text>
                 </Pressable>
@@ -498,22 +497,17 @@ const styles = StyleSheet.create({
     backgroundColor: AIThemeColor.border ?? '#E0E0E0',
   },
 
-  // 헤더 (고정, flex 없음)
+  // 헤더 (타이틀 제거 — X 버튼만 우측 정렬)
   header: {
     flexDirection:     'row',
     alignItems:        'center',
-    justifyContent:    'space-between',
+    justifyContent:    'flex-end',
     paddingHorizontal: AIThemeSpacing.section,
-    paddingVertical:   AIThemeSpacing.tight,
-    borderBottomWidth: 1,
-    borderBottomColor: AIThemeColor.border ?? '#F0F0F0',
-  },
-  headerTitle: {
-    ...AIThemeTypography.heading,
-    color: AIThemeColor.text,
+    paddingTop:        10,   // safe area 이후 추가 여백
+    paddingBottom:     4,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
   },
   closeButtonText: {
     fontSize:   18,
