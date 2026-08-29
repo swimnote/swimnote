@@ -745,20 +745,12 @@ router.post("/simple-parent-register", async (req, res) => {
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
 
-  // pool_id 미제공 시 전화번호로 수영장 자동 해결 (없으면 null로 진행 — 홈에서 온보딩)
-  if (!requestedPoolId && ph) {
-    const autoPool = await db.execute(sql`
-      SELECT swimming_pool_id FROM students
-      WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${ph}
-        AND status NOT IN ('withdrawn','archived','deleted')
-        AND swimming_pool_id IS NOT NULL
-      LIMIT 1
-    `);
-    if ((autoPool.rows as any[]).length > 0) {
-      requestedPoolId = (autoPool.rows[0] as any).swimming_pool_id;
-    }
+  // [2.0.0 POOL-FIRST] pool_id 필수.
+  // 전화번호·이름으로 수영장을 추측하거나 fallback하는 것은 금지.
+  // pool_id 미제공 시 즉시 400 반환.
+  if (!requestedPoolId) {
+    return err(res, 400, "수영장을 선택해주세요. pool_id는 필수 항목입니다.");
   }
-  // pool_id 없어도 가입 허용 — 홈 온보딩에서 수영장 선택
 
   try {
     let matched: any[] = [];
@@ -797,29 +789,19 @@ router.post("/simple-parent-register", async (req, res) => {
       }
     }
 
-    // ── STEP 2: 전화번호로 학생 매칭 ─────────────────────────────────────
-    // pool 없으면 전체 DB에서 매칭 (실시간 연결), pool 있으면 해당 pool만
-    if (ph) {
-      const r = resolvedPoolId
-        ? await db.execute(sql`
-            SELECT id, swimming_pool_id, name FROM students
-            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-              AND swimming_pool_id = ${resolvedPoolId}
-              AND status NOT IN ('withdrawn', 'archived', 'deleted')
-            LIMIT 20
-          `)
-        : await db.execute(sql`
-            SELECT id, swimming_pool_id, name FROM students
-            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-              AND status NOT IN ('withdrawn', 'archived', 'deleted')
-            LIMIT 20
-          `);
+    // ── STEP 2: 전화번호로 학생 매칭 (해당 pool 안에서만) ───────────────
+    // [2.0.0 POOL-FIRST] resolvedPoolId는 body.pool_id만 사용 (필수값).
+    // 전화번호 매칭 결과로 pool을 변경하거나 결정하는 것은 금지.
+    if (ph && resolvedPoolId) {
+      const r = await db.execute(sql`
+        SELECT id, swimming_pool_id, name FROM students
+        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+        LIMIT 20
+      `);
       addUnique(matched, r.rows as any[]);
       markMatchedNames(r.rows as any[]);
-      // pool 미선택 시 첫 번째 매칭 학생의 pool을 resolvedPoolId로 사용
-      if (!resolvedPoolId && (r.rows as any[]).length > 0) {
-        resolvedPoolId = (r.rows[0] as any).swimming_pool_id;
-      }
     }
 
     // ── STEP 3: 자녀 이름으로 매칭 (pool 있을 때만) ─────────────────────

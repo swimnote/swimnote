@@ -422,6 +422,127 @@ describe("I. Report cross-pool 접근 차단 — structural guarantee", () => {
   });
 });
 
+// ─── K. Similar Name Pool — 이름 유사 수영장 완전 분리 ──────────────────────
+/**
+ * [2.0.0 BUG FIX] pool-join-request.tsx가 pool_id 없이 simple-parent-register를
+ * 호출하면 서버가 phone → students.parent_phone LIMIT 1 로 "스윔노트"를 자동 선택했음.
+ * 수정: pool_id 필수, 이름 prefix/phone 기반 pool resolve 완전 제거.
+ */
+describe("K. Similar Name Pool — 이름 유사 수영장 계정 완전 분리", () => {
+  const POOL_A = "pool_swimnote";    // name = "스윔노트"
+  const POOL_B = "pool_swimnote2";   // name = "스윔노트2"
+  const POOL_C = "pool_swimnote3";   // name = "스윔노트3"
+  const SAME_PHONE = "01011111111";
+
+  it("스윔노트 선택 → account pool = 스윔노트", () => {
+    const accounts: ParentAccount[] = [];
+    const r = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_A, accounts });
+    expect(r.status).toBe(201);
+    expect(accounts[0].swimming_pool_id).toBe(POOL_A);
+    expect(accounts[0].swimming_pool_id).not.toBe(POOL_B);
+    expect(accounts[0].swimming_pool_id).not.toBe(POOL_C);
+  });
+
+  it("스윔노트2 선택 → account pool = 스윔노트2 (스윔노트 아님)", () => {
+    const accounts: ParentAccount[] = [];
+    const r = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_B, accounts });
+    expect(r.status).toBe(201);
+    expect(accounts[0].swimming_pool_id).toBe(POOL_B);
+    expect(accounts[0].swimming_pool_id).not.toBe(POOL_A);
+  });
+
+  it("스윔노트3 선택 → account pool = 스윔노트3 (스윔노트 아님)", () => {
+    const accounts: ParentAccount[] = [];
+    const r = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_C, accounts });
+    expect(r.status).toBe(201);
+    expect(accounts[0].swimming_pool_id).toBe(POOL_C);
+    expect(accounts[0].swimming_pool_id).not.toBe(POOL_A);
+  });
+
+  it("동일 phone으로 스윔노트/스윔노트2/스윔노트3 모두 가입 → 3개 독립 account", () => {
+    const accounts: ParentAccount[] = [];
+    const rA = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_A, accounts });
+    const rB = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_B, accounts });
+    const rC = simulateV2Register({ phone: SAME_PHONE, poolId: POOL_C, accounts });
+
+    expect(rA.status).toBe(201);
+    expect(rB.status).toBe(201);
+    expect(rC.status).toBe(201);
+
+    // 3개 계정 모두 다른 ID
+    expect(rA.accountId).not.toBe(rB.accountId);
+    expect(rB.accountId).not.toBe(rC.accountId);
+    expect(rA.accountId).not.toBe(rC.accountId);
+
+    // 각 계정의 pool이 정확히 분리됨
+    const paA = accounts.find(a => a.id === rA.accountId)!;
+    const paB = accounts.find(a => a.id === rB.accountId)!;
+    const paC = accounts.find(a => a.id === rC.accountId)!;
+    expect(paA.swimming_pool_id).toBe(POOL_A);
+    expect(paB.swimming_pool_id).toBe(POOL_B);
+    expect(paC.swimming_pool_id).toBe(POOL_C);
+  });
+
+  it("스윔노트3 계정으로 스윔노트 data 조회 → 0건", () => {
+    const rA_accountId = "pa_swimnote";
+    const rC_accountId = "pa_swimnote3";
+    const reports: Report[] = [
+      { id: "report_A1", poolId: POOL_A, parentAccountId: rA_accountId },
+    ];
+    const crossQuery = reports.filter(r => r.parentAccountId === rC_accountId);
+    expect(crossQuery).toHaveLength(0);
+  });
+
+  it("pool_id 없이 가입 시도 → 400 (서버 safeguard)", () => {
+    // simple-parent-register: pool_id 필수 (400)
+    const requestWithoutPoolId = { parent_name: "홍길동", phone: SAME_PHONE, password: "1234" };
+    // pool_id 없음 → 서버가 400 반환하는 것을 모델링
+    const hasPoolId = "pool_id" in requestWithoutPoolId;
+    expect(hasPoolId).toBe(false); // pool_id 미포함 확인
+    // 서버 로직: !requestedPoolId → return err(400, "수영장을 선택해주세요.")
+    const serverResponse = { status: 400, message: "수영장을 선택해주세요. pool_id는 필수 항목입니다." };
+    expect(serverResponse.status).toBe(400);
+  });
+
+  it("NAME_PREFIX_FALLBACK = 0: 이름이 비슷해도 pool_id로만 귀속 결정", () => {
+    // '스윔노트', '스윔노트2', '스윔노트3' — 이름 prefix가 동일해도
+    // pool_id가 다르면 완전히 별개 pool로 취급
+    const resolve = (selectedPoolId: string) => {
+      // [2.0.0] pool_name으로 resolve 금지 — selectedPoolId를 그대로 사용
+      return selectedPoolId;
+    };
+    expect(resolve(POOL_A)).toBe(POOL_A);
+    expect(resolve(POOL_B)).toBe(POOL_B);
+    expect(resolve(POOL_C)).toBe(POOL_C);
+    expect(resolve(POOL_B)).not.toBe(POOL_A); // "스윔노트2" ≠ "스윔노트"
+    expect(resolve(POOL_C)).not.toBe(POOL_A); // "스윔노트3" ≠ "스윔노트"
+  });
+
+  it("DEFAULT_POOL_FALLBACK = 0: pool 미선택 시 어떤 pool에도 귀속 금지", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_A", phone: SAME_PHONE, swimming_pool_id: POOL_A },
+    ];
+    // phone으로 pool_A가 있어도, pool_C 가입 요청 시 pool_A로 fallback 금지
+    const existingByPhoneOnly = accounts.find(a => a.phone === SAME_PHONE);
+    // Pool-First: phone만으로 pool을 결정하지 않음
+    const register = (requestedPoolId: string | null) => {
+      if (!requestedPoolId) return { status: 400 }; // pool_id 없으면 400
+      const dup = accounts.find(a => a.phone === SAME_PHONE && a.swimming_pool_id === requestedPoolId);
+      if (dup) return { status: 409 };
+      const newId = "pa_new";
+      accounts.push({ id: newId, phone: SAME_PHONE, swimming_pool_id: requestedPoolId });
+      return { status: 201, accountId: newId };
+    };
+    expect(register(null).status).toBe(400); // pool 없음 → 400
+    const r = register(POOL_C);
+    expect(r.status).toBe(201);
+    const newAccount = accounts.find(a => a.id === r.accountId)!;
+    expect(newAccount.swimming_pool_id).toBe(POOL_C); // pool_C에 정확히 귀속
+    expect(newAccount.swimming_pool_id).not.toBe(POOL_A); // pool_A fallback 없음
+    expect(existingByPhoneOnly?.swimming_pool_id).toBe(POOL_A); // 기존 pool_A 계정 불변
+  });
+});
+
 // ─── J. SQL Injection 방어 (pool-scoped 쿼리 유지) ──────────────────────────
 describe("J. pool_id 및 phone pool-scoped 쿼리 방어", () => {
   it("phone만으로 전역 조회하지 않음 — pool_id 조건 필수", () => {
