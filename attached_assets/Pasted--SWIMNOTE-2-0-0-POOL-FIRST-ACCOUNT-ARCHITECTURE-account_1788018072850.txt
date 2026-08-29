@@ -1,0 +1,419 @@
+[SWIMNOTE 2.0.0 — POOL-FIRST ACCOUNT ARCHITECTURE 재설계]
+
+중요:
+현재 구현된 "동일 전화번호 기존 account 재사용 + 다른 pool membership 추가"
+방식은 최종 정책과 다르다.
+
+2.0.0에서 계정 구조를 다음 원칙으로 수정한다.
+
+1.6.3은 수정 금지.
+이번 작업은 release/v2.0.0에서만 수행.
+
+==================================================
+1. 최상위 원칙
+==================================================
+
+SWIMNOTE 계정 생성/조회 경로의 시작점은
+전화번호가 아니다.
+
+반드시:
+
+등록된 수영장 선택
+→ pool_id 확정
+→ 해당 pool 내부 계정 조회/가입
+
+순서로 진행한다.
+
+전화번호는
+global identity가 아니다.
+
+==================================================
+2. 동일 전화번호 + 다른 Pool
+==================================================
+
+예:
+
+전화번호:
+010-1234-5678
+
+ToyKids 가입:
+→ account_A 생성
+
+Swimnote2 가입:
+→ account_B 새로 생성
+
+Pool C 가입:
+→ account_C 새로 생성
+
+절대로:
+
+기존 account_A를 찾아
+Pool B membership을 붙이지 않는다.
+
+각 pool마다 완전히 독립된 account를 생성한다.
+
+==================================================
+3. 데이터 완전 독립
+==================================================
+
+각 pool account는 다음 데이터도 독립:
+
+- parent account
+- student
+- parent/student link
+- memberships
+- classes
+- attendance
+- diary
+- feed
+- photos/albums
+- notifications
+- parent requests
+- curriculum progress
+- growth reports
+- AI reports
+- AI usage/history
+
+Pool A 데이터가
+Pool B account에 따라오는 구조는 금지.
+
+==================================================
+4. 계정 Identity
+==================================================
+
+계정 identity는 최소:
+
+pool_id + account identifier
+
+기준.
+
+전화번호 lookup도:
+
+WHERE pool_id = currentPoolId
+AND phone = ?
+
+형태.
+
+금지:
+
+SELECT ... WHERE phone = ?
+
+처럼 pool 없이 전역 조회 후
+계정을 재사용하는 방식.
+
+==================================================
+5. 가입 시작 구조
+==================================================
+
+회원가입 최초 단계:
+
+STEP 1
+등록된 수영장 검색/선택
+
+STEP 2
+선택 결과에서 immutable pool_id 확보
+
+STEP 3
+pool_id를 가입 session/context에 고정
+
+STEP 4
+그 이후 phone/login/student 조회는
+전부 해당 pool_id 안에서만 수행
+
+STEP 5
+해당 pool에 계정 없으면 신규 생성
+
+==================================================
+6. 수영장 이름 처리
+==================================================
+
+UI에서는:
+
+토이키즈스윔클럽
+스윔노트2
+
+등 수영장 이름 표시.
+
+하지만 DB authorization/key는
+이름 문자열이 아니라 pool_id 사용.
+
+pool_name 변경되어도
+계정 귀속은 변하지 않아야 한다.
+
+==================================================
+7. Phone Uniqueness
+==================================================
+
+phone global unique 금지.
+
+허용:
+
+(pool_A, 010-1111-1111)
+(pool_B, 010-1111-1111)
+(pool_C, 010-1111-1111)
+
+같은 pool 안에서만
+중복 여부 판단.
+
+즉 conceptual unique:
+
+UNIQUE(pool_id, phone)
+
+또는 현재 schema에서 동등한 방식.
+
+DB constraint / application validation 모두 조사한다.
+
+==================================================
+8. Login ID 정책
+==================================================
+
+현재 login_id가 global unique라면
+실제 구조와 UX를 조사한다.
+
+이번 목표는 계정 자체가 pool별 독립이므로
+login/auth lookup 역시 반드시 pool context를 포함해야 한다.
+
+단 기존 계정 호환성을 깨뜨리는
+destructive migration 금지.
+
+필요한 schema 변경안을 먼저 실제 repository 기준으로 설계하고
+안전한 additive migration으로 구현.
+
+==================================================
+9. Parent Register 수정
+==================================================
+
+현재 구현된:
+
+existing phone
+→ existing account 재사용
+→ new pool membership 추가
+
+로직 제거.
+
+새 정책:
+
+currentPoolId 결정
+→ currentPoolId 안에서 phone/account 조회
+
+같은 pool에 존재:
+→ 기존 가입 안내
+
+다른 pool에 같은 phone 존재:
+→ 무시
+→ 현재 pool용 신규 account 생성
+
+==================================================
+10. Login 수정
+==================================================
+
+로그인도 전화번호만으로
+전역 account를 찾지 않는다.
+
+필요한 경우:
+
+수영장 선택
+→ pool_id
+→ login_id/phone/password 검증
+
+순서.
+
+같은 전화번호가 여러 pool에 존재해도
+어느 계정인지 명확하게 결정되어야 한다.
+
+==================================================
+11. Report Bug 구조적 차단
+==================================================
+
+이번에 실제 발생한:
+
+Swimnote2 신규 연결 후
+ToyKids Growth Report가 따라오는 현상
+
+은 구조적으로 재발하면 안 된다.
+
+새 Swimnote2 account_id는
+ToyKids parent account_id와 달라야 한다.
+
+ToyKids:
+account_A
+student_A
+report_A
+
+Swimnote2:
+account_B
+student_B
+report_B
+
+account_A != account_B
+student_A != student_B
+
+Pool B에서 report_A 조회 결과:
+0
+
+직접 report_A id 접근:
+403
+
+==================================================
+12. 기존 Multi-Pool Membership 처리
+==================================================
+
+기존에 구현된 user_pool_memberships 구조를
+무조건 삭제하지 않는다.
+
+먼저 실제 사용 목적을 조사.
+
+Admin/Teacher의 여러 사업장 운영처럼
+명시적인 계정 전환 기능에 필요한지와
+
+일반 신규 가입의
+"같은 사람 account 자동 재사용"
+
+문제를 분리한다.
+
+핵심:
+
+신규 가입 시
+전화번호만 같다는 이유로
+기존 account에 자동 membership 추가 금지.
+
+명시적으로 연결된 사업장 전환 기능과
+신규 회원가입 identity를 혼동하지 않는다.
+
+==================================================
+13. 기존 데이터 보호
+==================================================
+
+Production 기존 데이터:
+
+DELETE 금지
+account merge 금지
+student merge 금지
+report 재귀속 금지
+
+2.0.0 schema migration은 additive 우선.
+
+1.6.3 호환성 유지.
+
+==================================================
+14. 자동 테스트
+==================================================
+
+반드시 테스트:
+
+A.
+ToyKids 선택
+phone=010-1111-1111
+신규 가입
+
+→ account_A 생성
+
+B.
+Swimnote2 선택
+동일 phone=010-1111-1111
+신규 가입
+
+→ account_B 생성
+→ account_A와 다른 ID
+
+C.
+두 account의 student도 서로 다른 ID
+
+D.
+ToyKids report 생성
+→ ToyKids account에서만 표시
+
+E.
+Swimnote2 로그인
+→ ToyKids report 0
+
+F.
+Swimnote2 context에서 ToyKids report_id 직접 호출
+→ 403
+
+G.
+같은 phone + 같은 pool 재가입
+→ 중복 차단
+
+H.
+같은 phone + 세 번째 pool
+→ 또 신규 account 생성
+
+I.
+logout/relogin 후에도
+각 pool 데이터 완전 분리
+
+==================================================
+15. 전수 Audit
+==================================================
+
+repository에서 아래 global lookup 전수 검색:
+
+phone
+login_id
+parent_id
+account_id
+
+특히:
+
+WHERE phone = ?
+LIMIT 1
+
+처럼 pool scope 없는 계정 lookup을 찾는다.
+
+가입/로그인/비밀번호재설정/학생연결/
+학부모 인증/리포트/알림까지 확인.
+
+각 lookup이 tenant-safe인지 검사한다.
+
+==================================================
+16. 완료보고
+==================================================
+
+CURRENT ROOT CAUSE
+- 기존 account reuse 구조
+- global phone lookup 위치
+- report가 따라온 실제 경로
+
+NEW ACCOUNT MODEL
+- pool-first flow
+- account identity
+- phone uniqueness
+- login lookup
+
+DB
+- 변경 schema
+- unique/index
+- additive migration 여부
+
+FILES CHANGED
+
+TEST
+- A~I 결과
+
+DATA ISOLATION
+- account
+- student
+- diary
+- report
+- notification
+- AI data
+
+1.6.3
+- untouched YES
+
+2.0.0
+- branch
+- SHA
+
+FINAL:
+
+SAME PHONE + DIFFERENT POOL
+= NEW INDEPENDENT ACCOUNT
+
+CROSS-POOL DATA
+= 0
+
+PASS / FAIL
+
+완료 후 STOP.
