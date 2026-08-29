@@ -350,3 +350,136 @@ describe("CASE-4: 다른 날짜로 이동 후 작성 — 선택 날짜 그대로
     expect(parseTargetDate(undefined, TODAY)).toBe(TODAY);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// QUICK WRITE — 미작성 슬롯 목록 필터링 로직
+// /diaries/unwritten-slots 응답 처리: session identity = class_group_id + lesson_date
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** 서버 응답 슬롯 타입 */
+interface UnwrittenSlot {
+  classGroupId: string;
+  className: string;
+  lessonDate: string;
+  scheduleTime: string;
+  dayOfWeek: string;
+}
+
+/**
+ * 클라이언트에서 Quick Write 목록을 구성할 때의 필터 로직 재현.
+ * session key = classGroupId + lessonDate
+ */
+function filterUnwritten(
+  allSlots: UnwrittenSlot[],
+  writtenKeys: Set<string>, // `${classGroupId}_${lessonDate}`
+): UnwrittenSlot[] {
+  return allSlots.filter(s => !writtenKeys.has(`${s.classGroupId}_${s.lessonDate}`));
+}
+
+/** Quick Write 목록 최근 날짜 우선 정렬 (서버 ascending → reverse) */
+function sortNewestFirst(slots: UnwrittenSlot[]): UnwrittenSlot[] {
+  return [...slots].sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+}
+
+const GRP_A = "group_a";
+const GRP_B = "group_b";
+const D0806 = "2026-08-06";
+const D0813 = "2026-08-13";
+const D0820 = "2026-08-20";
+
+function makeSlot(classGroupId: string, lessonDate: string, scheduleTime = "19:00"): UnwrittenSlot {
+  return { classGroupId, className: classGroupId === GRP_A ? "A반" : "B반", lessonDate, scheduleTime, dayOfWeek: "목" };
+}
+
+describe("CASE-A: 8/6 작성됨, 8/13·8/20 미작성 → Quick Write 목록에 8/13·8/20만 표시", () => {
+  it("작성된 8/6은 목록에서 제외", () => {
+    const serverSlots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813), makeSlot(GRP_A, D0820)];
+    const written = new Set([`${GRP_A}_${D0806}`]);
+    const result = filterUnwritten(serverSlots, written);
+
+    expect(result.map(s => s.lessonDate)).not.toContain(D0806);
+    expect(result.map(s => s.lessonDate)).toContain(D0813);
+    expect(result.map(s => s.lessonDate)).toContain(D0820);
+    expect(result).toHaveLength(2);
+  });
+
+  it("최근 날짜 우선 정렬: 8/20 → 8/13", () => {
+    const unwritten = [makeSlot(GRP_A, D0813), makeSlot(GRP_A, D0820)];
+    const sorted = sortNewestFirst(unwritten);
+    expect(sorted[0].lessonDate).toBe(D0820);
+    expect(sorted[1].lessonDate).toBe(D0813);
+  });
+});
+
+describe("CASE-B: 8/13 선택 → diary header 8/13, save lesson_date 8/13", () => {
+  it("선택된 슬롯의 lessonDate가 diary params로 정확히 전달됨", () => {
+    const selected = makeSlot(GRP_A, D0813);
+    // diary.tsx params 구성 로직 재현
+    const params = {
+      classGroupId: selected.classGroupId,
+      className:    selected.className,
+      lessonDate:   selected.lessonDate,
+      startTime:    selected.scheduleTime,
+    };
+    expect(params.lessonDate).toBe(D0813);
+    // diary.tsx는 params.lessonDate → targetDate로 사용
+    const targetDate = parseTargetDate(params.lessonDate, "2026-08-29");
+    expect(targetDate).toBe(D0813);
+  });
+});
+
+describe("CASE-C: 8/13 작성 완료 후 Quick Write 재진입 → 8/13 목록에서 제거", () => {
+  it("8/13 일지 작성 완료 후 written set에 추가 → 목록에서 제거", () => {
+    const serverSlots = [makeSlot(GRP_A, D0813), makeSlot(GRP_A, D0820)];
+
+    // 작성 전: 8/13·8/20 모두 표시
+    let written = new Set<string>();
+    expect(filterUnwritten(serverSlots, written)).toHaveLength(2);
+
+    // 8/13 작성 완료
+    written = new Set([`${GRP_A}_${D0813}`]);
+    const after = filterUnwritten(serverSlots, written);
+
+    expect(after.map(s => s.lessonDate)).not.toContain(D0813);
+    expect(after.map(s => s.lessonDate)).toContain(D0820);
+    expect(after).toHaveLength(1);
+  });
+});
+
+describe("CASE-D: 같은 반 8/6 작성 + 8/13 미작성 → 8/13 정상 표시", () => {
+  it("8/6 작성이 8/13 미작성 판정에 영향 없음", () => {
+    const serverSlots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813)];
+    const written = new Set([`${GRP_A}_${D0806}`]);
+    const result = filterUnwritten(serverSlots, written);
+    expect(result).toHaveLength(1);
+    expect(result[0].lessonDate).toBe(D0813);
+  });
+});
+
+describe("CASE-E: 다른 반 같은 날짜 → 각각 독립적으로 미작성 판정", () => {
+  it("GRP_A 8/13 작성됨, GRP_B 8/13 미작성 → B반만 표시", () => {
+    const serverSlots = [makeSlot(GRP_A, D0813), makeSlot(GRP_B, D0813)];
+    const written = new Set([`${GRP_A}_${D0813}`]);
+    const result = filterUnwritten(serverSlots, written);
+    expect(result).toHaveLength(1);
+    expect(result[0].classGroupId).toBe(GRP_B);
+  });
+
+  it("두 반 모두 미작성이면 둘 다 표시", () => {
+    const serverSlots = [makeSlot(GRP_A, D0813), makeSlot(GRP_B, D0813)];
+    const written = new Set<string>();
+    expect(filterUnwritten(serverSlots, written)).toHaveLength(2);
+  });
+});
+
+describe("CASE-F: 미작성 0건 → empty state", () => {
+  it("모든 슬롯이 작성된 경우 결과 빈 배열", () => {
+    const serverSlots = [makeSlot(GRP_A, D0806), makeSlot(GRP_A, D0813)];
+    const written = new Set([`${GRP_A}_${D0806}`, `${GRP_A}_${D0813}`]);
+    expect(filterUnwritten(serverSlots, written)).toHaveLength(0);
+  });
+
+  it("슬롯 자체가 없는 경우도 빈 배열", () => {
+    expect(filterUnwritten([], new Set())).toHaveLength(0);
+  });
+});

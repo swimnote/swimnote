@@ -31,6 +31,7 @@ import { ScheduleItem, formatDate, todayStr } from "@/components/teacher/today-s
 import ClassDetailSheet from "@/components/teacher/my-schedule/ClassDetailSheet";
 import { StudentItem } from "@/components/teacher/my-schedule/utils";
 import { TeacherClassGroup } from "@/components/teacher/types";
+import { UnwrittenScheduleSheet } from "@/components/teacher/diary/UnwrittenScheduleSheet";
 const C = Colors.light;
 interface TeacherOverview {
   unread_messages: number;
@@ -58,6 +59,7 @@ export default function TodayScheduleScreen() {
   const [notePopupVisible, setNotePopupVisible] = useState(false);
   const [showTeacherRegister, setShowTeacherRegister] = useState(false);
   const [diaryBannerDismissed, setDiaryBannerDismissed] = useState(false);
+  const [showQuickWrite, setShowQuickWrite] = useState(false);
   useEffect(() => {
     AsyncStorage.getItem("dismissedDiaryBannerDate").then(date => {
       if (date === today) setDiaryBannerDismissed(true);
@@ -620,12 +622,19 @@ export default function TodayScheduleScreen() {
       )}
       <Pressable
         style={[h.fab, { backgroundColor: themeColor, bottom: insets.bottom + 72 }]}
-        onPress={() => { haptic.light(); router.push("/(teacher)/diary?backTo=today-schedule" as any); }}
+        onPress={() => { haptic.light(); setShowQuickWrite(true); }}
         accessibilityLabel="일지 바로쓰기"
       >
         <PenLine size={18} color="#fff" />
         <Text style={h.fabText}>일지 바로쓰기</Text>
       </Pressable>
+
+      <UnwrittenScheduleSheet
+        visible={showQuickWrite}
+        token={token}
+        onClose={() => setShowQuickWrite(false)}
+        backTo="today-schedule"
+      />
     </SafeAreaView>
   );
 }
