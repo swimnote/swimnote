@@ -1,0 +1,716 @@
+[SWIMNOTE APP/API — TOYKIDS CURRICULUM v2.0 FINAL IMPORT / ONE-SHOT PRODUCTION REPLACEMENT]
+
+첨부파일:
+
+TOYKIDS_SWIMNOTE_X_APP_FINAL_IMPORT_v2.0.docx
+
+이번 작업의 목적:
+
+첨부한 FINAL IMPORT 파일을 교육적으로 재해석하지 않고
+파일에 확정된 Canonical Curriculum을 그대로 APP/API DB에 Import한다.
+
+그 후:
+
+- 새 Curriculum Version 생성
+- 전체 Validation
+- 일지 템플릿 [교육과정] Preview
+- Normal AI Diary APP-side curriculum lookup 확인
+- PASS 시 ACTIVE 원자적 교체
+- 잘못 생성된 이전 Curriculum 정리
+- 최종 E2E
+
+까지 한 번에 완료한다.
+
+이번 작업은 APP/API만 수행한다.
+AI Engine은 수정하지 않는다.
+
+==================================================
+0. 사고 재발 방지 — 절대 규칙
+==================================================
+
+가장 먼저 첨부파일이 실제 workspace에 존재하는지 확인한다.
+
+파일이 없으면:
+
+FAIL: FINAL_IMPORT_FILE_NOT_FOUND
+
+로 즉시 STOP.
+
+절대 임의 데이터 생성 금지.
+
+절대 기존 기억/세션 요약/이전 DB 데이터를 사용해
+첨부파일 내용을 추정하거나 재구성하지 않는다.
+
+첨부파일의 선언을 확인:
+
+FILE_TYPE = FINAL_IMPORT
+NO_REINTERPRETATION = TRUE
+NO_RECLASSIFICATION = TRUE
+
+위 선언 중 하나라도 없으면 STOP.
+
+이번 파일이 유일한 Import source of truth다.
+
+==================================================
+1. Canonical 기대값
+==================================================
+
+첨부파일에서 실제 값을 읽어서 확인하되,
+다음 값과 일치해야 한다.
+
+Canonical Nodes = 50
+Drills = 500
+Relations = 52
+
+Level Distribution:
+
+L1 = 21
+L2 = 3
+L3 = 24
+L4 = 2
+
+합계 = 50
+
+중요:
+
+이 숫자를 기준으로 데이터를 새로 만드는 것이 아니다.
+
+파일에서 읽은 결과가 이 기대값과 다르면
+파일/Parser 불일치이므로 Import하지 않고 STOP.
+
+==================================================
+2. 재해석 절대 금지
+==================================================
+
+다음 행위 금지:
+
+- 850 source rows를 다시 분석
+- 001~350 diary 문장을 Node로 다시 변환
+- 351~850 drill을 다시 grouping
+- level_order 재판정
+- stroke 재판정
+- domain 재판정
+- skill_group 재판정
+- atomic_skill 재작성
+- Node merge/dedup 재판정
+- Drill parent 재판정
+- Relation 재생성
+- source_text를 보고 교육 의미 재추론
+
+FINAL IMPORT 파일에 적힌 값을 그대로 사용한다.
+
+특히:
+
+canonical_key
+level_order
+level_name
+sequence_in_level
+stroke
+domain
+skill_group
+atomic_skill
+title
+goal
+target_canonical_key
+progression_stage
+relation from/to
+
+를 그대로 저장한다.
+
+==================================================
+3. 현재 Production 상태 READ-ONLY 감사
+==================================================
+
+DB 변경 전에 현재 TOYKIDS pool의 Curriculum 상태를 확인한다.
+
+확인:
+
+- curriculum_versions
+- levels
+- nodes/items
+- drills
+- relations
+- student_curriculum_progress
+- curriculum 관련 외부 FK/reference
+- diary_templates
+- class_diaries
+
+현재 known incident versions가 있으면 실제 DB에서 존재 여부를 확인:
+
+cv_yw5cw59lpkgoymyc
+cv_oirznm8v7r596vrl
+
+단 ID를 추측해서 삭제하지 않는다.
+
+현재 실제 DB 상태를 기준으로 처리한다.
+
+==================================================
+4. Pre-Import Backup
+==================================================
+
+어떤 DELETE/UPDATE보다 먼저
+현재 TOYKIDS Curriculum 전체를 JSON backup으로 저장한다.
+
+포함:
+
+- versions
+- levels
+- nodes
+- drills
+- relations
+
+파일명 예:
+
+/tmp/toykids-curriculum-pre-final-v2-backup.json
+
+추가로 현재 ACTIVE version id와 counts 기록.
+
+backup 생성 실패 시 STOP.
+
+==================================================
+5. 기존 실제 운영 데이터 보호
+==================================================
+
+절대 수정/삭제 금지:
+
+students
+classes
+class_diaries
+class_diary_student_notes
+attendance
+parents
+feeds
+notifications
+growth_reports
+growth_events
+teacher-created diary templates
+기타 실제 수업 기록
+
+student_curriculum_progress가 0이 아니면
+자동 migration/delete 금지.
+
+count와 참조 상태를 보고 즉시 STOP.
+
+==================================================
+6. FINAL IMPORT Parser
+==================================================
+
+FINAL IMPORT 전용 Parser를 사용한다.
+
+기존 생성입력용 AI/parser가
+교육 의미를 추론하도록 되어 있다면 사용하지 않는다.
+
+필요하면 FINAL_IMPORT 전용 deterministic parser를 추가한다.
+
+Parser 역할은 오직:
+
+DOCX table/field 읽기
+→ schema validation
+→ canonical record 변환
+
+이다.
+
+교육 판단 기능은 없어야 한다.
+
+==================================================
+7. Import 전 In-Memory Validation
+==================================================
+
+DB WRITE 전에 전체 파일을 메모리에서 검증한다.
+
+필수:
+
+nodes = 50
+drills = 500
+relations = 52
+
+L1=21
+L2=3
+L3=24
+L4=2
+
+canonical_key duplicate = 0
+display_no duplicate within version = 0
+orphan drill = 0
+broken relation = 0
+invalid target_canonical_key = 0
+invalid level = 0
+sequence gap = 0
+mixed-stroke invalid parent = 0
+progression_stage used as level_order = 0
+
+하나라도 실패하면 DB WRITE 금지.
+
+==================================================
+8. 새 Curriculum Version 생성
+==================================================
+
+새 Version을 DRAFT/STAGING 상태로 생성한다.
+
+기존 ACTIVE는 아직 유지한다.
+
+새 version identity에는 최소:
+
+source_document =
+TOYKIDS_SWIMNOTE_X_APP_FINAL_IMPORT_v2.0.docx
+
+schema_version =
+FINAL_IMPORT_v2
+
+review/import type =
+FINAL_IMPORT
+
+를 추적 가능하게 저장.
+
+DB PK/UUID는 시스템에서 생성 가능.
+
+canonical_key는 파일 값을 그대로 사용.
+
+==================================================
+9. Level Import
+==================================================
+
+파일에 정의된 Level Master를 그대로 Import.
+
+level_order와 level_name 재판정 금지.
+
+현재 기대:
+
+L1
+L2
+L3
+L4
+
+실제 표시명도 파일 기준 사용.
+
+pool_level_settings와 연결이 필요하면
+기존 실제 level_order 기반으로 안전하게 연결하되
+파일의 교육적 level assignment는 바꾸지 않는다.
+
+==================================================
+10. Node Import
+==================================================
+
+50개 Canonical Node를 그대로 Import.
+
+각 Node에서 최소 보존:
+
+canonical_key
+source_key
+display_no
+sequence_in_level
+level_order
+level_name
+stroke
+domain
+skill_group
+atomic_skill
+title
+goal
+movement_sequence
+observable_success
+partial_success
+error_signals
+coaching_point
+is_test_item
+completion_rule
+source_text
+
+50개 초과/미만이면 FAIL.
+
+==================================================
+11. Drill Import
+==================================================
+
+500 Drill을 그대로 Import.
+
+target_canonical_key 기준으로
+새 DB node_id에 deterministic mapping.
+
+Drill parent를 재추론하지 않는다.
+
+각 Drill:
+
+drill_key
+target_canonical_key
+source_key
+drill_title
+target_aspect
+movement_sequence
+repetitions
+immediate_feedback
+integration
+sprint_validation
+failure_return_key
+progression_stage
+difficulty
+source_text
+
+보존.
+
+최종:
+
+drills = 500
+orphan = 0
+
+==================================================
+12. Relation Import
+==================================================
+
+파일의 Relation 52개를 그대로 Import.
+
+relation_type
+from_canonical_key
+to_canonical_key
+
+기준으로 새 DB node_id에 mapping.
+
+Relation을 새로 만들어내거나 삭제하지 않는다.
+
+기대:
+
+total relations = 52
+
+broken = 0
+
+==================================================
+13. DRAFT DB Validation
+==================================================
+
+새 DRAFT DB에서 다시 전수검사.
+
+반드시:
+
+Nodes 50
+Drills 500
+Relations 52
+
+Level:
+21 / 3 / 24 / 2
+
+orphan 0
+broken 0
+duplicate canonical 0
+mixed stroke invalid 0
+progression-as-level 0
+sequence gap 0
+
+파일 In-Memory 결과와 DB 결과가 정확히 같아야 한다.
+
+==================================================
+14. Template UI Preview
+==================================================
+
+새 DRAFT version으로 Preview를 수행한다.
+
+일지 템플릿:
+
+[교육과정]
+[내 템플릿]
+
+[교육과정]은:
+
+Level
+→ Stroke
+→ Domain / Skill Group
+→ Canonical Node
+
+구조.
+
+별도 사람용 taxonomy 생성 금지.
+
+노드는 새 Curriculum metadata에서 동적 표시.
+
+확인:
+
+전체 50개 Node가 누락 없이 접근 가능.
+
+==================================================
+15. Teacher Templates 보호
+==================================================
+
+teacher-created templates를 절대 Curriculum에 merge하지 않는다.
+
+현재 diary_templates scope별 count를 확인.
+
+[내 템플릿]은 teacher scope만 사용.
+
+기존 legacy global template이 존재한다면
+이번 작업에서 임의 삭제하지 않는다.
+
+사용 여부만 최종 보고.
+
+==================================================
+16. Normal AI Diary APP-side Lookup
+==================================================
+
+Normal AI Diary APP-side Curriculum search가
+새 DRAFT/ACTIVE Canonical Curriculum 구조와 호환되는지 확인.
+
+대표:
+
+배영 풀 동작
+자유형 풀 동작
+평영 긴 글라이딩
+접영 두 번째 킥 타이밍
+IM 전환
+
+올바른 canonical Node를 찾는지 확인.
+
+이 단계에서도 교육적 재분류 금지.
+
+==================================================
+17. ACTIVE 전환 조건
+==================================================
+
+다음 전부 PASS일 때만 ACTIVE 교체 실행:
+
+FILE validation PASS
+DB validation PASS
+nodes=50
+drills=500
+relations=52
+level distribution=21/3/24/2
+orphan=0
+broken=0
+mixed-stroke=0
+progression-as-level=0
+Template Preview PASS
+Normal AI Diary lookup PASS
+student progress 영향 없음
+teacher templates 보존
+class diaries 보존
+
+하나라도 FAIL이면
+기존 ACTIVE를 유지하고 STOP.
+
+==================================================
+18. ACTIVE 교체 — 원자적 수행
+==================================================
+
+PASS 시 단일 transaction 또는
+안전한 atomic switching 방식으로:
+
+1. 새 Final version ACTIVE
+2. 기존 ACTIVE is_active=false
+3. ACTIVE version count=1 확인
+
+전환 도중 실패하면 rollback하여
+기존 ACTIVE를 유지한다.
+
+서비스에 ACTIVE=0 상태가 생기지 않게 한다.
+
+==================================================
+19. 기존 사고 버전 정리
+==================================================
+
+새 Final ACTIVE 전환과 E2E까지 PASS한 후에만
+잘못 생성된 Curriculum versions를 정리한다.
+
+단:
+
+- pre-import backup 존재 확인
+- 외부 reference 0 확인
+- 새 ACTIVE 정상 확인
+
+후 삭제.
+
+정리 대상은 실제 DB에서 확인한
+구 Curriculum versions만.
+
+students/class diaries/teacher templates 등은 절대 건드리지 않는다.
+
+==================================================
+20. Legacy diary global 350
+==================================================
+
+legacy global diary_templates가 남아 있으면
+이번 작업 중 즉시 삭제하지 않는다.
+
+다음만 확인:
+
+- 새 [교육과정]이 Final Curriculum 50 Node 사용
+- Normal AI Diary가 Final Curriculum 사용
+- legacy global runtime reference
+
+reference=0이면:
+
+SAFE_TO_DELETE_LATER
+
+라고 보고.
+
+별도 승인 없이 삭제하지 않는다.
+
+==================================================
+21. Production API E2E
+==================================================
+
+최종 ACTIVE 기준:
+
+/curriculum/diary/levels
+/curriculum/diary/nodes
+/curriculum/diary/facets
+/curriculum/diary/teacher-templates
+
+테스트.
+
+확인:
+
+4개 Level
+50 Node
+facet 정상
+teacher templates 정상
+
+==================================================
+22. 코드 변경
+==================================================
+
+FINAL_IMPORT deterministic importer 지원에
+필요한 코드만 수정.
+
+교육 의미를 판단하는 코드 추가 금지.
+
+기존 runtime 구조는 최대한 유지.
+
+관련 tests 추가.
+
+==================================================
+23. Tests
+==================================================
+
+최소:
+
+FINAL import parser
+schema validation
+canonical_key
+Node import
+Drill parent mapping
+Relation mapping
+Version activation
+rollback
+Curriculum Diary API
+Teacher template preservation
+Class diary preservation
+Normal AI Diary lookup
+
+전부 PASS.
+
+==================================================
+24. Git
+==================================================
+
+코드 변경이 있으면 commit + push.
+
+보고:
+
+branch
+SHA
+
+DB-only 작업이어도 변경 여부 명시.
+
+==================================================
+25. 배포
+==================================================
+
+코드 변경 없이 현재 server runtime에서
+DB import만으로 정상 동작하면 Render 재배포 불필요.
+
+코드 변경이 있어 Production에 필요한 경우:
+
+Render는 자동 실행하지 말고
+"RENDER_REQUIRED"로 보고.
+
+OTA도 자동 실행 금지.
+
+UI 코드 변경이 없으면 OTA 불필요.
+
+==================================================
+26. 최종 완료보고
+==================================================
+
+INPUT
+- filename
+- FILE_TYPE
+- NO_REINTERPRETATION
+- file parsed successfully
+
+PREVIOUS STATE
+- active version
+- nodes
+- drills
+- relations
+
+BACKUP
+- path
+- success
+
+NEW FINAL VERSION
+- version_id
+- status
+- active
+
+COUNTS
+- levels
+- nodes = 50
+- drills = 500
+- relations = 52
+
+LEVELS
+- L1 = 21
+- L2 = 3
+- L3 = 24
+- L4 = 2
+
+VALIDATION
+- canonical duplicate
+- orphan drill
+- broken relation
+- mixed stroke
+- progression-as-level
+- sequence gap
+
+TEMPLATE UI
+- 교육과정
+- 내 템플릿
+- node count
+- facet status
+
+DATA SAFETY
+- students unchanged
+- class_diaries unchanged
+- teacher templates unchanged
+- student progress status
+
+OLD VERSIONS
+- removed versions
+- retained versions
+
+LEGACY GLOBAL
+- runtime reference
+- SAFE_TO_DELETE_LATER / STILL_REQUIRED
+
+E2E
+- API routes
+- Normal AI Diary lookup
+
+CODE
+- files changed
+- tests
+- branch
+- SHA
+
+DEPLOY
+- Render REQUIRED / NOT REQUIRED
+- OTA REQUIRED / NOT REQUIRED
+
+FINAL
+PASS / FAIL
+
+PASS 기준은
+첨부 FINAL IMPORT 파일이 그대로 적용되어
+ACTIVE Curriculum이 정확히
+50 Nodes / 500 Drills / 52 Relations /
+L1=21 L2=3 L3=24 L4=2
+상태가 된 경우뿐이다.
+
+완료 후 STOP.
