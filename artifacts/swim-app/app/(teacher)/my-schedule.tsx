@@ -350,7 +350,7 @@ export default function MyScheduleScreen() {
             <Text style={[s.subActionText, { color: C.brandStrong }]}>반배정</Text>
           </Pressable>
           <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? C.brandMist : "#FFF1BF", flex: 1 }]}
-            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, backTo:"my-schedule"} } as any)}>
+            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, lessonDate: todayDateStr(), backTo:"my-schedule"} } as any)}>
             <Pencil size={13} color={diarDone ? C.brandStrong : "#D97706"} />
             <Text style={[s.subActionText, { color: diarDone ? C.brandStrong : "#D97706" }]}>수업일지</Text>
           </Pressable>

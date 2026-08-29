@@ -544,7 +544,7 @@ export default function TodayScheduleScreen() {
                   style={({ pressed }) => [h.listRow, !isLast && h.listRowBorder, pressed && { opacity: 0.85 }]}
                   onPress={() => {
                     haptic.light();
-                    router.push({ pathname: "/(teacher)/diary", params: { classGroupId: item.id, className: item.name, backTo: "today-schedule" } } as any);
+                    router.push({ pathname: "/(teacher)/diary", params: { classGroupId: item.id, className: item.name, lessonDate: today, backTo: "today-schedule" } } as any);
                   }}>
                   <View style={[h.diaryStatusBar, { backgroundColor: diaryDone ? C.brandStrong : "#F59E0B" }]} />
                   <View style={{ flex: 1 }}>

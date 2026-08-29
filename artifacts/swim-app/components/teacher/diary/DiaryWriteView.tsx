@@ -102,13 +102,6 @@ export default function DiaryWriteView({
     <View style={{ flex: 1 }}>
       <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
 
-        {myDiaryExists && (
-          <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-            <LucideIcon name="alert-circle" size={13} color="#D97706" />
-            <Text style={s.infoText}>오늘 이미 일지가 작성되어 있습니다. 수정은 "지난 일지"에서 할 수 있습니다.</Text>
-          </View>
-        )}
-
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
@@ -451,11 +444,11 @@ export default function DiaryWriteView({
             <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
               <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
             </Pressable>
-            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
+            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.5 : 1, flex: 2 }]}
               onPress={() => {
                 console.log(`[PRESS SAVE] timestamp=${new Date().toISOString()}`);
                 onSave();
-              }} disabled={saving || myDiaryExists}>
+              }} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
             </Pressable>
           </View>

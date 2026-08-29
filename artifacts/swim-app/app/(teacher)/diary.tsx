@@ -100,6 +100,10 @@ export default function TeacherDiaryScreen() {
   const [pendingDiaryId,  setPendingDiaryId]  = useState<string | null>(null);
   const [pendingNoteIds,  setPendingNoteIds]  = useState<Record<string, string>>({});
   const [hasDraft,             setHasDraft]             = useState(false);
+  // replace confirm — 동일 날짜+슬롯 일지 교체 확인
+  const [showReplaceConfirm,   setShowReplaceConfirm]   = useState(false);
+  const [replacingDiaryId,     setReplacingDiaryId]     = useState<string | null>(null);
+  const [replaceLoading,       setReplaceLoading]       = useState(false);
   /** WP7: AI generate 결과의 curriculum matches — diary save 시 서버로 전달 */
   const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
   const handledParamKey = useRef<string | undefined>(undefined);
@@ -1472,7 +1476,20 @@ export default function TeacherDiaryScreen() {
           <View style={{ flex: 1 }} />
           <Pressable
             style={[s.tabBtn, { backgroundColor: C.background, borderColor: themeColor }]}
-            onPress={() => setSubView(v => v === "history" ? "write" : "history")}>
+            onPress={() => {
+              if (subView === "history") {
+                // history → write: 동일 날짜 기존 일지가 있으면 교체 확인
+                if (myDiaryExists) {
+                  const existing = diaries.find(d => d.lesson_date === targetDate && !d.is_deleted);
+                  setReplacingDiaryId(existing?.id ?? null);
+                  setShowReplaceConfirm(true);
+                } else {
+                  setSubView("write");
+                }
+              } else {
+                setSubView("history");
+              }
+            }}>
             {subView === "history"
               ? <BookOpen size={13} color={themeColor} />
               : <Clock    size={13} color={themeColor} />}
@@ -1655,6 +1672,58 @@ export default function TeacherDiaryScreen() {
           cancelText="닫기"
           onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
           onCancel={() => setShowStorageModal(false)}
+        />
+        {/* ── 동일 날짜·슬롯 일지 교체 확인 ─────────────────────────── */}
+        <ConfirmModal
+          visible={showReplaceConfirm}
+          title="이미 작성된 일지가 있습니다"
+          message={`${targetDate} 수업의 일지가 이미 작성되어 있습니다.\n새로 작성한 일지로 기존 일지를 바꾸시겠습니까?`}
+          confirmText={replaceLoading ? "삭제 중…" : "새로 작성"}
+          cancelText="취소"
+          onConfirm={async () => {
+            if (replaceLoading) return;
+            if (!replacingDiaryId) {
+              // 기존 diary id 를 못 찾은 경우 — 그냥 write 진입
+              setShowReplaceConfirm(false);
+              setSubView("write");
+              return;
+            }
+            setReplaceLoading(true);
+            try {
+              const r = await apiRequest(token, `/diaries/${replacingDiaryId}`, { method: "DELETE" });
+              if (r.ok) {
+                // diarySet 에서 해당 key 제거
+                setDiarySet(prev => {
+                  const next = new Set(prev);
+                  next.delete(`${selectedGroup!.id}_${targetDate}`);
+                  return next;
+                });
+                // diaries 목록에서도 제거
+                setDiaries(prev => prev.filter(d => d.id !== replacingDiaryId));
+                setShowReplaceConfirm(false);
+                setReplacingDiaryId(null);
+                setSubView("write");
+              } else {
+                const err = await r.json().catch(() => ({}));
+                if (__DEV__) console.error("[REPLACE] DELETE failed", r.status, err);
+                setShowReplaceConfirm(false);
+                setReplaceLoading(false);
+                setSaveMsg({ type: "error", text: "기존 일지 삭제에 실패했습니다. 다시 시도해주세요." });
+                return;
+              }
+            } catch (e) {
+              if (__DEV__) console.error("[REPLACE] DELETE error", e);
+              setShowReplaceConfirm(false);
+              setReplaceLoading(false);
+              setSaveMsg({ type: "error", text: "기존 일지 삭제 중 오류가 발생했습니다." });
+              return;
+            }
+            setReplaceLoading(false);
+          }}
+          onCancel={() => {
+            setShowReplaceConfirm(false);
+            setReplacingDiaryId(null);
+          }}
         />
       </SafeAreaView>
     );
