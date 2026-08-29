@@ -1,0 +1,294 @@
+[앱]
+
+FINAL PRODUCTION OTA DEPLOY
+IOS + ANDROID
+ALL CUMULATIVE APP FIXES
+
+현재 최종 HEAD:
+
+970b25ab
+
+branch:
+deploy-photo-clone
+
+목표:
+지금까지 누적된 앱 JS/TS 수정사항을
+iOS + Android production OTA에
+동일 SHA로 동시 반영한다.
+
+이번 최종 HEAD에는
+기존 누적 일지/OTA 수정 +
+X모드 today-schedule의
+"AI 학생리포트 →" 버튼 제거까지 포함한다.
+
+==================================================
+1. HEAD CHECK
+==================================================
+
+git rev-parse HEAD
+
+반드시:
+
+970b25ab
+
+이어야 함.
+
+다르면 STOP.
+
+working tree 확인.
+
+예상치 못한 uncommitted change가 있으면
+OTA publish 금지하고 STOP.
+
+==================================================
+2. OTA COMPATIBILITY CHECK
+==================================================
+
+현재 누적 변경에 아래가 없는지 확인:
+
+- native module 추가/변경
+- app.json native config 변경
+- app.config native config 변경
+- permissions 변경
+- runtimeVersion 변경
+- native dependency 변경
+
+전부 없으면:
+
+BUILD_REQUIRED = NO
+
+하나라도 있으면:
+OTA publish 금지하고 STOP.
+
+==================================================
+3. INCLUDE CURRENT CUMULATIVE APP FIXES
+==================================================
+
+최종 HEAD에 포함된 현재 누적 앱 수정 전체:
+
+1.
+diary selected lessonDate binding
+
+2.
+same-session diary replace
+
+3.
+Quick Write
+→ unwritten schedule selector
+
+4.
+today eligible unwritten slot
+
+5.
+KST time handling
+
+6.
+diary-index UX
+
+7.
+session selector inside diary
+
+8.
+schedule switch student reload
+
+9.
+dirty session switch confirm
+
+10.
+written diary replace race fix
+
+11.
+ClassDetailSheet
+lessonDate + startTime params
+
+12.
+X / General parity fixes
+
+13.
+TextInput vertical clipping fix
+
+14.
+Silent 30-minute OTA UX
+
+15.
+X MODE today-schedule:
+"AI 학생리포트 →" 버튼 전체 제거
+
+- Pressable 제거
+- 아이콘 제거
+- SWIMNOTE X 배지 제거
+- 전용 여백 제거
+- 제거 후 layout gap 없음
+
+GENERAL MODE:
+해당 버튼 원래 없음.
+변경 없음.
+
+현재 HEAD에 포함된 앱 수정은
+별도 선별하지 말고
+동일 SHA 전체를 사용.
+
+==================================================
+4. ROLLBACK TARGETS
+==================================================
+
+publish 전에
+현재 production stable OTA를
+iOS / Android 각각
+실제 EAS 기준으로 조회.
+
+기억값 추측 금지.
+
+반드시 기록:
+
+IOS:
+- previous update group
+- previous update ID
+- runtimeVersion
+- channel
+- branch
+- message/timestamp
+
+ANDROID:
+- previous update group
+- previous update ID
+- runtimeVersion
+- channel
+- branch
+- message/timestamp
+
+==================================================
+5. MINIMAL PRE-PUBLISH TEST
+==================================================
+
+관련 최소 테스트만 확인:
+
+- diary session/date tests
+- Quick Write
+- session switch
+- replace logic
+- X / General shared paths
+- ClassDetailSheet params
+- today-schedule old paths 없음
+- X "AI 학생리포트" 버튼 제거 확인
+- TypeScript compile relevant scope
+
+repo-wide regression 금지.
+
+==================================================
+6. PUBLISH IOS
+==================================================
+
+production channel
+iOS OTA publish
+
+git SHA:
+
+970b25ab
+
+publish 후 기록:
+
+IOS_NEW_GROUP
+IOS_NEW_UPDATE_ID
+runtimeVersion
+
+==================================================
+7. PUBLISH ANDROID
+==================================================
+
+production channel
+Android OTA publish
+
+같은 git SHA:
+
+970b25ab
+
+publish 후 기록:
+
+ANDROID_NEW_GROUP
+ANDROID_NEW_UPDATE_ID
+runtimeVersion
+
+==================================================
+8. SILENT OTA POLICY
+==================================================
+
+두 플랫폼 모두
+현재 Silent 30-Min OTA 정책 유지.
+
+일반 OTA:
+
+- popup 없음
+- 즉시 강제 reload 없음
+- silent fetch
+- cold start 또는
+- 30분 이상 background 후 foreground 시 apply
+
+iOS / Android 동일 정책.
+
+이번 publish 때문에
+기존 OTA UX를 다시 변경하지 않는다.
+
+==================================================
+9. DO NOT TOUCH
+==================================================
+
+이번 작업에서 금지:
+
+- Render deploy
+- DB
+- AI Engine
+- Growth Report
+- curriculum DB
+- server code
+- native build
+- App Store build
+- Play Store build
+
+이번 Step은
+iOS + Android production OTA publish만.
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+FINAL_SHA:
+
+HEAD_MATCH:
+YES / NO
+
+BUILD_REQUIRED:
+YES / NO
+
+TESTS:
+
+IOS:
+OLD_GROUP:
+OLD_UPDATE_ID:
+NEW_GROUP:
+NEW_UPDATE_ID:
+runtimeVersion:
+PASS / FAIL
+
+ANDROID:
+OLD_GROUP:
+OLD_UPDATE_ID:
+NEW_GROUP:
+NEW_UPDATE_ID:
+runtimeVersion:
+PASS / FAIL
+
+channel:
+production
+
+branch:
+deploy-photo-clone
+
+X_AI_STUDENT_REPORT_BUTTON:
+REMOVED / NOT REMOVED
+
+FINAL:
+IOS OTA PASS / FAIL
+ANDROID OTA PASS / FAIL
+
+완료 후 STOP.
