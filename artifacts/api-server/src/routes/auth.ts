@@ -457,15 +457,22 @@ router.post("/activate-teacher", async (req, res) => {
 
 // ── 학부모 로그인 ─────────────────────────────────────────────────────
 router.post("/parent-login", async (req, res) => {
-  const { identifier, loginId, phone, pin, password } = req.body;
+  const { identifier, loginId, phone, pin, password, pool_id } = req.body;
   const id = (identifier || loginId || phone || "").trim();
   const pw = (password || pin || "").trim();
+  // [2.0.0] pool_id: 제공 시 해당 pool 안에서만 조회 (pool-first). 미제공 시 1.6.3 호환 동작.
+  const scopedPoolId = (pool_id || "").trim() || null;
   if (!id || !pw) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   try {
     // login_id 기반 조회 먼저, 없으면 phone 기반 조회
-    const byLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    const loginIdQuery = scopedPoolId
+      ? sql`SELECT * FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${scopedPoolId} LIMIT 1`
+      : sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`;
+    const byLoginId = await db.execute(loginIdQuery);
     const byPhone = byLoginId.rows.length === 0
-      ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))
+      ? (scopedPoolId
+          ? (await db.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${scopedPoolId} LIMIT 1`)).rows
+          : await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)))
       : [];
     const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
     if (accounts.length === 0) {
@@ -987,17 +994,20 @@ router.post("/simple-parent-register", async (req, res) => {
 
 // ── 아이디 존재 여부 확인 ───────────────────────────────────────────────
 router.post("/check-id", async (req, res) => {
-  const { identifier } = req.body;
+  const { identifier, pool_id } = req.body;
   if (!identifier) return res.json({ exists: false, type: null });
   const id = identifier.trim();
+  // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환.
+  const ciPoolId = (pool_id || "").trim() || null;
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id })
       .from(usersTable).where(eq(usersTable.email, id.toLowerCase())).limit(1);
     if (user) return res.json({ exists: true, type: "admin" });
 
-    const [parent] = await db.select({ id: parentAccountsTable.id })
-      .from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)).limit(1);
-    if (parent) return res.json({ exists: true, type: "parent" });
+    const parentRows = ciPoolId
+      ? (await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${ciPoolId} LIMIT 1`)).rows
+      : await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)).limit(1);
+    if (parentRows.length > 0) return res.json({ exists: true, type: "parent" });
 
     return res.json({ exists: false, type: null });
   } catch (e) {
@@ -1136,10 +1146,16 @@ router.post("/unified-login", async (req, res) => {
     }
 
     // ── 2) parent_accounts 테이블 (login_id → phone) ──────────────
-    const parentByLoginId = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환(LIMIT 1).
+    const uPoolId = ((req.body as any).pool_id || "").trim() || null;
+    const parentByLoginId = uPoolId
+      ? await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${uPoolId} LIMIT 1`)
+      : await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
     let parentRow: any = parentByLoginId.rows[0] ?? null;
     if (!parentRow) {
-      const byPhoneRaw = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} LIMIT 1`);
+      const byPhoneRaw = uPoolId
+        ? await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${uPoolId} LIMIT 1`)
+        : await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} LIMIT 1`);
       parentRow = byPhoneRaw.rows[0] ?? null;
     }
 
@@ -1315,9 +1331,11 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
 
 // ── 비밀번호 재설정 (MVP: 이메일 확인 → 바로 변경) ────────────────────
 router.post("/reset-password", async (req, res) => {
-  const { identifier, new_password } = req.body;
+  const { identifier, new_password, pool_id } = req.body;
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
   if (new_password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+  // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환.
+  const rpPoolId = (pool_id || "").trim() || null;
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
@@ -1326,8 +1344,10 @@ router.post("/reset-password", async (req, res) => {
       await superAdminDb.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
       res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
     }
-    const [parent] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
-      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    const parentQuery = rpPoolId
+      ? await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${identifier.trim()} AND swimming_pool_id = ${rpPoolId} LIMIT 1`)
+      : await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable).where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    const [parent] = rpPoolId ? (parentQuery as any).rows : parentQuery;
     if (parent) {
       const hash = await hashPassword(new_password);
       await db.execute(sql`UPDATE parent_accounts SET pin_hash = ${hash}, updated_at = now() WHERE id = ${parent.id}`);
@@ -2589,106 +2609,22 @@ router.post("/v2/parent-register", async (req, res) => {
   let createdParentId: string | null = null;
 
   try {
-    // ── 전화번호로 기존 계정 조회 (pool 무관) ──────────────────────────────
-    // Multi-Pool: 같은 전화번호라도 다른 pool에는 가입 가능.
-    // 같은 pool에 active membership이 있을 때만 중복 차단.
-    const [existingPhoneRow] = (await db.execute(sql`
-      SELECT id, swimming_pool_id FROM parent_accounts
-      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph} LIMIT 1
+    // ── [2.0.0 POOL-FIRST] 동일 pool 안에서만 phone 중복 체크 ───────────────
+    // 정책: 전화번호는 global identity가 아님.
+    // 같은 pool 안에 동일 phone이 있으면 중복 차단.
+    // 다른 pool에 동일 phone이 있어도 → 무시 → 이 pool용 신규 account 생성.
+    const [existingInPool] = (await db.execute(sql`
+      SELECT id FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${poolId}
+      LIMIT 1
     `)).rows as any[];
 
-    if (existingPhoneRow) {
-      const existingParentId: string = existingPhoneRow.id;
-
-      // ── 같은 pool에 active membership이 있으면 중복 차단 ──────────────────
-      const { checkMembership, upsertMembership } = await import("../migrations/pool-db-membership.js");
-      const alreadyInPool = await checkMembership({
-        accountId: existingParentId,
-        poolId,
-        role: "parent_account",
-      });
-      if (alreadyInPool) {
-        return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
-      }
-
-      // ── 소셜 ID 충돌 검사: 다른 사람이 동일 apple/kakao ID를 사용 중인지 확인 ─
-      if (appleId) {
-        const [existingApple] = (await db.execute(sql`
-          SELECT id FROM parent_accounts WHERE apple_id = ${appleId} AND id != ${existingParentId} LIMIT 1
-        `)).rows as any[];
-        if (existingApple) return err(res, 409, "이미 Apple 계정으로 가입된 사용자입니다.");
-      }
-      if (kakaoId) {
-        const [existingKakao] = (await db.execute(sql`
-          SELECT id FROM parent_accounts WHERE kakao_id = ${kakaoId} AND id != ${existingParentId} LIMIT 1
-        `)).rows as any[];
-        if (existingKakao) return err(res, 409, "이미 카카오 계정으로 가입된 사용자입니다.");
-      }
-
-      // ── 수영장 존재 확인 ────────────────────────────────────────────────────
-      const [pool] = (await superAdminDb.execute(sql`
-        SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
-      `)).rows as any[];
-      if (!pool) return err(res, 404, "수영장을 찾을 수 없습니다.");
-
-      // ── 기존 계정에 새 pool membership 추가 (parent_accounts row 수정 없음) ─
-      await upsertMembership({
-        accountId: existingParentId,
-        accountType: "parent",
-        poolId,
-        role: "parent_account",
-        status: "active",
-      });
-      console.log(`[v2-register] 기존 계정에 새 pool 추가: parentId=${existingParentId} pool=${poolId}`);
-
-      // ── 새 pool의 student 매칭/연결 시도 ───────────────────────────────────
-      const { matched, studentId, studentName } = await tryMatchStudentV2(
-        existingParentId, poolId, ph, childNorm,
-      );
-      let status: "linked" | "waiting" = "waiting";
-      if (matched && studentId) {
-        const { success } = await linkParentToStudentV2(existingParentId, studentId, poolId);
-        if (success) {
-          status = "linked";
-          console.log(`[v2-register] ✓ 기존 계정 새 pool 즉시 연결: student="${studentName}"`);
-        }
-      }
-      if (status === "waiting") {
-        const pendingReason: string | undefined = matched ? undefined : await (async () => {
-          const nameOnlyRows = await db.execute(sql`
-            SELECT id FROM students
-            WHERE swimming_pool_id = ${poolId}
-              AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
-              AND status NOT IN ('withdrawn','archived','deleted')
-            LIMIT 1
-          `);
-          return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
-        })();
-        await upsertParentV2Pending(existingParentId, poolId, childRaw, childNorm, ph, pendingReason);
-        try {
-          const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
-          await sendPushToPoolAdmins(
-            poolId, "parent_join",
-            "새 학부모 가입 대기",
-            `${name} 학부모님이 가입을 요청했습니다. 자녀(${childRaw}) 연결을 확인해주세요.`,
-            { screen: "parent-requests" },
-            `parent_join_${existingParentId}_${poolId}`,
-          );
-        } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
-      }
-
-      const token = signToken({ userId: existingParentId, role: "parent_account", poolId });
-      console.log(`[v2-register] 기존 계정 새 pool 완료: status=${status} parentId=${existingParentId}`);
-      return res.status(201).json({
-        token,
-        status,
-        pool_name: pool.name,
-        matched_student: matched ? { id: studentId, name: studentName } : null,
-        parent: { id: existingParentId, name, phone: ph, swimming_pool_id: poolId },
-      });
+    if (existingInPool) {
+      return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
     }
 
-    // ── 신규 계정 가입 흐름 (전화번호 미존재) ─────────────────────────────────
+    // ── 신규 계정 가입 흐름 (이 pool에 해당 phone 미존재) ────────────────────
 
     // 중복 아이디 확인 (login_id는 전역 unique 유지)
     if (lid) {

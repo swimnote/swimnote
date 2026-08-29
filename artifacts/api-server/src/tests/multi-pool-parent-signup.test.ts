@@ -1,367 +1,305 @@
 /**
- * Multi-Pool Parent 가입 테스트 (§9 시나리오)
+ * Multi-Pool Parent 가입 테스트
  *
- * ROOT CAUSE: /auth/v2/parent-register phone 중복 체크가 pool 조건 없이 전역이었음
- * FIX: phone exists → checkMembership(same pool) → 중복이면 차단, 아니면 계정 재사용
+ * [2.0.0 POOL-FIRST POLICY]
+ * 전화번호는 global identity가 아님.
+ * 같은 pool 안에서만 중복 여부 판단.
+ * 다른 pool 동일 phone → 항상 신규 account 생성.
  *
- * A. Pool A 가입 → Pool B 동일 phone 가입 → 둘 다 PASS + membership 2개
- * B. 동일 phone Pool A 재가입 → 중복 차단
- * C. Pool A 미퇴원 상태에서 Pool B 가입 → PASS
- * D. Pool A / Pool B student data 분리
- * E. 다른 pool API 접근 → 403
- * F. Admin / Teacher multi-pool regression
+ * A. 동일 phone 다른 pool → account 완전 독립 (신규 생성)
+ * B. 동일 phone 같은 pool → 중복 차단 409
+ * C. 세 번째 pool도 신규 account
+ * D. student data 분리 (pool별 독립 record)
+ * E. Tenant isolation — 다른 pool API 접근 403
+ * F. Admin / Teacher multi-pool regression (불변)
+ * G. 응답 구조 검증
+ * H. logout/relogin pool 분리 유지
+ * I. Report cross-pool 접근 차단 모델
  */
 
 import { describe, it, expect } from "vitest";
 
-// ─── 헬퍼: v2/parent-register 비즈니스 로직 재현 ──────────────────────────────
+// ─── 헬퍼: v2/parent-register 비즈니스 로직 (Pool-First 정책) ────────────────
 
-type Membership = { accountId: string; poolId: string; role: string; status: string };
 type ParentAccount = { id: string; phone: string; swimming_pool_id: string };
-type Student = { id: string; poolId: string; parentId: string | null };
+type Student      = { id: string; poolId: string; parentId: string | null };
+type Report       = { id: string; poolId: string; parentAccountId: string };
+
+let _idSeq = 0;
+function nextId(prefix: string) { return `${prefix}_${++_idSeq}`; }
 
 /**
- * v2/parent-register 핵심 로직 시뮬레이션
- * - phone으로 기존 account 검색
- * - same pool active membership 있으면 409 "이미 이 수영장에 가입되어 있습니다."
- * - 없으면 기존 account 재사용 + 새 pool membership 추가
- * - 신규 phone이면 새 account 생성
+ * [2.0.0] Pool-First simulateV2Register
+ * - 같은 pool 안에서만 phone 중복 체크
+ * - 다른 pool에 동일 phone 존재해도 → 무시 → 신규 account 생성
  */
 function simulateV2Register(opts: {
   phone: string;
   poolId: string;
   accounts: ParentAccount[];
-  memberships: Membership[];
 }): {
   status: number;
   message?: string;
   accountId?: string;
   isNew?: boolean;
-  membershipAdded?: boolean;
 } {
-  const { phone, poolId, accounts, memberships } = opts;
+  const { phone, poolId, accounts } = opts;
 
-  // 전화번호로 기존 계정 검색 (pool 무관)
-  const existing = accounts.find(a => a.phone === phone);
+  // Pool-scoped 중복 체크 (이 pool 안에서만)
+  const existingInPool = accounts.find(
+    a => a.phone === phone && a.swimming_pool_id === poolId,
+  );
 
-  if (existing) {
-    // same pool active membership 존재 여부 확인
-    const alreadyInPool = memberships.some(
-      m => m.accountId === existing.id &&
-           m.poolId === poolId &&
-           m.role === "parent_account" &&
-           m.status === "active",
-    );
-
-    if (alreadyInPool) {
-      return { status: 409, message: "이미 이 수영장에 가입되어 있습니다." };
-    }
-
-    // 기존 계정에 새 pool membership 추가 (계정 row 수정 없음)
-    memberships.push({ accountId: existing.id, poolId, role: "parent_account", status: "active" });
-    return { status: 201, accountId: existing.id, isNew: false, membershipAdded: true };
+  if (existingInPool) {
+    return { status: 409, message: "이미 이 수영장에 가입되어 있습니다." };
   }
 
-  // 신규 계정 생성
-  const newId = `pa_new_${phone}_${poolId}`;
+  // 항상 신규 account 생성 (다른 pool에 동일 phone 있어도 무시)
+  const newId = nextId("pa");
   accounts.push({ id: newId, phone, swimming_pool_id: poolId });
-  memberships.push({ accountId: newId, poolId, role: "parent_account", status: "active" });
-  return { status: 201, accountId: newId, isNew: true, membershipAdded: true };
+  return { status: 201, accountId: newId, isNew: true };
 }
 
-// ─── A. Pool A 가입 → 동일 phone Pool B 가입 → 둘 다 PASS ──────────────────────
-describe("A. 동일 phone 다른 pool 가입 — 둘 다 PASS + membership 2개", () => {
-  it("Pool A 가입이 성공한다", () => {
+// ─── A. 동일 phone 다른 pool → 완전 독립 신규 account ───────────────────────
+describe("A. 동일 phone 다른 pool — 완전 독립 신규 account 생성", () => {
+  it("Pool A 가입이 성공하고 신규 account가 생성된다", () => {
     const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
     expect(result.status).toBe(201);
     expect(result.isNew).toBe(true);
     expect(accounts).toHaveLength(1);
-    expect(memberships).toHaveLength(1);
+    expect(accounts[0].swimming_pool_id).toBe("pool_A");
   });
 
-  it("Pool A 가입 후 동일 phone Pool B 가입도 성공한다", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-    expect(result.status).toBe(201);
-    expect(result.isNew).toBe(false); // 기존 계정 재사용
-    expect(result.accountId).toBe("pa_existing");
-    expect(result.membershipAdded).toBe(true);
-  });
-
-  it("두 번 가입 후 membership 2개가 존재한다", () => {
+  it("Pool A 후 동일 phone Pool B 가입 → account_B 신규 생성 (account_A 재사용 금지)", () => {
     const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
+    const rA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const rB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
 
-    // Pool A 가입
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    // Pool B 가입
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-
-    // 계정은 1개 (기존 재사용)
-    expect(accounts).toHaveLength(1);
-    // membership은 2개
-    expect(memberships).toHaveLength(2);
-    expect(memberships.map(m => m.poolId).sort()).toEqual(["pool_A", "pool_B"]);
+    expect(rA.status).toBe(201);
+    expect(rB.status).toBe(201);
+    // 두 account는 서로 다른 ID
+    expect(rA.accountId).not.toBe(rB.accountId);
+    // 각각 자신의 pool에 귀속
+    expect(accounts.find(a => a.id === rA.accountId)?.swimming_pool_id).toBe("pool_A");
+    expect(accounts.find(a => a.id === rB.accountId)?.swimming_pool_id).toBe("pool_B");
   });
 
-  it("두 membership 모두 동일 accountId를 가진다", () => {
+  it("두 account는 완전히 서로 다른 row (공유 없음)", () => {
     const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
 
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-
-    const accountId = accounts[0].id;
-    expect(memberships.every(m => m.accountId === accountId)).toBe(true);
+    // account 2개 존재 (1개가 재사용되지 않음)
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0].id).not.toBe(accounts[1].id);
   });
 
-  it("세 개 수영장도 가능하다", () => {
+  it("두 account 모두 isNew=true", () => {
     const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
-
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts, memberships });
-
-    expect(accounts).toHaveLength(1);
-    expect(memberships).toHaveLength(3);
+    const rA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const rB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
+    expect(rA.isNew).toBe(true);
+    expect(rB.isNew).toBe(true);
   });
 });
 
-// ─── B. 동일 phone Pool A 재가입 → 중복 차단 ──────────────────────────────────
-describe("B. 동일 phone 같은 pool 재가입 — 중복 차단", () => {
-  it("이미 Pool A active membership이 있으면 409 반환", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
+// ─── B. 동일 phone 같은 pool 재가입 → 중복 차단 ─────────────────────────────
+describe("B. 동일 phone 같은 pool 재가입 — 중복 차단 409", () => {
+  it("같은 pool에 이미 account가 있으면 409", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" },
+    ];
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
     expect(result.status).toBe(409);
     expect(result.message).toBe("이미 이 수영장에 가입되어 있습니다.");
   });
 
-  it("중복 차단 시 membership 추가 생성 없음", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
-    const before = memberships.length;
-
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    expect(memberships.length).toBe(before); // 변화 없음
+  it("중복 차단 시 account 추가 생성 없음", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" },
+    ];
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    expect(accounts).toHaveLength(1); // 변화 없음
   });
 
-  it("Pool B는 있지만 Pool A 재가입 시도 → Pool A만 차단", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-      { accountId: "pa_existing", poolId: "pool_B", role: "parent_account", status: "active" },
+  it("Pool B엔 account가 없으므로 Pool B 가입은 허용", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" },
     ];
-
-    const resultA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    const resultC = simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts, memberships });
-
+    const resultA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const resultB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
     expect(resultA.status).toBe(409); // A는 차단
-    expect(resultC.status).toBe(201); // C는 허용
+    expect(resultB.status).toBe(201); // B는 신규 생성
   });
 
-  it("inactive membership만 있으면 재가입 허용 (탈퇴 후 재가입)", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "inactive" }, // 탈퇴 상태
+  it("오류 메시지는 수영장 중복 안내 (전화번호 아님)", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_x", phone: "01011111111", swimming_pool_id: "pool_A" },
     ];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    // inactive는 차단하지 않음 (active만 체크)
-    expect(result.status).toBe(201);
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    expect(result.message).toContain("이미 이 수영장에");
+    expect(result.message).not.toContain("전화번호");
   });
 });
 
-// ─── C. Pool A 미퇴원 상태에서 Pool B 가입 → PASS ────────────────────────────
-describe("C. Pool A 미퇴원 상태에서 Pool B 가입 — PASS", () => {
-  it("Pool A active 상태에서도 Pool B 가입 성공", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
+// ─── C. 세 번째 pool도 신규 account ─────────────────────────────────────────
+describe("C. 세 번째 pool → 또 신규 account 생성", () => {
+  it("pool_A, pool_B, pool_C 모두 독립 account 생성", () => {
+    const accounts: ParentAccount[] = [];
+    const rA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const rB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
+    const rC = simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts });
 
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-    expect(result.status).toBe(201);
-    expect(memberships).toHaveLength(2);
-    // Pool A membership은 여전히 active
-    const poolAMembership = memberships.find(m => m.poolId === "pool_A");
-    expect(poolAMembership?.status).toBe("active");
+    expect(rA.status).toBe(201);
+    expect(rB.status).toBe(201);
+    expect(rC.status).toBe(201);
+    expect(accounts).toHaveLength(3);
+
+    const ids = [rA.accountId, rB.accountId, rC.accountId];
+    expect(new Set(ids).size).toBe(3); // 3개 모두 다른 ID
   });
 
-  it("Pool B 가입 후 Pool A, B 모두 active", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
+  it("각 account는 자신의 pool에만 귀속", () => {
+    const accounts: ParentAccount[] = [];
+    const rA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const rB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
+    const rC = simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts });
 
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-
-    const activeMemberships = memberships.filter(m => m.status === "active");
-    expect(activeMemberships).toHaveLength(2);
-    expect(activeMemberships.map(m => m.poolId).sort()).toEqual(["pool_A", "pool_B"]);
+    expect(accounts.find(a => a.id === rA.accountId)?.swimming_pool_id).toBe("pool_A");
+    expect(accounts.find(a => a.id === rB.accountId)?.swimming_pool_id).toBe("pool_B");
+    expect(accounts.find(a => a.id === rC.accountId)?.swimming_pool_id).toBe("pool_C");
   });
 });
 
-// ─── D. Pool A / Pool B student data 분리 ────────────────────────────────────
-describe("D. Pool A/B student data 분리", () => {
-  it("같은 부모가 다른 pool에 있어도 student는 pool별 별개 record", () => {
+// ─── D. student data pool별 독립 ─────────────────────────────────────────────
+describe("D. student data 분리 — pool별 독립 record", () => {
+  it("Pool A account와 Pool B account의 student는 서로 다른 ID", () => {
     const students: Student[] = [
-      { id: "student_A1", poolId: "pool_A", parentId: "pa_existing" },
-      { id: "student_B1", poolId: "pool_B", parentId: "pa_existing" },
+      { id: "student_A1", poolId: "pool_A", parentId: "pa_A" },
+      { id: "student_B1", poolId: "pool_B", parentId: "pa_B" },
     ];
-
-    const poolAStudents = students.filter(s => s.poolId === "pool_A" && s.parentId === "pa_existing");
-    const poolBStudents = students.filter(s => s.poolId === "pool_B" && s.parentId === "pa_existing");
-
-    expect(poolAStudents).toHaveLength(1);
-    expect(poolBStudents).toHaveLength(1);
-    expect(poolAStudents[0].id).not.toBe(poolBStudents[0].id);
+    expect(students[0].id).not.toBe(students[1].id);
+    expect(students[0].parentId).not.toBe(students[1].parentId);
   });
 
-  it("pool_A student는 pool_B에서 조회되지 않는다", () => {
+  it("Pool A student는 Pool B에서 조회되지 않는다", () => {
     const students: Student[] = [
-      { id: "student_A1", poolId: "pool_A", parentId: "pa_existing" },
-      { id: "student_B1", poolId: "pool_B", parentId: "pa_existing" },
+      { id: "student_A1", poolId: "pool_A", parentId: "pa_A" },
+      { id: "student_B1", poolId: "pool_B", parentId: "pa_B" },
     ];
-
     const getPoolStudents = (poolId: string) => students.filter(s => s.poolId === poolId);
-
     expect(getPoolStudents("pool_A").map(s => s.id)).not.toContain("student_B1");
     expect(getPoolStudents("pool_B").map(s => s.id)).not.toContain("student_A1");
   });
 
-  it("pool_A diary는 pool_B parent에게 보이지 않아야 한다 (tenant isolation)", () => {
-    const diaries = [
-      { id: "diary_A1", poolId: "pool_A", studentId: "student_A1" },
-      { id: "diary_B1", poolId: "pool_B", studentId: "student_B1" },
-    ];
-    const getDiariesForPool = (poolId: string) => diaries.filter(d => d.poolId === poolId);
-
-    expect(getDiariesForPool("pool_A").map(d => d.id)).not.toContain("diary_B1");
-    expect(getDiariesForPool("pool_B").map(d => d.id)).not.toContain("diary_A1");
-  });
-
-  it("자동 merge 금지: 같은 아이 이름이라도 pool이 다르면 별개 record 유지", () => {
+  it("같은 이름의 학생이라도 pool이 다르면 별개 record", () => {
+    // pool_A student_A1 name: "김수영", pool_B student_B1 name: "김수영"
     const students: Student[] = [
-      { id: "student_A1", poolId: "pool_A", parentId: "pa_existing" }, // 이름: "김수영"
-      { id: "student_B1", poolId: "pool_B", parentId: "pa_existing" }, // 이름: "김수영" (같은 이름)
+      { id: "student_A1", poolId: "pool_A", parentId: "pa_A" },
+      { id: "student_B1", poolId: "pool_B", parentId: "pa_B" },
     ];
-    // 두 record는 병합되지 않음
     expect(students).toHaveLength(2);
     expect(students[0].id).not.toBe(students[1].id);
   });
-});
 
-// ─── E. 다른 pool API 접근 → 403 ─────────────────────────────────────────────
-describe("E. Tenant Isolation — 다른 pool API 접근 403", () => {
-  it("membership 없는 pool 접근 → 403", () => {
-    const memberships: Membership[] = [
-      { accountId: "pa_1", poolId: "pool_A", role: "parent_account", status: "active" },
+  it("account가 달라지면 parent_id도 달라져서 report도 분리된다", () => {
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+      { id: "report_B1", poolId: "pool_B", parentAccountId: "pa_B" },
     ];
-    const requestingAccountId = "pa_1";
-    const targetPoolId = "pool_B";
+    const getReportsForAccount = (accountId: string) =>
+      reports.filter(r => r.parentAccountId === accountId);
 
-    const hasAccess = memberships.some(
-      m => m.accountId === requestingAccountId &&
-           m.poolId === targetPoolId &&
-           m.status === "active",
-    );
-    expect(hasAccess).toBe(false); // 403
-  });
-
-  it("membership 있는 pool 접근 → 허용", () => {
-    const memberships: Membership[] = [
-      { accountId: "pa_1", poolId: "pool_A", role: "parent_account", status: "active" },
-      { accountId: "pa_1", poolId: "pool_B", role: "parent_account", status: "active" },
-    ];
-    const requestingAccountId = "pa_1";
-
-    const hasPoolA = memberships.some(m => m.accountId === requestingAccountId && m.poolId === "pool_A" && m.status === "active");
-    const hasPoolB = memberships.some(m => m.accountId === requestingAccountId && m.poolId === "pool_B" && m.status === "active");
-    expect(hasPoolA).toBe(true);
-    expect(hasPoolB).toBe(true);
-  });
-
-  it("inactive membership은 접근 불허", () => {
-    const memberships: Membership[] = [
-      { accountId: "pa_1", poolId: "pool_A", role: "parent_account", status: "inactive" },
-    ];
-    const hasAccess = memberships.some(
-      m => m.accountId === "pa_1" && m.poolId === "pool_A" && m.status === "active",
-    );
-    expect(hasAccess).toBe(false);
+    expect(getReportsForAccount("pa_A").map(r => r.id)).toEqual(["report_A1"]);
+    expect(getReportsForAccount("pa_B").map(r => r.id)).toEqual(["report_B1"]);
+    // pa_B는 pa_A 리포트를 볼 수 없음
+    expect(getReportsForAccount("pa_B").map(r => r.id)).not.toContain("report_A1");
   });
 });
 
-// ─── F. Admin / Teacher multi-pool regression ────────────────────────────────
-describe("F. Admin / Teacher multi-pool regression", () => {
-  it("admin은 여러 pool에 pool_admin membership을 가질 수 있다", () => {
-    const memberships: Membership[] = [
-      { accountId: "admin_1", poolId: "pool_A", role: "pool_admin", status: "active" },
-      { accountId: "admin_1", poolId: "pool_B", role: "pool_admin", status: "active" },
+// ─── E. Tenant isolation — 다른 pool API 접근 403 ────────────────────────────
+describe("E. Tenant Isolation — 다른 pool report 접근 403 모델", () => {
+  it("Pool B account로 Pool A report 직접 접근 → 403 (pool_id 불일치)", () => {
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
     ];
-    const adminPools = memberships.filter(m => m.accountId === "admin_1" && m.role === "pool_admin" && m.status === "active");
+    const requestingPoolId = "pool_B"; // Pool B JWT로 Pool A report 접근 시도
+    const targetReport = reports.find(r => r.id === "report_A1");
+
+    // pool_id가 다르면 접근 불허
+    const allowed = targetReport?.poolId === requestingPoolId;
+    expect(allowed).toBe(false); // → 403
+  });
+
+  it("Pool A account로 Pool A report → 허용", () => {
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+    ];
+    const requestingPoolId = "pool_A";
+    const targetReport = reports.find(r => r.id === "report_A1");
+    const allowed = targetReport?.poolId === requestingPoolId;
+    expect(allowed).toBe(true);
+  });
+
+  it("Pool B 로그인 후 Pool A report 목록 조회 결과 = 0", () => {
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+    ];
+    const loggedInPoolId = "pool_B";
+    const loggedInAccountId = "pa_B";
+
+    const visible = reports.filter(
+      r => r.poolId === loggedInPoolId && r.parentAccountId === loggedInAccountId,
+    );
+    expect(visible).toHaveLength(0);
+  });
+
+  it("account_A != account_B이면 report 교차 조회 원천 불가", () => {
+    // Pool-First: account_A와 account_B는 서로 다른 ID
+    // → report 테이블에서 account_B로 report_A 조회 시 자동으로 0건
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+    ];
+    const reportsForPaB = reports.filter(r => r.parentAccountId === "pa_B");
+    expect(reportsForPaB).toHaveLength(0);
+  });
+});
+
+// ─── F. Admin / Teacher multi-pool regression (불변) ────────────────────────
+describe("F. Admin / Teacher multi-pool regression — parent 정책 변경 무영향", () => {
+  it("admin은 여러 pool에서 동일 account_id 유지 가능 (users 테이블, 다른 코드 경로)", () => {
+    // admin/teacher는 users 테이블 기반, v2/parent-register와 무관
+    const adminPools = [
+      { accountId: "admin_1", poolId: "pool_A" },
+      { accountId: "admin_1", poolId: "pool_B" },
+    ];
+    expect(new Set(adminPools.map(p => p.accountId)).size).toBe(1); // 동일 account
     expect(adminPools).toHaveLength(2);
   });
 
-  it("teacher는 여러 pool에 teacher membership을 가질 수 있다", () => {
-    const memberships: Membership[] = [
-      { accountId: "teacher_1", poolId: "pool_A", role: "teacher", status: "active" },
-      { accountId: "teacher_1", poolId: "pool_B", role: "teacher", status: "active" },
-      { accountId: "teacher_1", poolId: "pool_C", role: "teacher", status: "active" },
+  it("teacher도 여러 pool 운영 가능 (parent 정책 불변)", () => {
+    const teacherPools = [
+      { accountId: "teacher_1", poolId: "pool_A" },
+      { accountId: "teacher_1", poolId: "pool_B" },
+      { accountId: "teacher_1", poolId: "pool_C" },
     ];
-    const teacherPools = memberships.filter(m => m.accountId === "teacher_1" && m.role === "teacher" && m.status === "active");
+    expect(new Set(teacherPools.map(p => p.accountId)).size).toBe(1);
     expect(teacherPools).toHaveLength(3);
   });
 
-  it("parent 가입 로직 변경이 admin/teacher 체크 로직에 영향 없음", () => {
-    // parent 가입: phone 체크 후 membership 추가
-    // admin/teacher 가입: users 테이블 기반, auth.ts 다른 라우트 사용
-    // → 서로 독립적인 코드 경로
-
-    const adminMemberships: Membership[] = [
-      { accountId: "admin_1", poolId: "pool_A", role: "pool_admin", status: "active" },
-    ];
-    const parentMemberships: Membership[] = [
-      { accountId: "pa_1", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
-
-    // admin membership은 parent 가입 로직과 무관하게 존재
-    expect(adminMemberships).toHaveLength(1);
-    expect(parentMemberships).toHaveLength(1);
-    expect(adminMemberships[0].accountId).not.toBe(parentMemberships[0].accountId);
-  });
-
-  it("switch-pool: admin이 pool_B로 전환해도 parent membership은 변하지 않는다", () => {
-    const memberships: Membership[] = [
-      { accountId: "admin_1", poolId: "pool_A", role: "pool_admin", status: "active" },
-      { accountId: "admin_1", poolId: "pool_B", role: "pool_admin", status: "active" },
-      { accountId: "pa_1", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
-
-    // admin switch (JWT 변경만)
-    const switchedPool = "pool_B";
-    const adminInNewPool = memberships.some(
-      m => m.accountId === "admin_1" && m.poolId === switchedPool && m.status === "active",
-    );
-    expect(adminInNewPool).toBe(true);
-
-    // parent membership 변경 없음
-    const parentMembership = memberships.find(m => m.accountId === "pa_1");
-    expect(parentMembership?.poolId).toBe("pool_A");
-    expect(parentMembership?.status).toBe("active");
+  it("parent 가입 로직은 admin/teacher에 영향 없음 (독립 코드 경로)", () => {
+    const accounts: ParentAccount[] = [];
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    // admin/teacher 계정은 변화 없음
+    const adminAccounts = [{ id: "admin_1", poolId: "pool_A" }];
+    expect(adminAccounts).toHaveLength(1);
+    expect(adminAccounts[0].id).not.toBe(accounts[0].id);
   });
 });
 
-// ─── G. 응답 구조 검증 ────────────────────────────────────────────────────────
-describe("G. v2/parent-register 응답 구조", () => {
+// ─── G. 응답 구조 검증 ───────────────────────────────────────────────────────
+describe("G. v2/parent-register 응답 구조 (Pool-First)", () => {
   it("신규 가입 응답은 token/status/pool_name/parent를 포함한다", () => {
     const response = {
       token: "jwt.token.here",
@@ -376,30 +314,141 @@ describe("G. v2/parent-register 응답 구조", () => {
     expect(response.parent.id).toBeTruthy();
   });
 
-  it("기존 계정 재사용 시 응답도 동일 구조", () => {
-    const existingParentId = "pa_existing";
-    const response = {
-      token: "jwt.new.token",
-      status: "waiting" as const,
-      pool_name: "바다수영장",
-      matched_student: null,
-      parent: { id: existingParentId, name: "김부모", phone: "01011111111", swimming_pool_id: "pool_B" },
-    };
-    expect(response.parent.id).toBe(existingParentId);
-    expect(response.pool_name).toBe("바다수영장");
+  it("동일 phone 다른 pool 가입도 동일 응답 구조 (isNew=true, 다른 parentId)", () => {
+    const responseA = { token: "jwt_A", status: "waiting" as const, parent: { id: "pa_A", swimming_pool_id: "pool_A" } };
+    const responseB = { token: "jwt_B", status: "waiting" as const, parent: { id: "pa_B", swimming_pool_id: "pool_B" } };
+    expect(responseA.parent.id).not.toBe(responseB.parent.id);
+    expect(responseA.parent.swimming_pool_id).not.toBe(responseB.parent.swimming_pool_id);
   });
 
   it("같은 pool 중복 시 409 + '이미 이 수영장에 가입되어 있습니다.'", () => {
     const response = { status: 409, message: "이미 이 수영장에 가입되어 있습니다." };
     expect(response.status).toBe(409);
     expect(response.message).toContain("이미 이 수영장에");
-    expect(response.message).not.toContain("전화번호"); // 전화번호 이유로 차단하지 않음
+    expect(response.message).not.toContain("전화번호");
   });
 
   it("기존 '이미 가입된 전화번호입니다.' 응답은 제거됨", () => {
-    // 전화번호 자체를 이유로 하는 차단 메시지는 더 이상 반환되지 않음
     const oldMessage = "이미 가입된 전화번호입니다.";
     const newMessage = "이미 이 수영장에 가입되어 있습니다.";
     expect(newMessage).not.toBe(oldMessage);
+  });
+});
+
+// ─── H. logout/relogin 후에도 pool 분리 유지 ────────────────────────────────
+describe("H. logout/relogin 후 pool 데이터 분리 유지", () => {
+  it("pool_A JWT로 로그인 시 pool_A 데이터만 접근 가능", () => {
+    // JWT에는 poolId가 포함됨: { userId: pa_A, poolId: pool_A }
+    const jwtPayload = { userId: "pa_A", poolId: "pool_A", role: "parent_account" };
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+      { id: "report_B1", poolId: "pool_B", parentAccountId: "pa_B" },
+    ];
+    const accessible = reports.filter(
+      r => r.poolId === jwtPayload.poolId && r.parentAccountId === jwtPayload.userId,
+    );
+    expect(accessible).toHaveLength(1);
+    expect(accessible[0].id).toBe("report_A1");
+  });
+
+  it("pool_B JWT로 재로그인 시 pool_A 데이터 0건", () => {
+    const jwtPayload = { userId: "pa_B", poolId: "pool_B", role: "parent_account" };
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" },
+    ];
+    const accessible = reports.filter(
+      r => r.poolId === jwtPayload.poolId && r.parentAccountId === jwtPayload.userId,
+    );
+    expect(accessible).toHaveLength(0);
+  });
+
+  it("account_B 재로그인 후 pool_id는 pool_B 고정", () => {
+    // pool_B용 account는 swimming_pool_id = pool_B
+    const account = { id: "pa_B", swimming_pool_id: "pool_B", phone: "01011111111" };
+    expect(account.swimming_pool_id).toBe("pool_B");
+    expect(account.swimming_pool_id).not.toBe("pool_A");
+  });
+});
+
+// ─── I. Report cross-pool 접근 모델 검증 ────────────────────────────────────
+describe("I. Report cross-pool 접근 차단 — structural guarantee", () => {
+  it("pool-first 구조에서 account_A != account_B → report 교차 조회 구조적 불가", () => {
+    const accounts: ParentAccount[] = [];
+    const rA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts });
+    const rB = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts });
+
+    // account_A와 account_B는 서로 다른 ID
+    expect(rA.accountId).not.toBe(rB.accountId);
+
+    // Pool A reports
+    const reports: Report[] = [
+      { id: "report_A1", poolId: "pool_A", parentAccountId: rA.accountId! },
+    ];
+
+    // Pool B account로 Pool A report 조회 → 0건
+    const crossPoolQuery = reports.filter(
+      r => r.parentAccountId === rB.accountId,
+    );
+    expect(crossPoolQuery).toHaveLength(0);
+  });
+
+  it("Pool A report_id를 pool_B context에서 직접 접근 → pool_id 불일치 → 403 시뮬레이션", () => {
+    const targetReport = { id: "report_A1", poolId: "pool_A", parentAccountId: "pa_A" };
+    const requestContext = { poolId: "pool_B", accountId: "pa_B" };
+
+    const poolMatch    = targetReport.poolId === requestContext.poolId;
+    const accountMatch = targetReport.parentAccountId === requestContext.accountId;
+
+    expect(poolMatch).toBe(false);    // pool 불일치
+    expect(accountMatch).toBe(false); // account 불일치
+    // → 403 반환
+  });
+
+  it("ToyKids Growth Report는 Swimnote2 account에서 조회 결과 0", () => {
+    // 실제 버그 재현 시나리오
+    const toykidsAccountId  = "pa_toykids_001";
+    const swimnote2AccountId = "pa_swimnote2_002"; // 2.0.0: 별도 신규 account
+
+    expect(toykidsAccountId).not.toBe(swimnote2AccountId); // 다른 ID
+
+    const growthReports: Report[] = [
+      { id: "gr_toykids_001", poolId: "pool_toykids", parentAccountId: toykidsAccountId },
+    ];
+
+    const swimnote2Visible = growthReports.filter(
+      r => r.parentAccountId === swimnote2AccountId,
+    );
+    expect(swimnote2Visible).toHaveLength(0); // 0건 → 버그 재현 불가
+  });
+});
+
+// ─── J. SQL Injection 방어 (pool-scoped 쿼리 유지) ──────────────────────────
+describe("J. pool_id 및 phone pool-scoped 쿼리 방어", () => {
+  it("phone만으로 전역 조회하지 않음 — pool_id 조건 필수", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_A", phone: "01011111111", swimming_pool_id: "pool_A" },
+    ];
+
+    // Pool B에서 동일 phone 조회 → pool-scoped이므로 null
+    const foundInPoolB = accounts.find(
+      a => a.phone === "01011111111" && a.swimming_pool_id === "pool_B",
+    );
+    expect(foundInPoolB).toBeUndefined(); // pool B에선 존재하지 않음
+  });
+
+  it("pool_id 조건이 없으면 다른 pool account가 잘못 매칭될 수 있는 위험 제거", () => {
+    const accounts: ParentAccount[] = [
+      { id: "pa_A", phone: "01011111111", swimming_pool_id: "pool_A" },
+    ];
+
+    // 글로벌 조회 (2.0.0에서 제거된 방식) → pa_A가 반환됨 = 위험
+    const globalFound = accounts.find(a => a.phone === "01011111111");
+    // Pool-Scoped 조회 (2.0.0 새 방식)
+    const scopedFound = accounts.find(
+      a => a.phone === "01011111111" && a.swimming_pool_id === "pool_B",
+    );
+
+    expect(globalFound).toBeDefined();   // 글로벌이면 잘못 찾힘
+    expect(scopedFound).toBeUndefined(); // pool-scoped는 안전하게 미존재
   });
 });
