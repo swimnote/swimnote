@@ -13,6 +13,7 @@ import { startGrowthReportAnalysisWorker } from "./jobs/growth-report-analysis-w
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
 import { runGrInteractionsMigration } from "./migrations/pool-db-x-gr-interactions-init.js";
+import { initMembershipSchema } from "./migrations/pool-db-membership.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
@@ -70,6 +71,8 @@ Promise.all([
   });
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
+// Multi-Pool Membership: 테이블 생성 + 기존 사용자 backfill (멱등, ON CONFLICT DO NOTHING)
+initMembershipSchema().catch((e) => console.error("[membership] 초기화 오류:", e.message));
 // 일회성: diary_templates에서 "오늘은 " 접두사 제거
 import("./migrations/strip-oneulun.js")
   .then(m => m.stripOneulun())

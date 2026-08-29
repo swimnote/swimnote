@@ -13,7 +13,10 @@ import { Alert, AppState, AppStateStatus } from "react-native";
 import { router } from "expo-router";
 import { SessionProvider, useSession, API_BASE as _ROLES_API_BASE } from "./auth/SessionContext";
 import { RoleProvider, useRole } from "./auth/RoleContext";
+import { MembershipsProvider, useMemberships } from "./auth/MembershipsContext";
 import { AuthErrorCodes } from "@/constants/auth-error-codes";
+export { useMemberships } from "./auth/MembershipsContext";
+export type { PoolMembership } from "./auth/MembershipsContext";
 
 export type {
   SessionKind,
@@ -318,15 +321,43 @@ function RolesPollingGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * MembershipsLoader — 로그인 완료 후 memberships 자동 로드
+ * token이 변경될 때마다 /me/memberships를 호출하여 멤버십 목록을 갱신합니다.
+ */
+function MembershipsLoader({ children }: { children: ReactNode }) {
+  const session = useSession();
+  const { loadMemberships, clearMemberships } = useMemberships();
+  const prevTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const t = session.token;
+    if (!t) {
+      clearMemberships();
+      prevTokenRef.current = null;
+      return;
+    }
+    if (t === prevTokenRef.current) return;
+    prevTokenRef.current = t;
+    loadMemberships(t).catch(() => {});
+  }, [session.token]);
+
+  return <>{children}</>;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <SessionProvider>
       <RoleProvider>
-        <WithdrawalGuard>
-          <RolesPollingGuard>
-            {children}
-          </RolesPollingGuard>
-        </WithdrawalGuard>
+        <MembershipsProvider>
+          <MembershipsLoader>
+            <WithdrawalGuard>
+              <RolesPollingGuard>
+                {children}
+              </RolesPollingGuard>
+            </WithdrawalGuard>
+          </MembershipsLoader>
+        </MembershipsProvider>
       </RoleProvider>
     </SessionProvider>
   );

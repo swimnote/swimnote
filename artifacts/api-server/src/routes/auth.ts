@@ -546,8 +546,10 @@ router.post("/parent-login", async (req, res) => {
 // ── 내 정보 조회 ──────────────────────────────────────────────────────
 // parent_account role: parent_accounts 테이블 조회 (users 테이블에 없음)
 // 그 외 role: 기존 users 테이블 조회 유지
+// memberships[]: Multi-Pool Membership 목록 (backward-compatible, 기존 클라이언트 영향 없음)
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const { getMemberships } = await import("../migrations/pool-db-membership.js");
     if (req.user!.role === "parent_account") {
       const [pa] = await db
         .select({
@@ -571,12 +573,16 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
           .limit(1);
         pool_name = pool?.name ?? null;
       }
-      return res.json({ ...pa, pool_name });
+      // Multi-Pool Membership 목록 (backward-compatible)
+      const memberships = await getMemberships(req.user!.userId).catch(() => []);
+      return res.json({ ...pa, pool_name, memberships });
     }
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     const { password_hash: _, ...safeUser } = user;
-    res.json(safeUser);
+    // Multi-Pool Membership 목록 (backward-compatible)
+    const memberships = await getMemberships(req.user!.userId).catch(() => []);
+    res.json({ ...safeUser, memberships });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -854,11 +860,13 @@ router.post("/simple-parent-register", async (req, res) => {
       const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
       if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
-    // 전화번호 중복 확인 (수영장 있을 때만 같은 수영장 체크, 없을 때는 전체 체크)
+    // 전화번호 + 수영장 중복 확인 — Multi-Pool Membership: 다른 수영장 가입은 허용
+    // 동일 수영장에 동일 전화번호 계정이 이미 존재하면 "이미 가입"으로 처리
     if (resolvedPoolId) {
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
       if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
     } else {
+      // 수영장 미지정인 경우: phone + pool IS NULL 기준만 중복 체크 (다른 수영장 계정은 OK)
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
       if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
     }

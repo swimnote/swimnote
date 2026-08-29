@@ -155,4 +155,8 @@ router.use("/", supportLearningRouter);
 import superCurriculumRouter from "./super-curriculum.js";
 router.use("/super/curriculum", superCurriculumRouter);
 
+// Multi-Pool Membership API
+import membershipsRouter from "./memberships.js";
+router.use("/", membershipsRouter);
+
 export default router;
