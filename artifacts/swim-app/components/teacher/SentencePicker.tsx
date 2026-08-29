@@ -528,8 +528,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 9,
   },
   searchInput: {
-    flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0,
-  },
+    flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text,
+    padding: 0,
+    paddingTop: Platform.OS === "ios" ? 1 : 0,
+    paddingBottom: Platform.OS === "ios" ? 1 : 0,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  } as any,
   kbDoneBtn: {
     marginLeft: 4, paddingHorizontal: 10, paddingVertical: 5,
     backgroundColor: PRIMARY, borderRadius: 8,
