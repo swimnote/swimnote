@@ -33,6 +33,7 @@ import {
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { emitDiaryChanged } from "@/utils/diaryEvents";
 import { BookOpen, Clock } from "lucide-react-native";
+import { SessionSelectorSheet, DiarySession } from "@/components/teacher/diary/SessionSelectorSheet";
 import { haptic } from "@/utils/haptic";
 import { directUploadPhotos } from "@/utils/directUploadPhotos";
 import { getInfoAsync } from "expo-file-system/legacy";
@@ -41,7 +42,7 @@ export default function TeacherDiaryScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
   const { mode } = useMode();
-  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; editDiaryId?: string; backTo?: string; viewOnly?: string }>();
+  const params = useLocalSearchParams<{ classGroupId?: string; className?: string; lessonDate?: string; startTime?: string; editDiaryId?: string; backTo?: string; viewOnly?: string }>();
   const [targetDate, setTargetDate] = useState<string>(() =>
     (params.lessonDate && params.lessonDate.match(/^\d{4}-\d{2}-\d{2}$/))
       ? params.lessonDate : todayStr()
@@ -106,6 +107,10 @@ export default function TeacherDiaryScreen() {
   const [replaceLoading,       setReplaceLoading]       = useState(false);
   /** WP7: AI generate 결과의 curriculum matches — diary save 시 서버로 전달 */
   const [aiCurriculumMatches, setAiCurriculumMatches] = useState<CurriculumMatch[]>([]);
+  const [startTime, setStartTime] = useState<string>(params.startTime ?? "");
+  const [showSessionSelector, setShowSessionSelector] = useState(false);
+  const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
+  const pendingSessionRef = useRef<DiarySession | null>(null);
   const handledParamKey = useRef<string | undefined>(undefined);
   // [FIX] expo-router가 동일 route 인스턴스를 재사용할 때 targetDate가 stale 상태로 남는 버그 방지.
   // params.classGroupId / params.editDiaryId 가 변경되면(= 새 내비게이션) lessonDate를 재동기화.
@@ -117,10 +122,11 @@ export default function TeacherDiaryScreen() {
       if (params.lessonDate && /^\d{4}-\d{2}-\d{2}$/.test(params.lessonDate)) {
         setTargetDate(params.lessonDate);
       }
+      if (params.startTime) setStartTime(params.startTime);
       setSelectedGroup(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.classGroupId, params.editDiaryId, params.lessonDate]);
+  }, [params.classGroupId, params.editDiaryId, params.lessonDate, params.startTime]);
   const diariesReqVersion = useRef(0);
   const studentsReqRef    = useRef(0); // stale response 방어용 monotonic counter
   const draftKey = selectedGroup
@@ -251,7 +257,8 @@ export default function TeacherDiaryScreen() {
     finally { setLoading(false); setRefreshing(false); }
   }, [token, targetDate, params.classGroupId, params.editDiaryId]);
   useEffect(() => { load(); }, [load]);
-  async function openGroup(group: TeacherClassGroup) {
+  // overrideDate: session switch 시 targetDate가 아직 React state 반영 전일 때 명시적으로 전달
+  async function openGroup(group: TeacherClassGroup, overrideDate?: string) {
     // 항상 history 뷰로 시작 — write 뷰는 사용자가 직접 버튼을 눌렀을 때만 진입
     setSelectedGroup(group); setSubView("history"); setCommonContent(""); setStudentNotes([]);
     setAddNoteStudent(null); setNoteInput("");
@@ -275,9 +282,9 @@ export default function TeacherDiaryScreen() {
         setDiaries(list);
       }
     } catch {}
-    // 드래프트 감지 — 작성 뷰 자동 이동 없이 배너만 표시
+    // 드래프트 감지 — overrideDate or targetDate 기준
     try {
-      const key = `@swimnote:diary_draft:${group.id}:${targetDate}`;
+      const key = `@swimnote:diary_draft:${group.id}:${overrideDate ?? targetDate}`;
       const saved = await AsyncStorage.getItem(key);
       if (__DEV__) console.log(`[openGroup] draft check found=${!!saved}`);
       if (saved) {
@@ -385,6 +392,35 @@ export default function TeacherDiaryScreen() {
       if (studentsReqRef.current === reqId) setClassStudentsLoading(false);
     }
   }
+  /** isDirty: write-view에 입력된 내용이 있는지 (session 전환 전 확인용) */
+  const isDirty =
+    (subView === "write") &&
+    (commonContent.trim().length > 0 || studentNotes.length > 0 ||
+     selectedAlbumIds.length > 0 || groupMedia.length > 0);
+
+  /**
+   * handleSessionSwitch — 세션 선택기에서 다른 회차 선택 시 호출
+   * 1. dirty 상태면 confirm 모달 → 확인 후 실행
+   * 2. targetDate / startTime / selectedGroup 원자적 전환
+   * 3. 학생 목록 재로드 (openGroup 내부에서 처리)
+   */
+  function handleSessionSwitch(session: DiarySession) {
+    const doSwitch = () => {
+      setTargetDate(session.lessonDate);
+      setStartTime(session.scheduleTime);
+      const found = groups.find(g => g.id === session.classGroupId);
+      if (found) {
+        openGroup(found, session.lessonDate);
+      }
+    };
+    if (isDirty) {
+      pendingSessionRef.current = session;
+      setShowSwitchConfirm(true);
+    } else {
+      doSwitch();
+    }
+  }
+
   async function loadDiaries(classId: string) {
     setDiaryLoading(true);
     const reqVer = ++diariesReqVersion.current;
@@ -1482,9 +1518,10 @@ export default function TeacherDiaryScreen() {
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader
           title={group.name}
-          subtitle={`${targetDate} · ${group.schedule_time}`}
+          subtitle={`${targetDate} · ${startTime || group.schedule_time}`}
           onBack={handleExitDiary}
           homePath="/(teacher)/today-schedule"
+          onTitlePress={() => setShowSessionSelector(true)}
         />
         <View style={s.subHeader}>
           <View style={{ flex: 1 }} />
@@ -1607,6 +1644,35 @@ export default function TeacherDiaryScreen() {
         {auditTarget && (
           <AuditModal diaryId={auditTarget} token={token!} onClose={() => setAuditTarget(null)} />
         )}
+        {/* 수업 회차 전환 selector */}
+        <SessionSelectorSheet
+          visible={showSessionSelector}
+          token={token}
+          onClose={() => setShowSessionSelector(false)}
+          onSelect={handleSessionSwitch}
+          currentClassGroupId={group.id}
+          currentLessonDate={targetDate}
+        />
+        {/* dirty 상태에서 회차 전환 시 확인 */}
+        <ConfirmModal
+          visible={showSwitchConfirm}
+          title="수업 변경"
+          message="작성 중인 내용이 있습니다. 수업을 변경하면 내용이 초기화됩니다. 계속하시겠습니까?"
+          confirmText="변경"
+          cancelText="취소"
+          onConfirm={() => {
+            setShowSwitchConfirm(false);
+            const s = pendingSessionRef.current;
+            pendingSessionRef.current = null;
+            if (s) {
+              setTargetDate(s.lessonDate);
+              setStartTime(s.scheduleTime);
+              const found = groups.find(g => g.id === s.classGroupId);
+              if (found) openGroup(found, s.lessonDate);
+            }
+          }}
+          onCancel={() => { setShowSwitchConfirm(false); pendingSessionRef.current = null; }}
+        />
         <ConfirmModal
           visible={showVideoGateModal}
           title="영상 업로드 불가"

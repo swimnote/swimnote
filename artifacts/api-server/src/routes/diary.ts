@@ -2359,6 +2359,9 @@ router.get("/diaries/unwritten-slots",
 
       const todayDateStr = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
 
+      // ?includeWritten=true → 수업 변경 selector용: 미작성+기작성 전체 반환
+      const includeWritten = (req.query as any).includeWritten === "true";
+
       const slots: any[] = [];
 
       for (const cg of classRows.rows as any[]) {
@@ -2370,11 +2373,18 @@ router.get("/diaries/unwritten-slots",
 
         // 이 반의 기작성 일지 날짜 목록
         const writtenRows = await db.execute(sql`
-          SELECT lesson_date FROM class_diaries
+          SELECT id, lesson_date FROM class_diaries
           WHERE class_group_id = ${cg.id} AND is_deleted = false
         `);
         // normalizeLessonDate: Date 객체/문자열 모두 "YYYY-MM-DD"로 정규화 (single source of truth)
         const writtenDates = new Set((writtenRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
+        // diaryId 조회용 맵 (includeWritten 모드에서 사용)
+        const writtenDateToId = new Map<string, string>();
+        if (includeWritten) {
+          for (const r of writtenRows.rows as any[]) {
+            writtenDateToId.set(normalizeLessonDate(r.lesson_date), String(r.id));
+          }
+        }
 
         const scheduleTime = (cg.schedule_time || "").slice(0, 5); // "HH:MM"
 
@@ -2390,7 +2400,8 @@ router.get("/diaries/unwritten-slots",
               continue;
             }
 
-            if (!writtenDates.has(dateStr)) {
+            const hasDiary = writtenDates.has(dateStr);
+            if (includeWritten || !hasDiary) {
               slots.push({
                 classGroupId: cg.id,
                 className: cg.name,
@@ -2398,6 +2409,8 @@ router.get("/diaries/unwritten-slots",
                 lessonDate: dateStr,
                 dayOfWeek: KO_DAYS[cursor.getDay()],
                 studentCount: Number(cg.student_count) || 0,
+                hasDiary,
+                ...(includeWritten && hasDiary ? { diaryId: writtenDateToId.get(dateStr) ?? null } : {}),
               });
             }
           }

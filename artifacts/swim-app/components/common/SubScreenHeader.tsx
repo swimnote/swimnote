@@ -44,6 +44,8 @@ interface SubScreenHeaderProps {
   showHome?: boolean;
   rightSlot?: React.ReactNode;
   homePath?: string;
+  /** 타이틀 영역 탭 핸들러. 설정 시 타이틀 블록 전체가 Pressable이 되고 ▼ chevron이 표시됨 */
+  onTitlePress?: () => void;
 }
 
 export function SubScreenHeader({
@@ -53,6 +55,7 @@ export function SubScreenHeader({
   showHome = true,
   rightSlot,
   homePath,
+  onTitlePress,
 }: SubScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 8);
@@ -127,10 +130,20 @@ export function SubScreenHeader({
         <LucideIcon name="arrow-left" size={22} color={iconColor} />
       </Pressable>
 
-      <View style={s.titleBlock}>
-        <Text style={[s.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={[s.subtitle, { color: subtitleColor }]} numberOfLines={1}>{subtitle}</Text> : null}
-      </View>
+      {onTitlePress ? (
+        <Pressable style={s.titleBlock} onPress={onTitlePress} hitSlop={4}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[s.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
+            <LucideIcon name="chevron-down" size={16} color={iconColorSec} />
+          </View>
+          {subtitle ? <Text style={[s.subtitle, { color: subtitleColor }]} numberOfLines={1}>{subtitle}</Text> : null}
+        </Pressable>
+      ) : (
+        <View style={s.titleBlock}>
+          <Text style={[s.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={[s.subtitle, { color: subtitleColor }]} numberOfLines={1}>{subtitle}</Text> : null}
+        </View>
+      )}
 
       <View style={s.right}>
         {rightSlot ?? null}
