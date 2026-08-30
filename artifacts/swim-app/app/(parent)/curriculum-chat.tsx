@@ -699,6 +699,80 @@ export default function CurriculumChatScreen() {
     );
   }
 
+  /**
+   * 답변 텍스트를 섹션 제목 + 본문 단락으로 분리 렌더링.
+   *
+   * 규칙:
+   *   - `**제목**` (라인 전체) → SemiBold, marginTop 구분
+   *   - 빈 줄 → 단락 간격 (height: 6 View)
+   *   - 나머지 → Regular 텍스트
+   *   - 인라인 `**...**` → SemiBold span
+   */
+  function renderFormattedText(text: string) {
+    if (!text) return null;
+    const lines = text.split("\n");
+    const nodes: React.ReactNode[] = [];
+
+    lines.forEach((line, i) => {
+      // 빈 줄 → 단락 간격
+      if (!line.trim()) {
+        nodes.push(<View key={`sp-${i}`} style={{ height: 6 }} />);
+        return;
+      }
+
+      // 라인 전체가 **제목** 패턴
+      const titleMatch = line.trim().match(/^\*\*([^*]+)\*\*$/);
+      if (titleMatch) {
+        nodes.push(
+          <Text
+            key={`t-${i}`}
+            style={[s.assistantText, s.assistantSectionTitle]}
+          >
+            {titleMatch[1]}
+          </Text>,
+        );
+        return;
+      }
+
+      // 인라인 **bold** 파싱
+      const segments = parseInlineBold(line);
+      const hasBold = segments.some((seg) => seg.bold);
+      if (hasBold) {
+        nodes.push(
+          <Text key={`l-${i}`} style={s.assistantText}>
+            {segments.map((seg, j) =>
+              seg.bold ? (
+                <Text key={j} style={s.assistantInlineBold}>{seg.text}</Text>
+              ) : (
+                seg.text
+              ),
+            )}
+          </Text>,
+        );
+      } else {
+        nodes.push(
+          <Text key={`l-${i}`} style={s.assistantText}>{line}</Text>,
+        );
+      }
+    });
+
+    return <>{nodes}</>;
+  }
+
+  function parseInlineBold(line: string): Array<{ text: string; bold: boolean }> {
+    const parts: Array<{ text: string; bold: boolean }> = [];
+    const regex = /\*\*([^*]+)\*\*/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(line)) !== null) {
+      if (m.index > last) parts.push({ text: line.slice(last, m.index), bold: false });
+      parts.push({ text: m[1], bold: true });
+      last = m.index + m[0].length;
+    }
+    if (last < line.length) parts.push({ text: line.slice(last), bold: false });
+    return parts.length ? parts : [{ text: line, bold: false }];
+  }
+
   function renderAssistantBubble(msg: CurriculumMsg) {
     return (
       <View key={msg.id} style={s.assistantRow}>
@@ -707,7 +781,7 @@ export default function CurriculumChatScreen() {
         </View>
         <View style={{ flex: 1, gap: 6 }}>
           <View style={s.assistantBubble}>
-            <Text style={s.assistantText}>{msg.content}</Text>
+            {renderFormattedText(msg.content)}
             {msg.result?.current_progress ? (
               <ProgressCard
                 label="현재 단계"
@@ -1304,6 +1378,15 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Pretendard-Regular",
     color: C.text,
+    lineHeight: 22,
+  },
+  assistantSectionTitle: {
+    fontFamily: "Pretendard-SemiBold",
+    lineHeight: 22, // clipping 방지 (Pretendard 한글 받침)
+    marginTop: 8,
+  },
+  assistantInlineBold: {
+    fontFamily: "Pretendard-SemiBold",
     lineHeight: 22,
   },
 

@@ -97,6 +97,17 @@ export interface ParentCurriculumEngineRequest {
      * - 질문 이해용 보조 context. Grounding source 아님.
      */
     recent_conversation?: PcRecentMessage[];
+    /**
+     * 답변 포맷 힌트 (optional).
+     * ENGINE이 지원할 경우 섹션 구조 + Markdown bold 형식으로 답변 생성.
+     * 미지원 ENGINE은 이 필드를 무시하므로 backward-compatible.
+     */
+    response_format?: {
+      style:        "SECTIONED";
+      max_sections: number;
+      /** 섹션 제목 포맷: "**제목**\n\n본문" */
+      title_format: "markdown_bold";
+    };
   };
 }
 

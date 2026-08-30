@@ -735,6 +735,11 @@ router.post(
         curriculum_scope: curriculumScope,
         ...(wpAStudentProgress           ? { student_progress:    wpAStudentProgress    } : {}),
         ...(recentConversation.length    ? { recent_conversation: recentConversation    } : {}),
+        response_format: {
+          style:        "SECTIONED" as const,
+          max_sections: 4,
+          title_format: "markdown_bold" as const,
+        },
       },
     };
 
