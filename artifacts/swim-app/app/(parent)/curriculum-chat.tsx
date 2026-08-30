@@ -700,28 +700,25 @@ export default function CurriculumChatScreen() {
   }
 
   /**
-   * 답변 텍스트를 섹션 제목 + 본문 단락으로 분리 렌더링.
+   * 답변 텍스트를 단락 + 섹션 제목으로 렌더링.
    *
-   * 제목 인식 방식 A (plain text 우선):
-   *   1. `**제목**` 전체 라인 → SemiBold (backward-compat: 기존 저장된 답변 대응)
-   *   2. 빈 줄/문서 시작 뒤 ≤30자 짧은 단독 라인
-   *      + 문장 종결어미(다·요·까·죠·네·냐·.·?·!)로 끝나지 않는 경우 → SemiBold
+   * 제목 인식 정책 (보수적):
+   *   `**제목**` 형식 전체 라인만 SemiBold로 처리.
+   *   plain text 자동 제목 판정 없음 — 짧은 본문 문장을 오인할 위험이 있어 제거.
    *
    * 나머지:
    *   - 빈 줄 → height:6 단락 간격 (연속 빈 줄은 하나로 합침)
-   *   - 본문 → Regular, 잔여 `**...**` 마커는 제거(리터럴 노출 방지)
+   *   - 본문 → Regular, 잔여 `**...**` 마커는 텍스트만 추출(리터럴 노출 방지)
    *
-   * 설계 의도:
-   *   ENGINE이 plain section format 반환 시 제목 자동 강조.
-   *   `**bold**` 없는 plain text → 1.6.3에서도 깨지지 않음.
-   *   `**bold**` 잔여 시 마커 제거로 리터럴 노출 방지.
+   * 보장:
+   *   - 빈 문자열 / 한 문단 / 긴 답변 / 연속 빈 줄 → crash 없음
+   *   - 복사 원문은 msg.content 그대로 사용 (이 함수와 무관)
    */
   function renderFormattedText(text: string) {
     if (!text) return null;
     const lines = text.split("\n");
     const nodes: React.ReactNode[] = [];
-    // document start counts as "preceded by blank"
-    let prevWasSpacer = true;
+    let prevWasSpacer = true; // 연속 빈 줄 collapse용
 
     lines.forEach((line, i) => {
       const trimmed = line.trim();
@@ -735,7 +732,7 @@ export default function CurriculumChatScreen() {
         return;
       }
 
-      // ── 1) Markdown bold title: **제목** (backward-compat) ───────────────
+      // ── **제목** 전체 라인 → SemiBold (backward-compat) ─────────────────
       const mdTitle = trimmed.match(/^\*\*([^*]+)\*\*$/);
       if (mdTitle) {
         nodes.push(
@@ -747,24 +744,7 @@ export default function CurriculumChatScreen() {
         return;
       }
 
-      // ── 2) Plain section title heuristic (방식 A) ────────────────────────
-      //   조건: 빈 줄/문서 시작 뒤 + ≤30자 + 문장종결어미 없음
-      const isPlainTitle =
-        prevWasSpacer &&
-        trimmed.length <= 30 &&
-        !/[다요까죠네냐.?!]$/.test(trimmed);
-
-      if (isPlainTitle) {
-        nodes.push(
-          <Text key={`t-${i}`} style={[s.assistantText, s.assistantSectionTitle]}>
-            {trimmed}
-          </Text>,
-        );
-        prevWasSpacer = false;
-        return;
-      }
-
-      // ── 3) 본문: 잔여 **마커** 제거 후 Regular 렌더링 ───────────────────
+      // ── 본문: 잔여 **마커** 제거 후 Regular 렌더링 ───────────────────────
       const body = trimmed.replace(/\*\*([^*]+)\*\*/g, "$1");
       nodes.push(
         <Text key={`l-${i}`} style={s.assistantText}>{body}</Text>,
