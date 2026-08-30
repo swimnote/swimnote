@@ -98,29 +98,15 @@ export default function CurriculumProgressGauge({ data, loading, currentLevel }:
           교육과정 진행도
         </Text>
         {currentLevel ? (
-          /* 모자레벨 표시: 레벨명 + 색상선 */
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            {!!currentLevel.level_name && (
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontFamily: "Pretendard-Medium",
-                  color: currentLevel.badge_color ?? "#64748B",
-                  letterSpacing: -0.1,
-                }}
-              >
-                {currentLevel.level_name}
-              </Text>
-            )}
-            <View
-              style={{
-                width: 36,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor: currentLevel.badge_color ?? "#94A3B8",
-              }}
-            />
-          </View>
+          /* 모자레벨 색상선 */
+          <View
+            style={{
+              width: 36,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: currentLevel.badge_color ?? "#94A3B8",
+            }}
+          />
         ) : !isEmpty ? (
           <Text
             style={{
