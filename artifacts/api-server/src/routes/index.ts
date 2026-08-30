@@ -45,6 +45,7 @@ import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
 import appVersionRouter from "./app-version.js";
 import aiDiagRouter from "./ai-diag.js";
+import terminologyRouter from "./terminology.js";
 
 const router: IRouter = Router();
 
@@ -96,5 +97,6 @@ router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
 router.use("/", appVersionRouter);
 router.use("/", aiDiagRouter);
+router.use("/", terminologyRouter);
 
 export default router;
