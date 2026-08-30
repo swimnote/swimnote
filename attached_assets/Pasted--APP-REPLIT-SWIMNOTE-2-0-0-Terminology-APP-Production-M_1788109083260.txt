@@ -1,0 +1,182 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — Terminology APP Production Mock 차단 안정화]
+
+현재 commit:
+b1888eb7
+
+현재 수영·훈련용어 APP 구현은 유지한다.
+
+단,
+현재 보고된:
+
+"PROFESSIONAL_ENGINE_BASE_URL 미설정 시 자동 mock 모드"
+
+구조는 Production 안정성 기준에서 허용하지 않는다.
+
+환경변수/ENGINE 연결 문제를
+가짜 샘플 데이터로 정상처럼 보이게 해서는 안 된다.
+
+이번 작업은 해당 부분만 안전하게 정리한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production Mock 자동 fallback 제거
+━━━━━━━━━━━━━━━━━━━━
+
+Production에서는:
+
+PROFESSIONAL_ENGINE_BASE_URL 미설정
+ENGINE 연결 실패
+ENGINE timeout
+ENGINE 5xx
+
+어떤 경우에도
+20개 sample term을 사용자에게 반환하면 안 된다.
+
+반드시 실제 오류로 처리한다.
+
+예:
+
+ENGINE 설정 없음
+→ ENGINE_UNAVAILABLE 또는 CONFIGURATION_ERROR
+
+ENGINE 연결 실패
+→ ENGINE_UNAVAILABLE
+
+APP:
+→ 기존 오류 UI + 재시도
+
+샘플 데이터를 실제 검색결과처럼 반환 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Mock은 개발/테스트에서만 허용
+━━━━━━━━━━━━━━━━━━━━
+
+20개 sample fixture 자체는
+개발과 테스트를 위해 유지 가능.
+
+단 아래처럼 명시적인 조건에서만 사용:
+
+- test environment
+또는
+- explicit development flag
+
+예:
+TERMINOLOGY_USE_MOCK=true
+
+그리고 Production에서는
+이 flag가 켜져 있어도 차단하는 방식을 우선 검토.
+
+중요:
+"환경변수가 없으니까 mock"
+방식은 제거.
+
+Mock 사용은 반드시 의도적이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Gateway Source of Truth
+━━━━━━━━━━━━━━━━━━━━
+
+실서비스:
+
+APP
+→ SWIMNOTE API Gateway
+→ Professional Engine
+→ Terminology DB
+
+이 경로만 정상 상태.
+
+ENGINE이 없으면
+기능이 준비되지 않은 것으로 처리.
+
+가짜 fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Error UX
+━━━━━━━━━━━━━━━━━━━━
+
+ENGINE 준비 전 또는 연결 실패 시:
+
+"수영·훈련용어 정보를 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+정도의 기존 SWIMNOTE 오류 UI 사용.
+
+검색결과 없음과
+ENGINE 장애를 구분한다.
+
+검색결과 없음:
+"검색 결과가 없습니다."
+
+ENGINE 장애:
+오류 + 재시도
+
+━━━━━━━━━━━━━━━━━━━━
+5. 기존 기능 변경 금지
+━━━━━━━━━━━━━━━━━━━━
+
+변경하지 말 것:
+
+- Parent Home 2분할
+- Teacher settings 진입
+- Search UI
+- Detail UI
+- Segment renderer
+- navigation
+- Gateway endpoint contract
+- 1.6.3
+- AI curriculum search
+- 다른 기능
+
+━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 테스트:
+
+CASE A
+test/dev + explicit mock flag
+→ sample fixture 사용 가능
+
+CASE B
+Production + ENGINE URL 정상
+→ 실제 ENGINE 사용
+
+CASE C
+Production + ENGINE URL 없음
+→ mock 금지 / 오류
+
+CASE D
+Production + ENGINE timeout
+→ mock 금지 / 오류
+
+CASE E
+Production + ENGINE 500
+→ mock 금지 / 오류
+
+CASE F
+실제 검색결과 0건
+→ "검색 결과가 없습니다."
+
+신규 regression 0.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 mock fallback 위치
+2. 최종 mock 사용 조건
+3. Production에서 mock 차단 방식
+4. ENGINE 미설정 시 최종 동작
+5. ENGINE 장애 시 최종 동작
+6. 변경 파일
+7. 테스트 결과
+8. commit SHA
+9. deploy/OTA 여부
+
+코드 수정 + 테스트 + commit까지만.
+
+Render deploy 금지.
+OTA publish 금지.
+
+STOP.
