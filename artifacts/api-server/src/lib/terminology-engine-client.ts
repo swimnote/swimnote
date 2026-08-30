@@ -649,25 +649,54 @@ async function engineFetch(path: string): Promise<Response> {
   }
 }
 
+// ─── Mock gate ────────────────────────────────────────────────────────────────
+
+/**
+ * Mock mode is allowed ONLY when:
+ *   1. TERMINOLOGY_USE_MOCK=true is explicitly set, AND
+ *   2. NODE_ENV !== "production"
+ *
+ * "URL 없으니 자동 mock" 방식은 허용하지 않는다.
+ * Production에서는 mock flag가 설정되어 있어도 차단한다.
+ */
+function isMockAllowed(): boolean {
+  const flag = (process.env["TERMINOLOGY_USE_MOCK"] ?? "").trim().toLowerCase();
+  if (flag !== "true") return false;
+  if (process.env["NODE_ENV"] === "production") return false;
+  return true;
+}
+
+/** Whether the client is currently operating in mock mode. */
+export function isTerminologyMockMode(): boolean {
+  return isMockAllowed();
+}
+
 // ─── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Search terminology.
- * Uses mock fixture when PROFESSIONAL_ENGINE_BASE_URL is not configured.
+ *
+ * Mock mode: explicit TERMINOLOGY_USE_MOCK=true + non-production only.
+ * Production without ENGINE URL → ENGINE_URL_NOT_CONFIGURED error (never mock).
  */
 export async function searchTerminology(
   query: string,
   limit = 30,
 ): Promise<TermSearchResponse> {
-  const baseUrl = getProfessionalEngineBaseUrl();
+  // MOCK PATH — explicit + non-production only
+  if (isMockAllowed()) {
+    const results = mockSearch(query, limit);
+    return { results, terminology_version: "mock-v1", total: results.length };
+  }
 
+  // LIVE PATH — ENGINE URL required
+  const baseUrl = getProfessionalEngineBaseUrl();
   if (!baseUrl) {
-    // MOCK MODE
-    return {
-      results: mockSearch(query, limit),
-      terminology_version: "mock-v1",
-      total: mockSearch(query, limit).length,
-    };
+    throw new TerminologyEngineError(
+      "ENGINE_URL_NOT_CONFIGURED",
+      503,
+      "Terminology engine URL is not configured",
+    );
   }
 
   let res: Response;
@@ -703,14 +732,24 @@ export async function searchTerminology(
 /**
  * Fetch term detail.
  * Returns null when ENGINE returns 404.
- * Uses mock fixture when PROFESSIONAL_ENGINE_BASE_URL is not configured.
+ *
+ * Mock mode: explicit TERMINOLOGY_USE_MOCK=true + non-production only.
+ * Production without ENGINE URL → ENGINE_URL_NOT_CONFIGURED error (never mock).
  */
 export async function getTermDetail(termId: string): Promise<TermDetail | null> {
-  const baseUrl = getProfessionalEngineBaseUrl();
-
-  if (!baseUrl) {
-    // MOCK MODE
+  // MOCK PATH — explicit + non-production only
+  if (isMockAllowed()) {
     return mockDetail(termId);
+  }
+
+  // LIVE PATH — ENGINE URL required
+  const baseUrl = getProfessionalEngineBaseUrl();
+  if (!baseUrl) {
+    throw new TerminologyEngineError(
+      "ENGINE_URL_NOT_CONFIGURED",
+      503,
+      "Terminology engine URL is not configured",
+    );
   }
 
   let res: Response;
@@ -742,9 +781,4 @@ export async function getTermDetail(termId: string): Promise<TermDetail | null> 
   }
 
   return res.json() as Promise<TermDetail>;
-}
-
-/** Whether the client is currently operating in mock mode. */
-export function isTerminologyMockMode(): boolean {
-  return !getProfessionalEngineBaseUrl();
 }
