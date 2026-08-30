@@ -50,6 +50,7 @@ import { useParent } from "@/context/ParentContext";
 import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
 import CurriculumProgressGauge, { CurriculumProgressData } from "@/components/CurriculumProgressGauge";
+import { type LevelDef } from "@/components/common/LevelBadge";
 
 const C = Colors.light;
 const TEAL = C.brandStrong;
@@ -1167,6 +1168,7 @@ export default function ParentHomeScreen() {
   const [aiModalType, setAiModalType] = useState<AIModalType | null>(null);
   const [progressData, setProgressData] = useState<CurriculumProgressData | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
+  const [homeLevelInfo, setHomeLevelInfo] = useState<LevelDef | null>(null);
   const [footerHeight, setFooterHeight] = useState(0);
 
   // ── FREE GROWTH REPORT — 현재 월 리포트 상태 (Phase 1) ───────────────────
@@ -1227,6 +1229,22 @@ export default function ParentHomeScreen() {
       setGrStatus(null);
     } finally {
       setGrStatusLoading(false);
+    }
+  }
+
+  // ── LEVEL-HOME: 현재 모자레벨 fetch (no-cache, source of truth) ───────────
+  async function loadHomeLevelInfo(sid: string) {
+    if (!sid || !token) return;
+    try {
+      const res = await apiRequest(token, `/parent/students/${sid}/level-info`, { _noCache: true });
+      if (res.ok) {
+        const data = await res.json();
+        setHomeLevelInfo((data.current_level as LevelDef) ?? null);
+      } else {
+        setHomeLevelInfo(null);
+      }
+    } catch {
+      setHomeLevelInfo(null);
     }
   }
 
@@ -1402,6 +1420,7 @@ export default function ParentHomeScreen() {
         loadEntries(selectedStudent.id);
         loadProgress(selectedStudent.id);
         loadReportStatus(selectedStudent.id);
+        loadHomeLevelInfo(selectedStudent.id);
       }
     }, [selectedStudent?.id]),
   );
@@ -1874,6 +1893,7 @@ export default function ParentHomeScreen() {
         <CurriculumProgressGauge
           data={progressData}
           loading={progressLoading}
+          currentLevel={homeLevelInfo}
         />
       )}
 

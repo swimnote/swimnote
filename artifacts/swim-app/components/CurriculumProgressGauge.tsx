@@ -35,9 +35,15 @@ export interface CurriculumProgressData {
   is_version_transition: boolean;
 }
 
+interface CurrentLevelInfo {
+  level_name?: string | null;
+  badge_color?: string | null;
+}
+
 interface Props {
   data: CurriculumProgressData | null;
   loading?: boolean;
+  currentLevel?: CurrentLevelInfo | null;
 }
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -57,7 +63,7 @@ function toBarWidth(pct: number): `${number}%` {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function CurriculumProgressGauge({ data, loading }: Props) {
+export default function CurriculumProgressGauge({ data, loading, currentLevel }: Props) {
   // 로딩 중이면 렌더 없음 (기존 여백 유지)
   if (loading) return null;
 
@@ -91,7 +97,31 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
         >
           교육과정 진행도
         </Text>
-        {!isEmpty && (
+        {currentLevel ? (
+          /* 모자레벨 표시: 레벨명 + 색상선 */
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            {!!currentLevel.level_name && (
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Pretendard-Medium",
+                  color: currentLevel.badge_color ?? "#64748B",
+                  letterSpacing: -0.1,
+                }}
+              >
+                {currentLevel.level_name}
+              </Text>
+            )}
+            <View
+              style={{
+                width: 36,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: currentLevel.badge_color ?? "#94A3B8",
+              }}
+            />
+          </View>
+        ) : !isEmpty ? (
           <Text
             style={{
               fontSize: 13,
@@ -101,7 +131,7 @@ export default function CurriculumProgressGauge({ data, loading }: Props) {
           >
             {displayInt}%
           </Text>
-        )}
+        ) : null}
       </View>
 
       {/* 진행 바 — 항상 track 표시, fill은 유효 데이터 있을 때만 */}
