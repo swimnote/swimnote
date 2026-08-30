@@ -1170,6 +1170,8 @@ export default function ParentHomeScreen() {
   const [progressLoading, setProgressLoading] = useState(false);
   const [homeLevelInfo, setHomeLevelInfo] = useState<LevelDef | null>(null);
   const [footerHeight, setFooterHeight] = useState(0);
+  // level_change foreground push dedup guard (3초)
+  const lastLevelRefreshRef = useRef<number>(0);
 
   // ── FREE GROWTH REPORT — 현재 월 리포트 상태 (Phase 1) ───────────────────
   type GrDisplayStatus =
@@ -1424,6 +1426,42 @@ export default function ParentHomeScreen() {
       }
     }, [selectedStudent?.id]),
   );
+
+  // ── LEVEL-PUSH: foreground level_change 알림 → 즉시 level-info refresh ──
+  useEffect(() => {
+    // expo-notifications: dynamic require (_layout.tsx 동일 패턴, Expo Go Android 호환)
+    const Notif: null | typeof import("expo-notifications") =
+      Platform.OS === "web"
+        ? null
+        : (() => { try { return require("expo-notifications") as typeof import("expo-notifications"); } catch { return null; } })();
+    if (!Notif) return;
+
+    const sub = Notif.addNotificationReceivedListener((notification) => {
+      try {
+        const data = notification.request.content.data as Record<string, unknown> | null;
+        if (!data || data.type !== "level_change") return;
+
+        const targetStudentId = typeof data.studentId === "string" ? data.studentId : null;
+        if (!targetStudentId) return;
+
+        // CASE 4: 현재 선택 자녀와 다른 자녀의 알림은 무시
+        const currentSid = selectedStudent?.id;
+        if (!currentSid || currentSid !== targetStudentId) return;
+
+        // CASE 6: 3초 dedup — 동일 이벤트 중복 refresh 방지
+        const now = Date.now();
+        if (now - lastLevelRefreshRef.current < 3000) return;
+        lastLevelRefreshRef.current = now;
+
+        // source of truth: push payload 값 신뢰 안 함, 서버에서 fresh 조회
+        loadHomeLevelInfo(currentSid);
+      } catch {
+        // CASE 7: malformed payload → crash 없음
+      }
+    });
+
+    return () => sub.remove();
+  }, [selectedStudent?.id, token]);
 
   const renderItem = useCallback(
     ({ item }: { item: FeedItem }) => {
