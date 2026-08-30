@@ -61,12 +61,13 @@ const USER_BUBBLE_COLOR = XT.primary;  // #0F2742 — 유저 버블
 // ─── Eligibility ──────────────────────────────────────────────────────────────
 
 /**
- * ELIGIBLE      = 검색 가능 (x mode + curriculum ≥ 300)
- * NOT_AVAILABLE = Normal 또는 x_pending (커리큘럼 검색 불가)
- * NOT_READY     = X pool이지만 curriculum < 300
- * UNKNOWN       = 아직 결정 전 (mode loading 또는 history 로딩 중)
+ * ELIGIBLE         = 검색 가능 (x mode + curriculum 1개 이상)
+ * NOT_AVAILABLE    = Normal 또는 x_pending (X MODE 아님)
+ * NOT_REGISTERED   = X MODE이지만 커리큘럼 미등록 (active version 없거나 items 0개)
+ * NOT_READY        = (레거시) 준비중 — 현재 실제 발생하지 않음, backward-compat 유지
+ * UNKNOWN          = 아직 결정 전 (mode loading 또는 history 로딩 중)
  */
-type Eligibility = "ELIGIBLE" | "NOT_AVAILABLE" | "NOT_READY" | "UNKNOWN";
+type Eligibility = "ELIGIBLE" | "NOT_AVAILABLE" | "NOT_REGISTERED" | "NOT_READY" | "UNKNOWN";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,18 +172,30 @@ function TypingIndicator() {
   );
 }
 
-/** 커리큘럼 검색 불가 안내 (Normal / x_pending / NOT_READY) */
-function UnavailableView() {
+/** 커리큘럼 검색 불가 안내 — eligibility 상태별 메시지 분리 */
+function UnavailableView({ eligibility }: { eligibility: Eligibility }) {
+  let title = "커리큘럼 검색 불가";
+  let desc: string;
+
+  if (eligibility === "NOT_REGISTERED") {
+    desc =
+      "우리 수영장은 아직 커리큘럼 등록을 하지 않아\nAI 커리큘럼 검색이 활성화되지 않았습니다.";
+  } else if (eligibility === "NOT_READY") {
+    desc =
+      "AI 커리큘럼 검색을 준비 중입니다.\n잠시 후 다시 이용해주세요.";
+  } else {
+    // NOT_AVAILABLE — Normal / x_pending
+    desc =
+      "현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아\n커리큘럼 AI 검색을 이용할 수 없습니다.";
+  }
+
   return (
     <View style={s.unavailableWrap}>
       <View style={s.unavailableIconWrap}>
         <LucideIcon name="book-x" size={36} color={C.textMuted} />
       </View>
-      <Text style={s.unavailableTitle}>커리큘럼 검색 불가</Text>
-      <Text style={s.unavailableDesc}>
-        현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아{"\n"}
-        커리큘럼 AI 검색을 이용할 수 없습니다.
-      </Text>
+      <Text style={s.unavailableTitle}>{title}</Text>
+      <Text style={s.unavailableDesc}>{desc}</Text>
     </View>
   );
 }
@@ -245,7 +258,7 @@ export default function CurriculumChatScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const isEligible    = eligibility === "ELIGIBLE";
-  const isUnavailable = eligibility === "NOT_AVAILABLE" || eligibility === "NOT_READY";
+  const isUnavailable = eligibility === "NOT_AVAILABLE" || eligibility === "NOT_REGISTERED" || eligibility === "NOT_READY";
   const isUnknown     = eligibility === "UNKNOWN";
   const isExhausted   = usage !== null && usage.remaining <= 0;
   const canSend       = isEligible && !isExhausted && !sending && input.trim().length > 0;
@@ -315,7 +328,9 @@ export default function CurriculumChatScreen() {
           if (data.eligible === false) {
             const reason: string = data.reason ?? "";
             setEligibility(
-              reason === "CURRICULUM_NOT_READY" ? "NOT_READY" : "NOT_AVAILABLE",
+              reason === "CURRICULUM_NOT_REGISTERED" ? "NOT_REGISTERED" :
+              reason === "CURRICULUM_NOT_READY"      ? "NOT_READY"      :
+              "NOT_AVAILABLE",
             );
             setServerMessages([]);
             if (data.usage) setUsage(data.usage);
@@ -606,6 +621,9 @@ export default function CurriculumChatScreen() {
         ) {
           setPendingMsg(null);
           setEligibility("NOT_AVAILABLE");
+        } else if (res.status === 422 && code === "CURRICULUM_NOT_REGISTERED") {
+          setPendingMsg(null);
+          setEligibility("NOT_REGISTERED");
         } else if (res.status === 422 && code === "CURRICULUM_NOT_READY") {
           setPendingMsg(null);
           setEligibility("NOT_READY");
@@ -961,12 +979,12 @@ export default function CurriculumChatScreen() {
             <ActivityIndicator color={TEAL} size="large" />
           </View>
         ) : isUnavailable ? (
-          /* NOT_AVAILABLE or NOT_READY — no input, no sample questions, no AI call */
+          /* NOT_AVAILABLE / NOT_REGISTERED / NOT_READY — no input, no sample questions, no AI call */
           <ScrollView
             style={s.scroll}
             contentContainerStyle={[s.scrollContent, { paddingBottom: Math.max(insets.bottom + 8, 16) }]}
           >
-            <UnavailableView />
+            <UnavailableView eligibility={eligibility} />
           </ScrollView>
         ) : (
           /* ELIGIBLE */

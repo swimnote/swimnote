@@ -482,19 +482,19 @@ router.post(
 
     // ── 8. Curriculum Scope 구성 (X 모드 only) ───────────────────────────────
     //
-    // §4: curriculum_items >= 300 엄격 적용.
-    // Production에 X curriculum_items가 없으면 정상적으로 NOT_READY 처리.
+    // X MODE eligibility: active curriculum version + items >= 1 (개수 threshold 없음).
+    // 커리큘럼 미등록이면 CURRICULUM_NOT_REGISTERED 처리.
     // 500/502 금지.
     let curriculumScope;
     try {
       curriculumScope = await buildXCurriculumScope(poolId);
     } catch (err) {
       if (err instanceof CurriculumScopeError) {
-        if (err.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
+        if (err.code === "CURRICULUM_NOT_REGISTERED" ||
             err.code === "NO_ACTIVE_CURRICULUM_VERSION") {
           res.status(422).json({
-            error: "AI 커리큘럼 검색이 아직 준비 중입니다. (커리큘럼 데이터 부족)",
-            code:  "CURRICULUM_NOT_READY",
+            error: "우리 수영장은 아직 커리큘럼 등록을 하지 않아 AI 커리큘럼 검색이 활성화되지 않았습니다.",
+            code:  "CURRICULUM_NOT_REGISTERED",
           });
           return;
         }
@@ -1015,7 +1015,8 @@ router.get(
           return;
         }
 
-        // X pool → check searchable curriculum count (no charge)
+        // X pool → check curriculum registration (no charge)
+        // X MODE eligibility: active version + items >= 1. 개수 threshold 없음.
         if (pm === "x") {
           try {
             await buildXCurriculumScope(poolId);
@@ -1023,7 +1024,7 @@ router.get(
           } catch (scopeErr) {
             if (
               scopeErr instanceof CurriculumScopeError &&
-              (scopeErr.code === "CURRICULUM_SEARCH_NOT_ELIGIBLE" ||
+              (scopeErr.code === "CURRICULUM_NOT_REGISTERED" ||
                scopeErr.code === "NO_ACTIVE_CURRICULUM_VERSION")
             ) {
               const u = await getMonthlyUsageInfo(parentId).catch(() => ({
@@ -1031,7 +1032,7 @@ router.get(
               }));
               res.json({
                 eligible: false,
-                reason: "CURRICULUM_NOT_READY",
+                reason: "CURRICULUM_NOT_REGISTERED",
                 conversation_id: null,
                 messages: [],
                 usage: u,

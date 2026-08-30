@@ -1,0 +1,306 @@
+[SWIMNOTE 2.0.0 — X MODE AI 커리큘럼 검색 Eligibility 정책 수정]
+
+작업 목적:
+X MODE 수영장의 AI 커리큘럼 검색 기능에서
+기존 "커리큘럼 300개 이상" 개수 제한을 제거한다.
+
+앞으로 X MODE는 커리큘럼이 실제로 등록되어 있기만 하면
+개수와 관계없이 AI 커리큘럼 검색을 이용할 수 있어야 한다.
+
+이번 작업은 release/v2.0.0에서만 진행한다.
+1.6.3은 절대 수정하지 않는다.
+
+서버/DB는 1.6.3과 공유되므로
+기존 1.6.3 동작을 깨지 않는 backward-compatible 변경만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 최종 정책
+━━━━━━━━━━━━━━━━━━━━
+
+X MODE AI 커리큘럼 검색 eligibility는 아래 기준으로 변경한다.
+
+A. X MODE 활성
+AND
+B. 현재 pool에 검색 가능한 active curriculum이 1개 이상 존재
+
+→ eligible = true
+
+커리큘럼 개수:
+50개 / 100개 / 300개 / 500개 등
+어떤 숫자든 상관없다.
+
+"최소 300개"
+"최소 N개"
+같은 item count threshold는 X MODE에서는 완전히 제거한다.
+
+중요:
+단순히 300 → 50으로 변경하지 말 것.
+숫자 threshold 자체를 X MODE 검색 eligibility에서 제거한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 커리큘럼이 없는 경우
+━━━━━━━━━━━━━━━━━━━━
+
+X MODE는 활성화되어 있지만
+현재 pool에 검색 가능한 active curriculum이 하나도 없으면:
+
+eligible = false
+
+reason은 명확하게
+CURRICULUM_NOT_REGISTERED
+또는 기존 enum 구조에 맞는 동등한 명칭으로 정의한다.
+
+앱 사용자 메시지는 반드시 아래 문구로 통일:
+
+"우리 수영장은 아직 커리큘럼 등록을 하지 않아
+AI 커리큘럼 검색이 활성화되지 않았습니다."
+
+불필요한 기술 설명,
+"300개 미만",
+"검색용 데이터 부족",
+"설정 오류"
+같은 문구는 사용자에게 노출하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 준비중 상태가 실제로 필요하면 분리
+━━━━━━━━━━━━━━━━━━━━
+
+active curriculum은 존재하지만
+AI search projection/index/embedding 등이 아직 준비되지 않은
+실제 비동기 준비 상태가 존재한다면
+커리큘럼 미등록과 같은 메시지를 쓰지 않는다.
+
+그 경우 별도 상태:
+
+CURRICULUM_PREPARING
+
+사용자 문구:
+
+"AI 커리큘럼 검색을 준비 중입니다.
+잠시 후 다시 이용해주세요."
+
+단,
+현재 코드/구조상 이런 준비중 상태가 실제로 존재하지 않으면
+억지로 새 상태를 만들지 않는다.
+
+Repository 기준으로 실제 필요 여부를 먼저 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 조사해야 할 코드
+━━━━━━━━━━━━━━━━━━━━
+
+우선 실제 Repository에서 아래 흐름을 확인한다.
+
+- parent curriculum eligibility endpoint
+- buildXCurriculumScope
+- NORMAL_MIN_CURRICULUM_ITEMS
+- CURRICULUM_SEARCH_NOT_ELIGIBLE
+- CURRICULUM_NOT_READY
+- CURRICULUM_NOT_AVAILABLE
+- xmode_config_status
+- active curriculum version 조회
+- curriculum_items / node / search projection 조회
+- parent curriculum chat 진입화면
+- UnavailableView
+- NOT_AVAILABLE / NOT_READY state mapping
+
+추측하지 말고
+실제 파일명/함수명/조건문을 기준으로 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 핵심 수정 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+현재 X MODE 분기에서
+
+itemCount < 300
+또는
+NORMAL_MIN_CURRICULUM_ITEMS = 300
+
+같은 조건 때문에 검색을 막고 있다면
+X MODE 경로에서는 그 gate를 제거한다.
+
+다만 Normal Mode에 동일 상수가 다른 이유로 사용되고 있다면
+무조건 전역 삭제하지 말고
+X MODE 분기에서만 안전하게 제거한다.
+
+즉:
+
+- X MODE 정책 변경
+- Normal Mode 기존 정책은 건드리지 않음
+- 다른 기능의 threshold까지 같이 변경하지 않음
+
+━━━━━━━━━━━━━━━━━━━━
+6. 검색 가능 여부 최소 조건
+━━━━━━━━━━━━━━━━━━━━
+
+X MODE에서 아래만 확인한다.
+
+1. x entitlement 활성
+2. 해당 pool의 active curriculum version 존재
+3. 검색 가능한 curriculum 데이터가 최소 1개 이상 존재
+
+검색 가능한 데이터가
+curriculum_items인지
+canonical nodes인지
+search projection인지
+현재 실제 production source of truth를 Repository 기준으로 확인한다.
+
+중요:
+현재 ToyKids Canonical 구조가
+50 Nodes + 500 Drills + Relations
+형태라면
+단순 curriculum_items row count를 품질 기준으로 사용하지 않는다.
+
+이번 작업의 목적은
+"커리큘럼이 등록되어 있는가"
+만 판단하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. xmode_config_status 처리
+━━━━━━━━━━━━━━━━━━━━
+
+현재 ToyKids가 실제 커리큘럼이 등록되어 있는데도
+xmode_config_status = CURRICULUM_PENDING
+으로 남아 있다면:
+
+1. 그 값이 실제 검색 eligibility에 사용되는지 확인
+2. 단순 stale status인지 확인
+3. 이번 검색기능 수정에 반드시 필요한 경우에만 함께 정리
+
+무조건 status migration이나 대규모 상태 재설계를 하지 않는다.
+
+이번 작업 범위는
+AI 커리큘럼 검색 eligibility가
+실제 커리큘럼 등록 여부를 정확히 반영하도록 하는 것까지다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 앱 화면 메시지
+━━━━━━━━━━━━━━━━━━━━
+
+기존 UnavailableView가
+NOT_AVAILABLE / NOT_READY를 같은 메시지로 보여주고 있다면
+최소한 아래 상태는 분리한다.
+
+A. X MODE 아님
+→ 기존 X MODE 전용 안내 유지
+
+B. X MODE + 커리큘럼 없음
+→
+"우리 수영장은 아직 커리큘럼 등록을 하지 않아
+AI 커리큘럼 검색이 활성화되지 않았습니다."
+
+C. X MODE + 실제 준비중 상태 존재
+→
+"AI 커리큘럼 검색을 준비 중입니다.
+잠시 후 다시 이용해주세요."
+
+D. X MODE + 커리큘럼 있음
+→ 정상 검색 화면 진입
+
+━━━━━━━━━━━━━━━━━━━━
+9. ToyKids 회귀 검증
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 토이키즈스윔클럽으로 확인한다.
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+현재 알려진 구조:
+- X MODE 활성
+- active curriculum version 존재
+- canonical curriculum 존재
+- curriculum_items 약 50개
+- drills 약 500개
+- relations 존재
+
+기대 결과:
+
+item count가 300 미만이어도
+→ eligible = true
+→ AI 커리큘럼 검색 화면 정상 진입
+
+━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+최소 아래 케이스 테스트:
+
+CASE 1
+X MODE + curriculum 50개
+→ 검색 가능
+
+CASE 2
+X MODE + curriculum 1개
+→ 검색 가능
+
+CASE 3
+X MODE + curriculum 0개
+→ 검색 불가
+→ 지정 문구 표시
+
+CASE 4
+Normal Mode
+→ 기존 정책/동작 유지
+
+CASE 5
+X entitlement false
+→ 기존 X MODE 전용 안내
+
+CASE 6
+active curriculum version 없음
+→ 커리큘럼 미등록 처리
+
+CASE 7
+다른 pool 데이터가 섞이지 않음
+→ pool_id scope 검증
+
+CASE 8
+ToyKids 실제 데이터
+→ 300개 gate 없이 PASS
+
+━━━━━━━━━━━━━━━━━━━━
+11. 금지사항
+━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- ToyKids curriculum을 억지로 300개 이상으로 늘리기
+- 300 threshold를 50 threshold로 바꾸기
+- Canonical 50 Nodes를 300개로 분해하기
+- 다른 pool curriculum 데이터 재가공
+- 1.6.3 앱 수정
+- production deploy
+- Render deploy
+- OTA publish
+- DB destructive migration
+- 기존 curriculum 구조 재설계
+
+이번 작업은
+eligibility 정책과 사용자 메시지만 안전하게 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+완료 후 아래만 보고:
+
+1. root cause
+2. 변경 파일
+3. 변경 전 eligibility 조건
+4. 변경 후 eligibility 조건
+5. X MODE에서 제거한 threshold
+6. Normal Mode 영향 여부
+7. ToyKids 테스트 결과
+8. curriculum 1개 테스트 결과
+9. curriculum 0개 메시지 결과
+10. 테스트 개수/PASS
+11. commit SHA
+12. deploy 여부
+
+STOP.
+
+Production deploy 하지 않는다.
+OTA publish 하지 않는다.
+Render deploy 하지 않는다.
