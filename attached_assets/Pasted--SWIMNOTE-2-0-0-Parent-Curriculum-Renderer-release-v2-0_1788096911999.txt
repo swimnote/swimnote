@@ -1,0 +1,303 @@
+[SWIMNOTE 2.0.0 — Parent Curriculum Renderer 안정화 마무리]
+
+목적:
+현재 release/v2.0.0 commit 5c7cc4d0에서
+Parent Curriculum 답변 가독성 개선을 진행했으나,
+
+Professional Engine의 response_format 지원 여부를 확인할 수 없고,
+1.6.3과 2.0.0이 공용 backend를 사용하므로
+미지원 필드를 ENGINE에 전달하는 것은 안정성 측면에서 위험하다.
+
+이번 작업은 새로운 기능을 추가하지 않고
+기존 시스템을 깨지 않도록
+2.0.0 앱 renderer 개선만 안전하게 남기는 안정화 작업이다.
+
+중요:
+Render deploy 금지.
+OTA publish 금지.
+Production DB 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 커밋 확인
+━━━━━━━━━━━━━━━━━━━━
+
+대상 branch:
+release/v2.0.0
+
+현재 관련 commit:
+5c7cc4d0
+
+먼저 5c7cc4d0과 이전 8e059bbc diff를 확인한다.
+
+관련 파일:
+
+- artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+- artifacts/api-server/src/lib/parent-curriculum-engine-client.ts
+- artifacts/api-server/src/routes/parent-curriculum.ts
+
+━━━━━━━━━━━━━━━━━━━━
+2. 공용 backend → ENGINE 흐름 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+1.6.3과 2.0.0 앱이
+동일한 backend endpoint를 호출하는 구조라면,
+
+backend가 ENGINE request에 response_format을 추가할 경우
+앱 버전과 무관하게 동일 field가 ENGINE으로 전달될 수 있다.
+
+따라서 반드시 확인:
+
+APP → backend request
+backend → Professional Engine request
+
+두 레이어를 분리해서 조사한다.
+
+완료보고에는:
+
+- 1.6.3 APP → API payload
+- 2.0.0 APP → API payload
+- API → ENGINE payload
+
+를 각각 별도로 표기한다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. response_format 관련 서버 변경 제거
+━━━━━━━━━━━━━━━━━━━━
+
+Professional Engine 코드에 접근할 수 없고
+response_format 지원 여부를 확인할 수 없으므로
+
+이번 안정화에서는 서버에서 새로 추가한
+response_format 관련 변경을 제거한다.
+
+제거 대상 검토:
+
+artifacts/api-server/src/lib/parent-curriculum-engine-client.ts
+
+- ParentCurriculumEngineRequest.context에 새로 추가한
+  response_format type/field
+
+artifacts/api-server/src/routes/parent-curriculum.ts
+
+- ENGINE 요청에 삽입하는
+  response_format 관련 payload
+
+목표:
+
+API → ENGINE request contract를
+기존 Production 동작과 동일하게 되돌린다.
+
+Professional Engine에
+확인되지 않은 새로운 field를 보내지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 서버 contract 유지
+━━━━━━━━━━━━━━━━━━━━
+
+아래는 절대 변경하지 않는다.
+
+result.answer: string
+
+기존 Parent Curriculum API request/response contract
+
+curriculum eligibility
+
+retrieval logic
+
+canonical curriculum
+
+AI Engine search logic
+
+즉 이번 서버 변경은
+5c7cc4d0 이전의 안정된 ENGINE request 형식으로 복원하는 것뿐이다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 2.0.0 앱 renderer는 유지
+━━━━━━━━━━━━━━━━━━━━
+
+curriculum-chat.tsx의
+방어적인 rendering 개선은 유지한다.
+
+목표:
+
+기존 ENGINE이 어떤 문자열을 반환하더라도
+2.0.0 앱이 안전하게 표시할 수 있어야 한다.
+
+지원:
+
+A. 기존 한 문단 plain text
+→ 기존처럼 정상 표시
+
+B. \n\n이 포함된 plain text
+→ 문단 간격 표시
+
+C. **Markdown bold**가 우연히 포함된 경우
+→ ** marker가 사용자에게 그대로 노출되지 않도록 안전 처리
+
+D. 빈 문자열
+→ crash 금지
+
+E. 긴 문자열
+→ crash 금지
+
+F. 예상치 못한 줄바꿈
+→ graceful rendering
+
+━━━━━━━━━━━━━━━━━━━━
+6. 제목 휴리스틱 안정화
+━━━━━━━━━━━━━━━━━━━━
+
+현재 방식 A:
+
+"빈 줄 뒤 + 짧은 단독 라인 + 종결어미 없음"
+→ 제목으로 판정
+
+이 로직을 다시 검토한다.
+
+중요:
+일반적인 짧은 본문 문장을
+제목으로 오인하면 안 된다.
+
+제목 판정이 신뢰하기 어렵다면
+공격적인 자동 제목 판정을 제거하거나
+조건을 더 보수적으로 변경한다.
+
+안정성 우선순위:
+
+1. 본문을 본문으로 정상 표시
+2. 문단 구분
+3. 명확한 제목만 강조
+
+예쁜 UI보다 오인식 방지가 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Markdown 처리
+━━━━━━━━━━━━━━━━━━━━
+
+새 Markdown library 추가 금지.
+
+현재 lightweight renderer만 사용.
+
+ENGINE 기본출력을 Markdown이라고 가정하지 않는다.
+
+다만 기존/예상치 못한 응답에:
+
+**현재 상태**
+
+같은 패턴이 들어올 경우
+2.0.0에서는 marker가 그대로 노출되지 않도록
+backward-compatible 처리만 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 1.6.3 영향
+━━━━━━━━━━━━━━━━━━━━
+
+이번 안정화 완료 후
+1.6.3에는 서버 request contract 변화가 없어야 한다.
+
+확인:
+
+- API → ENGINE payload가 기존 형식과 동일
+- result.answer string 동일
+- 1.6.3 renderer 영향 없음
+- 새로운 Markdown 강제 없음
+
+1.6.3 코드는 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 2.0.0 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+renderer fixture 테스트:
+
+CASE 1
+"배영은 먼저 자세를 익히는 것이 중요합니다."
+
+CASE 2
+"현재 상태\n\n현재 기록이 없습니다.\n\n다음 단계\n\n배영 자세를 연습합니다."
+
+CASE 3
+"**현재 상태**\n\n현재 기록이 없습니다."
+
+CASE 4
+"짧은 문장\n\n또 다른 짧은 문장"
+
+→ 두 번째 문장을 제목으로 오인하지 않는지 확인
+
+CASE 5
+빈 string
+
+CASE 6
+매우 긴 paragraph
+
+CASE 7
+연속 줄바꿈
+
+CASE 8
+Markdown + plain text 혼합
+
+모든 케이스:
+crash 없음
+텍스트 손실 없음
+복사 원문 유지
+
+━━━━━━━━━━━━━━━━━━━━
+10. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+- parent curriculum search API
+- history
+- eligibility
+- answer copy
+- progress card
+- error screen
+- 1.6.3 API compatibility
+- 2.0.0 renderer
+
+기존 pre-existing failure와
+새 failure를 분리 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 금지사항
+━━━━━━━━━━━━━━━━━━━━
+
+금지:
+
+- Professional Engine이 지원할 것이라고 가정
+- 미확인 request field 유지
+- ENGINE prompt를 이 workspace에서 수정했다고 주장
+- API breaking change
+- curriculum retrieval 변경
+- eligibility 변경
+- 1.6.3 수정
+- 새로운 Markdown dependency
+- Render deploy
+- OTA publish
+
+━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로 보고:
+
+1. APP → API / API → ENGINE 실제 흐름
+2. response_format 제거 여부
+3. 변경 파일
+4. API → ENGINE 최종 request contract
+5. renderer 최종 방식
+6. 제목 휴리스틱 최종 정책
+7. 1.6.3 compatibility
+8. 2.0.0 compatibility
+9. fixture 8개 결과
+10. 전체 테스트 / 새 실패
+11. commit SHA
+12. deploy 여부
+
+그리고 STOP.
+
+Render deploy 하지 않는다.
+OTA publish 하지 않는다.
