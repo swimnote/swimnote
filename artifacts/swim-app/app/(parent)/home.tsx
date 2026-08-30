@@ -2170,19 +2170,28 @@ export default function ParentHomeScreen() {
           ? { backgroundColor: XT.surfaceNavy, borderBottomWidth: 1, borderBottomColor: XT.surfaceNavyStrong }
           : { backgroundColor: C.background, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border },
       ]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
-          <Text style={[s.poolName, { color: isX ? XT.textOnNavy : C.textSecondary, flex: 0, flexShrink: 1 }]} numberOfLines={1}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+          <Text
+            style={[s.poolName, { color: isX ? XT.textOnNavy : C.textSecondary, flex: 1, flexShrink: 1, minWidth: 0 }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {parentPoolName ||
               (parentAccount as any)?.pool_name ||
               pool?.name ||
               "수영장"}
           </Text>
           {isX && (
-            <View style={{ backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.textOnNavy, letterSpacing: 0.5 }}>
-                SWIMNOTE X
-              </Text>
-            </View>
+            <Image
+              source={require("@/assets/images/swimnote-x-wordmark.png")}
+              style={{
+                height: 18,
+                width: 72,
+                flexShrink: 0,
+                tintColor: "rgba(255,255,255,0.90)",
+              }}
+              resizeMode="contain"
+            />
           )}
         </View>
         <View style={s.headerBtns}>
