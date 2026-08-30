@@ -1892,37 +1892,66 @@ export default function ParentHomeScreen() {
               </Text>
             </Pressable>
           )}
-          <Pressable
-            onPress={() => {
-              if (selectedStudent) {
-                router.push({
-                  pathname: "/(parent)/curriculum-chat" as any,
-                  params: {
-                    studentId:   selectedStudent.id,
-                    studentName: selectedStudent.name ?? "",
-                  },
-                });
-              }
-            }}
-            style={({ pressed }) => ({
+          {/* AI 커리큘럼 검색 + 수영·훈련용어 검색 — 세로 2분할 */}
+          <View
+            style={{
               flex: 1,
               borderRadius: 11,
               borderWidth: 1,
               borderColor: "#DDE3EE",
               backgroundColor: "#F5F7FA",
-              paddingHorizontal: 10,
-              paddingVertical: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              opacity: pressed ? 0.72 : 1,
-            })}
+              overflow: "hidden",
+            }}
           >
-            <LucideIcon name="book-open" size={22} color={NAVY} />
-            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
-              AI 커리큘럼 검색
-            </Text>
-          </Pressable>
+            {/* 위: AI 커리큘럼 검색 */}
+            <Pressable
+              onPress={() => {
+                if (selectedStudent) {
+                  router.push({
+                    pathname: "/(parent)/curriculum-chat" as any,
+                    params: {
+                      studentId:   selectedStudent.id,
+                      studentName: selectedStudent.name ?? "",
+                    },
+                  });
+                }
+              }}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 12,
+                paddingVertical: 11,
+                gap: 8,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <LucideIcon name="book-open" size={19} color={NAVY} />
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: NAVY, flexShrink: 1, lineHeight: 17 }} numberOfLines={1}>
+                AI 커리큘럼 검색
+              </Text>
+            </Pressable>
+
+            {/* 구분선 */}
+            <View style={{ height: 1, backgroundColor: "#DDE3EE" }} />
+
+            {/* 아래: 수영·훈련용어 검색 */}
+            <Pressable
+              onPress={() => router.push("/(parent)/terminology-search" as any)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 12,
+                paddingVertical: 11,
+                gap: 8,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <LucideIcon name="search" size={19} color={NAVY} />
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: NAVY, flexShrink: 1, lineHeight: 17 }} numberOfLines={1}>
+                수영·훈련용어 검색
+              </Text>
+            </Pressable>
+          </View>
         </View>
       )}
 

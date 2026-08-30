@@ -449,7 +449,8 @@ export default function TeacherSettingsScreen() {
           <SectionRow icon="user-cog" label="선생님 설정"     desc="담당 수업 · 기본 설정"       onPress={() => router.push("/(teacher)/my-info?backTo=settings" as any)} />
           <SectionRow icon="edit"   label="일지 템플릿"       desc="수업 일지 작성 템플릿 관리"  onPress={() => router.push("/(teacher)/feedback-custom?backTo=settings" as any)} />
           <SectionRow icon="inbox"  label="알림함"            desc="좋아요 · 댓글 · 요청 · 소식 확인" onPress={() => router.push("/(teacher)/messages-inbox" as any)} />
-          <SectionRow icon="camera" label="사진·영상 업로드/앨범" desc="수업 사진과 영상 관리" last onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)} />
+          <SectionRow icon="camera" label="사진·영상 업로드/앨범" desc="수업 사진과 영상 관리" onPress={() => router.push("/(teacher)/photos?backTo=settings" as any)} />
+          <SectionRow icon="search" label="수영·훈련용어 검색" desc="수영·훈련 용어 전자사전" last onPress={() => router.push("/(teacher)/terminology-search" as any)} />
         </View>
 
         {/* ── 3. 분류 4개 ─────────────────────────────────────────────────── */}
