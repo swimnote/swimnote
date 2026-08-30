@@ -111,7 +111,7 @@ export default function StudentDetailScreen() {
       const [stRes, attRes, lvRes] = await Promise.all([
         apiRequest(token, `/students/${id}`),
         apiRequest(token, `/students/${id}/attendance`),
-        apiRequest(token, `/teacher/students/${id}/level`),
+        apiRequest(token, `/teacher/students/${id}/level`, { _noCache: true }),
       ]);
       if (stRes.ok) setStudent(await stRes.json());
       if (attRes.ok) {

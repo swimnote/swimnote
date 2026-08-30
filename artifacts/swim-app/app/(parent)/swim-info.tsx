@@ -140,7 +140,7 @@ export default function SwimInfoScreen() {
       try {
         const [poolRes, lvRes] = await Promise.all([
           apiRequest(token, "/parent/pool-info"),
-          selectedStudent?.id ? apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`) : Promise.resolve(null),
+          selectedStudent?.id ? apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`, { _noCache: true }) : Promise.resolve(null),
         ]);
         if (poolRes.ok) setInfo(await poolRes.json());
         else setInfo({});
