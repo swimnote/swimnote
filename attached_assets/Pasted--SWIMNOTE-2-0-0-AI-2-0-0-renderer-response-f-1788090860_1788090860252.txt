@@ -1,0 +1,392 @@
+[SWIMNOTE 2.0.0 — AI 커리큘럼 검색 답변 포맷 안정화]
+
+목적:
+현재 2.0.0 앱에서 커리큘럼 검색 답변 가독성 개선을 위해
+renderer와 response_format hint가 추가되었지만,
+
+- Professional Engine 프롬프트는 아직 직접 수정되지 않음
+- ENGINE이 response_format hint를 실제로 지원하는지 미확인
+- 1.6.3은 plain Text renderer이므로 Markdown이 리터럴로 노출될 위험이 있음
+
+따라서 이번 작업은
+"보기 좋게 만드는 것"보다
+"1.6.3 / 2.0.0 / 공용 API / Professional Engine이 모두 안정적으로 동작하는 것"
+을 최우선으로 한다.
+
+중요:
+바로 Render deploy / OTA publish 하지 않는다.
+먼저 전체 호출흐름과 호환성을 검증하고
+최소 변경으로 안정화한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+기존 완료 커밋:
+
+release/v2.0.0
+commit:
+8e059bbc
+
+변경 내용:
+
+앱:
+artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+
+서버:
+artifacts/api-server/src/lib/parent-curriculum-engine-client.ts
+artifacts/api-server/src/routes/parent-curriculum.ts
+
+현재 구현:
+- result.answer: string contract 유지
+- 2.0.0 renderer에서 **bold** 및 \n\n 처리 추가
+- 서버 → ENGINE context에 response_format hint 추가
+
+이번 작업 시작 전
+8e059bbc diff를 먼저 정확히 확인할 것.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Professional Engine 실제 위치 조사
+━━━━━━━━━━━━━━━━━━━━
+
+현재 보고상
+PARENT_CURRICULUM_ENGINE_URL 외부 Professional Engine을 호출하고 있음.
+
+반드시 확인:
+
+- ENGINE repository/workspace가 현재 접근 가능한지
+- parent curriculum endpoint 실제 route
+- prompt builder
+- system prompt
+- response parser
+- request schema
+- context schema
+- response_format 필드를 실제로 읽는지
+- answer 출력형식이 어디서 결정되는지
+
+접근 불가능하면
+"접근 불가"라고 명확히 보고하고
+ENGINE이 지원한다고 가정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 가장 중요한 호환성 조사
+━━━━━━━━━━━━━━━━━━━━
+
+1.6.3과 2.0.0이 각각 ENGINE에 어떤 요청을 보내는지 확인.
+
+반드시 표로 비교:
+
+항목:
+- app version
+- API endpoint
+- request payload
+- version/header 정보
+- response_format 전달 여부
+- answer contract
+- renderer 방식
+- Markdown 지원 여부
+- newline 지원 여부
+
+특히 확인:
+
+1.6.3:
+<Text>{answer}</Text>
+형태라면
+
+**현재 상태**
+같은 Markdown이 그대로 표시될 수 있는지 실제 검증.
+
+2.0.0:
+새 renderer에서
+plain text / newline / Markdown이 모두 graceful하게 처리되는지 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 안정화 최우선 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+이번 설계의 최우선 순위:
+
+1. API contract 깨지지 않음
+2. 1.6.3 화면 깨지지 않음
+3. 2.0.0 화면 깨지지 않음
+4. ENGINE 미지원 field 때문에 오류 나지 않음
+5. 기존 검색 결과 내용 품질 유지
+6. 그 다음에 가독성 개선
+
+"Markdown이 예쁘다"보다
+"구버전에서 안 깨진다"가 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 권장 출력 전략
+━━━━━━━━━━━━━━━━━━━━
+
+우선 아래 전략을 1순위로 검토:
+
+ENGINE answer는 계속 plain text string 유지.
+
+Markdown 제목을 강제하지 말고
+실제 줄바꿈 기반 구조를 기본으로 한다.
+
+예:
+
+현재 상태
+
+현재 기록된 진도가 없어 정확한 위치 판단은 어렵습니다.
+
+배영에서 먼저 익힐 부분
+
+머리 위치와 스트림라인을 먼저 안정시키는 것이 중요합니다.
+
+중요한 포인트
+
+킥을 할 때 무릎이 과도하게 올라오지 않도록 합니다.
+
+이 방식이면:
+
+1.6.3
+→ plain Text에서도 줄바꿈 표시 가능
+
+2.0.0
+→ renderer가 제목/문단을 추가로 시각 강조 가능
+
+즉 Markdown dependency를 최소화한다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 제목 인식 방식
+━━━━━━━━━━━━━━━━━━━━
+
+2.0.0 renderer가
+Markdown **제목**에만 의존하지 않도록 검토한다.
+
+가능하면 다음 중 가장 안전한 방식 선택:
+
+A.
+ENGINE이 plain section format 반환:
+
+현재 상태
+
+본문...
+
+중요한 포인트
+
+본문...
+
+2.0.0 renderer가
+빈 줄 + 짧은 단독 라인 패턴을 제목으로 인식
+
+또는
+
+B.
+ENGINE이 기존 text answer 유지 +
+optional structured_sections 필드를 추가
+
+단,
+B는 ENGINE/API/1.6.3 contract 복잡도가 증가하므로
+필요성이 명확할 때만 사용.
+
+대규모 response schema 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. ENGINE prompt 개선
+━━━━━━━━━━━━━━━━━━━━
+
+ENGINE에 접근 가능하다면
+실제 Parent Curriculum prompt에
+아래 형식 규칙을 직접 넣는다.
+
+목표:
+
+- 2~4개 짧은 섹션
+- 섹션 제목은 plain text
+- 제목 앞뒤 빈 줄
+- 문단당 1~3문장
+- 한 문단 너무 길게 만들지 않음
+- 학생 진도 미확인 안내는 1~2문장
+- retrieved curriculum 근거 밖 지식 생성 금지
+- 같은 내용 반복 금지
+- 학부모가 이해하기 쉬운 문장
+- 구어체/장황한 연결어 최소화
+
+예:
+
+현재 상태
+
+현재 기록만으로 정확한 진도를 판단하기는 어렵습니다.
+
+먼저 익힐 부분
+
+배영에서는 머리 위치와 몸의 정렬을 먼저 안정시키는 것이 중요합니다.
+
+중요한 포인트
+
+킥은 무릎을 과도하게 접기보다 다리 전체의 리듬을 유지하는 것이 중요합니다.
+
+중요:
+Markdown bold는 기본 출력규칙으로 강제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. response_format hint 처리
+━━━━━━━━━━━━━━━━━━━━
+
+현재 추가한 response_format 필드를 검토한다.
+
+확인:
+
+- ENGINE schema에서 unknown field를 무시하는지
+- reject 가능성이 있는지
+- 실제로 사용되는지
+- version별로 달리 보내야 하는지
+
+ENGINE이 사용하지 않는 필드라면:
+불필요한 hint를 남겨두지 말고 제거 또는 safe optional 처리 검토.
+
+ENGINE이 지원한다면:
+2.0.0 전용 request에서만 사용하는 방법 검토.
+
+1.6.3과 공용 backend contract를 해치지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 1.6.3 호환성 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 renderer 기준으로 테스트.
+
+아래 answer 문자열로 검증:
+
+CASE A:
+한 문단 plain text
+
+CASE B:
+\n\n 포함 plain text
+
+CASE C:
+섹션 제목 plain text + 빈 줄
+
+CASE D:
+**Markdown bold** 포함
+
+CASE E:
+혼합 형식
+
+기대:
+1.6.3에서는 최소한
+글자가 깨지거나 literal markup이 보기 나쁘게 노출되지 않아야 한다.
+
+Markdown literal 노출이 있다면
+ENGINE 기본 출력에서 Markdown을 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 2.0.0 renderer 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+아래 모두 graceful하게 처리해야 함:
+
+- 기존 한 문단 답변
+- plain section 답변
+- \n\n 문단
+- 기존 Markdown 답변
+- 빈 문자열
+- 매우 짧은 답변
+- 긴 답변
+- 예상치 못한 줄바꿈
+
+렌더링 실패로 crash 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 실제 검색 시나리오 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+최소 질문:
+
+1. 배영 어려워?
+2. 자유형에서 중요한 게 뭐야?
+3. 평영 발차기 왜 어려워?
+4. 접영은 언제 배우나요?
+5. 우리 아이 지금 어느 단계야?
+6. 다음에 뭘 배우게 돼?
+
+ENGINE 호출 가능하면
+실제 response를 수집해 검증.
+
+ENGINE 호출 불가하면
+mock string으로만 PASS 처리하지 말고
+"실제 ENGINE 미검증"으로 별도 표시.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+- parent curriculum search API
+- parent curriculum history
+- curriculum search eligibility
+- answer copy
+- progress card
+- error state
+- 1.6.3 contract
+- 2.0.0 contract
+
+기존 pre-existing failure와
+새 failure를 반드시 분리 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 변경 최소화 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 허용:
+
+- Parent Curriculum prompt formatting
+- 안전한 request hint 정리
+- renderer 안정화
+- 관련 테스트
+
+금지:
+
+- curriculum retrieval 구조 변경
+- embeddings 변경
+- canonical curriculum 변경
+- eligibility 변경
+- 다른 AI 기능 prompt 변경
+- 공용 앱 typography 변경
+- 대형 Markdown 라이브러리 도입
+- API breaking change
+
+━━━━━━━━━━━━━━━━━━━━
+14. 배포 금지
+━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+Render deploy 금지
+OTA publish 금지
+Production DB 수정 금지
+
+코드 + 테스트 + 설계검증까지만.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━
+
+아래 순서로 보고:
+
+1. Professional Engine 접근 가능 여부
+2. 실제 prompt 위치
+3. response_format 지원 여부
+4. 1.6.3 request/renderer 구조
+5. 2.0.0 request/renderer 구조
+6. 기존 8e059bbc의 위험요소
+7. 최종 안정화 설계
+8. 변경 파일
+9. ENGINE prompt 변경 내용
+10. response format 최종형
+11. 1.6.3 compatibility 결과
+12. 2.0.0 compatibility 결과
+13. 실제 ENGINE 테스트 여부
+14. 테스트 개수 / 새 실패
+15. commit SHA
+16. deploy 여부
+
+그리고 STOP.
+
+배포하지 말 것.
