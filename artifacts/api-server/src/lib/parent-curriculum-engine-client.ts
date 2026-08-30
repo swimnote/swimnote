@@ -105,8 +105,12 @@ export interface ParentCurriculumEngineRequest {
     response_format?: {
       style:        "SECTIONED";
       max_sections: number;
-      /** 섹션 제목 포맷: "**제목**\n\n본문" */
-      title_format: "markdown_bold";
+      /**
+       * 섹션 제목 포맷.
+       * "plain_text": 제목을 plain text로, 빈 줄로 섹션 구분 (1.6.3 safe)
+       * "markdown_bold": **제목** 형식 (구버전 hint — 사용 중단)
+       */
+      title_format: "plain_text" | "markdown_bold";
     };
   };
 }

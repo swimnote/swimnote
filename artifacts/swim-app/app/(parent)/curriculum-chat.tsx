@@ -702,75 +702,77 @@ export default function CurriculumChatScreen() {
   /**
    * 답변 텍스트를 섹션 제목 + 본문 단락으로 분리 렌더링.
    *
-   * 규칙:
-   *   - `**제목**` (라인 전체) → SemiBold, marginTop 구분
-   *   - 빈 줄 → 단락 간격 (height: 6 View)
-   *   - 나머지 → Regular 텍스트
-   *   - 인라인 `**...**` → SemiBold span
+   * 제목 인식 방식 A (plain text 우선):
+   *   1. `**제목**` 전체 라인 → SemiBold (backward-compat: 기존 저장된 답변 대응)
+   *   2. 빈 줄/문서 시작 뒤 ≤30자 짧은 단독 라인
+   *      + 문장 종결어미(다·요·까·죠·네·냐·.·?·!)로 끝나지 않는 경우 → SemiBold
+   *
+   * 나머지:
+   *   - 빈 줄 → height:6 단락 간격 (연속 빈 줄은 하나로 합침)
+   *   - 본문 → Regular, 잔여 `**...**` 마커는 제거(리터럴 노출 방지)
+   *
+   * 설계 의도:
+   *   ENGINE이 plain section format 반환 시 제목 자동 강조.
+   *   `**bold**` 없는 plain text → 1.6.3에서도 깨지지 않음.
+   *   `**bold**` 잔여 시 마커 제거로 리터럴 노출 방지.
    */
   function renderFormattedText(text: string) {
     if (!text) return null;
     const lines = text.split("\n");
     const nodes: React.ReactNode[] = [];
+    // document start counts as "preceded by blank"
+    let prevWasSpacer = true;
 
     lines.forEach((line, i) => {
-      // 빈 줄 → 단락 간격
-      if (!line.trim()) {
-        nodes.push(<View key={`sp-${i}`} style={{ height: 6 }} />);
+      const trimmed = line.trim();
+
+      // ── 빈 줄 ────────────────────────────────────────────────────────────
+      if (!trimmed) {
+        if (!prevWasSpacer) {
+          nodes.push(<View key={`sp-${i}`} style={{ height: 6 }} />);
+          prevWasSpacer = true;
+        }
         return;
       }
 
-      // 라인 전체가 **제목** 패턴
-      const titleMatch = line.trim().match(/^\*\*([^*]+)\*\*$/);
-      if (titleMatch) {
+      // ── 1) Markdown bold title: **제목** (backward-compat) ───────────────
+      const mdTitle = trimmed.match(/^\*\*([^*]+)\*\*$/);
+      if (mdTitle) {
         nodes.push(
-          <Text
-            key={`t-${i}`}
-            style={[s.assistantText, s.assistantSectionTitle]}
-          >
-            {titleMatch[1]}
+          <Text key={`t-${i}`} style={[s.assistantText, s.assistantSectionTitle]}>
+            {mdTitle[1]}
           </Text>,
         );
+        prevWasSpacer = false;
         return;
       }
 
-      // 인라인 **bold** 파싱
-      const segments = parseInlineBold(line);
-      const hasBold = segments.some((seg) => seg.bold);
-      if (hasBold) {
+      // ── 2) Plain section title heuristic (방식 A) ────────────────────────
+      //   조건: 빈 줄/문서 시작 뒤 + ≤30자 + 문장종결어미 없음
+      const isPlainTitle =
+        prevWasSpacer &&
+        trimmed.length <= 30 &&
+        !/[다요까죠네냐.?!]$/.test(trimmed);
+
+      if (isPlainTitle) {
         nodes.push(
-          <Text key={`l-${i}`} style={s.assistantText}>
-            {segments.map((seg, j) =>
-              seg.bold ? (
-                <Text key={j} style={s.assistantInlineBold}>{seg.text}</Text>
-              ) : (
-                seg.text
-              ),
-            )}
+          <Text key={`t-${i}`} style={[s.assistantText, s.assistantSectionTitle]}>
+            {trimmed}
           </Text>,
         );
-      } else {
-        nodes.push(
-          <Text key={`l-${i}`} style={s.assistantText}>{line}</Text>,
-        );
+        prevWasSpacer = false;
+        return;
       }
+
+      // ── 3) 본문: 잔여 **마커** 제거 후 Regular 렌더링 ───────────────────
+      const body = trimmed.replace(/\*\*([^*]+)\*\*/g, "$1");
+      nodes.push(
+        <Text key={`l-${i}`} style={s.assistantText}>{body}</Text>,
+      );
+      prevWasSpacer = false;
     });
 
     return <>{nodes}</>;
-  }
-
-  function parseInlineBold(line: string): Array<{ text: string; bold: boolean }> {
-    const parts: Array<{ text: string; bold: boolean }> = [];
-    const regex = /\*\*([^*]+)\*\*/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = regex.exec(line)) !== null) {
-      if (m.index > last) parts.push({ text: line.slice(last, m.index), bold: false });
-      parts.push({ text: m[1], bold: true });
-      last = m.index + m[0].length;
-    }
-    if (last < line.length) parts.push({ text: line.slice(last), bold: false });
-    return parts.length ? parts : [{ text: line, bold: false }];
   }
 
   function renderAssistantBubble(msg: CurriculumMsg) {
@@ -1384,10 +1386,6 @@ const s = StyleSheet.create({
     fontFamily: "Pretendard-SemiBold",
     lineHeight: 22, // clipping 방지 (Pretendard 한글 받침)
     marginTop: 8,
-  },
-  assistantInlineBold: {
-    fontFamily: "Pretendard-SemiBold",
-    lineHeight: 22,
   },
 
   copyBtn: {

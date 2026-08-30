@@ -738,7 +738,8 @@ router.post(
         response_format: {
           style:        "SECTIONED" as const,
           max_sections: 4,
-          title_format: "markdown_bold" as const,
+          // plain_text: 1.6.3 safe — 섹션 제목을 plain text + 빈 줄 구분으로 요청
+          title_format: "plain_text" as const,
         },
       },
     };
