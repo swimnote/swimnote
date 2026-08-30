@@ -34,6 +34,7 @@ export class CurriculumScopeError extends Error {
     public readonly code:
       | "CURRICULUM_SEARCH_NOT_ELIGIBLE"
       | "NO_ACTIVE_CURRICULUM_VERSION"
+      | "CURRICULUM_NOT_REGISTERED"
       | "X_GLOBAL_SET_UNAVAILABLE"
       | "X_GLOBAL_DATA_INTEGRITY_ERROR",
     message: string,
@@ -127,14 +128,20 @@ export async function buildNormalCurriculumScope(
  * X mode 커리큘럼 Scope 구성.
  *
  * pool-specific curriculum_items 조회.
- * canonical source: curriculum_versions (x-curriculum-v1, is_active=true)
+ * canonical source: curriculum_versions (is_active=true)
  *                   → curriculum_items (is_active=true)
+ *
+ * Eligibility 조건 (X MODE):
+ *   1. pool의 active curriculum_version이 존재
+ *   2. active curriculum_items가 1개 이상 존재
+ *
+ * 개수 threshold(300개 등)는 X MODE에 적용하지 않는다.
+ * "커리큘럼이 등록되어 있는가" 만 판단한다.
  *
  * 금지:
  *   - global_template_sets / diary_templates 참조
  *   - 다른 pool의 item 포함
  *   - archived/inactive item 포함
- *   - 300개 미만 허용
  *   - fallback 추가
  */
 export async function buildXCurriculumScope(
@@ -151,14 +158,14 @@ export async function buildXCurriculumScope(
 
   if (!versionResult.rows.length) {
     throw new CurriculumScopeError(
-      "CURRICULUM_SEARCH_NOT_ELIGIBLE",
+      "CURRICULUM_NOT_REGISTERED",
       `X pool ${poolId} has no active curriculum version`,
     );
   }
 
   const versionId = (versionResult.rows[0] as any).id as string;
 
-  // Step 2: active items 카운트 (300개 gate)
+  // Step 2: active items 카운트 (X MODE: 1개 이상이면 eligible)
   const countResult = await superAdminDb.execute(sql`
     SELECT COUNT(*) AS cnt
     FROM curriculum_items
@@ -167,10 +174,10 @@ export async function buildXCurriculumScope(
   `);
 
   const itemCount = Number((countResult.rows[0] as any)?.cnt ?? 0);
-  if (itemCount < NORMAL_MIN_CURRICULUM_ITEMS) {
+  if (itemCount < 1) {
     throw new CurriculumScopeError(
-      "CURRICULUM_SEARCH_NOT_ELIGIBLE",
-      `X pool ${poolId} has ${itemCount} curriculum items (minimum ${NORMAL_MIN_CURRICULUM_ITEMS})`,
+      "CURRICULUM_NOT_REGISTERED",
+      `X pool ${poolId} has no active curriculum items`,
     );
   }
 

@@ -433,13 +433,13 @@ describe("WP2 — Parent Curriculum Search", () => {
     expect(ids).not.toContain(ITEM_ID_1); // POOL items 혼입 없음
   });
 
-  // TC-I: X inactive/no active global set → 422
-  it("I. X: ACTIVE global set 없음 → 422", async () => {
-    setupXDb();
+  // TC-I: X mode + curriculum 미등록 (version 없음) → 422 CURRICULUM_NOT_REGISTERED
+  it("I. X: curriculum 미등록 (active version 없음) → 422 CURRICULUM_NOT_REGISTERED", async () => {
+    setupXDb(); // curriculum_versions 쿼리 → rows: [] (version 없음)
     (resolvePoolMode as ReturnType<typeof vi.fn>).mockResolvedValue({
       pool_id: POOL_ID, mode: "x", xmode_entitlement: true, xmode_config_status: "READY",
     });
-    (getActiveGlobalTemplateSet as ReturnType<typeof vi.fn>).mockResolvedValue(null); // 없음
+    (getActiveGlobalTemplateSet as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
     const app = await buildApp({ userId: PARENT_ID, role: "parent_account" });
     const res = await request(app)
@@ -447,7 +447,7 @@ describe("WP2 — Parent Curriculum Search", () => {
       .send({ request_id: REQUEST_ID, query: QUERY_TEXT });
 
     expect(res.status).toBe(422);
-    expect(res.body.code).toBe("CURRICULUM_SEARCH_NOT_ELIGIBLE");
+    expect(res.body.code).toBe("CURRICULUM_NOT_REGISTERED");
     expect(searchParentCurriculum).not.toHaveBeenCalled();
   });
 
