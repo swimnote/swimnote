@@ -1,7 +1,7 @@
 /**
  * (teacher)/photos.tsx — 사진 & 영상 앨범
  */
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
@@ -121,6 +121,8 @@ export default function TeacherPhotosScreen() {
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
   const mountedRef = useRef(true);
+  // ── optional classGroupId param (FAST PATH: today → photos?classGroupId=X) ──
+  const { classGroupId: initClassGroupId } = useLocalSearchParams<{ classGroupId?: string }>();
   const [groups,   setGroups]   = useState<TeacherClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -199,8 +201,15 @@ export default function TeacherPhotosScreen() {
         }
         if (canceled) return;
         const [cls, sts] = await Promise.all([safeJson(cgRes), safeJson(stRes)]);
-        setGroups(Array.isArray(cls) ? cls : []);
+        const clsArr = Array.isArray(cls) ? cls : [];
+        setGroups(clsArr);
         setStudents(Array.isArray(sts) ? sts : []);
+        // ── FAST PATH: classGroupId param → 해당 반 자동 선택 ──
+        // params 없이 진입하면 이 블록 실행 안 됨 → OLD PATH 100% 유지
+        if (!canceled && initClassGroupId && clsArr.length > 0) {
+          const found = clsArr.find((g: any) => String(g.id) === String(initClassGroupId));
+          if (found) setSelGroup(found);
+        }
         if (usageRes?.ok) {
           const u = await usageRes.json().catch(() => null);
           if (!canceled && u) setUsage(u);

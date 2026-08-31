@@ -6,7 +6,7 @@
  * 빈 일지 작성 → 반 선택 모달 → diary.tsx (classGroupId 전달)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Pressable,
@@ -42,6 +42,8 @@ export default function DiaryUnwrittenScreen() {
   const { token, adminUser: user } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  // ── optional classGroupId param (FAST PATH: today → diary-unwritten?classGroupId=X) ──
+  const { classGroupId: initClassGroupId } = useLocalSearchParams<{ classGroupId?: string }>();
   const [slots, setSlots] = useState<UnwrittenSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,6 +65,11 @@ export default function DiaryUnwrittenScreen() {
       setRefreshing(false);
     }
   }, [token]);
+  // ── FAST PATH: classGroupId param → 해당 반 미작성만 표시 ──
+  // initClassGroupId 없으면 displayedSlots = slots → OLD PATH 100% 유지
+  const displayedSlots = initClassGroupId
+    ? slots.filter(s => s.classGroupId === initClassGroupId)
+    : slots;
   useEffect(() => { load(); }, [load]);
   useFocusEffect(
     useCallback(() => {
@@ -112,7 +119,7 @@ export default function DiaryUnwrittenScreen() {
     } as any);
   }, []);
   const renderItem = useCallback(({ item, index }: { item: UnwrittenSlot; index: number }) => {
-    const prevDate = index > 0 ? slots[index - 1].lessonDate : null;
+    const prevDate = index > 0 ? displayedSlots[index - 1].lessonDate : null;
     const showDateHeader = prevDate !== item.lessonDate;
     return (
       <>
@@ -159,7 +166,7 @@ export default function DiaryUnwrittenScreen() {
         <View style={u.summaryBar}>
           <View style={u.summaryLeft}>
             <LucideIcon name="alert-circle" size={13} color="#D97706" />
-            <Text style={u.summaryText}>미작성 {slots.length}건</Text>
+            <Text style={u.summaryText}>미작성 {displayedSlots.length}건</Text>
           </View>
           <Text style={u.sortLabel}>오래된 순</Text>
         </View>
@@ -168,7 +175,7 @@ export default function DiaryUnwrittenScreen() {
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
         <FlatList
-          data={slots}
+          data={displayedSlots}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           contentContainerStyle={[u.listContent, { paddingBottom: insets.bottom + 90 }]}

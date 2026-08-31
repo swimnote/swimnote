@@ -10,7 +10,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, clearApiCache, useAuth, API_BASE } from "@/context/AuthContext";
 import * as Updates from "expo-updates";
@@ -126,6 +126,8 @@ export default function MakeupsScreen() {
   const insets = useSafeAreaInsets();
   const { mode } = useMode();
   const isX = isXMode(mode);
+  // ── optional params (FAST PATH: today → makeups?classGroupId=X&backTo=today-schedule) ──
+  const { classGroupId: initClassGroupId, backTo } = useLocalSearchParams<{ classGroupId?: string; backTo?: string }>();
   const [tab, setTab] = useState<TabKey>("waiting");
   const [waitingList,    setWaitingList]    = useState<MakeupSession[]>([]);
   const [waitingLoading, setWaitingLoading] = useState(true);
@@ -182,16 +184,20 @@ export default function MakeupsScreen() {
     occCount: number | null; fetchedAt: string;
   } | null>(null);
   // ── [/DIAG] ───────────────────────────────────────────────────────────────
-  /** 정렬 + 검색 필터 적용 목록 */
+  /** 정렬 + 검색 + optional classGroupId 필터 적용 목록 */
+  // initClassGroupId 없으면 classGroup 조건 없음 → OLD PATH 100% 유지
   const filteredStudents = useMemo(() => {
     const sorted = [...waitingList].sort((a, b) => {
       if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
       return 0;
     });
+    const classFiltered = initClassGroupId
+      ? sorted.filter(mk => String(mk.original_class_group_id) === String(initClassGroupId))
+      : sorted;
     const q = searchText.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter(mk => (mk.student_name ?? "").toLowerCase().includes(q));
-  }, [waitingList, searchText]);
+    if (!q) return classFiltered;
+    return classFiltered.filter(mk => (mk.student_name ?? "").toLowerCase().includes(q));
+  }, [waitingList, searchText, initClassGroupId]);
 
   const loadWaiting = useCallback(async () => {
     try {
