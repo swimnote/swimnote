@@ -1,0 +1,208 @@
+[보낼 곳: APP REPLIT]
+
+[긴급 Production Backport — Terminology Gateway를 deploy-photo-clone에 반영]
+
+현재 Render swimnote-api 실제 Production branch 확인:
+
+deploy-photo-clone
+
+현재 Render source:
+swimnote/swimnote
+branch:
+deploy-photo-clone
+
+따라서 main에 올린 terminology gateway 변경이
+Production에 배포되지 않았던 것이 root cause다.
+
+중요:
+Render branch를 main으로 변경하지 않는다.
+
+현재 Production branch인
+deploy-photo-clone에
+terminology 관련 server 변경만 안전하게 backport한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 기준 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production branch:
+deploy-photo-clone
+
+현재 기준 SHA:
+기존 lineage에서 8872d96 포함 여부 확인.
+
+main 쪽 terminology 관련 commit:
+
+46d1c651
+71f3a866
+
+및 필요한 descendant 변경을 실제 diff로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Backport 대상
+━━━━━━━━━━━━━━━━━━━━
+
+서버 관련 terminology 변경만 반영:
+
+artifacts/api-server/src/lib/professional-engine-client.ts
+artifacts/api-server/src/lib/terminology-engine-client.ts
+artifacts/api-server/src/lib/terminology-engine-client.test.ts
+artifacts/api-server/src/routes/terminology.ts
+artifacts/api-server/src/routes/terminology.test.ts
+artifacts/api-server/src/routes/index.ts
+render.yaml
+
+단:
+
+render.yaml 변경이
+deploy-photo-clone Production 설정과 충돌 없는지 확인 후 반영.
+
+모바일 UI 파일은 backport 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 환경변수
+━━━━━━━━━━━━━━━━━━━━
+
+Render swimnote-api service에서 필요:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+render.yaml에는:
+
+PROFESSIONAL_ENGINE_BASE_URL
+→ https://swimnote-professional-engine.onrender.com
+
+PROFESSIONAL_ENGINE_API_SECRET
+→ sync:false
+
+유지 가능.
+
+secret 값 자체는 commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Production 호환성
+━━━━━━━━━━━━━━━━━━━━
+
+이번 backport는 additive only.
+
+기존:
+
+1.6.3
+기존 parent/teacher API
+AI curriculum
+photo clone
+X curriculum eligibility
+
+동작 변경 금지.
+
+기존 endpoint contract 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+deploy-photo-clone에서:
+
+terminology gateway tests 전체 실행.
+
+최소:
+
+search 200
+detail 200
+status
+engine unavailable
+auth failure
+empty result
+mock production 차단
+
+신규 실패 0.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Commit / Push
+━━━━━━━━━━━━━━━━━━━━
+
+deploy-photo-clone에
+terminology backport commit 생성.
+
+push origin deploy-photo-clone.
+
+완료 후:
+
+commit SHA
+push 결과
+Render auto-deploy trigger 여부
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Render 배포
+━━━━━━━━━━━━━━━━━━━━
+
+이번에는 Render가 실제로
+deploy-photo-clone push를 감지하는지 확인.
+
+자동배포가 시작되면
+실제 live 완료까지 기다린다.
+
+자동배포가 안 되면:
+현재 deploy-photo-clone 최신 SHA를 대상으로
+Manual Deploy latest commit 실행.
+
+중요:
+8872d96 같은 과거 commit을 다시 배포하지 않는다.
+
+반드시 새 backport SHA가 source인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. Live 검증
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 실제 Production:
+
+GET /api/terminology/status
+→ route 존재
+
+인증된 요청:
+
+GET /api/terminology/search?q=글라이드&limit=30
+→ 200
+→ TERM-000002
+
+추가:
+
+스트림라인
+→ TERM-000001
+
+DPS
+→ TERM-000006
+
+negative split
+→ TERM-000009
+
+Detail:
+
+GET /api/terminology/terms/TERM-000002
+→ 200
+→ sections
+→ segments
+→ related_terms
+
+━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. deploy-photo-clone 기존 HEAD
+2. backport 대상 commit/diff
+3. 새 backport SHA
+4. push 결과
+5. Render 실제 source SHA
+6. Render deploy status
+7. live terminology/status 결과
+8. live 글라이드 search 결과
+9. live TERM-000002 detail 결과
+10. 기존 API smoke 결과
+11. 1.6.3 영향 없음 확인
+12. OTA 필요 없음 확인
+
+Production live 200 확인까지 완료 후 STOP.
