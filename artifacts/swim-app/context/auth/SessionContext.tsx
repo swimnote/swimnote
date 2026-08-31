@@ -840,11 +840,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         console.warn(`[KakaoLogin][ABORT] traceId=${tid} 10s 타임아웃 → abort`);
         controller.abort();
       }, 10000);
+      // pool?.id: 현재 선택된 수영장 id — 다중 풀 parent 계정의 정확한 매칭에 사용
+      // 1.6.3은 로그인 시점에 pool이 없으므로 자연스럽게 undefined → 서버 1.6.3 호환 경로 사용
+      const currentPoolId = pool?.id || undefined;
       let res: Response;
       try {
         res = await fetch(`${API_BASE}/auth/kakao-social-login`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ accessToken }),
+          body: JSON.stringify({ accessToken, ...(currentPoolId ? { pool_id: currentPoolId } : {}) }),
           signal: controller.signal,
         });
       } catch (fetchErr: any) {
