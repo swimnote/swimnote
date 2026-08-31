@@ -1,0 +1,427 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0.0 — PLAN STORAGE QUOTA CONSISTENCY AUDIT
+
+## 목적
+
+현재 SWIMNOTE 앱에 표시되는 플랜별 저장공간과,
+RevenueCat에 등록된 상품/entitlement,
+서버 플랜 정의,
+Production DB 실제 quota 값이 서로 일치하는지 전수 확인하십시오.
+
+이번 작업은 **AUDIT ONLY** 입니다.
+
+코드 수정 금지.
+Production 변경 금지.
+
+특히 최근 감사에서 Premier 300이:
+
+* 서버 PLAN_ROWS: 10GB
+* 앱 `lib/revenuecat.tsx` 표시: 80GB
+
+로 불일치한 정황이 확인되었습니다.
+
+이번에는 특정 플랜 하나만 보지 말고 **전체 플랜을 전수 비교**하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 코드 수정 금지
+* RevenueCat 상품 수정 금지
+* RevenueCat entitlement 수정 금지
+* Production DB 수정 금지
+* migration 실행 금지
+* OTA 금지
+* Build 금지
+* Render Deploy 금지
+* 가격 수정 금지
+* quota 수정 금지
+
+이번 단계는 오직 **현재 사실 확인**입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 전체 플랜 목록 추출
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드에서 실제 존재하는 모든 플랜을 추출하십시오.
+
+예:
+
+* Free
+* Coach / Solo
+* Premier
+* 기타 legacy plan
+* X add-on이 별도 plan으로 존재하면 함께 표시
+
+각 플랜마다:
+
+* 내부 plan code
+* 앱 표시명
+* 회원 한도
+* 저장공간 표시값
+* 가격 표시값
+* RevenueCat product id
+* entitlement id
+* 서버 plan code
+
+를 정리하십시오.
+
+과거 문서 기준이 아니라 **현재 코드 기준**으로만 조사합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. APP 표시값 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+모바일 앱에서 사용자에게 실제 표시되는 플랜 정보를 찾으십시오.
+
+찾을 위치 예:
+
+* `lib/revenuecat.tsx`
+* subscription screen
+* pricing screen
+* plan cards
+* settings/subscription
+* upgrade modal
+* onboarding pricing
+* 기타 plan label
+
+각 플랜마다:
+
+* 회원수
+* storage quota
+* 가격
+* label
+* product id
+
+를 추출하십시오.
+
+같은 플랜 정보가 여러 파일에 중복 하드코딩되어 있다면 모두 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. RevenueCat 실제 등록값 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 연결된 RevenueCat 설정에서 실제 등록된 값을 확인하십시오.
+
+확인 항목:
+
+* Offering
+* Package
+* Product ID
+* Entitlement
+* Apple product mapping
+* Google product mapping
+* 현재 활성 Offering
+* 각 product가 어느 plan code에 연결되는지
+
+중요:
+
+RevenueCat 자체에는 storage quota가 직접 저장되지 않을 수 있습니다.
+
+그 경우:
+
+`RevenueCat에는 storage 값 자체 없음`
+
+이라고 명확히 보고하고,
+
+앱 코드 또는 서버 코드 중 어디에서 quota를 결정하는지 구분하십시오.
+
+즉 이번 Audit의 목표는
+“RevenueCat에 80GB가 저장되어 있나?”를 억지로 찾는 게 아니라,
+
+**RevenueCat product → app plan mapping → server plan mapping이 올바른지**를 확인하는 것입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 서버 PLAN 정의 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 API server에서 실제 plan quota를 정의하는 모든 위치를 찾으십시오.
+
+예:
+
+* `PLAN_ROWS`
+* `/super/plans/reinit`
+* plan constants
+* billing routes
+* subscription sync
+* tenant creation
+* pool creation
+* entitlement sync
+* migration/default values
+
+각 플랜마다:
+
+* plan code
+* member limit
+* storage quota bytes
+* MB/GB 환산
+* X capability 여부
+
+를 표로 제출하십시오.
+
+같은 plan code가 여러 서버 파일에서 서로 다른 값을 가지고 있으면 반드시 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Production DB 실제값 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+읽기 전용으로 Production DB의 실제 플랜/수영장 quota 값을 확인할 수 있다면 확인하십시오.
+
+절대 UPDATE/ALTER 하지 마십시오.
+
+확인 대상:
+
+### A. plan master table이 있다면
+
+* plan code
+* member limit
+* storage quota
+* current active values
+
+### B. 실제 Production 수영장
+
+가능하면 각 플랜을 사용하는 대표 pool 1곳씩 읽기 전용 확인:
+
+* current plan
+* member limit
+* storage_quota_bytes
+* entitlement/X status
+
+개인정보는 출력하지 마십시오.
+
+pool name 대신:
+
+* pool_id 일부 masking
+* plan code
+
+정도만 보고하십시오.
+
+Production DB 접근이 불가능하면:
+
+`NOT VERIFIED — DB ACCESS NOT AVAILABLE`
+
+이라고 명시하고 추측하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 quota 적용 지점 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요합니다.
+
+사용자가 파일을 업로드할 때 실제로 어느 값을 기준으로 차단되는지 추적하십시오.
+
+예:
+
+upload
+→ current pool
+→ subscription plan
+→ storage_quota_bytes
+→ current usage
+→ reject/allow
+
+확인:
+
+* 실제 upload limit check 파일
+* 읽는 DB 컬럼
+* plan master를 실시간 참조하는지
+* pool row에 복사된 quota를 읽는지
+* 앱 표시값은 단순 display인지
+
+최종적으로 각 플랜에서:
+
+`실제 업로드 차단 기준 = ____`
+
+을 명확히 적으십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 전체 비교표
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 형식으로 제출하십시오.
+
+| Plan        | APP 표시 Storage | RevenueCat Product | Server PLAN Storage | Production DB 실제 Storage | 실제 업로드 차단값 | 일치 여부 |
+| ----------- | -------------: | ------------------ | ------------------: | -----------------------: | ---------: | ----- |
+| Free        |                |                    |                     |                          |            |       |
+| ...         |                |                    |                     |                          |            |       |
+| Premier 300 |          80GB? |                    |               10GB? |                          |            |       |
+| ...         |                |                    |                     |                          |            |       |
+
+상태:
+
+* MATCH
+* MISMATCH
+* NOT STORED IN REVENUECAT
+* DB NOT VERIFIED
+* LEGACY/UNUSED
+
+로 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 가격도 함께 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업의 주목적은 storage지만,
+plan mapping 오류를 잡기 위해 가격도 읽기 전용으로 비교하십시오.
+
+각 플랜마다:
+
+* 앱 표시가격
+* RevenueCat 실제 product price
+* 서버에 저장된 price/reference price
+* 차이 여부
+
+단:
+
+**가격 수정은 절대 하지 마십시오.**
+
+현재 가격정책은 별도 회의에서 다시 확정할 예정입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Legacy / Dead Plan 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드에 남아 있지만 실제 RevenueCat Offering이나 Production에서 사용되지 않는 구형 플랜이 있다면 분리하십시오.
+
+예:
+
+* old Coach plan
+* old Center plan
+* deprecated product id
+* inactive package
+
+표시:
+
+`LEGACY — NOT ACTIVE`
+
+중요:
+
+legacy 값을 현재 플랜과 섞어서 불일치로 오판하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 원인 분석
+━━━━━━━━━━━━━━━━━━━━━━
+
+불일치가 발견되면 수정하지 말고 원인만 분석하십시오.
+
+예:
+
+A. 앱 display hardcode만 오래된 값
+B. 서버 PLAN_ROWS가 오래된 값
+C. Production DB가 reinit 이전 값
+D. RevenueCat product mapping이 다른 plan code에 연결
+E. legacy code 중복
+F. signup 시 quota copy 후 이후 plan 변경이 반영 안 됨
+G. 기타
+
+각 mismatch마다:
+
+* 원인 후보
+* 실제 사용자 영향
+* 현재 Source of Truth
+* 수정 시 건드려야 할 파일/시스템
+
+을 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 특히 Premier 300 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+최근 확인된:
+
+APP 표시:
+`Premier 300 = 80GB`
+
+Server:
+`Premier 300 = 10GB`
+
+이 차이를 반드시 끝까지 추적하십시오.
+
+확인해야 할 질문:
+
+1. 앱에 80GB가 실제 사용자에게 표시되는가?
+2. RevenueCat product는 어느 plan code에 연결되는가?
+3. Production DB Premier 300 pool은 몇 GB인가?
+4. 실제 upload limiter는 몇 GB에서 차단하는가?
+5. 10GB/80GB 중 어떤 값이 현재 정상 의도값인지 코드상 판단 가능한가?
+6. 단순 표시버그인지 실제 entitlement/quota bug인지?
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+# SWIMNOTE PLAN STORAGE CONSISTENCY AUDIT
+
+Branch:
+HEAD:
+
+## Active Plans
+
+...
+
+## APP
+
+...
+
+## RevenueCat
+
+...
+
+## Server PLAN_ROWS
+
+...
+
+## Production DB
+
+VERIFIED / NOT VERIFIED
+
+## Actual upload quota source
+
+...
+
+## Full comparison
+
+| Plan | APP | RevenueCat | Server | DB | Enforcement | Result |
+| ---- | --- | ---------- | ------ | -- | ----------- | ------ |
+
+## Premier 300 finding
+
+APP:
+RevenueCat:
+Server:
+DB:
+Enforced:
+Verdict:
+
+## Mismatches
+
+1.
+2.
+3.
+
+## Legacy plans
+
+...
+
+## User impact
+
+...
+
+## Recommended fix scope
+
+파일/시스템만 적고 실제 수정 금지.
+
+## Production changes
+
+NONE
+
+## Code changes
+
+NONE
+
+최종 상태:
+
+`PLAN QUOTA AUDIT COMPLETE`
+
+코드 수정 없이 종료하십시오.
