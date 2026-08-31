@@ -1971,23 +1971,70 @@ router.post("/kakao-social-login", async (req, res) => {
   if (!accessToken) return err(res, 400, "카카오 액세스 토큰이 필요합니다.");
 
   try {
-    // 카카오 사용자 정보 조회
-    const kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-      },
-    });
+    // 카카오 사용자 정보 조회 — 8초 타임아웃 (Root Cause Fix: 기존 timeout 없음 → 서버 무한 대기 → 클라이언트 abort)
+    const kakaoController = new AbortController();
+    const kakaoAbortTimer = setTimeout(() => kakaoController.abort(), 8000);
+    let kakaoRes: Response;
+    try {
+      kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        },
+        signal: kakaoController.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(kakaoAbortTimer);
+      const isTimeout = fetchErr?.name === "AbortError";
+      console.error(`[kakao-social-login] Kakao API ${isTimeout ? "timeout" : "fetch error"}: ${fetchErr?.message}`);
+      return res.status(504).json({
+        success: false,
+        error_code: isTimeout ? "KAKAO_API_TIMEOUT" : "KAKAO_API_ERROR",
+        error: isTimeout
+          ? "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요."
+          : "카카오 서버에 연결할 수 없습니다. 네트워크를 확인해주세요.",
+      });
+    } finally {
+      clearTimeout(kakaoAbortTimer);
+    }
+
     if (!kakaoRes.ok) {
-      return err(res, 401, "카카오 토큰이 유효하지 않습니다.");
+      // Kakao API 에러 응답 로깅 (토큰은 마스킹)
+      let kakaoErrBody: any = {};
+      try { kakaoErrBody = await kakaoRes.json(); } catch {}
+      console.error(`[kakao-social-login] Kakao API error status=${kakaoRes.status} code=${kakaoErrBody?.code} msg=${kakaoErrBody?.msg}`);
+      // 401: 토큰 만료/무효, 403: 앱 권한 없음
+      if (kakaoRes.status === 401 || kakaoRes.status === 403) {
+        return res.status(401).json({
+          success: false,
+          error_code: "KAKAO_INVALID_TOKEN",
+          error: "카카오 인증이 만료되었습니다. 다시 시도해주세요.",
+        });
+      }
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_API_ERROR",
+        error: "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      });
     }
     const kakaoUser: any = await kakaoRes.json();
     const kakaoId = String(kakaoUser.id);
+    if (!kakaoId || kakaoId === "undefined" || kakaoId === "null") {
+      console.error(`[kakao-social-login] Kakao user id is invalid: ${kakaoId}`);
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_PROFILE_FAILED",
+        error: "카카오 프로필 정보를 가져올 수 없습니다.",
+      });
+    }
     const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname || null;
     const kakaoProfileImage = kakaoUser.kakao_account?.profile?.profile_image_url || null;
-    const kakaoPhone = kakaoUser.kakao_account?.phone_number
-      ? kakaoUser.kakao_account.phone_number.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
+    const rawPhone = kakaoUser.kakao_account?.phone_number;
+    const kakaoPhone = rawPhone
+      ? rawPhone.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
       : null;
+    // phone 없음 = 카카오 전화번호 scope 미동의 상태 (정상 케이스, phone_missing 플래그로 앱에 알림)
+    const phoneMissing = !kakaoPhone;
 
     // 1) kakao_id로 기존 계정 조회
     const byKakaoId = await db.execute(sql`
@@ -2117,15 +2164,20 @@ router.post("/kakao-social-login", async (req, res) => {
     }
 
     // 5) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    // phone_missing=true: 카카오 전화번호 scope 미동의 → 앱에서 사용자가 직접 입력 안내
+    console.log(`[kakao-social-login] kakao_no_account kakaoId=${kakaoId} phoneMissing=${phoneMissing}`);
     return res.status(404).json({
       success: false,
       error_code: "kakao_no_account",
-      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
+      message: phoneMissing
+        ? "카카오 계정 전화번호를 확인할 수 없습니다. 수영장에 등록된 전화번호로 직접 계정을 연결해주세요."
+        : "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
       kakao_info: {
         kakao_id: kakaoId,
         name: kakaoNickname,
-        phone: kakaoPhone,
+        phone: kakaoPhone,     // null이면 앱에서 phone_missing=true 처리
         profile_image: kakaoProfileImage,
+        phone_missing: phoneMissing,   // 앱이 "전화번호 직접 입력" UI 표시 여부 결정에 사용
       },
     });
   } catch (e) {
