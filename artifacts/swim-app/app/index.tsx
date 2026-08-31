@@ -228,21 +228,38 @@ export default function LoginScreen() {
       console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
     } catch (err: unknown) {
       const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
+
+      // 카카오 앱/웹 취소 — E_CANCELLED_OPERATION이 표준 코드 (iOS/Android 공통)
+      // message.includes("cancel")은 제거: 한국어 에러 메시지를 취소로 오인할 수 있음
+      if ((err as any)?.code === "E_CANCELLED_OPERATION") return;
+
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         router.push({
           pathname: "/(auth)/signup",
           params: {
-            kakaoId:    e.kakao_info.kakao_id ?? "",
-            kakaoPhone: e.kakao_info.phone    ?? "",
-            kakaoName:  e.kakao_info.name     ?? "",
+            kakaoId:         e.kakao_info.kakao_id    ?? "",
+            kakaoPhone:      e.kakao_info.phone        ?? "",
+            kakaoName:       e.kakao_info.name         ?? "",
+            kakaoPhoneMissing: e.kakao_info.phone_missing ? "1" : "0",
           },
         } as any); return;
       }
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
       }
-      if ((err as any)?.code === "E_CANCELLED_OPERATION" || (e as any)?.message?.includes("cancel")) return;
-      setError(e.message || "카카오 로그인에 실패했습니다.");
+      // 서버에서 분류된 에러 코드별 사용자 메시지
+      const errMsg = (() => {
+        switch (e.error_code) {
+          case "KAKAO_INVALID_TOKEN":  return "카카오 인증이 만료되었습니다. 다시 시도해주세요.";
+          case "KAKAO_API_TIMEOUT":    return "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.";
+          case "KAKAO_API_ERROR":      return "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+          case "KAKAO_PROFILE_FAILED": return "카카오 프로필 정보를 가져올 수 없습니다. 다시 시도해주세요.";
+          case "network_error":        return "서버에 연결할 수 없습니다. 네트워크를 확인해주세요.";
+          default:                     return e.message || "카카오 로그인에 실패했습니다.";
+        }
+      })();
+      console.warn(`[KakaoLogin][ERR] traceId=${ktid} error_code=${e.error_code ?? "none"} msg=${errMsg}`);
+      setError(errMsg);
     } finally { setKakaoLoading(false); }
   }
 

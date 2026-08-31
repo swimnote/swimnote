@@ -52,6 +52,7 @@ export default function SignupScreen() {
   const params = useLocalSearchParams<{
     appleId?: string; appleEmail?: string; appleName?: string;
     kakaoId?: string; kakaoPhone?: string; kakaoName?: string;
+    kakaoPhoneMissing?: string;  // "1" = 카카오 전화번호 scope 미동의 → 직접 입력 안내
   }>();
   const appleId    = params.appleId    || "";
   const appleEmail = params.appleEmail || "";
@@ -59,6 +60,8 @@ export default function SignupScreen() {
   const kakaoId    = params.kakaoId    || "";
   const kakaoPhone = params.kakaoPhone || "";
   const kakaoName  = params.kakaoName  || "";
+  // phone_missing=true이면 카카오 scope 미동의 → Step2에서 "카카오 전화번호를 확인할 수 없어 직접 입력합니다" 안내
+  const kakaoPhoneMissing = params.kakaoPhoneMissing === "1";
 
   const isSocial       = !!(appleId || kakaoId);
   const socialPhone    = kakaoPhone || "";              // 카카오는 전화번호 제공, 애플은 없음
@@ -517,6 +520,16 @@ export default function SignupScreen() {
     return (
       <View style={styles.card}>
         <Text style={[styles.cardTitle, { color: C.text }]}>휴대폰 인증</Text>
+
+        {/* 카카오 phone scope 미동의 시 안내 배너 */}
+        {kakaoPhoneMissing && (
+          <View style={{ backgroundColor: "#FFF9E6", borderRadius: 8, padding: 10, marginBottom: 12, flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+            <LucideIcon name="info" size={14} color="#B45309" />
+            <Text style={{ fontSize: 12, color: "#92400E", flex: 1, lineHeight: 18 }}>
+              카카오 계정 전화번호를 확인할 수 없습니다.{"\n"}수영장에 등록된 전화번호를 직접 입력해주세요.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.field}>
           <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호</Text>
