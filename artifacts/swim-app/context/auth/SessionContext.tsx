@@ -188,7 +188,7 @@ interface SessionContextType {
   completeTotpLogin: (totpSession: string, otpCode: string) => Promise<{ available_accounts: AccountEntry[] }>;
   adminLogin: (email: string, password: string) => Promise<void>;
   parentLogin: (identifier: string, password: string, poolId?: string) => Promise<void>;
-  kakaoSocialLogin: (accessToken: string) => Promise<"admin" | "parent">;
+  kakaoSocialLogin: (accessToken: string, overridePoolId?: string) => Promise<"admin" | "parent">;
   appleSocialLogin: (identityToken: string, fullName?: string | null, traceId?: string) => Promise<"admin" | "parent">;
   setParentSession: (token: string, parent: ParentAccount) => Promise<void>;
   setAdminSession: (token: string, user: AdminUser) => Promise<void>;
@@ -828,7 +828,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await finishLogin("parent", null, data.parent, data.token, data.token);
   }
 
-  async function kakaoSocialLogin(accessToken: string): Promise<"admin" | "parent"> {
+  async function kakaoSocialLogin(accessToken: string, overridePoolId?: string): Promise<"admin" | "parent"> {
     const tid = "KL-" + Date.now().toString(36).toUpperCase();
     console.log(`[KakaoLogin][STEP1] traceId=${tid} fetch 시작 tokenLen=${accessToken?.length ?? 0}`);
     setIsAuthenticating(true);
@@ -840,9 +840,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         console.warn(`[KakaoLogin][ABORT] traceId=${tid} 10s 타임아웃 → abort`);
         controller.abort();
       }, 10000);
-      // pool?.id: 현재 선택된 수영장 id — 다중 풀 parent 계정의 정확한 매칭에 사용
-      // 1.6.3은 로그인 시점에 pool이 없으므로 자연스럽게 undefined → 서버 1.6.3 호환 경로 사용
-      const currentPoolId = pool?.id || undefined;
+      // pool_id 우선순위: overridePoolId(ambiguous 재시도) > pool?.id(로그인 후 pool 로드) > undefined
+      // 로그인 화면 시점: pool=null이므로 overridePoolId가 없으면 pool_id 미전송 → 서버 C/D 경로
+      // KAKAO_PARENT_AMBIGUOUS 재시도: index.tsx에서 overridePoolId 전달 → 서버 pool+phone 정확 매칭(2-A)
+      const currentPoolId = overridePoolId || pool?.id || undefined;
       let res: Response;
       try {
         res = await fetch(`${API_BASE}/auth/kakao-social-login`, {
