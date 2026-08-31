@@ -8,7 +8,7 @@
  * 반 배정 → student-detail 이동
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Animated, FlatList, Modal, Pressable,
@@ -94,8 +94,6 @@ export default function WaitingListScreen() {
   const insets = useSafeAreaInsets();
   const { mode } = useMode();
   const isX = isXMode(mode);
-  // ── optional classGroupId param (FAST PATH: today → students?classGroupId=X) ──
-  const { classGroupId: initClassGroupId } = useLocalSearchParams<{ classGroupId?: string }>();
 
   const [tab,        setTab]        = useState<TabKey>("all");
   const [list,       setList]       = useState<TeacherMember[]>([]);
@@ -169,15 +167,7 @@ export default function WaitingListScreen() {
     load(tab);
   }, [load, tab]));
 
-  // ── FAST PATH: classGroupId param → 해당 반 학생만 표시 ──
-  // initClassGroupId 없으면 filter 조건 없음 → OLD PATH 100% 유지
   const displayed = list.filter(m => {
-    if (initClassGroupId) {
-      const inClass =
-        m.class_group_id === initClassGroupId ||
-        (Array.isArray((m as any).assigned_class_ids) && (m as any).assigned_class_ids.includes(initClassGroupId));
-      if (!inClass) return false;
-    }
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return m.name.toLowerCase().includes(q)

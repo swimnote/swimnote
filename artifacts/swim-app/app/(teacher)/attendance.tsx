@@ -658,19 +658,6 @@ export default function TeacherAttendanceScreen() {
             );
           }}
         />
-        {/* ── 일지 작성 빠른 액션 (FAST PATH: attendance → diary, 기존 출결 로직 변경 없음) ── */}
-        <View style={{ paddingHorizontal: 16, paddingVertical: 10, paddingBottom: insets.bottom + 6, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border ?? "#E5E7EB" }}>
-          <Pressable
-            style={({ pressed }) => ({
-              flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-              backgroundColor: themeColor, borderRadius: 10, paddingVertical: 11, opacity: pressed ? 0.85 : 1,
-            })}
-            onPress={() => router.push({ pathname: "/(teacher)/diary", params: { classGroupId: group.id, className: group.name, lessonDate: date, backTo: "today-schedule" } } as any)}
-          >
-            <LucideIcon name="book-open" size={16} color="#FFFFFF" />
-            <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF" }}>일지 작성</Text>
-          </Pressable>
-        </View>
         {/* 보강 지정/소멸 모달은 아래 공통 영역에서 렌더링 */}
         {renderAssignModal()}
         {renderExtinguishModal()}

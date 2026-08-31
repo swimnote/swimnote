@@ -543,32 +543,6 @@ export default function TodayScheduleScreen() {
                         {diaryDone ? "일지 완료" : "일지 미작성"}
                       </Text>
                     </View>
-                    {/* ── 빠른 액션 버튼 (OLD PATH 유지, FAST PATH 추가) ── */}
-                    <View style={{ flexDirection: "row", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
-                      {([
-                        { label: "출석", icon: "check-circle", dest: "/(teacher)/attendance", extra: { className: item.name, lessonDate: today } },
-                        { label: "사진", icon: "camera", dest: "/(teacher)/photos", extra: {} },
-                        { label: "보강", icon: "rotate-ccw", dest: "/(teacher)/makeups", extra: { backTo: "today-schedule" } },
-                        { label: "회원", icon: "users", dest: "/(teacher)/students", extra: {} },
-                      ] as const).map(btn => (
-                        <Pressable
-                          key={btn.label}
-                          style={({ pressed }) => ({
-                            flexDirection: "row", alignItems: "center", gap: 3,
-                            paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7,
-                            backgroundColor: "#F1F5F9", opacity: pressed ? 0.7 : 1,
-                          })}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            haptic.light();
-                            router.push({ pathname: btn.dest as any, params: { classGroupId: item.id, ...btn.extra } } as any);
-                          }}
-                        >
-                          <LucideIcon name={btn.icon as any} size={11} color={C.textSecondary} />
-                          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>{btn.label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
                   </View>
                   <Pressable
                     style={h.detailBtn}
