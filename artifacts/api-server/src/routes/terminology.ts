@@ -16,6 +16,7 @@ import {
   getTermDetail,
   TerminologyEngineError,
   isTerminologyMockMode,
+  pingEngine,
 } from "../lib/terminology-engine-client.js";
 
 const router = Router();
@@ -78,15 +79,18 @@ router.get(
   },
 );
 
-// ─── GET /terminology/status (health / mock indicator) ───────────────────────
+// ─── GET /terminology/status (health / mock indicator + ENGINE ping) ─────────
 
 router.get(
   "/terminology/status",
   requireAuth as any,
-  (_req: AuthRequest, res) => {
+  async (_req: AuthRequest, res) => {
+    const enginePing = await pingEngine();
     return res.json({
       ok: true,
       mock_mode: isTerminologyMockMode(),
+      engine_http: enginePing.status,
+      engine_error: enginePing.error ?? null,
       message: isTerminologyMockMode()
         ? "MOCK MODE — ENGINE 연결 전"
         : "LIVE MODE — ENGINE 연결됨",

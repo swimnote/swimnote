@@ -26,10 +26,13 @@ const mockDetail      = vi.hoisted(() => vi.fn());
 const mockIsMockMode  = vi.hoisted(() => vi.fn());
 const mockRequireAuth = vi.hoisted(() => vi.fn());
 
+const mockPingEngine = vi.hoisted(() => vi.fn());
+
 vi.mock("../lib/terminology-engine-client.js", () => ({
   searchTerminology:     mockSearch,
   getTermDetail:         mockDetail,
   isTerminologyMockMode: mockIsMockMode,
+  pingEngine:            mockPingEngine,
   TerminologyEngineError: class TerminologyEngineError extends Error {
     constructor(
       public errorCode: string,
@@ -102,6 +105,7 @@ describe("Terminology Gateway — routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsMockMode.mockReturnValue(false);
+    mockPingEngine.mockResolvedValue({ status: 401 });
   });
 
   it("TERM-GW-01: no auth → 401", async () => {

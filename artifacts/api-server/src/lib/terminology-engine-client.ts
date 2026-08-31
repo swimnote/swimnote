@@ -628,24 +628,63 @@ function getEngineSecret(): string {
   return (process.env["PROFESSIONAL_ENGINE_API_SECRET"] ?? "").trim();
 }
 
-const TERM_TIMEOUT_MS = 8_000;
+const TERM_TIMEOUT_MS = 15_000;
 
 async function engineFetch(path: string): Promise<Response> {
   const baseUrl = getProfessionalEngineBaseUrl();
   const url = `${baseUrl.replace(/\/$/, "")}/api/terminology${path}`;
+
+  // Retry once on 502 (Render cold-start) with 5s backoff
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), TERM_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${getEngineSecret()}`,
+          "Content-Type": "application/json",
+        },
+        signal: ac.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 502 && attempt < 2) {
+        console.warn(`[terminology] ENGINE 502 on attempt ${attempt}, retrying in 5s...`);
+        await new Promise((r) => setTimeout(r, 5_000));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+  // unreachable — TypeScript needs explicit return
+  throw new TerminologyEngineError("ENGINE_UNAVAILABLE", 503, "engineFetch exhausted retries");
+}
+
+// ─── Engine ping (diagnostic) ─────────────────────────────────────────────────
+
+/**
+ * Lightweight ENGINE health check from Gateway's network perspective.
+ * Used by /terminology/status to expose actual ENGINE HTTP status.
+ * Never throws — always returns a status object.
+ */
+export async function pingEngine(): Promise<{ status: number; error?: string }> {
+  const baseUrl = getProfessionalEngineBaseUrl();
+  if (!baseUrl) return { status: 0, error: "ENGINE_URL_NOT_CONFIGURED" };
+  const url = `${baseUrl.replace(/\/$/, "")}/api/terminology/status`;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), TERM_TIMEOUT_MS);
+  const timer = setTimeout(() => ac.abort(), 8_000);
   try {
     const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${getEngineSecret()}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${getEngineSecret()}` },
       signal: ac.signal,
     });
-    return res;
-  } finally {
     clearTimeout(timer);
+    return { status: res.status };
+  } catch (err: any) {
+    clearTimeout(timer);
+    return { status: 0, error: err?.name === "AbortError" ? "TIMEOUT" : String(err?.message ?? err) };
   }
 }
 
