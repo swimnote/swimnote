@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import aiV1Router from "./ai-v1.js";
 import { requireWritable } from "../lib/readonlyGuard.js";
 import healthRouter from "./health";
 import authRouter from "./auth.js";
@@ -35,7 +36,9 @@ import unregisteredRouter from "./unregistered.js";
 import privacyPageRouter from "./privacy-page.js";
 import superSyncRouter from "./super-sync.js";
 import superRouter from "./super.js";
+import superAiCostRouter from "./super-ai-cost.js";
 import supportTicketsRouter from "./support-tickets.js";
+import supportCasesRouter from "./support-cases.js";
 import pushSettingsRouter from "./push-settings.js";
 import classChangeLogsRouter from "./class-change-logs.js";
 import dbStatusRouter from "./db-status.js";
@@ -43,14 +46,42 @@ import infraUsageRouter from "./infra-usage.js";
 import backupStatusRouter from "./backup-status.js";
 import restoreRouter from "./restore.js";
 import platformBannersRouter from "./platform-banners.js";
+import systemHealthRouter from "./system-health.js";
+import crashReportRouter from "./crash-report.js";
 import appVersionRouter from "./app-version.js";
-import aiDiagRouter from "./ai-diag.js";
-import terminologyRouter from "./terminology.js";
+import inquiriesRouter from "./inquiries.js";
+import aiEngineDocRouter from "./ai-engine-doc.js";
+import commentsRouter from "./comments.js";
+import aiRouter from "./ai.js";
+import storyRouter from "./story.js";
+import xGrowthRouter from "./x-growth.js";
+import xSetupRouter from "./x-setup.js";
+import x04StructuringRouter from "./x04-structuring.js";
+import csPa0Router from "./cs-pa0.js";
+import superSupportRouter from "./super-support.js";
+import frontendMapRouter from "./frontend-map.js";
+import knowledgeSearchRouter from "./knowledge-search.js";
+import knowledgeApprovalRouter from "./knowledge-approval.js";
+import resolutionRouter from "./resolution-router.js";
+import supportRespondRouter from "./support-respond.js";
+import parentGrowthReportRouter from "./parent-growth-report.js";
+import parentCurriculumRouter    from "./parent-curriculum.js";
+import teacherGrowthReportReviewRouter from "./teacher-growth-report-review.js";
+import publishGrowthReportRouter from "./publish-growth-report.js";
+import growthReportInteractionsRouter from "./growth-report-interactions.js";
 
 const router: IRouter = Router();
 
 // 읽기전용 풀 쓰기 차단 (결제 실패 / 삭제 예약 상태)
 router.use(requireWritable as any);
+
+// ── Super 라우터 최우선 마운트 (다른 "/" 라우터들이 /super/* 경로를 가로채지 않도록) ──
+router.use("/", superSyncRouter);
+router.use("/", superRouter);
+router.use("/", superAiCostRouter);
+router.use("/", superSupportRouter);
+router.use("/super/db-status", dbStatusRouter);
+router.use("/super/infra-usage", infraUsageRouter);
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
@@ -61,6 +92,11 @@ router.use("/class-groups", classGroupsRouter);
 router.use("/attendance", attendanceRouter);
 router.use("/notices", noticesRouter);
 router.use("/parent", parentRouter);
+router.use("/", parentGrowthReportRouter);
+router.use("/", parentCurriculumRouter);
+router.use("/", teacherGrowthReportReviewRouter);
+router.use("/", publishGrowthReportRouter);
+router.use("/", growthReportInteractionsRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/", photosRouter);
 router.use("/", diaryRouter);
@@ -84,19 +120,45 @@ router.use("/", settlementRouter);
 router.use("/", storageRouter);
 router.use("/", killSwitchRouter);
 router.use("/", unregisteredRouter);
-router.use("/", superSyncRouter);
-router.use("/", superRouter);
 router.use("/", supportTicketsRouter);
+router.use("/", supportCasesRouter);
 router.use("/", pushSettingsRouter);
 router.use("/class-change-logs", classChangeLogsRouter);
-router.use("/super/db-status", dbStatusRouter);
-router.use("/super/infra-usage", infraUsageRouter);
 router.use("/", backupStatusRouter);
 router.use("/", restoreRouter);
 router.use("/", privacyPageRouter);
 router.use("/", platformBannersRouter);
+router.use("/", systemHealthRouter);
+router.use("/", crashReportRouter);
 router.use("/", appVersionRouter);
-router.use("/", aiDiagRouter);
+router.use("/", inquiriesRouter);
+router.use("/", aiEngineDocRouter);
+router.use("/", commentsRouter);
+router.use("/", aiRouter);
+router.use("/", storyRouter);
+router.use("/", xGrowthRouter);
+router.use("/", xSetupRouter);
+router.use("/", x04StructuringRouter);
+router.use("/", csPa0Router);
+router.use("/", frontendMapRouter);
+router.use("/", knowledgeSearchRouter);
+router.use("/", knowledgeApprovalRouter);
+router.use("/", resolutionRouter);
+router.use("/", supportRespondRouter);
+router.use("/", aiV1Router);
+
+// CS24: Learning Loop — Knowledge Candidates
+import supportLearningRouter from "./support-learning.js";
+router.use("/", supportLearningRouter);
+
+// Curriculum APP MASTER Import (super_admin)
+import superCurriculumRouter from "./super-curriculum.js";
+router.use("/super/curriculum", superCurriculumRouter);
+
+// Multi-Pool Membership API
+import membershipsRouter from "./memberships.js";
+import terminologyRouter from "./terminology.js";
+router.use("/", membershipsRouter);
 router.use("/", terminologyRouter);
 
 export default router;
