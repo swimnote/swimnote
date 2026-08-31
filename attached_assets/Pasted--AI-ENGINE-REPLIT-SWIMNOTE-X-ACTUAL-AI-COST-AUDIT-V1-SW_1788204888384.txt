@@ -1,0 +1,786 @@
+[보낼 곳: AI ENGINE REPLIT]
+
+# SWIMNOTE X — ACTUAL AI COST AUDIT V1
+
+이번 작업의 목적은 SWIMNOTE X의 실제 월 원가를 bottom-up으로 계산하여
+X300 / X500 / X1000의 최종 판매가격을 결정하는 것입니다.
+
+코드 수정 금지.
+Production 변경 금지.
+AUDIT ONLY.
+
+---
+
+# 1. 이번 감사의 기준
+
+APP 공통 인프라 비용은 별도 감사에서 이미 계산했습니다.
+
+따라서 이번 감사에서는:
+
+> SWIMNOTE X를 사용하기 때문에 추가로 발생하는 AI ENGINE 및 X 전용 원가
+
+만 계산합니다.
+
+중복 계산 금지.
+
+APP 공통 Render / Supabase / R2 기본비용은 이번 감사에 다시 넣지 마십시오.
+
+단, X 때문에 추가로 필요한:
+
+* AI ENGINE compute
+* AI worker
+* AI queue
+* embeddings
+* vector/search
+* model API
+* STT
+* X-specific DB workload
+* X-specific storage
+* X-specific scheduled jobs
+
+는 포함합니다.
+
+---
+
+# 2. 최종 X 상품 구조
+
+가격은 아직 확정하지 않습니다.
+
+계산 대상:
+
+## X300
+
+* 최대 300 members
+
+## X500
+
+* 최대 500 members
+
+## X1000
+
+* 최대 1,000 members
+
+중요:
+
+50명, 100명짜리 작은 수영장도 X를 쓰면 X300을 구매하는 구조를 고려 중입니다.
+
+따라서 비용은:
+
+* 실제 100명 사용
+* 300명 full
+* 500명 full
+* 1,000명 full
+
+을 모두 계산하십시오.
+
+---
+
+# 3. 현재 X 기능 전수조사
+
+현재 실제 코드에서 X가 호출하는 AI 기능을 전부 찾으십시오.
+
+예:
+
+* Teacher AI Diary
+* STT / Whisper
+* student parsing
+* common/student distribution
+* curriculum search
+* parent curriculum search
+* growth event
+* growth analysis
+* AI Growth Report
+* paid AI Insight Report 관련 호출이 있다면 별도
+* parent AI
+* embeddings
+* vector search
+* knowledge search
+* template search
+* prompt generation
+* DTA
+* verification
+* GPT/LLM model calls
+* scheduled batch analysis
+* retry
+* queue
+* cache
+* moderation/validation
+* 기타 AI ENGINE endpoint
+
+각 기능마다:
+
+* route
+* model
+* input
+* output
+* average tokens
+* max tokens
+* call frequency
+* per member or per class or per pool 여부
+
+를 정리하십시오.
+
+---
+
+# 4. AI MODEL SOURCE OF TRUTH
+
+현재 실제 코드에서 사용 중인 모든 AI 모델을 확인하십시오.
+
+각 기능별:
+
+Function:
+Model:
+Provider:
+Input token pricing:
+Output token pricing:
+Audio pricing:
+Embedding pricing:
+Other pricing:
+
+반드시 현재 실제 production callable model 기준.
+
+과거 기획서 모델명 사용 금지.
+
+모델명이 dynamic이면 실제 selection logic을 추적하십시오.
+
+---
+
+# 5. TEACHER AI DIARY COST
+
+가장 중요한 기능 중 하나입니다.
+
+현재 실제 Teacher Diary 파이프라인을 분석하십시오.
+
+포함:
+
+* STT
+* parser
+* observation
+* knowledge/template search
+* prompt
+* LLM
+* output
+
+계산 단위:
+
+### per class
+
+### per teacher/day
+
+### per pool/month
+
+### per member/month
+
+시나리오:
+
+LOW
+EXPECTED
+HEAVY
+MAX PRACTICAL
+
+가정 예시는 코드/현실 사용량을 기준으로 직접 산정하십시오.
+
+반드시 가정값을 명시하십시오.
+
+---
+
+# 6. CURRICULUM AI COST
+
+현재 X Curriculum 관련 실제 AI 호출을 분석하십시오.
+
+포함:
+
+* search
+* embeddings
+* reranking
+* LLM
+* answer generation
+
+계산:
+
+* 1 query cost
+* 100 queries/month
+* 1,000 queries/month
+* pool/month
+
+Parent search와 Teacher/Admin search가 다르면 분리하십시오.
+
+---
+
+# 7. GROWTH SYSTEM COST
+
+현재 실제 구현된:
+
+* growth event
+* growth accumulation
+* growth analysis
+* report preparation
+* growth report generation
+
+을 분석하십시오.
+
+각 단계에서 AI 호출 여부를 구분하십시오.
+
+AI 호출이 없는 DB-only 단계는 AI cost ₩0로 표시하되
+X-specific compute가 있다면 별도 표시.
+
+---
+
+# 8. FREE AI GROWTH REPORT COST
+
+무료 AI 성장리포트 정책을 기준으로 계산하십시오.
+
+현재 정책:
+
+* 매월 5일 자동 발급
+* 전월 재등록자
+* 지난달 수업기록 기반
+
+실제 코드 구현 기준으로:
+
+* eligible member당 model call 횟수
+* input token
+* output token
+* embeddings/search
+* report generation
+* PDF 관련 AI cost 여부
+
+계산하십시오.
+
+구매형 AI Insight Report와 절대 섞지 마십시오.
+
+---
+
+# 9. AI INSIGHT STRATEGIC REPORT COST
+
+유료 AI 인사이트 전략 리포트가 현재 AI ENGINE에 구현되어 있거나
+호출 가능한 pipeline이 존재한다면 반드시 별도 계산하십시오.
+
+이 상품은 X 구독원가에 포함하지 마십시오.
+
+반드시:
+
+## PER REPORT COST
+
+로 별도 제출하십시오.
+
+예:
+
+* data retrieval
+* analysis calls
+* multi-stage reasoning
+* model calls
+* token cost
+* PPT/PDF generation
+* image/chart generation
+* storage
+
+총 원가:
+
+₩____ / report
+
+구현되지 않은 부분은 UNKNOWN.
+
+---
+
+# 10. PARENT AI COST
+
+Parent-facing AI 기능 전부 확인.
+
+예:
+
+* curriculum questions
+* member-specific questions
+* educational explanation
+* report questions
+
+현재 rate limit / daily limit / usage cap이 있으면 반영하십시오.
+
+계산:
+
+LOW
+EXPECTED
+HEAVY
+ABUSE/WORST REASONABLE
+
+---
+
+# 11. STT COST
+
+현재 실제 음성입력 경로를 모두 확인하십시오.
+
+* teacher diary
+* other voice features
+
+각각:
+
+* model
+* pricing
+* average audio duration
+* class/month usage
+
+계산:
+
+per minute
+per class
+per pool
+per member
+
+---
+
+# 12. EMBEDDING / VECTOR / SEARCH COST
+
+현재 실제:
+
+* embedding model
+* vector DB/provider
+* storage
+* query
+* rerank
+
+비용을 확인하십시오.
+
+One-time ingestion과 recurring query cost를 분리하십시오.
+
+## ONE-TIME
+
+* curriculum import
+* knowledge indexing
+* initial embedding
+
+## MONTHLY
+
+* search query
+* update
+* new data embedding
+* reindex
+
+---
+
+# 13. X-SPECIFIC COMPUTE COST
+
+AI API 외에 X 때문에 필요한 AI ENGINE server compute를 계산하십시오.
+
+현재 Render AI ENGINE:
+
+* current instance
+* CPU
+* RAM
+* worker
+* queue
+* concurrency
+
+확인.
+
+다음 규모에서 필요한 추가 compute:
+
+* X100 members
+* X300
+* X500
+* X1000
+* 100 X pools
+* 300 X pools
+* 550 X pools
+
+APP 공통 infra와 중복 금지.
+
+---
+
+# 14. MEMBER-BASED COST
+
+가장 중요한 출력입니다.
+
+각 규모에서:
+
+## 100 members
+
+월 AI/X 원가
+
+## 300 members
+
+월 AI/X 원가
+
+## 500 members
+
+월 AI/X 원가
+
+## 1,000 members
+
+월 AI/X 원가
+
+그리고:
+
+`total X cost / members`
+
+로:
+
+### actual cost per member/month
+
+을 계산하십시오.
+
+---
+
+# 15. X PLAN FULL COST
+
+각 플랜을 최대인원까지 사용한다고 가정:
+
+## X300 FULL
+
+300 members
+
+## X500 FULL
+
+500 members
+
+## X1000 FULL
+
+1000 members
+
+각각:
+
+* AI API
+* STT
+* embedding/search
+* X compute
+* X worker
+* X DB/storage incremental
+* retry/error buffer
+
+총합.
+
+---
+
+# 16. 반드시 사용패턴 4단계
+
+각 플랜마다:
+
+## LOW
+
+AI 기능 거의 적게 사용
+
+## EXPECTED
+
+일반 수영장 현실적 사용
+
+## HEAVY
+
+AI 적극 사용
+
+## MAX PRACTICAL
+
+정상적인 운영 범위에서 매우 많이 사용
+
+을 제출하십시오.
+
+무제한 abuse 공격은 별도 SECURITY RISK로 분리.
+
+---
+
+# 17. 550 POOL X PENETRATION SCENARIO
+
+전체 550 pools 중 X 가입률:
+
+* 10%
+* 25%
+* 50%
+* 75%
+* 100%
+
+각각 계산.
+
+플랜 믹스:
+
+### MIX A
+
+70% X300
+20% X500
+10% X1000
+
+### MIX B
+
+50% X300
+35% X500
+15% X1000
+
+### MIX C
+
+실제 예상 가능한 자체 추천 mix
+
+각 시나리오의 월 전체 X 원가 계산.
+
+---
+
+# 18. COST BUFFER
+
+AI pricing 변경 위험을 감안해:
+
+### CURRENT COST
+
+### +20%
+
+### +50%
+
+### ×2 COST STRESS
+
+를 모두 계산하십시오.
+
+특히 model pricing이 상승하거나
+더 비싼 model로 fallback할 경우 영향 계산.
+
+---
+
+# 19. 가격 역산용 표
+
+판매가격은 이번 감사에서 결정하지 않습니다.
+
+대신 목표 마진 기준 최소가격만 계산.
+
+수수료:
+
+### Store 15% + RevenueCat 1%
+
+### Store 30% + RevenueCat 1%
+
+목표 마진:
+
+### 30%
+
+### 40%
+
+### 50%
+
+각 플랜별:
+
+X300
+X500
+X1000
+
+최소 안전 판매가를 계산하십시오.
+
+공식:
+
+`Price × (1 - StoreFee - RCFee - TargetMargin) >= X Full Cost`
+
+---
+
+# 20. 작은 수영장 X300 경제성
+
+중요.
+
+X300을 구매하지만 실제 사용 회원이:
+
+* 20명
+* 50명
+* 100명
+* 200명
+* 300명
+
+인 경우 각각 실제 X 원가 계산.
+
+즉:
+
+> X300은 최대 300명 플랜이지만 실제 인원이 적으면 원가도 얼마나 감소하는지
+
+확인하십시오.
+
+---
+
+# 21. 재등록 ROI 참고값
+
+이번 감사는 기술원가 감사이므로
+재등록 효과를 실제 매출로 가정하지 마십시오.
+
+단, 최종 보고서에:
+
+`X300 cost = ₩___`
+`X500 cost = ₩___`
+`X1000 cost = ₩___`
+
+만 명확히 제공하여
+사업단에서 재등록 ROI와 비교할 수 있게 하십시오.
+
+---
+
+# 22. UNKNOWN 처리
+
+모르는 값은 절대 추정해서 확정값처럼 쓰지 마십시오.
+
+다음 형식:
+
+`UNKNOWN`
+`ASSUMPTION`
+`CODE-DERIVED`
+`MEASURED`
+
+각 숫자의 신뢰도를 표시하십시오.
+
+---
+
+# 23. 공식 가격
+
+현재 날짜 기준 공식 pricing 사용.
+
+확인:
+
+* OpenAI
+* 기타 AI provider
+* Render
+* vector provider
+* STT provider
+
+공식 source URL과 확인 날짜 제출.
+
+---
+
+# 24. 금지
+
+* 코드 수정 금지
+* model 변경 금지
+* prompt 변경 금지
+* rate limit 변경 금지
+* production 변경 금지
+* Render plan 변경 금지
+* DB 변경 금지
+* migration 금지
+* deploy 금지
+* OTA 금지
+
+READ-ONLY COST AUDIT ONLY.
+
+---
+
+# 완료보고 형식
+
+# SWIMNOTE X ACTUAL COST AUDIT V1
+
+Branch:
+HEAD:
+Audit date:
+
+## CURRENT X AI ARCHITECTURE
+
+...
+
+## MODELS
+
+...
+
+## TEACHER DIARY
+
+per class:
+per pool:
+per member:
+
+## CURRICULUM
+
+...
+
+## GROWTH
+
+...
+
+## FREE GROWTH REPORT
+
+...
+
+## AI INSIGHT REPORT
+
+per report:
+...
+
+## PARENT AI
+
+...
+
+## STT
+
+...
+
+## EMBEDDINGS / SEARCH
+
+...
+
+## X COMPUTE
+
+...
+
+## FULL PLAN COST
+
+### X300
+
+LOW:
+EXPECTED:
+HEAVY:
+MAX PRACTICAL:
+Cost/member:
+
+### X500
+
+LOW:
+EXPECTED:
+HEAVY:
+MAX PRACTICAL:
+Cost/member:
+
+### X1000
+
+LOW:
+EXPECTED:
+HEAVY:
+MAX PRACTICAL:
+Cost/member:
+
+## SMALL POOL X300
+
+20 members:
+50 members:
+100 members:
+200 members:
+300 members:
+
+## 550 POOL PENETRATION
+
+...
+
+## COST STRESS
+
++20%:
++50%:
+×2:
+
+## MINIMUM SAFE PRICE
+
+Store15 + RC1:
+
+X300:
+30% margin:
+40% margin:
+50% margin:
+
+X500:
+...
+
+X1000:
+...
+
+Store30 + RC1:
+
+동일
+
+## UNKNOWNS
+
+...
+
+## CONFIDENCE
+
+...
+
+Production changes:
+NONE
+
+Code changes:
+NONE
+
+FINAL:
+
+`SWIMNOTE X ACTUAL COST AUDIT V1 COMPLETE`
