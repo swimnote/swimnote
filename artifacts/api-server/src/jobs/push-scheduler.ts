@@ -24,6 +24,31 @@ const DAY_NAMES_KR: Record<number, string> = {
   0: "일", 1: "월", 2: "화", 3: "수", 4: "목", 5: "금", 6: "토",
 };
 
+export async function renewalReminderJob(): Promise<void> {
+  try {
+    const students = (await db.execute(sql`
+      SELECT id, name, parent_user_id
+      FROM students
+      WHERE membership_end_at = CURRENT_DATE + 7
+        AND status NOT IN ('withdrawn', 'suspended')
+        AND swimming_pool_id IS NOT NULL
+    `)).rows as any[];
+
+    for (const student of students) {
+      if (!student.parent_user_id) continue;
+      await sendPushToUser(
+        student.parent_user_id, true, "membership_renewal",
+        "수강 만료 안내", `${student.name}님의 수강이 7일 후 만료됩니다.`,
+        { type: "membership_renewal", studentId: student.id },
+        `membership_renewal_${student.id}`
+      );
+    }
+  } catch (_e) {
+    // Older deployments can run before membership_end_at has been migrated.
+    return;
+  }
+}
+
 // ── 전날 수업 알림 (매 분 체크, pool별 설정 시간에 맞춰 발송) ────────
 async function runPrevDaySchedule(): Promise<void> {
   const now = getKSTNow();
@@ -379,6 +404,10 @@ export function startPushScheduler(): void {
     } finally {
       await releaseLock("push-makeup");
     }
+  }, { timezone: "Asia/Seoul" });
+  // 매일 오전 8시 수강 만료 7일 전 알림
+  cron.schedule("5 8 * * *", async () => {
+    await renewalReminderJob();
   }, { timezone: "Asia/Seoul" });
   console.log("[push-scheduler] 예약 푸시 스케줄러 시작");
 }

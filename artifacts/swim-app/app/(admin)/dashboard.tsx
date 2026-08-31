@@ -21,6 +21,7 @@ import { useBrand } from "@/context/BrandContext";
 import { useMode } from "@/context/ModeContext";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 import { PaymentBanner } from "@/components/common/PaymentBanner";
+import { XModeBadge } from "@/components/common/XModeBadge";
 import { SearchModal } from "@/components/admin/SearchModal";
 import { AdminQuickRegisterModal } from "@/components/admin/AdminQuickRegisterModal";
 import OnboardingTooltip from "@/components/common/OnboardingTooltip";
@@ -68,6 +69,7 @@ export default function DashboardScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [actionCenter, setActionCenter] = useState<{ renewal_due: number; long_absence: number; empty_seats: number } | null>(null);
 
   // B: 시작 가이드 마법사
   const [wizardDismissed, setWizardDismissed] = useState(true);
@@ -182,6 +184,17 @@ export default function DashboardScreen() {
           setHolidayConfirmed(false);
         }
       }
+      try {
+        const acRes = await apiRequest(token, "/admin/action-center", { method: "GET" });
+        if (acRes.ok) {
+          const acData = await acRes.json();
+          setActionCenter({
+            renewal_due: acData.renewal_due?.length ?? 0,
+            long_absence: acData.long_absence?.length ?? 0,
+            empty_seats: acData.empty_seats?.length ?? 0,
+          });
+        }
+      } catch {}
       if (freshStats) {
         AsyncStorage.setItem(cacheKey, JSON.stringify({
           stats: freshStats,
@@ -264,13 +277,16 @@ export default function DashboardScreen() {
         {/* ── LEFT: pool info (2-row) ─────────────────────────────────────── */}
         <View style={{ flex: 1, gap: 4 }}>
           {/* ROW 1: 수영장명 — 전체 너비 확보 (truncation 방지) */}
-          <Text
-            style={[s.poolName, isX && { color: XT.textOnNavy }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {pool?.name || "수영장"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text
+              style={[s.poolName, isX && { color: XT.textOnNavy }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {pool?.name || "수영장"}
+            </Text>
+            <XModeBadge />
+          </View>
 
           {/* ROW 2: SWIMNOTE X badge · 등급 · role · 선생님 전환 */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
@@ -660,6 +676,37 @@ export default function DashboardScreen() {
                 </Pressable>
               </View>
             )}
+
+            {/* ── 오늘 확인할 것 ── */}
+            <View style={{ gap: 8 }}>
+              <Text style={s.sectionLabel}>오늘 확인할 것</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/members?filter=renewal_due" as any)}
+                >
+                  <LucideIcon name="calendar-clock" size={19} color="#D97706" />
+                  <Text style={[s.bannerValue, { color: "#D97706", fontSize: 18 }]}>{actionCenter?.renewal_due ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>재등록 확인</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/members?filter=long_absence" as any)}
+                >
+                  <LucideIcon name="user-x" size={19} color="#DC2626" />
+                  <Text style={[s.bannerValue, { color: "#DC2626", fontSize: 18 }]}>{actionCenter?.long_absence ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>장기결석</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/class-management" as any)}
+                >
+                  <LucideIcon name="layout-grid" size={19} color="#0369A1" />
+                  <Text style={[s.bannerValue, { color: "#0369A1", fontSize: 18 }]}>{actionCenter?.empty_seats ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>빈자리</Text>
+                </Pressable>
+              </View>
+            </View>
 
             {/* X: 스마트 처리 알림 — 처리 필요 항목 한눈에 */}
             {stats && (() => {

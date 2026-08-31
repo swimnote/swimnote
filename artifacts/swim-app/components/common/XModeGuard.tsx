@@ -136,8 +136,13 @@ function XModeLockUI({ reason, isPoolAdmin, errorCode, onRetry, onBack }: XModeL
           iconBg: C.backgroundSoft,
           title: "SWIMNOTE X 전용 기능이에요",
           desc: "이 기능은 SWIMNOTE X 구독이 필요해요.\nX Mode를 구독하면 AI 기반 커리큘럼 성장 관리를 사용할 수 있어요.",
-          primaryBtn: null,
-          note: null,
+          primaryBtn: poolAdmin
+            ? {
+                label: "X Mode 알아보기",
+                onPress: () => router.push("/(admin)/x-mode-hub" as any),
+              }
+            : null,
+          note: poolAdmin ? null : "수영장 관리자에게 X Mode 구독을 문의해 주세요.",
         };
 
       case "not_configured":
