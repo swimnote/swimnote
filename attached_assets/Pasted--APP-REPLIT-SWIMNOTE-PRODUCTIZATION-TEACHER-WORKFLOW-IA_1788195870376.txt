@@ -1,0 +1,453 @@
+[보낼 곳: APP REPLIT]
+
+SWIMNOTE PRODUCTIZATION — TEACHER WORKFLOW IA IMPLEMENTATION
+PLAN B + ZERO PATH BREAKAGE GATE
+
+이번 작업은 승인된 TEACHER WORKFLOW IA DESIGN의
+PLAN B를 실제 구현하는 작업이다.
+
+가장 중요한 절대 조건:
+
+기존에 구현된 기능의 접근 경로,
+route,
+backTo,
+deeplink,
+params 없는 기존 진입,
+Normal/X 동작 중
+단 하나라도 깨지면 이번 작업은 FAIL이다.
+
+"새 경로가 더 편해졌으니 기존 경로가 필요 없다"는 판단 금지.
+
+이번 작업의 철학:
+
+OLD PATH = 100% 유지
+FAST PATH = additive로 추가
+
+Production OTA / Build / Deploy 금지.
+
+==================================================
+0. ABSOLUTE COMPATIBILITY RULE
+==================================================
+
+기존 route 삭제 금지.
+기존 route rename 금지.
+기존 bottom tab 제거 금지.
+기존 navigation entry 제거 금지.
+기존 deeplink 변경 금지.
+기존 required param contract 변경 금지.
+기존 backTo 의미 변경 금지.
+
+새 기능은 반드시:
+
+- optional param
+- 추가 quick action
+- 기존 route 재사용
+
+방식으로만 구현한다.
+
+params가 없는 기존 호출은
+수정 전과 완전히 동일하게 동작해야 한다.
+
+==================================================
+1. 구현 범위 — PLAN B
+==================================================
+
+구현 대상:
+
+1. today-schedule 수업 카드 업무 허브화
+2. attendance → diary 직접 이동
+3. photos class context 유지
+4. makeups class/back context 유지
+5. students 반 context 지원
+6. diary-unwritten 반 context 지원
+
+기존 bottom tabs는 이번 작업에서 전혀 변경하지 않는다.
+
+==================================================
+2. TODAY-SCHEDULE WORK HUB
+==================================================
+
+현재 수업 카드의 기존 동작을 보존한다.
+
+추가되는 빠른 action:
+
+- 출석
+- 일지
+- 사진
+- 보강
+- 회원
+
+현재 이미 존재하는 출석/일지 동작은
+가능한 한 기존 handler를 그대로 재사용한다.
+
+사진:
+photos?classGroupId=<현재 반>
+
+보강:
+makeups?classGroupId=<현재 반>&backTo=today-schedule
+
+회원:
+students?classGroupId=<현재 반>
+
+기존 카드 tap 동작이 있다면 변경하지 않는다.
+
+expand/collapse UI를 추가하는 경우에도
+기존 직접 버튼 동작과 route는 유지한다.
+
+==================================================
+3. ATTENDANCE → DIARY
+==================================================
+
+attendance 화면에서 동일 수업의 일지로
+바로 이동할 수 있는 "일지 작성" quick action 추가.
+
+전달:
+
+classGroupId
+className
+lessonDate
+startTime
+backTo=today-schedule
+
+기존 출석 저장 로직 변경 금지.
+기존 back 동작 변경 금지.
+
+사용자가 일지 버튼을 누른 경우에만 이동.
+
+자동 redirect 금지.
+
+==================================================
+4. PHOTOS OPTIONAL CONTEXT
+==================================================
+
+photos.tsx에 optional classGroupId를 지원한다.
+
+classGroupId가 있을 때:
+- 해당 반을 초기 선택
+- 기존 사진/영상 기능 그대로 사용
+
+classGroupId가 없을 때:
+- 현재 Production 동작 그대로
+- 기존 반 선택 UI 그대로
+- 기존 default state 그대로
+
+즉:
+
+OLD:
+/(teacher)/photos
+
+NEW:
+/(teacher)/photos?classGroupId=X
+
+둘 다 반드시 정상.
+
+기존 URL contract를 대체하지 않는다.
+
+==================================================
+5. MAKEUPS OPTIONAL CONTEXT
+==================================================
+
+makeups.tsx에 다음 optional param 지원:
+
+classGroupId?
+backTo?
+
+classGroupId가 있으면:
+가능한 범위에서 해당 반 관련 결과를
+우선/필터 표시.
+
+없으면:
+현재 전체 보강 화면 그대로.
+
+backTo가 있으면:
+명시된 기존 route로 복귀.
+
+없으면:
+현재 기존 back behavior 그대로.
+
+특히 params 없는 기존 makeups 접근의
+navigation stack을 절대 바꾸지 않는다.
+
+==================================================
+6. STUDENTS OPTIONAL CLASS FILTER
+==================================================
+
+students.tsx:
+
+classGroupId? optional.
+
+있으면:
+해당 반 학생만 빠르게 확인.
+
+없으면:
+현재 전체 회원목록 100% 유지.
+
+검색/기존 회원 상세 진입/기존 필터를 깨지 않는다.
+
+==================================================
+7. DIARY-UNWRITTEN OPTIONAL CLASS
+==================================================
+
+diary-unwritten.tsx:
+
+classGroupId? optional.
+
+있으면:
+해당 반 미작성 일지만.
+
+없으면:
+현재 전체 미작성 일지 동작 그대로.
+
+기존 진입점을 대체하지 않는다.
+
+==================================================
+8. ROUTE PRESERVATION TEST — 필수
+==================================================
+
+아래 OLD PATH는 전부 MUST PASS.
+
+A.
+/(teacher)/today-schedule
+
+B.
+/(teacher)/attendance
+?classGroupId=X
+&lessonDate=Y
+
+C.
+/(teacher)/diary
+?classGroupId=X
+&lessonDate=Y
+&backTo=today-schedule
+
+D.
+/(teacher)/diary
+?editDiaryId=Z
+&backTo=diary-index
+
+E.
+/(teacher)/photos
+
+F.
+/(teacher)/makeups
+
+G.
+/(teacher)/students
+
+H.
+/(teacher)/diary-unwritten
+
+기존과 동일해야 할 것:
+
+- 화면 렌더
+- 데이터 로딩
+- 저장
+- back
+- edit
+- list
+- filter
+- selected state
+- permission
+- Normal/X gating
+
+==================================================
+9. NEW FAST PATH TEST
+==================================================
+
+반드시 테스트:
+
+today → attendance
+today → diary
+today → photos
+today → makeups
+today → students
+
+attendance → diary
+
+photos?classGroupId=X
+makeups?classGroupId=X
+makeups?backTo=today-schedule
+students?classGroupId=X
+diary-unwritten?classGroupId=X
+
+반 재선택이 없어야 한다.
+
+==================================================
+10. BACKTO REGRESSION — 절대 중요
+==================================================
+
+다음 각각 MUST PASS:
+
+diary backTo=today-schedule
+→ save/back 후 today
+
+diary backTo=my-schedule
+→ save/back 후 my-schedule
+
+diary backTo=diary-index
+→ save/back 후 diary-index
+
+makeups params 없음
+→ 기존 back
+
+makeups backTo=today-schedule
+→ today
+
+student-detail 기존 backTo
+→ 기존 destination
+
+새 FAST PATH 때문에
+기존 back stack이 바뀌면 FAIL.
+
+==================================================
+11. DEEPLINK / TAB REGRESSION
+==================================================
+
+Bottom tabs는 코드상 구조 변경 금지.
+
+기존 6개 teacher tab:
+
+- 홈
+- 수업관리
+- 수강관리
+- 정산
+- 메신저
+- 설정
+
+모두 그대로 접근 가능해야 한다.
+
+기존 hidden route도 삭제/rename 금지.
+
+deeplink 가능한 route가 있다면
+기존 URL로 직접 진입 테스트.
+
+==================================================
+12. NORMAL / X
+==================================================
+
+Normal:
+기존 기능 그대로.
+
+X:
+기존 X 기능 그대로.
+
+이번 작업 때문에
+X badge / AI Diary / Growth / Report / terminology 등의
+entitlement나 visibility가 달라지면 안 된다.
+
+이번 작업은 navigation convenience만 변경한다.
+
+==================================================
+13. STATE SAFETY
+==================================================
+
+A반 → B반 이동 시
+A반 classGroupId가 남지 않아야 한다.
+
+날짜 변경 시
+이전 lessonDate가 남지 않아야 한다.
+
+optional param이 invalid이면
+앱 crash 금지.
+
+존재하지 않는 classGroupId이면
+기존 safe fallback 또는 오류 UI 사용.
+
+새 global store 추가 금지.
+
+현재 route param + local state 구조 우선 재사용.
+
+==================================================
+14. 기능 전체 경로 Smoke Test
+==================================================
+
+이번 수정 파일만 테스트하고 끝내지 않는다.
+
+Teacher 전체 핵심 기능을 smoke test:
+
+- today
+- my schedule
+- students
+- revenue
+- messenger
+- settings
+- attendance
+- diary create
+- diary edit
+- diary history
+- diary unwritten
+- diary reactions
+- photos
+- makeups
+- student detail
+- feedback
+- notices
+- messages
+- inquiries
+- terminology
+- X growth
+- growth report review/list/reactions
+- support chat
+
+각 route가 기존처럼 열리는지 확인.
+
+==================================================
+15. 실패 조건
+==================================================
+
+다음 중 하나라도 발생하면 PASS 금지:
+
+- 기존 route 접근 불가
+- 기존 tab 사라짐
+- params 없는 photos 동작 변경
+- params 없는 makeups 동작 변경
+- params 없는 students 동작 변경
+- diary backTo regression
+- edit diary regression
+- deeplink regression
+- Normal/X gate regression
+- 잘못된 class context
+- stale lessonDate
+- 기존 기능 하나라도 unreachable
+
+문제가 있으면 수정 후 전체 regression 재실행.
+
+==================================================
+16. 완료보고
+==================================================
+
+한 번의 최종보고:
+
+1. 수정 파일
+2. 각 수정 목적
+3. OLD PATH 유지 방식
+4. 추가된 FAST PATH
+5. today card 최종 action
+6. attendance→diary 결과
+7. photos optional context 결과
+8. makeups optional context 결과
+9. students optional context 결과
+10. diary-unwritten optional context 결과
+11. 기존 route regression 결과
+12. backTo regression 결과
+13. deeplink 결과
+14. bottom tab 결과
+15. Normal/X 결과
+16. stale context 테스트
+17. Teacher 전체 기능 smoke test
+18. 실패/수정 내역
+19. commit SHA
+
+마지막에:
+
+TEACHER IA ZERO-PATH-BREAKAGE STATUS:
+PASS / BLOCKED
+
+PASS 조건:
+기존 접근경로 100% 유지
++
+신규 FAST PATH 정상
++
+전체 regression PASS
+
+Production OTA / Build / Deploy 금지.
