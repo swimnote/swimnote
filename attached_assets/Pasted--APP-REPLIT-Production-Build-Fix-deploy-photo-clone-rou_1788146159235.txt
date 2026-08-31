@@ -1,0 +1,174 @@
+[보낼 곳: APP REPLIT]
+
+[긴급 Production Build Fix — deploy-photo-clone routes/index.ts backport 오염 제거]
+
+현재 Render manual deploy가 다음 오류로 실패:
+
+ERR_MODULE_NOT_FOUND:
+Cannot find module
+artifacts/api-server/src/routes/ai-diag.js
+imported from
+artifacts/api-server/src/routes/index.ts
+
+현재 Production branch:
+deploy-photo-clone
+
+현재 terminology backport SHA:
+3389ef859c262ab66000a9ba9e99c853c9658ba0
+
+원인 추정:
+main의 routes/index.ts를 backport하면서
+deploy-photo-clone에 존재하지 않는 main-only route import
+(ai-diag 등)가 함께 들어온 것으로 보임.
+
+이번 작업은
+원인 확인 → routes/index.ts 최소 수정 → 테스트 → commit → push
+까지 한 번에 수행한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 diff 확인
+━━━━━━━━━━━━━━━━━━━━
+
+다음 두 버전 비교:
+
+A.
+deploy-photo-clone 기존 HEAD 8872d96b의
+artifacts/api-server/src/routes/index.ts
+
+B.
+현재 3389ef85의
+artifacts/api-server/src/routes/index.ts
+
+확인:
+
+- ai-diag import가 언제 들어왔는지
+- ai-diag route 등록이 언제 들어왔는지
+- terminology 외에 main-only route/import가 추가된 것이 있는지
+- deploy-photo-clone에 실제 파일이 존재하지 않는 import가 더 있는지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+routes/index.ts는
+deploy-photo-clone 기존 8872d96b 버전을 기준으로 복구한다.
+
+그 위에 terminology 관련 최소 변경만 추가한다.
+
+즉:
+
+- terminologyRouter import
+- terminologyRouter route 등록
+
+만 추가.
+
+main에서 따라온
+deploy-photo-clone에 없는 다른 route/import는 제거.
+
+특히 ai-diag 관련 import/registration이
+이 branch에 대응 파일 없이 들어왔다면 제거.
+
+중요:
+기존 production route 등록 순서/contract 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 전체 missing import 검사
+━━━━━━━━━━━━━━━━━━━━
+
+routes/index.ts의 모든 relative import를 검사해서
+실제 파일이 branch에 존재하는지 확인.
+
+ai-diag 하나 고치고
+다음 missing module에서 다시 죽는 식으로 하지 말 것.
+
+최소한 routes/index.ts 기준
+모든 local route import가 resolve되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Build 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Render와 동일/가장 유사한 production build 수행.
+
+최소:
+
+- api-server TypeScript/build
+- route module resolution
+- server startup import graph
+
+확인.
+
+ERR_MODULE_NOT_FOUND 0.
+
+━━━━━━━━━━━━━━━━━━━━
+5. Terminology 회귀
+━━━━━━━━━━━━━━━━━━━━
+
+기존 terminology gateway files는 유지.
+
+확인:
+
+GET /api/terminology/search
+GET /api/terminology/terms/:termId
+GET /api/terminology/status
+
+route registration 존재.
+
+기존 terminology 22TC PASS.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 기존 Production 회귀 금지
+━━━━━━━━━━━━━━━━━━━━
+
+deploy-photo-clone 기존 기능:
+
+- X curriculum eligibility
+- photo 관련 route
+- parent/teacher 기존 API
+- 1.6.3 사용 endpoint
+
+변경 금지.
+
+routes/index.ts를 main 전체 구조로 교체하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Commit / Push
+━━━━━━━━━━━━━━━━━━━━
+
+수정 후:
+
+deploy-photo-clone에 commit
+push origin deploy-photo-clone
+
+완료보고에 새 SHA 제공.
+
+━━━━━━━━━━━━━━━━━━━━
+8. Render 배포
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 코드 수정 + 테스트 + push까지.
+
+Render auto deploy가 작동하지 않는 상태이므로
+push 후 STOP.
+
+사용자가 Render에서
+Manual Deploy latest commit을 직접 실행할 예정.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. ai-diag import가 들어온 정확한 원인
+2. 8872d96b vs 3389ef85 routes/index.ts 차이
+3. 제거한 main-only import/route 목록
+4. terminology로 남긴 최소 변경
+5. routes/index.ts 모든 local import resolve 결과
+6. production build 결과
+7. terminology tests 결과
+8. 변경 파일
+9. 새 commit SHA
+10. push 결과
+
+Render deploy는 수행하지 말고 STOP.
