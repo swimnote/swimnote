@@ -450,188 +450,7 @@ export default function DashboardScreen() {
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* ── 6. 핵심 퀵액션 4버튼 ── */}
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => setShowRegister(true)}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
-                </View>
-                <Text style={s.quickBtnLabel}>회원등록</Text>
-                <Text style={s.quickBtnSub}>즉시 등록</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
-                </View>
-                <Text style={s.quickBtnLabel}>매출 확인</Text>
-                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="calendar" size={18} color="#16A34A" />
-                </View>
-                <Text style={s.quickBtnLabel}>스케줄러</Text>
-                <Text style={s.quickBtnSub}>일정 관리</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/holidays" as any)}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
-                </View>
-                <Text style={s.quickBtnLabel}>휴무일</Text>
-                <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>
-                  {!holidayConfirmed && confirmTargetMonth ? "확정 필요" : "관리"}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* ── 7. 처리 필요 — 스마트 처리 알림 ── */}
-            {stats && (() => {
-              const alerts = [
-                stats.pending_requests > 0 && {
-                  icon: "user-check" as const,
-                  color: "#D97706",
-                  bg: "#FFFBEB",
-                  label: `승인 대기 ${stats.pending_requests}건`,
-                  sub: "탭하여 처리",
-                  route: "/(admin)/approvals?backTo=dashboard",
-                },
-                (stats.pending_makeups ?? 0) > 0 && {
-                  icon: "rotate-ccw" as const,
-                  color: "#D96C6C",
-                  bg: "#FEF2F2",
-                  label: `보강 미처리 ${stats.pending_makeups}건`,
-                  sub: "배정 필요",
-                  route: "/(admin)/makeups?backTo=dashboard",
-                },
-                (stats.unassigned ?? 0) > 0 && {
-                  icon: "alert-circle" as const,
-                  color: "#DC2626",
-                  bg: "#FEE2E2",
-                  label: `수업 미배정 ${stats.unassigned}명`,
-                  sub: "반 배정 필요",
-                  route: "/(admin)/members?filter=unassigned&backTo=dashboard",
-                },
-                (stats.unlinked_members ?? 0) > 0 && {
-                  icon: "user-x" as const,
-                  color: "#EA580C",
-                  bg: "#FFF7ED",
-                  label: `학부모 미연결 ${stats.unlinked_members}명`,
-                  sub: "초대 발송 권장",
-                  route: "/(admin)/members?filter=unlinked&backTo=dashboard",
-                },
-              ].filter(Boolean) as { icon: string; color: string; bg: string; label: string; sub: string; route: string }[];
-              if (alerts.length === 0) return null;
-              return (
-                <View style={s.alertCard}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <LucideIcon name="alert-triangle" size={13} color="#D97706" />
-                    <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
-                  </View>
-                  {alerts.map(a => (
-                    <Pressable
-                      key={a.label}
-                      style={[s.alertRow, { backgroundColor: a.bg }]}
-                      onPress={() => router.push(a.route as any)}
-                    >
-                      <LucideIcon name={a.icon as any} size={13} color={a.color} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.alertTxt, { color: a.color }]}>{a.label}</Text>
-                        <Text style={[s.alertSub]}>{a.sub}</Text>
-                      </View>
-                      <LucideIcon name="chevron-right" size={12} color={a.color} />
-                    </Pressable>
-                  ))}
-                </View>
-              );
-            })()}
-
-            {/* ── 8. 오늘 확인할 것 ── */}
-            <View style={{ gap: 8 }}>
-              <Text style={s.sectionLabel}>오늘 확인할 것</Text>
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
-                  onPress={() => router.push("/(admin)/members?filter=renewal_due" as any)}
-                >
-                  <LucideIcon name="calendar-clock" size={19} color="#D97706" />
-                  <Text style={[s.bannerValue, { color: "#D97706", fontSize: 18 }]}>{actionCenter?.renewal_due ?? "--"}</Text>
-                  <Text style={[s.bannerSub, { textAlign: "center" }]}>재등록 확인</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
-                  onPress={() => router.push("/(admin)/members?filter=long_absence" as any)}
-                >
-                  <LucideIcon name="user-x" size={19} color="#DC2626" />
-                  <Text style={[s.bannerValue, { color: "#DC2626", fontSize: 18 }]}>{actionCenter?.long_absence ?? "--"}</Text>
-                  <Text style={[s.bannerSub, { textAlign: "center" }]}>장기결석</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
-                  onPress={() => router.push("/(admin)/class-management" as any)}
-                >
-                  <LucideIcon name="layout-grid" size={19} color="#0369A1" />
-                  <Text style={[s.bannerValue, { color: "#0369A1", fontSize: 18 }]}>{actionCenter?.empty_seats ?? "--"}</Text>
-                  <Text style={[s.bannerSub, { textAlign: "center" }]}>빈자리</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* ── 9. 보강 상태 ── */}
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              {/* 왼쪽: 보강 상태 */}
-              <Pressable
-                style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={s.bannerIcon}>
-                    <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
-                  </View>
-                  <Text style={s.bannerLabel}>보강 상태</Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <View style={s.wideSubItem}>
-                    <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
-                      {stats ? String(makeupAssigned) : "—"}건
-                    </Text>
-                    <Text style={s.wideSubLabel}>남은 보강</Text>
-                  </View>
-                  <View style={s.wideSubDivider} />
-                  <View style={s.wideSubItem}>
-                    <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
-                      {stats ? String(stats.pending_makeups ?? 0) : "—"}건
-                    </Text>
-                    <Text style={s.wideSubLabel}>미처리 보강</Text>
-                  </View>
-                </View>
-              </Pressable>
-
-              {/* 오른쪽: 인원관리 */}
-              <Pressable
-                style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
-                onPress={() => router.push("/(admin)/people?backTo=dashboard")}
-              >
-                <View style={[s.bannerIcon, { marginBottom: 0 }]}>
-                  <LucideIcon name="users" size={22} color="#1D4ED8" />
-                </View>
-                <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
-                <Text style={s.bannerSub}>회원 · 선생님 · 승인</Text>
-              </Pressable>
-            </View>
-
-            {/* ── 10. SWIMNOTE X 기능 진입 — X모드 전용 ── */}
+            {/* ── SWIMNOTE X 기능 진입 — X모드 전용, 최상단 ── */}
             {isX && (
               <View style={{ gap: 10 }}>
                 {/* 섹션 헤더 */}
@@ -722,37 +541,118 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* ── 11. 이번 달 매출 / 전체 회원 ── */}
-            <View style={{ flexDirection: "row", gap: 8 }}>
+            {/* ── 운영 현황 카드 ── */}
+            <View style={{ gap: 8 }}>
+              {/* 1행: 이번 달 매출 + 전체 회원 */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
+                >
+                  <View style={s.bannerIcon}>
+                    <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                  </View>
+                  <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
+                    {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
+                  </Text>
+                  <Text style={s.bannerLabel}>이번 달 매출</Text>
+                  <Text style={s.bannerSub}>월 누적 매출</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/members?backTo=dashboard")}
+                >
+                  <View style={s.bannerIcon}>
+                    <LucideIcon name="users" size={18} color="#1D4ED8" />
+                  </View>
+                  <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
+                    {stats ? String(stats.total_members) : "—"}명
+                  </Text>
+                  <Text style={s.bannerLabel}>전체 회원</Text>
+                  <Text style={s.bannerSub}>등록 회원 수</Text>
+                </Pressable>
+              </View>
+
+              {/* 2행: 보강 상태 + 인원관리 (좌우 절반) */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {/* 왼쪽: 보강 상태 */}
+                <Pressable
+                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                  onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <View style={s.bannerIcon}>
+                      <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
+                    </View>
+                    <Text style={s.bannerLabel}>보강 상태</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <View style={s.wideSubItem}>
+                      <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
+                        {stats ? String(makeupAssigned) : "—"}건
+                      </Text>
+                      <Text style={s.wideSubLabel}>남은 보강</Text>
+                    </View>
+                    <View style={s.wideSubDivider} />
+                    <View style={s.wideSubItem}>
+                      <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
+                        {stats ? String(stats.pending_makeups ?? 0) : "—"}건
+                      </Text>
+                      <Text style={s.wideSubLabel}>미처리 보강</Text>
+                    </View>
+                  </View>
+                </Pressable>
+
+                {/* 오른쪽: 인원관리 */}
+                <Pressable
+                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
+                  onPress={() => router.push("/(admin)/people?backTo=dashboard")}
+                >
+                  <View style={[s.bannerIcon, { marginBottom: 0 }]}>
+                    <LucideIcon name="users" size={22} color="#1D4ED8" />
+                  </View>
+                  <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
+                  <Text style={s.bannerSub}>회원 · 선생님 · 승인</Text>
+                </Pressable>
+              </View>
+
+              {/* 3행: 통합 사용량 (full-width, 3지표) */}
               <Pressable
-                style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
+                style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
               >
-                <View style={s.bannerIcon}>
-                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <View style={s.bannerIcon}>
+                    <LucideIcon name="hard-drive" size={18} color="#0369A1" />
+                  </View>
+                  <Text style={s.bannerLabel}>통합 사용량</Text>
                 </View>
-                <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
-                  {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
-                </Text>
-                <Text style={s.bannerLabel}>이번 달 매출</Text>
-                <Text style={s.bannerSub}>월 누적 매출</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/members?backTo=dashboard")}
-              >
-                <View style={s.bannerIcon}>
-                  <LucideIcon name="users" size={18} color="#1D4ED8" />
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
+                      {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
+                    </Text>
+                    <Text style={s.wideSubLabel}>회원 사용량</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#0369A1" }]}>
+                      {storagePct !== null ? `${storagePct}%` : "—"}
+                    </Text>
+                    <Text style={s.wideSubLabel}>데이터 사용량</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={[s.wideSubItem, { flex: 1 }]}>
+                    <Text style={[s.wideSubVal, { color: "#7C3AED" }]}>
+                      {videoStoragePct !== null ? `${videoStoragePct}%` : "—"}
+                    </Text>
+                    <Text style={s.wideSubLabel}>영상 사용량</Text>
+                  </View>
                 </View>
-                <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
-                  {stats ? String(stats.total_members) : "—"}명
-                </Text>
-                <Text style={s.bannerLabel}>전체 회원</Text>
-                <Text style={s.bannerSub}>등록 회원 수</Text>
               </Pressable>
             </View>
 
-            {/* ── 12. 인원관리 — 미배정 / 학부모미연결 분리 카운트 ── */}
+            {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
             {stats && (
               <View style={s.splitStatRow}>
                 <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
@@ -777,40 +677,145 @@ export default function DashboardScreen() {
               </View>
             )}
 
-            {/* ── 13. 통합 사용량 ── */}
-            <Pressable
-              style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
-              onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <View style={s.bannerIcon}>
-                  <LucideIcon name="hard-drive" size={18} color="#0369A1" />
-                </View>
-                <Text style={s.bannerLabel}>통합 사용량</Text>
-              </View>
+            {/* ── 오늘 확인할 것 ── */}
+            <View style={{ gap: 8 }}>
+              <Text style={s.sectionLabel}>오늘 확인할 것</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <View style={[s.wideSubItem, { flex: 1 }]}>
-                  <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
-                    {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
-                  </Text>
-                  <Text style={s.wideSubLabel}>회원 사용량</Text>
-                </View>
-                <View style={s.wideSubDivider} />
-                <View style={[s.wideSubItem, { flex: 1 }]}>
-                  <Text style={[s.wideSubVal, { color: "#0369A1" }]}>
-                    {storagePct !== null ? `${storagePct}%` : "—"}
-                  </Text>
-                  <Text style={s.wideSubLabel}>데이터 사용량</Text>
-                </View>
-                <View style={s.wideSubDivider} />
-                <View style={[s.wideSubItem, { flex: 1 }]}>
-                  <Text style={[s.wideSubVal, { color: "#7C3AED" }]}>
-                    {videoStoragePct !== null ? `${videoStoragePct}%` : "—"}
-                  </Text>
-                  <Text style={s.wideSubLabel}>영상 사용량</Text>
-                </View>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/members?filter=renewal_due" as any)}
+                >
+                  <LucideIcon name="calendar-clock" size={19} color="#D97706" />
+                  <Text style={[s.bannerValue, { color: "#D97706", fontSize: 18 }]}>{actionCenter?.renewal_due ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>재등록 확인</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/members?filter=long_absence" as any)}
+                >
+                  <LucideIcon name="user-x" size={19} color="#DC2626" />
+                  <Text style={[s.bannerValue, { color: "#DC2626", fontSize: 18 }]}>{actionCenter?.long_absence ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>장기결석</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [s.bannerCard, { flex: 1, alignItems: "center", gap: 5, opacity: pressed ? 0.82 : 1 }]}
+                  onPress={() => router.push("/(admin)/class-management" as any)}
+                >
+                  <LucideIcon name="layout-grid" size={19} color="#0369A1" />
+                  <Text style={[s.bannerValue, { color: "#0369A1", fontSize: 18 }]}>{actionCenter?.empty_seats ?? "--"}</Text>
+                  <Text style={[s.bannerSub, { textAlign: "center" }]}>빈자리</Text>
+                </Pressable>
               </View>
-            </Pressable>
+            </View>
+
+            {/* X: 스마트 처리 알림 — 처리 필요 항목 한눈에 */}
+            {stats && (() => {
+              const alerts = [
+                stats.pending_requests > 0 && {
+                  icon: "user-check" as const,
+                  color: "#D97706",
+                  bg: "#FFFBEB",
+                  label: `승인 대기 ${stats.pending_requests}건`,
+                  sub: "탭하여 처리",
+                  route: "/(admin)/approvals?backTo=dashboard",
+                },
+                (stats.pending_makeups ?? 0) > 0 && {
+                  icon: "rotate-ccw" as const,
+                  color: "#D96C6C",
+                  bg: "#FEF2F2",
+                  label: `보강 미처리 ${stats.pending_makeups}건`,
+                  sub: "배정 필요",
+                  route: "/(admin)/makeups?backTo=dashboard",
+                },
+                (stats.unassigned ?? 0) > 0 && {
+                  icon: "alert-circle" as const,
+                  color: "#DC2626",
+                  bg: "#FEE2E2",
+                  label: `수업 미배정 ${stats.unassigned}명`,
+                  sub: "반 배정 필요",
+                  route: "/(admin)/members?filter=unassigned&backTo=dashboard",
+                },
+                (stats.unlinked_members ?? 0) > 0 && {
+                  icon: "user-x" as const,
+                  color: "#EA580C",
+                  bg: "#FFF7ED",
+                  label: `학부모 미연결 ${stats.unlinked_members}명`,
+                  sub: "초대 발송 권장",
+                  route: "/(admin)/members?filter=unlinked&backTo=dashboard",
+                },
+              ].filter(Boolean) as { icon: string; color: string; bg: string; label: string; sub: string; route: string }[];
+              if (alerts.length === 0) return null;
+              return (
+                <View style={s.alertCard}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <LucideIcon name="alert-triangle" size={13} color="#D97706" />
+                    <Text style={[s.alertTxt, { fontWeight: "700", color: "#D97706" }]}>처리 필요 {alerts.length}건</Text>
+                  </View>
+                  {alerts.map(a => (
+                    <Pressable
+                      key={a.label}
+                      style={[s.alertRow, { backgroundColor: a.bg }]}
+                      onPress={() => router.push(a.route as any)}
+                    >
+                      <LucideIcon name={a.icon as any} size={13} color={a.color} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.alertTxt, { color: a.color }]}>{a.label}</Text>
+                        <Text style={[s.alertSub]}>{a.sub}</Text>
+                      </View>
+                      <LucideIcon name="chevron-right" size={12} color={a.color} />
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })()}
+
+            {/* ── 핵심 퀵액션 4버튼 ── */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => setShowRegister(true)}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
+                </View>
+                <Text style={s.quickBtnLabel}>회원등록</Text>
+                <Text style={s.quickBtnSub}>즉시 등록</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                </View>
+                <Text style={s.quickBtnLabel}>매출 확인</Text>
+                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="calendar" size={18} color="#16A34A" />
+                </View>
+                <Text style={s.quickBtnLabel}>스케줄러</Text>
+                <Text style={s.quickBtnSub}>일정 관리</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/holidays" as any)}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
+                </View>
+                <Text style={s.quickBtnLabel}>휴무일</Text>
+                <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>
+                  {!holidayConfirmed && confirmTargetMonth ? "확정 필요" : "관리"}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* 하단 X 카드 → 최상단 isX 섹션으로 통합됨 */}
 
           </>
         )}
