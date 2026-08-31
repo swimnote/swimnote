@@ -2136,13 +2136,22 @@ router.post("/kakao-social-login", async (req, res) => {
             },
           });
         } else if (phoneMatches.length >= 2) {
-          // 2개 이상 → 임의 LIMIT 1 선택 금지, 명확한 에러 반환
-          console.warn(`[kakao-social-login][KAKAO_PARENT_AMBIGUOUS] phone_matches>=2 no pool_id`);
+          // 2개 이상 → 임의 LIMIT 1 선택 금지, 앱에서 pool 선택 후 재시도하도록 pools[] 포함
+          // pool_id 포함 재시도: 서버는 phone+pool_id 정확 매칭으로 처리 (2-A 경로)
+          const poolIds = phoneMatches.map((a: any) => a.swimming_pool_id).filter(Boolean);
+          let poolList: { id: string; name: string }[] = [];
+          if (poolIds.length > 0) {
+            const poolRows = await db.execute(
+              sql`SELECT id, name FROM swimming_pools WHERE id = ANY(${poolIds}) ORDER BY name`
+            );
+            poolList = (poolRows.rows as any[]).map((r: any) => ({ id: String(r.id), name: r.name }));
+          }
+          console.warn(`[kakao-social-login][KAKAO_PARENT_AMBIGUOUS] phone_matches=${phoneMatches.length} pools=${poolList.map(p=>p.id).join(",")}`);
           return res.status(409).json({
             success: false,
             error_code: "KAKAO_PARENT_AMBIGUOUS",
-            error: "동일 전화번호로 여러 수영장에 계정이 있습니다. 앱에서 수영장을 선택하신 후 다시 로그인해주세요.",
-            // 앱이 pool 선택 화면을 다시 표시하고 pool_id 포함하여 재시도하도록 안내
+            error: "동일 전화번호로 여러 수영장에 계정이 있습니다. 어느 수영장으로 로그인할지 선택해주세요.",
+            pools: poolList,
           });
         }
         // 0개 → 신규 가입 유도로 자연스럽게 낙하

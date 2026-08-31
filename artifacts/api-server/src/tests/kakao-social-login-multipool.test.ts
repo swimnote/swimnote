@@ -34,7 +34,7 @@ type LoginResult =
   | { httpStatus: 200; body: { token: string; parent?: { id: string; swimming_pool_id: string }; kind?: string } }
   | { httpStatus: 403; body: { error_code: "needs_activation" } }
   | { httpStatus: 404; body: { error_code: "kakao_no_account"; kakao_info: { phone_missing: boolean } } }
-  | { httpStatus: 409; body: { error_code: "KAKAO_PARENT_AMBIGUOUS" } };
+  | { httpStatus: 409; body: { error_code: "KAKAO_PARENT_AMBIGUOUS"; pools: { id: string; name: string }[] } };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 서버 로직 시뮬레이션 (수정 후: pool_id 인식 + ambiguous 처리)
@@ -74,8 +74,9 @@ function sim(opts: {
         return { httpStatus: 200, body: { token: `jwt_${phoneMatches[0].id}`, parent: { id: phoneMatches[0].id, swimming_pool_id: phoneMatches[0].swimming_pool_id } } };
       }
       if (phoneMatches.length >= 2) {
-        // 임의 LIMIT 1 선택 금지 → KAKAO_PARENT_AMBIGUOUS
-        return { httpStatus: 409, body: { error_code: "KAKAO_PARENT_AMBIGUOUS" } };
+        // 임의 LIMIT 1 선택 금지 → KAKAO_PARENT_AMBIGUOUS + pools[] 반환 (앱 재시도용)
+        const pools = phoneMatches.map(p => ({ id: p.swimming_pool_id, name: `Pool_${p.swimming_pool_id}` }));
+        return { httpStatus: 409, body: { error_code: "KAKAO_PARENT_AMBIGUOUS", pools } };
       }
     }
   }
@@ -140,14 +141,21 @@ describe("§M2. phone 1개 매칭 + pool_id 없음 → 자동 연결 (1.6.3 back
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("§M3. phone 다수 매칭 + pool_id 없음 → KAKAO_PARENT_AMBIGUOUS (임의 LIMIT 1 금지)", () => {
-  it("동일 phone + 2개 pool → 409 KAKAO_PARENT_AMBIGUOUS", () => {
+  it("동일 phone + 2개 pool → 409 KAKAO_PARENT_AMBIGUOUS + pools[] 포함 (앱 재시도용)", () => {
     const parents: ParentAcc[] = [
       { id: "pa1", phone: "01033334444", swimming_pool_id: "pool_A", kakao_id: null, name: "C" },
       { id: "pa2", phone: "01033334444", swimming_pool_id: "pool_B", kakao_id: null, name: "C" },
     ];
     const result = sim({ kakaoId: "k003", kakaoPhone: "01033334444", parents });
     expect(result.httpStatus).toBe(409);
-    if (result.httpStatus === 409) expect(result.body.error_code).toBe("KAKAO_PARENT_AMBIGUOUS");
+    if (result.httpStatus === 409) {
+      expect(result.body.error_code).toBe("KAKAO_PARENT_AMBIGUOUS");
+      // 앱이 pool 선택 Alert 표시 후 overridePoolId로 재시도할 수 있도록 pools[] 포함
+      expect(Array.isArray(result.body.pools)).toBe(true);
+      expect(result.body.pools.length).toBe(2);
+      expect(result.body.pools.map(p => p.id)).toContain("pool_A");
+      expect(result.body.pools.map(p => p.id)).toContain("pool_B");
+    }
   });
 
   it("ambiguous 시 어느 parent에도 kakao_id가 연결되지 않는다 (잘못된 연결 금지)", () => {

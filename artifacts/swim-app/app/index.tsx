@@ -212,7 +212,7 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleKakaoLogin() {
+  async function handleKakaoLogin(overridePoolId?: string) {
     if (Platform.OS === "web") { setError("카카오 로그인은 앱에서만 가능합니다."); return; }
     if (typeof kakaoLogin !== "function") {
       setError("카카오 로그인은 정식 앱 빌드에서만 사용 가능합니다.");
@@ -220,14 +220,20 @@ export default function LoginScreen() {
     }
     setKakaoLoading(true); setError("");
     const ktid = "KL-" + Date.now().toString(36).toUpperCase();
+    // accessToken을 catch 블록에서도 접근 가능하도록 선언 (ambiguous 재시도용)
+    let kakaoAccessToken: string | null = null;
     try {
       console.log(`[KakaoLogin][INDEX STEP1] traceId=${ktid} kakaoLogin 호출`);
       const result = await kakaoLogin();
-      console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출`);
-      const loginKind = await kakaoSocialLogin(result.accessToken);
+      kakaoAccessToken = result.accessToken;
+      console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출 overridePoolId=${overridePoolId ?? "none"}`);
+      const loginKind = await kakaoSocialLogin(kakaoAccessToken, overridePoolId);
       console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
     } catch (err: unknown) {
-      const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
+      const e = err as Error & {
+        error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string;
+        pools?: { id: string; name: string }[];
+      };
 
       // 카카오 앱/웹 취소 — E_CANCELLED_OPERATION이 표준 코드 (iOS/Android 공통)
       // message.includes("cancel")은 제거: 한국어 에러 메시지를 취소로 오인할 수 있음
@@ -247,15 +253,44 @@ export default function LoginScreen() {
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
       }
+
+      // 다중 pool 계정 충돌 — 서버가 pools[] 목록 반환 → Alert으로 선택 후 재시도
+      // accessToken은 이미 발급된 것을 재사용하므로 카카오 앱 재실행 없음
+      if (e.error_code === "KAKAO_PARENT_AMBIGUOUS" && Array.isArray(e.pools) && e.pools.length > 0) {
+        console.warn(`[KakaoLogin][AMBIGUOUS] traceId=${ktid} poolCount=${e.pools.length} → Alert 표시`);
+        const buttons = e.pools.map((p) => ({
+          text: p.name,
+          onPress: () => {
+            if (kakaoAccessToken) {
+              // 선택한 pool_id를 overridePoolId로 전달 → 서버 phone+pool 정확 매칭
+              kakaoSocialLogin(kakaoAccessToken, p.id)
+                .then(() => {/* finishLogin이 라우팅 처리 */})
+                .catch((retryErr: any) => {
+                  setError(retryErr?.message || "카카오 로그인에 실패했습니다.");
+                });
+            }
+          },
+        }));
+        buttons.push({ text: "취소", onPress: () => {} } as any);
+        Alert.alert(
+          "수영장 선택",
+          "동일 전화번호로 여러 수영장에 계정이 있습니다.\n어느 수영장으로 로그인할까요?",
+          buttons as any,
+          { cancelable: true }
+        );
+        return;
+      }
+
       // 서버에서 분류된 에러 코드별 사용자 메시지
       const errMsg = (() => {
         switch (e.error_code) {
-          case "KAKAO_INVALID_TOKEN":  return "카카오 인증이 만료되었습니다. 다시 시도해주세요.";
-          case "KAKAO_API_TIMEOUT":    return "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.";
-          case "KAKAO_API_ERROR":      return "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
-          case "KAKAO_PROFILE_FAILED": return "카카오 프로필 정보를 가져올 수 없습니다. 다시 시도해주세요.";
-          case "network_error":        return "서버에 연결할 수 없습니다. 네트워크를 확인해주세요.";
-          default:                     return e.message || "카카오 로그인에 실패했습니다.";
+          case "KAKAO_PARENT_AMBIGUOUS": return "여러 수영장에 계정이 있습니다. 잠시 후 다시 시도해주세요.";
+          case "KAKAO_INVALID_TOKEN":    return "카카오 인증이 만료되었습니다. 다시 시도해주세요.";
+          case "KAKAO_API_TIMEOUT":      return "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.";
+          case "KAKAO_API_ERROR":        return "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+          case "KAKAO_PROFILE_FAILED":   return "카카오 프로필 정보를 가져올 수 없습니다. 다시 시도해주세요.";
+          case "network_error":          return "서버에 연결할 수 없습니다. 네트워크를 확인해주세요.";
+          default:                       return e.message || "카카오 로그인에 실패했습니다.";
         }
       })();
       console.warn(`[KakaoLogin][ERR] traceId=${ktid} error_code=${e.error_code ?? "none"} msg=${errMsg}`);
