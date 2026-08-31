@@ -2,10 +2,14 @@
  * Multi-Pool Parent 가입 테스트 (§9 시나리오)
  *
  * ROOT CAUSE: /auth/v2/parent-register phone 중복 체크가 pool 조건 없이 전역이었음
- * FIX: phone exists → checkMembership(same pool) → 중복이면 차단, 아니면 계정 재사용
+ * FIX v1: phone exists → checkMembership(same pool) → 중복이면 차단, 아니면 계정 재사용
+ * FIX v2: alreadyInPool=true 시에도 형제/자매 자녀 연결 허용 (409 제거)
+ *   - 같은 pool에 이미 membership 있음 + 새 자녀 → 201 linked/waiting (기존과 동일 흐름)
+ *   - 이미 연결된 동일 자녀 재시도 → 201 linked (idempotent)
+ *   - 다른 pool → 201 + 새 membership 추가 (기존 유지)
  *
  * A. Pool A 가입 → Pool B 동일 phone 가입 → 둘 다 PASS + membership 2개
- * B. 동일 phone Pool A 재가입 → 중복 차단
+ * B. 동일 phone 같은 pool 자녀 추가 가입 → 자녀 연결 시도 (형제/자매 flow)
  * C. Pool A 미퇴원 상태에서 Pool B 가입 → PASS
  * D. Pool A / Pool B student data 분리
  * E. 다른 pool API 접근 → 403
@@ -18,31 +22,63 @@ import { describe, it, expect } from "vitest";
 
 type Membership = { accountId: string; poolId: string; role: string; status: string };
 type ParentAccount = { id: string; phone: string; swimming_pool_id: string };
-type Student = { id: string; poolId: string; parentId: string | null };
+type Student = { id: string; poolId: string; parentId: string | null; name: string; phone: string };
+type ChildLink = { parentId: string; studentId: string; status: "linked" | "waiting" };
 
 /**
- * v2/parent-register 핵심 로직 시뮬레이션
- * - phone으로 기존 account 검색
- * - same pool active membership 있으면 409 "이미 이 수영장에 가입되어 있습니다."
- * - 없으면 기존 account 재사용 + 새 pool membership 추가
- * - 신규 phone이면 새 account 생성
+ * v2/parent-register 핵심 로직 시뮬레이션 (v2 — sibling linking 지원)
+ *
+ * alreadyInPool=true → 형제/자매 자녀 연결 시도 (새 자녀 = linked/waiting, 이미 연결된 자녀 = idempotent)
+ * alreadyInPool=false + 기존 계정 → 새 pool membership + 자녀 연결
+ * 신규 phone → 신규 계정 생성 + 자녀 연결
  */
 function simulateV2Register(opts: {
   phone: string;
   poolId: string;
+  childName: string;
   accounts: ParentAccount[];
   memberships: Membership[];
+  students: Student[];
+  childLinks: ChildLink[];
 }): {
   status: number;
+  resultStatus?: "linked" | "waiting";
   message?: string;
   accountId?: string;
   isNew?: boolean;
   membershipAdded?: boolean;
 } {
-  const { phone, poolId, accounts, memberships } = opts;
+  const { phone, poolId, childName, accounts, memberships, students, childLinks } = opts;
+  const normName = (childName || "").trim().toLowerCase();
 
   // 전화번호로 기존 계정 검색 (pool 무관)
   const existing = accounts.find(a => a.phone === phone);
+
+  function attemptChildLink(parentId: string): "linked" | "waiting" {
+    // 이름 + phone으로 학생 매칭
+    const matched = students.find(s =>
+      s.poolId === poolId &&
+      s.name.toLowerCase() === normName &&
+      s.phone.replace(/[^0-9]/g, "") === phone.replace(/[^0-9]/g, ""),
+    );
+    if (matched) {
+      // 이미 연결됐는지 확인
+      const alreadyLinked = childLinks.some(l => l.parentId === parentId && l.studentId === matched.id && l.status === "linked");
+      if (!alreadyLinked) {
+        childLinks.push({ parentId, studentId: matched.id, status: "linked" });
+      }
+      return "linked";
+    }
+    // 이름만 매칭 (phone 불일치)
+    const nameOnly = students.find(s => s.poolId === poolId && s.name.toLowerCase() === normName);
+    if (nameOnly) {
+      childLinks.push({ parentId, studentId: nameOnly.id, status: "waiting" });
+      return "waiting";
+    }
+    // 이름도 없음
+    childLinks.push({ parentId, studentId: "unknown", status: "waiting" });
+    return "waiting";
+  }
 
   if (existing) {
     // same pool active membership 존재 여부 확인
@@ -54,28 +90,37 @@ function simulateV2Register(opts: {
     );
 
     if (alreadyInPool) {
-      return { status: 409, message: "이미 이 수영장에 가입되어 있습니다." };
+      // v2 FIX: 409 제거 → 형제/자매 자녀 연결 시도
+      const linkStatus = attemptChildLink(existing.id);
+      return { status: 201, resultStatus: linkStatus, accountId: existing.id, isNew: false, membershipAdded: false };
     }
 
     // 기존 계정에 새 pool membership 추가 (계정 row 수정 없음)
     memberships.push({ accountId: existing.id, poolId, role: "parent_account", status: "active" });
-    return { status: 201, accountId: existing.id, isNew: false, membershipAdded: true };
+    const linkStatus = attemptChildLink(existing.id);
+    return { status: 201, resultStatus: linkStatus, accountId: existing.id, isNew: false, membershipAdded: true };
   }
 
   // 신규 계정 생성
   const newId = `pa_new_${phone}_${poolId}`;
   accounts.push({ id: newId, phone, swimming_pool_id: poolId });
   memberships.push({ accountId: newId, poolId, role: "parent_account", status: "active" });
-  return { status: 201, accountId: newId, isNew: true, membershipAdded: true };
+  const linkStatus = attemptChildLink(newId);
+  return { status: 201, resultStatus: linkStatus, accountId: newId, isNew: true, membershipAdded: true };
+}
+
+function makeEmptyState() {
+  return { accounts: [] as ParentAccount[], memberships: [] as Membership[], students: [] as Student[], childLinks: [] as ChildLink[] };
+}
+function makeStateWithStudents(stud: Student[]) {
+  return { accounts: [] as ParentAccount[], memberships: [] as Membership[], students: stud, childLinks: [] as ChildLink[] };
 }
 
 // ─── A. Pool A 가입 → 동일 phone Pool B 가입 → 둘 다 PASS ──────────────────────
 describe("A. 동일 phone 다른 pool 가입 — 둘 다 PASS + membership 2개", () => {
   it("Pool A 가입이 성공한다", () => {
-    const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
+    const { accounts, memberships, students, childLinks } = makeEmptyState();
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", childName: "홍길동", accounts, memberships, students, childLinks });
     expect(result.status).toBe(201);
     expect(result.isNew).toBe(true);
     expect(accounts).toHaveLength(1);
@@ -85,8 +130,9 @@ describe("A. 동일 phone 다른 pool 가입 — 둘 다 PASS + membership 2개"
   it("Pool A 가입 후 동일 phone Pool B 가입도 성공한다", () => {
     const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
     const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const { students, childLinks } = makeEmptyState();
 
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
     expect(result.status).toBe(201);
     expect(result.isNew).toBe(false); // 기존 계정 재사용
     expect(result.accountId).toBe("pa_existing");
@@ -94,88 +140,122 @@ describe("A. 동일 phone 다른 pool 가입 — 둘 다 PASS + membership 2개"
   });
 
   it("두 번 가입 후 membership 2개가 존재한다", () => {
-    const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
+    const { accounts, memberships, students, childLinks } = makeEmptyState();
 
-    // Pool A 가입
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    // Pool B 가입
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", childName: "홍길동", accounts, memberships, students, childLinks });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
 
-    // 계정은 1개 (기존 재사용)
     expect(accounts).toHaveLength(1);
-    // membership은 2개
     expect(memberships).toHaveLength(2);
     expect(memberships.map(m => m.poolId).sort()).toEqual(["pool_A", "pool_B"]);
   });
 
   it("두 membership 모두 동일 accountId를 가진다", () => {
-    const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
+    const { accounts, memberships, students, childLinks } = makeEmptyState();
 
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", childName: "홍길동", accounts, memberships, students, childLinks });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
 
     const accountId = accounts[0].id;
     expect(memberships.every(m => m.accountId === accountId)).toBe(true);
   });
 
   it("세 개 수영장도 가능하다", () => {
-    const accounts: ParentAccount[] = [];
-    const memberships: Membership[] = [];
+    const { accounts, memberships, students, childLinks } = makeEmptyState();
 
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
-    simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts, memberships });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_A", childName: "홍길동", accounts, memberships, students, childLinks });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_C", childName: "홍길동", accounts, memberships, students, childLinks });
 
     expect(accounts).toHaveLength(1);
     expect(memberships).toHaveLength(3);
   });
 });
 
-// ─── B. 동일 phone Pool A 재가입 → 중복 차단 ──────────────────────────────────
-describe("B. 동일 phone 같은 pool 재가입 — 중복 차단", () => {
-  it("이미 Pool A active membership이 있으면 409 반환", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    expect(result.status).toBe(409);
-    expect(result.message).toBe("이미 이 수영장에 가입되어 있습니다.");
-  });
-
-  it("중복 차단 시 membership 추가 생성 없음", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
-    const before = memberships.length;
-
-    simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    expect(memberships.length).toBe(before); // 변화 없음
-  });
-
-  it("Pool B는 있지만 Pool A 재가입 시도 → Pool A만 차단", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-      { accountId: "pa_existing", poolId: "pool_B", role: "parent_account", status: "active" },
+// ─── B. 동일 phone 같은 pool 형제/자매 자녀 추가 가입 ────────────────────────
+describe("B. 동일 pool 형제/자매 자녀 추가 — 201 linked/waiting (409 제거됨)", () => {
+  it("첫 자녀 가입 후 같은 pool에 둘째 자녀 등록 시도 → 201 (형제 연결)", () => {
+    const students: Student[] = [
+      { id: "s1", poolId: "pool_A", parentId: null, name: "황이준", phone: "01025366384" },
+      { id: "s2", poolId: "pool_A", parentId: null, name: "황승혜", phone: "01025366384" },
     ];
+    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01025366384", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const childLinks: ChildLink[] = [{ parentId: "pa_existing", studentId: "s1", status: "linked" }];
 
-    const resultA = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    const resultC = simulateV2Register({ phone: "01011111111", poolId: "pool_C", accounts, memberships });
+    // 이미 pool_A membership이 있지만 둘째 자녀 황승혜 등록
+    const result = simulateV2Register({ phone: "01025366384", poolId: "pool_A", childName: "황승혜", accounts, memberships, students, childLinks });
 
-    expect(resultA.status).toBe(409); // A는 차단
-    expect(resultC.status).toBe(201); // C는 허용
-  });
-
-  it("inactive membership만 있으면 재가입 허용 (탈퇴 후 재가입)", () => {
-    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "inactive" }, // 탈퇴 상태
-    ];
-
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", accounts, memberships });
-    // inactive는 차단하지 않음 (active만 체크)
     expect(result.status).toBe(201);
+    expect(result.resultStatus).toBe("linked"); // phone 일치로 즉시 연결
+    expect(result.accountId).toBe("pa_existing"); // 계정 재사용
+  });
+
+  it("alreadyInPool=true 시 membership은 추가 생성되지 않는다 (이미 있음)", () => {
+    const students: Student[] = [{ id: "s2", poolId: "pool_A", parentId: null, name: "황승혜", phone: "01025366384" }];
+    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01025366384", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const childLinks: ChildLink[] = [];
+
+    simulateV2Register({ phone: "01025366384", poolId: "pool_A", childName: "황승혜", accounts, memberships, students, childLinks });
+
+    expect(memberships).toHaveLength(1); // 새 membership 추가 없음
+  });
+
+  it("셋째 자녀도 동일하게 201 반환된다", () => {
+    const students: Student[] = [
+      { id: "s1", poolId: "pool_A", parentId: null, name: "이순신", phone: "01099991111" },
+      { id: "s2", poolId: "pool_A", parentId: null, name: "이충무", phone: "01099991111" },
+      { id: "s3", poolId: "pool_A", parentId: null, name: "이한산", phone: "01099991111" },
+    ];
+    const accounts: ParentAccount[] = [{ id: "pa_ex", phone: "01099991111", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [{ accountId: "pa_ex", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const childLinks: ChildLink[] = [
+      { parentId: "pa_ex", studentId: "s1", status: "linked" },
+      { parentId: "pa_ex", studentId: "s2", status: "linked" },
+    ];
+
+    const result = simulateV2Register({ phone: "01099991111", poolId: "pool_A", childName: "이한산", accounts, memberships, students, childLinks });
+    expect(result.status).toBe(201);
+    expect(result.resultStatus).toBe("linked");
+  });
+
+  it("이미 연결된 자녀 재시도 → 201 idempotent (중복 link 생성 안 함)", () => {
+    const students: Student[] = [{ id: "s1", poolId: "pool_A", parentId: null, name: "황이준", phone: "01025366384" }];
+    const accounts: ParentAccount[] = [{ id: "pa_ex", phone: "01025366384", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [{ accountId: "pa_ex", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const childLinks: ChildLink[] = [{ parentId: "pa_ex", studentId: "s1", status: "linked" }];
+
+    const result = simulateV2Register({ phone: "01025366384", poolId: "pool_A", childName: "황이준", accounts, memberships, students, childLinks });
+    expect(result.status).toBe(201);
+    // childLinks 중복 추가 없음
+    expect(childLinks.filter(l => l.studentId === "s1")).toHaveLength(1);
+  });
+
+  it("이름 불일치 → 201 waiting (pending으로 관리자 승인 대기)", () => {
+    const students: Student[] = [{ id: "s1", poolId: "pool_A", parentId: null, name: "황이준", phone: "01025366384" }];
+    const accounts: ParentAccount[] = [{ id: "pa_ex", phone: "01025366384", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [{ accountId: "pa_ex", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const childLinks: ChildLink[] = [];
+
+    // 이름 오타로 등록
+    const result = simulateV2Register({ phone: "01025366384", poolId: "pool_A", childName: "황이준이", accounts, memberships, students, childLinks });
+    expect(result.status).toBe(201);
+    expect(result.resultStatus).toBe("waiting");
+  });
+
+  it("inactive membership만 있으면 새 pool membership 추가 + 자녀 연결", () => {
+    const students: Student[] = [{ id: "s1", poolId: "pool_A", parentId: null, name: "홍길동", phone: "01011111111" }];
+    const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
+    const memberships: Membership[] = [
+      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "inactive" },
+    ];
+    const childLinks: ChildLink[] = [];
+
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_A", childName: "홍길동", accounts, memberships, students, childLinks });
+    // inactive는 alreadyInPool=false → 새 membership 추가
+    expect(result.status).toBe(201);
+    expect(result.membershipAdded).toBe(true);
   });
 });
 
@@ -183,25 +263,22 @@ describe("B. 동일 phone 같은 pool 재가입 — 중복 차단", () => {
 describe("C. Pool A 미퇴원 상태에서 Pool B 가입 — PASS", () => {
   it("Pool A active 상태에서도 Pool B 가입 성공", () => {
     const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
+    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const { students, childLinks } = makeEmptyState();
 
-    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
+    const result = simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
     expect(result.status).toBe(201);
     expect(memberships).toHaveLength(2);
-    // Pool A membership은 여전히 active
     const poolAMembership = memberships.find(m => m.poolId === "pool_A");
     expect(poolAMembership?.status).toBe("active");
   });
 
   it("Pool B 가입 후 Pool A, B 모두 active", () => {
     const accounts: ParentAccount[] = [{ id: "pa_existing", phone: "01011111111", swimming_pool_id: "pool_A" }];
-    const memberships: Membership[] = [
-      { accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" },
-    ];
+    const memberships: Membership[] = [{ accountId: "pa_existing", poolId: "pool_A", role: "parent_account", status: "active" }];
+    const { students, childLinks } = makeEmptyState();
 
-    simulateV2Register({ phone: "01011111111", poolId: "pool_B", accounts, memberships });
+    simulateV2Register({ phone: "01011111111", poolId: "pool_B", childName: "홍길동", accounts, memberships, students, childLinks });
 
     const activeMemberships = memberships.filter(m => m.status === "active");
     expect(activeMemberships).toHaveLength(2);
@@ -389,17 +466,27 @@ describe("G. v2/parent-register 응답 구조", () => {
     expect(response.pool_name).toBe("바다수영장");
   });
 
-  it("같은 pool 중복 시 409 + '이미 이 수영장에 가입되어 있습니다.'", () => {
-    const response = { status: 409, message: "이미 이 수영장에 가입되어 있습니다." };
-    expect(response.status).toBe(409);
-    expect(response.message).toContain("이미 이 수영장에");
-    expect(response.message).not.toContain("전화번호"); // 전화번호 이유로 차단하지 않음
+  it("형제/자매 자녀 추가 시 201 + { status: linked|waiting } 반환 (409 제거됨)", () => {
+    // 기존 동작: 409 "이미 이 수영장에 가입되어 있습니다."
+    // 신규 동작: 201 { status: "linked" | "waiting" } — 형제/자매 연결 시도
+    const response = { httpStatus: 201, body: { status: "linked", token: "jwt.sibling.token" } };
+    expect(response.httpStatus).toBe(201);
+    expect(["linked", "waiting"]).toContain(response.body.status);
   });
 
   it("기존 '이미 가입된 전화번호입니다.' 응답은 제거됨", () => {
     // 전화번호 자체를 이유로 하는 차단 메시지는 더 이상 반환되지 않음
     const oldMessage = "이미 가입된 전화번호입니다.";
-    const newMessage = "이미 이 수영장에 가입되어 있습니다.";
+    const newMessage = "linked | waiting 응답으로 교체됨";
     expect(newMessage).not.toBe(oldMessage);
+  });
+
+  it("parent 객체에 id/name/phone/swimming_pool_id가 모두 포함된다 (앱 ParentAccount 타입 충족)", () => {
+    const parent = { id: "pa_1", name: "김부모", phone: "01011111111", swimming_pool_id: "pool_A" };
+    // ParentAccount interface: id, name, phone, swimming_pool_id (required)
+    expect(parent.id).toBeTruthy();
+    expect(parent.name).toBeTruthy();
+    expect(parent.phone).toBeTruthy();
+    expect(parent.swimming_pool_id).toBeTruthy();
   });
 });

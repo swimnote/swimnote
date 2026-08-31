@@ -457,17 +457,29 @@ router.post("/activate-teacher", async (req, res) => {
 
 // ── 학부모 로그인 ─────────────────────────────────────────────────────
 router.post("/parent-login", async (req, res) => {
-  const { identifier, loginId, phone, pin, password } = req.body;
+  const { identifier, loginId, phone, pin, password, pool_id } = req.body;
   const id = (identifier || loginId || phone || "").trim();
   const pw = (password || pin || "").trim();
   if (!id || !pw) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   try {
     // login_id 기반 조회 먼저, 없으면 phone 기반 조회
+    // pool_id가 있으면 동일 phone의 여러 pool 계정 중 해당 pool 계정을 우선 반환
     const byLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
-    const byPhone = byLoginId.rows.length === 0
-      ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))
-      : [];
-    const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
+    let byPhone: any[] = [];
+    if (byLoginId.rows.length === 0) {
+      if (pool_id) {
+        // pool_id 지정: 해당 pool 계정 우선, 없으면 다른 pool 계정
+        const withPool = await db.execute(sql`
+          SELECT * FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${pool_id} LIMIT 1
+        `);
+        byPhone = withPool.rows.length > 0
+          ? (withPool.rows as any[])
+          : (await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))) as any[];
+      } else {
+        byPhone = await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)) as any[];
+      }
+    }
+    const accounts: any[] = byLoginId.rows.length > 0 ? (byLoginId.rows as any[]) : byPhone;
     if (accounts.length === 0) {
       return err(res, 401, "등록되지 않은 아이디 또는 전화번호입니다.");
     }
@@ -1315,10 +1327,11 @@ router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
 
 // ── 비밀번호 재설정 (MVP: 이메일 확인 → 바로 변경) ────────────────────
 router.post("/reset-password", async (req, res) => {
-  const { identifier, new_password } = req.body;
+  const { identifier, new_password, pool_id } = req.body;
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
   if (new_password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   try {
+    // 1. users 테이블 (teacher/admin) — email 컬럼으로 직접 조회
     const [user] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
     if (user) {
@@ -1326,8 +1339,24 @@ router.post("/reset-password", async (req, res) => {
       await superAdminDb.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
       res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
     }
-    const [parent] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
-      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    // 2. parent_accounts — phone으로 조회 (pool_id 있으면 해당 pool로 범위 좁히기)
+    const cleanedId = identifier.trim();
+    let parent: { id: string } | undefined;
+    if (pool_id) {
+      // pool_id 지정: 해당 pool의 정확한 parent 계정 타겟
+      const rows = (await db.execute(sql`
+        SELECT id FROM parent_accounts
+        WHERE phone = ${cleanedId} AND swimming_pool_id = ${pool_id}
+        LIMIT 1
+      `)).rows as any[];
+      parent = rows[0];
+    }
+    if (!parent) {
+      // pool_id 없거나 찾지 못한 경우 phone으로만 조회
+      const [row] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
+        .where(eq(parentAccountsTable.phone, cleanedId)).limit(1);
+      parent = row;
+    }
     if (parent) {
       const hash = await hashPassword(new_password);
       await db.execute(sql`UPDATE parent_accounts SET pin_hash = ${hash}, updated_at = now() WHERE id = ${parent.id}`);
@@ -1923,6 +1952,7 @@ router.post("/find-identifier-by-phone", async (req, res) => {
         identifier: r.phone,             // reset-password는 phone으로 계정 찾음
         login_id: r.login_id || null,    // 표시용 아이디
         name: r.name,
+        pool_id: r.swimming_pool_id || null,  // 다중 pool 환경에서 reset-password 범위 지정용
         pool_name: poolMap[r.swimming_pool_id] || null,
         social_provider: socialProvider(r),
       })),
