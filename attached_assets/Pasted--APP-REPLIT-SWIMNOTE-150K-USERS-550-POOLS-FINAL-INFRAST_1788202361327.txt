@@ -1,0 +1,887 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 150K USERS / 550 POOLS — FINAL INFRASTRUCTURE COST AUDIT V2
+
+이번 작업의 목적은 현재 요금제를 평가하는 것이 아닙니다.
+
+현재 Coach / Premier 다단계 플랜은 향후 상품개편 대상이며,
+최종 가격을 결정하기 위해 미래 목표 구조에서의 실제 전체 인프라 원가를 계산합니다.
+
+코드 수정 금지.
+Production 변경 금지.
+AUDIT ONLY.
+
+---
+
+# 0. 이미 확인된 사실 — 재조사에 시간 낭비하지 말 것
+
+이전 PLAN STORAGE CONSISTENCY AUDIT에서 다음이 확인되었습니다.
+
+현재 Source of Truth:
+
+`subscription_plans.storage_gb`
+
+추가 저장공간:
+
+`swimming_pools.extra_storage_gb`
+
+실제 quota 계산:
+
+`subscription_plans.storage_gb + swimming_pools.extra_storage_gb`
+
+실제 사진 업로드 차단:
+
+`checkStorageLimit()`
+→ 사용량 / quota >= 100%
+→ `UPLOAD_BLOCKED`
+
+RevenueCat은 storage quota 자체를 저장하지 않습니다.
+
+또한 다음 파일에는 legacy/mismatched storage 표시값이 남아 있습니다.
+
+* `lib/revenuecat.tsx`
+* `constants/subscriptionPlans.ts`
+
+이번 COST AUDIT에서는 이 잘못된 표시값을 원가 계산 기준으로 사용하지 마십시오.
+
+현재 Production DB 실제 row는 이전 세션에서 인증 불가로 NOT VERIFIED 상태였습니다.
+
+이번 세션에서 안전한 read-only 확인이 가능하면 확인하십시오.
+불가능하면 UNKNOWN으로 남기십시오.
+
+절대 DB 수정하지 마십시오.
+
+---
+
+# 1. 비용 시뮬레이션의 목표 상품 구조
+
+현재 실제 Coach/Premier 플랜은 비용 계산용 상품모델이 아닙니다.
+
+다음 미래 상품구조를 기준으로 계산하십시오.
+
+## FREE
+
+* 회원 10명 이하
+* 가격 ₩0
+* Free storage는 이번 감사에서 현재 실제 quota와 별도로 표시
+* 무료사용자의 전체 인프라 영향은 별도 sensitivity로 계산
+
+## BASIC SWIMNOTE
+
+* 회원 11명 이상
+* 월 ₩5,900
+* 회원수 제한 없음
+* 사진 사용 가능
+* 영상 사용 가능
+* 기본 저장공간 10GB
+
+## STORAGE ADD-ON
+
+### DATA 100
+
+* +100GB
+
+### DATA 300
+
+* +300GB
+
+추가 저장공간은 현재 `extra_storage_gb` 구조를 활용할 수 있는 것으로 보고 원가를 계산합니다.
+
+가격은 아직 확정하지 않습니다.
+
+## SWIMNOTE X
+
+X의 AI API/model 원가는 AI ENGINE에서 별도 감사합니다.
+
+APP 감사에서는 X 때문에 APP-side에서 추가되는:
+
+* API workload
+* DB workload
+* worker
+* storage
+* queue
+* report/feed writes
+* push
+
+등의 infrastructure cost만 계산합니다.
+
+---
+
+# 2. 목표 서비스 규모
+
+최종 목표 시나리오:
+
+* Swimming Pools: 550
+* Total Members: 150,000
+* 평균 Members / Pool: 약 273
+* 관리자/선생님/학부모 계정 포함
+* 사진/영상 사용
+* 일지
+* 출결
+* 알림
+* 앨범
+* 일정
+* 요청
+* 보강
+* Curriculum
+* Growth
+* Growth Report
+* X APP workload
+
+목표는 서버가 단순히 버티는 수준이 아닙니다.
+
+> 일반 피크시간에도 사용자가 체감 지연 없이 사용할 수 있는 Production 수준
+
+으로 산정하십시오.
+
+최종 RECOMMENDED 구성에는 최소 30~50% capacity headroom을 포함하십시오.
+
+---
+
+# 3. 먼저 현재 전체 Production Architecture를 그릴 것
+
+현재 코드와 배포설정을 기준으로 다음 전체 흐름을 확인하십시오.
+
+APP
+→ Render API
+→ PostgreSQL / Supabase
+→ Cloudflare R2
+→ Push
+→ Worker / Cron / Scheduled Jobs
+→ AI ENGINE 연동
+
+각 component마다:
+
+* 현재 plan/tier
+* CPU
+* RAM
+* instance count
+* autoscaling
+* connection limit
+* storage
+* bandwidth
+* monthly fixed cost
+* usage-based cost
+
+를 가능한 범위까지 확인하십시오.
+
+비밀값 출력 금지.
+
+---
+
+# 4. 비용은 반드시 세 종류로 분리
+
+모든 비용을 섞어서 Pool당 나누지 마십시오.
+
+## A. FIXED / STEP-FIXED INFRA COST
+
+사용자가 증가하면 어느 구간에서 서버 tier/instance가 올라가는 비용.
+
+예:
+
+* Render API
+* Worker
+* Supabase compute
+* DB connection capacity
+* monitoring
+* backup
+* additional instance
+* replica가 필요한 경우
+
+## B. DIRECT VARIABLE COST
+
+사용량에 거의 비례하는 비용.
+
+예:
+
+* R2 storage
+* R2 operations
+* SMS
+* 기타 per-use 서비스
+
+## C. TRANSACTION COST
+
+판매가격에 비례하는 비용.
+
+예:
+
+* Apple / Google Store fee
+* RevenueCat fee
+
+A/B/C를 절대 하나의 숫자로 먼저 합치지 마십시오.
+
+마지막에만 완전원가 계산에 합칩니다.
+
+---
+
+# 5. 150K 실제 Traffic Model
+
+막연한 추정이 아니라 현재 실제 route와 화면 사용 흐름을 조사하여 workload model을 만드십시오.
+
+다음 네 종류를 반드시 분리하십시오.
+
+### NORMAL
+
+평균 사용시간
+
+### DAILY PEAK
+
+수업 시작/종료 및 학부모 확인이 몰리는 시간
+
+### MEDIA PEAK
+
+수업 후 사진/영상 업로드가 집중되는 시간
+
+### EVENT PEAK
+
+공지 / Push / Growth Report / 대량 작업이 동시에 발생하는 경우
+
+각각 예상:
+
+* Requests/sec
+* concurrent sessions
+* DB connections
+* DB reads/sec
+* DB writes/sec
+* R2 PUT
+* R2 GET
+* upload throughput
+* Push jobs/min
+* background queue volume
+
+을 산출하십시오.
+
+가정값을 사용한 경우 반드시 가정을 명시하십시오.
+
+---
+
+# 6. Render APP API Capacity
+
+150,000 members / 550 pools를 쾌적하게 처리하기 위한 Render 구성을 산정하십시오.
+
+세 단계:
+
+## MINIMUM SAFE
+
+## RECOMMENDED PRODUCTION
+
+## 50% HEADROOM
+
+각 단계마다:
+
+* instance type
+* CPU
+* RAM
+* instance count
+* autoscaling 여부
+* monthly cost
+
+제출.
+
+현재 단일 instance로 충분한지,
+여러 instance가 필요한지,
+API와 worker를 분리해야 하는지 분석하십시오.
+
+---
+
+# 7. Worker / Cron / Queue Capacity
+
+다음 job을 조사하십시오.
+
+* video expiration
+* media cleanup
+* push
+* notifications
+* report status jobs
+* growth jobs
+* scheduled jobs
+* bulk operations
+* orphan cleanup
+* 기타 background workload
+
+15만명 규모에서 API server와 같은 process에서 처리하면 위험한 job을 구분하십시오.
+
+필요한 worker 수와 monthly infrastructure cost를 산정하십시오.
+
+---
+
+# 8. Supabase / PostgreSQL 150K Capacity
+
+현재 schema와 실제 주요 table을 기준으로 계산하십시오.
+
+특히:
+
+* users
+* students
+* guardian relations
+* teachers
+* swimming_pools
+* classes
+* attendance
+* diary
+* diary-related data
+* photos metadata
+* notifications
+* requests
+* makeup
+* growth
+* reports
+* curriculum
+* subscriptions
+* audit logs
+
+산출:
+
+* 예상 total rows
+* monthly row growth
+* DB size
+* index size
+* backup size
+* WAL/storage growth
+* connections
+* peak query volume
+
+그리고 필요한:
+
+* compute tier
+* connection pool
+* storage tier
+* backup
+* read replica 필요 여부
+
+를 평가하십시오.
+
+MINIMUM / RECOMMENDED / HEADROOM 비용 제출.
+
+---
+
+# 9. 매우 중요 — VIDEO 7-DAY RETENTION 실제 코드 검증
+
+사용자 정책상 영상은 약 7일 후 삭제되는 것으로 인식하고 있습니다.
+
+반드시 실제 코드로 확인하십시오.
+
+확인:
+
+* 정확한 retention 기간
+* 생성 시점 기준인지 업로드 시점 기준인지
+* 삭제 cron/job
+* 실행 주기
+* retry
+* failure handling
+* original video 삭제
+* thumbnail 삭제
+* derivatives 삭제
+* metadata 삭제 여부
+* orphan file cleanup
+* 삭제 실패 시 누적 위험
+
+결론을 다음 중 하나로 명시:
+
+`7-DAY RETENTION VERIFIED`
+
+또는
+
+`NOT VERIFIED`
+
+또는
+
+`DIFFERENT IMPLEMENTATION`
+
+---
+
+# 10. 실제 VIDEO 파일크기 검증
+
+4K 원본영상의 일반적인 외부 크기를 임의로 원가에 넣지 마십시오.
+
+SWIMNOTE가 실제로:
+
+* client compression 하는지
+* resolution을 낮추는지
+* bitrate를 낮추는지
+* codec 변환하는지
+* 그대로 R2에 저장하는지
+
+현재 코드 기준으로 확인하십시오.
+
+가능하면 실제 설정에서:
+
+* 30초
+* 60초
+
+영상의 EXPECTED 저장크기 범위를 산출하십시오.
+
+정보가 없으면 UNKNOWN으로 명시하십시오.
+
+---
+
+# 11. R2 BASIC STORAGE MODEL
+
+미래 BASIC은 Pool당 10GB 제공 예정입니다.
+
+550 Pools에서 다음 두 시나리오를 계산하십시오.
+
+## EXPECTED UTILIZATION
+
+현실적인 평균 점유율
+
+## ABSOLUTE WORST CASE
+
+550개 수영장이 전부 10GB를 100% 지속 점유
+
+각각:
+
+* total GB
+* storage cost
+* Class A
+* Class B
+* monthly KRW
+
+제출.
+
+영상은 retention이 검증된 경우 회전효과를 반영하되,
+사진 등 영구보관 데이터와 구분하십시오.
+
+---
+
+# 12. DATA PACK 완전원가
+
+## DATA 100
+
++100GB
+
+## DATA 300
+
++300GB
+
+각 상품에서 사용자가 추가 용량을 100% 상시 점유한다고 가정하십시오.
+
+각 팩별:
+
+* R2 storage
+* expected Class A/B
+* infra overhead
+* transaction fee 별도
+* total non-transaction cost
+
+를 계산하십시오.
+
+반드시 worst-case를 제공하십시오.
+
+---
+
+# 13. DATA PACK 가격 sensitivity
+
+가격은 결정하지 마십시오.
+
+다음 후보를 비교만 하십시오.
+
+## DATA 100
+
+* ₩5,900
+* ₩6,900
+* ₩7,900
+* ₩8,900
+* ₩9,900
+* ₩10,900
+* ₩11,900
+
+## DATA 300
+
+* ₩12,900
+* ₩14,900
+* ₩17,900
+* ₩19,900
+* ₩21,900
+* ₩24,900
+* ₩29,900
+
+각 가격마다 별도로:
+
+### Store 15% case
+
+### Store 30% case
+
+그리고 RevenueCat current applicable fee를 공식 정책 기준으로 별도 반영.
+
+결과:
+
+| Product | Price | Store Fee | RC Fee | Infra/Storage Cost | Net Profit | Margin % |
+
+---
+
+# 14. Basic ₩5,900 완전원가 검증
+
+다음 상품을 검증합니다.
+
+BASIC:
+
+* ₩5,900/month
+* unlimited members
+* 10GB
+* photo
+* video
+
+550 Pools / 150,000 Members 환경에서:
+
+## 먼저 전체 공통 infra cost
+
+산출.
+
+그다음 550개 paid pool에 배분:
+
+`common platform infra / 550`
+
+여기에:
+
+* Pool당 storage/request variable
+* 기타 direct variable
+
+을 추가.
+
+그 후:
+
+### Store 15%
+
+### Store 30%
+
+각 경우에:
+
+`₩5,900`
+`- Store`
+`- RevenueCat`
+`- allocated platform infra`
+`- direct variable cost`
+`= contribution profit`
+
+계산.
+
+마진율도 제출하십시오.
+
+---
+
+# 15. 무료 사용자 비용은 별도 계산
+
+Free 사용자가 많이 늘 경우 유료 550 Pools의 수익이 Free infra를 부담하게 될 수 있습니다.
+
+따라서:
+
+* 1,000 Free pools
+* 5,000 Free pools
+* 10,000 Free pools
+
+각각 회원 10명 이하일 때의 추가 platform burden을 sensitivity로 계산하십시오.
+
+현재 Free storage quota가 0.1GB인 사실은 현재 구현상 기준으로 사용할 수 있으나,
+향후 정책 확정값이라고 가정하지 마십시오.
+
+---
+
+# 16. SCALE CURVE — 매우 중요
+
+15만명 최종비용 하나만 제출하지 마십시오.
+
+다음 규모에서 필요한 infra 단계와 월비용을 계산하십시오.
+
+* 10 Pools / 3,000 members
+* 50 Pools / 15,000 members
+* 100 Pools / 30,000 members
+* 200 Pools / 60,000 members
+* 300 Pools / 90,000 members
+* 550 Pools / 150,000 members
+
+각 단계:
+
+| Pools | Members | Required Infra | Monthly Fixed Cost | Variable Cost | Total |
+
+이 표가 필요합니다.
+
+목적:
+
+> 최종 15만명 비용을 역산하여 초기 출시단계에서 얼마짜리 server tier로 시작해야 하는지 결정하기 위함
+
+입니다.
+
+불필요하게 처음부터 15만명급 서버를 구매하는 계획을 만들지 마십시오.
+
+---
+
+# 17. UPGRADE TRIGGER
+
+각 규모에서 다음 단계로 infra를 올려야 하는 객관적인 trigger도 제출하십시오.
+
+예:
+
+* CPU sustained %
+* memory %
+* DB connection %
+* P95 latency
+* DB CPU
+* queue delay
+* storage
+* request rate
+
+예:
+
+`P95 latency > ___ ms for ___ minutes`
+
+`DB connections > ___%`
+
+등.
+
+즉:
+
+> 언제 서버비를 올려야 하는지
+
+운영자가 판단할 수 있게 하십시오.
+
+---
+
+# 18. 반드시 CURRENT PRICING 사용
+
+가격은 가능한 경우 현재 provider 공식가격으로 계산하십시오.
+
+* Render
+* Supabase
+* Cloudflare R2
+* RevenueCat
+* Apple
+* Google
+
+확인 날짜를 보고서에 명시하십시오.
+
+가격을 확인할 수 없는 항목은 추측하지 말고:
+
+`UNKNOWN`
+
+으로 표시하십시오.
+
+USD 비용은:
+
+* 사용한 USD/KRW 환율
+* 환율 날짜
+
+를 명시하십시오.
+
+가격 변동 대응을 위해 별도로:
+
+### FX +10% COST STRESS
+
+도 계산하십시오.
+
+---
+
+# 19. 숨겨진 비용 점검
+
+다음이 실제로 발생하는지 확인하십시오.
+
+* bandwidth
+* DB egress
+* backup overage
+* log retention
+* build/runtime cost
+* cron
+* worker
+* connection pooling
+* image processing
+* video processing
+* temporary file storage
+* orphan media
+* thumbnail duplication
+* CDN request
+* notification service
+* SMS
+* error monitoring
+
+비용이 ₩0이면 왜 0인지 명시하십시오.
+
+---
+
+# 20. 최종 출력 — 제일 중요
+
+다음 형식으로 끝내십시오.
+
+# SWIMNOTE 150K FULL INFRA COST AUDIT V2
+
+Branch:
+HEAD:
+Audit date:
+
+## CURRENT ARCHITECTURE
+
+...
+
+## SCALE CURVE
+
+| Pools | Members | Monthly Cost |
+...
+
+## 550 POOLS / 150K RECOMMENDED
+
+Render API:
+₩
+
+Worker:
+₩
+
+Supabase compute:
+₩
+
+DB storage/backups:
+₩
+
+R2:
+₩
+
+Monitoring:
+₩
+
+Other:
+₩
+
+### FIXED / STEP-FIXED TOTAL
+
+₩_____
+
+### VARIABLE TOTAL
+
+₩_____
+
+### FULL MONTHLY PLATFORM COST
+
+₩_____
+
+### PER POOL
+
+₩_____
+
+### PER MEMBER
+
+₩_____
+
+---
+
+## BASIC ₩5,900
+
+15% Store Case:
+
+Revenue:
+₩5,900
+
+Store:
+-₩
+
+RevenueCat:
+-₩
+
+Allocated Infra:
+-₩
+
+Direct Cost:
+-₩
+
+Profit:
+₩
+
+Margin:
+__%
+
+30% Store Case:
+
+동일 계산
+
+---
+
+## DATA 100
+
+100% FULL UTILIZATION COST:
+₩_____
+
+가격별 margin table
+
+---
+
+## DATA 300
+
+100% FULL UTILIZATION COST:
+₩_____
+
+가격별 margin table
+
+---
+
+## VIDEO RETENTION
+
+Status:
+Retention:
+Deletion mechanism:
+Orphan risk:
+Actual expected stored video size:
+
+---
+
+## FREE USER COST SENSITIVITY
+
+1,000 pools:
+₩
+
+5,000 pools:
+₩
+
+10,000 pools:
+₩
+
+---
+
+## RECOMMENDED LAUNCH INFRA
+
+현재 출시초기 필요한 실제 infra:
+₩_____/month
+
+15만명용 infrastructure를 처음부터 구매하지 않고,
+어떤 단계에서 무엇을 upgrade하는지:
+
+1.
+2.
+3.
+4.
+
+---
+
+## RISKS
+
+...
+
+## UNKNOWNS
+
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## CODE CHANGES
+
+NONE
+
+FINAL:
+
+`150K FULL INFRA COST AUDIT V2 COMPLETE`
+
+---
+
+# 절대 금지
+
+* 코드 수정
+* plan 수정
+* storage quota 수정
+* RevenueCat 수정
+* Production DB write
+* migration
+* deploy
+* OTA
+* Render plan 변경
+* Supabase plan 변경
+* R2 설정 변경
+
+이번 작업은 READ-ONLY COST/CAPACITY AUDIT ONLY입니다.
