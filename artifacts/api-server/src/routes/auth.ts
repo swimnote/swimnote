@@ -37,12 +37,12 @@ router.post("/login", async (req, res) => {
   const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
   const identifier = email.trim();
   try {
-    // 이메일 형식이면 이메일로 조회, 아니면 수영장 슬러그(name_en)로 pool_admin 조회
+    // 먼저 email 컬럼으로 직접 조회 (teacher 등 non-@ identifier 포함)
+    // 아이디(email 컬럼)가 @를 포함하지 않는 teacher 계정을 올바르게 찾기 위해 항상 email로 우선 조회
     let user: typeof usersTable.$inferSelect | undefined;
-    if (identifier.includes("@")) {
-      [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, identifier.toLowerCase())).limit(1);
-    } else {
-      // 슬러그로 수영장 찾아서 pool_admin 유저 조회
+    [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, identifier.toLowerCase())).limit(1);
+    if (!user && !identifier.includes("@")) {
+      // 이메일 형식이 아니고 email 직접 조회 실패 → 수영장 슬러그(name_en)로 pool_admin 조회
       const poolRows = (await superAdminDb.execute(sql`
         SELECT u.* FROM users u
         JOIN swimming_pools sp ON u.swimming_pool_id = sp.id
@@ -2608,7 +2608,56 @@ router.post("/v2/parent-register", async (req, res) => {
         role: "parent_account",
       });
       if (alreadyInPool) {
-        return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
+        // 같은 pool에 이미 가입한 보호자가 추가 자녀를 연결하는 경우 (형제자매 등)
+        // upsertMembership 없이 바로 student 매칭/연결만 시도
+        const [poolRowSibling] = (await superAdminDb.execute(sql`
+          SELECT id, name FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+        `)).rows as any[];
+        if (!poolRowSibling) return err(res, 404, "수영장을 찾을 수 없습니다.");
+
+        const { matched: sibMatched, studentId: sibStudentId, studentName: sibStudentName } = await tryMatchStudentV2(
+          existingParentId, poolId, ph, childNorm,
+        );
+        let sibStatus: "linked" | "waiting" = "waiting";
+        if (sibMatched && sibStudentId) {
+          const { success } = await linkParentToStudentV2(existingParentId, sibStudentId, poolId);
+          if (success) {
+            sibStatus = "linked";
+            console.log(`[v2-register] ✓ 기존 계정 추가 자녀 즉시 연결: student="${sibStudentName}"`);
+          }
+        }
+        if (sibStatus === "waiting") {
+          const sibReason: string | undefined = sibMatched ? undefined : await (async () => {
+            const nr = await db.execute(sql`
+              SELECT id FROM students
+              WHERE swimming_pool_id = ${poolId}
+                AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
+                AND status NOT IN ('withdrawn','archived','deleted')
+              LIMIT 1
+            `);
+            return nr.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
+          })();
+          await upsertParentV2Pending(existingParentId, poolId, childRaw, childNorm, ph, sibReason);
+          try {
+            const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+            await sendPushToPoolAdmins(
+              poolId, "parent_join",
+              "새 학부모 가입 대기",
+              `${name} 학부모님이 추가 자녀 연결을 요청했습니다. 자녀(${childRaw}) 연결을 확인해주세요.`,
+              { screen: "parent-requests" },
+              `parent_join_${existingParentId}_${poolId}_${childNorm}`,
+            );
+          } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
+        }
+        const sibToken = signToken({ userId: existingParentId, role: "parent_account", poolId });
+        console.log(`[v2-register] 기존 계정 추가 자녀: status=${sibStatus} parentId=${existingParentId} pool=${poolId}`);
+        return res.status(201).json({
+          token: sibToken,
+          status: sibStatus,
+          pool_name: poolRowSibling.name,
+          matched_student: sibMatched ? { id: sibStudentId, name: sibStudentName } : null,
+          parent: { id: existingParentId, name, phone: ph, swimming_pool_id: poolId },
+        });
       }
 
       // ── 소셜 ID 충돌 검사: 다른 사람이 동일 apple/kakao ID를 사용 중인지 확인 ─
