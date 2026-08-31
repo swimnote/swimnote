@@ -1,0 +1,311 @@
+[보낼 곳: APP REPLIT]
+
+[긴급 Production Live Fix — Terminology Gateway 배포 후 검색 오류]
+
+현재 상황:
+
+- deploy-photo-clone 최신 코드 수동 배포 완료
+- 앱에서 수영·훈련용어 검색 화면 정상 진입
+- "글라이드" 입력 시:
+  "검색 중 오류가 발생했습니다. 다시 시도해 주세요."
+- AI ENGINE Production 자체는 이미 검증 완료:
+  글라이드 → TERM-000002 / 200
+  스트림라인 → TERM-000001 / 200
+  DPS → TERM-000006 / 200
+  negative split → TERM-000009 / 200
+
+따라서 이제 문제 범위는:
+
+Production swimnote-api Gateway
+→ Professional AI ENGINE
+
+구간이다.
+
+이번 작업은 중간보고 후 멈추지 말고:
+
+LIVE 요청 재현
+→ 정확한 HTTP status/error 확인
+→ Render runtime env 확인
+→ root cause 수정
+→ 필요한 경우 redeploy
+→ 실제 Production Gateway 200 확인
+
+까지 한 번에 끝낸다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 먼저 Production route live 확인
+━━━━━━━━━━━━━━━━━━━━
+
+실제:
+
+https://swimnote-api.onrender.com
+
+에서 terminology route가 이제 404가 아닌지 확인.
+
+다음 각각 확인:
+
+GET /api/terminology/status
+GET /api/terminology/search?q=글라이드&limit=30
+
+APP API 사용자 인증이 필요한 route이면
+실제 정상 인증 context를 사용한다.
+
+반드시 기록:
+
+- HTTP status
+- response body/error code
+- route handler 진입 여부
+
+404이면 아직 배포 문제.
+404가 아니면 다음 단계 진행.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 실제 Gateway → ENGINE response 확인
+━━━━━━━━━━━━━━━━━━━━
+
+terminology-engine-client에서
+"글라이드" 요청을 실제 Production 설정과 동일하게 재현.
+
+최종 호출 URL:
+
+${PROFESSIONAL_ENGINE_BASE_URL}/api/terminology/search?q=글라이드&limit=30
+
+확인:
+
+- 최종 URL
+- Authorization header 존재 여부
+- HTTP status
+- ENGINE response body 요약
+- timeout 여부
+
+SECRET 실제 값 출력 금지.
+
+특히 아래 중 무엇인지 확정:
+
+200
+401
+403
+404
+500
+502
+503
+timeout
+
+━━━━━━━━━━━━━━━━━━━━
+3. 가장 중요한 Secret 검증
+━━━━━━━━━━━━━━━━━━━━
+
+현재 과거 조사에서:
+
+Replit env의 PROFESSIONAL_ENGINE_API_SECRET
+→ ENGINE 401
+
+이 확인된 적이 있다.
+
+따라서 이번에는
+Render의 두 실제 Production 서비스:
+
+A. swimnote-api
+B. swimnote-professional-engine
+
+에 설정된:
+
+PROFESSIONAL_ENGINE_API_SECRET
+
+이 실제 동일한 값인지 검증한다.
+
+값 자체는 출력하지 않는다.
+
+가능하면:
+
+- SHA256 fingerprint
+- length
+- 실제 authenticated call
+
+중 안전한 방식 사용.
+
+최종적으로
+swimnote-api runtime에서 사용하는 secret으로
+ENGINE 직접 요청했을 때 반드시 200이 나와야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Environment 변수 실제 Runtime 확인
+━━━━━━━━━━━━━━━━━━━━
+
+swimnote-api Production runtime:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+확인.
+
+주의:
+
+render.yaml에 선언되어 있다는 사실만으로
+실제 secret 값이 들어있다고 간주하지 않는다.
+
+sync:false이면
+Render Dashboard에서 별도로 값이 입력되어 있어야 한다.
+
+BASE URL:
+
+https://swimnote-professional-engine.onrender.com
+
+이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. Root Cause별 즉시 처리
+━━━━━━━━━━━━━━━━━━━━
+
+CASE A — ENGINE 401/403
+→ PROFESSIONAL_ENGINE_API_SECRET 불일치 확정
+→ swimnote-api Render env에 ENGINE과 동일한 secret 설정 필요
+
+Replit에서 Render env 변경 권한이 있다면 수정.
+권한이 없다면:
+사용자가 Render에서 바꿔야 할 정확한 변수와 대상 서비스만 보고.
+
+코드 우회 금지.
+인증 완화 금지.
+
+CASE B — 404
+→ URL/path 오류
+→ Gateway URL 최소 수정
+
+CASE C — 502/503/timeout
+→ ENGINE cold start/timeout/URL 문제 확인
+→ 실제 원인에 맞게 최소 수정
+
+CASE D — ENGINE 200인데 Gateway 5xx
+→ response parsing/error mapping bug 확인 후 최소 수정
+
+━━━━━━━━━━━━━━━━━━━━
+6. Gateway 응답 Contract 확인
+━━━━━━━━━━━━━━━━━━━━
+
+정상일 때 Production APP API:
+
+GET /api/terminology/search?q=글라이드&limit=30
+
+최종 응답은 반드시:
+
+HTTP 200
+
+results 안에:
+
+term_id = TERM-000002
+canonical_name_ko = 글라이드
+
+가 있어야 한다.
+
+ENGINE 200을 Gateway가 오류로 바꾸면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Detail도 함께 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Search가 살아나면 바로:
+
+GET /api/terminology/terms/TERM-000002
+
+확인:
+
+200
+
+canonical_name_ko = 글라이드
+
+sections[]
+segments[]
+related_terms[]
+
+offset/start/end가 APP response에 노출되지 않는 것도 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 실제 Production 4개 검색 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Gateway 기준:
+
+글라이드
+→ TERM-000002
+
+스트림라인
+→ TERM-000001
+
+DPS
+→ TERM-000006
+
+negative split
+→ TERM-000009
+
+전부 200 확인.
+
+ENGINE 직접 호출 결과가 아니라
+반드시 swimnote-api Gateway 결과를 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+9. Mock 금지
+━━━━━━━━━━━━━━━━━━━━
+
+Production mock fallback 절대 금지.
+
+ENGINE 연결이 실패하면 오류를 반환해야 한다.
+
+sample fixture로 성공처럼 위장 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 코드 수정 여부
+━━━━━━━━━━━━━━━━━━━━
+
+환경변수 문제면 코드 수정 금지.
+
+코드 문제가 실제로 확인된 경우에만 최소 수정.
+
+APP 모바일 JS에는 현재 문제가 없으므로
+모바일 코드 수정 금지.
+
+따라서 OTA도 금지.
+
+Android OTA 금지.
+1.6.3 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Render 반영
+━━━━━━━━━━━━━━━━━━━━
+
+env 또는 server code 변경으로
+redeploy가 필요하면:
+
+Production branch:
+deploy-photo-clone
+
+최신 정상 SHA 기준으로 배포.
+
+배포 트리거만으로 완료 처리 금지.
+
+실제 live까지 기다려서
+Gateway search 200을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 /api/terminology/search 실제 HTTP status
+2. Gateway가 받은 ENGINE HTTP status
+3. ENGINE response error code/body 요약
+4. PROFESSIONAL_ENGINE_BASE_URL runtime 상태
+5. 두 Render 서비스 secret 동일성 검증 결과
+6. root cause
+7. env 수정 여부
+8. 코드 수정 여부
+9. 새 commit SHA (있을 경우)
+10. Render redeploy 여부
+11. 최종 Gateway "글라이드" 결과
+12. 스트림라인/DPS/negative split 결과
+13. TERM-000002 detail 결과
+14. mock 미사용 확인
+15. OTA 불필요 확인
+
+반드시 Production Gateway에서
+"글라이드" → TERM-000002 / HTTP 200
+확인한 후 STOP.
