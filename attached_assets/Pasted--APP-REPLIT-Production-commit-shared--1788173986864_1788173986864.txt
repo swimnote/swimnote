@@ -1,0 +1,273 @@
+[보낼 곳: APP REPLIT]
+
+카카오 로그인 수정 완료보고 검수 결과,
+아직 Production 완료 처리하지 않는다.
+
+현재 관련 commit:
+- shared backend deploy-photo-clone: 158a9565
+- 2.0.0 app release/v2.0.0: fce7dbc5
+
+이번 작업 목표:
+1. Render 실제 배포 SHA 확인
+2. Kakao multi-pool parent 잘못 연결 가능성 제거
+3. 1.6.3 / 2.0.0 실사용 흐름 기준 최종 smoke validation
+4. OTA 필요 범위를 확정
+
+기존에 완료한 timeout / error_code / phone_missing / cancel 처리 코드는
+불필요하게 다시 뜯어고치지 않는다.
+
+==================================================
+1. Render 실제 배포 완료 확인
+==================================================
+
+Render service:
+swimnote-api
+
+production source:
+repo swimnote/swimnote
+branch deploy-photo-clone
+
+확인:
+- 실제 deployed SHA
+- 158a9565 포함 여부
+- build 성공
+- service healthy
+- startup error 없음
+
+GitHub push 완료만으로 배포 완료라고 판단하지 않는다.
+
+완료보고에 실제 Render deployed SHA를 기록한다.
+
+==================================================
+2. multi-pool parent + Kakao 구조 반드시 수정
+==================================================
+
+현재 보고서에 남은 위험:
+
+동일 phone이 여러 pool의 parent_account에 존재하는 경우
+phone fallback lookup이 LIMIT 1로 첫 계정을 고르고
+그 계정에 kakao_id를 연결할 가능성이 있다.
+
+이 구조는 제거한다.
+
+먼저 실제 schema와 현재 Kakao login request contract를 확인한다.
+
+목표 정책:
+
+A. kakao_user_id가 이미 연결되어 있으면
+→ 해당 exact external identity account 사용
+
+B. kakao_user_id가 아직 없고 phone fallback이 필요한 경우
+→ 현재 로그인하려는 pool_id가 제공되면
+   반드시 phone + pool_id로 정확한 parent_account 조회
+
+C. pool_id가 없는 구형 1.6.3 요청에서
+동일 phone parent가 정확히 1개일 때만 자동 연결 가능
+
+D. pool_id가 없고 동일 phone parent가 여러 개이면
+LIMIT 1 임의 선택 금지
+
+이 경우:
+- 명확한 ambiguous 상태 반환
+- 잘못된 account에 kakao_id UPDATE 금지
+
+예:
+KAKAO_PARENT_AMBIGUOUS
+
+E. kakao_id를 한 parent에 연결할 때
+이미 다른 parent에 같은 kakao_id가 연결돼 있으면 충돌 방지
+
+unique/external identity 정책도 확인한다.
+
+==================================================
+3. 1.6.3 backward compatibility
+==================================================
+
+1.6.3은 현재 pool_id를 Kakao login에 보내는지 확인한다.
+
+보내지 않는다면:
+
+- single matched parent → 기존처럼 정상 로그인
+- zero match → 기존 신규가입/phone_missing 흐름
+- multiple match → 임의 연결 금지
+
+multi-pool ambiguous 상태가 발생했을 때
+1.6.3이 generic error로 안전하게라도 처리 가능한지 확인한다.
+
+1.6.3 앱 수정 없이는 사용자에게 세밀한 안내가 불가능하더라도
+서버가 잘못된 parent에 연결하는 것보다 실패하는 것이 우선이다.
+
+==================================================
+4. 2.0.0은 pool_id 명시적으로 사용
+==================================================
+
+release/v2.0.0 Kakao login request가
+현재 선택된 swimming pool의 pool_id를 서버에 전달하는지 확인한다.
+
+안 보내고 있다면 추가한다.
+
+2.0.0:
+Kakao login
+→ accessToken
+→ shared backend
+→ pool_id 포함
+→ kakao_id exact 또는 phone + pool_id match
+
+형태로 통일한다.
+
+==================================================
+5. phone_missing flow 최종 확인
+==================================================
+
+Kakao profile에서 phone scope 미동의:
+
+- kakao_user_id 확보
+- phone 없음
+- 기존 계정 자동 오인 연결 금지
+- phone_missing=true
+- 가입/추가정보 화면으로 정상 이동
+
+사용자가 직접 전화번호를 입력한 이후에는
+기존 parent와 매칭할 수 있으면 중복 계정을 만들지 않고
+기존 계정에 Kakao identity를 연결한다.
+
+이 과정에서:
+- same pool
+- sibling child
+- existing membership
+모두 정상이어야 한다.
+
+==================================================
+6. 실제 사용자 장애 원인 표현 정정
+==================================================
+
+기존 보고서에서:
+
+"RC-1 fetch timeout이 주요 원인"
+
+은 실기기에서 장애를 실제 재현하지 못했으므로
+현재 단계에서는:
+
+"코드상 실제 장애를 유발할 수 있는 확정 결함"
+
+으로 구분한다.
+
+Render 배포 후 실제 1.6.3 카카오 로그인이 정상 성공하면
+그때 사용자 제보 장애의 해결 여부를 확정한다.
+
+추측을 root cause 확정이라고 기록하지 않는다.
+
+==================================================
+7. 자동 테스트 추가
+==================================================
+
+기존 44 TC 유지하고 아래 추가:
+
+1. kakao_id existing exact match
+2. phone single parent + no pool_id
+3. phone multiple parents + no pool_id
+   → 임의 LIMIT 1 금지
+4. phone multiple parents + pool_id
+   → 정확한 pool parent 선택
+5. same kakao_id different parent collision
+6. phone_missing → manual phone 입력 → existing parent link
+7. phone_missing → 신규 parent
+8. existing parent + sibling second child
+9. existing parent in two pools
+10. 1.6.3 legacy request compatibility
+11. 2.0.0 pool_id request
+
+전체 Kakao + auth 관련 기존 테스트 PASS.
+
+==================================================
+8. Production DB 안전성 검사
+==================================================
+
+현재 Production에서:
+
+- 동일 phone이 여러 parent_account에 존재하는 사례 수
+- 동일 kakao_id 중복 연결 사례
+- kakao_id NULL parent 수
+
+를 개인정보 없이 count만 확인한다.
+
+실제 account를 임의 수정하지 않는다.
+
+만약 이미 잘못된 kakao_id 연결 사례가 발견되면
+자동 수정하지 말고 대상 수와 구조만 보고한다.
+
+==================================================
+9. 실기기 smoke test 준비
+==================================================
+
+환경상 Replit에서 직접 실기기 실행이 불가능하면
+그 사실을 명확히 구분한다.
+
+대신 Render 배포 후 서버 로그가
+실제 Kakao login 요청을 받을 준비가 되었는지 확인한다.
+
+앱 사용자가 실기기에서 한 번 로그인 시도하면
+민감정보 없이 아래 단계만 식별 가능하도록 로그가 있어야 한다.
+
+- KAKAO_REQUEST_RECEIVED
+- KAKAO_PROFILE_OK
+- KAKAO_ID_MATCH
+- KAKAO_PHONE_MATCH
+- KAKAO_PHONE_MISSING
+- KAKAO_PARENT_AMBIGUOUS
+- KAKAO_LOGIN_SUCCESS
+- KAKAO_API_TIMEOUT
+
+token / phone / kakao id 원문 로그 금지.
+
+==================================================
+10. OTA 정책
+==================================================
+
+1.6.3:
+현재 앱 수정은
+- error_code UX
+- cancel 판별
+- phone_missing 안내
+
+때문에 OTA가 필요하다고 보고되어 있다.
+
+이번 작업에서는 절대 OTA하지 않는다.
+
+서버 배포만으로 기존 연결 사용자 카카오 로그인이 정상화되는지 먼저 확인한다.
+
+2.0.0:
+release/v2.0.0 코드 수정이 있으면 branch에 commit.
+iOS OTA는 사용자 지시 전 실행하지 않는다.
+Android OTA 금지.
+
+==================================================
+11. 완료보고
+==================================================
+
+아래 형식으로 보고:
+
+1. Render 실제 deployed SHA
+2. Kakao API timeout 서버 반영 여부
+3. multi-pool LIMIT 1 기존 구조
+4. multi-pool 최종 수정 구조
+5. 1.6.3 Kakao request에 pool_id 존재 여부
+6. 2.0.0 Kakao request에 pool_id 존재 여부
+7. phone_missing 최종 flow
+8. ambiguous parent 처리
+9. Production multi-pool parent count
+10. kakao_id collision count
+11. 자동테스트 총 결과
+12. backend commit SHA
+13. 2.0.0 app commit SHA(변경 시)
+14. 1.6.3 OTA 필요 여부
+15. 2.0.0 iOS OTA 필요 여부
+16. 실기기에서 마지막으로 확인해야 할 정확한 항목
+
+중요:
+multi-pool phone lookup에서 LIMIT 1로 임의 parent를 선택하는 구조가
+남아 있는 상태로 완료 처리하지 않는다.
+
+Production DB 강제수정 금지.
+1.6.3 OTA 금지.
+Android OTA 금지.
