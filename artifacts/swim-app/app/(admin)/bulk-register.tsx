@@ -28,7 +28,7 @@ import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const C = Colors.light;
-const MAX_UPLOAD = 1000; // 업로드 최대 인원
+const MAX_UPLOAD = 300; // 업로드 최대 인원
 
 // ── 컬럼 헤더 별칭 매핑 (공백·대소문자 제거 후 비교) ───────────────
 // 키: 공백·특수문자 제거 + 소문자 정규화 후 값
@@ -92,9 +92,6 @@ interface ServerErrors {
 }
 interface UploadResult {
   success: boolean;
-  succeeded?: number;
-  failed?: Array<{ name: string; reason: string; code?: string }>;
-  /** @deprecated Server responses use succeeded. */
   inserted?: number;
   code?: string;
   message?: string;
@@ -808,7 +805,7 @@ export default function BulkRegisterScreen() {
 
             <Text style={[s.doneTitle, { color: C.text }]}>
               {uploadResult.success
-                ? `${uploadResult.succeeded ?? uploadResult.inserted ?? 0}명 등록 완료!`
+                ? `${uploadResult.inserted ?? 0}명 등록 완료!`
                 : "업로드 실패"}
             </Text>
 
@@ -817,14 +814,8 @@ export default function BulkRegisterScreen() {
               <View style={[s.doneCard, { backgroundColor: C.card, width: "100%" }]}>
                 <View style={s.doneRow}>
                   <Text style={[s.doneLabel, { color: C.textSecondary }]}>등록 완료</Text>
-                  <Text style={[s.doneVal, { color: "#16A34A" }]}>{uploadResult.succeeded ?? uploadResult.inserted ?? 0}명</Text>
+                  <Text style={[s.doneVal, { color: "#16A34A" }]}>{uploadResult.inserted}명</Text>
                 </View>
-                {(uploadResult.failed?.length ?? 0) > 0 && (
-                  <View style={s.doneRow}>
-                    <Text style={[s.doneLabel, { color: C.textSecondary }]}>오류 제외</Text>
-                    <Text style={[s.doneVal, { color: C.textMuted }]}>{uploadResult.failed!.length}건</Text>
-                  </View>
-                )}
               </View>
             )}
 

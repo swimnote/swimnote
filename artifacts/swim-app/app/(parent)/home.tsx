@@ -1903,40 +1903,36 @@ export default function ParentHomeScreen() {
               overflow: "hidden",
             }}
           >
-            {(mode === "x" || mode === "x_pending") && (
-              <>
-                {/* 위: AI 커리큘럼 검색 */}
-                <Pressable
-                  onPress={() => {
-                    if (selectedStudent) {
-                      router.push({
-                        pathname: "/(parent)/curriculum-chat" as any,
-                        params: {
-                          studentId:   selectedStudent.id,
-                          studentName: selectedStudent.name ?? "",
-                        },
-                      });
-                    }
-                  }}
-                  style={({ pressed }) => ({
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 12,
-                    paddingVertical: 11,
-                    gap: 8,
-                    opacity: pressed ? 0.72 : 1,
-                  })}
-                >
-                  <LucideIcon name="book-open" size={19} color={NAVY} />
-                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: NAVY, flexShrink: 1, lineHeight: 17 }} numberOfLines={1}>
-                    AI 커리큘럼 검색
-                  </Text>
-                </Pressable>
+            {/* 위: AI 커리큘럼 검색 */}
+            <Pressable
+              onPress={() => {
+                if (selectedStudent) {
+                  router.push({
+                    pathname: "/(parent)/curriculum-chat" as any,
+                    params: {
+                      studentId:   selectedStudent.id,
+                      studentName: selectedStudent.name ?? "",
+                    },
+                  });
+                }
+              }}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 12,
+                paddingVertical: 11,
+                gap: 8,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <LucideIcon name="book-open" size={19} color={NAVY} />
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Medium", color: NAVY, flexShrink: 1, lineHeight: 17 }} numberOfLines={1}>
+                AI 커리큘럼 검색
+              </Text>
+            </Pressable>
 
-                {/* 구분선 */}
-                <View style={{ height: 1, backgroundColor: "#DDE3EE" }} />
-              </>
-            )}
+            {/* 구분선 */}
+            <View style={{ height: 1, backgroundColor: "#DDE3EE" }} />
 
             {/* 아래: 수영·훈련용어 검색 */}
             <Pressable

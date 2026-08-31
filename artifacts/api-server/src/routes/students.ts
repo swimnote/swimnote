@@ -15,7 +15,6 @@ import {
   kstTodayStr, validateEffectiveDate,
   closeAllActiveClassHistory, closeClassHistory,
 } from "../utils/historyUtils.js";
-import { sendPushToUser } from "../lib/push-service.js";
 
 const router = Router();
 
@@ -572,7 +571,7 @@ router.get("/:id", requireAuth, async (req: AuthRequest, res) => {
 
 // ── PATCH /:id — 기본 정보 수정 ─────────────────────────────────────
 router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), async (req: AuthRequest, res) => {
-  const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status, level } = req.body;
+  const { name, phone, birth_date, birth_year, parent_name, parent_phone, class_group_id, memo, weekly_count, status } = req.body;
   try {
     const poolId = await getPoolId(req.user!.userId);
     const [existing] = await db.select()
@@ -647,22 +646,12 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
         ...(class_group_id !== undefined && { class_group_id: class_group_id || null }),
         ...(memo !== undefined && { memo }),
         ...(weekly_count !== undefined && { weekly_count: Number(weekly_count) }),
-        ...(level !== undefined && { level }),
         ...(newStatus !== undefined && { status: newStatus }),
         ...(resolvedParentUserId && !existing.parent_user_id && { parent_user_id: resolvedParentUserId }),
         updated_at: new Date(),
       })
       .where(eq(studentsTable.id, req.params.id))
       .returning();
-
-    if (level !== undefined && level !== (existing as any).level && student.parent_user_id) {
-      sendPushToUser(
-        student.parent_user_id, true, "level_change",
-        "레벨 변경 안내", `${student.name}님의 레벨이 변경되었습니다.`,
-        { type: "level_change", studentId: student.id },
-        `level_change_${student.id}_${Date.now()}`
-      ).catch(() => {});
-    }
 
     // ── parent_students 연결 레코드 생성 (신규 매칭 시) ─────────────
     if (resolvedParentUserId && !existing.parent_user_id) {

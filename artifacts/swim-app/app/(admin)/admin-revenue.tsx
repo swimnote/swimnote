@@ -178,7 +178,7 @@ export default function AdminRevenueScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {backTo ? (
-        <SubScreenHeader title="강사 정산" />
+        <SubScreenHeader title="수업정산" />
       ) : (
         <View style={[s.tabHeader, { paddingTop: insets.top + 14 }]}>
           <Text style={[s.tabHeaderTitle, { color: themeColor }]}>수업정산</Text>
