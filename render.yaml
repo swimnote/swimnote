@@ -49,3 +49,8 @@ services:
         sync: false
       - key: REVENUECAT_WEBHOOK_SECRET
         sync: false
+      # ── Professional AI ENGINE (terminology gateway) ──
+      - key: PROFESSIONAL_ENGINE_BASE_URL
+        value: https://swimnote-professional-engine.onrender.com
+      - key: PROFESSIONAL_ENGINE_API_SECRET
+        sync: false
