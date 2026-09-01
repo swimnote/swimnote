@@ -49,6 +49,14 @@ export default function NoticesScreen() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const sel = useSelectionMode();
 
+  // ── AI 작성 상태 ──
+  const [showAI, setShowAI] = useState(false);
+  const [aiMemo, setAiMemo] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiResult, setAiResult] = useState<{ title: string; content: string } | null>(null);
+  const aiSendingRef = React.useRef(false);
+
   async function fetchNotices() {
     try {
       const res = await apiRequest(token, "/notices");
@@ -232,6 +240,45 @@ export default function NoticesScreen() {
     setForm({ title: "", content: "", is_pinned: false });
     setPickedImages([]);
     setError("");
+    setShowAI(false);
+    setAiMemo("");
+    setAiError("");
+    setAiResult(null);
+    aiSendingRef.current = false;
+  }
+
+  async function handleAIWrite() {
+    if (aiSendingRef.current) return;
+    aiSendingRef.current = true;
+    setAiLoading(true);
+    setAiError("");
+    setAiResult(null);
+    try {
+      const res = await apiRequest(token, "/notices/ai-write", {
+        method: "POST",
+        body: JSON.stringify({
+          memo: aiMemo || undefined,
+          currentTitle: form.title || undefined,
+          currentContent: form.content || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || data.message || "AI 작성에 실패했습니다.");
+      setAiResult({ title: data.title, content: data.content });
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : "오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setAiLoading(false);
+      aiSendingRef.current = false;
+    }
+  }
+
+  function applyAIResult() {
+    if (!aiResult) return;
+    setForm(f => ({ ...f, title: aiResult!.title, content: aiResult!.content }));
+    setAiResult(null);
+    setShowAI(false);
+    setAiMemo("");
   }
 
   const pinned = notices.filter(n => n.is_pinned);
@@ -340,6 +387,68 @@ export default function NoticesScreen() {
                   placeholder="공지 내용을 입력하세요" placeholderTextColor={C.textMuted}
                   multiline numberOfLines={4} textAlignVertical="top"
                 />
+              </View>
+
+              {/* ── AI 작성 보조 ── */}
+              <View style={[styles.field, { gap: 8 }]}>
+                <Pressable
+                  style={({ pressed }) => [styles.aiToggleBtn, { borderColor: showAI ? C.primaryAction : C.border, backgroundColor: showAI ? C.primaryAction + "10" : C.background, opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => { setShowAI(v => !v); setAiResult(null); setAiError(""); }}
+                >
+                  <LucideIcon name="sparkles" size={15} color={showAI ? C.primaryAction : C.textSecondary} />
+                  <Text style={[styles.aiToggleTxt, { color: showAI ? C.primaryAction : C.textSecondary }]}>
+                    {showAI ? "AI 작성 닫기" : "AI로 작성"}
+                  </Text>
+                </Pressable>
+
+                {showAI && (
+                  <View style={[styles.aiPanel, { borderColor: C.border, backgroundColor: C.background }]}>
+                    <Text style={[styles.aiHint, { color: C.textMuted }]}>
+                      현재 입력한 내용 + 아래 메모를 바탕으로 공지 초안을 작성합니다.
+                    </Text>
+                    <TextInput
+                      style={[styles.aiMemoInput, { borderColor: C.border, color: C.text, backgroundColor: C.card }]}
+                      value={aiMemo}
+                      onChangeText={setAiMemo}
+                      placeholder="추가 메모 (예: 9월 5일 태풍 휴강, 보강 추후 안내)"
+                      placeholderTextColor={C.textMuted}
+                      multiline
+                      numberOfLines={2}
+                      textAlignVertical="top"
+                    />
+                    {aiError ? <Text style={[styles.aiError, { color: C.error }]}>{aiError}</Text> : null}
+
+                    {aiResult ? (
+                      <View style={[styles.aiResultBox, { borderColor: C.primaryAction + "40", backgroundColor: C.primaryAction + "08" }]}>
+                        <Text style={[styles.aiResultLabel, { color: C.primaryAction }]}>AI 제안</Text>
+                        <Text style={[styles.aiResultTitle, { color: C.text }]}>{aiResult.title}</Text>
+                        <Text style={[styles.aiResultContent, { color: C.textSecondary }]} numberOfLines={4}>{aiResult.content}</Text>
+                        <View style={styles.aiResultBtns}>
+                          <Pressable style={({ pressed }) => [styles.aiApplyBtn, { backgroundColor: C.primaryAction, opacity: pressed ? 0.8 : 1 }]} onPress={applyAIResult}>
+                            <Text style={styles.aiApplyTxt}>적용</Text>
+                          </Pressable>
+                          <Pressable style={({ pressed }) => [styles.aiRetryBtn, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]} onPress={() => { setAiResult(null); handleAIWrite(); }}>
+                            <Text style={[styles.aiRetryTxt, { color: C.textSecondary }]}>다시 작성</Text>
+                          </Pressable>
+                          <Pressable style={({ pressed }) => [styles.aiRetryBtn, { borderColor: C.border, opacity: pressed ? 0.7 : 1 }]} onPress={() => setAiResult(null)}>
+                            <Text style={[styles.aiRetryTxt, { color: C.textMuted }]}>취소</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : (
+                      <Pressable
+                        style={({ pressed }) => [styles.aiWriteBtn, { backgroundColor: C.primaryAction, opacity: pressed || aiLoading ? 0.75 : 1 }]}
+                        onPress={handleAIWrite}
+                        disabled={aiLoading}
+                      >
+                        {aiLoading
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <><LucideIcon name="sparkles" size={14} color="#fff" /><Text style={styles.aiWriteTxt}>작성 요청</Text></>
+                        }
+                      </Pressable>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View style={styles.field}>
@@ -479,6 +588,24 @@ function NoticeCard({ n, expanded, onExpand, handleDelete, readStats, C, selecti
 }
 
 const styles = StyleSheet.create({
+  // AI 작성 보조 styles
+  aiToggleBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  aiToggleTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  aiPanel:       { borderRadius: 12, borderWidth: 1, padding: 14, gap: 10 },
+  aiHint:        { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 17 },
+  aiMemoInput:   { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, fontFamily: "Pretendard-Regular", minHeight: 60, textAlignVertical: "top" },
+  aiError:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  aiWriteBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10, paddingVertical: 10 },
+  aiWriteTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
+  aiResultBox:   { borderRadius: 10, borderWidth: 1, padding: 12, gap: 8 },
+  aiResultLabel: { fontSize: 11, fontFamily: "Pretendard-Regular", fontWeight: "600", letterSpacing: 0.4 },
+  aiResultTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  aiResultContent: { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
+  aiResultBtns:  { flexDirection: "row", gap: 8, marginTop: 4 },
+  aiApplyBtn:    { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
+  aiApplyTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
+  aiRetryBtn:    { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  aiRetryTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingBottom: 12 },
   title: { fontSize: 24, fontFamily: "Pretendard-Regular" },
   selBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },

@@ -7,8 +7,9 @@
  * route: /(parent)/growth-report-paid
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -16,10 +17,12 @@ import {
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
+import { apiRequest, useAuth } from "@/context/AuthContext";
+import { useParent } from "@/context/ParentContext";
 
 const C    = Colors.light;
 const NAVY = "#0C1A2E";
@@ -365,10 +368,42 @@ function PreflightSheet({
 // ─────────────────────────────────────────────────────────────
 
 export default function InsightReportHub() {
-  const insets = useSafeAreaInsets();
+  const insets   = useSafeAreaInsets();
+  const { token } = useAuth();
+  const { selectedStudent, students } = useParent();
+  const params = useLocalSearchParams<{ studentId?: string }>();
 
-  const readiness = FIXTURE_READINESS;
-  const reports   = FIXTURE_REPORTS;
+  // Resolve target student: param > selectedStudent > first child
+  const targetStudentId = params.studentId || selectedStudent?.id || students[0]?.id;
+
+  // ── 실제 readiness 상태 (수업 데이터 유무) ──
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [lessonDataReady,  setLessonDataReady]  = useState(false);
+  const [lessonDataCount,  setLessonDataCount]  = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!token || !targetStudentId) { setReadinessLoading(false); return; }
+    apiRequest(token, `/parent/students/${targetStudentId}/growth-report-status`)
+      .then(async r => {
+        if (!r.ok) return;
+        const d = await r.json();
+        // NOT_AVAILABLE = 수업 데이터 없음; 그 외 = 데이터 존재
+        const hasData = d.status && d.status !== "NOT_AVAILABLE";
+        setLessonDataReady(hasData);
+        // lesson_count if available in response
+        if (typeof d.lesson_count === "number") setLessonDataCount(d.lesson_count);
+      })
+      .catch(() => {})
+      .finally(() => setReadinessLoading(false));
+  }, [token, targetStudentId]);
+
+  // readiness: lesson_data from real API, rest from FIXTURE until PHASE 2/3
+  const readiness: InsightReadiness = {
+    ...FIXTURE_READINESS,
+    lessonDataReady,
+    lessonDataCount,
+  };
+  const reports = FIXTURE_REPORTS;
 
   const [showPreview,     setShowPreview]     = useState(false);
   const [showPreflight,   setShowPreflight]   = useState(false);
