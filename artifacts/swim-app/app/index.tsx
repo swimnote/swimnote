@@ -240,15 +240,41 @@ export default function LoginScreen() {
       if ((err as any)?.code === "E_CANCELLED_OPERATION") return;
 
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
-        router.push({
-          pathname: "/(auth)/signup",
-          params: {
-            kakaoId:         e.kakao_info.kakao_id    ?? "",
-            kakaoPhone:      e.kakao_info.phone        ?? "",
-            kakaoName:       e.kakao_info.name         ?? "",
-            kakaoPhoneMissing: e.kakao_info.phone_missing ? "1" : "0",
-          },
-        } as any); return;
+        // Phase 1: 즉시 signup 이동 금지.
+        // "기존 계정 연결" vs "새로 가입하기" 선택 제공
+        const kakaoParams = {
+          kakaoId:           e.kakao_info.kakao_id    ?? "",
+          kakaoPhone:        e.kakao_info.phone        ?? "",
+          kakaoName:         e.kakao_info.name         ?? "",
+          kakaoPhoneMissing: e.kakao_info.phone_missing ? "1" : "0",
+        };
+        Alert.alert(
+          "SWIMNOTE 계정 안내",
+          "카카오로 연결된 계정을 찾지 못했습니다.\n이미 수영장에 등록된 계정이 있으신가요?",
+          [
+            {
+              text: "기존 계정 연결",
+              onPress: () => router.push({
+                pathname: "/(auth)/kakao-link",
+                params: {
+                  kakaoId:           kakaoParams.kakaoId,
+                  kakaoProfileImage: e.kakao_info.profile_image ?? "",
+                  kakaoName:         kakaoParams.kakaoName,
+                },
+              } as any),
+            },
+            {
+              text: "새로 가입하기",
+              onPress: () => router.push({
+                pathname: "/(auth)/signup",
+                params: kakaoParams,
+              } as any),
+            },
+            { text: "취소", style: "cancel" },
+          ],
+          { cancelable: true }
+        );
+        return;
       }
       if (e.needs_activation && e.teacher_id) {
         router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
@@ -293,8 +319,12 @@ export default function LoginScreen() {
           default:                       return e.message || "카카오 로그인에 실패했습니다.";
         }
       })();
-      console.warn(`[KakaoLogin][ERR] traceId=${ktid} error_code=${e.error_code ?? "none"} msg=${errMsg}`);
-      setError(errMsg);
+      // Phase 1: raw e.message 노출 금지 — 항상 안전한 사용자 메시지 사용
+      const safeErrMsg = errMsg === e.message
+        ? "카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요."
+        : errMsg;
+      console.warn(`[KakaoLogin][ERR] traceId=${ktid} error_code=${e.error_code ?? "none"} sanitized_msg=${safeErrMsg}`);
+      setError(safeErrMsg);
     } finally { setKakaoLoading(false); }
   }
 
@@ -407,29 +437,31 @@ export default function LoginScreen() {
             <Text style={s.signupMainBtnText}>회원가입</Text>
           </Pressable>
 
-          {/* 소셜 아이콘 — 아이콘만, 중앙 배치 */}
-          <View style={s.socialIconRow}>
+          {/* 소셜 버튼 — 아이콘 + 텍스트 (Phase 1: "로그인/회원가입" 통합 레이블) */}
+          <View style={s.socialBtnCol}>
             {appleAvailable && (
               <Pressable
-                style={[s.socialIconBtn, s.appleIconBtn, (appleLoading || loading) && { opacity: 0.5 }]}
+                style={[s.socialFullBtn, s.appleFullBtn, (appleLoading || loading) && { opacity: 0.5 }]}
                 onPress={handleAppleLogin}
                 disabled={appleLoading || loading}
               >
                 {appleLoading
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <AppleIcon size={20} />
+                  : <AppleIcon size={18} />
                 }
+                <Text style={s.appleFullBtnText}>Apple로 로그인/회원가입</Text>
               </Pressable>
             )}
             <Pressable
-              style={[s.socialIconBtn, s.kakaoIconBtn, (kakaoLoading || loading) && { opacity: 0.5 }]}
+              style={[s.socialFullBtn, s.kakaoFullBtn, (kakaoLoading || loading) && { opacity: 0.5 }]}
               onPress={handleKakaoLogin}
               disabled={kakaoLoading || loading}
             >
               {kakaoLoading
                 ? <ActivityIndicator color="#3C1E1E" size="small" />
-                : <KakaoIcon size={22} />
+                : <KakaoIcon size={20} />
               }
+              <Text style={s.kakaoFullBtnText}>카카오로 로그인/회원가입</Text>
             </Pressable>
           </View>
         </View>
@@ -568,17 +600,23 @@ const s = StyleSheet.create({
   },
   signupMainBtnText: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0a2540" },
 
-  socialIconRow: {
-    flexDirection: "row", justifyContent: "center", gap: 16,
+  /* Phase 1: 소셜 버튼 full-width (아이콘 + 텍스트) */
+  socialBtnCol: { gap: 10 },
+  socialFullBtn: {
+    height: 52, borderRadius: 14,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3,
   },
-  socialIconBtn: {
-    width: 52, height: 52, borderRadius: 26,
-    alignItems: "center", justifyContent: "center",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2, shadowRadius: 6, elevation: 3,
-  },
-  appleIconBtn: { backgroundColor: "#000", shadowColor: "#000" },
-  kakaoIconBtn: { backgroundColor: KAKAO, shadowColor: KAKAO },
+  appleFullBtn:     { backgroundColor: "#000", shadowColor: "#000" },
+  appleFullBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  kakaoFullBtn:     { backgroundColor: KAKAO, shadowColor: KAKAO },
+  kakaoFullBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
+
+  /* 하위호환: icon-only 스타일 (더 이상 사용하지 않음, 안전하게 유지) */
+  socialIconRow: { flexDirection: "row", justifyContent: "center", gap: 16 },
+  socialIconBtn: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
+  appleIconBtn:  { backgroundColor: "#000" },
+  kakaoIconBtn:  { backgroundColor: KAKAO },
 
   /* 키보드 위 입력 미리보기 */
   inputBubble: {

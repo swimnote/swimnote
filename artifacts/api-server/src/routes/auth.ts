@@ -1986,9 +1986,11 @@ router.post("/kakao-social-login", async (req, res) => {
     }
 
     // 2) 전화번호로 기존 계정 매칭 후 kakao_id 연결
+    // Phase 1 fix: 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
     if (kakaoPhone) {
+      const kakaoPhoneHyphenP = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
       const byPhone = await db.execute(sql`
-        SELECT * FROM parent_accounts WHERE phone = ${kakaoPhone} LIMIT 1
+        SELECT * FROM parent_accounts WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP}) LIMIT 1
       `);
       if ((byPhone.rows as any[]).length > 0) {
         const account = byPhone.rows[0] as any;
@@ -2014,9 +2016,10 @@ router.post("/kakao-social-login", async (req, res) => {
       }
     }
 
-    // 3) users 테이블(선생님/코치) kakao_id로 조회
+    // 3) users 테이블(선생님/코치/서브관리자) kakao_id로 조회
+    // Phase 1 fix: sub_admin 포함 (pool_admin/teacher/sub_admin만 허용; super_admin/platform_admin/super_manager 제외)
     const byKakaoIdTeacher = await db.execute(sql`
-      SELECT * FROM users WHERE kakao_id = ${kakaoId} AND role IN ('teacher', 'pool_admin') LIMIT 1
+      SELECT * FROM users WHERE kakao_id = ${kakaoId} AND role IN ('teacher', 'pool_admin', 'sub_admin') LIMIT 1
     `);
     if ((byKakaoIdTeacher.rows as any[]).length > 0) {
       const u = byKakaoIdTeacher.rows[0] as any;
@@ -2048,10 +2051,12 @@ router.post("/kakao-social-login", async (req, res) => {
       });
     }
 
-    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결
+    // 4) users 테이블(선생님/코치/서브관리자) 전화번호로 조회 후 kakao_id 연결
+    // Phase 1 fix: sub_admin 포함 + 하이픈 형식 fallback
     if (kakaoPhone) {
+      const kakaoPhoneHyphen = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
       const byPhoneTeacher = await db.execute(sql`
-        SELECT * FROM users WHERE phone = ${kakaoPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+        SELECT * FROM users WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphen}) AND role IN ('teacher', 'pool_admin', 'sub_admin') LIMIT 1
       `);
       if ((byPhoneTeacher.rows as any[]).length > 0) {
         const u = byPhoneTeacher.rows[0] as any;
@@ -2113,9 +2118,11 @@ router.post("/kakao-link-teacher", async (req, res) => {
   if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
 
   const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  const cleanPhoneHyphen = cleanPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
   try {
+    // Phase 1 fix: sub_admin 포함 + 하이픈 형식 fallback
     const byPhone = await db.execute(sql`
-      SELECT * FROM users WHERE phone = ${cleanPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+      SELECT * FROM users WHERE (phone = ${cleanPhone} OR phone = ${cleanPhoneHyphen}) AND role IN ('teacher', 'pool_admin', 'sub_admin') LIMIT 1
     `);
     if ((byPhone.rows as any[]).length === 0) {
       return err(res, 404, "입력하신 전화번호로 등록된 선생님/코치 계정이 없습니다. 수영장 관리자에게 문의하세요.");
