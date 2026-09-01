@@ -211,3 +211,51 @@ export function getPlanByPlanId(planId: string): SubscriptionPlanDef | undefined
 export function getDisplayStorage(tier: string): string {
   return getPlanByTier(tier)?.display_storage ?? "";
 }
+
+/** WP3: max_members >= 999999 → "무제한" / 기타 숫자 그대로 */
+export function formatMemberLimit(max_members: number): string {
+  return max_members >= 999999 ? "무제한" : `최대 ${max_members.toLocaleString()}명`;
+}
+
+/** WP3: legacy Coach/Premier tier 판별 */
+const LEGACY_TIERS = new Set([
+  "free", "starter", "basic", "standard",
+  "center_200", "advance", "pro", "max",
+]);
+export function isLegacyTier(tier: string): boolean {
+  return LEGACY_TIERS.has(tier);
+}
+
+/** WP3: 신규 2.0 X plan 판별 */
+export const NEW_X_PLANS = ["x300", "x500", "x1000"] as const;
+export const NEW_2_PLANS = ["swimnote", ...NEW_X_PLANS] as const;
+
+/** WP3: DATA pack 정의 (add-on, 별도 purchase — WP4 연결) */
+export interface DataPackDef {
+  id: string;
+  name: string;
+  plus_gb: number;
+  price_monthly_krw: number;
+}
+export const DATA_PACKS: DataPackDef[] = [
+  { id: "data100", name: "DATA100", plus_gb: 100, price_monthly_krw: 7900 },
+  { id: "data300", name: "DATA300", plus_gb: 300, price_monthly_krw: 22900 },
+];
+
+/** WP3: active members 기준 X plan 추천 */
+export function recommendXPlanTier(activeMembers: number): "x300" | "x500" | "x1000" | "enterprise" {
+  if (activeMembers <= 300) return "x300";
+  if (activeMembers <= 500) return "x500";
+  if (activeMembers <= 1000) return "x1000";
+  return "enterprise";
+}
+
+/** WP3: storage 경고 레벨 */
+export function storageWarningLevel(usedMb: number, limitMb: number): "normal" | "warning" | "critical" | "full" {
+  if (limitMb <= 0) return "normal";
+  const pct = (usedMb / limitMb) * 100;
+  if (pct >= 100) return "full";
+  if (pct >= 90) return "critical";
+  if (pct >= 80) return "warning";
+  return "normal";
+}

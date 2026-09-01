@@ -103,6 +103,7 @@ type PurchasePhase =
   | "SYNC_FAILED"
   | "PURCHASED_X_PENDING"
   | "X_ACTIVE"
+  | "X_TRIAL_ACTIVE"    // WP3: 3일 무료체험 진행 중
   | "PRODUCT_NOT_AVAILABLE";
 
 interface SlotInfo {
@@ -189,6 +190,8 @@ export default function XSubscriptionScreen() {
       setPhase("X_ACTIVE");
     } else if (mode === "x_pending") {
       setPhase("PURCHASED_X_PENDING");
+    } else if (mode === "x_trial") {
+      setPhase("X_TRIAL_ACTIVE"); // WP3
     }
     // normal/null → IDLE 유지
   }, [mode]);
@@ -514,6 +517,17 @@ export default function XSubscriptionScreen() {
             isPoolAdmin={isPoolAdmin}
             onManage={handleManageSubscription}
             onRestore={handleRestore}
+          />
+        )}
+
+        {/* ── X_TRIAL_ACTIVE ───────────────────────────────────────────────── */}
+        {phase === "X_TRIAL_ACTIVE" && (
+          <TrialActiveView
+            mode={mode}
+            onGoSubscribe={() => {
+              // Trial → X 정식 구독 전환을 위해 IDLE로 진입
+              setPhase("IDLE");
+            }}
           />
         )}
 
@@ -992,6 +1006,79 @@ function ActiveView({
           </Pressable>
         )}
       </View>
+    </View>
+  );
+}
+
+// ── WP3: Trial Active 뷰 ──────────────────────────────────────────────────────
+function TrialActiveView({
+  mode,
+  onGoSubscribe,
+}: {
+  mode: string | null;
+  onGoSubscribe: () => void;
+}) {
+  return (
+    <View style={{ gap: 16 }}>
+      {/* 체험 진행 중 상태 카드 */}
+      <View style={[s.card, { backgroundColor: "#EFF6FF", padding: 0, overflow: "hidden" }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderBottomWidth: 1, borderBottomColor: "#BFDBFE" }}>
+          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#DBEAFE", alignItems: "center", justifyContent: "center" }}>
+            <LucideIcon name="zap" size={22} color={X_ACCENT} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: "#1E3A5F" }}>
+              X AI 기능 무료체험 중
+            </Text>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#60A5FA", marginTop: 2 }}>
+              3일 무료체험 · 자동결제 없음
+            </Text>
+          </View>
+          <View style={{ backgroundColor: "#DBEAFE", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "#93C5FD" }}>
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#1E40AF" }}>체험 중</Text>
+          </View>
+        </View>
+        <View style={{ padding: 14, gap: 8 }}>
+          <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 }}>
+            현재 체험 중인 기능: AI 일지 작성 지원, 학부모 AI 피드
+          </Text>
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#6B7280", lineHeight: 18 }}>
+            체험에 포함되지 않는 기능: 센터 맞춤 커리큘럼 설정, 성장 리포트, X 전용 분석 기능
+          </Text>
+        </View>
+      </View>
+
+      {/* X 정식 구독 안내 */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>SWIMNOTE X 정식 구독으로 모든 기능 이용</Text>
+        <View style={[s.card, { backgroundColor: C.card }]}>
+          <View style={[s.xHeader, { backgroundColor: X_LIGHT }]}>
+            <View style={s.xBadge}>
+              <Text style={s.xBadgeText}>X</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.xTitle, { color: X_ACCENT }]}>SWIMNOTE X</Text>
+              <Text style={s.xSubtitle}>체험 종료 후에도 계속 이용</Text>
+            </View>
+          </View>
+          <View style={{ padding: 14, gap: 10 }}>
+            {X_FEATURES.map((f, i) => (
+              <View key={i} style={s.featureRow}>
+                <LucideIcon name="check" size={14} color={X_ACCENT} />
+                <Text style={s.featureText}>{f}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* 구독 신청 버튼 */}
+      <Pressable
+        style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
+        onPress={onGoSubscribe}
+      >
+        <Text style={s.ctaBtnText}>X 정식 구독 신청하기</Text>
+      </Pressable>
     </View>
   );
 }
