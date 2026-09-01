@@ -130,8 +130,8 @@ describe("formatFranchiseNumber — §8", () => {
 // MODE-1/2 — computeMode + resolveEffectiveXEntitlement
 // ══════════════════════════════════════════════════════════════════════════════
 describe("MODE — computeMode / resolveEffectiveXEntitlement (P0)", () => {
-  it("MODE-1: paid=true + config NOT_CONFIGURED → x (P0: paid always x)", () => {
-    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
+  it("MODE-1: paid=true + config NOT_CONFIGURED → x_pending (WP2B CORRECTION: paid requires READY config)", () => {
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
   });
 
   it("MODE-2: paid=true + config READY → x", () => {

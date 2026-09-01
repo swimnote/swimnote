@@ -43,8 +43,8 @@ describe("A. computeMode — canonical X MODE rule (P0)", () => {
     expect(computeMode({ ...noEnt, xmode_config_status: "READY" })).toBe("normal");
   });
 
-  it("A-2: paid=true + config NOT_CONFIGURED → mode='x' (P0: paid always x)", () => {
-    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
+  it("A-2: paid=true + config NOT_CONFIGURED → mode='x_pending' (WP2B CORRECTION: paid requires READY config)", () => {
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
   });
 
   it("A-3: manual=true + config CURRICULUM_PENDING → mode='x_pending'", () => {
@@ -56,14 +56,15 @@ describe("A. computeMode — canonical X MODE rule (P0)", () => {
     expect(computeMode({ x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" })).toBe("x");
   });
 
-  it("A-5: P0 조합 테이블 — paid+not_force → x; manual+READY+not_force → x; force → normal", () => {
+  it("A-5: LOCKED MASTER DESIGN 조합 테이블 — paid+READY → x; paid+NOT_CONFIGURED → x_pending; force → normal", () => {
     type Case = { paid: boolean; manual: boolean; force: boolean; config: XModeStatus; expected: "normal" | "x_pending" | "x" };
     const cases: Case[] = [
       { paid: false, manual: false, force: false, config: "NOT_CONFIGURED",     expected: "normal"    },
       { paid: false, manual: false, force: false, config: "CURRICULUM_PENDING", expected: "normal"    },
       { paid: false, manual: false, force: false, config: "READY",              expected: "normal"    },
-      { paid: true,  manual: false, force: false, config: "NOT_CONFIGURED",     expected: "x"         },
-      { paid: true,  manual: false, force: false, config: "CURRICULUM_PENDING", expected: "x"         },
+      // WP2B CORRECTION: paid requires READY (same as manual)
+      { paid: true,  manual: false, force: false, config: "NOT_CONFIGURED",     expected: "x_pending" },
+      { paid: true,  manual: false, force: false, config: "CURRICULUM_PENDING", expected: "x_pending" },
       { paid: true,  manual: false, force: false, config: "READY",              expected: "x"         },
       { paid: false, manual: true,  force: false, config: "NOT_CONFIGURED",     expected: "x_pending" },
       { paid: false, manual: true,  force: false, config: "CURRICULUM_PENDING", expected: "x_pending" },
@@ -127,13 +128,15 @@ describe("B. resolveEffectiveXEntitlement — X02-B2 CASE A~H", () => {
     })).toBe(false);
   });
 
-  // CASE G: paid=true, manual=false, config!=READY → x (P0: paid always x)
-  it("CASE G: paid=true, config NOT_CONFIGURED → effective=true, mode=x (P0: paid always x)", () => {
+  // CASE G: paid=true, manual=false, config!=READY → x_pending (WP2B CORRECTION: paid requires READY)
+  it("CASE G: paid=true, config NOT_CONFIGURED → effective=true, mode=x_pending (WP2B CORRECTION)", () => {
     const eff = resolveEffectiveXEntitlement({
       x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false,
     });
     expect(eff).toBe(true);
-    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x");
+    // resolveEffectiveXEntitlement은 여전히 true — 결제 이력은 있음
+    // computeMode는 config 상태 확인: NOT_CONFIGURED → x_pending
+    expect(computeMode({ x_paid_entitlement: true, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" })).toBe("x_pending");
   });
 
   // CASE H: paid=false, manual=true, config!=READY → x_pending (manual path unchanged)
@@ -260,13 +263,26 @@ describe("D. pools-summary filter=xmode SQL 조건 (P0 rule)", () => {
     expect(xmodeFilter({ x_paid_entitlement: null, x_manual_entitlement: null, xmode_config_status: "READY" })).toBe(false);
   });
 
-  it("D-7: computeMode === 'x' ↔ xmodeFilter 일치 (P0)", () => {
+  it("D-7: computeMode === 'x' ↔ xmodeFilter 일치 (WP2B CORRECTION: paid+READY → x, paid+NOT_CONFIGURED → x_pending)", () => {
+    // WP2B CORRECTION: xmodeFilter도 paid에 READY 조건 적용해야 computeMode=x와 일치
+    function xmodeFilterCorrected(pool: {
+      x_paid_entitlement?: boolean | null;
+      x_manual_entitlement?: boolean | null;
+      x_force_disabled?: boolean | null;
+      xmode_config_status: string | null;
+    }): boolean {
+      const paid   = pool.x_paid_entitlement   ?? false;
+      const manual = pool.x_manual_entitlement ?? false;
+      const force  = pool.x_force_disabled     ?? false;
+      // LOCKED: paid+READY → x; manual+READY → x; otherwise → x_pending
+      return !force && ((paid || manual) && pool.xmode_config_status === "READY");
+    }
     const pools = [
-      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },
-      { x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" },
-      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" },
-      { x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },
-      { x_paid_entitlement: true,  x_manual_entitlement: true,  x_force_disabled: true,  xmode_config_status: "READY" },
+      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },          // x
+      { x_paid_entitlement: false, x_manual_entitlement: true,  x_force_disabled: false, xmode_config_status: "READY" },          // x
+      { x_paid_entitlement: true,  x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "NOT_CONFIGURED" }, // x_pending
+      { x_paid_entitlement: false, x_manual_entitlement: false, x_force_disabled: false, xmode_config_status: "READY" },          // normal
+      { x_paid_entitlement: true,  x_manual_entitlement: true,  x_force_disabled: true,  xmode_config_status: "READY" },          // normal
     ];
     for (const p of pools) {
       const paid   = p.x_paid_entitlement   ?? false;
@@ -278,7 +294,7 @@ describe("D. pools-summary filter=xmode SQL 조건 (P0 rule)", () => {
         x_force_disabled:     force,
         xmode_config_status:  p.xmode_config_status as XModeStatus,
       }) === "x";
-      const inFilter = xmodeFilter(p);
+      const inFilter = xmodeFilterCorrected(p);
       expect(isX, `xmodeFilter vs computeMode mismatch for ${JSON.stringify(p)}`).toBe(inFilter);
     }
   });

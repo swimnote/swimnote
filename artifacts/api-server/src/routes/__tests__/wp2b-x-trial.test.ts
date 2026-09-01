@@ -179,14 +179,26 @@ describe("CASE F+G — XModeGuard x_trial permission logic", () => {
 
 // ── CASE H — paid X center: activate 거부 ─────────────────────────────────
 describe("CASE H — paid X center blocked from trial", () => {
-  it("H1 x_paid_entitlement=true → computeMode returns x (not x_trial even with trial dates)", () => {
+  it("H1 x_paid_entitlement=true+READY → computeMode returns x (not x_trial even with trial dates)", () => {
     const pool = makePool({
-      x_paid_entitlement: true,
-      x_trial_started_at: pastIso(1000),
-      x_trial_ends_at:    futureIso(72 * 60 * 60 * 1000),
+      x_paid_entitlement:  true,
+      xmode_config_status: "READY",
+      x_trial_started_at:  pastIso(1000),
+      x_trial_ends_at:     futureIso(72 * 60 * 60 * 1000),
     });
-    // paid takes priority over trial
+    // paid+READY takes priority over trial → "x" (NOT x_trial)
     expect(computeMode(pool)).toBe<PoolMode>("x");
+  });
+
+  it("H1b x_paid_entitlement=true+NOT_CONFIGURED+trial dates → x_pending (trial never reached)", () => {
+    const pool = makePool({
+      x_paid_entitlement:  true,
+      xmode_config_status: "NOT_CONFIGURED",
+      x_trial_started_at:  pastIso(1000),
+      x_trial_ends_at:     futureIso(72 * 60 * 60 * 1000),
+    });
+    // paid overrides trial, but config NOT_CONFIGURED → x_pending (NOT x_trial, NOT x)
+    expect(computeMode(pool)).toBe<PoolMode>("x_pending");
   });
 
   it("H2 paid center → trial endpoint blocks with TRIAL_NOT_AVAILABLE_FOR_PAID_X", () => {
@@ -277,12 +289,12 @@ describe("CASE M — x_pending center: no override", () => {
     expect(computeMode(pool)).toBe<PoolMode>("x_pending");
   });
 
-  it("M2 x_paid=true + NOT_CONFIGURED → computeMode=x (paid always x per P0 policy)", () => {
+  it("M2 x_paid=true + NOT_CONFIGURED → computeMode=x_pending (WP2B CORRECTION: paid requires READY config)", () => {
     const pool = makePool({
       x_paid_entitlement:  true,
       xmode_config_status: "NOT_CONFIGURED",
     });
-    expect(computeMode(pool)).toBe<PoolMode>("x"); // P0: paid → always x
+    expect(computeMode(pool)).toBe<PoolMode>("x_pending"); // LOCKED: paid+NOT_CONFIGURED → x_pending
   });
 });
 
@@ -345,13 +357,26 @@ describe("Mode Priority — force_disabled > paid > manual > trial > normal", ()
     expect(computeMode(pool)).toBe<PoolMode>("normal");
   });
 
-  it("P2 paid overrides trial (trial dates present, paid=true → x)", () => {
+  it("P2 paid overrides trial — paid+READY → x (NOT x_trial)", () => {
     const pool = makePool({
       x_paid_entitlement:  true,
+      xmode_config_status: "READY",
       x_trial_started_at:  pastIso(1000),
       x_trial_ends_at:     futureIso(72 * 60 * 60 * 1000),
     });
+    // paid+READY takes priority over trial → "x"
     expect(computeMode(pool)).toBe<PoolMode>("x");
+  });
+
+  it("P2b paid+NOT_CONFIGURED overrides trial → x_pending (NOT x_trial)", () => {
+    const pool = makePool({
+      x_paid_entitlement:  true,
+      xmode_config_status: "NOT_CONFIGURED",
+      x_trial_started_at:  pastIso(1000),
+      x_trial_ends_at:     futureIso(72 * 60 * 60 * 1000),
+    });
+    // paid+NOT_CONFIGURED → x_pending (setup required); trial branch never reached
+    expect(computeMode(pool)).toBe<PoolMode>("x_pending");
   });
 
   it("P3 manual overrides trial (trial active, manual=true → x or x_pending)", () => {
