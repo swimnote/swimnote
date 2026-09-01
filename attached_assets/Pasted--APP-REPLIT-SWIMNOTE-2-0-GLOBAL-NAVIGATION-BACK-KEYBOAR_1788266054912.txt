@@ -1,0 +1,918 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL NAVIGATION / BACK / KEYBOARD / SCROLL RULE RE-ENFORCEMENT
+# BEFORE STORE CONNECTION
+
+현재 SWIMNOTE 2.0에서
+기존에 확정했던 전역 UI 규칙이
+일부 신규 기능에 적용되지 않은 문제가 발견되었습니다.
+
+이번 작업은 개별 화면 1~2개 수정이 아니라
+
+1. 뒤로가기 규칙
+2. 키보드 표시/해제 규칙
+3. Keyboard Avoiding 규칙
+4. Scroll 하단 여유 규칙
+5. 신규 기능 전체의 규칙 누락 감사
+
+를 다시 전역 기준으로 적용하는 작업입니다.
+
+가격/RevenueCat/Store 연결 작업은
+이번 UI 전역 규칙 보정 완료 후 진행합니다.
+
+==================================================
+0. LOCKED GLOBAL UI RULES
+==================================================
+
+아래 규칙은 SWIMNOTE 2.0 전역 고정 규칙입니다.
+
+--------------------------------
+A. BACK RULE
+--------------------------------
+
+뒤로가기는 항상:
+
+"직전 화면"
+
+으로만 복귀합니다.
+
+금지:
+
+뒤로가기
+→ 홈 강제 이동
+
+뒤로가기
+→ 임의의 상위 탭 이동
+
+뒤로가기
+→ router.replace("/home")
+
+뒤로가기
+→ 특정 홈 route 하드코딩
+
+홈은:
+
+홈 버튼 / 홈 탭
+
+으로만 이동합니다.
+
+--------------------------------
+B. WORKFLOW RETURN RULE
+--------------------------------
+
+사용자가 어떤 화면에서
+다른 화면으로 들어갔다면:
+
+A → B
+
+뒤로가기:
+
+B → A
+
+가 되어야 합니다.
+
+예:
+
+설정
+→ SWIMNOTE X모드
+→ 뒤로가기
+
+Expected:
+
+설정
+
+홈:
+NO
+
+--------------------------------
+C. SHEET / MODAL RULE
+--------------------------------
+
+실무 작업:
+
+- 출결
+- 결석
+- 반 이동
+- 일지 작성
+- 기타 간단 입력/처리
+
+는 가능하면
+page navigation보다 sheet/popup 우선.
+
+Modal nesting 금지.
+
+동시에 modal 1개만.
+
+Modal/Sheet 닫을 때:
+
+Keyboard.dismiss()
+
+필요한 local state 초기화.
+
+--------------------------------
+D. KEYBOARD RULE
+--------------------------------
+
+키보드는:
+
+사용자가 실제 text input을
+focus했을 때만 표시.
+
+다음 상황에서 키보드가 자동으로 떠 있으면 안 됨:
+
+- 화면 진입 직후
+- 목록 탐색 중
+- 검색 결과 스크롤 중
+- 상세 내용 보는 중
+- 버튼 누른 후 결과 화면
+- modal 닫힌 후
+- 화면 복귀 후
+
+TextInput focus가 없으면
+키보드가 보이지 않는 상태가 기본.
+
+--------------------------------
+E. KEYBOARD DISMISS RULE
+--------------------------------
+
+다음 동작 시 Keyboard.dismiss 적용 검토:
+
+- 목록 영역 tap
+- scroll 시작
+- 검색 실행
+- 결과 선택
+- modal/sheet 닫기
+- 뒤로가기
+- route 이동
+- 완료/저장
+- 검색 결과 표시
+
+단 사용자가 실제로
+입력 중인 경우 불필요하게 dismiss하지 않음.
+
+--------------------------------
+F. KEYBOARD AVOIDING RULE
+--------------------------------
+
+모든 입력 화면은
+keyboard avoiding 적용.
+
+키보드가 올라왔을 때:
+
+- TextInput
+- 전송 버튼
+- 저장 버튼
+- 검색 결과
+- 목록 마지막 item
+- 하단 CTA
+
+가 가려지면 안 됨.
+
+iOS Safe Area 포함.
+
+--------------------------------
+G. SCROLL BOTTOM SPACE RULE
+--------------------------------
+
+ScrollView / FlatList / SectionList 등
+스크롤 가능한 화면은
+
+마지막 콘텐츠가
+키보드/하단 탭/Safe Area/CTA에
+가려지지 않도록 충분한 bottom space 확보.
+
+특히:
+
+contentContainerStyle
+paddingBottom
+keyboardVerticalOffset
+safeAreaInsets.bottom
+
+등 현재 공통 구현 방식 사용.
+
+임의 숫자 하드코딩을 화면마다 제각각 넣지 말고
+기존 공통 규칙/helper가 있으면 재사용.
+
+==================================================
+1. 현재 발견된 BACK BUG
+==================================================
+
+현재 실기기에서:
+
+설정
+→ SWIMNOTE X모드
+→ 뒤로가기
+
+하면:
+
+홈
+
+으로 이동하는 문제가 있음.
+
+Expected:
+
+설정
+→ SWIMNOTE X모드
+→ 뒤로가기
+→ 설정
+
+반드시 수정.
+
+==================================================
+2. BACK BUTTON FULL AUDIT
+==================================================
+
+SWIMNOTE 2.0 repository 전체에서
+뒤로가기 관련 코드 감사.
+
+검색 대상 예:
+
+router.back
+router.replace
+router.push
+navigation.goBack
+canGoBack
+back
+headerLeft
+BackButton
+onPress
+home route
+/(admin)
+/(admin)/index
+/(teacher)
+/tabs
+
+특히:
+
+뒤로가기 handler에서
+home route를 하드코딩한 곳을 전부 조사.
+
+각 occurrence를 분류:
+
+A. 정상 router.back / goBack
+B. fallback이 필요한 경우
+C. 잘못된 home 강제 이동
+D. intentional home button
+E. login/onboarding 특수 flow
+
+C는 전부 수정.
+
+==================================================
+3. BACK FALLBACK RULE
+==================================================
+
+기본:
+
+if navigation can go back
+→ goBack / router.back
+
+만 사용.
+
+정말 history가 없는 경우에만
+해당 기능의 "논리적 부모 화면"을 fallback으로 사용.
+
+홈을 universal fallback으로 사용 금지.
+
+예:
+
+X Mode Hub logical parent:
+Settings
+
+Subscription logical parent:
+직전 진입화면 또는 Settings
+
+Curriculum Search logical parent:
+직전 X/Parent 화면
+
+==================================================
+4. HOME BUTTON과 BACK 분리
+==================================================
+
+홈 아이콘/홈 탭:
+
+홈 이동 가능.
+
+뒤로가기:
+
+홈 이동 금지.
+
+두 액션의 handler를 공유하지 마십시오.
+
+==================================================
+5. 신규 기능 전수 감사
+==================================================
+
+특히 최근 추가된 2.0 기능 전부 확인:
+
+- SWIMNOTE X mode hub
+- X settings
+- subscription
+- X trial
+- x_pending
+- subscription_required
+- curriculum search
+- parent curriculum
+- AI 관련 신규 화면
+- growth report 관련 신규 화면
+- 신규 settings screen
+- 신규 modal/sheet
+- 신규 search screen
+
+뒤로가기 규칙 누락 여부 전수 확인.
+
+==================================================
+6. CURRICULUM SEARCH BUG
+==================================================
+
+현재 문제:
+
+커리큘럼 검색에서
+검색 결과 목록이 많을 경우
+
+하단 결과가
+키보드 때문에 가려짐.
+
+Expected:
+
+키보드가 올라와도
+결과 목록 전체를 끝까지 스크롤 가능.
+
+마지막 item 아래에도
+충분한 scroll 여유 존재.
+
+==================================================
+7. CURRICULUM SEARCH KEYBOARD RULE
+==================================================
+
+커리큘럼 검색 화면에서:
+
+화면 진입:
+키보드 자동 표시 금지
+
+검색어 입력창 tap:
+키보드 표시
+
+검색 실행:
+Keyboard.dismiss()
+
+결과 목록 표시:
+키보드 기본 숨김
+
+결과 목록 scroll:
+Keyboard.dismiss()
+
+결과 item 선택:
+Keyboard.dismiss()
+
+화면 뒤로가기:
+Keyboard.dismiss()
+
+즉:
+
+"채팅창/검색창에 실제 글을 입력할 때"
+
+외에는
+키보드가 계속 떠 있지 않도록 수정.
+
+==================================================
+8. CURRICULUM SEARCH SCROLL RULE
+==================================================
+
+검색 결과 목록은
+keyboard + safe area + bottom navigation을 고려.
+
+반드시:
+
+- 마지막 item까지 스크롤 가능
+- 마지막 item이 keyboard 위에 숨지 않음
+- keyboard open 상태에서도 scroll 가능
+- keyboard dismiss 후 layout 정상 복구
+- 결과가 많아도 scroll 끝까지 이동 가능
+
+FlatList 사용 시:
+
+contentContainerStyle bottom padding
+
+keyboardDismissMode
+keyboardShouldPersistTaps
+
+적절히 설정.
+
+ScrollView 사용 시 동일 의미 보장.
+
+==================================================
+9. CHAT / SEARCH INPUT GLOBAL AUDIT
+==================================================
+
+커리큘럼 검색뿐 아니라
+TextInput + Scroll 조합이 있는 신규 화면 전부 조사.
+
+검색 키워드 예:
+
+TextInput
+KeyboardAvoidingView
+ScrollView
+FlatList
+SectionList
+keyboardDismissMode
+keyboardShouldPersistTaps
+Keyboard.dismiss
+useSafeAreaInsets
+
+다음 유형 전부 확인:
+
+- AI 채팅
+- 검색
+- 커리큘럼 검색
+- 학부모 검색
+- 일지 입력
+- AI prompt 입력
+- 요청 입력
+- 댓글/메시지 입력
+- 설정 text input
+- 기타 신규 2.0 입력 UI
+
+==================================================
+10. KEYBOARD AUTOFOCUS AUDIT
+==================================================
+
+신규 화면에서:
+
+autoFocus={true}
+
+또는 mount 직후 focus()
+
+하는 코드 전수 조사.
+
+정말 입력 즉시 필요한 화면이 아니면 제거.
+
+기본 정책:
+
+화면 진입
+→ keyboard hidden
+
+사용자가 input tap
+→ keyboard visible
+
+==================================================
+11. SCROLL RULE GLOBAL APPLICATION
+==================================================
+
+신규 기능에서
+scroll bottom이 부족한 화면 전부 수정.
+
+다음 상황 확인:
+
+- keyboard open
+- keyboard closed
+- bottom tab 있음
+- bottom tab 없음
+- Safe Area 큰 iPhone
+- 작은 iPhone
+- 결과 1개
+- 결과 50개+
+- 긴 텍스트 item
+
+모두 마지막 콘텐츠가 가려지지 않아야 함.
+
+==================================================
+12. KEYBOARD DISMISS ON SCROLL
+==================================================
+
+검색/목록 화면 기본:
+
+keyboardDismissMode:
+on-drag / interactive
+
+현재 앱 공통 구현에 맞게 사용.
+
+목표:
+
+사용자가 결과 목록을 보기 위해
+스크롤을 시작하면
+키보드가 자연스럽게 내려감.
+
+==================================================
+13. keyboardShouldPersistTaps
+==================================================
+
+목록 item을 누르기 위해
+첫 tap이 keyboard dismiss에만 소비되어
+두 번 눌러야 하는 UX 금지.
+
+적절한:
+
+keyboardShouldPersistTaps="handled"
+
+또는 현재 공통 규칙 사용.
+
+사용자 tap 1회로
+결과 item 선택 가능해야 함.
+
+==================================================
+14. COMMON COMPONENT 검토
+==================================================
+
+현재 앱에 이미:
+
+- 공통 BackButton
+- 공통 Screen header
+- 공통 KeyboardAvoiding wrapper
+- 공통 Scroll screen
+- 공통 Sheet
+- 공통 Search input
+
+이 있으면 우선 재사용.
+
+같은 규칙을 화면별로 복붙하지 마십시오.
+
+만약 신규 2.0 기능들이
+공통 component를 우회하고 있다면
+가능한 최소 범위에서 공통 component 사용으로 정리.
+
+대규모 rewrite 금지.
+
+==================================================
+15. SETTINGS → X MODE TEST
+==================================================
+
+CASE A
+
+Settings
+→ X Mode
+→ Back
+
+Expected:
+Settings
+
+CASE B
+
+Settings
+→ Subscription
+→ Back
+
+Expected:
+Settings
+
+CASE C
+
+X Mode
+→ Subscription
+→ Back
+
+Expected:
+X Mode
+
+CASE D
+
+X Mode
+→ 상세 기능
+→ Back
+
+Expected:
+X Mode
+
+홈으로 이동:
+FAIL
+
+==================================================
+16. CURRICULUM SEARCH TEST
+==================================================
+
+CASE E
+
+Curriculum Search 진입
+
+Expected:
+keyboard hidden
+
+CASE F
+
+Input tap
+
+Expected:
+keyboard visible
+
+CASE G
+
+검색 실행
+
+Expected:
+keyboard dismiss
+results visible
+
+CASE H
+
+results 50+
+
+Expected:
+마지막 item까지 scroll 가능
+
+CASE I
+
+keyboard open 상태에서 scroll
+
+Expected:
+keyboard dismiss
+scroll 계속 정상
+
+CASE J
+
+result item tap
+
+Expected:
+한 번 tap으로 정상 선택
+
+CASE K
+
+back
+
+Expected:
+keyboard dismiss
+previous screen으로 복귀
+
+==================================================
+17. GLOBAL BACK TEST
+==================================================
+
+최근 추가된 route 전수 자동/정적 검사.
+
+Expected:
+
+back handler가
+home route를 hardcode한 신규 2.0 화면:
+0개
+
+단 의도적 HomeButton 제외.
+
+완료보고에
+예외 목록 제출.
+
+==================================================
+18. GLOBAL INPUT/SCROLL TEST
+==================================================
+
+신규 2.0 입력화면 전수 검사.
+
+Expected:
+
+KeyboardAvoiding 누락:
+0개 또는 명시된 예외만
+
+autoFocus 불필요 사용:
+0개
+
+keyboard 때문에 마지막 list item 가림:
+0개
+
+scroll 시작 후 keyboard 계속 고정:
+0개
+
+==================================================
+19. 가격 / 결제 코드 변경 금지
+==================================================
+
+이번 작업은 UI global behavior correction만.
+
+수정 금지:
+
+- SWIMNOTE 9,900
+- X300 129,000
+- X500 199,000
+- X1000 359,000
+- DATA100 7,900
+- DATA300 22,900
+- RevenueCat
+- App Store products
+- Google Play products
+- subscription product logic
+- X plan logic
+
+현재 결제 UX 구조 그대로 보존.
+
+==================================================
+20. PRODUCTION 금지
+==================================================
+
+release/v2.0.0 코드/테스트까지만.
+
+금지:
+
+- 1.6.3 수정
+- Android OTA
+- Production OTA
+- Render 변경
+- Production DB 변경
+- RevenueCat 변경
+- App Store 상품 변경
+- Google Play 변경
+
+완료 후 사용자 승인 전
+2.0 iOS OTA도 발행하지 마십시오.
+
+==================================================
+21. 테스트
+==================================================
+
+기존 regression 포함.
+
+최소:
+
+A~D Back tests
+E~K Curriculum tests
+Global Back Audit
+Global Input/Scroll Audit
+
+추가로 기존:
+
+subscription tests
+social login tests
+navigation tests
+
+회귀 확인.
+
+==================================================
+22. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# GLOBAL BACK / KEYBOARD / SCROLL CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## BACK RULE AUDIT
+
+Routes audited:
+...
+
+Hardcoded home-back occurrences found:
+...
+
+Fixed:
+...
+
+Remaining intentional exceptions:
+...
+
+## SETTINGS -> X MODE
+
+Before:
+...
+
+After:
+...
+
+Back destination:
+...
+
+PASS / FAIL
+
+## SUBSCRIPTION BACK
+
+Settings -> Subscription -> Back:
+...
+
+X Mode -> Subscription -> Back:
+...
+
+PASS / FAIL
+
+## GLOBAL BACK RULE
+
+Previous-screen-only:
+PASS / FAIL
+
+Home forced by Back:
+YES / NO
+
+Expected:
+NO
+
+## CURRICULUM SEARCH
+
+Keyboard on entry:
+VISIBLE / HIDDEN
+
+Expected:
+HIDDEN
+
+Keyboard on input focus:
+PASS / FAIL
+
+Keyboard after search:
+PASS / FAIL
+
+Keyboard dismiss on scroll:
+PASS / FAIL
+
+Last result fully scrollable:
+PASS / FAIL
+
+Bottom spacing:
+...
+
+Single-tap result selection:
+PASS / FAIL
+
+## INPUT SCREEN AUDIT
+
+Screens audited:
+...
+
+KeyboardAvoiding missing:
+...
+
+autoFocus issues:
+...
+
+Scroll bottom issues:
+...
+
+Fixed:
+...
+
+Remaining exceptions:
+...
+
+## COMMON COMPONENTS
+
+Back component reused:
+...
+
+Keyboard wrapper reused:
+...
+
+Scroll rule reused:
+...
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+Global Back Audit:
+PASS / FAIL
+
+Global Input/Scroll Audit:
+PASS / FAIL
+
+Regression:
+PASS / FAIL
+
+## PRICING / SUBSCRIPTION
+
+Changed:
+YES / NO
+
+Expected:
+NO
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+FINAL:
+
+SWIMNOTE 2.0 GLOBAL NAVIGATION / KEYBOARD / SCROLL RULES RESTORED
+or
+BLOCKED
