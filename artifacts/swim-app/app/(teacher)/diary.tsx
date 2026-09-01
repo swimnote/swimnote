@@ -1682,10 +1682,10 @@ export default function TeacherDiaryScreen() {
         <ConfirmModal
           visible={showVideoGateModal}
           title="영상 업로드 불가"
-          message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
-          confirmText="플랜 업그레이드"
+          message="저장공간이 부족하거나 업로드 제한에 도달했습니다. 구독 관리에서 확인해주세요."
+          confirmText="구독 관리"
           cancelText="닫기"
-          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/subscription" as any); }}
           onCancel={() => setShowVideoGateModal(false)}
         />
         <AlbumPickerModal

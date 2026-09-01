@@ -78,10 +78,9 @@ function getTierDetail(tier: string, memberLimit: number, displayStorage: string
     { icon: <LucideIcon name="book-open" size={iconSize} color={checkColor} />, label: "수업 일지",          included: !isFree },
     { icon: <LucideIcon name="user" size={iconSize} color={!isFree ? checkColor : dimColor} />, label: "학부모 연동",  included: !isFree },
     {
-      icon: <LucideIcon name="video" size={iconSize} color={isCenter ? checkColor : dimColor} />,
+      icon: <LucideIcon name="video" size={iconSize} color={!isFree ? checkColor : dimColor} />,
       label: "영상 업로드",
-      included: isCenter,
-      note: isCenter ? undefined : "Premier 전용",
+      included: !isFree, // WP2A: 모든 유료 플랜 영상 사용 가능 (Premier 전용 문구 제거)
     },
     {
       icon: <LucideIcon name="palette" size={iconSize} color={isCenter ? checkColor : dimColor} />,

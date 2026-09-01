@@ -489,9 +489,9 @@ export default function TeacherPhotosScreen() {
       color: string; bg: string; isPremier: boolean;
     }[] = [
       { key: "photo_upload",   mt: "photo", sc: "group",   icon: "camera",  title: "전체사진 업로드", sub: "전체 학생에게 공유",  color: "#B45309", bg: "#FEF3C7", isPremier: false },
-      { key: "video_upload",   mt: "video", sc: "group",   icon: "video",   title: "전체영상 업로드", sub: "전체 학생에게 공유",  color: "#0F766E", bg: "#CCFBF1", isPremier: true  },
+      { key: "video_upload",   mt: "video", sc: "group",   icon: "video",   title: "전체영상 업로드", sub: "전체 학생에게 공유",  color: "#0F766E", bg: "#CCFBF1", isPremier: false },
       { key: "photo_album",    mt: "photo", sc: "private", icon: "image",   title: "내사진앨범",     sub: "내가 올린 개인 사진", color: "#C2410C", bg: "#FFEDD5", isPremier: false },
-      { key: "video_album",    mt: "video", sc: "private", icon: "video",   title: "내영상앨범",     sub: "내가 올린 개인 영상", color: "#5B21B6", bg: "#EDE9FE", isPremier: true  },
+      { key: "video_album",    mt: "video", sc: "private", icon: "video",   title: "내영상앨범",     sub: "내가 올린 개인 영상", color: "#5B21B6", bg: "#EDE9FE", isPremier: false },
     ];
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
@@ -968,19 +968,19 @@ export default function TeacherPhotosScreen() {
         <ConfirmModal
           visible={showVideoGateModal}
           title="영상 업로드 불가"
-          message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
-          confirmText="플랜 업그레이드"
+          message="저장공간이 부족하거나 업로드 제한에 도달했습니다. 구독 관리에서 확인해주세요."
+          confirmText="구독 관리"
           cancelText="닫기"
-          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+          onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/subscription" as any); }}
           onCancel={() => setShowVideoGateModal(false)}
         />
         <ConfirmModal
           visible={showStorageModal}
           title="저장공간 초과"
-          message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n상위 플랜으로 업그레이드하거나 기존 파일을 삭제해주세요.`}
-          confirmText="플랜 업그레이드"
+          message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n구독 관리에서 추가 저장공간을 확인해주세요.`}
+          confirmText="구독 관리"
           cancelText="닫기"
-          onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
+          onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/subscription" as any); }}
           onCancel={() => setShowStorageModal(false)}
         />
       </SafeAreaView>
@@ -1084,19 +1084,19 @@ export default function TeacherPhotosScreen() {
       <ConfirmModal
         visible={showVideoGateModal}
         title="영상 업로드 불가"
-        message="동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다."
-        confirmText="플랜 업그레이드"
+        message="저장공간이 부족하거나 업로드 제한에 도달했습니다. 구독 관리에서 확인해주세요."
+        confirmText="구독 관리"
         cancelText="닫기"
-        onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/billing" as any); }}
+        onConfirm={() => { setShowVideoGateModal(false); router.push("/(admin)/subscription" as any); }}
         onCancel={() => setShowVideoGateModal(false)}
       />
       <ConfirmModal
         visible={showStorageModal}
         title="저장공간 초과"
-        message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n상위 플랜으로 업그레이드하거나 기존 파일을 삭제해주세요.`}
-        confirmText="플랜 업그레이드"
+        message={`저장공간이 가득 찼습니다 (${planFeatures?.storage_used_pct ?? 100}% 사용 중).\n구독 관리에서 추가 저장공간을 확인해주세요.`}
+        confirmText="구독 관리"
         cancelText="닫기"
-        onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/billing" as any); }}
+        onConfirm={() => { setShowStorageModal(false); router.push("/(admin)/subscription" as any); }}
         onCancel={() => setShowStorageModal(false)}
       />
     </SafeAreaView>
