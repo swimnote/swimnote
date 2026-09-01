@@ -1,0 +1,1383 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# AMENDMENT A1 — SINGLE SUBSCRIPTION LINE / X INCLUDES SWIMNOTE
+# + WP3 PRICING / STATE CORRECTION
+
+현재 WP3까지 완료되었으나,
+사용자가 상품 구조를 최종 단순화하기로 결정했습니다.
+
+이번 변경은 LOCKED MASTER DESIGN의 공식 Amendment입니다.
+
+기존 설계 중 아래 항목만 수정합니다.
+그 외 모든 LOCKED 정책은 그대로 유지합니다.
+
+이번 작업 완료 전 WP5-PRE / WP5 / WP6 / WP7로 넘어가지 마십시오.
+
+==================================================
+0. AMENDMENT 핵심
+==================================================
+
+기존 구조:
+
+SWIMNOTE 기본플랜
++
+X 별도 구독
+
+처럼 2개의 구독을 동시에 결제하는 구조를 사용하지 않습니다.
+
+최종 구조:
+
+사용자는 아래 중 하나의 BASE SUBSCRIPTION만 보유합니다.
+
+1. SWIMNOTE
+2. X300
+3. X500
+4. X1000
+
+X300/X500/X1000에는
+SWIMNOTE 기본플랜의 모든 기능이 포함됩니다.
+
+즉:
+
+X = SWIMNOTE 기본기능 + X 기능
+
+입니다.
+
+SWIMNOTE와 X를 동시에 2중 결제하게 만들면 안 됩니다.
+
+==================================================
+1. 최종 가격 변경
+==================================================
+
+SWIMNOTE
+
+월 9,900원
+회원수 무제한
+10GB
+
+변경 없음.
+
+--------------------------------
+
+X300
+
+기존:
+119,000원
+
+변경:
+129,000원 / 월
+
+최대 300명
+300GB
+SWIMNOTE 기본플랜 포함
+
+--------------------------------
+
+X500
+
+기존:
+189,000원
+
+변경:
+199,000원 / 월
+
+최대 500명
+500GB
+SWIMNOTE 기본플랜 포함
+
+--------------------------------
+
+X1000
+
+기존:
+349,000원
+
+변경:
+359,000원 / 월
+
+최대 1,000명
+1TB
+SWIMNOTE 기본플랜 포함
+
+--------------------------------
+
+DATA100
+
+7,900원
++100GB
+
+변경 없음.
+
+--------------------------------
+
+DATA300
+
+22,900원
++300GB
+
+변경 없음.
+
+==================================================
+2. 사용자 표시 원칙
+==================================================
+
+X 상품에는 반드시 다음 의미가 보이게 합니다.
+
+예:
+
+SWIMNOTE X300
+129,000원 / 월
+
+SWIMNOTE 기본플랜 + X모드 포함
+
+최대 300명
+300GB
+
+또는 현재 앱 디자인에 맞는 동등한 문구.
+
+중요:
+
+사용자가
+
+"SWIMNOTE 9,900원을 먼저 결제하고
+X300 129,000원을 또 결제해야 한다"
+
+고 오해하면 안 됩니다.
+
+X 가격 하나로 끝나는 상품입니다.
+
+==================================================
+3. BASE SUBSCRIPTION MODEL
+==================================================
+
+개념적으로 BASE SUBSCRIPTION은 mutual exclusive입니다.
+
+가능한 상태:
+
+NONE
+SWIMNOTE
+X300
+X500
+X1000
+
+동시에:
+
+SWIMNOTE + X300
+
+처럼 두 base subscription이 active인 구조를
+신규 2.0 결제라인에서는 만들지 않습니다.
+
+DATA100/DATA300만 별도 add-on 가능.
+
+==================================================
+4. X 권한의 의미
+==================================================
+
+X300/X500/X1000 active이면:
+
+SWIMNOTE 기본 운영권한:
+TRUE
+
+X 권한:
+TRUE
+
+즉 X entitlement가 있는 동안
+별도 SWIMNOTE entitlement가 없어도
+일반 SWIMNOTE 기능을 전부 사용할 수 있어야 합니다.
+
+X 사용자가 일반 기능을 이용할 때
+"SWIMNOTE 기본플랜을 추가 구매하세요"
+같은 메시지가 나오면 FAIL입니다.
+
+==================================================
+5. 신규 결제선
+==================================================
+
+신규 사용자 선택:
+
+A.
+
+SWIMNOTE
+9,900원
+
+또는
+
+B.
+
+X300
+129,000원
+SWIMNOTE 포함
+
+또는
+
+C.
+
+X500
+199,000원
+SWIMNOTE 포함
+
+또는
+
+D.
+
+X1000
+359,000원
+SWIMNOTE 포함
+
+입니다.
+
+BASE 결제는 1개.
+
+==================================================
+6. SWIMNOTE → X UPGRADE
+==================================================
+
+기존 SWIMNOTE 사용자가 X로 전환하면:
+
+기존 SWIMNOTE + 신규 X
+
+두 개를 계속 결제하는 구조 금지.
+
+목표:
+
+SWIMNOTE
+→ X300/X500/X1000
+
+BASE SUBSCRIPTION 교체.
+
+RevenueCat/App Store/Play 실제 upgrade/downgrade 방식은
+MANUAL STEP에서 확정하지만
+
+APP/Server 상태모델은
+한 개의 effective base plan만 갖는 것을 전제로 준비하십시오.
+
+==================================================
+7. X → SWIMNOTE DOWNGRADE
+==================================================
+
+X 사용자가 일반 SWIMNOTE로 내려오기를 선택하면:
+
+현재 X 결제기간 종료까지 X 정상사용.
+
+다음 기간부터:
+
+SWIMNOTE 9,900
+
+로 전환 가능한 구조를 목표로 합니다.
+
+실제 Store scheduled downgrade 연결은
+MANUAL STEP/WP4 범위.
+
+이번 작업에서는 상태/UX 준비만.
+
+==================================================
+8. X 완전 해지
+==================================================
+
+X 사용자가 자동갱신만 취소했다고
+즉시 권한을 끄지 않습니다.
+
+CANCELLATION:
+
+현재 결제기간 종료까지
+기존 X 정상 사용.
+
+실제:
+
+EXPIRATION
+
+시점에만 X 권한 종료.
+
+==================================================
+9. X 만료 후 핵심 정책
+==================================================
+
+매우 중요.
+
+X가 실제 만료됐는데
+SWIMNOTE 기본플랜도 active가 아니면:
+
+normal 무료운영 상태로 자동 복귀시키지 않습니다.
+
+신규 상태:
+
+SUBSCRIPTION_REQUIRED
+
+를 도입합니다.
+
+개념:
+
+X expired
+AND active SWIMNOTE base subscription 없음
+→ SUBSCRIPTION_REQUIRED
+
+==================================================
+10. SUBSCRIPTION_REQUIRED 의미
+==================================================
+
+이 상태는:
+
+"데이터 삭제"
+가 아니라
+
+"유료 이용권이 없는 상태"
+
+입니다.
+
+기존 데이터는 모두 보존합니다.
+
+삭제 금지:
+
+- 회원
+- 반
+- 출결
+- 일지
+- 사진
+- 영상
+- 공지
+- 앨범
+- X에서 누적된 데이터
+- 기존 학부모 데이터
+
+==================================================
+11. SUBSCRIPTION_REQUIRED에서 허용
+==================================================
+
+최소 허용:
+
+- 로그인
+- 앱 진입
+- 구독 필요 화면
+- 현재/과거 플랜 정보
+- 결제화면
+- SWIMNOTE 가입
+- X 재가입
+- restore purchase
+- 로그아웃
+- 고객지원 진입
+
+필요하다면 기존 데이터 read-only 일부 조회는 가능하지만,
+운영 기능 전체를 정상 사용하게 만들면 안 됩니다.
+
+==================================================
+12. SUBSCRIPTION_REQUIRED에서 차단
+==================================================
+
+다음 신규 운영행위는 기본적으로 차단:
+
+- 신규 회원 등록
+- 회원 재활성화
+- 출결 입력
+- 보강 입력
+- 신규 일지 작성
+- 사진 업로드
+- 영상 업로드
+- 신규 공지 작성
+- X AI
+- X setup
+- 기타 유료 운영기능
+
+목표:
+
+결제하지 않은 센터가
+기존 500명/1000명 데이터를 그대로 가지고
+계속 정상 운영하는 구조를 방지.
+
+==================================================
+13. 기존 데이터 접근 UX
+==================================================
+
+앱을 완전히 crash/blank 처리하거나
+로그인 자체를 막지 마십시오.
+
+권장 진입:
+
+로그인
+↓
+subscription state 확인
+↓
+SUBSCRIPTION_REQUIRED
+↓
+구독 필요 전용 화면
+
+표시 예:
+
+"SWIMNOTE 이용권이 만료되었습니다."
+
+"기존 데이터는 안전하게 보관됩니다."
+
+"계속 사용하려면 이용 플랜을 선택해주세요."
+
+버튼:
+
+SWIMNOTE 시작
+X300
+X500
+X1000
+구매 복원
+
+==================================================
+14. 500명 센터 예시
+==================================================
+
+예:
+
+X500
+회원 500명
+
+X500 만료
+
+SWIMNOTE active entitlement 없음
+
+Expected:
+
+회원 500명 데이터:
+유지
+
+일반 앱 정상 운영:
+NO
+
+mode/state:
+SUBSCRIPTION_REQUIRED
+
+SWIMNOTE 9,900 결제 후:
+
+회원수 무제한 일반 SWIMNOTE 권한 활성
+기존 500명 그대로 사용 가능
+
+데이터 migration/삭제 불필요.
+
+==================================================
+15. X 재가입
+==================================================
+
+SUBSCRIPTION_REQUIRED 상태에서
+X300/X500/X1000 재구독 가능.
+
+단 현재 active member count가
+선택하려는 X member limit보다 크면
+
+예:
+
+500명 센터
+→ X300 선택
+
+이 경우 적절한 상위 플랜 안내.
+
+기존 회원 삭제를 요구하지 마십시오.
+
+==================================================
+16. SWIMNOTE 재가입
+==================================================
+
+X 만료 후 SWIMNOTE 9,900을 가입하면:
+
+SUBSCRIPTION_REQUIRED
+→ normal / SWIMNOTE active
+
+로 복귀.
+
+SWIMNOTE 회원수는 무제한이므로
+현재 회원수가 500명/1000명이어도 문제없이 일반 운영 재개.
+
+X 기능만 비활성.
+
+==================================================
+17. FREE LEGACY와 구분
+==================================================
+
+현재 legacy free plan/free row를 삭제하지 않습니다.
+
+하지만:
+
+X 유료 사용자가 만료되었다는 이유만으로
+legacy free 상품에 자동 가입되어
+정상 운영 가능한 구조를 만들면 안 됩니다.
+
+신규 2.0 paid lifecycle 기준:
+
+paid base plan 없음
+→ SUBSCRIPTION_REQUIRED
+
+가 기본.
+
+단 기존 legacy free 사용자의 호환 동작은
+별도 보존해야 합니다.
+
+즉:
+
+기존 free 사용자를 갑자기 전부 잠그지 마십시오.
+
+"기존 legacy free"
+와
+"2.0 유료 subscription expired"
+
+를 구분할 수 있어야 합니다.
+
+==================================================
+18. 상태모델 감사
+==================================================
+
+현재 코드의:
+
+normal
+x_trial
+x_pending
+x
+
+그리고:
+
+subscription status
+subscription_tier
+pending_tier
+subscription_source
+RevenueCat state
+
+를 감사하여
+SUBSCRIPTION_REQUIRED를 최소 additive 방식으로 표현하십시오.
+
+대규모 rewrite 금지.
+
+가능하면:
+
+PoolMode
+
+에:
+
+subscription_required
+
+를 additive 추가.
+
+단 현재 구조에서 더 안전한 별도 subscription access state가 있다면
+근거를 제시하고 최소 구현 가능.
+
+의미 자체는 바꾸면 안 됩니다.
+
+==================================================
+19. MODE 우선순위 목표
+==================================================
+
+개념적으로:
+
+force disabled
+→ 기존 정책 유지
+
+active X paid/manual
+→ x / x_pending
+
+active X Trial
+→ x_trial
+
+active SWIMNOTE base
+→ normal
+
+2.0 paid lifecycle인데
+active base subscription 없음
+→ subscription_required
+
+legacy free compatibility
+→ 기존 정책에 따라 normal/free
+
+==================================================
+20. APP GLOBAL GATE
+==================================================
+
+SUBSCRIPTION_REQUIRED 상태에서
+각 화면마다 30개 if문을 흩뿌리는 방식보다
+현재 navigation/layout 구조에서
+안전한 global access guard를 우선 검토.
+
+목표:
+
+운영 화면으로 진입하면
+구독 필요 화면으로 유도.
+
+하지만 허용 route:
+
+- subscription
+- restore
+- support
+- logout
+- 필요한 account route
+
+는 접근 가능.
+
+navigation loop 금지.
+
+==================================================
+21. WP3 가격 UI 보정
+==================================================
+
+현재 WP3에 들어간 기존 가격:
+
+X300 119,000
+X500 189,000
+X1000 349,000
+
+전부 변경:
+
+X300 129,000
+X500 199,000
+X1000 359,000
+
+신규 UI/constant/test 전부 수정.
+
+기존 숫자가 신규 2.0 판매 UI에 남아 있으면 FAIL.
+
+Legacy 과거 상품가격은
+grandfathering용이면 변경 금지.
+
+==================================================
+22. 신규 가격 Source of Truth
+==================================================
+
+신규 2.0 가격은
+기존 WP3에서 확정한 단일 source를 사용.
+
+중복 하드코딩 금지.
+
+Repository 전체에서:
+
+119000
+189000
+349000
+
+검색.
+
+각 occurrence를 분류:
+
+LEGACY/HISTORICAL
+NEW 2.0 STALE
+TEST
+
+NEW 2.0 STALE이면 수정.
+
+legacy historical 값이면 함부로 수정하지 않음.
+
+==================================================
+23. 가격화면 문구
+==================================================
+
+X 카드에 다음 의미 포함:
+
+"SWIMNOTE 기본플랜 포함"
+
+사용자에게:
+
+X + SWIMNOTE 별도결제
+
+처럼 보이면 안 됨.
+
+예:
+
+SWIMNOTE X500
+
+199,000원 / 월
+
+SWIMNOTE 기본플랜 포함
+최대 500명
+500GB
+
+==================================================
+24. DATA PACK 변경 없음
+==================================================
+
+DATA100
+7,900원
++100GB
+
+DATA300
+22,900원
++300GB
+
+유지.
+
+DATA pack은 별도 add-on.
+
+BASE subscription과 별개.
+
+==================================================
+25. X TRIAL 정책 변경 없음
+==================================================
+
+3일 X AI Trial:
+
+- 센터 1회
+- 자동결제 없음
+- 결제수단 없음
+- 서버 grant
+- 센터 setup 결제 후
+
+전부 유지.
+
+Trial 종료 후
+그 사용자가 유료 base plan이 없다고 해서
+이번 Amendment에서 Trial 즉시 subscription_required로 바꾸지 마십시오.
+
+Trial 종료 후 기본 무료/신규 onboarding 정책은
+현재 기존 normal 흐름을 유지하되,
+유료 X 실제 EXPIRATION lifecycle과 구분하십시오.
+
+==================================================
+26. LEGACY GRANDFATHERING 유지
+==================================================
+
+기존:
+
+Coach
+Premier
+기존 X 상품
+
+가입자는 기존 계약 유지.
+
+이번 Amendment는
+신규 2.0 상품라인을 단순화하는 변경.
+
+legacy active user를
+강제로 신규 129/199/359 상품으로 migration 금지.
+
+==================================================
+27. RevenueCat / Store MANUAL 설계 수정
+==================================================
+
+아직 실제 Console 변경하지 마십시오.
+
+완료보고에서 MANUAL STEP 안을 수정하여 제출.
+
+신규 BASE products:
+
+com.swimnote.swimnote.monthly
+9,900
+
+com.swimnote.x300.monthly
+129,000
+
+com.swimnote.x500.monthly
+199,000
+
+com.swimnote.x1000.monthly
+359,000
+
+중요:
+
+SWIMNOTE/X300/X500/X1000은
+서로 대체되는 base subscription 계층.
+
+동시 중복구독을 유도하지 않는
+App Store subscription group / Google Play subscription structure가 필요.
+
+DATA100/DATA300은
+base와 동시에 보유 가능한 별도 add-on 구조.
+
+==================================================
+28. APP STORE GROUP 설계
+==================================================
+
+MANUAL STEP 제안 시:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+은 상호 upgrade/downgrade 가능한
+하나의 base subscription family/group로 설계 가능한지 확인.
+
+목표:
+
+동시에 두 개 결제 X
+한 플랜에서 다른 플랜으로 교체 O
+
+DATA100/DATA300은
+base와 동시 보유 가능해야 하므로
+base group에 같이 넣으면 안 됨.
+
+실제 콘솔 작업은 하지 마십시오.
+
+==================================================
+29. GOOGLE PLAY 구조
+==================================================
+
+동일 목표.
+
+BASE:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+한 번에 하나의 effective base plan.
+
+STORAGE ADD-ON:
+
+DATA100
+DATA300
+
+별도 동시 보유 가능.
+
+실제 Play Console 수정 금지.
+
+==================================================
+30. RevenueCat effective entitlement 설계
+==================================================
+
+신규 구조에서 반드시 지원해야 할 의미:
+
+X product active
+→ SWIMNOTE 기본 access도 TRUE
+
+따라서 X 사용자가
+별도 `swimnote` entitlement가 없어서
+normal 기능에서 차단되는 구조 금지.
+
+구현 대안:
+
+A.
+X 상품에 base entitlement까지 부여
+
+또는
+
+B.
+서버 effective subscription resolver가
+X tier이면 base access를 자동 포함
+
+현재 RevenueCat / server 구조상
+가장 안전한 방식을 분석해서 보고.
+
+이번 Amendment에서 실제 신규 RC Product 연결은 금지.
+
+WP4에서 연결.
+
+==================================================
+31. X CANCEL / EXPIRATION 설계
+==================================================
+
+CANCELLATION:
+
+자동갱신 취소 상태
+→ 현재 paid-through date까지 X 사용
+
+EXPIRATION:
+
+A.
+scheduled SWIMNOTE downgrade가 실제로 active
+→ SWIMNOTE normal
+
+B.
+다른 active base subscription 없음
+→ subscription_required
+
+이 의미를 서버 상태모델에서 표현 가능해야 함.
+
+==================================================
+32. 기존 pending_tier='free' 로직 감사
+==================================================
+
+현재 legacy cancellation/expiration에서:
+
+pending_tier='free'
+또는
+applySubscriptionState(..., 'free')
+
+같은 코드가 존재하는 것으로 기존 감사에서 확인됨.
+
+신규 X 상품에 동일 로직을 그대로 사용하면
+X 만료 후 free 정상운영으로 떨어질 위험이 있음.
+
+반드시 감사.
+
+신규 2.0 X expiration에서는
+active SWIMNOTE가 없으면
+SUBSCRIPTION_REQUIRED가 되어야 합니다.
+
+legacy 상품의 기존 expiration은
+호환을 위해 함부로 변경하지 마십시오.
+
+신규 product ID/tier 분기에서만 안전하게 구분.
+
+==================================================
+33. 데이터 보존
+==================================================
+
+SUBSCRIPTION_REQUIRED 진입 시
+DB 데이터 destructive change 금지.
+
+특히:
+
+member status
+class assignment
+diary
+photo
+video
+storage
+X education data
+
+변경/삭제 금지.
+
+subscription access만 제한.
+
+==================================================
+34. STORAGE 상태
+==================================================
+
+X1000 1TB 사용자가
+X 만료 후 subscription_required가 되더라도
+현재 저장 데이터 삭제 금지.
+
+SWIMNOTE 10GB 가입 시
+기존 사용량이 10GB를 초과할 수 있음.
+
+이 경우:
+
+기존 자료 조회:
+O
+
+신규 media upload:
+100%+ quota 규칙에 따라 제한
+
+일반 회원/출결/일지 텍스트:
+SWIMNOTE 가입 후 정상 사용
+
+DATA pack 구매:
+가능
+
+즉 storage downgrade 때문에
+기존 자료 삭제 금지.
+
+==================================================
+35. 테스트
+==================================================
+
+반드시 최소 아래 검증.
+
+CASE A
+
+신규 pricing
+
+SWIMNOTE:
+9,900
+
+X300:
+129,000
+
+X500:
+199,000
+
+X1000:
+359,000
+
+PASS
+
+CASE B
+
+X300 card
+
+Expected:
+SWIMNOTE 기본플랜 포함
+
+CASE C
+
+X active
+SWIMNOTE 별도 subscription 없음
+
+Expected:
+일반 SWIMNOTE 기능 사용 가능
+
+CASE D
+
+SWIMNOTE → X300
+
+Expected:
+effective base plan = X300
+2중 base subscription 요구 없음
+
+CASE E
+
+X500 cancellation
+period not expired
+
+Expected:
+X500 계속 사용
+
+CASE F
+
+X500 expiration
+SWIMNOTE active 없음
+
+Expected:
+subscription_required
+
+CASE G
+
+X500 expiration
+scheduled/active SWIMNOTE 있음
+
+Expected:
+normal / SWIMNOTE
+
+CASE H
+
+subscription_required
+회원 500명
+
+Expected:
+회원 데이터 유지
+운영 write 제한
+subscription 화면 접근 가능
+
+CASE I
+
+subscription_required
+→ SWIMNOTE 가입
+
+Expected:
+normal
+500명 그대로 운영 가능
+
+CASE J
+
+subscription_required
+→ X500 재가입
+
+Expected:
+x_pending 또는 x
+기존 setup 상태 정책에 맞게 복구
+
+CASE K
+
+X1000 storage 400GB 사용
+→ expiration
+→ SWIMNOTE 10GB 가입
+
+Expected:
+기존 400GB 데이터 삭제 없음
+기존 자료 조회 가능
+신규 media upload quota 초과 제한
+
+CASE L
+
+legacy Coach/Premier expiration
+
+Expected:
+기존 legacy lifecycle regression 없음
+
+CASE M
+
+Trial expiry
+
+Expected:
+신규 paid-X expiration과 혼동하지 않음
+
+CASE N
+
+RevenueCat restore existing X
+
+Expected:
+restored X includes base SWIMNOTE access
+
+CASE O
+
+DATA pack
+
+Expected:
+base subscription과 별도 add-on 개념 유지
+
+CASE P
+
+Repository stale price scan
+
+Expected:
+신규 2.0 UI에
+119000 / 189000 / 349000
+남아있지 않음
+
+==================================================
+36. WP3 기존 테스트 보정
+==================================================
+
+현재 WP3 tests A-Z 중
+기존 가격을 검증하는 테스트 수정.
+
+129000
+199000
+359000
+
+기준으로 변경.
+
+추가 테스트:
+
+- X includes SWIMNOTE
+- subscription_required
+- X expiration
+- 2중결제 미요구
+
+추가.
+
+기존 테스트를 단순 삭제해서 PASS시키지 마십시오.
+
+==================================================
+37. 범위 밖
+==================================================
+
+이번 Amendment에서 하지 마십시오:
+
+- RevenueCat Dashboard 실제 변경
+- App Store 실제 상품 생성
+- Google Play 실제 상품 생성
+- 신규 purchasePackage 실제 연결
+- DATA pack webhook
+- video compression
+- EAS build
+- parent feed video
+- parent album video
+- Story CASE C
+- AI ENGINE 변경
+
+==================================================
+38. PRODUCTION 금지
+==================================================
+
+Production deploy 금지
+Production migration 실행 금지
+OTA 금지
+EAS production build 금지
+RevenueCat production 수정 금지
+App Store 수정 금지
+Google Play 수정 금지
+
+release/v2.0.0 코드/설계/테스트까지만.
+
+==================================================
+39. 완료보고
+==================================================
+
+# SWIMNOTE 2.0 AMENDMENT A1 COMPLETION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## AMENDMENT COMPLIANCE
+
+SWIMNOTE:
+9,900
+PASS / FAIL
+
+X300:
+129,000
+PASS / FAIL
+
+X500:
+199,000
+PASS / FAIL
+
+X1000:
+359,000
+PASS / FAIL
+
+X includes SWIMNOTE:
+PASS / FAIL
+
+Double base payment required:
+YES / NO
+
+Expected:
+NO
+
+DATA100/300 unchanged:
+PASS / FAIL
+
+## BASE SUBSCRIPTION MODEL
+
+...
+
+## X INCLUDES BASE ACCESS
+
+Server effective logic:
+...
+
+App effective logic:
+...
+
+PASS / FAIL
+
+## PRICING UI
+
+...
+
+"SWIMNOTE 기본플랜 포함":
+...
+
+Stale 119/189/349 new-price occurrences:
+...
+
+## SUBSCRIPTION_REQUIRED
+
+State representation:
+...
+
+Activation condition:
+...
+
+Allowed routes:
+...
+
+Blocked operations:
+...
+
+Global guard:
+...
+
+## X CANCELLATION
+
+Before expiry:
+...
+
+After expiry without SWIMNOTE:
+...
+
+After expiry with SWIMNOTE:
+...
+
+## LEGACY FREE SEPARATION
+
+...
+
+## LEGACY GRANDFATHERING
+
+...
+
+## STORAGE DOWNGRADE SAFETY
+
+...
+
+## DATA PRESERVATION
+
+Members:
+PASS / FAIL
+
+Classes:
+PASS / FAIL
+
+Diary:
+PASS / FAIL
+
+Photo/video:
+PASS / FAIL
+
+X data:
+PASS / FAIL
+
+## REVENUECAT MANUAL DESIGN
+
+Base product strategy:
+...
+
+X includes base strategy:
+...
+
+Upgrade/downgrade strategy:
+...
+
+DATA add-on strategy:
+...
+
+## APP STORE MANUAL DESIGN
+
+Base subscription group:
+...
+
+DATA add-on group:
+...
+
+Double subscription prevented:
+YES / NO
+
+## GOOGLE PLAY MANUAL DESIGN
+
+...
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+CASE L:
+PASS / FAIL
+
+CASE M:
+PASS / FAIL
+
+CASE N:
+PASS / FAIL
+
+CASE O:
+PASS / FAIL
+
+CASE P:
+PASS / FAIL
+
+## REGRESSION
+
+New failures:
+...
+
+Legacy failures:
+...
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## BLOCKERS BEFORE MANUAL STORE STEP
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+FINAL:
+
+SWIMNOTE 2.0 AMENDMENT A1 COMPLETE
