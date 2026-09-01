@@ -393,7 +393,11 @@ export default function MyScheduleScreen() {
 
             return (
               <View style={[s.studentRow, { backgroundColor: C.card }]}>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {/* 학생 이름/정보 영역 tap → Student Detail */}
+                <Pressable
+                  style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
+                  onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
+                >
                   {isAbsent && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#D96C6C" }} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[s.studentName,
@@ -401,7 +405,8 @@ export default function MyScheduleScreen() {
                     ]}>{item.name}</Text>
                     <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
                   </View>
-                </View>
+                  <ChevronRight size={14} color={C.textMuted} style={{ marginRight: 4 }} />
+                </Pressable>
 
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   <Pressable
@@ -425,11 +430,6 @@ export default function MyScheduleScreen() {
                     <Text style={[s.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
                   </Pressable>
                 </View>
-
-                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
-                  style={{ padding: 4 }}>
-                  <ChevronRight size={16} color={C.textMuted} />
-                </Pressable>
               </View>
             );
           }}

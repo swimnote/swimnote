@@ -1,0 +1,1791 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# STUDENT DETAIL = SINGLE STUDENT MANAGEMENT HUB
+# EXISTING MEMBER MANAGEMENT FUNCTIONS REUSE ONLY
+# DIRECT ENTRY + STUDENT-SCOPED DATA + ENROLLMENT / SCHEDULE EDIT
+# FINAL CONSOLIDATED IMPLEMENTATION INSTRUCTION
+# BEFORE WP-M5
+
+현재 SWIMNOTE 2.0은
+Admin / Teacher Member Detail을 long-scroll 구조로 정리했으나,
+
+실기기 확인 결과:
+
+1. 학생 상세 진입 UX가 아직 직관적이지 않은 곳이 있음
+2. 학생 개인 상세에서 반/시간표 전체 정보로 잘못 연결되는 기능이 있음
+3. 학생정보 수정 기능이 여러 화면에 분산되어 있음
+4. 학생상세에서 수강횟수/시간표/반 이동 등
+   실제 운영상 필요한 주요 변경을 모두 처리하지 못함
+
+이번 작업의 목표는:
+
+"학생 1명에 대한 일반 회원관리 조회/수정의 단일 허브를
+Student Detail / Member Detail로 통합"
+
+하는 것입니다.
+
+중요:
+
+이번 작업에서는
+새로운 회원관리 로직을 새로 만들지 않습니다.
+
+이미 SWIMNOTE에 존재하고
+실제로 사용되고 있는:
+
+- 주1회/주2회/주3회 변경
+- 반배정
+- 반이동
+- 시간표 변경
+- 출석부 반영
+- 레벨 변경
+- 보호자 정보 수정
+- 상태 변경
+- 기타 학생관리 기능
+
+을 찾아서
+
+Student Detail의 적절한 위치에
+기존 API / 기존 workflow / 기존 validation을 그대로 재사용하여 연결합니다.
+
+새로운 비슷한 API
+새로운 status
+새로운 attendance 구조
+새로운 class assignment 방식
+
+을 임의 생성하지 마십시오.
+
+==================================================
+0. ABSOLUTE PRINCIPLE — EXISTING FUNCTION REUSE ONLY
+==================================================
+
+이번 WP에서 가장 중요한 원칙:
+
+"새 기능을 만드는 것이 아니라
+기존 기능을 Student Detail에 연결한다."
+
+반드시 구현 전 조사:
+
+- 현재 기능이 어디서 작동하는지
+- 어떤 API를 호출하는지
+- 어떤 payload를 보내는지
+- 어떤 validation이 있는지
+- 변경 후 어떤 테이블/상태가 같이 바뀌는지
+- 출석부/시간표/반배정에 어떻게 반영되는지
+
+확인 후 그대로 재사용.
+
+금지:
+
+기존 기능과 비슷해 보이는
+새 endpoint 생성
+
+새로운 attendance page 생성
+
+새로운 class assignment logic 생성
+
+새로운 weekly-count logic 생성
+
+새로운 status enum 생성
+
+새로운 enrollment 구조 생성
+
+UI만 숫자 변경하고
+실제 운영 데이터가 안 바뀌는 fake update
+
+==================================================
+1. GLOBAL PRODUCT RULE
+==================================================
+
+이번 기능은 AI/X 전용이 아닙니다.
+
+SWIMNOTE 일반
++
+SWIMNOTE X
+
+공통.
+
+향후 SWIMNOTE Office PC에서도
+같은 Student Detail / Member contract를 사용.
+
+X 전용 별도 회원관리 화면 생성 금지.
+
+==================================================
+2. STUDENT DETAIL 최종 역할
+==================================================
+
+Student Detail은 단순 조회화면이 아닙니다.
+
+최종 역할:
+
+학생 1명에 대한
+
+- 기본정보
+- 수강정보
+- 주당 수강횟수
+- 반 / 시간표
+- 회원상태
+- 레벨
+- 개인 출결
+- 개인 보강
+- 보호자 연락처
+- 메모
+- 일지
+- 사진/영상
+
+을 대부분 조회하고
+
+현재 Role 권한에서 허용된 내용은
+해당 Section 안에서 바로 변경하는
+
+"학생 관리 허브"
+
+입니다.
+
+==================================================
+3. CLASS-SCOPED VS STUDENT-SCOPED 완전 분리
+==================================================
+
+반드시 구분.
+
+--------------------------------
+A. CLASS / SCHEDULE SCOPED
+--------------------------------
+
+현재 시간표/반 전체 기준:
+
+- 현재수업 출석처리
+- 현재수업 결석처리
+- 반 전체 출결
+- 반 전체 수업일지
+- 반배정
+- 반 전체 보충수업
+- 수업관리 화면에서의 반이동 quick action
+
+이것들은:
+
+수업관리
+시간표
+반관리
+
+Context에서 사용.
+
+--------------------------------
+B. STUDENT SCOPED
+--------------------------------
+
+학생 개인:
+
+- 학생 기본정보
+- 학생 수강정보
+- 주당 횟수
+- 학생이 속한 반/시간표
+- 회원상태
+- 개인 레벨
+- 개인 출결 이력
+- 개인 보강
+- 보호자
+- 개인 일지
+- 개인 미디어
+
+이것들은:
+
+Student Detail
+
+Context에서 사용.
+
+==================================================
+4. STUDENT DETAIL에서 CLASS 전체 화면 연결 금지
+==================================================
+
+예:
+
+김다온 Student Detail
+→ 출결 상세
+
+Expected:
+
+김다온 개인 출결기록
+
+절대 금지:
+
+현재 열어둔 시간표의
+반 전체 출결 목록
+
+Student Detail 내부 shortcut은
+studentId가 기준.
+
+classId
+scheduleId
+groupId
+
+때문에 반 전체 화면으로 이동하면 FAIL.
+
+==================================================
+5. TEACHER CLASS FLOW 유지
+==================================================
+
+현재 실제 사용자 흐름:
+
+선생님모드
+→ 수업관리
+→ 스케줄러
+→ 요일 선택
+→ 시간표 선택
+
+상단:
+
+- 반배정
+- 수업일지확인
+- 보충수업
+
+학생 목록:
+
+- 출석
+- 결석
+- 반이동
+- >
+
+이 구조의 업무 기능은 유지.
+
+==================================================
+6. 학생 상세 진입 개선
+==================================================
+
+현재 작은 ">"를 눌러야
+학생정보로 들어가는 UX 개선.
+
+최종:
+
+학생 이름 또는 학생 기본정보 영역 tap
+→ Student Detail
+
+우측 chevron은:
+
+- 삭제
+또는
+- 시각적 안내로만 유지
+
+가능.
+
+단 chevron만 별도 작은 click target으로 두지 말 것.
+
+==================================================
+7. 출석 / 결석 / 반이동 QUICK ACTION 유지
+==================================================
+
+수업관리 학생목록에서는:
+
+학생 이름
+→ Student Detail
+
+출석
+→ 현재 수업 출석
+
+결석
+→ 현재 수업 결석
+
+반이동
+→ 현재 기존 반이동 workflow
+
+각각 독립.
+
+출석/결석/반이동 버튼 tap이
+Student Detail navigation까지 같이 발생하면 FAIL.
+
+==================================================
+8. STUDENT DETAIL 출결 연결 수정
+==================================================
+
+현재 Student Detail의
+출결 버튼이
+반 전체 출결로 연결되는 문제 수정.
+
+Student Detail 출결은:
+
+학생 개인 summary
+
++
+학생 개인 attendance history
+
+만.
+
+기존 student-scoped API/route가 있으면 그대로 사용.
+
+새 출결 화면/API 만들지 말 것.
+
+==================================================
+9. 잘못된 출결 QUICK ACTION → 회원상태변경
+==================================================
+
+현재 Student Detail에서
+수강정보 옆에 잘못 연결된 출결 버튼 제거.
+
+대신:
+
+[회원상태변경]
+
+배치.
+
+위치는:
+
+현재 상태 표시와 같은 맥락.
+
+예:
+
+상태: 정상        [회원상태변경]
+
+처럼 배치.
+
+==================================================
+10. 회원상태변경
+==================================================
+
+UI 개념:
+
+- 정상
+- 연기
+- 복귀
+- 퇴원
+
+단 backend는
+기존 실제 status / workflow를 그대로 사용.
+
+새 status enum 만들지 말 것.
+
+Teacher의 권한도
+현재 실제 권한 범위를 먼저 확인.
+
+Admin API를 Teacher에 억지로 연결 금지.
+
+==================================================
+11. SECTION A — 기본정보
+==================================================
+
+Student Detail에서
+학생 기본정보 조회/수정.
+
+실제 존재하는 필드만 사용.
+
+예:
+
+- 이름
+- 생년월일
+- 성별
+- 학교
+- 학년
+- 주소
+- 전화번호
+- 메모
+- 내부노트
+- 등록일
+
+수정 가능한 내용은
+Section A 안에서 [수정].
+
+정보와 수정 위치를 분리하지 말 것.
+
+==================================================
+12. SECTION B — 수강정보
+==================================================
+
+이번 WP에서 가장 중요.
+
+Student Detail의 수강정보에는
+실제 학생 수강상태 변경 기능이 모두 들어가야 합니다.
+
+표시/관리 대상:
+
+- 현재 반
+- 담당 선생님
+- 수업 요일
+- 수업 시간
+- 주당 수강 횟수
+- 등록/시작일
+- 회원상태
+
+그리고 권한 범위에서:
+
+- 주당 횟수 변경
+- 반/시간표 변경
+- 회원상태 변경
+
+을 이 Section에서 바로 수행.
+
+==================================================
+13. 주1회 / 주2회 / 주3회 변경
+==================================================
+
+Student Detail에서:
+
+현재:
+주 1회 / 주 2회 / 주 3회
+
+표시.
+
+그리고:
+
+[변경]
+
+또는 적절한 selector로
+
+주1회
+주2회
+주3회
+
+변경 가능.
+
+IMPORTANT:
+
+새로운 weekly-count 기능을 만들지 마십시오.
+
+현재 앱에 이미 존재하는
+주당 횟수 변경 기능/API/validation을 찾아
+그대로 연결.
+
+==================================================
+14. 주당 횟수 변경은 실제 운영 데이터에 반영되어야 함
+==================================================
+
+예:
+
+김다온
+
+현재:
+주1회
+
+Student Detail에서:
+주2회로 변경
+
+그러면 실제 기존 시스템 기준으로
+김다온이 주2회 회원으로 변경되어야 함.
+
+단순:
+
+UI text
+weekly_count local state
+
+만 바뀌면 FAIL.
+
+기존 기능에서 변경 시 반영되는:
+
+- student/member 수강 횟수
+- 수강 스케줄
+- 출석부 표시/배정 가능 횟수
+- 기타 기존 시스템 연계정보
+
+가 동일하게 작동해야 함.
+
+==================================================
+15. 출석부 연계 보존
+==================================================
+
+사용자 요구 핵심:
+
+Student Detail에서
+주1회 → 주2회 변경 후
+
+기존 출석부에서도
+그 학생을 주2회 기준으로
+정상 운영할 수 있어야 합니다.
+
+즉:
+
+기존 weekly-count 변경 기능을
+그대로 호출해야 함.
+
+새로운 별도 값만 저장하고
+출석부가 모르는 값이 생기면 FAIL.
+
+==================================================
+16. 기존 WEEKLY COUNT 기능 조사
+==================================================
+
+구현 전 반드시 조사:
+
+현재 어디에서
+주1/2/3회 변경 가능한지.
+
+확인:
+
+- component
+- API endpoint
+- request payload
+- DB field
+- validation
+- class assignment 영향
+- attendance 영향
+- schedule 영향
+
+그리고 Student Detail에서는
+그 기존 기능을 호출.
+
+중복 로직 작성 금지.
+
+==================================================
+17. 시간표 / 반 변경 — Student Detail에서 가능
+==================================================
+
+Student Detail의 수강정보에서
+현재 학생의:
+
+- 현재 시간표
+- 요일
+- 시간
+- 반
+
+을 확인 가능해야 하고,
+
+권한 범위에서 바로 변경 가능해야 함.
+
+==================================================
+18. 같은 선생님 반 이동
+==================================================
+
+사용자가 원하는 주요 UX:
+
+Student Detail
+→ 현재 시간표 확인
+→ [시간표/반 변경]
+→ 이동 가능한 반 선택
+→ 이동
+→ 완료
+
+특히 같은 선생님의 다른 반으로 이동할 때
+
+현재 반 화면으로 돌아가서:
+
+기존 반에서 빼기
+→ 다른 반 찾아가기
+→ 다시 학생 넣기
+
+를 반복할 필요 없이
+
+Student Detail에서 직접 이동 가능해야 함.
+
+==================================================
+19. 반/시간표 이동도 기존 기능 재사용
+==================================================
+
+매우 중요.
+
+새로운 반이동 로직 만들지 마십시오.
+
+현재 수업관리 학생목록의:
+
+[반이동]
+
+기능
+
+또는 기존 관리자 반배정/이동 기능에서 사용하는:
+
+- API
+- payload
+- validation
+- source class removal
+- target class assignment
+- weekly-count 조건
+- capacity 조건
+- schedule 충돌 검증
+- attendance 관계
+
+를 조사.
+
+그 기존 workflow를
+Student Detail에 연결.
+
+==================================================
+20. STUDENT DETAIL 반 이동 UX
+==================================================
+
+Section B:
+
+현재 반:
+월요일 16:00 / A반 / 김선생님
+
+[반/시간표 변경]
+
+tap
+
+→ 기존 데이터 기반 선택 UI
+
+단계 예:
+
+1.
+현재 학생 시간표 확인
+
+2.
+이동 가능한 반 / 시간표 선택
+
+3.
+Target class 확인
+
+4.
+[이동]
+
+5.
+기존 반배정 변경 API 실행
+
+6.
+성공 후 Student Detail 재조회
+
+==================================================
+21. 이동 가능한 반 목록
+==================================================
+
+새로운 반 추천 알고리즘 만들지 마십시오.
+
+현재 기존 반이동 UI가
+어떤 반 목록을 제공하는지 그대로 사용.
+
+가능하면:
+
+- 동일 센터
+- 권한 범위
+- 기존 capacity 조건
+- 기존 instructor 조건
+- 기존 schedule 조건
+
+유지.
+
+==================================================
+22. 동일 선생님 반 이동 우선 UX
+==================================================
+
+Student Detail에서
+Teacher가 반이동 가능한 권한이 있다면
+
+기본적으로
+현재 Teacher가 담당하는
+이동 가능한 반을 쉽게 선택할 수 있게.
+
+단:
+
+새 권한 확대 금지.
+
+현재 Teacher 반이동 기능에서
+허용된 범위 그대로.
+
+==================================================
+23. 다른 선생님 반 이동
+==================================================
+
+현재 기존 기능에서
+다른 Teacher 반으로 이동할 수 있다면
+동일하게 지원.
+
+기존 기능이 제한한다면
+그 제한 유지.
+
+Student Detail 때문에
+새로운 cross-teacher 권한 추가 금지.
+
+==================================================
+24. 반 이동 시 기존 반에서 제거 + 새 반 추가
+==================================================
+
+Student Detail에서 반 이동하면
+
+실제 기존 workflow대로:
+
+source assignment 해제
++
+target assignment 생성/변경
+
+되어야 함.
+
+두 반에 중복 잔존하거나
+
+기존 반에서는 남아있는데
+새 반에도 추가되는
+
+잘못된 duplicate enrollment가 생기면 FAIL.
+
+==================================================
+25. 반 이동 후 관련 데이터
+==================================================
+
+기존 기능이 처리하던:
+
+- 현재 class assignment
+- class roster
+- weekly_count
+- schedule
+- future attendance context
+- makeup relation
+- class teacher relation
+
+등을 그대로 보존.
+
+Student Detail에서 별도 수동 DB update 금지.
+
+==================================================
+26. 주당 횟수 + 반이동 결합 시나리오
+==================================================
+
+예:
+
+현재:
+주1회
+월요일 16:00
+
+변경:
+주2회
+
+그리고:
+목요일 16:00 반 추가 또는
+기존 시스템이 사용하는 방식에 따라
+두 번째 schedule 배정
+
+이 경우도
+기존 앱의 현재 지원 방식을 그대로 사용.
+
+새 multi-class enrollment 모델 만들지 말 것.
+
+==================================================
+27. 기존 시스템이 주2회/주3회를 어떻게 표현하는지 먼저 확인
+==================================================
+
+매우 중요.
+
+주2회 회원이:
+
+A.
+하나의 class_group 안에서 주2회 schedule을 가지는지
+
+B.
+두 개 class assignment를 가지는지
+
+C.
+별도 weekly_count + schedule relation인지
+
+실제 코드/DB를 먼저 확인.
+
+추측 금지.
+
+Student Detail 구현은
+현재 SoT 구조를 그대로 따라야 함.
+
+==================================================
+28. SECTION C — 레벨
+==================================================
+
+학생 개인 레벨:
+
+students.current_level_order
+
+현재 레벨 표시.
+
+같은 Section 안:
+
+[레벨 변경]
+
+기존 level 변경 API 재사용.
+
+==================================================
+29. SECTION D — 개인 출결 / 보강
+==================================================
+
+100% 학생 개인 기준.
+
+예:
+
+김다온
+
+출석:
+8
+
+결석:
+1
+
+지각:
+0
+
+보강:
+대기 2
+배정 1
+완료 5
+
+[개인 출결 보기]
+[개인 보강 보기]
+
+반 전체 정보 연결 금지.
+
+==================================================
+30. SECTION E — 보호자
+==================================================
+
+정보 표시 위치에서 바로 수정.
+
+Admin:
+현재 허용 phone1~4
+
+Teacher:
+기존 권한 범위
+
+기존 보호자 수정 API 재사용.
+
+==================================================
+31. SECTION F — 일지 / 사진 / 영상
+==================================================
+
+학생 개인:
+
+- 개인 일지
+- 개인 사진
+- 개인 영상
+
+shortcut.
+
+현재 반 전체 일지/앨범으로
+잘못 연결 금지.
+
+==================================================
+32. SECTION G
+==================================================
+
+student_links는 WP-M5.
+
+이번 WP에서는 생성 금지.
+
+==================================================
+33. SECTION H — 관리자 관리
+==================================================
+
+Admin 권한 범위.
+
+Teacher에게 Danger Zone 추가 금지.
+
+==================================================
+34. 변경 버튼 위치 원칙
+==================================================
+
+모든 변경은
+해당 정보가 표시되는 위치에 배치.
+
+예:
+
+주당횟수:
+주2회       [변경]
+
+현재 반:
+월 16:00 A반       [변경]
+
+상태:
+정상       [회원상태변경]
+
+레벨:
+파란모자       [레벨변경]
+
+보호자:
+010-....       [수정]
+
+뜬금없이 화면 다른 곳에
+관련 없는 버튼 배치 금지.
+
+==================================================
+35. HOME / 수강관리 중간 ACTION SHEET 제거
+==================================================
+
+현재:
+
+회원 이름 tap
+
+→ Bottom Sheet
+
+회원정보보기
+회원상태변경
+
+→ 선택
+
+구조 제거.
+
+최종:
+
+회원 이름 tap
+→ 바로 Member Detail
+
+회원상태변경:
+Member Detail 내부.
+
+==================================================
+36. 학생 리스트 DIRECT ENTRY
+==================================================
+
+다음 화면들 조사:
+
+- 수업관리
+- 회원목록
+- 반관리
+- 출결
+- 보강
+- 검색결과
+- 홈 수강관리
+
+학생 이름/기본정보 영역 tap:
+
+→ Student Detail
+
+불필요한 중간 Action Sheet 제거.
+
+==================================================
+37. 다른 화면의 중복 수정기능 정리
+==================================================
+
+학생정보를 변경하는 모든 UI 조사.
+
+각 기능 분류:
+
+A.
+Student Detail로 수렴
+
+B.
+현재 업무 quick action이라 유지
+
+C.
+전문 화면이라 유지
+
+D.
+중복이므로 제거
+
+유지해야 할 대표 quick action:
+
+수업관리 학생 row:
+- 출석
+- 결석
+- 반이동
+
+이것들은 수업진행 효율상 유지.
+
+하지만:
+
+- 기본정보수정
+- 회원상태변경
+- 주당횟수변경
+- 보호자수정
+- 레벨변경
+
+등은 Student Detail 중심.
+
+==================================================
+38. STUDENT DETAIL INTERNAL LINK AUDIT
+==================================================
+
+Student Detail 내부 모든 action 검사:
+
+Basic Info
+Enrollment
+Weekly Count
+Class Move
+Status
+Level
+Attendance
+Makeup
+Guardian
+Diary
+Media
+
+각 action이:
+
+해당 학생
+
+기준으로 정확히 작동해야 함.
+
+==================================================
+39. 절대 금지 — 잘못된 연결
+==================================================
+
+예:
+
+Student Detail
+→ 출결
+→ 반 전체 출결
+
+FAIL
+
+Student Detail
+→ 보강
+→ 반 전체 보강
+
+FAIL
+
+Student Detail
+→ 일지
+→ 반 전체 일지
+
+FAIL
+
+Student Detail
+→ 주2회 변경
+→ UI text만 변경
+
+FAIL
+
+Student Detail
+→ 반이동
+→ DB를 새 로직으로 직접 수정
+
+FAIL
+
+Student Detail
+→ 상태변경
+→ 새로운 status endpoint 생성
+
+FAIL
+
+==================================================
+40. EXISTING WORKFLOW REUSE MATRIX 작성
+==================================================
+
+구현 완료 전에 반드시 다음 표 작성/확인:
+
+Student Detail Action
+Existing Current Feature
+Existing Component
+Existing Endpoint
+Existing Payload
+Existing Validation
+Reused?
+New Logic Added?
+
+목표:
+
+New Logic Added:
+NO
+
+가능한 범위에서 전부 NO.
+
+==================================================
+41. BACK STACK
+==================================================
+
+예:
+
+Teacher Schedule
+→ Time Slot
+→ Student Detail
+→ Personal Attendance
+
+Back:
+
+Personal Attendance
+→ Student Detail
+
+Back:
+
+Student Detail
+→ Time Slot
+
+Home:
+NO
+
+==================================================
+42. MODAL BACK
+==================================================
+
+Student Detail
+→ Weekly Count Change Modal
+→ Close
+
+Expected:
+Student Detail
+
+Student Detail
+→ Class Move Modal
+→ Close
+
+Expected:
+Student Detail
+
+Student Detail
+→ Status Change Modal
+→ Close
+
+Expected:
+Student Detail
+
+==================================================
+43. 변경 성공 후 REFRESH
+==================================================
+
+다음 변경 성공 시:
+
+- 기본정보
+- weekly count
+- 반
+- 시간표
+- 상태
+- 레벨
+- 보호자
+
+Student Detail을
+실제 server source 기준으로 refresh.
+
+local optimistic text만 변경하고
+server 결과와 불일치 금지.
+
+==================================================
+44. TEST — 주당횟수
+==================================================
+
+CASE A
+
+학생:
+주1회
+
+Student Detail:
+주1회 표시
+
+PASS
+
+CASE B
+
+주1회 → 주2회 변경
+
+기존 weekly-count API 실행:
+PASS
+
+CASE C
+
+Student Detail 재조회:
+주2회
+
+PASS
+
+CASE D
+
+기존 출석부/수업관리에서도
+주2회 회원으로 정상 동작
+
+PASS
+
+CASE E
+
+새로운 별도 weekly-count 로직:
+0
+
+==================================================
+45. TEST — 반 / 시간표 이동
+==================================================
+
+CASE F
+
+Student Detail:
+현재 반 표시
+
+PASS
+
+CASE G
+
+[반/시간표 변경]
+→ 이동 가능한 기존 반 목록
+
+PASS
+
+CASE H
+
+같은 Teacher 다른 반 선택
+→ 이동
+
+PASS
+
+CASE I
+
+기존 반 roster에서 제거
+
+PASS
+
+CASE J
+
+새 반 roster에 배정
+
+PASS
+
+CASE K
+
+중복 반배정 없음
+
+PASS
+
+CASE L
+
+기존 반이동 API/workflow 재사용
+
+PASS
+
+CASE M
+
+새로운 반이동 backend logic:
+0
+
+==================================================
+46. TEST — TEACHER 수업관리
+==================================================
+
+CASE N
+
+수업관리
+→ 요일
+→ 시간표
+→ 학생목록
+
+PASS
+
+CASE O
+
+학생 이름 tap
+→ Student Detail
+
+PASS
+
+CASE P
+
+chevron만 눌러야 상세:
+NO
+
+CASE Q
+
+출석:
+현재수업 출석
+
+PASS
+
+CASE R
+
+결석:
+현재수업 결석
+
+PASS
+
+CASE S
+
+반이동 quick action:
+기존 기능 유지
+
+PASS
+
+==================================================
+47. TEST — STUDENT-SCOPED DATA
+==================================================
+
+CASE T
+
+김다온 Student Detail 출결:
+김다온 개인 출결
+
+PASS
+
+CASE U
+
+출결 상세:
+김다온 개인 기록
+
+PASS
+
+반 전체 출결:
+NO
+
+CASE V
+
+보강:
+김다온 개인 데이터
+
+PASS
+
+CASE W
+
+일지:
+김다온 개인 데이터
+
+PASS
+
+CASE X
+
+미디어:
+김다온 개인 데이터
+
+PASS
+
+==================================================
+48. TEST — EDIT LOCATION
+==================================================
+
+기본정보:
+Section A
+
+주당횟수:
+Section B
+
+반/시간표:
+Section B
+
+회원상태:
+Section B 상태 옆
+
+레벨:
+Section C
+
+보호자:
+Section E
+
+각각 PASS.
+
+관련 없는 위치에 변경 action:
+0
+
+==================================================
+49. TEST — HOME / MEMBER LIST
+==================================================
+
+CASE Y
+
+홈/수강관리
+→ 회원 이름
+
+Expected:
+Member Detail 바로 진입
+
+CASE Z
+
+회원정보보기 / 회원상태변경
+중간 Action Sheet:
+
+Expected:
+미노출
+
+==================================================
+50. PC OFFICE READINESS
+==================================================
+
+향후 Office:
+
+회원 선택
+→ Member Detail
+
+Member Detail에서:
+
+- 기본정보
+- 수강횟수
+- 반/시간표
+- 상태
+- 레벨
+- 보호자
+- 출결/보강
+- 일지/미디어
+
+관리 가능.
+
+모바일에만 존재하는 별도 business logic 생성 금지.
+
+==================================================
+51. SHARED CORE
+==================================================
+
+SWIMNOTE:
+PASS
+
+X:
+PASS
+
+New mode gate:
+0
+
+==================================================
+52. REGRESSION
+==================================================
+
+현재 baseline:
+
+Pre-existing failures:
+154
+
+Pre-existing TS baseline:
+현재 값 유지
+
+Expected:
+
+New failures:
+0
+
+New TS errors:
+0
+
+==================================================
+53. 이번 작업에서 금지
+==================================================
+
+WP-M5 시작 금지
+student_links 생성 금지
+
+새 DB migration 금지
+새 weekly count model 금지
+새 class assignment model 금지
+새 attendance model 금지
+새 status enum 금지
+
+기존 회원관리 기능 복제 금지
+
+Pricing 변경 금지
+Subscription 변경 금지
+RevenueCat 변경 금지
+Store 변경 금지
+
+Delete/Restore semantics 변경 금지
+
+==================================================
+54. PRODUCTION
+==================================================
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+Android:
+NO
+
+1.6.3:
+NO
+
+release/v2.0.0 code + tests only.
+
+==================================================
+55. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# STUDENT DETAIL SINGLE MANAGEMENT HUB REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## EXISTING WORKFLOW REUSE
+
+Action | Existing Feature | Existing Endpoint | Reused | New Logic
+
+Weekly Count:
+...
+
+Class Move:
+...
+
+Schedule Change:
+...
+
+Status:
+...
+
+Level:
+...
+
+Guardian:
+...
+
+Attendance:
+...
+
+Makeup:
+...
+
+Expected New Logic:
+NONE
+
+## TEACHER CLASS FLOW
+
+Schedule:
+...
+
+Time Slot:
+...
+
+Student row:
+...
+
+Name press target:
+...
+
+Chevron:
+...
+
+Attendance quick action:
+...
+
+Absence quick action:
+...
+
+Class move quick action:
+...
+
+## STUDENT DETAIL MANAGEMENT HUB
+
+Header:
+...
+
+Section A:
+...
+
+Section B:
+...
+
+Section C:
+...
+
+Section D:
+...
+
+Section E:
+...
+
+Section F:
+...
+
+Section G:
+NOT IMPLEMENTED
+
+Section H:
+...
+
+## WEEKLY COUNT
+
+Current SoT:
+...
+
+Existing change API:
+...
+
+Student Detail connected:
+PASS / FAIL
+
+1 → 2:
+PASS / FAIL
+
+2 → 3:
+PASS / FAIL
+
+3 → 1:
+PASS / FAIL
+
+Attendance integration:
+PASS / FAIL
+
+UI-only fake update:
+YES / NO
+
+Expected:
+NO
+
+## CLASS / SCHEDULE CHANGE
+
+Existing move workflow:
+...
+
+Existing endpoint:
+...
+
+Source assignment removal:
+PASS / FAIL
+
+Target assignment:
+PASS / FAIL
+
+Same-teacher move:
+PASS / FAIL
+
+Other-teacher behavior:
+...
+
+Capacity validation:
+...
+
+Schedule validation:
+...
+
+Duplicate assignment:
+YES / NO
+
+Expected:
+NO
+
+New backend logic:
+YES / NO
+
+Expected:
+NO
+
+## MEMBER STATUS
+
+Current state:
+...
+
+Button location:
+...
+
+Existing workflow reused:
+PASS / FAIL
+
+Teacher permission:
+...
+
+New status logic:
+YES / NO
+
+Expected:
+NO
+
+## STUDENT-SCOPED LINK AUDIT
+
+Attendance:
+...
+
+Makeup:
+...
+
+Diary:
+...
+
+Media:
+...
+
+Incorrect class-scoped links:
+...
+
+Expected:
+NONE
+
+## DIRECT ENTRY MAP
+
+Source | Student Name Tap | Intermediate Modal | Destination
+
+...
+
+Expected:
+Student Detail / NONE
+
+## DUPLICATE EDIT PATH AUDIT
+
+Found:
+...
+
+Moved to Student Detail:
+...
+
+Kept as class quick action:
+...
+
+Kept as specialist screen:
+...
+
+Removed:
+...
+
+## BACK
+
+Time Slot -> Student Detail:
+...
+
+Student Detail -> Personal Attendance -> Back:
+...
+
+Weekly Count modal -> Close:
+...
+
+Class Move modal -> Close:
+...
+
+Status modal -> Close:
+...
+
+Home escape:
+YES / NO
+
+Expected:
+NO
+
+## OFFICE READINESS
+
+Single Student Detail hub:
+PASS / FAIL
+
+Existing APIs reused:
+PASS / FAIL
+
+New UI-only business logic:
+...
+
+Expected:
+NONE
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gates:
+...
+
+Expected:
+0
+
+## REGRESSION
+
+Baseline failures:
+...
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+student_links:
+NOT CREATED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+Delete/Restore semantics:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STUDENT DETAIL SINGLE MANAGEMENT HUB COMPLETE
+or
+BLOCKED
