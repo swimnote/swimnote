@@ -433,6 +433,37 @@ export default function TodayScheduleScreen() {
             </Pressable>
           </View>
         </View>
+        {/* ── X 전용: AI 성장 보드 카드 ── */}
+        {isX && (
+          <Pressable
+            style={({ pressed }) => ({
+              marginHorizontal: 16,
+              marginBottom: 10,
+              borderRadius: 14,
+              backgroundColor: XT.primary,
+              padding: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              opacity: pressed ? 0.88 : 1,
+              shadowColor: XT.primary,
+              shadowOpacity: 0.22,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 4,
+            })}
+            onPress={() => router.push("/(teacher)/x-growth" as any)}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
+              <LucideIcon name="activity" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 성장 보드</Text>
+              <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 이벤트 확인 및 검토</Text>
+            </View>
+            <LucideIcon name="chevron-right" size={16} color={XT.textOnNavySoft} />
+          </Pressable>
+        )}
         <View style={[h.weekCard, { backgroundColor: C.card }]}>
           {weekDates.map((d, i) => {
             const dayLabel = WEEK_DAYS[i];
