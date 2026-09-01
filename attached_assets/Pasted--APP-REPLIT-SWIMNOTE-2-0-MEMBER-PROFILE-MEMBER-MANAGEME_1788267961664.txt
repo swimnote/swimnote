@@ -1,0 +1,1043 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# MEMBER PROFILE / MEMBER MANAGEMENT UX CONSOLIDATION
+# FULL AUDIT + DESIGN PLAN ONLY
+# BEFORE SWIMNOTE OFFICE PC VERSION
+
+이번 작업은 코드 구현이 아닙니다.
+
+SWIMNOTE Office PC 버전 개발 전에
+현재 모바일 앱의 회원 관련 UI/API/정보 구조를 정리하기 위한
+전수 감사 + 통합 설계 계획서 작성 작업입니다.
+
+현재 문제:
+
+회원 관련 정보와 액션이 여러 화면/버튼/경로에 흩어져 있고
+동일하거나 유사한 기능이 중복되어 있습니다.
+
+예:
+
+- 회원정보 보기
+- 회원탈퇴
+- 상태 변경
+- 반 변경
+- 보호자 정보
+- 연락처
+- 수강 관련 정보
+- 기타 회원 관리 기능
+
+등이 서로 다른 화면/버튼에 분산되어 있어
+모바일에서도 복잡하고
+향후 SWIMNOTE Office PC UI를 만들 때도
+회원 상세 화면을 다시 설계해야 하는 문제가 있습니다.
+
+최종 목표는:
+
+"회원 1명 선택"
+→
+"회원정보 상세"
+
+한 화면에서
+관리자/선생님이 해당 회원에 대해 필요한 대부분의 정보를
+조회하고 권한 범위 내에서 수정/관리할 수 있는 구조입니다.
+
+이번 단계에서는
+절대 구현하지 말고
+현재 구조를 전수 조사하여
+통합 설계 계획서만 제출하십시오.
+
+==================================================
+0. 장기 목표
+==================================================
+
+향후 SWIMNOTE Office PC 버전에서도
+같은 회원 상세 구조/API를 재사용할 수 있어야 합니다.
+
+모바일:
+
+회원 목록
+→ 회원 선택
+→ 회원정보 상세
+
+PC Office:
+
+회원 목록/Table
+→ 회원 선택
+→ 상세 Panel/Page
+
+로 동일한 정보 구조를 사용할 수 있게 설계합니다.
+
+즉 모바일 전용으로만 임시 정리하지 마십시오.
+
+==================================================
+1. 전수 조사 대상 ROLE
+==================================================
+
+반드시 아래 ROLE 전체 조사:
+
+1. pool_admin
+2. sub_admin
+3. teacher
+4. parent
+
+각 ROLE별로:
+
+- 회원/학생을 어디에서 보는지
+- 회원 상세정보를 어디에서 보는지
+- 어떤 정보를 수정 가능한지
+- 어떤 액션을 실행 가능한지
+- 어떤 정보가 중복 노출되는지
+
+전수 조사.
+
+==================================================
+2. 회원 관련 ROUTE 전수 조사
+==================================================
+
+repository 전체에서 다음 관련 route/screen 전부 찾기:
+
+- members
+- students
+- member detail
+- student detail
+- profile
+- parent/student
+- class member
+- roster
+- member edit
+- status
+- withdraw
+- leave
+- delete
+- guardian
+- phone
+- schedule
+- make-up
+- attendance
+- diary
+- level
+- curriculum
+- subscription 관련 회원 제한 UI
+- 기타 회원 관련 화면
+
+완료보고에:
+
+현재 Route Map
+
+제출.
+
+==================================================
+3. 버튼/액션 전수 조사
+==================================================
+
+회원 관련 화면에서 현재 존재하는 버튼 전부 조사.
+
+예:
+
+- 회원정보 보기
+- 회원정보 수정
+- 회원 탈퇴
+- 퇴원
+- 휴원
+- 연기
+- 반 이동
+- 담당 선생님 변경
+- 연락처 변경
+- 보호자 연결
+- 보호자 정보
+- 레벨 변경
+- 수강횟수 변경
+- 출결
+- 결석
+- 보강
+- 일지 보기
+- 사진/영상 보기
+- 교육진도
+- 요청사항
+- 메모
+- 기타
+
+실제 repository 기준으로 전부 확인.
+
+각 액션을 아래로 분류:
+
+A. 회원정보 상세 안으로 통합 가능
+B. 회원정보 상세 안에서 shortcut으로 제공 가능
+C. 별도 전문 화면이 필요한 기능
+D. 중복되어 제거 가능
+E. 위험 액션이라 별도 confirm 필요
+F. parent에게는 노출 금지
+
+==================================================
+4. 중복 UI 조사
+==================================================
+
+특히 현재 사용자 발견사항:
+
+"회원정보 보기"
+와
+"회원탈퇴"
+
+같은 회원관리 버튼들이
+같은 화면 또는 여러 화면에 중복/분산되어 있음.
+
+전수 감사하여:
+
+- 같은 기능이 여러 곳에 존재
+- 같은 데이터를 서로 다른 화면에서 수정
+- 같은 API를 여러 UI가 각자 호출
+- 유사 버튼이 다른 이름으로 존재
+
+하는 부분을 전부 목록화.
+
+완료보고에:
+
+DUPLICATE UI / ACTION LIST
+
+제출.
+
+==================================================
+5. 목표 MEMBER DETAIL 화면
+==================================================
+
+향후 목표는:
+
+회원 선택
+→
+Member Detail
+
+한 화면에서
+아래 정보를 section 단위로 스크롤하며
+대부분 확인/수정 가능하도록 하는 것.
+
+실제 DB/API 가능 여부를 조사하여
+아래 후보를 분류.
+
+--------------------------------
+A. 기본정보
+--------------------------------
+
+- 회원명
+- 학생명
+- 성별
+- 생년월일
+- 전화번호
+- 보호자 전화번호
+- 보호자 이름
+- 주소
+- 학교/학년
+- 메모
+- 등록일
+- 상태
+
+--------------------------------
+B. 수강정보
+--------------------------------
+
+- 현재 반
+- 담당 선생님
+- 요일
+- 시간
+- 주당 횟수
+- 시작일
+- 종료일
+- 재등록 상태
+- 휴원
+- 연기
+- 퇴원
+- 기타 현재 존재하는 수강 상태
+
+--------------------------------
+C. 수영 교육정보
+--------------------------------
+
+- 현재 레벨
+- 모자/등급
+- 교육과정
+- 현재 진도
+- 테스트 결과
+- 최근 수업정보
+- 성장 관련 정보
+
+단 X 기능과 일반 SWIMNOTE 권한은 구분.
+
+--------------------------------
+D. 출결/보강 정보
+--------------------------------
+
+- 최근 출결
+- 결석
+- 보강
+- 예정 보강
+- 잔여 보강
+
+회원 상세에서 요약 + shortcut 형태가 적절한지 검토.
+
+--------------------------------
+E. 보호자 연결정보
+--------------------------------
+
+- 연결된 보호자
+- 보호자 계정
+- 연락처
+- 연결 상태
+- 추가 보호자
+- 연결 해제
+
+권한/보안 고려.
+
+--------------------------------
+F. 사진/영상/피드
+--------------------------------
+
+- 최근 피드
+- 사진
+- 영상
+- 앨범
+- 일지
+
+전부 한 화면에 파일을 늘어놓는 방식이 아니라
+요약 + shortcut 또는 section 구조 검토.
+
+==================================================
+6. 신규 MEMBER PROFILE EXTENSIBLE FIELDS
+==================================================
+
+사용자 요구:
+
+관리자/선생님이 회원정보 상세에서
+학부모에게 추가로 보여줄 정보를
+입력할 수 있는 구조를 검토합니다.
+
+예:
+
+- 웹사이트 링크
+- YouTube 링크
+- 외부 영상 URL
+- 교육자료 URL
+- 안내 페이지 URL
+- 기타 참고 링크
+
+이를 위해
+Member Detail 내에:
+
+"학부모에게 보여줄 추가 정보"
+
+또는 동등한 section을 설계 검토.
+
+==================================================
+7. URL / LINK DATA MODEL 조사
+==================================================
+
+현재 DB에
+학생/회원별 custom link 또는 external URL 필드가 있는지 조사.
+
+없다면
+다음 두 방식 비교:
+
+A.
+students/member table에
+고정 컬럼 추가
+
+예:
+website_url
+video_url
+
+B.
+별도 child table
+
+예:
+student_links
+
+구조 예:
+
+id
+pool_id
+student_id
+type
+title
+url
+is_parent_visible
+sort_order
+created_by
+created_at
+updated_at
+
+향후 확장성을 고려할 때
+어떤 구조가 적절한지 추천.
+
+현재는 설계만.
+
+DB migration 금지.
+
+==================================================
+8. LINK TYPE 후보
+==================================================
+
+향후 확장 가능한 type 검토:
+
+website
+youtube
+video
+document
+curriculum
+notice
+external
+custom
+
+사용자가 직접:
+
+제목
+URL
+
+을 입력할 수 있는 custom type도 고려.
+
+==================================================
+9. PARENT VISIBLE 정책
+==================================================
+
+관리자/선생님이 입력한 모든 내부 정보를
+학부모에게 자동 노출하면 안 됩니다.
+
+각 정보/링크에:
+
+internal only
+parent visible
+
+구분 필요 여부 검토.
+
+특히 external link 구조는:
+
+is_parent_visible
+
+같은 명확한 visibility SoT 설계 검토.
+
+==================================================
+10. 권한 MATRIX 작성
+==================================================
+
+Member Detail 각 section별로:
+
+pool_admin
+sub_admin
+teacher
+parent
+
+권한을 다음으로 분류:
+
+VIEW
+EDIT
+ACTION
+HIDDEN
+
+예:
+
+회원 탈퇴:
+admin ACTION
+teacher HIDDEN 또는 제한
+parent HIDDEN
+
+보호자 연결 해제:
+admin only
+
+수업 메모:
+teacher/admin edit
+parent hidden
+
+Parent-visible external link:
+admin/teacher edit
+parent view
+
+실제 현재 권한 정책을 감사하여
+추천 MATRIX 제출.
+
+임의 권한 확대 금지.
+
+==================================================
+11. TEACHER MEMBER DETAIL
+==================================================
+
+선생님 모드 전수 조사.
+
+목표:
+
+선생님이 자신의 담당 회원을 눌렀을 때
+
+필요한 회원정보를 보기 위해
+여러 화면을 계속 이동하지 않아도 되게 설계.
+
+하지만:
+
+관리자 전용 민감 정보
+구독
+센터 설정
+삭제/탈퇴
+보호자 계정 관리
+
+등은 권한에 따라 제한.
+
+현재 실제 teacher 권한 기준으로 설계.
+
+==================================================
+12. ADMIN MEMBER DETAIL
+==================================================
+
+관리자는 가장 완전한 Member Detail 제공.
+
+가능하면:
+
+회원 1명을 선택한 뒤
+Member Detail에서 대부분 수정 가능.
+
+목표:
+
+여러 개의 작은 "회원 수정" 화면을
+계속 오갈 필요를 최소화.
+
+단 복잡한 전문 기능은
+Member Detail section의 shortcut으로 이동 가능.
+
+==================================================
+13. PARENT VIEW 조사
+==================================================
+
+학부모가 현재:
+
+- 자녀 기본정보
+- 수업정보
+- 레벨
+- 일지
+- 사진/영상
+- 커리큘럼
+- 기타 정보
+
+를 어디서 보는지 조사.
+
+향후 admin/teacher Member Detail의
+parent-visible 정보가
+학부모 앱에서 어디에 표시되는 것이 자연스러운지 설계.
+
+학부모 화면에
+관리자용 Member Detail을 그대로 노출하지 마십시오.
+
+Parent UI는 read-only 중심.
+
+==================================================
+14. MEMBER DELETE / WITHDRAW / EXIT 정리
+==================================================
+
+현재 용어와 액션 조사:
+
+- 탈퇴
+- 퇴원
+- 삭제
+- 휴원
+- 연기
+- 비활성
+- 회원 종료
+
+서로 의미가 다른지
+실제 DB 상태와 API 기준으로 정리.
+
+위험 액션은
+Member Detail 하단의:
+
+"회원 상태 및 관리"
+
+또는
+"위험 작업"
+
+section으로 몰아넣는 방식 검토.
+
+회원 기본정보 옆에
+탈퇴 버튼이 난잡하게 붙어있는 구조 제거 방향.
+
+==================================================
+15. DANGER ZONE 검토
+==================================================
+
+Member Detail 가장 하단에
+관리자 전용 Danger Zone 검토.
+
+예:
+
+- 퇴원 처리
+- 회원 비활성
+- 연결 해제
+- 완전 삭제
+- 기타 destructive action
+
+각각 confirm 필요 여부와
+soft-delete 여부 조사.
+
+실제 데이터 삭제 정책 변경 금지.
+
+==================================================
+16. INLINE EDIT VS EDIT MODE
+==================================================
+
+모바일에서 모든 필드 옆에
+편집 버튼이 잔뜩 있는 UI는 피합니다.
+
+다음 방식 비교:
+
+A.
+section별 Edit
+
+B.
+상단 "수정" 버튼
+→ editable mode
+
+C.
+필드를 눌러 inline edit
+
+D.
+작은 변경은 bottom sheet
+
+모바일/Office PC 재사용성을 고려해
+권장안을 제출.
+
+==================================================
+17. LONG SCROLL 원칙
+==================================================
+
+사용자 요구:
+
+Member Detail에서
+정보가 많더라도
+한 화면에서 아래로 스크롤하며
+대부분 처리 가능해야 함.
+
+따라서:
+
+불필요한 route 분할을 줄이고
+section 기반 long-scroll 상세 구조 검토.
+
+예:
+
+[기본정보]
+[수강정보]
+[교육정보]
+[보호자]
+[출결/보강]
+[피드/미디어]
+[학부모 공개 추가정보]
+[관리]
+
+각 section 접기/펼치기 필요 여부도 검토.
+
+==================================================
+18. OFFICE PC 대응
+==================================================
+
+향후 Office PC에서는
+동일 data contract를 사용하되:
+
+좌측:
+회원 목록/table
+
+우측:
+Member Detail panel
+
+또는
+
+회원 목록
+→ 상세 페이지
+
+구조로 쉽게 바꿀 수 있어야 함.
+
+따라서 모바일 UI 전용 상태에
+비즈니스 로직을 박아넣지 않도록
+API/data model 구조도 감사.
+
+==================================================
+19. API 전수 조사
+==================================================
+
+회원 관련 API 전부 조사:
+
+- get member/student
+- update
+- status
+- class assignment
+- guardian
+- attendance
+- makeup
+- diary
+- level
+- curriculum
+- media
+- links
+- notes
+- delete/withdraw
+
+중복 endpoint 여부 확인.
+
+Member Detail 화면을 위해:
+
+GET /member/:id
+
+같은 aggregate endpoint가 필요한지,
+
+기존 API 여러 개를 parallel call하는 것이 나은지
+
+비교 설계.
+
+아직 API 추가 금지.
+
+==================================================
+20. PERFORMANCE 고려
+==================================================
+
+Member Detail에 모든 데이터를
+한 번에 무제한 로딩하면 안 됨.
+
+아래 구분:
+
+Immediate load:
+기본정보/현재 수강정보
+
+Lazy load:
+과거 출결
+피드
+사진/영상
+일지
+성장 기록
+
+PC/mobile 공통으로 적절한 loading 전략 제안.
+
+==================================================
+21. CURRENT DB FIELD MAP
+==================================================
+
+현재 회원/학생 관련 DB table과 주요 field를
+실제 schema 기준으로 맵 작성.
+
+예:
+
+students
+users
+parent_accounts
+classes
+class_members
+attendance
+...
+실제 repository 기준.
+
+각 정보의 현재 SoT를 명시.
+
+==================================================
+22. 중복 SoT 감사
+==================================================
+
+같은 회원정보가:
+
+students
+users
+parent_accounts
+기타 table
+
+에 중복 저장되어 있는지 조사.
+
+예:
+
+phone
+name
+guardian phone
+status
+
+등.
+
+UI 통합하면서 DB SoT를 잘못 합치면 안 되므로
+현재 실제 SoT를 명확히 보고.
+
+==================================================
+23. 변경 예상 범위
+==================================================
+
+구현 전 계획서에서
+예상 변경을 WP 단위로 나눕니다.
+
+예시:
+
+WP-M1
+Current member system freeze audit
+
+WP-M2
+Member Detail data contract
+
+WP-M3
+Admin Member Detail consolidation
+
+WP-M4
+Teacher Member Detail consolidation
+
+WP-M5
+Parent-visible custom links/info
+
+WP-M6
+Duplicate routes/buttons cleanup
+
+WP-M7
+Parent view integration
+
+WP-M8
+Office-ready API cleanup
+
+실제 조사 후
+가장 안전한 WP 구조를 제안.
+
+==================================================
+24. 절대 구현 금지
+==================================================
+
+이번 작업에서는:
+
+코드 수정 금지
+DB migration 금지
+새 API 금지
+UI 변경 금지
+버튼 삭제 금지
+route 삭제 금지
+
+조사 + 계획서만.
+
+==================================================
+25. 기존 LOCK 보호
+==================================================
+
+변경 금지:
+
+- Pricing
+- Subscription UX
+- X Trial
+- X state
+- RevenueCat
+- App Store products
+- DATA pack
+- video pipeline
+- global Back rule
+- keyboard/scroll rule
+- 1.6.3 production
+
+==================================================
+26. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0
+# MEMBER MANAGEMENT CONSOLIDATION AUDIT & PLAN
+
+Repository:
+Branch:
+HEAD:
+
+## 1. CURRENT MEMBER ROUTE MAP
+
+Admin:
+...
+
+Teacher:
+...
+
+Parent:
+...
+
+## 2. CURRENT MEMBER ACTION MAP
+
+Action:
+Current screen:
+Role:
+API:
+Duplicate:
+YES / NO
+
+...
+
+## 3. DUPLICATE UI / BUTTONS
+
+...
+
+## 4. CURRENT MEMBER DATA SoT
+
+Field:
+Table:
+API:
+Editable by:
+Visible to parent:
+
+...
+
+## 5. CURRENT DB TABLE MAP
+
+...
+
+## 6. CURRENT API MAP
+
+...
+
+## 7. MEMBER DETAIL TARGET STRUCTURE
+
+Section 1:
+...
+
+Section 2:
+...
+
+...
+
+## 8. ADMIN MEMBER DETAIL
+
+View:
+...
+
+Edit:
+...
+
+Actions:
+...
+
+## 9. TEACHER MEMBER DETAIL
+
+View:
+...
+
+Edit:
+...
+
+Restricted:
+...
+
+## 10. PARENT VIEW
+
+Current:
+...
+
+Recommended:
+...
+
+## 11. PARENT-VISIBLE EXTRA INFORMATION
+
+Recommended model:
+...
+
+Website URL:
+...
+
+YouTube URL:
+...
+
+Video URL:
+...
+
+Custom URL:
+...
+
+Visibility:
+...
+
+## 12. LINK DATA MODEL RECOMMENDATION
+
+Option A:
+...
+
+Option B:
+...
+
+Recommended:
+...
+
+Reason:
+...
+
+## 13. PERMISSION MATRIX
+
+Field / Action | Admin | Sub Admin | Teacher | Parent
+
+...
+
+## 14. WITHDRAW / LEAVE / DELETE / STATUS AUDIT
+
+...
+
+## 15. DANGER ZONE DESIGN
+
+...
+
+## 16. INLINE EDIT / EDIT MODE RECOMMENDATION
+
+...
+
+## 17. LONG-SCROLL MEMBER DETAIL DESIGN
+
+...
+
+## 18. LAZY LOAD / PERFORMANCE PLAN
+
+...
+
+## 19. OFFICE PC REUSE PLAN
+
+Mobile:
+...
+
+Office:
+...
+
+Shared API/Data Contract:
+...
+
+## 20. DUPLICATE ROUTES TO REMOVE OR REDIRECT
+
+...
+
+## 21. DUPLICATE BUTTONS TO REMOVE
+
+...
+
+## 22. API CONSOLIDATION RECOMMENDATION
+
+...
+
+## 23. RISKS
+
+P0:
+...
+
+P1:
+...
+
+P2:
+...
+
+## 24. IMPLEMENTATION WP PLAN
+
+WP-M1:
+...
+
+WP-M2:
+...
+
+WP-M3:
+...
+
+...
+
+## 25. FILES EXPECTED TO CHANGE LATER
+
+...
+
+## 26. PRODUCTION CHANGES
+
+NONE
+
+## FINAL
+
+IMPLEMENTATION READY:
+YES / NO
+
+BLOCKERS:
+...
+
+RECOMMENDED FIRST WP:
+...
