@@ -1,0 +1,1123 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL BACK NAVIGATION + KEYBOARD INTERACTION
+# FULL FREEZE AUDIT ONLY
+# AFTER WP-M4 / BEFORE WP-M5
+
+현재 상태:
+
+WP-M1:
+PASS
+
+WP-M2:
+PASS
+
+WP-M3 ADMIN MEMBER DETAIL:
+PASS
+
+WP-M4 TEACHER MEMBER DETAIL:
+PASS
+
+Latest completed SHA:
+93e56d53
+
+이번 단계에서는
+회원관리 WP-M5로 넘어가지 않습니다.
+
+사용자 실기기 테스트에서
+기존 Global Back / Keyboard 규칙이
+여전히 일부 신규/기존 화면에 누락되어 있음이 확인되었습니다.
+
+따라서 이번 작업은:
+
+1. 뒤로가기 전체 경로 전수조사
+2. 설정 계층 전체 전수조사
+3. 검색 목록 → 상세 → 뒤로가기 전수조사
+4. 키보드 + 배경 탭 interaction 전수조사
+5. 버튼 tap + keyboard interaction 전수조사
+
+를 먼저 수행하는 FREEZE AUDIT입니다.
+
+==================================================
+0. AUDIT ONLY
+==================================================
+
+이번 단계에서는:
+
+코드 수정 금지
+UI 수정 금지
+route 수정 금지
+keyboard handler 수정 금지
+API 수정 금지
+
+조사 + 보고만.
+
+감사 결과를 받은 후
+한 번에 일괄 수정합니다.
+
+==================================================
+1. GLOBAL PRODUCT RULE
+==================================================
+
+이번 Navigation / Keyboard 규칙은
+AI/X 고유 기능이 아닙니다.
+
+따라서:
+
+SWIMNOTE 일반모드
++
+SWIMNOTE X모드
+
+모두 동일하게 적용되어야 합니다.
+
+Admin/Teacher도 동일한 전역 UX 규칙 사용.
+
+X mode 전용으로 따로 고치면 FAIL.
+
+==================================================
+2. LOCKED BACK RULE
+==================================================
+
+뒤로가기의 의미:
+
+"직전 화면으로 복귀"
+
+입니다.
+
+절대 원칙:
+
+A → B
+뒤로가기
+→ A
+
+A → B → C
+C 뒤로가기
+→ B
+B 뒤로가기
+→ A
+
+금지:
+
+뒤로가기
+→ Home 강제 이동
+
+뒤로가기
+→ Dashboard 강제 이동
+
+뒤로가기
+→ 임의의 상위 Tab 강제 이동
+
+뒤로가기
+→ logical parent라고 임의 추측하여
+실제 history를 무시
+
+기본:
+
+router.back()
+navigation.goBack()
+
+우선.
+
+history가 실제로 없는 특수 경우에만
+명확한 fallback 허용.
+
+==================================================
+3. 현재 실기기에서 확인된 BACK BUG #1
+==================================================
+
+현재 문제:
+
+용어 검색 목록
+→ 용어 하나 선택
+→ 용어 상세
+→ 뒤로가기
+
+현재:
+Home으로 이동
+
+Expected:
+용어 검색 목록으로 복귀
+
+이 경로를 실제 source 기준으로 추적하십시오.
+
+반드시 조사:
+
+- 용어검색 route
+- 검색 목록 route
+- 용어 상세 route
+- 상세 header
+- back handler
+- SubScreenHeader
+- homePath
+- fallback
+- router.replace
+- router.push
+- router.back
+- params/source/backTo
+
+왜 Home으로 가는지
+정확한 원인을 보고.
+
+이번 감사에서 수정 금지.
+
+==================================================
+4. TERMINOLOGY / SEARCH 계열 전수조사
+==================================================
+
+용어검색만 보지 말고
+검색 목록 → 상세 구조가 있는 화면 전체 조사.
+
+검색 keyword 예:
+
+terminology
+term
+search
+result
+detail
+dictionary
+curriculum
+swim-info
+info
+knowledge
+XInfo
+search-result
+
+각 route에서:
+
+LIST
+→ DETAIL
+→ BACK
+
+실제 destination을 맵 작성.
+
+Expected:
+
+DETAIL
+→ BACK
+→ 직전 LIST
+
+Home:
+NO
+
+==================================================
+5. ADMIN SETTINGS 전체 계층 감사
+==================================================
+
+관리자 설정 전체 route 전수조사.
+
+예:
+
+설정
+→ 세부설정
+→ 세부내용
+
+모든 깊이를 실제 route 기준으로 추적.
+
+예상 패턴:
+
+Settings
+→ Notification Settings
+→ Detail
+
+Settings
+→ X Mode
+→ Detail
+
+Settings
+→ Subscription
+→ Detail
+
+Settings
+→ Account
+→ Detail
+
+Settings
+→ Pool Settings
+→ Detail
+
+Settings
+→ 기타 모든 세부 설정
+
+각 경로마다:
+
+Entry Route
+Child Route
+Grandchild Route
+Back handler
+Fallback
+Actual destination
+
+제출.
+
+뒤로가기에서
+Home/Dashboard로 빠지는 occurrence 전부 찾기.
+
+==================================================
+6. TEACHER SETTINGS 전체 계층 감사
+==================================================
+
+선생님모드도 관리자와 동일 수준으로
+전수조사.
+
+특히:
+
+Teacher Settings
+→ 세부 설정
+→ 세부 내용
+
+Teacher Profile
+Teacher Notification
+Teacher Schedule settings
+Teacher Account
+기타 teacher settings
+
+실제 repository에 존재하는 모든 설정 route 조사.
+
+뒤로가기:
+
+세부내용
+→ 세부설정
+→ 설정
+
+이어야 함.
+
+Home으로 빠지는 occurrence:
+전부 보고.
+
+==================================================
+7. ADMIN / TEACHER 일반 SUBSCREEN 감사
+==================================================
+
+Settings 이외에도
+관리자/선생님에서 최근 추가된
+subscreen 전체 감사.
+
+예:
+
+member detail
+student detail
+class detail
+attendance detail
+makeup detail
+diary detail
+notification detail
+subscription
+X mode
+curriculum
+terminology
+growth
+report
+search
+profile
+requests
+messages
+
+실제 source 기준으로 전부 확인.
+
+==================================================
+8. BACK IMPLEMENTATION PATTERN 분류
+==================================================
+
+repository에서 다음 전수검색:
+
+router.back(
+router.replace(
+router.push(
+navigation.goBack(
+canGoBack(
+homePath
+backTo
+source
+headerLeft
+onBack
+BackButton
+SubScreenHeader
+ParentScreenHeader
+
+각 occurrence를 다음으로 분류:
+
+A.
+정상 previous-screen back
+
+B.
+history 없는 경우의 안전한 fallback
+
+C.
+Back action인데 Home/Dashboard hardcode
+
+D.
+의도적 Home 버튼
+
+E.
+업무 완료 후 명시적 destination 이동
+예:
+가입완료
+연결완료
+결제완료
+
+F.
+Auth/Onboarding 특수 flow
+
+C는 전부 수정 대상 후보.
+
+D/E/F는 Back bug로 세지 않음.
+
+==================================================
+9. homePath 사용 감사
+==================================================
+
+특히:
+
+SubScreenHeader
+homePath
+
+구조 전수조사.
+
+homePath가:
+
+"홈 버튼"
+
+용인지
+
+"뒤로가기 fallback"
+
+으로 잘못 사용되는지
+
+구분.
+
+Home icon은 Home 이동 가능.
+
+Back arrow는 Home 이동 금지.
+
+두 개 action이 동일 handler를 공유하면 보고.
+
+==================================================
+10. LOCKED KEYBOARD RULE
+==================================================
+
+키보드 기본 규칙:
+
+TextInput focus
+→ keyboard visible
+
+입력 focus가 없으면
+→ keyboard hidden
+
+다만 중요한 interaction rule:
+
+--------------------------------
+A. 버튼 TAP
+--------------------------------
+
+키보드가 올라와 있어도
+사용자가 버튼을 누르면:
+
+첫 tap으로
+버튼 action이 실행되어야 함.
+
+"첫 tap = keyboard dismiss만"
+"두 번째 tap = button 실행"
+
+구조 금지.
+
+--------------------------------
+B. 빈 배경 TAP
+--------------------------------
+
+키보드가 올라온 상태에서
+버튼/입력/선택 UI가 아닌
+
+"빈 화면 / 배경"
+
+을 tap하면:
+
+Keyboard.dismiss()
+
+되어야 함.
+
+--------------------------------
+C. SCROLL
+--------------------------------
+
+scroll 시작:
+
+keyboard 자연스럽게 dismiss.
+
+현재 curriculum search에서 적용한
+on-drag 동작 유지.
+
+==================================================
+11. 현재 실기기 KEYBOARD BUG
+==================================================
+
+현재:
+
+검색/채팅 입력창에 cursor가 있어
+keyboard가 올라온 상태에서
+
+빈 화면을 눌러도
+keyboard가 내려가지 않음.
+
+Expected:
+
+빈 배경 tap
+→ keyboard dismiss
+
+단:
+
+버튼 tap
+→ keyboard dismiss만 하고 action 무시
+
+가 아니라
+
+버튼 tap
+→ 버튼 action 즉시 실행
+
+이어야 함.
+
+==================================================
+12. KEYBOARD TARGET / BACKGROUND 구분
+==================================================
+
+전역 구현 시 반드시 구분 가능해야 함.
+
+INTERACTIVE TARGET:
+
+- Button
+- Pressable
+- Touchable
+- Link
+- List item
+- Checkbox
+- Toggle
+- Picker
+- Select
+- CTA
+- Result card
+- Input
+
+이 영역 tap:
+
+action 정상 실행.
+
+배경 dismiss handler가
+event를 먹으면 안 됨.
+
+NON-INTERACTIVE BACKGROUND:
+
+- 빈 View
+- 빈 container
+- 화면 여백
+
+tap:
+
+Keyboard.dismiss()
+
+==================================================
+13. KEYBOARD 전체 화면 전수조사
+==================================================
+
+다음 코드 전수검색:
+
+TextInput
+Keyboard
+Keyboard.dismiss
+KeyboardAvoidingView
+TouchableWithoutFeedback
+Pressable
+ScrollView
+FlatList
+SectionList
+keyboardShouldPersistTaps
+keyboardDismissMode
+autoFocus
+focus()
+
+모든 입력화면 목록 작성.
+
+특히:
+
+Admin
+Teacher
+Parent
+공통 component
+
+전체.
+
+==================================================
+14. 반드시 포함할 입력화면
+==================================================
+
+실제 존재 여부 확인 후 포함:
+
+- 커리큘럼 검색
+- 용어 검색
+- AI 채팅
+- support chat
+- 회원정보 수정
+- 선생님 회원 메모
+- 관리자 회원 메모
+- 보호자 연락처 수정
+- 일지 작성
+- 공지 작성
+- 요청 입력
+- 검색창
+- 설정 TextInput
+- Profile 수정
+- 반 이름 수정
+- 기타 모든 신규 2.0 TextInput 화면
+
+==================================================
+15. keyboardShouldPersistTaps 감사
+==================================================
+
+ScrollView / FlatList / SectionList에서:
+
+keyboardShouldPersistTaps
+
+현재 값 조사.
+
+목표:
+
+키보드가 떠 있어도
+버튼/목록 item을 한 번 tap하면
+action 실행.
+
+보통:
+
+handled
+
+패턴이 적절하지만
+현재 component 구조를 실제로 조사해서 보고.
+
+잘못된:
+
+never
+
+등으로 인해
+첫 tap이 keyboard dismiss에 소비되는 곳 찾기.
+
+==================================================
+16. BACKGROUND DISMISS 구현 패턴 조사
+==================================================
+
+현재 앱에서 이미
+빈 배경 tap → Keyboard.dismiss()
+
+가 정상 작동하는 화면이 있는지 찾으십시오.
+
+정상 구현이 있다면:
+
+파일:
+component:
+pattern:
+
+보고.
+
+향후 전역 수정 시
+그 검증된 패턴을 공통화할 수 있는지 평가.
+
+새 pattern을 아직 구현하지 마십시오.
+
+==================================================
+17. NESTED PRESSABLE 위험 감사
+==================================================
+
+배경 dismiss를 위해
+화면 전체를:
+
+TouchableWithoutFeedback
+Pressable
+
+로 감쌀 경우
+
+내부 Button/Pressable tap이
+먹히거나 두 번 tap 필요할 위험이 있습니다.
+
+현재 코드에서 이런 nested interaction이
+있는 화면을 조사.
+
+완료보고에 위험 화면 목록 제출.
+
+==================================================
+18. KEYBOARD + MODAL / SHEET 감사
+==================================================
+
+Modal / BottomSheet에서 TextInput 사용하는 화면도 조사.
+
+규칙:
+
+modal/sheet 내부 빈 영역 tap
+→ keyboard dismiss 가능
+
+버튼 tap
+→ 버튼 즉시 실행
+
+modal 닫기
+→ keyboard dismiss
+
+단:
+
+modal 바깥 backdrop tap의 기존
+dismiss semantics는 보존.
+
+==================================================
+19. AUTOFOCUS 감사
+==================================================
+
+autoFocus={true}
+mount 후 focus()
+
+전수조사.
+
+다음 분류:
+
+A. 의도적 즉시 입력
+B. Modal edit에서 합리적
+C. 화면 진입하자마자 불필요하게 keyboard 생성
+D. legacy/dead
+
+C는 수정 대상 후보.
+
+==================================================
+20. SHARED COMPONENT 후보 조사
+==================================================
+
+전역 수정을 화면별로 복붙하지 않기 위해
+공통화 가능성 조사.
+
+Back 후보:
+
+SubScreenHeader
+ParentScreenHeader
+Teacher header
+공통 BackButton
+
+Keyboard 후보:
+
+Screen wrapper
+KeyboardDismissContainer
+KeyboardAwareScroll wrapper
+공통 FormScreen
+공통 Search screen
+
+단 이번 단계에서는 생성/수정 금지.
+
+==================================================
+21. BACK AUDIT MATRIX 제출
+==================================================
+
+완료보고에 반드시 표 제출:
+
+Role
+Entry
+Child
+Grandchild
+Back From
+Expected
+Current
+Result
+Source File
+Handler Type
+
+예:
+
+Admin
+Settings
+X Mode
+-
+X Mode
+Settings
+Settings
+PASS
+...
+
+Teacher
+Settings
+Notification
+Detail
+Detail
+Notification
+Home
+FAIL
+...
+
+==================================================
+22. KEYBOARD AUDIT MATRIX 제출
+==================================================
+
+각 입력화면:
+
+Role
+Route
+TextInput
+Keyboard on entry
+Background tap dismiss
+Button one-tap
+Scroll dismiss
+keyboardShouldPersistTaps
+autoFocus
+Result
+
+제출.
+
+==================================================
+23. P0 / P1 분류
+==================================================
+
+P0:
+
+- Back이 Home으로 잘못 이동하여 작업 context 상실
+- 버튼 첫 tap이 먹히지 않음
+- keyboard 때문에 필수 action 불가
+- navigation loop
+
+P1:
+
+- 빈 배경 tap dismiss 누락
+- autofocus 불필요
+- 일부 secondary screen keyboard UX 불일치
+
+실제 영향에 따라 조정 가능.
+
+==================================================
+24. 이번 감사에서 특별 확인
+==================================================
+
+반드시 다음은 개별 결과 제출:
+
+CASE 1
+용어 검색 목록
+→ 용어 상세
+→ Back
+
+CASE 2
+Admin Settings
+→ X Mode
+→ Back
+
+CASE 3
+Admin Settings
+→ Notification Settings
+→ Back
+
+CASE 4
+Admin Settings
+→ 모든 child
+→ Back
+
+CASE 5
+Teacher Settings
+→ 모든 child
+→ Back
+
+CASE 6
+Teacher Settings
+→ child
+→ grandchild
+→ Back x2
+
+CASE 7
+Curriculum Search
+keyboard visible
+→ empty background tap
+
+CASE 8
+Curriculum Search
+keyboard visible
+→ result/button tap
+
+CASE 9
+Member Detail edit
+keyboard visible
+→ empty background tap
+
+CASE 10
+Teacher Student Detail edit
+keyboard visible
+→ empty background tap
+
+==================================================
+25. 기존 수정 보호
+==================================================
+
+이번 Audit에서 변경 금지:
+
+WP-M3 Admin Member Detail
+WP-M4 Teacher Member Detail
+Member Data Contract
+Pricing
+Subscription
+RevenueCat
+App Store
+Google Play
+X Trial
+X State
+student_links
+Delete endpoints
+Restore endpoints
+
+==================================================
+26. PRODUCTION 변경 금지
+==================================================
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+1.6.3:
+NO
+
+Android:
+NO
+
+==================================================
+27. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# GLOBAL BACK + KEYBOARD INTERACTION FREEZE AUDIT REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## AUDIT SCOPE
+
+Admin routes audited:
+...
+
+Teacher routes audited:
+...
+
+Parent/common routes audited:
+...
+
+Input screens audited:
+...
+
+## TERMINOLOGY SEARCH BACK
+
+List route:
+...
+
+Detail route:
+...
+
+Current behavior:
+...
+
+Expected:
+DETAIL -> LIST
+
+Root cause:
+...
+
+Classification:
+A/B/C/D/E/F
+
+Fix required:
+YES / NO
+
+## ADMIN SETTINGS BACK MATRIX
+
+...
+
+## TEACHER SETTINGS BACK MATRIX
+
+...
+
+## OTHER SUBSCREEN BACK ISSUES
+
+...
+
+## HARDCODED HOME BACK
+
+Occurrences:
+...
+
+Actual bugs:
+...
+
+Intentional Home actions:
+...
+
+## BACK COMPONENT AUDIT
+
+SubScreenHeader:
+...
+
+ParentScreenHeader:
+...
+
+Teacher header:
+...
+
+homePath behavior:
+...
+
+Recommended common rule:
+...
+
+## KEYBOARD GLOBAL AUDIT
+
+Input screens:
+...
+
+Background tap dismiss supported:
+...
+
+Missing:
+...
+
+## BUTTON ONE-TAP AUDIT
+
+Keyboard visible + button tap:
+
+Working screens:
+...
+
+Broken screens:
+...
+
+Cause:
+...
+
+## keyboardShouldPersistTaps
+
+handled:
+...
+
+never:
+...
+
+missing:
+...
+
+Risk screens:
+...
+
+## SCROLL DISMISS
+
+Working:
+...
+
+Missing:
+...
+
+## AUTOFOCUS
+
+Intentional:
+...
+
+Unnecessary:
+...
+
+## BACKGROUND DISMISS PATTERN
+
+Existing good implementation:
+...
+
+Reusable:
+YES / NO
+
+Recommended pattern:
+...
+
+## NESTED PRESSABLE RISKS
+
+...
+
+## MODAL / SHEET KEYBOARD
+
+...
+
+## BACK AUDIT MATRIX
+
+Role | Entry | Child | Grandchild | Back From | Expected | Current | Result | File | Handler
+
+...
+
+## KEYBOARD AUDIT MATRIX
+
+Role | Route | Entry Keyboard | Background Dismiss | Button One-Tap | Scroll Dismiss | Persist Taps | Autofocus | Result
+
+...
+
+## REQUIRED CASES
+
+CASE 1 Terminology:
+PASS / FAIL
+
+CASE 2 Admin X Mode:
+PASS / FAIL
+
+CASE 3 Admin Notification:
+PASS / FAIL
+
+CASE 4 Admin All Settings:
+PASS / FAIL
+
+CASE 5 Teacher All Settings:
+PASS / FAIL
+
+CASE 6 Teacher Nested Settings:
+PASS / FAIL
+
+CASE 7 Curriculum Empty Background:
+PASS / FAIL
+
+CASE 8 Curriculum Button One-Tap:
+PASS / FAIL
+
+CASE 9 Admin Member Detail Background:
+PASS / FAIL
+
+CASE 10 Teacher Member Detail Background:
+PASS / FAIL
+
+## P0
+
+...
+
+## P1
+
+...
+
+## RECOMMENDED IMPLEMENTATION STRATEGY
+
+Back:
+...
+
+Keyboard:
+...
+
+Common components:
+...
+
+Files expected to change:
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## FINAL
+
+AUDIT COMPLETE:
+YES / NO
+
+IMPLEMENTATION READY:
+YES / NO
+
+BLOCKERS:
+...
