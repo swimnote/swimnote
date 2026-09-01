@@ -602,21 +602,27 @@ export default function TeacherAttendanceScreen() {
                 <View style={s.dotArea}>
                   {isAbsent && <View style={s.absentDot} />}
                 </View>
-                {/* 이름 + 주횟수 */}
-                <View style={{ flex: 1 }}>
-                  <Text style={[
-                    s.attName,
-                    classOver && s.strikethrough,
-                    isAbsent && { color: "#D96C6C" },
-                  ]}>
-                    {item.name}
-                  </Text>
-                  {item.weekly_count ? (
-                    <Text style={[s.attSub, isAbsent && { color: "#D96C6C" }]}>
-                      주 {item.weekly_count}회
+                {/* 이름 + 주횟수 — tap → student-detail */}
+                <Pressable
+                  style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 4 }}
+                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "attendance" } } as any)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[
+                      s.attName,
+                      classOver && s.strikethrough,
+                      isAbsent && { color: "#D96C6C" },
+                    ]}>
+                      {item.name}
                     </Text>
-                  ) : null}
-                </View>
+                    {item.weekly_count ? (
+                      <Text style={[s.attSub, isAbsent && { color: "#D96C6C" }]}>
+                        주 {item.weekly_count}회
+                      </Text>
+                    ) : null}
+                  </View>
+                  <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ marginRight: 4 }} />
+                </Pressable>
                 {/* 출결 버튼 */}
                 <View style={s.attBtns}>
                   {isSaving ? (
@@ -647,13 +653,6 @@ export default function TeacherAttendanceScreen() {
                     </>
                   )}
                 </View>
-                {/* 상세 화살표 */}
-                <Pressable
-                  style={s.arrowBtn}
-                  onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "attendance" } } as any)}
-                >
-                  <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
-                </Pressable>
               </View>
             );
           }}

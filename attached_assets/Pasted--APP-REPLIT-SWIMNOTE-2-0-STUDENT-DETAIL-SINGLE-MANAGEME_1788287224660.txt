@@ -1,0 +1,1062 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# STUDENT DETAIL SINGLE MANAGEMENT HUB
+# FINAL GAP CORRECTION
+# BEFORE WP-M5
+
+현재 완료보고:
+
+HEAD:
+98669b9f
+
+큰 구조는 정상이나
+Student Detail Single Management Hub의
+최종 요구사항 대비 4개 gap이 확인되었습니다.
+
+이번 작업은
+새 기능 추가가 아니라
+
+1. 빠진 기존 수정기능 연결
+2. 중복 액션 제거
+3. 잘못된 non-student-scoped shortcut 정리
+4. regression baseline 숫자 검증
+
+만 수행합니다.
+
+==================================================
+0. ABSOLUTE RULE
+==================================================
+
+이번에도 동일:
+
+새로운 회원관리 로직 생성 금지.
+
+기존:
+
+API
+workflow
+validation
+permission
+
+만 재사용.
+
+새 DB:
+NO
+
+새 endpoint:
+NO
+
+새 attendance/media/diary 구조:
+NO
+
+==================================================
+1. GAP #1 — SECTION A 기본정보 수정 기능
+==================================================
+
+현재 보고:
+
+Section A
+기본정보 조회
+
+만 확인됨.
+
+하지만 Student Detail은
+단순 조회 화면이 아니라
+학생관리 단일 허브여야 함.
+
+따라서 현재 Role에서
+이미 수정 가능한 기본정보는
+Section A 안에서 직접 수정 가능해야 합니다.
+
+먼저 기존 앱에서
+학생 기본정보 수정 기능을 전수 확인.
+
+확인 대상 예:
+
+- 이름
+- 생년월일
+- 성별
+- 학교
+- 학년
+- 주소
+- 학생 전화번호
+- 메모
+- 내부노트
+
+실제 DB/API에 있는 것만.
+
+==================================================
+2. 기존 BASIC EDIT WORKFLOW 재사용
+==================================================
+
+기존 Admin/Teacher 화면 또는
+기존 member edit 기능에서
+사용하는:
+
+- endpoint
+- payload
+- validation
+- permission
+- field normalization
+
+을 그대로 재사용.
+
+새 PATCH endpoint 생성 금지.
+
+이미 사용 중인 update API가 있으면
+Student Detail Section A에 연결.
+
+==================================================
+3. ROLE 권한
+==================================================
+
+Admin:
+
+기존 Admin이 수정 가능한
+학생 기본정보 전부 Section A에서 수정 가능.
+
+Teacher:
+
+현재 Teacher가 기존에 수정 가능한
+정보만 Section A에서 수정 가능.
+
+예:
+
+Teacher가 이름/생년월일 수정 권한이 없으면
+readonly.
+
+Teacher가 memo/notes만 수정 가능하면
+그것만 editable.
+
+권한 확대 금지.
+
+==================================================
+4. SECTION A UX
+==================================================
+
+권장:
+
+Section A
+[수정]
+
+tap
+
+→ editable fields 활성화
+
+→ [저장] [취소]
+
+필드별 연필 아이콘 난립 금지.
+
+저장 성공:
+server reload
+
+저장 실패:
+기존 값 유지 + error
+
+==================================================
+5. GAP #2 — MEMBER STATUS 중복 제거
+==================================================
+
+현재 보고:
+
+Section B:
+[상태변경]
+
+Section H:
+[상태변경]
+
+두 군데 존재.
+
+중복 금지.
+
+최종:
+
+Section B 수강정보 안
+
+상태:
+정상      [회원상태변경]
+
+여기에만 배치.
+
+Section H에서
+동일한 회원상태변경 버튼 제거.
+
+==================================================
+6. SECTION H 역할
+==================================================
+
+Admin:
+
+Danger / 관리 기능이 필요한 경우만 사용.
+
+예:
+
+- archive
+- restore
+- purge
+- permanent delete
+- 기타 관리자 관리 기능
+
+기존 semantics 그대로.
+
+Teacher:
+
+Danger Zone 없음.
+
+Teacher Section H가
+단순 상태변경 버튼만 보여주기 위해 존재한다면
+Section 자체 제거 가능.
+
+즉 Teacher에서:
+
+Section B:
+회원상태
+
+Section H:
+불필요
+
+가 더 적절하면 그렇게 정리.
+
+==================================================
+7. GAP #3 — DIARY / MEDIA가 아직 STUDENT-SCOPED 아님
+==================================================
+
+현재 보고:
+
+Diary / Media:
+diary-index / photos
+(파라미터 미지원 화면)
+
+이 상태는 최종 PASS가 아님.
+
+Student Detail에서:
+
+[일지 보기]
+[사진/영상 보기]
+
+를 눌렀을 때
+그 학생 개인 데이터가 나와야 함.
+
+반 전체 / 전체 센터 / 일반 목록으로 가면 FAIL.
+
+==================================================
+8. DIARY 기존 개인 조회 기능 조사
+==================================================
+
+새 화면 만들지 말고
+기존 앱에서 학생 개인 일지를
+조회할 수 있는 기능/API/route를 먼저 찾으십시오.
+
+전수검색:
+
+student diary
+student_id diary
+diary student filter
+member diary
+teacher diary entries
+parent student diary
+
+확인:
+
+- route
+- endpoint
+- query param
+- studentId filter
+- access scope
+
+기존 student-scoped route가 있으면 재사용.
+
+==================================================
+9. MEDIA 기존 개인 조회 기능 조사
+==================================================
+
+동일하게:
+
+student photo
+student media
+student_id photo
+album student filter
+member photos
+student video
+
+를 조사.
+
+기존 학생 개인 media filter/route/API가 있으면
+그것을 사용.
+
+==================================================
+10. 개인 ROUTE가 없을 경우
+==================================================
+
+중요:
+
+기존 화면이 studentId filter를 지원하지 않는다고 해서
+
+새로운 병렬 diary/media 시스템을 만들지 마십시오.
+
+가능한 경우:
+
+기존 전문 화면에
+기존 query/API 필터 기능을 최소 additive하게 연결.
+
+예:
+
+photos?studentId=123
+
+diary-index?studentId=123
+
+단 이것도
+기존 backend가 student filter를 이미 지원하는 경우 우선.
+
+backend가 지원하지 않으면
+임의 신규 backend 로직을 만들지 말고
+BLOCKER로 보고.
+
+==================================================
+11. Student Detail에서 잘못된 shortcut 금지
+==================================================
+
+Student Detail:
+
+김다온
+
+[일지 보기]
+
+→ 김다온 개인 일지
+
+[사진/영상]
+
+→ 김다온 개인 미디어
+
+이어야 함.
+
+다음은 FAIL:
+
+→ 전체 일지
+→ 반 전체 일지
+→ 센터 전체 사진
+→ 현재 반 사진
+
+==================================================
+12. ATTENDANCE DETAIL 상태도 재확인
+==================================================
+
+현재 Section D는
+개인 summary만 있고
+반 전체 링크는 제거됨.
+
+이건 좋음.
+
+다만 만약 [상세보기] 버튼이 존재하면:
+
+반드시 student-scoped.
+
+없으면
+이번 WP에서 억지로 새 화면 만들 필요 없음.
+
+즉:
+
+개인 summary:
+필수
+
+개인 detail shortcut:
+기존 기능이 있을 때만 연결
+
+새 attendance page:
+금지
+
+==================================================
+13. WEEKLY COUNT 실제 연동 근거 재확인
+==================================================
+
+보고서에는:
+
+Attendance integration:
+기존 API가 처리
+
+라고만 되어 있음.
+
+반드시 실제 코드 근거 확인.
+
+PATCH /students/:id/weekly-count
+
+호출 후:
+
+- students.weekly_count
+- 실제 반배정
+- 출석부에서 주2/주3회 운영 가능 여부
+
+가 기존 workflow와 동일하게 유지되는지
+코드/테스트 기준으로 확인.
+
+UI 숫자만 바뀌는 것이 아님을
+완료보고에 근거 명시.
+
+==================================================
+14. CLASS MOVE 실제 연동 근거 재확인
+==================================================
+
+POST /students/:id/move-class
+
+재사용은 방향 맞음.
+
+확인:
+
+- source assignment 해제
+- target assignment 생성
+- capacity validation
+- same teacher class 이동
+- multiple assignment
+- duplicate 방지
+
+실제 기존 기능 그대로인지 확인.
+
+새 로직 추가 금지.
+
+==================================================
+15. DIRECT ENTRY — ATTENDANCE 화면도 정리 검토
+==================================================
+
+현재:
+
+teacher/attendance.tsx
+
+학생 상세 진입이
+아직 "화살표"라고 보고됨.
+
+사용자 최종 UX 원칙:
+
+작은 >만 눌러야
+학생상세에 진입하는 구조 금지.
+
+따라서 attendance 학생목록에서도:
+
+학생 이름/학생정보 영역 tap
+→ Student Detail
+
+로 변경 가능하면 적용.
+
+출석/결석 관련 action은
+별도 interaction 유지.
+
+==================================================
+16. 주요 STUDENT LIST DIRECT ENTRY 전수확인
+==================================================
+
+반드시 확인:
+
+Teacher:
+
+- my-schedule
+- students
+- attendance
+- makeups
+- 기타 학생 list
+
+Admin:
+
+- members
+- people
+- class management
+- attendance
+- makeup
+- 기타 회원 list
+
+각 화면에서
+학생 이름을 눌렀을 때:
+
+Student Detail 바로 진입 가능해야 함.
+
+단 이번 단계에서는
+안전하게 direct link를 연결할 수 있는 곳만 수정.
+
+중간 modal이
+회원정보보기/상태변경만 제공한다면 제거.
+
+==================================================
+17. Student Detail 내부 ACTION 위치 최종 LOCK
+==================================================
+
+Section A:
+기본정보 + 기본정보 수정
+
+Section B:
+수강정보
+- weekly count
+- class/schedule
+- status
+
+Section C:
+level + level change
+
+Section D:
+개인 attendance / makeup
+
+Section E:
+guardian + guardian edit
+
+Section F:
+개인 diary / media
+
+Section G:
+WP-M5
+
+Section H:
+Admin-only management/danger only
+
+같은 action을
+두 Section에 중복 배치 금지.
+
+==================================================
+18. PC OFFICE 구조
+==================================================
+
+이번 최종 상태가
+Office에도 그대로 사용 가능해야 함.
+
+회원 선택
+→ Student Detail
+
+Student Detail:
+
+- basic edit
+- weekly count
+- class move
+- status
+- level
+- guardian
+- student attendance
+- student diary/media
+
+를 Role 권한대로 수행.
+
+==================================================
+19. REGRESSION BASELINE 불일치
+==================================================
+
+중요.
+
+직전 고정 baseline:
+
+154 failures
+
+이번 보고:
+
+159 failures
+"pre-existing"
+
+라고 되어 있음.
+
+이것은 그대로 PASS 불가.
+
+반드시 확인:
+
+A.
+왜 154 → 159로 바뀌었는지
+
+B.
+동일 test command인지
+
+C.
+동일 environment인지
+
+D.
+새로운 5개 failure가 정확히 무엇인지
+
+E.
+98669b9f 또는 이번 WP로 발생한 것인지
+
+==================================================
+20. REGRESSION 비교 방법
+==================================================
+
+가능하면 같은 현재 환경에서:
+
+1.
+HEAD Before 또는 known baseline commit 기준 test
+
+2.
+Current HEAD 기준 동일 test
+
+동일 command로 비교.
+
+보고:
+
+Baseline commit:
+...
+
+Baseline command:
+...
+
+Baseline failures:
+...
+
+Current failures:
+...
+
+Delta:
+...
+
+New failures caused by Student Detail work:
+...
+
+==================================================
+21. 5개 증가의 판정
+==================================================
+
+만약:
+
+환경/fixture 변화 때문에
+baseline 자체가 현재 159이고
+Student Detail 전후 동일하다면:
+
+PASS 가능.
+
+단 근거 제출.
+
+만약:
+
+Student Detail 작업으로
+5개가 증가했다면:
+
+수정 필수.
+
+==================================================
+22. TEST — BASIC EDIT
+==================================================
+
+CASE A
+
+Admin Student Detail
+→ Section A
+→ 수정
+
+PASS
+
+CASE B
+
+기존 Admin 권한 필드 수정
+→ 기존 API 사용
+
+PASS
+
+CASE C
+
+저장 후 reload
+→ 실제 server 값 반영
+
+PASS
+
+CASE D
+
+Teacher
+→ 허용 필드만 수정
+
+PASS
+
+CASE E
+
+Teacher 권한 밖 필드:
+READONLY/HIDDEN
+
+PASS
+
+==================================================
+23. TEST — STATUS DEDUP
+==================================================
+
+CASE F
+
+Section B:
+상태 + 변경 버튼
+
+PASS
+
+CASE G
+
+Section H:
+동일 상태변경 버튼
+
+Expected:
+ABSENT
+
+==================================================
+24. TEST — PERSONAL DIARY / MEDIA
+==================================================
+
+CASE H
+
+김다온 Student Detail
+→ 일지
+
+Expected:
+김다온 개인 일지
+
+CASE I
+
+김다온 Student Detail
+→ 사진/영상
+
+Expected:
+김다온 개인 media
+
+CASE J
+
+반 전체/센터 전체 화면으로 잘못 연결:
+0
+
+==================================================
+25. TEST — DIRECT ENTRY
+==================================================
+
+CASE K
+
+Teacher Attendance list
+→ 학생 이름 tap
+→ Student Detail
+
+PASS
+
+CASE L
+
+작은 chevron만 눌러야 상세:
+NO
+
+CASE M
+
+학생 row quick action
+→ 기존 업무 action
+
+PASS
+
+==================================================
+26. TEST — WEEKLY COUNT
+==================================================
+
+CASE N
+
+1 → 2
+
+기존 API:
+PASS
+
+실제 server:
+2
+
+출석부 연계:
+PASS
+
+CASE O
+
+2 → 3
+
+PASS
+
+CASE P
+
+3 → 1
+
+PASS
+
+==================================================
+27. TEST — CLASS MOVE
+==================================================
+
+CASE Q
+
+같은 Teacher 다른 반 이동
+
+PASS
+
+CASE R
+
+source roster 제거
+
+PASS
+
+CASE S
+
+target roster 배정
+
+PASS
+
+CASE T
+
+duplicate assignment
+
+Expected:
+NO
+
+==================================================
+28. SHARED CORE
+==================================================
+
+SWIMNOTE:
+PASS
+
+X:
+PASS
+
+New mode gate:
+0
+
+==================================================
+29. 금지
+==================================================
+
+WP-M5 시작 금지
+student_links 생성 금지
+
+새 diary system 금지
+새 media system 금지
+새 attendance system 금지
+새 weekly-count system 금지
+새 class-move system 금지
+
+새 DB migration 금지
+
+Pricing / Subscription / RevenueCat / Store 변경 금지
+
+Production deploy 금지
+OTA 금지
+
+==================================================
+30. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# STUDENT DETAIL MANAGEMENT HUB FINAL GAP REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## BASIC INFO EDIT
+
+Existing edit workflow:
+...
+
+Existing endpoint:
+...
+
+Admin editable:
+...
+
+Teacher editable:
+...
+
+New endpoint:
+YES / NO
+
+Expected:
+NO
+
+Section A connected:
+PASS / FAIL
+
+## STATUS ACTION
+
+Section B:
+...
+
+Section H duplicate:
+PRESENT / REMOVED
+
+Expected:
+REMOVED
+
+## DIARY STUDENT SCOPE
+
+Existing student diary route/API:
+...
+
+Student Detail destination:
+...
+
+studentId filtering:
+PASS / FAIL
+
+New system:
+YES / NO
+
+Expected:
+NO
+
+## MEDIA STUDENT SCOPE
+
+Existing student media route/API:
+...
+
+Student Detail destination:
+...
+
+studentId filtering:
+PASS / FAIL
+
+New system:
+YES / NO
+
+Expected:
+NO
+
+## ATTENDANCE
+
+Summary:
+STUDENT / CLASS
+
+Detail shortcut:
+...
+
+Class-scoped wrong link:
+YES / NO
+
+Expected:
+NO
+
+## WEEKLY COUNT
+
+Existing endpoint:
+...
+
+Actual persistence:
+...
+
+Attendance integration evidence:
+...
+
+1→2:
+PASS / FAIL
+
+2→3:
+PASS / FAIL
+
+3→1:
+PASS / FAIL
+
+New logic:
+YES / NO
+
+Expected:
+NO
+
+## CLASS MOVE
+
+Existing endpoint:
+...
+
+Same-teacher move:
+PASS / FAIL
+
+Source removal:
+PASS / FAIL
+
+Target assign:
+PASS / FAIL
+
+Duplicate:
+YES / NO
+
+Expected:
+NO
+
+## DIRECT ENTRY
+
+Source | Name tap | Chevron-only | Intermediate Modal | Destination
+
+...
+
+Expected:
+Student Detail / NO / NONE
+
+## SECTION MAP
+
+A:
+...
+
+B:
+...
+
+C:
+...
+
+D:
+...
+
+E:
+...
+
+F:
+...
+
+G:
+NOT IMPLEMENTED
+
+H:
+...
+
+Duplicate actions:
+...
+
+Expected:
+NONE
+
+## REGRESSION BASELINE INVESTIGATION
+
+Previous known baseline:
+154
+
+Current reported:
+159
+
+Same command:
+YES / NO
+
+Baseline commit:
+...
+
+Baseline failures:
+...
+
+Current failures:
+...
+
+Difference reason:
+...
+
+New failures caused by this work:
+...
+
+Expected:
+0
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gates:
+...
+
+Expected:
+0
+
+## PRODUCTION
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STUDENT DETAIL MANAGEMENT HUB FULLY COMPLETE
+or
+BLOCKED

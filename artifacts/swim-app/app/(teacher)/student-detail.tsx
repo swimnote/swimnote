@@ -773,77 +773,15 @@ export default function StudentDetailScreen() {
           {/* phone3/4: HIDDEN — teacher API 미지원 (의도적 제한) */}
         </MemberSectionCard>
 
-        {/* ── Section F: 일지 / 사진 shortcut ── */}
-        <MemberSectionCard title="일지 / 사진">
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable
-              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: themeColor + "60", backgroundColor: themeColor + "0A" }}
-              onPress={() => router.push("/(teacher)/diary-index" as any)}
-            >
-              <LucideIcon name="book-open" size={14} color={themeColor} />
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: themeColor }}>일지 보기</Text>
-            </Pressable>
-            <Pressable
-              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft }}
-              onPress={() => router.push("/(teacher)/photos" as any)}
-            >
-              <LucideIcon name="image" size={14} color={C.textSecondary} />
-              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>사진/영상</Text>
-            </Pressable>
-          </View>
-        </MemberSectionCard>
+        {/* ── Section F: 개인 일지 / 사진 — PENDING (백엔드 student_id 필터 미지원) ── */}
+        {/* diary-index: student_id query param 없음 → 전체 일지로 이동 = WRONG SCOPE → 미노출 */}
+        {/* photos/private/:studentId: 앱 화면 params 미지원 → WRONG SCOPE → 미노출 */}
+        {/* WP-M5 이후 student-scoped diary/media route 구현 시 이 섹션 활성화 */}
 
         {/* Section G: WP-M5 전까지 미노출 (공개 추가정보) */}
 
-        {/* ── Section H: 회원 상태 + 상태변경 버튼 ── */}
-        <MemberSectionCard title="회원 상태">
-          <View style={{ gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <View style={{ flex: 1, flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: primaryBadge?.bg ?? C.backgroundSoft }}>
-                  <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: primaryBadge?.color ?? C.textMuted }}>
-                    {primaryBadge?.label ?? ps}
-                  </Text>
-                </View>
-                {pendingBadge && (
-                  <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.backgroundSoft }}>
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>예정: {pendingBadge.label}</Text>
-                  </View>
-                )}
-              </View>
-              {/* 회원상태변경 — 기존 MemberStatusChangeModal 재사용 */}
-              <Pressable
-                style={{
-                  paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-                  borderWidth: 1.5, borderColor: "#D97706" + "60",
-                  backgroundColor: "#D97706" + "08",
-                }}
-                onPress={() => setShowStatusModal(true)}
-              >
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D97706" }}>상태변경</Text>
-              </Pressable>
-            </View>
-            <View style={{ gap: 6 }}>
-              {student.created_at && (
-                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                  <LucideIcon name="calendar" size={12} color={C.textMuted} />
-                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
-                    등록일: {new Date(student.created_at).toLocaleDateString("ko-KR")}
-                  </Text>
-                </View>
-              )}
-              {student.registration_path && (
-                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                  <LucideIcon name="map-pin" size={12} color={C.textMuted} />
-                  <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
-                    {student.registration_path === "admin_created" ? "관리자 직접 등록" : "학부모 요청 등록"}
-                  </Text>
-                </View>
-              )}
-            </View>
-            {/* Teacher HIDDEN: 관리자 전용 삭제·영구삭제 액션 미노출 (admin-only scope) */}
-          </View>
-        </MemberSectionCard>
+        {/* Section H: Teacher에서는 Danger Zone 없음 — 관리자 전용 (admin-only scope) */}
+        {/* 상태변경은 Section B에서만 제공 */}
       </ScrollView>
 
       {/* ══════════════════════════════════════════════════════════════

@@ -10,7 +10,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMode } from "@/context/ModeContext";
 import { X as XT, isXMode } from "@/constants/xTheme";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { apiRequest, clearApiCache, useAuth, API_BASE } from "@/context/AuthContext";
 import * as Updates from "expo-updates";
@@ -793,7 +793,11 @@ export default function MakeupsScreen() {
                     ]}
                   >
                     <View style={s.cardTop}>
-                      <View style={{ flex: 1, gap: 2 }}>
+                      {/* 학생 이름/반 → student-detail */}
+                      <Pressable
+                        style={{ flex: 1, gap: 2 }}
+                        onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: mk.student_id, backTo: "makeups" } } as any)}
+                      >
                         <Text style={s.studentName}>{mk.student_name || "-"}</Text>
                         <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
                         {mk.handed_to_teacher_id === adminUser?.id && mk.original_teacher_name && (
@@ -801,7 +805,7 @@ export default function MakeupsScreen() {
                             인계 from {mk.original_teacher_name}
                           </Text>
                         )}
-                      </View>
+                      </Pressable>
                       {mk.is_expired ? (
                         <View style={[s.statusBadge, { backgroundColor: C.backgroundSoft }]}>
                           <Text style={[s.statusTxt, { color: C.textSecondary }]}>기간 지난 보강</Text>
