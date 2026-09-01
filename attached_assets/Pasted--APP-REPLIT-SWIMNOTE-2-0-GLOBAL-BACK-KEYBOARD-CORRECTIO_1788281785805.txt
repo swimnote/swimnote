@@ -1,0 +1,704 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL BACK / KEYBOARD CORRECTION
+# FINAL GAP AUDIT + MISSING FIXES ONLY
+
+현재 보고:
+
+HEAD:
+0c74d86b
+
+주요 Back 수정:
+완료
+
+주요 Keyboard 수정:
+완료 보고됨
+
+하지만 완료보고와 기존 요구사항을 대조한 결과
+일부 필수 항목의 실제 반영 여부가 보고서상 확인되지 않습니다.
+
+이번 작업은:
+
+1. 누락 여부 확인
+2. 실제 누락된 것만 최소 수정
+3. 최종 회귀 테스트
+
+입니다.
+
+새 기능 추가 금지.
+
+==================================================
+1. REPORT COUNT CORRECTION
+==================================================
+
+현재 보고서:
+
+Back 수정 7건
+→ 실제 표 8건
+
+Keyboard 수정 6건
+→ 실제 표 7건
+
+실제 source 기준으로
+정확한 수정 파일 수와 수정 건수를 다시 산출.
+
+보고서 숫자만 잘못된 경우:
+코드 수정 불필요.
+
+==================================================
+2. ADMIN MEMBER DETAIL MODAL — 필수 재확인
+==================================================
+
+기존 요구:
+
+Admin Member Detail의
+TextInput edit modal에서
+
+keyboard visible
+→ 빈 modal 영역 tap
+→ Keyboard.dismiss()
+
+modal 자체:
+계속 OPEN
+
+Save/Cancel:
+첫 tap 실행
+
+현재 보고에는:
+
+member-detail ScrollView
+keyboardDismissMode="on-drag"
+
+만 명시되어 있음.
+
+이것은
+"빈 modal background tap dismiss"와 다른 기능입니다.
+
+반드시 실제 코드 확인:
+
+- 기본정보 edit modal
+- 보호자/연락처 edit modal
+- 기타 TextInput modal
+
+각 modal에
+빈 배경 tap → Keyboard.dismiss()
+동작이 존재하는지 확인.
+
+없으면
+feedback-custom에서 검증된:
+
+absoluteFill Pressable
++
+actual modal content above it
+
+패턴으로 최소 수정.
+
+전체 화면 TouchableWithoutFeedback 금지.
+
+==================================================
+3. TEACHER STUDENT DETAIL MODAL
+==================================================
+
+현재 보고:
+
+absoluteFill Pressable 추가
+
+실제 확인:
+
+- level note modal
+- phone edit modal
+
+빈 배경 tap:
+keyboard dismiss
+
+modal remains open:
+YES
+
+Save button:
+first tap action
+
+Cancel:
+first tap action
+
+확인.
+
+==================================================
+4. SUPPORT CHAT 누락 확인
+==================================================
+
+기존 Freeze Audit에서:
+
+admin/support-chat
+teacher/support-chat
+
+TextInput + send action에서
+keyboardShouldPersistTaps 미설정 위험이 확인됨.
+
+현재 수정보고에는 없음.
+
+실제 source 확인.
+
+keyboard가 올라온 상태에서:
+
+Send tap
+→ 첫 tap으로 message send
+
+이어야 함.
+
+ScrollView/FlatList가
+keyboard first tap을 먹을 가능성이 있으면:
+
+keyboardShouldPersistTaps="handled"
+
+추가.
+
+scroll 가능한 구조라면:
+
+keyboardDismissMode="on-drag"
+
+도 현재 전역 규칙에 맞게 적용.
+
+이미 안전하면 수정하지 말고
+근거 보고.
+
+==================================================
+5. ADDITIONAL GUARDIANS 누락 확인
+==================================================
+
+기존 Audit에서:
+
+parent/additional-guardians
+
+keyboardShouldPersistTaps/autofocus 관련
+확인 필요 대상으로 남아있음.
+
+실제 확인:
+
+keyboard visible
+→ 저장/추가 버튼 tap
+→ 첫 tap action
+
+빈 배경 tap:
+keyboard dismiss
+
+불필요 autofocus:
+없음
+
+누락 시 최소 수정.
+
+==================================================
+6. ADD CHILD
+==================================================
+
+현재 autoFocus 제거 완료 보고.
+
+추가 확인:
+
+keyboard visible
+→ 저장/다음 버튼
+→ 첫 tap action
+
+빈 배경:
+keyboard dismiss 가능한지 확인.
+
+이번 전역 규칙 적용 대상이므로
+빈 배경 dismiss가 없으면 추가.
+
+단 interactive button tap을
+background handler가 먹으면 FAIL.
+
+==================================================
+7. TERMINOLOGY SEARCH EVENT LAYER 확인
+==================================================
+
+현재:
+
+absoluteFill Pressable
++
+FlatList
++
+keyboardDismissMode="on-drag"
+
+보고됨.
+
+반드시 실제 interaction 테스트:
+
+A.
+빈 배경 tap
+→ keyboard dismiss
+
+B.
+검색 결과 card tap
+→ 첫 tap으로 detail 이동
+
+C.
+검색 input tap
+→ focus 정상
+
+D.
+scroll
+→ keyboard dismiss
+
+absoluteFill Pressable이
+FlatList/result event를 가로채면 FAIL.
+
+==================================================
+8. CURRICULUM CHAT EVENT LAYER 확인
+==================================================
+
+현재:
+
+메시지 ScrollView 콘텐츠를
+Pressable로 감쌌다고 보고됨.
+
+이 구현은 event bubbling 위험이 있으므로
+반드시 실제 테스트.
+
+A.
+빈 배경 tap
+→ keyboard dismiss
+
+B.
+result/button/card tap
+→ 첫 tap action
+
+C.
+link tap
+→ first tap
+
+D.
+input tap
+→ focus 정상
+
+E.
+scroll
+→ keyboard dismiss
+
+Pressable wrapper가
+interactive child action을 가로채면
+구조 수정.
+
+목표:
+
+background only dismiss
+interactive targets untouched
+
+==================================================
+9. DIARY WRITE
+==================================================
+
+현재:
+
+keyboardShouldPersistTaps="handled"
+keyboardDismissMode="on-drag"
+
+보고됨.
+
+확인:
+
+keyboard visible
+→ 저장 버튼
+→ 첫 tap save
+
+PASS 필수.
+
+==================================================
+10. FEEDBACK SETTINGS
+==================================================
+
+현재 동일 수정 보고.
+
+확인:
+
+keyboard visible
+→ Save
+→ first tap action
+
+PASS 필수.
+
+==================================================
+11. OTHER INPUT SCREENS FINAL SEARCH
+==================================================
+
+Freeze Audit에서 발견한 전체 입력화면을 다시 검색하여
+
+TextInput
++
+ScrollView / FlatList / SectionList
++
+Button / Pressable
+
+조합인데
+
+keyboardShouldPersistTaps가 없어
+첫 tap이 소비될 수 있는 화면이
+남아있는지 확인.
+
+특히:
+
+- inquiries
+- notices
+- web-pin-settings
+- unit-pricing
+- bulk-register
+- makeups
+- fee-check
+- growth-report-review
+- diary-comments
+- gr-comments
+- parent my-info
+- parent home search
+
+이미 handled이면 PASS.
+
+새로운 누락만 수정.
+
+==================================================
+12. BACK FIX 최종 회귀
+==================================================
+
+Teacher:
+
+Settings
+→ Terminology Search
+→ Detail
+→ Back
+→ Search
+→ Back
+→ Settings
+
+PASS 필수.
+
+Parent:
+
+Previous
+→ Terminology Search
+→ Detail
+→ Back
+→ Search
+→ Back
+→ Previous
+
+PASS 필수.
+
+Admin:
+
+Settings
+→ X Setup
+→ Back
+→ Settings
+
+PASS 필수.
+
+==================================================
+13. HOME PATH 최종 확인
+==================================================
+
+다음 최종값 확인:
+
+admin/inquiries
+→ /(admin)/dashboard
+
+admin/push-message-settings
+→ /(admin)/dashboard
+
+admin/diary-teacher-entries
+→ /(admin)/dashboard
+
+teacher/fee-check
+→ /(teacher)/today-schedule
+
+잘못된:
+
+/(admin)/home
+/(admin)/more
+/(admin)/class-hub
+/(teacher)/settings
+
+homePath 용도로 남아있으면 FAIL.
+
+==================================================
+14. REFUND POLICY
+==================================================
+
+backTo 처리:
+
+router.push
+없음
+
+router.replace
+사용
+
+Back 후
+duplicate stack 없음.
+
+PASS 필수.
+
+==================================================
+15. GLOBAL KEYBOARD RULE FINAL LOCK
+==================================================
+
+모든 입력화면 공통:
+
+TextInput tap
+→ keyboard visible
+
+Button/Pressable tap
+→ 첫 tap action
+
+Empty background tap
+→ keyboard dismiss
+
+Scroll drag
+→ keyboard dismiss
+
+Button 첫 tap이
+keyboard dismiss에만 소비되면 FAIL.
+
+==================================================
+16. REGRESSION
+==================================================
+
+현재 baseline:
+
+154 pre-existing failures
+
+검증 후:
+
+Pre-existing baseline:
+154
+
+New failures caused by this correction:
+0
+
+이어야 함.
+
+TS errors:
+0
+
+==================================================
+17. 이번 작업 금지
+==================================================
+
+WP-M5 시작 금지
+student_links 생성 금지
+
+Pricing 변경 금지
+Subscription 변경 금지
+RevenueCat 변경 금지
+App Store 변경 금지
+Google Play 변경 금지
+
+Member data contract 변경 금지
+Member Detail 구조 변경 금지
+Teacher 권한 변경 금지
+
+DB migration 금지
+Production deploy 금지
+OTA 금지
+
+==================================================
+18. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# GLOBAL BACK / KEYBOARD FINAL GAP REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## REPORT COUNT
+
+Actual Back files changed:
+...
+
+Actual Keyboard files changed:
+...
+
+Previous count mismatch:
+REPORT ONLY / CODE ISSUE
+
+## ADMIN MEMBER DETAIL MODAL
+
+Basic edit background dismiss:
+PASS / FAIL
+
+Guardian edit background dismiss:
+PASS / FAIL
+
+Modal remains open:
+PASS / FAIL
+
+Save first tap:
+PASS / FAIL
+
+## TEACHER STUDENT DETAIL MODAL
+
+Background dismiss:
+PASS / FAIL
+
+Modal remains open:
+PASS / FAIL
+
+Save first tap:
+PASS / FAIL
+
+## SUPPORT CHAT
+
+Admin:
+PASS / FAIL
+
+Teacher:
+PASS / FAIL
+
+keyboardShouldPersistTaps:
+...
+
+Scroll dismiss:
+...
+
+## ADDITIONAL GUARDIANS
+
+Button first tap:
+PASS / FAIL
+
+Background dismiss:
+PASS / FAIL
+
+Autofocus:
+...
+
+## ADD CHILD
+
+Autofocus removed:
+PASS / FAIL
+
+Button first tap:
+PASS / FAIL
+
+Background dismiss:
+PASS / FAIL
+
+## TERMINOLOGY SEARCH
+
+Background dismiss:
+PASS / FAIL
+
+Result first tap:
+PASS / FAIL
+
+Input focus:
+PASS / FAIL
+
+Scroll dismiss:
+PASS / FAIL
+
+## CURRICULUM CHAT
+
+Background dismiss:
+PASS / FAIL
+
+Interactive child first tap:
+PASS / FAIL
+
+Input focus:
+PASS / FAIL
+
+Scroll dismiss:
+PASS / FAIL
+
+## DIARY WRITE
+
+Save first tap:
+PASS / FAIL
+
+## FEEDBACK SETTINGS
+
+Save first tap:
+PASS / FAIL
+
+## REMAINING INPUT AUDIT
+
+Unsafe keyboardShouldPersistTaps screens:
+...
+
+Expected:
+0
+
+Remaining background dismiss violations:
+...
+
+## BACK
+
+Teacher terminology:
+PASS / FAIL
+
+Parent terminology:
+PASS / FAIL
+
+Admin X setup:
+PASS / FAIL
+
+Home escape:
+YES / NO
+
+Expected:
+NO
+
+## HOME PATH
+
+Admin inquiries:
+PASS / FAIL
+
+Admin push-message:
+PASS / FAIL
+
+Admin diary-teacher:
+PASS / FAIL
+
+Teacher fee-check:
+PASS / FAIL
+
+## REFUND POLICY
+
+router.push(backTo):
+ABSENT / PRESENT
+
+router.replace:
+PASS / FAIL
+
+Duplicate stack:
+YES / NO
+
+Expected:
+NO
+
+## REGRESSION
+
+TS errors:
+...
+
+Baseline failures:
+154
+
+Failures after:
+...
+
+New failures:
+...
+
+Expected:
+0
+
+## PRODUCTION CHANGES
+
+NONE
+
+## FINAL
+
+GLOBAL BACK / KEYBOARD CORRECTION FULLY COMPLETE
+or
+BLOCKED

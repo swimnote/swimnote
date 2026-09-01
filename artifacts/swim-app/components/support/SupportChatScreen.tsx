@@ -595,6 +595,8 @@ export default function SupportChatScreen({ supportContext }: Props) {
           ref={scrollRef}
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 8 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={refresh} />
           }

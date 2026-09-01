@@ -1,7 +1,7 @@
 import Colors from "@/constants/colors";
 import React, { useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { router } from "expo-router";
@@ -90,6 +90,8 @@ export default function AddChildScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* 빈 영역 탭 → 키보드 숨김 */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={12}>
