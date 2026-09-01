@@ -365,13 +365,12 @@ export default function TeacherDiaryScreen() {
         }
       }
       if (regularStudents.length === 0) {
-        const studentsRes = await apiRequest(token, `/students?class_group_id=${classId}`);
+        // [FIX] /students fallback(N+1 쿼리+클라이언트필터) → 전용 date-filtered 엔드포인트 사용
+        const studentsRes = await apiRequest(token, `/class-groups/${classId}/students?date=${dateToUse}`);
         const list: any[] = studentsRes.ok ? (await studentsRes.json().catch(() => [])) : [];
         regularStudents = list.filter((s: any) =>
           !["deleted", "archived"].includes(s.status) &&
-          !absentIds.has(s.id) &&   // 결석 학생 제외
-          (s.class_group_id === classId ||
-            (Array.isArray(s.assigned_class_ids) && s.assigned_class_ids.includes(classId)))
+          !absentIds.has(s.id)   // 결석 학생 제외 (서버가 이미 날짜·반 필터링 완료)
         );
       }
       const makeupList: any[] = makeupRes.ok ? (await makeupRes.json().catch(() => [])) : [];
