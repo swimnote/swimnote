@@ -1867,31 +1867,29 @@ export default function ParentHomeScreen() {
       </ScrollView>
 
       {/* C. AI 기능 버튼 (AI 인사이트 전략 리포트 + AI 커리큘럼 검색) */}
-      {/* 리포트: X/x_pending 전용 | 커리큘럼 검색: selectedStudent 있으면 항상 표시 */}
+      {/* 리포트: Normal/X/x_pending 모두 진입 가능 (29,000원 독립구매 상품) */}
       {selectedStudent && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 12, marginBottom: 12 }}>
-          {(mode === "x" || mode === "x_pending") && (
-            <Pressable
-              onPress={() => router.push("/(parent)/growth-report-paid" as any)}
-              style={({ pressed }) => ({
-                flex: 1,
-                borderRadius: 11,
-                borderWidth: 1,
-                borderColor: "#DDE3EE",
-                backgroundColor: "#F5F7FA",
-                paddingHorizontal: 10,
-                paddingVertical: 12,
-                alignItems: "center",
-                gap: 8,
-                opacity: pressed ? 0.72 : 1,
-              })}
-            >
-              <LucideIcon name="bar-chart-2" size={22} color={NAVY} />
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
-                {"AI 인사이트\n전략 리포트"}
-              </Text>
-            </Pressable>
-          )}
+          <Pressable
+            onPress={() => router.push("/(parent)/growth-report-paid" as any)}
+            style={({ pressed }) => ({
+              flex: 1,
+              borderRadius: 11,
+              borderWidth: 1,
+              borderColor: "#DDE3EE",
+              backgroundColor: "#F5F7FA",
+              paddingHorizontal: 10,
+              paddingVertical: 12,
+              alignItems: "center",
+              gap: 8,
+              opacity: pressed ? 0.72 : 1,
+            })}
+          >
+            <LucideIcon name="bar-chart-2" size={22} color={NAVY} />
+            <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
+              {"AI 인사이트\n전략 리포트"}
+            </Text>
+          </Pressable>
           {/* AI 커리큘럼 검색 + 수영·훈련용어 검색 — 세로 2분할 */}
           <View
             style={{
