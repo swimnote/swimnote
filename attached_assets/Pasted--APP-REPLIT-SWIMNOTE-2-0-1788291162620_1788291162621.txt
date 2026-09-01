@@ -1,0 +1,391 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — STAGE 2 FINAL MICRO-CLOSE
+# PAID INSIGHT PLACEHOLDER SAFE LOCK ONLY
+# THEN STAGE 2 CLOSED
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+13d1bdad
+
+현재 Stage 2는 모든 핵심 항목이 완료되었고
+딱 1건만 남았습니다.
+
+남은 문제:
+
+Parent Home의
+"AI 인사이트 전략 리포트"
+
+는 현재 Normal / X / x_pending 모두 노출되도록
+mode gate는 정상적으로 제거되었으나,
+
+실제 대상 screen:
+
+/(parent)/growth-report-paid
+
+가 아직:
+
+FIXTURE_READINESS
+FIXTURE_REPORTS
+
+기반 placeholder이며
+실제 paid report API가 없습니다.
+
+이 상태에서 ACTIVE 버튼으로 사용자 진입을 허용하면
+"보이는 기능인데 backend 없음"이 되므로
+Stage 2 완료조건에 맞지 않습니다.
+
+============================================================
+1. 절대 원칙
+============================================================
+
+유료 AI 인사이트 전략 리포트 실제 구현은
+
+STAGE 5
+
+에서 수행합니다.
+
+이번 작업에서 실제 paid report backend/API/AI pipeline을
+만들지 마십시오.
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+Report backend 신규 구현:
+NO
+
+AI Engine 신규 구현:
+NO
+
+============================================================
+2. Normal / X 접근정책은 그대로 유지
+============================================================
+
+확정 상품정책:
+
+AI 인사이트 전략 리포트
+=
+Normal/X와 무관한 독립 구매형 상품
+
+따라서 다시:
+
+mode === "x"
+mode === "x_pending"
+
+조건을 넣으면 안 됩니다.
+
+X-only gate:
+금지.
+
+Normal/X/x_pending에서
+동일한 UI 정책을 사용하십시오.
+
+============================================================
+3. Stage 5 전까지 ACTIVE 진입만 잠금
+============================================================
+
+현재 Parent Home의
+"AI 인사이트 전략 리포트" 카드/버튼은
+
+Normal:
+동일
+
+X:
+동일
+
+x_pending:
+동일
+
+하게 표시할 수 있습니다.
+
+그러나 Stage 5 실제 기능 구현 전까지:
+
+ACTIVE router.push
+→ /growth-report-paid
+
+를 사용자에게 제공하지 마십시오.
+
+권장:
+
+카드는 유지
++
+"준비 중" 표시
++
+disabled 상태
+
+또는 현재 디자인 체계에서
+가장 자연스러운 비활성 상태.
+
+중요:
+
+사용자가 눌렀을 때 fixture report 화면이
+실제 상품처럼 열리면 FAIL.
+
+============================================================
+4. fixture route 삭제 금지
+============================================================
+
+/(parent)/growth-report-paid
+
+route는 삭제하지 마십시오.
+
+Stage 5 실제 구현에서 사용할 수 있으므로
+기존 파일/route 유지.
+
+Deep link/caller 존재 여부도 임의 삭제 금지.
+
+이번 작업은
+Parent Home의 active entry만 안전하게 잠그는 작업입니다.
+
+============================================================
+5. placeholder 화면 자체 재설계 금지
+============================================================
+
+growth-report-paid.tsx:
+
+대규모 수정 금지.
+
+fixture 제거하면서 임시 API 만들기 금지.
+
+fake API 연결 금지.
+
+일반 GPT 결과 생성 금지.
+
+Stage 5 전까지
+user-reachable active product가 아니게만 처리.
+
+============================================================
+6. UI 표시 규칙
+============================================================
+
+사용자에게:
+
+실제로 구매/발급 가능한 것처럼 보이면 안 됩니다.
+
+예:
+
+AI 인사이트 전략 리포트
+준비 중
+
+정도의 명확한 상태.
+
+가격 29,000원은
+현재 상품정책상 확정되어 있어도
+
+구매 CTA가 실제 동작하지 않는다면
+"구매하기" active button을 제공하지 마십시오.
+
+============================================================
+7. Admin Curriculum row는 이번 작업 대상 아님
+============================================================
+
+보고된:
+
+Admin curriculum-hub student row
+= non-interactive View
+
+는 현재 버튼/CTA가 아니므로
+Stage 2 blocker로 처리하지 않습니다.
+
+이번 micro-close에서
+Pressable 추가하지 마십시오.
+
+후속 IA Stage에서 필요성을 별도 판단.
+
+============================================================
+8. 기존 Stage 2 결과 재작업 금지
+============================================================
+
+다시 하지 말 것:
+
+- Normal/X parity audit
+- X Home inventory
+- Teacher x-growth
+- Admin AI features
+- Curriculum Chat
+- Terminology Search
+- Student Detail
+- Navigation 구조
+- 전체 keyboard audit
+- 전체 scroll audit
+
+이번 작업은 paid insight active placeholder
+1건만 닫습니다.
+
+============================================================
+9. 회귀
+============================================================
+
+확인:
+
+Normal Parent Home:
+카드 표시 정책 정상
+active fixture 진입 불가
+
+X Parent Home:
+동일
+
+x_pending Parent Home:
+동일
+
+X-only gate:
+0
+
+fixture active entry:
+0
+
+기존 다른 Parent Home 버튼 영향:
+0
+
+Known backend baseline:
+158
+
+New failures:
+0
+
+New TS errors:
+0
+
+============================================================
+10. HOLD
+============================================================
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+OTA:
+NO
+
+============================================================
+11. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# STAGE 2 FINAL MICRO-CLOSE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## PAID INSIGHT
+
+Normal visibility:
+...
+
+X visibility:
+...
+
+x_pending visibility:
+...
+
+X-only gate:
+YES / NO
+
+Expected:
+NO
+
+Active fixture navigation:
+YES / NO
+
+Expected:
+NO
+
+Disabled / preparing state:
+...
+
+## ROUTE
+
+growth-report-paid route deleted:
+YES / NO
+
+Expected:
+NO
+
+Placeholder screen redesigned:
+YES / NO
+
+Expected:
+NO
+
+## OTHER STAGE 2 FEATURES
+
+Modified:
+YES / NO
+
+Expected:
+NO
+
+## REGRESSION
+
+Baseline:
+158
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## FINAL
+
+STAGE 2 FULLY CLOSED
+or
+BLOCKED
