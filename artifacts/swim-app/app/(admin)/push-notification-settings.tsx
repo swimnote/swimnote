@@ -103,7 +103,7 @@ export default function AdminPushNotificationSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="푸시 알림 설정" onBack={() => router.replace("/(admin)/dashboard" as any)} />
+      <SubScreenHeader title="푸시 알림 설정" onBack={() => router.back()} />
 
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />

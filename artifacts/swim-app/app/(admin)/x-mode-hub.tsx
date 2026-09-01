@@ -77,7 +77,14 @@ export default function XModeHubScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/(admin)/settings" as any);
+          }}
+          hitSlop={12}
+          style={s.backBtn}
+        >
           <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle}>SWIMNOTE X모드</Text>

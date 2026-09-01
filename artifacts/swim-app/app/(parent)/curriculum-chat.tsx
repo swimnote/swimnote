@@ -31,6 +31,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -528,6 +529,7 @@ export default function CurriculumChatScreen() {
       setPendingMsg((prev) => (prev ? { ...prev, status: "sending", retryableError: false } : null));
     }
     setSending(true);
+    Keyboard.dismiss();   // 검색 실행 시 키보드 내림
     scrollToBottom();
 
     try {
@@ -1047,8 +1049,9 @@ export default function CurriculumChatScreen() {
           <ScrollView
             ref={scrollRef}
             style={s.scroll}
-            contentContainerStyle={[s.scrollContent, { paddingBottom: Math.max(insets.bottom + 8, 16) }]}
+            contentContainerStyle={[s.scrollContent, { paddingBottom: Math.max(insets.bottom + 80, 40) }]}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
             {!hasMessages && renderEmpty()}
