@@ -434,98 +434,7 @@ export default function DashboardScreen() {
           <ActivityIndicator color={themeColor} size="large" style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* ── SWIMNOTE X 기능 진입 — X모드 전용, 최상단 ── */}
-            {isX && (
-              <View style={{ gap: 10 }}>
-                {/* 섹션 헤더 */}
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: XT.accent, letterSpacing: 0.3 }}>
-                    SWIMNOTE X
-                  </Text>
-                  {mode === "x" ? (
-                    <View style={{ backgroundColor: XT.accentSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: XT.accentMid }}>
-                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.accentStrong }}>활성</Text>
-                    </View>
-                  ) : (
-                    <View style={{ backgroundColor: XT.pendingLight, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.pending }}>설정 필요</Text>
-                    </View>
-                  )}
-                </View>
-                {/* 2열 주요 기능 카드 */}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {/* AI 성장 추적 — 네이비 강조 카드 */}
-                  <Pressable
-                    style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.primary, borderRadius: 14, padding: 14,
-                      gap: 8, opacity: pressed ? 0.88 : 1,
-                      shadowColor: XT.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
-                      elevation: 4,
-                    })}
-                    onPress={() => router.push("/(admin)/report-hub")}
-                  >
-                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="bar-chart-2" size={19} color="#FFFFFF" />
-                    </View>
-                    <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 학생리포트</Text>
-                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 분석</Text>
-                    </View>
-                  </Pressable>
-                  {/* AI 일지 — 액센트 카드 */}
-                  <Pressable
-                    style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.accent, borderRadius: 14, padding: 14,
-                      gap: 8, opacity: pressed ? 0.88 : 1,
-                      shadowColor: XT.accent, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
-                      elevation: 3,
-                    })}
-                    onPress={() => router.push("/(admin)/diary-hub")}
-                  >
-                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="brain" size={19} color="#FFFFFF" />
-                    </View>
-                    <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지피드</Text>
-                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>수업 일지 자동 생성</Text>
-                    </View>
-                  </Pressable>
-                </View>
-                {/* 2열 보조 기능 카드 */}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
-                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
-                    })}
-                    onPress={() => router.push("/(admin)/curriculum-hub")}
-                  >
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="book-open" size={17} color={XT.accentStrong} />
-                    </View>
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>AI 커리큘럼</Text>
-                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>수준별 교육과정</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
-                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
-                    })}
-                    onPress={() => router.push("/(admin)/x-hub")}
-                  >
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="settings-2" size={17} color={XT.accentStrong} />
-                    </View>
-                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>SWIMNOTE X 관리</Text>
-                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>X모드 설정 관리</Text>
-                  </Pressable>
-                </View>
-                {/* 구분선 */}
-                <View style={{ height: 1, backgroundColor: XT.divider, marginVertical: 2 }} />
-              </View>
-            )}
-
-            {/* ── 핵심 퀵액션 4버튼 ── */}
+            {/* 1. ── 핵심 퀵액션 4버튼 ── */}
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
                 style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
@@ -571,143 +480,7 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            {/* ── 운영 현황 카드 ── */}
-            <View style={{ gap: 8 }}>
-              {/* 1행: 이번 달 매출 + 전체 회원 */}
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
-                >
-                  <View style={s.bannerIcon}>
-                    <LucideIcon name="trending-up" size={18} color="#CA8A04" />
-                  </View>
-                  <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
-                    {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
-                  </Text>
-                  <Text style={s.bannerLabel}>이번 달 매출</Text>
-                  <Text style={s.bannerSub}>월 누적 매출</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/members?backTo=dashboard")}
-                >
-                  <View style={s.bannerIcon}>
-                    <LucideIcon name="users" size={18} color="#1D4ED8" />
-                  </View>
-                  <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
-                    {stats ? String(stats.total_members) : "—"}명
-                  </Text>
-                  <Text style={s.bannerLabel}>전체 회원</Text>
-                  <Text style={s.bannerSub}>등록 회원 수</Text>
-                </Pressable>
-              </View>
-
-              {/* 2행: 보강 상태 + 인원관리 (좌우 절반) */}
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                {/* 왼쪽: 보강 상태 */}
-                <Pressable
-                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
-                  onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <View style={s.bannerIcon}>
-                      <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
-                    </View>
-                    <Text style={s.bannerLabel}>보강 상태</Text>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 10 }}>
-                    <View style={s.wideSubItem}>
-                      <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
-                        {stats ? String(makeupAssigned) : "—"}건
-                      </Text>
-                      <Text style={s.wideSubLabel}>남은 보강</Text>
-                    </View>
-                    <View style={s.wideSubDivider} />
-                    <View style={s.wideSubItem}>
-                      <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
-                        {stats ? String(stats.pending_makeups ?? 0) : "—"}건
-                      </Text>
-                      <Text style={s.wideSubLabel}>미처리 보강</Text>
-                    </View>
-                  </View>
-                </Pressable>
-
-                {/* 오른쪽: 인원관리 */}
-                <Pressable
-                  style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
-                  onPress={() => router.push("/(admin)/people?backTo=dashboard")}
-                >
-                  <View style={[s.bannerIcon, { marginBottom: 0 }]}>
-                    <LucideIcon name="users" size={22} color="#1D4ED8" />
-                  </View>
-                  <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
-                  <Text style={s.bannerSub}>회원 · 선생님 · 승인</Text>
-                </Pressable>
-              </View>
-
-              {/* 3행: 통합 사용량 (full-width, 3지표) */}
-              <Pressable
-                style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
-                onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={s.bannerIcon}>
-                    <LucideIcon name="hard-drive" size={18} color="#0369A1" />
-                  </View>
-                  <Text style={s.bannerLabel}>통합 사용량</Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <View style={[s.wideSubItem, { flex: 1 }]}>
-                    <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
-                      {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
-                    </Text>
-                    <Text style={s.wideSubLabel}>회원 사용량</Text>
-                  </View>
-                  <View style={s.wideSubDivider} />
-                  <View style={[s.wideSubItem, { flex: 1 }]}>
-                    <Text style={[s.wideSubVal, { color: "#0369A1" }]}>
-                      {storagePct !== null ? `${storagePct}%` : "—"}
-                    </Text>
-                    <Text style={s.wideSubLabel}>데이터 사용량</Text>
-                  </View>
-                  <View style={s.wideSubDivider} />
-                  <View style={[s.wideSubItem, { flex: 1 }]}>
-                    <Text style={[s.wideSubVal, { color: "#7C3AED" }]}>
-                      {videoStoragePct !== null ? `${videoStoragePct}%` : "—"}
-                    </Text>
-                    <Text style={s.wideSubLabel}>영상 사용량</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
-
-            {/* ── 미배정 / 학부모미연결 분리 카운트 ── */}
-            {stats && (
-              <View style={s.splitStatRow}>
-                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
-                  <View style={s.splitStatIcon}>
-                    <LucideIcon name="alert-circle" size={14} color={C.textPrimary} />
-                  </View>
-                  <View>
-                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
-                    <Text style={s.splitStatLabel}>수업 미배정</Text>
-                  </View>
-                </Pressable>
-                <View style={s.splitStatDivider} />
-                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
-                  <View style={s.splitStatIcon}>
-                    <LucideIcon name="user-x" size={14} color={C.textPrimary} />
-                  </View>
-                  <View>
-                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
-                    <Text style={s.splitStatLabel}>학부모미연결</Text>
-                  </View>
-                </Pressable>
-              </View>
-            )}
-
-            {/* X: 스마트 처리 알림 — 처리 필요 항목 한눈에 */}
+            {/* 2. ── 처리 필요 알림 ── */}
             {stats && (() => {
               const alerts = [
                 stats.pending_requests > 0 && {
@@ -768,7 +541,227 @@ export default function DashboardScreen() {
               );
             })()}
 
-            {/* 하단 X 카드 → 최상단 isX 섹션으로 통합됨 */}
+            {/* 3. ── 현장 운영 핵심: 보강 상태 + 인원관리 ── */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {/* 왼쪽: 보강 상태 */}
+              <Pressable
+                style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/makeups?backTo=dashboard")}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <View style={s.bannerIcon}>
+                    <LucideIcon name="rotate-ccw" size={18} color="#EA580C" />
+                  </View>
+                  <Text style={s.bannerLabel}>보강 상태</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <View style={s.wideSubItem}>
+                    <Text style={[s.wideSubVal, { color: "#16A34A" }]}>
+                      {stats ? String(makeupAssigned) : "—"}건
+                    </Text>
+                    <Text style={s.wideSubLabel}>남은 보강</Text>
+                  </View>
+                  <View style={s.wideSubDivider} />
+                  <View style={s.wideSubItem}>
+                    <Text style={[s.wideSubVal, { color: "#EA580C" }]}>
+                      {stats ? String(stats.pending_makeups ?? 0) : "—"}건
+                    </Text>
+                    <Text style={s.wideSubLabel}>미처리 보강</Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              {/* 오른쪽: 인원관리 */}
+              <Pressable
+                style={({ pressed }) => [s.bannerWide, { flex: 1, opacity: pressed ? 0.85 : 1, justifyContent: "center", alignItems: "center", gap: 8 }]}
+                onPress={() => router.push("/(admin)/people?backTo=dashboard")}
+              >
+                <View style={[s.bannerIcon, { marginBottom: 0 }]}>
+                  <LucideIcon name="users" size={22} color="#1D4ED8" />
+                </View>
+                <Text style={[s.bannerLabel, { fontFamily: "Pretendard-Regular" }]}>인원관리</Text>
+                <Text style={s.bannerSub}>회원 · 선생님 · 승인</Text>
+              </Pressable>
+            </View>
+
+            {/* 4. ── SWIMNOTE X 기능 진입 — X모드 전용 ── */}
+            {isX && (
+              <View style={{ gap: 10 }}>
+                {/* 섹션 헤더 */}
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: XT.accent, letterSpacing: 0.3 }}>
+                    SWIMNOTE X
+                  </Text>
+                  {mode === "x" ? (
+                    <View style={{ backgroundColor: XT.accentSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: XT.accentMid }}>
+                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.accentStrong }}>활성</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: XT.pendingLight, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.pending }}>설정 필요</Text>
+                    </View>
+                  )}
+                </View>
+                {/* 2열 주요 기능 카드 */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.primary, borderRadius: 14, padding: 14,
+                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      shadowColor: XT.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+                      elevation: 4,
+                    })}
+                    onPress={() => router.push("/(admin)/report-hub")}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="bar-chart-2" size={19} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 학생리포트</Text>
+                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 분석</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.accent, borderRadius: 14, padding: 14,
+                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      shadowColor: XT.accent, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
+                      elevation: 3,
+                    })}
+                    onPress={() => router.push("/(admin)/diary-hub")}
+                  >
+                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="brain" size={19} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지피드</Text>
+                      <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>수업 일지 자동 생성</Text>
+                    </View>
+                  </Pressable>
+                </View>
+                {/* 2열 보조 기능 카드 */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                    })}
+                    onPress={() => router.push("/(admin)/curriculum-hub")}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="book-open" size={17} color={XT.accentStrong} />
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>AI 커리큘럼</Text>
+                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>수준별 교육과정</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => ({
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                    })}
+                    onPress={() => router.push("/(admin)/x-hub")}
+                  >
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="settings-2" size={17} color={XT.accentStrong} />
+                    </View>
+                    <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>SWIMNOTE X 관리</Text>
+                    <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>X모드 설정 관리</Text>
+                  </Pressable>
+                </View>
+                {/* 구분선 */}
+                <View style={{ height: 1, backgroundColor: XT.divider, marginVertical: 2 }} />
+              </View>
+            )}
+
+            {/* 5. ── 상태 KPI: 매출 + 전체 회원 ── */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
+              >
+                <View style={s.bannerIcon}>
+                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                </View>
+                <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
+                  {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
+                </Text>
+                <Text style={s.bannerLabel}>이번 달 매출</Text>
+                <Text style={s.bannerSub}>월 누적 매출</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.bannerCard, { flex: 1, opacity: pressed ? 0.85 : 1 }]}
+                onPress={() => router.push("/(admin)/members?backTo=dashboard")}
+              >
+                <View style={s.bannerIcon}>
+                  <LucideIcon name="users" size={18} color="#1D4ED8" />
+                </View>
+                <Text style={[s.bannerValue, { color: "#1D4ED8" }]}>
+                  {stats ? String(stats.total_members) : "—"}명
+                </Text>
+                <Text style={s.bannerLabel}>전체 회원</Text>
+                <Text style={s.bannerSub}>등록 회원 수</Text>
+              </Pressable>
+            </View>
+
+            {/* 6. ── 미배정 / 학부모미연결 분리 카운트 ── */}
+            {stats && (
+              <View style={s.splitStatRow}>
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unassigned&backTo=dashboard" as any)}>
+                  <View style={s.splitStatIcon}>
+                    <LucideIcon name="alert-circle" size={14} color={C.textPrimary} />
+                  </View>
+                  <View>
+                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unassigned ?? 0}명</Text>
+                    <Text style={s.splitStatLabel}>수업 미배정</Text>
+                  </View>
+                </Pressable>
+                <View style={s.splitStatDivider} />
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
+                  <View style={s.splitStatIcon}>
+                    <LucideIcon name="user-x" size={14} color={C.textPrimary} />
+                  </View>
+                  <View>
+                    <Text style={[s.splitStatNum, { color: C.text }]}>{stats.unlinked_members ?? 0}명</Text>
+                    <Text style={s.splitStatLabel}>학부모미연결</Text>
+                  </View>
+                </Pressable>
+              </View>
+            )}
+
+            {/* 7. ── 통합 사용량 (저빈도 정보) ── */}
+            <Pressable
+              style={({ pressed }) => [s.bannerWide, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => router.push("/(admin)/data-storage-overview?backTo=dashboard")}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <View style={s.bannerIcon}>
+                  <LucideIcon name="hard-drive" size={18} color="#0369A1" />
+                </View>
+                <Text style={s.bannerLabel}>통합 사용량</Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={[s.wideSubItem, { flex: 1 }]}>
+                  <Text style={[s.wideSubVal, { color: "#1D4ED8" }]}>
+                    {stats ? `${stats.total_members}/${memberLimit}` : "—"}명
+                  </Text>
+                  <Text style={s.wideSubLabel}>회원 사용량</Text>
+                </View>
+                <View style={s.wideSubDivider} />
+                <View style={[s.wideSubItem, { flex: 1 }]}>
+                  <Text style={[s.wideSubVal, { color: "#0369A1" }]}>
+                    {storagePct !== null ? `${storagePct}%` : "—"}
+                  </Text>
+                  <Text style={s.wideSubLabel}>데이터 사용량</Text>
+                </View>
+                <View style={s.wideSubDivider} />
+                <View style={[s.wideSubItem, { flex: 1 }]}>
+                  <Text style={[s.wideSubVal, { color: "#7C3AED" }]}>
+                    {videoStoragePct !== null ? `${videoStoragePct}%` : "—"}
+                  </Text>
+                  <Text style={s.wideSubLabel}>영상 사용량</Text>
+                </View>
+              </View>
+            </Pressable>
 
           </>
         )}
