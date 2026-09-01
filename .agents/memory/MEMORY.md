@@ -147,3 +147,4 @@
 - [보고서 형식 헌법](report-format-rule.md) — 설계/감사/보고는 채팅창 직접. docs/ 파일 작성은 명시 요청 시만.
 - [X Entitlement Revocation Stale Cache Fix](x-entitlement-revoke-fix.md) — ModeContext에 AppState foreground 리스너 추가; OTA 01a0444c
 - [Pool-First 2.0.0 완료](pool-first-2-0-0-done.md) — SHA 761fdfbb; parent-login pool선택+parentLogin(poolId?)+find-identifier pool_id+reset-password pool scope+UNIQUE INDEX migration; 33TC; OTA 01a04e47
+- [diary 학생 로딩 무한 대기 수정](student-loading-fix.md) — fallback GET /students→GET /class-groups/:id/students?date= 교체; N+1쿼리 제거; 1.6.3 iOS 01a05b6c+Android 01a05b6d, 2.0.0 iOS 01a05b6e
