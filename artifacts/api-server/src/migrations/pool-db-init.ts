@@ -850,14 +850,20 @@ export async function initPoolDb(): Promise<void> {
   // ── 플랜 시드: 확정 기준값 (항상 최신값 유지) ───────────────────────────
   // tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display
   const PLAN_ROWS = [
-    ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
-    ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
-    ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
-    ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
-    ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
-    ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
-    ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
-    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
+    // ── Legacy Coach / Premier (1.6.3 grandfathered — 삭제 금지) ──────────
+    ['free',       'free_10',     'Free',         0,       10,   102,    0.1,   '100MB'],
+    ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,   '300MB'],
+    ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,   '500MB'],
+    ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,     '1GB'  ],
+    ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,     '5GB'  ],
+    ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,    '10GB' ],
+    ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,    '20GB' ],
+    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,    '50GB' ],
+    // ── WP2A: 신규 2.0 플랜 (additive — legacy row 보존) ─────────────────
+    ['swimnote',   'swimnote',    'SWIMNOTE',     9900,    999999, 10240,  10,  '10GB'  ],
+    ['x300',       'x300',        'SWIMNOTE X300', 119000, 300,   307200, 300,  '300GB' ],
+    ['x500',       'x500',        'SWIMNOTE X500', 189000, 500,   512000, 500,  '500GB' ],
+    ['x1000',      'x1000',       'SWIMNOTE X1000', 349000, 1000, 1024000, 1000, '1TB' ],
   ] as const;
 
   for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {

@@ -33,8 +33,8 @@ export function normalizeTier(raw: string | null | undefined): string {
   return TIER_NORMALIZE[raw] ?? raw;
 }
 
-// ── 영상·화이트라벨 허용 티어 ─────────────────────────────────────────────
-const VIDEO_TIERS       = new Set(["center_200", "advance", "pro", "max"]);
+// ── 화이트라벨 허용 티어 ──────────────────────────────────────────────────
+// WP2A: VIDEO_TIERS 제거 — 모든 플랜 영상 허용 (정책 확정)
 const WHITELABEL_TIERS  = new Set(["center_200", "advance", "pro", "max"]);
 
 // ── 구독 상태 정규화 ──────────────────────────────────────────────────────
@@ -161,10 +161,10 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const storageMb      = Number(plan?.storage_mb ?? 512);
   const displayStorage = (plan?.display_storage as string) ?? "500MB";
 
-  // 9. video / whitelabel — tier 기준
-  const videoEnabled        = VIDEO_TIERS.has(effectiveTier);
+  // 9. video / whitelabel — WP2A: 모든 플랜 영상 허용
+  const videoEnabled        = true; // WP2A LOCKED: video enabled for all plans
   const whiteLabelEnabled   = WHITELABEL_TIERS.has(effectiveTier);
-  const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0; // 1TB or 0
+  const videoStorageLimitMb = 1024 * 1024; // 1TB (all plans)
 
   return {
     source,

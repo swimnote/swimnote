@@ -2,8 +2,13 @@
  * constants/subscriptionPlans.ts
  * 구독 플랜 단일 진실 원본 (Single Source of Truth)
  *
- * Coach (개인 선생님, 사진만): Free / Coach 30 / Coach 50 / Coach 100
- * Premier (수영장/센터, 사진+영상): Premier 200 / Premier 300 / Premier 500 / Premier 1000
+ * Legacy (1.6.3 grandfathered):
+ *   Coach (개인 선생님, 사진만): Free / Coach 30 / Coach 50 / Coach 100
+ *   Premier (수영장/센터, 사진+영상): Premier 200 / Premier 300 / Premier 500 / Premier 1000
+ *
+ * WP2A 신규 (2.0):
+ *   SWIMNOTE / X300 / X500 / X1000
+ *   DATA100 / DATA300 (add-on, not base plan)
  *
  * DB(subscription_plans) 실제값과 반드시 일치해야 함
  */
@@ -134,6 +139,63 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     is_enterprise: false,
     tier_group: "premier",
     color: "#7C3AED",
+    includes_video: true,
+  },
+  // ── WP2A: 신규 2.0 플랜 (additive — legacy 삭제 금지) ──────────────────
+  {
+    tier: "swimnote",
+    plan_id: "swimnote",
+    name: "SWIMNOTE",
+    max_members: 999999, // 사용자 표시: 무제한 (WP3에서 UI 처리)
+    storage_limit_mb: 10240,
+    display_storage: "10GB",
+    price_monthly_krw: 9900,
+    sort_order: 8,
+    is_enterprise: false,
+    tier_group: "premier" as const,
+    color: "#0A2540",
+    includes_video: true,
+  },
+  {
+    tier: "x300",
+    plan_id: "x300",
+    name: "SWIMNOTE X300",
+    max_members: 300,
+    storage_limit_mb: 307200,
+    display_storage: "300GB",
+    price_monthly_krw: 119000,
+    sort_order: 9,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
+    includes_video: true,
+  },
+  {
+    tier: "x500",
+    plan_id: "x500",
+    name: "SWIMNOTE X500",
+    max_members: 500,
+    storage_limit_mb: 512000,
+    display_storage: "500GB",
+    price_monthly_krw: 189000,
+    sort_order: 10,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
+    includes_video: true,
+  },
+  {
+    tier: "x1000",
+    plan_id: "x1000",
+    name: "SWIMNOTE X1000",
+    max_members: 1000,
+    storage_limit_mb: 1024000,
+    display_storage: "1TB",
+    price_monthly_krw: 349000,
+    sort_order: 11,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
     includes_video: true,
   },
 ];

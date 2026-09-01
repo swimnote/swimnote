@@ -70,13 +70,18 @@ function normalizeTier(tier: string | null | undefined): string {
   return TIER_NORMALIZE[tier] ?? tier;
 }
 
-// ── 플랜 기능 조회 (billingEnabled 무관, 전 역할 접근 가능) ──────────────
-const CENTER_TIERS = new Set(["center_200", "advance", "pro", "max"]);
-
+// ── 플랜 기능 조회 (WP2A: video_enabled=true all plans, unified quota, swimming_pools SoT) ──
 router.get("/features", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
-    if (!poolId) { res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" }); return; }
+    if (!poolId) {
+      res.json({
+        video_enabled: true, // WP2A: all plans
+        storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0,
+        storage_warning_level: "ok", upload_blocked: false, tier: "free",
+      });
+      return;
+    }
 
     let tier = "free";
     let uploadBlocked = false;
@@ -91,37 +96,35 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
       if (row) { tier = normalizeTier(row.tier); uploadBlocked = !!row.upload_blocked; }
     } catch {}
 
-    let storageQuotaGb = 0.5;
+    // Unified quota: base from subscription_plans + extra from swimming_pools (SoT)
+    const { getPoolStorageUsage } = await import("../lib/storageQuota.js");
+    let storageQuotaGb   = 0.5;
+    let storageUsedGb    = 0;
+    let storageUsedPct   = 0;
+    let storageWarning   = "ok";
     try {
-      const [plan] = (await db.execute(sql`SELECT storage_gb FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows as any[];
-      if (plan) storageQuotaGb = Number(plan.storage_gb ?? 0.5);
+      const usage      = await getPoolStorageUsage(poolId);
+      storageQuotaGb   = +usage.quotaGb.toFixed(3);
+      storageUsedGb    = +(usage.usedBytes / (1024 ** 3)).toFixed(3);
+      storageUsedPct   = usage.pct;
+      storageWarning   = usage.warningLevel;
     } catch {}
-
-    let usedBytes = 0;
-    try {
-      const [r] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM photo_assets_meta WHERE pool_id = ${poolId}
-      `)).rows as any[];
-      const [rv] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM video_assets_meta WHERE pool_id = ${poolId}
-      `)).rows as any[];
-      usedBytes = Number(r?.used_bytes ?? 0) + Number(rv?.used_bytes ?? 0);
-    } catch {}
-
-    const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
-    const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
 
     res.json({
-      video_enabled: CENTER_TIERS.has(tier),
+      video_enabled: true,          // WP2A LOCKED: all plans video enabled
       storage_quota_gb: storageQuotaGb,
       storage_used_gb: storageUsedGb,
       storage_used_pct: storageUsedPct,
+      storage_warning_level: storageWarning, // additive: "ok"|"warning"|"data_pack"|"blocked"
       upload_blocked: uploadBlocked,
       tier,
     });
   } catch (err) {
     console.error("[billing/features]", err);
-    res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
+    res.json({
+      video_enabled: true, storage_quota_gb: 0.5, storage_used_gb: 0,
+      storage_used_pct: 0, storage_warning_level: "ok", upload_blocked: false, tier: "free",
+    });
   }
 });
 

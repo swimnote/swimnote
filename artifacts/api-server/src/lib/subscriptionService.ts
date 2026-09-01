@@ -21,6 +21,8 @@ const db = superAdminDb;
 export const TIER_ORDER: Record<string, number> = {
   free: 0, starter: 1, basic: 2, standard: 3,
   center_200: 4, advance: 5, pro: 6, max: 7,
+  // WP2A: 신규 플랜 추가
+  swimnote: 3.5, x300: 8, x500: 9, x1000: 10,
 };
 export function getTierRank(tier: string): number {
   return TIER_ORDER[normalizeTier(tier)] ?? -1;
@@ -66,6 +68,12 @@ export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   "SWIMNOTE_200": "center_200", "SWIMNOTE_300": "advance", "SWIMNOTE_500": "pro", "SWIMNOTE_1000": "max",
   "SWIMNOTE_200:monthly": "center_200", "SWIMNOTE_300:monthly": "advance",
   "SWIMNOTE_500:monthly": "pro", "SWIMNOTE_1000:monthly": "max",
+
+  // ── WP2A: 신규 2.0 플랜 tier 매핑 (RC Product ID는 WP4에서 연결 예정) ──
+  "swimnote": "swimnote", "swimnote:monthly": "swimnote",
+  "x300": "x300", "x300:monthly": "x300",
+  "x500": "x500", "x500:monthly": "x500",
+  "x1000": "x1000", "x1000:monthly": "x1000",
 };
 
 // ── 티어 정규화 (레거시 코드명 → 현행 코드명) ──────────────────────────

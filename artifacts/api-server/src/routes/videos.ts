@@ -83,51 +83,34 @@ async function getUserPoolId(userId: string): Promise<string | null> {
   return (rows.rows[0] as any)?.swimming_pool_id || null;
 }
 
-// 영상 업로드가 허용된 Premier 티어 목록
-const VIDEO_ALLOWED_TIERS = new Set(["center_200", "advance", "pro", "max"]);
-
 /**
- * 영상 업로드 사전 체크:
- * 1. Free/Coach 티어 → tierBlocked: true
- * 2. Premier 티어 → 구독 플랜 storage_gb 기준 용량 초과 체크
+ * 영상 업로드 사전 체크 (WP2A):
+ * - tierBlocked 제거: 모든 플랜 영상 허용 (LOCKED POLICY)
+ * - unified quota helper 사용: photo+video 통합 용량 기준
  */
 async function checkVideoUploadAllowed(poolId: string): Promise<{
-  tierBlocked: boolean;
+  tierBlocked: false;
   storageBlocked: boolean;
   tier: string;
   usedMb: number;
   limitMb: number;
 }> {
-  const [meta] = (await superAdminDb.execute(sql`
-    SELECT COALESCE(ps.tier, 'free') AS tier,
-           COALESCE(p.extra_storage_gb, 0) AS extra_gb,
-           COALESCE(sp.storage_gb, 0) AS plan_gb
-    FROM swimming_pools p
-    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
-    LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
-    WHERE p.id = ${poolId} LIMIT 1
-  `)).rows as any[];
+  const { getPoolStorageUsage } = await import("../lib/storageQuota.js");
+  const usage = await getPoolStorageUsage(poolId);
 
+  // tier 정보 (로그용)
+  const [meta] = (await superAdminDb.execute(sql`
+    SELECT COALESCE(p.subscription_tier, 'free') AS tier
+    FROM swimming_pools p WHERE p.id = ${poolId} LIMIT 1
+  `)).rows as any[];
   const tier = (meta?.tier ?? "free") as string;
 
-  if (!VIDEO_ALLOWED_TIERS.has(tier)) {
-    return { tierBlocked: true, storageBlocked: false, tier, usedMb: 0, limitMb: 0 };
-  }
-
-  const planGb = Number(meta?.plan_gb ?? 0);
-  const extraGb = Number(meta?.extra_gb ?? 0);
-  const limitMb = Math.round((planGb + extraGb) * 1024);
-
-  // Bug Fix #1: expired/deleted row는 R2 binary가 이미 삭제됐으므로 quota에서 제외
-  const [usage] = (await db.execute(sql`
-    SELECT COALESCE(SUM(file_size), 0) AS used_bytes
-    FROM video_assets_meta WHERE pool_id = ${poolId} AND status = 'active'
-  `)).rows as any[];
-  const usedMb = Math.round(Number(usage?.used_bytes ?? 0) / (1024 * 1024));
+  const usedMb  = Math.round(usage.usedBytes / (1024 * 1024));
+  const limitMb = Math.round(usage.quotaGb * 1024);
 
   return {
-    tierBlocked: false,
-    storageBlocked: limitMb > 0 && usedMb >= limitMb,
+    tierBlocked: false,          // WP2A: all tiers allowed
+    storageBlocked: usage.pct >= 100,
     tier,
     usedMb,
     limitMb,
@@ -293,19 +276,12 @@ router.post(
         if (!classRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      // ── 영상 업로드 티어·저장 제한 체크 ──────────────────────────
+      // ── 영상 업로드 저장 제한 체크 (WP2A: tier gate 제거, unified quota) ──
       if (user.swimming_pool_id) {
         const check = await checkVideoUploadAllowed(user.swimming_pool_id);
-        if (check.tierBlocked) {
-          res.status(403).json({
-            error: "동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다.",
-            code: "VIDEO_UPLOAD_NOT_AVAILABLE",
-            tier: check.tier,
-          }); return;
-        }
         if (check.storageBlocked) {
           res.status(403).json({
-            error: `영상 저장 한도(${check.limitMb}MB) 초과로 업로드가 제한됩니다. 현재 사용: ${check.usedMb}MB`,
+            error: `저장공간 한도(${check.limitMb}MB) 초과로 업로드가 제한됩니다. 현재 사용: ${check.usedMb}MB`,
             code: "VIDEO_STORAGE_EXCEEDED",
             used_mb: check.usedMb,
             limit_mb: check.limitMb,
@@ -396,19 +372,12 @@ router.post(
         if (!classRows.rows.length) { res.status(403).json({ error: "접근 권한이 없습니다." }); return; }
       }
 
-      // ── 영상 업로드 티어·저장 제한 체크 ──────────────────────────
+      // ── 영상 업로드 저장 제한 체크 (WP2A: tier gate 제거, unified quota) ──
       if (user.swimming_pool_id) {
         const check = await checkVideoUploadAllowed(user.swimming_pool_id);
-        if (check.tierBlocked) {
-          res.status(403).json({
-            error: "동영상 업로드는 프리미어 플랜부터 사용할 수 있습니다.",
-            code: "VIDEO_UPLOAD_NOT_AVAILABLE",
-            tier: check.tier,
-          }); return;
-        }
         if (check.storageBlocked) {
           res.status(403).json({
-            error: `영상 저장 한도(${check.limitMb}MB) 초과로 업로드가 제한됩니다. 현재 사용: ${check.usedMb}MB`,
+            error: `저장공간 한도(${check.limitMb}MB) 초과로 업로드가 제한됩니다. 현재 사용: ${check.usedMb}MB`,
             code: "VIDEO_STORAGE_EXCEEDED",
             used_mb: check.usedMb,
             limit_mb: check.limitMb,
