@@ -103,7 +103,7 @@ export interface ResolvedSubscription {
   displayStorage:      string;   // "500MB", "80GB", "500GB"
   videoEnabled:        boolean;
   whiteLabelEnabled:   boolean;
-  videoStorageLimitMb: number;   // 1048576 or 0
+  videoStorageLimitMb: number;   // = storageMb (unified quota; no separate video cap)
   startsAt:            string | null;
   endsAt:              string | null;
   trialEndsAt:         string | null;
@@ -357,7 +357,7 @@ export async function backfillPoolSubscriptionFields(): Promise<{ updated: numbe
       const storageGb     = Number(plan?.storage_gb ?? 0.1);
       const displayStorage = String(plan?.display_storage ?? "100MB");
       const planName      = String(plan?.name ?? tier);
-      const videoLimitMb  = storageMb >= 5120 ? 1024 * 1024 : 0;
+      const videoLimitMb  = storageMb; // WP2A CORRECTION: unified quota (not a separate 1TB cap)
       const whiteLabelEn  = storageMb >= 5120;
       await db.execute(sql`
         UPDATE swimming_pools SET

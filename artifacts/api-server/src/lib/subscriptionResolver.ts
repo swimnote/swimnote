@@ -53,7 +53,7 @@ export interface ResolvedSubscription {
   storageMb:        number;        // storage_mb 원본
   videoEnabled:     boolean;
   whiteLabelEnabled: boolean;
-  videoStorageLimitMb: number;     // 영상 허용: 1048576 (1TB), 불가: 0
+  videoStorageLimitMb: number;     // = storageMb (unified quota; no separate video 1TB cap)
   status:           SubscriptionStatus;
   startsAt:         string | null; // ISO
   endsAt:           string | null; // ISO
