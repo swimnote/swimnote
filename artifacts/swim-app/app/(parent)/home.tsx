@@ -1867,12 +1867,11 @@ export default function ParentHomeScreen() {
       </ScrollView>
 
       {/* C. AI 기능 버튼 (AI 인사이트 전략 리포트 + AI 커리큘럼 검색) */}
-      {/* 리포트: Normal/X/x_pending 모두 진입 가능 (29,000원 독립구매 상품) */}
+      {/* 리포트: Normal/X/x_pending 동일 노출 — Stage 5 구현 전까지 disabled (준비 중) */}
       {selectedStudent && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 12, marginBottom: 12 }}>
-          <Pressable
-            onPress={() => router.push("/(parent)/growth-report-paid" as any)}
-            style={({ pressed }) => ({
+          <View
+            style={{
               flex: 1,
               borderRadius: 11,
               borderWidth: 1,
@@ -1881,15 +1880,18 @@ export default function ParentHomeScreen() {
               paddingHorizontal: 10,
               paddingVertical: 12,
               alignItems: "center",
-              gap: 8,
-              opacity: pressed ? 0.72 : 1,
-            })}
+              gap: 6,
+              opacity: 0.5,
+            }}
           >
             <LucideIcon name="bar-chart-2" size={22} color={NAVY} />
             <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
               {"AI 인사이트\n전략 리포트"}
             </Text>
-          </Pressable>
+            <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 13 }}>
+              준비 중
+            </Text>
+          </View>
           {/* AI 커리큘럼 검색 + 수영·훈련용어 검색 — 세로 2분할 */}
           <View
             style={{
