@@ -525,6 +525,52 @@ export default function DashboardScreen() {
               </View>
             )}
 
+            {/* ── 핵심 퀵액션 4버튼 ── */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => setShowRegister(true)}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
+                </View>
+                <Text style={s.quickBtnLabel}>회원등록</Text>
+                <Text style={s.quickBtnSub}>즉시 등록</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
+                </View>
+                <Text style={s.quickBtnLabel}>매출 확인</Text>
+                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="calendar" size={18} color="#16A34A" />
+                </View>
+                <Text style={s.quickBtnLabel}>스케줄러</Text>
+                <Text style={s.quickBtnSub}>일정 관리</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
+                onPress={() => router.push("/(admin)/holidays" as any)}
+              >
+                <View style={s.quickBtnIcon}>
+                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
+                </View>
+                <Text style={s.quickBtnLabel}>휴무일</Text>
+                <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>
+                  {!holidayConfirmed && confirmTargetMonth ? "확정 필요" : "관리"}
+                </Text>
+              </Pressable>
+            </View>
+
             {/* ── 운영 현황 카드 ── */}
             <View style={{ gap: 8 }}>
               {/* 1행: 이번 달 매출 + 전체 회원 */}
@@ -721,52 +767,6 @@ export default function DashboardScreen() {
                 </View>
               );
             })()}
-
-            {/* ── 핵심 퀵액션 4버튼 ── */}
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => setShowRegister(true)}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="user-plus" size={18} color="#1D4ED8" />
-                </View>
-                <Text style={s.quickBtnLabel}>회원등록</Text>
-                <Text style={s.quickBtnSub}>즉시 등록</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/admin-revenue?backTo=dashboard")}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="trending-up" size={18} color="#CA8A04" />
-                </View>
-                <Text style={s.quickBtnLabel}>매출 확인</Text>
-                <Text style={[s.quickBtnSub, { color: "#CA8A04" }]}>{stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/classes?backTo=dashboard")}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="calendar" size={18} color="#16A34A" />
-                </View>
-                <Text style={s.quickBtnLabel}>스케줄러</Text>
-                <Text style={s.quickBtnSub}>일정 관리</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [s.quickBtn, { opacity: pressed ? 0.82 : 1, backgroundColor: C.card }]}
-                onPress={() => router.push("/(admin)/holidays" as any)}
-              >
-                <View style={s.quickBtnIcon}>
-                  <LucideIcon name="calendar-off" size={18} color={!holidayConfirmed && confirmTargetMonth ? "#DC2626" : "#E11D48"} />
-                </View>
-                <Text style={s.quickBtnLabel}>휴무일</Text>
-                <Text style={[s.quickBtnSub, { color: !holidayConfirmed && confirmTargetMonth ? "#DC2626" : C.textMuted }]}>
-                  {!holidayConfirmed && confirmTargetMonth ? "확정 필요" : "관리"}
-                </Text>
-              </Pressable>
-            </View>
 
             {/* 하단 X 카드 → 최상단 isX 섹션으로 통합됨 */}
 

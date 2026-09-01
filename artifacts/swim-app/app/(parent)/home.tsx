@@ -2247,7 +2247,20 @@ export default function ParentHomeScreen() {
           </Pressable>
           <Pressable
             style={[s.headerBtn, isX && { backgroundColor: "rgba(255,255,255,0.12)" }]}
-            onPress={() => router.push("/(parent)/photos?backTo=home" as any)}
+            onPress={() => {
+              if (selectedStudent) {
+                router.push({
+                  pathname: "/(parent)/photos" as any,
+                  params: {
+                    studentId:   selectedStudent.id,
+                    studentName: selectedStudent.name ?? "",
+                    backTo:      "home",
+                  },
+                });
+              } else {
+                router.push("/(parent)/photos?backTo=home" as any);
+              }
+            }}
           >
             <LucideIcon name="images" size={19} color={iconColor} />
           </Pressable>
