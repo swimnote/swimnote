@@ -383,31 +383,46 @@ export default function ForgotPasswordScreen() {
               </View>
             )}
 
-            {accounts.length > 0 && (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.submitBtn,
-                  { backgroundColor: selectedIdx !== null ? C.primaryAction : C.border, opacity: pressed ? 0.85 : 1 }
-                ]}
-                onPress={() => {
-                  if (selectedIdx === null) return;
-                  const acc = accounts[selectedIdx];
-                  if (acc.social_provider) {
-                    setError(
-                      acc.social_provider === "kakao"
-                        ? "카카오로 가입한 계정은 카카오 앱에서 로그인해주세요."
-                        : "Apple로 가입한 계정은 Apple 로그인으로 접속해주세요."
-                    );
-                    return;
-                  }
-                  setError("");
-                  setStep("pw");
-                }}
-                disabled={selectedIdx === null}
-              >
-                <Text style={styles.submitBtnText}>다음</Text>
-              </Pressable>
-            )}
+            {accounts.length > 0 && (() => {
+              const selAcc = selectedIdx !== null ? accounts[selectedIdx] : null;
+              const sp = selAcc?.social_provider ?? null;
+              if (sp === "kakao") {
+                return (
+                  <Pressable
+                    style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#FEE500", opacity: pressed ? 0.85 : 1 }]}
+                    onPress={() => router.replace("/" as any)}
+                  >
+                    <Text style={[styles.submitBtnText, { color: "#3C1E1E" }]}>카카오로 로그인하기</Text>
+                  </Pressable>
+                );
+              }
+              if (sp === "apple") {
+                return (
+                  <Pressable
+                    style={({ pressed }) => [styles.submitBtn, { backgroundColor: "#000", opacity: pressed ? 0.85 : 1 }]}
+                    onPress={() => router.replace("/" as any)}
+                  >
+                    <Text style={[styles.submitBtnText, { color: "#fff" }]}>Apple로 로그인하기</Text>
+                  </Pressable>
+                );
+              }
+              return (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.submitBtn,
+                    { backgroundColor: selectedIdx !== null ? C.primaryAction : C.border, opacity: pressed ? 0.85 : 1 }
+                  ]}
+                  onPress={() => {
+                    if (selectedIdx === null) return;
+                    setError("");
+                    setStep("pw");
+                  }}
+                  disabled={selectedIdx === null}
+                >
+                  <Text style={styles.submitBtnText}>다음</Text>
+                </Pressable>
+              );
+            })()}
             {!!error && (
               <View style={[styles.errBox, { backgroundColor: "#FEF3C7" }]}>
                 <LucideIcon name="alert-circle" size={14} color="#D97706" />
