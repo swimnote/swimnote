@@ -1,0 +1,826 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# IOS REAL DEVICE VERIFICATION PREP
+# BEFORE MANUAL STORE STEP
+
+현재 상태:
+
+SOCIAL LOGIN PHASE 1:
+CLOSED / FULL PASS
+
+AMENDMENT A1:
+PASS
+
+AMENDMENT A1 PRICE SOURCE CORRECTION:
+PASS
+
+현재 다음 단계인
+RevenueCat / App Store Connect / Google Play Manual Store Step으로
+아직 넘어가지 않습니다.
+
+사용자 지시:
+
+"우선 2.0.0에서 제대로 되었는지 iOS 실기기로 확인하고 다음으로 간다."
+
+따라서 이번 작업은:
+
+release/v2.0.0 기준
+iOS 실기기 검증 환경 준비 및 배포
+
+까지만 진행합니다.
+
+운영 1.6.3에는 영향을 주면 안 됩니다.
+
+==================================================
+0. 중요 안전 원칙
+==================================================
+
+Production 1.6.3 보호가 최우선입니다.
+
+절대 금지:
+
+- production OTA
+- Android 2.0 OTA
+- deploy-photo-clone 변경
+- Render production 변경
+- Production DB migration
+- RevenueCat Production 수정
+- App Store 신규 상품 생성
+- Google Play 수정
+- 기존 1.6.3 iOS/Android update 변경
+
+이번에는:
+
+2.0.0 iOS TEST ONLY
+
+입니다.
+
+==================================================
+1. 현재 상태 확인
+==================================================
+
+먼저 실제 repository 상태 확인.
+
+보고:
+
+Repository:
+Branch:
+HEAD:
+
+반드시 작업 기준:
+
+release/v2.0.0
+
+현재 HEAD를 실제 Git에서 확인하십시오.
+
+이전 보고 SHA를 임의로 가정하지 마십시오.
+
+==================================================
+2. 현재 2.0 iOS 배포 구조 감사
+==================================================
+
+현재 repository / EAS 설정을 확인하여
+2.0.0 iOS 실기기 테스트에 사용할 수 있는 경로를 확인하십시오.
+
+확인:
+
+- app version
+- build number
+- runtimeVersion
+- eas.json profiles
+- update channels
+- branches
+- existing preview/internal/TestFlight build
+- existing 2.0-compatible iOS binary 존재 여부
+- current native dependency state
+
+완료보고에서 정확히 제출.
+
+==================================================
+3. 가장 안전한 테스트 경로 선택
+==================================================
+
+아래 우선순위로 선택하십시오.
+
+--------------------------------
+
+OPTION A
+
+이미 설치 가능한
+2.0-compatible TestFlight / Internal / Preview iOS binary가 존재하고
+
+현재 release/v2.0.0 runtime과 정확히 호환되면
+
+→ 기존 test binary 사용
+
+필요한 경우 TEST channel OTA만 발행.
+
+단 Production channel 사용 금지.
+
+--------------------------------
+
+OPTION B
+
+2.0-compatible binary가 없거나
+runtime/native dependency가 달라 기존 binary 사용 불가능하면
+
+→ EAS iOS Preview/Internal build 생성
+
+Production App Store build가 아니라
+실기기 테스트용 build.
+
+--------------------------------
+
+OPTION C
+
+현재 repository 구조상 TestFlight가 가장 안전하고
+preview/internal distribution이 불가능한 경우
+
+→ TestFlight용 build 생성 가능.
+
+단:
+
+App Store Production Release 금지
+자동 출시 금지
+심사 제출 금지
+
+실기기 테스트만.
+
+==================================================
+4. 임의 Production OTA 금지
+==================================================
+
+절대로:
+
+eas update --branch production
+
+또는 이에 해당하는 Production update를 실행하지 마십시오.
+
+이번 2.0 test update는
+기존 1.6.3 Production 사용자가 받을 수 없는
+완전히 분리된 테스트 channel/branch를 사용.
+
+필요하다면:
+
+v2-test
+v2-preview
+release-v2-test
+
+등 repository 기존 naming convention에 맞는
+테스트 channel 사용.
+
+기존 channel이 있으면 신규 생성보다 기존 사용 우선.
+
+==================================================
+5. 실기기에서 검증할 핵심
+==================================================
+
+이번 실기기 검증은
+화면이 뜨는지만 보는 테스트가 아닙니다.
+
+아래를 실제 iPhone에서 확인할 수 있도록 준비.
+
+==================================================
+6. LOGIN / SOCIAL
+==================================================
+
+CASE A
+
+앱 실행
+
+Expected:
+crash / blank 없음
+
+CASE B
+
+이메일 로그인 화면 정상
+
+CASE C
+
+Kakao 버튼:
+
+아이콘 + 카카오 로그인 문구 정상
+
+CASE D
+
+Apple 버튼:
+
+아이콘 + Apple 로그인 문구 정상
+
+CASE E
+
+kakao_no_account 흐름:
+
+기존 계정 연결
+새로 가입하기
+
+분기 정상
+
+가능한 안전한 테스트 계정 기준.
+
+==================================================
+7. 2.0 기본 모드
+==================================================
+
+일반 SWIMNOTE 계정으로 로그인.
+
+Expected:
+
+- 홈 진입 정상
+- 회원
+- 반
+- 출결
+- 일지
+- 사진
+- 영상
+- 앨범
+- 공지
+- 일정
+- 기본 navigation
+
+crash 없음.
+
+==================================================
+8. 신규 가격 화면
+==================================================
+
+Subscription 화면 실기기 확인.
+
+Expected:
+
+SWIMNOTE
+9,900원
+
+X300
+129,000원
+
+X500
+199,000원
+
+X1000
+359,000원
+
+DATA100
+7,900원
+
+DATA300
+22,900원
+
+구가격:
+
+119,000
+189,000
+349,000
+150,000
+
+신규 2.0 판매 UI에 나오면 FAIL.
+
+==================================================
+9. X 카드 문구
+==================================================
+
+X300 / X500 / X1000에서
+
+"SWIMNOTE 기본플랜 포함"
+
+의 의미가 실제 iPhone 화면에 보여야 함.
+
+사용자가:
+
+SWIMNOTE 9,900
++
+X 별도결제
+
+라고 오해할 UI면 FAIL.
+
+==================================================
+10. 결제 버튼 상태
+==================================================
+
+아직 WP4 이전이므로
+신규 Store Product가 실제 연결되지 않았다면
+
+임의 실제 결제를 시도하게 만들지 마십시오.
+
+Expected:
+
+신규 상품 UI는 보이되
+아직 purchase 연결 전 정책에 맞게
+
+준비 중
+또는
+비활성
+
+상태.
+
+실제 결제 성공처럼 보이면 FAIL.
+
+==================================================
+11. DATA PACK
+==================================================
+
+DATA100 / DATA300 카드 확인.
+
+Expected:
+
+가격과 용량 표시 정상.
+
+아직 실제 구매 연결 전이면
+구매 버튼 비활성 / 준비 중.
+
+==================================================
+12. X TRIAL
+==================================================
+
+가능한 test pool에서:
+
+X Trial CTA
+X Trial active
+X Trial used
+
+상태 표시 확인.
+
+실제 production data를 변경하지 마십시오.
+
+test/dev account 또는 safe test environment만 사용.
+
+확인:
+
+- 3일 체험 의미
+- 자동결제 없음
+- 카드등록 요구 없음
+- trial에서 허용된 X 기능만 접근
+- setup 기능 차단
+
+==================================================
+13. x_pending
+==================================================
+
+가능한 test state에서:
+
+x_pending
+
+확인.
+
+Expected:
+
+결제는 되었으나
+센터 setup READY 전이라는 의미가 UI상 구분.
+
+normal / x / trial과 혼동 없음.
+
+==================================================
+14. subscription_required
+==================================================
+
+가능한 test/dev 상태에서 반드시 확인.
+
+Expected:
+
+유료 2.0 base plan 만료
++
+active SWIMNOTE 없음
+
+→ subscription_required
+
+화면.
+
+실제 iPhone에서:
+
+- 앱 crash 없음
+- navigation loop 없음
+- 구독 화면 접근 가능
+- restore 접근 가능
+- logout 접근 가능
+- 운영 write route 차단
+
+확인.
+
+Production 고객 계정을 강제로 만료시키지 마십시오.
+
+test fixture / test account / non-production state 사용.
+
+==================================================
+15. 회원수 표시
+==================================================
+
+SWIMNOTE:
+
+내부 member_limit = 999999
+
+이라도 UI에서는 절대:
+
+999999명
+
+으로 표시하지 않음.
+
+Expected:
+
+회원수 무제한
+
+==================================================
+16. STORAGE UI
+==================================================
+
+실기기에서:
+
+기본 저장공간
+사용량
+추가 저장공간
+effective quota
+
+표시 확인.
+
+SWIMNOTE:
+10GB
+
+X300:
+300GB
+
+X500:
+500GB
+
+X1000:
+1TB
+
+Data Pack 추가 시
+base + extra 개념 정상.
+
+80 / 90 / 100% warning UI도
+가능한 test state로 확인.
+
+==================================================
+17. VIDEO
+==================================================
+
+이번에는 WP5 이전이므로
+영상 압축 기능 구현 검증은 하지 않습니다.
+
+하지만 WP3에서 제거한
+Premier 전용 영상 제한 문구가 남아 있지 않은지 확인.
+
+Expected:
+
+SWIMNOTE paid / X plan에서
+영상 기능이 플랜상 허용되는 UI.
+
+단 실제 Production rollout과 compression은
+WP5 이후.
+
+이번 test build가 production video behavior를 변경해서는 안 됨.
+
+==================================================
+18. LEGACY REGRESSION
+==================================================
+
+가능한 기존 legacy test account에서:
+
+Coach/Premier current subscription 표시
+restore
+기존 entitlement
+
+깨지지 않았는지 확인.
+
+신규 X 카드 때문에
+legacy 사용자가 강제 migration되는 UI 금지.
+
+==================================================
+19. UI 오류 전수 확인
+==================================================
+
+실기기에서 특히 확인:
+
+- 텍스트 잘림
+- 가격 줄바꿈
+- 버튼 겹침
+- Safe Area
+- 작은 iPhone 화면
+- keyboard overlap
+- modal overflow
+- navigation loop
+- spinner 무한
+- blank screen
+- 잘못된 한글
+- 999999 노출
+- 구가격 노출
+
+==================================================
+20. BUILD/UPDATE 실행 허용
+==================================================
+
+사용자가 이번 작업에 대해:
+
+2.0.0 iOS 실기기 테스트용 배포
+
+를 승인합니다.
+
+허용:
+
+- iOS Preview/Internal build
+- 필요시 TestFlight test build
+- TEST channel OTA
+- 테스트용 build number 증가
+
+금지:
+
+- Production OTA
+- App Store Production release
+- Android 2.0 build/deploy
+- Store 상품 수정
+
+==================================================
+21. Native 변경 판단
+==================================================
+
+현재 2.0에서
+native dependency 변경이 있다면
+
+기존 binary + OTA 방식 사용 금지.
+
+반드시 새 test build 생성.
+
+native 변경이 없다면
+기존 compatible 2.0 test binary가 존재하는지 우선 확인.
+
+불필요한 build 비용/시간 낭비 금지.
+
+==================================================
+22. 배포 후 사용자에게 알려줄 정보
+==================================================
+
+실기기 테스트가 가능해지면
+완료보고에서 사용자가 실제 iPhone에서
+어떻게 설치/업데이트하면 되는지 정확히 설명.
+
+예:
+
+TestFlight
+→ SWIMNOTE
+→ Build XXX 설치
+
+또는
+
+Internal distribution URL
+→ 설치
+
+또는
+
+기존 2.0 test build 종료 후 재실행
+→ test OTA 수신
+
+실제 사용한 방식만 보고.
+
+==================================================
+23. 사용자 실기기 체크리스트
+==================================================
+
+완료보고 끝에
+사용자가 직접 확인할 체크리스트를 짧게 제공.
+
+최소:
+
+[ ] 앱 실행
+[ ] 카카오 로그인 UI
+[ ] Apple 로그인 UI
+[ ] 일반 SWIMNOTE 홈
+[ ] 가격 9,900
+[ ] X300 129,000
+[ ] X500 199,000
+[ ] X1000 359,000
+[ ] X 기본플랜 포함 문구
+[ ] DATA100/300
+[ ] 999999 미노출
+[ ] 영상 Premier 문구 없음
+[ ] X Trial 화면
+[ ] subscription_required 화면
+[ ] navigation 오류 없음
+
+==================================================
+24. 수정 발생 시
+==================================================
+
+실기기 테스트 준비 과정에서
+코드 오류를 발견하더라도
+
+이번 단계에서 대규모 기능 수정 금지.
+
+빌드 불가 등 blocker라면
+원인만 보고.
+
+작은 test-build compatibility correction이 필요하면
+수정 내용과 이유를 보고하고 최소 수정.
+
+가격/X 정책 자체 변경 금지.
+
+==================================================
+25. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# IOS REAL DEVICE VERIFICATION PREP REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## CURRENT IOS CONFIG
+
+App Version:
+Build Number:
+Runtime Version:
+
+EAS profiles:
+...
+
+Existing 2.0 compatible binary:
+YES / NO
+
+Native changes since compatible binary:
+YES / NO
+
+## TEST DISTRIBUTION METHOD
+
+Method:
+TESTFLIGHT / INTERNAL / PREVIEW / TEST OTA
+
+Reason:
+...
+
+Production channel used:
+YES / NO
+
+Expected:
+NO
+
+## IOS TEST BUILD
+
+Build created:
+YES / NO
+
+Build ID:
+...
+
+Build Number:
+...
+
+Runtime:
+...
+
+Install method:
+...
+
+## TEST OTA
+
+Published:
+YES / NO
+
+Channel:
+...
+
+Branch:
+...
+
+Update ID:
+...
+
+Production OTA:
+YES / NO
+
+Expected:
+NO
+
+## CODE STATE
+
+SWIMNOTE:
+9900 PASS / FAIL
+
+X300:
+129000 PASS / FAIL
+
+X500:
+199000 PASS / FAIL
+
+X1000:
+359000 PASS / FAIL
+
+X includes SWIMNOTE:
+PASS / FAIL
+
+DATA100:
+7900 PASS / FAIL
+
+DATA300:
+22900 PASS / FAIL
+
+999999 UI exposed:
+YES / NO
+
+Expected:
+NO
+
+## 2.0 STATES READY FOR DEVICE TEST
+
+normal:
+READY / NOT READY
+
+x_trial:
+READY / NOT READY
+
+x_pending:
+READY / NOT READY
+
+x:
+READY / NOT READY
+
+subscription_required:
+READY / NOT READY
+
+## LEGACY
+
+Legacy regression tests:
+PASS / FAIL
+
+## PRODUCTION SAFETY
+
+1.6.3 modified:
+YES / NO
+
+Expected:
+NO
+
+deploy-photo-clone modified:
+YES / NO
+
+Expected:
+NO
+
+Render Production modified:
+YES / NO
+
+Expected:
+NO
+
+Production OTA:
+YES / NO
+
+Expected:
+NO
+
+Production DB:
+MODIFIED / NOT MODIFIED
+
+Expected:
+NOT MODIFIED
+
+RevenueCat:
+MODIFIED / NOT MODIFIED
+
+Expected:
+NOT MODIFIED
+
+App Store products:
+MODIFIED / NOT MODIFIED
+
+Expected:
+NOT MODIFIED
+
+Google Play:
+MODIFIED / NOT MODIFIED
+
+Expected:
+NOT MODIFIED
+
+## HOW USER INSTALLS 2.0 TEST
+
+...
+
+## USER DEVICE CHECKLIST
+
+[ ] 앱 실행
+[ ] Kakao UI
+[ ] Apple UI
+[ ] SWIMNOTE 9,900
+[ ] X300 129,000
+[ ] X500 199,000
+[ ] X1000 359,000
+[ ] SWIMNOTE 기본플랜 포함
+[ ] DATA100/300
+[ ] 999999 미노출
+[ ] Premier 영상 제한 문구 없음
+[ ] X Trial
+[ ] subscription_required
+[ ] navigation 정상
+
+## BLOCKERS
+
+NONE
+or
+...
+
+FINAL:
+
+SWIMNOTE 2.0 IOS DEVICE TEST READY
+or
+BLOCKED
