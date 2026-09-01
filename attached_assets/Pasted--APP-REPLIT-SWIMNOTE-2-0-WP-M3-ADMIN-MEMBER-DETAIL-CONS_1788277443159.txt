@@ -1,0 +1,1139 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# WP-M3 ADMIN MEMBER DETAIL CONSOLIDATION
+# TABS → SINGLE LONG-SCROLL MEMBER DETAIL
+
+현재 상태:
+
+WP-M1 MEMBER MANAGEMENT FREEZE AUDIT:
+PASS
+
+WP-M2 MEMBER DETAIL DATA CONTRACT:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Latest WP-M2 HEAD:
+12c952c4
+
+==================================================
+0. 이번 WP의 핵심 목표
+==================================================
+
+현재 관리자 회원상세는
+member-detail shell + 여러 탭 구조로 분산되어 있습니다.
+
+이번 WP에서는:
+
+회원 목록
+→ 회원 선택
+→ 회원정보 상세
+
+한 화면에서 아래로 스크롤하면서
+
+- 회원 기본정보
+- 수강정보
+- 교육정보
+- 출결/보강 요약
+- 보호자 정보
+- 피드/미디어 shortcut
+- 회원 상태/관리
+
+를 대부분 조회하고 수정할 수 있는
+단일 long-scroll Member Detail로 재설계합니다.
+
+목표는:
+
+"회원 한 명을 관리하기 위해
+여러 탭과 여러 화면을 계속 이동하는 구조 제거"
+
+입니다.
+
+==================================================
+1. SHARED CORE — 절대 고정
+==================================================
+
+Admin Member Detail은:
+
+SWIMNOTE 일반모드
++
+SWIMNOTE X모드
+
+공통 화면입니다.
+
+AI/X 전용 기능이 아닌 회원관리 기능에
+mode gate 추가 금지.
+
+다음은 모두 공통:
+
+- 회원 기본정보
+- 반
+- 담당 선생님
+- 주당 횟수
+- 레벨
+- 보호자 연락처
+- 출결
+- 보강
+- 일지
+- 사진/영상
+- 메모
+- 상태 변경
+- 복원
+- 삭제/소각 관련 관리자 기능
+
+X 전용 Member Detail 복제 금지.
+
+==================================================
+2. 작업 전 CURRENT TAB 정확히 재확인
+==================================================
+
+WP-M1 보고서에는:
+
+"8탭 구조"
+
+라고 되어 있으나
+제출된 표에는 명시적으로 7개 탭만 나열되어 있습니다.
+
+구현 전 실제 코드 기준으로:
+
+member-detail.tsx
+components/admin/member/*
+
+전체를 다시 확인하여
+
+실제 탭 개수
+실제 탭 이름
+실제 각 탭 component
+
+를 정확히 동결하십시오.
+
+보고서 숫자를 그대로 믿지 말고
+source code를 기준으로 합니다.
+
+==================================================
+3. 목표 LONG-SCROLL 구조
+==================================================
+
+최종 관리자 Member Detail:
+
+--------------------------------
+HEADER
+--------------------------------
+
+학생명
+상태 badge
+현재 반
+현재 레벨
+
+필요한 최소 quick action만 허용.
+
+버튼 남발 금지.
+
+--------------------------------
+SECTION A — 기본정보
+--------------------------------
+
+가능한 현재 정보:
+
+- 이름
+- 한글명
+- 전화번호
+- 생년월일
+- 성별
+- 학교
+- 학년
+- 주소
+- 메모
+- 등록일
+
+단:
+
+실제 DB/API에 존재하는 필드만 표시.
+
+없는 필드 임의 생성 금지.
+
+Section 우상단:
+
+[수정]
+
+→ 해당 Section edit mode
+
+→ 저장 / 취소
+
+필드마다 수정 아이콘 여러 개 배치 금지.
+
+--------------------------------
+SECTION B — 수강정보
+--------------------------------
+
+표시:
+
+- 현재 반
+- 담당 선생님
+- 수업 요일
+- 수업 시간
+- 주당 횟수
+- 수강 시작일
+- 현재 회원 상태
+
+변경 가능한 현재 기능:
+
+- 반 변경
+- 담당 선생님 변경
+- 주당 횟수 변경
+
+복잡한 값 선택은
+Bottom Sheet 사용 가능.
+
+불필요한 별도 page navigation 금지.
+
+--------------------------------
+SECTION C — 수영 교육정보
+--------------------------------
+
+표시:
+
+- 현재 개인 레벨
+- 레벨명
+- 레벨 색상 등 기존 정보
+
+학생 개인 레벨 SoT:
+
+students.current_level_order
+
+class_groups.level은
+반 레벨 label이므로 혼동 금지.
+
+레벨 변경:
+
+기존 기능 보존.
+
+가능하면 inline/select/bottom sheet 형태로
+Member Detail 안에서 완료.
+
+AI 성장리포트 등
+X 전용 기능을 이번 WP에서 추가하지 마십시오.
+
+--------------------------------
+SECTION D — 출결 / 보강
+--------------------------------
+
+Member Detail에는
+"요약"만 표시.
+
+WP-M2 신규 contract 사용:
+
+attendance_summary
+makeup_summary
+
+예:
+
+이번 달
+출석 n
+결석 n
+지각 n
+
+보강
+대기 n
+배정 n
+완료 n
+
+전체 출결/보강 상세가 필요한 경우만:
+
+[상세보기]
+
+→ 기존 전문 화면
+
+즉 기존 전문 화면 삭제 금지.
+
+--------------------------------
+SECTION E — 보호자 / 연락처
+--------------------------------
+
+관리자에게:
+
+parent_name
+parent_phone
+parent_phone2
+parent_phone3
+parent_phone4
+
+모두 표시.
+
+WP-M2에서 정식 type 선언된 필드를 사용.
+
+가능한 현재 기능:
+
+- 보호자 연락처 수정
+- 연결된 parent account 상태 확인
+
+보호자 계정 연결/해제처럼
+위험하거나 별도 workflow가 필요한 액션은
+기존 안전 흐름 유지.
+
+--------------------------------
+SECTION F — 피드 / 일지 / 사진 / 영상
+--------------------------------
+
+모든 과거 데이터 전체를
+Member Detail에 로딩하지 마십시오.
+
+요약 + shortcut 형태.
+
+예:
+
+최근 일지
+최근 미디어
+
+또는 현재 사용할 수 있는 최소 summary.
+
+[일지 보기]
+[사진/영상 보기]
+
+전문 화면 유지.
+
+이번 WP에서
+미디어 API 구조 변경 금지.
+
+--------------------------------
+SECTION G — 학부모 공개 추가정보
+--------------------------------
+
+student_links는 아직 WP-M5입니다.
+
+따라서 이번 WP에서:
+
+DB 생성 금지
+CRUD 생성 금지
+가짜 데이터 UI 금지
+
+단 향후 Section G를 끼울 수 있도록
+component/layout 구조만 확장 가능하게 설계.
+
+사용자에게 비어있는
+"준비 중" 카드 등을 보여주지 마십시오.
+
+WP-M5 전까지 사용자 UI에는
+불필요한 empty section 노출 금지.
+
+--------------------------------
+SECTION H — 회원 상태 / 관리
+--------------------------------
+
+관리자 전용.
+
+현재 실제 상태 흐름 보존:
+
+active
+withdrawn
+deleted
+archived
+pending_status_change
+
+final-withdraw / access_blocked 관련
+기존 semantics 보존.
+
+관리 기능을 화면 하단에 정리.
+
+예:
+
+[상태 관리]
+
+- 휴원/연기
+- 퇴원
+- 복원
+
+그리고 별도 접힌:
+
+[위험 작업]
+
+- 개인정보 소각
+- 영구삭제
+- 기타 실제 현재 관리자 액션
+
+==================================================
+4. DELETE 기능 의미 절대 혼동 금지
+==================================================
+
+WP-M1에서 확인:
+
+A.
+
+/students/:id/purge
+
+=
+개인정보 익명화
+row 유지
+수업기록 유지
+
+B.
+
+/admin/students/:id/force-delete
+
+=
+즉시 HARD DELETE
+status guard 없음
+위험도 매우 높음
+
+C.
+
+/admin/students/:id/permanent
+
+=
+archived/deleted 상태에서
+confirm gate 있는 HARD DELETE
+
+이 3개는 같은 기능이 아님.
+
+이번 WP에서:
+
+통합 금지
+endpoint 변경 금지
+semantics 변경 금지
+
+UI label은 사용자가 의미를 명확히 이해하도록
+기존 서비스 용어를 기준으로 정리.
+
+특히 force-delete를
+일반적인 "회원 탈퇴"처럼 노출하면 FAIL.
+
+==================================================
+5. FORCE DELETE 이번 WP 처리
+==================================================
+
+WP-M1에서
+active 회원도 force-delete 가능한 위험이 확인되었습니다.
+
+그러나 실제 API guard 수정은
+WP-M6 예정입니다.
+
+이번 WP에서는:
+
+API semantics 변경 금지.
+
+다만 관리자 UI에서
+기존 force-delete가 일반적으로 쉽게 노출되어 있다면
+
+Danger Zone 내부로 이동하고
+기존 confirm 절차를 절대 약화시키지 마십시오.
+
+API guard 추가는 WP-M6.
+
+==================================================
+6. RESTORE 의미 유지
+==================================================
+
+/admin/students/:id/restore
+
+=
+withdrawn/deleted → active
+
+/admin/students/:id/restore-archive
+
+=
+archived → active
+
+둘은 통합하지 마십시오.
+
+Member Detail에서 현재 student status에 따라
+정확한 restore action만 표시.
+
+==================================================
+7. 기존 탭 기능 손실 금지
+==================================================
+
+현재 탭에 존재하던 기능은
+새 long-scroll 구조로 이동하되
+기능 손실이 없어야 합니다.
+
+작업 전:
+
+OLD TAB → NEW SECTION
+
+mapping 작성.
+
+예:
+
+MemberInfoTab
+→ Section A
+
+MemberClassTab
+→ Section B
+
+MemberLevelTab
+→ Section C
+
+MemberMakeupTab
+→ Section D
+
+MemberParentTab
+→ Section E
+
+MemberLogTab
+→ Section H 또는 상태 이력 subsection
+
+MemberPaymentTab
+→ 실제 역할 검토 후 적절한 section
+
+IMPORTANT:
+
+결제/이용정보가 회원상세에 필요한 운영 정보라면
+임의 삭제 금지.
+
+어디에 배치할지 실제 기능을 보고 판단하여
+보고서에 명시.
+
+==================================================
+8. 중복 버튼 정리
+==================================================
+
+현재 화면에서:
+
+회원정보 보기
+회원 수정
+회원 탈퇴
+레벨 변경
+보호자 연락처
+기타 관리 액션
+
+등이 여러 위치에서 반복된다면
+
+Member Detail 내부의
+명확한 Section으로 통합.
+
+원칙:
+
+동일 기능의 버튼이
+같은 Member Detail 안에서 여러 군데 반복되면 FAIL.
+
+단:
+
+전문 화면으로 가는 shortcut은 허용.
+
+==================================================
+9. LIST → DETAIL 진입 구조
+==================================================
+
+회원 목록에서
+회원 선택 시:
+
+Member Detail
+
+로 진입.
+
+별도의 중간 메뉴:
+
+회원정보 보기
+회원수정
+회원탈퇴
+
+처럼 선택지를 다시 거치는 구조가 있다면
+필요성 감사 후 최소화.
+
+기본:
+
+회원 선택
+→ Member Detail
+
+관리 액션은 Member Detail 내부.
+
+이번 WP에서는
+members.tsx에서 안전하게 제거 가능한
+명백한 중복 CTA만 정리 가능.
+
+단 route 대규모 cleanup은 WP-M6.
+
+==================================================
+10. EDIT UX
+==================================================
+
+모바일에서
+모든 필드를 동시에 editable하게 만들지 마십시오.
+
+권장:
+
+Section A:
+Section 단위 Edit
+
+Section B:
+단일 선택값은 Bottom Sheet
+
+Section C:
+Level selector
+
+Section E:
+Guardian section Edit
+
+저장 성공:
+즉시 화면 데이터 갱신
+
+저장 실패:
+기존 값 유지 + 오류 표시
+
+==================================================
+11. KEYBOARD / SCROLL 기존 RULE 유지
+==================================================
+
+이번 Member Detail도
+기존 global rule을 반드시 따릅니다.
+
+- long-scroll 마지막 내용까지 완전히 scroll 가능
+- Safe Area 확보
+- keyboard가 입력필드/저장버튼을 가리지 않음
+- keyboardShouldPersistTaps 적절히 적용
+- 스크롤 시 keyboard dismiss
+- 버튼 tap은 keyboard가 떠 있어도 1회 tap으로 실행
+- 빈 배경 tap의 전역 keyboard dismiss는
+  별도 예정된 Global Keyboard Audit에서 일괄 처리하므로
+  이번 WP에서 독자적인 임시 전역 hack 금지
+
+==================================================
+12. BACK RULE
+==================================================
+
+Member Detail Back:
+
+항상 previous screen.
+
+예:
+
+Members
+→ Member Detail
+→ Back
+→ Members
+
+Class Management
+→ Member Detail
+→ Back
+→ Class Management
+
+Home hardcoded 금지.
+
+다만 전체 관리자/선생님 설정 및 검색의
+Back/Keyboard 전수조사는
+Teacher WP-M4 완료 후 별도 작업으로 진행 예정.
+
+이번 WP에서는
+Member Detail route 자체만 규칙 준수.
+
+==================================================
+13. PERFORMANCE
+==================================================
+
+WP-M2 contract 사용.
+
+즉시:
+
+- basic
+- class
+- teacher
+- level
+- attendance_summary
+- makeup_summary
+- guardian summary
+
+전체 과거:
+
+attendance
+diary
+photo
+video
+logs
+
+무제한 즉시 로딩 금지.
+
+기존 lazy 또는 전문 화면 유지.
+
+==================================================
+14. MEMBER LOG
+==================================================
+
+현재 활동로그/상태변경 이력이
+MemberLogTab에 있다면
+
+새 long-scroll 구조에서는:
+
+Section H 내
+"최근 상태 변경 이력"
+
+또는
+"활동로그 보기"
+
+형태로 배치 검토.
+
+전체 로그가 길다면:
+
+최근 몇 건 summary
++
+[전체보기]
+
+가 적절.
+
+데이터 삭제 금지.
+
+==================================================
+15. PAYMENT / USAGE TAB
+==================================================
+
+현재 MemberPaymentTab 실제 기능을 조사.
+
+회원별:
+
+- 납부 정보
+- 이용 정보
+- 수강 정보
+
+중 무엇인지 정확히 확인.
+
+회원관리에 필요한 정보라면
+새 Member Detail 안에 적절한 section 또는 subsection으로 이동.
+
+구독상품:
+
+SWIMNOTE/X300/X500/X1000
+
+센터 구독과
+회원 개인 결제정보를 혼동하지 마십시오.
+
+센터 RevenueCat subscription UI를
+Member Detail에 넣지 마십시오.
+
+==================================================
+16. COMPONENT 구조
+==================================================
+
+향후 WP-M4 Teacher Detail과
+Office PC 재사용을 고려.
+
+가능한 공통화 후보:
+
+MemberBasicInfo
+MemberClassInfo
+LevelEditor
+GuardianContact
+AttendanceSummary
+MakeupSummary
+MemberStatusBadge
+
+단 이번 WP에서
+무리하게 전부 추출하지 않아도 됨.
+
+WP-M4에서 Teacher와 실제 공유할 부분을
+공통 component로 추출할 예정.
+
+이번 WP에서는
+admin 화면을 역할별 재사용 가능하게
+지나치게 결합하지 않도록 설계.
+
+==================================================
+17. UI 스타일
+==================================================
+
+SWIMNOTE 기존 디자인 시스템 유지.
+
+금지:
+
+전면적인 디자인 언어 변경
+새 색상체계
+새 typography
+Office PC 디자인을 모바일에 억지 적용
+
+목표는:
+
+기존 SWIMNOTE 모바일 디자인
++
+정리된 정보 architecture
+
+==================================================
+18. TESTS
+==================================================
+
+최소:
+
+CASE A
+Members → Member Detail 정상
+
+CASE B
+Back → previous screen
+
+CASE C
+기본정보 표시
+
+CASE D
+기본정보 수정/저장
+
+CASE E
+parent_phone1~4 표시
+
+CASE F
+반/담당선생님/요일/시간 표시
+
+CASE G
+반 변경 기존 기능 보존
+
+CASE H
+주당횟수 변경 기존 기능 보존
+
+CASE I
+학생 개인 레벨 표시
+
+CASE J
+레벨 변경
+
+CASE K
+attendance_summary 표시
+
+CASE L
+makeup_summary 표시
+
+CASE M
+보호자 연결 정보 표시
+
+CASE N
+일지/미디어 shortcut 정상
+
+CASE O
+withdrawn 복원
+
+CASE P
+archived 복원 action 구분
+
+CASE Q
+purge 의미 보존
+
+CASE R
+permanent delete 안전 flow 보존
+
+CASE S
+force-delete Danger Zone 격리
+
+CASE T
+SWIMNOTE normal 동일 화면
+
+CASE U
+X 동일 화면
+
+CASE V
+mode gate 신규 추가 없음
+
+CASE W
+기존 탭 기능 누락 0
+
+CASE X
+마지막 Section까지 scroll 가능
+
+==================================================
+19. REGRESSION REPORT RULE
+==================================================
+
+중요:
+
+테스트 실패가 존재하면 단순히
+
+Regression: PASS
+
+라고 쓰지 마십시오.
+
+반드시 구분:
+
+New failures caused by WP-M3:
+N
+
+Pre-existing baseline failures:
+N
+
+Baseline before WP-M3:
+N
+
+After WP-M3:
+N
+
+WP-M3 신규 실패가 0일 때만
+WP-M3 regression PASS 가능.
+
+pre-existing 실패는
+목록/범위를 명시.
+
+==================================================
+20. 이번 WP에서 금지
+==================================================
+
+Teacher student-detail 수정 금지
+Parent student-detail 수정 금지
+student_links 생성 금지
+DB migration 금지
+Delete endpoint 변경 금지
+Restore endpoint 변경 금지
+legacy table 변경 금지
+RevenueCat 변경 금지
+Pricing 변경 금지
+Subscription UX 변경 금지
+
+==================================================
+21. PRODUCTION 금지
+==================================================
+
+Production deploy 금지
+Render deploy 금지
+Production DB 변경 금지
+OTA 금지
+1.6.3 수정 금지
+Android 수정 금지
+
+release/v2.0.0 code + tests만.
+
+==================================================
+22. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# WP-M3 ADMIN MEMBER DETAIL CONSOLIDATION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## CURRENT TAB FREEZE
+
+Actual tab count:
+...
+
+Tabs:
+...
+
+## OLD → NEW MAP
+
+Old Tab | New Section | Result
+
+...
+
+## TARGET STRUCTURE
+
+Header:
+...
+
+Section A:
+...
+
+Section B:
+...
+
+Section C:
+...
+
+Section D:
+...
+
+Section E:
+...
+
+Section F:
+...
+
+Section G:
+NOT EXPOSED / ...
+
+Section H:
+...
+
+## BASIC INFO
+
+Displayed:
+...
+
+Editable:
+...
+
+## CLASS INFO
+
+Displayed:
+...
+
+Editable:
+...
+
+## LEVEL
+
+SoT:
+students.current_level_order
+
+Display:
+...
+
+Change:
+...
+
+## GUARDIAN
+
+parent_phone:
+PASS / FAIL
+
+parent_phone2:
+PASS / FAIL
+
+parent_phone3:
+PASS / FAIL
+
+parent_phone4:
+PASS / FAIL
+
+## ATTENDANCE / MAKEUP SUMMARY
+
+attendance_summary:
+PASS / FAIL
+
+makeup_summary:
+PASS / FAIL
+
+## MEDIA / DIARY
+
+Summary:
+...
+
+Shortcuts:
+...
+
+## PAYMENT / USAGE
+
+Old function:
+...
+
+New location:
+...
+
+## STATUS / MANAGEMENT
+
+withdraw:
+...
+
+restore:
+...
+
+restore-archive:
+...
+
+purge:
+...
+
+force-delete:
+...
+
+permanent:
+...
+
+## DUPLICATE UI CLEANUP
+
+Removed/reduced:
+...
+
+Still intentionally retained:
+...
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gates:
+0 / ...
+
+Expected:
+0
+
+## BACK
+
+Previous-screen-only:
+PASS / FAIL
+
+Home hardcoded:
+YES / NO
+
+Expected:
+NO
+
+## SCROLL
+
+Long-scroll:
+PASS / FAIL
+
+Bottom content reachable:
+PASS / FAIL
+
+Keyboard overlap:
+PASS / FAIL
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+...
+CASE X:
+PASS / FAIL
+
+## REGRESSION
+
+Baseline failures before WP-M3:
+...
+
+Failures after WP-M3:
+...
+
+New failures caused by WP-M3:
+...
+
+Expected:
+0
+
+Pre-existing failures:
+...
+
+Regression:
+PASS / FAIL
+
+## UNTOUCHED
+
+Teacher UI:
+UNCHANGED
+
+Parent UI:
+UNCHANGED
+
+student_links:
+NOT CREATED
+
+Delete APIs:
+UNCHANGED
+
+Restore APIs:
+UNCHANGED
+
+Legacy tables:
+UNCHANGED
+
+Pricing/Subscription:
+UNCHANGED
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+WP-M3 ADMIN MEMBER DETAIL CONSOLIDATION COMPLETE
+or
+BLOCKED
