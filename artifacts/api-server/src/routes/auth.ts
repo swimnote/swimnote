@@ -1607,9 +1607,11 @@ router.post("/kakao-social-login", async (req, res) => {
     }
 
     // 2) 전화번호로 기존 계정 매칭 후 kakao_id 연결
+    // Phase 1 backport: 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
     if (kakaoPhone) {
+      const kakaoPhoneHyphen = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
       const byPhone = await db.execute(sql`
-        SELECT * FROM parent_accounts WHERE phone = ${kakaoPhone} LIMIT 1
+        SELECT * FROM parent_accounts WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphen}) LIMIT 1
       `);
       if ((byPhone.rows as any[]).length > 0) {
         const account = byPhone.rows[0] as any;
@@ -1753,9 +1755,12 @@ router.post("/kakao-link-account", async (req, res) => {
   const { kakaoId, phone, kakaoProfileImage } = req.body;
   if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
 
+  // Phase 1 backport: 입력 전화번호 digits 정규화 + 하이픈 fallback
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  const cleanPhoneHyphen = cleanPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
   try {
     const byPhone = await db.execute(sql`
-      SELECT * FROM parent_accounts WHERE phone = ${phone} LIMIT 1
+      SELECT * FROM parent_accounts WHERE (phone = ${cleanPhone} OR phone = ${cleanPhoneHyphen}) LIMIT 1
     `);
     if ((byPhone.rows as any[]).length === 0) {
       return err(res, 404, "입력하신 전화번호로 등록된 계정이 없습니다. 수영장 관리자에게 문의하세요.");
