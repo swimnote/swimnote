@@ -1,0 +1,932 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# SUBSCRIPTION UX / PLAN SWITCHING STRUCTURE CORRECTION
+# BEFORE STORE CONNECTION
+
+현재 2.0 Subscription UI를 다시 정리합니다.
+
+문제:
+
+현재 SWIMNOTE / X Trial / X Active 상태에서
+구독 상품과 진입 경로가 서로 섞여 있어
+사용자가 어디서 무엇을 구매/변경해야 하는지 혼란스러울 수 있습니다.
+
+이번 작업의 목표:
+
+1. 구독 관리 진입점을 하나로 통일
+2. 현재 mode/state에 따라 필요한 상품만 표시
+3. X Active 상태에서 SWIMNOTE 기본플랜 구매카드 숨김
+4. X300/X500/X1000 상호 플랜 변경 가능하도록 UX 준비
+5. X 설정 화면의 중복 결제 UI 제거 또는 단일 구독화면으로 연결
+6. 실제 RevenueCat/App Store/Google Play purchase 연결은 아직 하지 않음
+
+==================================================
+0. LOCKED PRICE / PRODUCT
+==================================================
+
+SWIMNOTE
+9,900원 / 월
+회원수 무제한
+10GB
+
+X300
+129,000원 / 월
+최대 300명
+300GB
+SWIMNOTE 기본플랜 포함
+
+X500
+199,000원 / 월
+최대 500명
+500GB
+SWIMNOTE 기본플랜 포함
+
+X1000
+359,000원 / 월
+최대 1,000명
+1TB
+SWIMNOTE 기본플랜 포함
+
+DATA100
+7,900원 / 월
++100GB
+
+DATA300
+22,900원 / 월
++300GB
+
+==================================================
+1. 구독 관리 SINGLE ENTRY POINT
+==================================================
+
+구독 관리의 공식 진입점은 하나로 통일합니다.
+
+권장:
+
+설정
+→
+구독 및 요금제
+
+현재 subscription 화면을
+canonical subscription management screen으로 사용.
+
+다른 화면에서 별도의 독립적인 결제 UI를 여러 개 만들지 마십시오.
+
+==================================================
+2. X 설정 화면
+==================================================
+
+X 설정 안에 구독 관련 메뉴가 필요하면:
+
+"구독 및 요금제 관리"
+
+한 항목만 둡니다.
+
+탭:
+
+→ canonical subscription screen
+
+으로 이동.
+
+X 설정 내부에
+별도의 X300/X500/X1000 purchase UI를 중복 구현하지 마십시오.
+
+즉:
+
+X 설정
+→ 구독 및 요금제 관리
+→ 동일한 subscription screen
+
+구조.
+
+==================================================
+3. NORMAL SWIMNOTE MODE
+==================================================
+
+일반 SWIMNOTE 사용자가
+구독 및 요금제 화면에 들어오면:
+
+현재 SWIMNOTE plan 표시
+
+그리고:
+
+X300
+X500
+X1000
+
+으로 업그레이드 가능한 카드 표시.
+
+예:
+
+현재 이용중
+SWIMNOTE
+9,900원
+
+아래:
+
+SWIMNOTE X로 업그레이드
+
+X300
+129,000원
+
+X500
+199,000원
+
+X1000
+359,000원
+
+각 X 카드:
+
+"SWIMNOTE 기본플랜 포함"
+
+표시.
+
+==================================================
+4. X TRIAL MODE
+==================================================
+
+x_trial 상태에서 subscription 화면:
+
+SWIMNOTE 기본플랜을 X 가입과 동일한 레벨의
+주요 구매 CTA로 섞지 마십시오.
+
+핵심 CTA:
+
+X300 가입
+X500 가입
+X1000 가입
+
+Trial 사용자가
+체험 후 바로 X 정식 플랜을 선택할 수 있어야 함.
+
+필요하면 화면 하단에:
+
+"일반 SWIMNOTE 이용하기"
+
+정도의 secondary action은 가능.
+
+하지만 X trial의 주 결제경로는 X plan 선택.
+
+==================================================
+5. X ACTIVE MODE
+==================================================
+
+매우 중요.
+
+mode === x
+
+이면:
+
+SWIMNOTE 9,900 기본플랜 구매카드
+표시하지 마십시오.
+
+이유:
+
+현재 X 자체가 SWIMNOTE 기본플랜을 포함하고 있음.
+
+X 활성 사용자가 subscription 화면에 들어오면:
+
+현재 X 플랜
++
+다른 X 플랜으로 변경
++
+DATA pack
++
+구독관리
+
+만 보여야 함.
+
+예:
+
+현재 이용중
+X300
+129,000원
+최대 300명
+300GB
+
+다른 플랜으로 변경:
+
+X500
+199,000원
+
+X1000
+359,000원
+
+==================================================
+6. X PLAN SWITCHING
+==================================================
+
+X300/X500/X1000은
+상호 plan change 가능해야 합니다.
+
+지원 UX:
+
+X300
+→ X500
+→ X1000
+
+업그레이드 가능.
+
+그리고:
+
+X1000
+→ X500
+→ X300
+
+다운그레이드도 가능.
+
+X500
+→ X300
+또는
+→ X1000
+
+가능.
+
+현재 플랜은:
+
+"현재 이용중"
+
+표시하고 purchase CTA 비활성.
+
+다른 플랜은:
+
+"플랜 변경"
+
+CTA.
+
+==================================================
+7. MEMBER LIMIT SAFETY
+==================================================
+
+X plan downgrade 시
+현재 active member count가
+새 plan limit보다 많으면
+그대로 변경 진행 UI를 보여주지 마십시오.
+
+예:
+
+현재 회원 480명
+X500 사용중
+
+X300 선택
+
+Expected:
+
+"현재 활성회원 수가 X300 한도 300명을 초과합니다."
+
+표시.
+
+다음 선택 안내:
+
+- 회원수 조정
+- X500 유지
+- X1000 선택
+
+기존 회원을 자동 삭제하거나
+비활성화하지 마십시오.
+
+실제 store downgrade policy는 WP4에서 연결.
+
+==================================================
+8. X → SWIMNOTE DOWNGRADE
+==================================================
+
+X Active 화면에서
+SWIMNOTE 기본플랜 카드를 일반 상품처럼 보여주지 않습니다.
+
+대신 별도 구독관리 action:
+
+"SWIMNOTE로 변경"
+
+또는
+
+"다음 결제일부터 SWIMNOTE로 변경"
+
+으로 표현.
+
+이건 purchase card가 아니라
+X subscription downgrade action입니다.
+
+설명:
+
+현재 X 기능은 결제기간 종료일까지 유지.
+
+다음 결제기간부터:
+
+SWIMNOTE
+9,900원
+
+으로 전환.
+
+실제 store scheduled downgrade 연결은 WP4.
+
+이번 단계에서는 UX/state 준비만.
+
+==================================================
+9. X CANCEL
+==================================================
+
+X 구독 취소와
+SWIMNOTE로 다운그레이드는 구분합니다.
+
+A.
+
+SWIMNOTE로 변경
+
+→ 다음 결제일부터 SWIMNOTE
+
+B.
+
+구독 완전 해지
+
+→ 현재 결제기간 종료
+→ active base subscription 없음
+→ subscription_required
+
+둘을 같은 버튼으로 처리하지 마십시오.
+
+==================================================
+10. X_PENDING
+==================================================
+
+x_pending 상태에서도:
+
+현재 결제한 X plan 표시.
+
+SWIMNOTE 기본플랜 purchase card 숨김.
+
+가능한 경우:
+
+X plan 변경
+구독관리
+결제정보
+
+접근 가능.
+
+단 센터 setup READY 전 상태라는 안내 유지.
+
+==================================================
+11. SUBSCRIPTION_REQUIRED
+==================================================
+
+subscription_required에서는
+base subscription이 없으므로:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+전부 선택 가능.
+
+즉 이 상태에서만
+전체 base plan 메뉴가 다시 나타남.
+
+==================================================
+12. PRODUCT DISPLAY MATRIX
+==================================================
+
+반드시 아래 matrix 기준으로 구현.
+
+--------------------------------
+
+NORMAL + SWIMNOTE ACTIVE
+
+SWIMNOTE:
+현재 이용중
+
+X300:
+업그레이드 가능
+
+X500:
+업그레이드 가능
+
+X1000:
+업그레이드 가능
+
+DATA:
+가능
+
+--------------------------------
+
+X_TRIAL
+
+SWIMNOTE:
+secondary only 또는 별도 일반 이용 action
+
+X300:
+가입 가능
+
+X500:
+가입 가능
+
+X1000:
+가입 가능
+
+DATA:
+필요 정책에 따라 표시
+
+--------------------------------
+
+X_PENDING
+
+SWIMNOTE purchase card:
+HIDDEN
+
+Current X:
+현재 이용중 / 설정중
+
+Other X:
+플랜 변경 가능
+
+DATA:
+가능
+
+--------------------------------
+
+X ACTIVE
+
+SWIMNOTE purchase card:
+HIDDEN
+
+Current X:
+현재 이용중
+
+Other X:
+플랜 변경 가능
+
+DATA:
+가능
+
+SWIMNOTE downgrade:
+별도 action
+
+--------------------------------
+
+SUBSCRIPTION_REQUIRED
+
+SWIMNOTE:
+가입 가능
+
+X300:
+가입 가능
+
+X500:
+가입 가능
+
+X1000:
+가입 가능
+
+DATA:
+base subscription 선택 전 단독 구매 유도 금지
+
+==================================================
+13. 구독 진입경로 정리
+==================================================
+
+Repository 전체에서:
+
+subscription
+billing
+x-subscription
+x settings
+plan
+upgrade
+
+관련 route / CTA를 감사.
+
+구독 상품 선택 UI가 여러 군데 중복되어 있으면
+canonical subscription screen으로 통합.
+
+각 메뉴는:
+
+router.push(...)
+또는 동일 navigation 방식으로
+
+한 화면으로 이동.
+
+별도 상품가격/상태 로직 중복 금지.
+
+==================================================
+14. PRICE SOURCE 중복 금지
+==================================================
+
+가격은 현재 single SoT:
+
+subscriptionPlans.ts
+
+사용.
+
+화면마다:
+
+129000
+199000
+359000
+
+직접 hardcode 금지.
+
+==================================================
+15. CURRENT PLAN UI
+==================================================
+
+현재 plan을 상단에서 명확히 표시.
+
+예:
+
+현재 이용중인 플랜
+
+SWIMNOTE X300
+129,000원 / 월
+
+최대 300명
+300GB
+
+SWIMNOTE 기본플랜 포함
+
+그리고 아래:
+
+플랜 변경
+
+X500
+X1000
+
+구조.
+
+사용자가 현재 플랜이 무엇인지
+한눈에 보여야 함.
+
+==================================================
+16. PLAN CHANGE CTA
+==================================================
+
+아직 WP4 이전이므로
+실제 Store purchase/upgrade 연결은 금지.
+
+현재 단계:
+
+UI 및 action state 준비.
+
+CTA는:
+
+"플랜 변경 준비 중"
+
+또는 현재 WP3의 disabled-state 정책을 사용.
+
+단 내부 action contract는
+다음 WP4에서 연결 가능하도록 구분.
+
+예:
+
+changeBasePlan("x500")
+
+형태의 abstraction 준비는 가능.
+
+실제 RevenueCat call 금지.
+
+==================================================
+17. DATA PACK
+==================================================
+
+DATA100 / DATA300은
+X Active에서도 표시 가능.
+
+기본 X plan 변경과
+Data Pack 구매를 섞지 마십시오.
+
+화면 구역 분리:
+
+현재 플랜
+플랜 변경
+추가 저장공간
+
+==================================================
+18. 테스트
+==================================================
+
+CASE A
+
+SWIMNOTE active
+
+Expected:
+SWIMNOTE current
+X300/500/1000 upgrade visible
+
+CASE B
+
+x_trial
+
+Expected:
+X300/500/1000 purchase options visible
+
+CASE C
+
+x active X300
+
+Expected:
+SWIMNOTE purchase card hidden
+X300 current
+X500/X1000 change visible
+
+CASE D
+
+x active X500
+
+Expected:
+X500 current
+X300/X1000 change visible
+
+CASE E
+
+x active X1000
+
+Expected:
+X1000 current
+X300/X500 change visible
+
+CASE F
+
+X300 current
+→ X500
+
+Expected:
+change CTA available
+
+CASE G
+
+X300 current
+→ X1000
+
+Expected:
+change CTA available
+
+CASE H
+
+X500 current
+member count 450
+→ X300
+
+Expected:
+limit warning
+direct downgrade blocked
+
+CASE I
+
+X active
+
+Expected:
+SWIMNOTE basic purchase card absent
+
+CASE J
+
+X active
+→ SWIMNOTE
+
+Expected:
+separate downgrade action
+not ordinary purchase card
+
+CASE K
+
+X cancel
+
+Expected:
+not same as SWIMNOTE downgrade
+
+CASE L
+
+subscription_required
+
+Expected:
+SWIMNOTE/X300/X500/X1000 all selectable
+
+CASE M
+
+X settings
+
+Expected:
+"구독 및 요금제 관리"
+→ canonical subscription screen
+
+CASE N
+
+other settings subscription entry
+
+Expected:
+same canonical screen
+
+CASE O
+
+duplicate pricing source
+
+Expected:
+NONE
+
+==================================================
+19. 범위 밖
+==================================================
+
+이번 작업에서 하지 마십시오:
+
+RevenueCat actual purchase
+App Store product creation
+Google Play product creation
+Store upgrade/downgrade API
+proration implementation
+billing webhook
+DATA pack webhook
+Production deploy
+
+==================================================
+20. PRODUCTION 금지
+==================================================
+
+release/v2.0.0 코드/테스트까지만.
+
+Production OTA 금지.
+Render 수정 금지.
+Production DB 수정 금지.
+
+2.0 iOS TestFlight OTA는
+사용자 확인 후 별도 승인 시 발행.
+
+==================================================
+21. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# SUBSCRIPTION UX STRUCTURE CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## CANONICAL SUBSCRIPTION SCREEN
+
+Route:
+...
+
+Single entry point:
+PASS / FAIL
+
+Duplicate purchase UI removed:
+PASS / FAIL
+
+## NORMAL MODE
+
+SWIMNOTE current:
+...
+
+X upgrade:
+...
+
+PASS / FAIL
+
+## X TRIAL
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+PASS / FAIL
+
+## X ACTIVE
+
+SWIMNOTE purchase card hidden:
+PASS / FAIL
+
+Current X displayed:
+PASS / FAIL
+
+Other X plans changeable:
+PASS / FAIL
+
+## X PLAN SWITCH
+
+X300 -> X500:
+PASS / FAIL
+
+X300 -> X1000:
+PASS / FAIL
+
+X500 -> X300:
+PASS / FAIL
+
+X500 -> X1000:
+PASS / FAIL
+
+X1000 -> X300:
+PASS / FAIL
+
+X1000 -> X500:
+PASS / FAIL
+
+## MEMBER LIMIT DOWNGRADE GUARD
+
+PASS / FAIL
+
+## X -> SWIMNOTE DOWNGRADE
+
+Separate action:
+PASS / FAIL
+
+Ordinary SWIMNOTE purchase card used:
+YES / NO
+
+Expected:
+NO
+
+## X CANCEL
+
+Separated from downgrade:
+PASS / FAIL
+
+## X SETTINGS
+
+Subscription management shortcut:
+PASS / FAIL
+
+Target:
+...
+
+## SUBSCRIPTION_REQUIRED
+
+All base plans visible:
+PASS / FAIL
+
+## DATA PACK
+
+Separated section:
+PASS / FAIL
+
+## PRICE SOURCE
+
+Single SoT:
+PASS / FAIL
+
+## TESTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+CASE L:
+PASS / FAIL
+
+CASE M:
+PASS / FAIL
+
+CASE N:
+PASS / FAIL
+
+CASE O:
+PASS / FAIL
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS BEFORE STORE CONNECTION
+
+NONE
+or
+...
+
+FINAL:
+
+SWIMNOTE 2.0 SUBSCRIPTION UX STRUCTURE CORRECTION COMPLETE
