@@ -1,0 +1,365 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# ADMIN MEMBER DETAIL
+# FINAL EMPTY-BACKGROUND KEYBOARD DISMISS MICRO-FIX
+# BEFORE TESTFLIGHT OTA
+
+현재 상태:
+
+GLOBAL BACK / KEYBOARD CORRECTION:
+거의 완료
+
+Latest HEAD:
+dff8128e
+
+단 하나의 검증 불일치가 남아 있습니다.
+
+==================================================
+0. 문제
+==================================================
+
+완료보고에서는:
+
+Admin Member Detail
+Basic edit background dismiss:
+PASS
+
+라고 보고했으나,
+
+근거가:
+
+ScrollView
+keyboardDismissMode="on-drag"
+
+뿐입니다.
+
+이것은:
+
+"스크롤하면 키보드 dismiss"
+
+이지
+
+"빈 배경을 tap하면 keyboard dismiss"
+
+가 아닙니다.
+
+사용자 고정 UX 규칙:
+
+TextInput tap
+→ keyboard visible
+
+Button / Pressable / CTA tap
+→ 첫 tap으로 action 실행
+
+빈 화면 / 비활성 배경 tap
+→ Keyboard.dismiss()
+
+Scroll drag
+→ Keyboard.dismiss()
+
+입니다.
+
+==================================================
+1. TARGET
+==================================================
+
+파일:
+
+app/(admin)/member-detail.tsx
+
+WP-M3 long-scroll 구조 유지.
+
+특히 inline edit 상태의:
+
+Section A Basic Info
+Section E Guardian/Contact
+
+에서
+
+keyboard visible
+→ 비인터랙티브 빈 영역 tap
+→ keyboard dismiss
+
+되도록 구현.
+
+==================================================
+2. 중요 — 전체 화면 wrapper로 이벤트 먹지 말 것
+==================================================
+
+금지:
+
+화면 전체를 단순 TouchableWithoutFeedback으로 감싸
+내부 Button/Pressable/Input interaction을 부모가 먹는 구조.
+
+금지:
+
+버튼을 눌렀는데
+첫 tap은 keyboard dismiss만 되고
+두 번째 tap에 action 실행.
+
+==================================================
+3. 권장 구현 원칙
+==================================================
+
+실제 구조를 보고
+가장 안전한 방식으로 구현.
+
+조건:
+
+- TextInput 영역 tap → focus 유지
+- Save tap → 첫 tap save
+- Cancel tap → 첫 tap cancel
+- Picker / Level / Class action → 첫 tap 실행
+- Section header button → 첫 tap 실행
+- 빈 content background → Keyboard.dismiss()
+- scroll drag → 기존 on-drag dismiss 유지
+
+가능하면
+interactive content와 background dismiss layer를
+명확히 분리.
+
+==================================================
+4. SCREEN-LEVEL 동작 테스트
+==================================================
+
+CASE A
+
+Member Detail
+→ Section A 수정
+→ TextInput tap
+
+Expected:
+keyboard visible
+
+CASE B
+
+keyboard visible
+→ Section A의 빈 배경 tap
+
+Expected:
+keyboard hidden
+
+CASE C
+
+keyboard visible
+→ Save tap
+
+Expected:
+첫 tap으로 save 실행
+
+CASE D
+
+keyboard visible
+→ Cancel tap
+
+Expected:
+첫 tap으로 cancel 실행
+
+CASE E
+
+Section E 보호자 연락처 수정
+→ keyboard visible
+→ 빈 배경 tap
+
+Expected:
+keyboard hidden
+
+CASE F
+
+Section E
+keyboard visible
+→ Save tap
+
+Expected:
+첫 tap save
+
+CASE G
+
+keyboard visible
+→ scroll drag
+
+Expected:
+keyboard dismiss
+scroll 정상
+
+==================================================
+5. 다른 화면 변경 금지
+==================================================
+
+이번 micro-fix에서 수정 금지:
+
+Terminology
+Curriculum Chat
+Teacher Student Detail
+Support Chat
+Add Child
+Diary Write
+Feedback Settings
+Back navigation
+homePath
+refund-policy
+
+이미 완료된 부분 건드리지 마십시오.
+
+==================================================
+6. MEMBER MANAGEMENT 보호
+==================================================
+
+변경 금지:
+
+Member Detail Section 구조
+회원정보 Data Contract
+권한
+Delete/Restore
+Level SoT
+Shared Core
+SWIMNOTE/X mode behavior
+
+keyboard interaction만 수정.
+
+==================================================
+7. PRODUCTION 보호
+==================================================
+
+OTA:
+NO
+
+Production deploy:
+NO
+
+Render:
+NO
+
+DB:
+NO
+
+RevenueCat:
+NO
+
+App Store:
+NO
+
+Google Play:
+NO
+
+1.6.3:
+NO
+
+==================================================
+8. REGRESSION
+==================================================
+
+현재 baseline:
+
+Pre-existing test failures:
+154
+
+Pre-existing TS issues:
+9
+
+Expected:
+
+New failures:
+0
+
+New TS errors:
+0
+
+==================================================
+9. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# ADMIN MEMBER DETAIL EMPTY BACKGROUND KEYBOARD REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## IMPLEMENTATION
+
+Section A background tap dismiss:
+PASS / FAIL
+
+Section E background tap dismiss:
+PASS / FAIL
+
+Scroll dismiss retained:
+PASS / FAIL
+
+## INTERACTIVE TARGETS
+
+TextInput focus:
+PASS / FAIL
+
+Save first tap:
+PASS / FAIL
+
+Cancel first tap:
+PASS / FAIL
+
+Other Pressable first tap:
+PASS / FAIL
+
+## EVENT INTERFERENCE
+
+Background handler intercepts buttons:
+YES / NO
+
+Expected:
+NO
+
+## TESTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+## REGRESSION
+
+Baseline failures:
+154
+
+Failures after:
+...
+
+New failures:
+...
+
+Expected:
+0
+
+New TS errors:
+...
+
+Expected:
+0
+
+## PRODUCTION CHANGES
+
+NONE
+
+## FINAL
+
+ADMIN MEMBER DETAIL EMPTY-BACKGROUND KEYBOARD DISMISS COMPLETE
+or
+BLOCKED

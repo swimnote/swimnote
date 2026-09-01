@@ -10,7 +10,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, View,
+  ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -314,6 +314,8 @@ export default function MemberDetailScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        {/* 빈 배경 tap → 키보드 숨김; inner Pressable/Button은 자체 이벤트 처리 */}
+        <Pressable onPress={Keyboard.dismiss} accessible={false}>
         {/* HEADER CARD: 이름·반·레벨 한눈에 */}
         <View style={{
           backgroundColor: themeColor + "10", borderRadius: 18,
@@ -426,6 +428,7 @@ export default function MemberDetailScreen() {
           onPurgeMember={() => setShowPurgeConfirm(true)}
           onForceDelete={() => setShowForceDeleteConfirm(true)}
         />
+        </Pressable>
       </ScrollView>
 
       {/* ── 레벨 선택 오버레이 (SectionC 내부 렌더링) ── */}
