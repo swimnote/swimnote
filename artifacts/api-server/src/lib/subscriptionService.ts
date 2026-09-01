@@ -189,10 +189,11 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const storageGb      = Number(plan?.storage_gb    ?? 0.1);
   const displayStorage = String(plan?.display_storage ?? "100MB");
 
-  // ── video / whitelabel (플랜 storage_mb 기준: Premier200 = 5120MB 이상) ──
-  const videoEnabled        = storageMb >= 5120;
-  const whiteLabelEnabled   = storageMb >= 5120;
-  const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0;
+  // ── video / whitelabel — WP2A: 모든 플랜 영상 허용 ──
+  // videoStorageLimitMb = plan storage MB (unified quota; no separate video 1TB cap)
+  const videoEnabled        = true; // WP2A LOCKED
+  const whiteLabelEnabled   = storageMb >= 5120; // Premier legacy 유지
+  const videoStorageLimitMb = storageMb; // unified quota limit in MB
 
   // ── 다운그레이드 예약 정보 ──
   const rawPendingTier = rcSub?.pending_tier ? normalizeTier(rcSub.pending_tier) : null;
@@ -244,9 +245,10 @@ export async function applySubscriptionState(
   const plan = await fetchPlan(effectiveTier);
   const storageMb         = Number(plan?.storage_mb ?? 102);
   const storageGb         = Number(plan?.storage_gb ?? 0.1);
-  const videoEnabled      = storageMb >= 5120;
-  const whiteLabelEnabled = storageMb >= 5120;
-  const videoLimitMb      = videoEnabled ? 1024 * 1024 : 0;
+  // WP2A: all plans video enabled; videoLimitMb = plan storage MB (unified quota)
+  const videoEnabled      = true;
+  const whiteLabelEnabled = storageMb >= 5120; // Premier legacy 유지
+  const videoLimitMb      = storageMb; // unified quota, not separate 1TB cap
 
   // ── swimming_pools 주 상태 업데이트 (플랜 표시명/용량/회원한도 포함) ──
   const planName        = plan?.name ?? effectiveTier;
