@@ -1,0 +1,761 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE AUTH EMERGENCY
+# PHASE 1 — KAKAO LOGIN RECOVERY IMPLEMENTATION
+# PLAN A HYBRID — MINIMAL PATCH ONLY
+
+가격/RevenueCat/WP5 작업은 계속 HOLD입니다.
+
+PHASE 0 AUTH AUDIT는 검수 완료되었습니다.
+
+이번 PHASE 1은
+카카오 로그인 장애 + 로그인/회원가입 UX + 카카오 계정 복구 경로를
+최소변경으로 실제 구현하는 단계입니다.
+
+Apple 대규모 auth rewrite는 이번 범위에서 금지합니다.
+
+==================================================
+0. 구현 원칙
+==================================================
+
+최종 Kakao UX:
+
+[카카오 아이콘] 카카오로 로그인/회원가입
+
+하나의 버튼으로:
+
+기존 Kakao-linked SWIMNOTE user
+→ LOGIN
+
+기존 SWIMNOTE user지만 Kakao 미연결
+→ 안전한 ACCOUNT LINKING
+
+완전 신규 사용자
+→ SIGNUP
+
+를 처리합니다.
+
+별도의:
+
+카카오 로그인 버튼
++
+카카오 회원가입 버튼
+
+을 따로 만들지 마십시오.
+
+==================================================
+1. 카카오 버튼 UI 수정
+==================================================
+
+현재 index.tsx의 아이콘-only Kakao 버튼을:
+
+"카카오로 로그인/회원가입"
+
+텍스트가 포함된 버튼으로 변경.
+
+기존 UI 디자인/색상/레이아웃을 최대한 유지.
+
+새로운 별도 카카오 버튼 추가 금지.
+
+Apple 버튼도 같은 원칙으로:
+
+"Apple로 로그인/회원가입"
+
+으로 레이블만 명확화.
+
+Apple 기능 로직은 이번 단계에서 재설계하지 않음.
+
+==================================================
+2. 기존 Kakao login flow 유지
+==================================================
+
+현재 flow:
+
+kakaoLogin()
+→ accessToken
+→ POST /auth/kakao-social-login
+→ Kakao /v2/user/me
+→ kakao_id 조회
+→ 기존 SWIMNOTE user login
+
+유지.
+
+새로운 OAuth stack으로 교체 금지.
+
+SDK 교체 금지.
+
+==================================================
+3. Kakao identity lookup 우선순위
+==================================================
+
+최종 lookup 우선순위:
+
+1.
+kakao_id exact match
+
+2.
+Kakao verified phone이 존재하는 경우
+기존 SWIMNOTE account phone match
+
+3.
+매칭 실패 시
+즉시 신규가입시키지 않고
+ACCOUNT LINKING 선택 제공
+
+4.
+사용자가 기존 계정이 없다고 선택한 경우만
+신규가입
+
+중요:
+
+phone_number를 로그인 성공의 필수조건으로 만들지 마십시오.
+
+Kakao에서 phone을 제공하지 않는 사용자가 존재할 수 있습니다.
+
+==================================================
+4. 전화번호 정규화 보정
+==================================================
+
+현재:
+
++82 10-1234-5678
+→ 01012345678
+
+형식만 단순 equals 비교하는 문제 수정.
+
+기존 DB phone이:
+
+01012345678
+010-1234-5678
++821012345678
+
+등 가능한 기존 저장형식인 경우
+동일인을 찾을 수 있도록
+현재 find-identifier-by-phone의 정규화 패턴을 재사용.
+
+새로운 대규모 phone utility rewrite 금지.
+
+기존 helper가 있으면 재사용.
+
+==================================================
+5. kakao_no_account 처리 변경
+==================================================
+
+현재:
+
+kakao_no_account
+→ 바로 signup
+
+금지.
+
+변경:
+
+kakao_no_account
+→ 사용자에게 다음 선택 제공
+
+"이미 SWIMNOTE 또는 수영장에 등록된 계정이 있으신가요?"
+
+[기존 계정 연결]
+[새로 가입하기]
+
+기존 계정 연결:
+→ 기존 kakao-link flow 재사용
+
+새로 가입하기:
+→ 현재 signup flow
+
+기존 kakao-link.tsx를 최대한 재사용.
+
+==================================================
+6. Account linking 안전성
+==================================================
+
+기존 계정 연결 시:
+
+사용자가 본인 계정임을 검증하지 않은 상태에서
+임의의 account에 kakao_id를 붙이면 안 됩니다.
+
+현재 kakao-link.tsx의 인증 방식을 감사하고
+기존:
+
+전화번호 인증
+기존 login credential
+센터 등록 정보 확인
+
+등 실제 본인 확인 절차가 있다면 재사용.
+
+단순히 전화번호 입력만으로
+다른 account에 kakao_id 저장 가능한 구조라면
+구현 중단 후 보고.
+
+자동 merge 신규 구현 금지.
+
+==================================================
+7. sub_admin / role lookup 수정
+==================================================
+
+PHASE 0에서 발견된:
+
+role IN ('teacher','pool_admin')
+
+때문에 sub_admin 등 정상 운영 role이
+Kakao login에서 누락되는 문제 수정.
+
+단 다음처럼 과도한 NOT IN 추측을 바로 넣지 마십시오.
+
+먼저 실제 users.role enum / 사용 role 전체를 코드에서 확인.
+
+정상 앱 로그인 허용 role만 명시적으로 포함하는 방향 우선.
+
+예:
+
+teacher
+pool_admin
+sub_admin
+
+등 실제 role 목록 확인 후 적용.
+
+super_admin / platform_admin 등
+관리자 전용 계정을 Kakao 일반 로그인에 실수로 포함하지 마십시오.
+
+완료보고에 최종 허용 role 목록 제출.
+
+==================================================
+8. Kakao password / account recovery UX
+==================================================
+
+SWIMNOTE가 Kakao password를 reset하지 않습니다.
+
+현재 forgot-password / find-id flow에서
+social_provider = kakao가 확인되면:
+
+"카카오로 가입한 계정입니다."
+
+안내 후
+
+[카카오로 로그인/계정 복구]
+
+CTA를 제공.
+
+현재 텍스트 안내만 있고 CTA가 없다면 추가.
+
+CTA:
+→ 로그인 화면의 Kakao login flow를 실행하거나
+→ Kakao 인증 entry point로 연결
+
+사용자가 다시 일반 SWIMNOTE 비밀번호 재설정 화면으로
+돌아가게 하면 안 됨.
+
+==================================================
+9. Apple recovery UX
+==================================================
+
+Apple social_provider인 경우도:
+
+"Apple로 가입한 계정입니다."
+
+[Apple로 로그인]
+
+CTA 제공 가능하면 추가.
+
+단 이번 PHASE 1에서는:
+
+Apple backend token verification
+Apple email auto-link
+Apple schema
+
+변경 금지.
+
+==================================================
+10. 사용자 에러 메시지 보정
+==================================================
+
+raw e.message 사용자 노출 금지.
+
+Kakao fallback:
+
+"카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요."
+
+network:
+"서버에 연결할 수 없습니다. 네트워크를 확인해주세요."
+
+expired/invalid token:
+"카카오 인증이 만료되었습니다. 다시 시도해주세요."
+
+cancel:
+무처리
+
+기존 구체적 안전한 error mapping은 유지.
+
+==================================================
+11. 로그인 관측성
+==================================================
+
+기존 traceId 기반 logging 유지.
+
+추가/정리 가능한 field:
+
+provider
+platform
+auth_stage
+success
+sanitized_error_code
+user_matched
+match_method
+duration_ms
+
+금지:
+
+accessToken
+identityToken
+password
+pin
+authorization code
+full phone
+full email
+full kakao_id
+
+로그 추가 때문에 scope를 키우지 마십시오.
+
+==================================================
+12. Apple JWT 보안은 별도 후속
+==================================================
+
+현재 Apple backend가 identityToken payload를
+서명 검증 없이 decode하는 문제는 확인된 P1 보안 이슈입니다.
+
+이번 Kakao 긴급복구 범위에서는 수정하지 마십시오.
+
+단 완료보고 BLOCKERS/FOLLOW-UP에:
+
+APPLE AUTH SECURITY FOLLOW-UP REQUIRED
+
+를 반드시 기록.
+
+후속 WP에서:
+
+signature
+iss
+aud
+exp
+nonce
+
+검증을 별도 구현할 예정.
+
+==================================================
+13. Apple email auto-link도 별도 후속
+==================================================
+
+현재 appleEmail 기반 auto-link 역시
+이번 단계에서는 기존 사용자 회귀 방지를 위해 유지.
+
+신규 정책 변경 금지.
+
+완료보고 FOLLOW-UP에:
+
+APPLE EMAIL AUTO-LINK DEPRECATION REVIEW REQUIRED
+
+기록.
+
+==================================================
+14. Migration 금지
+==================================================
+
+DB schema migration 금지.
+
+기존:
+
+users.kakao_id
+parent_accounts.kakao_id
+users.apple_id
+parent_accounts.apple_id
+
+그대로 사용.
+
+기존 user row migration 금지.
+
+==================================================
+15. 기존 사용자 데이터 보호
+==================================================
+
+Kakao login 수정 후에도 반드시 동일 user row로 로그인.
+
+보존:
+
+role
+pool
+class
+student links
+parent links
+diary
+subscription
+X state
+permissions
+
+새 user row를 잘못 생성하면 FAIL.
+
+==================================================
+16. 테스트
+==================================================
+
+반드시 최소 아래 테스트.
+
+K01
+기존 kakao_id 있는 학부모
+→ 즉시 로그인
+
+K02
+기존 kakao_id 있는 teacher
+→ 즉시 로그인
+
+K03
+기존 kakao_id 있는 sub_admin
+→ 즉시 로그인
+
+K04
+기존 SWIMNOTE account + phone match + kakao_id 없음
+→ 기존 account 연결 + 로그인
+
+K05
+DB phone 하이픈 있음
+Kakao phone 하이픈 없음
+→ 동일 account match
+
+K06
+Kakao phone scope 없음
+→ signup 직행 금지
+→ 기존 계정 연결 / 신규가입 선택
+
+K07
+완전 신규 Kakao 사용자
+→ 사용자 선택 후 신규가입
+
+K08
+Kakao cancel
+→ 에러 alert 없음
+
+K09
+invalid token
+→ 안전한 사용자 메시지
+
+K10
+서버 오류
+→ raw exception 미노출
+
+K11
+Kakao-only 계정 forgot password
+→ 일반 PW reset 금지
+→ Kakao login/recovery CTA
+
+K12
+Kakao-only 계정 forgot ID
+→ social provider 안내 + Kakao CTA
+
+K13
+Kakao logout 후 재로그인
+→ 동일 user row
+
+K14
+앱 재설치 후 Kakao login
+→ kakao_id로 동일 user row
+
+K15
+role/pool/student/parent links
+→ 기존 값 유지
+
+A01
+기존 Apple 로그인
+→ regression 없음
+
+L01
+일반 ID 로그인
+→ regression 없음
+
+L02
+일반 password reset
+→ regression 없음
+
+==================================================
+17. 실제 기기 검증 준비
+==================================================
+
+native Kakao SDK이므로
+Expo Go 테스트만으로 완료 처리 금지.
+
+이번 단계에서는 build/deploy 하지 않되
+완료보고에 실제 기기에서 확인해야 할 checklist 제출.
+
+최소:
+
+iOS KakaoTalk 설치 상태
+iOS KakaoTalk 미설치 상태
+Android KakaoTalk 설치 상태
+Android KakaoTalk 미설치 상태
+Kakao account session 있음/없음
+로그인 취소
+앱 복귀 deep link
+기존 사용자
+신규 사용자
+
+==================================================
+18. Console 변경 금지
+==================================================
+
+이번 코드 구현 중:
+
+Kakao Developers Console 변경 금지
+Apple Developer 변경 금지
+
+단 현재 코드와 필요한 console 설정 차이는
+완료보고에 CHECKLIST로 제출.
+
+==================================================
+19. 가격/구독 개발 HOLD 유지
+==================================================
+
+다음 작업 금지:
+
+RevenueCat
+App Store subscription
+Google Play subscription
+WP4
+WP5-PRE
+WP5
+WP6
+WP7
+
+AUTH 긴급수정 완료 전 진행하지 마십시오.
+
+==================================================
+20. Production 변경 금지
+==================================================
+
+Production deploy 금지
+OTA 금지
+EAS production build 금지
+DB migration 실행 금지
+
+release/v2.0.0 코드/테스트까지만.
+
+==================================================
+21. 완료보고
+==================================================
+
+# SWIMNOTE AUTH EMERGENCY PHASE 1 COMPLETION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## KAKAO BUTTON UX
+
+Previous:
+...
+
+Final:
+...
+
+Label:
+카카오로 로그인/회원가입
+
+PASS / FAIL
+
+## APPLE BUTTON UX
+
+...
+
+## KAKAO LOGIN FLOW
+
+Existing kakao_id user:
+...
+
+Existing phone-matched user:
+...
+
+No phone scope user:
+...
+
+New user:
+...
+
+## ACCOUNT LINK FLOW
+
+kakao_no_account previous behavior:
+...
+
+Final behavior:
+...
+
+Identity verification used by kakao-link:
+...
+
+Can arbitrary account be linked by phone only:
+YES / NO
+
+Expected:
+NO
+
+## PHONE NORMALIZATION
+
+Supported forms:
+...
+
+Test results:
+...
+
+## ROLE LOOKUP
+
+Previous allowed roles:
+...
+
+Final allowed roles:
+...
+
+sub_admin:
+PASS / FAIL
+
+Privileged platform roles excluded:
+PASS / FAIL
+
+## KAKAO PASSWORD / ACCOUNT RECOVERY
+
+Social provider detection:
+...
+
+Kakao CTA:
+...
+
+General SWIMNOTE password reset blocked for Kakao-only:
+YES / NO
+
+## ERROR HANDLING
+
+Raw e.message exposed:
+YES / NO
+
+Expected:
+NO
+
+## DATA SAFETY
+
+Same user row:
+PASS / FAIL
+
+Role:
+PASS / FAIL
+
+Pool:
+PASS / FAIL
+
+Student links:
+PASS / FAIL
+
+Parent links:
+PASS / FAIL
+
+Subscription/X state:
+PASS / FAIL
+
+## TEST RESULTS
+
+K01:
+PASS / FAIL
+
+K02:
+PASS / FAIL
+
+K03:
+PASS / FAIL
+
+K04:
+PASS / FAIL
+
+K05:
+PASS / FAIL
+
+K06:
+PASS / FAIL
+
+K07:
+PASS / FAIL
+
+K08:
+PASS / FAIL
+
+K09:
+PASS / FAIL
+
+K10:
+PASS / FAIL
+
+K11:
+PASS / FAIL
+
+K12:
+PASS / FAIL
+
+K13:
+PASS / FAIL
+
+K14:
+PASS / FAIL
+
+K15:
+PASS / FAIL
+
+A01:
+PASS / FAIL
+
+L01:
+PASS / FAIL
+
+L02:
+PASS / FAIL
+
+## DEVICE TEST CHECKLIST
+
+...
+
+## KAKAO CONSOLE CHECKLIST
+
+...
+
+No console changes performed:
+YES
+
+## FOLLOW-UP SECURITY
+
+APPLE AUTH SECURITY FOLLOW-UP REQUIRED:
+YES
+
+APPLE EMAIL AUTO-LINK DEPRECATION REVIEW REQUIRED:
+YES
+
+## MIGRATION
+
+NONE
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS BEFORE DEVICE TEST
+
+NONE
+or
+...
+
+FINAL:
+
+SWIMNOTE AUTH EMERGENCY PHASE 1 COMPLETE
