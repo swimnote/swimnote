@@ -679,7 +679,7 @@ export default function TeacherPhotosScreen() {
           <View style={s.centerBox}>
             <LucideIcon name="alert-circle" size={36} color="#D96C6C" />
             <Text style={[s.centerText, { color: "#D96C6C" }]}>{listError}</Text>
-            <Pressable onPress={loadList} style={s.retryBtn}>
+            <Pressable onPress={() => loadList()} style={s.retryBtn}>
               <LucideIcon name="refresh-cw" size={14} color="#fff" />
               <Text style={s.retryBtnText}>다시 시도</Text>
             </Pressable>
