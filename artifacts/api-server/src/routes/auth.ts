@@ -2457,8 +2457,14 @@ router.post("/kakao-link-account", async (req, res) => {
   if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
 
   try {
+    // 전화번호 형식 정규화: digits와 hyphen 두 형식 모두 허용
+    const cleanPhone = String(phone).replace(/\D/g, "");
+    const cleanPhoneHyphen = cleanPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+
     const byPhone = await db.execute(sql`
-      SELECT * FROM parent_accounts WHERE phone = ${phone} LIMIT 1
+      SELECT * FROM parent_accounts
+      WHERE phone = ${cleanPhone} OR phone = ${cleanPhoneHyphen}
+      LIMIT 1
     `);
     if ((byPhone.rows as any[]).length === 0) {
       return err(res, 404, "입력하신 전화번호로 등록된 계정이 없습니다. 수영장 관리자에게 문의하세요.");
