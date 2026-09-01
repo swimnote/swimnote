@@ -1,0 +1,409 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# WP2B CORRECTION — X PAID MODE / 1.6.3 MODE COMPATIBILITY VERIFICATION
+
+WP2B 완료보고 검수 중
+보고서 내부에 상태 계산 관련 모순이 발견되었습니다.
+
+이번 작업은 WP2B 보정입니다.
+
+WP3로 넘어가지 마십시오.
+
+==================================================
+1. 핵심 확인사항 — PAID X MODE
+==================================================
+
+WP2B 완료보고에는 서로 다른 두 설명이 있습니다.
+
+A. TRIAL ACTIVE LOGIC
+
+x_paid_entitlement = true
+→ "x"
+
+B. MODE MODEL
+
+paid 또는 manual
++ xmode_config_status != READY
+→ "x_pending"
+
+paid 또는 manual
++ xmode_config_status = READY
+→ "x"
+
+LOCKED MASTER DESIGN 기준은 B입니다.
+
+정식 X 결제 직후
+센터별 X 설정이 완료되지 않았다면:
+
+x_paid_entitlement = true
+xmode_config_status = NOT_CONFIGURED
+→ mode = "x_pending"
+
+이어야 합니다.
+
+센터 설정 완료 후:
+
+x_paid_entitlement = true
+xmode_config_status = READY
+→ mode = "x"
+
+이어야 합니다.
+
+==================================================
+2. 실제 computeMode 코드 감사
+==================================================
+
+현재 실제 `computeMode()` 구현을 확인하십시오.
+
+다음 CASE를 실제 코드 기준으로 제출:
+
+CASE A
+
+paid = true
+manual = false
+config = NOT_CONFIGURED
+
+Expected:
+x_pending
+
+CASE B
+
+paid = true
+manual = false
+config = CURRICULUM_PENDING
+
+Expected:
+x_pending
+
+CASE C
+
+paid = true
+manual = false
+config = READY
+
+Expected:
+x
+
+CASE D
+
+paid = false
+manual = true
+config = NOT_CONFIGURED
+
+Expected:
+x_pending
+
+CASE E
+
+paid = false
+manual = true
+config = READY
+
+Expected:
+x
+
+CASE F
+
+trial active
+paid = false
+manual = false
+
+Expected:
+x_trial
+
+CASE G
+
+trial active
+paid = true
+config = NOT_CONFIGURED
+
+Expected:
+x_pending
+
+Paid entitlement must override Trial,
+but MUST NOT bypass setup state.
+
+==================================================
+3. 필요한 경우 최소 수정
+==================================================
+
+만약 현재 코드가:
+
+if (x_paid_entitlement)
+  return "x"
+
+형태라면 LOCKED DESIGN 위반입니다.
+
+최소 수정하여:
+
+paid/manual entitlement 존재
+→ xmode_config_status 확인
+→ READY이면 x
+→ READY가 아니면 x_pending
+
+으로 처리하십시오.
+
+Trial branch는
+paid/manual entitlement 처리 이후에 유지.
+
+대규모 상태머신 rewrite 금지.
+
+==================================================
+4. 기존 상태 의미 보존
+==================================================
+
+LOCKED:
+
+normal
+= 일반 SWIMNOTE
+
+x_trial
+= 3일 X AI Trial
+
+x_pending
+= X 결제/수동권한은 있으나 센터 세팅 미완료
+
+x
+= X 권한 + 센터 세팅 READY
+
+이 의미를 변경하지 마십시오.
+
+==================================================
+5. 1.6.3 MODE COMPATIBILITY 재확인
+==================================================
+
+WP2B 보고서에는:
+
+1.6.3이 `x_trial`을 모름
+
+그리고
+
+mode === "x" → false
+mode === "x_pending" → false
+mode === "normal" → false
+
+라고 되어 있습니다.
+
+그런데 결과 설명에는
+"trial 센터 = normal 화면 표시"
+라고 되어 있어 논리상 설명이 불충분합니다.
+
+실제 1.6.3 렌더링 코드를 확인하여:
+
+mode = "x_trial"
+
+이 들어왔을 때 실제 UI가:
+
+A. normal 화면
+B. fallback 화면
+C. blank
+D. error
+E. 기타
+
+중 무엇인지 정확히 확인하십시오.
+
+추측 금지.
+
+반드시 실제 component/path/branch 근거 제출.
+
+==================================================
+6. 1.6.3 안전 조건
+==================================================
+
+`mode="x_trial"`이 들어와도:
+
+- crash 금지
+- blank screen 금지
+- navigation loop 금지
+- X setup 화면 오노출 금지
+
+필요하면 server response compatibility 또는 app fallback을
+최소 변경으로 보정.
+
+단 1.6.3 production 앱 코드를 새로 배포하라는 뜻이 아닙니다.
+
+release/v2.0.0 및 backward-compatible server 계약 안에서 해결하십시오.
+
+==================================================
+7. 회귀 테스트
+==================================================
+
+반드시 테스트:
+
+CASE A
+paid + NOT_CONFIGURED
+→ x_pending
+
+CASE B
+paid + CURRICULUM_PENDING
+→ x_pending
+
+CASE C
+paid + READY
+→ x
+
+CASE D
+manual + NOT_CONFIGURED
+→ x_pending
+
+CASE E
+manual + READY
+→ x
+
+CASE F
+trial only
+→ x_trial
+
+CASE G
+trial + paid + NOT_CONFIGURED
+→ x_pending
+
+CASE H
+trial + paid + READY
+→ x
+
+CASE I
+force_disabled + any state
+→ normal 또는 기존 force-disabled LOCKED behavior
+
+CASE J
+1.6.3 client + mode=x_trial
+→ crash/blank/navigation loop 없음
+
+==================================================
+8. 범위 밖 금지
+==================================================
+
+WP3 작업 금지
+가격 UI 변경 금지
+RevenueCat 신규 상품 연결 금지
+App Store 변경 금지
+Play Store 변경 금지
+Video compression 금지
+EAS build 금지
+DATA pack 구매 구현 금지
+AI ENGINE 변경 금지
+Production deploy 금지
+OTA 금지
+Production migration 금지
+
+==================================================
+9. 완료보고
+==================================================
+
+# SWIMNOTE 2.0 WP2B CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## PAID MODE AUDIT
+
+Actual previous logic:
+...
+
+Was paid=true bypassing config status:
+YES / NO
+
+## FINAL MODE LOGIC
+
+force_disabled:
+...
+
+paid + NOT_CONFIGURED:
+...
+
+paid + CURRICULUM_PENDING:
+...
+
+paid + READY:
+...
+
+manual + NOT_CONFIGURED:
+...
+
+manual + READY:
+...
+
+trial only:
+...
+
+## LOCKED X SETUP FLOW
+
+Payment success:
+...
+
+Expected:
+x_pending until READY
+
+PASS / FAIL
+
+## 1.6.3 MODE COMPATIBILITY
+
+Actual component/path:
+...
+
+mode=x_trial behavior:
+...
+
+Crash:
+YES / NO
+
+Blank:
+YES / NO
+
+Navigation loop:
+YES / NO
+
+Safe fallback:
+...
+
+PASS / FAIL
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+FINAL:
+
+SWIMNOTE 2.0 WP2B CORRECTION COMPLETE
