@@ -1,0 +1,957 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE LOGIN EMERGENCY
+# PHASE 0 — KAKAO / APPLE AUTH FULL AUDIT & IMPLEMENTATION DESIGN ONLY
+
+현재 SWIMNOTE 2.0 가격/구독 개발은 HOLD 상태입니다.
+
+긴급 로그인 문제를 우선 처리합니다.
+
+중요:
+
+이번 단계에서는 코드 구현하지 마십시오.
+
+목표는:
+
+1. 현재 카카오/Apple/일반 로그인 구조 전수조사
+2. 현재 카카오 접속장애 원인 추적
+3. 기존 카카오 가입자가 왜 로그인하기 어려운지 확인
+4. 비밀번호 찾기/계정 찾기 흐름 감사
+5. 가장 보편적이고 사용자 친화적인 로그인 구조 설계
+6. 실제 구현 전 작업계획 제출
+
+입니다.
+
+코드 수정 / migration / deploy / OTA / build 금지.
+
+==================================================
+0. PRODUCT DECISION — 이미 확정
+==================================================
+
+현재 소셜 인증 UX를 다음 방향으로 바꿀 예정입니다.
+
+기존:
+
+카카오 회원가입
+
+처럼 "가입 전용"으로 보이는 버튼을 사용하지 않습니다.
+
+목표:
+
+카카오 아이콘/버튼
+→ "카카오로 로그인/회원가입"
+
+Apple 아이콘/버튼
+→ "Apple로 로그인/회원가입"
+
+하나의 버튼이:
+
+기존 서비스 회원
+→ LOGIN
+
+서비스 회원이 아님
+→ SIGNUP / ACCOUNT LINKING FLOW
+
+를 처리하는 일반적인 소셜 로그인 구조로 통합되어야 합니다.
+
+단 이번 PHASE 0에서는 구현 금지.
+
+현재 구조를 조사한 후
+정확한 설계안을 제출하십시오.
+
+==================================================
+1. 카카오 공식 방식 기준 조사
+==================================================
+
+현재 SWIMNOTE 구현을
+일반적인 Kakao OAuth/OIDC 로그인 방식과 비교하십시오.
+
+확인해야 할 이상적인 흐름:
+
+사용자
+→ 카카오 로그인 버튼
+→ Kakao 인증
+→ authorization/token
+→ Kakao stable user identifier 획득
+→ SWIMNOTE 서버에서 기존 연결 계정 조회
+
+IF 기존 연결 계정 존재:
+    SWIMNOTE LOGIN
+
+ELSE:
+    신규 SWIMNOTE 계정 생성 또는
+    필요한 추가정보 입력 후 가입 완료
+
+즉:
+
+카카오 LOGIN 버튼
+카카오 SIGNUP 버튼
+
+을 각각 별개 authentication path로 둘 필요가 있는지 검토.
+
+하나의 "로그인/회원가입" entry point로 통합 가능한지
+현재 코드와 비교해 설계하십시오.
+
+==================================================
+2. Apple 로그인도 동일 감사
+==================================================
+
+Apple Sign In 현재 구현 조사.
+
+확인:
+
+- Apple 로그인 버튼 위치
+- Apple 가입 버튼 위치
+- 같은 handler인지 별도 handler인지
+- Apple stable user identifier 저장 방식
+- 기존 Apple 사용자의 재로그인 방식
+- 최초 로그인과 재로그인 구분
+- Apple이 email/name을 최초 authorization 때만 제공하는 경우 처리
+- account lookup 기준
+- 회원가입/로그인 분기 기준
+
+최종 UX는 개념적으로:
+
+"Apple로 로그인/회원가입"
+
+하나의 진입점이 가능한지 설계.
+
+==================================================
+3. 현재 카카오 접속장애 전수추적
+==================================================
+
+사용자로부터 실제 카카오 로그인 접속장애 보고가 있습니다.
+
+단순 UI 문구 문제가 아닙니다.
+
+현재 카카오 로그인 전체 호출 chain을 추적하십시오.
+
+APP
+→ SDK / browser / native module
+→ redirect/deep link
+→ backend callback
+→ Kakao token verification/exchange
+→ user lookup
+→ SWIMNOTE access token/session
+→ app navigation
+
+전 단계 감사.
+
+다음 항목 필수 확인:
+
+- 현재 사용 중 Kakao SDK/library/package
+- package version
+- Expo/RN compatibility
+- iOS configuration
+- Android configuration
+- native app key
+- REST API key 사용 위치
+- redirect URI
+- URL scheme
+- deep link
+- bundle ID/package name
+- Kakao Developers console과 맞아야 하는 configuration 목록
+- development / production 환경별 값
+- server callback URL
+- client secret 사용 여부
+- token exchange 위치
+- token verify 위치
+- Kakao user ID 저장 위치
+- error handling
+- timeout
+- cancel handling
+- duplicate callback
+- navigation race
+- stale token
+- refresh token
+- logout/unlink 처리
+
+실제 코드 근거로 조사.
+
+추측 금지.
+
+==================================================
+4. 실제 장애 가능 지점 분류
+==================================================
+
+현재 코드에서 발견되는 문제를:
+
+P0
+로그인이 아예 불가능하거나 기존 회원 접근 불가
+
+P1
+특정 환경/iOS/Android에서 실패 가능
+
+P2
+UX 혼란 또는 복구경로 부족
+
+로 나누십시오.
+
+각 문제마다:
+
+파일
+함수
+현재 동작
+문제 원인
+재현 조건
+예상 사용자 증상
+수정 방법
+
+을 제출.
+
+==================================================
+5. 기존 카카오 가입자 계정 구조 조사
+==================================================
+
+현재 DB에서 카카오 사용자를 어떻게 식별하는지 조사.
+
+예:
+
+provider
+provider_user_id
+kakao_id
+social_id
+email
+phone
+username
+auth_provider
+
+실제 schema 기준으로 제출.
+
+반드시 확인:
+
+기존 카카오 가입자는
+
+- SWIMNOTE username이 있는가?
+- password hash가 있는가?
+- email이 있는가?
+- phone이 있는가?
+- Kakao user id만 있는가?
+- 일반 ID 로그인도 가능한가?
+- 일반 password reset 대상인가?
+
+==================================================
+6. 핵심 계정 식별 원칙 설계
+==================================================
+
+카카오 소셜 계정은:
+
+email만으로 identity를 결정하면 안 되는지 검토.
+
+우선적으로:
+
+provider + stable provider user ID
+
+기반 연결이 가능한지 설계.
+
+Apple도:
+
+provider + Apple stable subject identifier
+
+기준 설계.
+
+이메일은 보조 정보로 취급하는 것이 안전한지 검토.
+
+현재 DB와 호환 가능한 최소변경안을 제출.
+
+==================================================
+7. 중복계정 위험 감사
+==================================================
+
+매우 중요.
+
+예:
+
+같은 사람이
+
+일반 ID 가입
++
+카카오 가입
+
+또는
+
+카카오
++
+Apple
+
+을 사용했을 때
+서로 다른 SWIMNOTE 계정이 생기는지 확인.
+
+또한:
+
+같은 전화번호
+같은 이메일
+같은 학부모
+같은 센터 사용자
+
+가 중복 생성될 가능성 조사.
+
+다음 케이스를 설계:
+
+A.
+이미 Kakao-linked account 있음
+→ 로그인
+
+B.
+Kakao ID는 처음이지만
+동일 verified email/phone의 기존 SWIMNOTE account 있음
+
+→ 자동 merge 여부
+→ 명시적 linking 여부
+→ 별도 account 생성 여부
+
+가장 안전한 방식을 제안.
+
+자동 merge로 인한 account takeover 위험도 검토.
+
+==================================================
+8. 카카오 비밀번호 찾기 UX
+==================================================
+
+현재 "비밀번호 찾기" 화면과 로직 감사.
+
+카카오로만 가입한 사용자는
+SWIMNOTE password가 없을 가능성이 있습니다.
+
+이 사용자를 일반 password reset에 넣어:
+
+"계정 없음"
+"아이디 없음"
+"비밀번호 찾을 수 없음"
+
+같은 dead-end로 보내면 안 됩니다.
+
+최종 설계 목표:
+
+사용자가 계정 찾기/비밀번호 찾기에 들어갔을 때
+가입 provider를 알 수 있는 경우:
+
+카카오 계정
+→ "카카오로 로그인해주세요"
+→ 카카오 로그인 entry point
+
+Apple 계정
+→ "Apple로 로그인해주세요"
+→ Apple 로그인 entry point
+
+일반 ID 계정
+→ 기존 SWIMNOTE password reset
+
+이 흐름이 가능한지 검토.
+
+==================================================
+9. 카카오 계정 비밀번호 자체 복구
+==================================================
+
+SWIMNOTE가 카카오 비밀번호를 직접 변경/재설정하면 안 됩니다.
+
+카카오 인증 중 사용자가:
+
+카카오 계정 비밀번호를 잊음
+카카오 계정 접근 불가
+
+상태라면
+
+Kakao Account 공식 인증/복구 UI로 이어지는
+일반적인 방식이 무엇인지 조사.
+
+SWIMNOTE 내부에서
+카카오 비밀번호 reset을 구현하려 하지 마십시오.
+
+UX에서는:
+
+"카카오 계정으로 계속하기"
+
+를 통해 Kakao 인증화면으로 이동하고,
+Kakao 쪽 계정 복구 기능을 사용하게 만드는 방향을 검토.
+
+==================================================
+10. 일반 ID 찾기 UX 감사
+==================================================
+
+현재 아이디 찾기 기능이 있는지 조사.
+
+있다면:
+
+카카오-only 사용자 검색 시
+어떤 결과가 나오는지 확인.
+
+추천 설계 검토:
+
+전화번호/이메일 확인 후
+
+일반 계정이면:
+"가입 아이디: xxx"
+
+Kakao-linked account면:
+"카카오로 가입한 계정입니다.
+카카오로 로그인해주세요."
+
+Apple-linked account면:
+"Apple로 가입한 계정입니다.
+Apple로 로그인해주세요."
+
+단 개인정보 노출 위험이 있으므로
+현재 verification 구조와 함께 안전성 검토.
+
+==================================================
+11. 로그인 화면 UX 설계
+==================================================
+
+현재 실제 로그인 화면 구성 조사 후
+최종 UI 설계안 제출.
+
+사용자 결정:
+
+기존 카카오 회원가입 버튼을
+추가 버튼을 만드는 방식이 아니라
+
+"카카오로 로그인/회원가입"
+
+으로 변경하는 방향.
+
+Apple도 동일 검토.
+
+화면에 불필요하게 버튼을 늘리지 마십시오.
+
+예상 구조:
+
+[일반 SWIMNOTE 로그인 영역]
+
+아이디
+비밀번호
+로그인
+
+아이디 찾기 / 비밀번호 찾기
+
+──────── 또는 ────────
+
+[카카오 아이콘] 카카오로 로그인/회원가입
+
+[Apple 아이콘] Apple로 로그인/회원가입
+
+단 현재 디자인을 무시하고
+임의 UI redesign 하지 마십시오.
+
+현재 디자인을 최대한 보존하면서
+문구/flow만 명확히 만드는 설계 우선.
+
+==================================================
+12. 로그인 성공 후 역할/연결 보존
+==================================================
+
+기존 카카오/Apple 사용자가 로그인했을 때:
+
+- admin
+- teacher
+- parent
+- pool membership
+- linked student
+- permissions
+
+이 기존 상태 그대로 복원되는지 감사.
+
+새 소셜 로그인 flow를 만들면서
+기존 user row 대신 새 user row를 생성해
+회원 연결이 사라지는 사고가 발생하면 P0입니다.
+
+기존 provider identity lookup
+→ 기존 SWIMNOTE user
+→ 기존 role/pool/student relations
+
+연결이 보존되어야 합니다.
+
+==================================================
+13. 최초 가입 추가정보
+==================================================
+
+현재 Kakao/Apple 최초 가입 후:
+
+전화번호
+이름
+역할
+센터코드
+자녀 연결
+약관
+
+등 어떤 추가정보를 받는지 조사.
+
+로그인/회원가입 버튼 통합 후에도:
+
+기존 회원:
+추가입력 없이 로그인
+
+신규 회원:
+필요한 경우에만 signup completion
+
+으로 분기할 설계.
+
+매번 추가정보 화면이 뜨면 FAIL.
+
+==================================================
+14. Apple 특수사항 감사
+==================================================
+
+Apple 로그인은 반드시 아래를 확인:
+
+- 최초 authorization 때만 받을 수 있는 정보
+- private relay email 가능성
+- email이 이후 로그인에서 null일 때 동작
+- stable Apple identifier로 기존 user lookup
+- credential revoked 상태
+- user cancel
+- Sign in with Apple credential state 검증 여부
+
+현재 코드가 email을 필수 identity로 사용한다면
+위험 여부 보고.
+
+==================================================
+15. 카카오 특수사항 감사
+==================================================
+
+확인:
+
+- Kakao user numeric/stable ID 저장
+- email scope가 없거나 email 미제공일 때
+- Kakao Account email 변경 시
+- consent 변경
+- unlink 후 재로그인
+- account session
+- KakaoTalk simple login/native login 가능 여부
+- 현재 Expo 환경에서 가장 안정적인 로그인 방식
+
+현재 구현을 전부 갈아엎지 말고
+가장 적은 변경으로 안정화할 방식을 제안.
+
+==================================================
+16. 오류 메시지 설계
+==================================================
+
+현재 로그인 오류 메시지 전수조사.
+
+다음을 구분해야 함:
+
+USER_CANCELLED
+NETWORK_ERROR
+KAKAO_AUTH_ERROR
+APPLE_AUTH_ERROR
+TOKEN_EXCHANGE_FAILED
+ACCOUNT_NOT_FOUND
+ACCOUNT_LINK_REQUIRED
+ACCOUNT_DISABLED
+SERVER_ERROR
+CONFIG_ERROR
+
+사용자에게 raw exception/code 노출 금지.
+
+각 오류마다:
+
+사용자 메시지
+retry 가능 여부
+로그 기록
+support 필요 여부
+
+설계.
+
+==================================================
+17. 관측성 / 로그 설계
+==================================================
+
+로그인 장애를 다시 추적할 수 있게
+최소 auth diagnostics 설계.
+
+단 secret/token/authorization code/password는
+로그에 남기면 안 됨.
+
+기록 가능 예:
+
+request_id
+provider
+platform
+app version
+auth stage
+success/failure
+sanitized error code
+user record matched 여부
+duration
+
+개인정보 최소화.
+
+==================================================
+18. 기존 사용자 무중단 원칙
+==================================================
+
+구현 시 절대 하면 안 되는 것:
+
+기존 Kakao user ID 초기화
+기존 Apple identity 삭제
+기존 auth provider 값 재작성
+기존 회원 강제 재가입
+기존 역할 손실
+기존 pool 연결 손실
+기존 parent/student 연결 손실
+
+기존 사용자가
+업데이트 후 그대로 로그인되어야 함.
+
+==================================================
+19. 구현안은 최소변경 우선
+==================================================
+
+작업설계에서 최소 2개 안을 비교.
+
+PLAN A
+현재 auth backend 최대 유지
+UI/handler/error recovery 중심 보정
+
+PLAN B
+auth provider resolver 일부 통합
+
+각각:
+
+장점
+위험
+변경파일
+migration 필요 여부
+기존 사용자 영향
+테스트 난이도
+
+제출.
+
+그 후 가장 안전한 안을 RECOMMENDED로 지정.
+
+대규모 auth rewrite는 특별한 이유 없으면 금지.
+
+==================================================
+20. TEST PLAN 설계
+==================================================
+
+아직 테스트 구현하지 말고
+구현 단계에서 사용할 테스트 matrix 작성.
+
+최소:
+
+K01 기존 Kakao 회원 로그인
+K02 신규 Kakao 사용자 가입
+K03 Kakao 로그인 취소
+K04 Kakao network error
+K05 Kakao token exchange error
+K06 Kakao 기존 계정 lookup
+K07 Kakao email 없음
+K08 Kakao 계정 email 변경
+K09 Kakao logout 후 재로그인
+K10 Kakao 앱 재설치 후 로그인
+
+A01 기존 Apple 회원 로그인
+A02 신규 Apple 사용자
+A03 Apple email 최초만 제공
+A04 private relay email
+A05 Apple cancel
+A06 credential revoked
+A07 앱 재설치 후 로그인
+
+L01 일반 ID 로그인
+L02 일반 ID password reset
+L03 Kakao-only 사용자가 password reset 진입
+L04 Apple-only 사용자가 password reset 진입
+L05 아이디 찾기에서 provider 안내
+
+D01 동일 이메일 일반+Kakao 충돌
+D02 동일 이메일 Apple+Kakao 충돌
+D03 중복 user row 생성 방지
+D04 기존 역할/센터/자녀 연결 유지
+
+==================================================
+21. 실제 수정 금지
+==================================================
+
+이번 단계에서 금지:
+
+코드 수정
+DB schema 수정
+migration 생성
+package 설치
+Kakao SDK 교체
+Apple auth library 교체
+Kakao Developers Console 수정
+Apple Developer Console 수정
+RevenueCat 수정
+App Store 수정
+Google Play 수정
+build
+OTA
+deploy
+production 변경
+
+오직:
+
+READ
+AUDIT
+TRACE
+DESIGN
+REPORT
+
+만 수행.
+
+==================================================
+22. 완료보고 형식
+==================================================
+
+# SWIMNOTE AUTH EMERGENCY PHASE 0
+# KAKAO / APPLE LOGIN AUDIT & IMPLEMENTATION DESIGN REPORT
+
+Repository:
+Branch:
+HEAD:
+Code changes:
+NONE
+
+## 1. CURRENT LOGIN ARCHITECTURE
+
+General ID:
+...
+
+Kakao:
+...
+
+Apple:
+...
+
+## 2. CURRENT KAKAO FLOW
+
+Button:
+...
+
+Handler:
+...
+
+SDK/library:
+...
+
+Backend endpoints:
+...
+
+Redirect/deep link:
+...
+
+Token flow:
+...
+
+User lookup:
+...
+
+Login vs signup branching:
+...
+
+## 3. CURRENT APPLE FLOW
+
+...
+
+## 4. KAKAO ACCESS FAILURE ROOT-CAUSE CANDIDATES
+
+P0:
+...
+
+P1:
+...
+
+P2:
+...
+
+For each:
+File:
+Function:
+Evidence:
+User symptom:
+Fix:
+
+## 5. EXISTING KAKAO USER ACCOUNT MODEL
+
+Provider field:
+...
+
+Provider user ID:
+...
+
+Username:
+...
+
+Password:
+...
+
+Email:
+...
+
+Phone:
+...
+
+Current login capability:
+...
+
+## 6. EXISTING APPLE USER ACCOUNT MODEL
+
+...
+
+## 7. LOGIN / SIGNUP UNIFICATION DESIGN
+
+Kakao:
+...
+
+Apple:
+...
+
+Existing user:
+...
+
+New user:
+...
+
+## 8. PASSWORD / ACCOUNT RECOVERY DESIGN
+
+General ID:
+...
+
+Kakao-only:
+...
+
+Apple-only:
+...
+
+Forgot ID:
+...
+
+Forgot password:
+...
+
+## 9. DUPLICATE ACCOUNT RISK
+
+...
+
+Recommended linking policy:
+...
+
+## 10. EXISTING USER DATA SAFETY
+
+Role:
+...
+
+Pool:
+...
+
+Student links:
+...
+
+Parent links:
+...
+
+Migration required:
+YES / NO
+
+## 11. ERROR HANDLING DESIGN
+
+...
+
+## 12. AUTH OBSERVABILITY DESIGN
+
+...
+
+## 13. PLAN A — MINIMAL PATCH
+
+Files:
+...
+
+Backend:
+...
+
+App:
+...
+
+Pros:
+...
+
+Risks:
+...
+
+## 14. PLAN B — AUTH RESOLVER CONSOLIDATION
+
+Files:
+...
+
+Backend:
+...
+
+App:
+...
+
+Pros:
+...
+
+Risks:
+...
+
+## 15. RECOMMENDED IMPLEMENTATION PLAN
+
+Recommended:
+PLAN A / PLAN B / HYBRID
+
+Reason:
+...
+
+Exact implementation sequence:
+1.
+2.
+3.
+...
+
+## 16. MANUAL CONSOLE CHECKS REQUIRED
+
+Kakao Developers:
+...
+
+Apple Developer:
+...
+
+No console changes performed.
+
+## 17. TEST MATRIX
+
+K01-K10:
+...
+
+A01-A07:
+...
+
+L01-L05:
+...
+
+D01-D04:
+...
+
+## 18. FILES THAT WOULD CHANGE DURING IMPLEMENTATION
+
+...
+
+## 19. MIGRATION REQUIRED
+
+YES / NO
+
+If YES:
+...
+
+## 20. ROLLBACK PLAN
+
+...
+
+## 21. BLOCKERS / QUESTIONS BEFORE IMPLEMENTATION
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+FINAL:
+
+AUTH AUDIT COMPLETE — IMPLEMENTATION NOT STARTED
