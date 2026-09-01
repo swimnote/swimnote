@@ -1,0 +1,605 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 MASTER DESIGN REVIEW — USER DECISION RESPONSE
+# WP1 감사 결과 반영 / 설계 잠금 준비
+
+WP1 감사 결과 확인했습니다.
+
+아래 정책을 최종 결정으로 반영하십시오.
+
+이번 답변은 WP2A 구현 시작 지시가 아닙니다.
+MASTER DESIGN LOCK 전 최종 정책 확정 답변입니다.
+
+코드 수정 금지.
+DB 수정 금지.
+Production 변경 금지.
+
+==================================================
+1. LEGACY 구독자 정책 확정
+==================================================
+
+기존 Coach / Premier 구독자는
+GRANDFATHERING 정책으로 유지합니다.
+
+정책:
+
+- 기존 Coach/Premier 구독자는 현재 구독이 유지되는 동안 기존 상품/가격/권한 유지
+- 기존 legacy 상품은 신규 판매만 종료
+- 기존 사용자가 해지/만료하면 기존 legacy 상품으로 재가입 불가
+- 해지/만료 이후 재가입은 신규 SWIMNOTE / X 상품만 가능
+- 기존 사용자가 X 신규 상품을 별도로 구매하는 것은 허용
+- 기존 legacy entitlement / plan_id / tier_group / includes_video / subscription_tier 계약은 1.6.3 호환을 위해 유지
+
+즉:
+
+LEGACY SUBSCRIBER
+→ 기존 구독 유지 가능
+
+LEGACY CANCEL / EXPIRE
+→ 기존 상품 재가입 불가
+→ 신규 SWIMNOTE/X만 가입 가능
+
+이 정책으로 LOCK 준비하십시오.
+
+==================================================
+2. SWIMNOTE 회원수 무제한 정책 확정
+==================================================
+
+일반 SWIMNOTE는 사용자 표시상:
+
+회원수 무제한
+
+으로 확정합니다.
+
+현재 member_limit=NULL 시 fallback=5 문제가 있으므로
+2.0 구현에서는 기존 공통 로직을 위험하게 변경하지 않고
+내부 기술값으로 충분히 큰 숫자를 사용합니다.
+
+확정:
+
+SWIMNOTE member_limit = 999999
+
+UI/상품표시:
+
+회원수 무제한
+
+중요:
+
+- 사용자에게 999999 노출 금지
+- 기존 1.6.3 member_limit 숫자 기반 UI와 충돌하지 않게 유지
+- 공용 NULL 의미 재정의는 하지 않음
+
+==================================================
+3. STORAGE SOURCE OF TRUTH 확정
+==================================================
+
+추가 저장공간의 단일 Source of Truth는:
+
+swimming_pools.extra_storage_gb
+
+로 확정합니다.
+
+향후:
+
+effective_storage_gb
+=
+base_plan_storage_gb
++
+swimming_pools.extra_storage_gb
+
+로 통일합니다.
+
+기존:
+
+pool_subscriptions.extra_storage_gb
+
+는 authoritative source로 사용하지 않습니다.
+
+기존 값이 존재하면
+WP2A에서 migration/backfill/동기화 방법을 검토하여
+swimming_pools.extra_storage_gb 기준으로 통합하십시오.
+
+==================================================
+4. STORAGE 사용량 계산 정책 확정
+==================================================
+
+저장공간 사용량은
+사진과 영상을 통합해서 계산해야 합니다.
+
+확정:
+
+used_storage_bytes
+=
+photo bytes
++
+active video bytes
+
+현재 uploads.ts의 photo-only 계산은 수정 대상입니다.
+
+중요:
+
+- 사진/영상이 각각 따로 quota를 소비하는 구조 금지
+- 같은 pool의 전체 미디어 저장량을 하나의 quota로 계산
+- DATA100 / DATA300도 동일 quota에 적용
+- thumbnail 용량 포함 여부는 현재 구조 유지 가능
+- orphan/soft-delete는 기존 정책에 맞게 active 자산 중심으로 계산
+
+==================================================
+5. VIDEO RETENTION 정책 최종 확정
+==================================================
+
+영상 저장기간은:
+
+14일
+
+로 최종 확정합니다.
+
+현재 구현:
+
+expires_at = NOW() + 14 days
+
+정책을 유지합니다.
+
+즉:
+
+VIDEO RETENTION = 14 DAYS — LOCKED
+
+중요:
+
+- 영상 영구보관으로 변경하지 않음
+- 7일로 변경하지 않음
+- 14일 유지
+- 14일 후 기존 cleanup/expire 정책에 따라 만료
+- 만료된 영상은 storage quota에서 제외
+- 기존 사진 보관정책은 변경하지 않음
+
+==================================================
+6. VIDEO 업로드 플랜 제한 제거 확정
+==================================================
+
+일반 SWIMNOTE와 모든 X 플랜에서
+영상 업로드를 허용합니다.
+
+확정:
+
+SWIMNOTE
+→ video enabled
+
+X300
+→ video enabled
+
+X500
+→ video enabled
+
+X1000
+→ video enabled
+
+기존:
+
+VIDEO_ALLOWED_TIERS
+Premier-only gate
+video_enabled=false for Coach
+
+정책은 2.0에서 제거 예정입니다.
+
+단 실제 구현은 해당 WP에서 수행합니다.
+
+==================================================
+7. VIDEO 1080P 압축 정책 유지
+==================================================
+
+최종 목표:
+
+원본 영상 선택
+→ 앱 local compression
+→ 최대 1080p
+→ upload
+→ 14일 보관
+
+정책 유지.
+
+원본:
+
+- 1080p
+- 2K
+- 4K
+- 대용량
+
+선택 허용 방향.
+
+출력 목표:
+
+- 최대 1920×1080
+- 원본이 1080p 이하이면 업스케일 금지
+- H.264
+- AAC
+- MP4
+- iOS/Android 호환성 우선
+
+비트레이트는 아직 LOCK하지 않습니다.
+
+WP5-PRE에서:
+
+- 실제 수영영상
+- 5Mbps
+- 8Mbps
+- 10Mbps
+
+비교 후 결정.
+
+==================================================
+8. VIDEO COMPRESSION POC 정책 확정
+==================================================
+
+MASTER DESIGN 자체는 유지합니다.
+
+단 WP5 시작 전에 반드시:
+
+WP5-PRE
+VIDEO COMPRESSION POC
+
+를 실행합니다.
+
+검증:
+
+- react-native-compressor
+- ffmpeg-kit-react-native 또는 현재 시점 대체 가능한 라이브러리
+- Expo/RN 호환
+- iOS build
+- Android build
+- 실제 수영영상 품질
+- 압축시간
+- 파일크기
+- 메모리 안정성
+
+EAS build 필요 여부 확인.
+
+POC 실패 시
+WP5 구현을 강행하지 말고 보고.
+
+==================================================
+9. X 저장공간 정책 유지
+==================================================
+
+확정:
+
+SWIMNOTE
+10GB
+
+X300
+300GB
+
+X500
+500GB
+
+X1000
+1000GB
+
+DATA100
++100GB
+
+DATA300
++300GB
+
+영상은 14일 보관이므로
+X 대용량 저장공간은 주로 사진 장기저장 + 최근 영상 보관에 사용됩니다.
+
+==================================================
+10. STORAGE WARNING 정책
+==================================================
+
+확정:
+
+80%
+→ 관리자 경고
+
+90%
+→ DATA100 / DATA300 구매 안내
+
+100%
+→ 신규 미디어 업로드 제한
+
+하지만 아래 기능은 차단 금지:
+
+- 기존 사진 조회
+- 기존 영상 조회
+- 회원관리
+- 반관리
+- 출결
+- 일지
+- 공지
+- 기존 학부모 콘텐츠 조회
+
+==================================================
+11. X TRIAL 정책 유지
+==================================================
+
+센터당 최초 1회.
+
+기간:
+3일
+
+자동결제:
+NO
+
+결제수단 사전등록:
+NO
+
+Trial에서 허용:
+
+- 즉시 사용 가능한 AI 기능
+- AI 일지
+- 공통 전문DB AI
+- 학부모 AI 기능 체험
+- 기존 데이터 기반 AI 분석
+- X Preview
+
+Trial에서 금지:
+
+- 센터 커리큘럼 입력
+- 커리큘럼 업로드
+- 센터 교육체계 구축
+- 센터 맞춤 데이터 세팅
+- 센터 전용 템플릿 구축
+- 정식 X 세팅
+
+결제 성공 후:
+
+X_SETUP_PENDING
+→ 센터 세팅
+→ X_SETUP_ACTIVE
+
+==================================================
+12. X 가격/상품 구조 유지
+==================================================
+
+최종 상품:
+
+SWIMNOTE
+월 9,900원
+회원수 무제한
+10GB
+
+X300
+월 119,000원
+최대 300명
+300GB
+
+X500
+월 189,000원
+최대 500명
+500GB
+
+X1000
+월 349,000원
+최대 1000명
+1TB
+
+DATA100
+월 7,900원
++100GB
+
+DATA300
+월 22,900원
++300GB
+
+==================================================
+13. MEDIA UI 정책 유지
+==================================================
+
+앨범:
+
+- 사진 + 영상 혼합
+- 영상 thumbnail
+- play icon
+- 탭 재생
+
+학부모 일지피드:
+
+- 사진 표시
+- 영상 표시
+- 자동재생 OFF
+- 탭 재생
+- 전체화면 가능
+
+Instagram Story:
+
+CASE A
+사진-only
+→ 사진 Story
+
+CASE B
+사진 + 영상
+→ 사진만 Story
+→ 영상 제외
+
+CASE C
+영상-only
+→ 영상 파일 Story 전송 금지
+→ SWIMNOTE 브랜딩 이미지 카드 생성
+
+==================================================
+14. 1.6.3 호환성 원칙
+==================================================
+
+2.0 구현 과정에서 아래 legacy 계약 유지:
+
+- solo_*
+- center_*
+- tier_group
+- includes_video
+- entitlement "solo"
+- entitlement "center"
+- subscription_tier
+- storageGb
+- nextBillingAt
+- status
+- 기존 RevenueCat legacy mapping
+
+신규 필드는 additive 방식.
+
+기존 1.6.3 운영 사용자가
+2.0 서버변경 때문에 깨지면 안 됩니다.
+
+==================================================
+15. 최종 WP 구조 확정
+==================================================
+
+향후 구현 순서:
+
+WP1
+CURRENT STATE FREEZE AUDIT
+→ 완료
+
+WP2A
+PRODUCT MODEL / STORAGE / MEMBER LIMIT / BACKWARD COMPAT
+
+WP2B
+X TRIAL / X STATE
+
+WP3
+APP PRICING UI / X TRIAL UX
+
+MANUAL STEP
+사용자가 직접:
+- RevenueCat
+- App Store Connect
+- Google Play Console
+
+WP4
+REVENUECAT PRODUCT CONNECTION
+
+WP5-PRE
+VIDEO COMPRESSION POC
+
+WP5
+VIDEO 1080P PIPELINE
+
+WP6
+ALBUM / PARENT FEED / STORY
+
+WP7
+FULL REGRESSION / PRODUCTION READINESS
+
+==================================================
+16. MASTER DESIGN LOCK 판정 요청
+==================================================
+
+위 사용자 결정사항을 반영했을 때:
+
+IMPLEMENTABLE:
+YES / NO / PARTIAL
+
+DESIGN LOCK READY:
+YES / NO
+
+로 다시 판정하십시오.
+
+새로운 취향성 제안은 하지 마십시오.
+
+오직:
+
+- 구현 불가능
+- 실제 코드 충돌
+- 1.6.3 breaking
+- store/revenuecat 필수 제약
+- data loss 위험
+
+같은 P0/P1 필수사항만 보고하십시오.
+
+필수 blocker가 없으면:
+
+DESIGN LOCK READY = YES
+
+로 보고하십시오.
+
+==================================================
+17. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 MASTER DESIGN LOCK CONFIRMATION
+
+Repository:
+Branch:
+HEAD:
+
+## USER DECISIONS APPLIED
+
+Legacy grandfathering:
+YES / NO
+
+SWIMNOTE unlimited internal limit:
+999999 / OTHER
+
+Storage SoT:
+swimming_pools.extra_storage_gb / OTHER
+
+Unified photo+video quota:
+YES / NO
+
+Video retention:
+14 DAYS / OTHER
+
+Video plan gate removal:
+CONFIRMED / BLOCKED
+
+Video compression POC:
+WP5-PRE REQUIRED / OTHER
+
+X Trial:
+CONFIRMED / BLOCKED
+
+Pricing:
+CONFIRMED / BLOCKED
+
+## IMPLEMENTABILITY
+
+...
+
+## P0/P1 BLOCKERS
+
+NONE
+or
+...
+
+## DESIGN LOCK
+
+IMPLEMENTABLE:
+YES / NO / PARTIAL
+
+DESIGN LOCK READY:
+YES / NO
+
+## CODE CHANGES
+
+NONE
+
+## DB CHANGES
+
+NONE
+
+## PRODUCTION CHANGES
+
+NONE
+
+FINAL:
+
+SWIMNOTE 2.0 MASTER DESIGN LOCK CONFIRMATION COMPLETE
+
+==================================================
+18. 절대 금지
+==================================================
+
+이번 단계에서:
+
+코드 수정 금지
+DB write 금지
+migration 실행 금지
+Production deploy 금지
+OTA 금지
+EAS build 금지
+RevenueCat 변경 금지
+App Store 변경 금지
+Google Play 변경 금지
+
+READ-ONLY CONFIRMATION ONLY.
