@@ -122,7 +122,6 @@ export default function AddChildScreen() {
             onChangeText={setChildName}
             returnKeyType="done"
             onSubmitEditing={handleSubmit}
-            autoFocus
           />
         </View>
 

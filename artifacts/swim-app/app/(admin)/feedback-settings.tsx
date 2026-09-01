@@ -209,6 +209,8 @@ export default function FeedbackSettingsScreen() {
         renderItem={renderItem}
         contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 16 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListEmptyComponent={
           <View style={s.emptyBox}>
             <LucideIcon name="inbox" size={36} color={C.textMuted} />

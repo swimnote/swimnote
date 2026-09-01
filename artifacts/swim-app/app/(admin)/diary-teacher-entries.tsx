@@ -292,7 +292,7 @@ export default function DiaryTeacherEntriesScreen() {
         title="수업 일지"
         subtitle={selectMode ? `${selected.size}개 선택됨` : `전체 ${entries.length}건`}
         onBack={selectMode ? exitSelectMode : undefined}
-        homePath="/(admin)/class-hub"
+        homePath="/(admin)/dashboard"
       />
 
       {selectMode ? (

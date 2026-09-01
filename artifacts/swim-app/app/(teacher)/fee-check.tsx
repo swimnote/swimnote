@@ -167,7 +167,7 @@ export default function FeeCheckScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="수업료 납부 관리" homePath="/(teacher)/settings" />
+      <SubScreenHeader title="수업료 납부 관리" homePath="/(teacher)/today-schedule" />
 
       {/* 월 선택 */}
       <View style={s.monthRow}>

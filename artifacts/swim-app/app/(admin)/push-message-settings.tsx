@@ -95,7 +95,7 @@ export default function AdminPushMessageSettingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/more" />
+        <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/dashboard" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -103,7 +103,7 @@ export default function AdminPushMessageSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/more" />
+      <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/dashboard" />
 
       <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}

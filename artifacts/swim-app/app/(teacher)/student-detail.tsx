@@ -13,8 +13,8 @@ import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
-  Platform, Pressable, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal,
+  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { callPhone, sendSms, formatPhone, CALL_COLOR, SMS_COLOR } from "@/utils/phoneUtils";
@@ -672,6 +672,8 @@ export default function StudentDetailScreen() {
         onRequestClose={() => { setShowLevelNoteModal(false); setPendingLevelOrder(null); }}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
+          {/* 배경 탭 → 키보드 숨김 */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
           <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 }}>
             <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>레벨 변경 노트</Text>
             {pendingLevelOrder != null && (() => {
@@ -728,6 +730,8 @@ export default function StudentDetailScreen() {
         onRequestClose={() => setPhoneEditModal(m => ({ ...m, visible: false }))}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
+          {/* 배경 탭 → 키보드 숨김 */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
           <View style={{ backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 14 }}>
             <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>
               보호자 {phoneEditModal.slot} 연락처

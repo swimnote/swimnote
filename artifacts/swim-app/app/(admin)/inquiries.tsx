@@ -268,7 +268,7 @@ export default function AdminInquiriesScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="문의하기" homePath="/(admin)/home" />
+      <SubScreenHeader title="문의하기" homePath="/(admin)/dashboard" />
 
       <View style={s.tabs}>
         {(["received", "sent"] as const).map(t => {

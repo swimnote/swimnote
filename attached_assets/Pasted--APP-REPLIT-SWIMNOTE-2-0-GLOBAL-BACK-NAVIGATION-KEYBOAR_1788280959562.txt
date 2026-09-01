@@ -1,0 +1,1232 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL BACK NAVIGATION + KEYBOARD INTERACTION CORRECTION
+# FULL IMPLEMENTATION
+# AFTER FREEZE AUDIT / BEFORE WP-M5
+
+현재 상태:
+
+WP-M1:
+PASS
+
+WP-M2:
+PASS
+
+WP-M3:
+PASS
+
+WP-M4:
+PASS
+
+GLOBAL BACK + KEYBOARD FREEZE AUDIT:
+PASS
+
+Latest completed app HEAD:
+93e56d53
+
+이번 작업은
+감사에서 확인된 Navigation / Keyboard 위반을
+화면별 땜질이 아니라
+확정된 전역 규칙에 따라 한 번에 수정하는 작업입니다.
+
+==================================================
+0. GLOBAL PRODUCT RULE
+==================================================
+
+이번 수정은 AI/X 전용 기능이 아닙니다.
+
+따라서:
+
+SWIMNOTE 일반
+SWIMNOTE X
+
+모두 공통 적용.
+
+Admin / Teacher / Parent에서
+같은 UX 규칙 사용.
+
+==================================================
+1. GLOBAL BACK RULE — LOCKED
+==================================================
+
+뒤로가기:
+
+항상 "직전 업무 화면"
+
+A → B
+Back → A
+
+A → B → C
+Back → B
+Back → A
+
+금지:
+
+Back → Home
+Back → Dashboard
+Back → 임의 상위 Tab
+
+Home 버튼과 Back 버튼은
+완전히 다른 의미입니다.
+
+==================================================
+2. P0 — TERMINOLOGY DETAIL BACK 수정
+==================================================
+
+현재:
+
+Teacher Settings
+→ terminology-search
+→ terminology-detail
+→ Back
+→ Home
+
+Parent에서도 동일 공통 component 문제 존재.
+
+Expected:
+
+terminology-search
+→ terminology-detail
+→ Back
+→ terminology-search
+
+반드시 Teacher + Parent 둘 다 수정.
+
+==================================================
+3. TERMINOLOGY 수정 방식
+==================================================
+
+단순:
+
+if (router.canGoBack()) router.back()
+
+만으로 해결하지 마십시오.
+
+감사 결과 실제 TestFlight에서
+router.back() stack이 신뢰되지 않는 상황이 확인됐습니다.
+
+따라서 검색 → 상세 진입 시
+명시적인 return context를 전달합니다.
+
+예:
+
+router.push({
+  pathname: detailPath,
+  params: {
+    termId,
+    backTo: "terminology-search"
+  }
+})
+
+그리고 상세 Back은
+기존 SubScreenHeader의 backTo 처리 규칙을 사용하여:
+
+Teacher:
+→ /(teacher)/terminology-search
+
+Parent:
+→ /(parent)/terminology-search
+
+로 복귀.
+
+==================================================
+4. TERMINOLOGY SEARCH 자체 BACK도 보존
+==================================================
+
+Teacher Settings에서 terminology-search로 진입할 때는
+검색화면 자체의 이전 context도 보존.
+
+현재 Settings → terminology-search push에
+backTo가 없는 것으로 감사됨.
+
+가능하면:
+
+Settings
+→ terminology-search?backTo=settings
+
+형태로 명시.
+
+그러면:
+
+Settings
+→ Search
+→ Detail
+
+Back:
+Detail → Search
+Back:
+Search → Settings
+
+가 확정적으로 성립해야 함.
+
+==================================================
+5. PARENT TERMINOLOGY ENTRY 감사 후 동일 처리
+==================================================
+
+Parent terminology-search의 실제 진입 caller를 확인.
+
+Parent:
+
+A → terminology-search → terminology-detail
+
+이면:
+
+Detail Back:
+→ terminology-search
+
+Search Back:
+→ A
+
+가 되어야 함.
+
+Parent search caller의 기존 context를
+임의로 home으로 바꾸지 마십시오.
+
+==================================================
+6. ADMIN SETTINGS HOME PATH 오류 수정
+==================================================
+
+감사에서 확인된 잘못된 homePath 수정.
+
+A.
+
+app/(admin)/inquiries.tsx
+
+현재:
+homePath="/(admin)/home"
+
+잘못된 route.
+
+수정:
+homePath="/(admin)/dashboard"
+
+B.
+
+app/(admin)/push-message-settings.tsx
+
+현재:
+homePath="/(admin)/more"
+
+수정:
+homePath="/(admin)/dashboard"
+
+C.
+
+app/(admin)/diary-teacher-entries.tsx
+
+현재:
+homePath="/(admin)/class-hub"
+
+수정:
+homePath="/(admin)/dashboard"
+
+homePath는:
+
+관리자의 실제 HOME
+
+에만 사용.
+
+logical parent 용도로 사용 금지.
+
+==================================================
+7. TEACHER HOME PATH 오류 수정
+==================================================
+
+app/(teacher)/fee-check.tsx
+
+현재:
+homePath="/(teacher)/settings"
+
+수정:
+homePath="/(teacher)/today-schedule"
+
+Teacher HOME:
+
+/(teacher)/today-schedule
+
+고정.
+
+Settings는 parent screen이지 home 아님.
+
+==================================================
+8. REFUND POLICY BACK STACK 수정
+==================================================
+
+app/(admin)/refund-policy.tsx
+
+현재:
+
+if (backTo)
+  router.push(backTo)
+
+문제:
+
+Back action인데
+이전 route를 stack에 다시 push함.
+
+수정:
+
+router.replace(backTo)
+
+또는 현재 SubScreenHeader의
+명시적 backTo 처리와 동일한 semantics 사용.
+
+목표:
+
+Back action은
+새 history를 추가하지 않음.
+
+==================================================
+9. x-setup 등 조건부 BACK 감사
+==================================================
+
+감사에서 조건부 PASS였던:
+
+x-setup
+feedback-custom
+terminology-search
+
+등 backTo 없이
+router.back()에만 의존하는 설정 child를 재확인.
+
+Settings에서 직접 들어가는 route라면
+가능하면 caller에서:
+
+?backTo=settings
+
+명시.
+
+단:
+
+정상적으로 여러 화면에서 진입 가능한
+generic route에
+settings를 하드코딩하지 마십시오.
+
+caller가 context를 전달하는 방식 사용.
+
+==================================================
+10. GLOBAL KEYBOARD INTERACTION RULE — LOCKED
+==================================================
+
+키보드 규칙:
+
+A.
+TextInput tap
+→ keyboard 표시
+
+B.
+버튼 / 카드 / 결과 / 링크 tap
+→ 첫 tap으로 action 실행
+
+C.
+빈 배경 tap
+→ Keyboard.dismiss()
+
+D.
+scroll 시작
+→ keyboard dismiss
+
+E.
+버튼 첫 tap을
+keyboard dismiss만 소비하면 FAIL
+
+==================================================
+11. IMPORTANT — BUTTON TAP에서 강제 dismiss 금지
+==================================================
+
+사용자 요구:
+
+키보드가 올라와 있어도
+Button / Pressable / Result Card를 누르면
+
+버튼 action이 정상 실행되어야 함.
+
+버튼 tap 자체를
+전역 Keyboard.dismiss handler로 가로채지 마십시오.
+
+즉:
+
+Button tap
+→ Action
+
+Empty background tap
+→ Keyboard.dismiss()
+
+두 동작을 분리.
+
+==================================================
+12. EMPTY BACKGROUND DISMISS 구현 원칙
+==================================================
+
+금지:
+
+화면 전체를
+TouchableWithoutFeedback 하나로 감싸서
+
+내부 버튼 interaction까지
+부모 dismiss handler가 먹는 구조.
+
+권장:
+
+기존 검증된
+feedback-custom.tsx 패턴 참고.
+
+Modal:
+
+<View overlay>
+  <Pressable
+    style={StyleSheet.absoluteFill}
+    onPress={Keyboard.dismiss}
+  />
+
+  <ActualModalContent>
+    ...
+  </ActualModalContent>
+</View>
+
+배경 Pressable은
+실제 interactive content 뒤에 위치.
+
+==================================================
+13. SCREEN-LEVEL BACKGROUND DISMISS
+==================================================
+
+일반 screen에서도
+"실제 빈 배경" tap 시 keyboard dismiss 구현.
+
+중요:
+
+ScrollView / FlatList 내부의
+Button / Result Card / Input은
+정상 interaction 유지.
+
+화면 전체 Touchable wrapper 방식 금지.
+
+화면 구조에 따라:
+
+- background Pressable layer
+- empty area Pressable
+- content container 구조
+
+중 안전한 방식 선택.
+
+==================================================
+14. CURRICULUM CHAT 수정
+==================================================
+
+현재:
+
+scroll dismiss:
+PASS
+
+button one-tap:
+PASS
+
+empty background:
+FAIL
+
+수정:
+
+빈 화면/여백 tap
+→ Keyboard.dismiss()
+
+유지:
+
+keyboardShouldPersistTaps="handled"
+
+keyboardDismissMode="on-drag"
+
+Result / CTA first tap:
+정상 실행.
+
+==================================================
+15. TERMINOLOGY SEARCH KEYBOARD 수정
+==================================================
+
+반드시:
+
+keyboardShouldPersistTaps="handled"
+
+적용.
+
+현재 감사에서
+미설정 위험이 확인됨.
+
+또한:
+
+keyboardDismissMode="on-drag"
+
+적용.
+
+빈 배경 tap:
+Keyboard.dismiss()
+
+검색 결과 카드 tap:
+첫 tap으로 detail 이동.
+
+==================================================
+16. ADMIN MEMBER DETAIL MODAL
+==================================================
+
+WP-M3 Member Detail의 edit modal들:
+
+- Basic info
+- Guardian
+- 기타 TextInput modal
+
+빈 modal 배경 tap:
+Keyboard.dismiss()
+
+modal 자체 닫힘:
+NO
+
+즉:
+
+배경 tap
+→ keyboard만 내려감
+
+Modal close/backdrop close semantics는
+기존 정책 유지.
+
+버튼 tap:
+첫 tap으로 저장/취소 실행.
+
+==================================================
+17. TEACHER STUDENT DETAIL MODAL
+==================================================
+
+WP-M4 Student Detail:
+
+- 전화번호 edit
+- level note
+- 기타 TextInput modal
+
+동일 적용.
+
+빈 영역:
+Keyboard.dismiss()
+
+버튼:
+첫 tap 실행
+
+phone1/2 권한 구조:
+변경 금지
+
+==================================================
+18. keyboardShouldPersistTaps 전수 수정
+==================================================
+
+감사에서 위험 확인된 화면:
+
+- terminology-search
+- diary-write
+- feedback-settings
+- support-chat admin
+- support-chat teacher
+- add-child
+- additional-guardians
+
+및 실제 감사 결과에서
+TextInput + Scroll + Action 구조인데
+persist taps가 없는 화면.
+
+적절한 ScrollView / FlatList / SectionList에:
+
+keyboardShouldPersistTaps="handled"
+
+적용.
+
+==================================================
+19. SCROLL DISMISS 전수 적용
+==================================================
+
+TextInput과 scroll list가 함께 있는 일반 입력/검색 화면:
+
+keyboardDismissMode="on-drag"
+
+또는 플랫폼에 맞는 동일 효과 적용.
+
+특히:
+
+- terminology-search
+- curriculum-search/chat
+- diary-write
+- support-chat
+- inquiries
+- notices
+- makeups
+- fee-check
+- bulk-register
+- profile edit
+- 기타 검색/입력 list
+
+단:
+
+scroll이 없는 modal/form에
+억지 prop 추가 금지.
+
+==================================================
+20. AUTOFOCUS
+==================================================
+
+감사에서 명확한 수정 후보:
+
+parent/add-child.tsx
+
+현재:
+화면 진입 즉시 autoFocus
+→ keyboard 자동 표시
+
+기본 전역 규칙:
+
+화면 진입:
+keyboard hidden
+
+사용자가 input tap:
+keyboard visible
+
+따라서 add-child의 첫 필드 autoFocus 제거.
+
+단 Modal edit 내부의
+합리적인 autofocus는 유지.
+
+유지 대상 예:
+
+feedback-custom modal
+feedback-settings modal
+diary-template modal
+data-delete confirm
+approval modal
+teacher student edit modal
+parent my-info modal
+
+==================================================
+21. MODAL BACKDROP POLICY
+==================================================
+
+이번 작업에서:
+
+빈 modal background tap
+→ Keyboard.dismiss()
+
+를 추가하더라도
+
+기존 Modal 자체 backdrop close가
+원래 존재하는 경우는 그 semantics 유지.
+
+원래 Modal close가 없던 곳에
+배경 tap → modal close
+
+를 새로 만들지 마십시오.
+
+==================================================
+22. HOME BUTTON RULE
+==================================================
+
+homePath는 반드시 실제 role HOME만.
+
+Admin:
+ /(admin)/dashboard
+
+Teacher:
+ /(teacher)/today-schedule
+
+Parent:
+ 현재 실제 parent home route
+
+Super:
+ 현재 실제 super dashboard
+
+금지:
+
+homePath = settings
+homePath = more
+homePath = class-hub
+homePath = logical parent
+존재하지 않는 route
+
+==================================================
+23. BACKTO RULE
+==================================================
+
+backTo는:
+
+"어디서 들어왔는지"
+
+를 명시하기 위한 context.
+
+logical parent를 global component가 추측하지 말고
+caller가 전달.
+
+예:
+
+Settings
+→ Search?backTo=settings
+
+Search
+→ Detail?backTo=terminology-search
+
+==================================================
+24. SUBSCREENHEADER 변경 범위
+==================================================
+
+SubScreenHeader의 전체 architecture는
+감사 결과 정상.
+
+따라서 대규모 rewrite 금지.
+
+현재 로직:
+
+1. onBack
+2. backTo
+3. router.back
+
+유지.
+
+이번 WP에서는:
+
+잘못된 caller
+잘못된 homePath
+잘못된 backTo usage
+
+를 수정.
+
+==================================================
+25. MEMBER MANAGEMENT 보호
+==================================================
+
+이번 작업에서
+WP-M3/WP-M4 구조 변경 금지.
+
+허용:
+
+keyboard dismiss behavior
+back behavior
+
+만.
+
+회원 데이터/권한/section 구조 수정 금지.
+
+==================================================
+26. TEST — TERMINOLOGY
+==================================================
+
+CASE A
+
+Teacher Settings
+→ Terminology Search
+→ Detail
+→ Back
+
+Expected:
+Search
+
+CASE B
+
+위 상태에서 다시 Back
+
+Expected:
+Teacher Settings
+
+CASE C
+
+Parent
+→ Terminology Search
+→ Detail
+→ Back
+
+Expected:
+Parent Terminology Search
+
+CASE D
+
+Parent Terminology Search
+→ Back
+
+Expected:
+실제 진입 이전 화면
+
+Home 강제:
+FAIL
+
+==================================================
+27. TEST — ADMIN SETTINGS
+==================================================
+
+CASE E
+
+Settings
+→ X Mode
+→ Back
+→ Settings
+
+CASE F
+
+Settings
+→ Notification
+→ Back
+→ Settings
+
+CASE G
+
+Settings
+→ Push Message Settings
+→ Home icon
+→ Dashboard
+
+CASE H
+
+Settings
+→ Inquiry
+→ Home icon
+→ Dashboard
+
+CASE I
+
+Refund Policy
+→ Back
+→ 실제 backTo screen
+
+그리고 다시 Back 했을 때
+stack duplicate 없어야 함.
+
+==================================================
+28. TEST — TEACHER SETTINGS
+==================================================
+
+CASE J
+
+Teacher Settings
+→ Fee Check
+→ Home icon
+
+Expected:
+Today Schedule
+
+CASE K
+
+Teacher Settings
+→ Fee Check
+→ Back
+
+Expected:
+Teacher Settings
+
+CASE L
+
+Settings
+→ child
+→ grandchild
+→ Back
+→ child
+→ Back
+→ Settings
+
+==================================================
+29. TEST — KEYBOARD EMPTY BACKGROUND
+==================================================
+
+CASE M
+
+Curriculum Chat:
+input focus
+→ keyboard visible
+→ empty background tap
+
+Expected:
+keyboard hidden
+
+CASE N
+
+Terminology Search:
+input focus
+→ keyboard visible
+→ empty background tap
+
+Expected:
+keyboard hidden
+
+CASE O
+
+Admin Member Detail edit modal:
+keyboard visible
+→ empty modal area tap
+
+Expected:
+keyboard hidden
+modal remains open
+
+CASE P
+
+Teacher Student Detail edit modal:
+동일
+
+==================================================
+30. TEST — BUTTON ONE TAP
+==================================================
+
+keyboard visible 상태에서:
+
+Terminology result
+Save
+Send
+Search
+CTA
+List item
+
+각각:
+
+첫 tap:
+ACTION EXECUTED
+
+두 번째 tap 필요:
+FAIL
+
+==================================================
+31. TEST — SCROLL
+==================================================
+
+TextInput + Scroll 화면:
+
+keyboard visible
+→ scroll drag
+
+Expected:
+keyboard dismiss
+
+scroll continues normally.
+
+==================================================
+32. REGRESSION
+==================================================
+
+반드시 구분:
+
+Baseline failures before this WP:
+N
+
+Failures after:
+N
+
+New failures caused by this WP:
+N
+
+신규 실패 0일 때만 PASS.
+
+==================================================
+33. 이번 WP에서 금지
+==================================================
+
+WP-M5 시작 금지
+student_links 생성 금지
+Pricing 변경 금지
+Subscription 변경 금지
+RevenueCat 변경 금지
+App Store 변경 금지
+Google Play 변경 금지
+Delete API 변경 금지
+Restore API 변경 금지
+DB migration 금지
+
+==================================================
+34. PRODUCTION 금지
+==================================================
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+1.6.3:
+NO
+
+Android:
+NO
+
+사용자 승인 전
+TestFlight OTA 발행도 금지.
+
+==================================================
+35. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# GLOBAL BACK + KEYBOARD INTERACTION CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## TERMINOLOGY BACK
+
+Teacher:
+Settings -> Search -> Detail -> Back:
+...
+
+Detail -> Search:
+PASS / FAIL
+
+Search -> Settings:
+PASS / FAIL
+
+Parent:
+Detail -> Search:
+PASS / FAIL
+
+Search -> Previous:
+PASS / FAIL
+
+Home escape:
+YES / NO
+
+Expected:
+NO
+
+## BACKTO
+
+Terminology search caller:
+...
+
+Terminology detail caller:
+...
+
+Explicit context:
+PASS / FAIL
+
+## ADMIN HOME PATH
+
+inquiries:
+...
+
+push-message-settings:
+...
+
+diary-teacher-entries:
+...
+
+All actual Admin Home:
+PASS / FAIL
+
+## TEACHER HOME PATH
+
+fee-check:
+...
+
+Actual Teacher Home:
+PASS / FAIL
+
+## REFUND BACK STACK
+
+push removed:
+YES / NO
+
+replace/context-safe:
+YES / NO
+
+Duplicate stack:
+YES / NO
+
+Expected:
+NO
+
+## KEYBOARD BACKGROUND DISMISS
+
+Curriculum Chat:
+PASS / FAIL
+
+Terminology Search:
+PASS / FAIL
+
+Admin Member Detail Modal:
+PASS / FAIL
+
+Teacher Student Detail Modal:
+PASS / FAIL
+
+Other input screens fixed:
+...
+
+## BUTTON ONE-TAP
+
+Terminology result:
+PASS / FAIL
+
+Diary save:
+PASS / FAIL
+
+Support Chat send:
+PASS / FAIL
+
+Feedback save:
+PASS / FAIL
+
+Add Child save:
+PASS / FAIL
+
+Additional Guardian save:
+PASS / FAIL
+
+Other:
+...
+
+## SCROLL DISMISS
+
+Screens updated:
+...
+
+Failures remaining:
+...
+
+## AUTOFOCUS
+
+add-child removed:
+YES / NO
+
+Intentional modal autofocus preserved:
+YES / NO
+
+## SUBSCREENHEADER
+
+Architecture changed:
+YES / NO
+
+Expected:
+NO
+
+Caller/context fixes only:
+PASS / FAIL
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+Admin:
+PASS / FAIL
+
+Teacher:
+PASS / FAIL
+
+Parent:
+PASS / FAIL
+
+## TESTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+CASE L:
+PASS / FAIL
+
+CASE M:
+PASS / FAIL
+
+CASE N:
+PASS / FAIL
+
+CASE O:
+PASS / FAIL
+
+CASE P:
+PASS / FAIL
+
+Button One-Tap:
+PASS / FAIL
+
+Scroll Dismiss:
+PASS / FAIL
+
+## REGRESSION
+
+Baseline failures:
+...
+
+Failures after:
+...
+
+New failures:
+...
+
+Expected:
+0
+
+Regression:
+PASS / FAIL
+
+## UNTOUCHED
+
+Member data contract:
+UNCHANGED
+
+Admin Member Detail structure:
+UNCHANGED
+
+Teacher Student Detail structure:
+UNCHANGED
+
+student_links:
+NOT CREATED
+
+Pricing/Subscription:
+UNCHANGED
+
+RevenueCat/Stores:
+UNCHANGED
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+SWIMNOTE 2.0 GLOBAL BACK / KEYBOARD INTERACTION CORRECTION COMPLETE
+or
+BLOCKED

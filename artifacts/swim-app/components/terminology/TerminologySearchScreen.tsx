@@ -121,7 +121,7 @@ export function TerminologySearchScreen({ role }: Props) {
       Keyboard.dismiss();
       router.push({
         pathname: detailPath(role) as any,
-        params: { termId },
+        params: { termId, backTo: "terminology-search" },
       });
     },
     [role],
@@ -183,6 +183,7 @@ export function TerminologySearchScreen({ role }: Props) {
           { paddingBottom: insets.bottom + 24 },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       />
     );
@@ -192,6 +193,8 @@ export function TerminologySearchScreen({ role }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
+      {/* 빈 영역 탭 → 키보드 숨김 */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
       <SubScreenHeader title="수영·훈련용어 검색" showHome={false} />
 
       {/* 검색창 */}

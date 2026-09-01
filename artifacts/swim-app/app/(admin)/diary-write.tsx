@@ -401,6 +401,8 @@ export default function AdminDiaryAllScreen() {
           renderItem={renderItem}
           contentContainerStyle={s.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           onRefresh={() => { setRefreshing(true); load(true); }}
           refreshing={refreshing}
           ListEmptyComponent={

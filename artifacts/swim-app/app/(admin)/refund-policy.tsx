@@ -190,7 +190,7 @@ export default function RefundPolicyScreen() {
   }
 
   function handleBack() {
-    if (backTo) router.push((`/(admin)/${backTo}`) as any);
+    if (backTo) router.replace((`/(admin)/${backTo}`) as any);
     else router.back();
   }
 

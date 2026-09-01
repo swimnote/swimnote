@@ -340,7 +340,7 @@ export default function SettingsScreen() {
                 <View style={r.divider} />
                 <Pressable
                   style={({ pressed }) => [r.row, { opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => router.push("/(admin)/x-setup" as any)}
+                  onPress={() => router.push("/(admin)/x-setup?backTo=settings" as any)}
                 >
                   <View style={[s.xIconWrap, { backgroundColor: X_LIGHT }]}>
                     <LucideIcon name="settings" size={16} color={X_ACCENT} />

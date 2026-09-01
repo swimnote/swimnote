@@ -1054,27 +1054,30 @@ export default function CurriculumChatScreen() {
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
-            {!hasMessages && renderEmpty()}
+            {/* 빈 영역 탭 → 키보드 숨김; inner Pressable/버튼은 자체 이벤트 처리 */}
+            <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
+              {!hasMessages && renderEmpty()}
 
-            {serverMessages.map((msg) =>
-              msg.role === "USER"
-                ? renderUserBubble(msg.id, msg.content, fmtTime(msg.created_at))
-                : renderAssistantBubble(msg),
-            )}
-
-            {pendingMsg &&
-              renderUserBubble(
-                `pending_${pendingMsg.requestId}`,
-                pendingMsg.content,
-                "",
-                {
-                  status: pendingMsg.status,
-                  retryableError: pendingMsg.retryableError,
-                  onRetry: () => handleSend(undefined, true),
-                },
+              {serverMessages.map((msg) =>
+                msg.role === "USER"
+                  ? renderUserBubble(msg.id, msg.content, fmtTime(msg.created_at))
+                  : renderAssistantBubble(msg),
               )}
 
-            {sending && <TypingIndicator />}
+              {pendingMsg &&
+                renderUserBubble(
+                  `pending_${pendingMsg.requestId}`,
+                  pendingMsg.content,
+                  "",
+                  {
+                    status: pendingMsg.status,
+                    retryableError: pendingMsg.retryableError,
+                    onRetry: () => handleSend(undefined, true),
+                  },
+                )}
+
+              {sending && <TypingIndicator />}
+            </Pressable>
           </ScrollView>
         )}
 

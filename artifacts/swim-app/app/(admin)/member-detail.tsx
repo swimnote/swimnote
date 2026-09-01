@@ -312,6 +312,7 @@ export default function MemberDetailScreen() {
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* HEADER CARD: 이름·반·레벨 한눈에 */}
         <View style={{
