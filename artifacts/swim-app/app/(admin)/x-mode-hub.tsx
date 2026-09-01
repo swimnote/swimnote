@@ -126,14 +126,14 @@ export default function XModeHubScreen() {
               {(mode === null || mode === "normal") && (
                 <Pressable
                   style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => router.push("/(admin)/x-subscription" as any)}
+                  onPress={() => router.push("/(admin)/subscription" as any)}
                 >
                   <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
                     <LucideIcon name="credit-card" size={18} color={X_ACCENT} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.rowLabel}>정기결제 신청하기</Text>
-                    <Text style={s.rowDesc}>SWIMNOTE X 별도 정기결제</Text>
+                    <Text style={s.rowLabel}>구독 및 요금제 관리</Text>
+                    <Text style={s.rowDesc}>SWIMNOTE X 정기결제 신청</Text>
                   </View>
                   <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
@@ -182,14 +182,14 @@ export default function XModeHubScreen() {
                   {/* X02-D2: 구독 상태 확인 / Restore / 구독 관리 */}
                   <Pressable
                     style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
-                    onPress={() => router.push("/(admin)/x-subscription" as any)}
+                    onPress={() => router.push("/(admin)/subscription" as any)}
                   >
                     <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
                       <LucideIcon name="credit-card" size={18} color={X_ACCENT} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.rowLabel}>X 구독 관리</Text>
-                      <Text style={s.rowDesc}>구독 상태 확인 · 구독 관리 · 구매 복원</Text>
+                      <Text style={s.rowLabel}>구독 및 요금제 관리</Text>
+                      <Text style={s.rowDesc}>구독 상태 확인 · 플랜 변경 · 구독 관리</Text>
                     </View>
                     <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>

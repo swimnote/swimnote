@@ -227,10 +227,18 @@ export default function SubscriptionScreen() {
         if (d.total_mb != null)  setStorageLimitMb(Number(d.total_mb));
         if (d.used_mb  != null)  setStorageUsedMb(Number(d.used_mb));
       }
-      // pool에서 active member count 읽기 (PoolInfo 확장 시 활성화)
-      // if (pool?.active_member_count != null) {
-      //   setActiveMemberCount(Number(pool.active_member_count));
-      // }
+      // pool에서 active member count 읽기
+      const poolCount = (pool as any)?.active_member_count ?? (pool as any)?.member_count ?? null;
+      if (poolCount != null) {
+        setActiveMemberCount(Number(poolCount));
+      } else {
+        // API fallback — per_page=1로 total 필드 확인
+        const countRes = await apiRequest(token, "/admin/members?per_page=1").catch(() => null);
+        if (countRes?.ok) {
+          const cd = await countRes.json().catch(() => ({}));
+          if (typeof cd.total === "number") setActiveMemberCount(cd.total);
+        }
+      }
     } catch {}
     finally { setLoading(false); }
   }, [token, pool]);
@@ -271,6 +279,25 @@ export default function SubscriptionScreen() {
       }
       throw new Error(data?.message ?? "서버 동기화에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
+  }
+
+  // X 플랜 변경 핸들러 (WP4 연결 전 — UI/guard 준비)
+  function handleXPlanChange(plan: typeof xPlans[0]) {
+    // 회원 한도 초과 guard
+    if (activeMemberCount != null && activeMemberCount > plan.max_members) {
+      showConfirm(
+        `${plan.name} 변경 불가`,
+        `현재 활성회원 수(${activeMemberCount.toLocaleString()}명)가 ${plan.name} 한도(${plan.max_members.toLocaleString()}명)를 초과합니다.\n\n회원 수를 조정하거나 더 높은 플랜을 선택해 주세요.`,
+        () => {},
+      );
+      return;
+    }
+    // WP4 전: 플랜 변경 준비 중 안내
+    showConfirm(
+      "플랜 변경",
+      `${plan.name}으로의 변경은 출시 준비 중입니다.`,
+      () => {},
+    );
   }
 
   function handleLegacyPlanSelect(plan: PlanMeta) {
@@ -353,8 +380,19 @@ export default function SubscriptionScreen() {
     ? storageWarningLevel(storageUsedMb, planStorageLimitMb)
     : "normal";
 
-  // DATA pack 표시 — X 또는 Trial 사용자 (usage가 critical/full이면 항상)
-  const showDataPack = mode === "x" || mode === "x_trial" || warnLevel === "critical" || warnLevel === "full";
+  // [UX 정책] SWIMNOTE 카드 표시 조건
+  // X / X_Pending: X가 SWIMNOTE 기본플랜 포함 → 카드 숨김
+  // X_Trial: secondary link만 표시, 카드 숨김
+  const showSwimnoteCard = mode !== "x" && mode !== "x_pending" && mode !== "x_trial";
+
+  // X_Trial에서 "일반 SWIMNOTE 이용하기" secondary link 표시
+  const showSwimnoteSecondaryLink = mode === "x_trial";
+
+  // X Active에서 SWIMNOTE downgrade action 표시
+  const showXToSwimnoteDowngrade = mode === "x";
+
+  // DATA pack 표시 — X/X_Pending/X_Trial 또는 storage critical/full
+  const showDataPack = mode === "x" || mode === "x_trial" || mode === "x_pending" || warnLevel === "critical" || warnLevel === "full";
 
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
@@ -531,6 +569,9 @@ export default function SubscriptionScreen() {
           )}
 
           {/* ════ B. SWIMNOTE 플랜 ══════════════════════════════════════════ */}
+          {/* X / X_Pending: X가 SWIMNOTE 포함 → 카드 숨김 / X_Trial: secondary link만 */}
+          {showSwimnoteCard && (
+          <>
           <View style={s.sectionHeader}>
             <View style={[s.sectionIcon, { backgroundColor: "#F0F4FF" }]}>
               <LucideIcon name="layers" size={18} color={NAVY} />
@@ -571,20 +612,20 @@ export default function SubscriptionScreen() {
               ))}
             </View>
             {/* WP4 전까지 실제 구매 연결 금지 — disabled CTA */}
-            {mode === "normal" && currentTier !== "swimnote" && (
-              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
-                <Text style={[s.cardActionText, { color: C.textMuted }]}>
-                  {currentTier === "swimnote" ? "현재 플랜" : "준비 중"}
-                </Text>
-              </View>
-            )}
-            {currentTier === "swimnote" && (
+            {currentTier === "swimnote" ? (
               <View style={[s.cardAction, { backgroundColor: C.backgroundSoft, borderColor: C.border }]}>
                 <LucideIcon name="check" size={14} color="#10B981" />
                 <Text style={[s.cardActionText, { color: "#10B981", marginLeft: 4 }]}>현재 플랜</Text>
               </View>
+            ) : (
+              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
+                <LucideIcon name="clock" size={13} color={C.textMuted} />
+                <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>구독 신청 준비 중</Text>
+              </View>
             )}
           </View>
+          </>
+          )}
 
           {/* ════ C. X 플랜 (X300/X500/X1000) ════════════════════════════════ */}
           <View style={[s.sectionHeader, { marginTop: 8 }]}>
@@ -630,18 +671,25 @@ export default function SubscriptionScreen() {
                   <MetaChip icon="hard-drive" label={plan.display_storage} />
                   <MetaChip icon="cpu"        label="X AI" />
                 </View>
-                {/* WP4 전까지 X 플랜 구매 UI → x-subscription으로 이동 */}
-                {!isCurrent && (mode === "normal" || mode === "x_trial") && (
+                {/* Plan CTA — mode별 분기 */}
+                {isCurrent ? (
+                  <View style={[s.cardAction, { backgroundColor: C.backgroundSoft, borderColor: C.border }]}>
+                    <LucideIcon name="check" size={14} color="#10B981" />
+                    <Text style={[s.cardActionText, { color: "#10B981", marginLeft: 4 }]}>현재 플랜</Text>
+                  </View>
+                ) : (mode === "x" || mode === "x_pending") ? (
+                  /* X Active / X Pending: 플랜 변경 (member limit guard 포함) */
                   <Pressable
                     style={({ pressed }) => [s.cardAction, { backgroundColor: X_LIGHT, borderColor: X_ACCENT + "40", opacity: pressed ? 0.8 : 1 }]}
-                    onPress={() => router.push("/(admin)/x-subscription" as any)}
+                    onPress={() => handleXPlanChange(plan)}
                   >
-                    <Text style={[s.cardActionText, { color: X_ACCENT }]}>구독 신청하기</Text>
+                    <Text style={[s.cardActionText, { color: X_ACCENT }]}>플랜 변경</Text>
                   </Pressable>
-                )}
-                {isCurrent && (
-                  <View style={[s.cardAction, { backgroundColor: C.backgroundSoft, borderColor: C.border }]}>
-                    <Text style={[s.cardActionText, { color: C.textMuted }]}>현재 플랜</Text>
+                ) : (
+                  /* Normal / X_Trial / Subscription_Required: 구독 신청 준비 중 */
+                  <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
+                    <LucideIcon name="clock" size={13} color={C.textMuted} />
+                    <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>구독 신청 준비 중</Text>
                   </View>
                 )}
               </View>
@@ -655,6 +703,41 @@ export default function SubscriptionScreen() {
               <Text style={s.enterpriseNoteText}>
                 회원 1,001명 이상은 별도 문의해 주세요.
               </Text>
+            </View>
+          )}
+
+          {/* ════ X → SWIMNOTE 다운그레이드 action (X Active 전용) ══════════ */}
+          {showXToSwimnoteDowngrade && (
+            <View style={s.xToSwimnoteCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <LucideIcon name="arrow-down-circle" size={16} color={C.textSecondary} />
+                <Text style={s.xToSwimnoteTitle}>SWIMNOTE 기본플랜으로 변경</Text>
+              </View>
+              <Text style={s.xToSwimnoteDesc}>
+                현재 결제기간 종료 후 SWIMNOTE(₩9,900/월)로 전환됩니다.{"\n"}
+                X 기능은 결제기간 종료일까지 유지됩니다.
+              </Text>
+              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB", marginTop: 6 }]}>
+                <LucideIcon name="clock" size={13} color={C.textMuted} />
+                <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>
+                  다음 결제일부터 SWIMNOTE로 변경 (준비 중)
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ════ X Trial → 일반 SWIMNOTE 이용하기 secondary link ══════════ */}
+          {showSwimnoteSecondaryLink && (
+            <View style={[s.xToSwimnoteCard, { backgroundColor: "#F9FAFB", borderColor: C.border }]}>
+              <Text style={[s.xToSwimnoteDesc, { textAlign: "center", marginBottom: 4 }]}>
+                X AI 기능 없이 기본 수영장 운영만 필요하신가요?
+              </Text>
+              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
+                <LucideIcon name="clock" size={13} color={C.textMuted} />
+                <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>
+                  일반 SWIMNOTE 이용하기 (준비 중)
+                </Text>
+              </View>
             </View>
           )}
 
@@ -981,6 +1064,11 @@ const s = StyleSheet.create({
   // Enterprise note
   enterpriseNote: { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, backgroundColor: Colors.light.backgroundSoft, borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
   enterpriseNoteText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.textSecondary },
+
+  // X → SWIMNOTE 다운그레이드 / X_Trial secondary link
+  xToSwimnoteCard: { backgroundColor: "#F0F4FF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#DBEAFE", gap: 2 },
+  xToSwimnoteTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: Colors.light.textSecondary },
+  xToSwimnoteDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.textMuted, lineHeight: 18 },
 
   // Storage
   storageCard: { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: Colors.light.border, gap: 0 },
