@@ -861,9 +861,9 @@ export async function initPoolDb(): Promise<void> {
     ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,    '50GB' ],
     // ── WP2A: 신규 2.0 플랜 (additive — legacy row 보존) ─────────────────
     ['swimnote',   'swimnote',    'SWIMNOTE',     9900,    999999, 10240,  10,  '10GB'  ],
-    ['x300',       'x300',        'SWIMNOTE X300', 119000, 300,   307200, 300,  '300GB' ],
-    ['x500',       'x500',        'SWIMNOTE X500', 189000, 500,   512000, 500,  '500GB' ],
-    ['x1000',      'x1000',       'SWIMNOTE X1000', 349000, 1000, 1024000, 1000, '1TB' ],
+    ['x300',       'x300',        'SWIMNOTE X300', 129000, 300,   307200, 300,  '300GB' ],  // Amendment A1: 119000 → 129000
+    ['x500',       'x500',        'SWIMNOTE X500', 199000, 500,   512000, 500,  '500GB' ],  // Amendment A1: 189000 → 199000
+    ['x1000',      'x1000',       'SWIMNOTE X1000', 359000, 1000, 1024000, 1000, '1TB' ],  // Amendment A1: 349000 → 359000
   ] as const;
 
   for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {

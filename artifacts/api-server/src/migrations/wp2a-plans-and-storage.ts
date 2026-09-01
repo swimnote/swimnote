@@ -32,9 +32,9 @@ export async function up(): Promise<void> {
   // ── 1. Insert new 2.0 subscription plans ──────────────────────────────
   const NEW_PLANS = [
     { tier: "swimnote", plan_id: "swimnote",  name: "SWIMNOTE",      price: 9900,   members: 999999, mb: 10240,   gb: 10,   display: "10GB"  },
-    { tier: "x300",     plan_id: "x300",      name: "SWIMNOTE X300", price: 119000, members: 300,    mb: 307200,  gb: 300,  display: "300GB" },
-    { tier: "x500",     plan_id: "x500",      name: "SWIMNOTE X500", price: 189000, members: 500,    mb: 512000,  gb: 500,  display: "500GB" },
-    { tier: "x1000",    plan_id: "x1000",     name: "SWIMNOTE X1000",price: 349000, members: 1000,   mb: 1024000, gb: 1000, display: "1TB"   },
+    { tier: "x300",     plan_id: "x300",      name: "SWIMNOTE X300", price: 129000, members: 300,    mb: 307200,  gb: 300,  display: "300GB" },  // Amendment A1: 119000 → 129000
+    { tier: "x500",     plan_id: "x500",      name: "SWIMNOTE X500", price: 199000, members: 500,    mb: 512000,  gb: 500,  display: "500GB" },  // Amendment A1: 189000 → 199000
+    { tier: "x1000",    plan_id: "x1000",     name: "SWIMNOTE X1000",price: 359000, members: 1000,   mb: 1024000, gb: 1000, display: "1TB"   },  // Amendment A1: 349000 → 359000
   ] as const;
 
   for (const p of NEW_PLANS) {
