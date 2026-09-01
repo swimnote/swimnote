@@ -1,0 +1,897 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# STUDENT DETAIL SECTION F
+# STUDENT-SCOPED DIARY + MEDIA BRIDGE
+# EXISTING SYSTEM EXTENSION ONLY
+# BEFORE WP-M5 student_links
+
+현재 상태:
+
+Student Detail 기본관리:
+PASS
+
+Weekly Count:
+PASS
+
+Class / Schedule Move:
+PASS
+
+Status:
+PASS
+
+Level:
+PASS
+
+Guardian:
+PASS
+
+Student Attendance Summary:
+PASS
+
+Section F:
+BLOCKED
+
+Latest HEAD:
+f76c09af
+
+이번 작업은 Student Detail Section F의:
+
+- 학생 개인 일지
+- 학생 개인 사진/영상
+
+연결을 정확히 끝내는 작업입니다.
+
+중요:
+
+새로운 일지 시스템
+새로운 미디어 시스템
+새로운 병렬 데이터 모델
+
+을 만들지 않습니다.
+
+기존 시스템에 이미 존재하는
+학생-ID 관계와 기존 API를 최대한 재사용하여
+Student Detail에서 정확한 "학생 개인 범위"로 연결합니다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+Student Detail에서:
+
+김다온
+→ 일지 보기
+
+이면:
+
+김다온이 연결된 일지만 표시.
+
+김다온
+→ 사진/영상 보기
+
+이면:
+
+김다온 개인 미디어만 표시.
+
+절대 금지:
+
+- 반 전체
+- 센터 전체
+- 선생님 전체
+- 현재 시간표 전체
+- 이름 문자열이 우연히 일치하는 데이터
+
+Student Detail의 SoT는:
+
+studentId
+
+입니다.
+
+==================================================
+1. 새 기능을 만들지 말 것
+==================================================
+
+이번 WP의 목적:
+
+"새로운 diary/media 기능 개발"
+
+이 아님.
+
+목적:
+
+"기존 diary/media 시스템에
+Student Detail에서 정확한 studentId context를 전달"
+
+하는 것.
+
+금지:
+
+새 diary table
+새 media table
+새 독립 diary API family
+새 독립 photo API family
+새 학생별 앨범 구조
+새 텍스트 기반 pseudo filtering
+
+==================================================
+2. MEDIA — 기존 백엔드 우선 재사용
+==================================================
+
+현재 확인:
+
+GET /photos/private/:studentId
+
+기존 backend endpoint 존재.
+
+따라서 media는
+새 backend를 만들 이유가 없습니다.
+
+기존 endpoint의:
+
+- permission
+- pool isolation
+- teacher access
+- returned media semantics
+
+를 그대로 사용.
+
+==================================================
+3. MEDIA APP SCREEN 최소 확장
+==================================================
+
+현재:
+
+app/(teacher)/photos.tsx
+
+가 studentId route param을 받지 않아
+Teacher 자신의 일반 private album context로 동작.
+
+이를 최소 additive하게 확장.
+
+예:
+
+/(teacher)/photos?studentId=<id>
+
+로 진입하면:
+
+GET /photos/private/:studentId
+
+를 사용하여
+해당 학생의 사진/영상만 표시.
+
+studentId가 없으면:
+
+기존 photos.tsx 동작 그대로.
+
+즉 backward compatibility:
+
+studentId 없음
+→ 기존 화면
+
+studentId 있음
+→ student-scoped mode
+
+==================================================
+4. MEDIA MODE에서 잘못된 범위 금지
+==================================================
+
+studentId가 있을 때:
+
+teacher private album 전체 로딩 후
+프론트에서 이름으로 걸러내는 방식 금지.
+
+반드시 기존 student-specific backend endpoint 사용.
+
+==================================================
+5. MEDIA UI
+==================================================
+
+Student Detail Section F:
+
+[사진/영상 보기]
+
+→ photos screen with studentId
+
+화면 Header 등에는 가능하면
+학생 이름 context를 명확히 표시.
+
+예:
+
+김다온 사진/영상
+
+단 기존 디자인 시스템 유지.
+
+새 전용 화면이 필요하지 않으면 만들지 말 것.
+
+==================================================
+6. MEDIA BACK
+==================================================
+
+Student Detail
+→ 개인 사진/영상
+→ Back
+
+Expected:
+Student Detail
+
+Home:
+NO
+
+반/사진 홈:
+NO
+
+==================================================
+7. DIARY — 먼저 실제 데이터 관계 조사
+==================================================
+
+현재 보고:
+
+/diaries/index
+→ student_name text 검색만 지원
+
+/diaries
+→ class_group_id + lesson_date 필터
+
+student_id query 없음.
+
+하지만 이것만 보고
+"학생 개인 일지 관계가 없다"고 가정하지 마십시오.
+
+먼저 실제 diary 저장 구조 조사.
+
+확인:
+
+- diary row와 student가 어떤 방식으로 연결되는지
+- diary_students / diary_student / student_diaries 같은 relation 존재 여부
+- JSON students field 존재 여부
+- diary entry별 student_id 존재 여부
+- parent feed에서 특정 자녀의 diary를 어떻게 조회하는지
+- teacher가 특정 학생의 과거 diary를 어떻게 식별하는지
+- WP-M1에서 recent_diaries가 student detail에 어떻게 반환되는지
+
+==================================================
+8. DIARY AUTHORITATIVE STUDENT RELATION 찾기
+==================================================
+
+반드시 ID 기반 관계가 있는지 확인.
+
+허용 가능한 예:
+
+- join table
+- student_id column
+- diary recipient relation
+- structured student references
+- 기존 student-specific query
+
+금지:
+
+student_name LIKE '%김다온%'
+
+이름 문자열 검색을
+개인 일지 필터로 사용하는 것.
+
+동명이인 때문에 절대 SoT가 될 수 없음.
+
+==================================================
+9. DIARY ID RELATION이 이미 존재하는 경우
+==================================================
+
+만약 기존 diary 데이터에서
+authoritative studentId 관계가 존재하면:
+
+새 시스템 만들지 않고
+기존 list endpoint를 additive하게 확장.
+
+예:
+
+GET /diaries/index?student_id=123
+
+또는
+현재 architecture에 가장 맞는 기존 endpoint.
+
+조건:
+
+기존 query param 없는 caller:
+동작 변경 없음
+
+student_id 있을 때만:
+정확한 학생 relation으로 필터
+
+==================================================
+10. DIARY ENDPOINT 확장 원칙
+==================================================
+
+기존 endpoint에 student_id optional filter를 추가할 경우:
+
+- additive only
+- 기존 response shape 유지
+- pool isolation 유지
+- role permission 유지
+- pagination 유지
+- sort 유지
+- 기존 search/filter 유지
+- 기존 caller 깨지지 않음
+
+==================================================
+11. DIARY 새 endpoint 생성 억제
+==================================================
+
+기존 endpoint에
+안전하게 optional student_id filter 추가 가능한데
+
+새:
+
+/students/:id/diaries-v2
+/student-private-diary
+/member-diary-new
+
+같은 별도 API 만들지 마십시오.
+
+기존 시스템을 확장.
+
+==================================================
+12. DIARY ID RELATION이 정말 없는 경우
+==================================================
+
+만약 실제 DB/서비스 전체를 조사했는데
+
+일지와 학생 사이에
+authoritative student ID 관계가 정말 없다면:
+
+절대 student_name search로 연결하지 마십시오.
+
+그 경우:
+
+DIARY:
+BLOCKED
+
+로 보고.
+
+왜 ID 기반 연결이 불가능한지
+정확한 구조 제출.
+
+새 DB migration은 이번 WP에서 금지.
+
+==================================================
+13. PARENT DIARY FLOW 참고
+==================================================
+
+학부모가 특정 자녀의 일지를 보는 기존 flow가 있다면
+반드시 조사.
+
+그 flow에 이미:
+
+studentId
+parent_student relation
+
+기반 필터가 있다면
+그 기존 backend logic을 재사용 가능성 검토.
+
+중복 구현 금지.
+
+==================================================
+14. STUDENT DETAIL SECTION F
+==================================================
+
+최종 목표:
+
+Section F — 일지 / 사진 / 영상
+
+--------------------------------
+
+최근 개인 일지
+또는 기존 가능한 summary
+
+[개인 일지 보기]
+
+최근 개인 미디어
+또는 기존 가능한 summary
+
+[개인 사진/영상 보기]
+
+--------------------------------
+
+단:
+
+정확한 student scope가 확보된 기능만 노출.
+
+==================================================
+15. PARTIAL AVAILABILITY RULE
+==================================================
+
+예:
+
+Media:
+정확한 student scope 완료
+
+Diary:
+ID relation 부재로 BLOCKED
+
+이면:
+
+사진/영상 버튼은 노출 가능.
+
+일지 버튼은
+잘못된 일반 화면으로 연결하지 말고 숨김 유지.
+
+"일단 전체 일지 화면이라도 열기"
+
+금지.
+
+==================================================
+16. STUDENT ID PARAM
+==================================================
+
+Student Detail에서 Section F shortcut 호출 시
+studentId를 명시적으로 전달.
+
+가능하면 student name은
+display only.
+
+Filtering SoT:
+
+studentId
+
+==================================================
+17. PERMISSION
+==================================================
+
+Teacher가 student media/diary를 보는 권한은
+기존 권한 그대로.
+
+다른 teacher 학생:
+기존 정책에 따라 차단
+
+다른 pool 학생:
+반드시 차단
+
+Admin:
+기존 권한 유지
+
+X 여부:
+무관
+
+==================================================
+18. SHARED CORE
+==================================================
+
+Diary / Media는
+비-AI 일반 회원관리 기능.
+
+따라서:
+
+SWIMNOTE:
+동일
+
+X:
+동일
+
+신규 mode gate:
+0
+
+==================================================
+19. MEMBER DETAIL DATA SCOPE AUDIT
+==================================================
+
+이번 기회에 Student Detail Section F뿐 아니라
+기존 individual shortcuts가 다음처럼 되어 있는지 최종 확인:
+
+Attendance:
+student scoped
+
+Makeup:
+student scoped or hidden
+
+Diary:
+student scoped or hidden
+
+Media:
+student scoped or hidden
+
+Class-wide fallback:
+0
+
+==================================================
+20. BACK
+==================================================
+
+Teacher Schedule
+→ Student Detail
+→ Personal Media
+→ Back
+→ Student Detail
+
+Teacher Schedule
+→ Student Detail
+→ Personal Diary
+→ Back
+→ Student Detail
+
+Student Detail
+→ Back
+→ Previous schedule/list
+
+Home escape:
+NO
+
+==================================================
+21. FILTER LABEL
+==================================================
+
+student-scoped 전문 화면에서는
+현재 어떤 학생을 보고 있는지 알 수 있어야 함.
+
+예:
+
+김다온 · 일지
+김다온 · 사진/영상
+
+단 별도 대형 UI 재설계 금지.
+
+==================================================
+22. 기존 SCREEN 재사용 우선
+==================================================
+
+가능하면:
+
+diary-index
+photos
+
+기존 전문 화면에
+optional studentId mode만 추가.
+
+복사한:
+
+student-diary-new.tsx
+student-photos-new.tsx
+
+같은 화면 생성은 최후수단이며
+기본적으로 금지.
+
+==================================================
+23. MEDIA TEST
+==================================================
+
+CASE A
+
+김다온 Student Detail
+→ 사진/영상
+
+Expected:
+김다온 media only
+
+CASE B
+
+다른 학생 media:
+0
+
+CASE C
+
+teacher 전체 private album:
+NO
+
+CASE D
+
+studentId 없는 기존 photos 진입:
+기존 동작 유지
+
+CASE E
+
+Back:
+Student Detail
+
+==================================================
+24. DIARY TEST
+==================================================
+
+CASE F
+
+authoritative studentId relation:
+FOUND / NOT FOUND
+
+CASE G
+
+FOUND인 경우:
+
+김다온 Student Detail
+→ 일지
+→ 김다온 diary only
+
+PASS
+
+CASE H
+
+동명이인 데이터:
+다른 studentId diary 섞이지 않음
+
+PASS
+
+CASE I
+
+student_name string filtering:
+USED / NOT USED
+
+Expected:
+NOT USED
+
+CASE J
+
+기존 diary caller:
+회귀 없음
+
+==================================================
+25. CROSS-POOL / ROLE TEST
+==================================================
+
+CASE K
+
+다른 pool student media:
+BLOCKED
+
+CASE L
+
+다른 pool student diary:
+BLOCKED
+
+CASE M
+
+권한 없는 teacher:
+기존 policy대로 차단
+
+==================================================
+26. REGRESSION
+==================================================
+
+현재 동일-command baseline:
+
+159 failures
+
+Expected:
+
+Current failures:
+159 또는 동일 known baseline
+
+New failures:
+0
+
+New TS errors:
+0
+
+==================================================
+27. 이번 WP에서 금지
+==================================================
+
+WP-M5 student_links 시작 금지
+
+새 Diary DB migration 금지
+새 Media DB migration 금지
+
+새 parallel diary system 금지
+새 parallel album system 금지
+
+student_name 기반 개인필터 금지
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+Delete/Restore:
+NO
+
+Production:
+NO
+
+OTA:
+NO
+
+==================================================
+28. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# STUDENT-SCOPED DIARY / MEDIA BRIDGE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## MEDIA EXISTING SYSTEM
+
+Existing backend:
+...
+
+Student endpoint:
+...
+
+App screen:
+...
+
+studentId param added:
+YES / NO
+
+New backend:
+YES / NO
+
+Expected:
+NO
+
+## MEDIA RESULT
+
+Student Detail -> Media:
+...
+
+Student only:
+PASS / FAIL
+
+Teacher-wide album leakage:
+YES / NO
+
+Expected:
+NO
+
+Back -> Student Detail:
+PASS / FAIL
+
+## DIARY DATA MODEL AUDIT
+
+Diary table(s):
+...
+
+Student relation:
+...
+
+Authoritative student ID relation:
+FOUND / NOT FOUND
+
+Relation mechanism:
+...
+
+Parent student diary flow:
+...
+
+Recent diary student-detail source:
+...
+
+## DIARY IMPLEMENTATION
+
+Existing endpoint extended:
+...
+
+Optional student_id filter:
+YES / NO / NOT POSSIBLE
+
+Existing response shape preserved:
+PASS / FAIL
+
+student_name filtering used:
+YES / NO
+
+Expected:
+NO
+
+New diary system:
+YES / NO
+
+Expected:
+NO
+
+## DIARY RESULT
+
+Student Detail -> Diary:
+PASS / BLOCKED
+
+Student only:
+PASS / BLOCKED
+
+Same-name isolation:
+PASS / BLOCKED
+
+Back -> Student Detail:
+PASS / BLOCKED
+
+If blocked, exact reason:
+...
+
+## SECTION F
+
+Diary:
+ACTIVE / HIDDEN-BLOCKED
+
+Media:
+ACTIVE / HIDDEN-BLOCKED
+
+Incorrect general/class shortcut:
+YES / NO
+
+Expected:
+NO
+
+## STUDENT SCOPE FINAL AUDIT
+
+Attendance:
+STUDENT / OTHER
+
+Makeup:
+STUDENT / HIDDEN / OTHER
+
+Diary:
+STUDENT / HIDDEN-BLOCKED / OTHER
+
+Media:
+STUDENT / HIDDEN-BLOCKED / OTHER
+
+Wrong class-wide fallback:
+...
+
+Expected:
+NONE
+
+## PERMISSION
+
+Cross-pool media:
+BLOCKED / FAIL
+
+Cross-pool diary:
+BLOCKED / FAIL
+
+Teacher permission preserved:
+PASS / FAIL
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gate:
+...
+
+Expected:
+0
+
+## REGRESSION
+
+Baseline:
+159
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## PRODUCTION
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STUDENT-SCOPED DIARY / MEDIA BRIDGE COMPLETE
+or
+PARTIAL COMPLETE — DIARY BLOCKED
+or
+BLOCKED

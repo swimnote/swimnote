@@ -773,10 +773,27 @@ export default function StudentDetailScreen() {
           {/* phone3/4: HIDDEN — teacher API 미지원 (의도적 제한) */}
         </MemberSectionCard>
 
-        {/* ── Section F: 개인 일지 / 사진 — PENDING (백엔드 student_id 필터 미지원) ── */}
-        {/* diary-index: student_id query param 없음 → 전체 일지로 이동 = WRONG SCOPE → 미노출 */}
-        {/* photos/private/:studentId: 앱 화면 params 미지원 → WRONG SCOPE → 미노출 */}
-        {/* WP-M5 이후 student-scoped diary/media route 구현 시 이 섹션 활성화 */}
+        {/* ── Section F: 개인 일지 / 사진 — student-scoped ── */}
+        {/* Diary: student_id filter via class_diary_student_notes (ID 기반 관계) */}
+        {/* Media: GET /photos/private/:studentId 기존 backend 재사용 */}
+        <MemberSectionCard title="일지 / 사진">
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: themeColor + "60", backgroundColor: themeColor + "0A" }}
+              onPress={() => router.push({ pathname: "/(teacher)/diary-index", params: { studentId: student.id, studentName: student.name, backTo: "student-detail" } } as any)}
+            >
+              <LucideIcon name="book-open" size={14} color={themeColor} />
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: themeColor }}>일지 보기</Text>
+            </Pressable>
+            <Pressable
+              style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft }}
+              onPress={() => router.push({ pathname: "/(teacher)/photos", params: { studentId: student.id, studentName: student.name } } as any)}
+            >
+              <LucideIcon name="image" size={14} color={C.textSecondary} />
+              <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>사진/영상</Text>
+            </Pressable>
+          </View>
+        </MemberSectionCard>
 
         {/* Section G: WP-M5 전까지 미노출 (공개 추가정보) */}
 

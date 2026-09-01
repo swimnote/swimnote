@@ -1,7 +1,7 @@
 /**
  * (teacher)/photos.tsx — 사진 & 영상 앨범
  */
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
@@ -117,6 +117,11 @@ const MEDIA_CONFIG: Record<`${MediaType}_${AlbumScope}`, {
 };
 // ─────────────────────────────────────────────────────────────────────────
 export default function TeacherPhotosScreen() {
+  // student-scoped mode: studentId + studentName from Student Detail
+  const { studentId: paramStudentId, studentName: paramStudentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
+  const studentScopeId   = paramStudentId   || null;
+  const studentScopeName = paramStudentName || null;
+
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
@@ -127,7 +132,8 @@ export default function TeacherPhotosScreen() {
   const [usage,    setUsage]    = useState<MediaUsage | null>(null);
   const [mediaType, setMediaType] = useState<MediaType>("photo");
   const [scope,     setScope]     = useState<AlbumScope>("group");
-  const [step,      setStep]      = useState<Step>("home");
+  // student-scoped mode: 홈 스킵, list로 바로 진입
+  const [step,      setStep]      = useState<Step>(studentScopeId ? "list" : "home");
   const [selGroup,  setSelGroup]  = useState<TeacherClassGroup | null>(null);
   const [selStudent,setSelStudent]= useState<Student | null>(null);
   // 리스트 상태
@@ -223,9 +229,13 @@ export default function TeacherPhotosScreen() {
     setListError(null);
     try {
       const isPhoto = mt === "photo";
-      const endpoint = isPhoto
-        ? `/photos/teacher-all?scope=${sc}`
-        : `/videos/teacher-all?scope=${sc}`;
+      // student-scoped mode: GET /photos/private/:studentId (기존 backend 재사용)
+      // video는 student-scoped private endpoint 없음 → teacher-all fallback
+      const endpoint = (studentScopeId && isPhoto)
+        ? `/photos/private/${studentScopeId}`
+        : isPhoto
+          ? `/photos/teacher-all?scope=${sc}`
+          : `/videos/teacher-all?scope=${sc}`;
       const res = await apiRequest(token, endpoint);
       const data = await safeJson(res);
       let raw: any[] = [];
@@ -248,6 +258,15 @@ export default function TeacherPhotosScreen() {
       if (mountedRef.current) setListLoading(false);
     }
   }, [token, mediaType, scope]);
+  // student-scoped mode: 초기 진입 시 list 자동 로드
+  useEffect(() => {
+    if (studentScopeId) {
+      loadList("photo", "private");
+    }
+    // studentScopeId는 route mount 시 한 번만 적용
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentScopeId]);
+
   // 업로드 완료 후 목록 자동 새로고침
   useEffect(() => {
     if (prevActiveRef.current && !uploadActive && step === "list") {
@@ -586,9 +605,9 @@ export default function TeacherPhotosScreen() {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader
-          title={`${cfg.title} ${cfg.sub}`}
+          title={studentScopeName ? `${studentScopeName} · 사진/영상` : `${cfg.title} ${cfg.sub}`}
           subtitle={listLoading ? "불러오는 중…" : `${safeItems.length}개`}
-          onBack={() => { exitSelect(); setStep("home"); }}
+          onBack={() => { exitSelect(); studentScopeId ? router.back() : setStep("home"); }}
           homePath="/(teacher)/today-schedule"
         />
         {selectMode ? (

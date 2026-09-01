@@ -8,7 +8,7 @@
  * - 항목 클릭 → diary.tsx 로 이동 (해당 반)
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { shareDiaryEntry } from "@/utils/diaryShare";
 import { ActivityIndicator, FlatList, Pressable,
@@ -52,6 +52,11 @@ export default function DiaryIndexScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  // student-scoped mode: studentId + studentName from Student Detail
+  const { studentId: paramStudentId, studentName: paramStudentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
+  const studentScopeId   = paramStudentId   || null;
+  const studentScopeName = paramStudentName || null;
+
   const [entries, setEntries]       = useState<DiaryIndexEntry[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,7 +73,12 @@ export default function DiaryIndexScreen() {
   const load = useCallback(async (sName = "", day: string | null = null, time: string | null = null) => {
     if (!token) return;
     const params = new URLSearchParams();
-    if (sName.trim()) params.set("student_name", sName.trim());
+    // student-scoped mode: student_id가 있으면 authoritative ID 필터 사용, name search 비활성
+    if (studentScopeId) {
+      params.set("student_id", studentScopeId);
+    } else if (sName.trim()) {
+      params.set("student_name", sName.trim());
+    }
     if (day) params.set("day", day);
     if (time) params.set("time", time);
     try {
@@ -77,7 +87,7 @@ export default function DiaryIndexScreen() {
         const d = await res.json();
         const list: DiaryIndexEntry[] = Array.isArray(d.entries) ? d.entries : [];
         setEntries(list);
-        if (!day && !sName && !time) {
+        if (!day && !sName && !time && !studentScopeId) {
           const times = Array.from(new Set(list.map(e => (e.schedule_time || "").slice(0, 5)).filter(Boolean))).sort();
           setAvailableTimes(times);
         }
@@ -88,7 +98,7 @@ export default function DiaryIndexScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, studentScopeId]);
   useEffect(() => { load(); }, [load]);
   /* ── 검색어 변경 시 디바운스 ── */
   const handleSearchChange = useCallback((text: string) => {
@@ -177,7 +187,11 @@ export default function DiaryIndexScreen() {
   const activeFilterCount = [activeDay, activeTime].filter(Boolean).length;
   return (
     <SafeAreaView style={di.safe} edges={[]}>
-      <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
+      <SubScreenHeader
+        title={studentScopeName ? `${studentScopeName} · 일지` : "수업 일지"}
+        subtitle={studentScopeName ? "개인 일지 이력" : "학생에게 노출된 전체 이력"}
+        homePath="/(teacher)/today-schedule"
+      />
       {/* 일지 작성 카드 — 미작성 수업 선택 sheet 오픈 */}
       <Pressable
         style={[di.writeCard, { backgroundColor: C.primaryAction }]}
