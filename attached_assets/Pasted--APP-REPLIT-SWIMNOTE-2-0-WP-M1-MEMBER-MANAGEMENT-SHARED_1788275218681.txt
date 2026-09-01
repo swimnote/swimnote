@@ -1,0 +1,597 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# WP-M1 MEMBER MANAGEMENT SHARED CORE FREEZE AUDIT
+# EXECUTE NOW
+
+현재 제출된 문서는
+MEMBER MANAGEMENT CONSOLIDATION AUDIT & PLAN이며
+아직 WP-M1 완료보고서가 아닙니다.
+
+이번 단계에서는
+이전 계획서를 기반으로 실제 WP-M1 Freeze Audit을 수행합니다.
+
+중요:
+
+이번 감사에는 반드시 아래 GLOBAL PRODUCT RULE을 포함하십시오.
+
+==================================================
+0. GLOBAL PRODUCT RULE — LOCKED
+==================================================
+
+AI/X 고유 기능이 아닌 일반 운영 기능은:
+
+SWIMNOTE 일반모드
++
+SWIMNOTE X모드
+
+모두 동일한 Shared Core를 사용해야 합니다.
+
+회원관리 역시 X 전용이 아닙니다.
+
+따라서:
+
+회원목록
+회원상세
+회원정보 수정
+보호자 연락처
+반정보
+레벨
+출결
+보강
+메모
+사진/영상
+학부모 공개 링크
+회원 상태관리
+
+등은 기본적으로
+
+SWIMNOTE + X 공통
+
+이어야 합니다.
+
+X 가입 여부 때문에
+별도 회원 상세 화면/API/컴포넌트를 복제하면 FAIL.
+
+X 전용으로 허용되는 것은:
+
+AI 성장리포트
+AI 커리큘럼
+AI 분석
+X setup/config
+기타 명확한 X entitlement 기능
+
+뿐입니다.
+
+==================================================
+1. 이번 WP는 AUDIT ONLY
+==================================================
+
+코드 수정 금지
+DB 수정 금지
+API 추가 금지
+UI 수정 금지
+migration 금지
+
+현재 실제 구조를 완전히 조사하여
+구현 전 동결 상태를 만드는 것이 목적입니다.
+
+==================================================
+2. ADMIN MEMBER DETAIL 감사
+==================================================
+
+실제:
+
+/(admin)/member-detail
+
+을 기준으로 전수 조사.
+
+확인:
+
+- 표시 정보
+- 수정 가능 정보
+- 상태 변경
+- 레벨
+- 반
+- 보호자
+- 메모
+- 출결/보강
+- 일지
+- 사진/영상
+- 삭제/복원
+- API caller
+
+각 항목이
+SWIMNOTE/X 공통인지 확인.
+
+==================================================
+3. TEACHER MEMBER DETAIL 감사
+==================================================
+
+/(teacher)/student-detail
+
+전수 조사.
+
+확인:
+
+- 담당 회원만 접근되는지
+- 표시 정보
+- 레벨 변경
+- 보호자 연락처
+- 메모
+- 출결
+- 보강
+- 일지
+- 사진/영상
+- 현재 API
+
+Admin과 중복되는 일반 기능은
+향후 Shared Component 후보로 표시.
+
+==================================================
+4. PARENT MEMBER VIEW 감사
+==================================================
+
+다음 관계 조사:
+
+/(parent)/children
+/(parent)/child-profile
+/(parent)/student-detail
+/(parent)/level
+/(parent)/program
+
+중복 정보와 route 정리 후보 제출.
+
+학부모 화면은
+관리자 화면을 그대로 공유하지 않고
+parent-visible data contract만 공통 사용.
+
+==================================================
+5. MODE DIFFERENCE 전수검색
+==================================================
+
+회원관리 관련 파일에서 다음 조건 전수검색:
+
+mode === "x"
+mode !== "x"
+xmode
+x_trial
+x_pending
+xmode_enabled
+xmode_status
+
+각 occurrence를 분류:
+
+A. 정상 X AI 기능
+B. 정상 X setup/config
+C. 일반 회원기능인데 잘못 X로 분기
+D. legacy/dead code
+
+C는 전부 보고.
+
+이번 WP에서는 수정 금지.
+
+==================================================
+6. SHARED CORE MATRIX 필수
+==================================================
+
+아래 표를 실제 코드 기준으로 작성:
+
+Feature | SWIMNOTE | X | Shared | X-only reason
+
+반드시 포함:
+
+회원 기본정보
+회원 기본정보 수정
+보호자 연락처
+메모
+반
+담당 선생님
+레벨
+출결
+보강
+일지
+사진
+영상
+학부모 공개 링크
+회원 상태
+퇴원
+복원
+삭제
+AI 성장리포트
+AI 커리큘럼
+
+==================================================
+7. parent_phone2~4 P0 감사
+==================================================
+
+기존 계획서에서 발견된:
+
+students.parent_phone2
+students.parent_phone3
+students.parent_phone4
+
+문제 실제 확인.
+
+조사:
+
+DB column 존재 여부
+Drizzle schema 존재 여부
+StudentDetail type 존재 여부
+API response 포함 여부
+Admin UI 표시 여부
+Teacher UI 표시 여부
+저장/PATCH 여부
+
+데이터가 존재하지만 UI/type에서 누락되면
+P0로 보고.
+
+수정 금지.
+
+==================================================
+8. DELETE ENDPOINT 실제 CALLER 감사
+==================================================
+
+다음 3개:
+
+/students/:id/purge
+/admin/students/:id/force-delete
+/admin/students/:id/permanent
+
+각각:
+
+정의 파일
+실제 caller
+현재 UI 버튼
+실제 의미
+soft/hard delete
+production 사용 가능성
+
+확인.
+
+"비슷해 보인다" 수준이 아니라
+실제 code caller 기준으로 확인.
+
+==================================================
+9. RESTORE ENDPOINT 감사
+==================================================
+
+/admin/students/:id/restore
+/admin/students/:id/restore-archive
+
+각각:
+
+caller
+대상 status
+차이
+중복 여부
+
+확인.
+
+==================================================
+10. LEGACY TABLE 감사
+==================================================
+
+현재 존재하는:
+
+students
+members
+classes
+class_members
+class_groups
+
+각 table이 실제 어디서 사용되는지 조사.
+
+특히:
+
+members가 정말 legacy-only인지
+아직 production path에서 사용되는지
+
+확인.
+
+삭제/통합 제안은 가능하지만
+이번 WP에서 변경 금지.
+
+==================================================
+11. LEVEL SoT 감사
+==================================================
+
+기존 계획서에서:
+
+class_groups.level
+students.current_level_order
+
+두 값이 동시에 관련되어 있음.
+
+실제:
+
+레벨 표시
+레벨 변경
+테스트 결과
+teacher update
+parent display
+
+에서 어떤 값을 쓰는지 추적.
+
+SoT를 명확히 보고.
+
+==================================================
+12. STUDENT LINKS 준비성 감사
+==================================================
+
+현재 student_links table 없음.
+
+향후:
+
+website
+youtube
+video
+document
+curriculum
+notice
+custom
+
+을 지원할 계획.
+
+이번 WP에서는 생성 금지.
+
+다만:
+
+Admin/Teacher/Parent 어느 section에 붙일지
+SWIMNOTE/X 공통인지
+
+확인.
+
+Expected:
+
+SWIMNOTE:
+YES
+
+X:
+YES
+
+AI 기능 아님.
+
+==================================================
+13. DUPLICATE UI / ROUTE 재검증
+==================================================
+
+기존 계획서에서 발견된 중복을
+실제 코드 기준으로 다시 검증:
+
+- admin member-detail
+- teacher student-detail
+- parent student-detail
+- parent child-profile
+- parent level
+- withdrawn-members
+- parents-list
+- class-management
+
+실제 중복인지
+의도적 전문화인지 분류.
+
+==================================================
+14. OFFICE PC 관점 감사
+==================================================
+
+향후 SWIMNOTE Office가 사용할 수 있도록:
+
+Mobile SWIMNOTE
+Mobile X
+Office SWIMNOTE
+Office X
+
+모두 같은 회원 Data Contract를 쓸 수 있는지 평가.
+
+특히 비즈니스 로직이
+mobile UI에 박혀 있는 부분 보고.
+
+==================================================
+15. 구현 순서 재검증
+==================================================
+
+기존 계획:
+
+WP-M1 Freeze Audit
+WP-M2 Data Contract
+WP-M3 Admin Detail
+WP-M4 Teacher Detail
+WP-M5 student_links
+WP-M6 Duplicate Cleanup
+WP-M7 Parent View
+WP-M8 Office API
+
+이 순서가 실제 감사 결과에도 안전한지 확인.
+
+필요하면 순서 조정 제안.
+
+단 구현 금지.
+
+==================================================
+16. 기존 작업 보호
+==================================================
+
+수정 금지:
+
+Pricing
+Subscription
+RevenueCat
+App Store
+X Trial
+X state
+DATA Pack
+Video
+Back/Keyboard/Scroll
+1.6.3
+Production
+
+==================================================
+17. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0
+# WP-M1 MEMBER MANAGEMENT FREEZE AUDIT REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## SHARED CORE RULE
+
+Non-AI member features shared by SWIMNOTE/X:
+PASS / FAIL
+
+## MODE DIFFERENCE AUDIT
+
+Total mode checks:
+...
+
+A valid X AI:
+...
+
+B valid X setup:
+...
+
+C invalid common-feature gate:
+...
+
+D legacy/dead:
+...
+
+## SHARED CORE MATRIX
+
+Feature | SWIMNOTE | X | Shared | Notes
+
+...
+
+## ADMIN MEMBER DETAIL
+
+...
+
+## TEACHER MEMBER DETAIL
+
+...
+
+## PARENT MEMBER VIEW
+
+...
+
+## parent_phone2~4
+
+DB:
+...
+
+Schema:
+...
+
+Type:
+...
+
+API:
+...
+
+Admin UI:
+...
+
+Teacher UI:
+...
+
+Risk:
+...
+
+## DELETE ENDPOINTS
+
+/students/:id/purge
+Caller:
+...
+Behavior:
+...
+
+/admin/students/:id/force-delete
+Caller:
+...
+Behavior:
+...
+
+/admin/students/:id/permanent
+Caller:
+...
+Behavior:
+...
+
+Recommended canonical path:
+...
+
+## RESTORE ENDPOINTS
+
+...
+
+## LEGACY TABLES
+
+students:
+...
+
+members:
+...
+
+classes:
+...
+
+class_members:
+...
+
+class_groups:
+...
+
+Production usage:
+...
+
+## LEVEL SoT
+
+...
+
+## DUPLICATE UI
+
+...
+
+## STUDENT LINKS
+
+SWIMNOTE:
+YES / NO
+
+X:
+YES / NO
+
+Shared Core:
+YES / NO
+
+## OFFICE PC READINESS
+
+...
+
+## P0 BLOCKERS
+
+...
+
+## P1 RISKS
+
+...
+
+## WP SEQUENCE VALIDATION
+
+WP-M2:
+SAFE / BLOCKED
+
+Recommended sequence:
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## FINAL
+
+WP-M1 FREEZE AUDIT COMPLETE
+or
+BLOCKED
