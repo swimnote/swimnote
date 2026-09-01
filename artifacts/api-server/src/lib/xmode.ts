@@ -30,7 +30,8 @@ export type XModeStatus =
 export type PoolMode =
   | "normal"
   | "x_pending"
-  | "x";
+  | "x"
+  | "x_trial";   // WP2B additive: 3일 무료체험 활성 상태
 
 export interface PoolModeResult {
   pool_id: string;
@@ -38,6 +39,11 @@ export interface PoolModeResult {
   /** effective entitlement = (paid OR manual) AND NOT force_disabled. backward compat 필드명 유지. */
   xmode_entitlement: boolean;
   xmode_config_status: XModeStatus;
+  /** WP2B additive: trial 관련 필드 (기존 소비처 미변경) */
+  x_trial_active: boolean;
+  x_trial_started_at: string | null;
+  x_trial_ends_at: string | null;
+  x_trial_used: boolean;
 }
 
 // ── effective entitlement 계산 (단일 source of truth) ─────────────────────
@@ -55,22 +61,36 @@ export function resolveEffectiveXEntitlement(pool: {
 
 // ── 판정 함수 (순수, DB 없음) ─────────────────────────────────────────────
 //
-// P0 정책 (2026-08-16):
-//   x_force_disabled      → normal  (force override 최우선)
-//   x_paid_entitlement    → x       (설정 완료 여부 무관 — 결제 자체가 X 활성 조건)
-//   x_manual_entitlement  → config READY이면 x, 아니면 x_pending
-//   otherwise             → normal
+// 우선순위 (WP2B additive):
+//   1. x_force_disabled      → normal  (force override 최우선)
+//   2. x_paid_entitlement    → x       (설정 완료 여부 무관 — 결제 자체가 X 활성 조건)
+//   3. x_manual_entitlement  → config READY이면 x, 아니면 x_pending
+//   4. x_trial active        → x_trial (lazy expiration: ends_at > NOW() 판정)
+//   5. otherwise             → normal
+//
+// Trial lazy expiration: background worker 불필요.
+// x_trial_ends_at <= NOW() 이면 Trial 비활성 — 다음 API 요청에서 즉시 normal 반환.
 //
 export function computeMode(pool: {
   x_paid_entitlement: boolean;
   x_manual_entitlement: boolean;
   x_force_disabled: boolean;
   xmode_config_status: XModeStatus;
+  // WP2B additive — optional for backward compat with existing callers
+  x_trial_started_at?: string | Date | null;
+  x_trial_ends_at?: string | Date | null;
 }): PoolMode {
   if (pool.x_force_disabled) return "normal";
   if (pool.x_paid_entitlement) return "x";
   if (pool.x_manual_entitlement) {
     return pool.xmode_config_status === "READY" ? "x" : "x_pending";
+  }
+  // X Trial: lazy expiration — ends_at > NOW() 조건만 확인
+  if (pool.x_trial_started_at && pool.x_trial_ends_at) {
+    const endsAt = pool.x_trial_ends_at instanceof Date
+      ? pool.x_trial_ends_at
+      : new Date(pool.x_trial_ends_at);
+    if (endsAt > new Date()) return "x_trial";
   }
   return "normal";
 }
@@ -88,11 +108,15 @@ export function computeMode(pool: {
 export async function resolvePoolMode(
   poolId: string,
 ): Promise<PoolModeResult | null> {
+  // WP2B: x_trial_* 컬럼 추가 SELECT (column이 없는 구 DB에서는 NULL 반환 — 안전)
   const result = await superAdminDb.execute(sql`
     SELECT id, xmode_config_status,
            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
            COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
-           COALESCE(x_force_disabled,    false) AS x_force_disabled
+           COALESCE(x_force_disabled,    false) AS x_force_disabled,
+           x_trial_started_at,
+           x_trial_ends_at,
+           x_trial_used_at
     FROM swimming_pools
     WHERE id = ${poolId}
     LIMIT 1
@@ -107,6 +131,15 @@ export async function resolvePoolMode(
   });
   const configStatus = row.xmode_config_status as XModeStatus;
 
+  // WP2B: trial active 계산 (lazy expiration)
+  const trialEndsAt: string | null = row.x_trial_ends_at
+    ? new Date(row.x_trial_ends_at).toISOString() : null;
+  const trialStartedAt: string | null = row.x_trial_started_at
+    ? new Date(row.x_trial_started_at).toISOString() : null;
+  const trialUsedAt: string | null = row.x_trial_used_at
+    ? new Date(row.x_trial_used_at).toISOString() : null;
+  const trialActive = !!(trialStartedAt && trialEndsAt && new Date(trialEndsAt) > new Date());
+
   return {
     pool_id: row.id,
     mode: computeMode({
@@ -114,8 +147,15 @@ export async function resolvePoolMode(
       x_manual_entitlement: Boolean(row.x_manual_entitlement),
       x_force_disabled:     Boolean(row.x_force_disabled),
       xmode_config_status:  configStatus,
+      x_trial_started_at:   trialStartedAt,
+      x_trial_ends_at:      trialEndsAt,
     }),
     xmode_entitlement: entitlement,   // backward compat: effective 값 반환
     xmode_config_status: configStatus,
+    // WP2B additive trial fields
+    x_trial_active:     trialActive,
+    x_trial_started_at: trialStartedAt,
+    x_trial_ends_at:    trialEndsAt,
+    x_trial_used:       trialUsedAt !== null,
   };
 }

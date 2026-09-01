@@ -32,13 +32,18 @@ export type XModeStatus =
   | "CURRICULUM_PENDING"
   | "READY";
 
-export type PoolMode = "normal" | "x_pending" | "x";
+export type PoolMode = "normal" | "x_pending" | "x" | "x_trial"; // WP2B: x_trial additive
 
 export interface PoolModeResult {
   pool_id: string;
   mode: PoolMode;
   xmode_entitlement: boolean;
   xmode_config_status: XModeStatus;
+  // WP2B additive trial fields
+  x_trial_active?: boolean;
+  x_trial_started_at?: string | null;
+  x_trial_ends_at?: string | null;
+  x_trial_used?: boolean;
 }
 
 export type ModeLoadState = "idle" | "loading" | "ready" | "error";
@@ -61,6 +66,10 @@ export interface ModeContextValue {
    * cold start 시 Normal 화면 flash 방지용 — true 이전에는 skeleton/loading 처리 권장.
    */
   modeInitialized: boolean;
+  // WP2B additive — trial fields (서버 응답 기준, 클라이언트 local clock 단독 판정 금지)
+  x_trial_active: boolean;
+  x_trial_ends_at: string | null;
+  x_trial_used: boolean;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -72,6 +81,9 @@ const DEFAULT_VALUE: ModeContextValue = {
   error: null,
   refreshMode: async () => {},
   modeInitialized: false,
+  x_trial_active: false,
+  x_trial_ends_at: null,
+  x_trial_used: false,
 };
 
 const ModeContext = createContext<ModeContextValue>(DEFAULT_VALUE);
@@ -289,6 +301,10 @@ export function ModeProvider({ children }: { children: ReactNode }) {
     error: state.error,
     refreshMode,
     modeInitialized,
+    // WP2B additive trial fields (서버 응답 기준)
+    x_trial_active:   state.result?.x_trial_active  ?? false,
+    x_trial_ends_at:  state.result?.x_trial_ends_at ?? null,
+    x_trial_used:     state.result?.x_trial_used    ?? false,
   };
 
   return (

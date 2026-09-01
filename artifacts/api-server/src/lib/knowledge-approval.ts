@@ -178,7 +178,7 @@ export function validateApprovalChecklist(candidate: CandidateRow): ChecklistRes
   });
 
   // MODE: affected_modes 유효성 (null = all modes)
-  const VALID_MODES = ["normal", "x", "x_pending"];
+  const VALID_MODES = ["normal", "x", "x_pending", "x_trial"];
   const modes = candidate.affected_modes;
   const modesValid = !modes || modes.length === 0 || modes.every(m => VALID_MODES.includes(m));
   items.push({

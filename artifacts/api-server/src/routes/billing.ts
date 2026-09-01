@@ -603,6 +603,106 @@ router.post("/x-reserve-slot", requireAuth, requireRole("pool_admin"), async (re
   }
 });
 
+// ── POST /billing/x-trial-activate — X 3일 무료체험 활성화 (pool_admin 전용) ──────
+//
+// WP2B 정책:
+//   - 센터당 최초 1회 (x_trial_used_at IS NULL)
+//   - 자동 유료전환 없음 / 결제수단 등록 불필요 / slot 소비 없음
+//   - x_manual_entitlement 오염 금지 — x_trial_* 컬럼만 변경
+//   - 유료/수동 X 권한 보유 센터 거부
+//   - xmode_purchased_at IS NOT NULL → 과거 X 구매 이력 → 거부
+//   - 원자성: 조건 WHERE로 race condition 차단 (동시 2요청 중 1만 성공)
+//
+router.post("/x-trial-activate", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "FORBIDDEN", message: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // 현재 pool 상태 조회 (조건 판별용)
+    const [pool] = (await db.execute(sql`
+      SELECT
+        COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+        COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+        COALESCE(x_force_disabled,    false) AS x_force_disabled,
+        xmode_purchased_at,
+        x_trial_used_at,
+        x_trial_ends_at
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
+    if (!pool) {
+      res.status(404).json({ error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+
+    // ── 사전 조건 검사 (명확한 error code 반환) ──────────────────────────
+    if (Boolean(pool.x_force_disabled)) {
+      res.status(403).json({ error: "TRIAL_FORCE_DISABLED", message: "운영 차단 상태에서는 체험을 시작할 수 없습니다." });
+      return;
+    }
+    if (Boolean(pool.x_paid_entitlement)) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PAID_X", message: "이미 X 구독을 이용 중입니다." });
+      return;
+    }
+    if (Boolean(pool.x_manual_entitlement)) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PAID_X", message: "이미 X 수동 권한이 활성화되어 있습니다." });
+      return;
+    }
+    if (pool.xmode_purchased_at) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PREVIOUS_X_BUYER", message: "이전 X 구독 이력이 있는 센터는 체험을 이용할 수 없습니다." });
+      return;
+    }
+    if (pool.x_trial_used_at) {
+      // already used — but check if currently active (중복 기간 연장 거부)
+      const endsAt = pool.x_trial_ends_at ? new Date(pool.x_trial_ends_at) : null;
+      if (endsAt && endsAt > new Date()) {
+        res.status(409).json({ error: "TRIAL_ALREADY_ACTIVE", message: "이미 체험이 진행 중입니다." });
+        return;
+      }
+      res.status(409).json({ error: "TRIAL_ALREADY_USED", message: "X 체험은 센터당 1회만 이용 가능합니다." });
+      return;
+    }
+
+    // ── 원자적 활성화: WHERE x_trial_used_at IS NULL 조건으로 race condition 차단 ──
+    // 동시 요청이 2개 와도 WHERE 조건상 1개만 UPDATE 성공 (row lock 없이 conditional write)
+    const activateResult = await db.execute(sql`
+      UPDATE swimming_pools
+      SET
+        x_trial_started_at = NOW(),
+        x_trial_ends_at    = NOW() + INTERVAL '72 hours',
+        x_trial_used_at    = NOW()
+      WHERE id = ${poolId}
+        AND x_trial_used_at IS NULL
+        AND NOT COALESCE(x_paid_entitlement,  false)
+        AND NOT COALESCE(x_manual_entitlement, false)
+        AND NOT COALESCE(x_force_disabled,    false)
+      RETURNING x_trial_started_at, x_trial_ends_at, x_trial_used_at
+    `);
+
+    if (!activateResult.rows.length) {
+      // 조건 위반 — 동시 요청으로 인한 race condition 또는 상태 변경
+      res.status(409).json({ error: "TRIAL_ALREADY_USED", message: "X 체험은 센터당 1회만 이용 가능합니다." });
+      return;
+    }
+
+    const activated = activateResult.rows[0] as any;
+    res.status(201).json({
+      ok: true,
+      x_trial_active: true,
+      x_trial_started_at: new Date(activated.x_trial_started_at).toISOString(),
+      x_trial_ends_at:    new Date(activated.x_trial_ends_at).toISOString(),
+      x_trial_used_at:    new Date(activated.x_trial_used_at).toISOString(),
+    });
+  } catch (err: any) {
+    console.error("[x-trial-activate]", err);
+    res.status(500).json({ error: err?.message ?? "체험 활성화 오류" });
+  }
+});
+
 // ── POST /billing/sync-x-subscription — RC 구매 후 서버 검증·동기화 (pool_admin 전용) ─
 // X02-C §11~19: server-side RC 검증 + slot binding + paid entitlement 동기화
 // billingEnabled 체크 없음 — Store 결제 흐름

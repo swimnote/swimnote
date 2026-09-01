@@ -61,10 +61,11 @@ function _getRoleHome(kind: string | null, role?: string): string {
 
 // ── Lock UI 타입 ────────────────────────────────────────────────────────────
 type LockReason =
-  | "no_entitlement"     // xmode_entitlement=false
-  | "not_configured"     // entitlement 있음, xmode_config_status=NOT_CONFIGURED
-  | "curriculum_pending" // entitlement 있음, xmode_config_status=CURRICULUM_PENDING
-  | "api_error";         // status="error" — fail-safe
+  | "no_entitlement"       // xmode_entitlement=false
+  | "not_configured"       // entitlement 있음, xmode_config_status=NOT_CONFIGURED
+  | "curriculum_pending"   // entitlement 있음, xmode_config_status=CURRICULUM_PENDING
+  | "trial_setup_blocked"  // WP2B: x_trial 활성이지만 setup 전용 화면 접근 차단
+  | "api_error";           // status="error" — fail-safe
 
 // ── Lock UI 컴포넌트 ────────────────────────────────────────────────────────
 interface XModeLockUIProps {
@@ -167,6 +168,18 @@ function XModeLockUI({ reason, isPoolAdmin, errorCode, onRetry, onBack }: XModeL
           note: null,
         };
 
+      case "trial_setup_blocked":
+        // WP2B: x_trial 활성 중이지만 센터 맞춤 setup 기능은 정식 이용 후 허용
+        return {
+          icon: "lock",
+          iconColor: X_ACCENT,
+          iconBg: X_ACCENT_LIGHT,
+          title: "X 정식 이용 후 설정 가능해요",
+          desc: "체험 기간 중에는 즉시 사용 가능한 AI 기능을 경험해 보세요.\n센터 맞춤 설정은 X 정식 구독 후 이용할 수 있어요.",
+          primaryBtn: null,
+          note: "X 체험 종료 후 구독을 시작하면 모든 기능을 사용할 수 있어요.",
+        };
+
       case "api_error":
         return {
           icon: "alert-circle",
@@ -199,10 +212,17 @@ interface XModeGuardProps {
    * 미지정 시 role 검사 생략.
    */
   allowedRole?: string | string[];
+  /**
+   * WP2B: x_trial 모드에서 이 화면을 허용할지 여부.
+   * - true  → x_trial 활성 시 children 렌더 (즉시 사용 AI 기능 등)
+   * - false (default) → x_trial 활성 시 "trial_setup_blocked" Lock UI 표시
+   *   (센터 맞춤 setup 전용 화면 — 정식 구독 후 이용 안내)
+   */
+  trialAllowed?: boolean;
 }
 
 // ── Guard 본체 ───────────────────────────────────────────────────────────────
-export function XModeGuard({ children, allowedKind, allowedRole }: XModeGuardProps) {
+export function XModeGuard({ children, allowedKind, allowedRole, trialAllowed = false }: XModeGuardProps) {
   const { mode, xmode_entitlement, xmode_config_status, status, error, refreshMode } = useMode();
   const { kind, adminUser, isLoading } = useAuth();
 
@@ -270,6 +290,24 @@ export function XModeGuard({ children, allowedKind, allowedRole }: XModeGuardPro
   // ─── Step 5: mode === "x" → children ────────────────────────────────────
   if (mode === "x") {
     return <>{children}</>;
+  }
+
+  // ─── WP2B Step: mode === "x_trial" → trialAllowed 여부로 분기 ───────────
+  if (mode === "x_trial") {
+    if (trialAllowed) {
+      // 즉시 사용 가능한 AI 기능 — Trial에서 허용
+      return <>{children}</>;
+    }
+    // 센터 맞춤 setup 전용 화면 — Trial에서 차단 (정식 구독 후 이용 안내)
+    return (
+      <XModeLockUI
+        reason="trial_setup_blocked"
+        isPoolAdmin={isPoolAdmin}
+        errorCode={null}
+        onRetry={refreshMode}
+        onBack={() => router.back()}
+      />
+    );
   }
 
   // ─── Step 7 & 8: mode !== "x" → 상태별 Lock UI ──────────────────────────
