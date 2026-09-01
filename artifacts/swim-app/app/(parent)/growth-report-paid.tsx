@@ -397,11 +397,17 @@ export default function InsightReportHub() {
       .finally(() => setReadinessLoading(false));
   }, [token, targetStudentId]);
 
-  // readiness: lesson_data from real API, rest from FIXTURE until PHASE 2/3
+  // readiness: lesson_data + birthDate from real data; height/weight remain fixture (no data source)
+  const student = students.find(s => s.id === targetStudentId) ?? selectedStudent;
   const readiness: InsightReadiness = {
     ...FIXTURE_READINESS,
     lessonDataReady,
     lessonDataCount,
+    basicInfo: {
+      birthDate: !!(student?.birth_date),
+      height:    false,   // 별도 수집 시스템 없음 — 결제 Stage 연결 지점
+      weight:    false,   // 별도 수집 시스템 없음 — 결제 Stage 연결 지점
+    },
   };
   const reports = FIXTURE_REPORTS;
 

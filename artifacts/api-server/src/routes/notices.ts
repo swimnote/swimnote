@@ -317,7 +317,7 @@ router.patch("/:id", requireAuth, requireRole("super_admin", "pool_admin"), asyn
 // ── POST /notices/ai-write — AI 공지 작성 보조 ────────────────────────────────
 // 관리자 메모 또는 현재 초안을 받아 제목+본문 제안 반환.
 // 관리자가 "적용" 확인 후 직접 게시 — AI 자동 발행 금지.
-router.post("/ai-write", requireAuth, requireRole(["pool_admin", "sub_admin"]), async (req: AuthRequest, res) => {
+router.post("/ai-write", requireAuth, requireRole("pool_admin", "sub_admin"), async (req: AuthRequest, res) => {
   const { memo, currentTitle, currentContent } = req.body as {
     memo?: string; currentTitle?: string; currentContent?: string;
   };
@@ -337,17 +337,20 @@ router.post("/ai-write", requireAuth, requireRole(["pool_admin", "sub_admin"]), 
 
   try {
     const { callGateway } = await import("../lib/runtime/ai-gateway.js");
+    const reqId = `notice_ai_${Date.now()}_${req.user!.userId.slice(-6)}`;
     const result = await callGateway({
-      model: "gpt-4o-mini",
+      request_id:    reqId,
+      feature:       "notice_ai_write",
+      model:         "gpt-4o-mini",
       system_prompt:
         "당신은 수영장 관리자를 위한 공지 작성 보조 도우미입니다.\n" +
         "관리자가 제공한 메모나 초안을 바탕으로 자연스럽고 명확한 공지 제목과 본문을 작성하세요.\n" +
         "규칙: 제목은 15자 이내, 본문은 학부모가 이해하기 쉬운 경어체, 필요 정보 포함.\n" +
         '반드시 JSON으로만 응답: {"title": "...", "content": "..."}',
-      user_prompt: parts.join("\n"),
+      user_prompt:   parts.join("\n"),
       response_format: { type: "json_object" },
-      max_tokens: 600,
-      timeout_ms: 15000,
+      max_tokens:    600,
+      timeout_ms:    15000,
     });
 
     const parsed = result.content as { title?: string; content?: string };
