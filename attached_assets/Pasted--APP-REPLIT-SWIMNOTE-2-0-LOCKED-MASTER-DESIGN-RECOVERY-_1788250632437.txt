@@ -1,0 +1,647 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# RECOVERY STEP — WP2A CORRECTION REPORT REQUIRED BEFORE WP2B/WP3 ACCEPTANCE
+
+현재 WP3 관련 UI 코드가 일부 먼저 작성된 상태지만,
+정식 승인 순서는 반드시 복구합니다.
+
+중요:
+
+- 지금부터 새로운 범위 구현 금지
+- WP3 추가 작업 금지
+- WP2B 신규 구현 금지
+- 먼저 직전 지시였던 WP2A CORRECTION을 완료/검증
+- 그 완료보고가 승인된 뒤에만 WP2B 진행
+- 현재 이미 작성된 WP3 코드는 삭제하지 말고 HOLD 상태 유지
+- 임의 리팩터/재설계 금지
+
+이번 작업의 목적은 오직:
+
+1. WP2A CORRECTION 실제 반영 여부 확인
+2. `videoStorageLimitMb` 1TB 고정 문제 해결
+3. storage contract 정합성 검증
+4. production rollout lock 확인
+
+입니다.
+
+==================================================
+1. 현재 작업 순서 복구
+==================================================
+
+정상 순서:
+
+WP2A
+→ 완료
+
+WP2A CORRECTION
+→ 지금 반드시 완료/검증
+
+그 다음:
+WP2B
+
+그 다음:
+WP3
+
+현재 WP3 일부 코드가 이미 작성됐더라도
+승인 상태가 아닙니다.
+
+현재 WP3 코드:
+HOLD
+
+추가 수정:
+금지
+
+==================================================
+2. 핵심 보정 대상
+==================================================
+
+WP2A 완료보고에서 다음 내용이 확인되었습니다.
+
+`subscriptionResolver.ts`
+
+- videoEnabled = true
+- videoStorageLimitMb = 1024 * 1024
+- 전 플랜 1TB
+
+하지만 LOCKED MASTER DESIGN은:
+
+SWIMNOTE
+10GB
+
+X300
+300GB
+
+X500
+500GB
+
+X1000
+1000GB
+
+DATA PACK
+base + extra
+
+그리고:
+
+사진 + 영상 = 동일 unified storage quota
+
+입니다.
+
+영상 전용 1TB quota 정책은 존재하지 않습니다.
+
+==================================================
+3. videoStorageLimitMb 전수 감사
+==================================================
+
+repository 전체에서 아래를 검색하십시오.
+
+- videoStorageLimitMb
+- video_storage_limit
+- video limit 관련 동일 의미 field
+- server response
+- app consumer
+- legacy consumer
+
+반드시 확인:
+
+1.
+field 정의 위치
+
+2.
+값 생성 위치
+
+3.
+API response 위치
+
+4.
+APP에서 읽는 위치
+
+5.
+1.6.3에서 읽는지
+
+6.
+UI 표시용인지
+
+7.
+실제 upload permission에 쓰는지
+
+8.
+실제 quota check에 쓰는지
+
+9.
+dead field인지
+
+10.
+legacy compatibility 때문에 유지해야 하는지
+
+추측 금지.
+
+==================================================
+4. 최종 storage contract
+==================================================
+
+LOCKED:
+
+effective_storage_gb
+=
+base_plan_storage_gb
++
+swimming_pools.extra_storage_gb
+
+used_storage_bytes
+=
+active photo bytes
++
+active video bytes
+
+영상은 별도 storage pool을 가지지 않습니다.
+
+따라서 `videoStorageLimitMb`가 반드시 존재해야 한다면:
+
+실제 effective storage quota와 일치하는 파생값이어야 합니다.
+
+예:
+
+SWIMNOTE
+10GB
+→ 10240MB
+
+X300
+300GB
+→ 307200MB
+
+X500
+500GB
+→ 512000MB
+
+X1000
+1000GB
+→ 1024000MB
+
+SWIMNOTE + DATA100
+110GB
+→ 112640MB
+
+단 실제 legacy field 의미가 위와 다르다면
+consumer 근거를 먼저 제출하고
+LOCKED DESIGN과 모순되지 않도록 최소 수정하십시오.
+
+==================================================
+5. 절대 금지
+==================================================
+
+다음 금지:
+
+- 모든 플랜 videoStorageLimitMb = 1TB
+- 영상 전용 별도 quota
+- 사진/영상 분리 quota
+- SWIMNOTE 10GB 변경
+- X300 300GB 변경
+- X500 500GB 변경
+- X1000 1TB 변경
+- DATA pack 구조 변경
+- unified quota 변경
+- legacy field 삭제
+- 1.6.3 breaking change
+
+==================================================
+6. unified quota 우회 가능성 확인
+==================================================
+
+반드시 아래를 실제 코드 기준으로 검증하십시오.
+
+CASE A
+
+SWIMNOTE
+base 10GB
+extra 0
+
+photo 7GB
+video 3GB
+
+Expected:
+used = 10GB
+100%
+photo upload blocked
+video upload blocked
+
+CASE B
+
+SWIMNOTE
+base 10GB
+
+video only 20GB
+
+Expected:
+별도 1TB video limit 때문에 허용되는 우회가 없어야 함.
+
+CASE C
+
+X300
+photo 200GB
+video 100GB
+
+Expected:
+300GB
+100%
+photo/video 신규 upload blocked
+
+CASE D
+
+SWIMNOTE + DATA100
+
+base 10
+extra 100
+
+Expected:
+110GB unified quota
+
+==================================================
+7. VIDEO RETENTION
+==================================================
+
+변경 금지.
+
+LOCKED:
+
+VIDEO RETENTION = 14 DAYS
+
+`expires_at = NOW() + 14 days`
+
+유지.
+
+active video만 quota 포함.
+
+expired / non-active video는 quota 제외.
+
+==================================================
+8. production rollout lock
+==================================================
+
+현재 WP2A 서버 변경에는:
+
+video_enabled = true
+
+전 플랜 video gate 제거
+
+가 포함되어 있습니다.
+
+하지만 아직:
+
+WP5-PRE
+video compression POC
+
+WP5
+1080p compression
+
+이 완료되지 않았습니다.
+
+따라서 다음 배포 규칙을 확정합니다.
+
+PRODUCTION ROLLOUT LOCK:
+
+WP2A의 global video enable / video gate removal이 포함된 서버 변경은
+
+WP5-PRE 완료
++
+WP5 완료
++
+WP7 회귀검증 승인
+
+전에는 Production 배포하지 않습니다.
+
+이건 임시 feature flag 구현 지시가 아닙니다.
+
+배포 순서 규칙입니다.
+
+현재:
+
+Render deploy 금지
+OTA 금지
+Production migration 금지
+
+==================================================
+9. 현재 WP3 코드 처리
+==================================================
+
+현재 이미 작성된:
+
+- subscription.tsx
+- x-subscription.tsx
+- subscriptionPlans.ts
+- wp3-subscription-ui.test.ts
+
+등 WP3 관련 코드는 삭제하지 마십시오.
+
+하지만:
+
+상태 = HOLD
+
+추가 수정 금지.
+
+특히:
+
+- 신규 CTA 추가
+- RevenueCat 연결
+- 기존 x-subscription purchase flow 수정
+- Trial 기능 확장
+- XModeGuard 추가 변경
+
+금지.
+
+WP2A Correction 승인 후
+WP2B를 먼저 진행합니다.
+
+==================================================
+10. X Trial 관련 현재 코드
+==================================================
+
+현재 WP3에서 Trial UI 일부가 이미 들어갔더라도
+이번 보정에서는 건드리지 마십시오.
+
+다음은 WP2B 범위입니다.
+
+- x_trial_started_at
+- x_trial_ends_at
+- x_trial_used_at 또는 동등 1회 사용 기록
+- activate endpoint
+- expiry logic
+- ModeContext x_trial
+- XModeGuard state
+- normal/x/x_pending regression
+
+이번 작업에서 구현 금지.
+
+==================================================
+11. 검사 대상 파일
+==================================================
+
+최소:
+
+artifacts/api-server/src/lib/subscriptionResolver.ts
+
+artifacts/api-server/src/lib/storageQuota.ts
+
+artifacts/api-server/src/routes/billing.ts
+
+artifacts/api-server/src/routes/videos.ts
+
+artifacts/api-server/src/routes/photos.ts
+
+artifacts/api-server/src/routes/uploads.ts
+
+artifacts/swim-app 관련 consumer
+
+repository 전체 search 포함.
+
+==================================================
+12. 테스트
+==================================================
+
+반드시 수행:
+
+A.
+SWIMNOTE 10GB
+video limit 별도 1TB 없음
+
+B.
+X300 300GB
+
+C.
+X500 500GB
+
+D.
+X1000 1TB
+
+E.
+SWIMNOTE + DATA100 = 110GB
+
+F.
+photo+video 합산 100% block
+
+G.
+video only로 quota 우회 불가
+
+H.
+legacy Coach/Premier response shape 유지
+
+I.
+video retention 14일 unchanged
+
+J.
+기존 테스트 신규 실패 없음
+
+==================================================
+13. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 WP2A CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## WP ORDER STATUS
+
+WP2A:
+COMPLETE
+
+WP2A CORRECTION:
+COMPLETE / INCOMPLETE
+
+WP2B:
+NOT STARTED
+
+WP3:
+HOLD
+
+## videoStorageLimitMb AUDIT
+
+Definition:
+...
+
+Generated at:
+...
+
+Server response:
+...
+
+Consumers:
+...
+
+1.6.3 consumer:
+YES / NO
+
+Used for UI:
+YES / NO
+
+Used for quota:
+YES / NO
+
+Used for upload permission:
+YES / NO
+
+Dead field:
+YES / NO
+
+Legacy preservation required:
+YES / NO
+
+## ROOT CAUSE
+
+Why 1TB was assigned:
+...
+
+## FIX
+
+...
+
+## FINAL STORAGE CONTRACT
+
+SWIMNOTE:
+10GB
+
+X300:
+300GB
+
+X500:
+500GB
+
+X1000:
+1000GB
+
+DATA PACK:
+base + extra
+
+Unified photo+video:
+PASS / FAIL
+
+Separate video quota:
+NONE / EXISTS
+
+Expected:
+NONE
+
+## STORAGE SOURCE OF TRUTH
+
+Base:
+...
+
+Extra:
+swimming_pools.extra_storage_gb
+
+Used bytes:
+...
+
+## VIDEO RETENTION
+
+14 DAYS:
+UNCHANGED / CHANGED
+
+Expected:
+UNCHANGED
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+## 1.6.3 COMPATIBILITY
+
+PASS / FAIL
+
+Details:
+...
+
+## PRODUCTION ROLLOUT LOCK
+
+Global video enable will NOT be deployed before:
+
+WP5-PRE
++
+WP5
++
+WP7 approval
+
+CONFIRMED / NOT CONFIRMED
+
+## CURRENT WP3 CODE
+
+Existing WP3 code preserved:
+YES / NO
+
+Additional WP3 changes made:
+NO / YES
+
+Expected:
+NO
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## DEPLOY
+
+NOT PERFORMED
+
+FINAL:
+
+SWIMNOTE 2.0 WP2A CORRECTION COMPLETE
+
+==================================================
+14. 절대 금지
+==================================================
+
+이번 작업에서:
+
+WP2B 구현 금지
+WP3 추가 구현 금지
+RevenueCat 신규 상품 연결 금지
+App Store 변경 금지
+Play Store 변경 금지
+Video compression 구현 금지
+EAS build 금지
+Production DB write 금지
+Render deploy 금지
+OTA 금지
+Production migration 실행 금지
+
+WP2A CORRECTION ONLY.
