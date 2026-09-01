@@ -750,7 +750,9 @@ export default function TeacherAttendanceScreen() {
                   return (
                     <View style={[s.mkCard, { backgroundColor: "#FFFBEB" }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.mkName, { color: C.text }]}>{mk.student_name}</Text>
+                        <Pressable onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: mk.student_id, backTo: "attendance" } } as any)}>
+                          <Text style={[s.mkName, { color: C.text }]}>{mk.student_name}</Text>
+                        </Pressable>
                         <Text style={s.mkSub}>{mk.original_class_group_name}</Text>
                         <Text style={s.mkSub}>결석일: {mk.absence_date}{mk.absence_time ? ` ${mk.absence_time}` : ""}</Text>
                       </View>
@@ -773,10 +775,12 @@ export default function TeacherAttendanceScreen() {
                 return (
                   <View style={[s.mkCard, { backgroundColor: C.card }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={[s.mkName, { color: isOld ? "#D96C6C" : C.text }]}>
-                        {mk.student_name}
-                        {isOld && <Text style={{ fontSize: 11, color: "#D96C6C" }}>  ({diff}일 경과)</Text>}
-                      </Text>
+                      <Pressable onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: mk.student_id, backTo: "attendance" } } as any)}>
+                        <Text style={[s.mkName, { color: isOld ? "#D96C6C" : C.text }]}>
+                          {mk.student_name}
+                          {isOld && <Text style={{ fontSize: 11, color: "#D96C6C" }}>  ({diff}일 경과)</Text>}
+                        </Text>
+                      </Pressable>
                       <Text style={s.mkSub}>{mk.original_class_group_name}</Text>
                       <Text style={s.mkSub}>결석일: {mk.absence_date}{mk.absence_time ? ` ${mk.absence_time}` : ""}</Text>
                     </View>

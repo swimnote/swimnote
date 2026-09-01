@@ -8,6 +8,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { router } from "expo-router";
 import { ScreenLayout } from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }     from "@/components/common/MainTabs";
@@ -693,7 +694,9 @@ export default function AttendanceScreen() {
                         <Text style={[a.avatarText, { color: "#D97706" }]}>{mk.student_name?.[0] ?? "?"}</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                        <Pressable onPress={() => mk.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: mk.student_id, backTo: "attendance" } } as any) : undefined}>
+                          <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                        </Pressable>
                         <Text style={[a.mkSub, { color: C.textSecondary }]}>
                           {mk.original_class_group_name} · {(mk as any).assigned_class_group_name || "반 배정됨"}
                         </Text>
@@ -729,7 +732,9 @@ export default function AttendanceScreen() {
                       <Text style={[a.avatarText, { color: C.brandStrong }]}>{mk.student_name?.[0] ?? "?"}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                      <Pressable onPress={() => mk.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: mk.student_id, backTo: "attendance" } } as any) : undefined}>
+                        <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                      </Pressable>
                       <Text style={[a.mkSub, { color: C.textSecondary }]}>
                         {mk.original_class_group_name} · {mk.original_teacher_name}
                       </Text>
@@ -836,7 +841,9 @@ export default function AttendanceScreen() {
               return (
                 <View style={[a.searchCard, { backgroundColor: C.card, borderColor: C.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[a.searchName, { color: C.text }]}>{item.student_name ?? "-"}</Text>
+                    <Pressable onPress={() => item.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "attendance" } } as any) : undefined}>
+                      <Text style={[a.searchName, { color: C.text }]}>{item.student_name ?? "-"}</Text>
+                    </Pressable>
                     <Text style={[a.searchSub, { color: C.textSecondary }]}>
                       {item.date}  {item.class_name ?? "반 미지정"}
                     </Text>
@@ -896,7 +903,9 @@ export default function AttendanceScreen() {
                     <Text style={[a.avatarText, { color: C.brandStrong }]}>{item.name[0]}</Text>
                   </View>
                   <View style={a.memberInfo}>
-                    <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
+                    <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "attendance" } } as any)}>
+                      <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
+                    </Pressable>
                     {status ? (
                       <View style={[a.badge, { backgroundColor: STATUS_CONFIG[status].bg }]}>
                         <LucideIcon name={STATUS_CONFIG[status].icon} size={12} color={STATUS_CONFIG[status].color} />
@@ -953,7 +962,9 @@ export default function AttendanceScreen() {
                 ) : weeklyData.map(row => (
                   <View key={row.student_id} style={[a.weekRow, { borderColor: C.border }]}>
                     <View style={[a.weekNameCell, { borderColor: C.border }]}>
-                      <Text style={[a.weekStudentName, { color: C.text }]} numberOfLines={1}>{row.student_name}</Text>
+                      <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: row.student_id, backTo: "attendance" } } as any)}>
+                        <Text style={[a.weekStudentName, { color: C.text }]} numberOfLines={1}>{row.student_name}</Text>
+                      </Pressable>
                       {row.class_name && <Text style={[a.weekClassName, { color: C.textMuted }]} numberOfLines={1}>{row.class_name}</Text>}
                     </View>
                     {weekDates.map(d => {
@@ -1003,7 +1014,9 @@ export default function AttendanceScreen() {
                 <Text style={[a.avatarText, { color: C.brandStrong }]}>{item.student_name[0]}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "attendance" } } as any)}>
+                  <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                </Pressable>
                 {item.class_name && <Text style={[a.weekClassName, { color: C.textMuted }]}>{item.class_name}</Text>}
               </View>
               <View style={a.monthStats}>

@@ -57,6 +57,7 @@ interface MakeupSession {
 }
 interface MakeupRequest {
   id: string;
+  student_id: string;
   student_name: string;
   class_name: string;
   original_date: string;
@@ -649,7 +650,9 @@ export default function MakeupsScreen() {
       <View key={item.id} style={[s.card, { backgroundColor: C.card }]}>
         <View style={s.cardTop}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={s.studentName}>{item.student_name}</Text>
+            <Pressable onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.student_id, backTo: "makeups" } } as any)}>
+              <Text style={s.studentName}>{item.student_name}</Text>
+            </Pressable>
             <Text style={s.className}>{item.class_name}</Text>
           </View>
           <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
