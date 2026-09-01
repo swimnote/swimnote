@@ -1649,10 +1649,17 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
       const poolId = await getAdminPoolId(req);
       if (!poolId) { return res.status(403).json({ error: "수영장 정보가 없습니다." }); }
 
+      // ── 기본 학생 정보 + 반/선생님/학부모 요약 ───────────────────────────
       const [student] = (await superAdminDb.execute(sql`
         SELECT s.*,
-          (SELECT cg.name FROM class_groups cg WHERE cg.id = s.class_group_id LIMIT 1) AS class_name,
+          cg.name          AS class_name,
+          cg.schedule_days AS class_schedule_days,
+          cg.schedule_time AS class_schedule_time,
+          cg.capacity      AS class_capacity,
+          cg.teacher_user_id AS teacher_user_id,
           (SELECT u.name FROM users u WHERE u.id = cg.teacher_user_id LIMIT 1) AS teacher_name,
+          (SELECT pa.id FROM parent_students ps JOIN parent_accounts pa ON pa.id = ps.parent_id
+           WHERE ps.student_id = s.id AND ps.status = 'approved' LIMIT 1) AS parent_account_id,
           (SELECT pa.name FROM parent_students ps JOIN parent_accounts pa ON pa.id = ps.parent_id
            WHERE ps.student_id = s.id AND ps.status = 'approved' LIMIT 1) AS parent_account_name,
           (SELECT ps.status FROM parent_students ps WHERE ps.student_id = s.id ORDER BY ps.created_at DESC LIMIT 1) AS parent_link_status
@@ -1662,32 +1669,116 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
       `)).rows as any[];
       if (!student) { return res.status(404).json({ error: "회원을 찾을 수 없습니다." }); }
 
-      // 최근 출결 30일
-      const attendance = (await db.execute(sql`
-        SELECT date, status, class_group_id FROM attendance
-        WHERE student_id = ${req.params.id}
-        ORDER BY date DESC LIMIT 30
-      `)).rows;
+      // ── 병렬 쿼리: 레벨/출결요약/보강요약/일지/학부모링크 ─────────────────
+      const studentId = req.params.id;
+      const [
+        levelRows,
+        attSummaryRows,
+        makeupSummaryRows,
+        attendanceRows,
+        diaryRows,
+        parentLinkRows,
+      ] = await Promise.all([
+        // 학생 개인 레벨 정보 (students.current_level_order SoT)
+        student.current_level_order != null
+          ? db.execute(sql`
+              SELECT level_order, level_name, badge_color, badge_text_color
+              FROM pool_level_settings
+              WHERE pool_id = ${poolId} AND level_order = ${student.current_level_order}
+              LIMIT 1
+            `).then(r => r.rows)
+          : Promise.resolve([] as any[]),
 
-      // 최근 일지 (본인 반)
-      const diaries = student.class_group_id ? (await db.execute(sql`
-        SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited,
-               csn.note_content AS student_note
-        FROM class_diaries cd
-        LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
-        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
-        ORDER BY cd.lesson_date DESC LIMIT 10
-      `)).rows : [];
+        // 이번 달 출결 요약
+        db.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE status = 'present')::int AS present_count,
+            COUNT(*) FILTER (WHERE status = 'absent')::int  AS absent_count,
+            COUNT(*) FILTER (WHERE status = 'late')::int    AS late_count
+          FROM attendance
+          WHERE student_id = ${studentId}
+            AND date >= date_trunc('month', NOW()::date)
+            AND date <  date_trunc('month', NOW()::date) + interval '1 month'
+        `).then(r => r.rows),
 
-      // 전화번호별 학부모 연결 상태
-      const parentLinks = (await db.execute(sql`
-        SELECT pa.id, pa.name, pa.phone, ps.status AS link_status
-        FROM parent_students ps
-        JOIN parent_accounts pa ON pa.id = ps.parent_id
-        WHERE ps.student_id = ${req.params.id}
-      `)).rows as any[];
+        // 보강 요약 (waiting+expired=대기, assigned=배정됨, completed=완료)
+        db.execute(sql`
+          SELECT
+            COUNT(*) FILTER (WHERE status IN ('waiting', 'expired'))::int AS waiting_count,
+            COUNT(*) FILTER (WHERE status = 'assigned')::int              AS assigned_count,
+            COUNT(*) FILTER (WHERE status = 'completed')::int             AS completed_count
+          FROM makeup_sessions
+          WHERE student_id = ${studentId} AND swimming_pool_id = ${poolId}
+        `).then(r => r.rows),
 
-      res.json({ ...student, recent_attendance: attendance, recent_diaries: diaries, parents: parentLinks });
+        // 최근 출결 30일 (기존 필드 유지)
+        db.execute(sql`
+          SELECT date, status, class_group_id FROM attendance
+          WHERE student_id = ${studentId}
+          ORDER BY date DESC LIMIT 30
+        `).then(r => r.rows),
+
+        // 최근 일지 (기존 필드 유지)
+        student.class_group_id
+          ? db.execute(sql`
+              SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited,
+                     csn.note_content AS student_note
+              FROM class_diaries cd
+              LEFT JOIN class_diary_student_notes csn
+                ON csn.diary_id = cd.id AND csn.student_id = ${studentId} AND csn.is_deleted = false
+              WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+              ORDER BY cd.lesson_date DESC LIMIT 10
+            `).then(r => r.rows)
+          : Promise.resolve([] as any[]),
+
+        // 학부모 연결 목록 (기존 필드 유지)
+        db.execute(sql`
+          SELECT pa.id, pa.name, pa.phone, ps.status AS link_status
+          FROM parent_students ps
+          JOIN parent_accounts pa ON pa.id = ps.parent_id
+          WHERE ps.student_id = ${studentId}
+        `).then(r => r.rows as any[]),
+      ]);
+
+      // ── 레벨 summary 조립 ────────────────────────────────────────────────
+      const levelRow = levelRows[0] as any ?? null;
+      const attSummary = attSummaryRows[0] as any ?? { present_count: 0, absent_count: 0, late_count: 0 };
+      const makeupSummary = makeupSummaryRows[0] as any ?? { waiting_count: 0, assigned_count: 0, completed_count: 0 };
+
+      // ── 응답 조립 (기존 필드 유지 + additive 필드 추가) ──────────────────
+      res.json({
+        // 기존 flat 필드 (s.* + 기존 computed fields) — 하위 호환 보장
+        ...student,
+
+        // ── ADDITIVE: 레벨 summary ───────────────────────────────────────
+        // current_level_order: students.current_level_order (SoT) — s.*에 포함
+        current_level_name:       levelRow?.level_name       ?? null,
+        current_level_color:      levelRow?.badge_color      ?? null,
+        current_level_text_color: levelRow?.badge_text_color ?? null,
+
+        // ── ADDITIVE: 이번 달 출결 요약 ─────────────────────────────────
+        attendance_summary: {
+          current_month_present_count: Number(attSummary.present_count ?? 0),
+          current_month_absent_count:  Number(attSummary.absent_count  ?? 0),
+          current_month_late_count:    Number(attSummary.late_count    ?? 0),
+        },
+
+        // ── ADDITIVE: 보강 요약 ──────────────────────────────────────────
+        makeup_summary: {
+          waiting_count:   Number(makeupSummary.waiting_count   ?? 0),
+          assigned_count:  Number(makeupSummary.assigned_count  ?? 0),
+          completed_count: Number(makeupSummary.completed_count ?? 0),
+        },
+
+        // ── ADDITIVE: 학부모 계정 연결 summary ──────────────────────────
+        parent_account_linked: !!student.parent_account_id,
+        // parent_account_id, parent_account_name — s.*에서 가져온 computed fields로 이미 포함
+
+        // 기존 응답 구조 유지
+        recent_attendance: attendanceRows,
+        recent_diaries:    diaryRows,
+        parents:           parentLinkRows,
+      });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
