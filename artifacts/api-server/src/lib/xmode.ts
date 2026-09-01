@@ -31,7 +31,11 @@ export type PoolMode =
   | "normal"
   | "x_pending"
   | "x"
-  | "x_trial";   // WP2B additive: 3일 무료체험 활성 상태
+  | "x_trial"            // WP2B additive: 3일 무료체험 활성 상태
+  | "subscription_required"; // Amendment A1: 신규 2.0 paid lifecycle 만료, active base plan 없음
+
+/** Amendment A1: 신규 2.0 paid tier 집합 */
+const NEW_2_TIERS = new Set(["swimnote", "x300", "x500", "x1000"]);
 
 export interface PoolModeResult {
   pool_id: string;
@@ -79,6 +83,9 @@ export function computeMode(pool: {
   // WP2B additive — optional for backward compat with existing callers
   x_trial_started_at?: string | Date | null;
   x_trial_ends_at?: string | Date | null;
+  // Amendment A1 additive — optional for backward compat
+  subscription_tier?: string | null;
+  subscription_status?: string | null;
 }): PoolMode {
   if (pool.x_force_disabled) return "normal";
   // WP2B CORRECTION: paid는 config 완료 전까지 x_pending (결제 직후 setup 필요)
@@ -92,6 +99,25 @@ export function computeMode(pool: {
       ? pool.x_trial_ends_at
       : new Date(pool.x_trial_ends_at);
     if (endsAt > new Date()) return "x_trial";
+  }
+  // Amendment A1: subscription_required — 신규 2.0 paid lifecycle 만료
+  //
+  // 조건: subscription_tier ∈ NEW_2_TIERS + subscription_status ≠ "active"
+  //   → X 만료 후 SWIMNOTE 없음 = subscription_required
+  //
+  // 예외:
+  //   - subscription_tier = "swimnote" + status = "active" → normal (SWIMNOTE 기본플랜 활성)
+  //   - legacy tiers (free / Coach / Premier) → 기존 behavior 유지 (normal)
+  //   - trial lifecycle: trial 종료 후 subscription_required 아님 (Trial ≠ paid lifecycle)
+  //
+  // BACKWARD COMPAT: subscription_tier/status 미전달 시 → existing behavior (normal)
+  if (pool.subscription_tier && NEW_2_TIERS.has(pool.subscription_tier)) {
+    if (pool.subscription_status === "active") {
+      // SWIMNOTE active OR X (should have been caught by x_paid_entitlement above) → normal
+      return "normal";
+    }
+    // 2.0 paid tier + 비활성 → subscription_required
+    return "subscription_required";
   }
   return "normal";
 }
@@ -110,6 +136,7 @@ export async function resolvePoolMode(
   poolId: string,
 ): Promise<PoolModeResult | null> {
   // WP2B: x_trial_* 컬럼 추가 SELECT (column이 없는 구 DB에서는 NULL 반환 — 안전)
+  // Amendment A1: subscription_tier, subscription_status 추가 SELECT
   const result = await superAdminDb.execute(sql`
     SELECT id, xmode_config_status,
            COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
@@ -117,7 +144,9 @@ export async function resolvePoolMode(
            COALESCE(x_force_disabled,    false) AS x_force_disabled,
            x_trial_started_at,
            x_trial_ends_at,
-           x_trial_used_at
+           x_trial_used_at,
+           subscription_tier,
+           subscription_status
     FROM swimming_pools
     WHERE id = ${poolId}
     LIMIT 1
@@ -150,6 +179,9 @@ export async function resolvePoolMode(
       xmode_config_status:  configStatus,
       x_trial_started_at:   trialStartedAt,
       x_trial_ends_at:      trialEndsAt,
+      // Amendment A1: subscription_required 판정용
+      subscription_tier:    row.subscription_tier  ? String(row.subscription_tier)  : null,
+      subscription_status:  row.subscription_status ? String(row.subscription_status) : null,
     }),
     xmode_entitlement: entitlement,   // backward compat: effective 값 반환
     xmode_config_status: configStatus,

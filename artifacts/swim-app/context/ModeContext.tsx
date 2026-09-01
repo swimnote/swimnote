@@ -32,7 +32,7 @@ export type XModeStatus =
   | "CURRICULUM_PENDING"
   | "READY";
 
-export type PoolMode = "normal" | "x_pending" | "x" | "x_trial"; // WP2B: x_trial additive
+export type PoolMode = "normal" | "x_pending" | "x" | "x_trial" | "subscription_required"; // Amendment A1: subscription_required additive
 
 export interface PoolModeResult {
   pool_id: string;

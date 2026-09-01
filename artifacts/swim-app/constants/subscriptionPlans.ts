@@ -163,7 +163,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 300,
     storage_limit_mb: 307200,
     display_storage: "300GB",
-    price_monthly_krw: 119000,
+    price_monthly_krw: 129000, // Amendment A1: 119000 → 129000 (SWIMNOTE 기본플랜 포함)
     sort_order: 9,
     is_enterprise: true,
     tier_group: "premier" as const,
@@ -177,7 +177,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 500,
     storage_limit_mb: 512000,
     display_storage: "500GB",
-    price_monthly_krw: 189000,
+    price_monthly_krw: 199000, // Amendment A1: 189000 → 199000 (SWIMNOTE 기본플랜 포함)
     sort_order: 10,
     is_enterprise: true,
     tier_group: "premier" as const,
@@ -191,7 +191,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 1000,
     storage_limit_mb: 1024000,
     display_storage: "1TB",
-    price_monthly_krw: 349000,
+    price_monthly_krw: 359000, // Amendment A1: 349000 → 359000 (SWIMNOTE 기본플랜 포함)
     sort_order: 11,
     is_enterprise: true,
     tier_group: "premier" as const,

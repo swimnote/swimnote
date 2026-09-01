@@ -44,9 +44,9 @@ const PLANS = [
   { tier:"pro",        plan_id:"center_500",  name:"Premier 500",   max_members:500,    storage_limit_mb:133120, price:43000,  is_enterprise:false, includes_video:true,  sort_order:6  },
   { tier:"max",        plan_id:"center_1000", name:"Premier 1000",  max_members:1000,   storage_limit_mb:512000, price:79000,  is_enterprise:false, includes_video:true,  sort_order:7  },
   { tier:"swimnote",   plan_id:"swimnote",    name:"SWIMNOTE",      max_members:999999, storage_limit_mb:10240,  price:9900,   is_enterprise:false, includes_video:true,  sort_order:8  },
-  { tier:"x300",       plan_id:"x300",        name:"SWIMNOTE X300", max_members:300,    storage_limit_mb:307200, price:119000, is_enterprise:true,  includes_video:true,  sort_order:9  },
-  { tier:"x500",       plan_id:"x500",        name:"SWIMNOTE X500", max_members:500,    storage_limit_mb:512000, price:189000, is_enterprise:true,  includes_video:true,  sort_order:10 },
-  { tier:"x1000",      plan_id:"x1000",       name:"SWIMNOTE X1000",max_members:1000,   storage_limit_mb:1024000,price:349000, is_enterprise:true,  includes_video:true,  sort_order:11 },
+  { tier:"x300",       plan_id:"x300",        name:"SWIMNOTE X300", max_members:300,    storage_limit_mb:307200, price:129000, is_enterprise:true,  includes_video:true,  sort_order:9  },  // Amendment A1
+  { tier:"x500",       plan_id:"x500",        name:"SWIMNOTE X500", max_members:500,    storage_limit_mb:512000, price:199000, is_enterprise:true,  includes_video:true,  sort_order:10 },  // Amendment A1
+  { tier:"x1000",      plan_id:"x1000",       name:"SWIMNOTE X1000",max_members:1000,   storage_limit_mb:1024000,price:359000, is_enterprise:true,  includes_video:true,  sort_order:11 },  // Amendment A1
 ] as const;
 
 const LEGACY_TIERS = new Set(["free","starter","basic","standard","center_200","advance","pro","max"]);
@@ -366,9 +366,9 @@ describe("Case P: recommendXPlanTier 경계값", () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe("Case Q: 2.0 플랜 가격 정합성", () => {
   it("SWIMNOTE = ₩9,900",  () => expect(PLANS.find(p => p.tier === "swimnote")!.price).toBe(9900));
-  it("X300 = ₩119,000",   () => expect(PLANS.find(p => p.tier === "x300")!.price).toBe(119000));
-  it("X500 = ₩189,000",   () => expect(PLANS.find(p => p.tier === "x500")!.price).toBe(189000));
-  it("X1000 = ₩349,000",  () => expect(PLANS.find(p => p.tier === "x1000")!.price).toBe(349000));
+  it("X300 = ₩129,000",   () => expect(PLANS.find(p => p.tier === "x300")!.price).toBe(129000));   // Amendment A1
+  it("X500 = ₩199,000",   () => expect(PLANS.find(p => p.tier === "x500")!.price).toBe(199000));   // Amendment A1
+  it("X1000 = ₩359,000",  () => expect(PLANS.find(p => p.tier === "x1000")!.price).toBe(359000));  // Amendment A1
   it("DATA100 = ₩7,900",  () => expect(DATA_PACKS.find(p => p.id === "data100")!.price_monthly_krw).toBe(7900));
   it("DATA300 = ₩22,900", () => expect(DATA_PACKS.find(p => p.id === "data300")!.price_monthly_krw).toBe(22900));
 });

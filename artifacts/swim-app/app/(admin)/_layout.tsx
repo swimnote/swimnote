@@ -80,6 +80,17 @@ export default function AdminLayout() {
     }
   }, [isLoading, kind, adminUser?.role]);
 
+  // Amendment A1: SUBSCRIPTION_REQUIRED global gate
+  // mode=subscription_required → 구독 필요 화면으로 유도
+  // 허용: subscription 화면 (이미 이 레이아웃 내에 존재)
+  // 금지: 다른 운영 탭 접근
+  // navigation loop 방지: subscription_required 상태이면 subscription으로 replace
+  useEffect(() => {
+    if (mode === "subscription_required") {
+      router.replace("/(admin)/subscription" as any);
+    }
+  }, [mode]);
+
   function makeTabListener(tabName: string) {
     return ({ navigation }: { navigation: any; route: any }) => ({
       tabPress: (e: any) => {

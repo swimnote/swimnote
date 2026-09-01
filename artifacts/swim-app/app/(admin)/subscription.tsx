@@ -616,7 +616,7 @@ export default function SubscriptionScreen() {
                 <View style={s.planRow}>
                   <View>
                     <Text style={s.planName}>{plan.name}</Text>
-                    <Text style={s.xPlanSub}>SWIMNOTE 모든 기능 포함</Text>
+                    <Text style={s.xPlanSub}>SWIMNOTE 기본플랜 포함 · X 전용 AI 추가</Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={[s.planPrice, { color: X_ACCENT }]}>

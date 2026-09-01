@@ -34,9 +34,9 @@ const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
   { tier:"pro",        plan_id:"center_500",  name:"Premier 500",  max_members:500,    storage_limit_mb:133120,  display_storage:"130GB", price_monthly_krw:43000,  sort_order:6,  is_enterprise:false, tier_group:"premier",color:"#EF4444", includes_video:true  },
   { tier:"max",        plan_id:"center_1000", name:"Premier 1000", max_members:1000,   storage_limit_mb:512000,  display_storage:"500GB", price_monthly_krw:79000,  sort_order:7,  is_enterprise:false, tier_group:"premier",color:"#7C3AED", includes_video:true  },
   { tier:"swimnote",   plan_id:"swimnote",    name:"SWIMNOTE",     max_members:999999, storage_limit_mb:10240,   display_storage:"10GB",  price_monthly_krw:9900,   sort_order:8,  is_enterprise:false, tier_group:"premier",color:"#0A2540", includes_video:true  },
-  { tier:"x300",       plan_id:"x300",        name:"SWIMNOTE X300",max_members:300,    storage_limit_mb:307200,  display_storage:"300GB", price_monthly_krw:119000, sort_order:9,  is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
-  { tier:"x500",       plan_id:"x500",        name:"SWIMNOTE X500",max_members:500,    storage_limit_mb:512000,  display_storage:"500GB", price_monthly_krw:189000, sort_order:10, is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
-  { tier:"x1000",      plan_id:"x1000",       name:"SWIMNOTE X1000",max_members:1000,  storage_limit_mb:1024000,display_storage:"1TB",   price_monthly_krw:349000, sort_order:11, is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
+  { tier:"x300",       plan_id:"x300",        name:"SWIMNOTE X300",max_members:300,    storage_limit_mb:307200,  display_storage:"300GB", price_monthly_krw:129000, sort_order:9,  is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
+  { tier:"x500",       plan_id:"x500",        name:"SWIMNOTE X500",max_members:500,    storage_limit_mb:512000,  display_storage:"500GB", price_monthly_krw:199000, sort_order:10, is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
+  { tier:"x1000",      plan_id:"x1000",       name:"SWIMNOTE X1000",max_members:1000,  storage_limit_mb:1024000,display_storage:"1TB",   price_monthly_krw:359000, sort_order:11, is_enterprise:true,  tier_group:"premier",color:"#1E3A5F", includes_video:true  },
 ];
 
 function getPlanByTier(tier: string) { return SUBSCRIPTION_PLANS_DEF.find(p => p.tier === tier); }
@@ -144,9 +144,9 @@ describe("WP3 SWIMNOTE 플랜 스펙", () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe("WP3 X 플랜 스펙", () => {
   const cases: Array<[string, number, string, number]> = [
-    ["x300",  300,  "300GB", 119000],
-    ["x500",  500,  "500GB", 189000],
-    ["x1000", 1000, "1TB",   349000],
+    ["x300",  300,  "300GB", 129000],  // Amendment A1
+    ["x500",  500,  "500GB", 199000],  // Amendment A1
+    ["x1000", 1000, "1TB",   359000],  // Amendment A1
   ];
   it.each(cases)("%s: members=%i storage=%s price=%i", (tier, members, storage, price) => {
     const p = getPlanByTier(tier)!;
