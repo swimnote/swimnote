@@ -523,6 +523,32 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
     `)).rows as any[];
     const currentTier = normalizeTier(curSub?.tier ?? "free");
 
+    // ── 다운그레이드 회원 한도 초과 guard (X 티어 간 다운그레이드) ──────────
+    if (isDowngradeTier(currentTier, newTier)) {
+      const targetPlanRow = (await db.execute(sql`
+        SELECT member_limit FROM subscription_plans WHERE tier = ${newTier} LIMIT 1
+      `)).rows[0] as any;
+      const targetLimit = Number(targetPlanRow?.member_limit ?? 0);
+      if (targetLimit > 0 && targetLimit < 999999) {
+        const activeCntRow = (await db.execute(sql`
+          SELECT COUNT(*)::int AS cnt FROM students
+          WHERE swimming_pool_id = ${poolId} AND status = 'active' AND deleted_at IS NULL
+        `)).rows[0] as any;
+        const activeCount = Number(activeCntRow?.cnt ?? 0);
+        if (activeCount > targetLimit) {
+          res.status(409).json({
+            error: `현재 활성회원 수(${activeCount.toLocaleString()}명)가 목표 플랜 한도(${targetLimit.toLocaleString()}명)를 초과하여 다운그레이드할 수 없습니다. 회원 수를 조정하거나 더 높은 플랜을 선택해 주세요.`,
+            code:           "MEMBER_LIMIT_EXCEEDED_FOR_DOWNGRADE",
+            active_count:   activeCount,
+            target_limit:   targetLimit,
+            current_tier:   currentTier,
+            target_tier:    newTier,
+          });
+          return;
+        }
+      }
+    }
+
     // ── 다운그레이드: 현재 플랜 유지 + 만료일에 예약 ──────────────────────
     if (isDowngradeTier(currentTier, newTier) && curSub?.next_billing_at) {
       const applyAt = String(curSub.next_billing_at).slice(0, 10);

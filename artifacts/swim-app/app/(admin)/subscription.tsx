@@ -133,7 +133,7 @@ export default function SubscriptionScreen() {
   const [loading, setLoading] = useState(true);
 
   const {
-    soloOffering, centerOffering, isSubscribed, activePackageId,
+    soloOffering, centerOffering, xOffering, isSubscribed, activePackageId,
     purchase, isPurchasing, refetchCustomerInfo,
     offeringsLoading, offeringsError, offeringsErrorDetail, refetchOfferings,
   } = useSubscription();
@@ -142,13 +142,14 @@ export default function SubscriptionScreen() {
     const all = [
       ...(soloOffering?.availablePackages ?? []),
       ...(centerOffering?.availablePackages ?? []),
+      ...(xOffering?.availablePackages ?? []),
     ];
     const map: Record<string, string> = {};
     for (const pkg of all) {
       if (pkg.product.priceString) map[pkg.identifier] = pkg.product.priceString;
     }
     return map;
-  }, [soloOffering, centerOffering]);
+  }, [soloOffering, centerOffering, xOffering]);
 
   // ── 정책 동의 ──────────────────────────────────────────────────────────────
   const [policyAgreed,  setPolicyAgreed]  = useState<boolean | null>(null);
@@ -246,24 +247,49 @@ export default function SubscriptionScreen() {
   useEffect(() => { loadData(); }, [loadData]);
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  // ── RevenueCat 구매 (legacy 플로우 보존) ───────────────────────────────────
+  // ── RevenueCat 구매 (legacy + X 플로우) ────────────────────────────────────
   async function syncRcToServer(info: any, purchasedProductId?: string) {
     let productId    = purchasedProductId ?? null;
     let entitlementId: string | null = null;
     let expiresAt:    string | null = null;
+
+    // X 플랜 제품 ID 판별
+    const X_TIERS = ["x300", "x500", "x1000"];
+    const SWIMNOTE_TIERS = ["swimnote"];
+    const isXProductId = (id: string | null) => {
+      if (!id) return false;
+      const base = id.replace(/:monthly$/, "").replace(/^com\.swimnote\./, "").replace(/\.monthly$/, "");
+      return X_TIERS.includes(base) || X_TIERS.includes(id);
+    };
+    const isSwimnoteProductId = (id: string | null) => {
+      if (!id) return false;
+      const base = id.replace(/:monthly$/, "").replace(/^com\.swimnote\./, "").replace(/\.monthly$/, "");
+      return SWIMNOTE_TIERS.includes(base) || SWIMNOTE_TIERS.includes(id);
+    };
+
     if (!productId) {
       const active    = info?.entitlements?.active ?? {};
+      // X 엔드포인트 우선 확인
+      const xEnt      = active[X_ENTITLEMENT] ?? null;
       const centerEnt = active[REVENUECAT_CENTER_ENTITLEMENT] ?? null;
       const soloEnt   = active[REVENUECAT_SOLO_ENTITLEMENT]   ?? null;
-      const entitlement = centerEnt ?? soloEnt;
+      const entitlement = xEnt ?? centerEnt ?? soloEnt;
       if (!entitlement) return;
       productId     = entitlement.productIdentifier;
-      entitlementId = centerEnt ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      if (xEnt) {
+        entitlementId = X_ENTITLEMENT;
+      } else {
+        entitlementId = centerEnt ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      }
       expiresAt     = entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null;
     } else {
-      const centerIds = ["center_200","center_300","center_500","center_1000"];
-      entitlementId = centerIds.includes(productId)
-        ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      if (isXProductId(productId) || isSwimnoteProductId(productId)) {
+        entitlementId = X_ENTITLEMENT;
+      } else {
+        const centerIds = ["center_200","center_300","center_500","center_1000"];
+        entitlementId = centerIds.includes(productId)
+          ? REVENUECAT_CENTER_ENTITLEMENT : REVENUECAT_SOLO_ENTITLEMENT;
+      }
       const active = info?.entitlements?.active ?? {};
       const ent    = active[entitlementId] ?? null;
       expiresAt    = ent?.expirationDate ? ent.expirationDate.slice(0, 10) : null;
@@ -277,14 +303,19 @@ export default function SubscriptionScreen() {
       if (data?.code === "REFUND_POLICY_AGREEMENT_REQUIRED") {
         throw new Error("환불 정책 동의 후 구독이 가능합니다.\n설정 > 환불 정책에서 동의해 주세요.");
       }
+      if (data?.code === "MEMBER_LIMIT_EXCEEDED_FOR_DOWNGRADE") {
+        const err: any = new Error(data?.error ?? "회원 수 한도 초과로 다운그레이드할 수 없습니다.");
+        err.code = "MEMBER_LIMIT_EXCEEDED_FOR_DOWNGRADE";
+        throw err;
+      }
       throw new Error(data?.message ?? "서버 동기화에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   }
 
-  // X 플랜 변경 핸들러 (WP4 연결 전 — UI/guard 준비)
+  // X 플랜 변경 핸들러 — RC x_monthly offering 연결
   function handleXPlanChange(plan: typeof xPlans[0]) {
-    // 회원 한도 초과 guard
-    if (activeMemberCount != null && activeMemberCount > plan.max_members) {
+    // 회원 한도 초과 guard (다운그레이드 방어)
+    if (activeMemberCount != null && plan.max_members < 999999 && activeMemberCount > plan.max_members) {
       showConfirm(
         `${plan.name} 변경 불가`,
         `현재 활성회원 수(${activeMemberCount.toLocaleString()}명)가 ${plan.name} 한도(${plan.max_members.toLocaleString()}명)를 초과합니다.\n\n회원 수를 조정하거나 더 높은 플랜을 선택해 주세요.`,
@@ -292,11 +323,83 @@ export default function SubscriptionScreen() {
       );
       return;
     }
-    // WP4 전: 플랜 변경 준비 중 안내
+
+    // 환불 정책 동의 확인
+    if (policyAgreed === false) {
+      showConfirm(
+        "환불 정책 동의 필요",
+        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
+        () => router.push("/(admin)/refund-policy" as any),
+      );
+      return;
+    }
+
+    // x_monthly offering 로드 확인
+    if (offeringsLoading) {
+      showConfirm("구독 상품 로드 중", "잠시 후 다시 시도해주세요.", () => {});
+      return;
+    }
+    if (offeringsError || !xOffering) {
+      showConfirm(
+        "구독 상품 로드 실패",
+        xOffering == null
+          ? "RevenueCat x_monthly offering이 설정되지 않았습니다.\n스토어 콘솔 및 RevenueCat 대시보드를 확인해 주세요."
+          : `오류: ${offeringsErrorDetail ?? "알 수 없는 오류"}`,
+        () => refetchOfferings(),
+      );
+      return;
+    }
+
+    // x_monthly 오퍼링에서 플랜 tier와 일치하는 패키지 찾기
+    // RC 패키지 identifier는 plan tier(x300/x500/x1000) 또는 :monthly 변형
+    const xPackages = xOffering.availablePackages ?? [];
+    const pkg = xPackages.find(
+      (p: any) =>
+        p.identifier === plan.tier ||
+        p.identifier === `${plan.tier}:monthly` ||
+        p.product?.productIdentifier === plan.tier ||
+        p.product?.productIdentifier === `${plan.tier}:monthly` ||
+        p.product?.productIdentifier === `com.swimnote.${plan.tier}.monthly`,
+    );
+
+    if (!pkg) {
+      showConfirm(
+        "구독 상품 준비 중",
+        `${plan.name} 상품이 스토어에 아직 등록되지 않았습니다.\n스토어 심사 완료 후 구독이 가능합니다.`,
+        () => {},
+      );
+      return;
+    }
+
+    // RC 가격 우선, fallback은 정책 가격
+    const priceStr = pkg.product?.priceString ?? `₩${plan.price_monthly_krw.toLocaleString("ko-KR")}`;
+    const isChange = isSubscribed;
+    const actionLabel = isChange ? "플랜 변경" : "구독 시작";
+
     showConfirm(
-      "플랜 변경",
-      `${plan.name}으로의 변경은 출시 준비 중입니다.`,
-      () => {},
+      `${plan.name} ${actionLabel}`,
+      isChange
+        ? `현재 구독을 ${plan.name}으로 변경합니다.\n${priceStr}/월 · 최대 ${plan.max_members.toLocaleString()}명 · ${plan.display_storage}\n\n결제 수단: ${STORE_NAME}`
+        : `${priceStr}/월 · 최대 ${plan.max_members.toLocaleString()}명 · ${plan.display_storage}\n\nX AI 기능 포함 · 결제 수단: ${STORE_NAME}`,
+      async () => {
+        try {
+          const info = await purchase(pkg);
+          // 서버 동기화 — x_mode entitlement + pool 갱신
+          await syncRcToServer(info, pkg.product?.productIdentifier ?? plan.tier);
+          await refetchCustomerInfo();
+          await refreshPool();
+          await refreshMode().catch(() => {});
+          showConfirm("구독 완료", `${plan.name} 구독이 성공적으로 시작되었습니다!`, () => {});
+        } catch (e: any) {
+          if (e?.userCancelled) return;
+          const serverCode = e?.code ?? "";
+          if (serverCode === "MEMBER_LIMIT_EXCEEDED_FOR_DOWNGRADE") {
+            showConfirm("다운그레이드 불가", e?.message ?? "회원 수 한도 초과로 플랜을 변경할 수 없습니다.", () => {});
+          } else {
+            showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
+          }
+        }
+      },
     );
   }
 

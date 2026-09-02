@@ -74,6 +74,14 @@ export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   "x300": "x300", "x300:monthly": "x300",
   "x500": "x500", "x500:monthly": "x500",
   "x1000": "x1000", "x1000:monthly": "x1000",
+
+  // ── com.swimnote.* 형식 목표 Product ID (App Store / Google Play) ───────
+  "com.swimnote.swimnote.monthly": "swimnote",
+  "com.swimnote.x300.monthly":     "x300",
+  "com.swimnote.x500.monthly":     "x500",
+  "com.swimnote.x1000.monthly":    "x1000",
+  "com.swimnote.data100.monthly":  "data100",
+  "com.swimnote.data300.monthly":  "data300",
 };
 
 // ── 티어 정규화 (레거시 코드명 → 현행 코드명) ──────────────────────────

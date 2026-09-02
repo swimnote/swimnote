@@ -156,9 +156,11 @@ function useSubscriptionContext() {
         console.log("[RevenueCat] offerings 로드 성공. 발견된 offering IDs:", allKeys);
         const solo   = all.all[SOLO_OFFERING_ID] ?? null;
         const center = all.all["center_monthly"] ?? null;
+        const x      = all.all[X_OFFERING_ID] ?? null;
         if (!solo) console.warn(`[RevenueCat] offering '${SOLO_OFFERING_ID}' 없음. App Store Connect에서 IAP 상품(solo_30, solo_50, solo_100) 생성 여부 확인 필요`);
         if (!center) console.warn("[RevenueCat] offering 'center_monthly' 없음. App Store Connect에서 IAP 상품(center_200 등) 생성 여부 확인 필요");
-        return { solo, center, current: all.current };
+        if (!x) console.warn(`[RevenueCat] offering '${X_OFFERING_ID}' 없음 — RC 대시보드에서 x_monthly offering 생성 필요`);
+        return { solo, center, x, current: all.current };
       } catch (e: any) {
         console.error("[RevenueCat] offerings 로드 실패:", e?.message ?? e);
         console.error("[RevenueCat] 원인 가능성: 1) App Store Connect IAP 상품 미생성/Draft 상태, 2) Paid Apps Agreement 미수락, 3) RevenueCat-ASC 연결 오류, 4) 네트워크 문제");
@@ -203,6 +205,7 @@ function useSubscriptionContext() {
     customerInfo:        customerInfoQuery.data ?? null,
     soloOffering:        offeringsQuery.data?.solo ?? null,
     centerOffering:      offeringsQuery.data?.center ?? null,
+    xOffering:           offeringsQuery.data?.x ?? null,
     isSubscribed,
     isSoloSubscribed,
     isCenterSubscribed,
