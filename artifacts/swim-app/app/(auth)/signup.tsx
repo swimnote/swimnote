@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
