@@ -1,0 +1,843 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE AUTH EXIT PLAN
+#
+# 1.6.3:
+# 기존 Kakao 학부모 → 신규 일반계정 자동 전환 기능 임시 제공
+#
+# 2.0:
+# Kakao 로그인/가입/연결 완전 제거
+#
+# Apple 신규가입:
+# 실제 Apple OAuth 가입을 사용하지 않고
+# 일반 회원가입으로 안내/전환
+#
+# 최종 목표:
+# 기존 Kakao 사용자를 100% 일반계정으로 이전한 뒤
+# Kakao 사용자 기능을 완전히 종료한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+1.6.3 baseline:
+swimnote-1.6.3-protected
+a80141c5
+
+1.6.3 work:
+maintenance branch 신규 생성
+
+권장:
+maintenance/v1.6.3-social-exit
+
+2.0:
+release/v2.0.0
+
+Production:
+현재 작업에서는 NO DEPLOY
+
+============================================================
+0. 최종 제품 정책 LOCK
+============================================================
+
+### 1.6.3
+
+Kakao 신규 로그인:
+종료
+
+Kakao 신규가입:
+종료
+
+Kakao 버튼:
+임시 전환/안내 entry로만 사용 가능
+
+일반 학부모 회원가입 중:
+
+same pool
++
+same normalized phone
++
+기존 parent account의 kakao_id 존재
+
+하면:
+
+기존 Kakao 이용정보를 자동 감지.
+
+안내만 표시:
+
+"기존 카카오 계정의 학생정보와 이용기록이 확인되었습니다.
+일반회원 가입을 계속하면 기존 이용정보가 새 일반계정으로
+자동으로 이전됩니다."
+
+선택/취소 묻지 말 것.
+
+[계속] 하나만.
+
+이후:
+새 일반계정 생성
++
+기존 Kakao 이용정보 자동 이전.
+
+### 2.0
+
+Kakao 로그인:
+REMOVE
+
+Kakao 가입:
+REMOVE
+
+Kakao 연결:
+REMOVE
+
+Kakao 사용자 전환 UI:
+REMOVE
+
+카카오 관련 UI 신규 노출:
+0
+
+### Apple 신규가입
+
+Apple 가입 버튼 자체는 유지 가능.
+
+단 실제 Apple signup이 불안정한 상태라면:
+
+Apple OAuth signup:
+NO CALL
+
+버튼 클릭 시 안내:
+
+"현재 Apple 계정 신규가입은 일반 회원가입으로 진행됩니다."
+
+[계속]
+
+→ 기존 일반 회원가입 화면.
+
+기존 Apple 로그인 사용자:
+별도 감사 후 보호.
+기존 로그인까지 임의 제거 금지.
+
+============================================================
+1. 절대 금지
+============================================================
+
+카카오 로그인 추가 디버깅:
+NO
+
+Kakao SDK login 호출:
+NO
+
+새 Kakao 기능:
+NO
+
+DB 데이터 수동 복사:
+NO
+
+학생 row 자체 복제:
+NO
+
+student id 변경:
+NO
+
+기록 내용 재생성:
+NO
+
+Production DB 직접 임의 SQL 이전:
+NO
+
+부분 이전 후 성공 처리:
+NO
+
+Migration 중간 실패 상태 방치:
+NO
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+2. 1.6.3 일반가입 전화번호 분기
+============================================================
+
+기존 일반 학부모 가입 flow는 최대한 유지.
+
+전화번호 입력/검증 시:
+
+normalized_phone 계산.
+
+서버에서:
+
+same swimming_pool_id
++
+same normalized phone
+
+기존 parent_accounts 확인.
+
+분기:
+
+A.
+기존 account 없음
+→ 현재 일반가입 그대로 진행.
+
+B.
+기존 account 있음
+AND kakao_id 없음
+→ 기존 duplicate 가입 정책 그대로.
+현재 동작 변경 금지.
+
+C.
+기존 account 있음
+AND kakao_id 존재
+→ KAKAO_MIGRATION_REQUIRED
+
+→ 임시 Kakao→일반계정 전환 flow로 이동.
+
+============================================================
+3. 안내 UI
+============================================================
+
+KAKAO_MIGRATION_REQUIRED일 때:
+
+제목:
+
+기존 이용정보가 확인되었습니다
+
+본문:
+
+"기존 카카오 계정의 학생정보와 이용기록이 확인되었습니다.
+일반회원 가입을 계속하면 기존 이용정보가
+새 일반계정으로 자동으로 이전됩니다."
+
+버튼:
+
+계속
+
+취소 선택지:
+NO
+
+사용자가 회원가입 화면 자체를 뒤로 나가는 것은 허용.
+
+============================================================
+4. 새 일반계정은 실제로 생성
+============================================================
+
+중요:
+
+이번 정책은
+"기존 Kakao row에 PIN만 추가"
+방식이 아니다.
+
+NEW GENERAL PARENT ACCOUNT:
+YES
+
+새 parent_accounts.id 생성.
+
+새 일반 로그인 credential 생성.
+
+기존 Kakao parent account와
+새 일반 parent account는 서로 다른 ID.
+
+============================================================
+5. UNIQUE PHONE 문제 해결
+============================================================
+
+현재 DB 정책:
+
+same pool
++
+same normalized phone
+
+duplicate parent row:
+금지.
+
+따라서 migration은 반드시
+하나의 DB transaction 안에서 처리.
+
+원칙:
+
+BEGIN
+
+1.
+기존 Kakao parent account lock
+가능하면 SELECT ... FOR UPDATE
+
+2.
+다시 조건 확인:
+
+same pool
+same phone
+kakao_id exists
+아직 migration 안 됨
+
+3.
+기존 Kakao account의 phone uniqueness를
+안전하게 해제할 수 있는 기존 archive/deactivate 방식 확인.
+
+임의 문자열 형식 invent 금지.
+
+현재 schema에 적합한 archive 방식이 없다면
+먼저 정확한 안전 설계 보고.
+
+4.
+새 일반 parent_accounts 생성:
+
+새 parent id
+original phone
+new general credential
+same swimming_pool_id
+
+5.
+모든 parent ownership references를
+old_parent_id → new_parent_id로 이전.
+
+6.
+기존 Kakao account는
+로그인 불가능한 archived/retired 상태로 전환.
+
+7.
+kakao_id는 history용으로 old account에 보존 가능.
+
+8.
+COMMIT
+
+어느 단계든 실패:
+ROLLBACK
+
+부분 migration:
+절대 금지.
+
+============================================================
+6. 모든 parent_id 참조 전수조사
+============================================================
+
+이전 감사에서 확인된 것만 믿고 끝내지 말 것.
+
+DB schema 전체에서
+parent_accounts.id를 참조하거나
+parent_id / guardian_id 등 parent identity를 저장하는
+모든 테이블 검색.
+
+Known examples:
+
+parent_students
+notice_reads
+diary_reactions
+parent_content_reads
+student_registration_requests
+growth/report related parent refs
+support/request records
+notification/push ownership
+
+하지만 이 목록만 하드코딩하지 말 것.
+
+실제 schema가 source of truth.
+
+반드시 완료보고에
+이전 대상 전체 테이블 목록 작성.
+
+============================================================
+7. 학생 데이터 처리 원칙
+============================================================
+
+학생 자체:
+
+students.id:
+변경 금지.
+
+반:
+유지.
+
+출결:
+유지.
+
+일지:
+유지.
+
+사진/앨범:
+유지.
+
+성장리포트:
+유지.
+
+학생의 교육데이터:
+복사 금지.
+
+바뀌는 것은 오직
+학부모 ownership/reference.
+
+즉:
+
+old parent id
+→ new parent id
+
+로 참조만 이동.
+
+============================================================
+8. migration idempotency
+============================================================
+
+같은 사용자가 가입 버튼을 두 번 누르거나
+network retry가 발생해도:
+
+새 일반계정 2개 생성:
+NO
+
+데이터 두 번 이전:
+NO
+
+반드시 idempotent.
+
+기존 시스템에서 request_id /
+idempotency mechanism이 있으면 재사용.
+
+새 DB schema는 가능하면 만들지 말 것.
+
+필요하다면 기존 audit/history 구조 사용 가능 여부 확인.
+
+============================================================
+9. 가입 완료
+============================================================
+
+migration 성공 후:
+
+새 일반 parent account 로그인 상태로 진입 가능.
+
+사용자가 새로 설정한:
+
+전화번호
++
+PIN 또는 현재 일반가입 credential
+
+으로 이후 로그인.
+
+기존 student links:
+새 account에서 그대로 확인.
+
+============================================================
+10. 기존 Kakao account
+============================================================
+
+migration 완료된 old Kakao parent:
+
+활성 로그인:
+NO
+
+신규 데이터 생성:
+NO
+
+학생 ownership:
+NO
+
+기존 kakao_id:
+삭제하지 않아도 됨.
+
+과거 계정 history용 보존.
+
+단,
+동일 Kakao account가 다시 migration trigger가 되어서는 안 됨.
+
+============================================================
+11. 토이키즈 대상 전환 검증
+============================================================
+
+현재 확인된 토이키즈 Kakao-linked parents:
+
+3명.
+
+READ ONLY dry-run으로:
+
+각 3명에 대해
+
+- old parent id
+- normalized phone
+- linked student count
+- parent-owned reference count
+- migration 시 이동될 table/row count
+
+계산.
+
+PII:
+masked only.
+
+Production write:
+0.
+
+============================================================
+12. 100% 전환 완료 조건
+============================================================
+
+임시 기능 제거 조건:
+
+토이키즈 및 실제 운영 범위에서
+전환 대상 Kakao-linked parent 중
+
+MIGRATION_PENDING:
+0
+
+그리고:
+
+migrated general accounts:
+100%
+
+학생 link 누락:
+0
+
+parent reference orphan:
+0
+
+duplicate phone:
+0
+
+duplicate general account:
+0
+
+이면:
+
+1.6.3 임시 migration 기능 역할 종료.
+
+2.0에는 이 기능을 넣지 않는다.
+
+============================================================
+13. 2.0 Kakao 완전 제거
+============================================================
+
+release/v2.0.0에서:
+
+로그인 화면 Kakao button:
+REMOVE
+
+signup Kakao:
+REMOVE
+
+Kakao account link:
+REMOVE
+
+kakao-link navigation entry:
+REMOVE
+
+Kakao 관련 신규가입 설명:
+REMOVE
+
+실제 Kakao SDK call:
+0
+
+단:
+
+backend Kakao historical routes와
+DB kakao_id 컬럼은
+이번 작업에서 삭제하지 말 것.
+
+native dependency도
+출시 직전에는 굳이 제거하지 않는다.
+
+============================================================
+14. Apple 신규가입 fallback
+============================================================
+
+먼저 실제 Apple 가입/로그인 구조 확인.
+
+구분:
+
+APPLE LOGIN EXISTING USER
+vs
+APPLE NEW SIGNUP
+
+이번 정책은
+NEW SIGNUP에만 적용.
+
+Apple 신규가입 버튼 클릭 시:
+
+Apple SDK 호출 없이:
+
+Alert/Modal:
+
+제목:
+Apple 가입 안내
+
+본문:
+"현재 Apple 계정 신규가입은
+일반 회원가입으로 진행됩니다."
+
+버튼:
+계속
+
+→ 현재 일반 회원가입 screen.
+
+기존 Apple login 계정이 존재한다면
+기존 로그인 entry를 함부로 제거하지 말 것.
+
+Apple existing-account 수와
+일반 credential 보유 여부를 READ ONLY 감사하여 보고.
+
+============================================================
+15. 테스트
+============================================================
+
+KM01
+new phone/no existing account
+→ existing normal signup unchanged
+
+KM02
+existing same phone + no kakao
+→ existing duplicate policy unchanged
+
+KM03
+same phone + kakao
+→ migration branch
+
+KM04
+migration notice displayed
+
+KM05
+no opt-out migration button
+
+KM06
+new general parent id created
+
+KM07
+old parent id != new parent id
+
+KM08
+same student ids preserved
+
+KM09
+parent_students moved
+
+KM10
+all discovered parent ownership refs moved
+
+KM11
+old Kakao account no longer active owner
+
+KM12
+kakao_id history preserved
+
+KM13
+same phone uniqueness valid after migration
+
+KM14
+transaction rollback on failure
+
+KM15
+retry creates no duplicate account
+
+KM16
+new general login works
+
+KM17
+old Kakao login not required
+
+KM18
+normal signup regression 0
+
+KM19
+2.0 Kakao login UI 0
+
+KM20
+2.0 Kakao signup UI 0
+
+KM21
+2.0 Kakao linking UI 0
+
+KM22
+Apple new-signup button → general signup
+
+KM23
+Apple OAuth not called from fallback signup button
+
+KM24
+existing Apple login not unintentionally broken
+
+============================================================
+16. Regression
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+============================================================
+17. 이번 작업의 변경 범위
+============================================================
+
+1.6.3 maintenance source:
+임시 migration UI/client
+
+release/v2.0.0:
+Kakao UI removal
+Apple signup fallback
+
+server source:
+migration endpoint/transaction이 필요한 경우 구현 가능
+
+tests:
+YES
+
+하지만:
+
+Production server:
+NO DEPLOY
+
+Production DB:
+NO WRITE
+
+1.6.3 OTA:
+NO
+
+Build:
+NO
+
+============================================================
+18. 완료보고
+============================================================
+
+# SWIMNOTE SOCIAL AUTH EXIT REPORT
+
+## 1.6.3 KAKAO MIGRATION
+
+Temporary migration:
+IMPLEMENTED / BLOCKED
+
+Normal signup unchanged:
+YES / NO
+
+Kakao phone detected:
+YES / NO
+
+Notice:
+...
+
+New general account created:
+YES / NO
+
+Old Kakao account retired:
+YES / NO
+
+## DATA TRANSFER
+
+Old parent ID:
+PRESERVED AS HISTORY
+
+New parent ID:
+CREATED
+
+Student IDs:
+UNCHANGED
+
+Discovered parent-reference tables:
+...
+
+All references migrated:
+YES / NO
+
+Orphans:
+0 / ...
+
+## TRANSACTION SAFETY
+
+Atomic:
+YES / NO
+
+Rollback tested:
+PASS / FAIL
+
+Idempotent:
+YES / NO
+
+Duplicate account risk:
+YES / NO
+
+## TOYKIDS DRY RUN
+
+Kakao parents:
+3
+
+Migration-ready:
+...
+
+Blocked:
+...
+
+Expected moved links/rows:
+masked summary
+
+Production writes:
+0
+
+## 2.0
+
+Kakao login UI:
+REMOVED
+
+Kakao signup:
+REMOVED
+
+Kakao linking:
+REMOVED
+
+Kakao SDK calls from UI:
+0
+
+Temporary migration UI:
+NOT INCLUDED
+
+## APPLE
+
+Existing Apple-linked users:
+...
+
+Existing Apple login:
+PRESERVED / NOT APPLICABLE
+
+New Apple signup button:
+GENERAL SIGNUP FALLBACK
+
+Apple SDK called from new signup:
+NO
+
+## TESTS
+
+KM01-KM24:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## PRODUCTION
+
+Deploy:
+NO
+
+DB write:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## BLOCKERS
+
+실제 출시 blocker만 작성.
+
+## FINAL
+
+SOCIAL AUTH EXIT SOURCE COMPLETE — MIGRATION/RELEASE APPROVAL READY
+
+또는
+
+SOCIAL AUTH EXIT BLOCKED — KAKAO DATA MIGRATION SAFETY ISSUE
