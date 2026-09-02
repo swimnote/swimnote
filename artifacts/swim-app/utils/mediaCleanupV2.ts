@@ -28,7 +28,14 @@ import { Image } from "expo-image";
 
 const V2_FLAG_KEY = "@swimnote:media_cleanup_v2";
 /** V3: 앱 버전마다 1회 실행. 앱 업데이트 후 첫 실행 시 stale cache 일괄 정리. */
-const V3_FLAG_PREFIX = "@swimnote:media_cleanup_v3:";
+/**
+ * MEDIA_CLEANUP_REVISION — 앱 버전과 독립된 cleanup 실행 기준.
+ * OTA만 받아도 appVersion이 동일하므로 appVersion-only key는 재실행 불가.
+ * 이 값을 bump하면 모든 기기에서 cleanup이 정확히 1회 재실행됨.
+ * 현재: r1
+ */
+const MEDIA_CLEANUP_REVISION = "r1";
+const V3_FLAG_KEY = `@swimnote:media_cleanup:${MEDIA_CLEANUP_REVISION}`;
 
 // 동시 실행 방지 lock
 let _v2Running = false;
@@ -158,7 +165,7 @@ async function _runCleanup(isUploadActive: boolean): Promise<CleanupV2Result> {
  *   - 명명 규칙 외 documentDirectory 파일 (사용자 명시 다운로드 포함)
  *   - upload 진행 중 ImagePicker 디렉터리 삭제 금지 (isUploadActive gate)
  *
- * @param appVersion Constants.expoConfig?.version (e.g. "2.0.0")
+ * @param appVersion 로깅 전용 (실행 여부 판단에 사용 안 함)
  * @param isUploadActive UploadQueueContext.isActive
  */
 export async function runMediaCleanupV3(
@@ -166,7 +173,7 @@ export async function runMediaCleanupV3(
   isUploadActive: boolean
 ): Promise<void> {
   try {
-    const flagKey = `${V3_FLAG_PREFIX}${appVersion}`;
+    const flagKey = V3_FLAG_KEY;
     const flag = await AsyncStorage.getItem(flagKey);
     if (flag === "completed") return;
     if (_v2Running) return; // V2와 동시 실행 방지
