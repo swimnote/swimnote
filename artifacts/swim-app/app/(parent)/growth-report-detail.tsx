@@ -360,7 +360,7 @@ export default function GrowthReportDetailScreen() {
       >
         <LucideIcon name="chevron-left" size={24} color={NAVY} />
       </Pressable>
-      <Text style={s.headerTitle}>성장리포트</Text>
+      <Text style={s.headerTitle}>AI 성장리포트</Text>
       <View style={s.backBtn} />
     </View>
   );
@@ -445,7 +445,7 @@ export default function GrowthReportDetailScreen() {
         <View style={s.periodCard}>
           <View style={s.periodBadge}>
             <LucideIcon name="bar-chart-2" size={14} color={NAVY} />
-            <Text style={s.periodBadgeText}>성장리포트</Text>
+            <Text style={s.periodBadgeText}>AI 성장리포트</Text>
           </View>
           <Text style={s.periodLabel} accessibilityRole="header">
             {periodLabel}

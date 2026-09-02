@@ -122,11 +122,11 @@ describe("Free Report Re-enrollment Eligibility", () => {
     const issueMonth = "2026-09-01";
     // Simulate: student has enrollment covering issue month
     const enrolledAt = "2026-08-01"; // before issue month
-    const leftAt: string | null = null; // still enrolled
+    const leftAt: string | null = null as string | null; // still enrolled
 
     const isEligible =
       enrolledAt <= issueMonth &&
-      (leftAt === null || leftAt >= issueMonth);
+      (leftAt === null || (leftAt as string) >= issueMonth);
 
     expect(isEligible).toBe(true);
   });

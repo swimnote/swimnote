@@ -1867,11 +1867,10 @@ export default function ParentHomeScreen() {
       </ScrollView>
 
       {/* C. AI 기능 버튼 (AI 인사이트 전략 리포트 + AI 커리큘럼 검색) */}
-      {/* 리포트: Normal/X/x_pending 동일 노출 — Stage 5 구현 전까지 disabled (준비 중) */}
       {selectedStudent && (
         <View style={{ flexDirection: "row", paddingHorizontal: 20, gap: 10, marginTop: 12, marginBottom: 12 }}>
-          <View
-            style={{
+          <Pressable
+            style={({ pressed }) => ({
               flex: 1,
               borderRadius: 11,
               borderWidth: 1,
@@ -1881,17 +1880,20 @@ export default function ParentHomeScreen() {
               paddingVertical: 12,
               alignItems: "center",
               gap: 6,
-              opacity: 0.5,
+              opacity: pressed ? 0.72 : 1,
+            })}
+            onPress={() => {
+              router.push({
+                pathname: "/(parent)/growth-report-paid" as any,
+                params: { studentId: selectedStudent?.id },
+              });
             }}
           >
             <LucideIcon name="bar-chart-2" size={22} color={NAVY} />
             <Text style={{ fontSize: 11, fontFamily: "Pretendard-Medium", color: NAVY, textAlign: "center", lineHeight: 16 }}>
               {"AI 인사이트\n전략 리포트"}
             </Text>
-            <Text style={{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 13 }}>
-              준비 중
-            </Text>
-          </View>
+          </Pressable>
           {/* AI 커리큘럼 검색 + 수영·훈련용어 검색 — 세로 2분할 */}
           <View
             style={{
@@ -2006,10 +2008,10 @@ export default function ParentHomeScreen() {
               <LucideIcon name="bar-chart-2" size={16} color="#0369A1" />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1", marginBottom: 3 }}>
-                  이번 달 성장리포트
+                  이번 달 AI 성장리포트
                 </Text>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155", lineHeight: 20 }}>
-                  조금 더 수업 기록이 쌓이면{"\n"}이번 달 성장리포트를 만들어드릴게요.
+                  조금 더 수업 기록이 쌓이면{"\n"}이번 달 AI 성장리포트를 만들어드릴게요.
                 </Text>
               </View>
             </View>
@@ -2023,10 +2025,10 @@ export default function ParentHomeScreen() {
               <ActivityIndicator size="small" color="#0369A1" />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#0369A1", marginBottom: 2 }}>
-                  이번 달 성장리포트
+                  이번 달 AI 성장리포트
                 </Text>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
-                  성장리포트를 만들고 있어요.
+                  AI 성장리포트를 만들고 있어요.
                 </Text>
               </View>
             </View>
@@ -2040,7 +2042,7 @@ export default function ParentHomeScreen() {
               <LucideIcon name="check-circle" size={16} color="#16A34A" />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#16A34A", marginBottom: 2 }}>
-                  이번 달 성장리포트
+                  이번 달 AI 성장리포트
                 </Text>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
                   검토가 완료되었어요. 곧 공개됩니다.
@@ -2057,10 +2059,10 @@ export default function ParentHomeScreen() {
               <LucideIcon name="alert-circle" size={16} color="#DC2626" />
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#DC2626", marginBottom: 2 }}>
-                  이번 달 성장리포트
+                  이번 달 AI 성장리포트
                 </Text>
                 <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#334155" }}>
-                  이번 달 성장리포트 생성에 문제가 발생했습니다.
+                  이번 달 AI 성장리포트 생성에 문제가 발생했습니다.
                 </Text>
               </View>
             </View>

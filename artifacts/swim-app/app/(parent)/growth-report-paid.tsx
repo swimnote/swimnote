@@ -2,7 +2,7 @@
  * (parent)/growth-report-paid.tsx
  *
  * AI 인사이트 전략 리포트 — Product Hub
- * PHASE 1 UI Polish: Navy/White/Neutral, content reinforced
+ * Stage 5: real history API + state-based CTA + name normalization
  *
  * route: /(parent)/growth-report-paid
  */
@@ -40,7 +40,7 @@ const NEUTRAL_BORDER = "#E2E6EA";
 type InsightReadiness = {
   lessonDataReady: boolean;
   lessonDataCount?: number;
-  basicInfo: { birthDate: boolean; height: boolean; weight: boolean };
+  basicInfo: { birthDate: boolean };
   parentObservation: { answered: number; total: number };
   preflightConfirmed: boolean;
 };
@@ -62,19 +62,7 @@ type InsightReport = {
   status: HubState;
 };
 
-// ─────────────────────────────────────────────────────────────
-// PHASE 1 Fixture
-// ─────────────────────────────────────────────────────────────
-
-const FIXTURE_READINESS: InsightReadiness = {
-  lessonDataReady: true,
-  lessonDataCount: undefined,
-  basicInfo: { birthDate: true, height: false, weight: false },
-  parentObservation: { answered: 0, total: 6 },
-  preflightConfirmed: false,
-};
-
-const FIXTURE_REPORTS: InsightReport[] = [];
+// InsightReport는 paid-insight/history에서 가져옴
 
 // ─────────────────────────────────────────────────────────────
 // Small helpers
@@ -153,6 +141,71 @@ function InfoMenuItem({
       <View style={[s.statusDot, { backgroundColor: dotColor }]} />
       <LucideIcon name="chevron-right" size={15} color={C.textMuted} />
     </Pressable>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PaidInsightCtaSection — 상태 기반 CTA (§10)
+// A. 데이터 준비 중  B. 추가 정보 입력 필요
+// C. 리포트 발급 준비 완료  D. 결제 시스템 준비 중
+// ─────────────────────────────────────────────────────────────
+
+function PaidInsightCtaSection({
+  lessonDataReady,
+  obsDone,
+  obsTotal,
+  onCheckReadiness,
+}: {
+  lessonDataReady: boolean;
+  obsDone: number;
+  obsTotal: number;
+  onCheckReadiness: () => void;
+}) {
+  // A: 수업 데이터 없음
+  if (!lessonDataReady) {
+    return (
+      <View style={s.ctaSection}>
+        <View style={{ gap: 4 }}>
+          <Text style={s.ctaStateLabel}>데이터 준비 중</Text>
+          <Text style={s.ctaStateDesc}>수업 기록이 더 쌓이면 리포트를 만들 수 있어요.</Text>
+        </View>
+        <View style={[s.ctaBtn, { backgroundColor: NAVY + "40" }]}>
+          <Text style={s.ctaBtnTxt}>수업 기록 필요</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // B: 수업 데이터 있고, 관찰정보 미완료
+  if (obsTotal > 0 && obsDone < obsTotal) {
+    return (
+      <View style={s.ctaSection}>
+        <View style={{ gap: 4 }}>
+          <Text style={s.ctaStateLabel}>추가 정보 입력 필요</Text>
+          <Text style={s.ctaStateDesc}>학부모 관찰정보를 입력하면 더 정확한 분석이 가능해요. ({obsDone}/{obsTotal}개 완료)</Text>
+        </View>
+        <Pressable style={s.ctaBtn} onPress={onCheckReadiness}>
+          <Text style={s.ctaBtnTxt}>준비 상태 확인</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  // C: 발급 준비 완료 (수업 있고, 관찰정보 없거나 완료) → 결제 연결 전
+  // D: 결제 시스템 준비 중 — 실제 Store 연결 전 상태
+  return (
+    <View style={s.ctaSection}>
+      <View style={s.priceRow}>
+        <Text style={s.priceName}>AI 인사이트 전략 리포트</Text>
+        <Text style={s.priceAmount}>29,000원 · 1회</Text>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Pressable style={s.ctaBtn} onPress={onCheckReadiness}>
+          <Text style={s.ctaBtnTxt}>발급 준비 확인</Text>
+        </Pressable>
+        <Text style={s.ctaPaymentNote}>결제 시스템 연동 준비 중 · 곧 이용 가능해요</Text>
+      </View>
+    </View>
   );
 }
 
@@ -408,18 +461,53 @@ export default function InsightReportHub() {
     lessonDataCount,
     basicInfo: {
       birthDate: !!(student?.birth_date),
-      height:    false,   // 별도 수집 시스템 없음 — 결제 Stage 연결 지점
-      weight:    false,   // 별도 수집 시스템 없음 — 결제 Stage 연결 지점
     },
   };
-  const reports = FIXTURE_REPORTS;
+
+  // ── 실제 Paid Insight 이력 로드 ──────────────────────────────────────────
+  const [reports,        setReports]        = useState<InsightReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token || !targetStudentId) return;
+    setReportsLoading(true);
+    apiRequest(token, `/parent/students/${targetStudentId}/paid-insight/history`)
+      .then(async r => {
+        if (!r.ok) return;
+        const d = await r.json();
+        const rows: InsightReport[] = (d.reports ?? []).map((row: any) => ({
+          id:             row.report_id ?? row.id,
+          issuedAt:       row.issued_at
+            ? new Date(row.issued_at).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })
+            : "",
+          analysisPeriod: row.analysis_period ?? "",
+          status:         mapPaidInsightState(row.paid_insight_state ?? "NOT_STARTED"),
+        }));
+        setReports(rows);
+      })
+      .catch(() => {})
+      .finally(() => setReportsLoading(false));
+  }, [token, targetStudentId]);
+
+  function mapPaidInsightState(state: string): HubState {
+    switch (state) {
+      case "OPEN":                return "PREPARING";
+      case "QUESTION_AVAILABLE":  return "PREPARING";
+      case "READY_FOR_ANALYSIS":  return "READY";
+      case "ANALYZING":           return "ANALYZING";
+      case "REVIEW_REQUIRED":     return "ANALYZING";
+      case "PUBLISHED":           return "COMPLETED";
+      case "FAILED":              return "FAILED";
+      default:                    return "NOT_STARTED";
+    }
+  }
 
   const [showPreview,     setShowPreview]     = useState(false);
   const [showPreflight,   setShowPreflight]   = useState(false);
   const [showDataSources, setShowDataSources] = useState(false);
 
-  const basicDone  = Object.values(readiness.basicInfo).filter(Boolean).length;
-  const basicTotal = Object.keys(readiness.basicInfo).length;
+  const basicDone  = readiness.basicInfo.birthDate ? 1 : 0;
+  const basicTotal = 1;
   const obsDone    = readiness.parentObservation.answered;
   const obsTotal   = readiness.parentObservation.total;
 
@@ -434,7 +522,7 @@ export default function InsightReportHub() {
   }
 
   const basicState = readinessState(false, basicDone, basicTotal);
-  const obsState   = readinessState(false, obsDone,   obsTotal);
+  const obsState   = readinessState(false, obsDone, obsTotal > 0 ? obsTotal : undefined);
 
   const DATA_SOURCES = [
     "누적 수업 기록",
@@ -443,7 +531,7 @@ export default function InsightReportHub() {
     "수업 중 성공 조건",
     "교사 관찰 내용",
     "학부모가 제공한 추가 정보",
-    "이전 AI 성장 리포트",
+    "이전 AI 인사이트 전략 리포트",
   ];
 
   return (
@@ -496,8 +584,8 @@ export default function InsightReportHub() {
           <SectionLabel label="분석 준비" />
           <View style={s.card}>
             <ReadinessRow label="수업·성장 데이터" value={readiness.lessonDataReady ? "준비됨" : "없음"} state={readiness.lessonDataReady ? "done" : "empty"} />
-            <ReadinessRow label="아이 기본정보"    value={`${basicDone}/${basicTotal}`}                  state={basicState} />
-            <ReadinessRow label="학부모 관찰정보"  value={obsTotal > 0 ? `${obsDone}/${obsTotal}` : "미입력"} state={obsState} />
+            <ReadinessRow label="아이 기본정보"    value={readiness.basicInfo.birthDate ? "확인됨" : "미확인"} state={basicState} />
+            <ReadinessRow label="학부모 관찰정보"  value={obsTotal > 0 ? `${obsDone}/${obsTotal}개 답변` : "문항 없음"} state={obsTotal > 0 ? obsState : "done"} />
             <ReadinessRow label="발급 전 확인"     value={readiness.preflightConfirmed ? "완료" : "미완료"} state={readiness.preflightConfirmed ? "done" : "empty"} />
           </View>
           <Pressable style={s.outlineBtn} onPress={() => setShowPreflight(true)}>
@@ -515,15 +603,15 @@ export default function InsightReportHub() {
               title="아이 기본정보"
               desc="분석에 참고할 기본 정보를 확인합니다."
               state={basicState}
-              onPress={() => { /* PHASE 2에서 연결 */ }}
+              onPress={() => {}}
             />
             <View style={s.divider} />
             <InfoMenuItem
               icon="message-square"
               title="학부모 관찰정보"
               desc="수업 밖에서 보이는 아이의 변화와 특징을 보충합니다."
-              state={obsState}
-              onPress={() => { /* PHASE 3에서 연결 */ }}
+              state={obsTotal > 0 ? obsState : "done"}
+              onPress={() => {}}
             />
           </View>
         </View>
@@ -574,25 +662,26 @@ export default function InsightReportHub() {
           </Pressable>
         </View>
 
-        {/* ── F. 가격 / CTA ── */}
-        <View style={s.ctaSection}>
-          <View style={s.priceRow}>
-            <Text style={s.priceName}>AI 인사이트 전략 리포트</Text>
-            <Text style={s.priceAmount}>29,000원 · 1회</Text>
-          </View>
-          <Pressable style={s.ctaBtn} onPress={() => setShowPreflight(true)}>
-            <Text style={s.ctaBtnTxt}>발급 준비 확인</Text>
-          </Pressable>
-        </View>
+        {/* ── F. 상태 기반 CTA (§10 A/B/C/D) ── */}
+        <PaidInsightCtaSection
+          lessonDataReady={readiness.lessonDataReady}
+          obsDone={obsDone}
+          obsTotal={obsTotal}
+          onCheckReadiness={() => setShowPreflight(true)}
+        />
 
         {/* ── G. 내 리포트 ── */}
         <View style={s.section}>
           <SectionLabel label="내 리포트" />
-          {reports.length === 0 ? (
+          {reportsLoading ? (
+            <View style={s.emptyCard}>
+              <ActivityIndicator size="small" color={NAVY} />
+            </View>
+          ) : reports.length === 0 ? (
             <View style={s.emptyCard}>
               <LucideIcon name="inbox" size={28} color={MUTED} />
               <Text style={s.emptyTxt}>
-                아직 발급된 리포트가 없습니다.
+                아직 발급된 AI 인사이트 전략 리포트가 없습니다.
               </Text>
             </View>
           ) : (
@@ -695,8 +784,11 @@ const s = StyleSheet.create({
   priceRow:   { gap: 3 },
   priceName:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: MUTED },
   priceAmount:{ fontSize: 20, fontFamily: "Pretendard-Regular", fontWeight: "700", color: NAVY },
-  ctaBtn:     { backgroundColor: NAVY, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  ctaBtnTxt:  { fontSize: 15, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
+  ctaBtn:         { backgroundColor: NAVY, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  ctaBtnTxt:      { fontSize: 15, fontFamily: "Pretendard-Regular", fontWeight: "600", color: "#fff" },
+  ctaStateLabel:  { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600", color: NAVY },
+  ctaStateDesc:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: MUTED, lineHeight: 20 },
+  ctaPaymentNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: MUTED, textAlign: "center" as const },
 
   // My reports
   emptyCard: { backgroundColor: "#fff", borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: NEUTRAL_BORDER, paddingVertical: 36, alignItems: "center", gap: 10 },
