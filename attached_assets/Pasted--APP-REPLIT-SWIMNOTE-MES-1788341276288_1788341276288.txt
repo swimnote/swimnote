@@ -1,0 +1,639 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE MESSENGER — LAUNCH BLOCKER MINIMAL FIX
+#
+# 목적:
+# 메신저 감사에서 확인된 출시 전 실제 문제 3개만 수정한다.
+#
+# 1. 메신저 화면에서 상대 메시지가 자동으로 갱신되지 않음
+# 2. 날짜 separator가 UTC 기준이라 KST에서 잘못 나옴
+# 3. 일반 talk 메시지에 push 알림이 없음
+#
+# 추가 기능/구조개선 금지.
+# 출시 blocker만 수정.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Production branch:
+deploy-photo-clone
+
+IMPORTANT:
+이번 작업은 SOURCE FIX + TEST + COMMIT까지만.
+
+Production deploy:
+NO
+
+============================================================
+0. 절대 금지
+============================================================
+
+1.6.3:
+NO TOUCH
+
+OTA:
+NO
+
+Build:
+NO
+
+Production DB:
+NO CHANGE
+
+Migration:
+NO
+
+Kakao:
+NO TOUCH
+
+Auth:
+NO TOUCH
+
+Subscription / RevenueCat:
+NO TOUCH
+
+messages-inbox:
+NO TOUCH
+
+WebSocket:
+NO
+
+SSE:
+NO
+
+1:1 conversation 구조:
+NO
+
+메시지 삭제/수정:
+NO
+
+답장:
+NO
+
+리액션:
+NO
+
+검색:
+NO
+
+이모티콘 신규 구현:
+NO
+
+대규모 refactor:
+NO
+
+============================================================
+1. CLIENT FIX #1 — 화면 자동 갱신
+============================================================
+
+대상:
+
+artifacts/swim-app/components/common/MessengerScreen.tsx
+
+현재 문제:
+
+MessengerScreen은
+초기 loadMessages()
++
+useFocusEffect()
+
+만 사용.
+
+화면을 계속 보고 있는 동안
+상대방이 새 메시지를 보내면 자동으로 나타나지 않음.
+
+최소 수정:
+
+MessengerScreen이 focus 상태일 때만
+5~10초 간격 HTTP polling 수행.
+
+권장:
+5초 또는 7초.
+
+원칙:
+
+- 화면 focus일 때만 polling
+- blur/unmount 시 interval 즉시 cleanup
+- 중복 interval 금지
+- 기존 loadMessages() 재사용
+- 새 인프라 추가 금지
+- WebSocket/SSE 금지
+
+중요:
+
+사용자가 메시지를 입력 중이어도
+keyboard/focus를 건드리지 말 것.
+
+polling 때문에:
+- scroll 튐
+- 입력값 초기화
+- 화면 전체 loading spinner 반복
+- optimistic message 중복
+
+발생하지 않도록 한다.
+
+background polling 시
+전체 screen loading state를 다시 켜지 말 것.
+
+============================================================
+2. 중복 메시지 방지
+============================================================
+
+polling과 optimistic send가 같이 동작하므로
+
+동일 message id가 두 번 렌더링되지 않는지 확인.
+
+서버 authoritative message가 도착하면
+optimistic item과 안전하게 reconcile되는
+기존 구조를 보존.
+
+필요한 경우에만 최소 dedupe 추가.
+
+============================================================
+3. CLIENT FIX #2 — KST 날짜 separator
+============================================================
+
+현재 잘못된 코드:
+
+sameDay(a,b)
+→ a.slice(0,10) === b.slice(0,10)
+
+UTC ISO 문자열 날짜를 직접 비교하고 있어서
+KST 기준 날짜가 다르게 표시됨.
+
+수정:
+
+기존 parseDateSafe()를 사용해
+각 timestamp를 Date로 변환한 뒤
+
+local:
+year
+month
+date
+
+를 비교.
+
+예:
+
+KST
+2026-09-02 08:00
+2026-09-02 10:00
+
+→ same day = true
+
+UTC 날짜 문자열 slice 비교 금지.
+
+fmtTime / fmtDateFull 기존 구현은
+정상이라면 건드리지 말 것.
+
+============================================================
+4. CLIENT CLEANUP — dead Smile button
+============================================================
+
+MessengerScreen에
+onPress 없는 Smile 아이콘 버튼이 존재하면
+
+기능 추가하지 말고
+UI에서 제거.
+
+이모티콘 기능 구현:
+NO
+
+레이아웃이 어색해지지 않도록 최소 정리.
+
+============================================================
+5. SERVER FIX #3 — 일반 talk message push
+============================================================
+
+대상:
+
+artifacts/api-server/src/routes/messenger.ts
+
+현재:
+
+directed_message(@mention)만 push.
+
+일반 talk message는 push 없음.
+
+목표:
+
+일반 talk 메시지가 생성되면
+같은 pool의 상대 staff에게 push.
+
+원칙:
+
+관리자 발신:
+→ 해당 pool의 활성 teacher들에게 push
+
+선생님 발신:
+→ 해당 pool의 pool_admin에게 push
+
+자기 자신:
+push 제외
+
+다른 pool:
+절대 push 금지
+
+notice:
+기존 동작 변경 금지
+
+directed_message:
+기존 push 유지
+중복 push 금지
+
+============================================================
+6. 일반 메시지 push 설계
+============================================================
+
+기존 push utility를 우선 재사용.
+
+새 push infrastructure 만들지 말 것.
+
+확인:
+
+sendPushToUser
+sendPushToPoolAdmins
+sendPushToPoolTeachers
+
+등 기존 helper 실제 존재 여부와 contract.
+
+가장 안전한 기존 helper 사용.
+
+push payload:
+
+type:
+messenger
+
+poolId:
+해당 pool
+
+기존 deep-link contract와 호환 유지.
+
+제목/본문은
+현재 앱 알림 스타일과 맞추되
+PII 과다 노출 금지.
+
+예:
+
+제목:
+SWIMNOTE 메신저
+
+본문:
+새 메시지가 도착했습니다.
+
+sender 이름/메시지 전문을
+잠금화면에 과도하게 노출하지 않는 방향 우선.
+
+============================================================
+7. directed_message 중복 push 방지
+============================================================
+
+일반 talk push 추가 때문에
+
+@멘션 메시지가:
+
+일반 pool push
++
+기존 directed push
+
+두 번 발송되면 안 됨.
+
+message_type === directed_message 인 경우:
+
+기존 targeted push만 유지
+
+또는
+명확한 단일 정책 적용.
+
+반드시 1 message → 동일 사용자 push 1회.
+
+============================================================
+8. 읽음 상태 보존
+============================================================
+
+기존:
+
+messenger_read_state
+last_read_at
+sender_id != userId
+
+규칙 유지.
+
+polling 때문에
+자동으로 read-state를 계속 갱신하지 말 것.
+
+현재 화면 진입/focus 시 읽음 처리 구조는 유지.
+
+새 메시지가 화면에 polling으로 들어왔을 때
+사용자가 실제 메신저 화면 focus 상태라면
+현재 정책과 자연스럽게 읽음 처리가 되는지 확인.
+
+불필요한 DB write 반복 금지.
+
+============================================================
+9. PC FUTURE SYNC 구조 보존
+============================================================
+
+반드시 그대로 유지:
+
+work_messages server authoritative
+
+messenger_read_state server authoritative
+
+channel_type:
+talk / notice
+
+created_at:
+UTC
+
+sender_id:
+actual user ID
+
+API contract:
+
+/messenger/messages
+/messenger/read-state
+
+PC용 새 API 만들지 말 것.
+
+============================================================
+10. 테스트 추가
+============================================================
+
+현재 메신저 전용 테스트가 없으므로
+이번 수정 범위 테스트만 최소 추가.
+
+필수:
+
+M01
+sameDay KST same-date
+→ PASS
+
+M02
+KST 날짜 변경
+→ separator 정상
+
+M03
+invalid/null date
+→ crash 없음
+
+M04
+focused polling interval 생성
+→ PASS
+
+M05
+blur/unmount
+→ interval cleanup
+
+M06
+polling response 중복 message id
+→ duplicate 없음
+
+M07
+admin 일반 talk message
+→ teachers push
+
+M08
+teacher 일반 talk message
+→ pool_admin push
+
+M09
+sender self push
+→ 없음
+
+M10
+cross-pool push
+→ 없음
+
+M11
+directed_message
+→ duplicate push 없음
+
+M12
+notice behavior
+→ unchanged
+
+M13
+existing read-state behavior
+→ unchanged
+
+M14
+photo/file/member-card existing flow
+→ regression 없음
+
+============================================================
+11. Regression
+============================================================
+
+현재 known baseline:
+
+166 stable failures
+
+new deterministic failures:
+0
+
+기존 166 고치지 말 것.
+
+메신저 수정 때문에
+새 failure 발생 시
+이번 작업 범위에서 해결.
+
+============================================================
+12. 변경 범위
+============================================================
+
+예상 허용 파일:
+
+artifacts/swim-app/components/common/MessengerScreen.tsx
+
+artifacts/api-server/src/routes/messenger.ts
+
+관련 신규/기존 test file
+
+그 외 파일 변경이 필요하면
+정확한 이유가 있어야 함.
+
+============================================================
+13. SERVER SOURCE 수정은 허용
+============================================================
+
+release/v2.0.0의 server source 수정:
+YES
+
+하지만 Production:
+
+deploy-photo-clone:
+NO TOUCH
+
+Render:
+NO DEPLOY
+
+Production DB:
+NO CHANGE
+
+즉 push 기능은 소스에서 완성/테스트까지만 한다.
+
+Production 반영은 완료보고 검수 후
+별도 승인 단계에서 결정.
+
+============================================================
+14. 코드 수정 → 테스트 → 커밋
+============================================================
+
+audit로 끝내지 말 것.
+
+3개 blocker 모두 실제 수정.
+
+테스트 완료 후
+release/v2.0.0에 commit.
+
+권장 commit message:
+
+fix(messenger): normalize live refresh dates and talk notifications
+
+============================================================
+15. 완료보고 형식
+============================================================
+
+# SWIMNOTE MESSENGER LAUNCH FIX REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Commit:
+
+## CHANGED FILES
+
+...
+
+## LIVE REFRESH
+
+Polling interval:
+...
+
+Focus-only:
+YES / NO
+
+Cleanup:
+PASS / FAIL
+
+Scroll/input regression:
+NONE / ...
+
+Duplicate messages:
+NONE / ...
+
+## DATE
+
+sameDay:
+FIXED / NOT FIXED
+
+KST test:
+PASS / FAIL
+
+Invalid date:
+PASS / FAIL
+
+## SMILE BUTTON
+
+Dead UI:
+REMOVED / STILL PRESENT
+
+Emoji feature added:
+NO
+
+## GENERAL TALK PUSH
+
+Admin → teachers:
+PASS / FAIL
+
+Teacher → pool_admin:
+PASS / FAIL
+
+Self push:
+NO
+
+Cross-pool:
+NO
+
+Directed message duplicate push:
+NO
+
+Notice regression:
+NO
+
+Payload:
+...
+
+## READ STATE
+
+Existing behavior preserved:
+YES / NO
+
+## PC SYNC
+
+Server authoritative messages:
+PRESERVED
+
+Server authoritative read state:
+PRESERVED
+
+API contract:
+UNCHANGED
+
+## TESTS
+
+Messenger tests:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic failures:
+0
+
+## PRODUCTION FREEZE
+
+deploy-photo-clone:
+NOT TOUCHED
+
+Render:
+NOT DEPLOYED
+
+Production DB:
+NOT CHANGED
+
+1.6.3:
+NOT TOUCHED
+
+OTA:
+NO
+
+Build:
+NO
+
+## BLOCKERS
+
+출시를 막는 실제 문제만 작성.
+
+없으면:
+NONE
+
+## FINAL
+
+MESSENGER LAUNCH BLOCKERS FIXED — SOURCE COMPLETE
+
+or
+
+MESSENGER BLOCKED — FIX REQUIRED
