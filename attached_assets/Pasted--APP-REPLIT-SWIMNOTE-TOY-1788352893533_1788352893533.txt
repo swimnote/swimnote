@@ -1,0 +1,507 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE TOYKIDS KAKAO ACCOUNT — PRODUCTION FULL AUDIT
+#
+# 목적:
+# 토이키즈스윔클럽에 현재 존재하는
+# 카카오 연결 학부모 계정 + 선생님 계정을 전수조사한다.
+#
+# 중요:
+# READ ONLY 감사다.
+# 계정 데이터는 절대 수정하지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target environment:
+PRODUCTION DB — READ ONLY
+
+Target pool:
+토이키즈스윔클럽
+
+Known pool_id:
+pool_1780849364252_l9k44rbk3
+
+============================================================
+0. 절대 금지
+============================================================
+
+UPDATE:
+NO
+
+INSERT:
+NO
+
+DELETE:
+NO
+
+UPSERT:
+NO
+
+DB migration:
+NO
+
+kakao_id 수정:
+NO
+
+kakao_id 삭제:
+NO
+
+계정 unlink:
+NO
+
+계정 merge:
+NO
+
+password 생성/변경:
+NO
+
+phone/email 수정:
+NO
+
+role 수정:
+NO
+
+활성상태 수정:
+NO
+
+Production deploy:
+NO
+
+Render deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+1. 조사 대상
+============================================================
+
+토이키즈스윔클럽의 다음 계정을 전수조사:
+
+A. 학부모
+parent_accounts
+
+B. 선생님
+users WHERE role = 'teacher'
+
+C. 관리자
+users WHERE role = 'pool_admin'
+
+관리자는 별도 참고 통계로만 포함.
+
+============================================================
+2. 학부모 카카오 연결 계정 전수조사
+============================================================
+
+parent_accounts에서
+target pool에 연결된 계정 중:
+
+kakao_id IS NOT NULL
+AND kakao_id != ''
+
+전부 조회.
+
+반드시 집계:
+
+1. 전체 학부모 계정 수
+2. kakao_id 연결 학부모 수
+3. kakao_id 미연결 학부모 수
+4. 활성/비활성 상태별 수
+5. 일반 로그인 credential 보유 여부
+
+개인정보 보호를 위해
+완료보고에서는:
+
+실명 전체
+전화번호 전체
+이메일 전체
+kakao_id 원문
+
+출력 금지.
+
+필요하면 masked 형태만:
+
+이름:
+김*수
+
+전화:
+010-****-1234
+
+email:
+k***@example.com
+
+kakao_id:
+마지막 4자리만 또는 hash/masked
+
+============================================================
+3. 선생님 카카오 연결 계정 전수조사
+============================================================
+
+users에서:
+
+swimming_pool_id = target pool
+role = 'teacher'
+
+중 kakao_id 연결 여부 조사.
+
+반드시 집계:
+
+1. 전체 teacher 수
+2. kakao_id 연결 teacher 수
+3. kakao_id 미연결 teacher 수
+4. active/inactive
+5. username/identifier 존재 여부
+6. password credential 존재 여부
+7. 일반 로그인 가능한 구조인지
+
+============================================================
+4. 관리자도 참고 조사
+============================================================
+
+users:
+
+swimming_pool_id = target pool
+role = 'pool_admin'
+
+대상으로:
+
+- 전체 관리자 수
+- kakao_id 연결 관리자 수
+- 일반 credential 존재 여부
+
+보고.
+
+단,
+관리자 데이터 수정 금지.
+
+============================================================
+5. "카카오 로그인 제거 시 잠기는 계정" 찾기
+============================================================
+
+이번 감사의 핵심.
+
+카카오 로그인 버튼을 2.0에서 제거할 경우
+기존 사용자가 일반 로그인으로 들어갈 수 있는지 확인.
+
+각 Kakao 연결 계정에 대해:
+
+A.
+일반 login identifier 존재?
+
+B.
+password credential 존재?
+
+C.
+phone 기반 일반 로그인 가능한가?
+
+D.
+password reset/recovery 가능한가?
+
+이를 기준으로 다음 분류:
+
+SAFE
+= Kakao 없어도 일반 로그인 가능
+
+RECOVERY_REQUIRED
+= 계정은 있으나 password reset 등 한번의 복구 절차 필요
+
+LOCKOUT_RISK
+= Kakao 버튼 제거 시 일반 로그인 진입 방법이 현재 없음
+
+반드시 parent / teacher / admin 각각 집계.
+
+============================================================
+6. 중복 Kakao 연결 조사
+============================================================
+
+전체 target pool 및 가능한 범위에서:
+
+같은 kakao_id가
+
+- parent_accounts 여러 row
+- users 여러 row
+- parent_accounts + users 교차
+
+로 중복 연결된 사례가 있는지 확인.
+
+반드시:
+
+duplicate kakao_id count
+
+보고.
+
+원문 kakao_id 출력 금지.
+
+============================================================
+7. PHONE 중복도 확인
+============================================================
+
+Kakao 연결 계정들 중:
+
+같은 phone이 여러 계정에 존재하는지 확인.
+
+형식:
+
+01012345678
+010-1234-5678
+
+정규화 후 같은 번호인지도 확인.
+
+반드시 집계:
+
+normalized phone duplicate groups:
+...
+
+단,
+수정 금지.
+
+============================================================
+8. 계정별 최소 감사표
+============================================================
+
+개인정보는 masked.
+
+학부모 표:
+
+| # | Name(masked) | Kakao | General ID | Password | Phone Recovery | Status | Removal Risk |
+|---|---|---|---|---|---|---|---|
+
+선생님 표:
+
+| # | Name(masked) | Kakao | General ID | Password | Phone Recovery | Active | Removal Risk |
+|---|---|---|---|---|---|---|---|
+
+관리자 표도 동일.
+
+Removal Risk:
+SAFE
+RECOVERY_REQUIRED
+LOCKOUT_RISK
+
+============================================================
+9. 실제 일반 로그인 경로 검증
+============================================================
+
+코드 기준으로:
+
+parent
+teacher
+pool_admin
+
+각 역할의 일반 로그인 방식 확인.
+
+확인:
+
+- identifier field
+- phone 사용 가능 여부
+- password required 여부
+- password reset/recovery route
+- parent와 staff 로그인 contract 차이
+
+DB 값을 실제 로그인 시도해서
+계정 잠금/로그인 횟수 등에 영향을 주지 말 것.
+
+코드 + DB credential 존재 여부로 판정.
+
+============================================================
+10. 카카오 제거 결정에 필요한 최종 숫자
+============================================================
+
+반드시 최종 집계:
+
+학부모:
+전체:
+Kakao 연결:
+SAFE:
+RECOVERY_REQUIRED:
+LOCKOUT_RISK:
+
+선생님:
+전체:
+Kakao 연결:
+SAFE:
+RECOVERY_REQUIRED:
+LOCKOUT_RISK:
+
+관리자:
+전체:
+Kakao 연결:
+SAFE:
+RECOVERY_REQUIRED:
+LOCKOUT_RISK:
+
+그리고:
+
+카카오 제거 시 즉시 영향받는 사용자 총계:
+...
+
+============================================================
+11. DB 안전 검증
+============================================================
+
+감사 전후:
+
+DB write:
+0
+
+row changed:
+0
+
+account changed:
+0
+
+kakao_id changed:
+0
+
+============================================================
+12. 완료보고 형식
+============================================================
+
+# TOYKIDS KAKAO ACCOUNT FULL AUDIT REPORT
+
+## TARGET
+
+Pool:
+토이키즈스윔클럽
+
+Pool ID:
+pool_1780849364252_l9k44rbk3
+
+Environment:
+Production READ ONLY
+
+## PARENTS
+
+Total:
+...
+
+Kakao linked:
+...
+
+Kakao unlinked:
+...
+
+SAFE:
+...
+
+RECOVERY_REQUIRED:
+...
+
+LOCKOUT_RISK:
+...
+
+### Account audit
+
+masked table.
+
+## TEACHERS
+
+Total:
+...
+
+Kakao linked:
+...
+
+Kakao unlinked:
+...
+
+SAFE:
+...
+
+RECOVERY_REQUIRED:
+...
+
+LOCKOUT_RISK:
+...
+
+### Account audit
+
+masked table.
+
+## ADMINS
+
+Total:
+...
+
+Kakao linked:
+...
+
+SAFE:
+...
+
+RECOVERY_REQUIRED:
+...
+
+LOCKOUT_RISK:
+...
+
+## DUPLICATES
+
+Duplicate kakao_id groups:
+...
+
+Cross-role duplicate kakao_id:
+...
+
+Normalized phone duplicate groups:
+...
+
+## GENERAL LOGIN CONTRACT
+
+Parent:
+...
+
+Teacher:
+...
+
+Admin:
+...
+
+## KAKAO REMOVAL IMPACT
+
+Users unaffected:
+...
+
+Users requiring recovery:
+...
+
+Users at lockout risk:
+...
+
+Total Kakao-linked users:
+...
+
+## RECOMMENDATION
+
+다음 중 하나:
+
+SAFE TO REMOVE KAKAO UI
+
+또는
+
+REMOVE KAKAO UI AFTER ACCOUNT RECOVERY MIGRATION
+
+또는
+
+KAKAO UI REMOVAL BLOCKED — EXISTING USERS WOULD BE LOCKED OUT
+
+## SAFETY
+
+DB writes:
+0
+
+Rows modified:
+0
+
+Accounts modified:
+0
+
+Kakao IDs modified:
+0
