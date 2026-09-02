@@ -200,13 +200,39 @@ app.use("/api", router);
 let _serverReady = false;
 export function setServerReady() { _serverReady = true; }
 
+// ── Boot-state (healthz additive metadata용) ─────────────────────────────────
+// 순환 import 방지: lazy import 사용 (index.ts → app.ts 방향)
+let _bootMeta: { boot_id: string; started_at: string; commit: string; version: string } | null = null;
+export function setBootMeta(meta: { boot_id: string; started_at: string; commit: string; version: string }) {
+  _bootMeta = meta;
+}
+
 // 헬스체크 — /api/health, /health, /api/healthz, /healthz 모두 지원
 // DB 초기화 전에는 503 반환 → Render가 초기화 도중 서버를 죽이지 않음
+// additive metadata: uptime_seconds, boot_id, version — 1.6.3 parser 영향 없음
 app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, res: Response) => {
+  const uptime_seconds = Math.floor(process.uptime());
   if (!_serverReady) {
-    return res.status(503).json({ ok: false, reason: "initializing", uptime: Math.floor(process.uptime()) });
+    return res.status(503).json({ ok: false, reason: "initializing", uptime: uptime_seconds });
   }
-  res.json({ ok: true, uptime: Math.floor(process.uptime()), timestamp: new Date().toISOString(), version: "v2.5-2026-07-24" });
+  const body: Record<string, any> = {
+    ok: true,
+    uptime: uptime_seconds,          // 기존 키 — 1.6.3 호환 유지
+    timestamp: new Date().toISOString(),
+    version: "v2.5-2026-07-24",     // 기존 키 — 1.6.3 호환 유지 (production 버전 유지)
+    // ── additive metadata (진단용) — 1.6.3 parser 영향 없음 ──
+    uptime_seconds,
+    boot_id: _bootMeta?.boot_id ?? "unknown",
+    commit: _bootMeta?.commit ?? "unknown",
+    service_version: _bootMeta?.version ?? "2.x",
+  };
+  // [SERVER_HEALTH] — Render 로그에서 주기적 uptime 확인용
+  console.log("[SERVER_HEALTH]", JSON.stringify({
+    boot_id: _bootMeta?.boot_id ?? "unknown",
+    uptime_seconds,
+    ts: new Date().toISOString(),
+  }));
+  res.json(body);
 });
 
 // ── 작업 결과보고서 ─────────────────────────────────────────────────

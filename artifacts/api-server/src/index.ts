@@ -1,4 +1,5 @@
-import app from "./app";
+import app, { setServerReady, setBootMeta } from "./app";
+import { BOOT_ID, BOOT_STARTED_AT, COMMIT_SHA, SERVICE_VERSION } from "./lib/boot-state.js";
 import { startBackupJobs } from "./jobs/backup-batch.js";
 import { startParentLinkScheduler } from "./jobs/parent-link-scheduler.js";
 import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.js";
@@ -11,6 +12,23 @@ import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
 import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
 
 const IS_WORKER = process.env.WORKER_MODE === "true";
+
+// ── 서버 기동 로그 — 장애 발생 시 restart/deploy 판별 기준 ──────────────────
+// boot_id가 장애 전후로 바뀌면 → restart/deploy 가능성 매우 높음
+// boot_id가 유지 + login request 미도달 → client/DNS/TLS/network 문제
+const _bootPayload = {
+  boot_id: BOOT_ID,
+  started_at: BOOT_STARTED_AT,
+  commit: COMMIT_SHA,
+  version: SERVICE_VERSION,
+  pid: process.pid,
+  node: process.version,
+  mode: IS_WORKER ? "worker" : "api",
+};
+console.log("[SERVER_BOOT]", JSON.stringify(_bootPayload));
+
+// healthz additive metadata 등록 (app.ts에서 /healthz 응답에 포함)
+setBootMeta({ boot_id: BOOT_ID, started_at: BOOT_STARTED_AT, commit: COMMIT_SHA, version: SERVICE_VERSION });
 
 // ── DB 구성 안내 ─────────────────────────────────────────────────────────────
 if (!isDbSeparated) {
@@ -118,8 +136,27 @@ if (IS_WORKER) {
 
 // 처리되지 않은 예외가 서버를 죽이지 않도록 로깅만 처리
 process.on("uncaughtException", (err) => {
-  console.error("[uncaughtException]", err);
+  // [PROCESS_ERROR] — Render 로그에서 검색 가능한 고정 prefix
+  // password/token/body 절대 포함 금지
+  const safeStack = (err?.stack ?? String(err)).slice(0, 800);
+  console.error("[PROCESS_ERROR]", JSON.stringify({
+    type: "uncaughtException",
+    boot_id: BOOT_ID,
+    ts: new Date().toISOString(),
+    error_class: err?.constructor?.name ?? "Error",
+    message: err?.message?.slice(0, 200) ?? String(err).slice(0, 200),
+    safe_stack: safeStack,
+  }));
 });
 process.on("unhandledRejection", (reason) => {
-  console.error("[unhandledRejection]", reason);
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  const safeStack = (err?.stack ?? String(reason)).slice(0, 800);
+  console.error("[PROCESS_ERROR]", JSON.stringify({
+    type: "unhandledRejection",
+    boot_id: BOOT_ID,
+    ts: new Date().toISOString(),
+    error_class: err?.constructor?.name ?? "Error",
+    message: err?.message?.slice(0, 200) ?? String(reason).slice(0, 200),
+    safe_stack: safeStack,
+  }));
 });
