@@ -19,6 +19,17 @@ async function getPoolIdForParent(parentId: string): Promise<string | null> {
   return pa?.swimming_pool_id || null;
 }
 
+/**
+ * Teacher class scope guard — reuses photos.ts canonical pattern.
+ * Returns true if teacher_user_id owns the class (primary teacher).
+ */
+async function teacherOwnsClass(teacherUserId: string, classId: string): Promise<boolean> {
+  const rows = await db.execute(sql`
+    SELECT id FROM class_groups WHERE id = ${classId} AND teacher_user_id = ${teacherUserId}
+  `);
+  return rows.rows.length > 0;
+}
+
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -37,6 +48,12 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
 
     const { class_group_id, student_id, date, month } = req.query;
+
+    // Teacher class scope guard
+    if (role === "teacher" && class_group_id) {
+      const ok = await teacherOwnsClass(req.user!.userId, class_group_id as string);
+      if (!ok) { res.status(403).json({ success: false, message: "담당 반이 아닙니다." }); return; }
+    }
 
     // DB 레벨 필터링 (메모리 필터 제거 → 네트워크 전송량 감소)
     const conditions: any[] = [eq(attendanceTable.swimming_pool_id, poolId)];
@@ -78,6 +95,12 @@ router.get("/makeup-students", requireAuth, async (req: AuthRequest, res) => {
     if (!poolId) { res.status(403).json({ error: "소속 없음" }); return; }
     const { class_group_id, date } = req.query;
     if (!class_group_id || !date) { res.status(400).json({ error: "class_group_id, date 필요" }); return; }
+
+    // Teacher class scope guard
+    if (role === "teacher") {
+      const ok = await teacherOwnsClass(req.user!.userId, class_group_id as string);
+      if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
+    }
 
     // ① 이미 출석 처리된 보충수업 학생 (attendance 테이블)
     const attRows = (await db.execute(sql`
@@ -133,6 +156,12 @@ router.get("/weekly", requireAuth, async (req: AuthRequest, res) => {
 
     const { start_date, class_group_id } = req.query;
     if (!start_date) { res.status(400).json({ success: false, message: "start_date가 필요합니다." }); return; }
+
+    // Teacher class scope guard
+    if (role === "teacher" && class_group_id) {
+      const ok = await teacherOwnsClass(req.user!.userId, class_group_id as string);
+      if (!ok) { res.status(403).json({ success: false, message: "담당 반이 아닙니다." }); return; }
+    }
 
     const endDate = addDays(start_date as string, 6);
     const startDateStr = start_date as string;
@@ -214,6 +243,12 @@ router.get("/monthly-summary", requireAuth, async (req: AuthRequest, res) => {
 
     const { year, month, class_group_id } = req.query;
     if (!year || !month) { res.status(400).json({ success: false, message: "year와 month가 필요합니다." }); return; }
+
+    // Teacher class scope guard
+    if (role === "teacher" && class_group_id) {
+      const ok = await teacherOwnsClass(req.user!.userId, class_group_id as string);
+      if (!ok) { res.status(403).json({ success: false, message: "담당 반이 아닙니다." }); return; }
+    }
 
     const monthStr = `${year}-${String(month).padStart(2, "0")}`;
     const monthStart = `${monthStr}-01`;
@@ -503,6 +538,12 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     const role = (req.user as { role: string }).role;
     const poolId = await getPoolId(req.user!.userId, role, req.user!.poolId);
     if (!poolId) { res.status(403).json({ success: false, message: "소속된 수영장이 없습니다." }); return; }
+
+    // Teacher class scope guard for POST
+    if (role === "teacher" && class_group_id) {
+      const ok = await teacherOwnsClass(req.user!.userId, class_group_id);
+      if (!ok) { res.status(403).json({ success: false, message: "담당 반이 아닙니다." }); return; }
+    }
 
     const [existing] = await db.select().from(attendanceTable)
       .where(and(eq(attendanceTable.student_id, student_id), eq(attendanceTable.date, date))).limit(1);
