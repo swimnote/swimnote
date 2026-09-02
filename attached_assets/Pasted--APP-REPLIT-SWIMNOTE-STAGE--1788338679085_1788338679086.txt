@@ -1,0 +1,728 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE STAGE 8 FINAL CLOSE
+# SWIMNOTE BASE PURCHASE + STORE GROUP POLICY
+#
+# 목적:
+# 이전 Stage 8 Finalization Report에서 남은
+# 단 2개의 미확정 항목을 닫는다.
+#
+# 1) SWIMNOTE ₩9,900 기본플랜의 RevenueCat offering/app 연결
+# 2) App Store subscription group 구조 최종 확정
+#
+# 이 작업 완료 후에만
+# Stage 8을 진짜 COMPLETE로 판정한다.
+#
+# 중요:
+# Production server / 1.6.3은 절대 건드리지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Production branch:
+deploy-photo-clone
+
+Production server:
+FROZEN
+
+============================================================
+0. 절대 금지
+============================================================
+
+deploy-photo-clone:
+NO TOUCH
+
+Production server:
+NO TOUCH
+
+Render deploy:
+NO
+
+1.6.3 iOS:
+NO TOUCH
+
+1.6.3 Android:
+NO TOUCH
+
+Production DB:
+NO WRITE
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+App Store 실제 제품 생성:
+NO
+
+RevenueCat Dashboard 실제 변경:
+NO
+
+Google Play 실제 변경:
+NO
+
+DATA100 / DATA300 구현:
+NO
+
+일반 로그인:
+NO TOUCH
+
+Kakao:
+NO TOUCH
+
+이번 작업은
+release/v2.0.0 subscription client 최종 마감만 수행한다.
+
+============================================================
+1. 이전 보고서의 모순부터 확인
+============================================================
+
+이전 Stage 8 report에는 다음 두 내용이 동시에 있음.
+
+A.
+"코드 수준 blocker: NONE"
+
+B.
+SWIMNOTE base:
+- RevenueCat offering 미구성
+- CTA = "구독 신청 준비 중"
+- swimnote_monthly offering 신규 필요
+- "앱 코드 offering 연결은 별도 작업"
+
+이 둘은 동시에 참일 수 있는지 실제 코드를 기준으로 확인.
+
+질문:
+
+1.
+현재 com.swimnote.swimnote.monthly가
+RevenueCat에서 제공되기만 하면
+앱이 자동으로 구매 가능한 구조인가?
+
+2.
+아니면 앱이 offering identifier
+"swimnote_monthly"를 명시적으로 조회하는 코드가 없는가?
+
+3.
+현재 SWIMNOTE CTA가 disabled인 이유가
+외부 상품 미등록 때문인가,
+아니면 앱 코드 자체가 disabled 처리되어 있기 때문인가?
+
+4.
+App Store/RevenueCat만 설정하면
+코드 변경 없이 SWIMNOTE 구매가 활성화되는가?
+
+반드시 실제 코드로 확정.
+
+============================================================
+2. SWIMNOTE BASE 구매 경로 완성
+============================================================
+
+LOCKED PRODUCT:
+
+Plan:
+SWIMNOTE
+
+Price:
+₩9,900 / month
+
+Product ID:
+com.swimnote.swimnote.monthly
+
+Member:
+unlimited
+internal limit = 999999
+
+Storage:
+10GB
+
+X entitlement:
+NO
+
+X mode:
+NO
+
+현재 앱에서 필요한 구매 경로:
+
+subscription_required
+→ SWIMNOTE 선택
+→ RevenueCat product/package
+→ purchase
+→ success
+→ server webhook
+→ subscription_tier = swimnote
+→ mode = normal
+
+까지 코드상 연결되어야 한다.
+
+============================================================
+3. RevenueCat SWIMNOTE offering 정책 확정
+============================================================
+
+Target offering ID:
+
+swimnote_monthly
+
+Target package:
+
+swimnote
+
+Target store product:
+
+com.swimnote.swimnote.monthly
+
+Entitlement:
+별도 entitlement 없음
+(server DB tier authoritative)
+
+이 구조가 현재 앱 architecture에 가장 안전한지 확인.
+
+문제 없으면 FINAL LOCK.
+
+문제가 있으면
+실제 기존 RevenueCat abstraction에 맞는
+최소 identifier만 사용.
+
+임의로 새 entitlement 만들지 말 것.
+
+============================================================
+4. 필요한 경우 2.0 CLIENT 최소 수정
+============================================================
+
+현재 앱이 swimnote_monthly offering을
+조회하지 못한다면 수정한다.
+
+수정 범위:
+
+artifacts/swim-app
+subscription / revenuecat 관련 client file만
+
+가능 수정:
+
+- offering lookup
+- package lookup
+- SWIMNOTE purchase CTA 활성 조건
+- purchase handler 연결
+- purchase error handling
+- loading state
+- current plan state
+
+금지:
+
+server
+billing webhook
+DB
+auth
+1.6.3
+X entitlement architecture 변경
+
+============================================================
+5. SWIMNOTE CTA 상태
+============================================================
+
+외부 App Store/RC 제품이 아직 실제 생성되지 않은 상태에서는
+앱이 crash하면 안 된다.
+
+정책:
+
+외부 product/package 없음:
+→ "구독 신청 준비 중"
+→ safe disabled
+
+외부 product/package 정상 수신:
+→ "구독 시작"
+→ purchase 가능
+
+즉 외부 설정 전/후를
+동일 build가 안전하게 처리해야 함.
+
+hardcoded 강제 활성화 금지.
+
+============================================================
+6. APP STORE SUBSCRIPTION GROUP 최종 확정
+============================================================
+
+현재 LOCKED BUSINESS POLICY:
+
+동시에 BASE plan 하나만 존재:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+X includes SWIMNOTE.
+
+X → SWIMNOTE:
+다음 결제일부터 변경
+
+X300 ↔ X500 ↔ X1000:
+upgrade/downgrade 가능
+
+따라서 App Store Connect에서
+가장 안전한 subscription group 구조를
+코드/정책 기준으로 하나로 확정한다.
+
+후보:
+
+OPTION A
+SWIMNOTE + X300 + X500 + X1000
+모두 동일 subscription group
+
+OPTION B
+SWIMNOTE 별도 group
+X300/X500/X1000 동일 group
+
+반드시 하나 선택.
+
+판단 기준:
+
+- base 중복구독 방지
+- X → SWIMNOTE next billing
+- SWIMNOTE → X upgrade
+- X tier 변경
+- Apple subscription group semantics
+- RevenueCat current product replacement
+- 이중결제 위험
+
+추측 금지.
+
+현재 코드와 Apple/RC 구조상
+확정할 수 없는 항목은
+EXTERNAL CONSOLE VERIFICATION REQUIRED로 표시.
+
+============================================================
+7. 예상 LOCK 방향
+============================================================
+
+비즈니스 정책상
+BASE plan은 하나만 존재해야 하므로
+
+가능하면:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+4개를 같은 subscription group에서
+level/order로 관리하는 구조가 적합한지
+우선 검토.
+
+단,
+Apple 실제 subscription behavior와 충돌한다면
+억지로 확정하지 말고 BLOCKER로 보고.
+
+============================================================
+8. X PRODUCT 연결 재검수
+============================================================
+
+X300:
+com.swimnote.x300.monthly
+
+X500:
+com.swimnote.x500.monthly
+
+X1000:
+com.swimnote.x1000.monthly
+
+Offering:
+x_monthly
+
+Packages:
+x300
+x500
+x1000
+
+Entitlement:
+x_mode
+
+기존 구현 변경 필요 없으면 건드리지 말 것.
+
+============================================================
+9. DATA PACK
+============================================================
+
+DATA100:
+HOLD
+
+DATA300:
+HOLD
+
+Store product:
+이번 출시 생성 대상에서 제외
+
+RevenueCat:
+이번 출시 offering 연결 제외
+
+UI:
+disabled/info 상태 유지
+
+DB migration:
+NO
+
+============================================================
+10. LEGACY
+============================================================
+
+기존:
+
+solo
+center
+Coach
+Premier
+
+active user 권리 유지.
+
+신규 판매:
+NO
+
+재가입:
+NO
+
+신규 offering 노출:
+NO
+
+수정 금지.
+
+============================================================
+11. PURCHASE UI 최종 검수
+============================================================
+
+반드시 아래 상태 검수.
+
+A. subscription_required
+- SWIMNOTE
+- X300
+- X500
+- X1000
+
+외부 RC products 준비되면 구매 가능.
+
+B. SWIMNOTE active
+- SWIMNOTE CURRENT
+- X upgrade 가능
+
+C. X300
+- CURRENT
+- X500/X1000 변경
+- SWIMNOTE next-billing downgrade
+
+D. X500
+- X300 downgrade
+- CURRENT
+- X1000 upgrade
+- SWIMNOTE next-billing downgrade
+
+E. X1000
+- X300/X500 downgrade
+- CURRENT
+- SWIMNOTE next-billing downgrade
+
+F. x_trial
+- X plans primary
+- 일반 SWIMNOTE secondary
+
+G. legacy
+- 기존 상태 유지
+- 신규 legacy 구매 없음
+
+============================================================
+12. PURCHASE FAILURE SAFETY
+============================================================
+
+반드시 확인:
+
+RevenueCat not configured:
+NO CRASH
+
+Offering missing:
+NO CRASH
+
+Package missing:
+NO CRASH
+
+Product unavailable:
+safe disabled/message
+
+User cancels:
+no tier mutation
+
+Purchase fails:
+no tier mutation
+
+Webhook not yet received:
+false active state 만들지 않음
+
+============================================================
+13. WEBHOOK
+============================================================
+
+기존 exact path:
+
+POST
+/api/billing/revenuecat-webhook
+
+Production URL:
+https://swimnote-api.onrender.com/api/billing/revenuecat-webhook
+
+이번 작업에서:
+NO CHANGE
+
+실제 request:
+NO
+
+secret:
+NO TOUCH
+
+============================================================
+14. TESTS
+============================================================
+
+반드시 테스트:
+
+- SWIMNOTE offering lookup
+- SWIMNOTE product mapping
+- SWIMNOTE missing offering safe state
+- SWIMNOTE purchase CTA state
+- SWIMNOTE purchase success client flow
+- SWIMNOTE cancelled purchase
+- X offering unchanged
+- X current/up/down UI
+- one-base-plan UX
+- legacy preserved
+- DATA hold preserved
+
+Regression baseline:
+
+166 stable failures
+
+Expected:
+166 stable failures
+
+New deterministic failures:
+0
+
+============================================================
+15. 수정 → 검수 → 커밋
+============================================================
+
+필요한 client code change가 발견되면
+이번 작업에서 최소 수정까지 완료.
+
+관련 테스트 PASS 후 commit.
+
+코드 변경이 정말 필요 없다면
+commit 생성 금지.
+
+============================================================
+16. 외부 설정 최종 체크리스트 작성
+============================================================
+
+작업 완료 후 실제 외부 콘솔에서
+사용자가 설정해야 할 값만 정확히 작성.
+
+APP STORE CONNECT:
+
+- Subscription Group name
+- 4개 product ID
+- Display Name
+- Duration
+- Price
+- Group level/order
+
+REVENUECAT:
+
+- 4 store products
+- offering: swimnote_monthly
+- offering: x_monthly
+- package mappings
+- x_mode entitlement 연결
+- webhook URL
+
+DATA products 제외.
+
+Legacy 신규 설정 제외.
+
+============================================================
+17. 완료보고 형식
+============================================================
+
+# SWIMNOTE STAGE 8 TRUE FINAL CLOSE REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Code changed:
+YES / NO
+
+Commit:
+...
+
+## PREVIOUS REPORT CONTRADICTION
+
+Was SWIMNOTE purchase code actually incomplete:
+YES / NO
+
+Reason:
+...
+
+## SWIMNOTE PURCHASE
+
+Product:
+com.swimnote.swimnote.monthly
+
+Offering:
+...
+
+Package:
+...
+
+Entitlement:
+...
+
+Client lookup:
+PASS / FAIL
+
+Purchase handler:
+PASS / FAIL
+
+Missing product safe:
+PASS / FAIL
+
+## X PURCHASE
+
+x_monthly:
+PASS / FAIL
+
+x300:
+PASS / FAIL
+
+x500:
+PASS / FAIL
+
+x1000:
+PASS / FAIL
+
+x_mode:
+PASS / FAIL
+
+## SUBSCRIPTION GROUP FINAL POLICY
+
+Selected:
+OPTION A / OPTION B
+
+Products in group:
+...
+
+Level/order:
+...
+
+Reason:
+...
+
+External verification still required:
+YES / NO
+
+## PURCHASE UI
+
+subscription_required:
+...
+
+SWIMNOTE active:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+x_trial:
+...
+
+legacy:
+...
+
+## DATA
+
+DATA100:
+HOLD
+
+DATA300:
+HOLD
+
+## LEGACY
+
+Preserved:
+YES / NO
+
+## SERVER FREEZE
+
+Production server changed:
+NO
+
+deploy-photo-clone touched:
+NO
+
+1.6.3 changed:
+NO
+
+DB changed:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## TESTS
+
+Subscription tests:
+...
+
+Regression:
+...
+
+Known stable failures:
+166
+
+New deterministic failures:
+0
+
+## EXTERNAL CONFIG CHECKLIST
+
+### App Store Connect
+...
+
+### RevenueCat
+...
+
+## BLOCKERS
+
+실제 외부 설정 전에 남은 것만 작성.
+
+## FINAL
+
+다음 중 하나:
+
+STAGE 8 CODE FULLY CLOSED — EXTERNAL CONFIGURATION REQUIRED
+
+또는
+
+STAGE 8 BLOCKED — CLIENT PURCHASE CONNECTION INCOMPLETE
