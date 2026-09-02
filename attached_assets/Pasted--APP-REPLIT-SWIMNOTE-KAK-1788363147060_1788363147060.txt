@@ -1,0 +1,518 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO / AUTH — FULL LATEST COMMIT RESTORE FIRST
+#
+# 사용자 최우선 지시:
+#
+# 카카오 관련해서 이전에 수정했던 최신 상태까지의 커밋을
+# Git history 전체에서 전부 찾아
+# release/v2.0.0에 최신 정상 상태로 먼저 복원한다.
+#
+# 현재 화면을 보고 새로 고치지 말 것.
+# 과거에 이미 완료/커밋했던 변경을 우선 회수할 것.
+#
+# 그 다음에 현재 최종 정책에 맞춰
+# Kakao를 제거할지/비활성화할지 최소 정리한다.
+#
+# 즉:
+# HISTORY RESTORE FIRST
+# → CURRENT POLICY APPLY SECOND
+#
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target branch:
+release/v2.0.0
+
+현재 실제 HEAD:
+반드시 확인
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+1. Git 전체에서 Kakao 관련 최신 커밋 전수 조사
+============================================================
+
+반드시 --all 기준으로 조사.
+
+사용:
+
+git log --all --oneline
+git log --all -S"kakao"
+git log --all -S"카카오"
+git log --all -G"kakao|Kakao|카카오"
+git log --all -- <관련 auth/login 파일>
+git blame
+git show
+git diff
+
+확인 범위:
+
+- Kakao login
+- Kakao signup
+- Kakao linking
+- Kakao error handling
+- Kakao phone normalization
+- Kakao existing account handling
+- Kakao admin blocking
+- Kakao parent/teacher policy
+- login screen Kakao UI
+- auth route changes
+- related navigation
+- related error messages
+- related session handling
+
+============================================================
+2. 과거 최신 정상 상태를 시간순으로 재구성
+============================================================
+
+Kakao 관련 commit들을 시간순으로 정리.
+
+각 commit별:
+
+SHA
+branch
+date/order
+files
+purpose
+whether superseded
+
+를 확인.
+
+목표:
+
+"가장 마지막에 정상적으로 완성됐던 Kakao/auth 상태"
+
+를 정확히 확정.
+
+중간 커밋 하나만 cherry-pick하고 끝내지 말 것.
+
+후속 fix가 있으면 전부 포함.
+
+============================================================
+3. 반드시 확인할 과거 알려진 Kakao 수정 계열
+============================================================
+
+Git history에서 실제 존재 여부 확인.
+
+이전 작업에서 알려진 SHA 예:
+
+b9eed0dd
+03973081
+6056f41e
+9430d294
+
+그리고 그 이후의 Kakao/auth 관련 commit 전부.
+
+이 SHA를 무조건 적용하라는 뜻이 아님.
+
+반드시 git show/diff로 확인해서:
+
+- 이미 포함됐는지
+- superseded됐는지
+- 다른 branch 전용인지
+- 후속 수정이 있는지
+
+판단.
+
+============================================================
+4. Production hotfix와 app branch 차이 확인
+============================================================
+
+Production auth 쪽에도 Kakao 관련 fix가 있었음.
+
+known production lineage:
+
+1908143653ace4b12494a4c49d58f5db6af5b639
+e6bb180cf0a21636661927d67440ce1f632b804e
+
+release/v2.0.0와 diff해서
+필요한 server/auth source가 빠져 있는지 확인.
+
+단:
+Production branch 전체 merge 금지.
+
+필요한 auth logic만 비교.
+
+============================================================
+5. 로그인 UI도 history 기준 최신 정상본 회수
+============================================================
+
+현재 실제 단말에서 구버전 login UI가 보였으므로:
+
+login 관련 history도 같이 확인.
+
+검색:
+
+login
+auth ui
+Apple
+Kakao
+회원가입
+로그인
+redesign
+social login
+
+반드시 찾기:
+
+- 최신 승인 로그인 디자인 commit
+- Kakao button 수정/제거 commit
+- Apple 문구/동작 수정 commit
+
+현재 active route에 실제 반영.
+
+============================================================
+6. 우선 "최신 정상 상태"로 복원
+============================================================
+
+중요:
+
+최종 정책 적용 전에
+Git상 마지막 정상 auth/login 상태를 먼저 재구성.
+
+필요하면:
+
+cherry-pick
+또는
+specific file restore
+또는
+exact diff reapply
+
+사용.
+
+새로 비슷하게 코딩:
+NO
+
+가능한 한 기존 commit 그대로 복원.
+
+============================================================
+7. 복원 후 현재 최종 정책 적용
+============================================================
+
+최신 정상 상태 복원 완료 후에만
+현재 정책 반영.
+
+현재 정책:
+
+1.6.3
+→ 기존 Kakao parent 일반계정 migration 임시 지원
+→ 이미 Production endpoint live
+
+2.0
+→ Kakao login/signup/linking UI 최종 제거
+
+Apple
+→ existing login 유지
+→ new signup은 일반회원가입 fallback
+
+따라서 2.0에서는:
+
+Kakao visible button:
+0
+
+Kakao visible text:
+0
+
+Kakao active client handler:
+0
+
+Kakao signup navigation:
+0
+
+Kakao linking entry:
+0
+
+단:
+
+backend historical Kakao routes
+DB kakao_id
+migration history
+Production auth endpoint
+
+는 이번 작업에서 삭제하지 말 것.
+
+============================================================
+8. 중요한 원칙
+============================================================
+
+"카카오를 제거할 거니까 과거 Kakao fix는 필요없다"
+라고 건너뛰지 말 것.
+
+먼저 과거 auth 변경을 전부 복원해서
+그 과정에서 함께 수정된:
+
+- login UI
+- routing
+- error handling
+- account flow
+- general signup/login regression
+
+까지 정상 상태로 되돌린 뒤
+2.0 Kakao UI만 최종 제거.
+
+============================================================
+9. active route 확정
+============================================================
+
+실제 앱 시작:
+
+→ auth router
+→ login route
+→ rendered file
+
+정확히 추적.
+
+duplicate legacy login screen이 있으면:
+
+active route가 최신 정상 파일을 가리키게 수정.
+
+dead legacy file:
+이번 작업에서 대량 삭제 금지.
+
+============================================================
+10. 일반 로그인/회원가입 보호
+============================================================
+
+복원 과정에서 반드시 유지:
+
+normal login:
+PASS
+
+normal signup:
+PASS
+
+parent login:
+PASS
+
+PIN reset:
+PASS
+
+password reset:
+PASS
+
+Apple existing login:
+PASS
+
+Apple new account:
+general signup fallback
+
+============================================================
+11. 테스트
+============================================================
+
+KA01
+all Kakao-related commits enumerated
+
+KA02
+latest Kakao/auth state identified
+
+KA03
+all superseding fixes included
+
+KA04
+active login route identified
+
+KA05
+latest approved login design restored
+
+KA06
+normal login PASS
+
+KA07
+normal signup PASS
+
+KA08
+parent login PASS
+
+KA09
+reset flows PASS
+
+KA10
+Apple existing login PASS
+
+KA11
+Apple no-account → general signup
+
+KA12
+2.0 Kakao visible button 0
+
+KA13
+2.0 Kakao visible text 0
+
+KA14
+2.0 active Kakao handler 0
+
+KA15
+legacy login route inactive
+
+============================================================
+12. Regression
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+============================================================
+13. 변경 범위
+============================================================
+
+허용:
+
+auth/login active files
+related navigation
+Kakao-related historical restore
+Apple fallback
+tests
+
+금지:
+
+scheduler
+media
+RevenueCat
+subscription
+messenger
+DB migration
+Production deploy
+OTA
+build
+
+============================================================
+14. COMMIT
+============================================================
+
+복원 + 최종 정책 적용 완료 후
+명확한 commit.
+
+권장:
+
+fix(auth): restore latest committed auth state and finalize kakao removal
+
+============================================================
+15. 완료보고
+============================================================
+
+# SWIMNOTE KAKAO/AUTH FULL HISTORY RESTORE REPORT
+
+## CURRENT
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+## KAKAO HISTORY
+
+All relevant commits found:
+...
+
+Chronological order:
+...
+
+Latest effective Kakao/auth state:
+...
+
+Superseded commits:
+...
+
+## RESTORE
+
+Restored commits/files:
+...
+
+Skipped because already included:
+...
+
+Skipped because superseded:
+...
+
+## LOGIN UI
+
+Actual active route:
+...
+
+Actual file:
+...
+
+Latest approved login commit:
+...
+
+Restored:
+YES / NO
+
+## FINAL 2.0 POLICY
+
+Normal login:
+PASS / FAIL
+
+Normal signup:
+PASS / FAIL
+
+Apple existing login:
+PASS / FAIL
+
+Apple new signup fallback:
+PASS / FAIL
+
+Kakao visible button:
+0 / ...
+
+Kakao visible text:
+0 / ...
+
+Kakao active handler:
+0 / ...
+
+Kakao linking entry:
+0 / ...
+
+## WHY OLD UI APPEARED
+
+Exact cause:
+...
+
+## TESTS
+
+KA01-KA15:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## DEPLOY
+
+Production:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL
+
+LATEST AUTH HISTORY RESTORED + 2.0 KAKAO POLICY FINALIZED
+
+또는
+
+AUTH HISTORY RESTORE BLOCKED — EXACT GIT ISSUE

@@ -1,0 +1,275 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE PRODUCTION MAINTENANCE SCREEN — EMERGENCY CHECK/FIX
+
+현재 실제 iOS Production 앱에서 아래 화면이 노출됨:
+
+"서버 점검 중입니다
+SWIMNOTE AI 대규모 업데이트로 서버 점검을 실시합니다."
+
+방금 Production Render를
+deploy-photo-clone / e6bb180c
+로 배포한 직후 확인된 증상.
+
+중요:
+이 화면은 의도한 현재 운영상태가 아니다.
+Production 서비스는 정상 이용 가능해야 한다.
+
+============================================================
+1. 최우선
+============================================================
+
+다른 작업 전부 중단.
+
+Production 앱이 왜 maintenance screen으로 진입하는지
+즉시 정확한 원인을 찾고 정상 서비스로 복구.
+
+추측만 보고하지 말고
+실제 source + live response + env/config를 확인.
+
+============================================================
+2. 화면 진입 조건 찾기
+============================================================
+
+앱 코드에서 문구 검색:
+
+"서버 점검 중입니다"
+
+"SWIMNOTE AI 대규모 업데이트"
+
+"서버 점검"
+
+maintenance
+
+maintenanceMode
+
+isMaintenance
+
+serverMaintenance
+
+등 검색.
+
+정확히 어떤 조건에서
+이 화면을 렌더링하는지 확인.
+
+완료보고에:
+
+FILE
+FUNCTION
+CONDITION
+
+기록.
+
+============================================================
+3. 실제 Production 응답 확인
+============================================================
+
+앱이 maintenance 여부를 판단할 때 호출하는
+실제 Production endpoint를 확인.
+
+live Production에서 직접 조회.
+
+확인:
+
+HTTP status
+response body
+maintenance boolean/status
+message
+version gating 값
+minimum version
+forced update
+service status
+
+등.
+
+현재 앱이 저 화면으로 가게 만드는
+실제 live 값이 무엇인지 확정.
+
+============================================================
+4. Render ENV 확인
+============================================================
+
+Production Render service의 관련 env/config 확인:
+
+MAINTENANCE_MODE
+SERVER_MAINTENANCE
+APP_MAINTENANCE
+SERVICE_STATUS
+MIN_APP_VERSION
+FORCE_UPDATE
+
+또는 실제 코드에서 사용하는 정확한 변수.
+
+방금 deploy로 env가 바뀐 것인지,
+default fallback이 true로 동작한 것인지 확인.
+
+중요:
+변수명 추측 금지.
+실제 source 기준.
+
+============================================================
+5. e6bb180c DIFF 확인
+============================================================
+
+Production previous live:
+19081436
+
+Current live:
+e6bb180c
+
+두 commit diff에서:
+
+maintenance
+health/status
+version gate
+startup config
+auth bootstrap
+
+관련 변경이 있는지 확인.
+
+이번 Kakao migration backport가
+maintenance 코드까지 의도치 않게 가져온 것인지 확인.
+
+============================================================
+6. 복구 원칙
+============================================================
+
+현재 Production은:
+
+maintenance OFF
+
+가 정상.
+
+원인이 env/config면:
+정확한 Production config만 정상값으로 복구.
+
+원인이 code regression이면:
+maintenance 관련 최소 코드만 hotfix.
+
+Kakao migration 기능:
+유지.
+
+Social auth:
+건드리지 말 것.
+
+DB:
+NO CHANGE.
+
+============================================================
+7. 안전장치
+============================================================
+
+Production health가 200인데
+maintenance endpoint/network request가 실패했다고
+자동으로 "서버 점검 중"으로 보내는 구조라면 확인.
+
+NETWORK ERROR
+≠
+MAINTENANCE MODE
+
+이어야 한다.
+
+maintenance를 명시적으로 서버에서 true로 받은 경우에만
+점검화면 표시하도록 기존 정상 정책 확인.
+
+단, 새 설계하지 말고 과거 정상 구현 우선 복원.
+
+============================================================
+8. 복구 후 LIVE 확인
+============================================================
+
+Production에서:
+
+/api/healthz
+HTTP 200
+
+maintenance/status endpoint
+maintenance=false
+
+확인.
+
+iOS 앱 재실행 후:
+
+점검 화면:
+NO
+
+정상 로그인/홈 진입:
+YES
+
+============================================================
+9. OTA
+============================================================
+
+서버/env만 수정해서 해결 가능하면:
+새 OTA 금지.
+
+클라이언트 회귀가 실제 원인일 때만
+최소 iOS OTA 허용.
+
+Android:
+NO OTA.
+
+============================================================
+10. 완료보고
+============================================================
+
+# PRODUCTION MAINTENANCE SCREEN INCIDENT REPORT
+
+## ROOT CAUSE
+
+Exact cause:
+...
+
+Maintenance screen condition:
+...
+
+Live value that triggered it:
+...
+
+Related to e6bb180c:
+YES / NO
+
+## FIX
+
+Server config:
+...
+
+Code:
+...
+
+Commit:
+...
+
+Render:
+...
+
+OTA:
+YES / NO
+
+## LIVE
+
+Health:
+HTTP ...
+
+Maintenance:
+OFF
+
+iOS production app:
+NORMAL / STILL BLOCKED
+
+Login/home:
+PASS / FAIL
+
+Kakao migration endpoint:
+STILL LIVE / BROKEN
+
+New 5xx:
+0 / ...
+
+## FINAL
+
+PRODUCTION MAINTENANCE SCREEN CLEARED — SERVICE NORMAL
+
+또는
+
+PRODUCTION STILL BLOCKED — EXACT ISSUE
