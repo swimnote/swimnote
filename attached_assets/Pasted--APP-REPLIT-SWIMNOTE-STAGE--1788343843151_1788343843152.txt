@@ -1,0 +1,642 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE STAGE 8 FINAL — SUBSCRIPTION / PAYMENT READINESS
+#
+# 목표:
+# 출시 전에 구독·결제 구조를 최종 확인하고
+# 실제 launch blocker만 수정한다.
+#
+# 완료 후 바로 Stage 9 전체 기능 E2E로 이동한다.
+#
+# 신규기능/리팩터링/추가개선 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+현재 실제 HEAD를 먼저 확인할 것.
+Messenger 완료 commit:
+1b03e716
+
+============================================================
+0. 절대 금지
+============================================================
+
+1.6.3:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+Production server deploy:
+NO
+
+Production DB write:
+NO
+
+Migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+Kakao:
+NO TOUCH
+
+Messenger:
+NO TOUCH
+
+OFFICE/VAN:
+NO
+
+Video enable:
+NO
+
+신규 기능:
+NO
+
+대규모 refactor:
+NO
+
+============================================================
+1. 확정 상품
+============================================================
+
+SWIMNOTE
+₩9,900 / month
+member_limit = 999999
+storage = 10GB
+
+X300
+₩129,000 / month
+member_limit = 300
+storage = 300GB
+
+X500
+₩199,000 / month
+member_limit = 500
+storage = 500GB
+
+X1000
+₩359,000 / month
+member_limit = 1000
+storage = 1TB
+
+DATA100
+₩7,900 / month
++100GB
+
+DATA300
+₩22,900 / month
++300GB
+
+구형 X:
+119000 / 189000 / 349000
+
+신규판매:
+NO
+
+legacy 사용자 유지:
+YES
+
+============================================================
+2. PRODUCT ID
+============================================================
+
+확정:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+com.swimnote.x500.monthly
+com.swimnote.x1000.monthly
+
+DATA:
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+repository 전체에서:
+
+- typo
+- obsolete ID
+- 잘못된 가격 mapping
+- tier mismatch
+- 중복 mapping
+
+확인.
+
+Base 4개는 반드시 출시 READY 상태여야 함.
+
+============================================================
+3. BASE PLAN
+============================================================
+
+유효 BASE plan은 동시에 하나만.
+
+SWIMNOTE
+X300
+X500
+X1000
+
+X는 SWIMNOTE 기능 전체 포함.
+
+X + SWIMNOTE 이중결제:
+절대 NO
+
+X active 사용자가
+SWIMNOTE base를 별도로 구매하는 UI/logic:
+없어야 함.
+
+============================================================
+4. ENTITLEMENT
+============================================================
+
+실제 코드 기준 확인:
+
+X:
+x_mode
+
+Legacy:
+solo
+center
+
+SWIMNOTE base:
+어떤 entitlement/product mapping으로
+접근권한을 판정하는지 확정.
+
+X300/X500/X1000 tier 판정 방법도 확인.
+
+============================================================
+5. OFFERING / PACKAGE
+============================================================
+
+실제 코드가 사용하는:
+
+RevenueCat offering
+package
+product lookup
+
+확정.
+
+기존 후보:
+
+x_monthly
+
+legacy:
+solo_monthly
+center_monthly
+
+하지만 실제 source가 기준.
+
+============================================================
+6. UI STATE MATRIX
+============================================================
+
+다음 상태 전부 확인:
+
+A. subscription_required
+B. SWIMNOTE active
+C. X trial
+D. X300 active
+E. X500 active
+F. X1000 active
+G. x_pending
+H. legacy active
+
+각 상태별:
+
+- SWIMNOTE card
+- X300
+- X500
+- X1000
+- current badge
+- upgrade
+- downgrade
+- cancellation
+- X → SWIMNOTE
+
+확정 UX:
+
+subscription_required:
+base 선택 가능
+
+SWIMNOTE active:
+SWIMNOTE current
+X upgrade 표시
+
+X trial:
+X300/X500/X1000 primary
+"일반 SWIMNOTE 이용하기" secondary
+
+X active:
+SWIMNOTE 신규구매 card 숨김
+
+X → SWIMNOTE:
+next billing scheduled
+
+Cancellation:
+X → SWIMNOTE와 별도
+
+============================================================
+7. DOWNGRADE GUARD
+============================================================
+
+X1000 → X500
+active member > 500:
+BLOCK
+
+X500 → X300
+active member > 300:
+BLOCK
+
+X300 → SWIMNOTE
+SWIMNOTE는 member_limit 999999이므로
+member count 때문에 막으면 안 됨.
+
+실제 구현과 다르면
+client 범위 최소 수정.
+
+============================================================
+8. DATA ADD-ON
+============================================================
+
+현재 extra_storage_gb 구조를 확인.
+
+다음만 판정:
+
+DATA100 단독:
+SAFE / UNSAFE
+
+DATA300 단독:
+SAFE / UNSAFE
+
+DATA100 + DATA300:
+SUPPORTED / NOT SUPPORTED
+
+DATA100 x2:
+SUPPORTED / NOT SUPPORTED
+
+DATA300 x2:
+SUPPORTED / NOT SUPPORTED
+
+switching:
+SUPPORTED / NOT SUPPORTED
+
+중요:
+
+DATA 때문에
+DB/migration/새 구조 만들지 말 것.
+
+조금이라도 안전하지 않으면:
+
+DATA100:
+HOLD
+
+DATA300:
+HOLD
+
+이번 출시에서 제외.
+
+Base 4개 정상이라면
+DATA HOLD는 Stage 8 blocker가 아님.
+
+============================================================
+9. APP STORE CONNECT 준비표
+============================================================
+
+실제 콘솔 변경은 하지 않는다.
+
+Base 4개:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+각각:
+
+- Display Name
+- Product ID
+- Duration
+- Price
+- Subscription Group
+- Upgrade/Downgrade order
+
+를 정확히 정리.
+
+App Store subscription group 구조가
+현재 plan switching 정책과 충돌하는 부분이 있으면
+BLOCKER로 보고.
+
+확인되지 않은 Store 동작은
+추측해서 확정하지 말 것.
+
+============================================================
+10. REVENUECAT 준비표
+============================================================
+
+반드시 작성:
+
+Store Product
+→ RevenueCat Product
+→ Entitlement
+→ Offering
+→ Package
+→ Internal Plan
+
+Base 4개 전체.
+
+Legacy 별도.
+
+외부 RevenueCat Dashboard에서
+실제로 생성해야 하는 항목을 명확히 보고.
+
+============================================================
+11. WEBHOOK
+============================================================
+
+repository에서:
+
+revenuecat-webhook
+
+검색.
+
+정확히 확인:
+
+- route file
+- HTTP method
+- router mount
+- /api prefix
+- exact path
+- secret/header verification
+
+Production URL까지 계산.
+
+placeholder 금지.
+
+실제 webhook 호출:
+NO
+
+============================================================
+12. LEGACY
+============================================================
+
+기존:
+
+Coach
+Premier
+solo
+center
+legacy max
+legacy X
+
+active user:
+권한 유지
+
+new sale:
+NO
+
+new subscription screen exposure:
+NO
+
+cancel/expire 후 rejoin:
+NO
+
+legacy mapping 삭제:
+NO
+
+============================================================
+13. 출시 blocker만 수정
+============================================================
+
+수정 허용:
+
+- 가격 오류
+- Product ID 오류
+- entitlement mapping 오류
+- double billing 위험
+- plan visibility 오류
+- downgrade guard 오류
+- subscription_required 오류
+- legacy 신규판매 노출 오류
+
+가능하면 client만 수정.
+
+Server 변경 없이는 해결 불가능하면:
+
+SERVER BLOCKER
+
+로 보고만 할 것.
+
+이번 작업에서 Production server 수정 금지.
+
+============================================================
+14. TEST
+============================================================
+
+최소:
+
+S01 pricing
+S02 product IDs
+S03 subscription_required
+S04 SWIMNOTE active
+S05 X trial
+S06 X300
+S07 X500
+S08 X1000
+S09 X includes SWIMNOTE
+S10 double billing prevention
+S11 X1000→X500 guard
+S12 X500→X300 guard
+S13 X→SWIMNOTE
+S14 cancellation distinct
+S15 legacy preserved
+S16 legacy new sale blocked
+S17 RevenueCat mapping
+S18 webhook route static verification
+
+전체 regression:
+
+stable failures:
+166
+
+new deterministic failures:
+0
+
+============================================================
+15. COMMIT
+============================================================
+
+수정 없음:
+NO COMMIT
+
+수정 있음:
+release/v2.0.0에만 commit
+
+Production:
+NO DEPLOY
+
+============================================================
+16. 완료보고
+============================================================
+
+# SWIMNOTE STAGE 8 FINAL READINESS REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Code changed:
+YES / NO
+
+Commit:
+
+## BASE PLANS
+
+| Plan | Price | Member Limit | Storage | Product ID |
+
+## BASE STRUCTURE
+
+One active base:
+YES / NO
+
+X includes SWIMNOTE:
+YES / NO
+
+Double billing risk:
+YES / NO
+
+## ENTITLEMENTS
+
+SWIMNOTE:
+...
+
+X:
+x_mode
+
+Legacy:
+...
+
+## OFFERINGS / PACKAGES
+
+...
+
+## UI MATRIX
+
+상태별 표.
+
+## DOWNGRADE
+
+X1000→X500:
+PASS / FAIL
+
+X500→X300:
+PASS / FAIL
+
+X300→SWIMNOTE:
+PASS / FAIL
+
+## DATA
+
+DATA100:
+READY / HOLD
+
+DATA300:
+READY / HOLD
+
+Stacking:
+SUPPORTED / NOT SUPPORTED
+
+Launch decision:
+READY / HOLD
+
+## APP STORE CONNECT
+
+필요 설정표.
+
+## REVENUECAT
+
+필요 설정표.
+
+## WEBHOOK
+
+Route file:
+Method:
+Exact path:
+Production URL:
+Secret verification:
+
+## LEGACY
+
+Existing active:
+PRESERVED / BROKEN
+
+New sale:
+BLOCKED / NOT BLOCKED
+
+Rejoin:
+BLOCKED / NOT BLOCKED
+
+## TESTS
+
+Subscription:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## PRODUCTION FREEZE
+
+Production server:
+NOT TOUCHED
+
+deploy-photo-clone:
+NOT TOUCHED
+
+Production DB:
+NOT CHANGED
+
+1.6.3:
+NOT TOUCHED
+
+Messenger:
+NOT TOUCHED
+
+OTA:
+NO
+
+Build:
+NO
+
+## BLOCKERS
+
+출시를 실제로 막는 것만.
+
+없으면:
+NONE
+
+## FINAL
+
+STAGE 8 COMPLETE — READY FOR FINAL E2E
+
+또는
+
+STAGE 8 COMPLETE — DATA ADD-ONS HOLD — READY FOR FINAL E2E
+
+또는
+
+STAGE 8 BLOCKED — LAUNCH FIX REQUIRED
