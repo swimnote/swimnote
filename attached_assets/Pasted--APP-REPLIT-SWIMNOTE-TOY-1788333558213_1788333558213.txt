@@ -1,0 +1,546 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE TOYKIDS X1000 NORMALIZATION — EXECUTION PRECHECK
+#
+# 목적:
+# 토이키즈스윔클럽을 2.0 신규 플랜 체계의 기준 계정으로
+# X1000에 정상화하기 전,
+# 현재 X readiness 조건과 기존 safe admin path를 확인하고
+# 안전하게 실행 가능한 경우에만 최소 변경한다.
+#
+# 중요:
+# Production 서버 코드는 절대 수정하지 않는다.
+# 1.6.3은 절대 건드리지 않는다.
+# 직접 SQL 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Target pool:
+토이키즈스윔클럽
+
+Pool ID:
+pool_1780849364252_l9k44rbk3
+
+Target:
+X1000
+
+Known current state:
+
+subscription_tier:
+max
+
+subscription_plan_name:
+Premier 1000
+
+subscription_status:
+active
+
+subscription_source:
+manual
+
+member_limit:
+1000
+
+current resolver storage:
+50GB
+
+x_paid_entitlement:
+true
+
+xmode_config_status:
+CURRICULUM_PENDING
+
+xmode_subscription_end_at:
+2026-08-19 (expired)
+
+target state:
+
+subscription_tier:
+x1000
+
+subscription_plan_name:
+SWIMNOTE X1000
+
+mode:
+x
+
+member_limit:
+1000
+
+storage:
+1TB
+
+xmode_config_status:
+READY
+
+xmode_subscription_end_at:
+2035-12-31
+
+legacy current-plan UI:
+hidden
+
+============================================================
+0. 절대 금지
+============================================================
+
+Production server source:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+Render:
+NO DEPLOY
+
+1.6.3 iOS:
+NO TOUCH
+
+1.6.3 Android:
+NO TOUCH
+
+OTA:
+NO
+
+Build:
+NO
+
+DB migration:
+NO
+
+Schema change:
+NO
+
+Direct SQL:
+NO
+
+RevenueCat:
+NO TOUCH
+
+App Store:
+NO TOUCH
+
+Google Play:
+NO TOUCH
+
+legacy compatibility code:
+NO DELETE
+
+legacy history:
+NO DELETE
+
+============================================================
+1. 현재 X readiness 상태 실측
+============================================================
+
+토이키즈의:
+
+x_pool_setups
+curriculum/setup submission
+approval status
+readiness prerequisites
+
+를 현재 Production READ ONLY로 확인.
+
+반드시 확인:
+
+- setup record 존재 여부
+- curriculum submitted 여부
+- curriculum approved 여부
+- readiness check가 요구하는 모든 조건
+- 현재 READY 전환 가능 여부
+
+실제로:
+
+validateXModeReadiness(poolId)
+
+가 어떤 조건을 검사하는지 코드에서 확인하고,
+토이키즈가 현재 각각 PASS/FAIL인지 표로 보고.
+
+============================================================
+2. safe admin route 재확인
+============================================================
+
+다음 기존 route 확인:
+
+PATCH /super/operators/:id/subscription
+
+PATCH /super/operators/:id/xmode
+
+확인:
+
+- authorization
+- validation
+- body schema
+- side effects
+- audit log
+- readiness enforcement
+- rollback 가능성
+
+새 endpoint 생성 금지.
+
+============================================================
+3. 실행 가능 여부 분기
+============================================================
+
+CASE A:
+토이키즈가 readiness 조건을 모두 충족하고
+기존 safe admin route만으로 정상화 가능
+
+→ 아래 최소 변경 실행 가능.
+
+CASE B:
+readiness 조건 미충족
+
+→ 절대 bypass 하지 말고
+어떤 prerequisite가 부족한지만 보고.
+
+CASE C:
+safe route가 예상과 다르거나
+Production 데이터 정합성 위험 있음
+
+→ 실행 중단하고 BLOCKED 보고.
+
+============================================================
+4. CASE A에서만 실행
+============================================================
+
+먼저 subscription 변경:
+
+PATCH /super/operators/pool_1780849364252_l9k44rbk3/subscription
+
+Body:
+
+{
+  "subscription_tier": "x1000",
+  "subscription_plan_name": "SWIMNOTE X1000"
+}
+
+성공 확인 후:
+
+- subscription_tier = x1000
+- resolver plan = x1000
+- member_limit = 1000
+- storage = 1TB
+- legacy tier = false
+
+그 다음 X mode:
+
+PATCH /super/operators/pool_1780849364252_l9k44rbk3/xmode
+
+Body:
+
+{
+  "xmode_config_status": "READY",
+  "xmode_subscription_end_at": "2035-12-31",
+  "reason": "X1000 baseline normalization — manual subscription, long-term"
+}
+
+성공 확인.
+
+============================================================
+5. 중요: READY bypass 금지
+============================================================
+
+validateXModeReadiness가 실패하면:
+
+직접 DB write:
+NO
+
+readiness bypass:
+NO
+
+temporary override:
+NO
+
+xmode_config_status 강제 READY:
+NO
+
+부족한 prerequisite만 보고.
+
+============================================================
+6. 변경 후 resolver 확인
+============================================================
+
+CASE A 실행 후 반드시 재조회:
+
+subscription_tier:
+x1000
+
+effective tier:
+x1000
+
+computed mode:
+x
+
+member_limit:
+1000
+
+storage:
+1TB
+
+subscription_required:
+false
+
+legacy current-plan:
+false
+
+xmode_config_status:
+READY
+
+xmode_subscription_end_at:
+2035-12-31
+
+============================================================
+7. UI 계약 검증
+============================================================
+
+2.0 subscription UI 기준:
+
+Current:
+X1000
+
+X300:
+downgrade
+
+X500:
+downgrade
+
+X1000:
+CURRENT
+
+SWIMNOTE purchase card:
+hidden
+
+Legacy Premier 1000 section:
+hidden
+
+old X 119/189/349:
+hidden
+
+X → SWIMNOTE:
+next billing path 유지
+
+Cancellation:
+separate 유지
+
+============================================================
+8. 다른 legacy 사용자 보호
+============================================================
+
+토이키즈만 변경.
+
+다른:
+
+solo
+center
+max
+old X
+
+사용자의 resolver/mapping/history:
+UNCHANGED
+
+legacy compatibility tests:
+PASS
+
+============================================================
+9. Production server freeze 검증
+============================================================
+
+반드시 보고:
+
+deploy-photo-clone touched:
+NO
+
+Production server source changed:
+NO
+
+Render deploy:
+NO
+
+1.6.3 touched:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+Migration:
+NO
+
+Direct SQL:
+NO
+
+============================================================
+10. 완료보고 형식
+============================================================
+
+# SWIMNOTE TOYKIDS X1000 NORMALIZATION EXECUTION REPORT
+
+## READINESS
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+x_pool_setups:
+...
+
+Curriculum submitted:
+YES / NO
+
+Curriculum approved:
+YES / NO
+
+validateXModeReadiness:
+
+| Requirement | Result |
+|------------|--------|
+| ... | PASS/FAIL |
+
+Overall:
+READY / NOT READY
+
+## SAFE ROUTES
+
+subscription route:
+VALID / INVALID
+
+xmode route:
+VALID / INVALID
+
+Direct SQL:
+NO
+
+## EXECUTION
+
+Executed:
+YES / NO
+
+If NO:
+Reason:
+...
+
+If YES:
+
+### Subscription
+
+Before:
+max / Premier 1000
+
+After:
+x1000 / SWIMNOTE X1000
+
+### X MODE
+
+Before:
+CURRICULUM_PENDING
+
+After:
+READY
+
+subscription end:
+2035-12-31
+
+## FINAL EFFECTIVE STATE
+
+tier:
+...
+
+mode:
+...
+
+member_limit:
+...
+
+storage:
+...
+
+SWIMNOTE access:
+...
+
+X access:
+...
+
+subscription_required:
+...
+
+legacy current-plan:
+...
+
+## UI
+
+Current card:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+SWIMNOTE card:
+...
+
+Legacy section:
+...
+
+## LEGACY SAFETY
+
+Other legacy users changed:
+NO
+
+Legacy mappings deleted:
+NO
+
+Legacy history deleted:
+NO
+
+## PRODUCTION FREEZE
+
+Production server source changed:
+NO
+
+deploy-photo-clone touched:
+NO
+
+Render deploy:
+NO
+
+1.6.3 touched:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+Migration:
+NO
+
+Direct SQL:
+NO
+
+## FINAL
+
+다음 중 하나:
+
+TOYKIDS X1000 NORMALIZATION COMPLETE — NEW PURCHASE LINE CAN PROCEED
+
+또는
+
+TOYKIDS X1000 NORMALIZATION BLOCKED — READINESS PREREQUISITES REQUIRED
+
+또는
+
+TOYKIDS X1000 NORMALIZATION BLOCKED — SAFE ROUTE NOT VALID
