@@ -1,0 +1,154 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 WP1 — COMMON CORE SUPPLEMENT CHECK
+
+현재 WP1 commit:
+87935a27
+fix(v2.0): restore member detail class flow and x-mode back stack
+
+목적:
+WP1의 member-detail 수정이
+SWIMNOTE X뿐 아니라 일반 SWIMNOTE 회원관리에도
+동일하게 적용되는 공통 core인지 최종 확인한다.
+
+새 기능 추가 금지.
+X back-stack 재수정 금지.
+문제가 없으면 NO CODE CHANGE.
+
+============================================================
+1. MEMBER DETAIL ACTIVE ROUTE 확인
+============================================================
+
+일반 SWIMNOTE 관리자:
+
+회원관리
+→ 회원목록
+→ 회원 선택
+→ 회원정보보기
+
+실제 route / active file / component 확인.
+
+SWIMNOTE X 관리자:
+
+회원관리
+→ 회원목록
+→ 회원 선택
+→ 회원정보보기
+
+실제 route / active file / component 확인.
+
+반드시 아래 중 하나로 판정:
+
+A.
+NORMAL + X 모두 동일
+member-detail.tsx 사용
+→ 공통 수정 이미 적용됨
+→ NO CODE CHANGE
+
+B.
+Normal 또는 X가 다른 legacy member-detail 사용
+→ 공통 core 불일치
+→ 87935a27의 member-detail 수정만
+   해당 active 경로에 최소 보충
+
+============================================================
+2. 공통 동작 확인
+============================================================
+
+Normal / X 둘 다:
+
+- 상세 진입 시 반 선택 UI 자동 오픈 0
+- 기본정보 편집 가능
+- "반 선택하기" 탭 시에만 picker 노출
+- 현재 반 표시
+- 새 반 선택
+- weeklyCount 제한
+- 저장 → 기존 PATCH /students/:id/assign
+- 저장 후 즉시 반 정보 갱신
+- 취소 → 변경 0
+- Back → 이전 회원목록/업무화면
+- 회원정보보기 자체는 동일 기능
+
+공통기능인데
+Normal/X에서 동작이 달라지면 FAIL.
+
+============================================================
+3. X BACK STACK
+
+x-subscription.tsx 수정은 X 전용이므로
+추가 Normal 적용 대상 아님.
+
+87935a27 상태 그대로 유지.
+
+============================================================
+4. 금지
+
+RevenueCat:
+NO TOUCH
+
+Teacher scope:
+NO TOUCH
+
+Media:
+NO TOUCH
+
+Kakao:
+NO TOUCH
+
+1.6.3:
+NO TOUCH
+
+Production:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+5. 완료보고
+
+# WP1 COMMON CORE SUPPLEMENT REPORT
+
+Normal member-detail route:
+...
+
+X member-detail route:
+...
+
+Same active component:
+YES / NO
+
+Normal class flow:
+PASS / FAIL
+
+X class flow:
+PASS / FAIL
+
+Normal edit/save/back:
+PASS / FAIL
+
+X edit/save/back:
+PASS / FAIL
+
+Additional code change:
+NO / YES
+
+If YES:
+SHA:
+...
+
+X back-stack:
+PASS
+
+New deterministic failures:
+0
+
+FINAL:
+WP1 FULLY CLOSED — NORMAL + X COMMON MEMBER CORE VERIFIED
+
+또는
+
+WP1 COMMON CORE GAP FOUND — EXACT PATH
