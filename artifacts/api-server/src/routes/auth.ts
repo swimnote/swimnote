@@ -856,8 +856,26 @@ router.post("/simple-parent-register", async (req, res) => {
     }
     // 전화번호 중복 확인 (수영장 있을 때만 같은 수영장 체크, 없을 때는 전체 체크)
     if (resolvedPoolId) {
-      const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
-      if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      const dupRows = (await db.execute(sql`
+        SELECT id, kakao_id, is_active FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND phone != ''
+        LIMIT 1
+      `)).rows as any[];
+      if (dupRows.length > 0) {
+        const dup = dupRows[0];
+        // C. 기존 Kakao 계정 → KAKAO_MIGRATION_REQUIRED (1.6.3 임시 전환 flow)
+        if (dup.kakao_id && dup.is_active !== false) {
+          return res.status(409).json({
+            error: "이미 카카오로 가입된 전화번호입니다.",
+            error_code: "KAKAO_MIGRATION_REQUIRED",
+            old_parent_id: dup.id,
+          });
+        }
+        // B. 기존 일반 계정 → 기존 정책 그대로
+        return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      }
     } else {
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
       if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
@@ -2703,6 +2721,207 @@ router.post("/v2/parent-register", async (req, res) => {
     }
 
     return err(res, 500, "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── Kakao → 일반계정 Migration Endpoint ──────────────────────────────────────
+// POST /auth/kakao-migration-register
+//
+// 1.6.3 임시 기능: 카카오로 가입된 기존 학부모가 일반 가입 시
+// 기존 데이터를 새 일반계정으로 원자적으로 이전.
+//
+// 요청:
+//   { phone, pool_id, name, pin, login_id? }
+//
+// 응답:
+//   201 { token, parent, migrated: true }
+//   409 { error_code: "KAKAO_NOT_FOUND" | "NO_KAKAO_ACCOUNT" | "ALREADY_MIGRATED" }
+//   500 (rollback 보장)
+//
+// 아카이브 전략: 기존 Kakao account의 phone을 ''(빈 문자열)로 교체.
+//   - unique index 조건: WHERE phone != '' → 빈 문자열은 인덱스 제외됨
+//   - NOT NULL 충족: 빈 문자열은 NOT NULL 충족
+//   - 기존 phone은 새 account에 그대로 이전됨
+//   - kakao_id는 history용 old account에 보존
+//
+// 이전 대상 테이블 (parent_id):
+//   parent_students, notice_reads, student_registration_requests,
+//   member_activity_logs, parent_student_requests, diary_reactions,
+//   parent_content_reads, growth_report_interactions
+// 이전 대상 테이블 (parent_account_id):
+//   push_settings, push_tokens, parent_pool_requests,
+//   parent_ai_daily_usage, parent_ai_usage_reservations,
+//   parent_curriculum_conversations, growth_report_answers
+// 이전 대상 테이블 (parent_user_id):
+//   students, members
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/kakao-migration-register", async (req, res) => {
+  const { phone, pool_id, name: rawName, pin, login_id } = req.body;
+  if (!phone || !pool_id || !rawName || !pin) {
+    return err(res, 400, "phone, pool_id, name, pin은 필수입니다.");
+  }
+  if (String(pin).length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+
+  const ph   = phone.replace(/[^0-9]/g, "");
+  const name = rawName.trim();
+  const lid  = (login_id || "").trim().toLowerCase() || null;
+
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+
+  try {
+    // ── 0. login_id 전역 중복 확인 ──────────────────────────────────────────
+    if (lid) {
+      const [existingLid] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
+      `)).rows as any[];
+      if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
+    // ── 1. 기존 Kakao account 확인 (정규화 phone + pool_id) ──────────────────
+    const [oldAcc] = (await db.execute(sql`
+      SELECT id, phone, kakao_id, is_active, withdrawal_requested_at
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!oldAcc) {
+      return res.status(409).json({ error_code: "KAKAO_NOT_FOUND", error: "해당 전화번호로 등록된 계정을 찾을 수 없습니다." });
+    }
+    if (!oldAcc.kakao_id) {
+      return res.status(409).json({ error_code: "NO_KAKAO_ACCOUNT", error: "카카오 연결 계정이 아닙니다. 로그인 화면에서 로그인해주세요." });
+    }
+
+    // ── 2. Idempotency: 이미 migration된 경우 (같은 pool + phone 새 account 존재) ──
+    // old account가 phone='' 상태면 이미 이전된 것
+    // → 새 account를 찾아 반환
+    const [alreadyMigrated] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+        AND kakao_id IS NULL
+        AND (is_active IS NULL OR is_active = true)
+      LIMIT 1
+    `)).rows as any[];
+    // Note: after migration, old account has phone='', so the above finds the NEW account only
+
+    // If old account phone is already '' (archived), migration already happened
+    if (String(oldAcc.phone).trim() === "") {
+      if (alreadyMigrated) {
+        const token = signToken({ userId: alreadyMigrated.id, role: "parent_account", poolId: pool_id });
+        return res.json({ token, parent: alreadyMigrated, migrated: true, already_migrated: true });
+      }
+      return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요." });
+    }
+
+    const oldParentId = oldAcc.id;
+
+    // ── 3. Atomic transaction ────────────────────────────────────────────────
+    const newParentId = `pa_migrated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const pin_hash    = await hashPassword(String(pin));
+
+    await db.execute(sql`BEGIN`);
+    try {
+      // 3-a. Lock old account
+      await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE id = ${oldParentId} FOR UPDATE
+      `);
+
+      // 3-b. Re-verify (race condition guard)
+      const [recheck] = (await db.execute(sql`
+        SELECT id, kakao_id, phone FROM parent_accounts WHERE id = ${oldParentId}
+      `)).rows as any[];
+      if (!recheck?.kakao_id || String(recheck.phone).trim() === "") {
+        await db.execute(sql`ROLLBACK`);
+        return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다." });
+      }
+
+      // 3-c. Archive old Kakao account: phone → '' (빈 문자열로 unique index 제외)
+      //      is_active=false, withdrawal_requested_at=NOW() (retirement timestamp)
+      await db.execute(sql`
+        UPDATE parent_accounts
+        SET phone = '', is_active = false, withdrawal_requested_at = NOW(), updated_at = NOW()
+        WHERE id = ${oldParentId}
+      `);
+
+      // 3-d. Create new general parent account
+      await db.execute(sql`
+        INSERT INTO parent_accounts
+          (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+        VALUES
+          (${newParentId}, ${pool_id}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+      `);
+
+      // ── 3-e. Migrate all parent_id references ────────────────────────────
+      // Tables using parent_id column
+      for (const tbl of [
+        "parent_students", "notice_reads", "student_registration_requests",
+        "parent_student_requests", "diary_reactions", "parent_content_reads",
+        "growth_report_interactions",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          // table may not exist in this pool's DB — non-fatal if table missing
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+      // member_activity_logs: nullable parent_id
+      await db.execute(sql.raw(
+        `UPDATE member_activity_logs SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+      )).catch(() => {});
+
+      // Tables using parent_account_id column
+      for (const tbl of [
+        "push_settings", "push_tokens", "parent_pool_requests",
+        "parent_ai_daily_usage", "parent_ai_usage_reservations",
+        "parent_curriculum_conversations", "growth_report_answers",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_account_id = '${newParentId}' WHERE parent_account_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      // Tables using parent_user_id column
+      for (const tbl of ["students", "members"]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_user_id = '${newParentId}' WHERE parent_user_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      await db.execute(sql`COMMIT`);
+      console.log(`[kakao-migration] 완료: old=${oldParentId} new=${newParentId} pool=${pool_id}`);
+
+    } catch (txErr: any) {
+      await db.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[kakao-migration] ROLLBACK:", txErr?.message);
+      throw txErr;
+    }
+
+    // ── 4. 응답 ─────────────────────────────────────────────────────────────
+    const [newAcc] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id FROM parent_accounts WHERE id = ${newParentId}
+    `)).rows as any[];
+
+    const token = signToken({ userId: newParentId, role: "parent_account", poolId: pool_id });
+    return res.status(201).json({
+      token,
+      parent: newAcc,
+      migrated: true,
+      old_parent_id: oldParentId,
+    });
+
+  } catch (e: any) {
+    console.error("[kakao-migration-register]", e?.message, e?.stack);
+    return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
   }
 });
 
