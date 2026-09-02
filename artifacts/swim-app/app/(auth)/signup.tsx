@@ -86,6 +86,10 @@ export default function SignupScreen() {
   const [devCode, setDevCode]   = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /* ── Kakao → 일반계정 전환 안내 modal ── */
+  const [migrationModal, setMigrationModal] = useState<{ visible: boolean; role: "parent" | "teacher" | null; payload: any }>({ visible: false, role: null, payload: null });
+  const [migrationLoading, setMigrationLoading] = useState(false);
+
   /* ── Step 3 ── */
   const [role, setRole] = useState<Role | null>(null);
 
@@ -275,6 +279,49 @@ export default function SignupScreen() {
   }
 
   /* ──────────────────────────────────────────────── */
+  /*  Kakao → 일반계정 전환 (migration modal 확인)      */
+  /* ──────────────────────────────────────────────── */
+  async function handleMigrationConfirm() {
+    const { role: mRole, payload } = migrationModal;
+    if (!mRole || !payload) return;
+    setMigrationLoading(true);
+    try {
+      let mRes: Response;
+      let mData: any;
+      if (mRole === "parent") {
+        mRes = await fetch(`${API_BASE}/auth/kakao-migration-register`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        mData = await safeJson(mRes);
+        if (!mRes.ok) { setError(mData.error || "전환 중 오류가 발생했습니다."); setMigrationModal({ visible: false, role: null, payload: null }); return; }
+        if (mData.token) {
+          setMigrationModal({ visible: false, role: null, payload: null });
+          await setParentSession(mData.token, mData.parent);
+          finishLogin("parent", null, mData.parent, mData.token);
+        }
+      } else if (mRole === "teacher") {
+        mRes = await fetch(`${API_BASE}/auth/teacher-kakao-migration-register`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        mData = await safeJson(mRes);
+        if (!mRes.ok) { setError(mData.error || "전환 중 오류가 발생했습니다."); setMigrationModal({ visible: false, role: null, payload: null }); return; }
+        if (mData.token && mData.user) {
+          setMigrationModal({ visible: false, role: null, payload: null });
+          await setAdminSession(mData.token, mData.user);
+          finishLogin("admin", mData.user, null, mData.token);
+        }
+      }
+    } catch (e: any) {
+      setError(e.message || "전환 중 오류가 발생했습니다.");
+      setMigrationModal({ visible: false, role: null, payload: null });
+    } finally {
+      setMigrationLoading(false);
+    }
+  }
+
+  /* ──────────────────────────────────────────────── */
   /*  Submit                                           */
   /* ──────────────────────────────────────────────── */
   async function handleSubmit() {
@@ -357,7 +404,14 @@ export default function SignupScreen() {
           }),
         });
         data = await safeJson(res);
-        if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
+        if (!res.ok) {
+          if (res.status === 409 && data.error_code === "KAKAO_MIGRATION_REQUIRED") {
+            setMigrationModal({ visible: true, role: "teacher", payload: { phone: cleaned, pool_id: selectedPool!.id, name: name.trim(), loginId: effectiveLoginId, password: effectivePw } });
+            setLoading(false);
+            return;
+          }
+          setError(data.error || data.message || "가입에 실패했습니다."); return;
+        }
 
         if (data.status === "pending_approval") {
           setIsPendingTeacher(true);
@@ -381,6 +435,11 @@ export default function SignupScreen() {
         });
         data = await safeJson(res);
         if (!res.ok) {
+          if (res.status === 409 && data.error_code === "KAKAO_MIGRATION_REQUIRED") {
+            setMigrationModal({ visible: true, role: "parent", payload: { phone: cleaned, pool_id: selectedPool!.id, name: name.trim(), pin: effectivePw, login_id: isSocial ? undefined : (loginId.trim().toLowerCase() || undefined) } });
+            setLoading(false);
+            return;
+          }
           // HTTP 5xx 또는 raw 기술 오류 메시지는 사용자 친화적 메시지로 교체
           const rawError = data.error || data.message || "";
           const isServerError = res.status >= 500
@@ -900,6 +959,35 @@ export default function SignupScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* ── Kakao → 일반계정 전환 안내 Modal ── */}
+      <Modal
+        transparent
+        visible={migrationModal.visible}
+        animationType="fade"
+        onRequestClose={() => setMigrationModal({ visible: false, role: null, payload: null })}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 24, width: "100%", maxWidth: 360 }}>
+            <Text style={{ fontSize: 17, fontFamily: "Pretendard-SemiBold", fontWeight: "600", color: "#1B3A70", marginBottom: 12 }}>
+              기존 이용정보 확인
+            </Text>
+            <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#4B5563", lineHeight: 22, marginBottom: 20 }}>
+              {"기존 카카오 계정의 정보와 이용기록이 확인되었습니다.\n일반회원 가입을 계속하면 기존 이용정보가 새 일반계정으로 자동 이전됩니다."}
+            </Text>
+            <Pressable
+              style={{ height: 50, borderRadius: 12, backgroundColor: "#1B3A70", alignItems: "center", justifyContent: "center", opacity: migrationLoading ? 0.6 : 1 }}
+              onPress={handleMigrationConfirm}
+              disabled={migrationLoading}
+            >
+              {migrationLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={{ color: "#fff", fontSize: 15, fontFamily: "Pretendard-SemiBold", fontWeight: "600" }}>계속</Text>
+              }
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <KeyboardAwareScrollView
         ref={scrollRef}
         style={[styles.root, { backgroundColor: C.background }]}

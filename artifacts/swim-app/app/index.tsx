@@ -212,38 +212,14 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleKakaoLogin() {
-    if (Platform.OS === "web") { setError("카카오 로그인은 앱에서만 가능합니다."); return; }
-    if (typeof kakaoLogin !== "function") {
-      setError("카카오 로그인은 정식 앱 빌드에서만 사용 가능합니다.");
-      return;
-    }
-    setKakaoLoading(true); setError("");
-    const ktid = "KL-" + Date.now().toString(36).toUpperCase();
-    try {
-      console.log(`[KakaoLogin][INDEX STEP1] traceId=${ktid} kakaoLogin 호출`);
-      const result = await kakaoLogin();
-      console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출`);
-      const loginKind = await kakaoSocialLogin(result.accessToken);
-      console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
-    } catch (err: unknown) {
-      const e = err as Error & { error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string };
-      if (e.error_code === "kakao_no_account" && e.kakao_info) {
-        router.push({
-          pathname: "/(auth)/signup",
-          params: {
-            kakaoId:    e.kakao_info.kakao_id ?? "",
-            kakaoPhone: e.kakao_info.phone    ?? "",
-            kakaoName:  e.kakao_info.name     ?? "",
-          },
-        } as any); return;
-      }
-      if (e.needs_activation && e.teacher_id) {
-        router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
-      }
-      if ((err as any)?.code === "E_CANCELLED_OPERATION" || (e as any)?.message?.includes("cancel")) return;
-      setError(e.message || "카카오 로그인에 실패했습니다.");
-    } finally { setKakaoLoading(false); }
+  // 1.6.3: Kakao SDK call 제거 — 안내 후 일반 회원가입으로 이동
+  function handleKakaoLogin() {
+    Alert.alert(
+      "일반 회원가입 안내",
+      "소셜 계정은 SWIMNOTE 보안 정책과 맞지 않아 일반 회원가입으로 전환합니다.\n일반 회원가입을 다시 진행해 주시면 기존 계정 정보와 이용기록을 그대로 이어서 사용할 수 있습니다.",
+      [{ text: "일반 회원가입", onPress: () => router.push("/(auth)/signup" as any) }],
+      { cancelable: true }
+    );
   }
 
   const isTablet = Dimensions.get("window").width >= 768;
