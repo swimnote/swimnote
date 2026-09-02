@@ -1467,6 +1467,24 @@ router.post("/teacher-self-signup", async (req, res) => {
       }
     }
 
+    // Kakao-linked teacher 존재 여부 확인 → KAKAO_MIGRATION_REQUIRED
+    if (cleanedPhone) {
+      const kakaoTeacher = (await superAdminDb.execute(sql`
+        SELECT id FROM users
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${cleanedPhone.replace(/[^0-9]/g, "")}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NOT NULL
+          AND is_activated IS NOT false
+        LIMIT 1
+      `)).rows as any[];
+      if (kakaoTeacher.length > 0) {
+        return res.status(409).json({
+          error: "이미 카카오로 연결된 계정이 있습니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+        });
+      }
+    }
+
     // 유저 생성 (자동승인이면 is_activated=true)
     await superAdminDb.execute(sql`
       INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, kakao_id, apple_id, created_at, updated_at)
@@ -3163,6 +3181,263 @@ router.post("/kakao-migration-register", async (req, res) => {
   } catch (e: any) {
     console.error("[kakao-migration-register]", e?.message, e?.stack);
     return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── POST /auth/teacher-kakao-migration-register ──────────────────────────────
+//
+// 1.6.3 임시 기능: 카카오로 연결된 기존 선생님이 일반 가입 시
+// 기존 데이터를 새 일반계정으로 원자적으로 이전.
+//
+// 요청: { phone, pool_id, name, loginId, password }
+// 응답:
+//   201 { token, user, migrated: true }
+//   409 { error_code: "TEACHER_KAKAO_NOT_FOUND" | "NO_KAKAO_TEACHER" | "ALREADY_MIGRATED" }
+//   500 (rollback 보장)
+//
+// 아카이브 전략: 기존 Kakao teacher의 email = '__archived_kakao_' + old_user_id
+//   - users.email unique 충족: archived prefix + UUID 조합으로 충돌 없음
+//   - is_activated = false: 로그인 불가
+//   - kakao_id: history용 old account에 보존
+//
+// 이전 대상 (ACTIVE OWNERSHIP):
+//   class_groups.teacher_user_id
+//   makeup_classes.assigned_teacher_id / transferred_to_teacher_id
+//   teacher_invites.user_id
+//   push_settings.user_id
+//   push_tokens.user_id
+//
+// 이전 제외 (IMMUTABLE HISTORY):
+//   diary_messages.teacher_user_id  (과거 작성 일지)
+//   teacher_absences.teacher_user_id (역사 기록)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/teacher-kakao-migration-register", async (req, res) => {
+  const { phone, pool_id, name: rawName, loginId, password } = req.body;
+  if (!phone || !pool_id || !rawName || !loginId || !password) {
+    return err(res, 400, "phone, pool_id, name, loginId, password는 필수입니다.");
+  }
+  if (String(password).length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+
+  const ph         = phone.replace(/[^0-9]/g, "");
+  const name       = rawName.trim();
+  const identifier = loginId.trim().toLowerCase();
+
+  if (identifier.length < 4) return err(res, 400, "아이디는 4자 이상이어야 합니다.");
+
+  try {
+    // ── 0. loginId 전역 중복 확인 ────────────────────────────────────────────
+    const [existingLogin] = (await superAdminDb.execute(sql`
+      SELECT id FROM users WHERE email = ${identifier} LIMIT 1
+    `)).rows as any[];
+    if (existingLogin) return err(res, 409, "이미 사용 중인 아이디입니다.");
+
+    // ── 1. Kakao 연결된 teacher 확인 (phone + pool_id) ────────────────────────
+    const [oldTeacher] = (await superAdminDb.execute(sql`
+      SELECT id, email, phone, kakao_id, is_activated, role, swimming_pool_id
+      FROM users
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND kakao_id IS NOT NULL
+        AND role IN ('teacher', 'pool_admin')
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!oldTeacher) {
+      return res.status(409).json({
+        error_code: "TEACHER_KAKAO_NOT_FOUND",
+        error: "해당 전화번호로 등록된 카카오 선생님 계정을 찾을 수 없습니다.",
+      });
+    }
+    if (!oldTeacher.kakao_id) {
+      return res.status(409).json({
+        error_code: "NO_KAKAO_TEACHER",
+        error: "카카오 연결 계정이 아닙니다. 로그인 화면에서 로그인해주세요.",
+      });
+    }
+
+    // ── 2. Idempotency: 이미 migration 완료 여부 확인 ─────────────────────────
+    // archived email prefix '__archived_kakao_' 확인
+    if (String(oldTeacher.email).startsWith("__archived_kakao_")) {
+      return res.status(409).json({
+        error_code: "ALREADY_MIGRATED",
+        error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요.",
+      });
+    }
+
+    const oldTeacherId = oldTeacher.id;
+    const newTeacherId = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const hash         = await hashPassword(password);
+    const archivedEmail = `__archived_kakao_${oldTeacherId}`;
+
+    await superAdminDb.execute(sql`BEGIN`);
+    try {
+      // 2-a. 재검증 (SELECT FOR UPDATE)
+      const [recheck] = (await superAdminDb.execute(sql`
+        SELECT id, email, kakao_id FROM users WHERE id = ${oldTeacherId} FOR UPDATE
+      `)).rows as any[];
+      if (!recheck || !recheck.kakao_id || String(recheck.email).startsWith("__archived_kakao_")) {
+        await superAdminDb.execute(sql`ROLLBACK`);
+        return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다." });
+      }
+
+      // 2-b. Archive old Kakao teacher
+      await superAdminDb.execute(sql`
+        UPDATE users
+        SET email = ${archivedEmail}, is_activated = false, updated_at = NOW()
+        WHERE id = ${oldTeacherId}
+      `);
+
+      // 2-c. Create new general teacher account
+      // invite 여부 확인 (기존 초대가 있으면 자동 승인)
+      let autoApproved = false;
+      let matchedInviteId: string | null = null;
+      if (ph) {
+        const inviteMatch = (await superAdminDb.execute(sql`
+          SELECT id FROM teacher_invites
+          WHERE swimming_pool_id = ${pool_id}
+            AND REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+            AND invite_status IN ('invited', 'active', 'pending', 'approved')
+          LIMIT 1
+        `)).rows as any[];
+        if (inviteMatch.length > 0) {
+          autoApproved = true;
+          matchedInviteId = (inviteMatch[0] as any).id;
+        }
+      }
+      // 기존 Kakao teacher가 is_activated 상태였으면 자동 승인
+      if (oldTeacher.is_activated !== false) autoApproved = true;
+
+      await superAdminDb.execute(sql`
+        INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, kakao_id, apple_id, created_at, updated_at)
+        VALUES (${newTeacherId}, ${identifier}, ${hash}, ${name}, ${ph || null},
+                ${oldTeacher.role || 'teacher'}, ${pool_id}, ${autoApproved}, NULL, NULL, NOW(), NOW())
+      `);
+
+      // 2-d. ACTIVE OWNERSHIP 이전
+      // class_groups.teacher_user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_groups SET teacher_user_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] class_groups warn:", e?.message));
+
+      // makeup_classes.assigned_teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE makeup_classes SET assigned_teacher_id = '${newTeacherId}' WHERE assigned_teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] makeup assigned_teacher warn:", e?.message));
+
+      // makeup_classes.transferred_to_teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE makeup_classes SET transferred_to_teacher_id = '${newTeacherId}' WHERE transferred_to_teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] makeup transferred_teacher warn:", e?.message));
+
+      // teacher_invites.user_id (new invite 레코드 업데이트 또는 신규 생성)
+      if (matchedInviteId) {
+        await superAdminDb.execute(sql`
+          UPDATE teacher_invites
+          SET invite_status = 'approved', user_id = ${newTeacherId}, approved_at = NOW(), approved_by = ${newTeacherId}
+          WHERE id = ${matchedInviteId}
+        `).catch(() => {});
+      } else {
+        // 기존 Kakao teacher의 invite 레코드를 새 ID로 이전
+        await superAdminDb.execute(sql.raw(
+          `UPDATE teacher_invites SET user_id = '${newTeacherId}', invite_status = 'approved', approved_at = NOW() WHERE user_id = '${oldTeacherId}'`
+        )).catch(() => {});
+      }
+
+      // push_settings.user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE push_settings SET user_id = '${newTeacherId}' WHERE user_id = '${oldTeacherId}'`
+      )).catch(() => {});
+
+      // push_tokens.user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE push_tokens SET user_id = '${newTeacherId}' WHERE user_id = '${oldTeacherId}'`
+      )).catch(() => {});
+
+      await superAdminDb.execute(sql`COMMIT`);
+      console.log(`[teacher-kakao-migration] 완료: old=${oldTeacherId} new=${newTeacherId} pool=${pool_id}`);
+
+    } catch (txErr: any) {
+      await superAdminDb.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[teacher-kakao-migration] ROLLBACK:", txErr?.message);
+      throw txErr;
+    }
+
+    const [newUser] = (await superAdminDb.execute(sql`
+      SELECT id, email, name, phone, role, swimming_pool_id, is_activated
+      FROM users WHERE id = ${newTeacherId}
+    `)).rows as any[];
+
+    const token = signToken({ userId: newTeacherId, role: (newUser?.role || "teacher") as any, poolId: pool_id });
+    return res.status(201).json({
+      token,
+      user: newUser,
+      migrated: true,
+      old_teacher_id: oldTeacherId,
+    });
+
+  } catch (e: any) {
+    console.error("[teacher-kakao-migration-register]", e?.message, e?.stack);
+    return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── GET /auth/kakao-remaining-count ──────────────────────────────────────────
+// 2.0 cutover 준비: 아직 일반계정으로 전환되지 않은 Kakao 계정 수 조회 (super_admin 전용)
+// PII: 마스킹, 수량만 반환
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/kakao-remaining-count", async (req, res) => {
+  // 인증 없이 접근 가능한 민감 엔드포인트이므로 Authorization 헤더 필수
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return err(res, 401, "인증이 필요합니다.");
+
+  let decoded: any;
+  try { decoded = verifyToken(token); } catch { return err(res, 401, "유효하지 않은 토큰입니다."); }
+  if (!["super_admin", "pool_admin"].includes(decoded?.role)) {
+    return err(res, 403, "접근 권한이 없습니다.");
+  }
+
+  try {
+    const { pool_id } = req.query;
+    const poolFilter = pool_id ? `AND swimming_pool_id = '${pool_id}'` : "";
+
+    // Active Kakao parents (phone != '' = not yet archived)
+    const parentRows = (await superAdminDb.execute(sql.raw(`
+      SELECT swimming_pool_id, COUNT(*) AS cnt
+      FROM parent_accounts
+      WHERE kakao_id IS NOT NULL AND phone != '' AND (is_active IS NULL OR is_active = true)
+      ${poolFilter}
+      GROUP BY swimming_pool_id
+      ORDER BY cnt DESC
+    `))).rows as any[];
+
+    // Active Kakao teachers
+    const teacherRows = (await superAdminDb.execute(sql.raw(`
+      SELECT swimming_pool_id, COUNT(*) AS cnt
+      FROM users
+      WHERE kakao_id IS NOT NULL
+        AND email NOT LIKE '__archived_kakao_%'
+        AND is_activated IS NOT false
+        AND role IN ('teacher', 'pool_admin')
+      ${poolFilter}
+      GROUP BY swimming_pool_id
+      ORDER BY cnt DESC
+    `))).rows as any[];
+
+    const parentTotal  = parentRows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+    const teacherTotal = teacherRows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+
+    return res.json({
+      parent_kakao_remaining:  parentTotal,
+      teacher_kakao_remaining: teacherTotal,
+      by_pool: {
+        parents:  parentRows.map((r: any) => ({ pool_id: r.swimming_pool_id, count: Number(r.cnt) })),
+        teachers: teacherRows.map((r: any) => ({ pool_id: r.swimming_pool_id, count: Number(r.cnt) })),
+      },
+    });
+  } catch (e: any) {
+    console.error("[kakao-remaining-count]", e?.message);
+    return err(res, 500, "조회 중 오류가 발생했습니다.");
   }
 });
 
