@@ -1,0 +1,730 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO ACCOUNT POLICY — FINAL LOCK + IMPLEMENTATION
+#
+# 목적:
+# 카카오 가입/로그인 정책을 아래 기준으로 최종 확정하고,
+# 실제 코드에 최소 수정으로 반영한 뒤
+# 관련 회귀 검수까지 완료하여 보고한다.
+#
+# 핵심 목표:
+# - 기존 1.6.3 기능 최대한 보존
+# - 기존 카카오 가입자/로그인 경로 보호
+# - 관리자 PC모드 연동 고려해 관리자 소셜가입 차단
+# - 선생님/학부모는 Kakao 계정 1개만 SWIMNOTE 계정 1개에 연결
+# - 두 번째 수영장 가입은 일반가입으로 유도
+# - 중복 Kakao 계정 생성/병합/재연결로 기존 구조 깨먹지 않기
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Primary work branch:
+release/v2.0.0
+
+Production branch:
+deploy-photo-clone
+
+IMPORTANT:
+Production server는 현재 실사용 중이므로
+이번 작업에서 수정/배포하지 않는다.
+
+============================================================
+0. 최종 정책 — 변경 금지
+============================================================
+
+아래 정책을 FINAL LOCKED POLICY로 적용한다.
+
+------------------------------------------------------------
+A. 관리자
+------------------------------------------------------------
+
+관리자 계정은 카카오 신규가입 불가.
+
+관리자 범위:
+- pool_admin
+- 향후 관리자 계정으로 취급되는 운영자 역할
+
+관리자는 일반 계정만 사용.
+
+카카오로 관리자 가입을 시도하면:
+
+"관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다.
+일반 계정으로 가입해 주세요."
+
+를 표시.
+
+기존 관리자 카카오 계정을 새로 만들거나
+기존 일반 관리자 계정에 Kakao provider를 신규 연결하지 않는다.
+
+중요:
+이미 Production에 기존 관리자 Kakao 연결이 있다면
+임의 삭제/해제 금지.
+기존 로그인 호환성만 유지.
+
+------------------------------------------------------------
+B. 선생님
+------------------------------------------------------------
+
+Kakao 계정 1개
+=
+SWIMNOTE 사용자 계정 1개
+
+원칙.
+
+한 Kakao provider_id/kakao_id는
+하나의 SWIMNOTE user에만 연결 가능.
+
+이미 연결된 Kakao 계정을 이용해
+다른 SWIMNOTE 계정을 새로 생성하거나
+다른 수영장용 두 번째 계정에 연결:
+금지.
+
+선생님이 두 번째 수영장에 가입해야 하면:
+일반가입으로 진행.
+
+안내 문구:
+
+"이미 SWIMNOTE 계정에 연결된 카카오 계정입니다.
+다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+
+------------------------------------------------------------
+C. 학부모
+------------------------------------------------------------
+
+선생님과 동일하게:
+
+Kakao 계정 1개
+=
+SWIMNOTE 사용자 계정 1개
+
+이미 연결된 Kakao 계정으로
+두 번째 SWIMNOTE 계정 생성:
+금지.
+
+두 번째 수영장 가입이 필요한 경우:
+일반가입으로 진행.
+
+안내 문구:
+
+"이미 SWIMNOTE 계정에 연결된 카카오 계정입니다.
+다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+
+------------------------------------------------------------
+D. 다중 수영장 정책
+------------------------------------------------------------
+
+이번 작업에서
+Kakao 계정 하나로 여러 수영장 membership을 자동 병합하는
+새로운 account merge architecture 만들지 않는다.
+
+복수 역할 계정 구조도 새로 만들지 않는다.
+
+기존 구조를 유지한다.
+
+두 번째 수영장:
+일반가입 사용.
+
+============================================================
+1. 절대 금지
+============================================================
+
+Production server 수정:
+NO
+
+deploy-photo-clone edit:
+NO
+
+Render deploy:
+NO
+
+DB migration:
+NO
+
+Production DB write:
+NO
+
+existing Kakao account delete:
+NO
+
+existing kakao_id clear:
+NO
+
+account merge:
+NO
+
+provider relink 일괄작업:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+build:
+NO
+
+Kakao Developer Console:
+NO TOUCH
+
+RevenueCat:
+NO TOUCH
+
+Stage 8:
+NO TOUCH
+
+============================================================
+2. 기존 카카오 계정 보호
+============================================================
+
+기존 Production 계정은 반드시 보존.
+
+특히 토이키즈 기존 Kakao 선생님들:
+
+- kakao_id PRESENT 계정
+- kakao_id MISSING이나 기존 phone lookup으로
+  정상 auto-link 가능한 계정
+
+전부 임의 수정 금지.
+
+이번 정책 적용 때문에
+기존 카카오 사용자가 갑자기 로그인 불가해지면 안 된다.
+
+반드시 old linked user login path 보호.
+
+============================================================
+3. 현재 Kakao flow 먼저 감사
+============================================================
+
+수정 전에 실제 코드 확인.
+
+대상:
+
+1.6.3 iOS
+1.6.3 Android
+2.0.0 iOS
+
+확인:
+
+- handleKakao()
+- kakaoLogin()
+- kakaoSocialLogin()
+- /auth/kakao-social-login
+- /auth/kakao-link-account
+- /auth/kakao-link-teacher
+
+각 route가
+신규가입인지
+기존 로그인인지
+기존계정 link인지
+정확히 구분.
+
+============================================================
+4. 관리자 Kakao 신규가입 차단
+============================================================
+
+핵심:
+관리자 로그인 자체가 아니라
+"관리자 Kakao 신규가입/신규연결"을 막는다.
+
+기존 Kakao 관리자 계정이 존재할 경우:
+로그인 유지.
+
+새 관리자 account creation 또는 link 단계에서만 차단.
+
+정책 적용 위치는
+기존 flow를 가장 적게 건드리는 곳을 선택.
+
+가능하면 client-side role selection / linking screen에서
+우선 차단하고,
+필요한 경우 server validation도 설계 검토.
+
+단:
+이번 작업에서는 Production server 배포 금지.
+
+release/v2.0.0 client 범위에서
+최소 구현이 가능한 경우 우선 적용.
+
+============================================================
+5. 선생님 Kakao 1계정 제한
+============================================================
+
+기존 kakao_id가 이미 user A에 연결되어 있으면:
+
+user B에 동일 kakao_id 연결:
+NO
+
+새 user 생성:
+NO
+
+다른 수영장 가입을 위해 동일 Kakao 계정 재사용:
+NO
+
+대신 일반가입 안내.
+
+중요:
+기존 user A 로그인은 정상 유지.
+
+============================================================
+6. 학부모 Kakao 1계정 제한
+============================================================
+
+동일 원칙.
+
+기존 kakao_id가 parent account A에 존재하면:
+
+두 번째 parent account 생성:
+NO
+
+다른 pool의 신규 parent account에 동일 kakao_id 연결:
+NO
+
+기존 account 로그인:
+YES
+
+두 번째 수영장:
+일반가입 안내.
+
+============================================================
+7. phone fallback과 kakao_id 우선순위
+============================================================
+
+기존 로그인 흐름을 최대한 유지.
+
+원칙:
+
+1순위:
+kakao_id direct hit
+
+2순위:
+기존 phone match로 최초 1회 link
+
+3순위:
+계정 없음 → 신규가입/link 화면
+
+단,
+phone match 단계에서
+이미 해당 Kakao ID가 다른 SWIMNOTE user에 연결되어 있으면
+새 link 금지.
+
+중복 provider 생성 방지.
+
+============================================================
+8. provider uniqueness 검증
+============================================================
+
+현재 DB/schema에
+kakao_id/provider_id unique constraint가 있는지 확인.
+
+있으면:
+그 constraint를 존중.
+
+없으면:
+이번 작업에서 migration 추가하지 말고
+application-level guard가 충분한지 확인.
+
+migration 필요 시:
+BLOCKER로 보고만 할 것.
+
+============================================================
+9. 기존 sub_admin enum 위험 함께 확인
+============================================================
+
+이전 감사에서 발견:
+
+role IN ('teacher','pool_admin','sub_admin')
+
+실제 enum에는
+sub_admin이 없다고 보고됨.
+
+이번 수정 과정에서
+해당 코드가 실제로 enum runtime error를 만들 수 있는지
+테스트 환경에서 확인.
+
+Production DB write 금지.
+
+만약 실제 오류라면:
+
+SERVER QUERY FIX REQUIRED
+
+로 보고.
+
+단,
+Production server 수정/배포는 이번 작업에서 금지.
+
+release/v2.0.0 server source도
+이번 단계에서 임의 수정하지 말고
+정확한 fix proposal만 보고해도 됨.
+
+============================================================
+10. UI 문구
+============================================================
+
+관리자:
+
+"관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다.
+일반 계정으로 가입해 주세요."
+
+선생님/학부모 중복 Kakao:
+
+"이미 SWIMNOTE 계정에 연결된 카카오 계정입니다.
+다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+
+문구는 그대로 사용.
+
+필요하면 Alert / 안내 modal 사용.
+
+============================================================
+11. role별 UX 검수
+============================================================
+
+반드시 검수:
+
+A. 신규 관리자
+카카오 가입 시도
+→ 차단 안내
+→ 일반가입 유도
+
+B. 기존 Kakao 관리자
+존재한다면
+→ 기존 로그인 유지
+
+C. 신규 선생님
+Kakao 미연결
+→ 최초 1회 link 가능
+
+D. 기존 Kakao 선생님
+→ 기존 계정 direct login
+
+E. 동일 Kakao 선생님으로 두 번째 계정 생성 시도
+→ 차단
+→ 일반가입 안내
+
+F. 신규 학부모
+Kakao 미연결
+→ 최초 1회 link 가능
+
+G. 기존 Kakao 학부모
+→ 기존 계정 로그인
+
+H. 동일 Kakao 학부모로 두 번째 계정 생성 시도
+→ 차단
+→ 일반가입 안내
+
+I. 두 번째 수영장
+→ 일반가입 경로는 정상 동작
+
+============================================================
+12. 기존 토이키즈 Kakao teacher 회귀 검수
+============================================================
+
+Production DB는 READ ONLY.
+
+기존 토이키즈 Kakao teacher 상태를
+변경하지 않고 코드 기준으로 검수.
+
+확인:
+
+- 기존 kakao_id PRESENT teacher login
+- 기존 kakao_id MISSING teacher phone auto-link
+- 중복 kakao_id 없음
+- 중복 phone 없음
+- membership 유지
+- teacher dashboard 이동
+
+목표:
+기존 계정 처리:
+NO ACTION
+
+============================================================
+13. 1.6.3 보호
+============================================================
+
+1.6.3 iOS/Android는 실사용 중.
+
+이번 정책 구현 때문에
+1.6.3 client/server contract가 깨지면 안 된다.
+
+반드시 확인:
+
+1.6.3 source changed:
+NO
+
+1.6.3 OTA:
+NO
+
+Production server:
+NO CHANGE
+
+기존 1.6.3 Kakao login endpoint contract:
+UNCHANGED
+
+============================================================
+14. 2.0.0 구현 허용 범위
+============================================================
+
+코드 변경 필요 시:
+
+release/v2.0.0
+artifacts/swim-app
+
+Kakao auth/link/signup 관련 client files만
+최소 수정 가능.
+
+일반 로그인:
+NO TOUCH
+
+subscription:
+NO TOUCH
+
+home/navigation unrelated:
+NO TOUCH
+
+server:
+NO TOUCH
+
+DB:
+NO TOUCH
+
+============================================================
+15. 테스트
+============================================================
+
+반드시 추가/수정 테스트:
+
+- admin Kakao signup blocked
+- existing admin Kakao login preserved
+- teacher first Kakao link
+- teacher existing Kakao login
+- teacher duplicate Kakao blocked
+- parent first Kakao link
+- parent existing Kakao login
+- parent duplicate Kakao blocked
+- second pool 안내 → general signup
+- legacy 1.6.3 contract unchanged
+
+그리고 기존 Kakao 관련 tests 전부 실행.
+
+전체 regression:
+
+known stable failures:
+166
+
+new deterministic failures:
+0
+
+기존 166을 이번 작업에서 고치지 말 것.
+
+============================================================
+16. 수정 → 검수 → 커밋
+============================================================
+
+이번 작업은
+audit만 하고 끝내지 않는다.
+
+정책과 충돌하는
+2.0.0 client-side Kakao signup/link UX가 있으면
+최소 수정까지 완료.
+
+수정 후:
+관련 테스트
+회귀 테스트
+검수
+commit
+
+단,
+Production deploy:
+NO
+
+OTA:
+NO
+
+============================================================
+17. 완료보고 형식
+============================================================
+
+# SWIMNOTE KAKAO FINAL POLICY IMPLEMENTATION REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Code changed:
+YES / NO
+
+Commit:
+...
+
+## FINAL POLICY
+
+Admin Kakao new signup:
+BLOCKED
+
+Existing Admin Kakao login:
+PRESERVED
+
+Teacher Kakao:
+ONE KAKAO = ONE SWIMNOTE ACCOUNT
+
+Parent Kakao:
+ONE KAKAO = ONE SWIMNOTE ACCOUNT
+
+Second pool:
+GENERAL SIGNUP REQUIRED
+
+## CHANGED FILES
+
+...
+
+## ADMIN
+
+New Kakao signup blocked:
+YES / NO
+
+Message:
+...
+
+Existing Kakao admin login preserved:
+YES / NO / N/A
+
+## TEACHER
+
+First Kakao link:
+PASS / FAIL
+
+Existing Kakao login:
+PASS / FAIL
+
+Duplicate Kakao second account:
+BLOCKED / NOT BLOCKED
+
+Second pool guidance:
+PASS / FAIL
+
+## PARENT
+
+First Kakao link:
+PASS / FAIL
+
+Existing Kakao login:
+PASS / FAIL
+
+Duplicate Kakao second account:
+BLOCKED / NOT BLOCKED
+
+Second pool guidance:
+PASS / FAIL
+
+## TOYKIDS EXISTING KAKAO TEACHERS
+
+Existing accounts modified:
+NO
+
+Direct-hit users:
+SAFE / RISK
+
+Phone auto-link users:
+SAFE / RISK
+
+Account treatment required:
+NO / YES
+
+## PROVIDER UNIQUENESS
+
+DB unique constraint:
+YES / NO
+
+Application guard:
+YES / NO
+
+Migration required:
+YES / NO
+
+## SUB_ADMIN ENUM
+
+Runtime safe:
+YES / NO / UNCONFIRMED
+
+If unsafe:
+SERVER QUERY FIX REQUIRED
+exact issue:
+...
+
+Production server changed:
+NO
+
+## 1.6.3 SAFETY
+
+1.6.3 source changed:
+NO
+
+1.6.3 OTA:
+NO
+
+Production auth contract changed:
+NO
+
+Compatibility:
+PASS / FAIL
+
+## TESTS
+
+Kakao tests:
+...
+
+New policy tests:
+...
+
+Regression:
+...
+
+Stable known failures:
+166
+
+New deterministic failures:
+0
+
+## DEPLOYMENT
+
+Production server:
+NOT TOUCHED
+
+Render:
+NOT DEPLOYED
+
+DB:
+NOT CHANGED
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+Build:
+NO
+
+## BLOCKERS
+
+정말 남아 있는 문제만 작성.
+
+없으면:
+NONE
+
+## FINAL
+
+다음 중 하나:
+
+KAKAO FINAL POLICY IMPLEMENTED — CODE COMPLETE
+
+또는
+
+KAKAO FINAL POLICY IMPLEMENTED — SERVER FIX APPROVAL REQUIRED
+
+또는
+
+KAKAO POLICY BLOCKED — ROOT ISSUE REMAINS
