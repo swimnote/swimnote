@@ -1,0 +1,836 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — FINAL BLUEPRINT INTEGRITY AUDIT + RESTORE
+#
+# 매우 중요:
+# 지금 로그인 아이콘 디자인을 수정하는 작업이 아니다.
+#
+# 실제 단말에서 과거 UI가 다시 나타난 것이 확인됐으므로,
+# 우리가 마지막까지 완료했다고 보고했던 SWIMNOTE 2.0 설계가
+# 현재 release/v2.0.0 HEAD에 실제로 온전히 남아 있는지
+# Git history + active route + 실제 source 기준으로 전수 검증한다.
+#
+# 목적:
+#
+# 1. 마지막 승인 설계/완료 커밋들이 현재 HEAD에 포함됐는지 확인
+# 2. 빠진 commit / 덮인 file / legacy route를 찾음
+# 3. 실제 회귀가 확인되면 과거 완료 commit에서 최소 복원
+# 4. 새 기능이나 새 디자인을 만들지 않음
+#
+# audit만 하고 끝내지 말 것.
+# 명백한 회귀는 같은 작업에서 복원 + 테스트 + commit까지 수행.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target branch:
+release/v2.0.0
+
+현재 HEAD:
+반드시 실제 확인
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+DB:
+NO CHANGE
+
+============================================================
+0. 절대 금지
+============================================================
+
+로그인 아이콘 새 디자인:
+NO
+
+UI를 기억으로 재작성:
+NO
+
+새 기능:
+NO
+
+대규모 refactor:
+NO
+
+branch 전체 reset:
+NO
+
+무차별 revert:
+NO
+
+Kakao backend:
+NO TOUCH
+
+Production auth:
+NO TOUCH
+
+RevenueCat 외부 설정:
+NO TOUCH
+
+DB migration:
+NO
+
+============================================================
+1. 먼저 현재 HEAD와 완료 커밋 계보 확인
+============================================================
+
+git log --all --graph --decorate --oneline
+
+기준으로 현재 release/v2.0.0이
+과거 완료 커밋들을 실제 ancestor로 포함하는지 확인.
+
+기존 완료 기준 SHA들을 가능한 범위에서 모두 대조:
+
+Stage1:
+8139f01f
+
+Stage2:
+78679aa2
+
+Stage3:
+79f8b72e
+
+Stage5:
+92279ac9
+
+Stage6:
+30163af1
+
+Stage7:
+5facdf7a
+
+Stage7 micro:
+ffe7c900
+
+Messenger:
+1b03e716
+
+Stage8 계열:
+cc405d77
+6056f41e
+9430d294
+
+최근 Social Auth 2.0:
+d26f3282
+7160c979
+
+위 SHA 중 branch 역사상 존재하는 것은:
+
+git merge-base --is-ancestor <SHA> HEAD
+
+형태로 확인.
+
+각각:
+
+IN HEAD
+NOT IN HEAD
+SUPERSEDED
+OTHER BRANCH ONLY
+
+판정.
+
+단순 SHA가 HEAD ancestor가 아니더라도
+동일 diff가 squash/cherry-pick된 경우에는
+patch-id 또는 실제 diff로 확인.
+
+============================================================
+2. 마지막 설계의 핵심 영역별 무결성 확인
+============================================================
+
+아래 영역을 각각:
+
+EXPECTED DESIGN
+CURRENT ACTIVE IMPLEMENTATION
+LAST KNOWN GOOD COMMIT
+REGRESSED YES/NO
+
+로 판정.
+
+------------------------------------------------------------
+A. ADMIN / TEACHER / PARENT IA
+------------------------------------------------------------
+
+확인:
+
+- 관리자 홈/네비게이션
+- 선생님 홈/네비게이션
+- 학부모 홈/네비게이션
+- 역할 전환
+- 관리자 → 선생님 모드
+- 하단탭
+- 스케줄/회원/소통/더보기 진입
+- backTo / 뒤로가기 정책
+- true home 이동 정책
+
+특히:
+
+관리자→선생님 모드에서
+관리자 전체 scope를 그대로 쓰는 회귀가 있는지 확인.
+
+------------------------------------------------------------
+B. MEMBER LIST / MEMBER DETAIL
+------------------------------------------------------------
+
+확인:
+
+- 회원목록
+- 회원검색
+- 회원정보보기
+- 회원상세
+- 수정
+- 저장
+- 메모
+- 과거회원/상태
+- 반/담당선생님 표시
+- 보호자 연결
+- 뒤로가기
+- 관리자/선생님 권한
+
+사용자가 이전에 수정 완료했던
+회원정보보기 최신 구현이
+현재 active route에 실제로 연결되어 있는지 확인.
+
+legacy member detail이 다시 활성화됐으면 회귀.
+
+------------------------------------------------------------
+C. SCHEDULER / CLASS / STUDENT SCOPE
+------------------------------------------------------------
+
+확인:
+
+Teacher:
+본인 담당 반만
+
+Teacher:
+본인 담당 학생만
+
+Admin normal:
+전체
+
+Admin → Teacher mode:
+effective teacher 담당 반/학생만
+
+다른 선생님 학생/반 섞임:
+0이어야 함.
+
+이 영역은 사용자 실기기에서 이미 회귀 의심이 있으므로
+특히 상세 확인.
+
+------------------------------------------------------------
+D. LOGIN / SIGNUP
+------------------------------------------------------------
+
+디자인 자체보다 기능/설계 무결성 확인.
+
+2.0 정책:
+
+일반 로그인:
+YES
+
+일반 회원가입:
+YES
+
+Kakao UI:
+0
+
+Kakao signup:
+0
+
+Kakao link:
+0
+
+Apple existing login:
+YES
+
+Apple 신규가입 필요:
+일반회원가입 fallback
+
+중요:
+
+현재 단말에서 구형 Kakao 풀폭 버튼이 보인 것이
+source regression인지
+runtime/build mismatch인지 정확히 구분.
+
+작은 아이콘 여부는 이번 audit의 핵심 아님.
+
+------------------------------------------------------------
+E. COMMUNICATION
+------------------------------------------------------------
+
+확인:
+
+- 공지
+- 메시지/메신저
+- 관리자→선생님 push
+- 선생님→관리자 push
+- directed message
+- self/cross-pool 보호
+- notice와 general talk 분리
+- polling/focus cleanup
+
+Messenger 완료 상태가 현재 HEAD에서 살아 있는지 확인.
+
+------------------------------------------------------------
+F. REQUEST / NOTIFICATION
+------------------------------------------------------------
+
+확인:
+
+- 학부모 요청
+- 보강 요청
+- 알림 통합
+- teacher messages inbox
+- deep-link
+- 중복 push 방지
+- Invalid Date 방어
+
+Stage3/기존 Phase1 완료 기능이
+2.0에서 빠지지 않았는지 확인.
+
+------------------------------------------------------------
+G. X MODE SHARED CORE
+------------------------------------------------------------
+
+중요:
+
+SWIMNOTE X는 별도 앱이 아님.
+
+X =
+SWIMNOTE 공통 운영기능
++
+X 전용 AI/교육기능
+
+확인:
+
+- 일반/X가 동일 회원관리 core 공유
+- 동일 수업 core 공유
+- 동일 미디어 core 공유
+- 동일 소통 core 공유
+- X 때문에 일반 기능 duplicate되지 않음
+- X mode branch가 legacy component를 활성화하지 않음
+
+특히 X 작업이
+기존 정상 UI를 덮은 commit이 있는지 Git history로 확인.
+
+------------------------------------------------------------
+H. X HOME / X SETTINGS / GLOBAL TEMPLATE
+------------------------------------------------------------
+
+기존 완료 기준에서:
+
+- X mode home
+- X setting UI
+- Global Template
+- 잠금/접근 제어
+- X mode 분기
+
+가 현재 source에서 유지되는지 확인.
+
+새 구현 금지.
+
+빠진 완료 코드만 복원.
+
+------------------------------------------------------------
+I. AI DIARY / AI CONNECTION
+------------------------------------------------------------
+
+현재 앱의 AI diary 구조 확인:
+
+students[{ref,name}]
+pool_id
+class_id
+lesson_date
+request_id
+
+기존 AI Engine 연결/grounded contract 작업이
+현재 source에서 유지되는지 확인.
+
+앱에서 학생 이름 추론/수영 지식 창작:
+NO
+
+AI 호출 UI가 legacy direct GPT로
+의도치 않게 완전히 되돌아갔는지 확인.
+
+단:
+이번 작업에서 AI Engine 새 연결 개발은 하지 말 것.
+
+현재 상태만 설계 기준과 비교.
+
+------------------------------------------------------------
+J. GROWTH / REPORT
+------------------------------------------------------------
+
+확인:
+
+- growth event
+- growth report
+- parent AI
+- 무료 AI 성장리포트 기반 코드
+- 리포트 화면
+- 기존 report-related schema/client
+
+Stage4 및 X report 작업 중
+완료 코드가 현재 HEAD에서 사라지지 않았는지 확인.
+
+새 리포트 기능 추가 금지.
+
+------------------------------------------------------------
+K. SUBSCRIPTION / PRICING SOURCE
+------------------------------------------------------------
+
+현재 source 기준 가격:
+
+SWIMNOTE:
+₩9,900
+
+X300:
+₩129,000
+
+X500:
+₩199,000
+
+X1000:
+₩359,000
+
+DATA100:
+₩7,900
+
+DATA300:
+₩22,900
+
+product IDs:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+com.swimnote.x500.monthly
+com.swimnote.x1000.monthly
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+확인:
+
+- old 119/189/349 신규판매 노출 없음
+- member limits
+- server storage quota
+- X entitlement
+- trial 관련 현재 완료 정책
+
+외부 RevenueCat/Store 미설정은
+SOURCE REGRESSION과 분리해서 보고.
+
+------------------------------------------------------------
+L. MEDIA
+------------------------------------------------------------
+
+설계 기준:
+
+사진/영상 persistent source:
+SERVER/R2
+
+phone:
+영구 원본 보관 NO
+
+이 정책이 현재 source에 살아 있는지 확인.
+
+사용자가 실기기에서 11GB 누적을 발견했으므로:
+
+REGRESSION 가능성이 높음.
+
+단 이번 blueprint audit에서
+원인이 명확하게 발견되면
+과거 정상 commit으로 최소 복원 가능.
+
+대규모 새 media architecture 금지.
+
+------------------------------------------------------------
+M. SECURITY / PERFORMANCE / FREEZE
+------------------------------------------------------------
+
+Stage7에서 닫았던:
+
+- tenant/pool isolation
+- role isolation
+- sensitive logging
+- request duplication
+- obvious performance regression
+
+관련 코드가 현재 HEAD에서 사라지지 않았는지 확인.
+
+============================================================
+3. ACTIVE ROUTE가 진짜 무엇인지 확인
+============================================================
+
+매우 중요.
+
+파일이 Git에 존재하는 것과
+실제로 앱이 그 파일을 쓰는 것은 다름.
+
+각 핵심 화면:
+
+- login
+- signup
+- admin home
+- teacher home
+- scheduler
+- member list
+- member detail
+- notifications
+- messenger
+- X home
+
+에 대해:
+
+ROUTE
+→ ACTIVE FILE
+→ COMPONENT
+→ SHARED/LEGACY
+
+를 추적.
+
+과거 정상 component가 존재하지만
+legacy route가 활성화됐다면:
+
+SOURCE EXISTS BUT ROUTE REGRESSED
+
+로 판정.
+
+============================================================
+4. 최근 회귀를 만든 commit/merge 찾기
+============================================================
+
+특히 조사:
+
+X mode 개발 이후
+Stage8 pricing/subscription
+Social auth 작업
+최근 restore/revert 작업
+
+이 과정에서:
+
+- auth
+- member
+- scheduler
+- navigation
+- media
+
+파일이 과거 버전으로 덮였는지 확인.
+
+git blame
+git log -p
+git diff
+git show
+git reflog 가능한 범위
+remote branches
+
+사용.
+
+============================================================
+5. 복원 정책
+============================================================
+
+확실한 회귀가 발견되면:
+
+과거 마지막 정상 commit에서
+해당 파일/해당 diff만 최소 복원.
+
+새로 재작성:
+NO
+
+branch 전체 revert:
+NO
+
+통째 reset:
+NO
+
+현재 2.0에서 추가된 정상 기능을
+같이 날리지 말 것.
+
+필요하면:
+
+LAST GOOD UI/LOGIC
++
+CURRENT REQUIRED 2.0 POLICY
+
+를 최소 merge.
+
+============================================================
+6. 수정 우선순위
+============================================================
+
+이번 audit에서 발견되면 즉시 수정:
+
+P0:
+- active route가 legacy로 연결
+- auth 정책 회귀
+- 회원정보보기 회귀
+- teacher data scope leakage
+- media local persistent accumulation
+
+P1:
+- 버튼/문구/레이아웃 같은 시각적 차이
+
+즉 작은 로그인 아이콘은 P1.
+지금은 설계/기능 무결성이 P0.
+
+============================================================
+7. 테스트
+============================================================
+
+BP01
+Stage 완료 commit ancestry/patch 확인
+
+BP02
+admin IA
+
+BP03
+teacher IA
+
+BP04
+parent IA
+
+BP05
+member list
+
+BP06
+member detail
+
+BP07
+teacher scope
+
+BP08
+admin→teacher effective scope
+
+BP09
+login policy
+
+BP10
+signup policy
+
+BP11
+Kakao 2.0 UI 0
+
+BP12
+Apple fallback
+
+BP13
+notifications/requests
+
+BP14
+messenger
+
+BP15
+X shared core
+
+BP16
+X home/settings/template
+
+BP17
+AI diary contract source
+
+BP18
+growth/report source
+
+BP19
+subscription pricing/product IDs
+
+BP20
+media server/R2 policy
+
+BP21
+security/tenant isolation
+
+BP22
+legacy active routes = 0 for replaced screens
+
+============================================================
+8. Regression baseline
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+기존 166을 고치려고 범위를 넓히지 말 것.
+
+============================================================
+9. COMMIT
+============================================================
+
+회귀가 실제 발견된 경우에만 commit.
+
+가능하면:
+
+fix(v2-integrity): restore completed product blueprint regressions
+
+너무 여러 영역이면
+논리적으로 2~3 commit까지 허용.
+
+하지만 unrelated refactor 금지.
+
+============================================================
+10. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 FINAL BLUEPRINT INTEGRITY REPORT
+
+## CURRENT
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+## COMPLETED COMMIT INTEGRITY
+
+| Stage/Feature | Known SHA | In Current HEAD | Equivalent Patch Present | Status |
+|---|---|---|---|---|
+
+## ACTIVE ROUTES
+
+| Feature | Route | Active File | Expected File | Status |
+|---|---|---|---|---|
+
+## CORE DESIGN STATUS
+
+Admin IA:
+PASS / REGRESSED
+
+Teacher IA:
+PASS / REGRESSED
+
+Parent IA:
+PASS / REGRESSED
+
+Member List:
+PASS / REGRESSED
+
+Member Detail:
+PASS / REGRESSED
+
+Scheduler:
+PASS / REGRESSED
+
+Teacher Student Scope:
+PASS / REGRESSED
+
+Login:
+PASS / REGRESSED
+
+Signup:
+PASS / REGRESSED
+
+Kakao 2.0 removal:
+PASS / REGRESSED
+
+Apple fallback:
+PASS / REGRESSED
+
+Requests/Notifications:
+PASS / REGRESSED
+
+Messenger:
+PASS / REGRESSED
+
+X Shared Core:
+PASS / REGRESSED
+
+X Home/Settings:
+PASS / REGRESSED
+
+AI Diary:
+PASS / REGRESSED / INCOMPLETE-BY-DESIGN
+
+Growth/Reports:
+PASS / REGRESSED / EXTERNAL-PENDING
+
+Subscription Source:
+PASS / REGRESSED / EXTERNAL-PENDING
+
+Media R2 Policy:
+PASS / REGRESSED
+
+Security/Isolation:
+PASS / REGRESSED
+
+## REGRESSIONS FOUND
+
+1.
+Feature:
+...
+
+Last good SHA:
+...
+
+Regression SHA:
+...
+
+Exact cause:
+...
+
+Restored:
+YES / NO
+
+2.
+...
+
+## IMPORTANT
+
+Were previously completed features lost from current HEAD:
+YES / NO
+
+Was a legacy route/component reactivated:
+YES / NO
+
+Did X work overwrite shared normal-mode code:
+YES / NO
+
+Did recent restore/revert restore an older UI/code generation:
+YES / NO
+
+## TESTS
+
+BP01-BP22:
+...
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+## DEPLOY
+
+Production:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL VERDICT
+
+반드시 아래 중 하나:
+
+A.
+FINAL BLUEPRINT INTEGRITY PASS — PREVIOUS COMPLETED WORK PRESERVED
+
+B.
+FINAL BLUEPRINT RESTORED — REGRESSIONS FOUND AND RECOVERED FROM GIT
+
+C.
+FINAL BLUEPRINT INTEGRITY FAIL — EXACT MISSING/CONFLICTING WORK REMAINS
