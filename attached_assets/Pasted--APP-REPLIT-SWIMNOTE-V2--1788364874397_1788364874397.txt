@@ -1,0 +1,600 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE V2 REGRESSION RECOVERY
+# BASELINE LOCK = 1b03e716
+#
+# 목적:
+# 2026-09-02 Messenger 최종 정상화 커밋 1b03e716을
+# 회귀 비교 기준점으로 사용한다.
+#
+# 절대 branch 전체 rollback 하지 않는다.
+#
+# 현재 release/v2.0.0과 1b03e716 사이에서
+# 아래 4개 영역만 정밀 diff:
+#
+# 1. Login/Auth UI
+# 2. Member Info / Member Detail
+# 3. Teacher Scheduler / Student Scope
+# 4. Media Upload / Local Storage
+#
+# 이후 정상 기능을 깨뜨린 diff만 최소 복원.
+#
+# Stage8 결제/RevenueCat 소스:
+# 보존
+#
+# 최신 Social Auth 정책:
+# 보존
+#
+# Messenger 1b03e716:
+# 보존
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target branch:
+release/v2.0.0
+
+Regression baseline:
+1b03e716
+
+현재 HEAD:
+실제 확인
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+DB:
+NO CHANGE
+
+============================================================
+1. BASELINE 의미
+============================================================
+
+1b03e716은:
+
+Messenger 최종 정상화 commit.
+
+확인된 내용:
+
+- admin → teacher push
+- teacher → admin push
+- directed message
+- notice/talk separation
+- 7s polling/focus cleanup
+- duplicate push protection
+- KST date normalization
+
+따라서 이 commit은
+현재 recovery 작업에서 절대 되돌리지 않는다.
+
+또한 1b03e716 시점의
+공통 UI/route/권한/media 구현을
+회귀 비교 기준으로 사용한다.
+
+============================================================
+2. 절대 금지
+============================================================
+
+git reset --hard 1b03e716
+NO
+
+branch 전체 revert
+NO
+
+1b03e716 이후 commit 전부 제거
+NO
+
+새 UI 디자인
+NO
+
+새 auth architecture
+NO
+
+새 media architecture
+NO
+
+RevenueCat 제거
+NO
+
+Social Auth 최신 정책 제거
+NO
+
+Messenger 수정
+NO
+
+============================================================
+3. DIFF 범위 제한
+============================================================
+
+반드시:
+
+git diff 1b03e716..HEAD
+
+를 기반으로 다음 파일군만 우선 분류.
+
+A. LOGIN / AUTH UI
+
+- auth routes
+- login screens
+- signup screens
+- social login UI
+- auth navigation
+
+B. MEMBER INFO
+
+- member list
+- member detail
+- member info
+- student detail
+- profile/detail shared components
+
+C. SCHEDULER / TEACHER SCOPE
+
+- scheduler
+- class list
+- student list
+- effectiveTeacherId
+- mode switching
+- role filtering
+
+D. MEDIA
+
+- upload
+- photo/video
+- R2
+- FileSystem
+- documentDirectory
+- cacheDirectory
+- temp cleanup
+- quota/storage
+
+============================================================
+4. LOGIN 비교
+============================================================
+
+1b03e716 시점의 실제 active login route와
+현재 active route 비교.
+
+확인:
+
+- route 변경 여부
+- active file 변경 여부
+- legacy screen 재활성화 여부
+- social button UI 변경
+- Apple/Kakao handler 변화
+
+중요:
+
+현재 2.0 정책은 별도로 유지:
+
+Kakao visible UI:
+0
+
+Kakao signup:
+0
+
+Kakao linking:
+0
+
+Apple existing login:
+YES
+
+Apple new account:
+general signup fallback
+
+따라서 baseline의 UI를 참고하되,
+현재 정책까지 되돌리면 안 됨.
+
+============================================================
+5. MEMBER INFO 비교
+============================================================
+
+1b03e716 당시:
+
+회원목록
+→ 회원 선택
+→ 회원정보보기
+
+실제 route/file/component를 확인.
+
+현재와 diff.
+
+찾을 것:
+
+- approved member-info file이 legacy로 교체됐는지
+- route가 old component로 변경됐는지
+- X shared merge가 old version을 덮었는지
+- edit/save/back flow가 바뀌었는지
+
+회귀가 확인되면
+1b03e716 또는 그 직전/직후 last-good commit에서
+정확한 diff만 복원.
+
+============================================================
+6. TEACHER SCOPE 비교
+============================================================
+
+사용자 실제 발견:
+
+Admin → Teacher mode에서
+다른 선생님 반/학생이 섞임.
+
+1b03e716 시점과 현재를 비교:
+
+- effectiveTeacherId
+- role mode
+- scheduler API params
+- class filtering
+- student filtering
+- cached/shared data
+
+반드시 exact regression commit 찾기.
+
+최종:
+
+Teacher:
+own classes only
+
+Teacher:
+own students only
+
+Admin normal:
+all
+
+Admin → Teacher mode:
+effective teacher only
+
+============================================================
+7. MEDIA 비교
+============================================================
+
+사용자 실제 발견:
+
+앱 Documents/Data 약 11GB 누적.
+
+1b03e716 시점과 현재 HEAD 비교:
+
+- upload path
+- FileSystem usage
+- R2 upload
+- temp copy
+- cleanup
+- remote viewing
+- subscription quota integration
+
+특히 1b03e716 이후:
+
+Stage8 pricing/storage
+X storage
+quota
+
+관련 commit이
+local retention 로직을 건드렸는지 확인.
+
+최종 정책:
+
+persistent source:
+R2/server
+
+local original persistence:
+NO
+
+app-created temp:
+upload 후 cleanup
+
+server quota:
+device retention과 무관
+
+============================================================
+8. 이후 정상 기능 보존
+============================================================
+
+아래는 무조건 보존:
+
+### Messenger
+1b03e716 equivalent behavior
+
+### Stage8 source
+현재 가격/product IDs/RevenueCat source
+
+### Social Auth
+2.0:
+Kakao UI 제거
+Apple general-signup fallback
+
+1.6.3 migration:
+별도 maintenance branch이므로
+release/v2.0.0 recovery에서 건드리지 않음
+
+============================================================
+9. REGRESSION INTRODUCED SHA 찾기
+============================================================
+
+각 4영역마다 반드시 기록:
+
+LAST GOOD SHA
+REGRESSION INTRODUCED SHA
+CURRENT FILE
+EXACT DIFF
+
+가능하면:
+
+git log -p
+git blame
+git show
+git diff
+git log --follow
+
+사용.
+
+"X 작업 때문으로 보임"
+같은 추정만으로 결론 금지.
+
+============================================================
+10. 수정
+============================================================
+
+회귀가 명확하면
+audit만 하지 말고 같은 작업에서 수정.
+
+우선순위:
+
+P0
+- wrong active route
+- member-info regression
+- teacher scope leakage
+- persistent media accumulation
+
+P1
+- login icon size/style
+
+P1 디자인은
+P0 복구가 끝난 후 최소 수정.
+
+============================================================
+11. 테스트
+============================================================
+
+RC01
+Messenger behavior preserved
+
+RC02
+Login active route correct
+
+RC03
+Kakao UI 0
+
+RC04
+Apple fallback preserved
+
+RC05
+Member detail approved route restored
+
+RC06
+Member edit/save/back preserved
+
+RC07
+Teacher own classes only
+
+RC08
+Teacher own students only
+
+RC09
+Admin normal full scope
+
+RC10
+Admin→Teacher scoped correctly
+
+RC11
+Photo upload → R2/server
+
+RC12
+Video upload → R2/server
+
+RC13
+Persistent local originals 0
+
+RC14
+Temp success cleanup
+
+RC15
+Temp failure cleanup
+
+RC16
+Remote viewing no persistent accumulation
+
+RC17
+Stage8 pricing/product source preserved
+
+RC18
+Social Auth current 2.0 policy preserved
+
+============================================================
+12. REGRESSION BASELINE
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+============================================================
+13. COMMIT
+============================================================
+
+필요한 최소 commit만.
+
+예:
+
+fix(v2-regression): restore member and teacher scope behavior
+
+fix(media-regression): restore server-only media persistence
+
+fix(auth-ui): restore approved login presentation
+
+Messenger:
+NO CHANGE
+
+RevenueCat:
+NO CHANGE unless exact regression requires compatibility adjustment
+
+============================================================
+14. 완료보고
+============================================================
+
+# SWIMNOTE 1b03e716 BASELINE RECOVERY REPORT
+
+## CURRENT
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+## BASELINE
+
+Baseline:
+1b03e716
+
+Messenger preserved:
+YES / NO
+
+## LOGIN
+
+Baseline route/file:
+...
+
+Current route/file:
+...
+
+Regression introduced:
+...
+
+Exact cause:
+...
+
+2.0 Kakao UI:
+0 / ...
+
+Apple fallback:
+PASS / FAIL
+
+Restored:
+YES / NO
+
+## MEMBER INFO
+
+Baseline route/file:
+...
+
+Current route/file:
+...
+
+Last good:
+...
+
+Regression introduced:
+...
+
+Exact cause:
+...
+
+Restored:
+YES / NO
+
+## TEACHER SCOPE
+
+Last good:
+...
+
+Regression introduced:
+...
+
+Exact cause:
+...
+
+Teacher own classes:
+PASS / FAIL
+
+Teacher own students:
+PASS / FAIL
+
+Admin→Teacher:
+PASS / FAIL
+
+## MEDIA
+
+Last good:
+...
+
+Regression introduced:
+...
+
+Exact cause:
+...
+
+Subscription/storage related:
+YES / NO
+
+R2/server authoritative:
+YES / NO
+
+Persistent local original:
+NO / YES
+
+Cleanup:
+PASS / FAIL
+
+## PRESERVED LATER WORK
+
+Messenger:
+PASS / FAIL
+
+Stage8 subscription source:
+PASS / FAIL
+
+2.0 Social Auth policy:
+PASS / FAIL
+
+## TESTS
+
+RC01-RC18:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## DEPLOY
+
+Production:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL
+
+1B03E716 BASELINE RECOVERY COMPLETE — LATER REQUIRED WORK PRESERVED
+
+또는
+
+RECOVERY BLOCKED — EXACT CONFLICT REMAINS
