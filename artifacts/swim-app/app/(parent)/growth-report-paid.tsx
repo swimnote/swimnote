@@ -412,9 +412,9 @@ function PreflightSheet({
         <Text style={s.preflightAmount}>29,000원 · 1회</Text>
       </View>
       <View style={s.ctaDisabled}>
-        <Text style={s.ctaDisabledTxt}>결제하고 분석 시작</Text>
+        <Text style={s.ctaDisabledTxt}>발급 준비가 완료되었습니다</Text>
       </View>
-      <Text style={s.ctaHint}>결제 기능은 준비 중입니다.</Text>
+      <Text style={s.ctaHint}>결제 시스템 연동 준비 중 · 곧 이용 가능해요</Text>
     </BottomSheet>
   );
 }
@@ -453,15 +453,16 @@ export default function InsightReportHub() {
       .finally(() => setReadinessLoading(false));
   }, [token, targetStudentId]);
 
-  // readiness: lesson_data + birthDate from real data; height/weight remain fixture (no data source)
+  // readiness: 실제 데이터 기반 (수업·생년월일) — 관찰정보는 질문 API에서 동적으로 결정
   const student = students.find(s => s.id === targetStudentId) ?? selectedStudent;
   const readiness: InsightReadiness = {
-    ...FIXTURE_READINESS,
     lessonDataReady,
     lessonDataCount,
     basicInfo: {
       birthDate: !!(student?.birth_date),
     },
+    parentObservation: { answered: 0, total: 0 }, // 질문 API에서 갱신
+    preflightConfirmed: false,
   };
 
   // ── 실제 Paid Insight 이력 로드 ──────────────────────────────────────────
