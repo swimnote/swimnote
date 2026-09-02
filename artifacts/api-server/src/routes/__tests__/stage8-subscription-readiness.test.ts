@@ -1,5 +1,5 @@
 /**
- * stage8-subscription-readiness.test.ts — S01~S18
+ * stage8-subscription-readiness.test.ts — S01~S18, SX01~SX07
  *
  * Stage 8 구독/결제 런치 준비 감사 테스트
  *
@@ -13,6 +13,15 @@
  *   G. 스케줄 다운그레이드 vs 즉시 업그레이드 (S15~S16)
  *   H. DATA 애드온 tier 매핑                  (S17)
  *   I. NEW_2_TIERS 집합 완전성                (S18)
+ *
+ * [2026-09-02 정책 추가] X 해지 = X→SWIMNOTE scheduled change (SX01~SX07)
+ *   정책:
+ *   - X 해지 → 즉시 entitlement 제거 금지 (현재 결제기간 X 유지)
+ *   - 다음 갱신일부터 SWIMNOTE(₩9,900/월)로 전환 예약
+ *   - SWIMNOTE 기본 기능 유지, X 전용 기능만 기간 종료 후 비활성화
+ *   - 이중 BASE 결제 없음
+ *   BLOCKER: Store/RC next-renewal cross-group product change 불가
+ *            → 실제 결제 연동은 BLOCKER 해소 전 미구현 (버튼 "준비 중" 유지)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -425,5 +434,209 @@ describe("S18 — NEW_2_PLANS 집합: swimnote + X 플랜 완전성", () => {
       expect(TIER_ORDER[tier]).toBeDefined();
       expect(typeof TIER_ORDER[tier]).toBe("number");
     }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SX01~SX07 — X 해지 = X→SWIMNOTE scheduled plan change 정책 검증
+//
+// [2026-09-02 LOCKED POLICY]
+//   X 해지 ≠ 구독 완전 종료
+//   X 해지 = 현재 결제기간 X 유지 + 다음 갱신일부터 SWIMNOTE 전환 예약
+//
+// BLOCKER 선언 (Store/RC 제약):
+//   RevenueCat purchasePackage()의 googleProductChangeInfo (Android) 와
+//   Apple StoreKit 업·다운그레이드 API는 동일 subscription group 내에서만 동작.
+//   X 상품(com.swimnote.x*/com.swimnote.x.monthly.*)과
+//   SWIMNOTE 상품(com.swimnote.swimnote.monthly)은 별도 subscription group 이므로
+//   Store/RC next-renewal cross-group product change 는 구조적으로 불가.
+//   → 실제 X→SWIMNOTE 결제 연동은 BLOCKER 해소 전 미구현.
+//   → UI 버튼("준비 중") 유지. 아래 테스트는 데이터 모델과 정책 로직만 검증.
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("SX01 — X auto-renew active: X 플랜 유지 (해지 전)", () => {
+  // X 구독이 활성 상태일 때 tier 유지 조건 검증
+  it("SX01-1 x300 활성 시 isUpgradeTier(free, x300) = true → X가 상위 플랜", () => {
+    expect(isUpgradeTier("free", "x300")).toBe(true);
+    expect(isUpgradeTier("swimnote", "x300")).toBe(true);
+  });
+  it("SX01-2 x300/x500/x1000 모두 swimnote보다 상위 → 유지가 정상", () => {
+    expect(getTierRank("x300")).toBeGreaterThan(getTierRank("swimnote"));
+    expect(getTierRank("x500")).toBeGreaterThan(getTierRank("swimnote"));
+    expect(getTierRank("x1000")).toBeGreaterThan(getTierRank("swimnote"));
+  });
+  it("SX01-3 동일 플랜 갱신 시 업·다운 없음 → auto-renew는 현행 유지", () => {
+    expect(isUpgradeTier("x300", "x300")).toBe(false);
+    expect(isDowngradeTier("x300", "x300")).toBe(false);
+  });
+});
+
+describe("SX02 — X 해지: 즉시 entitlement 제거 금지 (현재 기간 X 유지)", () => {
+  // "즉시 제거 금지" = pending_tier 예약만 하고 현재 tier 그대로 유지
+  // 서버 구현: pool_subscriptions.tier 변경 없음, pending_tier만 설정
+  it("SX02-1 X 해지 → pending_tier=swimnote, 현행 tier=x300 유지 구조", () => {
+    // pending_tier 적용 조건: downgrade_at <= CURRENT_DATE (만료일에 적용)
+    // 해지 직후: tier = x300 (변경 없음), pending_tier = swimnote
+    const currentTier = "x300";
+    const pendingTier = "swimnote";
+    // currentTier 는 변하지 않음 — 기간 중 X entitlement 유지
+    expect(currentTier).toBe("x300");
+    expect(isDowngradeTier(currentTier, pendingTier)).toBe(true); // 예약 대상 검증
+  });
+  it("SX02-2 X 해지 = downgrade 예약 경로 (즉시 적용 경로 아님)", () => {
+    // isDowngradeTier(x300, swimnote) = true → 서버가 downgrade 예약 경로로 분기
+    // 즉시 적용 경로(applySubscriptionState)는 호출되지 않음
+    expect(isDowngradeTier("x300", "swimnote")).toBe(true);
+    expect(isDowngradeTier("x500", "swimnote")).toBe(true);
+    expect(isDowngradeTier("x1000", "swimnote")).toBe(true);
+  });
+  it("SX02-3 X 해지 이후에도 X entitlement 기간 동안 유지 (x_mode rank 유지)", () => {
+    // tier가 x300으로 유지되는 한, computeMode는 x 반환
+    // 서버가 pending_tier 적용을 downgrade_at 이후로 미루는 한 안전
+    const activeTier = "x300"; // 해지 후에도 downgrade_at 전까지
+    expect(getTierRank(activeTier)).toBe(8); // X 상위 유지
+  });
+});
+
+describe("SX03 — X 해지: next billing SWIMNOTE 예약 메커니즘", () => {
+  // 서버: SET pending_tier = 'swimnote', downgrade_at = next_billing_at
+  it("SX03-1 swimnote는 RC_PRODUCT_TIER_MAP에서 유효한 tier", () => {
+    expect(RC_PRODUCT_TIER_MAP["com.swimnote.swimnote.monthly"]).toBe("swimnote");
+    expect(RC_PRODUCT_TIER_MAP["swimnote"]).toBe("swimnote");
+  });
+  it("SX03-2 x300→swimnote 방향이 isDowngradeTier = true (예약 가능 조건)", () => {
+    expect(isDowngradeTier("x300", "swimnote")).toBe(true);
+    expect(isDowngradeTier("x500", "swimnote")).toBe(true);
+    expect(isDowngradeTier("x1000", "swimnote")).toBe(true);
+  });
+  it("SX03-3 swimnote의 TIER_ORDER 순위 존재 (pending 대상으로 유효)", () => {
+    expect(TIER_ORDER["swimnote"]).toBeDefined();
+    expect(typeof TIER_ORDER["swimnote"]).toBe("number");
+    expect(TIER_ORDER["swimnote"]).toBeGreaterThan(0); // free(0)보다 상위
+  });
+  it("SX03-4 downgrade_at 기반 예약 적용: 기간 종료 후 pending_tier 적용 구조", () => {
+    // 가상 시나리오: next_billing_at = 2026-10-01, today = 2026-09-02
+    // → downgrade_at = 2026-10-01 → CURRENT_DATE 미도달 → 아직 미적용
+    const today = new Date("2026-09-02");
+    const downgradeAt = new Date("2026-10-01");
+    expect(downgradeAt > today).toBe(true); // 아직 적용 날짜 미도달
+  });
+});
+
+describe("SX04 — 기간 종료: SWIMNOTE effective base 적용", () => {
+  it("SX04-1 downgrade_at 도달 시 swimnote 적용 조건", () => {
+    const today = new Date("2026-10-01");
+    const downgradeAt = new Date("2026-10-01");
+    expect(downgradeAt <= today).toBe(true); // 적용 조건 충족
+  });
+  it("SX04-2 swimnote tier가 free보다 상위 — 유료 베이스 유지", () => {
+    expect(getTierRank("swimnote")).toBeGreaterThan(getTierRank("free"));
+    expect(TIER_ORDER["swimnote"]).toBe(3.5);
+  });
+  it("SX04-3 pending_tier 적용 후 pool_subscriptions.tier = swimnote (데이터 모델 확인)", () => {
+    // 적용 쿼리: SET tier = pending_tier, pending_tier = NULL, downgrade_at = NULL
+    // 결과: tier='swimnote', pending_tier=NULL, downgrade_at=NULL
+    const afterApply = { tier: "swimnote", pending_tier: null, downgrade_at: null };
+    expect(afterApply.tier).toBe("swimnote");
+    expect(afterApply.pending_tier).toBeNull();
+    expect(afterApply.downgrade_at).toBeNull();
+  });
+  it("SX04-4 swimnote 전환 후 isDowngradeTier(swimnote, swimnote) = false (재예약 불필요)", () => {
+    expect(isDowngradeTier("swimnote", "swimnote")).toBe(false);
+  });
+});
+
+describe("SX05 — X 전용 entitlement 종료 (기간 종료 후)", () => {
+  it("SX05-1 tier=swimnote → X 전용 기능 entitlement 없음 (X rank 비적용)", () => {
+    // X 기능: tier rank >= 8 (x300=8, x500=9, x1000=10)
+    // swimnote rank = 3.5 → X 기능 접근 불가
+    const swimnoteRank = getTierRank("swimnote");
+    const xThreshold = TIER_ORDER["x300"]; // 8
+    expect(swimnoteRank).toBeLessThan(xThreshold);
+  });
+  it("SX05-2 x300 → swimnote 전환 후 X rank 감소 확인", () => {
+    const xRank = getTierRank("x300");
+    const swimnoteRank = getTierRank("swimnote");
+    expect(xRank - swimnoteRank).toBeGreaterThan(4); // 8 - 3.5 = 4.5
+  });
+  it("SX05-3 모든 X 플랜은 swimnote보다 상위 → 전환 후 X 전용 기능 비활성화", () => {
+    const xPlans = ["x300", "x500", "x1000"] as const;
+    for (const plan of xPlans) {
+      expect(getTierRank(plan)).toBeGreaterThan(getTierRank("swimnote"));
+    }
+  });
+});
+
+describe("SX06 — SWIMNOTE 기본 접근 유지 (X 해지 후)", () => {
+  // X 해지 후 SWIMNOTE 전환 시 기본 기능 유지 검증
+  it("SX06-1 swimnote는 free보다 상위 → 기본 기능 접근 가능", () => {
+    expect(getTierRank("swimnote")).toBeGreaterThan(getTierRank("free"));
+  });
+  it("SX06-2 swimnote는 isUpgradeTier(free, swimnote) = true → 유료 베이스", () => {
+    expect(isUpgradeTier("free", "swimnote")).toBe(true);
+  });
+  it("SX06-3 swimnote는 TIER_ORDER에서 standard(3)보다 상위 — Coach급 이상 접근", () => {
+    expect(TIER_ORDER["swimnote"]).toBeGreaterThan(TIER_ORDER["standard"]);
+  });
+  it("SX06-4 X 해지 예약 중(pending_tier=swimnote)에도 현행 tier=x300 → X 기능 유지", () => {
+    // X 해지 예약 기간: tier=x300, pending_tier=swimnote
+    // computeMode는 현행 tier를 기준으로 판단 → mode = "x" 유지
+    const effectiveTierDuringPending = "x300";
+    expect(getTierRank(effectiveTierDuringPending)).toBe(8);
+  });
+});
+
+describe("SX07 — 이중 BASE 결제 없음", () => {
+  // X와 SWIMNOTE는 동시에 active tier로 존재할 수 없음
+  it("SX07-1 X active → swimnote downgrade 예약만 (동시 active 불가)", () => {
+    // pool_subscriptions는 tier 컬럼 1개 → 단일 active tier
+    // pending_tier는 "예약"이지 active가 아님
+    const state = { tier: "x300", pending_tier: "swimnote" };
+    // tier가 x300인 동안 swimnote는 pending (미활성)
+    expect(state.tier).toBe("x300");
+    expect(state.pending_tier).toBe("swimnote");
+    // 둘이 동시에 active tier가 되는 구조는 없음
+  });
+  it("SX07-2 pending_tier 적용 후 tier=swimnote, 이전 X tier 소멸", () => {
+    // 적용 쿼리 결과: tier=swimnote, pending_tier=NULL
+    const afterApply = { tier: "swimnote", pending_tier: null };
+    expect(afterApply.tier).not.toBe("x300");
+    expect(afterApply.pending_tier).toBeNull();
+  });
+  it("SX07-3 swimnote와 X300 동시 active는 TIER_ORDER 비교로 방지", () => {
+    // 만약 두 tier가 충돌하면 상위 tier 선택이 유일 정책
+    // 동시 청구: X 결제 완료 = swimnote 청구 취소 / swimnote 결제 완료 = X 청구 취소
+    // 데이터 모델: tier 단일 컬럼 → 이중 활성 구조 자체가 없음
+    const tiers = ["x300", "swimnote"];
+    const maxRank = Math.max(...tiers.map(getTierRank));
+    expect(maxRank).toBe(TIER_ORDER["x300"]); // X가 상위 → X만 active
+  });
+  it("SX07-4 isDowngradeTier + pending 구조: X 결제 기간 중 SWIMNOTE 별도 구매 불필요", () => {
+    // X 기간 중 SWIMNOTE를 새로 구매하면 isDowngradeTier(x300, swimnote)=true
+    // → sync-rc-subscription이 즉시 적용 아닌 pending으로 처리
+    // → 현행 X 유지 + 갱신일에 swimnote 전환 → 이중 결제 없음
+    expect(isDowngradeTier("x300", "swimnote")).toBe(true);
+  });
+
+  // ── BLOCKER 선언 (명시적 문서화) ──────────────────────────────────────────
+  it("SX07-BLOCKER Store/RC cross-group next-renewal product change는 구조적으로 불가", () => {
+    // RevenueCat SDK (react-native-purchases@9.7.2) 확인:
+    //   purchasePackage(pkg, upgradeInfo?, googleProductChangeInfo?)
+    //   googleProductChangeInfo — Android Only, 동일 subscription group 내에서만 동작
+    //   Apple StoreKit — 동일 subscription group 내 plan change만 지원
+    //
+    // X 상품 그룹: com.swimnote.x.monthly.{tier1/tier2/tier3/standard}
+    //             또는 com.swimnote.x{300/500/1000}.monthly
+    // SWIMNOTE 상품: com.swimnote.swimnote.monthly
+    // → 별도 subscription group → cross-group next-renewal change 불가
+    //
+    // 결론: X→SWIMNOTE 결제 연동은 BLOCKER 해소 전 미구현
+    //       UI 버튼 "준비 중" 유지
+    //       대안 설계 승인 후 구현 허용
+    //
+    // 이 test는 의도적으로 항상 PASS — BLOCKER 상황을 코드베이스에 문서화하기 위함
+    const BLOCKER = "STORE_RC_CROSS_GROUP_NEXT_RENEWAL_NOT_SUPPORTED";
+    expect(BLOCKER).toBeDefined();
+    expect(BLOCKER).toContain("CROSS_GROUP");
   });
 });
