@@ -1,0 +1,755 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 WP3 — PARENT AUTO APPROVAL / AUTO LINK
+#
+# 최신 WP 순서:
+#
+# WP1 = D + I  → COMPLETE
+# WP2 = B + C  → COMPLETE
+# WP3 = G      → NOW
+#
+# G = Parent Auto Approval
+#
+# 핵심 목표:
+# 학생이 생성되거나 보호자 전화번호가 등록/변경될 때,
+# 이미 존재하는 학부모 계정과 전화번호가 일치하면
+# 기존 V2 자동연결 로직이 모든 경로에서 동일하게 실행되도록 한다.
+#
+# 중요:
+# 이 기능은 X 전용이 아니다.
+# 일반 SWIMNOTE + SWIMNOTE X 공통 서버 기능이다.
+#
+# 따라서 Normal/X 양쪽에서 발생 가능한
+# 학생 생성/보호자 전화번호 변경 경로를 전수 확인하고
+# 공통 helper를 통해 동일하게 처리해야 한다.
+#
+# SERVER-ONLY WP.
+# 클라이언트 UI 수정 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current WP2 state:
+1bd107ce 기준 보고됨
+단, 현재 실제 HEAD를 먼저 확인하고 source of truth로 사용.
+
+WP1:
+CLOSED
+
+WP2:
+CLOSED
+
+1.6.3:
+NO TOUCH
+
+Production:
+NO DEPLOY
+
+Render:
+NO DEPLOY UNTIL EXPLICIT APPROVAL
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+0. COMMON CORE 원칙
+============================================================
+
+이번 기능은:
+
+NORMAL SWIMNOTE
++
+SWIMNOTE X
+
+공통.
+
+학생/보호자 데이터가 같은 서버 core를 사용한다면
+한쪽만 수정하는 구현 금지.
+
+반드시 먼저 다음을 추적:
+
+Normal student create
+X student create
+
+Normal guardian phone update
+X guardian phone update
+
+Admin create
+bulk create/import
+기타 실제 source에 존재하는 student creation path
+
+모두 같은 auto-link 정책을 적용해야 함.
+
+============================================================
+1. 기존 AUTO LINK 구현 확인
+============================================================
+
+기존 helper:
+
+triggerAutoLinkOnStudentV2
+
+또는 현재 source의 정확한 equivalent를 찾는다.
+
+먼저 확인:
+
+- 파일
+- 함수 signature
+- 입력값
+- phone normalization
+- swimming_pool_id 사용
+- parent account lookup
+- parent_students link 생성
+- duplicate protection
+- 기존 link가 있을 때 behavior
+
+새 auto-link 시스템 만들지 말 것.
+
+기존 V2 helper를 source of truth로 사용.
+
+============================================================
+2. 목표 동작
+============================================================
+
+학생에게 보호자 전화번호가 존재하고,
+
+same swimming_pool_id
++
+same normalized guardian phone
+
+의 기존 parent account가 있으면:
+
+→ 해당 parent와 student를 자동 연결.
+
+사용자가 별도의 승인 요청을 다시 하지 않아도
+기존 parent account에서 해당 학생이 연결되어야 함.
+
+단:
+
+다른 pool parent:
+연결 금지
+
+전화번호 불일치:
+연결 금지
+
+전화번호 없음:
+아무 작업 없음
+
+이미 연결됨:
+중복 row 생성 금지
+
+============================================================
+3. 모든 STUDENT CREATE PATH 전수조사
+============================================================
+
+반드시 schema/route/source 전체 검색.
+
+최소 조사 대상:
+
+artifacts/api-server/src/routes/admin.ts
+artifacts/api-server/src/routes/students.ts
+
+그리고 실제 존재하는 모든:
+
+student create
+member create
+child create
+bulk create
+bulk import
+direct admin registration
+teacher/admin student registration
+pending student confirmation
+기타 insert into students
+
+경로.
+
+검색 예:
+
+INSERT INTO students
+db.insert(students)
+createStudent
+student-create
+member-create
+bulk
+import
+
+완료보고에 실제 create path 전부 나열.
+
+============================================================
+4. 각 CREATE PATH에 AUTO LINK 적용
+============================================================
+
+학생 생성 성공 후
+guardian phone / parent phone이 존재하면:
+
+triggerAutoLinkOnStudentV2(...)
+또는 기존 equivalent 호출.
+
+중요:
+
+학생 row 생성이 실패했는데
+auto-link만 실행:
+NO
+
+student ID 확정 후 실행.
+
+transaction 구조가 이미 있다면
+기존 transaction semantics 유지.
+
+auto-link 실패가
+student creation 전체를 실패시켜야 하는지 여부는
+현재 helper/기존 정책을 확인하고 동일하게 유지.
+
+임의 정책 변경 금지.
+
+============================================================
+5. GUARDIAN PHONE UPDATE PATH 전수조사
+============================================================
+
+학생 생성뿐 아니라
+기존 학생의 보호자 전화번호가:
+
+등록
+수정
+추가
+교체
+
+되는 경로 전부 찾기.
+
+예:
+
+member detail edit
+admin student info update
+guardian phone update
+parent phone update
+bulk update
+
+실제 route/source가 기준.
+
+전화번호 변경 완료 후:
+
+새 번호와 일치하는 parent account가 존재하면
+auto-link 실행.
+
+============================================================
+6. 다중 보호자 번호
+============================================================
+
+현재 학생 구조에 보호자 전화번호가 여러 개 존재하면
+실제 schema 기준으로 모두 확인.
+
+예:
+
+parent_phone
+parent_phone2
+guardian_phone
+guardian_phone2
+기타 현재 실제 필드
+
+임의 필드명 가정 금지.
+
+현재 시스템이 auto-link 대상으로 인정하는
+보호자 번호 범위를 그대로 적용.
+
+============================================================
+7. NORMAL + X 경로 확인
+============================================================
+
+중요.
+
+Normal과 X가 같은 학생 생성 API를 쓰는 경우:
+
+공통 서버 helper 한 번 수정.
+
+X 전용 client path가 다른 API를 호출한다면:
+그 API까지 포함 여부 확인.
+
+완료보고에 반드시:
+
+Normal create path:
+...
+
+X create path:
+...
+
+Same server route:
+YES / NO
+
+Normal guardian update path:
+...
+
+X guardian update path:
+...
+
+Same server route:
+YES / NO
+
+기록.
+
+============================================================
+8. BULK PATH
+============================================================
+
+기존 WP 계획에서
+students.ts bulk 경로가 명시 대상이다.
+
+반드시 bulk 생성/업데이트를 확인.
+
+bulk로 학생 N명 생성 시:
+
+각 student마다
+해당 guardian phone 기준 auto-link.
+
+한 명 실패 때문에
+나머지 전체가 비정상 중복 링크되는 일 금지.
+
+N+1이 과도한지 확인하되
+이번 WP에서 대규모 optimization 금지.
+
+현재 규모에서 안전한 기존 방식 유지.
+
+============================================================
+9. DUPLICATE / IDEMPOTENCY
+============================================================
+
+같은 student에 대해
+auto-link가 여러 번 호출되어도:
+
+parent_students duplicate:
+0
+
+동일 parent-student link:
+1개만
+
+이미 연결된 경우:
+safe no-op
+
+unique constraint가 있다면
+그것도 확인.
+
+application-level guard와
+DB constraint 둘 중 실제 존재하는 보호장치 보고.
+
+============================================================
+10. POOL ISOLATION
+============================================================
+
+절대 중요.
+
+전화번호가 같아도:
+
+Pool A parent
++
+Pool B student
+
+자동 연결:
+NO
+
+반드시:
+
+same swimming_pool_id
+
+조건 포함.
+
+테스트에서 cross-pool 0 증명.
+
+============================================================
+11. PHONE NORMALIZATION
+============================================================
+
+기존 production에서 phone hyphen mismatch 이슈가 있었으므로
+새 normalization 만들지 말고
+현재 확정된 normalized phone helper/SQL 규칙 재사용.
+
+예:
+
+010-1234-5678
+01012345678
+
+동일 전화번호로 처리.
+
+단 실제 helper가 source of truth.
+
+============================================================
+12. 기존 연결/요청 FLOW 보호
+============================================================
+
+이번 WP는 기존 parent request 시스템을 없애는 작업이 아님.
+
+기존:
+
+parent_pool_requests
+parent_student_requests
+registration requests
+manual link
+unlink
+
+등 현재 기능은 유지.
+
+AUTO LINK가 가능한 경우에만
+자동 연결되는 것.
+
+기존 수동/요청 경로 삭제:
+NO
+
+============================================================
+13. CLIENT 수정 금지
+============================================================
+
+이번 WP는 server-only.
+
+금지:
+
+members.tsx
+member-detail.tsx
+parent UI
+teacher UI
+X home
+navigation
+modal
+alert
+
+클라이언트 수정 필요성이 발견되면
+코드 수정하지 말고 보고.
+
+============================================================
+14. 테스트
+============================================================
+
+G01
+Normal single student create
++ matching parent phone
+→ auto link
+
+G02
+X single student create
++ matching parent phone
+→ auto link
+
+G03
+no matching parent
+→ student create 정상, link 0
+
+G04
+phone missing
+→ link 0
+
+G05
+hyphenated vs digits-only
+→ same normalized phone link
+
+G06
+cross-pool same phone
+→ link 0
+
+G07
+already linked
+→ duplicate 0
+
+G08
+guardian phone update
+→ matching parent auto link
+
+G09
+guardian phone changed to nonmatching
+→ erroneous new link 0
+
+G10
+Normal member detail phone update path
+→ auto link
+
+G11
+X member detail phone update path
+→ same behavior
+
+G12
+bulk create N students
+→ matching rows auto linked
+
+G13
+bulk mixed matching/nonmatching
+→ correct subset only
+
+G14
+manual existing link flow regression 0
+
+G15
+parent request flow regression 0
+
+G16
+unlink/relink current behavior regression 0
+
+G17
+pool isolation
+
+G18
+idempotent repeated trigger
+
+============================================================
+15. COMMON SWIMNOTE EXTRA AUDIT
+============================================================
+
+이번 작업 중
+일반 SWIMNOTE에만 존재하는 별도 student create/update route가
+발견되면 반드시 포함.
+
+X만 수정하고
+Normal route 누락:
+FAIL
+
+반대로 Normal/X가 완전히 같은 server route면
+중복 코드 만들지 말 것.
+
+완료보고에:
+
+NORMAL-ONLY PATH FOUND:
+YES / NO
+
+X-ONLY PATH FOUND:
+YES / NO
+
+ALL COMMON PATHS COVERED:
+YES / NO
+
+기록.
+
+============================================================
+16. 회귀 보호
+============================================================
+
+다음 최근 수정 절대 건드리지 말 것:
+
+Teacher scope
+Media cleanup
+Member detail WP1
+Member list WP2
+Kakao
+Messenger
+
+New deterministic failures:
+0
+
+기존 181 pre-existing failure를
+이번 WP에서 수정하려고 범위 확대 금지.
+
+============================================================
+17. PRODUCTION / RENDER
+============================================================
+
+기존 WP 계획상
+이 기능은 최종적으로 server deploy가 필요한 기능이다.
+
+하지만 이번 단계에서는:
+
+SOURCE + TEST + COMMIT까지만.
+
+Render Production deploy:
+NO
+
+deploy-photo-clone backport:
+NO
+
+Production DB:
+NO WRITE
+
+완료보고 검수 후
+필요한 Production backport/deploy는 별도 승인 단계.
+
+============================================================
+18. COMMIT
+============================================================
+
+변경 필요 시 권장:
+
+fix(v2.0): trigger parent auto-link on all student update paths
+
+또는 실제 변경 범위에 맞는 명확한 단일 commit.
+
+============================================================
+19. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 WP3 COMPLETION REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## EXISTING AUTO LINK
+
+Helper:
+...
+
+File:
+...
+
+Normalization:
+...
+
+Pool isolation:
+...
+
+Duplicate protection:
+...
+
+## STUDENT CREATE PATHS
+
+모든 create path:
+
+1.
+Route:
+File:
+Normal/X:
+Auto-link applied:
+YES / NO
+
+2.
+...
+
+Bulk:
+...
+
+## GUARDIAN PHONE UPDATE PATHS
+
+1.
+Route:
+File:
+Normal/X:
+Auto-link applied:
+YES / NO
+
+2.
+...
+
+## COMMON CORE
+
+Normal create path:
+...
+
+X create path:
+...
+
+Same server core:
+YES / NO
+
+Normal update path:
+...
+
+X update path:
+...
+
+Same server core:
+YES / NO
+
+Normal-only path found:
+YES / NO
+
+X-only path found:
+YES / NO
+
+All common paths covered:
+YES / NO
+
+## BEHAVIOR
+
+Matching phone:
+PASS / FAIL
+
+Normalized phone:
+PASS / FAIL
+
+Cross-pool:
+0 / ...
+
+Already linked duplicate:
+0 / ...
+
+Phone missing:
+PASS / FAIL
+
+Guardian phone update:
+PASS / FAIL
+
+Bulk:
+PASS / FAIL
+
+## EXISTING FLOWS
+
+Manual link:
+PASS / FAIL
+
+Parent request:
+PASS / FAIL
+
+Unlink/relink:
+PASS / FAIL
+
+## TESTS
+
+G01-G18:
+...
+
+New deterministic failures:
+0 / ...
+
+## REGRESSION
+
+Teacher scope:
+PASS
+
+Media:
+PASS
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+Kakao:
+PASS
+
+Messenger:
+PASS
+
+## DEPLOY
+
+Render:
+NO
+
+Production:
+NO CHANGE
+
+DB writes:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL
+
+WP3 COMPLETE — NORMAL + X PARENT AUTO-LINK COMMON CORE VERIFIED
+
+또는
+
+WP3 BLOCKED — EXACT AUTO-LINK PATH GAP
