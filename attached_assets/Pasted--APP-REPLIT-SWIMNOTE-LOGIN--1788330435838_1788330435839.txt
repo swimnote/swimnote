@@ -1,0 +1,637 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE LOGIN SERVER COMPATIBILITY VERIFICATION
+#
+# 대상:
+# 1) SWIMNOTE 1.6.3 iPhone
+# 2) SWIMNOTE 1.6.3 Android
+# 3) SWIMNOTE 2.0.0 iPhone
+#
+# 목적:
+# 세 클라이언트가 현재 Production 로그인 서버와
+# 정확히 호환되는지 각각 독립적으로 확인한다.
+#
+# 중요:
+# 이번 작업은 "확인/진단" 작업이다.
+# 코드 수정, 서버 배포, OTA, 빌드 절대 금지.
+# 문제가 발견되어도 수정하지 말고
+# 정확한 원인과 최소 수정안만 보고한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Production service:
+swimnote-api
+
+Known Production Render source branch:
+deploy-photo-clone
+
+주의:
+현재 실제 Render Live commit은 반드시 먼저 확인할 것.
+58319c0f / 0968d5e9 등을 추측해서 기준으로 삼지 말 것.
+
+============================================================
+0. 절대 금지
+============================================================
+
+1.6.3 client 수정:
+NO
+
+2.0.0 client 수정:
+NO
+
+Production server 수정:
+NO
+
+git commit:
+NO
+
+git push:
+NO
+
+Render deploy:
+NO
+
+OTA:
+NO
+
+iOS build:
+NO
+
+Android build:
+NO
+
+DB migration:
+NO
+
+RevenueCat:
+NO
+
+Stage 8:
+NO TOUCH
+
+실제 사용자 계정/비밀번호 사용:
+NO
+
+Production DB write:
+NO
+
+이번 작업은 READ-ONLY VERIFICATION이다.
+
+============================================================
+1. 세 클라이언트를 반드시 따로 추적
+============================================================
+
+다음 3개를 하나로 뭉뚱그리지 말고
+각각 별도 login chain으로 추적한다.
+
+A. 1.6.3 iOS
+B. 1.6.3 Android
+C. 2.0.0 iOS
+
+각 대상별로 실제 코드 기준으로 확인:
+
+- 앱 버전
+- runtimeVersion
+- update channel
+- 실제 포함된 auth 코드
+- API_BASE
+- login endpoint
+- HTTP method
+- request payload
+- request headers
+- timeout
+- AbortController 사용 여부
+- JSON parsing
+- HTTP error mapping
+- network_error mapping
+- 로그인 성공 후 후속 처리
+- 플랫폼별 분기
+- iOS/Android별 다른 코드 존재 여부
+
+"같을 것으로 보인다" 금지.
+
+각 플랫폼의 실제 코드/빌드 설정을 추적해 확정할 것.
+
+============================================================
+2. 1.6.3 실제 소스 기준점 찾기
+============================================================
+
+현재 release/v2.0.0의 최신 코드만 보고
+1.6.3 동작을 판단하면 안 된다.
+
+반드시 repository history / tags / maintenance branch /
+build metadata / app config / EAS config를 조사해서
+
+실제로 배포된 1.6.3 iOS와 Android가
+어느 commit/config/runtime/channel을 사용했는지 최대한 확정한다.
+
+확인 항목:
+
+1.6.3 iOS
+- source commit
+- runtimeVersion
+- update channel
+- API URL
+- auth implementation
+
+1.6.3 Android
+- source commit
+- runtimeVersion
+- update channel
+- API URL
+- auth implementation
+
+만약 exact commit을 repository에서 확정할 수 없다면:
+
+UNCONFIRMED
+
+로 명시하고
+근거가 있는 가장 가까운 source/config만 보고한다.
+
+추측 금지.
+
+============================================================
+3. 2.0.0 iOS 실제 기준점 확인
+============================================================
+
+2.0.0 iOS도 현재 release branch HEAD만 보고 판단하지 말고
+
+실제 TestFlight/배포 빌드가 사용한:
+
+- build/version
+- embedded source
+- runtimeVersion
+- channel
+- login implementation
+- API_BASE
+
+를 repository metadata에서 확인한다.
+
+가능하면 실제 배포 build와 연결되는 commit까지 보고.
+
+============================================================
+4. Production 서버 현재 상태 확인
+============================================================
+
+현재 Production server가 실제로 어떤 commit을 서빙하는지
+확인 가능한 범위에서 확인.
+
+확인:
+
+GET
+https://swimnote-api.onrender.com/api/healthz
+
+그리고 필요하면:
+
+GET
+https://swimnote-api.onrender.com/healthz
+
+응답 기록.
+
+가능하면:
+
+- commit
+- boot_id
+- service_version
+- uptime
+
+확인.
+
+health endpoint가 commit을 제공하지 않으면
+"Production Live commit externally unconfirmed"라고 보고.
+
+git branch HEAD와
+실제 Render Live를 동일하다고 가정하지 말 것.
+
+============================================================
+5. Production auth route 확인
+============================================================
+
+Production branch:
+
+deploy-photo-clone
+
+기준으로 실제 route chain 추적.
+
+최소 확인:
+
+POST /api/auth/unified-login
+
+필요하면 legacy route도 확인:
+
+POST /api/auth/parent-login
+
+그리고 세 클라이언트 중
+실제로 어떤 endpoint를 사용하는지 각각 연결.
+
+확인:
+
+- route 존재
+- middleware
+- body schema
+- identifier 처리
+- phone normalization
+- email 처리
+- parent/admin/teacher 분기
+- response schema
+- 401 contract
+- 4xx/5xx mapping
+
+============================================================
+6. SAFE SERVER TEST
+============================================================
+
+실제 계정 사용 금지.
+
+존재하지 않는 안전한 dummy identifier로
+각 클라이언트 요청과 동일한 형태의 요청을 재현.
+
+예:
+
+identifier:
+swimnote_login_probe_nonexistent
+
+password:
+dummy_not_real_password
+
+단,
+실제 client payload가 다르면
+실제 payload contract를 그대로 재현할 것.
+
+각 클라이언트별로 테스트:
+
+A. 1.6.3 iOS request shape
+B. 1.6.3 Android request shape
+C. 2.0.0 iOS request shape
+
+확인:
+
+- DNS/TLS 연결 성공 여부
+- HTTP 연결
+- 응답 시간
+- HTTP status
+- JSON response
+- 5xx 여부
+
+정상 기대:
+
+HTTP 401
+canonical auth error JSON
+
+"가입된 계정이 없습니다" 등의 기존 contract
+
+서버 연결 자체가 실패하면
+정확한 network/TLS/DNS error 기록.
+
+============================================================
+7. Android 전용 확인
+============================================================
+
+현재 실제 장애 제보가 Android에도 있으므로
+Android를 별도로 깊게 확인.
+
+검사:
+
+- API URL이 iOS와 동일한지
+- https 사용 여부
+- Android networkSecurityConfig
+- cleartextTraffic 설정
+- AndroidManifest 관련 네트워크 권한
+- INTERNET permission
+- Expo/RN fetch 차이
+- AbortController
+- TLS/SSL 호환
+- IPv4/IPv6 관련 코드/설정
+- platform conditional API base
+- production/dev API 분기
+- OTA runtime/channel 차이
+- Android만 다른 environment variable을 읽는지
+- Android bundle에 localhost/dev URL이 들어갈 가능성
+- login fetch 예외가 network_error로 매핑되는 조건
+
+특히:
+
+"서버에 연결할 수 없습니다"
+
+문구가 정확히 어떤 catch branch에서 발생하는지 확인하고
+
+다음 중 무엇을 전부 같은 문구로 처리하는지 분리 보고:
+
+- DNS failure
+- TLS failure
+- fetch reject
+- timeout
+- invalid JSON
+- HTTP 5xx
+- post-login error
+- other exception
+
+============================================================
+8. iOS 1.6.3 전용 확인
+============================================================
+
+1.6.3 iPhone에서 사용하는 실제 auth chain 확인.
+
+Android와 비교하여:
+
+- 동일 API URL인지
+- 동일 endpoint인지
+- 동일 payload인지
+- 동일 timeout인지
+- 동일 error mapping인지
+
+차이가 있으면 전부 기록.
+
+============================================================
+9. iOS 2.0.0 전용 확인
+============================================================
+
+2.0.0 iPhone에서 사용하는 실제 auth chain 확인.
+
+1.6.3과 비교:
+
+- API_BASE
+- endpoint
+- payload
+- headers
+- timeout
+- request_id
+- error categorization
+- post-login flow
+
+특히 2.0.0 코드에만 존재하는 진단 변경이
+1.6.3과 어떤 차이가 있는지 명시.
+
+============================================================
+10. POST-LOGIN 오류 구분
+============================================================
+
+로그인 HTTP 요청 자체가 성공한 뒤
+후속 처리에서 예외가 나면서
+
+"서버에 연결할 수 없습니다"
+
+로 잘못 보일 가능성이 있는지
+세 클라이언트 각각 확인.
+
+검사 대상 예:
+
+- session/token 저장
+- user parsing
+- role parsing
+- pool fetch
+- subscription fetch
+- RevenueCat init
+- navigation
+- AsyncStorage
+- SecureStore
+- profile fetch
+- post-login background request
+
+각 버전에서
+HTTP login 성공 이후 발생한 오류가
+network_error로 합쳐지는지 확인.
+
+============================================================
+11. SERVER ↔ CLIENT COMPATIBILITY MATRIX
+============================================================
+
+최종적으로 반드시 표 작성:
+
+| Client | API Base | Endpoint | Payload | Timeout | Server route compatible | Safe test | Risk |
+|--------|----------|----------|---------|---------|-------------------------|-----------|------|
+| 1.6.3 iOS | ... | ... | ... | ... | YES/NO | PASS/FAIL | ... |
+| 1.6.3 Android | ... | ... | ... | ... | YES/NO | PASS/FAIL | ... |
+| 2.0.0 iOS | ... | ... | ... | ... | YES/NO | PASS/FAIL | ... |
+
+============================================================
+12. 장애 원인 분류
+============================================================
+
+각 클라이언트에 대해 다음 중 하나로 판정:
+
+A.
+CLIENT → SERVER 요청 자체가 도달하지 못할 가능성
+
+B.
+SERVER route/contract incompatibility
+
+C.
+SERVER 5xx/availability 문제
+
+D.
+SERVER는 정상 응답하지만 CLIENT parsing/error mapping 문제
+
+E.
+로그인 HTTP 성공 후 POST-LOGIN 문제
+
+F.
+현재 코드/서버 기준 문제 없음,
+과거 transient availability 가능성
+
+G.
+증거 부족 / UNCONFIRMED
+
+반드시 증거 기반으로 판정.
+
+"아마", "추정", "Render 문제 같음" 식의
+근거 없는 결론 금지.
+
+============================================================
+13. 수정 발견 시 처리
+============================================================
+
+문제가 발견되어도
+이번 작업에서는 절대 수정하지 않는다.
+
+대신:
+
+- affected version/platform
+- exact file
+- exact code path
+- root cause
+- severity
+- 최소 수정 방법
+- server 변경 필요한지
+- client 변경 필요한지
+- OTA 필요한지
+- store build 필요한지
+
+만 보고.
+
+특히 1.6.3은
+현재 실사용 안정 버전이므로
+직접 변경 금지.
+
+============================================================
+14. 완료보고 형식
+============================================================
+
+# SWIMNOTE LOGIN SERVER COMPATIBILITY REPORT
+
+## PRODUCTION
+
+Render source branch:
+Production Live commit:
+CONFIRMED / UNCONFIRMED
+
+/api/healthz:
+...
+
+/healthz:
+...
+
+## 1.6.3 iOS
+
+Source/version evidence:
+Runtime:
+Channel:
+API_BASE:
+Endpoint:
+Payload:
+Timeout:
+Error mapping:
+Post-login flow:
+
+Server compatibility:
+PASS / FAIL / UNCONFIRMED
+
+Safe server test:
+...
+
+Risk:
+...
+
+## 1.6.3 Android
+
+Source/version evidence:
+Runtime:
+Channel:
+API_BASE:
+Endpoint:
+Payload:
+Timeout:
+Error mapping:
+Android-specific config:
+Post-login flow:
+
+Server compatibility:
+PASS / FAIL / UNCONFIRMED
+
+Safe server test:
+...
+
+Risk:
+...
+
+## 2.0.0 iOS
+
+Source/build evidence:
+Runtime:
+Channel:
+API_BASE:
+Endpoint:
+Payload:
+Timeout:
+Request ID:
+Error mapping:
+Post-login flow:
+
+Server compatibility:
+PASS / FAIL / UNCONFIRMED
+
+Safe server test:
+...
+
+Risk:
+...
+
+## COMPATIBILITY MATRIX
+
+| Client | API Base | Endpoint | Payload | Server Compatible | Safe Test | Risk |
+|--------|----------|----------|---------|-------------------|-----------|------|
+| 1.6.3 iOS | | | | | | |
+| 1.6.3 Android | | | | | | |
+| 2.0.0 iOS | | | | | | |
+
+## ROOT CAUSE ASSESSMENT
+
+1.6.3 iOS:
+A/B/C/D/E/F/G
+Evidence:
+...
+
+1.6.3 Android:
+A/B/C/D/E/F/G
+Evidence:
+...
+
+2.0.0 iOS:
+A/B/C/D/E/F/G
+Evidence:
+...
+
+## CROSS-VERSION DIFFERENCES
+
+1.6.3 iOS ↔ Android:
+...
+
+1.6.3 ↔ 2.0.0:
+...
+
+## FOUND ISSUES
+
+Issue 1:
+Affected:
+File/path:
+Exact cause:
+Severity:
+Minimal fix:
+Requires server change:
+Requires client change:
+Requires OTA/build:
+
+반복.
+
+문제 없으면:
+NONE FOUND
+
+## CHANGE STATUS
+
+Code modified:
+NO
+
+Commit:
+NO
+
+Push:
+NO
+
+Production deploy:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0.0 OTA:
+NO
+
+DB migration:
+NO
+
+## FINAL
+
+다음 중 하나:
+
+ALL THREE CLIENTS SERVER-COMPATIBLE — NO CODE CHANGE
+
+또는
+
+LOGIN ISSUE IDENTIFIED — FIX APPROVAL REQUIRED
+
+또는
+
+ROOT CAUSE UNCONFIRMED — ADDITIONAL LIVE LOG EVIDENCE REQUIRED
