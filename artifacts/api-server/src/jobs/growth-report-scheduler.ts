@@ -437,6 +437,33 @@ async function autoPublishMonthlyReports(
       AND s.deleted_at IS NULL
   `);
 
+  // ── Bulk enrollment check (N+1 제거) ────────────────────────────────────────
+  // issueMonth = reportPeriod의 다음 달 (스케줄러가 매월 5일 실행)
+  const [rpy, rpm] = reportPeriod.split("-");
+  const rpYear  = parseInt(rpy ?? "2000", 10);
+  const rpMonth = parseInt(rpm ?? "1",    10);
+  const issueYear  = rpMonth === 12 ? rpYear + 1 : rpYear;
+  const issueMonth = rpMonth === 12 ? 1 : rpMonth + 1;
+  const issueMonthFirstDay = `${issueYear}-${String(issueMonth).padStart(2, "0")}-01`;
+
+  const candidateStudentIds = [...new Set(
+    (candidates.rows as any[]).map(r => r.student_id).filter(Boolean)
+  )];
+
+  let enrolledStudentIds = new Set<string>();
+  if (candidateStudentIds.length > 0) {
+    // ANY(ARRAY[...]) 패턴으로 bulk IN — Drizzle sql template이 배열 파라미터화를 지원
+    const idListLiteral = candidateStudentIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(",");
+    const enrollRows = await db.execute(sql.raw(`
+      SELECT DISTINCT student_id
+      FROM student_class_history
+      WHERE student_id IN (${idListLiteral})
+        AND enrolled_at <= '${issueMonthFirstDay}'::date
+        AND (left_at IS NULL OR left_at >= '${issueMonthFirstDay}'::date)
+    `));
+    enrolledStudentIds = new Set((enrollRows.rows as any[]).map((r: any) => r.student_id));
+  }
+
   const PASS_VALUES = new Set(["PASS", "REVISED_PASS"]);
 
   for (const row of candidates.rows as any[]) {
@@ -459,36 +486,14 @@ async function autoPublishMonthlyReports(
     // ── Per-student re-enrollment check (§8-11) ─────────────────────────────
     // Policy: reportPeriod = "YYYY-MM" (previous month).
     // issueDate = 5th of this month.
-    // Eligible if student has:
-    //   1. lesson data in reportPeriod (already guaranteed by analysis_status = COMPLETE)
-    //   2. valid class enrollment in the ISSUE month — student_class_history row where
-    //      enrolled_at <= first day of issue month AND (left_at IS NULL OR left_at >= first day of issue month)
-    //
+    // Eligible if student has valid class enrollment in the ISSUE month.
     // Source of Truth: student_class_history (canonical enrollment record).
-    // No payment/billing check — operational continuity only.
+    // Enrollment eligibility is bulk-loaded once per batch (see below); use that.
     {
-      // Derive issue month (YYYY-MM = current month in scheduler context)
-      // reportPeriod = "2026-08" → issueMonth first day = "2026-09-01"
-      const [pyStr, pmStr] = reportPeriod.split("-");
-      const prevYear  = parseInt(pyStr ?? "2000", 10);
-      const prevMonth = parseInt(pmStr ?? "1",    10); // 1-based
-      const issueYear  = prevMonth === 12 ? prevYear + 1 : prevYear;
-      const issueMonth = prevMonth === 12 ? 1 : prevMonth + 1;
-      const issueMonthFirstDay = `${issueYear}-${String(issueMonth).padStart(2, "0")}-01`;
-
-      const enrollCheck = await db.execute(sql`
-        SELECT 1
-        FROM student_class_history
-        WHERE student_id  = ${student_id}
-          AND enrolled_at <= ${issueMonthFirstDay}::date
-          AND (left_at IS NULL OR left_at >= ${issueMonthFirstDay}::date)
-        LIMIT 1
-      `);
-
-      if (!enrollCheck.rows.length) {
+      if (!enrolledStudentIds.has(student_id)) {
         result.reports_delivery_skipped++;
         console.log(
-          `[gr-scheduler] DELIVERY_SKIP re_enrollment: report=${report_id} issue_month=${issueMonthFirstDay}`,
+          `[gr-scheduler] DELIVERY_SKIP re_enrollment: report=${report_id}`,
         );
         continue;
       }

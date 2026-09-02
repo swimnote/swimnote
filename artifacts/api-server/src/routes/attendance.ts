@@ -483,7 +483,7 @@ async function autoCreateMakeup(
       ${expireAt}, ${weeklyCount}
     )
   `);
-  console.log(`[autoCreateMakeup] 보강세션 생성 완료: id=${mkId}, student=${student.name}, date=${date}`);
+  console.log(`[autoCreateMakeup] 보강세션 생성 완료: id=${mkId}, date=${date}`);
   return { created: true };
 }
 

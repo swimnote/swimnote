@@ -1473,6 +1473,16 @@ router.delete("/students/:id/force-delete", requireAuth, requireRole("super_admi
       `)).rows as any[];
       if (!student) return res.status(404).json({ error: "회원을 찾을 수 없습니다." });
 
+      // 활성 회원 hard delete 차단: withdrawn/deleted_ready만 허용
+      const DELETABLE_STATUSES = ["withdrawn", "deleted_ready"];
+      if (!DELETABLE_STATUSES.includes(student.status)) {
+        return res.status(403).json({
+          error: `활성 회원(${student.status})은 강제 삭제할 수 없습니다. 퇴원 처리 후 삭제하십시오.`,
+          code:  "ACTIVE_STUDENT_DELETE_FORBIDDEN",
+          status: student.status,
+        });
+      }
+
       // 1. 이 학생과 연결된 parent_accounts 목록 조회
       const psRows = (await db.execute(sql`
         SELECT parent_id FROM parent_students

@@ -446,7 +446,7 @@ router.get("/videos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
           AND sv.status = 'active'
         ORDER BY sv.created_at DESC
       `);
-      console.log("[teacher-all:group] poolId=", poolId, "rows=", rows.rows.length, "첫번째=", rows.rows[0] ?? null);
+      console.log("[teacher-all:group] poolId=", poolId, "rows=", rows.rows.length);
       videos = await batchVideoPresign(rows.rows as any[]);
     } else {
       // 개인앨범 = teacher_saved_videos 에서 가져옴

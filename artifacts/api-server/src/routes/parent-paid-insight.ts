@@ -333,6 +333,17 @@ router.post(
         return;
       }
 
+      // Duplicate guard: if already ANALYZING, block concurrent second request
+      if (reportRow.product_status === "ANALYZING") {
+        res.status(409).json({
+          error:      "분석이 이미 진행 중입니다.",
+          code:       "ANALYSIS_IN_PROGRESS",
+          report_id:  reportId,
+          status:     "ANALYZING",
+        });
+        return;
+      }
+
       // Load saved answers
       const savedAnswers = await loadSavedAnswers(reportId, parentId);
 
