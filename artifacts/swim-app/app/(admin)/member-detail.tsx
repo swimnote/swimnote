@@ -20,7 +20,7 @@ import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
 import { WeeklyCount } from "@/utils/studentUtils";
 
-import { ClassPickerModal } from "@/components/admin/member/ClassPickerModal";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { SectionA_BasicInfo } from "@/components/admin/member/SectionA_BasicInfo";
 import { SectionB_ClassInfo } from "@/components/admin/member/SectionB_ClassInfo";
 import { SectionC_Level } from "@/components/admin/member/SectionC_Level";
@@ -72,8 +72,19 @@ export default function MemberDetailScreen() {
   const [editParentPhone3, setEditParentPhone3]   = useState("");
   const [editParentPhone4, setEditParentPhone4]   = useState("");
 
+  // ── 반 변경 인라인 피커 ────────────────────────────────────────
+  const [showClassPicker, setShowClassPicker]     = useState(false);
+  const [pickedClassIds, setPickedClassIds]       = useState<string[]>([]);
+
+  function togglePickedClass(id: string) {
+    setPickedClassIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= weeklyCount) return prev; // maxSelect 초과 → 무시
+      return [...prev, id];
+    });
+  }
+
   // ── 모달 ──────────────────────────────────────────────────────
-  const [showPicker, setShowPicker]                   = useState(false);
   const [showStatusModal, setShowStatusModal]         = useState(false);
   const [alertInfo, setAlertInfo]                     = useState<{ title: string; msg: string } | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm]   = useState(false);
@@ -371,7 +382,7 @@ export default function MemberDetailScreen() {
           assignedClasses={assignedClasses}
           classChanged={classChanged} setClassChanged={setClassChanged}
           onSaveAssignment={saveAssignment}
-          onOpenPicker={() => setShowPicker(true)}
+          onOpenPicker={() => { setPickedClassIds(assignedIds); setShowClassPicker(true); }}
         />
 
         {/* Section C: 수영 교육 정보 (레벨) */}
@@ -445,6 +456,92 @@ export default function MemberDetailScreen() {
         />
       )}
 
+      {/* ── 반 변경 인라인 피커 오버레이 ── */}
+      {showClassPicker && (
+        <View style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end", zIndex: 200,
+        }}>
+          <View style={{
+            backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            padding: 20, maxHeight: 480,
+          }}>
+            {/* 헤더 */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <Text style={{ fontSize: 16, fontFamily: "Pretendard-SemiBold", color: C.text }}>
+                반 선택 (최대 {weeklyCount}개)
+              </Text>
+              <Pressable hitSlop={12} onPress={() => setShowClassPicker(false)}>
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
+              </Pressable>
+            </View>
+
+            {/* 반 목록 */}
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              {[...groups].sort((a, b) => a.name.localeCompare(b.name, "ko")).map(g => {
+                const isPicked = pickedClassIds.includes(g.id);
+                const days = g.schedule_days.split(",").map((d: string) => d.trim()).join("·");
+                return (
+                  <Pressable
+                    key={g.id}
+                    style={{
+                      flexDirection: "row", alignItems: "center",
+                      paddingVertical: 12, borderBottomWidth: 1, borderColor: C.border,
+                    }}
+                    onPress={() => togglePickedClass(g.id)}
+                  >
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: C.text }}>{g.name}</Text>
+                      <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>
+                        {days}요일 · {g.schedule_time}
+                      </Text>
+                      {g.instructor ? (
+                        <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted }}>
+                          선생님: {g.instructor}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <LucideIcon
+                      name={isPicked ? "check-circle" : "circle"}
+                      size={22}
+                      color={isPicked ? themeColor : C.border}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* 확인 / 취소 */}
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
+              <Pressable
+                style={{
+                  flex: 1, height: 44, borderWidth: 1, borderColor: C.border,
+                  borderRadius: 10, alignItems: "center", justifyContent: "center",
+                }}
+                onPress={() => setShowClassPicker(false)}
+              >
+                <Text style={{ fontFamily: "Pretendard-Regular", color: C.textSecondary }}>취소</Text>
+              </Pressable>
+              <Pressable
+                style={{
+                  flex: 1, height: 44, backgroundColor: themeColor,
+                  borderRadius: 10, alignItems: "center", justifyContent: "center",
+                }}
+                onPress={() => {
+                  setAssignedIds(pickedClassIds);
+                  setClassChanged(true);
+                  setShowClassPicker(false);
+                }}
+              >
+                <Text style={{ fontFamily: "Pretendard-SemiBold", color: "#fff" }}>
+                  확인 ({pickedClassIds.length}개)
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* ── 공통 모달 ── */}
       <MemberStatusChangeModal
         visible={showStatusModal}
@@ -455,14 +552,6 @@ export default function MemberDetailScreen() {
         pendingEffectiveMode={(data as any).pending_effective_mode}
         onClose={() => setShowStatusModal(false)}
         onChanged={load}
-      />
-
-      <ClassPickerModal
-        groups={groups}
-        selectedIds={assignedIds}
-        maxSelect={weeklyCount}
-        onSelect={ids => { setAssignedIds(ids); setClassChanged(true); }}
-        onClose={() => setShowPicker(false)}
       />
 
       <ConfirmModal

@@ -228,7 +228,7 @@ export default function XSubscriptionScreen() {
           text: "확인",
           onPress: () => {
             purchaseSucceeded.current = false; // 완료 처리 후 리셋
-            router.replace("/(admin)/" as any);
+            router.back();
           },
         }],
         { cancelable: false },

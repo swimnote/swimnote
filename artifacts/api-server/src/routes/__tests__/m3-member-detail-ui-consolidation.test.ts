@@ -180,17 +180,21 @@ describe("CASE F: Section B — 수강정보 표시", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// CASE G: 반 변경 기존 기능 보존 (ClassPickerModal)
+// CASE G: 반 변경 — 인라인 피커로 교체 (WP1 정책: ClassPickerModal detail에서 제거)
 // ──────────────────────────────────────────────────────────────────────────────
-describe("CASE G: 반 변경 — ClassPickerModal 보존", () => {
-  it("G-1. ClassPickerModal import + 사용", () => {
+describe("CASE G: 반 변경 — 인라인 피커 (WP1)", () => {
+  it("G-1. detail에서 ClassPickerModal mount 없음 + showClassPicker 인라인 피커 존재", () => {
     const src = readScreen();
-    expect(src).toContain("ClassPickerModal");
-    expect(src).toContain("showPicker");
-    expect(src).toContain("setShowPicker");
+    // WP1: ClassPickerModal은 detail에서 제거됨 (mount 없음)
+    expect(src).not.toContain("showPicker");
+    expect(src).not.toContain("setShowPicker");
+    // 인라인 피커 state + 핸들러 존재
+    expect(src).toContain("showClassPicker");
+    expect(src).toContain("pickedClassIds");
+    expect(src).toContain("togglePickedClass");
   });
 
-  it("G-2. ClassPickerModal.tsx 파일 유지됨", () => {
+  it("G-2. ClassPickerModal.tsx 파일은 members.tsx 재사용을 위해 유지됨", () => {
     expect(fs.existsSync(path.join(MEMBER_COMP, "ClassPickerModal.tsx"))).toBe(true);
   });
 
@@ -545,10 +549,13 @@ describe("CASE W: 기존 탭 기능 누락 없음", () => {
     expect(src).toContain("showStatusModal");
   });
 
-  it("W-2. ClassPickerModal 보존 + showPicker 유지", () => {
+  it("W-2. 인라인 반 변경 피커 + ClassPickerModal.tsx 파일 유지", () => {
     const src = readScreen();
-    expect(src).toContain("ClassPickerModal");
-    expect(src).toContain("showPicker");
+    // WP1: detail에서 ClassPickerModal 제거, 인라인 피커로 대체
+    expect(src).toContain("showClassPicker");
+    expect(src).toContain("pickedClassIds");
+    // ClassPickerModal.tsx 파일 자체는 members.tsx가 사용하므로 유지
+    expect(fs.existsSync(path.join(MEMBER_COMP, "ClassPickerModal.tsx"))).toBe(true);
   });
 
   it("W-3. 레벨 변경 기능 (handleLevelChange) 유지", () => {
