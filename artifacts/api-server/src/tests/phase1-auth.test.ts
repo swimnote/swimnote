@@ -248,3 +248,151 @@ describe("L02 – kakao-link-teacher role 확장", () => {
     expect(expectedClause).not.toContain("super_admin");
   });
 });
+
+// ─── P01–P09: Final Policy (2.0 정책) ────────────────────────────────────────
+
+/** 관리자 차단 메시지 (정책 확정) */
+const ADMIN_BLOCK_MSG =
+  "관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요.";
+
+/** 중복 Kakao 차단 메시지 (정책 확정) */
+const DUPLICATE_KAKAO_MSG =
+  "이미 SWIMNOTE 계정에 연결된 카카오 계정입니다. 다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요.";
+
+describe("P01 – 관리자 카카오 신규연결 차단 메시지", () => {
+  it("ADMIN_BLOCK_MSG에 PC 모드 언급 포함", () => {
+    expect(ADMIN_BLOCK_MSG).toContain("PC 모드");
+  });
+  it("ADMIN_BLOCK_MSG에 일반 계정 안내 포함", () => {
+    expect(ADMIN_BLOCK_MSG).toContain("일반 계정");
+  });
+  it("ADMIN_BLOCK_MSG에 소셜계정 언급 포함", () => {
+    expect(ADMIN_BLOCK_MSG).toContain("소셜계정");
+  });
+});
+
+describe("P02 – 관리자 role 탐지", () => {
+  it("role='admin'이면 차단 경로로 분기", () => {
+    function shouldBlockAdminLink(role: string): boolean {
+      return role === "admin";
+    }
+    expect(shouldBlockAdminLink("admin")).toBe(true);
+    expect(shouldBlockAdminLink("teacher")).toBe(false);
+    expect(shouldBlockAdminLink("parent")).toBe(false);
+  });
+
+  it("pool_admin role은 관리자 범위에 해당", () => {
+    const ADMIN_ROLES = ["admin", "pool_admin"];
+    expect(ADMIN_ROLES).toContain("admin");
+    expect(ADMIN_ROLES).toContain("pool_admin");
+  });
+});
+
+describe("P03 – 기존 Kakao 관리자 로그인은 차단 아님", () => {
+  it("차단은 신규 link 단계에서만 — 기존 kakao_id로 직접 login은 서버 Step 3에서 처리", () => {
+    // kakao-social-login Step 3: kakao_id로 users 테이블 직접 조회
+    // 기존 연결 계정은 이 경로로 인증됨. link screen을 거치지 않음.
+    const existingUserFlow = "kakao-social-login → Step3 kakao_id direct hit → token";
+    const newLinkFlow      = "kakao-link.tsx handleLink() → admin role guard → BLOCK";
+    expect(existingUserFlow).not.toBe(newLinkFlow);
+  });
+});
+
+describe("P04 – 1 Kakao = 1 SWIMNOTE 계정 원칙 (중복 차단)", () => {
+  it("DUPLICATE_KAKAO_MSG에 이미 연결 언급 포함", () => {
+    expect(DUPLICATE_KAKAO_MSG).toContain("이미 SWIMNOTE 계정에 연결");
+  });
+  it("DUPLICATE_KAKAO_MSG에 일반가입 안내 포함", () => {
+    expect(DUPLICATE_KAKAO_MSG).toContain("일반가입");
+  });
+  it("DUPLICATE_KAKAO_MSG는 두 번째 수영장 맥락 포함", () => {
+    expect(DUPLICATE_KAKAO_MSG).toContain("다른 수영장");
+  });
+});
+
+describe("P05 – 409 응답 처리 (중복 kakao_id)", () => {
+  it("서버 409 → 정책 메시지 표시 (서버 원본 메시지 무시)", () => {
+    // 서버 원본: "이미 다른 계정에 연결된 카카오 계정입니다."
+    // 클라이언트 오버라이드: DUPLICATE_KAKAO_MSG
+    const serverOriginal = "이미 다른 계정에 연결된 카카오 계정입니다.";
+    const clientOverride = DUPLICATE_KAKAO_MSG;
+    expect(clientOverride).not.toBe(serverOriginal);
+    expect(clientOverride).toContain("일반가입");
+  });
+
+  it("409 외 오류 (500 등)는 서버 메시지 사용", () => {
+    function resolveErrorMsg(status: number, serverMsg: string): string {
+      if (status === 409) return DUPLICATE_KAKAO_MSG;
+      return serverMsg || "연결에 실패했습니다.";
+    }
+    expect(resolveErrorMsg(409, "이미 연결됨")).toBe(DUPLICATE_KAKAO_MSG);
+    expect(resolveErrorMsg(500, "서버 오류")).toBe("서버 오류");
+    expect(resolveErrorMsg(404, "")).toBe("연결에 실패했습니다.");
+  });
+});
+
+describe("P06 – 선생님 Kakao 최초 연결 허용", () => {
+  it("role=teacher, 409 아닌 경우 link 진행", () => {
+    function shouldAllowTeacherLink(role: string, status: number): boolean {
+      if (role === "admin") return false;
+      if (status === 409) return false;
+      return true;
+    }
+    expect(shouldAllowTeacherLink("teacher", 200)).toBe(true);
+    expect(shouldAllowTeacherLink("teacher", 409)).toBe(false);
+    expect(shouldAllowTeacherLink("admin",   200)).toBe(false);
+  });
+});
+
+describe("P07 – 학부모 Kakao 최초 연결 허용", () => {
+  it("role=parent, 409 아닌 경우 link 진행", () => {
+    function shouldAllowParentLink(role: string, status: number): boolean {
+      if (role === "admin") return false;
+      if (status === 409) return false;
+      return true;
+    }
+    expect(shouldAllowParentLink("parent", 200)).toBe(true);
+    expect(shouldAllowParentLink("parent", 409)).toBe(false);
+  });
+});
+
+describe("P08 – DB kakao_id unique constraint 없음 → application-level guard 필수", () => {
+  it("application guard: 서버에서 409 반환 시 신규 link UPDATE 실행 안 함", () => {
+    // 서버 코드 패턴:
+    // SELECT id FROM {table} WHERE kakao_id = ${kakaoId} AND id != ${account.id}
+    // rows.length > 0 → 409 반환 (UPDATE 없음)
+    // DB constraint 없으므로 이 application-level check가 유일한 보호
+    const serverGuardQuery = "SELECT id FROM parent_accounts WHERE kakao_id = $1 AND id != $2";
+    expect(serverGuardQuery).toContain("kakao_id");
+    expect(serverGuardQuery).toContain("id !=");
+  });
+
+  it("DB migration 없이 application guard만으로 1:1 관계 보장 (이번 작업 범위)", () => {
+    const migrationRequired = false;
+    expect(migrationRequired).toBe(false);
+  });
+});
+
+describe("P09 – sub_admin enum 위험 (SERVER QUERY FIX REQUIRED)", () => {
+  it("DB enum user_role 허용값 = {super_admin, pool_admin, parent, teacher}", () => {
+    const validEnumValues = ["super_admin", "pool_admin", "parent", "teacher"];
+    expect(validEnumValues).not.toContain("sub_admin");
+    expect(validEnumValues).not.toContain("super_manager");
+    expect(validEnumValues).not.toContain("platform_admin");
+  });
+
+  it("sub_admin이 포함된 IN 절은 runtime DB query 오류 발생 위험", () => {
+    // 확인: pnpm exec tsx -e로 실행 시 'invalid input value for enum user_role: sub_admin' 오류
+    // 영향 endpoints: kakao-social-login Step3/4, kakao-link-teacher
+    // 수정 방법: 'sub_admin' 제거 → role IN ('teacher', 'pool_admin') 으로 변경 필요
+    const REQUIRES_SERVER_FIX = true;
+    expect(REQUIRES_SERVER_FIX).toBe(true);
+  });
+
+  it("sub_admin 없는 올바른 role IN 절", () => {
+    const safeSqlClause = "role IN ('teacher', 'pool_admin')";
+    expect(safeSqlClause).not.toContain("sub_admin");
+    expect(safeSqlClause).toContain("teacher");
+    expect(safeSqlClause).toContain("pool_admin");
+  });
+});

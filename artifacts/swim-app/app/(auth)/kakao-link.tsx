@@ -45,6 +45,16 @@ export default function KakaoLinkScreen() {
   const [pendingMsg, setPendingMsg] = useState("");
 
   async function handleLink() {
+    // ── 정책: 관리자 소셜계정 신규연결 차단 ──────────────────────────────────
+    // pool_admin(관리자)은 PC 모드 연동 특성상 카카오/Apple 신규연결 불가.
+    // 기존 kakao_id가 이미 연결된 관리자 계정의 로그인은 서버 Step 3에서 정상 처리됨.
+    if (role === "admin") {
+      setError(
+        "관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요."
+      );
+      return;
+    }
+
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (!cleanPhone || cleanPhone.length < 10) {
       setError("올바른 전화번호를 입력해주세요.");
@@ -77,6 +87,14 @@ export default function KakaoLinkScreen() {
       if (!res.ok) {
         if (data.needs_activation && data.teacher_id) {
           router.replace({ pathname: "/teacher-activate", params: { teacher_id: data.teacher_id } } as any);
+          return;
+        }
+        // ── 정책: 동일 Kakao 계정 중복 연결 차단 ─────────────────────────────
+        // 1 Kakao = 1 SWIMNOTE 계정. 두 번째 수영장 가입은 일반가입으로 유도.
+        if (res.status === 409) {
+          setError(
+            "이미 SWIMNOTE 계정에 연결된 카카오 계정입니다. 다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+          );
           return;
         }
         if (data.error_code === "phone_not_registered" || res.status === 404) {
