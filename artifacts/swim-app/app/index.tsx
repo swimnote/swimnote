@@ -241,6 +241,11 @@ export default function LoginScreen() {
       console.log(`[KakaoLogin][INDEX STEP1] traceId=${ktid} kakaoLogin 호출`);
       const result = await kakaoLogin();
       kakaoAccessToken = result.accessToken;
+      if (!kakaoAccessToken) {
+        // SDK가 accessToken 없이 resolve하는 경우 (비정상 SDK 응답)
+        console.warn(`[KakaoLogin][KAKAO_TOKEN_MISSING] traceId=${ktid} accessToken이 없음`);
+        throw Object.assign(new Error("카카오 로그인 토큰을 받지 못했습니다."), { error_code: "KAKAO_TOKEN_MISSING" });
+      }
       console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출 overridePoolId=${overridePoolId ?? "none"}`);
       const loginKind = await kakaoSocialLogin(kakaoAccessToken, overridePoolId);
       console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
@@ -248,11 +253,25 @@ export default function LoginScreen() {
       const e = err as Error & {
         error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string;
         pools?: { id: string; name: string }[];
+        code?: string;
       };
 
       // 카카오 앱/웹 취소 — E_CANCELLED_OPERATION이 표준 코드 (iOS/Android 공통)
       // message.includes("cancel")은 제거: 한국어 에러 메시지를 취소로 오인할 수 있음
-      if ((err as any)?.code === "E_CANCELLED_OPERATION") return;
+      if (e.code === "E_CANCELLED_OPERATION") return;
+
+      // SDK 레벨 에러 분류 (accessToken 미수신 시점, 서버 호출 전)
+      // kakaoAccessToken이 null이면 SDK 에러, 값이 있으면 서버 에러
+      if (!kakaoAccessToken && !e.error_code) {
+        const sdkMsg = e.message ?? "";
+        const sdkErrCode =
+          sdkMsg.toLowerCase().includes("network") || sdkMsg.toLowerCase().includes("timeout")
+            ? "KAKAO_NETWORK_ERROR"
+            : "KAKAO_SDK_ERROR";
+        console.warn(`[KakaoLogin][${sdkErrCode}] traceId=${ktid} code=${e.code ?? "none"}`);
+        setError("카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
 
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
         // 2.0: 역할 선택 화면 skip → 학부모 연결 화면으로 바로 이동 (parentOnly=1)
