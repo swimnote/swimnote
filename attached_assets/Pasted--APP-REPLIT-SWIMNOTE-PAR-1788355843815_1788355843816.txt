@@ -1,0 +1,447 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE PARENT ACCOUNT PHONE REUSE / DATA CONTINUITY AUDIT
+#
+# 목적:
+# 기존에 Kakao로 사용하던 학부모가
+# 같은 휴대전화번호로 일반계정을 새로 만들거나 가입할 경우,
+# 같은 수영장 안에서 기존 parent 계정과 자녀/기록이
+# 그대로 이어지는지 확실하게 검증한다.
+#
+# 핵심 질문:
+#
+# SAME POOL
+# + SAME PHONE
+# + NEW GENERAL SIGNUP
+#
+# 시
+#
+# A. 기존 parent_accounts row를 재사용하는가?
+# B. 새 parent_accounts row를 만드는가?
+# C. 기존 자녀 연결/수업피드/알림/요청/기록이 유지되는가?
+#
+# 추측 금지.
+# 실제 코드 + schema + 테스트로 확정.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Target pool:
+토이키즈스윔클럽
+
+Pool ID:
+pool_1780849364252_l9k44rbk3
+
+Production DB:
+READ ONLY
+
+============================================================
+0. 절대 금지
+============================================================
+
+Production DB INSERT:
+NO
+
+Production DB UPDATE:
+NO
+
+Production DB DELETE:
+NO
+
+실제 신규 계정 생성:
+NO
+
+실제 parent account merge:
+NO
+
+kakao_id 수정:
+NO
+
+phone 수정:
+NO
+
+pin/password 수정:
+NO
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+1. 가입/로그인 관련 route 전수 확인
+============================================================
+
+다음 parent 관련 endpoint와 client flow를 모두 확인:
+
+- parent signup
+- parent-login
+- parent account creation
+- child linking
+- pool join
+- pool join request
+- kakao-link-account
+- reset-password
+
+정확한 route/file/function 이름을 보고.
+
+============================================================
+2. SAME PHONE + SAME POOL 중복 생성 가능 여부
+============================================================
+
+parent_accounts schema 확인.
+
+반드시 확인:
+
+- UNIQUE(phone)?
+- UNIQUE(phone, swimming_pool_id)?
+- login_id unique?
+- kakao_id unique?
+- 별도 parent identity key 존재?
+- DB constraint 없는 경우 application-level duplicate guard 존재?
+
+결론:
+
+SAME PHONE + SAME POOL에서
+두 개 parent_accounts row 생성이:
+
+IMPOSSIBLE
+또는
+POSSIBLE
+
+중 하나로 확정.
+
+============================================================
+3. 일반가입 로직 핵심 확인
+============================================================
+
+새 일반가입 요청에서:
+
+phone = 기존 parent phone
+pool_id = 기존 parent pool
+
+인 경우 서버가 무엇을 하는지 확인.
+
+반드시 다음 중 하나로 판정:
+
+A.
+기존 parent row를 찾아 credential만 추가/갱신
+→ SAME ACCOUNT CONTINUITY
+
+B.
+기존 parent row가 있으면 가입 차단
+→ LOGIN/RECOVERY REQUIRED
+
+C.
+새 parent row 생성
+→ DUPLICATE ACCOUNT RISK
+
+D.
+기타
+→ 정확히 설명
+
+============================================================
+4. 기존 데이터 귀속 기준 확인
+============================================================
+
+기존 학부모의 다음 데이터가 무엇을 key로 연결하는지 확인:
+
+- child/student connection
+- parent_student_links
+- 수업피드
+- 일지 표시
+- 공지
+- 요청
+- 알림
+- 앨범
+- 성장리포트
+- 기타 parent-specific data
+
+반드시 확인:
+
+phone 기준인지
+parent_account_id 기준인지
+user_id 기준인지
+student_id + parent_id 기준인지.
+
+핵심:
+새 row가 만들어지면 기존 데이터가 자동으로 따라오는지 확인.
+
+============================================================
+5. 실제 Kakao-linked 학부모 3명 대상으로 READ-ONLY 확인
+============================================================
+
+토이키즈의 Kakao-linked parent 3명 각각:
+
+- parent_account id 존재
+- phone
+- pin_hash
+- login_id
+- linked student count
+- child link row count
+- 기존 기록 접근이 어떤 parent id에 귀속되는지
+
+masked 형태로 보고.
+
+PII 원문 출력 금지.
+
+============================================================
+6. SAME PHONE NEW ACCOUNT 시뮬레이션
+============================================================
+
+Production write 금지.
+
+대신 test DB / transaction rollback / mocked repository 중
+안전한 방법으로 아래 시나리오를 실제 테스트.
+
+Scenario P1:
+기존 parent row:
+phone = 010-1111-2222
+pool = A
+kakao_id 있음
+pin_hash 있음
+child link 있음
+
+같은 phone + 같은 pool로 일반가입 시도.
+
+확인:
+- row count before
+- row count after
+- returned parent_account_id
+- child link 유지 여부
+
+Scenario P2:
+같은 phone + 다른 pool
+
+확인:
+- 별도 pool account 생성 여부
+- 기존 pool 데이터와 분리되는지
+
+Scenario P3:
+같은 phone + same pool + 다른 login_id
+
+확인:
+- duplicate 생성 가능 여부
+- 차단 여부
+
+Scenario P4:
+같은 phone + same pool + 기존 kakao_id 있음
+
+일반 로그인 credential 추가/가입 시
+기존 kakao_id 보존 여부.
+
+============================================================
+7. 반드시 확인할 핵심
+============================================================
+
+사용자가 같은 전화번호로
+"새 계정을 만든다"고 생각하더라도
+
+실제로는:
+
+기존 parent row 재사용
+또는
+기존 row credential activation
+
+방식이어야 기존 데이터가 안전하게 이어짐.
+
+만약 새 parent row가 생성된다면:
+
+기존 child links / records가
+자동으로 새 row에 이어지는지
+확인.
+
+자동 이어짐이 없다면:
+
+LAUNCH BLOCKER
+
+로 판정.
+
+============================================================
+8. 일반 로그인과 신규가입을 구분해서 보고
+============================================================
+
+반드시 따로:
+
+A. 기존 전화번호 + 기존 PIN으로 로그인
+B. 기존 전화번호 + 새 PIN으로 비밀번호 재설정 후 로그인
+C. 기존 전화번호로 신규 일반가입
+D. 기존 전화번호 + 새 login_id로 신규가입
+
+각각 결과를 별도로 보고.
+
+============================================================
+9. 안전한 정답 기준
+============================================================
+
+가장 바람직한 결과:
+
+SAME PHONE + SAME POOL
+→ 새 parent row 생성하지 않음
+→ 기존 parent_account_id 유지
+→ 기존 child links 유지
+→ 기존 기록 유지
+→ 필요하면 일반 login credential만 추가/재설정
+
+이 경우:
+
+SAFE — CONTINUITY PRESERVED
+
+다음은 위험:
+
+SAME PHONE + SAME POOL
+→ 새 parent row 생성
+→ child link 없음
+→ 기존 기록 분리
+
+이 경우:
+
+BLOCKER — DUPLICATE PARENT ACCOUNT BREAKS CONTINUITY
+
+============================================================
+10. 테스트
+============================================================
+
+PA01
+same phone + same pool duplicate prevention
+
+PA02
+same phone + same pool returned account id
+
+PA03
+same phone + same pool child links preserved
+
+PA04
+same phone + same pool kakao_id preserved
+
+PA05
+same phone + same pool pin reset preserves account id
+
+PA06
+same phone + different pool behavior
+
+PA07
+same phone + same pool + new login_id behavior
+
+PA08
+parent-login phone+pin same account
+
+PA09
+existing feed/records remain accessible
+
+PA10
+no production DB writes
+
+============================================================
+11. 완료보고
+============================================================
+
+# SWIMNOTE PARENT PHONE REUSE CONTINUITY REPORT
+
+## SCHEMA
+
+parent_accounts unique constraints:
+...
+
+Phone uniqueness:
+...
+
+Pool scoping:
+...
+
+## GENERAL SIGNUP BEHAVIOR
+
+Same phone + same pool:
+...
+
+Creates new row:
+YES / NO
+
+Reuses existing row:
+YES / NO
+
+Blocks duplicate signup:
+YES / NO
+
+## LOGIN BEHAVIOR
+
+Existing phone + existing PIN:
+...
+
+Existing phone + reset PIN:
+...
+
+Same account_id retained:
+YES / NO
+
+## DATA OWNERSHIP
+
+Child links key:
+...
+
+Feed/history key:
+...
+
+Parent-specific records key:
+...
+
+## SAME PHONE NEW ACCOUNT
+
+Returned parent account:
+SAME / NEW / BLOCKED
+
+Existing child links:
+PRESERVED / LOST / N/A
+
+Existing records:
+PRESERVED / LOST / N/A
+
+Existing kakao_id:
+PRESERVED / LOST / N/A
+
+## TOYKIDS KAKAO-LINKED PARENTS
+
+3 accounts checked:
+YES / NO
+
+All would retain same account identity:
+YES / NO
+
+Any duplicate-account risk:
+YES / NO
+
+## TESTS
+
+PA01-PA10:
+...
+
+## PRODUCTION SAFETY
+
+DB writes:
+0
+
+Accounts modified:
+0
+
+## FINAL
+
+다음 중 하나만:
+
+SAFE — SAME PHONE/SAME POOL KEEPS EXISTING ACCOUNT AND DATA
+
+또는
+
+SAFE — DUPLICATE SIGNUP BLOCKED, EXISTING LOGIN/RECOVERY REQUIRED
+
+또는
+
+BLOCKER — SAME PHONE CAN CREATE NEW ACCOUNT AND BREAK DATA CONTINUITY
