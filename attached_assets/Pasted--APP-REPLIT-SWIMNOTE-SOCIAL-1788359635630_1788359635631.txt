@@ -1,0 +1,528 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE SOCIAL AUTH EXIT — FINAL TOYKIDS DRY-RUN
+#
+# 목적:
+# 이미 구현된 1.6.3 Kakao → 일반계정 임시 전환 기능을
+# Production에 반영하기 전에,
+# 토이키즈 Kakao 학부모 3명에 대해 실제 Production DB 기준
+# migration 결과를 READ ONLY로 최종 검증한다.
+#
+# 이 작업 끝나면 추가 설계/감사 금지.
+# PASS면 바로 배포 승인 단계로 이동.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+1.6.3 maintenance:
+maintenance/v1.6.3-social-exit
+known SHA:
+8185091e
+
+2.0:
+release/v2.0.0
+known SHA:
+d26f3282
+
+Target pool:
+토이키즈스윔클럽
+pool_1780849364252_l9k44rbk3
+
+Production DB:
+READ ONLY
+
+============================================================
+0. 절대 금지
+============================================================
+
+INSERT:
+NO
+
+UPDATE:
+NO
+
+DELETE:
+NO
+
+transaction 실제 commit:
+NO
+
+계정 migration 실행:
+NO
+
+phone 변경:
+NO
+
+parent_id 변경:
+NO
+
+Kakao account archive:
+NO
+
+Production server deploy:
+NO
+
+Render deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+새 기능:
+NO
+
+리팩터링:
+NO
+
+============================================================
+1. 대상 정확히 확정
+============================================================
+
+토이키즈 Kakao-linked parent:
+
+3명
+
+조건:
+
+same swimming_pool_id
++
+kakao_id IS NOT NULL / non-empty
+
+3명 전부 확인.
+
+masked 정보만 보고.
+
+============================================================
+2. 각 계정 migration dry-run
+============================================================
+
+각 parent마다 실제 migration endpoint가 수행할 일을
+SELECT 기반으로 계산.
+
+반드시 확인:
+
+old_parent_id
+normalized phone
+active status
+kakao_id exists
+linked student count
+
+그리고 구현된 17개 migration 대상 테이블 각각:
+
+old_parent_id를 참조하는 row count
+
+를 계산.
+
+완료보고에는:
+
+table name
+→ rows to migrate
+
+형태로 계정별 또는 합계 보고.
+
+PII 출력 금지.
+
+============================================================
+3. 17개 테이블 실제 schema 검증
+============================================================
+
+현재 migration endpoint에서 이동하는
+17개 table/column을 실제 Production schema와 대조.
+
+각각:
+
+- table exists
+- column exists
+- FK/constraint 충돌 가능성
+- UNIQUE constraint 충돌 가능성
+- old→new parent id UPDATE 시 duplicate row 가능성
+
+확인.
+
+중요:
+
+코드에 17개라고 적혀 있다는 이유만으로 PASS 금지.
+Production schema 기준 확인.
+
+============================================================
+4. parent ownership 누락 최종 확인
+============================================================
+
+Production schema에서:
+
+parent_id
+parent_account_id
+parent_user_id
+guardian_id
+
+등 parent identity reference를 검색.
+
+migration 코드의 17개 목록과 비교.
+
+결론은:
+
+MISSING REFERENCES = 0
+
+이어야 한다.
+
+만약 추가 parent-owned table이 발견되면
+이번 dry-run에서 바로 최소 source fix + test까지 허용.
+
+새 architecture는 금지.
+
+============================================================
+5. duplicate/unique collision dry-run
+============================================================
+
+old parent refs를 new parent id로 옮겼다고 가정했을 때
+
+각 테이블에서:
+
+UNIQUE(parent_id, ...)
+UNIQUE(parent_account_id, ...)
+복합 unique
+
+충돌 가능성 확인.
+
+현재 대상 3명 각각:
+
+expected duplicate conflict:
+0
+
+이어야 함.
+
+============================================================
+6. phone='' archive 전략 검증
+============================================================
+
+Production 실제 index:
+
+idx_parent_accounts_pool_phone
+
+조건과 definition을 다시 확인.
+
+old Kakao parent:
+
+phone = ''
+
+로 변경했을 때:
+
+- unique index 충돌 없음
+- parent-login 대상으로 잡히지 않음
+- reset-password 대상으로 잡히지 않음
+- 다른 일반가입을 방해하지 않음
+
+을 확인.
+
+중요:
+
+phone='' row가 여러 개 존재해도
+Production index가 안전한지 실제 definition으로 검증.
+
+============================================================
+7. old Kakao account retirement 검증
+============================================================
+
+구현 예정:
+
+phone=''
+is_active=false
+withdrawal_requested_at=NOW()
+
+이 상태가:
+
+- 로그인 불가
+- 신규 ownership 생성 불가
+- 기존 kakao_id history 보존
+- migration retry 시 ALREADY_MIGRATED 판정 가능
+
+한지 실제 코드 기준 확인.
+
+============================================================
+8. new general account 생성 dry-run
+============================================================
+
+각 3명에 대해 새 일반계정 생성 시 필요한:
+
+- swimming_pool_id
+- phone
+- name 등 필수 profile
+- pin_hash
+- login_id 정책
+- consent/required fields
+- default status
+
+가 모두 migration request에서 공급되는지 확인.
+
+NOT NULL 누락:
+0
+
+이어야 함.
+
+============================================================
+9. transaction atomicity
+============================================================
+
+endpoint 전체가 실제 하나의 DB transaction 안에서:
+
+lock old
+→ archive old
+→ create new
+→ 17 tables migrate
+→ retire old
+→ commit
+
+되는지 다시 확인.
+
+중간 UPDATE 하나라도 실패 시:
+
+new account rollback
+old phone rollback
+parent refs rollback
+
+전부 되어야 함.
+
+부분 migration 가능성:
+0
+
+============================================================
+10. idempotency
+============================================================
+
+동일 요청:
+
+- double tap
+- network retry
+- server retry
+
+시 새 general account가 두 개 생기지 않는지 확인.
+
+3명 각각 dry-run 조건에서:
+
+duplicate new account risk:
+0
+
+ALREADY_MIGRATED 판정이
+실제 phone=''만 보고 다른 계정을 잘못 잡는 구조가 아닌지도 확인.
+
+============================================================
+11. 토이키즈 3명 최종 readiness
+============================================================
+
+각 계정별:
+
+READY
+또는
+BLOCKED
+
+판정.
+
+READY 조건:
+
+- old account identifiable
+- phone valid
+- student refs known
+- all 17 table refs known
+- missing refs 0
+- unique collision 0
+- new account required fields complete
+- transaction safe
+- idempotent
+- orphan risk 0
+
+목표:
+3/3 READY
+
+============================================================
+12. 테스트
+============================================================
+
+이미 구현된 KM01-KM24:
+24/24 유지.
+
+추가 dry-run/static tests 필요 시 최소 추가.
+
+전체 regression:
+
+known stable failures:
+166
+
+new deterministic:
+0
+
+============================================================
+13. 코드 수정
+============================================================
+
+dry-run에서 실제 누락/충돌이 발견되지 않으면:
+
+NO CODE CHANGE
+
+NO COMMIT
+
+문제가 발견되면:
+
+해당 migration 안전성 문제만 최소 수정
++
+test
++
+commit
+
+다른 auth 기능 금지.
+
+============================================================
+14. 완료보고
+============================================================
+
+# TOYKIDS KAKAO MIGRATION FINAL DRY-RUN REPORT
+
+## TARGET
+
+Pool:
+토이키즈스윔클럽
+
+Kakao-linked parents:
+3
+
+Production writes:
+0
+
+## ACCOUNT READINESS
+
+| Account | Students | Parent-owned rows | Status |
+|---|---:|---:|---|
+
+masked only.
+
+## MIGRATION TABLES
+
+17개 table/column 전체 표:
+
+| Table | Parent Column | Existing Rows | Constraint Risk |
+|---|---|---:|---|
+
+## REFERENCE COMPLETENESS
+
+Production parent-reference tables discovered:
+...
+
+Covered by migration:
+...
+
+Missing:
+0 / ...
+
+## UNIQUE COLLISION
+
+Account 1:
+0 / ...
+
+Account 2:
+0 / ...
+
+Account 3:
+0 / ...
+
+## ARCHIVE STRATEGY
+
+phone='':
+SAFE / FAIL
+
+Index:
+...
+
+Old account login disabled:
+YES / NO
+
+kakao_id preserved:
+YES / NO
+
+## NEW GENERAL ACCOUNT
+
+Required fields complete:
+YES / NO
+
+Same original phone usable:
+YES / NO
+
+New account ID generated:
+YES
+
+Student IDs unchanged:
+YES
+
+## TRANSACTION
+
+Atomic:
+YES / NO
+
+Rollback complete:
+YES / NO
+
+Partial migration possible:
+NO / YES
+
+## IDEMPOTENCY
+
+Double request safe:
+YES / NO
+
+Duplicate general account risk:
+NO / YES
+
+## TOYKIDS FINAL
+
+Migration ready:
+3/3 / ...
+
+Blocked:
+...
+
+Orphan risk:
+0 / ...
+
+## TESTS
+
+KM01-KM24:
+...
+
+Additional:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## SAFETY
+
+Production DB writes:
+0
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL
+
+다음 중 하나만:
+
+TOYKIDS KAKAO MIGRATION DRY-RUN PASS — 3/3 READY FOR DEPLOYMENT
+
+또는
+
+TOYKIDS KAKAO MIGRATION BLOCKED — EXACT SAFETY ISSUE FOUND
