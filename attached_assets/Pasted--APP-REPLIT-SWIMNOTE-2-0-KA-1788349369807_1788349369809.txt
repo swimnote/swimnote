@@ -1,0 +1,678 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 KAKAO LOGIN — ACTUAL SERVER ERROR TRACE + FIX
+#
+# 실제 사용자 증상:
+#
+# 2.0.0에서
+# Kakao 로그인 버튼
+# → Kakao 화면 정상 진입
+# → 인증 후 SWIMNOTE 앱으로 정상 복귀
+# → 그 다음 "서버 오류" 발생
+#
+# 따라서 이번 실패 건은
+# SDK 진입 전 문제나 단순 Android key hash 추정으로 끝내지 않는다.
+#
+# 핵심 조사 구간:
+#
+# accessToken 획득 이후
+# → POST /api/auth/kakao-social-login
+# → Production server
+# → Kakao /v2/user/me
+# → account lookup
+# → response
+#
+# 목표:
+# 실제 HTTP status + error_code + 실패 stage를 확정하고,
+# source에서 필요한 최소 수정까지 완료한다.
+#
+# Production deploy는 사용자 승인 전 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Development branch:
+release/v2.0.0
+
+Production branch:
+deploy-photo-clone
+
+Production API:
+https://swimnote-api.onrender.com/api
+
+Current 2.0 Kakao restore source HEAD:
+6056f41e 이상 실제 HEAD 확인
+
+============================================================
+0. 절대 원칙
+============================================================
+
+이번 작업은 오직:
+
+2.0 Kakao login server error
+
+하나만 처리.
+
+금지:
+
+1.6.3 수정
+RevenueCat
+Subscription
+Messenger
+Scheduler
+회원관리
+DB schema
+Migration
+계정 삭제
+Kakao relink
+OTA
+Build
+Production deploy
+Render deploy
+
+============================================================
+1. 현재 증상으로 확정 가능한 것
+============================================================
+
+사용자 증상:
+
+Kakao 화면 진입 성공
+→ 인증
+→ SWIMNOTE 앱 복귀 성공
+→ 이후 server error
+
+따라서 이 실제 실패 건에서는 우선:
+
+K1 SDK 시작 실패:
+가능성 낮음
+
+K2 callback 자체 실패:
+가능성 낮음
+
+K3 accessToken 획득 실패:
+가능성 낮음
+
+우선 조사:
+
+K4 client → server request
+K5 server → Kakao API
+K6 account lookup
+K7 server exception/5xx
+K8 server success 후 client handling
+
+Android key hash만 원인이라고 결론 내리지 말 것.
+
+============================================================
+2. CLIENT에서 실제 "서버 오류"가 무엇인지 추적
+============================================================
+
+2.0:
+
+app/index.tsx
+SessionContext.tsx
+
+에서 Kakao login error mapping을 확인.
+
+사용자가 보는:
+
+"서버 오류"
+또는 실제 현재 표시 문구
+
+가 어떤 조건에서 발생하는지 정확히 역추적.
+
+반드시 확인:
+
+- HTTP 400
+- 401
+- 403
+- 404
+- 409
+- 500
+- 502
+- 504
+- fetch exception
+
+중 어느 것이 해당 UI 문구로 매핑되는지.
+
+완료보고에:
+
+USER_MESSAGE
+→ HTTP STATUS
+→ error_code
+
+mapping을 작성.
+
+============================================================
+3. kakaoSocialLogin request 정확히 확인
+============================================================
+
+2.0 client에서 실제 요청:
+
+POST /api/auth/kakao-social-login
+
+body를 확인.
+
+예상:
+
+{
+  accessToken,
+  pool_id?
+}
+
+반드시 확인:
+
+- accessToken 존재
+- pool_id 존재 여부
+- pool_id가 undefined/null일 때 body 형태
+- headers
+- Content-Type
+- X-Request-Id
+- timeout
+- API_BASE
+
+중요:
+
+토큰 실제 값 로그 금지.
+
+============================================================
+4. Production route와 2.0 client contract 대조
+============================================================
+
+Production:
+
+deploy-photo-clone
+artifacts/api-server/src/routes/auth.ts
+
+현재 LIVE 코드가 실제로 받는:
+
+POST /auth/kakao-social-login
+
+request schema를 확인.
+
+2.0 client payload와 1:1 비교.
+
+확인:
+
+- accessToken field name
+- pool_id field name
+- optional/required 여부
+- middleware
+- JSON parsing
+- response shape
+- error_code shape
+
+client가 기대하는 response와
+Production이 반환하는 response가 다르면
+정확한 mismatch를 확정.
+
+============================================================
+5. 가장 중요한 것 — 실제 Production 요청 흔적 확인
+============================================================
+
+가능한 READ ONLY 로그 수단을 사용.
+
+Production Render logs에서 최근 Kakao login 요청을 확인.
+
+검색:
+
+kakao-social-login
+KAKAO_REQUEST_RECEIVED
+KAKAO_PROFILE
+KAKAO_INVALID_TOKEN
+KAKAO_API_TIMEOUT
+KAKAO_API_ERROR
+KAKAO_PROFILE_FAILED
+kakao_no_account
+KAKAO_PARENT_AMBIGUOUS
+500
+502
+504
+request_id
+
+PII / access token 출력 금지.
+
+반드시 다음 중 하나로 확정:
+
+A.
+요청 자체가 Production에 안 옴
+
+B.
+요청 도달 + Kakao API 실패
+
+C.
+요청 도달 + account lookup 실패
+
+D.
+요청 도달 + server exception/5xx
+
+E.
+server 200인데 client가 실패 처리
+
+============================================================
+6. 로그 접근이 안 되면 source에서 멈추지 말 것
+============================================================
+
+Render 로그 접근이 불가능하면:
+
+2.0 client가 이미 갖고 있는
+X-Request-Id / error handling을 이용해
+
+실패 response의:
+
+- status
+- error_code
+- request_id
+
+를 PII 없이 진단 가능하게 확인.
+
+이미 충분히 노출되고 있으면 코드 수정 금지.
+
+부족하면 개발 source에서만
+최소 diagnostic 추가 가능.
+
+단:
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+============================================================
+7. Production LIVE commit 재확인
+============================================================
+
+최근 보고서 간 Production SHA가 달랐음.
+
+이전 확인:
+0968d5e9
+
+최근 보고:
+9a51f36d
+
+현재 실제 LIVE commit을:
+
+/api/healthz
+
+또는 deployment metadata로 READ ONLY 확인.
+
+반드시 완료보고:
+
+Production LIVE SHA:
+...
+
+deploy-photo-clone HEAD:
+...
+
+동일 여부:
+YES / NO
+
+왜 SHA가 달라졌는지 git history로 확인.
+
+불필요한 rollback:
+NO
+
+============================================================
+8. Production Kakao route git diff
+============================================================
+
+다음 세 버전 비교:
+
+A.
+정상 baseline a80141c5 관련 Kakao contract
+
+B.
+현재 deploy-photo-clone LIVE Kakao route
+
+C.
+release/v2.0.0 현재 6056f41e Kakao route
+
+오직 Kakao login 관련 diff만.
+
+특히 확인:
+
+- pool_id
+- phone normalization
+- role lookup
+- parent lookup
+- timeout
+- error response
+- response user payload
+- token generation
+- finishLogin이 기대하는 role/user shape
+
+============================================================
+9. account lookup 실제 오류 가능성 확인
+============================================================
+
+DB WRITE 금지.
+
+코드 및 안전한 read-only query로:
+
+parent direct
+parent phone
+
+teacher direct
+teacher phone
+
+pool_admin direct
+pool_admin phone
+
+각 query가 실제 Postgres enum/schema와 호환되는지 확인.
+
+특히:
+
+sub_admin:
+0이어야 함.
+
+phone normalization:
+기존 데이터와 호환.
+
+pool_id filtering:
+1.6.3/2.0 contract 모두 호환.
+
+============================================================
+10. 서버 성공 response와 client finishLogin 비교
+============================================================
+
+Production Kakao login 성공 response가 예를 들어:
+
+{
+ success,
+ token,
+ user,
+ role,
+ ...
+}
+
+형태라면
+
+2.0 SessionContext의 kakaoSocialLogin /
+finishLogin이 실제 어떤 field를 요구하는지 비교.
+
+서버가 200인데:
+
+role mismatch
+user shape mismatch
+token field mismatch
+
+때문에 client가 "server error"로 처리할 가능성 확인.
+
+============================================================
+11. 실제 원인 발견 시 최소 source fix
+============================================================
+
+원인이 release/v2.0.0 client라면:
+2.0 client만 최소 수정.
+
+원인이 Production server source라면:
+release/v2.0.0 또는 별도 prod backport용 source diff 준비.
+
+하지만:
+
+deploy-photo-clone 직접 수정:
+NO
+
+Production push:
+NO
+
+Render deploy:
+NO
+
+원인 확정 + source fix + test까지만.
+
+============================================================
+12. 관리자 정책 보존
+============================================================
+
+절대 깨뜨리지 말 것.
+
+Existing pool_admin Kakao login:
+ALLOW
+
+New pool_admin Kakao signup:
+BLOCK
+
+New pool_admin Kakao link:
+BLOCK
+
+Teacher existing:
+ALLOW
+
+Parent existing:
+ALLOW
+
+1 Kakao = 1 SWIMNOTE account 정책 유지.
+
+============================================================
+13. 테스트
+============================================================
+
+최소:
+
+E01
+2.0 Kakao accessToken → server request
+
+E02
+optional pool_id request
+
+E03
+Production payload compatibility
+
+E04
+Kakao valid profile success response contract
+
+E05
+parent direct login
+
+E06
+parent phone fallback
+
+E07
+teacher direct login
+
+E08
+teacher phone fallback
+
+E09
+existing admin direct login
+
+E10
+existing admin phone fallback
+
+E11
+invalid token → correct 401/error_code
+
+E12
+Kakao upstream timeout → correct 504
+
+E13
+Kakao upstream failure → correct 502
+
+E14
+no account → correct 404
+
+E15
+ambiguous parent → correct 409
+
+E16
+server 200 → client finishLogin success
+
+E17
+no sub_admin enum
+
+E18
+general login regression
+
+E19
+new admin signup blocked
+
+E20
+new admin link blocked
+
+============================================================
+14. 회귀
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+============================================================
+15. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 KAKAO SERVER ERROR REPORT
+
+## ACTUAL USER FAILURE MAPPING
+
+Visible message:
+...
+
+Mapped HTTP status:
+...
+
+Mapped error_code:
+...
+
+## REQUEST
+
+Endpoint:
+...
+
+Payload fields:
+...
+
+pool_id:
+...
+
+API_BASE:
+...
+
+## PRODUCTION
+
+Live SHA:
+...
+
+deploy-photo-clone HEAD:
+...
+
+Same:
+YES / NO
+
+## REQUEST REACHED SERVER
+
+YES / NO / UNCONFIRMED
+
+Evidence:
+...
+
+## EXACT FAILURE STAGE
+
+K4 / K5 / K6 / K7 / K8
+
+Exact error:
+...
+
+Confirmed:
+YES / NO
+
+## SERVER RESPONSE
+
+HTTP:
+...
+
+error_code:
+...
+
+## ROOT CAUSE
+
+...
+
+## VERSION DIFF
+
+1.6.3 baseline:
+...
+
+Production:
+...
+
+2.0:
+...
+
+Relevant mismatch:
+...
+
+## FIX
+
+Client fix:
+YES / NO
+
+Server source fix:
+YES / NO
+
+Changed files:
+...
+
+Commit:
+...
+
+## ADMIN POLICY
+
+Existing admin login:
+PASS
+
+New admin signup:
+BLOCK
+
+New admin link:
+BLOCK
+
+## TESTS
+
+E01-E20:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## PRODUCTION FREEZE
+
+Production deploy:
+NO
+
+Render:
+NO
+
+DB:
+NO CHANGE
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL
+
+다음 중 하나만:
+
+2.0 KAKAO SERVER ERROR ROOT CAUSE CONFIRMED — FIX READY FOR DEPLOYMENT APPROVAL
+
+또는
+
+2.0 KAKAO SERVER ERROR CONFIRMED — PRODUCTION CONFIG ACTION REQUIRED
+
+또는
+
+2.0 KAKAO SERVER ERROR STILL UNCONFIRMED — LIVE RESPONSE EVIDENCE REQUIRED
