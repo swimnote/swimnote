@@ -1,0 +1,964 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — M랩 메신저 전체 UX 정상화
+# ADMIN + TEACHER
+#
+# 목적:
+# 현재 관리자 모드 / 선생님 모드의 M랩 메신저가
+# 실제 메신저로 쓰기 불편하고,
+# 날짜/표시/말풍선/상태 문구 등 UI 오류가 존재하므로
+# 기존 기능 범위 안에서 전체 사용성을 정상화한다.
+#
+# 방향:
+# 카카오톡처럼 사용자가 별도 설명 없이 바로 이해할 수 있는
+# 일반적이고 익숙한 메신저 UX로 정리한다.
+#
+# 중요:
+# "카카오톡 기능 복제"가 목적이 아니다.
+# 이미 SWIMNOTE에 존재하는 기능만 사용하여
+# 화면 구조 / 표시 규칙 / 터치 / 스크롤 / 입력 경험을
+# 일반적인 메신저 수준으로 정상화한다.
+#
+# 현재 없는 메신저 기능은 새로 만들지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+대상:
+- 관리자 모드 M랩 메신저
+- 선생님 모드 M랩 메신저
+- 관리자 ↔ 선생님 메시지 흐름
+
+Production server:
+FROZEN
+
+============================================================
+0. 절대 원칙
+============================================================
+
+이번 작업의 핵심:
+
+기능 추가:
+NO
+
+기존 기능 UX 개선:
+YES
+
+기존 오류 수정:
+YES
+
+화면 구조 정상화:
+YES
+
+관리자/선생님 UI 일관성:
+YES
+
+현재 없는 기능 구현:
+NO
+
+예를 들어 현재 없다면 새로 만들지 말 것:
+
+- 이모티콘
+- 답장
+- 메시지 삭제
+- 메시지 수정
+- 읽음 숫자
+- 리액션
+- 파일전송
+- 사진전송
+- 음성메시지
+- 검색
+- 메시지 고정
+- 전달
+- 채팅방 나가기
+- 차단
+- 멘션
+
+기존 코드에 실제 기능이 있는 경우만 유지/정리.
+
+============================================================
+1. Production 보호
+============================================================
+
+Production server:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+Render deploy:
+NO
+
+1.6.3:
+NO TOUCH
+
+Production DB:
+NO WRITE
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+이번 작업은 release/v2.0.0 코드 수정 + 검수 + commit까지만.
+
+============================================================
+2. 먼저 현재 M랩 메신저 전체 구조 감사
+============================================================
+
+코드를 수정하기 전에 실제 구현을 전부 확인.
+
+관리자:
+- 메시지함/메신저 진입 route
+- 대화 목록
+- 대화 상세
+- 메시지 송신
+- 메시지 수신
+- 상대방 표시
+- 본인 메시지 판정
+- timestamp
+- 날짜 separator
+- unread 관련 표시
+- loading
+- empty
+- error
+- keyboard
+- scroll
+
+선생님:
+동일 항목 전부 확인.
+
+공통 component/hook/API가 있는지 확인.
+
+가능하면 관리자/선생님이
+동일 Shared Messenger UI를 사용하도록 정리.
+
+단,
+대규모 architecture rewrite 금지.
+
+============================================================
+3. 현재 실제 기능 목록 확정
+============================================================
+
+현재 존재하는 기능만 먼저 목록화.
+
+각 기능을:
+
+WORKING
+BROKEN
+PARTIAL
+UI ONLY
+DEAD CODE
+
+중 하나로 분류.
+
+이번 작업에서는:
+
+WORKING → 보존
+BROKEN → 수정
+PARTIAL → 기존 의도 범위까지만 정상화
+UI ONLY → 오해 유발하면 제거/비활성
+DEAD CODE → 화면 노출 제거 가능
+
+새 backend 기능을 만들어서 살리려고 하지 말 것.
+
+============================================================
+4. "나에게만 표시" 제거
+============================================================
+
+현재 메신저에서 보이는:
+
+"나에게만 표시"
+
+또는 이와 유사한
+본인 메시지 관련 잘못된 상태 문구를 전부 추적.
+
+사용자 요구:
+
+이 문구는 메신저에서 제거.
+
+일반적인 메신저처럼:
+
+내 메시지:
+오른쪽 말풍선
+
+상대방 메시지:
+왼쪽 말풍선
+
+으로 구분하면 충분.
+
+"나에게만 표시"
+"본인에게만"
+등 불필요한 메타 문구:
+화면에서 제거.
+
+단,
+실제 privacy 기능이 존재한다면
+데이터 기능 자체를 삭제하지 말고
+현재 메시지 UI에서 잘못 노출되는 표현만 제거.
+
+============================================================
+5. 날짜 표시 오류 전면 수정
+============================================================
+
+현재 날짜/시간 표시 관련 오류를 전부 확인.
+
+검사:
+
+- Invalid Date
+- undefined
+- null
+- NaN
+- ISO 문자열 그대로 노출
+- UTC/KST 잘못 표시
+- 같은 날짜 반복
+- 날짜 separator 위치 오류
+- 메시지 순서와 날짜 순서 불일치
+- timestamp 없는 메시지
+- created_at / sent_at 혼용
+- 서버 timestamp parsing 차이
+
+표시 규칙:
+
+메시지 시간:
+오전/오후 + 시:분
+또는 앱 기존 locale formatter 사용
+
+예:
+오후 3:24
+
+날짜 separator:
+날짜가 바뀔 때만 1회 표시
+
+예:
+2026년 9월 2일 화요일
+
+오늘/어제 식의 상대 날짜 표현은
+현재 앱에 이미 formatter가 있을 때만 사용.
+
+새 날짜 라이브러리 추가 금지 unless absolutely necessary.
+
+Invalid Date는 절대 사용자 화면에 노출 금지.
+
+timestamp가 없거나 잘못된 데이터:
+UI crash 없이 안전 fallback.
+
+============================================================
+6. 메시지 정렬 규칙
+============================================================
+
+메시지는 실제 시간 기준:
+
+과거
+↓
+최신
+
+순서로 표시.
+
+중복 sort가 여러 곳에서 일어나면
+한 곳으로 정리.
+
+같은 timestamp가 있을 경우
+기존 stable ordering/id를 사용.
+
+화면 진입 시:
+최신 메시지 위치로 이동.
+
+사용자가 과거 메시지를 보고 있는 동안
+무조건 아래로 튀는 동작은 최소화.
+
+현재 기능 범위 안에서만 처리.
+
+============================================================
+7. 일반적인 메신저 화면 구조로 정리
+============================================================
+
+대화 상세 화면은
+익숙한 messenger 구조로 정리.
+
+상단:
+- 뒤로가기
+- 상대방/대상 이름
+- 필요한 기존 정보만
+
+중앙:
+- 메시지 영역
+- 내 메시지 오른쪽
+- 상대 메시지 왼쪽
+- 날짜 separator
+- 시간 표시
+
+하단:
+- 입력창
+- 보내기 버튼
+
+불필요한 설명문/개발용 상태값/내부 ID:
+제거.
+
+기능 설명보다
+메시지 자체가 중심이 되어야 함.
+
+============================================================
+8. 말풍선 UX
+============================================================
+
+내 메시지와 상대 메시지가
+한눈에 구분되어야 한다.
+
+원칙:
+
+내 메시지:
+오른쪽 정렬
+
+상대 메시지:
+왼쪽 정렬
+
+상대 이름:
+그룹/여러 상대 구조가 실제 존재할 경우 필요한 범위만 표시.
+
+1:1 구조라면
+매 메시지마다 상대 이름 반복 표시할 필요 없음.
+
+말풍선 너비:
+화면 전체를 꽉 채우지 말고
+일반적인 messenger max width 적용.
+
+긴 문장:
+자연스럽게 wrap.
+
+짧은 문장:
+불필요하게 넓은 bubble 금지.
+
+개행:
+보존.
+
+텍스트가 bubble 밖으로 넘치지 않게 처리.
+
+============================================================
+9. 시간 표시 위치
+============================================================
+
+시간은 메시지 내용보다 시각적 우선순위를 낮게.
+
+말풍선 옆/아래 등
+일반적인 messenger 형태로 정리.
+
+내 메시지:
+시간이 말풍선과 자연스럽게 붙음.
+
+상대 메시지:
+동일.
+
+시간 때문에 말풍선 alignment가 깨지지 않게 할 것.
+
+같은 메시지에 날짜/시간 중복 표기 금지.
+
+============================================================
+10. 입력창 UX
+============================================================
+
+메시지 입력창을
+일반 메신저 입력 경험으로 정리.
+
+확인:
+
+- placeholder
+- multiline
+- keyboard
+- send button
+- empty message
+- whitespace only
+- sending state
+- duplicate send
+- keyboard overlap
+
+빈 문자열:
+전송 금지.
+
+공백만:
+전송 금지.
+
+전송 중 빠른 연속 탭:
+중복 메시지 방지.
+
+메시지 전송 성공:
+입력창 비우기.
+
+실패:
+사용자가 입력한 메시지 임의 삭제 금지.
+
+============================================================
+11. 키보드 UX
+============================================================
+
+iOS/Android 모두 확인.
+
+입력창이 keyboard에 가려지지 않게.
+
+채팅 영역과 입력창이
+키보드 등장 시 자연스럽게 resize/avoid.
+
+메시지 입력 중:
+send 버튼 첫 탭에 바로 전송.
+
+keyboardDismissMode만 믿지 말고
+실제 터치 동작 확인.
+
+대화 배경을 탭했을 때
+키보드를 닫는 동작이 필요하다면
+child interaction을 삼키지 않는 안전한 방식 사용.
+
+버튼/메시지를 첫 탭에 정상 선택 가능해야 함.
+
+============================================================
+12. Scroll UX
+============================================================
+
+채팅 진입 시:
+최신 메시지 보여주기.
+
+메시지 전송 후:
+새 메시지가 보이도록 자연스럽게 이동.
+
+키보드 open 시:
+입력 중 최신 메시지가 가려지지 않게.
+
+불필요한 scroll jump:
+제거.
+
+목록에서 대화방 진입 후 back:
+원래 M랩 메시지 목록으로 복귀.
+
+Home으로 보내지 말 것.
+
+============================================================
+13. 대화 목록 UX
+============================================================
+
+현재 존재하는 대화 목록 기능만 정리.
+
+각 row에서 기존 데이터 범위 안에서:
+
+- 상대방/대상 이름
+- 최근 메시지
+- 최근 시간
+- unread 표시가 실제 구현돼 있다면 unread
+
+정도만 명확히 표시.
+
+없는 unread backend를 새로 만들지 말 것.
+
+최근 메시지 없는 방:
+안전한 fallback.
+
+날짜 오류:
+없어야 함.
+
+내부 데이터:
+노출 금지.
+
+============================================================
+14. 관리자 / 선생님 일관성
+============================================================
+
+관리자와 선생님에서
+같은 메신저인데 UI 규칙이 다르면 정리.
+
+가능하면 공통:
+
+- MessageBubble
+- MessageTimestamp
+- DateSeparator
+- MessageComposer
+- conversation row formatter
+
+등 Shared component/helper 사용.
+
+단,
+대규모 refactor 금지.
+
+목표는 코드 미관이 아니라
+두 역할에서 동일하게 정상 동작하는 것.
+
+============================================================
+15. 오류 표시 정리
+============================================================
+
+현재 사용자 화면에 보이는:
+
+- 오류 상태값
+- 개발용 텍스트
+- undefined
+- null
+- raw error
+- 내부 error code
+- "나에게만 표시"
+- 잘못된 날짜
+- 잘못된 상대 이름
+
+전부 조사.
+
+일반 사용자가 볼 필요 없는 값:
+제거.
+
+실제 실패가 발생했을 경우에는
+간단한 사용자 문구만 표시.
+
+예:
+"메시지를 불러오지 못했습니다."
+"메시지를 보내지 못했습니다."
+
+기존 앱 공통 error component/message가 있다면 재사용.
+
+============================================================
+16. 로딩 / EMPTY 상태
+============================================================
+
+현재 존재하는 상태만 정리.
+
+Loading:
+메신저 화면이 깨져 보이지 않도록.
+
+Empty:
+메시지가 없으면 단순 안내.
+
+예:
+"아직 메시지가 없습니다."
+
+불필요한 큰 설명/기능 홍보문구 금지.
+
+Error:
+retry 기능이 이미 있으면 유지.
+없으면 새 backend 기능 만들지 말 것.
+
+============================================================
+17. 메시지 sender 판정 검수
+============================================================
+
+"나에게만 표시" 같은 오류의 원인이
+sender 판정 문제일 가능성도 있으므로
+반드시 확인.
+
+관리자:
+currentUser.id
+sender_id
+receiver_id
+conversation participants
+
+선생님:
+동일 확인.
+
+내 메시지가 왼쪽에 나오거나
+상대 메시지가 오른쪽에 나오는 경우 없어야 함.
+
+role 이름으로 sender를 추측하지 말고
+실제 user ID 기준으로 판정.
+
+============================================================
+18. 메시지 데이터 표시 검수
+============================================================
+
+실제 기존 데이터 shape 기준 확인:
+
+- message id
+- sender id
+- receiver/target
+- content
+- createdAt/created_at
+- status
+- type
+
+UI에 필요한 field만 사용.
+
+optional field 때문에 crash하지 않게.
+
+old message 데이터도 정상 표시.
+
+============================================================
+19. 기존 기능 절대 보존
+============================================================
+
+현재 실제 작동 중인:
+
+- 관리자 → 선생님 메시지
+- 선생님 → 관리자 메시지
+- 대화 목록
+- 메시지 조회
+- 메시지 전송
+- 기존 알림/deep link가 있다면 그 연결
+
+깨지면 안 됨.
+
+새 UX 때문에 API contract 변경 금지.
+
+============================================================
+20. 서버 관련 발견 시
+============================================================
+
+이번 작업 중
+실제 기능 오류 원인이 server contract에 있다고 발견해도
+
+Production server 수정:
+NO
+
+deploy-photo-clone:
+NO
+
+먼저 현재 release/v2.0.0 app에서
+client-safe fix 가능한지 확인.
+
+서버 수정 없이는 해결 불가능하면
+BLOCKER로 보고.
+
+임의 server 수정 금지.
+
+============================================================
+21. 테스트
+============================================================
+
+기존 M랩 messenger 관련 테스트 검색 후 전부 실행.
+
+부족하면 client-level 테스트 추가 가능.
+
+최소 검수:
+
+1. admin conversation list
+2. teacher conversation list
+3. admin sends message
+4. teacher sends message
+5. own message right aligned
+6. other message left aligned
+7. "나에게만 표시" 없음
+8. valid timestamp display
+9. Invalid Date 없음
+10. date separator once per date
+11. chronological order
+12. empty message blocked
+13. whitespace message blocked
+14. duplicate send prevented
+15. send success clears input
+16. send failure preserves input
+17. keyboard does not cover composer
+18. first-tap send works
+19. enter conversation → back returns messenger list
+20. old message data renders safely
+
+============================================================
+22. 실제 화면 검수
+============================================================
+
+가능한 simulator/static UI inspection 범위에서:
+
+관리자:
+- 대화 목록
+- 대화 상세
+- 입력
+- 전송
+- 날짜
+- 내/상대 말풍선
+
+선생님:
+동일.
+
+화면 전체에서:
+
+"나에게만 표시":
+0개
+
+"Invalid Date":
+0개
+
+"undefined":
+0개
+
+"null":
+0개
+
+raw internal error:
+0개
+
+============================================================
+23. Regression
+============================================================
+
+전체 regression 실행.
+
+현재 기준:
+
+Stable known failures:
+166
+
+Expected:
+166
+
+New deterministic failures:
+0
+
+기존 166개를 이번 작업에서 수정하지 말 것.
+
+============================================================
+24. 수정 범위
+============================================================
+
+허용:
+
+release/v2.0.0
+M랩 messenger 관련 client files
+shared messenger components/helpers
+messenger 관련 tests
+
+금지:
+
+Production server
+auth
+subscription
+RevenueCat
+Kakao
+growth report
+X engine
+1.6.3
+unrelated screens
+
+============================================================
+25. 수정 → 검수 → 커밋
+============================================================
+
+이번 작업은 audit만 하고 끝내지 않는다.
+
+순서:
+
+현재 구현 조사
+→ 오류 확정
+→ 기존 기능 범위 내 최소 UX 수정
+→ 관리자 검수
+→ 선생님 검수
+→ 관련 테스트
+→ 전체 regression
+→ commit
+→ 완료보고
+
+============================================================
+26. 완료보고 형식
+============================================================
+
+# SWIMNOTE M랩 MESSENGER UX NORMALIZATION REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Commit:
+...
+
+## CURRENT FUNCTION SET
+
+현재 존재하는 기능:
+...
+
+새로 추가한 기능:
+NONE
+
+## FIXED ISSUES
+
+Issue 1:
+...
+
+Issue 2:
+...
+
+Issue 3:
+...
+
+## REMOVED WRONG UI
+
+"나에게만 표시":
+REMOVED / NOT FOUND
+
+Invalid Date:
+REMOVED / NOT FOUND
+
+undefined/null exposure:
+REMOVED / NOT FOUND
+
+raw error:
+REMOVED / NOT FOUND
+
+## ADMIN MESSENGER
+
+Conversation list:
+PASS / FAIL
+
+Conversation detail:
+PASS / FAIL
+
+Own bubble:
+PASS / FAIL
+
+Other bubble:
+PASS / FAIL
+
+Date:
+PASS / FAIL
+
+Timestamp:
+PASS / FAIL
+
+Composer:
+PASS / FAIL
+
+Send:
+PASS / FAIL
+
+Scroll:
+PASS / FAIL
+
+Keyboard:
+PASS / FAIL
+
+Back navigation:
+PASS / FAIL
+
+## TEACHER MESSENGER
+
+Conversation list:
+PASS / FAIL
+
+Conversation detail:
+PASS / FAIL
+
+Own bubble:
+PASS / FAIL
+
+Other bubble:
+PASS / FAIL
+
+Date:
+PASS / FAIL
+
+Timestamp:
+PASS / FAIL
+
+Composer:
+PASS / FAIL
+
+Send:
+PASS / FAIL
+
+Scroll:
+PASS / FAIL
+
+Keyboard:
+PASS / FAIL
+
+Back navigation:
+PASS / FAIL
+
+## SHARED UX
+
+Shared components/helpers used:
+...
+
+Admin/Teacher visual rules identical:
+YES / NO
+
+## EXISTING FUNCTIONS PRESERVED
+
+Admin → Teacher:
+PASS / FAIL
+
+Teacher → Admin:
+PASS / FAIL
+
+Conversation loading:
+PASS / FAIL
+
+Existing deep link:
+PASS / FAIL / N/A
+
+Existing notifications:
+PASS / FAIL / N/A
+
+## NEW FEATURES
+
+Added:
+NONE
+
+Confirmed:
+YES / NO
+
+## TESTS
+
+Messenger tests:
+...
+
+New tests:
+...
+
+Full regression:
+
+Failed:
+...
+
+Passed:
+...
+
+Skipped:
+...
+
+Stable known failures:
+166
+
+New deterministic failures:
+...
+
+## PRODUCTION FREEZE
+
+Production server touched:
+NO
+
+deploy-photo-clone:
+NO
+
+1.6.3:
+NO
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## DEVICE FOLLOW-UP
+
+실기기에서 반드시 확인해야 하는 항목만 기록.
+
+없으면:
+NONE
+
+## FINAL
+
+다음 중 하나:
+
+M랩 MESSENGER UX NORMALIZED — CODE COMPLETE
+
+또는
+
+M랩 MESSENGER CLIENT COMPLETE — SERVER BLOCKER REMAINS
+
+또는
+
+M랩 MESSENGER BLOCKED
