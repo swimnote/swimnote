@@ -1,0 +1,866 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO LOGIN FULL RESTORE
+# 1.6.3 + 2.0 + iOS + Android + Production Server
+#
+# 최우선 목표:
+# 원래 정상 작동하던 SWIMNOTE 카카오 로그인을
+# 1.6.3과 2.0, iOS와 Android 모두에서 완전히 복구한다.
+#
+# 로그인 원상복구를 먼저 완료한 뒤,
+# 마지막 단계에서 "관리자 신규 카카오 가입 차단" 정책만
+# 정확하게 다시 적용한다.
+#
+# 이번 작업 중 다른 기능은 절대 건드리지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Development branch:
+release/v2.0.0
+
+1.6.3 protected baseline:
+tag: swimnote-1.6.3-protected
+known commit: a80141c5
+
+Production branch:
+deploy-photo-clone
+
+Production API:
+https://swimnote-api.onrender.com/api
+
+============================================================
+0. 이번 작업의 절대 원칙
+============================================================
+
+이번 작업은 카카오 로그인만 다룬다.
+
+수정 허용 대상:
+
+- 1.6.3 Kakao client flow
+- 2.0 Kakao client flow
+- iOS Kakao config
+- Android Kakao config
+- Production Kakao auth route source
+- Kakao account lookup logic
+- Kakao callback/config 관련 파일
+- 관련 Kakao tests
+
+수정 금지:
+
+- 일반 아이디/비밀번호 로그인
+- 회원관리
+- 메신저
+- RevenueCat
+- 구독
+- 결제
+- X 기능 전반
+- 성장리포트
+- 일지
+- 알림 일반 구조
+- DB schema
+- DB migration
+- 기존 사용자 계정 데이터
+- 기존 kakao_id 삭제
+- 계정 merge
+- 강제 relink
+- OFFICE/VAN
+- 영상
+
+============================================================
+1. 최종 카카오 정책 LOCK
+============================================================
+
+카카오 로그인 자체는 정상 복구가 최우선.
+
+기존 연결 사용자:
+
+- teacher 기존 Kakao 연결 계정 → 로그인 허용
+- parent 기존 Kakao 연결 계정 → 로그인 허용
+- pool_admin 기존 Kakao 연결 계정 → 로그인 허용
+
+절대 기존 연결 사용자를 막지 말 것.
+
+신규 가입 정책만:
+
+ADMIN / pool_admin:
+신규 Kakao 가입 및 신규 Kakao 연결 금지.
+
+표시 문구:
+
+"관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요."
+
+TEACHER:
+1 Kakao account = 1 SWIMNOTE account.
+
+이미 다른 SWIMNOTE 계정에 연결된 Kakao:
+신규 연결 금지.
+
+PARENT:
+동일 정책.
+
+중복 Kakao 문구:
+
+"이미 SWIMNOTE 계정에 연결된 카카오 계정입니다. 다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+
+중요:
+
+관리자 차단은
+"신규 가입/신규 연결"만 차단.
+
+기존 Kakao 관리자 로그인:
+반드시 유지.
+
+============================================================
+2. 이번에는 먼저 "원래 정상 작동하던 상태"를 찾을 것
+============================================================
+
+추측으로 새 구조 만들지 말 것.
+
+git history에서:
+
+- 카카오 로그인이 정상 작동하던 마지막 commit
+- 그 이후 Kakao 관련 변경 commit
+- auth.ts Kakao route 변경
+- index.tsx handleKakaoLogin 변경
+- SessionContext kakaoSocialLogin 변경
+- app.json / app.config / native config 변경
+- @react-native-seoul/kakao-login 변경
+- EAS/build 관련 Kakao 설정 변경
+
+을 전부 diff.
+
+반드시:
+
+"정상 동작 baseline"
+vs
+"현재 1.6.3"
+vs
+"현재 2.0"
+vs
+"현재 Production server"
+
+4개를 비교한다.
+
+목적:
+
+무엇이 변경되면서 카카오 로그인이 깨졌는지 정확히 찾는 것.
+
+============================================================
+3. 1.6.3 / 2.0 CLIENT FLOW를 하나의 정상 계약으로 맞춘다
+============================================================
+
+정상 기본 계약:
+
+Kakao button
+→ Kakao SDK login()
+→ accessToken
+→ POST /api/auth/kakao-social-login
+→ server validates Kakao user
+→ existing account lookup
+→ SWIMNOTE JWT/session
+→ finishLogin
+→ role home
+
+1.6.3과 2.0 모두
+이 핵심 로그인 계약이 동일해야 한다.
+
+2.0에서 추가된 정책/UI가
+기본 Kakao 로그인 contract를 깨면 안 된다.
+
+============================================================
+4. iOS 전체 복구
+============================================================
+
+1.6.3 및 2.0 각각 확인:
+
+- bundle id
+- Kakao native app key
+- URL schemes
+- Info.plist
+- CFBundleURLTypes
+- LSApplicationQueriesSchemes
+- kakao callback
+- kakaotalk fallback
+- web fallback
+- app.json/app.config generated native config
+
+정상 baseline과 현재 비교.
+
+누락/변경된 설정이 있으면
+원래 정상 설정으로 복구.
+
+Kakao SDK login() 성공 후
+accessToken이 실제 kakaoSocialLogin까지 전달되는지 확인.
+
+============================================================
+5. Android 전체 복구
+============================================================
+
+반드시 확인:
+
+- applicationId/package
+- Kakao native app key
+- AndroidManifest callback
+- intent-filter
+- scheme
+- expo config plugin
+- @react-native-seoul/kakao-login config
+- EAS production signing credentials와 관련된 key hash 요구사항
+
+중요:
+
+Production Android key hash는
+코드에서 생성할 수 없으면
+정확한 Kakao Console external blocker로 분리.
+
+단순히
+"아마 key hash 문제"
+라고 추정하고 종료 금지.
+
+git/code/config에서 확인 가능한 것은 전부 확인한 뒤
+외부 확인이 필요한 정확한 값만 보고.
+
+============================================================
+6. Production SERVER Kakao route 원상복구
+============================================================
+
+Production source:
+
+deploy-photo-clone
+artifacts/api-server/src/routes/auth.ts
+
+실제 Kakao 로그인 route를
+정상 baseline과 대조.
+
+핵심:
+
+POST /auth/kakao-social-login
+
+반드시 기존 연결 사용자에게 정상 작동해야 함.
+
+조회 순서:
+
+1. parent_accounts.kakao_id
+2. parent phone fallback
+3. users.kakao_id for teacher/pool_admin
+4. users phone fallback for teacher/pool_admin
+5. no account → kakao_no_account
+
+actual Postgres enum:
+
+super_admin
+pool_admin
+parent
+teacher
+
+절대 없는 enum literal 사용 금지:
+
+sub_admin
+
+============================================================
+7. PHONE NORMALIZATION
+============================================================
+
+기존 정상 Kakao 로그인에서 사용되던
+phone normalization을 정확히 확인.
+
+Kakao phone format 예:
+
++82 ...
+82 ...
+010...
+010-....
+
+DB phone과 비교 시
+기존 사용자 계정이 정상 매칭돼야 한다.
+
+단:
+
+기존 DB 데이터를 변경하지 말 것.
+
+조회 입력 normalization만 사용.
+
+============================================================
+8. 기존 연결 사용자 보호
+============================================================
+
+DB read-only 형태로 검증 가능한 범위에서:
+
+teacher
+parent
+pool_admin
+
+각각:
+
+kakao_id direct match
+phone fallback match
+
+확인.
+
+절대:
+
+kakao_id 삭제
+덮어쓰기
+강제 재연결
+계정 merge
+
+금지.
+
+============================================================
+9. 관리자 차단은 마지막에만 적용
+============================================================
+
+카카오 로그인 원상복구와
+관리자 신규 가입 차단을 섞지 말 것.
+
+순서:
+
+STEP A
+모든 기존 Kakao login 정상화
+
+STEP B
+teacher/parent 기존 로그인 정상 확인
+
+STEP C
+existing pool_admin Kakao login 정상 확인
+
+STEP D
+그 다음에만 신규 pool_admin Kakao signup/link 차단
+
+즉:
+
+EXISTING ADMIN LOGIN:
+ALLOW
+
+NEW ADMIN KAKAO SIGNUP/LINK:
+BLOCK
+
+============================================================
+10. 1.6.3 정책
+============================================================
+
+1.6.3은 현재 실사용 버전이므로
+최대한 기존 정상 로그인 동작을 그대로 복구.
+
+1.6.3에 불필요한 2.0 정책/UI를 역이식하지 말 것.
+
+1.6.3에서 신규 관리자 Kakao 가입 경로 자체가 없다면
+관리자 차단 코드를 추가하지 말 것.
+
+기존 로그인만 정상화.
+
+============================================================
+11. 2.0 정책
+============================================================
+
+2.0에서는:
+
+기존 Kakao 로그인:
+정상
+
+신규 teacher Kakao:
+허용, 단 1 Kakao = 1 account
+
+신규 parent Kakao:
+허용, 단 1 Kakao = 1 account
+
+신규 admin Kakao:
+차단
+
+기존 admin Kakao 로그인:
+허용
+
+============================================================
+12. ERROR HANDLING 개선
+============================================================
+
+현재 SDK 예외가 전부:
+
+"카카오 로그인에 실패했습니다."
+
+로 뭉개지는 문제 확인.
+
+이번에는 최소한 내부 진단용으로:
+
+KAKAO_SDK_ERROR
+KAKAO_CALLBACK_ERROR
+KAKAO_TOKEN_MISSING
+KAKAO_NETWORK_ERROR
+KAKAO_SERVER_4XX
+KAKAO_SERVER_5XX
+
+정도는 구분 가능하게 할 것.
+
+사용자 PII/token은 로그에 출력 금지.
+
+사용자 화면은 지나치게 기술적인 메시지 금지.
+
+============================================================
+13. SERVER OBSERVABILITY
+============================================================
+
+Production 배포 전 source에서
+PII 없는 최소 trace가 있는지 확인.
+
+예:
+
+request received
+kakao profile success/fail
+account lookup stage
+response class
+
+token
+phone
+email
+kakao id 원문
+
+출력 금지.
+
+이미 충분한 trace가 있으면
+추가하지 말 것.
+
+============================================================
+14. 자동 테스트
+============================================================
+
+반드시 최소 다음 테스트 작성/실행.
+
+K01
+1.6.3 Kakao client endpoint contract
+
+K02
+2.0 Kakao client endpoint contract
+
+K03
+parent kakao_id direct login
+
+K04
+parent phone fallback
+
+K05
+teacher kakao_id direct login
+
+K06
+teacher phone fallback
+
+K07
+pool_admin existing kakao_id direct login
+
+K08
+pool_admin existing phone fallback
+
+K09
+existing pool_admin Kakao login NOT blocked
+
+K10
+new pool_admin Kakao signup blocked in 2.0
+
+K11
+new pool_admin Kakao link blocked in 2.0
+
+K12
+teacher duplicate Kakao link blocked
+
+K13
+parent duplicate Kakao link blocked
+
+K14
+no sub_admin enum literal
+
+K15
+invalid Kakao token safe 401
+
+K16
+Kakao API timeout safe handling
+
+K17
+Kakao API failure safe handling
+
+K18
+no account → kakao_no_account
+
+K19
+inactive account behavior preserved
+
+K20
+general username/password login regression
+
+K21
+iOS Kakao config static validation
+
+K22
+Android Kakao config static validation
+
+K23
+1.6.3 and 2.0 use same production API base
+
+K24
+no Kakao token/PII logs
+
+============================================================
+15. 1.6.3 / 2.0 cross-version matrix
+============================================================
+
+반드시 표로 검증:
+
+1.6.3 iOS existing parent
+1.6.3 iOS existing teacher
+1.6.3 iOS existing admin
+
+1.6.3 Android existing parent
+1.6.3 Android existing teacher
+1.6.3 Android existing admin
+
+2.0 iOS existing parent
+2.0 iOS existing teacher
+2.0 iOS existing admin
+
+2.0 Android existing parent
+2.0 Android existing teacher
+2.0 Android existing admin
+
+그리고 2.0 신규:
+
+parent Kakao signup/link
+teacher Kakao signup/link
+admin Kakao signup/link BLOCK
+
+실기기 없이는 실행할 수 없는 항목:
+DEVICE_REQUIRED
+
+라고 보고하되
+코드/static/contract 검증과 섞지 말 것.
+
+============================================================
+16. Android Key Hash external check
+============================================================
+
+코드 검증 후 Android production signing key hash가
+Kakao Developer Console에서 확인되어야 한다면
+완료보고에 정확히 작성:
+
+- package name
+- 어떤 production signing credential
+- 어떤 SHA/key hash
+- Kakao Developers 어느 메뉴
+- 현재 source에서 확인 불가능한 이유
+
+단,
+이 항목 때문에 다른 코드 원인을 조사하지 않고
+일찍 종료 금지.
+
+============================================================
+17. 변경 전략
+============================================================
+
+이번 작업은
+"새 카카오 시스템 구축"이 아니다.
+
+원칙:
+
+정상 baseline 복원
++
+현재 필요한 최소 정책만 다시 적용.
+
+불필요하게 추가된 Kakao 변경이
+원인으로 확인되면
+그 부분을 원래 정상 implementation으로 되돌린다.
+
+전체 auth.ts rollback:
+NO
+
+관련없는 commit revert:
+NO
+
+Kakao 관련 최소 diff만.
+
+============================================================
+18. Production 처리
+============================================================
+
+이번 작업에서:
+
+Production server deploy:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+Build:
+NO
+
+DB:
+NO CHANGE
+
+Kakao Console:
+NO CHANGE
+
+먼저 source fix + tests + 정확한 외부 설정 필요값까지 완성.
+
+그 다음 사용자 승인 후
+실제 Production 반영을 별도 1회로 한다.
+
+============================================================
+19. Regression
+============================================================
+
+현재 known baseline:
+
+166 stable failures
+
+새 deterministic failure:
+0이어야 함.
+
+일반 로그인 포함 auth regression 필수.
+
+============================================================
+20. Commit
+============================================================
+
+필요한 source 수정은
+해당 유지 브랜치/2.0 브랜치에 최소 commit.
+
+1.6.3 source를 수정해야 한다면
+protected tag를 직접 이동하거나 덮어쓰지 말 것.
+
+maintenance branch를 별도 사용.
+
+2.0:
+release/v2.0.0
+
+Production:
+NO COMMIT / NO PUSH
+이번 단계에서는 배포하지 않는다.
+
+============================================================
+21. 완료보고 형식
+============================================================
+
+# SWIMNOTE KAKAO FULL RESTORE REPORT
+
+## ROOT CAUSE
+
+원래 정상 baseline commit:
+...
+
+깨지기 시작한 변경:
+...
+
+Exact cause:
+...
+
+Confirmed:
+YES / NO
+
+## 1.6.3
+
+iOS client:
+RESTORED / NO CHANGE REQUIRED / BLOCKED
+
+Android client:
+RESTORED / NO CHANGE REQUIRED / BLOCKED
+
+API contract:
+...
+
+Changed files:
+...
+
+Commit:
+...
+
+## 2.0
+
+iOS:
+...
+
+Android:
+...
+
+Existing parent:
+PASS / FAIL
+
+Existing teacher:
+PASS / FAIL
+
+Existing admin:
+PASS / FAIL
+
+New admin Kakao signup/link:
+BLOCKED / NOT BLOCKED
+
+## SERVER
+
+Production current branch:
+deploy-photo-clone
+
+Kakao route status:
+...
+
+Required source fix:
+YES / NO
+
+Production deploy performed:
+NO
+
+## ACCOUNT LOOKUP
+
+Parent direct:
+PASS / FAIL
+
+Parent phone:
+PASS / FAIL
+
+Teacher direct:
+PASS / FAIL
+
+Teacher phone:
+PASS / FAIL
+
+Admin direct:
+PASS / FAIL
+
+Admin phone:
+PASS / FAIL
+
+sub_admin:
+0 occurrences / FAIL
+
+## IOS CONFIG
+
+Bundle:
+...
+
+Native app key:
+...
+
+URL schemes:
+...
+
+Callback:
+...
+
+Status:
+PASS / FAIL
+
+## ANDROID CONFIG
+
+Package:
+...
+
+Native app key:
+...
+
+Manifest:
+...
+
+Callback:
+...
+
+Production key hash:
+CONFIRMED / EXTERNAL CHECK REQUIRED
+
+Exact external action:
+...
+
+## ADMIN POLICY
+
+Existing admin Kakao login:
+ALLOW
+
+New admin Kakao signup:
+BLOCK
+
+New admin Kakao link:
+BLOCK
+
+Message:
+"관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요."
+
+## DUPLICATE POLICY
+
+Teacher:
+1 Kakao = 1 account
+
+Parent:
+1 Kakao = 1 account
+
+Message:
+"이미 SWIMNOTE 계정에 연결된 카카오 계정입니다. 다른 수영장에 추가 가입하려면 일반가입을 이용해 주세요."
+
+## TESTS
+
+K01-K24:
+...
+
+Auth regression:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## DEVICE MATRIX
+
+표 작성.
+
+DEVICE_REQUIRED 항목은 정확히 표시.
+
+## PRODUCTION FREEZE
+
+Production deploy:
+NO
+
+Render:
+NO
+
+DB:
+NO CHANGE
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+Build:
+NO
+
+## EXTERNAL CONFIG
+
+Kakao Developer Console:
+...
+
+EAS credentials:
+...
+
+필요한 것만 정확히 작성.
+
+## BLOCKERS
+
+실제 Kakao 로그인 복구를 막는 것만.
+
+없으면:
+NONE
+
+## FINAL
+
+다음 중 하나만 사용:
+
+KAKAO FULL RESTORE SOURCE COMPLETE — PRODUCTION/DEVICE VALIDATION READY
+
+또는
+
+KAKAO RESTORE BLOCKED — EXTERNAL KAKAO CONFIG REQUIRED
+
+또는
+
+KAKAO RESTORE BLOCKED — ROOT CAUSE NOT YET IDENTIFIED
