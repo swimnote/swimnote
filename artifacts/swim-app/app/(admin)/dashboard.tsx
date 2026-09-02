@@ -282,25 +282,6 @@ export default function DashboardScreen() {
                 </Text>
               </View>
             )}
-            {/* 구독 등급 — 누르면 구독 화면 */}
-            <Pressable
-              onPress={() => router.push("/(admin)/subscription")}
-              hitSlop={8}
-              style={({ pressed }) => [
-                s.tierBadge,
-                isX
-                  ? { backgroundColor: XT.surfaceNavySoft, opacity: pressed ? 0.75 : 1 }
-                  : { backgroundColor: tierInfo.bg, opacity: pressed ? 0.75 : 1 },
-              ]}
-            >
-              {tierInfo.Icon && !isX
-                ? <tierInfo.Icon size={11} color={tierInfo.color} strokeWidth={2.5} />
-                : null
-              }
-              <Text style={[s.tierBadgeTxt, { color: isX ? XT.textOnNavySoft : tierInfo.color }]}>
-                {tierInfo.label}
-              </Text>
-            </Pressable>
             {/* role chip */}
             <View style={[s.roleChip, isX && { backgroundColor: XT.surfaceNavySoft }]}>
               <Text style={[s.roleChipTxt, isX && { color: XT.textOnNavySoft }]} numberOfLines={1}>{roleLabel}</Text>
@@ -512,8 +493,8 @@ export default function DashboardScreen() {
                   color: "#EA580C",
                   bg: "#FFF7ED",
                   label: `학부모 미연결 ${stats.unlinked_members}명`,
-                  sub: "초대 발송 권장",
-                  route: "/(admin)/members?filter=unlinked&backTo=dashboard",
+                  sub: "QR 초대로 연결하기",
+                  route: "/(admin)/invite-qr",
                 },
               ].filter(Boolean) as { icon: string; color: string; bg: string; label: string; sub: string; route: string }[];
               if (alerts.length === 0) return null;
@@ -592,11 +573,7 @@ export default function DashboardScreen() {
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: XT.accent, letterSpacing: 0.3 }}>
                     SWIMNOTE X
                   </Text>
-                  {mode === "x" ? (
-                    <View style={{ backgroundColor: XT.accentSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: XT.accentMid }}>
-                      <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.accentStrong }}>활성</Text>
-                    </View>
-                  ) : (
+                  {mode !== "x" && (
                     <View style={{ backgroundColor: XT.pendingLight, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
                       <Text style={{ fontSize: 10, fontFamily: "Pretendard-SemiBold", color: XT.pending }}>설정 필요</Text>
                     </View>
@@ -606,35 +583,35 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
                     style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.primary, borderRadius: 14, padding: 14,
-                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      flex: 1, backgroundColor: XT.primary, borderRadius: 14, padding: 10,
+                      gap: 6, opacity: pressed ? 0.88 : 1,
                       shadowColor: XT.primary, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
                       elevation: 4,
                     })}
                     onPress={() => router.push("/(admin)/report-hub")}
                   >
-                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="bar-chart-2" size={19} color="#FFFFFF" />
+                    <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="bar-chart-2" size={17} color="#FFFFFF" />
                     </View>
                     <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 학생리포트</Text>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 1 }}>AI 학생리포트</Text>
                       <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>학생별 성장 분석</Text>
                     </View>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.accent, borderRadius: 14, padding: 14,
-                      gap: 8, opacity: pressed ? 0.88 : 1,
+                      flex: 1, backgroundColor: XT.accent, borderRadius: 14, padding: 10,
+                      gap: 6, opacity: pressed ? 0.88 : 1,
                       shadowColor: XT.accent, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 },
                       elevation: 3,
                     })}
                     onPress={() => router.push("/(admin)/diary-hub")}
                   >
-                    <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="brain" size={19} color="#FFFFFF" />
+                    <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="book-open" size={17} color="#FFFFFF" />
                     </View>
                     <View>
-                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 2 }}>AI 일지피드</Text>
+                      <Text style={{ fontSize: 13, fontFamily: "Pretendard-SemiBold", color: "#FFFFFF", marginBottom: 1 }}>AI 일지피드</Text>
                       <Text style={{ fontSize: 11, color: XT.textOnNavySoft, lineHeight: 15 }}>수업 일지 자동 생성</Text>
                     </View>
                   </Pressable>
@@ -643,26 +620,26 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
                     style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
-                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 10,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 4, opacity: pressed ? 0.85 : 1,
                     })}
                     onPress={() => router.push("/(admin)/curriculum-hub")}
                   >
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="book-open" size={17} color={XT.accentStrong} />
+                    <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="book-open" size={16} color={XT.accentStrong} />
                     </View>
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>AI 커리큘럼</Text>
                     <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>수준별 교육과정</Text>
                   </Pressable>
                   <Pressable
                     style={({ pressed }) => ({
-                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 12,
-                      borderWidth: 1, borderColor: XT.borderCard, gap: 6, opacity: pressed ? 0.85 : 1,
+                      flex: 1, backgroundColor: XT.surface, borderRadius: 12, padding: 10,
+                      borderWidth: 1, borderColor: XT.borderCard, gap: 4, opacity: pressed ? 0.85 : 1,
                     })}
                     onPress={() => router.push("/(admin)/x-hub")}
                   >
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
-                      <LucideIcon name="settings-2" size={17} color={XT.accentStrong} />
+                    <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: XT.accentSoft, alignItems: "center", justifyContent: "center" }}>
+                      <LucideIcon name="settings-2" size={16} color={XT.accentStrong} />
                     </View>
                     <Text style={{ fontSize: 12, fontFamily: "Pretendard-SemiBold", color: XT.text }}>SWIMNOTE X 관리</Text>
                     <Text style={{ fontSize: 11, color: XT.textSecondary, lineHeight: 15 }}>X모드 설정 관리</Text>
@@ -685,7 +662,7 @@ export default function DashboardScreen() {
                 <Text style={[s.bannerValue, { color: "#CA8A04" }]}>
                   {stats ? formatWon(stats.monthly_revenue ?? 0) : "—"}
                 </Text>
-                <Text style={s.bannerLabel}>이번 달 매출</Text>
+                <Text style={s.bannerLabel}>현황</Text>
                 <Text style={s.bannerSub}>월 누적 매출</Text>
               </Pressable>
               <Pressable
@@ -716,7 +693,7 @@ export default function DashboardScreen() {
                   </View>
                 </Pressable>
                 <View style={s.splitStatDivider} />
-                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/members?filter=unlinked&backTo=dashboard" as any)}>
+                <Pressable style={[s.splitStatItem, { flex: 1 }]} onPress={() => router.push("/(admin)/invite-qr" as any)}>
                   <View style={s.splitStatIcon}>
                     <LucideIcon name="user-x" size={14} color={C.textPrimary} />
                   </View>
