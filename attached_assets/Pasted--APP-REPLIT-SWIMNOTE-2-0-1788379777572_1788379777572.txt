@@ -1,0 +1,559 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — REAL DEVICE VALIDATION BUILD GATE
+#
+# 현재 상태:
+#
+# WP1 COMPLETE
+# WP2 COMPLETE
+# WP3 COMPLETE
+# WP4 COMPLETE
+# WP5 COMPLETE
+# WP6 SHARED CORE AUDIT COMPLETE
+#
+# WP6 결과:
+# A~M 13개 핵심 영역
+# 104 TC PASS
+# 신규 deterministic failure 0
+# 공통 core bug 0
+#
+# 이제 코드 정적 검수 단계를 종료하고
+# 실제 iPhone에서 SWIMNOTE 2.0 전체 기능을 검수한다.
+#
+# 중요:
+# 이번 단계는 Production 출시가 아니다.
+# 실기기 검수용 2.0 build만 만든다.
+#
+# 신규 기능 금지.
+# RevenueCat 작업 금지.
+# Production 1.6.3 영향 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Known HEAD:
+b03c7b5a
+
+단 실제 현재 HEAD를 먼저 확인하고
+source of truth로 사용.
+
+============================================================
+0. 1.6.3 PRODUCTION FREEZE
+============================================================
+
+현재 LIVE 1.6.3:
+
+Branch:
+maintenance/v1.6.3-social-exit
+
+Frozen HEAD:
+b41fd094
+
+Runtime:
+1.6.3
+
+Production OTA:
+01a06345-d620-7509-8a20-00d0a30bce38
+
+이번 작업에서:
+
+1.6.3 source 수정:
+NO
+
+1.6.3 OTA:
+NO
+
+production OTA channel:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+Render Production:
+NO TOUCH
+
+Production DB:
+NO WRITE
+
+============================================================
+1. 2.0 SOURCE INTEGRITY
+============================================================
+
+현재 release/v2.0.0 HEAD에
+최근 완료 사항이 전부 포함되어 있는지 확인.
+
+필수:
+
+WP1
+- member-detail class flow
+- X back stack
+
+WP2
+- member list/common core
+
+WP3
+- parent auto-link source
+  commit 6a2f46ad 포함 여부
+
+WP4
+- messenger baseline 유지
+
+WP5
+- admin home polish
+- teacher tab clipping
+- invite CTA
+
+WP6
+- shared core verification
+
+Media:
+- d1c3e57f
+- 654b9b8f
+- 1144c11e
+
+Teacher scope:
+- isSwitchingRole
+- teacher own scope
+
+Kakao 2.0:
+- UI 0
+- login/signup/link 0
+
+============================================================
+2. IMPORTANT — WP3 SERVER SOURCE
+============================================================
+
+WP3 parent auto-link는
+release/v2.0.0 source에는 들어가 있으나
+Production Render에는 배포하지 않은 상태다.
+
+이번 실기기 build에서:
+
+Production Render deploy:
+NO
+
+따라서 실기기 검수 중
+WP3의 새 server-side behavior는
+Production API를 쓰는 빌드에서는 아직 live가 아닐 수 있다.
+
+이를 숨기지 말 것.
+
+완료보고에 명확히:
+
+WP3 SOURCE READY
+WP3 PRODUCTION SERVER NOT DEPLOYED
+
+라고 기록.
+
+실기기 검수 목적상 서버 배포가 반드시 필요하다고 판단되면
+임의 배포하지 말고 BLOCKER로 보고.
+
+============================================================
+3. BUILD PROFILE AUDIT
+============================================================
+
+기존 EAS 설정에서
+2.0 실기기 검수에 사용하던
+preview/internal/TestFlight profile을 확인.
+
+새 profile 임의 생성 금지.
+
+확인:
+
+- app version
+- iOS build number
+- runtimeVersion
+- channel
+- distribution
+- update URL/config
+
+2.0 build가
+1.6.3 production OTA를 수신할 수 있는 구조면:
+STOP / FAIL
+
+============================================================
+4. 2.0 RUNTIME ISOLATION
+============================================================
+
+반드시 확인:
+
+2.0 runtime
+!=
+1.6.3 production runtime scope
+
+또는 EAS update policy상
+1.6.3 production OTA와 완전히 분리.
+
+검증:
+
+2.0 test build
+→ production 1.6.3 OTA 수신 0
+
+1.6.3 live app
+→ 2.0 test update 수신 0
+
+============================================================
+5. BUILD 전 STATIC SMOKE
+============================================================
+
+RB01 app boot
+RB02 login
+RB03 normal signup entry
+RB04 Kakao UI 0
+RB05 Apple login entry
+RB06 Admin dashboard
+RB07 Normal member list
+RB08 member detail
+RB09 classes
+RB10 admin scheduler
+RB11 Admin→Teacher switch
+RB12 teacher own classes
+RB13 teacher own students
+RB14 attendance
+RB15 makeups
+RB16 diary
+RB17 photo upload flow
+RB18 video upload flow
+RB19 messenger
+RB20 notifications
+RB21 settings
+RB22 X dashboard
+RB23 X hubs
+RB24 Parent home
+RB25 Parent notice
+RB26 Parent diary/feed
+RB27 Parent album
+RB28 Parent requests
+RB29 navigation/back
+RB30 media cleanup revision
+
+New deterministic:
+0
+
+============================================================
+6. TEST BUILD
+============================================================
+
+iOS 2.0 검수용 build 생성.
+
+우선순위:
+
+1.
+기존 TestFlight internal 경로가 안정적으로 구성돼 있으면
+그 방식 사용.
+
+2.
+기존 internal distribution이 주 검수 방식이면
+그 방식 유지.
+
+임의 새 배포 architecture:
+NO
+
+App Store Production release:
+NO
+
+============================================================
+7. BUILD NUMBER
+============================================================
+
+현재 App Store/TestFlight 상태와 충돌하지 않도록
+실제 기존 build number를 조회하고
+필요한 최소 increment만 수행.
+
+version:
+2.0.0 계열 유지.
+
+build number를 임의로 크게 점프시키지 말 것.
+
+============================================================
+8. 이번 단계에서 수정 가능한 것
+============================================================
+
+Build 자체를 막는 명확한 문제만 최소 수정 가능.
+
+예:
+
+- compile error
+- missing import
+- invalid config
+- native dependency mismatch
+- build profile typo
+
+그 외 실제 UI/기능 문제를 발견하면
+지금 수정하지 말고 보고.
+
+왜냐하면:
+사용자가 실기기에서 전체 버그를 모은 뒤
+묶어서 수정할 예정.
+
+============================================================
+9. 이번 단계에서 절대 금지
+============================================================
+
+RevenueCat:
+NO
+
+가격:
+NO
+
+subscription architecture:
+NO
+
+새 기능:
+NO
+
+UI redesign:
+NO
+
+AI engine:
+NO
+
+Growth Report feature expansion:
+NO
+
+Storage 350MB investigation:
+NO
+
+1.6.3:
+NO TOUCH
+
+Production Render:
+NO
+
+Production DB:
+NO
+
+============================================================
+10. 실기기 검수 체크리스트 준비
+============================================================
+
+빌드 완료 후 사용자가 직접 검수할 수 있도록
+코드 변경 없이 아래 체크리스트만 완료보고에 포함.
+
+### ADMIN NORMAL
+
+- 앱 시작
+- 로그인
+- 홈
+- 회원목록
+- 검색/필터
+- 회원상세
+- 기본정보 수정
+- 반 변경
+- 반/수업관리
+- 스케줄러
+- 출결
+- 보강
+- 일지
+- 사진
+- 영상
+- 공지
+- 메신저
+- 알림
+- 초대
+- 설정
+- 선생님 모드 전환
+
+### TEACHER
+
+- 홈/오늘수업
+- 수업관리
+- 담당 반
+- 담당 학생
+- 출결
+- 보강
+- 일지
+- 사진/영상
+- 메신저
+- 알림
+- 설정
+- Admin 복귀
+
+### X ADMIN
+
+- X dashboard
+- X card
+- report hub
+- diary hub
+- curriculum hub
+- X hub
+- 일반 회원관리 공통 기능
+- 일반 수업관리 공통 기능
+- Back stack
+- Settings 복귀
+
+### PARENT
+
+- 로그인
+- 홈
+- 자녀
+- 공지
+- 일지/feed
+- 앨범
+- 일정
+- 요청
+- 알림
+- 화면 back
+
+============================================================
+11. 사용자 버그 수집 방식
+============================================================
+
+실기기에서 발견되는 문제는
+이번 단계에서 자동 수정하지 않는다.
+
+각 버그는 이후 다음 형식으로 쌓을 예정:
+
+BUG ID
+ROLE
+NORMAL / X / COMMON
+SCREEN
+REPRODUCTION
+EXPECTED
+ACTUAL
+SEVERITY
+
+사용자가 여러 개를 전달하면
+이후 한 WP에서:
+
+- 중복 제거
+- root cause 묶기
+- 공통 기능 판정
+- Normal/X 동시 수정
+- regression test
+
+진행.
+
+============================================================
+12. COMPLETION REPORT
+============================================================
+
+# SWIMNOTE 2.0 REAL DEVICE BUILD REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD:
+...
+
+WP1-WP6 included:
+YES / NO
+
+Media fixes included:
+YES / NO
+
+Teacher scope included:
+YES / NO
+
+Kakao UI:
+0 / ...
+
+## 1.6.3 FREEZE
+
+Frozen HEAD:
+b41fd094
+
+Production OTA:
+01a06345-d620-7509-8a20-00d0a30bce38
+
+1.6.3 modified:
+NO
+
+Production OTA:
+NO
+
+Render:
+NO
+
+## 2.0 VERSION
+
+Version:
+...
+
+Build number:
+...
+
+Runtime:
+...
+
+Profile:
+...
+
+Channel:
+...
+
+Distribution:
+...
+
+1.6.3 OTA isolation:
+PASS / FAIL
+
+## WP3 SERVER STATUS
+
+WP3 source:
+READY
+
+Production server:
+NOT DEPLOYED
+
+Device test impact:
+...
+
+Production deploy performed:
+NO
+
+## PRE-BUILD
+
+RB01-RB30:
+...
+
+New deterministic failures:
+0 / ...
+
+## BUILD
+
+Build:
+SUCCESS / FAIL
+
+Build ID:
+...
+
+TestFlight/Internal:
+...
+
+Production release:
+NO
+
+## USER DEVICE CHECKLIST
+
+ADMIN NORMAL:
+READY / BLOCKED
+
+TEACHER:
+READY / BLOCKED
+
+X ADMIN:
+READY / BLOCKED
+
+PARENT:
+READY / BLOCKED
+
+## STORAGE
+
+350MB investigation:
+NOT PERFORMED
+
+## FINAL
+
+SWIMNOTE 2.0 REAL DEVICE VALIDATION READY
+
+또는
+
+SWIMNOTE 2.0 DEVICE BUILD BLOCKED — EXACT ISSUE
