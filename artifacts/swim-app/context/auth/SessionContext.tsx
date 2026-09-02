@@ -11,7 +11,7 @@ export const API_BASE = "https://swimnote-api.onrender.com/api";
 
 const APP_VERSION = "1.2.0-107-b2";
 
-// ─── 로그인 진단 (임시) ────────────────────────────────────────────────────────
+// ─── 로그인 진단 ─────────────────────────────────────────────────────────────
 let _loginDiagnostic: Record<string, any> | null = null;
 export function consumeLoginDiagnostic(): Record<string, any> | null {
   const d = _loginDiagnostic; _loginDiagnostic = null; return d;
@@ -25,6 +25,51 @@ function storeDiag(stage: string, method: string, url: string, res: Response, ra
     renderOrigin: res.headers.get("x-render-origin-server"),
     rawText: rawText.slice(0, 300),
   };
+}
+
+// ── LOGIN REQUEST ID ──────────────────────────────────────────────────────────
+// UUID 없이 timestamp + random suffix — 외부 의존성 없음, RN 호환
+function genLoginRequestId(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `login_${ts}_${rand}`;
+}
+
+// ── LOGIN DIAGNOSTIC CATEGORIES ───────────────────────────────────────────────
+// 사용자에게 보여주는 메시지는 변경하지 않음 (기존 error_code 유지)
+// 내부 진단 category만 세분화하여 [AUTH_TRACE] 로그에 기록
+export type LoginDiagCategory =
+  | "ABORT_TIMEOUT"       // 15초 타임아웃 (AbortError)
+  | "FETCH_NETWORK_ERROR" // fetch() 자체 throw — DNS/TLS/TCP/device network
+  | "HTTP_4XX"            // 서버 응답 4xx (잘못된 자격증명 포함)
+  | "HTTP_5XX"            // 서버 응답 5xx
+  | "INVALID_JSON"        // res.json() parse 실패
+  | "INVALID_RESPONSE"    // 예상치 못한 응답 구조
+  | "AUTH_ERROR"          // 서버 인증 거부 (totp/deactivated/needs_activation 포함)
+  | "AUTH_HTTP_SUCCESS"   // 서버 200 + finishLogin 진입 성공
+  | "POST_LOGIN_ERROR";   // 서버 HTTP는 성공했으나 finishLogin 중 오류
+
+// PII 절대 미포함 (identifier/password/JWT/user name/pool name 금지)
+function logAuthTrace(params: {
+  request_id: string;
+  category: LoginDiagCategory;
+  http_status?: number;
+  elapsed_ms: number;
+  error_code?: string;
+  platform?: string;
+}) {
+  console.log("[AUTH_TRACE]", JSON.stringify({
+    request_id: params.request_id,
+    app_version: APP_VERSION,
+    platform: params.platform ?? "unknown",
+    api_host: "swimnote-api.onrender.com",
+    endpoint: "/auth/unified-login",
+    category: params.category,
+    ...(params.http_status !== undefined ? { http_status: params.http_status } : {}),
+    elapsed_ms: params.elapsed_ms,
+    ...(params.error_code ? { error_code: params.error_code } : {}),
+    ts: new Date().toISOString(),
+  }));
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -692,6 +737,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   async function unifiedLogin(identifier: string, password: string): Promise<{ available_accounts: AccountEntry[] }> {
+    // ── LOGIN OBSERVABILITY: request_id 생성 ─────────────────────────────────
+    // 서버의 [AUTH_TRACE] request_id와 대조하면 네트워크 도달 여부 판별 가능
+    const _reqId = genLoginRequestId();
+    const _reqStart = Date.now();
+    // platform 정보 — PII 없음
+    let _platform = "unknown";
+    try { const { Platform } = require("react-native"); _platform = Platform.OS ?? "unknown"; } catch {}
+
     let res: Response;
     try {
       const controller = new AbortController();
@@ -699,7 +752,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       try {
         res = await fetch(`${API_BASE}/auth/unified-login`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // 서버 [AUTH_TRACE]와 대조하여 network 도달 여부 판별
+            "X-Request-Id": _reqId,
+          },
           body: JSON.stringify({ identifier, password }),
           signal: controller.signal,
         });
@@ -707,18 +764,39 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         clearTimeout(timer);
       }
     } catch (fetchErr: any) {
+      const elapsed = Date.now() - _reqStart;
+      // ABORT_TIMEOUT (15초) vs FETCH_NETWORK_ERROR (DNS/TLS/TCP/device) 분리
       const isTimeout = fetchErr?.name === "AbortError";
+      const diagCategory: LoginDiagCategory = isTimeout ? "ABORT_TIMEOUT" : "FETCH_NETWORK_ERROR";
+      logAuthTrace({ request_id: _reqId, category: diagCategory, elapsed_ms: elapsed, platform: _platform });
       throw Object.assign(
         new Error(isTimeout
           ? "서버 응답이 너무 늦습니다. 잠시 후 다시 시도해주세요."
           : "서버에 연결할 수 없습니다.\n잠시 후 다시 시도해주세요."
         ),
-        { error_code: "network_error" }
+        { error_code: "network_error", _diag_category: diagCategory, _diag_request_id: _reqId }
       );
     }
-    const data = await safeJson(res, { stage: "UNIFIED_LOGIN", method: "POST", url: `${API_BASE}/auth/unified-login` });
+
+    // ── HTTP 응답 수신 — 카테고리 분류 ──────────────────────────────────────
+    const httpStatus = res.status;
+    let data: any;
+    try {
+      data = await safeJson(res, { stage: "UNIFIED_LOGIN", method: "POST", url: `${API_BASE}/auth/unified-login` });
+    } catch (parseErr: any) {
+      const elapsed = Date.now() - _reqStart;
+      const cat: LoginDiagCategory = parseErr?.error_code ? "AUTH_ERROR" : "INVALID_JSON";
+      logAuthTrace({ request_id: _reqId, category: cat, http_status: httpStatus, elapsed_ms: elapsed,
+        error_code: parseErr?.error_code ?? "parse_error", platform: _platform });
+      throw parseErr;
+    }
+
     if (!res.ok) {
+      const elapsed = Date.now() - _reqStart;
+      const cat: LoginDiagCategory = httpStatus >= 500 ? "HTTP_5XX" : "HTTP_4XX";
       if (data.needs_activation || data.error_code === "needs_activation") {
+        logAuthTrace({ request_id: _reqId, category: "AUTH_ERROR", http_status: httpStatus, elapsed_ms: elapsed,
+          error_code: "needs_activation", platform: _platform });
         throw Object.assign(new Error(data.error || "계정 활성화가 필요합니다."), {
           needs_activation: true, error_code: "needs_activation", teacher_id: data.teacher_id,
         });
@@ -726,6 +804,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // 서버가 비-JSON 403을 반환한 경우 (구버전 서버 또는 네트워크 장비 차단)
       // → 구독 만료로 처리하여 안내 화면으로 이동
       if (res.status === 403 && !data.error_code) {
+        logAuthTrace({ request_id: _reqId, category: "AUTH_ERROR", http_status: 403, elapsed_ms: elapsed,
+          error_code: "pool_deactivated", platform: _platform });
         throw Object.assign(
           new Error("서비스 이용이 중단되었습니다.\n구독 상태를 확인해주세요."),
           {
@@ -736,6 +816,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           }
         );
       }
+      logAuthTrace({ request_id: _reqId, category: cat, http_status: httpStatus, elapsed_ms: elapsed,
+        error_code: data.error_code ?? "unknown", platform: _platform });
       throw Object.assign(new Error(data.message || data.error || "로그인에 실패했습니다."), {
         error_code:            data.error_code || "unknown",
         days_until_deletion:   data.days_until_deletion ?? null,
@@ -744,34 +826,56 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
     }
     if (data.totp_required) {
+      const elapsed = Date.now() - _reqStart;
+      logAuthTrace({ request_id: _reqId, category: "AUTH_ERROR", http_status: 200, elapsed_ms: elapsed,
+        error_code: "totp_required", platform: _platform });
       throw Object.assign(new Error("OTP 인증이 필요합니다."), {
         totp_required: true, totp_session: data.totp_session,
       });
     }
+
+    // ── HTTP 200 + 계정 데이터 유효 → finishLogin 진입 ───────────────────────
+    logAuthTrace({ request_id: _reqId, category: "AUTH_HTTP_SUCCESS", http_status: 200,
+      elapsed_ms: Date.now() - _reqStart, platform: _platform });
+
     const accounts: AccountEntry[] = data.available_accounts || [];
     await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
     setAllAccounts(accounts);
-    if (accounts.length > 0) {
-      const first = accounts[0];
-      // activateAccount 없이 finishLogin 단일 진입 — state 전체를 finishLogin이 일괄 처리
-      if (first.kind === "admin" && first.user?.swimming_pool_id) fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin fetchPool 실패: ${e?.message}`));
-      else if (first.kind === "parent") fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
-      await finishLogin(first.kind, first.user ?? null, first.parent ?? null, first.token, first.token);
-    } else {
-      if (data.kind === "admin" && data.user) {
-        const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
-        accounts.push(entry);
-        await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
-        if (entry.user?.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin admin fetchPool 실패: ${e?.message}`));
-        await finishLogin("admin", entry.user ?? null, null, data.token, data.token);
-      } else if (data.kind === "parent" && data.parent) {
-        const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
-        accounts.push(entry);
-        await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
-        fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
-        await finishLogin("parent", null, entry.parent ?? null, data.token, data.token);
+
+    // ── POST-LOGIN: finishLogin — 실패 시 POST_LOGIN_ERROR로 분리 ─────────────
+    // AUTH는 성공했지만 후속 처리(AsyncStorage/RC/Pool/State) 실패를
+    // 별도 카테고리로 기록하여 "서버에 연결할 수 없습니다"와 혼동하지 않도록 함
+    try {
+      if (accounts.length > 0) {
+        const first = accounts[0];
+        // activateAccount 없이 finishLogin 단일 진입 — state 전체를 finishLogin이 일괄 처리
+        if (first.kind === "admin" && first.user?.swimming_pool_id) fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin fetchPool 실패: ${e?.message}`));
+        else if (first.kind === "parent") fetchPool(first.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
+        await finishLogin(first.kind, first.user ?? null, first.parent ?? null, first.token, first.token);
+      } else {
+        if (data.kind === "admin" && data.user) {
+          const entry: AccountEntry = { kind: "admin", token: data.token, user: { ...data.user, roles: data.user.roles || [data.user.role] } };
+          accounts.push(entry);
+          await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
+          if (entry.user?.swimming_pool_id) fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin admin fetchPool 실패: ${e?.message}`));
+          await finishLogin("admin", entry.user ?? null, null, data.token, data.token);
+        } else if (data.kind === "parent" && data.parent) {
+          const entry: AccountEntry = { kind: "parent", token: data.token, parent: data.parent };
+          accounts.push(entry);
+          await AsyncStorage.setItem("auth_all_accounts", JSON.stringify(accounts)).catch(() => {});
+          fetchPool(data.token).catch(e => console.warn(`[fetchPool 실패] unifiedLogin parent fetchPool 실패: ${e?.message}`));
+          await finishLogin("parent", null, entry.parent ?? null, data.token, data.token);
+        }
       }
+    } catch (postLoginErr: any) {
+      // POST_LOGIN_ERROR: 서버 HTTP는 성공했으나 finishLogin(AsyncStorage/state) 실패
+      // → "서버에 연결할 수 없습니다"와 구분되는 별도 category
+      logAuthTrace({ request_id: _reqId, category: "POST_LOGIN_ERROR", http_status: 200,
+        elapsed_ms: Date.now() - _reqStart, error_code: postLoginErr?.error_code ?? "post_login",
+        platform: _platform });
+      throw Object.assign(postLoginErr, { _diag_category: "POST_LOGIN_ERROR", _diag_request_id: _reqId });
     }
+
     return { available_accounts: accounts };
   }
 

@@ -1002,6 +1002,21 @@ router.post("/unified-login", async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   const id = identifier.trim();
+
+  // ── [AUTH_TRACE] 서버 수신 로그 — Render 로그 검색 키: [AUTH_TRACE] ──────────
+  // request_id가 있으면 클라이언트 request_id와 대조하여 network 도달 여부 판별 가능
+  // 없으면 1.6.3 이전 클라이언트 (정상)
+  // PII 절대 미포함 (identifier/password 제외)
+  const _authTraceRequestId = (req.headers["x-request-id"] as string | undefined) ?? null;
+  const _authTraceStart = Date.now();
+  console.log("[AUTH_TRACE]", JSON.stringify({
+    event: "received",
+    request_id: _authTraceRequestId,
+    route: "/auth/unified-login",
+    request_received_at: new Date().toISOString(),
+  }));
+  // ─────────────────────────────────────────────────────────────────────────
+
   console.log("[LOGIN_ROUTE] unified-login 요청 수신", { identifier: id });
 
   // ── Apple 심사용 데모 계정 특별 처리 ────────────────────────────────
@@ -1172,13 +1187,39 @@ router.post("/unified-login", async (req, res) => {
     // ── 3) 결과 처리 ─────────────────────────────────────────────────
     if (available_accounts.length === 0) {
       if (wrongPwCount > 0) {
+        // [AUTH_TRACE] response — wrong_password
+        console.log("[AUTH_TRACE]", JSON.stringify({
+          event: "response",
+          request_id: _authTraceRequestId,
+          route: "/auth/unified-login",
+          response_status: 401,
+          error_code: "wrong_password",
+          elapsed_ms: Date.now() - _authTraceStart,
+        }));
         res.status(401).json({ success: false, error: "비밀번호가 일치하지 않습니다.", error_code: "wrong_password" }); return;
       }
+      // [AUTH_TRACE] response — user_not_found
+      console.log("[AUTH_TRACE]", JSON.stringify({
+        event: "response",
+        request_id: _authTraceRequestId,
+        route: "/auth/unified-login",
+        response_status: 401,
+        error_code: "user_not_found",
+        elapsed_ms: Date.now() - _authTraceStart,
+      }));
       res.status(401).json({ success: false, error: "가입된 계정이 없습니다.", error_code: "user_not_found" }); return;
     }
 
     // 단일 계정 → 기존 호환성 유지 (kind + token + user/parent)
     const first = available_accounts[0];
+    // [AUTH_TRACE] response — success
+    console.log("[AUTH_TRACE]", JSON.stringify({
+      event: "response",
+      request_id: _authTraceRequestId,
+      route: "/auth/unified-login",
+      response_status: 200,
+      elapsed_ms: Date.now() - _authTraceStart,
+    }));
     res.json({
       success: true,
       available_accounts,
@@ -1189,6 +1230,15 @@ router.post("/unified-login", async (req, res) => {
       parent: first.kind === "parent" ? first.parent : undefined,
     });
   } catch (e: any) {
+    // [AUTH_TRACE] response — server_error
+    console.log("[AUTH_TRACE]", JSON.stringify({
+      event: "response",
+      request_id: _authTraceRequestId,
+      route: "/auth/unified-login",
+      response_status: 500,
+      error_code: "server_error",
+      elapsed_ms: Date.now() - _authTraceStart,
+    }));
     console.error("[LOGIN_ROUTE_ERROR]", { path: "/unified-login", body: { identifier: req.body?.identifier }, reason: e?.message, stack: e?.stack });
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
