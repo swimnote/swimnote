@@ -1,0 +1,905 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO EXIT — FINAL ONE-PASS AUDIT + IMPLEMENTATION
+#
+# 현재 2.0 복구 기준:
+# release/v2.0.0 HEAD = 290c479b
+#
+# rollback baseline:
+# 1b03e716
+#
+# 이번 작업의 목적:
+#
+# 1.6.3에서 기존 Kakao 사용자
+# (학부모 + 선생님)를 일반계정으로 전환시키는
+# 임시 bridge를 최종 구현한다.
+#
+# 2.0에서는 Kakao 로그인/가입/연결/bridge UI를
+# 완전히 제거한다.
+#
+# 별도 audit 단계와 implementation 단계를 나누지 말 것.
+#
+# 현재 schema/source/live endpoint를 먼저 검수
+# → 안전하면 즉시 구현
+# → 테스트
+# → commit
+# → 필요한 production server 반영
+# → 1.6.3 iOS OTA 가능 여부까지 보고
+#
+# 사용자 시간이 없으므로
+# 이 한 작업에서 끝낼 것.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+2.0 branch:
+release/v2.0.0
+HEAD baseline:
+290c479b
+
+1.6.3:
+기존 maintenance/social-exit 계열 branch와
+현재 source를 확인하여 가장 안전한 기존 branch 재사용.
+
+Production server branch:
+deploy-photo-clone
+
+현재 Production에는
+parent Kakao migration endpoint가 이미 존재했던 이력이 있음.
+
+강제 사용자 migration:
+절대 금지.
+
+============================================================
+0. 먼저 현재 실제 상태 확인
+============================================================
+
+아래를 source of truth로 확인:
+
+A.
+1.6.3 client에 현재 Kakao button handler가 무엇인지
+
+B.
+parent Kakao migration endpoint가
+현재 production/source에 정확히 어떤 상태인지
+
+C.
+teacher Kakao-linked 계정 schema/login 구조
+
+D.
+2.0 HEAD 290c479b에서
+Kakao UI가 실제 0인지
+
+E.
+Apple fallback이 유지됐는지
+
+확인 후 별도 보고하지 말고
+안전하면 바로 구현 계속.
+
+============================================================
+1. 최종 제품 정책 LOCK
+============================================================
+
+### 1.6.3
+
+Kakao 버튼은 화면에 임시로 유지.
+
+하지만:
+
+Kakao SDK login:
+NO
+
+Kakao OAuth:
+NO
+
+Kakao signup:
+NO
+
+Kakao account linking:
+NO
+
+버튼은 오직
+"일반계정 전환 안내" entry.
+
+### 2.0
+
+Kakao login:
+0
+
+Kakao signup:
+0
+
+Kakao linking:
+0
+
+Kakao conversion bridge UI:
+0
+
+backend historical kakao_id:
+보존 가능
+
+============================================================
+2. 1.6.3 KAKAO 버튼 안내
+============================================================
+
+Kakao 버튼 클릭 시:
+
+제목:
+일반 회원가입 안내
+
+본문:
+
+"소셜 계정은 SWIMNOTE 보안 정책과 맞지 않아 일반 회원가입으로 전환합니다.
+일반 회원가입을 다시 진행해 주시면 기존 계정 정보와 이용기록을 그대로 이어서 사용할 수 있습니다."
+
+버튼:
+일반 회원가입
+
+버튼 클릭:
+→ 기존 일반 회원가입 화면
+
+Kakao SDK call:
+0
+
+별도 취소 버튼:
+NO
+
+시스템 back:
+허용
+
+============================================================
+3. 일반 회원가입 공통 분기
+============================================================
+
+PARENT와 TEACHER 모두
+일반가입 시 기존 identity 확인.
+
+기본 조건:
+
+same swimming_pool_id
++
+same normalized identity
++
+same role
+
+Parent:
+현재 일반가입이 phone 기반이면
+normalized phone 사용.
+
+Teacher:
+현재 일반가입의 실제 identity
+(email / phone / login id 등)를 source 기준으로 사용.
+임의로 parent phone 방식을 복붙 금지.
+
+분기:
+
+A.
+기존 account 없음
+→ 기존 일반가입 그대로
+
+B.
+기존 account 있음
+AND kakao_id 없음
+→ 기존 duplicate 정책 그대로
+
+C.
+기존 account 있음
+AND kakao_id 있음
+→ KAKAO_MIGRATION_REQUIRED
+→ 자동 account conversion
+
+============================================================
+4. 전환 안내
+============================================================
+
+C 분기에서:
+
+제목:
+기존 이용정보 확인
+
+본문:
+
+"기존 카카오 계정의 정보와 이용기록이 확인되었습니다.
+일반회원 가입을 계속하면 기존 이용정보가 새 일반계정으로 자동 이전됩니다."
+
+버튼:
+계속
+
+"가져오기/취소":
+NO
+
+사용자가 계속을 누르면
+새 일반계정 생성 + 기존 정보 이전.
+
+============================================================
+5. PARENT 전환
+============================================================
+
+기존 확정 방식 유지.
+
+새 parent account:
+반드시 생성.
+
+기존 row에 PIN만 추가:
+NO
+
+old parent id != new parent id
+
+기존 student row:
+복제 금지
+
+student id:
+변경 금지
+
+기존 parent-owned references:
+old parent id → new parent id
+
+Production에서 이전에 확인했던 reference를
+현재 schema와 다시 대조.
+
+예:
+
+parent_students.parent_id
+notice_reads.parent_id
+student_registration_requests.parent_id
+parent_student_requests.parent_id
+diary_reactions.parent_id
+parent_content_reads.parent_id
+growth_report_reactions.parent_id
+parent_v2_pending.parent_id
+member_activity_logs.parent_id
+
+push_settings.parent_account_id
+push_tokens.parent_account_id
+parent_pool_requests.parent_account_id
+parent_ai_daily_usage.parent_account_id
+parent_ai_usage_reservations.parent_account_id
+parent_curriculum_conversations.parent_account_id
+growth_report_answers.parent_account_id
+
+students.parent_user_id
+members.parent_user_id
+
+현재 schema가 source of truth.
+
+============================================================
+6. TEACHER 전환
+============================================================
+
+선생님도 동일 원칙:
+
+old Kakao teacher
+→ NEW general teacher account
+→ ownership/active references 이전
+→ old Kakao teacher archive
+
+기존 teacher row에 password만 추가:
+NO
+
+old teacher id != new teacher id
+
+============================================================
+7. TEACHER REFERENCE 전수조사
+============================================================
+
+teacher/users 관련 schema 전체 검색.
+
+검색 후보:
+
+teacher_id
+staff_id
+user_id
+assigned_teacher_id
+created_by
+author_id
+sender_id
+owner_id
+
+하지만 무조건 UPDATE 금지.
+
+각 reference를 반드시 분류:
+
+A. ACTIVE OWNERSHIP
+새 teacher id로 이전해야 함
+
+B. IMMUTABLE HISTORY
+과거 작성자/history이므로 old id를 보존해야 함
+
+C. UNRELATED
+건드리지 않음
+
+ACTIVE OWNERSHIP 예:
+
+- 현재 담당 반
+- 현재 담당 학생 연결
+- 스케줄 assignment
+- 현재 보강 assignment
+- teacher role/permission
+- teacher push/settings
+- 현재 messenger membership/access
+- 현재 task/request ownership
+- 현재 content ownership 중 로그인 접근에 필요한 것
+
+IMMUTABLE HISTORY 예:
+
+- 과거 audit log actor
+- 과거 작성자 기록 중 역사 보존 목적
+
+정확한 schema 기준으로 판정.
+
+============================================================
+8. TEACHER 전환 후 반드시 유지
+============================================================
+
+담당 반:
+동일
+
+담당 학생:
+동일
+
+스케줄:
+동일
+
+출결 접근:
+동일
+
+보강:
+동일
+
+일지 접근:
+동일
+
+앨범/콘텐츠:
+동일
+
+공지/메신저 접근:
+동일
+
+teacher role:
+동일
+
+pool:
+동일
+
+permissions:
+동일
+
+============================================================
+9. OLD ACCOUNT ARCHIVE
+============================================================
+
+Parent:
+기존 검증된 안전 archive 방식 재사용 가능.
+
+Teacher:
+users/teacher schema의 실제 unique/login 조건 확인 후
+별도 안전 archive 방식 적용.
+
+학부모의 phone=''를
+teacher에 무조건 복붙 금지.
+
+공통 결과:
+
+old account:
+is_active false 또는 동등한 retired state
+
+active login:
+NO
+
+active ownership:
+NO
+
+kakao_id:
+history용 보존 가능
+
+============================================================
+10. TRANSACTION
+============================================================
+
+Parent와 Teacher 각각:
+
+BEGIN
+
+SELECT old account FOR UPDATE
+
+→ role/pool/identity/kakao_id 재검증
+
+→ old account uniqueness 안전 해제/archive
+
+→ new general account INSERT
+
+→ active ownership references 이전
+
+→ permissions 유지
+
+→ COMMIT
+
+어느 단계든 실패:
+ROLLBACK
+
+partial migration:
+NO
+
+============================================================
+11. SECURITY
+============================================================
+
+매우 중요.
+
+단순히 전화번호 문자열이 같다는 것만으로
+제3자가 기존 Kakao 계정을 가져갈 수 있으면 안 됨.
+
+현재 일반 회원가입 과정에
+전화번호 인증/소유 확인 절차가 존재한다면 반드시 재사용.
+
+Teacher도 현재 가입 identity verification을 재사용.
+
+새 인증 인프라는 만들지 말 것.
+
+만약 기존 가입 flow에 identity verification 자체가 전혀 없어
+안전한 migration이 불가능하면:
+
+그 role만 BLOCKED로 보고
+억지 구현 금지.
+
+Parent/Teacher 각각 판정.
+
+============================================================
+12. IDEMPOTENCY
+============================================================
+
+double tap
+network retry
+server retry
+
+시:
+
+new account 2개:
+NO
+
+ownership 두 번 이동:
+NO
+
+old account 재 migration:
+NO
+
+ALREADY_MIGRATED 또는 동등 guard 필수.
+
+============================================================
+13. 2.0 CUTOVER 준비
+============================================================
+
+2.0 출시 직전
+READ ONLY로 다음 수량 확인 가능해야 함:
+
+PARENT_KAKAO_REMAINING
+TEACHER_KAKAO_REMAINING
+
+pool별 집계 가능하면 함께 지원.
+
+PII:
+masked only.
+
+자동 강제 migration:
+NO
+
+사용자가 직접 일반가입 전환하지 않은 계정은
+운영자가 직접 연락하여 전환시킬 예정.
+
+============================================================
+14. 2.0 최종 상태 확인
+============================================================
+
+release/v2.0.0 HEAD 기준:
+
+Kakao visible UI:
+0
+
+Kakao button:
+0
+
+Kakao client handler:
+0
+
+Kakao signup route:
+0
+
+Kakao link entry:
+0
+
+Kakao bridge UI:
+0
+
+Apple existing login:
+유지
+
+Apple no-account:
+일반 signup fallback
+
+============================================================
+15. 기존 Production Parent Migration 보호
+============================================================
+
+기존 Production parent migration 기능이
+이미 안전하고 live라면:
+
+불필요한 재설계:
+NO
+
+teacher support에 필요한
+최소 server diff만 추가.
+
+기존 parent path:
+회귀 금지.
+
+============================================================
+16. 테스트 — PARENT
+============================================================
+
+KP01 Kakao button → 안내
+KP02 Kakao SDK call 0
+KP03 안내 → 일반 signup
+KP04 new parent → 기존 signup
+KP05 normal duplicate → 기존 duplicate
+KP06 Kakao parent → migration required
+KP07 new general parent created
+KP08 old/new parent IDs distinct
+KP09 student IDs preserved
+KP10 all active parent refs transferred
+KP11 old Kakao parent retired
+KP12 rollback
+KP13 idempotency
+KP14 general parent login
+KP15 PIN reset
+KP16 orphan 0
+
+============================================================
+17. 테스트 — TEACHER
+============================================================
+
+KT01 Kakao button → 안내
+KT02 Kakao SDK call 0
+KT03 안내 → 일반 signup
+KT04 new teacher → 기존 signup
+KT05 normal teacher duplicate → 기존 duplicate
+KT06 Kakao teacher → migration required
+KT07 new general teacher created
+KT08 old/new teacher IDs distinct
+KT09 assigned classes preserved
+KT10 assigned students preserved
+KT11 scheduler assignment preserved
+KT12 role/permissions preserved
+KT13 diary/content access preserved
+KT14 messenger access preserved
+KT15 old Kakao teacher retired
+KT16 rollback
+KT17 idempotency
+KT18 orphan 0
+
+============================================================
+18. CUTOVER 테스트
+============================================================
+
+KC01 parent remaining count
+KC02 teacher remaining count
+KC03 migrated accounts excluded from active Kakao remaining
+KC04 duplicate general accounts 0
+KC05 orphan ownership 0
+KC06 2.0 Kakao UI 0
+KC07 2.0 bridge UI 0
+KC08 Apple fallback preserved
+
+============================================================
+19. REGRESSION FAILURE BASELINE 확인
+============================================================
+
+중요:
+
+기존 프로젝트 기준은:
+166 stable failures
+
+최근 CLEAN ROLLBACK REPORT는:
+181 failures
+New deterministic 0
+
+이번 작업에서 먼저
+15개 차이의 exact reason을 확인.
+
+반드시 아래 중 하나로 판정:
+
+A.
+15 tests were added/reenabled and are pre-existing stable failures
+
+B.
+test command/scope changed
+
+C.
+실제 regression
+
+A/B이면:
+새 baseline을 함부로 "181"로 재정의하지 말고
+166 기존 + 추가 15개의 정확한 test names/reason을 보고.
+
+C이면:
+이번 Kakao 작업과 무관해도
+출시 blocker 여부만 보고.
+범위 확대 금지.
+
+New deterministic failures:
+0 유지.
+
+============================================================
+20. PRODUCTION DEPLOY
+============================================================
+
+Parent 기능이 이미 live이고
+Teacher migration server diff가 필요하면:
+
+Production branch:
+deploy-photo-clone
+
+teacher conversion 관련 최소 auth diff만 backport.
+
+허용:
+- teacher migration detection
+- teacher migration endpoint/role branch
+- transaction/helper
+- tests
+
+금지:
+- UI
+- RevenueCat
+- Scheduler
+- Media
+- Messenger
+- unrelated auth refactor
+
+Production deploy가 필요하면
+사용자의 현재 요청은 이 Kakao bridge 작업을 실제 완료하는 것이므로
+최소 server deploy까지 수행 가능.
+
+강제 user migration:
+NO
+
+============================================================
+21. 1.6.3 CLIENT
+============================================================
+
+반영:
+
+- Kakao button 안내
+- SDK call 제거
+- 일반 signup 이동
+- parent migration branch
+- teacher migration branch
+
+JS-only인지 확인.
+
+iOS:
+runtime compatible면 OTA까지 수행 가능.
+
+Android:
+기존 정책상 OTA 금지.
+BUILD_REQUIRED 또는 next 2.0 build로 넘김.
+
+============================================================
+22. COMMIT
+============================================================
+
+논리적으로 분리 가능:
+
+1.
+feat(auth): add parent and teacher kakao-to-general conversion bridge
+
+2.
+fix(auth-ui): redirect legacy kakao entry to general signup
+
+2.0 Kakao 제거가 이미 HEAD에 있으면
+불필요한 commit 만들지 말 것.
+
+============================================================
+23. 완료보고
+============================================================
+
+# SWIMNOTE KAKAO EXIT FINAL REPORT
+
+## SOURCE
+
+2.0 HEAD:
+...
+
+1.6.3 branch:
+...
+
+Production branch:
+...
+
+## 1.6.3 KAKAO ENTRY
+
+Kakao visible:
+YES
+
+Kakao SDK call:
+0 / ...
+
+Notice:
+PASS / FAIL
+
+General signup redirect:
+PASS / FAIL
+
+## PARENT CONVERSION
+
+Detection:
+PASS / FAIL
+
+Identity verification:
+PASS / FAIL
+
+New general account:
+PASS / FAIL
+
+Old/new IDs distinct:
+YES / NO
+
+Student IDs preserved:
+YES / NO
+
+References discovered:
+...
+
+Transferred:
+.../...
+
+Old Kakao retired:
+PASS / FAIL
+
+Rollback:
+PASS / FAIL
+
+Idempotency:
+PASS / FAIL
+
+Orphans:
+0 / ...
+
+## TEACHER CONVERSION
+
+Detection:
+PASS / FAIL
+
+Identity verification:
+PASS / FAIL
+
+New general teacher:
+PASS / FAIL
+
+Old/new IDs distinct:
+YES / NO
+
+Active ownership refs discovered:
+...
+
+Immutable history refs:
+...
+
+Transferred:
+...
+
+Assigned classes:
+PRESERVED / FAIL
+
+Assigned students:
+PRESERVED / FAIL
+
+Scheduler:
+PRESERVED / FAIL
+
+Permissions:
+PRESERVED / FAIL
+
+Messenger/content:
+PRESERVED / FAIL
+
+Old Kakao retired:
+PASS / FAIL
+
+Rollback:
+PASS / FAIL
+
+Idempotency:
+PASS / FAIL
+
+Orphans:
+0 / ...
+
+## CUTOVER
+
+Active Kakao parents remaining:
+...
+
+Active Kakao teachers remaining:
+...
+
+Forced migration:
+NO
+
+## 2.0
+
+Kakao visible UI:
+0
+
+Kakao handlers:
+0
+
+Kakao signup/link:
+0
+
+Bridge UI:
+0
+
+Apple fallback:
+PASS / FAIL
+
+## FAILURE BASELINE
+
+Previous expected stable:
+166
+
+Current observed:
+181
+
+Extra 15 exact reason:
+...
+
+Actual new deterministic:
+0 / ...
+
+## PRODUCTION
+
+Server diff:
+...
+
+Deploy:
+YES / NOT REQUIRED
+
+Live SHA:
+...
+
+Health:
+...
+
+Forced user conversion:
+NO
+
+## CLIENT
+
+iOS OTA:
+YES / NO
+
+Update ID:
+...
+
+Android:
+NO CHANGE / BUILD_REQUIRED
+
+## TESTS
+
+KP01-KP16:
+...
+
+KT01-KT18:
+...
+
+KC01-KC08:
+...
+
+## FINAL
+
+PARENT + TEACHER KAKAO EXIT BRIDGE COMPLETE — READY FOR 2.0 CUTOVER
+
+또는
+
+KAKAO EXIT BLOCKED — EXACT ISSUE
