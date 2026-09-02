@@ -112,6 +112,11 @@ export default function SignupScreen() {
   const [error, setError]           = useState("");
   const [loading, setLoading]       = useState(false);
   const [isPendingTeacher, setIsPendingTeacher] = useState(false);
+
+  /* ── Kakao Migration Notice (1.6.3 임시) ── */
+  const [kakaoMigrationNotice, setKakaoMigrationNotice] = useState(false);
+  // 마이그레이션 notice 확인 후 실제 migration 호출 시 사용할 대기 resolve
+  const migrationConfirmRef = useRef<(() => void) | null>(null);
   const [fieldErrors, setFieldErrors] = useState({ pw: "", pwc: "", name: "", poolName: "" });
   const scrollRef = useRef<any>(null);
   const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
@@ -383,6 +388,46 @@ export default function SignupScreen() {
           }),
         });
         data = await safeJson(res);
+
+        // ── KAKAO_MIGRATION_REQUIRED (1.6.3 임시 전환 flow) ──────────────
+        if (!res.ok && data?.error_code === "KAKAO_MIGRATION_REQUIRED") {
+          setLoading(false);
+          // 안내 모달 표시 후 사용자가 [계속] 누르면 migration 호출
+          await new Promise<void>(resolve => {
+            migrationConfirmRef.current = resolve;
+            setKakaoMigrationNotice(true);
+          });
+          setLoading(true);
+          setKakaoMigrationNotice(false);
+
+          // migration endpoint 호출
+          const migRes = await fetch(`${API_BASE}/auth/kakao-migration-register`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: cleaned,
+              pool_id: selectedPool!.id,
+              name: name.trim(),
+              pin: effectivePw,
+              login_id: isSocial ? undefined : (loginId.trim().toLowerCase() || undefined),
+            }),
+          });
+          const migData = await safeJson(migRes);
+          if (!migRes.ok) {
+            const rawErr = migData?.error || "";
+            setError(rawErr || "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            return;
+          }
+          if (migData.token) {
+            if (childName.trim()) await AsyncStorage.setItem("@swimnote:pending_child_name", childName.trim()).catch(() => {});
+            await setParentSession(migData.token, migData.parent);
+            finishLogin("parent", null, migData.parent, migData.token);
+            return;
+          }
+          setError("계정 전환 처리 중 오류가 발생했습니다.");
+          return;
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         if (!res.ok) {
           // HTTP 5xx 또는 raw 기술 오류 메시지는 사용자 친화적 메시지로 교체
           const rawError = data.error || data.message || "";
@@ -974,6 +1019,37 @@ export default function SignupScreen() {
           </Text>
         </Pressable>
       </KeyboardAwareScrollView>
+
+      {/* ── Kakao 마이그레이션 안내 모달 (1.6.3 임시 기능) ── */}
+      {kakaoMigrationNotice && (
+        <View style={styles.migrationOverlay}>
+          <View style={styles.migrationCard}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "#EFF4FF", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <LucideIcon name="info" size={26} color="#4F6EF7" />
+              </View>
+              <Text style={styles.migrationTitle}>기존 이용정보가 확인되었습니다</Text>
+            </View>
+            <Text style={styles.migrationDesc}>
+              기존 카카오 계정의 학생정보와 이용기록이 확인되었습니다.{"\n"}
+              일반회원 가입을 계속하면 기존 이용정보가{"\n"}
+              새 일반계정으로 자동으로 이전됩니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.migrationBtn, { opacity: pressed ? 0.85 : 1 }]}
+              onPress={() => {
+                if (migrationConfirmRef.current) {
+                  const fn = migrationConfirmRef.current;
+                  migrationConfirmRef.current = null;
+                  fn();
+                }
+              }}
+            >
+              <Text style={styles.migrationBtnTxt}>계속</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -1052,4 +1128,25 @@ const styles = StyleSheet.create({
   loginLink:     { alignItems: "center", paddingVertical: 4 },
   loginLinkTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   fieldErrTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
+
+  /* ── Kakao Migration Notice overlay ── */
+  migrationOverlay: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 24,
+    zIndex: 999,
+  },
+  migrationCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    width: "100%",
+    maxWidth: 360,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 8,
+  },
+  migrationTitle: { fontSize: 17, fontFamily: "Pretendard-SemiBold", fontWeight: "600", color: "#0a2540", textAlign: "center" },
+  migrationDesc:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#475569", lineHeight: 22, textAlign: "center", marginBottom: 20 },
+  migrationBtn:   { backgroundColor: "#0a2540", borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" },
+  migrationBtnTxt:{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-SemiBold", fontWeight: "600" },
 });

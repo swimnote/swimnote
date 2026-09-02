@@ -852,8 +852,26 @@ router.post("/simple-parent-register", async (req, res) => {
     // 전화번호 + 수영장 중복 확인 — Multi-Pool Membership: 다른 수영장 가입은 허용
     // 동일 수영장에 동일 전화번호 계정이 이미 존재하면 "이미 가입"으로 처리
     if (resolvedPoolId) {
-      const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
-      if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      const dupRows = (await db.execute(sql`
+        SELECT id, kakao_id, is_active FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND phone != ''
+        LIMIT 1
+      `)).rows as any[];
+      if (dupRows.length > 0) {
+        const dup = dupRows[0];
+        // C. 기존 Kakao 계정 → KAKAO_MIGRATION_REQUIRED (1.6.3 임시 전환 flow)
+        if (dup.kakao_id && dup.is_active !== false) {
+          return res.status(409).json({
+            error: "이미 카카오로 가입된 전화번호입니다.",
+            error_code: "KAKAO_MIGRATION_REQUIRED",
+            old_parent_id: dup.id,
+          });
+        }
+        // B. 기존 일반 계정 → 기존 정책 그대로
+        return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      }
     } else {
       // 수영장 미지정인 경우: phone + pool IS NULL 기준만 중복 체크 (다른 수영장 계정은 OK)
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
@@ -1989,37 +2007,98 @@ router.post("/find-identifier-by-phone", async (req, res) => {
 });
 
 // ── 카카오 소셜 로그인 ────────────────────────────────────────────────
+// Lookup order:
+//   1) parent_accounts.kakao_id  (exact match)
+//   2) parent_accounts.phone     (pool-scoped → single-unscoped → AMBIGUOUS)
+//   3) users.kakao_id            (teacher/pool_admin, existing link only)
+//   4) users.phone               (teacher/pool_admin, first-time link)
+//   5) 계정 없음 → kakao_no_account (신규 가입 유도)
+//
+// enum 제약: user_role에 sub_admin 없음 → role IN ('teacher','pool_admin') 고정
 router.post("/kakao-social-login", async (req, res) => {
-  const { accessToken } = req.body;
+  const { accessToken, pool_id: requestPoolId } = req.body;
   if (!accessToken) return err(res, 400, "카카오 액세스 토큰이 필요합니다.");
+  // pool_id: 2.0.0 앱이 현재 선택된 수영장 id를 전달 (1.6.3은 미전달 → undefined)
+  const hasPoolId = !!requestPoolId;
+  console.log(`[kakao-social-login][KAKAO_REQUEST_RECEIVED] pool_id=${requestPoolId ?? "none"} hasPoolId=${hasPoolId}`);
 
   try {
-    // 카카오 사용자 정보 조회
-    const kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-      },
-    });
-    if (!kakaoRes.ok) {
-      return err(res, 401, "카카오 토큰이 유효하지 않습니다.");
+    // 카카오 사용자 정보 조회 — 8초 타임아웃
+    const kakaoController = new AbortController();
+    const kakaoAbortTimer = setTimeout(() => kakaoController.abort(), 8000);
+    let kakaoRes: Response;
+    try {
+      kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        },
+        signal: kakaoController.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(kakaoAbortTimer);
+      const isTimeout = fetchErr?.name === "AbortError";
+      console.error(`[kakao-social-login] Kakao API ${isTimeout ? "timeout" : "fetch error"}: ${fetchErr?.message}`);
+      return res.status(504).json({
+        success: false,
+        error_code: isTimeout ? "KAKAO_API_TIMEOUT" : "KAKAO_API_ERROR",
+        error: isTimeout
+          ? "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요."
+          : "카카오 서버에 연결할 수 없습니다. 네트워크를 확인해주세요.",
+      });
+    } finally {
+      clearTimeout(kakaoAbortTimer);
     }
+
+    if (!kakaoRes.ok) {
+      let kakaoErrBody: any = {};
+      try { kakaoErrBody = await kakaoRes.json(); } catch {}
+      console.error(`[kakao-social-login] Kakao API error status=${kakaoRes.status} code=${kakaoErrBody?.code} msg=${kakaoErrBody?.msg}`);
+      if (kakaoRes.status === 401 || kakaoRes.status === 403) {
+        return res.status(401).json({
+          success: false,
+          error_code: "KAKAO_INVALID_TOKEN",
+          error: "카카오 인증이 만료되었습니다. 다시 시도해주세요.",
+        });
+      }
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_API_ERROR",
+        error: "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      });
+    }
+
     const kakaoUser: any = await kakaoRes.json();
     const kakaoId = String(kakaoUser.id);
+    if (!kakaoId || kakaoId === "undefined" || kakaoId === "null") {
+      console.error(`[kakao-social-login] Kakao user id is invalid: ${kakaoId}`);
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_PROFILE_FAILED",
+        error: "카카오 프로필 정보를 가져올 수 없습니다.",
+      });
+    }
+
     const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname || null;
     const kakaoProfileImage = kakaoUser.kakao_account?.profile?.profile_image_url || null;
-    const kakaoPhone = kakaoUser.kakao_account?.phone_number
-      ? kakaoUser.kakao_account.phone_number.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
+    const rawPhone = kakaoUser.kakao_account?.phone_number;
+    const kakaoPhone = rawPhone
+      ? rawPhone.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
       : null;
+    // phone 없음 = 카카오 전화번호 scope 미동의 상태 (정상 케이스, phone_missing 플래그로 앱에 알림)
+    const phoneMissing = !kakaoPhone;
+    console.log(`[kakao-social-login][KAKAO_PROFILE_OK] kakaoId=MASKED phone_scope=${!phoneMissing}`);
 
-    // 1) kakao_id로 기존 계정 조회
+    // 1) kakao_id로 기존 parent 계정 조회 — exact external identity match
     const byKakaoId = await db.execute(sql`
       SELECT * FROM parent_accounts WHERE kakao_id = ${kakaoId} LIMIT 1
     `);
 
     if ((byKakaoId.rows as any[]).length > 0) {
       const account = byKakaoId.rows[0] as any;
+      console.log(`[kakao-social-login][KAKAO_ID_MATCH] poolId=${account.swimming_pool_id}`);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+      console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=kakao_id_match`);
       return res.json({
         success: true,
         token,
@@ -2035,44 +2114,109 @@ router.post("/kakao-social-login", async (req, res) => {
       });
     }
 
-    // 2) 전화번호로 기존 계정 매칭 후 kakao_id 연결
-    // Phase 1 fix: 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
+    // 2) 전화번호로 기존 parent 계정 매칭 후 kakao_id 연결
+    // 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
     if (kakaoPhone) {
       const kakaoPhoneHyphenP = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
-      const byPhone = await db.execute(sql`
-        SELECT * FROM parent_accounts WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP}) LIMIT 1
-      `);
-      if ((byPhone.rows as any[]).length > 0) {
-        const account = byPhone.rows[0] as any;
-        await db.execute(sql`
-          UPDATE parent_accounts 
-          SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
-          WHERE id = ${account.id}
+
+      if (hasPoolId) {
+        // 2-A) 2.0.0: pool_id 있음 → 해당 pool로 범위 좁히기
+        const byPhonePool = await db.execute(sql`
+          SELECT * FROM parent_accounts
+          WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP})
+          AND swimming_pool_id = ${requestPoolId}
+          LIMIT 1
         `);
-        const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
-        return res.json({
-          success: true,
-          token,
-          parent: {
-            id: account.id,
-            name: account.name,
-            nickname: account.nickname || null,
-            phone: account.phone,
-            login_id: account.login_id || null,
-            swimming_pool_id: account.swimming_pool_id,
-            kakao_profile_image: kakaoProfileImage,
-          },
-        });
+        if ((byPhonePool.rows as any[]).length > 0) {
+          const account = byPhonePool.rows[0] as any;
+          console.log(`[kakao-social-login][KAKAO_PHONE_MATCH] method=pool_scoped poolId=${requestPoolId}`);
+          await db.execute(sql`
+            UPDATE parent_accounts
+            SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+            WHERE id = ${account.id}
+          `);
+          const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+          console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=phone_pool_match`);
+          return res.json({
+            success: true,
+            token,
+            parent: {
+              id: account.id,
+              name: account.name,
+              nickname: account.nickname || null,
+              phone: account.phone,
+              login_id: account.login_id || null,
+              swimming_pool_id: account.swimming_pool_id,
+              kakao_profile_image: kakaoProfileImage,
+            },
+          });
+        }
+        // pool_id로 지정한 pool에 계정 없음 → 신규 가입 유도로 낙하
+      } else {
+        // 2-B) 1.6.3: pool_id 없음 → 전체 조회, 2개 이상이면 AMBIGUOUS
+        const byPhone = await db.execute(sql`
+          SELECT * FROM parent_accounts
+          WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP})
+          LIMIT 2
+        `);
+        const phoneMatches = byPhone.rows as any[];
+
+        if (phoneMatches.length === 1) {
+          const account = phoneMatches[0];
+          console.log(`[kakao-social-login][KAKAO_PHONE_MATCH] method=single_unscoped poolId=${account.swimming_pool_id}`);
+          await db.execute(sql`
+            UPDATE parent_accounts
+            SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+            WHERE id = ${account.id}
+          `);
+          const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+          console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=phone_single_match`);
+          return res.json({
+            success: true,
+            token,
+            parent: {
+              id: account.id,
+              name: account.name,
+              nickname: account.nickname || null,
+              phone: account.phone,
+              login_id: account.login_id || null,
+              swimming_pool_id: account.swimming_pool_id,
+              kakao_profile_image: kakaoProfileImage,
+            },
+          });
+        } else if (phoneMatches.length >= 2) {
+          // 임의 LIMIT 1 선택 금지 → 앱에서 pool 선택 후 재시도하도록 pools[] 반환
+          const poolIds = phoneMatches.map((a: any) => a.swimming_pool_id).filter(Boolean);
+          let poolList: { id: string; name: string }[] = [];
+          if (poolIds.length > 0) {
+            const poolRows = await db.execute(
+              sql`SELECT id, name FROM swimming_pools WHERE id = ANY(${poolIds}) ORDER BY name`
+            );
+            poolList = (poolRows.rows as any[]).map((r: any) => ({ id: String(r.id), name: r.name }));
+          }
+          console.warn(`[kakao-social-login][KAKAO_PARENT_AMBIGUOUS] phone_matches=${phoneMatches.length} pools=${poolList.map(p => p.id).join(",")}`);
+          return res.status(409).json({
+            success: false,
+            error_code: "KAKAO_PARENT_AMBIGUOUS",
+            error: "동일 전화번호로 여러 수영장에 계정이 있습니다. 어느 수영장으로 로그인할지 선택해주세요.",
+            pools: poolList,
+          });
+        }
+        // 0개 → 신규 가입 유도로 낙하
       }
+    } else {
+      // phone scope 미동의
+      console.log(`[kakao-social-login][KAKAO_PHONE_MISSING] kakaoPhone=null`);
     }
 
-    // 3) users 테이블(선생님/코치/서브관리자) kakao_id로 조회
+    // 3) users 테이블(선생님/코치) kakao_id로 조회 — 기존 연결 계정 로그인
     // pool_admin/teacher만 허용; super_admin/platform_admin/super_manager 제외
-    // Note: 'sub_admin'은 user_role enum에 없는 값 → 제거 (enum runtime error 방지)
+    // Note: 'sub_admin'은 user_role enum 미존재 → 절대 사용 금지 (runtime 500 오류)
     const byKakaoIdTeacher = await db.execute(sql`
       SELECT * FROM users WHERE kakao_id = ${kakaoId} AND role IN ('teacher', 'pool_admin') LIMIT 1
     `);
     if ((byKakaoIdTeacher.rows as any[]).length > 0) {
+      console.log(`[kakao-social-login][KAKAO_ID_MATCH] role=teacher/admin`);
       const u = byKakaoIdTeacher.rows[0] as any;
       if (!u.is_activated) {
         return res.status(403).json({
@@ -2084,6 +2228,7 @@ router.post("/kakao-social-login", async (req, res) => {
         });
       }
       const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+      console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=teacher_kakao_id role=${u.role}`);
       return res.json({
         success: true,
         kind: "admin",
@@ -2102,7 +2247,7 @@ router.post("/kakao-social-login", async (req, res) => {
       });
     }
 
-    // 4) users 테이블(선생님/코치/서브관리자) 전화번호로 조회 후 kakao_id 연결
+    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결 (first-time)
     // 하이픈 형식 fallback; sub_admin 제거 (enum에 없는 값)
     if (kakaoPhone) {
       const kakaoPhoneHyphen = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
@@ -2126,6 +2271,7 @@ router.post("/kakao-social-login", async (req, res) => {
           });
         }
         const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+        console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=teacher_phone_match role=${u.role}`);
         return res.json({
           success: true,
           kind: "admin",
@@ -2146,15 +2292,20 @@ router.post("/kakao-social-login", async (req, res) => {
     }
 
     // 5) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    // phone_missing=true: 카카오 전화번호 scope 미동의 → 앱에서 사용자가 직접 입력 안내
+    console.log(`[kakao-social-login][KAKAO_NO_ACCOUNT] phoneMissing=${phoneMissing} hasPoolId=${hasPoolId}`);
     return res.status(404).json({
       success: false,
       error_code: "kakao_no_account",
-      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
+      message: phoneMissing
+        ? "카카오 계정 전화번호를 확인할 수 없습니다. 수영장에 등록된 전화번호로 직접 계정을 연결해주세요."
+        : "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
       kakao_info: {
         kakao_id: kakaoId,
         name: kakaoNickname,
-        phone: kakaoPhone,
+        phone: kakaoPhone,          // null이면 앱에서 phone_missing=true 처리
         profile_image: kakaoProfileImage,
+        phone_missing: phoneMissing, // 앱이 "전화번호 직접 입력" UI 표시 여부 결정에 사용
       },
     });
   } catch (e) {
@@ -2179,6 +2330,17 @@ router.post("/kakao-link-teacher", async (req, res) => {
       return err(res, 404, "입력하신 전화번호로 등록된 선생님/코치 계정이 없습니다. 수영장 관리자에게 문의하세요.");
     }
     const u = byPhone.rows[0] as any;
+
+    // ── 정책: pool_admin 신규 카카오 연결 차단 ─────────────────────────────
+    // pool_admin(관리자)은 PC 모드 연동 특성상 카카오 신규연결 불가.
+    // 이미 kakao_id가 설정된 관리자의 로그인은 kakao-social-login Step 3에서 정상 처리됨.
+    if (u.role === "pool_admin") {
+      return res.status(403).json({
+        success: false,
+        error_code: "admin_kakao_link_blocked",
+        message: "관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요.",
+      });
+    }
 
     const existing = await db.execute(sql`
       SELECT id FROM users WHERE kakao_id = ${kakaoId} AND id != ${u.id} LIMIT 1
@@ -2797,6 +2959,210 @@ router.post("/v2/parent-register", async (req, res) => {
     }
 
     return err(res, 500, "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── Kakao → 일반계정 Migration Endpoint ──────────────────────────────────────
+// POST /auth/kakao-migration-register
+//
+// 1.6.3 임시 기능: 카카오로 가입된 기존 학부모가 일반 가입 시
+// 기존 데이터를 새 일반계정으로 원자적으로 이전.
+//
+// 요청:
+//   { phone, pool_id, name, pin, login_id? }
+//
+// 응답:
+//   201 { token, parent, migrated: true }
+//   409 { error_code: "KAKAO_NOT_FOUND" | "NO_KAKAO_ACCOUNT" | "ALREADY_MIGRATED" }
+//   500 (rollback 보장)
+//
+// 아카이브 전략: 기존 Kakao account의 phone을 ''(빈 문자열)로 교체.
+//   - unique index 조건: WHERE phone != '' → 빈 문자열은 인덱스 제외됨
+//   - NOT NULL 충족: 빈 문자열은 NOT NULL 충족
+//   - 기존 phone은 새 account에 그대로 이전됨
+//   - kakao_id는 history용 old account에 보존
+//
+// 이전 대상 테이블 (parent_id):
+//   parent_students, notice_reads, student_registration_requests,
+//   member_activity_logs, parent_student_requests, diary_reactions,
+//   parent_content_reads, growth_report_reactions, parent_v2_pending
+// NOTE: growth_report_interactions는 Production schema에 존재하지 않음 (제외됨)
+// 이전 대상 테이블 (parent_account_id):
+//   push_settings, push_tokens, parent_pool_requests,
+//   parent_ai_daily_usage, parent_ai_usage_reservations,
+//   parent_curriculum_conversations, growth_report_answers
+// 이전 대상 테이블 (parent_user_id):
+//   students, members
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/kakao-migration-register", async (req, res) => {
+  const { phone, pool_id, name: rawName, pin, login_id } = req.body;
+  if (!phone || !pool_id || !rawName || !pin) {
+    return err(res, 400, "phone, pool_id, name, pin은 필수입니다.");
+  }
+  if (String(pin).length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+
+  const ph   = phone.replace(/[^0-9]/g, "");
+  const name = rawName.trim();
+  const lid  = (login_id || "").trim().toLowerCase() || null;
+
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+
+  try {
+    // ── 0. login_id 전역 중복 확인 ──────────────────────────────────────────
+    if (lid) {
+      const [existingLid] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
+      `)).rows as any[];
+      if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
+    // ── 1. 기존 Kakao account 확인 (정규화 phone + pool_id) ──────────────────
+    const [oldAcc] = (await db.execute(sql`
+      SELECT id, phone, kakao_id, is_active, withdrawal_requested_at
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!oldAcc) {
+      return res.status(409).json({ error_code: "KAKAO_NOT_FOUND", error: "해당 전화번호로 등록된 계정을 찾을 수 없습니다." });
+    }
+    if (!oldAcc.kakao_id) {
+      return res.status(409).json({ error_code: "NO_KAKAO_ACCOUNT", error: "카카오 연결 계정이 아닙니다. 로그인 화면에서 로그인해주세요." });
+    }
+
+    // ── 2. Idempotency: 이미 migration된 경우 (같은 pool + phone 새 account 존재) ──
+    // old account가 phone='' 상태면 이미 이전된 것
+    // → 새 account를 찾아 반환
+    const [alreadyMigrated] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+        AND kakao_id IS NULL
+        AND (is_active IS NULL OR is_active = true)
+      LIMIT 1
+    `)).rows as any[];
+    // Note: after migration, old account has phone='', so the above finds the NEW account only
+
+    // If old account phone is already '' (archived), migration already happened
+    if (String(oldAcc.phone).trim() === "") {
+      if (alreadyMigrated) {
+        const token = signToken({ userId: alreadyMigrated.id, role: "parent_account", poolId: pool_id });
+        return res.json({ token, parent: alreadyMigrated, migrated: true, already_migrated: true });
+      }
+      return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요." });
+    }
+
+    const oldParentId = oldAcc.id;
+
+    // ── 3. Atomic transaction ────────────────────────────────────────────────
+    const newParentId = `pa_migrated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const pin_hash    = await hashPassword(String(pin));
+
+    await db.execute(sql`BEGIN`);
+    try {
+      // 3-a. Lock old account
+      await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE id = ${oldParentId} FOR UPDATE
+      `);
+
+      // 3-b. Re-verify (race condition guard)
+      const [recheck] = (await db.execute(sql`
+        SELECT id, kakao_id, phone FROM parent_accounts WHERE id = ${oldParentId}
+      `)).rows as any[];
+      if (!recheck?.kakao_id || String(recheck.phone).trim() === "") {
+        await db.execute(sql`ROLLBACK`);
+        return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다." });
+      }
+
+      // 3-c. Archive old Kakao account: phone → '' (빈 문자열로 unique index 제외)
+      //      is_active=false, withdrawal_requested_at=NOW() (retirement timestamp)
+      await db.execute(sql`
+        UPDATE parent_accounts
+        SET phone = '', is_active = false, withdrawal_requested_at = NOW(), updated_at = NOW()
+        WHERE id = ${oldParentId}
+      `);
+
+      // 3-d. Create new general parent account
+      await db.execute(sql`
+        INSERT INTO parent_accounts
+          (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+        VALUES
+          (${newParentId}, ${pool_id}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+      `);
+
+      // ── 3-e. Migrate all parent_id references ────────────────────────────
+      // Tables using parent_id column
+      // NOTE: growth_report_interactions는 Production schema에 존재하지 않으므로 제외
+      // NOTE: growth_report_reactions, parent_v2_pending는 dry-run 감사에서 발견된 추가 테이블
+      for (const tbl of [
+        "parent_students", "notice_reads", "student_registration_requests",
+        "parent_student_requests", "diary_reactions", "parent_content_reads",
+        "growth_report_reactions", "parent_v2_pending",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          // table may not exist in this pool's DB — non-fatal if table missing
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+      // member_activity_logs: nullable parent_id
+      await db.execute(sql.raw(
+        `UPDATE member_activity_logs SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+      )).catch(() => {});
+
+      // Tables using parent_account_id column
+      for (const tbl of [
+        "push_settings", "push_tokens", "parent_pool_requests",
+        "parent_ai_daily_usage", "parent_ai_usage_reservations",
+        "parent_curriculum_conversations", "growth_report_answers",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_account_id = '${newParentId}' WHERE parent_account_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      // Tables using parent_user_id column
+      for (const tbl of ["students", "members"]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_user_id = '${newParentId}' WHERE parent_user_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      await db.execute(sql`COMMIT`);
+      console.log(`[kakao-migration] 완료: old=${oldParentId} new=${newParentId} pool=${pool_id}`);
+
+    } catch (txErr: any) {
+      await db.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[kakao-migration] ROLLBACK:", txErr?.message);
+      throw txErr;
+    }
+
+    // ── 4. 응답 ─────────────────────────────────────────────────────────────
+    const [newAcc] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id FROM parent_accounts WHERE id = ${newParentId}
+    `)).rows as any[];
+
+    const token = signToken({ userId: newParentId, role: "parent_account", poolId: pool_id });
+    return res.status(201).json({
+      token,
+      parent: newAcc,
+      migrated: true,
+      old_parent_id: oldParentId,
+    });
+
+  } catch (e: any) {
+    console.error("[kakao-migration-register]", e?.message, e?.stack);
+    return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
   }
 });
 
