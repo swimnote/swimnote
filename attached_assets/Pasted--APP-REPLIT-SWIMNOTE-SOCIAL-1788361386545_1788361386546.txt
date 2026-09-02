@@ -1,0 +1,256 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE SOCIAL AUTH EXIT — FINAL PRODUCTION ACTIVATE
+#
+# 목적:
+# 이미 push 완료된 production server commit
+# e6bb180c
+# 를 Render에 실제 LIVE 배포하고,
+# Kakao→일반계정 migration endpoint가 운영에서 활성화됐는지
+# 최소 smoke만 확인한 뒤 이 작업을 종료한다.
+#
+# 추가 개발 금지.
+# ============================================================
+
+Production branch:
+deploy-photo-clone
+
+Target Production SHA:
+e6bb180c
+
+Current Live SHA:
+19081436
+
+User approval:
+Render manual deploy 승인됨.
+
+============================================================
+1. MANUAL DEPLOY
+============================================================
+
+Render service에서:
+
+Repository:
+swimnote/swimnote
+
+Branch:
+deploy-photo-clone
+
+Exact commit:
+e6bb180c
+
+수동 deploy 실행.
+
+다른 commit:
+NO
+
+latest unspecified:
+NO
+
+반드시 exact SHA 확인 후 배포.
+
+============================================================
+2. LIVE SHA 확인
+============================================================
+
+배포 완료 후:
+
+GET /api/healthz
+
+확인:
+
+HTTP 200
+
+commit:
+e6bb180c... 와 일치
+
+Render dashboard Live Commit:
+e6bb180c
+
+둘 다 일치해야 함.
+
+============================================================
+3. ENDPOINT 최소 확인
+============================================================
+
+실제 사용자 migration 실행 금지.
+
+다음만 safe smoke:
+
+A.
+POST /api/auth/kakao-migration-register
+필수값 누락 요청
+→ safe 4xx
+→ route 존재 확인
+→ 5xx NO
+
+B.
+일반 parent-register/simple-parent-register 기존 invalid request
+→ safe 4xx
+→ 5xx NO
+
+C.
+일반 unified-login invalid request
+→ safe 4xx
+→ 5xx NO
+
+============================================================
+4. LOG 확인
+============================================================
+
+배포 후:
+
+DB boot error:
+0
+
+missing table:
+0
+
+growth_report_interactions runtime error:
+0
+
+transaction init error:
+0
+
+server crash:
+NO
+
+new 5xx:
+0
+
+============================================================
+5. DATA 절대 건드리지 말 것
+============================================================
+
+토이키즈 Kakao-linked parent 3명:
+
+강제 migration:
+NO
+
+UPDATE:
+NO
+
+INSERT:
+NO
+
+사용자가 실제 일반가입을 진행할 때만
+migration endpoint가 작동해야 함.
+
+============================================================
+6. iOS 상태
+============================================================
+
+기존 OTA:
+
+01a0629d-9f97-7eec-8c1f-69c6fd5b9836
+
+production channel에 이미 배포됨.
+
+재 OTA:
+NO
+
+============================================================
+7. Android
+============================================================
+
+이번 작업에서 Android build:
+NO
+
+다만 Production DB / push token / device metadata에
+기존 Kakao-linked 학부모 3명의 platform 정보가
+READ ONLY로 확인 가능하면 확인.
+
+결과만 보고:
+
+ALL_IOS
+MIXED
+ALL_ANDROID
+UNKNOWN
+
+어떤 경우든 이번 작업에서 build 실행 금지.
+
+============================================================
+8. 완료보고
+============================================================
+
+# SWIMNOTE SOCIAL AUTH EXIT PRODUCTION ACTIVATE REPORT
+
+## RENDER
+
+Target SHA:
+e6bb180c
+
+Deploy:
+SUCCESS / FAIL
+
+Live SHA:
+...
+
+Matches:
+YES / NO
+
+## HEALTH
+
+/api/healthz:
+HTTP ...
+
+## ENDPOINT
+
+kakao-migration-register:
+LIVE / FAIL
+
+Missing-field request:
+4xx / 5xx
+
+General signup:
+PASS / FAIL
+
+General login:
+PASS / FAIL
+
+## LOGS
+
+Missing table error:
+0 / ...
+
+DB error:
+0 / ...
+
+Server crash:
+NO / YES
+
+New 5xx:
+0 / ...
+
+## DATA
+
+Forced migration:
+NO
+
+Production user rows changed:
+NO
+
+## IOS
+
+OTA:
+ALREADY LIVE
+
+Update ID:
+01a0629d-9f97-7eec-8c1f-69c6fd5b9836
+
+## ANDROID TARGET USERS
+
+Toykids Kakao parents platform:
+ALL_IOS / MIXED / ALL_ANDROID / UNKNOWN
+
+Android build performed:
+NO
+
+## FINAL
+
+SOCIAL AUTH EXIT LIVE — COMPLETE
+
+또는
+
+SOCIAL AUTH EXIT DEPLOY FAILED — ROLLBACK/RETRY REQUIRED
