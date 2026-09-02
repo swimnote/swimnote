@@ -1,0 +1,824 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — BLOCKER 1·2 MINIMAL FIX
+#
+# 조사 완료:
+#
+# BUG 1
+# Admin → Teacher 전환 중 구 pool_admin JWT / shared cache 때문에
+# teacher 화면에 pool 전체 반·학생이 섞일 수 있음.
+#
+# BUG 2
+# ImagePicker/ImageManipulator/expo-image cache 및
+# 직접 업로드/실패 경로 cleanup 누락으로
+# iPhone local Documents & Data가 수 GB~11GB까지 누적.
+#
+# 이번 작업:
+# 두 원인만 최소 수정 → 테스트 → commit.
+#
+# 1.6.3 / Production은 절대 건드리지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target branch:
+release/v2.0.0
+
+Current known HEAD:
+e04e4881
+단 실제 HEAD 먼저 확인 후 source of truth 사용.
+
+Regression comparison baseline:
+1b03e716
+
+============================================================
+0. 1.6.3 / PRODUCTION HARD PROTECTION
+============================================================
+
+이번 작업에서 절대 수정/checkout/push/deploy 금지:
+
+maintenance/v1.6.3-social-exit
+deploy-photo-clone
+
+1.6.3 runtime:
+1.6.3
+
+현재 iOS 1.6.3 live OTA:
+01a06318-d129-7f82-816d-d4c0ef35f693
+
+Production server:
+현재 live 상태 그대로 유지
+
+금지:
+
+eas update --branch production
+1.6.3 OTA
+Render deploy
+Production server push
+Production DB write
+DB migration
+
+작업 시작 전 반드시:
+
+git branch --show-current
+
+확인.
+
+release/v2.0.0가 아니면 STOP.
+
+============================================================
+1. BUG 1 — TEACHER SCOPE 최종 목표
+============================================================
+
+정상 정책:
+
+ADMIN NORMAL:
+pool 전체
+
+TEACHER:
+본인 담당 반/학생만
+
+ADMIN → TEACHER ROLE SWITCH:
+새 teacher JWT 적용 완료 이후에만
+teacher 화면/API 요청 시작.
+
+전환 이전 pool_admin JWT로
+teacher 화면 데이터 요청:
+0
+
+teacher 화면에서
+pool 전체 cached data 재사용:
+0
+
+다른 teacher:
+
+반 0
+학생 0
+스케줄 0
+
+============================================================
+2. BUG 1 — ROLE SWITCH ATOMIC UI GATE
+============================================================
+
+파일:
+
+artifacts/swim-app/context/auth/RoleContext.tsx
+
+현재 switchRole('teacher') 흐름을 최소 수정.
+
+원칙:
+
+1.
+switchRole 시작
+→ switchingRole=true
+
+2.
+새 teacher JWT 응답 수신
+
+3.
+token/auth state 완전히 교체
+
+4.
+activeRole 저장
+
+5.
+기존 role-sensitive query/request 취소
+
+6.
+role-sensitive cache invalidate/remove
+
+7.
+새 role state 적용 완료
+
+8.
+switchingRole=false
+
+9.
+그 이후 teacher route/subtree 렌더
+
+즉:
+
+OLD pool_admin token
++
+NEW teacher UI
+
+가 동시에 존재하는 window를 없앨 것.
+
+============================================================
+3. QUERY 취소 + CACHE 분리
+============================================================
+
+role switch 시:
+
+진행 중인 role-sensitive requests를
+가능한 기존 query client API로 cancel.
+
+그리고 최소한 다음 데이터 cache 무효화:
+
+class groups
+students/members
+today schedule
+teacher members
+attendance dependent data
+makeup dependent data
+
+무조건 앱 전체 캐시를 매번 날려서
+다른 unrelated state까지 파괴하지 말 것.
+
+가능하면 query key에:
+
+activeRole
+
+또는 현재 인증 scope를 포함하여
+
+admin cache와 teacher cache가
+동일 key를 공유하지 않게 수정.
+
+예:
+
+["class-groups", "pool_admin", poolId]
+
+vs
+
+["class-groups", "teacher", userId, poolId]
+
+현재 프로젝트 query abstraction에 맞춰 적용.
+
+새 query architecture:
+NO.
+
+============================================================
+4. TEACHER /class-groups 명시적 scope
+============================================================
+
+Teacher 화면:
+
+app/(teacher)/my-schedule.tsx
+
+에서 /class-groups 요청 시
+서버가 이미 지원하는:
+
+?mine=true
+
+를 명시적으로 사용할 것.
+
+목적:
+
+teacher UI가 실수로 admin scope 응답을 받는 것을
+client intent 차원에서도 방어.
+
+단 서버 변경 금지.
+
+teacher JWT + mine=true
+둘 다 만족.
+
+Admin 화면:
+기존 전체 조회 유지.
+
+============================================================
+5. STUDENT LIST
+============================================================
+
+app/(teacher)/students.tsx는
+기존:
+
+GET /teacher/me/members
+
+JWT teacher scope 유지.
+
+하지만 teacher route가
+switchRole 완료 전 mount/fetch하지 않도록
+동일 gate 적용.
+
+admin cached /students 결과를
+teacher 화면에서 재사용하지 않게 확인.
+
+============================================================
+6. effectiveTeacherId 새 구조 금지
+============================================================
+
+조사에서 effectiveTeacherId가 없다는 사실이 확인됐지만
+이번 문제 해결을 위해
+새 "선생님 선택/impersonation" 시스템 만들지 말 것.
+
+현재 switchRole이 발급하는
+teacher JWT identity가 source of truth.
+
+이번 버그는:
+
+- role switch timing
+- stale admin cache
+- 명시적 mine scope 부재
+
+만 해결.
+
+============================================================
+7. BUG 1 TESTS
+============================================================
+
+TS01
+teacher A 로그인
+→ A class only
+
+TS02
+teacher A
+→ teacher B class 0
+
+TS03
+teacher A student list
+→ A scope only
+
+TS04
+admin normal
+→ pool all classes
+
+TS05
+admin normal
+→ pool all students
+
+TS06
+admin→teacher switch 중
+old pool_admin token으로 teacher API 호출 0
+
+TS07
+admin→teacher 완료 후
+/class-groups?mine=true 사용
+
+TS08
+admin cached class-groups가
+teacher 화면에 재사용되지 않음
+
+TS09
+teacher→admin 복귀 후
+admin scope 정상 복원
+
+TS10
+today schedule teacher scope 정상
+
+TS11
+attendance downstream scope 정상
+
+TS12
+makeup downstream scope 정상
+
+TS13
+cross-pool leakage 0
+
+============================================================
+8. BUG 2 — MEDIA 정책 LOCK
+============================================================
+
+Persistent authority:
+
+R2 / SERVER
+
+LOCAL:
+
+picker/manipulator temp only
+
+upload 완료 후:
+삭제
+
+upload 실패 후:
+삭제
+
+upload 취소 후:
+삭제
+
+remote viewing cache:
+bounded / disposable
+
+사용자가 명시적으로 다운로드한 파일:
+유지
+
+사용자 Photos Library 원본:
+절대 삭제 금지
+
+============================================================
+9. 직접 업로드 경로 CLEANUP
+============================================================
+
+조사에서 확인된
+UploadQueueContext를 거치지 않는 직접 업로드 경로:
+
+- diary photo
+- diary video
+- album photo
+- 기타 실제 조사에서 확인된 direct upload
+
+각 경로에서
+앱이 생성한 temp URI를 추적.
+
+성공/실패 모두 cleanup 되도록
+try/finally 또는 동등 구조 사용.
+
+반드시:
+
+deleteTempFileAfterUpload(tempUri)
+
+또는 기존 안전 helper 재사용.
+
+주의:
+
+picker source URI가
+사용자 Photos Library 자체를 가리키는 경우
+삭제 금지.
+
+helper가 cacheDirectory 내부만 삭제하도록
+현재 safety guard 유지/검증.
+
+============================================================
+10. UploadQueueContext 실패 CLEANUP
+============================================================
+
+현재:
+
+SUCCESS:
+deleteTempFileAfterUpload
+
+FAIL:
+cleanup 누락
+
+이면 수정.
+
+업로드 attempt가 종료된 뒤
+retry가 더 이상 해당 local temp를 필요로 하지 않는 시점에만 삭제.
+
+중요:
+
+queue retry 기능이
+동일 temp file을 다시 써야 한다면
+첫 실패 즉시 삭제해서 retry를 깨뜨리면 안 됨.
+
+따라서:
+
+RETRY PENDING:
+temp 유지
+
+FINAL SUCCESS:
+삭제
+
+FINAL FAILURE / ABORT:
+삭제
+
+로 구분.
+
+실제 queue state machine 기준으로 적용.
+
+============================================================
+11. ImageManipulator TEMP
+============================================================
+
+ImageManipulator가 생성한
+cacheDirectory/ImageManipulator/*
+
+중간 결과도
+최종 upload 완료/최종 실패 시 cleanup.
+
+원본 picker temp와
+manipulator output이 서로 다른 URI면
+둘 다 app-created temp 여부 확인 후 cleanup.
+
+============================================================
+12. 기존 11GB SAFE CLEANUP — V3
+============================================================
+
+현재 runMediaCleanupV2가
+one-shot flag 때문에 이후 재실행되지 않는 문제가 있음.
+
+기존 V2를 무작정 매 foreground마다
+전체 삭제하도록 바꾸지 말 것.
+
+대신 안전한 V3 cleanup을 추가/개선.
+
+대상:
+
+cacheDirectory/ImagePicker/*
+cacheDirectory/ImageManipulator/*
+cacheDirectory/com.hackemist.SDImageCache/*
+
+그리고 명확한 legacy pattern:
+
+documentDirectory/diary_*.jpg
+documentDirectory/swim_*.jpg
+documentDirectory/diary_video_*.*
+
+단 사용자 명시 다운로드 파일:
+절대 삭제 금지.
+
+V3는:
+
+앱 업데이트 후 첫 실행에
+기존 stale media cache를 한번 정리
+
++
+이후 temp 재누적은
+각 upload lifecycle cleanup으로 방지
+
+하는 구조를 우선.
+
+============================================================
+13. expo-image DISK CACHE
+============================================================
+
+com.hackemist.SDImageCache가
+무제한 커지는 것을 방지.
+
+매 foreground마다 무조건 전체 삭제:
+NO
+
+다음 중 현재 API에서 가장 작은 안전 변경 사용:
+
+A.
+기존 cache 정책/limit API가 있으면
+bounded disk cache 설정
+
+또는
+
+B.
+앱 foreground/start 시
+cache size threshold 초과 때만 clear
+
+또는
+
+C.
+정확한 size 조회가 어렵다면
+안전한 주기적 cleanup 정책
+
+새 caching architecture:
+NO.
+
+목표:
+수 GB 무제한 성장 금지.
+
+============================================================
+14. documentDirectory 보호
+============================================================
+
+다음만 안전 cleanup 대상:
+
+diary_*.jpg
+swim_*.jpg
+diary_video_*.*
+
+등 코드로 생성한 것이 100% 확정된 legacy pattern.
+
+사용자 명시 download:
+유지.
+
+임의로 documentDirectory 전체 삭제:
+절대 NO.
+
+============================================================
+15. 서버/R2 업로드 로직 변경 금지
+============================================================
+
+현재:
+
+R2/server authoritative = YES
+
+이므로 upload API/object key/DB contract는 건드리지 말 것.
+
+서버:
+NO CHANGE
+
+Storage quota:
+NO CHANGE
+
+RevenueCat:
+NO CHANGE
+
+요금제:
+NO CHANGE
+
+============================================================
+16. NORMAL / X 공통
+============================================================
+
+Normal과 X가 동일 shared media pipeline을 쓰므로
+한쪽만 cleanup하고 끝내지 말 것.
+
+공통 helper 수정으로 해결 가능한 부분은
+공통 helper에서 처리.
+
+duplicate implementation:
+NO.
+
+============================================================
+17. BUG 2 TESTS
+============================================================
+
+MS01
+photo upload success
+→ R2/server reference
+
+MS02
+photo success 후 app temp 삭제
+
+MS03
+photo final failure 후 app temp 삭제
+
+MS04
+video success 후 app temp 삭제
+
+MS05
+video final failure 후 app temp 삭제
+
+MS06
+ImageManipulator temp 삭제
+
+MS07
+retry pending 중 필요한 temp 보존
+
+MS08
+retry final success 후 temp 삭제
+
+MS09
+retry final failure 후 temp 삭제
+
+MS10
+user Photos Library original untouched
+
+MS11
+explicit user download preserved
+
+MS12
+legacy safe-pattern cleanup PASS
+
+MS13
+ImagePicker stale cache cleanup PASS
+
+MS14
+ImageManipulator stale cache cleanup PASS
+
+MS15
+SDImageCache bounded/threshold cleanup PASS
+
+MS16
+Normal mode same policy
+
+MS17
+X mode same policy
+
+MS18
+100 mocked photo uploads 후
+persistent temp count 증가 0
+
+MS19
+repeated video uploads 후
+persistent temp count 증가 0
+
+MS20
+server quota와 local retention 연결 0
+
+============================================================
+18. 실제 11GB 회복 예상
+============================================================
+
+완료보고에 반드시:
+
+현재 11GB 기기에서
+새 V3 cleanup이 첫 실행될 경우
+
+어떤 directory가 삭제 대상이고
+어떤 사용자 파일은 보존되는지
+
+정확히 기록.
+
+"11GB 전부 삭제"라고 보장 금지.
+
+안전하게 식별 가능한
+SWIMNOTE temp/cache만 정리.
+
+============================================================
+19. COMMIT
+============================================================
+
+반드시 release/v2.0.0 only.
+
+가능하면 2개 commit:
+
+1.
+fix(teacher-scope): isolate role-switch queries and teacher scope
+
+2.
+fix(media-storage): cleanup upload temps and bound media cache
+
+1.6.3:
+NO COMMIT
+
+Production branch:
+NO COMMIT
+
+============================================================
+20. TEST FAILURE BASELINE
+============================================================
+
+최근 테스트 숫자가
+166 → 181로 달랐던 이력이 있음.
+
+이번 작업에서는 절대 숫자만 보고 PASS 금지.
+
+필수:
+
+변경 전 failing test names
+vs
+변경 후 failing test names
+
+diff.
+
+NEW deterministic failures:
+0
+
+이어야 함.
+
+기존 unrelated failures는 건드리지 말 것.
+
+============================================================
+21. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 BLOCKER 1·2 FIX REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commits:
+...
+
+1.6.3 touched:
+NO
+
+Production touched:
+NO
+
+============================================================
+
+## BUG 1 — TEACHER SCOPE
+
+Role switch gate:
+PASS / FAIL
+
+Old admin request cancellation:
+PASS / FAIL
+
+Role-sensitive cache isolation:
+PASS / FAIL
+
+Teacher /class-groups?mine=true:
+PASS / FAIL
+
+Teacher own classes:
+PASS / FAIL
+
+Teacher own students:
+PASS / FAIL
+
+Admin normal all scope:
+PASS / FAIL
+
+Admin→Teacher cross-teacher leakage:
+0 / ...
+
+TS01-TS13:
+...
+
+============================================================
+
+## BUG 2 — MEDIA
+
+R2/server authoritative:
+YES / NO
+
+Direct upload success cleanup:
+PASS / FAIL
+
+Direct upload failure cleanup:
+PASS / FAIL
+
+Queue retry temp policy:
+PASS / FAIL
+
+ImagePicker temp cleanup:
+PASS / FAIL
+
+ImageManipulator cleanup:
+PASS / FAIL
+
+SDImageCache bounded:
+PASS / FAIL
+
+User Photos protected:
+PASS / FAIL
+
+Explicit downloads preserved:
+PASS / FAIL
+
+Normal/X shared:
+PASS / FAIL
+
+### V3 LEGACY CLEANUP
+
+Safe directories/patterns cleaned:
+...
+
+User files explicitly excluded:
+...
+
+Expected effect on existing 11GB:
+...
+
+MS01-MS20:
+...
+
+============================================================
+
+## REGRESSION
+
+Failing tests before:
+...
+
+Failing tests after:
+...
+
+New deterministic failures:
+0 / ...
+
+============================================================
+
+## FREEZE SAFETY
+
+1.6.3 branch modified:
+NO
+
+1.6.3 OTA performed:
+NO
+
+deploy-photo-clone modified:
+NO
+
+Render deploy:
+NO
+
+Production DB:
+NO CHANGE
+
+============================================================
+
+## FINAL
+
+TEACHER SCOPE + MEDIA STORAGE BLOCKERS FIXED — READY FOR DEVICE VALIDATION
+
+또는
+
+BLOCKER FIX INCOMPLETE — EXACT REMAINING ISSUE
