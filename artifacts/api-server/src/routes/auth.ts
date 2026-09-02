@@ -2122,11 +2122,12 @@ router.post("/kakao-social-login", async (req, res) => {
     //   B) pool_id 없음 (1.6.3 앱)   : phone 매칭 결과 정확히 1개 → 자동 연결
     //                                   2개 이상 → KAKAO_PARENT_AMBIGUOUS (잘못된 계정 연결 금지)
     if (kakaoPhone) {
+      const kakaoPhoneHyphenP = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
       if (hasPoolId) {
-        // 2-A) 2.0.0: pool_id + phone 정확 매칭
+        // 2-A) 2.0.0: pool_id + phone 정확 매칭 (digits 또는 하이픈 형식 둘 다)
         const byPhonePool = await db.execute(sql`
           SELECT * FROM parent_accounts
-          WHERE phone = ${kakaoPhone} AND swimming_pool_id = ${requestPoolId}
+          WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP}) AND swimming_pool_id = ${requestPoolId}
           LIMIT 1
         `);
         if ((byPhonePool.rows as any[]).length > 0) {
@@ -2155,9 +2156,9 @@ router.post("/kakao-social-login", async (req, res) => {
         }
         // pool_id로 지정한 pool에 계정 없음 → 신규 가입 유도
       } else {
-        // 2-B) 1.6.3: pool_id 없음 → 전체 조회, 2개 이상이면 임의 연결 금지
+        // 2-B) 1.6.3: pool_id 없음 → 전체 조회, 2개 이상이면 임의 연결 금지 (digits 또는 하이픈 형식 둘 다)
         const byPhone = await db.execute(sql`
-          SELECT * FROM parent_accounts WHERE phone = ${kakaoPhone} LIMIT 2
+          SELECT * FROM parent_accounts WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP}) LIMIT 2
         `);
         const phoneMatches = byPhone.rows as any[];
 
@@ -2248,10 +2249,11 @@ router.post("/kakao-social-login", async (req, res) => {
       });
     }
 
-    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결
+    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결 (digits 또는 하이픈 형식 둘 다)
     if (kakaoPhone) {
+      const kakaoPhoneHyphen = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
       const byPhoneTeacher = await db.execute(sql`
-        SELECT * FROM users WHERE phone = ${kakaoPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+        SELECT * FROM users WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphen}) AND role IN ('teacher', 'pool_admin') LIMIT 1
       `);
       if ((byPhoneTeacher.rows as any[]).length > 0) {
         const u = byPhoneTeacher.rows[0] as any;
