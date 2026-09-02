@@ -1,0 +1,1245 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 7
+# SECURITY + PERFORMANCE + AI COST
+# + RELEASE GATE FINALIZATION
+# + APP PRODUCTIZATION FREEZE
+#
+# ONE PASS:
+# TARGETED AUDIT → FIX → TEST → FREEZE REPORT
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+30163af1
+
+현재 상태:
+
+STAGE 1 CLOSED
+STAGE 2 CLOSED
+STAGE 3 CLOSED
+STAGE 4 CODE CLOSED
+STAGE 5 CLOSED
+STAGE 6 APP CODE CLOSED
+
+Stable backend regression baseline:
+166 failures
+5022 passed
+16 skipped
+Known flaky:
+0
+
+이번 Stage 완료 후 목표:
+
+APP PRODUCTIZATION FREEZE
+
+즉 이번 Stage 이후에는
+Pricing / Subscription / RevenueCat / Store 작업 외에는
+앱 기능/IA/디자인을 다시 흔들지 않는 상태로 만듭니다.
+
+============================================================
+0. CREDIT-SAVING RULE
+============================================================
+
+전체 앱을 처음부터 다시 감사하지 마십시오.
+
+이번 Stage는 아래 위험영역만 집중:
+
+1.
+Auth / Role / Tenant
+
+2.
+Student / Parent ownership
+
+3.
+Force delete server guard
+
+4.
+Paid Insight / Growth Report security
+
+5.
+Upload / media / file validation
+
+6.
+Logs / PII / secrets
+
+7.
+AI request cost / duplicate calls / timeout
+
+8.
+Performance hot spots
+
+9.
+Pending migration release readiness
+
+10.
+Freeze blocker 확인
+
+발견:
+→ 바로 최소 수정
+→ 관련 test
+→ regression
+→ commit
+
+Audit report만 제출 후 STOP 금지.
+
+============================================================
+1. 절대 HOLD
+============================================================
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+App Store:
+NO
+
+Google Play:
+NO
+
+1.6.3 subscription UI:
+NO
+
+Production deploy:
+NO
+
+Production migration execution:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+2. AUTH / ROLE / TENANT
+============================================================
+
+핵심 server routes에서 확인:
+
+ADMIN
+TEACHER
+PARENT
+
+필수:
+
+- auth middleware
+- role guard
+- pool scope
+- student ownership
+- teacher class scope
+- parent-child relation
+
+특히 ID guessing으로
+다른 pool/student 데이터 접근 가능하면 FAIL.
+
+UI hide는 security가 아닙니다.
+
+============================================================
+3. FORCE DELETE — 반드시 이번 Stage에서 검토
+============================================================
+
+이전 carry-forward:
+
+/admin/students/:id/force-delete
+
+server endpoint가
+active student도 hard delete 가능할 가능성 있음.
+
+이번 Stage에서 실제 handler 조사.
+
+정책:
+
+ACTIVE 학생 hard delete:
+금지.
+
+운영상 삭제가 필요한 경우
+기존 withdrawal/soft-state workflow 사용.
+
+force-delete는 최소한:
+
+- authorized admin
+- same pool
+- student existence
+- allowed status
+
+검증 필요.
+
+active / currently enrolled student:
+403 또는 canonical business error.
+
+UI Danger Zone 숨김만으로 끝내면 FAIL.
+
+============================================================
+4. FORCE DELETE STATUS RULE
+============================================================
+
+실제 repository status enum을 조사하고
+삭제 가능한 terminal/inactive 상태만 허용.
+
+임의 enum 생성 금지.
+
+예시 의미:
+
+withdrawn
+terminated
+deleted-ready
+
+등 실제 코드에 존재하는 상태만.
+
+현재 enrollment/class assignment가 유효하면
+hard delete 차단.
+
+============================================================
+5. PARENT OWNERSHIP
+============================================================
+
+대표 route 집중 확인:
+
+- diary
+- photos
+- growth report
+- paid insight
+- curriculum search
+- requests
+- additional guardians
+
+다른 parent의 studentId:
+403
+
+다른 pool:
+403
+
+phone/name 기반 ownership:
+NO.
+
+============================================================
+6. TEACHER SCOPE
+============================================================
+
+대표 route:
+
+- attendance
+- diary
+- photos
+- student detail
+- growth events
+- makeup
+
+teacher가 권한 없는 class/student 접근:
+403
+
+Admin:
+same pool 범위 허용.
+
+============================================================
+7. PAID INSIGHT SECURITY
+============================================================
+
+확인:
+
+Questions
+Analysis
+Status
+History
+Answers
+
+모두:
+
+parent-child ownership
+pool scope
+report ownership
+
+검증.
+
+Analysis:
+payment_verified gate 유지.
+
+Client에서 flag spoof:
+실행 불가.
+
+AI Engine 직접 모바일 호출:
+불가.
+
+============================================================
+8. FREE GROWTH REPORT SECURITY
+============================================================
+
+확인:
+
+reportId guessing
+→ 다른 student/pool 접근 불가
+
+Parent:
+자기 자녀만
+
+Admin:
+same pool
+
+Teacher:
+정책 허용 범위만.
+
+============================================================
+9. AI ENGINE AUTH / SECRET
+============================================================
+
+확인:
+
+JWT_SECRET
+service token
+AI base URL secret values
+
+client bundle에 노출:
+0
+
+EXPO_PUBLIC_*에 secret:
+0
+
+server-only env 사용.
+
+Production logs에
+Authorization header:
+NO.
+
+============================================================
+10. PII LOG AUDIT
+============================================================
+
+핵심 AI / report / notice / diary 경로 로그에서:
+
+학생 이름
+전화번호
+parent answer raw
+teacher diary raw
+generated report full text
+JWT
+full snapshot
+full request/response body
+
+production log 노출:
+0
+
+허용:
+
+request_id
+opaque student/pool ref
+status
+latency
+counts
+error_code
+model
+token usage
+cost
+
+============================================================
+11. FILE / MEDIA SECURITY
+============================================================
+
+현재 exposed photo flow 기준 확인:
+
+upload ownership
+read ownership
+content type
+file size limit
+filename/path handling
+R2/object key isolation
+deleted asset access
+
+Video는 현재 video_enabled=false 기본이므로
+새 compression 구현 금지.
+
+단 gate 우회로 video upload 가능하면 수정.
+
+============================================================
+12. UPLOAD VALIDATION
+============================================================
+
+확인:
+
+oversized upload
+unsupported mime
+empty file
+malformed metadata
+
+안전하게 reject.
+
+사용자 supplied filename을
+server path로 직접 사용:
+NO.
+
+============================================================
+13. INPUT VALIDATION
+============================================================
+
+대표 mutation/API:
+
+studentId
+classGroupId
+reportId
+requestId
+dates
+pagination
+search query
+
+validation 확인.
+
+SQL string concatenation:
+NO.
+
+ORM/query parameterization 유지.
+
+============================================================
+14. AI COST — 핵심
+============================================================
+
+다음 AI 기능의 호출구조 조사:
+
+- Teacher Diary AI
+- Parent Curriculum Search
+- Admin Notice AI
+- Free Growth Report
+- Paid Insight Questions
+- Paid Insight Analysis
+
+확인:
+
+중복 요청 방지
+sending guard
+idempotency
+timeout
+retry
+max input size
+token limits
+cost metadata
+model choice
+
+============================================================
+15. 중복 AI 호출
+============================================================
+
+double tap
+retry
+screen remount
+network retry
+
+때문에 같은 AI 호출이
+중복 실행되는 경로 확인.
+
+가능하면 기존:
+
+request_id
+idempotency registry
+sendingRef
+debounce
+
+재사용.
+
+새 복잡한 queue system 만들지 마십시오.
+
+============================================================
+16. PAID INSIGHT COST
+============================================================
+
+Analysis는 고비용 가능성이 있으므로:
+
+payment_verified
++
+request idempotency
+
+둘 다 서버에서 보장.
+
+UI disabled만으로 보호:
+FAIL.
+
+동일 purchase/report cycle에서
+중복 analysis 생성:
+0.
+
+============================================================
+17. FREE REPORT COST
+============================================================
+
+월 5일 scheduler:
+
+same student
+same reportPeriod
+
+중복 generation:
+0.
+
+scheduler rerun:
+skip.
+
+failed retry가
+중복 published report/push를 만들지 않음.
+
+============================================================
+18. NOTICE AI COST
+============================================================
+
+AI 작성버튼:
+
+double tap:
+1 request only
+
+retry:
+명시적
+
+auto generation on mount:
+NO.
+
+============================================================
+19. CURRICULUM CHAT COST
+============================================================
+
+확인:
+
+empty query
+rapid repeated query
+same request spam
+
+기존 guard 존재 여부.
+
+과도한 별도 rate-limit architecture 생성 금지.
+
+명백한 무제한 반복 위험이 있다면
+기존 rate/usage mechanism 재사용.
+
+============================================================
+20. PERFORMANCE — DB
+============================================================
+
+핵심 최근 추가 route만 조사:
+
+- admin report summary
+- admin diary summary
+- curriculum summary/students
+- x-hub summary
+- paid insight status/history
+- growth report scheduler eligibility
+- student detail aggregates
+
+확인:
+
+N+1
+unbounded query
+missing pagination
+SELECT *
+large JSON overfetch
+loop per student DB query
+
+치명적/명백한 문제만 수정.
+
+전체 DB 최적화 프로젝트로 확장 금지.
+
+============================================================
+21. PERFORMANCE — LISTS
+============================================================
+
+mobile 핵심 list:
+
+members
+withdrawn members
+photos
+notifications
+report hubs
+paid history
+
+확인:
+
+pagination
+stable key
+unbounded render
+obvious rerender loop
+
+디자인 변경 금지.
+
+============================================================
+22. PERFORMANCE — AI RESPONSE
+============================================================
+
+Analysis timeout:
+현재 APP contract 165s
+
+Engine:
+150s
+
+이 구조 유지.
+
+Client가 더 짧게 timeout:
+FAIL.
+
+무한 spinner:
+NO.
+
+============================================================
+23. PERFORMANCE — CACHE
+============================================================
+
+student/pool context가 다른데
+cache key가 공유되어 stale leak 일으키는 곳만 수정.
+
+특히:
+
+photos
+growth report
+paid insight
+curriculum
+
+Stage 6에서 photos leak 수정됨.
+재발 여부 확인만.
+
+============================================================
+24. ERROR HANDLING
+============================================================
+
+server 내부 stack trace
+DB error
+secret
+raw upstream AI response
+
+client 노출:
+NO.
+
+사용자에게 canonical safe error.
+
+server logs에는
+request_id 중심.
+
+============================================================
+25. RATE / ABUSE
+============================================================
+
+현재 존재하는 rate-limit / usage control 조사.
+
+AI endpoint에
+아무 제한도 없는 명백한 abuse 경로가 있으면
+기존 middleware 재사용.
+
+새 전역 billing system:
+NO.
+
+Pricing:
+NO.
+
+============================================================
+26. PENDING PAID INSIGHT MIGRATION
+============================================================
+
+현재 pending:
+
+artifacts/api-server/src/migrations/paid-insight-enum-extension.ts
+
+내용:
+
+gr_answer_type_enum
++ SCALE
++ SHORT_TEXT
+
+이번 Stage에서:
+
+코드 검토
+idempotent/safe 여부 확인
+rollback limitation 확인
+dependency 확인
+실행 전/후 validation query 준비
+
+Production 실행:
+NO.
+
+============================================================
+27. MIGRATION SAFETY
+============================================================
+
+PostgreSQL enum additive migration 특성상
+rollback이 단순하지 않을 수 있으므로
+
+확인:
+
+- duplicate enum value rerun safety
+- transaction behavior
+- existing rows 영향
+- old app compatibility
+- old server compatibility
+
+1.6.3 영향:
+0 이어야 함.
+
+필요하면 migration code만 수정.
+
+Production 적용은 Release Gate 승인 후.
+
+============================================================
+28. LEVEL-UP TRIGGER
+============================================================
+
+현재:
+
+notifyPaidInsightLevelUp 함수 존재
+canonical level-up event 없음
+
+이번 Stage에서 새 event framework 만들지 마십시오.
+
+DEFERRED 유지.
+
+단 release blocker인지 판단:
+
+Paid Insight 핵심 기능이 없어지는가?
+NO
+
+마케팅 trigger만 미연결인가?
+YES
+
+이면 post-launch/future enhancement로 유지 가능.
+
+============================================================
+29. READINESS / RE-ANALYSIS TRIGGER
+============================================================
+
+canonical threshold 없음.
+
+임의 threshold:
+NO.
+
+DEFERRED 유지.
+
+이들도 core report generation blocker가 아니라
+marketing automation enhancement인지 구분하여 보고.
+
+============================================================
+30. VIDEO
+============================================================
+
+Stage 6 결과:
+
+video_enabled=false 기본
+업로드 차단
+compression 미구현
+
+이번 Stage 확인:
+
+gate server-side도 충분히 보호되는지.
+
+client gate만 있고
+server upload endpoint가 video를 그대로 받으면
+security/release risk로 보고.
+
+현재 출시에서 Video OFF 정책이 확실하면:
+
+Release with Video disabled:
+PASS
+
+향후 Video enable 전:
+compression/native work required
+
+로 carry-forward.
+
+============================================================
+31. DEVICE CHECK CARRY-FORWARD
+============================================================
+
+Stage 6 device checks:
+
+1.
+Admin Notice AI keyboard dismiss + apply
+
+2.
+Parent Curriculum unavailable branch scroll consistency
+
+이번 Stage에서
+source를 또 감사하지 마십시오.
+
+Final E2E Stage로 carry-forward.
+
+============================================================
+32. RELEASE BLOCKER CLASSIFICATION
+============================================================
+
+발견 항목마다:
+
+BLOCKER
+MUST FIX BEFORE FREEZE
+
+또는
+
+RELEASE GATE
+외부 승인/배포 직전
+
+또는
+
+DEFERRED
+비핵심 후속기능
+
+으로 분류.
+
+모든 TODO를 blocker로 만들지 마십시오.
+
+============================================================
+33. APP FREEZE 조건
+============================================================
+
+다음이면 APP PRODUCTIZATION FREEZE 가능:
+
+- new security critical = 0
+- active hard-delete vulnerability = 0
+- cross-tenant leak = 0
+- parent-child leak = 0
+- AI secret client exposure = 0
+- user PII raw logging critical = 0
+- duplicate paid analysis = 0
+- major N+1/unbounded endpoint = 0
+- new regression = 0
+- pending migration code release-ready
+- remaining items이 external/release/deferred로 명확히 분류
+
+============================================================
+34. FREEZE 이후 의미
+============================================================
+
+Stage 7 FULLY CLOSED 후:
+
+일반 앱 기능
+IA
+디자인
+AI feature
+
+추가 수정 금지.
+
+다음 Stage는 오직:
+
+Pricing
+Subscription
+RevenueCat
+Store
+Payment
+
+작업.
+
+단 security-critical / release-blocking bug 발견 시만
+freeze exception 허용.
+
+============================================================
+35. TESTS
+============================================================
+
+최소 관련 테스트:
+
+SECURITY
+
+1.
+active student force-delete blocked
+
+2.
+terminal allowed status force-delete policy
+
+3.
+cross-pool force-delete blocked
+
+4.
+parent other-child paid insight 403
+
+5.
+parent other-child growth report 403
+
+6.
+teacher unauthorized student/class 403
+
+7.
+JWT/service secret client exposure static check
+
+8.
+report/history ID guessing
+
+AI COST
+
+9.
+Paid analysis duplicate request
+→ one result
+
+10.
+Free monthly report rerun
+→ duplicate 0
+
+11.
+Notice AI double request guard
+
+12.
+Question retry safe
+
+PERFORMANCE
+
+13.
+paid history pagination/bounds
+
+14.
+admin summary bounded queries
+
+15.
+scheduler no obvious N+1 where avoidable
+
+MIGRATION
+
+16.
+enum migration first run
+
+17.
+enum migration rerun safety
+
+18.
+existing enum values preserved
+
+============================================================
+36. REGRESSION
+============================================================
+
+Stable baseline:
+
+166 failed
+5022 passed
+16 skipped
+
+Command:
+
+cd artifacts/api-server && pnpm vitest run
+
+Expected after:
+
+Stable failures:
+166 or fewer due to legitimate fixes
+
+New deterministic:
+0
+
+New flaky:
+0
+
+New TS:
+0
+
+============================================================
+37. PRODUCTION
+============================================================
+
+DO NOT:
+
+Production deploy
+Render deploy
+Production DB migration
+OTA
+Build
+RevenueCat
+Store config
+
+이번 Stage는
+code + test + freeze only.
+
+============================================================
+38. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# COMPRESSED STAGE 7 SECURITY / PERFORMANCE / COST / FREEZE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## SECURITY ISSUES
+
+Issue | Severity | Root Cause | Fix | Result
+
+...
+
+Critical remaining:
+...
+
+Expected:
+0
+
+## FORCE DELETE
+
+Endpoint:
+...
+
+Previous behavior:
+...
+
+Allowed statuses:
+...
+
+Active/enrolled:
+BLOCKED / ...
+
+Cross-pool:
+...
+
+Tests:
+...
+
+## PARENT / STUDENT OWNERSHIP
+
+Paid Insight:
+...
+
+Growth Report:
+...
+
+Photos:
+...
+
+Curriculum:
+...
+
+Requests:
+...
+
+Cross-child issues:
+...
+
+Expected:
+0
+
+## TEACHER SCOPE
+
+...
+
+## SECRETS
+
+Client-exposed secret:
+...
+
+Expected:
+0
+
+AI auth:
+...
+
+## PII / LOGGING
+
+Raw student name:
+...
+
+Raw parent answers:
+...
+
+JWT:
+...
+
+Full AI payload:
+...
+
+Issues fixed:
+...
+
+## MEDIA SECURITY
+
+Photo:
+...
+
+Video client gate:
+...
+
+Video server gate:
+...
+
+Release with video disabled:
+PASS / FAIL
+
+Future compression gate:
+...
+
+## AI COST
+
+Teacher Diary:
+...
+
+Curriculum:
+...
+
+Notice AI:
+...
+
+Free Report:
+...
+
+Paid Questions:
+...
+
+Paid Analysis:
+...
+
+Duplicate paid analysis:
+...
+
+Expected:
+0
+
+## PERFORMANCE
+
+N+1 found:
+...
+
+Unbounded queries:
+...
+
+Pagination issues:
+...
+
+Fixed:
+...
+
+Remaining release blockers:
+...
+
+Expected:
+0
+
+## MIGRATION REVIEW
+
+File:
+paid-insight-enum-extension.ts
+
+SCALE:
+...
+
+SHORT_TEXT:
+...
+
+Rerun safe:
+...
+
+Backward compatible:
+...
+
+Production executed:
+NO
+
+Release ready:
+YES / NO
+
+## STAGE 4 DEFERRED TRIGGERS
+
+Level-up:
+DEFERRED / ...
+
+Classification:
+...
+
+Readiness:
+DEFERRED / ...
+
+Classification:
+...
+
+Re-analysis:
+DEFERRED / ...
+
+Classification:
+...
+
+## DEVICE CHECK CARRY-FORWARD
+
+Admin Notice AI:
+FINAL E2E
+
+Parent Curriculum unavailable branch:
+FINAL E2E
+
+## REGRESSION
+
+Baseline:
+166 failed / 5022 passed / 16 skipped
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky:
+...
+
+New TS:
+...
+
+Expected:
+0 / 0 / 0
+
+## RELEASE BLOCKERS
+
+NONE
+or
+...
+
+## RELEASE GATES
+
+Paid Insight enum migration:
+...
+
+Production deployment:
+PENDING APPROVAL
+
+Device E2E:
+PENDING
+
+## DEFERRED NON-BLOCKERS
+
+...
+
+## APP PRODUCTIZATION FREEZE
+
+Security gate:
+PASS / FAIL
+
+Performance gate:
+PASS / FAIL
+
+AI cost gate:
+PASS / FAIL
+
+Regression gate:
+PASS / FAIL
+
+Migration code readiness:
+PASS / FAIL
+
+FINAL FREEZE STATUS:
+
+APP PRODUCTIZATION FROZEN
+
+or
+
+APP FREEZE BLOCKED
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
