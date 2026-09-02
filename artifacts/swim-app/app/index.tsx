@@ -2,7 +2,7 @@
  * index.tsx — 로그인 첫 화면
  * 상단: 로고 + 브랜드명 + 보조설명
  * 중단: 아이디/비밀번호 입력 + 로그인 버튼 + 비밀번호 찾기
- * 하단: or 구분선 + 카카오 가입 / 일반 가입
+ * 하단: or 구분선 + 일반 가입
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
@@ -21,20 +21,9 @@ import * as AppleAuthentication from "expo-apple-authentication";
 
 const C = Colors.light;
 const BRAND   = "#F97316";
-const KAKAO   = "#FEE500";
 const NAVY    = "#1B3A70";   // 네이비 기본색 (버튼 fill)
 const MINT    = C.brandStrong;   // 브랜드 액센트
 
-function KakaoIcon({ size = 22 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        d="M12 3C6.48 3 2 6.58 2 11C2 13.8 3.68 16.27 6.24 17.76L5.1 21.5L9.3 19.04C10.16 19.22 11.07 19.32 12 19.32C17.52 19.32 22 15.74 22 11C22 6.58 17.52 3 12 3Z"
-        fill="#3C1E1E"
-      />
-    </Svg>
-  );
-}
 
 function AppleIcon({ size = 22 }: { size?: number }) {
   return (
@@ -519,14 +508,10 @@ const s = StyleSheet.create({
   },
   appleFullBtn:     { backgroundColor: "#000", shadowColor: "#000" },
   appleFullBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  kakaoFullBtn:     { backgroundColor: KAKAO, shadowColor: KAKAO },
-  kakaoFullBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#3C1E1E" },
-
   /* 하위호환: icon-only 스타일 (더 이상 사용하지 않음, 안전하게 유지) */
   socialIconRow: { flexDirection: "row", justifyContent: "center", gap: 16 },
   socialIconBtn: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center" },
   appleIconBtn:  { backgroundColor: "#000" },
-  kakaoIconBtn:  { backgroundColor: KAKAO },
 
   /* 키보드 위 입력 미리보기 */
   inputBubble: {
