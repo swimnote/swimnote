@@ -1,0 +1,296 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 1.6.3 — MAINTENANCE SCREEN EMERGENCY HOTFIX
+
+현재 실제 iOS Production 1.6.3에서
+다시 "서버 점검 중입니다" 화면이 노출됨.
+
+직전 최신 OTA:
+
+Branch:
+maintenance/v1.6.3-social-exit
+
+HEAD:
+6b7fde18
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+Update ID:
+01a06305-2aba-73f4-8f3c-97e44e3777aa
+
+중요:
+Kakao Exit 기능은 유지해야 한다.
+
+이번 작업은
+점검화면 회귀만 찾아서 제거/비활성화하고
+즉시 새 iOS OTA까지 진행한다.
+
+============================================================
+1. 최우선 확인
+============================================================
+
+1.6.3 client source에서 다음 문자열/조건 전수 검색:
+
+"서버 점검 중입니다"
+"SWIMNOTE AI 대규모 업데이트"
+maintenance
+maintenanceMode
+isMaintenance
+serverMaintenance
+forceMaintenance
+serviceStatus
+maintenanceScreen
+
+정확한:
+
+FILE
+FUNCTION
+CONDITION
+
+찾기.
+
+============================================================
+2. 실제 화면 진입 원인 확정
+============================================================
+
+반드시 확인:
+
+A.
+hardcoded maintenance flag
+
+B.
+ENV/config flag
+
+C.
+server endpoint response
+
+D.
+network/error fallback가 maintenance로 연결
+
+E.
+이전 rollback/restore 과정에서 old maintenance UI가 재포함
+
+F.
+기타 exact cause
+
+추측 금지.
+
+============================================================
+3. latest OTA diff 확인
+============================================================
+
+직전 HOTFIX rollback OTA와
+현재 6b7fde18 사이 diff 확인.
+
+특히:
+
+app startup
+auth bootstrap
+root layout
+maintenance gate
+health/status fetch
+version check
+
+관련 파일 비교.
+
+현재 OTA에서
+왜 maintenance screen이 다시 활성화됐는지
+정확히 찾을 것.
+
+============================================================
+4. 최종 정책
+============================================================
+
+Production 1.6.3:
+
+MAINTENANCE:
+OFF
+
+서버가 정상이고
+/api/healthz 200이면
+앱 전체를 점검화면으로 막지 말 것.
+
+명시적으로 maintenance=true를
+운영자가 설정한 경우가 아니면
+점검화면 표시 금지.
+
+NETWORK ERROR
+≠
+MAINTENANCE MODE
+
+============================================================
+5. KAKAO EXIT 보호
+============================================================
+
+절대 되돌리지 말 것:
+
+- Kakao button → 안내
+- Kakao SDK call 0
+- 일반가입 이동
+- Parent conversion
+- Teacher conversion
+- migration flow
+
+이번 hotfix로
+Kakao Exit 기능을 롤백하면 FAIL.
+
+============================================================
+6. 수정
+============================================================
+
+원인이 client hardcoded/legacy gate면:
+
+maintenance gate만 최소 제거 또는 false 정상화.
+
+원인이 잘못된 fallback이면:
+
+error fallback에서 maintenance screen으로 보내는 로직만 수정.
+
+원인이 server flag면:
+
+client 수정 없이
+정확한 production flag만 OFF.
+
+새 architecture:
+NO
+
+============================================================
+7. 테스트
+============================================================
+
+MH01
+Production maintenance default OFF
+
+MH02
+normal server health → login screen
+
+MH03
+network error → maintenance screen 강제 진입 안 함
+
+MH04
+explicit maintenance=true일 때만 maintenance screen
+
+MH05
+Kakao button 안내 유지
+
+MH06
+Kakao SDK call 0
+
+MH07
+Parent conversion source 유지
+
+MH08
+Teacher conversion source 유지
+
+MH09
+normal login/signup 유지
+
+MH10
+new deterministic failures 0
+
+============================================================
+8. iOS OTA
+============================================================
+
+수정이 JS-only이면:
+
+runtime 1.6.3
+channel production
+
+새 iOS OTA 즉시 배포.
+
+Android:
+NO OTA
+
+반드시 새 Update ID 확보.
+
+============================================================
+9. 실제 검증
+============================================================
+
+OTA 후:
+
+앱 강제종료
+→ 재실행
+
+확인:
+
+"서버 점검 중입니다"
+0
+
+로그인 화면:
+정상
+
+Kakao button:
+안내 → 일반회원가입
+
+Kakao SDK:
+0
+
+============================================================
+10. 완료보고
+============================================================
+
+# SWIMNOTE 1.6.3 MAINTENANCE HOTFIX REPORT
+
+Root cause:
+...
+
+Exact file:
+...
+
+Exact condition:
+...
+
+Related to latest OTA:
+YES / NO
+
+Fix:
+...
+
+Kakao Exit preserved:
+YES / NO
+
+Parent conversion:
+READY / BROKEN
+
+Teacher conversion:
+READY / BROKEN
+
+OTA performed:
+YES / NO
+
+New Update ID:
+...
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+Maintenance screen after restart:
+0 / STILL PRESENT
+
+Login screen:
+NORMAL / FAIL
+
+Kakao button:
+NOTICE → GENERAL SIGNUP
+
+Kakao SDK call:
+0
+
+New deterministic failures:
+0 / ...
+
+FINAL:
+1.6.3 MAINTENANCE SCREEN CLEARED — KAKAO EXIT PRESERVED
+
+또는
+
+MAINTENANCE SCREEN STILL ACTIVE — EXACT BLOCKER
