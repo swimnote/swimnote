@@ -2747,7 +2747,8 @@ router.post("/v2/parent-register", async (req, res) => {
 // 이전 대상 테이블 (parent_id):
 //   parent_students, notice_reads, student_registration_requests,
 //   member_activity_logs, parent_student_requests, diary_reactions,
-//   parent_content_reads, growth_report_interactions
+//   parent_content_reads, growth_report_reactions, parent_v2_pending
+// NOTE: growth_report_interactions는 Production schema에 존재하지 않음 (제외됨)
 // 이전 대상 테이블 (parent_account_id):
 //   push_settings, push_tokens, parent_pool_requests,
 //   parent_ai_daily_usage, parent_ai_usage_reservations,
@@ -2858,10 +2859,12 @@ router.post("/kakao-migration-register", async (req, res) => {
 
       // ── 3-e. Migrate all parent_id references ────────────────────────────
       // Tables using parent_id column
+      // NOTE: growth_report_interactions는 Production schema에 존재하지 않으므로 제외
+      // NOTE: growth_report_reactions, parent_v2_pending는 dry-run 감사에서 발견된 추가 테이블
       for (const tbl of [
         "parent_students", "notice_reads", "student_registration_requests",
         "parent_student_requests", "diary_reactions", "parent_content_reads",
-        "growth_report_interactions",
+        "growth_report_reactions", "parent_v2_pending",
       ]) {
         await db.execute(sql.raw(
           `UPDATE ${tbl} SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
