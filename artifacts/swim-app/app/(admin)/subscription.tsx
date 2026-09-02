@@ -133,7 +133,8 @@ export default function SubscriptionScreen() {
   const [loading, setLoading] = useState(true);
 
   const {
-    soloOffering, centerOffering, xOffering, isSubscribed, activePackageId,
+    soloOffering, centerOffering, xOffering, swimnoteOffering,
+    isSubscribed, activePackageId,
     purchase, isPurchasing, refetchCustomerInfo,
     offeringsLoading, offeringsError, offeringsErrorDetail, refetchOfferings,
   } = useSubscription();
@@ -143,6 +144,7 @@ export default function SubscriptionScreen() {
       ...(soloOffering?.availablePackages ?? []),
       ...(centerOffering?.availablePackages ?? []),
       ...(xOffering?.availablePackages ?? []),
+      ...(swimnoteOffering?.availablePackages ?? []),
     ];
     const map: Record<string, string> = {};
     for (const pkg of all) {
@@ -283,8 +285,12 @@ export default function SubscriptionScreen() {
       }
       expiresAt     = entitlement.expirationDate ? entitlement.expirationDate.slice(0, 10) : null;
     } else {
-      if (isXProductId(productId) || isSwimnoteProductId(productId)) {
+      if (isXProductId(productId)) {
+        // X 플랜만 x_mode entitlement — SWIMNOTE base는 RC entitlement 없음
         entitlementId = X_ENTITLEMENT;
+      } else if (isSwimnoteProductId(productId)) {
+        // SWIMNOTE base plan: 서버 DB tier authoritative, RC entitlement 없음
+        entitlementId = null;
       } else {
         const centerIds = ["center_200","center_300","center_500","center_1000"];
         entitlementId = centerIds.includes(productId)
@@ -310,6 +316,76 @@ export default function SubscriptionScreen() {
       }
       throw new Error(data?.message ?? "서버 동기화에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
+  }
+
+  // SWIMNOTE 기본플랜 구매 핸들러 — RC swimnote_monthly offering 연결
+  async function handleSwimnoteSubscribe() {
+    // 환불 정책 동의 확인
+    if (policyAgreed === false) {
+      showConfirm(
+        "환불 정책 동의 필요",
+        `유료 결제를 진행하려면 환불 정책 동의가 필요합니다.\n현재 버전: ${policyVersion}`,
+        () => router.push("/(admin)/refund-policy" as any),
+      );
+      return;
+    }
+
+    // swimnote_monthly offering 로드 확인
+    if (offeringsLoading) {
+      showConfirm("구독 상품 로드 중", "잠시 후 다시 시도해주세요.", () => {});
+      return;
+    }
+    if (!swimnoteOffering) {
+      showConfirm(
+        "구독 상품 준비 중",
+        "SWIMNOTE 상품이 스토어에 아직 등록되지 않았습니다.\n스토어 심사 완료 후 구독이 가능합니다.",
+        () => refetchOfferings(),
+      );
+      return;
+    }
+
+    // swimnote_monthly 오퍼링에서 패키지 찾기
+    // RC 패키지 identifier: "swimnote" 또는 "swimnote:monthly" 또는 product ID 기준
+    const swimnotePkgs = swimnoteOffering.availablePackages ?? [];
+    const pkg = swimnotePkgs.find(
+      (p: any) =>
+        p.identifier === "swimnote" ||
+        p.identifier === "swimnote:monthly" ||
+        p.product?.productIdentifier === "swimnote" ||
+        p.product?.productIdentifier === "swimnote:monthly" ||
+        p.product?.productIdentifier === "com.swimnote.swimnote.monthly",
+    );
+
+    if (!pkg) {
+      showConfirm(
+        "구독 상품 준비 중",
+        "SWIMNOTE 상품이 스토어에 아직 등록되지 않았습니다.\n스토어 심사 완료 후 구독이 가능합니다.",
+        () => {},
+      );
+      return;
+    }
+
+    // RC 가격 우선, fallback은 정책 가격
+    const priceStr = pkg.product?.priceString ?? `₩${swimnotePlan.price_monthly_krw.toLocaleString("ko-KR")}`;
+
+    showConfirm(
+      "SWIMNOTE 구독 시작",
+      `${priceStr}/월 · 무제한 회원 · ${swimnotePlan.display_storage}\n\n결제 수단: ${STORE_NAME}`,
+      async () => {
+        try {
+          const info = await purchase(pkg);
+          // 서버 동기화 — DB tier=swimnote 갱신 (RC entitlement 없음, productId 기반)
+          await syncRcToServer(info, pkg.product?.productIdentifier ?? "com.swimnote.swimnote.monthly");
+          await refetchCustomerInfo();
+          await refreshPool();
+          await refreshMode().catch(() => {});
+          showConfirm("구독 완료", "SWIMNOTE 구독이 성공적으로 시작되었습니다!", () => {});
+        } catch (e: any) {
+          if (e?.userCancelled) return;
+          showConfirm("구독 실패", e?.message ?? "결제 중 오류가 발생했습니다.", () => {});
+        }
+      },
+    );
   }
 
   // X 플랜 변경 핸들러 — RC x_monthly offering 연결
@@ -714,18 +790,42 @@ export default function SubscriptionScreen() {
                 </View>
               ))}
             </View>
-            {/* WP4 전까지 실제 구매 연결 금지 — disabled CTA */}
+            {/* SWIMNOTE 구매 CTA
+                - 현재 플랜: 배지 표시
+                - swimnote_monthly offering + swimnote 패키지 수신 시: "구독 시작" 활성
+                - offering/package 없음(스토어 미등록): "구독 신청 준비 중" safe disabled
+                - 외부 상품 없어도 crash 없음 */}
             {currentTier === "swimnote" ? (
               <View style={[s.cardAction, { backgroundColor: C.backgroundSoft, borderColor: C.border }]}>
                 <LucideIcon name="check" size={14} color="#10B981" />
                 <Text style={[s.cardActionText, { color: "#10B981", marginLeft: 4 }]}>현재 플랜</Text>
               </View>
-            ) : (
-              <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
-                <LucideIcon name="clock" size={13} color={C.textMuted} />
-                <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>구독 신청 준비 중</Text>
-              </View>
-            )}
+            ) : (() => {
+              // swimnote_monthly 오퍼링에서 패키지 탐색 (RC 미설정 시 null → safe disabled)
+              const swimnotePkgs = swimnoteOffering?.availablePackages ?? [];
+              const swimnotePkg = swimnotePkgs.find(
+                (p: any) =>
+                  p.identifier === "swimnote" ||
+                  p.identifier === "swimnote:monthly" ||
+                  p.product?.productIdentifier === "swimnote" ||
+                  p.product?.productIdentifier === "swimnote:monthly" ||
+                  p.product?.productIdentifier === "com.swimnote.swimnote.monthly",
+              ) ?? null;
+              return swimnotePkg != null ? (
+                <Pressable
+                  style={({ pressed }) => [s.cardAction, { backgroundColor: "#EEF4FF", borderColor: NAVY + "40", opacity: pressed ? 0.8 : 1 }]}
+                  onPress={handleSwimnoteSubscribe}
+                  disabled={isPurchasing}
+                >
+                  <Text style={[s.cardActionText, { color: NAVY }]}>구독 시작</Text>
+                </Pressable>
+              ) : (
+                <View style={[s.cardAction, { backgroundColor: "#F3F4F6", borderColor: "#E5E7EB" }]}>
+                  <LucideIcon name="clock" size={13} color={C.textMuted} />
+                  <Text style={[s.cardActionText, { color: C.textMuted, marginLeft: 4 }]}>구독 신청 준비 중</Text>
+                </View>
+              );
+            })()}
           </View>
           </>
           )}
