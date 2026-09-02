@@ -512,6 +512,14 @@ export default function TeacherDiaryScreen() {
       return;
     }
 
+    // 압축 완료 직후: origUri(picker 사본)이 compressedUri와 다른 경우 즉시 삭제
+    // (compressedUri는 ImageManipulator 결과물 — 업로드 후 별도 정리)
+    for (const cf of compressedFiles) {
+      if (cf.origUri !== cf.compressedUri) {
+        deleteTempFileAfterUpload(cf.origUri).catch(() => {});
+      }
+    }
+
     // Add placeholder items with clientIds for progress tracking
     const newItems: UploadedMedia[] = compressedFiles.map(cf => ({
       uri: cf.compressedUri,
@@ -575,9 +583,18 @@ export default function TeacherDiaryScreen() {
         setSelectedAlbumIds(prev => { const ex = new Set(prev); return [...prev, ...successIds.filter(id => !ex.has(id))]; });
         setSelectedAlbumPhotos(prev => { const ex = new Set(prev.map(p => p.id)); return [...prev, ...successPhotos.filter(p => !ex.has(p.id))]; });
       }
+      // 성공 항목 compressedUri 삭제 — RETRY PENDING 항목(r.error)은 유지
+      for (const r of results) {
+        if (!r.error) {
+          const cf = compressedFiles.find(f => f.clientId === r.clientId);
+          if (cf) deleteTempFileAfterUpload(cf.compressedUri).catch(() => {});
+        }
+      }
     } catch (e) {
       if (__DEV__) console.error("[uploadGroupMedia] photo upload error:", e);
       setGroupMedia(prev => prev.map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
+      // 세션 전체 실패(throw): 모든 compressedUri 삭제 (retry 불가)
+      for (const cf of compressedFiles) { deleteTempFileAfterUpload(cf.compressedUri).catch(() => {}); }
     } finally {
       setMediaUploading(null);
     }
@@ -632,7 +649,7 @@ export default function TeacherDiaryScreen() {
     const assets = result.assets.slice(0, 10);
     const studentId = student.id;
 
-    type CompressedFile = { compressedUri: string; fileName: string; mimeType: string; fileSize: number; clientId: string };
+    type CompressedFile = { compressedUri: string; fileName: string; mimeType: string; fileSize: number; clientId: string; origUri: string };
     let compressedFiles: CompressedFile[] = [];
     try {
       for (const asset of assets) {
@@ -647,12 +664,19 @@ export default function TeacherDiaryScreen() {
           if (info.exists) fileSize = info.size;
         } catch {}
         const clientId = `stu_${studentId.slice(-6)}_${Date.now().toString()}_${Math.random().toString(36).substr(2, 9)}`;
-        compressedFiles.push({ compressedUri, fileName, mimeType, fileSize, clientId });
+        compressedFiles.push({ compressedUri, fileName, mimeType, fileSize, clientId, origUri: originalUri });
       }
     } catch (e) {
       if (__DEV__) console.error("[uploadStudentMedia] compress error:", e);
       setMediaUploading(null);
       return;
+    }
+
+    // 압축 완료 직후: origUri(picker 사본)이 compressedUri와 다른 경우 즉시 삭제
+    for (const cf of compressedFiles) {
+      if (cf.origUri !== cf.compressedUri) {
+        deleteTempFileAfterUpload(cf.origUri).catch(() => {});
+      }
     }
 
     const newItems: UploadedMedia[] = compressedFiles.map(cf => ({
@@ -730,12 +754,21 @@ export default function TeacherDiaryScreen() {
           return { ...prev, [studentId]: [...(prev[studentId] ?? []), ...successPhotos.filter(p => !existing.has(p.id))] };
         });
       }
+      // 성공 항목 compressedUri 삭제 — RETRY PENDING 항목(r.error)은 유지
+      for (const r of results) {
+        if (!r.error) {
+          const cf = compressedFiles.find(f => f.clientId === r.clientId);
+          if (cf) deleteTempFileAfterUpload(cf.compressedUri).catch(() => {});
+        }
+      }
     } catch (e) {
       if (__DEV__) console.error("[uploadStudentMedia] photo upload error:", e);
       setStudentMedia(prev => ({
         ...prev,
         [studentId]: (prev[studentId] || []).map(m => newItems.find(n => n.clientId === m.clientId) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m),
       }));
+      // 세션 전체 실패(throw): 모든 compressedUri 삭제 (retry 불가)
+      for (const cf of compressedFiles) { deleteTempFileAfterUpload(cf.compressedUri).catch(() => {}); }
     } finally {
       setMediaUploading(null);
     }
@@ -764,8 +797,12 @@ export default function TeacherDiaryScreen() {
     if (!r) return;
     if (r.error) {
       setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: false, error: r.error } : m));
+      // 재시도도 실패: item.uri(compressedUri) 삭제 — FINAL FAILURE
+      deleteTempFileAfterUpload(item.uri).catch(() => {});
     } else {
       setGroupMedia(prev => prev.map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: true, progress: 100, error: undefined } : m));
+      // 재시도 성공: item.uri(compressedUri) 삭제
+      deleteTempFileAfterUpload(item.uri).catch(() => {});
       if (r.photo) {
         const photo: AlbumPhotoInfo = { id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id };
         setSelectedAlbumIds(prev => prev.includes(r.photo!.id) ? prev : [...prev, r.photo!.id]);
@@ -805,11 +842,15 @@ export default function TeacherDiaryScreen() {
         ...prev,
         [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: false, error: r.error } : m),
       }));
+      // 재시도도 실패: item.uri(compressedUri) 삭제 — FINAL FAILURE
+      deleteTempFileAfterUpload(item.uri).catch(() => {});
     } else {
       setStudentMedia(prev => ({
         ...prev,
         [studentId]: (prev[studentId] || []).map(m => m.clientId === clientId ? { ...m, uploading: false, uploaded: true, progress: 100, error: undefined } : m),
       }));
+      // 재시도 성공: item.uri(compressedUri) 삭제
+      deleteTempFileAfterUpload(item.uri).catch(() => {});
       if (r.photo) {
         const photo: AlbumPhotoInfo = { id: r.photo.id, file_url: r.photo.file_url, created_at: r.photo.created_at, uploaded_by_name: r.photo.uploaded_by_name, media_status: r.photo.media_status, journal_id: r.photo.journal_id };
         setStudentAlbumPhotos(prev => {
