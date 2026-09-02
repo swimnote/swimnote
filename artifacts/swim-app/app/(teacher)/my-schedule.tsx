@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useRole } from "@/context/auth/RoleContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -42,6 +43,7 @@ type ViewMode = "monthly" | "weekly" | "daily";
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
+  const { isSwitchingRole } = useRole();
   const params = useLocalSearchParams<{ openDate?: string }>();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
   const poolId = (adminUser as any)?.swimming_pool_id || "";
@@ -92,7 +94,7 @@ export default function MyScheduleScreen() {
     refreshing, setRefreshing,
     todayAttMap, todayDiarySet,
     load,
-  } = useMyScheduleData(token);
+  } = useMyScheduleData(token, isSwitchingRole);
 
   const {
     dayViewAttState, setDayViewAttState,

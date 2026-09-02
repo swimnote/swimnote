@@ -21,6 +21,8 @@ interface RoleContextType {
   activeRole: string | null;
   activePoolId: string | null;
   lastSelectedStudent: string | null;
+  /** switchRole 진행 중 true — teacher 화면은 이 값이 false일 때만 fetch 시작 */
+  isSwitchingRole: boolean;
   setActiveRole: (role: string) => Promise<void>;
   setActivePoolId: (poolId: string) => Promise<void>;
   setLastSelectedStudent: (studentId: string) => Promise<void>;
@@ -36,6 +38,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const [activeRole, setActiveRoleState] = useState<string | null>(null);
   const [activePoolId, setActivePoolIdState] = useState<string | null>(null);
   const [lastSelectedStudent, setLastSelectedStudentState] = useState<string | null>(null);
+  const [isSwitchingRole, setIsSwitchingRole] = useState(false);
 
   // 스토리지 로드 완료 여부 추적 (검증은 로드 후에만 실행)
   const storageLoaded = useRef(false);
@@ -133,23 +136,30 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   async function switchRole(role: string) {
     if (!token || !adminUser) return;
-    const res = await fetch(`${API_BASE}/auth/switch-role`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ role }),
-    });
-    const data = await safeJson(res);
-    if (!res.ok) throw new Error(data.message || "역할 전환에 실패했습니다.");
+    // Gate: 전환 시작 — teacher 화면은 false될 때까지 fetch 금지
+    setIsSwitchingRole(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/switch-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "역할 전환에 실패했습니다.");
 
-    const newToken: string = data.token;
-    // 서버 응답 roles 배열을 단일 진실로 사용 — 클라이언트 roles와 merge 금지
-    if (!Array.isArray(data.roles)) {
-      throw new Error("서버 응답 오류: roles 배열이 없습니다.");
+      const newToken: string = data.token;
+      // 서버 응답 roles 배열을 단일 진실로 사용 — 클라이언트 roles와 merge 금지
+      if (!Array.isArray(data.roles)) {
+        throw new Error("서버 응답 오류: roles 배열이 없습니다.");
+      }
+      const updatedUser: AdminUser = { ...adminUser, role: role as AdminUser["role"], roles: data.roles };
+
+      await applyRoleSwitch(newToken, updatedUser);
+      await setActiveRole(role);
+    } finally {
+      // 새 JWT + activeRole 적용 완료 후에만 gate 해제
+      setIsSwitchingRole(false);
     }
-    const updatedUser: AdminUser = { ...adminUser, role: role as AdminUser["role"], roles: data.roles };
-
-    await applyRoleSwitch(newToken, updatedUser);
-    await setActiveRole(role);
   }
 
   return (
@@ -157,6 +167,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       activeRole,
       activePoolId,
       lastSelectedStudent,
+      isSwitchingRole,
       setActiveRole,
       setActivePoolId,
       setLastSelectedStudent,

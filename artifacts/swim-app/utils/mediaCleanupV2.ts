@@ -27,6 +27,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 
 const V2_FLAG_KEY = "@swimnote:media_cleanup_v2";
+/** V3: 앱 버전마다 1회 실행. 앱 업데이트 후 첫 실행 시 stale cache 일괄 정리. */
+const V3_FLAG_PREFIX = "@swimnote:media_cleanup_v3:";
 
 // 동시 실행 방지 lock
 let _v2Running = false;
@@ -139,6 +141,89 @@ async function _runCleanup(isUploadActive: boolean): Promise<CleanupV2Result> {
     imagePickerSkipped,
     elapsedMs: Date.now() - start,
   };
+}
+
+/**
+ * Media Cleanup V3 — 앱 버전 기반 1회 실행.
+ *
+ * 대상:
+ *   - cacheDirectory/ImagePicker/         (ImagePicker temp copies)
+ *   - cacheDirectory/ImageManipulator/    (압축 중간 결과물)
+ *   - expo-image SDWebImage disk cache    (Image.clearDiskCache)
+ *   - documentDirectory legacy patterns  (diary_*.jpg, swim_*.jpg, diary_video_.*)
+ *
+ * 보호:
+ *   - MediaLibrary 원본 (ph://, assets-library://) — 절대 건드리지 않음
+ *   - scheduleAudio_* 패턴 파일
+ *   - 명명 규칙 외 documentDirectory 파일 (사용자 명시 다운로드 포함)
+ *   - upload 진행 중 ImagePicker 디렉터리 삭제 금지 (isUploadActive gate)
+ *
+ * @param appVersion Constants.expoConfig?.version (e.g. "2.0.0")
+ * @param isUploadActive UploadQueueContext.isActive
+ */
+export async function runMediaCleanupV3(
+  appVersion: string,
+  isUploadActive: boolean
+): Promise<void> {
+  try {
+    const flagKey = `${V3_FLAG_PREFIX}${appVersion}`;
+    const flag = await AsyncStorage.getItem(flagKey);
+    if (flag === "completed") return;
+    if (_v2Running) return; // V2와 동시 실행 방지
+
+    _v2Running = true;
+    try {
+      const cacheDir = FileSystem.cacheDirectory;
+      const docDir = FileSystem.documentDirectory;
+
+      // Step 1: expo-image SDWebImage disk cache
+      try { await Image.clearDiskCache(); } catch (_) {}
+
+      // Step 2: ImagePicker temp directory
+      if (!isUploadActive && cacheDir) {
+        const pickerDir = `${cacheDir}ImagePicker/`;
+        try {
+          const info = await FileSystem.getInfoAsync(pickerDir);
+          if (info.exists) await FileSystem.deleteAsync(pickerDir, { idempotent: true });
+        } catch (_) {}
+      }
+
+      // Step 3: ImageManipulator temp directory
+      if (cacheDir) {
+        const manipDir = `${cacheDir}ImageManipulator/`;
+        try {
+          const info = await FileSystem.getInfoAsync(manipDir);
+          if (info.exists) await FileSystem.deleteAsync(manipDir, { idempotent: true });
+        } catch (_) {}
+      }
+
+      // Step 4: legacy documentDirectory patterns (앱이 직접 생성한 파일만)
+      if (docDir) {
+        const SAFE_PATTERNS = [
+          /^diary_\w+\.jpg$/,
+          /^diary_all_\w+\.jpg$/,
+          /^swim_\w+\.jpg$/,
+          /^diary_video_\w+\.(mp4|mov|m4v|webm|avi|mkv)$/,
+        ];
+        try {
+          const files = await FileSystem.readDirectoryAsync(docDir);
+          for (const f of files) {
+            if (SAFE_PATTERNS.some(re => re.test(f))) {
+              await FileSystem.deleteAsync(`${docDir}${f}`, { idempotent: true }).catch(() => {});
+            }
+          }
+        } catch (_) {}
+      }
+
+      await AsyncStorage.setItem(flagKey, "completed");
+      console.log(`[media-cleanup-v3] done for version=${appVersion} uploadActive=${isUploadActive}`);
+    } finally {
+      _v2Running = false;
+    }
+  } catch (e) {
+    console.warn("[media-cleanup-v3] error:", e);
+    _v2Running = false;
+  }
 }
 
 /**

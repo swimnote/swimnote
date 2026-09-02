@@ -75,6 +75,8 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
       deleteTempFileAfterUpload(job.uri).catch(() => {});
     } else {
       setFailed(f => f + 1);
+      // 최종 실패 후 temp 삭제 — 2회 재시도 모두 소진된 이후이므로 더 이상 URI 불필요
+      deleteTempFileAfterUpload(job.uri).catch(() => {});
     }
   }
 

@@ -5,6 +5,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { compressImageIfNeeded } from "../../utils/compressImage";
+import { deleteTempFileAfterUpload } from "@/utils/mediaCleanupV2";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, BackHandler, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -456,6 +457,7 @@ export default function TeacherDiaryScreen() {
 
     // ── VIDEO: keep existing FormData multipart path ───────────────
     if (kind === "video") {
+      const videoAssetUris = result.assets.map(a => a.uri);
       const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
       setGroupMedia(prev => [...prev, ...newItems]);
       try {
@@ -474,7 +476,11 @@ export default function TeacherDiaryScreen() {
       } catch (e) {
         if (__DEV__) console.error("[uploadGroupMedia] video error:", e);
         setGroupMedia(prev => prev.map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m));
-      } finally { setMediaUploading(null); }
+      } finally {
+        setMediaUploading(null);
+        // 업로드 완료(성공/실패) 후 ImagePicker temp video 파일 삭제
+        for (const uri of videoAssetUris) { deleteTempFileAfterUpload(uri).catch(() => {}); }
+      }
       return;
     }
 
@@ -593,6 +599,7 @@ export default function TeacherDiaryScreen() {
 
     // ── VIDEO: keep existing FormData multipart path ───────────────
     if (kind === "video") {
+      const videoAssetUris = result.assets.map(a => a.uri);
       const newItems: UploadedMedia[] = result.assets.map(a => ({ uri: a.uri, kind, uploading: true, uploaded: false }));
       setStudentMedia(prev => ({ ...prev, [student.id]: [...(prev[student.id] || []), ...newItems] }));
       try {
@@ -612,7 +619,11 @@ export default function TeacherDiaryScreen() {
       } catch (e) {
         if (__DEV__) console.error("[uploadStudentMedia] video error:", e);
         setStudentMedia(prev => ({ ...prev, [student.id]: (prev[student.id] || []).map(m => newItems.find(n => n.uri === m.uri) ? { ...m, uploading: false, error: String((e as Error)?.message || "실패") } : m) }));
-      } finally { setMediaUploading(null); }
+      } finally {
+        setMediaUploading(null);
+        // 업로드 완료(성공/실패) 후 ImagePicker temp video 파일 삭제
+        for (const uri of videoAssetUris) { deleteTempFileAfterUpload(uri).catch(() => {}); }
+      }
       return;
     }
 

@@ -10,7 +10,10 @@ import { TeacherClassGroup } from "@/components/teacher/types";
 import { StudentItem, todayDateStr } from "../utils";
 import { onDiaryChanged } from "@/utils/diaryEvents";
 
-export function useMyScheduleData(token: string | null) {
+/**
+ * @param isSwitchingRole RoleContext.isSwitchingRole — true인 동안 fetch 금지 (stale admin JWT 방어)
+ */
+export function useMyScheduleData(token: string | null, isSwitchingRole = false) {
   const [groups,        setGroups]        = useState<TeacherClassGroup[]>([]);
   const [students,      setStudents]      = useState<StudentItem[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -19,10 +22,14 @@ export function useMyScheduleData(token: string | null) {
   const [todayDiarySet, setTodayDiarySet] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
+    // 역할 전환 중이면 구 admin JWT로 pool 전체 데이터를 fetch하지 않는다
+    if (isSwitchingRole) return;
     const today = todayDateStr();
     try {
       const [cgRes, stRes, attRes, dRes] = await Promise.all([
-        apiRequest(token, "/class-groups"),
+        // ?mine=true: teacher JWT일 때 서버 mineOnly 분기를 명시적으로 강제
+        // (pool_admin JWT가 잔류하더라도 서버가 own/co-teacher 반만 반환)
+        apiRequest(token, "/class-groups?mine=true"),
         apiRequest(token, "/students"),
         apiRequest(token, `/attendance?date=${today}`),
         apiRequest(token, `/diary?date=${today}`),
