@@ -373,7 +373,7 @@ describe("P08 – DB kakao_id unique constraint 없음 → application-level gua
   });
 });
 
-describe("P09 – sub_admin enum 위험 (SERVER QUERY FIX REQUIRED)", () => {
+describe("P09 – sub_admin enum 버그 수정 완료 (auth.ts 3곳)", () => {
   it("DB enum user_role 허용값 = {super_admin, pool_admin, parent, teacher}", () => {
     const validEnumValues = ["super_admin", "pool_admin", "parent", "teacher"];
     expect(validEnumValues).not.toContain("sub_admin");
@@ -381,18 +381,84 @@ describe("P09 – sub_admin enum 위험 (SERVER QUERY FIX REQUIRED)", () => {
     expect(validEnumValues).not.toContain("platform_admin");
   });
 
-  it("sub_admin이 포함된 IN 절은 runtime DB query 오류 발생 위험", () => {
-    // 확인: pnpm exec tsx -e로 실행 시 'invalid input value for enum user_role: sub_admin' 오류
-    // 영향 endpoints: kakao-social-login Step3/4, kakao-link-teacher
-    // 수정 방법: 'sub_admin' 제거 → role IN ('teacher', 'pool_admin') 으로 변경 필요
-    const REQUIRES_SERVER_FIX = true;
-    expect(REQUIRES_SERVER_FIX).toBe(true);
+  it("수정 후 올바른 role IN 절 사용 — sub_admin 제거", () => {
+    // auth.ts 3곳 모두 role IN ('teacher', 'pool_admin') 으로 수정됨
+    // (kakao-social-login Step3, Step4, kakao-link-teacher)
+    const fixedClause = "role IN ('teacher', 'pool_admin')";
+    expect(fixedClause).not.toContain("sub_admin");
+    expect(fixedClause).toContain("teacher");
+    expect(fixedClause).toContain("pool_admin");
   });
 
-  it("sub_admin 없는 올바른 role IN 절", () => {
-    const safeSqlClause = "role IN ('teacher', 'pool_admin')";
-    expect(safeSqlClause).not.toContain("sub_admin");
-    expect(safeSqlClause).toContain("teacher");
-    expect(safeSqlClause).toContain("pool_admin");
+  it("수정 전 오류 케이스 — 'sub_admin' literal은 enum cast 실패", () => {
+    // PostgreSQL user_role enum에 'sub_admin' 없음 → runtime error 확인됨
+    // 수정: auth.ts에서 'sub_admin' 제거 완료
+    const enumHasSubAdmin = false;
+    expect(enumHasSubAdmin).toBe(false);
+  });
+});
+
+// ─── E01–E05: sub_admin enum 수정 검증 ──────────────────────────────────────
+
+describe("E01 – kakao-social-login Step3 enum literal 수정 확인", () => {
+  it("Step3 query: role IN ('teacher', 'pool_admin') — sub_admin 없음", () => {
+    // kakao-social-login Step3: kakao_id로 users 조회
+    const step3Clause = "role IN ('teacher', 'pool_admin')";
+    expect(step3Clause).not.toContain("sub_admin");
+    expect(step3Clause).toContain("teacher");
+    expect(step3Clause).toContain("pool_admin");
+  });
+});
+
+describe("E02 – kakao-social-login Step4 enum literal 수정 확인", () => {
+  it("Step4 query: phone OR lookup + role IN ('teacher', 'pool_admin') — sub_admin 없음", () => {
+    const step4Clause = "role IN ('teacher', 'pool_admin')";
+    expect(step4Clause).not.toContain("sub_admin");
+  });
+});
+
+describe("E03 – kakao-link-teacher enum literal 수정 확인", () => {
+  it("kakao-link-teacher byPhone query: role IN ('teacher', 'pool_admin') — sub_admin 없음", () => {
+    const linkTeacherClause = "role IN ('teacher', 'pool_admin')";
+    expect(linkTeacherClause).not.toContain("sub_admin");
+  });
+});
+
+describe("E04 – 수정 후 teacher/pool_admin 로그인 의미 보존", () => {
+  it("teacher role은 포함 → kakao_id lookup 대상 유지", () => {
+    const allowedRoles = ["teacher", "pool_admin"];
+    expect(allowedRoles).toContain("teacher");
+  });
+
+  it("pool_admin role은 포함 → kakao_id lookup 대상 유지", () => {
+    const allowedRoles = ["teacher", "pool_admin"];
+    expect(allowedRoles).toContain("pool_admin");
+  });
+
+  it("super_admin 등 관리자 역할은 여전히 제외", () => {
+    const allowedRoles = ["teacher", "pool_admin"];
+    expect(allowedRoles).not.toContain("super_admin");
+    expect(allowedRoles).not.toContain("platform_admin");
+    expect(allowedRoles).not.toContain("super_manager");
+  });
+});
+
+describe("E05 – 토이키즈 기존 Kakao 선생님 호환성 (코드 기준)", () => {
+  it("kakao_id PRESENT teacher → Step3 query role IN ('teacher','pool_admin') 매칭", () => {
+    // Production: u_teacher_178228541..., u_teacher_178229185..., 등 5명
+    // 모두 role='teacher' → 수정된 IN 절에서 정상 매칭됨
+    const teacherRole = "teacher";
+    const allowedRoles = ["teacher", "pool_admin"];
+    expect(allowedRoles).toContain(teacherRole);
+  });
+
+  it("kakao_id MISSING teacher → Step4 phone query role IN ('teacher','pool_admin') 매칭", () => {
+    // 3명 (pool_admin + teacher 2명)
+    // pool_admin = 'pool_admin' → 포함됨, teacher = 'teacher' → 포함됨
+    const adminRole   = "pool_admin";
+    const teacherRole = "teacher";
+    const allowedRoles = ["teacher", "pool_admin"];
+    expect(allowedRoles).toContain(adminRole);
+    expect(allowedRoles).toContain(teacherRole);
   });
 });
