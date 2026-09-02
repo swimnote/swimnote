@@ -95,10 +95,16 @@ function photoFileUri(fileUrl: string) {
 
 export default function ParentAlbumScreen() {
   const { token } = useAuth();
-  const { selectedStudent } = useParent();
+  const { selectedStudent, students } = useParent();
+  const params = useLocalSearchParams<{ studentId?: string }>();
   const insets = useSafeAreaInsets();
   const { mode } = useMode();
   const isX = isXMode(mode);
+
+  // param이 있으면 그 학생, 없으면 selectedStudent (multi-child context leak 방지)
+  const activeStudent = params.studentId
+    ? (students?.find(s => s.id === params.studentId) ?? selectedStudent)
+    : selectedStudent;
 
   const [photos, setPhotos]   = useState<MediaItem[]>([]);
   const [videos, setVideos]   = useState<MediaItem[]>([]);
@@ -115,7 +121,7 @@ export default function ParentAlbumScreen() {
 
   const load = useCallback(async () => {
     try {
-      const sid = selectedStudent?.id;
+      const sid = activeStudent?.id;
       const q = sid ? `?student_id=${sid}` : "";
       const [pr, vr] = await Promise.all([
         apiRequest(token, `/photos/parent-view${q}`),
@@ -133,7 +139,7 @@ export default function ParentAlbumScreen() {
       setVideos(rawVideos);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  }, [token, selectedStudent?.id]);
+  }, [token, activeStudent?.id]);
 
   useEffect(() => { load(); }, [load]);
 

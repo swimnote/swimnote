@@ -471,6 +471,7 @@ export default function MembersScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={[ms.list, { paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListHeaderComponent={filter === "suspended" ? (

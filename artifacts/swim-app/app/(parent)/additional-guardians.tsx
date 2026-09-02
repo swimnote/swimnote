@@ -279,12 +279,12 @@ export default function AdditionalGuardiansScreen() {
       )}
 
       {/* 전화번호 입력 모달 */}
-      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => { setModalVisible(false); setModalStudentId(""); setModalStudentName(""); }}>
         <View style={{ flex: 1 }}>
           {/* 배경 딤 — 절대 포지션으로 뒤에 깔림 */}
           <Pressable
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.4)" }}
-            onPress={() => setModalVisible(false)}
+            onPress={() => { setModalVisible(false); setModalStudentId(""); setModalStudentName(""); }}
           />
           {/* KAV는 flex-end로 시트를 아래 붙이고, 키보드가 열리면 위로 밀어올림 */}
           <KeyboardAvoidingView
@@ -316,7 +316,7 @@ export default function AdditionalGuardiansScreen() {
               <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                 <Pressable
                   style={({ pressed }) => [cancelBtn, { opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => { setModalVisible(false); setModalStudentId(""); setModalStudentName(""); }}
                 >
                   <Text style={{ fontSize: 15, color: C.textSecondary, fontFamily: "Pretendard-Medium" }}>취소</Text>
                 </Pressable>

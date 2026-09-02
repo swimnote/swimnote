@@ -189,6 +189,7 @@ export default function WithdrawnMembersScreen() {
           data={displayed}
           keyExtractor={m => m.id}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 60, gap: 8 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           ListEmptyComponent={
