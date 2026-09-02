@@ -1,0 +1,1806 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 8
+# PRICING + SUBSCRIPTION
+# + REVENUECAT
+# + APP STORE / GOOGLE PLAY PREP
+# + PAYMENT FLOW
+#
+# ONE PASS:
+# AUDIT CURRENT 1.6.3/2.0 STATE
+# → IMPLEMENT CURRENT PRODUCT POLICY
+# → CONNECT REVENUECAT
+# → PAYMENT FLOW
+# → TEST
+# → COMMIT
+#
+# IMPORTANT:
+# APP PRODUCTIZATION IS FROZEN.
+# DO NOT MODIFY GENERAL APP FEATURES.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+ffe7c900
+
+Current state:
+
+STAGE 1 CLOSED
+STAGE 2 CLOSED
+STAGE 3 CLOSED
+STAGE 4 CODE CLOSED
+STAGE 5 CLOSED
+STAGE 6 CLOSED
+STAGE 7 CLOSED
+
+APP PRODUCTIZATION:
+FROZEN
+
+From this point:
+
+General feature changes:
+NO
+
+IA changes:
+NO
+
+Design changes unrelated to subscription:
+NO
+
+AI feature changes:
+NO
+
+Only:
+
+Pricing
+Subscription
+RevenueCat
+Store
+Payment
+Entitlement
+
+work is allowed.
+
+============================================================
+0. ABSOLUTE FREEZE RULE
+============================================================
+
+Do NOT modify:
+
+- Member management
+- Student Detail
+- Attendance
+- Makeup
+- Diary
+- Photos
+- Notices
+- Requests
+- Notifications
+- Growth Report logic
+- Paid Insight analysis logic
+- X Home
+- Admin/Teacher/Parent IA
+- General Navigation
+- General design
+
+unless a subscription/payment integration
+causes a direct release-blocking regression.
+
+============================================================
+1. CURRENT PRODUCT PRICING — LOCKED
+============================================================
+
+Use these current prices.
+
+Do NOT use old prices found in old code/docs.
+
+BASE PRODUCTS:
+
+SWIMNOTE
+₩9,900 / month
+
+Display:
+Unlimited members
+
+Internal:
+member_limit = 999999
+
+Storage:
+10GB
+
+Includes:
+- full normal operations
+- photo
+- video entitlement eventually
+- general SWIMNOTE functionality
+
+--------------------------------
+
+SWIMNOTE X300
+₩129,000 / month
+
+Max active members:
+300
+
+Storage:
+300GB
+
+Includes:
+SWIMNOTE base
++
+X AI features
+
+--------------------------------
+
+SWIMNOTE X500
+₩199,000 / month
+
+Max active members:
+500
+
+Storage:
+500GB
+
+--------------------------------
+
+SWIMNOTE X1000
+₩359,000 / month
+
+Max active members:
+1000
+
+Storage:
+1TB
+
+--------------------------------
+
+DATA100
+₩7,900 / month
+
+Additional storage:
++100GB
+
+--------------------------------
+
+DATA300
+₩22,900 / month
+
+Additional storage:
++300GB
+
+============================================================
+2. OLD PRICES — DEPRECATED
+============================================================
+
+Do not sell new subscriptions using:
+
+119,000
+189,000
+349,000
+
+or any older X pricing.
+
+Old product IDs/prices may remain only if needed for:
+
+- legacy active subscriber compatibility
+- migration history
+- RevenueCat mapping
+- receipt restoration
+
+Do not delete legacy mapping blindly.
+
+============================================================
+3. BASE ENTITLEMENT RULE
+============================================================
+
+Only ONE effective BASE product at a time:
+
+SWIMNOTE
+
+OR
+
+X300
+
+OR
+
+X500
+
+OR
+
+X1000
+
+Never:
+
+SWIMNOTE + X300 charged together.
+
+X includes SWIMNOTE base.
+
+DATA100 / DATA300:
+
+separate add-on products
+and may coexist with BASE.
+
+============================================================
+4. LEGACY SUBSCRIBERS
+============================================================
+
+Existing legacy Coach/Premier or old active subscribers:
+
+- preserve existing product
+- preserve existing price
+- preserve existing rights while active
+
+They must NOT be offered to new users.
+
+After legacy user cancels/expires:
+
+cannot newly rejoin deprecated plan.
+
+Do not destroy old RevenueCat/store product mappings
+needed for receipt restore.
+
+============================================================
+5. CANONICAL SUBSCRIPTION SCREEN
+============================================================
+
+Canonical route:
+
+/(admin)/subscription
+
+Entry:
+
+Settings
+→ Subscription / Plans
+
+X settings:
+shortcut to SAME canonical subscription screen.
+
+Do not build separate X purchase screen.
+
+============================================================
+6. SCREEN MODE POLICY
+============================================================
+
+NORMAL SWIMNOTE USER:
+
+Show:
+
+Current SWIMNOTE plan
++
+X300/X500/X1000 upgrade choices
+
+--------------------------------
+
+X TRIAL:
+
+Primary choices:
+X300/X500/X1000
+
+Hide normal SWIMNOTE purchase card as primary.
+
+Secondary option:
+
+"Use standard SWIMNOTE"
+
+--------------------------------
+
+X ACTIVE:
+
+Current X plan
++
+other X upgrade/downgrade choices
+
+Do not show SWIMNOTE as normal parallel purchase.
+
+If user wants X → SWIMNOTE:
+
+treat as downgrade / scheduled plan change,
+not simultaneous second subscription.
+
+--------------------------------
+
+x_pending:
+
+same entitlement-oriented UI as X pending state.
+
+============================================================
+7. X TRIAL POLICY
+============================================================
+
+Existing X trial policy:
+
+- center once
+- 72 hours
+- no card required
+- no auto conversion
+- server-side
+- one-use timestamps
+- previous buyer/manual/force-disabled conditions preserved
+
+Do not redesign trial system.
+
+Only ensure subscription screen respects its state.
+
+============================================================
+8. PLAN SWITCHING
+============================================================
+
+Support:
+
+SWIMNOTE → X300/X500/X1000
+
+X300 → X500/X1000
+
+X500 → X300/X1000
+
+X1000 → X500/X300
+
+X → SWIMNOTE
+
+Use RevenueCat/store supported subscription change semantics.
+
+Do not fake plan switching with local DB only.
+
+============================================================
+9. DOWNGRADE GUARD
+============================================================
+
+If downgrading X tier:
+
+active member count must not exceed target plan limit.
+
+Examples:
+
+X500 → X300
+
+if active members > 300:
+BLOCK
+
+Show clear reason.
+
+Do not auto-delete/deactivate members.
+
+============================================================
+10. X → SWIMNOTE
+============================================================
+
+X → standard SWIMNOTE
+should be a scheduled plan change at next billing boundary,
+not immediate destructive mode removal if store semantics require scheduled downgrade.
+
+Clearly distinguish:
+
+Plan downgrade
+vs
+Subscription cancellation
+
+Do not label them as same action.
+
+============================================================
+11. CANCELLATION
+============================================================
+
+Cancellation:
+
+stop renewal
+
+but keep entitlement until paid period ends,
+according to store/RevenueCat state.
+
+Do not instantly disable paid access
+unless current entitlement state actually expires.
+
+============================================================
+12. PRODUCT IDS — TARGET
+============================================================
+
+Target product IDs:
+
+com.swimnote.swimnote.monthly
+
+com.swimnote.x300.monthly
+
+com.swimnote.x500.monthly
+
+com.swimnote.x1000.monthly
+
+com.swimnote.data100.monthly
+
+com.swimnote.data300.monthly
+
+Before using them:
+
+audit actual existing app/store/revenuecat mappings.
+
+If real existing IDs differ,
+do not blindly rename without compatibility plan.
+
+Report:
+
+Current ID
+Target ID
+Action
+
+============================================================
+13. BASE PRODUCT GROUPING
+============================================================
+
+BASE products must behave as mutually exclusive plans:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+DATA:
+
+separate coexistable add-ons.
+
+Audit current iOS/Android store grouping assumptions.
+
+Do not assume store mechanics that are not represented
+in current code/config.
+
+============================================================
+14. REVENUECAT ENTITLEMENT STRATEGY
+============================================================
+
+Locked strategy:
+
+X tier implies SWIMNOTE access.
+
+Do NOT require both:
+
+swimnote entitlement
++
+x entitlement
+
+for X users.
+
+Effective entitlement should resolve from active BASE product.
+
+DATA entitlements/add-ons are separate.
+
+============================================================
+15. CURRENT CODE AUDIT
+============================================================
+
+Before modification, inspect only subscription-related code:
+
+- /(admin)/subscription
+- subscription hooks/services
+- RevenueCat wrapper
+- entitlement resolver
+- server subscription routes
+- plan definitions
+- 1.6.3 subscription remnants
+- trial state
+- x_pending
+- legacy plan mappings
+- storage plan calculation
+
+Do not inspect unrelated app screens.
+
+============================================================
+16. SINGLE PLAN SOURCE OF TRUTH
+============================================================
+
+Find current plan/pricing definitions.
+
+Consolidate subscription display/business mapping
+to the smallest safe canonical source.
+
+Avoid:
+
+price constants duplicated in many screens.
+
+However do not perform broad refactor unrelated to payment.
+
+============================================================
+17. STORE PRICE DISPLAY
+============================================================
+
+For store-managed products:
+
+prefer RevenueCat/store localized price
+for actual purchase UI.
+
+Locked KRW prices are product policy,
+but actual button price should come from fetched package/product metadata
+when available.
+
+If store package missing:
+
+do not invent successful purchase state.
+
+Show unavailable/configuration error.
+
+============================================================
+18. REVENUECAT INITIALIZATION
+============================================================
+
+Audit existing RevenueCat SDK setup.
+
+Ensure:
+
+iOS key:
+correct platform key
+
+Android key:
+correct platform key
+
+User identity:
+stable SWIMNOTE user identity
+
+Logout:
+RevenueCat identity handling correct
+
+Restore:
+supported
+
+Do not place secret server keys in client.
+
+Public SDK keys:
+client allowed.
+
+============================================================
+19. APP USER ↔ REVENUECAT ID
+============================================================
+
+Use stable internal user ID,
+not phone number or display name.
+
+Audit login/logout/account switching.
+
+User A logout
+→ User B login
+
+must not show stale CustomerInfo from A.
+
+============================================================
+20. PACKAGE FETCH
+============================================================
+
+Subscription screen must handle:
+
+LOADING
+
+SUCCESS
+
+EMPTY/MISSING CONFIG
+
+ERROR
+
+Do not:
+
+show local fake packages
+and allow fake purchase.
+
+============================================================
+21. PURCHASE
+============================================================
+
+Purchase flow:
+
+tap plan
+→ confirmation/current plan context
+→ RevenueCat purchase
+→ CustomerInfo
+→ entitlement resolution
+→ APP server synchronization
+→ UI refresh
+
+Double tap:
+one purchase request.
+
+Loading:
+clear.
+
+Error:
+safe.
+
+User cancel:
+not shown as system failure.
+
+============================================================
+22. RESTORE PURCHASES
+============================================================
+
+Provide current existing restore UX or add minimal restore action.
+
+Restore:
+
+RevenueCat restorePurchases
+→ CustomerInfo
+→ server sync
+→ entitlement refresh
+
+No active purchase:
+clear user message.
+
+============================================================
+23. SERVER ENTITLEMENT SYNC
+============================================================
+
+Audit current server subscription SoT.
+
+Need deterministic mapping:
+
+RevenueCat product
+→ base plan
+→ mode
+→ member limit
+→ storage base
+→ entitlement
+
+Do not trust client-only entitlement.
+
+============================================================
+24. REVENUECAT WEBHOOK
+============================================================
+
+Audit whether server webhook exists.
+
+Need handling for relevant subscription lifecycle:
+
+INITIAL_PURCHASE
+RENEWAL
+PRODUCT_CHANGE
+CANCELLATION
+UNCANCELLATION if applicable
+EXPIRATION
+BILLING_ISSUE
+TRANSFER if relevant
+
+Use actual current RevenueCat event contract.
+
+If webhook already exists:
+reuse/fix.
+
+If absent:
+implement server endpoint.
+
+============================================================
+25. WEBHOOK SECURITY
+============================================================
+
+Verify webhook authorization/signature/shared secret
+using current RevenueCat supported configuration.
+
+Do not expose webhook secret in client.
+
+Invalid webhook:
+reject.
+
+Replay/idempotent handling:
+required.
+
+============================================================
+26. SERVER PLAN MAPPING
+============================================================
+
+Canonical mapping should include:
+
+product_id
+plan_code
+base/addon type
+member_limit
+base_storage_gb
+x_mode
+legacy flag
+
+Current locked mapping:
+
+SWIMNOTE:
+member_limit=999999
+base_storage=10
+x_mode=false
+
+X300:
+300
+300
+true
+
+X500:
+500
+500
+true
+
+X1000:
+1000
+1000
+true
+
+DATA100:
++100GB
+
+DATA300:
++300GB
+
+============================================================
+27. STORAGE
+============================================================
+
+Existing SoT:
+
+swimming_pools.extra_storage_gb
+
+Effective:
+
+base storage
++
+extra storage
+
+Used:
+active photo+video bytes
+
+Existing policy:
+
+80% warning
+90% storage pack recommendation
+100% media upload block
+
+Do not redesign storage accounting.
+
+Only ensure plan change updates effective base correctly.
+
+============================================================
+28. DATA PACKS
+============================================================
+
+DATA100:
++100GB
+
+DATA300:
++300GB
+
+Audit whether multiple add-ons can coexist
+under current design/store implementation.
+
+Do not invent stacking beyond what current plan data model supports.
+
+If only one data pack can be represented safely:
+report exact limitation.
+
+Do not silently create wrong quota arithmetic.
+
+============================================================
+29. X MODE FROM ENTITLEMENT
+============================================================
+
+Paid X plan should produce X entitlement/mode.
+
+Do not use UI purchase success alone.
+
+Server SoT / synchronized entitlement drives:
+
+x_mode
+plan
+limits
+
+Current trial semantics remain separate.
+
+============================================================
+30. X_PENDING
+============================================================
+
+Preserve x_pending behavior
+where store/server config is not fully finalized.
+
+Do not accidentally treat x_pending as expired Normal
+during purchase synchronization.
+
+============================================================
+31. SUBSCRIPTION_REQUIRED
+============================================================
+
+If account has no valid BASE entitlement
+and product policy requires subscription:
+
+subscription_required screen/state
+must show all valid BASE choices:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+No deprecated new-sale products.
+
+============================================================
+32. OLD 1.6.3 UI AUDIT
+============================================================
+
+Now, and only now,
+audit old/temporary subscription UI remnants.
+
+Goal:
+
+do not let 1.6.3 old pricing/buttons contaminate 2.0 product logic.
+
+Important:
+
+1.6.3 application behavior must not be casually broken.
+
+If shared code affects 1.6.3:
+
+backward-compatible only.
+
+Do NOT OTA 1.6.3.
+
+Report exactly:
+
+Old remnants found:
+...
+
+2.0 impact:
+...
+
+Action:
+...
+
+============================================================
+33. PRICING TEXT
+============================================================
+
+User-facing 2.0 new-sale prices:
+
+SWIMNOTE:
+₩9,900 / 월
+
+X300:
+₩129,000 / 월
+
+X500:
+₩199,000 / 월
+
+X1000:
+₩359,000 / 월
+
+DATA100:
+₩7,900 / 월
+
+DATA300:
+₩22,900 / 월
+
+Do not expose old 119/189/349
+to new users.
+
+============================================================
+34. PLAN NAMES
+============================================================
+
+Use consistent public names.
+
+SWIMNOTE
+
+SWIMNOTE X300
+
+SWIMNOTE X500
+
+SWIMNOTE X1000
+
+DATA100
+DATA300
+
+Do not invent:
+Pro
+Premium
+Ultimate
+Business
+
+unless required for legacy internal mapping.
+
+============================================================
+35. MEMBER LIMIT
+============================================================
+
+Normal SWIMNOTE:
+
+display:
+Unlimited members
+
+Do not display:
+999999
+
+Internal only.
+
+X:
+show actual plan member cap.
+
+============================================================
+36. PURCHASE SUCCESS
+============================================================
+
+After purchase:
+
+do not immediately assume success from button event alone.
+
+Need:
+
+RevenueCat CustomerInfo
++
+server synchronization
+
+and then refreshed effective subscription.
+
+UI only switches mode
+after canonical state is confirmed.
+
+============================================================
+37. PRODUCT CHANGE
+============================================================
+
+Current plan change UI:
+
+show current plan
+target plan
+effective timing if available
+
+Do not promise:
+"즉시 변경"
+unless store result actually says immediate.
+
+============================================================
+38. BILLING ISSUE / GRACE
+============================================================
+
+Audit current entitlement behavior
+for billing issue / grace period.
+
+Follow RevenueCat CustomerInfo entitlement state.
+
+Do not manually expire user earlier than store entitlement.
+
+============================================================
+39. EXPIRED / CANCELLED
+============================================================
+
+Cancelled but still active until expiration:
+access remains.
+
+Expired:
+fall back according to canonical server policy.
+
+Do not confuse:
+cancel_at_period_end
+with
+expired.
+
+============================================================
+40. LEGACY ACTIVE
+============================================================
+
+If legacy active product detected:
+
+show:
+
+"기존 요금제"
+
+or current existing equivalent.
+
+Do not offer legacy product purchase.
+
+Upgrade to current products can be offered
+if safe.
+
+============================================================
+41. TEST MODE ONLY
+============================================================
+
+This Stage is code/config readiness.
+
+Do NOT:
+
+Production Store purchase
+Production RevenueCat live purchase
+Production webhook destructive change
+Production deploy
+Production OTA
+
+unless separate explicit approval is received.
+
+Use:
+
+mock/test/sandbox configuration
+only if already safely available.
+
+Do not fabricate external console state.
+
+============================================================
+42. EXTERNAL CONFIG GATE
+============================================================
+
+Some items require manual external configuration.
+
+If RevenueCat/App Store/Google Play console
+is not currently configured,
+do not mark E2E PASS.
+
+Report:
+
+EXTERNAL CONFIG REQUIRED
+
+with exact missing items.
+
+Do not guess.
+
+============================================================
+43. STORE CONSOLE
+============================================================
+
+This Replit task may prepare code,
+but cannot assume products exist in:
+
+App Store Connect
+Google Play Console
+RevenueCat Dashboard.
+
+Completion report must separate:
+
+CODE READY
+
+vs
+
+EXTERNAL CONFIG VERIFIED
+
+============================================================
+44. PAID INSIGHT MIGRATION
+============================================================
+
+Carry-forward:
+
+paid-insight-enum-extension.ts
+
+Do NOT run Production migration in this Stage
+without explicit approval.
+
+Payment work does not authorize DB production mutation.
+
+Keep:
+
+READY / PENDING APPROVAL
+
+============================================================
+45. APP FREEZE EXCEPTION
+============================================================
+
+Allowed modifications outside subscription files
+only if required for:
+
+entitlement propagation
+subscription_required
+X mode resolution
+storage quota from plan
+
+Document every freeze exception.
+
+General UI changes:
+NO.
+
+============================================================
+46. ATTENDANCE
+============================================================
+
+Stage 7 security closed.
+
+Do not touch.
+
+============================================================
+47. VIDEO
+============================================================
+
+Current launch:
+
+video disabled.
+
+Do not enable video as part of plan purchase.
+
+Even if plan entitlement includes future video capability,
+server/client launch flag remains OFF
+until separate Video Enable Gate.
+
+No compression work now.
+
+============================================================
+48. SECURITY
+============================================================
+
+Subscription endpoints:
+
+user owns account/pool
+
+admin role as required
+
+client cannot set arbitrary plan by request body
+
+server verifies RevenueCat/server event
+
+webhook auth
+
+product IDs allowlisted
+
+price sent from client not trusted
+
+============================================================
+49. IDEMPOTENCY
+============================================================
+
+Webhook:
+idempotent
+
+purchase sync:
+idempotent
+
+restore sync:
+idempotent
+
+repeated CustomerInfo refresh:
+no duplicate subscription records.
+
+============================================================
+50. LOGGING
+============================================================
+
+Do not log:
+
+receipt full payload
+JWT
+RevenueCat auth secret
+user PII
+
+Allowed:
+
+user opaque id
+product_id
+event type
+transaction/ref id
+status
+timestamp
+error code
+
+============================================================
+51. TESTS — PLAN RESOLUTION
+============================================================
+
+Minimum:
+
+1.
+SWIMNOTE product
+→ normal mode
+→ unlimited display / 999999 internal
+→ 10GB
+
+2.
+X300
+→ x mode
+→ 300
+→ 300GB
+
+3.
+X500
+→ x
+→ 500
+→ 500GB
+
+4.
+X1000
+→ x
+→ 1000
+→ 1TB
+
+5.
+DATA100
+→ +100GB
+
+6.
+DATA300
+→ +300GB
+
+7.
+X does not require separate SWIMNOTE purchase
+
+8.
+only one BASE effective
+
+============================================================
+52. TESTS — PURCHASE / RESTORE
+============================================================
+
+9.
+package loading
+
+10.
+missing product
+
+11.
+purchase success normalization
+
+12.
+user cancellation
+
+13.
+purchase failure
+
+14.
+restore active
+
+15.
+restore none
+
+16.
+account switch stale entitlement absent
+
+============================================================
+53. TESTS — PLAN CHANGE
+============================================================
+
+17.
+SWIMNOTE → X300
+
+18.
+X300 → X500
+
+19.
+X500 → X1000
+
+20.
+X500 → X300 within member limit
+
+21.
+X500 → X300 over 300 members
+→ blocked
+
+22.
+X → SWIMNOTE scheduled downgrade semantics
+
+23.
+cancel vs downgrade distinct
+
+============================================================
+54. TESTS — WEBHOOK
+============================================================
+
+24.
+initial purchase
+
+25.
+renewal
+
+26.
+product change
+
+27.
+cancellation
+
+28.
+expiration
+
+29.
+billing issue
+
+30.
+duplicate webhook
+
+31.
+invalid webhook auth
+
+============================================================
+55. TESTS — LEGACY
+============================================================
+
+32.
+legacy active retains entitlement
+
+33.
+legacy not offered new sale
+
+34.
+legacy expired cannot repurchase deprecated product
+
+============================================================
+56. 1.6.3 COMPATIBILITY
+============================================================
+
+35.
+existing old client server calls still parse
+
+36.
+shared API response additive only
+
+37.
+no required new field breaks old client
+
+============================================================
+57. REGRESSION
+============================================================
+
+Stable baseline:
+
+166 failed
+5059 passed
+16 skipped
+
+or current same-command verified baseline.
+
+Command:
+
+cd artifacts/api-server && pnpm vitest run
+
+Expected:
+
+New deterministic:
+0
+
+New flaky:
+0
+
+New TS:
+0
+
+General frozen feature regression:
+0
+
+============================================================
+58. EXTERNAL MANUAL CHECKLIST
+============================================================
+
+Do not invent completion.
+
+Report exact status for:
+
+APP STORE CONNECT
+
+SWIMNOTE product:
+EXISTS / MISSING / UNKNOWN
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Subscription groups:
+...
+
+GOOGLE PLAY
+
+products:
+...
+
+base plans/offers:
+...
+
+REVENUECAT
+
+project:
+...
+
+iOS app:
+...
+
+Android app:
+...
+
+products imported:
+...
+
+entitlements:
+...
+
+offerings:
+...
+
+webhook:
+...
+
+If not verifiable from repository:
+UNKNOWN / EXTERNAL CONFIG REQUIRED.
+
+============================================================
+59. NO PRODUCTION RELEASE
+============================================================
+
+Even if code is ready:
+
+Production deploy:
+NO
+
+Production DB migration:
+NO
+
+Store submit:
+NO
+
+Live purchase:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+until explicit approval.
+
+============================================================
+60. COMPLETION REPORT
+============================================================
+
+# SWIMNOTE 2.0
+# COMPRESSED STAGE 8 PRICING / SUBSCRIPTION / REVENUECAT REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## FREEZE EXCEPTIONS
+
+Files outside subscription/payment scope modified:
+...
+
+Reason:
+...
+
+Expected:
+NONE or entitlement-only justified changes
+
+## CURRENT STATE AUDIT
+
+Existing subscription screen:
+...
+
+Existing RevenueCat client:
+...
+
+Existing server subscription logic:
+...
+
+Existing webhook:
+...
+
+Legacy mappings:
+...
+
+1.6.3 remnants:
+...
+
+## LOCKED PRICE IMPLEMENTATION
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Old new-sale prices exposed:
+...
+
+Expected:
+0
+
+## PRODUCT IDS
+
+Plan | Current ID | Target ID | Action
+
+...
+
+## BASE ENTITLEMENT
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+Multiple BASE simultaneously effective:
+...
+
+Expected:
+NO
+
+## DATA ADD-ONS
+
+DATA100:
+...
+
+DATA300:
+...
+
+Stacking behavior:
+...
+
+Storage calculation:
+...
+
+## SUBSCRIPTION UI
+
+Canonical route:
+...
+
+Normal:
+...
+
+X trial:
+...
+
+X active:
+...
+
+x_pending:
+...
+
+subscription_required:
+...
+
+Legacy active:
+...
+
+## MEMBER LIMIT
+
+SWIMNOTE display:
+...
+
+Internal:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+Downgrade guard:
+...
+
+## REVENUECAT CLIENT
+
+SDK:
+...
+
+Initialization:
+...
+
+User ID:
+...
+
+Account switching:
+...
+
+Package loading:
+...
+
+Purchase:
+...
+
+Restore:
+...
+
+CustomerInfo normalization:
+...
+
+## SERVER SYNC
+
+Endpoint:
+...
+
+Product allowlist:
+...
+
+Entitlement resolver:
+...
+
+Client spoof protection:
+...
+
+## WEBHOOK
+
+Endpoint:
+...
+
+Auth:
+...
+
+Idempotency:
+...
+
+Events handled:
+...
+
+## LEGACY
+
+Active legacy:
+...
+
+New sale:
+...
+
+Rejoin after expiry:
+...
+
+## 1.6.3
+
+Compatibility:
+...
+
+Changes:
+...
+
+OTA:
+NO
+
+## TESTS
+
+Plan resolution:
+...
+
+Purchase:
+...
+
+Restore:
+...
+
+Plan change:
+...
+
+Downgrade guard:
+...
+
+Webhook:
+...
+
+Legacy:
+...
+
+1.6.3:
+...
+
+## REGRESSION
+
+Baseline:
+...
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky:
+...
+
+New TS:
+...
+
+Expected:
+0 / 0 / 0
+
+## APP STORE CONNECT
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Subscription groups:
+...
+
+Status:
+VERIFIED / EXTERNAL CONFIG REQUIRED / UNKNOWN
+
+## GOOGLE PLAY
+
+...
+
+Status:
+...
+
+## REVENUECAT DASHBOARD
+
+Products:
+...
+
+Entitlements:
+...
+
+Offerings:
+...
+
+Webhook:
+...
+
+Status:
+VERIFIED / EXTERNAL CONFIG REQUIRED / UNKNOWN
+
+## PAID INSIGHT MIGRATION
+
+Status:
+READY / PENDING APPROVAL
+
+Production executed:
+NO
+
+## PRODUCTION
+
+Deploy:
+NO
+
+Migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+Store submission:
+NO
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STAGE 8 CODE COMPLETE — EXTERNAL CONFIG REQUIRED
+
+or
+
+STAGE 8 READY FOR PAYMENT E2E
+
+or
+
+BLOCKED
