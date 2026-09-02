@@ -134,16 +134,31 @@ router.post(
         RETURNING *
       `);
 
-      // 특정 유저 멘션(@) 메시지 → 해당 유저에게 푸시
-      if (target_user_id && target_user_id !== userId) {
-        sendPushToUser(
-          target_user_id, false, "messenger",
-          senderName,
-          content.trim().slice(0, 100),
-          { type: "messenger", poolId: pool_id },
-          `msg_${pool_id}`,
-          { subtitle: "SwimNote", channelId: "messenger", priority: "high" }
-        ).catch(() => {});
+      const PUSH_TITLE = "SWIMNOTE 메신저";
+      const PUSH_BODY = "새 메시지가 도착했습니다.";
+      const pushData = { type: "messenger", poolId: pool_id };
+
+      if (msgType === "directed_message") {
+        // @멘션: 지정 유저에게만 push (기존 동작 유지, pool-wide push 없음)
+        if (target_user_id && target_user_id !== userId) {
+          sendPushToUser(
+            target_user_id, false, "messenger",
+            PUSH_TITLE,
+            PUSH_BODY,
+            pushData,
+            `msg_${pool_id}`,
+            { subtitle: "SwimNote", channelId: "messenger", priority: "high" }
+          ).catch(() => {});
+        }
+      } else {
+        // 일반 talk 메시지: 상대 역할 전체에게 push (발신자는 다른 role이므로 자동 제외)
+        if (role === "pool_admin") {
+          // 관리자 발신 → 해당 pool의 teacher들에게 push
+          sendPushToPoolTeachers(pool_id, "messenger", PUSH_TITLE, PUSH_BODY, pushData, `msg_${pool_id}`).catch(() => {});
+        } else if (role === "teacher") {
+          // 선생님 발신 → 해당 pool의 pool_admin에게 push
+          sendPushToPoolAdmins(pool_id, "messenger", PUSH_TITLE, PUSH_BODY, pushData, `msg_${pool_id}`).catch(() => {});
+        }
       }
 
       return res.status(201).json({ success: true, message: rows.rows[0] });

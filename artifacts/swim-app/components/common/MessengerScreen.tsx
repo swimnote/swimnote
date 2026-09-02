@@ -12,7 +12,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import { AtSign, BellOff, Calendar, CircleCheck, Layers, Lock as LockIcon, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
+import { AtSign, BellOff, Calendar, CircleCheck, Layers, Lock as LockIcon, Paperclip, Phone, Plus, Send, User, Users, X } from "lucide-react-native";
 const Lock = LockIcon as React.ComponentType<any>;
 import {
   ActivityIndicator,
@@ -113,9 +113,16 @@ function fmtDateFull(raw: string | null | undefined): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK_DAYS[d.getDay()]}요일`;
 }
 
-/** 두 raw 문자열이 같은 날(YYYY-MM-DD)인지 */
+/** 두 ISO 문자열이 같은 로컬(KST) 날짜인지 — UTC slice 비교 금지 */
 function sameDay(a: string, b: string): boolean {
-  return !!a && !!b && a.slice(0, 10) === b.slice(0, 10);
+  const da = parseDateSafe(a);
+  const db = parseDateSafe(b);
+  if (!da || !db) return false;
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -189,6 +196,57 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   }, [poolId, token]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
+
+  /* ── 백그라운드 silent refresh (7초 polling, focus 중에만) ── */
+  const bgRefreshingRef = useRef(false);
+
+  const refreshMessagesSilent = useCallback(async () => {
+    if (bgRefreshingRef.current || !poolId || !token) return;
+    bgRefreshingRef.current = true;
+    try {
+      const [talkRes, noticeRes, readRes] = await Promise.all([
+        apiRequest(token, `/messenger/messages?pool_id=${poolId}&channel_type=talk`),
+        apiRequest(token, `/messenger/messages?pool_id=${poolId}&channel_type=notice`),
+        apiRequest(token, `/messenger/read-state?pool_id=${poolId}`),
+      ]);
+      if (talkRes.ok) {
+        const d = await talkRes.json();
+        const fresh: WorkMessage[] = Array.isArray(d.messages) ? d.messages : [];
+        setTalkMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const added = fresh.filter(m => !existingIds.has(m.id));
+          if (added.length === 0) return prev;
+          return [...added, ...prev];
+        });
+      }
+      if (noticeRes.ok) {
+        const d = await noticeRes.json();
+        const fresh: WorkMessage[] = Array.isArray(d.messages) ? d.messages : [];
+        setNoticeMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const added = fresh.filter(m => !existingIds.has(m.id));
+          if (added.length === 0) return prev;
+          return [...added, ...prev];
+        });
+      }
+      if (readRes.ok) {
+        const d = await readRes.json();
+        setNoticeUnread((d.unreadCount ?? d.unread_count ?? 0) > 0);
+      }
+    } catch (e) {
+      console.error("[messenger] bg refresh error", e);
+    } finally {
+      bgRefreshingRef.current = false;
+    }
+  }, [poolId, token]);
+
+  /* focus 시작 → 7초 polling, blur → cleanup */
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(refreshMessagesSilent, 7000);
+      return () => clearInterval(timer);
+    }, [refreshMessagesSilent])
+  );
 
   /* ── 화면 진입 시 talk 읽음 처리 (백그라운드 복귀 포함) ── */
   useFocusEffect(
@@ -266,7 +324,14 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       const res = await apiRequest(token, "/messenger/messages", { method: "POST", body: JSON.stringify(body) });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setTalkMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+        if (d.message) {
+          setTalkMessages(prev => {
+            // replace optimistic, remove any polling-added duplicate of the real message
+            const replaced = prev.map(m => m.id === tempId ? d.message : m);
+            const seen = new Set<number>();
+            return replaced.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+          });
+        }
       } else {
         setTalkMessages(prev => prev.filter(m => m.id !== tempId));
       }
@@ -309,7 +374,13 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setNoticeMessages(prev => prev.map(m => m.id === tempId ? d.message : m));
+        if (d.message) {
+          setNoticeMessages(prev => {
+            const replaced = prev.map(m => m.id === tempId ? d.message : m);
+            const seen = new Set<number>();
+            return replaced.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+          });
+        }
       } else {
         setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
       }
@@ -677,9 +748,6 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 multiline
                 maxLength={1000}
               />
-              <TouchableOpacity style={s.sideBtn} activeOpacity={0.7}>
-                <Smile size={22} color={C.textSecondary} />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[s.sendBtn, { backgroundColor: PRIMARY }, talkInput.trim().length === 0 && s.sendBtnOff]}
                 onPress={sendTalk}
