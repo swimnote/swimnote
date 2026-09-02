@@ -10,6 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 
 const router = Router();
 
@@ -120,8 +121,9 @@ router.post("/admin/unregistered/bulk", requireAuth, requireRole("admin", "platf
     // 정상 항목만 DB 삽입
     let inserted = 0;
     for (const item of toInsert) {
+      const newId = crypto.randomUUID();
       await db.insert(studentsTable).values({
-        id: crypto.randomUUID(),
+        id: newId,
         swimming_pool_id: poolId,
         name: item.name,
         name_korean: item.name.replace(/[^가-힣]/g, ""),
@@ -130,6 +132,10 @@ router.post("/admin/unregistered/bulk", requireAuth, requireRole("admin", "platf
         registration_path: "bulk_upload",
         invite_status: "none",
       });
+      // V2 자동연결 트리거 (미등록회원 bulk 업로드)
+      triggerAutoLinkOnStudentV2(newId, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+        console.error("[v2-admin-trigger] unregistered bulk 트리거 오류:", e?.message)
+      );
       inserted++;
     }
 

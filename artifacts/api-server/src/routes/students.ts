@@ -341,6 +341,10 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
         }
 
         logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
+        // V2 자동연결 트리거 (batch 신규 등록)
+        triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+          console.error("[v2-admin-trigger] batch 트리거 오류:", e?.message)
+        );
         succeeded.push(s.name.trim());
         registeredCount++;
       } catch (innerErr: any) {
@@ -526,6 +530,10 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       `);
     }
 
+    // V2 자동연결 트리거 (단일 학생 등록)
+    triggerAutoLinkOnStudentV2(student.id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+      console.error("[v2-admin-trigger] 단일등록 트리거 오류:", e?.message)
+    );
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     logPoolEvent({
