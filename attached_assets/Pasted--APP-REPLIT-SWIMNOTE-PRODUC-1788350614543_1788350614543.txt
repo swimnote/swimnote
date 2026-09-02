@@ -1,0 +1,674 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE PRODUCTION KAKAO LOGIN HOTFIX DEPLOY
+# PHONE HYPHEN FALLBACK — MINIMAL BACKPORT ONLY
+#
+# 사용자 승인:
+# Production 배포 승인됨.
+#
+# 목적:
+# Production /api/auth/kakao-social-login에서
+# Kakao 전화번호 digits-only와 DB hyphenated phone 형식이
+# 매칭되지 않아 기존 계정을 찾지 못하는 문제를
+# 최소 diff로 수정하고 Render에 배포한다.
+#
+# 이번 배포는 카카오 로그인 복구용 hotfix만 허용.
+# 다른 기능 절대 포함 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Production branch:
+deploy-photo-clone
+
+Source reference:
+release/v2.0.0
+source commit containing verified fix:
+6056f41e
+
+Current known Production LIVE SHA:
+0968d5e9
+
+IMPORTANT:
+실제 작업 시작 전 origin/deploy-photo-clone 최신 fetch 후
+현재 Production HEAD와 Render LIVE SHA를 다시 확인할 것.
+
+============================================================
+0. 절대 범위
+============================================================
+
+이번 배포 허용 변경:
+
+artifacts/api-server/src/routes/auth.ts
+
+내 아래 3개 Kakao phone lookup만:
+
+1. kakao-social-login Step 2-A
+2. kakao-social-login Step 2-B
+3. kakao-social-login Step 4
+
+목표:
+digits-only phone
++
+hyphenated phone
+둘 다 조회.
+
+그 외 변경:
+NO
+
+============================================================
+1. 절대 금지
+============================================================
+
+전체 6056f41e cherry-pick:
+NO
+
+2.0 client:
+NO
+
+1.6.3 client:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+DB migration:
+NO
+
+DB write:
+NO
+
+account relink:
+NO
+
+account merge:
+NO
+
+kakao_id 수정:
+NO
+
+admin policy 추가:
+NO
+
+Kakao Console:
+NO
+
+RevenueCat:
+NO
+
+Subscription:
+NO
+
+Messenger:
+NO
+
+Scheduler:
+NO
+
+Media:
+NO
+
+Health route 수정:
+NO
+
+Login diagnostics 추가:
+NO
+
+Auth unrelated code:
+NO
+
+============================================================
+2. PREFLIGHT
+============================================================
+
+반드시:
+
+git fetch origin
+
+origin/deploy-photo-clone 기준으로 작업.
+
+확인 및 보고:
+
+Production branch:
+deploy-photo-clone
+
+HEAD Before:
+...
+
+origin/deploy-photo-clone:
+...
+
+Render LIVE SHA:
+...
+
+Working tree:
+CLEAN
+
+만약 local deploy-photo-clone이 origin보다 뒤처져 있으면
+origin 기준 최신 상태에서 작업.
+
+잘못된 오래된 local ref 위에 commit 금지.
+
+============================================================
+3. 현재 Production 코드 확인
+============================================================
+
+auth.ts에서 실제로 아래 3곳이
+phone digits-only equality만 쓰는지 확인.
+
+Step 2-A:
+parent_accounts
+pool_id 있는 경우
+
+Step 2-B:
+parent_accounts
+pool_id 없는 경우
+
+Step 4:
+users
+teacher/pool_admin phone fallback
+
+이미 hyphen fallback이 있다면
+중복 수정 금지하고 즉시 보고.
+
+============================================================
+4. 최소 수정
+============================================================
+
+검증된 source fix를 참고해서
+딱 3곳만 수정.
+
+개념:
+
+digits:
+01012345678
+
+hyphen:
+010-1234-5678
+
+Step 2-A:
+
+기존:
+WHERE phone = kakaoPhone
+AND swimming_pool_id = requestPoolId
+
+수정:
+WHERE (phone = kakaoPhone OR phone = kakaoPhoneHyphenP)
+AND swimming_pool_id = requestPoolId
+
+Step 2-B:
+
+기존:
+WHERE phone = kakaoPhone
+LIMIT 2
+
+수정:
+WHERE (phone = kakaoPhone OR phone = kakaoPhoneHyphenP)
+LIMIT 2
+
+Step 4:
+
+기존:
+WHERE phone = kakaoPhone
+AND role IN ('teacher', 'pool_admin')
+LIMIT 1
+
+수정:
+WHERE (phone = kakaoPhone OR phone = kakaoPhoneHyphen)
+AND role IN ('teacher', 'pool_admin')
+LIMIT 1
+
+중요:
+기존 helper/변수명이 실제 Production 코드와 다르면
+현재 코드 구조를 따르되
+의미는 동일하게 유지.
+
+============================================================
+5. PHONE NORMALIZATION
+============================================================
+
+새 normalization 구조 만들지 말 것.
+
+release/v2.0.0에서 검증된
+digits + hyphen fallback 생성 방식만 재사용.
+
+확인:
+
+01012345678
+→ 010-1234-5678
+
+형태.
+
+다른 국가 번호 정책이나
+DB normalization migration:
+NO
+
+============================================================
+6. ROLE QUERY 보호
+============================================================
+
+Step 4 role:
+
+teacher
+pool_admin
+
+만.
+
+sub_admin:
+절대 추가 금지.
+
+최종 auth.ts Kakao SQL role query에서
+invalid enum literal:
+0 occurrences
+
+============================================================
+7. 기존 로그인 동작 보존
+============================================================
+
+반드시 그대로:
+
+parent kakao_id direct:
+unchanged
+
+teacher kakao_id direct:
+unchanged
+
+pool_admin kakao_id direct:
+unchanged
+
+existing admin Kakao login:
+ALLOW
+
+new admin policy:
+이번 Production hotfix에서 건드리지 않음
+
+no-account:
+기존 behavior 유지
+
+Kakao timeout/error handling:
+unchanged
+
+response shape:
+unchanged
+
+============================================================
+8. TESTS — 배포 전
+============================================================
+
+최소:
+
+P01
+parent direct kakao_id
+PASS
+
+P02
+parent digits phone
+PASS
+
+P03
+parent hyphen phone
+PASS
+
+P04
+parent pool-scoped hyphen phone
+PASS
+
+P05
+teacher direct kakao_id
+PASS
+
+P06
+teacher digits phone
+PASS
+
+P07
+teacher hyphen phone
+PASS
+
+P08
+pool_admin direct kakao_id
+PASS
+
+P09
+pool_admin hyphen phone
+PASS
+
+P10
+no account → 404 kakao_no_account
+PASS
+
+P11
+invalid token → non-5xx expected auth response
+PASS
+
+P12
+sub_admin occurrence in relevant SQL = 0
+PASS
+
+P13
+general username/password login contract
+PASS
+
+P14
+no response-shape change
+PASS
+
+가능하면 release/v2.0.0의
+kakao 관련 검증 테스트도 함께 실행하되
+Production 코드와 맞지 않는 2.0 전용 policy test 때문에
+범위를 넓혀 수정하지 말 것.
+
+============================================================
+9. DIFF 검증
+============================================================
+
+commit 전 반드시:
+
+git diff
+
+확인.
+
+Changed files:
+정확히 1개여야 함.
+
+artifacts/api-server/src/routes/auth.ts
+
+의도된 3 query block 외 diff:
+0
+
+만약 다른 diff 존재:
+제거 후 진행.
+
+============================================================
+10. COMMIT
+============================================================
+
+Production branch에서 최소 commit.
+
+권장 commit:
+
+fix(prod-kakao): match normalized and hyphenated phone numbers
+
+commit 후:
+
+git show --stat
+git show
+
+로 범위 재확인.
+
+============================================================
+11. PUSH
+============================================================
+
+origin/deploy-photo-clone에 push.
+
+다른 branch:
+NO PUSH
+
+main:
+NO TOUCH
+
+release/v2.0.0:
+NO TOUCH
+
+============================================================
+12. RENDER DEPLOY
+============================================================
+
+push 후 Render auto-deploy 확인.
+
+auto-deploy가 실행되지 않으면
+사용자 승인 범위 안에서
+방금 생성한 exact production hotfix commit만
+manual deploy 허용.
+
+다른 commit 선택 금지.
+
+============================================================
+13. LIVE SHA 검증
+============================================================
+
+배포 완료 후:
+
+GET /api/healthz
+
+확인.
+
+HTTP:
+200
+
+health response의 commit/live metadata가 있다면
+새 production hotfix SHA와 일치해야 함.
+
+Render dashboard LIVE commit도 확인.
+
+반드시:
+
+Production commit == Render LIVE commit
+
+이어야 함.
+
+============================================================
+14. POST-DEPLOY SAFE SMOKE
+============================================================
+
+실제 사용자 계정 데이터를 수정하지 않는 범위에서 확인.
+
+A.
+GET /api/healthz
+→ 200
+
+B.
+일반 unified-login invalid request
+→ 4xx
+→ 5xx NO
+
+C.
+kakao-social-login missing token
+→ safe 4xx
+→ 5xx NO
+
+D.
+Render logs에서 신규:
+DB error
+invalid enum
+server crash
+PROCESS_ERROR
+확인.
+
+새 5xx:
+0
+
+============================================================
+15. 실제 카카오 로그인
+============================================================
+
+자동화로 실제 사용자 Kakao token을 만들거나
+계정 연결하지 말 것.
+
+배포 완료보고 후
+사용자가 실기기에서 직접 확인.
+
+대상:
+
+1.6.3 iOS existing Kakao account
+2.0 iOS existing Kakao account
+
+가능하면 Android도 확인.
+
+============================================================
+16. ROLLBACK
+============================================================
+
+다음 중 하나라도 발생하면:
+
+health 5xx
+server boot failure
+general login regression
+auth route crash
+unexpected SQL error
+
+즉시 Render previous successful deploy로 rollback.
+
+rollback 기준 SHA:
+배포 직전 LIVE SHA 기록값.
+
+rollback 후 보고.
+
+============================================================
+17. 완료보고 형식
+============================================================
+
+# SWIMNOTE PRODUCTION KAKAO PHONE HOTFIX DEPLOY REPORT
+
+## SOURCE
+
+Source reference:
+6056f41e
+
+Production branch:
+deploy-photo-clone
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Production commit:
+...
+
+## SCOPE
+
+Changed files:
+...
+
+Expected:
+artifacts/api-server/src/routes/auth.ts only
+
+Other files:
+NO
+
+## KAKAO PHONE FIX
+
+Step 2-A:
+FIXED / ALREADY FIXED / FAIL
+
+Step 2-B:
+FIXED / ALREADY FIXED / FAIL
+
+Step 4:
+FIXED / ALREADY FIXED / FAIL
+
+Digits fallback:
+YES
+
+Hyphen fallback:
+YES
+
+sub_admin:
+0 occurrences
+
+## TESTS
+
+P01-P14:
+...
+
+General login:
+PASS / FAIL
+
+New deterministic failures:
+0 / ...
+
+## PUSH
+
+origin/deploy-photo-clone:
+...
+
+## RENDER
+
+Deploy:
+AUTO / MANUAL / FAILED
+
+Live commit:
+...
+
+Matches production commit:
+YES / NO
+
+## HEALTH
+
+/api/healthz:
+HTTP ...
+
+## LOGS
+
+New DB errors:
+0 / ...
+
+Invalid enum:
+0 / ...
+
+Server crash:
+NO / YES
+
+New 5xx:
+0 / ...
+
+## CLIENT / DB FREEZE
+
+1.6.3 client:
+NOT TOUCHED
+
+2.0 client:
+NOT TOUCHED
+
+OTA:
+NO
+
+Build:
+NO
+
+DB:
+NO CHANGE
+
+Account data:
+NO CHANGE
+
+## ROLLBACK
+
+Needed:
+NO / YES
+
+Previous Live SHA:
+...
+
+## DEVICE VALIDATION
+
+1.6.3 iOS:
+USER TEST REQUIRED
+
+2.0 iOS:
+USER TEST REQUIRED
+
+Android:
+USER TEST REQUIRED
+
+## FINAL
+
+다음 중 하나만:
+
+PRODUCTION KAKAO PHONE HOTFIX DEPLOYED — HEALTHY
+
+또는
+
+PRODUCTION KAKAO PHONE HOTFIX DEPLOYED — DEVICE VALIDATION PENDING
+
+또는
+
+PRODUCTION KAKAO PHONE HOTFIX ROLLED BACK
