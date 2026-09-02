@@ -1,0 +1,338 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 1.6.3 HARD FREEZE BEFORE 2.0 WORK
+#
+# 목적:
+# 2.0 개발 중 1.6.3 client / OTA / Production server가
+# 다시 영향을 받는 일을 기술적으로 차단한다.
+#
+# 이번 작업은 "잠금/보호 장치"만 만든다.
+# 기능 수정 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+============================================================
+0. FREEZE BASELINE
+============================================================
+
+1.6.3 client branch:
+maintenance/v1.6.3-social-exit
+
+1.6.3 frozen HEAD:
+6b7fde18
+
+1.6.3 runtime:
+1.6.3
+
+1.6.3 production OTA:
+01a06318-d129-7f82-816d-d4c0ef35f693
+
+Production server branch:
+deploy-photo-clone
+
+Production live SHA:
+e6bb180c
+
+2.0 branch:
+release/v2.0.0
+
+============================================================
+1. 1.6.3 SNAPSHOT BACKUP
+============================================================
+
+현재 1.6.3 frozen 상태를 별도 immutable backup branch/tag로 보존.
+
+생성:
+
+backup/v1.6.3-final-live
+
+가능하면 annotated tag도 생성:
+
+v1.6.3-live-freeze
+
+둘 다 정확히:
+6b7fde18
+
+을 가리켜야 함.
+
+origin push.
+
+기존 maintenance branch 삭제/변경 금지.
+
+============================================================
+2. PRODUCTION SERVER SNAPSHOT
+============================================================
+
+현재 Production live SHA:
+
+e6bb180c
+
+를 기준으로 별도 backup branch 생성:
+
+backup/prod-server-v1.6.3-live
+
+정확히 Production live server source 상태를 가리키게 할 것.
+
+origin push.
+
+Production deploy-photo-clone은
+2.0 작업에서 사용 금지.
+
+============================================================
+3. 2.0 WORK ISOLATION
+============================================================
+
+앞으로 2.0 작업은 오직:
+
+release/v2.0.0
+
+또는 해당 branch에서 만든 recovery/fix branch에서만 수행.
+
+금지:
+
+maintenance/v1.6.3-social-exit checkout 후 수정
+deploy-photo-clone 수정
+1.6.3 runtime OTA
+production channel OTA
+Render production deploy
+
+2.0 작업 중 위 4개가 발생하면 즉시 STOP.
+
+============================================================
+4. REPLIT PRE-FLIGHT GUARD
+============================================================
+
+2.0 작업 시작 전에 항상 아래를 먼저 확인하도록
+간단한 guard script 또는 documented preflight command 추가.
+
+확인 항목:
+
+CURRENT_BRANCH == release/v2.0.0
+또는 허용된 v2 fix branch
+
+CURRENT_HEAD != 1.6.3 maintenance branch
+
+그리고:
+
+git diff maintenance/v1.6.3-social-exit..HEAD
+
+를 실행하는 것이 아니라,
+1.6.3 branch를 수정하지 않는지만 확인.
+
+Production branch:
+deploy-photo-clone
+
+checkout 상태면:
+작업 중단.
+
+============================================================
+5. OTA GUARD
+============================================================
+
+2.0 개발 중 다음 명령 실행 금지:
+
+eas update --branch production
+
+또는
+runtime 1.6.3 대상으로 OTA publish
+
+2.0 작업에서 OTA 필요 시:
+
+2.0 전용 branch/channel/runtime이
+명확히 설정된 경우에만 가능.
+
+현재는:
+OTA NO.
+
+============================================================
+6. RENDER GUARD
+============================================================
+
+2.0 client 작업 중
+Render production deploy 금지.
+
+deploy-photo-clone push:
+NO
+
+Render manual deploy:
+NO
+
+server source 수정이 꼭 필요한 경우도
+먼저 2.0 branch에서만 작업하고
+Production backport는 별도 승인 단계로 분리.
+
+============================================================
+7. 1.6.3 INTEGRITY CHECK
+============================================================
+
+현재 frozen 상태 검증:
+
+A.
+maintenance/v1.6.3-social-exit HEAD
+= 6b7fde18
+
+B.
+backup/v1.6.3-final-live
+= 6b7fde18
+
+C.
+tag v1.6.3-live-freeze
+= 6b7fde18
+
+D.
+production OTA latest
+= 01a06318-d129-7f82-816d-d4c0ef35f693
+
+E.
+runtime
+= 1.6.3
+
+F.
+Production server live
+= e6bb180c
+
+G.
+backup/prod-server-v1.6.3-live
+= e6bb180c
+
+하나라도 불일치하면
+2.0 작업 시작 금지.
+
+============================================================
+8. FREEZE CHECKSUM / MANIFEST
+============================================================
+
+간단한 freeze manifest 파일 하나 생성 가능:
+
+docs/release/v1.6.3-freeze-manifest.md
+
+내용:
+
+Client branch
+Client SHA
+Runtime
+OTA Update ID
+Production server SHA
+Backup branch
+Tag
+Freeze date
+"DO NOT MODIFY DURING V2 DEVELOPMENT"
+
+이 파일은 2.0 branch에도 reference용으로 보존 가능.
+
+민감정보:
+NO.
+
+============================================================
+9. 절대 금지
+============================================================
+
+1.6.3 코드 수정:
+NO
+
+1.6.3 새 OTA:
+NO
+
+Production server 수정:
+NO
+
+Production deploy:
+NO
+
+DB write:
+NO
+
+Kakao 수정:
+NO
+
+signup 수정:
+NO
+
+maintenance flag 수정:
+NO
+
+이 작업은 보호장치만.
+
+============================================================
+10. 완료보고
+============================================================
+
+# SWIMNOTE 1.6.3 HARD FREEZE REPORT
+
+## CLIENT
+
+Frozen branch:
+maintenance/v1.6.3-social-exit
+
+Frozen SHA:
+6b7fde18
+
+Backup branch:
+...
+
+Backup branch SHA:
+...
+
+Freeze tag:
+...
+
+Tag SHA:
+...
+
+## OTA
+
+Runtime:
+1.6.3
+
+Production Update ID:
+01a06318-d129-7f82-816d-d4c0ef35f693
+
+New OTA performed:
+NO
+
+## SERVER
+
+Production live SHA:
+e6bb180c
+
+Server backup branch:
+...
+
+Backup SHA:
+...
+
+New Render deploy:
+NO
+
+## GUARDS
+
+2.0 branch isolation:
+ENABLED / FAIL
+
+Production branch guard:
+ENABLED / FAIL
+
+OTA production guard:
+ENABLED / FAIL
+
+Preflight check:
+ENABLED / FAIL
+
+## MANIFEST
+
+Created:
+YES / NO
+
+Path:
+...
+
+## FINAL
+
+1.6.3 HARD FREEZE ACTIVE — SAFE TO RESUME 2.0 WORK
+
+또는
+
+1.6.3 FREEZE INCOMPLETE — DO NOT START 2.0

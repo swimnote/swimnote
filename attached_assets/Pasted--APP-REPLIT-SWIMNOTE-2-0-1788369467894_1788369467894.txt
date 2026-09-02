@@ -1,0 +1,808 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — LAUNCH BLOCKER 1·2 ROOT-CAUSE INVESTIGATION
+#
+# 이번 단계는 조사만 한다.
+# 코드 수정 / commit / deploy / OTA / build 금지.
+#
+# 조사 대상:
+#
+# 1. 관리자 → 선생님 모드에서
+#    다른 선생님의 반/학생이 섞여 보이는 문제
+#
+# 2. 사진/영상 업로드·열람 후
+#    휴대폰 로컬 저장공간이 계속 증가하는 문제
+#    (실기기 Documents & Data 약 11GB 사례)
+#
+# 조사 결과를 받은 뒤 다음 작업에서
+# 정확한 원인만 최소 수정한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target branch:
+release/v2.0.0
+
+Expected recent 2.0 lineage:
+- recovery baseline: 1b03e716
+- recovered release: 290c479b
+- later Kakao Exit work: 0124d8a1
+단, 현재 실제 HEAD를 먼저 확인하고 그 값을 source of truth로 사용.
+
+Regression comparison baseline:
+1b03e716
+
+1.6.3:
+NO TOUCH
+
+Production:
+NO TOUCH
+
+============================================================
+0. 절대 금지
+============================================================
+
+코드 수정:
+NO
+
+commit:
+NO
+
+push:
+NO
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+DB write:
+NO
+
+DB migration:
+NO
+
+RevenueCat:
+NO TOUCH
+
+Kakao:
+NO TOUCH
+
+Apple auth:
+NO TOUCH
+
+Messenger:
+NO TOUCH
+
+새 기능:
+NO
+
+리팩터링:
+NO
+
+============================================================
+1. 조사 1 — ADMIN → TEACHER MODE SCOPE 혼입
+============================================================
+
+실제 사용자 증상:
+
+관리자 계정에서 선생님 모드로 전환한 뒤
+
+수업관리 / 스케줄러 / 학생 관련 화면에서
+
+다른 선생님의
+- 반
+- 학생
+- 스케줄
+
+이 섞여 보임.
+
+정상 정책:
+
+ADMIN NORMAL MODE
+→ 같은 pool 전체 반/학생
+
+TEACHER
+→ 자기 담당 반/학생만
+
+ADMIN → TEACHER MODE
+→ 현재 선택된/effective teacher의 담당 반/학생만
+
+다른 teacher 데이터:
+0
+
+============================================================
+2. 조사 1 — 실제 ACTIVE ROUTE 추적
+============================================================
+
+실제 앱에서 다음 chain을 추적:
+
+Admin login
+→ Teacher mode 진입
+→ 수업관리
+→ Scheduler
+→ Class list
+→ Student list
+
+각 단계에서 기록:
+
+- route
+- active file
+- component
+- actual auth role
+- effective mode
+- actual user id
+- effectiveTeacherId 또는 동일 개념
+- swimming_pool_id
+- API endpoint
+- request params
+- server-side filter
+- client-side filter
+- cached/shared state
+
+파일이 존재하는지만 보지 말고
+실제 active route가 어떤 component를 사용하는지 확인.
+
+============================================================
+3. 조사 1 — 데이터가 섞이는 정확한 위치 확인
+============================================================
+
+반드시 다음 중 어디서 잘못되는지 구분:
+
+A.
+서버 API가 이미 pool 전체 반/학생을 반환
+
+B.
+서버는 정상인데 client filter가 빠짐
+
+C.
+Admin→Teacher mode에서 effectiveTeacherId가 안 넘어감
+
+D.
+actual role=pool_admin 때문에 teacher mode에서도
+관리자 전체 scope API를 사용
+
+E.
+shared cache/query key가 admin 전체 데이터를 재사용
+
+F.
+mode 변경 전 데이터가 state/cache에 남음
+
+G.
+scheduler는 정상인데 student list만 별도 회귀
+
+H.
+기타 exact cause
+
+"권한 문제 같다" 수준으로 보고 금지.
+
+정확히:
+어떤 함수 / 조건 / request / filter가 원인인지 찾을 것.
+
+============================================================
+4. 조사 1 — Git history 비교
+============================================================
+
+baseline:
+1b03e716
+
+현재 HEAD와 비교.
+
+검색:
+
+teacher
+scheduler
+effectiveTeacher
+teacherId
+assigned_teacher
+class_groups
+student list
+role mode
+teacher mode
+impersonate
+pool_admin
+scope
+schedule
+class filter
+
+사용:
+
+git log -p
+git blame
+git diff 1b03e716..HEAD
+git log --follow
+
+반드시 판정:
+
+- 1b03e716에서도 동일 코드였는지
+- 이후 실제 regression commit이 존재하는지
+- 코드 regression이 아니라 runtime/state 문제인지
+
+Last known good SHA가 있으면 기록.
+
+============================================================
+5. 조사 1 — 관련 화면 범위
+============================================================
+
+최소 확인:
+
+- Scheduler
+- 수업 목록
+- 반 목록
+- 학생 목록
+- 출결 화면
+- 보강 화면
+
+모두 같은 teacher scope helper/API를 쓰는지 확인.
+
+완료보고에:
+
+AFFECTED
+NOT AFFECTED
+
+분류.
+
+============================================================
+6. 조사 2 — MEDIA LOCAL STORAGE 11GB
+============================================================
+
+실사용 증상:
+
+SWIMNOTE 앱 본체는 수십 MB 수준인데
+iPhone Documents & Data가 약 11GB까지 증가.
+
+사용자가 사진/영상 업로드를 많이 한 환경.
+
+정상 정책:
+
+원본 persistent storage:
+SERVER / R2
+
+PHONE:
+영구 원본 보관 금지
+
+업로드용 temporary file:
+허용
+
+업로드 성공:
+cleanup
+
+실패:
+cleanup
+
+취소:
+cleanup
+
+열람:
+remote URL/R2/signed URL 기반
+
+============================================================
+7. 조사 2 — 과거 정상 구현 찾기
+============================================================
+
+이 문제는 과거 이미 수정된 적이 있다고 보고된 상태.
+
+Git history에서 반드시 과거 정상 구현/수정 commit을 찾는다.
+
+검색:
+
+FileSystem
+expo-file-system
+documentDirectory
+cacheDirectory
+downloadAsync
+copyAsync
+moveAsync
+deleteAsync
+createDownloadResumable
+photo
+video
+upload
+R2
+temp
+cleanup
+cache
+storage
+quota
+used_storage
+
+특히:
+
+1b03e716 시점
+vs
+현재 HEAD
+
+정확한 diff 확인.
+
+완료보고에:
+
+LAST KNOWN GOOD SHA
+CURRENT CHANGE
+REGRESSION INTRODUCED SHA
+
+가능하면 전부 기록.
+
+============================================================
+8. 조사 2 — FileSystem 사용처 전수조사
+============================================================
+
+코드 전체에서:
+
+FileSystem.documentDirectory
+FileSystem.cacheDirectory
+downloadAsync
+copyAsync
+moveAsync
+writeAsStringAsync
+createDownloadResumable
+deleteAsync
+
+사용처 전부 찾기.
+
+각각 아래 중 하나로 분류:
+
+TEMP_REQUIRED
+USER_EXPLICIT_DOWNLOAD
+PERSISTENT_MEDIA
+CACHE
+UNRELATED
+
+특히 photo/video가
+documentDirectory에 복사되고 삭제되지 않는 경로가 있는지 확인.
+
+============================================================
+9. 조사 2 — 업로드 경로별 확인
+============================================================
+
+각 기능별 실제 pipeline 조사:
+
+A. 수업일지 사진
+B. 수업일지 영상
+C. 앨범
+D. 공지 첨부
+E. 회원/프로필 이미지
+F. 메신저 미디어
+G. Normal mode
+H. X mode
+
+각각:
+
+source URI
+→ preprocessing/copy
+→ upload
+→ server/R2
+→ remote key/url
+→ local cleanup
+
+흐름을 적을 것.
+
+Normal/X가 서로 다른 media implementation을 쓰는지도 확인.
+
+============================================================
+10. 조사 2 — 열람 경로 확인
+============================================================
+
+서버/R2에 이미 있는 미디어를 볼 때:
+
+remote URL을 직접 쓰는지
+
+또는
+
+downloadAsync
+→ local documentDirectory/cache
+→ local URI 표시
+
+하는지 확인.
+
+후자인 경우:
+
+- 파일명이 매번 새로 생성되는지
+- cache eviction이 있는지
+- deleteAsync가 있는지
+- 앱 종료 후에도 남는지
+
+확인.
+
+============================================================
+11. 조사 2 — 11GB가 무엇인지 추정 말고 경로 확정
+============================================================
+
+코드 기준으로
+11GB까지 누적될 수 있는 실제 후보 directory/path를 찾는다.
+
+예:
+
+documentDirectory/...
+cacheDirectory/...
+uploads/...
+media/...
+videos/...
+photos/...
+downloads/...
+
+완료보고에:
+
+LIKELY ACCUMULATION PATH:
+...
+
+FILE TYPE:
+photo / video / both / other
+
+WHY IT PERSISTS:
+...
+
+를 기록.
+
+확정할 수 없으면:
+NOT YET PROVEN
+
+이라고 명확히 작성.
+
+============================================================
+12. 요금제/Storage 변경 연관성 조사
+============================================================
+
+사용자는 최근 요금제/저장공간 변경 후
+문제가 다시 생긴 것으로 의심하고 있음.
+
+반드시 실제 Git diff로 확인.
+
+검색:
+
+subscriptionPlans
+storage quota
+storage limit
+used_storage
+max_storage
+storage_gb
+X300
+X500
+X1000
+10GB
+300GB
+500GB
+1TB
+
+그리고 media upload/FileSystem 코드와
+같은 commit에서 연결된 변경이 있었는지 확인.
+
+결론은 반드시 하나:
+
+A.
+SUBSCRIPTION/STORAGE CHANGE CAUSED REGRESSION
+
+B.
+SUBSCRIPTION/STORAGE CHANGE NOT RELATED
+
+C.
+INSUFFICIENT EVIDENCE
+
+추측 금지.
+
+============================================================
+13. 서버/R2 실제 authoritative 여부 확인
+============================================================
+
+현재 업로드 완료 후 DB/API가 저장하는 값이:
+
+- R2 key
+- remote URL
+- object key
+- signed URL reference
+
+중 무엇인지 확인.
+
+업로드 후 앱이 실제 local URI를
+영구 데이터 source로 저장하고 있는지도 확인.
+
+정상 기대:
+
+SERVER/R2 AUTHORITATIVE = YES
+LOCAL URI AUTHORITATIVE = NO
+
+============================================================
+14. 기존 11GB 안전삭제 가능성 조사
+============================================================
+
+아직 수정하지 말 것.
+
+다만 다음은 조사:
+
+앱이 생성한 누적 파일을
+100% 안전하게 식별 가능한가?
+
+YES라면:
+정확한 directory/pattern 보고.
+
+NO라면:
+왜 사용자 데이터와 구분 불가능한지 보고.
+
+절대 실제 삭제 실행 금지.
+
+============================================================
+15. 조사 결과에서 수정안까지 제시
+============================================================
+
+코드는 아직 수정하지 않지만
+각 버그에 대해 최소 수정안을 제시.
+
+BUG 1:
+몇 개 파일 / 어떤 조건을 어떻게 되돌려야 하는지
+
+BUG 2:
+몇 개 파일 / 어떤 local persistence를 제거하고
+어떤 cleanup을 복원해야 하는지
+
+새 architecture 제안 금지.
+
+과거 정상 구현 복원 우선.
+
+============================================================
+16. 테스트는 READ-ONLY / STATIC 범위만
+============================================================
+
+현재 테스트를 실행해서
+관련 기존 테스트가 있는지 확인 가능.
+
+하지만 테스트 통과를 이유로
+실기기 증상을 부정하지 말 것.
+
+Known historical baseline:
+166 stable failures
+
+최근 환경에서 181 보고가 있었음.
+
+이번 조사에서는:
+
+새 코드 변경 0이므로
+failure count 변경 여부만 기록.
+
+============================================================
+17. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 BLOCKER 1·2 ROOT-CAUSE REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+...
+
+Baseline:
+1b03e716
+
+Code changes:
+0
+
+Commits:
+0
+
+============================================================
+
+## 1. TEACHER SCOPE MIXING
+
+### ACTIVE FLOW
+
+Admin→Teacher route:
+...
+
+Scheduler route/file:
+...
+
+Class list route/file:
+...
+
+Student list route/file:
+...
+
+### IDENTITY/SCOPE
+
+Actual auth role:
+...
+
+Effective mode:
+...
+
+Effective teacher id source:
+...
+
+Pool id source:
+...
+
+### API
+
+Scheduler endpoint:
+...
+
+Class endpoint:
+...
+
+Student endpoint:
+...
+
+Teacher filter sent:
+YES / NO
+
+Server filter:
+YES / NO
+
+Client filter:
+YES / NO
+
+### ROOT CAUSE
+
+Exact cause:
+...
+
+Exact file:
+...
+
+Exact function/condition:
+...
+
+Regression introduced SHA:
+...
+
+Last known good SHA:
+...
+
+### AFFECTED SURFACES
+
+Scheduler:
+AFFECTED / NORMAL
+
+Class list:
+AFFECTED / NORMAL
+
+Student list:
+AFFECTED / NORMAL
+
+Attendance:
+AFFECTED / NORMAL
+
+Makeup:
+AFFECTED / NORMAL
+
+### MINIMAL FIX PLAN
+
+Files:
+...
+
+Exact change:
+...
+
+Risk:
+LOW / MEDIUM / HIGH
+
+============================================================
+
+## 2. MEDIA LOCAL STORAGE
+
+### CURRENT PIPELINE
+
+Photo:
+...
+
+Video:
+...
+
+R2/server authoritative:
+YES / NO
+
+Local URI authoritative:
+YES / NO
+
+### FILESYSTEM AUDIT
+
+documentDirectory writes:
+...
+
+cacheDirectory writes:
+...
+
+downloadAsync uses:
+...
+
+copyAsync uses:
+...
+
+moveAsync uses:
+...
+
+deleteAsync cleanup:
+...
+
+### ROOT CAUSE
+
+Exact accumulation path:
+...
+
+File type:
+...
+
+Why files persist:
+...
+
+Regression introduced SHA:
+...
+
+Last known good SHA:
+...
+
+### SUBSCRIPTION RELATION
+
+Verdict:
+CAUSED / NOT RELATED / INSUFFICIENT EVIDENCE
+
+Evidence:
+...
+
+### NORMAL / X
+
+Normal media path:
+...
+
+X media path:
+...
+
+Shared:
+YES / NO
+
+### EXISTING 11GB
+
+Safe cleanup identifiable:
+YES / NO
+
+Exact safe path/pattern:
+...
+
+No deletion performed:
+YES
+
+### MINIMAL FIX PLAN
+
+Files:
+...
+
+Exact change:
+...
+
+Risk:
+LOW / MEDIUM / HIGH
+
+============================================================
+
+## TEST / REGRESSION OBSERVATION
+
+Current failures:
+...
+
+New code changes:
+0
+
+New deterministic failures caused by this audit:
+0
+
+============================================================
+
+## FINAL
+
+반드시 둘 다 명확히 판정:
+
+BUG 1 ROOT CAUSE:
+CONFIRMED / NOT YET CONFIRMED
+
+BUG 2 ROOT CAUSE:
+CONFIRMED / NOT YET CONFIRMED
+
+READY FOR MINIMAL FIX:
+YES / NO
