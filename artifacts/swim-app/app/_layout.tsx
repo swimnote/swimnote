@@ -25,8 +25,8 @@ import { initializeRevenueCat, loginRevenueCat, logoutRevenueCat, SubscriptionPr
 import { runLegacyMediaCleanup } from "@/utils/mediaStorageCleanup";
 import { runMediaCleanupV2 } from "@/utils/mediaCleanupV2";
 
-// 긴급 점검은 기본 활성화한다. 명시적으로 "false"일 때만 기존 앱으로 진입한다.
-export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE !== "false";
+// 점검 화면은 운영자가 명시적으로 "true"로 설정할 때만 표시. 기본값 OFF.
+export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE === "true";
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
