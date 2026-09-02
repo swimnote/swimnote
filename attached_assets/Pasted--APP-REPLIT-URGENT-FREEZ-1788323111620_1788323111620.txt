@@ -1,0 +1,805 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# URGENT FREEZE EXCEPTION
+# SWIMNOTE 1.6.3 LOGIN OUTAGE
+# "서버에 연결할 수 없습니다"
+#
+# ONE PASS:
+# REPRODUCE → ROOT CAUSE → MINIMAL FIX
+# → 1.6.3 LOGIN VERIFY
+# → 2.0 REGRESSION
+# → COMMIT
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current frozen HEAD:
+ffe7c900
+
+현재:
+APP PRODUCTIZATION FROZEN
+
+하지만 1.6.3 사용자 로그인 장애는
+release-blocking / production compatibility issue이므로
+FREEZE EXCEPTION 허용.
+
+사용자 증상:
+
+SWIMNOTE 1.6.3
+로그인 시:
+
+"서버에 연결할 수 없습니다"
+
+라고 표시되며 로그인 실패.
+
+이번 작업은
+원인을 추측하지 말고 실제 코드/서버 호환성을 조사하여
+최소 수정으로 긴급 복구합니다.
+
+============================================================
+0. 절대 원칙
+============================================================
+
+이번 작업 목표:
+
+1.
+1.6.3 로그인 장애 원인 규명
+
+2.
+최소 수정
+
+3.
+1.6.3 로그인 복구
+
+4.
+2.0 로그인/인증 회귀 0
+
+5.
+Production 배포가 필요하면
+코드까지만 준비하고
+명확히 DEPLOY APPROVAL REQUIRED 보고
+
+금지:
+
+- 일반 기능 수정
+- IA 수정
+- 디자인 수정
+- Pricing/RevenueCat 작업
+- Paid Insight 작업
+- unrelated refactor
+- 1.6.3 UI redesign
+
+============================================================
+1. 먼저 1.6.3 로그인 호출경로 추적
+============================================================
+
+실제 1.6.3 source / maintenance branch / shared auth client에서 확인:
+
+Login screen
+→ auth service
+→ API base URL
+→ login endpoint
+→ request payload
+→ timeout
+→ response parser
+→ error mapper
+
+반드시 정확히 기록:
+
+1.6.3 app version/runtime:
+...
+
+1.6.3 API base URL source:
+...
+
+1.6.3 login endpoint:
+...
+
+HTTP method:
+...
+
+payload:
+...
+
+headers:
+...
+
+timeout:
+...
+
+expected response:
+...
+
+"서버에 연결할 수 없습니다"가 표시되는
+정확한 catch/error branch:
+...
+
+============================================================
+2. 서버 실제 auth endpoint 확인
+============================================================
+
+현재 backend에서
+1.6.3이 호출하는 endpoint가 실제 존재하는지 확인.
+
+검사:
+
+- route 존재
+- method 일치
+- path 일치
+- prefix (/api 등)
+- auth router mount 위치
+- request schema
+- response schema
+- status codes
+- CORS if relevant
+- TLS/HTTPS URL
+- redirect
+- timeout
+
+특히 최근 shared backend 변경으로:
+
+- endpoint rename
+- route prefix 변경
+- required field 추가
+- response shape 변경
+- middleware 강화
+- role validation 변경
+
+이 1.6.3을 깨뜨렸는지 조사.
+
+============================================================
+3. API BASE URL 집중 확인
+============================================================
+
+"서버에 연결할 수 없습니다"는
+network-level failure일 가능성이 있으므로
+다음부터 우선 확인:
+
+- 1.6.3 EXPO_PUBLIC_API_URL
+- hardcoded fallback URL
+- old Render URL
+- deprecated domain
+- wrong protocol http/https
+- trailing /api duplication
+- missing /api
+- environment selection bug
+- production channel/runtime env mismatch
+
+예:
+
+BASE=https://server/api
++
+request=/api/login
+
+→ /api/api/login
+
+같은 문제 검사.
+
+반대로:
+
+old hostname
+DNS/TLS 문제 가능성도 source/config 기준 확인.
+
+============================================================
+4. 1.6.3 OTA / ENV 호환 확인
+============================================================
+
+1.6.3은 과거 OTA/runtime 구성이 존재하므로 확인:
+
+- runtimeVersion
+- channel
+- branch
+- update env
+- build embedded env
+- OTA env override 여부
+
+최근 2.0 작업 때문에
+shared env/config가 1.6.3 runtime에
+잘못 들어갈 수 있는 구조인지 확인.
+
+단:
+
+1.6.3 OTA 실행:
+NO
+
+이번에는 원인 규명/코드 수정만.
+
+============================================================
+5. 실제 네트워크 에러 구분
+============================================================
+
+로그인 실패가 아래 중 무엇인지 구분:
+
+A.
+DNS / host unreachable
+
+B.
+TLS / certificate
+
+C.
+timeout
+
+D.
+404
+
+E.
+401
+
+F.
+403
+
+G.
+500
+
+H.
+JSON parse
+
+I.
+response schema mismatch
+
+J.
+client-side URL construction error
+
+K.
+server route missing
+
+L.
+server crash
+
+"서버에 연결할 수 없습니다"라는 UI 문구만 보고
+network error라고 단정하지 마십시오.
+
+실제 catch 원인을 trace.
+
+============================================================
+6. 서버 로그 / 요청 도달 여부
+============================================================
+
+가능한 개발/preview/local 기준으로 확인:
+
+1.6.3 login request가
+server까지 도달하는가?
+
+도달 안 함:
+client URL/network 문제 가능성.
+
+도달함:
+status / handler / schema / error 확인.
+
+Production 로그 접근이 현재 불가능하면
+추측하지 말고:
+
+PRODUCTION LOG CHECK REQUIRED
+
+라고 보고.
+
+============================================================
+7. BACKWARD COMPATIBILITY
+============================================================
+
+1.6.3 login contract는
+가능하면 서버에서 backward-compatible하게 살립니다.
+
+원칙:
+
+2.0 신형 payload:
+계속 지원
+
+1.6.3 구형 payload:
+계속 지원
+
+새 required field 때문에 1.6.3이 깨졌다면
+서버에서 optional/default로 복구 가능한지 우선.
+
+1.6.3 앱 자체 OTA 수정은
+서버 compatibility로 해결 불가능할 때만 고려.
+
+============================================================
+8. LOGIN RESPONSE 호환
+============================================================
+
+1.6.3이 기대하는 필드 확인:
+
+예:
+token
+user
+role
+pool
+refreshToken
+expiresAt
+
+실제 canonical response와 비교.
+
+최근 server response가
+2.0 기준으로 변경되어
+1.6.3 parser가 실패하는 경우:
+
+response additive compatibility로 수정.
+
+기존 2.0 필드 삭제/변경:
+NO.
+
+============================================================
+9. ERROR MAPPER 확인
+============================================================
+
+1.6.3에서
+
+401
+403
+404
+500
+timeout
+JSON parse
+
+가 모두
+"서버에 연결할 수 없습니다"
+
+로 뭉뚱그려지는 경우
+원인조사 시 내부 로그를 구분.
+
+이번 긴급수정에서
+사용자-facing 문구 개선은 필수 아님.
+
+로그인 복구가 우선.
+
+============================================================
+10. 최근 shared backend 변경 영향 조사
+============================================================
+
+최근 freeze 이후 또는 최근 auth 관련 commit에서
+다음 변경이 있었는지 git diff/log로 조사:
+
+- auth middleware
+- login route
+- JWT
+- tv
+- role
+- tenant
+- user status
+- subscription_required
+- entitlement
+- x mode
+- attendance security는 로그인과 무관하므로
+  관련 없으면 건드리지 않음
+
+최근 변경 중 login contract 영향이 있는 것만 확인.
+
+============================================================
+11. SUBSCRIPTION_REQUIRED 간섭 확인
+============================================================
+
+Stage 8 직전 상태에서
+subscription_required / entitlement gate가
+로그인 자체를 막고 있지 않은지 확인.
+
+정상:
+
+login/auth 성공
+→ 이후 subscription state 판단
+
+비정상:
+
+구독정보 없음
+→ auth 자체 401/500
+
+이면 수정.
+
+Pricing/RevenueCat 구현은 하지 말 것.
+
+============================================================
+12. USER STATUS / POOL STATUS
+============================================================
+
+기존 1.6.3 계정에서:
+
+user active
+pool approved
+pool active
+role valid
+
+검증이 최근 강화되어
+구형 계정을 잘못 차단하는지 확인.
+
+정상적인 기존 사용자까지
+새 2.0 정책으로 거부하면 backward compatibility bug.
+
+============================================================
+13. 최소 수정 우선순위
+============================================================
+
+우선순위:
+
+1.
+server backward-compatible fix
+
+2.
+shared auth client config fix
+
+3.
+1.6.3-specific maintenance client fix
+
+가급적 Production 사용자 전체가
+앱 OTA 없이 복구되도록
+서버 수정 우선.
+
+단 보안 약화:
+NO.
+
+============================================================
+14. 보안 유지
+============================================================
+
+긴급복구한다고:
+
+auth bypass
+JWT 검증 제거
+role 검증 제거
+tenant 검증 제거
+password check 우회
+
+금지.
+
+Backward compatibility는
+schema/path/optional field/response shape 수준에서 해결.
+
+============================================================
+15. 테스트 — 1.6.3
+============================================================
+
+최소:
+
+A.
+정상 기존 admin account login
+
+B.
+정상 teacher login
+
+C.
+정상 parent login
+
+D.
+wrong password
+→ 정상 auth error
+
+E.
+invalid user
+→ 정상 error
+
+F.
+network error
+→ client safe handling
+
+G.
+server 500
+→ crash 없음
+
+H.
+response parse
+→ success
+
+I.
+token 저장
+→ 다음 authenticated request 성공
+
+가능하면 1.6.3 client contract test 추가.
+
+============================================================
+16. 테스트 — 2.0
+============================================================
+
+같은 서버 수정 후:
+
+Admin login:
+PASS
+
+Teacher login:
+PASS
+
+Parent login:
+PASS
+
+subscription state:
+기존 behavior 유지
+
+Normal/X:
+로그인 영향 없음
+
+============================================================
+17. REGRESSION
+============================================================
+
+현재 stable backend baseline:
+
+166 failed
+5059 passed
+16 skipped
+
+동일 command:
+
+cd artifacts/api-server && pnpm vitest run
+
+Expected:
+
+New deterministic:
+0
+
+New flaky:
+0
+
+New TS:
+0
+
+============================================================
+18. PRODUCTION 수정이 필요한 경우
+============================================================
+
+원인이 Production backend라면
+코드 수정 후 STOP.
+
+자동 Render deploy:
+NO
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+완료보고에:
+
+PRODUCTION DEPLOY REQUIRED:
+YES
+
+와
+
+exact commit
+exact service
+risk
+rollback
+
+명시.
+
+내 승인 전 deploy 금지.
+
+============================================================
+19. 1.6.3 OTA가 필요한 경우
+============================================================
+
+서버 compatibility로 해결 불가능하고
+1.6.3 client 자체 수정이 반드시 필요한 경우만:
+
+1.6.3 maintenance branch 확인
+
+수정 준비 가능
+
+하지만:
+
+OTA:
+NO
+
+완료보고에:
+
+1.6.3 OTA REQUIRED:
+YES
+
+reason:
+...
+
+source SHA:
+...
+
+runtime:
+...
+
+channel:
+...
+
+를 보고.
+
+============================================================
+20. 완료보고
+============================================================
+
+# SWIMNOTE 1.6.3 URGENT LOGIN OUTAGE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## SYMPTOM
+
+User-visible:
+"서버에 연결할 수 없습니다"
+
+## 1.6.3 LOGIN CHAIN
+
+Screen:
+...
+
+Auth service:
+...
+
+Base URL:
+...
+
+Endpoint:
+...
+
+Method:
+...
+
+Payload:
+...
+
+Expected response:
+...
+
+Error branch:
+...
+
+## ROOT CAUSE
+
+Exact root cause:
+...
+
+Layer:
+CLIENT / ENV / NETWORK / SERVER ROUTE / SERVER CONTRACT / AUTH / OTHER
+
+Introduced by:
+commit/change if known:
+...
+
+## REQUEST REACHABILITY
+
+Request reaches server:
+YES / NO / UNKNOWN
+
+Observed status/error:
+...
+
+## FIX
+
+Files:
+...
+
+Change:
+...
+
+Why minimal:
+...
+
+Security weakened:
+YES / NO
+
+Expected:
+NO
+
+## BACKWARD COMPATIBILITY
+
+1.6.3:
+PASS / FAIL
+
+2.0:
+PASS / FAIL
+
+## LOGIN TESTS
+
+1.6.3 admin:
+...
+
+teacher:
+...
+
+parent:
+...
+
+wrong password:
+...
+
+invalid user:
+...
+
+authenticated follow-up request:
+...
+
+2.0 admin:
+...
+
+teacher:
+...
+
+parent:
+...
+
+## REGRESSION
+
+Baseline:
+166 failed / 5059 passed / 16 skipped
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky:
+...
+
+New TS:
+...
+
+## PRODUCTION DEPLOY REQUIRED
+
+YES / NO
+
+If YES:
+
+Service:
+...
+
+Commit:
+...
+
+Change:
+...
+
+Rollback:
+...
+
+## 1.6.3 OTA REQUIRED
+
+YES / NO
+
+If YES:
+
+Branch:
+...
+
+Source SHA:
+...
+
+Runtime:
+...
+
+Channel:
+...
+
+Reason:
+...
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stage 8:
+PAUSED
+
+General frozen features:
+UNCHANGED
+
+## FINAL
+
+LOGIN FIX CODE READY — DEPLOY APPROVAL REQUIRED
+
+or
+
+LOGIN RESTORED WITHOUT DEPLOY
+
+or
+
+1.6.3 OTA REQUIRED
+
+or
+
+BLOCKED
