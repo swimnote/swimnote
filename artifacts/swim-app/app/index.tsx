@@ -218,6 +218,21 @@ export default function LoginScreen() {
       setError("카카오 로그인은 정식 앱 빌드에서만 사용 가능합니다.");
       return;
     }
+    // 2.0: 최초 호출 시(overridePoolId 없음) 학부모 전용 안내 표시
+    if (!overridePoolId) {
+      const confirmed = await new Promise<boolean>(resolve => {
+        Alert.alert(
+          "카카오 회원가입 안내",
+          "카카오 회원가입은 학부모만 가능합니다.\n관리자와 선생님은 앱 내 가입을 이용해 주세요.",
+          [
+            { text: "확인", onPress: () => resolve(true) },
+            { text: "취소", style: "cancel", onPress: () => resolve(false) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) }
+        );
+      });
+      if (!confirmed) return;
+    }
     setKakaoLoading(true); setError("");
     const ktid = "KL-" + Date.now().toString(36).toUpperCase();
     // accessToken을 catch 블록에서도 접근 가능하도록 선언 (ambiguous 재시도용)
@@ -240,40 +255,16 @@ export default function LoginScreen() {
       if ((err as any)?.code === "E_CANCELLED_OPERATION") return;
 
       if (e.error_code === "kakao_no_account" && e.kakao_info) {
-        // Phase 1: 즉시 signup 이동 금지.
-        // "기존 계정 연결" vs "새로 가입하기" 선택 제공
-        const kakaoParams = {
-          kakaoId:           e.kakao_info.kakao_id    ?? "",
-          kakaoPhone:        e.kakao_info.phone        ?? "",
-          kakaoName:         e.kakao_info.name         ?? "",
-          kakaoPhoneMissing: e.kakao_info.phone_missing ? "1" : "0",
-        };
-        Alert.alert(
-          "SWIMNOTE 계정 안내",
-          "카카오로 연결된 계정을 찾지 못했습니다.\n이미 수영장에 등록된 계정이 있으신가요?",
-          [
-            {
-              text: "기존 계정 연결",
-              onPress: () => router.push({
-                pathname: "/(auth)/kakao-link",
-                params: {
-                  kakaoId:           kakaoParams.kakaoId,
-                  kakaoProfileImage: e.kakao_info.profile_image ?? "",
-                  kakaoName:         kakaoParams.kakaoName,
-                },
-              } as any),
-            },
-            {
-              text: "새로 가입하기",
-              onPress: () => router.push({
-                pathname: "/(auth)/signup",
-                params: kakaoParams,
-              } as any),
-            },
-            { text: "취소", style: "cancel" },
-          ],
-          { cancelable: true }
-        );
+        // 2.0: 역할 선택 화면 skip → 학부모 연결 화면으로 바로 이동 (parentOnly=1)
+        router.push({
+          pathname: "/(auth)/kakao-link",
+          params: {
+            kakaoId:           e.kakao_info.kakao_id    ?? "",
+            kakaoProfileImage: e.kakao_info.profile_image ?? "",
+            kakaoName:         e.kakao_info.name         ?? "",
+            parentOnly:        "1",
+          },
+        } as any);
         return;
       }
       if (e.needs_activation && e.teacher_id) {

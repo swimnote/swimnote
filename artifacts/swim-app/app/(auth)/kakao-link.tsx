@@ -26,14 +26,17 @@ const ROLES: { key: Role; label: string }[] = [
 
 export default function KakaoLinkScreen() {
   const insets = useSafeAreaInsets();
-  const { kakaoId, kakaoProfileImage, kakaoName, loginType } = useLocalSearchParams<{
+  const { kakaoId, kakaoProfileImage, kakaoName, loginType, parentOnly } = useLocalSearchParams<{
     kakaoId: string;
     kakaoProfileImage?: string;
     kakaoName?: string;
     loginType?: string;
+    parentOnly?: string;
   }>();
 
   const isApple = loginType === "apple";
+  // 2.0 학부모 전용 모드: parentOnly=1 이면 역할 선택 UI 숨김, parent 고정
+  const isParentOnly = parentOnly === "1";
   const { finishLogin } = useAuth();
   const [role, setRole] = useState<Role>("parent");
   const [phone, setPhone] = useState("");
@@ -143,7 +146,9 @@ export default function KakaoLinkScreen() {
         <Text style={[styles.desc, { color: C.textSecondary }]}>
           {kakaoName ? `${kakaoName}님, ` : ""}
           {isApple ? "Apple 계정" : "카카오 계정"}과 수영장 계정을 연결합니다.{"\n"}
-          역할을 선택하고 등록된 전화번호를 입력해주세요.
+          {isParentOnly
+            ? "수영장에 등록된 학부모 전화번호를 입력해주세요."
+            : "역할을 선택하고 등록된 전화번호를 입력해주세요."}
         </Text>
 
         <View style={[styles.card, { backgroundColor: C.card }]}>
@@ -158,28 +163,31 @@ export default function KakaoLinkScreen() {
             </View>
           )}
 
-          <View style={styles.roleWrap}>
-            <Text style={[styles.label, { color: C.textSecondary }]}>역할 선택</Text>
-            <View style={styles.roleRow}>
-              {ROLES.map(({ key, label }) => (
-                <Pressable
-                  key={key}
-                  style={[
-                    styles.roleBtn,
-                    {
-                      borderColor: role === key ? C.brandStrong : C.border,
-                      backgroundColor: role === key ? C.brandSoft : C.background,
-                    },
-                  ]}
-                  onPress={() => { setRole(key); setError(""); setPendingMsg(""); }}
-                >
-                  <Text style={[styles.roleBtnText, { color: role === key ? C.brandStrong : C.textSecondary }]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
+          {/* 역할 선택: parentOnly 모드(2.0 학부모 전용)에서는 숨김, role=parent 고정 */}
+          {!isParentOnly && (
+            <View style={styles.roleWrap}>
+              <Text style={[styles.label, { color: C.textSecondary }]}>역할 선택</Text>
+              <View style={styles.roleRow}>
+                {ROLES.map(({ key, label }) => (
+                  <Pressable
+                    key={key}
+                    style={[
+                      styles.roleBtn,
+                      {
+                        borderColor: role === key ? C.brandStrong : C.border,
+                        backgroundColor: role === key ? C.brandSoft : C.background,
+                      },
+                    ]}
+                    onPress={() => { setRole(key); setError(""); setPendingMsg(""); }}
+                  >
+                    <Text style={[styles.roleBtnText, { color: role === key ? C.brandStrong : C.textSecondary }]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
+          )}
 
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>전화번호</Text>
