@@ -1,0 +1,377 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE STAGE 8 MICRO-CLOSE
+# FULL REGRESSION + FREEZE
+#
+# 현재 Stage 8 final client fix:
+# commit 60ace85f
+#
+# 이미 완료:
+# - SWIMNOTE offering lookup
+# - swimnote_monthly package 연결 코드
+# - SWIMNOTE CTA conditional activation
+# - SWIMNOTE → x_mode 오매핑 수정
+# - Stage8 subscription tests 76/76 PASS
+#
+# 목적:
+# 코드 변경 후 전체 regression baseline만 재확인하고
+# Stage 8 CODE를 최종 FREEZE한다.
+#
+# 새로운 기능 구현 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Expected HEAD:
+60ace85f
+
+Production server:
+FROZEN
+
+============================================================
+0. 절대 금지
+============================================================
+
+코드 수정:
+NO
+
+Production server:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+1.6.3:
+NO TOUCH
+
+DB:
+NO CHANGE
+
+migration:
+NO
+
+OTA:
+NO
+
+build:
+NO
+
+App Store Connect:
+NO CHANGE
+
+RevenueCat Dashboard:
+NO CHANGE
+
+Kakao:
+NO TOUCH
+
+DATA100 / DATA300:
+HOLD 유지
+
+이번 작업은 TEST + VERIFY ONLY.
+
+============================================================
+1. SOURCE 확인
+============================================================
+
+확인:
+
+branch:
+release/v2.0.0
+
+HEAD:
+60ace85f
+
+working tree:
+clean
+
+만약 HEAD가 다르면
+임의 checkout/reset하지 말고
+현재 상태만 보고하고 BLOCKED.
+
+============================================================
+2. Stage 8 관련 테스트 재실행
+============================================================
+
+기존 Stage 8 subscription test 전부 실행.
+
+Expected:
+
+76 / 76 PASS
+
+확인 항목:
+
+- swimnote_monthly offering lookup
+- swimnote package lookup
+- missing offering safe disabled
+- purchase CTA activation
+- SWIMNOTE entitlement null
+- X x_mode mapping unchanged
+- X300/X500/X1000 unchanged
+- legacy preserved
+- DATA HOLD preserved
+
+============================================================
+3. 전체 regression 실행
+============================================================
+
+현재 프로젝트의 기존 동일 regression command 사용.
+
+고정 baseline:
+
+Stable failures:
+166
+
+Known skipped:
+16
+
+중요:
+
+기존 166개 failure를
+이번 작업에서 수정하지 말 것.
+
+판정 기준:
+
+Stable failures:
+166
+
+New deterministic failures:
+0
+
+만약:
+
+167 이상 deterministic failure
+
+또는
+
+기존 PASS 테스트가 새로 실패
+
+하면 Stage 8 FREEZE 금지하고
+정확한 신규 failure만 보고.
+
+============================================================
+4. 변경 파일 재확인
+============================================================
+
+commit 60ace85f에서 변경된 파일이
+다음 subscription client/test 범위뿐인지 확인:
+
+revenuecat.tsx
+subscription.tsx
+stage8-subscription.test.ts
+
+server:
+NO
+
+auth:
+NO
+
+1.6.3:
+NO
+
+unrelated UI:
+NO
+
+============================================================
+5. SWIMNOTE PURCHASE FINAL STATIC CHECK
+============================================================
+
+코드 기준 최종 확인:
+
+Product:
+com.swimnote.swimnote.monthly
+
+Offering:
+swimnote_monthly
+
+Package:
+swimnote
+
+Entitlement:
+NONE / null
+
+Authoritative subscription state:
+server DB tier = swimnote
+
+외부 offering/package 없음:
+safe disabled
+
+외부 offering/package 존재:
+purchase CTA enabled
+
+X entitlement 오염:
+NO
+
+============================================================
+6. X FINAL STATIC CHECK
+============================================================
+
+X300:
+com.swimnote.x300.monthly
+
+X500:
+com.swimnote.x500.monthly
+
+X1000:
+com.swimnote.x1000.monthly
+
+Offering:
+x_monthly
+
+Packages:
+x300 / x500 / x1000
+
+Entitlement:
+x_mode
+
+변경 없음 확인.
+
+============================================================
+7. DATA / LEGACY
+============================================================
+
+DATA100:
+HOLD
+
+DATA300:
+HOLD
+
+Legacy:
+active rights preserved
+
+New legacy sale:
+NO
+
+Rejoin:
+NO
+
+============================================================
+8. 완료보고
+============================================================
+
+# SWIMNOTE STAGE 8 MICRO-CLOSE REPORT
+
+## SOURCE
+
+Branch:
+HEAD:
+Working tree:
+
+## STAGE 8 TESTS
+
+Passed:
+...
+
+Failed:
+...
+
+Expected:
+76/76 PASS
+
+## FULL REGRESSION
+
+Failed:
+...
+
+Passed:
+...
+
+Skipped:
+...
+
+Stable known failures:
+...
+
+New deterministic failures:
+...
+
+## CHANGE SCOPE
+
+Client subscription files only:
+YES / NO
+
+Server changed:
+NO
+
+Auth changed:
+NO
+
+1.6.3 changed:
+NO
+
+## SWIMNOTE
+
+Product:
+com.swimnote.swimnote.monthly
+
+Offering:
+swimnote_monthly
+
+Package:
+swimnote
+
+Entitlement:
+NONE
+
+Missing product safe:
+PASS / FAIL
+
+Purchase-ready when external config exists:
+YES / NO
+
+## X
+
+x_monthly:
+PASS / FAIL
+
+x_mode:
+PASS / FAIL
+
+X300:
+PASS / FAIL
+
+X500:
+PASS / FAIL
+
+X1000:
+PASS / FAIL
+
+## DATA
+
+DATA100:
+HOLD
+
+DATA300:
+HOLD
+
+## PRODUCTION FREEZE
+
+Production server touched:
+NO
+
+DB:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+External consoles:
+NO CHANGE
+
+## FINAL
+
+다음 중 하나:
+
+STAGE 8 CODE FULLY CLOSED — EXTERNAL CONFIGURATION GATE
+
+또는
+
+STAGE 8 REGRESSION BLOCKED
