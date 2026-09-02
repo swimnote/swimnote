@@ -7,14 +7,17 @@
  * route: /(parent)/growth-report-paid
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";

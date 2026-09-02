@@ -1262,6 +1262,21 @@ router.patch("/students/:id/status", requireAuth, requireRole("super_admin", "po
         actorId: req.user!.userId, actorName, actorRole: req.user!.role,
         note: reason,
       });
+
+      // Paid Insight withdrawal notification (fire-and-forget)
+      if (status === "withdrawn" && student.status !== "withdrawn") {
+        setImmediate(() => {
+          import("../utils/notify.js").then(m => {
+            m.notifyPaidInsightWithdrawal({
+              studentId:   req.params.id,
+              studentName: String(student.name ?? "학생"),
+              poolId,
+              actorId:     req.user!.userId,
+            }).catch(err => console.error("[admin] PAID_INSIGHT_WITHDRAWAL notify failed:", err));
+          }).catch(() => {});
+        });
+      }
+
       res.json({ success: true });
     } catch (e: any) {
       if (e?.message === "STUDENT_NOT_FOUND") return res.status(404).json({ error: "학생을 찾을 수 없습니다." });

@@ -456,6 +456,44 @@ async function autoPublishMonthlyReports(
       continue;
     }
 
+    // ── Per-student re-enrollment check (§8-11) ─────────────────────────────
+    // Policy: reportPeriod = "YYYY-MM" (previous month).
+    // issueDate = 5th of this month.
+    // Eligible if student has:
+    //   1. lesson data in reportPeriod (already guaranteed by analysis_status = COMPLETE)
+    //   2. valid class enrollment in the ISSUE month — student_class_history row where
+    //      enrolled_at <= first day of issue month AND (left_at IS NULL OR left_at >= first day of issue month)
+    //
+    // Source of Truth: student_class_history (canonical enrollment record).
+    // No payment/billing check — operational continuity only.
+    {
+      // Derive issue month (YYYY-MM = current month in scheduler context)
+      // reportPeriod = "2026-08" → issueMonth first day = "2026-09-01"
+      const [pyStr, pmStr] = reportPeriod.split("-");
+      const prevYear  = parseInt(pyStr ?? "2000", 10);
+      const prevMonth = parseInt(pmStr ?? "1",    10); // 1-based
+      const issueYear  = prevMonth === 12 ? prevYear + 1 : prevYear;
+      const issueMonth = prevMonth === 12 ? 1 : prevMonth + 1;
+      const issueMonthFirstDay = `${issueYear}-${String(issueMonth).padStart(2, "0")}-01`;
+
+      const enrollCheck = await db.execute(sql`
+        SELECT 1
+        FROM student_class_history
+        WHERE student_id  = ${student_id}
+          AND enrolled_at <= ${issueMonthFirstDay}::date
+          AND (left_at IS NULL OR left_at >= ${issueMonthFirstDay}::date)
+        LIMIT 1
+      `);
+
+      if (!enrollCheck.rows.length) {
+        result.reports_delivery_skipped++;
+        console.log(
+          `[gr-scheduler] DELIVERY_SKIP re_enrollment: report=${report_id} issue_month=${issueMonthFirstDay}`,
+        );
+        continue;
+      }
+    }
+
     // ── Publication safety check ────────────────────────────────────────────
     const groundingOk = PASS_VALUES.has(grounding_status) || PASS_VALUES.has(val_grounding_status);
     const framingOk   = PASS_VALUES.has(growth_framing_status) || PASS_VALUES.has(val_growth_framing_status);

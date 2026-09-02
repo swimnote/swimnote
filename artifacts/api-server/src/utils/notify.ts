@@ -293,6 +293,156 @@ export async function notifyGrowthReportPublished(params: {
  * 댓글 작성 알림 → 해당 수영장의 선생님(teacher)에게만 전송
  * 관리자(pool_admin)는 댓글 알림 수신 불필요
  */
+// ─────────────────────────────────────────────────────────────────────────────
+// Paid Insight Notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * notifyPaidInsightLevelUp
+ *
+ * Sent when a teacher confirms a student's level-up event.
+ * Mentions Paid Insight as a way to see the growth analysis — NOT a sales push.
+ *
+ * Idempotency: (type, ref_id=levelEventId, recipient_id=parentId) — unique per event.
+ * Duplicate: 0 per event per parent.
+ */
+export async function notifyPaidInsightLevelUp(params: {
+  studentId:    string;
+  studentName:  string;
+  poolId:       string;
+  levelEventId: string; // opaque ref_id for idempotency
+  actorId:      string;
+}): Promise<void> {
+  const { studentId, studentName, poolId, levelEventId, actorId } = params;
+  const TYPE = "PAID_INSIGHT_LEVEL_UP" as const;
+
+  const title    = `${studentName}이(가) 새로운 레벨로 성장했어요`;
+  const body     = "지금까지의 성장과 다음 단계 전략을 AI 인사이트 전략 리포트에서 확인할 수 있어요.";
+  const deepLink = `/parent/growth-report-paid?studentId=${studentId}`;
+
+  let parentIds: string[] = [];
+  try {
+    const pr = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status     = 'approved'
+    `)).rows as any[];
+    parentIds = pr.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] PAID_INSIGHT_LEVEL_UP parent fetch failed:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type         = ${TYPE}
+          AND ref_id       = ${levelEventId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      const id = `notif_pi_lv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           ${TYPE}, ${title}, ${body},
+           ${levelEventId}, 'level_event', ${deepLink}, false)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+      if (!insertRes.rows.length) continue;
+
+      await sendPushToUser(
+        parentId, true, TYPE, title, body,
+        { screen: "paid_insight", student_id: studentId, deep_link: deepLink },
+        actorId,
+      ).catch(err => console.error(`[notify] PAID_INSIGHT_LEVEL_UP push failed parent=${parentId}:`, err));
+
+      console.log(`[notify] PAID_INSIGHT_LEVEL_UP created: event=${levelEventId} parent=${parentId}`);
+    } catch (err) {
+      console.error(`[notify] PAID_INSIGHT_LEVEL_UP failed parent=${parentId}:`, err);
+    }
+  }
+}
+
+/**
+ * notifyPaidInsightWithdrawal
+ *
+ * Sent when a student is withdrawn. Offers Paid Insight as a way to preserve
+ * the growth record — NOT a discount, NOT a sales push.
+ *
+ * Idempotency: (type, ref_id=studentId, recipient_id=parentId) — once per student per parent.
+ */
+export async function notifyPaidInsightWithdrawal(params: {
+  studentId:   string;
+  studentName: string;
+  poolId:      string;
+  actorId:     string;
+}): Promise<void> {
+  const { studentId, studentName, poolId, actorId } = params;
+  const TYPE = "PAID_INSIGHT_WITHDRAWAL" as const;
+
+  const title    = "그동안의 성장기록이 쌓여 있어요";
+  const body     = `${studentName}의 그동안 쌓인 성장과정을 마지막 인사이트 리포트로 남겨보세요.`;
+  const deepLink = `/parent/growth-report-paid?studentId=${studentId}`;
+
+  let parentIds: string[] = [];
+  try {
+    const pr = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status     = 'approved'
+    `)).rows as any[];
+    parentIds = pr.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] PAID_INSIGHT_WITHDRAWAL parent fetch failed:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type         = ${TYPE}
+          AND ref_id       = ${studentId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      const id = `notif_pi_wd_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           ${TYPE}, ${title}, ${body},
+           ${studentId}, 'student', ${deepLink}, false)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+      if (!insertRes.rows.length) continue;
+
+      await sendPushToUser(
+        parentId, true, TYPE, title, body,
+        { screen: "paid_insight", student_id: studentId, deep_link: deepLink },
+        actorId,
+      ).catch(err => console.error(`[notify] PAID_INSIGHT_WITHDRAWAL push failed parent=${parentId}:`, err));
+
+      console.log(`[notify] PAID_INSIGHT_WITHDRAWAL created: student=${studentId} parent=${parentId}`);
+    } catch (err) {
+      console.error(`[notify] PAID_INSIGHT_WITHDRAWAL failed parent=${parentId}:`, err);
+    }
+  }
+}
+
 export async function notifyComment(
   poolId: string,
   type: "photo_comment" | "diary_comment",

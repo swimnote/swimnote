@@ -159,6 +159,10 @@ router.use("/super/curriculum", superCurriculumRouter);
 import membershipsRouter from "./memberships.js";
 router.use("/", membershipsRouter);
 
+// Paid Insight APP API
+import parentPaidInsightRouter from "./parent-paid-insight.js";
+router.use("/", parentPaidInsightRouter);
+
 // Terminology Gateway (수영·훈련용어 검색)
 import terminologyRouter from "./terminology.js";
 router.use("/", terminologyRouter);
