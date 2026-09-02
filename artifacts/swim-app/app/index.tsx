@@ -16,7 +16,7 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { consumeLoginDiagnostic } from "@/context/auth/SessionContext";
 import { toAsciiOnly } from "@/utils/koreanToQwerty";
-import { login as kakaoLogin } from "@react-native-seoul/kakao-login";
+// 2.0: Kakao login removed — import kept only to avoid native module crash; not used
 import * as AppleAuthentication from "expo-apple-authentication";
 
 const C = Colors.light;
@@ -45,7 +45,7 @@ function AppleIcon({ size = 22 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
-  const { unifiedLogin, kakaoSocialLogin, appleSocialLogin } = useAuth();
+  const { unifiedLogin, appleSocialLogin } = useAuth();
   const insets = useSafeAreaInsets();
   const pwRef  = useRef<TextInput>(null);
 
@@ -53,8 +53,9 @@ export default function LoginScreen() {
   const [password,   setPassword]         = useState("");
   const [showPw,     setShowPw]           = useState(false);
   const [loading,    setLoading]          = useState(false);
-  const [kakaoLoading, setKakaoLoading]   = useState(false);
   const [appleLoading, setAppleLoading]   = useState(false);
+  // 2.0: Apple 신규가입 안내 모달 (Apple SDK 가입 대신 일반 회원가입 유도)
+  const [showAppleSignupGuide, setShowAppleSignupGuide] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(Platform.OS === "ios");
   const [error,      setError]            = useState("");
   const [failCount,  setFailCount]        = useState(0);
@@ -194,149 +195,19 @@ export default function LoginScreen() {
         return;
       }
       if (errCode === "apple_no_account") {
-        console.log(`[AppleLogin][STEP4 NO_ACCOUNT] traceId=${tid} 계정 없음 → 가입 화면`);
-        router.push({
-          pathname: "/(auth)/signup",
-          params: {
-            appleId:    e.apple_info?.apple_id ?? "",
-            appleEmail: e.apple_info?.email    ?? "",
-            appleName:  e.apple_info?.name     ?? "",
-          },
-        } as any);
+        // 2.0: Apple 신규가입 제거 — 일반 회원가입 안내 모달 표시
+        console.log(`[AppleLogin][STEP4 NO_ACCOUNT] traceId=${tid} 2.0 → 일반 가입 안내 모달`);
+        setShowAppleSignupGuide(true);
         return;
       }
-      setError(e?.message || "Apple 로그인에 실패했습니다. 카카오 또는 일반 로그인을 이용해주세요.");
+      setError(e?.message || "Apple 로그인에 실패했습니다. 일반 로그인을 이용해주세요.");
     } finally {
       console.log(`[AppleLogin][FINALLY] traceId=${tid} appleLoading=false`);
       setAppleLoading(false);
     }
   }
 
-  async function handleKakaoLogin(overridePoolId?: string) {
-    if (Platform.OS === "web") { setError("카카오 로그인은 앱에서만 가능합니다."); return; }
-    if (typeof kakaoLogin !== "function") {
-      setError("카카오 로그인은 정식 앱 빌드에서만 사용 가능합니다.");
-      return;
-    }
-    // 2.0: 최초 호출 시(overridePoolId 없음) 학부모 전용 안내 표시
-    if (!overridePoolId) {
-      const confirmed = await new Promise<boolean>(resolve => {
-        Alert.alert(
-          "카카오 회원가입 안내",
-          "카카오 회원가입은 학부모만 가능합니다.\n관리자와 선생님은 앱 내 가입을 이용해 주세요.",
-          [
-            { text: "확인", onPress: () => resolve(true) },
-            { text: "취소", style: "cancel", onPress: () => resolve(false) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(false) }
-        );
-      });
-      if (!confirmed) return;
-    }
-    setKakaoLoading(true); setError("");
-    const ktid = "KL-" + Date.now().toString(36).toUpperCase();
-    // accessToken을 catch 블록에서도 접근 가능하도록 선언 (ambiguous 재시도용)
-    let kakaoAccessToken: string | null = null;
-    try {
-      console.log(`[KakaoLogin][INDEX STEP1] traceId=${ktid} kakaoLogin 호출`);
-      const result = await kakaoLogin();
-      kakaoAccessToken = result.accessToken;
-      if (!kakaoAccessToken) {
-        // SDK가 accessToken 없이 resolve하는 경우 (비정상 SDK 응답)
-        console.warn(`[KakaoLogin][KAKAO_TOKEN_MISSING] traceId=${ktid} accessToken이 없음`);
-        throw Object.assign(new Error("카카오 로그인 토큰을 받지 못했습니다."), { error_code: "KAKAO_TOKEN_MISSING" });
-      }
-      console.log(`[KakaoLogin][INDEX STEP2] traceId=${ktid} accessToken 수신 → kakaoSocialLogin 호출 overridePoolId=${overridePoolId ?? "none"}`);
-      const loginKind = await kakaoSocialLogin(kakaoAccessToken, overridePoolId);
-      console.log(`[KakaoLogin][INDEX STEP3] traceId=${ktid} kakaoSocialLogin 완료 kind=${loginKind} → finishLogin이 라우팅 처리`);
-    } catch (err: unknown) {
-      const e = err as Error & {
-        error_code?: string; kakao_info?: any; needs_activation?: boolean; teacher_id?: string;
-        pools?: { id: string; name: string }[];
-        code?: string;
-      };
-
-      // 카카오 앱/웹 취소 — E_CANCELLED_OPERATION이 표준 코드 (iOS/Android 공통)
-      // message.includes("cancel")은 제거: 한국어 에러 메시지를 취소로 오인할 수 있음
-      if (e.code === "E_CANCELLED_OPERATION") return;
-
-      // SDK 레벨 에러 분류 (accessToken 미수신 시점, 서버 호출 전)
-      // kakaoAccessToken이 null이면 SDK 에러, 값이 있으면 서버 에러
-      if (!kakaoAccessToken && !e.error_code) {
-        const sdkMsg = e.message ?? "";
-        const sdkErrCode =
-          sdkMsg.toLowerCase().includes("network") || sdkMsg.toLowerCase().includes("timeout")
-            ? "KAKAO_NETWORK_ERROR"
-            : "KAKAO_SDK_ERROR";
-        console.warn(`[KakaoLogin][${sdkErrCode}] traceId=${ktid} code=${e.code ?? "none"}`);
-        setError("카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
-        return;
-      }
-
-      if (e.error_code === "kakao_no_account" && e.kakao_info) {
-        // 2.0: 역할 선택 화면 skip → 학부모 연결 화면으로 바로 이동 (parentOnly=1)
-        router.push({
-          pathname: "/(auth)/kakao-link",
-          params: {
-            kakaoId:           e.kakao_info.kakao_id    ?? "",
-            kakaoProfileImage: e.kakao_info.profile_image ?? "",
-            kakaoName:         e.kakao_info.name         ?? "",
-            parentOnly:        "1",
-          },
-        } as any);
-        return;
-      }
-      if (e.needs_activation && e.teacher_id) {
-        router.push({ pathname: "/teacher-activate", params: { teacher_id: e.teacher_id } } as any); return;
-      }
-
-      // 다중 pool 계정 충돌 — 서버가 pools[] 목록 반환 → Alert으로 선택 후 재시도
-      // accessToken은 이미 발급된 것을 재사용하므로 카카오 앱 재실행 없음
-      if (e.error_code === "KAKAO_PARENT_AMBIGUOUS" && Array.isArray(e.pools) && e.pools.length > 0) {
-        console.warn(`[KakaoLogin][AMBIGUOUS] traceId=${ktid} poolCount=${e.pools.length} → Alert 표시`);
-        const buttons = e.pools.map((p) => ({
-          text: p.name,
-          onPress: () => {
-            if (kakaoAccessToken) {
-              // 선택한 pool_id를 overridePoolId로 전달 → 서버 phone+pool 정확 매칭
-              kakaoSocialLogin(kakaoAccessToken, p.id)
-                .then(() => {/* finishLogin이 라우팅 처리 */})
-                .catch((retryErr: any) => {
-                  setError(retryErr?.message || "카카오 로그인에 실패했습니다.");
-                });
-            }
-          },
-        }));
-        buttons.push({ text: "취소", onPress: () => {} } as any);
-        Alert.alert(
-          "수영장 선택",
-          "동일 전화번호로 여러 수영장에 계정이 있습니다.\n어느 수영장으로 로그인할까요?",
-          buttons as any,
-          { cancelable: true }
-        );
-        return;
-      }
-
-      // 서버에서 분류된 에러 코드별 사용자 메시지
-      const errMsg = (() => {
-        switch (e.error_code) {
-          case "KAKAO_PARENT_AMBIGUOUS": return "여러 수영장에 계정이 있습니다. 잠시 후 다시 시도해주세요.";
-          case "KAKAO_INVALID_TOKEN":    return "카카오 인증이 만료되었습니다. 다시 시도해주세요.";
-          case "KAKAO_API_TIMEOUT":      return "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요.";
-          case "KAKAO_API_ERROR":        return "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
-          case "KAKAO_PROFILE_FAILED":   return "카카오 프로필 정보를 가져올 수 없습니다. 다시 시도해주세요.";
-          case "network_error":          return "서버에 연결할 수 없습니다. 네트워크를 확인해주세요.";
-          default:                       return e.message || "카카오 로그인에 실패했습니다.";
-        }
-      })();
-      // Phase 1: raw e.message 노출 금지 — 항상 안전한 사용자 메시지 사용
-      const safeErrMsg = errMsg === e.message
-        ? "카카오 로그인에 실패했습니다. 잠시 후 다시 시도해주세요."
-        : errMsg;
-      console.warn(`[KakaoLogin][ERR] traceId=${ktid} error_code=${e.error_code ?? "none"} sanitized_msg=${safeErrMsg}`);
-      setError(safeErrMsg);
-    } finally { setKakaoLoading(false); }
-  }
+  // 2.0: handleKakaoLogin 제거됨 — Kakao 로그인/가입 미지원
 
   const isTablet = Dimensions.get("window").width >= 768;
 
@@ -459,20 +330,10 @@ export default function LoginScreen() {
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <AppleIcon size={18} />
                 }
-                <Text style={s.appleFullBtnText}>Apple로 로그인/회원가입</Text>
+                <Text style={s.appleFullBtnText}>Apple로 로그인</Text>
               </Pressable>
             )}
-            <Pressable
-              style={[s.socialFullBtn, s.kakaoFullBtn, (kakaoLoading || loading) && { opacity: 0.5 }]}
-              onPress={handleKakaoLogin}
-              disabled={kakaoLoading || loading}
-            >
-              {kakaoLoading
-                ? <ActivityIndicator color="#3C1E1E" size="small" />
-                : <KakaoIcon size={20} />
-              }
-              <Text style={s.kakaoFullBtnText}>카카오로 로그인/회원가입</Text>
-            </Pressable>
+            {/* 2.0: 카카오 버튼 제거됨 */}
           </View>
         </View>
 
@@ -512,6 +373,45 @@ export default function LoginScreen() {
               <Pressable
                 style={[s.modalBtn, { backgroundColor: NAVY }]}
                 onPress={() => { setShowNotFoundModal(false); router.push("/(auth)/signup" as any); }}
+              >
+                <Text style={s.modalBtnText}>회원가입</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Apple 신규가입 안내 모달 (2.0: Apple SDK 가입 대신 일반 회원가입 유도) ── */}
+      <Modal
+        transparent
+        visible={showAppleSignupGuide}
+        animationType="fade"
+        onRequestClose={() => setShowAppleSignupGuide(false)}
+      >
+        <Pressable style={s.overlay} onPress={() => setShowAppleSignupGuide(false)}>
+          <Pressable style={s.modalCard} onPress={e => e.stopPropagation()}>
+            <View style={s.modalIconWrap}>
+              <LucideIcon name="info" size={26} color="#4F6EF7" />
+            </View>
+            <Text style={s.modalTitle}>일반 회원가입으로 진행됩니다</Text>
+            <Text style={s.modalDesc}>
+              현재 Apple 계정 신규가입은{"\n"}
+              일반 회원가입으로 진행됩니다.{"\n"}
+              회원가입 버튼을 눌러 계속해주세요.
+            </Text>
+            <View style={s.modalBtns}>
+              <Pressable
+                style={[s.modalBtn, s.modalBtnOutline]}
+                onPress={() => setShowAppleSignupGuide(false)}
+              >
+                <Text style={s.modalBtnOutlineText}>닫기</Text>
+              </Pressable>
+              <Pressable
+                style={[s.modalBtn, { backgroundColor: NAVY }]}
+                onPress={() => {
+                  setShowAppleSignupGuide(false);
+                  router.push("/(auth)/signup" as any);
+                }}
               >
                 <Text style={s.modalBtnText}>회원가입</Text>
               </Pressable>
