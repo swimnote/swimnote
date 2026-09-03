@@ -525,61 +525,7 @@ export default function MembersScreen() {
                 selectionMode={sel.selectionMode}
                 isSelected={sel.isSelected(item.id)}
                 onToggle={() => sel.toggleItem(item.id)}
-                actions={filter === "suspended" ? [
-                  {
-                    label: "복귀",
-                    icon: "rotate-ccw",
-                    color: "#059669",
-                    bg: "#D1FAE5",
-                    onPress: () => {
-                      setResumeTarget(item);
-                      setResumeDate(new Date().toISOString().slice(0, 10));
-                      setResumeDateVisible(true);
-                    },
-                    loading: resumeSaving && resumeTarget?.id === item.id,
-                  },
-                  {
-                    label: "퇴원",
-                    icon: "log-out",
-                    color: "#D96C6C",
-                    bg: "#FEF2F2",
-                    onPress: () => openStatusAction(item, "withdrawn"),
-                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "withdrawn",
-                  },
-                ] : [
-                  {
-                    label: "반이동",
-                    icon: "shuffle",
-                    color: themeColor,
-                    bg: themeColor + "15",
-                    onPress: () => handleTransfer(item),
-                    loading: transferSaving && transferTarget === null,
-                  },
-                  {
-                    label: "연기",
-                    icon: "pause-circle",
-                    color: C.textSecondary,
-                    bg: "#FFF1BF",
-                    onPress: () => openStatusAction(item, "suspended"),
-                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "suspended",
-                  },
-                  {
-                    label: "퇴원",
-                    icon: "log-out",
-                    color: "#D96C6C",
-                    bg: "#FEF2F2",
-                    onPress: () => openStatusAction(item, "withdrawn"),
-                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "withdrawn",
-                  },
-                  {
-                    label: "삭제",
-                    icon: "trash-2",
-                    color: C.error,
-                    bg: "#F9DEDA",
-                    onPress: () => handleDelete(item.id, item.name),
-                    loading: deletingId === item.id,
-                  },
-                ]}
+                actions={[]}
               />
             </View>
           )}
@@ -727,7 +673,7 @@ const ms = StyleSheet.create({
   pendingActions:     { flexDirection: "row", gap: 6 },
   pendingBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   pendingBtnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
   actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   selBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border },
