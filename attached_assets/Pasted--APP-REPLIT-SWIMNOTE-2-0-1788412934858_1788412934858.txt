@@ -1,0 +1,618 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 REAL-DEVICE FIX — WP3
+# 회원 등록일 이전 일지 귀속 차단
+#
+# 첨부사진:
+# 사용자가 함께 첨부하는 실제 iPhone 스크린샷을 기준으로 작업.
+#
+# 실제 확인된 예:
+#
+# 회원: 임혜준
+# 회원 등록일: 2026-09-02
+#
+# 그런데 회원 상세의 "일지 / 출결 기록"에:
+# - 2026-09-01 일지
+# - 2026-08-18 일지
+#
+# 가 표시되고 있음.
+#
+# 이것은 잘못된 데이터 귀속이다.
+#
+# 이번 WP의 핵심:
+#
+# 해당 수영장에 해당 회원이 등록된 시점 이전의 일지는
+# 그 회원의 기록으로 절대 취급하지 않는다.
+#
+# 화면에서만 숨기는 수정 금지.
+#
+# 학생 정보 / 학부모 / AI / 성장리포트 / 통계 등
+# "해당 학생의 일지 데이터"를 사용하는 모든 경로에서
+# 동일 cutoff 정책이 적용되어야 한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+대상:
+Normal SWIMNOTE + X 공통 학생/학부모 데이터 정책
+
+1.6.3:
+NO TOUCH
+
+============================================================
+1. 확정 데이터 정책
+============================================================
+
+학생에게 일지를 귀속할 수 있는 최소 날짜는:
+
+"현재 해당 수영장에 이 학생 회원 레코드가 등록된 날짜/시각"
+
+이다.
+
+즉:
+
+diary.created_at 또는 실제 수업/일지 기준시각
+<
+student/member enrollment/registration timestamp
+
+이면
+
+그 일지는 해당 학생의 기록이 아니다.
+
+반드시 제외.
+
+예:
+
+회원 등록:
+2026-09-02
+
+일지:
+2026-09-01
+→ EXCLUDE
+
+일지:
+2026-08-18
+→ EXCLUDE
+
+일지:
+2026-09-02 이후
+→ 기존 정상 귀속 조건을 충족하면 INCLUDE
+
+============================================================
+2. 먼저 실제 SOURCE OF TRUTH 확인
+============================================================
+
+추측해서 새로운 날짜 필드 만들지 말 것.
+
+현재 schema에서 실제 회원 등록 기준값 확인:
+
+예시 후보:
+- students.created_at
+- members.created_at
+- enrolled_at
+- registered_at
+- joined_at
+- enrollment date
+- 기타 현재 실제 사용하는 회원 등록일 필드
+
+첨부 화면의:
+
+"등록일: 2026. 9. 2."
+
+가 어떤 DB field에서 나오는지 추적.
+
+그 field를 이번 cutoff의 source of truth로 사용.
+
+완료보고에 정확한 table.column 명시.
+
+============================================================
+3. 왜 과거 일지가 붙었는지 ROOT CAUSE 조사
+============================================================
+
+현재 2026-09-02 등록 학생에게
+8월/9월1일 일지가 붙는 이유를 정확히 확인.
+
+가능성을 추측으로 고치지 말 것.
+
+실제 조사:
+
+- student_id 직접 귀속인지
+- 이름 matching인지
+- class membership 기준인지
+- pool 전체 diary lookup인지
+- reused/ref ID 문제인지
+- parent/member join 문제인지
+- diary student mapping table 때문인지
+
+ROOT CAUSE를 실제 코드/DB schema 기준으로 보고.
+
+============================================================
+4. 관리자 회원 상세
+============================================================
+
+첨부사진의:
+
+회원 상세
+→ "일지 / 출결 기록"
+
+에서
+
+회원 등록일 이전 diary는
+0건이어야 한다.
+
+중요:
+
+출결은 별도 데이터 정책일 수 있으므로
+이번 WP에서 불필요하게 출결 규칙을 변경하지 말 것.
+
+이번 핵심은 "일지 귀속".
+
+화면에서 filter만 추가하는 방식:
+NO
+
+서버/공통 데이터 조회 기준에서 차단할 것.
+
+============================================================
+5. 선생님 화면
+============================================================
+
+선생님이 해당 학생의:
+
+- 과거 일지
+- 학생 상세
+- 일지 히스토리
+- 기타 학생별 diary 조회
+
+를 볼 때도
+
+등록일 이전 diary:
+0
+
+이어야 한다.
+
+============================================================
+6. 학부모 화면 — 매우 중요
+============================================================
+
+학부모에게도 동일 적용.
+
+해당 학생 등록일 이전 일지는:
+
+- 학부모 홈
+- 피드
+- 일지 목록
+- 학생 상세
+- 과거 기록
+- 알림에서 열린 일지
+- 기타 parent diary 조회 경로
+
+어디에서도 해당 자녀 기록으로 보여서는 안 된다.
+
+즉:
+
+등록 전 일지 → 학부모 노출 0
+
+============================================================
+7. AI / 성장리포트 데이터에서도 완전 제외
+============================================================
+
+가장 중요.
+
+화면에 안 보여도
+AI source/input에 들어가면 FAIL.
+
+다음 데이터 수집 경로 전수 확인:
+
+- AI 성장리포트
+- AI 인사이트 전략 리포트
+- 월간 리포트
+- 성장 데이터 집계
+- student diary history
+- diary aggregation
+- report source collector
+- AI prompt/source builder
+- 통계/분석용 student diary fetch
+- 현재 학생 일지를 기반으로 하는 기타 AI 입력
+
+해당 학생의 등록일 이전 diary는
+절대 입력 데이터에 포함하지 말 것.
+
+규칙:
+
+student diary event timestamp >= registration cutoff
+
+일 때만 해당 학생 분석자료로 사용.
+
+============================================================
+8. 기존 데이터 삭제 금지
+============================================================
+
+주의:
+
+등록일 이전 diary 자체를 DB에서 삭제하지 말 것.
+
+그 일지가 다른 실제 학생의 정상 기록일 수도 있고
+역사자료일 수도 있다.
+
+해야 할 일:
+
+잘못된 "현재 학생 귀속/조회/분석"만 차단.
+
+즉:
+
+DELETE historical diary:
+NO
+
+잘못된 학생 relation이 실제 DB에 생성된 구조라면
+원인을 분석하고 안전하게 관계를 바로잡을 수 있는 구조를 제시.
+
+Production DB 직접 수정:
+NO
+
+============================================================
+9. 이름 동일 학생 오염 방지
+============================================================
+
+특히 반드시 확인.
+
+과거에 같은 이름의 학생이 있었거나
+퇴원 후 새로 등록된 경우에도
+
+이름만 같다는 이유로
+예전 일지가 신규 학생에게 붙어서는 안 됨.
+
+Diary ownership은 가능한 경우
+stable student/member ID + pool + valid enrollment period
+기준이어야 한다.
+
+이름 matching만으로 귀속:
+금지.
+
+============================================================
+10. 재등록 / 퇴원 후 재가입
+============================================================
+
+현재 schema와 기존 정책을 확인해서
+재등록 학생도 잘못된 과거기간이 섞이지 않게 할 것.
+
+이번 WP에서 새 회원 생애주기 아키텍처를 만들지는 말 것.
+
+다만 현재 시스템에
+명확한 신규 member/student record가 생성되는 재등록이라면
+
+그 새 record의 등록일 이전 기록은
+그 새 record에 귀속시키지 않는다.
+
+기존 동일 record를 계속 사용하는 구조라면
+현재 enrollment/status history를 조사하고
+임의 변경하지 말고 완료보고에 정확히 명시.
+
+============================================================
+11. NORMAL / X 공통
+============================================================
+
+학생 diary 조회/리포트 source가
+Normal과 X에서 공유되면
+
+공통 query/service 한 번 수정.
+
+Normal 따로
+X 따로
+중복 구현 금지.
+
+X에서만 AI report가 추가로 diary를 수집한다면
+그 report source에도 동일 cutoff 재사용.
+
+============================================================
+12. SERVER-SIDE ENFORCEMENT
+============================================================
+
+핵심 필터는 가능하면
+공통 server/service/query layer에서 적용.
+
+각 UI마다:
+
+if date < registrationDate hide
+
+식으로 반복 구현하지 말 것.
+
+목표:
+
+"이 학생의 diary history를 달라"
+
+라는 모든 주요 서버 경로가
+기본적으로 registration cutoff를 준수하도록 만들 것.
+
+다만 다른 목적의 전체 pool historical diary 조회까지
+무조건 잘라내면 안 됨.
+
+학생별 귀속 조회에 적용.
+
+============================================================
+13. DATE/TIME 처리
+============================================================
+
+등록일이 날짜만 저장되는지
+timestamp로 저장되는지 실제 schema 확인.
+
+날짜만 존재한다면
+기존 앱의 KST 날짜 규칙을 따라
+임의 UTC 하루 밀림이 생기지 않도록 처리.
+
+예:
+
+등록일 2026-09-02인데
+timezone 때문에
+2026-09-01 일지가 통과하는 문제 금지.
+
+현재 프로젝트의 KST normalization 재사용.
+
+============================================================
+14. TEST
+============================================================
+
+WP3-01
+등록일 2026-09-02 학생 +
+2026-09-01 diary
+→ 관리자 상세 노출 0
+
+WP3-02
+등록일 2026-09-02 학생 +
+2026-08-18 diary
+→ 관리자 상세 노출 0
+
+WP3-03
+등록일 이후 diary
+→ 정상 표시
+
+WP3-04
+Teacher 학생별 diary history
+→ 등록 전 diary 0
+
+WP3-05
+Parent diary/feed
+→ 등록 전 diary 0
+
+WP3-06
+Parent child detail
+→ 등록 전 diary 0
+
+WP3-07
+AI 성장리포트 source
+→ 등록 전 diary 0
+
+WP3-08
+AI 인사이트 전략 리포트 source
+→ 등록 전 diary 0
+
+WP3-09
+기타 student diary aggregation
+→ 등록 전 diary 0
+
+WP3-10
+동명이인 old student diary
+→ 신규 student에 귀속 0
+
+WP3-11
+다른 학생의 정상 historical diary
+→ 삭제/손상 0
+
+WP3-12
+다른 pool 데이터 혼입
+→ 0
+
+WP3-13
+timezone/KST boundary 오류
+→ 0
+
+WP3-14
+Normal/X 공통 정책
+→ PASS
+
+WP3-15
+기존 정상 등록 이후 diary
+→ 회귀 0
+
+============================================================
+15. 이번 WP에서 금지
+============================================================
+
+새 기능:
+NO
+
+UI 리디자인:
+NO
+
+과거 diary 전체 삭제:
+NO
+
+Production DB write:
+NO
+
+Production migration:
+NO
+
+Render deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+16. COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): exclude diaries before student registration date
+
+============================================================
+17. 완료보고
+============================================================
+
+# REAL-DEVICE FIX WP3 REPORT
+
+## TARGET
+
+Issue:
+회원 등록일 이전 diary가 신규 회원에게 귀속되는 문제
+
+Screenshot example:
+
+Member registration:
+2026-09-02
+
+Incorrect diaries:
+2026-09-01
+2026-08-18
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+## REGISTRATION SOURCE OF TRUTH
+
+Screen "등록일" source:
+
+TABLE:
+...
+
+COLUMN:
+...
+
+Type:
+DATE / TIMESTAMP / ...
+
+Timezone handling:
+...
+
+## ROOT CAUSE
+
+왜 등록일 이전 diary가
+현재 학생에게 붙었는지:
+
+...
+
+Diary ownership/current query mechanism:
+...
+
+Name matching involved:
+YES / NO
+
+## COMMON FIX
+
+공통 server/query/service:
+...
+
+Registration cutoff applied:
+YES / NO
+
+Normal:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+## ADMIN
+
+Member detail:
+pre-registration diary = 0 / ...
+
+## TEACHER
+
+Student diary history:
+pre-registration diary = 0 / ...
+
+## PARENT
+
+Feed:
+pre-registration diary = 0 / ...
+
+Diary:
+pre-registration diary = 0 / ...
+
+Child detail:
+pre-registration diary = 0 / ...
+
+## AI / REPORT
+
+AI 성장리포트:
+pre-registration diary source = 0 / ...
+
+AI 인사이트 전략 리포트:
+pre-registration diary source = 0 / ...
+
+Other student diary aggregation:
+pre-registration diary source = 0 / ...
+
+## DATA SAFETY
+
+Historical diary deleted:
+NO
+
+Other student's history affected:
+NO
+
+Cross-pool contamination:
+0
+
+Same-name contamination:
+0
+
+## TESTS
+
+WP3-01 ~ WP3-15:
+...
+
+New deterministic failures:
+0 / ...
+
+## DEPLOY
+
+Render:
+NO
+
+DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+WP3 COMPLETE — PRE-REGISTRATION DIARY EXCLUDED FROM
+ADMIN / TEACHER / PARENT / AI REPORT DATA
+
+또는
+
+WP3 BLOCKED — EXACT ISSUE

@@ -1,0 +1,865 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 REAL-DEVICE FIX — WP7
+# 설정 탭 하위 페이지 NAVIGATION 전수 수정
+# 특히 X모드 관련 설정/안내/세부 페이지 전체
+#
+# 첨부사진:
+# 사용자가 함께 첨부하는 실제 iPhone 스크린샷 2장 기준.
+#
+# 실제 확인된 문제:
+#
+# 설정 탭에서 X모드 관련 메뉴로 들어감
+# → X모드 관련 버튼들이 여러 개 나옴
+# → 그 버튼을 눌러 다시 하위 페이지로 들어감
+# → 상단 뒤로가기 버튼을 누르면
+#   바로 이전 화면으로 돌아가지 않고
+#   관리자 홈으로 튐.
+#
+# 사용자는 이미 이전 WP에서
+# "뒤로가기는 전 단계로 이동"하도록 수정 요청했지만
+# 실제 빌드에서 제대로 적용되지 않음.
+#
+# 이번 WP에서는 특정 화면 하나만 고치지 말고
+# 설정 탭에서 진입 가능한 모든 하위 페이지를 전수조사한다.
+#
+# 최종 규칙:
+#
+# BACK = 바로 직전 단계 화면
+# HOME ICON = 홈 화면
+#
+# 이 둘을 절대 혼동하지 말 것.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+1.6.3:
+NO TOUCH
+
+Production deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+1. 실제 문제 화면 예시
+============================================================
+
+첨부사진 1:
+
+설정
+→ SWIMNOTE X모드
+
+화면 안에 다음과 같은 하위 메뉴가 존재:
+
+- X모드 설명
+- AI에 대한 설명
+- 무료 학부모 리포트 지원
+- 선생님 AI 일지 작성
+- 우리 수영장 커리큘럼 검색
+- X모드 사용 중
+- X모드 세팅하기
+- 구독 및 요금제 관리
+- 기타 실제 current source에 존재하는 X 관련 메뉴
+
+첨부사진 2:
+
+SWIMNOTE X모드
+→ X모드 설명
+
+으로 한 단계 더 들어간 화면.
+
+현재 문제:
+이런 하위 화면에서 상단 뒤로가기를 누르면
+직전 화면인 "SWIMNOTE X모드"로 돌아가지 않고
+홈으로 빠지는 경우가 있음.
+
+이것은 잘못된 navigation.
+
+============================================================
+2. 최종 NAVIGATION 정책
+============================================================
+
+설정 탭 이하 모든 하위 페이지에서:
+
+Depth 0:
+설정
+
+Depth 1:
+설정 → SWIMNOTE X모드
+
+Depth 2:
+설정 → SWIMNOTE X모드 → X모드 설명
+
+Depth 3:
+설정 → X모드 세팅하기 → 세부 설정 → 추가 세부 페이지
+
+등 어떤 깊이든:
+
+뒤로가기 1회:
+바로 직전 단계
+
+뒤로가기 2회:
+그 전 단계
+
+뒤로가기 반복:
+최종적으로 설정 탭
+
+이어야 한다.
+
+중간에 관리자 홈으로 강제 이동:
+금지.
+
+============================================================
+3. HOME 버튼과 BACK 버튼 명확히 분리
+============================================================
+
+중요.
+
+상단의:
+
+← 뒤로가기 버튼
+과
+🏠 홈 아이콘
+
+은 서로 다른 기능이다.
+
+[뒤로가기]
+→ 바로 이전 페이지
+
+[홈]
+→ 관리자 홈
+
+뒤로가기 버튼에서:
+
+router.replace('/(admin)')
+router.push('/(admin)')
+router.navigate('/(admin)')
+router.replace('/(admin)/home')
+기타 홈 강제 이동
+
+사용 금지.
+
+홈 아이콘은 기존 홈 이동 유지.
+
+============================================================
+4. 이번 WP 대상 범위
+============================================================
+
+이번 WP는
+"설정 탭에서 진입하는 하위 페이지 전체"를 대상으로 한다.
+
+단순히 첨부사진의 X모드 설명 화면만 고치면 FAIL.
+
+전수조사 대상:
+
+A. 설정 메인
+B. 설정에서 직접 진입하는 모든 하위 메뉴
+C. X모드 관련 메뉴
+D. X모드 내부 안내 페이지
+E. X모드 내부 세팅 페이지
+F. X모드 내부 구독/요금제 페이지
+G. X모드 내부 커리큘럼 관련 페이지
+H. X모드 내부 AI 관련 페이지
+I. 설정 → 하위 → 다시 하위로 들어가는 nested screen
+J. 기타 current source에 존재하는 모든 settings descendant
+
+실제 route tree 기준으로 전부 조사.
+
+============================================================
+5. X모드 관련 버튼 2개부터 정확히 추적
+============================================================
+
+사용자가 말한:
+"설정에서 X모드 관련 버튼 2개"
+
+이 두 진입점이 실제 source에서 무엇인지 정확히 찾고
+각각의 route tree를 추적할 것.
+
+각 진입점에서:
+
+설정
+→ X 관련 화면
+→ 내부 버튼
+→ 세부 화면
+→ 추가 세부 화면
+
+까지 실제 이동 가능한 descendant 전부 조사.
+
+완료보고에 route tree 제출.
+
+============================================================
+6. ROUTE TREE 작성
+============================================================
+
+코드 수정 전에
+설정 관련 route graph를 실제 source 기준으로 작성.
+
+예시 형식:
+
+Settings
+├─ X Mode
+│  ├─ X Mode Description
+│  ├─ AI Description
+│  ├─ Parent Report
+│  ├─ Teacher AI Diary
+│  ├─ Curriculum Search
+│  ├─ X Mode Settings
+│  │  ├─ ...
+│  │  └─ ...
+│  └─ Subscription
+├─ ...
+└─ ...
+
+실제 source에 있는 route만 작성.
+
+추측 route 금지.
+
+============================================================
+7. 현재 잘못된 BACK 구현 전수검색
+============================================================
+
+설정 subtree 전체에서 다음 패턴 검색:
+
+router.replace(...)
+router.push(...)
+router.navigate(...)
+router.dismiss(...)
+router.dismissAll(...)
+router.back()
+backTo
+navigation.reset
+navigation.goBack
+홈 route hardcoding
+fallbackToHome
+onBackPress
+handleBack
+
+특히:
+
+back button handler가
+명시적으로 admin home을 보내는 부분을 모두 찾을 것.
+
+단,
+홈 아이콘 handler는 이번 수정 대상 아님.
+
+============================================================
+8. 정상 BACK 구현 원칙
+============================================================
+
+기본 원칙:
+
+실제 navigation stack이 정상 존재하면
+router.back()
+또는 현재 프로젝트에서 사용하는 정상 goBack 방식.
+
+단,
+해당 화면이 deep link/direct entry 등으로
+stack이 없을 수 있는 경우에는
+
+명시적 parent route fallback 사용 가능.
+
+예:
+
+X모드 설명
+parent = X모드 메인
+
+X모드 세부설정
+parent = X모드 세팅하기
+
+중요:
+
+fallback도 홈으로 보내지 말고
+"논리적 바로 이전 부모 화면"으로 보내야 함.
+
+============================================================
+9. backTo / explicit parent 사용
+============================================================
+
+기존 stack이 불안정한 화면은
+현재 프로젝트의 backTo/parent route 패턴이 있다면 재사용.
+
+예:
+
+route params:
+backTo
+
+또는
+
+explicit parent route
+
+를 사용해서:
+
+A → B → C
+
+일 때
+
+C back → B
+B back → A
+
+가 보장되도록 할 것.
+
+단,
+모든 화면을 무조건 router.back()만 넣고
+"테스트 PASS"라고 끝내지 말 것.
+
+실제 route 진입 경로 기준으로 parent를 검증.
+
+============================================================
+10. DIRECT ENTRY / DEEP LINK 방어
+============================================================
+
+하위 화면이 직접 열렸거나
+stack이 비정상인 경우에도
+
+뒤로가기 시 홈으로 던지지 말 것.
+
+fallback 우선순위:
+
+1. 실제 previous stack
+2. 명시된 logical parent screen
+3. 설정 메인
+
+최후 fallback:
+설정
+
+관리자 홈:
+NO
+
+============================================================
+11. X모드 세부 페이지 전부 확인
+============================================================
+
+첨부사진에 보이는 최소 대상:
+
+- X모드 설명
+- AI에 대한 설명
+- 무료 학부모 리포트 지원
+- 선생님 AI 일지 작성
+- 우리 수영장 커리큘럼 검색
+- X모드 사용 중
+- X모드 세팅하기
+- 구독 및 요금제 관리
+
+그리고 이 화면들 내부에서 다시 들어갈 수 있는
+모든 하위 페이지.
+
+각 페이지마다:
+
+Current Route
+Expected Parent Route
+Current Back Result
+Fixed Back Result
+
+표로 보고.
+
+============================================================
+12. 설정 전체 하위 페이지도 같이 조사
+============================================================
+
+이번 요구는 X 화면만 고치는 것이 아니라
+"설정 탭 하위 페이지는 어디까지 들어가도
+뒤로가기는 무조건 전 단계"
+
+라는 공통 정책이다.
+
+따라서 설정에서 들어가는 일반 설정 페이지도
+같이 전수검사.
+
+예:
+- 계정 설정
+- 알림 설정
+- 운영 설정
+- 저장공간
+- 정책
+- 기타 current settings routes
+
+실제 존재하는 것만 확인.
+
+여기서도 back이 home으로 튀는 route가 있으면 같이 수정.
+
+============================================================
+13. NORMAL / X 범위
+============================================================
+
+설정의 공통 하위 페이지가
+Normal SWIMNOTE와 X mode 모두 사용하는 shared screen이면
+
+공통 component/navigation helper 한 번만 수정해서
+둘 다 적용.
+
+X 전용 page는 X에만 적용.
+
+Normal page를 불필요하게 X 전용 구조로 변경 금지.
+
+============================================================
+14. 절대 금지
+============================================================
+
+이번 WP에서 변경 금지:
+
+- 설정 내용
+- X모드 기능
+- X모드 구독 로직
+- RevenueCat
+- 요금제
+- AI 기능
+- 커리큘럼
+- 학부모 리포트
+- 권한
+- DB
+- API
+- UI 리디자인
+- 홈 버튼 기능
+- 하단 탭 구조
+
+오직:
+settings subtree navigation/back behavior
+
+만 수정.
+
+============================================================
+15. 실제 사용자 시나리오 테스트
+============================================================
+
+SCENARIO 1
+
+설정
+→ SWIMNOTE X모드
+→ X모드 설명
+
+Back
+→ SWIMNOTE X모드
+
+Back
+→ 설정
+
+PASS 필수.
+
+------------------------------------------------------------
+
+SCENARIO 2
+
+설정
+→ SWIMNOTE X모드
+→ AI에 대한 설명
+
+Back
+→ SWIMNOTE X모드
+
+PASS.
+
+------------------------------------------------------------
+
+SCENARIO 3
+
+설정
+→ SWIMNOTE X모드
+→ X모드 세팅하기
+→ 세부 설정
+
+Back
+→ X모드 세팅하기
+
+Back
+→ SWIMNOTE X모드 또는 실제 논리적 parent
+
+Back
+→ 설정
+
+PASS.
+
+------------------------------------------------------------
+
+SCENARIO 4
+
+설정
+→ X 관련 메뉴
+→ 구독 및 요금제 관리
+→ 세부 플랜 페이지가 있다면 진입
+
+Back
+→ 구독 및 요금제 관리
+
+Back
+→ X 관련 parent
+
+PASS.
+
+------------------------------------------------------------
+
+SCENARIO 5
+
+설정 일반 하위 메뉴
+→ 하위
+→ 하위
+
+Back 반복
+
+→ 매번 1단계씩 이전
+
+PASS.
+
+============================================================
+16. HOME 버튼 테스트
+============================================================
+
+중요:
+
+상단 홈 아이콘은
+기존대로 홈으로 가야 한다.
+
+Back 수정하면서
+Home까지 이전 화면으로 보내면 FAIL.
+
+WP7-H01
+Back → previous screen
+
+WP7-H02
+Home icon → admin home
+
+둘 다 별도로 PASS 해야 함.
+
+============================================================
+17. TEST
+============================================================
+
+WP7-01
+Settings → X Mode → X Mode Description
+Back = X Mode
+PASS / FAIL
+
+WP7-02
+X Mode → AI Description
+Back = X Mode
+PASS / FAIL
+
+WP7-03
+X Mode → Parent Report Info
+Back = X Mode
+PASS / FAIL
+
+WP7-04
+X Mode → Teacher AI Diary Info
+Back = X Mode
+PASS / FAIL
+
+WP7-05
+X Mode → Curriculum Search Info
+Back = X Mode
+PASS / FAIL
+
+WP7-06
+X Mode → X Mode Settings
+Back = X Mode
+PASS / FAIL
+
+WP7-07
+X Mode Settings → nested page
+Back = X Mode Settings
+PASS / FAIL
+
+WP7-08
+X Mode → Subscription
+Back = X Mode
+PASS / FAIL
+
+WP7-09
+Subscription → nested page if exists
+Back = Subscription
+PASS / FAIL
+
+WP7-10
+Settings 일반 하위 route 전체
+Back = logical parent
+PASS / FAIL
+
+WP7-11
+Nested depth 2
+1 back = depth 1
+PASS / FAIL
+
+WP7-12
+Nested depth 3+
+1 back = immediately previous
+PASS / FAIL
+
+WP7-13
+Back button → admin home
+0
+
+WP7-14
+Home icon → admin home
+PASS
+
+WP7-15
+Direct-entry fallback
+→ logical parent/settings
+PASS
+
+WP7-16
+Normal shared settings regression
+0
+
+WP7-17
+X shared settings regression
+0
+
+============================================================
+18. ROUTE AUDIT 결과 반드시 제출
+============================================================
+
+완료보고에 반드시 아래 표 포함:
+
+SCREEN
+ROUTE
+PARENT ROUTE
+OLD BACK TARGET
+NEW BACK TARGET
+SHARED / X ONLY
+RESULT
+
+예:
+
+X Mode Description
+/(admin)/...
+X Mode
+HOME
+X Mode
+X ONLY
+PASS
+
+실제 source 기준으로 모든 settings descendant 제출.
+
+============================================================
+19. 자동테스트만 보고 PASS 금지
+============================================================
+
+이전 WP에서 navigation/back이
+테스트 PASS라고 보고됐지만
+실기기에서는 실제로 홈으로 튀었음.
+
+따라서 이번에는
+단순 unit/static test만으로 완료 처리 금지.
+
+반드시:
+
+- 실제 route source 확인
+- onPress handler 확인
+- parent mapping 확인
+- nested path별 expected target 확인
+
+후 완료보고.
+
+"router.back() 넣음 → PASS"
+식 보고 금지.
+
+============================================================
+20. COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): restore hierarchical back navigation across settings pages
+
+============================================================
+21. 범위 제한
+============================================================
+
+New feature:
+NO
+
+UI redesign:
+NO
+
+Server:
+NO
+
+DB:
+NO
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+22. 완료보고
+============================================================
+
+# REAL-DEVICE FIX WP7 REPORT
+
+## TARGET
+
+Area:
+설정 탭 전체 하위 페이지
+
+Primary issue:
+X모드 및 설정 nested pages에서
+Back이 previous page가 아니라 Home으로 이동
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+## SETTINGS ROUTE TREE
+
+실제 route tree:
+...
+
+## X MODE ENTRY POINTS
+
+설정 탭의 X 관련 진입 버튼 1:
+...
+
+설정 탭의 X 관련 진입 버튼 2:
+...
+
+Routes:
+...
+
+## ROOT CAUSE
+
+왜 하위 화면 Back이
+Home으로 이동했는지:
+...
+
+Hardcoded home handlers found:
+...
+
+Broken fallback handlers found:
+...
+
+## ROUTE AUDIT
+
+SCREEN | ROUTE | PARENT | OLD BACK | NEW BACK | RESULT
+
+...
+
+## X MODE RESULT
+
+X Mode main:
+PASS / FAIL
+
+X Mode Description:
+PASS / FAIL
+
+AI Description:
+PASS / FAIL
+
+Parent Report:
+PASS / FAIL
+
+Teacher AI Diary:
+PASS / FAIL
+
+Curriculum Search:
+PASS / FAIL
+
+X Mode Settings:
+PASS / FAIL
+
+Subscription:
+PASS / FAIL
+
+Nested X pages:
+PASS / FAIL
+
+## GENERAL SETTINGS RESULT
+
+All settings descendants audited:
+YES / NO
+
+Back → immediate previous:
+PASS / FAIL
+
+Back → Home occurrences:
+0 / ...
+
+Direct-entry fallback:
+PASS / FAIL
+
+## HOME BUTTON
+
+Home icon still goes Home:
+PASS / FAIL
+
+Back and Home behavior separated:
+PASS / FAIL
+
+## COMMON
+
+Normal shared screens:
+PASS / FAIL
+
+X shared screens:
+PASS / FAIL
+
+Duplicate navigation implementation added:
+NO / YES
+
+## REGRESSION
+
+Settings content changed:
+NO
+
+X functionality changed:
+NO
+
+Subscription logic changed:
+NO
+
+New deterministic failures:
+0 / ...
+
+## DEPLOY
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+WP7 COMPLETE —
+ALL SETTINGS DESCENDANT PAGES USE HIERARCHICAL BACK NAVIGATION
+
+또는
+
+WP7 BLOCKED — EXACT ROUTE
