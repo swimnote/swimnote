@@ -1,0 +1,334 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0 — MESSENGER FILE ATTACH FIX + IOS OTA
+
+대상:
+관리자 / 선생님 메신저 공통
+
+문제:
+메신저에서 첨부 버튼 → "파일 첨부"를 눌렀을 때
+iOS 실기기에서 DocumentPicker가 정상적으로 표시되지 않거나
+아무 반응 없는 것처럼 보이는 현상 수정.
+
+============================================================
+현재 파일 첨부 구조
+============================================================
+
+현재 구조는 유지한다.
+
+흐름:
+
+첨부 메뉴
+→ 파일 첨부
+→ handleFileAttach
+→ DocumentPicker.getDocumentAsync()
+→ FormData
+→ POST /messenger/send-attachment
+→ multipart 업로드
+→ Object Storage 저장
+→ work_messages INSERT
+   message_type = "attachment_file"
+→ AttachFileBubble 렌더링
+
+이 업로드 아키텍처는 변경하지 말 것.
+
+============================================================
+ROOT CAUSE
+============================================================
+
+현재 handleFileAttach에서:
+
+setShowAttachMenu(false)
+
+직후 바로
+
+DocumentPicker.getDocumentAsync()
+
+를 실행하고 있음.
+
+iOS에서는 첨부 메뉴 Modal dismiss animation이 끝나기 전에
+DocumentPicker를 호출하면 picker가 정상적으로 foreground에 뜨지 않고
+백그라운드에서 호출되거나 무반응처럼 보일 수 있음.
+
+============================================================
+수정
+============================================================
+
+첨부 메뉴를 먼저 닫고,
+Modal dismiss가 완료될 시간을 준 다음
+DocumentPicker를 실행.
+
+예시 흐름:
+
+setShowAttachMenu(false);
+
+await new Promise(resolve => setTimeout(resolve, 300));
+
+const result = await DocumentPicker.getDocumentAsync(...);
+
+중요:
+300ms delay는 picker 호출 직전에만 적용.
+
+업로드 로직 자체는 변경 금지.
+
+============================================================
+DocumentPicker
+============================================================
+
+기존 옵션 유지.
+
+특히:
+copyToCacheDirectory: true
+
+유지.
+
+사용자가 파일을 선택하면
+기존 FormData 업로드 흐름으로 계속 진행.
+
+취소하면:
+- 에러 표시 금지
+- 메시지 생성 금지
+- 업로드 요청 금지
+
+============================================================
+공통 적용
+============================================================
+
+공통 메신저 화면:
+
+components/common/MessengerScreen.tsx
+
+단일 소스에서 수정해서
+
+- 관리자 메신저
+- 선생님 메신저
+
+둘 다 동일하게 반영.
+
+별도 복제 구현 금지.
+
+============================================================
+회귀 금지
+============================================================
+
+다음 기존 기능은 건드리지 말 것:
+
+- 텍스트 메시지 전송
+- 이미지 첨부
+- 기존 파일 업로드 API
+- multipart 구조
+- Object Storage 저장
+- work_messages 저장
+- attachment_file message type
+- AttachFileBubble
+- 메시지 수신/표시
+- 기존 인증/권한
+
+SERVER API 구조 변경 금지.
+
+DB 변경 금지.
+
+============================================================
+검증
+============================================================
+
+1. 메신저 첨부 버튼 탭
+PASS / FAIL
+
+2. "파일 첨부" 탭
+PASS / FAIL
+
+3. 첨부 메뉴 정상 dismiss
+PASS / FAIL
+
+4. 약 300ms 이후 iOS DocumentPicker 표시
+PASS / FAIL
+
+5. 파일 선택
+PASS / FAIL
+
+6. 기존 multipart 업로드
+PASS / FAIL
+
+7. 서버 저장
+PASS / FAIL
+
+8. work_messages message_type="attachment_file"
+PASS / FAIL
+
+9. 보낸 사람 화면 AttachFileBubble 표시
+PASS / FAIL
+
+10. 상대방 수신/표시
+PASS / FAIL
+
+11. 파일 선택 취소 시 메시지 생성 안 됨
+PASS / FAIL
+
+12. admin / teacher 공통 동작
+PASS / FAIL
+
+============================================================
+임시 파일
+============================================================
+
+copyToCacheDirectory=true 유지.
+
+Expo가 관리하는 cache 파일을 사용하는 현재 구조 유지.
+
+별도의 영구 로컬 저장 로직 추가 금지.
+
+============================================================
+범위 제한
+============================================================
+
+APP:
+파일 첨부 picker 호출 타이밍 수정
+
+SERVER:
+기존 endpoint 그대로 사용
+새 API 만들지 말 것
+
+DB:
+NO
+
+Migration:
+NO
+
+1.6.3:
+NO TOUCH
+
+다른 WP:
+NO TOUCH
+
+============================================================
+OTA
+============================================================
+
+수정/테스트/커밋 후
+iOS OTA 자동 배포.
+
+현재 제품:
+SWIMNOTE 2.1.0
+
+Target:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+금지
+
+반드시 확인:
+
+Current HEAD SHA
+=
+Messenger file attach fix commit SHA
+=
+OTA export source SHA
+
+동일해야 PASS.
+
+============================================================
+완료보고 형식
+============================================================
+
+# MESSENGER FILE ATTACH FIX REPORT
+
+Current branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+Root cause:
+...
+
+Modal dismiss delay:
+300ms
+
+DocumentPicker changed:
+NO
+
+Upload architecture changed:
+NO
+
+Server API changed:
+NO
+
+DB changed:
+NO
+
+Admin picker:
+PASS / FAIL
+
+Teacher picker:
+PASS / FAIL
+
+File select:
+PASS / FAIL
+
+Upload:
+PASS / FAIL
+
+Send:
+PASS / FAIL
+
+Receive/display:
+PASS / FAIL
+
+Cancel behavior:
+PASS / FAIL
+
+AttachFileBubble:
+PASS / FAIL
+
+Temporary cache handling:
+PASS / FAIL
+
+-------------------------
+OTA
+-------------------------
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Fix Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+FINAL:
+MESSENGER FILE ATTACH FIX + IOS OTA COMPLETE
