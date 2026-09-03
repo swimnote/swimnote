@@ -103,7 +103,7 @@ async function queryDiaries(
       AND cd.is_deleted = false
       AND cd.lesson_date < ${cutoffDate}
       AND cd.lesson_date >= (
-        SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+        SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
         FROM students WHERE id = ${studentId} LIMIT 1
       )
     ORDER BY cd.lesson_date ASC

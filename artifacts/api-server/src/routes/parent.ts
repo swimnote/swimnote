@@ -604,7 +604,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
         WHERE cd.is_deleted = false
           ${monthFilter}
           AND cd.lesson_date >= (
-            SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+            SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
             FROM students WHERE id = '${studentIdSafe}' LIMIT 1
           )
           AND (
@@ -768,7 +768,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
             AND ms.status = 'completed'
           WHERE cd.is_deleted = false
             AND cd.lesson_date >= (
-              SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+              SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
               FROM students WHERE id = '${sIdSafe}' LIMIT 1
             )
             AND (

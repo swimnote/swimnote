@@ -1678,7 +1678,7 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
         WHERE cd.class_group_id = ${student.class_group_id}
               AND cd.is_deleted = false
               AND cd.lesson_date >= (
-                SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+                SELECT ((created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date)::text
                 FROM students WHERE id = ${req.params.id} LIMIT 1
               )
         ORDER BY cd.lesson_date DESC LIMIT 10
