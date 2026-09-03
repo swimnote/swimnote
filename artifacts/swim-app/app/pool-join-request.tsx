@@ -58,6 +58,28 @@ export default function ParentRegisterScreen() {
         }),
       });
       const data = await res.json();
+
+      // 동일 전화번호의 Kakao 계정 존재 → 자동 migration
+      if (!res.ok && data?.error_code === "KAKAO_MIGRATION_REQUIRED") {
+        const migRes = await fetch(`${API_BASE}/auth/kakao-migration-register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: phone.trim(),
+            loginId: loginId.trim(),
+            password,
+            parent_name: parentName.trim(),
+            pool_id: data.pool_id,
+            ...(kakaoId ? { kakao_id: kakaoId } : {}),
+            ...(appleId ? { apple_id: appleId } : {}),
+          }),
+        });
+        const migData = await migRes.json();
+        if (!migRes.ok) { setError(migData.message || "계정 전환 중 오류가 발생했습니다."); return; }
+        await finishLogin("parent", null, migData.parent, migData.token);
+        return;
+      }
+
       if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
 
       await finishLogin("parent", null, data.parent, data.token);
