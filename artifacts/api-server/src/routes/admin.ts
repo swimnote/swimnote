@@ -4676,7 +4676,7 @@ router.get(
           s.name            AS student_name,
           cg.id             AS class_group_id,
           cg.name           AS class_name,
-          sch.teacher_id,
+          cg.teacher_user_id AS teacher_id,
           u.name            AS teacher_name,
           sca.curriculum_version_id,
           cv.version_name   AS curriculum_version_name,
@@ -4696,7 +4696,7 @@ router.get(
         FROM students s
         JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
         LEFT JOIN class_groups cg ON cg.id = sch.class_group_id
-        LEFT JOIN users u ON u.id = sch.teacher_id
+        LEFT JOIN users u ON u.id = cg.teacher_user_id
         LEFT JOIN student_curriculum_assignments sca
           ON sca.student_id = s.id AND sca.swimming_pool_id = ${poolId} AND sca.is_active = true
         LEFT JOIN curriculum_versions cv ON cv.id = sca.curriculum_version_id

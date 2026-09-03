@@ -94,6 +94,41 @@ import { buildGroundedPackage, type GroundedPackage } from "../lib/curriculum-an
 
 const router = Router();
 
+// ── WP10: Monthly KPI Snapshot Refresh ─────────────────────────────────────────
+// 성공한 parent curriculum search 후 호출. fire-and-forget.
+// raw source(event_logs)에서 현재 KST 월 값을 재계산해 UPSERT.
+// idempotent: retry / restart 시 동일 결과.
+async function refreshCurriculumSearchSnapshot(poolId: string): Promise<void> {
+  const kst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const year  = kst.getFullYear();
+  const month = kst.getMonth() + 1;
+
+  // KST 월 경계 (ISO 문자열 기준)
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const nextMonth  = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+
+  await superAdminDb.execute(sql`
+    INSERT INTO x_monthly_operational_snapshots
+      (swimming_pool_id, year, month, parent_curriculum_search_count, parent_curriculum_user_count)
+    SELECT
+      ${poolId},
+      ${year},
+      ${month},
+      COUNT(*)::int,
+      COUNT(DISTINCT actor_id)::int
+    FROM event_logs
+    WHERE pool_id   = ${poolId}
+      AND category  = 'AI'
+      AND metadata->>'feature' = 'parent_curriculum_search'
+      AND created_at >= ${monthStart}::timestamptz
+      AND created_at <  ${nextMonth}::timestamptz
+    ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
+      parent_curriculum_search_count = EXCLUDED.parent_curriculum_search_count,
+      parent_curriculum_user_count   = EXCLUDED.parent_curriculum_user_count,
+      updated_at                     = NOW()
+  `);
+}
+
 // ─── Middleware ────────────────────────────────────────────────────────────────
 
 function requireParent(req: AuthRequest, res: any, next: any): void {
@@ -894,6 +929,9 @@ router.post(
     }
 
     await touchConversation(conversationId).catch(() => undefined);
+
+    // WP10: monthly KPI snapshot refresh (fire-and-forget, idempotent recount)
+    void refreshCurriculumSearchSnapshot(poolId).catch(() => {});
 
     // CS-PA1 / AI01-05: 성공 trace
     void saveAiTrace({
