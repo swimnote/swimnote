@@ -166,9 +166,6 @@ export default function XHubScreen() {
   // setup steps
   const setupSteps = xs.setup_completion ? [
     { key: "curriculum", label: "커리큘럼", value: xs.setup_completion.curriculum },
-    { key: "website",    label: "홈페이지", value: xs.setup_completion.website },
-    { key: "logo",       label: "로고",     value: xs.setup_completion.logo },
-    { key: "photos",     label: "사진",     value: xs.setup_completion.photos },
   ] : [];
 
   return (

@@ -266,6 +266,7 @@ export default function AdminLayout() {
       <Tabs.Screen name="x-growth"               options={{ href: null }} />
       {/* SWIMNOTE X — X01 정보 허브 및 설명 화면 */}
       <Tabs.Screen name="x-setup"                options={{ href: null }} />
+      <Tabs.Screen name="x-pc-dashboard"         options={{ href: null }} />
       <Tabs.Screen name="x-mode-hub"             options={{ href: null }} />
       <Tabs.Screen name="x-info-overview"        options={{ href: null }} />
       <Tabs.Screen name="x-info-ai"              options={{ href: null }} />

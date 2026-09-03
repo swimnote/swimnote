@@ -72,7 +72,6 @@ const CATEGORIES: Category[] = [
     items: [
       { label: "학부모 QR 초대", icon: "qr-code",  desc: "QR 코드로 학부모·선생님 초대", route: "/(admin)/invite-qr" },
       { label: "초대 기록",      icon: "list",     desc: "회원 초대 발송 내역",           route: "/(admin)/invite-records" },
-      { label: "웹 접속 비밀번호",icon: "globe",   desc: "swimnote.kr 웹 관리자 전용",    route: "/(admin)/web-pin-settings" },
       { label: "내 정보",        icon: "user",     desc: "프로필 및 계정 정보",           route: "/(admin)/my-info" },
       { label: "로그아웃 / 탈퇴",icon: "log-out",  desc: "",                              route: "__logout__", danger: true },
     ],

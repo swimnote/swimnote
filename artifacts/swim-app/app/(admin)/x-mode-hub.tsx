@@ -184,11 +184,24 @@ export default function XModeHubScreen() {
                     onPress={() => router.push("/(admin)/x-setup?backTo=x-mode-hub" as any)}
                   >
                     <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
-                      <LucideIcon name="settings" size={18} color={X_ACCENT} />
+                      <LucideIcon name="book-open" size={18} color={X_ACCENT} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.rowLabel}>X모드 세팅하기</Text>
-                      <Text style={s.rowDesc}>커리큘럼 설정 및 X 운영 설정 관리</Text>
+                      <Text style={s.rowLabel}>커리큘럼 세팅</Text>
+                      <Text style={s.rowDesc}>교육과정 제출 · 검토 · AI 적용 관리</Text>
+                    </View>
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [s.row, s.rowBorder, { opacity: pressed ? 0.7 : 1 }]}
+                    onPress={() => router.push("/(admin)/x-pc-dashboard?backTo=x-mode-hub" as any)}
+                  >
+                    <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
+                      <LucideIcon name="monitor" size={18} color={X_ACCENT} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rowLabel}>PC 대시보드 활성화</Text>
+                      <Text style={s.rowDesc}>PC에서 관리자 기능 사용 · PIN 설정</Text>
                     </View>
                     <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>
