@@ -18,8 +18,10 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -32,6 +34,9 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
@@ -56,7 +61,7 @@ type MsgType =
   | "directed_message";
 
 interface WorkMessage {
-  id: number;
+  id: number | string;
   pool_id: string;
   sender_id: string | null;
   sender_name: string | null;
@@ -66,6 +71,7 @@ interface WorkMessage {
   channel_type: ChannelType;
   message_type: MsgType;
   extra_data?: Record<string, any> | null;
+  photo_url?: string | null;
   created_at: string;
 }
 
@@ -427,6 +433,55 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   }, []);
 
   /* ── 파일 첨부 ── */
+  const handleAlbumAttach = useCallback(async () => {
+    setShowAttachMenu(false);
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
+    if (!token) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "사진 접근 권한이 필요합니다. 설정에서 허용해주세요.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      quality: 0.85,
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    setSending(true);
+    try {
+      for (const asset of result.assets) {
+        const formData = new FormData();
+        formData.append("pool_id", poolId);
+        const filename = asset.fileName || `photo_${Date.now()}.jpg`;
+        const mime = asset.mimeType || "image/jpeg";
+        formData.append("photo", { uri: asset.uri, name: filename, type: mime } as any);
+
+        const res = await fetch(`${API_BASE}/messenger/messages/photo`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
+        } else {
+          const d = await res.json().catch(() => ({}));
+          Alert.alert("오류", d.message || "사진 전송에 실패했습니다.");
+        }
+      }
+    } catch (e: any) {
+      console.error("[messenger] albumAttach error", e);
+      Alert.alert("오류", "사진 전송 중 문제가 발생했습니다.");
+    } finally {
+      setSending(false);
+    }
+  }, [poolId, token]);
+
   const handleFileAttach = useCallback(async () => {
     setShowAttachMenu(false);
     // iOS: 모달 dismiss 애니메이션이 끝난 뒤 DocumentPicker를 열어야 반응함
@@ -588,6 +643,38 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         );
       }
 
+      if (item.msg_type === "photo") {
+        const photoUrl = item.photo_url ? `${API_BASE.replace(/\/api$/, "")}${item.photo_url}` : null;
+        return (
+          <>
+            {showDateLine && <DateLine iso={item.created_at} />}
+            <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
+              {!isMine && <View style={s.avatarPlaceholder} />}
+              <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
+                {!isMine && showAvatar && item.sender_name && (
+                  <Text style={s.senderName}>{item.sender_name}{item.sender_role === "teacher" ? " 선생님" : ""}</Text>
+                )}
+                <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
+                  {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>}
+                  {photoUrl ? (
+                    <Image
+                      source={{ uri: photoUrl, headers: { Authorization: `Bearer ${token}` } }}
+                      style={{ width: 200, height: 200, borderRadius: 12 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
+                      <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>[사진]</Text>
+                    </View>
+                  )}
+                  {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>}
+                </View>
+              </View>
+            </View>
+          </>
+        );
+      }
+
       if (item.message_type === "attachment_file") {
         return (
           <>
@@ -595,6 +682,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <AttachFileBubble
               isMine={isMine}
               extra={extra}
+              msgId={String(item.id)}
+              token={token || ""}
               senderName={item.sender_name}
               senderRole={item.sender_role}
               time={fmtTime(item.created_at)}
@@ -839,13 +928,22 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           <Pressable style={s.attachSheet} onPress={() => {}}>
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>첨부</Text>
+            <TouchableOpacity style={s.sheetItem} onPress={handleAlbumAttach} activeOpacity={0.7}>
+              <View style={[s.sheetIcon, { backgroundColor: "#F3E8FF" }]}>
+                <LucideIcon name="image" size={22} color="#9333EA" />
+              </View>
+              <View style={s.sheetItemText}>
+                <Text style={s.sheetItemLabel}>앨범</Text>
+                <Text style={s.sheetItemSub}>사진 및 동영상 전송</Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
               <View style={[s.sheetIcon, { backgroundColor: "#E0F2FE" }]}>
                 <Paperclip size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
-                <Text style={s.sheetItemLabel}>파일 첨부</Text>
-                <Text style={s.sheetItemSub}>이미지, 문서 파일 전송</Text>
+                <Text style={s.sheetItemLabel}>파일</Text>
+                <Text style={s.sheetItemSub}>문서, 파일 전송</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleMemberCard} activeOpacity={0.7}>
@@ -1036,10 +1134,21 @@ function MemberCardBubble({
                   <Text style={s.memberCardMeta}>{extra.schedule_days} {extra.schedule_time}</Text>
                 </View>
               )}
-              <View style={s.memberCardRow}>
-                <Phone size={11} color={C.textSecondary} />
-                <Text style={s.memberCardMeta}>{extra.parent_phone || "-"}</Text>
-              </View>
+              {extra.parent_phone ? (
+                <TouchableOpacity
+                  style={s.memberCardRow}
+                  onPress={() => Linking.openURL(`tel:${extra.parent_phone}`)}
+                  activeOpacity={0.7}
+                >
+                  <Phone size={11} color={PRIMARY} />
+                  <Text style={[s.memberCardMeta, { color: PRIMARY, textDecorationLine: "underline" }]}>{extra.parent_phone}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={s.memberCardRow}>
+                  <Phone size={11} color={C.textSecondary} />
+                  <Text style={s.memberCardMeta}>-</Text>
+                </View>
+              )}
               <Text style={s.memberCardTap}>탭하여 상세 보기</Text>
             </View>
           </TouchableOpacity>
@@ -1052,18 +1161,56 @@ function MemberCardBubble({
 
 /* ─── 서브 컴포넌트: 파일 첨부 버블 ──────────────────────── */
 function AttachFileBubble({
-  isMine, extra, senderName, senderRole, time, showTime, showAvatar,
+  isMine, extra, msgId, token, senderName, senderRole, time, showTime, showAvatar,
 }: {
   isMine: boolean;
   extra: Record<string, any>;
+  msgId: string;
+  token: string;
   senderName: string | null;
   senderRole?: string | null;
   time: string;
   showTime: boolean;
   showAvatar: boolean;
 }) {
+  const [downloading, setDownloading] = React.useState(false);
   const ext = (extra.attachment_name || "").split(".").pop()?.toUpperCase() || "FILE";
   const isImage = ["JPG","JPEG","PNG","GIF","WEBP","HEIC"].includes(ext);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const url = `${API_BASE}/messenger/attachment-file/${msgId}`;
+      const downloadRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!downloadRes.ok) { Alert.alert("오류", "파일을 불러올 수 없습니다."); return; }
+      const blob = await downloadRes.blob();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const filename = extra.attachment_name || `file.${ext.toLowerCase()}`;
+          const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+          await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, { mimeType: extra.attachment_mime || "application/octet-stream" });
+          } else {
+            Alert.alert("알림", "이 기기에서는 파일 공유를 지원하지 않습니다.");
+          }
+        } catch (e) {
+          Alert.alert("오류", "파일 저장에 실패했습니다.");
+        } finally {
+          setDownloading(false);
+        }
+      };
+      reader.readAsDataURL(blob);
+    } catch (e: any) {
+      console.error("[messenger] download error", e);
+      Alert.alert("오류", "파일 다운로드 중 문제가 발생했습니다.");
+      setDownloading(false);
+    }
+  };
+
   return (
     <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
       {!isMine && <View style={s.avatarPlaceholder} />}
@@ -1075,15 +1222,20 @@ function AttachFileBubble({
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
-          <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E0F2FE" : C.backgroundSoft }]}>
-              <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
+          <TouchableOpacity onPress={handleDownload} activeOpacity={0.8} disabled={downloading}>
+            <View style={s.fileCard}>
+              <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E0F2FE" : C.backgroundSoft }]}>
+                {downloading
+                  ? <ActivityIndicator size="small" color={C.textSecondary} />
+                  : <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
+                }
+              </View>
+              <View style={s.fileInfo}>
+                <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
+                <Text style={s.fileExt}>{downloading ? "다운로드 중..." : ext}</Text>
+              </View>
             </View>
-            <View style={s.fileInfo}>
-              <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
-              <Text style={s.fileExt}>{ext}</Text>
-            </View>
-          </View>
+          </TouchableOpacity>
           {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
         </View>
       </View>

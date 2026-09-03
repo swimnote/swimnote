@@ -599,8 +599,9 @@ router.post(
       const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, {} as any);
       if (!ok) throw new Error(uploadErr?.message || "파일 업로드 실패");
 
-      const domain = process.env.REPLIT_DEV_DOMAIN || "localhost";
-      const fileApiUrl = `https://${domain}/api/messenger/attachment/${key}`;
+      // pre-generate ID so download URL can reference it
+      const msgId = `wmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const fileApiUrl = `/api/messenger/attachment-file/${msgId}`;
 
       const extraData = JSON.stringify({
         attachment_key: key,
@@ -613,9 +614,9 @@ router.post(
       const content = `[파일] ${file.originalname}`;
       const rows = await db.execute(sql`
         INSERT INTO work_messages
-          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
         VALUES
-          (${pool_id}, ${userId}, ${senderName}, ${role}, 'file', 'talk', 'attachment_file', ${content}, ${extraData}::jsonb)
+          (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'file', 'talk', 'attachment_file', ${content}, ${extraData}::jsonb)
         RETURNING *
       `);
 
@@ -654,6 +655,47 @@ router.get(
       return void res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
     } catch (e: any) {
       console.error("[messenger/photo GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 14. 첨부 파일 다운로드 (인증 프록시) ─────────────────────────────
+// GET /messenger/attachment-file/:msgId
+router.get(
+  "/messenger/attachment-file/:msgId",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { msgId } = req.params;
+      const { userId, role } = req.user!;
+
+      const rows = await db.execute(sql`
+        SELECT pool_id, extra_data FROM work_messages
+        WHERE id = ${msgId} AND message_type = 'attachment_file'
+        LIMIT 1
+      `);
+      const msg = rows.rows[0] as any;
+      if (!msg) return err(res, 404, "파일을 찾을 수 없습니다.");
+      if (!(await checkPoolAccess(userId!, role, msg.pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      const extra = typeof msg.extra_data === "string" ? JSON.parse(msg.extra_data) : msg.extra_data;
+      const key: string = extra?.attachment_key;
+      if (!key) return err(res, 404, "파일 키가 없습니다.");
+
+      const client = getClient();
+      const { ok, value: bytes, error } = await client.downloadAsBytes(key);
+      if (!ok || !bytes) return err(res, 404, "파일을 찾을 수 없습니다.");
+
+      const mime = extra.attachment_mime || "application/octet-stream";
+      const filename = encodeURIComponent(extra.attachment_name || "file");
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${filename}`);
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      const buf = Array.isArray(bytes) ? bytes[0] : bytes;
+      return void res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
+    } catch (e: any) {
+      console.error("[messenger/attachment-file GET]", e);
       return err(res, 500, e.message || "서버 오류");
     }
   }
