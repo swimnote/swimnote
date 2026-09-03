@@ -60,6 +60,7 @@ interface WorkMessage {
   pool_id: string;
   sender_id: string | null;
   sender_name: string | null;
+  sender_role?: string | null;
   content: string;
   msg_type: string;
   channel_type: ChannelType;
@@ -577,6 +578,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               isMine={isMine}
               extra={extra}
               senderName={item.sender_name}
+              senderRole={item.sender_role}
               time={fmtTime(item.created_at)}
               showTime={showTime}
               showAvatar={showAvatar}
@@ -594,6 +596,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               isMine={isMine}
               extra={extra}
               senderName={item.sender_name}
+              senderRole={item.sender_role}
               time={fmtTime(item.created_at)}
               showTime={showTime}
               showAvatar={showAvatar}
@@ -610,7 +613,9 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             {!isMine && <View style={s.avatarPlaceholder} />}
             <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
               {!isMine && showAvatar && item.sender_name && (
-                <Text style={s.senderName}>{item.sender_name} 선생님</Text>
+                <Text style={s.senderName}>
+                  {item.sender_name}{item.sender_role === "teacher" ? " 선생님" : ""}
+                </Text>
               )}
               <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
                 {isMine && showTime && (
@@ -990,11 +995,12 @@ function DateLine({ iso }: { iso: string }) {
 
 /* ─── 서브 컴포넌트: 회원정보 카드 버블 ──────────────────── */
 function MemberCardBubble({
-  isMine, extra, senderName, time, showTime, showAvatar, onPress,
+  isMine, extra, senderName, senderRole, time, showTime, showAvatar, onPress,
 }: {
   isMine: boolean;
   extra: Record<string, any>;
   senderName: string | null;
+  senderRole?: string | null;
   time: string;
   showTime: boolean;
   showAvatar: boolean;
@@ -1005,7 +1011,9 @@ function MemberCardBubble({
       {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName} 선생님</Text>
+          <Text style={s.senderName}>
+            {senderName}{senderRole === "teacher" ? " 선생님" : ""}
+          </Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
@@ -1044,11 +1052,12 @@ function MemberCardBubble({
 
 /* ─── 서브 컴포넌트: 파일 첨부 버블 ──────────────────────── */
 function AttachFileBubble({
-  isMine, extra, senderName, time, showTime, showAvatar,
+  isMine, extra, senderName, senderRole, time, showTime, showAvatar,
 }: {
   isMine: boolean;
   extra: Record<string, any>;
   senderName: string | null;
+  senderRole?: string | null;
   time: string;
   showTime: boolean;
   showAvatar: boolean;
@@ -1060,7 +1069,9 @@ function AttachFileBubble({
       {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName} 선생님</Text>
+          <Text style={s.senderName}>
+            {senderName}{senderRole === "teacher" ? " 선생님" : ""}
+          </Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
