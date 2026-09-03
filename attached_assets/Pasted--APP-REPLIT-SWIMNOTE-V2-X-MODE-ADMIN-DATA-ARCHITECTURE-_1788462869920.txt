@@ -1,0 +1,1236 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# X MODE ADMIN DATA ARCHITECTURE FINAL REVIEW
+# STEP 0 — DESIGN VALIDATION ONLY
+# NO IMPLEMENTATION
+
+============================================================
+절대 작업 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+CURRENT RUNTIME:
+2.1.0
+
+WORK FROM:
+CURRENT LATEST V2 HEAD ONLY
+
+최근 X 설정 정리 commit:
+1f3c9cfe
+
+반드시 현재 최신 HEAD에서 조사.
+과거 commit checkout/revert 금지.
+
+1.6.3:
+NO TOUCH
+
+APP CODE:
+NO CHANGE
+
+SERVER CODE:
+NO CHANGE
+
+AI ENGINE:
+NO CHANGE
+
+DB:
+NO CHANGE
+
+MIGRATION:
+NO
+
+OTA:
+NO
+
+RENDER:
+NO
+
+이번 단계는 최종 설계 검수만 한다.
+
+============================================================
+1. 최종 목표
+============================================================
+
+관리자 홈 X모드 4개 기능:
+
+WP10 — AI 커리큘럼
+WP11 — SWIMNOTE X 운영현황
+WP9 — AI 일지피드
+WP8 — AI 학생리포트
+
+를 500개 수영장이 사용하는 것을 전제로
+안전한 멀티테넌트 + 월별 누적 데이터 구조로 구현한다.
+
+구현 전에
+공통 데이터 모델과 각 WP의 역할을 최종 검수한다.
+
+============================================================
+2. 멀티테넌트 절대 원칙
+============================================================
+
+최소 500개 수영장 운영 전제.
+
+모든 데이터는:
+
+authenticated user
+→ server auth
+→ swimming_pool_id 확정
+→ SQL query 단계에서 pool scope 적용
+
+이어야 한다.
+
+절대 금지:
+
+- APP에서만 pool 필터
+- client가 전달한 pool_id를 source of truth로 사용
+- pool scope 없는 aggregate
+- 전체 pool 데이터를 조회 후 client에서 필터
+- cross-pool join
+- tenant 조건 없는 background job
+
+모든 KPI / monthly snapshot / report / event aggregation에
+swimming_pool_id가 반드시 포함되어야 한다.
+
+============================================================
+3. 공통 월별 KPI 저장 원칙
+============================================================
+
+현재 숫자만 보여주는 live query와
+사업적으로 보존해야 하는 월별 기록을 구분한다.
+
+보존 대상 예:
+
+- AI 일지 작성량
+- AI 일지 사용 선생님 수
+- 학부모 AI 커리큘럼 검색량
+- AI 커리큘럼 이용 학부모 수
+- 성장리포트 생성 대상/완료/실패/발송
+- AI 기능 사용 학부모 수
+- Instagram 공유량
+- X 플랜/사용규모 스냅샷
+
+이 값들은
+과거 월 데이터를 다시 계산해야만 보이는 구조보다
+월별 aggregate/snapshot으로 영구 보존하는 구조를 우선한다.
+
+============================================================
+4. 월별 KPI 공통 모델 검토
+============================================================
+
+아래 2가지 중
+현재 SWIMNOTE 구조에 더 적합한 방식을 비교해서 추천.
+
+------------------------------------------------------------
+OPTION A — Generic metric rows
+------------------------------------------------------------
+
+예:
+
+x_monthly_metrics
+
+id
+swimming_pool_id
+year
+month
+metric_key
+metric_value
+metadata
+created_at
+updated_at
+
+UNIQUE:
+(swimming_pool_id, year, month, metric_key)
+
+장점/단점 분석.
+
+------------------------------------------------------------
+OPTION B — Typed monthly snapshot
+------------------------------------------------------------
+
+예:
+
+x_monthly_operational_snapshots
+
+id
+swimming_pool_id
+year
+month
+
+ai_diary_count
+ai_diary_teacher_count
+
+parent_curriculum_search_count
+parent_curriculum_user_count
+
+growth_report_target_count
+growth_report_generated_count
+growth_report_failed_count
+growth_report_pending_send_count
+growth_report_sent_count
+
+instagram_share_count
+
+active_student_count
+active_teacher_count
+connected_parent_count
+
+x_plan_key
+x_plan_limit
+
+created_at
+updated_at
+
+UNIQUE:
+(swimming_pool_id, year, month)
+
+장점/단점 분석.
+
+------------------------------------------------------------
+검수 요청
+------------------------------------------------------------
+
+현재 코드 / 조회 패턴 / 향후 확장성 / SQL 성능 / 유지보수를 기준으로
+
+A / B / HYBRID
+
+중 하나 추천.
+
+단:
+WP별로 제멋대로 별도 월 통계 테이블을 만드는 구조는 금지.
+
+============================================================
+5. 추천 기본 방향
+============================================================
+
+우선 검토 기준은 HYBRID.
+
+즉:
+
+A. 운영상 핵심 KPI
+→ typed monthly snapshot
+
+B. 확장성 높은 부가 metric
+→ generic metric 또는 event_logs
+
+형태가 적절한지 검수.
+
+예:
+
+typed:
+- ai_diary_count
+- parent_curriculum_search_count
+- growth_report_sent_count
+- x plan snapshot
+
+generic/event:
+- 향후 새 AI feature
+- 비핵심 실험 metric
+
+현재 코드베이스와 맞지 않으면
+대안을 제안.
+
+============================================================
+6. 월 기준
+============================================================
+
+timezone:
+KST 기준.
+
+year/month:
+수영장 운영월 기준.
+
+예:
+2026-09
+
+월 경계 계산이
+서버 timezone/UTC 때문에 꼬이지 않게 설계.
+
+DB timestamp는 기존 표준 유지 가능하나
+월 집계 boundary는 KST 명시.
+
+검수:
+
+- date_trunc timezone
+- lesson_date TEXT/DATE 문제
+- created_at TIMESTAMPTZ
+- report_period
+
+기존 타입을 실제로 확인.
+
+============================================================
+7. 월 데이터 생성 방식
+============================================================
+
+아래 3종을 구분.
+
+A. EVENT DRIVEN
+
+예:
+Instagram 공유 성공
+AI 커리큘럼 검색
+
+→ event 발생 시 raw 기록
+
+B. TRANSACTION DRIVEN
+
+예:
+growth report PUBLISHED
+AI diary 저장
+
+→ 실제 업무 transaction이 발생할 때 원본 데이터 저장
+
+C. PERIODIC SNAPSHOT
+
+예:
+월말 active students
+월말 assigned students
+당시 X plan
+
+→ 특정 시점에 snapshot
+
+각 KPI가 A/B/C 중 어디에 속하는지 분류해서 보고.
+
+============================================================
+8. snapshot 재계산 / idempotency
+============================================================
+
+월별 집계는 여러 번 실행돼도
+값이 중복 증가하면 안 된다.
+
+권장:
+
+UPSERT
+
+UNIQUE:
+(pool_id, year, month)
+
+또는 metric key 포함 unique.
+
+job 재시도:
+same result
+
+중복 cron:
+same result
+
+server restart:
+same result
+
+이 조건을 만족해야 한다.
+
+"기존 값 + 1" 형태만으로 monthly rebuild 하지 말 것.
+
+============================================================
+9. 과거 데이터 정책
+============================================================
+
+현재부터 정확하게 측정 가능한 데이터와
+과거 복원이 가능한 데이터를 구분.
+
+예:
+
+Instagram share:
+현재 event 없음
+→ 과거 복원 불가
+→ tracking 시작 이후 데이터만 기록
+
+AI curriculum search:
+event_logs 존재
+→ 과거 데이터 backfill 가능 여부 검토
+
+class_diaries:
+과거 AI 여부 식별 불가
+→ AI diary 과거 backfill 신뢰도 낮음
+
+growth_reports:
+기존 lifecycle 기반 과거 복원 가능 여부 검토
+
+과거 값을 추정해서 생성 금지.
+
+============================================================
+10. 인덱스 설계
+============================================================
+
+500개 pool 기준으로
+다음 query가 빠르게 동작해야 함.
+
+- pool + month
+- pool + date range
+- pool + feature
+- pool + report status
+- pool + teacher + month
+- pool + student assignment status
+
+현재 인덱스 확인 후
+부족한 composite index만 제안.
+
+예:
+
+(swimming_pool_id, created_at)
+(swimming_pool_id, lesson_date)
+(swimming_pool_id, product_status, report_period)
+(swimming_pool_id, teacher_id, lesson_date)
+
+실제 컬럼 타입/쿼리 확인 후 제안.
+무조건 생성 금지.
+
+============================================================
+11. dashboard failure isolation
+============================================================
+
+SWIMNOTE X 운영현황은
+통계 하나 실패했다고 화면 전체 500 금지.
+
+통계성 조회에 한해:
+
+metric A success
+metric B fail
+metric C success
+
+이면:
+
+A/C 응답
+B = null/unavailable
+
+가능한 response contract 설계.
+
+단:
+
+핵심 transaction
+DB write
+report publish
+
+는 partial success 방식 사용 금지.
+
+조회 dashboard와 transaction을 구분.
+
+============================================================
+12. API response contract
+============================================================
+
+관리자 운영 화면 공통 response 예시 검토:
+
+{
+  data: {...},
+  unavailable: [...],
+  as_of: "...",
+  period: {
+    year: 2026,
+    month: 9
+  }
+}
+
+또는 현재 API convention에 더 맞는 구조 제안.
+
+APP이:
+LOADING
+SUCCESS
+PARTIAL
+EMPTY
+ERROR
+
+를 명확하게 구분할 수 있어야 함.
+
+============================================================
+13. APP path / API path 원칙
+============================================================
+
+절대 금지:
+
+- localhost 저장
+- REPLIT_DEV_DOMAIN 저장
+- environment-specific absolute URL DB 저장
+- pool-specific hardcoded URL
+- 개발서버 경로를 production data에 저장
+
+APP:
+기존 API base/config 사용.
+
+SERVER:
+현재 route convention 사용.
+
+R2/Object Storage:
+pool namespace가 필요한 자료는 pool scope 유지.
+
+============================================================
+14. WP10 검수
+============================================================
+
+AI CURRICULUM
+
+현재 확정 버그:
+
+student_class_history에 없는
+sch.teacher_id 참조.
+
+검수:
+
+- 올바른 teacher source가 class_groups.teacher_id인지
+- teacher 정보가 실제 화면에 필요한지
+- 필요 없으면 JOIN 제거가 더 안전한지
+
+정확한 최소 수정 추천.
+
+월 KPI:
+
+- parent curriculum search count
+- unique parent users
+- assigned students snapshot
+- unassigned students snapshot
+- curriculum version snapshot
+
+각각:
+raw source
+monthly source
+snapshot 필요 여부
+backfill 가능 여부
+
+보고.
+
+============================================================
+15. WP11 검수
+============================================================
+
+SWIMNOTE X 운영현황
+
+현재 문제:
+14 queries Promise.all → 1 reject → 전체 500.
+
+검수:
+
+- 실제 각 query
+- fail 가능성
+- null-safe 처리
+- 독립 query wrapper 방식
+- parallel 유지 vs sequential
+- connection pool 부담
+
+500 pool 동시 접속 기준
+가장 안전한 구조 제안.
+
+표시 KPI:
+
+1. AI diary monthly count
+2. AI diary active teacher count
+3. parent curriculum searches monthly
+4. parent curriculum unique users
+5. growth report pending
+6. growth report sent
+7. current X plan
+8. active students
+9. active teachers
+10. connected parents
+
+Instagram:
+event tracking 추가 이후 포함.
+
+============================================================
+16. WP9 검수
+============================================================
+
+AI DIARY FEED
+
+현재 class_diaries에
+AI-generated 식별 없음.
+
+다음 옵션 비교:
+
+OPTION A:
+class_diaries.ai_generated BOOLEAN
+
+OPTION B:
+class_diaries.ai_trace_id
+
+OPTION C:
+event_logs에 diary_id 기록
+
+OPTION D:
+A + trace id hybrid
+
+목표:
+
+- 정확한 AI 여부
+- 향후 감사 가능성
+- 월별 KPI
+- AI ENGINE/API trace
+- 최소 migration
+- 성능
+
+기준으로 추천.
+
+과거 diary:
+AI 여부 복원 가능한지 검수.
+
+버튼 UI:
+height fix 및 icon fix는 APP-only.
+
+============================================================
+17. WP8 growth report lifecycle 검수
+============================================================
+
+최종 정책:
+
+5일 자동 생성
+→ 관리자 준비 PUSH
+→ 관리자 검수
+→ 관리자 발송
+→ 학부모 공개
+
+현재:
+
+APPROVED
+→ PUBLISHED
+
+사이에 관리자 발송 승인 개념을 넣어야 함.
+
+다음 옵션 비교:
+
+OPTION A:
+admin_send_approved_at 컬럼
+
+OPTION B:
+READY_TO_SEND enum 추가
+
+OPTION C:
+별도 delivery table
+
+평가 기준:
+
+- 기존 lifecycle 의미 보존
+- migration 위험
+- 과거 데이터 호환
+- 쿼리 단순성
+- 관리자 개별/전체 발송
+- 감사 로그
+- 향후 재발송 방지
+
+최종 추천.
+
+============================================================
+18. growth report monthly job
+============================================================
+
+500 pool 전제.
+
+월 5일 batch:
+
+대상 pool
+→ 대상 students
+→ AI generate
+→ completion
+→ admin push
+
+검수 요청:
+
+- node-cron 단일 서버 방식이 충분한지
+- Render restart 시 job 유실 위험
+- multi-instance 시 cron 중복 위험
+- DB-backed job state 필요 여부
+- queue table 필요 여부
+
+중요:
+
+단순 in-memory array queue만으로
+운영 안전성이 충분한지 반드시 검토.
+
+500 pool × 학생 수를 전제로
+더 안정적인 구조가 필요하면 제안.
+
+============================================================
+19. batch job idempotency
+============================================================
+
+최소 unique:
+
+student
+period
+report_type
+pool
+
+중복 생성 방지.
+
+pool-month batch에도:
+
+pool_id
+year
+month
+job_type
+
+unique 필요 여부 검토.
+
+job state 후보:
+
+PENDING
+RUNNING
+COMPLETED
+PARTIAL
+FAILED
+
+재시작 시 resume 가능한 구조 추천.
+
+============================================================
+20. 관리자 ready push
+============================================================
+
+pool 전체 대상 처리 후
+관리자 PUSH 딱 1회.
+
+조건:
+
+all terminal:
+APPROVED / FAILED
+
+또는 성공률 정책.
+
+실패 학생이 일부 있으면:
+
+A. 성공 학생만 발송 가능
+B. 실패 재시도 후 push
+C. PARTIAL READY
+
+중 어떤 것이 가장 안전한지 추천.
+
+중복 방지:
+
+DB unique event 기록 필수 여부 검토.
+
+============================================================
+21. 발송 transaction
+============================================================
+
+관리자 [전체 발송]:
+
+AI 호출 없음.
+
+DB:
+APPROVED/READY
+→ PUBLISHED
+
+parent push.
+
+검수:
+
+- transaction boundary
+- 일부 report 실패
+- push 실패
+- DB published 성공 + push fail 처리
+- retry
+- duplicate push
+
+추천 설계 제출.
+
+DB 상태와 push 발송은
+완전한 distributed transaction이 아니므로
+outbox/event pattern 필요 여부 검토.
+
+============================================================
+22. Push outbox 검토
+============================================================
+
+현재 push-service 직접 호출 구조와
+
+DB outbox:
+
+notification_outbox
+
+id
+pool_id
+user_id
+event_type
+entity_id
+payload
+status
+attempts
+created_at
+sent_at
+
+방식 비교.
+
+500 pool 월간 report 발송에서
+push 유실/중복 방지를 위해
+outbox가 필요한지 판단.
+
+과설계하지 말고
+현재 시스템 규모에 맞게 추천.
+
+============================================================
+23. AI ENGINE contract
+============================================================
+
+WP8만 AI ENGINE 변경 가능성 있음.
+
+검수:
+
+서버가 학생 목록 전체를 엔진에 보내는 batch API가 좋은지
+
+vs
+
+SERVER가 queue orchestration하고
+AI ENGINE 단건 report endpoint만 호출하는 게 좋은지
+
+비교.
+
+중요:
+
+AI ENGINE에 business scheduling까지 넘기지 않는 방향을 우선 검토.
+
+역할 분리:
+
+SERVER:
+schedule
+pool/student target
+retry
+job state
+completion
+push
+
+AI ENGINE:
+single report generation
+
+구조가 더 안전한지 평가.
+
+============================================================
+24. 추천 아키텍처 원칙
+============================================================
+
+가능하면:
+
+SERVER owns orchestration
+
+AI ENGINE owns inference/generation
+
+APP owns UI
+
+DB owns durable state
+
+이 구조 유지.
+
+AI ENGINE이
+월 5일 스케줄이나 pool batch business logic까지
+가지지 않도록 검토.
+
+============================================================
+25. 월별 사업 KPI 최종 목록
+============================================================
+
+아래를 각각:
+
+KEEP MONTHLY
+LIVE ONLY
+EVENT ONLY
+NOT AVAILABLE
+
+로 분류.
+
+- AI diary count
+- AI diary teacher count
+- AI curriculum search count
+- AI curriculum unique parent count
+- assigned students
+- unassigned students
+- curriculum version
+- growth report target
+- growth report generated
+- growth report failed
+- growth report pending send
+- growth report sent
+- growth report send rate
+- Instagram share
+- active students
+- active teachers
+- connected parents
+- X plan
+- plan member limit
+- AI calls
+
+============================================================
+26. retention
+============================================================
+
+월별 snapshot은
+장기 보존 전제.
+
+raw event_logs는
+향후 보존기간이 변경돼도
+monthly KPI가 사라지면 안 됨.
+
+월 snapshot 삭제 정책:
+기본 없음.
+
+pool 탈퇴/삭제 시:
+현재 법률/데이터 삭제 정책과 충돌 여부만 보고.
+
+이번 단계에서 삭제 정책 변경 금지.
+
+============================================================
+27. 구현 순서 최종 검수
+============================================================
+
+현재 제안:
+
+STEP 0
+공통 monthly KPI architecture
+
+STEP 1
+WP10 AI Curriculum
+
+STEP 2
+WP11 X Operations
+
+STEP 3
+WP9 AI Diary Feed
+
+STEP 4
+WP8 AI Student Report
+
+이 순서가 가장 안전한지 검수.
+
+필요하면 이유를 들어 순서 수정 제안.
+
+============================================================
+28. 구현 시 배포 규칙
+============================================================
+
+이번 검수 단계에서는 적용하지 않지만
+향후 implementation WP에는 반드시 적용.
+
+APP CHANGE:
+test
+→ commit
+→ immediate iOS OTA
+→ SHA verify
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO OTA
+
+SERVER CHANGE:
+V2 latest server
+→ test
+→ commit
+→ GitHub push
+
+Render production deploy:
+USER MANUAL ONLY
+
+DB MIGRATION:
+explicit WP + user approval 기준
+
+============================================================
+29. 최종 검수 보고서 형식
+============================================================
+
+# X MODE DATA ARCHITECTURE FINAL VALIDATION REPORT
+
+Current APP HEAD:
+...
+
+Current SERVER HEAD:
+...
+
+Latest V2 lineage verified:
+YES / NO
+
+============================================================
+A. MULTI TENANT
+============================================================
+
+Pool source of truth:
+...
+
+Cross-pool risk found:
+...
+
+Required fixes:
+...
+
+500-pool suitability:
+PASS / NEEDS WORK
+
+============================================================
+B. MONTHLY KPI MODEL
+============================================================
+
+Recommended:
+GENERIC / TYPED / HYBRID
+
+Schema:
+...
+
+Unique keys:
+...
+
+Indexes:
+...
+
+KST handling:
+...
+
+Idempotency:
+...
+
+Backfill policy:
+...
+
+Retention:
+...
+
+Reason:
+...
+
+============================================================
+C. KPI CLASSIFICATION
+============================================================
+
+AI diary count:
+...
+
+AI diary teachers:
+...
+
+Parent curriculum searches:
+...
+
+Unique parent search users:
+...
+
+Assigned students:
+...
+
+Unassigned students:
+...
+
+Curriculum version:
+...
+
+Growth report target:
+...
+
+Generated:
+...
+
+Failed:
+...
+
+Pending send:
+...
+
+Sent:
+...
+
+Send rate:
+...
+
+Instagram share:
+...
+
+Active students:
+...
+
+Active teachers:
+...
+
+Connected parents:
+...
+
+X plan:
+...
+
+Plan limit:
+...
+
+AI calls:
+...
+
+============================================================
+D. WP10 FINAL DESIGN
+============================================================
+
+Exact server bug:
+...
+
+Recommended exact fix:
+...
+
+Teacher source:
+...
+
+Monthly KPI integration:
+...
+
+Migration:
+...
+
+Indexes:
+...
+
+============================================================
+E. WP11 FINAL DESIGN
+============================================================
+
+Current failure architecture:
+...
+
+Recommended partial-failure architecture:
+...
+
+Query concurrency:
+...
+
+Monthly snapshot usage:
+...
+
+Live query usage:
+...
+
+500-pool performance:
+...
+
+============================================================
+F. WP9 FINAL DESIGN
+============================================================
+
+Recommended AI diary identification:
+...
+
+Migration:
+...
+
+Traceability:
+...
+
+Past diary policy:
+...
+
+Monthly aggregation:
+...
+
+APP UI fixes:
+...
+
+============================================================
+G. WP8 FINAL DESIGN
+============================================================
+
+Recommended lifecycle:
+...
+
+Migration:
+...
+
+Job state:
+...
+
+Queue design:
+...
+
+Cron safety:
+...
+
+Server restart recovery:
+...
+
+Multi-instance duplicate prevention:
+...
+
+Pool completion:
+...
+
+Admin push:
+...
+
+Push idempotency:
+...
+
+Bulk send transaction:
+...
+
+Push failure handling:
+...
+
+Outbox:
+RECOMMENDED / NOT NEEDED
+
+AI ENGINE contract:
+...
+
+============================================================
+H. IMPLEMENTATION ORDER
+============================================================
+
+Final recommended order:
+
+0.
+1.
+2.
+3.
+4.
+
+Reason:
+...
+
+============================================================
+I. REQUIRED MIGRATIONS
+============================================================
+
+Migration 1:
+...
+
+Migration 2:
+...
+
+Optional:
+...
+
+Indexes:
+...
+
+No migration executed.
+
+============================================================
+J. IMPLEMENTATION WORK PACKAGES
+============================================================
+
+APP WP:
+...
+
+SERVER WP:
+...
+
+AI ENGINE WP:
+...
+
+============================================================
+CURRENT ACTION
+============================================================
+
+APP changed:
+NO
+
+SERVER changed:
+NO
+
+AI ENGINE changed:
+NO
+
+DB changed:
+NO
+
+Migration:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+FINAL:
+ARCHITECTURE VALIDATED / REVISION REQUIRED
