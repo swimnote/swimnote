@@ -890,13 +890,31 @@ router.post("/simple-parent-register", async (req, res) => {
             error: "이미 카카오로 가입된 전화번호입니다.",
             error_code: "KAKAO_MIGRATION_REQUIRED",
             old_parent_id: dup.id,
+            pool_id: resolvedPoolId,
           });
         }
         // B. 기존 일반 계정 → 기존 정책 그대로
         return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
       }
     } else {
-      // 수영장 미지정인 경우: phone + pool IS NULL 기준만 중복 체크 (다른 수영장 계정은 OK)
+      // 수영장 미지정인 경우: phone에 해당하는 active Kakao 계정 전역 감지
+      const [globalKakao] = (await db.execute(sql`
+        SELECT id, swimming_pool_id FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND kakao_id IS NOT NULL
+          AND (is_active IS NULL OR is_active = true)
+          AND phone != ''
+        LIMIT 1
+      `)).rows as any[];
+      if (globalKakao) {
+        return res.status(409).json({
+          error: "이미 카카오로 가입된 전화번호입니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+          old_parent_id: globalKakao.id,
+          pool_id: globalKakao.swimming_pool_id,
+        });
+      }
+      // pool_id 미지정 + kakao 없음: phone + pool IS NULL 기준만 중복 체크
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
       if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
     }
