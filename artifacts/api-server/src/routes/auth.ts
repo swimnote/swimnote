@@ -2850,13 +2850,23 @@ router.post("/v2/parent-register", async (req, res) => {
     // 같은 pool 안에 동일 phone이 있으면 중복 차단.
     // 다른 pool에 동일 phone이 있어도 → 무시 → 이 pool용 신규 account 생성.
     const [existingInPool] = (await db.execute(sql`
-      SELECT id FROM parent_accounts
+      SELECT id, kakao_id, is_active FROM parent_accounts
       WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
         AND swimming_pool_id = ${poolId}
+        AND phone != ''
       LIMIT 1
     `)).rows as any[];
 
     if (existingInPool) {
+      // 기존 Kakao 계정 → KAKAO_MIGRATION_REQUIRED (자동 migration flow 트리거)
+      if (existingInPool.kakao_id && existingInPool.is_active !== false) {
+        return res.status(409).json({
+          error: "이미 카카오로 가입된 전화번호입니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+          old_parent_id: existingInPool.id,
+        });
+      }
+      // 기존 일반 계정
       return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
     }
 

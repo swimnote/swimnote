@@ -142,6 +142,34 @@ export default function ParentRegisterScreen() {
       });
       const data = await safeJson(res);
 
+      // ── KAKAO_MIGRATION_REQUIRED: 기존 Kakao → General 강제 전환 ────────
+      if (!res.ok && data?.error_code === "KAKAO_MIGRATION_REQUIRED") {
+        const migRes = await fetch(`${API_BASE}/auth/kakao-migration-register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: phone.trim().replace(/[-\s]/g, ""),
+            pool_id: poolId,
+            name: parentName.trim(),
+            pin: password,
+            login_id: loginId.trim() || undefined,
+          }),
+        });
+        const migData = await safeJson(migRes);
+        if (!migRes.ok) {
+          setError(migData?.error || "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+          return;
+        }
+        if (migData?.token) {
+          await setParentSession(migData.token, migData.parent);
+          finishLogin("parent", null, migData.parent, migData.token);
+          return;
+        }
+        setError("계정 전환 처리 중 오류가 발생했습니다.");
+        return;
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       if (!res.ok) {
         const rawError = data?.error || data?.message || "";
         const isServerError = res.status >= 500
