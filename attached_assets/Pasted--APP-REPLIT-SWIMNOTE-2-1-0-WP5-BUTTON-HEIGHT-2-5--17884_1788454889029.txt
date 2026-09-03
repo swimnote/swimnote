@@ -1,0 +1,165 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0 — WP5 BUTTON HEIGHT ×2.5
+
+대상:
+관리자 → 선생님 관리 → 선생님 선택 → 운영현황
+
+현재 탭:
+- 담당 회원
+- 출결
+- 수업일지
+- 보강
+
+요구사항:
+
+현재 버튼의 가로 크기/디자인/색상/테두리/폰트는 그대로 유지하고,
+세로 높이만 현재 대비 정확히 약 2.5배 크게 만든다.
+
+중요:
+- width 변경 금지
+- paddingHorizontal 변경 금지
+- borderRadius 변경 금지
+- fontSize 변경 금지
+- fontWeight 변경 금지
+- selected/unselected 색상 변경 금지
+- 버튼 간 gap 변경 금지
+
+오직 세로 크기만 확대.
+
+============================================================
+구현 기준
+============================================================
+
+현재 실제 렌더 기준 높이를 먼저 확인.
+
+예:
+현재 약 32px라면
+최종 목표 약 80px 수준.
+
+즉:
+
+finalHeight ≈ currentHeight × 2.5
+
+방법은
+height 또는 minHeight를 사용해서
+4개 버튼 모두 동일하게 적용.
+
+selected / unselected 모두 동일 높이.
+
+Text는 버튼 중앙에 정확히 위치하도록:
+justifyContent: "center"
+alignItems: "center"
+
+텍스트가 위/아래로 잘리면 안 됨.
+
+============================================================
+반드시 유지
+============================================================
+
+현재 선생님관리의
+전체 / 승인됨 / 미승인 / 관리자
+버튼에서 가져온 디자인 스타일은 유지.
+
+단,
+운영현황 화면에서는 세로 높이만 2.5배 확대.
+
+============================================================
+수정 후
+============================================================
+
+수정
+→ commit
+→ iOS OTA production-v2 바로 발행
+→ OTA source commit 확인
+→ 완료보고
+
+Android OTA:
+NO
+
+Build:
+NO
+
+SERVER:
+NO
+
+DB:
+NO
+
+Render:
+NO
+
+1.6.3:
+NO TOUCH
+
+다른 WP:
+NO TOUCH
+
+============================================================
+완료보고
+============================================================
+
+# WP5 BUTTON HEIGHT ×2.5 REPORT
+
+Current branch:
+...
+
+HEAD Before:
+...
+
+Original button height:
+...
+
+Final button height:
+...
+
+Height multiplier:
+2.5x
+
+Width unchanged:
+PASS / FAIL
+
+Horizontal padding unchanged:
+PASS / FAIL
+
+Font unchanged:
+PASS / FAIL
+
+Design unchanged:
+PASS / FAIL
+
+Selected/unselected same height:
+PASS / FAIL
+
+Text vertically centered:
+PASS / FAIL
+
+Text clipping:
+0 / ...
+
+Files Changed:
+...
+
+Commit:
+...
+
+HEAD After:
+...
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+OTA source commit:
+...
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+FINAL:
+WP5 BUTTON HEIGHT 2.5X COMPLETE
