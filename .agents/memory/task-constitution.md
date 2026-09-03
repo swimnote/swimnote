@@ -37,6 +37,36 @@ description: 모든 작업지시에 항상 적용되는 고정 규칙. 사용자
 
 ---
 
+## ★ iOS OTA 채널 헌법 (2026-09-04 사용자 지정, 위반 절대 금지)
+
+### 규칙
+
+OTA 배포 전 **반드시 eas.json을 열어** 현재 활성 build profile의 `channel` 값을 확인한다.
+`--branch` 에는 그 `channel` 값을 그대로 사용한다.
+
+현재 활성 채널: **`production-v2`** (runtime 2.1.0, build profile `production-v2`)
+
+```bash
+# 현재 정답 명령
+node_modules/.bin/eas update --skip-bundler \
+  --input-dir /tmp/ios-ota-export \
+  --platform ios \
+  --branch production-v2 \
+  --message "..." \
+  --non-interactive \
+  --environment production
+```
+
+### 위반 사례 (두 번 반복 — 절대 재발 금지)
+
+1. (2026-08-17) --branch preview 사용 → 기기 미수신
+2. (2026-09-04) --branch production 사용 → production-v2 채널 기기 미수신
+
+**Why:** eas.json channel ≠ --branch 불일치 시 기기가 OTA를 수신하지 못함. 기억에 의존하면 틀림 — 반드시 eas.json을 매번 확인.
+**How to apply:** OTA 발행 직전 `cat eas.json | grep channel` 실행 → 해당 값을 --branch에 사용. 다른 값 사용 시 즉시 중단.
+
+---
+
 ## 보고서 형식 헌법 (2026-08-16 사용자 지정, 2026-08-16 GPT 호환 확장)
 
 ### 원칙

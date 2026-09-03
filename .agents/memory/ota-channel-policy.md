@@ -3,52 +3,48 @@ name: OTA 채널 정책 (영구)
 description: SWIMNOTE iOS OTA 배포 채널 영구 정책 — 반드시 준수
 ---
 
-# ★ PERMANENT OTA CHANNEL POLICY (2026-08-17 확정)
+# ★ PERMANENT OTA CHANNEL POLICY
 
 ## 핵심 규칙
 
-**iOS OTA는 항상 `--branch production` 에만 발행한다.**
+**빌드 프로파일의 `channel` 필드를 반드시 먼저 확인한다.**
 
-`--branch preview` 는 사용자가 명시적으로 "preview에 올려", "preview build에서 테스트" 라고 지시할 때만 사용.
+OTA 배포 전 eas.json을 확인하여 현재 활성 빌드 프로파일의 `channel` 값을 `--branch`에 그대로 사용한다.
 
-## 근거
+## 현재 활성 빌드
 
-TestFlight 현재 검증 빌드 (Build 246):
-- Profile: production
-- Channel: production
-- Runtime: 1.6.3
+- **Runtime 2.1.0** (AppStore 현재): build profile `production-v2`, channel = **`production-v2`**
+  → OTA 발행: `--branch production-v2`
 
-→ production channel OTA만 수신함. preview channel OTA는 수신 불가.
+- **Runtime 1.6.3** (구버전 TestFlight 246): build profile `production`, channel = `production`
+  → 현재 사용 안 함
 
-## OTA 발행 전 체크리스트 (항상)
+## OTA 발행 전 체크리스트
 
-```
-CURRENT_TESTFLIGHT_BUILD = 246
-CURRENT_CHANNEL          = production
-CURRENT_RUNTIME          = 1.6.3
-TARGET_BRANCH            = production
-```
+1. `eas.json` 열어서 활성 build profile의 `channel` 필드 확인
+2. `--branch <channel값>` 으로 발행
+3. 출력의 `Branch` 라인이 `channel` 값과 일치하는지 확인
 
-channel == TARGET_BRANCH mapping 확인 후 발행.
-
-## 명령 패턴
+## 명령 패턴 (runtime 2.1.0 기준)
 
 ```bash
-# iOS production OTA (기본값)
-EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 EXPO_NO_TELEMETRY=1 \
-EXPO_TOKEN=$(printenv EXPO_TOKEN) \
-node_modules/.bin/eas update --skip-bundler --input-dir /tmp/ios-new \
-  --branch production --platform ios --environment production \
-  --message "..." --non-interactive
+node_modules/.bin/eas update --skip-bundler \
+  --input-dir /tmp/ios-ota-export \
+  --platform ios \
+  --branch production-v2 \
+  --message "..." \
+  --non-interactive \
+  --environment production
 ```
 
 ## Android 정책
 
 각 WP마다 발행하지 않음. 최종 Android 검증 단계에서 누적 반영. 사용자 별도 요청 시만 예외.
 
-## 잘못된 배포 사례 (2026-08-17)
+## 잘못된 배포 사례 기록
 
-WP-CS-02R에서 "Preview OTA 우선" 스펙 문구를 "preview branch" 로 오해하여 --branch preview 발행. TestFlight Build 246이 production channel 수신이므로 OTA 미전달. 동일 번들을 --branch production 으로 재발행하여 수정.
+1. (2026-08-17) WP-CS-02R: --branch preview 잘못 사용 → TestFlight 미수신. --branch production 재발행으로 수정.
+2. (2026-09-04) X settings cleanup OTA: --branch production으로 발행 → runtime 2.1.0 기기(production-v2 채널) 미수신. --branch production-v2 재발행으로 수정.
 
-**Why:** TestFlight = preview channel 이 아님. 빌드 프로파일의 channel 필드를 확인할 것.
-**How to apply:** OTA 발행 전 `eas build:list --platform ios --limit 1`로 현재 빌드의 Channel 필드 확인.
+**Why:** eas.json의 build profile channel과 OTA --branch가 정확히 일치해야 기기가 수신함. 채널 이름이 바뀌면 기존 규칙이 통째로 틀릴 수 있으므로 항상 eas.json을 먼저 확인할 것.
+**How to apply:** OTA 발행 직전 eas.json `build.<profile>.channel` 확인 → 해당 값을 --branch에 사용.
