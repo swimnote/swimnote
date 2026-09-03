@@ -603,6 +603,10 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
           AND ms.status = 'completed'
         WHERE cd.is_deleted = false
           ${monthFilter}
+          AND cd.lesson_date >= (
+            SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+            FROM students WHERE id = '${studentIdSafe}' LIMIT 1
+          )
           AND (
             -- 일반 수업: 재원 이력이 있고, 해당 날짜 결석(absent)이 아닌 경우만 표시
             (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL
@@ -763,6 +767,10 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
             AND ms.assigned_date = cd.lesson_date
             AND ms.status = 'completed'
           WHERE cd.is_deleted = false
+            AND cd.lesson_date >= (
+              SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+              FROM students WHERE id = '${sIdSafe}' LIMIT 1
+            )
             AND (
               (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL)
               OR ms.id IS NOT NULL

@@ -1675,7 +1675,12 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
                csn.note_content AS student_note
         FROM class_diaries cd
         LEFT JOIN class_diary_student_notes csn ON csn.diary_id = cd.id AND csn.student_id = ${req.params.id} AND csn.is_deleted = false
-        WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+        WHERE cd.class_group_id = ${student.class_group_id}
+              AND cd.is_deleted = false
+              AND cd.lesson_date >= (
+                SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+                FROM students WHERE id = ${req.params.id} LIMIT 1
+              )
         ORDER BY cd.lesson_date DESC LIMIT 10
       `)).rows : [];
 
