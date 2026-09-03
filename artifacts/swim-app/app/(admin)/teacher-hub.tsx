@@ -142,7 +142,7 @@ export default function TeacherHubScreen() {
 
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8, alignItems: "center" }}>
         {TABS.map(t => (
           <Pressable key={t} onPress={() => setTab(t)}
             style={[s.chip, tab === t && { backgroundColor: themeColor, borderColor: themeColor }]}>
