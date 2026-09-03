@@ -1,0 +1,422 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.1.0 — P0 OTA DELIVERY FAILURE
+#
+# 현재 실기기 사실:
+#
+# - TestFlight 앱: 2.1.0
+# - WP5 OTA 게시 완료
+# - Runtime: 2.1.0
+# - Channel: production-v2
+# - OTA source SHA: 9e16eae9
+# - iOS Update ID:
+#   01a06800-eb77-7884-b8a1-6e4a903e0e14
+#
+# 그런데:
+#
+# 1. 앱 완전 종료 후 cold start 해도 OTA 수신 모달이 안 뜸
+# 2. WP5 화면도 그대로임
+#
+# 따라서 지금부터 WP5 수정 중단.
+# OTA DELIVERY PIPELINE 자체를 P0로 조사/복구한다.
+#
+# 추측 보고 금지.
+# ============================================================
+
+Product:
+SWIMNOTE 2.1.0
+
+WP5:
+NO TOUCH
+
+1.6.3:
+NO TOUCH
+
+Android:
+NO TOUCH
+
+============================================================
+1. 현재 설치된 2.1.0 TESTFLIGHT BUILD 정확히 확인
+============================================================
+
+현재 사용자가 설치한 2.1.0 build의 실제 EAS metadata 확인.
+
+반드시:
+
+Version:
+2.1.0
+
+Build number:
+...
+
+Build ID:
+...
+
+Build source Git SHA:
+...
+
+Runtime:
+...
+
+Channel:
+...
+
+Profile:
+...
+
+Updates URL:
+...
+
+expo-updates enabled:
+YES / NO
+
+embedded update ID:
+...
+
+============================================================
+2. OTA 01a06800 실제 EAS 상태 확인
+============================================================
+
+Update ID:
+
+01a06800-eb77-7884-b8a1-6e4a903e0e14
+
+확인:
+
+Runtime:
+...
+
+Channel:
+...
+
+Actual EAS branch:
+...
+
+Channel → Branch mapping:
+...
+
+Platform:
+iOS
+
+Source SHA:
+9e16eae9... YES / NO
+
+Update status:
+ACTIVE / ...
+
+현재 2.1.0 build가 이 update를 받을 자격:
+YES / NO
+
+"production-v2라는 이름이 같음"만으로 PASS 금지.
+
+실제 EAS channel → branch mapping을 확인.
+
+============================================================
+3. checkNativeVersion()가 OTA를 차단하는지 확인
+============================================================
+
+현재 cold-start 코드:
+
+const forced = await checkNativeVersion();
+if (!forced) await checkAndDownloadOta();
+
+이므로 실제 checkNativeVersion() 구현 전부 추적.
+
+반드시 확인:
+
+- 어떤 API/값과 version 비교하는지
+- 2.1.0에서 무엇을 반환하는지
+- true가 반환되면 왜 true인지
+- network/error fallback이 true인지 false인지
+- App Store production version과 TestFlight version 비교가
+  OTA를 잘못 차단하는지
+
+판정:
+
+checkNativeVersion() blocks OTA:
+YES / NO
+
+만약 YES면 이것이 1차 root cause.
+
+============================================================
+4. checkAndDownloadOta() 실제 실행 가능 여부
+============================================================
+
+다음 단계별로 실제 코드 경로 확인:
+
+A. function entered
+B. Updates.checkForUpdateAsync()
+C. isAvailable
+D. Updates.fetchUpdateAsync()
+E. fetch result
+F. otaDownloadedRef.current
+G. setOtaModalVisible(true)
+H. modal render
+I. Updates.reloadAsync()
+
+각 단계가 현재 production 2.1.0 binary에서 reachable인지 확인.
+
+============================================================
+5. 중요 — 현재 TESTFLIGHT BINARY에 MODAL CODE가 실제 포함됐는지
+============================================================
+
+HEAD에 코드가 있다는 것만 확인하지 말 것.
+
+현재 설치된 2.1.0 TestFlight build의
+BUILD SOURCE SHA를 기준으로 확인:
+
+OTA modal code included in embedded binary source:
+YES / NO
+
+checkAndDownloadOta included:
+YES / NO
+
+DEV_OTA_RESTART_MODAL logic included:
+YES / NO
+
+만약 binary source에 modal/check 코드가 없다면
+현재 앱은 OTA로 스스로 이 문제를 고칠 수 있는지 별도 판단.
+
+============================================================
+6. expo-updates configuration 확인
+============================================================
+
+실제 native build에 들어간 설정 확인:
+
+updates.enabled
+updates.url
+runtimeVersion
+channel
+request headers
+EXUpdatesURL
+EXUpdatesRuntimeVersion
+EAS Update request headers
+
+특히 iOS binary가 실제로 어떤 channel header를 보내는지 확인.
+
+현재 EAS publish channel과 불일치하면 root cause.
+
+============================================================
+7. 현재 EMBEDDED UPDATE vs 01a06800 비교
+============================================================
+
+현재 설치 build의 embedded update와
+01a06800의 creation/sequence를 비교.
+
+확인:
+
+Embedded update created:
+...
+
+01a06800 created:
+...
+
+Expo가 01a06800을 newer update로 판단하는가:
+YES / NO
+
+Updates.checkForUpdateAsync()가
+isAvailable=false가 될 수 있는 정확한 이유:
+...
+
+============================================================
+8. 원인 확정 후 바로 처리
+============================================================
+
+이번에는 원인 확정 후 중간보고 기다리지 말 것.
+
+CASE A
+JS 코드 문제이며 현재 2.1.0 binary가 OTA 수신 가능
+→ 최소 수정
+→ commit
+→ source SHA 확인
+→ iOS runtime 2.1.0 / exact channel로 OTA 즉시 게시
+
+CASE B
+EAS channel/branch mapping 문제
+→ 올바른 exact channel/branch로 OTA 다시 게시
+→ 코드 수정 금지
+
+CASE C
+현재 2.1.0 binary의 expo-updates/bootstrap/native config 문제라
+OTA 자체를 정상 수신할 수 없음
+→ OTA 반복 게시 금지
+→ NEW TESTFLIGHT BUILD REQUIRED = YES
+→ 정확한 이유 보고
+→ 임의 build는 하지 말고 STOP
+
+CASE D
+checkNativeVersion()이 OTA를 차단
+→ OTA check가 강제업데이트 검사 때문에 막히지 않도록
+  최소 수정
+→ commit
+→ 바로 2.1.0 iOS OTA 게시
+단 현재 binary가 그 OTA를 받을 수 있어야 함.
+
+============================================================
+9. 앞으로 OTA 모달의 목적
+============================================================
+
+2.x TestFlight/production-v2에서는:
+
+새 OTA available
+→ download
+→ "새 업데이트가 준비되었습니다" modal
+→ [앱 재시작]
+→ reloadAsync()
+
+이 흐름이 실제 실기기에서 동작해야 함.
+
+"코드상 존재":
+PASS 아님.
+
+============================================================
+10. 금지
+============================================================
+
+WP5 style 수정:
+NO
+
+다른 WP:
+NO
+
+Render:
+NO
+
+DB:
+NO
+
+Android OTA:
+NO
+
+1.6.3:
+NO TOUCH
+
+근거 없이 OTA 반복 publish:
+NO
+
+============================================================
+11. 최종 보고
+============================================================
+
+# SWIMNOTE 2.1.0 OTA P0 REPORT
+
+## INSTALLED BUILD
+
+Version:
+...
+
+Build:
+...
+
+Build ID:
+...
+
+Source SHA:
+...
+
+Runtime:
+...
+
+Channel:
+...
+
+Embedded Update:
+...
+
+## OTA
+
+Target Update:
+01a06800-eb77-7884-b8a1-6e4a903e0e14
+
+Runtime:
+...
+
+Channel:
+...
+
+Actual Branch:
+...
+
+Channel Mapping:
+...
+
+Eligible:
+YES / NO
+
+## NATIVE VERSION GATE
+
+checkNativeVersion result/path:
+...
+
+Blocks OTA:
+YES / NO
+
+Reason:
+...
+
+## UPDATE FLOW
+
+checkForUpdateAsync reachable:
+YES / NO
+
+Expected isAvailable:
+...
+
+fetch reachable:
+YES / NO
+
+modal reachable:
+YES / NO
+
+reload reachable:
+YES / NO
+
+## ROOT CAUSE
+
+Exact root cause:
+...
+
+## ACTION
+
+Code changed:
+YES / NO
+
+Commit:
+...
+
+New OTA:
+YES / NO
+
+If OTA published:
+
+Source SHA:
+...
+
+Runtime:
+2.1.0
+
+Channel:
+...
+
+iOS Update ID:
+...
+
+Source SHA match:
+YES / NO
+
+## BUILD DECISION
+
+New TestFlight build required:
+YES / NO
+
+Reason:
+...
+
+## FINAL
+
+OTA DELIVERY RESTORED — REAL DEVICE VERIFICATION PENDING
+
+또는
+
+OTA CANNOT SELF-RECOVER — NEW TESTFLIGHT BUILD REQUIRED
