@@ -31,7 +31,7 @@ export const MAINTENANCE_MODE = process.env.EXPO_PUBLIC_MAINTENANCE_MODE === "tr
 
 // ── 2.0.0 개발 전용: OTA 다운로드 완료 즉시 재시작 모달 표시 ─────────
 // 출시 전 false로 변경하거나 이 파일에서 DevOtaRestartModal 렌더를 제거.
-const DEV_OTA_RESTART_MODAL = (Constants.expoConfig?.version ?? "").startsWith("2.0");
+const DEV_OTA_RESTART_MODAL = (Constants.expoConfig?.version ?? "").startsWith("2.");
 
 // Expo Go 환경 여부 — Expo Go SDK 53부터 Android 원격 알림 미지원
 const IS_EXPO_GO = Constants.appOwnership === "expo";
