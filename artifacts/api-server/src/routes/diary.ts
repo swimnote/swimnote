@@ -306,9 +306,15 @@ router.get("/diaries/index",
   async (req: AuthRequest, res) => {
     try {
       const { userId, role } = req.user!;
-      const { student_name, day, time } = req.query as Record<string, string>;
+      const { student_name, day, time, student_id: studentIdParam } = req.query as Record<string, string>;
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      // student_id 유효성 검증 (pool 범위 확인)
+      if (studentIdParam) {
+        const chk = await db.execute(sql`SELECT 1 FROM students WHERE id = ${studentIdParam} AND swimming_pool_id = ${poolId} LIMIT 1`);
+        if ((chk.rows as any[]).length === 0) return apiErr(res, 404, "학생을 찾을 수 없습니다.");
+      }
 
       // 선생님은 자신이 담당하는 반만
       let classFilter = sql`true`;
@@ -324,11 +330,25 @@ router.get("/diaries/index",
       // 시간 필터 (앞 5자 비교: '14:00')
       const timeFilter = time ? sql`AND LEFT(cg.schedule_time, 5) = ${time}` : sql``;
 
-      // 학생 이름 필터
-      const nameSearchCommon = student_name
+      // 학생 이름 필터 (student_id가 있으면 name 검색 비활성)
+      const nameSearchCommon = (!studentIdParam && student_name)
         ? sql`AND EXISTS (SELECT 1 FROM students s WHERE s.class_group_id = cd.class_group_id AND s.status NOT IN ('withdrawn','deleted') AND s.name ILIKE ${"%" + student_name + "%"})`
         : sql``;
-      const nameSearchNote = student_name ? sql`AND s.name ILIKE ${"%" + student_name + "%"}` : sql``;
+      const nameSearchNote = (!studentIdParam && student_name) ? sql`AND s.name ILIKE ${"%" + student_name + "%"}` : sql``;
+
+      // student_id 필터 — authoritative ID 기반, name search 대체
+      // ① 공통 일지: 해당 학생이 속했던 반(class_group_id)으로 범위 제한
+      //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
+      const studentCommonFilter = studentIdParam
+        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+        : sql``;
+      // ② 학생 노트: cdn.student_id = :studentId 직접 필터
+      //    + 동일 cutoff 적용
+      const studentNoteFilter = studentIdParam
+        ? sql`AND cdn.student_id = ${studentIdParam}
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+        : sql``;
 
       // ① 반 공통 일지
       const commonRows = await db.execute(sql`
@@ -355,6 +375,7 @@ router.get("/diaries/index",
           ${dayFilter}
           ${timeFilter}
           ${nameSearchCommon}
+          ${studentCommonFilter}
         ORDER BY cd.lesson_date DESC, cd.created_at DESC
         LIMIT 200
       `);
@@ -387,6 +408,7 @@ router.get("/diaries/index",
           ${dayFilter}
           ${timeFilter}
           ${nameSearchNote}
+          ${studentNoteFilter}
         ORDER BY cd.lesson_date DESC, cdn.created_at DESC
         LIMIT 200
       `);

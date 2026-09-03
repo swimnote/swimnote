@@ -644,4 +644,35 @@ router.get(
   }
 );
 
+// ─── 11. 내 메시지 삭제 ───────────────────────────────────────────────
+// DELETE /messenger/messages/:id — 본인 메시지만 삭제 가능
+// 보안: DB에서 sender_id = userId 조건 재검증 (클라이언트 단 버튼 숨김만으론 불충분)
+router.delete(
+  "/messenger/messages/:id",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.user!;
+
+      const rows = await db.execute(sql`
+        SELECT id, sender_id FROM work_messages WHERE id = ${Number(id)} LIMIT 1
+      `);
+      const msg = rows.rows[0] as any;
+
+      if (!msg) return err(res, 404, "메시지를 찾을 수 없습니다.");
+      if (msg.sender_id !== userId) return err(res, 403, "본인이 보낸 메시지만 삭제할 수 있습니다.");
+
+      await db.execute(sql`
+        DELETE FROM work_messages WHERE id = ${Number(id)} AND sender_id = ${userId}
+      `);
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error("[messenger/messages DELETE]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
 export default router;

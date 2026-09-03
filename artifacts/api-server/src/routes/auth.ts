@@ -2842,6 +2842,23 @@ router.post("/v2/parent-register", async (req, res) => {
   let createdParentId: string | null = null;
 
   try {
+    // ── [KAKAO DETECTION] 동일 pool에 active Kakao 계정이 있으면 migration 트리거 ─
+    // phone+pool 범위 내 active Kakao parent 감지 → KAKAO_MIGRATION_REQUIRED
+    const [activeKakaoInPool] = (await db.execute(sql`
+      SELECT id, kakao_id, is_active FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${poolId}
+        AND phone != ''
+      LIMIT 1
+    `)).rows as any[];
+    if (activeKakaoInPool && activeKakaoInPool.kakao_id && activeKakaoInPool.is_active !== false) {
+      return res.status(409).json({
+        error: "이미 카카오로 가입된 전화번호입니다.",
+        error_code: "KAKAO_MIGRATION_REQUIRED",
+        old_parent_id: activeKakaoInPool.id,
+      });
+    }
+
     // ── 전화번호로 기존 계정 조회 (pool 무관) ──────────────────────────────
     // Multi-Pool: 같은 전화번호라도 다른 pool에는 가입 가능.
     // 같은 pool에 active membership이 있을 때만 중복 차단.
