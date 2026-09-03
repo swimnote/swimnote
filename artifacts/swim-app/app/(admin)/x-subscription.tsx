@@ -497,8 +497,11 @@ export default function XSubscriptionScreen() {
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
         <Pressable
           onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(admin)/x-mode-hub" as any);
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(admin)/x-mode-hub" as any);
+            }
           }}
           hitSlop={12}
           style={s.backBtn}

@@ -4,7 +4,7 @@
  */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import Colors from "@/constants/colors";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,14 +29,20 @@ interface Props {
 
 export default function XInfoDetailPage({ title, icon, tagline, sections, noteText, ctaLabel, onCta }: Props) {
   const insets = useSafeAreaInsets();
+  const { backTo } = useLocalSearchParams<{ backTo?: string }>();
   return (
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
         <Pressable
           onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(admin)/x-mode-hub" as any);
+            if (backTo) {
+              router.replace(("/(admin)/" + backTo) as any);
+            } else if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(admin)/x-mode-hub" as any);
+            }
           }}
           hitSlop={12}
           style={s.backBtn}

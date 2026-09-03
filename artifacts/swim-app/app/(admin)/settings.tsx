@@ -310,7 +310,7 @@ export default function SettingsScreen() {
             {/* X모드 상태 row */}
             <Pressable
               style={({ pressed }) => [r.row, { opacity: pressed ? 0.7 : 1 }]}
-              onPress={() => router.push("/(admin)/x-mode-hub" as any)}
+              onPress={() => router.push("/(admin)/x-mode-hub?backTo=settings" as any)}
             >
               <View style={[s.xIconWrap, { backgroundColor: X_LIGHT }]}>
                 <LucideIcon name="layers" size={16} color={X_ACCENT} />

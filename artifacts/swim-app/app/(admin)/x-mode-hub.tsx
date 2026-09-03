@@ -7,7 +7,7 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
 import { useMode } from "@/context/ModeContext";
 import { X as XT } from "@/constants/xTheme";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +31,7 @@ export default function XModeHubScreen() {
   const insets = useSafeAreaInsets();
   const { adminUser } = useAuth();
   const { mode, status } = useMode();
+  const { backTo } = useLocalSearchParams<{ backTo?: string }>();
   const isPoolAdmin = adminUser?.role === "pool_admin";
 
   function ModeStatusCard() {
@@ -79,8 +80,13 @@ export default function XModeHubScreen() {
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
         <Pressable
           onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(admin)/settings" as any);
+            if (backTo) {
+              router.replace(("/(admin)/" + backTo) as any);
+            } else if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(admin)/settings" as any);
+            }
           }}
           hitSlop={12}
           style={s.backBtn}
@@ -110,7 +116,7 @@ export default function XModeHubScreen() {
                   idx < INFO_ITEMS.length - 1 && s.rowBorder,
                   { opacity: pressed ? 0.7 : 1 },
                 ]}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => router.push((item.route + "?backTo=x-mode-hub") as any)}
               >
                 <View style={s.rowIcon}>
                   <LucideIcon name={item.icon as any} size={18} color={X_ACCENT} />
