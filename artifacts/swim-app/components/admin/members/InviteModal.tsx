@@ -24,7 +24,7 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
   const addRecord = useInviteRecordStore(s => s.addRecord);
 
   const appUrl = Platform.OS === "ios"
-    ? "https://apps.apple.com/app/id6738888898"
+    ? "https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360"
     : "https://play.google.com/store/apps/details?id=com.swimnote.app";
   const msg = buildInviteMessage({ poolName, studentName: student.name, appUrl });
 
