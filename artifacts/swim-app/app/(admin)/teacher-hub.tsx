@@ -249,8 +249,8 @@ const s = StyleSheet.create({
   statsCard: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "space-around", backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 14, padding: 16, marginBottom: 6, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   statVal:   { fontSize: 22, fontWeight: "700", color: C.text },
   statLabel: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  chip:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0 },
-  chipTxt:   { fontSize: 13, fontWeight: "600", color: C.textSecondary, lineHeight: 18 }, // WP5 · intrinsic wrap · 0904
+  chip:      { height: 34, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0 },
+  chipTxt:   { fontSize: 13, fontWeight: "600", color: C.textSecondary, lineHeight: 18 }, // WP5 · h34+center confirmed · 0904
   card:      { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:       { flexDirection: "row", alignItems: "center" },
   name:      { fontSize: 14, fontWeight: "700", color: C.text },
