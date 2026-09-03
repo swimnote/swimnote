@@ -1,0 +1,260 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 — WP6/WP7 COMPLETION CORRECTION
+
+Branch:
+release/v2.0.0
+
+현재 보고서에서 완료 처리하면 안 되는 2건만 수정한다.
+다른 기능 수정 금지.
+
+============================================================
+A. WP6 — 메신저 sender role 표시 수정
+============================================================
+
+현재 e48b5701 보고서 문제:
+
+sender_role이 없다는 이유로
+모든 sender를:
+
+"{sender_name} 선생님"
+
+으로 표시했다고 보고함.
+
+이것은 요구사항 위반.
+
+최종 규칙:
+
+Teacher sender:
+"{이름} 선생님"
+
+Admin / pool_admin sender:
+현재 제품에서 사용하는 관리자/원장 역할명으로 표시
+또는 최소한 "{이름}"으로 표시.
+
+절대:
+관리자에게 "선생님" 하드코딩 금지.
+
+현재 work_messages/API에서 sender role을 얻을 수 있는지 확인.
+
+1. 이미 users/teacher/account join으로 role 획득 가능
+   → 기존 query에 안전하게 포함
+
+2. 현재 응답에 role이 없지만 sender_id로 users role 조회 가능
+   → 최소 server response 확장
+
+3. 별도 role을 추가할 필요 없이 현재 conversation member 정보로
+   정확히 판별 가능
+   → existing source 재사용
+
+추측 금지.
+
+적용 위치:
+- 일반 텍스트 메시지
+- directed message
+- MemberCardBubble
+- AttachFileBubble
+등 sender name을 표시하는 모든 공통 경로.
+
+테스트:
+
+W6C-01 Teacher → "김수연 선생님"
+W6C-02 Admin → "서경민 선생님"으로 잘못 표시되지 않음
+W6C-03 sender identity 식별 가능
+W6C-04 mention chip 0 유지
+W6C-05 own delete 유지
+W6C-06 attachment 유지
+W6C-07 admin/teacher common messenger regression 0
+
+============================================================
+B. WP7 — x-setup dynamic previous-page fallback 수정
+============================================================
+
+현재 fda30b5c 문제:
+
+x-setup.tsx 진입 가능 경로가 최소:
+
+1. Settings → X Setup
+2. X Mode Hub → X Setup
+3. X Mode Hub → Subscription → X Setup
+
+인데 stack이 없을 때 fallback을
+무조건 Settings로 보내고 있음.
+
+이것은:
+
+BACK = 바로 직전 단계
+
+정책을 완전히 보장하지 못함.
+
+최종 정책:
+
+x-setup 진입 시
+호출하는 parent가 명시적으로 backTo를 전달.
+
+예:
+
+Settings → X Setup
+backTo=settings
+
+X Mode Hub → X Setup
+backTo=x-mode-hub
+
+Subscription → X Setup
+backTo=x-subscription
+
+x-setup Back:
+
+1. 정상 stack이 있고 그것이 신뢰 가능한 경우
+   → previous screen
+
+2. stack이 없거나 불안정
+   → 전달받은 backTo logical parent
+
+3. backTo도 없을 경우에만
+   → settings 최후 fallback
+
+중요:
+하위 페이지 자체가 parent를 추측하지 말고
+진입 route에서 backTo를 정확히 전달하는 방식을 우선 사용.
+
+동일 원칙으로
+x-subscription / XInfoDetailPage도
+진입 parent와 fallback이 정확히 일치하는지 재확인.
+
+테스트:
+
+W7C-01 Settings → X Setup → Back = Settings
+
+W7C-02
+Settings → X Mode → X Setup
+→ Back = X Mode
+
+W7C-03
+Settings → X Mode → Subscription → X Setup
+→ Back = Subscription
+
+W7C-04
+위 W7C-03에서 다시 Back
+→ X Mode
+
+W7C-05
+X Info pages → Back = X Mode
+
+W7C-06
+stack unavailable 상태에서도 동일 logical parent
+
+W7C-07
+Back → Admin Home 발생 0
+
+W7C-08
+Home icon → Admin Home 유지
+
+============================================================
+범위 제한
+============================================================
+
+새 기능:
+NO
+
+UI redesign:
+NO
+
+DB:
+NO
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+COMMIT
+============================================================
+
+필요하면 두 개로 분리:
+
+fix(v2.0): show messenger sender role correctly
+
+fix(v2.0): preserve logical parent across x settings navigation
+
+============================================================
+완료보고
+============================================================
+
+# WP6/WP7 CORRECTION REPORT
+
+## WP6
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Sender role source:
+...
+
+Teacher display:
+...
+
+Admin display:
+...
+
+Hardcoded "선생님" for admin:
+0
+
+Regression:
+0
+
+## WP7
+
+X Setup entry routes:
+...
+
+Each backTo:
+...
+
+Settings → X Setup → Back:
+...
+
+X Mode → X Setup → Back:
+...
+
+X Mode → Subscription → X Setup → Back:
+...
+
+Stack unavailable fallback:
+...
+
+Back → Admin Home:
+0
+
+Home icon → Admin Home:
+PASS
+
+## DEPLOY
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+WP6 CORRECTION PASS / FAIL
+WP7 CORRECTION PASS / FAIL
