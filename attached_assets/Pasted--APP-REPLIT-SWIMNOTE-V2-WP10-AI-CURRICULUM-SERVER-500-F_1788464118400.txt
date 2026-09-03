@@ -1,0 +1,1146 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP10 — AI CURRICULUM
+# SERVER 500 FIX + DATA PATH VALIDATION + MONTHLY KPI CONNECTION
+# IMPLEMENTATION
+
+============================================================
+절대 작업 기준
+============================================================
+
+PROJECT:
+SWIMNOTE
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+CURRENT DEVELOPMENT LINE:
+release/v2.0.0 의 최신 V2 HEAD
+
+STEP 0 latest confirmed commit:
+3fea9f6a
+
+반드시 현재 최신 HEAD에서 작업.
+
+3fea9f6a가 현재 lineage의 ancestor인지 확인.
+
+브랜치 이름이 release/v2.0.0이라는 이유로
+과거 코드라고 판단하거나
+다른 branch/commit으로 이동하지 말 것.
+
+DO NOT:
+- checkout old commit
+- revert
+- reset to previous V2 state
+- touch 1.6.3
+
+1.6.3:
+NO TOUCH
+
+============================================================
+500개 수영장 / 서버 경로 절대 원칙
+============================================================
+
+이번 기능은 향후 최소 500개 수영장이 사용한다.
+
+두 가지를 동시에 만족해야 한다.
+
+A.
+각 수영장 데이터 완전 격리
+
+B.
+향후 super_admin에서
+500개 수영장 전체 데이터를
+한 경로로 깔끔하게 집계 가능
+
+절대 금지:
+
+- client가 보낸 swimming_pool_id를 source of truth로 사용
+- 전체 데이터를 가져와 APP에서 pool filter
+- pool scope 없는 SQL
+- 같은 KPI에 새 중복 데이터 경로 생성
+- 새 metric framework 임의 생성
+- 새 event table 임의 생성
+- localhost / Replit domain 하드코딩
+- 환경별 absolute URL 저장
+
+pool source of truth:
+
+authenticated JWT
+→ server user context
+→ swimming_pool_id
+→ SQL WHERE pool scope
+
+Cross-pool 1건이라도 노출되면 P0 FAIL.
+
+============================================================
+STEP 0 foundation 유지
+============================================================
+
+이미 생성 완료:
+
+x_monthly_operational_snapshots
+
+UNIQUE:
+(swimming_pool_id, year, month)
+
+super admin index:
+(year, month)
+
+이번 WP에서
+이 구조를 다시 설계하거나
+다른 monthly KPI 테이블을 만들지 말 것.
+
+새 migration:
+기본적으로 NO.
+
+필요성이 실제 코드에서 새로 발견되면
+실행하지 말고 보고만 할 것.
+
+============================================================
+WP10 현재 문제
+============================================================
+
+관리자:
+
+AI 커리큘럼
+
+화면에서
+
+상단 커리큘럼 통계는 표시되지만
+학생 검색/학생 적용 현황 영역이
+서버 오류를 발생시킨다.
+
+이전에 확정된 원인:
+
+GET
+/api/admin/curriculum/students
+
+또는 실제 현재 동일 역할 route에서
+
+student_class_history alias:
+sch
+
+에 존재하지 않는:
+
+sch.teacher_id
+
+를 조회하고 있음.
+
+실제 조사에서는
+class_groups의 교사 FK가:
+
+teacher_user_id
+
+인 것으로 확인됨.
+
+하지만 이전 보고서를 그대로 믿고
+무조건 치환하지 말 것.
+
+CURRENT HEAD의 실제 schema와 JOIN을
+다시 확인하고 수정.
+
+============================================================
+1. 실제 route 재확인
+============================================================
+
+현재 APP:
+
+app/(admin)/curriculum-hub.tsx
+
+에서 실제 호출하는:
+
+- summary API
+- students API
+
+확인.
+
+SERVER에서 실제 route 확인.
+
+보고서에:
+
+APP route:
+SERVER summary route:
+SERVER students route:
+
+정확히 기록.
+
+비슷한 legacy route가 여러 개 있으면
+실제 호출 경로만 수정.
+
+중복 route 새로 생성 금지.
+
+============================================================
+2. teacher source 정확성 확인
+============================================================
+
+반드시 현재 schema 확인:
+
+student_class_history
+class_groups
+users
+
+확인할 것:
+
+student_class_history에 teacher_id:
+YES / NO
+
+class_groups에 teacher_user_id:
+YES / NO
+
+teacher_user_id FK 대상:
+...
+
+현재 query에서
+class_groups가 이미 JOIN되어 있는지:
+YES / NO
+
+학생 목록 UI에서 teacher name이
+실제로 필요한지:
+YES / NO
+
+============================================================
+3. 최소 서버 수정
+============================================================
+
+현재 조사와 schema가 일치하면:
+
+sch.teacher_id
+
+참조를 제거하고
+
+cg.teacher_user_id
+
+를 사용.
+
+예상 형태:
+
+SELECT:
+cg.teacher_user_id AS teacher_id
+
+JOIN:
+LEFT JOIN users u
+ON u.id = cg.teacher_user_id
+
+단 현재 schema에서 정확한 컬럼명이 다르면
+실제 schema를 source of truth로 사용.
+
+없는 컬럼을 추측해서 추가 금지.
+
+migration으로 teacher_id 컬럼 새로 만들기 금지.
+
+============================================================
+4. 학생 커리큘럼 데이터 경로 검증
+============================================================
+
+학생 리스트 한 행의 데이터가
+어디서 오는지 정확히 확인.
+
+필수:
+
+student
+→ current class/history
+→ curriculum assignment
+→ curriculum version
+→ current curriculum level/status
+
+각 source table 기록.
+
+특히:
+
+student_curriculum_assignments
+또는 현재 실제 assignment table
+
+x_curriculum_profiles
+x_curriculum_levels
+curriculum_versions
+curriculum_items
+
+현재 실제 사용하는 테이블만 보고.
+
+없는 구조를 새로 만들지 말 것.
+
+============================================================
+5. 학생 리스트 최종 표시
+============================================================
+
+기존 APP UI 구조를 최대한 유지.
+
+최소 표시가 정상이어야 함:
+
+- 학생명
+- 현재 반
+- 담당 선생님 (현재 화면에 원래 존재할 경우)
+- 커리큘럼 배정 여부
+- 배정 커리큘럼/레벨 정보
+- 미배정 상태
+
+없는 정보를 추측해서 표시 금지.
+
+============================================================
+6. LOADING / EMPTY / ERROR 분리
+============================================================
+
+현재 서버 오류가 해결된 뒤에도
+APP 상태 표현이 잘못되어 있으면
+최소 수정.
+
+반드시 구분:
+
+LOADING:
+조회 중
+
+EMPTY:
+정상 응답이지만 대상 학생 0명
+
+ERROR:
+API 실패
+
+서버 ERROR와 EMPTY를 동시에 표시 금지.
+
+예:
+
+"서버 오류"
++
+"학생이 없습니다"
+
+동시 표시 금지.
+
+============================================================
+7. 상단 커리큘럼 통계 검증
+============================================================
+
+현재 정상 표시된다고 보고된:
+
+- 활성 커리큘럼
+- 커리큘럼 항목 수
+- 배정 학생 수
+- 미배정 학생 수
+- 버전
+
+각 숫자의 actual source 확인.
+
+학생 목록과 상단 summary가
+서로 다른 기준으로 학생 수를 계산해
+숫자가 어긋나지 않는지 확인.
+
+같은 의미의 KPI는
+가능하면 같은 source/조건을 사용.
+
+============================================================
+8. 학부모 AI 커리큘럼 검색 경로
+============================================================
+
+이 부분 매우 중요.
+
+현재 과거 조사에서는:
+
+event_logs
+
+category='AI'
+
+metadata feature:
+parent_curriculum_search
+
+또는 유사 feature
+
+가 있다고 보고됐음.
+
+하지만 최종 구현 전에
+실제 CURRENT HEAD에서
+검색 이벤트를 WRITE하는 코드부터 확인.
+
+다음 질문 모두 답할 것:
+
+A.
+학부모 AI 커리큘럼 검색이 성공할 때
+실제로 event_logs row가 INSERT 되는가?
+
+B.
+정확한 category:
+...
+
+C.
+정확한 feature/metadata:
+...
+
+D.
+swimming_pool_id:
+정확히 기록되는가?
+
+E.
+parent/user identifier:
+기록되는가?
+
+F.
+동일 요청 retry 시
+중복 event 가능성이 있는가?
+
+G.
+현재 summary의 검색 횟수는
+바로 이 동일 event를 세는가?
+
+============================================================
+9. 검색 KPI source of truth
+============================================================
+
+실제 event 기록이 이미 정상이라면:
+
+RAW SOURCE:
+기존 event_logs
+
+MONTHLY SOURCE:
+x_monthly_operational_snapshots
+
+SUPER ADMIN:
+x_monthly_operational_snapshots
+
+으로 고정.
+
+새 x_metric_events:
+DO NOT CREATE
+
+새 search-log table:
+DO NOT CREATE
+
+같은 event를 두 테이블에
+중복 기록하는 구조 만들지 말 것.
+
+============================================================
+10. 월별 KPI 연결 방식
+============================================================
+
+이번 WP에서
+parent curriculum search의
+원본 이벤트 경로가 확실히 존재하는 경우에만
+월별 snapshot 연결을 구현.
+
+핵심 KPI:
+
+parent_curriculum_search_count
+parent_curriculum_user_count
+
+단 다음 원칙 준수.
+
+snapshot은 raw truth를 대체하지 않는다.
+
+권장:
+
+raw event_logs를 기준으로
+현재 pool + KST year/month의 값을
+재계산해서 UPSERT.
+
+예:
+
+COUNT(*)
+COUNT(DISTINCT parent/user identifier)
+
+→
+
+x_monthly_operational_snapshots
+
+ON CONFLICT
+(swimming_pool_id, year, month)
+DO UPDATE
+
+절대:
+
+snapshot_value = snapshot_value + 1
+
+만 믿는 구조로 만들지 말 것.
+
+retry / 중복 request / server restart 시
+숫자가 틀어지면 안 됨.
+
+============================================================
+11. KPI 갱신 타이밍
+============================================================
+
+현재 서버 구조를 보고
+가장 단순한 한 경로를 선택.
+
+후보:
+
+A.
+성공한 curriculum search event 기록 후
+해당 pool/month snapshot recount
+
+B.
+기존 summary/monthly aggregation helper에서
+recount
+
+C.
+공통 snapshot refresh helper
+
+현재 구조가 이미 깔끔하면
+불필요한 service framework를 새로 만들지 말 것.
+
+목표:
+
+raw event
+→ one monthly snapshot path
+
+경로 한 개.
+
+============================================================
+12. parent_curriculum_user_count
+============================================================
+
+unique parent count를 만들려면
+raw event에 안정적인 user/parent id가 있어야 함.
+
+정확한 식별자가 이미 존재하면 구현.
+
+없다면:
+
+추측 금지
+phone/name 기반 dedupe 금지
+
+이번 WP에서는
+NULL/미집계 상태 유지하고
+"raw event에 stable parent identifier 없음"
+이라고 보고.
+
+억지로 숫자 만들지 말 것.
+
+============================================================
+13. assigned / unassigned / version snapshot
+============================================================
+
+다음은 transaction event가 아니라
+월 시점 snapshot 성격:
+
+assigned_student_count
+unassigned_student_count
+curriculum_version_id
+
+이번 WP에서
+별도 월말 scheduler를 새로 만들지 말 것.
+
+현재 월 운영현황에서 live 조회는 정상화.
+
+월 snapshot finalize 정책은
+WP11/common monthly aggregation에서 연결 예정.
+
+단 source와 정확한 계산식은
+이번 보고서에 확정.
+
+============================================================
+14. KST 월 경계
+============================================================
+
+현재 월 계산은
+Asia/Seoul 기준.
+
+created_at TIMESTAMPTZ:
+
+KST 변환 후
+month boundary 계산.
+
+lesson_date 같은 ISO TEXT가 나오면:
+
+LEFT(...)
+금지.
+
+반드시 range:
+
+>= YYYY-MM-01
+< NEXT-MONTH-01
+
+방식.
+
+============================================================
+15. 서버 오류 방어
+============================================================
+
+이번 students API에서
+데이터 하나가 NULL이라는 이유로
+전체 500이 나지 않게 확인.
+
+특히:
+
+- teacher 없는 반
+- assignment 없는 학생
+- curriculum version 없는 학생
+- archived curriculum
+- left_at/null
+- empty search query
+- page boundary
+- no X curriculum
+
+각 경우 response contract 확인.
+
+정상적으로 없는 데이터:
+NULL / empty
+
+SQL exception:
+ERROR
+
+구분.
+
+============================================================
+16. pagination
+============================================================
+
+학생 수가 많아질 수 있으므로
+기존 pagination 유지.
+
+절대 전체 학생을 한 번에
+무제한 반환하도록 변경 금지.
+
+확인:
+
+page
+limit
+q
+class filter
+teacher filter
+
+기존 contract 깨지지 않게 유지.
+
+============================================================
+17. SQL 성능
+============================================================
+
+현재 query의:
+
+- pool condition
+- joins
+- pagination
+- assignment lookup
+
+확인.
+
+500개 pool 전체 데이터가
+한 테이블에 쌓여도
+각 pool 조회는 pool scope에서 시작해야 함.
+
+불필요한 index를 이번에 즉시 추가하지 말 것.
+
+실제 EXPLAIN 또는 현재 index 검토 후
+정말 필요한 index가 있으면:
+
+PROPOSE ONLY
+
+migration 실행 금지.
+
+============================================================
+18. super admin 미래 경로
+============================================================
+
+이번 WP에서
+super_admin 화면/API 구현 금지.
+
+단 curriculum KPI가 향후:
+
+x_monthly_operational_snapshots
+
+에서:
+
+SUM(parent_curriculum_search_count)
+SUM(parent_curriculum_user_count)
+
+형태로
+전체 500 pool 단일 집계 가능한 상태인지 확인.
+
+N+1:
+NO
+
+pool API loop:
+NO
+
+이어야 함.
+
+============================================================
+19. X Global AI 일지 템플릿
+============================================================
+
+현재 커리큘럼 화면 하단의
+X Global AI 일지 템플릿 현황은
+기존 설계상 유지 대상.
+
+이번 WP에서
+임의 삭제/이동 금지.
+
+단 서버오류 수정과 무관한
+새 UI 재설계 금지.
+
+============================================================
+20. APP 변경 판단
+============================================================
+
+SERVER fix만으로
+현재 APP 화면이 완전히 정상이라면:
+
+APP CHANGE:
+NO
+
+OTA:
+NO
+
+하지만:
+
+- ERROR/EMPTY 동시 표시
+- 학생 데이터 contract 대응
+- 실제 UI bug
+
+때문에 APP 수정이 필요하면
+최소 수정 허용.
+
+APP 수정 발생 시 현재 사용자 고정 규칙:
+
+TEST
+→ COMMIT
+→ IMMEDIATE iOS OTA
+→ SOURCE SHA VERIFY
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+NOT PUBLISHED
+
+반드시:
+
+APP Fix Commit SHA
+=
+OTA Export Source SHA
+
+============================================================
+21. SERVER 배포 규칙
+============================================================
+
+SERVER:
+
+V2 latest HEAD
+→ 수정
+→ test
+→ commit
+→ push
+
+Render production deploy:
+NO
+
+사용자가 직접 수동 배포.
+
+Replit이 Render deploy 하지 말 것.
+
+Development server에서
+수정 검증 가능.
+
+============================================================
+22. DB 규칙
+============================================================
+
+STEP 0 development migration:
+이미 완료.
+
+이번 WP10:
+
+새 migration:
+NO 예상
+
+Production DB:
+NO CHANGE
+
+DROP:
+NO
+
+DELETE:
+NO
+
+RENAME:
+NO
+
+============================================================
+23. 회귀 금지
+============================================================
+
+절대 깨뜨리지 말 것:
+
+- X 설정 cleanup
+- 커리큘럼 세팅
+- DOCX upload
+- curriculum status
+- X Mode Hub
+- PC Dashboard Activation
+- subscription
+- WP7 navigation
+- existing parent curriculum AI feature
+- existing X Global templates
+
+============================================================
+24. 테스트
+============================================================
+
+최소 다음 시나리오 테스트.
+
+A.
+X pool + students 있음
+→ students list 200
+
+B.
+student assignment 있음
+→ 배정 정보 정상
+
+C.
+assignment 없음
+→ 미배정 정상
+
+D.
+teacher 있음
+→ teacher 정상
+
+E.
+teacher 없음/null
+→ API 500 아님
+
+F.
+검색 결과 0
+→ EMPTY
+
+G.
+잘못된 server query 없음
+→ 500 없음
+
+H.
+Pool A query
+→ Pool B 학생 0 노출
+
+I.
+summary assigned/unassigned
+vs student list
+기준 일치
+
+J.
+parent curriculum search 1회 후
+raw event 기록 검증
+
+K.
+monthly snapshot 구현한 경우
+해당 pool/month 값 검증
+
+L.
+같은 snapshot recount 재실행
+→ 동일 값
+
+============================================================
+25. 완료보고 형식
+============================================================
+
+# WP10 AI CURRICULUM IMPLEMENTATION REPORT
+
+Current APP Branch:
+...
+
+Current APP HEAD Before:
+...
+
+Current SERVER Branch:
+...
+
+Current SERVER HEAD Before:
+...
+
+STEP 0 commit 3fea9f6a ancestor:
+YES / NO
+
+1.6.3 touched:
+NO
+
+============================================================
+ACTUAL ROUTES
+============================================================
+
+APP route:
+...
+
+Summary API:
+...
+
+Students API:
+...
+
+============================================================
+ROOT CAUSE
+============================================================
+
+student_class_history.teacher_id exists:
+YES / NO
+
+class_groups.teacher_user_id exists:
+YES / NO
+
+Actual correct teacher FK:
+...
+
+Exact broken SQL:
+...
+
+Exact fix:
+...
+
+============================================================
+FILES CHANGED
+============================================================
+
+SERVER:
+...
+
+APP:
+...
+
+DB:
+...
+
+============================================================
+STUDENT DATA PATH
+============================================================
+
+Student source:
+...
+
+Class source:
+...
+
+Teacher source:
+...
+
+Assignment source:
+...
+
+Curriculum version source:
+...
+
+Curriculum level source:
+...
+
+============================================================
+SERVER ERROR TEST
+============================================================
+
+Students API:
+PASS / FAIL
+
+Teacher null:
+PASS / FAIL
+
+Assignment null:
+PASS / FAIL
+
+Empty result:
+PASS / FAIL
+
+Pagination:
+PASS / FAIL
+
+Pool isolation:
+PASS / FAIL
+
+Cross-pool:
+0 / ...
+
+============================================================
+SUMMARY CONSISTENCY
+============================================================
+
+Active curriculum:
+PASS / FAIL
+
+Item count:
+PASS / FAIL
+
+Assigned count:
+PASS / FAIL
+
+Unassigned count:
+PASS / FAIL
+
+Version:
+PASS / FAIL
+
+Students list consistent:
+PASS / FAIL
+
+============================================================
+PARENT CURRICULUM SEARCH RAW PATH
+============================================================
+
+Event write exists:
+YES / NO
+
+Table:
+...
+
+Category:
+...
+
+Feature:
+...
+
+Pool ID recorded:
+YES / NO
+
+Stable parent/user ID recorded:
+YES / NO
+
+Duplicate event risk:
+...
+
+Current summary uses same source:
+YES / NO
+
+============================================================
+MONTHLY KPI
+============================================================
+
+parent_curriculum_search_count:
+CONNECTED / DEFERRED
+
+parent_curriculum_user_count:
+CONNECTED / DEFERRED
+
+Raw source:
+...
+
+Monthly source:
+x_monthly_operational_snapshots
+
+Update strategy:
+...
+
+Idempotent recount:
+PASS / FAIL / NOT IMPLEMENTED
+
+Super-admin future aggregation:
+PASS / FAIL
+
+N+1:
+NO / YES
+
+============================================================
+INDEX REVIEW
+============================================================
+
+Current indexes sufficient:
+YES / NO
+
+Proposed optional indexes:
+...
+
+Migration executed:
+NO
+
+============================================================
+APP UI
+============================================================
+
+APP modified:
+YES / NO
+
+LOADING:
+PASS / N/A
+
+EMPTY:
+PASS / N/A
+
+ERROR:
+PASS / N/A
+
+ERROR + EMPTY simultaneous:
+NO / YES
+
+============================================================
+SERVER
+============================================================
+
+Server tests:
+PASS / FAIL
+
+Server boot:
+PASS / FAIL
+
+Render production deployed:
+NO
+
+============================================================
+COMMIT
+============================================================
+
+SERVER commit:
+...
+
+APP commit:
+...
+
+Pushed:
+YES / NO
+
+Current final HEAD:
+...
+
+============================================================
+OTA
+============================================================
+
+APP changed:
+YES / NO
+
+If YES:
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+APP Fix Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+If APP changed NO:
+iOS OTA:
+NOT REQUIRED
+
+============================================================
+FINAL
+============================================================
+
+WP10 server 500:
+FIXED / NOT FIXED
+
+Student curriculum list:
+PASS / FAIL
+
+Monthly KPI path:
+READY / NEEDS FOLLOW-UP
+
+Super admin future path:
+PASS / FAIL
+
+FINAL STATUS:
+WP10 COMPLETE / BLOCKED
