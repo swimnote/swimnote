@@ -1,0 +1,544 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE — WP4 APP SOURCE RECHECK + FIX IF ACTUALLY NEEDED
+#
+# 중요:
+# 직전 보고는 deploy-photo-clone SERVER branch에서
+# WP4 APP 파일을 검사한 것으로 보인다.
+#
+# WP4 OTA 기준 소스는 SERVER branch가 아니라
+# APP working branch:
+#
+# release/v2.0.0
+#
+# 이다.
+#
+# 따라서 deploy-photo-clone의 InviteModal.tsx 값을 근거로
+# APP WP4를 FAIL 판정하지 말 것.
+#
+# 이번 작업:
+# 1) APP branch로 복귀
+# 2) WP4 commit/실제 source 확인
+# 3) APP source가 틀렸을 때만 2개 URL 수정
+# 4) WP4 verify marker 추가
+# 5) iOS 2.1.0 OTA publish
+#
+# ============================================================
+
+TARGET APP:
+
+Version:
+2.1.0
+
+Build:
+255
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+APP BRANCH:
+release/v2.0.0
+
+WP4 ORIGINAL COMMIT:
+3d810c5c
+
+CORRECT APP STORE ID:
+6761360360
+
+CORRECT URL TOKEN:
+id6761360360
+
+WRONG TOKEN:
+id6738888898
+
+============================================================
+1. SERVER BRANCH에서 APP 판정 금지
+============================================================
+
+현재 branch 먼저 출력:
+
+git branch --show-current
+
+만약:
+
+deploy-photo-clone
+
+이면 APP 검증을 그 상태에서 계속하지 말 것.
+
+git fetch origin
+
+후 APP working branch:
+
+release/v2.0.0
+
+최신 상태로 이동.
+
+force/reset/destructive operation 금지.
+
+uncommitted work가 있으면 임의 삭제 금지하고 STOP.
+
+============================================================
+2. APP CURRENT HEAD 확인
+============================================================
+
+APP branch에서:
+
+git rev-parse HEAD
+git status
+
+출력.
+
+그리고:
+
+git merge-base --is-ancestor 3d810c5c HEAD
+
+확인.
+
+Expected:
+YES
+
+NO이면 STOP 후 lineage 문제 보고.
+
+============================================================
+3. APP SOURCE에서 두 파일 다시 확인
+============================================================
+
+반드시 release/v2.0.0 CURRENT HEAD에서 검사:
+
+InviteModal.tsx
+
+growth-report.tsx
+
+그리고 전체 APP source에서 검색:
+
+id6738888898
+
+id6761360360
+
+각 occurrence를 전부 보고.
+
+============================================================
+4. 판정 RULE
+============================================================
+
+CASE A
+
+release/v2.0.0 APP source에서:
+
+InviteModal.tsx = id6761360360
+growth-report.tsx = id6761360360
+
+이면:
+
+WP4 URL discrepancy = 0
+
+기능 수정:
+NO
+
+deploy-photo-clone의 잘못된 APP copy는
+이번 OTA와 무관하므로 수정하지 말 것.
+
+------------------------------------------------------------
+
+CASE B
+
+release/v2.0.0 APP source에서도:
+
+InviteModal.tsx 또는
+growth-report.tsx
+
+에 id6738888898가 남아 있으면:
+
+그 파일의 App Store URL token만
+
+id6738888898
+→
+id6761360360
+
+수정.
+
+다른 코드 변경 금지.
+
+============================================================
+5. WP4 나머지 기능 재확인
+============================================================
+
+APP CURRENT HEAD 기준:
+
+Invite modal:
+존재
+
+SMS:
+정상 구조
+
+Copy:
+정상 구조
+
+Share:
+정상 구조
+
+Kakao:
+Kakao SDK/OAuth 없음
+
+허용:
+clipboard + kakaotalk://
+
+Auto-link:
+phone normalized + child_name normalized exact match
+
+exact match:
+즉시 연결
+
+mismatch:
+pending
+
+Normal/X:
+shared InviteModal
+
+확인.
+
+============================================================
+6. WP4 VERIFY MARKER 추가
+============================================================
+
+WP4 source가 요구사항과 일치한 뒤에만:
+
+학부모 초대 모달 하단 또는
+사용 방해 없는 작은 위치에:
+
+WP4 VERIFY · PARENT-INVITE · 0903
+
+표시.
+
+기능 없음.
+버튼 아님.
+API 없음.
+
+============================================================
+7. COMMIT
+============================================================
+
+CASE A:
+기능 변경 없이 marker만 commit.
+
+권장:
+
+test(wp4): add parent invite real-device verification marker
+
+CASE B:
+URL correction + marker를 하나의 WP4 검증 commit으로 commit.
+
+권장:
+
+fix(wp4): correct parent invite app store links and add verification marker
+
+반드시 diff 보고.
+
+WP4 외 파일 변경:
+0
+
+============================================================
+8. OTA PIPELINE 확인
+============================================================
+
+반드시 실제 확인:
+
+production-v2 channel
+→ production-v2 branch
+
+Version:
+2.1.0
+
+Runtime:
+2.1.0
+
+Platform:
+ios
+
+하나라도 다르면 STOP.
+
+============================================================
+9. FRESH EXPORT ONLY
+============================================================
+
+기존 /tmp export 재사용 금지.
+
+현재 APP WP4 HEAD에서 새 iOS export.
+
+bundle 문자열 확인:
+
+WP4 VERIFY · PARENT-INVITE · 0903
+
+그리고:
+
+id6761360360
+
+포함 확인.
+
+잘못된:
+
+id6738888898
+
+가 WP4 대상 bundle path에 남아 있는지도 확인.
+
+============================================================
+10. WP4 OTA PUBLISH 승인
+============================================================
+
+사용자는 WP4 검증용 OTA publish를 승인함.
+
+iOS ONLY
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO
+
+Render:
+NO
+
+Server deploy:
+NO
+
+DB:
+NO
+
+============================================================
+11. SOURCE → EXPORT → PUBLISH 검증
+============================================================
+
+반드시 각각 기록:
+
+SOURCE SHA:
+...
+
+EXPORT SOURCE SHA:
+...
+
+SOURCE == EXPORT:
+YES / NO
+
+Update ID:
+...
+
+Update Group:
+...
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+ios
+
+NO이면 성공 보고 금지.
+
+============================================================
+12. REAL DEVICE 확인 대상
+============================================================
+
+사용자가 직접 확인:
+
+A.
+WP4 VERIFY · PARENT-INVITE · 0903 표시
+
+B.
+미연결 회원 → 학부모 초대 모달 열림
+
+C.
+SMS 정상
+
+D.
+링크 복사 정상
+
+E.
+일반 공유 정상
+
+F.
+카카오 버튼이 Kakao 로그인/OAuth를 요구하지 않음
+
+G.
+App Store 링크가 실제 SWIMNOTE 앱으로 이동
+
+H.
+phone + child_name exact match 신규 General Parent 자동연결 정상
+
+============================================================
+13. 절대 금지
+============================================================
+
+deploy-photo-clone APP copy 수정:
+NO
+
+Render:
+NO
+
+Server:
+NO CHANGE
+
+WP1:
+NO TOUCH
+
+WP2:
+NO TOUCH
+
+WP3:
+NO TOUCH
+
+WP5:
+NO TOUCH
+
+WP6:
+NO TOUCH
+
+WP7:
+NO TOUCH
+
+1.6.3:
+NO TOUCH
+
+============================================================
+14. 완료보고
+============================================================
+
+# WP4 APP RECHECK + OTA REPORT
+
+## APP SOURCE
+
+Branch:
+...
+
+HEAD Before:
+...
+
+WP4 commit 3d810c5c ancestor:
+YES / NO
+
+## URL RECHECK
+
+InviteModal.tsx:
+...
+
+growth-report.tsx:
+...
+
+Wrong id6738888898 occurrences in APP source:
+...
+
+Correct id6761360360 occurrences:
+...
+
+Previous discrepancy caused by wrong branch inspection:
+YES / NO
+
+Actual APP correction required:
+YES / NO
+
+## WP4 FUNCTION
+
+Invite modal:
+PASS / FAIL
+
+SMS:
+PASS / FAIL
+
+Copy:
+PASS / FAIL
+
+Share:
+PASS / FAIL
+
+Kakao deeplink:
+PASS / FAIL
+
+Kakao OAuth/SDK:
+ABSENT / PRESENT
+
+Auto-link:
+PASS / FAIL
+
+Normal/X shared:
+YES / NO
+
+## COMMIT
+
+HEAD After:
+...
+
+Commit:
+...
+
+Changed files:
+...
+
+WP4 unrelated changes:
+0 / ...
+
+Marker:
+WP4 VERIFY · PARENT-INVITE · 0903
+
+## OTA
+
+Source SHA:
+...
+
+Export source SHA:
+...
+
+Exact match:
+YES / NO
+
+Update ID:
+...
+
+Update Group:
+...
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+ios
+
+## REAL DEVICE
+
+Marker:
+WAITING
+
+Invite modal:
+WAITING
+
+SMS:
+WAITING
+
+Copy:
+WAITING
+
+Share:
+WAITING
+
+Kakao:
+WAITING
+
+App Store destination:
+WAITING
+
+Auto-link:
+WAITING
+
+## FINAL
+
+WP4 OTA PUBLISHED — WAITING FOR USER REAL-DEVICE CONFIRMATION

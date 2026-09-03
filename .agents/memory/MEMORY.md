@@ -34,7 +34,7 @@
 - [AI Engine Template Pipeline 구조](ai-engine-template-pipeline.md) — /api/v1/teacher-diary/generate = api-server의 새 라우트; App은 raw text만 전송, Engine이 파싱; diary_templates 1050개 global 존재; relaxed candidate(score≥1) + strict top-5 ranking
 - [ScrollView contentContainerStyle flexGrow:0 버그](scrollview-flexgrow-bug.md) — contentContainerStyle에 flexGrow:0 넣으면 스크롤 불가; padding 값만 넣을 것
 - [스케줄러 모달 스크롤 구조 수정](scheduler-modal-scroll-fix.md) — Modal bottom sheet: maxHeight→height(confirmed), flexShrink:1→flex:1+minHeight:0, paddingBottom→contentContainerStyle; 서브모달 공유 시 mainSheet 분리 패턴
-- [WP4 완료 상태](wp4-done-state.md) — XModeBadge 신규+3개 화면 삽입(dashboard/today-schedule/home), WP5 격리검증으로 이어짐
+- [WP4 완료 상태](wp4-done-state.md) — App Store URL 3파일 교정+marker; OTA 0495bc7f runtime 2.1.0 production-v2; REAL-DEVICE WAITING
 - [WP4B 완료 상태](wp4b-done-state.md) — X mode AI일지: ACTIVE global_template_set → searchXGlobalTemplates; category→level_name fallback 필수; M-E 검증도 x_global 허용 수정
 - [WP5 완료 상태](wp5-progress.md) — XModeGuard Lock UI 구현; per-state(no_entitlement/not_configured/curriculum_pending/api_error); SHA 9f87c446; OTA preview 6c13b61f
 - [WP6 감사 완료 상태](wp6-audit-done.md) — 97/97 테스트 통과, DB 쓰기 없음, GitHub push 없음; WP7 차단조건(PENDING_REVIEW 명시) 기록

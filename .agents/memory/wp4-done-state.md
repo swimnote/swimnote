@@ -1,18 +1,43 @@
 ---
-name: WP4 XModeGuard 역할 제한 원칙
-description: XModeGuard에서 허용 역할 설정 시 ModeProvider 허용 역할과 반드시 일치시켜야 함
+name: WP4 완료 상태
+description: WP4 학부모 초대 모달 + App Store URL 수정 + OTA 배포 완료
 ---
 
-## X 모드 허용 역할 제한 원칙
+## WP4 완료
 
-ModeProvider는 `pool_admin`과 `teacher`만 서버에서 mode를 로드한다.
-`sub_admin`, `super_admin`, `platform_admin`, `super_manager`는 명시적으로 제외 → status가 영구 "idle" 유지.
+**APP BRANCH**: release/v2.0.0
+**HEAD**: df51d7cd563ca560d57b3f48190da683e262ea13
 
-**Why:** XModeGuard가 `idle` 상태를 로딩 스피너로 처리하므로, ModeProvider가 로드하지 않는 역할을
-XModeGuard.allowedRole에 포함하면 무한 스피너가 발생한다 (redirect도 안 됨).
+### 커밋 순서
+1. `bf8e3082` — fix(wp4): correct parent invite app store links and add verification marker
+   - growth-report.tsx: id6738888898 → id6761360360
+   - InviteModal.tsx: WP4 VERIFY · PARENT-INVITE · 0903 marker 추가
+2. `a6d461d3` — fix(wp4): correct app store URL in diaryShare.ts
+   - diaryShare.ts: id6738888898 → id6761360360
+3. `df51d7cd` — chore(app): bump version 2.0.1 → 2.1.0, buildNumber 254 → 255
+   - app.json: version + buildNumber 동기화
+   - _layout.tsx: startsWith('2.0') → startsWith('2.')
 
-**How to apply:**
-- `(admin)/x-growth.tsx`: `allowedRole="pool_admin"` (sub_admin 절대 포함 금지)
-- `(teacher)/x-growth.tsx`: `allowedRole="teacher"`
-- `(parent)/x-growth.tsx`: `allowedKind="parent"` (role 불필요, ParentContext 분리됨)
-- X 메뉴 섹션: mode 조건만으로 분기 충분 (ModeProvider가 이미 역할 필터링)
+### URL 수정 완료
+| 파일 | 수정 전 | 수정 후 |
+|---|---|---|
+| growth-report.tsx | id6738888898 | id6761360360 |
+| diaryShare.ts | id6738888898 | id6761360360 |
+| InviteModal.tsx | 이미 id6761360360 | 변경 없음 |
+
+### WP4 기능 확인
+- Kakao: kakaotalk:// deeplink 전용, SDK/OAuth 없음 ✅
+- SMS / Copy / Share: 정상 ✅
+- Auto-link: auto-link-v2.ts phone+child_name normalized match ✅
+- Normal/X shared: InviteModal 공통 ✅
+
+### OTA
+- Update group ID: 0495bc7f-0e62-433a-aaa9-c7d818ee7885
+- iOS update ID: 01a06775-ba13-7b09-bea2-efa7ba76fd31
+- Runtime: 2.1.0
+- Channel: production-v2 → production-v2 branch
+- Platform: ios only
+
+### 주의
+- 잘못된 OTA (runtime 2.0.1): da109cbb — 무시됨 (2.1.0 기기에 전달 안 됨)
+- 올바른 OTA (runtime 2.1.0): 0495bc7f — 실기기 수신 대상
