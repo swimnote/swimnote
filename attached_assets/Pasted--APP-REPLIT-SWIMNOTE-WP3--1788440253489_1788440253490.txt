@@ -1,0 +1,466 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE — WP3 LIVE VERIFY + WP4 PREP
+#
+# 사용자 작업 완료 전제:
+# Render Dashboard에서 아래 SHA를 수동 배포 완료
+#
+# EXPECTED LIVE SHA:
+# eefa2bb599f21ae715a18a6cbf303bfd1f6f4b96
+#
+# 이번 작업:
+# 1) WP3 LIVE 검증
+# 2) LIVE 일치 시 WP3 CLOSED 준비
+# 3) 이어서 WP4 기존 구현 검증 및 OTA 준비
+#
+# 새로운 기능 개발 금지.
+# ============================================================
+
+EXPECTED_LIVE_SHA:
+eefa2bb599f21ae715a18a6cbf303bfd1f6f4b96
+
+SHORT:
+eefa2bb5
+
+============================================================
+1. RENDER LIVE SHA 확인
+============================================================
+
+Production health 또는 현재 운영 중인
+server commit 확인 가능한 endpoint/metadata로 확인.
+
+반드시:
+
+Actual LIVE SHA:
+...
+
+Expected:
+eefa2bb599f21ae715a18a6cbf303bfd1f6f4b96
+
+Exact match:
+YES / NO
+
+NO이면 STOP.
+
+============================================================
+2. WP3 LIVE 코드 재확인
+============================================================
+
+LIVE 기준으로 확인:
+
+Admin cutoff:
+LIVE
+
+Teacher cutoff:
+LIVE
+
+Parent diary cutoff:
+LIVE
+
+Parent feed cutoff:
+LIVE
+
+Growth report cutoff:
+LIVE
+
+students.created_at 기반 KST cutoff:
+LIVE
+
+============================================================
+3. WP3 판정
+============================================================
+
+모두 정상이고 LIVE SHA exact match면:
+
+WP3 SERVER LIVE VERIFIED
+
+로 판정.
+
+단,
+실기기에서 등록일 이전 diary가 여전히 보이면
+WP3 CLOSED 처리 금지.
+
+============================================================
+4. 이어서 WP4 기존 구현 확인
+============================================================
+
+WP4 기존 commit:
+
+3d810c5c
+
+기능:
+
+관리자 회원관리 → 미연결 회원 → 학부모 초대
+
+확인할 것:
+
+A.
+초대 버튼/모달 정상
+
+B.
+SMS 공유 정상
+
+C.
+링크 복사 정상
+
+D.
+일반 공유 정상
+
+E.
+카카오 버튼은
+Kakao SDK 로그인/OAuth 사용 금지
+
+허용:
+clipboard
+kakaotalk:// deeplink
+
+F.
+iOS App Store URL:
+
+id6761360360
+
+이어야 함.
+
+잘못된 예:
+
+id6738888898
+
+사용 금지.
+
+============================================================
+5. 학부모 자동연결 정책 확인
+============================================================
+
+기존 정책:
+
+학부모가 일반 가입 시
+
+- phone normalized match
+- child_name normalized exact match
+
+이면:
+
+해당 학생과 즉시 자동 연결
+
+관리자 재승인:
+NO
+
+이름 불일치:
+pending
+
+현재 source에서 실제 구현 존재 확인.
+
+============================================================
+6. WP4 shared 구조 확인
+============================================================
+
+Normal/X가 동일 회원관리/초대 경로 공유하는지 확인.
+
+공통이면:
+
+shared:
+YES
+
+별도 구현 추가 금지.
+
+============================================================
+7. WP4 SOURCE DISCREPANCY
+============================================================
+
+기존 WP4 요구사항과 current HEAD가 완전히 일치하면:
+
+Discrepancy:
+0
+
+기능 수정:
+NO
+
+하나라도 다르면:
+임의 수정 금지.
+
+STOP 후:
+
+WP4 SOURCE DISCREPANCY
+
+로 정확히 보고.
+
+============================================================
+8. WP4 VERIFY MARKER
+============================================================
+
+WP4 source가 정상일 때만
+
+학부모 초대 모달 또는
+회원관리 화면 방해되지 않는 위치에:
+
+WP4 VERIFY · PARENT-INVITE · 0903
+
+표시.
+
+기능 없음.
+버튼 아님.
+API 없음.
+
+============================================================
+9. VERIFY COMMIT
+============================================================
+
+marker만 commit.
+
+권장:
+
+test(wp4): add parent invite real-device verification marker
+
+============================================================
+10. OTA 사전 확인
+============================================================
+
+Target:
+
+Version:
+2.1.0
+
+Build:
+255
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Channel mapping:
+
+production-v2
+→ production-v2
+
+불일치 시 OTA 금지.
+
+============================================================
+11. 새 EXPORT
+============================================================
+
+기존 /tmp export 재사용 금지.
+
+현재 WP4 verify HEAD에서
+새 iOS export 생성.
+
+bundle에:
+
+WP4 VERIFY · PARENT-INVITE · 0903
+
+문자열 포함 확인.
+
+============================================================
+12. WP4 OTA PUBLISH
+============================================================
+
+사용자 승인:
+
+WP4 검증용 OTA 1회 publish YES.
+
+iOS ONLY
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO
+
+============================================================
+13. REAL DEVICE 확인 항목
+============================================================
+
+사용자가 확인:
+
+A.
+WP4 VERIFY · PARENT-INVITE · 0903
+보임
+
+B.
+미연결 회원에서
+학부모 초대 버튼/모달 정상
+
+C.
+SMS 정상
+
+D.
+링크 복사 정상
+
+E.
+공유 정상
+
+F.
+카카오 버튼이 로그인/OAuth를 요구하지 않음
+
+G.
+App Store 링크 정상
+
+H.
+새 General Parent 가입 후
+phone + child_name exact match 시
+자동 연결 정상
+
+============================================================
+14. 다른 WP 금지
+============================================================
+
+WP1:
+NO TOUCH
+
+WP2:
+NO TOUCH
+
+WP3:
+NO TOUCH
+
+WP5:
+NO TOUCH
+
+WP6:
+NO TOUCH
+
+WP7:
+NO TOUCH
+
+Kakao auth:
+NO TOUCH
+
+DB:
+NO WRITE
+
+Render:
+NO DEPLOY
+
+1.6.3:
+NO TOUCH
+
+============================================================
+15. 완료보고
+============================================================
+
+# WP3 LIVE VERIFY + WP4 OTA REPORT
+
+## WP3 LIVE
+
+Expected SHA:
+eefa2bb599f21ae715a18a6cbf303bfd1f6f4b96
+
+Actual LIVE SHA:
+...
+
+Exact match:
+YES / NO
+
+Admin cutoff:
+LIVE / NOT LIVE
+
+Teacher cutoff:
+LIVE / NOT LIVE
+
+Parent diary cutoff:
+LIVE / NOT LIVE
+
+Parent feed cutoff:
+LIVE / NOT LIVE
+
+Growth report cutoff:
+LIVE / NOT LIVE
+
+WP3 server verdict:
+VERIFIED / FAIL
+
+## WP4 SOURCE
+
+Commit:
+3d810c5c
+
+Current HEAD contains:
+YES / NO
+
+Discrepancy:
+0 / ...
+
+Normal/X shared:
+YES / NO
+
+App Store URL:
+...
+
+Auto-link:
+PASS / FAIL
+
+## WP4 VERIFY
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Marker:
+WP4 VERIFY · PARENT-INVITE · 0903
+
+## OTA
+
+Source SHA:
+...
+
+Export source:
+...
+
+Exact match:
+YES / NO
+
+Update ID:
+...
+
+Update Group:
+...
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Platform:
+ios
+
+## REAL DEVICE CHECK REQUIRED
+
+Marker:
+WAITING
+
+Invite modal:
+WAITING
+
+SMS:
+WAITING
+
+Copy:
+WAITING
+
+Share:
+WAITING
+
+Kakao deeplink:
+WAITING
+
+App Store URL:
+WAITING
+
+Auto-link:
+WAITING
+
+## FINAL
+
+WP3 SERVER LIVE VERIFIED
+WP4 OTA PUBLISHED — WAITING FOR USER REAL-DEVICE CONFIRMATION
