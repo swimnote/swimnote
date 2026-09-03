@@ -392,6 +392,33 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
     }
   }, [noticeInput, sending, poolId, isAdmin, token, myUserId]);
 
+  /* ── 내 메시지 삭제 ── */
+  const handleDeleteMessage = useCallback((messageId: number) => {
+    Alert.alert(
+      "메시지 삭제",
+      "이 메시지를 삭제하시겠습니까?",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            // Optimistic: 즉시 목록에서 제거
+            setTalkMessages(prev => prev.filter(m => m.id !== messageId));
+            try {
+              const res = await apiRequest(token, `/messenger/messages/${messageId}`, { method: "DELETE" });
+              if (!res.ok) {
+                // 실패 시 복원 위해 재조회는 하지 않음 — 다음 poll에서 복원됨
+                console.warn("[messenger] delete failed", await res.text().catch(() => ""));
+              }
+            } catch (e) {
+              console.error("[messenger] delete error", e);
+            }
+          },
+        },
+      ]
+    );
+  }, [token]);
+
   /* ── + 버튼: 첨부 메뉴 열기 ── */
   const handlePlusBtn = useCallback(() => {
     Keyboard.dismiss();
@@ -401,6 +428,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   /* ── 파일 첨부 ── */
   const handleFileAttach = useCallback(async () => {
     setShowAttachMenu(false);
+    // iOS: 모달 dismiss 애니메이션이 끝난 뒤 DocumentPicker를 열어야 반응함
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     if (!token) return;
 
     let result: DocumentPicker.DocumentPickerResult;
@@ -574,45 +603,29 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       }
 
       /* 일반/지정 텍스트 메시지 */
-      const isDirected = item.message_type === "directed_message";
       return (
         <>
           {showDateLine && <DateLine iso={item.created_at} />}
           <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-            {!isMine && (
-              <View style={s.avatarCol}>
-                {showAvatar ? (
-                  <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-                    <Text style={s.avatarText}>{(item.sender_name || "?").charAt(0)}</Text>
-                  </View>
-                ) : (
-                  <View style={s.avatarPlaceholder} />
-                )}
-              </View>
-            )}
+            {!isMine && <View style={s.avatarPlaceholder} />}
             <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
               {!isMine && showAvatar && item.sender_name && (
-                <Text style={s.senderName}>{item.sender_name}</Text>
-              )}
-              {isDirected && (
-                <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <LucideIcon name="at-sign" size={10} color={C.textSecondary} />
-                  <Text style={s.directedTagText}>
-                    {isMine
-                      ? `@${extra.target_user_name} 언급`
-                      : `@나 언급`}
-                  </Text>
-                </View>
+                <Text style={s.senderName}>{item.sender_name} 선생님</Text>
               )}
               <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
                 {isMine && showTime && (
                   <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>
                 )}
-                <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
-                  <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>
-                    {item.content}
-                  </Text>
-                </View>
+                <Pressable
+                  onLongPress={isMine ? () => handleDeleteMessage(item.id) : undefined}
+                  delayLongPress={400}
+                >
+                  <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
+                    <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>
+                      {item.content}
+                    </Text>
+                  </View>
+                </Pressable>
                 {!isMine && showTime && (
                   <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>
                 )}
@@ -622,7 +635,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         </>
       );
     },
-    [talkMessages, myUserId, handleCardPress]
+    [talkMessages, myUserId, handleCardPress, handleDeleteMessage]
   );
 
   const renderNoticeItem = useCallback(
@@ -989,18 +1002,10 @@ function MemberCardBubble({
 }) {
   return (
     <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-      {!isMine && (
-        <View style={s.avatarCol}>
-          {showAvatar ? (
-            <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-              <Text style={s.avatarText}>{(senderName || "?").charAt(0)}</Text>
-            </View>
-          ) : <View style={s.avatarPlaceholder} />}
-        </View>
-      )}
+      {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName}</Text>
+          <Text style={s.senderName}>{senderName} 선생님</Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
@@ -1052,18 +1057,10 @@ function AttachFileBubble({
   const isImage = ["JPG","JPEG","PNG","GIF","WEBP","HEIC"].includes(ext);
   return (
     <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-      {!isMine && (
-        <View style={s.avatarCol}>
-          {showAvatar ? (
-            <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-              <Text style={s.avatarText}>{(senderName || "?").charAt(0)}</Text>
-            </View>
-          ) : <View style={s.avatarPlaceholder} />}
-        </View>
-      )}
+      {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName}</Text>
+          <Text style={s.senderName}>{senderName} 선생님</Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
@@ -1140,8 +1137,8 @@ const s = StyleSheet.create({
   avatarCol: { width: 36, marginRight: 6, alignSelf: "flex-end" },
   avatar: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center" },
   avatarText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  avatarPlaceholder: { width: 34, height: 34 },
-  senderName: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 2, marginLeft: 2 },
+  avatarPlaceholder: { width: 8 },
+  senderName: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", fontWeight: "600", marginBottom: 3, marginLeft: 2 },
   bubbleCol: { maxWidth: "75%", flexDirection: "column" },
   bubbleColLeft: { alignItems: "flex-start" },
   bubbleColRight: { alignItems: "flex-end" },
