@@ -1,0 +1,842 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# STEP 0 — MONTHLY KPI FOUNDATION
+# MINIMAL IMPLEMENTATION ONLY
+# DEVELOPMENT V2 ONLY
+
+============================================================
+절대 작업 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+CURRENT RUNTIME:
+2.1.0
+
+ENVIRONMENT:
+V2 DEVELOPMENT ENVIRONMENT
+
+WORK FROM:
+CURRENT LATEST V2 HEAD ONLY
+
+최근 확인된 V2 lineage:
+1f3c9cfe 및 이후 최신 commit 유지.
+
+브랜치 이름이 release/v2.0.0 이어도
+이름만 보고 과거 버전으로 판단하지 말 것.
+
+DO NOT:
+- checkout old commit
+- revert to old V2 code
+- touch 1.6.3
+- redesign existing routes unnecessarily
+
+1.6.3:
+NO TOUCH
+
+============================================================
+이번 STEP 0 목표
+============================================================
+
+현재 SWIMNOTE X의 KPI source는 여러 원본 테이블에 존재하지만
+
+향후:
+
+- pool 관리자 월별 운영현황
+- super_admin 500개 수영장 전체 집계
+- 월별 사업 KPI 장기 보존
+
+을 위한 공통 집계 경로가 아직 없다.
+
+현재 구조는 재설계가 필요한 상태가 아니다.
+
+판정:
+NEEDS MINIMAL CLEANUP
+
+따라서 이번 STEP 0에서는
+공통 monthly snapshot 기반만 최소 추가한다.
+
+============================================================
+중요 — 이번에 만들 것
+============================================================
+
+ONLY:
+
+1.
+x_monthly_operational_snapshots
+
+2.
+UNIQUE
+(swimming_pool_id, year, month)
+
+3.
+pool별 조회용 index
+
+4.
+super_admin 전체 월 집계용
+(year, month) index
+
+그 외 WP별 구조는 이번에 만들지 않는다.
+
+============================================================
+이번에 만들지 말 것
+============================================================
+
+DO NOT CREATE:
+
+- x_metric_events
+- growth_report_batch_jobs
+- notification_outbox
+- READY_TO_SEND enum
+- class_diaries.ai_generated
+- class_diaries.ai_trace_id
+- WP8 cron
+- WP8 queue
+- WP8 push logic
+- WP9 AI diary migration
+
+이것들은 각각 해당 WP에서
+필요 시 별도 migration으로 구현한다.
+
+이유:
+
+공통 집계 기반과
+특정 기능 lifecycle을 섞어
+migration 구조를 복잡하게 만들지 않기 위함.
+
+============================================================
+500개 수영장 설계 원칙
+============================================================
+
+이 구조의 목적은 두 가지다.
+
+A.
+각 수영장 데이터 격리
+
+B.
+super_admin에서 500개 수영장 데이터를
+한 번에 깔끔하게 집계
+
+모든 row는:
+
+swimming_pool_id
+
+를 필수 보유.
+
+pool 관리자 조회:
+
+WHERE swimming_pool_id = authenticated pool
+
+super_admin 조회:
+
+pool별 API를 500번 호출하지 말 것.
+
+반드시 DB에서:
+
+WHERE year = ?
+AND month = ?
+
+GROUP BY / SUM
+
+으로 전체 pool 집계 가능해야 한다.
+
+============================================================
+Source of truth 계층
+============================================================
+
+최종 데이터 경로:
+
+RAW SOURCE
+↓
+MONTHLY SNAPSHOT
+↓
+POOL ADMIN / SUPER ADMIN
+
+예:
+
+class_diaries
+growth_reports
+event_logs
+student_class_history
+swimming_pools
+subscription data
+
+↓
+
+x_monthly_operational_snapshots
+
+↓
+
+pool admin:
+pool_id + year + month
+
+super admin:
+year + month GROUP BY
+
+이 경로를 유지.
+
+동일 KPI를
+화면마다 서로 다른 방식으로 재계산하지 않도록 한다.
+
+============================================================
+테이블 설계
+============================================================
+
+현재 실제 DB schema / UUID 타입 / FK convention을 확인한 뒤
+프로젝트 convention에 맞게 migration 작성.
+
+목표 컬럼:
+
+x_monthly_operational_snapshots
+
+- id
+- swimming_pool_id
+- year
+- month
+
+WP9 AI Diary:
+- ai_diary_count
+- ai_diary_teacher_count
+
+WP10 AI Curriculum:
+- parent_curriculum_search_count
+- parent_curriculum_user_count
+- assigned_student_count
+- unassigned_student_count
+- curriculum_version_id
+
+WP8 Growth Report:
+- growth_report_target_count
+- growth_report_generated_count
+- growth_report_failed_count
+- growth_report_sent_count
+
+WP11 Operational snapshot:
+- active_student_count
+- active_teacher_count
+- connected_parent_count
+
+X Plan snapshot:
+- x_plan_key
+- x_plan_member_limit
+
+metadata:
+- snapshot_finalized_at
+- created_at
+- updated_at
+
+============================================================
+중요 — pending_send 저장 여부
+============================================================
+
+growth_report_pending_send_count는
+월별 확정 history가 아니라
+현재 운영상 실시간 상태 성격이 강하다.
+
+따라서 이번 snapshot typed field에
+굳이 넣지 않아도 된다.
+
+WP8 구현 시:
+
+READY_TO_SEND live count
+
+를 growth_reports에서 직접 조회하는 구조를 우선.
+
+단 실제 사업 KPI로 월별 peak/final pending 기록이 필요하다고
+명확히 판단되는 경우에만
+WP8 설계에서 다시 검토.
+
+이번 STEP 0에서 임의 추가 금지.
+
+============================================================
+값 타입
+============================================================
+
+count:
+INTEGER NOT NULL DEFAULT 0
+
+snapshot 성격:
+nullable 허용 가능
+
+예:
+
+assigned_student_count
+unassigned_student_count
+active_student_count
+active_teacher_count
+connected_parent_count
+curriculum_version_id
+x_plan_key
+x_plan_member_limit
+
+월이 진행 중이거나
+아직 snapshot 전이면 NULL 의미를 유지할 수 있음.
+
+0과 "아직 집계 안 됨"을 구분할 필요가 있는 필드는
+무조건 DEFAULT 0으로 만들지 말 것.
+
+실제 의미 기준으로 결정.
+
+============================================================
+UNIQUE
+============================================================
+
+반드시:
+
+UNIQUE (
+  swimming_pool_id,
+  year,
+  month
+)
+
+동일 pool / 동일 월 snapshot
+중복 row 생성 금지.
+
+UPSERT 가능 구조.
+
+============================================================
+INDEX
+============================================================
+
+필수 2개 경로 확인.
+
+1. pool admin:
+
+(swimming_pool_id, year, month)
+
+UNIQUE 자체가 동일 인덱스 역할을 하면
+중복 index 추가하지 말 것.
+
+2. super admin:
+
+(year, month)
+
+별도 index 추가.
+
+목표:
+
+500개 pool을
+pool별 반복 조회하지 않고
+단일 aggregate query로 처리.
+
+============================================================
+SUPER ADMIN 미래 집계 경로 검증
+============================================================
+
+실제 API 구현은 이번에 하지 않음.
+
+하지만 아래 형태가 DB에서
+단일 query로 가능한지 migration 후 검증.
+
+예:
+
+SELECT
+  year,
+  month,
+  SUM(ai_diary_count),
+  SUM(parent_curriculum_search_count),
+  SUM(growth_report_sent_count),
+  COUNT(DISTINCT swimming_pool_id)
+FROM x_monthly_operational_snapshots
+WHERE year = $year
+  AND month = $month
+GROUP BY year, month;
+
+중요:
+
+N+1:
+0
+
+pool API loop:
+0
+
+500번 반복 query:
+0
+
+============================================================
+KST 원칙
+============================================================
+
+snapshot year/month는
+KST 운영월 기준.
+
+year/month 값을 만들 때:
+
+Asia/Seoul 기준
+
+을 명확하게 사용.
+
+DB timestamp 저장 convention은 기존 유지.
+
+이번 STEP 0에서는
+집계 job 자체를 만들지 않으므로
+timezone helper를 새로 과도하게 만들 필요 없음.
+
+단 이후 WP에서 사용할
+공통 KST month boundary 원칙을 주석/설계로 남길 것.
+
+============================================================
+lesson_date 주의
+============================================================
+
+기존 lesson_date가
+YYYY-MM-DD TEXT 형식이라고 조사됨.
+
+향후 월별 range query는:
+
+LEFT(lesson_date, 7)
+
+방식 사용 금지.
+
+반드시 ISO 형식이 보장되는지 확인 후:
+
+lesson_date >= 'YYYY-MM-01'
+AND lesson_date < 'NEXT-MONTH-01'
+
+range 방식 우선.
+
+이번 STEP 0에서는
+class_diaries query 수정하지 않음.
+
+원칙만 확정.
+
+============================================================
+Snapshot 갱신 원칙
+============================================================
+
+향후 monthly aggregation은:
+
++1 누적만 하는 방식 금지.
+
+가능하면 raw source에서
+현재 월 값을 재계산 후 UPSERT.
+
+즉:
+
+SELECT COUNT(...)
+→ UPSERT
+→ overwrite
+
+동일 job 여러 번 실행:
+
+same result
+
+server restart 후 재실행:
+
+same result
+
+중복 cron:
+
+same result
+
+idempotent 구조.
+
+============================================================
+Raw source 유지
+============================================================
+
+x_monthly_operational_snapshots는
+원본 데이터의 대체물이 아니다.
+
+원본 source:
+
+- class_diaries
+- growth_reports
+- event_logs
+- student_class_history
+- swimming_pools
+- subscription 관련 테이블
+
+그대로 유지.
+
+snapshot은
+월별 운영/사업 집계용.
+
+============================================================
+기존 서버 경로 수정 금지
+============================================================
+
+이번 STEP 0에서는:
+
+WP10 route:
+NO CHANGE
+
+WP11 route:
+NO CHANGE
+
+WP9 route:
+NO CHANGE
+
+WP8 route:
+NO CHANGE
+
+기존 API:
+NO CHANGE
+
+APP UI:
+NO CHANGE
+
+AI ENGINE:
+NO CHANGE
+
+============================================================
+Migration 안전성
+============================================================
+
+이번 작업은 additive only.
+
+DROP:
+NO
+
+RENAME:
+NO
+
+DELETE DATA:
+NO
+
+existing column modification:
+NO
+
+existing enum modification:
+NO
+
+기존 기능 영향:
+0 목표
+
+============================================================
+개발 DB
+============================================================
+
+이 작업은
+V2 DEVELOPMENT 환경에서 진행.
+
+현재 사용자가
+설계 검수 후 작업 시작을 승인했으므로
+
+개발 DB에 STEP 0 migration 적용 가능.
+
+단:
+
+PRODUCTION DB migration:
+NO
+
+Render production:
+NO
+
+============================================================
+Migration 후 검증
+============================================================
+
+반드시 실제 DB에서 확인:
+
+1.
+table exists
+
+2.
+column types correct
+
+3.
+FK correct
+
+4.
+UNIQUE correct
+
+5.
+(year, month) index exists
+
+6.
+same pool/year/month duplicate insert blocked
+
+7.
+different pool same year/month insert allowed
+
+8.
+same pool different month insert allowed
+
+9.
+super-admin style aggregate SQL executes
+
+10.
+existing V2 server boot PASS
+
+============================================================
+멀티테넌트 검증
+============================================================
+
+테스트 row 사용 시
+서로 다른 2개 test pool로 확인.
+
+Pool A:
+2026-09 snapshot
+
+Pool B:
+2026-09 snapshot
+
+aggregate:
+A+B 가능
+
+pool scoped query:
+A에서 B row 조회되지 않는 구조
+
+단 실제 production 고객 데이터 수정 금지.
+
+개발/test 데이터만 사용.
+
+테스트 후 불필요 test row 정리.
+
+============================================================
+APP OTA
+============================================================
+
+이번 STEP 0에서는
+APP code 변경 금지.
+
+따라서:
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+중요:
+
+앞으로 APP 수정이 발생하는 WP에서는
+무조건:
+
+test
+→ commit
+→ immediate iOS OTA
+→ SHA match
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO OTA
+
+규칙 유지.
+
+============================================================
+SERVER
+============================================================
+
+migration / schema code가 repository에 있다면:
+
+현재 최신 V2 branch에서
+migration 파일 추가
+→ test
+→ commit
+→ push
+
+가능.
+
+Render production deploy:
+USER MANUAL ONLY
+
+이번 STEP 0에서
+production Render deploy 금지.
+
+============================================================
+불필요한 리팩터링 금지
+============================================================
+
+현재 판정:
+
+CURRENT PATH:
+NEEDS MINIMAL CLEANUP
+
+즉:
+
+기존 architecture를 다시 설계하지 말 것.
+
+새 repository abstraction
+새 service layer
+새 metric framework
+새 event framework
+
+임의 추가 금지.
+
+이번 목적에 필요한
+monthly snapshot foundation만 추가.
+
+============================================================
+완료보고 형식
+============================================================
+
+# STEP 0 MONTHLY KPI FOUNDATION REPORT
+
+Current APP Branch:
+...
+
+Current APP HEAD:
+...
+
+Current SERVER Branch:
+...
+
+Current SERVER HEAD Before:
+...
+
+Latest V2 lineage verified:
+YES / NO
+
+1.6.3 touched:
+NO
+
+============================================================
+MIGRATION
+============================================================
+
+Migration file:
+...
+
+Development DB applied:
+YES / NO
+
+Production DB applied:
+NO
+
+Tables created:
+
+x_monthly_operational_snapshots:
+YES / NO
+
+Other new tables:
+NONE / ...
+
+Expected:
+NONE
+
+============================================================
+SCHEMA
+============================================================
+
+Columns:
+...
+
+UNIQUE:
+...
+
+Pool FK:
+...
+
+Pool/month index:
+...
+
+Super-admin period index:
+...
+
+Duplicate redundant index:
+NO / YES
+
+============================================================
+SUPER ADMIN READINESS
+============================================================
+
+Single query all-pool aggregate:
+PASS / FAIL
+
+N+1 required:
+NO / YES
+
+Pool API loop required:
+NO / YES
+
+500-pool aggregation path:
+...
+
+============================================================
+MULTI TENANT
+============================================================
+
+Pool A same-month row:
+PASS / FAIL
+
+Pool B same-month row:
+PASS / FAIL
+
+Pool scoped separation:
+PASS / FAIL
+
+Cross-pool schema risk:
+NONE / ...
+
+============================================================
+IDEMPOTENCY FOUNDATION
+============================================================
+
+Same pool/year/month duplicate:
+BLOCKED / NOT BLOCKED
+
+UPSERT compatible:
+YES / NO
+
+Raw-source recount compatible:
+YES / NO
+
+============================================================
+SERVER
+============================================================
+
+Existing V2 boot:
+PASS / FAIL
+
+Existing routes modified:
+NO
+
+APP modified:
+NO
+
+AI ENGINE modified:
+NO
+
+Render production:
+NO
+
+============================================================
+COMMIT
+============================================================
+
+Commit SHA:
+...
+
+Files changed:
+...
+
+Pushed:
+YES / NO
+
+============================================================
+OTA
+============================================================
+
+APP change:
+NO
+
+iOS OTA:
+NOT REQUIRED
+
+Android OTA:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+Monthly KPI foundation:
+PASS / FAIL
+
+Super admin aggregation foundation:
+PASS / FAIL
+
+Architecture redesign:
+NO
+
+FINAL STATUS:
+STEP 0 COMPLETE / BLOCKED
