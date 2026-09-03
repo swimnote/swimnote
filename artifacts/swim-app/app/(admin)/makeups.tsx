@@ -202,11 +202,11 @@ export default function MakeupsScreen() {
 
       {/* 탭 */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+        contentContainerStyle={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 8 }}>
         {TABS.map(t => (
           <Pressable key={t} onPress={() => setTab(t)}
             style={[s.chip, tab === t && { backgroundColor: themeColor, borderColor: themeColor }]}>
-            <Text style={[s.chipTxt, tab === t && { color: "#fff" }]}>{t}</Text>
+            <Text style={[s.chipTxt, tab === t && { color: "#fff" }]} numberOfLines={1}>{t}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -498,8 +498,8 @@ function MakeupCard({ item, tab, themeColor, onAssign, onTransfer, onComplete, o
 const s = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.background },
   chipRow:       { flexGrow: 0, paddingVertical: 8 },
-  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
-  chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary },
+  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff", flexShrink: 0 },
+  chipTxt:       { fontSize: 13, fontWeight: "600", color: C.textSecondary, lineHeight: 18 },
   card:          { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   row:           { flexDirection: "row", alignItems: "flex-start" },
   name:          { fontSize: 15, fontWeight: "700", color: C.text },
