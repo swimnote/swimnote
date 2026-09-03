@@ -3045,6 +3045,22 @@ router.post("/kakao-migration-register", async (req, res) => {
     `)).rows as any[];
 
     if (!oldAcc) {
+      // Migration이 이미 완료됐을 수 있음 (old account phone이 '' 처리됨).
+      // 동일 phone+pool의 새 general account를 찾아 반환.
+      const [recoveredAcc] = (await db.execute(sql`
+        SELECT id, name, phone, swimming_pool_id, login_id
+        FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NULL
+          AND (is_active IS NULL OR is_active = true)
+        LIMIT 1
+      `)).rows as any[];
+      if (recoveredAcc) {
+        // 이미 migration 완료된 계정 발견 → 토큰 반환
+        const recoveredToken = signToken({ userId: recoveredAcc.id, role: "parent_account", poolId: pool_id });
+        return res.status(200).json({ token: recoveredToken, parent: recoveredAcc, migrated: true, already_migrated: true });
+      }
       return res.status(409).json({ error_code: "KAKAO_NOT_FOUND", error: "해당 전화번호로 등록된 계정을 찾을 수 없습니다." });
     }
     if (!oldAcc.kakao_id) {
@@ -3258,6 +3274,38 @@ router.post("/teacher-kakao-migration-register", async (req, res) => {
     // ── 2. Idempotency: 이미 migration 완료 여부 확인 ─────────────────────────
     // archived email prefix '__archived_kakao_' 확인
     if (String(oldTeacher.email).startsWith("__archived_kakao_")) {
+      // Migration이 이미 실행됐음. 새 general teacher를 찾아 상태 복구 후 반환.
+      const [existingNew] = (await superAdminDb.execute(sql`
+        SELECT id, email, is_activated, role, swimming_pool_id
+        FROM users
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NULL
+          AND email NOT LIKE '__archived_kakao_%'
+          AND role IN ('teacher', 'pool_admin')
+        LIMIT 1
+      `)).rows as any[];
+      if (existingNew) {
+        // 잘못 비활성화된 상태라면 복구
+        if (existingNew.is_activated === false) {
+          await superAdminDb.execute(sql`
+            UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${existingNew.id}
+          `).catch(() => {});
+        }
+        // joinedPendingApproval invite가 있으면 approved로 수정
+        await superAdminDb.execute(sql`
+          UPDATE teacher_invites
+          SET invite_status = 'approved', approved_at = NOW(), updated_at = NOW()
+          WHERE user_id = ${existingNew.id} AND invite_status = 'joinedPendingApproval'
+        `).catch(() => {});
+        const recoveredToken = signToken({ userId: existingNew.id, role: (existingNew.role || "teacher") as any, poolId: pool_id });
+        return res.status(200).json({
+          token: recoveredToken,
+          user: { ...existingNew, is_activated: true },
+          migrated: true,
+          recovered: true,
+        });
+      }
       return res.status(409).json({
         error_code: "ALREADY_MIGRATED",
         error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요.",
@@ -3341,6 +3389,21 @@ router.post("/teacher-kakao-migration-register", async (req, res) => {
         await superAdminDb.execute(sql.raw(
           `UPDATE teacher_invites SET user_id = '${newTeacherId}', invite_status = 'approved', approved_at = NOW() WHERE user_id = '${oldTeacherId}'`
         )).catch(() => {});
+      }
+
+      // autoApproved 상태인데 invite 레코드가 없으면 synthetic approved invite 생성
+      // → login 시 state consistency 보장, 관리자 승인대기 목록 미노출
+      if (autoApproved) {
+        const [existingInvite] = (await superAdminDb.execute(sql`
+          SELECT id FROM teacher_invites WHERE user_id = ${newTeacherId} LIMIT 1
+        `)).rows as any[];
+        if (!existingInvite) {
+          const syntheticId = `ti_migrated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await superAdminDb.execute(sql`
+            INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, approved_at, created_at)
+            VALUES (${syntheticId}, ${pool_id}, ${name}, ${ph || null}, 'approved', ${newTeacherId}, ${newTeacherId}, NOW(), NOW())
+          `).catch(() => {});
+        }
       }
 
       // push_settings.user_id

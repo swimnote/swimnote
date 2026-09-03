@@ -365,6 +365,42 @@ export default function SignupScreen() {
           }),
         });
         data = await safeJson(res);
+
+        // ── KAKAO_MIGRATION_REQUIRED: 기존 Kakao 선생님 → 일반계정 전환 ──────
+        if (!res.ok && data?.error_code === "KAKAO_MIGRATION_REQUIRED") {
+          setLoading(false);
+          await new Promise<void>(resolve => {
+            migrationConfirmRef.current = resolve;
+            setKakaoMigrationNotice(true);
+          });
+          setLoading(true);
+          setKakaoMigrationNotice(false);
+
+          const migRes = await fetch(`${API_BASE}/auth/teacher-kakao-migration-register`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: cleaned,
+              pool_id: selectedPool!.id,
+              name: name.trim(),
+              loginId: effectiveLoginId,
+              password: effectivePw,
+            }),
+          });
+          const migData = await safeJson(migRes);
+          if (!migRes.ok) {
+            setError(migData?.error || "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            return;
+          }
+          if (migData.token && migData.user) {
+            await setAdminSession(migData.token, migData.user);
+            finishLogin("admin", migData.user, null, migData.token);
+            return;
+          }
+          setError("계정 전환 처리 중 오류가 발생했습니다.");
+          return;
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         if (!res.ok) { setError(data.error || data.message || "가입에 실패했습니다."); return; }
 
         if (data.status === "pending_approval") {
