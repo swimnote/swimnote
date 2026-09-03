@@ -580,6 +580,7 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
 
     // 공통 일지 조회 — 원래 반 + 보강으로 간 반 일지 모두 포함
     // 버그 7 수정: UNION → ROW_NUMBER DISTINCT 방식으로 diary_id 기준 dedup
+    // 등록일 이전 diary 차단: students.created_at KST cutoff 적용
     const monthFilter = month ? `AND cd.lesson_date LIKE '${(month as string).replace(/'/g, "''")}%'` : "";
     const diaryRows = await db.execute(sql.raw(`
       SELECT id, lesson_date, common_content, teacher_name, is_edited, created_at,
@@ -603,6 +604,10 @@ router.get("/students/:id/diary", requireAuth, requireParent, async (req: AuthRe
           AND ms.status = 'completed'
         WHERE cd.is_deleted = false
           ${monthFilter}
+          AND cd.lesson_date >= (
+            SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+            FROM students WHERE id = '${studentIdSafe}' LIMIT 1
+          )
           AND (
             -- 일반 수업: 재원 이력이 있고, 해당 날짜 결석(absent)이 아닌 경우만 표시
             (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL
@@ -743,6 +748,7 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
       const idsLiteral = allClassIds.map((id: string) => `'${id.replace(/'/g, "''")}'`).join(",");
 
       // 버그 7 수정: UNION → ROW_NUMBER DISTINCT 방식으로 diary_id 기준 dedup
+      // 등록일 이전 diary 차단: students.created_at KST cutoff 적용
       const diaryRows = await db.execute(sql.raw(`
         SELECT id, lesson_date, common_content, teacher_name, is_edited, created_at,
                class_group_id, is_makeup_diary
@@ -763,6 +769,10 @@ router.get("/diary", requireAuth, requireParent, async (req: AuthRequest, res) =
             AND ms.assigned_date = cd.lesson_date
             AND ms.status = 'completed'
           WHERE cd.is_deleted = false
+            AND cd.lesson_date >= (
+              SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+              FROM students WHERE id = '${sIdSafe}' LIMIT 1
+            )
             AND (
               (cd.class_group_id IN (${idsLiteral}) AND sch.id IS NOT NULL)
               OR ms.id IS NOT NULL

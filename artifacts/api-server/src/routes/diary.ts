@@ -338,12 +338,16 @@ router.get("/diaries/index",
 
       // student_id 필터 — authoritative ID 기반, name search 대체
       // ① 공통 일지: 해당 학생이 속했던 반(class_group_id)으로 범위 제한
+      //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
       const studentCommonFilter = studentIdParam
-        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)`
+        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
       // ② 학생 노트: cdn.student_id = :studentId 직접 필터
+      //    + 동일 cutoff 적용
       const studentNoteFilter = studentIdParam
-        ? sql`AND cdn.student_id = ${studentIdParam}`
+        ? sql`AND cdn.student_id = ${studentIdParam}
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
         : sql``;
 
       // ① 반 공통 일지

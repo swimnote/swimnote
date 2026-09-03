@@ -1744,6 +1744,7 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
         `).then(r => r.rows),
 
         // 최근 일지 (기존 필드 유지)
+        // 등록일 이전 일지 차단: students.created_at → KST 날짜 cutoff 적용
         student.class_group_id
           ? db.execute(sql`
               SELECT cd.id, cd.lesson_date, cd.common_content, cd.teacher_name, cd.is_edited,
@@ -1751,7 +1752,12 @@ router.get("/students/:id/detail", requireAuth, requireRole("super_admin", "pool
               FROM class_diaries cd
               LEFT JOIN class_diary_student_notes csn
                 ON csn.diary_id = cd.id AND csn.student_id = ${studentId} AND csn.is_deleted = false
-              WHERE cd.class_group_id = ${student.class_group_id} AND cd.is_deleted = false
+              WHERE cd.class_group_id = ${student.class_group_id}
+                AND cd.is_deleted = false
+                AND cd.lesson_date >= (
+                  SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date
+                  FROM students WHERE id = ${studentId} LIMIT 1
+                )
               ORDER BY cd.lesson_date DESC LIMIT 10
             `).then(r => r.rows)
           : Promise.resolve([] as any[]),
