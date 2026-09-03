@@ -1495,13 +1495,14 @@ router.post("/teacher-self-signup", async (req, res) => {
     }
 
     // Kakao-linked teacher 존재 여부 확인 → KAKAO_MIGRATION_REQUIRED
+    // archived Kakao teacher (email LIKE '__archived_kakao_%', is_activated=false)도 포함하여
+    // 이미 General 계정 생성된 broken migration 사용자도 recovery entry 진입 가능.
     if (cleanedPhone) {
       const kakaoTeacher = (await superAdminDb.execute(sql`
         SELECT id FROM users
         WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${cleanedPhone.replace(/[^0-9]/g, "")}
           AND swimming_pool_id = ${pool_id}
           AND kakao_id IS NOT NULL
-          AND is_activated IS NOT false
         LIMIT 1
       `)).rows as any[];
       if (kakaoTeacher.length > 0) {
@@ -2851,6 +2852,24 @@ router.post("/v2/parent-register", async (req, res) => {
 
     if (existingPhoneRow) {
       const existingParentId: string = existingPhoneRow.id;
+
+      // ── Broken migration recovery: 이 계정이 Kakao migration 결과물인지 확인 ─
+      // old Kakao parent는 migration 후 phone='' 처리됨. 현재 phone=ph인 계정이 있다면
+      // 그것은 new General parent. 그런데 같은 pool에 archived Kakao parent(phone='')가
+      // 있으면 → data transfer가 누락된 broken migration → KAKAO_MIGRATION_REQUIRED 반환.
+      const [archivedKakaoParent] = (await db.execute(sql`
+        SELECT id FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId}
+          AND kakao_id IS NOT NULL
+          AND (phone = '' OR phone IS NULL)
+        LIMIT 1
+      `)).rows as any[];
+      if (archivedKakaoParent) {
+        return res.status(409).json({
+          error: "이미 카카오로 가입된 전화번호입니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+        });
+      }
 
       // ── 같은 pool에 active membership이 있으면 중복 차단 ──────────────────
       const { checkMembership, upsertMembership } = await import("../migrations/pool-db-membership.js");
