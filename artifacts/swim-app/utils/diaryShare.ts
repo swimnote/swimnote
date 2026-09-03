@@ -6,7 +6,7 @@
  */
 import { Platform, Share } from "react-native";
 
-const IOS_URL   = "https://apps.apple.com/app/id6738888898";
+const IOS_URL   = "https://apps.apple.com/app/id6761360360";
 const AND_URL   = "https://play.google.com/store/apps/details?id=com.swimnote.app";
 const STORE_URL = Platform.OS === "ios" ? IOS_URL : AND_URL;
 
