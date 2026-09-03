@@ -452,11 +452,18 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
     });
     if (result.canceled || !result.assets?.length) return;
 
+    // batch_id: 한 번의 selection에서 선택된 사진들을 명시적으로 묶는 식별자
+    const batchId = result.assets.length > 1
+      ? `batch_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`
+      : undefined;
+
     setSending(true);
     try {
+      const newMsgs: WorkMessage[] = [];
       for (const asset of result.assets) {
         const formData = new FormData();
         formData.append("pool_id", poolId);
+        if (batchId) formData.append("batch_id", batchId);
         const filename = asset.fileName || `photo_${Date.now()}.jpg`;
         const mime = asset.mimeType || "image/jpeg";
         formData.append("photo", { uri: asset.uri, name: filename, type: mime } as any);
@@ -468,11 +475,14 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         });
         if (res.ok) {
           const d = await res.json();
-          if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
+          if (d.message) newMsgs.push(d.message);
         } else {
           const d = await res.json().catch(() => ({}));
           Alert.alert("오류", d.message || "사진 전송에 실패했습니다.");
         }
+      }
+      if (newMsgs.length > 0) {
+        setTalkMessages((prev) => [...newMsgs.reverse(), ...prev]);
       }
     } catch (e: any) {
       console.error("[messenger] albumAttach error", e);
@@ -644,33 +654,29 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       }
 
       if (item.msg_type === "photo") {
-        const photoUrl = item.photo_url ? `${API_BASE.replace(/\/api$/, "")}${item.photo_url}` : null;
+        const batchId = item.extra_data?.batch_id;
+        // 배치 사진이면: nextMsg(더 최신)가 같은 batch_id → 이미 갤러리로 렌더됨 → 스킵
+        if (batchId && nextMsg?.extra_data?.batch_id === batchId) return null;
+
+        // 같은 batch_id 를 가진 모든 사진 수집 (현재 이후 older msgs에서)
+        const batchPhotos: WorkMessage[] = batchId
+          ? talkMessages.filter(m => m.msg_type === "photo" && m.extra_data?.batch_id === batchId && m.sender_id === item.sender_id)
+              .slice().reverse() // oldest first for display
+          : [item];
+
         return (
           <>
             {showDateLine && <DateLine iso={item.created_at} />}
-            <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-              {!isMine && <View style={s.avatarPlaceholder} />}
-              <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
-                {!isMine && showAvatar && item.sender_name && (
-                  <Text style={s.senderName}>{item.sender_name}{item.sender_role === "teacher" ? " 선생님" : ""}</Text>
-                )}
-                <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
-                  {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>}
-                  {photoUrl ? (
-                    <Image
-                      source={{ uri: photoUrl, headers: { Authorization: `Bearer ${token}` } }}
-                      style={{ width: 200, height: 200, borderRadius: 12 }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
-                      <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>[사진]</Text>
-                    </View>
-                  )}
-                  {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>}
-                </View>
-              </View>
-            </View>
+            <GalleryBubble
+              isMine={isMine}
+              photos={batchPhotos}
+              token={token || ""}
+              senderName={item.sender_name}
+              senderRole={item.sender_role}
+              time={fmtTime(item.created_at)}
+              showTime={showTime}
+              showAvatar={showAvatar}
+            />
           </>
         );
       }
@@ -1134,21 +1140,14 @@ function MemberCardBubble({
                   <Text style={s.memberCardMeta}>{extra.schedule_days} {extra.schedule_time}</Text>
                 </View>
               )}
-              {extra.parent_phone ? (
-                <TouchableOpacity
-                  style={s.memberCardRow}
-                  onPress={() => Linking.openURL(`tel:${extra.parent_phone}`)}
-                  activeOpacity={0.7}
-                >
-                  <Phone size={11} color={PRIMARY} />
-                  <Text style={[s.memberCardMeta, { color: PRIMARY, textDecorationLine: "underline" }]}>{extra.parent_phone}</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={s.memberCardRow}>
-                  <Phone size={11} color={C.textSecondary} />
-                  <Text style={s.memberCardMeta}>-</Text>
-                </View>
-              )}
+              <TouchableOpacity
+                style={s.memberCardRow}
+                onPress={extra.parent_phone ? () => Linking.openURL(`tel:${extra.parent_phone}`) : undefined}
+                activeOpacity={extra.parent_phone ? 0.7 : 1}
+              >
+                <Phone size={11} color={C.textSecondary} />
+                <Text style={s.memberCardMeta}>{extra.parent_phone || "-"}</Text>
+              </TouchableOpacity>
               <Text style={s.memberCardTap}>탭하여 상세 보기</Text>
             </View>
           </TouchableOpacity>
@@ -1156,6 +1155,130 @@ function MemberCardBubble({
         </View>
       </View>
     </View>
+  );
+}
+
+/* ─── 서브 컴포넌트: 갤러리 버블 ─────────────────────────── */
+function GalleryBubble({
+  isMine, photos, token, senderName, senderRole, time, showTime, showAvatar,
+}: {
+  isMine: boolean;
+  photos: WorkMessage[];
+  token: string;
+  senderName: string | null;
+  senderRole?: string | null;
+  time: string;
+  showTime: boolean;
+  showAvatar: boolean;
+}) {
+  const [previewUri, setPreviewUri] = React.useState<string | null>(null);
+  const [sharing, setSharing] = React.useState<string | null>(null);
+
+  const CELL = 108; const GAP = 2;
+  const n = photos.length;
+
+  const getUrl = (p: WorkMessage) =>
+    p.photo_url ? `${API_BASE.replace(/\/api$/, "")}${p.photo_url}` : null;
+
+  const handleShare = async (p: WorkMessage) => {
+    const url = getUrl(p); if (!url) return;
+    setSharing(String(p.id));
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) { Alert.alert("오류", "사진을 불러올 수 없습니다."); return; }
+      const blob = await r.blob();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const b64 = (reader.result as string).split(",")[1];
+        const uri = `${FileSystem.cacheDirectory}photo_${Date.now()}.jpg`;
+        await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: "image/jpeg" });
+        setSharing(null);
+      };
+      reader.readAsDataURL(blob);
+    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); setSharing(null); }
+  };
+
+  const renderCell = (p: WorkMessage, w: number, h: number, showPlus?: number) => {
+    const url = getUrl(p);
+    return (
+      <TouchableOpacity key={String(p.id)} onPress={() => url && setPreviewUri(url)} onLongPress={() => handleShare(p)} activeOpacity={0.85}>
+        <View style={{ width: w, height: h, borderRadius: 6, overflow: "hidden", backgroundColor: C.backgroundSoft }}>
+          {url ? <Image source={{ uri: url, headers: { Authorization: `Bearer ${token}` } }} style={{ width: w, height: h }} resizeMode="cover" /> : null}
+          {showPlus != null && (
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>+{showPlus}</Text>
+            </View>
+          )}
+          {sharing === String(p.id) && (
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator color="#fff" />
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const totalW = n === 1 ? CELL * 2 : CELL * 2 + GAP;
+  const layout = () => {
+    if (n === 1) return <View>{renderCell(photos[0], CELL * 2, CELL * 2)}</View>;
+    if (n === 2) return (
+      <View style={{ flexDirection: "row", gap: GAP }}>
+        {renderCell(photos[0], CELL, CELL + 40)}
+        {renderCell(photos[1], CELL, CELL + 40)}
+      </View>
+    );
+    if (n === 3) return (
+      <View style={{ gap: GAP }}>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(photos[0], CELL, CELL)}
+          {renderCell(photos[1], CELL, CELL)}
+        </View>
+        {renderCell(photos[2], CELL * 2 + GAP, CELL)}
+      </View>
+    );
+    // 4+
+    const display = photos.slice(0, 4);
+    const extra = n - 4;
+    return (
+      <View style={{ gap: GAP }}>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(display[0], CELL, CELL)}
+          {renderCell(display[1], CELL, CELL)}
+        </View>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(display[2], CELL, CELL)}
+          {extra > 0 ? renderCell(display[3], CELL, CELL, extra) : renderCell(display[3], CELL, CELL)}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <>
+      <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
+        {!isMine && <View style={s.avatarPlaceholder} />}
+        <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
+          {!isMine && showAvatar && senderName && (
+            <Text style={s.senderName}>{senderName}{senderRole === "teacher" ? " 선생님" : ""}</Text>
+          )}
+          <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
+            {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
+            <View style={{ width: totalW, borderRadius: 10, overflow: "hidden" }}>{layout()}</View>
+            {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
+          </View>
+        </View>
+      </View>
+      {/* 전체화면 미리보기 */}
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }} onPress={() => setPreviewUri(null)}>
+          {previewUri && (
+            <Image source={{ uri: previewUri, headers: { Authorization: `Bearer ${token}` } }} style={{ width: "95%", height: "80%" }} resizeMode="contain" />
+          )}
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 

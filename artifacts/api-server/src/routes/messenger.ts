@@ -211,7 +211,7 @@ router.post(
   upload.single("photo"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, content } = req.body;
+      const { pool_id, content, batch_id } = req.body;
       const { userId, role } = req.user!;
       const file = req.file;
 
@@ -235,13 +235,14 @@ router.post(
 
       const msgId = `wmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const photoApiUrl = `/api/messenger/photo/${msgId}`;
+      const extraData = batch_id ? JSON.stringify({ batch_id }) : null;
 
       const rows = await db.execute(sql`
         INSERT INTO work_messages
-          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, photo_url, photo_key)
+          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, photo_url, photo_key, extra_data)
         VALUES
           (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'photo', 'talk', 'normal',
-           ${content?.trim() || null}, ${photoApiUrl}, ${key})
+           ${content?.trim() || null}, ${photoApiUrl}, ${key}, ${extraData ? sql`${extraData}::jsonb` : sql`NULL`})
         RETURNING *
       `);
 
