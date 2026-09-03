@@ -1,0 +1,265 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE — WP3 PRODUCTION SERVER PUSH ONLY
+#
+# 사용자 지시:
+# WP3 registration cutoff server fix를
+# deploy-photo-clone 브랜치에 반영하고 GitHub push까지만 진행한다.
+#
+# Render Production 배포는 사용자가 대시보드에서 직접 수동으로 바로 진행한다.
+#
+# 따라서 Replit은:
+# - 서버 코드 반영
+# - deploy-photo-clone push
+# - 최종 배포 대상 SHA 보고
+#
+# 까지만 수행.
+#
+# Render deploy:
+# NO
+#
+# ============================================================
+
+TARGET SERVER BRANCH:
+deploy-photo-clone
+
+WP3 FIX COMMIT:
+2874b46021b93e7c25b43a7df74881728fe996ad
+
+CURRENT PROD BASE:
+fe7e38838c84748c582aa2fa6f86803825ed7952
+
+TEMP BRANCH:
+recovery/wp3-registration-cutoff
+
+============================================================
+1. 사전 검증
+============================================================
+
+먼저:
+
+git fetch origin
+
+확인:
+
+origin/deploy-photo-clone HEAD:
+...
+
+recovery/wp3-registration-cutoff HEAD:
+2874b46021b93e7c25b43a7df74881728fe996ad
+
+WP3 변경 범위 재확인:
+
+- admin.ts registration cutoff
+- parent.ts registration cutoff
+- growth-report-snapshot-builder.ts registration cutoff
+- diary.ts 추가 변경 없음
+
+다른 변경이 섞여 있으면 STOP.
+
+============================================================
+2. deploy-photo-clone에 WP3 반영
+============================================================
+
+deploy-photo-clone 최신 HEAD 기준으로
+WP3 commit의 변경만 안전하게 반영.
+
+권장:
+cherry-pick 2874b46021b93e7c25b43a7df74881728fe996ad
+
+금지:
+- force push
+- history rewrite
+- unrelated commit 포함
+- 다른 WP 코드 변경
+
+충돌 발생 시:
+임의 해결 금지.
+정확한 conflict만 보고.
+
+============================================================
+3. 최종 SHA 확정
+============================================================
+
+반영 완료 후:
+
+git rev-parse HEAD
+
+출력값을:
+
+FINAL_DEPLOY_SHA
+
+로 기록.
+
+반드시 확인:
+
+WP3 admin cutoff 포함
+WP3 parent cutoff 포함
+WP3 growth report cutoff 포함
+기존 teacher cutoff 유지
+
+============================================================
+4. GitHub PUSH
+============================================================
+
+origin/deploy-photo-clone에 push.
+
+push 후:
+
+git rev-parse origin/deploy-photo-clone
+
+확인.
+
+반드시:
+
+origin/deploy-photo-clone HEAD
+==
+FINAL_DEPLOY_SHA
+
+여야 함.
+
+============================================================
+5. Render 배포는 하지 말 것
+============================================================
+
+중요:
+
+Render deploy:
+NO
+
+사용자가 GitHub push 완료보고를 받은 즉시
+Render Dashboard에서 직접 수동 배포한다.
+
+Replit은 Render dashboard 조작 금지.
+
+============================================================
+6. 사용자가 수동 배포할 수 있게 정확히 보고
+============================================================
+
+완료보고에 반드시:
+
+FINAL_DEPLOY_SHA:
+...
+
+Short SHA:
+...
+
+Commit message:
+...
+
+를 크게 명시.
+
+사용자는 Render에서
+이 정확한 SHA를 기준으로 수동 Deploy 한다.
+
+============================================================
+7. PRODUCTION SAFETY
+============================================================
+
+Render:
+NO
+
+Production DB write:
+NO
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+APP source:
+NO CHANGE
+
+WP4~WP7:
+NO TOUCH
+
+1.6.3:
+NO TOUCH
+
+============================================================
+8. 완료보고
+============================================================
+
+# WP3 PRODUCTION PUSH REPORT
+
+## SOURCE
+
+Base deploy-photo-clone:
+...
+
+WP3 source commit:
+2874b46021b93e7c25b43a7df74881728fe996ad
+
+Final deploy-photo-clone HEAD:
+...
+
+Short SHA:
+...
+
+Commit message:
+...
+
+## PUSH
+
+GitHub push:
+PASS / FAIL
+
+origin/deploy-photo-clone HEAD:
+...
+
+Exact match with FINAL_DEPLOY_SHA:
+YES / NO
+
+## WP3 CODE INCLUDED
+
+Admin cutoff:
+YES / NO
+
+Teacher cutoff:
+YES / NO
+
+Parent diary cutoff:
+YES / NO
+
+Parent feed cutoff:
+YES / NO
+
+Growth report cutoff:
+YES / NO
+
+## RENDER
+
+Render deploy:
+NO
+
+User manual deploy required:
+YES
+
+Deploy this exact SHA:
+...
+
+## SAFETY
+
+DB migration:
+NO
+
+DB write:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+WP3 PUSH READY — USER WILL MANUALLY DEPLOY FINAL_DEPLOY_SHA ON RENDER
