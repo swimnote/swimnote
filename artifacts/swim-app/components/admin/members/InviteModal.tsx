@@ -129,6 +129,8 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
             </Pressable>
           </View>
         </View>
+        {/* WP4 VERIFY · PARENT-INVITE · 0903 */}
+        <Text style={inv.verifyMarker}>WP4 VERIFY · PARENT-INVITE · 0903</Text>
       </View>
     </Modal>
   );
@@ -151,4 +153,5 @@ const inv = StyleSheet.create({
   btnRow:      { flexDirection: "row", gap: 8 },
   btn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderRadius: 12 },
   btnText:     { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  verifyMarker:{ fontSize: 9, color: "#C8C8C8", textAlign: "center", marginTop: 2 },
 });

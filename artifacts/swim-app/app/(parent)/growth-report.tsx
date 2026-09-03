@@ -111,7 +111,7 @@ export default function GrowthReportScreen() {
     lines.push("─────────────────────");
     lines.push("💙 스윔노트 앱에서 자세한 성장 기록을 확인하세요");
     lines.push(Platform.OS === "ios"
-      ? "https://apps.apple.com/app/id6738888898"
+      ? "https://apps.apple.com/app/id6761360360"
       : "https://play.google.com/store/apps/details?id=com.swimnote.app");
 
     try {
