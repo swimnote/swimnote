@@ -333,25 +333,7 @@ export default function SettingsScreen() {
               <LucideIcon name="chevron-right" size={15} color={MUTED} />
             </Pressable>
 
-            {/* X모드 세팅하기 — mode=x + pool_admin만 */}
-            {adminUser?.role === "pool_admin" && mode === "x" && (
-              <>
-                <View style={r.divider} />
-                <Pressable
-                  style={({ pressed }) => [r.row, { opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => router.push("/(admin)/x-setup?backTo=settings" as any)}
-                >
-                  <View style={[s.xIconWrap, { backgroundColor: X_LIGHT }]}>
-                    <LucideIcon name="settings" size={16} color={X_ACCENT} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={r.label}>X모드 세팅하기</Text>
-                    <Text style={r.desc}>커리큘럼 설정 및 X 운영 설정 관리</Text>
-                  </View>
-                  <LucideIcon name="chevron-right" size={15} color={MUTED} />
-                </Pressable>
-              </>
-            )}
+            {/* X모드 세팅하기 항목 제거 — SWIMNOTE X모드 대표 진입점 하나만 유지 */}
 
             {/* 설정 완성도 compact — settingsStats 로드 후 표시 */}
             {settingsStats && (

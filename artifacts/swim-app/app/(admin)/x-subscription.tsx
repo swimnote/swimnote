@@ -973,13 +973,13 @@ function ActiveView({
 
       {/* 액션 버튼 영역 */}
       <View style={{ gap: 10 }}>
-        {/* X모드 세팅하기 */}
+        {/* 커리큘럼 세팅 */}
         <Pressable
           style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.push("/(admin)/x-setup?backTo=x-subscription" as any)}
         >
-          <LucideIcon name="settings" size={16} color="#fff" />
-          <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
+          <LucideIcon name="book-open" size={16} color="#fff" />
+          <Text style={s.ctaBtnText}>커리큘럼 세팅</Text>
         </Pressable>
 
         {/* 구독 관리 (Apple subscription management) — pool_admin만 */}
@@ -1111,7 +1111,7 @@ function PendingView() {
         style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
         onPress={() => router.push("/(admin)/x-setup?backTo=x-subscription" as any)}
       >
-        <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
+        <Text style={s.ctaBtnText}>커리큘럼 세팅</Text>
       </Pressable>
     </View>
   );

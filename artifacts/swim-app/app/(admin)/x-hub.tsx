@@ -381,7 +381,7 @@ export default function XHubScreen() {
           <Text style={s.sectionLabel}>빠른 관리</Text>
           <View style={s.quickGrid}>
             {[
-              { icon: "settings" as const,    label: "X 세팅",      route: "/(admin)/x-setup" },
+              { icon: "book-open" as const,   label: "커리큘럼 세팅", route: "/(admin)/x-setup" },
               { icon: "credit-card" as const, label: "구독 관리",   route: "/(admin)/subscription" },
               { icon: "file-text" as const,   label: "AI 리포트",   route: "/(admin)/report-hub" },
               { icon: "book-open" as const,   label: "AI 일지",     route: "/(admin)/diary-hub" },
