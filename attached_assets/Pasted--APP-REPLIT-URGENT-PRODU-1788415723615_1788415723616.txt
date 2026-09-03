@@ -1,0 +1,599 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# URGENT PRODUCTION DATA RECOVERY
+# 유지훈 선생님 KAKAO → GENERAL 계정 강제 이전
+#
+# 사용자 명시 승인:
+# 유지훈 선생님의 기존 Kakao 선생님 계정에 붙어 있는
+# 실제 운영정보를 현재 생성된 General 선생님 계정으로
+# Production DB에서 직접 이전/복구한다.
+#
+# 이번 작업은 "코드만 수정"이 아니다.
+# 실제 Production 계정 1건을 정상화하는 긴급 데이터 복구 작업이다.
+#
+# 대상:
+# 유지훈 선생님 ONLY
+#
+# 다른 선생님/학부모/회원 데이터 변경 절대 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Production server:
+Render
+
+Production DB write:
+YES — 유지훈 선생님 계정 1건에 한해서 사용자 승인됨
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+1. 먼저 유지훈 OLD / NEW 계정 정확히 식별
+============================================================
+
+Production DB에서 유지훈 선생님 계정을 조사.
+
+찾아야 하는 두 계정:
+
+A. OLD KAKAO TEACHER
+- name = 유지훈
+- kakao_id IS NOT NULL
+- 기존 Kakao 로그인 계정
+- archive/disabled 상태일 수 있음
+
+B. NEW GENERAL TEACHER
+- name = 유지훈
+- 일반가입으로 최근 생성
+- kakao_id 없음 또는 General auth 방식
+- 현재 로그인 가능한 새 계정
+
+반드시 phone + swimming_pool_id + 기존 migration 관계까지 확인.
+
+이름만으로 매칭 금지.
+
+============================================================
+2. ambiguity safety
+============================================================
+
+아래 조건을 만족할 때만 WRITE 진행:
+
+- OLD Kakao 유지훈 계정 정확히 1개
+- NEW General 유지훈 계정 정확히 1개
+- 동일 normalized phone
+- 동일 swimming_pool_id
+- role = teacher
+- old/new가 실제 migration pair임을 확인
+
+동명이인 또는 여러 계정이 존재해
+pair가 100% 확정되지 않으면:
+
+STOP.
+
+Production write 하지 말고
+후보 ID만 보고.
+
+============================================================
+3. WRITE 전 스냅샷
+============================================================
+
+수정 전에 OLD/NEW account와 관련 ACTIVE refs를
+read-only로 전부 기록.
+
+최소 확인:
+
+OLD USER ID:
+...
+
+NEW USER ID:
+...
+
+phone:
+...
+
+pool_id:
+...
+
+is_activated:
+...
+
+teacher_invites:
+...
+
+class_groups.teacher_user_id:
+...
+
+co-teacher refs:
+...
+
+makeup_classes.assigned_teacher_id:
+...
+
+makeup_classes.transferred_to_teacher_id:
+...
+
+push_settings.user_id:
+...
+
+push_tokens.user_id:
+...
+
+기타 schema 전수검색으로 발견되는
+active teacher ownership refs.
+
+WRITE 전 개수 기록.
+
+============================================================
+4. 유지훈 ACTIVE DATA 강제 이전
+============================================================
+
+OLD Kakao teacher ID에 붙어 있는
+ACTIVE 운영정보를
+NEW General teacher ID로 이전.
+
+최소 반드시 처리:
+
+- class_groups.teacher_user_id
+- co-teacher refs / 배열 / 관계테이블
+- makeup_classes.assigned_teacher_id
+- makeup_classes.transferred_to_teacher_id
+- teacher_invites.user_id
+- push_settings.user_id
+- push_tokens.user_id
+- 현재 운영 중 teacher ownership을 참조하는 기타 active refs
+
+실제 schema 전수검색 후 누락 0.
+
+============================================================
+5. 담당반 / 담당학생 유지
+============================================================
+
+유지훈 OLD Kakao 계정이 담당하던:
+
+- 담당 반
+- 해당 반 학생
+- 수업 스케줄
+- 보강 담당
+- 대리보강
+- 현재 운영 권한
+
+이 NEW General 유지훈 계정에서
+그대로 보이게 해야 함.
+
+주의:
+학생 row를 새로 만들거나 복사하지 말 것.
+
+teacher ownership/reference만
+OLD → NEW로 정상 이전.
+
+============================================================
+6. IMMUTABLE HISTORY는 이동 금지
+============================================================
+
+과거 작성자 identity/history는
+기존 정책 유지.
+
+예:
+
+- diary_messages.teacher_user_id
+- teacher_absences.teacher_user_id
+- 기타 historical author/audit record
+
+이런 immutable history는
+OLD archived account를 가리킨 채 보존 가능.
+
+ACTIVE ownership만 NEW로 이전.
+
+즉:
+
+ACTIVE:
+OLD → NEW
+
+HISTORY:
+필요 시 OLD 유지
+
+============================================================
+7. NEW GENERAL 계정 즉시 정상화
+============================================================
+
+NEW General 유지훈 계정을:
+
+- role = teacher
+- 동일 swimming_pool_id
+- is_activated = true
+- 승인 완료 상태
+- 로그인 가능
+- teacher mode 즉시 진입 가능
+
+하도록 정상화.
+
+teacher_invites 또는 현재 승인 상태 구조도
+정상 approved 상태로 맞출 것.
+
+관리자 재승인:
+NO
+
+승인대기:
+NO
+
+============================================================
+8. OLD KAKAO 계정
+============================================================
+
+OLD Kakao 유지훈 계정은 migration 완료 후:
+
+- login 불가
+- is_activated=false
+- archived/disabled 상태 유지
+- active ownership 0
+
+단 history 조회용 row 자체는 삭제 금지.
+
+OLD account DELETE:
+NO
+
+============================================================
+9. DUPLICATE 정리
+============================================================
+
+이전 과정에서 OLD/NEW 양쪽에
+동일 active 관계가 중복되어 있다면
+NEW 기준으로 하나만 남기도록 안전하게 정리.
+
+반드시:
+
+duplicate class assignment = 0
+duplicate co-teacher relation = 0
+duplicate invite active relation = 0
+duplicate push setting = 0 또는 schema 정상값
+orphan active ref = 0
+
+============================================================
+10. 유지훈 계정에 대해서만 작업
+============================================================
+
+중요.
+
+이번 Production write는:
+
+유지훈 선생님
+OLD Kakao
+→ NEW General
+
+이 1건만 허용.
+
+다른 Kakao teacher:
+NO WRITE
+
+다른 General teacher:
+NO WRITE
+
+Parent:
+NO WRITE
+
+Student/member:
+NO WRITE
+
+Cross-pool:
+NO WRITE
+
+============================================================
+11. 실제 복구 후 검증
+============================================================
+
+DB write 완료 후 read-only 검증:
+
+NEW 유지훈:
+
+is_activated:
+true
+
+role:
+teacher
+
+pool:
+기존 pool 동일
+
+담당반:
+OLD와 동일
+
+담당학생:
+OLD와 동일
+
+스케줄:
+정상
+
+보강:
+정상
+
+teacher_invite:
+approved
+
+active refs pointing NEW:
+정상
+
+OLD active refs:
+0
+
+============================================================
+12. 로그인 사용 가능 여부
+============================================================
+
+Production DB를 직접 건드려
+로그인 테스트용 password를 변경하지 말 것.
+
+현재 NEW General 유지훈 계정의
+기존 일반가입 credential은 그대로 유지.
+
+서버 상태만 확인:
+
+- account active
+- teacher permission
+- pool access
+- teacher mode eligibility
+
+실제 비밀번호/PIN:
+NO CHANGE
+
+============================================================
+13. TRANSACTION
+============================================================
+
+가능하면 하나의 DB transaction으로 실행.
+
+BEGIN
+
+OLD/NEW 재검증
+
+ACTIVE refs transfer
+
+NEW activate/approve
+
+OLD archive/disable
+
+duplicate/orphan validation
+
+COMMIT
+
+중간 하나라도 실패:
+ROLLBACK
+
+부분 이전 상태 금지.
+
+============================================================
+14. IDEMPOTENCY
+============================================================
+
+이미 일부 ref가 NEW로 넘어간 상태일 수 있으므로
+재실행해도 안전해야 함.
+
+이미 NEW인 ref:
+skip
+
+OLD에 남은 ref:
+transfer
+
+duplicate 생성:
+0
+
+============================================================
+15. 코드 수정 여부
+============================================================
+
+이번 작업의 1차 목적은
+"유지훈 실계정 즉시 복구".
+
+이미 migration 코드가 수정되어 있다면
+추가 코드 수정하지 말고
+Production data recovery만 수행.
+
+이 유지훈 계정 복구를 위해
+새 architecture 만들지 말 것.
+
+============================================================
+16. 금지
+============================================================
+
+1.6.3:
+NO TOUCH
+
+OTA:
+NO
+
+Build:
+NO
+
+새 iOS submit:
+NO
+
+Android:
+NO
+
+다른 사용자 DB write:
+NO
+
+계정 삭제:
+NO
+
+학생 데이터 삭제:
+NO
+
+과거 일지 삭제:
+NO
+
+============================================================
+17. 완료보고
+============================================================
+
+# 유지훈 KAKAO → GENERAL PRODUCTION RECOVERY REPORT
+
+## ACCOUNT MATCH
+
+OLD Kakao teacher ID:
+...
+
+NEW General teacher ID:
+...
+
+Name:
+유지훈
+
+Normalized phone match:
+YES / NO
+
+Pool match:
+YES / NO
+
+Migration pair confirmed:
+YES / NO
+
+## BEFORE
+
+OLD active:
+...
+
+NEW active:
+...
+
+OLD class refs:
+...
+
+OLD makeup refs:
+...
+
+OLD invite refs:
+...
+
+OLD push refs:
+...
+
+Other active refs:
+...
+
+## PRODUCTION WRITE
+
+Transaction:
+COMMITTED / ROLLED BACK
+
+Teacher active refs moved:
+...
+
+Class refs:
+...
+
+Co-teacher refs:
+...
+
+Makeup refs:
+...
+
+Invite refs:
+...
+
+Push refs:
+...
+
+Other refs:
+...
+
+## NEW GENERAL 유지훈
+
+is_activated:
+...
+
+role:
+...
+
+pool:
+...
+
+approval:
+...
+
+assigned classes:
+...
+
+assigned students:
+...
+
+schedule:
+...
+
+makeups:
+...
+
+Teacher mode eligible:
+YES / NO
+
+## OLD KAKAO 유지훈
+
+is_activated:
+...
+
+login disabled:
+YES / NO
+
+active ownership remaining:
+0 / ...
+
+history preserved:
+YES / NO
+
+## INTEGRITY
+
+Duplicate active refs:
+0 / ...
+
+Orphans:
+0 / ...
+
+Cross-pool mutation:
+0
+
+Other user writes:
+0
+
+## AUTH
+
+General password/PIN changed:
+NO
+
+Kakao UI/OAuth used:
+NO
+
+## CLIENT
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+아래 조건 전부 만족 시에만:
+
+유지훈 KAKAO → GENERAL PRODUCTION DATA RECOVERY COMPLETE
+
+조건:
+- OLD/NEW exact pair confirmed
+- ACTIVE refs NEW로 이전
+- NEW teacher active/approved
+- 담당반/학생/스케줄/보강 유지
+- OLD active refs 0
+- duplicate/orphan 0
+
+하나라도 불충족이면:
+
+RECOVERY NOT CLOSED — EXACT ISSUE

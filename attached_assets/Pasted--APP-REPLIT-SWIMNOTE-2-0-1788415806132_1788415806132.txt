@@ -1,0 +1,428 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — PARENT KAKAO → GENERAL FORCE MIGRATION POLICY
+#
+# 최종 정책:
+#
+# 기존 Kakao 학부모가 동일 전화번호로
+# General 계정을 생성/전환하면
+#
+# 전화번호를 감지해서
+# OLD Kakao Parent의 ACTIVE 정보를
+# NEW General Parent로 강제 이식한다.
+#
+# 승인대기:
+# NO
+#
+# 관리자 수동승인:
+# NO
+#
+# 자녀 재연결 요청:
+# NO
+#
+# 새 계정은 기존 학부모의 연속 계정으로 취급.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+1.6.3:
+NO TOUCH
+
+============================================================
+1. MATCHING RULE
+============================================================
+
+기존 Kakao Parent ↔ 새 General Parent 매칭 기준:
+
+- normalized phone 동일
+- 동일 pool 관계 또는 기존 parent/student relation으로 확인
+- old account는 kakao_id IS NOT NULL
+- new account는 general auth account
+- 동일 사용자임이 명확할 때만 migration
+
+이름만으로 매칭:
+NO
+
+전화번호 normalization:
+현재 공통 함수 재사용
+
+============================================================
+2. FORCE MIGRATION TRIGGER
+============================================================
+
+General Parent 가입/전환 시
+동일 normalized phone의 기존 Kakao Parent가 감지되면:
+
+일반 신규가입 flow로 보내지 말고
+Kakao → General migration flow 실행.
+
+즉:
+
+OLD KAKAO PARENT
+→ NEW GENERAL PARENT
+
+ACTIVE ownership/reference 전부 이전.
+
+============================================================
+3. 반드시 이전할 PARENT ACTIVE DATA
+============================================================
+
+실제 schema 전체 검색 기준으로 전수 이전.
+
+최소:
+
+- parent_students
+- students.parent_user_id
+- members.parent_user_id
+- parent_pool_requests
+- parent_student_requests
+- student_registration_requests
+- push_settings
+- push_tokens
+- notice_reads
+- parent_content_reads
+- diary_reactions
+- growth_report_reactions
+- parent_ai_daily_usage
+- parent_ai_usage_reservations
+- parent_curriculum_conversations
+- growth_report_answers
+- member_activity_logs
+- parent_v2_pending
+- 기타 parent_id / parent_account_id / parent_user_id 기반 ACTIVE refs
+
+실제 source 기준으로 누락 0.
+
+============================================================
+4. CHILD LINKS
+============================================================
+
+가장 중요.
+
+기존 Kakao Parent가 자녀:
+
+A
+B
+
+와 연결돼 있었다면
+
+새 General Parent 로그인 직후:
+
+A
+B
+
+그대로 보여야 함.
+
+다시 자녀 연결:
+NO
+
+관리자 승인:
+NO
+
+학부모 연결 요청:
+NO
+
+============================================================
+5. POOL RELATIONSHIP
+============================================================
+
+기존 수영장 연결 관계 그대로 승계.
+
+cross-pool:
+0
+
+잘못된 다른 pool 연결:
+0
+
+============================================================
+6. OLD KAKAO ACCOUNT
+============================================================
+
+Migration 완료 후:
+
+OLD Kakao Parent:
+- archived
+- disabled
+- login 불가
+- active ownership 0
+
+NEW General Parent:
+- active
+- 기존 자녀/수영장/운영정보 ownership 보유
+
+OLD row 자체는 history/audit 필요 시 보존.
+
+DELETE:
+NO
+
+============================================================
+7. ALREADY MIGRATED / BROKEN ACCOUNT RECOVERY
+============================================================
+
+이미:
+
+Kakao Parent
+→ General account 생성
+→ 로그인 가능
+→ 그런데 기존 자녀/정보가 안 넘어간 상태
+
+라면
+동일 migration endpoint 재호출로 강제 복구 가능해야 한다.
+
+처리:
+
+1. archived old Kakao Parent 탐색
+2. new General Parent 탐색
+3. old ACTIVE refs 전수 확인
+4. 누락된 refs만 old → new
+5. duplicate는 skip
+6. new account active 유지
+7. old account active refs = 0
+
+manual DB edit 없이 recovery 가능하게.
+
+============================================================
+8. APPROVAL 제거
+============================================================
+
+Kakao → General Parent는
+기존 사용자 계정전환이므로
+
+approval pending:
+0
+
+admin approval:
+0
+
+waiting state:
+0
+
+즉시 사용 가능.
+
+완전 신규 General Parent는
+기존 신규가입 flow 유지.
+
+============================================================
+9. IDEMPOTENCY
+============================================================
+
+동일 migration 반복 실행 시:
+
+duplicate parent_students:
+0
+
+duplicate child link:
+0
+
+duplicate pool relation:
+0
+
+duplicate push refs:
+0
+
+orphan:
+0
+
+재실행 안전해야 함.
+
+============================================================
+10. HISTORY / ACTIVE 구분
+============================================================
+
+ACTIVE operational ownership:
+OLD → NEW
+
+Immutable history:
+현재 정책 유지
+
+과거 기록 row를 무조건 new parent id로 재작성하지 말 것.
+
+============================================================
+11. UI 우회 금지
+============================================================
+
+금지:
+
+- UI에서 old/new 데이터 합쳐 보이게 처리
+- 자녀만 임시 표시
+- old account에서 계속 조회
+- 승인 badge만 숨김
+
+실제 server/data ownership을
+NEW General Parent ID로 정상 이전.
+
+============================================================
+12. TEST
+============================================================
+
+PFG-01
+기존 Kakao Parent + 동일 phone General signup
+→ migration trigger
+
+PFG-02
+approval pending 0
+
+PFG-03
+admin approval 0
+
+PFG-04
+기존 child 1명 유지
+
+PFG-05
+기존 children 여러명 유지
+
+PFG-06
+pool relation 유지
+
+PFG-07
+parent_students old→new
+
+PFG-08
+students.parent_user_id old→new
+
+PFG-09
+members.parent_user_id old→new
+
+PFG-10
+push settings/tokens old→new
+
+PFG-11
+request/read/reaction refs old→new
+
+PFG-12
+growth/AI/curriculum refs old→new
+
+PFG-13
+old active refs = 0
+
+PFG-14
+duplicate refs = 0
+
+PFG-15
+orphans = 0
+
+PFG-16
+cross-pool = 0
+
+PFG-17
+already-migrated broken parent recovery
+
+PFG-18
+retry idempotent
+
+PFG-19
+new General Parent normal flow regression 0
+
+PFG-20
+Kakao login/OAuth UI 0 유지
+
+============================================================
+13. PRODUCTION POLICY
+============================================================
+
+코드 구현/테스트 후
+향후 실제 Production에서 동일 증상이 발생하면
+
+manual 승인이나 수동 재연결 대신
+migration/recovery endpoint로 강제 이식.
+
+단,
+실제 Production DB write가 필요한 경우에는
+대상 parent pair를 정확히 확인한 후 수행.
+
+============================================================
+14. COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): force migrate kakao parent data by phone to general account
+
+============================================================
+15. 완료보고
+============================================================
+
+# PARENT KAKAO → GENERAL FORCE MIGRATION REPORT
+
+## SOURCE
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## MATCH
+
+Phone normalization:
+...
+
+Old Kakao detection:
+...
+
+New General detection:
+...
+
+## DATA TRANSFER
+
+Children:
+PASS / FAIL
+
+Pool:
+PASS / FAIL
+
+Parent refs:
+PASS / FAIL
+
+Push/settings:
+PASS / FAIL
+
+Requests/read/reactions:
+PASS / FAIL
+
+AI/growth/curriculum refs:
+PASS / FAIL
+
+Old active refs:
+0 / ...
+
+Duplicates:
+0 / ...
+
+Orphans:
+0 / ...
+
+Cross-pool:
+0 / ...
+
+## APPROVAL
+
+Approval pending:
+0
+
+Admin approval:
+0
+
+Immediate login:
+PASS / FAIL
+
+## RECOVERY
+
+Already-created General Parent with missing data:
+RECOVERABLE / NOT
+
+Manual DB edit required:
+NO / YES
+
+## FINAL
+
+PARENT KAKAO → GENERAL
+PHONE-DETECTED FORCE DATA MIGRATION COMPLETE
