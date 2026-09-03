@@ -3298,6 +3298,39 @@ router.post("/teacher-kakao-migration-register", async (req, res) => {
           SET invite_status = 'approved', approved_at = NOW(), updated_at = NOW()
           WHERE user_id = ${existingNew.id} AND invite_status = 'joinedPendingApproval'
         `).catch(() => {});
+
+        // 기존 archived Kakao teacher ID 찾기 (phone + pool + archived email prefix)
+        const [oldArchived] = (await superAdminDb.execute(sql`
+          SELECT id FROM users
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+            AND swimming_pool_id = ${pool_id}
+            AND kakao_id IS NOT NULL
+            AND email LIKE '__archived_kakao_%'
+          LIMIT 1
+        `)).rows as any[];
+
+        // 누락된 active ref를 idempotent하게 이전 (기존 old ID 참조가 남아있는 경우만 업데이트)
+        if (oldArchived) {
+          const oldId = oldArchived.id;
+          const newId = existingNew.id;
+          await superAdminDb.execute(sql.raw(`UPDATE class_groups SET teacher_user_id = '${newId}', updated_at = NOW() WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE class_groups SET co_teacher_ids = REPLACE(co_teacher_ids::text, '"${oldId}"', '"${newId}"')::jsonb, updated_at = NOW() WHERE co_teacher_ids IS NOT NULL AND co_teacher_ids::text LIKE '%"${oldId}"%'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE makeup_classes SET assigned_teacher_id = '${newId}' WHERE assigned_teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE makeup_classes SET transferred_to_teacher_id = '${newId}' WHERE transferred_to_teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE teacher_invites SET user_id = '${newId}', invite_status = 'approved', approved_at = NOW() WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE push_settings SET user_id = '${newId}' WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE push_tokens SET user_id = '${newId}' WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE class_diaries SET teacher_id = '${newId}', updated_at = NOW() WHERE teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE extra_classes SET teacher_user_id = '${newId}', updated_at = NOW() WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE parent_student_requests SET teacher_user_id = '${newId}' WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          // synthetic invite if still none
+          const [inv] = (await superAdminDb.execute(sql`SELECT id FROM teacher_invites WHERE user_id = ${newId} LIMIT 1`)).rows as any[];
+          if (!inv) {
+            const synId = `ti_migrated_rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await superAdminDb.execute(sql`INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, approved_at, created_at) VALUES (${synId}, ${pool_id}, ${name}, ${ph || null}, 'approved', ${newId}, ${newId}, NOW(), NOW())`).catch(() => {});
+          }
+        }
+
         const recoveredToken = signToken({ userId: existingNew.id, role: (existingNew.role || "teacher") as any, poolId: pool_id });
         return res.status(200).json({
           token: recoveredToken,
@@ -3415,6 +3448,26 @@ router.post("/teacher-kakao-migration-register", async (req, res) => {
       await superAdminDb.execute(sql.raw(
         `UPDATE push_tokens SET user_id = '${newTeacherId}' WHERE user_id = '${oldTeacherId}'`
       )).catch(() => {});
+
+      // class_groups.co_teacher_ids (JSONB 배열 내 old ID 교체)
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_groups SET co_teacher_ids = REPLACE(co_teacher_ids::text, '"${oldTeacherId}"', '"${newTeacherId}"')::jsonb, updated_at = NOW() WHERE co_teacher_ids IS NOT NULL AND co_teacher_ids::text LIKE '%"${oldTeacherId}"%'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] co_teacher_ids warn:", e?.message));
+
+      // class_diaries.teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_diaries SET teacher_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] class_diaries warn:", e?.message));
+
+      // extra_classes.teacher_user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE extra_classes SET teacher_user_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] extra_classes warn:", e?.message));
+
+      // parent_student_requests.teacher_user_id (active request reviewer/owner)
+      await superAdminDb.execute(sql.raw(
+        `UPDATE parent_student_requests SET teacher_user_id = '${newTeacherId}' WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] parent_student_requests warn:", e?.message));
 
       await superAdminDb.execute(sql`COMMIT`);
       console.log(`[teacher-kakao-migration] 완료: old=${oldTeacherId} new=${newTeacherId} pool=${pool_id}`);
