@@ -392,7 +392,14 @@ export default function AdminXSetupScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-        <Pressable hitSlop={12} onPress={() => router.back()} style={s.backBtn}>
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/(admin)/settings" as any);
+          }}
+          style={s.backBtn}
+        >
           <LucideIcon name="arrow-left" size={20} color={NAVY} />
         </Pressable>
         <Text style={s.headerTitle}>X 홈페이지 세팅</Text>
