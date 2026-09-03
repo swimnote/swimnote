@@ -141,8 +141,8 @@ export default function TeacherHubScreen() {
       </View>
 
       {/* 탭 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipRow}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
         {TABS.map(t => (
           <Pressable key={t} onPress={() => setTab(t)}
             style={[s.chip, tab === t && { backgroundColor: themeColor, borderColor: themeColor }]}>
@@ -249,7 +249,6 @@ const s = StyleSheet.create({
   statsCard: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "space-around", backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 14, padding: 16, marginBottom: 6, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   statVal:   { fontSize: 22, fontWeight: "700", color: C.text },
   statLabel: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  chipRow:   { flexGrow: 0, paddingVertical: 8 },
   chip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, borderWidth: 1.5, borderColor: C.textMuted, backgroundColor: "#fff", flexShrink: 0 },
   chipTxt:   { fontSize: 13, fontWeight: "600", color: C.text, lineHeight: 20 }, // WP5 FIX-2 · remove alignItems:center(cross-axis-0) + paddingVertical to style · 0904
   card:      { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
