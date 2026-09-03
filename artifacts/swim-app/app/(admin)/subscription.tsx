@@ -1053,7 +1053,7 @@ export default function SubscriptionScreen() {
 
           <Pressable
             style={({ pressed }) => [s.billingBtn, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={() => router.push("/(admin)/billing" as any)}
+            onPress={() => router.push("/(admin)/billing?backTo=subscription" as any)}
           >
             <Text style={s.billingBtnText}>구독 현황 관리</Text>
           </Pressable>
