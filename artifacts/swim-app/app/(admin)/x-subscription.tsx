@@ -973,7 +973,7 @@ function ActiveView({
         {/* X모드 세팅하기 */}
         <Pressable
           style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
-          onPress={() => router.push("/(admin)/x-setup" as any)}
+          onPress={() => router.push("/(admin)/x-setup?backTo=x-subscription" as any)}
         >
           <LucideIcon name="settings" size={16} color="#fff" />
           <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
@@ -1106,7 +1106,7 @@ function PendingView() {
       </View>
       <Pressable
         style={({ pressed }) => [s.ctaBtn, { backgroundColor: X_ACCENT, opacity: pressed ? 0.85 : 1 }]}
-        onPress={() => router.push("/(admin)/x-setup" as any)}
+        onPress={() => router.push("/(admin)/x-setup?backTo=x-subscription" as any)}
       >
         <Text style={s.ctaBtnText}>X모드 세팅하기</Text>
       </Pressable>

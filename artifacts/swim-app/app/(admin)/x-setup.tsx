@@ -27,7 +27,7 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useAuth, API_BASE } from "@/context/AuthContext";
@@ -133,6 +133,7 @@ function formatDate(iso: string): string {
 export default function AdminXSetupScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { backTo } = useLocalSearchParams<{ backTo?: string }>();
 
   const [data, setData] = useState<XSetupStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -395,8 +396,13 @@ export default function AdminXSetupScreen() {
         <Pressable
           hitSlop={12}
           onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(admin)/settings" as any);
+            if (router.canGoBack()) {
+              router.back();
+            } else if (backTo) {
+              router.replace(("/(admin)/" + backTo) as any);
+            } else {
+              router.replace("/(admin)/settings" as any);
+            }
           }}
           style={s.backBtn}
         >

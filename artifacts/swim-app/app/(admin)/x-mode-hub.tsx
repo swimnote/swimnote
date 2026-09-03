@@ -149,7 +149,7 @@ export default function XModeHubScreen() {
               {mode === "x_pending" && (
                 <Pressable
                   style={({ pressed }) => [s.row, { opacity: pressed ? 0.7 : 1 }]}
-                  onPress={() => router.push("/(admin)/x-setup" as any)}
+                  onPress={() => router.push("/(admin)/x-setup?backTo=x-mode-hub" as any)}
                 >
                   <View style={[s.rowIcon, { backgroundColor: "#FFFBEB" }]}>
                     <LucideIcon name="settings" size={18} color="#D97706" />
@@ -175,7 +175,7 @@ export default function XModeHubScreen() {
                   </View>
                   <Pressable
                     style={({ pressed }) => [s.row, s.rowBorder, { opacity: pressed ? 0.7 : 1 }]}
-                    onPress={() => router.push("/(admin)/x-setup" as any)}
+                    onPress={() => router.push("/(admin)/x-setup?backTo=x-mode-hub" as any)}
                   >
                     <View style={[s.rowIcon, { backgroundColor: X_LIGHT }]}>
                       <LucideIcon name="settings" size={18} color={X_ACCENT} />
