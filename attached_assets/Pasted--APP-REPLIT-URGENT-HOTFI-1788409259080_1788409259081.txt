@@ -1,0 +1,668 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# URGENT HOTFIX
+# KAKAO → GENERAL ACCOUNT FULL DATA MIGRATION
+# TEACHER + PARENT TOGETHER
+#
+# 최종 정책:
+#
+# 기존 Kakao 계정을 사용하던 사람이
+# 동일 전화번호로 General 계정으로 전환하면
+# "새 사용자"가 아니라 "기존 사용자 계정 이전"으로 처리한다.
+#
+# 따라서 General 계정이 생성/승인/활성화되는 순간
+# 기존 Kakao 계정에 붙어 있던 ACTIVE 사용정보를
+# 새 General 계정 ID로 완전히 이전해야 한다.
+#
+# 대상:
+# 1. Teacher
+# 2. Parent
+#
+# Teacher만 수정하면 FAIL.
+# Parent만 수정해도 FAIL.
+# 두 role 모두 같은 원칙으로 완성할 것.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current known migration hotfix:
+70e88cc7
+
+1.6.3:
+NO TOUCH
+
+Production deploy:
+NO
+
+Production DB write:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+1. 공통 최종 정책
+============================================================
+
+Kakao → General 전환은
+신규 가입이 아니라 기존 계정 migration.
+
+따라서:
+
+- 동일 사용자 identity 유지
+- 기존 active 관계 유지
+- 기존 pool 관계 유지
+- 기존 child/class/schedule 관계 유지
+- 승인 완료/활성 상태 승계
+- old Kakao account archive
+- new General account만 active
+
+migration 사용자에게:
+
+approval pending
+manual approval
+new linkage request
+re-enrollment
+
+다시 요구하지 말 것.
+
+============================================================
+2. MATCHING RULE
+============================================================
+
+기존 확정 규칙 사용:
+
+Teacher:
+phone + swimming_pool_id
+
+Parent:
+현재 확정 parent migration rule
+(동일 normalized phone 중심, pool/relationship 현재 구현 기준)
+
+전화번호 normalization:
+현재 normalizePhone() 재사용
+
+예:
+010-1234-5678
+01012345678
+→ 동일
+
+이름 기준 매칭:
+NO
+
+============================================================
+3. TEACHER FULL DATA TRANSFER
+============================================================
+
+Old Kakao teacher ID를 참조하는
+모든 ACTIVE ownership/reference를 schema/source 전체 검색.
+
+최소 반드시 확인:
+
+- class_groups.teacher_user_id
+- class_groups.co_teacher_ids 또는 실제 co-teacher 구조
+- makeup_classes.assigned_teacher_id
+- makeup_classes.transferred_to_teacher_id
+- teacher_invites.user_id
+- push_settings.user_id
+- push_tokens.user_id
+- teacher profile/settings 관련 active refs
+- 기타 현재 schema에서 teacher ID를 active ownership으로 쓰는 모든 ref
+
+목표:
+
+General teacher로 전환 후 즉시
+
+- 동일 수영장
+- 동일 담당 반
+- 동일 담당 학생
+- 동일 수업 스케줄
+- 동일 보강 담당
+- 동일 알림 설정
+- 동일 활성 권한
+
+사용 가능해야 함.
+
+"빈 새 선생님 계정":
+FAIL
+
+============================================================
+4. TEACHER HISTORY EXCLUSION
+============================================================
+
+과거 기록 identity는 무조건 덮어쓰지 말 것.
+
+예:
+
+- diary_messages.teacher_user_id
+- teacher_absences.teacher_user_id
+
+등 immutable history는
+기존 archived Kakao row를 역사 identity로 유지 가능.
+
+반드시 구분:
+
+ACTIVE ownership:
+old → new
+
+IMMUTABLE history:
+기존 정책 유지
+
+============================================================
+5. PARENT FULL DATA TRANSFER
+============================================================
+
+Old Kakao parent ID를 참조하는
+모든 ACTIVE ownership/reference를 schema/source 전체 검색.
+
+최소 반드시 확인:
+
+parent_id 계열:
+- parent_students
+- notice_reads
+- student_registration_requests
+- parent_student_requests
+- diary_reactions
+- parent_content_reads
+- growth_report_reactions
+- parent_v2_pending
+- member_activity_logs
+
+parent_account_id 계열:
+- push_settings
+- push_tokens
+- parent_pool_requests
+- parent_ai_daily_usage
+- parent_ai_usage_reservations
+- parent_curriculum_conversations
+- growth_report_answers
+
+parent_user_id 계열:
+- students
+- members
+
+그리고 현재 schema에서 추가로 존재하는
+모든 ACTIVE parent ownership/reference.
+
+============================================================
+6. PARENT 핵심 사용자 결과
+============================================================
+
+예:
+
+기존 Kakao Parent
+전화번호:
+010-XXXX-YYYY
+
+기존 연결:
+자녀 A
+자녀 B
+
+General 계정 전환 후:
+
+- 자녀 A 즉시 보임
+- 자녀 B 즉시 보임
+- 기존 approved 관계 유지
+- 기존 pool 관계 유지
+- 기존 요청/상태 유지
+- 기존 알림 설정 유지
+- 기존 읽음 상태 유지
+- 기존 diary/growth/curriculum 관련 active 상태 유지
+
+다시:
+
+자녀 연결 요청
+관리자 승인
+수영장 연결 요청
+
+하게 만들면 FAIL.
+
+============================================================
+7. GENERAL ACCOUNT가 이미 생성된 경우
+============================================================
+
+현재 실제 사용자 중:
+
+Kakao account 존재
+→ General account 이미 생성
+→ 승인/활성까지 됨
+→ 그런데 기존 정보가 안 넘어간 상태
+
+가 있을 수 있음.
+
+이 경우 migration endpoint 재호출 또는
+idempotent recovery path로 복구 가능해야 한다.
+
+Teacher recovery:
+1. archived old Kakao teacher 찾기
+2. new General teacher 찾기
+3. old ACTIVE refs 전수 확인
+4. 누락된 ref만 old → new
+5. duplicate 없이 skip
+6. new teacher active 유지
+
+Parent recovery:
+1. archived old Kakao parent 찾기
+2. new General parent 찾기
+3. old ACTIVE refs 전수 확인
+4. child/pool/request/settings 등 누락 ref만 old → new
+5. duplicate 없이 skip
+6. new parent active 유지
+
+manual DB edit 없이 recovery 가능하게.
+
+============================================================
+8. APPROVAL 관련
+============================================================
+
+Migration user는 기존에 승인/사용하던 사용자이므로
+재승인 대상이 아님.
+
+Teacher:
+기존 approved Kakao teacher
+→ General teacher immediate active
+
+Parent:
+기존 Kakao parent
+→ General parent immediate active
+
+UI에서 숨기는 방식이 아니라
+서버 상태 자체가 정상 active/approved 상태여야 함.
+
+완전 신규 General Teacher:
+기존 approval flow 유지
+
+완전 신규 General Parent:
+기존 signup flow 유지
+
+============================================================
+9. OLD KAKAO ACCOUNT
+============================================================
+
+Migration 완료 후:
+
+Old Kakao account:
+- archived
+- disabled
+- login 불가
+
+New General account:
+- active
+- 실제 운영 ownership 보유
+
+단 immutable history lookup에 old row가 필요하면
+archive row 자체는 보존.
+
+============================================================
+10. DUPLICATE / ORPHAN / CROSS-POOL
+============================================================
+
+Migration 후 반드시:
+
+Teacher active refs pointing old ID:
+0
+
+Parent active refs pointing old ID:
+0
+
+duplicate class assignment:
+0
+
+duplicate co-teacher:
+0
+
+duplicate parent_students:
+0
+
+duplicate parent-pool relation:
+0
+
+duplicate push settings/tokens:
+0 또는 현재 unique 정책상 정상값
+
+orphan refs:
+0
+
+cross-pool transfer:
+0
+
+============================================================
+11. TEACHER TEST
+============================================================
+
+T01 approved Kakao teacher → General
+T02 immediate active
+T03 approval pending 0
+T04 same pool
+T05 class_groups.teacher_user_id old→new
+T06 co-teacher refs old→new
+T07 assigned students preserved
+T08 schedule preserved
+T09 makeup assigned_teacher_id old→new
+T10 makeup transferred_to_teacher_id old→new
+T11 teacher_invites.user_id old→new
+T12 push_settings old→new
+T13 push_tokens old→new
+T14 other ACTIVE teacher refs old→new
+T15 immutable history preserved
+T16 active refs to old teacher = 0
+T17 duplicate refs = 0
+T18 already-migrated broken account recovery
+T19 brand-new General teacher approval flow unchanged
+T20 cross-pool mutation 0
+
+============================================================
+12. PARENT TEST
+============================================================
+
+P01 Kakao parent → General
+P02 immediate active
+P03 approval pending 0
+P04 existing child 1 preserved
+P05 existing children multiple preserved
+P06 parent_students preserved
+P07 students.parent_user_id preserved/moved
+P08 members.parent_user_id preserved/moved
+P09 pool relationship preserved
+P10 parent requests preserved
+P11 push settings preserved
+P12 push tokens preserved
+P13 notice/read state preserved
+P14 diary reaction/read state preserved
+P15 growth report refs preserved
+P16 curriculum conversation refs preserved
+P17 other ACTIVE parent refs old→new
+P18 active refs to old parent = 0
+P19 duplicates 0
+P20 orphans 0
+P21 already-migrated broken parent recovery
+P22 brand-new General parent flow unchanged
+P23 cross-pool mutation 0
+P24 phone normalization
+
+============================================================
+13. 반드시 SOURCE AUDIT
+============================================================
+
+Teacher와 Parent 각각
+전체 schema/source에서 ID reference를 검색하고
+완료보고에 표로 제출:
+
+TABLE
+COLUMN
+ROLE
+ACTIVE / HISTORY
+MIGRATE YES/NO
+REASON
+
+추측 금지.
+
+기존 보고에서 이미 옮긴 ref라도
+실제 current HEAD 기준으로 다시 확인.
+
+============================================================
+14. UI 임시합치기 금지
+============================================================
+
+금지:
+
+- old/new 데이터를 화면에서 합쳐 보여주기
+- 이름만 복사
+- approval 상태만 바꾸기
+- old account에서 계속 조회하게 하기
+- 일부 카드만 우회 처리
+
+실제 DB ownership/reference가
+new General account ID로 이전돼야 함.
+
+============================================================
+15. AUTH 정보와 운영정보 분리
+============================================================
+
+덮어쓰지 말 것:
+
+- 새 General password/PIN
+- auth credential
+
+이전할 것:
+
+- pool membership
+- role/state
+- child/class/schedule/makeup relationships
+- active settings/preferences
+- operational ownership
+
+============================================================
+16. REGRESSION PROTECTION
+============================================================
+
+WP1-WP6:
+PASS 유지
+
+Teacher scope:
+PASS 유지
+
+Media cleanup:
+PASS 유지
+
+Messenger:
+PASS 유지
+
+Kakao UI/SDK:
+2.0에서 0 유지
+
+Apple auth:
+유지
+
+Normal signup:
+유지
+
+============================================================
+17. COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): transfer all teacher and parent data during kakao migration
+
+============================================================
+18. DEPLOY
+============================================================
+
+이번 단계는:
+
+SOURCE
+TEST
+COMMIT
+
+까지만.
+
+Render:
+NO
+
+Production DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+19. 완료보고
+============================================================
+
+# KAKAO → GENERAL FULL DATA MIGRATION REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+70e88cc7
+
+HEAD After:
+...
+
+Commit:
+...
+
+## TEACHER ROOT CAUSE
+
+Why existing teacher data was not fully transferred:
+...
+
+## PARENT ROOT CAUSE
+
+Why existing parent data was not fully transferred:
+...
+
+## TEACHER REFERENCE AUDIT
+
+TABLE | COLUMN | ACTIVE/HISTORY | MIGRATE | RESULT
+...
+
+Active refs found:
+...
+
+Migrated:
+...
+
+Excluded history:
+...
+
+Missing:
+0 / ...
+
+Old active refs remaining:
+0 / ...
+
+## PARENT REFERENCE AUDIT
+
+TABLE | COLUMN | ACTIVE/HISTORY | MIGRATE | RESULT
+...
+
+Active refs found:
+...
+
+Migrated:
+...
+
+Excluded history:
+...
+
+Missing:
+0 / ...
+
+Old active refs remaining:
+0 / ...
+
+## TEACHER RESULT
+
+Pool:
+PRESERVED / FAIL
+
+Classes:
+PRESERVED / FAIL
+
+Students:
+PRESERVED / FAIL
+
+Schedule:
+PRESERVED / FAIL
+
+Makeups:
+PRESERVED / FAIL
+
+Invite/approval:
+PRESERVED / FAIL
+
+Push/settings:
+PRESERVED / FAIL
+
+Immediate login:
+PASS / FAIL
+
+## PARENT RESULT
+
+Children:
+PRESERVED / FAIL
+
+Pool relationship:
+PRESERVED / FAIL
+
+Approved links:
+PRESERVED / FAIL
+
+Requests:
+PRESERVED / FAIL
+
+Notifications/settings:
+PRESERVED / FAIL
+
+Diary/Growth/Curriculum refs:
+PRESERVED / FAIL
+
+Immediate login:
+PASS / FAIL
+
+## RECOVERY
+
+Already-migrated Teacher with missing data:
+RECOVERABLE / NOT
+
+Already-migrated Parent with missing data:
+RECOVERABLE / NOT
+
+Manual DB edit required:
+NO / YES
+
+## TESTS
+
+T01-T20:
+...
+
+P01-P24:
+...
+
+New deterministic failures:
+0 / ...
+
+## DEPLOY
+
+Render:
+NO
+
+DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+KAKAO → GENERAL FULL DATA MIGRATION COMPLETE
+TEACHER + PARENT
+
+또는
+
+BLOCKED — EXACT MISSING REFERENCE
