@@ -396,10 +396,10 @@ export default function AdminXSetupScreen() {
         <Pressable
           hitSlop={12}
           onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else if (backTo) {
+            if (backTo) {
               router.replace(("/(admin)/" + backTo) as any);
+            } else if (router.canGoBack()) {
+              router.back();
             } else {
               router.replace("/(admin)/settings" as any);
             }
