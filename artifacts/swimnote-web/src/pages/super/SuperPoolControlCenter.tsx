@@ -1205,72 +1205,257 @@ function ClassesTab({ poolId }: { poolId: string }) {
   );
 }
 
+// ─────────────────── Curriculum Tab ─────────────────────────────
+function fmtBytes(b: number): string {
+  if (b === 0) return "0 B";
+  const units = ["B","KB","MB","GB"];
+  const i = Math.floor(Math.log(b) / Math.log(1024));
+  return `${(b / Math.pow(1024, i)).toFixed(1)} ${units[Math.min(i, 3)]}`;
+}
+
+function curriculumUiStatusColor(s: string): "green" | "amber" | "red" | "blue" | "gray" {
+  if (s === "ACTIVE") return "green";
+  if (s === "PROCESSING") return "blue";
+  if (s === "REVISION_REQUESTED") return "amber";
+  if (s === "UPLOADED") return "blue";
+  if (s === "FAILED") return "red";
+  return "gray";
+}
+
 function CurriculumTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selected, setSelected] = useState<any>(null);
+  const [dlError, setDlError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/curriculum`).then(setData).catch(() => {}).finally(() => setLoading(false));
+    api.get<any>(`/super/pools/${poolId}/control-center/curriculum`)
+      .then(setData).catch(() => {}).finally(() => setLoading(false));
   }, [poolId]);
 
-  const download = async (sub: any, fileKey: string, fileName: string) => {
-    setDownloading(fileKey);
+  // Secure download — only file_id sent to server, server resolves r2_key (§28)
+  const download = async (file: any) => {
+    setDownloading(file.id);
+    setDlError(null);
     try {
-      const r = await api.get<{ url: string }>(`/super/pools/${poolId}/control-center/curriculum/download?file_key=${encodeURIComponent(fileKey)}&submission_id=${sub.id}`);
+      const r = await api.get<any>(
+        `/super/pools/${poolId}/control-center/curriculum/download?file_id=${encodeURIComponent(file.id)}`
+      );
       const a = document.createElement("a");
-      a.href = r.url; a.download = fileName; a.target = "_blank";
+      a.href = r.url;
+      a.download = r.filename ?? file.original_filename ?? "curriculum.docx";
+      a.target = "_blank";
       a.click();
-    } catch (e: any) { alert(e?.data?.error ?? "다운로드 실패"); }
+    } catch (e: any) {
+      const errCode = e?.data?.error ?? "";
+      if (errCode === "FILE_NOT_FOUND" || errCode === "SOURCE_MISSING") {
+        setDlError("원본 파일을 찾을 수 없습니다.");
+      } else if (errCode === "CROSS_POOL_BLOCKED" || errCode === "FILE_NOT_OWNED") {
+        setDlError("접근 권한이 없습니다.");
+      } else {
+        setDlError("다운로드 처리 중 오류가 발생했습니다.");
+      }
+    }
     setDownloading(null);
   };
 
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <div className="space-y-4">
-      <Section title="제출 이력">
-        {(data.submissions ?? []).length === 0 ? <Empty text="제출 이력 없음" /> : (
-          (data.submissions ?? []).map((sub: any) => (
-            <div key={sub.id} className="py-2 border-b border-[#f5f5f5] last:border-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Badge color={sub.status === "approved" ? "green" : sub.status === "pending" ? "amber" : "gray"} text={sub.status} />
-                  <span className="ml-2 text-[11px] text-[#555]">v{sub.submission_version} — {sub.submitted_at?.slice(0, 10)}</span>
-                </div>
+  if (loading) return <Spinner />;
+  if (!data) return <Err msg="데이터 로드 실패" />;
+
+  const sub = data.submission;
+  const files: any[] = data.files ?? [];
+  const packages: any[] = data.packages ?? [];
+  const currentFiles: Record<string, any> = data.current_files ?? {};
+  const assignment = data.assignment ?? {};
+
+  // Latest vs Active
+  const latestCurriculum  = files.find((f: any) => f.file_type === "curriculum" && f.is_current);
+  const latestWebsite     = files.find((f: any) => f.file_type === "website" && f.is_current);
+  const activePackage     = packages[0] ?? null;
+
+  return (
+    <div className="space-y-5">
+      {/* §5/§6 — Status + Latest vs Active */}
+      <Section title="제출 상태 / 현재 버전">
+        {!sub ? (
+          <Empty text="이 수영장에서 제출한 커리큘럼 자료 없음" />
+        ) : (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge
+                color={curriculumUiStatusColor(sub.curriculum_ui_status)}
+                text={`커리큘럼: ${sub.curriculum_ui_status}`}
+              />
+              <Badge
+                color={curriculumUiStatusColor(sub.curriculum_ui_status)}
+                text={`웹사이트: ${sub.website_status}`}
+              />
+              {sub.submitted_at && (
+                <span className="text-[11px] text-[#888]">제출일: {sub.submitted_at.slice(0, 10)}</span>
+              )}
+            </div>
+            {/* Latest vs Active — §6 */}
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="bg-white rounded-lg border border-[#e5e7eb] p-2.5">
+                <div className="text-[10px] font-bold text-[#aaa] uppercase mb-1">최신 제출 (커리큘럼)</div>
+                {latestCurriculum ? (
+                  <>
+                    <div className="text-[11px] font-medium truncate">{latestCurriculum.original_filename}</div>
+                    <div className="text-[10px] text-[#aaa]">
+                      v{latestCurriculum.submission_version} · {fmtBytes(Number(latestCurriculum.file_size_bytes ?? 0))}
+                      · {latestCurriculum.uploaded_at?.slice(0, 10)}
+                    </div>
+                  </>
+                ) : <div className="text-[11px] text-[#bbb]">없음</div>}
               </div>
-              <div className="flex gap-2 mt-1.5 flex-wrap">
-                {sub.curriculum_file_key && (
-                  <button onClick={() => download(sub, sub.curriculum_file_key, sub.curriculum_file_name ?? "curriculum.docx")}
-                    disabled={downloading === sub.curriculum_file_key}
-                    className="px-2 py-1 text-[11px] rounded border border-[#002F5F] text-[#002F5F] hover:bg-[#f0f4ff]">
-                    {downloading === sub.curriculum_file_key ? "..." : "📄 커리큘럼 다운로드"}
-                  </button>
-                )}
-                {sub.website_file_key && (
-                  <button onClick={() => download(sub, sub.website_file_key, sub.website_file_name ?? "website.docx")}
-                    disabled={downloading === sub.website_file_key}
-                    className="px-2 py-1 text-[11px] rounded border border-[#002F5F] text-[#002F5F] hover:bg-[#f0f4ff]">
-                    {downloading === sub.website_file_key ? "..." : "🌐 홈페이지 자료 다운로드"}
-                  </button>
+              <div className="bg-white rounded-lg border border-[#e5e7eb] p-2.5">
+                <div className="text-[10px] font-bold text-[#aaa] uppercase mb-1">현재 패키지 (적용)</div>
+                {activePackage ? (
+                  <>
+                    <div className="text-[11px] font-medium truncate">{activePackage.package_name}</div>
+                    <div className="text-[10px] text-[#aaa]">
+                      v{activePackage.package_version} · {activePackage.generated_at?.slice(0, 10)}
+                    </div>
+                    <div className="text-[10px] text-[#888] mt-0.5">
+                      Applied: <Badge color="green" text="YES" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[11px] text-[#bbb]">없음 — <Badge color="gray" text="NO" /></div>
                 )}
               </div>
             </div>
-          ))
+            {/* Assignment summary — §7 */}
+            <div className="flex gap-4 mt-1 text-[11px] text-[#555]">
+              <span>배정 반: <strong>{assignment.assigned_class_count ?? 0}</strong></span>
+              <span>배정 학생: <strong>{assignment.assigned_student_count ?? 0}</strong></span>
+            </div>
+          </div>
         )}
       </Section>
+
+      {/* §4/§21 — File version history + row-click detail */}
+      <Section title={`파일 버전 이력 (${files.length}건)`}>
+        {files.length === 0 ? <Empty text="업로드된 파일 없음" /> : (
+          <>
+            {dlError && (
+              <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-[11px] text-red-700">
+                {dlError}
+              </div>
+            )}
+            <Table
+              heads={["파일명", "유형", "크기", "버전", "상태", "업로드일", "다운로드"]}
+              rows={files}
+              render={(f: any, i: number) => (
+                <tr key={f.id ?? i}
+                  className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === f.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                  onClick={() => setSelected(selected?.id === f.id ? null : f)}>
+                  <td className="py-2 pr-3">
+                    <div className="text-[11px] font-medium truncate max-w-[120px]">{f.original_filename}</div>
+                    <div className="text-[10px] text-[#bbb]">{f.mime_type ?? "—"}</div>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <Badge color={f.file_type === "curriculum" ? "navy" : "blue"} text={f.file_type} />
+                  </td>
+                  <td className="py-2 pr-3 text-[11px]">{fmtBytes(Number(f.file_size_bytes ?? 0))}</td>
+                  <td className="py-2 pr-3 text-[11px]">v{f.submission_version}</td>
+                  <td className="py-2 pr-3">
+                    {f.is_current
+                      ? <Badge color="green" text="현재" />
+                      : <Badge color="gray" text="이전" />}
+                  </td>
+                  <td className="py-2 pr-3 text-[11px]">{f.uploaded_at?.slice(0, 10)}</td>
+                  <td className="py-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); download(f); }}
+                      disabled={downloading === f.id}
+                      className="px-2 py-1 text-[10px] rounded border border-[#002F5F] text-[#002F5F] hover:bg-[#f0f4ff] disabled:opacity-40">
+                      {downloading === f.id ? "..." : "↓ 다운"}
+                    </button>
+                  </td>
+                </tr>
+              )}
+            />
+          </>
+        )}
+        {/* §21 — File detail drawer */}
+        {selected && (
+          <DetailDrawer title={`파일 상세 — ${selected.original_filename}`} onClose={() => setSelected(null)} loading={false}>
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="SOURCE">
+                <Row label="파일명" value={selected.original_filename} />
+                <Row label="MIME" value={selected.mime_type ?? "—"} />
+                <Row label="크기" value={fmtBytes(Number(selected.file_size_bytes ?? 0))} />
+                <Row label="업로드일" value={selected.uploaded_at?.slice(0, 16) ?? "—"} />
+                <Row label="업로드 주체" value={selected.uploaded_by ?? "—"} />
+                <Row label="Object 상태" value={selected.is_current ? "현재 활성" : "이전 버전"} />
+              </DetailSection>
+              <DetailSection title="PROCESSING">
+                <Row label="제출 상태" value={sub?.curriculum_ui_status ?? "—"} />
+                <Row label="원본 상태" value={sub?.curriculum_status ?? "—"} />
+                <Row label="제출일" value={sub?.submitted_at?.slice(0, 10) ?? "—"} />
+                <Row label="업데이트" value={sub?.updated_at?.slice(0, 10) ?? "—"} />
+                {sub?.curriculum_status === "REVISION_REQUESTED" && (
+                  <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 rounded px-2 py-1">
+                    ⚠️ 수정 요청됨 — 수영장에 수정 안내가 전달되었습니다.
+                  </div>
+                )}
+              </DetailSection>
+              <DetailSection title="VERSION">
+                <Row label="파일 버전" value={`v${selected.submission_version}`} />
+                <Row label="현재 활성" value={selected.is_current ? "YES" : "NO"} />
+                <Row label="최신 패키지" value={activePackage ? `v${activePackage.package_version}` : "없음"} />
+                <Row label="Applied" value={activePackage ? "YES" : "NO"} />
+              </DetailSection>
+              <DetailSection title="ASSIGNMENT">
+                <Row label="배정 반" value={`${assignment.assigned_class_count ?? 0}개`} />
+                <Row label="배정 학생" value={`${assignment.assigned_student_count ?? 0}명`} />
+              </DetailSection>
+              <DetailSection title="FILE — Secure Download">
+                <div className="text-[11px] text-[#555] mb-2">
+                  서버에서 5분 만료 서명 URL 생성 · 감사 로그 기록됨
+                </div>
+                <button
+                  onClick={() => download(selected)}
+                  disabled={downloading === selected.id}
+                  className="px-3 py-1.5 text-[12px] rounded-lg bg-[#002F5F] text-white hover:bg-[#003d7a] disabled:opacity-40">
+                  {downloading === selected.id ? "생성 중..." : "📄 원본 파일 다운로드 (서명 URL)"}
+                </button>
+                {dlError && <div className="mt-1.5 text-[11px] text-red-600">{dlError}</div>}
+              </DetailSection>
+            </div>
+          </DetailDrawer>
+        )}
+      </Section>
+
+      {/* §22 — Package history */}
       <Section title="패키지 이력">
-        {(data.packages ?? []).length === 0 ? <Empty text="패키지 없음" /> : (
+        {packages.length === 0 ? <Empty text="패키지 없음" /> : (
           <Table
-            heads={["버전", "패키지명", "생성일"]}
-            rows={data.packages ?? []}
-            render={(r, i) => (
+            heads={["버전", "패키지명", "소스 버전", "생성일"]}
+            rows={packages}
+            render={(r: any, i: number) => (
               <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-                <td className="py-2 pr-3">v{r.package_version}</td>
-                <td className="py-2 pr-3">{r.package_name}</td>
+                <td className="py-2 pr-3 font-medium">v{r.package_version}</td>
+                <td className="py-2 pr-3 text-[#555]">{r.package_name}</td>
+                <td className="py-2 pr-3 text-[#888]">v{r.source_submission_version ?? "—"}</td>
                 <td className="py-2">{r.generated_at?.slice(0, 10)}</td>
               </tr>
             )}
           />
         )}
+      </Section>
+
+      {/* §17/§24 — Error / Re-upload inventory */}
+      <Section title="오류 관측성 / Action Inventory">
+        <div className="text-[11px] text-[#888] space-y-1">
+          <div>커리큘럼 처리 오류: <span className="font-medium">DB-backed</span> (curriculum_status 필드)</div>
+          <div>파일 업로드 오류: <span className="font-medium">CONSOLE-only</span> → WP6에서 보강 예정</div>
+          <div>R2 object 오류: <span className="font-medium">CONSOLE-only</span> → WP6에서 보강 예정</div>
+          <div>Re-upload/Retry: 기존 x-setup.ts POST 존재, Super Admin 경유 노출은 LATER</div>
+          <div>파일 삭제/Purge: 이번 WP 범위 외 (§23)</div>
+        </div>
       </Section>
     </div>
   );
@@ -1447,34 +1632,102 @@ function NotificationsTab({ poolId }: { poolId: string }) {
   );
 }
 
+// ─────────────────── Storage Tab ────────────────────────────────
 function StorageTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/storage`).then(setData).catch(() => {}).finally(() => setLoading(false));
+    api.get<any>(`/super/pools/${poolId}/control-center/storage`)
+      .then(setData).catch(() => {}).finally(() => setLoading(false));
   }, [poolId]);
   if (loading) return <Spinner />;
   if (!data) return <Err msg="데이터 로드 실패" />;
-  const fmtBytes = (b: number) => b > 1e9 ? `${(b / 1e9).toFixed(2)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(0)} MB` : `${Math.round(b / 1e3)} KB`;
-  const quotaBytes = data.quota_mb * 1024 * 1024;
-  const pct = quotaBytes > 0 ? Math.min(100, Math.round(data.used_storage_bytes / quotaBytes * 100)) : 0;
+
+  const usedBytes     = Number(data.used_storage_bytes ?? 0);
+  const quotaBytes    = data.quota_bytes !== null ? Number(data.quota_bytes) : null;
+  const remainBytes   = data.remaining_bytes !== null ? Number(data.remaining_bytes) : null;
+  const pct           = data.used_pct;                    // null = unlimited
+  const unlimited     = quotaBytes === null;
+  const blocked       = Boolean(data.upload_blocked);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Usage bar — §13 */}
       <Section title="저장공간 현황">
-        <div className="mb-3">
-          <div className="flex justify-between text-[11px] mb-1">
-            <span>사용량</span>
-            <span>{fmtBytes(data.used_storage_bytes)} / {data.quota_mb} MB ({pct}%)</span>
+        {blocked && (
+          <div className="mb-3 px-3 py-2 bg-red-50 border border-red-300 rounded-lg text-[12px] text-red-700 font-semibold">
+            ⛔ 업로드 차단됨 — 이 수영장의 파일 업로드가 현재 불가합니다.
           </div>
-          <div className="h-2 bg-[#f3f4f6] rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-400" : "bg-[#002F5F]"}`} style={{ width: `${pct}%` }} />
+        )}
+        <div className="mb-4">
+          <div className="flex justify-between text-[11px] mb-1.5 text-[#555]">
+            <span>사용량</span>
+            <span className="font-medium">
+              {fmtBytes(usedBytes)} / {unlimited ? "무제한" : fmtBytes(quotaBytes!)}
+              {pct !== null ? ` (${pct}%)` : ""}
+            </span>
+          </div>
+          <div className="h-3 bg-[#f3f4f6] rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                (pct ?? 0) > 90 ? "bg-red-500" : (pct ?? 0) > 70 ? "bg-amber-400" : "bg-[#002F5F]"
+              }`}
+              style={{ width: unlimited ? "0%" : `${pct ?? 0}%` }}
+            />
           </div>
         </div>
-        <Row label="업로드 차단" value={data.upload_blocked} valueClass={data.upload_blocked ? "text-red-600 font-bold" : "text-[#bbb]"} />
-        <Row label="경고 발송일" value={data.storage_warning_sent_at?.slice(0, 10)} />
-        <Row label="미디어 파일 수" value={data.media_count} />
-        <Row label="미디어 용량" value={fmtBytes(data.media_bytes)} />
-        <Row label="커리큘럼 제출 수" value={data.curriculum_submission_count} />
+        {/* KPI grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: "Used",       value: fmtBytes(usedBytes) },
+            { label: "Quota",      value: unlimited ? "무제한" : fmtBytes(quotaBytes!) },
+            { label: "Remaining",  value: remainBytes !== null ? fmtBytes(remainBytes) : "무제한" },
+            { label: "Percent",    value: pct !== null ? `${pct}%` : "N/A" },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-white border border-[#e5e7eb] rounded-xl p-3">
+              <div className="text-[10px] text-[#aaa] uppercase tracking-wide">{label}</div>
+              <div className="text-[14px] font-semibold text-[#111] mt-0.5">{value}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Upload blocked + quota source — §15/§16 */}
+      <Section title="업로드 차단 / Quota 출처">
+        <Row label="Upload Blocked"
+          value={blocked ? "YES" : "NO"}
+          valueClass={blocked ? "text-red-600 font-bold" : "text-green-600"} />
+        <Row label="읽기 전용 모드" value={data.is_readonly ? "YES" : "NO"}
+          valueClass={data.is_readonly ? "text-red-600" : "text-[#bbb]"} />
+        <Row label="경고 발송일" value={data.storage_warning_sent_at?.slice(0, 10) ?? "없음"} />
+        <div className="mt-2 text-[11px] text-[#888] bg-[#f9fafb] rounded-lg p-2.5">
+          <div className="font-semibold text-[#555] mb-1">Quota 출처 (§15)</div>
+          <div>Source: <span className="font-medium">{data.quota_source ?? "unknown"}</span></div>
+          <div>base_storage_gb: {data.base_storage_gb} GB</div>
+          <div>extra_storage_gb: {data.extra_storage_gb} GB</div>
+          <div>video_storage_limit_mb: {data.video_storage_limit_mb} MB</div>
+          <div className="mt-1 text-[10px] text-[#aaa]">
+            Upload guard source: billing.ts → swimming_pools.upload_blocked (§16 검증됨)
+          </div>
+        </div>
+      </Section>
+
+      {/* File breakdown — §12 */}
+      <Section title="파일 분류별 사용량">
+        <div className="space-y-2 text-[12px]">
+          <div className="flex justify-between py-2 border-b border-[#f5f5f5]">
+            <span className="text-[#555]">미디어 파일</span>
+            <span className="font-medium">{data.media_count ?? 0}개 · {fmtBytes(Number(data.media_bytes ?? 0))}</span>
+          </div>
+          <div className="flex justify-between py-2 border-b border-[#f5f5f5]">
+            <span className="text-[#555]">커리큘럼 파일</span>
+            <span className="font-medium">{data.curriculum_file_count ?? 0}개 · {fmtBytes(Number(data.curriculum_file_bytes ?? 0))}</span>
+          </div>
+        </div>
+        <div className="mt-2 text-[10px] text-[#aaa]">
+          사용량 소스: swimming_pools.used_storage_bytes (DB-cached aggregate, billing.ts 업데이트)
+          <br />R2 bucket 실시간 scan: 금지 — Control Center 진입 시 object storage 호출 없음 (§14/§30)
+        </div>
       </Section>
     </div>
   );

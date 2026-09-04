@@ -6050,91 +6050,213 @@ router.get(
   },
 );
 
+// ──────────────────────────────────────────────────────────────────
+// R2 signed URL helper (shared, no raw key returned to client)
+// ──────────────────────────────────────────────────────────────────
+async function generateR2SignedUrl(r2Key: string, expiresIn = 300): Promise<string> {
+  const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+  const r2 = new S3Client({
+    region: "auto",
+    endpoint: `https://${process.env.CF_R2_ACCOUNT_ID ?? ""}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId:     process.env.CF_R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
+    },
+  });
+  return getSignedUrl(
+    r2,
+    new GetObjectCommand({ Bucket: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!, Key: r2Key }),
+    { expiresIn },
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
 // GET /super/pools/:id/control-center/curriculum
+// Sources: x_setup_submissions (status), x_setup_files (files+versions),
+//          x_packaged_profiles (packages), x_curriculum_class_assignments (assignment agg)
+// ──────────────────────────────────────────────────────────────────
 router.get(
   "/super/pools/:id/control-center/curriculum",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
     try {
-      const [submissions, packages] = await Promise.all([
+      const [submissionRes, filesRes, packagesRes, assignRes] = await Promise.all([
+        // Submission state (1:1 per pool — pool_id column in this table)
         superAdminDb.execute(sql`
-          SELECT xs.id, xs.status, xs.submitted_at, xs.reviewed_at,
-                 xs.curriculum_file_key, xs.website_file_key,
-                 xs.curriculum_file_name, xs.website_file_name,
-                 xs.submission_version
-          FROM x_setup_submissions xs
-          WHERE xs.swimming_pool_id = ${poolId}
-          ORDER BY xs.submitted_at DESC
-          LIMIT 10
+          SELECT id, pool_id, setup_status, curriculum_status, website_status,
+                 logo_status, photos_status, submitted_at, submitted_by,
+                 created_at, updated_at
+          FROM x_setup_submissions
+          WHERE pool_id = ${poolId}
+          LIMIT 1
         `).catch(() => ({ rows: [] })),
+        // File version history (curriculum + website types only)
         superAdminDb.execute(sql`
-          SELECT xp.id, xp.package_version, xp.package_name, xp.generated_at,
-                 xp.source_submission_version
-          FROM x_packaged_profiles xp
-          WHERE xp.pool_id = ${poolId}
-          ORDER BY xp.generated_at DESC
+          SELECT id, pool_id, file_type, original_filename, mime_type,
+                 file_size_bytes, submission_version, is_current,
+                 template_version, uploaded_by, uploaded_at, deleted_at
+          FROM x_setup_files
+          WHERE pool_id = ${poolId}
+            AND file_type IN ('curriculum', 'website')
+            AND deleted_at IS NULL
+          ORDER BY uploaded_at DESC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Packages (x_packaged_profiles)
+        superAdminDb.execute(sql`
+          SELECT id, package_version, package_name, generated_at, source_submission_version
+          FROM x_packaged_profiles
+          WHERE pool_id = ${poolId}
+          ORDER BY generated_at DESC
           LIMIT 5
         `).catch(() => ({ rows: [] })),
+        // Assignment aggregate: classes assigned + student count
+        superAdminDb.execute(sql`
+          SELECT COUNT(DISTINCT xca.class_group_id) AS assigned_class_count,
+                 COALESCE(SUM(cgs_cnt.student_count), 0) AS assigned_student_count
+          FROM x_curriculum_class_assignments xca
+          JOIN x_curriculum_packages xp ON xp.id = xca.package_id
+          LEFT JOIN (
+            SELECT class_group_id, COUNT(*) AS student_count
+            FROM class_group_students
+            GROUP BY class_group_id
+          ) cgs_cnt ON cgs_cnt.class_group_id = xca.class_group_id
+          WHERE xca.swimming_pool_id = ${poolId}
+        `).catch(() => ({ rows: [] })),
       ]);
-      res.json({ submissions: submissions.rows, packages: packages.rows });
+
+      const submission = submissionRes.rows[0] as any ?? null;
+      const files      = filesRes.rows as any[];
+      const packages   = packagesRes.rows as any[];
+      const assign     = (assignRes.rows[0] as any) ?? { assigned_class_count: 0, assigned_student_count: 0 };
+
+      // Derive active/current versions per file_type
+      const currentFiles: Record<string, any> = {};
+      for (const f of files) {
+        if (f.is_current && !currentFiles[f.file_type]) {
+          currentFiles[f.file_type] = f;
+        }
+      }
+
+      // Normalized UI status from curriculum_status field
+      const normalizeStatus = (raw: string | null | undefined): string => {
+        if (!raw) return "NOT_SUBMITTED";
+        if (["APPROVED", "READY"].includes(raw)) return "ACTIVE";
+        if (raw === "SUBMITTED" || raw === "UNDER_REVIEW") return "PROCESSING";
+        if (raw === "REVISION_REQUESTED") return "REVISION_REQUESTED";
+        if (raw === "IN_PROGRESS") return "UPLOADED";
+        return raw; // preserve original if unknown
+      };
+
+      res.json({
+        submission: submission ? {
+          id:                 submission.id,
+          setup_status:       submission.setup_status,
+          curriculum_status:  submission.curriculum_status,
+          website_status:     submission.website_status,
+          curriculum_ui_status: normalizeStatus(submission.curriculum_status),
+          submitted_at:       submission.submitted_at,
+          updated_at:         submission.updated_at,
+        } : null,
+        files,
+        current_files: currentFiles, // { curriculum: file, website: file }
+        packages,
+        assignment: {
+          assigned_class_count:   Number(assign.assigned_class_count   ?? 0),
+          assigned_student_count: Number(assign.assigned_student_count ?? 0),
+        },
+      });
     } catch (e: any) {
       res.status(500).json({ error: "CURRICULUM_FAILED", message: e?.message });
     }
   },
 );
 
-// GET /super/pools/:id/control-center/curriculum/download — secure file download
+// ──────────────────────────────────────────────────────────────────
+// GET /super/pools/:id/control-center/curriculum/download
+// Security: client provides file_id only (x_setup_files.id)
+//           server resolves r2_key from DB — no client-supplied key
+//           audit log written on success
+// ──────────────────────────────────────────────────────────────────
 router.get(
   "/super/pools/:id/control-center/curriculum/download",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { file_key, submission_id } = req.query as Record<string, string>;
-    if (!file_key || !submission_id) {
-      res.status(400).json({ error: "file_key, submission_id 필요" });
+    const { file_id } = req.query as Record<string, string>;
+    if (!file_id) {
+      res.status(400).json({ error: "MISSING_PARAMS", message: "file_id 필요" });
       return;
     }
     try {
-      // Cross-pool check: verify submission belongs to this pool
-      const subRes = await superAdminDb.execute(sql`
-        SELECT id, swimming_pool_id, curriculum_file_key, website_file_key
-        FROM x_setup_submissions
-        WHERE id = ${submission_id} AND swimming_pool_id = ${poolId}
+      // 1. Resolve file record — pool-scoped, no client-supplied key
+      const fileRes = await superAdminDb.execute(sql`
+        SELECT id, pool_id, file_type, r2_key, original_filename, mime_type, file_size_bytes,
+               submission_version, is_current, deleted_at
+        FROM x_setup_files
+        WHERE id = ${file_id} AND pool_id = ${poolId} AND deleted_at IS NULL
         LIMIT 1
       `);
-      if (!subRes.rows.length) {
-        res.status(403).json({ error: "CROSS_POOL_BLOCKED", message: "이 수영장의 파일이 아닙니다" });
+      if (!fileRes.rows.length) {
+        res.status(404).json({ error: "FILE_NOT_FOUND", message: "원본 파일을 찾을 수 없습니다." });
         return;
       }
-      const sub = subRes.rows[0] as any;
-      const allowedKeys = [sub.curriculum_file_key, sub.website_file_key].filter(Boolean);
-      if (!allowedKeys.includes(file_key)) {
-        res.status(403).json({ error: "FILE_NOT_OWNED", message: "허가되지 않은 파일" });
+      const file = fileRes.rows[0] as any;
+
+      // 2. Guard: r2_key must exist
+      if (!file.r2_key) {
+        res.status(404).json({ error: "SOURCE_MISSING", message: "원본 파일을 찾을 수 없습니다." });
         return;
       }
 
-      // Generate signed URL via R2 (S3 compatible)
-      const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
-      const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-      const r2 = new S3Client({
-        region: "auto",
-        endpoint: `https://${process.env.CF_R2_ACCOUNT_ID ?? ""}.r2.cloudflarestorage.com`,
-        credentials: {
-          accessKeyId: process.env.CF_R2_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
-        },
+      // 3. CRLF-safe filename for Content-Disposition (DB source only — §29)
+      const safeFilename = (file.original_filename ?? "curriculum.docx")
+        .replace(/[\r\n\t"\\]/g, "_")
+        .replace(/[^\x20-\x7E가-힣]/g, "_")
+        .trim() || "curriculum.docx";
+
+      // 4. Generate signed URL (server-resolved r2_key — §28)
+      const signedUrl = await generateR2SignedUrl(file.r2_key, 300);
+
+      // 5. Audit log — CURRICULUM_SOURCE_DOWNLOAD (no signed URL, no r2_key stored — §11/§38)
+      const actorName = (req.user as any)?.name ?? "슈퍼관리자";
+      const logId = `evt_csd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.execute(sql`
+        INSERT INTO event_logs (id, pool_id, category, actor_id, actor_name, target, description, metadata)
+        VALUES (
+          ${logId}, ${poolId}, '커리큘럼',
+          ${req.user!.userId}, ${actorName},
+          ${file_id},
+          ${`커리큘럼 원본 파일 다운로드: ${safeFilename} (v${file.submission_version})`},
+          ${JSON.stringify({
+            action:       "CURRICULUM_SOURCE_DOWNLOAD",
+            file_type:    file.file_type,
+            file_id:      file.id,
+            filename:     safeFilename,
+            version:      file.submission_version,
+            is_current:   file.is_current,
+            // r2_key and signed URL are NOT stored
+          })}::jsonb
+        )
+      `).catch((err: any) => {
+        console.error("[super] curriculum download audit 실패:", err?.message);
       });
-      const bucket = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID!;
-      const signedUrl = await getSignedUrl(
-        r2,
-        new GetObjectCommand({ Bucket: bucket, Key: file_key }),
-        { expiresIn: 300 }, // 5 min
-      );
-      res.json({ url: signedUrl, expires_in: 300 });
+
+      res.json({
+        url:         signedUrl,
+        expires_in:  300,
+        filename:    safeFilename,
+        mime_type:   file.mime_type ?? null,
+        file_size_bytes: Number(file.file_size_bytes ?? 0),
+        file_type:   file.file_type,
+        version:     file.submission_version,
+        is_current:  file.is_current,
+      });
     } catch (e: any) {
-      console.error("[control-center] curriculum download 오류:", e?.message);
-      res.status(500).json({ error: "DOWNLOAD_FAILED", message: e?.message });
+      console.error("[super] curriculum download 오류:", e?.message);
+      res.status(500).json({ error: "DOWNLOAD_FAILED", message: "다운로드 처리 중 오류가 발생했습니다." });
     }
   },
 );
@@ -6267,6 +6389,9 @@ router.get(
 );
 
 // GET /super/pools/:id/control-center/storage
+// Usage source: swimming_pools.used_storage_bytes (DB-cached aggregate, updated by billing.ts)
+// Quota source:  (base_storage_gb + extra_storage_gb) * 1024 MB
+// upload_blocked: swimming_pools.upload_blocked — same field used by billing.ts upload guard
 router.get(
   "/super/pools/:id/control-center/storage",
   requireAuth, requireRole("super_admin"),
@@ -6275,34 +6400,68 @@ router.get(
     try {
       const pool = (await superAdminDb.execute(sql`
         SELECT used_storage_bytes, upload_blocked, storage_warning_sent_at,
-               video_storage_limit_mb, base_storage_gb, extra_storage_gb
+               video_storage_limit_mb, base_storage_gb, extra_storage_gb,
+               is_readonly
         FROM swimming_pools WHERE id = ${poolId} LIMIT 1
       `)).rows[0] as any;
       if (!pool) { res.status(404).json({ error: "수영장 없음" }); return; }
 
-      const [mediaCount, curriculumCount] = await Promise.all([
+      const [mediaRes, curriculumFileRes] = await Promise.all([
+        // media_files: aggregate — NO per-row scan (§30)
         superAdminDb.execute(sql`
           SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size), 0) AS total_bytes
           FROM media_files WHERE swimming_pool_id = ${poolId}
         `).catch(() => ({ rows: [{ cnt: 0, total_bytes: 0 }] })),
+        // curriculum file count from x_setup_files — aggregate
         superAdminDb.execute(sql`
-          SELECT COUNT(*) AS cnt
-          FROM x_setup_submissions WHERE swimming_pool_id = ${poolId}
-        `).catch(() => ({ rows: [{ cnt: 0 }] })),
+          SELECT COUNT(*) AS cnt, COALESCE(SUM(file_size_bytes), 0) AS total_bytes
+          FROM x_setup_files
+          WHERE pool_id = ${poolId} AND deleted_at IS NULL
+        `).catch(() => ({ rows: [{ cnt: 0, total_bytes: 0 }] })),
       ]);
 
-      const media = mediaCount.rows[0] as any;
-      const curriculum = curriculumCount.rows[0] as any;
-      const quotaMb = (pool.base_storage_gb ?? 0) * 1024 + (pool.extra_storage_gb ?? 0) * 1024;
+      const media      = mediaRes.rows[0] as any;
+      const curriculum = curriculumFileRes.rows[0] as any;
+
+      // Quota — null/0 means unlimited (§13)
+      const baseGb  = Number(pool.base_storage_gb  ?? 0);
+      const extraGb = Number(pool.extra_storage_gb ?? 0);
+      const totalGb = baseGb + extraGb;
+      const quotaMb = totalGb > 0 ? totalGb * 1024 : null; // null = unlimited
+
+      const usedBytes = Number(pool.used_storage_bytes ?? 0);
+      const quotaBytes = quotaMb !== null ? quotaMb * 1024 * 1024 : null;
+
+      // Safe percentage — no division by zero (§13)
+      const usedPct = (quotaBytes !== null && quotaBytes > 0)
+        ? Math.min(Math.round((usedBytes / quotaBytes) * 1000) / 10, 100)
+        : null;
+      const remainingBytes = (quotaBytes !== null) ? Math.max(quotaBytes - usedBytes, 0) : null;
 
       res.json({
-        used_storage_bytes:   Number(pool.used_storage_bytes ?? 0),
-        upload_blocked:       Boolean(pool.upload_blocked),
+        // Usage
+        used_storage_bytes:      usedBytes,
+        upload_blocked:          Boolean(pool.upload_blocked),
+        is_readonly:             Boolean(pool.is_readonly),
         storage_warning_sent_at: pool.storage_warning_sent_at,
-        quota_mb:             quotaMb,
-        media_count:          Number(media.cnt ?? 0),
-        media_bytes:          Number(media.total_bytes ?? 0),
-        curriculum_submission_count: Number(curriculum.cnt ?? 0),
+
+        // Quota (null = unlimited)
+        quota_mb:                quotaMb,
+        quota_bytes:             quotaBytes,
+        remaining_bytes:         remainingBytes,
+        used_pct:                usedPct,
+
+        // Quota source info
+        quota_source:            totalGb > 0 ? `base ${baseGb}GB + extra ${extraGb}GB` : "unlimited",
+        base_storage_gb:         baseGb,
+        extra_storage_gb:        extraGb,
+        video_storage_limit_mb:  Number(pool.video_storage_limit_mb ?? 0),
+
+        // File breakdown (aggregate, no object storage call)
+        media_count:             Number(media.cnt ?? 0),
+        media_bytes:             Number(media.total_bytes ?? 0),
+        curriculum_file_count:   Number(curriculum.cnt ?? 0),
+        curriculum_file_bytes:   Number(curriculum.total_bytes ?? 0),
       });
     } catch (e: any) {
       res.status(500).json({ error: "STORAGE_FAILED", message: e?.message });
