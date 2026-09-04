@@ -1,0 +1,451 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE — CREATE NEW OFFICIAL SUBSCRIPTION PLAN CATALOG
+# GOAL:
+# 구형 Coach/Premier 플랜을 신규 가입/변경용 기준에서 제거하고,
+# 아래 확정 가격표로 실제 신규 구독 플랜 목록을 생성한다.
+#
+# 이 작업은 UI 땜질이 아니라
+# DB + API + Super Admin의 canonical plan catalog를 실제 교체하는 작업이다.
+#
+# DO NOT TOUCH 1.6.3
+# DO NOT START GROWTH REPORT WORK
+# DO NOT AUTO DEPLOY RENDER
+# DO NOT INVENT DIFFERENT PRICES
+
+============================================================
+1. 신규 공식 가격표
+============================================================
+
+반드시 아래 가격 사용:
+
+1. SWIMNOTE
+월 9,900원
+
+2. X300
+월 119,000원
+회원 한도 300
+
+3. X500
+월 189,000원
+회원 한도 500
+
+4. X1000
+월 349,000원
+회원 한도 1000
+
+5. DATA100
+월 7,900원
+
+6. DATA300
+월 22,900원
+
+다른 가격 임의 생성 금지.
+
+============================================================
+2. 상품 역할
+============================================================
+
+SWIMNOTE:
+BASE PLAN
+
+X300:
+X PLAN
+
+X500:
+X PLAN
+
+X1000:
+X PLAN
+
+DATA100:
+DATA/STORAGE ADD-ON
+
+DATA300:
+DATA/STORAGE ADD-ON
+
+Base / X / Data를 하나의 legacy tier로 섞지 않는다.
+
+============================================================
+3. CANONICAL PLAN CATALOG
+============================================================
+
+subscription_plans 또는 현재 repository의 공식 plan catalog를
+신규 source of truth로 사용.
+
+각 플랜 최소 필드:
+
+plan_key
+display_name
+plan_type
+monthly_price_krw
+member_limit
+active
+sort_order
+
+RevenueCat product id는
+현재 확정값이 있으면 연결.
+
+없으면 NULL/미지정으로 두고
+임의 product id 생성 금지.
+
+============================================================
+4. PLAN KEY
+============================================================
+
+현재 repository에 신규 plan key가 이미 설계되어 있으면
+그 값을 사용.
+
+없다면 의미가 명확한 안정적 key를 사용:
+
+swimnote
+x300
+x500
+x1000
+data100
+data300
+
+단 기존 schema validation과 충돌하면
+repository 기준에 맞춰 조정 후 보고.
+
+============================================================
+5. 구형 플랜 처리
+============================================================
+
+다음 legacy plan:
+
+Free
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+
+신규 가입/변경 selector에서는 비활성화.
+
+기존 historical subscription row:
+삭제 금지.
+
+과거 billing/audit:
+삭제 금지.
+
+신규 plan catalog에서는
+active=false 또는 legacy 처리.
+
+============================================================
+6. SUPER ADMIN 구독 플랜 목록
+============================================================
+
+Super Admin > 구독·결제에서
+구형 tier selector 대신 신규 plan catalog 표시.
+
+구조:
+
+[기본 플랜]
+SWIMNOTE — 9,900원
+
+[X 모드 플랜]
+X 없음
+X300 — 119,000원 / 300명
+X500 — 189,000원 / 500명
+X1000 — 349,000원 / 1000명
+
+[데이터 추가]
+DATA100 — 7,900원
+DATA300 — 22,900원
+
+============================================================
+7. SUPER ADMIN 결제 없이 X 직접부여
+============================================================
+
+Super Admin은 특정 수영장에
+X300 / X500 / X1000 중 하나를
+결제 없이 직접 부여할 수 있어야 한다.
+
+직접부여 시:
+
+x_manual_entitlement = true
+x_force_disabled = false
+x_plan_key = 선택한 X plan key
+x_plan_member_limit = 해당 plan 회원 한도
+
+x_paid_entitlement:
+변경 금지
+
+effective X:
+true
+
+source:
+MANUAL
+
+RevenueCat fake purchase:
+생성 금지.
+
+============================================================
+8. PAID X와 MANUAL X 분리
+============================================================
+
+실제 결제:
+
+RevenueCat
+→ x_paid_entitlement=true
+
+Super Admin 직접부여:
+
+x_manual_entitlement=true
+
+effective:
+
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+기존 resolver 유지.
+
+============================================================
+9. TOYKIDS 적용
+============================================================
+
+Toykids pool:
+
+pool_1780849364252_l9k44rbk3
+
+현재:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+
+Toykids를 신규 X plan 테스트 기준 tenant로 사용.
+
+Super Admin에서
+X300 / X500 / X1000 중 하나를
+실제로 선택할 수 있어야 함.
+
+단 어떤 X plan을 Toykids에 최종 지정할지는
+사용자 선택 전 임의 결정 금지.
+
+즉 구현 후:
+Toykids X plan = UNSELECTED
+또는 현재 null 유지 가능.
+
+UI에서 선택 가능 상태까지만 만든다.
+
+============================================================
+10. DATA ADD-ON
+============================================================
+
+DATA100 / DATA300도 공식 catalog에 생성.
+
+현재 저장공간 용량 매핑이 설계에 존재하면 연결.
+
+존재하지 않으면
+가격과 plan만 생성하고
+storage GB 값은 임의 생성하지 말 것.
+
+============================================================
+11. DB MIGRATION
+============================================================
+
+신규 plan row/legacy inactive 상태가
+DB migration 또는 seed 변경을 요구하면
+정식 additive migration으로 작성.
+
+runtime boot DDL 금지.
+
+Production migration:
+이번 작업에서 실행 금지.
+
+Staging에서만 검증.
+
+============================================================
+12. TEST
+============================================================
+
+필수:
+
+A.
+신규 6개 plan catalog 존재
+
+B.
+가격 정확히 일치
+
+C.
+X300 member_limit=300
+
+D.
+X500 member_limit=500
+
+E.
+X1000 member_limit=1000
+
+F.
+legacy Coach/Premier 신규 selector에서 미노출
+
+G.
+Super Admin X plan selector 표시
+
+H.
+manual X300 부여
+→ manual=true
+→ x_plan_key=x300
+→ member_limit=300
+→ effective=true
+
+I.
+manual X500 부여
+
+J.
+manual X1000 부여
+
+K.
+manual X 회수
+→ manual=false
+
+L.
+paid entitlement와 독립
+
+M.
+다른 pool 영향 0
+
+============================================================
+13. TYPECHECK
+============================================================
+
+APP:
+0 new errors
+
+API:
+0 new errors
+
+Super Admin/Web:
+0 new errors
+
+============================================================
+14. COMMIT
+============================================================
+
+추천 commit:
+
+feat(plans): add official SWIMNOTE X subscription catalog
+
+필요하면 UI/API 분리 commit 가능.
+
+push:
+release/v2.0.0
+
+Render:
+NO
+
+============================================================
+15. 완료보고
+============================================================
+
+# OFFICIAL NEW PLAN CATALOG REPORT
+
+GIT
+Branch:
+HEAD Before:
+HEAD After:
+Commit:
+Push:
+
+--------------------------------
+
+NEW PLAN CATALOG
+
+plan_key | name | type | price | member_limit | active
+...
+
+--------------------------------
+
+LEGACY
+
+Coach/Premier selectable:
+YES / NO
+
+Historical rows preserved:
+YES / NO
+
+--------------------------------
+
+SUPER ADMIN
+
+Base plan selector:
+PASS / FAIL
+
+X plan selector:
+PASS / FAIL
+
+Data add-on selector:
+PASS / FAIL
+
+Manual X grant without payment:
+PASS / FAIL
+
+--------------------------------
+
+TOYKIDS
+
+Manual X:
+ON
+
+Paid X:
+OFF
+
+Effective X:
+ON
+
+Current X plan:
+...
+
+Selectable X plans:
+X300 / X500 / X1000
+
+--------------------------------
+
+TESTS
+
+Catalog:
+PASS / FAIL
+
+Prices:
+PASS / FAIL
+
+Member limits:
+PASS / FAIL
+
+Legacy hidden:
+PASS / FAIL
+
+Manual X:
+PASS / FAIL
+
+Paid/manual separation:
+PASS / FAIL
+
+--------------------------------
+
+FINAL
+
+New official plan catalog implemented:
+YES / NO
+
+Legacy plans no longer authoritative for new changes:
+YES / NO
+
+Super Admin can assign X300/X500/X1000 without payment:
+YES / NO
+
+Toykids ready to select new X plan:
+YES / NO
+
+Ready for manual Render deploy:
+YES / NO
+
+Target SHA:
+...
+
+DO NOT AUTO DEPLOY.
+WAIT FOR USER MANUAL RENDER DEPLOY.
