@@ -100,45 +100,43 @@ async function main() {
   // ── 3. Class Groups ────────────────────────────────────────────────────────
   console.log("\n[3] Class Groups");
   await ins("class_group_a", `
-    INSERT INTO class_groups (id, swimming_pool_id, name, capacity, day_of_week, start_time, end_time, active)
-    VALUES ('stg_class_a', 'stg_pool_a', 'STG 초급반A', 20, '{1,3,5}', '09:00', '10:00', true)
+    INSERT INTO class_groups (id, swimming_pool_id, name, capacity, schedule_days, schedule_time, level)
+    VALUES ('stg_class_a', 'stg_pool_a', 'STG 초급반A', 20, '{1,3,5}', '09:00', 'beginner')
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("class_group_b", `
-    INSERT INTO class_groups (id, swimming_pool_id, name, capacity, day_of_week, start_time, end_time, active)
-    VALUES ('stg_class_b', 'stg_pool_b', 'STG X반B', 30, '{2,4}', '10:00', '11:00', true)
+    INSERT INTO class_groups (id, swimming_pool_id, name, capacity, schedule_days, schedule_time, level)
+    VALUES ('stg_class_b', 'stg_pool_b', 'STG X반B', 30, '{2,4}', '10:00', 'intermediate')
     ON CONFLICT (id) DO NOTHING
   `);
 
   // ── 4. Students ────────────────────────────────────────────────────────────
   console.log("\n[4] Students");
   await ins("student_a1", `
-    INSERT INTO students (id, swimming_pool_id, name, gender, birth_date, status)
-    VALUES ('stg_student_a1', 'stg_pool_a', 'STG 학생A1', 'male', '2010-01-15', 'active')
+    INSERT INTO students (id, swimming_pool_id, name, birth_date, class_group_id, status)
+    VALUES ('stg_student_a1', 'stg_pool_a', 'STG 학생A1', '2010-01-15', 'stg_class_a', 'active')
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("student_a2", `
-    INSERT INTO students (id, swimming_pool_id, name, gender, birth_date, status)
-    VALUES ('stg_student_a2', 'stg_pool_a', 'STG 학생A2', 'female', '2011-03-20', 'active')
+    INSERT INTO students (id, swimming_pool_id, name, birth_date, class_group_id, status)
+    VALUES ('stg_student_a2', 'stg_pool_a', 'STG 학생A2', '2011-03-20', 'stg_class_a', 'active')
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("student_b1", `
-    INSERT INTO students (id, swimming_pool_id, name, gender, birth_date, status)
-    VALUES ('stg_student_b1', 'stg_pool_b', 'STG 학생B1', 'male', '2009-07-10', 'active')
+    INSERT INTO students (id, swimming_pool_id, name, birth_date, class_group_id, status)
+    VALUES ('stg_student_b1', 'stg_pool_b', 'STG 학생B1', '2009-07-10', 'stg_class_b', 'active')
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("student_b2", `
-    INSERT INTO students (id, swimming_pool_id, name, gender, birth_date, status)
-    VALUES ('stg_student_b2', 'stg_pool_b', 'STG 학생B2', 'female', '2012-11-05', 'active')
+    INSERT INTO students (id, swimming_pool_id, name, birth_date, class_group_id, status)
+    VALUES ('stg_student_b2', 'stg_pool_b', 'STG 학생B2', '2012-11-05', 'stg_class_b', 'active')
     ON CONFLICT (id) DO NOTHING
   `);
 
   // ── 5. Class-Group-Student links ───────────────────────────────────────────
-  console.log("\n[5] Class Group Student links");
-  await ins("cgs_a1", `INSERT INTO class_group_students (class_group_id, student_id) VALUES ('stg_class_a','stg_student_a1') ON CONFLICT DO NOTHING`);
-  await ins("cgs_a2", `INSERT INTO class_group_students (class_group_id, student_id) VALUES ('stg_class_a','stg_student_a2') ON CONFLICT DO NOTHING`);
-  await ins("cgs_b1", `INSERT INTO class_group_students (class_group_id, student_id) VALUES ('stg_class_b','stg_student_b1') ON CONFLICT DO NOTHING`);
-  await ins("cgs_b2", `INSERT INTO class_group_students (class_group_id, student_id) VALUES ('stg_class_b','stg_student_b2') ON CONFLICT DO NOTHING`);
+  // students.class_group_id already set in §4 — no separate join table needed.
+  console.log("\n[5] Class Group Student links (via students.class_group_id)");
+  console.log("  ⏩ class_group_id set directly in students INSERT (§4) — skip");
 
   // ── 6. WP8 seed: support_case + note ──────────────────────────────────────
   console.log("\n[6] WP8 seed data");
@@ -148,8 +146,8 @@ async function main() {
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("support_case_note_stg", `
-    INSERT INTO support_case_notes (id, case_id, note, event_type)
-    VALUES ('stg_note_001', 'stg_case_001', 'STG 초기 메모', 'NOTE_ADDED')
+    INSERT INTO support_case_notes (id, support_case_id, pool_id, actor_id, event_type, note)
+    VALUES ('stg_note_001', 'stg_case_001', 'stg_pool_a', 'stg_user_super', 'NOTE_ADDED', 'STG 초기 메모')
     ON CONFLICT (id) DO NOTHING
   `);
   await ins("audit_log_stg", `

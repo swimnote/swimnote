@@ -18,26 +18,30 @@
  *   - 각 migration은 멱등 (재실행 안전)
  *
  * Migration 실행 순서:
- *   §0  base tables (pool-db-base-manual-init.ts)
- *   §1  pool-db-init (swimming_pools, users, students, class_groups, etc.)
- *   §2  runtime-ddl-consolidated (members, inquiries, billing, super tables, etc.)
+ *   §-1 pool-db-core-tables (swimming_pools, users, push_logs, audit_logs, ai_traces,
+ *         support_knowledge_items, support_cases, support_case_notes, diary_entries,
+ *         curriculum_items, x_monthly_operational_snapshots, x_setup_*, x_curriculum_*)
+ *         ← MUST be first; every subsequent migration depends on swimming_pools existing
+ *   §0  pool-db-base-manual-init (ALTER swimming_pools — additive columns)
+ *   §1  pool-db-init (members, students, class_groups, notifications, etc.)
+ *   §2  runtime-ddl-consolidated (inquiries, billing, super tables, etc.)
  *   §3  X-mode migrations
- *   §4  CS (Customer Support) migrations
+ *   §4  CS (Customer Support) migrations — cs-pa0 FIRST (creates support_cases etc.)
  *   §5  Growth Report migrations
  *   §6  WP8 / WP9 migrations
  *   §7  WP6/WP7 additive schema (event_logs + push_logs columns)
  *   §8  Misc migrations
- *   §9  verification
  */
 
 import { getMigrationDb } from "../lib/migration-db.js";
 
 // ── Migration imports ──────────────────────────────────────────────────────
+import { initCoreTablesSchema }         from "./pool-db-core-tables.js";
 import { runBaseManualMigration }       from "./pool-db-base-manual-init.js";
 import { initPoolDb }                   from "./pool-db-init.js";
 import { run as runRuntimeDdlConsolidated } from "./runtime-ddl-consolidated.js";
 import { initMembershipSchema }         from "./pool-db-membership.js";
-import { initXModeSchema }             from "./pool-db-x-init.js";
+import { initXModeSchema, initXModePart2Schema } from "./pool-db-x-init.js";
 import { initXPaymentSchema }          from "./pool-db-x-payment-init.js";
 import { runXBillingContractMigration } from "./pool-db-x-billing-contract.js";
 import { runXLifecycleMigration }       from "./pool-db-x-lifecycle.js";
@@ -107,10 +111,16 @@ async function main() {
   console.log(`\n[manifest] Initial table count: ${countBefore}`);
 
   try {
-    // §0: Base manual init (swimming_pools, users, push_logs, etc.)
+    // §-1: Core tables — swimming_pools, users, push_logs, audit_logs, ai_traces,
+    //       support_knowledge_items, support_cases, support_case_notes, diary_entries,
+    //       curriculum_items, x_monthly_operational_snapshots, x_setup_*, x_curriculum_*
+    //       MUST run before every other migration (FK targets live here).
+    await runStep("§-1 pool-db-core-tables",          initCoreTablesSchema,        db);
+
+    // §0: Additive ALTER on swimming_pools (base_manual_entitlement)
     await runStep("§0  pool-db-base-manual-init",     runBaseManualMigration,      db);
 
-    // §1: Core pool tables
+    // §1: Core pool tables (members, students, class_groups, notifications, etc.)
     await runStep("§1  pool-db-init",                 initPoolDb,                  db);
 
     // §2: Consolidated DDL
@@ -118,7 +128,11 @@ async function main() {
     await runStep("§2b pool-db-membership",           initMembershipSchema,         db);
 
     // §3: X-mode
-    await runStep("§3a pool-db-x-init (WP1)",         initXModeSchema,             db);
+    await runStep("§3a  pool-db-x-init Part1 (WP1)",   initXModeSchema,             db);
+    // §3a2: Part2 creates parent_ai_daily_usage (Group4) + growth_reports (Group5b).
+    // Must run before §3a's Group8 becomes a no-op on re-run, and before §5b/§5d/§5e
+    // which ALTER growth_reports.
+    await runStep("§3a2 pool-db-x-init Part2",        initXModePart2Schema,        db);
     await runStep("§3b pool-db-x-payment-init",       initXPaymentSchema,          db);
     await runStep("§3c pool-db-x-billing-contract",   runXBillingContractMigration, db);
     await runStep("§3d pool-db-x-lifecycle",          runXLifecycleMigration,      db);
@@ -126,16 +140,17 @@ async function main() {
     await runStep("§3f pool-db-x-gr-interactions",    runGrInteractionsMigration,  db);
     await runStep("§3g pool-db-x04",                  runX04Migration,             db);
 
-    // §4: CS migrations
-    await runStep("§4a pool-db-cs-05r",               runCs05rMigration,           db);
-    await runStep("§4b pool-db-cs-12",                runCs12Migration,            db);
-    await runStep("§4c pool-db-cs-15",                runCs15Migration,            db);
-    await runStep("§4d pool-db-cs-16",                runCs16Migration,            db);
-    await runStep("§4e pool-db-cs-23a",               runCs23aMigration,           db);
-    await runStep("§4f pool-db-cs-24a",               runCs24aMigration,           db);
-    await runStep("§4g pool-db-cs-24b",               runCs24bMigration,           db);
-    await runStep("§4h pool-db-cs-26",                runCs26Migration,            db);
-    await runStep("§4i pool-db-cs-pa0",               runCsPa0Migration,           db);
+    // §4: CS migrations — cs-pa0 FIRST (creates support_cases / support_case_notes;
+    //     support_knowledge_items already exists from §-1 so seed INSERTs succeed)
+    await runStep("§4a pool-db-cs-pa0",               runCsPa0Migration,           db);
+    await runStep("§4b pool-db-cs-05r",               runCs05rMigration,           db);
+    await runStep("§4c pool-db-cs-12",                runCs12Migration,            db);
+    await runStep("§4d pool-db-cs-15",                runCs15Migration,            db);
+    await runStep("§4e pool-db-cs-16",                runCs16Migration,            db);
+    await runStep("§4f pool-db-cs-23a",               runCs23aMigration,           db);
+    await runStep("§4g pool-db-cs-24a",               runCs24aMigration,           db);
+    await runStep("§4h pool-db-cs-24b",               runCs24bMigration,           db);
+    await runStep("§4i pool-db-cs-26",                runCs26Migration,            db);
 
     // §5: Super + Growth Reports
     await runStep("§5a super-db-init",                initSuperDb,                 db);
