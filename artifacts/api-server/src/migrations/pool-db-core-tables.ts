@@ -429,5 +429,59 @@ export async function initCoreTablesSchema(db: MigrationDb): Promise<void> {
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_x_cca_class ON x_curriculum_class_assignments(class_group_id, is_active)`)).catch(() => {});
   console.log("[core-tables] x_curriculum_class_assignments OK");
 
+  // ─── parent_ai_daily_usage ────────────────────────────────────────────────
+  // Prerequisite for initXModeSchema Group 8 (which adds feature_unique constraint).
+  // Created here so that Group 8 finds the table on first run → Group 8 becomes
+  // a no-op → pool-db-init §1 does NOT throw → post-Group8 boot migrations
+  // (idx_parent_accounts_pool_phone, uq_notifications_gr_published) run on 1st run.
+  // initXModePart2Schema (§3a2) also creates this table with IF NOT EXISTS → no-op.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS parent_ai_daily_usage (
+      id                    TEXT            PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      parent_account_id     TEXT            NOT NULL,
+      feature               TEXT            NOT NULL DEFAULT 'parent_curriculum_search',
+      usage_date            DATE            NOT NULL,
+      reserved_count        INTEGER         NOT NULL DEFAULT 0,
+      completed_count       INTEGER         NOT NULL DEFAULT 0,
+      failed_count          INTEGER         NOT NULL DEFAULT 0,
+      intent_blocked_count  INTEGER         NOT NULL DEFAULT 0,
+      prompt_tokens         INTEGER         NOT NULL DEFAULT 0,
+      completion_tokens     INTEGER         NOT NULL DEFAULT 0,
+      estimated_cost_krw    NUMERIC(10,2)   NOT NULL DEFAULT 0,
+      created_at            TIMESTAMPTZ     NOT NULL DEFAULT now(),
+      updated_at            TIMESTAMPTZ     NOT NULL DEFAULT now(),
+      UNIQUE (parent_account_id, feature, usage_date)
+    )
+  `));
+  // The UNIQUE(parent_account_id, feature, usage_date) above generates the implicit
+  // constraint name parent_ai_daily_usage_parent_account_id_feature_usage_date_key.
+  // Group 8 also adds parent_ai_daily_usage_feature_unique (a named explicit constraint
+  // on the same columns). Ensure it exists so Group 8 is fully idempotent on 1st run.
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint con
+        JOIN pg_class tbl ON tbl.oid = con.conrelid
+        JOIN pg_namespace ns  ON ns.oid = tbl.relnamespace
+        WHERE con.conname = 'parent_ai_daily_usage_feature_unique'
+          AND tbl.relname = 'parent_ai_daily_usage'
+          AND ns.nspname  = 'public'
+      )
+      AND to_regclass('public.parent_ai_daily_usage_feature_unique') IS NULL
+      THEN
+        ALTER TABLE public.parent_ai_daily_usage
+          ADD CONSTRAINT parent_ai_daily_usage_feature_unique
+          UNIQUE (parent_account_id, feature, usage_date);
+      END IF;
+    EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL;
+    END $$;
+  `));
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_parent_ai_usage_date
+      ON parent_ai_daily_usage (parent_account_id, feature, usage_date DESC)
+  `)).catch(() => {});
+  console.log("[core-tables] parent_ai_daily_usage OK");
+
   console.log("[core-tables] initCoreTablesSchema — DONE");
 }

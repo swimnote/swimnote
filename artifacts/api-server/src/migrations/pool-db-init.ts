@@ -1412,11 +1412,20 @@ export async function initPoolDb(db: MigrationDb): Promise<void> {
 
   // ─── SWIMNOTE X WP1 Migration ─────────────────────────────────────────────
   //
-  // 실패 시 throw → initPoolDb 전체 실패.
-  // ⚠️  현재 index.ts(54)는 .catch()로 오류를 삼키므로 서버 기동이 중단되지 않음.
-  //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
+  // non-FATAL: Group 8(parent_ai_daily_usage feature isolation)은 신규 환경에서
+  // parent_ai_daily_usage가 아직 없으면 실패한다 (§3a2가 이후에 생성함).
+  // 실패해도 후속 boot-time migrations(idx_parent_accounts_pool_phone 등)이
+  // 계속 실행되도록 try/catch로 감싼다.
+  // 2차 실행부터는 parent_ai_daily_usage가 존재하므로 Group 8도 no-op으로 성공.
   // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
-  await initXModeSchema(db);
+  try {
+    await initXModeSchema(db);
+  } catch (err) {
+    console.error(
+      "[pool-db-init] initXModeSchema 실패 (non-fatal — 신규환경 Group8 예상 실패):",
+      (err as Error).message?.slice(0, 120),
+    );
+  }
 
   // ─── SWIMNOTE X02-B1 Payment DB Foundation Migration ──────────────────────
   //

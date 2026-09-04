@@ -103,16 +103,10 @@ export async function run(db: MigrationDb) {
   // 4. support_ticket_replies + support_tickets columns
   // Source: src/routes/support-tickets.ts ensureTicketTables()
   // ════════════════════════════════════════════════════════════════
+  // NOTE: support_tickets.image_urls/consultation_requested/submitter_user_id ALTERs
+  // are placed AFTER "CREATE support_tickets" below so they run after table creation
+  // on fresh databases. (Moving them up would silently fail on first run.)
   console.log("§4 support-tickets");
-  await exec("support_tickets.image_urls", `
-    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}'
-  `);
-  await exec("support_tickets.consultation_requested", `
-    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS consultation_requested BOOLEAN DEFAULT FALSE
-  `);
-  await exec("support_tickets.submitter_user_id", `
-    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS submitter_user_id TEXT
-  `);
   await exec("CREATE support_ticket_replies", `
     CREATE TABLE IF NOT EXISTS support_ticket_replies (
       id              TEXT PRIMARY KEY,
@@ -273,6 +267,17 @@ export async function run(db: MigrationDb) {
       updated_at     TIMESTAMPTZ DEFAULT NOW(),
       resolved_at    TIMESTAMPTZ
     )
+  `);
+  // These ALTERs run right after CREATE so they succeed on first run.
+  // (Moved from before the CREATE to ensure the table exists when they execute.)
+  await exec("support_tickets.image_urls", `
+    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS image_urls TEXT[] DEFAULT '{}'
+  `);
+  await exec("support_tickets.consultation_requested", `
+    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS consultation_requested BOOLEAN DEFAULT FALSE
+  `);
+  await exec("support_tickets.submitter_user_id", `
+    ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS submitter_user_id TEXT
   `);
   await exec("CREATE policy_versions", `
     CREATE TABLE IF NOT EXISTS policy_versions (

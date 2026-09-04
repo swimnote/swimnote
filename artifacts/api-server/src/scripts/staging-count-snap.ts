@@ -1,0 +1,11 @@
+import pg from "pg";
+const pool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 1 });
+const q = async (sql: string) => (await pool.query(sql)).rows;
+const label = process.argv[2] ?? "snap";
+const tables = await q("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'");
+const indexes = await q("SELECT COUNT(*) FROM pg_indexes WHERE schemaname='public'");
+const cols = await q("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='public'");
+const types = await q("SELECT COUNT(*) FROM pg_type WHERE typnamespace='public'::regnamespace");
+const constraints = await q("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema='public'");
+console.log(`[${label}] TABLES:${(tables[0] as any).count} INDEXES:${(indexes[0] as any).count} COLS:${(cols[0] as any).count} TYPES:${(types[0] as any).count} CONSTRAINTS:${(constraints[0] as any).count}`);
+await pool.end();

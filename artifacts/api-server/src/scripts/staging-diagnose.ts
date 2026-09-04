@@ -72,30 +72,38 @@ for (const idx of ["idx_event_logs_pool_level","idx_push_logs_pool_status","idx_
   console.log(`  ${idx}: ${found.length > 0 ? 'EXISTS' : 'MISSING'}`);
 }
 
-// Try the failing queries
+// Try the failing queries — uses temp table names to avoid touching real schema.
+// NEVER drop real tables; use _diag_* prefix for all probe tables.
 console.log(`\n=== Probing failing queries ===`);
 
-// cs-pa0: support_cases
-try {
-  await pool.query(`CREATE TABLE IF NOT EXISTS support_cases (id TEXT PRIMARY KEY, pool_id TEXT REFERENCES swimming_pools(id), actor_role TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'NEW', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
-  console.log("  support_cases CREATE: OK");
-  await pool.query(`DROP TABLE IF EXISTS support_cases`);
-} catch (e: any) { console.log(`  support_cases CREATE: FAIL — ${e.message}`); }
+// cs-pa0: support_cases — use _diag_ prefix so we never touch the real table
+if (tableSet.has("swimming_pools")) {
+  try {
+    await pool.query(`DROP TABLE IF EXISTS _diag_support_cases`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS _diag_support_cases (id TEXT PRIMARY KEY, pool_id TEXT REFERENCES swimming_pools(id), actor_role TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'NEW', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+    console.log("  support_cases CREATE: OK");
+    await pool.query(`DROP TABLE IF EXISTS _diag_support_cases`);
+  } catch (e: any) { console.log(`  support_cases CREATE: FAIL — ${e.message}`); }
+} else {
+  console.log("  support_cases CREATE: SKIP (swimming_pools not present)");
+}
 
 // x_monthly_operational_snapshots (without swimming_pools FK if table exists)
 if (tableSet.has("swimming_pools")) {
   try {
+    await pool.query(`DROP TABLE IF EXISTS _diag_x_monthly_test`);
     await pool.query(`CREATE TABLE IF NOT EXISTS _diag_x_monthly_test (id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY, swimming_pool_id TEXT NOT NULL REFERENCES swimming_pools(id), year SMALLINT NOT NULL, month SMALLINT NOT NULL, UNIQUE (swimming_pool_id, year, month))`);
     console.log("  x_monthly_operational_snapshots CREATE: OK");
     await pool.query(`DROP TABLE IF EXISTS _diag_x_monthly_test`);
   } catch (e: any) { console.log(`  x_monthly_operational_snapshots CREATE: FAIL — ${e.message}`); }
 }
 
-// push_logs (from push-service.ts schema)
+// push_logs (from push-service.ts schema) — use _diag_ prefix
 try {
-  await pool.query(`CREATE TABLE IF NOT EXISTS push_logs (id TEXT PRIMARY KEY, target_user_id TEXT, role TEXT, type TEXT, status TEXT, message TEXT, triggered_by TEXT, created_at TIMESTAMPTZ DEFAULT now())`);
+  await pool.query(`DROP TABLE IF EXISTS _diag_push_logs`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS _diag_push_logs (id TEXT PRIMARY KEY, target_user_id TEXT, role TEXT, type TEXT, status TEXT, message TEXT, triggered_by TEXT, created_at TIMESTAMPTZ DEFAULT now())`);
   console.log("  push_logs CREATE: OK");
-  await pool.query(`DROP TABLE IF EXISTS push_logs`);
+  await pool.query(`DROP TABLE IF EXISTS _diag_push_logs`);
 } catch (e: any) { console.log(`  push_logs CREATE: FAIL — ${e.message}`); }
 
 await pool.end();
