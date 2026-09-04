@@ -739,12 +739,44 @@ function AccessTab({ s, poolId, onRefresh }: { s: Summary; poolId: string; onRef
   );
 }
 
+// ─────────────────── Detail Drawer ─────────────────────────────
+function DetailDrawer({ title, onClose, loading, children }: {
+  title: string; onClose: () => void; loading: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-3 bg-[#f9fafb] border border-[#e5e7eb] rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[13px] font-semibold text-[#222]">{title}</span>
+        <button onClick={onClose} className="text-[#aaa] hover:text-[#555] text-[18px] leading-none">×</button>
+      </div>
+      {loading ? <Spinner /> : children}
+    </div>
+  );
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <div className="text-[10px] font-bold text-[#aaa] uppercase tracking-wide mb-1.5">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function MiniList({ items, empty = "없음" }: { items: string[]; empty?: string }) {
+  if (!items.length) return <div className="text-[11px] text-[#bbb]">{empty}</div>;
+  return <div className="space-y-0.5">{items.map((t, i) => <div key={i} className="text-[11px] text-[#444]">{t}</div>)}</div>;
+}
+
+// ─────────────────── Members Tab ────────────────────────────────
 function MembersTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -757,10 +789,21 @@ function MembersTab({ poolId }: { poolId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const openDetail = useCallback(async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    try {
+      const d = await api.get<any>(`/super/pools/${poolId}/control-center/members/${row.id}`);
+      setDetail(d);
+    } catch (_) {}
+    setDetailLoading(false);
+  }, [poolId]);
+
+  const closeDetail = () => { setSelected(null); setDetail(null); };
+
   return (
     <div>
       <div className="flex gap-2 mb-3">
-        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()}
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()}
           placeholder="이름/전화번호/ID 검색" className="flex-1 border border-[#e5e7eb] rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-[#002F5F]" />
         <select value={status} onChange={(e) => setStatus(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[12px]">
           <option value="">전체 상태</option>
@@ -771,14 +814,20 @@ function MembersTab({ poolId }: { poolId: string }) {
       </div>
       {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
         <>
-          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}명</div>
+          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}명 · 행 클릭 → 상세</div>
           <Table
-            heads={["이름", "상태", "반", "담당교사", "학부모", "최근일지"]}
+            heads={["이름", "상태", "레벨", "반", "담당교사", "학부모", "최근일지"]}
             rows={data.members ?? []}
             render={(r, i) => (
-              <tr key={r.id ?? i} className="border-b border-[#f5f5f5] hover:bg-[#fafafa]">
-                <td className="py-2 pr-3"><div className="font-medium">{r.name}</div><div className="text-[10px] text-[#bbb]">{r.id?.slice(0, 8)}</div></td>
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? closeDetail() : openDetail(r)}>
+                <td className="py-2 pr-3">
+                  <div className="font-medium text-[#111]">{r.name}</div>
+                  <div className="text-[10px] text-[#bbb]">{r.id?.slice(0, 8)}</div>
+                </td>
                 <td className="py-2 pr-3"><Badge color={r.status === "active" ? "green" : "gray"} text={r.status === "active" ? "재원" : "퇴원"} /></td>
+                <td className="py-2 pr-3 text-[#666]">{r.current_level_order != null ? `Lv.${r.current_level_order}` : "—"}</td>
                 <td className="py-2 pr-3">{r.class_name ?? "—"}</td>
                 <td className="py-2 pr-3">{r.teacher_name ?? "—"}</td>
                 <td className="py-2 pr-3">{Number(r.parent_count ?? 0)}</td>
@@ -788,43 +837,193 @@ function MembersTab({ poolId }: { poolId: string }) {
           />
         </>
       )}
+      {selected && (
+        <DetailDrawer title={`회원 상세 — ${selected.name}`} onClose={closeDetail} loading={detailLoading}>
+          {detail && (
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="Identity">
+                <Row label="ID" value={detail.identity?.id} />
+                <Row label="이름" value={detail.identity?.name} />
+                <Row label="상태" value={detail.identity?.status} />
+                <Row label="레벨" value={detail.identity?.current_level_order != null ? `${detail.identity.current_level_order}${detail.identity.level_name ? ` (${detail.identity.level_name})` : ""}` : "미지정"} />
+                <Row label="전화번호" value={detail.identity?.phone ?? "—"} />
+                <Row label="등록일" value={detail.identity?.created_at?.slice(0, 10)} />
+                <Row label="최근 수정" value={detail.identity?.updated_at?.slice(0, 10)} />
+              </DetailSection>
+              <DetailSection title="수업 / 교사">
+                {(detail.classes ?? []).length === 0
+                  ? <div className="text-[11px] text-[#bbb]">현재 배정된 반 없음</div>
+                  : (detail.classes ?? []).map((c: any) => (
+                    <div key={c.id} className="flex justify-between py-1 border-b border-[#f5f5f5] last:border-0 text-[11px]">
+                      <span className="font-medium">{c.class_name}</span>
+                      <span className="text-[#888]">{c.teacher_name ?? "—"} · <Badge color={c.active ? "green" : "gray"} text={c.active ? "활성" : "비활성"} /></span>
+                    </div>
+                  ))}
+              </DetailSection>
+              <DetailSection title="연결 학부모">
+                {(detail.parents ?? []).length === 0
+                  ? <div className="text-[11px] text-[#bbb]">연결된 학부모 없음</div>
+                  : (detail.parents ?? []).map((p: any) => (
+                    <div key={p.id} className="flex justify-between py-1 border-b border-[#f5f5f5] last:border-0 text-[11px]">
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-[#888]">{p.approved_at ? <Badge color="green" text="승인" /> : <Badge color="gray" text="대기" />}</span>
+                    </div>
+                  ))}
+              </DetailSection>
+              <DetailSection title="최근 일지">
+                <MiniList items={(detail.recent_diaries ?? []).map((d: any) =>
+                  `${d.created_at?.slice(0, 10)} ${d.ai_generated ? "🤖 AI" : "✍️"}`)
+                } empty="최근 일지 없음" />
+              </DetailSection>
+              <DetailSection title="최근 오류 (actor 기준)">
+                <MiniList items={(detail.recent_errors ?? []).map((e: any) =>
+                  `[${e.level}] ${e.category} — ${e.created_at?.slice(0, 10)}`)
+                } empty="관련 오류 없음" />
+              </DetailSection>
+              <DetailSection title="최근 알림">
+                <MiniList items={(detail.recent_notifications ?? []).map((n: any) =>
+                  `${n.title} ${n.is_read ? "(읽음)" : "(미읽음)"} — ${n.created_at?.slice(0, 10)}`)
+                } empty="관련 알림 없음" />
+              </DetailSection>
+              <DetailSection title="Support Actions">
+                <div className="text-[11px] text-[#aaa] italic">
+                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
+                  <br />SAFE TO EXPOSE: 상태변경(퇴원처리) — 기존 /admin API 존재, 다음 WP 연결 예정
+                  <br />DO NOT EXPOSE: 계정 삭제, JWT 리셋, 비밀번호 변경
+                </div>
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
     </div>
   );
 }
 
+// ─────────────────── Teachers Tab ───────────────────────────────
 function TeachersTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/teachers`).then(setData).catch(() => {}).finally(() => setLoading(false));
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setData(await api.get<any>(`/super/pools/${poolId}/control-center/teachers?q=${encodeURIComponent(q)}`)); } catch (_) {}
+    setLoading(false);
+  }, [poolId, q]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openDetail = useCallback(async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    try { setDetail(await api.get<any>(`/super/pools/${poolId}/control-center/teachers/${row.id}`)); } catch (_) {}
+    setDetailLoading(false);
   }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <Table
-      heads={["이름", "역할", "이메일", "최근 로그인", "담당반"]}
-      rows={data.teachers ?? []}
-      render={(r, i) => (
-        <tr key={r.id ?? i} className="border-b border-[#f5f5f5] hover:bg-[#fafafa]">
-          <td className="py-2 pr-3 font-medium">{r.name}</td>
-          <td className="py-2 pr-3"><Badge color={r.role === "pool_admin" ? "navy" : "blue"} text={r.role === "pool_admin" ? "관리자" : "교사"} /></td>
-          <td className="py-2 pr-3 text-[#555]">{r.email}</td>
-          <td className="py-2 pr-3">{r.last_login_at ? r.last_login_at.slice(0, 10) : "—"}</td>
-          <td className="py-2">{Number(r.active_class_count ?? 0)}</td>
-        </tr>
+
+  const closeDetail = () => { setSelected(null); setDetail(null); };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()}
+          placeholder="이름/이메일/ID" className="flex-1 border border-[#e5e7eb] rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-[#002F5F]" />
+        <button onClick={load} className="px-3 py-1.5 text-[12px] rounded-lg bg-[#002F5F] text-white font-medium">검색</button>
+      </div>
+      {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
+        <>
+          <div className="text-[11px] text-[#888] mb-2">{data.teachers?.length ?? 0}명 · 행 클릭 → 상세</div>
+          <Table
+            heads={["이름", "역할", "이메일", "최근 로그인", "담당반", "AI(30d)"]}
+            rows={data.teachers ?? []}
+            render={(r, i) => (
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? closeDetail() : openDetail(r)}>
+                <td className="py-2 pr-3 font-medium">{r.name}</td>
+                <td className="py-2 pr-3"><Badge color={r.role === "pool_admin" ? "navy" : "blue"} text={r.role === "pool_admin" ? "관리자" : "교사"} /></td>
+                <td className="py-2 pr-3 text-[#555]">{r.email}</td>
+                <td className="py-2 pr-3">{r.last_login_at ? r.last_login_at.slice(0, 10) : "—"}</td>
+                <td className="py-2 pr-3">{Number(r.active_class_count ?? 0)}</td>
+                <td className="py-2">{Number(r.recent_ai_count ?? 0)}</td>
+              </tr>
+            )}
+          />
+        </>
       )}
-    />
+      {selected && (
+        <DetailDrawer title={`교사/관리자 상세 — ${selected.name}`} onClose={closeDetail} loading={detailLoading}>
+          {detail && (
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="Account">
+                <Row label="ID" value={detail.identity?.id} />
+                <Row label="이름" value={detail.identity?.name} />
+                <Row label="역할" value={detail.identity?.role} />
+                <Row label="이메일" value={detail.identity?.email} />
+                <Row label="최근 로그인" value={detail.identity?.last_login_at?.slice(0, 16) ?? "—"} />
+                <Row label="가입일" value={detail.identity?.created_at?.slice(0, 10)} />
+              </DetailSection>
+              <DetailSection title="담당 반">
+                {(detail.classes ?? []).length === 0
+                  ? <div className="text-[11px] text-[#bbb]">담당 반 없음</div>
+                  : (detail.classes ?? []).map((c: any) => (
+                    <div key={c.id} className="flex justify-between py-1 border-b border-[#f5f5f5] last:border-0 text-[11px]">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-[#888]">학생 {Number(c.student_count ?? 0)}명 · <Badge color={c.active ? "green" : "gray"} text={c.active ? "활성" : "비활성"} /></span>
+                    </div>
+                  ))}
+              </DetailSection>
+              <DetailSection title="최근 AI 일지 (10건)">
+                <MiniList items={(detail.recent_ai_traces ?? []).map((t: any) =>
+                  `${t.feature} [${t.status}] ${t.total_tokens ?? 0}tok — ${t.created_at?.slice(0, 10)}`)
+                } empty="AI 활동 없음" />
+              </DetailSection>
+              <DetailSection title="최근 오류">
+                <MiniList items={(detail.recent_errors ?? []).map((e: any) =>
+                  `[${e.level}] ${e.category} — ${e.created_at?.slice(0, 10)}`)
+                } empty="관련 오류 없음" />
+              </DetailSection>
+              <DetailSection title="Support Actions">
+                <div className="text-[11px] text-[#aaa] italic">
+                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
+                  <br />DO NOT EXPOSE: 비밀번호 리셋, JWT 발급, 역할 강등
+                </div>
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
+    </div>
   );
 }
 
+// ─────────────────── Parents Tab ────────────────────────────────
 function ParentsTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     try { setData(await api.get<any>(`/super/pools/${poolId}/control-center/parents?q=${encodeURIComponent(q)}`)); } catch (_) {}
     setLoading(false);
   }, [poolId, q]);
+
   useEffect(() => { load(); }, [load]);
+
+  const openDetail = useCallback(async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    try { setDetail(await api.get<any>(`/super/pools/${poolId}/control-center/parents/${row.id}`)); } catch (_) {}
+    setDetailLoading(false);
+  }, [poolId]);
+
+  const closeDetail = () => { setSelected(null); setDetail(null); };
+
   return (
     <div>
       <div className="flex gap-2 mb-3">
@@ -834,14 +1033,16 @@ function ParentsTab({ poolId }: { poolId: string }) {
       </div>
       {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
         <>
-          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}명</div>
+          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}명 · 행 클릭 → 상세</div>
           <Table
             heads={["이름", "전화번호", "승인", "연결학생", "최근 로그인"]}
             rows={data.parents ?? []}
             render={(r, i) => (
-              <tr key={r.id ?? i} className="border-b border-[#f5f5f5] hover:bg-[#fafafa]">
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? closeDetail() : openDetail(r)}>
                 <td className="py-2 pr-3 font-medium">{r.name}</td>
-                <td className="py-2 pr-3">{r.phone}</td>
+                <td className="py-2 pr-3 text-[#555]">{r.phone}</td>
                 <td className="py-2 pr-3"><Badge color={r.approved_at ? "green" : "gray"} text={r.approved_at ? "승인" : "대기"} /></td>
                 <td className="py-2 pr-3">{Number(r.linked_student_count ?? 0)}</td>
                 <td className="py-2">{r.last_login_at ? r.last_login_at.slice(0, 10) : "—"}</td>
@@ -850,29 +1051,157 @@ function ParentsTab({ poolId }: { poolId: string }) {
           />
         </>
       )}
+      {selected && (
+        <DetailDrawer title={`학부모 상세 — ${selected.name}`} onClose={closeDetail} loading={detailLoading}>
+          {detail && (
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="Account">
+                <Row label="ID" value={detail.identity?.id} />
+                <Row label="이름" value={detail.identity?.name} />
+                <Row label="전화번호" value={detail.identity?.phone} />
+                <Row label="승인 여부" value={detail.identity?.approved_at ? `승인됨 (${detail.identity.approved_at.slice(0, 10)})` : "미승인"} />
+                <Row label="최근 로그인" value={detail.identity?.last_login_at?.slice(0, 16) ?? "—"} />
+                <Row label="가입일" value={detail.identity?.created_at?.slice(0, 10)} />
+              </DetailSection>
+              <DetailSection title="연결 자녀 (Connection Diagnostics)">
+                {(detail.children ?? []).length === 0
+                  ? <div className="text-[11px] text-[#bbb]">연결된 학생 없음</div>
+                  : (detail.children ?? []).map((c: any) => (
+                    <div key={c.id} className="py-1.5 border-b border-[#f5f5f5] last:border-0 text-[11px]">
+                      <div className="flex justify-between">
+                        <span className="font-medium">{c.name}</span>
+                        <Badge color={c.status === "active" ? "green" : "gray"} text={c.status === "active" ? "재원" : "퇴원"} />
+                      </div>
+                      <div className="text-[10px] text-[#aaa] mt-0.5">반: {c.class_name ?? "—"} · 연결일: {c.linked_at?.slice(0, 10)}</div>
+                    </div>
+                  ))}
+                <div className="mt-1.5 text-[10px] text-[#999]">
+                  Connection states: {detail.connection_states?.approved ? "APPROVED" : "PENDING"} · 
+                  학생 수: {detail.connection_states?.total_linked ?? 0}
+                </div>
+              </DetailSection>
+              <DetailSection title="최근 알림">
+                <MiniList items={(detail.recent_notifications ?? []).map((n: any) =>
+                  `${n.title} ${n.is_read ? "(읽음)" : "(미읽음)"} — ${n.created_at?.slice(0, 10)}`)
+                } empty="최근 알림 없음" />
+              </DetailSection>
+              <DetailSection title="최근 오류">
+                <MiniList items={(detail.recent_errors ?? []).map((e: any) =>
+                  `[${e.level}] ${e.category} — ${e.created_at?.slice(0, 10)}`)
+                } empty="관련 오류 없음" />
+              </DetailSection>
+              <DetailSection title="Support Actions">
+                <div className="text-[11px] text-[#aaa] italic">
+                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
+                  <br />SAFE (다음 WP): connection 재승인, 연결 초대 재발송
+                  <br />DO NOT EXPOSE: 연결 강제 삭제(데이터 손실 위험)
+                </div>
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
     </div>
   );
 }
 
+// ─────────────────── Classes Tab ────────────────────────────────
 function ClassesTab({ poolId }: { poolId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/classes`).then(setData).catch(() => {}).finally(() => setLoading(false));
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setData(await api.get<any>(`/super/pools/${poolId}/control-center/classes?q=${encodeURIComponent(q)}`)); } catch (_) {}
+    setLoading(false);
+  }, [poolId, q]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openDetail = useCallback(async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    try { setDetail(await api.get<any>(`/super/pools/${poolId}/control-center/classes/${row.id}`)); } catch (_) {}
+    setDetailLoading(false);
   }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <Table
-      heads={["반명", "담당교사", "학생수", "상태"]}
-      rows={data.classes ?? []}
-      render={(r, i) => (
-        <tr key={r.id ?? i} className="border-b border-[#f5f5f5] hover:bg-[#fafafa]">
-          <td className="py-2 pr-3 font-medium">{r.name}</td>
-          <td className="py-2 pr-3">{r.teacher_name ?? "—"}</td>
-          <td className="py-2 pr-3">{Number(r.student_count ?? 0)}</td>
-          <td className="py-2"><Badge color={r.active ? "green" : "gray"} text={r.active ? "활성" : "비활성"} /></td>
-        </tr>
+
+  const closeDetail = () => { setSelected(null); setDetail(null); };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()}
+          placeholder="반 이름 검색" className="flex-1 border border-[#e5e7eb] rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-[#002F5F]" />
+        <button onClick={load} className="px-3 py-1.5 text-[12px] rounded-lg bg-[#002F5F] text-white font-medium">검색</button>
+      </div>
+      {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
+        <>
+          <div className="text-[11px] text-[#888] mb-2">{data.classes?.length ?? 0}개 반 · 행 클릭 → 상세</div>
+          <Table
+            heads={["반명", "담당교사", "학생수", "상태"]}
+            rows={data.classes ?? []}
+            render={(r, i) => (
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? closeDetail() : openDetail(r)}>
+                <td className="py-2 pr-3 font-medium">{r.name}</td>
+                <td className="py-2 pr-3">{r.teacher_name ?? "—"}</td>
+                <td className="py-2 pr-3">{Number(r.student_count ?? 0)}</td>
+                <td className="py-2"><Badge color={r.active ? "green" : "gray"} text={r.active ? "활성" : "비활성"} /></td>
+              </tr>
+            )}
+          />
+        </>
       )}
-    />
+      {selected && (
+        <DetailDrawer title={`반 상세 — ${selected.name}`} onClose={closeDetail} loading={detailLoading}>
+          {detail && (
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="반 정보">
+                <Row label="ID" value={detail.identity?.id} />
+                <Row label="반명" value={detail.identity?.name} />
+                <Row label="상태" value={detail.identity?.active ? "활성" : "비활성"} />
+                <Row label="담당교사" value={detail.identity?.teacher_name ?? "—"} />
+                <Row label="교사 이메일" value={detail.identity?.teacher_email ?? "—"} />
+                <Row label="생성일" value={detail.identity?.created_at?.slice(0, 10)} />
+              </DetailSection>
+              <DetailSection title={`학생 (${(detail.students ?? []).length}명)`}>
+                {(detail.students ?? []).length === 0
+                  ? <div className="text-[11px] text-[#bbb]">배정된 학생 없음</div>
+                  : (detail.students ?? []).map((s: any) => (
+                    <div key={s.id} className="flex justify-between py-1 border-b border-[#f5f5f5] last:border-0 text-[11px]">
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-[#888]"><Badge color={s.status === "active" ? "green" : "gray"} text={s.status === "active" ? "재원" : "퇴원"} /></span>
+                    </div>
+                  ))}
+              </DetailSection>
+              {(detail.schedules ?? []).length > 0 && (
+                <DetailSection title="스케줄">
+                  <MiniList items={(detail.schedules ?? []).map((s: any) =>
+                    `${["일","월","화","수","목","금","토"][s.day_of_week] ?? s.day_of_week} ${s.start_time}~${s.end_time}${s.room ? ` (${s.room})` : ""}`)
+                  } />
+                </DetailSection>
+              )}
+              {detail.curriculum && (
+                <DetailSection title="커리큘럼 배정">
+                  <Row label="패키지명" value={detail.curriculum.package_name} />
+                  <Row label="버전" value={`v${detail.curriculum.package_version}`} />
+                  <Row label="상태" value={detail.curriculum.package_status} />
+                </DetailSection>
+              )}
+              <DetailSection title="최근 일지 (5건)">
+                <MiniList items={(detail.recent_diaries ?? []).map((d: any) =>
+                  `${d.student_name} — ${d.created_at?.slice(0, 10)} ${d.ai_generated ? "🤖" : "✍️"}`)
+                } empty="최근 일지 없음" />
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
+    </div>
   );
 }
 

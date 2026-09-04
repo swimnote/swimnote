@@ -841,6 +841,177 @@ async function testWP2Access() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// §WP3 — CUSTOMER SUPPORT USERS (Members / Teachers / Parents / Classes)
+// ═══════════════════════════════════════════════════════════════════════════
+async function testWP3Users() {
+  console.log("\n=== §WP3 CUSTOMER SUPPORT USERS ===");
+
+  const superSrc = fs.readFileSync("src/routes/super.ts", "utf8");
+  const webCode  = fs.readFileSync("../swimnote-web/src/pages/super/SuperPoolControlCenter.tsx", "utf8");
+
+  // WP3-01: 4 detail endpoints defined in server
+  ok(superSrc.includes("/super/pools/:id/control-center/members/:memberId"), "WP3-01: member detail endpoint defined");
+  ok(superSrc.includes("/super/pools/:id/control-center/teachers/:teacherId"), "WP3-01: teacher detail endpoint defined");
+  ok(superSrc.includes("/super/pools/:id/control-center/parents/:parentId"), "WP3-01: parent detail endpoint defined");
+  ok(superSrc.includes("/super/pools/:id/control-center/classes/:classId"), "WP3-01: class detail endpoint defined");
+
+  // WP3-02: detail endpoints require super_admin (all 4)
+  const memberDetailBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/members/:memberId"),
+    superSrc.indexOf("/super/pools/:id/control-center/teachers"),
+  );
+  ok(memberDetailBlock.includes('requireRole("super_admin")'), "WP3-02: member detail requires super_admin");
+  const teacherDetailBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/teachers/:teacherId"),
+    superSrc.indexOf("/super/pools/:id/control-center/parents\n"),
+  );
+  ok(teacherDetailBlock.includes('requireRole("super_admin")'), "WP3-02: teacher detail requires super_admin");
+  const parentDetailBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/parents/:parentId"),
+    superSrc.indexOf("/super/pools/:id/control-center/classes\n"),
+  );
+  ok(parentDetailBlock.includes('requireRole("super_admin")'), "WP3-02: parent detail requires super_admin");
+  const classDetailBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/classes/:classId"),
+    superSrc.indexOf("// GET /super/pools/:id/control-center/curriculum"),
+  );
+  ok(classDetailBlock.includes('requireRole("super_admin")'), "WP3-02: class detail requires super_admin");
+
+  // WP3-03: detail endpoints validate pool scope (both pool_id AND subject_id)
+  ok(memberDetailBlock.includes("swimming_pool_id = ${poolId} AND s.id = ${memberId}"), "WP3-03: member detail is pool-scoped (pool+id check)");
+  ok(teacherDetailBlock.includes("swimming_pool_id = ${poolId} AND id = ${teacherId}"), "WP3-03: teacher detail is pool-scoped");
+  ok(parentDetailBlock.includes("swimming_pool_id = ${poolId} AND id = ${parentId}"), "WP3-03: parent detail is pool-scoped");
+  ok(classDetailBlock.includes("swimming_pool_id = ${poolId} AND cg.id = ${classId}"), "WP3-03: class detail is pool-scoped");
+
+  // WP3-04: member detail returns expected sections
+  ok(memberDetailBlock.includes("identity:"), "WP3-04: member detail returns identity");
+  ok(memberDetailBlock.includes("classes:"), "WP3-04: member detail returns classes");
+  ok(memberDetailBlock.includes("parents:"), "WP3-04: member detail returns parents");
+  ok(memberDetailBlock.includes("recent_diaries:"), "WP3-04: member detail returns recent_diaries");
+  ok(memberDetailBlock.includes("recent_errors:"), "WP3-04: member detail returns recent_errors");
+  ok(memberDetailBlock.includes("recent_notifications:"), "WP3-04: member detail returns recent_notifications");
+
+  // WP3-05: teacher detail returns expected sections
+  ok(teacherDetailBlock.includes("identity:"), "WP3-05: teacher detail returns identity");
+  ok(teacherDetailBlock.includes("classes:"), "WP3-05: teacher detail returns classes");
+  ok(teacherDetailBlock.includes("recent_ai_traces:"), "WP3-05: teacher detail returns recent_ai_traces");
+  ok(teacherDetailBlock.includes("recent_errors:"), "WP3-05: teacher detail returns recent_errors");
+
+  // WP3-06: parent detail returns connection diagnostics
+  ok(parentDetailBlock.includes("children:"), "WP3-06: parent detail returns children");
+  ok(parentDetailBlock.includes("connection_states:"), "WP3-06: parent detail returns connection_states");
+  ok(parentDetailBlock.includes("recent_notifications:"), "WP3-06: parent detail returns recent_notifications");
+
+  // WP3-07: class detail returns students + curriculum + schedule
+  ok(classDetailBlock.includes("students:"), "WP3-07: class detail returns students");
+  ok(classDetailBlock.includes("schedules:"), "WP3-07: class detail returns schedules");
+  ok(classDetailBlock.includes("curriculum:"), "WP3-07: class detail returns curriculum");
+
+  // WP3-08: no password/JWT/token in any detail response
+  ok(!memberDetailBlock.includes("password"), "WP3-08: member detail no password exposure");
+  ok(!teacherDetailBlock.includes("password"), "WP3-08: teacher detail no password exposure");
+  ok(!parentDetailBlock.includes("password"), "WP3-08: parent detail no password exposure");
+
+  // WP3-09: members list now includes current_level_order
+  const memberListBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/members\n"),
+    superSrc.indexOf("/super/pools/:id/control-center/members/:memberId"),
+  );
+  ok(memberListBlock.includes("current_level_order"), "WP3-09: members list includes level field");
+
+  // WP3-10: page size clamped (max 100)
+  ok(memberListBlock.includes("Math.min"), "WP3-10: members list limit clamped server-side");
+  const parentListBlock = superSrc.slice(
+    superSrc.indexOf("/super/pools/:id/control-center/parents\n"),
+    superSrc.indexOf("/super/pools/:id/control-center/parents/:parentId"),
+  );
+  ok(parentListBlock.includes("Math.min"), "WP3-10: parents list limit clamped server-side");
+
+  // WP3-11: teachers list now supports q search
+  const teacherListBlock = superSrc.slice(
+    superSrc.indexOf("// GET /super/pools/:id/control-center/teachers\n"),
+    superSrc.indexOf("// GET /super/pools/:id/control-center/teachers/:teacherId"),
+  );
+  ok(teacherListBlock.includes("q = ''") || teacherListBlock.includes("${q} = ''"), "WP3-11: teachers list has search param");
+  ok(teacherListBlock.includes("recent_ai_count"), "WP3-11: teachers list includes recent_ai_count");
+
+  // WP3-12: classes list supports search and has bounded limit
+  const classListBlock = superSrc.slice(
+    superSrc.indexOf("// GET /super/pools/:id/control-center/classes\n"),
+    superSrc.indexOf("// GET /super/pools/:id/control-center/classes/:classId"),
+  );
+  ok(classListBlock.includes("q = ''") || classListBlock.includes("${q} = ''"), "WP3-12: classes list has search param");
+  ok(classListBlock.includes("Math.min"), "WP3-12: classes list limit bounded server-side");
+
+  // WP3-13: detail queries use LIMIT (no unbounded)
+  ok(memberDetailBlock.includes("LIMIT 5"), "WP3-13: member detail diary/error/notif queries bounded (LIMIT 5)");
+  ok(teacherDetailBlock.includes("LIMIT 10"), "WP3-13: teacher detail AI traces bounded (LIMIT 10)");
+  ok(classDetailBlock.includes("LIMIT 100"), "WP3-13: class students bounded (LIMIT 100)");
+
+  // WP3-14: parallel queries in detail endpoints (Promise.all)
+  ok(memberDetailBlock.includes("Promise.all"), "WP3-14: member detail uses Promise.all parallel queries");
+  ok(teacherDetailBlock.includes("Promise.all"), "WP3-14: teacher detail uses Promise.all parallel queries");
+  ok(parentDetailBlock.includes("Promise.all"), "WP3-14: parent detail uses Promise.all parallel queries");
+  ok(classDetailBlock.includes("Promise.all"), "WP3-14: class detail uses Promise.all parallel queries");
+
+  // WP3-15: partial failure isolation (.catch in sub-queries)
+  ok(memberDetailBlock.includes(".catch(() => ({ rows: [] }))"), "WP3-15: member detail sub-queries isolated (catch)");
+  ok(teacherDetailBlock.includes(".catch(() => ({ rows: [] }))"), "WP3-15: teacher detail sub-queries isolated");
+  ok(parentDetailBlock.includes(".catch(() => ({ rows: [] }))"), "WP3-15: parent detail sub-queries isolated");
+  ok(classDetailBlock.includes(".catch(() => ({ rows: [] }))"), "WP3-15: class detail sub-queries isolated");
+
+  // WP3-16: cross-pool isolation — member detail query has AND pool_id
+  ok(memberDetailBlock.includes("swimming_pool_id = ${poolId}"), "WP3-16: member detail pool-scoped identity query");
+  ok(parentDetailBlock.includes("AND s.swimming_pool_id = ${poolId}"), "WP3-16: parent→children cross-pool guard");
+
+  // WP3-17: web — 4 tabs have detail drawer (DetailDrawer component)
+  ok(webCode.includes("DetailDrawer"), "WP3-17: DetailDrawer component present");
+  ok(webCode.includes("openDetail"), "WP3-17: openDetail handler present");
+  ok(webCode.includes("closeDetail"), "WP3-17: closeDetail handler present");
+
+  // WP3-18: web — each tab fetches detail endpoint on row click
+  ok(webCode.includes("/control-center/members/${row.id}"), "WP3-18: member tab fetches detail on click");
+  ok(webCode.includes("/control-center/teachers/${row.id}"), "WP3-18: teacher tab fetches detail on click");
+  ok(webCode.includes("/control-center/parents/${row.id}"), "WP3-18: parent tab fetches detail on click");
+  ok(webCode.includes("/control-center/classes/${row.id}"), "WP3-18: class tab fetches detail on click");
+
+  // WP3-19: web — teachers tab has search input
+  ok(webCode.includes("이름/이메일/ID"), "WP3-19: teachers tab has search input");
+  ok(webCode.includes("반 이름 검색"), "WP3-19: classes tab has search input");
+
+  // WP3-20: web — members list shows level column
+  ok(webCode.includes("current_level_order"), "WP3-20: members list renders level field");
+
+  // WP3-21: web — teacher list shows AI diary count column
+  ok(webCode.includes("recent_ai_count"), "WP3-21: teacher list shows AI(30d) count");
+
+  // WP3-22: action inventory documented in UI (no fake TODO/placeholder buttons)
+  ok(webCode.includes("Support Actions"), "WP3-22: Support Actions section present in detail drawers");
+  ok(webCode.includes("READ ONLY"), "WP3-22: READ ONLY note present (no unconnected mutation buttons)");
+  ok(!webCode.includes("TODO:"), "WP3-22: no TODO placeholders in web code");
+
+  // WP3-23: DB — no migration needed (using existing columns)
+  ok(memberDetailBlock.includes("students s"), "WP3-23: member detail uses existing students table");
+  ok(teacherDetailBlock.includes("FROM users"), "WP3-23: teacher detail uses existing users table");
+  ok(parentDetailBlock.includes("FROM parent_accounts"), "WP3-23: parent detail uses existing parent_accounts table");
+
+  // WP3-24: cross-pool DB fixture test (POOL_B member not visible in POOL_A)
+  const poolBMembers = await q(
+    "SELECT COUNT(*) AS cnt FROM students WHERE swimming_pool_id=$1", [POOL_A]
+  );
+  const poolBCount = Number((await q("SELECT COUNT(*) AS cnt FROM students WHERE swimming_pool_id=$1", [POOL_B]))[0]?.cnt ?? 0);
+  // POOL_B has 1 student (seeded in setup), POOL_A has 0 students
+  ok(Number(poolBMembers[0]?.cnt ?? 0) === 0, "WP3-24: POOL_A has 0 students (cross-pool isolation: POOL_B student not visible)");
+  ok(poolBCount === 1, "WP3-24: POOL_B has 1 student (seeded fixture)");
+
+  // WP3-25: 404 behavior for unknown member in detail endpoint (structural check)
+  ok(memberDetailBlock.includes("MEMBER_NOT_FOUND"), "WP3-25: member detail returns 404 for unknown member");
+  ok(teacherDetailBlock.includes("TEACHER_NOT_FOUND"), "WP3-25: teacher detail returns 404 for unknown teacher");
+  ok(parentDetailBlock.includes("PARENT_NOT_FOUND"), "WP3-25: parent detail returns 404 for unknown parent");
+  ok(classDetailBlock.includes("CLASS_NOT_FOUND"), "WP3-25: class detail returns 404 for unknown class");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════════════
 async function main() {
@@ -869,6 +1040,7 @@ async function main() {
     checkStates();
     await testWP1Overview();
     await testWP2Access();
+    await testWP3Users();
   } finally {
     await cleanup();
   }

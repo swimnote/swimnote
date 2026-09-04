@@ -5617,12 +5617,15 @@ router.get(
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { q = "", status = "", limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 100);
+    const rawOffset = Math.max(parseInt((req.query.offset as string) ?? "0", 10), 0);
+    const { q = "", status = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT s.id, s.name, s.status, s.phone,
                s.created_at, s.updated_at,
-               cg.name AS class_name,
+               s.current_level_order,
+               cg.id AS class_id, cg.name AS class_name,
                u.name AS teacher_name,
                (SELECT COUNT(*) FROM parent_students ps
                   JOIN parent_accounts pa ON ps.parent_account_id = pa.id
@@ -5636,7 +5639,7 @@ router.get(
           AND (${q} = '' OR s.name ILIKE ${'%' + q + '%'} OR s.phone ILIKE ${'%' + q + '%'} OR s.id ILIKE ${'%' + q + '%'})
           AND (${status} = '' OR s.status = ${status})
         ORDER BY s.status ASC, s.name ASC
-        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        LIMIT ${rawLimit} OFFSET ${rawOffset}
       `);
       const total = await superAdminDb.execute(sql`
         SELECT COUNT(*) AS cnt FROM students
@@ -5651,25 +5654,197 @@ router.get(
   },
 );
 
+// GET /super/pools/:id/control-center/members/:memberId — Member detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/members/:memberId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, memberId } = req.params;
+    try {
+      // 1. Identity (pool-scoped: both swimming_pool_id AND id must match)
+      const memberRes = await superAdminDb.execute(sql`
+        SELECT s.id, s.name, s.status, s.phone, s.current_level_order,
+               s.created_at, s.updated_at
+        FROM students s
+        WHERE s.swimming_pool_id = ${poolId} AND s.id = ${memberId}
+        LIMIT 1
+      `);
+      if (!memberRes.rows.length) { res.status(404).json({ error: "MEMBER_NOT_FOUND" }); return; }
+      const member = memberRes.rows[0] as any;
+
+      const levelOrder = member.current_level_order;
+      const [levelRes, classRes, parentRes, diaryRes, notifRes, errorRes] = await Promise.all([
+        // Level name
+        levelOrder !== null && levelOrder !== undefined
+          ? superAdminDb.execute(sql`
+              SELECT level_order, level_name FROM pool_levels
+              WHERE pool_id = ${poolId} AND level_order = ${levelOrder}
+              LIMIT 1
+            `).catch(() => ({ rows: [] }))
+          : Promise.resolve({ rows: [] }),
+        // Current class + teacher
+        superAdminDb.execute(sql`
+          SELECT cg.id, cg.name AS class_name, cg.active,
+                 u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
+          FROM class_group_students cgs
+          JOIN class_groups cg ON cg.id = cgs.class_group_id
+          LEFT JOIN users u ON u.id = cg.teacher_id
+          WHERE cgs.student_id = ${memberId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.active DESC, cg.name ASC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Linked parents (pool-scoped via students.swimming_pool_id)
+        superAdminDb.execute(sql`
+          SELECT pa.id, pa.name, pa.phone, pa.approved_at, pa.last_login_at,
+                 ps.created_at AS linked_at
+          FROM parent_students ps
+          JOIN parent_accounts pa ON pa.id = ps.parent_account_id
+          WHERE ps.student_id = ${memberId} AND pa.swimming_pool_id = ${poolId}
+          ORDER BY pa.approved_at DESC NULLS LAST
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Recent diaries (5)
+        superAdminDb.execute(sql`
+          SELECT id, created_at, title, ai_generated
+          FROM diary_entries
+          WHERE student_id = ${memberId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications (5) — by ref_id (student) or pool
+        superAdminDb.execute(sql`
+          SELECT id, type, title, body, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId}
+            AND (ref_id = ${memberId} OR ref_type = 'student')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent errors (5) from event_logs — by pool + actor_id or metadata reference
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at, actor_id
+          FROM event_logs
+          WHERE pool_id = ${poolId}
+            AND actor_id = ${memberId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      const levelRow = (levelRes.rows[0] as any) ?? null;
+      res.json({
+        identity: {
+          ...member,
+          level_name: levelRow?.level_name ?? null,
+        },
+        classes: classRes.rows,
+        parents: parentRes.rows,
+        recent_diaries: diaryRes.rows,
+        recent_notifications: notifRes.rows,
+        recent_errors: errorRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super] member detail 오류:", e?.message);
+      res.status(500).json({ error: "MEMBER_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
 // GET /super/pools/:id/control-center/teachers
 router.get(
   "/super/pools/:id/control-center/teachers",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
+    const { q = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT u.id, u.name, u.email, u.phone, u.role::text AS role,
                u.created_at, u.last_login_at,
-               (SELECT COUNT(*) FROM class_groups cg WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true) AS active_class_count
+               (SELECT COUNT(*) FROM class_groups cg
+                WHERE cg.teacher_id = u.id AND cg.swimming_pool_id = ${poolId} AND cg.active = true
+               ) AS active_class_count,
+               (SELECT COUNT(*) FROM ai_traces at2
+                WHERE at2.pool_id = ${poolId} AND at2.actor_id = u.id
+                  AND at2.created_at > NOW() - INTERVAL '30 days'
+               ) AS recent_ai_count
         FROM users u
         WHERE u.swimming_pool_id = ${poolId}
           AND u.role IN ('pool_admin', 'teacher')
+          AND (${q} = '' OR u.name ILIKE ${'%' + q + '%'} OR u.email ILIKE ${'%' + q + '%'} OR u.id ILIKE ${'%' + q + '%'})
         ORDER BY u.role ASC, u.name ASC
       `);
       res.json({ teachers: rows.rows });
     } catch (e: any) {
       res.status(500).json({ error: "TEACHERS_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/teachers/:teacherId — Teacher detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/teachers/:teacherId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, teacherId } = req.params;
+    try {
+      const teacherRes = await superAdminDb.execute(sql`
+        SELECT id, name, email, phone, role::text AS role, created_at, last_login_at, updated_at
+        FROM users
+        WHERE swimming_pool_id = ${poolId} AND id = ${teacherId}
+          AND role IN ('pool_admin', 'teacher')
+        LIMIT 1
+      `);
+      if (!teacherRes.rows.length) { res.status(404).json({ error: "TEACHER_NOT_FOUND" }); return; }
+      const teacher = teacherRes.rows[0];
+
+      const [classRes, aiRes, errorRes, notifRes] = await Promise.all([
+        // Assigned classes (pool-scoped)
+        superAdminDb.execute(sql`
+          SELECT cg.id, cg.name, cg.active, cg.created_at,
+                 (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
+          FROM class_groups cg
+          WHERE cg.teacher_id = ${teacherId} AND cg.swimming_pool_id = ${poolId}
+          ORDER BY cg.active DESC, cg.name ASC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Recent AI diary traces (30d)
+        superAdminDb.execute(sql`
+          SELECT id, feature, status, llm_model, total_tokens, latency_ms, created_at
+          FROM ai_traces
+          WHERE pool_id = ${poolId} AND actor_id = ${teacherId}
+          ORDER BY created_at DESC
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Recent errors from event_logs (by actor_id + pool)
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND actor_id = ${teacherId}
+            AND level IN ('error', 'critical')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications sent by/to this pool for this teacher (actor reference)
+        superAdminDb.execute(sql`
+          SELECT id, type, title, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId} AND recipient_id = ${teacherId}
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: teacher,
+        classes: classRes.rows,
+        recent_ai_traces: aiRes.rows,
+        recent_errors: errorRes.rows,
+        recent_notifications: notifRes.rows,
+      });
+    } catch (e: any) {
+      console.error("[super] teacher detail 오류:", e?.message);
+      res.status(500).json({ error: "TEACHER_DETAIL_FAILED", message: e?.message });
     }
   },
 );
@@ -5680,7 +5855,9 @@ router.get(
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { q = "", limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "50", 10), 100);
+    const rawOffset = Math.max(parseInt((req.query.offset as string) ?? "0", 10), 0);
+    const { q = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT pa.id, pa.name, pa.phone, pa.created_at, pa.approved_at,
@@ -5690,7 +5867,7 @@ router.get(
         WHERE pa.swimming_pool_id = ${poolId}
           AND (${q} = '' OR pa.name ILIKE ${'%' + q + '%'} OR pa.phone ILIKE ${'%' + q + '%'})
         ORDER BY pa.created_at DESC
-        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+        LIMIT ${rawLimit} OFFSET ${rawOffset}
       `);
       const total = await superAdminDb.execute(sql`
         SELECT COUNT(*) AS cnt FROM parent_accounts
@@ -5704,25 +5881,171 @@ router.get(
   },
 );
 
+// GET /super/pools/:id/control-center/parents/:parentId — Parent detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/parents/:parentId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, parentId } = req.params;
+    try {
+      const parentRes = await superAdminDb.execute(sql`
+        SELECT id, name, phone, created_at, approved_at, last_login_at
+        FROM parent_accounts
+        WHERE swimming_pool_id = ${poolId} AND id = ${parentId}
+        LIMIT 1
+      `);
+      if (!parentRes.rows.length) { res.status(404).json({ error: "PARENT_NOT_FOUND" }); return; }
+
+      const [childrenRes, notifRes, errorRes] = await Promise.all([
+        // Linked students (pool-scoped)
+        superAdminDb.execute(sql`
+          SELECT s.id, s.name, s.status, s.current_level_order,
+                 ps.created_at AS linked_at,
+                 cg.name AS class_name
+          FROM parent_students ps
+          JOIN students s ON s.id = ps.student_id
+          LEFT JOIN class_group_students cgs ON cgs.student_id = s.id
+          LEFT JOIN class_groups cg ON cg.id = cgs.class_group_id AND cg.active = true
+          WHERE ps.parent_account_id = ${parentId}
+            AND s.swimming_pool_id = ${poolId}
+          ORDER BY s.status ASC, s.name ASC
+          LIMIT 20
+        `).catch(() => ({ rows: [] })),
+        // Recent notifications
+        superAdminDb.execute(sql`
+          SELECT id, type, title, body, is_read, created_at
+          FROM notifications
+          WHERE pool_id = ${poolId}
+            AND (recipient_id = ${parentId} OR ref_type = 'parent_account')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Recent errors (by actor_id)
+        superAdminDb.execute(sql`
+          SELECT id, category, description, level, created_at
+          FROM event_logs
+          WHERE pool_id = ${poolId} AND actor_id = ${parentId}
+            AND level IN ('error', 'critical')
+          ORDER BY created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: parentRes.rows[0],
+        children: childrenRes.rows,
+        recent_notifications: notifRes.rows,
+        recent_errors: errorRes.rows,
+        // Connection diagnostics
+        connection_states: {
+          total_linked: childrenRes.rows.length,
+          approved_at: (parentRes.rows[0] as any).approved_at,
+          approved: !!(parentRes.rows[0] as any).approved_at,
+        },
+      });
+    } catch (e: any) {
+      console.error("[super] parent detail 오류:", e?.message);
+      res.status(500).json({ error: "PARENT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
 // GET /super/pools/:id/control-center/classes
 router.get(
   "/super/pools/:id/control-center/classes",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
+    const rawLimit = Math.min(parseInt((req.query.limit as string) ?? "100", 10), 200);
+    const { q = "" } = req.query as Record<string, string>;
     try {
       const rows = await superAdminDb.execute(sql`
         SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
-               u.name AS teacher_name,
+               u.id AS teacher_id, u.name AS teacher_name,
                (SELECT COUNT(*) FROM class_group_students cgs WHERE cgs.class_group_id = cg.id) AS student_count
         FROM class_groups cg
         LEFT JOIN users u ON u.id = cg.teacher_id
         WHERE cg.swimming_pool_id = ${poolId}
+          AND (${q} = '' OR cg.name ILIKE ${'%' + q + '%'})
         ORDER BY cg.active DESC, cg.name ASC
+        LIMIT ${rawLimit}
       `);
       res.json({ classes: rows.rows });
     } catch (e: any) {
       res.status(500).json({ error: "CLASSES_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/classes/:classId — Class detail (pool-scoped)
+router.get(
+  "/super/pools/:id/control-center/classes/:classId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, classId } = req.params;
+    try {
+      const classRes = await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.active, cg.created_at, cg.updated_at,
+               u.id AS teacher_id, u.name AS teacher_name, u.email AS teacher_email
+        FROM class_groups cg
+        LEFT JOIN users u ON u.id = cg.teacher_id
+        WHERE cg.swimming_pool_id = ${poolId} AND cg.id = ${classId}
+        LIMIT 1
+      `);
+      if (!classRes.rows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
+
+      const [studentsRes, diaryRes, scheduleRes, curriculumRes] = await Promise.all([
+        // Students in this class
+        superAdminDb.execute(sql`
+          SELECT s.id, s.name, s.status, s.current_level_order,
+                 cgs.created_at AS joined_at
+          FROM class_group_students cgs
+          JOIN students s ON s.id = cgs.student_id
+          WHERE cgs.class_group_id = ${classId}
+            AND s.swimming_pool_id = ${poolId}
+          ORDER BY s.status ASC, s.name ASC
+          LIMIT 100
+        `).catch(() => ({ rows: [] })),
+        // Recent diary entries in this class
+        superAdminDb.execute(sql`
+          SELECT de.id, de.student_id, s.name AS student_name, de.created_at, de.ai_generated
+          FROM diary_entries de
+          JOIN students s ON s.id = de.student_id
+          WHERE de.class_group_id = ${classId}
+          ORDER BY de.created_at DESC
+          LIMIT 5
+        `).catch(() => ({ rows: [] })),
+        // Schedules (if class_schedules exists)
+        superAdminDb.execute(sql`
+          SELECT id, day_of_week, start_time, end_time, room
+          FROM class_schedules
+          WHERE class_group_id = ${classId}
+          ORDER BY day_of_week ASC, start_time ASC
+          LIMIT 10
+        `).catch(() => ({ rows: [] })),
+        // Curriculum assignment (if x_curriculum_class_assignments exists)
+        superAdminDb.execute(sql`
+          SELECT xca.id, xca.class_group_id,
+                 xp.package_name, xp.package_version, xp.status AS package_status
+          FROM x_curriculum_class_assignments xca
+          JOIN x_curriculum_packages xp ON xp.id = xca.package_id
+          WHERE xca.class_group_id = ${classId}
+            AND xca.swimming_pool_id = ${poolId}
+          ORDER BY xp.generated_at DESC
+          LIMIT 1
+        `).catch(() => ({ rows: [] })),
+      ]);
+
+      res.json({
+        identity: classRes.rows[0],
+        students: studentsRes.rows,
+        recent_diaries: diaryRes.rows,
+        schedules: scheduleRes.rows,
+        curriculum: curriculumRes.rows[0] ?? null,
+      });
+    } catch (e: any) {
+      console.error("[super] class detail 오류:", e?.message);
+      res.status(500).json({ error: "CLASS_DETAIL_FAILED", message: e?.message });
     }
   },
 );
