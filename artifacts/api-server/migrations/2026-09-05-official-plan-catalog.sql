@@ -43,15 +43,24 @@ ON CONFLICT (tier) DO UPDATE SET
   is_active       = true;
 
 -- ── 3. DATA ADD-ON 플랜 upsert ─────────────────────────────────────────────
--- storage 필드는 NOT NULL 제약이 있으므로 column default(5120/5/'') 사용.
--- DATA 플랜의 실제 storage 한도는 추후 별도 명세 시 업데이트.
+-- DATA ADD-ON 플랜은 회원 플랜이 아님:
+--   member_limit   = NULL (회원 한도 개념 없음; sentinel 999999 금지)
+--   storage_mb     = NULL (base storage 아님; pool.extra_storage_gb가 SoT)
+--   storage_gb     = NULL (동일)
+--   display_storage= NULL (동일)
+-- 이 migration이 2026-09-05-subscription-plans-nullable.sql 이후에 실행되어야 함.
+-- DATA "100/300"의 storage quota 단위(GB 등)는 사용자 확인 대기 중 — 임의 설정 금지.
 INSERT INTO subscription_plans (tier, plan_id, name, price_per_month, member_limit, storage_gb, storage_mb, display_storage, is_active)
 VALUES
-  ('data100', 'data100', 'DATA100', 7900,  999999, 5,    5120, '', true),
-  ('data300', 'data300', 'DATA300', 22900, 999999, 5,    5120, '', true)
+  ('data100', 'data100', 'DATA100', 7900,  NULL, NULL, NULL, NULL, true),
+  ('data300', 'data300', 'DATA300', 22900, NULL, NULL, NULL, NULL, true)
 ON CONFLICT (tier) DO UPDATE SET
   name            = EXCLUDED.name,
   price_per_month = EXCLUDED.price_per_month,
+  member_limit    = NULL,
+  storage_mb      = NULL,
+  storage_gb      = NULL,
+  display_storage = NULL,
   is_active       = true;
 
 -- ── 4. Legacy Coach/Premier 비활성화 ────────────────────────────────────────
