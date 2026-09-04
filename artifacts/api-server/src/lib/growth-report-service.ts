@@ -43,7 +43,11 @@ export type ProductStatus =
   | "APPROVED"
   | "PUBLISHED"
   | "PARTIAL"
-  | "FAILED";
+  | "FAILED"
+  // WP8: Production workflow states
+  | "READY_TO_SEND"   // AI generated + validated → admin 발송 대기 (부모 비노출)
+  | "DISCARDED"       // 관리자 폐기 (이력 보존, 부모 비노출)
+  | "REGENERATING";   // 재발급 새 버전 생성 중
 
 // 금지값 — DB constraint + 런타임 양측에서 차단
 const FORBIDDEN_PRODUCT_STATUSES = new Set(["QUESTION_REQUIRED", "CLOSED"]);
@@ -52,6 +56,8 @@ export const ALL_PRODUCT_STATUSES: ReadonlySet<ProductStatus> = new Set([
   "NOT_OPEN", "OPEN", "PREANALYZING", "QUESTION_AVAILABLE",
   "READY_FOR_ANALYSIS", "ANALYZING", "REVIEW_REQUIRED",
   "APPROVED", "PUBLISHED", "PARTIAL", "FAILED",
+  // WP8
+  "READY_TO_SEND", "DISCARDED", "REGENERATING",
 ]);
 
 // ── Parent Input Status ───────────────────────────────────────────────────────
@@ -95,9 +101,13 @@ export const ALLOWED_TRANSITIONS: Readonly<Record<ProductStatus, ReadonlyArray<P
   ANALYZING:          ["REVIEW_REQUIRED", "PARTIAL", "FAILED"],
   PARTIAL:            ["ANALYZING", "REVIEW_REQUIRED"],
   FAILED:             ["ANALYZING", "OPEN"],  // OPEN: super_admin 운영 재처리 경로
-  REVIEW_REQUIRED:    ["APPROVED", "ANALYZING"],
+  REVIEW_REQUIRED:    ["APPROVED", "ANALYZING", "READY_TO_SEND"],  // WP8: batch auto-validate → READY_TO_SEND
   APPROVED:           ["PUBLISHED"],
   PUBLISHED:          [], // terminal
+  // WP8 Production states
+  READY_TO_SEND:      ["PUBLISHED", "DISCARDED"],  // admin: 발송 or 폐기
+  DISCARDED:          [],   // terminal (재발급은 새 row INSERT — 이 row는 유지)
+  REGENERATING:       ["PREANALYZING", "FAILED"],  // 재발급 분석 시작
 };
 
 // ── Error types ───────────────────────────────────────────────────────────────

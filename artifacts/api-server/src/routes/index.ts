@@ -167,4 +167,8 @@ router.use("/", parentPaidInsightRouter);
 import terminologyRouter from "./terminology.js";
 router.use("/", terminologyRouter);
 
+// WP8: Growth Report Production Admin (discard/regenerate/send/bulk-send/batch-status)
+import adminGrowthReportProductionRouter from "./admin-growth-report-production.js";
+router.use("/admin/growth-reports", adminGrowthReportProductionRouter);
+
 export default router;

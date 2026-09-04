@@ -141,7 +141,7 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
       grc.timezone
     FROM growth_reports gr
     INNER JOIN growth_report_cycles grc ON grc.id = gr.cycle_id
-    WHERE gr.product_status IN ('OPEN', 'READY_FOR_ANALYSIS')
+    WHERE gr.product_status IN ('OPEN', 'READY_FOR_ANALYSIS', 'REGENERATING')
       AND gr.deleted_at IS NULL
     ORDER BY gr.updated_at ASC
     LIMIT ${batchLimit}
@@ -172,7 +172,7 @@ async function fetchPendingReports(db: any, limit?: number): Promise<PendingRepo
         report_period:         r.cycle_report_period          as string,
         timezone:              (r.timezone ?? "Asia/Seoul")   as string,
       },
-      stage: r.product_status === "OPEN" ? "PREANALYSIS" : "FINAL_ANALYSIS",
+      stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
     };
   });
 }
@@ -487,7 +487,7 @@ export async function fetchSingleReport(db: any, reportId: string): Promise<Pend
       report_period:         r.cycle_report_period          as string,
       timezone:              (r.timezone ?? "Asia/Seoul")   as string,
     },
-    stage: r.product_status === "OPEN" ? "PREANALYSIS" : "FINAL_ANALYSIS",
+    stage: (r.product_status === "OPEN" || r.product_status === "REGENERATING") ? "PREANALYSIS" : "FINAL_ANALYSIS",
   };
 }
 

@@ -190,8 +190,8 @@ export async function notifyGrowthReportPublished(params: {
   studentId:    string;
   poolId:       string;
   reportPeriod: string; // e.g. "2026-07"
-  publishedAt:  string;
-  actorId:      string;
+  publishedAt?: string;
+  actorId?:     string;
 }): Promise<void> {
   const { reportId, studentId, poolId, reportPeriod, actorId } = params;
 
@@ -472,4 +472,43 @@ export async function notifyComment(
     );
     await Promise.allSettled(promises);
   } catch (err) { console.error("[notify] comment 알림 오류:", err); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// notifyBatchComplete — WP8: admin pool_admin 발송 준비 완료 알림
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function notifyBatchComplete(params: {
+  poolId:  string;
+  message: string;
+}): Promise<void> {
+  const { poolId, message } = params;
+  try {
+    // pool_admin/teacher 역할 보유자에게 발송
+    const admins = (await db.execute(sql`
+      SELECT DISTINCT user_id
+      FROM pool_memberships
+      WHERE swimming_pool_id = ${poolId}
+        AND role IN ('pool_admin','teacher')
+        AND status = 'active'
+    `)).rows as any[];
+
+    const title = "AI 성장리포트 발송 준비 완료";
+
+    const promises = admins.map(a =>
+      sendNotification({
+        recipientId:   a.user_id,
+        recipientType: "user",
+        poolId,
+        type:          "GROWTH_REPORT_BATCH_READY",
+        title,
+        body:          message,
+        refId:         poolId,
+        refType:       "pool",
+      }).catch(e => console.error(`[notify] batchComplete push user=${a.user_id}:`, e))
+    );
+    await Promise.allSettled(promises);
+  } catch (err) {
+    console.error("[notify] notifyBatchComplete 오류:", err);
+  }
 }
