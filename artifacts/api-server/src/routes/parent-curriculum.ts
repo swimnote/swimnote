@@ -967,8 +967,20 @@ router.post(
 
     await touchConversation(conversationId).catch(() => undefined);
 
-    // WP10: monthly KPI snapshot refresh (fire-and-forget, idempotent recount)
-    void refreshCurriculumSearchSnapshot(poolId).catch(() => {});
+    // WP10-P2: monthly KPI snapshot refresh (fire-and-forget, idempotent recount)
+    // refreshCurriculumSearchSnapshot 내부에서 console.error가 이미 실행됨.
+    // 빈 catch 제거 — rejection은 structured log 후 아래 catch에서 삼킴.
+    // parent curriculum search 응답 자체는 이미 반환 완료 상태이므로 영향 없음.
+    void refreshCurriculumSearchSnapshot(poolId).catch((kpiErr: unknown) => {
+      console.error("[curriculum-kpi] snapshot refresh rejected", {
+        feature: "parent_curriculum_search_snapshot_refresh",
+        swimming_pool_id: poolId,
+        year:  new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })).getFullYear(),
+        month: new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })).getMonth() + 1,
+        error: kpiErr instanceof Error ? kpiErr.message : String(kpiErr),
+        stack: kpiErr instanceof Error ? kpiErr.stack  : undefined,
+      });
+    });
 
     // CS-PA1 / AI01-05: 성공 trace
     void saveAiTrace({
