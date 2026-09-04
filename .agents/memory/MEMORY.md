@@ -149,4 +149,5 @@
 - [Pool-First 2.0.0 완료](pool-first-2-0-0-done.md) — SHA 761fdfbb; parent-login pool선택+parentLogin(poolId?)+find-identifier pool_id+reset-password pool scope+UNIQUE INDEX migration; 33TC; OTA 01a04e47
 - [diary 학생 로딩 무한 대기 수정](student-loading-fix.md) — fallback GET /students→GET /class-groups/:id/students?date= 교체; N+1쿼리 제거; 1.6.3 iOS 01a05b6c+Android 01a05b6d, 2.0.0 iOS 01a05b6e
 - [WP11 완료 상태](wp11-done-state.md) — SHA 67515a67; safeXMetric partial-failure격리+monthly KPI+운영현황 UI; OTA iOS 01a06ac2; Render 미배포
+- [WP9 완료 상태](wp9-done-state.md) — SHA 1913680c; ai_generated/ai_trace_id+snapshot+diary-based feed+diary-hub.tsx; 36TC; OTA iOS 01a06ae3; Render 미배포
 - [WP3 완료 상태](wp3-done-state.md) — subscription.tsx 2.0 플랜+Trial UX+Storage+DATA Pack; x-subscription X_TRIAL_ACTIVE; 80TC; SHA 75431ceb; Render/OTA 없음
