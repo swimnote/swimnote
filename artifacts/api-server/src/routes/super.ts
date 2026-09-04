@@ -7643,56 +7643,579 @@ router.get(
   },
 );
 
-// GET /super/pools/:id/control-center/audit
+// ════════════════════════════════════════════════════════════════
+// WP8 — Audit / Support Case / Customer Service History
+// Super Admin Pool Control Center
+// ════════════════════════════════════════════════════════════════
+
+// ── WP8 Schema migration (idempotent, startup) ──────────────────
+let _wp8SchemaDone = false;
+async function ensureWp8Schema(): Promise<void> {
+  if (_wp8SchemaDone) return;
+  _wp8SchemaDone = true;
+  // support_cases: add operational tracking columns
+  for (const ddl of [
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS title TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS category TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS subject_type TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS subject_id TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS assigned_operator TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS resolution TEXT`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS ops_status TEXT DEFAULT 'OPEN'`,
+    `ALTER TABLE support_cases ADD COLUMN IF NOT EXISTS created_by_admin TEXT`,
+  ]) {
+    await (superAdminDb as any).execute(sql.raw(ddl)).catch((e: any) =>
+      console.error(`[wp8-migrate] DDL fail: ${ddl.slice(0, 60)}`, e?.message));
+  }
+  // support_case_notes: new child table
+  await (superAdminDb as any).execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS support_case_notes (
+      id              TEXT PRIMARY KEY,
+      support_case_id TEXT NOT NULL,
+      pool_id         TEXT NOT NULL,
+      actor_id        TEXT NOT NULL,
+      event_type      TEXT NOT NULL,
+      note            TEXT,
+      before_state    TEXT,
+      after_state     TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)).catch((e: any) => console.error("[wp8-migrate] CREATE support_case_notes:", e?.message));
+  // Indexes
+  for (const ddl of [
+    `CREATE INDEX IF NOT EXISTS sc_pool_status_idx  ON support_cases(pool_id, ops_status)`,
+    `CREATE INDEX IF NOT EXISTS sc_pool_created_idx ON support_cases(pool_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS sc_ticket_idx       ON support_cases(ticket_id)`,
+    `CREATE INDEX IF NOT EXISTS sc_subject_idx      ON support_cases(subject_type, subject_id)`,
+    `CREATE INDEX IF NOT EXISTS scn_case_id_idx     ON support_case_notes(support_case_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS al_pool_created_idx ON audit_logs(pool_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS al_actor_created_idx ON audit_logs(actor_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS al_entity_idx       ON audit_logs(entity_type, entity_id)`,
+  ]) {
+    await (superAdminDb as any).execute(sql.raw(ddl)).catch(() => {});
+  }
+}
+void ensureWp8Schema();
+
+// ── Helpers ─────────────────────────────────────────────────────
+const WP8_CATEGORIES = new Set([
+  "ACCOUNT","MEMBER","TEACHER","PARENT","CLASS","ENTITLEMENT",
+  "BILLING","CURRICULUM","AI","GROWTH_REPORT","NOTIFICATION","STORAGE","ERROR","OTHER",
+]);
+const WP8_OPS_STATUSES = new Set(["OPEN","IN_PROGRESS","RESOLVED"]);
+const WP8_SUBJECT_TYPES = new Set([
+  "POOL","MEMBER","TEACHER","PARENT","CLASS","REPORT","CURRICULUM","NOTIFICATION","OTHER",
+]);
+const WP8_NOTE_EVENTS = new Set([
+  "CREATED","NOTE_ADDED","STATUS_CHANGED","ASSIGNED","RESOLVED","REOPENED",
+]);
+
+function wp8Id(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function wp8TicketId(): string {
+  const d = new Date();
+  const date = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `SUPP-${date}-${suffix}`;
+}
+
+async function wp8InsertNote(params: {
+  caseId: string; poolId: string; actorId: string;
+  eventType: string; note?: string | null;
+  beforeState?: string | null; afterState?: string | null;
+}): Promise<void> {
+  const id = wp8Id("scn");
+  await (superAdminDb as any).execute(sql`
+    INSERT INTO support_case_notes
+      (id, support_case_id, pool_id, actor_id, event_type, note, before_state, after_state)
+    VALUES (${id}, ${params.caseId}, ${params.poolId}, ${params.actorId},
+            ${params.eventType}, ${params.note ?? null},
+            ${params.beforeState ?? null}, ${params.afterState ?? null})
+  `);
+}
+
+// ── Validate pool ownership of subject ──────────────────────────
+async function wp8ValidateSubject(
+  poolId: string, subjectType: string | null, subjectId: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  if (!subjectType || !subjectId) return { ok: true };
+  if (!WP8_SUBJECT_TYPES.has(subjectType)) return { ok: false, error: "유효하지 않은 subject_type" };
+  try {
+    let countRes: any = null;
+    switch (subjectType) {
+      case "MEMBER":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM students WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "TEACHER":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM users WHERE id = ${subjectId} AND swimming_pool_id = ${poolId}
+            AND role IN ('teacher','pool_admin') LIMIT 1
+        `);
+        break;
+      case "PARENT":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM parent_accounts WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "CLASS":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${subjectId} AND swimming_pool_id = ${poolId} LIMIT 1
+        `);
+        break;
+      case "POOL":
+        countRes = await (superAdminDb as any).execute(sql`
+          SELECT 1 FROM swimming_pools WHERE id = ${subjectId} AND id = ${poolId} LIMIT 1
+        `);
+        break;
+      default:
+        return { ok: true }; // REPORT/CURRICULUM/NOTIFICATION/OTHER — soft check
+    }
+    if (!countRes?.rows?.length) {
+      return { ok: false, error: `subject ${subjectType}:${subjectId}이 pool ${poolId}에 속하지 않습니다.` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true }; // fail-open for soft checks
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// AUDIT ROUTES (enhanced)
+// ════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/audit — enhanced with filters + pagination
 router.get(
   "/super/pools/:id/control-center/audit",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { limit = "50", offset = "0" } = req.query as Record<string, string>;
+    const {
+      limit: limitStr = "50", offset: offsetStr = "0",
+      action, entity_type, actor_id, from: fromDate, to: toDate,
+    } = req.query as Record<string, string>;
+    const limit  = Math.min(Math.max(parseInt(limitStr,  10), 1), 100);
+    const offset = Math.max(parseInt(offsetStr, 10), 0);
     try {
-      const rows = await superAdminDb.execute(sql`
-        SELECT id, entity_type, entity_id, entity_version,
-               action, actor_type, actor_id, pool_id,
-               before_data, after_data, reason, created_at
-        FROM audit_logs
-        WHERE pool_id = ${poolId}
-        ORDER BY created_at DESC
-        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
-      `);
-      const total = await superAdminDb.execute(sql`
-        SELECT COUNT(*) AS cnt FROM audit_logs WHERE pool_id = ${poolId}
-      `);
-      res.json({ logs: rows.rows, total: Number((total.rows[0] as any).cnt) });
+      const conds: string[] = [`pool_id = '${poolId.replace(/'/g,"''")}'`];
+      if (action)      conds.push(`action = '${action.replace(/'/g,"''")}'`);
+      if (entity_type) conds.push(`entity_type = '${entity_type.replace(/'/g,"''")}'`);
+      if (actor_id)    conds.push(`actor_id = '${actor_id.replace(/'/g,"''")}'`);
+      if (fromDate)    conds.push(`created_at >= '${fromDate.replace(/'/g,"''")}'::timestamptz`);
+      if (toDate)      conds.push(`created_at <= '${toDate.replace(/'/g,"''")}'::timestamptz`);
+      const where = conds.join(" AND ");
+      const [rows, countRes] = await Promise.all([
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT id, entity_type, entity_id, entity_version,
+                 action, actor_type, actor_id, pool_id,
+                 reason, request_id, created_at
+          FROM audit_logs WHERE ${where}
+          ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM audit_logs WHERE ${where}
+        `)),
+      ]);
+      res.json({
+        logs: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        limit, offset,
+      });
     } catch (e: any) {
       res.status(500).json({ error: "AUDIT_FAILED", message: e?.message });
     }
   },
 );
 
-// GET /super/pools/:id/control-center/support
+// GET /super/pools/:id/control-center/audit/:logId — detail with redaction
+router.get(
+  "/super/pools/:id/control-center/audit/:logId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, logId } = req.params;
+    if (!logId || logId.length > 80) { res.status(400).json({ error: "invalid logId" }); return; }
+    try {
+      const result = await (superAdminDb as any).execute(sql`
+        SELECT al.*, sp.name AS pool_name
+        FROM audit_logs al
+        LEFT JOIN swimming_pools sp ON sp.id = al.pool_id
+        WHERE al.id = ${logId} AND al.pool_id = ${poolId} LIMIT 1
+      `);
+      const row = result?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "감사 로그를 찾을 수 없습니다." }); return; }
+      res.json({
+        log: {
+          ...row,
+          before_data: maskSensitive(row.before_data),
+          after_data:  maskSensitive(row.after_data),
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "AUDIT_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// ════════════════════════════════════════════════════════════════
+// SUPPORT CASE ROUTES
+// ════════════════════════════════════════════════════════════════
+
+// GET /super/pools/:id/control-center/support — enhanced list with filters
 router.get(
   "/super/pools/:id/control-center/support",
   requireAuth, requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const { id: poolId } = req.params;
-    const { limit = "30", offset = "0" } = req.query as Record<string, string>;
+    const {
+      limit: limitStr = "30", offset: offsetStr = "0",
+      ops_status, category, subject_type, q,
+      from: fromDate, to: toDate,
+    } = req.query as Record<string, string>;
+    const limit  = Math.min(Math.max(parseInt(limitStr,  10), 1), 100);
+    const offset = Math.max(parseInt(offsetStr, 10), 0);
     try {
-      const rows = await superAdminDb.execute(sql`
-        SELECT id, pool_id, ticket_id, actor_role, mode, state,
-               escalation_reason, resolution_source,
-               turn_count, resolved_at, created_at
-        FROM support_cases
-        WHERE pool_id = ${poolId}
-        ORDER BY created_at DESC
-        LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
-      `);
-      const total = await superAdminDb.execute(sql`
-        SELECT COUNT(*) AS cnt FROM support_cases WHERE pool_id = ${poolId}
-      `);
-      res.json({ cases: rows.rows, total: Number((total.rows[0] as any).cnt) });
+      await ensureWp8Schema();
+      const conds: string[] = [`pool_id = '${poolId.replace(/'/g,"''")}'`];
+      if (ops_status && WP8_OPS_STATUSES.has(ops_status))
+        conds.push(`ops_status = '${ops_status}'`);
+      if (category && WP8_CATEGORIES.has(category))
+        conds.push(`category = '${category}'`);
+      if (subject_type && WP8_SUBJECT_TYPES.has(subject_type))
+        conds.push(`subject_type = '${subject_type}'`);
+      if (fromDate) conds.push(`created_at >= '${fromDate.replace(/'/g,"''")}'::timestamptz`);
+      if (toDate)   conds.push(`created_at <= '${toDate.replace(/'/g,"''")}'::timestamptz`);
+      if (q) {
+        const safe = q.slice(0, 100).replace(/'/g, "''");
+        conds.push(`(ticket_id ILIKE '${safe}%' OR title ILIKE '%${safe}%')`);
+      }
+      const where = conds.join(" AND ");
+      const [rows, countRes, summaryRes] = await Promise.all([
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT id, pool_id, ticket_id, title, category, ops_status,
+                 subject_type, subject_id, actor_role, state,
+                 assigned_operator, resolution, resolved_at,
+                 created_by_admin, created_at, updated_at
+          FROM support_cases WHERE ${where}
+          ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT COUNT(*)::int AS total FROM support_cases WHERE ${where}
+        `)),
+        (superAdminDb as any).execute(sql.raw(`
+          SELECT ops_status, COUNT(*)::int AS cnt
+          FROM support_cases WHERE pool_id = '${poolId.replace(/'/g,"''")}'
+          GROUP BY ops_status
+        `)),
+      ]);
+      const summary: Record<string, number> = { OPEN: 0, IN_PROGRESS: 0, RESOLVED: 0 };
+      for (const r of (summaryRes.rows as any[])) {
+        if (r.ops_status in summary) summary[r.ops_status] = Number(r.cnt);
+      }
+      res.json({
+        cases: rows.rows,
+        total: Number((countRes.rows[0] as any)?.total ?? 0),
+        summary, limit, offset,
+      });
     } catch (e: any) {
       res.status(500).json({ error: "SUPPORT_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases — create
+router.post(
+  "/super/pools/:id/control-center/support/cases",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { title, category, subject_type, subject_id, note, assigned_operator } = req.body ?? {};
+    // Validation
+    if (!title?.trim()) { res.status(400).json({ error: "title 필수" }); return; }
+    if (!category || !WP8_CATEGORIES.has(category)) {
+      res.status(400).json({ error: `category는 ${[...WP8_CATEGORIES].join("/")} 중 하나여야 합니다.` }); return;
+    }
+    // Pool existence check
+    const poolCheck = await (superAdminDb as any).execute(sql`
+      SELECT id FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `).catch(() => ({ rows: [] }));
+    if (!poolCheck?.rows?.length) { res.status(404).json({ error: "수영장을 찾을 수 없습니다." }); return; }
+    // Cross-pool subject validation
+    if (subject_type && subject_id) {
+      const sv = await wp8ValidateSubject(poolId, subject_type, subject_id);
+      if (!sv.ok) { res.status(400).json({ error: sv.error }); return; }
+    }
+    try {
+      await ensureWp8Schema();
+      const caseId   = wp8Id("sc");
+      const ticketId = wp8TicketId();
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO support_cases
+          (id, pool_id, ticket_id, title, category, ops_status,
+           subject_type, subject_id, assigned_operator,
+           actor_role, state, created_by_admin, created_at, updated_at)
+        VALUES (
+          ${caseId}, ${poolId}, ${ticketId}, ${title.trim()}, ${category}, ${"OPEN"},
+          ${subject_type ?? null}, ${subject_id ?? null}, ${assigned_operator ?? null},
+          ${"super_admin"}, ${"NEW"}, ${actorId}, NOW(), NOW()
+        )
+      `);
+      // Initial note/event
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "CREATED",
+        note: note?.trim() ?? `케이스 생성: ${title.trim()}`,
+        afterState: "OPEN",
+      });
+      // Audit
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"create"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ title: title.trim(), category, ops_status: "OPEN" })}::jsonb,
+          ${"케이스 생성"}, NOW()
+        )
+      `).catch(() => {});
+      res.status(201).json({ case_id: caseId, ticket_id: ticketId, ops_status: "OPEN" });
+    } catch (e: any) {
+      res.status(500).json({ error: "CASE_CREATE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// GET /super/pools/:id/control-center/support/cases/:caseId — detail
+router.get(
+  "/super/pools/:id/control-center/support/cases/:caseId",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    try {
+      await ensureWp8Schema();
+      const [caseRes, notesRes] = await Promise.all([
+        (superAdminDb as any).execute(sql`
+          SELECT sc.*, sp.name AS pool_name
+          FROM support_cases sc
+          LEFT JOIN swimming_pools sp ON sp.id = sc.pool_id
+          WHERE sc.id = ${caseId} AND sc.pool_id = ${poolId} LIMIT 1
+        `),
+        (superAdminDb as any).execute(sql`
+          SELECT id, event_type, note, before_state, after_state, actor_id, created_at
+          FROM support_case_notes
+          WHERE support_case_id = ${caseId}
+          ORDER BY created_at ASC LIMIT 200
+        `),
+      ]);
+      const kase = caseRes?.rows?.[0] as any;
+      if (!kase) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      res.json({ case: kase, notes: notesRes.rows });
+    } catch (e: any) {
+      res.status(500).json({ error: "CASE_DETAIL_FAILED", message: e?.message });
+    }
+  },
+);
+
+// PATCH /super/pools/:id/control-center/support/cases/:caseId/status
+router.patch(
+  "/super/pools/:id/control-center/support/cases/:caseId/status",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { ops_status, note } = req.body ?? {};
+    if (!ops_status || !WP8_OPS_STATUSES.has(ops_status)) {
+      res.status(400).json({ error: "ops_status는 OPEN/IN_PROGRESS/RESOLVED 중 하나" }); return;
+    }
+    try {
+      await ensureWp8Schema();
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const prevStatus = row.ops_status ?? "OPEN";
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${ops_status}, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "STATUS_CHANGED",
+        note: note?.trim() ?? null,
+        beforeState: prevStatus, afterState: ops_status,
+      });
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, before_data, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"update"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ ops_status: prevStatus })}::jsonb,
+          ${JSON.stringify({ ops_status })}::jsonb,
+          ${note?.trim() ?? "상태 변경"}, NOW()
+        )
+      `).catch(() => {});
+      res.json({ ok: true, ops_status });
+    } catch (e: any) {
+      res.status(500).json({ error: "STATUS_CHANGE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/notes
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/notes",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { note } = req.body ?? {};
+    if (!note?.trim()) { res.status(400).json({ error: "note 필수" }); return; }
+    if (note.trim().length > 4000) { res.status(400).json({ error: "note 최대 4000자" }); return; }
+    try {
+      await ensureWp8Schema();
+      const exists = await (superAdminDb as any).execute(sql`
+        SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      if (!exists?.rows?.length) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const noteId = wp8Id("scn");
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO support_case_notes
+          (id, support_case_id, pool_id, actor_id, event_type, note)
+        VALUES (${noteId}, ${caseId}, ${poolId}, ${actorId}, ${"NOTE_ADDED"}, ${note.trim()})
+      `);
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases SET updated_at = NOW() WHERE id = ${caseId}
+      `);
+      res.status(201).json({ note_id: noteId, ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: "NOTE_ADD_FAILED", message: e?.message });
+    }
+  },
+);
+
+// PATCH /super/pools/:id/control-center/support/cases/:caseId/assign
+router.patch(
+  "/super/pools/:id/control-center/support/cases/:caseId/assign",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { assigned_operator } = req.body ?? {};
+    // assigned_operator may be null (unassign)
+    try {
+      await ensureWp8Schema();
+      const exists = await (superAdminDb as any).execute(sql`
+        SELECT id FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      if (!exists?.rows?.length) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      if (assigned_operator) {
+        // Validate operator is a super_admin user
+        const opCheck = await (superAdminDb as any).execute(sql`
+          SELECT id FROM users WHERE id = ${assigned_operator} AND role = 'super_admin' LIMIT 1
+        `).catch(() => ({ rows: [] }));
+        if (!opCheck?.rows?.length) {
+          res.status(400).json({ error: "유효한 super_admin 운영자가 아닙니다." }); return;
+        }
+      }
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET assigned_operator = ${assigned_operator ?? null}, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "ASSIGNED",
+        note: assigned_operator ? `담당자 지정: ${assigned_operator}` : "담당자 해제",
+      });
+      res.json({ ok: true, assigned_operator: assigned_operator ?? null });
+    } catch (e: any) {
+      res.status(500).json({ error: "ASSIGN_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/resolve
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/resolve",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { resolution, note } = req.body ?? {};
+    if (!resolution?.trim()) { res.status(400).json({ error: "resolution 필수" }); return; }
+    try {
+      await ensureWp8Schema();
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      const prev = row.ops_status ?? "OPEN";
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${"RESOLVED"}, resolution = ${resolution.trim()},
+            resolved_at = NOW(), updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "RESOLVED",
+        note: note?.trim() ?? resolution.trim(),
+        beforeState: prev, afterState: "RESOLVED",
+      });
+      await (superAdminDb as any).execute(sql`
+        INSERT INTO audit_logs
+          (id, entity_type, entity_id, entity_version, action,
+           actor_type, actor_id, pool_id, before_data, after_data, reason, created_at)
+        VALUES (
+          ${wp8Id("al")}, ${"SUPPORT_CASE"}, ${caseId}, ${1}, ${"update"},
+          ${"super_admin"}, ${actorId}, ${poolId},
+          ${JSON.stringify({ ops_status: prev })}::jsonb,
+          ${JSON.stringify({ ops_status: "RESOLVED", resolution: resolution.trim() })}::jsonb,
+          ${"케이스 해결"}, NOW()
+        )
+      `).catch(() => {});
+      res.json({ ok: true, ops_status: "RESOLVED" });
+    } catch (e: any) {
+      res.status(500).json({ error: "RESOLVE_FAILED", message: e?.message });
+    }
+  },
+);
+
+// POST /super/pools/:id/control-center/support/cases/:caseId/reopen
+router.post(
+  "/super/pools/:id/control-center/support/cases/:caseId/reopen",
+  requireAuth, requireRole("super_admin"),
+  async (req: AuthRequest, res) => {
+    const { id: poolId, caseId } = req.params;
+    const actorId = (req as any).user?.userId ?? "unknown";
+    const { reason } = req.body ?? {};
+    if (!reason?.trim()) { res.status(400).json({ error: "reason 필수" }); return; }
+    try {
+      await ensureWp8Schema();
+      const cur = await (superAdminDb as any).execute(sql`
+        SELECT ops_status FROM support_cases WHERE id = ${caseId} AND pool_id = ${poolId} LIMIT 1
+      `);
+      const row = cur?.rows?.[0] as any;
+      if (!row) { res.status(404).json({ error: "케이스를 찾을 수 없습니다." }); return; }
+      if (row.ops_status !== "RESOLVED") {
+        res.status(422).json({ error: "RESOLVED 상태인 케이스만 Reopen 가능합니다." }); return;
+      }
+      await (superAdminDb as any).execute(sql`
+        UPDATE support_cases
+        SET ops_status = ${"IN_PROGRESS"}, resolved_at = NULL, updated_at = NOW()
+        WHERE id = ${caseId} AND pool_id = ${poolId}
+      `);
+      await wp8InsertNote({
+        caseId, poolId, actorId, eventType: "REOPENED",
+        note: reason.trim(), beforeState: "RESOLVED", afterState: "IN_PROGRESS",
+      });
+      res.json({ ok: true, ops_status: "IN_PROGRESS" });
+    } catch (e: any) {
+      res.status(500).json({ error: "REOPEN_FAILED", message: e?.message });
     }
   },
 );

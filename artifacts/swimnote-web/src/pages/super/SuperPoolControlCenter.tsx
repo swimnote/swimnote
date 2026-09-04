@@ -60,7 +60,7 @@ function Badge({ color, text }: { color: string; text: string }) {
   return <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${cls}`}>{text}</span>;
 }
 
-function Row({ label, value, valueClass }: { label: string; value?: string | number | boolean | null; valueClass?: string }) {
+function Row({ label, value, valueClass, mono }: { label: string; value?: string | number | boolean | null; valueClass?: string; mono?: boolean }) {
   const display = value == null ? "—" : typeof value === "boolean" ? (value ? "YES" : "NO") : String(value);
   return (
     <div className="flex justify-between py-1.5 border-b border-[#f5f5f5] last:border-0">
@@ -769,7 +769,37 @@ function MiniList({ items, empty = "없음" }: { items: string[]; empty?: string
 }
 
 // ─────────────────── Members Tab ────────────────────────────────
-function MembersTab({ poolId }: { poolId: string }) {
+// ── Mini support case creator for subject detail drawers ────────
+function SubjectSupportButton({ poolId, subjectType, subjectId, subjectName, onNavigate }: {
+  poolId: string; subjectType: string; subjectId: string;
+  subjectName: string; onNavigate: (tab: TabKey) => void;
+}) {
+  const [showModal, setShowModal] = useState(false);
+  return (
+    <>
+      {showModal && (
+        <CreateCaseModal
+          poolId={poolId}
+          prefillSubjectType={subjectType}
+          prefillSubjectId={subjectId}
+          onCreated={() => { setShowModal(false); onNavigate("support"); }}
+          onClose={() => setShowModal(false)}
+        />
+      )}
+      <button onClick={() => setShowModal(true)}
+        className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium">
+        + 지원 케이스 생성
+      </button>
+      <button onClick={() => onNavigate("support")}
+        className="ml-2 px-3 py-1.5 text-[11px] rounded-lg bg-[#f3f4f6] text-[#555]">
+        Support 탭 이동
+      </button>
+      <div className="mt-1 text-[10px] text-[#999]">Subject: {subjectType} / {subjectName}</div>
+    </>
+  );
+}
+
+function MembersTab({ poolId, onNavigate }: { poolId: string; onNavigate: (tab: TabKey) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -885,12 +915,11 @@ function MembersTab({ poolId }: { poolId: string }) {
                   `${n.title} ${n.is_read ? "(읽음)" : "(미읽음)"} — ${n.created_at?.slice(0, 10)}`)
                 } empty="관련 알림 없음" />
               </DetailSection>
-              <DetailSection title="Support Actions">
-                <div className="text-[11px] text-[#aaa] italic">
-                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
-                  <br />SAFE TO EXPOSE: 상태변경(퇴원처리) — 기존 /admin API 존재, 다음 WP 연결 예정
-                  <br />DO NOT EXPOSE: 계정 삭제, JWT 리셋, 비밀번호 변경
-                </div>
+              <DetailSection title="지원 케이스">
+                <SubjectSupportButton poolId={poolId} subjectType="MEMBER"
+                  subjectId={detail.identity?.id ?? selected.id}
+                  subjectName={detail.identity?.name ?? selected.name}
+                  onNavigate={onNavigate} />
               </DetailSection>
             </div>
           )}
@@ -901,7 +930,7 @@ function MembersTab({ poolId }: { poolId: string }) {
 }
 
 // ─────────────────── Teachers Tab ───────────────────────────────
-function TeachersTab({ poolId }: { poolId: string }) {
+function TeachersTab({ poolId, onNavigate }: { poolId: string; onNavigate: (tab: TabKey) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -985,11 +1014,11 @@ function TeachersTab({ poolId }: { poolId: string }) {
                   `[${e.level}] ${e.category} — ${e.created_at?.slice(0, 10)}`)
                 } empty="관련 오류 없음" />
               </DetailSection>
-              <DetailSection title="Support Actions">
-                <div className="text-[11px] text-[#aaa] italic">
-                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
-                  <br />DO NOT EXPOSE: 비밀번호 리셋, JWT 발급, 역할 강등
-                </div>
+              <DetailSection title="지원 케이스">
+                <SubjectSupportButton poolId={poolId} subjectType="TEACHER"
+                  subjectId={detail.identity?.id ?? selected.id}
+                  subjectName={detail.identity?.name ?? selected.name}
+                  onNavigate={onNavigate} />
               </DetailSection>
             </div>
           )}
@@ -1000,7 +1029,7 @@ function TeachersTab({ poolId }: { poolId: string }) {
 }
 
 // ─────────────────── Parents Tab ────────────────────────────────
-function ParentsTab({ poolId }: { poolId: string }) {
+function ParentsTab({ poolId, onNavigate }: { poolId: string; onNavigate: (tab: TabKey) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -1090,12 +1119,11 @@ function ParentsTab({ poolId }: { poolId: string }) {
                   `[${e.level}] ${e.category} — ${e.created_at?.slice(0, 10)}`)
                 } empty="관련 오류 없음" />
               </DetailSection>
-              <DetailSection title="Support Actions">
-                <div className="text-[11px] text-[#aaa] italic">
-                  이 WP에서 노출한 mutation: 없음 (READ ONLY)
-                  <br />SAFE (다음 WP): connection 재승인, 연결 초대 재발송
-                  <br />DO NOT EXPOSE: 연결 강제 삭제(데이터 손실 위험)
-                </div>
+              <DetailSection title="지원 케이스">
+                <SubjectSupportButton poolId={poolId} subjectType="PARENT"
+                  subjectId={detail.identity?.id ?? selected.id}
+                  subjectName={detail.identity?.name ?? selected.name}
+                  onNavigate={onNavigate} />
               </DetailSection>
             </div>
           )}
@@ -1106,7 +1134,7 @@ function ParentsTab({ poolId }: { poolId: string }) {
 }
 
 // ─────────────────── Classes Tab ────────────────────────────────
-function ClassesTab({ poolId }: { poolId: string }) {
+function ClassesTab({ poolId, onNavigate }: { poolId: string; onNavigate: (tab: TabKey) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -1196,6 +1224,12 @@ function ClassesTab({ poolId }: { poolId: string }) {
                 <MiniList items={(detail.recent_diaries ?? []).map((d: any) =>
                   `${d.student_name} — ${d.created_at?.slice(0, 10)} ${d.ai_generated ? "🤖" : "✍️"}`)
                 } empty="최근 일지 없음" />
+              </DetailSection>
+              <DetailSection title="지원 케이스">
+                <SubjectSupportButton poolId={poolId} subjectType="CLASS"
+                  subjectId={detail.identity?.id ?? selected.id}
+                  subjectName={detail.identity?.name ?? selected.name}
+                  onNavigate={onNavigate} />
               </DetailSection>
             </div>
           )}
@@ -2762,55 +2796,564 @@ function StorageTab({ poolId }: { poolId: string }) {
   );
 }
 
-function AuditTab({ poolId }: { poolId: string }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/audit`).then(setData).catch(() => {}).finally(() => setLoading(false));
-  }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <>
-      <div className="text-[11px] text-[#888] mb-2">전체 {data.total}건</div>
-      <Table
-        heads={["엔티티 타입", "액션", "액터", "이유", "시각"]}
-        rows={data.logs ?? []}
-        render={(r, i) => (
-          <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-            <td className="py-2 pr-3 text-[10px] font-medium">{r.entity_type}</td>
-            <td className="py-2 pr-3"><Badge color="gray" text={r.action} /></td>
-            <td className="py-2 pr-3">{r.actor_id?.slice(0, 8)}</td>
-            <td className="py-2 pr-3 max-w-[160px] truncate text-[#555]">{r.reason ?? "—"}</td>
-            <td className="py-2">{r.created_at?.slice(0, 16)}</td>
-          </tr>
-        )}
-      />
-    </>
+// ─────────────────── Audit Tab (WP8 Enhanced) ────────────────────────────────
+function SafeJsonDiff({ before, after }: { before: unknown; after: unknown }) {
+  if (!before && !after) return <span className="text-[#bbb] text-[10px]">변경 데이터 없음</span>;
+  const fmt = (v: unknown) => v ? JSON.stringify(v, null, 2) : "—";
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div>
+        <div className="text-[10px] text-[#888] font-medium mb-1">Before</div>
+        <pre className="text-[10px] bg-[#fafafa] rounded p-2 overflow-auto max-h-40 text-[#444] whitespace-pre-wrap break-all">
+          {fmt(before)}
+        </pre>
+      </div>
+      <div>
+        <div className="text-[10px] text-[#888] font-medium mb-1">After</div>
+        <pre className="text-[10px] bg-[#fafafa] rounded p-2 overflow-auto max-h-40 text-[#444] whitespace-pre-wrap break-all">
+          {fmt(after)}
+        </pre>
+      </div>
+    </div>
   );
 }
 
-function SupportTab({ poolId }: { poolId: string }) {
-  const [data, setData] = useState<any>(null);
+function AuditTab({ poolId }: { poolId: string }) {
+  const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    api.get<any>(`/super/pools/${poolId}/control-center/support`).then(setData).catch(() => {}).finally(() => setLoading(false));
-  }, [poolId]);
-  return loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
-    <>
-      <div className="text-[11px] text-[#888] mb-2">전체 {data.total}건</div>
-      <Table
-        heads={["티켓", "역할", "상태", "해결 출처", "생성일"]}
-        rows={data.cases ?? []}
-        render={(r, i) => (
-          <tr key={r.id ?? i} className="border-b border-[#f5f5f5]">
-            <td className="py-2 pr-3 font-medium text-[10px]">{r.ticket_id ?? r.id?.slice(0, 8)}</td>
-            <td className="py-2 pr-3">{r.actor_role}</td>
-            <td className="py-2 pr-3"><Badge color={r.state === "RESOLVED" ? "green" : r.state === "HUMAN_REQUIRED" ? "red" : "amber"} text={r.state} /></td>
-            <td className="py-2 pr-3">{r.resolution_source ?? "—"}</td>
-            <td className="py-2">{r.created_at?.slice(0, 10)}</td>
-          </tr>
-        )}
-      />
-    </>
+  const [offset, setOffset]   = useState(0);
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail]   = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const LIMIT = 50;
+
+  // Filters
+  const [fAction,      setFAction]      = useState("");
+  const [fEntityType,  setFEntityType]  = useState("");
+  const [fActorId,     setFActorId]     = useState("");
+  const [fFrom,        setFFrom]        = useState("");
+  const [fTo,          setFTo]          = useState("");
+
+  const buildQs = useCallback((off: number) => {
+    const p = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
+    if (fAction)     p.set("action",      fAction);
+    if (fEntityType) p.set("entity_type", fEntityType);
+    if (fActorId)    p.set("actor_id",    fActorId);
+    if (fFrom)       p.set("from", fFrom);
+    if (fTo)         p.set("to",   fTo);
+    return p.toString();
+  }, [fAction, fEntityType, fActorId, fFrom, fTo]);
+
+  const load = useCallback(async (off = 0) => {
+    setLoading(true);
+    try {
+      const r = await api.get<any>(`/super/pools/${poolId}/control-center/audit?${buildQs(off)}`);
+      setData(r); setOffset(off);
+    } catch (_) {}
+    setLoading(false);
+  }, [poolId, buildQs]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  const openDetail = async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    try {
+      const d = await api.get<any>(`/super/pools/${poolId}/control-center/audit/${row.id}`);
+      setDetail(d);
+    } catch (_) {}
+    setDetailLoading(false);
+  };
+
+  const AUDIT_ACTIONS = ["create","update","delete"];
+  const AUDIT_ENTITY_TYPES = [
+    "X_ENTITLEMENT","PLAN","MEMBER_LIMIT","BASE_GRANT","SUPPORT_CASE","POOL","USER","OTHER",
+  ];
+
+  return (
+    <div>
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <select value={fAction} onChange={e => setFAction(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]">
+          <option value="">전체 액션</option>
+          {AUDIT_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select value={fEntityType} onChange={e => setFEntityType(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]">
+          <option value="">전체 엔티티</option>
+          {AUDIT_ENTITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input value={fActorId} onChange={e => setFActorId(e.target.value)} placeholder="Actor ID" className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px] w-36" />
+        <input type="date" value={fFrom} onChange={e => setFFrom(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]" />
+        <span className="self-center text-[#bbb] text-[11px]">~</span>
+        <input type="date" value={fTo} onChange={e => setFTo(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]" />
+        <button onClick={() => load(0)} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium">조회</button>
+        <button onClick={() => { setFAction(""); setFEntityType(""); setFActorId(""); setFFrom(""); setFTo(""); }} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#f3f4f6] text-[#555]">초기화</button>
+      </div>
+      {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
+        <>
+          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}건 (행 클릭 → 상세)</div>
+          <Table
+            heads={["엔티티 타입", "엔티티 ID", "액션", "액터", "이유", "시각"]}
+            rows={data.logs ?? []}
+            render={(r, i) => (
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? (setSelected(null), setDetail(null)) : openDetail(r)}>
+                <td className="py-2 pr-3 text-[10px] font-medium">{r.entity_type}</td>
+                <td className="py-2 pr-3 text-[10px] text-[#bbb]">{String(r.entity_id ?? "").slice(0, 12)}</td>
+                <td className="py-2 pr-3"><Badge color={r.action === "delete" ? "red" : r.action === "create" ? "green" : "gray"} text={r.action} /></td>
+                <td className="py-2 pr-3 text-[10px]">{String(r.actor_id ?? "").slice(0, 8) || (r.actor_type ?? "—")}</td>
+                <td className="py-2 pr-3 max-w-[160px] truncate text-[#555] text-[11px]">{r.reason ?? "—"}</td>
+                <td className="py-2 text-[11px]">{String(r.created_at ?? "").slice(0, 16)}</td>
+              </tr>
+            )}
+          />
+          {/* Pagination */}
+          <div className="flex gap-2 mt-3 items-center">
+            <button disabled={offset === 0} onClick={() => load(Math.max(0, offset - LIMIT))}
+              className="px-3 py-1 text-[11px] rounded border border-[#e5e7eb] disabled:opacity-40">이전</button>
+            <span className="text-[11px] text-[#888]">{offset + 1}–{Math.min(offset + LIMIT, data.total)} / {data.total}</span>
+            <button disabled={offset + LIMIT >= data.total} onClick={() => load(offset + LIMIT)}
+              className="px-3 py-1 text-[11px] rounded border border-[#e5e7eb] disabled:opacity-40">다음</button>
+          </div>
+        </>
+      )}
+      {/* Detail drawer */}
+      {selected && (
+        <DetailDrawer title={`감사 로그 — ${selected.entity_type} / ${selected.action}`} onClose={() => { setSelected(null); setDetail(null); }} loading={detailLoading}>
+          {detail?.log && (
+            <div className="grid grid-cols-1 gap-4">
+              <DetailSection title="기본 정보">
+                <Row label="ID"          value={detail.log.id} />
+                <Row label="엔티티 타입" value={detail.log.entity_type} />
+                <Row label="엔티티 ID"   value={detail.log.entity_id} />
+                <Row label="액션"        value={detail.log.action} />
+                <Row label="액터 타입"   value={detail.log.actor_type} />
+                <Row label="액터 ID"     value={detail.log.actor_id ?? "—"} />
+                <Row label="Pool"        value={detail.log.pool_name ?? detail.log.pool_id ?? "—"} />
+                <Row label="이유"        value={detail.log.reason ?? "—"} />
+                <Row label="Request ID"  value={detail.log.request_id ?? "—"} />
+                <Row label="시각"        value={String(detail.log.created_at ?? "").slice(0, 19)} />
+              </DetailSection>
+              <DetailSection title="변경 내역 (민감 정보 마스킹됨)">
+                <SafeJsonDiff before={detail.log.before_data} after={detail.log.after_data} />
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────── Support Tab (WP8 Full) ──────────────────────────────────
+const OPS_STATUS_COLORS: Record<string, string> = {
+  OPEN: "amber", IN_PROGRESS: "gray", RESOLVED: "green",
+};
+const SUPPORT_CATEGORIES = [
+  "ACCOUNT","MEMBER","TEACHER","PARENT","CLASS","ENTITLEMENT",
+  "BILLING","CURRICULUM","AI","GROWTH_REPORT","NOTIFICATION","STORAGE","ERROR","OTHER",
+];
+const SUPPORT_SUBJECT_TYPES = [
+  "POOL","MEMBER","TEACHER","PARENT","CLASS","REPORT","CURRICULUM","NOTIFICATION","OTHER",
+];
+
+function SupportCaseTimeline({ notes }: { notes: any[] }) {
+  if (!notes?.length) return <div className="text-[11px] text-[#bbb]">이력 없음</div>;
+  const EVT_LABELS: Record<string, string> = {
+    CREATED: "케이스 생성", NOTE_ADDED: "메모 추가", STATUS_CHANGED: "상태 변경",
+    ASSIGNED: "담당자 지정", RESOLVED: "해결 처리", REOPENED: "재개",
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {notes.map((n, i) => (
+        <div key={n.id ?? i} className="flex gap-2">
+          <div className="flex flex-col items-center">
+            <div className="w-2 h-2 rounded-full bg-[#002F5F] mt-1 shrink-0" />
+            {i < notes.length - 1 && <div className="w-px bg-[#e5e7eb] flex-1 mt-1" />}
+          </div>
+          <div className="pb-3">
+            <div className="flex gap-2 items-center">
+              <span className="text-[11px] font-medium text-[#111]">{EVT_LABELS[n.event_type] ?? n.event_type}</span>
+              {n.before_state && n.after_state && (
+                <span className="text-[10px] text-[#888]">{n.before_state} → {n.after_state}</span>
+              )}
+            </div>
+            {n.note && <div className="text-[11px] text-[#555] mt-0.5">{n.note}</div>}
+            <div className="text-[10px] text-[#bbb] mt-0.5">{String(n.created_at ?? "").slice(0, 16)} · {String(n.actor_id ?? "").slice(0, 8)}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface CreateCaseModalProps {
+  poolId: string;
+  prefillSubjectType?: string;
+  prefillSubjectId?: string;
+  onCreated: () => void;
+  onClose: () => void;
+}
+function CreateCaseModal({ poolId, prefillSubjectType, prefillSubjectId, onCreated, onClose }: CreateCaseModalProps) {
+  const [title,        setTitle]        = useState("");
+  const [category,     setCategory]     = useState("OTHER");
+  const [subjectType,  setSubjectType]  = useState(prefillSubjectType ?? "");
+  const [subjectId,    setSubjectId]    = useState(prefillSubjectId ?? "");
+  const [note,         setNote]         = useState("");
+  const [submitting,   setSubmitting]   = useState(false);
+  const [error,        setError]        = useState("");
+
+  const submit = async () => {
+    if (!title.trim()) { setError("제목 필수"); return; }
+    setSubmitting(true); setError("");
+    try {
+      await api.post(`/super/pools/${poolId}/control-center/support/cases`, {
+        title: title.trim(), category,
+        subject_type: subjectType || undefined,
+        subject_id:   subjectId   || undefined,
+        note: note.trim() || undefined,
+      });
+      onCreated();
+    } catch (e: any) {
+      setError(e?.message ?? "생성 실패");
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-[14px] font-semibold text-[#002F5F]">지원 케이스 생성</div>
+          <button onClick={onClose} className="text-[#bbb] hover:text-[#555] text-[18px] leading-none">×</button>
+        </div>
+        <div className="text-[10px] text-[#f59e0b] bg-[#fffbeb] rounded p-2 mb-3">
+          ⚠ 비밀번호·토큰·결제정보 입력 금지
+        </div>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-[11px] text-[#555] font-medium">제목 *</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} maxLength={200}
+              className="mt-1 w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-[#002F5F]"
+              placeholder="케이스 제목" />
+          </div>
+          <div>
+            <label className="text-[11px] text-[#555] font-medium">카테고리 *</label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              className="mt-1 w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px]">
+              {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[11px] text-[#555] font-medium">Subject 타입</label>
+              <select value={subjectType} onChange={e => setSubjectType(e.target.value)}
+                className="mt-1 w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px]">
+                <option value="">없음</option>
+                {SUPPORT_SUBJECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] text-[#555] font-medium">Subject ID</label>
+              <input value={subjectId} onChange={e => setSubjectId(e.target.value)}
+                className="mt-1 w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-[#002F5F]"
+                placeholder="ID" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-[#555] font-medium">초기 메모</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} maxLength={2000}
+              className="mt-1 w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[12px] outline-none focus:border-[#002F5F] resize-none"
+              placeholder="문의 내용, 상황, 맥락 (선택)" />
+          </div>
+          {error && <div className="text-[11px] text-red-500">{error}</div>}
+          <div className="flex gap-2 justify-end pt-1">
+            <button onClick={onClose} className="px-4 py-2 text-[12px] rounded-lg bg-[#f3f4f6] text-[#555]">취소</button>
+            <button onClick={submit} disabled={submitting}
+              className="px-4 py-2 text-[12px] rounded-lg bg-[#002F5F] text-white font-medium disabled:opacity-50">
+              {submitting ? "생성 중..." : "케이스 생성"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupportTab({ poolId, prefillSubjectType, prefillSubjectId }: {
+  poolId: string;
+  prefillSubjectType?: string;
+  prefillSubjectId?: string;
+}) {
+  const [data, setData]       = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [offset, setOffset]   = useState(0);
+  const [selected, setSelected] = useState<any>(null);
+  const [detail, setDetail]   = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [noteInput, setNoteInput] = useState("");
+  const [statusInput, setStatusInput] = useState("");
+  const [resolutionInput, setResolutionInput] = useState("");
+  const [reopenInput, setReopenInput] = useState("");
+  const LIMIT = 30;
+
+  // Filters
+  const [fStatus,      setFStatus]      = useState("");
+  const [fCategory,    setFCategory]    = useState("");
+  const [fSubjectType, setFSubjectType] = useState("");
+  const [fQ,           setFQ]           = useState("");
+  const [fFrom,        setFFrom]        = useState("");
+  const [fTo,          setFTo]          = useState("");
+
+  const buildQs = useCallback((off: number) => {
+    const p = new URLSearchParams({ limit: String(LIMIT), offset: String(off) });
+    if (fStatus)      p.set("ops_status",   fStatus);
+    if (fCategory)    p.set("category",     fCategory);
+    if (fSubjectType) p.set("subject_type", fSubjectType);
+    if (fQ)           p.set("q",            fQ);
+    if (fFrom)        p.set("from", fFrom);
+    if (fTo)          p.set("to",   fTo);
+    return p.toString();
+  }, [fStatus, fCategory, fSubjectType, fQ, fFrom, fTo]);
+
+  const load = useCallback(async (off = 0) => {
+    setLoading(true);
+    try {
+      const r = await api.get<any>(`/super/pools/${poolId}/control-center/support?${buildQs(off)}`);
+      setData(r); setOffset(off);
+    } catch (_) {}
+    setLoading(false);
+  }, [poolId, buildQs]);
+
+  useEffect(() => { load(0); }, [load]);
+
+  const openDetail = async (row: any) => {
+    setSelected(row); setDetail(null); setDetailLoading(true);
+    setNoteInput(""); setStatusInput(""); setResolutionInput(""); setReopenInput("");
+    try {
+      const d = await api.get<any>(`/super/pools/${poolId}/control-center/support/cases/${row.id}`);
+      setDetail(d);
+    } catch (_) {}
+    setDetailLoading(false);
+  };
+
+  const refetchDetail = async () => {
+    if (!selected) return;
+    setDetailLoading(true);
+    try {
+      const d = await api.get<any>(`/super/pools/${poolId}/control-center/support/cases/${selected.id}`);
+      setDetail(d);
+    } catch (_) {}
+    setDetailLoading(false);
+  };
+
+  const doAction = async (path: string, body: object) => {
+    setActionLoading(true);
+    try {
+      await api.post(`/super/pools/${poolId}/control-center/support/cases/${selected.id}/${path}`, body);
+      await Promise.all([refetchDetail(), load(offset)]);
+    } catch (e: any) {
+      alert(e?.message ?? "처리 실패");
+    }
+    setActionLoading(false);
+  };
+
+  const doStatusChange = async () => {
+    if (!statusInput) return;
+    setActionLoading(true);
+    try {
+      await api.patch(`/super/pools/${poolId}/control-center/support/cases/${selected.id}/status`, { ops_status: statusInput });
+      await Promise.all([refetchDetail(), load(offset)]);
+      setStatusInput("");
+    } catch (e: any) {
+      alert(e?.message ?? "처리 실패");
+    }
+    setActionLoading(false);
+  };
+
+  const kase = detail?.case;
+  const notes = detail?.notes ?? [];
+
+  return (
+    <div>
+      {showCreate && (
+        <CreateCaseModal
+          poolId={poolId}
+          prefillSubjectType={prefillSubjectType}
+          prefillSubjectId={prefillSubjectId}
+          onCreated={() => { setShowCreate(false); load(0); }}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+      {/* Header */}
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex gap-2 flex-wrap">
+          <select value={fStatus} onChange={e => setFStatus(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]">
+            <option value="">전체 상태</option>
+            <option value="OPEN">OPEN</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="RESOLVED">RESOLVED</option>
+          </select>
+          <select value={fCategory} onChange={e => setFCategory(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]">
+            <option value="">전체 카테고리</option>
+            {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={fSubjectType} onChange={e => setFSubjectType(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]">
+            <option value="">전체 Subject</option>
+            {SUPPORT_SUBJECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <input value={fQ} onChange={e => setFQ(e.target.value)} onKeyDown={e => e.key === "Enter" && load(0)}
+            placeholder="티켓/제목 검색" className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px] w-32" />
+          <input type="date" value={fFrom} onChange={e => setFFrom(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]" />
+          <span className="self-center text-[#bbb] text-[11px]">~</span>
+          <input type="date" value={fTo} onChange={e => setFTo(e.target.value)} className="border border-[#e5e7eb] rounded-lg px-2 py-1.5 text-[11px]" />
+          <button onClick={() => load(0)} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium">조회</button>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="px-3 py-1.5 text-[11px] rounded-lg bg-[#002F5F] text-white font-medium shrink-0">
+          + 케이스 생성
+        </button>
+      </div>
+
+      {/* Summary badges */}
+      {data?.summary && (
+        <div className="flex gap-3 mb-3">
+          {[
+            { key: "OPEN", label: "OPEN", color: "bg-amber-100 text-amber-700" },
+            { key: "IN_PROGRESS", label: "진행 중", color: "bg-gray-100 text-gray-600" },
+            { key: "RESOLVED", label: "해결됨", color: "bg-green-100 text-green-700" },
+          ].map(({ key, label, color }) => (
+            <div key={key} className={`${color} text-[11px] font-medium px-3 py-1 rounded-full`}>
+              {label} {data.summary[key] ?? 0}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading ? <Spinner /> : !data ? <Err msg="데이터 로드 실패" /> : (
+        <>
+          <div className="text-[11px] text-[#888] mb-2">전체 {data.total}건 (행 클릭 → 상세)</div>
+          <Table
+            heads={["티켓", "제목", "카테고리", "상태", "Subject", "생성일"]}
+            rows={data.cases ?? []}
+            render={(r, i) => (
+              <tr key={r.id ?? i}
+                className={`border-b border-[#f5f5f5] cursor-pointer ${selected?.id === r.id ? "bg-[#f0f4ff]" : "hover:bg-[#fafafa]"}`}
+                onClick={() => selected?.id === r.id ? (setSelected(null), setDetail(null)) : openDetail(r)}>
+                <td className="py-2 pr-3 font-medium text-[10px] text-[#002F5F]">{r.ticket_id ?? r.id?.slice(0, 8)}</td>
+                <td className="py-2 pr-3 max-w-[180px] truncate text-[12px]">{r.title ?? <span className="text-[#bbb]">—</span>}</td>
+                <td className="py-2 pr-3 text-[10px] text-[#888]">{r.category ?? "—"}</td>
+                <td className="py-2 pr-3">
+                  <Badge color={OPS_STATUS_COLORS[r.ops_status ?? "OPEN"] ?? "gray"} text={r.ops_status ?? "OPEN"} />
+                </td>
+                <td className="py-2 pr-3 text-[10px] text-[#888]">{r.subject_type ? `${r.subject_type}` : "—"}</td>
+                <td className="py-2 text-[11px]">{String(r.created_at ?? "").slice(0, 10)}</td>
+              </tr>
+            )}
+          />
+          {/* Pagination */}
+          <div className="flex gap-2 mt-3 items-center">
+            <button disabled={offset === 0} onClick={() => load(Math.max(0, offset - LIMIT))}
+              className="px-3 py-1 text-[11px] rounded border border-[#e5e7eb] disabled:opacity-40">이전</button>
+            <span className="text-[11px] text-[#888]">{offset + 1}–{Math.min(offset + LIMIT, data.total)} / {data.total}</span>
+            <button disabled={offset + LIMIT >= data.total} onClick={() => load(offset + LIMIT)}
+              className="px-3 py-1 text-[11px] rounded border border-[#e5e7eb] disabled:opacity-40">다음</button>
+          </div>
+        </>
+      )}
+
+      {/* Detail drawer */}
+      {selected && (
+        <DetailDrawer title={`케이스 — ${kase?.ticket_id ?? selected.id?.slice(0, 8)}`}
+          onClose={() => { setSelected(null); setDetail(null); }}
+          loading={detailLoading}>
+          {kase && (
+            <div className="grid grid-cols-1 gap-5">
+              {/* Case info */}
+              <DetailSection title="케이스 기본 정보">
+                <Row label="티켓 ID"     value={kase.ticket_id} />
+                <Row label="제목"        value={kase.title} />
+                <Row label="카테고리"    value={kase.category} />
+                <Row label="상태"        value={kase.ops_status} />
+                <Row label="Subject"     value={kase.subject_type ? `${kase.subject_type} / ${kase.subject_id ?? "—"}` : "없음"} />
+                <Row label="Pool"        value={kase.pool_name ?? kase.pool_id} />
+                <Row label="담당자"      value={kase.assigned_operator ?? "미지정"} />
+                <Row label="해결 내용"   value={kase.resolution ?? "—"} />
+                <Row label="생성일"      value={String(kase.created_at ?? "").slice(0, 16)} />
+                <Row label="최근 수정"   value={String(kase.updated_at ?? "").slice(0, 16)} />
+                {kase.resolved_at && <Row label="해결 시각" value={String(kase.resolved_at).slice(0, 16)} />}
+              </DetailSection>
+
+              {/* Timeline */}
+              <DetailSection title="이력 타임라인">
+                <SupportCaseTimeline notes={notes} />
+              </DetailSection>
+
+              {/* Actions */}
+              <DetailSection title="조치">
+                {/* Add note */}
+                <div className="mb-3">
+                  <div className="text-[11px] text-[#555] font-medium mb-1">메모 추가</div>
+                  <div className="text-[10px] text-[#f59e0b] mb-1">⚠ 비밀번호·토큰·결제정보 입력 금지</div>
+                  <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} rows={2} maxLength={2000}
+                    className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[11px] outline-none focus:border-[#002F5F] resize-none"
+                    placeholder="메모 내용" />
+                  <button disabled={actionLoading || !noteInput.trim()} onClick={() => doAction("notes", { note: noteInput.trim() }).then(() => setNoteInput(""))}
+                    className="mt-1 px-3 py-1 text-[11px] rounded bg-[#002F5F] text-white disabled:opacity-40">
+                    메모 추가
+                  </button>
+                </div>
+                {/* Status change */}
+                {kase.ops_status !== "RESOLVED" && (
+                  <div className="mb-3">
+                    <div className="text-[11px] text-[#555] font-medium mb-1">상태 변경</div>
+                    <div className="flex gap-2">
+                      <select value={statusInput} onChange={e => setStatusInput(e.target.value)}
+                        className="border border-[#e5e7eb] rounded px-2 py-1 text-[11px] flex-1">
+                        <option value="">상태 선택</option>
+                        {["OPEN","IN_PROGRESS"].filter(s => s !== kase.ops_status).map(s =>
+                          <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button disabled={actionLoading || !statusInput} onClick={doStatusChange}
+                        className="px-3 py-1 text-[11px] rounded bg-[#002F5F] text-white disabled:opacity-40">변경</button>
+                    </div>
+                  </div>
+                )}
+                {/* Resolve */}
+                {kase.ops_status !== "RESOLVED" && (
+                  <div className="mb-3">
+                    <div className="text-[11px] text-[#555] font-medium mb-1">해결 처리</div>
+                    <textarea value={resolutionInput} onChange={e => setResolutionInput(e.target.value)} rows={2} maxLength={2000}
+                      className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[11px] outline-none focus:border-[#002F5F] resize-none"
+                      placeholder="해결 내용 (필수)" />
+                    <button disabled={actionLoading || !resolutionInput.trim()}
+                      onClick={() => doAction("resolve", { resolution: resolutionInput.trim() }).then(() => setResolutionInput(""))}
+                      className="mt-1 px-3 py-1 text-[11px] rounded bg-green-600 text-white disabled:opacity-40">
+                      RESOLVED 처리
+                    </button>
+                  </div>
+                )}
+                {/* Reopen */}
+                {kase.ops_status === "RESOLVED" && (
+                  <div className="mb-3">
+                    <div className="text-[11px] text-[#555] font-medium mb-1">재개 (Reopen)</div>
+                    <textarea value={reopenInput} onChange={e => setReopenInput(e.target.value)} rows={2} maxLength={1000}
+                      className="w-full border border-[#e5e7eb] rounded-lg px-3 py-2 text-[11px] outline-none focus:border-[#002F5F] resize-none"
+                      placeholder="재개 이유 (필수)" />
+                    <button disabled={actionLoading || !reopenInput.trim()}
+                      onClick={() => doAction("reopen", { reason: reopenInput.trim() }).then(() => setReopenInput(""))}
+                      className="mt-1 px-3 py-1 text-[11px] rounded bg-amber-600 text-white disabled:opacity-40">
+                      Reopen
+                    </button>
+                  </div>
+                )}
+              </DetailSection>
+            </div>
+          )}
+        </DetailDrawer>
+      )}
+    </div>
   );
 }
 
@@ -2918,10 +3461,10 @@ export default function SuperPoolControlCenter() {
       <div>
         {tab === "overview"       && <OverviewTab s={summary} onNavigate={setTab} />}
         {tab === "access"         && <AccessTab s={summary} poolId={poolId!} onRefresh={loadSummary} />}
-        {tab === "members"        && <MembersTab poolId={poolId!} />}
-        {tab === "teachers"       && <TeachersTab poolId={poolId!} />}
-        {tab === "parents"        && <ParentsTab poolId={poolId!} />}
-        {tab === "classes"        && <ClassesTab poolId={poolId!} />}
+        {tab === "members"        && <MembersTab poolId={poolId!} onNavigate={setTab} />}
+        {tab === "teachers"       && <TeachersTab poolId={poolId!} onNavigate={setTab} />}
+        {tab === "parents"        && <ParentsTab poolId={poolId!} onNavigate={setTab} />}
+        {tab === "classes"        && <ClassesTab poolId={poolId!} onNavigate={setTab} />}
         {tab === "curriculum"     && <CurriculumTab poolId={poolId!} />}
         {tab === "ai"             && <AiTab poolId={poolId!} />}
         {tab === "growth-reports" && <GrowthReportsTab poolId={poolId!} />}
