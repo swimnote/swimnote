@@ -1,19 +1,16 @@
 /**
- * (super)/_layout.tsx — 슈퍼관리자 탭 레이아웃
+ * (super)/_layout.tsx — 슈퍼관리자 스택 레이아웃
  *
- * 5개 하단 탭: 운영관리·보호통제·감사리스크·지원센터·더보기
+ * 기존 5탭 하단 바를 제거하고 Dashboard 중심 Stack 구조로 변경.
+ * 모든 기존 화면은 Global Menu 또는 Dashboard에서 접근 가능.
  * 진입 가드: super_admin / platform_admin / super_manager 만 허용.
  */
-import { Activity, Briefcase, HeadphonesIcon, MoreHorizontal, Shield } from "lucide-react-native";
-import { Tabs, router } from "expo-router";
+import { Stack, router } from "expo-router";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
-import Colors from "@/constants/colors";
-import { useAuth } from "@/context/AuthContext";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const C = Colors.light;
-const ACTIVE = "#7C3AED";
+import { useAuth, apiRequest } from "@/context/AuthContext";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
 const SUPER_ROLES = new Set(["super_admin", "platform_admin", "super_manager"]);
 
@@ -24,9 +21,31 @@ const ROLE_HOME_MAP: Record<string, string> = {
   parent:     "/(parent)/home",
 };
 
+async function registerSuperPushToken(token: string): Promise<void> {
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) return;
+    const expoPushToken = await Notifications.getExpoPushTokenAsync({ projectId });
+    if (!expoPushToken?.data) return;
+    await apiRequest(token, "/push-token", {
+      method: "POST",
+      body: JSON.stringify({ token: expoPushToken.data }),
+    });
+  } catch (e) {
+    console.warn("[super-layout] 푸시 토큰 등록 실패:", e);
+  }
+}
+
 export default function SuperLayout() {
-  const { kind, isLoading, adminUser } = useAuth();
-  const insets = useSafeAreaInsets();
+  const { kind, isLoading, adminUser, token } = useAuth();
+
+  // 슈퍼관리자 푸시 토큰 등록 (서버 성능 알림 수신용)
+  useEffect(() => {
+    if (!token || Platform.OS === "web") return;
+    registerSuperPushToken(token);
+  }, [token]);
 
   useEffect(() => {
     if (isLoading || !kind) return;
@@ -46,90 +65,67 @@ export default function SuperLayout() {
   }, [isLoading, kind, adminUser?.role]);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: ACTIVE,
-        tabBarInactiveTintColor: C.tabIconDefault,
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: "#fff",
-          borderTopWidth: 1,
-          borderTopColor: C.border,
-          height: Platform.OS === "android" ? 60 + insets.bottom : 72,
-          paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom, 8) : 12,
-          paddingTop: 8,
-        },
-        tabBarLabelStyle: { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 2 },
-      }}
-    >
-      {/* ─── 5개 메인 탭 ─── */}
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: "운영관리",
-          tabBarIcon: ({ color }) => <Briefcase size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="protect-group"
-        options={{
-          title: "보호통제",
-          tabBarIcon: ({ color }) => <Shield size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="audit-group"
-        options={{
-          title: "감사리스크",
-          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="support-group"
-        options={{
-          title: "지원센터",
-          tabBarIcon: ({ color }) => <HeadphonesIcon size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "더보기",
-          tabBarIcon: ({ color }) => <MoreHorizontal size={22} color={color} />,
-        }}
-      />
+    <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
+      {/* ─── 루트: 대시보드 ─── */}
+      <Stack.Screen name="dashboard" />
 
-      {/* ─── 숨김 화면들 (탭 없이 push/navigate로 접근) ─── */}
-      <Tabs.Screen name="pools"                    options={{ href: null }} />
-      <Tabs.Screen name="operator-detail"          options={{ href: null }} />
-      <Tabs.Screen name="subscriptions"            options={{ href: null }} />
-      <Tabs.Screen name="subscription-products"    options={{ href: null }} />
-      <Tabs.Screen name="storage"                  options={{ href: null }} />
-      <Tabs.Screen name="storage-policy"           options={{ href: null }} />
-      <Tabs.Screen name="kill-switch"              options={{ href: null }} />
-      <Tabs.Screen name="backup"                   options={{ href: null }} />
-      <Tabs.Screen name="readonly-control"         options={{ href: null }} />
-      <Tabs.Screen name="feature-flags"            options={{ href: null }} />
-      <Tabs.Screen name="policy"                   options={{ href: null }} />
-      <Tabs.Screen name="support"                  options={{ href: null }} />
-      <Tabs.Screen name="op-logs"                  options={{ href: null }} />
-      <Tabs.Screen name="risk-center"              options={{ href: null }} />
-      <Tabs.Screen name="security"                 options={{ href: null }} />
-      <Tabs.Screen name="op-group"                 options={{ href: null }} />
-      <Tabs.Screen name="users"                    options={{ href: null }} />
-      <Tabs.Screen name="security-settings"        options={{ href: null }} />
-      <Tabs.Screen name="sync"                     options={{ href: null }} />
-      <Tabs.Screen name="revenue-analytics"        options={{ href: null }} />
-      <Tabs.Screen name="cost-analytics"           options={{ href: null }} />
-      <Tabs.Screen name="billing-analytics"        options={{ href: null }} />
-      <Tabs.Screen name="system-status"            options={{ href: null }} />
-      <Tabs.Screen name="ads"                      options={{ href: null }} />
-      <Tabs.Screen name="strip-banner"             options={{ href: null }} />
-      <Tabs.Screen name="notices"                  options={{ href: null }} />
-      <Tabs.Screen name="pool-notices"             options={{ href: null }} />
-      <Tabs.Screen name="db-status"                options={{ href: null }} />
-      <Tabs.Screen name="infra-usage"              options={{ href: null }} />
-      <Tabs.Screen name="support-general"          options={{ href: null }} />
-    </Tabs>
+      {/* ─── 글로벌 메뉴 (신규) ─── */}
+      <Stack.Screen name="global-menu" />
+
+      {/* ─── 기존 그룹 허브 화면 (레거시 접근 경로 유지) ─── */}
+      <Stack.Screen name="op-group" />
+      <Stack.Screen name="protect-group" />
+      <Stack.Screen name="audit-group" />
+      <Stack.Screen name="support-group" />
+      <Stack.Screen name="more" />
+
+      {/* ─── 수영장·운영 관리 ─── */}
+      <Stack.Screen name="pools" />
+      <Stack.Screen name="operator-detail" />
+      <Stack.Screen name="subscriptions" />
+      <Stack.Screen name="subscription-products" />
+      <Stack.Screen name="storage" />
+      <Stack.Screen name="storage-policy" />
+
+      {/* ─── 보호·통제 ─── */}
+      <Stack.Screen name="kill-switch" />
+      <Stack.Screen name="backup" />
+      <Stack.Screen name="readonly-control" />
+      <Stack.Screen name="feature-flags" />
+      <Stack.Screen name="sync" />
+      <Stack.Screen name="db-status" />
+
+      {/* ─── 감사·리스크 ─── */}
+      <Stack.Screen name="op-logs" />
+      <Stack.Screen name="risk-center" />
+      <Stack.Screen name="security" />
+
+      {/* ─── 정책·지원 ─── */}
+      <Stack.Screen name="policy" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="support-general" />
+      <Stack.Screen name="inquiries" />
+      <Stack.Screen name="pool-notices" />
+
+      {/* ─── 콘텐츠 ─── */}
+      <Stack.Screen name="notices" />
+      <Stack.Screen name="ads" />
+      <Stack.Screen name="strip-banner" />
+
+      {/* ─── 매출·결제 ─── */}
+      <Stack.Screen name="revenue-analytics" />
+      <Stack.Screen name="billing-analytics" />
+      <Stack.Screen name="cost-analytics" />
+
+      {/* ─── 시스템 ─── */}
+      <Stack.Screen name="system-status" />
+
+      {/* ─── 설정 ─── */}
+      <Stack.Screen name="security-settings" />
+      <Stack.Screen name="users" />
+
+      {/* ─── 기타 (파일 없음, 라우트 등록만) ─── */}
+      <Stack.Screen name="infra-usage" />
+    </Stack>
   );
 }

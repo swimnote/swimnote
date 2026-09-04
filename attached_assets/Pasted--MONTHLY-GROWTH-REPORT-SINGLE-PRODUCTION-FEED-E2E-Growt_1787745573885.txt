@@ -1,0 +1,453 @@
+[앱]
+
+MONTHLY GROWTH REPORT — SINGLE PRODUCTION FEED E2E
+대상: 토이키즈스윔클럽 / 서태웅 학생
+
+현재 Growth Report Feed 색상 기준:
+SHA 7b8e88c9
+
+중요:
+이번 작업은 실제 Production에서
+서태웅 학생 1명에게만
+MONTHLY 성장 리포트를 발급하여
+
+- 실제 학부모 피드
+- 상세 화면
+- PDF 다운로드/공유
+- history
+
+까지 확인하는 SINGLE E2E TEST이다.
+
+다른 학생 처리 금지.
+자동분석 전체 활성화 금지.
+기존 OPEN report 대량처리 금지.
+
+==================================================
+0. BEFORE PUBLISH — SWIMNOTE X COLOR VISUAL CHECK
+==================================================
+
+발급 작업 전에 현재 Growth Report Feed를
+실제 runtime 기준으로 먼저 확인.
+
+최종 Growth Report Feed 색상은
+반드시 아래 SWIMNOTE X palette를 사용해야 한다.
+
+X_NAVY
+#0F172A
+
+X_MINT
+#2EC4B6
+
+X_MINT_LIGHT
+#E6FAF8
+
+WHITE
+#FFFFFF
+
+neutral gray 계열은 metadata/divider/inactive 용도로만 사용.
+
+확인 대상:
+
+- 월간 리포트 badge
+- 월간 성장 리포트 title
+- progress strip
+- progress fill
+- 이번 달 한눈에 보기
+- 일반 분석 section
+- 가정에서 함께해요
+- action row
+
+일반 SWIMNOTE 색상인 아래 계열이
+실제 화면에서 다시 나타나면 FAIL:
+
+#25B7CF
+#D9F2F6
+#F0FAFC
+#E8F7FB
+#1899B5
+#EAF8FC
+#0D2E5A
+#0B2547
+#C8EBF3
+
+반드시 actual runtime screenshot 제출.
+
+색상 확인 FAIL이면
+Production publish 진행하지 말고 STOP.
+
+==================================================
+1. TARGET RESOLUTION
+==================================================
+
+Production DB에서 read-only로 정확히 확인:
+
+pool:
+토이키즈스윔클럽
+
+student:
+서태웅
+
+확인:
+- swimming_pool_id
+- student_id
+- students.status
+- approved parent 연결
+- 동일 이름 학생 중복 여부
+
+조건:
+student.status = active
+
+동명이인 또는 대상 불명확하면 STOP.
+
+==================================================
+2. EXISTING REPORT CHECK
+==================================================
+
+서태웅 학생의 기존 Growth Report read-only 확인:
+
+- MONTHLY report 존재 여부
+- report_period
+- cycle_id
+- product_status
+- analysis_status
+- 기존 PUBLISHED report
+- 동일 period report 존재 여부
+
+이미 동일 period PUBLISHED가 있으면
+새 report 중복 생성 금지.
+
+그 경우 기존 report_id 보고 후 STOP.
+
+==================================================
+3. REPORT PERIOD
+==================================================
+
+현재 MONTHLY 정책 그대로 적용.
+
+기본:
+previous calendar month KST
+
+현재 시점 기준
+2026년 8월이면:
+
+report_period = 2026-07
+
+기간:
+2026-07-01 00:00:00 KST
+~
+2026-07-31 23:59:59 KST
+
+8월 데이터 혼합 금지.
+
+==================================================
+4. SINGLE REPORT PIPELINE
+==================================================
+
+서태웅 학생 1건만:
+
+cycle/report
+→ snapshot
+→ AI analysis
+→ validation
+→ persistence
+→ REVIEW_REQUIRED
+
+공식 기존 service path로 처리.
+
+금지:
+- batch worker
+- 전체 worker
+- direct status UPDATE
+- 다른 학생 AI 호출
+
+==================================================
+5. AUTO ANALYSIS SAFETY
+==================================================
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false
+그대로 유지.
+
+절대 true로 변경하지 말 것.
+
+전체 월간 분석 실행 금지.
+
+==================================================
+6. QUALITY GATE
+==================================================
+
+publish 전에 반드시 확인:
+
+analysis_status ∈
+- COMPLETE
+- COMPLETE_WITH_QUESTIONS_AVAILABLE
+- COMPLETE_WITH_PARENT_EVIDENCE
+
+product_status = REVIEW_REQUIRED
+
+grounding_status:
+PASS 또는 REVISED_PASS
+
+growth_framing_status:
+PASS 또는 REVISED_PASS
+
+그리고:
+- report_content 존재
+- report_fact_package 존재
+- sns_summary 존재
+- student.status = active
+- report deleted_at IS NULL
+
+하나라도 실패하면
+PUBLISH 금지하고 STOP.
+
+PARTIAL은 절대 publish 금지.
+
+==================================================
+7. SINGLE MANUAL PUBLISH
+==================================================
+
+위 gate 모두 PASS일 때만
+
+서태웅 report 1건을
+
+REVIEW_REQUIRED
+→ APPROVED
+→ PUBLISHED
+
+공식 transition/service path로 진행.
+
+직접 DB status UPDATE 금지.
+
+==================================================
+8. PUSH
+==================================================
+
+이번 테스트 핵심은
+feed/detail/PDF/history 이므로
+push는 가능하면 SKIP.
+
+기존 publish service 구조상 push가 반드시 필요한 경우에만:
+
+서태웅 학생의 approved parent에게만
+1회 발송.
+
+기존 idempotency 사용.
+
+다른 parent에게 push 금지.
+
+==================================================
+9. ACTUAL PARENT FEED VERIFY
+==================================================
+
+PUBLISHED 후 실제 parent feed에서 확인.
+
+서태웅 학생 선택 시:
+
+MONTHLY 성장 리포트가
+정확히 1건 표시되어야 함.
+
+반드시 실제 feed screenshot 제출.
+
+확인:
+
+- SwimNote AI REPORT 실제 로고 정상
+- SWIMNOTE X 색상 정상
+- 월간 성장 리포트 header
+- 학생명 서태웅
+- 토이키즈스윔클럽
+- report month
+- curriculum progress
+- 긴 리포트 전체 표시
+- section별 구조
+- 마지막 "가정에서 함께해요"
+- action row
+- PDF 공유/다운로드
+
+중간 truncation 0.
+
+==================================================
+10. FEED COLOR FINAL VERIFY
+==================================================
+
+실제 Production feed screenshot 기준으로
+다시 색상 확인.
+
+PASS 기준:
+
+NAVY:
+#0F172A 계열
+
+MINT:
+#2EC4B6 계열
+
+MINT LIGHT:
+#E6FAF8 계열
+
+일반 SWIMNOTE aqua/cyan 색상 재등장 0건.
+
+보고서의 color audit만 근거로 하지 말고
+실제 화면 기준으로 확인.
+
+==================================================
+11. DETAIL VERIFY
+==================================================
+
+feed item에서 detail 진입.
+
+확인:
+
+- student = 서태웅
+- pool = 토이키즈스윔클럽
+- report period 정상
+- progress 정상
+- summary 정상
+- report sections 정상
+- PDF button 존재
+- 다른 학생 데이터 혼입 0
+
+==================================================
+12. PDF VERIFY
+==================================================
+
+현재 승인된 PDF V3 renderer 사용.
+
+PDF header:
+
+- 실제 SwimNote AI REPORT 가로형 로고
+- MONTHLY 성장 리포트
+- 토이키즈스윔클럽
+- 서태웅
+- 해당 월
+- 현재 커리큘럼 진도 완료율
+
+BODY:
+
+- empty section 숨김
+- internal validation/status text 0
+- 한글 깨짐 0
+- 2페이지
+- 가정에서 함께해요 정상
+
+==================================================
+13. PDF DOWNLOAD / SHARE
+==================================================
+
+실제 parent detail/feed에서
+PDF 다운로드/공유 버튼 확인.
+
+tap 후:
+
+- PDF 생성 성공
+- AI 호출 0
+- OS share/download flow 호출
+- PDF 실제 열림
+- 2페이지 정상
+- 로고 정상
+- 한글 정상
+
+확인.
+
+==================================================
+14. HISTORY VERIFY
+==================================================
+
+성장리포트 전체보기에서
+서태웅의 PUBLISHED report 표시 확인.
+
+item tap
+→ 동일 report detail
+
+정상 연결 확인.
+
+==================================================
+15. IDEMPOTENCY
+==================================================
+
+동일 report 기준:
+
+- duplicate report 0
+- feed duplicate 0
+- push duplicate 0
+- history duplicate 0
+
+확인.
+
+==================================================
+16. ABSOLUTE SAFETY
+==================================================
+
+절대 금지:
+
+- GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+- 전체 monthly worker
+- 기존 OPEN reports 처리
+- 다른 학생 분석
+- 다른 학생 publish
+- bulk push
+- direct production DB status UPDATE
+- Render env 변경
+- Render deploy
+- 대규모 code 수정
+
+이번 테스트는
+토이키즈스윔클럽 / 서태웅 / 1 report만 허용.
+
+==================================================
+17. FINAL REPORT
+==================================================
+
+COLOR:
+- actual runtime screenshot
+- X_NAVY 적용 확인
+- X_MINT 적용 확인
+- X_MINT_LIGHT 적용 확인
+- 일반 SWIMNOTE palette 0건 여부
+
+TARGET:
+- pool_id
+- student_id
+- active status
+- linked approved parent count
+
+REPORT:
+- report_id
+- report_period
+- analysis_status
+- product_status
+- grounding_status
+- growth_framing_status
+
+AI:
+- calls
+- retries
+- failures
+
+FEED:
+- 실제 표시 여부
+- full content 여부
+- duplicate 여부
+- screenshot
+
+DETAIL:
+- 정상 여부
+
+PDF:
+- 생성
+- 2페이지
+- 한글
+- 로고
+- progress
+- download/share flow
+
+HISTORY:
+- 표시 여부
+- detail 연결
+
+IDEMPOTENCY:
+- duplicate report/feed/push/history
+
+FINAL:
+PRODUCTION SINGLE E2E
+PASS / FAIL
+
+완료 후 STOP.

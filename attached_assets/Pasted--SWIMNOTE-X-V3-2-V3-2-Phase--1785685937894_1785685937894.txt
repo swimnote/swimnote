@@ -1,0 +1,753 @@
+[SWIMNOTE X V3.2 — 구현 직전 최종 수정·보완서]
+
+현재 V3.2의 전체 아키텍처와 Phase 구조는 유지한다.
+
+이번 보완은 다음 항목만 수정하는 최종 설계 보정이다.
+
+아직 구현하지 말고, 아래 내용을 V3.3 최종 구현 명세서에 반영한 뒤 변경된 부분만 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Global Template Set ACTIVE 전환 순서 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 global_template_sets는 ACTIVE 상태가 최대 1개이므로,
+새 세트를 먼저 ACTIVE로 변경하면 Partial Unique Index 충돌이 발생한다.
+
+반드시 하나의 DB Transaction 안에서 아래 순서로 처리한다.
+
+BEGIN;
+
+1. 현재 ACTIVE 세트를 ARCHIVED로 변경
+2. 새 DRAFT 세트를 ACTIVE로 변경
+3. activated_at / archived_at 기록
+4. Audit Log 기록
+
+COMMIT;
+
+권장 처리 예시:
+
+BEGIN;
+
+UPDATE global_template_sets
+SET
+  status = 'ARCHIVED',
+  archived_at = NOW()
+WHERE status = 'ACTIVE';
+
+UPDATE global_template_sets
+SET
+  status = 'ACTIVE',
+  activated_at = NOW(),
+  archived_at = NULL
+WHERE id = $newSetId
+  AND status IN ('DRAFT', 'ARCHIVED');
+
+COMMIT;
+
+필수 검증:
+
+- newSetId가 실제 존재하는가
+- 해당 세트에 유효한 global template이 존재하는가
+- ACTIVE 전환 대상이 1건인지 확인
+- UPDATE 결과가 0건이면 Transaction Rollback
+- 기존 ACTIVE 세트가 없더라도 정상 동작
+- 이전 세트로 Rollback할 때도 같은 Transaction 규칙 적용
+- 중간 상태에서 ACTIVE 세트가 없는 시간이 외부 요청에 노출되지 않도록 Transaction 사용
+
+Global Template 검색은 항상 다음 조건을 사용한다.
+
+template_scope = 'global'
+AND global_template_set_id = 현재 ACTIVE set id
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. candidate_index 대신 candidate_id 사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+단순 숫자 index는 후보 정렬이나 필터링 과정에서 의미가 바뀔 수 있다.
+
+GPT에 전달하는 후보 식별자는 요청 단위의 안정적인 candidate_id를 사용한다.
+
+candidate_id 예시:
+
+cand_7f3a2c
+cand_b191d4
+
+후보 생성 시 서버가 다음 Map을 유지한다.
+
+candidate_id
+→ curriculum_item_id
+→ curriculum_version_id
+→ pool_id
+→ similarity metadata
+
+GPT에는 실제 curriculum_item_id를 절대 전달하지 않는다.
+
+GPT 전달 예시:
+
+{
+  "curriculum_candidates": [
+    {
+      "candidate_id": "cand_7f3a2c",
+      "skill_name": "자유형 측면 호흡",
+      "description": "호흡 시 머리를 과도하게 들지 않고 옆으로 회전"
+    }
+  ]
+}
+
+GPT 반환 예시:
+
+{
+  "curriculum_matches": [
+    {
+      "candidate_id": "cand_7f3a2c",
+      "evidence_text": "호흡 타이밍이 좋아졌어요."
+    }
+  ]
+}
+
+서버 후처리:
+
+candidate_id
+→ 서버 Map 조회
+→ curriculum_item_id 매핑
+→ pool / version / student assignment 재검증
+→ 최종 응답에 실제 curriculum_item_id 포함
+
+필수 정책:
+
+- GPT가 실제 DB ID를 생성하거나 반환하면 무시
+- 서버 후보 목록에 없는 candidate_id는 폐기
+- candidate_id는 요청마다 새로 생성
+- 다른 request_id의 candidate_id 재사용 금지
+- candidate_id와 request_id를 함께 검증
+- AI Trace에는 candidate_id와 선택 여부 저장 가능
+- candidate_id에는 학생명이나 DB 내부 정보 포함 금지
+
+AI Contract V1.2 수정:
+
+기존:
+candidate_index: number
+
+변경:
+candidate_id: string
+
+최종 CurriculumMatch:
+
+{
+  candidate_id: string,
+  curriculum_item_id: string,
+  curriculum_version_id: string,
+  confidence: number,
+  evidence: EvidenceSpan,
+  match_method: string
+}
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Confidence 가중치와 Threshold 설정 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+confidence 계산 로직은 서버가 담당한다.
+
+다만 가중치와 Threshold를 코드 내부 상수에 직접 고정하지 않는다.
+
+설정 구조를 별도로 둔다.
+
+권장 파일:
+
+artifacts/api-server/src/config/growth-confidence-config.ts
+
+권장 구조:
+
+export interface GrowthConfidenceConfig {
+  config_version: string;
+
+  weights: {
+    curriculum_similarity: number;
+    concept_overlap: number;
+    evidence_coverage: number;
+    parser_confidence: number;
+    candidate_rank_score: number;
+  };
+
+  thresholds: {
+    auto_progress: number;
+    review_required: number;
+  };
+}
+
+초기 기본값:
+
+{
+  config_version: "confidence_v1",
+  weights: {
+    curriculum_similarity: 0.35,
+    concept_overlap: 0.25,
+    evidence_coverage: 0.20,
+    parser_confidence: 0.10,
+    candidate_rank_score: 0.10
+  },
+  thresholds: {
+    auto_progress: 0.75,
+    review_required: 0.55
+  }
+}
+
+필수 검증:
+
+- 모든 weight 합계는 1.0
+- 각 값은 0~1
+- auto_progress > review_required
+- 설정 로딩 실패 시 안전한 기본값 사용
+- 설정 버전을 growth_events에 저장
+- 파일럿 이후 값이 바뀌면 config_version 증가
+- 과거 이벤트는 당시 config_version을 유지
+- 운영 중 설정 변경 시 신규 요청부터만 적용
+- 기존 growth_event를 자동 재계산하지 않음
+- 재계산은 별도 Job으로만 수행
+
+추가 컬럼 또는 기존 matching_algorithm_version과 함께 다음 정보를 저장한다.
+
+confidence_config_version
+
+growth_events 추가 권장:
+
+ALTER TABLE growth_events
+ADD COLUMN confidence_config_version TEXT;
+
+ai_request_traces에도 동일하게 추가한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Evidence 저장 구조 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 evidence 전체를 JSONB 하나로만 저장하면 검색·통계·검증이 불편하다.
+
+검색에 필요한 핵심 값은 컬럼으로 분리하고,
+추가 메타데이터만 JSONB로 저장한다.
+
+growth_events 권장 컬럼:
+
+evidence_source_type TEXT
+evidence_sentence_index INTEGER
+evidence_text TEXT
+evidence_metadata JSONB
+
+제약:
+
+evidence_source_type IN (
+  'teacher_input',
+  'generated_content'
+)
+
+권장 Migration:
+
+ALTER TABLE growth_events
+  ADD COLUMN evidence_source_type TEXT
+    CHECK (
+      evidence_source_type IS NULL OR
+      evidence_source_type IN ('teacher_input','generated_content')
+    ),
+  ADD COLUMN evidence_sentence_index INTEGER,
+  ADD COLUMN evidence_text TEXT,
+  ADD COLUMN evidence_metadata JSONB;
+
+기존 evidence JSONB 컬럼은 다음 중 하나로 처리한다.
+
+A안 권장:
+- evidence JSONB 컬럼 제거
+- 위 분리 컬럼만 사용
+
+B안:
+- evidence JSONB를 evidence_metadata로 이름 변경
+- 핵심 값은 별도 컬럼 사용
+
+Evidence 저장 정책:
+
+- evidence_text는 실제 원문 또는 최종 생성문에 존재해야 함
+- 최대 길이 제한 적용
+- 권장 최대 300자
+- sentence_index는 0 이상
+- 원문에서 찾지 못하면 progress event 생성 금지
+- 운영 로그에는 evidence_text 전체 출력 금지
+- ai_request_traces에는 원문 저장 금지
+- Trace에는 source_type, sentence_index, 검증 결과만 저장
+- 개인정보 삭제 요청 시 evidence_text 비식별화 정책 포함
+
+Evidence 검증 결과를 별도 값으로 저장할 수 있다.
+
+evidence_validation:
+- PASS
+- FAIL
+- SKIPPED
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 학생 삭제·비식별화 정책 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 이름과 전화번호를 SHA-256 값으로 치환하지 않는다.
+
+해시는 사용자에게 의미가 없고,
+동일 입력을 반복적으로 비교할 수 있어 완전한 익명화도 아니다.
+
+권장 정책:
+
+학생 탈퇴 또는 삭제 요청 시:
+
+- students.deleted_at = NOW()
+- status = 'deleted' 또는 기존 상태 체계에 맞는 값
+- name = '삭제된 회원'
+- phone = NULL
+- guardian_phone = NULL
+- birth_date = NULL 또는 정책상 필요한 최소값만 유지
+- 주소·메모·민감정보 제거
+- 프로필 이미지 연결 해제
+- 외부 인증 식별자 제거 또는 별도 비식별 토큰으로 교체
+- 내부 student_id는 참조 무결성을 위해 유지
+
+동일 이름 충돌이 문제라면 UI 표시값만 다음처럼 생성한다.
+
+삭제된 회원
+삭제된 회원 (기록번호 일부)
+
+단, 실제 이름이나 전화번호를 복원할 수 있는 값은 사용하지 않는다.
+
+삭제 이후 처리:
+
+- growth_events는 student_id 기준으로 유지
+- 결제 기록은 유지
+- 리포트에는 삭제된 회원으로 표시
+- parent_ai_conversations는 사용자 요청 기준으로 삭제
+- 학생과 학부모 연결 관계 해제
+- 새로운 로그인이나 조회 차단
+- 일반 교사·학부모 화면에서 삭제 회원 숨김
+- 슈퍼어드민 감사 화면에서 최소 식별정보만 표시
+
+법적 보존이 필요한 결제·정산 데이터와
+교육·성장 데이터의 보존 범위를 별도로 구분한다.
+
+비식별화 이전 원본을 Audit Log에 저장하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ai_request_traces 모델·제공자 정보 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+AI 모델 변경과 비용 비교를 추적할 수 있도록 다음 컬럼을 추가한다.
+
+provider_name TEXT
+model_name TEXT
+model_version TEXT
+pricing_config_version TEXT
+
+예:
+
+provider_name = 'openai'
+model_name = 실제 사용 모델 ID
+model_version = API에서 확인 가능한 경우 기록
+pricing_config_version = 'pricing_2026_08_v1'
+
+Migration:
+
+ALTER TABLE ai_request_traces
+  ADD COLUMN provider_name TEXT,
+  ADD COLUMN model_name TEXT,
+  ADD COLUMN model_version TEXT,
+  ADD COLUMN pricing_config_version TEXT,
+  ADD COLUMN confidence_config_version TEXT;
+
+정책:
+
+- UI 마케팅 명칭이 아니라 실제 API model identifier 저장
+- 모델 가격은 요청 시점의 pricing config version 기준
+- 과거 비용을 최신 가격으로 다시 덮어쓰지 않음
+- estimated_cost는 요청 당시 계산값 보존
+- 모델 가격 변경 시 pricing config version 증가
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. growth_reports 버전 추적 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_reports.content JSONB만으로는 과거 리포트 재현과 비교가 어렵다.
+
+다음 컬럼을 추가한다.
+
+report_schema_version
+report_template_version
+analysis_version
+prompt_version
+knowledge_version
+ppt_template_version
+source_data_cutoff_at
+source_event_count
+
+권장 Migration:
+
+ALTER TABLE growth_reports
+  ADD COLUMN report_schema_version TEXT NOT NULL DEFAULT '1.0',
+  ADD COLUMN report_template_version TEXT,
+  ADD COLUMN analysis_version TEXT,
+  ADD COLUMN prompt_version TEXT,
+  ADD COLUMN knowledge_version TEXT,
+  ADD COLUMN ppt_template_version TEXT,
+  ADD COLUMN source_data_cutoff_at TIMESTAMPTZ,
+  ADD COLUMN source_event_count INTEGER;
+
+정책:
+
+- 리포트 생성 시 사용한 버전을 고정 저장
+- 리포트를 재다운로드한다고 재분석하지 않음
+- 재생성은 별도 report id로 생성
+- 기존 리포트를 덮어쓰지 않음
+- 이전 리포트와 새 리포트 비교 가능
+- PPT 파일 버전과 분석 데이터 버전을 분리
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. job_queue payload_hash 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+idempotency_key 외에도 동일 payload 탐지와 디버깅을 위해 payload_hash를 추가한다.
+
+ALTER TABLE job_queue
+ADD COLUMN payload_hash TEXT;
+
+권장 생성 방식:
+
+- payload를 canonical JSON으로 정렬
+- SHA-256 생성
+- 민감정보 원문을 hash 입력에 포함할 수 있으나 로그에 payload 원문 출력 금지
+- 동일 job_type + payload_hash 비교 가능
+
+인덱스:
+
+CREATE INDEX idx_job_queue_payload_hash
+ON job_queue(job_type, payload_hash)
+WHERE payload_hash IS NOT NULL;
+
+주의:
+
+payload_hash만으로 중복 작업을 무조건 차단하지 않는다.
+
+실제 중복 차단은 idempotency_key 기준으로 수행한다.
+
+payload_hash 용도:
+
+- 동일 작업 반복 탐지
+- 운영 디버깅
+- 비정상 반복 Job 탐지
+- 비용 분석
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Audit Log entity_version 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+audit_logs에 entity_version을 추가한다.
+
+ALTER TABLE audit_logs
+ADD COLUMN entity_version INTEGER;
+
+정책:
+
+- 동일 entity의 변경이 발생할 때 version을 1씩 증가
+- Transaction 안에서 현재 최대 version + 1 계산
+- 동시 수정 충돌을 막기 위해 entity별 Lock 또는 안전한 증가 방식 사용
+- system 변경도 version 증가
+- 단순 조회·파일 다운로드는 version 증가 대상에서 제외 가능
+- 파일 다운로드 Audit는 entity_version NULL 허용
+
+추가 권장 컬럼:
+
+correlation_id TEXT
+
+request_id는 단일 HTTP 요청 추적,
+correlation_id는 여러 서비스·Job·AI 요청을 묶는 흐름 추적에 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Parent AI 월간 집계 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+일별 사용량 테이블을 유지한다.
+
+월별 비용과 질문 수는 초기에는 별도 테이블을 만들지 않고
+parent_ai_daily_usage를 월 단위로 집계한다.
+
+예:
+
+SELECT
+  pool_id,
+  parent_account_id,
+  DATE_TRUNC('month', usage_date),
+  SUM(question_count),
+  SUM(input_tokens),
+  SUM(output_tokens),
+  SUM(total_tokens),
+  SUM(estimated_cost_usd)
+FROM parent_ai_daily_usage
+GROUP BY
+  pool_id,
+  parent_account_id,
+  DATE_TRUNC('month', usage_date);
+
+초기에는 중복 데이터를 방지하기 위해 별도 monthly table을 만들지 않는다.
+
+운영 규모가 커져 조회 성능 문제가 실제로 발생하면:
+
+- Materialized View
+- 월별 집계 테이블
+- 정기 집계 Job
+
+중 하나를 추가한다.
+
+현재 V3.3에서는 일별 원본 테이블만 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. contract_version과 schema_version 역할 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+두 버전의 역할을 명확히 분리한다.
+
+contract_version:
+
+- API Request/Response 필드 계약 버전
+- 필드 추가·삭제
+- 필수 여부 변경
+- 타입 변경
+- 클라이언트 호환성에 영향을 주는 변경 시 증가
+
+예:
+1.0 → 1.1 → 1.2
+
+schema_version:
+
+- AI 내부 구조화 데이터 스키마 버전
+- Parser Meaning 구조
+- Candidate 내부 구조
+- Evidence 내부 구조
+- LLM 출력 검증 구조
+- 서버 내부 Intermediate Representation 변경 시 증가
+
+예:
+meaning_schema_v1
+curriculum_match_schema_v1
+
+응답에는 다음처럼 명확히 기록한다.
+
+{
+  "contract_version": "1.2",
+  "schema_version": "curriculum_match_schema_v1"
+}
+
+클라이언트는 contract_version을 기준으로 호환성을 판단한다.
+
+서버와 AI Engine 내부 분석에는 schema_version을 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Growth Event Pending Review 구조 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 confidence 중간 구간을 pending_review로 처리한다고 되어 있지만,
+growth_events.event_role은 progress | observation만 정의되어 있다.
+
+중간 신뢰도 매칭을 저장하려면 구조를 확정해야 한다.
+
+권장안:
+
+growth_match_status 컬럼 추가
+
+값:
+
+AUTO_ACCEPTED
+PENDING_REVIEW
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+DISCARDED
+
+Migration:
+
+ALTER TABLE growth_events
+ADD COLUMN growth_match_status TEXT
+CHECK (
+  growth_match_status IS NULL OR
+  growth_match_status IN (
+    'AUTO_ACCEPTED',
+    'PENDING_REVIEW',
+    'TEACHER_ACCEPTED',
+    'TEACHER_REJECTED',
+    'DISCARDED'
+  )
+);
+
+정책:
+
+confidence >= auto threshold:
+- event_role = progress
+- growth_match_status = AUTO_ACCEPTED
+- 성장판 집계 포함
+
+review threshold 이상, auto threshold 미만:
+- event_role = observation
+- growth_match_status = PENDING_REVIEW
+- 성장판 집계 제외
+- 교사 UI에 확인 항목 표시
+
+교사 승인:
+- event_role = progress
+- growth_match_status = TEACHER_ACCEPTED
+- approved_by
+- approved_at 기록
+- 성장판 집계 포함
+
+교사 거절:
+- event_role = observation
+- growth_match_status = TEACHER_REJECTED
+- 성장판 집계 제외
+
+낮은 confidence:
+- 저장하지 않거나 observation + DISCARDED
+- 파일럿에서 정책 확정
+
+추가 컬럼:
+
+reviewed_by TEXT
+reviewed_at TIMESTAMPTZ
+review_reason TEXT
+
+중요:
+
+- 교사 승인 API는 해당 diary_note와 학생을 담당할 권한 검증
+- 승인·거절 작업은 Audit Log 기록
+- 이미 AUTO_ACCEPTED인 항목을 일반 교사가 임의 변경할 수 있는지 정책 확정
+- 일지 삭제 시 모든 상태의 관련 event를 is_invalidated=true 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Global Template 활성화 API Transaction 명시
+━━━━━━━━━━━━━━━━━━━━━━
+
+별도 API Contract를 추가한다.
+
+PATCH /api/v1/admin/global-template-sets/:id/activate
+
+Auth:
+super_admin only
+
+동작:
+
+1. 대상 세트 조회
+2. DRAFT 또는 ARCHIVED인지 확인
+3. 유효 템플릿 수 확인
+4. Transaction 시작
+5. 기존 ACTIVE → ARCHIVED
+6. 대상 세트 → ACTIVE
+7. audit_logs INSERT
+8. Transaction Commit
+9. 검색 캐시가 있다면 무효화
+10. 실패 시 전체 Rollback
+
+응답:
+
+{
+  "active_set_id": "...",
+  "version_name": "...",
+  "previous_set_id": "...",
+  "activated_at": "..."
+}
+
+Rollback API도 같은 방식으로 제공 가능하다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 수정된 DB 추가 목록
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.3에서 추가·수정되는 컬럼:
+
+growth_events
+- evidence_source_type
+- evidence_sentence_index
+- evidence_text
+- evidence_metadata
+- evidence_validation
+- confidence_config_version
+- growth_match_status
+- reviewed_by
+- reviewed_at
+- review_reason
+
+ai_request_traces
+- provider_name
+- model_name
+- model_version
+- pricing_config_version
+- confidence_config_version
+
+growth_reports
+- report_schema_version
+- report_template_version
+- analysis_version
+- prompt_version
+- knowledge_version
+- ppt_template_version
+- source_data_cutoff_at
+- source_event_count
+
+job_queue
+- payload_hash
+
+audit_logs
+- entity_version
+- correlation_id
+
+Candidate Contract
+- candidate_index 제거
+- candidate_id 사용
+
+학생 삭제 정책
+- SHA-256 치환 제거
+- 개인정보 NULL 또는 '삭제된 회원' 처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 구현 전 최종 검증 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+리플릿은 V3.3 제출 전 다음만 실제 Repository 기준으로 확인한다.
+
+1. growth_events에 기존 evidence 컬럼이 생성될 예정인지
+   - evidence JSONB와 신규 분리 컬럼이 중복되지 않도록 확정
+
+2. Teacher Diary 앱이 contract_version 1.2의 curriculum_matches와 candidate_id를 안전하게 무시하거나 처리할 수 있는지
+
+3. 교사 match 승인 UI를 어느 화면·상태에 추가할지
+
+4. Global Template 활성화 작업을 수행할 기존 슈퍼어드민 화면 위치
+
+5. Growth Report PPT 저장 경로와 파일 테이블 필요 여부
+
+6. Audit Log DB 권한에서 UPDATE/DELETE를 실제로 제한할 수 있는지
+
+7. 학생 삭제 시 현재 부모 연결·출결·일지 조회 로직에 미치는 영향
+
+확인되지 않은 항목은 NEEDS_VERIFICATION으로 표시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.3에서는 전체 설계서를 다시 장문으로 작성하지 않는다.
+
+아래 변경분만 제출한다.
+
+1. 변경 요약
+2. 수정 Migration
+3. AI Contract candidate_id 변경
+4. Confidence Config
+5. Evidence 구조
+6. Growth Pending Review 구조
+7. Global Template Transaction
+8. 학생 비식별화 정책
+9. 추가 버전 추적 컬럼
+10. Repository 확인 결과
+11. 변경 파일
+12. 테스트
+13. Rollback
+14. 남은 NEEDS_VERIFICATION
+
+제출 후 멈춘다.
+
+코드 수정, Migration 실행, Commit, Push, OTA, 배포, RevenueCat 상품 생성, 샘플 데이터 생성은 승인 전 금지한다.

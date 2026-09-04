@@ -1,0 +1,629 @@
+[WP-N1 — NORMAL SWIMNOTE SAGE/OCEAN DESIGN TOKEN FOUNDATION]
+
+목적:
+
+Normal SWIMNOTE의 기존 개발단계 민트 테마를
+차분하고 고급스러운 Sage/Ocean Wave 기반 디자인 시스템으로
+점진적으로 전환하기 위한 "토큰 기반"을 먼저 구축한다.
+
+이번 WP에서는 전체 화면을 대량 변경하지 않는다.
+
+핵심:
+
+1. Normal SWIMNOTE 공식 Sage/Ocean palette를 theme/colors.ts에 정의
+2. text hierarchy를 3단계 이상으로 정상화
+3. background/surface 계층을 정리
+4. legacy mint alias를 즉시 삭제하지 않고 호환 유지
+5. 다음 WP-N2/N3에서 안전하게 화면별 적용할 기반 확보
+
+==================================================
+1. FINAL NORMAL PALETTE
+==================================================
+
+아래 값을 Normal SWIMNOTE 공식 컬러 기준으로 사용한다.
+
+SAGE / OCEAN BRAND
+
+Sage Strong
+#4F6F67
+
+Sage Primary
+#6F9187
+
+Sage Mid
+#91ABA3
+
+Sage Soft
+#DDE7E3
+
+Sage Mist
+#ECF2F0
+
+Background
+#F4F7F6
+
+Surface
+#FBFCFC
+
+TEXT
+
+Text Strong
+#24302E
+
+Text Primary
+#35413F
+
+Text Secondary
+#5E6B68
+
+Text Muted
+#74817E
+
+==================================================
+2. DESIGN INTENT
+==================================================
+
+Normal SWIMNOTE 목표:
+
+- 밝지만 눈부시지 않음
+- 차분함
+- 고급스러운 Sage/Ocean 느낌
+- 물/수영 브랜드 이미지
+- 유아틱한 mint 느낌 제거
+- 형광/쨍한 green 금지
+- pure black text 금지
+- 흐릿한 gray text 금지
+
+중요:
+
+가독성이 최우선.
+
+텍스트는:
+
+너무 진한 #000000도 피하고
+너무 연한 gray도 피한다.
+
+오래 봐도 눈이 편하면서
+명확히 읽혀야 한다.
+
+==================================================
+3. theme/colors.ts TOKEN ARCHITECTURE
+==================================================
+
+현재:
+
+artifacts/swim-app/theme/colors.ts
+
+가 Normal theme single source임.
+
+이 파일을 기준으로 정리한다.
+
+기존 구조를 깨지 말고
+신규 Sage/Ocean token을 추가한다.
+
+권장 개념:
+
+brandStrong
+brandPrimary
+brandMid
+brandSoft
+brandMist
+
+background
+backgroundSoft
+surface
+surfaceElevated
+
+textStrong
+textPrimary
+textSecondary
+textMuted
+
+border
+borderSoft
+
+primaryAction
+primaryActionSoft
+
+selected
+selectedSoft
+
+iconPrimary
+iconActive
+
+정확한 token naming은
+현재 프로젝트 naming convention에 맞춘다.
+
+==================================================
+4. FINAL TOKEN MAPPING
+==================================================
+
+Normal 신규 기준:
+
+brandStrong
+→ #4F6F67
+
+brandPrimary
+→ #6F9187
+
+brandMid
+→ #91ABA3
+
+brandSoft
+→ #DDE7E3
+
+brandMist
+→ #ECF2F0
+
+background
+→ #F4F7F6
+
+surface/card
+→ #FBFCFC
+
+textStrong
+→ #24302E
+
+textPrimary
+→ #35413F
+
+textSecondary
+→ #5E6B68
+
+textMuted
+→ #74817E
+
+==================================================
+5. TEXT HIERARCHY FIX
+==================================================
+
+현재 감사 결과:
+
+C.textSecondary
+=
+C.textMuted
+=
+#64748B
+
+동일 값이라
+실제 화면에서 3단계 hierarchy를 만들 수 없어
+#94A3B8 / #9CA3AF 등의 하드코딩이 발생하고 있다.
+
+이번 WP에서 정상화한다.
+
+최종:
+
+textStrong
+#24302E
+
+textPrimary
+#35413F
+
+textSecondary
+#5E6B68
+
+textMuted
+#74817E
+
+명확한 4단계 hierarchy.
+
+단:
+
+disabledText는 별도 semantic/disabled token 유지.
+
+textMuted를 disabled 용도로 사용하지 않는다.
+
+==================================================
+6. BACKGROUND / SURFACE SYSTEM
+==================================================
+
+현재:
+
+#F7F9FB
+#F1F4F7
+#F8FAFC
+#F1F5F9
+#FFFFFF
+
+등 유사 surface가 혼재한다.
+
+이번 WP에서는 공식 기준 token을 만든다.
+
+Normal:
+
+background
+→ #F4F7F6
+
+surface
+→ #FBFCFC
+
+backgroundSoft / surfaceSoft
+→ Sage Mist #ECF2F0 또는
+현재 구조상 더 적절한 light neutral token
+
+selectedSoft
+→ Sage Soft #DDE7E3
+
+중요:
+
+이번 WP에서 40~60개 화면을 전부 치환하지 않는다.
+
+토큰 기반만 준비.
+
+실제 screen sweep는 WP-N2.
+
+==================================================
+7. PRIMARY ACTION FUTURE POLICY
+==================================================
+
+중요:
+
+현재 감사에서 기존 design standard는:
+
+C.primaryAction = #0F2742 navy
+
+였지만
+이것은 과거 기준이다.
+
+앞으로 Normal SWIMNOTE의 최종 방향은
+Sage/Ocean theme다.
+
+따라서 최종적으로:
+
+Normal Primary Action
+→ Sage Strong #4F6F67
+또는 해당 공식 primary-action token
+
+Normal Active/Selected
+→ Sage Primary #6F9187
+
+로 전환한다.
+
+하지만 이번 WP에서는
+기존 화면 100개에 바로 영향을 줄 수 있으므로
+C.primaryAction 값을 무조건 즉시 바꾸지 않는다.
+
+먼저 repository dependency를 확인한다.
+
+==================================================
+8. PRIMARY ACTION IMPACT AUDIT BEFORE CHANGE
+==================================================
+
+C.primaryAction을 현재
+어떤 화면/컴포넌트가 사용하는지 확인.
+
+보고:
+
+PRIMARY_ACTION_USAGE_COUNT =
+PRIMARY_ACTION_COMMON_COMPONENTS =
+PRIMARY_ACTION_HIGH_RISK_SCREENS =
+
+다음과 같은 경우:
+
+C.primaryAction 변경만으로
+Normal 전체 주요 CTA가 안전하게 Sage Strong으로 전환되며
+semantic/feature-fixed 영역을 침범하지 않는 것이 명확하면
+이번 WP에서 token value 변경 가능.
+
+반대로 영향범위가 불명확하면:
+
+새 token만 추가하고
+C.primaryAction 기존 값은 유지.
+
+WP-N3에서 역할별 버튼 normalization과 함께 전환.
+
+추측 금지.
+
+==================================================
+9. LEGACY MINT COMPATIBILITY
+==================================================
+
+현재:
+
+C.tint / C.primary = #2EC4B6
+
+#2EC4B6 하드코딩 511회 수준.
+
+이번 WP에서
+전부 제거하려 하지 않는다.
+
+legacy alias는 당장 삭제 금지.
+
+예:
+
+C.tint
+C.primary
+C.tintLight
+
+등을 사용하는 기존 코드가 깨지지 않게 유지.
+
+단 신규 공식 Sage token을 추가하고
+향후 WP에서 점진적으로 migration.
+
+==================================================
+10. DO NOT TOUCH PROTECTED COLORS
+==================================================
+
+절대 변경 금지:
+
+SCHEDULER classification palette:
+
+#4EA7D8
+#2E9B6F
+#E4A93A
+#D96C6C
+#8B5CF6
+#EC4899
+#06B6D4
+#84CC16
+
+위 색은 반/일정 식별용.
+
+Normal brand 변경 대상 아님.
+
+또한:
+
+error/danger
+warning
+success
+attendance states
+member status
+AI Report
+AI Curriculum
+Feed reactions
+Level colors
+chart legends
+pool logo emoji
+
+전부 유지.
+
+==================================================
+11. X MODE PROTECTION
+==================================================
+
+SWIMNOTE X:
+
+Nautic + Yacht Blue system
+
+변경 금지.
+
+xTheme.ts 색상 변경 금지.
+
+Normal token 작업이
+X 화면에 leakage 되지 않는지 확인.
+
+특히:
+
+AppButton
+MainTabs
+FilterChips
+ConfirmModal
+SubScreenHeader
+ParentScreenHeader
+
+mode-aware 분기가 유지되어야 한다.
+
+==================================================
+12. PARENT / TEACHER / ADMIN COMMON BASE
+==================================================
+
+Normal Sage/Ocean theme는
+최종적으로:
+
+admin
+sub_admin
+teacher
+parent
+
+모두 공통 적용할 예정이다.
+
+이번 WP에서는
+role별 screen을 개별 스타일링하지 않는다.
+
+공통 theme foundation만 만든다.
+
+==================================================
+13. COLOR ACCESSIBILITY CHECK
+==================================================
+
+신규 token 조합에 대해
+contrast 검사.
+
+반드시 확인:
+
+Text Strong #24302E
+on Background #F4F7F6
+
+Text Primary #35413F
+on Surface #FBFCFC
+
+Text Secondary #5E6B68
+on Surface
+
+Text Muted #74817E
+on Surface
+
+Sage Strong #4F6F67
+with button label
+
+Sage Primary #6F9187
+on light background
+
+작은 텍스트에
+Sage Primary를 직접 사용할 때 AA 기준에 부족하면:
+
+버튼/아이콘/large active state에만 사용하고
+small label text는 Sage Strong 사용.
+
+가독성을 위해 palette 자체를 임의로 크게 변경하지 말고
+usage rule로 해결할 수 있으면 그렇게 한다.
+
+==================================================
+14. NEW USAGE RULE DOCUMENTATION
+==================================================
+
+theme/colors.ts 또는 관련 theme 문서/주석에
+다음 역할을 명확히 남긴다.
+
+Sage Strong:
+- primary CTA
+- strong active
+- small active text where higher contrast needed
+
+Sage Primary:
+- brand accent
+- active icon
+- selected state
+- medium/large accent
+
+Sage Mid:
+- secondary accent
+- icon surface
+- decorative non-critical accent
+
+Sage Soft:
+- selected background
+- chip bg
+- soft badge
+
+Sage Mist:
+- section/surface soft bg
+
+Text Strong:
+- large title
+- heading
+
+Text Primary:
+- normal body
+
+Text Secondary:
+- supporting information
+
+Text Muted:
+- low priority / hint only
+
+==================================================
+15. NO SCREEN SWEEP YET
+==================================================
+
+이번 WP에서 금지:
+
+- 40~60 screen 대량 수정
+- 모든 #2EC4B6 치환
+- 모든 버튼색 변경
+- scheduler UI 변경
+- icon/emoji 변경
+- parent frame 변경
+- X text 변경
+
+이후 WP에서 하나씩 진행.
+
+==================================================
+16. TEST
+==================================================
+
+TOKEN-1
+신규 Sage/Ocean token 정의
+
+TOKEN-2
+textSecondary != textMuted
+
+TOKEN-3
+background/surface hierarchy 정의
+
+TOKEN-4
+legacy C.tint 등 기존 코드 compile 유지
+
+TOKEN-5
+X theme unchanged
+
+TOKEN-6
+semantic colors unchanged
+
+TOKEN-7
+scheduler classification colors unchanged
+
+TOKEN-8
+feature-fixed colors unchanged
+
+TOKEN-9
+TypeScript 0 error
+
+TOKEN-10
+Normal 기존 화면에 예상치 못한 대규모 visual regression 없음
+
+==================================================
+17. DEPLOYMENT
+==================================================
+
+이번 WP는 foundation 작업.
+
+실제 사용자 화면이 변하지 않거나
+아주 제한적 token change만 있다면
+OTA 필요 여부를 판단해 보고.
+
+만약 실제 production UI가 변경되면:
+
+production OTA
+preview OTA
+
+변경이 전혀 사용자 화면에 반영되지 않으면
+불필요한 OTA 금지.
+
+server deploy 금지.
+DB 변경 금지.
+반복 polling 금지.
+
+==================================================
+18. FINAL REPORT
+==================================================
+
+THEME_FILE =
+NEW_TOKEN_STRUCTURE =
+
+SAGE_STRONG =
+SAGE_PRIMARY =
+SAGE_MID =
+SAGE_SOFT =
+SAGE_MIST =
+
+NORMAL_BACKGROUND =
+NORMAL_SURFACE =
+
+TEXT_STRONG =
+TEXT_PRIMARY =
+TEXT_SECONDARY =
+TEXT_MUTED =
+
+TEXT_HIERARCHY_FIXED =
+
+PRIMARY_ACTION_CURRENT =
+PRIMARY_ACTION_USAGE_COUNT =
+PRIMARY_ACTION_CHANGED = YES / NO
+PRIMARY_ACTION_REASON =
+
+LEGACY_TINT_PRESERVED =
+LEGACY_MINT_HARDCODES_CHANGED =
+
+SCHEDULER_PROTECTED_CHANGED =
+SEMANTIC_CHANGED =
+FEATURE_FIXED_CHANGED =
+X_THEME_CHANGED =
+
+CONTRAST_RESULTS =
+
+USER_VISIBLE_CHANGE =
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공:
+
+WP_N1_NORMAL_SAGE_OCEAN_TOKEN_FOUNDATION_COMPLETE ✅

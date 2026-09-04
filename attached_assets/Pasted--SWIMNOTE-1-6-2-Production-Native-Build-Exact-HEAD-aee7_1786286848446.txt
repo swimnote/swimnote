@@ -1,0 +1,555 @@
+[SWIMNOTE 1.6.2 Production Native Build 최종 감리 — 동결 기준선 보호]
+
+현재 검증 완료 기준선:
+
+Exact HEAD:
+aee7526b61f6e30f9250b6ee27b361062e54c2d8
+
+Backup branch:
+backup/swimnote-1.6.2-pre-production-final-20260809
+
+Backup tag:
+swimnote-1.6.2-pre-production-final-20260809
+
+이 기준선은 절대 이동/수정/force push 하지 않는다.
+
+이번 작업은 Production Native Build를 실행하기 전
+"빌드 가능 상태인지 감리"하는 단계다.
+
+아직 Build 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최우선 보호 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 금지:
+
+- backup branch 수정
+- backup tag 이동
+- backup branch/tag force push
+- 현재 기준선 reset/rebase
+- 현재 검증 기능 임의 수정
+- instagram-test OTA 변경
+- production OTA 배포
+- Native Build 실행
+- Render 배포
+- DB 변경
+
+빌드 준비 수정이 필요하면
+반드시 별도 build-prep branch에서만 한다.
+
+예:
+
+build-prep/swimnote-1.6.2-production-20260809
+
+현재 동결 기준선 SHA에서 새로 분기.
+
+단 감리 단계에서는
+새 branch 생성도 아직 필요 없으면 하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Repository 무결성 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다시 확인:
+
+A. current branch
+B. current HEAD
+C. origin HEAD
+D. backup branch SHA
+E. backup tag SHA
+F. HEAD == backup branch == backup tag 여부
+G. git status --short
+H. 코드/설정 파일에 미커밋 변경 존재 여부
+I. attached_assets 외 untracked 기능 파일 존재 여부
+
+현재 기준선이 그대로인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Version / Runtime 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+appVersion
+runtimeVersion
+iOS buildNumber
+Android versionCode
+
+확인.
+
+현재 예상:
+
+appVersion: 1.6.2
+runtimeVersion: appVersion policy → 1.6.2
+iOS buildNumber: 244
+Android versionCode: 235
+
+이 값들이 Store 이전 배포 버전보다
+모두 증가된 값인지 다시 확인.
+
+기존 Store 기준:
+
+iOS Build #243
+Android versionCode 234
+
+따라서:
+
+244 > 243
+235 > 234
+
+인지 확인.
+
+버전 값 임의 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. eas.json Production Profile 감리
+━━━━━━━━━━━━━━━━━━━━━━
+
+eas.json의 production profile을
+현재 exact 파일 기준으로 확인.
+
+보고:
+
+- distribution
+- channel
+- environment
+- iOS image
+- Android buildType
+- autoIncrement 여부
+- cli.version
+- resourceClass
+- node/pnpm version override
+- env 값
+
+특히 preview/instagram-test profile 설정이
+production에 잘못 섞이지 않았는지 확인.
+
+금지:
+
+instagram-test channel을
+production에 복사하는 식의 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production Channel / Runtime 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+Production Native Build가
+runtimeVersion 1.6.2를 갖게 되는가.
+
+Production binary가 설치된 뒤:
+
+production channel
+
+을 바라보도록 구성되는지 확인.
+
+instagram-test channel을
+바라보면 안 됨.
+
+현재 production 1.6.1 사용자와
+새 1.6.2 binary가 runtime으로 분리되는 구조 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. META_APP_ID Production 주입
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+Instagram Story가 실기기에서 정상 작동한 핵심 조건:
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+Production Native Build에서
+이 값이 실제로 주입되는 경로를 확정.
+
+확인:
+
+- eas.json production.env
+- EAS production environment
+- shell env
+- app config plugin
+
+중 어떤 경로로 최종 Build bundle에 들어가는지 보고.
+
+Instagram-test OTA에서 사용했던
+shell 직접 주입 방식과
+Production Build env를 혼동하지 말 것.
+
+Production Build에서
+META_APP_ID 누락 가능성이 0인지 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Instagram Native Config 감리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱에서 사용 중:
+
+react-native-share
+react-native-view-shot
+
+확인:
+
+- package.json 존재
+- lockfile 존재
+- autolinking 정상
+- react-native-share Expo plugin 정상
+- iOS instagram / instagram-stories scheme 등록
+- Android com.instagram.android query 등록
+- app.json plugin 설정 정상
+
+삭제된 legacy:
+
+plugins/withInstagramShare.js
+
+가 다시 필요하지 않은지 확인.
+
+현재 정상 Native Build 방식이
+공식 plugin 기반인지 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Story V3 코드 포함 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에 아래가 모두 포함되는지 확인:
+
+- Story AI 액션바
+- 4개 액션 균등 배치
+- Instagram 정상 glyph
+- AI overlap lockup
+- 1~4장 V3 layout
+- 5~10장 Adaptive Collage
+- Image.getSize
+- aspectRatio templates
+- AI 한줄평
+- 수영장명 footer
+- SWIMNOTE branding
+- teacher/class Story 제거
+
+누락 0이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Teacher Diary 최근 수정 포함 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 학생 조회 loading
+- retry
+- stale response 방어
+- 출석 0명 저장 차단
+- draft reset
+- 취소 시 유지
+- 정상 저장 흐름 보존
+
+Production Build가
+동결 기준선 그대로 포함하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 진단/테스트 코드 잔존 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository 전체에서 검색:
+
+Story Diag
+diagRef
+P0
+P1
+P2
+P3
+P4
+P5
+P6
+P7
+P8
+P9
+P10
+P11
+P12
+PX
+
+debug
+diagnostic
+TEMP
+TODO instagram
+console.warn
+console.log
+
+단 일반 정상 로그까지 무작정 삭제하지 말고
+Story 테스트용 진단 코드가 남아 있는지만 구분해서 보고.
+
+특히 사용자에게 표시되는
+진단 Alert가 0개인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Production API / Server URL 감리
+━━━━━━━━━━━━━━━━━━━━━━
+
+App에서 실제 사용하는 API_BASE 확인.
+
+Production에서:
+
+https://swimnote-api.onrender.com/api
+
+또는 현재 실제 Production endpoint
+
+를 바라보는지 확인.
+
+instagram-test / local / preview URL이
+production build에 섞이지 않았는지 검색.
+
+검색:
+
+localhost
+127.0.0.1
+replit
+preview
+instagram-test
+dev
+staging
+
+실제 사용되지 않는 문서/주석과
+runtime 코드 env를 구분해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Server 기준선 감리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render에서 Story Summary가
+정상 배포되어 있는지 확인.
+
+보고:
+
+- Render live deploy
+- Live SHA
+- health 200
+- story-summary endpoint 존재
+- parent 권한 SQL 수정 포함
+- ANY → IN 수정 포함
+- 90자 한줄평 prompt 포함
+
+App Build 전에
+서버 추가 배포가 필요한지 판정.
+
+필요 없다면:
+Render 변경 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. Database 감리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Native Build를 위해
+DB migration이 필요한지 확인.
+
+Story V3 / Instagram 공유 / 액션바 /
+Teacher Diary 최근 수정은
+DB migration 없이 작동하는지 확인.
+
+필요 없으면:
+DB 변경 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. TypeCheck / Static 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 exact 기준선에서:
+
+- TypeCheck
+- Expo config resolution
+- package manager dependency consistency
+- app config plugin resolution
+- eas project identification
+
+실행.
+
+기존 pre-existing error가 있다면
+이번 변경과 관련된 오류인지 구분.
+
+빌드를 막는 오류와
+사전 존재 non-blocking 오류를 구분해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. EAS Project 오인식 재발 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 문제:
+
+swimnote/projects/workspace
+
+로 잘못 인식된 적 있음.
+
+현재 반드시:
+
+@swimnote/swim-app
+projectId:
+7d0e0faa-32d8-4f40-88c4-2c99e0613afc
+
+로 인식되는지 확인.
+
+workspace root 오인식 재발 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. Replit dotslash / EAS_NO_VCS 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 Native Build에서:
+
+dotslash EACCES
+
+문제가 있었고
+
+EAS_NO_VCS=1
++
+EAS_PROJECT_ROOT
+
+우회로 성공했음.
+
+현재 환경에서도
+이 우회가 필요한지 확인.
+
+Production Build 명령에
+필요한 환경변수를 정확히 정리.
+
+단 아직 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. iOS Build 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+production profile
+distribution: store
+
+기존 Apple credentials 재사용 가능 여부.
+
+현재 인증서:
+
+Apple Team / Provisioning 상태
+
+재확인.
+
+새 Ad Hoc credential을 만들지 말 것.
+
+Production iOS는
+App Store/TestFlight 경로.
+
+Build 자체와 Submit을 구분.
+
+이번 단계에서는 Build만 준비.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. Android Build 경로
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+production profile
+
+Store용:
+AAB
+
+인지 확인.
+
+internal APK를
+Production build로 잘못 만들지 말 것.
+
+versionCode 235 확인.
+
+Google Play 제출은
+Build 완료 후 별도 단계.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. Production Build 전 위험요소 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+발견한 항목을:
+
+BLOCKER
+WARNING
+SAFE
+
+로 분류.
+
+BLOCKER가 하나라도 있으면
+Build 금지.
+
+WARNING은 실제 영향 설명.
+
+SAFE면:
+iOS/Android Build 가능 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. Build 직전 새 기준선 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+감리 결과 코드 수정이 0이라면:
+
+현재 exact HEAD
+aee7526b...
+
+를 그대로 Production Build source로 사용할 수 있는지 판정.
+
+만약 Build config 수정이 반드시 필요하다면:
+
+현재 backup/tag는 절대 수정하지 말고
+
+build-prep/swimnote-1.6.2-production-20260809
+
+새 branch를
+aee7526b에서 생성 후
+최소 config 변경만 해야 함.
+
+기능 코드 변경은 절대 금지.
+
+수정 필요 여부만 보고.
+아직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. Backup SHA
+4. HEAD == Backup 여부
+5. Working tree
+6. appVersion
+7. runtimeVersion
+8. iOS buildNumber
+9. Android versionCode
+10. production profile
+11. production channel
+12. META_APP_ID production source
+13. Instagram native config
+14. Story V3 포함 여부
+15. Teacher Diary 수정 포함 여부
+16. 진단 코드 잔존 여부
+17. Production API_BASE
+18. Render 상태
+19. DB migration 필요 여부
+20. TypeCheck
+21. Expo config
+22. EAS projectId
+23. workspace 오인식 여부
+24. dotslash 우회 필요 여부
+25. iOS credentials
+26. Android artifact type
+27. BLOCKER
+28. WARNING
+29. SAFE
+30. Build 전 수정 필요 여부
+31. 수정 필요 파일 목록
+32. iOS 권장 Build 명령
+33. Android 권장 Build 명령
+34. Production Build Source SHA
+
+중요:
+감리 완료 후 멈춘다.
+
+코드 수정 0
+OTA 0
+Native Build 0
+Render 0
+DB 0

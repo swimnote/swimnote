@@ -1,0 +1,155 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP2.1]
+[STUDENT PROGRESS SEMANTIC FIX ONLY]
+
+현재 WP2 완료:
+
+commit:
+732d79d2
+
+전체 regression:
+1012 PASS
+
+확인된 단일 semantic 문제:
+
+현재 구현:
+
+student_progress.current_curriculum_id
+=
+student_curriculum_assignments.curriculum_version_id
+
+이 매핑은 금지한다.
+
+curriculum_version_id는
+교육과정 VERSION ID이며,
+curriculum ITEM ID가 아니다.
+
+ENGINE에 잘못된 의미의 ID를 전달하면
+현재 진도 해석/grounding에 오류가 생길 수 있다.
+
+이번 작업은 이 문제만 수정한다.
+
+Production deploy 금지.
+DB migration 금지.
+UI 수정 금지.
+Quota/Conversation 구현 금지.
+
+==================================================
+1. CURRENT IMPLEMENTATION TRACE
+==================================================
+
+현재 어떤 파일/함수에서:
+
+student_curriculum_assignments.curriculum_version_id
+→ student_progress.current_curriculum_id
+
+로 매핑하는지 정확히 확인.
+
+==================================================
+2. CANONICAL RULE
+==================================================
+
+다음 원칙으로 수정:
+
+A.
+
+APP DB에서 실제 “현재 curriculum item”을
+명시적으로 증명할 수 있는 값이 존재하면
+
+current_curriculum_id
+=
+실제 curriculum_items.id
+
+만 허용.
+
+B.
+
+현재 DB 구조상 실제 current item을
+확정할 수 없다면:
+
+current_curriculum_id 필드를 아예 생략한다.
+
+C.
+
+curriculum_version_id를
+current_curriculum_id로 보내는 것은 절대 금지.
+
+D.
+
+APP에서 진도를 추론하거나
+sort_order를 보고 현재 item을 임의 결정하지 않는다.
+
+==================================================
+3. GROWTH_EVENTS
+==================================================
+
+보고상 실제 진행도는 growth_events에 존재한다.
+
+기존 canonical helper/service가 있어서
+학생의 현재 curriculum_items.id를
+사실 기반으로 확정할 수 있는지 확인.
+
+있으면 재사용 가능.
+
+없으면 이번 WP에서 새 진도 추론기를 만들지 말고
+current_curriculum_id를 생략한다.
+
+==================================================
+4. VERSION INFORMATION
+==================================================
+
+ENGINE이 curriculum version 자체를
+현재 필요로 하지 않으면 보내지 않는다.
+
+향후 필요하다면 별도 명시적 필드:
+
+curriculum_version_id
+
+로 Contract를 확장해야 하며,
+
+current_curriculum_id에 재사용하지 않는다.
+
+이번 WP에서는 ENGINE contract 확장하지 않는다.
+
+==================================================
+5. TEST
+==================================================
+
+최소:
+
+A. assignment에 curriculum_version_id만 존재
+→ current_curriculum_id 미전송
+
+B. 실제 current curriculum item을
+기존 사실 데이터로 확정 가능한 경우
+→ 실제 curriculum_items.id만 전달
+
+C. version ID가 current_curriculum_id에
+들어가지 않는지 검사
+
+D. progress 데이터 없음
+→ student_progress 생략 또는 빈 optional structure 정상
+
+E. 기존 Parent Curriculum WP2 tests regression
+
+F. 전체 기존 regression
+
+==================================================
+6. REPORT
+==================================================
+
+다음만 보고:
+
+1. ROOT CAUSE
+2. CURRENT ITEM FACT SOURCE EXISTS? YES/NO
+3. FINAL STUDENT PROGRESS CONTRACT
+4. FILES CHANGED
+5. VERSION ID MISUSED AFTER FIX? YES/NO
+6. TEST RESULT
+7. FULL REGRESSION
+8. COMMIT SHA
+9. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP2_1_COMPLETE ✅

@@ -12,6 +12,7 @@ import cron from "node-cron";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { acquireLock, releaseLock, recordHeartbeat } from "../lib/schedulerLock.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 
 const JOB_NAME = "auto-attendance";
 const TTL_SECONDS = 600; // 10분
@@ -72,8 +73,9 @@ export async function runAutoAttendance(): Promise<{ processed: number; marked: 
       one_time_date: string | null;
     }>;
 
-    // 오늘 수업이 있고, 시작 시각 + 60분 이상 지난 반만 처리
-    const AUTO_DELAY_MINUTES = 60;
+    // new_scheduler 플래그: 개선된 엔진은 45분, 기본은 60분
+    const useNewScheduler = await isFeatureEnabled("new_scheduler").catch(() => false);
+    const AUTO_DELAY_MINUTES = useNewScheduler ? 45 : 60;
 
     const todayGroups = allGroups.filter((cg) => {
       const startMin = timeToMinutes(cg.schedule_time);

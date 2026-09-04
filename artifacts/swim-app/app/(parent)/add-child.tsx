@@ -1,16 +1,16 @@
+import Colors from "@/constants/colors";
 import React, { useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChevronLeft, UserPlus } from "lucide-react-native";
-import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
-const ORANGE = "#F97316";
+const C = Colors.light;
 
 export default function AddChildScreen() {
   const insets = useSafeAreaInsets();
@@ -90,10 +90,12 @@ export default function AddChildScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      {/* 빈 영역 탭 → 키보드 숨김 */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
       {/* 헤더 */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <Pressable style={s.backBtn} onPress={() => router.back()} hitSlop={12}>
-          <ChevronLeft size={22} color={C.text} />
+          <LucideIcon name="chevron-left" size={22} color={C.text} />
         </Pressable>
         <Text style={[s.headerTitle, { color: C.text }]}>우리 아이 추가</Text>
         <View style={{ width: 40 }} />
@@ -102,8 +104,8 @@ export default function AddChildScreen() {
       <View style={s.body}>
         {/* 아이콘 + 설명 */}
         <View style={s.iconWrap}>
-          <View style={[s.iconCircle, { backgroundColor: ORANGE + "20" }]}>
-            <UserPlus size={32} color={ORANGE} />
+          <View style={[s.iconCircle, { backgroundColor: "#E8EDF4" }]}>
+            <LucideIcon name="user-plus" size={32} color={C.primaryAction} />
           </View>
         </View>
 
@@ -122,7 +124,6 @@ export default function AddChildScreen() {
             onChangeText={setChildName}
             returnKeyType="done"
             onSubmitEditing={handleSubmit}
-            autoFocus
           />
         </View>
 
@@ -207,7 +208,7 @@ const s = StyleSheet.create({
   },
   submitBtn: {
     width: "100%",
-    backgroundColor: ORANGE,
+    backgroundColor: C.primaryAction,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",

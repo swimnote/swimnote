@@ -1,0 +1,442 @@
+[앱]
+
+OFFICIAL GROWTH REPORT DELETE FEATURE
+PHASE 1 — REPOSITORY INSPECTION + IMPLEMENTATION DESIGN ONLY
+
+목표:
+이미 발급된 AI 성장 리포트를
+관리자가 정식으로 삭제할 수 있는 기능을 설계한다.
+
+이 기능은 테스트용 maintenance 기능이 아니라
+실제 운영에서 사용할 공식 기능이다.
+
+삭제 시:
+- Growth Report 본체 삭제
+- 해당 리포트 좋아요 삭제
+- 해당 리포트 댓글 삭제
+- 해당 리포트 관련 notification 삭제
+- 선생님에게 보이던 해당 좋아요/댓글/반응도 제거
+- 학부모 feed/history/detail에서 제거
+- 동일 학생/동일 월 리포트 재발급 가능
+
+이번 단계는 설계만.
+코드 수정 금지.
+DB write 금지.
+production data 변경 금지.
+
+==================================================
+1. REPOSITORY / BRANCH 확인
+==================================================
+
+현재 APP repository와 branch 확인.
+
+보고:
+
+REPO
+REMOTE
+BRANCH
+HEAD
+
+현재 SWIMNOTE APP/API production source인지 확인.
+
+==================================================
+2. GROWTH REPORT DATA MODEL 조사
+==================================================
+
+실제 schema 기준으로 확인:
+
+growth_reports table
+
+반드시 보고:
+
+- primary key
+- student_id
+- cycle_id
+- period/month 관련 컬럼
+- product_status
+- analysis_status
+- published_at
+- deleted_at 존재 여부
+- unique constraint/index
+- foreign keys
+- cascade 정책
+
+특히:
+
+동일 student + cycle/month에
+재발급을 막는 constraint가 무엇인지 정확히 확인.
+
+==================================================
+3. LIKE / COMMENT 구조 조사
+==================================================
+
+실제 table/function 이름 확인.
+
+Growth Report에 연결되는:
+
+- likes
+- comments
+
+각각 보고:
+
+TABLE
+PK
+REPORT_ID reference
+USER/PARENT reference
+TEACHER 관련 reference
+FK
+ON DELETE behavior
+조회 API/function
+
+선생님 화면에 좋아요/댓글이 보이는 구조가:
+
+A. 동일 like/comment table 직접 조회
+B. 별도 notification/activity row
+C. 별도 inbox/feed table
+D. 기타
+
+중 무엇인지 실제 코드 기준으로 확인.
+
+==================================================
+4. NOTIFICATION 구조 조사
+==================================================
+
+Growth Report 관련 notification 전부 확인.
+
+예:
+GROWTH_REPORT_PUBLISHED
+LIKE
+COMMENT
+기타 반응 알림
+
+각 notification이 report_id를:
+
+- direct column
+- metadata JSON
+- deep_link
+- entity/reference field
+
+중 어디에 저장하는지 확인.
+
+리포트 삭제 시 어떤 notification까지 제거해야
+죽은 링크/고아 알림이 남지 않는지 설계.
+
+==================================================
+5. PARENT FEED / HISTORY / DETAIL 조사
+==================================================
+
+현재 Growth Report가 부모 앱에 노출되는 경로 확인:
+
+- parent feed
+- report history
+- report detail
+
+각 endpoint/function/file 보고.
+
+리포트 row 삭제 시 자동으로 사라지는지,
+별도 projection/cache/table 정리가 필요한지 확인.
+
+==================================================
+6. TEACHER SIDE 조사
+==================================================
+
+학부모가 Growth Report에 남긴:
+
+- 좋아요
+- 댓글
+
+이 선생님 앱에서 어디에 보이는지 확인.
+
+반드시 보고:
+
+API
+service/function
+table/source
+
+리포트 삭제 후
+별도 cleanup이 필요한 데이터가 있는지 확인.
+
+목표:
+
+REPORT DELETE
+→ 해당 LIKE/COMMENT 삭제
+→ teacher side에서도 즉시 사라짐
+
+==================================================
+7. DELETE 방식 설계
+==================================================
+
+다음 중 실제 schema에 가장 안전한 방식 판단:
+
+A. HARD DELETE
+B. SOFT DELETE
+C. 기존 lifecycle 상태 기반 DELETE
+
+중 하나 추천.
+
+이번 기능 요구사항:
+
+- 삭제 후 parent feed/history/detail에서 완전히 사라져야 함
+- 좋아요/댓글도 완전히 제거
+- 관련 알림 제거
+- 같은 월 재발급 가능
+- orphan 0
+
+기존 schema가 hard delete에 적합하면
+불필요한 soft-delete 설계 금지.
+
+==================================================
+8. TRANSACTION DESIGN
+==================================================
+
+삭제는 반드시 하나의 DB transaction으로 설계.
+
+실제 dependency 기준으로
+정확한 delete order 제시.
+
+예시일 뿐:
+
+1. reaction notifications
+2. comments
+3. likes
+4. published notification
+5. 기타 dependent rows
+6. growth_report
+
+실제 FK/cascade 기준으로 수정.
+
+중간 실패 시 전체 rollback.
+
+==================================================
+9. AUTHORIZATION
+==================================================
+
+누가 삭제할 수 있어야 하는지
+기존 앱 역할 체계 기준으로 설계.
+
+우선 요구:
+
+- 수영장 운영자/admin: 자신의 pool report 삭제 가능
+- super_admin: 필요 시 전체 가능
+- teacher: 삭제 불가
+- parent: 삭제 불가
+
+기존 authorization helper/pattern이 있으면 재사용.
+
+다른 pool report 삭제 절대 불가.
+
+==================================================
+10. DELETE API DESIGN
+==================================================
+
+기존 API convention에 맞춰
+정식 endpoint 제안.
+
+예:
+
+DELETE /api/admin/growth-reports/:reportId
+
+또는 repository의 실제 convention.
+
+삭제 전 confirmation body 또는
+기존 destructive action 패턴 적용.
+
+예:
+
+{
+  "confirm": "DELETE_GROWTH_REPORT"
+}
+
+Response 설계:
+
+{
+  "success": true,
+  "report_id": "...",
+  "deleted": {
+    "report": 1,
+    "likes": N,
+    "comments": N,
+    "notifications": N
+  }
+}
+
+실제 구조에 맞게 설계.
+
+==================================================
+11. ADMIN UI DESIGN
+==================================================
+
+실제 관리자 앱에서
+발급된 Growth Report를 확인하는 화면을 찾는다.
+
+거기에 삭제 기능을 어디에 넣을지 제안.
+
+원칙:
+
+- 관리자에게만 노출
+- 위험 버튼 남발 금지
+- report detail 또는 메뉴(...) 안에 "리포트 삭제"
+- 확인 modal
+
+문구:
+
+"이 성장리포트를 삭제하시겠습니까?
+리포트에 남겨진 좋아요와 댓글도 함께 삭제됩니다."
+
+버튼:
+취소 / 삭제
+
+삭제 성공 후:
+- 목록 즉시 refresh
+- 해당 report 제거
+- 동일 월 재발급 가능 상태
+
+이번 단계 UI 구현 금지.
+위치/파일/컴포넌트만 설계.
+
+==================================================
+12. REISSUE PATH 확인
+==================================================
+
+삭제 후 동일 학생 + 동일 period에
+정상 Growth Report 발급이 가능한지
+현재 generation lifecycle 기준으로 추적.
+
+반드시 확인:
+
+- unique constraint
+- cycle
+- report generator
+- publish logic
+- notification exact-once constraint
+
+특히 기존 notification이 삭제된 뒤
+새 report_id로 새 PUBLISHED notification이
+정상 생성 가능한지 확인.
+
+재발급 시
+기존 삭제된 report_id와 관계 없어야 함.
+
+==================================================
+13. EDGE CASES
+==================================================
+
+설계에서 최소 확인:
+
+- OPEN report 삭제
+- PUBLISHED report 삭제
+- likes/comments 0개
+- likes/comments 존재
+- notification 존재/없음
+- 이미 삭제된 report
+- 다른 pool admin 접근
+- transaction 중간 실패
+- 동일 월 재발급
+- 삭제 직후 parent feed refresh
+- teacher notification/inbox cleanup
+
+==================================================
+14. IMPLEMENTATION PLAN
+==================================================
+
+실제 repository 기준으로
+수정 예상 파일을 정확히 제시.
+
+형식:
+
+FILE
+FUNCTION / ROUTE / COMPONENT
+CHANGE
+
+최소 변경으로 설계.
+
+불필요한 migration은 피한다.
+migration이 반드시 필요한 경우에만 이유 설명.
+
+==================================================
+15. TEST PLAN
+==================================================
+
+구현 후 필요한 최소 테스트 설계:
+
+- authorized admin success
+- cross-pool forbidden
+- teacher forbidden
+- parent forbidden
+- report not found
+- confirmation failure
+- likes deleted
+- comments deleted
+- notifications deleted
+- teacher side no reaction remains
+- parent feed/history/detail no report
+- transaction rollback
+- same month reissue possible
+- new notification can be generated for reissued report
+- orphan 0
+
+repo-wide regression 금지.
+
+==================================================
+16. DO NOT TOUCH
+==================================================
+
+이번 설계/향후 구현에서 건드리지 말 것:
+
+- AI ENGINE
+- Growth Report prompt
+- metrics
+- sparse quality
+- Stage B
+- report analysis composition
+- monthly generation algorithm 자체
+- 다른 일지 DB 작업
+- unrelated parent/teacher features
+
+==================================================
+17. FINAL DESIGN REPORT
+==================================================
+
+아래 형식으로만 보고:
+
+A. REPO / BRANCH / HEAD
+
+B. GROWTH REPORT SCHEMA
+
+C. DEPENDENCY GRAPH
+report
+→ likes
+→ comments
+→ notifications
+→ teacher side
+→ parent feed/history/detail
+
+D. UNIQUE / REISSUE BLOCKER
+
+E. RECOMMENDED DELETE TYPE
+HARD / SOFT / OTHER
+
+F. TRANSACTION DELETE ORDER
+
+G. AUTHORIZATION
+
+H. API DESIGN
+
+I. ADMIN UI LOCATION
+
+J. REISSUE FLOW
+
+K. EXPECTED FILE CHANGES
+
+L. MIGRATION REQUIRED
+YES / NO
+
+M. TEST PLAN
+
+N. RISKS
+
+O. PRODUCTION DB WRITE
+0
+
+설계만 보고하고 STOP.
+코드 수정 금지.

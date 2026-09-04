@@ -1,0 +1,663 @@
+[CS-MASTER-00 — CUSTOMER SUPPORT + PARTNER EVIDENCE MASTER RECONCILIATION AUDIT]
+
+중요:
+
+이번 작업은 코드 수정 작업이 아니다.
+
+SWIMNOTE 고객센터 MASTER 설계도 V2.0과
+Partner Evidence Analytics 최소 구현 기준을
+현재 Repository의 CS-PA0 / CS-PA1 구현 상태와 대조하여
+
+앞으로의 단일 구현 기준을 확정한다.
+
+코드 수정 금지.
+DB migration 금지.
+배포 금지.
+OTA 금지.
+
+==================================================
+1. 기준문서 우선순위
+==================================================
+
+앞으로 고객센터 구현의 기능/운영 기준은:
+
+SWIMNOTE AI CUSTOMER SUPPORT
+AUTONOMOUS SUPPORT & PRODUCT INTELLIGENCE
+MASTER 설계도 V2.0
+
+을 최우선으로 한다.
+
+Partner Evidence Analytics는
+OpenAI Partner Evidence용 계측/증빙 요구사항으로 병합한다.
+
+기존 CS-PA0 / CS-PA1에서 구현된 것은
+무조건 폐기하지 않는다.
+
+MASTER 계약을 충족하면 재사용한다.
+
+충족하지 않으면:
+EXTEND
+ADAPT
+MIGRATE
+DEPRECATE
+
+중 하나로 판단한다.
+
+==================================================
+2. 현재 구현 자산 감사
+==================================================
+
+정확한 코드 기준으로 확인:
+
+DB:
+- support_cases
+- support_knowledge_items
+- partner_analytics_snapshots
+- event_logs
+- 기존 support/inquiry/ticket 관련 table
+- super_incidents
+
+Server:
+- cs-pa0.ts
+- ai-trace-service.ts
+- ai-feature-enum.ts
+- 기존 support APIs
+- Super Admin APIs
+
+Web:
+- SuperSupport
+- SuperAI
+- SuperPartner
+
+AI instrumentation:
+- Teacher Diary
+- Parent Curriculum
+- Growth Report
+- story.ts
+- 기타 실제 AI call
+
+각각:
+
+REUSE
+EXTEND
+ADAPT
+DEPRECATE
+NOT_RELEVANT
+
+판정.
+
+==================================================
+3. SUPPORT MASTER CORE SCHEMA GAP
+==================================================
+
+MASTER가 요구하는:
+
+conversation
+message
+support_ticket
+support_attachment
+support_event
+support_status
+
+현재 repository에서 각각 존재 여부 확인.
+
+보고:
+
+SUPPORT_CONVERSATION =
+SUPPORT_MESSAGE =
+SUPPORT_TICKET =
+SUPPORT_ATTACHMENT =
+SUPPORT_EVENT =
+SUPPORT_STATUS =
+
+support_cases가
+어느 역할을 대신할 수 있는지 분석.
+
+중복 테이블을 새로 만들기 전에
+기존 구조를 확장할 수 있는지 판단.
+
+==================================================
+4. SUPPORT CASE STATE 비교
+==================================================
+
+현재 CS-PA0 enum과
+MASTER 상태:
+
+AI_ACTIVE
+AGENT_REQUESTED
+WAITING
+AGENT_ACTIVE
+PHONE_REQUIRED
+RESOLVED
+REOPENED
+
+비교.
+
+현재 상태체계와 MASTER 상태체계가 다르면
+정규화 전략 제시.
+
+지금 코드 변경 금지.
+
+==================================================
+5. CONTEXT CONTRACT GAP
+==================================================
+
+MASTER가 요구:
+
+user_id
+pool_id
+user_role
+service_mode
+subscription_plan
+xmode_enabled
+app_version
+runtime_version
+frontend_map_version
+os_family
+os_version
+device_family
+device_model
+current_route
+current_screen
+previous_route
+feature_id
+student_id
+report_id
+request_id
+
+현재 앱/서버에서 각각 실제 확보 가능한지 확인.
+
+각 필드:
+
+AVAILABLE
+PARTIAL
+NOT_AVAILABLE
+
+표로 보고.
+
+추정 금지.
+
+==================================================
+6. AI USAGE EVENT 계약 비교
+==================================================
+
+Partner Evidence 요구:
+
+request_id
+pool_id
+user_id
+user_role
+feature_type
+model_provider
+model_name
+success
+error_type
+generation_mode
+knowledge_search_used
+knowledge_found
+grounding_validation_pass
+latency_ms
+input_tokens
+output_tokens
+cached_tokens
+estimated_cost
+output_saved
+
+현재 event_logs + saveAiTrace가
+각 필드를 실제 표현 가능한지 1:1 비교.
+
+필드별:
+
+DIRECT
+METADATA
+MISSING
+NOT_CURRENTLY_MEASURABLE
+
+로 보고.
+
+==================================================
+7. ai_usage_events vs event_logs
+==================================================
+
+Partner 문서에는 ai_usage_events가 명시되어 있다.
+
+그러나 현재는 event_logs를 재사용했다.
+
+둘 중 하나를 임의 선택하지 않는다.
+
+다음 비교:
+
+A. event_logs로 Partner Evidence 계약 100% 표현 가능?
+B. 중복 request_id 방지 가능?
+C. aggregate 성능 문제 없는가?
+D. support event와 AI usage event가 섞여 분석 오류가 생기는가?
+E. 장기 token/cost/grounding 통계에 적합한가?
+F. index 설계가 적절한가?
+
+결론:
+
+KEEP_EVENT_LOGS
+또는
+CREATE_AI_USAGE_EVENTS
+또는
+HYBRID/DERIVED_VIEW
+
+중 하나 추천.
+
+근거 필수.
+
+코드 수정은 하지 않는다.
+
+==================================================
+8. FEATURE ENUM 비교
+==================================================
+
+현재:
+TEACHER_AI_DIARY
+PARENT_CURRICULUM_AI
+GROWTH_REPORT_AI
+SUPPORT_AI
+STORY_SUMMARY
+...
+
+Partner Evidence:
+AI_DIARY
+PARENT_AI
+GROWTH_REPORT
+SUPPORT_AI
+KNOWLEDGE_PROCESSING
+OTHER
+
+MASTER Support Cost:
+SUPPORT_ROUTING
+SUPPORT_CLASSIFICATION
+SUPPORT_RESPONSE
+VISION_SUPPORT
+REPORT_SUPPORT
+ISSUE_CLUSTERING
+PRODUCT_ANALYSIS
+
+내부 feature enum과
+Partner Evidence reporting enum을
+억지로 하나로 합치지 않아도 된다.
+
+권장 구조 검토:
+
+INTERNAL_FEATURE
+→ REPORTING_FEATURE
+
+mapping layer.
+
+최종 enum 계약 제시.
+
+==================================================
+9. GROUNDING EVIDENCE GAP
+==================================================
+
+Partner Evidence 핵심:
+
+generation_mode
+knowledge_search_used
+knowledge_found
+grounding_validation_pass
+
+각 기존 AI 기능별 실제 측정 가능 여부:
+
+Teacher AI Diary
+Parent Curriculum
+Growth Report
+Story
+
+보고.
+
+특히 Teacher Diary는
+AI Engine Grounded Pipeline의 실제 meta/usage가
+APP 서버까지 전달되는지 확인.
+
+추정 금지.
+
+==================================================
+10. REQUEST_ID DEDUP
+==================================================
+
+Partner 요구:
+동일 request_id 중복 집계 금지.
+
+현재 retry / multi-stage AI에서:
+
+USER REQUEST
+PROVIDER CALL
+PIPELINE STAGE
+
+가 어떻게 기록되는지 확인.
+
+Growth Report multi-stage,
+story retry 등에서
+request_id 중복 집계 가능성 분석.
+
+다음 metric contract를 분리:
+
+USER_REQUEST_COUNT
+PROVIDER_CALL_COUNT
+PIPELINE_STAGE_COUNT
+
+Partner KPI의 Total AI Requests가
+무엇을 의미할지 명확히 확정.
+
+==================================================
+11. SAVED OUTPUT
+==================================================
+
+Partner 요구:
+
+output_saved
+Saved AI Outputs
+Save Rate
+
+기능별 실제 source 확인:
+
+Teacher Diary
+Parent AI
+Growth Report
+Support AI
+
+현재 저장 event가 없으면
+fake false/0 금지.
+
+NOT_AVAILABLE.
+
+어디에 instrumentation이 필요한지 보고.
+
+==================================================
+12. FRONTEND MAP
+==================================================
+
+MASTER 요구 Frontend Map:
+
+screen_id
+screen_name
+route
+roles
+modes
+purpose
+buttons
+actions
+inputs
+permissions
+feature_flags
+related_api
+common_errors
+known_solutions
+support_keywords
+version
+
+현재 repository route/navigation 구조에서
+자동 추출/registry화 가능한 정도 확인.
+
+수작업 전체 중복 작성은 피한다.
+
+==================================================
+13. X ONBOARDING
+==================================================
+
+MASTER의 GUIDED_ONBOARDING과
+현재 X Setup/X03/X04 구조 비교.
+
+새 onboarding 시스템을 바로 만들지 않는다.
+
+어떤 기존 X Setup 상태를 재사용할 수 있는지 분석.
+
+==================================================
+14. KNOWLEDGE STRUCTURE
+==================================================
+
+현재:
+support_knowledge_items
+
+MASTER:
+Frontend Map
+FAQ
+Solution DB
+Known Issue
+Semantic Cache
+Knowledge
+Report Support
+Pool-specific Knowledge
+
+support_knowledge_items 하나로 처리할 영역과
+독립 구조가 필요한 영역을 구분.
+
+특히:
+
+Solution DB는 diagnostic/root_cause/
+verification/escalation 구조가 있으므로
+단순 FAQ Knowledge와 동일 취급 가능한지 분석.
+
+==================================================
+15. KNOWN ISSUE
+==================================================
+
+현재:
+super_incidents
+
+MASTER:
+Known Issue Support Layer
+
+중복 issue table 생성 금지.
+
+super_incidents와 support-facing Known Issue 사이의
+reference/adapter 구조 제안.
+
+==================================================
+16. SEMANTIC CACHE
+==================================================
+
+현재 vector/cache infrastructure 확인.
+
+MASTER Cache Safety를 반드시 반영.
+
+cache 금지 데이터:
+
+사용자 개인 데이터
+학생별 결과
+성장리포트 개별 설명
+결제/구독 상태
+실시간 스케줄
+개별 오류상태
+tenant-specific curriculum
+
+현 repository에서 안전한 구현 가능성만 보고.
+
+==================================================
+17. APP ENTRY POINT
+==================================================
+
+MASTER 확정:
+
+설정
+→ AI 문의
+
+관리자/선생님/학부모
+Normal/X
+모두 동일 UI.
+
+현재 Settings/navigation에서
+어디에 연결할지 코드 기준 조사.
+
+이번 Audit에서는 변경 금지.
+
+==================================================
+18. SUPER ADMIN TARGET
+==================================================
+
+MASTER 최종 고객센터 Tabs:
+
+1 상담
+2 Solution DB
+3 Knowledge
+4 Frontend Map
+5 FAQ
+6 Known Issues
+7 성장리포트 문의
+8 Product Intelligence
+9 Refund / Dispute
+10 Analytics
+11 AI Cost
+12 Settings
+
+현재 SuperSupport/SuperAI/SuperPartner와 비교.
+
+어떤 기능은:
+§5 AI 운영
+§6 고객센터
+§9 Partner Analytics
+
+에 남겨야 하는지
+중복 UI 없이 정보구조 제안.
+
+==================================================
+19. PARTNER EVIDENCE 최소 화면
+==================================================
+
+Partner Evidence 최소 요구:
+
+KPI 10개
+Chart 3개
+Feature Breakdown
+CSV aggregate export
+Measurement Start Date
+
+현재 SuperPartner 구현과 1:1 비교.
+
+각 항목:
+
+DONE
+PARTIAL
+MISSING
+
+보고.
+
+==================================================
+20. 실제 테스트 데이터 금지
+==================================================
+
+Partner 문서의
+"실제 AI Diary 5~10회 실행"은
+
+이번 Audit 단계에서 실행하지 않는다.
+
+production fake/support test data 생성 금지.
+
+실기기 검증 WP에서 별도 수행.
+
+==================================================
+21. MASTER WP REBASE
+==================================================
+
+기존 MASTER WP-CS-00~25를
+현재 이미 구현된 SA0 / CS-PA0 / CS-PA1 상태에 맞춰
+재배치한다.
+
+중요:
+
+이미 구현된 foundation을 다시 만들지 않는다.
+
+각 WP에:
+
+DONE
+PARTIAL
+NEXT
+LATER
+
+상태 부여.
+
+그 결과를 기준으로
+"현재 시점부터 실제 남은 WP 순서"를 작성.
+
+==================================================
+22. 다음 WP 선택
+==================================================
+
+Audit 결과를 바탕으로
+다음 실제 구현 WP 하나만 추천.
+
+현재 MASTER 순서를 존중하되,
+이미 구현된 자산을 고려.
+
+예상 후보는:
+
+Support Core Schema 보강
+
+이지만
+repository 감사 전에 확정하지 않는다.
+
+==================================================
+23. FINAL REPORT
+==================================================
+
+CURRENT_SUPPORT_ASSETS =
+CURRENT_ANALYTICS_ASSETS =
+
+SUPPORT_CONVERSATION =
+SUPPORT_MESSAGE =
+SUPPORT_TICKET =
+SUPPORT_ATTACHMENT =
+SUPPORT_EVENT =
+SUPPORT_STATUS =
+
+SUPPORT_CASES_REUSE_PLAN =
+
+CONTEXT_FIELDS_AVAILABLE =
+CONTEXT_FIELDS_PARTIAL =
+CONTEXT_FIELDS_MISSING =
+
+AI_USAGE_EVENT_CONTRACT_COVERAGE =
+
+EVENT_LOG_DECISION =
+EVENT_LOG_DECISION_REASON =
+
+INTERNAL_FEATURE_ENUM =
+PARTNER_REPORTING_ENUM =
+FEATURE_MAPPING_REQUIRED =
+
+TEACHER_DIARY_GROUNDING_FIELDS =
+PARENT_AI_GROUNDING_FIELDS =
+GROWTH_REPORT_GROUNDING_FIELDS =
+
+REQUEST_ID_DEDUP_STATUS =
+TOTAL_AI_REQUEST_DEFINITION =
+
+OUTPUT_SAVED_TRACKING =
+
+FRONTEND_MAP_REUSE =
+X_ONBOARDING_REUSE =
+
+KNOWLEDGE_REUSE =
+SOLUTION_DB_REQUIREMENT =
+KNOWN_ISSUE_REUSE =
+SEMANTIC_CACHE_AVAILABLE =
+
+APP_AI_SUPPORT_ENTRY =
+SUPER_ADMIN_REORGANIZATION =
+
+PARTNER_KPI_STATUS =
+PARTNER_CHART_STATUS =
+PARTNER_FEATURE_BREAKDOWN =
+PARTNER_CSV =
+MEASUREMENT_START_DATE_STATUS =
+
+MASTER_WP_REBASE =
+NEXT_IMPLEMENTATION_WP =
+
+FILES_AUDITED =
+
+FILES_CHANGED = 0
+DB_CHANGED = NO
+SERVER_CHANGED = NO
+WEB_CHANGED = NO
+MOBILE_CHANGED = NO
+DEPLOYMENT = NONE
+
+완료:
+
+CS_MASTER_RECONCILIATION_AUDIT_COMPLETE ✅

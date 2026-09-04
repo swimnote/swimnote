@@ -1,0 +1,369 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — 수영·훈련용어 전자사전 APP 구현]
+
+설계 검수 완료.
+
+AI ENGINE과 중앙 Contract를 확정했으므로
+APP은 mock contract 기반으로 먼저 구현하고,
+ENGINE sample API가 준비되면 실제 연결 가능한 상태까지 만든다.
+
+이번 작업:
+
+Gateway
+→ 공통 Search
+→ Detail
+→ Segment Renderer
+→ Parent
+→ Teacher
+→ E2E 준비
+
+까지 한 번에 구현한다.
+
+Render deploy / OTA는 아직 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. APP 역할
+━━━━━━━━━━━━━━━━━━━━
+
+APP은:
+
+- 검색 입력
+- API 호출
+- 결과 표시
+- 상세 표시
+- ENGINE이 제공한 segments 렌더링
+- term_id navigation
+- Parent/Teacher 진입
+
+만 담당.
+
+금지:
+
+- DB 저장
+- 검색 ranking
+- alias 판정
+- inline term 자동탐지
+- GPT
+- 지식 가공
+
+━━━━━━━━━━━━━━━━━━━━
+2. 중앙 Detail Contract — SEGMENTS
+━━━━━━━━━━━━━━━━━━━━
+
+offset 방식 사용 금지.
+
+ENGINE 상세 response:
+
+sections: [
+  {
+    type: "detail",
+    label: "자세히 알아보기",
+    segments: [
+      { text: "벽을 차고 " },
+      {
+        text: "글라이드",
+        link: {
+          term_id: "TERM-000014"
+        }
+      },
+      { text: "와 연결됩니다." }
+    ]
+  }
+]
+
+TerminologyLinkedText는
+segments를 단순 map한다.
+
+APP에서 문자열 탐색/slice 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Gateway
+━━━━━━━━━━━━━━━━━━━━
+
+공용 backend에 additive route 신규.
+
+APP:
+
+GET /terminology/search
+GET /terminology/terms/:termId
+
+↓
+
+Professional Engine:
+
+GET /api/terminology/search
+GET /api/terminology/terms/:termId
+
+기존 PROFESSIONAL_ENGINE_BASE_URL /
+API secret 패턴 재사용 검토.
+
+Import route는 APP Gateway에 절대 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Search
+━━━━━━━━━━━━━━━━━━━━
+
+Search screen 공통 구현.
+
+학부모/선생님 동일 component.
+
+placeholder:
+"수영·훈련용어를 검색해보세요"
+
+debounce:
+300ms
+
+min:
+1자
+
+limit:
+30
+
+ENGINE 반환 순서 그대로 표시.
+
+APP 재정렬 금지.
+
+검색 결과:
+
+용어명
+영문명
+aliases
+summary 1~2줄
+
+━━━━━━━━━━━━━━━━━━━━
+5. Detail
+━━━━━━━━━━━━━━━━━━━━
+
+공통 TerminologyDetailScreen.
+
+표시:
+
+용어명
+영문명
+aliases
+
+한눈에 보는 뜻
+
+ENGINE sections 순서대로:
+- 자세히 알아보기
+- 왜 중요한가
+- 수업·훈련에서는
+- 헷갈리기 쉬운 개념
+
+examples
+cautions
+related terms
+
+없는 데이터는 숨김.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Inline Navigation
+━━━━━━━━━━━━━━━━━━━━
+
+linked segment 탭:
+
+router.push(
+  same-role terminology-detail
+  termId
+)
+
+replace 금지.
+
+A
+→ B
+→ C
+
+뒤로:
+C → B → A
+
+유지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Parent Home
+━━━━━━━━━━━━━━━━━━━━
+
+현재 큰
+AI 커리큘럼 검색 카드 영역을
+세로 2분할.
+
+위:
+AI 커리큘럼 검색
+
+아래:
+수영·훈련용어 검색
+
+기존 전체 카드 폭/위치 최대한 유지.
+
+가로 분할 금지.
+
+iPhone X급에서
+텍스트 겹침 금지.
+
+기존 AI 검색 동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. Teacher
+━━━━━━━━━━━━━━━━━━━━
+
+설계 검수 1안 채택.
+
+Teacher settings에
+"수영·훈련용어 검색" 항목 추가.
+
+핵심 업무 홈에 기능 추가하지 않는다.
+
+공통 Search/Detail 화면 사용.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 공통 컴포넌트
+━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+components/terminology/
+
+TerminologySearchScreen
+TerminologyDetailScreen
+TerminologyLinkedText
+TerminologyResultCard
+
+역할별 route는 얇게.
+
+Parent/Teacher 코드 복제 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. Mock First
+━━━━━━━━━━━━━━━━━━━━
+
+AI ENGINE sample API가 아직 준비되지 않았으면
+확정 Contract 그대로 mock fixture를 사용해서 구현.
+
+중요:
+임시 Contract를 새로 만들지 않는다.
+
+ENGINE sample 준비 후
+fixture → actual Gateway 교체만 하면 되게 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Error
+━━━━━━━━━━━━━━━━━━━━
+
+검색 결과 없음:
+"검색 결과가 없습니다."
+
+term not found:
+"용어를 찾을 수 없습니다."
+
+ENGINE unavailable:
+기존 공통 오류 + 재시도.
+
+AI fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. Cache
+━━━━━━━━━━━━━━━━━━━━
+
+현재 30초 apiRequest cache 사용 가능.
+
+_noCache 사용하지 않음.
+
+Terminology는 실시간 데이터 아님.
+
+향후 terminology_version cache invalidation은
+ENGINE 준비 이후 추가 가능하지만
+이번 APP 구현을 복잡하게 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+13. Responsive
+━━━━━━━━━━━━━━━━━━━━
+
+iPhone X급 375pt 필수.
+
+검증:
+
+Parent 2분할 카드
+긴 용어
+긴 영문
+aliases
+summary
+긴 detail
+inline link wrap
+related term chips
+keyboard
+SafeArea
+ScrollView
+뒤로가기
+
+pixel hack 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 1.6.3 / OTA
+━━━━━━━━━━━━━━━━━━━━
+
+1.6.3 수정 금지.
+
+공용 backend 신규 route는
+additive only.
+
+이번 구현 후
+OTA publish 아직 하지 않는다.
+
+추후 사용자 승인 시:
+
+2.0.0 = iOS OTA ONLY
+Android OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+Gateway:
+- search 200
+- detail 200
+- engine 404
+- engine unavailable
+- auth 401
+
+UI:
+- segments plain
+- segments link
+- multiple links
+- empty section
+- related term
+- back stack
+- search debounce
+- empty result
+
+Parent:
+2분할 기존 AI 버튼 회귀 없음.
+
+Teacher:
+settings 기존 항목 회귀 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 변경 파일
+2. Gateway route
+3. Search/Detail type contract
+4. 공통 components
+5. Parent Home 2분할 결과
+6. Teacher settings 연결
+7. Segment renderer
+8. Navigation stack
+9. Mock fixture 여부
+10. ENGINE 실제 연결 여부
+11. iPhone X 대응
+12. 테스트 수 / 신규 실패
+13. 1.6.3 영향
+14. commit SHA
+15. deploy/OTA 여부
+
+코드 구현 + 테스트 + commit까지.
+
+Render deploy 금지.
+OTA publish 금지.
+
+완료 후 STOP.

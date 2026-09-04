@@ -4,13 +4,13 @@
  * - 미작성 시 "준비 중" 안내
  * - ParentScreenHeader (홈 버튼 → 학부모 홈)
  */
-import { Award } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
@@ -46,7 +46,7 @@ export default function ParentProgramScreen() {
       <ParentScreenHeader title="교육 프로그램" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : program ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -55,7 +55,7 @@ export default function ParentProgramScreen() {
           <View style={[s.card, { backgroundColor: C.card }]}>
             <View style={s.cardTop}>
               <View style={[s.iconBox, { backgroundColor: "#F0F9FF" }]}>
-                <Award size={24} color="#0EA5E9" />
+                <LucideIcon name="award" size={24} color="#0EA5E9" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.cardTitle, { color: C.text }]}>{program.title}</Text>
@@ -71,7 +71,7 @@ export default function ParentProgramScreen() {
       ) : (
         <View style={s.emptyWrap}>
           <View style={[s.emptyIcon, { backgroundColor: "#F0F9FF" }]}>
-            <Award size={44} color="#BAE6FD" />
+            <LucideIcon name="award" size={44} color="#BAE6FD" />
           </View>
           <Text style={[s.emptyTitle, { color: C.text }]}>교육 프로그램 준비 중</Text>
           <Text style={[s.emptyBody, { color: C.textSecondary }]}>

@@ -1,0 +1,160 @@
+[배포 승인 — 학부모 반응 단순화 / 좋아요 단일화]
+
+현재 commit:
+648a25a4
+
+변경 범위:
+
+App
+- parent/home.tsx
+- parent/diary.tsx
+- teacher/settings.tsx
+
+Server
+- api-server/src/routes/parent.ts
+
+DB schema 변경 없음.
+Native 변경 없음.
+
+이번 배포 목표:
+
+- 감사합니다 UI 제거
+- 좋아요만 유지
+- 👍 → 빈 하트/빨간 하트
+- 선생님 감사합니다 알림 신규 생성 차단
+- 소식알림 설정에서 감사합니다 제거
+- 일지 액션바 4개 → 3개 균등 배치
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 먼저 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경:
+
+artifacts/api-server/src/routes/parent.ts
+
+핵심:
+
+thanks reaction에 대한
+신규 teacher notification 생성 차단.
+
+기존 like notification 정상 유지.
+
+기존 thanks DB 데이터 삭제 금지.
+
+DB migration 금지.
+
+Render 배포 후 확인:
+
+- Deploy status = live
+- /api/health HTTP 200
+- like reaction → teacher notification 생성
+- thanks reaction → notification 생성 안 됨
+- 기존 parent reaction API 정상
+- 기존 diary API 정상
+
+서버 검증 실패 시 OTA 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. App OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Render 검증 PASS 후
+현재 production 앱의 runtimeVersion과 channel 정책을 먼저 확인.
+
+이미 Store에 1.6.2가 공개된 상태라면
+runtimeVersion 1.6.2 대상 OTA로 배포.
+
+production channel로 배포하기 전에
+현재 Store 1.6.2 binary가 production channel을 바라보는지 확인.
+
+instagram-test channel에 잘못 배포하지 말 것.
+
+META_APP_ID가 필요한 bundle이므로
+기존 정상 주입 방식도 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실기기 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 일지 하단:
+
+[ ♡ ]      [ 💬 ]      [ Instagram AI ]
+
+3개 균등 배치.
+
+CASE 1
+빈 하트 탭
+→ 빨간 채운 하트
+→ teacher like notification 생성
+
+CASE 2
+빨간 하트 재탭
+→ 빈 하트
+→ 좋아요 취소
+
+CASE 3
+감사합니다 버튼
+→ 없음
+
+CASE 4
+선생님 알림
+→ 신규 감사합니다 알림 없음
+
+CASE 5
+선생님 소식알림 설정
+→ 좋아요만 존재
+→ 감사합니다 설정 없음
+
+CASE 6
+댓글
+→ 정상
+
+CASE 7
+Instagram AI
+→ 기존 Story 공유 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 보호 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- DB schema
+- 기존 thanks historical data
+- Instagram Story
+- AI Summary
+- Teacher Diary
+- Auth
+- Schedule
+- Attendance
+- Native config
+- app.json
+- eas.json
+
+추가 기능 수정 없이 현재 commit 그대로 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Render Deploy ID
+2. Render Live SHA
+3. health
+4. like notification 결과
+5. thanks notification 차단 결과
+6. OTA Group ID
+7. iOS Update ID
+8. Android Update ID
+9. runtimeVersion
+10. channel
+11. commit SHA
+12. Production 영향
+13. DB 변경
+14. Native Build
+15. 실기기 하트 결과
+16. 3개 액션 균등 배치 결과
+17. 댓글 결과
+18. Instagram AI 결과
+
+배포 완료 후 추가 수정 없이 멈춘다.

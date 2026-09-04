@@ -6,6 +6,23 @@ SwimNote is a multi-tenant B2B SaaS platform designed for comprehensive manageme
 ## User Preferences
 I prefer the AI to operate with a clear understanding of the existing system's multi-tenancy and role-based access control. When implementing new features or modifying existing ones, prioritize maintaining data isolation and security across different swimming pools and user roles. I expect the AI to maintain a consistent API response format and to automatically record activity logs for significant actions, especially status changes and data modifications.
 
+- 설계서·보고서·조사 결과는 항상 전체 내용을 코드 블록(``` ```) 하나에 담아 제출한다. 섹션별 분리 블록 금지. 블록 하나에 전부 넣어야 한다.
+
+---
+
+### ★ 작업 규칙 헌법 (모든 작업지시 맨 위에 항상 적용)
+
+이번 작업은 지정된 feature 브랜치와 개발 환경에서만 수행한다. Production 코드, Production 배포, Production DB를 직접 수정하지 않는다. 작업 시작 전 현재 branch, HEAD, git status를 보고한다. 작업 완료 후 변경 파일 목록, 전체 git diff 요약, 타입 검사, 테스트 결과, 실제 실행 결과, commit hash, remote push 결과를 제출한다. 원격 저장소에 push되지 않은 작업은 완료로 인정하지 않는다. 한 단계가 승인되기 전 다음 단계 작업을 시작하지 않는다. 기존 파일 삭제, 디렉터리 이동, merge, rebase, reset, force push는 별도 승인 없이 금지한다.
+
+---
+
+**[최우선 원칙] Production 서버에서만 작업**
+- 실제 iOS/Android 앱 API Base URL: `https://swimnote.kr/api` (Render.com)
+- Replit API 서버(artifacts/api-server)는 개발/테스트 전용 — 실제 앱과 무관
+- 서버 코드(routes/*.ts 등) 수정 후 반드시 GitHub push → Render.com 배포 완료까지 진행
+- Replit에서만 수정하고 "완료" 보고 절대 금지
+- 완료 보고 시 필수: Production API Base URL, Render.com 배포 확인, 실제 API 호출 결과 제출
+
 ## System Architecture
 
 ### UI/UX Decisions
@@ -125,6 +142,30 @@ API design follows RESTful principles with consistent JSON formats and strong au
 
 ### TIER_ORDER (낮은 숫자 = 하위 플랜)
 `free=0 < starter=1 < basic=2 < standard=3 < center_200=4 < advance=5 < pro=6 < max=7`
+
+## 환불 정책 v2 — 90일 유예 비활성화 시스템 (v1.3.5 완료)
+
+### 구현 요약
+- **DB**: `swimming_pools.deactivated_at`, `deletion_scheduled_at` 컬럼 + 인덱스
+- **API 미들웨어**: `lib/deactivationGuard.ts` — 비활성 풀 전역 차단 (`requireNotDeactivated`), `/auth /billing /cards /pricing /health /super` 제외
+- **billing.ts 웹훅**: EXPIRATION → `deactivated_at=NOW()` + 90일 후 `deletion_scheduled_at` 설정. INITIAL_PURCHASE/RENEWAL/UNCANCELLATION → 비활성 풀 자동 복구
+- **billing.ts 크론**: `POST /billing/cron/cleanup-deactivated` — `deletion_scheduled_at <= NOW()` 풀 영구 삭제 (연관 데이터 cascading)
+- **auth.ts 로그인 차단**: `/auth/login`, `/auth/unified-login` 모두 `deactivated_at` 체크 → `error_code: "pool_deactivated"` + `days_until_deletion`, `deletion_scheduled_at` 반환
+- **auth.ts 가입 차단**: 같은 이메일이 비활성 풀에 속하면 `deactivated_account_reregistration` 에러
+- **앱 화면**: `/(auth)/pool-deactivated.tsx` — 남은 일수, 재구독 버튼, 선생님/관리자 분기
+- **앱 라우팅**: `SessionContext.tsx` — `adminLogin`/`unifiedLogin` 에서 `pool_deactivated` 에러 코드+메타 전파. `app/index.tsx` → `pool-deactivated` 화면 자동 라우팅
+
+### Render 크론 Job 설정 방법
+`POST /billing/cron/cleanup-deactivated` 를 매일 1회 호출 (예: 새벽 3시)
+`Authorization: Bearer <CRON_SECRET 또는 JWT_SECRET>` 헤더 필수
+
+## 빌드 101 예약 항목
+
+| 항목 | 설명 |
+|---|---|
+| 시스템 상태 화면 실데이터 연결 | `system-status.tsx`의 하드코딩 더미 데이터 → 실제 `ops_alerts` DB 테이블 연결. 서버 이상 이력(느려짐/다운/헬스체크 실패) 앱에서 조회 가능 |
+| 수영장 삭제 후 목록 미갱신 버그 수정 | `doDelete()` 성공 시 Zustand 스토어에서 즉시 제거(`removeOperator`) + `pools.tsx` useFocusEffect로 포커스 복귀 시 재조회 |
+| 매출·비용 분석 계산 정확화 | Invalid Date 수정, revenue_logs 실데이터 수수료 연동, 손익 단계별 계산, 테스트 데이터 정리 버튼 추가 |
 
 ## 다음 업데이트 예정 목록 (v1.4.0+)
 

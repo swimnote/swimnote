@@ -1,0 +1,215 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE WP15.5-B/C — FINAL RUNTIME GATE
+NO NEW FEATURE / NO REFACTOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드 SHA:
+72733924
+
+memory/docs commit:
+ce40225b
+
+새 코드 수정 금지.
+문제 발견 시에만 STOP 후 보고.
+
+1. RENDER
+
+배포 완료 확인:
+
+status = live
+Live SHA = 72733924
+
+/api/health → 200
+/api/healthz → 200
+
+startup crash 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION analytics_events 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 SWIMNOTE Production:
+
+SUPABASE_DATABASE_URL
+
+기준으로 READ ONLY 확인.
+
+analytics_events table 존재 확인.
+
+필수 columns:
+
+id
+event_type
+user_id
+swimming_pool_id
+role
+occurred_at
+content_type
+content_id
+campaign_id
+creative_id
+placement
+metadata
+
+indexes 3개도 존재 확인.
+
+중요:
+Replit executeSql production 사용 금지.
+
+analytics_events migration이
+.catch()로 실패를 숨길 수 있으므로
+
+"startup crash 없음"
+만으로 migration 성공이라고 판정 금지.
+
+실제 Production table 존재가 필수 증거.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SERVER ROUTE RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+최소 실제 서버에서 확인:
+
+unauth
+GET /super/analytics-overview
+→ 401
+
+unauth
+GET /parent/ad-slot
+→ 기존 auth contract에 맞는 401
+
+unauth
+POST /parent/ad-events/impression
+→ 401
+
+unauth
+POST /parent/ad-events/click
+→ 401
+
+500 없음.
+
+실제 parent credential이 안전하게 있으면
+read-only ad-slot 확인 가능.
+
+가짜 광고/가짜 사용자 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. CREATIVE PRODUCTION 상태
+━━━━━━━━━━━━━━━━━━━━
+
+Production ad_creatives table 존재 여부 확인.
+
+실제 광고가 0건이면 정상.
+
+광고가 없으면:
+parent ad-slot → empty/no creative contract
+ParentAdBanner → null
+
+가짜 Creative 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. ANALYTICS 의미 고정
+━━━━━━━━━━━━━━━━━━━━
+
+현재 로그인 시 기록하는 이벤트는:
+
+LOGIN_SESSION_START
+
+이다.
+
+따라서 현재 단계에서는:
+
+LOGIN_SESSION_START count
+= 로그인 세션 시작 횟수
+
+이지,
+
+APP_SESSION
+DAU
+WAU
+MAU
+실제 활성 사용자
+
+와 동일하다고 표현 금지.
+
+Dashboard의 DAU/WAU/MAU는 계속
+COLLECTING / NOT_TRACKED 상태 유지.
+
+향후 실제 app foreground/session instrumentation을
+붙였을 때 활성사용자 지표를 활성화한다.
+
+docs/contract에도 이 구분이 이미 명확하지 않다면
+코드 수정 없이 최종 보고에 명시.
+
+━━━━━━━━━━━━━━━━━━━━
+6. IMPRESSION / CLICK 계약 확인
+━━━━━━━━━━━━━━━━━━━━
+
+코드 기준 재확인만:
+
+GET /parent/ad-slot
+→ AD_IMPRESSION write 없음
+
+실제 ParentAdBanner render
+→ impression endpoint 1회
+
+광고 클릭
+→ AD_CLICK
+→ http/https destination open
+
+dangerous scheme:
+javascript:
+file:
+data:
+ftp:
+→ 차단
+
+재테스트 필요 없으면 기존 406/406 증거 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+7. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+Render deploy ID
+Render status
+Live SHA
+
+health / healthz
+
+Production analytics_events:
+EXISTS / NOT EXISTS
+
+Production ad_creatives:
+EXISTS / NOT EXISTS
+
+unauth route guards 결과
+
+Production creative row count
+Production analytics row count
+(READ ONLY)
+
+LOGIN_SESSION_START 의미 확인
+
+신규 500 / startup crash 여부
+
+성공 시:
+
+LOGIN_SESSION_ANALYTICS_FOUNDATION_READY ✅
+SUPER_ADMIN_AD_DASHBOARD_SKELETON_READY ✅
+PARENT_AD_PLACEMENT_READY ✅
+AD_IMPRESSION_MEASUREMENT_READY ✅
+AD_CLICK_MEASUREMENT_READY ✅
+
+WP15.5-B_CLOSED ✅
+WP15.5-C_CLOSED ✅
+
+AD_TARGETING_ENGINE = DEFERRED
+AD_DELIVERY_ENGINE = DEFERRED
+AD_BILLING = DEFERRED
+
+STOP.
+
+커리큘럼 검색 / 성장리포트 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

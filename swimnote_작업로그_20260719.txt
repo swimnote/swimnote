@@ -1,0 +1,81 @@
+SwimNote 2026-07-19 작업 로그
+==============================================
+
+【오늘 한 작업 요약】
+반 스케줄 명단에 미배정/탈반 학생이 나오는 문제 수정
++ 모든 모달 즉시반영(Optimistic Update) 적용
++ OTA 배포 (iOS/Android)
+
+==============================================
+커밋 1  04:41 KST
+내용: 스케줄 필터링 로직 개선 (1차 시도)
+  - 반변경 날짜 기준으로 오늘 스케줄에서 이전 반/새 반 학생 구분 시도
+  - 결과: 실패 — 날짜 기반 필터는 edge case 처리 불완전
+
+커밋 2  05:00 KST
+내용: student_class_history 테이블 도입 (2차 시도)
+  - 학생이 반에 배정/탈반될 때마다 이력 기록
+  - today-schedule 엔드포인트에서 이력 기반 필터링 시도
+  - 결과: 실패 — 기존 데이터 이력 없음, 신규 배정만 기록됨
+
+커밋 3  05:15 KST
+내용: 호환성 수정 (3차 시도)
+  - 반 삭제 시 학생 이력 자동 종료
+  - 미배정 학생 반 배정 시 이력 기록 추가
+  - 결과: 실패 — 여전히 기존 데이터 누락
+
+커밋 4  05:40 KST
+내용: 스케줄 필터 + 반 제거 로직 수정
+  - 미배정 처리 시 class history 전체 닫기
+  - today-schedule 쿼리에 상태 필터 추가
+  - 결과: 일부 개선됐으나 완전하지 않음
+
+커밋 5  06:12 KST
+내용: 탭 레이아웃 비교 컴포넌트 추가 (Canvas 작업)
+
+커밋 6  06:53 KST
+내용: 스케줄에 현재 수강 학생만 표시 (4차 시도)
+  - student_class_history 기반 필터링 재시도
+  - 결과: 실패 — 복잡도 증가, 오히려 정상 학생도 누락 발생
+
+커밋 7  07:18 KST
+내용: 즉시반영(Optimistic Update) 적용 1차
+  - AbsenceModal, makeups.tsx, AdminClassDetailSheet 수정
+  - 확인 버튼 → 모달 즉시 닫힘, API는 백그라운드 처리
+  - OTA 배포 완료 (iOS + Android, production + preview)
+
+커밋 8  08:39 KST
+내용: 즉시반영 전수 적용 + 로딩 스피너 제거
+  - MoveToClassModal (반변경), UnregisteredPickerModal (반배정)
+  - WithdrawalModal (탈퇴) 추가 수정
+  - OTA 배포 완료
+
+커밋 9  09:15 KST
+내용: 로그인 username autocomplete 수정
+
+커밋 10  09:23 KST
+내용: ColorSystem 컴포넌트 추가 (Canvas 작업)
+
+커밋 11  09:56 KST
+내용: 반변경(MoveToClassModal) 즉시반영 확정
+  - 확인 버튼 → 즉시 닫힘, API 백그라운드
+  - OTA 배포 완료
+
+커밋 12  10:36 KST
+내용: 나머지 모달 즉시반영 마무리
+  - WithdrawalModal 포함 전체 완료
+  - iOS/Android OTA 배포 완료
+
+커밋 13  10:56 KST
+내용: 미배정 학생 반 명단 노출 버그 수정 ← 최종 해결
+  - 원인: students API가 'unregistered' 상태를 필터하지 않음
+  - 수정: status NOT IN ('archived', 'deleted', 'unregistered') 한 줄 추가
+  - 서버 재시작 → 즉시 반영 (OTA 불필요)
+
+==============================================
+【결론】
+- 반배정 명단 미배정 학생 노출: ✅ 수정 완료 (서버 코드 1줄 수정)
+- 모든 모달 즉시반영: ✅ 완료 (OTA 배포 완료)
+- 총 시도 횟수 (스케줄 필터): 4회 실패 → student_class_history 방식 포기
+  → 결국 students API 쿼리 필터 1줄로 해결
+==============================================

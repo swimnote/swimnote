@@ -1,0 +1,423 @@
+SWIMNOTE X — WP5-B 읽기 전용 기준선 캡처 실행 지시
+
+WP5-A 조사 결과를 검토했습니다.
+
+현재 승인 범위는 WP5-B 읽기 전용 DB 기준선 캡처만입니다.
+
+아직 승인하지 않는 항목:
+
+- POOL_B X 상태 PATCH
+- teacher 생성
+- parent_account 생성
+- 기존 teacher 활성화
+- 실제 로그인
+- 토큰 발급
+- SMS 발송
+- DB INSERT·UPDATE·DELETE
+- 코드 수정
+- Commit
+- Push
+- OTA
+- Render 배포
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 확정 사항
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB:
+
+SUPABASE_DATABASE_URL
+database: postgres
+PostgreSQL 17.6
+superAdminDb
+
+Replit executeSql의 heliumdb는 운영 DB 증거로 사용하지 않습니다.
+
+POOL_B 후보:
+
+pool_id:
+pool_1784310621737_qryl1x79s
+수영장명:
+샘플수영장
+판정:
+SAFE_TEST_POOL_CONFIRMED
+
+현재 상태:
+
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+students = 0
+class_groups = 0
+attendance = 0
+diary = 0
+photos = 0
+videos = 0
+payment_logs = 0
+teacher = 0
+parent_account = 0
+
+POOL_A는 아직 최종 확정하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. WP5-B 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+X 상태 변경 전에 운영 DB의 현재 상태를 읽기 전용으로 캡처합니다.
+
+목적:
+
+- 변경 전 기준선 확보
+- 다른 수영장 상태 보호
+- 예상하지 않은 데이터 생성 여부 비교
+- PATCH 실행 전 Rollback 기준 확보
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는 SELECT만 허용합니다.
+
+금지:
+
+INSERT
+UPDATE
+DELETE
+TRUNCATE
+ALTER
+CREATE
+DROP
+PATCH API
+POST API
+로그인 API
+토큰 발급
+계정 생성
+비밀번호 변경
+teacher 활성화
+서버 재시작
+Migration
+Commit
+Push
+OTA
+Render 배포
+
+조회 스크립트도 운영 DB에 읽기 전용 SQL만 실행해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. DB 연결 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행 전에 다음을 다시 출력하십시오.
+
+비밀번호와 전체 URL은 마스킹합니다.
+
+environment variable
+database name
+masked host
+port
+current_user
+current_schema
+
+SQL:
+
+SELECT
+  current_database() AS current_database,
+  current_user AS current_user,
+  inet_server_addr()::text AS server_addr,
+  inet_server_port() AS server_port,
+  current_schema() AS current_schema;
+
+운영 DB가 아니면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 모든 수영장 X 상태 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at,
+  created_at
+FROM swimming_pools
+ORDER BY created_at, id;
+
+제출:
+
+* 전체 수영장 수
+* xmode_entitlement=true 수
+* xmode_config_status<>'NOT_CONFIGURED' 수
+* 각 수영장의 X 상태
+
+전화번호·주소·대표자 정보는 출력하지 마십시오.
+
+기대 기준:
+
+xmode_entitlement=true: 0
+READY: 0
+CURRICULUM_PENDING: 0
+
+다르면 변경하지 말고 즉시 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. POOL_B 상세 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+pool_1784310621737_qryl1x79s
+
+수영장 상태:
+
+SELECT
+  id,
+  name,
+  subscription_status,
+  subscription_tier,
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at,
+  deactivated_at,
+  deletion_scheduled_at,
+  created_at,
+  updated_at
+FROM swimming_pools
+WHERE id = 'pool_1784310621737_qryl1x79s';
+
+역할별 계정 건수:
+
+SELECT role, COUNT(*) AS cnt
+FROM users
+WHERE swimming_pool_id = 'pool_1784310621737_qryl1x79s'
+GROUP BY role
+ORDER BY role;
+
+학부모 건수:
+
+SELECT COUNT(*) AS cnt
+FROM parent_accounts
+WHERE swimming_pool_id = 'pool_1784310621737_qryl1x79s';
+
+데이터 건수는 실제 Repository의 테이블·컬럼명을 먼저 확인한 후 실행하십시오.
+
+필수 대상:
+
+students
+class_groups
+attendance
+일지
+photos
+videos
+payment_logs
+pool_subscriptions
+subscriptions
+
+테이블명이나 pool 컬럼명이 불명확하면 추정 SQL을 실행하지 말고 Repository에서 먼저 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. X 관련 테이블 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 실행하십시오.
+
+SELECT COUNT(*) AS cnt FROM global_template_sets;
+SELECT COUNT(*) AS cnt FROM growth_events;
+SELECT COUNT(*) AS cnt FROM curriculum_versions;
+SELECT COUNT(*) AS cnt FROM curriculum_items;
+SELECT COUNT(*) AS cnt FROM student_curriculum_assignments;
+SELECT COUNT(*) AS cnt FROM curriculum_requests;
+SELECT COUNT(*) AS cnt FROM curriculum_request_files;
+SELECT COUNT(*) AS cnt FROM parent_ai_daily_usage;
+SELECT COUNT(*) AS cnt FROM parent_ai_usage_reservations;
+SELECT COUNT(*) AS cnt FROM growth_reports;
+
+각 테이블의 전체 건수만 제출하십시오.
+
+데이터 원문은 출력하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. X Audit 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+SELECT COUNT(*) AS cnt
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode';
+
+POOL_B 기준:
+
+SELECT
+  COUNT(*) AS cnt,
+  COALESCE(MAX(entity_version), 0) AS max_version
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode'
+  AND entity_id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+전체 X Audit: 0
+POOL_B X Audit: 0
+
+다르면 변경하지 말고 원인을 보고하십시오.
+
+개별 Audit 내용은 현재 0건이 아닐 경우에만 다음 컬럼으로 제출하십시오.
+
+id
+entity_type
+entity_id
+entity_version
+action
+actor_type
+pool_id
+reason
+created_at
+
+before_data, after_data, actor_id는 개인정보 가능성이 있으므로 원문 출력하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. diary_templates 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+SELECT scope, COUNT(*) AS cnt
+FROM diary_templates
+GROUP BY scope
+ORDER BY scope;
+
+별도 확인:
+
+SELECT COUNT(*) AS cnt
+FROM diary_templates
+WHERE scope = 'x_global';
+
+POOL_B 일반 템플릿:
+
+SELECT scope, COUNT(*) AS cnt
+FROM diary_templates
+WHERE swimming_pool_id = 'pool_1784310621737_qryl1x79s'
+GROUP BY scope
+ORDER BY scope;
+
+기대:
+
+x_global = 0
+POOL_B template = 0 또는 기존 확인값
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. POOL_A 후보 상태 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직 POOL_A를 확정하지 않습니다.
+
+다음 두 후보의 X 상태와 데이터 건수만 기록하십시오.
+
+pool_1775118427405_xs80lcdmo
+pool_1784865333802_mi7k4fsa4
+
+확인:
+
+* X 상태
+* users 역할별 건수
+* parent_account 수
+* students 수
+* class_groups 수
+* attendance 수
+* diary 수
+* photos 수
+* videos 수
+* payment_logs 수
+
+개인정보 원문은 출력하지 마십시오.
+
+이번 보고서에서 POOL_A 최종 판정을 다시 내리지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 체크섬 형태 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 각 대상 테이블에 대해 다음 두 값만 기록하십시오.
+
+row_count
+max(updated_at)
+
+대상:
+
+swimming_pools
+audit_logs
+growth_events
+global_template_sets
+curriculum_versions
+curriculum_items
+student_curriculum_assignments
+diary_templates
+
+updated_at 컬럼이 없는 테이블은 max(created_at)을 사용하십시오.
+
+컬럼이 없으면 억지로 실행하지 말고 COLUMN_NOT_FOUND로 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 실패 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 이후 조회를 중단하십시오.
+
+운영 DB가 아닌 DB에 연결
+SELECT가 아닌 SQL 실행 발견
+POOL_B 상태가 기존 보고와 다름
+xmode_entitlement=true인 수영장 존재
+READY 또는 CURRICULUM_PENDING 수영장 존재
+POOL_B에 실제 학생·결제·일지 데이터 존재
+예상하지 않은 X Audit 존재
+growth_events에 데이터 존재
+x_global 템플릿 존재
+DB 권한 오류
+테이블 구조가 Repository와 다름
+
+임의 수정하지 말고 증거만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 제출 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 운영 DB 연결 증거
+2. 전체 수영장 X 상태
+3. POOL_B 상태
+4. POOL_B 역할별 계정 건수
+5. POOL_B 일반 데이터 건수
+6. X 관련 테이블 건수
+7. X Audit 기준선
+8. diary_templates 기준선
+9. POOL_A 후보 데이터 건수
+10. 테이블별 row_count / max timestamp
+11. 이전 조사와 불일치 여부
+12. 실패 중단 조건 발생 여부
+13. WP5-B 완료 가능 여부
+14. 다음 단계 진입 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+읽기 전용 기준선 보고서만 제출하고 멈추십시오.
+
+아직 금지:
+
+POOL_B X 활성화
+계정 생성
+teacher 활성화
+POOL_A 확정
+로그인
+API PATCH
+Commit
+Push
+OTA
+WP5-C 이후 작업

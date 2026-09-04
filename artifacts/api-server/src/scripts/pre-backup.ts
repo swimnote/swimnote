@@ -54,12 +54,11 @@ async function main() {
 
   // 1. 테이블 목록 수집
   console.log("\n📋 테이블 목록 수집 중...");
-  const [superTables, poolTables] = await Promise.all([
-    getTableNames(superAdminDb),
-    getTableNames(poolDb),
-  ]);
+  // poolDb는 Replit 환경에서 guard로 차단됨. 모든 운영 데이터는 superAdminDb에 있음
+  const superTables = await getTableNames(superAdminDb);
+  const poolTables: string[] = [];  // pool DB 미사용 (superAdminDb로 통합됨)
   console.log(`  Super DB: ${superTables.length}개 — [${superTables.join(", ")}]`);
-  console.log(`  Pool  DB: ${poolTables.length}개 — [${poolTables.join(", ")}]`);
+  console.log(`  Pool  DB: 미사용 (superAdminDb로 통합)`);
 
   // 2. 전체 테이블 덤프
   console.log("\n💾 Super DB 테이블 덤프 중...");
@@ -72,15 +71,8 @@ async function main() {
     console.log(`  [super] ${t}: ${rows.length}행`);
   }
 
-  console.log("\n💾 Pool DB 테이블 덤프 중...");
   const poolData: Record<string, unknown[]> = {};
-  let poolTotal = 0;
-  for (const t of poolTables) {
-    const rows = await dumpTable(poolDb, t);
-    poolData[t] = rows;
-    poolTotal += rows.length;
-    console.log(`  [pool]  ${t}: ${rows.length}행`);
-  }
+  const poolTotal = 0;
 
   // 3. 백업 JSON 구성
   const now = new Date();

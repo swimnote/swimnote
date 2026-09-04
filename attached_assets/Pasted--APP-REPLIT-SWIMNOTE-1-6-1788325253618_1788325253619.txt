@@ -1,0 +1,850 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 1.6.3 / 2.0
+# LOGIN AVAILABILITY ROOT-CAUSE DIAGNOSTICS
+#
+# 목적:
+# 다음 로그인 장애 발생 시
+# "Render였던 것 같다" 수준의 추측이 아니라
+# 한 번의 장애만으로 정확한 원인을 판별할 수 있게 한다.
+#
+# FREEZE EXCEPTION:
+# LOGIN OBSERVABILITY ONLY
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+현재 상태:
+1.6.3 로그인은 현재 정상.
+
+과거 증상:
+"서버에 연결할 수 없습니다"
+
+현재 조사 결과:
+- API URL 정상
+- unified-login route 정상
+- payload/response contract 정상
+- 현재 Production server 정상
+- 당시 장애의 exact root cause는 미확정
+
+이번 작업은 기능 수정이 아니라
+"원인 확정 가능성"을 만드는 최소 진단 작업입니다.
+
+============================================================
+0. 절대 금지
+============================================================
+
+일반 기능 수정:
+NO
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+Login auth policy 변경:
+NO
+
+JWT 정책 변경:
+NO
+
+UI redesign:
+NO
+
+Production deploy:
+NO — 승인 전 금지
+
+1.6.3 OTA:
+NO — 승인 전 금지
+
+============================================================
+1. 목표
+============================================================
+
+다음 장애 1회만으로 아래를 구분 가능해야 함:
+
+A.
+앱 자체 인터넷 연결 실패
+
+B.
+DNS resolution 실패
+
+C.
+TLS/HTTPS handshake 실패
+
+D.
+TCP/server connection 실패
+
+E.
+15초 client timeout
+
+F.
+Render cold start / restart / deployment
+
+G.
+Server process crash/restart
+
+H.
+Login route 4xx/5xx
+
+I.
+Server 정상 200인데 client parse 실패
+
+J.
+RevenueCat 등 로그인 후속 작업 실패
+
+K.
+기타 authenticated session failure
+
+============================================================
+2. CLIENT LOGIN TRACE
+============================================================
+
+현재:
+
+SessionContext.unifiedLogin()
+
+을 크게 바꾸지 말고
+최소 diagnostic trace 추가 여부를 검토.
+
+로그인 시 생성:
+
+login_request_id
+
+예:
+login_<uuid>
+
+서버에 가능하면 header 전달:
+
+X-Request-Id: login_<uuid>
+
+기존 request-id convention이 있으면 그것 재사용.
+
+============================================================
+3. CLIENT에서 기록할 항목
+============================================================
+
+Production-safe diagnostic log에:
+
+request_id
+app_version
+runtime_version
+platform
+API host
+endpoint path
+request_start_at
+request_end_at
+elapsed_ms
+result category
+
+만 기록.
+
+절대 기록 금지:
+
+identifier
+phone
+email
+password
+JWT
+response body
+user name
+pool name
+
+============================================================
+4. CLIENT ERROR CATEGORY
+============================================================
+
+현재 fetch throw를 모두 network_error로 묶는 구조를
+진단 관점에서 세분화할 수 있는지 조사.
+
+최소 내부 diagnostic category:
+
+ABORT_TIMEOUT
+FETCH_NETWORK_ERROR
+HTTP_4XX
+HTTP_5XX
+INVALID_JSON
+INVALID_RESPONSE
+AUTH_ERROR
+POST_LOGIN_ERROR
+
+사용자에게 보여주는 기존 문구는
+이번 작업에서 바꾸지 않아도 됨.
+
+중요:
+진단 코드만 세분화.
+
+============================================================
+5. TIMEOUT 명확화
+============================================================
+
+15초 AbortController timeout은
+
+FETCH_NETWORK_ERROR
+
+와 구분.
+
+AbortError:
+
+category=ABORT_TIMEOUT
+
+elapsed_ms 기록.
+
+실제 fetch throw:
+
+category=FETCH_NETWORK_ERROR
+
+이 둘을 반드시 분리.
+
+============================================================
+6. SERVER REQUEST TRACE
+============================================================
+
+POST /api/auth/unified-login 에서
+가능하면 기존 request-id middleware를 재사용.
+
+로그 항목:
+
+request_id
+route
+request_received_at
+response_status
+elapsed_ms
+
+정도.
+
+PII:
+NO.
+
+============================================================
+7. SERVER BOOT ID
+============================================================
+
+서버 프로세스 시작 때:
+
+boot_id = random UUID
+
+boot_started_at
+process pid if safe
+git commit SHA if environment provides
+service version
+
+를 1회 로그.
+
+각 health/auth diagnostic log에
+boot_id를 포함할 수 있으면 포함.
+
+목적:
+
+장애 전후 boot_id가 바뀌면
+process restart/deploy를 즉시 확인.
+
+============================================================
+8. SERVER UPTIME
+============================================================
+
+Health endpoint 또는 내부 로그에서:
+
+process.uptime()
+
+확인 가능하게.
+
+예:
+
+GET /api/healthz
+
+response에 기존 contract를 깨지 않는 additive metadata로
+아래를 넣을 수 있는지 검토:
+
+{
+  ok: true,
+  uptime_seconds: ...,
+  boot_id: ...,
+  version: ...
+}
+
+단 보안상 노출 부적절한 값은 제외.
+
+기존 1.6.3 parser에 영향 없는 additive only.
+
+============================================================
+9. DEPLOY / RESTART 판별
+============================================================
+
+서버 startup log에:
+
+SERVER_BOOT
+boot_id
+started_at
+commit/version
+
+남김.
+
+다음 장애 발생 시:
+
+장애시각 직전/직후 SERVER_BOOT 존재
+→ restart/deploy 가능성 매우 높음.
+
+boot_id 유지
++ login request 자체 미도달
+→ client/DNS/TLS/network 가능성.
+
+============================================================
+10. LOGIN REQUEST REACHABILITY 판별
+============================================================
+
+다음 장애에서:
+
+CLIENT:
+login_request_id=ABC 시작
+
+SERVER:
+ABC 로그 없음
+
+→ HTTP 요청이 server route까지 도달하지 않음.
+
+후보:
+DNS/TLS/TCP/Render edge/device network.
+
+SERVER:
+ABC 수신
+
+→ network connection 자체는 성공.
+
+그 다음 status/elapsed 기준으로
+server/auth 문제 판별.
+
+============================================================
+11. SERVER 5XX 분류
+============================================================
+
+unified-login handler에서
+500 발생 시:
+
+request_id
+error_class/code
+elapsed_ms
+boot_id
+
+기록.
+
+금지:
+stack 전체를 사용자 response에 노출.
+
+내부 server log에는
+필요한 stack 유지 가능하나
+PII 포함 여부 확인.
+
+============================================================
+12. PROCESS-LEVEL ERROR
+============================================================
+
+현재:
+
+unhandledRejection
+uncaughtException
+
+관련 handler 확인.
+
+다음 로그에:
+
+boot_id
+timestamp
+error type
+safe stack
+
+남는지 점검.
+
+password/token/body:
+NO.
+
+uncaughtException 후 process가 실제 종료되는지
+현재 runtime policy도 보고.
+
+============================================================
+13. KEEP-ALIVE 조사
+============================================================
+
+현재 코드의 keep-alive/self-ping을 정확히 조사.
+
+보고:
+
+enabled:
+YES/NO
+
+target:
+...
+
+interval:
+...
+
+RENDER_EXTERNAL_URL fallback:
+...
+
+localhost fallback:
+...
+
+failure behavior:
+...
+
+중요:
+
+self-ping 실패가
+process 종료/health degradation을 유발하는지 확인.
+
+단 이번 작업에서
+근거 없이 keep-alive 구조를 재설계하지 말 것.
+
+============================================================
+14. RENDER 관련 코드 판별자료
+============================================================
+
+Repository에서 확인 가능한 범위:
+
+- Render health check path
+- start command
+- PORT bind
+- host bind
+- graceful shutdown
+- SIGTERM/SIGINT behavior
+- startup async tasks
+- DB connect behavior
+- failed init behavior
+
+조사.
+
+서버가 startup 중:
+
+DB unavailable
+migration issue
+background init
+
+때문에 health route까지 늦어질 가능성 확인.
+
+============================================================
+15. POST-LOGIN 단계 분리
+============================================================
+
+중요.
+
+unifiedLogin 성공 후 실행되는:
+
+RevenueCat login
+pool refresh
+subscription sync
+mode refresh
+other initialization
+
+조사.
+
+사용자에게 동일한 "서버에 연결할 수 없습니다"가
+post-login failure에서도 발생할 수 있는지 확인.
+
+가능하면 내부 category:
+
+AUTH_HTTP_SUCCESS
+POST_LOGIN_FAILURE
+
+분리.
+
+Auth가 성공했는데
+후속 RC/Subscription 오류 때문에
+network_error로 보이면 진단 불가능하므로 수정.
+
+단 로그인 정책/동작 자체는 바꾸지 말 것.
+
+============================================================
+16. 1.6.3 호환
+============================================================
+
+이번 diagnostic 변경이
+shared backend에 들어가더라도
+
+1.6.3 request/response schema:
+기존 그대로
+
+additive metadata만 허용.
+
+1.6.3 OTA가 필요하지 않도록
+server-side observability 우선.
+
+============================================================
+17. PRODUCTION LOG SEARCH KEY
+============================================================
+
+향후 Render 로그에서 한 번에 찾을 수 있도록
+고정 prefix 사용 권장:
+
+[AUTH_TRACE]
+[SERVER_BOOT]
+[SERVER_HEALTH]
+[PROCESS_ERROR]
+[KEEPALIVE]
+
+기존 logging convention이 있으면 그것 사용.
+
+============================================================
+18. 장애 발생 시 판정표 작성
+============================================================
+
+완료보고에 아래 decision matrix를 반드시 작성.
+
+예:
+
+CLIENT timeout + SERVER request 없음
+→ network/render edge/server unavailable
+
+CLIENT fetch throw + SERVER request 없음
+→ DNS/TLS/TCP/device network
+
+SERVER request 있음 + 500
+→ backend
+
+SERVER request 있음 + 401
+→ auth/account
+
+SERVER request 있음 + long latency
+→ server/DB latency
+
+boot_id changed around incident
+→ restart/deploy
+
+boot_id unchanged + no server request
+→ network path
+
+HTTP 200 + client parse fail
+→ client contract/parser
+
+AUTH success + post-login fail
+→ RevenueCat/subscription/post-login
+
+============================================================
+19. CURRENT HISTORICAL INCIDENT
+============================================================
+
+가능하면 git/deploy information으로
+2026-09-01 전후:
+
+server deployment commit
+deployment timing
+restart-related code change
+
+를 repository에서 확인.
+
+Render dashboard 로그가 없으면
+
+"Render restart caused incident"
+
+라고 확정하지 말 것.
+
+최종 역사적 판정:
+
+CONFIRMED
+PROBABLE
+UNCONFIRMED
+
+중 하나로 명시.
+
+============================================================
+20. 테스트
+============================================================
+
+최소:
+
+A.
+normal login
+→ AUTH trace complete
+
+B.
+wrong password
+→ HTTP auth category
+
+C.
+invalid account
+→ HTTP auth category
+
+D.
+forced timeout test
+→ ABORT_TIMEOUT
+
+E.
+invalid host/local simulated fetch failure
+→ FETCH_NETWORK_ERROR
+
+F.
+server 500 mock
+→ HTTP_5XX
+
+G.
+invalid JSON mock
+→ INVALID_JSON
+
+H.
+post-login dependency failure mock
+→ POST_LOGIN_ERROR
+
+I.
+health endpoint additive metadata
+→ old parser unaffected
+
+J.
+PII absent from diagnostic logs
+
+============================================================
+21. REGRESSION
+============================================================
+
+현재 stable baseline은
+same-command로 재확인.
+
+Expected:
+
+New deterministic:
+0
+
+New flaky:
+0
+
+New TS:
+0
+
+로그인 behavior change:
+0
+
+============================================================
+22. 배포
+============================================================
+
+Production deploy:
+NO
+
+1.6.3 OTA:
+NO
+
+코드로 observability 추가가 필요하면
+commit까지만.
+
+완료보고에서:
+
+PRODUCTION DIAGNOSTIC DEPLOY REQUIRED:
+YES/NO
+
+명시.
+
+============================================================
+23. 완료보고
+============================================================
+
+# SWIMNOTE LOGIN ROOT-CAUSE DIAGNOSTICS REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## HISTORICAL INCIDENT STATUS
+
+Current classification:
+CONFIRMED / PROBABLE / UNCONFIRMED
+
+Most likely:
+...
+
+Evidence:
+...
+
+Missing evidence:
+...
+
+## CLIENT TRACE
+
+Request ID:
+...
+
+Categories:
+...
+
+Timeout separated:
+YES/NO
+
+Fetch error separated:
+YES/NO
+
+Post-login separated:
+YES/NO
+
+PII logged:
+YES/NO
+
+Expected:
+NO
+
+## SERVER TRACE
+
+Request ID correlation:
+...
+
+Boot ID:
+...
+
+Uptime:
+...
+
+Version/commit:
+...
+
+Auth route latency:
+...
+
+## SERVER PROCESS
+
+Startup behavior:
+...
+
+Unhandled rejection:
+...
+
+Uncaught exception:
+...
+
+SIGTERM:
+...
+
+Health route:
+...
+
+## KEEP-ALIVE
+
+Enabled:
+...
+
+Target:
+...
+
+Failure behavior:
+...
+
+Risk:
+...
+
+## POST-LOGIN DEPENDENCIES
+
+RevenueCat:
+...
+
+Subscription:
+...
+
+Pool refresh:
+...
+
+Can failure masquerade as login network error:
+YES/NO
+
+Fixed:
+...
+
+## ROOT-CAUSE DECISION MATRIX
+
+Timeout + no server request:
+...
+
+Fetch throw + no server request:
+...
+
+Server 500:
+...
+
+Server long latency:
+...
+
+Boot ID changed:
+...
+
+HTTP 200 + parse error:
+...
+
+Post-login failure:
+...
+
+## TESTS
+
+Normal login:
+...
+
+Wrong password:
+...
+
+Timeout:
+...
+
+Network failure:
+...
+
+500:
+...
+
+Invalid JSON:
+...
+
+Post-login dependency:
+...
+
+PII:
+...
+
+## REGRESSION
+
+Baseline:
+...
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky:
+...
+
+New TS:
+...
+
+## PRODUCTION DIAGNOSTIC DEPLOY REQUIRED
+
+YES / NO
+
+If YES:
+Exact commit:
+...
+Server/client:
+...
+Expected behavior impact:
+NONE / ...
+
+## 1.6.3 OTA REQUIRED
+
+YES / NO
+
+Expected:
+NO unless unavoidable
+
+## FINAL
+
+ROOT-CAUSE DIAGNOSTICS READY
+
+or
+
+BLOCKED

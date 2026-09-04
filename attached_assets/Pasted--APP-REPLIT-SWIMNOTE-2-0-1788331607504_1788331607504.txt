@@ -1,0 +1,581 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — TOYKIDS X1000 BASELINE NORMALIZATION
+#
+# 목적:
+# 토이키즈스윔클럽을 SWIMNOTE 2.0의 기준 운영 계정으로 사용하기 위해
+# 현재 effective subscription/plan 상태를 X1000으로 정리한다.
+#
+# 이후 신규 구매라인:
+# SWIMNOTE / X300 / X500 / X1000
+#
+# 이 기준으로 구축한다.
+#
+# 중요:
+# legacy 호환 코드/과거 결제 이력 삭제 작업이 아니다.
+# 토이키즈의 "현재 effective plan"만 X1000으로 정상화한다.
+#
+# Production 서버와 1.6.3은 절대 건드리지 않는다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Target:
+토이키즈스윔클럽
+
+Target effective plan:
+X1000
+
+Target plan properties:
+
+tier:
+x1000
+
+member_limit:
+1000
+
+storage:
+1TB
+
+X mode:
+enabled
+
+SWIMNOTE base access:
+included
+
+============================================================
+0. 절대 금지
+============================================================
+
+deploy-photo-clone:
+NO TOUCH
+
+Production server code:
+NO TOUCH
+
+Render deploy:
+NO
+
+1.6.3 iOS:
+NO TOUCH
+
+1.6.3 Android:
+NO TOUCH
+
+OTA:
+NO
+
+Build:
+NO
+
+DB migration:
+NO
+
+Schema change:
+NO
+
+RevenueCat Dashboard:
+NO CHANGE
+
+App Store Connect:
+NO CHANGE
+
+Google Play:
+NO CHANGE
+
+legacy compatibility code deletion:
+NO
+
+legacy product mapping deletion:
+NO
+
+legacy payment/history deletion:
+NO
+
+============================================================
+1. 먼저 토이키즈 현재 subscription 상태 확인
+============================================================
+
+코드와 현재 사용 가능한 데이터 경로 기준으로
+토이키즈가 현재 어떤 상태로 해석되는지 확인.
+
+반드시 확인:
+
+- pool/center identifier
+- current tier
+- current effective plan
+- legacy tier 여부
+- legacy product ID 여부
+- subscription status
+- x_mode
+- x_pending
+- trial 여부
+- member_limit
+- storage quota
+- RevenueCat-related stored values
+- pending_plan
+- plan_effective_at
+- cancellation state
+- expiration state
+
+실제 값을 확인하지 않고
+X1000을 덮어쓰지 말 것.
+
+============================================================
+2. 충돌 가능성 검사
+============================================================
+
+토이키즈를 X1000으로 설정할 때
+다음이 충돌하는지 확인:
+
+- legacy center tier
+- old X 119/189/349 tier
+- active RevenueCat legacy product
+- pending downgrade/upgrade
+- expiration
+- cancellation
+- x_trial
+- manual entitlement
+- duplicate base plan
+- member limit
+- storage quota
+- X mode flags
+
+특히 "현재 plan 값만 x1000인데
+legacy subscription이 active로 남아
+resolver가 다시 legacy로 덮는" 상황이 없는지 확인.
+
+============================================================
+3. 토이키즈 정상화 원칙
+============================================================
+
+최종적으로 토이키즈는 2.0에서:
+
+effective plan:
+X1000
+
+X mode:
+ACTIVE
+
+member limit:
+1000
+
+storage:
+1TB
+
+SWIMNOTE base:
+included
+
+legacy current-plan 표시:
+NO
+
+old X current-plan 표시:
+NO
+
+구형 plan CTA:
+NO
+
+상태가 되어야 함.
+
+단:
+
+legacy mapping code:
+KEEP
+
+historical payment/subscription records:
+KEEP
+
+audit/history:
+KEEP
+
+즉,
+"현재 상태"만 신규 X1000 체계로 정리.
+
+============================================================
+4. 변경 방식 우선순위
+============================================================
+
+우선순위:
+
+1.
+이미 존재하는 admin/manual subscription override 또는
+safe internal plan-assignment mechanism 사용
+
+2.
+2.0 개발환경/테스트 fixture 수준의 설정
+
+3.
+기존 안전한 canonical subscription update path
+
+금지:
+
+Production DB 직접 SQL 수정
+Production API 호출
+Production server patch
+migration
+
+현재 구조상 Production 데이터 변경 없이는
+토이키즈 실제 계정을 X1000으로 바꿀 수 없다면
+
+절대 실행하지 말고:
+
+PRODUCTION DATA CHANGE REQUIRED
+
+라고 BLOCKER 보고.
+
+============================================================
+5. Resolver 검증
+============================================================
+
+토이키즈가 X1000으로 설정된 후
+현재 subscription resolver가 최종적으로:
+
+tier:
+x1000
+
+mode:
+x
+
+member_limit:
+1000
+
+storage:
+1TB
+
+으로 해석하는지 확인.
+
+legacy product가 남아 있어도
+현재 effective state가 다시 legacy로 뒤집히지 않는지 확인.
+
+============================================================
+6. 2.0 UI 검증
+============================================================
+
+토이키즈 계정으로 2.0 subscription UI에서:
+
+current plan:
+X1000
+
+SWIMNOTE purchase card:
+hidden
+
+X300:
+downgrade option
+
+X500:
+downgrade option
+
+X1000:
+current
+
+legacy current plan section:
+hidden for ToyKids
+
+old 119/189/349:
+not visible
+
+solo/center:
+not visible
+
+X → SWIMNOTE:
+next billing path only
+
+cancellation:
+separate
+
+확인.
+
+============================================================
+7. 기능 entitlement 검증
+============================================================
+
+토이키즈 X1000에서:
+
+SWIMNOTE 기본 기능:
+ACCESS
+
+X 기능:
+ACCESS
+
+X-only screens:
+ACCESS
+
+member limit:
+1000
+
+storage:
+1TB
+
+double base subscription:
+NONE
+
+subscription_required:
+NO
+
+x_trial:
+NO
+
+x_pending:
+NO
+(실제 의도된 pending 상태가 없다면)
+
+============================================================
+8. legacy 보호 검증
+============================================================
+
+토이키즈를 X1000으로 정상화하더라도
+다른 legacy 사용자의:
+
+solo
+center
+old X
+
+recognition이 깨지지 않아야 함.
+
+기존 legacy tests 실행.
+
+다른 사용자 legacy mapping:
+UNCHANGED
+
+============================================================
+9. 코드 수정 원칙
+============================================================
+
+가능하면:
+CODE CHANGE NONE
+
+토이키즈 상태를 테스트 fixture/config에서만
+정상화할 수 있으면 그렇게 할 것.
+
+코드에 ToyKids 전용 hardcode 추가:
+금지
+
+예:
+
+if poolName === "토이키즈"
+  tier = x1000
+
+같은 코드 절대 금지.
+
+일반화된 subscription mechanism만 사용.
+
+============================================================
+10. 테스트
+============================================================
+
+최소 검증:
+
+1.
+ToyKids effective tier = x1000
+
+2.
+ToyKids X mode active
+
+3.
+ToyKids member limit = 1000
+
+4.
+ToyKids storage = 1TB
+
+5.
+ToyKids legacy current-plan UI = hidden
+
+6.
+ToyKids old X UI = hidden
+
+7.
+ToyKids SWIMNOTE base access included
+
+8.
+ToyKids X access included
+
+9.
+ToyKids double base = none
+
+10.
+Other legacy users still resolve correctly
+
+11.
+subscription_required false
+
+12.
+no regression in subscription suite
+
+전체 baseline:
+
+166 stable failures
+
+new deterministic failures:
+0
+
+============================================================
+11. 완료보고
+============================================================
+
+# SWIMNOTE TOYKIDS X1000 NORMALIZATION REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Code changed:
+YES / NO
+
+Commit:
+...
+
+## TARGET
+
+Pool:
+ToyKids
+
+Current state before:
+...
+
+Legacy tier/product:
+...
+
+Pending/cancellation:
+...
+
+## CONFLICT CHECK
+
+Legacy conflict:
+YES / NO
+
+Duplicate base:
+YES / NO
+
+Pending plan conflict:
+YES / NO
+
+RevenueCat conflict:
+YES / NO
+
+Resolver override risk:
+YES / NO
+
+## FINAL EFFECTIVE STATE
+
+tier:
+x1000
+
+mode:
+x
+
+member_limit:
+1000
+
+storage:
+1TB
+
+SWIMNOTE access:
+YES
+
+X access:
+YES
+
+subscription_required:
+NO
+
+legacy current-plan:
+NO
+
+## UI
+
+Current card:
+X1000
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+CURRENT
+
+SWIMNOTE card:
+...
+
+Legacy section:
+...
+
+## LEGACY SAFETY
+
+Legacy mappings deleted:
+NO
+
+Legacy history deleted:
+NO
+
+Other legacy users preserved:
+YES / NO
+
+## PRODUCTION FREEZE
+
+Production server touched:
+NO
+
+deploy-photo-clone touched:
+NO
+
+1.6.3 touched:
+NO
+
+Production DB changed:
+NO
+
+OTA:
+NO
+
+## TESTS
+
+Subscription tests:
+...
+
+Legacy tests:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic failures:
+0
+
+## BLOCKER
+
+If ToyKids actual production plan cannot be changed
+without production data write:
+
+PRODUCTION DATA CHANGE REQUIRED
+
+그리고 어떤 최소 data change가 필요한지만 보고.
+실행 금지.
+
+없으면:
+NONE
+
+## FINAL
+
+다음 중 하나:
+
+TOYKIDS X1000 BASELINE READY — NEW PURCHASE LINE CAN PROCEED
+
+또는
+
+TOYKIDS X1000 NORMALIZATION REQUIRES PRODUCTION DATA APPROVAL
+
+또는
+
+BLOCKED — SUBSCRIPTION CONFLICT FOUND

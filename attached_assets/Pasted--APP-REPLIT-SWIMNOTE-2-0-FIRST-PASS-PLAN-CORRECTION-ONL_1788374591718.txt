@@ -1,0 +1,338 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 — FIRST-PASS PLAN CORRECTION ONLY
+
+현재 제출한:
+SWIMNOTE 2.0 FIRST-PASS FIX IMPLEMENTATION PLAN
+
+은 큰 틀은 승인하지만,
+아래 4개 항목이 사용자 최종 요구와 어긋나므로
+구현 시작 금지.
+
+코드 수정:
+NO
+
+commit:
+NO
+
+push:
+NO
+
+계획서만 수정하여 재제출.
+
+============================================================
+1. D — CLASS PICKER MODAL 계획 수정
+============================================================
+
+현재 계획:
+ClassPickerModal에 visible prop 추가 후 계속 사용
+
+→ 폐기.
+
+사용자 최종 요구:
+
+현재 `반 선택 (최대 1개)` modal 자체를
+회원 상세에서 제거한다.
+
+이유:
+- 상세 진입 시 자동 노출
+- X 버튼 불능
+- 전체 시간표 장기 나열
+- 상세 편집 방해
+- 사용자가 명시적으로 "저 모달 삭제" 요청
+
+수정 계획은:
+
+회원 상세/대시보드
+→ `반 변경`
+→ 정돈된 반 변경 flow
+
+로 변경.
+
+가능하면 기존 `반이동` flow/component/API를 재사용.
+
+새 거대한 반 선택 시스템 만들지 말 것.
+
+계획서에 반드시 확인:
+
+- 기존 반이동 flow route/component
+- ClassPickerModal 완전 제거 가능 여부
+- 상세에서 반 변경 진입 방식
+- 기존 반/새 반 선택
+- 저장
+- 취소/back
+- 전체 시간표 무한 나열 제거 방식
+
+============================================================
+2. I — X MODE BACK STACK 재판정
+============================================================
+
+현재 계획서의:
+
+"유일한 실 버그 = x-subscription 구매완료"
+
+판정 철회.
+
+사용자 실기기에서는
+X모드 내부 여러 화면에서
+뒤로가기 시 홈 이동을 반복 확인.
+
+따라서 코드에 router.back()이 있다는 이유만으로
+NORMAL 판정 금지.
+
+다음 실제 경로 전체를
+navigation stack 관점으로 다시 계획:
+
+Settings
+→ X모드
+→ 하위 메뉴
+→ 2차 화면
+→ 3차 화면
+→ modal
+
+Settings
+→ X모드 세팅하기
+→ 하위 메뉴
+→ 2차 화면
+→ modal
+
+각 route에 대해:
+
+- 어떤 route에서 push/replace 됐는지
+- back stack이 실제 존재하는지
+- backTo param 존재 여부
+- router.back() 실패/fallback 조건
+- replace 때문에 history가 소실되는지
+
+반드시 표 작성:
+
+| Entry Path | Current Route | How Entered | Current Back | Expected Previous | Fix |
+
+그리고 실제 구현 단계 테스트에서는
+각 경로를 실제 stack sequence로 재현.
+
+최종 규칙:
+
+Back/X:
+바로 이전 업무 화면
+
+Home icon:
+홈
+
+Back에서 홈 fallback:
+금지
+(명시적으로 이전 route가 없는 진짜 예외만 별도 처리)
+
+============================================================
+3. G — PARENT AUTO APPROVAL 범위 확대
+============================================================
+
+현재 계획:
+POST /students INSERT에 trigger 추가
+
+만으로 끝내지 말 것.
+
+최종 정책:
+
+A.
+회원 먼저 존재
+→ parent 가입/연결 요청
+→ same pool + guardian phone match
+→ 즉시 승인
+
+B.
+parent가 먼저 pending
+→ 회원 신규 등록
+→ guardian phone match
+→ 즉시 승인
+
+C.
+pending 존재
+→ 기존 회원의 보호자 phone1~4를 나중에 입력/수정
+→ match
+→ 즉시 승인
+
+D.
+CSV/일괄등록/직접등록 등
+회원 생성 경로가 여러 개면
+동일 auto-link 적용
+
+E.
+전화번호 불일치/회원정보 없음만
+pending 유지
+
+따라서 조사/계획 수정:
+
+모든 student/member 생성 경로
+모든 guardian phone 변경 경로
+bulk/CSV 등록 경로
+
+전수 확인.
+
+가능하면 공통 helper:
+
+triggerPendingParentAutoLink(...)
+
+또는 기존 V2 helper를 재사용하여
+여러 route에서 동일 로직 호출.
+
+중복 구현:
+NO
+
+필수 안전조건:
+
+same pool
+normalized phone
+phone1~phone4
+duplicate link 0
+cross-pool 0
+
+학생 이름은 phone match가 명확하면
+자동승인 blocker로 사용하지 않는 현재 V2 정책 유지.
+
+============================================================
+4. H — INVITE HISTORY 계획 수정
+============================================================
+
+현재 조사 결과:
+
+inviteRecordStore = Zustand in-memory
+앱 재시작 시 기록 소실
+teacher invite 기록도 실제 addRecord 없음
+
+따라서:
+
+Current functionality = PARTIAL/BROKEN
+
+으로 명확히 판정.
+
+현재 상태에서 CTA만 추가하고
+"기록 기능 정상"으로 처리 금지.
+
+먼저 확인:
+
+- 기존 DB에 invite/history/audit 테이블 존재 여부
+- 기존 API에서 초대 시도를 저장할 수 있는 구조 존재 여부
+- 기존 audit_logs 등 재사용 가능한지
+- 새 DB 구조 없이 영속화 가능한지
+
+계획안은 둘 중 하나로 제시:
+
+OPTION A
+기존 persistence 구조 재사용 가능
+→ 실제 초대 시도 기록 영구 저장
+→ 화면 기록 정상화
+→ CTA 추가
+
+OPTION B
+재사용 가능한 persistence가 없고
+새 DB 구조가 필요한 경우
+→ 이번 1차에서 새 architecture를 만들지 않음
+→ 화면을 "초대 기록"이라고 오해시키지 않도록
+  기능 범위를 재정의하는 안 제시
+→ CTA만 넣을지 사용자 승인 필요로 표시
+
+중요:
+사용자에게 decision이 필요한 경우에만
+PLAN BLOCKED 항목으로 정확히 표시.
+
+============================================================
+5. 나머지 A/B/C/E/F는 기존 계획 유지
+============================================================
+
+A Home:
+유지
+
+B Member List:
+유지
+
+C Member Dashboard:
+D 수정내용에 맞게 반변경 부분만 업데이트
+
+E Teacher Tabs:
+유지
+
+F Messenger:
+유지
+
+단 F attachment GET route 설계 시
+Object Storage key에 `/`가 포함될 수 있으므로
+단순 Express `/:key`가 전체 key를 받는지 반드시 검증.
+필요하면 wildcard/encoded key 방식 사용.
+
+============================================================
+6. WP 순서 재작성
+============================================================
+
+수정된 dependency 기준으로
+WP 순서를 다시 제시.
+
+권장 방향:
+
+WP1
+Navigation + Member detail blocker
+(D + I)
+
+WP2
+Member list/dashboard
+(B + C)
+
+WP3
+Parent auto approval
+(G)
+
+WP4
+Messenger
+(F)
+
+WP5
+Home + Teacher tabs + Invite
+(A + E + H)
+단 H가 persistence decision 필요 시 분리 가능
+
+실제 dependency에 따라 조정 가능.
+
+============================================================
+7. 재제출 형식
+============================================================
+
+기존 계획서 전체를 다시 쓰지 않아도 됨.
+
+아래만 제출:
+
+# FIRST-PASS PLAN CORRECTION REPORT
+
+## D REVISED
+...
+
+## I REVISED
+route/back 전체 표
+...
+
+## G REVISED
+all create/update paths:
+...
+shared helper plan:
+...
+
+## H REVISED
+existing persistence:
+...
+OPTION A/B:
+...
+user decision required:
+YES/NO
+
+## UPDATED WP ORDER
+WP1...
+WP2...
+...
+
+## CODE STATUS
+Code changes: 0
+Commits: 0
+
+## FINAL
+READY FOR IMPLEMENTATION
+또는
+PLAN BLOCKED — EXACT USER DECISION

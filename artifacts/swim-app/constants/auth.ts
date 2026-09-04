@@ -14,8 +14,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     title: "대표",
     subtitle: "수영장 운영 및 전체 관리",
     icon: "settings",
-    color: "#2EC4B6",
-    bgColor: "#E6FFFA",
+    color: "#1683A3",
+    bgColor: "#D9F2F6",
     route: "/(admin)/dashboard",
   },
   teacher: {
@@ -23,8 +23,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     title: "선생님",
     subtitle: "수업·출결·일지 관리",
     icon: "user-check",
-    color: "#2EC4B6",
-    bgColor: "#E6FFFA",
+    color: "#1683A3",
+    bgColor: "#D9F2F6",
     route: "/(teacher)/my-schedule",
   },
   parent: {
@@ -32,8 +32,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     title: "학부모",
     subtitle: "자녀 수업 일정 확인",
     icon: "heart",
-    color: "#2EC4B6",
-    bgColor: "#E6FFFA",
+    color: "#1683A3",
+    bgColor: "#D9F2F6",
     route: "/(parent)/home",
   },
   super_admin: {
@@ -50,8 +50,8 @@ export const ROLE_CONFIGS: Record<string, RoleConfig> = {
     title: "관리자",
     subtitle: "수영장 운영 보조 관리",
     icon: "shield",
-    color: "#2EC4B6",
-    bgColor: "#E6FFFA",
+    color: "#1683A3",
+    bgColor: "#D9F2F6",
     route: "/(admin)/dashboard",
   },
 };

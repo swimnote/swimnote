@@ -1,0 +1,244 @@
+[앱] Growth Report Feed PDF·공유 — 직접 실행 구조 조사 및 구현계획서 ONLY
+
+실기기 확인 결과:
+
+Parent Home Growth Report Feed 하단의
+"PDF·공유" 버튼을 누르면
+
+현재:
+Growth Report Feed
+→ growth-report-detail 화면 진입
+→ 하단 PDF 저장 / 공유하기 버튼
+→ PDF 실행
+
+구조로 한 단계를 더 거치고 있음.
+
+원하는 최종 UX:
+
+Growth Report Feed
+→ "PDF·공유" 탭
+→ 해당 Growth Report PDF를 바로 생성/가져오기
+→ iOS 공유/저장 Sheet 바로 표시
+
+즉 Detail 화면을 거치지 않게 할 것.
+
+이번 단계에서는 코드 수정 금지.
+현재 PDF 생성/공유 구조 조사 + 구현계획서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Feed PDF·공유 onPress 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 기준으로 확인:
+
+GrowthReportFullFeed
+→ PDF·공유 Pressable
+→ onDetail
+→ router.push(...)
+→ growth-report-detail
+
+정확히 보고:
+
+- 파일
+- component
+- handler 함수명
+- 전달되는 reportId
+- 현재 route
+- 현재 PDF·공유 버튼이 Detail 이동만 담당하는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Detail 화면의 실제 PDF 생성 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-detail.tsx에서:
+
+PDF 저장
+공유하기
+
+각 버튼의 실제 동작을 끝까지 추적.
+
+반드시 보고:
+
+PDF 저장:
+→ handler
+→ API endpoint
+→ PDF 생성 위치
+→ 다운로드 파일/Blob 처리
+→ local file 저장
+→ iOS 처리
+
+공유하기:
+→ handler
+→ API endpoint
+→ local PDF 준비
+→ Share/Sharing API
+→ iOS share sheet
+
+확인:
+
+- PDF는 서버에서 생성되는지
+- 앱에서 생성되는지
+- 기존 persisted report_content를 사용하는지
+- AI API 재호출이 없는지
+- PDF endpoint가 이미 존재하는지
+- 같은 PDF 생성 로직을 Feed에서 그대로 호출 가능한지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Feed 직접 실행 재사용 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 PDF 시스템 만들지 말 것.
+
+Detail 화면에서 이미 검증된 PDF 생성/공유 로직을
+Feed에서 재사용하는 방향을 우선 설계.
+
+최종 흐름:
+
+GrowthReportFullFeed
+→ reportId
+→ 기존 PDF 생성/다운로드 로직
+→ local PDF 준비
+→ iOS share sheet
+
+Detail route 진입 없음.
+
+가능하면 PDF 로직을:
+
+공통 service/hook/function
+
+으로 최소 추출해서
+
+- growth-report-detail
+- GrowthReportFullFeed
+
+양쪽이 동일 코드를 사용하도록 설계.
+
+단 공통화가 regression 위험이 더 크다면
+현재 구조 기준 최소 변경안을 제안.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 버튼 동작 정의
+━━━━━━━━━━━━━━━━━━━━━━
+
+Feed의 기존 버튼 이름:
+
+PDF·공유
+
+유지.
+
+탭하면:
+
+1. loading 시작
+2. PDF 생성/다운로드
+3. 성공 시 iOS share sheet 바로 표시
+4. 사용자가:
+   - 파일 저장
+   - AirDrop
+   - 메시지/카카오톡 등 공유
+   를 선택할 수 있게 함
+5. 완료/취소 후 Feed 화면 그대로 유지
+
+Detail 화면으로 이동 금지.
+
+중복 탭 방지 필요.
+
+PDF 생성 실패 시
+Feed 화면을 벗어나지 않고 기존 앱 방식의 오류 안내.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 Detail 기능 유지 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-detail 화면 자체는 삭제하지 마십시오.
+
+현재:
+- 성장리포트 전체보기
+- History 등
+
+다른 경로에서 Detail 화면을 사용할 수 있으므로
+Feed PDF 버튼만 직접 실행으로 변경하는 방향을 검토.
+
+Detail 내부의:
+- PDF 저장
+- 공유하기
+
+버튼도 기존대로 유지할지
+공통 로직으로 연결할지 설계해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 비용/데이터 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+Feed에서 PDF·공유를 눌러도
+AI 분석/LLM 호출이 다시 발생하지 않는지.
+
+원칙:
+
+persisted report_content
+→ PDF renderer
+→ PDF
+
+만 사용.
+
+PDF 클릭 시 AI call = 0
+
+이어야 함.
+
+확인 결과 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[CURRENT FEED FLOW]
+Feed PDF·공유
+→ 현재 route
+→ Detail
+
+[CURRENT PDF FLOW]
+- PDF 저장 handler
+- 공유 handler
+- API
+- local file 처리
+- iOS share sheet
+
+[REUSE POINT]
+- Feed에서 재사용 가능한 함수/service
+- 공통화 필요 여부
+
+[RECOMMENDED FLOW]
+Feed
+→ PDF
+→ iOS share sheet
+전체 흐름
+
+[IMPLEMENTATION PLAN]
+- 수정 파일
+- 신규 파일 여부
+- 함수/hook/service
+- Server 변경 여부
+- DB 변경 여부
+- Render 필요 여부
+- OTA 필요 여부
+
+[TEST PLAN]
+- Feed PDF·공유 탭
+- Detail 미진입
+- PDF 정상 생성
+- iOS share sheet 즉시 표시
+- 2페이지 PDF
+- 한글/로고 정상
+- 취소 후 Feed 유지
+- 중복 탭 방지
+- AI call 0
+
+이번 단계:
+코드 수정 금지
+Render deploy 금지
+OTA 금지
+DB write 금지
+PHASE 3-B 시작 금지
+
+조사 + 구현계획서 제출 후 STOP.

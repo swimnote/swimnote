@@ -1,15 +1,16 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/kill-switch.tsx — 데이터·킬스위치
  * 안전장치 보강: 해지 확정 조건 + 비밀번호 재입력 + 체크박스 2개 + 스냅샷 강제 생성
  * 실 API 연결 완료 — useAuditLogStore / useBackupStore 완전 제거
  */
-import { Archive, Check, CircleCheck, Lock, OctagonAlert, Trash2, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -116,10 +117,10 @@ export default function KillSwitchScreen() {
     if (!token) return;
     setLoadingLogs(true);
     try {
-      const res = await apiRequest(token, '/super/op-logs?category=%EC%82%AD%EC%A0%9C&limit=50');
+      const res = await apiRequest(token, '/super/kill-switch-logs');
       if (res.ok) {
         const data = await res.json();
-        setDeleteLogs(Array.isArray(data?.logs) ? data.logs : []);
+        setDeleteLogs(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('fetchDeleteLogs error:', e);
@@ -201,13 +202,28 @@ export default function KillSwitchScreen() {
     if (!poolId || !canExecute || !token) return;
     setDeleting(true);
     try {
-      await apiRequest(token, `/super/operators/${poolId}/subscription`, {
-        method: 'PATCH',
+      const res = await apiRequest(token, `/super/operators/${poolId}/purge`, {
+        method: 'POST',
         body: JSON.stringify({
-          subscription_status: 'cancelled',
-          subscription_end_at: new Date().toISOString(),
+          mode: deleteMode,
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+          items: selectedItems.length > 0 ? selectedItems : undefined,
+          deletionReason,
+          reasonDetail: reason,
+          password: adminPassword,
         }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('삭제 실패', data.error ?? '오류가 발생했습니다.');
+        return;
+      }
+      const total = data.total_deleted ?? 0;
+      Alert.alert(
+        '영구 삭제 완료',
+        `${poolName}: 총 ${total}건 영구 삭제되었습니다.`,
+      );
       await Promise.all([fetchOperators(), fetchDeleteLogs()]);
       setConfirmModal(false);
       setDeleteMode(null); setPoolId(""); setPoolName(""); setReason("");
@@ -215,6 +231,7 @@ export default function KillSwitchScreen() {
       setDeletionReason(null);
     } catch (e) {
       console.error('executeDelete error:', e);
+      Alert.alert('오류', '네트워크 오류가 발생했습니다.');
     } finally {
       setDeleting(false);
     }
@@ -227,7 +244,7 @@ export default function KillSwitchScreen() {
     (deleteMode === "full" || (deleteMode === "period" && fromDate && toDate) ||
      (deleteMode === "item" && selectedItems.length > 0));
 
-  const canExecute = confirmText === "영구삭제" && adminPassword === "admin1234" &&
+  const canExecute = confirmText === "영구삭제" && adminPassword.length >= 6 &&
     check1 && check2 && snapshotCreated;
 
   return (
@@ -235,11 +252,11 @@ export default function KillSwitchScreen() {
       <SubScreenHeader title="데이터·킬스위치" homePath="/(super)/protect-group" />
 
       <View style={s.dangerBanner}>
-        <OctagonAlert size={14} color="#fff" />
+        <LucideIcon name="alert-octagon" size={14} color="#fff" />
         <Text style={s.bannerTxt}>삭제는 해지 확정 + 정책 동의 + 유예 완료 후에만 가능합니다. 결제 실패·저장공간 초과만으로는 자동삭제 금지.</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {[
           { key: "exec",  label: "삭제 실행" },
@@ -250,16 +267,16 @@ export default function KillSwitchScreen() {
             <Text style={[s.tabTxt, tab === t.key && s.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 삭제 실행 탭 ── */}
       {tab === "exec" && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 80 }}>
 
           <StepCard step="1" title="운영자 선택 (해지 확정된 운영자만 가능)">
             {loadingOps
               ? <ActivityIndicator color={DANGER} />
-              : <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              : <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
                   {operators.map(op => {
                     const terminated = confirmedIds.has(op.id);
@@ -278,19 +295,19 @@ export default function KillSwitchScreen() {
                     );
                   })}
                   {operators.length === 0 && (
-                    <Text style={{ color: "#64748B", fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
+                    <Text style={{ color: C.textSecondary, fontSize: 13, padding: 8 }}>결제 이상 운영자 없음</Text>
                   )}
-                </ScrollView>
+                </KeyboardAwareScrollView>
             }
             {poolId && !isTerminated && (
               <View style={s.warnBox}>
-                <TriangleAlert size={13} color={WARN} />
+                <LucideIcon name="alert-triangle" size={13} color={WARN} />
                 <Text style={s.warnTxt}>이 운영자는 해지 미확정 상태입니다. 삭제를 실행하려면 먼저 해지를 확정해야 합니다.</Text>
               </View>
             )}
             {poolId && isTerminated && (
-              <View style={[s.warnBox, { backgroundColor: "#E6FFFA" }]}>
-                <CircleCheck size={13} color="#2EC4B6" />
+              <View style={[s.warnBox, { backgroundColor: C.brandSoft }]}>
+                <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
                 <Text style={[s.warnTxt, { color: "#065F46" }]}>해지 확정 완료 — 삭제 실행 가능합니다.</Text>
               </View>
             )}
@@ -314,7 +331,7 @@ export default function KillSwitchScreen() {
               );
             })}
             <TextInput style={s.reasonInput} value={reason} onChangeText={setReason}
-              placeholder="상세 사유 입력 (필수)" placeholderTextColor="#64748B" />
+              placeholder="상세 사유 입력 (필수)" placeholderTextColor={C.textMuted} />
           </StepCard>
 
           <StepCard step="3" title="삭제 방식">
@@ -335,10 +352,10 @@ export default function KillSwitchScreen() {
             {deleteMode === "period" && (
               <View style={s.dateRow}>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={fromDate} onChangeText={setFromDate}
-                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor="#64748B" />
+                  placeholder="시작일 (YYYY-MM-DD)" placeholderTextColor={C.textMuted} />
                 <Text style={s.dateSep}>~</Text>
                 <TextInput style={[s.dateInput, { flex: 1 }]} value={toDate} onChangeText={setToDate}
-                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor="#64748B" />
+                  placeholder="종료일 (YYYY-MM-DD)" placeholderTextColor={C.textMuted} />
               </View>
             )}
             {deleteMode === "item" && (
@@ -361,10 +378,10 @@ export default function KillSwitchScreen() {
               setCheck1(false); setCheck2(false); setSnapshotCreated(false);
               setConfirmModal(true);
             }}>
-            <OctagonAlert size={16} color="#fff" />
+            <LucideIcon name="alert-octagon" size={16} color="#fff" />
             <Text style={s.execTxt}>안전장치 확인 후 삭제 진행</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 삭제 예정 탭 ── */}
@@ -393,7 +410,7 @@ export default function KillSwitchScreen() {
                   </Pressable>
                   <Pressable style={s.cancelScheduleBtn} disabled={actionLoading === `cancel-${op.id}`}
                     onPress={() => doCancelSchedule(op.id)}>
-                    {actionLoading === `cancel-${op.id}` ? <ActivityIndicator size="small" color="#64748B" />
+                    {actionLoading === `cancel-${op.id}` ? <ActivityIndicator size="small" color={C.textSecondary} />
                       : <Text style={s.cancelScheduleTxt}>취소</Text>}
                   </Pressable>
                   {!terminated && (
@@ -410,7 +427,7 @@ export default function KillSwitchScreen() {
             loadingOps
               ? <ActivityIndicator color={DANGER} style={{ marginTop: 40 }} />
               : <View style={s.empty}>
-                  <CircleCheck size={30} color="#D1D5DB" />
+                  <LucideIcon name="check-circle" size={30} color="#D1D5DB" />
                   <Text style={s.emptyTxt}>삭제 예정 운영자 없음</Text>
                 </View>
           }
@@ -426,7 +443,7 @@ export default function KillSwitchScreen() {
           renderItem={({ item: l }) => (
             <View style={s.logCard}>
               <View style={s.logLeft}>
-                <Trash2 size={14} color={DANGER} />
+                <LucideIcon name="trash-2" size={14} color={DANGER} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.logTitle}>{l.description}</Text>
@@ -454,11 +471,11 @@ export default function KillSwitchScreen() {
             <View style={m.sheet}>
               <View style={m.handle} />
               <View style={m.dangerHeader}>
-                <OctagonAlert size={22} color="#fff" />
+                <LucideIcon name="alert-octagon" size={22} color="#fff" />
                 <Text style={m.dangerHeaderTxt}>최종 삭제 안전장치 확인</Text>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                 <View style={m.confirmInfo}>
                   <Text style={m.confirmInfoTxt}>
                     대상: <Text style={{ fontFamily: "Pretendard-Regular", color: DANGER }}>{poolName}</Text>{"\n"}
@@ -472,9 +489,9 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>A. 삭제 전 스냅샷 강제 생성 (필수)</Text>
                   {snapshotCreated
-                    ? <View style={m.snapshotDone}><CircleCheck size={14} color="#2EC4B6" /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
+                    ? <View style={m.snapshotDone}><LucideIcon name="check-circle" size={14} color={C.brandStrong} /><Text style={m.snapshotDoneTxt}>스냅샷 생성 완료</Text></View>
                     : <Pressable style={m.snapshotBtn} onPress={doCreateSnapshot}>
-                        <Archive size={14} color="#2EC4B6" />
+                        <LucideIcon name="archive" size={14} color={C.brandStrong} />
                         <Text style={m.snapshotBtnTxt}>지금 스냅샷 생성</Text>
                       </Pressable>
                   }
@@ -484,13 +501,13 @@ export default function KillSwitchScreen() {
                   <Text style={m.safeTitle}>B. 복구 불가 확인 (2개 필수)</Text>
                   <Pressable style={m.checkRow} onPress={() => setCheck1(v => !v)}>
                     <View style={[m.checkbox, check1 && m.checkboxActive]}>
-                      {check1 && <Check size={12} color="#fff" />}
+                      {check1 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>삭제된 데이터는 복구가 불가능하며, 이를 충분히 인지하였습니다.</Text>
                   </Pressable>
                   <Pressable style={m.checkRow} onPress={() => setCheck2(v => !v)}>
                     <View style={[m.checkbox, check2 && m.checkboxActive]}>
-                      {check2 && <Check size={12} color="#fff" />}
+                      {check2 && <LucideIcon name="check" size={12} color="#fff" />}
                     </View>
                     <Text style={m.checkTxt}>본 삭제 액션의 모든 결과에 대한 책임이 실행자({actorName})에게 있음을 동의합니다.</Text>
                   </Pressable>
@@ -499,14 +516,13 @@ export default function KillSwitchScreen() {
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>C. 관리자 비밀번호 재입력</Text>
                   <TextInput style={m.pwInput} value={adminPassword} onChangeText={setAdminPassword}
-                    secureTextEntry placeholder="비밀번호 입력" placeholderTextColor="#64748B" />
-                  <Text style={m.pwHint}>* 테스트 환경: 'admin1234'</Text>
+                    secureTextEntry placeholder="로그인 비밀번호 입력" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.safeSection}>
                   <Text style={m.safeTitle}>D. '영구삭제' 정확히 입력</Text>
                   <TextInput style={m.confirmInput} value={confirmText} onChangeText={setConfirmText}
-                    placeholder="영구삭제" placeholderTextColor="#64748B" />
+                    placeholder="영구삭제" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.btnRow}>
@@ -521,7 +537,7 @@ export default function KillSwitchScreen() {
                       : <><Lock size={13} color="#fff" /><Text style={m.deleteTxt}>OTP 인증 후 영구 삭제</Text></>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
           </Pressable>
         </Modal>
@@ -555,57 +571,57 @@ const s = StyleSheet.create({
   dangerBanner:     { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: DANGER,
                       paddingHorizontal: 14, paddingVertical: 10 },
   bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 16 },
-  tabBar:           { flexGrow: 0, borderBottomWidth: 1, borderColor: "#E5E7EB" },
+  tabBar:           { flexGrow: 0, borderBottomWidth: 1, borderColor: C.border },
   tab:              { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   tabActive:        { backgroundColor: DANGER, borderColor: DANGER },
-  tabTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:           { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:     { color: "#fff" },
 
-  stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB",
+  stepCard:         { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border,
                       overflow: "hidden" },
   stepHeader:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
                       backgroundColor: "#FFF5F5", borderBottomWidth: 1, borderColor: "#FECACA" },
   stepBadge:        { width: 24, height: 24, borderRadius: 12, backgroundColor: DANGER,
                       alignItems: "center", justifyContent: "center" },
   stepBadgeTxt:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
-  stepTitle:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  stepTitle:        { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   stepBody:         { padding: 12, gap: 8 },
 
   opChip:           { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   opChipActive:     { borderColor: DANGER, backgroundColor: "#FFF5F5" },
   opChipDisabled:   { opacity: 0.5 },
-  opChipTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  opChipTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   warnBox:          { flexDirection: "row", alignItems: "flex-start", gap: 6,
                       backgroundColor: "#FFFBEB", borderRadius: 8, padding: 10, marginTop: 6 },
   warnTxt:          { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
 
   reasonRow:        { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  reasonLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  reasonDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  reasonInput:      { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
-                      fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 4 },
+                      borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  reasonLabel:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  reasonDesc:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  reasonInput:      { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10,
+                      fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 4 },
 
   radio:            { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center", marginTop: 1 },
   radioDot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" },
 
   modeRow:          { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10,
-                      borderRadius: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 10, borderWidth: 1, borderColor: C.border },
   modeLabel:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  modeDesc:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  modeDesc:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   dateRow:          { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  dateInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10,
-                      fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  dateSep:          { fontSize: 14, color: "#64748B" },
+  dateInput:        { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10,
+                      fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  dateSep:          { fontSize: 14, color: C.textSecondary },
   itemWrap:         { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   itemChip:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: "#E5E7EB" },
+                      backgroundColor: "#F9F9F9", borderWidth: 1, borderColor: C.border },
   itemChipActive:   { backgroundColor: "#FFF5F5", borderColor: DANGER },
-  itemChipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+  itemChipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   execBtn:          { flexDirection: "row", alignItems: "center", justifyContent: "center",
                       gap: 8, backgroundColor: DANGER, borderRadius: 14, padding: 16, marginTop: 4 },
@@ -613,7 +629,7 @@ const s = StyleSheet.create({
 
   queueCard:        { flexDirection: "row", alignItems: "center", backgroundColor: "#fff",
                       borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#FECACA", gap: 10 },
-  queueName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  queueName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   queueTimer:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   queueMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 2 },
   queueActions:     { gap: 6 },
@@ -622,60 +638,60 @@ const s = StyleSheet.create({
   deferTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: WARN },
   cancelScheduleBtn:{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
                       backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB" },
-  cancelScheduleTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+  cancelScheduleTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   termBtn:          { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
                       backgroundColor: DANGER },
   termTxt:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   logCard:          { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#fff",
-                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.border },
   logLeft:          { width: 28, height: 28, borderRadius: 8, backgroundColor: "#FFF5F5",
                       alignItems: "center", justifyContent: "center" },
-  logTitle:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  logMeta:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  logDetail:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 2 },
+  logTitle:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  logMeta:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  logDetail:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 2 },
 
   impactBadge:      { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, alignSelf: "flex-start" },
   impactTxt:        { fontSize: 10, fontFamily: "Pretendard-Regular" },
 
   empty:            { alignItems: "center", paddingVertical: 60, gap: 10 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
 
 const m = StyleSheet.create({
   backdrop:         { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:            { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20,
                       maxHeight: "92%", paddingBottom: 40 },
-  handle:           { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2,
+  handle:           { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2,
                       alignSelf: "center", marginTop: 10, marginBottom: 4 },
   dangerHeader:     { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: DANGER,
                       padding: 16 },
   dangerHeaderTxt:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },
   confirmInfo:      { margin: 16, backgroundColor: "#FFF5F5", borderRadius: 12, padding: 14,
                       borderWidth: 1, borderColor: "#FECACA" },
-  confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  confirmInfoTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   safeSection:      { marginHorizontal: 16, marginBottom: 14, gap: 8 },
-  safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
+  safeTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  snapshotDone:     { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft,
                       borderRadius: 10, padding: 12 },
   snapshotDoneTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46" },
-  snapshotBtn:      { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FFFA",
-                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#2EC4B6" },
-  snapshotBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  snapshotBtn:      { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft,
+                      borderRadius: 10, padding: 12, borderWidth: 1, borderColor: C.brandStrong },
+  snapshotBtnTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   checkRow:         { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   checkbox:         { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: "#D1D5DB",
                       alignItems: "center", justifyContent: "center", marginTop: 1 },
   checkboxActive:   { backgroundColor: DANGER, borderColor: DANGER },
-  checkTxt:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 17 },
-  pwInput:          { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  pwHint:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  checkTxt:         { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 17 },
+  pwInput:          { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12,
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  pwHint:           { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   confirmInput:     { borderWidth: 2, borderColor: DANGER, borderRadius: 10, padding: 12,
-                      fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+                      fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   btnRow:           { flexDirection: "row", gap: 10, marginHorizontal: 16, marginTop: 6, marginBottom: 20 },
   cancelBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#F3F4F6",
                       alignItems: "center" },
-  cancelTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151" },
+  cancelTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   deleteBtn:        { flex: 2, flexDirection: "row", alignItems: "center", justifyContent: "center",
                       gap: 6, padding: 14, borderRadius: 12, backgroundColor: DANGER },
   deleteTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },

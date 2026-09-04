@@ -1,0 +1,600 @@
+SWIMNOTE X — WP6 차단조건 해소 및 구현 착수 지시
+
+WP6 최종 설계서를 다음 조건으로 승인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 확정 결정
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### Confidence V1
+
+다음 값을 WP6 V1 파일럿 기준으로 확정한다.
+
+```ts
+reviewThreshold = 0.50
+status = "EXPERIMENTAL_V1"
+```
+
+정책:
+
+* 0.50 이상인 후보만 응답에 포함
+* 모든 후보의 `match_status`는 `"PENDING_REVIEW"`
+* `AUTO_ACCEPTED` 사용 금지
+* 교사 검토 없이 성장 기록 확정 금지
+* 실제 운영 표본 축적 후 별도 WP에서 threshold 재조정
+* 이번 값은 검증 완료된 인간 평가 기준이 아니라 초기 검색 후보 필터 기준임을 코드 주석에 명시
+* 환경변수 override 금지
+* 값 변경은 코드 버전 변경으로만 수행
+
+따라서 `reviewThreshold=0.50 NEEDS_VERIFICATION`은 WP6 구현 차단사항에서 해제한다.
+
+다만 출시 전 표본 검증 항목으로 계속 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 환경변수 설정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 전에 다음 환경변수를 설정한다.
+
+### Replit
+
+* `MATCH_TOKEN_SECRET`
+* `MATCH_TOKEN_KEY_ID`
+
+### Render
+
+* `MATCH_TOKEN_SECRET`
+* `MATCH_TOKEN_KEY_ID`
+
+정책:
+
+* `MATCH_TOKEN_SECRET`는 Replit과 Render에 각각 안전하게 설정
+* 값 원문을 로그·보고서·코드·attached_assets에 출력 금지
+* Repository에 하드코딩 금지
+* `JWT_SECRET` fallback 금지
+* `MATCH_TOKEN_KEY_ID` 초기값은 `v1`
+* secret은 충분한 엔트로피의 무작위 값 사용
+* 명령 출력에 secret이 노출될 수 있으면 명령 결과 원문 제출 금지
+* 환경변수 존재 여부만 `SET / NOT_SET`으로 보고
+
+Render와 Replit에서 동일 secret을 사용할지 별도 secret을 사용할지는 다음 원칙을 적용한다.
+
+* 각 환경의 토큰을 해당 환경에서만 생성·검증한다면 환경별 별도 secret 사용
+* Replit에서 발급한 token을 Render에서 검증해야 하는 테스트 구조라면 동일 secret 필요
+* 현재 Production 앱은 Render API만 사용하므로 Render secret이 운영 기준
+* Replit 개발 테스트는 Replit 내부에서 생성·검증 완료
+* secret 값 자체는 사용자에게도 출력하지 않는다
+
+환경변수 설정 후 서버 전체 코드를 수정하기 전에 다음만 확인한다.
+
+```text
+Replit MATCH_TOKEN_SECRET: SET
+Replit MATCH_TOKEN_KEY_ID: SET
+Render MATCH_TOKEN_SECRET: SET
+Render MATCH_TOKEN_KEY_ID: SET
+```
+
+Render 값을 직접 검증할 수 없다면 임의로 SET이라고 보고하지 말고 `NOT_VERIFIED`로 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 파일 존재 여부 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 전에 다음 명령을 실행한다.
+
+```bash
+for f in \
+  artifacts/api-server/src/config/growth-confidence-config.ts \
+  artifacts/api-server/src/config/ai-pricing.ts \
+  artifacts/api-server/src/lib/curriculum-candidate-search.ts \
+  artifacts/api-server/src/lib/curriculum-confidence.ts \
+  artifacts/api-server/src/lib/match-token.ts \
+  artifacts/api-server/src/routes/ai-v1.ts
+do
+  if [ -f "$f" ]; then
+    echo "EXISTS $f"
+  else
+    echo "NOT_FOUND $f"
+  fi
+done
+```
+
+중요:
+
+* 기존 파일이 존재하면 신규 생성으로 덮어쓰지 말고 수정
+* 기존 파일 내용을 먼저 읽고 현재 export·import 사용처 확인
+* `curriculum-candidate-search.ts` 또는 `curriculum-confidence.ts`가 이미 존재하면 기존 함수와 호출자를 보존하면서 수정
+* 파일이 실제로 없을 때만 신규 생성
+* 이름이 다른 대응 모듈이 존재하면 중복 파일 생성 금지
+* 조사 결과와 최종 실제 수정 파일 분류를 보고서에 정정
+
+이 확인에서 공식 설계와 중대한 충돌이 발견되면 구현하지 말고 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 구현 승인 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+환경변수 확인과 파일 존재 여부 확인이 통과하면 WP6 구현을 진행한다.
+
+허용 파일:
+
+### 신규 또는 실제 존재 여부에 따라 수정
+
+```text
+artifacts/api-server/src/config/growth-confidence-config.ts
+artifacts/api-server/src/config/ai-pricing.ts
+artifacts/api-server/src/lib/curriculum-candidate-search.ts
+artifacts/api-server/src/lib/curriculum-confidence.ts
+artifacts/api-server/src/lib/match-token.ts
+```
+
+### 수정
+
+```text
+artifacts/api-server/src/routes/ai-v1.ts
+```
+
+이 목록 밖 파일 수정 금지.
+
+특히 금지:
+
+```text
+artifacts/api-server/src/middlewares/auth.ts
+artifacts/api-server/src/index.ts
+artifacts/api-server/src/app.ts
+artifacts/swim-app/**
+```
+
+공식 범위 밖 파일 수정이 필요하면 즉시 중단하고 증거 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 구현 고정 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### student_ref
+
+* `student_ref = students.id`
+* 이름 기반 매핑 금지
+* JWT pool 기준 DB 검증
+* 검증되지 않은 학생은 curriculum match에서만 제외
+* 기존 AI 일지 본문 생성은 유지
+* 전체 요청 실패 금지
+
+검증 조건:
+
+```sql
+students.id = requested student_ref
+students.swimming_pool_id = JWT pool_id
+students.deleted_at IS NULL
+```
+
+### class 검증
+
+* 학생의 정규 `class_group_id` 일치 강제 금지
+* 보강·다중반·임시 합류를 허용
+* tenant는 pool 기준으로만 강제
+* class_id는 수업 context로만 사용
+
+### curriculum 검색
+
+반드시 다음 조건을 모두 적용한다.
+
+```text
+student_curriculum_assignments.is_active = true
+student_curriculum_assignments.deactivated_at IS NULL
+student_curriculum_assignments.swimming_pool_id = JWT pool
+curriculum_versions.is_active = true
+curriculum_versions.swimming_pool_id = JWT pool
+curriculum_versions.archived_at IS NULL
+curriculum_items.is_active = true
+curriculum_items.swimming_pool_id = JWT pool
+```
+
+### Confidence
+
+```ts
+version = "growth_conf_v1"
+reviewThreshold = 0.50
+match_status = "PENDING_REVIEW"
+```
+
+* 자동 승인 금지
+* threshold 미달 후보는 응답 제외
+* config validation 필수
+* `NaN`, 비숫자, 0 미만, 1 초과 fail-fast
+
+### candidate_id
+
+```text
+cand_ + randomBytes(16).toString("hex")
+```
+
+* 요청별 랜덤 ID
+* DB PK를 앱에 candidate_id로 직접 노출 금지
+* 서버 메모리 candidateMap 금지
+* 실제 curriculum_item_id는 서명된 match_token payload 안에만 포함
+* 앱이 향후 WP7 저장 요청에서 candidate_id와 match_token을 재전송
+
+### match_token
+
+* HMAC-SHA256
+* 24시간 만료
+* `MATCH_TOKEN_SECRET` 전용
+* JWT_SECRET fallback 금지
+* token 원문 로그 금지
+* payload 로그 금지
+* 학생 이름·전화번호 포함 금지
+* 서명 비교는 `timingSafeEqual`
+* 최대 길이 2048자
+* Base64URL 3부분 구조
+* token_id는 `tid_` + 128bit 랜덤값
+* 전체 token을 DB에 저장하지 않음
+* WP7에서 token_id만 `growth_events.match_token_id`에 저장
+
+### match_status
+
+WP6에서 허용:
+
+```text
+PENDING_REVIEW
+```
+
+WP6에서 금지:
+
+```text
+AUTO_ACCEPTED
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+DISCARDED
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Contract 고정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+지원 버전:
+
+```ts
+new Set(["1.0", "1.3"])
+```
+
+### 요청 contract 1.0
+
+모든 pool mode에서:
+
+* 기존 응답 구조 유지
+* `curriculum_matches` 필드 없음
+* `pipeline_version` 필드 없음
+* match_token 생성 없음
+* 기존 앱 동작 변화 없음
+
+### 요청 contract 1.3 + normal
+
+```json
+{
+  "contract_version": "1.3",
+  "pipeline_version": "v2.0",
+  "curriculum_matches": null
+}
+```
+
+기존 `result.common`, `result.students`, `meta` 유지.
+
+### 요청 contract 1.3 + x_pending
+
+* 기존 AI 일지 생성 유지
+* `curriculum_matches: null`
+* match_token 생성 없음
+* X 설정 미완료를 이유로 전체 AI 일지 실패시키지 않음
+
+### 요청 contract 1.3 + x
+
+후보 있음:
+
+* `curriculum_matches` 배열
+* 각 항목에 student_ref, candidate_id, display_label, description, curriculum_version_id, confidence, match_status, match_token
+
+후보 없음:
+
+```json
+"curriculum_matches": []
+```
+
+### concept_tags
+
+* 완전 생략
+* DB 근거 없음
+* GPT 생성 금지
+* 임의 추출 금지
+
+### 기존 필드
+
+삭제·이름 변경 금지:
+
+* `result.common`
+* `result.students`
+* `request_id`
+* 기존 `meta` 구조
+* 기존 오류 구조
+
+에러 응답에서도 가능한 범위에서 요청 contract_version을 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. ai-pricing.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP6에서는 skeleton만 허용한다.
+
+* ai-v1.ts import 금지
+* 비용 계산 금지
+* 비용 응답 금지
+* DB 저장 금지
+* billing 연결 금지
+* audit 금지
+* 관리자 UI 금지
+
+WP10에서 실제 정의할 파일 자리만 생성한다.
+
+단, 빈 interface가 lint 또는 TypeScript 규칙과 충돌하면 불필요한 허위 필드를 만들지 말고 최소 유효 export 형태를 설계하여 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. DB 쓰기 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP6 `/teacher-diary/generate`에서 다음 테이블 쓰기 금지:
+
+* growth_events
+* audit_logs
+* curriculum_items
+* curriculum_versions
+* student_curriculum_assignments
+* diary_templates
+* class_diaries
+* class_diary_student_notes
+* global_template_sets
+
+WP6는 다음까지만 수행한다.
+
+```text
+조회 → 후보 계산 → confidence 계산 → match_token 생성 → 응답
+```
+
+저장·승인·거부·replay 차단은 WP7이다.
+
+WP7 구현을 미리 추가하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 오류 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### MATCH_TOKEN_SECRET 미설정
+
+다음 조건에서만:
+
+```text
+contract_version=1.3
+pool mode=x
+실제 match_token 생성 필요
+```
+
+응답:
+
+```text
+HTTP 503
+error = X_MODE_TOKEN_NOT_CONFIGURED
+```
+
+normal, x_pending, contract 1.0은 영향 없어야 한다.
+
+### candidate search DB 오류
+
+* 기존 AI 일지 전체 실패 금지
+* curriculum_matches는 빈 배열 또는 명확한 fallback 정책 적용
+* 오류 로그에는 학생 이름·token·secret 금지
+* request_id만 사용
+* DB 오류를 무조건 숨기는 것이 보안·운영상 부적절하면 내부 오류 코드만 기록하되 기존 일지 결과는 유지
+
+### 미검증 student_ref
+
+* 해당 학생의 curriculum match만 생략
+* 기존 GPT 학생 일지 결과 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+설계서의 단위·통합 테스트를 실제로 작성하고 실행한다.
+
+필수 최소 테스트:
+
+### match-token
+
+* 정상 create/verify
+* payload 변조
+* signature 변조
+* 만료
+* key_id 불일치
+* token_version 불일치
+* pool 불일치
+* student 불일치
+* candidate 불일치
+* malformed
+* 2048자 초과
+* secret 미설정
+* token·payload 로그 없음
+
+### confidence
+
+* keywords 없음
+* 0.0
+* 0.25
+* 0.50
+* 0.75
+* 1.0
+* threshold 경계 포함
+* 항상 PENDING_REVIEW
+* 잘못된 config
+
+### candidate search
+
+* 학생 없음
+* 활성 version 없음
+* 활성 item 없음
+* 단일 학생
+* 복수 학생
+* 다른 pool 제외
+* 삭제 학생 제외
+* inactive assignment 제외
+* archived version 제외
+* inactive item 제외
+* DB 오류 fallback
+* candidate_id 형식
+* concept_tags 없음
+
+### API
+
+* 1.0 normal
+* 1.0 x_pending
+* 1.0 x
+* 1.3 normal
+* 1.3 x_pending
+* 1.3 x + match
+* 1.3 x + no candidate
+* 1.3 x + 일부 학생만 match
+* secret 없음 503
+* 미검증 student_ref 제외
+* 기존 common/students 동일
+* request_id 유지
+* DB 쓰기 없음
+
+테스트 과정에서 운영 DB에 curriculum 데이터를 임의 생성하지 않는다.
+
+DB 통합 테스트 데이터가 필요하면 mock DB 또는 transaction rollback 테스트만 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 후 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 후 다음을 확인한다.
+
+```bash
+pnpm --filter @workspace/api-server tsc --noEmit
+```
+
+프로젝트 전체 기존 오류와 WP6 신규 오류를 구분한다.
+
+WP6 수정·신규 파일 오류는 0건이어야 한다.
+
+검색:
+
+```bash
+grep -RIn "AUTO_ACCEPTED" \
+  artifacts/api-server/src/config \
+  artifacts/api-server/src/lib \
+  artifacts/api-server/src/routes/ai-v1.ts
+```
+
+WP6 신규 경로에서 AUTO_ACCEPTED를 반환하거나 저장하는 코드가 없어야 한다.
+
+검색:
+
+```bash
+grep -RIn "JWT_SECRET" \
+  artifacts/api-server/src/lib/match-token.ts
+```
+
+결과 0건이어야 한다.
+
+검색:
+
+```bash
+grep -RInE "INSERT INTO growth_events|UPDATE growth_events|DELETE FROM growth_events" \
+  artifacts/api-server/src/routes/ai-v1.ts \
+  artifacts/api-server/src/lib
+```
+
+WP6 신규 코드에서 결과 0건이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Git 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 구현에서:
+
+* 자동 Commit이 생기면 숨기지 말고 보고
+* 사용자 승인 전 수동 Commit 금지
+* Push 금지
+* OTA 금지
+* Render 배포 금지
+* 환경변수 설정을 Commit으로 기록 금지
+* attached_assets를 코드 Commit에 혼입 금지
+* mockup generated 파일 수정 금지
+* package.json 불필요 변경 금지
+
+현재 진단 브랜치에서 바로 구현하지 말고, Git 조사 결과에서 확정된 SWIMNOTE X 기준 브랜치를 사용한다.
+
+checkout이 필요하면 checkout만 수행하고 merge·rebase·push하지 않는다.
+
+checkout 전후 HEAD·status를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음이면 즉시 중단한다.
+
+1. Render MATCH_TOKEN_SECRET 확인 불가
+2. curriculum-candidate-search.ts 또는 curriculum-confidence.ts의 실제 파일 상태가 보고와 다름
+3. WP6 파일 외 수정 필요
+4. 앱 수정 필요
+5. 기존 common/students Contract 변경 필요
+6. 일반모드 contract 1.0 응답 변화 발생
+7. DB 쓰기 필요
+8. JWT_SECRET fallback 필요
+9. AUTO_ACCEPTED 사용 필요
+10. threshold 0.50 외 새 숫자 임의 추가 필요
+11. concept_tags를 임의 생성해야 함
+12. 운영 데이터 INSERT가 필요
+13. WP7 코드를 먼저 작성해야 함
+14. secret·JWT·학생 개인정보가 출력됨
+15. 테스트가 기존 일지 결과를 깨뜨림
+
+중단 시 임의 수정하지 말고 증거를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 최종 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 구현 전 Git 상태
+2. 사용 브랜치
+3. 환경변수 SET/NOT_SET
+4. 파일 존재 여부 정정
+5. 실제 수정 파일
+6. 실제 신규 파일
+7. 파일별 diff 요약
+8. GrowthConfidenceConfig 전체 코드
+9. curriculum-confidence 핵심 코드
+10. curriculum-candidate-search 핵심 코드
+11. match-token 전체 코드
+12. ai-v1 Contract 변경 코드
+13. student_ref tenant 검증 코드
+14. normal/x_pending/x 분기 코드
+15. 1.0/1.3 분기 코드
+16. DB 쓰기 없음 증거
+17. AUTO_ACCEPTED 없음 증거
+18. JWT_SECRET fallback 없음 증거
+19. TypeScript 결과
+20. 단위 테스트 결과
+21. API 통합 테스트 결과
+22. DB 전후 row count
+23. 일반모드 회귀 결과
+24. 코드 외 파일 변경 여부
+25. Commit 여부
+26. Push 여부
+27. OTA 여부
+28. Render 배포 여부
+29. 발견된 문제
+30. WP6 완료 가능 여부 자체 판단
+
+환경변수 설정과 구현을 완료하되 Commit·Push·배포하지 말고 최종 증거 보고서만 제출한 뒤 중단한다.

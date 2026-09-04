@@ -1,0 +1,518 @@
+[SWIMNOTE 긴급 수정 — 보강 회차 선택 최종 보완 구현 승인]
+
+검수 보고서 확인 완료.
+
+현재 구현에는 다음 확정 오류가 남아 있으므로 배포를 승인하지 않는다.
+
+1. occurrence 응답 필드 불일치
+   - 서버: occurrence_date
+   - 클라이언트: occ.date
+   - 현재 날짜가 undefined로 렌더되는 Critical 오류
+
+2. 미래 회차 정원 마감 서버 차단 없음
+   - 클라이언트 우회 가능
+
+3. complete-direct 서버 날짜·반 검증 부족
+   - 임의 날짜
+   - 결석일 이전
+   - 만료일 이후
+   - 수업 요일 불일치
+   - 다른 수영장 또는 삭제된 반
+   등을 서버가 막지 못함
+
+4. ClassDetailSheet 회차 상태 초기화 누락
+   - 다른 학생·다른 반의 이전 회차가 순간적으로 남을 수 있음
+
+아래 범위만 수정한다.
+
+수정 완료 후 Commit·Push·Render 배포·OTA는 하지 말고,
+실제 diff와 검수 보고서를 제출한 뒤 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. BUG-1 — occurrence_date 필드 통일
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 응답 계약을 기준으로 클라이언트를 수정한다.
+
+확정 필드:
+
+occurrence_date: string
+
+수정 파일:
+
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/swim-app/app/(teacher)/makeups.tsx
+
+모든 아래 사용을 수정한다.
+
+- occ.date
+- selectedOccurrence.date
+- key={occ.date}
+- fmtOcc(occ.date)
+- 저장 API에 전달되는 date
+- 섹션 정렬·비교에 사용되는 date
+
+전부 다음으로 통일:
+
+- occ.occurrence_date
+- selectedOccurrence.occurrence_date
+
+클라이언트 타입도 정확히 선언한다.
+
+예:
+
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
+
+금지:
+
+- 서버 필드를 date로 다시 변경
+- date와 occurrence_date를 동시에 지원하는 임시 fallback
+- any 타입으로 숨기기
+
+서버·클라이언트 Contract를 occurrence_date 하나로 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공통 회차 검증 함수 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+assign과 complete-direct가 서로 다른 검증을 하도록 중복 구현하지 않는다.
+
+대상 파일:
+
+artifacts/api-server/src/routes/teachers.ts
+
+해당 파일 내부 helper 또는 적절한 신규 lib 파일에
+보강 회차 검증 공통 함수를 만든다.
+
+권장 구조:
+
+async function validateMakeupOccurrence(params: {
+  txOrDb: typeof db;
+  makeupSession: MakeupSessionRow;
+  classGroupId: string;
+  occurrenceDate: string;
+  poolId: string;
+}): Promise<{
+  classGroup: ClassGroupRow;
+  occurrenceDate: string;
+  kstToday: string;
+  availableSlots: number;
+  isFull: boolean;
+  isPast: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+}>
+
+검증 항목:
+
+1. occurrenceDate가 YYYY-MM-DD 형식인지
+2. 실제 존재하는 날짜인지
+3. occurrenceDate > absence_date
+   - 현재 eligible-occurrences가 결석일 다음 날부터 생성하므로
+     저장 API도 동일 정책을 적용한다
+4. occurrenceDate <= expire_at
+5. expire_at이 없으면 기존 서버 기본 유효기간 규칙과 동일한 종료일 사용
+6. class_group_id가 존재하는지
+7. 해당 반이 makeup session과 같은 swimming_pool_id인지
+8. 해당 반이 삭제·비활성 상태가 아닌지
+9. occurrenceDate의 요일이 class_group.schedule_days에 포함되는지
+10. pool_holidays에 해당 날짜가 등록되어 있지 않은지
+11. 현재 정원과 available_slots 재계산
+12. KST 오늘을 기준으로 past/today/future 재산출
+
+중요:
+
+클라이언트가 전송한 다음 필드는 신뢰하지 않는다.
+
+- is_future
+- is_today
+- is_past
+- is_full
+- available_slots
+
+서버가 occurrenceDate와 현재 DB를 기준으로 다시 계산한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. PATCH /teacher/makeups/:id/assign 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+미래 예약 전용 API로 유지한다.
+
+서버 처리 순서:
+
+1. 인증·pool 권한 검증
+2. makeup_sessions 행 SELECT FOR UPDATE
+3. status 검증
+4. validateMakeupOccurrence 실행
+5. 검증 결과 isFuture === true 확인
+6. 미래 회차이고 isFull === true이면 저장 차단
+7. assignment 저장
+8. transaction commit
+
+필수 정책:
+
+- 과거·오늘 날짜를 /assign으로 보내면 거부
+- 미래 정원 마감 반은 서버에서 거부
+- 클라이언트 우회 불가
+
+권장 에러 코드:
+
+- INVALID_ASSIGNED_DATE
+- DATE_BEFORE_OR_ON_ABSENCE
+- MAKEUP_EXPIRED
+- CLASS_NOT_FOUND
+- CLASS_POOL_MISMATCH
+- CLASS_INACTIVE
+- CLASS_NOT_SCHEDULED_ON_DATE
+- POOL_HOLIDAY
+- ASSIGN_REQUIRES_FUTURE_DATE
+- CLASS_FULL
+- MAKEUP_ALREADY_COMPLETED
+- MAKEUP_ALREADY_CANCELLED
+
+응답 Contract는 기존 성공 응답을 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PATCH /teacher/makeups/:id/complete-direct 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+오늘·과거 실제 참여 사후처리 API로 사용한다.
+
+서버 처리 순서:
+
+1. 인증·pool 권한 검증
+2. makeup_sessions 행 SELECT FOR UPDATE
+3. status가 waiting 또는 assigned인지 확인
+4. body.date와 class_group_id 필수 확인
+5. validateMakeupOccurrence 실행
+6. isFuture === false 확인
+7. 오늘·과거는 정원 초과여도 허용
+8. attendance 및 makeup_sessions 완료 처리를 동일 transaction에서 수행
+9. 중복 호출 시 상태 기준으로 재완료 차단 또는 기존 결과 반환
+10. transaction commit
+
+필수 정책:
+
+- 미래 날짜를 complete-direct로 보내면 거부
+- 다른 수영장 반 ID 거부
+- 삭제·비활성 반 거부
+- 수업 요일이 아닌 날짜 거부
+- 휴일 날짜 거부
+- 결석일 이전 또는 결석 당일 거부
+- 만료일 이후 거부
+- 오늘·과거 정원 초과는 실제 참여 기록이므로 허용
+
+권장 에러 코드:
+
+- COMPLETE_DIRECT_REQUIRES_TODAY_OR_PAST
+- INVALID_ASSIGNED_DATE
+- DATE_BEFORE_OR_ON_ABSENCE
+- MAKEUP_EXPIRED
+- CLASS_POOL_MISMATCH
+- CLASS_INACTIVE
+- CLASS_NOT_SCHEDULED_ON_DATE
+- POOL_HOLIDAY
+- MAKEUP_ALREADY_COMPLETED
+- MAKEUP_ALREADY_CANCELLED
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 정원 계산 정확성 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 eligible-occurrences의 정원 계산은 다음을 사용한다.
+
+SELECT COUNT(*)
+FROM students
+WHERE class_group_id = class_group_id
+  AND status IN (...)
+  AND deleted_at IS NULL
+
+하지만 SWIMNOTE는 assigned_class_ids 다중 반 배정 구조도 사용한다.
+
+따라서 실제 기존 정원 계산 표준을 Repository에서 확인한다.
+
+확인 항목:
+
+- class_group_id만 세는지
+- assigned_class_ids에 포함된 학생도 세는지
+- 이미 해당 회차에 배정된 보강생을 추가로 세는지
+- 기존 eligible-classes의 available_slots 계산과 동일한지
+
+보강 회차 API와 저장 API는 반드시 같은 정원 계산 helper를 사용한다.
+
+정원 계산이 다르면 다음 오류가 발생한다.
+
+- 목록에서는 자리가 있는데 저장 시 마감
+- 목록에서는 마감인데 실제로는 자리 있음
+- 다중 반 학생 누락
+- 기존 보강 예약 인원 누락
+
+기존 표준 계산을 찾으면 재사용한다.
+없으면 공통 helper를 만들되 일반 반배정 로직은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. ClassDetailSheet 상태 초기화
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+openMakeupPicker() 시작 시 전부 초기화한다.
+
+- selectedMakeupStudent
+- selectedMakeupClassId
+- makeupOccurrences
+- makeupOccLoading
+- makeupOccError
+- 선택한 occurrence가 있다면 해당 state
+- 이전 요청 sequence/ref가 있다면 증가 또는 무효화
+
+예:
+
+setSelectedMakeupStudent(student);
+setSelectedMakeupClassId(null);
+setMakeupOccurrences([]);
+setMakeupOccLoading(false);
+setMakeupOccError(false);
+setSelectedMakeupOccurrence(null);
+
+다음 경로에서도 동일 초기화가 보장되어야 한다.
+
+1. 메인 보강 모달 닫기
+2. 1단계로 뒤로가기
+3. 반 선택 단계로 뒤로가기
+4. 처리 성공
+5. 다른 학생 선택
+6. API 실패 후 모달 닫기
+7. 모달 재열기
+
+공통 resetMakeupPickerState() 함수로 묶어도 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. makeups.tsx 상태 초기화 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+openAssignModal()에서 다음을 초기화한다.
+
+- selectedClassId
+- occurrences
+- occLoading
+- occError
+- selectedOccurrence
+- selectedDate 또는 구형 날짜 state
+- 저장 진행 상태
+- 이전 API 응답 sequence
+
+반을 다시 선택할 때도:
+
+- 이전 occurrence 즉시 제거
+- loading=true
+- error=false
+- selectedOccurrence=null
+
+빠르게 서로 다른 반을 선택했을 때
+먼저 시작한 요청의 응답이 나중 반 목록을 덮어쓰지 않도록
+request sequence ID 또는 AbortController 지원 여부를 확인한다.
+
+공통 apiRequest가 외부 signal을 덮어쓴다면
+기존에 검증된 sequence ID 방식을 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 클라이언트 저장 분기
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트는 표시·UX 용도로만 분기한다.
+
+selectedOccurrence.is_future === true
+→ /assign
+
+selectedOccurrence.is_today === true
+또는 selectedOccurrence.is_past === true
+→ /complete-direct
+
+하지만 최종 권한과 날짜 판단은 서버가 수행한다.
+
+미래 정원 마감:
+
+- 저장 버튼 disabled
+- “정원이 마감된 예정 수업입니다” 표시
+
+오늘·과거 정원 초과:
+
+- 경고 Alert 표시
+- 사용자가 확인하면 complete-direct 호출
+
+경고 문구:
+
+정원을 초과한 반입니다.
+실제로 보강 수업에 참여한 경우에만 처리해 주세요.
+
+버튼:
+
+[취소] [그래도 처리]
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. eligible-occurrences API 검증 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 API의 날짜 생성은 대체로 맞지만 아래를 확인·보완한다.
+
+1. expire_at 변환에
+   new Date(expire_at).toISOString().slice(0,10)
+   사용 시 KST 날짜가 하루 달라질 가능성 확인
+
+expire_at이 timestamptz라면 Asia/Seoul 기준 날짜로 변환한다.
+date 타입이면 문자열을 그대로 사용한다.
+
+2. 기본 endDate +56일 계산도 UTC/KST 혼용을 제거한다.
+
+3. parseDayNums와 Date.getDay()가 서버 timezone 영향 없이
+   date-only 값 기준으로 일치하는지 확인한다.
+
+날짜 전용 helper를 사용하여
+YYYY-MM-DD 문자열을 UTC/KST 변환 과정에서 하루 이동시키지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Transaction·중복 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+assign과 complete-direct 모두:
+
+BEGIN
+  SELECT makeup_sessions ... FOR UPDATE
+  상태 검증
+  회차 검증
+  정원/날짜 정책 검증
+  makeup_sessions UPDATE
+  필요한 attendance UPSERT
+COMMIT
+
+동일 보강 세션에 동시에 두 요청이 들어오면
+한 요청만 상태 변경하도록 한다.
+
+complete-direct 재호출 정책:
+
+- 이미 completed이고 같은 assigned_date/class_group_id라면
+  기존 결과 반환을 선택할 수 있음
+- 다른 회차로 재완료하려 하면 409
+- 최소한 attendance나 완료 횟수가 이중 생성되면 안 됨
+
+현재 코드와 가장 작은 변경으로 구현하고,
+정책 선택을 완료 보고서에 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음을 검증한다.
+
+A. 필드 계약
+
+1. occurrence_date가 화면에 정상 표시
+2. key undefined 경고 없음
+3. 선택 날짜가 API body에 정확히 전달
+4. occ.date 잔존 검색 결과 0건
+
+B. assign
+
+1. 미래 정상 회차 예약 성공
+2. 미래 정원 마감 서버 400/409 차단
+3. 오늘 날짜를 assign으로 직접 호출하면 차단
+4. 과거 날짜를 assign으로 직접 호출하면 차단
+5. 다른 수영장 class_group_id 차단
+6. 수업 요일 아닌 날짜 차단
+7. 휴일 차단
+
+C. complete-direct
+
+1. 오늘 정상 완료
+2. 과거 정상 완료
+3. 오늘·과거 정원 초과 완료 허용
+4. 미래 날짜 direct 호출 차단
+5. 결석일 이전 차단
+6. 결석 당일 정책대로 차단
+7. 만료 이후 차단
+8. 다른 수영장 반 차단
+9. 삭제된 반 차단
+10. 완료된 세션 재완료 차단 또는 멱등 반환
+
+D. 상태 초기화
+
+1. 학생 A → 반 A 회차 조회
+2. 모달 닫기
+3. 학생 B 열기
+4. 반 A의 이전 회차가 보이지 않음
+5. 반 A 요청 중 반 B 선택
+6. 늦게 도착한 반 A 응답이 반 B를 덮어쓰지 않음
+7. 오류 후 재시도 정상
+
+E. 회귀
+
+1. 기존 미래 보강 예약
+2. 인계 처리
+3. 직접 완료
+4. 보강 대기 목록
+5. 출결
+6. 반이동
+7. 미배정
+8. iOS 서브모달 표시와 스크롤
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 구현 완료 제출물
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 항목을 제출한다.
+
+1. 실제 수정 파일
+2. 실제 함수·라인
+3. BUG-1~4 각각의 수정 내용
+4. occurrence API 최종 Contract
+5. 공통 회차 검증 함수
+6. 정원 계산 방식
+7. assign transaction
+8. complete-direct transaction
+9. 날짜/KST 처리
+10. 클라이언트 상태 초기화
+11. 요청 경쟁 방지
+12. 서버 테스트 결과
+13. 앱 테스트 결과
+14. 타입체크
+15. 실제 git diff
+16. git status
+17. 현재 HEAD와 origin SHA
+18. 자동 checkpoint 여부
+19. Rollback 방법
+20. 미검증 항목
+
+보고 후 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Push 금지
+- Render 배포 금지
+- OTA 금지
+- 운영 DB 수정 금지
+- DB Migration 금지
+- 신규 컬럼·테이블 추가 금지
+- 일반 반배정 정원 정책 변경 금지
+- X모드 코드 수정 금지

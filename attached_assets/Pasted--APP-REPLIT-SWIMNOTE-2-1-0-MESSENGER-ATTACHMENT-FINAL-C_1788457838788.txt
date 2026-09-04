@@ -1,0 +1,520 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0 — MESSENGER ATTACHMENT FINAL CORRECTION + IOS OTA
+
+직전 완료보고:
+APP commit: 93d44ac7
+
+현재 보고서는 대부분 PASS이나
+아래 3개 항목 때문에 FINAL COMPLETE로 종료하지 않는다.
+
+============================================================
+1. MULTI PHOTO — 개별 버블 금지
+============================================================
+
+현재 보고:
+Multiple selection: PASS
+Grouped upload: PASS
+Gallery render: "개별 버블로 표시"
+
+이건 요구사항 미충족.
+
+사용자가 사진 여러 장을 한 번에 선택했다면
+메신저에서 하나의 사진 묶음/gallery처럼 보여야 한다.
+
+예:
+
+2장:
+[ 사진 ][ 사진 ]
+
+3장:
+[ 큰 사진 ][ 사진 ]
+          [ 사진 ]
+
+4장 이상:
+[ 사진 ][ 사진 ]
+[ 사진 ][ 사진 ]
+
+정확한 레이아웃은 기존 SWIMNOTE UI에 맞게 단순하게 구현.
+
+핵심:
+한 번의 앨범 선택에서 선택된 사진들은
+하나의 시각적 그룹으로 보여야 한다.
+
+============================================================
+1-1. DB MIGRATION 금지
+============================================================
+
+현재 구조가:
+각 사진 = 개별 work_messages record
+형태라면 DB를 바꾸지 말 것.
+
+대신 현재 메시지 데이터에서
+동일 batch를 식별할 수 있는 기존 metadata가 있는지 먼저 확인.
+
+이미 batch/group metadata가 있으면 재사용.
+
+없다면 APP/서버에서 DB migration 없이
+기존 extra/metadata JSON 또는 현재 사용 가능한 필드를 통해
+batch id를 저장할 수 있는지 확인.
+
+DB schema 변경 금지.
+
+만약 정말 DB migration 없이는 불가능하다면
+임의 변경하지 말고 보고 후 중단.
+
+============================================================
+1-2. GROUPING 요구
+============================================================
+
+한 번에 선택한 사진:
+photo A
+photo B
+photo C
+
+→ 업로드는 개별 request여도 됨.
+
+하지만 최종 메시지 렌더는:
+
+GalleryGroup
+  photo A
+  photo B
+  photo C
+
+형태로 묶어서 표시.
+
+중요:
+시간이 비슷하다는 이유만으로 임의 grouping 금지.
+
+반드시 같은 selection/upload batch인지
+명시적으로 판별할 수 있어야 함.
+
+============================================================
+1-3. Gallery 기능
+============================================================
+
+각 사진:
+- thumbnail 표시
+- tap → full preview
+- 개별 저장/공유 가능
+
+Gallery 전체:
+- 상대방에서도 동일 그룹 유지
+- 메신저 재진입 후에도 동일 그룹 유지
+- 앱 재실행 후에도 동일 그룹 유지
+
+============================================================
+2. MEMBER PHONE UI 원복
+============================================================
+
+직전 보고:
+
+Phone UI changed:
+"색상만 PRIMARY, underline 추가"
+
+이건 요구사항 위반.
+
+전화번호는 기능만 pressable하게 만들고
+기존 디자인은 그대로 유지한다.
+
+반드시 제거:
+
+- 새 PRIMARY 색상 적용
+- 새 underline
+- 새 아이콘
+- 새 font style
+
+원래 화면의:
+
+fontSize
+lineHeight
+fontWeight
+text color
+decoration
+spacing
+
+전부 그대로 복원.
+
+오직 Pressable/Touchable 동작만 추가.
+
+즉:
+
+기존 외형
++
+onPress → tel:
+
+만 존재해야 한다.
+
+============================================================
+3. SERVER LIVE SHA 확인
+============================================================
+
+직전 server commit:
+93d44ac7
+
+Render production deploy가 "자동 트리거됨"이라고 보고했지만
+실제 LIVE source 확인이 빠졌다.
+
+새 Render deploy를 다시 실행하지 말 것.
+
+현재 Render production 상태만 확인해서:
+
+Expected server SHA:
+93d44ac7
+
+Actual Render LIVE SHA:
+...
+
+를 보고.
+
+LIVE SHA가 93d44ac7이면:
+PASS
+
+아니면:
+FAIL로 보고하고 중단.
+사용자 승인 없이 새로운 production deploy 실행 금지.
+
+============================================================
+4. 기존 첨부 기능 유지
+============================================================
+
+다음은 이미 수정된 상태를 절대 깨지 말 것:
+
+첨부 버튼
+→ 앨범 / 파일 / 내 회원정보 올리기 / 취소
+
+파일:
+- DocumentPicker
+- 300ms dismiss delay
+- upload
+- R2/Object Storage
+- authenticated download
+- 상대방 다운로드
+- Sharing / Save to Files
+
+사진:
+- ImagePicker
+- 사진 미리보기
+- full preview
+- 상대방 표시
+- 저장/공유
+
+Fetch failed fix:
+- localhost URL 저장 금지
+- attachment_url 상대경로
+- authenticated attachment-file route
+
+전부 유지.
+
+============================================================
+5. 특히 변경 금지
+============================================================
+
+Fetch failed 수정 다시 건드리지 말 것.
+
+attachment-file endpoint 다시 설계하지 말 것.
+
+Object Storage 구조 변경 금지.
+
+DB schema 변경 금지.
+
+회원정보카드 내용 변경 금지.
+
+텍스트 메시지 변경 금지.
+
+메시지 삭제 변경 금지.
+
+발신자 role 표시 변경 금지.
+
+1.6.3:
+NO TOUCH
+
+============================================================
+6. APP BRANCH 확인
+============================================================
+
+보고서에는:
+
+APP Branch: release/v2.0.0
+
+으로 되어 있지만 현재 제품/runtime은:
+
+SWIMNOTE 2.1.0
+
+이다.
+
+브랜치 이름을 임의 변경하지는 말 것.
+
+단 이번 수정 전에 반드시:
+
+- 현재 실제 working branch
+- 현재 HEAD
+- 93d44ac7 ancestor 여부
+
+확인하고 보고.
+
+현재 2.1.0 production-v2 OTA 계보에서
+93d44ac7 이후 작업인지 증명할 것.
+
+============================================================
+7. 테스트
+============================================================
+
+사진 1장:
+PASS / FAIL
+
+사진 2장 한 번에 선택:
+PASS / FAIL
+
+사진 3장 한 번에 선택:
+PASS / FAIL
+
+사진 5장 한 번에 선택:
+PASS / FAIL
+
+동일 batch gallery:
+PASS / FAIL
+
+개별 버블로 분리되지 않음:
+PASS / FAIL
+
+상대방 gallery:
+PASS / FAIL
+
+재진입 후 gallery:
+PASS / FAIL
+
+앱 재실행 후 gallery:
+PASS / FAIL
+
+개별 사진 full preview:
+PASS / FAIL
+
+개별 사진 save/share:
+PASS / FAIL
+
+전화번호 원래 색상:
+PASS / FAIL
+
+전화번호 underline 없음:
+PASS / FAIL
+
+전화번호 fontSize 동일:
+PASS / FAIL
+
+전화번호 tap:
+PASS / FAIL
+
+OS 전화 앱:
+PASS / FAIL
+
+Fetch failed regression:
+0 / ...
+
+파일 다운로드 regression:
+0 / ...
+
+============================================================
+8. IOS OTA 자동배포
+============================================================
+
+APP 수정 완료
+→ 테스트
+→ commit
+→ iOS OTA 자동배포.
+
+현재 사용자 규칙:
+수정작업 종료 선언 전까지
+각 APP 수정 완료 후 OTA 자동배포.
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+금지.
+
+반드시:
+
+Current HEAD SHA
+=
+Final correction commit SHA
+=
+OTA export source SHA
+
+동일해야 함.
+
+============================================================
+완료보고
+============================================================
+
+# MESSENGER ATTACHMENT FINAL CORRECTION REPORT
+
+APP Working Branch:
+...
+
+HEAD Before:
+93d44ac7 / ...
+
+93d44ac7 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+============================================================
+MULTI PHOTO
+============================================================
+
+Previous behavior:
+individual bubbles
+
+Final behavior:
+...
+
+Batch identification method:
+...
+
+DB migration:
+NO
+
+2 photos gallery:
+PASS / FAIL
+
+3 photos gallery:
+PASS / FAIL
+
+5 photos gallery:
+PASS / FAIL
+
+Recipient gallery:
+PASS / FAIL
+
+Reopen persistence:
+PASS / FAIL
+
+App restart persistence:
+PASS / FAIL
+
+Individual preview:
+PASS / FAIL
+
+Individual save/share:
+PASS / FAIL
+
+============================================================
+MEMBER PHONE
+============================================================
+
+Original visual style restored:
+PASS / FAIL
+
+New PRIMARY color removed:
+PASS / FAIL
+
+Underline removed:
+PASS / FAIL
+
+fontSize unchanged:
+PASS / FAIL
+
+lineHeight unchanged:
+PASS / FAIL
+
+fontWeight unchanged:
+PASS / FAIL
+
+Phone tap:
+PASS / FAIL
+
+OS phone app:
+PASS / FAIL
+
+============================================================
+SERVER LIVE
+============================================================
+
+Expected SHA:
+93d44ac7
+
+Actual Render LIVE SHA:
+...
+
+LIVE SHA Match:
+PASS / FAIL
+
+New Render deploy performed:
+NO
+
+============================================================
+REGRESSION
+============================================================
+
+Fetch failed:
+0 / ...
+
+File upload:
+PASS / FAIL
+
+File download:
+PASS / FAIL
+
+Single photo:
+PASS / FAIL
+
+Text message:
+PASS / FAIL
+
+Message delete:
+PASS / FAIL
+
+Admin:
+PASS / FAIL
+
+Teacher:
+PASS / FAIL
+
+============================================================
+OTA
+============================================================
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Correction Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+FINAL:
+MESSENGER ATTACHMENT FINAL CORRECTION COMPLETE

@@ -1,0 +1,187 @@
+[앱] WP-PARENT-CURRICULUM-FINAL — REAL DATA WIRING + E2E
+
+목적:
+이미 production에 완성된 Parent Curriculum AI Engine에
+실제 SWIMNOTE APP DB의 학생 진도 + 해당 수영장 등록 커리큘럼을 연결하고
+실제 학부모 앱에서 최종 E2E를 검증한다.
+
+중요:
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- DB schema 변경 금지
+- 새 기능 추가 금지
+- 전체 repo audit 금지
+- 기존 Parent Curriculum route/client 최대한 재사용
+
+현재 AI Engine 상태:
+- kf.v2_search_index 14,629건
+- hybrid/vector retrieval
+- top15 retrieval
+- gpt-4o-mini reranker
+- gpt-5.6-luna final answer
+- grounding validator
+- no-progress / no-curriculum non-blocking
+- production complete
+
+────────────────────
+1. 현재 APP route 확인
+────────────────────
+
+기존:
+
+POST /parent/students/:studentId/curriculum-search
+
+이 route가 Engine에 보내는 실제 payload를 확인.
+
+특히:
+- request_id
+- query
+- student_progress
+- curriculum_items
+
+각 필드가 실제 APP DB에서 어떻게 만들어지는지 확인.
+
+────────────────────
+2. 실제 학생 진도 연결
+────────────────────
+
+studentId 기준 실제 APP 데이터에서 가능한 범위만 사용:
+
+- current level
+- current stroke
+- completed curriculum/skills
+- in-progress curriculum/skills
+- 최근 diary에서 확인 가능한 현재 학습 위치
+
+없는 값은 null/unavailable.
+추측 생성 금지.
+
+────────────────────
+3. 실제 수영장 커리큘럼 연결
+────────────────────
+
+학생의 pool_id 기준으로
+그 수영장에 실제 등록된 curriculum을 조회.
+
+Engine에 전달할 curriculum_items에는
+기존 실제 DB 필드만 사용.
+
+가능한 필드 예:
+- curriculum_id
+- title
+- content/description
+- stroke
+- level
+- order/sequence
+- status/progression
+
+다른 pool curriculum 혼입 금지.
+
+────────────────────
+4. 현재 위치 context
+────────────────────
+
+student progress + pool curriculum 기준으로
+가능한 범위에서:
+
+- 현재 단계
+- 직전 단계
+- 다음 단계
+
+context를 구성.
+
+APP에서 수영 전문지식 생성 금지.
+APP은 데이터/context만 제공.
+
+────────────────────
+5. 기존 Engine Client 사용
+────────────────────
+
+기존:
+parent-curriculum-engine-client.ts
+
+그대로 사용.
+
+Engine endpoint:
+POST /api/v1/parent-curriculum/search
+
+기존 auth / request_id / quota contract 유지.
+
+────────────────────
+6. 실제 E2E 테스트
+────────────────────
+
+실제 테스트 학생 1명 + 실제 pool curriculum 사용.
+
+최대 5 query:
+
+1. 자유형킥
+2. 발차기
+3. 롤링 언제 해
+4. 자유형 팔돌리기에 대해
+5. 현재 다음에 뭐 배워?
+
+각 query마다 확인:
+
+- actual student_progress used: YES/NO
+- actual pool curriculum used: YES/NO
+- 다른 pool 데이터 없음
+- Professional evidence count
+- grounded answer
+- 현재 위치 반영
+- 다음 단계 반영
+- request_id match
+- quota 정상
+
+────────────────────
+7. 데이터 없는 경우
+────────────────────
+
+진도 없음:
+→ Engine non-blocking 정책으로 계속 답변
+
+pool curriculum 없음:
+→ Professional V2 기반 답변 계속
+
+둘 다 없고 Professional evidence도 없음:
+→ INSUFFICIENT_EVIDENCE
+
+단순
+"수업 데이터가 없습니다"
+로 종료 금지.
+
+────────────────────
+8. 실제 앱 화면 확인
+────────────────────
+
+학부모 Curriculum Chat에서 실제로:
+
+- 현재 진도
+- 실제 수영장 curriculum
+- 수영 전문 설명
+- 다음 학습 방향
+
+이 가능한 범위에서 반영되는지 확인.
+
+────────────────────
+9. 완료 보고
+────────────────────
+
+[앱] PARENT CURRICULUM REAL DATA E2E REPORT
+
+- student progress source
+- pool curriculum source
+- payload mapping
+- actual student data used: YES/NO
+- actual pool curriculum used: YES/NO
+- 5 E2E results
+- request_id match
+- quota behavior
+- app UI result
+- DB changed: NO
+- AI Engine changed: NO
+
+Final Verdict:
+PARENT CURRICULUM REAL DATA PRODUCTION COMPLETE
+
+STOP.

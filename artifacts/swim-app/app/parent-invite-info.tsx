@@ -1,5 +1,5 @@
-import { ArrowLeft, Heart, Link2, MessageCircle } from "lucide-react-native";
 import { router } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
@@ -13,7 +13,7 @@ export default function ParentInviteInfoScreen() {
   const insets = useSafeAreaInsets();
 
   const steps = [
-    { icon: "message-circle" as const, color: "#2EC4B6", bg: "#E6FFFA", title: "담당 선생님에게 요청", desc: "자녀의 담당 선생님 또는 수영장 관리자에게 초대 링크를 요청하세요." },
+    { icon: "message-circle" as const, color: C.brandStrong, bg: C.brandSoft, title: "담당 선생님에게 요청", desc: "자녀의 담당 선생님 또는 수영장 관리자에게 초대 링크를 요청하세요." },
     { icon: "link-2" as const,         color: "#7C3AED", bg: "#EDE9FE", title: "초대 링크 수신",      desc: "선생님이 문자 또는 카카오톡으로 전용 초대 링크를 보내드립니다." },
     { icon: "heart" as const,          color: "#E4A93A", bg: "#FFFBEB", title: "링크로 간편 가입",    desc: "받은 링크를 누르면 자녀 정보가 미리 채워진 가입 화면이 열립니다." },
   ];
@@ -29,13 +29,13 @@ export default function ParentInviteInfoScreen() {
           style={({ pressed }) => [styles.backBtn, { opacity: pressed ? 0.6 : 1 }]}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={20} color={C.text} />
+          <LucideIcon name="arrow-left" size={20} color={C.text} />
         </Pressable>
       </View>
 
       <View style={styles.heroArea}>
         <View style={[styles.heroIcon, { backgroundColor: "#FFFBEB" }]}>
-          <Heart size={32} color="#E4A93A" />
+          <LucideIcon name="heart" size={32} color="#E4A93A" />
         </View>
         <Text style={[styles.heroTitle, { color: C.text }]}>학부모 가입 안내</Text>
         <Text style={[styles.heroDesc, { color: C.textSecondary }]}>
@@ -57,9 +57,9 @@ export default function ParentInviteInfoScreen() {
               <Text style={[styles.stepNumText, { color: s.color }]}>{i + 1}</Text>
             </View>
             <View style={[styles.stepIconBox, { backgroundColor: s.bg }]}>
-              {s.icon === "message-circle" && <MessageCircle size={20} color={s.color} />}
-              {s.icon === "link-2"         && <Link2 size={20} color={s.color} />}
-              {s.icon === "heart"          && <Heart size={20} color={s.color} />}
+              {s.icon === "message-circle" && <LucideIcon name="message-circle" size={20} color={s.color} />}
+              {s.icon === "link-2"         && <LucideIcon name="link-2" size={20} color={s.color} />}
+              {s.icon === "heart"          && <LucideIcon name="heart" size={20} color={s.color} />}
             </View>
             <View style={styles.stepInfo}>
               <Text style={[styles.stepTitle, { color: C.text }]}>{s.title}</Text>
@@ -70,7 +70,7 @@ export default function ParentInviteInfoScreen() {
       </View>
 
       <Pressable
-        style={({ pressed }) => [styles.backToLoginBtn, { backgroundColor: C.tint, opacity: pressed ? 0.85 : 1 }]}
+        style={({ pressed }) => [styles.backToLoginBtn, { backgroundColor: pressed ? C.textStrong : C.primaryAction }]}
         onPress={() => router.replace("/" as any)}
       >
         <Text style={styles.backToLoginText}>로그인 화면으로</Text>

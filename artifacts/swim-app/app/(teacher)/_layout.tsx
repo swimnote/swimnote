@@ -1,4 +1,4 @@
-import { Home, Layers, Send, Settings, TrendingUp, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { BlurView } from "expo-blur";
 import { Tabs, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -6,6 +6,8 @@ import { Platform, StyleSheet, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { X, isXMode } from "@/constants/xTheme";
 import { emitTabReset } from "@/utils/tabReset";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FeedbackTemplateProvider } from "@/context/FeedbackTemplateContext";
@@ -15,6 +17,13 @@ const POOL_ADMIN_ROLES = new Set(["pool_admin", "sub_admin"]);
 
 export default function TeacherLayout() {
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  /** §24: x_pending도 X UI */
+  const isX = isXMode(mode);
+  const activeTabColor  = isX ? X.tabActive  : themeColor;
+  const tabInactiveColor = isX ? X.tabInactive : Colors.light.text;
+  const tabBarBg        = isX ? X.surfaceNavy  : "transparent";
+  const tabBorderColor  = isX ? X.surfaceNavyStrong : "#E2E8F0";
   const { kind, isLoading, adminUser, token, pool } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -37,6 +46,13 @@ export default function TeacherLayout() {
     messengerTimerRef.current = setInterval(fetchMessengerBadge, 30_000);
     return () => { if (messengerTimerRef.current) clearInterval(messengerTimerRef.current); };
   }, [fetchMessengerBadge]));
+
+  // Amendment A1: SUBSCRIPTION_REQUIRED global gate (teacher layout)
+  useEffect(() => {
+    if (mode === "subscription_required") {
+      router.replace("/(admin)/subscription" as any);
+    }
+  }, [mode]);
 
   // 권한 보호: teacher 이외 역할이 teacher 화면에 직접 접근 시 올바른 홈으로 리다이렉트
   // 역할별 라우팅 규칙:
@@ -89,20 +105,22 @@ export default function TeacherLayout() {
     <FeedbackTemplateProvider>
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: themeColor,
-        tabBarInactiveTintColor: C.text,
+        tabBarActiveTintColor: activeTabColor,
+        tabBarInactiveTintColor: tabInactiveColor,
         headerShown: false,
         tabBarStyle: {
           height: Platform.OS === "android" ? 60 + Math.max(insets.bottom, 24) : 72,
-          backgroundColor: "transparent",
+          backgroundColor: tabBarBg,
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: "#E2E8F0",
+          borderTopColor: tabBorderColor,
           paddingBottom: Platform.OS === "android" ? Math.max(insets.bottom + 8, 24) : 12,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: "Pretendard-Regular", fontSize: 10, marginTop: 0, lineHeight: 16 },
         tabBarBackground: () =>
-          isIOS ? (
+          isX ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: X.surfaceNavy }]} />
+          ) : isIOS ? (
             <BlurView intensity={100} tint="light" style={StyleSheet.absoluteFill} />
           ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />
@@ -113,22 +131,22 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="today-schedule"
         listeners={makeTabListener("today-schedule")}
-        options={{ title: "홈", tabBarIcon: ({ color }) => <Home size={22} color={color} /> }}
+        options={{ title: "홈", tabBarIcon: ({ color }) => <LucideIcon name="home" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="my-schedule"
         listeners={makeTabListener("my-schedule")}
-        options={{ title: "수업관리", tabBarIcon: ({ color }) => <Layers size={22} color={color} /> }}
+        options={{ title: "수업관리", tabBarIcon: ({ color }) => <LucideIcon name="layers" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="students"
         listeners={makeTabListener("students")}
-        options={{ title: "수강관리", tabBarIcon: ({ color }) => <Users size={22} color={color} /> }}
+        options={{ title: "수강관리", tabBarIcon: ({ color }) => <LucideIcon name="users" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="revenue"
         listeners={makeTabListener("revenue")}
-        options={{ title: "정산", tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} /> }}
+        options={{ title: "정산", tabBarIcon: ({ color }) => <LucideIcon name="trending-up" size={22} color={color} /> }}
       />
       <Tabs.Screen
         name="messenger"
@@ -136,6 +154,12 @@ export default function TeacherLayout() {
           tabPress: (e: any) => {
             e.preventDefault();
             setMessengerUnread(false);
+            if (token && pool?.id) {
+              apiRequest(token, "/messenger/read-state", {
+                method: "POST",
+                body: JSON.stringify({ pool_id: pool.id, channel_type: "talk" }),
+              }).catch(() => {});
+            }
             const state = navigation.getState();
             const currentRoute = state.routes[state.index]?.name;
             if (currentRoute === "messenger") {
@@ -149,7 +173,7 @@ export default function TeacherLayout() {
           title: "메신저",
           tabBarIcon: ({ color }) => (
             <View>
-              <Send size={22} color={color} />
+              <LucideIcon name="send" size={22} color={color} />
               {messengerUnread && (
                 <View style={{
                   position: "absolute", top: -2, right: -4,
@@ -164,7 +188,7 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="settings"
         listeners={makeTabListener("settings")}
-        options={{ title: "설정", tabBarIcon: ({ color }) => <Settings size={22} color={color} /> }}
+        options={{ title: "설정", tabBarIcon: ({ color }) => <LucideIcon name="settings" size={22} color={color} /> }}
       />
 
       {/* ─── 숨김 화면들 (router.push로 접근) ─── */}
@@ -180,6 +204,18 @@ export default function TeacherLayout() {
       <Tabs.Screen name="notices"          options={{ href: null }} />
       <Tabs.Screen name="fee-check"        options={{ href: null }} />
       <Tabs.Screen name="messages-inbox"   options={{ href: null }} />
+      <Tabs.Screen name="inquiries"        options={{ href: null }} />
+      <Tabs.Screen name="diary-reactions"  options={{ href: null }} />
+      {/* SWIMNOTE X — 탭 노출 없이 push로만 접근 (WP4) */}
+      <Tabs.Screen name="x-growth"              options={{ href: null }} />
+      {/* GR5 — 선생님 리포트 검토 화면 */}
+      <Tabs.Screen name="growth-report-review"      options={{ href: null }} />
+      {/* PHASE 3-A — Growth Report 반응 화면 */}
+      <Tabs.Screen name="growth-report-reactions"   options={{ href: null }} />
+      {/* CS-02R — AI 문의 (고객센터) */}
+      <Tabs.Screen name="support-chat"           options={{ href: null }} />
+      {/* SMALL-FIX-3 — AI 학생리포트 목록 */}
+      <Tabs.Screen name="growth-report-list"     options={{ href: null }} />
     </Tabs>
     </FeedbackTemplateProvider>
   );

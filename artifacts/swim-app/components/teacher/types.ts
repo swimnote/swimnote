@@ -14,6 +14,7 @@ export interface TeacherClassGroup {
   level?: string | null;
   instructor?: string | null;
   color?: string | null;
+  teacher_user_id?: string | null;
 }
 
 export interface SlotStatus {

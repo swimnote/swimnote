@@ -1,0 +1,688 @@
+/**
+ * wp10-ai-trace.test.ts — WP10 AI Trace & Cost 단위 테스트
+ *
+ * 테스트 범위:
+ *   A. SUCCESS trace 구조 (request_id 일치)
+ *   B. X + NOT_CONFIGURED/INPUT_ONLY → x_template_status 기록, usage 정확
+ *   C. X + template path fixture → selected template/meta 기록
+ *   D. NON-X → X-specific meta absent
+ *   E. LLM failure → FAILED trace, error_stage 확인
+ *   F. token usage → input/output/total 정확
+ *   G. retry/new request → request_id별 별도 trace
+ *   H. 민감 원문이 trace에 저장되지 않음
+ *   I. calculateAiCost — gpt-4o-mini 정확 계산, cost 필드 포함
+ *   J. calculateAiCost — 미지원 모델 → null (임의 추정 금지)
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// ── DB mock (saveAiTrace의 execute 호출 확인용) ───────────────────────────────
+vi.mock('@workspace/db', () => ({
+  superAdminDb: {
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
+  },
+  db: {
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
+  },
+}));
+
+import { superAdminDb }                    from '@workspace/db';
+import { buildTraceMetadata, saveAiTrace } from '../../lib/ai-trace-service.js';
+import { calculateAiCost, calculateSttCost } from '../../config/ai-pricing.js';
+import { AI_MODEL }                          from '../../config/ai-model-config.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calculateAiCost 단위 테스트
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('WP10 — calculateAiCost', () => {
+  // TC-I: gpt-4o-mini 정확한 비용 계산
+  it('I. gpt-4o-mini 1000 input + 500 output → USD 정확', () => {
+    const result = calculateAiCost(1000, 500, 'gpt-4o-mini');
+    expect(result).not.toBeNull();
+    // input: 1000 × $0.00000015 = $0.00015
+    // output:  500 × $0.00000060 = $0.00030
+    expect(result!.input_cost_usd).toBeCloseTo(0.00015, 8);
+    expect(result!.output_cost_usd).toBeCloseTo(0.00030, 8);
+    expect(result!.total_cost_usd).toBeCloseTo(0.00045, 8);
+    expect(result!.model).toBe('gpt-4o-mini');
+    expect(result!.pricing_source).toBe('openai_official');
+  });
+
+  // TC-I: token 0 → cost $0.0
+  it('I. token=0 → cost $0.0', () => {
+    const result = calculateAiCost(0, 0, 'gpt-4o-mini');
+    expect(result).not.toBeNull();
+    expect(result!.total_cost_usd).toBe(0);
+    expect(result!.input_cost_usd).toBe(0);
+    expect(result!.output_cost_usd).toBe(0);
+  });
+
+  // TC-J: 미지원 모델 → null
+  it('J. 미지원 모델 → null (임의 추정 금지)', () => {
+    expect(calculateAiCost(1000, 500, 'gpt-4-turbo')).toBeNull();
+    expect(calculateAiCost(1000, 500, 'claude-3')).toBeNull();
+    expect(calculateAiCost(1000, 500, '')).toBeNull();
+  });
+
+  // TC-F: total_tokens = input + output
+  it('F. total_tokens = input_tokens + output_tokens', () => {
+    const result = calculateAiCost(300, 700, 'gpt-4o-mini')!;
+    expect(result.total_tokens).toBe(1000);
+    expect(result.input_tokens).toBe(300);
+    expect(result.output_tokens).toBe(700);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI01-02 TCs — Pricing + Model Control Point
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-02 — Pricing + Model Config', () => {
+  // TC1: AI_MODEL 값이 실제 사용 모델명과 동일
+  it('TC1. AI_MODEL entries match expected production model names', () => {
+    expect(AI_MODEL.DIARY).toBe('gpt-4o-mini');
+    expect(AI_MODEL.SUPPORT).toBe('gpt-4o-mini');
+    expect(AI_MODEL.STORY).toBe('gpt-4o-mini');
+    expect(AI_MODEL.STT).toBe('whisper-1');
+  });
+
+  // TC2: cached_input_tokens 비용 계산 정상
+  it('TC2. cached_input_tokens cost calculated correctly', () => {
+    // non-cached input 800, cached 200, output 300
+    // input:  800 × $0.00000015  = $0.00012
+    // cached: 200 × $0.000000075 = $0.000015
+    // output: 300 × $0.00000060  = $0.00018
+    const result = calculateAiCost(800, 300, 'gpt-4o-mini', 200);
+    expect(result).not.toBeNull();
+    expect(result!.cached_input_tokens).toBe(200);
+    expect(result!.cached_input_cost_usd).toBeCloseTo(0.000015, 8);
+    expect(result!.input_cost_usd).toBeCloseTo(0.00012, 8);
+    expect(result!.output_cost_usd).toBeCloseTo(0.00018, 8);
+    expect(result!.total_cost_usd).toBeCloseTo(0.000315, 8);
+  });
+
+  // TC3: cached input과 일반 input 이중 과금 안 됨 (단가 50% 할인 확인)
+  it('TC3. cached input is priced at 50% of normal input (no double-counting)', () => {
+    const normal = calculateAiCost(1000, 0, 'gpt-4o-mini', 0)!;
+    const cached = calculateAiCost(0, 0, 'gpt-4o-mini', 1000)!;
+    // cached는 일반의 50%
+    expect(cached.cached_input_cost_usd).toBeCloseTo(normal.input_cost_usd * 0.5, 8);
+  });
+
+  // TC4: Whisper per-second 비용 계산 정상
+  it('TC4. calculateSttCost returns correct per-second cost for whisper-1', () => {
+    // 60초 = $0.006
+    const result = calculateSttCost(60, 'whisper-1');
+    expect(result).not.toBeNull();
+    expect(result!.audio_seconds).toBe(60);
+    expect(result!.total_cost_usd).toBeCloseTo(0.006, 8);
+    expect(result!.pricing_source).toBe('openai_official');
+  });
+
+  it('TC4b. calculateSttCost with null audio_seconds → null (추정 금지)', () => {
+    expect(calculateSttCost(null, 'whisper-1')).toBeNull();
+    expect(calculateSttCost(undefined, 'whisper-1')).toBeNull();
+  });
+
+  it('TC4c. calculateSttCost with unsupported model → null', () => {
+    expect(calculateSttCost(30, 'gpt-4o-mini')).toBeNull();
+  });
+
+  // TC5: 기존 pricing 계산이 깨지지 않음 (cached 미전달 시 backward compat)
+  it('TC5. existing calculateAiCost without cached_input_tokens still works', () => {
+    const result = calculateAiCost(1000, 500, 'gpt-4o-mini');
+    expect(result).not.toBeNull();
+    expect(result!.cached_input_tokens).toBe(0);
+    expect(result!.cached_input_cost_usd).toBe(0);
+    // 기존 total: 1000×0.00000015 + 500×0.00000060 = 0.00015 + 0.00030 = 0.00045
+    expect(result!.total_cost_usd).toBeCloseTo(0.00045, 8);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// buildTraceMetadata 단위 테스트 (DB 불필요)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('WP10 — buildTraceMetadata', () => {
+  const BASE_SUCCESS = {
+    status:           'SUCCESS' as const,
+    request_id:       'req-test-001',
+    internal_id:      'int-abc',
+    pool_id:          'pool_test_001',
+    actor_id:         'user-teacher-1',
+    contract_version: '1.3',
+    pipeline_version: 'v2.0',
+    feature:          'teacher_diary',
+    pool_mode:        'normal',
+    student_count:    3,
+    generation_mode:  'TEMPLATE_ASSISTED',
+    model:            'gpt-4o-mini',
+    latency_ms:       1200,
+    input_tokens:     800,
+    output_tokens:    300,
+    total_tokens:     1100,
+  } as const;
+
+  // TC-A: SUCCESS trace 구조 / request_id 일치
+  it('A. SUCCESS → metadata.request_id 일치, status=SUCCESS', () => {
+    const meta = buildTraceMetadata(BASE_SUCCESS);
+    expect(meta.request_id).toBe('req-test-001');
+    expect(meta.status).toBe('SUCCESS');
+    expect(meta.pool_mode).toBe('normal');
+    expect(meta.feature).toBe('teacher_diary');
+    expect(meta.contract_version).toBe('1.3');
+  });
+
+  it('CS26. grounded support trace includes verified evidence IDs, revisions, and tenant scope', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature: 'support_ai',
+      sub_feature: 'SUPPORT_GPT_SECOND_STAGE',
+      user_role: 'parent_account',
+      retrieved_knowledge_ids: ['ki_photo_visibility', 'ki_incident_photo'],
+      knowledge_revisions: { ki_photo_visibility: 3, ki_incident_photo: 1 },
+      retrieval_scope: 'global_or_current_pool:pool_test_001',
+    });
+    expect(meta.user_role).toBe('parent_account');
+    expect(meta.pool_mode).toBe('normal');
+    expect(meta.retrieved_knowledge_ids).toEqual(['ki_photo_visibility', 'ki_incident_photo']);
+    expect(meta.knowledge_revisions).toEqual({ ki_photo_visibility: 3, ki_incident_photo: 1 });
+    expect(meta.retrieval_scope).toBe('global_or_current_pool:pool_test_001');
+  });
+
+  // TC-B: X + NOT_CONFIGURED → x_template_status 기록, usage 포함
+  it('B. X+NOT_CONFIGURED → x_template_status 기록 + usage 정확', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      pool_mode:         'x',
+      generation_mode:   'INPUT_ONLY',
+      input_tokens:      500,
+      output_tokens:     200,
+      total_tokens:      700,
+      x_template_status: 'NO_ACTIVE_SET',
+    });
+    expect(meta.x_template_status).toBe('NO_ACTIVE_SET');
+    expect(meta.total_tokens).toBe(700);
+    expect(meta.input_tokens).toBe(500);
+    expect(meta.output_tokens).toBe(200);
+    expect(meta.generation_mode).toBe('INPUT_ONLY');
+  });
+
+  // TC-C: X + template found → selected_template_id, active_template_set_id 기록
+  it('C. X+template found → selected_template_id / active_template_set_id 포함', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      pool_mode:                'x',
+      template_candidate_count: 8,
+      selected_template_id:     'x_tmpl_99',
+      x_template_status:        'FOUND',
+      active_template_set_id:   'active_set_001',
+      curriculum_match_count:   2,
+    });
+    expect(meta.selected_template_id).toBe('x_tmpl_99');
+    expect(meta.active_template_set_id).toBe('active_set_001');
+    expect(meta.x_template_status).toBe('FOUND');
+    expect(meta.curriculum_match_count).toBe(2);
+  });
+
+  // TC-D: NON-X → X-specific keys absent
+  it('D. NON-X pool → x_template_status / active_template_set_id 키 자체 absent', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      contract_version: '1.0',
+      pool_mode:        'normal',
+      // x_template_status, active_template_set_id 전달하지 않음
+    });
+    expect('x_template_status'      in meta).toBe(false);
+    expect('active_template_set_id' in meta).toBe(false);
+  });
+
+  // TC-E: LLM failure → FAILED / error_stage=LLM_GENERATION
+  it('E. LLM failure → status=FAILED / error_stage=LLM_GENERATION', () => {
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'req-timeout-001',
+      internal_id:      'int-to',
+      pool_id:          'pool_test_001',
+      contract_version: '1.3',
+      feature:          'teacher_diary',
+      pool_mode:        'x',
+      error_stage:      'LLM_GENERATION',
+      error_code:       'MODEL_TIMEOUT',
+      latency_ms:       30000,
+      model:            'gpt-4o-mini',
+    });
+    expect(meta.status).toBe('FAILED');
+    expect(meta.error_stage).toBe('LLM_GENERATION');
+    expect(meta.error_code).toBe('MODEL_TIMEOUT');
+  });
+
+  // TC-F: token usage → input/output/total 정확
+  it('F. token usage — input/output/total 정확히 기록', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      input_tokens:  300,
+      output_tokens: 700,
+      total_tokens:  1000,
+    });
+    expect(meta.input_tokens).toBe(300);
+    expect(meta.output_tokens).toBe(700);
+    expect(meta.total_tokens).toBe(1000);
+  });
+
+  // TC-G: 두 번 호출 → request_id별 별도 metadata
+  it('G. 두 번 빌드 → request_id별 별도 (독립성)', () => {
+    const meta1 = buildTraceMetadata({ ...BASE_SUCCESS, request_id: 'req-g-001' });
+    const meta2 = buildTraceMetadata({ ...BASE_SUCCESS, request_id: 'req-g-002' });
+    expect(meta1.request_id).toBe('req-g-001');
+    expect(meta2.request_id).toBe('req-g-002');
+    expect(meta1.request_id).not.toBe(meta2.request_id);
+  });
+
+  // TC-H: 민감 원문이 metadata에 없음
+  it('H. metadata에 이름·원문·prompt·phone 없음 / request_id·tokens는 포함', () => {
+    const meta = buildTraceMetadata(BASE_SUCCESS);
+    // 금지 필드: 키 자체 없어야 함
+    expect('student_name' in meta).toBe(false);
+    expect('teacher_text' in meta).toBe(false);
+    expect('gpt_prompt'   in meta).toBe(false);
+    expect('gpt_response' in meta).toBe(false);
+    expect('phone'        in meta).toBe(false);
+    // 허용 필드: 포함
+    expect(meta.request_id).toBe('req-test-001');
+    expect(meta.total_tokens).toBe(1100);
+  });
+
+  // TC-I (cost): 토큰 있으면 cost 필드 자동 계산
+  it('I. token 있으면 cost.total_cost_usd 자동 포함 + pricing_source', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      input_tokens:  1000,
+      output_tokens: 500,
+      total_tokens:  1500,
+    });
+    const cost = meta.cost as Record<string, unknown> | undefined;
+    expect(cost).toBeDefined();
+    expect(typeof cost?.total_cost_usd).toBe('number');
+    // 1000×0.00000015 + 500×0.00000060 = 0.00015 + 0.00030 = 0.00045
+    expect(cost?.total_cost_usd as number).toBeCloseTo(0.00045, 8);
+    expect(cost?.pricing_source).toBe('openai_official');
+  });
+
+  // TC-I: token=0이면 cost 필드 없음
+  it('I. token=0 → cost 필드 없음 (0 토큰 추정 금지)', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      input_tokens:  0,
+      output_tokens: 0,
+      total_tokens:  0,
+    });
+    // token=0이면 calculateAiCost 조건 불충족 → cost 필드 없음
+    expect('cost' in meta).toBe(false);
+  });
+
+  // ── AI01-01 TCs ──────────────────────────────────────────────────────────────
+
+  // TC1: 기존 payload만 전달 → backward compat 유지
+  it('AI01-01 TC1. 기존 payload → 신규 필드 없어도 metadata 정상 생성', () => {
+    const meta = buildTraceMetadata(BASE_SUCCESS);
+    expect(meta.request_id).toBe('req-test-001');
+    expect(meta.status).toBe('SUCCESS');
+    // 신규 필드는 전달 안 했으므로 absent
+    expect('trigger_type'          in meta).toBe(false);
+    expect('service'               in meta).toBe(false);
+    expect('cost_source'           in meta).toBe(false);
+    expect('retry_count'           in meta).toBe(false);
+    expect('audio_seconds'         in meta).toBe(false);
+    expect('logical_request_count' in meta).toBe(false);
+    expect('actual_call_count'     in meta).toBe(false);
+  });
+
+  // TC2: 신규 필드 전체 전달 → metadata에 정확히 존재
+  it('AI01-01 TC2. 신규 필드 전체 → metadata에 정확히 존재', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type:          'SYSTEM_MAINTENANCE',
+      service:               'gpt',
+      cost_source:           'TOKEN_PRICING',
+      retry_count:           2,
+      audio_seconds:         30.5,
+      logical_request_count: 1,
+      actual_call_count:     3,
+    });
+    expect(meta.trigger_type).toBe('SYSTEM_MAINTENANCE');
+    expect(meta.service).toBe('gpt');
+    expect(meta.cost_source).toBe('TOKEN_PRICING');
+    expect(meta.retry_count).toBe(2);
+    expect(meta.audio_seconds).toBe(30.5);
+    expect(meta.logical_request_count).toBe(1);
+    expect(meta.actual_call_count).toBe(3);
+  });
+
+  // TC3: legacy cached_tokens → cached_input_tokens로 normalize
+  it('AI01-01 TC3. cached_tokens(legacy) → cached_input_tokens로 normalize', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      cached_tokens: 150,
+    });
+    expect(meta.cached_input_tokens).toBe(150);
+    expect(meta.cached_tokens).toBe(150);  // legacy 필드도 유지
+  });
+
+  // TC4: cached_input_tokens 신규 값 우선 적용
+  it('AI01-01 TC4. cached_input_tokens 신규 값 → 우선 적용', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      cached_input_tokens: 200,
+      cached_tokens:       150,  // legacy도 같이 전달 시 신규 우선
+    });
+    expect(meta.cached_input_tokens).toBe(200);
+  });
+
+  // TC5: 기존 cost/status/error metadata 신규 변경으로 깨지지 않음
+  it('AI01-01 TC5. 기존 cost/status/error metadata 불변', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+      input_tokens:  1000,
+      output_tokens: 500,
+      total_tokens:  1500,
+    });
+    expect(meta.status).toBe('SUCCESS');
+    expect(meta.feature).toBe('teacher_diary');
+    expect(meta.generation_mode).toBe('TEMPLATE_ASSISTED');
+    const cost = meta.cost as Record<string, unknown> | undefined;
+    expect(cost).toBeDefined();
+    expect(typeof cost?.total_cost_usd).toBe('number');
+  });
+
+  // TC6: 음수 usage 값 → 저장 거부 (metadata에 absent)
+  it('AI01-01 TC6. 음수 usage 값 → metadata에 저장 안 됨', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      retry_count:           -1,
+      audio_seconds:         -5,
+      logical_request_count: -1,
+      actual_call_count:     -3,
+    });
+    expect('retry_count'           in meta).toBe(false);
+    expect('audio_seconds'         in meta).toBe(false);
+    expect('logical_request_count' in meta).toBe(false);
+    expect('actual_call_count'     in meta).toBe(false);
+  });
+
+  // FAILED 경로에서 usage 있으면 cost 포함
+  it('E+I. FAILED + usage 있으면 cost도 포함', () => {
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'req-fail-cost',
+      internal_id:      'int-fc',
+      pool_id:          'pool_fc',
+      contract_version: '1.3',
+      feature:          'teacher_diary',
+      error_stage:      'OUTPUT_VALIDATION',
+      error_code:       'OUTPUT_VALIDATION_FAILED',
+      latency_ms:       2000,
+      model:            'gpt-4o-mini',
+      input_tokens:     600,
+      output_tokens:    200,
+      total_tokens:     800,
+    });
+    expect(meta.status).toBe('FAILED');
+    expect(meta.input_tokens).toBe(600);
+    const cost = meta.cost as Record<string, unknown> | undefined;
+    expect(cost).toBeDefined();
+    expect(cost?.pricing_source).toBe('openai_official');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI01-03 TCs — Callsite Classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-03 — Callsite Classification', () => {
+  const BASE_SUCCESS = {
+    status:           'SUCCESS' as const,
+    request_id:       'req-03-001',
+    internal_id:      'int-03-001',
+    pool_id:          'pool_test_001',
+    contract_version: '1.0',
+    feature:          'teacher_diary',
+    pool_mode:        'normal',
+    generation_mode:  'TEMPLATE_ASSISTED',
+    model:            'gpt-4o-mini',
+    latency_ms:       1200,
+    input_tokens:     800,
+    output_tokens:    300,
+    total_tokens:     1100,
+  } as const;
+
+  // TC1: Diary trace → trigger_type=USER_ACTION, service=gpt
+  it('TC1. Diary trace: trigger_type=USER_ACTION, service=gpt', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('gpt');
+  });
+
+  // TC2: Support trace → trigger_type=USER_ACTION, service=gpt
+  it('TC2. Support trace: trigger_type=USER_ACTION, service=gpt', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'support_ai',
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('gpt');
+  });
+
+  // TC3: Parent Curriculum trace → trigger_type=USER_ACTION, service=search
+  it('TC3. Parent Curriculum trace: trigger_type=USER_ACTION, service=search', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'parent_curriculum_ai',
+      trigger_type: 'USER_ACTION',
+      service:      'search',
+      model:        null,
+    });
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.service).toBe('search');
+  });
+
+  // TC4: Growth Worker trace → trigger_type=SYSTEM_MAINTENANCE, service=analysis
+  it('TC4. Growth Worker trace: trigger_type=SYSTEM_MAINTENANCE, service=analysis', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      feature:      'growth_report_ai',
+      trigger_type: 'SYSTEM_MAINTENANCE',
+      service:      'analysis',
+      model:        null,
+    });
+    expect(meta.trigger_type).toBe('SYSTEM_MAINTENANCE');
+    expect(meta.service).toBe('analysis');
+  });
+
+  // TC5: latency_ms는 number타입이어야 함 (0 고정 버그 수정 구조 확인)
+  it('TC5. latency_ms stored as-is (not hardcoded 0)', () => {
+    const meta = buildTraceMetadata({
+      ...BASE_SUCCESS,
+      trigger_type: 'USER_ACTION',
+      service:      'gpt',
+      latency_ms:   350,
+    });
+    expect(meta.latency_ms).toBe(350);
+    // 0이 전달돼도 저장되지만, 실제 timer 값이 들어오면 정상 반영됨
+    const metaZero = buildTraceMetadata({ ...BASE_SUCCESS, trigger_type: 'USER_ACTION', service: 'gpt', latency_ms: 0 });
+    expect(typeof metaZero.latency_ms).toBe('number');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI01-04 TCs — Whisper Usage Trace
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('AI01-04 — Whisper Usage Trace', () => {
+  const WHISPER_SUCCESS_BASE = {
+    status:           'SUCCESS' as const,
+    request_id:       'whisper-req-001',
+    internal_id:      'whisper-int-001',
+    pool_id:          'pool_test_001',
+    contract_version: '1.0',
+    feature:          'stt',
+    pool_mode:        null,
+    provider:         'openai',
+    trigger_type:     'USER_ACTION'  as const,
+    service:          'whisper',
+    cost_source:      'UNKNOWN'      as const,
+    generation_mode:  'stt',
+    model:            'whisper-1',
+    latency_ms:       850,
+    input_tokens:     null,
+    output_tokens:    null,
+    total_tokens:     null,
+    audio_seconds:    null,
+    logical_request_count: 1,
+    actual_call_count:     1,
+    retry_count:           0,
+    result_generated: true,
+  } as const;
+
+  // TC1: 성공 trace → provider=openai, service=whisper, trigger_type=USER_ACTION
+  it('TC1. Whisper success: provider=openai, service=whisper, trigger_type=USER_ACTION', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.provider).toBe('openai');
+    expect(meta.service).toBe('whisper');
+    expect(meta.trigger_type).toBe('USER_ACTION');
+    expect(meta.feature).toBe('stt');
+  });
+
+  // TC2: 성공 trace → logical_request_count=1, actual_call_count=1, retry_count=0
+  it('TC2. Whisper success: logical_request_count=1, actual_call_count=1, retry_count=0', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.logical_request_count).toBe(1);
+    expect(meta.actual_call_count).toBe(1);
+    expect(meta.retry_count).toBe(0);
+  });
+
+  // TC3: audio_seconds=null → cost 생성하지 않음, cost_source=UNKNOWN
+  it('TC3. audio_seconds=null → no cost calculated, cost_source=UNKNOWN', () => {
+    const meta = buildTraceMetadata(WHISPER_SUCCESS_BASE);
+    expect(meta.audio_seconds == null || !('audio_seconds' in meta)).toBe(true);
+    expect(meta.cost_source).toBe('UNKNOWN');
+    // token 없으면 cost 필드 absent
+    expect('cost' in meta).toBe(false);
+  });
+
+  // TC4: provider 호출 후 실패 → FAILED trace에 실제 latency/error 기록
+  it('TC4. Whisper provider failure: FAILED trace with latency and error', () => {
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'whisper-req-fail',
+      internal_id:      'whisper-int-fail',
+      pool_id:          'pool_test_001',
+      contract_version: '1.0',
+      feature:          'stt',
+      pool_mode:        null,
+      provider:         'openai',
+      trigger_type:     'USER_ACTION',
+      service:          'whisper',
+      cost_source:      'UNKNOWN',
+      error_stage:      'PROVIDER_CALL',
+      error_code:       'WHISPER_ERROR',
+      latency_ms:       1200,
+      audio_seconds:    null,
+      actual_call_count: 1,
+      retry_count:       0,
+    });
+    expect(meta.status).toBe('FAILED');
+    expect(meta.error_stage).toBe('PROVIDER_CALL');
+    expect(meta.error_code).toBe('WHISPER_ERROR');
+    expect(meta.latency_ms).toBe(1200);
+    expect(meta.service).toBe('whisper');
+    expect(meta.cost_source).toBe('UNKNOWN');
+  });
+
+  // TC5: validation 실패 (provider 호출 없음) → actual_call_count=1 기록 안 됨
+  it('TC5. Pre-provider validation failure: no actual_call_count=1 assertion', () => {
+    // validation 실패 시 saveAiTrace 자체를 호출하지 않으므로,
+    // 만약 호출된다면 actual_call_count가 전달되지 않아야 함 (absent or 0)
+    const meta = buildTraceMetadata({
+      status:           'FAILED',
+      request_id:       'whisper-req-val',
+      internal_id:      'whisper-int-val',
+      pool_id:          'pool_test_001',
+      contract_version: '1.0',
+      feature:          'stt',
+      pool_mode:        null,
+      trigger_type:     'USER_ACTION',
+      service:          'whisper',
+      error_stage:      'UNKNOWN',
+      error_code:       'NO_FILE',
+      latency_ms:       5,
+      // actual_call_count 전달 안 함 (validation 실패 = provider 미호출)
+    });
+    // actual_call_count가 absent 이거나 0이어야 함
+    expect(meta.actual_call_count == null || meta.actual_call_count === 0).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// saveAiTrace (DB 호출 확인)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('WP10 — saveAiTrace (DB execute 호출)', () => {
+  beforeEach(() => {
+    vi.mocked(superAdminDb.execute).mockClear();
+    vi.mocked(superAdminDb.execute).mockResolvedValue({ rows: [] } as any);
+  });
+
+  it('saveAiTrace → execute 1회 호출', async () => {
+    await saveAiTrace({
+      status:           'SUCCESS',
+      request_id:       'req-db-001',
+      internal_id:      'int-db',
+      pool_id:          'pool_db',
+      contract_version: '1.0',
+      feature:          'teacher_diary',
+      generation_mode:  'TEMPLATE_ASSISTED',
+      model:            'gpt-4o-mini',
+      latency_ms:       900,
+      input_tokens:     400,
+      output_tokens:    150,
+      total_tokens:     550,
+    });
+    expect(superAdminDb.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('두 번 호출 → execute 2회 (별도 INSERT)', async () => {
+    const base = {
+      status: 'SUCCESS' as const,
+      internal_id: 'int-db2', pool_id: 'pool_db2',
+      contract_version: '1.0', feature: 'teacher_diary',
+      generation_mode: 'INPUT_ONLY', model: 'gpt-4o-mini',
+      latency_ms: 500, input_tokens: 200, output_tokens: 80, total_tokens: 280,
+    };
+    await saveAiTrace({ ...base, request_id: 'req-db2-001' });
+    await saveAiTrace({ ...base, request_id: 'req-db2-002' });
+    expect(superAdminDb.execute).toHaveBeenCalledTimes(2);
+  });
+
+  // TC-I: super_admin 권한 없는 접근은 route 레벨에서 차단 (requireRole)
+  // → 라우터 테스트는 통합 테스트 영역; 여기서는 서비스 레벨 확인
+  it('I(권한): listAiTraces는 DB execute 호출 (권한은 라우터 레벨에서 차단)', async () => {
+    vi.mocked(superAdminDb.execute)
+      .mockResolvedValueOnce({ rows: [{ total: '3' }] } as any)
+      .mockResolvedValueOnce({ rows: [] } as any);
+
+    const { listAiTraces } = await import('../../lib/ai-trace-service.js');
+    const result = await listAiTraces({ pool_id: 'pool_test' });
+    expect(superAdminDb.execute).toHaveBeenCalledTimes(2); // count + data
+    expect(result.total).toBe(3);
+  });
+});

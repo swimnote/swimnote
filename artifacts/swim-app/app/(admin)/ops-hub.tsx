@@ -1,7 +1,6 @@
 /**
  * 운영관리 허브 — 하단탭 3번째 (기존 회원관리 탭 자리)
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -9,10 +8,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { useBrand } from "@/context/BrandContext";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { useTabScrollReset } from "@/hooks/useTabScrollReset";
 
 const C = Colors.light;
-const NB = "#E6FAF8";
+const NB = C.brandSoft;
 
 type MenuItem = { label: string; icon: string; color: string; route: string; desc: string };
 
@@ -39,12 +40,18 @@ const SECTIONS: { title: string; items: MenuItem[] }[] = [
 export default function OpsHubScreen() {
   const insets = useSafeAreaInsets();
   const { themeColor } = useBrand();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const scrollRef = useTabScrollReset("ops-hub");
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.background }}>
-      <View style={[s.header, { paddingTop: insets.top + 14 }]}>
-        <Text style={[s.headerTitle, { color: themeColor }]}>운영관리</Text>
+    <View style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }}>
+      <View style={[
+        s.header,
+        { paddingTop: insets.top + 14 },
+        isX && { backgroundColor: XT.surfaceNavy, borderBottomColor: XT.surfaceNavyStrong },
+      ]}>
+        <Text style={[s.headerTitle, { color: isX ? XT.textOnNavy : themeColor }]}>운영관리</Text>
       </View>
 
       <ScrollView
@@ -66,14 +73,14 @@ export default function OpsHubScreen() {
                   ]}
                   onPress={() => router.push((item.route + "?backTo=ops-hub") as any)}
                 >
-                  <View style={[s.iconBox, { backgroundColor: NB }]}>
+                  <View style={s.iconBox}>
                     <LucideIcon name={item.icon as any} size={20} color={item.color} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.label}>{item.label}</Text>
                     <Text style={s.desc}>{item.desc}</Text>
                   </View>
-                  <ChevronRight size={16} color={C.textMuted} />
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
               ))}
             </View>

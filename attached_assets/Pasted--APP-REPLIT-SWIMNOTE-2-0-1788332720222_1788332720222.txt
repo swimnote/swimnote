@@ -1,0 +1,589 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 KAKAO SIGN-UP POLICY CHANGE
+#
+# 목표:
+# 1.6.3 카카오 로그인/가입은 그대로 유지한다.
+#
+# 2.0.0부터 카카오 가입/계정연결은
+# "학부모 전용"으로 제한한다.
+#
+# 관리자/선생님은 카카오 가입 불가.
+# 관리자/선생님은 앱 내 일반 가입/로그인만 사용한다.
+#
+# 또한 2.0.0 카카오 신규 가입 흐름에서
+# 기존의 "관리자 / 선생님 / 학부모 역할 선택 화면"을 제거하고,
+# 카카오 인증 후 바로 학부모 회원정보 입력/연결 화면으로 이동시킨다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+============================================================
+0. 절대 금지
+============================================================
+
+1.6.3 iOS:
+NO TOUCH
+
+1.6.3 Android:
+NO TOUCH
+
+swimnote-1.6.3-protected:
+NO TOUCH
+
+Production server:
+NO TOUCH
+
+deploy-photo-clone:
+NO TOUCH
+
+Render:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+DB migration:
+NO
+
+Schema change:
+NO
+
+Production DB write:
+NO
+
+Kakao Developer Console:
+NO CHANGE
+
+RevenueCat:
+NO TOUCH
+
+Stage 8 subscription:
+NO TOUCH
+
+이번 작업은
+release/v2.0.0 APP CLIENT의
+카카오 가입/연결 UX 정책만 변경한다.
+
+============================================================
+1. 최종 정책
+============================================================
+
+2.0.0:
+
+학부모:
+- 카카오 로그인 허용
+- 카카오 신규 가입/계정 연결 허용
+
+관리자:
+- 카카오 신규 가입 금지
+- 카카오 계정 연결 금지
+- 일반 앱 가입/로그인 사용
+
+선생님:
+- 카카오 신규 가입 금지
+- 카카오 계정 연결 금지
+- 일반 앱 가입/로그인 사용
+
+중요:
+기존에 이미 카카오 계정으로 연결되어 있는
+관리자/선생님 legacy 사용자를
+이번 작업에서 강제로 차단하거나 로그아웃시키지 말 것.
+
+이번 정책은
+"2.0 신규 카카오 가입/연결 UX" 기준이다.
+
+============================================================
+2. 로그인 첫 화면 카카오 버튼
+============================================================
+
+2.0.0 로그인 화면에서
+카카오 로그인 버튼을 눌렀을 때
+
+카카오 인증 시작 전에
+다음 안내를 표시한다.
+
+문구:
+
+"카카오 회원가입은 학부모만 가능합니다.
+관리자와 선생님은 앱 내 가입을 이용해 주세요."
+
+버튼:
+
+[확인]
+[취소]
+
+또는 현재 앱의 표준 confirm UI에 맞는 형태 사용.
+
+확인:
+→ 카카오 인증 진행
+
+취소:
+→ 현재 로그인 화면 유지
+
+중요:
+새로운 복잡한 온보딩 화면 만들지 말 것.
+짧은 안내 modal/alert 형태로 처리.
+
+============================================================
+3. 기존 카카오 로그인 사용자 처리
+============================================================
+
+카카오 인증 후
+서버에서 이미 연결된 계정이 정상 반환되는 경우:
+
+- 기존 학부모:
+  기존대로 로그인
+
+- 기존 관리자/선생님 legacy 카카오 계정:
+  기존 정상 로그인 경로가 있다면
+  이번 작업에서 깨뜨리지 말 것.
+
+즉,
+"신규 가입 제한"과
+"기존 로그인 호환성"을 분리한다.
+
+기존 관리자/선생님 카카오 로그인 제거:
+이번 작업 범위 아님.
+
+============================================================
+4. kakao_no_account 신규 가입 흐름 변경
+============================================================
+
+현재 2.0에서:
+
+카카오 인증
+→ kakao_no_account
+→ 역할 선택
+→ 관리자 / 선생님 / 학부모
+→ 역할별 연결
+
+구조가 있다면 변경.
+
+신규 2.0 구조:
+
+카카오 인증
+→ kakao_no_account
+→ 역할 선택 화면 SKIP
+→ 바로 학부모 회원정보 입력/연결 화면
+
+즉:
+
+관리자 선택:
+삭제
+
+선생님 선택:
+삭제
+
+학부모 선택:
+삭제
+
+역할은 자동으로:
+
+parent
+
+로 고정.
+
+============================================================
+5. 카카오 회원정보 입력 화면
+============================================================
+
+카카오 신규 사용자가
+바로 들어가는 학부모 연결 화면에서
+
+현재 필요한 기존 필드를 그대로 사용.
+
+예:
+
+- 학부모 이름
+- 전화번호
+- 필요한 계정 연결 정보
+- 자녀/수영장 연결에 필요한 기존 정보
+
+정확한 필드는
+현재 kakao-link parent flow를 재사용.
+
+새 필드를 임의 추가하지 말 것.
+
+기존 parent 연결 API/contract를 그대로 사용.
+
+============================================================
+6. 관리자/선생님 관련 UI 제거
+============================================================
+
+2.0 카카오 신규 가입 flow 안에서만:
+
+- 관리자 버튼
+- 선생님 버튼
+- 역할 선택 설명
+- teacher kakao-link 신규 연결 CTA
+- admin kakao-link 신규 연결 CTA
+
+제거.
+
+단:
+
+기존 일반 관리자 가입 화면:
+KEEP
+
+기존 일반 선생님 가입 화면:
+KEEP
+
+기존 관리자 일반 로그인:
+KEEP
+
+기존 선생님 일반 로그인:
+KEEP
+
+============================================================
+7. 일반 가입 안내 연결
+============================================================
+
+카카오 안내 문구:
+
+"카카오 회원가입은 학부모만 가능합니다.
+관리자와 선생님은 앱 내 가입을 이용해 주세요."
+
+에서
+가능하면 현재 UX 구조에 맞게
+
+"앱 내 가입"
+
+진입 경로가 명확해야 함.
+
+별도 새 화면이 필요 없다면
+안내만 표시하고 로그인 화면의 기존 회원가입 CTA를 그대로 사용.
+
+불필요한 redirect 추가 금지.
+
+============================================================
+8. KAKAO_PARENT_AMBIGUOUS 유지
+============================================================
+
+2.0에 이미 구현된:
+
+KAKAO_PARENT_AMBIGUOUS
+→ 수영장 선택
+→ overridePoolId 재시도
+
+기능은 반드시 유지.
+
+이번 작업으로 깨뜨리지 말 것.
+
+학부모가 여러 수영장에 연결된 경우에도
+기존 2.0 처리 유지.
+
+============================================================
+9. 전화번호 normalization 유지
+============================================================
+
+현재 2.0 parent Kakao link flow의:
+
+digits-only cleanPhone
+
+처리 유지.
+
+Production server의
+digits/hyphen OR lookup과 현재 호환되는 구조를
+클라이언트에서 변경하지 말 것.
+
+============================================================
+10. 서버 API 변경 금지
+============================================================
+
+현재 사용 중인:
+
+POST /api/auth/kakao-social-login
+
+POST /api/auth/kakao-link-account
+
+등 기존 parent API contract를 그대로 사용.
+
+새 API endpoint:
+NO
+
+teacher/admin Kakao server route 삭제:
+NO
+
+server auth logic 변경:
+NO
+
+이유:
+1.6.3 호환성과 legacy 보호 때문.
+
+============================================================
+11. 1.6.3 완전 보호
+============================================================
+
+반드시 확인:
+
+1.6.3 iOS source:
+UNCHANGED
+
+1.6.3 Android source:
+UNCHANGED
+
+1.6.3 Kakao role selection:
+UNCHANGED
+
+1.6.3 existing Kakao login:
+UNCHANGED
+
+production server:
+UNCHANGED
+
+즉,
+정책 변경은 오직 2.0 client UI/flow에서만.
+
+============================================================
+12. 테스트
+============================================================
+
+최소 테스트:
+
+1.
+2.0 로그인 화면
+→ 카카오 버튼 클릭
+→ 학부모 전용 안내 표시
+
+2.
+안내 취소
+→ 로그인 화면 유지
+→ Kakao SDK 호출 안 됨
+
+3.
+안내 확인
+→ Kakao SDK 호출
+
+4.
+기존 연결된 학부모
+→ 정상 로그인
+
+5.
+kakao_no_account
+→ 역할 선택 화면 표시 안 됨
+
+6.
+kakao_no_account
+→ 바로 parent link/info 화면 이동
+
+7.
+parent link 성공
+→ 정상 로그인
+
+8.
+KAKAO_PARENT_AMBIGUOUS
+→ 기존 수영장 선택 유지
+
+9.
+기존 관리자/선생님 일반 로그인
+→ 영향 없음
+
+10.
+기존 관리자/선생님 일반 회원가입
+→ 영향 없음
+
+11.
+1.6.3 files
+→ diff 없음
+
+12.
+Production server files
+→ diff 없음
+
+============================================================
+13. 삭제/정리 범위
+============================================================
+
+2.0 카카오 신규 가입 flow에서
+더 이상 도달하지 않는 역할 선택 UI가 있으면
+
+2.0 client 범위에서 정리 가능.
+
+단:
+
+1.6.3 공유 가능성이 있는 파일/코드인지 먼저 확인.
+
+공유되는 legacy route/helper라면
+삭제하지 말고
+2.0에서만 진입하지 않도록 처리.
+
+불필요한 대규모 리팩터링 금지.
+
+============================================================
+14. Regression
+============================================================
+
+관련 auth/Kakao tests 실행.
+
+전체 baseline:
+
+166 stable failures
+
+새 deterministic failure:
+0
+
+기존 166을 이번 작업에서 수정하지 말 것.
+
+============================================================
+15. 커밋
+============================================================
+
+release/v2.0.0에만 commit.
+
+권장 message:
+
+feat(auth): make Kakao signup parent-only in 2.0
+
+Production branch push:
+NO
+
+deploy-photo-clone:
+NO TOUCH
+
+============================================================
+16. 완료보고 형식
+============================================================
+
+# SWIMNOTE 2.0 KAKAO PARENT-ONLY SIGNUP REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Commit:
+...
+
+## POLICY
+
+2.0 Parent Kakao signup:
+ENABLED
+
+2.0 Admin Kakao signup:
+DISABLED
+
+2.0 Teacher Kakao signup:
+DISABLED
+
+Existing legacy Kakao login:
+PRESERVED
+
+## ENTRY UX
+
+Kakao button notice:
+...
+
+Confirm:
+...
+
+Cancel:
+...
+
+## NEW USER FLOW
+
+Before:
+Kakao → role selection → role link
+
+After:
+Kakao → parent-only notice → Kakao auth → parent info/link
+
+Role selection removed from 2.0:
+YES / NO
+
+## EXISTING USER FLOW
+
+Existing parent Kakao:
+...
+
+Existing admin/teacher legacy Kakao:
+...
+
+## PARENT FLOW
+
+kakao_no_account:
+...
+
+Parent info screen:
+...
+
+Phone handling:
+...
+
+KAKAO_PARENT_AMBIGUOUS:
+...
+
+## GENERAL LOGIN
+
+Admin normal login:
+PASS
+
+Teacher normal login:
+PASS
+
+Admin app signup:
+PASS
+
+Teacher app signup:
+PASS
+
+## 1.6.3 FREEZE
+
+1.6.3 iOS changed:
+NO
+
+1.6.3 Android changed:
+NO
+
+1.6.3 Kakao flow changed:
+NO
+
+## PRODUCTION FREEZE
+
+Production server changed:
+NO
+
+deploy-photo-clone touched:
+NO
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## TESTS
+
+Kakao/Auth tests:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic failures:
+0
+
+## FINAL
+
+다음 중 하나:
+
+KAKAO PARENT-ONLY SIGNUP COMPLETE — 1.6.3 PRESERVED
+
+또는
+
+BLOCKED — SHARED FLOW CANNOT BE SAFELY ISOLATED

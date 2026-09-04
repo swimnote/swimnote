@@ -1,0 +1,720 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP4B START
+ACTIVE X_GLOBAL TEMPLATE SEARCH CONNECTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 승인 상태:
+
+WP4A_GLOBAL_TEMPLATE_MANAGEMENT_VERIFIED ✅
+
+Production:
+global_template_sets 관리 기능 완료
+x_global template CRUD 완료
+ACTIVE <= 1 보장 완료
+
+현재 테스트 데이터:
+test-wp4a-v1 = ARCHIVED
+ACTIVE set = 0
+x_global template = 0
+
+이번 WP4B 목적:
+
+X Mode 수영장의 AI Diary 생성 시에만
+
+ACTIVE global_template_set
+→ diary_templates.scope='x_global'
+→ 해당 학생/수업 조건에 맞는 template search
+
+를 연결한다.
+
+일반 SWIMNOTE의 기존 template search는
+절대 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. BASELINE
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 Repository 기준 제출:
+
+branch
+HEAD SHA
+origin SHA
+git status
+Render Live SHA
+
+기존 WP4A commit 보존 확인.
+
+stable tag 변경 금지.
+force push / reset / rebase 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 AI DIARY FLOW 전체 추적
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에 실제 현재 호출 흐름을 추적.
+
+반드시 파일/함수 기준으로 제출:
+
+APP
+→ Teacher Diary request
+→ API route
+→ Parser / Observation
+→ Template Search
+→ Knowledge Search
+→ Prompt Builder
+→ LLM
+→ structured result
+
+특히 현재 template search 함수가:
+
+- 어디에 있는지
+- scope='global'을 어떻게 조회하는지
+- swimming_pool_id를 어떻게 사용하는지
+- level/style/curriculum 조건을 어떻게 받는지
+- fallback이 어떻게 되는지
+
+실제 코드 근거 제출.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. APP ↔ AI ENGINE 책임 경계 유지
+━━━━━━━━━━━━━━━━━━━━
+
+중요 헌법:
+
+APP는 수영 전문 판단 금지.
+
+APP 역할:
+- teacher input
+- students/context
+- pool/student/class context
+- AI Engine 호출
+- 결과 표시/삽입/저장
+
+AI Engine 역할:
+- 입력 분석
+- 학생 구분
+- curriculum 제한
+- template search
+- knowledge search
+- prompt assembly
+- structured output
+
+따라서 x_global template 선택 판단을
+앱에서 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. X MODE 판정 위치
+━━━━━━━━━━━━━━━━━━━━
+
+현재 X mode 확인 코드:
+
+lib/xmode.ts
+또는 실제 Repository의 현재 helper
+
+를 재사용.
+
+새로운 독립 판정 로직 만들지 말 것.
+
+X mode 사용 조건은
+실제 기존 contract 기준:
+
+xmode_entitlement
+xmode_config_status
+subscription/status
+
+등 기존 helper가 판단하도록 한다.
+
+"entitlement=true만 보면 X" 같은
+새 단순 규칙 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. ACTIVE GLOBAL TEMPLATE SET RESOLVER
+━━━━━━━━━━━━━━━━━━━━
+
+서버/엔진 내부에
+명확한 resolver를 둔다.
+
+예:
+
+getActiveGlobalTemplateSet()
+
+기능:
+
+global_template_sets
+WHERE status='ACTIVE'
+LIMIT ...
+
+하지만 DB unique index가 있어도
+코드에서는 결과를 검증.
+
+결과:
+
+0개 → NO_ACTIVE_SET
+1개 → ACTIVE SET
+2개 이상 → DATA_INTEGRITY_ERROR
+
+2개 이상이면 임의 첫 번째 선택 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. X_GLOBAL TEMPLATE SEARCH CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+X mode일 때만 검색 대상:
+
+diary_templates.scope = 'x_global'
+diary_templates.global_template_set_id = ACTIVE_SET.id
+diary_templates.swimming_pool_id IS NULL
+
+반드시 세 조건 모두 적용.
+
+다른 set의 x_global template 혼입 금지.
+
+ARCHIVED/DRAFT set template 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 일반 SWIMNOTE 검색 보존
+━━━━━━━━━━━━━━━━━━━━
+
+NON-X pool:
+
+현재 기존 template search를
+그대로 사용.
+
+예:
+
+scope='global'
++
+pool/teacher override
++
+기존 level/curriculum logic
+
+현재 동작을 변경하지 말 것.
+
+즉:
+
+if X mode:
+    x_global ACTIVE set search
+else:
+    EXISTING SEARCH EXACTLY AS-IS
+
+가 원칙.
+
+기존 global template 1,050개의
+검색 결과/우선순위가 변하면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━
+8. FALLBACK 정책
+━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+X mode인데 ACTIVE set이 없거나,
+ACTIVE set에 적합한 template이 없으면
+일반 global template으로 몰래 fallback하지 말 것.
+
+왜냐하면 X mode 교육 시스템과
+일반 SWIMNOTE 템플릿이 섞이면 안 됨.
+
+정책:
+
+CASE A
+X mode + ACTIVE set 없음
+→ X_TEMPLATE_NOT_CONFIGURED
+
+CASE B
+X mode + ACTIVE set 존재
++ matching x_global template 없음
+→ X_TEMPLATE_NO_MATCH
+
+CASE C
+Non-X
+→ 기존 template search
+
+단 실제 WP3 config/status contract와
+충돌하면 기존 설계 우선.
+
+자동으로 일반 global template을
+X mode에 섞는 fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. TEMPLATE MATCHING RULE
+━━━━━━━━━━━━━━━━━━━━
+
+기존 template search의 matching field를
+재사용.
+
+예:
+
+level
+stroke
+category
+curriculum
+keyword
+sort_order
+
+실제 schema/코드 기준으로만 구현.
+
+WP4B에서 새로운 수영 분류체계
+창작 금지.
+
+현재 x_global template도
+기존 diary_templates 구조를 사용하므로
+같은 matching engine을 재사용하는 방향 우선.
+
+━━━━━━━━━━━━━━━━━━━━
+10. SEARCH RESULT METADATA
+━━━━━━━━━━━━━━━━━━━━
+
+내부 trace에는 최소 다음 정보 남길 수 있게 설계:
+
+template_scope
+global_template_set_id
+global_template_set_status
+template_id
+match_reason
+
+단 API 응답 contract를
+불필요하게 깨지 말 것.
+
+기존 앱이 모르는 field는
+optional metadata 형태만 허용.
+
+APP 수정이 필요 없다면
+앱 contract 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. AI ENGINE / SERVER 실제 위치 확인
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE AI 판단은
+AI Engine 책임.
+
+현재 Production AI 호출이
+swimnote.ai.kr 엔진으로 가는 구조인지
+실제 Repository 확인.
+
+만약 template search가 API server와
+AI Engine 사이에 분리되어 있다면:
+
+어디서 x_global template을 조회해야
+책임 경계가 맞는지 먼저 보고.
+
+APP 서버에서 수영 전문 matching을
+새로 만들지 말 것.
+
+필요하면:
+
+API server:
+X entitlement/config/context 제공
+
+AI Engine:
+ACTIVE x_global template search
+
+방식으로 유지.
+
+현재 구조를 보고 결정 후 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+12. DB ACCESS
+━━━━━━━━━━━━━━━━━━━━
+
+Production DB source:
+
+SUPABASE_DATABASE_URL
+
+direct postgres 기존 client 사용.
+
+Supabase Data API 사용 금지.
+
+RLS는 105/105 적용되어 있지만
+서버 role은 BYPASSRLS 구조 유지.
+
+새 policy 생성 금지.
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. ACTIVE SET 0 상태 처리
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production은:
+
+ACTIVE set = 0
+
+이 상태가 정상적으로 처리돼야 함.
+
+즉 배포 직후
+현재 운영 X sample pool이 있다고 해도
+WP4B 때문에 AI Diary가 무조건 crash하면 안 됨.
+
+ACTIVE set 0이면:
+
+명확한 NOT_CONFIGURED 결과
+또는 기존 WP3 config 상태와 연결된
+안전한 오류 처리.
+
+500 error 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. TEST DATA 전략
+━━━━━━━━━━━━━━━━━━━━
+
+Production에 테스트용 ACTIVE set을
+영구적으로 남기지 말 것.
+
+가능하면:
+
+DRAFT set 생성
+→ test x_global template 생성
+→ ACTIVE 전환
+→ WP4B runtime 확인
+→ ARCHIVE
+→ test template 정리
+
+순서.
+
+기존 ACTIVE set이 존재하면
+절대 임의 archive 금지.
+
+현재 ACTIVE=0인 경우에만
+위 테스트 가능.
+
+테스트 이름은 명확히:
+
+test-wp4b-v1
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+A.
+Non-X pool
+→ 기존 global template search
+→ regression 없음
+
+B.
+X pool + ACTIVE set 없음
+→ X_TEMPLATE_NOT_CONFIGURED
+→ 500 없음
+
+C.
+X pool + ACTIVE set 있음
+→ 해당 set의 x_global만 검색
+
+D.
+X pool + ACTIVE set + matching template
+→ 해당 template selected
+
+E.
+X pool + ACTIVE set + no matching template
+→ X_TEMPLATE_NO_MATCH
+→ 일반 global fallback 없음
+
+F.
+ARCHIVED set
+→ 검색 제외
+
+G.
+DRAFT set
+→ 검색 제외
+
+H.
+다른 global_template_set_id의 x_global
+→ 검색 제외
+
+I.
+scope='global'
+→ X search에서 제외
+
+━━━━━━━━━━━━━━━━━━━━
+16. 일반 TEMPLATE 회귀 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+기존 scope='global' count와
+기존 검색 함수 테스트.
+
+현재 기준 약 1,050개.
+
+WP4B 후:
+
+기존 일반 pool template 결과가
+동일해야 함.
+
+특히:
+
+teacher diary
+level filter
+pool filter
+teacher override
+
+기존 동작 회귀 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+17. X MODE SAMPLE POOL
+━━━━━━━━━━━━━━━━━━━━
+
+기존 sample:
+
+pool_1784310621737_qryl1x79s
+
+확인:
+
+mode=x
+xmode_entitlement=true
+xmode_config_status=READY
+
+실제 current runtime 다시 확인.
+
+이 pool을 WP4B runtime test에
+사용 가능하되
+실제 회원/일지 데이터 WRITE 금지.
+
+가능한 별도 test context 사용.
+
+━━━━━━━━━━━━━━━━━━━━
+18. AI OUTPUT SAFETY
+━━━━━━━━━━━━━━━━━━━━
+
+GPT가 template 미검색 상태에서
+수영 지식을 창작하도록 만들면 안 됨.
+
+X mode에서 template match 실패 시:
+
+기존 Teacher Diary 헌법에 따라
+teacher original input만 정리하거나
+명확한 no-template path 사용.
+
+Knowledge Search가 별도로 있다면
+그 역할과 섞지 말 것.
+
+Template Search
+≠
+Knowledge Search
+
+두 단계 분리 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+19. OBSERVABILITY
+━━━━━━━━━━━━━━━━━━━━
+
+로그/trace에서 최소:
+
+pool_id
+x_mode true/false
+active_set_id
+template_scope
+selected_template_id
+fallback_reason
+
+확인 가능해야 함.
+
+민감 teacher/student 원문
+로그 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+20. CODE CHANGE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+수정 예상:
+
+template search 관련 server/AI engine 파일
+x-mode context 전달 부분
+관련 tests
+
+APP UI 변경은 원칙적으로 없음.
+
+SuperAdmin WP4A UI 변경 금지.
+
+Makeup
+Parent Requests
+Billing
+RevenueCat
+
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+21. TEST / TYPECHECK
+━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+관련 unit/integration test
+typecheck
+
+WP4B 신규 오류 = 0.
+
+기존 pre-existing 오류는
+별도 표시.
+
+━━━━━━━━━━━━━━━━━━━━
+22. GIT GATE
+━━━━━━━━━━━━━━━━━━━━
+
+구현 완료 후:
+
+git status
+git diff --stat
+changed files
+
+확인.
+
+commit:
+
+feat(xmode): connect active global templates to AI diary
+
+origin push.
+
+제출:
+
+HEAD SHA
+COMMIT SHA
+ORIGIN SHA
+
+일치.
+
+━━━━━━━━━━━━━━━━━━━━
+23. DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━
+
+수정 위치에 따라:
+
+API server 변경
+→ Render deploy
+
+AI Engine repository/deploy가 별도라면
+실제 해당 배포도 필요.
+
+"코드만 구현"으로 DONE 금지.
+
+각 runtime location 제출:
+
+API SERVER
+AI ENGINE
+
+Deploy ID / Live SHA / runtime version
+가능한 증거 제출.
+
+APP 코드 변경 없으면 OTA 불필요.
+
+━━━━━━━━━━━━━━━━━━━━
+24. PRODUCTION RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Production에서 검증:
+
+NON-X:
+기존 search 정상
+
+X:
+ACTIVE 0 상태 정상 처리
+
+테스트 ACTIVE set 생성 가능한 경우:
+
+ACTIVE set + x_global template
+→ 실제 search hit
+
+DB read-back:
+
+global_template_sets
+diary_templates
+
+그리고 trace에서:
+
+scope=x_global
+correct set id
+correct template id
+
+확인.
+
+테스트 완료 후:
+set ARCHIVED
+template 정리.
+
+ACTIVE count 최종 0 또는
+원래 Production 상태로 복귀.
+
+━━━━━━━━━━━━━━━━━━━━
+25. REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+/api/health 200
+super admin 200
+x-mode 200
+AI diary endpoint 정상
+일반 diary 정상
+Makeup 신규 오류 없음
+Parent Request 신규 오류 없음
+Billing 신규 오류 없음
+
+Render/AI Engine 로그:
+
+RLS
+DB
+template
+x_global
+AI diary
+
+신규 오류 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+26. FINAL STATUS
+━━━━━━━━━━━━━━━━━━━━
+
+성공 조건:
+
+[ ] existing template search traced
+[ ] X mode resolver reused
+[ ] ACTIVE set resolver
+[ ] x_global + active set filter
+[ ] non-X search unchanged
+[ ] no silent global fallback
+[ ] ACTIVE=0 safe
+[ ] test cases pass
+[ ] commit pushed
+[ ] relevant runtime deployed
+[ ] Production runtime verified
+[ ] DB read-back verified
+[ ] test ACTIVE state cleaned
+[ ] regression none
+
+성공 시:
+
+WP4B_X_GLOBAL_TEMPLATE_SEARCH_VERIFIED ✅
+
+그 후 STOP.
+
+WP5 자동 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+27. 최종 보고서
+━━━━━━━━━━━━━━━━━━━━
+
+1. baseline
+2. current AI diary flow
+3. template search location
+4. X mode resolver
+5. active set resolver
+6. search contract
+7. fallback behavior
+8. non-X behavior
+9. changed files
+10. tests
+11. commit/origin SHA
+12. API server deploy
+13. AI Engine deploy
+14. runtime test
+15. test set/template
+16. DB read-back
+17. trace evidence
+18. final ACTIVE count
+19. regressions
+20. OTA/build impact
+21. final verdict
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

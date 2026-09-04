@@ -1,0 +1,253 @@
+[앱] Growth Report Feed PDF·공유 직접 실행 — 구현 승인
+
+구현계획 승인.
+
+목표:
+Parent Home Growth Report Feed의
+"PDF·공유" 버튼을 누르면
+Detail 화면을 거치지 않고 바로 PDF 생성 → iOS Share Sheet를 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Feed PDF·공유 동작 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/components/parent/GrowthReportFullFeed.tsx
+
+현재:
+
+PDF·공유
+→ onDetail
+→ growth-report-detail
+
+변경:
+
+PDF·공유
+→ handlePdfShare()
+→ PDF 생성
+→ iOS Share Sheet
+
+Detail route로 이동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 기존 PDF 함수 그대로 재사용
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+utils/growthReportExport.ts
+
+의
+
+generateGrowthReportPdf(params)
+
+를 그대로 재사용.
+
+새 PDF renderer 만들지 말 것.
+새 HTML renderer 만들지 말 것.
+서버 PDF endpoint 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Export Params는 Detail과 동일하게 구성
+━━━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+growth-report-detail.tsx의
+handlePdfSave()가 현재 실제로 구성하는
+
+GrowthReportExportParams
+
+필드 매핑을 정확히 기준으로 사용할 것.
+
+임의의 새 필드 매핑이나
+추측성 buildExportParams를 만들지 마십시오.
+
+Feed에서 필요한 detail 정보가 부족하면:
+
+GET /parent/growth-reports/:reportId
+
+1회 호출하여
+기존 Detail 화면과 동일한 데이터를 받은 뒤
+동일한 Export Params를 구성.
+
+Feed item 데이터만으로 충분한지 먼저 확인하되,
+PDF 결과가 Detail과 달라질 위험이 있으면
+기존 detail endpoint 조회를 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. UX
+━━━━━━━━━━━━━━━━━━━━━━
+
+PDF·공유 탭:
+
+1. isGeneratingPdf 확인
+2. 필요 시 Growth Report detail GET
+3. GrowthReportExportParams 구성
+4. generateGrowthReportPdf(params)
+5. iOS Share Sheet 표시
+6. 완료/취소 후 Feed 화면 그대로 유지
+
+Detail 화면 진입 금지.
+
+중복 탭 방지:
+
+const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
+사용.
+
+PDF 생성 중 재탭 무시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 오류 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+PDF 생성/공유 실패 시:
+
+- Feed 화면 유지
+- 사용자에게 기존 앱 방식의 간단한 오류 Alert
+- 내부 stack/error 원문 노출 금지
+
+finally에서 isGeneratingPdf=false 복구.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 Detail 기능 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-detail.tsx는 이번 작업에서 기능 삭제 금지.
+
+기존 Detail의:
+
+- PDF 저장
+- 공유하기
+
+기능은 그대로 유지.
+
+이번 수정 대상은
+Feed의 PDF·공유 버튼 동작뿐.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 비용 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+Feed PDF·공유 실행 시:
+
+AI call = 0
+
+이어야 함.
+
+허용:
+
+persisted Growth Report detail GET
+→ persisted report_content
+→ local PDF render
+→ Share Sheet
+
+금지:
+
+- Growth Report 재분석
+- GPT/LLM 호출
+- AI Engine 호출
+- report_content 재생성
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+A1.
+Feed PDF·공유 탭
+→ Detail 화면으로 이동하지 않음
+
+A2.
+iOS Share Sheet 바로 표시
+
+A3.
+PDF 실제 생성 정상
+
+A4.
+PDF 2페이지 유지
+
+A5.
+한글 정상
+
+A6.
+SwimNote AI REPORT 로고 정상
+
+A7.
+학생명 / 수영장명 / 해당 월 정상
+
+A8.
+empty section 미표시
+
+A9.
+internal status 미노출
+
+A10.
+Share Sheet 취소
+→ Feed 화면 그대로 유지
+
+A11.
+연속 탭
+→ 중복 PDF 생성 차단
+
+A12.
+기존 Detail 화면 PDF 저장 기능 영향 없음
+
+A13.
+AI / LLM 호출 0 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 범위 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계:
+
+- Server 수정 금지
+- DB 변경 금지
+- Render deploy 금지
+- Growth Report 분석 로직 수정 금지
+- PDF renderer 디자인 수정 금지
+- PHASE 3-B 댓글 구현 금지
+
+APP TSX 연결 변경만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA-compatible이면:
+
+수정
+→ TS 확인
+→ rollback target 기록
+→ iOS production OTA
+→ 사용자 실기기 확인
+
+Android OTA 금지.
+
+완료보고:
+
+[CODE]
+- SHA
+- 변경 파일
+
+[PDF FLOW]
+- Feed에서 실제 호출하는 함수
+- Detail endpoint 호출 여부
+- GrowthReportExportParams 구성 기준
+
+[TEST]
+- 관련 테스트 결과
+- AI call 0 확인
+
+[OTA]
+- previous stable
+- new update group
+- new update ID
+- runtimeVersion
+
+[DEVICE]
+- 사용자 실기기 확인 대기
+
+완료 후 STOP.
+PHASE 3-B 시작하지 마십시오.

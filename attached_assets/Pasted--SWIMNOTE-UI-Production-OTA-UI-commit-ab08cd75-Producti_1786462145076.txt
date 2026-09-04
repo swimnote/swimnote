@@ -1,0 +1,144 @@
+[SWIMNOTE 선생님 설정 UI 정리 — Production OTA 배포]
+
+완료된 설정 UI 수정 commit `ab08cd75`를 Production OTA로 배포하십시오.
+
+이번 단계에서는 추가 코드 수정 금지.
+배포와 검증만 진행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 먼저 확인:
+
+1. Current branch
+2. Current HEAD
+3. commit `ab08cd75`가 HEAD history에 포함되어 있는지
+4. `ab08cd75` 이후 기능 코드 변경이 존재하는지
+5. 실제 OTA 대상 diff 확인
+
+이번 OTA의 기능 코드 변경은 원칙적으로:
+
+`app/(teacher)/settings.tsx`
+
+1개 파일의 UI/style 변경만이어야 합니다.
+
+예상하지 않은 기능 코드 변경이 발견되면
+OTA 진행 금지 → STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 내용 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 UI 변경이 포함되어 있는지 확인:
+
+- 문의하기 border:
+  민트 → NAVY
+
+- 문의하기 icon:
+  민트 → NAVY
+
+- 저장공간 카테고리 아이콘:
+  여러 색상 → textSecondary 단일 색상
+
+- cardHeader divider:
+  C.border 사용
+
+- usageIcon:
+  36×36
+  C.background 배경
+
+기능 변경은 없어야 합니다.
+
+반드시 다음 기존 동작 유지:
+
+- 모든 설정 메뉴 onPress
+- navigation
+- 알림 toggle
+- savePushSetting
+- 저장공간 계산
+- 약관 route
+- 문의하기 기능
+- AppUpdateButton
+- 회원탈퇴
+- ScrollView
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 기존 Production 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상 동작 중인 아래 코드는 변경 금지:
+
+- Cleanup V1
+- Cleanup V2
+- mediaCleanupV2.ts
+- startup cleanup
+- Image.clearDiskCache()
+- ImagePicker cleanup
+- UploadQueueContext temp cleanup
+- cachePolicy="memory"
+
+그리고 제거 완료된 Storage Diagnostic 사용자 UI도
+다시 노출되면 안 됩니다.
+
+OTA/Store 강제 업데이트 관련 코드도 이번 작업에서 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion 확인 후:
+
+- iOS Production
+- Android Production
+
+두 플랫폼에 배포하십시오.
+
+production channel만 대상으로 합니다.
+
+Preview 배포 불필요.
+
+Render 배포 금지.
+DB 변경 금지.
+R2 변경 금지.
+Native Build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. Source SHA
+4. `ab08cd75` 포함 여부
+5. 이후 기능 코드 변경 여부
+6. 실제 OTA diff
+7. iOS Production Group ID
+8. iOS Update ID
+9. Android Production Group ID
+10. Android Update ID
+11. runtimeVersion
+12. channel
+13. settings UI 변경 포함 여부
+14. onPress 변경 = 0 확인
+15. navigation 변경 = 0 확인
+16. toggle 변경 = 0 확인
+17. Cleanup V1 유지
+18. Cleanup V2 유지
+19. cachePolicy 유지
+20. Storage Diagnostic UI 미노출 유지
+21. Server 변경 = 0
+22. DB 변경 = 0
+23. R2 변경 = 0
+24. Native Build = 0
+
+마지막:
+
+CODE CHANGED =
+OTA CHANGED =
+RENDER CHANGED =
+DB CHANGED =
+R2 CHANGED =
+NATIVE BUILD =
+
+배포 완료 후 STOP.

@@ -4,7 +4,6 @@
  * 학부모 승인 · 선생님 승인 · 수영장 승인 모두 이 컴포넌트로 통일.
  * 버튼 구조: [보기] 항상 표시 + [승인] 대기 상태에만 표시
  */
-import { Check, CircleAlert, Eye } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
@@ -79,7 +78,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
       {/* 거절/비활성 사유 */}
       {meta.rejectionReason ? (
         <View style={[s.rejectNote, { backgroundColor: "#F9DEDA", borderTopColor: C.border }]}>
-          <CircleAlert size={12} color={C.error} />
+          <LucideIcon name="alert-circle" size={12} color={C.error} />
           <Text style={[s.rejectNoteText, { color: C.error }]} numberOfLines={2}>
             거절 사유: {meta.rejectionReason}
           </Text>
@@ -95,7 +94,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
               onPress={onView}
               disabled={meta.processing}
             >
-              <Eye size={14} color={C.textSecondary} />
+              <LucideIcon name="eye" size={14} color={C.textSecondary} />
               <Text style={[s.viewText, { color: C.textSecondary }]}>보기</Text>
             </Pressable>
           ) : null}
@@ -110,7 +109,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <Check size={14} color="#fff" />
+                  <LucideIcon name="check" size={14} color="#fff" />
                   <Text style={s.approveText}>승인</Text>
                 </>
               )}
@@ -125,7 +124,7 @@ export function ApprovalCard({ meta, extra, onApprove, onView }: ApprovalCardPro
 const s = StyleSheet.create({
   card: {
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderLeftWidth: 4,
     overflow: "hidden",
   },
@@ -143,10 +142,10 @@ const s = StyleSheet.create({
   },
   avatarText: { fontSize: 18, fontFamily: "Pretendard-Regular" },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sub:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  sub2: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  date: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  name: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  sub2: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  date: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   badge: {
     flexDirection: "row",
     alignItems: "center",

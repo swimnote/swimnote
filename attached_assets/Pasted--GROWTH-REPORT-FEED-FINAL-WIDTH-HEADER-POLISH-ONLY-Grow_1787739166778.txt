@@ -1,0 +1,199 @@
+[앱]
+
+GROWTH REPORT FEED — FINAL WIDTH / HEADER POLISH ONLY
+
+현재 새 Growth Report Feed 방향은 유지한다.
+
+현재 screenshot 기준:
+- 긴 피드 전체 노출 구조 PASS
+- section 구조 PASS
+- typography 방향 PASS
+- parent support 마지막 배치 PASS
+
+이번 Step에서는 아래 시각 문제만 수정한다.
+
+절대:
+- section 구조 변경
+- report content 변경
+- AI 수정
+- PDF 수정
+- DB 수정
+금지.
+
+==================================================
+1. FEED WIDTH 확대
+==================================================
+
+현재 성장리포트 post가 모바일 화면 중앙에 너무 좁게 표시되어
+"축소된 문서"처럼 보인다.
+
+Instagram feed처럼
+모바일 viewport 폭을 거의 다 사용하게 수정한다.
+
+목표:
+
+375 / 390 / 430 viewport에서
+
+- 좌우 outer margin 약 12~16px 수준
+- post width = viewport - outer margins
+- 현재처럼 큰 좌우 빈 공간 금지
+
+카드 폭을 임의 고정 pixel 값으로 두지 말 것.
+
+width: 100%
++ parent horizontal padding 방식 우선.
+
+==================================================
+2. POST 모양
+==================================================
+
+전체 Growth Report는
+하나의 feed post로 유지.
+
+과도한 outer radius/shadow 금지.
+
+Instagram처럼:
+- 화면 폭에 자연스럽게 붙고
+- 아주 subtle한 boundary만 사용.
+
+"작은 종이 문서가 중앙에 떠 있는 느낌" 제거.
+
+==================================================
+3. LOGO SIZE
+==================================================
+
+현재 실제 SwimNote AI REPORT 로고가 너무 작다.
+
+현재 대비 약 20~30% 확대.
+
+단:
+- 원본 가로 비율 유지
+- header 전체 높이는 증가시키지 말 것
+- 학생명/수영장 정보와 겹침 금지
+
+실제 로고가 한눈에 식별될 정도까지만 확대.
+
+==================================================
+4. HEADER ALIGNMENT
+==================================================
+
+현재 기본 방향 유지:
+
+LEFT:
+SwimNote AI REPORT logo
+
+RIGHT:
+월간 리포트
+서태웅
+토이키즈스윔클럽
+
+단 metadata가 너무 오른쪽 끝에 붙어 답답하지 않도록
+right padding 정리.
+
+header 전체 높이는 compact 유지.
+
+==================================================
+5. REPORT META
+==================================================
+
+2026년 8월 / 현재 진도 48% 영역은 유지.
+
+단:
+
+- font size 기존 typography system 유지
+- 한 줄 정렬 가능하면 한 줄
+- 좌우 padding section body와 정확히 일치
+
+진도 bar도 본문 폭과 정확히 align.
+
+==================================================
+6. SECTION WIDTH / PADDING
+==================================================
+
+모든 section:
+
+- 동일 left/right padding
+- 동일 title alignment
+- 동일 body width
+- divider 시작/끝 위치 동일
+
+현재 화면처럼 section마다
+미묘하게 폭이 달라 보이면 정리.
+
+권장 content horizontal padding:
+16px 전후.
+
+==================================================
+7. TYPOGRAPHY 유지
+==================================================
+
+현재 통일된 font hierarchy 유지.
+
+변경 금지:
+
+T1 section title
+15px SemiBold
+
+T2 body
+14px Regular
+line-height 22px
+
+T3 metadata
+12px
+
+T4 action
+12px
+
+이번 Step에서 새로운 font size 만들지 말 것.
+
+==================================================
+8. ACTION ROW
+==================================================
+
+하단 좋아요 / 댓글 / PDF 공유 영역 유지.
+
+단 post 전체 폭이 넓어진 뒤:
+
+LEFT:
+좋아요 / 댓글
+
+RIGHT:
+PDF 공유
+
+형태가 자연스럽게 보이도록 정렬.
+
+PDF 공유 텍스트가 너무 작거나 흐리면
+T4 범위 안에서 contrast만 조정.
+
+==================================================
+9. SCREENSHOT TEST
+==================================================
+
+375
+390
+430
+
+각각 실제 full-page screenshot 제출.
+
+PASS 기준:
+
+- 좌우 큰 빈 공간 없음
+- post가 모바일 피드 폭을 자연스럽게 사용
+- 실제 logo 명확하게 보임
+- header 높이는 여전히 compact
+- section width 모두 정렬
+- body 전체 표시
+- 마지막 가정에서 함께해요 표시
+- action row 정상
+- horizontal overflow 0
+
+==================================================
+10. 중요
+==================================================
+
+이번 디자인 방향 자체를 다시 만들지 말 것.
+
+지금 구조를 유지하고
+WIDTH + LOGO SIZE + ALIGNMENT만 수정.
+
+완료 후 STOP.

@@ -1,4 +1,3 @@
-import { Layers, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -33,7 +32,7 @@ export function ClassPickerModal({ groups, selectedIds, maxSelect, onSelect, onC
         <View style={cp.sheet}>
           <View style={cp.header}>
             <Text style={cp.title}>반 선택 (최대 {maxSelect}개)</Text>
-            <Pressable onPress={onClose}><X size={22} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
           </View>
           <Text style={[cp.sub, limitErr && { color: "#D96C6C" }]}>
             {limitErr ? `최대 ${maxSelect}개까지 선택 가능합니다` : `${picked.length}/${maxSelect}개 선택됨`}
@@ -41,7 +40,7 @@ export function ClassPickerModal({ groups, selectedIds, maxSelect, onSelect, onC
           <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
             {groups.length === 0 ? (
               <View style={cp.empty}>
-                <Layers size={32} color={C.textMuted} />
+                <LucideIcon name="layers" size={32} color={C.textMuted} />
                 <Text style={{ color: C.textMuted, marginTop: 8 }}>개설된 반이 없습니다</Text>
               </View>
             ) : groups.map(g => {

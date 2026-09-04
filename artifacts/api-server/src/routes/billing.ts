@@ -17,6 +17,7 @@ import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.
 import { getPaymentProvider } from "../payment/index.js";
 import { logEvent } from "../lib/event-logger.js";
 import { billingEnabled } from "../config/billing.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 import {
   resolveSubscription,
   applySubscriptionState,
@@ -24,8 +25,36 @@ import {
   isDowngradeTier,
   isUpgradeTier,
 } from "../lib/subscriptionService.js";
+import { isXProduct, handleXEntitlementEvent } from "../lib/x-entitlement.js";
+import {
+  resolveXProductForSequence,
+  reserveXSlot,
+  syncXSubscription,
+  processXWebhookEvent,
+  fetchRCSubscriberEntitlement,
+  auditXEvent,
+} from "../lib/x-billing.js";
 
 const router = Router();
+
+// ── 환불 정책 동의 여부 검증 (결제 차단 헬퍼) ────────────────────────────────
+async function isPolicyAgreed(poolId: string): Promise<boolean> {
+  try {
+    const activeRes = await db.execute(sql`
+      SELECT version FROM policy_versions
+      WHERE policy_key = 'refund_policy' AND is_active = TRUE
+      ORDER BY created_at DESC LIMIT 1
+    `);
+    const activeVersion = (activeRes.rows[0] as any)?.version;
+    if (!activeVersion) return true; // 정책 미설정 → fail-open
+    const consentRes = await db.execute(sql`
+      SELECT id FROM policy_consents
+      WHERE pool_id = ${poolId} AND policy_key = 'refund_policy' AND version = ${activeVersion}
+      LIMIT 1
+    `);
+    return consentRes.rows.length > 0;
+  } catch { return true; } // 오류 → fail-open
+}
 
 // ── 구 티어명 → 현재 티어명 정규화 (DB에 저장된 구 값 호환) ──────────────
 const TIER_NORMALIZE: Record<string, string> = {
@@ -41,13 +70,18 @@ function normalizeTier(tier: string | null | undefined): string {
   return TIER_NORMALIZE[tier] ?? tier;
 }
 
-// ── 플랜 기능 조회 (billingEnabled 무관, 전 역할 접근 가능) ──────────────
-const CENTER_TIERS = new Set(["center_200", "advance", "pro", "max"]);
-
+// ── 플랜 기능 조회 (WP2A: video_enabled=true all plans, unified quota, swimming_pools SoT) ──
 router.get("/features", requireAuth, async (req: AuthRequest, res) => {
   try {
     const poolId = await getPoolId(req.user!.userId);
-    if (!poolId) { res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" }); return; }
+    if (!poolId) {
+      res.json({
+        video_enabled: true, // WP2A: all plans
+        storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0,
+        storage_warning_level: "ok", upload_blocked: false, tier: "free",
+      });
+      return;
+    }
 
     let tier = "free";
     let uploadBlocked = false;
@@ -62,70 +96,78 @@ router.get("/features", requireAuth, async (req: AuthRequest, res) => {
       if (row) { tier = normalizeTier(row.tier); uploadBlocked = !!row.upload_blocked; }
     } catch {}
 
-    let storageQuotaGb = 0.5;
+    // Unified quota: base from subscription_plans + extra from swimming_pools (SoT)
+    const { getPoolStorageUsage } = await import("../lib/storageQuota.js");
+    let storageQuotaGb   = 0.5;
+    let storageUsedGb    = 0;
+    let storageUsedPct   = 0;
+    let storageWarning   = "ok";
     try {
-      const [plan] = (await db.execute(sql`SELECT storage_gb FROM subscription_plans WHERE tier = ${tier} LIMIT 1`)).rows as any[];
-      if (plan) storageQuotaGb = Number(plan.storage_gb ?? 0.5);
+      const usage      = await getPoolStorageUsage(poolId);
+      storageQuotaGb   = +usage.quotaGb.toFixed(3);
+      storageUsedGb    = +(usage.usedBytes / (1024 ** 3)).toFixed(3);
+      storageUsedPct   = usage.pct;
+      storageWarning   = usage.warningLevel;
     } catch {}
-
-    let usedBytes = 0;
-    try {
-      const [r] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM photo_assets_meta WHERE pool_id = ${poolId}
-      `)).rows as any[];
-      const [rv] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size),0) AS used_bytes FROM video_assets_meta WHERE pool_id = ${poolId}
-      `)).rows as any[];
-      usedBytes = Number(r?.used_bytes ?? 0) + Number(rv?.used_bytes ?? 0);
-    } catch {}
-
-    const storageUsedGb = +(usedBytes / (1024 ** 3)).toFixed(3);
-    const storageUsedPct = storageQuotaGb > 0 ? Math.round((storageUsedGb / storageQuotaGb) * 100) : 0;
 
     res.json({
-      video_enabled: CENTER_TIERS.has(tier),
+      video_enabled: true,          // WP2A LOCKED: all plans video enabled
       storage_quota_gb: storageQuotaGb,
       storage_used_gb: storageUsedGb,
       storage_used_pct: storageUsedPct,
+      storage_warning_level: storageWarning, // additive: "ok"|"warning"|"data_pack"|"blocked"
       upload_blocked: uploadBlocked,
       tier,
     });
   } catch (err) {
     console.error("[billing/features]", err);
-    res.json({ video_enabled: false, storage_quota_gb: 0.5, storage_used_gb: 0, storage_used_pct: 0, upload_blocked: false, tier: "free" });
+    res.json({
+      video_enabled: true, storage_quota_gb: 0.5, storage_used_gb: 0,
+      storage_used_pct: 0, storage_warning_level: "ok", upload_blocked: false, tier: "free",
+    });
   }
 });
 
 // RC_PRODUCT_TIER_MAP은 subscriptionService에서 import
 
-// ── RevenueCat Webhook (인증 불필요, billingEnabled 무관) ─────────────
+// ── RevenueCat Webhook (billingEnabled 무관) ──────────────────────────
+// 보안: REVENUECAT_WEBHOOK_SECRET 미설정 시 fail-closed (요청 거절)
 router.post("/revenuecat-webhook", async (req, res) => {
   const webhookSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const authHeader = req.headers.authorization;
-    if (authHeader !== webhookSecret) {
-      console.warn("[rc-webhook] 인증 실패");
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  if (!webhookSecret) {
+    console.warn("[rc-webhook] REVENUECAT_WEBHOOK_SECRET 미설정 — 요청 거절");
+    res.status(503).json({ error: "Webhook not configured" });
+    return;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader !== webhookSecret) {
+    console.warn("[rc-webhook] 인증 실패");
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
 
   const event = req.body?.event;
   if (!event) { res.json({ received: true }); return; }
 
-  const eventType  = event.type as string;
-  const appUserId  = event.app_user_id as string;
-  const productId  = (event.product_id as string) ?? "";
-  const expiresMs  = event.expiration_at_ms as number | null;
-  const expiresAt  = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
-  const tier       = RC_PRODUCT_TIER_MAP[productId] ?? null;
+  const eventType   = event.type as string;
+  const appUserId   = event.app_user_id as string;
+  const productId   = (event.product_id as string) ?? "";
+  const expiresMs   = event.expiration_at_ms as number | null;
+  const expiresAt   = expiresMs ? new Date(expiresMs).toISOString().split("T")[0] : null;
+  const tier        = RC_PRODUCT_TIER_MAP[productId] ?? null;
+  const isSandbox   = (event.environment as string | undefined)?.toUpperCase() === "SANDBOX";
+  // RC 실제 결제 금액 (price_in_purchased_currency: KRW 기준 정수)
+  const rcCurrency  = (event.currency as string | null)?.toUpperCase() ?? "KRW";
+  const rcRawPrice  = event.price_in_purchased_currency as number | null;
+  const rcPrice     = (rcCurrency === "KRW" && rcRawPrice != null && rcRawPrice > 0)
+    ? Math.round(rcRawPrice) : null;
 
-  console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier}`);
+  console.log(`[rc-webhook] 이벤트: ${eventType} | 사용자: ${appUserId} | 제품: ${productId} | tier: ${tier} | sandbox: ${isSandbox}`);
 
   try {
     // 사용자 → 수영장 찾기
     const [userRow] = (await db.execute(sql`
-      SELECT id, swimming_pool_id FROM users WHERE id = ${appUserId} LIMIT 1
+      SELECT id, swimming_pool_id, role FROM users WHERE id = ${appUserId} LIMIT 1
     `)).rows as any[];
 
     if (!userRow?.swimming_pool_id) {
@@ -135,6 +177,37 @@ router.post("/revenuecat-webhook", async (req, res) => {
     }
 
     const poolId = userRow.swimming_pool_id as string;
+
+    // ── X 상품 판정: X 전용 handler로 분리 ─────────────────────────────
+    // isXProduct()는 REVENUECAT_X_PRODUCT_IDS 미설정 시 항상 false
+    // → 일반 구독 webhook 흐름에 영향 없음
+    if (isXProduct(productId)) {
+      // pool_admin / super_admin만 X entitlement 변경 허용
+      // parent / teacher RevenueCat 이벤트가 pool X 상태를 바꾸지 못하도록 보호
+      const userRole = (userRow as any)?.role as string | undefined;
+      if (userRole !== "pool_admin" && userRole !== "super_admin") {
+        console.warn(
+          `[rc-webhook] X 상품 역할 불일치: user=${appUserId}, role=${userRole}`,
+        );
+        res.json({ received: true });
+        return;
+      }
+      // X02-C: event dedup + slot binding + cross-pool defense
+      await processXWebhookEvent({
+        eventId: (event.id as string | null) ?? null,
+        eventType,
+        appUserId,
+        poolId,
+        productId,
+        expiresAt,
+        isSandbox,
+        originalTransactionId: (event.original_transaction_id as string | null) ?? null,
+        latestTransactionId: (event.transaction_id as string | null) ?? null,
+      });
+      res.json({ received: true });
+      return;
+    }
+
     const todayStr = new Date().toISOString().split("T")[0];
 
     switch (eventType) {
@@ -146,22 +219,150 @@ router.post("/revenuecat-webhook", async (req, res) => {
         await applySubscriptionState(poolId, tier, "revenuecat", "active", {
           nextBillingAt: nextBilling, resetReadonly: true,
         });
+
+        // ── 비활성화 상태이던 수영장 복구 (90일 이내 재구독) ─────────────
+        const [deactivatedCheck] = (await db.execute(sql`
+          SELECT deactivated_at FROM swimming_pools WHERE id = ${poolId} AND deactivated_at IS NOT NULL LIMIT 1
+        `)).rows as any[];
+        if (deactivatedCheck?.deactivated_at) {
+          await db.execute(sql`
+            UPDATE swimming_pools
+            SET deactivated_at = NULL, deletion_scheduled_at = NULL, updated_at = NOW()
+            WHERE id = ${poolId}
+          `);
+          logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
+            description: `비활성화 수영장 재구독 복구: ${productId} → ${tier}`,
+            metadata: { eventType, productId, tier, restored: true } }).catch(console.error);
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "subscription_restored",
+              title: "비활성화 수영장 복구",
+              message: `${poolId} 수영장이 재구독으로 복구되었습니다 (${tier})`,
+              severity: "success",
+              relatedPoolId: poolId,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
+
+        // ── 탈퇴 신청 계정 복구 (INITIAL_PURCHASE / UNCANCELLATION 시) ──
+        // 사용자가 탈퇴 신청 후 재구독하면 탈퇴 의사를 철회한 것으로 간주
+        if (eventType === "INITIAL_PURCHASE" || eventType === "UNCANCELLATION") {
+          const [withdrawalCheck] = (await db.execute(sql`
+            SELECT withdrawal_requested_at FROM users
+            WHERE id = ${appUserId} AND withdrawal_requested_at IS NOT NULL LIMIT 1
+          `)).rows as any[];
+          if (withdrawalCheck?.withdrawal_requested_at) {
+            await db.execute(sql`
+              UPDATE users
+              SET withdrawal_requested_at = NULL,
+                  is_activated = true,
+                  updated_at = NOW()
+              WHERE id = ${appUserId}
+            `);
+            console.log(`[rc-webhook] 탈퇴 신청 취소 복구 (is_activated=true): user=${appUserId} (${eventType})`);
+            logEvent({
+              pool_id: poolId, category: "계정", actor_id: "revenuecat", actor_name: "RevenueCat",
+              description: `탈퇴 신청 자동 취소: 재구독으로 탈퇴 의사 철회 (${eventType})`,
+              metadata: { eventType, productId, tier, userId: appUserId },
+            }).catch(console.error);
+          }
+        }
         const resolved = await resolveSubscription(poolId).catch(() => null);
         const poolInfo = (await db.execute(sql`SELECT name FROM swimming_pools WHERE id = ${poolId} LIMIT 1`)).rows[0] as any;
-        if (eventType !== "UNCANCELLATION") {
+
+        // ── RENEWAL 중복 방지: INITIAL_PURCHASE 직후 5분 내 RENEWAL은 스킵 ──
+        let skipPaymentRecord = false;
+        if (eventType === "RENEWAL") {
+          try {
+            const [recentInitial] = (await superAdminDb.execute(sql`
+              SELECT id FROM revenue_logs
+              WHERE pool_id = ${poolId}
+                AND event_type = 'new_subscription'
+                AND occurred_at >= NOW() - INTERVAL '5 minutes'
+              LIMIT 1
+            `)).rows as any[];
+            if (recentInitial) {
+              skipPaymentRecord = true;
+              console.log(`[rc-webhook] RENEWAL dedup 스킵 (5분 내 INITIAL_PURCHASE 존재): pool=${poolId}`);
+            }
+          } catch (e: any) {
+            console.error("[rc-webhook] RENEWAL dedup 체크 오류:", e?.message);
+          }
+        }
+
+        if (eventType !== "UNCANCELLATION" && !skipPaymentRecord) {
+          // RC 실제 결제 금액 우선 사용, 없으면 DB 플랜 가격 fallback
+          const priceToRecord = rcPrice ?? (resolved?.pricePerMonth ?? 0);
           await recordPayment({
             poolId, poolName: poolInfo?.name,
-            amount: resolved?.pricePerMonth ?? 0,
+            amount: priceToRecord,
+            grossAmount: priceToRecord,
             status: "success",
             type: eventType === "RENEWAL" ? "renewal" : "new_subscription",
             description: `${resolved?.planName ?? tier} ${eventType === "RENEWAL" ? "갱신" : "신규 구독"} (RevenueCat)`,
             planId: tier, planName: resolved?.planName,
             eventType: eventType === "RENEWAL" ? "renewal" : "new_subscription",
+            isSandbox,
           });
         }
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
           description: `${eventType}: ${productId} → ${tier} (${resolved?.planName})`,
           metadata: { eventType, productId, tier } }).catch(console.error);
+
+        // ── 크레딧 자동 차감 (credit_auto_apply 플래그) ───────────────────
+        if (eventType === "RENEWAL" || eventType === "INITIAL_PURCHASE") {
+          isFeatureEnabled("credit_auto_apply", poolId).then(async (creditEnabled) => {
+            if (!creditEnabled) return;
+            try {
+              await db.execute(sql`
+                CREATE TABLE IF NOT EXISTS pool_credits (
+                  pool_id    TEXT PRIMARY KEY,
+                  balance    INTEGER NOT NULL DEFAULT 0,
+                  updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+              `).catch(() => {});
+              const [creditRow] = (await db.execute(sql`
+                SELECT balance FROM pool_credits WHERE pool_id = ${poolId} LIMIT 1
+              `)).rows as any[];
+              const balance = Number(creditRow?.balance ?? 0);
+              if (balance > 0) {
+                const applied = Math.min(balance, resolved?.pricePerMonth ?? 0);
+                await db.execute(sql`
+                  UPDATE pool_credits SET balance = balance - ${applied}, updated_at = NOW()
+                  WHERE pool_id = ${poolId} AND balance > 0
+                `);
+                logEvent({
+                  pool_id:    poolId,
+                  category:   "크레딧",
+                  actor_name: "시스템",
+                  description: `크레딧 자동 차감: ${applied.toLocaleString()}원 (잔액: ${(balance - applied).toLocaleString()}원)`,
+                  metadata:   { applied_won: applied, prev_balance: balance, event_type: eventType },
+                }).catch(console.error);
+                console.log(`[credit-auto] pool ${poolId}: ${applied}원 크레딧 차감`);
+              }
+            } catch (e: any) {
+              console.error("[credit-auto] 크레딧 차감 오류:", e.message);
+            }
+          }).catch(() => {});
+        }
+
+        // ── 슈퍼관리자 운영 알림: 유료 결제 ──────────────────────────────
+        if (eventType !== "UNCANCELLATION") {
+          const planLabel = resolved?.planName ?? tier ?? productId;
+          const alertMsg = eventType === "RENEWAL"
+            ? `${poolInfo?.name ?? poolId}이(가) ${planLabel} 플랜을 갱신했습니다`
+            : `${poolInfo?.name ?? poolId}이(가) ${planLabel} 플랜 결제를 완료했습니다`;
+          import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+            createOpsAlert({
+              type: "paid_subscription",
+              title: eventType === "RENEWAL" ? "구독 갱신 완료" : "유료 결제 완료",
+              message: alertMsg,
+              severity: "success",
+              relatedPoolId: poolId,
+            }).catch(console.error);
+          }).catch(console.error);
+        }
+
         break;
       }
 
@@ -190,18 +391,36 @@ router.post("/revenuecat-webhook", async (req, res) => {
       }
 
       case "EXPIRATION": {
-        // 구독 만료 → 무료 전환 + 읽기전용
-        await applySubscriptionState(poolId, "free", "free_default", "payment_failed", {
+        // new_subscription_policy 플래그: ON → 90일 유예 (v2), OFF → 즉시 비활성화 (v1)
+        const useV2Policy = await isFeatureEnabled("new_subscription_policy", poolId).catch(() => true);
+        const graceDays = useV2Policy ? 90 : 7; // v1은 7일 유예
+        const deletionDate = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
+        await applySubscriptionState(poolId, "free", "free_default", "cancelled", {
           endsAt: null,
         });
         await db.execute(sql`
           UPDATE swimming_pools
           SET is_readonly = true, upload_blocked = true,
-              readonly_reason = 'expired', payment_failed_at = now(), updated_at = now()
+              readonly_reason = 'cancelled',
+              subscription_status = 'cancelled',
+              deactivated_at = NOW(),
+              deletion_scheduled_at = ${deletionDate}::timestamptz,
+              updated_at = NOW()
           WHERE id = ${poolId}
         `);
         logEvent({ pool_id: poolId, category: "구독", actor_id: "revenuecat", actor_name: "RevenueCat",
-          description: `구독 만료 → free 전환: ${productId}`, metadata: { eventType, productId } }).catch(console.error);
+          description: `구독 만료 → 비활성화 처리 (${graceDays}일 후 ${deletionDate.slice(0,10)} 영구삭제 예약, 정책: v${useV2Policy ? 2 : 1})`,
+          metadata: { eventType, productId, deletion_scheduled_at: deletionDate, grace_days: graceDays } }).catch(console.error);
+
+        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+          createOpsAlert({
+            type: "subscription_expired",
+            title: "구독 만료 → 비활성화",
+            message: `${poolId} 수영장 구독 만료. 90일 후 (${deletionDate.slice(0,10)}) 영구 삭제 예정.`,
+            severity: "warning",
+            relatedPoolId: poolId,
+          }).catch(console.error);
+        }).catch(console.error);
         break;
       }
 
@@ -283,6 +502,19 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
       res.json({ synced: false, reason: "active 구독 없음" }); return;
     }
 
+    // 유료 구독 처리 전 환불 정책 동의 확인
+    if (newTier !== "free") {
+      const agreed = await isPolicyAgreed(poolId);
+      if (!agreed) {
+        res.status(403).json({
+          success: false,
+          code: "REFUND_POLICY_AGREEMENT_REQUIRED",
+          message: "유료 결제를 진행하려면 환불 정책 동의가 필요합니다.",
+        });
+        return;
+      }
+    }
+
     const nextBilling = expiresAt ?? addOneMonth();
 
     // ── 현재 tier 조회 (업/다운 판정) ──
@@ -290,6 +522,32 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
       SELECT tier, next_billing_at FROM pool_subscriptions WHERE swimming_pool_id = ${poolId} LIMIT 1
     `)).rows as any[];
     const currentTier = normalizeTier(curSub?.tier ?? "free");
+
+    // ── 다운그레이드 회원 한도 초과 guard (X 티어 간 다운그레이드) ──────────
+    if (isDowngradeTier(currentTier, newTier)) {
+      const targetPlanRow = (await db.execute(sql`
+        SELECT member_limit FROM subscription_plans WHERE tier = ${newTier} LIMIT 1
+      `)).rows[0] as any;
+      const targetLimit = Number(targetPlanRow?.member_limit ?? 0);
+      if (targetLimit > 0 && targetLimit < 999999) {
+        const activeCntRow = (await db.execute(sql`
+          SELECT COUNT(*)::int AS cnt FROM students
+          WHERE swimming_pool_id = ${poolId} AND status = 'active' AND deleted_at IS NULL
+        `)).rows[0] as any;
+        const activeCount = Number(activeCntRow?.cnt ?? 0);
+        if (activeCount > targetLimit) {
+          res.status(409).json({
+            error: `현재 활성회원 수(${activeCount.toLocaleString()}명)가 목표 플랜 한도(${targetLimit.toLocaleString()}명)를 초과하여 다운그레이드할 수 없습니다. 회원 수를 조정하거나 더 높은 플랜을 선택해 주세요.`,
+            code:           "MEMBER_LIMIT_EXCEEDED_FOR_DOWNGRADE",
+            active_count:   activeCount,
+            target_limit:   targetLimit,
+            current_tier:   currentTier,
+            target_tier:    newTier,
+          });
+          return;
+        }
+      }
+    }
 
     // ── 다운그레이드: 현재 플랜 유지 + 만료일에 예약 ──────────────────────
     if (isDowngradeTier(currentTier, newTier) && curSub?.next_billing_at) {
@@ -348,6 +606,322 @@ router.post("/sync-rc-subscription", requireAuth, requireRole("pool_admin", "sup
   }
 });
 
+// ── POST /billing/x-reserve-slot — X subscription slot 예약 (pool_admin 전용) ──
+// X02-C §3~10: sequence/tier/product 서버 결정, client에서 받지 않음
+// billingEnabled 체크 없음 — Store 결제 흐름, 내부 결제와 무관
+router.post("/x-reserve-slot", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+    const slot = await reserveXSlot(poolId, userId);
+    res.status(slot.existing ? 200 : 201).json({ ok: true, slot });
+  } catch (err: any) {
+    if (err?.code === "ALREADY_SUBSCRIBED") {
+      res.status(409).json({ error: "ALREADY_SUBSCRIBED", message: err.message });
+      return;
+    }
+    console.error("[x-reserve-slot]", err);
+    res.status(500).json({ error: err?.message ?? "slot 예약 오류" });
+  }
+});
+
+// ── POST /billing/x-trial-activate — X 3일 무료체험 활성화 (pool_admin 전용) ──────
+//
+// WP2B 정책:
+//   - 센터당 최초 1회 (x_trial_used_at IS NULL)
+//   - 자동 유료전환 없음 / 결제수단 등록 불필요 / slot 소비 없음
+//   - x_manual_entitlement 오염 금지 — x_trial_* 컬럼만 변경
+//   - 유료/수동 X 권한 보유 센터 거부
+//   - xmode_purchased_at IS NOT NULL → 과거 X 구매 이력 → 거부
+//   - 원자성: 조건 WHERE로 race condition 차단 (동시 2요청 중 1만 성공)
+//
+router.post("/x-trial-activate", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "FORBIDDEN", message: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // 현재 pool 상태 조회 (조건 판별용)
+    const [pool] = (await db.execute(sql`
+      SELECT
+        COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+        COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+        COALESCE(x_force_disabled,    false) AS x_force_disabled,
+        xmode_purchased_at,
+        x_trial_used_at,
+        x_trial_ends_at
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `)).rows as any[];
+
+    if (!pool) {
+      res.status(404).json({ error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+
+    // ── 사전 조건 검사 (명확한 error code 반환) ──────────────────────────
+    if (Boolean(pool.x_force_disabled)) {
+      res.status(403).json({ error: "TRIAL_FORCE_DISABLED", message: "운영 차단 상태에서는 체험을 시작할 수 없습니다." });
+      return;
+    }
+    if (Boolean(pool.x_paid_entitlement)) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PAID_X", message: "이미 X 구독을 이용 중입니다." });
+      return;
+    }
+    if (Boolean(pool.x_manual_entitlement)) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PAID_X", message: "이미 X 수동 권한이 활성화되어 있습니다." });
+      return;
+    }
+    if (pool.xmode_purchased_at) {
+      res.status(409).json({ error: "TRIAL_NOT_AVAILABLE_FOR_PREVIOUS_X_BUYER", message: "이전 X 구독 이력이 있는 센터는 체험을 이용할 수 없습니다." });
+      return;
+    }
+    if (pool.x_trial_used_at) {
+      // already used — but check if currently active (중복 기간 연장 거부)
+      const endsAt = pool.x_trial_ends_at ? new Date(pool.x_trial_ends_at) : null;
+      if (endsAt && endsAt > new Date()) {
+        res.status(409).json({ error: "TRIAL_ALREADY_ACTIVE", message: "이미 체험이 진행 중입니다." });
+        return;
+      }
+      res.status(409).json({ error: "TRIAL_ALREADY_USED", message: "X 체험은 센터당 1회만 이용 가능합니다." });
+      return;
+    }
+
+    // ── 원자적 활성화: WHERE x_trial_used_at IS NULL 조건으로 race condition 차단 ──
+    // 동시 요청이 2개 와도 WHERE 조건상 1개만 UPDATE 성공 (row lock 없이 conditional write)
+    const activateResult = await db.execute(sql`
+      UPDATE swimming_pools
+      SET
+        x_trial_started_at = NOW(),
+        x_trial_ends_at    = NOW() + INTERVAL '72 hours',
+        x_trial_used_at    = NOW()
+      WHERE id = ${poolId}
+        AND x_trial_used_at IS NULL
+        AND NOT COALESCE(x_paid_entitlement,  false)
+        AND NOT COALESCE(x_manual_entitlement, false)
+        AND NOT COALESCE(x_force_disabled,    false)
+      RETURNING x_trial_started_at, x_trial_ends_at, x_trial_used_at
+    `);
+
+    if (!activateResult.rows.length) {
+      // 조건 위반 — 동시 요청으로 인한 race condition 또는 상태 변경
+      res.status(409).json({ error: "TRIAL_ALREADY_USED", message: "X 체험은 센터당 1회만 이용 가능합니다." });
+      return;
+    }
+
+    const activated = activateResult.rows[0] as any;
+    res.status(201).json({
+      ok: true,
+      x_trial_active: true,
+      x_trial_started_at: new Date(activated.x_trial_started_at).toISOString(),
+      x_trial_ends_at:    new Date(activated.x_trial_ends_at).toISOString(),
+      x_trial_used_at:    new Date(activated.x_trial_used_at).toISOString(),
+    });
+  } catch (err: any) {
+    console.error("[x-trial-activate]", err);
+    res.status(500).json({ error: err?.message ?? "체험 활성화 오류" });
+  }
+});
+
+// ── POST /billing/sync-x-subscription — RC 구매 후 서버 검증·동기화 (pool_admin 전용) ─
+// X02-C §11~19: server-side RC 검증 + slot binding + paid entitlement 동기화
+// billingEnabled 체크 없음 — Store 결제 흐름
+router.post("/sync-x-subscription", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+    const result = await syncXSubscription({ poolId, userId });
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    const code: string = err?.code ?? "";
+    if (code === "ALREADY_SUBSCRIBED" || code === "NO_RESERVED_SLOT") {
+      res.status(409).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "RC_ENTITLEMENT_INACTIVE") {
+      res.status(422).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "PRODUCT_MISMATCH") {
+      res.status(409).json({ error: code, message: err.message });
+      return;
+    }
+    if (code === "PAYMENT_DEADLINE_EXPIRED") {
+      res.status(410).json({ error: code, message: err.message });
+      return;
+    }
+    console.error("[sync-x-subscription]", err);
+    res.status(500).json({ error: err?.message ?? "동기화 오류" });
+  }
+});
+
+// ── GET /billing/x-subscription-status — X 구독 상태 조회 (pool_admin) ───────
+// billingEnabled 체크 없음 — 상태 조회는 결제 기능이 아님
+router.get("/x-subscription-status", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // pool 구독 상태 조회
+    const [pool] = (await superAdminDb.execute(sql`
+      SELECT x_paid_entitlement,
+             x_manual_entitlement,
+             x_force_disabled,
+             COALESCE(x_auto_renew_cancelled, false) AS x_auto_renew_cancelled,
+             xmode_subscription_end_at,
+             xmode_payment_failed_at,
+             xmode_purchased_at
+      FROM swimming_pools
+      WHERE id = ${poolId}
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!pool) {
+      res.status(404).json({ error: "POOL_NOT_FOUND" });
+      return;
+    }
+
+    // 가장 최근 PURCHASED slot 조회 (tier, franchise 정보)
+    const [slot] = (await superAdminDb.execute(sql`
+      SELECT tier_key, franchise_number, purchased_at, updated_at
+      FROM x_subscription_slots
+      WHERE pool_id = ${poolId} AND status = 'PURCHASED'
+      ORDER BY purchased_at DESC
+      LIMIT 1
+    `)).rows as any[];
+
+    // subscription_status 계산 (spec §4 상태)
+    const paid             = Boolean(pool.x_paid_entitlement);
+    const manual           = Boolean(pool.x_manual_entitlement);
+    const forceDisabled    = Boolean(pool.x_force_disabled);
+    const autoRenewCancelled = Boolean(pool.x_auto_renew_cancelled);
+    const paymentFailed    = pool.xmode_payment_failed_at != null;
+    const endAt: string | null = pool.xmode_subscription_end_at ?? null;
+
+    let subscription_status: string;
+    if (forceDisabled) {
+      subscription_status = "UNKNOWN";
+    } else if (paid) {
+      if (paymentFailed) {
+        subscription_status = "BILLING_ISSUE";
+      } else if (autoRenewCancelled) {
+        subscription_status = "CANCELLED_BUT_ACTIVE";
+      } else {
+        subscription_status = "ACTIVE";
+      }
+    } else if (manual) {
+      subscription_status = "ACTIVE";
+    } else if (endAt && new Date(endAt) > new Date()) {
+      // paid=false지만 end_at이 미래 (race condition 방어)
+      subscription_status = "CANCELLED_BUT_ACTIVE";
+    } else if (pool.xmode_purchased_at) {
+      subscription_status = "EXPIRED";
+    } else {
+      subscription_status = "UNKNOWN";
+    }
+
+    // KRW 정책 가격 (서버 tier_key 기준)
+    const X_KRW_PRICE: Record<string, string> = {
+      tier1: "₩75,000", tier2: "₩105,000", tier3: "₩135,000", standard: "₩150,000",
+    };
+    const tierKey: string | null = slot?.tier_key ?? null;
+    const krw_price = tierKey ? (X_KRW_PRICE[tierKey] ?? null) : null;
+
+    res.json({
+      subscription_status,
+      tier_key: tierKey,
+      krw_price,
+      franchise_number: slot?.franchise_number ?? null,
+      purchased_at: pool.xmode_purchased_at ?? null,
+      subscription_end_at: endAt,
+      payment_failed_at: pool.xmode_payment_failed_at ?? null,
+      auto_renew_cancelled: autoRenewCancelled,
+      synced_at: slot?.updated_at ?? pool.xmode_purchased_at ?? null,
+      source: paid ? "paid" : manual ? "manual" : null,
+    });
+  } catch (err) {
+    console.error("[x-subscription-status]", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
+// ── POST /billing/restore-x-subscription — RC 구매 복원 후 서버 검증 ──────────
+// billingEnabled 체크 없음 — sync-x-subscription과 동일 패턴
+// spec §5: 최종 truth = server. RC client 결과만으로 X 확정 금지.
+router.post("/restore-x-subscription", requireAuth, requireRole("pool_admin"), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const poolId = await getPoolId(userId);
+    if (!poolId) {
+      res.status(403).json({ error: "소속된 수영장이 없습니다." });
+      return;
+    }
+
+    // RC V2 API로 현재 x_mode entitlement 확인
+    const { entitlement, originalAppUserId } = await fetchRCSubscriberEntitlement(userId, "x_mode");
+
+    if (!entitlement || !entitlement.isActive) {
+      res.status(422).json({
+        error: "RC_ENTITLEMENT_INACTIVE",
+        message: "복원 가능한 X 구독이 없습니다.",
+      });
+      return;
+    }
+
+    // entitlement 활성 확인됨 → DB 갱신
+    await superAdminDb.execute(sql`
+      UPDATE swimming_pools
+      SET x_paid_entitlement        = true,
+          xmode_subscription_end_at = ${entitlement.expiresAt ?? null},
+          xmode_payment_failed_at   = NULL,
+          xmode_purchased_at        = COALESCE(xmode_purchased_at, NOW()),
+          x_auto_renew_cancelled    = false,
+          updated_at                = NOW()
+      WHERE id = ${poolId}
+    `);
+
+    // audit 기록
+    await auditXEvent({
+      action: "x_restore",
+      poolId,
+      actorId: userId,
+      before: {},
+      after: {
+        x_paid_entitlement: true,
+        source:             "restore",
+        rc_user:            originalAppUserId,
+        expires_at:         entitlement.expiresAt ?? null,
+      },
+      reason: "pool_admin 구매 복원: RC x_mode entitlement 서버 확인 후 활성화",
+    });
+
+    console.log(`[restore-x-subscription] pool=${poolId} user=${userId} expires=${entitlement.expiresAt}`);
+    res.json({ ok: true, expires_at: entitlement.expiresAt ?? null });
+  } catch (err: any) {
+    const code: string = err?.code ?? "";
+    if (code === "RC_ENTITLEMENT_INACTIVE") {
+      res.status(422).json({ error: code, message: err.message });
+      return;
+    }
+    console.error("[restore-x-subscription]", err);
+    res.status(500).json({ error: err?.message ?? "복원 오류" });
+  }
+});
+
 // ── 앱스토어 제출용: 결제 기능 비활성화 차단 ──────────────────────────────
 router.use((_req, res, next) => {
   if (!billingEnabled) {
@@ -393,6 +967,7 @@ async function ensureBillingTables() {
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`).catch(() => {});
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS store_fee INTEGER NOT NULL DEFAULT 0`).catch(() => {});
   await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS net_revenue INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+  await superAdminDb.execute(sql`ALTER TABLE revenue_logs ADD COLUMN IF NOT EXISTS is_sandbox BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
   // 다운그레이드 예약 컬럼 추가
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS pending_tier TEXT`).catch(() => {});
   await db.execute(sql`ALTER TABLE pool_subscriptions ADD COLUMN IF NOT EXISTS downgrade_at DATE`).catch(() => {});
@@ -404,7 +979,44 @@ async function ensureBillingTables() {
   // swimming_pools 최초 할인 컬럼
   await superAdminDb.execute(sql`ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS first_payment_used BOOLEAN NOT NULL DEFAULT FALSE`).catch(() => {});
 }
-ensureBillingTables().catch(console.error);
+// 서버 기동 시 revenue_logs 자동 정리
+// 전체 건수 ≤ 20 인 경우 sandbox/null-date 우선 삭제,
+// 이후에도 남은 전체 건수 ≤ 5 이면 남은 것도 전부 삭제 (테스트 기간 잔재 제거)
+async function startupCleanupRevenueLogs() {
+  try {
+    await ensureBillingTables();
+    // 1단계: sandbox + null-date 단순 조건만 (subscription_plans 의존 없음)
+    const step1 = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+      RETURNING id
+    `);
+    if (step1.rows.length > 0) {
+      console.log(`[billing-cleanup] sandbox/null-date revenue_logs ${step1.rows.length}건 자동 삭제`);
+    }
+    // 2단계: 잔여 건수 확인 후 소량이면 전부 삭제 (테스트 기간 잔재)
+    const countRow = (await superAdminDb.execute(sql`SELECT COUNT(*)::int AS cnt FROM revenue_logs`)).rows[0] as any;
+    const remaining = Number(countRow?.cnt ?? 0);
+    if (remaining > 0 && remaining <= 5) {
+      const step2 = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+      console.log(`[billing-cleanup] 잔여 소량(${step2.rows.length}건) 전부 삭제 완료 — 테스트 기간 초기화`);
+    }
+  } catch (err) {
+    console.error("[billing-cleanup] 자동 정리 오류:", err);
+  }
+}
+startupCleanupRevenueLogs().catch(console.error);
+
+// X02-C: revenuecat_webhook_events 테이블 보장 (startup migration)
+import("../migrations/pool-db-x-billing-contract.js")
+  .then(({ runXBillingContractMigration }) => runXBillingContractMigration())
+  .catch((e: any) => console.error("[x-billing-init] migration failed:", e?.message));
+
+// X02-D2: x_auto_renew_cancelled 컬럼 보장 (startup migration)
+import("../migrations/pool-db-x-lifecycle.js")
+  .then(({ runXLifecycleMigration }) => runXLifecycleMigration())
+  .catch((e: any) => console.error("[x-lifecycle-init] migration failed:", e?.message));
 
 // ── GET /billing/plans — 구독 플랜 목록 (pool_admin 접근 가능) ────────
 // subscription.tsx 화면에서 서버 값으로 플랜 목록 표시
@@ -455,6 +1067,7 @@ async function recordPayment(params: {
   pgTransactionId?: string;
   planId?: string; planName?: string; poolName?: string;
   eventType?: string; grossAmount?: number; introDiscount?: number;
+  isSandbox?: boolean;
 }): Promise<string> {
   const id = `pay_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   await superAdminDb.execute(sql`
@@ -475,16 +1088,17 @@ async function recordPayment(params: {
     const grossAmt  = params.grossAmount ?? params.amount;
     const introDis  = params.introDiscount ?? 0;
     const evtType   = params.eventType ?? "new_subscription";
+    const isSandbox = params.isSandbox ?? false;
     await superAdminDb.execute(sql`
       INSERT INTO revenue_logs
         (id, pool_id, pool_name, plan_id, plan_name, event_type,
          gross_amount, intro_discount_amount, charged_amount,
-         store_fee, net_revenue, payment_provider, occurred_at)
+         store_fee, net_revenue, payment_provider, occurred_at, is_sandbox)
       VALUES
         (${revId}, ${params.poolId}, ${params.poolName ?? null},
          ${params.planId}, ${params.planName ?? null}, ${evtType},
          ${grossAmt}, ${introDis}, ${params.amount},
-         ${storeFee}, ${netRev}, 'store', NOW())
+         ${storeFee}, ${netRev}, 'store', NOW(), ${isSandbox})
     `).catch(console.error);
   }
   return id;
@@ -730,6 +1344,19 @@ router.post("/subscribe", requireAuth, requireRole("pool_admin", "super_admin"),
     const [card] = (await db.execute(sql`
       SELECT * FROM payment_cards WHERE swimming_pool_id = ${poolId} AND is_default = true LIMIT 1
     `)).rows as any[];
+
+    // 유료 플랜 전환 전 환불 정책 동의 확인
+    if (newPrice > 0) {
+      const agreed = await isPolicyAgreed(poolId);
+      if (!agreed) {
+        res.status(403).json({
+          success: false,
+          code: "REFUND_POLICY_AGREEMENT_REQUIRED",
+          message: "유료 결제를 진행하려면 환불 정책 동의가 필요합니다.",
+        });
+        return;
+      }
+    }
 
     if (newPrice > 0 && !card) {
       res.status(400).json({ error: "결제 카드를 먼저 등록해주세요." }); return;
@@ -1319,11 +1946,13 @@ router.get("/revenue-logs", requireAuth, requireRole("super_admin"), async (req:
         COALESCE(rl.net_revenue, 0)                                                         AS net_revenue,
         COALESCE(rl.payment_provider, 'store')                                             AS payment_provider,
         COALESCE(rl.occurred_at, rl.created_at)                                            AS occurred_at,
+        COALESCE(rl.is_sandbox, FALSE)                                                      AS is_sandbox,
         rl.created_at
       FROM revenue_logs rl
       LEFT JOIN swimming_pools sp ON sp.id = rl.pool_id
       LEFT JOIN subscription_plans pp ON pp.tier = rl.plan_id
-      WHERE (${start ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) >= ${start ?? null}::date)
+      WHERE COALESCE(rl.is_sandbox, FALSE) = FALSE
+        AND (${start ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) >= ${start ?? null}::date)
         AND (${end ?? null}::date IS NULL OR COALESCE(rl.occurred_at, rl.created_at) <= (${end ?? null}::date + INTERVAL '1 day'))
       ORDER BY COALESCE(rl.occurred_at, rl.created_at) DESC
       LIMIT ${parseInt(limit as string)}
@@ -1396,6 +2025,148 @@ router.get("/revenue-by-pool", requireAuth, requireRole("super_admin"), async (_
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /billing/revenue-logs/test-count — 샌드박스/테스트/가격불일치 기록 건수 조회 (슈퍼관리자 전용)
+router.get("/revenue-logs/test-count", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const row = (await superAdminDb.execute(sql`
+      SELECT COUNT(*)::int AS cnt
+      FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
+    `)).rows[0] as any;
+    res.json({ count: Number(row?.cnt ?? 0) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/cleanup-test — 샌드박스/테스트/가격불일치 기록 삭제 (슈퍼관리자 전용)
+router.delete("/revenue-logs/cleanup-test", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs
+      WHERE COALESCE(is_sandbox, FALSE) = TRUE
+         OR occurred_at IS NULL
+         OR (
+           -- 가격 불일치: 해당 플랜의 실제 가격과 저장된 금액이 다른 경우
+           charged_amount > 0
+           AND plan_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM subscription_plans sp
+             WHERE sp.tier = plan_id
+               AND sp.price_per_month > 0
+               AND charged_amount != sp.price_per_month
+           )
+         )
+      RETURNING id
+    `);
+    const deleted = result.rows.length;
+    res.json({ ok: true, deleted, message: `테스트/불량 기록 ${deleted}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/all — 전체 매출 기록 초기화 (슈퍼관리자 전용, 실매출 없을 때만 사용)
+router.delete("/revenue-logs/all", requireAuth, requireRole("super_admin"), async (_req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const result = await superAdminDb.execute(sql`DELETE FROM revenue_logs RETURNING id`);
+    const deleted = result.rows.length;
+    res.json({ ok: true, deleted, message: `매출 기록 전체 ${deleted}건 삭제 완료` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /billing/revenue-logs/:id — 개별 매출 기록 삭제 (슈퍼관리자 전용)
+router.delete("/revenue-logs/:id", requireAuth, requireRole("super_admin"), async (req: AuthRequest, res) => {
+  try {
+    await ensureBillingTables();
+    const { id } = req.params;
+    const result = await superAdminDb.execute(sql`
+      DELETE FROM revenue_logs WHERE id = ${id} RETURNING id
+    `);
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "해당 기록을 찾을 수 없습니다." });
+      return;
+    }
+    res.json({ ok: true, deleted: 1 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /billing/cron/cleanup-deactivated — 90일 경과 수영장 영구 삭제 크론 ──
+// Render Cron Job 또는 내부 스케줄러에서 주기적으로 호출
+router.post("/cron/cleanup-deactivated", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET ?? process.env.JWT_SECRET ?? "";
+  const authHeader = req.headers.authorization ?? "";
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    res.status(401).json({ error: "unauthorized" }); return;
+  }
+  try {
+    // 삭제 예정일이 현재 시각 이전인 수영장 조회
+    const expiredPools = (await superAdminDb.execute(sql`
+      SELECT id, name FROM swimming_pools
+      WHERE deletion_scheduled_at IS NOT NULL
+        AND deletion_scheduled_at <= NOW()
+      LIMIT 50
+    `)).rows as any[];
+
+    if (expiredPools.length === 0) {
+      res.json({ ok: true, deleted: 0, message: "삭제 대상 없음" }); return;
+    }
+
+    let deletedCount = 0;
+    for (const pool of expiredPools) {
+      try {
+        const poolId = pool.id;
+        // 연관 데이터 삭제 (students, parent_accounts, teacher_invites, etc.)
+        await db.execute(sql`DELETE FROM students WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM teacher_invites WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM policy_consents WHERE pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM pool_subscriptions WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM users WHERE swimming_pool_id = ${poolId}`).catch(() => {});
+        await superAdminDb.execute(sql`DELETE FROM swimming_pools WHERE id = ${poolId}`).catch(() => {});
+
+        console.log(`[cron/cleanup] 풀 영구 삭제 완료: ${poolId} (${pool.name})`);
+        deletedCount++;
+
+        import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+          createOpsAlert({
+            type: "pool_permanently_deleted",
+            title: "수영장 영구 삭제",
+            message: `${pool.name ?? poolId} 수영장이 90일 유예 만료로 영구 삭제되었습니다.`,
+            severity: "warning",
+            relatedPoolId: poolId,
+          }).catch(console.error);
+        }).catch(console.error);
+      } catch (e: any) {
+        console.error(`[cron/cleanup] 풀 삭제 오류 ${pool.id}:`, e.message);
+      }
+    }
+
+    res.json({ ok: true, deleted: deletedCount, pools: expiredPools.map((p: any) => p.id) });
+  } catch (e: any) {
+    console.error("[cron/cleanup] 크론 오류:", e);
+    res.status(500).json({ error: e.message });
   }
 });
 

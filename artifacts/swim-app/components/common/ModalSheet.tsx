@@ -8,7 +8,7 @@
  * - 내부 ScrollView (스크롤바 표시)
  * - KeyboardAvoidingView (입력형 팝업 대응)
  */
-import { X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
@@ -124,7 +124,7 @@ export function ModalSheet({ visible, onClose, title, children }: ModalSheetProp
             {title}
           </Text>
           <Pressable onPress={() => hide(onClose)} style={s.closeBtn} hitSlop={10}>
-            <X size={20} color={C.textSecondary} />
+            <LucideIcon name="x" size={20} color={C.textSecondary} />
           </Pressable>
         </View>
 
@@ -158,7 +158,7 @@ const s = StyleSheet.create({
     left: 0,
     right: 0,
     height: SHEET_HEIGHT,
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     shadowColor: "#000",
@@ -176,15 +176,13 @@ const s = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: C.border,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#FFFFFF",
   },
   headerSpacer: { width: 36 },
   title: {
@@ -200,7 +198,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 10,
-    backgroundColor: "#FFFFFF",
   },
   content: {
     padding: 20,

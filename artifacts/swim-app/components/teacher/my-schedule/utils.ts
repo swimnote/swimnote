@@ -40,6 +40,7 @@ export interface StudentItem {
   weekly_count?: number; schedule_labels?: string | null;
   status?: string; parent_user_id?: string | null;
   updated_at?: string | null;
+  class_enrolled_at?: string | null;
 }
 
 export function todayDateStr(): string {
@@ -96,8 +97,4 @@ export function getWeekDates(weekStart: string): { koDay: string; dateStr: strin
   });
 }
 
-const COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-export function classColor(id: string) {
-  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return COLORS[Math.abs(h) % COLORS.length];
-}
+export { classColor } from "@/utils/classColor";

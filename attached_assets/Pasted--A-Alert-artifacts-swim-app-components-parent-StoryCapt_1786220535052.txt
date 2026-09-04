@@ -1,0 +1,86 @@
+원인 확정 보고서
+
+A. Alert 발생 정확한 코드 위치
+
+artifacts/swim-app/components/parent/StoryCapturePipeline.tsx
+  Line 30:  const META_APP_ID = process.env.EXPO_PUBLIC_META_APP_ID ?? "";
+  Line 189: if (!META_APP_ID) {  ← 여기서 Alert 발생
+  Line 190-193: Alert.alert("Instagram 공유 준비 중", "Instagram Story 공유 설정이 완료되지 않았습니다.")
+B. Alert 발생 조건
+
+if (!META_APP_ID)   // META_APP_ID가 "" (빈 문자열) 또는 undefined 이면 true
+조건 true = Alert 발생 + cleanup + onDone() 즉시 종료
+
+C. 실제 실패한 조건값
+
+항목	값
+process.env.EXPO_PUBLIC_META_APP_ID	undefined (OTA 번들 빌드 시점에 미주입)
+META_APP_ID	"" (nullish coalescing fallback)
+!META_APP_ID	true → Alert 발생
+D. META_APP_ID 실제 runtime 값
+
+EXPO_PUBLIC_* 변수는 Metro bundler 빌드 시점에 소스코드에 literal로 inline 됩니다.
+
+// eas update 실행 시 로컬 Replit 환경에서 Metro bundle 생성
+printenv EXPO_PUBLIC_META_APP_ID → (아무 값도 없음, exit code 1)
+// 결과: bundle 안의 코드
+const META_APP_ID = undefined ?? "";  // = ""
+E. TestFlight build env 포함 여부
+
+항목	결과
+instagram-ios-test profile eas.json에 EXPO_PUBLIC_META_APP_ID: "2093655621362240"	존재 ✅
+Build ID f5fb78b1 생성 당시 EAS Build 서버에서 해당 값 주입	✅ 정상 주입 (eas build는 profile env 자동 적용)
+TestFlight binary(1.6.2) 내 original bundle의 META_APP_ID	"2093655621362240" — 정상값
+F. 현재 OTA env 관계
+
+항목	결과
+OTA 명령	eas update --branch instagram-test --environment preview
+eas update가 env를 읽는 방법	--environment preview → EAS 서버 "preview" 환경 변수 참조
+EAS 서버 "preview" 환경 변수	"No environment variables found" (OTA 로그 확인됨)
+fallback 동작	로컬 shell 환경변수 사용
+Replit 로컬에 EXPO_PUBLIC_META_APP_ID	미설정
+OTA bundle 생성 시 Metro inline 결과	"" (빈 문자열)
+최종: OTA가 original binary의 올바른 bundle을 덮어씀	← 이것이 원인
+G. iOS native scheme 최종 포함 여부
+
+react-native-share Expo plugin 설정 (app.json):
+
+["react-native-share", { "ios": ["instagram", "instagram-stories"] }]
+이 plugin이 prebuild 시 LSApplicationQueriesSchemes에 instagram, instagram-stories를 자동 추가함 → native scheme 정상 포함 ✅
+
+app.json infoPlist 직접 선언에는 없지만 plugin이 처리하므로 문제 없음.
+
+H. 원인 확정
+
+YES — OTA(eas update) 실행 시 Replit 로컬 환경에 EXPO_PUBLIC_META_APP_ID가 없어서 Metro가 빈 문자열로 bundle을 생성했고, 이 bundle이 정상값을 가졌던 TestFlight binary의 original bundle을 덮어씀.
+
+I. OTA만으로 수정 가능
+
+YES — shell에 EXPO_PUBLIC_META_APP_ID=2093655621362240를 앞에 붙여 OTA 재배포하면 됨.
+
+J. 새 Native Build 필요
+
+NO — native scheme, appId, Info.plist는 Build f5fb78b1에 이미 올바르게 포함됨.
+
+K. 최소 수정 파일 목록
+
+파일 변경 없음. OTA 배포 명령어만 수정.
+
+L. 수정 제안 (아직 적용 금지)
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240 \
+EXPO_PUBLIC_API_URL=https://swimnote-api.onrender.com/api \
+EXPO_PUBLIC_DOMAIN=swimnote-api.onrender.com \
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo \
+EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_iOSUEXOdIktvMemPmJEbTDelJXu \
+EAS_PROJECT_ROOT=/home/runner/workspace/artifacts/swim-app \
+EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 EXPO_NO_TELEMETRY=1 \
+EAS_BUILD_NO_EXPO_GO_WARNING=true EXPO_TOKEN=$(printenv EXPO_TOKEN) \
+node_modules/.bin/eas update \
+  --branch instagram-test \
+  --message "fix(story): EXPO_PUBLIC_META_APP_ID OTA inline 수정 [1.6.2]" \
+  --environment preview \
+  --non-interactive
+EXPO_PUBLIC_* 변수 전체를 shell에서 직접 주입 → Metro inline 시 "2093655621362240" 로 올바르게 번들링됨.
+
+승인하시면 즉시 OTA 재배포하겠습니다.

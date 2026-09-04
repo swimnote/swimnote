@@ -1,0 +1,339 @@
+[WEB / SLUG HOMEPAGE CURRENT STRUCTURE AUDIT — REPORT ONLY]
+
+목표:
+현재 SWIMNOTE 메인 홈페이지와
+수영장별 slug 홈페이지 구조를 정확히 파악한다.
+
+지금은 코드 수정 금지.
+DB 수정 금지.
+UI 수정 금지.
+
+조사보고만 한다.
+
+==================================================
+1. MAIN WEBSITE ROUTING
+==================================================
+
+현재 공개 홈페이지의 실제 라우팅 구조를 조사한다.
+
+반드시 확인:
+
+- /
+- /education
+- /app
+- /support
+- /login
+- /delete-account
+- /:slug
+- /pool/:id
+
+각 route의:
+
+- component/file
+- layout
+- navigation/header
+- footer
+- auth 필요 여부
+- slug route와 충돌 가능성
+
+을 보고.
+
+==================================================
+2. MAIN HOMEPAGE STRUCTURE
+==================================================
+
+현재 swimnote.kr 메인 홈페이지 구성 조사.
+
+보고:
+
+- header
+- nav/tab
+- hero
+- section 순서
+- CTA
+- footer
+- 사용 asset/image
+- color/design tokens
+- 반응형 처리
+- mobile/desktop 차이
+
+메인 홈페이지에서
+공통으로 재사용 가능한 component도 목록화.
+
+==================================================
+3. SLUG HOMEPAGE
+==================================================
+
+현재 /:slug 진입 시
+어떤 component가 렌더링되는지 확인.
+
+반드시 보고:
+
+- route file
+- PoolHomepage component
+- slug parsing 방식
+- slug → swimming_pool 조회 API
+- loading/error/not-found 처리
+- 어떤 수영장 데이터를 가져오는지
+- 실제 DB source
+- public/private 여부
+
+==================================================
+4. SLUG HOMEPAGE CURRENT UI
+==================================================
+
+현재 slug 홈페이지의 실제 페이지/탭 구조를 조사.
+
+예:
+
+- 첫 화면
+- 수영장 소개
+- SWIMNOTE 소개
+- AI/X 소개
+- 문의
+- 관리
+- 관리자 대시보드 버튼
+
+실제 구현된 것만 보고.
+
+각 탭별:
+
+- component
+- data source
+- hardcoded content
+- pool-specific content
+- common content
+
+을 구분.
+
+==================================================
+5. POOL-SPECIFIC DATA
+==================================================
+
+slug 홈페이지에서 사용하는
+수영장별 데이터 전체 조사.
+
+예:
+
+- pool name
+- logo
+- representative image
+- address
+- phone
+- introduction
+- operating hours
+- programs
+- level system
+- social links
+- contact info
+- branding colors
+- homepage status
+- slug
+
+실제 schema/table/column 기준으로 보고.
+
+추측 금지.
+
+==================================================
+6. HOMEPAGE DB / SCHEMA
+==================================================
+
+홈페이지 관련 table/column 조사.
+
+반드시 확인:
+
+- swimming_pools
+- slug 관련 column
+- homepage 관련 table
+- homepage_settings
+- branding
+- images/assets
+- public visibility
+- X entitlement와 연결되는 필드
+
+FK/unique constraint/index 포함.
+
+==================================================
+7. SLUG CREATION
+==================================================
+
+현재 새 수영장이 생기거나
+X mode가 활성화될 때
+
+slug가:
+
+- 자동 생성되는지
+- 수동 입력인지
+- 누가 생성하는지
+- 중복 검사가 있는지
+- 변경 가능한지
+
+확인.
+
+현재 자동 홈페이지 생성 로직이 있다면
+정확한 flow를 추적.
+
+==================================================
+8. X MODE RELATION
+==================================================
+
+현재 slug 홈페이지와 X mode가
+어떻게 연결되어 있는지 확인.
+
+반드시 조사:
+
+- X 활성화 시 homepage 활성화 여부
+- X 해제 시 homepage 처리
+- X entitlement 체크
+- 일반 PREMIER에서도 접근 가능한지
+- public page 자체는 X 없이도 보이는지
+- admin dashboard 접근만 X 제한인지
+
+현재 실제 구현 기준으로 보고.
+
+==================================================
+9. ADMIN DASHBOARD ENTRY
+==================================================
+
+slug 홈페이지에서
+관리자가 대시보드로 들어가는 현재 흐름 조사.
+
+확인:
+
+- 관리 탭
+- 관리자 버튼
+- login route
+- 이미 로그인 상태일 때
+- 미로그인 상태일 때
+- login 성공 후 redirect
+- /admin 접근권한
+- pool_admin/sub_admin/super_admin 처리
+- X entitlement 검증 위치
+
+==================================================
+10. WEB ADMIN DASHBOARD
+==================================================
+
+현재 /admin 구조도 다시 정확히 확인.
+
+특히:
+
+- layout/sidebar
+- dashboard
+- classes
+- attendance
+- diary
+- notices
+- makeups
+- members
+- teachers
+- approvals
+- revenue
+- settlement
+- parents
+- withdrawn
+- settings
+
+그리고 현재 앱 X mode 기능 중
+웹에 없는 기능 목록 재확인.
+
+==================================================
+11. DESIGN SYSTEM
+==================================================
+
+현재 웹에서 사용하는:
+
+- primary color
+- secondary color
+- typography
+- card style
+- radius
+- shadow
+- spacing
+- icon library
+- responsive breakpoints
+
+조사.
+
+기존 SWIMNOTE 디자인과
+X 전용 디자인을 어디까지 분리할 수 있는지
+현재 구조 기준으로 보고.
+
+==================================================
+12. ASSET STRUCTURE
+==================================================
+
+현재 homepage에서 사용하는
+이미지/로고/아이콘 파일 위치 조사.
+
+보고:
+
+- public assets
+- src/assets
+- R2 hosted images
+- DB stored URLs
+- pool-specific uploaded assets
+
+향후 기본사진 자동주입이 가능한 구조인지 확인.
+
+==================================================
+13. DO NOT MODIFY
+==================================================
+
+이번 작업은 REPORT ONLY.
+
+금지:
+
+- route 변경
+- component 변경
+- DB migration
+- homepage redesign
+- slug 생성 로직 수정
+- X entitlement 수정
+- admin dashboard 수정
+- asset 교체
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+다음 형식으로 보고:
+
+A. MAIN WEBSITE ROUTE TREE
+
+B. MAIN HOMEPAGE COMPONENT TREE
+
+C. SLUG HOMEPAGE ROUTE
+
+D. SLUG HOMEPAGE TAB/PAGE TREE
+
+E. POOL-SPECIFIC DATA SOURCE
+
+F. COMMON CONTENT SOURCE
+
+G. HOMEPAGE DB SCHEMA
+
+H. SLUG GENERATION FLOW
+
+I. X MODE / HOMEPAGE RELATION
+
+J. ADMIN DASHBOARD ENTRY FLOW
+
+K. /admin CURRENT STRUCTURE
+
+L. CURRENT DESIGN SYSTEM
+
+M. ASSET STORAGE STRUCTURE
+
+N. REUSABLE COMPONENTS
+
+O. CURRENT LIMITATIONS / DUPLICATION
+
+P. CHANGED FILES
+0
+
+Q. DB WRITES
+0
+
+STOP.
+코드 수정 금지.

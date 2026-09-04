@@ -1,0 +1,783 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# AMENDMENT A1 CORRECTION
+# DB PRICE SOURCE / STARTUP UPSERT CONSISTENCY
+
+현재 SOCIAL LOGIN PHASE 1 작업은 FULL PASS로 종료되었습니다.
+
+이제 중단했던 SWIMNOTE 2.0 결제구조 작업을 재개합니다.
+
+현재 기준 HEAD는 실제 release/v2.0.0 상태를 먼저 확인하십시오.
+소셜 로그인 작업 때문에 HEAD가 변경되었을 수 있으므로
+이전 SHA를 임의로 가정하지 마십시오.
+
+이번 작업은 AMENDMENT A1에서 남아 있던
+신규 X 가격 Source consistency 검증 및 보정입니다.
+
+MANUAL STORE STEP으로 아직 넘어가지 마십시오.
+
+==================================================
+0. LOCKED FINAL PRODUCT / PRICE
+==================================================
+
+최신 확정 가격은 아래뿐입니다.
+
+SWIMNOTE
+월 9,900원
+회원수 무제한
+10GB
+
+X300
+월 129,000원
+최대 300명
+300GB
+SWIMNOTE 기본플랜 포함
+
+X500
+월 199,000원
+최대 500명
+500GB
+SWIMNOTE 기본플랜 포함
+
+X1000
+월 359,000원
+최대 1,000명
+1TB
+SWIMNOTE 기본플랜 포함
+
+DATA100
+월 7,900원
++100GB
+
+DATA300
+월 22,900원
++300GB
+
+폐기된 신규 X 가격:
+
+119,000
+189,000
+349,000
+
+위 3개 가격은 신규 2.0 effective source에서
+사용하면 안 됩니다.
+
+==================================================
+1. 결제구조 LOCK 재확인
+==================================================
+
+신규 2.0 BASE SUBSCRIPTION은 아래 중 하나입니다.
+
+SWIMNOTE
+X300
+X500
+X1000
+
+X300/X500/X1000에는
+SWIMNOTE 기본플랜 기능이 전부 포함됩니다.
+
+따라서:
+
+SWIMNOTE 9,900
++
+X 별도결제
+
+같은 2중 BASE 결제 구조 금지.
+
+사용자는:
+
+SWIMNOTE
+또는
+X300
+또는
+X500
+또는
+X1000
+
+중 하나만 결제합니다.
+
+DATA100/DATA300만 별도 add-on.
+
+==================================================
+2. AMENDMENT A1에서 발견된 잔여 위험
+==================================================
+
+이전 완료보고에서 신규 UI 가격은:
+
+129000
+199000
+359000
+
+으로 수정됐지만,
+
+다음 파일에 이전 가격:
+
+119000
+189000
+349000
+
+이 남아 있다고 보고되었습니다.
+
+- pool-db-init.ts
+- wp2a-plans-and-storage.ts
+
+당시 이를 historical seed라고 분류했으나,
+pool-db-init.ts가 실제 서버 startup에서
+subscription_plans를 UPSERT하는 active source라면
+
+DB migration으로 신규 가격을 적용한 후에도
+서버 재시작 시 옛 가격으로 되돌릴 위험이 있습니다.
+
+이 문제를 실제 코드 기준으로 감사하고 완전히 정리하십시오.
+
+==================================================
+3. 현재 release/v2.0.0 상태 확인
+==================================================
+
+먼저 확인:
+
+Repository:
+Branch:
+HEAD Before:
+
+반드시:
+
+release/v2.0.0
+
+에서 작업.
+
+현재 branch가 다르면
+안전하게 release/v2.0.0 상태부터 확인.
+
+Social Login Phase 1에서 생성된
+2.0 관련 commit도 그대로 보존.
+
+기존 기능 revert 금지.
+
+==================================================
+4. Repository 전체 가격 Audit
+==================================================
+
+repository 전체에서 다음 숫자를 검색:
+
+119000
+189000
+349000
+
+129000
+199000
+359000
+
+각 occurrence를 반드시 분류:
+
+A. ACTIVE RUNTIME SOURCE
+B. STARTUP SEED / UPSERT
+C. FUTURE MIGRATION
+D. ALREADY-EXECUTED HISTORICAL MIGRATION
+E. TEST
+F. COMMENT / DOCUMENTATION
+G. LEGACY unrelated product
+
+완료보고에 관련 occurrence 전부 제출.
+
+단순히 "historical"이라고 판단하지 말고
+실제 실행 여부/호출 경로까지 확인.
+
+==================================================
+5. pool-db-init.ts 필수 감사
+==================================================
+
+다음 질문에 실제 코드로 답하십시오.
+
+1.
+서버 startup 시 실제 호출되는가?
+
+2.
+subscription_plans rows를 INSERT/UPSERT하는가?
+
+3.
+ON CONFLICT 시 price_krw를 UPDATE하는가?
+
+4.
+swimnote/x300/x500/x1000 신규 rows가 포함되는가?
+
+만약 active startup source라면
+최종값을 반드시:
+
+swimnote = 9900
+x300 = 129000
+x500 = 199000
+x1000 = 359000
+
+으로 수정.
+
+서버 재시작 시 이전 가격이 복원될 가능성 0이어야 합니다.
+
+==================================================
+6. wp2a-plans-and-storage.ts 감사
+==================================================
+
+이 migration이:
+
+- production에서 이미 실행된 migration인지
+- 아직 production 미실행 future migration인지
+- release/v2.0.0 배포 때 실행 예정인지
+
+확인.
+
+완료보고에:
+
+HAS THIS MIGRATION EVER RUN IN PRODUCTION:
+YES / NO / UNKNOWN
+
+명시.
+
+현재까지의 기존 프로젝트 기록상
+2.0 migration은 production 미실행이었지만
+추측하지 말고 실제 repository/deploy history 기준으로 확인.
+
+만약 아직 실행되지 않은 future migration이면
+신규 X 가격을 최신값으로 수정:
+
+x300 = 129000
+x500 = 199000
+x1000 = 359000
+
+미래 migration이 구가격을 넣고
+다음 migration이 다시 신가격으로 고치는
+불필요한 구조를 만들지 마십시오.
+
+이미 production 실행 완료된 immutable migration이라면
+기존 파일 변경 대신 안전한 후속 migration 전략 유지.
+
+==================================================
+7. amendment-a1-prices.ts 확인
+==================================================
+
+현재 존재하는:
+
+api-server/src/migrations/amendment-a1-prices.ts
+
+를 감사.
+
+반드시:
+
+SWIMNOTE = 9900
+X300 = 129000
+X500 = 199000
+X1000 = 359000
+
+을 반영해야 합니다.
+
+확인:
+
+- idempotent
+- legacy rows 영향 없음
+- DATA rows 영향 없음
+- production 미실행
+- 재실행 안전성
+
+==================================================
+8. 최종 ACTIVE PRICE CONTRACT
+==================================================
+
+신규 2.0의 모든 active source가 동일해야 합니다.
+
+APP constant:
+
+9900
+129000
+199000
+359000
+
+DB startup seed:
+
+9900
+129000
+199000
+359000
+
+future migration:
+
+9900
+129000
+199000
+359000
+
+tests:
+
+동일
+
+향후 Store manual configuration:
+
+동일
+
+가격 source 간 불일치 금지.
+
+==================================================
+9. LEGACY 가격 보호
+==================================================
+
+기존 legacy 상품은 변경 금지.
+
+예:
+
+solo_30
+solo_50
+solo_100
+center_200
+center_300
+center_500
+center_1000
+
+및 기존 Coach/Premier alias.
+
+Grandfathering 대상 가격/권한을
+신규 2.0 가격으로 덮어쓰지 마십시오.
+
+이번 수정 대상은 신규:
+
+swimnote
+x300
+x500
+x1000
+
+뿐입니다.
+
+==================================================
+10. X INCLUDES SWIMNOTE 유지
+==================================================
+
+AMENDMENT A1에서 확정한 구조 변경 금지.
+
+X active이면:
+
+SWIMNOTE 기본 운영 access = TRUE
+X access = TRUE
+
+별도 swimnote subscription 요구 금지.
+
+==================================================
+11. SUBSCRIPTION_REQUIRED 유지
+==================================================
+
+현재 확정:
+
+X actual expiration
++
+active SWIMNOTE 없음
+→ subscription_required
+
+유지.
+
+데이터 삭제 없음.
+
+SWIMNOTE 재가입:
+→ normal
+
+X 재가입:
+→ x_pending / x
+현재 setup 정책에 따라 처리.
+
+이번 작업에서 이 로직 재설계 금지.
+
+==================================================
+12. STORAGE DOWNGRADE 정책 유지
+==================================================
+
+예:
+
+X1000
+사용량 400GB
+
+→ X 만료
+→ SWIMNOTE 10GB 가입
+
+기존 400GB 데이터 삭제 금지.
+
+기존 자료 조회 가능.
+
+신규 media upload만 quota 초과로 제한.
+
+회원/출결/일지 텍스트 등 일반 운영은
+SWIMNOTE 가입 후 정상 사용.
+
+==================================================
+13. 테스트
+==================================================
+
+CASE A
+
+Repository active runtime price scan
+
+Expected:
+
+SWIMNOTE active price = 9900
+X300 active price = 129000
+X500 active price = 199000
+X1000 active price = 359000
+
+CASE B
+
+pool-db-init startup UPSERT simulation
+
+Expected:
+
+DB:
+swimnote = 9900
+x300 = 129000
+x500 = 199000
+x1000 = 359000
+
+CASE C
+
+amendment-a1-prices migration 적용 가정
+→ startup initializer 재실행
+
+Expected:
+
+129/199/359 유지
+
+119/189/349로 되돌아가지 않음.
+
+CASE D
+
+legacy Coach/Premier/solo/center prices
+
+Expected:
+unchanged
+
+CASE E
+
+APP pricing UI
+
+Expected:
+
+9900
+129000
+199000
+359000
+
+CASE F
+
+X card
+
+Expected:
+
+SWIMNOTE 기본플랜 포함
+
+CASE G
+
+Double BASE payment
+
+Expected:
+NOT REQUIRED
+
+CASE H
+
+subscription_required
+
+Expected:
+기존 Amendment A1 regression 없음
+
+CASE I
+
+DATA100 / DATA300
+
+Expected:
+7900 / 22900 unchanged
+
+==================================================
+14. 기존 테스트
+==================================================
+
+다음 관련 테스트 재실행:
+
+- amendment-a1
+- wp3-correction
+- wp3-subscription-ui
+- pricing 관련 tests
+- subscription mode 관련 tests
+
+기존 PASS 테스트를 삭제/완화해서
+신규 PASS를 만들지 마십시오.
+
+==================================================
+15. 범위 밖 금지
+==================================================
+
+이번 단계에서 하지 마십시오:
+
+RevenueCat Dashboard 수정
+App Store Connect 상품 생성
+Google Play 상품 생성
+RevenueCat Product 연결
+purchasePackage 연결
+DATA pack webhook
+video compression
+WP5-PRE
+WP5
+WP6
+WP7
+
+AI ENGINE 변경 금지.
+
+==================================================
+16. PRODUCTION 금지
+==================================================
+
+이번 작업은 release/v2.0.0 코드/테스트까지만.
+
+금지:
+
+Production deploy
+Render deploy
+Production migration
+iOS OTA
+Android OTA
+EAS production build
+App Store submission
+Google Play submission
+
+현재 운영 1.6.3 및
+deploy-photo-clone 건드리지 마십시오.
+
+==================================================
+17. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 AMENDMENT A1
+# PRICE SOURCE CORRECTION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## STALE PRICE AUDIT
+
+119000 occurrences:
+...
+
+189000 occurrences:
+...
+
+349000 occurrences:
+...
+
+Each classification:
+...
+
+## NEW PRICE AUDIT
+
+9900:
+...
+
+129000:
+...
+
+199000:
+...
+
+359000:
+...
+
+## pool-db-init.ts
+
+Runs at startup:
+YES / NO
+
+UPSERTs subscription plans:
+YES / NO
+
+UPSERTs new X plans:
+YES / NO
+
+Updates price on conflict:
+YES / NO
+
+Previous values:
+...
+
+Final values:
+
+SWIMNOTE:
+9900
+
+X300:
+129000
+
+X500:
+199000
+
+X1000:
+359000
+
+PASS / FAIL
+
+## wp2a-plans-and-storage.ts
+
+Production ever executed:
+YES / NO / UNKNOWN
+
+Future executable:
+YES / NO
+
+Previous values:
+...
+
+Final handling:
+...
+
+## amendment-a1-prices.ts
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+Idempotent:
+YES / NO
+
+Legacy untouched:
+YES / NO
+
+Production executed:
+YES / NO
+
+Expected:
+NO
+
+## FINAL ACTIVE PRICE CONTRACT
+
+SWIMNOTE:
+9900 PASS / FAIL
+
+X300:
+129000 PASS / FAIL
+
+X500:
+199000 PASS / FAIL
+
+X1000:
+359000 PASS / FAIL
+
+DATA100:
+7900 PASS / FAIL
+
+DATA300:
+22900 PASS / FAIL
+
+## STARTUP REVERSION TEST
+
+After migration:
+...
+
+After pool-db-init:
+...
+
+Old X price restored:
+YES / NO
+
+Expected:
+NO
+
+## X INCLUDES SWIMNOTE
+
+PASS / FAIL
+
+Double BASE payment required:
+YES / NO
+
+Expected:
+NO
+
+## SUBSCRIPTION_REQUIRED
+
+Unchanged:
+YES / NO
+
+Expected:
+YES
+
+## LEGACY PRICE SAFETY
+
+Coach/Premier:
+PASS / FAIL
+
+solo/center legacy:
+PASS / FAIL
+
+## STORAGE DOWNGRADE SAFETY
+
+PASS / FAIL
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+Total tests:
+...
+
+New failures:
+...
+
+Legacy failures:
+...
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## BLOCKERS BEFORE MANUAL STORE STEP
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+FINAL:
+
+SWIMNOTE 2.0 AMENDMENT A1 PRICE SOURCE CORRECTION COMPLETE

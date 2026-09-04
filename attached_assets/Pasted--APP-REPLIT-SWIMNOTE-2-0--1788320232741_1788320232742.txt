@@ -1,0 +1,1107 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 5
+# PRODUCT VISIBILITY + DESIGN POLISH
+# EXISTING FUNCTION ONLY
+# ONE PASS: TARGETED AUDIT → POLISH → TEST → COMMIT
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current APP HEAD:
+Stage 4 latest commit
+
+현재 상태:
+
+STAGE 1:
+CLOSED
+
+STAGE 2:
+CLOSED
+
+STAGE 3:
+CLOSED
+
+STAGE 4:
+CODE CLOSED
+
+Stage 4 Release Gates — 이번 Stage에서 건드리지 않음:
+
+1.
+paid-insight-enum-extension.ts
+Production migration pending
+
+2.
+Level-up Paid Insight notification trigger
+canonical event 없음
+
+3.
+Readiness transition trigger
+canonical threshold 없음
+
+4.
+Re-analysis trigger
+canonical threshold 없음
+
+위 4개는
+이번 Stage에서 구현하지 마십시오.
+
+============================================================
+0. 이번 Stage 목적
+============================================================
+
+새 기능 개발이 아닙니다.
+
+현재 완성된 SWIMNOTE 2.0을
+실제 사용자에게 보여도 되는 상품 수준으로
+시각적 완성도와 기능 발견성을 마감합니다.
+
+핵심:
+
+- 중요한 기능이 잘 보임
+- 정보 우선순위 명확
+- Normal/X 일관성
+- 관리자/선생님/학부모 디자인 언어 일관
+- 로딩/빈상태/오류/준비중 상태가 제품답게 보임
+- placeholder / fixture / 개발자용 문구 노출 0
+- 불필요한 중복 설명/카드 0
+
+============================================================
+1. 크레딧 절약 규칙
+============================================================
+
+이번 Stage에서
+전체 기능 audit를 다시 하지 마십시오.
+
+이미 완료한:
+
+- Member flow
+- Student Detail 구조
+- Normal/X parity
+- X Home 기능
+- Admin IA
+- Teacher IA
+- Parent IA
+- Communication API
+- Notice AI backend
+- Growth Report backend
+- Paid Insight backend
+
+재검사 금지.
+
+이번에는 user-facing 화면만 대상으로:
+
+문제 발견
+→ 바로 최소 수정
+→ 관련 화면 test
+→ regression
+→ commit
+
+까지 한 번에.
+
+============================================================
+2. 기능 / API 변경 금지
+============================================================
+
+이번 Stage는 디자인/가시성.
+
+새 API:
+NO
+
+새 DB:
+NO
+
+새 route:
+가급적 NO
+
+새 feature:
+NO
+
+AI pipeline:
+NO
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+Production:
+NO
+
+OTA:
+NO
+
+============================================================
+3. 전체 디자인 원칙
+============================================================
+
+현재 SWIMNOTE 디자인 언어를 유지.
+
+전면 redesign:
+NO
+
+목표:
+
+- hierarchy
+- spacing
+- card density
+- readable text
+- CTA 명확성
+- state 표현 통일
+- section 구분
+- touch target
+- visual clutter 감소
+
+새 디자인 시스템을 만들지 말고
+기존 tokens/components를 최대한 재사용.
+
+============================================================
+4. NORMAL / X 디자인 원칙
+============================================================
+
+X는 별도 앱처럼 보이면 안 됩니다.
+
+Normal:
+SWIMNOTE 기본 디자인
+
+X:
+동일 기본 디자인
++
+AI/X premium visual accent
+
+만 허용.
+
+일반 운영 화면의:
+
+- card shape
+- typography
+- spacing
+- navigation
+
+을 X에서 별도로 바꾸지 마십시오.
+
+============================================================
+5. ADMIN HOME
+============================================================
+
+현재 확정 order 유지:
+
+1. Quick Action
+2. 처리 필요
+3. 현장 운영
+4. X AI
+5. KPI
+6. split stats
+7. usage
+
+순서 변경 금지.
+
+이번에는 시각적 우선순위만 확인.
+
+Quick Action:
+가장 즉시 누르기 쉬움
+
+처리 필요:
+눈에 잘 띄지만 과도한 경고색 남발 금지
+
+X AI:
+premium 느낌은 주되 일반 업무를 압도하지 않음
+
+Usage:
+저빈도답게 조용하게.
+
+============================================================
+6. TEACHER TODAY / SCHEDULE
+============================================================
+
+기능 구조 변경 금지.
+
+확인:
+
+- 오늘 수업 정보가 제일 먼저 읽힘
+- 시간 / 반 / 상태 시각적 구분 명확
+- 출석 / 일지 / 보강 등 action 발견성
+- X 성장보드는 AI 추가 기능처럼 자연스럽게 보임
+- 완료/미완료 상태 혼동 없음
+- 너무 많은 동일강도 카드가 화면을 덮지 않음
+
+============================================================
+7. STUDENT DETAIL
+============================================================
+
+구조/기능 절대 변경 금지.
+
+현재 Section:
+
+A Basic
+B Enrollment/Class
+C Education/Level
+D Attendance
+E Guardian
+F Diary/Media
+H Danger
+
+유지.
+
+이번에 허용:
+
+- section header 시각통일
+- spacing
+- divider
+- 값/label hierarchy
+- empty state 문구
+- Danger zone 분리감
+
+금지:
+
+field 추가/삭제
+API 변경
+action workflow 변경
+
+============================================================
+8. PARENT HOME
+============================================================
+
+핵심 메시지:
+
+"우리 아이가 오늘 무엇을 했고
+어떻게 성장하고 있는가"
+
+가 첫 화면에서 이해되어야 함.
+
+확인:
+
+- selected child
+- 오늘 수업/피드
+- 사진
+- 레벨/진도
+- 알림/요청
+- AI 기능
+
+의 중요도가 자연스럽게 보임.
+
+광고판처럼 AI card를 남발하지 마십시오.
+
+============================================================
+9. FREE AI GROWTH REPORT
+============================================================
+
+공식 이름:
+
+AI 성장리포트
+
+확인:
+
+- 무료 리포트임이 명확
+- 대상월 명확
+- 발급상태 명확
+- 읽기 쉬운 summary
+- PDF 저장 CTA
+- loading/error/empty/PUBLISHED 상태 구분
+
+개발자 용어 노출 금지:
+
+reportPeriod
+analysis_cutoff_at
+PUBLISHED
+engine
+pipeline
+
+등 raw 내부값을 사용자에게 그대로 보여주지 않음.
+
+============================================================
+10. PAID AI INSIGHT STRATEGIC REPORT
+============================================================
+
+공식 이름:
+
+AI 인사이트 전략 리포트
+
+현재 실제 flow:
+
+데이터 준비
+→ 추가 질문
+→ 발급 준비
+→ 결제 연결 전
+
+을 정확히 표현.
+
+중요:
+
+아직 Store payment 연결 전이므로
+실제 구매 가능한 것처럼 보이면 안 됨.
+
+하지만
+예전 "준비 중" static placeholder처럼 보여도 안 됨.
+
+실제 현재 상태에 따라:
+
+A.
+데이터 준비 중
+
+B.
+추가 정보 입력 필요
+
+C.
+리포트 발급 준비 완료
+
+D.
+결제 시스템 준비 중
+
+처럼 실제 backend 상태 기반으로 표시.
+
+============================================================
+11. PAID INSIGHT 가치 표현
+============================================================
+
+무료 리포트와 차이가 명확해야 함.
+
+무료:
+
+"무엇이 성장했는가"
+
+Paid:
+
+"왜 그런가"
+"어떤 패턴인가"
+"무엇을 먼저 해야 하는가"
+"다음 전략은 무엇인가"
+
+사용자에게 기술명 나열보다
+받게 되는 가치가 먼저 보이게 함.
+
+============================================================
+12. Q&A UI
+============================================================
+
+Adaptive 0~N 질문.
+
+확인:
+
+- 질문 번호/진행 상태 명확
+- single choice 보기 좋음
+- multi choice 혼동 없음
+- scale 의미 명확
+- short text 충분한 입력공간
+- required 여부 명확
+- 다음/완료 CTA 고정적으로 찾기 쉬움
+
+질문 6개처럼 고정된 표현:
+0
+
+============================================================
+13. ADMIN NOTICE AI
+============================================================
+
+기존 Notice composer 구조 유지.
+
+AI 기능은:
+
+"공지 작성 도우미"
+
+처럼 보이게.
+
+AI가 중심 기능처럼
+기존 직접 작성 UI를 밀어내지 않음.
+
+확인:
+
+- 짧은 메모 입력
+- AI 작성
+- 생성 결과
+- 적용
+- 다시 생성
+- 취소
+- 직접 수정
+- 발행
+
+흐름이 시각적으로 명확.
+
+============================================================
+14. AI 기능 명칭 통일
+============================================================
+
+화면 전체에서
+같은 기능 이름이 다르게 쓰이지 않는지
+user-facing 문자열만 검색.
+
+예:
+
+AI 성장리포트
+AI 인사이트 전략 리포트
+
+공식명 통일.
+
+"Paid Report"
+"Growth AI"
+"Insight Report"
+
+같은 개발용/임시명
+사용자 화면 노출 0.
+
+============================================================
+15. PLACEHOLDER / FIXTURE / DEBUG TEXT
+============================================================
+
+user-facing screen에서 검색:
+
+fixture
+placeholder
+TODO
+debug
+test
+mock
+coming from API
+reportId
+studentId
+poolId
+error_code
+pipeline
+engine
+schema_version
+
+등 개발자용 노출 확인.
+
+실제로 사용자에게 보여야 하는
+에러 코드까지 무조건 숨기라는 뜻은 아님.
+
+사용자 문구는 자연스럽게,
+debug detail은 내부 로그로.
+
+============================================================
+16. EMPTY STATES
+============================================================
+
+빈 화면을 단순:
+
+"데이터 없음"
+
+으로 통일하지 말 것.
+
+기능별 의미 있는 문구.
+
+예:
+
+사진 없음
+→ 아직 등록된 사진이 없습니다.
+
+리포트 없음
+→ 아직 발급된 성장리포트가 없습니다.
+
+질문 없음
+→ 추가 질문 없이 분석 준비가 완료되었습니다.
+
+실제 제품 의미에 맞게.
+
+============================================================
+17. ERROR STATES
+============================================================
+
+사용자에게:
+
+500
+403
+API_ERROR
+
+같은 값만 노출 금지.
+
+기본:
+
+무슨 일이 발생했는지
++
+다시 시도 가능한지
++
+Back 가능한지
+
+명확.
+
+debug code는 필요 시 작은 보조정보.
+
+============================================================
+18. LOADING
+============================================================
+
+동일 화면에서:
+
+spinner
+skeleton
+blank
+
+이 뒤섞이지 않게.
+
+기존 디자인에 맞게 통일.
+
+거짓 progress:
+NO.
+
+============================================================
+19. BUTTON / CTA
+============================================================
+
+화면당 primary CTA가
+여러 개 경쟁하지 않게.
+
+Primary
+Secondary
+Text action
+
+구분.
+
+Disabled button은
+왜 disabled인지 이해 가능하게.
+
+============================================================
+20. TOUCH TARGET
+============================================================
+
+작은 icon-only button 중
+누르기 어려운 곳만 수정.
+
+전체 디자인 재작성 금지.
+
+터치영역 최소 확보.
+
+기존 onPress 변경:
+NO.
+
+============================================================
+21. TYPOGRAPHY
+============================================================
+
+확인:
+
+- 화면 제목
+- section title
+- body
+- metadata
+- CTA
+- error/empty
+
+hierarchy 일관.
+
+폰트 family 전면변경:
+NO.
+
+============================================================
+22. SPACING
+============================================================
+
+중복 margin/padding 때문에
+화면이 지나치게 길어지는 곳만 조정.
+
+정보 밀도가 너무 높아
+읽기 어려운 곳도 조정.
+
+대규모 compact mode:
+NO.
+
+============================================================
+23. CARD 중복
+============================================================
+
+같은 정보가:
+
+상단 KPI
++
+중간 카드
++
+하단 banner
+
+세 번 반복된다면
+기능을 삭제하지 않는 범위에서
+시각적 중복을 줄임.
+
+route/entry 자체 삭제는 신중.
+
+============================================================
+24. X PREMIUM 표현
+============================================================
+
+X AI 기능은
+"프리미엄 기능" 느낌은 줄 수 있음.
+
+하지만:
+
+neon
+과도한 gradient
+과도한 AI sparkle
+모든 카드 AI badge
+
+같은 과장 금지.
+
+SWIMNOTE 기본 디자인에
+자연스럽게 포함.
+
+============================================================
+25. ACCESSIBILITY
+============================================================
+
+수정한 요소만 확인:
+
+- 텍스트 대비
+- disabled 구분
+- icon-only 의미
+- touch area
+- long text truncation
+
+============================================================
+26. LONG TEXT
+============================================================
+
+공지
+AI 결과
+리포트
+질문
+
+에서 긴 텍스트 때문에:
+
+버튼 밀림
+화면 overflow
+card 깨짐
+가로 overflow
+
+없게.
+
+============================================================
+27. SAFE AREA
+============================================================
+
+수정 화면에서:
+
+top
+bottom CTA
+modal
+
+SafeArea 정상.
+
+============================================================
+28. MODAL / SHEET
+============================================================
+
+기능 변경하지 말고
+시각적 consistency만.
+
+Header
+Close
+Content
+Footer
+
+일관.
+
+새 modal:
+NO unless absolutely required.
+
+============================================================
+29. BACK
+============================================================
+
+이번 Stage는 Back audit Stage가 아님.
+
+하지만 UI를 수정한 화면에서
+기존 Back을 깨뜨리면 FAIL.
+
+새 navigation behavior:
+NO.
+
+============================================================
+30. SCROLL / KEYBOARD
+============================================================
+
+이번 Stage는 전체 감사 아님.
+
+UI 수정으로 인해 새로 발생한:
+
+bottom inaccessible
+keyboard covering CTA
+first tap issue
+
+만 확인/수정.
+
+============================================================
+31. 타깃 화면
+============================================================
+
+우선순위:
+
+ADMIN
+- dashboard
+- notice composer
+- report-hub
+- diary-hub
+- curriculum-hub
+- x-hub
+
+TEACHER
+- today-schedule
+- my-schedule
+- attendance
+- diary
+- x-growth
+
+PARENT
+- home
+- notifications
+- requests
+- photos
+- diary detail
+- growth-report-detail
+- growth-report-paid
+- paid Q&A flow
+- curriculum-chat
+- terminology-search
+
+SHARED
+- Student Detail
+
+전체 앱의 모든 파일을
+한 번씩 여는 식의 audit 금지.
+
+위 user-facing 핵심 화면 중심.
+
+============================================================
+32. Production / Billing
+============================================================
+
+Production:
+NO
+
+Migration:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+1.6.3:
+NO
+
+============================================================
+33. Stage 4 Release Gates 보존
+============================================================
+
+다음 상태 변경 금지:
+
+paid-insight enum migration:
+PENDING
+
+level-up trigger:
+DEFERRED
+
+readiness trigger:
+DEFERRED
+
+re-analysis trigger:
+DEFERRED
+
+이번 Stage에서
+편의상 임의 구현 금지.
+
+============================================================
+34. REGRESSION
+============================================================
+
+Known backend baseline:
+
+158 failures
+
+동일 command/environment.
+
+Expected:
+
+New backend failures:
+0
+
+New TS errors:
+0
+
+Lost functions:
+0
+
+Route changes:
+0 unless unavoidable and documented
+
+============================================================
+35. 크레딧 절약 실행방식
+============================================================
+
+하나의 화면마다
+별도 audit report 제출 금지.
+
+실제 작업:
+
+1.
+핵심 화면 user-facing source 빠르게 검사
+
+2.
+공통 visual issue 묶음 식별
+
+3.
+같은 패턴 한 번에 수정
+
+4.
+관련 screen smoke test
+
+5.
+전체 regression 1회
+
+6.
+commit
+
+으로 끝냅니다.
+
+============================================================
+36. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# COMPRESSED STAGE 5 PRODUCT POLISH REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## TARGETED SCREENS
+
+Admin:
+...
+
+Teacher:
+...
+
+Parent:
+...
+
+Shared:
+...
+
+## PRODUCT VISIBILITY
+
+Important functions improved:
+...
+
+Hidden/unclear functions fixed:
+...
+
+Duplicate visual entries reduced:
+...
+
+## DESIGN CONSISTENCY
+
+Cards:
+...
+
+Spacing:
+...
+
+Typography:
+...
+
+CTA hierarchy:
+...
+
+Normal/X consistency:
+...
+
+## FREE GROWTH REPORT
+
+Official name:
+...
+
+State UI:
+...
+
+PDF CTA:
+...
+
+Developer text exposed:
+...
+
+Expected:
+0
+
+## PAID INSIGHT
+
+Preparing:
+...
+
+Questions:
+...
+
+Ready:
+...
+
+Payment pending:
+...
+
+Free/Paid value difference clear:
+YES / NO
+
+Adaptive question count:
+YES / NO
+
+Fixed "6 questions" text:
+YES / NO
+
+Expected:
+NO
+
+## NOTICE AI
+
+Direct writing preserved:
+...
+
+AI assistance visible:
+...
+
+AI dominance issue:
+...
+
+Expected:
+NONE
+
+## EMPTY / ERROR / LOADING
+
+Empty state issues fixed:
+...
+
+Error state issues fixed:
+...
+
+Loading issues fixed:
+...
+
+## PLACEHOLDER / DEBUG
+
+User-visible placeholder:
+...
+
+User-visible fixture:
+...
+
+User-visible debug keys:
+...
+
+Expected:
+0 / 0 / 0
+
+## TOUCH / ACCESSIBILITY
+
+...
+
+## LONG CONTENT
+
+Overflow:
+...
+
+Expected:
+0
+
+## FUNCTION PRESERVATION
+
+Lost functions:
+...
+
+Expected:
+0
+
+Routes changed:
+...
+
+Expected:
+0
+
+## REGRESSION
+
+Baseline:
+158
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## STAGE 4 RELEASE GATES
+
+Paid Insight migration:
+PENDING / CHANGED
+
+Expected:
+PENDING
+
+Level-up trigger:
+DEFERRED / CHANGED
+
+Expected:
+DEFERRED
+
+Readiness trigger:
+DEFERRED / CHANGED
+
+Expected:
+DEFERRED
+
+Re-analysis trigger:
+DEFERRED / CHANGED
+
+Expected:
+DEFERRED
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STAGE 5 FULLY CLOSED
+or
+BLOCKED

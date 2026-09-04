@@ -33,8 +33,8 @@ export function normalizeTier(raw: string | null | undefined): string {
   return TIER_NORMALIZE[raw] ?? raw;
 }
 
-// ── 영상·화이트라벨 허용 티어 ─────────────────────────────────────────────
-const VIDEO_TIERS       = new Set(["center_200", "advance", "pro", "max"]);
+// ── 화이트라벨 허용 티어 ──────────────────────────────────────────────────
+// WP2A: VIDEO_TIERS 제거 — 모든 플랜 영상 허용 (정책 확정)
 const WHITELABEL_TIERS  = new Set(["center_200", "advance", "pro", "max"]);
 
 // ── 구독 상태 정규화 ──────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export interface ResolvedSubscription {
   storageMb:        number;        // storage_mb 원본
   videoEnabled:     boolean;
   whiteLabelEnabled: boolean;
-  videoStorageLimitMb: number;     // 영상 허용: 1048576 (1TB), 불가: 0
+  videoStorageLimitMb: number;     // = storageMb (unified quota; no separate video 1TB cap)
   status:           SubscriptionStatus;
   startsAt:         string | null; // ISO
   endsAt:           string | null; // ISO
@@ -161,10 +161,12 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const storageMb      = Number(plan?.storage_mb ?? 512);
   const displayStorage = (plan?.display_storage as string) ?? "500MB";
 
-  // 9. video / whitelabel — tier 기준
-  const videoEnabled        = VIDEO_TIERS.has(effectiveTier);
+  // 9. video / whitelabel — WP2A: 모든 플랜 영상 허용
+  // videoStorageLimitMb: unified quota와 일치 (photo+video 동일 pool quota)
+  // 별도 video 전용 1TB quota 없음 — plan storage MB가 곧 unified limit
+  const videoEnabled        = true; // WP2A LOCKED: video enabled for all plans
   const whiteLabelEnabled   = WHITELABEL_TIERS.has(effectiveTier);
-  const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0; // 1TB or 0
+  const videoStorageLimitMb = storageMb; // plan storage MB = unified quota limit (not a separate 1TB cap)
 
   return {
     source,
@@ -217,10 +219,11 @@ export async function syncPoolSubscriptionFields(params: {
       WHERE tier = ${effectiveTier} LIMIT 1
     `)).rows as any[];
 
-    const storageGb       = Number(plan?.storage_gb ?? 0.49);
-    const videoEnabled    = VIDEO_TIERS.has(effectiveTier);
+    const storageGb         = Number(plan?.storage_gb ?? 0.49);
+    const storageMbSync     = Math.round(storageGb * 1024);
+    // WP2A: VIDEO_TIERS 제거 — 모든 플랜 영상 허용; videoLimitMb = unified quota (plan storage)
     const whiteLabelEnabled = WHITELABEL_TIERS.has(effectiveTier);
-    const videoLimitMb    = videoEnabled ? 1024 * 1024 : 0; // 영상 허용: 무제한(1TB 세팅), 불가: 0
+    const videoLimitMb      = storageMbSync; // unified quota, not a separate 1TB cap
 
     await superAdminDb.execute(sql`
       UPDATE swimming_pools SET

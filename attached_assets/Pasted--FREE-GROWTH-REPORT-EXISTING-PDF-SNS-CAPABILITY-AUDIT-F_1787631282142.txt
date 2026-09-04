@@ -1,0 +1,304 @@
+[앱] FREE GROWTH REPORT — EXISTING PDF / SNS CAPABILITY AUDIT
+
+현재 상태:
+- FREE REPORT AI ENGINE = LOCKED
+- APP PHASE 1 + RELIABILITY = PRODUCTION COMPLETE
+- 기존 growth-report-detail.tsx에
+  PDF 저장 + SNS 공유 기능이 존재한다고 보고됨
+
+목적:
+새 기능을 만들기 전에
+현재 PDF / SNS 구현 수준을 정확히 파악한다.
+
+이번 Step은 READ-ONLY AUDIT ONLY.
+
+코드 수정 금지.
+UI 수정 금지.
+AI 호출 금지.
+DB write 금지.
+deploy 금지.
+OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PDF 기능 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인.
+
+보고:
+
+- PDF 생성 주체
+  APP / API SERVER / 외부 서비스
+
+- 어떤 라이브러리 사용
+
+- PDF가 실제 binary/file로 생성되는지
+
+- report JSON을 그대로 사용하는지
+
+- AI 재호출이 있는지
+
+- PDF 생성 시 포함되는 항목
+  summary_text
+  8 sections
+  아이 이름
+  기간
+  센터명
+  로고
+  진행도
+  기타
+
+- page 수 / layout 구조
+
+- 디자인 template 존재 여부
+
+- 생성 시점
+  report publish 시
+  버튼 누를 때
+  기타
+
+- 저장 위치
+  device local
+  server
+  R2/S3
+  temp file
+
+- cache 여부
+
+- 같은 report_version에서
+  동일 PDF 재생성 가능한 deterministic 구조인지
+
+- Android/iOS 지원 상태
+
+- 실제 버튼 label
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. SNS SHARE 기능 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SNS 공유가 정확히 무엇인지 확인.
+
+보고:
+
+- native share sheet인지
+- Instagram 직접 공유인지
+- 이미지 공유인지
+- PDF 파일 공유인지
+- 링크 공유인지
+- 텍스트 공유인지
+
+- Instagram Story 직접 intent/API 지원 여부
+- Kakao 공유 여부
+- 기타 SNS 전용 연동 여부
+
+- share_safe=true의 정확한 authority/source
+- share_safe=false 시 동작
+
+- child name/photo 포함 여부
+- center name/logo 포함 여부
+- SWIMNOTE branding/watermark 존재 여부
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. CURRENT SHARE OUTPUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 부모가 공유 버튼을 누르면
+실제로 어떤 결과물이 생성되는지
+구체적인 예 형태로 보고.
+
+예:
+
+A.
+PDF 파일을 OS share sheet로 전달
+
+B.
+텍스트 + 링크만 전달
+
+C.
+리포트 화면 screenshot/image 생성
+
+D.
+기타
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PPT SUPPORT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드베이스에:
+
+- pptx
+- ppt
+- PowerPoint
+- presentation
+- slide
+
+관련 Growth Report 구현이 있는지
+관련 경로만 검색.
+
+있으면:
+- 파일
+- 구현 수준
+- 실제 사용 여부
+
+없으면:
+PPT SUPPORT = NONE
+
+이번 Step에서 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. INSTAGRAM STORY SUPPORT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 코드베이스에:
+
+- Instagram Story
+- instagram-stories
+- story share
+- deep link / intent
+
+등 직접 Story 생성/공유 구현이 있는지 확인.
+
+단순 OS share sheet는
+Instagram Story 지원으로 판정하지 말 것.
+
+있으면 구현 수준 보고.
+없으면 NONE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. REPORT DATA REUSE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PUBLISHED report JSON을 기준으로:
+
+PDF/SNS가
+동일한 fixed report_content를 사용하는지 확인.
+
+다시 GPT/AI 호출해서
+내용을 재작성하는 구조가 있으면 정확히 보고.
+
+우리의 목표 원칙:
+
+same published report/version
+→ same source content
+
+PPT / Instagram도 향후
+AI 재호출 없이 만들 수 있어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. DESIGN ASSET 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Growth Report export/share에:
+
+- logo
+- fonts
+- background
+- wave graphic
+- card template
+- brand colors
+- cover page
+- decorative assets
+
+등이 존재하는지 확인.
+
+파일명/경로만 보고.
+
+새 디자인 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. COST / STORAGE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PDF/SNS 기능의:
+
+- AI variable cost
+- external API cost
+- server rendering cost
+- persistent storage
+- temporary storage
+
+여부만 구조적으로 보고.
+
+실제 비용을 모르면 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. GAP 분류
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 각 기능을:
+
+READY
+PARTIAL
+NONE
+
+중 하나로 판정.
+
+A. PDF
+B. Generic SNS Share
+C. Instagram Story
+D. PPT
+E. branded share card/image
+
+그리고 각각:
+
+REUSE
+EXTEND
+NEW BUILD
+
+중 무엇이 필요한지 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT EXPORT / SHARE AUDIT REPORT
+
+PDF
+- status
+- implementation
+- output
+- data source
+- AI call
+- storage
+- design
+
+SNS
+- status
+- actual behavior
+- output type
+- Instagram Story direct support
+- branding
+- share_safe behavior
+
+PPT
+- status
+
+INSTAGRAM STORY
+- status
+
+BRANDED IMAGE/CARD
+- status
+
+DATA REUSE
+- deterministic YES/NO
+- additional AI call YES/NO
+
+COST/STORAGE
+- structure
+
+GAPS
+- PDF: READY/PARTIAL/NONE → REUSE/EXTEND/NEW
+- SNS: ...
+- PPT: ...
+- Instagram Story: ...
+- branded card: ...
+
+- code changed: NO
+- AI calls: 0
+- DB write: NO
+- deploy: NO
+- OTA: NO
+
+STOP.

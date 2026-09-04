@@ -1,0 +1,184 @@
+[SWIMNOTE 긴급 수정 — 일지 작성 하단 ‘나가기’ 버튼 구현 승인]
+
+원인조사 결과를 승인한다.
+
+확정 원인:
+
+artifacts/swim-app/app/(teacher)/diary.tsx에서
+
+onBack={params.backTo ? undefined : () => setSelectedGroup(null)}
+
+를 DiaryWriteView에 전달하고 있어,
+params.backTo가 존재하는 모든 진입 경로에서 하단 나가기 버튼의
+Pressable.onPress가 undefined가 된다.
+
+이번 수정은 일지 화면의 상단 뒤로가기와 하단 나가기가
+동일한 종료 함수를 사용하도록 통합한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(teacher)/diary.tsx
+
+원칙적으로 이 파일 1개만 수정한다.
+
+DiaryWriteView.tsx의 버튼 UI·스타일·저장 로직은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 공통 종료 함수 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+diary.tsx에 handleExitDiary를 추가한다.
+
+중요:
+
+단순히 다음 두 경로만 하드코딩하고
+나머지를 router.back()으로 처리하지 않는다.
+
+- my-schedule
+- today-schedule
+
+기존 SubScreenHeader가 사용하던 params.backTo 처리 규칙을
+그대로 보존해야 한다.
+
+현재 화면은 teacher route이므로,
+params.backTo가 있으면 기존 상단 헤더와 동일한 최종 경로로 이동한다.
+
+권장 구조:
+
+const handleExitDiary = useCallback(() => {
+  if (params.backTo) {
+    router.replace(
+      (`/(teacher)/${params.backTo}`) as any
+    );
+    return;
+  }
+
+  setSelectedGroup(null);
+}, [params.backTo, router]);
+
+단, params.backTo 값에 이미 경로 prefix 또는 query가 포함될 가능성이 있다면
+Repository의 실제 전달값 전체를 먼저 확인하고 기존 SubScreenHeader의
+경로 조합 방식을 정확히 복사한다.
+
+확인 대상:
+
+- today-schedule
+- my-schedule
+- diary-unwritten
+- diary-index
+
+임의로 경로 이름을 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 두 버튼에 동일 함수 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+상단 SubScreenHeader:
+
+변경 전:
+
+onBack={params.backTo ? undefined : () => {
+  setSelectedGroup(null);
+}}
+
+변경 후:
+
+onBack={handleExitDiary}
+
+하단 DiaryWriteView:
+
+변경 전:
+
+onBack={params.backTo ? undefined : () => {
+  setSelectedGroup(null);
+}}
+
+변경 후:
+
+onBack={handleExitDiary}
+
+상단과 하단이 반드시 같은 함수 참조를 사용해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 동작 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+params.backTo 있음:
+
+- 해당 teacher 화면으로 router.replace
+- 예:
+  - today-schedule → /(teacher)/today-schedule
+  - my-schedule → /(teacher)/my-schedule
+  - diary-unwritten → 실제 기존 경로
+  - diary-index → 실제 기존 경로
+
+params.backTo 없음:
+
+- diary 내부에서 선택된 반 화면만 닫음
+- setSelectedGroup(null)
+- diary 메인 화면으로 복귀
+- router.back()을 호출하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 수정에서 제외
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 이번 긴급 수정에 포함하지 않는다.
+
+- 저장 중 나가기 정책 변경
+- 저장 전 확인 Alert 신규 추가
+- AI 요청 abort 구조 변경
+- DiaryAIButton 내부 로직 변경
+- 일지 저장 로직 변경
+- 학생별 일지 매핑 변경
+- UI·스타일 변경
+- X모드 코드 변경
+
+현재 오류는 onBack 함수 미전달 문제이므로 범위를 확대하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 필수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 다음을 확인한다.
+
+1. today-schedule → 일지 → 하단 나가기
+2. today-schedule → 일지 → 상단 뒤로가기
+3. my-schedule → 일지 → 하단 나가기
+4. my-schedule → 일지 → 상단 뒤로가기
+5. diary-unwritten → 일지 → 하단 나가기
+6. diary-index → 일지 → 하단 나가기
+7. params.backTo 없이 diary 내부 반 선택 → 하단 나가기
+8. 신규 일지 상태
+9. 이미 작성된 일지 상태
+10. 저장 버튼 회귀 없음
+11. AI 작성 버튼 회귀 없음
+
+상단과 하단의 최종 이동 목적지가 각각 동일해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 타입체크 및 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. diary.tsx 실제 diff
+2. handleExitDiary 최종 코드
+3. 각 backTo 값과 최종 이동 경로 표
+4. 상단·하단 버튼 연결 코드
+5. 수정 파일 타입 오류 여부
+6. git diff --stat
+7. git status --short
+8. 현재 HEAD
+9. origin SHA
+10. 자동 checkpoint 발생 여부
+11. Rollback 방법
+
+수정 완료 후 보고하고 멈춘다.
+
+Push·OTA는 아직 하지 않는다.
+Render 배포는 서버 변경이 없으므로 필요 없다.

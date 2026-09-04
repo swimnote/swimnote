@@ -1,0 +1,1102 @@
+[SWIMNOTE X PAYMENT]
+[X02-C — SERVER PURCHASE CONTRACT]
+[x-reserve-slot + sync-x-subscription + webhook binding/idempotency]
+
+목적:
+
+X02-B1/B2에서 완료된
+
+- x_subscription_slots
+- x_slot_seq
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- effective entitlement
+
+기반 위에
+
+실제 X 정기결제를 안전하게 받을 서버 계약을 구현한다.
+
+이번 WP는 SERVER ONLY.
+
+앱 purchase UI는 아직 구현하지 않는다.
+RevenueCat dashboard 변경도 하지 않는다.
+
+==================================================
+0. CURRENT FIXED CONTRACT
+==================================================
+
+현재 완료 상태:
+
+App Store Connect:
+- com.swimnote.x.monthly.tier1
+- com.swimnote.x.monthly.tier2
+- com.swimnote.x.monthly.tier3
+- com.swimnote.x.monthly.standard
+
+RevenueCat:
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+
+Packages:
+$rc_custom_x_tier1
+$rc_custom_x_tier2
+$rc_custom_x_tier3
+$rc_custom_x_standard
+
+Entitlement source:
+effective =
+(x_paid_entitlement OR x_manual_entitlement)
+AND NOT x_force_disabled
+
+Mode:
+effective false → normal
+effective true + config READY → x
+effective true + config != READY → x_pending
+
+RevenueCat customer identity:
+기존 adminUser.id 유지.
+
+최종 X ownership:
+pool_id
+
+==================================================
+1. BUSINESS POLICY — FIXED
+==================================================
+
+X 가입번호는
+slot reservation 시 발급.
+
+sequence:
+
+1~100
+→ 50%
+→ tier1
+→ com.swimnote.x.monthly.tier1
+
+101~300
+→ 30%
+→ tier2
+→ com.swimnote.x.monthly.tier2
+
+301~500
+→ 10%
+→ tier3
+→ com.swimnote.x.monthly.tier3
+
+501+
+→ standard
+→ com.swimnote.x.monthly.standard
+
+번호 재사용 금지.
+
+결번 허용.
+
+예약 후 결제 제한시간:
+
+1시간.
+
+1시간 내 결제하지 않으면:
+RELEASED.
+
+구매 성공 후 early-bird 할인 기간:
+
+36개월.
+
+standard tier는 discount 기간 없음.
+
+==================================================
+2. ROLE
+==================================================
+
+X 구매 서버 endpoint는:
+
+pool_admin만 허용.
+
+sub_admin 불가.
+teacher 불가.
+parent 불가.
+
+UI hide만 신뢰하지 않는다.
+
+server-side requireRole 강제.
+
+super_admin은 운영용 별도 기능이며
+고객 구매 endpoint를 일반 구매처럼 사용하지 않는다.
+
+==================================================
+3. NEW ENDPOINT #1
+==================================================
+
+POST /api/billing/x-reserve-slot
+
+목적:
+
+사용자가 결제 화면에 진입하여
+실제 구매 직전에
+
+서버가:
+
+- sequence
+- franchise number
+- tier
+- Store product
+
+를 확정한다.
+
+클라이언트는 tier/product를 선택하지 못한다.
+
+==================================================
+4. X-RESERVE-SLOT AUTH
+==================================================
+
+필수:
+
+requireAuth
+requireRole("pool_admin")
+
+server에서:
+
+poolId = authenticated user의 현재 swimming_pool_id
+
+client body에서 poolId 받지 않는다.
+
+client body에서:
+
+sequence
+tier
+discount rate
+product id
+price
+
+받지 않는다.
+
+==================================================
+5. EXISTING SLOT CHECK
+==================================================
+
+새 slot 생성 전 현재 pool의 slot 상태 확인.
+
+우선순위:
+
+A.
+이미 PURCHASED active slot 존재
+→ 신규 예약 금지
+→ ALREADY_SUBSCRIBED 또는 equivalent 409
+
+B.
+아직 유효한 RESERVED slot 존재
+→ 새 번호 발급 금지
+→ 기존 reservation 반환
+
+즉 버튼 재탭/네트워크 retry로
+번호 여러 개 소비하지 않게 한다.
+
+C.
+RESERVED지만 deadline 초과
+→ transaction 안에서 RELEASED 처리 후 신규 예약 가능
+
+==================================================
+6. ATOMIC SLOT RESERVATION
+==================================================
+
+transaction 사용.
+
+동시 요청 두 개가 들어와도
+동일 pool에 active RESERVED가 하나만 존재해야 한다.
+
+X02-B1 partial unique:
+
+UNIQUE(pool_id)
+WHERE status='RESERVED'
+
+가 존재하면 이를 활용.
+
+sequence:
+
+nextval('x_slot_seq')
+
+로 원자 할당.
+
+sequence rollback 소비는 정상.
+
+==================================================
+7. SERVER TIER MAPPING
+==================================================
+
+서버 함수 하나에서만 mapping.
+
+예:
+
+resolveXProductForSequence(sequence)
+
+반환:
+
+tierKey
+discountPercent
+storeProductId
+
+정확한 mapping:
+
+1 <= seq <= 100
+tier1
+50
+com.swimnote.x.monthly.tier1
+
+101 <= seq <= 300
+tier2
+30
+com.swimnote.x.monthly.tier2
+
+301 <= seq <= 500
+tier3
+10
+com.swimnote.x.monthly.tier3
+
+501+
+standard
+0
+com.swimnote.x.monthly.standard
+
+client mapping 금지.
+
+==================================================
+8. FRANCHISE NUMBER
+==================================================
+
+sequence 기준 deterministic 생성.
+
+예:
+
+1 → x-0001
+29 → x-0029
+299 → x-0299
+1000 → x-1000
+
+현재 기존 프로젝트의 franchise number formatting 규칙이 있으면
+그 규칙 우선.
+
+중복 금지.
+
+==================================================
+9. RESERVATION RECORD
+==================================================
+
+새 slot:
+
+status = RESERVED
+
+reserved_by_user_id = authenticated user.id
+
+reserved_at = now
+
+payment_deadline_at = now + 1 hour
+
+purchased_at = null
+released_at = null
+
+discount_started_at = null
+discount_ends_at = null
+
+RC binding fields = null
+
+==================================================
+10. RESERVE RESPONSE
+==================================================
+
+응답 예:
+
+{
+  "ok": true,
+  "slot": {
+    "id": ...,
+    "sequenceNumber": 29,
+    "franchiseNumber": "x-0029",
+    "tierKey": "tier1",
+    "discountPercent": 50,
+    "storeProductId": "com.swimnote.x.monthly.tier1",
+    "paymentDeadlineAt": "..."
+  }
+}
+
+중요:
+
+price 숫자는 server hardcode source로 만들지 않는다.
+
+실제 표시 가격은 앱에서 RevenueCat Store localized price 사용.
+
+==================================================
+11. NEW ENDPOINT #2
+==================================================
+
+POST /api/billing/sync-x-subscription
+
+목적:
+
+앱에서 purchasePackage 성공 직후
+
+RevenueCat webhook 도착을 기다리지 않고
+서버가 직접 현재 entitlement를 검증하여
+X paid 상태를 동기화.
+
+최종 source는 APP SERVER.
+
+==================================================
+12. SYNC AUTH
+==================================================
+
+필수:
+
+requireAuth
+requireRole("pool_admin")
+
+server에서:
+
+userId
+poolId
+
+확정.
+
+client body의:
+
+poolId
+tier
+product
+entitlement=true
+
+같은 값은 신뢰하지 않는다.
+
+==================================================
+13. SYNC SLOT LOOKUP
+==================================================
+
+현재 pool의:
+
+RESERVED slot 우선 조회.
+
+없고 이미 PURCHASED slot이 있으면
+idempotent sync 가능 여부 확인.
+
+다른 pool의 slot 절대 사용 금지.
+
+==================================================
+14. REVENUECAT SERVER VERIFICATION
+==================================================
+
+sync endpoint는
+client CustomerInfo만 믿지 않는다.
+
+RevenueCat server-side API를 사용하여
+현재 authenticated RevenueCat App User ID:
+
+user.id
+
+의 entitlement를 직접 검증한다.
+
+확인 대상:
+
+entitlement:
+x_mode
+
+검증:
+
+active == true
+
+product identifier 존재
+
+expiration date
+
+environment
+
+original purchase/customer identity
+가능한 transaction identifiers
+
+SECRET은 server env만 사용.
+
+EXPO_PUBLIC key 사용 금지.
+
+==================================================
+15. REQUIRED SERVER SECRET
+==================================================
+
+현재 server-side RevenueCat REST API secret이
+이미 존재하는지 먼저 확인.
+
+예:
+
+REVENUECAT_API_KEY
+REVENUECAT_SECRET_API_KEY
+또는 기존 server secret.
+
+없으면:
+
+임의 fake 값 금지.
+BLOCKED 처리하고 필요한 RevenueCat credential 종류만 보고.
+
+secret 값 로그 출력 금지.
+
+==================================================
+16. PRODUCT MATCH
+==================================================
+
+RevenueCat entitlement의 actual product identifier가
+
+slot.store_product_id
+
+와 정확히 일치해야 한다.
+
+불일치:
+
+403/409 equivalent
+sync 거부.
+
+client가 tier1 예약 후
+standard/tier2 상품을 억지 구매한 경우
+paid entitlement 적용 금지.
+
+==================================================
+17. DEADLINE CHECK
+==================================================
+
+sync 시:
+
+slot.status == RESERVED
+
+그리고:
+
+payment_deadline_at >= current time
+
+원칙.
+
+다만 Store purchase가 deadline 직전에 성공했으나
+sync request가 수 초 늦은 edge case가 있을 수 있다.
+
+RevenueCat original purchase timestamp가
+deadline 이전임을 확실히 증명할 수 있다면
+구매 성공 인정 가능.
+
+단 추측 금지.
+
+명확한 purchase timestamp 비교가 가능할 때만.
+
+==================================================
+18. PURCHASE COMMIT TRANSACTION
+==================================================
+
+검증 성공 후 하나의 DB transaction에서:
+
+slot:
+
+status = PURCHASED
+purchased_at = actual purchase/activation timestamp 가능하면 사용
+
+rc_app_user_id = current RevenueCat app user id
+
+rc_original_app_user_id = RC 반환값 있으면 저장
+
+rc_original_transaction_id = RC 반환값 있으면 저장
+
+rc_latest_transaction_id = RC 반환값 있으면 저장
+
+rc_environment = sandbox / production
+
+tier1~tier3:
+
+discount_started_at = purchase activation timestamp
+discount_ends_at = +36 months
+
+standard:
+
+discount_started_at = null
+discount_ends_at = null
+
+swimming_pools:
+
+x_paid_entitlement = true
+
+xmode_subscription_end_at = actual RC expiry
+
+xmode_purchased_at = 최초 구매일을 보존하는 기존 정책에 맞춤
+
+x_slot_id = slot.id
+
+x_manual_entitlement 변경 금지.
+x_force_disabled 변경 금지.
+config_status 변경 금지.
+
+==================================================
+19. IDEMPOTENCY — SYNC
+==================================================
+
+같은 구매에 sync endpoint가 여러 번 호출되어도:
+
+새 slot 생성 금지
+새 sequence 생성 금지
+discount 기간 재시작 금지
+purchased_at 덮어쓰기 금지
+
+이미 PURCHASED이며
+같은 RC transaction/product라면:
+
+{
+  synced: true,
+  alreadySynced: true
+}
+
+형식으로 정상 반환 가능.
+
+==================================================
+20. WEBHOOK EVENT IDEMPOTENCY
+==================================================
+
+현재 webhook event_id dedup이 PARTIAL 상태.
+
+이번 WP에서 X webhook에
+RevenueCat event.id 기반 idempotency 구현.
+
+먼저 기존 audit/event/dedup 테이블 재사용 가능 여부 조사.
+
+재사용 가능하면 새 테이블 만들지 않는다.
+
+없으면 최소 event receipt table 필요 여부 판단.
+
+새 migration이 필요하면:
+
+이번 WP 범위 안에서 안전한 additive migration만 허용.
+
+예:
+
+revenuecat_webhook_events
+
+event_id UNIQUE
+event_type
+app_user_id
+product_id
+environment
+processed_at
+created_at
+
+raw full payload 저장 금지.
+
+PII/secret 저장 금지.
+
+==================================================
+21. WEBHOOK BINDING
+==================================================
+
+X product webhook 처리 시
+기존처럼 무조건:
+
+appUserId
+→ users.current swimming_pool_id
+
+만 믿지 않는다.
+
+가능하면 PURCHASED slot의:
+
+rc_original_transaction_id
+또는 안정적인 RC transaction binding
+
+으로 원래 pool을 찾는다.
+
+==================================================
+22. INITIAL_PURCHASE WEBHOOK
+==================================================
+
+INITIAL_PURCHASE가
+sync endpoint보다 먼저 도착할 수 있다.
+
+처리 순서:
+
+1. event dedup
+2. X product 확인
+3. appUserId/user lookup
+4. 해당 pool의 matching RESERVED slot 확인
+5. product match
+6. transaction binding 저장
+7. slot PURCHASED
+8. x_paid_entitlement=true
+9. subscription end date 저장
+
+sync endpoint와 동일 helper를 최대한 공유.
+
+중복 business logic 금지.
+
+==================================================
+23. WEBHOOK AFTER SYNC
+==================================================
+
+sync endpoint가 먼저 PURCHASED 처리하고
+그다음 INITIAL_PURCHASE webhook이 오면:
+
+동일 transaction/slot 인식
+→ idempotent
+→ discount date 재설정 금지
+→ audit 중복 business event 금지
+
+==================================================
+24. RENEWAL
+==================================================
+
+RENEWAL:
+
+해당 transaction binding으로
+원래 pool/slot 식별 우선.
+
+x_paid_entitlement = true
+
+xmode_subscription_end_at 갱신
+
+slot tier/product 유지.
+
+discount_started_at 변경 금지.
+discount_ends_at 변경 금지.
+
+==================================================
+25. CANCELLATION
+==================================================
+
+CANCELLATION:
+
+유료 기간 종료 전.
+
+x_paid_entitlement = true 유지.
+
+subscription_end_at 업데이트.
+
+slot PURCHASED 유지.
+
+==================================================
+26. EXPIRATION
+==================================================
+
+EXPIRATION:
+
+x_paid_entitlement = false
+
+manual entitlement는 건드리지 않음.
+
+slot 이력 삭제 금지.
+
+x_slot_id를 즉시 null로 만들지 여부는
+현재 history/active contract 검토 후 최소 변경.
+
+config_status 변경 금지.
+
+==================================================
+27. REFUND
+==================================================
+
+REFUND:
+
+x_paid_entitlement = false
+
+manual 유지.
+
+slot history 유지.
+
+refund timestamp/이력이 기존 audit로 남을 수 있으면 기록.
+
+==================================================
+28. PRODUCT_CHANGE
+==================================================
+
+현재 X early-bird 36개월 정책 때문에
+PRODUCT_CHANGE는 자동으로 정상 처리했다고 가정하면 안 된다.
+
+이번 WP:
+
+- event를 인식
+- old/new product 정보 기록
+- entitlement를 잘못 끄지 않음
+
+정도까지.
+
+36개월 종료 후 standard 전환은
+별도 WP에서 처리.
+
+사용자 임의 tier 변경이 감지되면
+slot product와 mismatch로 audit/alert 가능.
+
+자동 tier 변경 로직 구현 금지.
+
+==================================================
+29. CROSS-POOL RESTORE DEFENSE
+==================================================
+
+중요 시나리오:
+
+user1이 Pool A에서 X 구매
+→ 이후 user1 account가 Pool B에 소속
+→ same Store account restore
+
+현재 users.swimming_pool_id만 보면
+Pool B에 entitlement가 잘못 붙을 수 있다.
+
+따라서 PURCHASED transaction binding이 이미 존재하면:
+
+transaction
+→ original slot
+→ original pool
+
+을 우선.
+
+현재 pool과 다르면
+새 pool에 paid entitlement 적용 금지.
+
+반드시 security log/audit.
+
+==================================================
+30. RESERVATION EXPIRY
+==================================================
+
+1시간 초과 RESERVED slot을 RELEASED로 만드는 로직 필요.
+
+이번 WP에서는 최소:
+
+A.
+x-reserve-slot 호출 시 lazy cleanup
+
+B.
+sync-x-subscription 호출 시 expiry 확인
+
+반드시 구현.
+
+Background worker는
+현재 WP에서 꼭 필요하지 않으면 만들지 않는다.
+
+다음 reserve가 들어왔을 때
+expired RESERVED가 자동 RELEASED 되면 충분.
+
+worker는 추후 필요 시 별도.
+
+==================================================
+31. RELEASED SLOT
+==================================================
+
+RELEASED:
+
+sequence 번호 재사용 금지.
+
+같은 pool이 다시 신청하면:
+
+새 sequence
+새 franchise number
+현재 sequence 기준 새 tier
+
+발급.
+
+==================================================
+32. REJOIN
+==================================================
+
+실제 EXPIRATION 후
+재가입:
+
+신규 reservation
+신규 sequence
+신규 tier
+
+정책.
+
+단 Store의 기존 subscription restore/uncancellation과
+진짜 신규 가입을 구분해야 한다.
+
+이번 WP에서는 server contract만
+이 정책을 막지 않도록 설계.
+
+==================================================
+33. AUDIT
+==================================================
+
+가능한 기존 audit_logs 사용.
+
+중요 이벤트:
+
+x_slot_reserved
+x_slot_released
+x_purchase_synced
+x_purchase_webhook_confirmed
+x_paid_entitlement_on
+x_paid_entitlement_off
+x_cross_pool_blocked
+x_product_mismatch
+x_webhook_duplicate
+
+raw Store payload 저장 금지.
+
+==================================================
+34. BASIC SWIMNOTE BILLING REGRESSION
+==================================================
+
+절대 중요.
+
+기존:
+
+POST /billing/sync-rc-subscription
+
+basic plan RevenueCat webhook
+RC_PRODUCT_TIER_MAP
+pool_subscriptions
+
+동작 변경 금지.
+
+X product일 때만
+X contract로 분기.
+
+Basic product는 기존 코드 그대로.
+
+==================================================
+35. LEGACY MANUAL X
+==================================================
+
+현재 manual entitlement pool은
+X 구매가 없어도 X 사용 가능.
+
+x-reserve-slot 호출 시
+manual=true인 pool에 구매를 허용할지 검토.
+
+정책:
+
+manual entitlement는 운영/지원/테스트용이고
+실제 paid subscription과 별개.
+
+Super Admin이 테스트 목적으로 manual X를 켜둔 pool도
+정식 X 구매가 필요할 수 있으므로
+manual=true 자체를 ALREADY_SUBSCRIBED로 간주하지 않는다.
+
+판정 기준:
+
+x_paid_entitlement / PURCHASED paid slot
+
+중심.
+
+==================================================
+36. RESPONSE CONTRACT
+==================================================
+
+x-reserve-slot:
+
+성공:
+200/201
+
+기존 valid reservation:
+200
+
+이미 paid active:
+409
+
+권한 없음:
+403
+
+sync-x-subscription:
+
+success:
+200
+
+already synced:
+200
+
+RC entitlement not active:
+409 또는 422
+
+product mismatch:
+409
+
+cross-pool transaction:
+403/409
+
+expired reservation:
+410 또는 409
+
+일관된 API error shape 사용.
+
+raw RC error 사용자 노출 금지.
+
+==================================================
+37. TESTS
+==================================================
+
+필수 테스트:
+
+RESERVE-1
+첫 예약 → seq 1 / tier1
+
+RESERVE-2
+동일 pool 재호출 → 같은 RESERVED 반환
+
+RESERVE-3
+expired RESERVED → RELEASED + 새 seq 발급
+
+RESERVE-4
+동시 2 요청 → active RESERVED 1개
+
+RESERVE-5
+100→tier1
+101→tier2
+300→tier2
+301→tier3
+500→tier3
+501→standard
+
+SYNC-1
+active x_mode + matching product
+→ PURCHASED + paid=true
+
+SYNC-2
+wrong product
+→ reject
+
+SYNC-3
+inactive entitlement
+→ reject
+
+SYNC-4
+duplicate sync
+→ idempotent
+
+SYNC-5
+discount tier
+→ +36 months
+
+SYNC-6
+standard
+→ discount dates NULL
+
+WEBHOOK-1
+INITIAL_PURCHASE before sync
+
+WEBHOOK-2
+INITIAL_PURCHASE after sync
+
+WEBHOOK-3
+duplicate event.id
+
+WEBHOOK-4
+RENEWAL
+
+WEBHOOK-5
+CANCELLATION
+
+WEBHOOK-6
+EXPIRATION + manual=true
+→ effective remains true
+
+WEBHOOK-7
+REFUND + manual=true
+→ effective remains true
+
+SECURITY-1
+cross-pool restore/binding
+→ blocked
+
+SECURITY-2
+client product manipulation
+→ blocked
+
+REGRESSION-1
+Basic subscription purchase/sync unchanged
+
+REGRESSION-2
+Basic webhook unchanged
+
+MODE-1
+paid purchase + config != READY
+→ x_pending
+
+MODE-2
+paid purchase + config READY
+→ x
+
+==================================================
+38. DEPLOYMENT
+==================================================
+
+이번 단계는 server 변경.
+
+순서:
+
+1. tests
+2. commit
+3. push origin/deploy-photo-clone
+4. Render deploy
+5. Render health one-shot 확인
+6. Replit Publish
+7. swimnote.kr health one-shot 확인
+
+반복 polling 금지.
+
+사용자가 배포 완료를 알려주기 전
+자동 polling하지 않는다.
+
+==================================================
+39. DO NOT IMPLEMENT
+==================================================
+
+이번 WP 금지:
+
+앱 x-subscription purchase button
+purchasePackage UI
+restore button UI
+RevenueCat Offering display
+Android billing
+App Store Connect 변경
+RevenueCat dashboard 변경
+36개월 종료 자동 standard 전환
+X 운영자 설정센터
+AI ENGINE
+Growth/Diary/Parent AI 수정
+
+==================================================
+40. REPORT
+==================================================
+
+보고:
+
+1. RESERVE ENDPOINT
+2. RESERVE AUTH
+3. SEQUENCE/TIER HELPER
+4. SLOT ATOMICITY
+5. DEADLINE LOGIC
+6. SYNC ENDPOINT
+7. RC SERVER VERIFICATION
+8. SERVER SECRET STATUS
+9. PRODUCT MATCH
+10. TRANSACTION BINDING
+11. DISCOUNT 36M STORAGE
+12. INITIAL_PURCHASE
+13. RENEWAL
+14. CANCELLATION
+15. EXPIRATION
+16. REFUND
+17. PRODUCT_CHANGE
+18. EVENT IDEMPOTENCY
+19. CROSS-POOL DEFENSE
+20. AUDIT EVENTS
+21. BASIC BILLING REGRESSION
+22. MODE RESULT
+23. MODIFIED FILES
+24. DB MIGRATION?
+25. TEST RESULT
+26. COMMIT SHA
+27. RENDER DEPLOY ID
+28. REPLIT PUBLISH STATUS
+29. RENDER HEALTH
+30. SWIMNOTE.KR HEALTH
+
+성공:
+
+X02_C_SERVER_PURCHASE_CONTRACT_COMPLETE ✅
+
+실패:
+
+X02_C_SERVER_PURCHASE_CONTRACT_BLOCKED ❌
+
+X02-C PASS 전:
+
+X02-D purchase UI 시작 금지.
+restore UI 시작 금지.
+Android X billing 시작 금지.

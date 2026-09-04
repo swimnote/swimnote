@@ -1,10 +1,10 @@
-import { Search, Users, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest } from "@/context/AuthContext";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
@@ -26,8 +26,8 @@ export default function UnregisteredPickerModal({
   const [list, setList]       = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ]             = useState("");
-  const [assigning, setAssigning] = useState<string | null>(null);
   const [confirmItem, setConfirmItem] = useState<any | null>(null);
+  const [assigning, setAssigning] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -39,12 +39,11 @@ export default function UnregisteredPickerModal({
 
   const filtered = list.filter(u => !q || u.name?.includes(q) || u.parent_phone?.includes(q));
 
-  async function doAssign(student: any) {
-    setAssigning(student.id);
-    await apiRequest(token, `/teacher/unregistered/${student.id}/assign`, {
+  function doAssign(student: any) {
+    onAssigned();
+    apiRequest(token, `/teacher/unregistered/${student.id}/assign`, {
       method: "POST", body: JSON.stringify({ class_group_id: classGroupId }),
-    });
-    setAssigning(null); onAssigned();
+    }).catch(() => {});
   }
 
   return (
@@ -59,14 +58,14 @@ export default function UnregisteredPickerModal({
               <Text style={um.sub}>반에 배정하면 정상회원으로 전환됩니다</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
           <View style={um.searchBar}>
-            <Search size={14} color={C.textMuted} />
+            <LucideIcon name="search" size={14} color={C.textMuted} />
             <TextInput style={um.searchInput} value={q} onChangeText={setQ}
               placeholder="이름·전화번호 검색" placeholderTextColor={C.textMuted} />
-            {!!q && <Pressable onPress={() => setQ("")}><X size={14} color={C.textMuted} /></Pressable>}
+            {!!q && <Pressable onPress={() => setQ("")}><LucideIcon name="x" size={14} color={C.textMuted} /></Pressable>}
           </View>
           {loading ? (
             <ActivityIndicator style={{ marginTop: 40 }} color={themeColor} />
@@ -74,7 +73,7 @@ export default function UnregisteredPickerModal({
             <ScrollView style={um.list} showsVerticalScrollIndicator={false}>
               {filtered.length === 0 ? (
                 <View style={um.empty}>
-                  <Users size={28} color={C.textMuted} />
+                  <LucideIcon name="users" size={28} color={C.textMuted} />
                   <Text style={um.emptyTxt}>미등록회원이 없습니다</Text>
                 </View>
               ) : filtered.map(item => (
@@ -83,8 +82,8 @@ export default function UnregisteredPickerModal({
                     <Text style={um.name}>{item.name}</Text>
                     <Text style={um.phone}>{item.parent_phone || "-"}</Text>
                     <Text style={[um.invTag,
-                      item.invite_status === "invited" ? { color: "#2EC4B6" } :
-                      item.invite_status === "joined"  ? { color: "#2EC4B6" } : { color: "#6B7280" }
+                      item.invite_status === "invited" ? { color: C.brandStrong } :
+                      item.invite_status === "joined"  ? { color: C.brandStrong } : { color: "#6B7280" }
                     ]}>{INVITE_LABEL[item.invite_status || "none"]}</Text>
                   </View>
                   <Pressable style={[um.assignBtn, { backgroundColor: themeColor }]}

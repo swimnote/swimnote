@@ -6,14 +6,11 @@
  * - rejected: 거절 사유 보기 / 다시 승인
  * - approved: teacher-hub로 자동 리다이렉트
  */
-import { CircleAlert, CircleCheck, CircleX, FileText, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -53,10 +50,10 @@ const REJECT_PRESETS = [
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   joinedPendingApproval: { label: "승인 대기",  color: "#D97706", bg: "#FFF1BF", icon: "clock"       },
-  approved:              { label: "승인됨",     color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  approved:              { label: "승인됨",     color: C.brandStrong, bg: C.brandSoft, icon: "check-circle" },
   rejected:              { label: "거절됨",     color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle"     },
-  inactive:              { label: "비활성",     color: "#64748B", bg: "#FFFFFF", icon: "slash"        },
-  invited:               { label: "초대됨",     color: "#2EC4B6", bg: "#ECFEFF", icon: "mail"         },
+  inactive:              { label: "비활성",     color: C.textSecondary, bg: "#FFFFFF", icon: "slash"        },
+  invited:               { label: "초대됨",     color: C.brandStrong, bg: C.brandSoft, icon: "mail"         },
 };
 
 function fmtDate(dt?: string | null) {
@@ -163,11 +160,11 @@ export default function TeacherPendingDetailScreen() {
       <View style={[s.root, { paddingTop: insets.top }]}>
         <SubScreenHeader title="선생님 승인 처리" />
         <View style={s.errorState}>
-          <CircleAlert size={48} color={C.textMuted} />
+          <LucideIcon name="alert-circle" size={48} color={C.textMuted} />
           <Text style={s.errorTitle}>존재하지 않는 선생님입니다</Text>
           <Text style={s.errorDesc}>이미 처리됐거나 존재하지 않는 요청입니다.</Text>
           <Pressable
-            style={({ pressed }) => [s.backBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [s.backBtn, { backgroundColor: C.primaryAction, opacity: pressed ? 0.85 : 1 }]}
             onPress={() => router.back()}
           >
             <Text style={s.backBtnTxt}>목록으로 돌아가기</Text>
@@ -189,7 +186,7 @@ export default function TeacherPendingDetailScreen() {
     <View style={[s.root, { paddingTop: insets.top }]}>
       <SubScreenHeader title="선생님 승인 처리" />
 
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── 상태 배너 ── */}
         <View style={[s.statusBanner, { backgroundColor: statusInfo.bg }]}>
@@ -223,7 +220,7 @@ export default function TeacherPendingDetailScreen() {
         <View style={s.section}>
           <Text style={s.sectionTitle}>소속 통계</Text>
           <View style={s.statsGrid}>
-            <StatBox label="담당반"   value={data.class_count  ?? 0} icon="layers" color="#2EC4B6" />
+            <StatBox label="담당반"   value={data.class_count  ?? 0} icon="layers" color={C.brandStrong} />
             <StatBox label="담당 회원" value={data.member_count ?? 0} icon="users"  color="#2E9B6F" />
           </View>
         </View>
@@ -233,7 +230,7 @@ export default function TeacherPendingDetailScreen() {
         {/* ── 승인 오류 메시지 ── */}
         {!!approveError && (
           <View style={[s.warnBox, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={14} color="#D96C6C" />
+            <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
             <Text style={[s.warnTxt, { color: "#991B1B" }]}>{approveError}</Text>
           </View>
         )}
@@ -251,11 +248,11 @@ export default function TeacherPendingDetailScreen() {
               }}
               disabled={approving}
             >
-              <CircleX size={16} color="#D96C6C" />
+              <LucideIcon name="x-circle" size={16} color="#D96C6C" />
               <Text style={s.rejectBtnTxt}>거절</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.button, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.primaryAction, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
               onPress={handleApprove}
               disabled={approving}
             >
@@ -263,7 +260,7 @@ export default function TeacherPendingDetailScreen() {
                 ? <ActivityIndicator color="#fff" size="small" />
                 : (
                   <>
-                    <CircleCheck size={16} color="#fff" />
+                    <LucideIcon name="check-circle" size={16} color="#fff" />
                     <Text style={s.approveBtnTxt}>선생님으로 승인</Text>
                   </>
                 )
@@ -280,11 +277,11 @@ export default function TeacherPendingDetailScreen() {
               onPress={() => setShowRejectReasonModal(true)}
               disabled={approving}
             >
-              <FileText size={16} color="#64748B" />
+              <LucideIcon name="file-text" size={16} color={C.textSecondary} />
               <Text style={s.rejectReasonBtnTxt}>거절 사유 보기</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.button, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
+              style={({ pressed }) => [s.approveBtn, { backgroundColor: C.primaryAction, opacity: pressed || approving ? 0.85 : 1, flex: 1 }]}
               onPress={handleApprove}
               disabled={approving}
             >
@@ -292,7 +289,7 @@ export default function TeacherPendingDetailScreen() {
                 ? <ActivityIndicator color="#fff" size="small" />
                 : (
                   <>
-                    <RefreshCw size={16} color="#fff" />
+                    <LucideIcon name="refresh-cw" size={16} color="#fff" />
                     <Text style={s.approveBtnTxt}>선생님으로 재승인</Text>
                   </>
                 )
@@ -308,7 +305,7 @@ export default function TeacherPendingDetailScreen() {
             <View style={s.historyList}>
               {approvedDate && (
                 <View style={s.historyItem}>
-                  <View style={[s.historyDot, { backgroundColor: "#2EC4B6" }]} />
+                  <View style={[s.historyDot, { backgroundColor: C.brandStrong }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.historyDate}>{approvedDate}</Text>
                     <Text style={s.historyDesc}>승인: 선생님 권한 부여</Text>
@@ -327,7 +324,7 @@ export default function TeacherPendingDetailScreen() {
                 </View>
               )}
               <View style={s.historyItem}>
-                <View style={[s.historyDot, { backgroundColor: "#64748B" }]} />
+                <View style={[s.historyDot, { backgroundColor: C.textSecondary }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.historyDate}>{requestedDate}</Text>
                   <Text style={s.historyDesc}>가입 요청</Text>
@@ -337,11 +334,11 @@ export default function TeacherPendingDetailScreen() {
           </View>
         )}
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 거절 모달 ── */}
       <Modal visible={showRejectModal} transparent animationType="slide" onRequestClose={() => setShowRejectModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={{ flex: 1 }}>
           <Pressable style={s.modalOverlay} onPress={() => setShowRejectModal(false)}>
             <Pressable style={[s.modalSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
               <View style={s.modalHandle} />
@@ -378,7 +375,7 @@ export default function TeacherPendingDetailScreen() {
 
               {!!rejectError && (
                 <View style={s.errorRow}>
-                  <CircleAlert size={13} color="#D96C6C" />
+                  <LucideIcon name="alert-circle" size={13} color="#D96C6C" />
                   <Text style={s.errorTxt}>{rejectError}</Text>
                 </View>
               )}
@@ -404,7 +401,7 @@ export default function TeacherPendingDetailScreen() {
               </View>
             </Pressable>
           </Pressable>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* ── 거절 사유 보기 모달 ── */}
@@ -412,7 +409,7 @@ export default function TeacherPendingDetailScreen() {
         <Pressable style={s.modalOverlay} onPress={() => setShowRejectReasonModal(false)}>
           <Pressable style={[s.reasonSheet, { paddingBottom: insets.bottom + 24 }]} onPress={e => e.stopPropagation()}>
             <View style={[s.reasonIconWrap, { backgroundColor: "#F9DEDA" }]}>
-              <CircleX size={28} color="#D96C6C" />
+              <LucideIcon name="x-circle" size={28} color="#D96C6C" />
             </View>
             <Text style={s.reasonTitle}>거절 사유</Text>
             {rejectedDate && (
@@ -483,7 +480,7 @@ const s = StyleSheet.create({
   statValue:         { fontSize: 24, fontFamily: "Pretendard-Regular" },
   statLabel:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
-  roleCard:          { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: "#F1F5F9", borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
+  roleCard:          { flexDirection: "row", alignItems: "flex-start", gap: 12, backgroundColor: C.backgroundSoft, borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: C.border },
   roleIconBox:       { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   roleLabel:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 2 },
   roleDesc:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, lineHeight: 16 },
@@ -496,8 +493,8 @@ const s = StyleSheet.create({
   actionRow:         { flexDirection: "row", gap: 10, marginTop: 4 },
   rejectBtn:         { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FFF5F5" },
   rejectBtnTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-  rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#F1F5F9" },
-  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  rejectReasonBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
+  rejectReasonBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   approveBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   approveBtnTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 

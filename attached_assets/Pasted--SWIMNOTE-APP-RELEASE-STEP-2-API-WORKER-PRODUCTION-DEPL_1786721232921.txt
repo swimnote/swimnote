@@ -1,0 +1,429 @@
+[SWIMNOTE APP RELEASE]
+[STEP 2 — API/WORKER PRODUCTION DEPLOY PRECHECK ONLY]
+
+현재 Production DB 완료:
+
+GR1 ✅
+GR3 ✅
+GR5 ✅
+
+Parent Curriculum Group 7/8:
+아직 미적용
+→ Render startup initXModeSchema()에서 적용 예정
+
+AI ENGINE Production:
+
+Base URL:
+https://swimnote.ai.kr
+
+Growth Report:
+POST /api/v1/growth-report/analyze
+LIVE ✅
+
+Parent Curriculum:
+POST /api/v1/parent-curriculum/search
+LIVE ✅
+
+이번 단계 목적:
+
+SWIMNOTE APP API/Worker를 Production에 배포하기 직전
+
+1. 실제 HEAD
+2. Startup migration 안전성
+3. APP→AI ENGINE URL
+4. APP→AI ENGINE 인증
+5. 필수 Production ENV
+6. API/Worker startup dependency
+
+만 최종 확인한다.
+
+이번 단계에서:
+
+Render deploy 금지.
+Production DB write 금지.
+OTA/build 금지.
+코드 수정 금지.
+
+==================================================
+1. CURRENT RELEASE HEAD
+==================================================
+
+현재 repository:
+
+branch = deploy-photo-clone
+
+actual HEAD SHA 보고.
+
+다음 변경이 HEAD에 모두 포함되는지 확인:
+
+- Growth Report GR1~GR9
+- Super Admin Dashboard IA
+- X MODE KPI/filter
+- Parent Curriculum APP WP2/WP2.1
+- WP2B/WP2B.2/WP2B.3
+- recent_conversation APP support
+- Parent Curriculum Chat WP3/WP3.1
+
+Working tree 상태도 보고.
+
+미커밋 production code가 있으면 BLOCK.
+
+==================================================
+2. STARTUP MIGRATION — GROUP 7/8
+==================================================
+
+현재 Production Supabase:
+
+Group 7:
+NOT APPLIED
+
+Group 8:
+NOT APPLIED
+
+Render startup에서 실제:
+
+initXModeSchema()
+
+가 실행되는지 코드 경로 확인.
+
+Group 7 예상:
+
+parent_curriculum_conversations
+parent_curriculum_messages
+
+Group 8 예상:
+
+parent_ai_daily_usage.feature
+parent_ai_usage_reservations.feature
+
+old UNIQUE:
+(parent_account_id, usage_date)
+
+제거
+
+new UNIQUE:
+(parent_account_id, feature, usage_date)
+
+추가.
+
+==================================================
+3. GROUP 6 SIDE EFFECT CHECK
+==================================================
+
+이전 precheck에서 startup 시 Group 6도
+신규 실행될 가능성이 있다고 보고됨.
+
+Group 6이 정확히 무엇을 생성하는지 확인.
+
+보고:
+
+- tables
+- indexes
+- constraints
+- destructive operation 여부
+- Production 기존 schema와 충돌 여부
+
+Group 6이 이번 release와 무관하더라도
+additive + idempotent + 안전하지 않으면 BLOCK.
+
+==================================================
+4. GROWTH REPORT ENGINE CLIENT
+==================================================
+
+실제 파일:
+
+growth-report-engine-client.ts
+
+확인:
+
+A. 환경변수 이름
+B. 현재 Production Render에 존재 여부
+C. URL 조합 방식
+D. 최종 실제 호출 URL
+E. 인증 방식
+
+Production endpoint는 최종적으로:
+
+https://swimnote.ai.kr/api/v1/growth-report/analyze
+
+이어야 함.
+
+Base URL/full endpoint 중 무엇을 ENV에 넣어야 하는지
+실제 코드로 확정.
+
+==================================================
+5. PARENT CURRICULUM ENGINE CLIENT
+==================================================
+
+실제 파일:
+
+parent-curriculum-engine-client.ts
+
+확인:
+
+환경변수:
+
+PARENT_CURRICULUM_ENGINE_URL
+PARENT_CURRICULUM_ENGINE_SECRET
+PARENT_CURRICULUM_ENGINE_TIMEOUT_MS
+
+실제 Production Render에 각각 설정됐는지 확인.
+
+secret 값 자체 출력 금지.
+
+==================================================
+6. CRITICAL — ENGINE AUTH CONTRACT
+==================================================
+
+이 부분은 반드시 코드 추적.
+
+ENGINE endpoint:
+
+POST /api/v1/parent-curriculum/search
+
+은:
+
+aiJwtAuthMiddleware
+
+를 사용함.
+
+APP client가 보내는 Authorization Header를
+실제 코드로 확인.
+
+다음 중 무엇인지 판정:
+
+A.
+APP Server가
+PARENT_CURRICULUM_ENGINE_SECRET을 이용해
+ENGINE JWT_SECRET과 호환되는 HS256 JWT를 생성하고:
+
+Authorization: Bearer <signed JWT>
+
+전송
+
+→ 정상
+
+B.
+PARENT_CURRICULUM_ENGINE_SECRET 문자열 자체를:
+
+Authorization: Bearer <raw secret>
+
+로 전송
+
+→ ENGINE aiJwtAuthMiddleware와 계약 불일치 가능성
+→ RELEASE BLOCK
+
+C.
+다른 canonical service auth 구조
+→ 정확히 설명
+
+추측 금지.
+
+==================================================
+7. GROWTH REPORT AUTH CONTRACT
+==================================================
+
+Growth Report Engine client도 같은 방식으로 확인.
+
+ENGINE Growth Report route 역시
+aiJwtAuthMiddleware를 사용하므로
+
+APP→ENGINE 요청이 실제 Production에서
+유효한 JWT를 생성하는 구조인지 확인.
+
+두 기능의 인증 방식이 다르면 이유 보고.
+
+==================================================
+8. JWT CLAIM CONTRACT
+==================================================
+
+APP Server가 JWT를 생성한다면:
+
+실제 ENGINE aiJwtAuthMiddleware가 요구하는 claims 확인.
+
+예:
+
+sub
+role
+pool_id
+iat
+exp
+aud
+iss
+
+등.
+
+APP client가 생성하는 claims와
+ENGINE 검증 contract가 정확히 일치해야 함.
+
+필수 claim 누락 시 BLOCK.
+
+Secret 값 출력 금지.
+
+==================================================
+9. PRODUCTION ENV STATUS
+==================================================
+
+Render swimnote-api / swimnote-worker 기준으로
+필수 ENV 존재 여부만 보고.
+
+최소 확인:
+
+SUPABASE_DATABASE_URL
+SUPABASE_DB_PASSWORD
+
+Growth Report Engine 관련 ENV
+
+Parent Curriculum Engine 관련 ENV
+
+RevenueCat 기존 ENV
+
+기타 이번 HEAD startup에 필수인 신규 ENV
+
+값 출력 금지.
+
+각각:
+
+API service
+WORKER service
+
+어느 쪽에 필요한지도 구분.
+
+==================================================
+10. API / WORKER ROLE
+==================================================
+
+이번 HEAD에서:
+
+swimnote-api
+
+가 실행하는 것과
+
+swimnote-worker
+
+가 실행하는 것을 구분.
+
+특히:
+
+Growth Report Scheduler
+Growth Report Analysis Worker
+
+가 어느 service에서 실제 시작되는지 확인.
+
+API service에서 중복 worker가 실행되지 않는지 확인.
+
+두 Render service가 같은 코드라 하더라도
+runtime role/env에 따라 중복 job이 안 뜨는지 확인.
+
+==================================================
+11. PARENT CURRICULUM WORKER DEPENDENCY
+==================================================
+
+Parent Curriculum Search는
+HTTP request 기반인지 확인.
+
+별도 worker 필요 여부:
+
+YES/NO
+
+예상은 NO지만 실제 코드 기준으로 판정.
+
+==================================================
+12. STARTUP SAFETY
+==================================================
+
+현재 GR1/GR3/GR5 schema는 적용 완료.
+
+현재 HEAD 서버가 startup 시:
+
+- GR1 migration을 자동 재실행하는지
+- GR3 migration을 자동 재실행하는지
+- GR5 migration을 자동 재실행하는지
+
+확인.
+
+재실행되더라도 멱등인지 보고.
+
+startup crash 가능성이 있으면 BLOCK.
+
+==================================================
+13. DEPLOYMENT ORDER
+==================================================
+
+실제 코드 의존성 기준으로:
+
+A.
+swimnote-api 먼저
+→ health/route 검증
+→ worker
+
+또는
+
+B.
+worker 먼저
+→ API
+
+중 안전한 순서를 확정.
+
+이번 단계에서 실제 deploy는 하지 않는다.
+
+==================================================
+14. PRE-DEPLOY ROUTE LIST
+==================================================
+
+배포 후 확인해야 할 신규/핵심 route를 목록화.
+
+최소:
+
+Parent Curriculum Search POST
+Parent Curriculum History GET
+
+Growth Report analyze/review/publish 관련 APP routes
+
+Super Admin dashboard-stats
+Super Admin pools-summary?filter=xmode
+
+각 route가 현재 HEAD에서 등록돼 있는지만 확인.
+
+==================================================
+15. NO PRODUCTION WRITE
+==================================================
+
+이번 precheck는 read/code inspection only.
+
+Group 7/8 migration 실행 금지.
+Render deploy 금지.
+
+==================================================
+16. REPORT
+==================================================
+
+다음만 보고:
+
+1. BRANCH / HEAD
+2. WORKING TREE
+3. GROUP 7 STARTUP READY?
+4. GROUP 8 STARTUP READY?
+5. GROUP 6 SIDE EFFECT / SAFETY
+6. GROWTH REPORT ENGINE URL CONTRACT
+7. GROWTH REPORT AUTH CONTRACT
+8. PARENT CURRICULUM ENGINE URL CONTRACT
+9. PARENT CURRICULUM AUTH CONTRACT
+10. JWT CLAIM COMPATIBILITY
+11. PRODUCTION ENV STATUS
+12. API SERVICE ROLE
+13. WORKER SERVICE ROLE
+14. DUPLICATE WORKER RISK? YES/NO
+15. STARTUP MIGRATION SAFETY
+16. EXACT DEPLOY ORDER
+17. POST-DEPLOY ROUTES TO VERIFY
+18. CODE CHANGE
+19. PRODUCTION WRITE
+
+전부 안전:
+
+SWIMNOTE_APP_SERVER_DEPLOY_READY ✅
+
+인증/env/startup 문제 발견:
+
+SWIMNOTE_APP_SERVER_DEPLOY_BLOCKED ❌

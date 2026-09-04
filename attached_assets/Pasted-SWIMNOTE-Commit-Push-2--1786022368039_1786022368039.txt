@@ -1,0 +1,212 @@
+SWIMNOTE 보강 날짜 범위 수정 — 최종 검수 및 누락 보완 지시
+
+현재 구현 방향은 승인한다.
+
+다만 Commit·Push·배포 전 아래 2개를 마무리해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 관리자 네트워크 오류 안내 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(admin)/makeups.tsx
+
+현재 제출 내용에는 HTTP 오류 Alert만 있고 네트워크 오류 처리 변경이 확인되지 않는다.
+
+현재 catch가 아래처럼 목록만 다시 불러오는 구조라면:
+
+.catch(() => load());
+
+다음 동작으로 변경한다.
+
+- 네트워크 오류 Alert 표시
+- 그 뒤 load()로 optimistic 제거 상태 복원
+- 기존 409 conflict 처리는 그대로 유지
+- 성공 처리 변경 금지
+
+기대 동작:
+
+Alert 제목:
+배정 실패
+
+메시지:
+네트워크 오류로 보강을 배정하지 못했습니다. 잠시 후 다시 시도해주세요.
+
+수정 후 handleAssign의 전체 Promise 처리 구간을 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 테스트 결과를 케이스별로 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+97개 테스트 통과 숫자만 제출하지 말고 아래 결과를 각각 명시한다.
+
+날짜 기준은 테스트에서 고정된 KST 오늘을 사용한다.
+
+### 날짜 경계
+
+- 오늘 -15일
+  기대: eligible 미포함 / 직접 API 400 MAKEUP_DATE_OUT_OF_RANGE
+
+- 오늘 -14일
+  기대: 수업 요일·휴일 조건 충족 시 포함 / API 허용
+
+- 오늘
+  기대: 포함 / complete-direct 허용
+
+- 오늘 +28일
+  기대: 포함 / assign 허용
+
+- 오늘 +29일
+  기대: eligible 미포함 / 직접 API 400 MAKEUP_DATE_OUT_OF_RANGE
+
+### 결석일 관계
+
+- occurrenceDate < absence_date
+  기대: 허용
+
+- occurrenceDate = absence_date
+  기대: 허용
+
+- occurrenceDate > absence_date
+  기대: 허용
+
+### 보강 상태
+
+- waiting + 범위 내 + 기존 expire_at 이후
+  기대: 허용
+
+- expired + allow_expired=false
+  기대: 409 MAKEUP_EXPIRED_CONFIRM_REQUIRED
+
+- expired + allow_expired=true + 범위 내
+  기대: 허용
+
+- expired + allow_expired=true + 범위 밖
+  기대: 400 MAKEUP_DATE_OUT_OF_RANGE
+
+- completed
+  기대: 차단
+
+- cancelled
+  기대: 차단
+
+- extinguished
+  기대: 차단
+
+### API 분기
+
+- 오늘·과거를 assign으로 직접 요청
+  기대: 기존 ASSIGN_REQUIRES_FUTURE_DATE 유지
+
+- 미래를 complete-direct로 직접 요청
+  기대: 기존 COMPLETE_DIRECT_REQUIRES_TODAY_OR_PAST 유지
+
+### 관리자 API
+
+- 범위 내 assigned_date
+  기대: 날짜 검증 통과
+
+- 범위 밖 assigned_date
+  기대:
+  HTTP 400
+  error=MAKEUP_DATE_OUT_OF_RANGE
+  서버 message 존재
+
+### 날짜 helper
+
+- 월말 이동
+- 연말 이동
+- 2028년 윤년 2월
+- 평년 2월
+- 요일 계산
+
+각 테스트에 PASS/FAIL과 실제 반환 코드·상태를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 변경 범위 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 수정 코드 파일은 아래 3개만 허용한다.
+
+- artifacts/api-server/src/routes/teachers.ts
+- artifacts/api-server/src/routes/admin.ts
+- artifacts/swim-app/app/(admin)/makeups.tsx
+
+다음은 수정 금지다.
+
+- 로그인
+- auth middleware
+- JWT
+- AuthContext
+- app/_layout
+- 일지
+- AI 일지
+- DB schema
+- package.json
+- lockfile
+- mockup generated 파일
+
+git diff --name-status와 git status --short를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. TypeScript 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+서버뿐 아니라 관리자 앱 수정 파일도 검사한다.
+
+필수:
+
+- teachers.ts 신규 오류 0
+- admin.ts 신규 오류 0
+- app/(admin)/makeups.tsx 신규 오류 0
+
+프로젝트 기존 오류와 이번 수정 오류를 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. DB 변경 없음 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 코드 로직 변경이다.
+
+다음이 없어야 한다.
+
+- Migration
+- DDL
+- 운영 DB 직접 UPDATE
+- 테스트용 운영 데이터 생성
+- 보강 데이터 임의 배정
+
+DB 변경 없음으로 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Git branch / HEAD / status
+2. 실제 수정 파일 3개
+3. 허용 범위 밖 변경 여부
+4. handleAssign 전체 오류 처리 코드
+5. 날짜 helper 코드
+6. eligible-occurrences 범위 코드
+7. validateMakeupOccurrence 범위 코드
+8. admin 범위 검증 코드
+9. 날짜 경계 테스트 결과
+10. 결석일 전·당일·후 결과
+11. waiting/expired/종료 상태 결과
+12. assign/complete-direct 분기 결과
+13. 관리자 HTTP 오류 Alert 결과
+14. 관리자 네트워크 오류 Alert 결과
+15. TypeScript 결과
+16. 전체 테스트 결과
+17. DB 변경 여부
+18. Commit 여부
+19. Push 여부
+20. OTA 여부
+21. Render 배포 여부
+22. 발견된 결함
+23. 최종 배포 승인 가능 여부 자체 판단
+
+누락 보완과 검수까지만 수행한다.
+
+Commit·Push·OTA·Render 배포 없이 결과를 제출하고 중단한다.

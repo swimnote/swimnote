@@ -1,0 +1,212 @@
+[A1-2 GLOBAL DESIGN SYSTEM — SCOPE CORRECTION]
+
+중요 보완:
+
+이번 디자인 통일은 SWIMNOTE X만을 위한 작업이 아니다.
+
+NORMAL SWIMNOTE부터 SWIMNOTE X까지
+하나의 PRODUCT DESIGN SYSTEM을 사용해야 한다.
+
+사용자는 Normal SWIMNOTE를 사용하다가
+X MODE가 활성화되는 구조이므로
+
+Normal과 X가 서로 다른 앱처럼 보여서는 안 된다.
+
+==================================================
+GLOBAL DESIGN LANGUAGE
+==================================================
+
+NORMAL / X 공통:
+
+- Borderless First
+- White / Off-white Surface
+- Navy 중심 Typography
+- 동일한 Button hierarchy
+- 동일한 Navigation item 구조
+- 동일한 Icon 규칙
+- 동일한 Header 규칙
+- 동일한 Card 규칙
+- 동일한 Input 규칙
+- 동일한 Modal/Sheet visual rule
+- 동일한 Spacing / Radius 체계
+- 동일한 Semantic Status Color 규칙
+
+즉 Design System은 하나다.
+
+==================================================
+GLOBAL PRIMARY ACTION
+==================================================
+
+Normal과 X 모두:
+
+Primary Action
+#0F172A Navy
+
+저장
+등록
+다음
+확인
+완료
+생성
+적용
+
+등 핵심 CTA는 동일한 Navy 체계 사용.
+
+X라고 Primary button까지
+Steel Blue로 바꾸지 않는다.
+
+==================================================
+NORMAL SWIMNOTE ACCENT
+==================================================
+
+Normal:
+
+Navy 중심.
+
+Mint #2EC4B6는 Accent.
+
+사용 예:
+
+selected
+active
+brand highlight
+일부 navigation indicator
+작은 강조
+
+Mint를 넓은 Primary button 색상으로 사용하지 않는다.
+
+==================================================
+SWIMNOTE X ACCENT
+==================================================
+
+X:
+
+동일한 Navy 기반 UI를 유지하면서
+
+Steel Blue #355C7D
+
+를 X Accent로 사용.
+
+사용 예:
+
+X badge
+X selected state
+X icon 강조
+X section title
+X-specific indicator
+X-specific navigation accent
+
+필요 시:
+
+xAccentStrong #294760
+xAccentSoft #E9EEF3
+
+사용.
+
+==================================================
+NORMAL → X CONTINUITY
+==================================================
+
+Normal:
+
+Navy + Mint Accent
+
+↓
+
+X 활성:
+
+Navy + Steel Blue Accent
+
+으로 자연스럽게 전환되어야 한다.
+
+다음은 금지:
+
+- X만 완전히 다른 layout
+- X만 다른 button shape
+- X만 다른 card system
+- X만 다른 navigation design
+- X만 dark theme
+- Normal은 colorful, X만 monochrome
+
+Normal 단계부터 이미
+정돈된 동일 Design System을 사용한다.
+
+==================================================
+COLOR CLEANUP — NORMAL ALSO INCLUDED
+==================================================
+
+Normal SWIMNOTE에서도:
+
+- random Orange CTA
+- decorative Green
+- menu별 pastel icon tile
+- 기능별 random Blue
+- decorative Purple
+- unnecessary colored backgrounds
+
+전부 semantic reason을 검사한다.
+
+실제 의미가 없으면
+global design system에 맞게 통일한다.
+
+즉:
+
+Normal 앱 역시
+알록달록한 기존 UI를 그대로 두지 않는다.
+
+==================================================
+ROLE CONSISTENCY
+==================================================
+
+ADMIN
+TEACHER
+PARENT
+
+모두 같은 디자인 문법을 사용한다.
+
+같은 "설정 메뉴"라면
+역할이 달라도 같은 List Item 문법.
+
+같은 "다음"이라면
+역할이 달라도 같은 Primary Button.
+
+같은 "뒤로가기"라면
+역할이 달라도 같은 Header Action.
+
+색이나 Border 방식으로
+role을 구분하지 않는다.
+
+==================================================
+EXPECTED RESULT
+==================================================
+
+사용자가 Normal SWIMNOTE를 처음 봤을 때부터:
+
+깔끔함
+차분함
+전문성
+일관성
+
+이 보여야 한다.
+
+그리고 X가 활성화되면:
+
+전체 앱의 사용법과 디자인 언어는 그대로인데
+Mint Accent가 X 영역에서 Steel Blue로 바뀌면서
+상위 기능이 추가된 느낌이어야 한다.
+
+Normal = 기본제품
+X = 별개 앱
+
+이 아니라
+
+SWIMNOTE = 하나의 Product
+X = SWIMNOTE의 Premium Layer
+
+로 구현한다.
+
+이 보완사항을 현재
+A1-2 GLOBAL DESIGN SYSTEM IMPLEMENTATION
+범위에 포함한다.
+
+A1-2 완료 전 A2 시작 금지.

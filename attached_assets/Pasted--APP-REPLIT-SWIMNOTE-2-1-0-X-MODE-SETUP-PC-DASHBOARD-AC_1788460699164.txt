@@ -1,0 +1,837 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0
+# X MODE SETUP + PC DASHBOARD ACTIVATION IMPLEMENTATION
+# APP FIRST / WEB LATER
+# IOS OTA REQUIRED
+
+직전 설계 보고서:
+SWIMNOTE X + PC DASHBOARD FINAL DESIGN REPORT
+
+설계 승인.
+
+이번 작업에서는
+APP 쪽 X모드 설정 재구성을 실제 구현한다.
+
+중요:
+WEB/홈페이지/PC Dashboard 코드는 아직 수정하지 않는다.
+그 작업은 APP 수정/구독/가격/출시 준비 완료 후 마지막에 한다.
+
+============================================================
+1. 작업 목표
+============================================================
+
+X모드 설정에서
+기존 "수영장별 홈페이지 제작" 관련 UI를 제거하고
+
+X모드 설정을 다음 중심으로 재구성한다.
+
+1. X모드 상태
+2. 구독 / 요금제 관리
+3. 커리큘럼 세팅
+4. PC 대시보드 활성화
+5. 기존 필요한 X 운영 설정
+
+============================================================
+2. x-setup.tsx — 홈페이지 제작자료 제거
+============================================================
+
+제거:
+
+Section ② 홈페이지 제작자료 전체
+
+- 홈페이지 DOCX 양식 다운로드
+- 홈페이지 DOCX 업로드
+- website_status 표시
+- 업로드된 홈페이지 파일 표시
+- 재업로드 UI
+
+관련 APP local code 정리:
+
+- websiteFile
+- handleDocxUpload('website') 사용부
+- uploading['website']
+- 홈페이지 섹션 전용 render/state
+
+주의:
+서버 API 삭제 금지.
+DB 삭제 금지.
+R2 삭제 금지.
+과거 데이터 삭제 금지.
+
+============================================================
+3. x-setup.tsx — 로고/홍보사진 제거
+============================================================
+
+제거:
+
+Section ③ 로고 / 홍보사진 전체
+
+- 로고 업로드
+- 홍보사진 업로드
+- 사진 최대 10장 UI
+- 썸네일 그리드
+- 사진 삭제
+- logo/photos 상태
+
+관련 APP-only code 정리:
+
+- logoFile
+- photoFiles
+- handleLogoUpload
+- handlePhotoUpload
+- handlePhotoDelete
+- uploading['logo']
+- uploading['photo']
+- PhotoThumb 등 전용 컴포넌트
+
+다른 화면에서 공유 사용 중이면 삭제 금지.
+
+============================================================
+4. historical data 보존
+============================================================
+
+절대 삭제 금지:
+
+x_setup_submissions.website_status
+x_setup_submissions.logo_status
+x_setup_submissions.photos_status
+
+x_setup_files:
+website
+logo
+photo
+
+x_website_profiles
+x_website_packages
+
+x_setup_revision_requests:
+website
+logo
+photos
+
+R2:
+x-setup/{poolId}/website/*
+x-setup/{poolId}/logo/*
+x-setup/{poolId}/photos/*
+
+Server API:
+그대로 보존
+
+DB migration:
+NO
+
+============================================================
+5. 커리큘럼 세팅 중심으로 정리
+============================================================
+
+유지:
+
+- 커리큘럼 양식 다운로드
+- DOCX 업로드
+- 현재 파일
+- 재업로드
+- curriculum_status
+- revision request
+- 제출
+- 전체 setup 상태
+- Word(.docx) 안내
+
+Section 번호:
+기존 ① 제거.
+
+화면 제목/안내:
+홈페이지 제작 중심 문구 제거
+→ 커리큘럼 세팅 중심으로 변경.
+
+============================================================
+6. 상태 표시
+============================================================
+
+기존 backend 상태를 그대로 사용.
+
+가능한 현재 상태:
+
+NOT_SUBMITTED / NOT_STARTED
+IN_PROGRESS
+SUBMITTED
+UNDER_REVIEW
+REVISION_REQUESTED
+APPROVED
+READY
+
+사용자 표시:
+
+미제출
+업로드 완료
+검토 요청됨
+검토 중
+수정 요청
+승인 완료
+AI 적용 완료
+
+없는 상태 새로 만들지 말 것.
+
+============================================================
+7. revision flow 유지
+============================================================
+
+REVISION_REQUESTED:
+
+- revision message 표시
+- 수정 요청 안내
+- 재업로드
+- 재제출
+
+기존 데이터/서버 로직 재사용.
+
+============================================================
+8. x-hub.tsx 정리
+============================================================
+
+setup_completion 표시에서 제거:
+
+- website
+- logo
+- photos
+
+유지:
+
+- curriculum
+
+서버 응답은 수정하지 말 것.
+APP에서만 표시 제거.
+
+============================================================
+9. 기존 웹 PIN 메뉴 위치 변경
+============================================================
+
+현재:
+
+설정
+→ 초대 및 계정
+→ 웹 접속 비밀번호
+
+에서 진입 가능.
+
+변경:
+
+기존 settings.tsx의
+"웹 접속 비밀번호" 진입 항목 제거.
+
+단:
+
+web-pin-settings.tsx 삭제 금지.
+PIN API 삭제 금지.
+web_pin_hash 삭제 금지.
+기존 사용자 PIN 초기화 금지.
+
+UI 진입 위치만 이동.
+
+============================================================
+10. 신규 화면 생성
+============================================================
+
+신규 route:
+
+/(admin)/x-pc-dashboard
+
+화면 타이틀:
+
+PC 대시보드 활성화
+
+_layout.tsx:
+href:null로 숨김 등록.
+
+============================================================
+11. PC 대시보드 활성화 화면
+============================================================
+
+구성:
+
+------------------------------------------------------------
+① PC 대시보드 PIN
+------------------------------------------------------------
+
+설명:
+
+"X모드 PIN을 설정하면 PC에서 SWIMNOTE 관리자 기능을 사용할 수 있습니다."
+
+추가 설명:
+
+앱 로그인 비밀번호와 별개의
+PC 대시보드용 추가 보안 PIN이라는 의미가 명확해야 함.
+
+사용자-facing 명칭은:
+
+"PC 대시보드 PIN"
+
+권장.
+
+내부 API/DB 명칭:
+web_pin
+web_pin_hash
+
+그대로 유지.
+
+상태:
+
+- 설정됨
+- 미설정
+
+기존:
+
+GET /pools/web-pin-status
+
+재사용.
+
+버튼:
+
+미설정:
+[PIN 설정하기]
+
+설정됨:
+[PIN 변경]
+
+필요하면 기존 [PIN 해제] 유지.
+
+============================================================
+12. 기존 web-pin-settings 재사용
+============================================================
+
+PIN 설정/변경/해제 로직 새로 만들지 말 것.
+
+기존:
+
+app/(admin)/web-pin-settings.tsx
+
+재사용.
+
+진입:
+
+x-pc-dashboard
+→ web-pin-settings?backTo=x-pc-dashboard
+
+Back:
+
+web-pin-settings
+→ x-pc-dashboard
+
+WP7 원칙 유지:
+
+backTo
+→ canGoBack
+→ fallback
+
+============================================================
+13. web-pin-settings 문구 변경
+============================================================
+
+기존:
+
+웹 접속 비밀번호
+
+중심 문구를
+
+PC 대시보드 PIN
+
+중심으로 변경.
+
+예:
+
+Title:
+PC 대시보드 PIN
+
+Info:
+"PC 대시보드 전용 보안 PIN"
+
+Description:
+"X모드 PIN을 설정하면 PC에서 SWIMNOTE 관리자 기능을 사용할 수 있습니다."
+
+단:
+API/로직 변경 없음.
+
+============================================================
+14. PC 접속 방법 안내
+============================================================
+
+x-pc-dashboard 화면에 안내:
+
+SWIMNOTE 홈페이지
+→ PC모드 로그인
+→ 관리자 이메일 / 비밀번호
+→ PC 대시보드 PIN
+→ PC Dashboard
+
+중요:
+
+홈페이지의 PC모드 로그인 버튼은
+아직 작업 전이므로
+"향후 홈페이지 업데이트 후 제공" 의미를 자연스럽게 표시 가능.
+
+현재 WEB 개편 전에는
+동작하지 않는 바로가기 버튼을 노출하지 말 것.
+
+============================================================
+15. PC Dashboard 상태 표시
+============================================================
+
+기존 mode + PIN 상태만 사용.
+
+예:
+
+X ACTIVE + PIN 설정:
+"사용 가능"
+
+X ACTIVE + PIN 미설정:
+"PIN 설정 필요"
+
+x_pending / normal:
+"X모드 활성화 필요"
+
+새 서버 필드 만들지 말 것.
+
+============================================================
+16. X모드 허브 연결
+============================================================
+
+x-mode-hub 또는 실제 현재 X 설정 허브에:
+
+"PC 대시보드 활성화"
+
+항목 추가.
+
+→ /(admin)/x-pc-dashboard?backTo=x-mode-hub
+
+기존:
+
+커리큘럼 세팅
+구독관리
+
+링크 유지.
+
+============================================================
+17. WEB 작업 금지
+============================================================
+
+이번 작업에서:
+
+swimnote-web:
+NO TOUCH
+
+Login.tsx:
+NO TOUCH
+
+AdminGuard:
+NO TOUCH
+
+PC Dashboard:
+NO TOUCH
+
+Homepage:
+NO TOUCH
+
+/login:
+NO TOUCH
+
+/admin:
+NO TOUCH
+
+웹 변경은 나중에 별도 WP.
+
+============================================================
+18. 향후 WEB 계획 메모 유지
+============================================================
+
+향후 최종 구조:
+
+swimnote.kr
+→ PC모드 로그인
+→ /login
+→ 관리자 email/password
+→ PC 대시보드 PIN
+→ JWT swimming_pool_id
+→ /admin
+
+기존 /login?pool=:poolId:
+legacy 유지.
+
+PC Dashboard shortcut:
+https://swimnote.kr/admin
+
+세션 있으면:
+바로 Dashboard
+
+세션 없으면:
+/login
+
+PIN/password/token URL 노출:
+금지.
+
+============================================================
+19. WEB 작업 시작 조건
+============================================================
+
+WEB 업데이트는 다음 완료 후 진행:
+
+1. APP bug fix 완료
+2. X setup 재구성 완료
+3. 구독/가격 완료
+4. APP 출시 준비 완료
+
+그 뒤:
+
+5. 홈페이지 PC모드 로그인 추가
+6. Login 문구/UX 수정
+7. 기존 PC Dashboard 업데이트
+8. 재배포
+
+============================================================
+20. 회귀 검증
+============================================================
+
+x-setup:
+
+Homepage section:
+0
+
+Logo/photo section:
+0
+
+Curriculum:
+PASS
+
+Template download:
+PASS
+
+DOCX upload:
+PASS
+
+Current file:
+PASS
+
+Revision:
+PASS
+
+Submit:
+PASS
+
+x-hub:
+curriculum만 표시
+PASS
+
+설정 → 초대 및 계정:
+웹 접속 비밀번호 항목 없음
+PASS
+
+X모드 설정:
+PC 대시보드 활성화 항목 존재
+PASS
+
+x-pc-dashboard:
+PASS
+
+PIN status:
+PASS
+
+PIN 설정:
+PASS
+
+PIN 변경:
+PASS
+
+PIN 해제:
+기존 지원 시 PASS
+
+Back:
+PASS
+
+============================================================
+21. 기존 WP7 navigation 유지
+============================================================
+
+Settings → X Setup → Back
+PASS
+
+X Mode Hub → X Setup → Back
+PASS
+
+X Subscription → X Setup → Back
+PASS
+
+X PC Dashboard → Back
+= X Mode Hub
+PASS
+
+X PC Dashboard
+→ PIN
+→ Back
+= X PC Dashboard
+PASS
+
+Home icon:
+Home
+PASS
+
+============================================================
+22. SERVER / DB
+============================================================
+
+SERVER:
+NO CHANGE
+
+DB:
+NO CHANGE
+
+Migration:
+NO
+
+Render:
+NO
+
+R2:
+NO DELETE
+
+============================================================
+23. IOS OTA 자동배포
+============================================================
+
+현재 사용자 규칙:
+
+수정작업 종료 전까지
+APP 수정 후 iOS OTA 자동배포.
+
+작업:
+
+test
+→ commit
+→ HEAD 확인
+→ iOS OTA export/publish
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+NOT PUBLISHED
+
+반드시:
+
+Current HEAD SHA
+=
+이번 APP implementation commit SHA
+=
+OTA Export Source SHA
+
+동일해야 PASS.
+
+============================================================
+완료보고
+============================================================
+
+# X MODE SETUP + PC DASHBOARD ACTIVATION REPORT
+
+Current Working Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+============================================================
+X SETUP CLEANUP
+============================================================
+
+Homepage section removed:
+PASS / FAIL
+
+Logo/photo section removed:
+PASS / FAIL
+
+Historical DB preserved:
+YES / NO
+
+Historical R2 preserved:
+YES / NO
+
+Server API preserved:
+YES / NO
+
+Curriculum section:
+PASS / FAIL
+
+Curriculum status:
+PASS / FAIL
+
+Revision flow:
+PASS / FAIL
+
+Submit:
+PASS / FAIL
+
+============================================================
+PC DASHBOARD ACTIVATION
+============================================================
+
+New route:
+...
+
+Menu item:
+PASS / FAIL
+
+PIN status:
+PASS / FAIL
+
+Existing PIN API reused:
+YES / NO
+
+Existing PIN DB reused:
+YES / NO
+
+PIN setup:
+PASS / FAIL
+
+PIN change:
+PASS / FAIL
+
+PIN data reset:
+NO
+
+PC access guide:
+PASS / FAIL
+
+PC Dashboard status:
+PASS / FAIL
+
+Future shortcut hidden:
+PASS / FAIL
+
+============================================================
+OLD PIN MENU
+============================================================
+
+Invite & Account web PIN item removed:
+PASS / FAIL
+
+web-pin-settings component preserved:
+YES / NO
+
+API preserved:
+YES / NO
+
+DB preserved:
+YES / NO
+
+============================================================
+NAVIGATION
+============================================================
+
+X Mode Hub → PC Dashboard Activation → Back:
+PASS / FAIL
+
+PC Dashboard Activation → PIN → Back:
+PASS / FAIL
+
+WP7 regression:
+0 / ...
+
+============================================================
+WEB
+============================================================
+
+Web code changed:
+NO
+
+Homepage changed:
+NO
+
+Login changed:
+NO
+
+PC Dashboard changed:
+NO
+
+Future plan memo retained:
+YES
+
+============================================================
+SERVER / DB
+============================================================
+
+Server changed:
+NO
+
+DB changed:
+NO
+
+Migration:
+NO
+
+Render:
+NO
+
+============================================================
+OTA
+============================================================
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Implementation Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+Homepage setup UI:
+REMOVED
+
+Curriculum setup:
+ACTIVE
+
+PC Dashboard Activation:
+ACTIVE
+
+PIN:
+MOVED / REUSED
+
+WEB:
+NOT IMPLEMENTED YET
+
+FINAL STATUS:
+X MODE APP SETUP COMPLETE

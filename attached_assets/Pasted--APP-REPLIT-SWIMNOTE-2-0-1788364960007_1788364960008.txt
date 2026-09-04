@@ -1,0 +1,422 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 CLEAN ROLLBACK RECOVERY
+#
+# 결정:
+# 현재 release/v2.0.0에서 회귀를 하나씩 추적하지 않는다.
+#
+# 마지막 정상 기준점:
+# 1b03e716
+#
+# 이 커밋을 기준으로 깨끗한 2.0 복구본을 만든 뒤,
+# 이후 반드시 필요한 변경만 다시 적용한다.
+#
+# 중요:
+# 기존 release/v2.0.0을 삭제하지 말 것.
+# 먼저 백업 branch/tag를 만든다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Current branch:
+release/v2.0.0
+
+Rollback baseline:
+1b03e716
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+DB:
+NO CHANGE
+
+============================================================
+1. 현재 상태 백업
+============================================================
+
+현재 release/v2.0.0 HEAD 확인.
+
+반드시 백업 branch 생성:
+
+backup/v2-before-1b03e716-recovery
+
+현재 HEAD를 정확히 가리키게 할 것.
+
+push origin.
+
+기존 작업 유실 방지.
+
+============================================================
+2. 새 복구 branch 생성
+============================================================
+
+1b03e716에서 새 branch 생성:
+
+recovery/v2-from-1b03e716
+
+절대 기존 release/v2.0.0을 바로 reset하지 말 것.
+
+먼저 새 branch에서 복구본 완성.
+
+============================================================
+3. 1b03e716 baseline 검증
+============================================================
+
+baseline에서 다음 실제 상태 확인:
+
+- login
+- member info/detail
+- teacher scheduler
+- teacher/student scope
+- media upload/storage
+- messenger
+
+사용자가 최근 발견한 회귀가
+baseline에는 없는지 확인.
+
+특히:
+
+A.
+회원정보보기 정상 구현 존재
+
+B.
+admin→teacher scope 정상
+
+C.
+media가 local persistent storage에 누적되지 않는 정상 path
+
+D.
+Messenger 1b03e716 기능 정상
+
+============================================================
+4. 이후 필요한 변경만 선별
+============================================================
+
+1b03e716 이후 commit 전체를 다시 합치지 말 것.
+
+다음만 현재 최신 정책 기준으로 다시 적용.
+
+------------------------------------------------------------
+A. STAGE8 PRICING / SUBSCRIPTION SOURCE
+------------------------------------------------------------
+
+현재 최종 가격:
+
+SWIMNOTE ₩9,900
+X300 ₩129,000
+X500 ₩199,000
+X1000 ₩359,000
+DATA100 ₩7,900
+DATA300 ₩22,900
+
+Product IDs:
+
+com.swimnote.swimnote.monthly
+com.swimnote.x300.monthly
+com.swimnote.x500.monthly
+com.swimnote.x1000.monthly
+com.swimnote.data100.monthly
+com.swimnote.data300.monthly
+
+Stage8에서 필요한 source diff만 적용.
+
+UI/공통 component를 과거 버전으로 덮는 commit은
+통째 cherry-pick 금지.
+
+필요 diff만 수동 적용 가능.
+
+------------------------------------------------------------
+B. 2.0 SOCIAL AUTH POLICY
+------------------------------------------------------------
+
+2.0:
+
+Kakao visible UI:
+0
+
+Kakao login entry:
+0
+
+Kakao signup:
+0
+
+Kakao linking:
+0
+
+Apple existing login:
+유지
+
+Apple no-account/new signup:
+일반 signup fallback
+
+중요:
+최근 구형 login UI 전체를 가져온 commit은 적용 금지.
+
+현재 baseline의 정상 login 디자인 위에
+정책 diff만 최소 적용.
+
+------------------------------------------------------------
+C. 반드시 필요한 이후 수정
+------------------------------------------------------------
+
+실제 출시상 필요한 commit만
+하나씩 검증 후 적용.
+
+불확실한 commit:
+SKIP
+
+============================================================
+5. 절대 가져오지 말 것
+============================================================
+
+현재 회귀를 만든 것으로 의심되는
+큰 merge/revert/restore commit을
+통째로 cherry-pick 금지.
+
+특히 다음 영역을 건드리는 broad commit:
+
+- auth UI 전체
+- member detail 전체
+- scheduler 전체
+- navigation 전체
+- media 전체
+- X shared UI 전체
+
+는 적용 전에 diff를 열고 필요한 부분만 선별.
+
+============================================================
+6. 1.6.3 / Production Kakao migration 보호
+============================================================
+
+이번 작업은 2.0 client recovery만 대상.
+
+다음은 절대 건드리지 말 것:
+
+maintenance/v1.6.3-social-exit
+
+Production branch:
+deploy-photo-clone
+
+Production live:
+e6bb180c
+
+Kakao migration endpoint:
+LIVE
+
+iOS 1.6.3 OTA:
+01a0629d-9f97-7eec-8c1f-69c6fd5b9836
+
+이 작업과 완전히 분리.
+
+============================================================
+7. 복구본 기능 검증
+============================================================
+
+반드시 확인:
+
+RB01
+Messenger 정상
+
+RB02
+회원정보보기 정상
+
+RB03
+회원 수정/저장 정상
+
+RB04
+teacher own classes only
+
+RB05
+teacher own students only
+
+RB06
+admin normal all scope
+
+RB07
+admin→teacher effective scope
+
+RB08
+photo upload server/R2
+
+RB09
+video upload server/R2
+
+RB10
+persistent local original accumulation 없음
+
+RB11
+normal login 정상
+
+RB12
+normal signup 정상
+
+RB13
+Kakao 2.0 UI 0
+
+RB14
+Apple existing login 유지
+
+RB15
+Apple new account → general signup
+
+RB16
+Stage8 가격 정상
+
+RB17
+Stage8 product IDs 정상
+
+RB18
+X shared core 깨짐 없음
+
+============================================================
+8. Regression baseline
+============================================================
+
+Known stable failures:
+166
+
+New deterministic:
+0
+
+============================================================
+9. 완료 후 release/v2.0.0 교체
+============================================================
+
+recovery/v2-from-1b03e716에서
+RB01-RB18 모두 PASS한 뒤에만:
+
+현재 release/v2.0.0을
+복구 branch 상태로 교체 가능.
+
+기존 backup branch 유지.
+
+force push가 필요한 경우:
+수행 전 정확한 방법 보고.
+
+가능하면 merge/fast-forward 방식 우선.
+
+============================================================
+10. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 CLEAN ROLLBACK RECOVERY REPORT
+
+## BACKUP
+
+Original release/v2.0.0 HEAD:
+...
+
+Backup branch:
+backup/v2-before-1b03e716-recovery
+
+Backup pushed:
+YES / NO
+
+## BASELINE
+
+Recovery baseline:
+1b03e716
+
+Baseline login:
+PASS / FAIL
+
+Baseline member info:
+PASS / FAIL
+
+Baseline teacher scope:
+PASS / FAIL
+
+Baseline media:
+PASS / FAIL
+
+Messenger:
+PASS / FAIL
+
+## REAPPLIED LATER WORK
+
+Stage8 pricing:
+APPLIED / NOT NEEDED
+
+Stage8 product IDs:
+APPLIED / NOT NEEDED
+
+2.0 Kakao removal:
+APPLIED
+
+Apple fallback:
+APPLIED
+
+Other commits reapplied:
+...
+
+## EXCLUDED COMMITS
+
+Broad/regressive commits intentionally not reapplied:
+...
+
+## FINAL
+
+Member info:
+PASS / FAIL
+
+Teacher scope:
+PASS / FAIL
+
+Media server/R2 only:
+PASS / FAIL
+
+Persistent local accumulation:
+0 / ...
+
+Login:
+PASS / FAIL
+
+Kakao UI:
+0 / ...
+
+Apple fallback:
+PASS / FAIL
+
+Stage8:
+PASS / FAIL
+
+Messenger:
+PASS / FAIL
+
+## TESTS
+
+RB01-RB18:
+...
+
+Stable failures:
+166
+
+New deterministic:
+0
+
+## PRODUCTION
+
+Deploy:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+## FINAL VERDICT
+
+CLEAN ROLLBACK RECOVERY PASS — READY TO REPLACE RELEASE/V2.0.0
+
+또는
+
+ROLLBACK BASELINE NOT SAFE — EXACT ISSUE

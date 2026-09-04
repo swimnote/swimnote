@@ -1,0 +1,278 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — 학부모 X 홈 상단 헤더 + 작은 iPhone 화면 겹침 안정화]
+
+목적:
+현재 학부모 X 홈 상단에서
+
+- 수영장명이 길어질 경우
+- 작은 iPhone 폭(iPhone X급)
+- SWIMNOTE X 표기
+- 우측 아이콘
+
+조합에서 헤더 밸런스가 깨지거나 겹칠 가능성이 있다.
+
+이번 작업은 단순 Wordmark 교체가 아니라
+"학부모 X 홈 상단 레이아웃을 작은 화면에서도 절대 겹치지 않게 안정화"
+하는 것이 목적이다.
+
+이번 작업 범위는 학부모 HOME 화면만.
+앱 전체 전수교체는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 홈 헤더 구조 조사
+━━━━━━━━━━━━━━━━━━━━
+
+대상:
+artifacts/swim-app/app/(parent)/home.tsx
+및 홈 헤더 관련 공통 component가 있다면 해당 파일
+
+현재 상단에서 확인:
+
+- 수영장명 Text
+- SWIMNOTE X 표기
+- 오른쪽 설정/알림/기타 아이콘
+- SafeArea
+- paddingHorizontal
+- gap
+- flexDirection
+- flexShrink / flexGrow
+- width 고정값 여부
+- absolute positioning 여부
+
+현재 레이아웃이 작은 화면에서 왜 깨질 수 있는지
+코드 기준으로 먼저 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. SWIMNOTE X는 홈 상단에서 Wordmark로 교체
+━━━━━━━━━━━━━━━━━━━━
+
+현재 홈 상단의
+"SWIMNOTE X" raw text / badge를
+공식 SWIMNOTE X Wordmark asset으로 교체한다.
+
+중요:
+이번에는 HOME 화면만 교체.
+
+다른 X 화면은 건드리지 않는다.
+
+공식 Wordmark asset이 프로젝트에 이미 있다면 재사용.
+없으면 임의 제작하지 말고 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 헤더 레이아웃 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+홈 상단은 다음 구조로 안정화:
+
+[수영장명] [SWIMNOTE X Wordmark]        [우측 아이콘들]
+
+핵심 원칙:
+
+수영장명:
+- flexShrink: 1
+- numberOfLines: 1
+- ellipsizeMode: "tail"
+- 최소폭 침범 금지
+
+Wordmark:
+- flexShrink: 0
+- 원본 비율 유지
+- 고정 height 기준
+- width는 aspect ratio 기반
+- 수영장명 때문에 찌그러지거나 사라지지 않음
+
+우측 아이콘:
+- flexShrink: 0
+- 기존 크기 유지
+- 터치영역 유지
+- 겹침 금지
+
+전체 row:
+- flexDirection: row
+- alignItems: center
+- justifyContent는 현재 구조에 맞게 안정적으로 구성
+- absolute positioning 지양
+- fixed width 남발 금지
+
+━━━━━━━━━━━━━━━━━━━━
+4. 긴 수영장명 대응
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 긴 이름 테스트.
+
+예:
+
+- 토이키즈스윔클럽
+- 프리미엄어린이전문수영센터
+- 서울강남키즈스위밍아카데미
+
+기대:
+
+- 이름은 필요 시 ... 처리
+- Wordmark는 항상 표시
+- 우측 아이콘 항상 표시
+- 서로 겹치지 않음
+- 헤더 높이 변하지 않음
+
+중요:
+수영장 이름 전체 표시를 위해
+두 줄로 내려가게 하지 않는다.
+
+1줄 고정.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 작은 iPhone 화면 기준 검증
+━━━━━━━━━━━━━━━━━━━━
+
+최소 폭 기준으로 확인:
+
+- iPhone X / XS / 11 Pro 급
+- 약 375pt width
+- SafeArea 포함
+
+가능하면 추가:
+
+- 320~360pt narrow width
+- 390pt
+- 430pt
+
+확인:
+
+- 헤더 겹침 없음
+- 수영장명/Wordmark/아이콘 겹침 없음
+- 카드 가로 overflow 없음
+- 상단 버튼 잘림 없음
+- 텍스트 clipping 없음
+- horizontal scroll 발생 없음
+
+━━━━━━━━━━━━━━━━━━━━
+6. 홈 전체 화면 겹침도 같이 확인
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 학부모 X 홈 화면을 작은 폭 기준으로 한 번 전체 점검한다.
+
+특히:
+
+- 상단 헤더
+- AI 인사이트 전략 리포트 버튼
+- AI 커리큘럼 검색 버튼
+- 교육과정 진행도 카드
+- 레벨 막대기
+- 현재 연습 단계 텍스트
+- 성장 리포트 카드
+- 좌우 2열 버튼/카드
+- 하단 여백
+
+확인:
+
+- 카드끼리 겹침 없음
+- 텍스트가 버튼 밖으로 나가지 않음
+- 2열 카드가 작은 폭에서 찌그러지지 않음
+- 내부 padding 과도하지 않음
+- 세로 스크롤 정상
+- SafeArea 침범 없음
+
+━━━━━━━━━━━━━━━━━━━━
+7. 레이아웃 안정화 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+작은 화면에서 문제가 있으면
+"기종별 예외값"으로 땜질하지 말고
+flex 기반으로 안정화한다.
+
+금지:
+
+- iPhone X 전용 if문
+- 특정 width일 때 absolute 좌표
+- 화면별 임의 pixel offset
+- Transform translateX로 억지 이동
+- 수영장명 글자 크기를 지나치게 줄이는 방식
+
+권장:
+
+- flexShrink
+- minWidth: 0
+- maxWidth
+- gap
+- flexBasis
+- numberOfLines
+- ellipsizeMode
+- percentage/flex layout
+
+━━━━━━━━━━━━━━━━━━━━
+8. 디자인 보존
+━━━━━━━━━━━━━━━━━━━━
+
+중요:
+현재 홈 디자인 자체는 바꾸지 않는다.
+
+변경 가능:
+- SWIMNOTE X raw text → Wordmark
+- 헤더 flex 구조 안정화
+- 작은 화면에서 필요한 최소 spacing 보정
+- overflow 방지
+
+변경 금지:
+- 카드 디자인
+- 색상
+- 폰트 전체
+- 버튼 형태
+- 홈 섹션 순서
+- 아이콘
+- 레벨 막대기 위치/크기
+- 교육과정 진행도 디자인
+
+이번 작업은 "디자인 변경"이 아니라
+"홈 상단 + responsive 안정화"다.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 검증 시나리오
+━━━━━━━━━━━━━━━━━━━━
+
+CASE A:
+짧은 수영장명
+
+CASE B:
+8~10글자 수영장명
+
+CASE C:
+15글자 이상 긴 수영장명
+
+CASE D:
+iPhone X급 width
+
+CASE E:
+큰 iPhone width
+
+CASE F:
+긴 수영장명 + Wordmark + 우측 아이콘 모두 표시
+
+각 CASE:
+- 겹침 없음
+- Wordmark 유지
+- 아이콘 유지
+- 이름 ellipsis 정상
+- 헤더 높이 변화 없음
+
+━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 헤더 구조
+2. 겹침 원인
+3. 공식 Wordmark asset 경로
+4. 변경 파일
+5. 최종 헤더 flex 구조
+6. 수영장명 truncation 방식
+7. Wordmark 크기/비율
+8. iPhone X급 검증 결과
+9. 긴 수영장명 검증 결과
+10. 홈 전체 겹침 점검 결과
+11. 변경하지 않은 디자인 요소
+12. TS/test 결과
+13. commit SHA
+
+코드 수정 후 STOP.
+
+OTA publish 하지 말 것.

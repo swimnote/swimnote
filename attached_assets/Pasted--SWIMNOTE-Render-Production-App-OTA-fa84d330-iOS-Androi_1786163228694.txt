@@ -1,0 +1,144 @@
+[SWIMNOTE 학부모 요청/알림 — Render Production 서버 배포 승인]
+
+현재 상태:
+
+App OTA:
+fa84d330 기준 iOS/Android Production OTA 완료.
+
+Server:
+현재 Render Live Deploy가 fa84d330 이전 버전.
+따라서 이번 parent-requests.ts 변경 미반영.
+
+이번 단계에서는 코드 수정 없이
+fa84d330 서버 코드만 Production Render에 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 금지
+새 Commit 금지
+Push 금지
+OTA 금지
+Preview 배포 금지
+DB 변경 금지
+환경변수 변경 금지
+
+보강/일지/AI/사진/Auth/API_BASE 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 대상 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 전 확인:
+
+Current branch
+Current HEAD
+Remote HEAD
+
+배포할 서버 commit이:
+
+fa84d330
+
+인지 확인.
+
+parent-requests.ts 변경이 포함되어 있는지 확인:
+
+- Teacher Visibility current class JOIN
+- Notification INSERT
+- duplicate notification guard
+
+배포 대상이 fa84d330이 아니면 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Render Production 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production 서비스:
+
+swimnote-api
+
+에 fa84d330을 배포.
+
+수동 Deploy/Deploy latest commit 등
+현재 Render 설정에 맞는 정상 방법 사용.
+
+Preview 서비스 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 배포 완료 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 제출:
+
+Render Deploy ID
+Started At
+Finished At
+Status = Live
+Live SHA = fa84d330
+
+Live SHA가 fa84d330이 아니면
+완료 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Health
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/health
+
+HTTP 200 확인.
+
+기존 health가 200이라는 사실만 재사용하지 말고
+새 Deploy가 Live 된 뒤 다시 호출.
+
+제출:
+
+HTTP status
+version
+timestamp
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 서버 기능 최소 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 데이터 변경 없이 가능한 범위에서 확인:
+
+GET /teacher/parent-requests
+→ route 정상 존재
+
+PATCH /parent-requests/:id
+→ 새 코드가 배포된 handler인지 코드/Live SHA 기준 확인
+
+notifications INSERT 코드가
+Live SHA에 포함됨을 확인.
+
+실제 사용자 요청 status를 임의로 변경하는
+Production 테스트는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Branch
+2. Local HEAD
+3. Remote HEAD
+4. Render Deploy ID
+5. Render Live SHA
+6. Deploy Status
+7. Health HTTP status
+8. server version
+9. fa84d330 parent-requests.ts 반영 확인
+10. Teacher Visibility 코드 반영 확인
+11. Notification INSERT 반영 확인
+12. DB 변경 0
+13. 코드 수정 0
+14. 새 Commit 0
+15. 새 Push 0
+16. 새 OTA 0
+17. Preview 0
+
+최종 문구:
+
+“fa84d330 Production Server 배포 완료·실기기 최종 검증 가능”
+
+보고 후 멈춘다.

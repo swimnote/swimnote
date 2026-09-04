@@ -1,0 +1,210 @@
+[앱] WP-PRO-04B — PRODUCTION ENGINE CLIENT E2E
+
+목적:
+APP 서버에 완성된 professional-engine-client가
+실제 production 환경에서
+swimnote-professional-engine을 정상 호출하는지 최종 확인한다.
+
+중요:
+- Parent Curriculum 기능 구현 선행 금지
+- Growth Report 구현 선행 금지
+- KF subsystem 이식 금지
+- APP DB 수정 금지
+- AI Engine 수정 금지
+- 전체 repo audit 금지
+- 임시 public test endpoint 추가 금지
+
+현재 APP commit:
+324adbf541f776764e3f0ea660d4a3c864b72bb4
+
+AI Engine:
+https://swimnote-professional-engine.onrender.com
+
+────────────────────────
+0. Background Worker
+────────────────────────
+
+Render Background Worker Start Command가 아직 잘못되어 있다면
+사용자가 Dashboard에서 다음으로 변경:
+
+WORKER_MODE=true node_modules/.bin/tsx artifacts/api-server/src/index.ts
+
+코드 수정 금지.
+
+Worker 정상 running 여부만 보고.
+
+────────────────────────
+1. APP Render Env 등록
+────────────────────────
+
+APP API server의 Render env에:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+등록.
+
+BASE_URL:
+https://swimnote-professional-engine.onrender.com
+
+SECRET 값:
+AI Engine에 설정된 PROFESSIONAL_ENGINE_API_SECRET과
+정확히 동일한 값 사용.
+
+중요:
+- secret 보고서 출력 금지
+- EXPO_PUBLIC_* 금지
+- frontend/mobile env 등록 금지
+
+────────────────────────
+2. APP API Server 배포
+────────────────────────
+
+324adbf 또는 이를 포함한 최신
+deploy-photo-clone commit을 APP Render에 배포.
+
+배포 후:
+- 실제 live SHA
+- health
+- startup error 없음
+
+확인.
+
+────────────────────────
+3. Server-side E2E Probe
+────────────────────────
+
+production APP server 환경에서
+professional-engine-client를 직접 이용한
+one-shot/server-side probe만 실행.
+
+영구 test endpoint 생성 금지.
+
+최대 5 query:
+
+- 플립턴 기본 원칙
+- 돌핀킥 유선형
+- 허리만 접어 하체분리
+- 돌핀킥 허리꺾임
+- 회전 후 하체 벽으로
+
+각 query:
+limit=8
+고유 request_id 사용.
+
+확인:
+
+- APP → Engine HTTP actual call
+- Engine HTTP status
+- response.request_id
+- result count
+- top1
+- score
+- retrieval method
+- APP client latency
+- error_type
+
+전체 evidence dump 금지.
+
+────────────────────────
+4. request_id End-to-End
+────────────────────────
+
+반드시 동일 ID 확인:
+
+APP generated request_id
+=
+X-Request-Id
+=
+body.request_id
+=
+Engine response.request_id
+=
+APP usage trace request_id
+
+5건 모두 확인.
+
+────────────────────────
+5. Observability
+────────────────────────
+
+WP-AI-01 기존 구조에서 실제 trace 확인:
+
+provider/service = professional_engine
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+latency_ms = 실제값
+success = true
+error_type = null
+
+Engine 내부 embedding cost를 APP에서 계산하지 않는다.
+
+cost가 반환되지 않으면
+기존 UNKNOWN semantics 유지.
+
+────────────────────────
+6. Failure Probe
+────────────────────────
+
+production secret을 변경하지 말고
+client test/mocked path에서 최소 확인:
+
+- timeout mapping
+- 401 mapping
+- network/5xx mapping
+
+이미 WP-PRO-04A unit test에서 확인된 내용은
+production에서 반복적인 파괴 테스트 금지.
+
+실제 정상 E2E를 우선.
+
+────────────────────────
+7. Security 확인
+────────────────────────
+
+- browser/mobile bundle secret 없음
+- Authorization header 일반 log 없음
+- error log secret 없음
+- Engine response에 raw embedding 없음
+- APP이 Neon에 직접 연결하지 않음
+
+────────────────────────
+8. 완료 보고
+────────────────────────
+
+[앱] WP-PRO-04B PRODUCTION ENGINE E2E REPORT
+
+## Result
+
+## APP Deployment
+- live SHA
+- APP health
+- Background Worker status
+
+## Env
+- BASE_URL configured: YES/NO
+- API_SECRET configured: YES/NO
+- frontend exposure: NO
+
+## 5 E2E Probes
+query | HTTP | request_id matched | results | top1 | score | method | latency
+
+## Observability
+- logical calls
+- actual calls
+- retries
+- cost source
+- trace request_id matched
+
+## Security
+- secret exposed
+- raw embedding exposed
+- Neon direct access
+
+## Final Verdict
+
+APP → PROFESSIONAL ENGINE PRODUCTION E2E CONFIRMED
+
+STOP.
+Parent Curriculum / Growth Report 연결 선행 금지.

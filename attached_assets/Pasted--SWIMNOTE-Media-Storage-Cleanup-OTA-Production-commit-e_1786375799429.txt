@@ -1,0 +1,149 @@
+[승인 — SWIMNOTE Media Storage Cleanup OTA Production 배포]
+
+commit ef0a0fff 기준 구현 승인.
+
+이번 작업 목적:
+1. 기존 사용자 앱 내부에 누적된 legacy media 자동 정리
+2. 김수연 약 22GB / 김동호 약 6GB와 같은 기존 누적 데이터 정리
+3. 앞으로 사진·영상 저장 후 앱 documentDirectory에 복사본이 남지 않도록 영구 차단
+
+현재 보고된 구현 내용 외 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 commit ef0a0fff가 현재 배포 HEAD에 포함되어 있는지 확인.
+
+다음 4개 파일 실제 포함 확인:
+
+- components/common/DiaryPhotoStrip.tsx
+- app/(parent)/photos.tsx
+- utils/mediaStorageCleanup.ts
+- app/_layout.tsx
+
+그리고 기존 최근 Production 수정사항이 누락되지 않았는지 확인.
+
+코드 수정은 하지 말고 검증만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. OTA Production 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE 1.6.2 production runtime에 맞춰
+
+iOS production
+Android production
+
+둘 다 OTA 배포.
+
+기존과 동일한 검증된 Production EAS 프로젝트/채널/환경변수 사용.
+
+preview / instagram-test에 잘못 배포하지 말 것.
+
+Native Build 금지.
+Render 배포 금지.
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 적용 후 Cleanup 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA를 받은 기존 사용자가 앱을 실행하면:
+
+runLegacyMediaCleanup()
+
+이 fire-and-forget으로 실행되어야 한다.
+
+삭제 허용 대상은 보고된 legacy media pattern만:
+
+diary_*.jpg
+diary_all_*.jpg
+diary_video_*.video-extension
+swim_*.jpg
+swim_video_*.video-extension
+
+scheduleAudio_* 및 기타 앱 데이터 절대 삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Cleanup Flag 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+@swimnote:media_cleanup_v1
+
+정상 cleanup 완료 시에만 completed 처리.
+
+failed > 0이면 완료 처리하지 않고
+다음 실행에서 재시도 가능해야 한다.
+
+cleanup 때문에 앱 실행/로그인/UI가 block되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 신규 누적 차단 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA에 반드시 포함:
+
+DiaryPhotoStrip:
+- 사진 저장 후 local temp 삭제
+- 전체사진 저장 후 local temp 삭제
+- 영상 저장 후 local temp 삭제
+- 실패 경로 cleanup
+
+parent/photos:
+- 사진 저장 후 local temp 삭제
+- 영상 저장 후 local temp 삭제
+- 실패 경로 cleanup
+
+MediaLibrary에 사용자가 저장한 실제 사진/영상은 삭제하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Production 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 변경 금지:
+
+R2
+DB
+MediaLibrary 사용자 원본
+scheduleAudio
+AsyncStorage
+session/JWT
+draft
+picker 원본
+Instagram Story
+AI Story Summary
+Teacher Diary
+보강 기능
+알림 기능
+기타 기존 Production 기능
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 배포 후 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 보고:
+
+1. 배포 Source SHA
+2. ef0a0fff 포함 여부
+3. 실제 OTA diff 파일
+4. iOS OTA Group ID
+5. iOS Update ID
+6. Android OTA Group ID
+7. Android Update ID
+8. runtimeVersion
+9. channel
+10. cleanup helper OTA 포함 확인
+11. startup hook OTA 포함 확인
+12. 신규 finally cleanup 포함 확인
+13. R2 변경 = 0
+14. DB 변경 = 0
+15. Render 변경 = 0
+16. Native Build = 0
+
+그리고 최종 판정:
+
+- 기존 22GB/6GB legacy media 자동 cleanup 배포 완료 여부
+- 앞으로 documentDirectory media 영구 누적 차단 배포 완료 여부
+
+OTA 배포 후 추가 코드 수정 없이 STOP.

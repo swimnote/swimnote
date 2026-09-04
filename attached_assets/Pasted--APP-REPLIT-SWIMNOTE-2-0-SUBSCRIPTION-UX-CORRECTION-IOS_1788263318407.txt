@@ -1,0 +1,486 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# SUBSCRIPTION UX CORRECTION
+# IOS TESTFLIGHT OTA PUBLISH + DEVICE VERIFICATION PREP
+
+현재 완료 상태:
+
+SUBSCRIPTION UX STRUCTURE CORRECTION:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Latest HEAD:
+f40cbe9a
+
+이번 작업은
+방금 완료된 subscription UX correction을
+현재 TestFlight Build 252에서 실기기 확인할 수 있도록
+
+iOS OTA를 현재 정상 2.0 OTA 경로에 발행하는 작업입니다.
+
+==================================================
+1. SOURCE 확인
+==================================================
+
+실제 현재 Git 상태 확인.
+
+Expected:
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+HEAD:
+f40cbe9a
+
+HEAD가 다르면
+현재 실제 HEAD를 보고하고
+unrelated change 여부 확인.
+
+코드 수정 없이 현재 최신 release/v2.0.0을 사용.
+
+==================================================
+2. 현재 TestFlight OTA 경로
+==================================================
+
+LOCKED CURRENT DELIVERY PATH:
+
+TestFlight Build:
+252
+
+Runtime:
+2.0.0
+
+Embedded Channel:
+production-v2
+
+Channel Mapping:
+
+production-v2
+→
+release-2.0.0
+
+이 mapping을 변경하지 마십시오.
+
+==================================================
+3. OTA 발행 대상
+==================================================
+
+Target EAS Update Branch:
+
+release-2.0.0
+
+Platform:
+
+iOS ONLY
+
+Runtime:
+
+2.0.0
+
+production-v2 branch에 발행하지 마십시오.
+
+현재 binary가 보는 실제 branch는:
+
+release-2.0.0
+
+입니다.
+
+==================================================
+4. OTA 내용
+==================================================
+
+이번 OTA에는 반드시 최신:
+
+HEAD f40cbe9a
+
+기준 subscription UX correction이 포함되어야 합니다.
+
+핵심 포함사항:
+
+- canonical subscription screen
+- X settings → subscription screen
+- x-hub → subscription screen
+- X active에서 SWIMNOTE purchase card hidden
+- X300/X500/X1000 plan switch UX
+- member limit downgrade guard
+- X → SWIMNOTE 별도 downgrade action
+- X cancel과 downgrade 분리
+- subscription_required 전체 base plan 노출
+- DATA pack 별도 section
+- single price SoT
+
+==================================================
+5. 가격 LOCK
+==================================================
+
+실기기에서 보여야 할 가격:
+
+SWIMNOTE
+9,900원
+
+X300
+129,000원
+
+X500
+199,000원
+
+X1000
+359,000원
+
+DATA100
+7,900원
+
+DATA300
+22,900원
+
+구가격:
+
+119,000
+189,000
+349,000
+150,000
+
+신규 2.0 UI에 나오면 FAIL.
+
+==================================================
+6. 실제 Store 연결 상태
+==================================================
+
+아직 WP4 전입니다.
+
+따라서:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+실제 RevenueCat purchase 연결 금지.
+
+현재 CTA는:
+
+준비 중
+disabled
+또는 WP3/WP correction에서 정한 placeholder state
+
+유지.
+
+==================================================
+7. OTA Message
+==================================================
+
+예:
+
+2.0.0 iOS device test: subscription UX structure correction
+
+또는 동일 의미의 명확한 메시지 사용.
+
+==================================================
+8. 발행 후 경로 검증
+==================================================
+
+OTA 발행 후 반드시 확인:
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Latest Update ID:
+방금 발행한 Update ID
+
+Runtime:
+2.0.0
+
+Platform:
+iOS
+
+Source HEAD:
+f40cbe9a
+
+Build 252 reachable:
+YES
+
+==================================================
+9. 실기기 테스트 예상 흐름
+==================================================
+
+사용자 iPhone:
+
+1.
+SWIMNOTE TestFlight Build 252 실행
+
+2.
+OTA 감지
+
+3.
+다운로드
+
+4.
+"앱 재실행하기" 모달 표시
+
+5.
+재실행
+
+6.
+최신 subscription UX 확인
+
+==================================================
+10. 사용자 실기기 체크리스트
+==================================================
+
+다음 항목을 확인할 수 있도록 준비.
+
+[ ] 설정 → 구독 및 요금제 진입
+
+[ ] X 설정 → 구독 및 요금제 관리
+→ 동일 subscription screen으로 이동
+
+[ ] x-hub 구독 관리
+→ 동일 subscription screen으로 이동
+
+[ ] SWIMNOTE normal 상태
+→ SWIMNOTE 현재 플랜 표시
+→ X300/X500/X1000 업그레이드 카드 표시
+
+[ ] x_trial
+→ SWIMNOTE 구매카드 숨김
+→ X300/X500/X1000 표시
+
+[ ] X300 active
+→ SWIMNOTE 기본플랜 구매카드 없음
+→ X300 현재 이용중
+→ X500/X1000 플랜 변경 표시
+
+[ ] X500 active
+→ X300/X1000 플랜 변경 표시
+
+[ ] X1000 active
+→ X300/X500 플랜 변경 표시
+
+[ ] X → SWIMNOTE
+→ 별도 "SWIMNOTE로 변경" 영역
+→ 일반 SWIMNOTE 구매카드 아님
+
+[ ] 구독 해지
+→ SWIMNOTE downgrade와 별도
+
+[ ] member limit 초과 downgrade
+→ 변경 불가 warning
+
+[ ] subscription_required
+→ SWIMNOTE/X300/X500/X1000 전부 표시
+
+[ ] DATA pack
+→ 별도 추가 저장공간 section
+
+[ ] 예전 x-subscription 화면이
+사용자 navigation 경로에서 갑자기 노출되지 않음
+
+[ ] 뒤로가기 navigation 정상
+
+[ ] navigation loop 없음
+
+[ ] 가격/버튼 텍스트 잘림 없음
+
+==================================================
+11. x-subscription.tsx 확인
+==================================================
+
+현재 보고서상:
+
+x-subscription.tsx
+
+는 WP4 purchase engine용으로 보존되었고
+사용자 진입경로에서는 제거됨.
+
+실기기 navigation 기준으로:
+
+- settings
+- x-hub
+- x-mode-hub
+- subscription
+- back navigation
+
+을 통해
+의도치 않게 x-subscription.tsx로 진입하는 CTA가
+남아있지 않은지 정적 확인.
+
+직접 URL/deep link 같은 내부 경로 존재 자체는 허용.
+
+일반 사용자 UI에서 중복 구독화면이 노출되면 FAIL.
+
+==================================================
+12. Production 보호
+==================================================
+
+이번 작업에서 금지:
+
+1.6.3 OTA
+Android OTA
+production channel OTA
+Render 수정
+deploy-photo-clone 수정
+Production DB 수정
+RevenueCat 수정
+App Store subscription product 수정
+Google Play 수정
+
+==================================================
+13. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# SUBSCRIPTION UX TESTFLIGHT OTA REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## OTA
+
+Published:
+YES / NO
+
+Target Branch:
+...
+
+Expected:
+release-2.0.0
+
+Platform:
+iOS
+
+Runtime:
+2.0.0
+
+Update ID:
+...
+
+Update Group:
+...
+
+Message:
+...
+
+## DELIVERY PATH
+
+Build:
+252
+
+Embedded Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Latest Update ID:
+...
+
+Source HEAD:
+...
+
+Reachable by Build 252:
+YES / NO
+
+Expected:
+YES
+
+## SUBSCRIPTION NAVIGATION AUDIT
+
+Canonical screen:
+...
+
+Settings:
+...
+
+X settings:
+...
+
+X hub:
+...
+
+x-subscription exposed via normal UI:
+YES / NO
+
+Expected:
+NO
+
+## CODE STATE
+
+SWIMNOTE:
+9900 PASS / FAIL
+
+X300:
+129000 PASS / FAIL
+
+X500:
+199000 PASS / FAIL
+
+X1000:
+359000 PASS / FAIL
+
+X includes SWIMNOTE:
+PASS / FAIL
+
+DATA100:
+7900 PASS / FAIL
+
+DATA300:
+22900 PASS / FAIL
+
+## PRODUCTION SAFETY
+
+1.6.3 modified:
+NO
+
+Android OTA:
+NO
+
+Production OTA:
+NO
+
+Render modified:
+NO
+
+Production DB modified:
+NO
+
+RevenueCat modified:
+NO
+
+Store products modified:
+NO
+
+## USER DEVICE CHECKLIST
+
+[ ] 구독 및 요금제 단일 진입
+[ ] X active에서 SWIMNOTE 구매카드 없음
+[ ] X300 → X500/X1000
+[ ] X500 → X300/X1000
+[ ] X1000 → X300/X500
+[ ] X → SWIMNOTE 별도 downgrade
+[ ] X cancel 분리
+[ ] member limit downgrade guard
+[ ] subscription_required 전체 base plan
+[ ] DATA pack 별도 section
+[ ] x-subscription 중복화면 미노출
+[ ] navigation 정상
+
+## FINAL
+
+SWIMNOTE 2.0 SUBSCRIPTION UX DEVICE TEST READY
+or
+BLOCKED

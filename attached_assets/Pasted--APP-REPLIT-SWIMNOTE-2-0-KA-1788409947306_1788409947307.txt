@@ -1,0 +1,749 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 KAKAO → GENERAL HOTFIX
+# PRODUCTION SERVER DEPLOY + 2.0 OTA
+#
+# USER APPROVAL:
+# "올려"
+#
+# 승인 범위:
+#
+# 1. Kakao → General Teacher/Parent migration server hotfix
+#    Production Render 반영
+#
+# 2. SWIMNOTE 2.0 production-v2 OTA 반영
+#
+# 3. 배포 후 smoke verification
+#
+# 금지:
+# 1.6.3 OTA
+# Android OTA
+# 새 iOS build
+# App Store Production release
+# DB 수동 수정
+# RevenueCat
+# 기타 기능 수정
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+2.0 branch:
+release/v2.0.0
+
+Migration commits:
+
+70e88cc7
+fix(v2.0): migrate kakao teacher and parent accounts without reapproval
+
+7355c5a0
+fix(v2.0): transfer all teacher and parent data during kakao migration
+
+Known 2.0 device build:
+
+Version:
+2.0.0
+
+Build:
+253
+
+Runtime:
+2.0.0
+
+Channel:
+production-v2
+
+TestFlight Build ID:
+407992ed-2bae-441f-8c1e-061e60012f7e
+
+1.6.3 LIVE:
+
+HEAD:
+b41fd094
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+OTA:
+01a06345-d620-7509-8a20-00d0a30bce38
+
+============================================================
+0. SOURCE INTEGRITY FIRST
+============================================================
+
+배포 전에 현재 실제 git graph 확인.
+
+release/v2.0.0 현재 HEAD를 보고.
+
+반드시 현재 배포 source에 다음이 모두 포함되어야 함:
+
+- WP1
+- WP2
+- WP3
+- WP4
+- WP5
+- WP6
+- teacher scope fixes
+- media fixes
+- 70e88cc7
+- 7355c5a0
+
+특히 이전 device build용 commit:
+
+7fa3afb0
+
+과 hotfix branch history가 갈라졌는지 확인.
+
+중요:
+
+7355c5a0을 배포하면서
+WP1-WP6 또는 build 이후 기능이 사라지는
+rollback 상태이면 즉시 STOP.
+
+아래 ancestry를 실제 git 기준으로 보고:
+
+b03c7b5a ancestor:
+YES / NO
+
+70e88cc7 ancestor:
+YES / NO
+
+7355c5a0 current:
+YES / NO
+
+필요하다면
+기능 commit만 현재 release/v2.0.0 HEAD에
+안전하게 rebase/cherry-pick 하되
+
+기존 완료 작업을 덮어쓰지 말 것.
+
+강제 reset:
+NO
+
+============================================================
+1. SERVER DIFF 분리
+============================================================
+
+70e88cc7
+7355c5a0
+
+두 commit의 diff를 확인.
+
+APP 파일과 SERVER 파일이 섞여 있다면:
+
+Production server branch에는
+SERVER 관련 변경만 최소 backport.
+
+production server branch:
+
+deploy-photo-clone
+
+전체 release/v2.0.0 branch merge:
+NO
+
+전체 commit 무조건 cherry-pick:
+NO
+
+먼저 실제 server 변경 파일을 나열.
+
+예상 범주:
+
+auth.ts
+teacher migration route
+parent migration route
+migration helper
+관련 tests/helpers
+
+실제 diff가 source of truth.
+
+============================================================
+2. PRODUCTION SERVER BACKPORT
+============================================================
+
+deploy-photo-clone 최신 HEAD 확인.
+
+현재 live SHA도 확인.
+
+그 뒤 hotfix에 필요한 server 변경만
+minimal backport.
+
+보호:
+
+기존 Production auth
+1.6.3 Kakao exit bridge
+Parent conversion
+Teacher conversion
+일반가입
+기존 API
+WP3와 충돌 여부
+
+절대 삭제/rollback 금지.
+
+============================================================
+3. SERVER TEST
+============================================================
+
+배포 전 최소:
+
+S01 approved Kakao Teacher → General
+S02 Teacher 재승인 없음
+S03 Teacher active refs 10/10 transfer
+S04 Teacher existing broken migration recovery
+S05 Parent Kakao → General
+S06 Parent child links preserved
+S07 Parent active refs 19/19 transfer
+S08 Parent existing migrated recovery
+S09 duplicate active account 0
+S10 orphan 0
+S11 cross-pool mutation 0
+S12 brand-new General Teacher approval flow 유지
+S13 brand-new General Parent flow 유지
+S14 phone normalization
+S15 idempotent retry
+
+New deterministic:
+0
+
+============================================================
+4. PRODUCTION RENDER DEPLOY
+============================================================
+
+테스트 PASS 후
+deploy-photo-clone push/deploy.
+
+Production Render:
+YES
+
+DB migration:
+NO
+
+Manual Production DB write:
+NO
+
+기존 schema 변경:
+NO
+
+배포 완료 후 반드시 실제 live SHA 확인.
+
+Health:
+
+/health
+또는 현재 production health endpoint
+
+HTTP 200 확인.
+
+보고:
+
+Server branch:
+deploy-photo-clone
+
+Before SHA:
+...
+
+After SHA:
+...
+
+Render live SHA:
+...
+
+Health:
+200
+
+============================================================
+5. SERVER LIVE SMOKE
+============================================================
+
+Production에서
+실제 사용자 데이터 수정 없이 가능한 범위에서
+route availability/static smoke 확인.
+
+다음 endpoint가 배포 source에 존재하는지 확인:
+
+teacher Kakao migration endpoint
+parent Kakao migration endpoint
+
+중요:
+
+실제 사용자 계정에 migration endpoint를
+임의 호출하지 말 것.
+
+현재 이미 꼬인 실제 Teacher/Parent 계정 recovery는
+사용자가 앱에서 정상 전환 동작을 다시 수행하거나
+별도 명시 승인 후 처리.
+
+Production DB 수동 수정:
+NO
+
+============================================================
+6. 2.0 OTA SOURCE 확인
+============================================================
+
+OTA source:
+
+release/v2.0.0
+
+반드시 포함:
+
+70e88cc7
+7355c5a0
+
+그리고 기존 2.0 기능 전체.
+
+OTA는 현재 TestFlight Build 253의:
+
+runtimeVersion:
+2.0.0
+
+channel:
+production-v2
+
+만 대상으로 해야 함.
+
+============================================================
+7. IOS 2.0 OTA
+============================================================
+
+서버 LIVE + health PASS 후에만 실행.
+
+Channel:
+production-v2
+
+Runtime:
+2.0.0
+
+Platform:
+iOS
+
+목적:
+현재 TestFlight Build 253에 hotfix 적용.
+
+Production 1.6.3 channel:
+절대 사용 금지.
+
+`production`:
+NO
+
+`production-v2`:
+YES
+
+Android OTA:
+NO
+
+새 build:
+NO
+
+============================================================
+8. OTA CONTENT
+============================================================
+
+OTA에 포함되어야 할 client fix:
+
+Teacher signup에서:
+
+KAKAO_MIGRATION_REQUIRED
+→ teacher migration endpoint 호출
+
+기존 approved Kakao teacher:
+→ reapproval 없이 General teacher
+
+Parent migration:
+→ already-migrated/recovery 정상 처리
+
+2.0 Kakao UI 정책:
+login/signup/link UI 0 유지.
+
+============================================================
+9. OTA 후 1.6.3 격리 확인
+============================================================
+
+반드시 확인:
+
+1.6.3:
+
+channel:
+production
+
+runtime:
+1.6.3
+
+latest live OTA:
+01a06345-d620-7509-8a20-00d0a30bce38
+
+이번 작업으로 변경:
+NO
+
+2.0:
+
+channel:
+production-v2
+
+runtime:
+2.0.0
+
+새 OTA:
+...
+
+Cross-delivery:
+0
+
+============================================================
+10. OTA LIVE SMOKE
+============================================================
+
+2.0 TestFlight Build 253에서:
+
+앱 완전 종료
+→ 재실행
+→ update 적용 확인.
+
+최소 확인:
+
+C01 app boot
+C02 login
+C03 normal signup
+C04 Kakao login UI 0
+C05 Kakao signup UI 0
+C06 Teacher migration handler 존재
+C07 Parent migration handler 존재
+C08 Admin home
+C09 Teacher mode
+C10 Parent home
+
+Crash:
+0
+
+Something went wrong:
+0
+
+Maintenance:
+0
+
+============================================================
+11. 실제 MIGRATION 기대 결과
+============================================================
+
+### TEACHER
+
+기존 Kakao Teacher
+→ 동일 전화번호 General 전환
+
+결과:
+
+approval pending:
+0
+
+admin reapproval:
+NO
+
+pool:
+preserved
+
+classes:
+preserved
+
+co-teacher:
+preserved
+
+students:
+preserved
+
+schedule:
+preserved
+
+makeups:
+preserved
+
+push/settings:
+preserved
+
+old active refs:
+0
+
+### PARENT
+
+기존 Kakao Parent
+→ 동일 전화번호 General 전환
+
+결과:
+
+approval pending:
+0
+
+child relink:
+NO
+
+children:
+preserved
+
+parent_students:
+preserved
+
+pool:
+preserved
+
+requests:
+preserved
+
+notifications/settings:
+preserved
+
+diary/growth/curriculum refs:
+preserved
+
+old active refs:
+0
+
+============================================================
+12. 기존 이미 꼬인 계정
+============================================================
+
+중요:
+
+이미 General 계정 생성/승인이 끝났는데
+기존 Kakao 데이터가 안 넘어온 계정은
+새 코드의 recovery 경로로 복구 가능해야 함.
+
+하지만 이번 배포 과정에서
+실제 Production 사용자 계정에
+임의 mutation을 실행하지 말 것.
+
+완료보고에:
+
+RECOVERY READY:
+YES / NO
+
+사용자가 다시 migration flow를 실행하면:
+어떤 동작으로 복구되는지
+
+정확히 설명.
+
+만약 현재 UI에서는
+이미 General 계정이 생성된 사용자가
+migration endpoint를 다시 호출할 entry가 없어서
+실제로 recovery를 실행할 수 없다면:
+
+그 사실을 BLOCKER로 보고.
+
+숨기지 말 것.
+
+============================================================
+13. 절대 금지
+============================================================
+
+1.6.3 source:
+NO
+
+1.6.3 OTA:
+NO
+
+Android OTA:
+NO
+
+new iOS build:
+NO
+
+build 254:
+NO
+
+App Store Production:
+NO
+
+RevenueCat:
+NO
+
+pricing:
+NO
+
+storage 350MB audit:
+NO
+
+new features:
+NO
+
+manual Production DB edit:
+NO
+
+============================================================
+14. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 KAKAO MIGRATION LIVE DEPLOY REPORT
+
+## SOURCE INTEGRITY
+
+release/v2.0.0 HEAD:
+...
+
+b03c7b5a ancestor:
+YES / NO
+
+70e88cc7 included:
+YES / NO
+
+7355c5a0 included:
+YES / NO
+
+Rollback/lost WP:
+0 / ...
+
+## SERVER BACKPORT
+
+Branch:
+deploy-photo-clone
+
+Before SHA:
+...
+
+After SHA:
+...
+
+Server files backported:
+...
+
+Render deploy:
+SUCCESS / FAIL
+
+Render LIVE SHA:
+...
+
+Health:
+...
+
+## SERVER TEST
+
+S01-S15:
+...
+
+Teacher active refs:
+10/10
+
+Parent active refs:
+19/19
+
+New deterministic:
+0 / ...
+
+## 2.0 OTA
+
+Version:
+2.0.0
+
+Runtime:
+2.0.0
+
+Channel:
+production-v2
+
+Platform:
+iOS
+
+OTA:
+SUCCESS / FAIL
+
+Update ID:
+...
+
+Update Group:
+...
+
+New build:
+NO
+
+## 1.6.3 SAFETY
+
+HEAD:
+b41fd094
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+Existing OTA:
+01a06345-d620-7509-8a20-00d0a30bce38
+
+Modified:
+NO
+
+Cross-delivery:
+0
+
+## DEVICE SMOKE
+
+C01-C10:
+...
+
+Crash:
+0
+
+Maintenance:
+0
+
+Something went wrong:
+0
+
+## MIGRATION LIVE
+
+Teacher immediate migration:
+READY / FAIL
+
+Parent immediate migration:
+READY / FAIL
+
+Teacher full data transfer:
+READY / FAIL
+
+Parent full data transfer:
+READY / FAIL
+
+Approval/reapproval:
+NONE / ...
+
+## EXISTING BROKEN ACCOUNT RECOVERY
+
+Teacher:
+READY / BLOCKED
+
+Parent:
+READY / BLOCKED
+
+Can recovery be triggered from current app:
+YES / NO
+
+If NO:
+EXACT BLOCKER:
+...
+
+Manual DB edit performed:
+NO
+
+## PRODUCTION SAFETY
+
+DB manual write:
+NO
+
+Android OTA:
+NO
+
+New build:
+NO
+
+App Store Production:
+NO
+
+RevenueCat:
+NO
+
+## FINAL
+
+SWIMNOTE 2.0 KAKAO → GENERAL
+TEACHER + PARENT FULL MIGRATION LIVE
+
+또는
+
+LIVE DEPLOY BLOCKED — EXACT ISSUE

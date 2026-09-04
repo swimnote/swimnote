@@ -1,0 +1,169 @@
+[SWIMNOTE 보강 회차 선택 — 배포 전 최종 차단 오류 재검수]
+
+현재 수정 완료 보고서에서 다음 코드가 확인됐다.
+
+makeups.tsx doDirectComplete():
+class_group_id = original_class_group_id
+
+이 값은 정책상 잘못됐을 가능성이 매우 높다.
+
+이번 기능의 흐름은:
+
+보강 대상 반 선택
+→ 해당 반의 occurrence 선택
+→ 오늘·과거면 complete-direct
+
+이므로 complete-direct에 보내야 할 class_group_id는
+원래 결석 반(original_class_group_id)이 아니라
+사용자가 선택한 보강 대상 반이어야 한다.
+
+지금은 배포하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 코드 원문 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 함수의 실제 전체 코드를 제출한다.
+
+- makeups.tsx doDirectComplete()
+- makeups.tsx doAssign()
+- makeups.tsx renderOccRow()
+- ClassDetailSheet.tsx completeMakeupWithDate()
+- teachers.ts complete-direct에서 class_group_id를 사용하는 부분
+
+각 함수에서 아래 값이 어디서 오는지 표시한다.
+
+- original_class_group_id
+- selectedClassId
+- selectedOccurrence.class_group_id
+- selectedOccurrence.occurrence_date
+- complete-direct body.class_group_id
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+미래 예약:
+
+PATCH /teacher/makeups/:id/assign
+
+Body:
+{
+  class_group_id: selectedOccurrence.class_group_id,
+  assigned_date: selectedOccurrence.occurrence_date
+}
+
+오늘·과거 완료:
+
+PATCH /teacher/makeups/:id/complete-direct
+
+Body:
+{
+  class_group_id: selectedOccurrence.class_group_id,
+  date: selectedOccurrence.occurrence_date
+}
+
+original_class_group_id는 결석이 발생한 원래 반 정보다.
+보강을 실시한 대상 반 ID로 사용하면 안 된다.
+
+예외:
+‘지난 보강 직접 완료’처럼 별도의 반 선택 과정이 없는 기존 기능은
+기존 정책을 따로 확인한다.
+그 기능과 새 회차 선택 기능을 혼합하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+새 회차 선택 흐름의 doDirectComplete에서:
+
+class_group_id: original_class_group_id
+
+를 사용하고 있다면 다음으로 수정한다.
+
+class_group_id: selectedOccurrence.class_group_id
+
+selectedOccurrence에 class_group_id가 항상 존재하는지 타입으로 보장한다.
+
+MakeupOccurrence:
+
+interface MakeupOccurrence {
+  class_group_id: string;
+  occurrence_date: string;
+  ...
+}
+
+selectedClassId와 selectedOccurrence.class_group_id가 다르면 저장 금지 또는
+서버 응답 occurrence를 기준으로 selectedOccurrence.class_group_id를 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 서버 저장 결과 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+complete-direct 성공 후 makeup_sessions에 다음 값이 저장되는지 확인한다.
+
+- assigned_class_group_id = 선택한 보강 반
+- assigned_class_group_name = 선택한 보강 반 이름
+- assigned_teacher_id/name = 선택 반 담당 교사
+- handed_to_teacher_id/name = 기존 인계 정책에 맞는 값
+- assigned_date = 선택 occurrence_date
+- status = completed
+- completed_at = 실제 처리 시각
+
+attendance에도 선택한 보강 날짜와 대상 반이 정확히 반영되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 필수 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생의 원래 결석 반:
+- 월 18시반
+
+선택한 보강 반:
+- 금 19시반
+
+선택 회차:
+- 2026-08-01 금 19시
+
+완료 후 반드시 확인:
+
+- original_class_group_id = 월 18시반 유지
+- assigned_class_group_id = 금 19시반
+- assigned_date = 2026-08-01
+- 원래 반으로 잘못 저장되지 않음
+- 금 19시반 담당 교사 인계 정보 반영
+- 출결 기록도 선택 회차 기준
+- 앱 목록에 금 19시반으로 표시
+
+미래 예약도 동일하게 선택 반 ID가 저장되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 전체 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 검색 결과를 제출한다.
+
+- complete-direct 호출 전체
+- original_class_group_id를 class_group_id body로 보내는 코드 전체
+- occ.date 잔존 결과
+- occurrence_date 사용 결과
+
+기존 ‘반 선택 없는 직접 완료’ 기능과
+새 ‘반+회차 선택 완료’ 기능을 구분해서 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 오류 존재 여부
+2. 실제 수정 diff
+3. 선택 반 ID 전달 경로
+4. 서버 저장 컬럼 결과
+5. 타입체크
+6. git status
+7. HEAD/origin SHA
+8. 미검증 항목
+
+보고 후 멈춘다.
+
+Push·Render 배포·OTA 금지.

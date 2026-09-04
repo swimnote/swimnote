@@ -1,0 +1,590 @@
+# [WP-C START — PARENT CURRICULUM CHAT UI]
+
+WP-B Render deploy PASS 확인.
+
+live SHA:
+08b3fb01
+
+이제 WP-C 시작 승인.
+
+이번 WP-C는 APP UI 범위만 구현한다.
+
+금지:
+
+- server route 변경
+- quota 로직 변경
+- DB migration
+- conversation UNIQUE 변경
+- 새 대화/history multi-conversation 구현
+- Production curriculum ingestion
+- Render server 수정
+- 전체 regression test
+
+==================================================
+1. WP-C 목적
+==================================================
+
+기존:
+
+artifacts/swim-app/app/(parent)/home.tsx
+artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+
+를 확장하여
+
+학부모가 ChatGPT와 유사한 방식으로
+AI 커리큘럼 검색을 사용할 수 있는 UI를 만든다.
+
+신규 홈 버튼 생성 금지.
+
+기존 "커리큘럼 검색" 버튼을 그대로 사용.
+
+==================================================
+2. NORMAL SWIMNOTE BUTTON — 중요
+==================================================
+
+현재 home.tsx:
+
+selectedStudent
+&&
+(mode === "x" || mode === "x_pending")
+
+일 때만 버튼 표시.
+
+이 조건을 수정하여
+Normal 학부모에게도 기존 커리큘럼 검색 버튼을 표시한다.
+
+최소 조건:
+
+selectedStudent 존재
+
+버튼 디자인/위치/아이콘은
+기존 것을 최대한 그대로 유지.
+
+==================================================
+3. NORMAL USER UX
+==================================================
+
+Normal 학부모가 버튼을 누르면
+기능 자체를 숨기거나 disabled 처리하지 않는다.
+
+curriculum-chat 화면으로 진입 후
+서버 eligibility 결과에 따라 안내 상태 표시.
+
+안내:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+이 상태에서는:
+
+- 질문 입력창 숨김
+- 추천 질문 숨김
+- 전송 버튼 숨김
+- AI 호출 없음
+- quota 차감 없음
+
+기존 뒤로가기/navigation은 정상 유지.
+
+==================================================
+4. CURRICULUM NOT READY
+==================================================
+
+X/허용 센터라도
+검색 가능한 curriculum_items < 300이면
+동일한 unavailable UI 사용.
+
+서버 reason 예:
+
+CURRICULUM_NOT_AVAILABLE
+CURRICULUM_NOT_READY
+
+둘 모두 안전하게 처리.
+
+개발자용 code는 화면에 노출하지 않는다.
+
+==================================================
+5. ELIGIBLE USER UI
+==================================================
+
+검색 가능한 사용자는
+기존 curriculum-chat.tsx를 확장.
+
+목표 UX:
+
+ChatGPT와 유사한 익숙한 대화 방식
++
+SWIMNOTE 기존 디자인 유지.
+
+필수:
+
+- 사용자 질문 표시
+- AI 답변 표시
+- 대화 아래로 누적
+- 하단 고정 입력창
+- 전송 버튼
+- keyboard 처리
+- 자동 scroll
+- loading/typing indicator
+- retry 기존 기능 유지
+
+==================================================
+6. 첫 화면 추천 질문
+==================================================
+
+현재 message가 없는 첫 진입 상태에서
+추천 질문 표시.
+
+예:
+
+"지금 어디까지 배웠나요?"
+"최근에는 무엇을 배우고 있나요?"
+"자유형은 어디까지 했나요?"
+"다음 단계는 무엇인가요?"
+
+추천 질문 탭:
+
+일반 텍스트 질문 전송과
+동일한 send flow 사용.
+
+별도 API 만들지 않는다.
+
+==================================================
+7. 답변 COPY — V1 필수
+==================================================
+
+각 ASSISTANT 답변 하단에:
+
+[복사]
+
+추가.
+
+복사 대상:
+
+사용자에게 보이는 답변 text 전체.
+
+복사 제외:
+
+- metadata
+- intent
+- answer_mode
+- knowledge_ids
+- validation
+- 내부 JSON
+- source id
+
+복사 성공:
+
+"복사되었습니다"
+
+짧은 toast/snackbar.
+
+Expo/RN 현재 프로젝트에서 이미 사용하는
+clipboard 패키지가 있으면 재사용.
+
+없으면 최소 의존성 방식 검토 후
+불필요한 package 추가는 피한다.
+
+==================================================
+8. QUOTA 표시
+==================================================
+
+기존 API response:
+
+usage {
+  limit,
+  used,
+  remaining,
+  period,
+  resets_at
+}
+
+및 기존 UsageInfo state 재사용.
+
+검색 가능 화면에서 작게 표시.
+
+권장 표현:
+
+"이번 달 AI 검색 3/10회"
+
+또는:
+
+"이번 달 남은 검색 7회"
+
+기존 SWIMNOTE UI에 자연스럽게 배치.
+
+과도하게 큰 경고 UI 금지.
+
+==================================================
+9. QUOTA EXHAUSTED UI
+==================================================
+
+서버:
+
+429
+PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED
+
+수신 시:
+
+"이번 달 AI 커리큘럼 검색 이용 횟수를 모두 사용했습니다.
+다음 달에 다시 이용할 수 있습니다."
+
+표시.
+
+입력창은 disabled 또는 전송 차단.
+
+사용자가 계속 눌러 API를 반복 호출하지 않도록 처리.
+
+==================================================
+10. ANSWER MODE UI
+==================================================
+
+서버가 additive response로:
+
+answer_mode
+intent
+
+를 반환해도
+사용자 화면에 내부 enum을 그대로 노출하지 않는다.
+
+DIRECT_DB
+GROUNDED_GPT
+HUMAN_ONLY
+
+모두 사용자에게는
+일반 AI 답변처럼 표시.
+
+HUMAN_ONLY라고
+"HUMAN_ONLY" badge 노출 금지.
+
+==================================================
+11. LOADING
+==================================================
+
+기존 typing indicator 재사용.
+
+현재:
+
+ActivityIndicator
++
+"커리큘럼을 확인하고 있어요…"
+
+가 이미 있으므로
+불필요하게 새 loading system 만들지 않는다.
+
+화면 전체 blocking modal 금지.
+
+==================================================
+12. ERROR UI
+==================================================
+
+사용자에게 절대 노출 금지:
+
+- 500
+- 502
+- API URL
+- Render
+- OpenAI
+- stack trace
+- raw response
+- JSON
+- internal reason
+
+일반 오류:
+
+"답변을 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+기존 retry 기능 재사용.
+
+==================================================
+13. 다자녀 지원
+==================================================
+
+V1에 다자녀 지원 포함.
+
+단,
+복잡한 신규 학생관리 UI를 만들지 않는다.
+
+기존 parent home의
+student selection 데이터/구조를 최대한 재사용.
+
+curriculum-chat 상단에서
+현재 자녀 표시.
+
+다른 자녀가 있으면
+간단한 dropdown/modal/sheet로 전환 가능.
+
+학생 변경 시:
+
+- studentId 변경
+- 해당 학생 history reload
+- usage는 parent-account 월 10회이므로 그대로 공유
+- 이전 학생 message가 현재 학생 화면에 섞이지 않도록 reset/reload
+
+==================================================
+14. HISTORY — 이번 WP-C 범위
+==================================================
+
+현재 존재:
+
+GET /curriculum-search/history
+→ 현재 student 단일 conversation messages load
+
+이 기존 기능은 유지.
+
+이번 WP-C에서는
+현재 student의 기존 conversation 내용을
+화면에 복원하는 것까지만.
+
+복수 conversation 목록:
+금지
+
+새 대화:
+금지
+
+conversation title:
+금지
+
+이것들은 WP-D.
+
+==================================================
+15. CHATGPT형 UI 원칙
+==================================================
+
+목표는 사용감이지
+ChatGPT 브랜드 복제가 아니다.
+
+적용:
+
+- 넓은 conversation area
+- 사용자 질문 / AI 답변 명확히 구분
+- 긴 답변 자연스럽게 읽기
+- 하단 고정 composer
+- 답변 바로 아래 copy action
+- 과도한 카드/박스 최소화
+
+금지:
+
+- OpenAI logo
+- ChatGPT logo
+- ChatGPT 고유 브랜드 복제
+- 기존 SWIMNOTE 전체 디자인 대폭 변경
+
+==================================================
+16. 자동 SCROLL
+==================================================
+
+새 질문 전송:
+→ 최신 질문 위치
+
+답변 완료:
+→ 새 답변을 자연스럽게 확인 가능
+
+사용자가 과거 답변을 읽고 있을 때
+과도하게 강제 scroll하는 UX는 피한다.
+
+현재 FlatList/ScrollView 구조를 최대한 재사용.
+
+==================================================
+17. 서버 계약 유지
+==================================================
+
+사용:
+
+POST /parent/students/:studentId/curriculum-search
+
+서버 변경 금지.
+
+기존 response 호환 유지.
+
+앱은 필요한 필드만 additive하게 사용:
+
+answer
+usage
+answer_mode?
+intent?
+
+eligibility/error code는
+현재 WP-B server contract 기준 처리.
+
+==================================================
+18. 비용 안전성
+==================================================
+
+Normal/NOT_READY 화면에서
+컴포넌트 mount만으로 POST search를 호출하면 안 된다.
+
+질문을 보내지 않았는데
+AI request가 발생하면 안 됨.
+
+eligibility 확인에 별도 기존 response/API가 필요하다면
+현재 서버 contract에서 가능한 최소 방식만 사용.
+
+WP-C에서 임의 GPT/Engine 호출 추가 금지.
+
+==================================================
+19. 테스트
+==================================================
+
+전체 regression 금지.
+
+WP-C 관련 최소 테스트/검증만.
+
+필수 시나리오:
+
+1.
+Normal user
+→ 버튼 보임
+
+2.
+Normal button tap
+→ unavailable 안내
+→ input 없음
+
+3.
+X but curriculum <300
+→ NOT_READY 안내
+
+4.
+eligible user
+→ chat input 표시
+
+5.
+추천 질문 tap
+→ send flow
+
+6.
+AI answer
+→ copy 버튼 표시
+
+7.
+copy
+→ clipboard text 정확
+→ toast
+
+8.
+usage 3/10
+→ quota UI 표시
+
+9.
+quota exhausted
+→ 안내
+→ 추가 send 차단
+
+10.
+history load
+→ 기존 messages 복원
+
+11.
+다자녀 switch
+→ student context 변경
+→ 이전 학생 messages 혼합 없음
+
+12.
+server error
+→ raw error 숨김
+
+==================================================
+20. BUILD
+==================================================
+
+WP-C 구현 완료 후:
+
+전체 API test suite 금지.
+
+앱 변경 파일 중심 확인.
+
+가능하면:
+
+- TypeScript changed-file check
+- Expo route/build sanity
+- iOS export 전체가 꼭 필요하지 않으면 생략
+
+불필요한 광범위 테스트로 credit 사용 금지.
+
+==================================================
+21. PRODUCTION / OTA
+==================================================
+
+이번 WP-C 구현 중:
+
+OTA 배포 금지
+TestFlight build 금지
+Production server 변경 금지
+
+코드 구현 완료 후 보고.
+
+배포는 별도 승인.
+
+==================================================
+22. 완료 보고
+==================================================
+
+[WP-C COMPLETION REPORT]
+
+A. FILES
+- modified files:
+- new files:
+- dependencies added:
+
+B. ENTRY
+- Normal button visible:
+- X button visible:
+- existing button reused:
+- new home button created: NO
+
+C. ELIGIBILITY UI
+- Normal unavailable:
+- <300 unavailable:
+- input hidden:
+- AI call prevented:
+
+D. CHAT UI
+- message layout:
+- composer:
+- typing:
+- recommendations:
+- auto scroll:
+
+E. COPY
+- copy button:
+- clipboard:
+- toast:
+
+F. QUOTA
+- display:
+- limit:
+- exhausted UI:
+- repeated calls prevented:
+
+G. MULTI-CHILD
+- selector:
+- student context reload:
+- message isolation:
+- quota shared:
+
+H. HISTORY
+- existing single conversation history:
+- multi-conversation implemented: NO
+- new conversation implemented: NO
+
+I. TEST
+- tests/checks:
+- passed:
+- full regression run: NO
+
+J. PRODUCTION
+- server changed: NO
+- migration: NO
+- OTA deployed: NO
+- TestFlight build: NO
+
+K. FINAL
+- WP-C PASS: YES/NO
+- WP-D ready: YES/NO
+- blocker:
+- next recommended step:
+
+완료 후 멈춘다.
+WP-D 시작 금지.
+배포는 별도 승인.

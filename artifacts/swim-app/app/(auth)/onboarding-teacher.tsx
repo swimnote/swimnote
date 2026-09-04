@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * onboarding-teacher.tsx — 선생님 온보딩
  * 슬라이드 1: 환영
@@ -7,7 +9,7 @@
  * 슬라이드 5: 보강 처리 방법
  * 슬라이드 6: 시작하기
  */
-import { ArrowRight, BookOpen, CalendarCheck, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, Clock, GraduationCap, ListChecks, RotateCcw, Sun } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -20,8 +22,9 @@ import { useAuth } from "@/context/AuthContext";
 
 const { width: W } = Dimensions.get("window");
 
-const MINT   = "#2EC4B6";
-const NAVY   = "#0F172A";
+const MINT   = C.brandStrong;
+const NAVY_BG   = "#0F2742";
+const NAVY_TEXT = C.textPrimary;
 const ORANGE = "#F97316";
 const BLUE   = "#2563EB";
 const GREEN  = "#2E9B6F";
@@ -91,7 +94,7 @@ export default function OnboardingTeacherScreen() {
           </Pressable>
           <Pressable style={s.nextBtn} onPress={goNext}>
             <Text style={s.nextTxt}>다음</Text>
-            <ArrowRight size={16} color="#fff" />
+            <LucideIcon name="arrow-right" size={16} color="#fff" />
           </Pressable>
         </View>
       )}
@@ -104,7 +107,7 @@ function SlideWelcome({ name }: { name: string }) {
   return (
     <View style={[sw.root, { width: W }]}>
       <View style={sw.iconWrap}>
-        <GraduationCap size={64} color={GREEN} />
+        <LucideIcon name="graduation-cap" size={64} color={GREEN} />
       </View>
       <Text style={sw.badge}>선생님 모드</Text>
       <Text style={sw.title}>{name},{"\n"}스윔노트에 오신 것을{"\n"}환영합니다!</Text>
@@ -126,7 +129,7 @@ function SlideToday() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={st.root} showsVerticalScrollIndicator={false}>
       <View style={st.header}>
-        <Sun size={28} color={ORANGE} />
+        <LucideIcon name="sun" size={28} color={ORANGE} />
         <Text style={st.title}>오늘 스케줄 탭</Text>
       </View>
       <Text style={st.sub}>매일 사용하는 핵심 탭입니다</Text>
@@ -147,7 +150,7 @@ function SlideToday() {
             <Text style={st.className}>중급반 B · 11:00–12:00</Text>
             <Text style={st.classMeta}>학생 6명 · 출석 완료 ✓</Text>
           </View>
-          <View style={[st.attendBtn, { backgroundColor: "#E6FAF8" }]}>
+          <View style={[st.attendBtn, { backgroundColor: C.brandSoft }]}>
             <Text style={[st.attendBtnTxt, { color: MINT }]}>완료</Text>
           </View>
         </View>
@@ -183,7 +186,7 @@ function SlideCalendar() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={scal.root} showsVerticalScrollIndicator={false}>
       <View style={scal.header}>
-        <CalendarDays size={28} color={BLUE} />
+        <LucideIcon name="calendar-days" size={28} color={BLUE} />
         <Text style={scal.title}>내 스케줄 탭 (달력)</Text>
       </View>
       <Text style={scal.sub}>주간·월간으로 내 수업 전체를 확인</Text>
@@ -238,7 +241,7 @@ function SlideSettlement() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={sse.root} showsVerticalScrollIndicator={false}>
       <View style={sse.header}>
-        <CircleDollarSign size={28} color={GREEN} />
+        <LucideIcon name="circle-dollar-sign" size={28} color={GREEN} />
         <Text style={sse.title}>월 정산 방식 이해</Text>
       </View>
       <Text style={sse.sub}>정산은 어떻게 계산되고 제출하나요?</Text>
@@ -269,7 +272,7 @@ function SlideSettlement() {
         <Text style={sse.flowTitle}>📋 정산 제출 순서</Text>
         {[
           { step: "1", color: BLUE, bg: "#EFF4FF", title: "이번 달 수업 종료", desc: "자동으로 수업 횟수가 집계됩니다" },
-          { step: "2", color: MINT, bg: "#E6FAF8", title: "정산 탭에서 확인", desc: "학생별 수업 횟수와 금액을 검토하세요" },
+          { step: "2", color: MINT, bg: C.brandSoft, title: "정산 탭에서 확인", desc: "학생별 수업 횟수와 금액을 검토하세요" },
           { step: "3", color: GREEN, bg: "#DFF3EC", title: "기타 수기 항목 추가", desc: "수업 외 수당, 특이사항 직접 입력 가능" },
           { step: "4", color: PURPLE, bg: "#EEDDF5", title: "정산 저장 · 제출", desc: "저장 후 '제출완료'로 상태 변경하면 관리자에게 전달" },
           { step: "5", color: ORANGE, bg: "#FFF3E0", title: "관리자 확인", desc: "관리자가 확인 처리하면 정산 완료" },
@@ -293,9 +296,9 @@ function SlideSettlement() {
         <Text style={sse.statusTitle}>정산 상태 의미</Text>
         <View style={sse.statusRow}>
           {[
-            { label: "미정산", color: "#64748B", bg: "#F8FAFC" },
-            { label: "저장됨", color: MINT, bg: "#E6FAF8" },
-            { label: "제출완료", color: MINT, bg: "#E6FAF8" },
+            { label: "미정산", color: C.textSecondary, bg: C.backgroundSoft },
+            { label: "저장됨", color: MINT, bg: C.brandSoft },
+            { label: "제출완료", color: MINT, bg: C.brandSoft },
             { label: "관리자확인", color: PURPLE, bg: "#EEDDF5" },
           ].map(st => (
             <View key={st.label} style={[sse.statusBadge, { backgroundColor: st.bg }]}>
@@ -313,7 +316,7 @@ function SlideMakeup() {
   return (
     <ScrollView style={{ width: W }} contentContainerStyle={sm.root} showsVerticalScrollIndicator={false}>
       <View style={sm.header}>
-        <RotateCcw size={28} color={PURPLE} />
+        <LucideIcon name="rotate-ccw" size={28} color={PURPLE} />
         <Text style={sm.title}>보강 처리 방법</Text>
       </View>
       <Text style={sm.sub}>결석하면 보강이 자동으로 생성됩니다</Text>
@@ -358,7 +361,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
   return (
     <View style={[sd.root, { width: W }]}>
       <View style={sd.iconWrap}>
-        <CheckCircle2 size={72} color={GREEN} />
+        <LucideIcon name="check-circle" size={72} color={GREEN} />
       </View>
       <Text style={sd.title}>준비 완료!</Text>
       <Text style={sd.sub}>
@@ -375,7 +378,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
           { tab: "정산", desc: "월 수업 횟수 확인 및 제출" },
         ].map(r => (
           <View key={r.tab} style={sd.summaryRow}>
-            <ChevronRight size={14} color={GREEN} />
+            <LucideIcon name="chevron-right" size={14} color={GREEN} />
             <Text style={sd.summaryTxt}>
               <Text style={{ color: GREEN }}>{r.tab}</Text> — {r.desc}
             </Text>
@@ -384,7 +387,7 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
       </View>
       <Pressable style={sd.btn} onPress={onStart}>
         <Text style={sd.btnTxt}>오늘 스케줄로 시작하기</Text>
-        <ArrowRight size={18} color="#fff" />
+        <LucideIcon name="arrow-right" size={18} color="#fff" />
       </Pressable>
     </View>
   );
@@ -394,14 +397,14 @@ function SlideDone({ name, onStart }: { name: string; onStart: () => void }) {
 const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: "#FAFAFA" },
   progressRow:{ flexDirection: "row", justifyContent: "center", gap: 6, paddingVertical: 14 },
-  dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB" },
-  dotActive:  { width: 20, backgroundColor: GREEN },
-  dotDone:    { backgroundColor: GREEN, opacity: 0.4 },
+  dot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: C.border },
+  dotActive:  { width: 20, backgroundColor: NAVY_BG },
+  dotDone:    { backgroundColor: NAVY_BG, opacity: 0.35 },
   footer:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                 paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderColor: "#F0F0F0" },
   skipBtn:    { paddingHorizontal: 16, paddingVertical: 12 },
-  skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: GREEN,
+  skipTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  nextBtn:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: NAVY_BG,
                 paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
   nextTxt:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -411,34 +414,34 @@ const sw = StyleSheet.create({
   iconWrap:{ width: 100, height: 100, borderRadius: 28, backgroundColor: "#DFF3EC",
              alignItems: "center", justifyContent: "center", marginBottom: 8 },
   badge:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#DFF3EC" },
-  title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY, textAlign: "center", lineHeight: 36 },
-  sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 24 },
+  title:   { fontSize: 26, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, textAlign: "center", lineHeight: 36 },
+  sub:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 24 },
   tagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
   tag:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#F3F4F6",
-             borderWidth: 1, borderColor: "#E5E7EB" },
-  tagTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#374151" },
+             borderWidth: 1, borderColor: C.border },
+  tagTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 });
 
 const st = StyleSheet.create({
   root:        { padding: 20, gap: 12, paddingBottom: 80 },
   header:      { flexDirection: "row", alignItems: "center", gap: 10 },
-  title:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY },
-  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
+  title:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
   mockCard:    { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 12,
-                 borderWidth: 1, borderColor: "#E5E7EB" },
-  mockDate:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+                 borderWidth: 1, borderColor: C.border },
+  mockDate:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   classRow:    { flexDirection: "row", alignItems: "center", gap: 10 },
   classDot:    { width: 10, height: 10, borderRadius: 5 },
-  className:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY },
-  classMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  attendBtn:   { backgroundColor: MINT, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  className:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  classMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  attendBtn:   { backgroundColor: C.primaryAction, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   attendBtnTxt:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
   guideBox:    { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 10,
-                 borderWidth: 1, borderColor: "#E5E7EB" },
-  guideTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+                 borderWidth: 1, borderColor: C.border },
+  guideTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   guideRow:    { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   guideIcon:   { fontSize: 16, width: 24 },
-  guideText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  guideText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   tipBox:      { backgroundColor: "#FFFBEB", borderRadius: 12, padding: 14,
                  borderWidth: 1, borderColor: "#FDE68A" },
   tipTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 },
@@ -447,21 +450,21 @@ const st = StyleSheet.create({
 const scal = StyleSheet.create({
   root:      { padding: 20, gap: 12, paddingBottom: 80 },
   header:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY },
-  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
-  calMock:   { backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
+  calMock:   { backgroundColor: "#fff", borderRadius: 16, padding: 14, borderWidth: 1, borderColor: C.border },
   calHeader: { flexDirection: "row", justifyContent: "space-around", marginBottom: 8 },
-  calDay:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF", width: 30, textAlign: "center" },
+  calDay:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, width: 30, textAlign: "center" },
   calRow:    { flexDirection: "row", justifyContent: "space-around" },
   calCell:   { alignItems: "center", width: 30, gap: 4 },
-  calNum:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY },
+  calNum:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
   calDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: BLUE },
   guideBox:  { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 10,
-               borderWidth: 1, borderColor: "#E5E7EB" },
-  guideTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+               borderWidth: 1, borderColor: C.border },
+  guideTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   guideRow:  { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   guideIcon: { fontSize: 16, width: 24 },
-  guideText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", lineHeight: 20 },
+  guideText: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   tipBox:    { backgroundColor: "#EFF4FF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#BAD3FF" },
   tipTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#1E40AF", lineHeight: 20 },
 });
@@ -469,25 +472,25 @@ const scal = StyleSheet.create({
 const sse = StyleSheet.create({
   root:        { padding: 20, gap: 12, paddingBottom: 80 },
   header:      { flexDirection: "row", alignItems: "center", gap: 10 },
-  title:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY },
-  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
-  formulaBox:  { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
-  formulaTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 12 },
+  title:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  sub:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
+  formulaBox:  { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border },
+  formulaTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 12 },
   formula:     { flexDirection: "row", alignItems: "center", gap: 6 },
   fItem:       { flex: 1, borderRadius: 10, padding: 10, alignItems: "center", gap: 4 },
   fNum:        { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  fDesc:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
-  fPlus:       { fontSize: 16, color: "#9CA3AF", fontFamily: "Pretendard-Regular" },
-  flowBox:     { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
-  flowTitle:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 10 },
+  fDesc:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
+  fPlus:       { fontSize: 16, color: C.textMuted, fontFamily: "Pretendard-Regular" },
+  flowBox:     { backgroundColor: "#fff", borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border },
+  flowTitle:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 10 },
   flowRow:     { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   flowNum:     { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   flowNumTxt:  { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  flowTitle2:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 2 },
-  flowDesc:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  connector:   { width: 2, height: 10, backgroundColor: "#E5E7EB", marginLeft: 15, marginVertical: 2 },
-  statusBox:   { backgroundColor: "#F8FAFC", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  statusTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 10 },
+  flowTitle2:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 2 },
+  flowDesc:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  connector:   { width: 2, height: 10, backgroundColor: C.border, marginLeft: 15, marginVertical: 2 },
+  statusBox:   { backgroundColor: C.backgroundSoft, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+  statusTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 10 },
   statusRow:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   statusTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -496,15 +499,15 @@ const sse = StyleSheet.create({
 const sm = StyleSheet.create({
   root:      { padding: 20, gap: 12, paddingBottom: 80 },
   header:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY },
-  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
-  flowBox:   { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
-  sectionTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 8 },
+  title:     { fontSize: 22, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  sub:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
+  flowBox:   { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 4, borderWidth: 1, borderColor: C.border },
+  sectionTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 8 },
   flowRow:   { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   flowIcon:  { fontSize: 20, width: 32, textAlign: "center" },
-  flowTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 2 },
-  flowDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
-  connector: { width: 2, height: 10, backgroundColor: "#E5E7EB", marginLeft: 15, marginVertical: 2 },
+  flowTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 2 },
+  flowDesc:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
+  connector: { width: 2, height: 10, backgroundColor: C.border, marginLeft: 15, marginVertical: 2 },
   tipBox:    { backgroundColor: "#FFF5F5", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#FECACA" },
   tipTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#B91C1C", marginBottom: 8 },
   tipDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 22 },
@@ -514,13 +517,13 @@ const sd = StyleSheet.create({
   root:        { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, gap: 16 },
   iconWrap:    { width: 110, height: 110, borderRadius: 30, backgroundColor: "#DFF3EC",
                  alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  title:       { fontSize: 28, fontFamily: "Pretendard-Regular", color: NAVY },
-  sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 26 },
+  title:       { fontSize: 28, fontFamily: "Pretendard-Regular", color: NAVY_TEXT },
+  sub:         { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 26 },
   summaryBox:  { backgroundColor: "#fff", borderRadius: 16, padding: 18, gap: 10, width: "100%",
-                 borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY, marginBottom: 4 },
+                 borderWidth: 1, borderColor: C.border },
+  summaryTitle:{ fontSize: 14, fontFamily: "Pretendard-Regular", color: NAVY_TEXT, marginBottom: 4 },
   summaryRow:  { flexDirection: "row", alignItems: "center", gap: 6 },
-  summaryTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  summaryTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   btn:         { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: GREEN,
                  paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, marginTop: 8 },
   btnTxt:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#fff" },

@@ -1,0 +1,535 @@
+# [WP-D PRE-IMPLEMENTATION — MULTI-CONVERSATION HISTORY DESIGN]
+
+WP-C 완료 및 Production OTA 반영 확인.
+
+이제 WP-D 시작 준비.
+
+이번 WP-D 목표:
+
+학부모 AI 커리큘럼 검색에서
+학생별 단일 대화만 유지하는 현재 구조를
+
+- 새 대화
+- 복수 대화 목록
+- 대화 선택
+- 대화 복원
+- 제목 표시
+
+가 가능한 구조로 확장한다.
+
+중요:
+
+이번 단계에서는 아직 migration 실행하지 않는다.
+
+먼저 현재 DB constraint / API / app 구조를 READ-ONLY로 확인하고
+정확한 migration plan을 작성한다.
+
+==================================================
+1. 현재 구조
+==================================================
+
+현재 table:
+
+parent_curriculum_conversations
+parent_curriculum_messages
+
+현재 알려진 제약:
+
+UNIQUE(parent_account_id, student_id)
+
+즉:
+parent/student 조합당 conversation 1개만 존재.
+
+기존:
+
+getOrCreateConversation()
+buildRecentConversationContext()
+GET /curriculum-search/history
+
+구조를 최대한 재사용한다.
+
+==================================================
+2. WP-D 최종 UX
+==================================================
+
+ChatGPT와 유사한 사용감이 목표.
+
+필수:
+
+1. 새 대화
+2. 이전 대화 목록
+3. 대화 선택
+4. 선택 대화 message 복원
+5. 대화 제목
+6. 현재 대화 유지
+7. 학생 전환 시 해당 학생 conversation만 표시
+
+ChatGPT식 sidebar까지는 필요 없음.
+
+앱에서는:
+
+- 상단 "새 대화"
+- 상단 history 버튼
+- modal / sheet / 별도 screen 형태의 대화 목록
+
+정도면 충분.
+
+==================================================
+3. Conversation ownership
+==================================================
+
+모든 conversation은 반드시:
+
+parent_account_id
+student_id
+swimming_pool_id
+
+에 귀속.
+
+학부모가 다른 학생/다른 부모 conversation을
+ID 조작으로 조회하지 못하도록 서버 권한 검증.
+
+conversationId를 client가 보내더라도
+서버에서 ownership 재검증.
+
+==================================================
+4. Migration 목표
+==================================================
+
+현재:
+
+UNIQUE(parent_account_id, student_id)
+
+제약을 제거하거나 변경하여
+한 parent/student 조합에 여러 conversation 허용.
+
+기존 데이터는 절대 유실하지 않는다.
+
+기존 conversation row는 그대로 유지.
+
+필요 시 title 컬럼 추가.
+
+예:
+
+title TEXT NULL
+
+추가 가능.
+
+단,
+현재 schema에 이미 적합한 컬럼이 있는지 먼저 확인.
+
+==================================================
+5. 기존 데이터 보존
+==================================================
+
+migration 후에도 현재 존재하는 conversation/message가
+그대로 조회되어야 한다.
+
+금지:
+
+- conversations DELETE
+- messages DELETE
+- 기존 conversation 재생성
+- 기존 message 재귀속
+- 기존 ID 변경
+
+기존 데이터 100% 보존.
+
+==================================================
+6. Conversation title
+==================================================
+
+V1에서는 복잡한 AI title generation 필요 없음.
+
+우선순위:
+
+1. 첫 사용자 질문을 짧게 잘라 title 생성
+2. 없으면 "새 대화"
+3. 필요 시 날짜 fallback
+
+예:
+
+"우리 아이 자유형 어디까지 했어요?"
+→
+"자유형 어디까지 했어요?"
+
+GPT title 생성 금지.
+
+추가 AI 비용 0.
+
+==================================================
+7. 새 대화
+==================================================
+
+새 대화 클릭 시:
+
+신규 conversation row 생성.
+
+기존 conversation 삭제/초기화 금지.
+
+현재 active conversation_id를 새 ID로 전환.
+
+새 conversation 생성 자체는
+AI quota 차감 없음.
+
+AI Engine 호출 없음.
+
+==================================================
+8. 대화 목록
+==================================================
+
+서버 API 필요.
+
+가능한 형태:
+
+GET /parent/students/:studentId/curriculum-search/conversations
+
+응답 예:
+
+{
+  conversations: [
+    {
+      id,
+      title,
+      created_at,
+      updated_at,
+      last_message_preview
+    }
+  ]
+}
+
+정렬:
+
+updated_at DESC
+
+현재 API 구조와 더 자연스러운 endpoint가 있으면 제안 가능.
+
+==================================================
+9. 대화 선택 / message 조회
+==================================================
+
+가능한 형태:
+
+GET /parent/students/:studentId/curriculum-search/conversations/:conversationId/messages
+
+또는 기존 history GET을 conversation_id 기반으로 확장.
+
+중복 endpoint를 불필요하게 만들지 않는다.
+
+기존 history GET을 재사용할 수 있으면 우선.
+
+==================================================
+10. Search POST와 conversation_id
+==================================================
+
+현재:
+
+POST /parent/students/:studentId/curriculum-search
+
+는 getOrCreateConversation()으로 단일 conversation을 찾음.
+
+WP-D 후에는:
+
+client가 현재 conversation_id를 보내는 구조를 우선 검토.
+
+예:
+
+{
+  query,
+  conversation_id,
+  request_id
+}
+
+서버:
+
+- conversation_id 존재
+- parent/student ownership 확인
+- 해당 conversation 사용
+
+conversation_id 없음
+→ 신규/기본 conversation 생성 정책 적용
+
+기존 앱 호환성을 위해
+conversation_id는 optional additive field로 유지 가능.
+
+==================================================
+11. Recent Context
+==================================================
+
+buildRecentConversationContext()는
+선택된 conversation_id 범위 안에서만 최근 N turn을 가져와야 한다.
+
+다른 conversation의 messages가 섞이면 안 됨.
+
+학생 같아도 conversation이 다르면 context 분리.
+
+==================================================
+12. Multi-child
+==================================================
+
+WP-C에서 다자녀 switcher 이미 구현.
+
+학생 전환 시:
+
+- 해당 student의 conversation list 로드
+- 다른 student conversation 표시 금지
+- 현재 conversation state reset/교체
+- race guard 유지
+
+==================================================
+13. Eligibility / quota 영향
+==================================================
+
+WP-D는 eligibility/quota 정책을 바꾸지 않는다.
+
+Normal:
+AI 실행 차단 유지
+
+X / eligible:
+기존 300-item gate 유지
+
+quota:
+parent_account_id 기준 월 10회 유지
+
+conversation 개수가 늘어도 quota는 늘어나지 않는다.
+
+새 대화 생성:
+quota 0
+
+history 조회:
+quota 0
+
+message 조회:
+quota 0
+
+==================================================
+14. Metadata
+==================================================
+
+기존:
+
+parent_curriculum_messages.metadata
+
+그대로 유지.
+
+conversation 분리 때문에 metadata schema 변경 필요 없음.
+
+기존 evidence snapshot 유지.
+
+==================================================
+15. 삭제 기능
+==================================================
+
+V1에서 대화 삭제는 선택.
+
+구현 가능하면:
+
+DELETE conversation
+→ 해당 parent/student ownership 확인
+→ 해당 conversation messages 함께 처리
+
+하지만 hard delete를 바로 넣기보다
+현재 schema에 archived/deleted_at 지원 여부 확인.
+
+복잡해지면 V1에서는 삭제 기능 제외 가능.
+
+우선순위:
+
+새 대화
+목록
+선택
+복원
+
+삭제는 후순위.
+
+==================================================
+16. App UI
+==================================================
+
+curriculum-chat.tsx 확장.
+
+필수:
+
+- 상단 새 대화 버튼
+- 상단 history 버튼
+- history modal/sheet
+- conversation title list
+- 날짜/최근 message preview
+- 선택 시 대화 복원
+- 빈 새 대화 상태
+- 기존 typing/input/copy/quota 유지
+
+기존 SWIMNOTE 디자인 유지.
+
+==================================================
+17. Loading / race safety
+==================================================
+
+대화 선택 중:
+
+이전 conversation 응답이
+새 conversation 화면에 섞이지 않게 guard 필요.
+
+studentId
++
+conversationId
++
+requestId
+
+기준으로 stale response 무시.
+
+WP-C student scoped guard와 같은 철학 유지.
+
+==================================================
+18. Backward compatibility
+==================================================
+
+기존 production app이
+conversation_id를 보내지 않아도 서버가 깨지면 안 됨.
+
+server response에 신규 field를 추가할 경우 additive.
+
+기존 answer / usage 계약 유지.
+
+WP-D OTA 전에 서버를 먼저 배포.
+
+==================================================
+19. Migration safety
+==================================================
+
+migration은:
+
+- UNIQUE 제약 제거/변경
+- title 컬럼 필요 시 추가
+
+정도만.
+
+현재 실제 constraint/index 이름을 확인 후 작성.
+
+blind DROP CONSTRAINT 금지.
+
+migration은 transaction 가능 여부 확인.
+
+기존 row count / message count 사전 확인.
+
+migration 전후 count 동일해야 함.
+
+==================================================
+20. READ-ONLY 확인 요청
+==================================================
+
+아직 migration/코드 수정 금지.
+
+확인:
+
+A. DB
+
+- parent_curriculum_conversations 정확한 schema
+- primary key
+- UNIQUE constraint 정확한 이름
+- indexes
+- title 컬럼 존재 여부
+- updated_at 존재 여부
+- cascade relation
+- parent_curriculum_messages FK / delete behavior
+- existing conversation count
+- existing message count
+
+B. SERVER
+
+- getOrCreateConversation exact behavior
+- history GET exact behavior
+- buildRecentConversationContext exact signature
+- saveUserMessage / saveAssistantMessage conversation handling
+- POST route가 conversation_id를 현재 받을 수 있는지
+- 신규 list endpoint 추가가 필요한지
+- existing endpoint 재사용 가능 부분
+
+C. APP
+
+- curriculum-chat current top bar
+- current history loading logic
+- current message state
+- current student switch guard
+- 새 대화/history UI 삽입 위치
+
+==================================================
+21. 최종 보고 형식
+==================================================
+
+[WP-D PRE-IMPLEMENTATION REPORT]
+
+A. DB
+
+- conversations schema:
+- PK:
+- unique constraint:
+- indexes:
+- title exists:
+- updated_at exists:
+- messages FK:
+- cascade:
+- existing conversations:
+- existing messages:
+
+B. SERVER
+
+- getOrCreateConversation:
+- history GET:
+- recent context:
+- save message behavior:
+- POST conversation_id support:
+- recommended conversation list endpoint:
+- recommended message history endpoint:
+- backward compatibility plan:
+
+C. APP
+
+- current top bar:
+- current history behavior:
+- new conversation insertion point:
+- history modal insertion point:
+- multi-child compatibility:
+- race guard reuse:
+
+D. MIGRATION PLAN
+
+- exact constraint change:
+- title column needed:
+- new indexes needed:
+- existing data preserved:
+- migration transactional:
+- rollback plan:
+
+E. API PLAN
+
+- create conversation:
+- list conversations:
+- get messages:
+- search POST changes:
+- delete conversation V1: YES/NO
+
+F. TEST PLAN
+
+- migration tests:
+- ownership tests:
+- conversation separation:
+- old app compatibility:
+- multi-child separation:
+- quota unaffected:
+
+G. FILE PLAN
+
+- migration files:
+- server files:
+- app files:
+
+H. FINAL
+
+- WP-D implementation ready: YES/NO
+- blocker:
+- recommended implementation order:
+
+아직 migration 실행 금지.
+아직 코드 수정 금지.
+보고 후 멈춘다.

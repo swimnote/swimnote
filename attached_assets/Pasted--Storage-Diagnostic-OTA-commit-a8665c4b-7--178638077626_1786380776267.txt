@@ -1,0 +1,187 @@
+[승인 — Storage Diagnostic 버튼 OTA 배포]
+
+대상 commit:
+a8665c4b
+
+목적:
+선생님/학부모 설정 화면에서
+숨김 7회 탭 대신
+"저장공간 진단" 버튼 1회 탭으로
+Storage Diagnostic을 확실하게 실행한다.
+
+이번 OTA는 진단 진입 UI 수정만 포함한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에 a8665c4b 포함 여부 확인.
+
+실제 diff는 다음 2개 파일만:
+
+app/(teacher)/settings.tsx
+app/(parent)/more.tsx
+
+다른 코드 변경이 있으면 OTA 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion:
+1.6.2
+
+channel:
+production
+
+iOS + Android 모두 production OTA.
+
+preview / instagram-test 배포 금지.
+
+기존 Production 환경변수 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 OTA에서:
+
+storageDiagnostic.ts 수정 금지
+cache 삭제 금지
+document 삭제 금지
+cleanup v2 금지
+Image.clearDiskCache 금지
+AsyncStorage 삭제 금지
+Server 변경 금지
+DB 변경 금지
+Native Build 금지
+
+USER DATA CHANGED = 0
+
+이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실기기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님:
+
+설정
+→ 최하단
+→ [저장공간 진단]
+
+1회 탭
+
+→ 즉시 "측정 중…" 표시
+→ 완료 후 Diagnostic Alert
+
+학부모:
+
+더보기
+→ 최하단
+→ [저장공간 진단]
+
+1회 탭
+
+→ 동일하게 Alert 표시
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실측 우선순위
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 적용 후 가장 먼저:
+
+DEVICE A
+현재 약 3.62GB 선생님 기기
+
+측정.
+
+가능하면 추가:
+
+DEVICE B
+약 6GB 선생님
+
+DEVICE C
+약 22GB 사용자
+
+DEVICE D
+사진 일지를 많이 받아본 학부모
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 결과 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 기기에서 다음 숫자를 그대로 기록:
+
+iOS Settings Documents & Data:
+X.XX GB
+
+Diagnostic:
+
+Documents:
+- total bytes
+- files
+- directories
+
+Cache:
+- total bytes
+- files
+- directories
+
+Legacy diary:
+Legacy swim:
+Legacy swimnote:
+ScheduleAudio:
+Other:
+
+cleanup_v1 flag:
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+실측 전 cleanup v2 구현 금지.
+
+실측 결과:
+
+A.
+Documents 작음 / Cache 큼
+→ cache layer 주원인
+
+B.
+Documents 큼 / legacy_swimnote 큼
+→ matcher 누락 주원인
+
+C.
+둘 다 큼
+→ 복합 원인
+
+D.
+Documents + Cache 합계가
+iOS Settings 용량보다 크게 작음
+→ 다른 sandbox 영역 추가 조사
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. a8665c4b 포함 여부
+4. 실제 OTA diff
+5. iOS Group ID
+6. iOS Update ID
+7. Android Group ID
+8. Android Update ID
+9. runtimeVersion
+10. channel
+11. teacher 진단 버튼 표시
+12. parent 진단 버튼 표시
+13. 진단 Alert 실행 여부
+14. Server 변경 0
+15. DB 변경 0
+16. Native Build 0
+17. 사용자 데이터 삭제 0
+
+OTA 배포 후 추가 수정 없이 STOP.
+실측 숫자 확인 후 cleanup v2는 별도 진행.

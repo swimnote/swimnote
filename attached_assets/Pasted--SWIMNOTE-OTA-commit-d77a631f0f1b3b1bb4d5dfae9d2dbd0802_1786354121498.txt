@@ -1,0 +1,206 @@
+[승인 — SWIMNOTE 업데이트 정책 영구 고정 OTA 배포]
+
+현재 commit:
+
+d77a631f0f1b3b1bb4d5dfae9d2dbd0802f6c857
+
+이번 OTA의 목적:
+
+1. Native/Store Build 업데이트
+   → 자동 version check
+   → min_version 미달 시 강제 업데이트 Modal
+   → 취소 불가
+   → App Store / Play Store 이동
+   → 구버전 사용 차단
+
+2. Expo OTA 업데이트
+   → 앱 자동 OTA 확인
+   → 새 OTA 다운로드
+   → 재시작 Modal
+   → "지금 업데이트"
+   → Updates.reloadAsync()
+   → 최신 OTA 적용
+
+3. parent_account / teacher / pool_admin
+   → 역할과 관계없이 root _layout.tsx에서 자동 실행
+
+특히 parent_account는 수동 업데이트 확인 버튼이 없으므로
+자동 검사 경로가 필수이며 이번 코드가 그 역할을 담당한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 먼저 확인:
+
+A. branch
+B. Local HEAD
+C. Remote HEAD
+D. Local == Remote
+E. Working tree
+F. commit = d77a631f...
+G. appVersion
+H. runtimeVersion
+I. production channel
+J. _layout.tsx 변경 포함
+K. UPDATE_POLICY.md 포함
+L. Native config 변경 0
+M. DB 변경 0
+N. Server 변경 0
+
+runtimeVersion이 현재 실제 Production binary와
+호환되는 경우에만 OTA 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 배포 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 정책은 실제 사용자 전체에 적용해야 하므로:
+
+channel:
+production
+
+runtimeVersion:
+현재 Production binary와 정확히 일치하는 runtime
+
+으로 OTA 배포.
+
+instagram-test로만 배포하면
+실사용자에게 정책이 적용되지 않으므로 이번 작업 목적과 맞지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. META_APP_ID 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production OTA bundle에도
+Instagram Story 기능이 포함되어 있으므로
+이전 META_APP_ID 누락 사고를 재발시키지 않는다.
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+가 OTA bundle에 반드시 주입되는지 확인.
+
+현재 EAS production environment에
+정상 등록되어 있다면 해당 environment를 사용.
+
+필요 시 이전 성공 방식과 동일하게
+shell env 직접 주입까지 병행.
+
+META_APP_ID 확인 없이 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production channel에
+commit d77a631f 기준 OTA 배포.
+
+배포 message 예:
+
+feat(update): enforce native version gate and OTA restart policy
+
+중요:
+
+코드 추가 수정 없이 현재 commit 그대로 배포.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 이후 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1 — 현재 최신 Native 앱
+
+앱 완전 종료 → 재실행
+
+기대:
+
+- min_version 충족
+- Native 강제 Modal 없음
+- 이번 OTA 자동 감지
+- OTA 다운로드
+- "업데이트 준비 완료" Modal
+- 버튼: "지금 업데이트"만 존재
+- 버튼 탭 → reloadAsync()
+- 앱 재시작
+- 새 OTA 적용
+
+CASE 2 — OTA 적용 완료 후 재실행
+
+기대:
+
+- 동일 OTA를 다시 다운로드하지 않음
+- restart Modal 반복 없음
+- 정상 앱 진입
+
+CASE 3 — 구버전 Native 앱
+
+현재 server min_version보다 낮은 경우:
+
+- Native 강제 업데이트 Modal
+- 취소 불가
+- Store 이동
+- OTA check 실행되지 않음
+
+CASE 4 — parent_account
+
+- 수동 업데이트 버튼 없이 자동 작동
+- Native/OTA 모두 root에서 검사
+
+CASE 5 — teacher
+
+- 자동 작동
+
+CASE 6 — pool_admin
+
+- 자동 작동
+
+CASE 7 — background → foreground
+
+- runStartupChecks 실행
+- 중복 Modal 없음
+- 불필요한 polling 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포에서 변경 금지:
+
+- Instagram Story 코드
+- Story Summary
+- Teacher Diary
+- AI 기능
+- X Mode
+- RevenueCat
+- DB
+- Render
+- Native Build
+- app.json
+- eas.json
+- Version server 값
+
+이번 작업은 OTA 배포만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. OTA Group ID
+2. iOS Update ID
+3. Android Update ID
+4. runtimeVersion
+5. channel
+6. commit SHA
+7. environment
+8. META_APP_ID 주입 확인
+9. Production Native 영향
+10. Render 변경
+11. DB 변경
+12. Native Build
+13. parent_account 자동 검사 결과
+14. teacher 자동 검사 결과
+15. pool_admin 자동 검사 결과
+16. OTA restart Modal 결과
+17. reloadAsync 적용 결과
+18. 반복 Modal 여부
+
+배포 및 검증 후 추가 수정 없이 멈춘다.

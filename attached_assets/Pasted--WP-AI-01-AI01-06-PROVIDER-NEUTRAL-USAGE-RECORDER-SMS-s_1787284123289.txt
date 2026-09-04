@@ -1,0 +1,444 @@
+# [WP-AI-01 / AI01-06 — PROVIDER-NEUTRAL USAGE RECORDER + SMS]
+
+목적:
+
+현재 `saveAiTrace()`는 AI 호출 중심 구조다.
+
+SMS, R2 같은 비-AI 유료 서비스를 억지로 AI trace에 넣지 않고
+공통 비용 관측에 사용할 수 있는 최소 provider-neutral recorder를 만든다.
+
+이번 Step에서는:
+
+1. 공통 external usage recorder 생성
+2. SMS 실제 provider 호출량 기록
+
+까지만 수행한다.
+
+R2는 AI01-07에서 처리한다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 전수조사 금지.
+
+이미 확인된 SMS 구조만 사용한다.
+
+필요 대상:
+
+* 기존 SMS 공통 dispatcher `sendSms()`
+* SENS adapter
+* CoolSMS adapter
+* Aligo adapter
+* `event_logs` 기록 helper를 만들 최소 lib 파일
+* 관련 최소 테스트
+
+SMS provider를 찾기 위해 repo 전체를 다시 감사하지 않는다.
+
+---
+
+# 1. AI trace와 분리
+
+`saveAiTrace()`를 SMS에 재사용하지 않는다.
+
+신규 최소 helper를 만든다.
+
+예:
+
+```ts
+saveExternalUsage(...)
+```
+
+또는 기존 프로젝트 naming convention에 맞는 동등한 이름.
+
+목적은 `event_logs` JSONB에 provider-neutral usage event를 기록하는 것.
+
+새 DB table 금지.
+
+migration 금지.
+
+---
+
+# 2. External Usage Contract
+
+최소 필드:
+
+```text
+provider
+service
+feature/category
+trigger_type
+pool_id
+request_id
+
+logical_request_count
+actual_call_count
+retry_count
+
+estimated_cost_usd
+cost_source
+
+latency_ms
+success
+error_type
+
+units (필요한 경우)
+metadata
+```
+
+AI token 필드를 억지로 요구하지 않는다.
+
+---
+
+# 3. 타입 안전성
+
+가능하면:
+
+```ts
+type UsageFeature = AiFeature | ExternalUsageCategory
+```
+
+형태로 구성한다.
+
+`AiFeature | string`
+
+처럼 사실상 모든 문자열을 허용하는 구조는 피한다.
+
+External category 최소값은 현재 필요한 것만 추가:
+
+```text
+SMS
+```
+
+R2 category는 AI01-07에서 추가해도 된다.
+
+불필요한 미래 서비스 enum 대량 생성 금지.
+
+---
+
+# 4. event_logs 사용
+
+기존 `event_logs`를 그대로 사용한다.
+
+새 컬럼 추가 금지.
+
+provider-neutral usage event임을 식별할 수 있도록
+기존 category 규칙에 맞춰 최소 category를 사용한다.
+
+기존 AI usage 조회를 깨지 않도록 한다.
+
+---
+
+# 5. SMS Dispatcher 기준으로 기록
+
+가능하면 공통 `sendSms()` dispatcher 수준에서 기록한다.
+
+이유:
+
+각 provider adapter마다 중복 logging을 넣으면
+provider 변경 시 유지보수가 늘어난다.
+
+단 실제 provider/실제 HTTP attempt 정보를 dispatcher에서 알 수 없다면
+필요한 최소 정보만 adapter에서 반환하도록 한다.
+
+중복 event 생성 금지.
+
+SMS 한 번 전송에 usage event 1개가 원칙.
+
+---
+
+# 6. SMS Provider
+
+현재 코드에 존재하는 provider:
+
+* SENS
+* CoolSMS
+* Aligo
+
+실제 선택된 provider 값을 usage에 기록한다.
+
+예:
+
+```text
+provider = sens
+service = sms_send
+```
+
+또는
+
+```text
+provider = coolsms
+service = sms_send
+```
+
+또는
+
+```text
+provider = aligo
+service = sms_send
+```
+
+---
+
+# 7. Trigger Type
+
+사용자 행동으로 발생하는 일반 SMS라면:
+
+```text
+USER_ACTION
+```
+
+자동 시스템 알림이라면 실제 호출 경로 성격에 따라:
+
+```text
+SYSTEM_MAINTENANCE
+```
+
+단 이번 Step에서 모든 SMS 호출 경로를 전수분류하지 않는다.
+
+공통 dispatcher 호출부가 trigger_type을 전달할 수 있도록
+최소 contract를 만든다.
+
+현재 callsite를 전부 뜯어고쳐야 한다면 STOP하고 보고한다.
+
+기존 behavior를 크게 바꾸지 않는다.
+
+---
+
+# 8. Cost
+
+SMS 실제 계약 단가가 코드/환경설정으로 확인되지 않으면:
+
+```text
+estimated_cost_usd = null
+cost_source = UNKNOWN
+```
+
+으로 기록한다.
+
+절대 금지:
+
+* 인터넷 시장 평균 가격 임의 적용
+* 원화 가격 임의 환산
+* 공급사 대표 가격을 실제 계약가처럼 사용
+
+만약 현재 프로젝트에 명시적인 configured unit price가 이미 있다면
+그 경우에만:
+
+```text
+cost_source = CONFIGURED_UNIT_PRICE
+```
+
+사용 가능.
+
+---
+
+# 9. 실제 호출 수
+
+SMS 실제 provider HTTP 요청이 1번 발생하면:
+
+```text
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+```
+
+provider adapter 내부 retry가 실제 존재한다면
+실제 HTTP attempt만 센다.
+
+retry 존재 여부를 추측하지 않는다.
+
+validation 실패 / 번호 오류 / provider 미설정 등으로
+HTTP 요청이 전혀 발생하지 않으면:
+
+```text
+actual_call_count = 0
+```
+
+또는 provider usage event 미생성.
+
+현재 recorder 패턴에 맞춰 일관되게 처리한다.
+
+---
+
+# 10. 성공/실패
+
+성공:
+
+* provider
+* latency
+* actual_call_count
+* success=true
+
+실패:
+
+실제 provider HTTP call 이후 실패했다면:
+
+* actual_call_count 포함
+* success=false
+* error_type 기록
+
+usage logging 실패 때문에 SMS 사용자 동작 자체를 실패시키지 않는다.
+
+best-effort 원칙.
+
+---
+
+# 11. 기존 SMS 동작 보호
+
+수정 금지:
+
+* SMS message 내용
+* 수신번호 변환
+* 인증번호 생성
+* provider 선택 정책
+* fallback 정책
+* timeout
+* HTTP payload 의미
+* SMS API key
+* production provider 설정
+
+오직 usage observability만 추가한다.
+
+---
+
+# 12. 테스트
+
+전체 regression 금지.
+
+최소 테스트만 실행한다.
+
+필수 TC:
+
+### TC1
+
+provider-neutral usage recorder
+→ SMS category event 저장 가능
+
+### TC2
+
+SMS 성공
+→ 실제 provider
+→ service=sms_send
+→ actual_call_count=1
+
+### TC3
+
+SMS provider HTTP 실패
+→ success=false
+→ actual_call_count=1
+
+### TC4
+
+provider 호출 전 validation/config 실패
+→ actual_call_count를 거짓으로 1 기록하지 않음
+
+### TC5
+
+계약 단가 미확인
+→ estimated_cost_usd=null
+→ cost_source=UNKNOWN
+
+### TC6
+
+usage recorder 실패
+→ SMS 본 동작 결과를 덮어쓰지 않음
+
+---
+
+# 13. 절대 금지
+
+이번 Step에서:
+
+* R2 수정 금지
+* AI routes 수정 금지
+* Whisper 수정 금지
+* Curriculum/Growth Engine 수정 금지
+* pricing 수정 금지
+* model config 수정 금지
+* Dashboard 수정 금지
+* SMS provider 교체 금지
+* SMS 가격 임의 등록 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-06만 수행한다.
+
+---
+
+# 14. 완료 보고
+
+# [AI01-06 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. External Usage Recorder
+
+* 신규 함수/타입
+* event_logs 저장 구조
+* ExternalUsageCategory
+
+## 5. SMS Integration
+
+표:
+
+Provider | service | trigger_type 전달 방식 | actual_call_count 방식
+
+## 6. Cost Handling
+
+* 실제 configured price 존재 여부
+* estimated_cost_usd
+* cost_source
+
+## 7. Failure Handling
+
+provider 호출 전/후 실패 처리 차이.
+
+## 8. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 9. Scope Check
+
+다음 미수정 확인:
+
+* R2
+* AI routes
+* external engines
+* pricing/model config
+* Super Admin
+* DB schema
+* deployment config
+
+## 10. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 15. STOP
+
+AI01-06 완료 보고 후 멈춘다.
+
+AI01-07 이상 선행 금지.

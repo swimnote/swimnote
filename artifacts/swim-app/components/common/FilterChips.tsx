@@ -1,5 +1,8 @@
 /**
- * FilterChips — 상태 필터칩 공통 컴포넌트
+ * FilterChips — 상태 필터칩 공통 컴포넌트 (mode-aware)
+ *
+ * X 모드: active chip = XT.accentSoft bg + XT.accent border/text (민트 제거)
+ * Normal 모드: 기존 동일
  *
  * wrap=false(기본): 높이 고정 54px, 가로 스크롤 한 줄
  * wrap=true:        COLS 고정 개수로 나눈 2줄 그리드, 모든 칩 동일 너비
@@ -11,6 +14,8 @@ import {
   useWindowDimensions, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -34,17 +39,20 @@ interface FilterChipsProps<T extends string> {
 
 /* ── 단일 칩 ─────────────────────────────────────────── */
 function Chip<T extends string>({
-  chip, active, onChange, fixedWidth, showIcon = true,
+  chip, active, onChange, fixedWidth, showIcon = true, isX,
 }: {
   chip: FilterChipItem<T>;
   active: T;
   onChange: (k: T) => void;
   fixedWidth?: number;
   showIcon?: boolean;
+  isX: boolean;
 }) {
   const isActive = chip.key === active;
-  const color    = chip.activeColor ?? C.tint;
-  const bg       = chip.activeBg   ?? C.tintLight;
+
+  // X 모드: XT.accent / accentSoft; Normal: brandStrong / brandSoft (WP-N3)
+  const color = chip.activeColor ?? (isX ? XT.accent : C.brandStrong);
+  const bg    = chip.activeBg   ?? (isX ? XT.accentSoft : C.brandSoft);
 
   return (
     <Pressable
@@ -82,6 +90,8 @@ export function FilterChips<T extends string>({
   chips, active, onChange, wrap = false, wrapCols = 5, style,
 }: FilterChipsProps<T>) {
   const { width: screenW } = useWindowDimensions();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   if (wrap) {
     const GAP   = 7;
@@ -100,7 +110,7 @@ export function FilterChips<T extends string>({
         {rows.map((row, ri) => (
           <View key={ri} style={[s.wrapRow, { gap: GAP, justifyContent: "center" }]}>
             {row.map(chip => (
-              <Chip key={chip.key} chip={chip} active={active} onChange={onChange} fixedWidth={chipW} showIcon={false} />
+              <Chip key={chip.key} chip={chip} active={active} onChange={onChange} fixedWidth={chipW} showIcon={false} isX={isX} />
             ))}
           </View>
         ))}
@@ -119,7 +129,7 @@ export function FilterChips<T extends string>({
         keyboardShouldPersistTaps="handled"
       >
         {chips.map(chip => (
-          <Chip key={chip.key} chip={chip} active={active} onChange={onChange} />
+          <Chip key={chip.key} chip={chip} active={active} onChange={onChange} isX={isX} />
         ))}
       </ScrollView>
     </View>

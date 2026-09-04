@@ -4,7 +4,6 @@
  * 내반 / 출결 / 수영일지 / 사진 / 영상 5개 화면 모두 재사용
  * 클릭 핸들러만 다르게 주입
  */
-import { Calendar, Camera, Check } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import Colors from "@/constants/colors";
 import { TeacherClassGroup, SlotStatus, DayBarProps } from "@/components/teacher/types";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 
@@ -44,14 +44,6 @@ function getDayClasses(groups: TeacherClassGroup[], day: string) {
     .sort((a, b) => parseHour(a.schedule_time) - parseHour(b.schedule_time));
 }
 
-const CLASS_COLORS = [
-  "#2EC4B6","#EC4899","#14B8A6","#E4A93A","#8B5CF6",
-  "#2E9B6F","#4EA7D8","#D96C6C","#F97316","#06B6D4",
-];
-function classColor(id: string) {
-  let n = 0; for (let i = 0; i < id.length; i++) n += id.charCodeAt(i);
-  return CLASS_COLORS[n % CLASS_COLORS.length];
-}
 
 export function WeeklySchedule({
   classGroups, statusMap, onSelectClass, themeColor,
@@ -120,7 +112,7 @@ export function WeeklySchedule({
 
       {/* ── 날짜 + 클래스 수 헤더 ── */}
       <View style={ws.sectionHeader}>
-        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : "#111827" }]}>
+        <Text style={[ws.sectionDay, { color: selectedDay === today ? themeColor : C.textPrimary }]}>
           {selectedDay}요일 수업
           {selectedDay === today && <Text style={[ws.todayLabel, { color: themeColor }]}> · 오늘</Text>}
         </Text>
@@ -130,7 +122,7 @@ export function WeeklySchedule({
       {/* ── 시간 슬롯 리스트 ── */}
       {currentClasses.length === 0 ? (
         <View style={ws.empty}>
-          <Calendar size={22} color="#9CA3AF" />
+          <LucideIcon name="calendar" size={22} color={C.textMuted} />
           <Text style={ws.emptyText}>{selectedDay}요일 수업이 없습니다</Text>
         </View>
       ) : (
@@ -143,8 +135,8 @@ export function WeeklySchedule({
             const diaryDone = status?.diaryDone ?? true;
             const hasPhotos = status?.hasPhotos ?? false;
             const inactive  = total === 0;
-            const barColor  = classColor(g.id);
-            const bgColor   = g.color && g.color !== "#FFFFFF" ? g.color : "#FFFFFF";
+            const barColor  = classColor(g.id, g.color);
+            const bgColor   = barColor + "18";
             const isSelected = selectedIds.has(g.id);
 
             return (
@@ -152,7 +144,7 @@ export function WeeklySchedule({
                 key={g.id}
                 style={[
                   ws.slot,
-                  { borderColor: isSelected ? themeColor : "#E5E7EB", backgroundColor: bgColor },
+                  { borderColor: isSelected ? themeColor : C.border, backgroundColor: bgColor },
                   inactive && ws.slotInactive,
                 ]}
                 onPress={() => selectionMode ? onToggleSelect?.(g.id) : (!inactive && onSelectClass(g))}
@@ -164,19 +156,19 @@ export function WeeklySchedule({
 
                 {/* 선택 모드 체크박스 */}
                 {selectionMode && !inactive && (
-                  <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : "#fff" }]}>
-                    {isSelected && <Check size={9} color="#fff" />}
+                  <View style={[ws.checkBox, { borderColor: themeColor, backgroundColor: isSelected ? themeColor : C.surface }]}>
+                    {isSelected && <LucideIcon name="check" size={9} color="#fff" />}
                   </View>
                 )}
 
                 {/* 시간 */}
-                <Text style={[ws.timeCol, { color: "#9CA3AF" }]}>
+                <Text style={[ws.timeCol, { color: C.textMuted }]}>
                   {g.schedule_time.replace(/:00$/, "").replace(/:00 /, " ")}
                 </Text>
 
                 {/* 반 이름 + 담당 선생 */}
                 <View style={{ flex: 1, justifyContent: "center" }}>
-                  <Text style={[ws.nameCol, { color: inactive ? "#9CA3AF" : "#111827" }]} numberOfLines={1}>
+                  <Text style={[ws.nameCol, { color: inactive ? C.textMuted : C.textPrimary }]} numberOfLines={1}>
                     {g.name}
                     {g.level ? <Text style={ws.levelInline}> {g.level}</Text> : null}
                   </Text>
@@ -187,20 +179,20 @@ export function WeeklySchedule({
 
                 {/* 우측 정보 */}
                 <View style={ws.rightCol}>
-                  <Text style={[ws.cntText, { color: "#9CA3AF" }]}>
+                  <Text style={[ws.cntText, { color: C.textMuted }]}>
                     {total}명
                   </Text>
                   {!inactive && (
                     <View style={ws.dots}>
-                      <View style={[ws.dot, { backgroundColor: attDone ? "#E6FFFA" : "#F9DEDA" }]}>
-                        <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? "#2EC4B6" : "#D96C6C"} />
+                      <View style={[ws.dot, { backgroundColor: attDone ? C.iconGreenBg : "#F9DEDA" }]}>
+                        <LucideIcon name={attDone ? "check" : "x"} size={7} color={attDone ? C.success : "#D96C6C"} />
                       </View>
-                      <View style={[ws.dot, { backgroundColor: diaryDone ? "#E6FFFA" : "#FFF1BF" }]}>
-                        <LucideIcon name={diaryDone ? "check" : "edit-3"} size={7} color={diaryDone ? "#2EC4B6" : "#D97706"} />
+                      <View style={[ws.dot, { backgroundColor: diaryDone ? C.iconGreenBg : "#FFF1BF" }]}>
+                        <LucideIcon name={diaryDone ? "check" : "edit"} size={7} color={diaryDone ? C.success : "#D97706"} />
                       </View>
                       {hasPhotos && (
                         <View style={[ws.dot, { backgroundColor: "#EEDDF5" }]}>
-                          <Camera size={7} color="#7C3AED" />
+                          <LucideIcon name="camera" size={7} color="#7C3AED" />
                         </View>
                       )}
                     </View>
@@ -265,14 +257,14 @@ export function DayBar({ classGroups, selectedDay, onDayChange, themeColor }: Da
 const ws = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#FAFBFC" },
 
-  dayBar:        { backgroundColor: "#FAFBFC", borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
+  dayBar:        { backgroundColor: "#FAFBFC", borderBottomWidth: 0.5, borderBottomColor: C.border },
   dayBarContent: { paddingHorizontal: 14, paddingVertical: 8, gap: 6, flexDirection: "row" },
   dayTab: {
     flexDirection: "row", alignItems: "center", gap: 3,
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FAFBFC",
+    borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: "#FAFBFC",
   },
-  dayTabText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  dayTabText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
   todayDot:     { width: 3, height: 3, borderRadius: 2 },
   dayCntBubble: { minWidth: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   dayCntText:   { fontSize: 9, fontFamily: "Pretendard-Regular" },
@@ -280,33 +272,33 @@ const ws = StyleSheet.create({
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
   sectionDay:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   todayLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  sectionCount:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  sectionCount:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 
   slotList: { paddingHorizontal: 12, gap: 6 },
 
   slot: {
     flexDirection: "row", alignItems: "center",
     borderRadius: 12, paddingVertical: 7,
-    borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: "#FFFFFF",
+    borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
     overflow: "hidden", minHeight: 44,
   },
-  slotInactive: { backgroundColor: "#F9FAFB", borderColor: "#E5E7EB" },
+  slotInactive: { backgroundColor: "#F9FAFB", borderColor: C.border },
 
   colorBar: { width: 3, alignSelf: "stretch" },
 
   timeCol: {
     fontSize: 10, fontFamily: "Pretendard-Regular",
-    width: 58, textAlign: "center", color: "#9CA3AF",
+    width: 58, textAlign: "center", color: C.textMuted,
   },
   nameCol: {
     fontSize: 13, fontFamily: "Pretendard-Regular",
-    color: "#111827",
+    color: C.textPrimary,
   },
-  levelInline:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  instructorCol:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF", marginTop: 1 },
+  levelInline:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  instructorCol:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 
   rightCol: { alignItems: "flex-end", paddingRight: 10, gap: 3 },
-  cntText:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  cntText:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted },
   dots:     { flexDirection: "row", gap: 2 },
   dot:      { width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center" },
 
@@ -314,5 +306,5 @@ const ws = StyleSheet.create({
               alignItems: "center", justifyContent: "center", marginLeft: 6 },
 
   empty:    { alignItems: "center", paddingTop: 40, gap: 8 },
-  emptyText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  emptyText:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

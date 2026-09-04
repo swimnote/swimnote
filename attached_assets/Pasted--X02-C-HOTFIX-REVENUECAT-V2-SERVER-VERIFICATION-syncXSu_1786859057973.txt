@@ -1,0 +1,226 @@
+[X02-C HOTFIX — REVENUECAT V2 SERVER VERIFICATION]
+
+목적:
+
+현재 syncXSubscription()이 RevenueCat V1:
+
+GET https://api.revenuecat.com/v1/subscribers/{appUserId}
+
+를 호출하고 있다.
+
+하지만 현재 서버에 등록된:
+
+REVENUECAT_SECRET_API_KEY
+
+는 RevenueCat V2 Secret API Key이며
+
+Customer information → Read only
+
+권한으로 생성됐다.
+
+따라서 server verification을
+RevenueCat 공식 V2 API 기준으로 수정한다.
+
+==================================================
+1. SAFETY
+==================================================
+
+이번 작업은 RevenueCat server verification 부분만 수정.
+
+금지:
+
+- DB schema 변경
+- slot 정책 변경
+- webhook business logic 재설계
+- Basic SWIMNOTE billing 변경
+- RevenueCat dashboard 변경
+- App UI 변경
+- AI ENGINE 변경
+
+==================================================
+2. CURRENT BAD PATH
+==================================================
+
+현재 코드에서:
+
+https://api.revenuecat.com/v1/subscribers/{appUserId}
+
+사용 위치 전수 확인.
+
+X02-C 신규 X 결제 검증 path에서
+V1 endpoint 사용 금지.
+
+기존 Basic billing이 실제로 V1을 사용 중이면
+이번 작업에서 임의 변경하지 않는다.
+
+X 신규 server verification만 V2로 수정.
+
+==================================================
+3. V2 API
+==================================================
+
+RevenueCat 공식 V2 API documentation 기준으로
+
+현재 project/customer에 대해
+Customer information Read-only 권한으로 조회 가능한 endpoint를 사용한다.
+
+필요 정보:
+
+- customer/app user identity
+- active subscription
+- product identifier
+- expiration
+- status
+- environment
+- 가능한 transaction identifiers
+
+공식 V2 endpoint/schema를 실제 문서 기준으로 확인 후 구현.
+
+추측한 endpoint 금지.
+
+==================================================
+4. AUTH
+==================================================
+
+사용:
+
+REVENUECAT_SECRET_API_KEY
+
+Header:
+
+Authorization: Bearer <secret>
+
+secret 값 로그 금지.
+
+EXPO_PUBLIC RevenueCat key 사용 금지.
+
+==================================================
+5. PROJECT ID
+==================================================
+
+RevenueCat V2 endpoint가 project_id를 요구하면
+
+현재 프로젝트 ID source가 존재하는지 확인.
+
+없다면:
+
+REVENUECAT_PROJECT_ID
+
+환경변수 추가가 필요한지 보고.
+
+임의 hardcode 금지.
+
+필요하면 BLOCKED 보고 후
+내가 RevenueCat dashboard에서 값을 추가할 수 있게 정확한 경로를 알려라.
+
+==================================================
+6. VERIFICATION CONTRACT
+==================================================
+
+V2 response에서 최종적으로:
+
+x_mode에 해당하는 active X subscription이 존재하는지
+
+그리고 실제 product identifier가:
+
+slot.store_product_id
+
+와 일치하는지 확인.
+
+단 RevenueCat V2가 entitlement를 직접 반환하지 않고
+subscription/product 정보를 반환하는 구조라면
+
+서버가 현재 허용된 X product IDs:
+
+REVENUECAT_X_PRODUCT_IDS
+
+와 slot.store_product_id를 기준으로
+active subscription을 검증하도록 구현.
+
+임의 entitlement=true 신뢰 금지.
+
+==================================================
+7. PRESERVE SECURITY
+==================================================
+
+기존 X02-C 보장 유지:
+
+SERVER_TIER_DECISION
+PRODUCT_MATCH
+SLOT_POOL_MATCH
+TRANSACTION_BINDING
+CROSS_POOL_BLOCK
+WEBHOOK_EVENT_DEDUP
+
+변경 금지.
+
+==================================================
+8. TEST
+==================================================
+
+V1 path 제거 확인:
+
+X_NEW_SYNC_V1_ENDPOINT_REFERENCE = 0
+
+V2 mock 테스트:
+
+- active matching product → pass
+- inactive subscription → reject
+- wrong product → reject
+- expired → reject
+- API 401/403 → safe failure
+- malformed V2 response → safe failure
+
+기존 전체 테스트도 유지.
+
+==================================================
+9. DEPLOY
+==================================================
+
+현재 c8ee6a32 Render deployment가 queued 상태라면
+기존 queued deploy에 기대지 않는다.
+
+V2 hotfix 완료 후 새 commit을 만들고
+그 commit을 최종 X02-C candidate로 사용한다.
+
+Render deploy.
+
+Replit Publish도 동일 commit으로 반영.
+
+반복 polling 금지.
+
+==================================================
+10. REPORT
+==================================================
+
+보고:
+
+OLD_RC_API_VERSION =
+OLD_ENDPOINT =
+
+NEW_RC_API_VERSION =
+NEW_ENDPOINT =
+PROJECT_ID_REQUIRED = YES / NO
+PROJECT_ID_SOURCE =
+AUTH_ENV =
+CUSTOMER_READ_PERMISSION_SUFFICIENT = YES / NO
+
+V1_X_SYNC_REFERENCE_COUNT =
+V2_ACTIVE_PRODUCT_CHECK =
+PRODUCT_MATCH =
+EXPIRATION_CHECK =
+
+TEST_RESULT =
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+REPLIT_PUBLISH_STATUS =
+
+성공:
+
+X02_C_REVENUECAT_V2_HOTFIX_COMPLETE ✅
+
+실패:
+
+X02_C_REVENUECAT_V2_HOTFIX_BLOCKED ❌
+
+이 PASS 전 X02-D 시작 금지.

@@ -1,0 +1,194 @@
+[PHASE 6 RELEASE GATE — FINAL BLOCKER FIX ONLY]
+
+전체 PHASE 6 검증 결과를 검수한 결과,
+새 기능 추가 없이 R6 한 건만 수정 필요.
+
+PHASE 추가 금지.
+상품화 감사 시작 금지.
+기능 추가 금지.
+DB/API 구조 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. R6 FAIL 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+x-hub started_at
+=
+x_subscription_slots.purchased_at
+??
+swimming_pools.xmode_purchased_at
+
+기존 x-subscription:
+=
+swimming_pools.xmode_purchased_at
+
+따라서 갱신 slot이 존재하면
+두 화면의 시작일이 달라질 수 있음.
+
+R6 조건:
+
+x-hub X status
+=
+x-subscription
+
+이므로 현재 완전 equality가 아님.
+
+"현재 갱신 사례가 없다"를 이유로 PASS 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+SOURCE OF TRUTH는 기존 상품 화면인
+x-subscription의 실제 표시 기준에 맞춘다.
+
+x-hub started_at도:
+
+swimming_pools.xmode_purchased_at
+
+을 사용하도록 통일.
+
+단 실제 x-subscription.tsx가
+billing API의 어느 필드를 표시하는지 마지막으로 확인 후,
+그 실제 source와 정확히 동일하게 맞출 것.
+
+새로운 날짜 정의 생성 금지.
+
+subscription_status
+tier
+expires_at
+
+등 이미 동일한 항목은 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. R2 최종 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+다시 확인:
+
+class_diaries.common_content가 NOT NULL이고
+row가 일지 저장 시에만 생성되는 현재 schema/write flow가 유지된다면:
+
+x-hub:
+삭제되지 않은 당일 class_diaries DISTINCT id
+
+diary-hub:
+삭제되지 않은 당일 class_diaries DISTINCT id
+
+Parent:
+content/common_content가 존재하는 diary
+
+는 정상 row 기준 동일 집합이어야 함.
+
+이 전제가 실제 현재 production schema/code에서도 맞으면:
+
+R2 = PASS
+
+로 정정.
+
+만약 content가 NULL 가능한 별도 경로를 실제로 발견하면
+R2 PASS 금지하고 정확한 경로만 보고.
+
+추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+R6 started_at 계산을 담당하는
+최소 파일만 수정.
+
+다른 PHASE 2~5 코드 변경 금지.
+
+특히 금지:
+
+- billing.ts 기존 동작 변경
+- x-subscription UI 변경
+- subscription schema 변경
+- migration
+- entitlement 변경
+- tier/status 로직 변경
+
+x-hub를 기존 source에 맞추는 방향만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. FINAL TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+F1.
+x-hub started_at
+=
+x-subscription 실제 표시 시작일
+
+F2.
+slot.purchased_at가 더 최신인 테스트 케이스에서도
+두 화면 값 동일
+
+F3.
+expires_at 동일 유지
+
+F4.
+subscription_status 동일 유지
+
+F5.
+tier 동일 유지
+
+F6.
+R2 schema/write-flow 확인
+
+F7.
+x-hub API 정상
+
+F8.
+TS error 0
+
+F9.
+Normal mode 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+server 코드 수정이면 Render production 배포.
+
+client 수정이 없다면 OTA 금지.
+
+migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[R6 FIX]
+- 기존 source:
+- 변경 source:
+- x-subscription 실제 source:
+- 수정 파일:
+- SHA:
+
+[R2 FINAL]
+- common_content nullable 여부:
+- row 생성 시점:
+- Parent gate:
+- 최종 PASS/FAIL:
+
+[TEST]
+F1~F9
+
+[RENDER]
+- deploy SHA
+- live
+- health
+- x-hub API
+
+[RELEASE GATE]
+R1~R10 최종 판정
+
+[PHASE 6 FINAL]
+PASS / FAIL
+
+완료 후 STOP.
+
+상품화 감사 단계 자동 시작 금지.

@@ -1,6 +1,8 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { X as XT, isXMode } from "@/constants/xTheme";
+import { useMode } from "@/context/ModeContext";
 
 const C = Colors.light;
 
@@ -18,7 +20,11 @@ interface MainTabsProps<T extends string> {
 }
 
 export function MainTabs<T extends string>({ tabs, active, onChange, accentColor }: MainTabsProps<T>) {
-  const tint = accentColor ?? C.tint;
+  const { mode } = useMode();
+  const isX = isXMode(mode);
+  // X mode: Yacht accent (#2A5EA8); Normal: brandStrong (#1683A3) (WP-N3)
+  // accentColor prop always wins (allows FEATURE_FIXED callers to override)
+  const tint = accentColor ?? (isX ? XT.accent : C.brandStrong);
   return (
     <View style={[s.row, { borderBottomColor: C.border }]}>
       {tabs.map(tab => {
@@ -29,7 +35,7 @@ export function MainTabs<T extends string>({ tabs, active, onChange, accentColor
             style={[s.item, isActive && { borderBottomColor: tint }]}
             onPress={() => onChange(tab.key)}
           >
-            <Text style={[s.label, { color: isActive ? tint : C.textSecondary }]}>
+            <Text style={[s.label, { color: isActive ? tint : C.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
               {tab.label}
             </Text>
             {typeof tab.badge === "number" && tab.badge > 0 ? (

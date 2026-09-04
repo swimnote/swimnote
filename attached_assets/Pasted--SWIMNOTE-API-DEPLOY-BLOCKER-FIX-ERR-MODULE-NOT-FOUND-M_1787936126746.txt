@@ -1,0 +1,135 @@
+[앱]
+
+SWIMNOTE-API DEPLOY BLOCKER FIX
+ERR_MODULE_NOT_FOUND — MINIMAL FIX ONLY
+
+현재 Render deploy:
+
+SHA:
+33f4292d
+
+결과:
+DEPLOY FAILED
+
+실제 startup error:
+
+ERR_MODULE_NOT_FOUND
+
+missing module:
+artifacts/api-server/src/lib/kf/job-queue.js
+
+Render start:
+tsx artifacts/api-server/src/index.ts
+
+목표:
+Growth Report 삭제 기능은 건드리지 않고
+API startup을 막고 있는 job-queue import 문제만 정확히 수정한다.
+
+==================================================
+1. FIRST — ROOT CAUSE ONLY
+==================================================
+
+다음만 확인:
+
+artifacts/api-server/src/lib/kf/
+
+안에 실제 파일:
+
+job-queue.ts
+job-queue.js
+job-queue/index.ts
+기타 실제 존재 파일
+
+그리고 repository에서:
+
+job-queue.js
+job-queue
+
+를 import하는 위치 확인.
+
+보고:
+
+IMPORTING_FILE
+CURRENT_IMPORT
+ACTUAL_FILE
+
+==================================================
+2. CHECK BASELINE
+==================================================
+
+33f4292d 이전 BASE:
+
+bfece209
+
+에서도 동일 import가 있었는지 확인.
+
+질문:
+
+A.
+bfece209에서도 이미 깨진 import였는가
+
+B.
+33f4292d 작업 중 import/build 관련 파일이 실수로 변경됐는가
+
+C.
+최근 다른 작업에서 job-queue 파일이 삭제/rename됐는가
+
+추측 금지.
+
+==================================================
+3. MINIMAL FIX
+==================================================
+
+실제 source가 job-queue.ts인데
+ESM/tsx import가 잘못 `.js`를 가리키는 문제라면
+현재 repository의 기존 import convention에 맞춰
+최소 1곳만 수정.
+
+반대로 job-queue 파일 자체가
+실수로 누락된 것이면
+마지막 정상 source에서 해당 파일만 복구.
+
+절대:
+
+- Growth Report delete 코드 수정
+- DB 수정
+- unrelated kf/evolution 로직 수정
+- repo-wide refactor
+- tsconfig 변경
+- package system 변경
+
+하지 않는다.
+
+==================================================
+4. VERIFY
+==================================================
+
+최소 확인:
+
+1. server startup
+2. ERR_MODULE_NOT_FOUND 없음
+3. API가 PORT bind
+4. 기존 health endpoint 정상
+5. Growth Report DELETE route compile/load 정상
+
+repo-wide regression 금지.
+
+==================================================
+5. COMMIT
+==================================================
+
+변경은 startup blocker 관련 최소 파일만.
+
+commit + push:
+
+branch:
+deploy-photo-clone
+
+보고:
+
+ROOT_CAUSE
+CHANGED_FILES
+TEST
+NEW_SHA
+
+Render deploy는 아직 하지 말고 STOP.

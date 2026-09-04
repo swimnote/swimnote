@@ -1,0 +1,528 @@
+# [WP-A START — CURRICULUM SEARCH CORE ENGINE]
+
+PRE-WP-E:
+PASS
+
+PRE-WP-X:
+PASS
+
+PRE-WP-X Render deployment:
+PASS
+
+live SHA:
+5ca3e6ef8e
+
+이제 WP-A 구현 시작 허용.
+
+이번 WP-A 범위는 서버 Core Engine 레이어만 구현한다.
+
+아직:
+- 앱 UI 수정 금지
+- quota 구조 변경 금지
+- conversation migration 금지
+- Production curriculum ingestion 실행 금지
+- X04 re-ingestion 금지
+- 전체 regression test 금지
+
+==================================================
+1. WP-A 목적
+==================================================
+
+학부모 질문을 바로 GPT에 보내지 않고
+서버가 먼저:
+
+질문 의도
+학생 실제 Evidence
+현재 progress
+다음 curriculum step
+
+을 계산할 수 있는 Core Engine을 만든다.
+
+신규 파일:
+
+1.
+curriculum-intent-parser.ts
+
+2.
+curriculum-evidence-retriever.ts
+
+3.
+curriculum-progress-resolver.ts
+
+4.
+curriculum-answer-builder.ts
+
+기존 parent-curriculum.ts에는
+아직 최소 연결만 하거나,
+WP-B에서 연결할 수 있도록 독립 lib로 완성한다.
+
+==================================================
+2. Intent Parser
+==================================================
+
+지원 intent:
+
+CURRENT_PROGRESS
+STROKE_PROGRESS
+SKILL_STATUS
+NEXT_STEP
+RECENT_LESSONS
+LEVEL_PROGRESS
+PROGRESS_CHANGE
+WHY_CURRENT_STEP
+CURRICULUM_INFO
+HUMAN_ONLY
+UNKNOWN
+
+목표:
+
+질문을 GPT 없이 가능한 범위에서 deterministic하게 분류.
+
+예:
+
+"우리 아이 어디까지 했어요?"
+→ CURRENT_PROGRESS
+
+"자유형 어디까지 했어요?"
+→ STROKE_PROGRESS
+
+"평영킥 했어요?"
+→ SKILL_STATUS
+
+"다음에는 뭐 배워요?"
+→ NEXT_STEP
+
+"요즘 뭐 배워요?"
+→ RECENT_LESSONS
+
+"왜 아직 진급 안 시켜줘요?"
+→ HUMAN_ONLY
+
+한국어 구어체 variation 고려.
+
+GPT intent classification은 WP-A 기본 경로에서 사용하지 않는다.
+
+==================================================
+3. Evidence Retriever
+==================================================
+
+학생 실제 Evidence source:
+
+- diary_notes
+- growth_events
+- student_levels
+- curriculum_items
+- class_diaries scheduled_date
+
+핵심:
+
+growth_events는
+diary_note와 curriculum_item을 연결하는 구조적 bridge.
+
+원본 diary evidence도 같이 보존.
+
+DIRECT evidence example:
+
+{
+  type: "DIRECT",
+  source: "DIARY",
+  diary_note_id,
+  diary_date,
+  evidence_text,
+  curriculum_item_id,
+  curriculum_title,
+  confidence,
+  growth_match_status
+}
+
+조건:
+
+growth_events.is_invalidated = false
+
+가능하면 confidence / match status 유지.
+
+==================================================
+4. TRACKED Evidence
+==================================================
+
+TRACKED는 단순 날짜가 아니다.
+
+복수 실제 diary/growth_event에서
+같은 또는 연결된 curriculum item이 반복 확인될 때 생성.
+
+예:
+
+최근 90일 내
+동일 curriculum_item이
+서로 다른 diary_note 2회 이상 확인
+
+→ TRACKED candidate
+
+실제 threshold는
+기존 데이터 분포 확인 후 최소 안전 기준 사용.
+
+과도한 추론 금지.
+
+==================================================
+5. INFERRED Evidence
+==================================================
+
+INFERRED는 학생 기록에서 직접 확인된 사실이 아니다.
+
+현재 확인된 progress
++
+curriculum_items sort_order
+
+를 기준으로 다음 단계를 계산한 경우.
+
+반드시 type=INFERRED 유지.
+
+GPT 답변에서 확정 사실처럼 표현되지 않도록 한다.
+
+==================================================
+6. Progress Resolver
+==================================================
+
+출력 상태:
+
+COMPLETED
+IN_PROGRESS
+REVIEW
+NOT_CONFIRMED
+NEXT
+
+기본 원칙:
+
+COMPLETED
+→ 완료를 뒷받침하는 충분한 실제 Evidence가 있는 경우
+
+IN_PROGRESS
+→ 최근 반복적으로 수행 중인 경우
+
+REVIEW
+→ 과거 완료된 기술이 최근 다시 등장하는 경우
+
+NOT_CONFIRMED
+→ 확인 가능한 근거 없음
+
+NEXT
+→ 현재 progress 이후 curriculum 순서상 다음 항목
+
+중요:
+
+GPT가 상태를 결정하지 않는다.
+
+==================================================
+7. 완료 판정 주의
+==================================================
+
+단일 diary 1회 등장만으로
+자동 COMPLETED 처리하지 않는다.
+
+일지에 해당 기술이 언급됐다는 것과
+완료했다는 것은 다르다.
+
+completion evidence가 명확하지 않으면
+IN_PROGRESS 또는 NOT_CONFIRMED 유지.
+
+student_levels의 level 달성 기록은
+레벨 완료 판단의 강한 근거로 사용 가능.
+
+==================================================
+8. Curriculum Ordering
+==================================================
+
+curriculum_items:
+
+- curriculum_version_id
+- swimming_pool_id
+- sort_order
+- title
+- description
+- is_active
+
+를 기준으로 순서를 계산.
+
+X ingestion이 실제 진행되기 전에는
+Production X curriculum_items가 없을 수 있으므로
+빈 curriculum 상태를 정상 처리.
+
+빈 상태에서 추측 생성 금지.
+
+==================================================
+9. Answer Mode Builder
+==================================================
+
+curriculum-answer-builder.ts에서
+최소 다음 모드 판정.
+
+DIRECT_DB
+GROUNDED_GPT
+HUMAN_ONLY
+
+DIRECT_DB 예:
+
+- 현재 level
+- 최근 수업 날짜
+- 명확한 DB 사실
+
+GROUNDED_GPT 예:
+
+- 어디까지 왔는지 종합 설명
+- 왜 현재 기술을 배우는지
+- 다음 단계 의미 설명
+
+HUMAN_ONLY 예:
+
+- 다음주 진급 가능 여부
+- 왜 진급 안 시켜주는지
+- 정확한 미래 수업 일정
+
+==================================================
+10. Grounded Package
+==================================================
+
+WP-A 출력 개념:
+
+{
+  student,
+  question,
+  intent,
+  evidence,
+  progress_state,
+  curriculum_current,
+  curriculum_next,
+  answer_mode,
+  knowledge_request
+}
+
+knowledge_request는
+WP-B에서 Parent Curriculum Engine에 전달할 준비용.
+
+예:
+
+{
+  feature: "parent_curriculum_search",
+  stroke,
+  skill,
+  requested_types: [
+    "PRINCIPLE",
+    "COACHING_TIP",
+    "CAUTION"
+  ]
+}
+
+WP-A에서 AI Engine 직접 호출까지 억지로 넣지 않아도 됨.
+WP-B 통합을 위한 deterministic package 완성이 우선.
+
+==================================================
+11. Professional DB Contract
+==================================================
+
+이미 확정:
+
+APP
+→ PARENT_CURRICULUM_ENGINE_URL
+→ AI Engine
+→ kf.v2_search_index
+
+APP에서 Neon 직접 접근 금지.
+
+env:
+
+PARENT_CURRICULUM_ENGINE_URL
+PARENT_CURRICULUM_ENGINE_SECRET
+
+APP_PARENT_CURRICULUM_SERVICE_TOKEN은
+parent-curriculum-engine-client.ts에서 사용하지 않음.
+
+WP-A에서 env 변경 금지.
+
+==================================================
+12. Quota
+==================================================
+
+quota는 이미 목표 정책대로 완성되어 있으므로
+WP-A에서 수정 금지.
+
+현재:
+
+parent_account_id 기준 월 10회
+
+GROUNDED_GPT success:
++1
+
+DIRECT_DB:
+0
+
+HUMAN_ONLY:
+0
+
+failure:
+0
+
+WP-A에서는 answer_mode만 정확히 반환하면 됨.
+
+실제 quota integration은 WP-B에서 기존 구조에 연결.
+
+==================================================
+13. Metadata Snapshot 준비
+==================================================
+
+WP-A output은 나중에:
+
+parent_curriculum_messages.metadata
+
+에 저장 가능해야 한다.
+
+예:
+
+{
+  intent,
+  answer_mode,
+  evidence,
+  progress_state,
+  curriculum_current,
+  curriculum_next,
+  knowledge_request
+}
+
+신규 table 만들지 않는다.
+
+==================================================
+14. 안전 규칙
+==================================================
+
+금지:
+
+- GPT가 학생 progress 판단
+- GPT 자체 수영지식으로 evidence 생성
+- 전문 DB를 학생 actual evidence로 사용
+- diary 1회 등장 = 완료 단정
+- curriculum 없는데 next step 생성
+- confidence 낮은 mapping을 확정 사실로 승격
+
+==================================================
+15. Minimal Tests Only
+==================================================
+
+전체 3234 test suite 재실행 금지.
+
+WP-A 신규 unit test만 작성.
+
+최소 시나리오:
+
+1.
+"우리 아이 어디까지 했어요?"
+→ CURRENT_PROGRESS
+
+2.
+"자유형 어디까지 했어요?"
+→ STROKE_PROGRESS
+
+3.
+"평영킥 했어요?"
+→ SKILL_STATUS
+
+4.
+"다음에 뭐 배워요?"
+→ NEXT_STEP
+
+5.
+"왜 아직 진급 안 시켜줘요?"
+→ HUMAN_ONLY
+
+6.
+single diary evidence
+→ 자동 COMPLETED 금지
+
+7.
+repeated growth events
+→ IN_PROGRESS/TRACKED
+
+8.
+completed + recent repeat
+→ REVIEW
+
+9.
+curriculum next item
+→ NEXT
+
+10.
+no curriculum
+→ NEXT 생성 금지
+
+11.
+student level history
+→ level progress 반영
+
+12.
+invalidated growth_event
+→ evidence 제외
+
+==================================================
+16. Production
+==================================================
+
+이번 WP-A에서:
+
+Production DB write 금지
+migration 금지
+X04 ingestion 금지
+Render deploy는 구현 완료 후 별도 승인
+
+==================================================
+17. 완료 보고
+==================================================
+
+[WP-A COMPLETION REPORT]
+
+A. FILES
+- new files:
+- modified files:
+
+B. INTENT PARSER
+- supported intents:
+- deterministic:
+- GPT used: NO
+- tests:
+
+C. EVIDENCE
+- direct source:
+- tracked rule:
+- invalidated filter:
+- diary source retained:
+- tests:
+
+D. PROGRESS RESOLVER
+- COMPLETED:
+- IN_PROGRESS:
+- REVIEW:
+- NOT_CONFIRMED:
+- NEXT:
+- completion overclaim protection:
+- tests:
+
+E. ANSWER BUILDER
+- DIRECT_DB:
+- GROUNDED_GPT:
+- HUMAN_ONLY:
+- grounded package:
+
+F. DB
+- migration: NO
+- Production write: NO
+
+G. TEST
+- new test count:
+- passed:
+- full regression run: NO
+
+H. FINAL
+- WP-A PASS: YES/NO
+- WP-B ready: YES/NO
+- blocker:
+- next recommended step:
+
+완료 후 멈춘다.
+WP-B는 아직 시작하지 않는다.

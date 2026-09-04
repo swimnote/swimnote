@@ -1,0 +1,227 @@
+[URGENT V1.6.2 RETIREMENT OTA — UPDATE SCREEN ONLY]
+
+상황:
+
+1.6.2 maintenance blocker는 OTA로 제거했으나,
+1.6.2에서 로그인 시도 후 흰 화면이 발생한다.
+
+따라서 1.6.2를 정상 앱으로 복구하지 않는다.
+
+1.6.2는 이제 폐기 대상 버전이며,
+앱 실행 즉시 기존 "새 버전 업데이트 안내" 화면으로 보내고
+사용자가 Store에서 최신 버전을 설치하도록 한다.
+
+목표:
+
+V1.6.2
+→ 앱 실행
+→ 로그인/기존 앱 진입 금지
+→ 기존 Update Required / Update Notice 화면
+→ "업데이트하기"
+→ App Store / Google Play SWIMNOTE 페이지
+
+==================================================
+1. DO NOT FIX V1.6.2 LOGIN
+==================================================
+
+현재 로그인 후 white screen 문제를
+정상 앱 기능 복구 목적으로 수정하지 않는다.
+
+1.6.2는 retired version으로 처리.
+
+- login API 수정 금지
+- auth flow 수정 금지
+- admin/teacher/parent screen backport 금지
+- 신규 기능 backport 금지
+
+==================================================
+2. EXISTING UPDATE SCREEN 확인
+==================================================
+
+이미 구현되어 있는:
+
+- 새 버전 안내 화면
+- force update 화면
+- Store 이동 버튼
+
+의 실제 route/component를 찾는다.
+
+새 UI를 만들지 않는다.
+
+기존 업데이트 안내 기능을 재사용한다.
+
+==================================================
+3. V1.6.2 STARTUP OVERRIDE
+==================================================
+
+app version이 정확히 1.6.2인 경우:
+
+앱 시작 단계에서
+login / maintenance / auth restore보다 먼저
+
+기존 UPDATE REQUIRED 화면으로 이동시킨다.
+
+우선순위:
+
+VERSION 1.6.2
+→ UPDATE REQUIRED
+
+그 뒤에만 나머지 startup logic.
+
+1.6.2에서는 사용자가
+아이디/비밀번호 입력 화면까지 갈 필요가 없다.
+
+==================================================
+4. STORE LINK
+==================================================
+
+업데이트 버튼 클릭 시:
+
+Android
+→ Google Play SWIMNOTE 앱 상세 페이지
+
+iOS
+→ App Store SWIMNOTE 앱 상세 페이지
+
+가능하면 native store deep link 우선,
+실패하면 https fallback.
+
+현재 production에 실제 등록된
+package/bundle 기준 Store URL 사용.
+
+추측해서 URL 생성 금지.
+
+==================================================
+5. OTA TARGET
+==================================================
+
+반드시 1.6.2 runtimeVersion 대상으로 publish.
+
+TARGET RUNTIME:
+1.6.2
+
+production branch/channel.
+
+현재 1.6.3 이상 runtime에는 영향 금지.
+
+==================================================
+6. TEST
+==================================================
+
+CASE 1
+1.6.2 설치
+→ 앱 실행
+→ OTA 수신
+
+CASE 2
+재실행
+→ MaintenanceScreen 없음
+
+CASE 3
+→ 로그인 화면으로 가지 않음
+
+CASE 4
+→ 기존 Update Required 화면 표시
+
+CASE 5
+→ 업데이트 버튼 탭
+
+CASE 6
+Android
+→ Google Play SWIMNOTE 페이지
+
+CASE 7
+iOS
+→ App Store SWIMNOTE 페이지
+
+CASE 8
+1.6.3 이상
+→ 기존 정상 startup flow 유지
+
+==================================================
+7. FAILSAFE
+==================================================
+
+Update screen/store URL 로딩에 실패해도
+흰 화면을 보여주지 않는다.
+
+최소 fallback:
+
+"새 버전의 SWIMNOTE가 출시되었습니다.
+앱을 업데이트해주세요."
+
++
+"업데이트하기"
+
+버튼은 항상 표시.
+
+==================================================
+8. DO NOT TOUCH
+==================================================
+
+수정 금지:
+
+- 현재 최신 앱
+- 가격
+- subscription
+- X
+- AI
+- Growth Report
+- DB
+- server business logic
+- logo
+- splash
+- Android new build
+- iOS current runtime
+
+이번 작업은
+
+V1.6.2 RETIREMENT OTA ONLY.
+
+==================================================
+9. PASS 후 OTA
+==================================================
+
+검증 PASS 후:
+
+runtimeVersion 1.6.2
+production OTA publish.
+
+보고:
+
+V1.6.2 RETIREMENT OTA REPORT
+
+WHITE SCREEN ROOT CAUSE INVESTIGATED =
+단, 정상복구 작업은 하지 않음
+
+EXISTING UPDATE SCREEN =
+STARTUP OVERRIDE =
+STORE LINK ANDROID =
+STORE LINK IOS =
+
+HOTFIX FILES =
+COMMIT SHA =
+
+OTA
+RUNTIME =
+BRANCH =
+CHANNEL =
+UPDATE ID iOS =
+UPDATE ID Android =
+UPDATE GROUP ID =
+PUBLISH RESULT =
+
+TEST
+LOGIN BYPASSED =
+UPDATE SCREEN =
+ANDROID STORE OPEN =
+IOS STORE OPEN =
+V1.6.3 UNAFFECTED =
+
+FINAL:
+PASS — V1.6.2 retired to update-only flow
+
+or
+HOLD — exact blocker
+
+STOP.

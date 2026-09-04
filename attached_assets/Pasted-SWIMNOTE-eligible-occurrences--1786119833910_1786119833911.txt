@@ -1,0 +1,212 @@
+SWIMNOTE 보강 회차 오류 — ③ eligible-occurrences 진단값 강제 표시 수정
+
+현재 문제:
+실기기에서 "수업 회차를 불러오지 못했습니다" 오류는 재현되지만,
+진단 패널 ③ eligible-occurrences에 실패 요청 상세가 안 잡히고 있다.
+
+목표:
+API 실패가 발생하는 순간 아래 값을 반드시 state에 저장하고
+진단 패널 ③에 무조건 표시되게 한다.
+
+필수 표시값:
+
+- makeupId
+- classGroupId
+- request URL
+- HTTP status
+- response raw body
+- parsed error code
+- parsed message
+- network error name/message
+- retry 1차 결과
+- retry 2차 결과
+- 최종 실패 유형: HTTP / NETWORK
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 1개 파일만:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+서버 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. selectClass 시작 즉시 진단 state 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+API 호출 전에 먼저 저장:
+
+{
+  makeupId,
+  classGroupId,
+  url,
+  status: null,
+  rawBody: null,
+  code: null,
+  message: null,
+  networkError: null,
+  attempt1: null,
+  attempt2: null,
+  finalType: null
+}
+
+즉 요청 자체가 시작됐다는 증거부터 남긴다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 1차 HTTP 응답 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+응답을 받으면 r.ok 여부와 상관없이:
+
+- status
+- raw text body
+
+를 먼저 저장.
+
+JSON parse 성공 시:
+
+- code
+- message
+
+도 저장.
+
+1차 실패 후 현재 500ms retry가 있으면
+attempt1에 반드시 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 2차 retry 결과도 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+재시도 응답도 동일하게:
+
+- status
+- rawBody
+- code
+- message
+
+를 attempt2에 저장.
+
+최종 non-2xx면:
+
+finalType = "HTTP"
+
+그리고 기존 occError=true 흐름 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. network catch 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fetch throw/catch 시:
+
+networkError:
+{
+  name: e?.name,
+  message: e?.message
+}
+
+finalType = "NETWORK"
+
+를 반드시 저장.
+
+그 후 기존 occError=true 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 진단 패널 ③ 강제 렌더
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+③ eligible-occurrences는
+"아직 회차 조회 전" 한 줄로 끝내지 말고,
+진단 state가 하나라도 있으면 모든 필드를 표시한다.
+
+예:
+
+③ eligible-occurrences
+
+makeupId: ...
+classGroupId: ...
+URL: ...
+attempt1 status: ...
+attempt1 body: ...
+attempt1 code: ...
+attempt1 message: ...
+
+attempt2 status: ...
+attempt2 body: ...
+attempt2 code: ...
+attempt2 message: ...
+
+network: ...
+finalType: HTTP | NETWORK
+
+본문이 길면 ScrollView 안에서 줄바꿈해서 전부 보이게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 기능 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 그대로 유지:
+
+- API endpoint
+- request query/body
+- retry 횟수
+- retry 500ms
+- 날짜 -14/+28
+- 선보강
+- today/past complete-direct
+- future assign
+- 정원초과 허용
+- expired 로직
+- waiting API
+- separator
+- Auth/JWT/Login
+- DB
+- 일지
+- SWIMNOTE X
+
+진단 state 저장과 표시만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TypeScript 신규 오류 0.
+
+코드 정적으로 다음 3경로 모두 진단 state에 기록되는지 확인:
+
+A. HTTP 200
+B. HTTP non-2xx
+C. network throw
+
+특히 non-2xx 1차→retry 2차 실패 시
+두 응답이 모두 패널에 남아야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 바로 OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앱 1파일 진단 수정이므로:
+
+1. Commit
+2. Push
+3. Production OTA
+4. Preview OTA
+
+서버 변경 없으므로 Render 재배포 금지.
+
+제출:
+
+- Commit SHA
+- Origin SHA
+- Production Group ID
+- Production iOS Update ID
+- Preview Group ID
+- Preview iOS Update ID
+- runtimeVersion
+- git status
+
+배포 후 중단.
+
+사용자가 오류를 한 번 재현하고
+진단 패널 ③ 전체 캡처만 보내면 된다.

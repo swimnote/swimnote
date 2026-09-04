@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwimNote 작업 결과보고서 — 2026-07-02</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fa; color: #1a1a2e; padding: 24px; }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 14px; color: #666; margin-bottom: 24px; }
+  .copy-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #2563eb; color: #fff; border: none; border-radius: 10px;
+    padding: 12px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
+    margin-bottom: 28px; transition: background 0.15s;
+  }
+  .copy-btn:hover { background: #1d4ed8; }
+  .copy-btn.copied { background: #16a34a; }
+  .section { margin-bottom: 32px; }
+  .section-title {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #888; margin-bottom: 12px;
+    padding-bottom: 6px; border-bottom: 1px solid #e5e7eb;
+  }
+  .card {
+    background: #fff; border-radius: 12px; border: 1px solid #e5e7eb;
+    padding: 16px 20px; margin-bottom: 10px;
+  }
+  .card-header { display: flex; align-items: flex-start; gap: 12px; }
+  .num { font-size: 11px; font-weight: 700; color: #aaa; min-width: 28px; padding-top: 2px; }
+  .card-body { flex: 1; }
+  .card-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card-time { font-size: 12px; color: #888; margin-bottom: 8px; }
+  .card-desc { font-size: 13px; color: #444; line-height: 1.6; }
+  .card-desc ul { padding-left: 18px; margin-top: 4px; }
+  .card-desc li { margin-bottom: 3px; }
+  .tag {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 99px; margin-bottom: 6px;
+  }
+  .tag-fix { background: #fef3c7; color: #92400e; }
+  .tag-feat { background: #dbeafe; color: #1e40af; }
+  .tag-perf { background: #d1fae5; color: #065f46; }
+  .tag-refactor { background: #ede9fe; color: #5b21b6; }
+  .tag-build { background: #f3f4f6; color: #6b7280; }
+  .stat { font-size: 12px; color: #aaa; margin-top: 6px; font-family: monospace; }
+  .hash { font-size: 11px; color: #ccc; margin-top: 2px; font-family: monospace; }
+  #report-text { display: none; }
+  .summary-box {
+    background: #1e293b; color: #e2e8f0; border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 28px; line-height: 1.8;
+  }
+  .summary-box b { color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>SwimNote B2B 작업 결과보고서</h1>
+  <div class="subtitle">2026년 7월 2일 (오늘) · 총 30개 커밋 · 기능/수정 23건 + 빌드 7건</div>
+
+  <div class="summary-box">
+    <b>총 변경 규모:</b> 약 50개 파일, +1,500줄 이상 순증가<br>
+    <b>신규 기능:</b> 백그라운드 사진 업로드, 개인 앨범 저장, 일지 퀵버튼, 무일정 일지, Co-teacher, 휴무일 확정 시스템<br>
+    <b>성능 개선:</b> 학생 목록 N+1 쿼리 해결, SQL ORDER BY 전환, DB 인덱스 4개, JWT poolId 캐싱<br>
+    <b>버그 수정:</b> 모달 stuck, 반 선택 프리즈, 탭 텍스트 클리핑, 월 이동 깜빡임, 주담당 변경 시 co_teacher 중복
+  </div>
+
+  <button class="copy-btn" onclick="copyReport()">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    전체 보고서 복사
+  </button>
+
+  <!-- ── 기능 개발 ── -->
+  <div class="section">
+    <div class="section-title">기능 개발</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#1</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">백그라운드 사진 업로드 시스템</div>
+          <div class="card-time">22:38 KST · e895243</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>UploadQueueContext.tsx</b> 신규 생성 — 전역 업로드 큐 상태 관리 (진행 중 / 완료 / 실패)</li>
+              <li><b>_layout.tsx</b> — 앱 루트에 UploadQueueProvider 등록, 업로드 상태 플로팅 배너 표시</li>
+              <li><b>photos.ts (API)</b> — <code>/photos/batch</code> 엔드포인트 추가 (멀티 파일 일괄 업로드)</li>
+              <li><b>photo-upload.tsx, photos.tsx</b> — UI 업로드 흐름 연동</li>
+            </ul>
+          </div>
+          <div class="stat">5 files changed, +352 / -66</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#2</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">개인 앨범 사진 저장 기능</div>
+          <div class="card-time">02:43 KST · 6289053</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>photos.tsx</b> — 선택한 사진을 개인 앨범에 저장하는 기능 추가</li>
+              <li>5 files changed</li>
+            </ul>
+          </div>
+          <div class="stat">5 files changed, +61 / -6</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#3</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">이미 저장된 사진 시각적 표시</div>
+          <div class="card-time">02:45 KST · 020eda8</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>photos.tsx</b> — 개인 앨범에 이미 저장된 사진에 체크/배지 표시</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed, +25 / -2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#4</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">앨범 선택 카드 가시성 개선</div>
+          <div class="card-time">02:47 KST · 91f5f49</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>photos.tsx</b> — 앨범 선택 카드 배경 어둡게, 아이콘 명확하게 개선</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed, +11 / -11</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#5</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">선생님 스케줄 화면 — 일지 바로쓰기 FAB 추가</div>
+          <div class="card-time">02:49 KST · 813a954</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>today-schedule.tsx</b> — 우하단 "일지 바로쓰기" 플로팅 버튼 추가</li>
+              <li>탭 하단 여백 고려한 <code>insets.bottom + 72</code> 위치 지정</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed, +13 / -1</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#6</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">무일정 일지 작성 옵션 추가</div>
+          <div class="card-time">02:53 KST · 876f297</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>diary-unwritten.tsx</b> — "빈 일지 작성" FAB 추가</li>
+              <li>미작성 일지 없는 빈 상태에도 "빈 일지 작성하기" 버튼 표시</li>
+              <li><code>diary?backTo=diary-unwritten</code> 파라미터로 뒤로가기 연동</li>
+            </ul>
+          </div>
+          <div class="stat">1 file changed, +27 / -2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#7</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">학생 레벨 선택 개선 + 학부모 알림</div>
+          <div class="card-time">02:59 KST · 632f9f3</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>student-detail.tsx</b> — 레벨 선택 UI 개선</li>
+              <li><b>teachers.ts (API)</b> — 레벨 변경 시 학부모에게 푸시 알림 발송</li>
+            </ul>
+          </div>
+          <div class="stat">4 files changed, +80 / -19</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#8</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">Co-teacher (보조 선생님) 기능 전체 구현</div>
+          <div class="card-time">03:58 KST · c85ce0c</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>lib/db/schema/class-groups.ts</b> — <code>co_teacher_ids jsonb</code> 컬럼 추가 (DB 스키마)</li>
+              <li><b>class-groups.ts (API)</b> — GET: co-teacher인 반도 포함 조회 (<code>co_teacher_ids @> to_jsonb(userId)</code>); PATCH: co_teacher_ids 저장 (pool_admin/super_admin만)</li>
+              <li><b>diary.ts (API)</b> — /diaries/index, /diaries, POST /diaries 3곳에 co-teacher 권한 체크 추가</li>
+              <li><b>AdminClassDetailSheet.tsx</b> — co-teacher 추가/제거 UI 서브뷰 전체 구현 (체크리스트, PATCH 연동)</li>
+              <li><b>class-capacity-settings.tsx</b> — 안내 카드 텍스트 추가</li>
+            </ul>
+          </div>
+          <div class="stat">5 files changed, +235 / -13</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#9</div>
+        <div class="card-body">
+          <div><span class="tag tag-feat">FEAT</span></div>
+          <div class="card-title">휴무일 확정 시스템 전체 구현</div>
+          <div class="card-time">04:07 KST · 11b6f28</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>pool-db-init.ts</b> — <code>holiday_confirmations</code> 테이블 생성 (<code>pool_id + target_month</code> UNIQUE), 인덱스 추가</li>
+              <li><b>holidays.ts (API)</b> — <code>GET /holidays/confirm-status</code> 신규; <code>POST /holidays/confirm</code> 신규 (UPSERT); 휴무일 등록/삭제 시 해당 월 확정 자동 해제</li>
+              <li><b>dashboard.tsx</b> — 미확정 배너 (25일~말일→다음달, 1~10일→이번달); 퀵버튼 4개 레이아웃</li>
+              <li><b>holidays.tsx</b> — 확정 버튼 UI, 확정/미확정 상태 표시, 월 이동 시 API로만 상태 갱신</li>
+            </ul>
+          </div>
+          <div class="stat">4 files changed, +308 / -47</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 성능 개선 ── -->
+  <div class="section">
+    <div class="section-title">성능 개선</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#10</div>
+        <div class="card-body">
+          <div><span class="tag tag-perf">PERF</span></div>
+          <div class="card-title">반 상세 로딩 성능 개선 (학생 데이터 재사용)</div>
+          <div class="card-time">03:03 KST · 4d888f1</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>AdminClassDetailSheet.tsx</b> — 이미 로드된 학생 데이터 재사용, 중복 API 호출 제거</li>
+              <li><b>classes.tsx</b> — 관련 props 전달 업데이트</li>
+            </ul>
+          </div>
+          <div class="stat">4 files changed, +44 / -17</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#11</div>
+        <div class="card-body">
+          <div><span class="tag tag-perf">PERF</span></div>
+          <div class="card-title">학생 목록 1차 로딩 속도 개선 (N+1 쿼리 해결)</div>
+          <div class="card-time">03:07 KST · a8835e9</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>students.ts (API)</b> — 학생별 class_group 개별 조회(N+1) → 1회 IN 쿼리로 배치 enrichment 전환</li>
+              <li>모든 class_group_id 수집 후 단일 쿼리로 조회, Map으로 매핑</li>
+            </ul>
+          </div>
+          <div class="stat">5 files changed, +77 / -39</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#12</div>
+        <div class="card-body">
+          <div><span class="tag tag-perf">PERF</span></div>
+          <div class="card-title">학생 목록 2차 성능 최적화 + DB 인덱스 4개 추가</div>
+          <div class="card-time">04:22 KST · f89f3c9</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>students.ts</b> — <code>req.user!.poolId || getPoolId(userId)</code>: JWT 토큰 poolId 우선 사용으로 DB 조회 1회 생략</li>
+              <li><b>students.ts</b> — 3개 쿼리 브랜치 전부 <code>.orderBy(desc(created_at))</code> 추가, JS <code>.sort()</code> 제거</li>
+              <li><b>pool-db-init.ts</b> — <code>idx_students_pool_status</code> (swimming_pool_id, status), <code>idx_students_pool_created</code> (swimming_pool_id, created_at DESC), <code>idx_class_groups_pool_deleted</code>, <code>idx_class_groups_teacher</code> 인덱스 자동 생성</li>
+            </ul>
+          </div>
+          <div class="stat">6 files changed, +47 / -10</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 버그 수정 ── -->
+  <div class="section">
+    <div class="section-title">버그 수정</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#13</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">파일 업로드 에러 핸들링 추가</div>
+          <div class="card-time">22:46 KST · 8c41ad6</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>app.ts</b> — multer 전용 에러 미들웨어 추가</li>
+              <li><code>LIMIT_FILE_SIZE</code> → HTTP 413 "최대 8MB"</li>
+              <li><code>LIMIT_FILE_COUNT / LIMIT_UNEXPECTED_FILE</code> → HTTP 400 "최대 100장"</li>
+            </ul>
+          </div>
+          <div class="stat">1 file changed, +18</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#14</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">탭 텍스트 iOS 세로 클리핑 수정</div>
+          <div class="card-time">00:40 KST · 89527f5</div>
+          <div class="card-desc">
+            <ul>
+              <li>탭 바 Text에 <code>lineHeight</code> 명시 추가 (Pretendard 한글 받침 잘림 현상)</li>
+              <li>9개 파일 일괄 적용</li>
+            </ul>
+          </div>
+          <div class="stat">9 files changed, +9 / -9</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#15</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">반 삭제 시 스케줄러 프리즈 (stuck Modal) 수정</div>
+          <div class="card-time">03:39 KST · b4dcd84</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>my-schedule.tsx</b> — <code>useFocusEffect</code>에서 <code>showDeleteClassConfirm</code>, <code>deletingClass</code>, <code>deletingClassLoading</code> 초기화</li>
+              <li>취소 버튼에서 로딩 중 잠금(<code>if (deletingClassLoading) return</code>) 제거 → 항상 닫힘 보장</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed, +9 / -2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#16</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">반 선택 프리즈 / invisible Modal stuck 수정</div>
+          <div class="card-time">03:44 KST · a9ea4de</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>classes.tsx</b> — <code>useFocusEffect</code>에서 <code>detailGroup</code>, <code>selectedSlot</code> null 초기화 (탭 복귀 시 보이지 않는 Modal이 화면을 막는 문제 방지)</li>
+              <li>onSelectClass에서 즉시 <code>setDetailGroup</code> → <code>setSelectedDate(null)</code> + <code>setTimeout(300ms)</code> 순서로 변경</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed, +6 / -2</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#17</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">반 선택 시 Modal 애니메이션 충돌 방지</div>
+          <div class="card-time">03:48 KST · a9a673f</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>classes.tsx</b> — <code>onDismissed</code> 콜백 패턴 도입: DaySheet가 완전히 닫힌(dismiss 완료) 후에 다음 Modal(반 상세) 열도록 순서 보장</li>
+              <li><code>pendingDetailGroupRef</code> ref로 다음 열 반 저장, onDismiss 콜백에서 꺼내어 setDetailGroup 호출</li>
+            </ul>
+          </div>
+          <div class="stat">1 file changed, +14 / -3</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#18</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">휴무일 월 이동 시 확정 상태 깜빡임 수정</div>
+          <div class="card-time">04:22 KST · f89f3c9 (포함)</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>holidays.tsx</b> — <code>changeMonth()</code>에서 <code>setConfirmStatus({"{"}confirmed: false{"}"}</code>) pre-reset 1줄 제거</li>
+              <li>월 이동 시 잠깐 "미확정"으로 보이던 깜빡임 제거, API 응답으로만 상태 갱신</li>
+            </ul>
+          </div>
+          <div class="stat">-1줄 제거</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#19</div>
+        <div class="card-body">
+          <div><span class="tag tag-fix">FIX</span></div>
+          <div class="card-title">주담당 변경 시 co_teacher_ids 중복 권한 버그 수정</div>
+          <div class="card-time">04:22 KST · f89f3c9 (포함)</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>AdminClassDetailSheet.tsx</b> — <code>handleAssignTeacher</code>에서 새 주담당 ID를 <code>co_teacher_ids</code>에서 자동 필터 제거 후 함께 PATCH</li>
+              <li>기존: 주담당 변경해도 co_teacher_ids에 잔류 → 주담당 + 보조 선생님 권한 중복 보유</li>
+            </ul>
+          </div>
+          <div class="stat">+7 / -2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 리팩터링 ── -->
+  <div class="section">
+    <div class="section-title">리팩터링 / 기능 개선</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#20</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">관리자 스케줄 뷰 스크롤 활성화</div>
+          <div class="card-time">03:12 KST · 2e186e6</div>
+          <div class="card-desc">
+            <ul>
+              <li>관리자 스케줄 화면 스크롤 비활성화 상태 수정 → 스크롤 가능하도록 변경</li>
+            </ul>
+          </div>
+          <div class="stat">3 files changed, +1 / -1</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#21</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">관리자 일지 진입 시 히스토리 뷰 표시</div>
+          <div class="card-time">03:22 KST · d7a5ed0</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>diary.tsx</b> — <code>isAdmin</code>이면 반 선택 시 <code>subView = "history"</code>로 자동 전환 (작성 폼 대신 지난 일지 목록 표시)</li>
+              <li>관리자는 일지 조회 목적이므로 히스토리가 기본값</li>
+            </ul>
+          </div>
+          <div class="stat">4 files changed, +16 / -13</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#22</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">선생님 뷰 단순화 (관리자 전용 로직 분리)</div>
+          <div class="card-time">03:27 KST · 13d3ea1</div>
+          <div class="card-desc">
+            <ul>
+              <li><b>class-groups.ts (API)</b> — <code>getUserDbRole()</code> 함수 제거, teacher 토큰이면 DB role 무관하게 담당 반만 조회하도록 단순화</li>
+              <li><b>diary.tsx</b> — isAdmin 조건 제거, 선생님 모드는 항상 일반 선생님 뷰로 통일</li>
+            </ul>
+          </div>
+          <div class="stat">5 files changed, +21 / -39</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#23</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">선생님이 자신이 생성한 반 삭제 허용 + 학생 자동 해제</div>
+          <div class="card-time">03:32 KST · 175fb1e</div>
+          <div class="card-desc">
+            <ul>
+              <li>선생님이 직접 생성한 반 삭제 기능 허용</li>
+              <li>반 삭제 시 소속 학생 자동 해제 처리</li>
+            </ul>
+          </div>
+          <div class="stat">2 files changed</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#24</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">미등록 학생 기능 제거</div>
+          <div class="card-time">03:09 KST · 9912a8d</div>
+          <div class="card-desc">
+            <ul>
+              <li>사용하지 않는 미등록 학생 관련 UI 및 코드 제거</li>
+              <li>3개 파일 정리, 94줄 삭제</li>
+            </ul>
+          </div>
+          <div class="stat">3 files changed, +5 / -94</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#25</div>
+        <div class="card-body">
+          <div><span class="tag tag-refactor">REFACTOR</span></div>
+          <div class="card-title">탭 폰트 스타일 정리 및 문서화</div>
+          <div class="card-time">00:47 KST · 31169b7</div>
+          <div class="card-desc">
+            <ul>
+              <li>탭 바 Text 폰트 스타일 일괄 정리</li>
+              <li>탭 Pretendard 사용 금지 규칙 문서화</li>
+            </ul>
+          </div>
+          <div class="stat">4 files changed, +48 / -1</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 빌드 ── -->
+  <div class="section">
+    <div class="section-title">빌드 / 버전업 (7건)</div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="num">#26–30</div>
+        <div class="card-body">
+          <div><span class="tag tag-build">BUILD</span></div>
+          <div class="card-title">iOS 앱 빌드 1.3.11 (버전/빌드 번호 업데이트 5회)</div>
+          <div class="card-time">13:36 ~ 15:58 KST · accd12e ~ 8ac083f</div>
+          <div class="card-desc">
+            <ul>
+              <li>app.json 버전, 빌드 번호 업데이트</li>
+              <li>패키지 의존성 정리, 미사용 패키지 제거</li>
+              <li>커스텀 빌드 설정 적용 / 제거 시도 반복 (빌드 환경 안정화)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:40px"></div>
+</div>
+
+<!-- ── 복사용 텍스트 ── -->
+<textarea id="report-text" readonly>
+=====================================
+SwimNote B2B 작업 결과보고서
+2026년 7월 2일 (오늘)
+총 30개 커밋 | 기능/수정 23건 + 빌드 7건
+=====================================
+
+[총 변경 규모]
+- 약 50개 파일, 순증가 1,500줄 이상
+- 신규 기능 9건 / 성능 개선 3건 / 버그 수정 7건 / 리팩터링 6건 / 빌드 5건
+
+=====================================
+■ 기능 개발 (9건)
+=====================================
+
+#1 백그라운드 사진 업로드 시스템 [22:38 KST · e895243]
+- UploadQueueContext.tsx 신규 생성 — 전역 업로드 큐 상태 관리 (진행 중/완료/실패)
+- _layout.tsx — 앱 루트에 UploadQueueProvider 등록, 업로드 상태 플로팅 배너 표시
+- photos.ts API — /photos/batch 엔드포인트 추가 (멀티 파일 일괄 업로드)
+- photo-upload.tsx, photos.tsx — UI 업로드 흐름 연동
+- 변경: 5 files, +352 / -66
+
+#2 개인 앨범 사진 저장 기능 [02:43 KST · 6289053]
+- photos.tsx — 선택한 사진을 개인 앨범에 저장하는 기능 추가
+- 변경: 5 files, +61 / -6
+
+#3 이미 저장된 사진 시각적 표시 [02:45 KST · 020eda8]
+- photos.tsx — 개인 앨범에 이미 저장된 사진에 체크/배지 표시
+- 변경: 2 files, +25 / -2
+
+#4 앨범 선택 카드 가시성 개선 [02:47 KST · 91f5f49]
+- photos.tsx — 앨범 선택 카드 배경 어둡게, 아이콘 명확하게 개선
+- 변경: 2 files, +11 / -11
+
+#5 선생님 스케줄 화면 — 일지 바로쓰기 FAB [02:49 KST · 813a954]
+- today-schedule.tsx — 우하단 "일지 바로쓰기" 플로팅 버튼 추가
+- insets.bottom + 72 위치, 햅틱 피드백 포함
+- 변경: 2 files, +13 / -1
+
+#6 무일정 일지 작성 옵션 [02:53 KST · 876f297]
+- diary-unwritten.tsx — "빈 일지 작성" FAB 추가 (항상 표시)
+- 미작성 없는 빈 상태에도 "빈 일지 작성하기" 버튼 표시
+- diary?backTo=diary-unwritten 파라미터로 뒤로가기 연동
+- 변경: 1 file, +27 / -2
+
+#7 학생 레벨 선택 개선 + 학부모 알림 [02:59 KST · 632f9f3]
+- student-detail.tsx — 레벨 선택 UI 개선
+- teachers.ts API — 레벨 변경 시 학부모에게 푸시 알림 발송
+- 변경: 4 files, +80 / -19
+
+#8 Co-teacher (보조 선생님) 기능 전체 구현 [03:58 KST · c85ce0c]
+- lib/db/schema/class-groups.ts — co_teacher_ids jsonb 컬럼 추가
+- class-groups.ts API GET: co-teacher인 반도 조회 (co_teacher_ids @> to_jsonb(userId))
+- class-groups.ts API PATCH: co_teacher_ids 저장 (pool_admin/super_admin만)
+- diary.ts API — /diaries/index, /diaries, POST /diaries 3곳 co-teacher 권한 체크
+- AdminClassDetailSheet.tsx — co-teacher 추가/제거 UI 서브뷰 전체 구현
+- class-capacity-settings.tsx — 안내 카드 추가
+- 변경: 5 files, +235 / -13
+
+#9 휴무일 확정 시스템 전체 구현 [04:07 KST · 11b6f28]
+- pool-db-init.ts — holiday_confirmations 테이블 (pool_id+target_month UNIQUE), 인덱스
+- holidays.ts API — GET /holidays/confirm-status 신규
+- holidays.ts API — POST /holidays/confirm 신규 (UPSERT)
+- holidays.ts — 휴무일 등록/삭제 시 해당 월 확정 자동 해제
+- dashboard.tsx — 미확정 배너 (25일~말일→다음달, 1~10일→이번달), 퀵버튼 4개
+- holidays.tsx — 확정 버튼 UI, 확정/미확정 상태 표시
+- 변경: 4 files, +308 / -47
+
+=====================================
+■ 성능 개선 (3건)
+=====================================
+
+#10 반 상세 로딩 성능 개선 [03:03 KST · 4d888f1]
+- AdminClassDetailSheet.tsx — 이미 로드된 학생 데이터 재사용, 중복 API 호출 제거
+- 변경: 4 files, +44 / -17
+
+#11 학생 목록 N+1 쿼리 해결 (1차) [03:07 KST · a8835e9]
+- students.ts API — 학생별 class_group 개별 조회(N+1) → 1회 IN 쿼리 배치 enrichment
+- 모든 class_group_id 수집 후 단일 쿼리, Map 매핑
+- 변경: 5 files, +77 / -39
+
+#12 학생 목록 2차 최적화 + DB 인덱스 4개 [04:22 KST · f89f3c9]
+- students.ts — req.user.poolId || getPoolId() : JWT 토큰 poolId 우선 사용 (DB 조회 생략)
+- students.ts — 3개 쿼리 브랜치 모두 .orderBy(desc(created_at)) 추가, JS .sort() 제거
+- pool-db-init.ts — idx_students_pool_status (swimming_pool_id, status)
+- pool-db-init.ts — idx_students_pool_created (swimming_pool_id, created_at DESC)
+- pool-db-init.ts — idx_class_groups_pool_deleted (swimming_pool_id, is_deleted)
+- pool-db-init.ts — idx_class_groups_teacher (teacher_user_id, is_deleted)
+- 변경: 6 files, +47 / -10
+
+=====================================
+■ 버그 수정 (7건)
+=====================================
+
+#13 파일 업로드 에러 핸들링 [22:46 KST · 8c41ad6]
+- app.ts — multer 전용 에러 미들웨어 추가
+- LIMIT_FILE_SIZE → HTTP 413 "최대 8MB까지 업로드 가능"
+- LIMIT_FILE_COUNT / LIMIT_UNEXPECTED_FILE → HTTP 400 "최대 100장"
+- 변경: 1 file, +18
+
+#14 탭 텍스트 iOS 세로 클리핑 수정 [00:40 KST · 89527f5]
+- 탭 바 Text에 lineHeight 명시 (Pretendard 한글 받침 잘림 현상)
+- 9개 파일 일괄 적용
+- 변경: 9 files, +9 / -9
+
+#15 반 삭제 시 스케줄러 프리즈(stuck Modal) 수정 [03:39 KST · b4dcd84]
+- my-schedule.tsx — useFocusEffect에서 삭제 확인 Modal 상태 초기화
+- 취소 버튼 로딩 중 잠금 제거 (항상 닫힘 보장)
+- 변경: 2 files, +9 / -2
+
+#16 반 선택 프리즈 / invisible Modal stuck 수정 [03:44 KST · a9ea4de]
+- classes.tsx — useFocusEffect에서 detailGroup, selectedSlot null 초기화
+- onSelectClass: 즉시 setDetailGroup → setSelectedDate(null) + setTimeout(300ms) 순서 변경
+- 변경: 2 files, +6 / -2
+
+#17 반 선택 Modal 애니메이션 충돌 방지 [03:48 KST · a9a673f]
+- classes.tsx — onDismissed 콜백 패턴: DaySheet dismiss 완료 후 반 상세 Modal 오픈
+- pendingDetailGroupRef로 다음 열 반 저장
+- 변경: 1 file, +14 / -3
+
+#18 휴무일 월 이동 시 확정 상태 깜빡임 수정 [04:22 KST · f89f3c9]
+- holidays.tsx — changeMonth()에서 setConfirmStatus({confirmed: false}) pre-reset 제거
+- 변경: -1줄
+
+#19 주담당 변경 시 co_teacher_ids 중복 권한 버그 수정 [04:22 KST · f89f3c9]
+- AdminClassDetailSheet.tsx — handleAssignTeacher에서 새 주담당을 co_teacher_ids에서 자동 제거 후 PATCH
+- 기존 문제: 주담당 변경 후에도 co_teacher_ids에 잔류 → 이중 권한 보유
+- 변경: +7 / -2
+
+=====================================
+■ 리팩터링 / 기능 개선 (6건)
+=====================================
+
+#20 관리자 스케줄 뷰 스크롤 활성화 [03:12 KST · 2e186e6]
+- 관리자 스케줄 화면 스크롤 가능하도록 수정
+- 변경: 3 files, +1 / -1
+
+#21 관리자 일지 진입 시 히스토리 뷰 자동 표시 [03:22 KST · d7a5ed0]
+- diary.tsx — isAdmin이면 반 선택 시 subView = "history" 자동 전환
+- 변경: 4 files, +16 / -13
+
+#22 선생님 뷰 단순화 (관리자 전용 로직 분리) [03:27 KST · 13d3ea1]
+- class-groups.ts — getUserDbRole() 함수 제거, teacher 토큰=담당 반만 조회로 단순화
+- diary.tsx — isAdmin 조건 제거
+- 변경: 5 files, +21 / -39
+
+#23 선생님 자신의 반 삭제 허용 + 학생 자동 해제 [03:32 KST · 175fb1e]
+- 선생님이 직접 생성한 반 삭제 기능 활성화
+- 삭제 시 소속 학생 자동 해제
+- 변경: 2 files
+
+#24 미등록 학생 기능 제거 [03:09 KST · 9912a8d]
+- 미사용 미등록 학생 UI/코드 제거 (94줄 삭제)
+- 변경: 3 files, +5 / -94
+
+#25 탭 폰트 스타일 정리 [00:47 KST · 31169b7]
+- 탭 바 Text 폰트 스타일 일괄 정리 및 문서화
+- 변경: 4 files, +48 / -1
+
+=====================================
+■ 빌드 / 버전업 (5건, 13:36~15:58 KST)
+=====================================
+
+#26~30 iOS 앱 빌드 1.3.11 (accd12e ~ 8ac083f)
+- app.json 버전/빌드 번호 업데이트
+- 패키지 의존성 정리, 미사용 패키지 제거
+- 커스텀 빌드 설정 적용/제거 반복 (빌드 환경 안정화)
+
+=====================================
+■ 현재 배포 필요 항목
+=====================================
+
+[API 서버 — Render.com 재배포]
+- holiday_confirmations 테이블 자동 생성
+- GET /holidays/confirm-status, POST /holidays/confirm
+- PATCH /class-groups co_teacher_ids 지원
+- GET /class-groups co-teacher 반 조회
+- POST/GET /diaries co-teacher 권한
+- DB 인덱스 4개 자동 생성 (idx_students_pool_status 등)
+- multer 에러 미들웨어
+- /photos/batch 엔드포인트
+
+[앱 — OTA(EAS Update) 배포]
+- dashboard.tsx 휴무일 확정 배너 + 퀵버튼
+- holidays.tsx 확정 버튼 UI + 깜빡임 수정
+- AdminClassDetailSheet.tsx co-teacher UI + 주담당 버그 수정
+- today-schedule.tsx 일지 FAB
+- diary-unwritten.tsx 빈 일지 FAB
+- UploadQueueContext.tsx 백그라운드 업로드
+- 탭 텍스트 클리핑 수정 외 다수
+=====================================
+</textarea>
+
+<script>
+function copyReport() {
+  const text = document.getElementById("report-text").value;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector(".copy-btn");
+    btn.classList.add("copied");
+    btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> 복사 완료!`;
+    setTimeout(() => {
+      btn.classList.remove("copied");
+      btn.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 전체 보고서 복사`;
+    }, 2500);
+  });
+}
+</script>
+</body>
+</html>

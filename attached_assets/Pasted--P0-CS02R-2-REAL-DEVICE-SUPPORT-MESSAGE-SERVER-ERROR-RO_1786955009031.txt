@@ -1,0 +1,410 @@
+[P0-CS02R-2 — REAL DEVICE SUPPORT MESSAGE SERVER ERROR ROOT CAUSE]
+
+중요:
+
+CS02R에서 __new__ client bug는 수정되었으나
+production OTA 적용 후 실제 iPhone에서
+설정 → AI 문의 → 메시지 전송 시 여전히 "서버 오류"가 발생한다.
+
+따라서 이전 보고:
+
+MESSAGE_SAVED_SERVER = YES
+SERVER 정상
+
+판정은 실제 실기기 결과와 모순된다.
+
+지금 새 OTA 배포 금지.
+UI 수정 금지.
+추측 수정 금지.
+
+실제 production request를 끝까지 추적한다.
+
+==================================================
+1. PRODUCTION FAILURE REPRODUCE
+==================================================
+
+실제 앱이 호출하는:
+
+BASE:
+https://swimnote.kr/api
+
+Flow:
+
+POST /support/cases
+POST /support/cases/:id/messages
+
+중 정확히 어느 요청이 실패하는지 확인.
+
+실기기와 동일 auth/request contract로
+production endpoint에 재현.
+
+반드시 보고:
+
+FAILED_ENDPOINT =
+HTTP_STATUS =
+RESPONSE_BODY_SAFE =
+REQUEST_ID =
+CASE_ID =
+SERVER_TIMESTAMP =
+
+민감정보는 마스킹.
+
+==================================================
+2. FRONT DOOR vs ORIGIN
+==================================================
+
+SWIMNOTE APP API는 두 runtime이 존재한다.
+
+Front door:
+https://swimnote.kr/api
+
+Render:
+https://swimnote-api.onrender.com/api
+
+동일 요청을 양쪽에서 안전하게 비교.
+
+보고:
+
+SWIMNOTE_KR_RESULT =
+RENDER_ORIGIN_RESULT =
+
+둘 중 하나만 실패하면
+deployment/runtime/source divergence 조사.
+
+==================================================
+3. EXACT SERVER LOG
+==================================================
+
+실패 timestamp/request_id 기준으로
+production server 로그 검색.
+
+다음 중 실제 원인 확정:
+
+AUTH
+ROUTE_NOT_FOUND
+DB_SCHEMA
+DB_CONNECTION
+SQL_ERROR
+POOL_DB
+SUPABASE_DB
+VALIDATION
+CASE_NOT_FOUND
+CROSS_POOL_SECURITY
+MESSAGE_INSERT
+OTHER
+
+실제 PostgreSQL/Express 오류까지 확인.
+
+catch에서 "server error"로 감싸진 원본 cause 확인.
+
+보고:
+
+ROOT_SERVER_ERROR =
+FAILING_FILE =
+FAILING_FUNCTION =
+FAILING_SQL_OR_OPERATION =
+
+==================================================
+4. POST /support/cases VERIFY
+==================================================
+
+실제 production에서 case 생성 확인.
+
+확인:
+
+- auth user id
+- pool id
+- role
+- support_cases INSERT
+- returned case id
+- DB runtime
+
+성공이면:
+
+CASE_CREATE_PROD = PASS
+
+실패면 여기부터 수정.
+
+==================================================
+5. POST /messages VERIFY
+==================================================
+
+case 생성 후 실제 반환 ID로:
+
+POST /support/cases/:id/messages
+
+확인.
+
+Request:
+
+{
+  content: "...",
+  author_role: "user"
+}
+
+서버는 client의 author_role을 신뢰하지 않고
+auth context와 일치 확인.
+
+확인:
+
+support_ticket_replies columns:
+ticket_id nullable
+case_id
+message_type
+actor/author fields
+
+실제 production DB에
+CS01R-HARDEN migration이 적용됐는지 확인.
+
+특히 확인:
+
+ticket_id IS NULL 허용 여부
+case_id column 존재 여부
+message_type column 존재 여부
+
+보고:
+
+PROD_REPLY_TICKET_ID_NULLABLE =
+PROD_REPLY_CASE_ID_COLUMN =
+PROD_REPLY_MESSAGE_TYPE_COLUMN =
+
+==================================================
+6. MIGRATION / RUNTIME DRIFT
+==================================================
+
+로컬 테스트 1440/1440 통과는
+production schema 성공 증거가 아니다.
+
+확인:
+
+ensureCs01rSchema()가
+실제 production runtime에서 실행됐는가.
+
+어느 DB에 실행됐는가.
+
+support_ticket_replies는 pool DB이므로
+POOL_DATABASE_URL 대상이어야 한다.
+
+잘못 Supabase에 migration 실행된 경우
+정확히 수정.
+
+보고:
+
+SCHEMA_INIT_RUNTIME =
+SCHEMA_INIT_DATABASE =
+PRODUCTION_SCHEMA_MATCH =
+
+==================================================
+7. ROUTE DEPLOYMENT
+==================================================
+
+확인:
+
+routes/index.ts에
+/support/cases 등록
+
+그리고 실제:
+
+swimnote.kr runtime
+Render runtime
+
+둘 다 현재 commit을 사용 중인지.
+
+보고:
+
+SWIMNOTE_KR_COMMIT_OR_BUILD =
+RENDER_COMMIT =
+ROUTE_LIVE_FRONT_DOOR =
+ROUTE_LIVE_RENDER =
+
+==================================================
+8. AUTH CONTRACT
+==================================================
+
+실기기 JWT가:
+
+POST /support/cases
+POST /messages
+
+둘 다 통과하는지 확인.
+
+401/403을 generic server error로
+UI에서 잘못 표시하는지도 확인.
+
+HTTP status별 UI mapping 감사:
+
+401
+403
+404
+409
+422
+500
+
+모두 "서버 오류" 하나로 뭉개져
+root cause를 가리는 구조면
+진단 가능한 safe error_code만 보강.
+
+==================================================
+9. CASE OWNERSHIP
+==================================================
+
+새 case 생성 직후
+GET/POST message에서 ownership check가
+같은 actor_id/user_id contract를 사용하는지 확인.
+
+예:
+
+case actor_id 저장값
+vs req.user.userId
+
+타입/값 불일치로
+자기가 만든 case에 403/404 나는지 확인.
+
+==================================================
+10. POOL ID TYPE
+==================================================
+
+pool_id는 기존 실제 타입 그대로 사용.
+
+swimming_pools.id = TEXT.
+
+parseInt/numeric cast 금지.
+
+Support case와 ticket/replies 사이에서
+pool id type mismatch 확인.
+
+==================================================
+11. ONE FIX ONLY
+==================================================
+
+원인 확정 전 코드 수정 금지.
+
+원인 확정 후
+가장 작은 수정만.
+
+관련 없는:
+
+UI
+theme
+Support AI
+Partner Analytics
+Knowledge
+X mode
+
+건드리지 않는다.
+
+==================================================
+12. TEST AFTER FIX
+==================================================
+
+필수:
+
+P0-2-01
+production POST /support/cases
+
+P0-2-02
+production POST /messages
+
+P0-2-03
+actual row persisted
+
+P0-2-04
+GET case detail returns message
+
+P0-2-05
+same user allowed
+
+P0-2-06
+other user denied
+
+P0-2-07
+cross pool denied
+
+P0-2-08
+admin/teacher/parent contracts
+
+P0-2-09
+front door works
+
+P0-2-10
+Render origin works
+
+P0-2-11
+full existing tests
+
+==================================================
+13. DEPLOYMENT
+==================================================
+
+서버 수정이면:
+
+GitHub push
+→ Render deploy
+→ production live 확인
+
+mobile 수정이 없으면:
+OTA 금지.
+
+mobile 수정이 정말 필요하면
+원인을 먼저 보고한 뒤
+production branch iOS OTA만.
+
+preview 금지.
+Android OTA 금지.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+FAILED_ENDPOINT =
+HTTP_STATUS =
+ROOT_SERVER_ERROR =
+
+CASE_CREATE_PROD =
+MESSAGE_CREATE_PROD =
+
+SWIMNOTE_KR_RESULT =
+RENDER_ORIGIN_RESULT =
+
+PROD_REPLY_TICKET_ID_NULLABLE =
+PROD_REPLY_CASE_ID_COLUMN =
+PROD_REPLY_MESSAGE_TYPE_COLUMN =
+
+SCHEMA_INIT_RUNTIME =
+SCHEMA_INIT_DATABASE =
+PRODUCTION_SCHEMA_MATCH =
+
+CASE_OWNERSHIP_MATCH =
+POOL_ID_TYPE_MATCH =
+AUTH_RESULT =
+
+ROOT_CAUSE =
+FIX =
+
+SERVER_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+PRODUCTION_API_TEST =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+IOS_PRODUCTION_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+실제 production endpoint에서
+
+POST /support/cases = 2xx
+POST /support/cases/:id/messages = 2xx
+
+실제 DB row 저장 확인
+GET case detail에서 해당 message 확인
+
+ROOT_CAUSE = CONFIRMED
+
+완료:
+
+P0_CS02R_REAL_DEVICE_SERVER_ERROR_RESOLVED ✅

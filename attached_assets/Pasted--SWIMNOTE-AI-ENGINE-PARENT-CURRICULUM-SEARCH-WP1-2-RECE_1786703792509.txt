@@ -1,0 +1,241 @@
+[SWIMNOTE AI ENGINE]
+[PARENT CURRICULUM SEARCH — WP1.2]
+[RECENT CONVERSATION CONTEXT SUPPORT ONLY]
+
+현재 완료:
+
+Parent Curriculum Search WP1 ✅
+Parent Curriculum Search WP1.1 ✅
+
+APP 측:
+- 학생별 누적 conversation/message 저장 완료
+- 학부모 월 10회 quota 완료
+- 과거 대화는 영구 유지
+- 현재 ENGINE에는 단일 query만 전달 중
+
+문제:
+
+GPT형 후속 질문:
+
+"그럼 다음은?"
+"아까 말한 평영은 왜 어려워요?"
+"그 단계 다음에는 뭐 배우나요?"
+
+같은 질문은 이전 대화 일부가 없으면
+의미 해석이 불가능할 수 있음.
+
+이번 WP 목적:
+
+Parent Curriculum Search ENGINE Request Contract에
+최근 대화 context를 optional하게 추가한다.
+
+Production deploy 금지.
+APP 수정 금지.
+DB migration 금지.
+
+==================================================
+1. CANONICAL COST RULE
+==================================================
+
+전체 conversation history를 ENGINE에 보내지 않는다.
+
+ENGINE이 받을 수 있는 context는
+최근 최대 6개 message.
+
+권장:
+최근 3 turn
+= USER 3 + ASSISTANT 3
+= 최대 6 messages
+
+그 이전 history는 APP에 저장만 하고
+이번 요청에는 전송하지 않는다.
+
+==================================================
+2. REQUEST CONTRACT EXTENSION
+==================================================
+
+기존 request에 optional 추가:
+
+"context": {
+  ...
+  "recent_conversation": [
+    {
+      "role": "USER | ASSISTANT",
+      "content": "..."
+    }
+  ]
+}
+
+규칙:
+
+- optional
+- 최대 6개
+- 오래된 순 → 최신 순
+- 현재 query는 recent_conversation에 중복 포함하지 않음
+- role은 USER / ASSISTANT만 허용
+- 빈 content 차단
+- message ID, DB ID 필요 없음
+
+==================================================
+3. CONVERSATION CONTEXT ROLE
+==================================================
+
+recent_conversation은:
+
+질문의 지시 대상
+대명사
+후속 질문
+직전 설명 맥락
+
+을 이해하기 위한 보조 context다.
+
+예:
+
+이전:
+USER: 지금 평영 발차기를 배우고 있나요?
+ASSISTANT: 현재 평영 발차기 단계...
+
+현재:
+USER: 그 다음은 뭐예요?
+
+→ "그 다음"이 평영 발차기 다음 단계를 의미한다고
+해석하는 데 사용할 수 있음.
+
+==================================================
+4. ABSOLUTE GROUNDING RULE
+==================================================
+
+중요:
+
+이전 ASSISTANT 대화 자체를
+새로운 사실 근거로 승격하지 않는다.
+
+Grounded 사실 source는 기존과 동일:
+
+A. APP Curriculum Scope
+B. Student Progress
+C. ENGINE Knowledge Search
+
+recent_conversation은
+"질문 이해용 context"일 뿐.
+
+과거 답변에 오류가 있어도
+그 내용을 근거로 새로운 사실을 확장하면 안 됨.
+
+==================================================
+5. QUESTION CLASSIFICATION
+==================================================
+
+QuestionClassifier가 필요하면
+최근 conversation을 참고해
+후속 질문 의미를 해석할 수 있도록 수정.
+
+다만 기존 명시적 질문은
+기존 classifier behavior 유지.
+
+예:
+
+"그 다음은?"
+→ recent context 있으면 NEXT_STEP
+
+recent context 없으면
+무리하게 추정 금지.
+
+==================================================
+6. PROMPT BUILDER
+==================================================
+
+Prompt에 recent_conversation을
+별도 구역으로 제한해서 넣는다.
+
+예:
+
+[RECENT CONVERSATION — CONTEXT ONLY]
+
+명시:
+
+- 이 대화는 질문의 문맥 해석에만 사용
+- 사실 근거로 사용하지 말 것
+- 사실은 Curriculum / Student Progress / Knowledge Evidence만 사용
+
+==================================================
+7. TOKEN CONTROL
+==================================================
+
+ENGINE에서도 방어:
+
+- 최대 6 messages
+- 각 message content 최대 길이 제한
+- 전체 recent conversation 길이 제한
+
+현재 코드 convention에 맞춰
+합리적 제한 설정.
+
+과도하게 긴 history를 그대로 Prompt에 넣지 않는다.
+
+==================================================
+8. RESPONSE
+==================================================
+
+Response Contract는 변경하지 않아도 됨.
+
+필요하면 meta에:
+
+conversation_context_used: true/false
+
+정도만 additive하게 허용.
+
+Parent UI에 반드시 노출할 필요 없음.
+
+==================================================
+9. TEST
+==================================================
+
+최소:
+
+A. recent_conversation 없음 → 기존 WP1 behavior 유지
+B. "그 다음은?" + 직전 평영 context → NEXT_STEP 해석
+C. "왜 그래요?" + 직전 항목 context → 적절한 intent
+D. 최대 6 messages 허용
+E. 7개 이상 → validation/trim canonical behavior
+F. invalid role → 차단
+G. empty content → 차단
+H. 과거 ASSISTANT가 허용되지 않은 curriculum fact를 말해도
+   grounding source로 사용 금지
+I. conversation context는 grounding.curriculum_ids를 우회하지 못함
+J. 기존 WP1/WP1.1 regression
+K. Growth Report regression 영향 없음
+
+==================================================
+10. NO SUMMARY YET
+==================================================
+
+이번 WP에서는
+오래된 대화 자동 요약 기능을 만들지 않는다.
+
+월 10회 제한이므로
+우선 최근 3 turn만으로 충분.
+
+향후 필요하면 conversation summary 별도 WP.
+
+==================================================
+11. REPORT
+==================================================
+
+다음만 보고:
+
+1. CONTRACT CHANGE
+2. MAX CONTEXT MESSAGES
+3. CONTEXT LENGTH LIMIT
+4. QUESTION CLASSIFIER CHANGE
+5. PROMPT CHANGE
+6. GROUNDING ISOLATION
+7. FILES CHANGED
+8. TEST RESULT
+9. EXISTING REGRESSION
+10. COMMIT SHA
+11. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_ENGINE_WP1_2_COMPLETE ✅

@@ -1,9 +1,9 @@
-import { Flame, PenLine, RotateCcw, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React from "react";
+import React, { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { getMemberPendingBadge } from "@/utils/studentUtils";
+import { validateName, validatePhone, validateStudentBirthYear, normalizePhone } from "@/utils/validation";
 import { EditField } from "./EditField";
 import { ms } from "./memberDetailStyles";
 import type { DetailData } from "./memberDetailTypes";
@@ -18,6 +18,9 @@ interface MemberInfoTabProps {
   editBirth: string; setEditBirth: (v: string) => void;
   editParentName: string; setEditParentName: (v: string) => void;
   editParentPhone: string; setEditParentPhone: (v: string) => void;
+  editParentPhone2: string; setEditParentPhone2: (v: string) => void;
+  editParentPhone3: string; setEditParentPhone3: (v: string) => void;
+  editParentPhone4: string; setEditParentPhone4: (v: string) => void;
   infoChanged: boolean; setInfoChanged: (v: boolean) => void;
   onSave: () => void;
   onRestoreMember: () => void;
@@ -26,6 +29,7 @@ interface MemberInfoTabProps {
   statusMeta: { label: string; color: string; bg: string };
   isPoolAdmin?: boolean;
   onPurgeMember?: () => void;
+  onForceDelete?: () => void;
 }
 
 export function MemberInfoTab({
@@ -33,18 +37,63 @@ export function MemberInfoTab({
   editName, setEditName, editBirth, setEditBirth,
   editParentName, setEditParentName,
   editParentPhone, setEditParentPhone,
+  editParentPhone2, setEditParentPhone2,
+  editParentPhone3, setEditParentPhone3,
+  editParentPhone4, setEditParentPhone4,
   infoChanged, setInfoChanged, onSave, onRestoreMember, onShowStatusModal,
   isArchived, statusMeta,
-  isPoolAdmin = false, onPurgeMember,
+  isPoolAdmin = false, onPurgeMember, onForceDelete,
 }: MemberInfoTabProps) {
   const isParentLinked = !!(data as any).parent_user_id;
   const parentAccountName = (data as any).parent_account_name || editParentName;
 
+  const [fieldErrors, setFieldErrors] = useState({ name: "", birth: "", parentName: "", parentPhone: "", parentPhone2: "", parentPhone3: "", parentPhone4: "" });
+  const scrollRef = useRef<ScrollView>(null);
+  const hasFieldErrors = Object.values(fieldErrors).some(v => !!v);
+
+  function handleSave() {
+    const errors = { name: "", birth: "", parentName: "", parentPhone: "", parentPhone2: "", parentPhone3: "", parentPhone4: "" };
+
+    if (!validateName(editName)) {
+      errors.name = "이름을 입력해주세요";
+    }
+    if (!validateStudentBirthYear(editBirth)) {
+      errors.birth = "출생년도 형식이 올바르지 않습니다";
+    }
+    if (editParentName && !validateName(editParentName)) {
+      errors.parentName = "학부모 이름을 확인해주세요";
+    }
+    if (editParentPhone && !validatePhone(editParentPhone)) {
+      errors.parentPhone = "전화번호 형식이 올바르지 않습니다";
+    }
+    if (editParentPhone2 && !validatePhone(editParentPhone2)) {
+      errors.parentPhone2 = "연락처2 형식이 올바르지 않습니다";
+    }
+    if (editParentPhone3 && !validatePhone(editParentPhone3)) {
+      errors.parentPhone3 = "연락처3 형식이 올바르지 않습니다";
+    }
+    if (editParentPhone4 && !validatePhone(editParentPhone4)) {
+      errors.parentPhone4 = "연락처4 형식이 올바르지 않습니다";
+    }
+
+    setFieldErrors(errors);
+    if (errors.name || errors.birth || errors.parentName || errors.parentPhone || errors.parentPhone2 || errors.parentPhone3 || errors.parentPhone4) {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    if (editParentPhone) setEditParentPhone(normalizePhone(editParentPhone));
+    if (editParentPhone2) setEditParentPhone2(normalizePhone(editParentPhone2));
+    if (editParentPhone3) setEditParentPhone3(normalizePhone(editParentPhone3));
+    if (editParentPhone4) setEditParentPhone4(normalizePhone(editParentPhone4));
+    onSave();
+  }
+
   return (
-    <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
+    <ScrollView ref={scrollRef} contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
       {isArchived && (
         <Pressable style={ms.restoreBanner} onPress={onRestoreMember}>
-          <RotateCcw size={16} color="#7C3AED" />
+          <LucideIcon name="rotate-ccw" size={16} color="#7C3AED" />
           <Text style={ms.restoreText}>이 회원은 {statusMeta.label} 상태입니다. 탭하여 복구하기</Text>
         </Pressable>
       )}
@@ -53,27 +102,36 @@ export function MemberInfoTab({
       <View style={{
         marginHorizontal: 16, marginBottom: 8,
         borderRadius: 12, padding: 12,
-        backgroundColor: isParentLinked ? "#E6FAF8" : "#F8FAFC",
+        backgroundColor: isParentLinked ? C.brandMist : C.backgroundSoft,
         flexDirection: "row", alignItems: "center", gap: 10,
-        borderWidth: 1, borderColor: isParentLinked ? "#2EC4B6" : "#E2E8F0",
+        borderWidth: 1, borderColor: isParentLinked ? C.brandStrong : C.border,
       }}>
-        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? "#2EC4B6" : "#94A3B8"} />
+        <LucideIcon name={isParentLinked ? "link" : "unlink"} size={16} color={isParentLinked ? C.brandStrong : C.textMuted} />
         <View style={{ flex: 1 }}>
           {isParentLinked ? (
             <>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>학부모 앱 연결됨</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>학부모 앱 연결됨</Text>
               {parentAccountName ? (
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 1 }}>{parentAccountName}</Text>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 1 }}>{parentAccountName}</Text>
               ) : null}
             </>
           ) : (
             <>
-              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" }}>학부모 앱 미연결</Text>
-              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#94A3B8", marginTop: 1 }}>학부모 연락처 저장 시 자동 연결됩니다</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary }}>학부모 앱 미연결</Text>
+              <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 }}>학부모 연락처 저장 시 자동 연결됩니다</Text>
             </>
           )}
         </View>
       </View>
+
+      {hasFieldErrors && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", marginHorizontal: 16, marginBottom: 4, padding: 12, borderRadius: 10 }}>
+          <LucideIcon name="alert-circle" size={15} color="#DC2626" />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>
+            입력 오류가 있습니다. 아래 항목을 확인해주세요.
+          </Text>
+        </View>
+      )}
 
       <View style={ms.section}>
         <View style={ms.sectionHeader}>
@@ -84,24 +142,101 @@ export function MemberInfoTab({
             </View>
           )}
         </View>
-        <EditField label="이름" value={editName} onChangeText={v => { setEditName(v); setInfoChanged(true); }} />
-        <EditField label="출생년도" value={editBirth} onChangeText={v => { setEditBirth(v); setInfoChanged(true); }} keyboardType="numeric" placeholder="예: 2015" />
-        <EditField label="학부모 이름" value={editParentName} onChangeText={v => { setEditParentName(v); setInfoChanged(true); }} />
+
+        <EditField
+          label="이름"
+          value={editName}
+          onChangeText={v => { setEditName(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, name: "" })); }}
+        />
+        {fieldErrors.name ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.name}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="출생년도"
+          value={editBirth}
+          onChangeText={v => { setEditBirth(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, birth: "" })); }}
+          keyboardType="numeric"
+          placeholder="예: 2015"
+        />
+        {fieldErrors.birth ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.birth}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="학부모 이름"
+          value={editParentName}
+          onChangeText={v => { setEditParentName(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentName: "" })); }}
+        />
+        {fieldErrors.parentName ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentName}
+          </Text>
+        ) : null}
+
         <EditField
           label="학부모 연락처"
           value={editParentPhone}
-          onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); }}
+          onChangeText={v => { setEditParentPhone(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone: "" })); }}
           keyboardType="phone-pad"
           placeholder="010-0000-0000"
         />
+        {fieldErrors.parentPhone ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="연락처2"
+          value={editParentPhone2}
+          onChangeText={v => { setEditParentPhone2(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone2: "" })); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000 (선택)"
+        />
+        {fieldErrors.parentPhone2 ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone2}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="연락처3"
+          value={editParentPhone3}
+          onChangeText={v => { setEditParentPhone3(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone3: "" })); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000 (선택)"
+        />
+        {fieldErrors.parentPhone3 ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone3}
+          </Text>
+        ) : null}
+
+        <EditField
+          label="연락처4"
+          value={editParentPhone4}
+          onChangeText={v => { setEditParentPhone4(v); setInfoChanged(true); setFieldErrors(e => ({ ...e, parentPhone4: "" })); }}
+          keyboardType="phone-pad"
+          placeholder="010-0000-0000 (선택)"
+        />
+        {fieldErrors.parentPhone4 ? (
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.error, marginTop: -4, marginBottom: 4 }}>
+            {fieldErrors.parentPhone4}
+          </Text>
+        ) : null}
 
         <Pressable
           style={[ms.saveBtn, { backgroundColor: infoChanged ? themeColor : "#64748B" }]}
-          onPress={onSave}
+          onPress={handleSave}
           disabled={saving || !infoChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-            <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
+            <><LucideIcon name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>정보 저장</Text></>
           )}
         </Pressable>
       </View>
@@ -127,12 +262,12 @@ export function MemberInfoTab({
           </View>
           {!isArchived ? (
             <Pressable style={ms.changeStatusBtn} onPress={onShowStatusModal} disabled={saving}>
-              <PenLine size={14} color={themeColor} />
+              <LucideIcon name="edit-2" size={14} color={themeColor} />
               <Text style={[ms.changeStatusText, { color: themeColor }]}>상태 변경</Text>
             </Pressable>
           ) : (
             <Pressable style={[ms.changeStatusBtn, { borderColor: "#7C3AED" }]} onPress={onRestoreMember} disabled={saving}>
-              <RotateCcw size={14} color="#7C3AED" />
+              <LucideIcon name="rotate-ccw" size={14} color="#7C3AED" />
               <Text style={[ms.changeStatusText, { color: "#7C3AED" }]}>복구</Text>
             </Pressable>
           )}
@@ -154,7 +289,7 @@ export function MemberInfoTab({
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
           <View style={{ backgroundColor: "#FEF2F2", borderRadius: 12, padding: 14, gap: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Flame size={16} color="#DC2626" />
+              <LucideIcon name="flame" size={16} color="#DC2626" />
               <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>개인정보 소각</Text>
             </View>
             <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 18 }}>
@@ -166,6 +301,27 @@ export function MemberInfoTab({
               disabled={saving}
             >
               <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" }}>소각하기</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {isPoolAdmin && onForceDelete && (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+          <View style={{ backgroundColor: "#FFF1F2", borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: "#FECDD3" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <LucideIcon name="trash-2" size={16} color="#BE123C" />
+              <Text style={{ fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#BE123C" }}>회원 즉시 삭제</Text>
+            </View>
+            <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9F1239", lineHeight: 18 }}>
+              30일 대기 없이 즉시 삭제합니다. 출결·수영일지·학부모 가입정보까지 모든 데이터가 완전히 삭제되며 복구할 수 없습니다.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [{ backgroundColor: "#BE123C", padding: 12, borderRadius: 10, alignItems: "center", opacity: pressed || saving ? 0.8 : 1 }]}
+              onPress={onForceDelete}
+              disabled={saving}
+            >
+              <Text style={{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-SemiBold" }}>즉시 삭제</Text>
             </Pressable>
           </View>
         </View>

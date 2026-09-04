@@ -1,0 +1,130 @@
+[앱] STEP-GAUGE-01B — PRODUCTION MIGRATION APPLY
+
+목적:
+검증 완료된 Gauge DB Foundation migration을
+production DB에 딱 1회 명시적으로 적용하고
+schema 존재 여부만 확인한다.
+
+현재 검증 완료 commit:
+91da9e41
+
+migration:
+artifacts/api-server/src/migrations/gauge-01-progress-tables.ts
+
+중요:
+이번 Step은 production migration 적용 + schema verification만 한다.
+
+금지:
+- startup migration 연결 금지
+- 기존 table 수정 금지
+- 기존 data UPDATE/DELETE 금지
+- CPO/SCP data INSERT 금지
+- Diary route 수정 금지
+- STEP-GAUGE-02 구현 시작 금지
+- Render deploy 금지
+- OTA 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Production DB 연결 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP production DB를 정확히 사용.
+
+실행 전 아래 prerequisite table 존재 여부만 확인:
+
+- curriculum_versions
+- curriculum_items
+- class_diaries
+
+모두 존재하면 진행.
+
+하나라도 없으면 STOP + BLOCKED.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Migration 실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+initGauge01Schema()를
+명시적으로 1회 실행.
+
+생성 대상:
+
+A.
+curriculum_progress_observations
+
+B.
+student_curriculum_progress
+
+기존 검증된 migration 코드 그대로 사용.
+
+migration 파일 수정 금지
+(실제 production에서 syntax/constraint 문제 발견 시에만 STOP 보고).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 즉시 Schema Verification
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+TABLE:
+- curriculum_progress_observations
+- student_curriculum_progress
+
+CPO:
+- UNIQUE(lesson_session_id, student_id)
+- eligibility/type CHECK
+- invalidated consistency CHECK
+- FK curriculum_item
+- FK curriculum_version
+- FK lesson_session
+- indexes 존재
+
+SCP:
+- UNIQUE(student_id, swimming_pool_id)
+- active_confirmed_pct
+- display_confirmed_pct
+- FK active_curriculum_version
+- nullable FK prev_curriculum_version
+- indexes 존재
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Data Safety 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+- CPO row count = 0
+- SCP row count = 0
+- 기존 curriculum/growth/diary row count 변경 없음
+- 기존 production data UPDATE 없음
+- 기존 production data DELETE 없음
+
+이번 Step에서 sample/test row 삽입 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-01B PRODUCTION MIGRATION REPORT
+
+- production migration executed: YES/NO
+- prerequisite tables: PASS/FAIL
+- CPO table created: YES/NO
+- SCP table created: YES/NO
+- CPO row count
+- SCP row count
+- FK count
+- CHECK/UNIQUE status
+- indexes status
+- existing production data changed: NO
+- startup migration connected: NO
+- migration code changed: NO
+- errors: NONE 또는 exact error
+
+Final Verdict:
+GAUGE DB FOUNDATION PRODUCTION READY
+또는
+BLOCKED + exact reason
+
+STOP.

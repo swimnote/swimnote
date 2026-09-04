@@ -1,0 +1,305 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16F
+LEGACY BACKUP SCHEMA REPAIR
+STUDENTS + FULL SYNC COMPATIBILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 16E 승인:
+
+STANDBY_SYNC_SERIALIZATION_FIXED ✅
+POOL_CREDITS_LAZY_SKIP_VERIFIED ✅
+HOT_SYNC_CORE_REPLICATION_VERIFIED ✅
+FULL_SYNC_CORE_REPLICATION_VERIFIED ✅
+
+현재 핵심 HOT/FULL replication 정상.
+
+이번 Phase 목적:
+
+Backup DB의 기존 구버전 테이블 중
+standby-sync/복구에 필요한 schema mismatch를
+안전한 additive 방식으로 정리한다.
+
+Production 변경 금지.
+DROP TABLE 금지.
+DROP COLUMN 금지.
+기존 Backup row 삭제 금지.
+RLS 변경 금지.
+WP4 금지.
+
+DB TARGET:
+POOL_DATABASE_URL ONLY
+
+━━━━━━━━━━━━━━━━━━━━
+1. 우선 students 실제 상태 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+Production / Backup students 각각:
+
+- row count
+- column list
+- type
+- nullable
+- default
+- PK
+- indexes
+
+다시 실제 DB에서 조회.
+
+Phase 15 결과 재사용 금지.
+
+Production에 있고 Backup에 없는 것으로
+기존 확인된 후보:
+
+name_korean
+parent_phone3
+class_enrolled_at
+parent_phone4
+
+실제 현재 상태 기준으로 다시 판단.
+
+━━━━━━━━━━━━━━━━━━━━
+2. students DATA SAFETY
+━━━━━━━━━━━━━━━━━━━━
+
+Backup students 기존 row 존재 여부 확인.
+
+현재 row가 있으면:
+
+- DROP 금지
+- destructive type conversion 금지
+- 기존 값 변경 금지
+
+missing column만 ADD COLUMN.
+
+Production nullable/default와
+100% 동일하게 생성.
+
+임의 DEFAULT 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SQL EXACT MATCH GATE
+━━━━━━━━━━━━━━━━━━━━
+
+실행 전:
+
+Production 신규 컬럼 정의
+vs
+Backup proposed definition
+
+비교.
+
+TYPE_MISMATCH = 0
+NULLABILITY_MISMATCH = 0
+DEFAULT_MISMATCH = 0
+
+아니면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. students ADDITIVE REPAIR
+━━━━━━━━━━━━━━━━━━━━
+
+Gate 통과 후 필요한 missing column만:
+
+ALTER TABLE students
+ADD COLUMN IF NOT EXISTS ...
+
+형태로 추가.
+
+Production과 정확히 동일 정의.
+
+기존 컬럼 type mismatch는 이번 Phase에서
+자동 변환하지 않는다.
+
+특히 timestamp/timestamptz mismatch는
+별도 분류만 하고 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. OTHER LEGACY TABLE AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+Phase 15에서 mismatch가 있었던 기존 테이블 중
+standby-sync 또는 restore 중요도가 높은 것만
+현재 schema를 다시 확인:
+
+parent_accounts
+class_groups
+makeup_sessions
+diary_templates
+notices
+photo_assets_meta
+video_assets_meta
+teacher_schedule_notes
+diary_messages
+
+각각:
+
+MISSING_COLUMNS
+TYPE_MISMATCH
+NULLABILITY_MISMATCH
+DEFAULT_MISMATCH
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━
+6. REPAIR 범위 제한
+━━━━━━━━━━━━━━━━━━━━
+
+이번 Phase에서 실제 WRITE 허용:
+
+A. students
+B. 위 legacy table 중
+   "missing nullable/additive columns"만
+
+다음은 이번 Phase에서 수정 금지:
+
+- 기존 column TYPE 변경
+- existing column NULLABILITY 변경
+- existing column DEFAULT 변경
+- diary_messages id int8→text
+- DROP/RECREATE
+- stale row 삭제
+
+위 항목은 별도 필요성 판단 후 진행.
+
+━━━━━━━━━━━━━━━━━━━━
+7. students replication 실제 검증
+━━━━━━━━━━━━━━━━━━━━
+
+schema repair 후
+기존 standby-sync FULL 경로에서
+students 복제 1회 검증.
+
+Production COUNT
+Backup COUNT
+
+제출.
+
+기대:
+COUNT MATCH
+
+추가 확인:
+
+PK duplicate = 0
+missing required column error = 0
+datatype error = 0
+constraint error = 0
+
+개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. HOT/FULL REGRESSION CHECK
+━━━━━━━━━━━━━━━━━━━━
+
+Phase 16E에서 정상화된 기존 테이블도
+회귀 없는지 확인:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+새로운 오류 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+9. REMAINING SCHEMA MISMATCH
+━━━━━━━━━━━━━━━━━━━━
+
+이번 repair 후
+Production ↔ Backup common tables 전체를
+다시 diff.
+
+분류:
+
+A. BLOCKS_REPLICATION
+B. RESTORE_IMPORTANT
+C. COSMETIC_TYPE_DIFFERENCE
+D. LEGACY_EXTRA_SCHEMA
+E. SAFE_TO_IGNORE
+
+중요:
+
+모든 diff를 무조건 0으로 만들지 말 것.
+
+실제 Backup 목적에 필요 없는
+구버전 index/default 차이까지
+억지로 Production과 동일화하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+10. BACKUP RLS READINESS
+━━━━━━━━━━━━━━━━━━━━
+
+이번 Phase 종료 시:
+
+Backup table count
+RLS enabled
+RLS disabled
+policy count
+
+다시 제출.
+
+그리고 Backup RLS를 걸어도
+standby-sync가 postgres/BYPASSRLS로
+정상 작동할 준비가 되었는지 판정:
+
+BACKUP_RLS_READY
+또는
+BACKUP_RLS_NOT_READY
+
+아직 RLS 실제 적용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. GIT
+━━━━━━━━━━━━━━━━━━━━
+
+DB schema repair만 수행했다면
+코드 변경/commit 없음.
+
+추가 코드 수정이 필요하다고 판단돼도
+이번 Phase에서 임의 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. students Prod/Backup pre-state
+2. students schema diff
+3. exact-match gate
+4. 실행 SQL
+5. students post-state
+6. students replication result
+7. students Prod/Backup count
+8. other legacy tables audit
+9. 실제 추가 repair 목록
+10. HOT/FULL regression
+11. remaining schema mismatch
+12. replication blocking mismatch remaining
+13. Backup RLS current state
+14. Backup RLS readiness
+15. Production 변경 여부
+16. rollback 여부
+17. 최종 판정
+
+성공 시:
+
+STUDENTS_BACKUP_REPLICATION_VERIFIED ✅
+LEGACY_BACKUP_SCHEMA_REPAIR_VERIFIED ✅
+BACKUP_RLS_READY ✅
+
+아직 blocking mismatch가 있으면:
+
+LEGACY_BACKUP_SCHEMA_REPAIR_PARTIAL
+BACKUP_RLS_NOT_READY
+
+STOP.
+
+Backup RLS 실제 적용 금지.
+Production 변경 금지.
+WP4 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

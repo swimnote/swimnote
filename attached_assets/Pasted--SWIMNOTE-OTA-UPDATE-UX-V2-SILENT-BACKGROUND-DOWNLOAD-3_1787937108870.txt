@@ -1,0 +1,401 @@
+[앱]
+
+SWIMNOTE OTA UPDATE UX V2
+SILENT BACKGROUND DOWNLOAD + 30-MINUTE DEFERRED APPLY
+FINAL IMPLEMENTATION
+
+현재 목표:
+기존 OTA 업데이트 UX를 제거하고
+사용자가 거의 인지하지 못하는 방식으로 변경한다.
+
+현재 기존 방식:
+업데이트 감지
+→ "업데이트가 있습니다" 표시
+→ 사용자 확인
+→ 강제 reload/restart
+
+이 방식 제거.
+
+새 방식:
+조용히 다운로드
+→ 즉시 적용하지 않음
+→ cold start 또는 30분 이상 background 후 복귀 시 조용히 적용.
+
+==================================================
+1. FIRST — CURRENT OTA CODE ONLY
+==================================================
+
+repo-wide 조사 금지.
+
+OTA 관련 코드만 확인:
+
+- expo-updates import
+- checkForUpdateAsync
+- fetchUpdateAsync
+- reloadAsync
+- useUpdates
+- AppState listener
+- startup update hook/provider
+- 기존 update modal / alert
+- app config의 updates 설정
+
+현재 구조 최대한 재사용.
+
+==================================================
+2. REMOVE OLD USER-FACING UPDATE UX
+==================================================
+
+일반 OTA에서 제거:
+
+- "업데이트가 있습니다" Alert/Modal
+- 업데이트 확인 버튼
+- 업데이트 다운로드 안내
+- 업데이트 완료 toast/banner
+- 일반 OTA 즉시 reloadAsync()
+
+일반 사용자는 OTA 존재를 알 필요 없음.
+
+==================================================
+3. NEW GENERAL FLOW
+==================================================
+
+앱 실행 후 app-ready 시점에
+현재 앱 사용을 막지 않고 background에서:
+
+Updates.checkForUpdateAsync()
+
+새 update가 있으면:
+
+Updates.fetchUpdateAsync()
+
+fetch 성공 후:
+
+- 즉시 reload 금지
+- 사용자 알림 금지
+- pending update 상태만 내부적으로 기억
+
+예:
+
+updateDownloadedRef.current = true
+
+현재 SDK return contract에 맞게 구현.
+
+==================================================
+4. COLD START
+==================================================
+
+이미 다운로드된 OTA가 존재하는 상태에서
+앱 프로세스가 새로 시작되면
+Expo 기본 동작으로 새 update가 적용되도록 한다.
+
+cold start 시 별도 사용자 메시지 금지.
+
+==================================================
+5. 30-MINUTE BACKGROUND APPLY
+==================================================
+
+AppState 사용.
+
+앱이 active → inactive/background로 전환되는 시점에:
+
+backgroundStartedAtRef.current = Date.now()
+
+다시 active가 될 때:
+
+elapsed =
+Date.now() - backgroundStartedAtRef.current
+
+조건:
+
+elapsed >= 30 * 60 * 1000
+
+AND
+
+새 OTA download 완료 상태
+
+일 때만:
+
+Updates.reloadAsync()
+
+30분 미만이면:
+reload 하지 않는다.
+
+==================================================
+6. IMPORTANT — NO RELOAD ON SHORT SWITCH
+==================================================
+
+예:
+
+사용자가 카카오톡/전화/사진 확인 등으로
+1~10분 정도 앱을 벗어났다가 복귀
+
+→ 절대 reload 금지.
+
+29분 59초:
+reload 0
+
+30분 이상 + pending OTA:
+reload 1회
+
+==================================================
+7. UPDATE CHECK FREQUENCY
+==================================================
+
+foreground마다 무조건 check 금지.
+
+기본:
+
+앱 session 시작 시 1회 check.
+
+필요하다면
+30분 이상 background 후 복귀할 때만
+추가 check 가능.
+
+단,
+불필요한 polling / 반복 network call 금지.
+
+최소 구현 우선.
+
+==================================================
+8. RELOAD LOOP PROTECTION
+==================================================
+
+반드시 reload loop 방지.
+
+reload 직전 또는 reload 성공 흐름에서:
+
+pending flag reset
+
+또는
+
+현재 update ID / fetched update ID 비교
+
+등 현재 expo-updates API에 맞는
+가장 단순한 방어 사용.
+
+같은 OTA로 한 session에서
+reload 반복 금지.
+
+==================================================
+9. FAILURE POLICY
+==================================================
+
+checkForUpdateAsync 실패:
+
+앱 계속 사용.
+
+fetchUpdateAsync 실패:
+
+앱 계속 사용.
+
+reloadAsync 실패:
+
+앱 계속 사용.
+
+사용자에게:
+
+- error modal
+- toast
+- 업데이트 실패 안내
+
+표시 금지.
+
+내부 log만.
+
+==================================================
+10. EXPO CONFIG
+==================================================
+
+현재 OTA-compatible JS/TS 변경만으로 가능하면:
+
+app.json
+app.config
+runtimeVersion
+native config
+
+변경 금지.
+
+현재 production channel/runtimeVersion 정책 유지.
+
+native config 변경 필요 시:
+BUILD_REQUIRED로 STOP.
+
+불필요하게 새 build 요구 만들지 않는다.
+
+==================================================
+11. APPSTATE EDGE CASES
+==================================================
+
+확인:
+
+- active → inactive → active
+- active → background → active
+- OS가 process kill
+- cold start
+- reload 후 재진입
+- update 없음
+
+backgroundStartedAt가 null이면
+30분 계산하지 않는다.
+
+==================================================
+12. TEST CASES
+==================================================
+
+CASE 1
+update 없음
+→ popup 0
+→ reload 0
+
+CASE 2
+update 있음
+→ silent fetch
+→ popup 0
+→ 즉시 reload 0
+
+CASE 3
+background 10분
+→ foreground
+→ reload 0
+
+CASE 4
+background 29분59초
+→ foreground
+→ reload 0
+
+CASE 5
+background 30분+
++
+pending OTA
+→ silent reload 1회
+
+CASE 6
+background 30분+
++
+pending OTA 없음
+→ reload 0
+
+CASE 7
+cold start
+→ downloaded OTA 적용
+
+CASE 8
+check/fetch 실패
+→ 앱 정상 사용
+
+CASE 9
+reload loop
+→ 0
+
+CASE 10
+foreground 반복
+→ 불필요한 update check 반복 없음
+
+==================================================
+13. PRESERVE CURRENT WORK
+==================================================
+
+절대 건드리지 말 것:
+
+- Growth Report delete feature
+- 현재 DB 수정 작업
+- Growth Report engine
+- Diary DB
+- unrelated app screens
+- auth
+- billing
+- native dependencies
+
+OTA UX만 수정.
+
+==================================================
+14. COMMIT
+==================================================
+
+branch:
+deploy-photo-clone
+
+commit + push.
+
+이번 작업 완료 후
+현재 DB 작업 + Growth Report delete + startup fix + OTA change가
+모두 포함된 최종 HEAD를 만든다.
+
+==================================================
+15. DEPLOYMENT
+==================================================
+
+중요:
+
+서버/API 변경이 현재 HEAD에 함께 포함되어 있으므로
+최종 HEAD 기준으로:
+
+1.
+swimnote-api
+Render Manual Deploy
+
+2.
+앱 OTA-compatible JS/TS 변경이면
+iOS production OTA publish
+
+OTA publish 전 반드시 기록:
+
+ROLLBACK_TARGET
+
+- previous stable update group
+- previous update ID
+- runtimeVersion
+- production channel
+- branch
+- timestamp/message
+
+publish 후 보고:
+
+NEW OTA GROUP
+NEW UPDATE ID
+runtimeVersion
+channel
+git SHA
+
+Android OTA:
+실행하지 않는다.
+
+==================================================
+16. FINAL REPORT
+==================================================
+
+A. OTA 기존 root cause
+
+B. changed files
+
+C. old popup/reload path removed
+
+D. silent download implementation
+
+E. 30-minute logic
+
+F. reload loop protection
+
+G. Expo/native config changed?
+YES / NO
+
+H. BUILD_REQUIRED
+YES / NO
+
+I. TESTS
+
+J. FINAL HEAD SHA
+
+K. RENDER DEPLOY
+PASS / FAIL
+
+L. OTA ROLLBACK TARGET
+
+M. NEW OTA GROUP / UPDATE ID
+
+N. FINAL STATUS
+
+SILENT 30-MIN OTA:
+PASS / FAIL
+
+완료 후 STOP.

@@ -12,12 +12,16 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { AtSign, BellOff, Calendar, CircleCheck, Layers, Lock as LockIcon, Paperclip, Phone, Plus, Send, User, Users, X } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -28,15 +32,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { AtSign, Bell, BellOff, Calendar, CircleCheck, Layers, Lock, Paperclip, Phone, Plus, Send, Smile, User, Users, X } from "lucide-react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { parseDateSafe } from "@/domain/formatters";
 
 const C = Colors.light;
-const PRIMARY = C.tint;
+const PRIMARY = C.brandStrong;
 const NOTICE_YELLOW_BG = "#FFFBEB";
 const NOTICE_YELLOW_BORDER = "#FDE68A";
 const AMBER_SOFT = "#FFF1BF";
@@ -54,15 +61,17 @@ type MsgType =
   | "directed_message";
 
 interface WorkMessage {
-  id: number;
+  id: number | string;
   pool_id: string;
   sender_id: string | null;
   sender_name: string | null;
+  sender_role?: string | null;
   content: string;
   msg_type: string;
   channel_type: ChannelType;
   message_type: MsgType;
   extra_data?: Record<string, any> | null;
+  photo_url?: string | null;
   created_at: string;
 }
 
@@ -111,9 +120,16 @@ function fmtDateFull(raw: string | null | undefined): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${WEEK_DAYS[d.getDay()]}요일`;
 }
 
-/** 두 raw 문자열이 같은 날(YYYY-MM-DD)인지 */
+/** 두 ISO 문자열이 같은 로컬(KST) 날짜인지 — UTC slice 비교 금지 */
 function sameDay(a: string, b: string): boolean {
-  return !!a && !!b && a.slice(0, 10) === b.slice(0, 10);
+  const da = parseDateSafe(a);
+  const db = parseDateSafe(b);
+  if (!da || !db) return false;
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -188,6 +204,69 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  /* ── 백그라운드 silent refresh (7초 polling, focus 중에만) ── */
+  const bgRefreshingRef = useRef(false);
+
+  const refreshMessagesSilent = useCallback(async () => {
+    if (bgRefreshingRef.current || !poolId || !token) return;
+    bgRefreshingRef.current = true;
+    try {
+      const [talkRes, noticeRes, readRes] = await Promise.all([
+        apiRequest(token, `/messenger/messages?pool_id=${poolId}&channel_type=talk`),
+        apiRequest(token, `/messenger/messages?pool_id=${poolId}&channel_type=notice`),
+        apiRequest(token, `/messenger/read-state?pool_id=${poolId}`),
+      ]);
+      if (talkRes.ok) {
+        const d = await talkRes.json();
+        const fresh: WorkMessage[] = Array.isArray(d.messages) ? d.messages : [];
+        setTalkMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const added = fresh.filter(m => !existingIds.has(m.id));
+          if (added.length === 0) return prev;
+          return [...added, ...prev];
+        });
+      }
+      if (noticeRes.ok) {
+        const d = await noticeRes.json();
+        const fresh: WorkMessage[] = Array.isArray(d.messages) ? d.messages : [];
+        setNoticeMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const added = fresh.filter(m => !existingIds.has(m.id));
+          if (added.length === 0) return prev;
+          return [...added, ...prev];
+        });
+      }
+      if (readRes.ok) {
+        const d = await readRes.json();
+        setNoticeUnread((d.unreadCount ?? d.unread_count ?? 0) > 0);
+      }
+    } catch (e) {
+      console.error("[messenger] bg refresh error", e);
+    } finally {
+      bgRefreshingRef.current = false;
+    }
+  }, [poolId, token]);
+
+  /* focus 시작 → 7초 polling, blur → cleanup */
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(refreshMessagesSilent, 7000);
+      return () => clearInterval(timer);
+    }, [refreshMessagesSilent])
+  );
+
+  /* ── 화면 진입 시 talk 읽음 처리 (백그라운드 복귀 포함) ── */
+  useFocusEffect(
+    useCallback(() => {
+      if (token && poolId) {
+        apiRequest(token, "/messenger/read-state", {
+          method: "POST",
+          body: JSON.stringify({ pool_id: poolId, channel_type: "talk" }),
+        }).catch(() => {});
+      }
+    }, [token, poolId])
+  );
+
   /* ── 탭 이탈 시에만 지정 대상 초기화 ── */
   useFocusEffect(
     useCallback(() => {
@@ -224,40 +303,77 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   const sendTalk = useCallback(async () => {
     const text = talkInput.trim();
     if (!text || sending || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "normal",
+      channel_type: "talk",
+      message_type: targetUser ? "directed_message" : "normal",
+      extra_data: targetUser ? { target_user_id: targetUser.id, target_user_name: targetUser.name } : null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setTalkMessages(prev => [optimistic, ...prev]);
+    setTalkInput("");
     setSending(true);
+
     try {
       const body: Record<string, any> = {
-        pool_id: poolId,
-        content: text,
-        channel_type: "talk",
-        message_type: "normal",
+        pool_id: poolId, content: text, channel_type: "talk", message_type: "normal",
       };
-      if (targetUser) {
-        body.target_user_id = targetUser.id;
-        body.target_user_name = targetUser.name;
-      }
-      const res = await apiRequest(token, "/messenger/messages", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (targetUser) { body.target_user_id = targetUser.id; body.target_user_name = targetUser.name; }
+      const res = await apiRequest(token, "/messenger/messages", { method: "POST", body: JSON.stringify(body) });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
+        if (d.message) {
+          setTalkMessages(prev => {
+            // replace optimistic, remove any polling-added duplicate of the real message
+            const replaced = prev.map(m => m.id === tempId ? d.message : m);
+            const seen = new Set<number>();
+            return replaced.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+          });
+        }
+      } else {
+        setTalkMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setTalkInput("");
-      // targetUser는 여기서 초기화하지 않음 — X 버튼 또는 탭 이탈 시에만 초기화
     } catch (e) {
       console.error("[messenger] sendTalk error", e);
+      setTalkMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [talkInput, sending, poolId, token, targetUser]);
+  }, [talkInput, sending, poolId, token, targetUser, myUserId]);
 
   /* ── 공지 전송 ── */
   const sendNotice = useCallback(async () => {
     const text = noticeInput.trim();
     if (!text || sending || !isAdmin || !token) return;
+
+    const tempId = Date.now();
+    const optimistic: WorkMessage = {
+      id: tempId,
+      pool_id: poolId,
+      sender_id: myUserId,
+      sender_name: null,
+      content: text,
+      msg_type: "notice",
+      channel_type: "notice",
+      message_type: "notice",
+      extra_data: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // 즉시 UI 반영
+    setNoticeMessages(prev => [optimistic, ...prev]);
+    setNoticeInput("");
     setSending(true);
+
     try {
       const res = await apiRequest(token, "/messenger/notice", {
         method: "POST",
@@ -265,15 +381,50 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       });
       if (res.ok) {
         const d = await res.json();
-        if (d.message) setNoticeMessages((prev) => [d.message, ...prev]);
+        if (d.message) {
+          setNoticeMessages(prev => {
+            const replaced = prev.map(m => m.id === tempId ? d.message : m);
+            const seen = new Set<number>();
+            return replaced.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+          });
+        }
+      } else {
+        setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
       }
-      setNoticeInput("");
     } catch (e) {
       console.error("[messenger] sendNotice error", e);
+      setNoticeMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
     }
-  }, [noticeInput, sending, poolId, isAdmin, token]);
+  }, [noticeInput, sending, poolId, isAdmin, token, myUserId]);
+
+  /* ── 내 메시지 삭제 ── */
+  const handleDeleteMessage = useCallback((messageId: number) => {
+    Alert.alert(
+      "메시지 삭제",
+      "이 메시지를 삭제하시겠습니까?",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            // Optimistic: 즉시 목록에서 제거
+            setTalkMessages(prev => prev.filter(m => m.id !== messageId));
+            try {
+              const res = await apiRequest(token, `/messenger/messages/${messageId}`, { method: "DELETE" });
+              if (!res.ok) {
+                // 실패 시 복원 위해 재조회는 하지 않음 — 다음 poll에서 복원됨
+                console.warn("[messenger] delete failed", await res.text().catch(() => ""));
+              }
+            } catch (e) {
+              console.error("[messenger] delete error", e);
+            }
+          },
+        },
+      ]
+    );
+  }, [token]);
 
   /* ── + 버튼: 첨부 메뉴 열기 ── */
   const handlePlusBtn = useCallback(() => {
@@ -282,41 +433,128 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
   }, []);
 
   /* ── 파일 첨부 ── */
+  const handleAlbumAttach = useCallback(async () => {
+    setShowAttachMenu(false);
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
+    if (!token) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "사진 접근 권한이 필요합니다. 설정에서 허용해주세요.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"],
+      quality: 0.85,
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    // batch_id: 한 번의 selection에서 선택된 사진들을 명시적으로 묶는 식별자
+    const batchId = result.assets.length > 1
+      ? `batch_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`
+      : undefined;
+
+    setSending(true);
+    try {
+      const newMsgs: WorkMessage[] = [];
+      for (const asset of result.assets) {
+        const formData = new FormData();
+        formData.append("pool_id", poolId);
+        if (batchId) formData.append("batch_id", batchId);
+        const filename = asset.fileName || `photo_${Date.now()}.jpg`;
+        const mime = asset.mimeType || "image/jpeg";
+        formData.append("photo", { uri: asset.uri, name: filename, type: mime } as any);
+
+        const res = await fetch(`${API_BASE}/messenger/messages/photo`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.message) newMsgs.push(d.message);
+        } else {
+          const d = await res.json().catch(() => ({}));
+          Alert.alert("오류", d.message || "사진 전송에 실패했습니다.");
+        }
+      }
+      if (newMsgs.length > 0) {
+        setTalkMessages((prev) => [...newMsgs.reverse(), ...prev]);
+      }
+    } catch (e: any) {
+      console.error("[messenger] albumAttach error", e);
+      Alert.alert("오류", "사진 전송 중 문제가 발생했습니다.");
+    } finally {
+      setSending(false);
+    }
+  }, [poolId, token]);
+
   const handleFileAttach = useCallback(async () => {
     setShowAttachMenu(false);
+    // iOS: 모달 dismiss 애니메이션이 끝난 뒤 DocumentPicker를 열어야 반응함
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     if (!token) return;
+
+    let result: DocumentPicker.DocumentPickerResult;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
+      result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
         copyToCacheDirectory: true,
+        multiple: false,
       });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
+    } catch (pickerErr: any) {
+      console.error("[messenger] DocumentPicker error", pickerErr);
+      Alert.alert("파일 선택 오류", "파일을 선택할 수 없습니다. 다시 시도해주세요.");
+      return;
+    }
 
-      setSending(true);
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+
+    if (!asset.uri) {
+      Alert.alert("오류", "파일 경로를 읽을 수 없습니다.");
+      return;
+    }
+
+    setSending(true);
+    try {
       const formData = new FormData();
       formData.append("pool_id", poolId);
       formData.append("file", {
         uri: asset.uri,
-        name: asset.name,
+        name: asset.name ?? "attachment",
         type: asset.mimeType || "application/octet-stream",
       } as any);
 
-      const res = await apiRequest(token, "/messenger/send-attachment", {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const res = await fetch(`${API_BASE}/messenger/send-attachment`, {
         method: "POST",
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const d = await res.json();
         if (d.message) setTalkMessages((prev) => [d.message, ...prev]);
       } else {
-        const d = await res.json();
-        Alert.alert("오류", d.message || "파일 전송에 실패했습니다.");
+        let errMsg = "파일 전송에 실패했습니다.";
+        try { const d = await res.json(); errMsg = d.message || errMsg; } catch {}
+        Alert.alert("오류", errMsg);
       }
     } catch (e: any) {
-      console.error("[messenger] fileAttach error", e);
-      Alert.alert("오류", "파일 전송 중 문제가 발생했습니다.");
+      console.error("[messenger] fileAttach upload error", e);
+      if (e?.name === "AbortError") {
+        Alert.alert("연결 시간 초과", "서버 응답이 없습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        Alert.alert("오류", "파일 전송 중 문제가 발생했습니다. 네트워크 상태를 확인해주세요.");
+      }
     } finally {
       setSending(false);
     }
@@ -405,10 +643,39 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               isMine={isMine}
               extra={extra}
               senderName={item.sender_name}
+              senderRole={item.sender_role}
               time={fmtTime(item.created_at)}
               showTime={showTime}
               showAvatar={showAvatar}
               onPress={() => handleCardPress(extra)}
+            />
+          </>
+        );
+      }
+
+      if (item.msg_type === "photo") {
+        const batchId = item.extra_data?.batch_id;
+        // 배치 사진이면: nextMsg(더 최신)가 같은 batch_id → 이미 갤러리로 렌더됨 → 스킵
+        if (batchId && nextMsg?.extra_data?.batch_id === batchId) return null;
+
+        // 같은 batch_id 를 가진 모든 사진 수집 (현재 이후 older msgs에서)
+        const batchPhotos: WorkMessage[] = batchId
+          ? talkMessages.filter(m => m.msg_type === "photo" && m.extra_data?.batch_id === batchId && m.sender_id === item.sender_id)
+              .slice().reverse() // oldest first for display
+          : [item];
+
+        return (
+          <>
+            {showDateLine && <DateLine iso={item.created_at} />}
+            <GalleryBubble
+              isMine={isMine}
+              photos={batchPhotos}
+              token={token || ""}
+              senderName={item.sender_name}
+              senderRole={item.sender_role}
+              time={fmtTime(item.created_at)}
+              showTime={showTime}
+              showAvatar={showAvatar}
             />
           </>
         );
@@ -421,7 +688,10 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <AttachFileBubble
               isMine={isMine}
               extra={extra}
+              msgId={String(item.id)}
+              token={token || ""}
               senderName={item.sender_name}
+              senderRole={item.sender_role}
               time={fmtTime(item.created_at)}
               showTime={showTime}
               showAvatar={showAvatar}
@@ -431,45 +701,31 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
       }
 
       /* 일반/지정 텍스트 메시지 */
-      const isDirected = item.message_type === "directed_message";
       return (
         <>
           {showDateLine && <DateLine iso={item.created_at} />}
           <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-            {!isMine && (
-              <View style={s.avatarCol}>
-                {showAvatar ? (
-                  <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-                    <Text style={s.avatarText}>{(item.sender_name || "?").charAt(0)}</Text>
-                  </View>
-                ) : (
-                  <View style={s.avatarPlaceholder} />
-                )}
-              </View>
-            )}
+            {!isMine && <View style={s.avatarPlaceholder} />}
             <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
               {!isMine && showAvatar && item.sender_name && (
-                <Text style={s.senderName}>{item.sender_name}</Text>
-              )}
-              {isDirected && (
-                <View style={[s.directedTag, isMine ? s.directedTagRight : s.directedTagLeft]}>
-                  <AtSign size={10} color="#64748B" />
-                  <Text style={s.directedTagText}>
-                    {isMine
-                      ? `${extra.target_user_name}에게만`
-                      : "나에게만"}
-                  </Text>
-                </View>
+                <Text style={s.senderName}>
+                  {item.sender_name}{item.sender_role === "teacher" ? " 선생님" : ""}
+                </Text>
               )}
               <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
                 {isMine && showTime && (
                   <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>
                 )}
-                <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
-                  <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>
-                    {item.content}
-                  </Text>
-                </View>
+                <Pressable
+                  onLongPress={isMine ? () => handleDeleteMessage(item.id) : undefined}
+                  delayLongPress={400}
+                >
+                  <View style={[s.bubble, isMine ? [s.bubbleMine, { backgroundColor: PRIMARY }] : s.bubbleOther]}>
+                    <Text style={[s.bubbleText, isMine ? s.bubbleTextMine : s.bubbleTextOther]}>
+                      {item.content}
+                    </Text>
+                  </View>
+                </Pressable>
                 {!isMine && showTime && (
                   <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{fmtTime(item.created_at)}</Text>
                 )}
@@ -479,7 +735,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
         </>
       );
     },
-    [talkMessages, myUserId, handleCardPress]
+    [talkMessages, myUserId, handleCardPress, handleDeleteMessage]
   );
 
   const renderNoticeItem = useCallback(
@@ -503,7 +759,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
             <View style={s.noticeCardWrap}>
               <View style={s.noticeCard}>
                 <View style={s.noticeCardHeader}>
-                  <Bell size={13} color={AMBER_TEXT} />
+                  <LucideIcon name="bell" size={13} color={AMBER_TEXT} />
                   <Text style={s.noticeCardSender}>{item.sender_name || "관리자"}</Text>
                   <Text style={s.noticeCardTime}>{fmtTime(item.created_at)}</Text>
                 </View>
@@ -578,7 +834,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           {targetUser && (
             <View style={s.targetBadge}>
               <AtSign size={13} color={PRIMARY} />
-              <Text style={s.targetBadgeText}>{targetUser.name}에게만 보냄</Text>
+              <Text style={s.targetBadgeText}>@{targetUser.name} 언급</Text>
               <TouchableOpacity onPress={() => setTargetUser(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <X size={14} color={C.textSecondary} />
               </TouchableOpacity>
@@ -605,9 +861,6 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 multiline
                 maxLength={1000}
               />
-              <TouchableOpacity style={s.sideBtn} activeOpacity={0.7}>
-                <Smile size={22} color={C.textSecondary} />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[s.sendBtn, { backgroundColor: PRIMARY }, talkInput.trim().length === 0 && s.sendBtnOff]}
                 onPress={sendTalk}
@@ -681,13 +934,22 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
           <Pressable style={s.attachSheet} onPress={() => {}}>
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>첨부</Text>
+            <TouchableOpacity style={s.sheetItem} onPress={handleAlbumAttach} activeOpacity={0.7}>
+              <View style={[s.sheetIcon, { backgroundColor: "#F3E8FF" }]}>
+                <LucideIcon name="image" size={22} color="#9333EA" />
+              </View>
+              <View style={s.sheetItemText}>
+                <Text style={s.sheetItemLabel}>앨범</Text>
+                <Text style={s.sheetItemSub}>사진 및 동영상 전송</Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleFileAttach} activeOpacity={0.7}>
-              <View style={[s.sheetIcon, { backgroundColor: "#E6FFFA" }]}>
+              <View style={[s.sheetIcon, { backgroundColor: "#E0F2FE" }]}>
                 <Paperclip size={22} color="#4EA7D8" />
               </View>
               <View style={s.sheetItemText}>
-                <Text style={s.sheetItemLabel}>파일 첨부</Text>
-                <Text style={s.sheetItemSub}>이미지, 문서 파일 전송</Text>
+                <Text style={s.sheetItemLabel}>파일</Text>
+                <Text style={s.sheetItemSub}>문서, 파일 전송</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={s.sheetItem} onPress={handleMemberCard} activeOpacity={0.7}>
@@ -717,7 +979,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
               </TouchableOpacity>
             </View>
             <Text style={s.modalSub}>정보를 공유할 회원을 선택하세요</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {myStudents.map((st) => (
                 <TouchableOpacity
                   key={st.id}
@@ -737,7 +999,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   <Send size={16} color={PRIMARY} />
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -752,8 +1014,8 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                 <X size={20} color={C.text} />
               </TouchableOpacity>
             </View>
-            <Text style={s.modalSub}>메시지를 보낼 대상을 선택하면 지정 메시지를 보낼 수 있습니다.</Text>
-            <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
+            <Text style={s.modalSub}>선택한 선생님을 @태그로 언급합니다. 메시지는 <Text style={{ fontFamily: "Pretendard-SemiBold", color: C.textPrimary }}>전체 공개</Text>이며, 비밀 개인톡이 아닙니다. 특정 선생님이 꼭 확인해야 할 내용을 보낼 때 사용하세요.</Text>
+            <KeyboardAwareScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {staff.map((member) => {
                 const isMe = member.id === myUserId;
                 const isSelected = targetUser?.id === member.id;
@@ -770,7 +1032,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                     activeOpacity={0.7}
                     disabled={isMe}
                   >
-                    <View style={[s.staffAvatar, { backgroundColor: member.role === "pool_admin" ? C.tintLight : "#E0F2FE" }]}>
+                    <View style={[s.staffAvatar, { backgroundColor: member.role === "pool_admin" ? C.brandSoft : "#E0F2FE" }]}>
                       <Text style={[s.staffAvatarText, { color: member.role === "pool_admin" ? PRIMARY : "#0369A1" }]}>
                         {member.name.charAt(0)}
                       </Text>
@@ -784,7 +1046,7 @@ export default function MessengerScreen({ poolId, myUserId, myRole, keyboardHead
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -837,11 +1099,12 @@ function DateLine({ iso }: { iso: string }) {
 
 /* ─── 서브 컴포넌트: 회원정보 카드 버블 ──────────────────── */
 function MemberCardBubble({
-  isMine, extra, senderName, time, showTime, showAvatar, onPress,
+  isMine, extra, senderName, senderRole, time, showTime, showAvatar, onPress,
 }: {
   isMine: boolean;
   extra: Record<string, any>;
   senderName: string | null;
+  senderRole?: string | null;
   time: string;
   showTime: boolean;
   showAvatar: boolean;
@@ -849,18 +1112,12 @@ function MemberCardBubble({
 }) {
   return (
     <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-      {!isMine && (
-        <View style={s.avatarCol}>
-          {showAvatar ? (
-            <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-              <Text style={s.avatarText}>{(senderName || "?").charAt(0)}</Text>
-            </View>
-          ) : <View style={s.avatarPlaceholder} />}
-        </View>
-      )}
+      {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName}</Text>
+          <Text style={s.senderName}>
+            {senderName}{senderRole === "teacher" ? " 선생님" : ""}
+          </Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
@@ -883,10 +1140,14 @@ function MemberCardBubble({
                   <Text style={s.memberCardMeta}>{extra.schedule_days} {extra.schedule_time}</Text>
                 </View>
               )}
-              <View style={s.memberCardRow}>
+              <TouchableOpacity
+                style={s.memberCardRow}
+                onPress={extra.parent_phone ? () => Linking.openURL(`tel:${extra.parent_phone}`) : undefined}
+                activeOpacity={extra.parent_phone ? 0.7 : 1}
+              >
                 <Phone size={11} color={C.textSecondary} />
                 <Text style={s.memberCardMeta}>{extra.parent_phone || "-"}</Text>
-              </View>
+              </TouchableOpacity>
               <Text style={s.memberCardTap}>탭하여 상세 보기</Text>
             </View>
           </TouchableOpacity>
@@ -897,45 +1158,207 @@ function MemberCardBubble({
   );
 }
 
-/* ─── 서브 컴포넌트: 파일 첨부 버블 ──────────────────────── */
-function AttachFileBubble({
-  isMine, extra, senderName, time, showTime, showAvatar,
+/* ─── 서브 컴포넌트: 갤러리 버블 ─────────────────────────── */
+function GalleryBubble({
+  isMine, photos, token, senderName, senderRole, time, showTime, showAvatar,
 }: {
   isMine: boolean;
-  extra: Record<string, any>;
+  photos: WorkMessage[];
+  token: string;
   senderName: string | null;
+  senderRole?: string | null;
   time: string;
   showTime: boolean;
   showAvatar: boolean;
 }) {
+  const [previewUri, setPreviewUri] = React.useState<string | null>(null);
+  const [sharing, setSharing] = React.useState<string | null>(null);
+
+  const CELL = 108; const GAP = 2;
+  const n = photos.length;
+
+  const getUrl = (p: WorkMessage) =>
+    p.photo_url ? `${API_BASE.replace(/\/api$/, "")}${p.photo_url}` : null;
+
+  const handleShare = async (p: WorkMessage) => {
+    const url = getUrl(p); if (!url) return;
+    setSharing(String(p.id));
+    try {
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) { Alert.alert("오류", "사진을 불러올 수 없습니다."); return; }
+      const blob = await r.blob();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const b64 = (reader.result as string).split(",")[1];
+        const uri = `${FileSystem.cacheDirectory}photo_${Date.now()}.jpg`;
+        await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: "image/jpeg" });
+        setSharing(null);
+      };
+      reader.readAsDataURL(blob);
+    } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); setSharing(null); }
+  };
+
+  const renderCell = (p: WorkMessage, w: number, h: number, showPlus?: number) => {
+    const url = getUrl(p);
+    return (
+      <TouchableOpacity key={String(p.id)} onPress={() => url && setPreviewUri(url)} onLongPress={() => handleShare(p)} activeOpacity={0.85}>
+        <View style={{ width: w, height: h, borderRadius: 6, overflow: "hidden", backgroundColor: C.backgroundSoft }}>
+          {url ? <Image source={{ uri: url, headers: { Authorization: `Bearer ${token}` } }} style={{ width: w, height: h }} resizeMode="cover" /> : null}
+          {showPlus != null && (
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700" }}>+{showPlus}</Text>
+            </View>
+          )}
+          {sharing === String(p.id) && (
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.3)", alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator color="#fff" />
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const totalW = n === 1 ? CELL * 2 : CELL * 2 + GAP;
+  const layout = () => {
+    if (n === 1) return <View>{renderCell(photos[0], CELL * 2, CELL * 2)}</View>;
+    if (n === 2) return (
+      <View style={{ flexDirection: "row", gap: GAP }}>
+        {renderCell(photos[0], CELL, CELL + 40)}
+        {renderCell(photos[1], CELL, CELL + 40)}
+      </View>
+    );
+    if (n === 3) return (
+      <View style={{ gap: GAP }}>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(photos[0], CELL, CELL)}
+          {renderCell(photos[1], CELL, CELL)}
+        </View>
+        {renderCell(photos[2], CELL * 2 + GAP, CELL)}
+      </View>
+    );
+    // 4+
+    const display = photos.slice(0, 4);
+    const extra = n - 4;
+    return (
+      <View style={{ gap: GAP }}>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(display[0], CELL, CELL)}
+          {renderCell(display[1], CELL, CELL)}
+        </View>
+        <View style={{ flexDirection: "row", gap: GAP }}>
+          {renderCell(display[2], CELL, CELL)}
+          {extra > 0 ? renderCell(display[3], CELL, CELL, extra) : renderCell(display[3], CELL, CELL)}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <>
+      <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
+        {!isMine && <View style={s.avatarPlaceholder} />}
+        <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
+          {!isMine && showAvatar && senderName && (
+            <Text style={s.senderName}>{senderName}{senderRole === "teacher" ? " 선생님" : ""}</Text>
+          )}
+          <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
+            {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
+            <View style={{ width: totalW, borderRadius: 10, overflow: "hidden" }}>{layout()}</View>
+            {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
+          </View>
+        </View>
+      </View>
+      {/* 전체화면 미리보기 */}
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" }} onPress={() => setPreviewUri(null)}>
+          {previewUri && (
+            <Image source={{ uri: previewUri, headers: { Authorization: `Bearer ${token}` } }} style={{ width: "95%", height: "80%" }} resizeMode="contain" />
+          )}
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+/* ─── 서브 컴포넌트: 파일 첨부 버블 ──────────────────────── */
+function AttachFileBubble({
+  isMine, extra, msgId, token, senderName, senderRole, time, showTime, showAvatar,
+}: {
+  isMine: boolean;
+  extra: Record<string, any>;
+  msgId: string;
+  token: string;
+  senderName: string | null;
+  senderRole?: string | null;
+  time: string;
+  showTime: boolean;
+  showAvatar: boolean;
+}) {
+  const [downloading, setDownloading] = React.useState(false);
   const ext = (extra.attachment_name || "").split(".").pop()?.toUpperCase() || "FILE";
   const isImage = ["JPG","JPEG","PNG","GIF","WEBP","HEIC"].includes(ext);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const url = `${API_BASE}/messenger/attachment-file/${msgId}`;
+      const downloadRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!downloadRes.ok) { Alert.alert("오류", "파일을 불러올 수 없습니다."); return; }
+      const blob = await downloadRes.blob();
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        try {
+          const base64 = (reader.result as string).split(",")[1];
+          const filename = extra.attachment_name || `file.${ext.toLowerCase()}`;
+          const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+          await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileUri, { mimeType: extra.attachment_mime || "application/octet-stream" });
+          } else {
+            Alert.alert("알림", "이 기기에서는 파일 공유를 지원하지 않습니다.");
+          }
+        } catch (e) {
+          Alert.alert("오류", "파일 저장에 실패했습니다.");
+        } finally {
+          setDownloading(false);
+        }
+      };
+      reader.readAsDataURL(blob);
+    } catch (e: any) {
+      console.error("[messenger] download error", e);
+      Alert.alert("오류", "파일 다운로드 중 문제가 발생했습니다.");
+      setDownloading(false);
+    }
+  };
+
   return (
     <View style={[s.msgRow, isMine ? s.msgRowRight : s.msgRowLeft]}>
-      {!isMine && (
-        <View style={s.avatarCol}>
-          {showAvatar ? (
-            <View style={[s.avatar, { backgroundColor: PRIMARY }]}>
-              <Text style={s.avatarText}>{(senderName || "?").charAt(0)}</Text>
-            </View>
-          ) : <View style={s.avatarPlaceholder} />}
-        </View>
-      )}
+      {!isMine && <View style={s.avatarPlaceholder} />}
       <View style={[s.bubbleCol, isMine ? s.bubbleColRight : s.bubbleColLeft]}>
         {!isMine && showAvatar && senderName && (
-          <Text style={s.senderName}>{senderName}</Text>
+          <Text style={s.senderName}>
+            {senderName}{senderRole === "teacher" ? " 선생님" : ""}
+          </Text>
         )}
         <View style={[s.bubbleRow, isMine ? s.bubbleRowRight : s.bubbleRowLeft]}>
           {isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
-          <View style={s.fileCard}>
-            <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E6FFFA" : "#F1F5F9" }]}>
-              <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
+          <TouchableOpacity onPress={handleDownload} activeOpacity={0.8} disabled={downloading}>
+            <View style={s.fileCard}>
+              <View style={[s.fileIconBox, { backgroundColor: isImage ? "#E0F2FE" : C.backgroundSoft }]}>
+                {downloading
+                  ? <ActivityIndicator size="small" color={C.textSecondary} />
+                  : <LucideIcon name={isImage ? "image" : "file"} size={20} color={isImage ? "#4EA7D8" : C.textSecondary} />
+                }
+              </View>
+              <View style={s.fileInfo}>
+                <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
+                <Text style={s.fileExt}>{downloading ? "다운로드 중..." : ext}</Text>
+              </View>
             </View>
-            <View style={s.fileInfo}>
-              <Text style={s.fileName} numberOfLines={1}>{extra.attachment_name || "파일"}</Text>
-              <Text style={s.fileExt}>{ext}</Text>
-            </View>
-          </View>
+          </TouchableOpacity>
           {!isMine && showTime && <Text style={[s.msgTime, { alignSelf: "flex-end", marginBottom: 3 }]}>{time}</Text>}
         </View>
       </View>
@@ -962,7 +1385,7 @@ const s = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
@@ -1000,8 +1423,8 @@ const s = StyleSheet.create({
   avatarCol: { width: 36, marginRight: 6, alignSelf: "flex-end" },
   avatar: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center" },
   avatarText: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  avatarPlaceholder: { width: 34, height: 34 },
-  senderName: { fontSize: 11, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginBottom: 2, marginLeft: 2 },
+  avatarPlaceholder: { width: 8 },
+  senderName: { fontSize: 12, color: C.text, fontFamily: "Pretendard-Regular", fontWeight: "600", marginBottom: 3, marginLeft: 2 },
   bubbleCol: { maxWidth: "75%", flexDirection: "column" },
   bubbleColLeft: { alignItems: "flex-start" },
   bubbleColRight: { alignItems: "flex-end" },
@@ -1010,7 +1433,7 @@ const s = StyleSheet.create({
   bubbleRowRight: { flexDirection: "row-reverse" },
   bubble: { borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
   bubbleMine: { borderBottomRightRadius: 4 },
-  bubbleOther: { backgroundColor: "#fff", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: C.border },
+  bubbleOther: { backgroundColor: C.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: C.border },
   bubbleText: { fontSize: 14, lineHeight: 20, fontFamily: "Pretendard-Regular" },
   bubbleTextMine: { color: "#fff" },
   bubbleTextOther: { color: C.text },
@@ -1021,7 +1444,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: C.surface,
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -1050,9 +1473,9 @@ const s = StyleSheet.create({
 
   /* 회원정보 카드 */
   memberCard: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderWidth: 1.5,
-    borderColor: C.tintLight,
+    borderColor: C.brandSoft,
     borderRadius: 14,
     padding: 12,
     minWidth: 200,
@@ -1061,7 +1484,7 @@ const s = StyleSheet.create({
   memberCardHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   memberCardIcon: {
     width: 24, height: 24, borderRadius: 12,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center",
   },
   memberCardLabel: { fontSize: 11, color: PRIMARY, fontFamily: "Pretendard-Regular" },
   memberCardName: { fontSize: 16, color: C.text, fontFamily: "Pretendard-Regular" },
@@ -1073,7 +1496,7 @@ const s = StyleSheet.create({
   fileCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 12,
@@ -1094,19 +1517,19 @@ const s = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 6,
-    backgroundColor: C.tintLight,
+    backgroundColor: C.brandSoft,
     borderTopWidth: 1,
-    borderTopColor: C.tintLight,
+    borderTopColor: C.brandSoft,
   },
   targetBadgeText: { flex: 1, fontSize: 12, color: PRIMARY, fontFamily: "Pretendard-Regular" },
 
   /* 입력창 */
-  inputArea: { backgroundColor: "#F1F5F9", borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
+  inputArea: { backgroundColor: C.backgroundSoft, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8, paddingHorizontal: 8 },
   noticeInputArea: { backgroundColor: NOTICE_YELLOW_BG, borderTopColor: NOTICE_YELLOW_BORDER },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
   sideBtn: { width: 36, height: 38, justifyContent: "center", alignItems: "center" },
   textInput: {
-    flex: 1, backgroundColor: "#fff", borderWidth: 1, borderColor: C.border, borderRadius: 20,
+    flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 20,
     paddingHorizontal: 14, paddingTop: Platform.OS === "ios" ? 9 : 7, paddingBottom: Platform.OS === "ios" ? 9 : 7,
     fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, maxHeight: 120, minHeight: 38,
   },
@@ -1126,7 +1549,7 @@ const s = StyleSheet.create({
 
   /* 첨부 메뉴 시트 */
   attachSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1142,7 +1565,7 @@ const s = StyleSheet.create({
 
   /* 범용 모달 시트 */
   modalSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1161,7 +1584,7 @@ const s = StyleSheet.create({
   },
   studentAvatar: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center",
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center",
   },
   studentAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: PRIMARY },
   studentInfo: { flex: 1 },
@@ -1173,7 +1596,7 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  staffRowSelected: { backgroundColor: C.tintLight + "80" },
+  staffRowSelected: { backgroundColor: C.brandSoft + "80" },
   staffAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
   staffAvatarText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   staffInfoCol: { flex: 1 },
@@ -1182,7 +1605,7 @@ const s = StyleSheet.create({
 
   /* 회원카드 상세 팝업 */
   cardDetailSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -1192,7 +1615,7 @@ const s = StyleSheet.create({
   cardDetailBody: { alignItems: "center", paddingTop: 8 },
   cardDetailAvatar: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: C.tintLight, justifyContent: "center", alignItems: "center", marginBottom: 8,
+    backgroundColor: C.brandSoft, justifyContent: "center", alignItems: "center", marginBottom: 8,
   },
   cardDetailAvatarText: { fontSize: 26, fontFamily: "Pretendard-Regular", color: PRIMARY },
   cardDetailName: { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 16 },

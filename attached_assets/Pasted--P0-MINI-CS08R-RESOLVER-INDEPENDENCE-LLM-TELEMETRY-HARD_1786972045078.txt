@@ -1,0 +1,524 @@
+[P0-MINI — CS08R RESOLVER INDEPENDENCE + LLM TELEMETRY HARDEN]
+
+목적:
+
+WP-CS-08R DEVICE 검증 중 발견된
+두 가지 구조/telemetry defect를 최소 수정한다.
+
+신규 기능 개발 금지.
+
+수정 대상:
+
+1. FRONTEND_MAP 레이어가 ACTIVE Knowledge item 존재 여부에
+   종속되는 문제
+
+2. 실제 OpenAI 호출이 없는데
+   no_evidence 응답에서 llm_used=true가 기록되는 문제
+
+Production Knowledge 활성화/DB write는 이번 작업에서 금지.
+
+==================================================
+0. IMPORTANT
+==================================================
+
+현재 production:
+
+support_knowledge_items ACTIVE = 0
+
+이것 자체는 defect가 아니다.
+
+CS05R 설계대로
+관리자 검토 전 PENDING인 것이 정상이다.
+
+테스트를 위해 PENDING → ACTIVE 자동 변경 금지.
+
+Production DB 직접 수정 금지.
+
+==================================================
+1. FRONTEND MAP ARCHITECTURE AUDIT
+==================================================
+
+다음 실제 흐름 감사:
+
+src/lib/support-resolver.ts
+frontend-map.v1.ts
+CS04R search helper
+runResolutionChain()
+gatherEvidence()
+
+확인:
+
+FRONTEND_MAP layer가 왜
+ACTIVE support_knowledge_items가 0일 때
+BLOCKED로 판정되는지 정확한 root cause를 찾는다.
+
+보고:
+
+FRONTEND_MAP_DEPENDS_ON_KNOWLEDGE =
+ROOT_CAUSE =
+
+==================================================
+2. REQUIRED ARCHITECTURE
+==================================================
+
+FRONTEND_MAP은 독립 resolution source다.
+
+반드시:
+
+RULE
+→ DB_STATE
+→ SOLUTION
+→ FRONTEND_MAP
+→ FAQ/KNOWLEDGE
+→ KNOWN_ISSUE
+
+여기서 FRONTEND_MAP 검색은:
+
+frontend-map.v1.ts
+
+정적 registry를 직접 사용.
+
+support_knowledge_items 존재 여부와 무관.
+
+즉:
+
+ACTIVE Knowledge = 0
+
+이어도 실제 Frontend Map에 존재하는:
+
+screen
+route
+button/action
+feature
+keyword
+
+위치 질문은 검색 가능해야 한다.
+
+==================================================
+3. DO NOT LOWER SECURITY
+==================================================
+
+Frontend Map에서도 계속:
+
+role
+mode
+version
+
+필터 적용.
+
+Parent가 Admin 화면 검색 불가.
+
+Normal이 X-only 화면을
+일반 기능처럼 검색 불가.
+
+NO_MATCH이면 추측 금지.
+
+==================================================
+4. FRONTEND MAP ANSWER
+==================================================
+
+Frontend Map match만으로
+기능 위치가 충분히 확정되면:
+
+resolution_status = RESOLVED
+source_type = FRONTEND_MAP
+llm_used = false
+
+screen_id
+screen_name
+route/deep_link
+
+반환 가능.
+
+Knowledge answer를 반드시 요구하지 않는다.
+
+필요한 안내문은 registry의
+검증된 purpose/action metadata 범위에서만
+deterministic하게 구성.
+
+없는 사용법 창작 금지.
+
+==================================================
+5. GATHER EVIDENCE
+==================================================
+
+AI fallback용 gatherEvidence에서도
+Frontend Map은 독립 evidence source여야 한다.
+
+Knowledge ACTIVE=0이어도
+질문과 관련된 Frontend Map entry가 있으면
+evidence가 될 수 있다.
+
+단 role/mode/version 필터 필수.
+
+==================================================
+6. NO_EVIDENCE LLM_USED BUG
+==================================================
+
+현재 보고:
+
+generation_mode = no_evidence
+llm_used = true
+llm_called = false
+
+이 상태는 금지.
+
+정의 고정:
+
+llm_used =
+실제 provider LLM API를 호출했는가
+
+따라서:
+
+NO_EVIDENCE
+OpenAI 미호출
+
+이면:
+
+llm_used = false
+model = null
+input_tokens = null/0 according existing convention
+output_tokens = null/0
+total_tokens = null/0
+
+이어야 한다.
+
+==================================================
+7. LLM_REQUIRED SEPARATION
+==================================================
+
+필요하면 별도 의미를 사용:
+
+llm_required
+fallback_required
+resolution_status
+generation_mode
+
+등.
+
+하지만:
+
+llm_used
+
+필드에 "LLM이 필요했지만 안 불렀다" 의미를
+섞지 않는다.
+
+Partner Analytics / cost / avoidance에서
+실제 호출 여부를 신뢰할 수 있어야 한다.
+
+==================================================
+8. GENERATION MODE CONTRACT
+==================================================
+
+최소:
+
+deterministic
+→ llm_used=false
+
+no_evidence
+→ llm_used=false
+
+llm_grounded
+→ llm_used=true
+
+provider_failure_after_call
+→ 실제 API 호출이 발생했다면 llm_used=true
+
+실제 호출 기준으로만.
+
+==================================================
+9. SAVE AI TRACE
+==================================================
+
+saveAiTrace의:
+
+llm_used
+model
+tokens
+generation_mode
+
+정합성 확인.
+
+지원 AI뿐 아니라
+공용 trace contract를 깨지 않는 범위에서 수정.
+
+다른 AI feature telemetry 회귀 금지.
+
+==================================================
+10. RESPONSE CONTRACT
+==================================================
+
+POST /support/respond 응답에서도
+실제 호출 여부와 동일하게:
+
+llm_used=false
+
+for:
+
+deterministic
+no_evidence
+
+llm_used=true
+
+only when OpenAI/provider actually called.
+
+==================================================
+11. TEST — FRONTEND MAP WITHOUT KNOWLEDGE
+==================================================
+
+중요 테스트:
+
+support_knowledge_items ACTIVE = 0
+
+상태를 mock.
+
+그 상태에서 실제 registry에 존재하는
+Frontend Map 질문.
+
+기대:
+
+FRONTEND_MAP_HIT
+RESOLVED
+llm_used=false
+
+Knowledge query count/result와 독립.
+
+==================================================
+12. TEST — ROLE
+==================================================
+
+ACTIVE knowledge=0에서도:
+
+Parent query
+→ Admin-only map 반환 금지.
+
+==================================================
+13. TEST — MODE
+==================================================
+
+ACTIVE knowledge=0에서도:
+
+Normal
+→ X-only map 반환 금지.
+
+==================================================
+14. TEST — NO EVIDENCE
+==================================================
+
+Registry에도 없음.
+Knowledge도 없음.
+Solution도 없음.
+Known Issue도 없음.
+DB state도 없음.
+
+기대:
+
+NO_MATCH / LOW / HUMAN_REQUIRED
+OpenAI call = 0
+llm_used = false
+model = null
+
+==================================================
+15. TEST — GROUNDED FALLBACK
+==================================================
+
+실제 ACTIVE Knowledge가 없어도
+Frontend Map evidence만으로
+LLM fallback이 허용되는 케이스가 있는지
+현재 설계 기준 검토.
+
+중요:
+
+Frontend Map exact location 질문이면
+deterministic하게 끝내는 것이 우선.
+
+단 복합 질문이라
+Frontend Map evidence는 있지만
+저장 고정답만으로 부족한 경우:
+
+LLM grounded fallback 가능.
+
+테스트에서는 production DB 수정 없이
+mock ACTIVE evidence를 사용해도 됨.
+
+기대:
+
+actual OpenAI mock invocation = 1
+llm_used = true.
+
+==================================================
+16. PRODUCTION DATA LOCK
+==================================================
+
+이번 작업에서:
+
+PENDING Knowledge 활성화 금지.
+seed status 수정 금지.
+production INSERT/UPDATE 금지.
+
+Super Admin UI로 수동 승인하는 기존 정책 유지.
+
+==================================================
+17. MOBILE LOCK
+==================================================
+
+SupportChatScreen 수정 필요 없음이 기본.
+
+서버 resolver/telemetry defect만 수정.
+
+Mobile changed = NO 예상.
+
+따라서:
+
+iOS OTA = NO
+Android OTA = NO
+
+실제 mobile source를 수정해야 하는
+새 defect 발견 시 작업 중단하고 보고.
+
+==================================================
+18. TEST MATRIX
+==================================================
+
+CS08H-01
+ACTIVE knowledge=0 + frontend exact → hit
+
+CS08H-02
+frontend independent from knowledge table
+
+CS08H-03
+frontend role isolation
+
+CS08H-04
+frontend mode isolation
+
+CS08H-05
+frontend version isolation
+
+CS08H-06
+frontend exact → OpenAI 0
+
+CS08H-07
+no evidence → OpenAI 0
+
+CS08H-08
+no evidence → llm_used=false
+
+CS08H-09
+no evidence → model=null
+
+CS08H-10
+deterministic → llm_used=false
+
+CS08H-11
+actual grounded provider call → llm_used=true
+
+CS08H-12
+provider tokens only if actual call
+
+CS08H-13
+generation_mode consistency
+
+CS08H-14
+saveAiTrace consistency
+
+CS08H-15
+Partner analytics call-count semantics preserved
+
+CS08H-16
+Solution regression none
+
+CS08H-17
+Knowledge regression none
+
+CS08H-18
+Support Inbox regression none
+
+CS08H-19
+Support respond regression none
+
+CS08H-20
+full suite
+
+==================================================
+19. DEPLOYMENT
+==================================================
+
+Server-only defect면:
+
+commit
+push
+Render deploy.
+
+DB migration = NO expected.
+Web = NO expected.
+Mobile = NO.
+
+iOS OTA = NO.
+Android OTA = NO.
+
+==================================================
+20. FINAL REPORT
+==================================================
+
+FRONTEND_MAP_DEPENDS_ON_KNOWLEDGE_BEFORE =
+FRONTEND_MAP_DEPENDS_ON_KNOWLEDGE_AFTER =
+ROOT_CAUSE =
+
+ACTIVE_KNOWLEDGE_ZERO_FRONTEND_MAP_HIT =
+
+FRONTEND_MAP_SOURCE =
+FRONTEND_MAP_ROLE_FILTER =
+FRONTEND_MAP_MODE_FILTER =
+FRONTEND_MAP_VERSION_FILTER =
+
+NO_EVIDENCE_OPENAI_CALL =
+NO_EVIDENCE_LLM_USED =
+NO_EVIDENCE_MODEL =
+
+DETERMINISTIC_LLM_USED =
+GROUNDED_ACTUAL_CALL_LLM_USED =
+
+GENERATION_MODE_CONTRACT =
+TRACE_CONSISTENCY =
+
+PRODUCTION_KNOWLEDGE_CHANGED =
+PRODUCTION_DB_WRITE =
+
+FILES_CHANGED =
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+IOS_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+FRONTEND_MAP_DEPENDS_ON_KNOWLEDGE_AFTER = NO
+
+ACTIVE_KNOWLEDGE_ZERO_FRONTEND_MAP_HIT = PASS
+
+NO_EVIDENCE_OPENAI_CALL = 0
+NO_EVIDENCE_LLM_USED = false
+NO_EVIDENCE_MODEL = null
+
+DETERMINISTIC_LLM_USED = false
+GROUNDED_ACTUAL_CALL_LLM_USED = true
+
+PRODUCTION_KNOWLEDGE_CHANGED = NO
+PRODUCTION_DB_WRITE = NO
+
+MOBILE_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+완료:
+
+P0_MINI_CS08R_RESOLVER_TELEMETRY_HARDEN_COMPLETE ✅

@@ -1,0 +1,227 @@
+[앱]
+
+FINAL PRODUCTION OTA DEPLOY
+IOS + ANDROID
+ALL CUMULATIVE APP FIXES
+
+현재 최종 HEAD:
+
+b0be8f92
+
+branch:
+deploy-photo-clone
+
+목표:
+지금까지 누적된 앱 JS/TS 수정사항을
+iOS + Android production OTA에
+동일 SHA로 동시 반영한다.
+
+==================================================
+1. HEAD CHECK
+==================================================
+
+git rev-parse HEAD
+
+반드시:
+
+b0be8f92
+
+이어야 함.
+
+다르면 STOP.
+
+working tree에
+예상치 못한 uncommitted change가 있으면 STOP.
+
+==================================================
+2. OTA COMPATIBILITY CHECK
+==================================================
+
+현재 누적 변경에 아래가 없는지 확인:
+
+- native module 추가/변경
+- app.json native config 변경
+- app.config native config 변경
+- permissions 변경
+- runtimeVersion 변경
+- native dependency 변경
+
+전부 없으면:
+
+BUILD_REQUIRED = NO
+
+하나라도 있으면:
+OTA publish 금지하고 STOP.
+
+==================================================
+3. INCLUDE CURRENT CUMULATIVE APP FIXES
+==================================================
+
+최종 HEAD에 포함된 현재 누적 앱 수정 전체:
+
+- diary selected lessonDate binding
+- same-session diary replace
+- Quick Write → unwritten schedule selector
+- today eligible unwritten slot
+- KST time handling
+- diary-index UX
+- session selector inside diary
+- schedule switch student reload
+- dirty session switch confirm
+- written diary replace race fix
+- ClassDetailSheet lessonDate/startTime params
+- X / General parity fixes
+- TextInput clipping fix
+- Silent 30-minute OTA UX
+
+현재 HEAD에 포함된 앱 수정은
+별도 선별하지 말고 동일 SHA 전체를 사용.
+
+==================================================
+4. ROLLBACK TARGETS
+==================================================
+
+publish 전에
+현재 production stable OTA를
+iOS / Android 각각 실제 EAS 기준으로 조회.
+
+추측 금지.
+
+기록:
+
+IOS:
+- previous update group
+- previous update ID
+- runtimeVersion
+- channel
+- branch
+- message/timestamp
+
+ANDROID:
+- previous update group
+- previous update ID
+- runtimeVersion
+- channel
+- branch
+- message/timestamp
+
+==================================================
+5. MINIMAL PRE-PUBLISH TEST
+==================================================
+
+관련 최소 테스트만 확인:
+
+- diary session/date tests
+- Quick Write
+- session switch
+- replace logic
+- X / General shared paths
+- TypeScript compile relevant scope
+
+repo-wide regression 금지.
+
+==================================================
+6. PUBLISH IOS
+==================================================
+
+production channel
+iOS OTA publish
+
+git SHA:
+b0be8f92
+
+publish 후 기록:
+
+IOS_NEW_GROUP
+IOS_NEW_UPDATE_ID
+runtimeVersion
+
+==================================================
+7. PUBLISH ANDROID
+==================================================
+
+production channel
+Android OTA publish
+
+같은 git SHA:
+
+b0be8f92
+
+publish 후 기록:
+
+ANDROID_NEW_GROUP
+ANDROID_NEW_UPDATE_ID
+runtimeVersion
+
+==================================================
+8. SILENT OTA POLICY
+==================================================
+
+두 플랫폼 모두
+현재 Silent 30-Min OTA 정책 유지.
+
+일반 OTA:
+
+- popup 없음
+- 즉시 강제 reload 없음
+- silent fetch
+- cold start 또는
+- 30분 이상 background 후 foreground 시 apply
+
+iOS/Android 동일 정책.
+
+==================================================
+9. DO NOT TOUCH
+==================================================
+
+이번 작업에서 금지:
+
+- Render deploy
+- DB
+- AI Engine
+- Growth Report
+- curriculum DB
+- native build
+- App Store build
+- Play Store build
+
+OTA publish만.
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+FINAL_SHA:
+
+BUILD_REQUIRED:
+YES / NO
+
+TESTS:
+
+IOS:
+OLD_GROUP:
+OLD_UPDATE_ID:
+NEW_GROUP:
+NEW_UPDATE_ID:
+runtimeVersion:
+PASS / FAIL
+
+ANDROID:
+OLD_GROUP:
+OLD_UPDATE_ID:
+NEW_GROUP:
+NEW_UPDATE_ID:
+runtimeVersion:
+PASS / FAIL
+
+channel:
+production
+
+branch:
+deploy-photo-clone
+
+FINAL:
+IOS OTA PASS / FAIL
+ANDROID OTA PASS / FAIL
+
+완료 후 STOP.

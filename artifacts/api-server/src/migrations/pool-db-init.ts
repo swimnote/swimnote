@@ -7,9 +7,16 @@
  * DB 단일화 이후:
  * - superAdminDb (운영 원본) — 모든 테이블 생성
  * - poolDb (백업 DB, POOL_DATABASE_URL 설정 시) — 백업 스키마 동기화
+ *
+ * SWIMNOTE X WP1:
+ * - initXModeSchema() 호출 (pool-db-x-init.ts)
+ * - 실패 시 throw → initPoolDb 전체 실패 → index.ts catch에서 로그
+ * - ⚠️  프로덕션 Migration 실행은 별도 승인 후 진행
  */
 import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { initXModeSchema } from "./pool-db-x-init.js";
+import { initXPaymentSchema } from "./pool-db-x-payment-init.js";
 
 export async function initPoolDb(): Promise<void> {
   // 운영 DB (superAdminDb)에 모든 테이블 초기화
@@ -214,9 +221,13 @@ export async function initPoolDb(): Promise<void> {
       created_at                  timestamptz NOT NULL DEFAULT now(),
       updated_at                  timestamptz NOT NULL DEFAULT now()
     );
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id   text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type  text;
-    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire   boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS absence_id           text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS source_type          text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS can_expire           boolean DEFAULT true;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS expire_at            timestamptz;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS weekly_frequency     integer DEFAULT 1;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS handed_to_teacher_id   text;
+    ALTER TABLE makeup_sessions ADD COLUMN IF NOT EXISTS handed_to_teacher_name text;
   `));
 
   // ─── 7. notices ──────────────────────────────────────────────────────────
@@ -839,14 +850,20 @@ export async function initPoolDb(): Promise<void> {
   // ── 플랜 시드: 확정 기준값 (항상 최신값 유지) ───────────────────────────
   // tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display
   const PLAN_ROWS = [
-    ['free',       'free_10',     'Free',         0,       10,   102,    0.1,  '100MB'],
-    ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,  '300MB'],
-    ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,  '500MB'],
-    ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,    '1GB'  ],
-    ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,    '5GB'  ],
-    ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,   '10GB' ],
-    ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,   '20GB' ],
-    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,   '50GB' ],
+    // ── Legacy Coach / Premier (1.6.3 grandfathered — 삭제 금지) ──────────
+    ['free',       'free_10',     'Free',         0,       10,   102,    0.1,   '100MB'],
+    ['starter',    'solo_30',     'Coach 30',     1900,    30,   307,    0.3,   '300MB'],
+    ['basic',      'solo_50',     'Coach 50',     2900,    50,   512,    0.5,   '500MB'],
+    ['standard',   'solo_100',    'Coach 100',    5900,    100,  1024,   1,     '1GB'  ],
+    ['center_200', 'center_200',  'Premier 200',  19000,   200,  5120,   5,     '5GB'  ],
+    ['advance',    'center_300',  'Premier 300',  27000,   300,  10240,  10,    '10GB' ],
+    ['pro',        'center_500',  'Premier 500',  43000,   500,  20480,  20,    '20GB' ],
+    ['max',        'center_1000', 'Premier 1000', 79000,   1000, 51200,  50,    '50GB' ],
+    // ── WP2A: 신규 2.0 플랜 (additive — legacy row 보존) ─────────────────
+    ['swimnote',   'swimnote',    'SWIMNOTE',     9900,    999999, 10240,  10,  '10GB'  ],
+    ['x300',       'x300',        'SWIMNOTE X300', 129000, 300,   307200, 300,  '300GB' ],  // Amendment A1: 119000 → 129000
+    ['x500',       'x500',        'SWIMNOTE X500', 199000, 500,   512000, 500,  '500GB' ],  // Amendment A1: 189000 → 199000
+    ['x1000',      'x1000',       'SWIMNOTE X1000', 359000, 1000, 1024000, 1000, '1TB' ],  // Amendment A1: 349000 → 359000
   ] as const;
 
   for (const [tier, plan_id, name, price, member_limit, storage_mb, storage_gb, display] of PLAN_ROWS) {
@@ -935,6 +952,9 @@ export async function initPoolDb(): Promise<void> {
     );
   `)).catch(() => {});
 
+  // ─── notifications.deep_link (GR7 additive) ──────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS deep_link text`)).catch(() => {});
+
   // ─── payment_cards ───────────────────────────────────────────────────────
   await db.execute(sql.raw(`
     CREATE TABLE IF NOT EXISTS payment_cards (
@@ -1009,44 +1029,73 @@ export async function initPoolDb(): Promise<void> {
   console.log("[pool-db-init] superAdminDb 운영 테이블 초기화 완료");
 
   // 백업 DB가 분리되어 있으면 동일 스키마 초기화 (에러 무시)
+  // [HOTFIX] preflight ping 3초 → ENOTFOUND/timeout 시 즉시 skip
+  //   primary DB 초기화는 이미 완료된 상태이므로 백업 skip은 API startup에 영향 없음
   if (backupDb) {
+    let backupDbReachable = false;
     try {
-      await backupDb.execute(sql.raw(`
-        DO $$ BEGIN
-          CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE change_type AS ENUM ('create', 'update', 'delete');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE sync_status AS ENUM ('pending', 'synced', 'error');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-        DO $$ BEGIN
-          CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-      `));
-      // backup_logs 테이블만 생성 (백업 메타데이터 저장용)
-      await backupDb.execute(sql.raw(`
-        CREATE TABLE IF NOT EXISTS backup_snapshots_meta (
-          id           text PRIMARY KEY,
-          source_db    text NOT NULL DEFAULT 'superAdminDb',
-          tables_count integer,
-          row_count    integer,
-          size_bytes   bigint,
-          backup_type  text,
-          created_by   text,
-          note         text,
-          created_at   timestamptz NOT NULL DEFAULT now()
-        );
-      `));
-      console.log("[pool-db-init] pool 백업 DB 스키마 초기화 완료");
-    } catch (e: any) {
-      console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
+      await Promise.race([
+        backupDb.execute(sql.raw("SELECT 1")),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("pool-db-init preflight timeout 3s")), 3000),
+        ),
+      ]);
+      backupDbReachable = true;
+    } catch (pfErr: any) {
+      const pfMsg = String(pfErr?.message ?? pfErr ?? "");
+      const reason =
+        pfMsg.includes("ENOTFOUND")    ? "ENOTFOUND"    :
+        pfMsg.includes("ECONNREFUSED") ? "ECONNREFUSED" :
+        pfMsg.includes("timeout")      ? "TIMEOUT"      :
+        "UNKNOWN";
+      console.warn(
+        `[pool-db-init] status=unavailable reason=${reason} ` +
+        `backup_schema_init=skipped primary_db=unaffected`,
+      );
+    }
+
+    if (backupDbReachable) {
+      try {
+        await backupDb.execute(sql.raw(`
+          DO $$ BEGIN
+            CREATE TYPE attendance_status AS ENUM ('present', 'absent', 'late');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE change_type AS ENUM ('create', 'update', 'delete');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE sync_status AS ENUM ('pending', 'synced', 'error');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+          DO $$ BEGIN
+            CREATE TYPE snapshot_type AS ENUM ('incremental', 'full');
+          EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        `));
+        // backup_logs 테이블만 생성 (백업 메타데이터 저장용)
+        await backupDb.execute(sql.raw(`
+          CREATE TABLE IF NOT EXISTS backup_snapshots_meta (
+            id           text PRIMARY KEY,
+            source_db    text NOT NULL DEFAULT 'superAdminDb',
+            tables_count integer,
+            row_count    integer,
+            size_bytes   bigint,
+            backup_type  text,
+            created_by   text,
+            note         text,
+            created_at   timestamptz NOT NULL DEFAULT now()
+          );
+        `));
+        console.log("[pool-db-init] pool 백업 DB 스키마 초기화 완료");
+      } catch (e: any) {
+        console.warn("[pool-db-init] pool 백업 DB 초기화 건너뜀:", e.message);
+      }
     }
   }
 
   // ── 사진/영상에 수업 날짜 컬럼 추가 (일지 연결용) ──────────────────────
   await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
+  // ── 개인 일지 노트 사진 연결 컬럼 추가 ──────────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
+  await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS student_note_id text`)).catch(() => {});
   await db.execute(sql.raw(`ALTER TABLE video_assets_meta ADD COLUMN IF NOT EXISTS lesson_date text`)).catch(() => {});
 
   // ── 영상 썸네일 키 컬럼 추가 (Expo 클라이언트에서 썸네일 생성 후 R2에 저장) ──
@@ -1202,4 +1251,239 @@ export async function initPoolDb(): Promise<void> {
     )
   `)).catch(() => {});
   await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_holiday_confirmations_pool ON holiday_confirmations(pool_id, target_month)`)).catch(() => {});
+
+  // ── students.class_enrolled_at — 반 배정일 컬럼 ─────────────────────────────
+  await db.execute(sql.raw(`ALTER TABLE students ADD COLUMN IF NOT EXISTS class_enrolled_at text`)).catch(() => {});
+
+  // ── student_class_history — 반 입퇴장 이력 (날짜 기반 스케쥴 필터링) ─────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS student_class_history (
+      id               text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      student_id       text        NOT NULL,
+      class_group_id   text        NOT NULL,
+      swimming_pool_id text        NOT NULL,
+      enrolled_at      date        NOT NULL,
+      left_at          date,
+      reason           text        DEFAULT 'assign',
+      created_at       timestamptz NOT NULL DEFAULT now()
+    )
+  `)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_student ON student_class_history(student_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_class ON student_class_history(class_group_id)`)).catch(() => {});
+  await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS idx_sch_pool_class_date ON student_class_history(swimming_pool_id, class_group_id, enrolled_at)`)).catch(() => {});
+
+  // ── Media Engine v2: media_status 컬럼 + 인덱스 ──────────────────────────
+  // photo_assets_meta에 media_status 추가 (draft/attached/detached/archived)
+  await db.execute(sql.raw(`ALTER TABLE photo_assets_meta ADD COLUMN IF NOT EXISTS media_status text NOT NULL DEFAULT 'draft'`)).catch(() => {});
+  // 기존 데이터 백필: 삭제된 일지를 참조하는 사진 → detached (journal_id 해제)
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'detached', journal_id = NULL, student_note_id = NULL
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+      AND journal_id IN (SELECT id FROM class_diaries WHERE is_deleted = true)
+  `)).catch(() => {});
+  // 기존 데이터 백필: 유효한 일지에 연결된 사진 → attached
+  await db.execute(sql.raw(`
+    UPDATE photo_assets_meta
+    SET media_status = 'attached'
+    WHERE media_status = 'draft'
+      AND journal_id IS NOT NULL
+  `)).catch(() => {});
+  // Media Engine 인덱스
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_diary_lookup
+    ON photo_assets_meta (journal_id, media_status, created_at)
+    WHERE journal_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_student_note_lookup
+    ON photo_assets_meta (student_note_id, student_id, pool_id)
+    WHERE student_note_id IS NOT NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_photo_assets_draft_lookup
+    ON photo_assets_meta (pool_id, class_id, lesson_date, uploaded_by, media_status, created_at)
+    WHERE journal_id IS NULL
+  `)).catch(() => {});
+  await db.execute(sql.raw(`
+    CREATE INDEX IF NOT EXISTS idx_class_diaries_active_lookup
+    ON class_diaries (class_group_id, lesson_date, is_deleted)
+  `)).catch(() => {});
+
+  // ─── diary_messages (댓글 backing store) ─────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_messages (
+      id                 text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id           text        NOT NULL,
+      sender_id          text        NOT NULL,
+      sender_name        text        NOT NULL DEFAULT '',
+      sender_role        text        NOT NULL DEFAULT 'parent',
+      content            text        NOT NULL,
+      image_url          text,
+      read_at            timestamptz,
+      is_deleted         boolean     NOT NULL DEFAULT false,
+      deleted_at         timestamptz,
+      parent_comment_id  text,
+      student_id         text,
+      created_at         timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS parent_comment_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS student_id text;
+    ALTER TABLE diary_messages ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_diary ON diary_messages (diary_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_parent ON diary_messages (parent_comment_id) WHERE parent_comment_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_diary_messages_sender ON diary_messages (sender_id, diary_id);
+  `)).catch((e: any) => console.error('[init] diary_messages:', e.message));
+
+  // ─── diary_reactions ─────────────────────────────────────────────────────
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS diary_reactions (
+      id            text        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      diary_id      text        NOT NULL,
+      parent_id     text        NOT NULL,
+      student_id    text,
+      reaction_type text        NOT NULL,
+      created_at    timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(diary_id, parent_id, reaction_type)
+    );
+    ALTER TABLE diary_reactions ADD COLUMN IF NOT EXISTS student_id text;
+    CREATE INDEX IF NOT EXISTS idx_diary_reactions_diary ON diary_reactions (diary_id);
+  `)).catch((e: any) => console.error('[init] diary_reactions:', e.message));
+
+  // 기존 학생 히스토리 초기 데이터 채우기 (최초 1회만)
+  await db.execute(sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM student_class_history LIMIT 1) THEN
+        INSERT INTO student_class_history (id, student_id, class_group_id, swimming_pool_id, enrolled_at, left_at, reason)
+        SELECT
+          gen_random_uuid()::text,
+          s.id,
+          elem,
+          s.swimming_pool_id,
+          COALESCE(s.class_enrolled_at::date, s.created_at::date, '2024-01-01'::date),
+          NULL,
+          'backfill'
+        FROM students s,
+             jsonb_array_elements_text(
+               COALESCE(
+                 CASE
+                   WHEN jsonb_typeof(s.assigned_class_ids::jsonb) = 'array' THEN s.assigned_class_ids::jsonb
+                   ELSE '[]'::jsonb
+                 END,
+                 '[]'::jsonb
+               )
+             ) AS elem
+        WHERE s.deleted_at IS NULL
+          AND s.status NOT IN ('deleted')
+          AND elem IS NOT NULL AND elem != '';
+      END IF;
+    END $$;
+  `)).catch((e: any) => console.error('[backfill] student_class_history:', e));
+
+  // ─── Analytics Events Table (WP15.5-B/C Fix) ────────────────────────────
+  // event_logs(운영 감사)와 분리된 analytics 전용 테이블.
+  // PII 저장 금지. pool_id/creative_id 등 식별자만 저장.
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id               text        PRIMARY KEY,
+      event_type       text        NOT NULL,
+      user_id          text,
+      swimming_pool_id text,
+      role             text,
+      occurred_at      timestamptz NOT NULL DEFAULT now(),
+      content_type     text,
+      content_id       text,
+      campaign_id      text,
+      creative_id      text,
+      placement        text,
+      metadata         jsonb
+    );
+    CREATE INDEX IF NOT EXISTS idx_ae_type_time     ON analytics_events (event_type, occurred_at);
+    CREATE INDEX IF NOT EXISTS idx_ae_user_type     ON analytics_events (user_id, event_type, occurred_at);
+    CREATE INDEX IF NOT EXISTS idx_ae_creative_type ON analytics_events (creative_id, event_type, occurred_at);
+  `)).catch((e: any) => console.error('[migration] analytics_events:', e));
+
+  // ─── SWIMNOTE X WP1 Migration ─────────────────────────────────────────────
+  //
+  // 실패 시 throw → initPoolDb 전체 실패.
+  // ⚠️  현재 index.ts(54)는 .catch()로 오류를 삼키므로 서버 기동이 중단되지 않음.
+  //     완전한 "서버 기동 중단" 보장이 필요하면 index.ts 호출부를 .catch() 없이 변경 필요.
+  // ⚠️  프로덕션 실행 전 반드시 별도 승인 필요.
+  await initXModeSchema();
+
+  // ─── SWIMNOTE X02-B1 Payment DB Foundation Migration ──────────────────────
+  //
+  // paid/manual entitlement 분리 + x_subscription_slots + swimming_pools 컬럼 4개.
+  // 멱등성 보장. 기존 xmode_entitlement 수정 금지.
+  // ⚠️  non-FATAL: ALTER TABLE 쿼리가 Supabase statement_timeout(30s)에 걸릴 수 있음.
+  //    실패해도 서버 기동을 중단하지 않음. 다음 재시작에서 재시도 (IF NOT EXISTS 멱등성).
+  //    X02-B2 코드에서 새 컬럼 사용 전 반드시 migration 완료 확인 필요.
+  try {
+    await initXPaymentSchema();
+  } catch (err) {
+    console.error("[SWIMNOTE X PAYMENT] X02-B1 Migration 실패 — 서버 기동 계속 (다음 재시작에서 재시도):", (err as Error).message);
+  }
+
+  // ─── 2.0.0 Pool-First: parent_accounts(swimming_pool_id, phone) unique ──────
+  //
+  // 같은 pool + 같은 phone 중복 가입 차단. 다른 pool의 같은 phone은 허용.
+  // non-FATAL: 기존 duplicate row가 있으면 index 생성 실패 → 경고 로그만.
+  // additive migration — 기존 데이터 삭제/수정 금지.
+  try {
+    // 먼저 same-pool phone duplicate가 있는지 확인
+    const dupCheck = await db.execute(sql.raw(`
+      SELECT COUNT(*) AS cnt
+      FROM (
+        SELECT swimming_pool_id,
+               REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') AS norm_phone
+        FROM parent_accounts
+        WHERE phone IS NOT NULL AND phone != '' AND swimming_pool_id IS NOT NULL
+        GROUP BY 1,2 HAVING COUNT(*) > 1
+      ) t
+    `));
+    const dupCount = parseInt((dupCheck.rows[0] as any)?.cnt ?? "0", 10);
+    if (dupCount > 0) {
+      console.warn(
+        `[2.0.0 MIGRATION] parent_accounts same-pool phone duplicate ${dupCount}건 발견. ` +
+        "idx_parent_accounts_pool_phone 생성 SKIP. 임의 삭제 금지. 수동 조사 필요."
+      );
+    } else {
+      await db.execute(sql.raw(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_accounts_pool_phone
+          ON parent_accounts (swimming_pool_id, REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g'))
+          WHERE phone IS NOT NULL AND phone != '' AND swimming_pool_id IS NOT NULL
+      `));
+      console.log("[2.0.0 MIGRATION] idx_parent_accounts_pool_phone 생성 완료");
+    }
+  } catch (err: any) {
+    console.error(
+      "[2.0.0 MIGRATION] idx_parent_accounts_pool_phone 생성 실패 — 서버 기동 계속:",
+      err?.message ?? err,
+    );
+  }
+
+  // ─── GR-M8: Push idempotency — notifications GROWTH_REPORT_PUBLISHED unique ─
+  //
+  // partial unique index on (type, ref_id, recipient_id) WHERE type='GROWTH_REPORT_PUBLISHED'
+  // 목적: 동일 리포트에 동일 수신자 push 최대 1회 DB-level 보장.
+  // 다른 notification type에 영향 없음 (partial index).
+  //
+  // 기존 duplicate row가 존재하면 CREATE UNIQUE INDEX가 실패하고 경고 로그만 남김.
+  // 이 경우 서버 기동은 계속되고 다음 재시작에서 재시도. 중복 row는 임의 삭제 금지.
+  // ⚠️  non-FATAL
+  try {
+    await db.execute(sql.raw(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_gr_published
+        ON notifications (type, ref_id, recipient_id)
+        WHERE type = 'GROWTH_REPORT_PUBLISHED'
+    `));
+  } catch (err: any) {
+    console.error(
+      "[GR-M8 MIGRATION] notifications uq_notifications_gr_published 생성 실패 — " +
+      "기존 duplicate row 존재 가능. 임의 삭제 금지. 서버 기동 계속:",
+      err?.message ?? err,
+    );
+  }
 }

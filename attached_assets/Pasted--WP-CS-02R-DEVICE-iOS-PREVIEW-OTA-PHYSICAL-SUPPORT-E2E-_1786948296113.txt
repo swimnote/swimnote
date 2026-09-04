@@ -1,0 +1,376 @@
+[WP-CS-02R-DEVICE — iOS PREVIEW OTA + PHYSICAL SUPPORT E2E]
+
+목적:
+
+WP-CS-02R에서 구현한
+공통 AI 문의 UI와 Support Core 연결을
+
+iOS Preview OTA에서 실제 기기로 검증한다.
+
+이번 작업은 신규 기능 개발이 아니다.
+
+코드 수정은 실제 defect가 발견된 경우에만 최소 범위로 한다.
+
+Production OTA 금지.
+Android OTA 금지.
+
+==================================================
+0. BASELINE
+==================================================
+
+현재 완료:
+
+COMMON_SUPPORT_UI = YES
+
+공통 source:
+components/support/SupportChatScreen.tsx
+
+role wrappers:
+(admin)/support-chat.tsx
+(teacher)/support-chat.tsx
+(parent)/support-chat.tsx
+
+Server:
+GET /support/cases
+POST /support/cases
+GET /support/cases/:id
+POST /support/cases/:id/messages
+POST /support/cases/:id/resolve
+POST /support/cases/:id/request-human
+POST /support/cases/:id/reopen
+
+Full tests:
+1428/1428 PASS
+
+==================================================
+1. PREVIEW OTA
+==================================================
+
+현재 iOS app version/runtime compatibility 확인 후
+
+Preview channel에만 OTA 배포.
+
+Production channel:
+NO
+
+Android:
+NO
+
+보고:
+
+IOS_PREVIEW_OTA_ID =
+RUNTIME_VERSION =
+APP_VERSION =
+
+==================================================
+2. TEST ACCOUNT MATRIX
+==================================================
+
+가능한 실제 테스트 계정 기준:
+
+ADMIN
+TEACHER
+PARENT
+
+각 1회 이상.
+
+Normal/X 계정을 모두 확보할 수 있으면 양쪽 테스트.
+
+계정이 부족하면
+가짜 production 계정 생성 금지.
+
+실제로 검증한 matrix만 보고.
+
+==================================================
+3. ADMIN DEVICE TEST
+==================================================
+
+실기기에서:
+
+설정
+→ AI 문의
+
+확인:
+
+화면 진입
+첫 메시지 입력
+case lazy create
+메시지 저장
+앱 화면 표시
+앱 뒤로가기
+재진입
+conversation 유지
+
+[상담사에게 문의하기]
+→ ticket 생성
+
+Super Admin에서 확인
+→ 상담사 답변
+
+앱 refresh/focus
+→ 상담사 답변 표시
+
+[해결됐어요]
+→ 해결 상태
+
+==================================================
+4. TEACHER DEVICE TEST
+==================================================
+
+동일하게:
+
+설정 → AI 문의
+
+확인:
+
+공통 UI
+teacher role context
+message send
+history
+human request
+agent reply visibility
+
+admin 전용 UI/기능 노출 금지.
+
+==================================================
+5. PARENT DEVICE TEST
+==================================================
+
+동일하게:
+
+설정 → AI 문의
+
+확인:
+
+공통 UI
+parent role context
+message send
+history
+human request
+agent reply visibility
+
+다른 학생/다른 pool context 노출 금지.
+
+==================================================
+6. NORMAL / X
+==================================================
+
+실제 가능한 계정으로:
+
+Normal
+X
+
+모두 Support UI가 동일 source를 사용하는지 확인.
+
+X에서:
+
+별도 duplicate Support UI가 생기지 않아야 함.
+
+X theme/header는 기존 X 규칙 유지.
+
+Normal은 기존 Normal theme 유지.
+
+Support 기능 동작은 동일.
+
+==================================================
+7. APP KILL / RELAUNCH
+==================================================
+
+최소 한 계정에서:
+
+conversation 생성
+↓
+앱 완전 종료
+↓
+재실행
+↓
+설정 → AI 문의
+
+기존 active conversation 재개 확인.
+
+빈 신규 case 생성되면 FAIL.
+
+==================================================
+8. NETWORK FAILURE
+==================================================
+
+가능하면 실제 device에서
+네트워크 일시 차단 또는 실패 환경 확인.
+
+메시지 저장 실패 시:
+
+성공처럼 표시 금지.
+
+retry 가능.
+
+중복 message 생성 금지.
+
+==================================================
+9. DOUBLE TAP
+==================================================
+
+실기기에서:
+
+Send 빠른 연속 탭
+Human Request 빠른 연속 탭
+Resolve 빠른 연속 탭
+
+확인.
+
+message duplicate
+ticket duplicate
+state duplicate
+
+없어야 함.
+
+==================================================
+10. SUPER ADMIN CROSS CHECK
+==================================================
+
+각 테스트 case에 대해:
+
+pool
+role
+case state
+ticket link
+message history
+
+확인.
+
+Support event에는
+raw message 본문이 없어야 함.
+
+==================================================
+11. CONTEXT VERIFY
+==================================================
+
+실제 저장된 context_json에서
+현재 보내는 필드 확인.
+
+예:
+
+user_id
+pool_id
+user_role
+service_mode
+app_version
+runtime_version
+route/screen if implemented
+device/os if implemented
+
+없는 값은 NULL 허용.
+
+추정값 생성 금지.
+
+JWT/전화/email/학생 이름 등
+민감정보 불필요 저장 금지.
+
+==================================================
+12. DEFECT RULE
+==================================================
+
+실기기 defect가 발견되면:
+
+원인 확인
+→ 최소 수정
+→ 관련 test
+→ Preview OTA 재배포
+→ 해당 DEVICE TEST 재검증
+
+관련 없는 UI 개선 금지.
+
+==================================================
+13. DO NOT TOUCH
+==================================================
+
+이번 검증에서 금지:
+
+Support AI Engine
+OpenAI 연결
+Knowledge
+Solution DB
+Frontend Map
+Semantic Cache
+Partner Analytics
+Refund
+Product Intelligence
+Normal/X 전체 theme
+scheduler
+billing
+X setup
+
+==================================================
+14. PRODUCTION LOCK
+==================================================
+
+모든 DEVICE test 통과 전:
+
+iOS Production OTA = NO
+
+Android OTA = NO
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+IOS_PREVIEW_OTA_ID =
+APP_VERSION =
+RUNTIME_VERSION =
+
+ADMIN_DEVICE =
+TEACHER_DEVICE =
+PARENT_DEVICE =
+
+NORMAL_DEVICE =
+X_DEVICE =
+
+MESSAGE_SEND =
+HISTORY_RELOAD =
+APP_KILL_RELAUNCH =
+
+HUMAN_REQUEST =
+TICKET_CREATED_ONCE =
+SUPER_ADMIN_VISIBLE =
+AGENT_REPLY_VISIBLE =
+RESOLVE =
+
+NETWORK_FAILURE =
+DOUBLE_SEND =
+DOUBLE_HUMAN_REQUEST =
+DOUBLE_RESOLVE =
+
+CONTEXT_VERIFY =
+RAW_MESSAGE_IN_EVENT_LOG =
+PII_CONTEXT_RESULT =
+
+DEFECTS_FOUND =
+DEFECTS_FIXED =
+
+FILES_CHANGED_AFTER_DEVICE_TEST =
+TEST_RESULT =
+
+IOS_PRODUCTION_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+실제로 테스트한 모든 role = PASS
+
+MESSAGE_SEND = PASS
+HISTORY_RELOAD = PASS
+APP_KILL_RELAUNCH = PASS
+
+HUMAN_REQUEST = PASS
+TICKET_CREATED_ONCE = PASS
+AGENT_REPLY_VISIBLE = PASS
+RESOLVE = PASS
+
+중복 생성 = NONE
+
+RAW_MESSAGE_IN_EVENT_LOG = NO
+
+Production OTA = NO
+
+완료:
+
+WP_CS_02R_DEVICE_E2E_COMPLETE ✅

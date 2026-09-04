@@ -1,0 +1,294 @@
+[SWIMNOTE APP RELEASE]
+[iOS TESTFLIGHT — PRE-BUILD PREFLIGHT ONLY]
+
+현재 Production server rollout 완료:
+
+AI ENGINE ✅
+APP API ✅
+APP DB migrations ✅
+swimnote-worker ✅
+
+이제 iOS TestFlight용 native build 준비 상태만 검증한다.
+
+중요:
+
+이번 단계에서 실제 EAS build 실행 금지.
+App Store 제출 금지.
+Google Play 작업 금지.
+OTA publish 금지.
+코드 수정 금지.
+version 변경 금지.
+
+==================================================
+1. RELEASE SOURCE
+==================================================
+
+확인:
+
+branch = deploy-photo-clone
+
+현재 HEAD SHA 보고.
+
+origin/deploy-photo-clone와 동일한지 확인.
+
+production code working tree clean 확인.
+
+==================================================
+2. CURRENT APP VERSION
+==================================================
+
+다음 실제 값을 source 기준으로 확인:
+
+- app version
+- ios.buildNumber
+- android.versionCode
+- runtimeVersion
+- updates.url
+- EAS projectId
+
+app.json / app.config.* / eas.json 중
+실제 source of truth 파일 기준으로 보고.
+
+==================================================
+3. TARGET RELEASE VERSION
+==================================================
+
+이번 TestFlight target:
+
+app version:
+1.6.3
+
+iOS buildNumber:
+245
+
+Android versionCode:
+236
+
+runtimeVersion:
+1.6.3
+또는 appVersion policy 사용 시
+실제 resolved runtime이 1.6.3인지 확인.
+
+이번 단계에서는 아직 값 변경하지 않는다.
+
+현재값과 target값 차이만 보고.
+
+==================================================
+4. NATIVE DEPENDENCY CHECK
+==================================================
+
+이번 build가 필요한 핵심 native dependency:
+
+expo-print
+
+확인:
+
+- package.json에 존재
+- 실제 installed/resolved version
+- Expo SDK 55와 compatibility
+- native build 필요 여부
+
+추가로 이번 release 이후 새로 들어온
+native dependency가 더 있는지 git/package diff 기준 확인.
+
+특히:
+
+expo-sharing
+react-native-view-shot
+
+기존 build에 이미 있었는지 확인.
+
+==================================================
+5. EXPO / RN CONTRACT
+==================================================
+
+실제 versions 보고:
+
+expo
+react-native
+react
+expo-router
+
+그리고:
+
+npx expo-doctor
+
+또는 repository canonical doctor command 실행.
+
+dependency mismatch / incompatible package가 있으면 BLOCK.
+
+==================================================
+6. EAS BUILD PROFILE
+==================================================
+
+eas.json에서
+iOS TestFlight에 사용할 production profile 확인.
+
+보고:
+
+- profile name
+- distribution
+- channel
+- autoIncrement 사용 여부
+- environment
+
+이번 build가 store distribution/TestFlight 업로드 가능한 profile인지 확인.
+
+==================================================
+7. OTA / RUNTIME COMPATIBILITY
+==================================================
+
+이번 iOS build 이후
+TestFlight에서 OTA 수정이 가능하려면:
+
+runtimeVersion 1.6.3 build 안에서
+같은 native runtime을 유지하는 JS/UI 수정은 OTA 가능해야 함.
+
+확인:
+
+- production update channel
+- runtime matching
+- previous 1.6.2 OTA와 분리되는지
+
+1.6.2 OTA가 1.6.3 native build에 잘못 적용될 위험 없는지 확인.
+
+==================================================
+8. IOS NATIVE PERMISSIONS / PLUGINS
+==================================================
+
+이번 release native config 확인:
+
+- expo-print
+- sharing
+- image/media permissions
+- camera/photo permissions
+- notifications
+- 기타 config plugins
+
+누락된 iOS plugin/config가 있으면 보고.
+
+단 수정 금지.
+
+==================================================
+9. REVENUECAT STATUS
+==================================================
+
+현재 RevenueCat/X purchase가
+TestFlight build 자체를 BLOCK하는지 판정.
+
+외부 X Product/Offering 미완성 상태더라도:
+
+- 앱 startup crash?
+- build failure?
+- 기존 일반 기능 사용 방해?
+
+가 없다면:
+
+TESTFLIGHT_BUILD_BLOCKER = NO
+
+로 구분.
+
+구매 기능 완성 여부와
+build 가능 여부를 혼동하지 말 것.
+
+==================================================
+10. APP SERVER TARGET
+==================================================
+
+TestFlight build가 사용할 API base URL 확인.
+
+Production:
+https://swimnote.kr
+
+또는 실제 repository canonical production API URL.
+
+Parent Curriculum과 Growth Report가
+Production APP server를 통해 호출되는 구조인지 확인.
+
+앱이 AI ENGINE에 직접 연결하면 BLOCK.
+
+==================================================
+11. BUILD SECRETS / CREDENTIALS
+==================================================
+
+EAS iOS production build에 필요한:
+
+- Expo account/project
+- Apple credentials
+- bundle identifier
+- App Store Connect app mapping
+
+현재 repository/config 기준 준비 상태 확인.
+
+secret 값 출력 금지.
+
+실제 credential 변경 금지.
+
+==================================================
+12. CURRENT TESTFLIGHT BASELINE
+==================================================
+
+가능한 범위에서 repository/EAS metadata 기준:
+
+기존 iOS version:
+1.6.2
+
+기존 buildNumber:
+244
+
+가 맞는지 확인.
+
+확인 불가하면 UNKNOWN으로 보고.
+추측 금지.
+
+==================================================
+13. BUILD COMMAND
+==================================================
+
+preflight 통과 시 다음 단계에서 실행할
+정확한 iOS build command만 제시.
+
+예:
+
+eas build --platform ios --profile production
+
+단 실제 eas.json 기준 확정.
+
+이번 단계에서는 실행 금지.
+
+==================================================
+14. REPORT
+==================================================
+
+다음만 보고:
+
+1. BRANCH / HEAD
+2. ORIGIN SYNC
+3. WORKING TREE
+4. CURRENT APP VERSION
+5. CURRENT IOS BUILD NUMBER
+6. CURRENT ANDROID VERSION CODE
+7. CURRENT RUNTIME VERSION
+8. TARGET VALUES
+9. expo-print STATUS
+10. OTHER NEW NATIVE DEPENDENCIES
+11. EXPO DOCTOR RESULT
+12. EAS IOS PROFILE
+13. OTA CHANNEL/RUNTIME STATUS
+14. IOS CONFIG/PLUGIN STATUS
+15. REVENUECAT TESTFLIGHT BLOCKER?
+16. PRODUCTION API TARGET
+17. APP→ENGINE DIRECT CALL? YES/NO
+18. IOS CREDENTIAL STATUS
+19. EXISTING TESTFLIGHT BASELINE
+20. EXACT NEXT BUILD COMMAND
+21. CODE CHANGE
+22. BUILD EXECUTED?
+
+전부 준비됨:
+
+SWIMNOTE_IOS_TESTFLIGHT_BUILD_READY ✅
+
+문제 있음:
+
+SWIMNOTE_IOS_TESTFLIGHT_BUILD_BLOCKED ❌

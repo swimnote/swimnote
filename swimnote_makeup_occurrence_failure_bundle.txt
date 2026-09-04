@@ -1,0 +1,1002 @@
+================================================================================
+SWIMNOTE 보강반 선택 오류 — 코드·실행증거 원문 추출 번들
+생성일시: 2026-08-04 (KST)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. GIT / RENDER / EAS 기준점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[git branch --show-current]
+deploy-photo-clone
+
+[git rev-parse HEAD]
+62e02610 (로컬 uncommitted 상태 — package.json 의존성 업데이트만)
+
+[git rev-parse origin/deploy-photo-clone]
+6445a76acc438355d32803926b920b839421dbae
+
+[git log -10 --oneline]
+62e02610 (HEAD -> deploy-photo-clone) Update dependencies in swim-app
+6445a76a (origin/deploy-photo-clone) fix: self-extinguish PATCH support + eligible-occurrences scope fix
+44e2c062 fix: record all eligible-occurrences requests to in-memory log
+5a10d899 fix: eligible-occurrences auto-retry + crash report on failure
+a6f2f34a fix: add request log endpoint for eligible-occurrences diagnosis
+f5a4c4f4 Add real user testing script for api server
+c5156521 Add new image assets to the repository
+ba40584d Add script to test eligible occupations
+2dd249f8 fix: add eligible-occurrences error log endpoint for diagnosis
+22875dee Add contract structure documentation
+
+[git status --short]
+?? attached_assets/Pasted--SWIMNOTE--1785865700200_1785865700201.txt
+
+[Render.com live]
+  deployment commit SHA : 6445a76acc438355d32803926b920b839421dbae
+  배포 완료 시각       : 2026-08-04T17:32:04 UTC
+  (Render 자동 배포, origin/deploy-photo-clone push 트리거)
+
+[EAS production channel 현재 상태]
+  최신 Update Group ID : 2c52db66-9df3-44d2-8524-f5a1d795e17c
+  runtimeVersion       : 1.6.1
+  포함 commit SHA      : 651b1a95bcd453a106be37cc65f948113b1a0c9b
+  message              : "hotfix: restore subscription access after regression"
+  플랫폼               : ios
+  비고                 : e1938d77(651b1a95 원본) 기준으로 republish한 버전
+                         문제 버전 993e906c(6445a76a 기준) → 삭제 완료 ✅
+
+[앱-서버 버전 불일치 요약]
+  앱 (OTA)  : 651b1a95 — "Update makeup page components and add reference asset"
+  서버      : 6445a76a — "fix: self-extinguish PATCH support + eligible-occurrences scope fix"
+  → 앱은 651b1a95, 서버는 6445a76a. 두 커밋 사이 5개 커밋 차이.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. API_BASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일: artifacts/swim-app/context/auth/SessionContext.tsx (line 9-11)
+
+export const API_BASE =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (_DOMAIN ? `https://${_DOMAIN}/api` : "/api");
+
+- EXPO_PUBLIC_API_URL: 빌드 시 env 주입. 실기기 프로덕션에서 swimnote.kr/api로 고정됨.
+- _DOMAIN: EXPO_PUBLIC_REPLIT_DEV_DOMAIN (개발 환경 전용).
+- AuthContext.tsx에서 import: `import { API_BASE as _API_BASE } from "./auth/SessionContext"`
+- apiRequest URL 조합: `const url = \`\${_API_BASE}\${path}\``
+- 실기기에서 EXPO_PUBLIC_API_URL = https://swimnote.kr/api (또는 설정된 프로덕션 URL)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. makeups.tsx 관련 코드 전체
+   파일: artifacts/swim-app/app/(teacher)/makeups.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── MakeupOccurrence 타입 (line 20-34) ──────────────────────────────────────────
+
+/** eligible-occurrences API 응답 단일 회차 */
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;   // YYYY-MM-DD (서버 계약 필드명 고정)
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
+
+── 상태 선언 (line 127-159) ─────────────────────────────────────────────────────
+
+  const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
+  const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
+  const [classLoading,    setClassLoading]    = useState(false);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedDate,    setSelectedDate]    = useState<string | null>(null);
+  const [assigning,       setAssigning]       = useState(false);
+  // eligible-occurrences 기반 날짜 선택
+  const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
+  const [occLoading,     setOccLoading]     = useState(false);
+  const [occError,       setOccError]       = useState(false);
+  const [occErrorDetail, setOccErrorDetail] = useState<{ status: number; code: string } | null>(null);
+  const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
+  // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+  const occSeqRef     = useRef(0);
+  const occPendingRef = useRef<Set<string>>(new Set());
+
+── resetOccState (line 226-238) ────────────────────────────────────────────────
+
+  const resetOccState = () => {
+    occSeqRef.current += 1;       // in-flight 요청 무효화
+    occPendingRef.current.clear(); // pending key 모두 해제
+    setSelectedClassId(null);
+    setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccLoading(false);
+    setOccError(false);
+    setOccErrorDetail(null);
+  };
+
+── openAssignModal (line 240-249) ──────────────────────────────────────────────
+
+  const openAssignModal = async (mk: MakeupSession) => {
+    setAssignTarget(mk);
+    resetOccState();
+    setClassLoading(true);
+    try {
+      const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
+      if (r.ok) setEligibleClasses(await r.json());
+    } catch {}
+    setClassLoading(false);
+  };
+
+── selectClass (line 268-338) ──────────────────────────────────────────────────
+
+  const selectClass = async (classId: string) => {
+    // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
+    const activeTarget = assignTarget ?? directCompleteTarget;
+    if (!activeTarget) return;
+    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
+    const occKey = `${activeTarget.id}:${classId}`;
+    if (occPendingRef.current.has(occKey)) return;
+    occPendingRef.current.add(occKey);
+    occSeqRef.current += 1;
+    const mySeq = occSeqRef.current;
+    setSelectedClassId(classId);
+    setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccError(false);
+    setOccErrorDetail(null);
+    setOccLoading(true);
+    const _doRequest = async () => {
+      const r = await apiRequest(token, `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`);
+      return r;
+    };
+    try {
+      let r = await _doRequest();
+      // 실패 시 1회 자동 재시도 (500ms 후)
+      if (!r.ok) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+      }
+      if (occSeqRef.current !== mySeq) return;
+      if (r.ok) {
+        const data = await r.json();
+        setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+      } else {
+        const status = r.status;
+        const rawText = await r.text();
+        let body: any = null;
+        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
+        const errorCode: string = body?.error ?? "UNKNOWN";
+        // 서버에 오류 보고 (CRASH_REPORT 형식)
+        try {
+          apiRequest(token, `/logs/crash-report`, {
+            method: "POST",
+            body: JSON.stringify({
+              message: "ELIGIBLE_OCCURRENCES_FAILED",
+              stack: `status:${status} code:${errorCode} mkId:${activeTarget.id} cgId:${classId}`,
+              isFatal: false,
+            }),
+          }).catch(() => {});
+        } catch {}
+        if (occSeqRef.current === mySeq) {
+          setOccError(true);
+          setOccErrorDetail({ status, code: errorCode });
+        }
+      }
+    } catch (e: any) {
+      try {
+        apiRequest(token, `/logs/crash-report`, {
+          method: "POST",
+          body: JSON.stringify({
+            message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
+            stack: `${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
+            isFatal: false,
+          }),
+        }).catch(() => {});
+      } catch {}
+      if (occSeqRef.current === mySeq) setOccError(true);
+    } finally {
+      occPendingRef.current.delete(occKey);
+      if (occSeqRef.current === mySeq) setOccLoading(false);
+    }
+  };
+
+── doAssign (line 340-398) ─────────────────────────────────────────────────────
+
+  const doAssign = async (allowExpired = false) => {
+    if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+    if (assignTarget.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        "보강 가능 기간이 지난 항목입니다.\n그래도 처리하시겠습니까?",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => doAssign(true) },
+        ]
+      );
+      return;
+    }
+    const occDate = selectedOccurrence.occurrence_date;
+    setAssigning(true);
+    try {
+      const occClassId = selectedOccurrence.class_group_id;
+      if (selectedOccurrence.is_future) {
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate, allow_expired: allowExpired }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok && isJson) {
+          resetOccState(); setAssignTarget(null);
+          loadWaiting(); loadAssigned(); setTab("assigned");
+          setConfirmMsg(`보강이 ${occDate}에 배정되었습니다.`);
+        } else if (r.status === 409) {
+          setConfirmMsg(body?.message || "이미 처리된 보강입니다.");
+        } else {
+          setConfirmMsg(body?.message || body?.error || "배정에 실패했습니다.");
+        }
+      } else {
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: occDate, class_group_id: occClassId, allow_expired: allowExpired }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok) {
+          resetOccState(); setAssignTarget(null);
+          loadWaiting(); loadAssigned();
+          setConfirmMsg(`${occDate} 보강 완료 처리되었습니다.`);
+        } else {
+          setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
+        }
+      }
+    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    setAssigning(false);
+  };
+
+── 반 선택 JSX (line 855-902) — 단계 1 ────────────────────────────────────────
+
+  {!selectedClassId && (
+    <ScrollView ...>
+      {classLoading ? (
+        <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
+      ) : eligibleClasses.length === 0 ? (
+        <View style={s.empty}>
+          <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
+        </View>
+      ) : (() => {
+        const myClasses = eligibleClasses.filter((cg: any) => cg.is_mine);
+        const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
+        const renderClassRow = (cg: any) => (
+          <Pressable key={cg.id} style={s.classRow} onPress={() => selectClass(cg.id)}>
+            ...
+          </Pressable>
+        );
+        return (<>{myClasses.map(renderClassRow)}{otherClasses.map(renderClassRow)}</>);
+      })()}
+    </ScrollView>
+  )}
+
+── 회차 선택 JSX + 오류 UI (line 904-985) — 단계 2 ────────────────────────────
+
+  {selectedClassId && !selectedDate && (() => {
+    if (occLoading) return (<ActivityIndicator color="#7C3AED" style={{ marginVertical: 40 }} />);
+    if (occError) return (
+      <View style={s.empty}>
+        <Text style={s.emptyTxt}>
+          {"수업 회차를 불러오지 못했습니다"}
+          {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
+        </Text>
+        <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+          <Text style={{ color: C.textSecondary, fontSize: 13 }}>재시도</Text>
+        </Pressable>
+      </View>
+    );
+    if (occurrences.length === 0) return (
+      <View style={s.empty}>
+        <Text style={s.emptyTxt}>배정 가능한 날짜가 없습니다</Text>
+      </View>
+    );
+    // past / today / future 그룹 렌더링 ...
+  })()}
+
+NOTE: 현재 앱 OTA(651b1a95)에는 occErrorDetail 상태가 없음.
+      occErrorDetail은 6445a76a(현재 서버 기준 앱 코드)에만 추가됨.
+      651b1a95 앱은 오류 시 단순히 "수업 회차를 불러오지 못했습니다"만 표시.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. ClassDetailSheet.tsx 관련 코드 전체
+   파일: artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── MakeupOccurrence 타입 (line 7-21) ──────────────────────────────────────────
+
+/** eligible-occurrences API 응답 단일 회차 */
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;   // YYYY-MM-DD (서버 계약 필드명 고정)
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
+
+── resetMakeupPickerState (line 484-493) ───────────────────────────────────────
+
+  function resetMakeupPickerState() {
+    occPendingRef.current.clear();
+    setSelectedMakeupStudent(null);
+    setSelectedMakeupClassId(null);
+    setMakeupOccurrences([]);
+    setMakeupOccLoading(false);
+    setMakeupOccError(false);
+    setMakeupOccErrorDetail(null);
+  }
+
+── 보강 대기 조회 함수 (line 495-503) ─────────────────────────────────────────
+
+  async function openMakeupPicker() {
+    resetMakeupPickerState();
+    setShowMakeupPicker(true);
+    setMakeupLoading(true);
+    try {
+      const res = await apiRequest(token, "/teacher/makeups?status=pending");
+      if (res.ok) setMakeupList(await res.json());
+    } catch {}
+    finally { setMakeupLoading(false); }
+  }
+
+── selectMakeupClass (line 507-552) ────────────────────────────────────────────
+
+  /** 단계 2→3: 반 선택 후 eligible-occurrences 조회 (sequence ID로 경쟁 방지) */
+  async function selectMakeupClass(mk: any, targetClassId: string) {
+    const occKey = `${mk.id}:${targetClassId}`;
+    if (occPendingRef.current.has(occKey)) return;
+    occPendingRef.current.add(occKey);
+    occSeqRef.current += 1;
+    const mySeq = occSeqRef.current;
+    setSelectedMakeupClassId(targetClassId);
+    setMakeupOccLoading(true);
+    setMakeupOccError(false);
+    setMakeupOccErrorDetail(null);
+    setMakeupOccurrences([]);
+    try {
+      const res = await apiRequest(token, `/teacher/makeups/${mk.id}/eligible-occurrences?class_group_id=${targetClassId}`);
+      if (occSeqRef.current !== mySeq) return;
+      if (res.ok) {
+        const data = await res.json();
+        setMakeupOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+      } else {
+        const status = res.status;
+        const rawText = await res.text();
+        let body: any = null;
+        try { body = rawText ? JSON.parse(rawText) : null; } catch { body = { raw: rawText }; }
+        const errorCode: string = body?.error ?? "UNKNOWN";
+        if (__DEV__) {
+          console.error("[MAKEUP-OCCURRENCES-ERROR]", {
+            status,
+            error: body?.error ?? null,
+            message: body?.message ?? null,
+            makeupId: mk.id,
+            classGroupId: targetClassId,
+          });
+        }
+        if (occSeqRef.current === mySeq) {
+          setMakeupOccError(true);
+          setMakeupOccErrorDetail({ status, code: errorCode });
+        }
+      }
+    } catch {
+      if (occSeqRef.current === mySeq) setMakeupOccError(true);
+    } finally {
+      occPendingRef.current.delete(occKey);
+      if (occSeqRef.current === mySeq) setMakeupOccLoading(false);
+    }
+  }
+
+  NOTE: selectMakeupClass에는 자동 재시도 없음.
+        makeups.tsx의 selectClass에만 1회 재시도 로직 추가됨.
+
+── completeMakeupWithDate (line 555-622) ───────────────────────────────────────
+
+  async function completeMakeupWithDate(mk: any, _targetClassId: string, occ: MakeupOccurrence, allowExpired = false) {
+    if (makeupSaving) return;
+    const { occurrence_date: occurrenceDate, class_group_id: occClassId, is_full: isFull, is_future: isFuture } = occ;
+    if (mk.is_expired && !allowExpired) {
+      Alert.alert("기간 지난 보강", ..., [
+        { text: "취소", style: "cancel" },
+        { text: "처리하기", onPress: () => completeMakeupWithDate(mk, _targetClassId, occ, true) },
+      ]);
+      return;
+    }
+    const doSave = async () => {
+      setMakeupSaving(mk.id);
+      try {
+        if (isFuture) {
+          const res = await apiRequest(token, `/teacher/makeups/${mk.id}/assign`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ class_group_id: occClassId, assigned_date: occurrenceDate, allow_expired: allowExpired }),
+          });
+          if (res.ok) { setMakeupList(prev => prev.filter(m => m.id !== mk.id)); resetMakeupPickerState(); setShowMakeupPicker(false); onStudentsChanged?.(); }
+          else { const body = await res.json().catch(() => ({})); Alert.alert("처리 실패", body?.message || body?.error || "보강 배정 중 오류가 발생했습니다."); }
+        } else {
+          const res = await apiRequest(token, `/teacher/makeups/${mk.id}/complete-direct`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: occurrenceDate, class_group_id: occClassId, allow_expired: allowExpired }),
+          });
+          if (res.ok) { setMakeupList(prev => prev.filter(m => m.id !== mk.id)); resetMakeupPickerState(); setShowMakeupPicker(false); onStudentsChanged?.(); }
+          else { const body = await res.json().catch(() => ({})); Alert.alert("처리 실패", body?.message || body?.error || "보강 처리 중 오류가 발생했습니다."); }
+        }
+      } catch { Alert.alert("오류", "네트워크 오류가 발생했습니다."); }
+      finally { setMakeupSaving(null); }
+    };
+    if (isFuture && isFull) { Alert.alert("정원 부족", ...); return; }
+    if (!isFuture && isFull) { Alert.alert("정원 초과", ..., [{ text: "취소" }, { text: "그래도 처리", onPress: doSave }]); return; }
+    await doSave();
+  }
+
+── 오류 UI — SubSheetModal 단계 3 (line 1295-1305) ─────────────────────────────
+
+  ) : makeupOccError ? (
+    <View style={cds.empty}>
+      <LucideIcon name="circle-alert" size={28} color={C.textMuted} />
+      <Text style={cds.emptyText}>
+        {"수업 회차를 불러오지 못했습니다"}
+        {makeupOccErrorDetail ? `\n오류 코드: ${makeupOccErrorDetail.status} / ${makeupOccErrorDetail.code}` : ""}
+      </Text>
+      <Pressable onPress={() => selectMakeupClass(selectedMakeupStudent, selectedMakeupClassId)} style={{ marginTop: 8 }}>
+        <Text style={{ color: C.tint, fontSize: 13 }}>재시도</Text>
+      </Pressable>
+    </View>
+
+  NOTE: 현재 앱 OTA(651b1a95)의 ClassDetailSheet에는 makeupOccErrorDetail 상태 없음.
+        이 코드는 6445a76a(삭제된 OTA)에만 있었음.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. eligible-occurrences 서버 코드 전체
+   파일: artifacts/api-server/src/routes/teachers.ts (line 718-891)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
+router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+  async (req: AuthRequest, res) => {
+    const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
+    const startedAt = Date.now();
+    let stage = "start";
+    const { makeupId } = req.params;
+    const { class_group_id } = req.query as { class_group_id?: string };
+    const userId = req.user!.userId;
+    try {
+      stage = "get_pool";
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
+      if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
+
+      // 1. 보강 세션 조회 (db — pool DB)
+      stage = "load_makeup";
+      const mkRows = (await db.execute(sql`
+        SELECT absence_date, expire_at, swimming_pool_id
+        FROM makeup_sessions WHERE id = ${makeupId} LIMIT 1
+      `)).rows as any[];
+      if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      const mk = mkRows[0];
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "MAKEUP_POOL_MISMATCH" }); return; }
+
+      // 2. 반 정보 조회 (superAdminDb ← 주의: pool DB가 아닌 super DB 사용)
+      stage = "load_class";
+      const cgRows = (await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+          cg.teacher_user_id, u.name AS instructor,
+          (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AS is_mine
+        FROM class_groups cg
+        LEFT JOIN users u ON cg.teacher_user_id = u.id
+        WHERE cg.id = ${class_group_id}
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
+          AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+        LIMIT 1
+      `)).rows as any[];
+      if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
+      const cg = cgRows[0];
+
+      // 3. 정원 계산 (db — pool DB)
+      stage = "count_members";
+      const memberRows = (await db.execute(sql`
+        SELECT COUNT(s.id)::int AS cnt FROM students s
+        WHERE (s.class_group_id = ${class_group_id} OR s.assigned_class_ids @> to_jsonb(${class_group_id}::text))
+          AND s.status IN ('active', 'pending_parent_link', 'unregistered')
+          AND s.deleted_at IS NULL
+      `)).rows as any[];
+      const currentMembers = (memberRows[0] as any)?.cnt ?? 0;
+      const capacity: number = cg.capacity ?? 0;
+      const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
+      const isFull = capacity > 0 && availableSlots <= 0;
+
+      // 4. 범위 계산
+      const absenceDate: string = mk.absence_date; // YYYY-MM-DD
+      const kstToday = kstTodayStr();
+      const expireAtDate = mk.expire_at ? toKstDateStr(new Date(mk.expire_at)) : null;
+      const endDate = expireAtDate || (() => {
+        const [ey, em, ed] = absenceDate.split("-").map(Number);
+        const d = new Date(ey, em - 1, ed);
+        d.setDate(d.getDate() + 56);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd2 = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd2}`;
+      })();
+
+      // 5. 풀 휴일 조회 (db — pool DB)
+      stage = "load_holidays";
+      const holidayRows = (await db.execute(sql`
+        SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
+        FROM pool_holidays
+        WHERE pool_id = ${poolId}
+          AND holiday_date >= ${absenceDate}::date
+          AND holiday_date <= ${endDate}::date
+      `)).rows as any[];
+      const holidaySet = new Set(holidayRows.map((r: any) => r.hd as string));
+
+      // 6. 요일 파싱 및 occurrence 생성
+      const targetDays = parseDayNums((cg.schedule_days as string) || "");
+      const occurrences: any[] = [];
+      const cursor = new Date(`${absenceDate}T00:00:00`);
+      cursor.setDate(cursor.getDate() + 1); // 결석일 다음 날부터
+      const endD = new Date(`${endDate}T00:00:00`);
+
+      while (cursor <= endD) {
+        if (targetDays.has(cursor.getDay())) {
+          const yyyy = cursor.getFullYear();
+          const mm = String(cursor.getMonth() + 1).padStart(2, "0");
+          const dd = String(cursor.getDate()).padStart(2, "0");
+          const dateStr = `${yyyy}-${mm}-${dd}`;
+          if (!holidaySet.has(dateStr)) {
+            occurrences.push({
+              class_group_id: cg.id,
+              class_name: cg.name,
+              occurrence_date: dateStr,
+              schedule_time: cg.schedule_time,
+              teacher_id: cg.teacher_user_id,
+              teacher_name: cg.instructor,
+              is_mine: Boolean(cg.is_mine),
+              available_slots: availableSlots,
+              is_full: isFull,
+              is_past: dateStr < kstToday,
+              is_today: dateStr === kstToday,
+              is_future: dateStr > kstToday,
+            });
+          }
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // 성공 로그
+      console.log("[PERF][eligible-occurrences]", { request_id, user_id, pool_id, makeup_id, class_group_id, occurrences_count, status: 200, elapsed_ms });
+      _occReqLog.push({ ts, makeup_id, class_group_id, user_id, status: 200, elapsed_ms });
+
+      res.json({
+        makeup_id: makeupId,
+        absence_date: absenceDate,
+        expire_at: mk.expire_at,
+        class_group_id: cg.id,
+        class_name: cg.name,
+        is_mine: Boolean(cg.is_mine),
+        occurrences,
+      });
+    } catch (err: any) {
+      const isDbConnLimit = err?.code === "EMAXCONNSESSION" || (err?.message?.includes("max clients reached") || err?.message?.includes("EMAXCONNSESSION"));
+      _occErrLog.push({ ts, stage, code: err?.code, message: err?.message, makeup_id, class_group_id, user_id });
+      _occReqLog.push({ ts, makeup_id, class_group_id, user_id, status: 500, elapsed_ms, error: err?.message });
+      console.error("[ERROR][eligible-occurrences]", { request_id, stage, code, message, makeup_id, class_group_id, user_id, elapsed_ms });
+      if (isDbConnLimit) {
+        res.status(503).json({ error: "DB_CONNECTION_LIMIT", message: "잠시 후 다시 시도해 주세요." });
+      } else {
+        res.status(500).json({ error: "ELIGIBLE_OCCURRENCES_FAILED" });
+      }
+    }
+  }
+);
+
+⚠️ 주의사항:
+  - makeup_sessions 조회: db (pool DB) 사용
+  - class_groups 조회: superAdminDb (super DB) 사용
+  - students 정원 계산: db (pool DB) 사용
+  - pool_holidays 조회: db (pool DB) 사용
+  → class_groups가 어느 DB에 실제로 저장되어 있는지 확인 필요.
+    실제 운영 환경에서 두 DB가 동일하면 문제 없음.
+    분리되어 있다면 CLASS_NOT_FOUND(404) 반환 가능.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 관련 헬퍼 전체
+   파일: artifacts/api-server/src/routes/teachers.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+── kstTodayStr (line 257-265) ──────────────────────────────────────────────────
+
+function kstTodayStr(): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === "year")!.value;
+  const m = parts.find(p => p.type === "month")!.value;
+  const d = parts.find(p => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
+── toKstDateStr (line 267-277) ─────────────────────────────────────────────────
+
+/** timestamptz or date → KST YYYY-MM-DD */
+function toKstDateStr(d: Date | string): string {
+  const dt = typeof d === "string" ? new Date(d) : d;
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(dt);
+  const y = parts.find(p => p.type === "year")!.value;
+  const mo = parts.find(p => p.type === "month")!.value;
+  const dy = parts.find(p => p.type === "day")!.value;
+  return `${y}-${mo}-${dy}`;
+}
+
+── dayOfWeekFromDateStr (line 279-283) ─────────────────────────────────────────
+
+function dayOfWeekFromDateStr(dateStr: string): number {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  return new Date(y, mo - 1, d).getDay();
+}
+
+── parseDayNums (line 286-291) ─────────────────────────────────────────────────
+
+/** schedule_days("월,수,금") → 요일 번호 Set */
+function parseDayNums(scheduleDays: string): Set<number> {
+  const map: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+  const nums = new Set<number>();
+  scheduleDays.split(",").map(d => d.trim()).forEach(d => { if (map[d] !== undefined) nums.add(map[d]); });
+  return nums;
+}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. apiRequest 전체
+   파일: artifacts/swim-app/context/AuthContext.tsx (line 394-479)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export async function apiRequest(token: string | null, path: string, options: RequestInit = {}) {
+  const url = `${_API_BASE}${path}`;
+  const method = (options.method ?? "GET").toUpperCase();
+  const isWrite = method !== "GET";
+
+  // 쓰기 요청: 관련 캐시 즉시 삭제
+  if (isWrite) _bustRelated(path);
+
+  // GET: 캐시 히트 시 즉시 반환
+  if (!isWrite) {
+    try {
+      const cacheKey = _makeCacheKey(token, path);
+      const cached = _getCached(cacheKey);
+      if (cached !== null) {
+        const fakeRes = {
+          ok: true, status: 200,
+          json: async () => cached,
+          clone: () => ({ ok: true, status: 200, json: async () => cached }),
+        } as unknown as Response;
+        return fakeRes;
+      }
+    } catch {}
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);  // 30초 타임아웃
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      cache: "no-store",
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e?.name === "AbortError") throw new Error("요청 시간이 초과됐습니다. 네트워크 연결을 확인해주세요.");
+    throw e;
+  }
+  clearTimeout(timeoutId);
+
+  // GET 2xx 응답만 캐시 저장 (clone으로 원본 보존)
+  if (!isWrite && res.ok) {
+    try {
+      const cacheKey = _makeCacheKey(token, path);
+      const clonedForCache = res.clone();
+      clonedForCache.json().then(data => _setCached(cacheKey, data)).catch(() => {});
+    } catch {}
+  }
+
+  // 401: 탈퇴/삭제 계정 → 전역 강제 로그아웃
+  if (res.status === 401) {
+    try {
+      const cloned = res.clone();
+      const body = await cloned.json().catch(() => ({}));
+      if (body?.error === "account_withdrawn" || body?.error === "account_deleted") {
+        _globalLogoutHandler?.();
+      }
+    } catch {}
+  }
+
+  // 403: ROLE_REVOKED → teacher 모드 강제 복귀
+  if (res.status === 403) {
+    try {
+      const cloned = res.clone();
+      const body = await cloned.json().catch(() => ({}));
+      if (body?.code === AuthErrorCodes.ROLE_REVOKED) {
+        _globalRoleRevokedHandler?.();
+      }
+    } catch {}
+  }
+
+  return res;
+}
+
+⚠️ 캐시 동작:
+  - eligible-occurrences는 GET 요청 → 캐시 적용됨
+  - 최초 성공 응답이 캐시에 저장됨
+  - 다른 반 선택 시 새 path로 새 캐시 키 → 독립적으로 캐시됨
+  - selectClass 호출 시 isWrite=false → _bustRelated 호출 안 됨
+  - 반 재선택 시 이전 캐시가 즉시 반환될 수 있음
+
+⚠️ 403 처리:
+  - res.status === 403이어도 원본 res가 그대로 반환됨 (clone으로 body 읽음)
+  - 호출부(selectClass)에서 r.ok 확인 → 403이면 r.ok=false → 오류 처리
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 HTTP status와 response body
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+미확보.
+
+사유: 현재 앱(651b1a95 OTA)은 오류 상세 로깅이 없음.
+      오류 발생 시 단순히 occError=true만 설정, HTTP status/body 미보존.
+      서버 in-memory 로그(_occErrLog)는 재현 전 데이터 없음.
+
+재현 조건:
+  - 앱: 651b1a95 OTA 적용 상태
+  - 서버: 6445a76a live
+  - 사용자가 보강반 선택 → 회차 조회 실패 재현 후 서버 로그 확인 필요
+
+서버 로그 확인 경로:
+  GET https://swimnote.kr/api/teacher/debug-occ-log (requireAuth)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 서버 로그 / stack trace
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+미확보. (재현 전)
+
+서버 로그 형식 (성공 시):
+  [PERF][eligible-occurrences] { request_id, user_id, pool_id, makeup_id, class_group_id, occurrences_count, status: 200, elapsed_ms }
+
+서버 로그 형식 (실패 시):
+  [ERROR][eligible-occurrences] { request_id, stage, code, message, makeup_id, class_group_id, user_id, elapsed_ms }
+  stage 값으로 어느 단계에서 실패했는지 확인 가능:
+    "get_pool" / "load_makeup" / "load_class" / "count_members" / "load_holidays"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. DB SELECT 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최근 보강 대기 세션 (DB SELECT, 2026-08-04 기준):
+
+[1] id: mk_1785863645973_0ax8mqq1
+    pool_id: pool_1780849364252_l9k44rbk3
+    student_name: 서태웅 (마스킹: 서**)
+    status: waiting
+    absence_date: 2026-08-13
+    expire_at: 2026-08-31 23:59:59
+    original_class_group_id: cg_1784031612136_c0hm37u7u
+
+[2] id: mk_1785854129843_fby0oxoz
+    pool_id: pool_1780849364252_l9k44rbk3
+    student_name: 서하윤 (마스킹: 서**)
+    status: waiting
+    absence_date: 2026-08-04
+    expire_at: 2026-08-31 23:59:59
+    original_class_group_id: cg_1784731230179_v69ulm0ex
+
+[3] id: mk_1785853406163_u4np42oj
+    pool_id: pool_1780849364252_l9k44rbk3
+    student_name: 김나은 (마스킹: 김**)
+    status: waiting
+    absence_date: 2026-08-04
+    expire_at: 2026-08-31 23:59:59
+    original_class_group_id: cg_1782874177947_xtrzecg0e
+
+[4] id: mk_1785851581592_fk9b7zev
+    pool_id: pool_1780849364252_l9k44rbk3
+    student_name: 양정아 (마스킹: 양**)
+    status: waiting
+    absence_date: 2026-08-04
+    expire_at: 2026-08-31 23:59:59
+    original_class_group_id: cg_1783671600783_8oolcjnyu
+
+[5] id: mk_1785767095791_zfg5ub94
+    pool_id: pool_1780849364252_l9k44rbk3
+    student_name: 유지아 (마스킹: 유**)
+    status: waiting
+    absence_date: 2026-08-03
+    expire_at: 2026-08-31 23:59:59
+    original_class_group_id: cg_1782710082580_ezum120sy
+
+선택한 반 / 로그인 교사 / 학생 정원:
+  makeupId, classGroupId, userId를 특정할 수 없어 개별 SELECT 미실행.
+  재현 시 서버 로그의 makeup_id, class_group_id, user_id를 확인 후 조회 필요.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. A~N 판정표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱: 651b1a95 OTA / 서버: 6445a76a
+
+A. API_BASE가 롤백 과정에서 잘못된 서버를 가리킴
+   → 정상
+   근거: API_BASE = EXPO_PUBLIC_API_URL (빌드 시 고정). OTA는 JS 번들만 교체,
+         환경변수는 네이티브 빌드에 포함됨. 롤백으로 변경되지 않음.
+
+B. 서버 live SHA에 eligible-occurrences 라우트 없음
+   → 정상
+   근거: Render live = 6445a76a. teachers.ts line 718에 라우트 존재 확인됨.
+         56c88a28에서 최초 추가, 이후 모든 커밋에 포함됨.
+
+C. makeupId가 undefined 또는 잘못됨
+   → 정상 (코드상)
+   근거: selectClass에서 activeTarget.id를 직접 사용.
+         activeTarget = assignTarget ?? directCompleteTarget이며 null guard 있음.
+         단, mk.id가 빈 문자열일 경우 서버에서 404 반환 가능.
+
+D. class_group_id가 undefined 또는 잘못됨
+   → 정상 (코드상)
+   근거: cg.id를 직접 전달. null/undefined 가능성 없음.
+
+E. 로그인 교사 pool_id가 null
+   → 확인 불가
+   근거: getMyPoolId(userId) 실패 시 403 POOL_NOT_FOUND 반환.
+         실제 교사 계정의 pool_id 상태는 JWT 없이 확인 불가.
+         재현 시 서버 로그의 stage="get_pool"에서 판별 가능.
+
+F. makeup_sessions.pool_id와 사용자 pool_id 불일치
+   → 확인 불가
+   근거: DB에서 최근 보강 세션들의 pool_id = pool_1780849364252_l9k44rbk3.
+         교사의 pool_id와 일치 여부는 재현 시 stage="load_makeup" 서버 로그로 판별.
+
+G. class_groups.pool_id 불일치
+   → 확인 불가
+   근거: eligible-classes에서 정상적으로 반 목록을 받아왔다면 같은 pool_id.
+         재현 시 stage="load_class" 서버 로그로 판별.
+
+H. class_groups.is_deleted=true
+   → 확인 불가
+   근거: eligible-classes API가 반환한 반을 선택했다면 is_deleted=false여야 함.
+         eligible-classes와 eligible-occurrences의 필터 조건이 동일한지 확인 필요.
+
+I. schedule_days 파싱 실패
+   → 정상 (에러 없음)
+   근거: parseDayNums가 빈/잘못된 값이면 빈 Set 반환 → occurrences=[] 반환.
+         서버 오류 없이 빈 배열 응답. 앱은 "배정 가능한 날짜가 없습니다" 표시.
+
+J. absence_date/expire_at 날짜 변환 예외
+   → 정상 (에러 없음)
+   근거: absenceDate가 null이면 타입 오류 가능하나 DB에서 NOT NULL.
+         expire_at "2026-08-31 23:59:59"를 new Date()로 파싱 시 UTC 해석 →
+         KST로 변환하면 2026-09-01 08:59:59 → toKstDateStr → "2026-09-01"
+         (하루 더 늘어나는 의도치 않은 동작이나 오류는 아님, endDate 확장)
+
+K. pool_holidays 쿼리 예외
+   → 확인 불가
+   근거: 재현 시 stage="load_holidays" 서버 로그로 판별.
+
+L. DB connection 오류
+   → 확인 불가
+   근거: EMAXCONNSESSION 발생 시 503 DB_CONNECTION_LIMIT 반환.
+         Render.com 무료 플랜 DB connection 한도 초과 시 간헐적 발생 가능.
+         재현 시 서버 로그의 err.code로 판별.
+
+M. apiRequest가 응답 본문을 소비하거나 변형
+   → 정상
+   근거: 403 처리 시 res.clone()으로 body를 읽고 원본 res를 반환함.
+         호출부에서 r.text()로 body를 읽을 수 있음.
+         GET 2xx 캐시도 res.clone()으로 처리.
+
+N. 롤백된 앱과 현재 서버 Contract 불일치
+   → 정상
+   근거: 앱(651b1a95)이 기대하는 필드: data.occurrences[*].occurrence_date
+         서버(6445a76a)가 반환하는 필드: occurrences[*].occurrence_date
+         일치함. 6445a76a의 서버 코드는 56c88a28에서 처음 추가된 응답 형식을
+         유지하고 있으며, 651b1a95 앱도 같은 형식 기대.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 최근 정상 버전과 현재 버전 diff
+    (651b1a95 → 6445a76a, swim-app 파일만)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[makeups.tsx 변경 요약]
++ occErrorDetail 상태 추가 (HTTP status/code 보존)
++ occPendingRef 추가 (동일 반+보강 중복 요청 방지)
++ selectClass에 1회 자동 재시도 추가 (500ms 후)
++ 오류 발생 시 서버에 CRASH_REPORT 전송
++ 오류 UI에 "오류 코드: {status} / {code}" 표시
+
+[ClassDetailSheet.tsx 변경 없음]
+  651b1a95 → 6445a76a 사이 ClassDetailSheet.tsx 변경 없음.
+
+[서버 teachers.ts 변경 사항 (6445a76a)]
+  eligible-occurrences 라우트에 in-memory 요청 로그(_occReqLog) 추가
+  debug-occ-log 엔드포인트 추가
+
+[서버 admin.ts 변경 사항 (6445a76a)]
+  PATCH /admin/makeups/:id/self-extinguish 등록 (POST에 추가)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 수정 후보 파일과 함수 목록 (수정 코드 미포함)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+주의: HTTP status/response body 미확보 상태.
+      아래는 코드 분석 기반 후보이며, 실제 오류 원인 확정 후 수정해야 함.
+
+[후보 1] artifacts/api-server/src/routes/teachers.ts
+  함수: GET /teacher/makeups/:makeupId/eligible-occurrences (line 718)
+  의심점: class_groups 조회에 superAdminDb 사용 (pool DB 분리 여부 확인 필요)
+  is_one_time 필터: AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+  → is_one_time 컬럼이 true인 반은 제외됨. eligible-classes에서는 다르게 처리하는지 확인 필요.
+
+[후보 2] artifacts/swim-app/app/(teacher)/makeups.tsx
+  함수: selectClass (line 268)
+  의심점: occPendingRef 경쟁 조건 — 동일 반 재선택 시 occKey가 pending에 남아있으면 요청 무시됨.
+          (finally 블록에서 delete하므로 정상 종료 후에는 해소됨)
+
+[후보 3] artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+  함수: selectMakeupClass (line 507)
+  의심점: 자동 재시도 없음. 단발 실패 → 오류 UI 표시.
+
+[후보 4] artifacts/swim-app/context/AuthContext.tsx
+  함수: apiRequest (line 394)
+  의심점: GET 캐시 — 동일 path(같은 makeupId, 같은 classId) 이전 실패 응답이
+          캐시에 저장되지 않으므로 문제 없음. 단, 이전 성공 응답이 캐시됐다가
+          반환될 경우 occurrences=[]이면 "배정 가능한 날짜 없음"으로 보일 수 있음.
+
+================================================================================
+자료 제출 완료. 수정 코드 없음.
+재현 → 서버 로그 확인 → A~N 판정 확정 → 수정 진행 순서 권장.
+================================================================================

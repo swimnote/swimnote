@@ -1,0 +1,208 @@
+[SWIMNOTE 긴급 오류 수정 — STEP 2.1 구현 차단 요소 보완]
+
+STEP 2 최종 검수자료 확인.
+
+현재 Push·Render 배포·OTA는 승인하지 않는다.
+
+아래 3개 항목만 보완 수정하고 다시 검수자료를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SELECT FOR UPDATE 필수 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 승인 조건에서 확정한 대로,
+학생 상태와 반 배정 이력을 동시에 변경하는 모든 transaction에서
+students row를 먼저 잠근 뒤 최신 데이터를 기준으로 처리한다.
+
+“동시 충돌 가능성이 낮다”는 이유로 생략하지 않는다.
+
+적용 대상:
+
+1)
+POST /students/:id/change-status
+- suspended
+- withdrawn
+- unassigned
+
+2)
+POST /students/:id/remove-from-class
+- new_status가 있는 즉시 전체 반 이탈 경로
+
+3)
+POST /students/:id/remove-from-class
+- new_status 없는 특정 반 즉시 이탈 경로
+
+4)
+PATCH /admin/students/:id/status
+- suspended
+- withdrawn
+- archived
+
+5)
+POST /admin/students/:id/withdraw
+
+각 transaction의 순서:
+
+1. SELECT students ... FOR UPDATE
+2. 학생 존재 여부 확인
+3. 잠금 후 최신 상태 확인
+4. history 종료
+5. students UPDATE
+6. commit
+
+예시:
+
+const lockedRows = await tx.execute(sql`
+  SELECT id, status, class_group_id, assigned_class_ids
+  FROM students
+  WHERE id = ${studentId}
+  LIMIT 1
+  FOR UPDATE
+`);
+
+const locked = lockedRows.rows[0];
+
+if (!locked) {
+  throw new AppError(404, "STUDENT_NOT_FOUND");
+}
+
+주의:
+
+- transaction 밖에서 조회한 existing 값만 믿지 않는다.
+- 상태 변경 대상이 이미 동일 최종 상태인 경우 기존 API 정책에 따라 멱등 처리한다.
+- history 종료와 students UPDATE는 반드시 같은 tx 안에 둔다.
+- closeAllActiveClassHistory와 closeClassHistory는 전달받은 tx만 사용한다.
+- transaction 안에서 별도 db 호출 금지.
+
+수정 후 endpoint별로
+SELECT FOR UPDATE가 실제 diff에 포함된 라인을 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. KST 날짜 함수 형식 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+}).format(new Date());
+
+이 구현은 현재 환경에서 정상이나,
+locale별 출력 형식에 의존하지 않도록 formatToParts 방식으로 고정한다.
+
+권장 구현:
+
+export function kstTodayStr(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const map = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+요구사항:
+
+- 서버 locale과 무관
+- Asia/Seoul 기준
+- 항상 YYYY-MM-DD
+- 테스트를 위해 now 인자 선택 지원
+- 신규 패키지 설치 금지
+
+테스트:
+
+- 2026-08-02T14:59:59Z → 2026-08-02
+- 2026-08-02T15:00:00Z → 2026-08-03
+- 2026-12-31T15:00:00Z → 2027-01-01
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Git 상태 정리 — 자동 checkpoint 명확화
+━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 수정이 Replit 자동 checkpoint로 HEAD 9d921203에 포함된 사실을
+작업 기록에 명확히 남긴다.
+
+현재는 해당 커밋을 reset하거나 새 커밋을 만들지 않는다.
+
+먼저 다음을 제출한다.
+
+1. git log -3 --oneline
+2. git show --stat 9d921203
+3. git show --name-status 9d921203
+4. git status --short
+5. git branch --show-current
+6. git remote -v
+7. 해당 커밋이 원격에 Push됐는지 여부
+
+판정:
+
+- 로컬 HEAD에만 존재:
+  운영 영향 없음. 현재 기준 커밋으로 유지하고 추가 보완은 unstaged 상태로 진행.
+
+- 이미 원격에 Push됨:
+  즉시 보고하고 배포 여부를 확인한다.
+  임의 revert 또는 force push 금지.
+
+Replit 자동 checkpoint도 Git commit이므로
+“Commit 미실행”이라고 표현하지 않는다.
+
+정확한 표현:
+“사용자 수동 Commit은 하지 않았으나 Replit 자동 checkpoint로 로컬 커밋 생성됨.”
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 학생명단 상태 구조는 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 구현은 그대로 유지한다.
+
+- chipStudentsStatus: idle/loading/loaded/error
+- API 실패를 빈 배열로 변환하지 않음
+- historical 모드 current fallback 금지
+- request sequence ID로 오래된 응답 무시
+- 반 목록 loading/loaded/error 분리
+- sortedItems fallback 금지
+
+이 부분은 추가 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 보완 후 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 수정 파일
+2. SELECT FOR UPDATE가 포함된 실제 git diff
+3. endpoint별 transaction 순서표
+4. kstTodayStr 최종 코드
+5. KST 경계 테스트 결과
+6. 서버 타입체크 결과
+7. 앱 타입체크 결과
+8. git log/status/remote 결과
+9. Push 여부
+10. 남은 미검증 사항
+
+현재 승인 범위:
+
+- 위 보완 코드 수정
+- 로컬 타입체크
+- 로컬 테스트
+
+현재 금지:
+
+- 새 Commit
+- Push
+- Render 배포
+- OTA
+- 운영 DB 수정
+- force push
+- reset
+- revert
+- X모드 작업 재개
+
+보완 보고 후 멈춘다.

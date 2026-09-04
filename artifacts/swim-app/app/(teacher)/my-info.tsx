@@ -9,13 +9,13 @@
  *  5. 관리자 모드 전환 (복수 역할자만)
  *  6. 선생님 권한 탈퇴 요청
  */
-import { ChartBar, ChevronRight, Key, Lock, MessageCircle, PenLine, Repeat, Shield, TriangleAlert, UserX, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { Users, X } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS } from "@/constants/auth";
@@ -187,7 +187,7 @@ export default function MyInfoScreen() {
   /* ── 회원 목록 서브뷰 ── */
   if (memberView) {
     const labels: Record<string, string> = { active: "정상회원", suspended: "연기회원", withdrawn: "탈퇴회원" };
-    const colors: Record<string, string> = { active: "#2EC4B6", suspended: "#E4A93A", withdrawn: "#D96C6C" };
+    const colors: Record<string, string> = { active: C.brandStrong, suspended: "#E4A93A", withdrawn: "#D96C6C" };
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title={labels[memberView]} onBack={() => setMemberView(null)} homePath="/(teacher)/today-schedule" />
@@ -221,7 +221,7 @@ export default function MyInfoScreen() {
                 <View style={[s.statusBadge, { backgroundColor: colors[memberView] + "20" }]}>
                   <Text style={[s.statusBadgeText, { color: colors[memberView] }]}>{labels[memberView]}</Text>
                 </View>
-                <ChevronRight size={14} color={C.textMuted} />
+                <LucideIcon name="chevron-right" size={14} color={C.textMuted} />
               </Pressable>
             )}
           />
@@ -245,7 +245,7 @@ export default function MyInfoScreen() {
     <SafeAreaView style={s.safe} edges={[]}>
       <SubScreenHeader title="내 정보" homePath="/(teacher)/today-schedule" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
@@ -254,17 +254,17 @@ export default function MyInfoScreen() {
         {/* ── 프로필 카드 ── */}
         <View style={[s.card, { padding: 18 }]}>
           <View style={s.cardRow}>
-            <View style={[s.avatarLg, { backgroundColor: themeColor + "20" }]}>
-              <Text style={[s.avatarLgText, { color: themeColor }]}>{profile?.name?.[0] || "T"}</Text>
+            <View style={s.avatarLg}>
+              <LucideIcon name="user-round" size={26} color="#1B3A70" />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.profileName}>{profile?.name || "-"}</Text>
               {profile?.position ? <Text style={s.profileSub}>{profile.position}</Text> : null}
               <Text style={s.profileSub}>{profile?.phone || "-"}</Text>
-              <Text style={[s.profileSub, { color: "#64748B" }]}>{profile?.email || "-"}</Text>
+              <Text style={[s.profileSub, { color: C.textSecondary }]}>{profile?.email || "-"}</Text>
             </View>
             <Pressable style={[s.editBtn, { borderColor: themeColor }]} onPress={openEdit}>
-              <PenLine size={14} color={themeColor} />
+              <LucideIcon name="edit-2" size={14} color={themeColor} />
               <Text style={[s.editBtnText, { color: themeColor }]}>편집</Text>
             </Pressable>
           </View>
@@ -273,7 +273,7 @@ export default function MyInfoScreen() {
         {/* ── 권한 정보 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Shield size={15} color={themeColor} />
+            <LucideIcon name="shield" size={15} color={themeColor} />
             <Text style={s.cardTitle}>권한 정보</Text>
           </View>
           <View style={{ padding: 16, gap: 8 }}>
@@ -288,7 +288,7 @@ export default function MyInfoScreen() {
                 <Text style={s.permLabel}>보유 역할</Text>
                 <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
                   {adminUser.roles.map((r: string) => (
-                    <View key={r} style={[s.permBadge, { backgroundColor: "#FFFFFF" }]}>
+                    <View key={r} style={[s.permBadge, { backgroundColor: C.surface }]}>
                       <Text style={[s.permBadgeText, { color: C.textSecondary }]}>{ROLE_LABEL[r] ?? r}</Text>
                     </View>
                   ))}
@@ -301,7 +301,7 @@ export default function MyInfoScreen() {
         {/* ── 보안 설정 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Lock size={15} color={themeColor} />
+            <LucideIcon name="lock" size={15} color={themeColor} />
             <Text style={s.cardTitle}>보안 설정</Text>
           </View>
           <Pressable
@@ -309,17 +309,17 @@ export default function MyInfoScreen() {
             onPress={() => { setPwCurrent(""); setPwNew(""); setPwConfirm(""); setPwMsg(""); setPwVisible(true); }}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Key size={14} color={C.textSecondary} />
+              <LucideIcon name="key" size={14} color={C.textSecondary} />
               <Text style={[s.secItemLabel, { color: C.text }]}>비밀번호 변경</Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
           </Pressable>
         </View>
 
         {/* ── 내반 통계 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <ChartBar size={15} color={themeColor} />
+            <LucideIcon name="chart-bar" size={15} color={themeColor} />
             <Text style={s.cardTitle}>내반 통계 (요일별 회원 수)</Text>
           </View>
           <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 10 }}>
@@ -345,7 +345,7 @@ export default function MyInfoScreen() {
         {/* ── 회원 현황 ── */}
         <View style={s.card}>
           <View style={s.cardHeader}>
-            <Users size={15} color={themeColor} />
+            <LucideIcon name="users" size={15} color={themeColor} />
             <Text style={s.cardTitle}>회원 현황</Text>
           </View>
           {/* 유료회원 총계 (active + suspended) */}
@@ -357,7 +357,7 @@ export default function MyInfoScreen() {
             </Text>
           </View>
           {([
-            { key: "active",    label: "정상회원", count: memStatus.active,    color: "#2EC4B6" },
+            { key: "active",    label: "정상회원", count: memStatus.active,    color: C.brandStrong },
             { key: "suspended", label: "연기회원", count: memStatus.suspended, color: "#E4A93A" },
             { key: "withdrawn", label: "탈퇴회원", count: memStatus.withdrawn, color: "#D96C6C" },
           ] as const).map((row, i) => (
@@ -369,7 +369,7 @@ export default function MyInfoScreen() {
               <View style={[s.memDot, { backgroundColor: row.color }]} />
               <Text style={s.memLabel}>{row.label}</Text>
               <Text style={[s.memCount, { color: row.color }]}>{row.count}명</Text>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           ))}
         </View>
@@ -377,36 +377,26 @@ export default function MyInfoScreen() {
         {/* ── 관리자 모드 전환 ── */}
         {hasMultipleRoles && (
           <Pressable
-            style={[s.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
+            style={[s.actionBtn, { borderColor: C.brandStrong }]}
             onPress={() => setSwitchModalVisible(true)}
           >
-            <Repeat size={18} color="#2EC4B6" />
-            <Text style={[s.actionBtnText, { color: "#2EC4B6" }]}>모드 전환 (관리자↔선생님)</Text>
-            <ChevronRight size={16} color="#2EC4B6" />
+            <LucideIcon name="refresh-ccw" size={18} color={C.brandStrong} />
+            <Text style={[s.actionBtnText, { color: C.brandStrong }]}>모드 전환 (관리자↔선생님)</Text>
+            <LucideIcon name="chevron-right" size={16} color={C.brandStrong} />
           </Pressable>
         )}
-
-        {/* ── 문의하기 ── */}
-        <Pressable
-          style={[s.actionBtn, { backgroundColor: "#EEDDF5", borderColor: "#C4B5FD" }]}
-          onPress={() => router.push("/support-ticket-list" as any)}
-        >
-          <MessageCircle size={18} color="#7C3AED" />
-          <Text style={[s.actionBtnText, { color: "#7C3AED" }]}>스윔노트에 문의하기</Text>
-          <ChevronRight size={16} color="#7C3AED" />
-        </Pressable>
 
         {/* ── 탈퇴 요청 ── */}
         <Pressable
           style={[s.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FCA5A5" }]}
           onPress={() => { setResignReason(""); setResignMsg(""); setResignVisible(true); }}
         >
-          <UserX size={18} color="#D96C6C" />
+          <LucideIcon name="user-x" size={18} color="#D96C6C" />
           <Text style={[s.actionBtnText, { color: "#D96C6C" }]}>선생님 권한 탈퇴 요청</Text>
-          <ChevronRight size={16} color="#D96C6C" />
+          <LucideIcon name="chevron-right" size={16} color="#D96C6C" />
         </Pressable>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ═══ 정보 편집 모달 ═══ */}
       <Modal visible={editVisible} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -415,7 +405,7 @@ export default function MyInfoScreen() {
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>내 정보 수정</Text>
               <Pressable onPress={() => setEditVisible(false)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             <Text style={s.inputLabel}>이름</Text>
@@ -425,11 +415,11 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>직급 / 직책</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={editPos} onChangeText={setEditPos} placeholder="예: 수석강사" placeholderTextColor={C.textMuted} />
             {editMsg ? (
-              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? "#2EC4B6" : "#D96C6C" }}>{editMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: editMsg.includes("저장") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: editMsg.includes("저장") ? C.brandStrong : "#D96C6C" }}>{editMsg}</Text>
               </View>
             ) : null}
-            <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
+            <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: editSaving ? 0.7 : 1, marginTop: 16 }]} onPress={saveProfile} disabled={editSaving}>
               {editSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>저장</Text>}
             </Pressable>
           </View>
@@ -442,17 +432,17 @@ export default function MyInfoScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>선생님 권한 탈퇴 요청</Text>
-              <Pressable onPress={() => setResignVisible(false)} hitSlop={8}><X size={22} color={C.text} /></Pressable>
+              <Pressable onPress={() => setResignVisible(false)} hitSlop={8}><LucideIcon name="x" size={22} color={C.text} /></Pressable>
             </View>
             <View style={[s.warnBox, { marginBottom: 14 }]}>
-              <TriangleAlert size={14} color="#92400E" />
+              <LucideIcon name="alert-triangle" size={14} color="#92400E" />
               <Text style={s.warnText}>요청 접수 후 관리자가 확인 및 처리합니다. 즉시 탈퇴가 아닙니다.</Text>
             </View>
             <Text style={s.inputLabel}>요청 사유</Text>
             <TextInput style={[s.input, s.textArea, { borderColor: C.border, color: C.text }]} value={resignReason} onChangeText={setResignReason} placeholder="퇴직 사유 또는 권한 종료 이유를 입력해주세요..." placeholderTextColor={C.textMuted} multiline numberOfLines={4} textAlignVertical="top" />
             {resignMsg ? (
-              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: resignMsg.includes("접수") ? "#2EC4B6" : "#D96C6C" }}>{resignMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: resignMsg.includes("접수") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: resignMsg.includes("접수") ? C.brandStrong : "#D96C6C" }}>{resignMsg}</Text>
               </View>
             ) : null}
             <Pressable style={[s.confirmBtn, { backgroundColor: "#D96C6C", opacity: resignSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitResign} disabled={resignSaving}>
@@ -468,7 +458,7 @@ export default function MyInfoScreen() {
           <View style={[s.modalBox, { paddingBottom: insets.bottom + 16 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>비밀번호 변경</Text>
-              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><X size={22} color={C.text} /></Pressable>
+              <Pressable onPress={() => setPwVisible(false)} hitSlop={8}><LucideIcon name="x" size={22} color={C.text} /></Pressable>
             </View>
             <Text style={s.inputLabel}>현재 비밀번호</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwCurrent} onChangeText={setPwCurrent} placeholder="현재 비밀번호" placeholderTextColor={C.textMuted} secureTextEntry />
@@ -477,11 +467,11 @@ export default function MyInfoScreen() {
             <Text style={s.inputLabel}>새 비밀번호 확인</Text>
             <TextInput style={[s.input, { borderColor: C.border, color: C.text }]} value={pwConfirm} onChangeText={setPwConfirm} placeholder="새 비밀번호 재입력" placeholderTextColor={C.textMuted} secureTextEntry />
             {pwMsg ? (
-              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? "#E6FFFA" : "#F9DEDA" }]}>
-                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? "#2EC4B6" : "#D96C6C" }}>{pwMsg}</Text>
+              <View style={[s.msgBox, { backgroundColor: pwMsg.includes("변경") ? C.brandMist : "#F9DEDA" }]}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: pwMsg.includes("변경") ? C.brandStrong : "#D96C6C" }}>{pwMsg}</Text>
               </View>
             ) : null}
-            <Pressable style={[s.confirmBtn, { backgroundColor: C.button, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
+            <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: pwSaving ? 0.7 : 1, marginTop: 16 }]} onPress={submitPasswordChange} disabled={pwSaving}>
               {pwSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.confirmBtnText}>변경 완료</Text>}
             </Pressable>
           </View>
@@ -500,7 +490,7 @@ export default function MyInfoScreen() {
             {(adminUser?.roles || []).filter((r: string) => r !== "teacher").map((role: string) => (
               <Pressable
                 key={role}
-                style={[s.confirmBtn, { backgroundColor: C.button, opacity: switching ? 0.7 : 1, marginBottom: 8 }]}
+                style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: switching ? 0.7 : 1, marginBottom: 8 }]}
                 onPress={() => handleSwitchRole(role)}
                 disabled={switching}
               >
@@ -515,7 +505,7 @@ export default function MyInfoScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:             { flex: 1, backgroundColor: C.surface },
   card:             { backgroundColor: C.card, borderRadius: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardRow:          { flexDirection: "row", alignItems: "center", gap: 14 },
   cardHeader:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, paddingBottom: 12 },

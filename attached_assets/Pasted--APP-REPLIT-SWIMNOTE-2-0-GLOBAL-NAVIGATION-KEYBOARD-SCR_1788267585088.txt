@@ -1,0 +1,462 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL NAVIGATION / KEYBOARD / SCROLL
+# IOS TESTFLIGHT OTA PUBLISH + DEVICE VERIFICATION
+
+현재 완료 상태:
+
+GLOBAL BACK / KEYBOARD / SCROLL CORRECTION:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Latest app-code HEAD:
+7bd32dce
+
+이번 작업은
+방금 완료된 전역 Navigation / Keyboard / Scroll 수정사항을
+사용자가 실제 iPhone TestFlight Build 252에서 확인할 수 있도록
+
+2.0 iOS OTA를 현재 정상 OTA 경로에 발행하는 작업입니다.
+
+==================================================
+1. SOURCE 확인
+==================================================
+
+실제 현재 Git 상태 확인.
+
+Expected:
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+현재 HEAD:
+7bd32dce 또는 그 이후의 문서-only commit
+
+만약 HEAD가 7bd32dce 이후라면:
+
+7bd32dce 이후 변경사항을 확인하여
+앱 코드 unrelated 변경이 없는지 먼저 감사.
+
+앱 코드가 동일하면 현재 HEAD로 OTA 발행 가능.
+
+앱 코드 unrelated 변경이 있으면 발행 중지 후 보고.
+
+==================================================
+2. CURRENT TESTFLIGHT DELIVERY PATH
+==================================================
+
+현재 2.0 TestFlight 경로는 LOCKED:
+
+TestFlight Build:
+252
+
+RuntimeVersion:
+2.0.0
+
+Embedded Channel:
+production-v2
+
+Channel Mapping:
+
+production-v2
+→
+release-2.0.0
+
+이 mapping을 변경하지 마십시오.
+
+==================================================
+3. OTA TARGET
+==================================================
+
+Target EAS Update Branch:
+
+release-2.0.0
+
+Platform:
+
+iOS ONLY
+
+Runtime:
+
+2.0.0
+
+주의:
+
+production-v2 branch에 직접 발행하지 마십시오.
+
+현재 TestFlight Build 252가 실제로 보는 branch는:
+
+release-2.0.0
+
+입니다.
+
+==================================================
+4. 이번 OTA에 반드시 포함될 수정
+==================================================
+
+최소 아래 app-code가 포함되어야 합니다.
+
+A.
+
+Settings
+→ X Mode
+→ Back
+→ Settings
+
+B.
+
+push-notification-settings
+→ Back
+→ previous screen
+
+C.
+
+신규 2.0 화면의 Back:
+
+previous-screen-only
+
+D.
+
+Curriculum Search:
+
+- 진입 시 keyboard hidden
+- input tap 시 keyboard visible
+- 검색 실행 시 Keyboard.dismiss()
+- scroll 시작 시 keyboard dismiss
+- keyboardShouldPersistTaps handled
+- 마지막 결과까지 충분한 bottom scroll space
+- 결과 item single tap
+- back 시 keyboard dismiss + previous screen
+
+==================================================
+5. 결제/가격 변경 금지
+==================================================
+
+이번 OTA는 UI behavior correction만.
+
+현재 LOCKED 가격 유지:
+
+SWIMNOTE:
+9,900원
+
+X300:
+129,000원
+
+X500:
+199,000원
+
+X1000:
+359,000원
+
+DATA100:
+7,900원
+
+DATA300:
+22,900원
+
+X includes SWIMNOTE:
+유지
+
+Subscription UX:
+유지
+
+RevenueCat 실제 연결:
+금지
+
+==================================================
+6. OTA MESSAGE
+==================================================
+
+명확한 메시지 사용.
+
+예:
+
+2.0.0 iOS device test: global back keyboard scroll rules
+
+==================================================
+7. 발행 후 DELIVERY PATH 재확인
+==================================================
+
+OTA 발행 후 반드시 실제 EAS 상태 확인.
+
+Expected:
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Mapped Branch Latest Update:
+방금 발행한 Update ID
+
+Platform:
+iOS
+
+Runtime:
+2.0.0
+
+Source:
+7bd32dce 수정 포함
+
+Build 252 reachable:
+YES
+
+==================================================
+8. 개발용 OTA 재실행 모달
+==================================================
+
+현재 2.0 개발 규칙:
+
+새 OTA 수신
+→ 다운로드
+→ "앱 재실행하기" 모달
+→ 사용자가 재실행
+→ 최신 코드 적용
+
+이 구조 변경 금지.
+
+OTA 발행 후 사용자가 Build 252에서
+해당 모달을 받을 수 있어야 함.
+
+==================================================
+9. 사용자 실기기 최종 체크리스트
+==================================================
+
+사용자가 실제 iPhone에서 확인:
+
+[ ] OTA "앱 재실행하기" 모달 정상 표시
+
+[ ] 설정 → SWIMNOTE X모드 → 뒤로가기
+    → 설정으로 복귀
+
+[ ] 홈으로 강제 이동하지 않음
+
+[ ] 설정 → 알림 설정 → 뒤로가기
+    → 직전 화면 복귀
+
+[ ] X모드 → 구독 및 요금제 → 뒤로가기
+    → X모드 복귀
+
+[ ] 설정 → 구독 및 요금제 → 뒤로가기
+    → 설정 복귀
+
+[ ] X모드 → 상세 기능 → 뒤로가기
+    → X모드 복귀
+
+[ ] 커리큘럼 검색 진입
+    → 키보드 자동 표시 안 됨
+
+[ ] 검색창 tap
+    → 키보드 표시
+
+[ ] 검색 실행
+    → 키보드 내려감
+
+[ ] 검색결과가 많아도 마지막 항목까지 scroll 가능
+
+[ ] 결과 scroll 시작
+    → 키보드 자연스럽게 내려감
+
+[ ] 결과 항목 한 번 tap으로 선택 가능
+
+[ ] 결과 하단이 keyboard / Safe Area에 가려지지 않음
+
+[ ] 뒤로가기
+    → keyboard dismiss
+    → 직전 화면 복귀
+
+[ ] navigation loop 없음
+
+[ ] blank/crash 없음
+
+==================================================
+10. 기존 Subscription UX도 간단 회귀 확인
+==================================================
+
+이번 실기기 확인 시 같이 확인:
+
+[ ] 구독 및 요금제 canonical screen 정상
+
+[ ] X active에서 SWIMNOTE 구매카드 없음
+
+[ ] X300/X500/X1000 플랜 변경 UI 존재
+
+[ ] DATA pack 별도 section
+
+[ ] 가격:
+
+SWIMNOTE 9,900
+X300 129,000
+X500 199,000
+X1000 359,000
+
+정상
+
+==================================================
+11. PRODUCTION 보호
+==================================================
+
+이번 작업에서 금지:
+
+1.6.3 iOS OTA
+1.6.3 Android OTA
+Android 2.0 OTA
+production channel OTA
+deploy-photo-clone 변경
+Render Production 변경
+Production DB 변경
+RevenueCat 변경
+App Store subscription 상품 변경
+Google Play 변경
+
+==================================================
+12. 추가 코드 수정 금지
+==================================================
+
+이번 단계에서는
+새로운 UI 수정 작업을 하지 마십시오.
+
+OTA 발행 및 경로 검증만.
+
+발행 전 blocker가 발견되면
+수정하지 말고 보고.
+
+==================================================
+13. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# GLOBAL UI RULES TESTFLIGHT OTA REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## SOURCE AUDIT
+
+7bd32dce included:
+YES / NO
+
+Unrelated app-code changes after 7bd32dce:
+YES / NO
+
+Expected:
+NO
+
+## OTA
+
+Published:
+YES / NO
+
+Target Branch:
+...
+
+Expected:
+release-2.0.0
+
+Platform:
+iOS
+
+Runtime:
+2.0.0
+
+Update ID:
+...
+
+Update Group:
+...
+
+Message:
+...
+
+## DELIVERY PATH
+
+Build:
+252
+
+Embedded Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Latest Update ID:
+...
+
+Reachable by Build 252:
+YES / NO
+
+Expected:
+YES
+
+## INCLUDED CORRECTIONS
+
+Settings -> X Mode Back:
+PASS / FAIL
+
+Notification Settings Back:
+PASS / FAIL
+
+Previous-screen-only rule:
+PASS / FAIL
+
+Curriculum keyboard dismiss:
+PASS / FAIL
+
+Curriculum bottom scroll:
+PASS / FAIL
+
+Single-tap selection:
+PASS / FAIL
+
+## PRICING / SUBSCRIPTION
+
+Changed:
+YES / NO
+
+Expected:
+NO
+
+## PRODUCTION SAFETY
+
+1.6.3 modified:
+NO
+
+Android OTA:
+NO
+
+Production OTA:
+NO
+
+Render modified:
+NO
+
+Production DB modified:
+NO
+
+RevenueCat modified:
+NO
+
+Store products modified:
+NO
+
+## USER DEVICE TEST
+
+Ready:
+YES / NO
+
+## FINAL
+
+SWIMNOTE 2.0 GLOBAL UI RULES DEVICE TEST READY
+or
+BLOCKED

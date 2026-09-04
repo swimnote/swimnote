@@ -1,0 +1,172 @@
+[WP-SUPPORT-NANO-04 — TRACE COMPLETENESS FINAL FIX]
+
+목적:
+이미 production-confirmed 된 Support Nano 기능은 건드리지 않고
+usage trace와 selected-KI 관측 누락만 마무리한다.
+
+전체 repo 조사 금지.
+retrieval/prompt/threshold/Nano 로직 변경 금지.
+DB migration 금지.
+전체 regression 금지.
+
+대상 최소 파일:
+- support-respond.ts
+- support-nano-resolver.ts (필요한 경우만)
+- ai-pricing.ts 기존 함수 사용
+- 관련 Support test
+
+────────────────────────────
+
+1. Nano 실제 LLM 호출 성공 trace
+
+실제 Nano OpenAI call이 1회 발생한 경우 반드시 저장:
+
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+
+현재 Nano 내부 retry가 없다면 0 고정 가능.
+
+추측으로 retry를 만들지 않는다.
+
+────────────────────────────
+
+2. Nano 비용 기록
+
+이미 기록되는:
+input_tokens
+output_tokens
+cached_input_tokens가 있으면 해당 값
+
+과 AI01-02의 기존 pricing 함수를 이용해서
+실제 모델 AI_MODEL.SUPPORT의 비용을 계산한다.
+
+저장:
+
+estimated_cost_usd = 실제 계산값
+cost_source = TOKEN_PRICING
+
+가격을 새로 하드코딩하지 않는다.
+기존 ai-pricing.ts만 재사용.
+
+계산 불가능한 경우에만:
+estimated_cost_usd = null
+cost_source = UNKNOWN
+
+────────────────────────────
+
+3. Deterministic / no-evidence
+
+OpenAI 호출이 없는 경로는 provider=null/service=internal 유지.
+
+가능하면 의미를 명확히 하기 위해:
+
+logical_request_count = 0
+actual_call_count = 0
+retry_count = 0
+
+을 명시적으로 저장한다.
+
+단 기존 contract상 logical_request_count가
+'provider logical request'만 의미하도록 설계돼 있다면
+그 의미를 깨지 말고 현재 0 처리 방식을 유지한다.
+
+새 의미 정의 금지.
+
+────────────────────────────
+
+4. Selected KI 구분
+
+현재 HTTP response의 evidence_refs 20개가
+fallback candidate 전체인지
+Nano selected_knowledge_ids인지 실제 코드로 확인한다.
+
+둘을 섞지 않는다.
+
+trace 또는 metadata에 최소:
+
+candidate_knowledge_count
+selected_knowledge_ids
+selected_knowledge_count
+
+를 구분해서 기록할 수 있으면 기존 JSONB 안에서 처리.
+
+새 DB column 금지.
+
+Nano가 실제 선택한 ID만 selected로 기록.
+
+candidate 20개 전체를 selected라고 기록 금지.
+
+────────────────────────────
+
+5. Validator
+
+기존 validator 그대로 유지.
+
+selected_knowledge_ids는 반드시
+candidate set의 subset이어야 한다.
+
+candidate 밖 ID 제거 정책 변경 금지.
+
+────────────────────────────
+
+6. 테스트
+
+관련 최소 테스트만.
+
+필수:
+
+TC1 Nano 1회 성공
+→ logical=1 / actual=1 / retry=0
+
+TC2 token usage 존재
+→ estimated_cost_usd 계산됨
+→ cost_source=TOKEN_PRICING
+
+TC3 deterministic
+→ provider null / service internal / actual call 0
+
+TC4 candidate 20, Nano selected 1~N
+→ candidate count와 selected count 분리
+
+TC5 candidate 밖 ID
+→ selected에 남지 않음
+
+기존 Support 핵심 테스트 중 관련 파일만 실행.
+
+────────────────────────────
+
+7. 절대 금지
+
+- retrieval 변경
+- fallbackMax 변경
+- prompt 변경
+- 모델 변경
+- HUMAN_REQUIRED 정책 변경
+- DB/KI 수정
+- Professional/Curriculum/Diary/Growth 수정
+- Render deploy
+- full regression
+
+────────────────────────────
+
+8. 완료 보고
+
+[WP-SUPPORT-NANO-04 IMPLEMENTATION REPORT]
+
+- Result
+- Before / After SHA
+- Changed files
+- Nano logical/actual/retry 저장 방식
+- 실제 비용 계산 방식
+- deterministic count 처리
+- candidate count
+- selected KI 저장 방식
+- test command
+- PASS / FAIL
+
+Verification:
+UNIT TEST CONFIRMED
+PRODUCTION CONFIRMED 아님
+
+STOP.

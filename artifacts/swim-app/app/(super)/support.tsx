@@ -11,17 +11,15 @@
  * 필터 탭: 전체 | 긴급 | SLA초과 | 결제 | 보안 | 환불
  * — 상태 기반 8칩 + 유형 기반 10칩 두 줄 구조 제거
  */
-import { ChevronRight, CircleAlert, CreditCard, MessageCircle, OctagonAlert, Plus } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { CreditCard } from "lucide-react-native";
 import { useAuditLogStore } from "@/store/auditLogStore";
 import type { SupportTicket, SupportStatus } from "@/domain/types";
 import Colors from "@/constants/colors";
@@ -30,7 +28,7 @@ const C = Colors.light;
 const P = "#7C3AED";
 const RED = "#D96C6C";
 const AMBER = "#D97706";
-const TEAL = "#2EC4B6";
+const TEAL = C.brandStrong;
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
 
@@ -43,22 +41,22 @@ const TYPE_CFG: Record<string, {
   refund:     { label: "환불",    color: RED,    bg: "#F9DEDA", icon: "rotate-ccw" },
   payment:    { label: "결제",    color: TEAL,   bg: "#ECFEFF", icon: "credit-card" },
   deletion:   { label: "삭제",    color: AMBER,  bg: "#FFF1BF", icon: "trash-2" },
-  policy:     { label: "정책",    color: TEAL,   bg: "#E6FFFA", icon: "file-text" },
+  policy:     { label: "정책",    color: TEAL,   bg: C.brandSoft, icon: "file-text" },
   technical:  { label: "기술",    color: P,      bg: "#EEDDF5", icon: "tool" },
-  storage:    { label: "저장공간", color: TEAL,   bg: "#E6FFFA", icon: "hard-drive" },
+  storage:    { label: "저장공간", color: TEAL,   bg: C.brandSoft, icon: "hard-drive" },
   chargeback: { label: "차지백",  color: "#991B1B", bg: "#F9DEDA", icon: "alert-triangle" },
-  other:      { label: "기타",    color: "#64748B", bg: "#FFFFFF", icon: "help-circle" },
+  other:      { label: "기타",    color: C.textSecondary, bg: "#FFFFFF", icon: "help-circle" },
 };
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   received:          { label: "접수",    color: RED,    bg: "#F9DEDA" },
   in_progress:       { label: "처리 중", color: AMBER,  bg: "#FFF1BF" },
-  on_hold:           { label: "보류",    color: "#64748B", bg: "#FFFFFF" },
-  refund_linked:     { label: "환불연계", color: "#9333EA", bg: "#E6FAF8" },
+  on_hold:           { label: "보류",    color: C.textSecondary, bg: "#FFFFFF" },
+  refund_linked:     { label: "환불연계", color: "#9333EA", bg: C.brandSoft },
   policy_sent:       { label: "정책발송", color: TEAL,   bg: "#ECFEFF" },
   need_recheck:      { label: "재확인",  color: "#E4A93A", bg: "#FFF1BF" },
   escalated_to_tech: { label: "에스컬",  color: P,      bg: "#EEDDF5" },
-  resolved:          { label: "해결됨",  color: TEAL,   bg: "#E6FFFA" },
+  resolved:          { label: "해결됨",  color: TEAL,   bg: C.brandSoft },
 };
 
 const REQUESTER_CFG: Record<string, { label: string; color: string }> = {
@@ -75,7 +73,7 @@ const TICKET_TYPES = Object.keys(TYPE_CFG);
 type FilterKey = "all" | "urgent" | "sla" | "payment" | "security" | "refund";
 
 const FILTER_TABS: Array<{ key: FilterKey; label: string; color: string; icon: string }> = [
-  { key: "all",      label: "전체",    color: "#0F172A",  icon: "list" },
+  { key: "all",      label: "전체",    color: C.textPrimary,  icon: "list" },
   { key: "urgent",   label: "긴급",    color: RED,        icon: "alert-octagon" },
   { key: "sla",      label: "SLA 초과", color: "#D97706", icon: "clock" },
   { key: "payment",  label: "결제",    color: TEAL,       icon: "credit-card" },
@@ -327,7 +325,7 @@ export default function SupportScreen() {
   const renderItem = ({ item }: { item: SupportTicket }) => {
     const tc = TYPE_CFG[item.type] ?? TYPE_CFG.other;
     const sc = STATUS_CFG[item.status] ?? STATUS_CFG.received;
-    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: "#64748B" };
+    const rc = REQUESTER_CFG[item.requesterRole] ?? { label: item.requesterRole, color: C.textSecondary };
     const { overdue, label: slaLabel } = getSlaStatus(item);
     const isEmergency = tc.emergency === true;
 
@@ -348,7 +346,7 @@ export default function SupportScreen() {
           <View style={s.rowTop}>
             {isEmergency && (
               <View style={s.emergencyBadge}>
-                <OctagonAlert size={9} color={RED} />
+                <LucideIcon name="alert-octagon" size={9} color={RED} />
                 <Text style={s.emergencyBadgeTxt}>긴급</Text>
               </View>
             )}
@@ -393,11 +391,11 @@ export default function SupportScreen() {
           style={s.slaBanner}
           onPress={() => setActiveFilter("sla")}
           hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}>
-          <CircleAlert size={14} color="#991B1B" />
+          <LucideIcon name="alert-circle" size={14} color="#991B1B" />
           <Text style={s.slaBannerTxt}>
             SLA 초과 <Text style={{ fontFamily: "Pretendard-Regular" }}>{slaCount}건</Text> — 즉시 처리 필요
           </Text>
-          <ChevronRight size={14} color="#991B1B" />
+          <LucideIcon name="chevron-right" size={14} color="#991B1B" />
         </Pressable>
       )}
 
@@ -427,7 +425,7 @@ export default function SupportScreen() {
 
       {/* 필터 탭 1줄 (6개 의미 기반, 명확한 높이) */}
       <View style={s.tabBarWrapper}>
-        <ScrollView
+        <KeyboardAwareScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.tabContent}
@@ -451,7 +449,7 @@ export default function SupportScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 티켓 리스트 (flex:1 — 나머지 공간 전체) */}
@@ -471,7 +469,7 @@ export default function SupportScreen() {
         ItemSeparatorComponent={() => <View style={s.separator} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <MessageCircle size={32} color="#D1D5DB" />
+            <LucideIcon name="message-circle" size={32} color="#D1D5DB" />
             <Text style={s.emptyTxt}>해당 조건의 문의가 없습니다</Text>
           </View>
         }
@@ -479,7 +477,7 @@ export default function SupportScreen() {
 
       {/* 등록 FAB */}
       <Pressable style={s.fab} onPress={() => setCreateModal(true)}>
-        <Plus size={20} color="#fff" />
+        <LucideIcon name="plus" size={20} color="#fff" />
       </Pressable>
 
       {/* 처리 모달 */}
@@ -526,7 +524,7 @@ export default function SupportScreen() {
 
               <View style={m.section}>
                 <Text style={m.label}>처리 상태</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {STATUS_KEYS.map(k => {
                     const sc = STATUS_CFG[k];
                     return (
@@ -537,19 +535,19 @@ export default function SupportScreen() {
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </View>
 
               <View style={m.section}>
                 <Text style={m.label}>담당자</Text>
                 <TextInput style={m.input} value={assignee} onChangeText={setAssignee}
-                  placeholder="담당자 이름" placeholderTextColor="#64748B" />
+                  placeholder="담당자 이름" placeholderTextColor={C.textMuted} />
               </View>
 
               <View style={m.section}>
                 <Text style={m.label}>내부 메모</Text>
                 <TextInput style={[m.input, { minHeight: 60 }]} value={internalMemo} onChangeText={setInternalMemo}
-                  multiline placeholder="내부 처리 메모" placeholderTextColor="#64748B" textAlignVertical="top" />
+                  multiline placeholder="내부 처리 메모" placeholderTextColor={C.textMuted} textAlignVertical="top" />
               </View>
 
               {editTicket.type === "refund" && (
@@ -582,10 +580,10 @@ export default function SupportScreen() {
               <View style={m.handle} />
               <Text style={m.title}>문의 등록</Text>
 
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                 <View style={m.section}>
                   <Text style={m.label}>문의 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {TICKET_TYPES.map(t => {
                       const tc = TYPE_CFG[t];
                       return (
@@ -596,12 +594,12 @@ export default function SupportScreen() {
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>요청자 유형</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                     {["operator", "teacher", "parent"].map(t => (
                       <Pressable key={t}
                         style={[m.optChip, form.requesterRole === t && { backgroundColor: P, borderColor: P }]}
@@ -611,28 +609,28 @@ export default function SupportScreen() {
                         </Text>
                       </Pressable>
                     ))}
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>요청자 이름</Text>
                   <TextInput style={m.input} value={form.requesterName}
                     onChangeText={v => setForm(f => ({ ...f, requesterName: v }))}
-                    placeholder="이름 (선택)" placeholderTextColor="#64748B" />
+                    placeholder="이름 (선택)" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>제목 *</Text>
                   <TextInput style={m.input} value={form.title}
                     onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                    placeholder="문의 제목" placeholderTextColor="#64748B" />
+                    placeholder="문의 제목" placeholderTextColor={C.textMuted} />
                 </View>
 
                 <View style={m.section}>
                   <Text style={m.label}>내용</Text>
                   <TextInput style={[m.input, { minHeight: 80 }]} value={form.body}
                     onChangeText={v => setForm(f => ({ ...f, body: v }))}
-                    multiline placeholder="문의 내용 (선택)" placeholderTextColor="#64748B" textAlignVertical="top" />
+                    multiline placeholder="문의 내용 (선택)" placeholderTextColor={C.textMuted} textAlignVertical="top" />
                 </View>
 
                 <View style={m.btnRow}>
@@ -648,7 +646,7 @@ export default function SupportScreen() {
                       : <Text style={m.saveTxt}>등록</Text>}
                   </Pressable>
                 </View>
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </Pressable>
           </Pressable>
         </Modal>
@@ -674,19 +672,19 @@ const s = StyleSheet.create({
   statRow: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff",
-    borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+    borderBottomWidth: 1, borderBottomColor: C.border,
     height: 56,
     paddingHorizontal: 16,
   },
   statItem:    { flex: 1, alignItems: "center", justifyContent: "center" },
-  statNum:     { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  statLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
-  statDivider: { width: 1, height: 28, backgroundColor: "#E5E7EB" },
+  statNum:     { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  statLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  statDivider: { width: 1, height: 28, backgroundColor: C.border },
 
   // 필터 탭 (명확한 height, overflow visible)
   tabBarWrapper: {
     backgroundColor: "#fff",
-    borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+    borderBottomWidth: 1, borderBottomColor: C.border,
     height: 48,
     justifyContent: "center",
   },
@@ -695,19 +693,19 @@ const s = StyleSheet.create({
   tabChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB",
+    borderRadius: 20, borderWidth: 1.5, borderColor: C.border,
     backgroundColor: "#fff", height: 34,
   },
-  tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabChipTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   tabCount:    { backgroundColor: "#FFFFFF", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  tabCountTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   // 리스트
   list:        { flex: 1, backgroundColor: "#FFFFFF" },
   listContent: { paddingBottom: 100 },
   separator:   { height: 1, backgroundColor: "#FFFFFF" },
   empty:       { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   // 티켓 카드
   row: {
@@ -728,16 +726,16 @@ const s = StyleSheet.create({
   typeIcon:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowMain:    { flex: 1, gap: 3 },
   rowTop:     { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  subject:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  subject:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   slaTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   slaTxt:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: RED },
   rowMeta:    { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  metaTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   metaDot:    { fontSize: 10, color: "#D1D5DB" },
   rowRight:   { alignItems: "flex-end", gap: 4 },
   badge:      { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
   badgeTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  assigneeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  assigneeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   // FAB
   fab: {
@@ -757,23 +755,23 @@ const m = StyleSheet.create({
     padding: 20, paddingBottom: 40, maxHeight: "88%", gap: 12,
   },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
-  infoBox:   { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 12, gap: 6 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  desc:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
+  infoBox:   { backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 12, gap: 6 },
   infoRow:   { flexDirection: "row", gap: 8 },
-  infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  infoLabel: { width: 60, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  infoVal:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   input: {
-    borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10,
-    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 10,
+    padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary,
   },
   optChip: {
     paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff",
+    borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff",
   },
-  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  optTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   linkBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12,
@@ -781,7 +779,7 @@ const m = StyleSheet.create({
   linkBtnTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end", marginTop: 4 },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

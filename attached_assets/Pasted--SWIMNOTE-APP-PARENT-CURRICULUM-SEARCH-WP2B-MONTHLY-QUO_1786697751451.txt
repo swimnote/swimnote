@@ -1,0 +1,542 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP2B]
+[MONTHLY QUOTA + CONVERSATION/MESSAGE PERSISTENCE ONLY]
+
+현재 완료:
+
+WP2 ✅
+commit:
+732d79d2
+
+WP2.1 ✅
+commit:
+56bfe5d1
+
+전체 regression:
+1016 / 1016 PASS
+
+이번 WP 목적:
+
+학부모 커리큘럼 검색을
+단발성 검색이 아니라
+GPT처럼 계속 누적되는 상담 채팅 구조로 만들기 위한
+
+1. 월 10회 사용 제한
+2. 학생별 Conversation
+3. 질문/답변 Message 저장
+4. 실패 시 사용횟수 복구
+
+서버/DB 계층만 구현한다.
+
+이번 WP에서는 UI를 만들지 않는다.
+
+==================================================
+0. CANONICAL PRODUCT RULE
+==================================================
+
+사용 단위:
+
+학부모 계정 기준
+월 10회 질문 가능.
+
+질문 1건 전송 = 1회 사용.
+
+후속 질문도 동일하게 1회.
+
+과거 대화 열람:
+0회
+
+기존 답변 재조회:
+0회
+
+서버 오류 / ENGINE 오류 / timeout:
+최종 사용횟수 차감 금지.
+
+매월 1일
+Asia/Seoul 기준으로 새 월 quota 시작.
+
+==================================================
+1. EXISTING USAGE TABLE REUSE
+==================================================
+
+이미 존재 확인:
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+
+먼저 실제 schema와 helper를 조사.
+
+현재 구조가
+월 10회 quota에 그대로 재사용 가능한지 판단.
+
+중요:
+
+daily_usage라는 이름만 보고
+일 10회로 구현하지 마라.
+
+가능하면 기존 usage/reservation 구조를
+월 단위 집계로 재사용.
+
+불가능하면
+최소 additive schema 변경만 설계.
+
+기존 X/Parent AI usage 로직과 충돌 금지.
+
+==================================================
+2. QUOTA CANONICAL RULE
+==================================================
+
+Quota key:
+
+parent_user_id
++
+calendar month (Asia/Seoul)
+
+limit:
+
+10 successful questions / month
+
+주의:
+
+student별 10회 아님.
+pool별 10회 아님.
+guardian relation별 10회 아님.
+
+학부모 계정 1명 전체 기준 월 10회.
+
+==================================================
+3. RESERVATION BEFORE ENGINE CALL
+==================================================
+
+질문 요청 흐름:
+
+1. Parent auth
+2. ownership 확인
+3. quota 확인
+4. 1회 reservation
+5. ENGINE 호출
+6. 성공 시 reservation finalize
+7. 실패 시 reservation release/rollback
+
+동시 요청에서도 10회를 초과하지 않도록
+atomic reservation 필요.
+
+단순:
+
+SELECT count → INSERT
+
+race condition 금지.
+
+기존 parent_ai_usage_reservations가
+이 목적이면 반드시 재사용.
+
+==================================================
+4. WHAT COUNTS AS SUCCESS
+==================================================
+
+다음 경우만 최종 1회 차감:
+
+ENGINE response 정상
++
+APP response validation 정상
++
+grounding.validation === PASS
++
+result.answer 정상
+
+다음은 차감하지 않음:
+
+ENGINE 401
+ENGINE 429
+ENGINE 5xx
+timeout
+network failure
+request_id mismatch
+grounding FAIL
+unknown curriculum ID
+malformed response
+APP internal error
+
+==================================================
+5. QUOTA RESPONSE
+==================================================
+
+Parent API response에
+사용량 정보를 additive하게 포함.
+
+예:
+
+{
+  "request_id": "...",
+  "result": {...},
+  "usage": {
+    "limit": 10,
+    "used": 4,
+    "remaining": 6,
+    "period": "2026-08",
+    "resets_at": "2026-09-01T00:00:00+09:00"
+  }
+}
+
+실제 timezone serialization은
+현재 코드 convention에 맞춤.
+
+==================================================
+6. QUOTA EXHAUSTED
+==================================================
+
+10회 모두 사용 시:
+
+ENGINE 호출 금지.
+
+typed error:
+
+PARENT_CURRICULUM_MONTHLY_LIMIT_REACHED
+
+권장 HTTP:
+429
+
+response에 가능하면:
+
+limit
+used
+remaining=0
+resets_at
+
+포함.
+
+==================================================
+7. CONVERSATION MODEL
+==================================================
+
+학부모 커리큘럼 상담은
+학생별로 계속 이어지는 채팅방 구조.
+
+Canonical:
+
+Parent 1명
++ Student 1명
+→ active curriculum conversation 1개
+
+같은 parent가 같은 student를 다시 열면
+기존 conversation 재사용.
+
+다른 parent/guardian이면
+별도 conversation.
+
+다른 student면
+별도 conversation.
+
+==================================================
+8. CONVERSATION TABLE
+==================================================
+
+기존 conversation/message Product table이
+이미 있으면 재사용 가능 여부 조사.
+
+없으면 additive table 설계.
+
+권장 개념:
+
+parent_curriculum_conversations
+
+최소 필드:
+
+id
+parent_user_id
+student_id
+swimming_pool_id
+created_at
+updated_at
+last_message_at
+
+optional:
+status
+
+Unique:
+
+(parent_user_id, student_id)
+
+또는 현재 Product convention에 맞는
+동등한 unique constraint.
+
+==================================================
+9. MESSAGE TABLE
+==================================================
+
+권장:
+
+parent_curriculum_messages
+
+최소:
+
+id
+conversation_id
+request_id
+role
+content
+created_at
+
+role:
+
+USER
+ASSISTANT
+
+Assistant message optional metadata:
+
+intent
+mode
+curriculum_source
+
+Grounding 내부 trace 전체 저장 금지.
+
+필요하면 별도 safe metadata JSONB 사용.
+
+==================================================
+10. MESSAGE WRITE ORDER
+==================================================
+
+질문 처리 흐름에서:
+
+A. USER message
+
+ENGINE 호출 전에 저장할지
+성공 후 저장할지
+현재 retry/idempotency 구조를 보고 결정.
+
+중요:
+
+같은 request_id retry로
+USER message 중복 생성 금지.
+
+B. ASSISTANT message
+
+ENGINE 성공 + response validation PASS 후만 저장.
+
+실패한 ENGINE 결과를
+assistant message로 저장 금지.
+
+==================================================
+11. IDEMPOTENCY
+==================================================
+
+request_id 기준으로
+동일 질문 retry 시:
+
+- quota 이중 차감 금지
+- USER message 중복 금지
+- ASSISTANT message 중복 금지
+
+가능하면 기존 reservation/request_id 구조 재사용.
+
+Unique constraint 또는 transactional guard 필요.
+
+==================================================
+12. CONVERSATION CONTEXT FOR ENGINE
+==================================================
+
+이번 WP에서는 ENGINE Request Contract를
+임의 확장하지 않는다.
+
+즉 현재 ENGINE WP1은
+단일 query 처리 구조 그대로 유지.
+
+다만 향후 WP2C 또는 WP3 이후
+후속 질문 context를 전달할 수 있도록
+
+서버가 최근 대화를 조회할 수 있는 구조만 준비.
+
+이번 WP에서 전체 대화를 ENGINE에 보내지 않는다.
+
+==================================================
+13. CHAT HISTORY API
+==================================================
+
+Parent UI WP3를 위해
+read endpoint 준비.
+
+예:
+
+GET /api/parent/students/:studentId/curriculum-search/history
+
+response:
+
+{
+  "conversation_id": "...",
+  "messages": [
+    {
+      "id": "...",
+      "role": "USER",
+      "content": "...",
+      "created_at": "..."
+    },
+    {
+      "id": "...",
+      "role": "ASSISTANT",
+      "content": "...",
+      "created_at": "..."
+    }
+  ],
+  "usage": {
+    "limit": 10,
+    "used": 4,
+    "remaining": 6,
+    "resets_at": "..."
+  }
+}
+
+Pagination 필요하면
+기존 API convention 사용.
+
+==================================================
+14. PRIVACY / ACCESS
+==================================================
+
+History 조회도 반드시:
+
+requireAuth
+requireParent
+approved parent_student relation
+
+검증.
+
+다른 parent의 conversation 접근 금지.
+
+학생이 다른 pool로 이동한 경우에도
+기존 Product history 보존 정책을 보고 처리.
+
+임의 삭제 금지.
+
+==================================================
+15. DB MIGRATION
+==================================================
+
+신규 conversation/message table이 필요하면
+additive migration 작성 허용.
+
+하지만:
+
+Production migration 실행 금지.
+
+Migration은:
+
+CREATE TABLE IF NOT EXISTS
+ADD INDEX
+ADD UNIQUE
+
+수준.
+
+DROP/DELETE/TRUNCATE 금지.
+
+==================================================
+16. MONTHLY RESET
+==================================================
+
+별도 reset cron으로
+usage row를 삭제하지 않는다.
+
+권장:
+
+월(period) key로 집계.
+
+새 월은 새로운 period usage로 자연스럽게 0부터 시작.
+
+Asia/Seoul calendar month 기준.
+
+==================================================
+17. ENGINE COST CONTROL FOUNDATION
+==================================================
+
+이번 WP에서 GPT 호출 최적화는 구현하지 않는다.
+
+하지만 history 구조는
+나중에:
+
+- 최근 N turn
+- 이전 대화 summary
+- relevant context only
+
+방식으로 확장 가능해야 한다.
+
+전체 history를 매번 ENGINE/GPT에 보내는 구조는
+이번에 만들지 않는다.
+
+==================================================
+18. TEST
+==================================================
+
+최소:
+
+A. 월 0/10 → 질문 성공 → 1/10
+B. 9/10 → 성공 → 10/10
+C. 10/10 → 429, ENGINE 호출 없음
+D. ENGINE timeout → quota 복구
+E. ENGINE 5xx → quota 복구
+F. grounding FAIL → quota 복구
+G. response validation fail → quota 복구
+H. 동일 request_id retry → 이중 차감 없음
+I. 동시 2요청으로 10회 초과 불가
+J. 다음 달 → used 0
+K. Asia/Seoul 월 경계
+L. parent A/student X conversation
+M. parent A/student X 기존 conversation 재사용
+N. parent B/student X 별도 conversation
+O. student Y 별도 conversation
+P. USER message 중복 방지
+Q. ASSISTANT message 성공 시 저장
+R. ENGINE 실패 시 assistant 저장 안 됨
+S. history ownership 403
+T. history read는 quota 차감 없음
+
+기존 Parent Curriculum WP2/WP2.1 regression 포함.
+
+전체 APP server regression 확인.
+
+==================================================
+19. 이번 WP에서 하지 않는 것
+==================================================
+
+금지:
+
+- Parent chat UI
+- ENGINE contract history 확장
+- conversation summarization
+- GPT cost optimizer
+- push
+- notification
+- RevenueCat
+- Production deploy
+- Production DB migration
+- OTA
+- EAS build
+
+==================================================
+20. REPORT
+==================================================
+
+다음만 보고:
+
+1. EXISTING USAGE MODEL
+2. QUOTA IMPLEMENTATION
+3. MONTHLY PERIOD RULE
+4. RESERVATION / ATOMICITY
+5. FAILURE REFUND RULE
+6. CONVERSATION MODEL
+7. MESSAGE MODEL
+8. DB MIGRATION
+9. HISTORY ENDPOINT
+10. IDEMPOTENCY
+11. FILES CHANGED
+12. TEST RESULT
+13. FULL REGRESSION
+14. COMMIT SHA
+15. PRODUCTION MIGRATION STATUS
+16. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP2B_COMPLETE ✅
+
+블로커:
+
+PARENT_CURRICULUM_APP_WP2B_BLOCKED ❌

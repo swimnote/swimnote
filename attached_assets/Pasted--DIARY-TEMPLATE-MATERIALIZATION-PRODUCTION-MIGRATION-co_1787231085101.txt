@@ -1,0 +1,114 @@
+# [DIARY TEMPLATE MATERIALIZATION — PRODUCTION MIGRATION]
+
+현재 승인된 commit:
+9e8ef38d
+
+Production 적용 시작.
+
+이번 단계는 standalone DB migration만 실행한다.
+
+==================================================
+1. MIGRATION
+==================================================
+
+사용 파일:
+
+artifacts/api-server/src/migrations/diary-template-sync-migration.ts
+
+Production DB에 실행.
+
+목표:
+
+curriculum_items에
+
+source_template_id
+
+nullable 컬럼 추가.
+
+그리고:
+
+UNIQUE INDEX
+(swimming_pool_id, source_template_id)
+WHERE source_template_id IS NOT NULL
+
+추가.
+
+==================================================
+2. 실행 전 PRECHECK
+==================================================
+
+READ-ONLY:
+
+- source_template_id 존재 여부
+- 동일 이름 index 존재 여부
+- curriculum_items row count
+
+확인.
+
+이미 적용되어 있으면 중복 실행하지 않는다.
+
+==================================================
+3. 실행
+==================================================
+
+standalone migration만 실행.
+
+API startup migration 사용 금지.
+
+다른 schema 수정 금지.
+
+curriculum data backfill 아직 금지.
+
+==================================================
+4. 실행 후 검증
+==================================================
+
+확인:
+
+- source_template_id column 존재
+- nullable = YES
+- partial unique index 존재
+- 기존 curriculum_items row count 보존
+- 기존 rows 삭제/변경 없음
+
+==================================================
+5. 금지
+==================================================
+
+아직:
+
+- syncDiaryTemplatesToCurriculumItems 실행 금지
+- Toykids backfill 금지
+- 다른 pool backfill 금지
+- Render API 자동 배포 금지
+- RENDER_API_KEY 요청 금지
+- OTA 금지
+- 전체 regression 금지
+
+==================================================
+6. 완료 보고
+==================================================
+
+[DIARY TEMPLATE MATERIALIZATION PRODUCTION MIGRATION REPORT]
+
+- migration file:
+- source_template_id before:
+- index before:
+- curriculum_items before:
+- migration executed:
+- source_template_id after:
+- nullable:
+- partial unique index:
+- curriculum_items after:
+- row count preserved:
+- Production data loss: NO
+- other schema changed: NO
+- final status:
+
+그리고 다음 Render 수동 배포용 정보도 같이 보고:
+
+- repo:
+- branch:
+- target SHA: 9e8ef38d
+
+보고 후 멈춘다.

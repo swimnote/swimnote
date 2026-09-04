@@ -98,11 +98,11 @@ router.get(
         pool_id: poolId,
         prev_day_push_time: "20:00",
         same_day_push_offset: 1,
-        tpl_notice: "📢 새 공지사항이 등록되었습니다.",
-        tpl_prev_day: "📅 내일 수업이 있습니다. 준비하세요!",
-        tpl_same_day: "⏰ 오늘 수업 {offset}시간 전입니다.",
-        tpl_diary: "📒 새 수업 일지가 작성되었습니다.",
-        tpl_photo: "📸 새 사진이 업로드되었습니다.",
+        tpl_notice: "새 공지사항이 등록되었습니다.",
+        tpl_prev_day: "내일 수업이 있습니다. 준비하세요!",
+        tpl_same_day: "오늘 수업 {offset}시간 전입니다.",
+        tpl_diary: "새 수업 일지가 작성되었습니다.",
+        tpl_photo: "새 사진이 업로드되었습니다.",
       };
       const setting = rows.rows.length ? { ...defaults, ...rows.rows[0] } : defaults;
       return res.json({ success: true, setting });
@@ -143,11 +143,11 @@ router.put(
         VALUES
           (${id}, ${poolId},
            ${prev_day_push_time || "20:00"}, ${same_day_push_offset ?? 1},
-           ${tpl_notice || "📢 새 공지사항이 등록되었습니다."},
-           ${tpl_prev_day || "📅 내일 수업이 있습니다. 준비하세요!"},
-           ${tpl_same_day || "⏰ 오늘 수업 {offset}시간 전입니다."},
-           ${tpl_diary || "📒 새 수업 일지가 작성되었습니다."},
-           ${tpl_photo || "📸 새 사진이 업로드되었습니다."},
+           ${tpl_notice || "새 공지사항이 등록되었습니다."},
+           ${tpl_prev_day || "내일 수업이 있습니다. 준비하세요!"},
+           ${tpl_same_day || "오늘 수업 {offset}시간 전입니다."},
+           ${tpl_diary || "새 수업 일지가 작성되었습니다."},
+           ${tpl_photo || "새 사진이 업로드되었습니다."},
            now())
         ON CONFLICT (pool_id) DO UPDATE SET
           prev_day_push_time   = EXCLUDED.prev_day_push_time,

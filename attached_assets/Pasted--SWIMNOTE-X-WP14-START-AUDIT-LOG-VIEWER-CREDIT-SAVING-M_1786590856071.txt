@@ -1,0 +1,487 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP14 START
+AUDIT LOG VIEWER
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP13_CLOSED ✅
+WP14만 진행.
+WP15 자동 시작 금지.
+
+전체 Repository 전수조사 금지.
+audit_logs / super admin 관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP14 목적
+━━━━━━━━━━━━━━━━━━━━
+
+기존 시스템에서 기록되는 audit_logs를
+super_admin이 조회/추적할 수 있게 한다.
+
+이번 WP는 READ ONLY.
+
+목적:
+- 누가
+- 언제
+- 어떤 대상에
+- 어떤 변경을 했는지
+- 이전/이후 상태가 무엇인지
+
+운영자가 확인 가능하게 만드는 것.
+
+감사 로그 생성 로직 대규모 수정 금지.
+통계/리포트 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 구현 확인
+━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 확인:
+
+- audit_logs 실제 schema
+- audit logger/service
+- super.ts
+- SuperAdmin UI
+- WP4A audit events
+- WP13 growth review audit events
+- 기존 audit API/UI 존재 여부
+
+먼저 짧게 보고:
+
+A. 현재 audit_logs schema
+B. 현재 기록되는 주요 event/action
+C. 기존 READ API 존재 여부
+D. UI 존재 여부
+E. 수정할 파일
+
+━━━━━━━━━━━━━━━━━━━━
+3. DB SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+Production:
+SUPABASE_DATABASE_URL
+
+audit_logs에서 이번 WP에 필요한 컬럼만 확인:
+
+예:
+id
+version
+event/action/type
+actor_user_id
+swimming_pool_id
+target/resource type
+target/resource id
+old/new data
+metadata
+created_at
+
+실제 schema 우선.
+
+DB migration 금지.
+
+현재 schema로 Viewer 구현 불가능할 때만
+STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+4. AUTHORIZATION
+━━━━━━━━━━━━━━━━━━━━
+
+Audit Viewer는 이번 WP에서:
+
+super_admin ONLY
+
+기존:
+
+requireAuth
+requireRole("super_admin")
+
+재사용.
+
+pool_admin
+teacher
+parent
+
+접근 금지.
+
+새 권한체계 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+5. READ API
+━━━━━━━━━━━━━━━━━━━━
+
+기존 super route convention 재사용.
+
+최소:
+
+GET /super/audit-logs
+GET /super/audit-logs/:id
+
+실제 route prefix는 Repository 기준.
+
+목록 API 지원:
+
+- pagination
+- event/action filter
+- swimming_pool_id filter
+- actor_user_id filter
+- target/resource filter
+- from/to date
+
+실제 schema가 지원하는 것만.
+
+복잡한 검색엔진 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+6. PAGINATION
+━━━━━━━━━━━━━━━━━━━━
+
+audit_logs는 계속 증가하므로
+전체 row 무제한 반환 금지.
+
+기존 pagination convention 사용.
+
+없으면 최소:
+
+limit
+offset
+
+또는 cursor.
+
+합리적 default/max limit 적용.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 민감정보
+━━━━━━━━━━━━━━━━━━━━
+
+Audit Viewer라고 해서
+raw 개인정보를 과도하게 노출하면 안 됨.
+
+가능하면 표시:
+
+- actor 내부 ID
+- actor role
+- pool id/name
+- event/action
+- target type/id
+- timestamp
+- old/new status
+- 안전한 metadata
+
+다음 raw 값은 그대로 노출하지 말 것:
+
+- password/hash
+- access token
+- refresh token
+- API key
+- 전화번호
+- 일지 본문 전체
+- AI prompt/response 전체
+
+기존 audit log에 민감 field가 들어가 있다면
+response serialization 단계에서 masking.
+
+━━━━━━━━━━━━━━━━━━━━
+8. AUDIT EVENT 확인
+━━━━━━━━━━━━━━━━━━━━
+
+최소 기존 로그들이 Viewer에 정상 표시되어야 함:
+
+WP4A:
+GLOBAL_TEMPLATE_SET_CREATED
+GLOBAL_TEMPLATE_SET_ACTIVATED
+GLOBAL_TEMPLATE_SET_ARCHIVED
+X_GLOBAL_TEMPLATE_CREATED
+X_GLOBAL_TEMPLATE_UPDATED
+X_GLOBAL_TEMPLATE_DELETED
+
+WP13:
+GROWTH_EVENT_ACCEPTED
+GROWTH_EVENT_REJECTED
+
+실제 저장된 event naming을 우선.
+
+없는 test log를 Production에 억지 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. SUPER ADMIN UI
+━━━━━━━━━━━━━━━━━━━━
+
+기존 SuperAdmin UI에:
+
+"감사 로그"
+또는 기존 naming convention에 맞는 탭 추가.
+
+필수:
+
+- 목록
+- 날짜/시간
+- 이벤트
+- 대상
+- actor
+- pool
+- 상세 보기
+
+상세 모달/페이지에서:
+
+- event/action
+- actor
+- target
+- timestamp
+- safe old/new values
+- safe metadata
+
+새 디자인 시스템 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. FILTER UI
+━━━━━━━━━━━━━━━━━━━━
+
+최소만.
+
+권장:
+
+- event/action
+- pool
+- date range
+
+actor/target 검색은
+기존 component로 쉽게 가능할 때만.
+
+런칭에 불필요한 복잡한 query builder 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. EMPTY / ERROR / LOADING
+━━━━━━━━━━━━━━━━━━━━
+
+구분 필수:
+
+loading
+→ spinner/skeleton
+
+정상 0건
+→ "감사 로그가 없습니다."
+
+API/network error
+→ error + retry
+
+오류를 empty state로 위장 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. IMMUTABILITY
+━━━━━━━━━━━━━━━━━━━━
+
+WP14는 Audit Viewer.
+
+절대 추가 금지:
+
+PATCH audit log
+DELETE audit log
+Edit audit log
+
+UI에서도 수정/삭제 버튼 금지.
+
+감사 로그는 읽기 전용.
+
+━━━━━━━━━━━━━━━━━━━━
+13. PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━
+
+목록에서 거대한 JSON metadata 전체를
+한 번에 렌더링하지 말 것.
+
+List:
+요약 필드만.
+
+Detail:
+필요할 때 metadata 표시.
+
+N+1 query 피하기.
+
+pool/actor 이름 join이 필요하면
+기존 safe join 패턴 사용.
+
+━━━━━━━━━━━━━━━━━━━━
+14. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+super_admin list
+→ 200
+
+B.
+unauthenticated
+→ 401
+
+C.
+non-super role
+→ 403
+
+D.
+pagination
+→ limit 준수
+
+E.
+event filter
+→ 정확
+
+F.
+pool filter
+→ 정확
+
+G.
+date filter
+→ 정확
+
+H.
+single detail
+→ 정확
+
+I.
+존재하지 않는 id
+→ 404
+
+J.
+민감 field masking
+→ raw secret 노출 없음
+
+K.
+UI loading/empty/error
+→ 분리
+
+L.
+기존 audit write regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+15. PRODUCTION RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+Production에는 이미 audit_logs가 존재하므로
+새 test audit를 생성할 필요 없음.
+
+실제 기존 rows로:
+
+GET list
+GET detail
+
+검증.
+
+super_admin credential 사용.
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+16. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+audit read service
+super audit routes
+SuperAdmin Audit Viewer UI
+관련 tests
+
+금지:
+
+WP15 statistics
+WP16 Report
+audit write 재설계
+growth review 수정
+커리큘럼 검색
+Backup/RLS
+Scheduler
+Makeup
+Billing
+
+━━━━━━━━━━━━━━━━━━━━
+17. TEST / GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 tests만 실행.
+
+WP14 신규 오류 = 0.
+
+완료 후:
+
+changed files
+git diff --stat
+
+commit:
+
+feat(super): add audit log viewer
+
+push origin.
+
+HEAD = origin 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+18. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+Server 변경:
+→ Render deploy.
+
+Super web가 별도 deploy 대상이면
+기존 배포 방식에 따라 필요한 것만.
+
+모바일 앱 코드 변경 없으면:
+OTA 금지.
+
+Worker 변경 없으면:
+worker 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+19. RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후:
+
+/api/health → 200
+/api/healthz → 200
+
+super_admin:
+
+audit list → 200
+audit detail → 200
+
+기존 WP4A/WP13 audit event가
+실제 화면/API에서 조회되는지 확인.
+
+신규:
+500
+RLS
+permission
+startup crash
+
+없음.
+
+━━━━━━━━━━━━━━━━━━━━
+20. FINAL REPORT — 짧게
+━━━━━━━━━━━━━━━━━━━━
+
+1. 기존 audit 상태
+2. 구현 API
+3. authorization
+4. filters/pagination
+5. masking
+6. UI
+7. changed files
+8. tests
+9. commit/origin
+10. Render/web deploy
+11. Production runtime
+12. 기존 audit event 조회 결과
+13. regression
+14. final verdict
+
+성공 시:
+
+WP14_AUDIT_VIEWER_VERIFIED ✅
+
+STOP.
+
+WP15 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

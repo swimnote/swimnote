@@ -1,0 +1,254 @@
+[P1 FINAL VISUAL AUDIT — BODY / CARD / CTA / MODAL X THEME VERIFICATION]
+
+현재 상태:
+
+- X theme foundation 완료
+- tab contrast 수정 완료
+- SubScreenHeader / ParentScreenHeader X-aware 완료
+- admin/teacher/parent 일부 핵심 화면 X화 완료
+
+하지만 다음 판정은 잘못되었을 수 있다:
+
+"SubScreenHeader 자동 파급 = FULL_X_THEME"
+
+헤더가 X라고 해서
+화면 body 전체가 X UI/UX인 것은 아니다.
+
+이번 작업은 코드 대량 변경이 아니라
+실제 screen body의 X 적용 여부를 전수 확인하고
+Normal presentation이 남아있는 곳만 최소 수정한다.
+
+==================================================
+1. 판정 기준 수정
+==================================================
+
+다음 정의를 사용한다.
+
+HEADER_X_ONLY
+=
+헤더만 X이고 body/card/button/background는 Normal
+
+PARTIAL_X
+=
+일부 X 적용, 일부 Normal presentation 잔존
+
+FULL_X_THEME
+=
+최소 다음이 X-aware:
+
+- page background
+- header
+- primary cards / surfaces
+- section hierarchy
+- main CTA / selected state
+- X-relevant badges/chips
+- modal/sheet if used on that screen
+- bottom navigation if applicable
+
+semantic colors는 그대로 유지.
+
+단순 SubScreenHeader 적용만으로
+FULL_X_THEME 판정 금지.
+
+==================================================
+2. 대표 화면 실제 렌더 기준 감사
+==================================================
+
+다음 화면을 실제 component tree / styles 기준으로 확인.
+
+ADMIN:
+- dashboard
+- members
+- class-hub
+- ops-hub
+- diary-teacher-entries
+- messenger
+- settings
+- x-setup
+
+TEACHER:
+- today-schedule
+- diary
+- students
+- attendance
+- my-schedule
+- messages-inbox
+- makeups
+
+PARENT:
+- home
+- diary / swim-diary
+- notifications
+- photos
+- curriculum-chat
+- growth-report-detail
+
+각 화면마다 아래로 판정:
+
+SCREEN =
+HEADER =
+BACKGROUND =
+PRIMARY_SURFACE =
+CTA =
+SELECTED_STATE =
+MODAL_SHEET =
+RESULT = FULL_X_THEME / PARTIAL_X / HEADER_X_ONLY / NOT_RELEVANT
+
+==================================================
+3. NORMAL COLORS 잔존 검사
+==================================================
+
+X모드에서 다음 Normal presentation이
+body 영역에 남아있는지 확인:
+
+- Normal mint primary
+- Normal mint selected state
+- Normal mint CTA
+- Normal themeColor
+- Normal card emphasis
+- Normal active chip/badge
+
+semantic success/warning/error 제외.
+
+Normal mint가 단순 decoration으로 남아있으면
+X token으로 교체.
+
+==================================================
+4. COMMON COMPONENT 우선
+==================================================
+
+여러 화면에서 같은 Normal card/button/surface가 반복된다면
+화면별 개별 수정 금지.
+
+공통 source가 존재하면:
+
+Card
+Button
+Section
+ListRow
+Chip
+Badge
+Modal
+Sheet
+EmptyState
+
+등을 mode-aware 처리.
+
+Normal mode는 기존 그대로.
+
+==================================================
+5. X는 네이비 도배가 아니다
+==================================================
+
+X surface hierarchy 유지:
+
+background
+→ light X surface
+→ elevated surface
+→ navy/steel-blue emphasis
+→ white/high-contrast CTA
+
+모든 카드 배경을 네이비로 만드는 방식 금지.
+
+전문적이고 밝은 프리미엄 SaaS/AI 교육 플랫폼 느낌 유지.
+
+==================================================
+6. TAB 검증
+==================================================
+
+현재:
+
+tabBackground = #0F2742
+tabActive = #FFFFFF
+tabInactive = #5F89B0
+
+실제 icon/text contrast 확인.
+
+admin / teacher 각각 검증.
+
+parent는 Stack 구조로 bottom tab N/A면
+N/A 그대로 유지.
+
+==================================================
+7. DEVICE 검증은 별도 유지
+==================================================
+
+에이전트가 실기기를 확인할 수 없으므로
+다음은 가짜 PASS 금지:
+
+DEVICE-1 앱 kill → relaunch X
+DEVICE-2 Normal flash 없음
+DEVICE-3 admin→teacher X 유지
+DEVICE-4 teacher→admin X 유지
+DEVICE-5 teacher direct login X
+DEVICE-6 parent direct login X
+
+계속 NOT_YET_VERIFIED로 남긴다.
+
+==================================================
+8. 금지
+==================================================
+
+이번 작업에서 변경 금지:
+
+RevenueCat
+purchase flow
+x-reserve-slot
+sync-x-subscription
+server mode resolver
+DB
+webhook
+AI Engine
+
+UI presentation only.
+
+==================================================
+9. 완료 보고
+==================================================
+
+ADMIN_SCREEN_AUDIT =
+TEACHER_SCREEN_AUDIT =
+PARENT_SCREEN_AUDIT =
+
+HEADER_ONLY_COUNT =
+PARTIAL_X_COUNT =
+FULL_X_COUNT =
+
+NORMAL_MINT_REMAINS_IN_X =
+COMMON_COMPONENTS_CHANGED =
+
+TAB_BACKGROUND =
+TAB_ACTIVE =
+TAB_INACTIVE =
+TAB_VISUAL_CONTRAST =
+
+NORMAL_ADMIN_REGRESSION =
+NORMAL_TEACHER_REGRESSION =
+NORMAL_PARENT_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+PURCHASE_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+완료 조건:
+
+HEADER_ONLY_COUNT = 0
+PARTIAL_X_COUNT = 0
+NORMAL_MINT_REMAINS_IN_X = NO
+Normal regression 없음
+
+그때만:
+
+P1_SWIMNOTE_X_FULL_UI_UX_CONVERSION_COMPLETE ✅
+
+단:
+
+P0_X_ACTIVATION_PERSISTENCE_DEVICE_VERIFIED
+
+는 실제 TestFlight 기기 확인 전까지
+NOT_YET_VERIFIED 유지.

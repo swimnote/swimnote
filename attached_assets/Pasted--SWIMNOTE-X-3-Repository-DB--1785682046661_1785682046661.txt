@@ -1,0 +1,86 @@
+[SWIMNOTE X 설계 보고서 3차 보완 요청]
+
+현재 설계 보고서는 구현하지 마십시오.
+
+아래 항목을 실제 Repository와 DB 기준으로 다시 조사하고 수정 설계서를 제출하십시오.
+
+1. RevenueCat CANCELLATION과 EXPIRATION을 분리하십시오.
+   - CANCELLATION 시 결제기간 종료 전까지 X모드 유지
+   - BILLING_ISSUE, GRACE_PERIOD, REFUND 처리 포함
+   - 실제 RevenueCat webhook event 처리 코드와 매핑표 제출
+
+2. AI Pipeline의 정확한 파일·함수를 확정하십시오.
+   - “ai-v1.ts 또는 관련 라우트” 같은 추정 표현 금지
+   - 진입 파일, 함수명, Template Search 함수, threshold, Mode 결정 함수 제출
+   - 확인하지 못한 항목은 NEEDS_VERIFICATION으로 표시
+
+3. curriculum_requests의 활성 의뢰 UNIQUE를 올바른 partial unique index로 변경하십시오.
+
+4. growth_events 멱등성을 재설계하십시오.
+   - diary_note_id NULL일 때 UNIQUE가 중복을 막지 못하는 문제 해결
+   - 자동 성장판 반영 이벤트와 관찰용 이벤트 분리 검토
+   - idempotency_key 또는 partial unique index 대안 제출
+
+5. 공통 일지가 성장판에 반영되는 정책을 설계하십시오.
+   - 전원 자동 반영 금지
+   - 적용 학생 선택 또는 실제 학생별 note 기준 대안 비교
+
+6. curriculum_progress 유지 여부를 확정하십시오.
+   - 초기에는 growth_events 직접 집계안을 우선 검토
+   - 실제 예상 학생 수와 쿼리 비용 기준으로 비교
+   - 둘 다 명세에 남기지 말고 하나를 추천
+
+7. 커리큘럼 버전을 행별 version 숫자가 아니라 커리큘럼 단위 버전으로 설계하십시오.
+   - curriculum_versions
+   - 활성·보관 상태
+   - 기존 진도와 리포트의 버전 고정
+   - 커리큘럼 개정 Sequence 제출
+
+8. 무료 기본 리포트와 유료 심층 리포트를 분리하십시오.
+   - 무료: 학생별 월 1회 entitlement
+   - 유료: 결제 transaction당 order
+   - 유료 리포트 같은 달 복수 구매 가능
+   - RevenueCat transaction ID 중복 방지
+
+9. X모드 구매자는 pool_admin만 가능하도록 통일하십시오.
+   - 학부모는 심층 리포트만 구매 가능
+
+10. pool_events 자동 이벤트를 위해 sender_role=system을 추가하거나 더 나은 구조를 제안하십시오.
+
+11. diary_templates의 global/pool scope를 재설계하십시오.
+   - nullable swimming_pool_id + is_hidden CHECK 방식
+   - template_scope enum 방식
+   - 기존 일반 템플릿과의 호환성 비교
+
+12. 학부모 AI 검색 Backend Phase를 추가하십시오.
+   - 대화 기록
+   - 수영 질문만 허용하는 Intent Guard
+   - Curriculum Search
+   - SWIMNOTE Knowledge Search
+   - GPT 문장 생성
+   - Grounding 검증
+   - 사용량·비용·권한
+
+13. X모드 홈페이지의 현재 구현 범위를 확인하십시오.
+   - slug 존재 여부만으로 완료 판단 금지
+   - 실제 화면, 콘텐츠 편집, 공개 API, 활성화 흐름 보고
+
+14. 히든 템플릿은 2,000개 일괄 생성 전에 50개 파일럿 Phase를 추가하십시오.
+   - 품질
+   - 중복
+   - 검색 threshold
+   - latency
+   - Grounding 검증 후 확대
+
+15. Phase 순서를 실제 의존성에 따라 다시 작성하십시오.
+   - 각 WP 수정 파일
+   - 신규 파일
+   - DB
+   - API Contract
+   - 테스트
+   - rollback
+   - 완료 조건
+
+설계서만 제출하고 멈추십시오.
+
+코드 수정, Migration, Commit, Push, OTA, 배포, RevenueCat 상품 생성은 승인 전 금지합니다.

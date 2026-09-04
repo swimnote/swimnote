@@ -2,7 +2,6 @@
  * (super)/audit-group.tsx — 감사·리스크 그룹
  * 실 API 연결 완료 — useAuditLogStore / useRiskStore 완전 제거
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -19,8 +18,8 @@ const MENUS = [
     title: "운영 로그·감사",
     sub: "결제·삭제·승인·보안 이벤트 전체 로그",
     path: "/(super)/op-logs",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "shield" as const,
@@ -28,7 +27,7 @@ const MENUS = [
     sub: "오늘 처리 큐·서비스 상태·알림 내역",
     path: "/(super)/risk-center",
     color: "#9333EA",
-    bg: "#E6FAF8",
+    bg: C.brandSoft,
   },
   {
     icon: "alert-octagon" as const,
@@ -43,7 +42,7 @@ const MENUS = [
     title: "민감 작업 로그",
     sub: "킬스위치·권한변경·플랜변경·강제해지 기록",
     path: "/(super)/op-logs",
-    color: "#2EC4B6",
+    color: C.brandStrong,
     bg: "#ECFEFF",
   },
 ];
@@ -76,33 +75,30 @@ export default function AuditGroupScreen() {
     setLoading(true);
     try {
       const [logsRes, riskRes] = await Promise.all([
-        apiRequest(token, '/super/recent-audit-logs?limit=10'),
+        apiRequest(token, '/super/recent-audit-logs?limit=5'),
         apiRequest(token, '/super/risk-summary'),
       ]);
 
-      let logs: RecentLog[] = [];
+      let total = 0, criticalCount = 0, todayCount = 0;
       if (logsRes.ok) {
         const d = await logsRes.json();
-        logs = Array.isArray(d?.logs) ? d.logs : [];
+        const logs: RecentLog[] = Array.isArray(d?.logs) ? d.logs : [];
         setRecentLogs(logs);
+        total         = d?.total          ?? logs.length;
+        criticalCount = d?.critical_count ?? 0;
+        todayCount    = d?.today_count    ?? 0;
       }
 
-      if (riskRes.ok) {
-        const r = await riskRes.json();
-        const today = new Date();
-        const todayCount = logs.filter(l => {
-          const d = new Date(l.created_at);
-          return d.getFullYear() === today.getFullYear() &&
-                 d.getMonth()    === today.getMonth()    &&
-                 d.getDate()     === today.getDate();
-        }).length;
-        setSummary({
-          totalLogs:      logs.length,
-          todayLogs:      todayCount,
-          criticalLogs:   0,
-          securityEvents: r?.security_events ?? 0,
-        });
-      }
+      const securityEvents = riskRes.ok
+        ? ((await riskRes.json())?.security_events ?? 0)
+        : 0;
+
+      setSummary({
+        totalLogs:      total,
+        todayLogs:      todayCount,
+        criticalLogs:   criticalCount,
+        securityEvents,
+      });
     } catch (e) {
       console.error('AuditGroup fetchData error:', e);
     } finally {
@@ -119,7 +115,7 @@ export default function AuditGroupScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
         {/* 요약 */}
         {loading
-          ? <ActivityIndicator color="#2EC4B6" style={{ marginTop: 20 }} />
+          ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 20 }} />
           : (
             <View style={[s.summaryRow, { flexWrap: "wrap" }]}>
               <View style={s.summaryCard}>
@@ -175,7 +171,7 @@ export default function AuditGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>
@@ -187,22 +183,22 @@ const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: C.background },
   summaryRow:      { flexDirection: "row", gap: 6, marginBottom: 6 },
   summaryCard:     { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 10,
-                     alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+                     alignItems: "center", borderWidth: 1, borderColor: C.border },
   summaryAlertRed: { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:      { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryLabel:    { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, textAlign: "center" },
+  summaryNum:      { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryLabel:    { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, textAlign: "center" },
   logRow:          { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#fff",
-                     borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB" },
-  catBadge:        { backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  catTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  logTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  logMeta:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+                     borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.border },
+  catBadge:        { backgroundColor: C.brandSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  catTxt:          { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  logTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  logMeta:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   viewAllBtn:      { alignItems: "center", paddingVertical: 10 },
-  viewAllTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  divider:         { height: 1, backgroundColor: "#E5E7EB", marginVertical: 4 },
+  viewAllTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  divider:         { height: 1, backgroundColor: C.border, marginVertical: 4 },
   card:            { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                     borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border },
   iconBox:         { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cardSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, lineHeight: 17 },
+  cardTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:         { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3, lineHeight: 17 },
 });

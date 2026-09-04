@@ -1,7 +1,6 @@
 /**
  * (super)/support-general.tsx — 슈퍼관리자: 일반 문의 목록
  */
-import { ChevronRight, MessageCircle } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Colors from "@/constants/colors";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 const P = "#7C3AED";
@@ -28,7 +28,7 @@ interface Ticket {
 }
 
 const REQUESTER_LABELS: Record<string, { label: string; color: string }> = {
-  teacher:  { label: "선생님", color: "#2EC4B6" },
+  teacher:  { label: "선생님", color: C.brandStrong },
   parent:   { label: "학부모", color: "#7C3AED" },
   operator: { label: "관리자", color: "#1D4ED8" },
 };
@@ -37,7 +37,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open:        { label: "대기중", color: "#D97706" },
   in_progress: { label: "처리중", color: "#0284C7" },
   resolved:    { label: "완료",   color: "#16A34A" },
-  closed:      { label: "종료",   color: "#64748B" },
+  closed:      { label: "종료",   color: C.textSecondary },
 };
 
 const FILTERS = [
@@ -76,8 +76,8 @@ export default function SupportGeneralScreen() {
   useEffect(() => { setLoading(true); load(); }, [load]);
 
   function renderItem({ item }: { item: Ticket }) {
-    const reqCfg    = REQUESTER_LABELS[item.requester_type] ?? { label: item.requester_type, color: "#64748B" };
-    const statusCfg = STATUS_LABELS[item.status]             ?? { label: item.status, color: "#64748B" };
+    const reqCfg    = REQUESTER_LABELS[item.requester_type] ?? { label: item.requester_type, color: C.textSecondary };
+    const statusCfg = STATUS_LABELS[item.status]             ?? { label: item.status, color: C.textSecondary };
 
     return (
       <Pressable
@@ -94,7 +94,7 @@ export default function SupportGeneralScreen() {
         </View>
         <Text style={s.subject} numberOfLines={2}>{item.subject}</Text>
         <Text style={s.requesterName} numberOfLines={1}>{item.requester_name || "이름 없음"}</Text>
-        <ChevronRight size={14} color="#CBD5E1" style={{ position: "absolute", right: 14, top: 14 }} />
+        <LucideIcon name="chevron-right" size={14} color="#CBD5E1" style={{ position: "absolute", right: 14, top: 14 }} />
       </Pressable>
     );
   }
@@ -127,7 +127,7 @@ export default function SupportGeneralScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <MessageCircle size={36} color="#E2E8F0" />
+              <LucideIcon name="message-circle" size={36} color={C.border} />
               <Text style={s.emptyTxt}>접수된 일반 문의가 없습니다</Text>
             </View>
           }
@@ -144,7 +144,7 @@ const s = StyleSheet.create({
   filterRow:    { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10, gap: 8,
                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   filterTab:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-                  backgroundColor: "#F1F5F9" },
+                  backgroundColor: C.backgroundSoft },
   filterTabActive: { backgroundColor: P + "18" },
   filterTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
   filterTxtActive: { color: P },

@@ -4,19 +4,27 @@
  * POST /v1/teacher-diary/generate
  *
  * Pipeline:
- *   1. Request 검증 (V1 Contract)
+ *   1. Request 검증 (V1 / V2 Contract)
  *   2. Meaning Extraction — 키워드 기반 파싱, GPT 불필요
  *   3. Template Search  — diary_templates DB 검색 (CANDIDATE_MIN_CONCEPT_OVERLAP=0.30)
  *   4. Ranking          — USAGE_MIN_SCORE=1.40 통과, TOP_K_USAGE=1 선택
  *   5. Prompt Build     — 선택된 템플릿을 참고 예문으로 포함
  *   6. GPT 호출         — gpt-4o-mini
  *   7. Grounding 검증   — GPT 출력의 미지원 주장 검출 (parser_confidence와 완전 분리)
- *   8. Response         — V1 Contract + meta 메타데이터
+ *   8. [contract 1.3 + x mode] Curriculum Candidate Search + Match Token 생성
+ *   9. Response         — Contract 반영 응답
  *
- * V1 Contract:
- *   Request:  { contract_version, request_id, schema_version, feature, locale, input, context }
- *   Response: { contract_version, request_id, schema_version, engine_version, feature, result, meta, usage }
- *   Error:    { contract_version, request_id, schema_version, feature, status:'failed', error }
+ * Contract 1.0:
+ *   Request:  { contract_version:"1.0", request_id, schema_version, feature, locale, input, context }
+ *   Response: { contract_version:"1.0", request_id, schema_version, engine_version, feature, result, meta, usage }
+ *
+ * Contract 1.3:
+ *   Request:  { contract_version:"1.3", ... } (1.0과 동일 구조)
+ *   Response: { contract_version:"1.3", ..., pipeline_version:"v2.0", curriculum_matches: [] | null }
+ *     - x mode: curriculum_matches = 배열 (빈 배열 포함)
+ *     - normal / x_pending: curriculum_matches = null
+ *
+ * Error:     { contract_version, request_id, schema_version, feature, status:"failed", error }
  *
  * meta 필드:
  *   pipeline_mode:            "template_v1"
@@ -48,11 +56,25 @@ import {
 import { extractMeaning }    from '../lib/diary-parser.js';
 import {
   searchTemplates,
+  searchXGlobalTemplates,
   CANDIDATE_MIN_CONCEPT_OVERLAP,
   USAGE_MIN_SCORE,
   TOP_K_USAGE,
+  type TemplateSearchResult,
+  type XTemplateStatus,
 } from '../lib/diary-template-search.js';
+import {
+  hasCurriculumBasedDiary,
+  searchCurriculumForDiary,
+} from '../lib/curriculum-diary-service.js';
 import { validateGrounding, purgeStudentLeaksFromCommon, purgeInventedEvaluations } from '../lib/diary-grounding.js';
+import { resolvePoolMode, type PoolMode }                                            from '../lib/xmode.js';
+import { searchCurriculumCandidates }                                                from '../lib/curriculum-candidate-search.js';
+import { createMatchToken, newTokenId, MatchTokenError, type MatchTokenPayload }     from '../lib/match-token.js';
+import { DEFAULT_CONFIDENCE_CONFIG_V1 }                                              from '../config/growth-confidence-config.js';
+import { saveAiTrace, type AiTraceStage }                                            from '../lib/ai-trace-service.js';
+import { registerAiOrigin }                                                           from '../lib/ai-origin-registry.js';
+import { AI_MODEL }                                                                  from '../config/ai-model-config.js';
 
 const router = Router();
 
@@ -67,9 +89,23 @@ function getOpenAI(): OpenAI {
 }
 
 // ── Supported versions ────────────────────────────────────────────────────────
-const SUPPORTED_CONTRACT_VERSIONS = new Set(['1.0']);
-const ENGINE_VERSION              = 'grounded_v1';
-const PIPELINE_MODE               = 'template_v1';
+const SUPPORTED_CONTRACT_VERSIONS = new Set(['1.0', '1.3']);
+const ENGINE_VERSION               = 'grounded_v1';
+const PIPELINE_MODE                = 'template_v1';
+const PIPELINE_VERSION_V2          = 'v2.0';     // contract 1.3 응답 전용
+
+// ── 로컬 타입: curriculum match 응답 항목 ─────────────────────────────────────
+// _curriculum_item_id 는 이 인터페이스에 포함하지 않음 (응답 미노출)
+interface CurriculumMatchEntry {
+  student_ref:           string;
+  candidate_id:          string;   // opaque ("cand_" + hex)
+  display_label:         string;   // curriculum_items.title
+  description:           string | null;
+  curriculum_version_id: string;
+  confidence:            number;
+  match_status:          'PENDING_REVIEW';  // V1 고정
+  match_token:           string;
+}
 
 // ── POST /v1/teacher-diary/generate ──────────────────────────────────────────
 router.post(
@@ -80,10 +116,18 @@ router.post(
     const startMs    = Date.now();
     const raw        = req.body ?? {};
 
+    // ── WP10: trace용 usage 캡처 (try 외부에서 접근 필요) ─────────────────────
+    let _capturedUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
+
+    // ── contract_version 조기 캡처 (에러 응답에서 echo 사용) ──────────────────
+    // 유효하지 않은 contract_version이면 '1.0'을 기본값으로 사용
+    const contractVersion: string =
+      raw.contract_version === '1.3' ? '1.3' : '1.0';
+
     // ── 1. request_id ────────────────────────────────────────────────────────
     const externalRequestId = raw.request_id;
     if (!isValidExternalRequestId(externalRequestId)) {
-      res.status(400).json(errBody(null, 'INVALID_REQUEST', 'request_id is required.', false));
+      res.status(400).json(errBody(contractVersion, null, 'INVALID_REQUEST', 'request_id is required.', false));
       return;
     }
 
@@ -92,27 +136,27 @@ router.post(
       typeof raw.contract_version !== 'string' ||
       !SUPPORTED_CONTRACT_VERSIONS.has(raw.contract_version)
     ) {
-      res.status(400).json(errBody(externalRequestId, 'UNSUPPORTED_CONTRACT',
-        `Unsupported contract_version: ${raw.contract_version ?? '(missing)'}. Supported: 1.0`, false));
+      res.status(400).json(errBody(contractVersion, externalRequestId, 'UNSUPPORTED_CONTRACT',
+        `Unsupported contract_version: ${raw.contract_version ?? '(missing)'}. Supported: 1.0, 1.3`, false));
       return;
     }
 
     // ── 3. schema_version ────────────────────────────────────────────────────
     if (raw.schema_version !== '1.0') {
-      res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'Invalid schema_version.', false));
+      res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'Invalid schema_version.', false));
       return;
     }
 
     // ── 4. feature ───────────────────────────────────────────────────────────
     if (raw.feature !== 'teacher_diary') {
-      res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'Invalid feature.', false));
+      res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'Invalid feature.', false));
       return;
     }
 
     // ── 5. input.text ────────────────────────────────────────────────────────
     const inputText = typeof raw.input?.text === 'string' ? raw.input.text.trim() : '';
     if (!inputText) {
-      res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'input.text is required.', false));
+      res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'input.text is required.', false));
       return;
     }
 
@@ -124,23 +168,23 @@ router.post(
     const studentRefs: unknown[] = Array.isArray(context.student_refs) ? context.student_refs : [];
     const students:    unknown[] = Array.isArray(context.students)     ? context.students    : [];
 
-    if (!poolId)     { res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'context.pool_id is required.',     false)); return; }
-    if (!classId)    { res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'context.class_id is required.',    false)); return; }
-    if (!lessonDate) { res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'context.lesson_date is required.', false)); return; }
+    if (!poolId)     { res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'context.pool_id is required.',     false)); return; }
+    if (!classId)    { res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'context.class_id is required.',    false)); return; }
+    if (!lessonDate) { res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'context.lesson_date is required.', false)); return; }
 
     // ── 7. students 구조 검증 ────────────────────────────────────────────────
     const normalizedStudents: { ref: string; name: string }[] = [];
     for (let i = 0; i < students.length; i++) {
       const s = students[i];
       if (typeof s !== 'object' || s === null) {
-        res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
+        res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
       }
       const entry = s as Record<string, unknown>;
       if (typeof entry.ref  !== 'string' || !entry.ref.trim())  {
-        res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
+        res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
       }
       if (typeof entry.name !== 'string' || !entry.name.trim()) {
-        res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
+        res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'Invalid students array.', false)); return;
       }
       normalizedStudents.push({ ref: entry.ref.trim(), name: entry.name.trim() });
     }
@@ -151,18 +195,18 @@ router.post(
       studentRefs.length === normalizedRefs.length &&
       studentRefs.every((ref, idx) => ref === normalizedRefs[idx]);
     if (!refsMatch) {
-      res.status(400).json(errBody(externalRequestId, 'INVALID_REQUEST', 'student_refs mismatch.', false)); return;
+      res.status(400).json(errBody(contractVersion, externalRequestId, 'INVALID_REQUEST', 'student_refs mismatch.', false)); return;
     }
 
     // ── 9. JWT Tenant 격리 ───────────────────────────────────────────────────
     const jwtPoolId = req.user?.poolId;
     if (jwtPoolId && jwtPoolId !== poolId) {
       console.warn(`[AI/v1:${internalId}] tenant_mismatch jwt=${jwtPoolId} req=${poolId}`);
-      res.status(403).json(errBody(externalRequestId, 'TENANT_MISMATCH', '수영장 정보가 일치하지 않습니다.', false)); return;
+      res.status(403).json(errBody(contractVersion, externalRequestId, 'TENANT_MISMATCH', '수영장 정보가 일치하지 않습니다.', false)); return;
     }
 
     // ── Trace: API_REQUEST_RECEIVED ──────────────────────────────────────────
-    console.log(`[AI/v1:${internalId}] API_REQUEST_RECEIVED request_id=${externalRequestId} pool_hash=${hashPoolId(poolId)} student_count=${normalizedStudents.length} text_len=${inputText.length}`);
+    console.log(`[AI/v1:${internalId}] API_REQUEST_RECEIVED request_id=${externalRequestId} pool_hash=${hashPoolId(poolId)} student_count=${normalizedStudents.length} text_len=${inputText.length} contract=${contractVersion}`);
 
     // ── Trace: AUTH_SUCCESS ───────────────────────────────────────────────────
     console.log(`[AI/v1:${internalId}] AUTH_SUCCESS role=${req.user?.role ?? 'unknown'} tenant_match=${!req.user?.poolId || req.user?.poolId === poolId}`);
@@ -171,7 +215,21 @@ router.post(
     console.log(`[AI/v1:${internalId}] REQUEST_VALIDATED student_count=${normalizedStudents.length} lesson_date=${lessonDate}`);
 
     // ── Trace: TEACHER_DIARY_ROUTE_ENTERED ────────────────────────────────────
-    console.log(`[AI/v1:${internalId}] TEACHER_DIARY_ROUTE_ENTERED pipeline=${PIPELINE_MODE} engine=${ENGINE_VERSION}`);
+    console.log(`[AI/v1:${internalId}] TEACHER_DIARY_ROUTE_ENTERED pipeline=${PIPELINE_MODE} engine=${ENGINE_VERSION} contract=${contractVersion}`);
+
+    // ── Phase 0: Pool mode 조회 (contract 1.3만 실행, DB 오류 시 normal fallback) ──
+    let poolMode: PoolMode = 'normal';
+    if (contractVersion === '1.3') {
+      try {
+        const modeResult = await resolvePoolMode(poolId);
+        if (modeResult) poolMode = modeResult.mode;
+        console.log(`[AI/v1:${internalId}] POOL_MODE_RESOLVED mode=${poolMode}`);
+      } catch (modeErr: unknown) {
+        const safeMsg = String(modeErr instanceof Error ? modeErr.message : String(modeErr));
+        console.warn(`[AI/v1:${internalId}] POOL_MODE_RESOLVE_FAILED fallback=normal err=${safeMsg}`);
+        poolMode = 'normal';
+      }
+    }
 
     try {
       // ── Phase 1: Meaning Extraction (TeacherInputParser) ─────────────────
@@ -193,16 +251,54 @@ router.post(
       console.log(`[AI/v1:${internalId}] STUDENT_MATCH_COMPLETED student_count=${normalizedStudents.length} refs=${normalizedStudents.map(s => s.ref).join(',')}`);
 
       // ── Phase 2 & 3: Template Search + Ranking ────────────────────────────
-      // diary-template-search.ts 단일 경로 사용
-      // CANDIDATE_MIN_CONCEPT_OVERLAP=0.30, USAGE_MIN_SCORE=1.40, TOP_K_USAGE=1
+      // X mode (contract 1.3 + poolMode='x'): x_global ACTIVE set 전용 검색
+      // Non-X: 기존 searchTemplates 경로 (변경 없음)
       const t_template = Date.now();
-      const searchResult = await searchTemplates(poolId, meaning);
+      let searchResult: TemplateSearchResult;
+      let xTemplateStatus: XTemplateStatus | null = null;
+      let xActiveSetId: string | null = null;
+
+      if (contractVersion === '1.3' && poolMode === 'x') {
+        const xResult = await searchXGlobalTemplates(meaning);
+        searchResult    = xResult;
+        xTemplateStatus = xResult.xTemplateStatus;
+        xActiveSetId    = xResult.activeSetId;
+        // Trace: X_TEMPLATE_SEARCH_COMPLETED
+        console.log(
+          `[AI/v1:${internalId}] X_TEMPLATE_SEARCH_COMPLETED` +
+          ` x_mode=true` +
+          ` x_template_status=${xTemplateStatus}` +
+          ` active_set_id=${xActiveSetId ?? 'NONE'}` +
+          ` template_scope=x_global` +
+          ` candidates=${xResult.candidateCount}` +
+          ` used=${xResult.usedCount}` +
+          ` top_score=${xResult.topScore.toFixed(2)}` +
+          (xResult.usedTemplates[0] ? ` selected_template_id=${xResult.usedTemplates[0].id}` : '') +
+          (xTemplateStatus !== 'FOUND' ? ` fallback_reason=${xTemplateStatus}` : ''),
+        );
+      } else {
+        // Normal mode: ACTIVE Curriculum 있으면 curriculum_items 기반 검색, 없으면 legacy diary_templates
+        const hasCurriculum = await hasCurriculumBasedDiary(poolId);
+        if (hasCurriculum) {
+          searchResult = await searchCurriculumForDiary(poolId, meaning);
+          console.log(
+            `[AI/v1:${internalId}] CURRICULUM_SEARCH_ROUTED` +
+            ` pool=${poolId} hasCurriculum=true` +
+            ` candidates=${searchResult.candidateCount}` +
+            ` used=${searchResult.usedCount}` +
+            ` top_score=${searchResult.topScore.toFixed(2)}`,
+          );
+        } else {
+          searchResult = await searchTemplates(poolId, meaning);
+        }
+      }
       const template_ms = Date.now() - t_template;
 
       // ── Trace: TEMPLATE_SEARCH_COMPLETED ──────────────────────────────────
       const topBd = searchResult.topBreakdown;
       console.log(
         `[AI/v1:${internalId}] TEMPLATE_SEARCH_COMPLETED latency_ms=${template_ms}` +
+        ` x_mode=${contractVersion === '1.3' && poolMode === 'x'}` +
         ` candidates=${searchResult.candidateCount}` +
         ` used=${searchResult.usedCount}` +
         ` top_score=${searchResult.topScore.toFixed(2)}` +
@@ -210,7 +306,8 @@ router.post(
           ? ` strokeMatch=${topBd.strokeMatch} focusMatch=${topBd.focusMatch}` +
             ` conceptOverlap=${topBd.conceptOverlap.toFixed(2)} observationMatch=${topBd.observationMatch}`
           : '') +
-        (searchResult.usedFallbackPool ? ' fallback_pool=true' : ''),
+        (searchResult.usedFallbackPool ? ' fallback_pool=true' : '') +
+        (xTemplateStatus ? ` x_template_status=${xTemplateStatus}` : ''),
       );
 
       // ── Trace: KNOWLEDGE_SEARCH_COMPLETED (N/A) ───────────────────────────
@@ -251,7 +348,7 @@ router.post(
       try {
         completion = await getOpenAI().chat.completions.create(
           {
-            model:           'gpt-4o-mini',
+            model:           AI_MODEL.DIARY,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user',   content: userPrompt   },
@@ -271,6 +368,8 @@ router.post(
         throw e;
       }
       const gpt_ms = Date.now() - t_gpt;
+      // WP10: usage 캡처 (catch 블록에서도 접근 가능하도록 외부 변수에 저장)
+      _capturedUsage = completion.usage ?? null;
 
       // ── Trace: NATURALIZER_COMPLETED ──────────────────────────────────────
       console.log(`[AI/v1:${internalId}] NATURALIZER_COMPLETED latency_ms=${gpt_ms} tokens=${completion.usage?.total_tokens ?? 0}`);
@@ -372,6 +471,114 @@ router.post(
         pool_id_hash:        hashPoolId(poolId),
       });
 
+      // ── Phase 8: Curriculum Candidate Search (contract 1.3 + x mode only) ──
+      // - normal / x_pending: curriculum_matches = null (빠른 패스)
+      // - x mode: candidate search + match_token 생성 → curriculum_matches = []
+      // - MATCH_TOKEN_SECRET 미설정 + x mode + 1.3 → 503 반환
+      let curriculumMatches: CurriculumMatchEntry[] | null = null;
+
+      if (contractVersion === '1.3') {
+        if (poolMode === 'x') {
+          const t_curriculum = Date.now();
+
+          const candidates = await searchCurriculumCandidates({
+            requestedRefs: normalizedStudents.map(s => s.ref),
+            poolId,
+            meaning,
+            config: DEFAULT_CONFIDENCE_CONFIG_V1,
+          });
+
+          curriculumMatches = [];
+          const nowSec = Math.floor(Date.now() / 1000);
+
+          for (const c of candidates) {
+            try {
+              const tokenPayload: MatchTokenPayload = {
+                token_version:               '1',
+                key_id:                      process.env.MATCH_TOKEN_KEY_ID ?? 'default',
+                token_id:                    newTokenId(),
+                issued_at:                   nowSec,
+                expires_at:                  nowSec + 86400,
+                pool_id:                     poolId,
+                student_id:                  c.student_ref,
+                curriculum_version_id:       c.curriculum_version_id,
+                curriculum_item_id:          c._curriculum_item_id, // payload 안에만, 응답 미포함
+                candidate_id:                c.candidate_id,
+                confidence:                  c.confidence,
+                matching_algorithm_version:  c.matching_algorithm_version,
+                confidence_config_version:   DEFAULT_CONFIDENCE_CONFIG_V1.version,
+                request_id:                  externalRequestId,
+                contract_version:            contractVersion,
+              };
+
+              const token = createMatchToken(tokenPayload);
+
+              // _curriculum_item_id 는 응답에 절대 포함하지 않음
+              curriculumMatches.push({
+                student_ref:           c.student_ref,
+                candidate_id:          c.candidate_id,
+                display_label:         c.display_label,
+                description:           c.description,
+                curriculum_version_id: c.curriculum_version_id,
+                confidence:            c.confidence,
+                match_status:          c.match_status,
+                match_token:           token,
+              });
+            } catch (tokenErr: unknown) {
+              if (
+                tokenErr instanceof MatchTokenError &&
+                tokenErr.code === 'X_MODE_TOKEN_NOT_CONFIGURED'
+              ) {
+                // SECRET 미설정 + x mode + 1.3 → 503
+                console.error(`[AI/v1:${internalId}] X_MODE_TOKEN_NOT_CONFIGURED pool_hash=${hashPoolId(poolId)}`);
+                res.status(503).json(
+                  errBody(contractVersion, externalRequestId, 'X_MODE_TOKEN_NOT_CONFIGURED',
+                    'X mode match token service is not configured.', false),
+                );
+                // WP10: 실패 trace (GPT까지는 완료했으므로 usage 포함)
+                void saveAiTrace({
+                  status:           'FAILED',
+                  request_id:       externalRequestId,
+                  internal_id:      internalId,
+                  pool_id:          poolId,
+                  actor_id:         req.user?.id,
+                  contract_version: contractVersion,
+                  pipeline_version: PIPELINE_VERSION_V2,
+                  feature:          'teacher_diary',
+                  pool_mode:        poolMode,
+                  student_count:    normalizedStudents.length,
+                  trigger_type:     'USER_ACTION',
+                  service:          'gpt',
+                  error_stage:      'MATCH_TOKEN',
+                  error_code:       'X_MODE_TOKEN_NOT_CONFIGURED',
+                  latency_ms:       Date.now() - startMs,
+                  model:            AI_MODEL.DIARY,
+                  input_tokens:     _capturedUsage?.prompt_tokens     ?? 0,
+                  output_tokens:    _capturedUsage?.completion_tokens ?? 0,
+                  total_tokens:     _capturedUsage?.total_tokens      ?? 0,
+                }).catch((traceErr: unknown) => console.error(`[AI/trace] fail-trace save failed internal_id=${internalId}`, traceErr));
+                return;
+              }
+              // 기타 토큰 오류: 해당 candidate 제외, 계속 (전체 실패 방지)
+              const safeMsg = String(tokenErr instanceof Error ? tokenErr.message : String(tokenErr));
+              console.error(`[AI/v1:${internalId}] MATCH_TOKEN_ERROR cand=${c.candidate_id} err=${safeMsg}`);
+            }
+          }
+
+          const curriculum_ms = Date.now() - t_curriculum;
+          console.log(
+            `[AI/v1:${internalId}] CURRICULUM_SEARCH_COMPLETED` +
+            ` latency_ms=${curriculum_ms}` +
+            ` candidates=${candidates.length}` +
+            ` matches=${curriculumMatches.length}` +
+            ` pool_mode=${poolMode}`,
+          );
+        } else {
+          // normal / x_pending: curriculum_matches = null
+          console.log(`[AI/v1:${internalId}] CURRICULUM_SEARCH_SKIPPED pool_mode=${poolMode} curriculum_matches=null`);
+        }
+      }
+
       console.log(
         `[AI/v1:${internalId}] success` +
         ` elapsed=${elapsedMs}ms` +
@@ -382,90 +589,223 @@ router.post(
         ` template_used=${searchResult.usedCount}` +
         ` parser_confidence=${meaning.confidence}` +
         ` grounding=${groundingResult.status}` +
+        ` contract=${contractVersion}` +
+        (contractVersion === '1.3' ? ` pool_mode=${poolMode} curriculum_matches=${curriculumMatches?.length ?? 'null'}` : '') +
         (legacyFallbackCount > 0 ? ` legacy_fallback=${legacyFallbackCount}` : ''),
       );
 
-      const responseBody = {
-        contract_version: '1.0',
-        request_id:       externalRequestId,
-        schema_version:   '1.0',
-        engine_version:   ENGINE_VERSION,
-        feature:          'teacher_diary',
+      // ── 응답 조립: contract 1.0 ───────────────────────────────────────────
+      // contract 1.0: 신규 필드(pipeline_version, curriculum_matches) 완전 생략 (null도 아님)
+      if (contractVersion === '1.0') {
+        const responseBody = {
+          contract_version: '1.0',
+          request_id:       externalRequestId,
+          schema_version:   '1.0',
+          engine_version:   ENGINE_VERSION,
+          feature:          'teacher_diary',
+          result: {
+            common:   finalResult.common,
+            students: finalResult.students,
+          },
+          meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId }),
+          usage: {
+            input_tokens:  usage?.prompt_tokens     ?? 0,
+            output_tokens: usage?.completion_tokens ?? 0,
+            total_tokens:  usage?.total_tokens      ?? 0,
+            latency_ms:    elapsedMs,
+          },
+        };
+
+        // WP9-P1: 응답 직전 in-memory registry 동기 등록 (race condition 방지)
+        // - saveAiTrace는 void(fire-and-forget)로 응답 후 비동기 → registry가 선점
+        // - diary save(POST /diaries)가 즉시 도달해도 registry에서 검증 가능
+        registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
+
+        console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.0`);
+        res.status(200).json(responseBody);
+        // WP10: trace 저장 (응답 후 비동기 — 응답 지연 없음)
+        void saveAiTrace({
+          status:                   'SUCCESS',
+          request_id:               externalRequestId,
+          internal_id:              internalId,
+          pool_id:                  poolId,
+          actor_id:                 req.user?.id,
+          contract_version:         contractVersion,
+          feature:                  'teacher_diary',
+          pool_mode:                poolMode,
+          student_count:            normalizedStudents.length,
+          trigger_type:             'USER_ACTION',
+          service:                  'gpt',
+          generation_mode,
+          model:                    AI_MODEL.DIARY,
+          latency_ms:               elapsedMs,
+          input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+          output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+          total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+          template_candidate_count: searchResult.candidateCount,
+          selected_template_id:     searchResult.usedTemplates[0]?.id ?? undefined,
+          curriculum_match_count:   undefined,
+          knowledge_hit_count:      0,
+        }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
+        return;
+      }
+
+      // ── 응답 조립: contract 1.3 ───────────────────────────────────────────
+      // curriculum_matches: x mode = 배열(빈 배열 포함), normal/x_pending = null
+      const responseBody13 = {
+        contract_version:   '1.3',
+        request_id:         externalRequestId,
+        schema_version:     '1.0',
+        engine_version:     ENGINE_VERSION,
+        pipeline_version:   PIPELINE_VERSION_V2,  // 1.3 전용
+        feature:            'teacher_diary',
         result: {
           common:   finalResult.common,
           students: finalResult.students,
         },
-        meta: {
-          pipeline_mode:            PIPELINE_MODE,
-          generation_mode:          generation_mode,
-          // parser_confidence: TeacherInputParser 입력 해석 신뢰도 (grounding과 별개)
-          parser_confidence:        meaning.confidence,
-          template_candidate_count: searchResult.candidateCount,
-          template_used_count:      generation_mode === 'TEMPLATE_ASSISTED' ? searchResult.usedCount : 0,
-          top_score:                Number(searchResult.topScore.toFixed(2)),
-          // 상위 template 점수 구성 (strokeMatch/focusMatch/conceptOverlap/observationMatch)
-          top_breakdown:            searchResult.topBreakdown
-            ? {
-                strokeMatch:      searchResult.topBreakdown.strokeMatch,
-                focusMatch:       searchResult.topBreakdown.focusMatch,
-                conceptOverlap:   Number(searchResult.topBreakdown.conceptOverlap.toFixed(3)),
-                observationMatch: searchResult.topBreakdown.observationMatch,
-              }
-            : null,
-          fallback_pool_used:       searchResult.usedFallbackPool,
-          // grounding_validation: GPT 출력 실제 검증 결과 (parser_confidence 미사용)
-          grounding_validation: {
-            status:                            groundingResult.status,
-            score:                             groundingResult.score,
-            unsupported_claim_count:           groundingResult.unsupported_claim_count,
-            student_to_common_leak_count:      groundingResult.student_to_common_leak_count,
-            invented_student_evaluation_count: groundingResult.invented_student_evaluation_count,
-            invented_next_plan_count:          groundingResult.invented_next_plan_count,
-            invented_technique_count:          groundingResult.invented_technique_count,
-          },
-          knowledge_ids:          [],
-          // 실제 DB template IDs — 후보 vs 사용 분리
-          template_candidate_ids: searchResult.candidateIds,
-          template_ids:           generation_mode === 'TEMPLATE_ASSISTED'
-            ? searchResult.usedTemplates.map(t => t.id)
-            : [],
-          fallback_used:          searchResult.usedFallbackPool,
-        },
+        meta: buildMeta({ generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId }),
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
           output_tokens: usage?.completion_tokens ?? 0,
           total_tokens:  usage?.total_tokens      ?? 0,
           latency_ms:    elapsedMs,
         },
+        curriculum_matches: curriculumMatches,  // [] | null
       };
 
-      // ── Trace: RESPONSE_SENT ────────────────────────────────────────────────
-      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs}`);
+      // WP9-P1: 응답 직전 in-memory registry 동기 등록 (contract 1.3 경로)
+      registerAiOrigin(externalRequestId, poolId, req.user?.id ?? null);
 
-      res.status(200).json(responseBody);
+      console.log(`[AI/v1:${internalId}] RESPONSE_SENT request_id=${externalRequestId} http_status=200 generation_mode=${generation_mode} student_count=${finalResult.students.length} grounding=${groundingResult.status} total_latency_ms=${elapsedMs} contract=1.3 pool_mode=${poolMode} curriculum_matches=${curriculumMatches?.length ?? 'null'}`);
+      res.status(200).json(responseBody13);
+      // WP10: trace 저장 (응답 후 비동기)
+      void saveAiTrace({
+        status:                   'SUCCESS',
+        request_id:               externalRequestId,
+        internal_id:              internalId,
+        pool_id:                  poolId,
+        actor_id:                 req.user?.id,
+        contract_version:         contractVersion,
+        pipeline_version:         PIPELINE_VERSION_V2,
+        feature:                  'teacher_diary',
+        pool_mode:                poolMode,
+        student_count:            normalizedStudents.length,
+        trigger_type:             'USER_ACTION',
+        service:                  'gpt',
+        generation_mode,
+        model:                    AI_MODEL.DIARY,
+        latency_ms:               elapsedMs,
+        input_tokens:             _capturedUsage?.prompt_tokens     ?? 0,
+        output_tokens:            _capturedUsage?.completion_tokens ?? 0,
+        total_tokens:             _capturedUsage?.total_tokens      ?? 0,
+        template_candidate_count: searchResult.candidateCount,
+        selected_template_id:     searchResult.usedTemplates[0]?.id ?? null,
+        ...(xTemplateStatus   != null ? { x_template_status:      xTemplateStatus  } : {}),
+        ...(xActiveSetId      != null ? { active_template_set_id: xActiveSetId     } : {}),
+        curriculum_match_count:   curriculumMatches?.length ?? undefined,
+        knowledge_hit_count:      0,
+      }).catch((traceErr: unknown) => console.error(`[AI/trace] save failed internal_id=${internalId}`, traceErr));
 
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
 
+      // WP10: 실패 단계·코드 결정
+      let _failStage: AiTraceStage = 'UNKNOWN';
+      let _failCode  = String(e?.code ?? 'INTERNAL_ERROR');
+
       if (e instanceof ModelTimeoutError) {
         logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'timeout', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
-        res.status(504).json(errBody(externalRequestId, 'MODEL_TIMEOUT', 'Teacher diary generation timed out.', true)); return;
-      }
-
-      if (e instanceof OutputValidationError) {
+        _failStage = 'LLM_GENERATION'; _failCode = 'MODEL_TIMEOUT';
+        res.status(504).json(errBody(contractVersion, externalRequestId, 'MODEL_TIMEOUT', 'Teacher diary generation timed out.', true));
+      } else if (e instanceof OutputValidationError) {
         logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: `fail:${e.reason}`, error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
         console.error(`[AI/v1:${internalId}] output_validation_failed reason=${e.reason}`);
-        res.status(500).json(errBody(externalRequestId, 'OUTPUT_VALIDATION_FAILED', 'Teacher diary output validation failed.', false)); return;
+        _failStage = 'OUTPUT_VALIDATION'; _failCode = 'OUTPUT_VALIDATION_FAILED';
+        res.status(500).json(errBody(contractVersion, externalRequestId, 'OUTPUT_VALIDATION_FAILED', 'Teacher diary output validation failed.', false));
+      } else {
+        const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
+        logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
+        console.error(`[AI/v1:${internalId}] error elapsed=${elapsedMs}ms msg=${safeMsg}`);
+        const retryable = !e?.status || e.status >= 500 || e.status === 429;
+        res.status(e?.status ?? 500).json(errBody(contractVersion, externalRequestId, e?.code ?? 'INTERNAL_ERROR', 'Teacher diary generation failed.', retryable));
       }
 
-      const safeMsg = String(e?.message ?? '').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
-      logDiaryStructured({ internal_id: internalId, external_request_id: externalRequestId, feature_flag: 'parser_v1', engine_version: ENGINE_VERSION, prompt_version: 'p_template_v2', validator_result: 'error', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs, pool_id_hash: hashPoolId(poolId) });
-      console.error(`[AI/v1:${internalId}] error elapsed=${elapsedMs}ms msg=${safeMsg}`);
-      const retryable = !e?.status || e.status >= 500 || e.status === 429;
-      res.status(e?.status ?? 500).json(errBody(externalRequestId, e?.code ?? 'INTERNAL_ERROR', 'Teacher diary generation failed.', retryable));
+      // WP10: 실패 trace 저장 (응답 후 비동기)
+      void saveAiTrace({
+        status:           'FAILED',
+        request_id:       externalRequestId,
+        internal_id:      internalId,
+        pool_id:          poolId,
+        actor_id:         req.user?.id,
+        contract_version: contractVersion,
+        feature:          'teacher_diary',
+        pool_mode:        poolMode,
+        student_count:    normalizedStudents.length,
+        trigger_type:     'USER_ACTION',
+        service:          'gpt',
+        error_stage:      _failStage,
+        error_code:       _failCode,
+        latency_ms:       elapsedMs,
+        model:            AI_MODEL.DIARY,
+        ...(_capturedUsage?.prompt_tokens     != null ? { input_tokens:  _capturedUsage.prompt_tokens     } : {}),
+        ...(_capturedUsage?.completion_tokens != null ? { output_tokens: _capturedUsage.completion_tokens } : {}),
+        ...(_capturedUsage?.total_tokens      != null ? { total_tokens:  _capturedUsage.total_tokens      } : {}),
+      }).catch((traceErr: unknown) => console.error(`[AI/trace] fail-trace save failed internal_id=${internalId}`, traceErr));
     }
   },
 );
+
+// ── meta 빌드 헬퍼 (1.0 / 1.3 공통) ─────────────────────────────────────────
+function buildMeta(p: {
+  generation_mode: string;
+  meaning: ReturnType<typeof extractMeaning>;
+  searchResult: TemplateSearchResult;
+  groundingResult: ReturnType<typeof validateGrounding>;
+  xTemplateStatus?: XTemplateStatus | null;
+  xActiveSetId?: string | null;
+}): Record<string, unknown> {
+  const { generation_mode, meaning, searchResult, groundingResult, xTemplateStatus, xActiveSetId } = p;
+  const topBd = searchResult.topBreakdown;
+  return {
+    pipeline_mode:            PIPELINE_MODE,
+    generation_mode:          generation_mode,
+    // parser_confidence: TeacherInputParser 입력 해석 신뢰도 (grounding과 별개)
+    parser_confidence:        meaning.confidence,
+    template_candidate_count: searchResult.candidateCount,
+    template_used_count:      generation_mode === 'TEMPLATE_ASSISTED' ? searchResult.usedCount : 0,
+    top_score:                Number(searchResult.topScore.toFixed(2)),
+    // 상위 template 점수 구성 (strokeMatch/focusMatch/conceptOverlap/observationMatch)
+    top_breakdown:            topBd
+      ? {
+          strokeMatch:      topBd.strokeMatch,
+          focusMatch:       topBd.focusMatch,
+          conceptOverlap:   Number(topBd.conceptOverlap.toFixed(3)),
+          observationMatch: topBd.observationMatch,
+        }
+      : null,
+    fallback_pool_used:       searchResult.usedFallbackPool,
+    // grounding_validation: GPT 출력 실제 검증 결과 (parser_confidence 미사용)
+    grounding_validation: {
+      status:                            groundingResult.status,
+      score:                             groundingResult.score,
+      unsupported_claim_count:           groundingResult.unsupported_claim_count,
+      student_to_common_leak_count:      groundingResult.student_to_common_leak_count,
+      invented_student_evaluation_count: groundingResult.invented_student_evaluation_count,
+      invented_next_plan_count:          groundingResult.invented_next_plan_count,
+      invented_technique_count:          groundingResult.invented_technique_count,
+    },
+    knowledge_ids:          [],
+    // 실제 DB template IDs — 후보 vs 사용 분리
+    template_candidate_ids: searchResult.candidateIds,
+    template_ids:           generation_mode === 'TEMPLATE_ASSISTED'
+      ? searchResult.usedTemplates.map((t: { id: string }) => t.id)
+      : [],
+    fallback_used:          searchResult.usedFallbackPool,
+    // X mode 전용 메타 (non-X pool에서는 미포함)
+    ...(xTemplateStatus != null ? { x_template_status: xTemplateStatus } : {}),
+    ...(xActiveSetId    != null ? { x_active_set_id:   xActiveSetId   } : {}),
+  };
+}
 
 // ── Prompt Builder ────────────────────────────────────────────────────────────
 
@@ -539,13 +879,14 @@ ${templateBlock}
 // ── 오류 응답 헬퍼 ────────────────────────────────────────────────────────────
 
 function errBody(
+  contractVersion: string,
   requestId: string | null,
   code:      string,
   message:   string,
   retryable: boolean,
 ) {
   return {
-    contract_version: '1.0',
+    contract_version: contractVersion,
     request_id:       requestId,
     schema_version:   '1.0',
     engine_version:   ENGINE_VERSION,

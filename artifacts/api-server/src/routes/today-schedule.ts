@@ -39,74 +39,59 @@ function todayDayKO(): string {
 
 /** ─────────────────────────────────────────────────────────
  *  GET /today-schedule
- *  선생님: 자신이 담당하는 오늘 수업
- *  pool_admin: 풀 전체 오늘 수업
+ *  선생님 홈 전용 — role 무관하게 항상 자신(teacher_user_id = userId)이 담당하는 수업만 반환
+ *  (pool_admin이 teacher 화면으로 전환 도중 이전 token으로 호출해도 전체 반 노출 방지)
  * ───────────────────────────────────────────────────────── */
 router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", "super_admin"), async (req: AuthRequest, res) => {
   try {
     const user = req.user!;
-    const role = user.role;
     const today = todayKST();
-    const dayKO = todayDayKO();
     const dateParam = (req.query.date as string) || today;
 
     // UTC 정오 기준 파싱 → 어떤 서버 시간대에서도 올바른 요일 계산
     const targetDate = new Date(dateParam + "T12:00:00Z");
     const targetDayKO = ["일", "월", "화", "수", "목", "금", "토"][targetDate.getUTCDay()];
 
-    let groups: any[];
-    if (role === "teacher") {
-      const rows = await db.execute(sql`
-        SELECT * FROM class_groups
-        WHERE teacher_user_id = ${user.userId}
-        AND schedule_days LIKE ${"%" + targetDayKO + "%"}
-        AND is_deleted = false
-        ORDER BY schedule_time ASC
-      `);
-      groups = rows.rows as any[];
-    } else if (role === "pool_admin") {
-      const poolId = user.poolId;
-      if (!poolId) { res.json([]); return; }
-      const rows = await db.execute(sql`
-        SELECT * FROM class_groups
-        WHERE swimming_pool_id = ${poolId}
-        AND schedule_days LIKE ${"%" + targetDayKO + "%"}
-        AND is_deleted = false
-        ORDER BY schedule_time ASC
-      `);
-      groups = rows.rows as any[];
-    } else {
-      res.json([]); return;
-    }
+    // 항상 자신이 담당하는 반만 반환 (role 무관)
+    // 주 담당(teacher_user_id) + 보조 담당(co_teacher_ids) 모두 포함
+    const rows = await db.execute(sql`
+      SELECT * FROM class_groups
+      WHERE (teacher_user_id = ${user.userId} OR co_teacher_ids @> to_jsonb(${user.userId}::text))
+      AND schedule_days LIKE ${"%" + targetDayKO + "%"}
+      AND is_deleted = false
+      ORDER BY schedule_time ASC
+    `);
+    const groups: any[] = rows.rows as any[];
 
     if (groups.length === 0) { res.json([]); return; }
 
     const classIds = groups.map(g => g.id);
-
-    // 학생 수 — class_group_id + assigned_class_ids 모두 기준
     const poolId = groups[0]?.swimming_pool_id || "";
-    const studentRows = await db.execute(sql`
-      SELECT id, class_group_id, assigned_class_ids FROM students
-      WHERE swimming_pool_id = ${poolId}
-      AND status = 'active'
-      AND deleted_at IS NULL
+
+    // 휴무일 체크 — 휴무일이면 수업 없음
+    const holidayCheck = await db.execute(sql`
+      SELECT id FROM pool_holidays
+      WHERE pool_id = ${poolId} AND holiday_date = ${dateParam}
+      LIMIT 1
     `);
+    if (holidayCheck.rows.length > 0) { res.json([]); return; }
+
+    // 학생 수 — student_class_history 기반 날짜 기준 (학생 상세 목록과 동일 조건)
+    const classIdListForCount = classIds.map(id => `'${id}'`).join(",");
+    const countRows = await db.execute(sql.raw(`
+      SELECT h.class_group_id, COUNT(DISTINCT h.student_id) AS cnt
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        AND h.class_group_id IN (${classIdListForCount})
+        AND h.enrolled_at <= '${dateParam}'
+        AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
+        AND s.deleted_at IS NULL
+      GROUP BY h.class_group_id
+    `));
     const studentCountMap: Record<string, number> = {};
-    for (const st of studentRows.rows as any[]) {
-      const seen = new Set<string>();
-      // assigned_class_ids: JSONB → already a JS array from node-postgres
-      let ids: string[] = [];
-      const raw = st.assigned_class_ids;
-      if (Array.isArray(raw)) ids = raw;
-      else if (typeof raw === "string") { try { ids = JSON.parse(raw); } catch { ids = []; } }
-      // also add class_group_id if set
-      if (st.class_group_id && !ids.includes(st.class_group_id)) ids.push(st.class_group_id);
-      for (const cid of ids) {
-        if (classIds.includes(cid) && !seen.has(cid)) {
-          seen.add(cid);
-          studentCountMap[cid] = (studentCountMap[cid] || 0) + 1;
-        }
-      }
+    for (const row of countRows.rows as any[]) {
+      studentCountMap[row.class_group_id] = Number(row.cnt);
     }
 
     // 출결 현황 — poolId 기반으로 조회 후 JS에서 필터
@@ -146,15 +131,66 @@ router.get("/today-schedule", requireAuth, requireRole("teacher", "pool_admin", 
       noteMap[r.class_group_id] = { note_text: r.note_text, audio_file_url: r.audio_file_url };
     }
 
+    // 학생 상세 목록 — history 기반 날짜 필터링 (등록일~퇴장일 범위만 표시)
+    const classIdList = classIds.map(id => `'${id}'`).join(",");
+    const studentDetailRows = classIds.length > 0 ? await db.execute(sql.raw(`
+      SELECT DISTINCT ON (s.id, h.class_group_id)
+        s.id, s.name, s.birth_year, h.class_group_id,
+        s.assigned_class_ids, s.weekly_count, s.schedule_labels,
+        s.status, s.parent_user_id, s.updated_at
+      FROM student_class_history h
+      JOIN students s ON s.id = h.student_id
+      WHERE h.swimming_pool_id = '${poolId}'
+        AND h.class_group_id IN (${classIdList})
+        AND h.enrolled_at <= '${dateParam}'
+        AND (h.left_at IS NULL OR h.left_at > '${dateParam}')
+        AND s.deleted_at IS NULL
+      ORDER BY s.id, h.class_group_id, h.enrolled_at DESC
+    `)) : { rows: [] };
+
+    // classId → StudentItem[] 매핑 (class_group_id가 history에서 직접 옴)
+    const studentsByClass: Record<string, any[]> = {};
+    for (const cid of classIds) studentsByClass[cid] = [];
+    for (const st of studentDetailRows.rows as any[]) {
+      const cid = st.class_group_id as string;
+      if (classIds.includes(cid)) studentsByClass[cid].push(st);
+    }
+
+    // 보강 배정 학생 — 오늘 날짜에 배정된 makeup_sessions 학생도 포함
+    const makeupRows = classIds.length > 0 ? await db.execute(sql.raw(`
+      SELECT ms.student_id AS id, s.name, s.birth_year, ms.assigned_class_group_id AS class_group_id,
+             s.weekly_count, s.schedule_labels, s.status,
+             true AS is_makeup, ms.id AS makeup_session_id
+      FROM makeup_sessions ms
+      JOIN students s ON s.id = ms.student_id
+      WHERE ms.swimming_pool_id = '${poolId}'
+        AND ms.assigned_date = '${dateParam}'
+        AND ms.assigned_class_group_id IN (${classIdList})
+        AND ms.status = 'assigned'
+        AND ms.cancelled_at IS NULL
+    `)) : { rows: [] };
+    for (const mk of makeupRows.rows as any[]) {
+      const cid = mk.class_group_id;
+      if (classIds.includes(cid)) {
+        const alreadyIn = (studentsByClass[cid] || []).some((s: any) => s.id === mk.id);
+        if (!alreadyIn) {
+          if (!studentsByClass[cid]) studentsByClass[cid] = [];
+          studentsByClass[cid].push({ ...mk, is_makeup: true });
+        }
+      }
+    }
+
     const result = groups.map(g => ({
       ...g,
-      student_count: studentCountMap[g.id] || 0,
-      att_total:     attMap[g.id]?.total || 0,
-      att_present:   attMap[g.id]?.present || 0,
-      diary_done:    diarySet.has(g.id),
-      has_note:      !!noteMap[g.id]?.note_text || !!noteMap[g.id]?.audio_file_url,
-      note_text:     noteMap[g.id]?.note_text || null,
+      student_count:  studentCountMap[g.id] || 0,
+      att_total:      attMap[g.id]?.total || 0,
+      att_present:    attMap[g.id]?.present || 0,
+      diary_done:     diarySet.has(g.id),
+      has_note:       !!noteMap[g.id]?.note_text || !!noteMap[g.id]?.audio_file_url,
+      note_text:      noteMap[g.id]?.note_text || null,
       audio_file_url: noteMap[g.id]?.audio_file_url || null,
+      students:       studentsByClass[g.id] || [],
+      makeup_count:   (makeupRows.rows as any[]).filter((m: any) => m.class_group_id === g.id).length,
     }));
 
     res.json(result);

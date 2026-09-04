@@ -1,0 +1,350 @@
+================================================================================
+SWIMNOTE 보강반 선택 실패 — 실제 실패 데이터 확보 보고
+생성일: 2026-08-04 (KST)
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 재현 시각
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+미수집.
+
+이유: Replit Agent는 운영 앱(iPhone)을 직접 조작할 수 없음.
+재현 경로(보강 대기 → 반 선택 → 실패)는 실제 사용자가 앱에서 실행해야 함.
+
+재현 시도 대신 기존 debug-occ-log를 조회했으나 빈 결과 반환.
+→ 서버 재시작으로 in-memory 로그 초기화된 것으로 판단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 request URL / HTTP status / response body
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+미수집.
+
+curl 조회 결과:
+  GET https://swimnote-api.onrender.com/api/teacher/makeups/debug-occ-log?pw=***
+  Response: {"requests":[],"errors":[]}
+
+원인: Render.com 서버는 in-memory 로그를 프로세스 메모리에 저장.
+     서버가 재시작되면 _occReqLog / _occErrLog 모두 초기화됨 (최대 30건).
+     현재 서버 재시작 이후 eligible-occurrences 요청 0건 기록됨.
+
+HTTP status, response body, request_id: 확보 불가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. makeup_sessions SELECT 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+특정 makeupId 미확보. 실패 재현 없이 개별 조회 불가.
+
+대신 최근 waiting/expired 보강 10건 전수 조회 결과 (이름 마스킹):
+
+mk_1785863645973_0ax8mqq1 | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-13 | expire:2026-08-31 | original_cg:cg_1784031612136_c0hm37u7u
+mk_1785854129843_fby0oxoz | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-04 | expire:2026-08-31 | original_cg:cg_1784731230179_v69ulm0ex
+mk_1785853406163_u4np42oj | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-04 | expire:2026-08-31 | original_cg:cg_1782874177947_xtrzecg0e
+mk_1785851581592_fk9b7zev | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-04 | expire:2026-08-31 | original_cg:cg_1783671600783_8oolcjnyu
+mk_1785767095791_zfg5ub94 | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1782710082580_ezum120sy
+mk_1785765158724_ujdwxfib | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1783347603647_zddpb4vpg
+mk_1785764966381_cu5embl4 | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1783347581128_inn7ioh1h
+mk_1785754375483_wzurcg2u | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1783652903198_mpptftwqz
+mk_1785753349505_s5swvdlm | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1782521162271_rhlha1hoi
+mk_1785753325766_wg6gxu4m | pool_1780849364252_l9k44rbk3 | waiting | absence:2026-08-03 | expire:2026-08-31 | original_cg:cg_1782521155258_3flqtu52v
+
+확인:
+- 전원 swimming_pool_id = pool_1780849364252_l9k44rbk3 (단일 풀)
+- 전원 status = waiting
+- 전원 expire_at = 2026-08-31 23:59:59 (당월 말일)
+- 전원 absence_date >= 2026-08-03 (오늘·최근)
+- cancelled_at = null, completed_at = null
+- handed_to_teacher_id = null (전원)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. class_groups SELECT 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+특정 classGroupId 미확보. 실패 케이스의 선택 반 ID 미확인.
+
+대신 eligible-classes 조건(showAll=true)으로 전체 pool 반 조회:
+  - available_slots > 0인 반: 조회 성공 (다수)
+  - available_slots = 0인 반 (정원 마감): 13개 확인됨
+
+정원 마감 반 목록 (eligible-classes에서 미표시, eligible-occurrences에서는 CLASS_NOT_FOUND 아님):
+  cg_1782994665946_bjue5fl2t 금 18:00반 capacity:5 current:5 slots:0
+  cg_1783347653841_pkp5lpq0i 금 18:00반 capacity:5 current:5 slots:0
+  cg_1783347645613_2d91i5pg1 금 19:00반 capacity:5 current:5 slots:0
+  cg_1782388258974_dr361pdhv 목 16:00반 capacity:5 current:5 slots:0
+  cg_1783672024399_yeeni6d0y 목 17:00반 capacity:5 current:5 slots:0
+  cg_1783347617655_94enod4iz 수 17:00반 capacity:5 current:5 slots:0
+  cg_1782874498836_xil1cz7wu 수 18:00반 capacity:5 current:5 slots:0
+  cg_1782521149367_uoyu9drhw 월 16:00반 capacity:5 current:5 slots:0
+  cg_1783652903198_mpptftwqz 월 17:00반 capacity:5 current:5 slots:0
+  cg_1783671600783_8oolcjnyu 화 16:00반 capacity:5 current:5 slots:0
+  cg_1782874077799_ah04b2rzm 화 16:00반 capacity:5 current:5 slots:0
+  cg_1783671827659_yxqbxmjzt 화 17:00반 capacity:5 current:5 slots:0
+  cg_1783347529483_xylgt8bzh 화 18:00반 capacity:5 current:5 slots:0
+
+모든 반:
+  swimming_pool_id = pool_1780849364252_l9k44rbk3 (일치)
+  is_deleted = false
+  is_one_time = false
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. users SELECT 결과 (pool 연결 확인)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pool_1780849364252_l9k44rbk3 소속 teacher/pool_admin 목록:
+  u_teacher_1782291850473_rwlbvwxo5 | teacher    | swimming_pool_id: SET
+  u_teacher_1782408551721_chtx0xbg4 | teacher    | swimming_pool_id: SET
+  u_teacher_1783580009409_xcehuswjq | teacher    | swimming_pool_id: SET
+  user_1780849364252_dpsmr50cf      | pool_admin | swimming_pool_id: SET
+  u_teacher_1782291954294_88c3wjq8w | teacher    | swimming_pool_id: SET
+  u_teacher_1782285416270_yu5qf4u7q | teacher    | swimming_pool_id: SET
+  u_teacher_1782367122669_x0m68rin4 | teacher    | swimming_pool_id: SET
+  u_teacher_1782362716713_r42defzq6 | teacher    | swimming_pool_id: SET
+
+총 8명 (pool_admin 1 + teacher 7)
+
+swimming_pool_id = null인 teacher/pool_admin: 0명
+
+확인:
+  - 이 풀의 모든 교사는 swimming_pool_id가 SET됨
+  - getMyPoolId가 null을 반환할 교사 없음 (이 풀 기준)
+  - 실패 userId가 이 pool 소속이라면 POOL_NOT_FOUND는 아님
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. getMyPoolId 원문과 반환값
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+원문 (teachers.ts:431–435):
+
+  async function getMyPoolId(userId: string): Promise<string | null> {
+    const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
+      .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    return me?.swimming_pool_id || null;
+  }
+
+확인:
+  - users.swimming_pool_id 직접 단일 조회 (superAdminDb)
+  - role별 분기 없음
+  - user가 없거나 swimming_pool_id가 null이면 null 반환 → 403 POOL_NOT_FOUND
+  - handed_to_teacher_id 별도 처리 없음 — handed_to 교사도 동일 로직 적용
+  - 이 풀의 8명 모두 swimming_pool_id SET → 정상 반환 예상
+
+반환값 (실패 userId 미확보 → 특정 불가):
+  이 풀 소속 교사 8명 전원: pool_1780849364252_l9k44rbk3 반환 예상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. eligible-classes vs eligible-occurrences 조건 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[A] eligible-classes WHERE (teachers.ts:687–690):
+  WHERE cg.swimming_pool_id = ${poolId}
+    AND cg.is_deleted = false
+    AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+    AND (${showAll} OR cg.teacher_user_id = ${userId})
+  HAVING GREATEST(0, capacity - current_members) > 0
+
+  앱 호출: /teacher/makeups/eligible-classes?all=true → showAll=true → teacher 필터 없음
+
+[B] eligible-occurrences WHERE (teachers.ts:752–757):
+  WHERE cg.id = ${class_group_id}
+    AND cg.swimming_pool_id = ${poolId}
+    AND cg.is_deleted = false
+    AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+
+비교표:
+  항목                      | eligible-classes       | eligible-occurrences
+  --------------------------|------------------------|----------------------
+  swimming_pool_id 필터      | 동일 (poolId)          | 동일 (poolId)
+  is_deleted 필터            | 동일 (false)           | 동일 (false)
+  is_one_time 필터           | 동일                   | 동일
+  teacher_user_id 필터       | showAll=true → 없음    | 없음
+  co_teacher_ids 필터        | 없음 (is_mine 표시만)   | 없음 (is_mine 표시만)
+  available_slots 필터       | HAVING > 0 있음        | 없음
+  class 특정                 | 없음 (전체 목록)        | cg.id = ${class_group_id}
+
+판정: 조건 불일치 있음
+
+  차이 설명:
+  - eligible-classes는 HAVING available_slots > 0 — 정원 마감 반 미표시
+  - eligible-occurrences는 available_slots 필터 없음 — 정원 마감 반도 CLASS_NOT_FOUND가 아님
+  - 단, 앱은 eligible-classes에서 반을 선택하므로 available_slots > 0인 반만 선택 가능
+  - eligible-classes에 표시된 반을 선택하면 eligible-occurrences에서 CLASS_NOT_FOUND가 발생하는 조건 차이 없음
+  - 단, eligible-classes 호출 시점 → 선택 시점 사이에 반이 삭제(is_deleted=true)되면 CLASS_NOT_FOUND 발생 가능
+
+  eligible-classes에는 표시되지만 eligible-occurrences에서 CLASS_NOT_FOUND가 되는 경우:
+  1. 반이 eligible-classes 호출 이후 is_deleted=true로 변경된 경우
+  2. 반이 eligible-classes 호출 이후 is_one_time=true로 변경된 경우
+  3. 반의 swimming_pool_id가 사용자 poolId와 불일치하는 경우 (데이터 이상)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. parseDayNums 함수 원문 + 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+원문 (teachers.ts:286–291):
+
+  function parseDayNums(scheduleDays: string): Set<number> {
+    const map: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+    const nums = new Set<number>();
+    scheduleDays.split(",").map(d => d.trim()).forEach(d => { if (map[d] !== undefined) nums.add(map[d]); });
+    return nums;
+  }
+
+보조 함수 (teachers.ts:280–283):
+
+  function dayOfWeekFromDateStr(dateStr: string): number {
+    const [y, mo, d] = dateStr.split("-").map(Number);
+    return new Date(y, mo - 1, d).getDay();
+  }
+
+시뮬레이션 (샘플: 토 11:00반 + makeup mk_1785854129843_fby0oxoz):
+  schedule_days 원문:  "토"
+  parseDayNums 결과:   Set{6}
+  absence_date:        2026-08-04 (화요일)
+  expire_at:           2026-08-31 23:59:59 → KST 날짜: 2026-08-31
+  cursor 시작:         2026-08-05 (결석일 다음 날)
+  endD:                2026-08-31
+
+  생성된 occurrence 날짜 (토요일, 휴일 제외):
+    2026-08-08 (토) ← 휴일 아님
+    2026-08-22 (토) ← 8/15(광복절)·8/17(대체) 이후
+    2026-08-29 (토)
+  [8/15 토요일 = 광복절 → holidaySet에 포함 → 제외됨]
+  총 3개 occurrence 생성
+
+  비고: 8/15는 토요일이자 광복절로 holidaySet에 있어 올바르게 제외됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. pool_holidays 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+쿼리 실행: pool_id = pool_1780849364252_l9k44rbk3, holiday_date >= 2026-08-01
+
+결과 (14건):
+  2026-08-15 광복절
+  2026-08-17 대체공휴일
+  2026-09-24 추석
+  2026-09-25 추석
+  2026-09-26 추석
+  2026-09-29 5주차휴무
+  2026-09-30 5주차휴무
+  2026-10-03 개천절
+  2026-10-05 대체공휴일
+  2026-10-09 한글날
+  2026-12-25 성탄절
+  2026-12-29 5주차휴무
+  2026-12-30 5주차휴무
+  2026-12-31 5주차휴무
+
+확인:
+  - 쿼리 성공: 정상
+  - pool_id 컬럼 존재: 확인 (id, pool_id, holiday_date, reason 모두 정상 조회)
+  - holiday_date 타입: date (DB 실측)
+  - 코드의 pool_id = ${poolId} 사용: 정상 (swimming_pool_id 아님, pool_holidays.pool_id)
+  - 8월 내 휴일: 8/15, 8/17만 존재 → 전체 회차가 휴일로 제거되는 경우 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 정원 계산 SQL 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행 SQL:
+  SELECT COUNT(s.id)::int AS cnt FROM students s
+  WHERE (s.class_group_id = 'cg_1782521117875_9azzbyuu9'
+         OR s.assigned_class_ids @> to_jsonb('cg_1782521117875_9azzbyuu9'::text))
+    AND s.status IN ('active', 'pending_parent_link', 'unregistered')
+    AND s.deleted_at IS NULL;
+
+결과: {"cnt": 2}
+
+확인:
+  - SQL 성공: 정상
+  - assigned_class_ids 타입: jsonb (to_jsonb 비교 오류 없음)
+  - DB 예외 발생: 없음
+  - count 결과: 2 (정상 반환)
+
+※ 정원 마감(is_full=true)은 회차 조회 실패 원인 아님 — eligible-occurrences는 is_full=true로 200 응답
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 서버 진단 로그 (debug-occ-log)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+엔드포인트:
+  GET https://swimnote-api.onrender.com/api/teacher/makeups/debug-occ-log?pw=***
+
+응답:
+  {"requests":[],"errors":[]}
+
+stage 판정: 확인 불가 (로그 없음)
+
+원인 분석:
+  - Render.com 서버는 in-memory로 _occReqLog(최근 30건), _occErrLog(최근 20건) 유지
+  - 서버 재시작 시 전부 초기화
+  - 현재 서버 재시작 이후 eligible-occurrences 요청 0건 기록
+  - 이는 최근 앱 사용자가 해당 엔드포인트를 호출하지 않았거나
+    서버가 매우 최근에 재시작됐음을 의미
+
+추가 참고:
+  - 현재 production OTA는 commit 651b1a95 기준
+  - 651b1a95 이전 버전 앱에는 crash-report 코드 및 retry 로직 없음 (5a10d899에서 추가)
+  - Render.com 서버(6445a76a)에는 debug 엔드포인트 있음
+  - OTA 앱 버전 <651b1a95 사용자도 동일 Render.com 서버에 요청하므로 로그 기록 됨
+    → 로그 없음 = 서버 재시작 후 요청 없음으로 해석
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. A~O 판정표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+항목 | 결과        | 근거
+-----|-------------|---------------------------------------------------------------
+A.  user pool 없음
+     (POOL_NOT_FOUND)      | 확인 불가  | 이 풀의 8명 모두 swimming_pool_id SET됨. 실패 userId 미확보.
+B.  makeup row 없음        | 확인 불가  | 실패 makeupId 미확보
+C.  makeup pool 불일치
+     (MAKEUP_POOL_MISMATCH) | 확인 불가  | 실패 makeupId 미확보
+D.  class row 없음
+     (CLASS_NOT_FOUND)     | 확인 불가  | 실패 classGroupId 미확보
+E.  class pool 불일치       | 확인 불가  | 실패 classGroupId 미확보.
+                                          조회된 모든 반은 동일 pool_id 확인.
+F.  class 삭제됨
+     (is_deleted=true)     | 확인 불가  | 실패 classGroupId 미확보.
+                                          eligible-classes 조회 후 반이 삭제된 경우 가능.
+G.  is_one_time 차단        | 확인 불가  | 실패 classGroupId 미확보.
+                                          조회된 모든 반 is_one_time=false 확인.
+H.  eligible-classes와
+     조건 불일치             | 조건 불일치 있음 | HAVING available_slots>0 차이.
+                                               그러나 앱이 eligible-classes 목록에서
+                                               선택하므로 이 차이가 직접 원인이 될 조건은
+                                               없음 (정원 마감 반은 선택 화면에 미표시).
+I.  students count SQL 오류  | 정상      | 시뮬레이션 성공. assigned_class_ids jsonb 조회 정상.
+J.  pool_holidays SQL 오류   | 정상      | pool_id 컬럼 존재. 쿼리 성공. 타입 정상.
+K.  DB 연결 제한
+     (DB_CONNECTION_LIMIT)  | 확인 불가  | debug log 없음. 현재 연결 수 미확인.
+L.  schedule_days 파싱 0개   | 해당 없음  | 시뮬레이션 정상 (토→Set{6}, 3개 occurrence).
+                                           단, 실패 classGroupId의 schedule_days 미확인.
+M.  expire_at < absence_date | 확인 불가  | 실패 makeupId 미확보.
+                                          최근 10건은 expire_at = 2026-08-31 (정상).
+N.  정상 200 + occurrences[]  | 확인 불가  | HTTP status 미확보
+O.  기타 서버 예외            | 확인 불가  | debug log 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 직접 원인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HTTP status와 response body를 확보하지 못해 직접 원인 확정 불가.
+
+데이터 확보를 위해 필요한 추가 정보 (수정 없이):
+  1. 실패 재현 후 debug-occ-log 즉시 조회
+     GET https://swimnote-api.onrender.com/api/teacher/makeups/debug-occ-log?pw=***
+     → stage, code, message 확인 가능
+
+  2. 또는 실패 시 앱에 표시되는 정확한 오류 메시지/코드 기록
+     가능 응답: 403 POOL_NOT_FOUND / 403 MAKEUP_POOL_MISMATCH / 404 CLASS_NOT_FOUND /
+               500 ELIGIBLE_OCCURRENCES_FAILED / 503 DB_CONNECTION_LIMIT /
+               200 occurrences:[]
+
+  현재 코드·DB·SQL 수준에서 비정상이 확인된 항목: 없음.
+  서버 시뮬레이션(샘플 makeup + 샘플 class)은 정상 200 + 3개 occurrence 반환 예상.
+
+================================================================================
+END OF REPORT
+================================================================================

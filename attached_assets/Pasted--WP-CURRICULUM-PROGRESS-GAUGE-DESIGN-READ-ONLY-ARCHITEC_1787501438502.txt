@@ -1,0 +1,698 @@
+[앱] WP-CURRICULUM-PROGRESS-GAUGE-DESIGN
+— READ-ONLY ARCHITECTURE & IMPLEMENTATION PLAN
+
+목적:
+SWIMNOTE의 실제 수영장별 커리큘럼과 Teacher Diary를 이용하여
+학생별 "전체 수영 교육과정 진행도" 단일 게이지를 구현하기 위한
+APP-side 정확한 설계도를 작성한다.
+
+이번 Step은 설계 확인만 한다.
+
+절대 금지:
+- 코드 수정
+- DB schema/migration 실행
+- production DB write
+- AI Engine 수정
+- Render 설정 수정
+- deploy
+- OTA
+- 전체 repository audit
+- 불필요한 전체 regression
+
+현재 기능을 깨뜨리지 않는 것이 최우선이다.
+
+필요한 파일/함수/DB table/route만 최소 read-only 조사한 뒤
+실제 현재 코드 구조 기준으로 설계안을 제출하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A. 제품 정의 — 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 기능의 핵심 정의:
+
+"학생이 해당 수영장이 등록한 전체 수영 커리큘럼에서
+현재 어디까지 실제 수업을 진행했는지를 나타내는
+0~100% 단일 교육과정 진행 게이지"
+
+중요:
+
+1. 레벨별 게이지 여러 개 금지.
+2. 학생당 전체 수영 교육과정 게이지는 딱 1개.
+3. 게이지는 실력 점수/숙련도 점수가 아님.
+4. 학부모 표시 명칭은 원칙적으로:
+   "교육과정 진행도"
+5. 100%는 해당 수영장이 등록한 전체 curriculum의 마지막 지점.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+B. 게이지의 유일한 Source of Truth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+게이지 계산에 사용할 수 있는 유일한 지식 원천:
+
+해당 학생의 swimming_pool_id에 속하는
+ACTIVE POOL CURRICULUM.
+
+즉:
+
+POOL CURRICULUM
+→ 게이지 좌표/순서/퍼센트 계산 가능
+
+다음 데이터는 게이지 위치 계산에 절대 사용 금지:
+
+- Professional V2 / kf.v2_search_index
+- 수영 전문 DB
+- 일반 swimming explanations
+- DTA
+- GPT가 생성한 설명
+- AI가 추천한 다음 단계
+- 검색 결과의 전문지식
+- drill / error / cause / correction DB
+- 성장리포트 AI의 추론 결과
+
+Professional DB/AI는
+"설명"에는 사용할 수 있지만
+progress gauge 값에는 0% 영향이어야 한다.
+
+이 경계를 코드 구조상 어떻게 강제할지도 설계할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C. 전체 Curriculum Global Numbering
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 수영장이 등록한 curriculum은
+레벨별 구조를 유지하더라도
+게이지 계산을 위해 전체 curriculum을 하나의 연속 순서로 본다.
+
+예:
+WHITE
+BLUE
+RED
+BLACK
+GOLD
+...
+
+각 level 내부 순서 + level 전체 순서를 이용해서
+최종적으로:
+
+global_order = 1 ... N
+
+형태의 단일 순서를 만든다.
+
+예:
+전체 ACTIVE curriculum item = 350개
+
+global_order:
+1
+2
+3
+...
+350
+
+각 curriculum item의 진행 위치:
+
+progress_ratio = global_order / total_active_items
+
+progress_percent = progress_ratio * 100
+
+퍼센트 표시 시 반올림 정책도 제안할 것.
+
+중요:
+DB에 반드시 percent 자체를 저장해야 하는지,
+아니면 global_order + version을 기준으로 runtime 계산하는 게 안전한지
+현재 구조를 보고 판단하여 설계할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+D. Curriculum Versioning 영향
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱에는 curriculum_versions / curriculum_items 구조가 존재한다.
+
+반드시 조사:
+
+- active curriculum version 구조
+- version 변경 시 기존 학생 progress에 미치는 영향
+- curriculum item 추가/삭제/순서 변경 시 기존 60%가 갑자기 43% 등이 되는 문제
+- historical progress를 어떤 curriculum_version 기준으로 보존할지
+
+설계안에는 최소한:
+
+1. observation 당시 curriculum_version_id
+2. curriculum_item_id
+3. global_order
+4. 당시 total_item_count
+
+등 어떤 snapshot 정보를 보존해야 안정적인지 제안.
+
+기존 curriculum 기능을 깨뜨리지 않는 방식이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+E. Teacher Diary → Curriculum Mapping
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+진도 observation은
+실제 Teacher Diary 저장 과정에서 발생해야 한다.
+
+예:
+
+선생님 일지:
+"오늘 자유형 롤링과 스트림라인을 연습했습니다."
+
+시스템:
+→ 해당 학생 pool의 ACTIVE curriculum만 검색
+→ 일지에서 실제 수업했다고 기록된 내용과
+   curriculum item을 매핑
+→ 해당 수업의 progress observation 생성
+
+중요:
+
+Professional V2 DB로 curriculum position을 결정하면 안 됨.
+
+Professional V2가 문장을 해석하는 보조 역할을 하더라도,
+최종 progress 근거 item은 반드시
+해당 pool curriculum_items에 존재해야 한다.
+
+조사할 것:
+
+- 현재 Teacher Diary 생성/저장 route
+- AI Diary V2 구조
+- diary 저장 후 hook/서비스
+- 현재 curriculum mapping 가능 코드가 존재하는지
+- growth_events와 어떤 관계가 있는지
+
+기존 Teacher Diary 기능의 생성/저장/학부모 feed를 깨뜨리지 않고
+어디에 progress mapping을 넣는 게 가장 안전한지
+정확한 경로를 설계할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+F. 수업당 Progress Observation은 최대 1개
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+한 수업 일지에서 curriculum item 여러 개가 잡힐 수 있다.
+
+예:
+52%
+60%
+64%
+
+세부 observation은 여러 개 저장 가능하더라도
+게이지 계산용 lesson progress observation은
+해당 실제 수업당 최대 1개로 제한한다.
+
+기본 후보:
+그 수업에서 실제 수행한 것으로 매핑된
+가장 높은 global_order.
+
+그러나 단순 언급/다음 계획/과거 회상/비교 표현이
+높은 item으로 잘못 잡히면 안 된다.
+
+예:
+"다음 시간에는 접영을 해볼 예정"
+→ 접영 progress observation 금지
+
+"지난달에 평영을 했고 오늘은 자유형 킥 복습"
+→ 오늘 lesson position은 실제 오늘 수업 기준
+
+이를 구분하기 위해
+현재 Diary 구조에서 어떤 factual field/evidence를 사용할지 설계할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+G. 3-LESSON CONFIRMATION RULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+게이지는 한 번 높은 단계가 관찰됐다고 즉시 점프하면 안 된다.
+
+공식 규칙:
+
+어떤 progress 위치 P 이상에서
+서로 다른 실제 수업 3회가 관찰되면
+P까지 "confirmed progress"로 인정.
+
+예:
+
+관찰:
+56%, 70%, 87%
+
+56 이상 observation = 3회
+→ confirmed gauge = 56%
+
+관찰:
+56%, 70%, 70%, 87%
+
+70 이상 observation = 3회
+→ confirmed gauge = 70%
+
+관찰:
+78%, 81%, 85%
+
+78 이상 observation = 3회
+→ confirmed gauge = 78%
+
+즉 기존 회원이나 다른 수영장에서 배우다 온 학생이
+SWIMNOTE를 늦게 시작하더라도
+실제 수업 3회가 쌓이면
+현재 교육과정 위치까지 빠르게 진입 가능.
+
+중요:
+
+"상위 item을 한다"
+→ 하위 skill을 숙달했다고 기록하는 것이 아님.
+
+1~77번 item을 모두 완료 처리해서도 안 됨.
+
+단지:
+"전체 교육과정상 최소 이 위치까지
+현재 수업이 진행되고 있음이 반복 확인됐다"
+
+라는 progress 정보만 인정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+H. Gauge Monotonic Rule
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기본적으로 confirmed gauge는 내려가지 않는다.
+
+예:
+
+confirmed=70%
+
+이후:
+40% 복습
+45% 자세교정
+50% 복습
+
+→ gauge는 70% 유지.
+
+Teacher Diary에는 복습/교정 사실을 그대로 기록.
+
+즉:
+
+progress gauge
+≠ 오늘 수업 위치
+
+confirmed progress는 기본적으로:
+
+MAX(previous_confirmed_progress,
+    newly_confirmed_progress)
+
+복습 때문에 학부모 게이지가 하락하면 안 된다.
+
+현재 데이터에서
+REVIEW / CORRECTION / RELEARNING 같은 상태가 존재하는지 조사.
+
+별도 명시적 reset/레벨 재평가 기능이 정말 필요한지는
+이번 설계 단계에서 제안만 하고 구현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+I. 진도와 숙련도를 절대 혼동하지 않음
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+다른 수영장에서 접영까지 배웠지만 자세가 매우 나쁜 학생.
+
+접영 curriculum observation이 반복됐다고 해서:
+
+자유형 = 숙달
+배영 = 숙달
+평영 = 숙달
+
+처리 금지.
+
+또한 접영도:
+"배운 적 있음/수업 진행 위치"
+와
+"잘함/숙달"
+은 별개.
+
+따라서 progress gauge는:
+
+CURRICULUM PROGRESSION ONLY
+
+이고,
+
+MASTERED / SKILL QUALITY / TECHNIQUE QUALITY
+와 데이터 의미를 분리해야 한다.
+
+현재 DB에 이런 의미를 표현하는 필드가 있다면 재사용.
+없으면 향후 구조만 제안.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+J. Parent Home 단일 Gauge UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 홈 화면에
+사용자가 의도적으로 비워둔 여백이 존재한다.
+
+그 위치에:
+
+"교육과정 진행도"
+
+단일 progress gauge를 표시한다.
+
+예:
+
+교육과정 진행도
+██████████████░░░░░  42%
+
+필요 시 작은 보조문구:
+"최근 수업 기록을 기준으로 확인된 교육과정 위치"
+
+중요:
+- 새로운 큰 카드 임의 추가 금지
+- 홈 디자인 전체 변경 금지
+- 기존 색상/spacing/layout 최대한 보존
+- 사용자가 마련한 현재 여백 영역에 삽입
+- 여러 레벨별 gauge 금지
+- skill score처럼 표현 금지
+
+현재 parent home component/file을 정확히 식별하고
+어느 component 사이의 어느 영역에 넣을지 설계 보고할 것.
+
+이번 Step에서는 UI 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+K. Parent Growth Report 버튼 중복 정리 설계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Parent Home에
+"학부모 성장리포트" 진입 버튼이 2개 존재함.
+
+사용자 확인사항:
+
+- 기존 원래 버튼 1개 존재
+- Replit이 나중에 임의로 가로로 크게 만든
+  중복 Growth Report 버튼/영역 1개 존재
+- 큰 신규 중복 버튼은 삭제 예정
+- 기존 원래 Growth Report 버튼에
+  향후 Growth Report 화면/기능을 연결할 것
+
+이번 설계 단계에서:
+
+1. 두 Growth Report entry UI의 정확한 file/component 확인
+2. 어떤 것이 original인지 코드 구조/히스토리상 가능한 범위에서 식별
+3. 제거 대상 big horizontal duplicate의 exact JSX/component 확인
+4. 보존할 original button의 route/navigation target 확인
+5. 삭제 시 다른 parent home UI에 영향 없는지 확인
+
+이번 Step에서는 삭제하지 말고 설계만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+L. Parent Curriculum AI 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Parent Curriculum AI는 production 완료 상태이며:
+
+- actual pool curriculum
+- X_POOL
+- Professional V2
+- GPT
+- grounding
+- quota
+
+가 정상 동작 중이다.
+
+새 confirmed progress가 만들어지면
+Parent Curriculum search의 student_progress/context에
+어떤 식으로 공급할지 설계.
+
+질문 예:
+"현재 다음에 뭐 배워?"
+"우리 아이 어디까지 배웠어?"
+"다음 단계는 뭐야?"
+
+이때 AI가:
+
+- confirmed curriculum progress
+- 최근 실제 curriculum observations
+- actual pool curriculum
+- Professional V2
+
+를 함께 사용할 수 있어야 한다.
+
+중요:
+기존 Parent Curriculum production pipeline 변경 최소화.
+현재 완료된 기능을 깨뜨리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M. Growth Report 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 Parent Growth Report에는
+이 progress gauge를 핵심 정량 지표로 포함한다.
+
+예:
+
+지난달 교육과정 진행도: 34%
+이번달 교육과정 진행도: 41%
+변화: +7%p
+
+추가로:
+
+- 이번 달 새롭게 진행한 curriculum 영역
+- 반복/교정한 curriculum
+- 실제 Teacher Diary 기반 평가/성장
+- 70개 Growth Report assessment framework
+- longitudinal comparison
+
+을 결합할 예정.
+
+리포트의 핵심 서사:
+
+1. 지난달보다 이번 달 무엇을 얼마나 더 배웠는가
+2. 배우는 과정에서 어떤 관찰/평가가 있었는가
+3. 어떤 긍정적 성장 신호가 있었는가
+4. 관찰된 아이의 학습 특성은 무엇인가
+5. 다음 성장 방향은 무엇인가
+
+이번 Step에서는 Growth Report Engine 수정 금지.
+
+다만 향후 snapshot의 curriculum_state에
+어떤 progress 필드를 전달해야 할지 설계할 것.
+
+예:
+- confirmed_progress_percent
+- confirmed_global_order
+- curriculum_total_count
+- current_curriculum_item_ids
+- recent_progress_delta
+- previous_report_progress_percent
+
+실제 Engine contract와 APP 구조를 보고
+필요 최소 필드를 제안.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+N. DB 설계 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 DB에서 반드시 최소 확인:
+
+- curriculum_versions
+- curriculum_items
+- growth_events
+- diary/student diary 관련 tables
+- student_levels 또는 현재 학생 level 관련
+- 기존 progress 관련 table/column 존재 여부
+- Growth Report storage 관련 table 존재 여부
+
+새 table이 필요하다면 설계만 제안.
+
+가능한 개념 예시:
+
+student_curriculum_progress
+- student_id
+- swimming_pool_id
+- curriculum_version_id
+- confirmed_global_order
+- confirmed_progress_percent
+- confirmed_at
+- updated_at
+
+curriculum_progress_observations
+- observation_id
+- student_id
+- swimming_pool_id
+- diary_id / lesson_id
+- curriculum_version_id
+- curriculum_item_id
+- observed_global_order
+- observed_at
+- evidence_type
+- mapping_confidence
+
+하지만 위 이름/구조를 그대로 강제하지 않는다.
+
+현재 DB와 가장 잘 맞고
+중복 저장/데이터 무결성 문제가 적은 구조를 설계할 것.
+
+특히:
+- 동일 diary 중복 observation 방지
+- idempotency
+- cross-pool isolation
+- curriculum version 변경
+- 학생 반 이동
+- teacher 변경
+- diary 수정/삭제 시 observation 처리
+
+까지 설계에 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+O. 기존 기능 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 영향 분석:
+
+- Teacher Diary 생성
+- Teacher Diary 수정
+- Parent diary/feed
+- Parent Curriculum search
+- X-mode curriculum
+- curriculum editor
+- student level
+- growth_events
+- Growth Report
+- parent home
+- auth/role
+- cross-pool tenant isolation
+- quota
+- notification
+
+특히 기존 production 완료된 Parent Curriculum 기능을
+진도 게이지 구현 때문에 다시 깨뜨리지 않도록
+추가 경로와 수정 경로를 명확하게 나눌 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+P. 구현 단계 분할안 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+한 번에 구현하지 말 것.
+
+현재 코드 확인 후
+최소 위험 순서로 implementation steps를 나눌 것.
+
+희망 구조 예:
+
+STEP-GAUGE-01
+DB/model + curriculum global ordering foundation
+
+STEP-GAUGE-02
+Diary → pool curriculum observation mapping
+
+STEP-GAUGE-03
+3-lesson confirmation engine
+
+STEP-GAUGE-04
+Parent home single gauge
+
+STEP-GAUGE-05
+Parent Curriculum student_progress integration
+
+STEP-GAUGE-06
+Growth Report curriculum progress integration
+
+STEP-GAUGE-07
+Growth Report duplicate home button cleanup/link
+
+단, 실제 repo 구조를 본 뒤
+더 안전한 순서가 있으면 수정 제안.
+
+각 Step마다:
+- exact files
+- exact functions/routes
+- DB impact
+- migration 필요 여부
+- production write 여부
+- tests
+- manual deploy 필요 여부
+
+를 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Q. 이번 Step 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로만 보고:
+
+[앱] CURRICULUM PROGRESS GAUGE DESIGN REPORT
+
+1. CURRENT ARCHITECTURE
+- parent home file/component
+- Teacher Diary save path
+- curriculum tables/services
+- progress/growth existing structures
+- Parent Curriculum student_progress path
+- Growth Report current APP structures
+- duplicate Growth Report buttons exact locations
+
+2. PROPOSED DATA MODEL
+- reused tables
+- new tables/columns if needed
+- unique/idempotency constraints
+- curriculum version strategy
+
+3. GLOBAL CURRICULUM ORDERING
+- exact ordering source
+- total count
+- percent calculation
+- curriculum edits/version handling
+
+4. DIARY → CURRICULUM MAPPING
+- insertion point
+- mapping method
+- pool-curriculum-only guarantee
+- Professional DB exclusion mechanism
+- edit/delete behavior
+
+5. 3-LESSON CONFIRMATION
+- exact algorithm
+- examples:
+  56/70/87 → 56
+  56/70/70/87 → 70
+  78/81/85 → 78
+- monotonic behavior
+- dedupe behavior
+
+6. PARENT HOME GAUGE
+- exact insertion location
+- component proposal
+- data endpoint/query
+- loading/empty state
+- no design disruption proof
+
+7. GROWTH REPORT BUTTON CLEANUP
+- original button
+- duplicate big horizontal button
+- exact removal target
+- preserved navigation target
+
+8. PARENT CURRICULUM INTEGRATION
+- how confirmed progress enters existing payload
+- files/functions affected
+- regression risk
+
+9. GROWTH REPORT INTEGRATION
+- curriculum progress fields
+- month-over-month delta
+- APP → Engine snapshot proposal
+
+10. SECURITY / TENANT ISOLATION
+- pool_id enforcement
+- student ownership
+- cross-pool protection
+
+11. IMPLEMENTATION STEPS
+- STEP-GAUGE-01 ...
+- exact scope for each step
+- files
+- tests
+- migration/deploy requirements
+
+12. RISKS / OPEN QUESTIONS
+Only actual unresolved issues requiring user decision.
+
+13. FINAL VERDICT
+READY FOR IMPLEMENTATION
+or
+BLOCKED + exact reason
+
+중요:
+이번 작업은 설계만.
+어떤 코드도 수정하지 말고 STOP.

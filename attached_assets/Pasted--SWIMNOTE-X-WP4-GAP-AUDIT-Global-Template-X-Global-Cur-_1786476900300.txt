@@ -1,0 +1,520 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP4 GAP AUDIT
+Global Template / X Global Curriculum Template
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목적:
+WP4를 처음부터 재구현하지 않는다.
+
+현재 이미 확인된 것:
+- global_template_sets Production 테이블 EXISTS
+- diary_templates.scope 관련 구조 EXISTS
+- diary-template-search.ts에 global 검색 로직 존재
+- XModeBadge 존재
+
+이번 WP4에서는
+"Global Template을 누가 만들고,
+어떻게 버전 관리하고,
+어떤 pool/X mode에 적용하며,
+AI Diary 검색이 실제 어떤 template set을 사용하는지"
+만 현재 Repository + Production 기준으로 검증한다.
+
+코드 수정 금지.
+DB write 금지.
+Commit/Push/Render/OTA 금지.
+
+조사 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production DB SOURCE 고정
+━━━━━━━━━━━━━━━━━━━━
+
+DB 검증은 반드시:
+
+SUPABASE_DATABASE_URL
+
+만 사용.
+
+보고서 첫 부분에:
+
+DB SOURCE:
+- env key
+- masked host
+- database name
+
+제출.
+
+executeSql production
+DATABASE_URL
+heliumdb
+Replit Neon
+
+사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. global_template_sets 실제 schema
+━━━━━━━━━━━━━━━━━━━━
+
+Production READ ONLY로
+global_template_sets 전체 schema 확인.
+
+제출:
+
+- id
+- name
+- version
+- status
+- is_active
+- created_by
+- published_at
+- created_at
+- updated_at
+- 기타 실제 컬럼
+
+PK / UNIQUE / INDEX / CHECK constraint도 확인.
+
+추측 금지.
+
+현재 row count와
+active/published 상태별 count도 제출.
+
+개별 민감 데이터는 불필요.
+
+━━━━━━━━━━━━━━━━━━━━
+3. diary_templates와 연결 구조
+━━━━━━━━━━━━━━━━━━━━
+
+Production schema + Repository 기준 확인:
+
+diary_templates에:
+
+- scope
+- global_template_set_id
+- swimming_pool_id
+- teacher_id
+- 기타 template ownership 관련 컬럼
+
+실제 존재 여부.
+
+scope 허용값을 DB constraint로 확인.
+
+특히:
+
+global
+teacher
+x_global
+
+등 현재 실제 enum/constraint를 제출.
+
+global_template_sets와
+diary_templates 사이 FK가 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 현재 Global Template 데이터 존재 여부
+━━━━━━━━━━━━━━━━━━━━
+
+Production READ ONLY:
+
+global_template_sets row count
+diary_templates scope별 count
+
+예:
+
+scope='global'
+scope='x_global'
+scope='teacher'
+
+각 count 제출.
+
+실제 X global template 데이터가 이미 존재하는지 확인.
+
+"테이블이 있다"와
+"실제 데이터가 있다"를 구분.
+
+━━━━━━━━━━━━━━━━━━━━
+5. Global Template 관리 SERVER route 전수 검색
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체 검색:
+
+global_template_sets
+global-template
+template-set
+x_global
+scope
+publish
+activate
+archive
+
+현재 존재하는:
+
+- create
+- update
+- list
+- detail
+- publish
+- activate
+- archive/delete
+
+API route를 전부 제출.
+
+각 route별:
+
+- method
+- URL
+- role
+- DB table
+- 실제 write 내용
+
+없으면 MISSING.
+
+━━━━━━━━━━━━━━━━━━━━
+6. super_admin 관리 기능 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Global Template은
+pool_admin이 임의로 만드는 구조인지,
+super_admin이 관리하는 중앙 템플릿인지
+현재 설계/코드 기준으로 확인.
+
+특히 super.ts 및 admin/super 관련 화면에서:
+
+- template set 생성
+- template 업로드
+- curriculum/template 승인
+- active version 선택
+
+기능 존재 여부 확인.
+
+파일명만 보고 판단 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. X pool과 Global Template 연결 구조
+━━━━━━━━━━━━━━━━━━━━
+
+핵심.
+
+X mode READY pool이
+어떤 global_template_set을 사용해야 하는지
+현재 DB/코드에서 확인.
+
+가능한 구조 예:
+
+A.
+모든 X pool이 현재 active global set 하나 공유
+
+B.
+pool별 global_template_set_id 지정
+
+C.
+curriculum_version이 global template set에서 복제됨
+
+D.
+그 외 구조
+
+실제 현재 구현을 코드/DB로 확정.
+
+추측 금지.
+
+특히 swimming_pools 또는
+curriculum_versions에
+template_set_id 관련 컬럼 있는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. WP3 curriculum request와 WP4 연결점 확인
+━━━━━━━━━━━━━━━━━━━━
+
+WP3에서:
+
+curriculum_requests
+result_version_id
+
+가 존재한다.
+
+WP4 Global Template과
+curriculum_versions 사이의 intended flow를
+현재 schema/코드로 확인.
+
+예상 가능한 흐름:
+
+global template
+→ pool curriculum version 생성
+→ curriculum_items 생성
+→ curriculum_request.result_version_id 연결
+→ READY
+
+하지만 코드 근거 없이 확정하지 않는다.
+
+현재 어떤 단계가 실제 구현됐는지 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+9. diary-template-search.ts 실제 검색 우선순위
+━━━━━━━━━━━━━━━━━━━━
+
+현재 AI Diary Template Search가
+어떤 순서로 template을 찾는지
+실제 코드 제출.
+
+확인:
+
+- normal mode
+- x_pending
+- x mode
+- scope='global'
+- scope='x_global'
+- teacher template
+- pool template
+
+검색 우선순위와 fallback 정확히 제출.
+
+특히 X mode에서
+global_template_sets의 "현재 활성 set"을
+실제로 참조하는지 확인.
+
+단순 scope='global' 검색만 하고
+template set version을 무시하는 구조인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+10. WP6 AI Diary V2와 연결 확인
+━━━━━━━━━━━━━━━━━━━━
+
+WP6를 수정하지 않는다.
+
+다만 현재 WP6 요청이
+어떤 template search 결과를 받아 사용하는지
+연결만 확인.
+
+확인:
+
+Teacher Diary V2
+→ template search
+→ selected template
+→ prompt
+
+에서:
+
+template_set_id
+template_id
+scope
+
+가 전달/추적되는지 확인.
+
+없다면 WP4 GAP으로 기록.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Version / Publish / Rollback 구조
+━━━━━━━━━━━━━━━━━━━━
+
+Global Template이 중앙 교육 기준이면
+버전 관리가 중요하다.
+
+현재 DB/코드에서:
+
+- draft
+- published
+- active
+- archived
+- version number
+- previous version
+
+구조 존재 여부 확인.
+
+특히 새 global set을 publish했을 때
+기존 X pool에 즉시 적용되는지,
+기존 curriculum version은 고정되는지
+현재 구조로 판단 가능한지 제출.
+
+판단 불가면 UNKNOWN.
+
+━━━━━━━━━━━━━━━━━━━━
+12. Production sample pool 연결 확인
+━━━━━━━━━━━━━━━━━━━━
+
+sample pool:
+
+pool_1784310621737_qryl1x79s
+
+SUPABASE_DATABASE_URL READ ONLY.
+
+확인:
+
+- xmode_entitlement
+- xmode_config_status
+- curriculum_versions count
+- active curriculum version
+- global template 연결
+- curriculum_items count
+
+현재 READY인데 curriculum 0개였던 상태와
+WP4 구조를 대조.
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. APP 관리 UI 확인
+━━━━━━━━━━━━━━━━━━━━
+
+앱에서 Global Template을
+관리하거나 확인하는 화면 존재 여부 조사.
+
+역할별:
+
+super_admin
+pool_admin
+teacher
+
+확인.
+
+Global Template 중앙 관리가
+모바일 앱이 아닌 서버/admin web 용도라면
+그 근거 제출.
+
+없는 UI를 억지로 만들 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+14. Global Template의 실제 목적 재확정
+━━━━━━━━━━━━━━━━━━━━
+
+현재 schema/코드 기준으로 WP4가 담당해야 할
+최소 기능을 정의.
+
+다음 중 실제 필요한 것을 구분:
+
+A. 중앙 template set CRUD
+B. template set publish/version
+C. template 항목 CRUD
+D. X pool curriculum 생성 시 template 복제
+E. AI diary search에서 active set 사용
+F. pool_admin 직접 template 편집
+G. 기타
+
+기존 설계 밖 기능을 새로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 테스트 존재 여부
+━━━━━━━━━━━━━━━━━━━━
+
+현재 WP4 관련 tests 검색.
+
+최소 확인 대상:
+
+- active global set 조회
+- draft set 제외
+- version 선택
+- x mode template search
+- normal mode regression
+- wrong pool leakage
+- archived set 제외
+
+현재 있는 것 / 없는 것 분리.
+
+새 테스트 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+16. GAP 분류
+━━━━━━━━━━━━━━━━━━━━
+
+다음 형식:
+
+A. DB completed
+B. DB missing
+C. Server completed
+D. Server missing
+E. App completed
+F. App missing
+G. AI search completed
+H. AI search gap
+I. Versioning gap
+J. Test gap
+
+각 항목 증거 포함.
+
+━━━━━━━━━━━━━━━━━━━━
+17. 최소 구현안
+━━━━━━━━━━━━━━━━━━━━
+
+실제 GAP만 기준으로 제안.
+
+제출:
+
+- 수정 파일
+- 신규 파일
+- 신규 API
+- DB migration 필요 여부
+- Production DB write 필요 여부
+- Render 필요 여부
+- OTA 필요 여부
+- Store build 필요 여부
+- super_admin UI 필요 여부
+
+아직 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+18. 저장/적용 증거 규칙
+━━━━━━━━━━━━━━━━━━━━
+
+WP4 구현 이후에는 반드시:
+
+CODE:
+Commit + origin Push + SHA
+
+DB:
+SUPABASE_DATABASE_URL read-back
+
+SERVER:
+Render Live SHA + API runtime
+
+APP:
+앱 변경이 있을 경우 OTA + 실기기
+
+까지 분리해서 검증.
+
+"코드 있음"만으로 DONE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+19. 보호 범위
+━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- WP1
+- WP2
+- WP3
+- RevenueCat
+- XModeGuard
+- ModeContext
+- WP6 AI Diary V2 로직
+- WP7 Growth Event
+- Diary 일반 기능
+- 보강
+- Parent Request
+- Instagram
+
+━━━━━━━━━━━━━━━━━━━━
+20. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB SOURCE
+2. global_template_sets schema
+3. global_template_sets 실제 데이터 count
+4. diary_templates 연결 schema
+5. scope 실제 허용값/count
+6. Global Template server routes
+7. super_admin 관리 경로
+8. X pool ↔ template set 연결 구조
+9. WP3 curriculum request ↔ WP4 연결 구조
+10. template search 우선순위
+11. WP6 연결 상태
+12. version/publish/rollback 구조
+13. sample pool 실제 연결 상태
+14. 앱 관리 UI 존재 여부
+15. WP4 실제 목적
+16. 현재 tests
+17. 정확한 GAP
+18. 최소 구현안
+19. DB migration 필요 여부
+20. Render/OTA/Build 필요 여부
+21. WP4 FINAL STATUS
+
+조사 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

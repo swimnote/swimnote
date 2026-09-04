@@ -1,0 +1,143 @@
+[STOP CURRENT FINAL RELEASE TASK — PRESERVE CURRENT PRODUCTION PRICING]
+
+지금 실행 중인
+[SWIMNOTE FINAL RELEASE — PRICE RESET + VIDEO FIX + BUILD/RELEASE]
+작업을 즉시 중단한다.
+
+중요:
+오늘 Android production 오픈이 최우선이므로
+가격/구독/X 결제구조 변경은 이번 release에서 전부 제외한다.
+
+==================================================
+1. 즉시 중단 대상
+==================================================
+
+아래 작업은 더 이상 진행하지 말 것:
+
+- FREE / SOLO / PREMIER 가격 변경
+- SOLO30/50/100 통합
+- PREMIER200 제거
+- subscription_plans 가격 수정
+- RevenueCat offering/product 변경
+- Apple IAP product 변경
+- Google Play product 변경
+- X 가격 변경
+- X SKU 변경
+- 기존 subscriber migration
+- promotion 가격정책 정리
+- upgrade/downgrade 가격로직 변경
+- hardcoded price string 변경
+
+현재 production 가격/상품구조를 그대로 유지한다.
+
+==================================================
+2. 이미 변경한 내용이 있다면
+==================================================
+
+먼저 현재 작업상태를 조사한다.
+
+아직 commit되지 않은 가격/구독 관련 변경:
+→ 전부 원복
+
+이미 commit했지만 production deploy 전:
+→ 해당 변경을 production에 배포하지 말고
+   가격 변경 전 stable commit 기준으로 되돌린다.
+
+이미 production DB를 수정했다면:
+→ 즉시 보고하고 임의 복구 금지.
+→ 어떤 table/row/column이 변경되었는지 정확히 보고.
+→ 데이터 손실 없이 rollback 계획부터 작성.
+
+이미 RevenueCat / Apple / Google Play Console을 변경했다면:
+→ 어떤 product/price/offering이 변경됐는지 정확히 보고.
+→ 추가 변경 금지.
+
+==================================================
+3. 유지 가능한 작업
+==================================================
+
+가격과 무관한 아래 VIDEO BUG FIX가
+이미 안전하게 완료되었고
+구독/가격 코드와 독립적이라면 유지 가능:
+
+- expired video row quota 제외
+- direct video delete 시 thumbnail R2 삭제
+
+단,
+아직 작업 전이거나 release를 늦춘다면
+이번 빌드에서는 제외해도 된다.
+
+오늘 목표는 신규 기능이 아니라 안정된 앱 출시다.
+
+==================================================
+4. 오늘 release scope
+==================================================
+
+오늘 작업은 아래만 진행한다:
+
+A. 현재 production 가격/구독구조 유지
+
+B. 슈퍼관리자 홈 UI 마지막 수정
+- 상단의 기능 없는 "더보기" 제거
+- 동일 위치에 "로그아웃" 버튼 복구
+- 기존 logout/auth cleanup 로직 재사용
+- 뒤로가기로 로그인된 화면 재진입 불가
+- 다른 UI 수정 금지
+
+C. 기존 앱 핵심 regression
+
+D. Android versionCode 증가
+
+E. production Android AAB build
+
+F. Google Play Console 업로드 준비
+
+==================================================
+5. 다음 버전으로 보류
+==================================================
+
+아래 항목은 전부 다음 release에서 처리:
+
+- 새 가격정책
+- SOLO100 4,900
+- PREMIER300 11,900
+- PREMIER500 19,900
+- PREMIER1000 29,900
+- X 90k / 150k / 300k 자동결정
+- X 가입일/갱신일 표시
+- 기본구독/X 별도 결제일
+- X 해지 정책
+- X 데이터삭제
+- 휴대폰 본인인증
+- 약관 재동의
+- 프로모션
+
+==================================================
+6. 지금 즉시 보고
+==================================================
+
+먼저 어떤 변경까지 실행됐는지 보고한다.
+
+CURRENT TASK STATUS
+
+PRICE CODE CHANGED =
+SUBSCRIPTION DB CHANGED =
+PRODUCTION DB CHANGED =
+REVENUECAT CHANGED =
+APPLE IAP CHANGED =
+GOOGLE PLAY CHANGED =
+X BILLING CHANGED =
+VIDEO BUG FIX #1 =
+VIDEO BUG FIX #2 =
+COMMIT CREATED =
+RENDER DEPLOYED =
+BUILD STARTED =
+
+그리고
+
+SAFE TO CONTINUE CURRENT PRODUCTION RELEASE =
+YES / NO
+
+정확한 상태를 보고한 뒤,
+가격 관련 변경이 모두 제거된 stable 상태에서만
+슈퍼관리자 로그아웃 수정 + Android build로 진행한다.

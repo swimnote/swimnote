@@ -1,0 +1,138 @@
+[SWIMNOTE 긴급 오류 수정 — STEP 2 코드 수정 승인]
+
+STEP 1 최종 정정본 승인.
+
+아래 두 사항을 반영해서 STEP 2 코드 수정만 진행한다.
+
+1. today-schedule API 경로 구분
+
+전체 반 목록:
+GET /class-groups
+
+특정 반의 날짜별 학생명단:
+GET /class-groups/:classGroupId/students?date=YYYY-MM-DD
+
+최종 문서에 적힌 `/class-groups/?date=오늘` 표기는 오기이므로 사용 금지.
+
+2. effective_date 검증
+
+클라이언트가 effective_date를 전달하는 경우:
+- YYYY-MM-DD 형식 검증
+- 유효한 실제 날짜인지 검증
+- 오류면 HTTP 400 INVALID_EFFECTIVE_DATE
+- 값이 없을 때만 kstTodayStr() 사용
+
+잘못된 날짜를 KST 오늘로 자동 대체하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+승인된 수정 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버:
+- artifacts/api-server/src/utils/historyUtils.ts 신규
+- artifacts/api-server/src/routes/students.ts
+- artifacts/api-server/src/routes/admin.ts
+
+클라이언트:
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/swim-app/app/(teacher)/my-schedule.tsx
+- artifacts/swim-app/app/(teacher)/today-schedule.tsx
+
+━━━━━━━━━━━━━━━━━━━━━━
+서버 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. closeAllActiveClassHistory()
+2. closeClassHistory()
+3. kstTodayStr()
+4. effective_date 검증 함수
+5. students.ts change-status immediate
+6. students.ts remove-from-class + new_status
+7. students.ts remove-from-class 날짜 fallback KST 전환
+8. admin.ts PATCH /students/:id/status
+9. admin.ts POST /students/:id/withdraw
+
+전체 반 이탈 상태:
+- suspended
+- withdrawn
+- archived
+- unassigned
+
+처리:
+- 모든 left_at IS NULL history 종료
+- class_group_id=NULL
+- assigned_class_ids=[]
+- schedule_labels=NULL
+- 상태 변경
+- 동일 transaction
+
+반 유지 상태:
+- inactive
+- pending
+- active
+
+처리:
+- history 종료 금지
+- 현재 반 배정값 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+클라이언트 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+ClassDetailSheet:
+- historical/current 분리
+- historical 로딩 중 current fallback 금지
+- classGroups loading/loaded/error 분리
+- 조회 실패와 타 반 0개 상태 구분
+- 재시도 UI
+
+my-schedule:
+- 날짜 선택 시 historical
+- 날짜 미선택 시 current
+- 기존 전체 반 목록 사용
+
+today-schedule:
+- GET /class-groups로 전체 담당 반 조회
+- sortedItems fallback 금지
+- GET /class-groups/:id/students?date=오늘 날짜로 명단 조회
+- request sequence ID로 오래된 응답 차단
+- 반 전환 즉시 이전 학생명단 초기화
+
+━━━━━━━━━━━━━━━━━━━━━━
+수정 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- responder 구조
+- onStartShouldSetResponder
+- my-schedule 반이동 버튼 로직
+- 운영 데이터 소급 보정
+- 로그 시스템 리팩터링
+- X모드 코드
+- Migration
+
+━━━━━━━━━━━━━━━━━━━━━━
+구현 후 제출하고 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 수정 파일
+2. 함수별 변경 내용
+3. 전체 git diff
+4. 서버 타입체크 결과
+5. 앱 타입체크 결과
+6. effective_date 검증 테스트
+7. 상태별 UPDATE 결과
+8. transaction 적용 확인
+9. today-schedule API 경로 확인
+10. 일반모드 영향 분석
+11. 미구현·미검증 항목
+12. Rollback 방법
+
+현재 승인 범위는 코드 수정과 로컬 타입체크까지다.
+
+금지:
+- Commit
+- Push
+- Render 배포
+- OTA
+- 운영 DB 수정
+- X모드 작업 재개

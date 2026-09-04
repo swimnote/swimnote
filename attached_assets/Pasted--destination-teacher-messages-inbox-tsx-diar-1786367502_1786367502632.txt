@@ -1,0 +1,303 @@
+[수정 승인 — 선생님 소식알림 좋아요 클릭 destination 수정]
+
+조사 완료.
+
+현재 오류:
+
+teacher/messages-inbox.tsx에서
+
+diary_comment
+→ /(teacher)/diary-reactions
+
+는 정상.
+
+하지만 diary_like는 일반 else 분기에 들어가:
+
+/(teacher)/diary
++ editDiaryId
+
+로 이동하기 때문에
+좋아요 알림을 누르면 "일지 수정" 화면이 열린다.
+
+이번 수정 목적:
+
+좋아요 알림 클릭
+→ 해당 일지의 학부모 반응/댓글 확인 화면
+→ /(teacher)/diary-reactions
+
+로 이동하도록 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+artifacts/swim-app/app/(teacher)/messages-inbox.tsx
+
+1개 파일만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 라우팅 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+notification type별 destination을 명시적으로 처리한다.
+
+diary_comment:
+→ 기존 그대로 유지
+
+diary_like:
+→ diary-reactions로 변경
+
+중요:
+
+단순히 현재 else 전체를
+diary-reactions로 바꾸지 않는다.
+
+notification type이 앞으로 추가되거나
+다른 기존 type이 존재할 수 있으므로
+diary_like를 명시적으로 분기한다.
+
+예상 구조:
+
+if (item.type === "diary_comment") {
+
+  router.push({
+    pathname: "/(teacher)/diary-reactions",
+    params: {
+      diaryId: item.ref_id,
+      lessonDate: item.lesson_date ?? "",
+      source: "news_inbox",
+    },
+  });
+
+} else if (item.type === "diary_like") {
+
+  router.push({
+    pathname: "/(teacher)/diary-reactions",
+    params: {
+      diaryId: item.ref_id,
+      lessonDate: item.lesson_date ?? "",
+      source: "news_inbox",
+    },
+  });
+
+} else {
+
+  // 기존 다른 notification type의 routing 정책 보호
+  // 현재 코드 조사 후 기존 동작 유지
+
+}
+
+가능하면 diary_comment + diary_like를
+동일 destination 조건으로 묶어도 됨:
+
+if (
+  item.type === "diary_comment" ||
+  item.type === "diary_like"
+) {
+   ...
+}
+
+단 실제 기존 notification type 전체를 확인한 뒤
+다른 type의 destination은 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. diary_thanks 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정책상 신규 diary_thanks notification은
+서버에서 생성 차단된 상태다.
+
+과거 historical diary_thanks notification은
+DB에 남아 있을 수 있다.
+
+따라서 기존 diary_thanks 데이터를 삭제하지 않는다.
+
+과거 diary_thanks 알림을 클릭했을 때도
+기존 일지 수정 화면으로 잘못 들어가는 문제가 있으므로,
+
+historical compatibility 차원에서:
+
+diary_thanks
+→ /(teacher)/diary-reactions
+
+로 보내는 것이 안전한지
+현재 notification type 구조를 확인한다.
+
+안전하다고 확인되면:
+
+diary_comment
+diary_like
+diary_thanks
+
+3개만 diary-reactions로 묶는다.
+
+이것은 thanks 기능을 다시 활성화하는 것이 아니다.
+
+- 신규 thanks 생성 금지 유지
+- thanks UI 제거 유지
+- thanks 알림 설정 제거 유지
+- 과거 notification 클릭 destination만 정상화
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 전달 params
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 diary_comment에서 이미 검증된 것과 동일하게:
+
+diaryId: item.ref_id
+lessonDate: item.lesson_date ?? ""
+source: "news_inbox"
+
+사용.
+
+새 parameter 만들지 않는다.
+
+deep_link 구조 새로 도입하지 않는다.
+
+Server routing 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 읽음 처리 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+알림 클릭 시 현재 수행되는
+읽음 처리 로직은 절대 변경하지 않는다.
+
+순서도 기존 정책 유지:
+
+알림 클릭
+→ 읽음 처리
+→ destination 이동
+
+이번 수정은 destination만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. diary-reactions 화면 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+app/(teacher)/diary-reactions.tsx
+
+수정 금지.
+
+이미 diary_comment notification에서
+정상 사용 중인 화면이므로 그대로 재사용한다.
+
+새 화면 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 일지 수정 기능 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+app/(teacher)/diary.tsx
+
+수정 금지.
+
+editDiaryId 로직도 삭제하지 않는다.
+
+선생님이 정상적인 경로에서
+기존 일지를 수정하는 기능은 그대로 유지한다.
+
+이번 문제는 messages-inbox의
+notification destination만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CASE 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+
+신규 좋아요 알림 클릭
+
+→ 읽음 처리
+→ /(teacher)/diary-reactions
+→ 해당 diaryId 정상 로드
+→ 일지 수정 화면으로 들어가지 않음
+
+CASE 2
+
+댓글 알림 클릭
+
+→ 기존과 동일하게 diary-reactions
+→ 회귀 없음
+
+CASE 3
+
+과거 diary_thanks 알림이 존재할 경우
+
+→ 신규 thanks 기능을 활성화하지 않음
+→ 클릭 destination만 diary-reactions로 정상 처리
+  (코드 구조상 안전한 경우)
+
+CASE 4
+
+다른 notification type
+
+→ 기존 destination 그대로 유지
+
+CASE 5
+
+ref_id 없는 notification
+
+→ 기존 동작 유지
+→ crash 없음
+
+CASE 6
+
+좋아요 알림의 lesson_date가 null
+
+→ lessonDate: ""
+→ 기존 diary-reactions 처리 방식 유지
+
+CASE 7
+
+diary-reactions에서 뒤로가기
+
+→ source="news_inbox" 기준
+→ 기존 소식알림 복귀 동작 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Server
+- DB
+- reaction API
+- like 생성
+- like toggle
+- teacher notification 생성
+- thanks 차단 정책
+- notification preference
+- diary-reactions 화면
+- diary 수정 화면
+- Instagram Story
+- 보강 기능
+- Native config
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. 수정 전 diary_like destination
+3. 수정 후 diary_like destination
+4. diary_comment destination 유지 여부
+5. historical diary_thanks 처리 결과
+6. 다른 notification type 보호 여부
+7. 읽음 처리 변경 여부
+8. 전달 params
+9. diary-reactions 수정 여부
+10. diary.tsx 수정 여부
+11. TypeCheck
+12. Server 변경 여부
+13. DB 변경 여부
+14. Native 변경 여부
+15. OTA 가능 여부
+16. commit SHA
+
+구현 + commit까지만 진행.
+
+OTA / Render / Native Build / DB 변경은
+별도 승인 전 금지.
+
+특히 이번 수정과 관계없는 notification routing을
+임의로 정리하거나 리팩터링하지 않는다.

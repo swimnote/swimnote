@@ -1,0 +1,343 @@
+[앱]
+
+Growth Report 제품 정책 최종 확정.
+
+이번 Step에서는 미래 유료 리포트를 개발하지 않는다.
+유료 리포트 확장 방향만 구조적으로 충돌하지 않도록 유지하고,
+MONTHLY_FREE 성장전략리포트를 Production 서비스 형태로 완성한다.
+
+==================================================
+A. PRODUCT TYPE
+==================================================
+
+현재 구현 대상:
+
+MONTHLY_FREE
+
+미래 확장 예약:
+
+DEEP_PAID
+
+DEEP_PAID는 이번 Step에서
+결제 / 생성 / UI / AI contract 구현 금지.
+
+단,
+MONTHLY_FREE 구조를 향후 DEEP_PAID 추가가 어려운 형태로
+하드코딩하지 말 것.
+
+DEEP_PAID 향후 방향:
+- 전체 누적자료 기반 심층 분석
+- 재원 중 언제든 구매 가능
+- 퇴원/이동 시 구매 가능
+- 다른 수영장에 제출 가능한 종합 성장/지도 인계 리포트
+- 기존 Growth Report AI infrastructure 최대한 재사용
+
+==================================================
+B. MONTHLY_FREE 최종 정책
+==================================================
+
+제품 개념:
+
+"매월 5일, 지난달 성장전략리포트가
+학부모 피드에 자동으로 도착한다."
+
+학부모:
+- 생성 버튼 없음
+- 발급 신청 없음
+- 발급기간 없음
+
+SWIMNOTE 서버:
+- 자동 생성
+- 자동 검증
+- 자동 발급
+- 자동 feed delivery
+- 자동 push
+
+==================================================
+C. REPORT PERIOD
+==================================================
+
+항상 previous month.
+
+예:
+2026-09-05 발급
+→ report_period = 2026-08
+
+데이터 범위:
+2026-08-01 00:00:00 KST
+~
+2026-08-31 23:59:59 KST
+
+필수:
+- report_period = previous month
+- period_start = previous month first day
+- period_end = previous month last day
+- analysis_cutoff_at = previous month end
+- current month data 혼입 금지
+- 월 경계 계산 KST 고정
+
+기존 current-month / 25일 cutoff 정책 제거.
+
+==================================================
+D. MONTHLY TIMELINE
+==================================================
+
+매월 1~4일:
+- cycle ensure
+- report ensure
+- snapshot
+- AI analysis
+- validation
+- DB persist
+- publish 준비
+
+매월 5일:
+발급 가능한 report만 자동 publish.
+
+==================================================
+E. DELIVERY ELIGIBILITY
+==================================================
+
+5일 발급 시점의 학생 lifecycle 상태를 source of truth로 사용.
+
+발급 가능:
+- 정상 재원/활성 학생
+
+발급 제외:
+- 연기
+- 휴회
+- 퇴원
+
+추가 중요 조건:
+
+퇴원 상태인데 다음달 보강수업 일정이 남아 있어도
+MONTHLY_FREE 발급 대상이 아니다.
+
+scheduled lesson / make-up lesson 존재를
+재원 판단 근거로 사용하지 말 것.
+
+우선순위:
+student/member lifecycle status
+>
+scheduled lesson existence
+
+예:
+WITHDRAWN + make-up lesson 있음
+→ 미발급
+
+==================================================
+F. DELIVERY FAIL BEHAVIOR
+==================================================
+
+발급 제외 학생은:
+- publish 금지
+- Growth Report feed item 생성 금지
+- push notification 금지
+
+이미 과거에 발급된 리포트는
+퇴원/휴회/연기로 인해 삭제하지 않는다.
+
+==================================================
+G. LATEST / HISTORY
+==================================================
+
+각 월 report는 별도 record로 계속 보존.
+
+overwrite/delete 금지.
+
+Parent 기본 표시:
+latest PUBLISHED MONTHLY_FREE report.
+
+새 report가 아직 공개되지 않았으면
+기존 latest published report 계속 표시.
+
+새 report 생성/검증 실패 시
+기존 정상 report를 덮어쓰지 않는다.
+
+==================================================
+H. PARENT FEED DELIVERY
+==================================================
+
+5일 publish 성공 시
+해당 학생 학부모 feed에
+Growth Report feed item 자동 생성.
+
+feed item:
+- Growth Report type 구분
+- report_id 연결
+- click → 해당 report 상세 화면
+
+Diary와 동일 feed stream 안에서 자연스럽게 노출.
+
+매월 새로운 feed item 추가.
+과거 feed item 유지.
+
+==================================================
+I. PUSH
+==================================================
+
+publish + feed item 생성 성공 후
+학부모 push notification 발송.
+
+title:
+"지난달 성장리포트가 도착했습니다"
+
+body:
+"지난 한 달 동안의 성장 모습을 확인해보세요."
+
+tap:
+해당 report 상세 deep-link.
+
+동일 report push 중복 금지.
+
+==================================================
+J. IDEMPOTENCY
+==================================================
+
+반드시 idempotent:
+
+- cycle create
+- report create
+- analysis
+- publish
+- feed item
+- notification dispatch
+
+scheduler/retry/restart가 발생해도
+동일 student + report_period에 중복 결과 금지.
+
+same report_id:
+- publish 최대 1
+- feed item 최대 1
+- notification 최대 1
+
+==================================================
+K. PUBLICATION SAFETY
+==================================================
+
+날짜가 5일이라는 이유만으로 publish 금지.
+
+기존 validation/review 정책을 보존.
+
+최종 공개 가능한 report만 publish.
+
+최소 검증:
+- analysis COMPLETE
+- report_content 존재
+- grounding 허용 상태
+- growth_framing 허용 상태
+- publish 가능한 product state
+
+REVIEW_REQUIRED 정책을 어떻게 자동 발급과 연결할지는
+현재 state machine을 확인해서 명시적으로 설계.
+
+임의로 human review gate 삭제 금지.
+
+==================================================
+L. UI 정책
+==================================================
+
+Parent 역할은 "받아서 본다."
+
+다음 UI 제거 대상 확인:
+- 리포트 생성
+- 발급 신청
+- 생성 가능 기간
+- 발급 기간
+
+Growth Report는 월간 자동 콘텐츠.
+
+==================================================
+M. FREE / X 분리 유지
+==================================================
+
+FREE Growth Report eligibility와
+X CONFIG READY는 별도.
+
+Legacy X center도
+FREE eligibility를 충족하면 대상.
+
+strict X onboarding readiness를
+MONTHLY_FREE 발급 gate에 다시 연결 금지.
+
+==================================================
+N. CURRENT PRODUCTION SAFETY
+==================================================
+
+검증된 report:
+gr_fe41fb43e105462a86a2eee2bdc4abf0
+
+보존.
+
+현재 다른 253 OPEN reports:
+자동 분석 금지.
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false 유지.
+
+Production DB 직접 status patch 금지.
+startup migration 금지.
+
+==================================================
+O. WORKFLOW
+==================================================
+
+먼저 관련 부분만 최소 read-only 조사:
+
+- scheduler
+- cycle/report period
+- snapshot date range
+- analysis worker
+- state transition/publication
+- student lifecycle status source of truth
+- parent latest/history query
+- feed service/schema
+- push service
+- deep-link
+- 기존 generate/발급기간 UI
+
+repo 전체 audit 금지.
+
+구조 변경이 migration 없이 가능한 범위면
+MONTHLY_FREE 최종 정책을 한 번에 구현.
+
+DB migration 또는 예상 밖의 대규모 변경이 필요하면
+수정 전에 STOP 후 보고.
+
+==================================================
+P. MINIMUM TESTS
+==================================================
+
+1. 2026-09 실행 → report_period 2026-08
+2. 8/1~8/31 KST만 snapshot 포함
+3. ACTIVE → 9/5 발급 가능
+4. 연기 → 미발급
+5. 휴회 → 미발급
+6. 퇴원 → 미발급
+7. 퇴원 + 보강 일정 있음 → 미발급
+8. 새 report 미완성 → 기존 latest 유지
+9. 동일 publish 재실행 → feed 중복 없음
+10. 동일 publish 재실행 → push 중복 없음
+11. feed click → 정확한 report detail
+12. 다른 253건 AI call = 0
+13. AUTO_ENABLED=false 유지
+
+==================================================
+Q. COMPLETION REPORT
+==================================================
+
+보고:
+- SHA
+- 변경 파일/함수
+- 최종 월간 timeline
+- previous-month 계산 방식
+- lifecycle 상태 source of truth
+- delivery eligibility
+- publish 조건
+- feed/push idempotency
+- latest/history 동작
+- 제거된 generate/발급기간 UI
+- DB migration 여부
+- 테스트 결과
+- 253 OPEN reports 영향 여부
+
+완료 후 STOP.

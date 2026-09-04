@@ -1,4 +1,4 @@
-import { ChevronRight, ClipboardList, Mail, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,16 +31,31 @@ type ListItem =
   | { kind: "message"; data: UnreadMessage }
   | { kind: "request"; data: ParentRequest };
 
+interface NewsNotification {
+  id: string; type: string; title: string; body: string;
+  ref_id: string | null; is_read: boolean; created_at: string;
+  lesson_date?: string | null;
+}
+
+const NEWS_TYPES = new Set(["diary_like", "diary_thanks", "diary_comment", "growth_report_like", "growth_report_comment"]);
+
+function newsIcon(type: string): { name: string; color: string } {
+  if (type === "diary_like" || type === "growth_report_like") return { name: "heart", color: "#EF4444" };
+  if (type === "diary_thanks") return { name: "star", color: "#F59E0B" };
+  return { name: "message-circle", color: "#10B981" };
+}
+
 export default function UnreadMessagesModal({
-  visible, token, themeColor, onClose, onOpenDiary, onMessagesRead,
+  visible, token, themeColor, onClose, onOpenDiary, onMessagesRead, onNewsRead,
 }: {
   visible: boolean; token: string | null; themeColor: string;
   onClose: () => void; onOpenDiary: (diaryId: string) => void;
-  onMessagesRead?: () => void;
+  onMessagesRead?: () => void; onNewsRead?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [newsItems, setNewsItems] = useState<NewsNotification[]>([]);
 
   useEffect(() => {
     if (!visible) return;
@@ -48,10 +63,14 @@ export default function UnreadMessagesModal({
 
     Promise.all([
       apiRequest(token, "/teacher/messages?unread=true").then(r => r.ok ? r.json() : []),
-      apiRequest(token, "/teacher/parent-requests").then(r => r.ok ? r.json() : []),
-    ]).then(([msgs, reqs]: [UnreadMessage[], ParentRequest[]]) => {
-      const msgItems: ListItem[] = msgs.map(m => ({ kind: "message", data: m }));
-      const pendingReqs = (reqs as ParentRequest[]).filter(r => r.status === "pending");
+      apiRequest(token, "/teacher/parent-requests").then(r => {
+        if (!r.ok) return [];
+        return r.json().then((j: any) => Array.isArray(j) ? j : (j.data ?? []));
+      }),
+      apiRequest(token, "/teacher/news").then(r => r.ok ? r.json() : { news: [] }),
+    ]).then(([msgs, reqs, newsResp]: [UnreadMessage[], ParentRequest[], any]) => {
+      const msgItems: ListItem[] = (Array.isArray(msgs) ? msgs : []).map(m => ({ kind: "message", data: m }));
+      const pendingReqs = (Array.isArray(reqs) ? reqs : []).filter(r => r.status === "pending");
       const reqItems: ListItem[] = pendingReqs.map(r => ({ kind: "request", data: r }));
 
       const merged = [
@@ -61,6 +80,14 @@ export default function UnreadMessagesModal({
 
       setItems(merged);
 
+      // 소식: unread만 최신순 최대 3건
+      const allNews: NewsNotification[] = Array.isArray(newsResp?.news) ? newsResp.news : [];
+      const unreadNews = allNews
+        .filter(n => NEWS_TYPES.has(n.type) && !n.is_read)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 3);
+      setNewsItems(unreadNews);
+
       if (msgs.length > 0) {
         apiRequest(token, "/teacher/messages/read-all", { method: "POST" })
           .then(() => onMessagesRead?.())
@@ -68,11 +95,13 @@ export default function UnreadMessagesModal({
       } else {
         onMessagesRead?.();
       }
-    }).catch(() => setItems([])).finally(() => setLoading(false));
+    }).catch(() => { setItems([]); setNewsItems([]); }).finally(() => setLoading(false));
   }, [visible]);
 
-  function fmtDate(s: string) {
+  function fmtDate(s: string | null | undefined): string {
+    if (!s) return "";
     const d = new Date(s);
+    if (isNaN(d.getTime())) return "";
     return `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
   }
 
@@ -91,7 +120,7 @@ export default function UnreadMessagesModal({
             </View>
           )}
           <Pressable onPress={onClose} style={um.closeBtn}>
-            <X size={18} color={C.textSecondary} />
+            <LucideIcon name="x" size={18} color={C.textSecondary} />
           </Pressable>
         </View>
 
@@ -99,22 +128,24 @@ export default function UnreadMessagesModal({
           <ActivityIndicator color={themeColor} style={{ marginTop: 30 }} />
         ) : items.length === 0 ? (
           <View style={um.empty}>
-            <Mail size={36} color={C.textMuted} />
+            <LucideIcon name="mail" size={36} color={C.textMuted} />
             <Text style={[um.emptyTxt, { color: C.textMuted }]}>새 쪽지 · 요청이 없습니다</Text>
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {items.map((item, idx) => {
+            {items.map((item, _idx) => {
               if (item.kind === "message") {
                 const msg = item.data;
                 return (
                   <Pressable key={`msg-${msg.id}`} style={[um.item, { borderBottomColor: C.border }]}
                     onPress={() => {
                       onClose();
-                      router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
+                      requestAnimationFrame(() => {
+                        router.push(`/(teacher)/messages-inbox?diaryId=${msg.diary_id}` as any);
+                      });
                     }}>
                     <View style={[um.iconBox, { backgroundColor: themeColor + "18" }]}>
-                      <Mail size={16} color={themeColor} />
+                      <LucideIcon name="mail" size={16} color={themeColor} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={um.rowBetween}>
@@ -124,7 +155,7 @@ export default function UnreadMessagesModal({
                       <Text style={[um.itemContent, { color: C.textSecondary }]} numberOfLines={1}>{msg.content}</Text>
                       <Text style={[um.itemMeta, { color: C.textMuted }]}>{msg.class_name}</Text>
                     </View>
-                    <ChevronRight size={16} color={C.textMuted} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>
                 );
               } else {
@@ -135,10 +166,15 @@ export default function UnreadMessagesModal({
                   <Pressable key={`req-${req.id}`} style={[um.item, { borderBottomColor: C.border }]}
                     onPress={() => {
                       onClose();
-                      router.push(`/(teacher)/messages-inbox?tab=requests` as any);
+                      requestAnimationFrame(() => {
+                        router.push({
+                          pathname: "/(teacher)/messages-inbox",
+                          params: { tab: "requests", requestId: req.id },
+                        } as any);
+                      });
                     }}>
                     <View style={[um.iconBox, { backgroundColor: typeColor + "18" }]}>
-                      <ClipboardList size={16} color={typeColor} />
+                      <LucideIcon name="clipboard-list" size={16} color={typeColor} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={um.rowBetween}>
@@ -154,12 +190,70 @@ export default function UnreadMessagesModal({
                         {req.parent_name} · {req.content ?? "내용 없음"}
                       </Text>
                     </View>
-                    <ChevronRight size={16} color={C.textMuted} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                   </Pressable>
                 );
               }
             })}
           </ScrollView>
+        )}
+
+        {/* 새 소식 영역 */}
+        {!loading && newsItems.length > 0 && (
+          <View style={um.newsSection}>
+            <Text style={[um.newsSectionTitle, { color: C.textSecondary }]}>새 소식</Text>
+            {newsItems.map(n => {
+              const ic = newsIcon(n.type);
+              return (
+                <Pressable key={`news-${n.id}`} style={[um.newsRow, { borderBottomColor: C.border }]}
+                  onPress={() => {
+                    // 해당 알림만 읽음 처리
+                    setNewsItems(prev => prev.filter(x => x.id !== n.id));
+                    apiRequest(token, `/notifications/${n.id}/read`, { method: "POST" })
+                      .then(() => onNewsRead?.())
+                      .catch(() => {});
+                    onClose();
+                    requestAnimationFrame(() => {
+                      if (n.type === "growth_report_like" || n.type === "growth_report_comment") {
+                        router.navigate({
+                          pathname: "/(teacher)/growth-report-reactions",
+                          params: { reportId: n.ref_id ?? "", source: "news_inbox" },
+                        } as any);
+                      } else {
+                        router.navigate({
+                          pathname: "/(teacher)/diary-reactions",
+                          params: { diaryId: n.ref_id ?? "", lessonDate: n.lesson_date ?? "", source: "news_inbox" },
+                        } as any);
+                      }
+                    });
+                  }}>
+                  <View style={[um.newsIconBox, { backgroundColor: ic.color + "18" }]}>
+                    <LucideIcon name={ic.name as any} size={14} color={ic.color} />
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={[um.newsTitle, { color: C.text }]} numberOfLines={1}>{n.title}</Text>
+                    <Text style={[um.newsBody, { color: C.textSecondary }]} numberOfLines={1}>{n.body}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* 알림함 전체보기 — 항상 표시 */}
+        {!loading && (
+          <Pressable
+            style={um.inboxBtn}
+            onPress={() => {
+              onClose();
+              requestAnimationFrame(() => {
+                router.push("/(teacher)/messages-inbox" as any);
+              });
+            }}
+          >
+            <LucideIcon name="inbox" size={15} color={C.text} />
+            <Text style={[um.inboxBtnTxt, { color: C.text }]}>알림함 전체보기</Text>
+          </Pressable>
         )}
       </View>
     </Modal>
@@ -174,7 +268,7 @@ const um = StyleSheet.create({
   title:      { fontSize: 17, fontFamily: "Pretendard-Regular", flex: 1 },
   countBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   countTxt:   { color: "#fff", fontSize: 12, fontFamily: "Pretendard-Regular" },
-  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  closeBtn:   { width: 32, height: 32, borderRadius: 10, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
   empty:      { alignItems: "center", gap: 10, paddingVertical: 40 },
   emptyTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular" },
   item:       { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
@@ -185,4 +279,12 @@ const um = StyleSheet.create({
   itemMeta:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   typeBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   typeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  inboxBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: 20, marginTop: 8, marginBottom: 4, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: "#F9FAFB" },
+  inboxBtnTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "600" },
+  newsSection:      { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 8 },
+  newsSectionTitle: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#6B7280", paddingHorizontal: 20, paddingBottom: 4 },
+  newsRow:          { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+  newsIconBox:      { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  newsTitle:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  newsBody:         { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });

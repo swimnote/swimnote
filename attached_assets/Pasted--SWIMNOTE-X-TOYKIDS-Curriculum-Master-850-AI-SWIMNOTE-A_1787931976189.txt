@@ -1,0 +1,238 @@
+[SWIMNOTE X — TOYKIDS Curriculum Master 850 AI 연동 구조 조사]
+
+이번 작업은 코드 수정 작업이 아닙니다.
+먼저 현재 SWIMNOTE APP / API / AI ENGINE Repository 기준으로
+토이키즈 통합 커리큘럼 850개를 AI와 가장 잘 연동하기 위한
+실제 저장·검색·연결 구조를 조사하고 설계 보고만 하십시오.
+
+첨부/기준 자료:
+- 토이키즈 기본 커리큘럼 350개
+- SWIMNOTE 어린이 드릴 생성 헌법
+- 토이키즈 마스터즈 확장 커리큘럼 500개
+- 통합 Curriculum Master 850개
+
+목표:
+이 850개 MASTER를 하나의 Curriculum Master로 사용하면서
+
+1. AI 일지
+2. AI 성장리포트
+3. 수업 진행 게이지
+4. AI 커리큘럼 검색
+
+네 기능이 같은 원천 데이터를 공유하도록 설계합니다.
+
+중요:
+- 850개 Word 문서를 그대로 DB에 넣는 방식으로 결정하지 마십시오.
+- 실제 Repository 구조를 먼저 조사하십시오.
+- 기존 데이터 모델을 최대한 재사용하십시오.
+- 기존 diary_templates를 X Curriculum의 source of truth로 만들지 마십시오.
+- Curriculum Master와 Drill은 개념적으로 분리하되 관계로 연결하십시오.
+- 현재 Production 동작을 깨뜨리는 변경안을 만들지 마십시오.
+- 코드 수정/DB migration/배포 금지.
+- 조사와 설계 보고만 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Curriculum 관련 구조 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래를 실제 코드 기준으로 조사하십시오.
+
+APP/API:
+- curriculum 관련 테이블 전체
+- curriculum version 관련 구조
+- pool별 curriculum assignment 구조
+- swimming_pool_levels 구조
+- diary_templates와 curriculum의 현재 관계
+- parent curriculum search route
+- teacher/admin curriculum route
+- growth report에서 curriculum context를 읽는 위치
+- progress/growth event 관련 테이블
+
+AI ENGINE:
+- curriculum search가 현재 존재하는지
+- knowledge/template search와 curriculum의 관계
+- 검색 단위
+- embedding/vector search 여부
+- keyword/FTS 여부
+- metadata filter 구조
+- tenant/pool 구분 방식
+- AI Diary가 curriculum context를 받는 방식
+- Growth Report가 curriculum context를 받는 방식
+
+각 항목마다:
+- 파일 경로
+- 테이블명
+- 함수명
+- route
+- 현재 contract
+를 명시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 850개 MASTER 분석
+━━━━━━━━━━━━━━━━━━━━━━
+
+850개 데이터를 아래 개념으로 분리할 필요가 있는지 검토하십시오.
+
+A. Curriculum Node
+- 무엇을 배우는가
+- level
+- stage
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- sequence
+- goal
+
+B. Teaching / Coaching Metadata
+- movement_sequence
+- rhythm
+- direction
+- balance
+- coaching_point
+
+C. Assessment
+- observable_success
+- partial_success
+- error_signals
+- completion_rule
+- promotion/test relation
+
+D. Drill
+- drill pattern
+- target skill
+- repetitions
+- sets
+- immediate feedback
+- integration
+- sprint validation
+- failure return point
+
+E. Search Metadata
+- keywords
+- synonyms
+- related skills
+- common teacher expressions
+- source text
+
+F. Graph / Relation
+- prerequisite
+- next_skill
+- related_skill
+- drill_for
+- correction_for
+- test_for
+
+현재 저장소와 가장 잘 맞는 최종 schema를 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 매우 중요한 설계 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+하나의 Curriculum Master가
+네 기능의 공통 원천이어야 합니다.
+
+Curriculum Master
+→ AI Diary View
+→ Growth Report View
+→ Progress Gauge View
+→ Curriculum Search View
+
+네 개의 별도 curriculum DB를 만들지 마십시오.
+
+또한:
+
+Curriculum Node = 성장/학습 목표
+Drill = 해당 목표를 배우기 위한 방법
+
+으로 분리하십시오.
+
+Drill 완료 자체를
+Curriculum Node 완료로 자동 판단하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기본 350 + 확장 500 처리 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래를 검토하십시오.
+
+- 기존 350개를 유지하면서 500개만 추가할지
+- 850개 전체를 새 Curriculum Version으로 만들지
+- 기존 active version과 병행할지
+- 기존 pool assignment를 어떻게 migration할지
+- 이전 curriculum version을 archive할지
+- 과거 diary/growth report가 이전 version을 계속 참조할 수 있는지
+
+권장 migration 전략을 제안하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. AI 검색 최적 단위
+━━━━━━━━━━━━━━━━━━━━━━
+
+850개 한 행 단위가 AI 검색의 최적 단위인지 검토하십시오.
+
+필요하다면:
+- 하나의 row를 atomic skill로 더 분해
+- drill은 별도 relation
+- search document는 denormalized view
+등을 제안하십시오.
+
+특히 Teacher input 예:
+
+"자유형 할 때 어깨만 돌아가요"
+"평영 팔이 너무 벌어져요"
+"접영 킥하고 팔이 같이 나가요"
+"호흡할 때 머리 들어요"
+
+같은 불완전한 입력에서도
+정확한 curriculum/skill/drill을 검색할 수 있는 구조를 설계하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. AI Engine 연결 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파이프라인에서 Curriculum이 어디에 들어가야 하는지
+실제 코드 기준으로 제안하십시오.
+
+Teacher Input
+→ Observation Parsing
+→ Curriculum Search
+→ Knowledge Search
+→ Drill/Correction Relation
+→ Grounded Prompt
+→ GPT Naturalization
+
+Curriculum이:
+- Knowledge DB를 대체하는지
+- 보조 Context인지
+- 별도 Search Layer인지
+
+명확히 구분하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 없이 아래만 보고하십시오.
+
+1. 현재 Repository 구조
+2. 현재 Curriculum 데이터 흐름
+3. 현재 AI 연결 구조
+4. 850개 MASTER의 문제점/장점
+5. 권장 최종 Schema
+6. 권장 테이블 관계도
+7. 권장 Search Document 구조
+8. AI Diary 연결 방식
+9. Growth Report 연결 방식
+10. Progress Gauge 연결 방식
+11. Curriculum Search 연결 방식
+12. Migration 전략
+13. Import Pipeline
+14. 수정이 필요한 파일/테이블 목록
+15. 위험요소
+16. 구현 순서
+17. 예상 작업량
+
+마지막에 반드시:
+"코드 수정 없음 / DB 수정 없음 / 배포 없음"
+을 명시하십시오.

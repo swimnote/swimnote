@@ -1,0 +1,218 @@
+[PHASE 3 FINAL FIX + PRODUCTION VERIFY]
+
+PHASE 3 기능/구조 검수는 PASS.
+
+새 기능 추가 금지.
+PHASE 4 시작 금지.
+DB/API 설계 변경 금지.
+
+이번 작업은 아래 2개만 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. KPI 문구 정확성 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 diary-hub DATE INDEX:
+
+- 오늘
+- 어제
+- 이번 주
+- 날짜 선택
+
+인데 KPI label이:
+
+"오늘 일지"
+
+로 고정되어 있음.
+
+어제/이번주/다른 날짜 선택 시 의미가 틀리므로
+KPI label을:
+
+"일지"
+
+로 변경.
+
+학생 노트는 그대로:
+
+"학생 노트"
+
+즉 KPI:
+
+[일지 N]
+[학생 노트 N]
+
+수치 계산/API 변경 금지.
+UI 문구만 수정.
+
+다른 KPI 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Render production 수동 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+branch:
+
+deploy-photo-clone
+
+대상 SHA:
+
+cdf85657
+
+먼저 확인:
+
+cdf85657이
+PHASE 2 live SHA 16ae6299를 ancestor로 포함하는지 확인.
+
+포함되면
+cdf85657 기준 Render production 수동 deploy.
+
+코드 추가 수정 금지.
+
+배포가:
+
+build
+→ deploy
+→ LIVE
+
+까지 완료된 후 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. API route 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+production:
+
+GET /api/admin/diaries/summary
+
+인증 없이 호출.
+
+정상:
+
+401 또는 403
++
+application/json
+
+HTML/SPА 응답이면 FAIL.
+
+가능하면 실제 X 관리자 인증으로:
+
+GET /api/admin/diaries/summary?range=today&page=1&limit=30
+
+확인:
+
+HTTP 200
+
+response에 실제:
+
+- summary
+- diaries
+- pagination
+
+또는 현재 구현 contract의 정확한 keys 존재.
+
+0건이어도 정상 JSON contract면 PASS.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실제 조회 기준 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+production 응답이 실제:
+
+class_diaries
+class_diary_student_notes
+diary_reactions
+diary_messages
+photo_assets_meta
+
+기준으로 동작하는지 확인.
+
+특히:
+
+total_diaries
+= DISTINCT class_diaries.id
+
+total_notes
+= 실제 class_diary_student_notes count
+
+reaction_count
+= like + thanks
+
+comment_count
+= 삭제되지 않은 top-level diary_comment
+
+photo_count
+= attached photo_assets_meta
+
+기준 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. DETAIL 회귀 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 구현 그대로 짧게 재확인:
+
+Admin diary-hub row
+→ /(teacher)/diary
+→ viewOnly=true
+→ 해당 diary 로드
+→ 저장/수정 UI 없음
+
+그리고 Teacher가 일반적으로 diary.tsx 진입하면
+기존 write UI 그대로 보여야 함.
+
+새 detail UI 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+KPI 문구 수정이 있으므로
+production OTA 1회 배포.
+
+runtimeVersion:
+1.6.3 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[UI FIX]
+- KPI 변경 전:
+- 변경 후:
+- 수치 로직 변경 여부:
+
+[CODE]
+- SHA
+- 수정 파일
+
+[RENDER]
+- deploy SHA
+- build
+- deploy
+- live
+- health
+
+[API PRODUCTION]
+- unauthenticated status
+- content-type
+- HTML 여부
+- authenticated status
+- response keys
+- total_diaries
+- total_notes
+- pool isolation
+
+[DETAIL]
+- Admin viewOnly
+- Teacher write 유지
+
+[OTA]
+- rollback target
+- new OTA ID
+- runtimeVersion
+
+[PHASE 3 FINAL]
+PASS / FAIL
+
+완료 후 STOP.
+PHASE 4 시작 금지.

@@ -1,0 +1,885 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR1 — PRODUCT STORAGE + REPORT LIFECYCLE FOUNDATION]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+중요:
+이번 작업은 반드시 SWIMNOTE APP Repository에서만 수행한다.
+
+AI ENGINE Repository에서 수행 금지.
+
+==================================================
+0. 작업 시작 전 REPOSITORY GUARD
+==================================================
+
+코드를 수정하기 전에 현재 Repository가
+실제 SWIMNOTE APP Repository인지 확인한다.
+
+최소 근거:
+
+- Expo / React Native APP 존재
+- Express APP Server 존재
+- swimming_pools 또는 실제 수영장 domain 존재
+- parent / teacher / admin 사용자 domain 존재
+- 기존 diary/feed/notifications 존재
+- 실제 X Mode entitlement/config 구조 존재
+- APP Production DB 연결구조 존재
+
+만약 현재 Repository가 AI ENGINE이면:
+
+코드 수정 즉시 중단.
+
+APP_GR1_WRONG_REPOSITORY ❌
+
+로 보고한다.
+
+AI ENGINE에 app.* Product schema를 새로 만들어
+APP처럼 흉내내지 마라.
+
+==================================================
+1. SOURCE OF TRUTH
+==================================================
+
+확정 Architecture:
+
+SWIMNOTE APP DB
+= Growth Report Product Source of Truth
+
+AI ENGINE
+= Analysis System
+
+APP DB가 소유:
+
+- report cycle
+- report lifecycle
+- parent input lifecycle
+- questions
+- answers
+- Engine analysis result
+- Fact Package
+- rendered report content
+- SNS summary
+- teacher review
+- approval
+- publication
+- feed relation
+- notification relation
+
+ENGINE DB가 소유:
+
+- metric definitions
+- observation/evidence technical trace
+- engine analysis trace/cache
+
+둘을 섞지 마라.
+
+==================================================
+2. 이번 GR1 범위
+==================================================
+
+이번 GR1에서는:
+
+A. Report Cycle storage
+B. Growth Report Product storage
+C. Parent Question storage
+D. Parent Answer storage
+E. Product Lifecycle
+F. Parent Input Lifecycle
+G. Lifecycle Service
+H. X Mode server-side access foundation
+I. Audit
+
+까지만 구현한다.
+
+이번 GR1에서 하지 말 것:
+
+- 25일/5일 scheduler → GR2
+- ENGINE API 호출 → GR3
+- Parent Question UI → GR4
+- Teacher Review UI → GR5
+- Feed → GR6
+- Push → GR7
+- Native Report Detail → GR8
+- PDF/SNS → GR9
+
+선행 구현 금지.
+
+==================================================
+3. REPORT CYCLE
+==================================================
+
+Growth Report는 월별 Cycle을 가진다.
+
+필수 개념:
+
+report_period
+
+analysis_from: nullable
+analysis_cutoff_at
+
+parent_input_open_at
+parent_input_close_at
+
+timezone
+
+cycle_status:
+PENDING
+ACTIVE
+INPUT_CLOSED
+DONE
+
+중요:
+
+analysis_from 정책은 아직
+전월 25일 / 당월 1일 등으로 고정하지 않았다.
+
+nullable 유지.
+
+timezone 기본 운영정책:
+
+Asia/Seoul
+
+==================================================
+4. PRODUCT STATUS
+==================================================
+
+Canonical Product Status:
+
+NOT_OPEN
+OPEN
+PREANALYZING
+QUESTION_AVAILABLE
+READY_FOR_ANALYSIS
+ANALYZING
+REVIEW_REQUIRED
+APPROVED
+PUBLISHED
+PARTIAL
+FAILED
+
+금지:
+
+QUESTION_REQUIRED
+CLOSED
+
+질문은 optional이다.
+
+==================================================
+5. PARENT INPUT STATUS
+==================================================
+
+Product lifecycle와 별도:
+
+NONE
+AVAILABLE
+ANSWERED
+CLOSED
+
+중요:
+
+parent_input_status=CLOSED
+
+는
+
+Growth Report가 닫혔다는 뜻이 아니다.
+
+5일 이후 Parent Input만 닫힐 수 있다.
+
+Report는 이후에도:
+
+분석
+검토
+발행
+
+계속 진행한다.
+
+==================================================
+6. PRODUCT LIFECYCLE TRANSITIONS
+==================================================
+
+최소 canonical transitions:
+
+NOT_OPEN
+→ OPEN
+
+OPEN
+→ PREANALYZING
+
+PREANALYZING
+→ QUESTION_AVAILABLE
+→ READY_FOR_ANALYSIS
+→ PARTIAL
+→ FAILED
+
+QUESTION_AVAILABLE
+→ READY_FOR_ANALYSIS
+
+READY_FOR_ANALYSIS
+→ ANALYZING
+
+ANALYZING
+→ REVIEW_REQUIRED
+→ PARTIAL
+→ FAILED
+
+PARTIAL
+→ ANALYZING
+→ REVIEW_REQUIRED
+
+FAILED
+→ ANALYZING
+
+REVIEW_REQUIRED
+→ APPROVED
+→ ANALYZING
+
+APPROVED
+→ PUBLISHED
+
+PUBLISHED
+→ terminal
+
+중요:
+
+ENGINE은 이 상태를 반환하지 않는다.
+
+APP이 ENGINE analysis_status를 보고
+Product status를 결정한다.
+
+==================================================
+7. ENGINE ANALYSIS STATUS 저장
+==================================================
+
+ENGINE에서 올 수 있는 상태:
+
+COMPLETE
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+COMPLETE_WITH_PARENT_EVIDENCE
+PARTIAL
+
+이는 별도:
+
+analysis_status
+
+필드에 저장한다.
+
+product_status와 혼합 금지.
+
+==================================================
+8. GROWTH REPORT PRODUCT ENTITY
+==================================================
+
+실제 APP Repository DB naming convention을 따라
+Product Growth Report table을 설계한다.
+
+최소:
+
+id
+pool_id
+student_id
+cycle_id
+
+report_period
+
+product_status
+parent_input_status
+analysis_status
+
+analysis_request_id
+snapshot_version
+snapshot_hash
+
+selected_metrics
+metric_states
+metric_confidences
+
+positive_growth_signals
+success_conditions
+support_levers
+next_growth_targets
+next_observation_targets
+
+report_fact_package
+
+report_content
+sns_summary
+
+teacher_reviewed_by
+teacher_reviewed_at
+
+published_at
+
+created_at
+updated_at
+
+JSON/JSONB 타입은
+기존 PostgreSQL/Drizzle convention에 맞춘다.
+
+APP은 Metric JSON 의미를 재해석하지 않는다.
+
+ENGINE 결과를 opaque structured data로 저장한다.
+
+==================================================
+9. STRUCTURED REPORT CONTENT
+==================================================
+
+report_content는 string 한 덩어리가 아니다.
+
+최소 수용 가능 구조:
+
+{
+  summary_text,
+  sections: {
+    core_growth,
+    swimming_progress,
+    behavioral_strengths,
+    longitudinal_comparison,
+    success_conditions,
+    parent_support,
+    teacher_guidance,
+    next_growth_direction
+  },
+  composition_manifest,
+  grounding_result,
+  growth_framing_result,
+  composition_version
+}
+
+APP은 해당 구조를 저장/렌더링한다.
+
+APP이 다시 GPT 요약 금지.
+
+==================================================
+10. SNS SUMMARY
+==================================================
+
+최소:
+
+{
+  headline,
+  key_points[],
+  share_safe,
+  supporting_claim_ids[]
+}
+
+string 한 줄로 축소 금지.
+
+APP은 ENGINE에서 받은 값을
+브랜딩/렌더링만 한다.
+
+==================================================
+11. QUESTIONS STORAGE
+==================================================
+
+APP은 질문을 창작하지 않는다.
+
+ENGINE 질문 Contract 저장:
+
+question_id 또는 engine_question_id
+report_id
+metric_id
+
+question_text
+
+answer_type:
+SINGLE_CHOICE
+MULTI_CHOICE
+
+options JSON
+
+parent_confirmable_behavior
+question_stage
+reason_codes
+
+sequence
+is_required
+
+metric_definition_version
+question_policy_version
+
+created_at
+
+is_required는 false가 canonical.
+
+==================================================
+12. ANSWERS STORAGE
+==================================================
+
+Parent Answer 최소:
+
+report_id
+question_id
+parent_account_id
+
+selected_values[]
+
+answered_at
+
+created_at
+updated_at
+
+Structured selection 중심.
+
+APP이 답변 의미를:
+
+AGREEMENT
+CONTRADICTION
+
+등으로 판단하지 않는다.
+
+그 해석은 ENGINE 책임.
+
+==================================================
+13. QUESTIONS ARE OPTIONAL
+==================================================
+
+0 questions는 정상.
+
+질문이 없어도 Report 진행.
+
+Parent 미응답이어도 Report 진행.
+
+다음 상태를 만들지 않는다:
+
+QUESTION_REQUIRED
+
+==================================================
+14. LONGITUDINAL PRODUCT STORAGE
+==================================================
+
+다음 달 ENGINE Snapshot에
+구조화 history를 보내야 하므로
+
+최종 Published Report에서 최소 다음이
+재조회 가능해야 한다.
+
+metric states
+metric confidences
+
+positive growth signals
+success conditions
+support levers
+parent evidence/result
+next observation targets
+Fact Package structured result
+
+과거 natural-language report만 저장하고
+다음 달 다시 GPT 분석시키는 구조 금지.
+
+==================================================
+15. PREVIOUS REPORT RELATION
+==================================================
+
+previous_report_id 하나는 편의용으로 둘 수 있다.
+
+하지만 ENGINE Longitudinal Snapshot은
+previous report 1개만 사용하는 구조가 아니다.
+
+APP Server는 향후
+해당 학생의 여러 과거 structured report를 조회할 수 있어야 한다.
+
+Repository/API를
+previous_report_id 하나만 따라가는 구조로 제한하지 마라.
+
+==================================================
+16. PRODUCT UNIQUENESS
+==================================================
+
+한 student + 한 cycle에
+정상적인 Product Report가 중복 생성되지 않도록
+DB uniqueness/idempotency 설계.
+
+실제 soft-delete/retry 정책이 있다면
+Repository convention 고려.
+
+==================================================
+17. REPORT QUESTIONS UNIQUENESS
+==================================================
+
+최소:
+
+UNIQUE(report_id, engine_question_id)
+
+동일 ENGINE 질문 중복 저장 방지.
+
+==================================================
+18. REPORT ANSWER UNIQUENESS
+==================================================
+
+최소 의미:
+
+report_id
+question_id
+parent_account_id
+
+한 조합에 현재 answer 하나.
+
+재답변 허용 시 update/upsert.
+
+기존 history가 필요하면
+audit/history 구조와 충돌하지 않게 설계.
+
+==================================================
+19. X MODE SERVER-SIDE GUARD
+==================================================
+
+이번에는 반드시 실제 APP의
+기존 X Mode canonical 판정경로를 재사용한다.
+
+새 fake entitlement를 만들지 마라.
+
+이미 APP에서 사용하는:
+
+swimming_pools.xmode_*
+RevenueCat entitlement sync
+X subscription state
+XModeGuard 관련 server asset
+resolvePoolMode 또는 실제 동등 service
+
+를 Repository에서 확인한다.
+
+UI guard만으로 끝내지 않는다.
+
+Growth Report API는
+server-side에서도 X 접근을 검증할 수 있어야 한다.
+
+단 이번 GR1에서는
+Foundation service/middleware까지만.
+
+실제 후속 routes에 적용 가능하게 한다.
+
+==================================================
+20. X EXPIRED + PUBLISHED REPORT
+==================================================
+
+이미 PUBLISHED된 Report는
+X subscription이 나중에 만료됐다고
+자동 삭제하지 않는다.
+
+Published data는 보존.
+
+다만 만료 후 새로운 Report 생성/분석 접근 정책은
+X Mode Product Policy를 따른다.
+
+기존 published report viewing 정책이
+아직 명확히 구현돼 있지 않다면
+함수를 분리하고 추후 연결 가능하게 한다.
+
+데이터 삭제 금지.
+
+==================================================
+21. AUDIT
+==================================================
+
+Report Lifecycle 변경은 Audit 대상.
+
+기존 APP audit_logs / audit service가 있으면 재사용.
+
+최소:
+
+report_id
+actor
+from_status
+to_status
+timestamp
+reason/context
+
+PUBLISHED transition 추적.
+
+ENGINE internal audit와 혼동 금지.
+
+==================================================
+22. REPORT LIFECYCLE SERVICE
+==================================================
+
+상태 변경 로직을
+Route 여러 곳에 흩뿌리지 않는다.
+
+중앙 service:
+
+transitionReportStatus(...)
+
+형태.
+
+반드시:
+
+allowed transition
+current state
+target state
+
+검증.
+
+PUBLISHED terminal 강제.
+
+동시 update를 고려.
+
+==================================================
+23. DB CONCURRENCY
+==================================================
+
+동일 학생/동일 cycle Report가
+동시에 생성되는 경우 방어.
+
+가능하면:
+
+unique constraint
++
+transaction/upsert
+
+사용.
+
+check-then-insert race 금지.
+
+==================================================
+24. PII / PRIVACY
+==================================================
+
+Fact Package JSON 안에
+ENGINE이 보내지 않은 전화번호/주소 등을
+APP이 덧붙이지 않는다.
+
+Questions/answers에도
+필요 이상의 PII 저장 금지.
+
+==================================================
+25. MIGRATION
+==================================================
+
+실제 APP Repository migration convention 사용.
+
+Migration file 작성 허용.
+
+그러나 이번 작업 중:
+
+Production migration 실행 금지.
+
+로컬/test DB에서 가능하면 검증.
+
+기존 테이블 파괴/rename 금지.
+
+Additive migration 우선.
+
+==================================================
+26. 기존 기능 보호
+==================================================
+
+절대 회귀시키지 말 것:
+
+Teacher Diary
+Parent Diary Feed
+Growth Events
+XModeGuard
+Notifications
+Parent Requests
+Teacher Scheduler
+Member Management
+
+이번 GR1은
+Product Storage Foundation만.
+
+==================================================
+27. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. 실제 APP repository guard 확인
+
+2. cycle create
+
+3. UNIQUE pool/report_period
+
+4. analysis_from null 허용
+
+5. Asia/Seoul timezone
+
+6. Product Report create
+
+7. unique student/cycle
+
+8. ProductStatus 모든 canonical value
+
+9. QUESTION_REQUIRED reject
+
+10. CLOSED reject
+
+11. ParentInputStatus 4종
+
+12. CycleStatus 4종
+
+13. valid lifecycle transition
+
+14. invalid transition reject
+
+15. PUBLISHED terminal
+
+16. QUESTION_AVAILABLE → READY_FOR_ANALYSIS
+
+17. FAILED → ANALYZING retry
+
+18. PARTIAL → ANALYZING
+
+19. analysis_status와 product_status 분리
+
+20. questions 0개 허용
+
+21. is_required=false 저장
+
+22. question options structured
+
+23. duplicate engine question 방지
+
+24. structured selected_values answer
+
+25. answer upsert
+
+26. Parent unanswered가 report를 막지 않음
+
+27. report_content structured JSON
+
+28. sns_summary structured JSON
+
+29. Fact Package opaque storage
+
+30. APP이 F001~F070 의미 해석하지 않음
+
+31. longitudinal structured history 조회 가능
+
+32. multiple previous reports 조회 가능
+
+33. actual server-side X entitlement true 허용
+
+34. X entitlement false 신규 접근 거부
+
+35. published data 삭제 없음
+
+36. audit transition
+
+37. concurrent duplicate report 방어
+
+38. migration additive
+
+39. existing Diary regression
+
+40. Growth Event regression
+
+41. notifications/routes import regression
+
+==================================================
+28. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- AI ENGINE Repository에서 구현
+- app.* schema를 Engine DB에 새로 생성
+- X entitlement passthrough stub
+- UI guard만 있음
+- Product report string 하나만 저장
+- Question을 APP이 창작
+- Answer를 APP이 분석
+- QUESTION_REQUIRED 생성
+- CLOSED product status 생성
+- previous report 하나만 longitudinal source로 제한
+- lifecycle route별 하드코딩
+- TODO
+- placeholder
+
+==================================================
+29. COMPLETE CONDITIONS
+==================================================
+
+[ ] 실제 SWIMNOTE APP Repository 확인
+[ ] 실제 APP DB schema 사용
+[ ] Report Cycle
+[ ] Product Report
+[ ] Questions
+[ ] Answers
+[ ] Product Lifecycle
+[ ] Parent Input Lifecycle
+[ ] Analysis Status 분리
+[ ] structured Fact Package storage
+[ ] structured Report Content
+[ ] structured SNS Summary
+[ ] longitudinal structured storage
+[ ] multiple history retrieval
+[ ] central lifecycle service
+[ ] concurrency protection
+[ ] actual server X entitlement
+[ ] audit
+[ ] tests pass
+[ ] existing APP regressions pass
+[ ] TODO 0
+[ ] Production migration 미실행
+[ ] Deploy 없음
+
+==================================================
+30. CREDIT SAVING
+==================================================
+
+APP Growth Report와
+기존 X entitlement / DB / audit 관련 파일만 조사.
+
+전체 Repository 재감리 금지.
+
+불필요한 UI 변경 금지.
+
+GR2 이후 선행 구현 금지.
+
+==================================================
+31. FINAL REPORT
+==================================================
+
+1. GR1 RESULT
+
+2. REPOSITORY IDENTITY
+   실제 APP임을 증명하는 파일/구조
+
+3. EXISTING APP DB / X ASSETS REUSED
+
+4. IMPLEMENTED FILES
+
+5. DB SCHEMA / MIGRATION
+
+6. REPORT CYCLE
+
+7. PRODUCT LIFECYCLE
+
+8. PARENT INPUT LIFECYCLE
+
+9. QUESTIONS / ANSWERS
+
+10. STRUCTURED PRODUCT STORAGE
+
+11. LONGITUDINAL HISTORY STORAGE
+
+12. X SERVER-SIDE ENFORCEMENT
+    실제 함수/DB path
+
+13. AUDIT / CONCURRENCY
+
+14. TEST RESULT
+
+15. EXISTING APP REGRESSION
+
+16. TODO SCAN
+
+17. GIT
+    branch
+    actual HEAD commit SHA
+
+18. PRODUCTION SAFETY
+
+전부 완료된 경우:
+
+GROWTH_REPORT_APP_GR1_COMPLETE ✅
+
+Repository가 잘못됐거나 Critical blocker가 있으면:
+
+GROWTH_REPORT_APP_GR1_BLOCKED ❌
+
+작업을 시작하라.

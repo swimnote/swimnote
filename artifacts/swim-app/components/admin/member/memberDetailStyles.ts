@@ -41,7 +41,7 @@ export const ms = StyleSheet.create({
   statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   statusBadgeLg: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   statusBadgeLgText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  changeStatusBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.tint },
+  changeStatusBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.brandStrong },
   changeStatusText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   restoreBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F3E8FF", padding: 14, borderRadius: 14 },

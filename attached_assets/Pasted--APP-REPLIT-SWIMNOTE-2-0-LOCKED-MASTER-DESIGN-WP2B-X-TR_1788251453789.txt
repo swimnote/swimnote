@@ -1,0 +1,1112 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# WP2B — X TRIAL / X STATE
+# SERVER GRANT 3-DAY TRIAL + MODE STATE + 1-TIME USE + BACKWARD COMPATIBILITY
+
+본 작업은 승인된
+`SWIMNOTE 2.0 MASTER DESIGN V1.0 — LOCKED`
+기준으로만 수행합니다.
+
+WP2A 및 WP2A CORRECTION은 최종 PASS 상태입니다.
+
+이번 WP2B의 범위는 오직:
+
+1. X 3일 무료체험 DB 상태
+2. 센터당 최초 1회 제한
+3. 서버 grant 방식 Trial 활성화
+4. Trial 만료 판단
+5. 앱 ModeContext에 x_trial 상태 추가
+6. XModeGuard에서 x_trial 분기
+7. 기존 normal / x / x_pending 상태 회귀검증
+8. 1.6.3 backward compatibility
+
+입니다.
+
+절대 이번 WP에서 하지 마십시오:
+
+- 신규 가격 UI 추가 구현
+- RevenueCat 신규 상품 연결
+- App Store / Play Store 변경
+- 영상 압축
+- 영상 POC
+- 학부모 피드 영상
+- 앨범 영상
+- Story 영상-only 카드
+- AI ENGINE 수정
+- Production deploy
+- OTA
+- Production migration 실행
+
+현재 먼저 작성되어 있는 WP3 UI 코드는
+HOLD 상태로 그대로 보존하십시오.
+WP2B 때문에 WP3를 추가 수정하지 마십시오.
+
+==================================================
+0. LOCKED X TRIAL POLICY
+==================================================
+
+X Trial 정책:
+
+- 센터당 최초 1회
+- 기간 3일
+- 자동결제 없음
+- 결제수단 사전등록 없음
+- RevenueCat 표준 Trial 사용 안 함
+- 서버 grant 방식
+- Trial 종료 후 자동 유료전환 없음
+- Trial 종료 후 X 전용 기능만 잠금
+- 기존 일반 SWIMNOTE 데이터 삭제 금지
+- 센터 맞춤 X 세팅은 결제 후에만 시작
+- Trial 중에는 즉시 사용 가능한 AI 기능만 허용
+
+==================================================
+1. 기존 X 상태 구조 유지
+==================================================
+
+현재 기존 필드/상태를 최대한 유지하십시오.
+
+기존 주요 필드:
+
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- xmode_config_status
+- xmode_subscription_end_at
+- xmode_purchased_at
+- x_slot_id
+- x_auto_renew_cancelled
+
+기존 Mode 의미:
+
+normal
+x
+x_pending
+
+삭제/대규모 rewrite 금지.
+
+신규로 필요한 것은:
+
+x_trial
+
+상태를 additive 방식으로 추가하는 것입니다.
+
+==================================================
+2. X Trial DB 컬럼
+==================================================
+
+`swimming_pools`에 최소 다음 컬럼을 추가하십시오.
+
+필수:
+
+x_trial_started_at TIMESTAMPTZ NULL
+
+x_trial_ends_at TIMESTAMPTZ NULL
+
+x_trial_used_at TIMESTAMPTZ NULL
+
+`x_trial_used_at`은
+센터가 Trial을 이미 한 번 사용했는지 영구적으로 판별하는 용도입니다.
+
+정책:
+
+Trial 최초 활성화 시:
+
+x_trial_started_at = NOW()
+x_trial_ends_at = NOW() + 3 days
+x_trial_used_at = NOW()
+
+Trial 종료 후:
+
+x_trial_used_at는 절대 NULL로 되돌리지 않음.
+
+Trial 재사용 방지.
+
+==================================================
+3. 센터당 최초 1회 제한
+==================================================
+
+서버에서 반드시 강제하십시오.
+
+APP UI만으로 제한하면 안 됩니다.
+
+Trial activate 요청 시:
+
+IF x_trial_used_at IS NOT NULL
+→ 거부
+
+권장 에러코드:
+
+X_TRIAL_ALREADY_USED
+
+HTTP status는 현재 API convention에 맞게 사용.
+
+Trial 시작 후 같은 요청을 반복 호출해도
+Trial 시간이 연장되면 안 됩니다.
+
+예:
+
+첫 호출:
+09/01 10:00
+
+ends:
+09/04 10:00
+
+두 번째 호출:
+09/01 11:00
+
+절대:
+09/04 11:00
+
+으로 연장되면 안 됨.
+
+==================================================
+4. Trial 활성화 endpoint
+==================================================
+
+신규 endpoint 구현.
+
+권장:
+
+POST /billing/x-trial-activate
+
+또는 현재 routing convention에 맞는 위치.
+
+서버 검증:
+
+- 인증된 관리자/운영자만
+- 해당 pool 권한 확인
+- pool 존재 확인
+- x_trial_used_at 확인
+- 이미 paid X인지 확인
+- force_disabled 상태 확인
+- Trial eligibility 확인
+
+성공 시:
+
+- x_trial_started_at
+- x_trial_ends_at
+- x_trial_used_at
+
+atomic update.
+
+race condition으로 2번 활성화 안 되게 처리.
+
+가능하면 transaction 또는 conditional UPDATE 사용.
+
+==================================================
+5. Paid X 사용자는 Trial 금지
+==================================================
+
+이미 X를 구매한 센터가 Trial을 눌러서는 안 됩니다.
+
+다음 중 실제 entitlement 판단 함수를 재사용:
+
+x_paid_entitlement
+x_manual_entitlement
+resolveEffectiveXEntitlement
+또는 현재 authoritative helper
+
+이미 유효한 X entitlement이면:
+
+X_TRIAL_NOT_ELIGIBLE
+
+등 현재 convention에 맞는 에러 반환.
+
+Trial은 신규 X 체험용입니다.
+
+==================================================
+6. force disabled 우선순위
+==================================================
+
+`x_force_disabled = true`이면
+Trial보다 우선합니다.
+
+즉:
+
+force_disabled
+→ x_trial 모드 진입 금지
+
+기존 강제비활성 정책을 Trial이 우회하면 안 됩니다.
+
+==================================================
+7. Trial mode 계산
+==================================================
+
+Mode 계산 우선순위는 기존 X 상태를 깨지 않는 선에서 추가하십시오.
+
+권장 의미:
+
+IF force_disabled
+→ normal 또는 기존 disabled 처리
+
+ELSE IF valid paid/manual X entitlement
+→ 기존 x / x_pending 로직
+
+ELSE IF trial active
+→ x_trial
+
+ELSE
+→ normal
+
+Trial active 정의:
+
+x_trial_started_at IS NOT NULL
+AND
+x_trial_ends_at > NOW()
+AND
+x_trial_used_at IS NOT NULL
+
+중요:
+
+paid entitlement가 생기면 Trial보다 paid X가 우선.
+
+예:
+
+Trial 중 X 결제 완료
+→ 즉시 x_active/x_pending 흐름
+→ x_trial UI 계속 보이면 안 됨
+
+==================================================
+8. Trial 만료 처리
+==================================================
+
+Trial은 3일이 지나면 자동으로 비활성으로 판정되어야 합니다.
+
+중요:
+
+반드시 background worker가 실행되어야만
+Trial이 끝나는 구조로 만들지 마십시오.
+
+최소한 모든 mode 계산/API에서:
+
+x_trial_ends_at <= NOW()
+→ expired
+
+로 즉시 판정해야 합니다.
+
+즉 worker 장애가 나도
+3일 Trial이 무한 연장되면 안 됩니다.
+
+worker는 cleanup/정리용으로 추가 가능하지만
+authorization source of truth가 되어서는 안 됩니다.
+
+==================================================
+9. Trial 만료 후 DB 처리
+==================================================
+
+Trial 종료 시:
+
+x_trial_started_at
+x_trial_ends_at
+
+를 NULL로 꼭 지울 필요는 없습니다.
+
+감사/이력상 남겨도 됨.
+
+핵심:
+
+x_trial_used_at는 반드시 유지.
+
+추천:
+
+started/ends/used 모두 historical record로 유지.
+
+현재 활성 여부는
+`x_trial_ends_at > NOW()`로 계산.
+
+불필요한 cron write 최소화.
+
+==================================================
+10. Trial eligibility endpoint / state response
+==================================================
+
+WP3 UI가 상태를 정확히 표시할 수 있도록
+기존 API에 additive field를 추가하십시오.
+
+기존 response 삭제 금지.
+
+권장 필드:
+
+x_trial_eligible: boolean
+x_trial_active: boolean
+x_trial_started_at: ISO/null
+x_trial_ends_at: ISO/null
+x_trial_used: boolean
+x_trial_remaining_seconds 또는 remaining_ms
+
+단 실제 앱 계약에 가장 적합한 형태로 최소화 가능.
+
+중요:
+
+서버 시간을 기준으로 판단.
+
+클라이언트 local clock만 믿지 마십시오.
+
+==================================================
+11. ModeContext — x_trial 추가
+==================================================
+
+현재 ModeContext의 기존:
+
+normal
+x
+x_pending
+
+동작을 깨지 않고:
+
+x_trial
+
+추가.
+
+대규모 rewrite 금지.
+
+목표:
+
+mode === "x_trial"
+
+을 안전하게 인식 가능.
+
+기존 normal/x/x_pending 화면 렌더링 회귀 금지.
+
+==================================================
+12. XModeGuard — Trial 상태
+==================================================
+
+XModeGuard에 x_trial 상태를 additive 처리.
+
+중요:
+
+Trial이라고 모든 X 화면을 허용하면 안 됩니다.
+
+LOCKED DESIGN:
+
+Trial에서는
+즉시 사용 가능한 AI 기능만 허용.
+
+센터 세팅이 필요한 기능은 잠금.
+
+현재 이미 먼저 작성된 WP3 코드에서
+growth 관련 4개 화면의 trialAllowed=false가 있다면
+그 정책은 유지 가능.
+
+하지만 이번 WP2B에서는
+UI 범위 확장 금지.
+
+현재 guard가 compile되고
+상태를 올바르게 분기하는지만 맞추십시오.
+
+==================================================
+13. Trial 기능 권한 기본원칙
+==================================================
+
+이번 WP2B에서 기능별 전체 Trial allowlist를 새로 설계하지 마십시오.
+
+최소 원칙만 유지:
+
+허용 가능:
+- AI 일지
+- 공통 DB 기반 즉시 AI 기능
+- 기존 데이터 기반 즉시 AI 기능
+
+잠금:
+- 센터 커리큘럼 입력
+- 센터 맞춤 세팅
+- 성장체계 설정
+- 정식 성장리포트 발급 설정
+- 센터별 고급 X configuration
+
+실제 화면별 final allowlist는
+현재 존재하는 route/guard 기준으로 최소 적용.
+
+새 기능 만들지 마십시오.
+
+==================================================
+14. Trial 중 데이터 보존
+==================================================
+
+Trial 종료 시 삭제 금지:
+
+- 회원
+- 반
+- 출결
+- 일지
+- 사진
+- 영상
+- 일반 SWIMNOTE 데이터
+
+Trial 중 생성된 일반 앱 데이터 유지.
+
+Trial 전용 임시 AI 결과가 있다면
+기존 저장 정책을 따름.
+
+별도 destructive cleanup 금지.
+
+==================================================
+15. Trial → Paid 전환
+==================================================
+
+Trial 중 또는 Trial 종료 후
+X 결제가 완료되면:
+
+paid entitlement
+→ 기존 X paid flow가 우선
+
+결제 후:
+
+xmode_config_status = NOT_CONFIGURED
+또는 현재 동등 상태
+
+→ x_pending
+
+센터 세팅 완료 후
+기존 READY 로직으로 x.
+
+이번 WP에서는
+실제 RevenueCat 신규 X300/500/1000 결제 연결 금지.
+
+기존 paid state와 Trial state가 충돌하지 않게만 처리.
+
+==================================================
+16. X_SETUP_PENDING 기존 표현 유지
+==================================================
+
+새 enum을 불필요하게 만들지 마십시오.
+
+LOCKED DESIGN의:
+
+X_SETUP_PENDING
+
+은 현재:
+
+x_paid_entitlement=true
++
+xmode_config_status=NOT_CONFIGURED
++
+mode=x_pending
+
+과 의미상 동등한 기존 구조를 활용.
+
+X_SETUP_ACTIVE도 기존 config 상태를 활용.
+
+X Trial 때문에 기존 X lifecycle을 재설계 금지.
+
+==================================================
+17. x_manual_entitlement 오용 금지
+==================================================
+
+중요.
+
+Trial 구현을 단순히:
+
+x_manual_entitlement = true
+
+로 설정하고 3일 후 false로 되돌리는 식으로 만들지 마십시오.
+
+이유:
+
+x_manual_entitlement는 슈퍼어드민 수동 X 부여 용도이며
+Trial과 의미가 다릅니다.
+
+Trial은 별도:
+
+x_trial_started_at
+x_trial_ends_at
+x_trial_used_at
+
+상태로 판별하십시오.
+
+기존 manual entitlement 의미 오염 금지.
+
+==================================================
+18. Trial abuse 기본 방어
+==================================================
+
+이번 LOCKED 정책은:
+
+센터(pool)당 1회
+
+입니다.
+
+사업주가 새 pool을 여러 개 생성하는 수준의
+복잡한 anti-abuse 시스템은 이번 WP 범위 아님.
+
+하지만 동일 pool에서는 서버 기준으로
+절대 Trial 2회 활성화 불가.
+
+==================================================
+19. DB migration
+==================================================
+
+migration 작성.
+
+필수:
+
+x_trial_started_at
+x_trial_ends_at
+x_trial_used_at
+
+additive columns.
+
+조건:
+
+- destructive 없음
+- legacy X columns 변경 없음
+- idempotent
+- production 실행 금지
+
+rollback 전략도 작성.
+
+==================================================
+20. API 권한
+==================================================
+
+Trial 활성화 endpoint는
+학부모/선생님 일반 권한에서 호출되면 안 됨.
+
+센터 관리자/운영자 권한만.
+
+현재 auth middleware 재사용.
+
+cross-pool activate 절대 금지.
+
+==================================================
+21. Error codes
+==================================================
+
+현재 API 에러 convention에 맞춰 최소한 아래 상황 구분:
+
+ALREADY_USED
+ALREADY_ACTIVE
+NOT_ELIGIBLE
+FORCE_DISABLED
+UNAUTHORIZED
+POOL_NOT_FOUND
+
+문구보다 machine-readable code 우선.
+
+==================================================
+22. Concurrency
+==================================================
+
+Trial activate 버튼 연속 탭/중복 요청 시
+2번 활성화되거나 기간 연장되면 안 됩니다.
+
+반드시 서버에서 방어.
+
+테스트:
+
+동시에 2요청
+→ 1개만 성공
+→ 나머지는 already active/used
+
+==================================================
+23. 서버 시간 기준
+==================================================
+
+Trial 3일은 서버 timestamp 기준.
+
+클라이언트 local timezone 조작으로
+Trial 연장 불가.
+
+DB TIMESTAMPTZ 사용.
+
+==================================================
+24. 1.6.3 backward compatibility
+==================================================
+
+1.6.3 앱은 x_trial 상태를 모릅니다.
+
+따라서 기존 1.6.3이 사용하는 API response에
+breaking enum을 강제로 넣어 앱이 죽는 구조가 없는지 확인하십시오.
+
+필요하면:
+
+- 신규 2.0 전용 additive field
+- 기존 field는 legacy fallback
+
+방식으로 처리.
+
+특히 기존 mode consumer가
+unknown `"x_trial"`에서 crash하는지 확인.
+
+만약 1.6.3이 동일 mode endpoint의 string을 직접 소비하며
+unknown mode가 위험하다면:
+
+2.0 client에서만 additive field를 조합해 x_trial을 만드는
+backward-compatible 방식 사용 가능.
+
+단 추측하지 말고 실제 코드 근거로 결정.
+
+완료보고에 반드시:
+
+1.6.3 MODE COMPAT STRATEGY
+
+제출.
+
+==================================================
+25. 기존 WP3 코드 HOLD
+==================================================
+
+현재 먼저 작성되어 있는:
+
+- subscription.tsx
+- x-subscription.tsx
+- subscriptionPlans.ts
+- wp3-subscription-ui.test.ts
+
+등 WP3 변경은 그대로 보존.
+
+이번 WP에서 추가 리팩터 금지.
+
+단 WP2B 서버/ModeContext 계약 때문에
+compile을 위해 필수적인 최소 타입 수정만 허용.
+
+그 경우 완료보고에 정확히 기록.
+
+==================================================
+26. 테스트
+==================================================
+
+최소 다음 테스트 수행.
+
+--------------------------------
+CASE A
+First Trial Activation
+--------------------------------
+
+unused pool
+→ activate success
+→ started_at set
+→ ends_at = +3 days
+→ used_at set
+→ mode = x_trial
+
+--------------------------------
+CASE B
+Second Activation
+--------------------------------
+
+same pool
+→ rejected
+→ Trial end time unchanged
+
+--------------------------------
+CASE C
+Double Tap / Concurrent
+--------------------------------
+
+2 simultaneous activation requests
+→ exactly 1 success
+→ no extension
+
+--------------------------------
+CASE D
+Active Trial
+--------------------------------
+
+before ends_at
+→ x_trial active
+
+--------------------------------
+CASE E
+Expired Trial
+--------------------------------
+
+ends_at <= NOW()
+→ x_trial inactive
+→ mode normal if no paid entitlement
+
+--------------------------------
+CASE F
+Paid During Trial
+--------------------------------
+
+trial active
++
+paid entitlement true
+
+→ paid X state wins
+→ x_trial not returned as effective mode
+
+--------------------------------
+CASE G
+Force Disabled
+--------------------------------
+
+force_disabled=true
+→ Trial activation rejected or mode blocked
+→ Trial cannot bypass force disable
+
+--------------------------------
+CASE H
+Manual X
+--------------------------------
+
+x_manual_entitlement=true
+→ existing X behavior unchanged
+→ Trial not eligible
+
+--------------------------------
+CASE I
+Existing Paid X
+--------------------------------
+
+x_paid_entitlement=true
+→ Trial not eligible
+
+--------------------------------
+CASE J
+Normal Pool
+--------------------------------
+
+never used Trial
+→ normal mode unchanged
+→ eligible=true
+
+--------------------------------
+CASE K
+Used + Expired
+--------------------------------
+
+used_at exists
+ends_at past
+
+→ eligible=false
+→ active=false
+→ cannot restart
+
+--------------------------------
+CASE L
+1.6.3 compatibility
+--------------------------------
+
+legacy normal/x/x_pending consumer
+→ no crash
+→ existing response contract preserved
+
+--------------------------------
+CASE M
+No Data Deletion
+--------------------------------
+
+Trial expiry
+→ member/class/diary/photo/video rows untouched
+
+--------------------------------
+CASE N
+Migration
+--------------------------------
+
+UP
+→ columns exist
+
+re-run
+→ safe
+
+rollback strategy
+→ valid
+
+==================================================
+27. 테스트 범위
+==================================================
+
+신규 WP2B test file 작성 권장.
+
+예:
+
+wp2b-x-trial.test.ts
+
+최소:
+
+- eligibility
+- activation
+- double activation
+- concurrency
+- expiry
+- paid precedence
+- manual precedence
+- force disabled
+- mode mapping
+- 1.6.3 compatibility
+
+전체 기존 테스트도 실행.
+
+WP2B로 인한 신규 실패 0이어야 함.
+
+==================================================
+28. 범위 밖 절대 금지
+==================================================
+
+하지 마십시오:
+
+- WP3 UI 추가 개발
+- SWIMNOTE/X 가격 변경
+- DATA pack 결제 연결
+- RevenueCat 신규 Product ID
+- RevenueCat dashboard
+- App Store
+- Google Play
+- video compression
+- EAS build
+- album video
+- parent feed video
+- Story CASE C
+- AI ENGINE
+- production deploy
+- production migration
+- OTA
+
+==================================================
+29. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 WP2B COMPLETION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## LOCKED DESIGN COMPLIANCE
+
+3-day Trial:
+PASS / FAIL
+
+Pool once-only:
+PASS / FAIL
+
+No auto payment:
+PASS / FAIL
+
+No payment method:
+PASS / FAIL
+
+Server grant:
+PASS / FAIL
+
+Paid X precedence:
+PASS / FAIL
+
+Force disabled precedence:
+PASS / FAIL
+
+Legacy X lifecycle preserved:
+PASS / FAIL
+
+## DB
+
+Columns added:
+...
+
+Migration:
+...
+
+Production executed:
+NO
+
+## TRIAL ACTIVATION ENDPOINT
+
+Route:
+...
+
+Auth:
+...
+
+Atomicity:
+...
+
+Concurrency protection:
+...
+
+## TRIAL ELIGIBILITY
+
+Rules:
+...
+
+Already used:
+...
+
+Already paid/manual:
+...
+
+Force disabled:
+...
+
+## TRIAL TIME
+
+Started:
+...
+
+Ends:
+...
+
+Duration:
+3 DAYS
+
+Server-time based:
+YES / NO
+
+## TRIAL EXPIRY
+
+Requires worker to expire:
+YES / NO
+
+Expected:
+NO
+
+Mode-time check:
+...
+
+Historical timestamps preserved:
+YES / NO
+
+## MODE PRIORITY
+
+Final priority:
+...
+
+normal:
+...
+
+x_trial:
+...
+
+x_pending:
+...
+
+x:
+...
+
+## ModeContext
+
+Changes:
+...
+
+Existing normal regression:
+PASS / FAIL
+
+Existing x regression:
+PASS / FAIL
+
+Existing x_pending regression:
+PASS / FAIL
+
+## XModeGuard
+
+x_trial support:
+PASS / FAIL
+
+Growth screens trialAllowed=false preserved:
+YES / NO
+
+Out-of-scope Trial UI changes:
+NONE
+or
+...
+
+## 1.6.3 MODE COMPAT STRATEGY
+
+...
+
+1.6.3:
+PASS / FAIL
+
+## DATA PRESERVATION
+
+Trial expiry deletes member data:
+NO
+
+Trial expiry deletes diary:
+NO
+
+Trial expiry deletes photo/video:
+NO
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+CASE L:
+PASS / FAIL
+
+CASE M:
+PASS / FAIL
+
+CASE N:
+PASS / FAIL
+
+New WP2B tests:
+...
+
+Existing test regressions caused by WP2B:
+0 / OTHER
+
+## CURRENT WP3 CODE
+
+Preserved:
+YES / NO
+
+Additional WP3 scope changes:
+NONE
+or
+...
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## BLOCKERS FOR WP3 ACCEPTANCE
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## DEPLOY
+
+NOT PERFORMED
+
+FINAL:
+
+SWIMNOTE 2.0 WP2B COMPLETE

@@ -1,0 +1,203 @@
+[앱]
+
+GROWTH REPORT MONTHLY DELIVERY — FINAL BLOCKER FIX
+
+현재:
+SHA 07290b27
+branch deploy-photo-clone
+
+PRE-DEPLOY 감사에서 blocker 3개 확인.
+
+이번 Step에서는:
+1) analysis_status publish-safe 조건 수정
+2) Growth Report history API/UI 최소 구현
+
+만 수행.
+
+Production DB write 금지.
+deploy 금지.
+AI 호출 금지.
+FREE 70-METRIC ENGINE 수정 금지.
+
+==================================================
+1. AUTO-PUBLISH ANALYSIS STATUS FIX
+==================================================
+
+현재 버그:
+
+gr.analysis_status = 'COMPLETE'
+
+단일 상태만 허용.
+
+최종 publish-safe ENGINE analysis_status:
+
+- COMPLETE
+- COMPLETE_WITH_QUESTIONS_AVAILABLE
+- COMPLETE_WITH_PARENT_EVIDENCE
+
+만 허용.
+
+PARTIAL 절대 포함 금지.
+
+SQL을 정확히:
+
+analysis_status IN (
+  'COMPLETE',
+  'COMPLETE_WITH_QUESTIONS_AVAILABLE',
+  'COMPLETE_WITH_PARENT_EVIDENCE'
+)
+
+형태로 최소 수정.
+
+기존 아래 safety 조건 전부 유지:
+
+- student.status = active
+- previous month 정확히 일치
+- product_status = REVIEW_REQUIRED
+- gr.deleted_at IS NULL
+- s.deleted_at IS NULL
+- grounding PASS/REVISED_PASS
+- growth_framing PASS/REVISED_PASS
+- report_content 존재
+- report_fact_package 존재
+- sns_summary 존재
+
+==================================================
+2. TARGETED TEST — ANALYSIS STATUS
+==================================================
+
+A.
+COMPLETE
+→ publish candidate YES
+
+B.
+COMPLETE_WITH_QUESTIONS_AVAILABLE
+→ publish candidate YES
+
+C.
+COMPLETE_WITH_PARENT_EVIDENCE
+→ publish candidate YES
+
+D.
+PARTIAL
+→ publish candidate NO
+
+E.
+FAILED / null / 기타
+→ publish candidate NO
+
+==================================================
+3. GROWTH REPORT HISTORY API
+==================================================
+
+기존 서비스:
+
+getPublishedReportHistory()
+
+재사용.
+
+새 endpoint 최소 추가:
+
+GET /parent/students/:studentId/growth-reports
+
+필수:
+
+- requireAuth
+- requireParent
+- parent → student ownership 검증
+- PUBLISHED only
+- deleted_at IS NULL
+- published_at DESC
+- pagination 지원
+
+기존 서비스가 limit=24 고정이라면
+무리하게 구조 변경하지 말고
+현재 최소 pagination 방식에 맞춰 확장.
+
+메인 feed LIMIT 5는 그대로 유지.
+
+==================================================
+4. HISTORY APP UI
+==================================================
+
+최소 화면 추가 또는 기존 적절한 parent screen 재사용.
+
+목표:
+
+"성장리포트 전체보기"
+
+목록 item 최소 정보:
+- report_period
+- published_at
+- report_id
+
+tap:
+기존
+growth-report-detail?reportId=...
+로 이동.
+
+새 report detail 구현 금지.
+기존 detail route 재사용.
+
+==================================================
+5. HOME / FEED
+==================================================
+
+메인 parent feed:
+최근 Growth Report 5개 projection 유지.
+
+별도 history는
+"전체보기"에서 과거 PUBLISHED 전부 접근 가능하게.
+
+같은 report가
+새 콘텐츠처럼 중복 노출되지 않게 유지.
+
+==================================================
+6. TEST
+==================================================
+
+A.
+PUBLISHED 7개월 존재
+→ main feed에는 최근 5개
+→ history에는 7개 모두 접근 가능
+
+B.
+OPEN/FAILED/REVIEW_REQUIRED
+→ history 미노출
+
+C.
+다른 부모 학생 history 접근
+→ 차단
+
+D.
+history item tap
+→ 기존 detail route
+
+E.
+analysis_status 3종 complete 계열
+→ publish candidate
+
+F.
+PARTIAL
+→ publish candidate 아님
+
+G.
+기존 142/142 회귀 유지
+
+AI calls = 0.
+
+==================================================
+7. REPORT
+==================================================
+
+- SHA
+- 변경 파일/함수
+- analysis_status 최종 조건
+- history endpoint contract
+- ownership 검증 방식
+- UI route
+- main feed 5개 / history 전체 동작
+- targeted tests
+- regression 결과
+
+완료 후 STOP.

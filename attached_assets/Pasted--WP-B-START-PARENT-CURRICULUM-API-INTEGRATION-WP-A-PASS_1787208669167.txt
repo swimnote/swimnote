@@ -1,0 +1,642 @@
+# [WP-B START — PARENT CURRICULUM API INTEGRATION]
+
+WP-A 최종 PASS 승인.
+
+이제 WP-B 시작.
+
+이번 WP-B 목적:
+
+기존
+POST /parent/students/:studentId/curriculum-search
+
+라우트에 WP-A의:
+
+- Intent Parser
+- Evidence Retriever
+- Progress Resolver
+- Answer Builder
+
+를 실제 연결하고,
+
+answer_mode에 따라:
+
+DIRECT_DB
+GROUNDED_GPT
+HUMAN_ONLY
+
+3개 경로로 분기한다.
+
+중요:
+
+이번 WP-B는 SERVER/API 통합만 수행.
+
+아직:
+- 앱 UI 수정 금지
+- conversation migration 금지
+- 새 대화/history 구현 금지
+- Production X04 ingestion 금지
+- 전체 regression test 금지
+
+==================================================
+1. 기존 API 유지
+==================================================
+
+기존 endpoint 유지:
+
+POST /parent/students/:studentId/curriculum-search
+
+신규 endpoint로 갈아엎지 않는다.
+
+기존:
+
+- requireParent
+- quota
+- conversation
+- request_id
+- saveMessages
+- retry/idempotency
+
+구조를 최대한 재사용한다.
+
+==================================================
+2. 목표 PIPELINE
+==================================================
+
+최종 순서:
+
+1. requireParent
+2. parent → student 권한 확인
+3. 서비스 이용 가능 여부 확인
+4. curriculum eligibility 확인
+5. quota availability 확인
+6. conversation 확보
+7. Intent Parser
+8. Evidence Retriever
+9. Progress Resolver
+10. Answer Builder
+11. answer_mode 분기
+
+   DIRECT_DB
+   HUMAN_ONLY
+   GROUNDED_GPT
+
+12. 필요 시 AI Engine 호출
+13. validation
+14. message 저장
+15. metadata snapshot 저장
+16. quota finalize / rollback
+17. response
+
+==================================================
+3. NORMAL SWIMNOTE 차단
+==================================================
+
+정책 유지:
+
+Normal SWIMNOTE 학부모는
+커리큘럼 AI 검색을 실제 실행하지 않는다.
+
+버튼 노출은 WP-C에서 처리.
+
+서버에서는 Normal 요청이 들어와도
+AI Engine/GPT 전에 차단 가능해야 한다.
+
+안내 reason:
+
+CURRICULUM_NOT_AVAILABLE
+
+또는 기존 error contract에 맞는 안전한 code.
+
+사용자 메시지:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+이 경우:
+
+AI Engine 호출 0
+quota 차감 0
+
+==================================================
+4. X / 허용 센터 eligibility
+==================================================
+
+검색 허용 조건:
+
+- 서비스 허용 상태
+- 검색 가능한 curriculum_items >= 300
+
+현재 X ingestion이 아직 실제 Production에서 실행되지 않아
+curriculum_items가 0일 수 있음.
+
+그 경우 정상적으로 NOT_AVAILABLE 처리.
+
+300개를 우회하지 않는다.
+
+금지:
+
+- active X profile만으로 허용
+- level count 기준 허용
+- 임의 가중치 허용
+
+==================================================
+5. Intent Parser 연결
+==================================================
+
+WP-A:
+
+curriculum-intent-parser.ts
+
+실제 route에서 호출.
+
+intent 결과를 이후:
+
+Evidence Retriever
+Answer Builder
+metadata
+
+에 전달.
+
+GPT에게 intent 판정을 다시 시키지 않는다.
+
+==================================================
+6. Evidence Retriever 연결
+==================================================
+
+WP-A:
+
+curriculum-evidence-retriever.ts
+
+사용.
+
+조회:
+
+- growth_events
+- class_diary_student_notes / 실제 student diary source
+- class_diaries
+- student_levels
+- curriculum_items
+
+invalidated growth_event 제외.
+
+원본 diary evidence 유지.
+
+==================================================
+7. Progress Resolver 연결
+==================================================
+
+WP-A 최신 패치 기준 사용.
+
+상태:
+
+COMPLETED
+IN_PROGRESS
+REVIEW
+NOT_CONFIRMED
+NEXT
+
+완료 판정:
+
+- student_levels 구조적 달성
+- 명시적 완료 evidence
+- 안전한 completion source
+
+금지:
+
+오래된 TRACKED만으로 COMPLETED.
+
+==================================================
+8. DIRECT_DB
+==================================================
+
+DIRECT_DB는 AI Engine/GPT 호출하지 않는다.
+
+가능한 예:
+
+- 현재 level
+- 명확한 최근 수업일
+- DB에서 확정 가능한 사실
+
+DIRECT_DB:
+
+AI call = 0
+quota charge = 0
+
+답변은 deterministic formatter 사용.
+
+단,
+자연어 품질을 위해 GPT를 몰래 호출하지 않는다.
+
+==================================================
+9. HUMAN_ONLY
+==================================================
+
+예:
+
+- 왜 진급 안 시켜줘요?
+- 다음주 진급 가능해요?
+- 정확히 언제 다음 단계 가나요?
+
+HUMAN_ONLY:
+
+AI Engine/GPT 호출 0
+quota 차감 0
+
+고정 안전 안내.
+
+예:
+
+"진급 시점이나 다음 단계 전환 여부는
+실제 수업 수행 상태와 담당 선생님의 판단이 필요합니다."
+
+필요 시 기존 문의 연결 구조와의 연결은
+이번 WP-B에서 새로 만들지 않는다.
+
+==================================================
+10. GROUNDED_GPT
+==================================================
+
+GROUNDED_GPT만
+Parent Curriculum Engine 호출.
+
+사용 client:
+
+parent-curriculum-engine-client.ts
+
+env:
+
+PARENT_CURRICULUM_ENGINE_URL
+PARENT_CURRICULUM_ENGINE_SECRET
+
+APP_PARENT_CURRICULUM_SERVICE_TOKEN은
+이 client에서 사용하지 않음.
+
+==================================================
+11. ENGINE INPUT
+==================================================
+
+Engine에 최소 전달:
+
+{
+  request_id,
+  schema_version,
+  feature: "parent_curriculum_search",
+  query,
+  context: {
+    pool,
+    student,
+    mode,
+    curriculum_scope,
+    curriculum_items,
+    progress,
+    recent_conversation
+  }
+}
+
+WP-A Grounded Package를
+기존 Engine contract에 맞춰 mapping.
+
+APP에서 Neon 직접 접근 금지.
+
+==================================================
+12. PROFESSIONAL KNOWLEDGE
+==================================================
+
+Engine 내부 최신 canonical source는:
+
+kf.v2_search_index
+
+APP route는 이 DB를 직접 모른다.
+
+Engine 결과:
+
+answer
+grounding.knowledge_ids
+validation
+
+사용.
+
+GPT 자체 수영지식 fallback 금지.
+
+==================================================
+13. ENGINE FAILURE
+==================================================
+
+Engine timeout / 5xx / validation failure:
+
+- quota rollback
+- completed_count 증가 금지
+- 사용자 안전 오류
+- raw engine error 노출 금지
+
+사용자:
+
+"커리큘럼 정보를 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+DIRECT_DB 경로는
+Engine 장애와 무관하게 동작 가능.
+
+==================================================
+14. QUOTA — 기존 로직 보존
+==================================================
+
+현재 quota 구현은 목표 정책과 이미 일치.
+
+월 10회.
+
+parent_account_id 기준.
+
+자녀 여러 명 합산.
+
+중요:
+
+GROUNDED_GPT 성공만 +1.
+
+DIRECT_DB:
+0
+
+HUMAN_ONLY:
+0
+
+NOT_AVAILABLE:
+0
+
+Engine failure:
+0
+
+validation failure:
+0
+
+현재 reservation/finalize/rollback 구조 재사용.
+
+quota core 로직 재작성 금지.
+
+==================================================
+15. QUOTA RESERVATION 위치
+==================================================
+
+가능하면 비용이 실제 발생할 가능성이 있는
+GROUNDED_GPT 경로에서만 reservation.
+
+하지만 현재 기존 route 구조상
+초기에 reserve하도록 되어 있다면:
+
+DIRECT_DB/HUMAN_ONLY 결정 후
+즉시 rollback하는 구조보다
+
+answer_mode 결정 후 reserve하는 구조가
+더 안전한지 검토.
+
+기존 concurrency/idempotency 보호를 깨면 안 됨.
+
+최소 변경으로 구현.
+
+==================================================
+16. CONVERSATION 저장
+==================================================
+
+기존:
+
+parent_curriculum_conversations
+parent_curriculum_messages
+
+사용.
+
+WP-D 전이므로
+아직 학생당 단일 conversation 구조 유지.
+
+새 대화/history migration 금지.
+
+==================================================
+17. METADATA SNAPSHOT
+==================================================
+
+AI 답변 메시지의 metadata JSONB에
+가능한 범위에서 저장:
+
+{
+  intent,
+  answer_mode,
+  evidence,
+  progress_state,
+  curriculum_current,
+  curriculum_next,
+  knowledge_ids,
+  validation,
+  quota_charged
+}
+
+민감정보/내부 secret 저장 금지.
+
+Evidence가 너무 커질 경우
+전체 diary body를 무제한 저장하지 않는다.
+
+필요한 evidence snapshot만.
+
+==================================================
+18. RESPONSE CONTRACT
+==================================================
+
+기존 앱 호환성을 깨지 않는다.
+
+기존 answer/usage 필드는 유지.
+
+가능하면 추가:
+
+{
+  answer,
+  usage,
+  answer_mode,
+  intent
+}
+
+단,
+기존 curriculum-chat.tsx가 깨지지 않는
+backward-compatible additive response만 허용.
+
+==================================================
+19. CURRENT CURRICULUM ABSENCE
+==================================================
+
+현재 Production에 X curriculum_items가 없을 수 있음.
+
+이것은 서버 오류가 아니다.
+
+정상 상태:
+
+eligible = false
+reason = CURRICULUM_NOT_READY
+
+로 처리.
+
+500/502 금지.
+
+==================================================
+20. NO OVERCLAIM
+==================================================
+
+AI Engine에 전달하기 전에 이미
+Progress Resolver 결과를 확정.
+
+Engine이:
+
+NOT_CONFIRMED
+→ COMPLETED
+
+로 승격하지 못하도록 prompt/validation에 명시.
+
+Engine output이 APP progress_state와 충돌하면
+validation failure 또는 APP state 우선.
+
+APP deterministic progress가 authority.
+
+==================================================
+21. 최소 테스트
+==================================================
+
+전체 regression 금지.
+
+WP-B 관련 신규/수정 테스트만.
+
+최소:
+
+1.
+Normal user
+→ NOT_AVAILABLE
+→ AI call 0
+→ quota 0
+
+2.
+X/allowed pool curriculum <300
+→ NOT_READY
+→ AI call 0
+→ quota 0
+
+3.
+DIRECT_DB
+→ answer
+→ Engine 0
+→ quota 0
+
+4.
+HUMAN_ONLY
+→ safe answer
+→ Engine 0
+→ quota 0
+
+5.
+GROUNDED_GPT success
+→ Engine 1
+→ quota +1
+
+6.
+Engine failure
+→ quota rollback
+→ safe error
+
+7.
+validation failure
+→ quota rollback
+
+8.
+quota exhausted
+→ Engine 0
+
+9.
+invalidated growth_event
+→ evidence 제외
+
+10.
+single diary
+→ COMPLETED 금지
+
+11.
+Engine output completion overclaim
+→ APP state 우선/validation reject
+
+12.
+metadata snapshot 저장
+
+13.
+기존 response contract 호환
+
+==================================================
+22. Production
+==================================================
+
+이번 WP-B 구현 중:
+
+Production DB mutation 금지
+migration 금지
+X04 ingestion 금지
+
+코드 구현 + 관련 unit/integration test만.
+
+Render deploy는 완료 보고 후 별도 승인.
+
+==================================================
+23. 완료 보고
+==================================================
+
+[WP-B COMPLETION REPORT]
+
+A. ROUTE
+- modified files:
+- endpoint preserved:
+- existing auth reused:
+- existing conversation reused:
+
+B. PIPELINE
+- eligibility:
+- intent parser:
+- evidence retriever:
+- progress resolver:
+- answer builder:
+- engine client:
+
+C. ANSWER MODES
+- DIRECT_DB:
+- HUMAN_ONLY:
+- GROUNDED_GPT:
+
+D. ENGINE
+- endpoint:
+- env names:
+- direct DB access: NO
+- knowledge_ids:
+- validation:
+- fallback to GPT knowledge: NO
+
+E. QUOTA
+- monthly limit:
+- quota key:
+- DIRECT_DB charge:
+- HUMAN_ONLY charge:
+- GROUNDED_GPT success charge:
+- failure rollback:
+- exhausted pre-engine block:
+
+F. STORAGE
+- messages:
+- metadata snapshot:
+- migration:
+
+G. TESTS
+- new/updated test count:
+- passed:
+- full regression run: NO
+
+H. PRODUCTION
+- Production DB mutation: NO
+- Render deploy: NO
+
+I. FINAL
+- WP-B PASS: YES/NO
+- WP-C ready: YES/NO
+- blocker:
+- next recommended step:
+
+완료 후 멈춘다.
+Render deploy는 별도 승인 후.
+WP-C는 아직 시작하지 않는다.

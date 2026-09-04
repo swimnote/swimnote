@@ -1,0 +1,199 @@
+[앱] GROWTH REPORT STATUS RELIABILITY — PRODUCTION DEPLOY + MINIMAL SMOKE
+
+현재 상태:
+- reliability fix commit: 9d57c8c7
+- tests: 118/118 PASS
+- Production deploy: 아직 안 됨
+- DB migration 필요 없음
+- AI Engine 수정 없음
+
+목적:
+9d57c8c7을 Production API에 반영하고
+정상 NOT_AVAILABLE / 서버 오류 분리 계약이
+실제 배포 코드에 포함됐는지만 최소 확인한다.
+
+이번 Step은 DEPLOY + MINIMAL SMOKE ONLY.
+
+금지:
+- 기능 추가
+- UI redesign
+- DB migration
+- Production DB write
+- Growth Report 생성
+- AI 호출
+- OTA
+- broad regression
+- unrelated refactor
+- RENDER_API_KEY 사용
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DEPLOY SOURCE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- branch = deploy-photo-clone
+- current HEAD
+- 9d57c8c7 포함 여부
+- 기존 Phase 1 commits 포함 여부
+
+보고:
+- HEAD SHA
+- branch
+- deploy target service
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 방식만 사용:
+
+git push origin deploy-photo-clone
+→ Render auto-deploy
+
+별도 Render deploy API 호출 금지.
+RENDER_API_KEY 사용 금지.
+
+auto-deploy 완료 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. HEALTH CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 최소 확인:
+
+- swimnote-api process 정상
+- /health 정상
+- startup crash 없음
+- DB connection 정상
+- Growth Report routes 등록 정상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. NORMAL NOT_AVAILABLE SMOKE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+안전한 요청으로 최대 1회 확인.
+
+GET
+/parent/students/:studentId/growth-report-status
+
+가능하면 정상적으로 report가 없는
+test/fixture student 사용.
+
+기대:
+
+HTTP 200
+
+{
+  status: "NOT_AVAILABLE"
+}
+
+운영 학생 데이터 수정 금지.
+
+안전 fixture 없으면 실제 호출 생략.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. SERVER ERROR CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Production에서 의도적으로 DB 장애를 만들거나
+exception을 발생시키지 말 것.
+
+deployed source 기준 read-only 확인:
+
+catch block →
+HTTP 500
+
+{
+  code: "INTERNAL_ERROR"
+}
+
+정상 NOT_AVAILABLE과 분리되어 있는지 확인.
+
+failure injection 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. APP CONTRACT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+deployed source 기준:
+
+200 NOT_AVAILABLE
+→ grStatusServerError = false
+
+5xx/network
+→ grStatusServerError = true
+
+5xx를 NOT_AVAILABLE로 변환하지 않음.
+
+UI 추가 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 기존 FLOW 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+read-only 확인:
+
+- DATA_ACCUMULATING unchanged
+- GENERATING unchanged
+- READY unchanged
+- PUBLISHED unchanged
+- FAILED unchanged
+- feed/detail unchanged
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 테스트만 재실행:
+
+- gr-status-reliability
+- free-growth-report-phase1
+- gr-data-accumulating-contract
+
+repo-wide regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT STATUS RELIABILITY PRODUCTION REPORT
+
+- HEAD SHA
+- deployed SHA
+- branch
+- service
+- deploy mechanism
+- deploy status
+- health status
+
+NORMAL NOT_AVAILABLE:
+- smoke executed YES/NO
+- HTTP/result
+
+SERVER ERROR CONTRACT:
+- deployed catch behavior
+- HTTP/error code
+- failure injection used: NO
+
+APP:
+- 200 behavior
+- 5xx behavior
+
+- DATA_ACCUMULATING unchanged: YES
+- PUBLISHED unchanged: YES
+- Production DB write: NO
+- AI calls: 0
+- OTA: NO
+- RENDER_API_KEY used: NO
+- tests/pass
+
+Final Verdict:
+
+GROWTH REPORT STATUS RELIABILITY PRODUCTION COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

@@ -1,0 +1,151 @@
+[SWIMNOTE 반 상세 모달 제스처 분리 — 배포 전 마지막 보완]
+
+현재 선생님 ClassDetailSheet 수정 구조는 유지한다.
+
+관리자 AdminClassDetailSheet에 남아 있는
+세로 ScrollView 안의 세로 FlatList 중첩 구조만 제거한다.
+
+현재 문제 구조:
+
+<ScrollView>
+  헤더·정보·버튼
+  <FlatList data={students} />
+</ScrollView>
+
+이 구조는 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 관리자 메인 화면 최종 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 학생 목록도 하나의 FlatList가 전체 스크롤을 담당하게 한다.
+
+권장 구조 A:
+
+<FlatList
+  data={students}
+  renderItem={renderStudent}
+  keyExtractor={...}
+  ListHeaderComponent={
+    <>
+      반 정보
+      담당 선생님
+      정원
+      기능 버튼
+      학생 목록 제목
+    </>
+  }
+  ListFooterComponent={
+    <>
+      보강 학생 영역
+      하단 여백
+    </>
+  }
+  style={{ flex: 1, minHeight: 0 }}
+  contentContainerStyle={{ paddingBottom: 64 }}
+  keyboardShouldPersistTaps="always"
+  keyboardDismissMode="on-drag"
+  showsVerticalScrollIndicator={false}
+  initialNumToRender={12}
+  maxToRenderPerBatch={8}
+  windowSize={7}
+  removeClippedSubviews={Platform.OS === "android"}
+/>
+
+금지:
+
+- ScrollView 안에 FlatList
+- FlatList 안에 같은 방향 ScrollView
+- scrollEnabled={false} FlatList로 전체 렌더
+- 학생 목록 map 복귀
+
+서브뷰:
+
+- transfer
+- teacher
+- add_co_teacher
+
+각각 기존 단독 FlatList 구조를 유지한다.
+메인 학생 목록 FlatList와 동시에 렌더하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 제스처 영역 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구현한 정책 유지:
+
+- PanResponder는 dragHandleArea에만 적용
+- 학생 목록 FlatList는 panHandlers 밖
+- sheetHeader 및 기능 버튼도 panHandlers 밖
+- 서브시트 또는 subView가 열리면 메인 손잡이 drag 비활성
+- X 버튼과 backdrop 닫기 유지
+
+선생님 ClassDetailSheet 구조는 이 보완 과정에서 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. handleDismiss 중복 실행 방지
+━━━━━━━━━━━━━━━━━━━━━━
+
+X 버튼, backdrop, 손잡이 dismiss가 동시에 호출될 가능성을 막기 위해
+dismiss 진행 상태가 이미 있는지 확인한다.
+
+없다면 ref 기반 가드를 추가한다.
+
+const dismissingRef = useRef(false);
+
+function handleDismiss() {
+  if (dismissingRef.current) return;
+  dismissingRef.current = true;
+
+  Animated.timing(...).start(() => {
+    sheetDragY.setValue(0);
+    dismissingRef.current = false;
+    handleCloseRef.current();
+  });
+}
+
+모달이 새로 열릴 때 dismissingRef.current = false로 초기화한다.
+
+선생님·관리자 모두 동일하게 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 화면:
+
+1. 학생 목록 중간 스크롤
+2. 맨 위에서 아래로 당기기
+3. 맨 아래에서 추가로 당기기
+4. 빠른 스크롤 30회
+5. 학생 20명 이상
+6. 마지막 학생 접근
+7. 상단 손잡이만 드래그 종료
+8. X 버튼 종료
+9. backdrop 종료
+10. 닫기 동작 연속 입력 시 onClose 1회만 호출
+11. transfer/teacher/add_co_teacher 서브뷰 정상
+
+성공 기준:
+
+- 세로 ScrollView와 FlatList 중첩 0개
+- 학생 목록 드래그 중 sheet translateY 변화 0회
+- dismiss 한 번당 onClose 1회
+- 기존 관리자 기능 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. AdminClassDetailSheet 최종 JSX
+2. ScrollView 제거 diff
+3. ListHeaderComponent/ListFooterComponent 구성
+4. dismiss 중복 실행 가드 여부
+5. 타입체크
+6. git diff
+7. git status
+8. HEAD/origin SHA
+
+보고 후 멈춘다.
+
+Push·Render 배포·OTA 금지.

@@ -1,0 +1,487 @@
+[SWIMNOTE APP — Diary Template / Normal AI Diary를 ACTIVE Curriculum 정본으로 전환]
+
+목표:
+현재 레거시 diary_template_levels 10개 + global diary_templates 350개에
+의존하는 일지 템플릿 화면과 Normal AI Diary 검색을
+
+현재 ACTIVE Curriculum:
+
+version_id:
+cv_0l46tk5vmtdbwn3c
+
+Level: 7
+Node: 550
+Drill: 500
+Relation: 693
+
+기반으로 완전히 전환한다.
+
+최종 목표:
+
+APP 일지 템플릿 화면
+Normal AI Diary
+Growth Report
+Parent Curriculum Search
+
+가 동일 Curriculum Master의 동일 분류 언어를 사용하도록 한다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+1. curriculum_items가 APP의 Curriculum 정본이다.
+
+2. 신규 Curriculum 데이터를 다시 diary_templates에 복제하지 않는다.
+
+금지:
+curriculum_items → diary_templates 550개 복제
+
+정본을 두 개 만들지 않는다.
+
+3. 기존 global diary_templates 350개는
+마이그레이션 검증이 끝날 때까지 삭제하지 않는다.
+
+4. teacher scope 12개는 사용자 생성 데이터이므로 삭제하지 않는다.
+
+5. 기존 class_diaries 292개 내용은 절대 수정하지 않는다.
+
+6. Render / OTA 배포 금지.
+사용자 승인 후 별도 배포한다.
+
+==================================================
+1. ACTIVE CURRICULUM RESOLVER
+==================================================
+
+pool_id 기준 현재 ACTIVE curriculum_version을 조회하는
+공통 resolver/service를 사용 또는 구현한다.
+
+조건:
+
+pool_id
+is_active=true
+import_status=ACTIVE
+
+ACTIVE version은 반드시 1개여야 한다.
+
+0개 또는 2개 이상이면 FAIL.
+
+현재 ToyKids 기대:
+
+cv_0l46tk5vmtdbwn3c
+
+==================================================
+2. Curriculum Item 실제 Metadata 감사
+==================================================
+
+550 curriculum_items의 실제 저장 구조를 확인한다.
+
+반드시 실제 DB/schema 기준으로 보고:
+
+- node_id / node_code
+- display_no
+- level_order
+- level_name
+- sequence_in_level
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- title
+- goal
+- movement_sequence
+- observable_success
+- error_signals
+- coaching_point
+- source_text
+- is_test_item
+
+JSON/meta 컬럼에 저장되어 있다면
+정확한 JSON path를 사용한다.
+
+추측 금지.
+
+==================================================
+3. 일지 템플릿 화면 1차 분류 교체
+==================================================
+
+기존:
+
+diary_template_levels 10개
+- 흰색: 물적응·호흡
+- 흰색: 배영
+- 흰색: 자유형
+- ...
+- 스프린트·레벨테스트
+
+이 10개를 신규 화면의 분류 source로 사용하지 않는다.
+
+신규 1차 분류:
+
+현재 ACTIVE Curriculum의
+level_order + level_name
+
+ToyKids 기대:
+
+1 흰색
+2 파란색
+3 빨간색
+4 검정
+5 금
+6 챔피언
+7 슈퍼챔피언
+
+중요:
+ToyKids 이름 하드코딩 금지.
+
+다른 pool에서는 해당 pool의 실제
+level_order / level_name을 그대로 사용한다.
+
+UI 표시 count도 ACTIVE Curriculum에서 실시간 집계.
+
+ToyKids 현재 기대:
+
+흰색 150
+파란색 100
+빨간색 100
+검정 50
+금 50
+챔피언 50
+슈퍼챔피언 50
+
+합계 550.
+
+==================================================
+4. 2차/3차 분류
+==================================================
+
+기존 임의 category 문자열을 새로 만들지 않는다.
+
+Curriculum metadata를 그대로 사용:
+
+1차:
+level_order / level_name
+
+2차:
+stroke
+
+3차:
+domain 또는 skill_group
+
+단,
+550개 실제 분포를 먼저 GROUP BY 하여
+UI에서 의미 없는 빈 분류/단일값 중첩이 생기지 않도록 한다.
+
+예:
+
+흰색
+  ├ 물적응
+  ├ 호흡
+  ├ 배영
+  ├ 자유형
+  ...
+
+검정
+  ├ 공통기초
+  ├ 배영
+  ├ 자유형
+  ├ 평영
+  ├ 접영
+  ...
+
+위 문자열을 하드코딩하지 않는다.
+
+실제 DB metadata에서 동적으로 생성한다.
+
+최종 leaf는:
+
+Atomic Curriculum Node
+
+를 선택하도록 한다.
+
+==================================================
+5. Diary Template UI DTO
+==================================================
+
+기존 화면 코드를 최소 변경하면서도
+curriculum_items를 표시할 수 있도록
+Curriculum 기반 DTO/API를 설계한다.
+
+예시 개념:
+
+{
+  node_id,
+  display_no,
+  level_order,
+  level_name,
+  stroke,
+  domain,
+  skill_group,
+  title,
+  atomic_skill,
+  goal,
+  source_text,
+  is_active
+}
+
+UI 카드에는
+사람이 이해하기 좋은 text를 사용한다.
+
+우선순위 검토:
+
+title
+atomic_skill
+goal
+source_text
+
+중 어떤 값을
+- 목록 제목
+- 보조 설명
+- 실제 일지 선택값
+
+으로 사용할지 현재 Diary 작성 flow와 맞춰 설계한다.
+
+중요:
+550개 Node를 단순히 긴 원본 문장 550개로 나열하는 UI는 피한다.
+
+==================================================
+6. Teacher Template 12개 처리
+==================================================
+
+teacher scope 12개는 삭제하지 않는다.
+
+Curriculum 정본과 섞어서
+가짜 Curriculum Node처럼 취급하지 않는다.
+
+UI에 별도 영역으로 유지:
+
+예:
+[교육과정]
+[내 템플릿]
+
+또는 현재 UX에 가장 자연스러운 별도 진입 방식.
+
+teacher template은 교사가 만든 문장/편의 기능이고,
+Curriculum Node는 교육 정본이므로 역할을 분리한다.
+
+필요하면 teacher template에
+optional curriculum_node_id 연결을 향후 추가할 수 있으나
+이번 작업에서 강제 migration하지 않는다.
+
+==================================================
+7. Normal AI Diary 검색 전환
+==================================================
+
+현재:
+
+searchTemplates(poolId, meaning)
+→ diary_templates
+→ scope='global'
+→ legacy 350 검색
+
+이를 ACTIVE Curriculum 기반 검색으로 전환한다.
+
+Normal AI Diary가 사용해야 할 검색 metadata:
+
+pool_id
+active curriculum_version
+level_order
+stroke
+domain
+skill_group
+atomic_skill
+title
+goal
+observable_success
+error_signals
+coaching_point
+
+현재 APP 내부 검색인지
+AI Engine Curriculum Search를 호출하는 구조인지
+실제 runtime architecture를 먼저 확인한다.
+
+중요:
+
+이미 AI Engine 쪽에
+Curriculum Search / Grounding이 정상 배포되어 있다면
+같은 기능을 APP에 또 별도로 구현하지 않는다.
+
+가능하면:
+
+APP Teacher Diary
+→ AI Engine
+→ ACTIVE Curriculum Search
+→ Top-K Node Grounding
+
+기존 architecture를 우선 재사용한다.
+
+중복 검색엔진 생성 금지.
+
+==================================================
+8. 선택한 Curriculum Node → Diary 생성 연결
+==================================================
+
+교사가 UI에서 Node를 선택했을 때
+기존처럼 단순 고정 문장을 복사하는 것만으로 끝내지 않는다.
+
+선택 정보에 최소한:
+
+node_id
+node_code
+level_order
+stroke
+domain
+skill_group
+atomic_skill
+
+이 유지되어
+AI Diary에 전달 가능한 구조를 검토한다.
+
+단,
+현재 Diary API contract를 깨지 않는다.
+
+Contract 변경이 필요하면
+수정 전에 정확한 변경안을 보고한다.
+
+==================================================
+9. 기존 레거시와 비교 E2E
+==================================================
+
+새 Curriculum 기반 전환 후 ToyKids에서 확인:
+
+UI:
+- 상단 기존 10개 분류가 더 이상 운영 분류로 사용되지 않음
+- 7개 실제 Level 표시
+- Level count 합계 550
+- Node 선택 가능
+- level_order 순서 정상
+
+Normal Diary:
+실제 교사 입력 최소 10개 테스트.
+
+예:
+- 자유형 발차기
+- 배영 머리 위치
+- 평영 글라이드
+- 접영 킥
+- 물 무서워함
+- 호흡 연습
+- 롤링
+- 스트림라인
+- 킥 박자
+- IM
+
+각 입력에서:
+- Curriculum 검색 결과 반환
+- 올바른 pool
+- 합리적인 Level/Stroke
+- Top-K만 사용
+- legacy global 350 검색 없이 생성 가능
+
+==================================================
+10. Legacy 350 제거 조건
+==================================================
+
+아래 전부 PASS 후에만
+global diary_templates 350개를 삭제 가능 상태로 판정:
+
+- UI Curriculum 전환 PASS
+- Normal AI Diary Curriculum 검색 PASS
+- 기존 class_diaries 영향 없음
+- teacher templates 12 보존
+- global 350 호출 경로 0
+- searchTemplates legacy global 호출 0
+- hardcoded diary_template_levels 10개 의존 0
+
+이번 구현 단계에서는
+삭제 전에 결과를 보고한다.
+
+사용자 승인 전 DELETE 금지.
+
+==================================================
+11. diary_template_levels 처리
+==================================================
+
+기존 diary_template_levels 10개가
+global 350 전용 legacy 분류라면
+
+신규 Curriculum UI에서 더 이상 읽지 않도록 한다.
+
+teacher 12개가 해당 level_id를 사용하고 있는지 확인.
+
+teacher template 때문에 필요하다면
+즉시 삭제하지 않고 legacy/teacher용으로 보존하거나
+teacher template을 안전하게 분리한 후 제거한다.
+
+무조건 삭제 금지.
+
+==================================================
+12. 테스트
+==================================================
+
+최소:
+
+A. Curriculum Level API
+- 7개
+- ASC
+
+B. Node count
+- 550
+
+C. filter
+- level
+- stroke
+- domain
+- skill_group
+
+D. tenant isolation
+
+E. Normal Diary retrieval
+
+F. teacher template 12개 보존
+
+G. 기존 class_diaries 292개 조회 정상
+
+H. legacy global 350 없이도
+Normal Diary가 정상 생성 가능한지 검증
+
+==================================================
+13. 완료보고
+==================================================
+
+ARCHITECTURE
+- 기존 Diary data flow
+- 신규 Curriculum data flow
+- AI Engine 재사용 여부
+
+UI
+- 기존 10개 분류 상태
+- 신규 7 Level
+- 2차/3차 분류 구조
+- 표시 Node count
+
+AI DIARY
+- legacy searchTemplates 사용 여부
+- Curriculum Search 사용 여부
+- 실제 테스트 결과
+
+TEACHER TEMPLATE
+- 12개 보존 여부
+- 신규 UI에서 위치
+
+LEGACY
+- global 350 호출 경로 잔존 여부
+- 삭제 가능 판정
+
+DB
+- 신규 schema/migration 필요 여부
+
+CODE
+- 수정 파일
+- tests
+- commit SHA
+
+DEPLOY
+- Render 미배포
+- OTA 미배포
+
+완료 후 STOP.

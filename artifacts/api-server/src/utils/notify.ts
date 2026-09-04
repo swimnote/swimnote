@@ -1,15 +1,17 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { sendPushToUser } from "../lib/push-service.js";
 
 interface NotifPayload {
-  recipientId: string;
+  recipientId:   string;
   recipientType: "parent_account" | "user";
-  poolId: string;
-  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment" | "storage_warning";
-  title: string;
-  body: string;
-  refId?: string;
+  poolId:        string;
+  type: "diary_upload" | "photo_upload" | "photo_comment" | "diary_comment" | "storage_warning" | "GROWTH_REPORT_PUBLISHED";
+  title:    string;
+  body:     string;
+  refId?:   string;
   refType?: string;
+  deepLink?: string;
 }
 
 /**
@@ -33,12 +35,14 @@ export async function sendNotification(payload: NotifPayload): Promise<void> {
     if (await isDuplicate(payload.type, payload.refId, payload.recipientId)) return;
     const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     await db.execute(sql`
-      INSERT INTO notifications (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type)
+      INSERT INTO notifications
+        (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link)
       VALUES (
         ${id}, ${payload.recipientId}, ${payload.recipientType},
         ${payload.poolId}, ${payload.type},
         ${payload.title}, ${payload.body},
-        ${payload.refId || null}, ${payload.refType || null}
+        ${payload.refId || null}, ${payload.refType || null},
+        ${payload.deepLink || null}
       )
     `);
   } catch (err) {
@@ -120,7 +124,7 @@ export async function notifyStorageWarning(poolId: string, usagePercent: number)
       sendNotification({
         recipientId: a.id, recipientType: "user", poolId,
         type: "storage_warning",
-        title: "📦 사진 저장 공간 부족 경고",
+        title: "사진 저장 공간 부족 경고",
         body: `사진 저장 공간 사용량이 ${pct}%에 도달했습니다. 용량 초과 시 추가 업로드가 제한될 수 있습니다.`,
         refId: poolId, refType: "pool",
       })
@@ -170,9 +174,275 @@ export async function checkStorageUsage(poolId: string): Promise<void> {
 }
 
 /**
+ * GR7: Growth Report PUBLISHED → 해당 student의 승인된 학부모들에게 알림 + Push 발송
+ *
+ * 원칙:
+ *   - PUBLISHED 이후에만 호출 (DB commit 완료 후 fire-and-forget)
+ *   - 멱등성: 동일 (type, ref_id=reportId, recipient_id=parentId) 존재 시 skip (영구 dedup)
+ *   - 다중 보호자: parent_students DISTINCT parent_id로 deduplicate
+ *   - Push preference: sendPushToUser가 기존 push_settings ON/OFF 확인
+ *   - PII 금지: push body에 분석 내용 없음, 정적 Product 문구만 사용
+ *   - ENGINE 호출 금지, GPT 호출 금지
+ *   - Notification center 저장 (ref_id=reportId, ref_type='growth_report')
+ */
+export async function notifyGrowthReportPublished(params: {
+  reportId:     string;
+  studentId:    string;
+  poolId:       string;
+  reportPeriod: string; // e.g. "2026-07"
+  publishedAt?: string;
+  actorId?:     string;
+}): Promise<void> {
+  const { reportId, studentId, poolId, reportPeriod, actorId } = params;
+
+  // 학생 이름 조회 (PII 최소: 이름만, 진단/분석 내용 금지)
+  let studentName = "학생";
+  try {
+    const sr = (await db.execute(sql`
+      SELECT name FROM students WHERE id = ${studentId} LIMIT 1
+    `)).rows as any[];
+    if (sr.length > 0 && sr[0].name) studentName = sr[0].name;
+  } catch { /* 이름 조회 실패는 무시 — 기본값 "학생" 사용 */ }
+
+  // report_period → "M월" (e.g. "2026-07" → "7월")
+  const month = parseInt(reportPeriod.split("-")[1] ?? "1", 10);
+  const monthLabel = `${month}월`;
+
+  // Product 문구 (정적, ENGINE 해석/GPT 생성 금지)
+  // §I 정책: "지난달 성장리포트가 도착했습니다" / "지난 한 달 동안의 성장 모습을 확인해보세요."
+  const title    = "지난달 성장리포트가 도착했습니다";
+  const body     = "지난 한 달 동안의 성장 모습을 확인해보세요.";
+  const deepLink = `/parent/growth-report-detail?reportId=${reportId}`;
+
+  // 승인된 보호자 조회 (DISTINCT — 중복 relation 방어)
+  let parentIds: string[] = [];
+  try {
+    const parentRows = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status = 'approved'
+    `)).rows as any[];
+    parentIds = parentRows.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] GR7 parent_students 조회 실패:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      // 영구 멱등성: SELECT pre-check (성능 최적화) + ON CONFLICT DO NOTHING (DB 레벨 최종 보장)
+      // GR-M8: uq_notifications_gr_published partial unique index (type, ref_id, recipient_id)
+      //        WHERE type='GROWTH_REPORT_PUBLISHED' — concurrent 실행 시에도 정확히 1회 보장.
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type = 'GROWTH_REPORT_PUBLISHED'
+          AND ref_id = ${reportId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      // Notification Center에 저장 (GR7 §13)
+      // ON CONFLICT DO NOTHING: race condition 시 duplicate push 완전 차단
+      const id = `notif_gr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body,
+           ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           'GROWTH_REPORT_PUBLISHED', ${title}, ${body},
+           ${reportId}, 'growth_report', ${deepLink}, false)
+        ON CONFLICT (type, ref_id, recipient_id)
+          WHERE type = 'GROWTH_REPORT_PUBLISHED'
+        DO NOTHING
+        RETURNING id
+      `);
+
+      // CONFLICT로 INSERT 건너뜀 → push 불필요
+      if (!insertRes.rows.length) {
+        console.log(`[notify] GR7 notification already exists (race): report=${reportId} parent=${parentId}`);
+        continue;
+      }
+
+      // Push delivery (기존 preference 정책 존중 — sendPushToUser가 ON/OFF 확인)
+      await sendPushToUser(
+        parentId, true, "GROWTH_REPORT_PUBLISHED", title, body,
+        {
+          screen:           "growth_report_detail",
+          growth_report_id: reportId,
+          report_period:    reportPeriod,
+          deep_link:        deepLink,
+        },
+        actorId,
+      ).catch(err => {
+        // Push 실패는 Notification Center 저장에 영향 없음 (spec §17)
+        console.error(`[notify] GR7 push failed parent=${parentId}:`, err);
+      });
+
+      console.log(`[notify] GR7 notification created: report=${reportId} parent=${parentId}`);
+    } catch (err) {
+      // 개별 parent 실패는 다른 parent에 영향 없음
+      console.error(`[notify] GR7 notification failed parent=${parentId}:`, err);
+    }
+  }
+}
+
+/**
  * 댓글 작성 알림 → 해당 수영장의 선생님(teacher)에게만 전송
  * 관리자(pool_admin)는 댓글 알림 수신 불필요
  */
+// ─────────────────────────────────────────────────────────────────────────────
+// Paid Insight Notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * notifyPaidInsightLevelUp
+ *
+ * Sent when a teacher confirms a student's level-up event.
+ * Mentions Paid Insight as a way to see the growth analysis — NOT a sales push.
+ *
+ * Idempotency: (type, ref_id=levelEventId, recipient_id=parentId) — unique per event.
+ * Duplicate: 0 per event per parent.
+ */
+export async function notifyPaidInsightLevelUp(params: {
+  studentId:    string;
+  studentName:  string;
+  poolId:       string;
+  levelEventId: string; // opaque ref_id for idempotency
+  actorId:      string;
+}): Promise<void> {
+  const { studentId, studentName, poolId, levelEventId, actorId } = params;
+  const TYPE = "PAID_INSIGHT_LEVEL_UP" as const;
+
+  const title    = `${studentName}이(가) 새로운 레벨로 성장했어요`;
+  const body     = "지금까지의 성장과 다음 단계 전략을 AI 인사이트 전략 리포트에서 확인할 수 있어요.";
+  const deepLink = `/parent/growth-report-paid?studentId=${studentId}`;
+
+  let parentIds: string[] = [];
+  try {
+    const pr = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status     = 'approved'
+    `)).rows as any[];
+    parentIds = pr.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] PAID_INSIGHT_LEVEL_UP parent fetch failed:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type         = ${TYPE}
+          AND ref_id       = ${levelEventId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      const id = `notif_pi_lv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           ${TYPE}, ${title}, ${body},
+           ${levelEventId}, 'level_event', ${deepLink}, false)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+      if (!insertRes.rows.length) continue;
+
+      await sendPushToUser(
+        parentId, true, TYPE, title, body,
+        { screen: "paid_insight", student_id: studentId, deep_link: deepLink },
+        actorId,
+      ).catch(err => console.error(`[notify] PAID_INSIGHT_LEVEL_UP push failed parent=${parentId}:`, err));
+
+      console.log(`[notify] PAID_INSIGHT_LEVEL_UP created: event=${levelEventId} parent=${parentId}`);
+    } catch (err) {
+      console.error(`[notify] PAID_INSIGHT_LEVEL_UP failed parent=${parentId}:`, err);
+    }
+  }
+}
+
+/**
+ * notifyPaidInsightWithdrawal
+ *
+ * Sent when a student is withdrawn. Offers Paid Insight as a way to preserve
+ * the growth record — NOT a discount, NOT a sales push.
+ *
+ * Idempotency: (type, ref_id=studentId, recipient_id=parentId) — once per student per parent.
+ */
+export async function notifyPaidInsightWithdrawal(params: {
+  studentId:   string;
+  studentName: string;
+  poolId:      string;
+  actorId:     string;
+}): Promise<void> {
+  const { studentId, studentName, poolId, actorId } = params;
+  const TYPE = "PAID_INSIGHT_WITHDRAWAL" as const;
+
+  const title    = "그동안의 성장기록이 쌓여 있어요";
+  const body     = `${studentName}의 그동안 쌓인 성장과정을 마지막 인사이트 리포트로 남겨보세요.`;
+  const deepLink = `/parent/growth-report-paid?studentId=${studentId}`;
+
+  let parentIds: string[] = [];
+  try {
+    const pr = (await db.execute(sql`
+      SELECT DISTINCT parent_id
+      FROM parent_students
+      WHERE student_id = ${studentId}
+        AND status     = 'approved'
+    `)).rows as any[];
+    parentIds = pr.map(r => r.parent_id).filter(Boolean);
+  } catch (err) {
+    console.error("[notify] PAID_INSIGHT_WITHDRAWAL parent fetch failed:", err);
+    return;
+  }
+
+  for (const parentId of parentIds) {
+    try {
+      const dup = (await db.execute(sql`
+        SELECT 1 FROM notifications
+        WHERE type         = ${TYPE}
+          AND ref_id       = ${studentId}
+          AND recipient_id = ${parentId}
+        LIMIT 1
+      `)).rows;
+      if (dup.length > 0) continue;
+
+      const id = `notif_pi_wd_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const insertRes = await db.execute(sql`
+        INSERT INTO notifications
+          (id, recipient_id, recipient_type, pool_id, type, title, body, ref_id, ref_type, deep_link, is_read)
+        VALUES
+          (${id}, ${parentId}, 'parent_account', ${poolId},
+           ${TYPE}, ${title}, ${body},
+           ${studentId}, 'student', ${deepLink}, false)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+      if (!insertRes.rows.length) continue;
+
+      await sendPushToUser(
+        parentId, true, TYPE, title, body,
+        { screen: "paid_insight", student_id: studentId, deep_link: deepLink },
+        actorId,
+      ).catch(err => console.error(`[notify] PAID_INSIGHT_WITHDRAWAL push failed parent=${parentId}:`, err));
+
+      console.log(`[notify] PAID_INSIGHT_WITHDRAWAL created: student=${studentId} parent=${parentId}`);
+    } catch (err) {
+      console.error(`[notify] PAID_INSIGHT_WITHDRAWAL failed parent=${parentId}:`, err);
+    }
+  }
+}
+
 export async function notifyComment(
   poolId: string,
   type: "photo_comment" | "diary_comment",
@@ -202,4 +472,42 @@ export async function notifyComment(
     );
     await Promise.allSettled(promises);
   } catch (err) { console.error("[notify] comment 알림 오류:", err); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// notifyBatchComplete — WP8: admin pool_admin 발송 준비 완료 알림
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function notifyBatchComplete(params: {
+  poolId:  string;
+  message: string;
+}): Promise<void> {
+  const { poolId, message } = params;
+  try {
+    // pool_admin 역할 보유자에게 발송 (users 테이블 기준, same pool only)
+    const admins = (await db.execute(sql`
+      SELECT DISTINCT id AS user_id
+      FROM users
+      WHERE swimming_pool_id = ${poolId}
+        AND role = 'pool_admin'
+    `)).rows as any[];
+
+    const title = "AI 성장리포트 발송 준비 완료";
+
+    const promises = admins.map(a =>
+      sendNotification({
+        recipientId:   a.user_id,
+        recipientType: "user",
+        poolId,
+        type:          "GROWTH_REPORT_BATCH_READY",
+        title,
+        body:          message,
+        refId:         poolId,
+        refType:       "pool",
+      }).catch(e => console.error(`[notify] batchComplete push user=${a.user_id}:`, e))
+    );
+    await Promise.allSettled(promises);
+  } catch (err) {
+    console.error("[notify] notifyBatchComplete 오류:", err);
+  }
 }

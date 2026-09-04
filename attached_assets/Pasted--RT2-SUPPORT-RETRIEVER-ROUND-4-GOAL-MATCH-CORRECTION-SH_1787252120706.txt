@@ -1,0 +1,307 @@
+# [RT2 SUPPORT RETRIEVER — ROUND 4 GOAL MATCH CORRECTION]
+
+현재 SHA:
+7d4d1320
+
+Round 3 결과:
+
+Q6는 정상.
+
+그러나 Q3/Q4는 semantic gate는 통과했지만
+질문의 실제 목적과 다른 KI가 top-1.
+
+Q3:
+"알림끄는거 어디서해?"
+→ "어떤 경우에 알림이 오나요?"
+
+Q4:
+"푸시 알림 설정"
+→ "어떤 경우에 알림이 오나요?"
+
+이는 false-positive가 완전히 해결된 상태가 아님.
+
+Render deploy 금지.
+
+==================================================
+1. 핵심 문제
+==================================================
+
+현재 scoring은:
+
+- 반대 action
+- wrong object
+- troubleshoot mismatch
+
+는 잘 제거하지만,
+
+query가 명확한 action/goal을 가지고 있는데
+KI가 그 action/goal을 전혀 다루지 않는 경우
+
+충분한 penalty가 없음.
+
+예:
+
+query:
+HOW_TO + DISABLE + NOTIFICATION
+
+KI:
+DESCRIPTION + UNKNOWN_ACTION + NOTIFICATION
+
+→ 같은 concept/object라 score가 높게 남음.
+
+이를 수정.
+
+==================================================
+2. GOAL / TASK SLOT 추가
+==================================================
+
+Semantic slots에 user goal을 추가.
+
+최소:
+
+SETTINGS_MANAGE
+BEHAVIOR_CONDITION
+TROUBLESHOOT
+FEATURE_DESCRIPTION
+USAGE_LIMIT
+REQUIREMENT
+MATERIAL_SUBMISSION
+OTHER
+
+예:
+
+"알림끄는거 어디서해?"
+→ SETTINGS_MANAGE
+
+"푸시 알림 설정"
+→ SETTINGS_MANAGE
+
+"어떤 경우에 알림이 오나요?"
+→ BEHAVIOR_CONDITION
+
+"알림이 안 와요"
+→ TROUBLESHOOT
+
+"성장리포트가 뭐야"
+→ FEATURE_DESCRIPTION
+
+"월 몇 번 써?"
+→ USAGE_LIMIT
+
+==================================================
+3. QUERY GOAL이 명확하면 MATCH 우선
+==================================================
+
+query.goal != OTHER인 경우:
+
+KI.goal == query.goal
+→ strong boost
+
+KI.goal이 명확히 다름
+→ strong penalty
+
+KI.goal = OTHER/UNKNOWN
+→ mild penalty
+
+중요:
+
+같은 concept/object라도
+goal이 다르면 top-1 우선하지 않는다.
+
+==================================================
+4. REQUIRED ACTION MATCH
+==================================================
+
+query.action이 UNKNOWN이 아닌 경우:
+
+KI.action == query.action
+→ boost
+
+KI.action이 opposite
+→ 기존 strong penalty 유지
+
+KI.action = UNKNOWN
+→ penalty
+
+즉:
+
+query DISABLE
+KI UNKNOWN
+
+을 neutral로 두지 않는다.
+
+사용자가 행동을 명확히 말했으면
+그 행동을 설명하는 KI가 우선되어야 한다.
+
+==================================================
+5. HOW_TO / WHERE 처리
+==================================================
+
+다음 표현:
+
+- 어떻게
+- 어디서
+- 어디
+- 방법
+- 설정
+- 변경
+- 끄기
+- 켜기
+
+은 navigation/how-to 성격을 강하게 반영.
+
+Q3:
+"어디서해"
+→ HOW_TO + SETTINGS_MANAGE
+
+Q4:
+"설정"
+→ SETTINGS_MANAGE
+
+로 처리.
+
+==================================================
+6. DESCRIPTION KI PENALTY
+==================================================
+
+query가 SETTINGS_MANAGE/HOW_TO인데
+
+KI가:
+
+"어떤 경우에..."
+"언제..."
+"무엇인가요..."
+"어떤 기능..."
+
+등 DESCRIPTION/BEHAVIOR_CONDITION이면
+top-1에서 밀어낸다.
+
+예:
+
+"푸시 알림 설정"
+vs
+"어떤 경우에 알림이 오나요?"
+
+→ concept/object는 같아도 goal mismatch.
+
+==================================================
+7. NO FORCED WRONG ANSWER
+==================================================
+
+만약 active Knowledge 중
+정확한 SETTINGS_MANAGE KI가 없다면:
+
+관련 없는 "알림 발생 조건" KI를
+억지로 top-1으로 선택하지 않는다.
+
+그 경우:
+
+- 관련 setting KI 여러 개가 있으면 GROUNDED_AI
+- 충분한 근거 없으면 INSUFFICIENT_EVIDENCE
+
+로 처리.
+
+"아무 관련 KI 하나" 선택 금지.
+
+==================================================
+8. Q1~Q6 전부 재검증
+==================================================
+
+이번에는 일부만 보고하지 말고
+6개 전부 다시 확인.
+
+Q1:
+학부모리포트는 어떤기능이야?
+→ FEATURE_DESCRIPTION
+
+Q2:
+성장리포트가 뭐야
+→ FEATURE_DESCRIPTION
+
+Q3:
+알림끄는거 어디서해?
+→ SETTINGS_MANAGE + DISABLE
+→ 알림 발생조건 KI top-1 금지
+
+Q4:
+푸시 알림 설정
+→ SETTINGS_MANAGE
+→ 알림 발생조건/오류해결 KI top-1 금지
+
+Q5:
+커리큘럼 등록은 되어있는데 검색이 안돼
+→ TROUBLESHOOT
+→ usage limit KI 금지
+
+Q6:
+X 모드 신청을 위한 자료는 어떻게 제출하나요?
+→ MATERIAL_SUBMISSION
+→ 현재 정상 결과 유지
+
+==================================================
+9. REPORT에는 top-5 포함
+==================================================
+
+각 Q별:
+
+- concept
+- intent
+- action
+- object
+- goal
+- top 5 KI
+- 각 KI slots
+- score
+- selected evidence
+- final policy
+
+보고.
+
+==================================================
+10. DEPLOYMENT GATE
+==================================================
+
+deployment ready=YES 조건:
+
+- Q1~Q6 전부 실제 질문 목적과 일치
+- wrong action top-1 = 0
+- wrong object top-1 = 0
+- wrong goal top-1 = 0
+- forced weak match = 0
+
+==================================================
+11. 금지
+==================================================
+
+utterance 추가 금지
+KI status 변경 금지
+usage_count 조작 금지
+DB write 금지
+Render deploy 금지
+전체 regression 금지
+
+==================================================
+12. REPORT
+==================================================
+
+[RT2 SUPPORT GOAL MATCH CORRECTION REPORT]
+
+- goal slots:
+- required-action handling:
+- UNKNOWN action penalty:
+- goal mismatch penalty:
+- HOW_TO/settings handling:
+- weak-match fallback:
+- tests:
+- Production Q1~Q6:
+- wrong action remaining:
+- wrong object remaining:
+- wrong goal remaining:
+- forced weak match remaining:
+- DB write: NO
+- Render deploy: NO
+- commit SHA:
+- deployment ready:
+- final status:
+
+보고 후 멈춘다.

@@ -1,0 +1,193 @@
+[SWIMNOTE FINAL LOGO REPLACEMENT — USE PROVIDED FILE EXACTLY]
+
+목표:
+사용자가 지금 전달한 SWIMNOTE 로고 이미지 파일을
+공식 최종 로고 SOURCE OF TRUTH로 사용한다.
+
+기존 repository에 있는 임시 로고/구형 로고를 선택하지 말 것.
+반드시 지금 사용자가 제공한 로고 파일로 교체한다.
+
+==================================================
+1. 교체 대상
+==================================================
+
+A. 로그인 화면 중앙 SWIMNOTE 로고
+B. 앱 최초 실행 시 표시되는 Splash Screen / Launch Screen 로고
+
+두 위치 모두 동일한 새 공식 로고를 사용한다.
+
+기존 로그인 UI의:
+
+- 아이디 입력창
+- 비밀번호 입력창
+- 로그인 버튼
+- 회원가입
+- Apple 로그인
+- Kakao 로그인
+- 배경색
+- 여백 구조
+
+등은 변경하지 않는다.
+
+==================================================
+2. LOGIN SCREEN LOGO SIZE
+==================================================
+
+현재 로그인 화면은 약 410dp 폭 기준이다.
+
+새 로고는 기존보다 가로형 비율이므로
+너무 크게 키우지 않는다.
+
+LOGIN LOGO 권장값:
+
+- width: 210dp
+- height: auto
+- resizeMode: contain
+- 화면 가로 중앙 정렬
+- 원본 aspect ratio 절대 왜곡 금지
+
+반응형 기준:
+
+logoWidth = min(screenWidth * 0.51, 220)
+
+즉:
+
+390dp 화면 → 약 199dp
+410dp 화면 → 약 209dp
+430dp 화면 → 약 219dp
+
+최대 220dp.
+
+고정 height를 억지로 지정하지 말고
+원본 이미지 비율에 맞춰 자동 유지한다.
+
+==================================================
+3. SPLASH SCREEN LOGO SIZE
+==================================================
+
+Splash Screen은 로그인 화면보다 약간 작게 사용한다.
+
+기준:
+
+- 표시 폭 약 160dp
+- 원본 aspect ratio 유지
+- 화면 중앙 배치
+- 배경색은 현재 production splash 배경 유지
+- 새 로고 자체에 불필요한 배경/테두리 추가 금지
+
+반응형 개념:
+
+splashLogoWidth = min(screenWidth * 0.39, 165)
+
+대략:
+
+390dp → 152dp
+410dp → 160dp
+430dp → 165dp
+
+==================================================
+4. ASSET 처리
+==================================================
+
+사용자가 제공한 새 로고 파일을
+production asset으로 저장한다.
+
+예:
+assets/images/swimnote-logo.png
+
+단 repository naming convention이 있으면
+기존 convention을 따른다.
+
+중요:
+
+- 이미지 임의 재디자인 금지
+- 색상 변경 금지
+- crop 금지
+- stretching 금지
+- 배경 추가 금지
+- shadow 추가 금지
+- text 재작성 금지
+
+원본 그대로 사용.
+
+==================================================
+5. SPLASH CONFIG 확인
+==================================================
+
+Expo / React Native 현재 구조를 확인하고
+실제 Splash Screen asset이 어디서 설정되는지 조사한다.
+
+예:
+- app.json
+- app.config.ts
+- expo-splash-screen
+- native splash config
+
+현재 production 구조를 그대로 유지하면서
+image asset만 새 로고로 교체한다.
+
+중요:
+
+Splash asset 교체가 native build를 요구하는 변경인지 확인한다.
+
+native splash asset/config가 바뀌는 경우:
+→ OTA만으로 반영된다고 판단하지 말 것.
+→ 다음 Android production build에 반드시 포함.
+
+==================================================
+6. 검증
+==================================================
+
+반드시 확인:
+
+LOGIN
+- 새 공식 로고 표시
+- 중앙 정렬
+- 비율 정상
+- 잘림 없음
+- iPhone 작은 화면에서도 정상
+- Android에서도 동일하게 정상
+
+SPLASH
+- 앱 cold start 시 새 공식 로고 표시
+- 중앙 정렬
+- 잘림 없음
+- 지나치게 크거나 작지 않음
+- 기존 배경 유지
+
+==================================================
+7. 범위 제한
+==================================================
+
+이번 작업에서 변경 금지:
+
+- 가격
+- 구독
+- RevenueCat
+- X entitlement
+- 로그인 기능
+- 회원가입 기능
+- Apple/Kakao 로그인 기능
+- 로그인 화면 레이아웃
+- 다른 UI
+
+==================================================
+8. 완료보고
+==================================================
+
+LOGO FINAL UPDATE
+
+SOURCE FILE =
+LOGIN LOGO FILE =
+LOGIN WIDTH RULE =
+SPLASH LOGO FILE =
+SPLASH WIDTH RULE =
+SPLASH CONFIG FILE =
+NATIVE BUILD REQUIRED =
+FILES CHANGED =
+COMMIT =
+
+FINAL:
+PASS
+or
+HOLD — exact blocker

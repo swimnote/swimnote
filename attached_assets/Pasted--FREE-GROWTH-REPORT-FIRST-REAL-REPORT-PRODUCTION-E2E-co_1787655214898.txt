@@ -1,0 +1,400 @@
+[앱] FREE GROWTH REPORT — FIRST REAL REPORT PRODUCTION E2E
+
+현재 안전화 commit:
+678a1787
+
+현재 Production 상태:
+- TOYKIDS 2026-08 cycle 생성 완료
+- OPEN reports = 254
+- 단일 테스트 report:
+  gr_fe41fb43e105462a86a2eee2bdc4abf0
+- 자동 대량 AI 분석은 반드시 차단 상태에서 진행
+
+목표:
+
+문서윤 report 1건만
+실제 Production AI Engine까지 통과시켜
+SWIMNOTE FREE Growth Report의 첫 실제 완성본을 확보한다.
+
+나머지 253건은 절대 분석하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 ENV 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render Dashboard의 swimnote-api에서 반드시 확인:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false
+
+이 값 확인 전 deploy 금지.
+
+추가로 존재 여부만 확인:
+
+GROWTH_REPORT_ENGINE_URL
+GROWTH_REPORT_ENGINE_SECRET
+
+값 자체는 보고/노출 금지.
+
+보고:
+- AUTO_ENABLED=false confirmed YES/NO
+- ENGINE_URL configured YES/NO
+- ENGINE_SECRET configured YES/NO
+
+하나라도 필요한 값이 없으면 BLOCKED 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. MANUAL DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render Dashboard에서:
+
+branch:
+deploy-photo-clone
+
+SHA:
+678a1787
+
+Manual Deploy 1회.
+
+RENDER_API_KEY 사용 금지.
+
+배포 후:
+
+- deployed SHA
+- /health HTTP 200
+- startup crash 없음
+
+로그에서 반드시:
+
+auto analysis disabled
+
+또는 동등한 실제 비활성 로그 확인.
+
+자동 analysis가 실행된 흔적이 있으면
+단일 E2E 진행 금지하고 즉시 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. MASS CALL SAFETY 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+단일 trigger 실행 전에 확인:
+
+TOYKIDS 2026-08:
+
+OPEN count = 254
+
+추가 확인:
+
+- PREANALYZING count
+- ANALYZING count
+- REVIEW_REQUIRED count
+- FAILED count
+
+기대:
+
+자동 worker에 의해
+OPEN report가 임의로 움직이지 않아야 함.
+
+다른 report가 이미 처리됐다면
+정확한 report count와 원인을 보고하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. SINGLE REPORT INPUT SNAPSHOT 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+report_id:
+gr_fe41fb43e105462a86a2eee2bdc4abf0
+
+student:
+문서윤
+
+AI 호출 전에 read-only로
+snapshot source를 확인.
+
+보고:
+
+- diary count
+- diary period/date range
+- growth_events count
+- attendance count
+- prior/longitudinal source count
+- teacher_review available YES/NO
+- parent_answers available YES/NO
+- curriculum CURRENT / LEGACY / MISSING
+- gauge/progress source available YES/NO
+
+없는 데이터는 없는 그대로 사용.
+
+데이터를 추가하기 위한 DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. SINGLE REPORT ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정상 super_admin route 사용:
+
+POST
+/super/growth-reports/gr_fe41fb43e105462a86a2eee2bdc4abf0/analyze
+
+반드시:
+
+- super_admin 인증
+- analyzeSingleReport()
+- 기존 Growth Report worker/service pipeline
+- Production AI Engine 사용
+
+AI real Growth Report logical execution:
+최대 1건.
+
+직접 AI endpoint bypass 호출 금지.
+manual SQL/status patch 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. STATUS TRANSITION 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 전이를 기록:
+
+OPEN
+→ PREANALYZING
+→ ...
+→ REVIEW_REQUIRED
+
+또는 evidence 부족이면
+기존 DATA_ACCUMULATING 계열 정상 상태.
+
+반드시 보고:
+
+- initial status
+- intermediate status
+- final product_status
+- final analysis_status
+- retry_count
+- 실제 AI calls
+
+REVIEW_REQUIRED 도달 시
+PUBLISH 하지 말고 STOP 상태 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. ACTUAL REPORT CONTENT 추출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+report_content가 생성되면
+실제 저장된 텍스트를 그대로 보고.
+
+반드시:
+
+summary_text
+
+core_growth
+swimming_progress
+behavioral_strengths
+longitudinal_comparison
+success_conditions
+parent_support
+teacher_guidance
+next_growth_direction
+
+각 항목:
+
+- generated YES/NO
+- exact text
+
+빈 항목은 빈 그대로 보고.
+
+이번 Step에서 문장 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 실제 근거 대조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 생성 문장이 snapshot의 실제 source와
+연결되는지 확인.
+
+최소 표:
+
+OUTPUT CLAIM
+→ SOURCE TYPE
+→ SOURCE ID / diary date 등
+→ SUPPORTED YES/NO
+
+특히 확인:
+
+- 실제 하지 않은 수영 동작 창작 없음
+- 없는 curriculum 완료 창작 없음
+- 없는 gauge/progress 창작 없음
+- 이전 달 자료 없는데 지난달 비교 창작 없음
+- 성격/심리 상태 단정 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. FREE REPORT 기능 실제 적용 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 실제 report에서 확인:
+
+- Verified Facts
+- Positive Signal framing
+- Strength Amplification
+- Longitudinal logic
+- Success Conditions
+- Parent Narrative V2
+- Parent Guidance Library
+- curriculum optional enrichment
+- DATA_ACCUMULATING safety
+- canonical output contract
+
+"코드에 연결되어 있음"만 보고하지 말고
+실제 output에서 작동한 항목 / 작동하지 않은 항목을 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 부모 관점 HUMAN REVIEW 자료
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래는 자동 점수 조작 없이
+사실 기반으로 보고.
+
+Q1 아이 개인 기록이 느껴지는가
+Q2 실제 이번 달 수업 내용이 구체적인가
+Q3 잘하는 방향 중심인가
+Q4 반복 문장이 심하지 않은가
+Q5 읽기 쉬운가
+Q6 부모 행동 제안이 실제 기록 기반인가
+Q7 부모에게 건넬 말이 자연스러운가
+Q8 근거 없는 확대해석이 없는가
+Q9 curriculum 없는 상황에서도 내용이 지나치게 빈약하지 않은가
+Q10 정식 SWIMNOTE 무료 성장리포트로 충분한 가치가 있는가
+
+PASS/ISSUE + 이유만 보고.
+
+임의 threshold 조정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. LATENCY / COST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 1건에서 기록 가능한 값 보고:
+
+- AI Engine calls
+- logical requests
+- provider/model if usage log에 존재
+- retries
+- analysis duration
+- composition duration
+- total route duration
+- cost
+
+실제 로그가 없는 값은 UNKNOWN.
+
+추정 비용 작성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. REMAINING 253 SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+테스트 종료 후 확인:
+
+- remaining OPEN count
+- 다른 report AI call count
+
+기대:
+
+다른 253 reports AI calls = 0
+
+테스트 report 1건 외
+상태 변경이 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- 전체 worker enable 금지
+- AUTO_ENABLED=true 변경 금지
+- 254건 batch 처리 금지
+- publish 금지
+- AI prompt 수정 금지
+- model 수정 금지
+- scorer tuning 금지
+- DB 직접 INSERT/UPDATE 금지
+- UI/UX 수정 금지
+- repo-wide regression 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FIRST REAL FREE GROWTH REPORT HUMAN REVIEW REPORT
+
+ENV
+- auto enabled false
+- engine url configured
+- engine secret configured
+
+DEPLOY
+- deployed SHA
+- health
+- auto analysis disabled confirmed
+
+MASS SAFETY
+- OPEN before
+- other reports touched
+- other AI calls
+
+TEST REPORT
+- report_id
+- student
+- source counts
+- curriculum mode
+- status transitions
+- AI calls
+- retries
+- latency
+- cost
+
+ACTUAL CONTENT
+- summary_text
+- core_growth
+- swimming_progress
+- behavioral_strengths
+- longitudinal_comparison
+- success_conditions
+- parent_support
+- teacher_guidance
+- next_growth_direction
+
+GROUNDING
+- claim/source mapping
+- unsupported claims
+
+FEATURES
+- Verified Facts
+- Positive Signal
+- Strength Amplification
+- Longitudinal
+- Parent Narrative V2
+- Parent Guidance
+- DATA_ACCUMULATING
+- curriculum enrichment
+
+QUALITY
+- Q1~Q10
+
+REMAINING REPORTS
+- OPEN after
+- untouched count
+- non-test AI calls = 0
+
+Production direct DB write: NO
+publish: NO
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+FIRST REAL FREE REPORT READY FOR HUMAN REVIEW
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

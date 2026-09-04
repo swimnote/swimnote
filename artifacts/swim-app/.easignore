@@ -1,11 +1,12 @@
 node_modules
 .expo
 dist
-build
+/build
 android
 ios
 *.log
 .git
+.local
 attached_assets
 screenshots
 __tests__

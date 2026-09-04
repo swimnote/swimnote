@@ -1,0 +1,1173 @@
+[WP-SA0 — SUPER ADMIN OPERATIONS CONSOLE ARCHITECTURE REBUILD]
+
+목적:
+
+현재 Super Admin을
+기능이 나열된 관리페이지가 아니라
+
+"SWIMNOTE 전체 운영 관제센터"
+
+로 재구성한다.
+
+Super Admin은 일반 고객용 UI가 아니다.
+
+우선순위:
+
+1. 정확한 정보
+2. 장애/오류 빠른 탐지
+3. 고객센터 즉시 대응
+4. 수영장 상태 즉시 파악
+5. X모드 운영
+6. AI 운영
+7. 결제/구독 관리
+8. 유지보수 편의성
+9. 변경 이력 추적
+10. 단순한 정보구조
+
+예쁜 디자인보다
+찾기 쉽고 틀리지 않는 구조가 우선이다.
+
+==================================================
+0. IMPORTANT — REBUILD POLICY
+==================================================
+
+이번 WP는
+Super Admin의 Information Architecture를
+한 번 제대로 재정비하는 작업이다.
+
+하지만:
+
+기존 기능/API/route를 무작정 삭제하거나
+새로 다시 만드는 방식 금지.
+
+먼저 기존 Super Admin 전체 기능을 감사하고:
+
+KEEP
+MOVE
+MERGE
+RENAME
+DEPRECATE
+NEW
+
+로 분류한 뒤 재배치한다.
+
+기존 기능을 잃으면 FAIL.
+
+==================================================
+1. TARGET TOP-LEVEL NAVIGATION
+==================================================
+
+최종 Super Admin 좌측/상단 메뉴 구조를
+다음 기준으로 정리한다.
+
+1. Overview
+2. 수영장 관리
+3. 구독 / 결제
+4. X MODE 운영
+5. AI 운영
+6. 고객센터
+7. 서버 관리
+8. 장애 관리
+9. Partner Analytics
+10. 감사 / 로그
+11. 시스템 설정
+
+현재 기능 중 더 적절한 위치가 있으면
+이 분류 안으로 재배치.
+
+메뉴를 수십 개 나열하지 않는다.
+
+==================================================
+2. OVERVIEW
+==================================================
+
+첫 화면은 전체 운영 상태 요약.
+
+최소:
+
+SERVICE STATUS
+- APP API
+- AI Engine
+- DB
+- Storage
+- RevenueCat
+- OpenAI
+- Push
+
+BUSINESS
+- 전체 수영장
+- 활성 수영장
+- X 수영장
+- 전체 사용자
+- 활성 사용자
+
+OPERATIONS
+- 미해결 장애
+- 결제 이상
+- 미처리 고객문의
+- X setup 검토대기
+- 홈페이지 제작대기
+- AI 오류
+
+TODAY
+- 오늘 신규 수영장
+- 오늘 AI 호출
+- 오늘 고객문의
+- 오늘 오류
+
+정보가 없는 항목은
+fake 0을 만들지 말고
+NOT_AVAILABLE 또는 실제 source 기반 표시.
+
+==================================================
+3. GLOBAL POOL SEARCH — CRITICAL
+==================================================
+
+Super Admin 상단에
+항상 접근 가능한 수영장 검색을 둔다.
+
+검색:
+
+수영장명
+지점명
+pool_id
+대표자
+전화번호 가능하면
+관리자 이메일 가능하면
+
+검색 결과 클릭
+→ Pool Operations Detail
+
+고객센터 문의가 들어오면
+수영장 이름 하나로
+바로 모든 정보를 볼 수 있어야 한다.
+
+==================================================
+4. POOL OPERATIONS DETAIL — CRITICAL
+==================================================
+
+수영장 상세는
+Super Admin의 핵심 화면.
+
+최소 섹션:
+
+A. 기본 상태
+- pool name
+- pool_id
+- Normal / X
+- 활성/중지
+- 생성일
+- 최근 활동
+
+B. Basic 구독
+- 상태
+- plan
+- renewal
+- entitlement
+
+C. X 구독
+- active
+- cancelled-but-active
+- expiration
+- tier
+- slot
+- entitlement
+- last sync
+
+D. X Setup
+- 전체 상태
+- curriculum
+- website profile
+- logo/photos
+- revision
+- approval
+
+E. X04 구조화
+- curriculum structured status
+- website structured status
+- approval
+- website package
+
+F. AI
+- 최근 AI 사용
+- 기능별 사용
+- 최근 실패
+- cost/usage hook placeholder
+
+G. 고객센터
+- 최근 문의
+- unresolved
+
+H. 장애/오류
+- 최근 관련 incident
+- 최근 API/error
+
+I. 사용자
+- pool admin
+- teachers
+- parents summary
+
+한 화면에서
+현재 수영장 상태를 이해할 수 있어야 한다.
+
+==================================================
+5. SUBSCRIPTION / BILLING
+==================================================
+
+메뉴:
+
+구독 / 결제
+
+하위:
+
+Basic
+X
+결제 실패
+해지예정
+만료
+Restore/Sync
+RevenueCat events
+Entitlement anomalies
+
+목표:
+
+"결제 문제가 있는 수영장"
+
+을 즉시 찾기.
+
+상태 필터:
+
+ACTIVE
+CANCELLED_BUT_ACTIVE
+EXPIRED
+BILLING_ISSUE
+SYNC_PENDING
+UNKNOWN
+
+Basic/X 혼합 금지.
+
+==================================================
+6. X MODE OPERATIONS
+==================================================
+
+X MODE 운영 메뉴.
+
+하위:
+
+X 수영장
+Setup 진행현황
+커리큘럼 제출
+홈페이지 자료 제출
+수정요청
+구조화 검토
+승인대기
+홈페이지 패키지
+해지예정
+만료
+
+X03/X04 기능을
+여기에서 집약해서 볼 수 있게 한다.
+
+단 기존 Pool Detail에서도 접근 가능.
+
+==================================================
+7. X SETUP PIPELINE BOARD
+==================================================
+
+X 수영장들을 단계별로 볼 수 있게 한다.
+
+예:
+
+미시작
+자료 제출중
+제출완료
+검토중
+수정요청
+구조화완료
+승인완료
+홈페이지 패키지완료
+세팅완료
+
+Kanban UI를 새로 복잡하게 만들 필요는 없음.
+
+필터 가능한 테이블이면 충분.
+
+핵심은 정확한 status.
+
+==================================================
+8. AI OPERATIONS
+==================================================
+
+이번 WP에서는
+Partner Analytics 전체 계측을 아직 만들지 않는다.
+
+하지만 메뉴/자리/기본 구조는 만든다.
+
+AI 운영:
+
+- AI Diary
+- Parent Curriculum AI
+- Growth Report
+- Support AI (placeholder 가능)
+- Error
+- Model
+- Usage
+- Cost
+
+현재 실제 데이터가 있는 항목만 연결.
+
+아직 없는 metric을 fake 생성 금지.
+
+==================================================
+9. CUSTOMER SUPPORT
+==================================================
+
+고객센터 메뉴를 정식 top-level로 둔다.
+
+이번 WP에서는
+Support AI 자체 구현은 하지 않는다.
+
+구조:
+
+신규 문의
+미해결
+AI 처리
+사람 확인 필요
+해결완료
+긴급
+수영장별 문의
+문의 카테고리
+Knowledge
+
+현재 기능이 없으면
+empty state / future module 구조까지만 가능.
+
+무리한 구현 금지.
+
+==================================================
+10. SERVER MANAGEMENT — NEW TOP-LEVEL
+==================================================
+
+중요.
+
+현재 "유지보수" 등에 섞여 있던
+서버/서비스 상태 기능은:
+
+서버 관리
+
+로 분리한다.
+
+하위 영역 최소:
+
+APP API
+AI ENGINE
+DATABASE
+STORAGE
+REVENUECAT
+OPENAI
+PUSH
+OTA / APP VERSION
+DEPLOYMENT
+
+==================================================
+11. SERVER STATUS SUMMARY
+==================================================
+
+서버관리 첫 화면:
+
+APP API       status
+AI ENGINE     status
+DATABASE      status
+STORAGE       status
+OPENAI        status
+REVENUECAT    status
+PUSH          status
+
+각 항목:
+
+STATUS
+LAST CHECK
+LATENCY 가능하면
+LAST ERROR 가능하면
+
+실제 health/source가 없는 경우
+가짜 monitoring 구현 금지.
+
+UNKNOWN으로 표시.
+
+==================================================
+12. APP API STATUS
+==================================================
+
+현재 APP API:
+
+Production front door:
+https://swimnote.kr/api
+
+Replit Published runtime:
+node artifacts/api-server/dist/index.mjs
+
+Render:
+https://swimnote-api.onrender.com/api
+tsx artifacts/api-server/src/index.ts
+
+Super Admin에서
+두 deployment path를 혼동하지 않게 표시.
+
+가능하면:
+
+Front Door
+Render Origin
+
+별도로 상태 확인.
+
+==================================================
+13. AI ENGINE STATUS
+==================================================
+
+AI Engine:
+
+https://swimnote.ai.kr
+
+최소:
+
+health status
+last check
+latency
+
+가능하면 기존 safe health endpoint 사용.
+
+새 destructive endpoint 생성 금지.
+
+==================================================
+14. DATABASE STATUS
+==================================================
+
+DB 상태는
+실제 확인 가능한 범위만.
+
+예:
+
+connection OK
+migration/version
+last DB error
+
+고비용 query 금지.
+
+운영 DB에 부하 주는 health query 금지.
+
+==================================================
+15. STORAGE STATUS
+==================================================
+
+R2/storage:
+
+연결상태
+최근 upload failure
+최근 X setup file upload
+
+등 현재 telemetry가 있으면 표시.
+
+없는 telemetry를 추측하지 않는다.
+
+==================================================
+16. REVENUECAT STATUS
+==================================================
+
+최소:
+
+webhook recent event
+last webhook
+recent failures
+sync pending count
+
+Secret/key 절대 노출 금지.
+
+==================================================
+17. OPENAI STATUS
+==================================================
+
+현재 AI 호출 구조 기반으로
+확인 가능한 범위만.
+
+예:
+
+recent AI request success
+recent failure
+last successful request
+
+API key 노출 금지.
+
+아직 Partner usage telemetry가 없으면
+추후 WP 표시.
+
+==================================================
+18. OTA / APP VERSION
+==================================================
+
+Super Admin에서 최소:
+
+현재 iOS app version
+current runtimeVersion
+현재 TestFlight build known config
+latest production OTA
+latest preview OTA
+
+가능한 source가 repository/config이면 표시.
+
+동적으로 알 수 없는 값을
+manual hardcode로 거짓 최신처럼 표시하지 않는다.
+
+==================================================
+19. DEPLOYMENT STATUS
+==================================================
+
+현재 deployment 정보가
+API/source로 안전하게 읽을 수 있다면 연결.
+
+예:
+
+APP server deploy
+AI engine deploy
+
+불가능하면:
+repo commit/version 정도만.
+
+Render admin token을 client에 넣는 방식 금지.
+
+==================================================
+20. INCIDENT MANAGEMENT
+==================================================
+
+장애 관리 top-level 신설.
+
+목적:
+
+"현재 무슨 장애가 있고
+누구에게 영향을 주며
+어떻게 처리했는가"
+
+를 기록.
+
+필드 concept:
+
+incident_id
+title
+severity
+status
+service
+started_at
+detected_at
+resolved_at
+affected_pools
+affected_users_count
+description
+root_cause
+action_taken
+trace/reference
+created_by
+updated_by
+
+==================================================
+21. INCIDENT SEVERITY
+==================================================
+
+간단하게:
+
+SEV1
+서비스 전체/핵심 기능 중단
+
+SEV2
+다수 사용자 영향
+
+SEV3
+일부 기능/일부 수영장
+
+SEV4
+낮은 영향/관찰
+
+과도한 incident system 금지.
+
+==================================================
+22. INCIDENT STATUS
+==================================================
+
+OPEN
+INVESTIGATING
+MITIGATED
+RESOLVED
+
+정도.
+
+운영자가 빠르게 업데이트할 수 있게.
+
+==================================================
+23. TRACE / REQUEST ID FOUNDATION
+==================================================
+
+향후:
+
+AI
+고객센터
+장애
+API
+
+를 서로 연결하기 위해
+
+request_id
+trace_id
+
+가 존재하는 영역은
+Super Admin에서 검색/표시 가능하도록 준비.
+
+새 trace system 전체 구현은
+Partner/Support WP에서 확장.
+
+==================================================
+24. PARTNER ANALYTICS
+==================================================
+
+top-level 메뉴 자리 확보.
+
+이번 WP에서는
+실제 Partner metric instrumentation을
+완성하지 않는다.
+
+메뉴 구조:
+
+Overview
+Adoption
+Usage
+Business Impact
+Reliability
+Growth
+Evidence
+Export
+
+아직 데이터가 없으면
+"계측 준비중"
+
+명확히 표시.
+
+fake chart 금지.
+
+==================================================
+25. AUDIT / LOGS
+==================================================
+
+Super Admin에서 중요한 변경 추적.
+
+최소 분류:
+
+ENTITLEMENT
+SUBSCRIPTION
+X_SETUP
+X_STRUCTURE
+APPROVAL
+SYSTEM_SETTING
+SUPPORT
+INCIDENT
+
+현재 audit_logs table이 있으면 재사용.
+
+중복 audit system 생성 금지.
+
+==================================================
+26. SYSTEM SETTINGS
+==================================================
+
+현재 흩어진 시스템 설정을 모은다.
+
+예:
+
+maintenance
+feature flags
+app policy
+announcement
+global config
+
+단:
+
+실제 존재하는 것만.
+
+위험한 production setting은
+confirmation 없이 즉시 변경되지 않게
+현재 safety rule 유지.
+
+==================================================
+27. EXISTING "MAINTENANCE" RECLASSIFICATION
+==================================================
+
+현재 유지보수 메뉴/기능 전수 감사.
+
+예:
+
+서버상태
+DB
+앱버전
+배포
+로그
+
+등은:
+
+서버 관리
+장애 관리
+감사/로그
+
+로 이동.
+
+"유지보수"라는 하나의 잡다한 메뉴에
+계속 나열하지 않는다.
+
+==================================================
+28. INFORMATION ARCHITECTURE RULE
+==================================================
+
+메뉴 깊이:
+
+Top Level
+→ Section
+→ Detail
+
+최대 3단계 권장.
+
+한 메뉴에 버튼 30개 나열 금지.
+
+중복 기능은
+하나의 source component를 여러 진입점에서 사용.
+
+==================================================
+29. VISUAL DESIGN
+==================================================
+
+Super Admin은
+예쁠 필요 없음.
+
+목표:
+
+- compact
+- readable
+- table-friendly
+- status-friendly
+- quick scan
+- low decoration
+
+과한:
+
+gradient
+animation
+large card
+marketing UI
+
+금지.
+
+Desktop priority.
+
+Mobile은 최소 접근 가능 정도면 됨.
+
+==================================================
+30. STATUS COLOR POLICY
+==================================================
+
+일관된 상태색.
+
+SUCCESS
+→ green
+
+WARNING
+→ amber
+
+ERROR/SEV
+→ red
+
+INFO
+→ blue
+
+UNKNOWN
+→ gray
+
+X premium branding color와
+장애/semantic 색을 혼동하지 않는다.
+
+==================================================
+31. DATA ACCURACY — CRITICAL
+==================================================
+
+Super Admin에서는
+"모르는 데이터를 0으로 보여주는 것" 금지.
+
+0은 실제 0일 때만.
+
+unknown:
+-
+UNKNOWN
+NOT_AVAILABLE
+
+등 명확히 표시.
+
+timestamp 없는 데이터에
+가짜 "방금 전" 금지.
+
+==================================================
+32. REFRESH POLICY
+==================================================
+
+항상 켜놓는 Super Admin이므로
+refresh 중요.
+
+하지만 무분별한 polling 금지.
+
+권장:
+
+Overview 주요 상태:
+합리적 interval
+
+테이블:
+manual refresh 또는 focus refresh
+
+Incident:
+필요 시 refresh
+
+실제 endpoint 부하 고려.
+
+==================================================
+33. ERROR BOUNDARY
+==================================================
+
+Super Admin의 한 widget/API 실패가
+전체 관리자 페이지를 죽이면 안 된다.
+
+가능하면 section-level error handling.
+
+예:
+
+RevenueCat 상태 조회 실패
+→ RevenueCat card UNKNOWN
+
+전체 dashboard crash 금지.
+
+==================================================
+34. PERMISSION
+==================================================
+
+Super Admin only.
+
+pool_admin
+teacher
+parent
+
+접근 절대 금지.
+
+server authorization 필수.
+
+UI route guard만으로 끝내지 않는다.
+
+==================================================
+35. DANGEROUS ACTIONS
+==================================================
+
+manual entitlement
+force disable
+subscription override
+system setting
+incident destructive action
+
+등 위험 변경은:
+
+- 명확한 confirmation
+- audit log
+- reason 입력 가능하면
+- current/next value 표시
+
+필수.
+
+이번 WP에서 새로운 dangerous action을
+불필요하게 추가하지 않는다.
+
+==================================================
+36. X03 / X04 INTEGRATION
+==================================================
+
+X setup 관련 기존 구현:
+
+X03:
+원본파일 / revision / approval
+
+X04:
+structure / structured edit / approval / package
+
+를 새 Super Admin 구조에 재배치.
+
+기능 복제 금지.
+
+기존 component/service 재사용.
+
+Pool Detail
++
+X MODE Operations
+
+두 위치에서
+같은 source를 읽는다.
+
+==================================================
+37. SUPPORT AI FUTURE COMPATIBILITY
+==================================================
+
+향후 고객센터 AI가 들어오면
+Super Admin 고객센터 메뉴 안에 연결.
+
+필요 공간:
+
+Conversation
+AI Resolution
+Escalation
+Knowledge
+Analytics
+
+이번에는 architecture만 준비.
+
+==================================================
+38. PARTNER ANALYTICS FUTURE COMPATIBILITY
+==================================================
+
+향후 공통 AI usage trace:
+
+AI Diary
+Curriculum AI
+Growth Report
+Support AI
+
+가 들어오면
+Partner Analytics에서 바로 읽을 수 있게
+UI/service boundary를 분리.
+
+이번 WP에서 임시 통계 table 생성 금지.
+
+==================================================
+39. ROUTE REORGANIZATION SAFETY
+==================================================
+
+Super Admin route를 재배치하더라도:
+
+기존 deep link/route가 있으면
+redirect 또는 compatibility 검토.
+
+관련 없는 public/mobile route 변경 금지.
+
+==================================================
+40. TEST MATRIX
+==================================================
+
+SA0-01
+super admin login
+→ overview
+
+SA0-02
+non-super-admin denied
+
+SA0-03
+global pool search
+
+SA0-04
+pool detail overview
+
+SA0-05
+pool Basic subscription
+
+SA0-06
+pool X subscription
+
+SA0-07
+X setup files
+
+SA0-08
+X structured data
+
+SA0-09
+website package access
+
+SA0-10
+subscription/billing list
+
+SA0-11
+X operations filters
+
+SA0-12
+server management view
+
+SA0-13
+APP API health
+
+SA0-14
+AI Engine health
+
+SA0-15
+unknown telemetry shows UNKNOWN, not fake 0
+
+SA0-16
+incident list/create/update
+
+SA0-17
+audit log
+
+SA0-18
+one widget failure does not crash dashboard
+
+SA0-19
+dangerous action audit/confirmation preserved
+
+SA0-20
+existing Super Admin functions not lost
+
+SA0-21
+X03 regression none
+
+SA0-22
+X04 regression none
+
+SA0-23
+1225 existing tests no regression
+
+==================================================
+41. DO NOT TOUCH
+==================================================
+
+이번 WP에서 변경 금지 unless required:
+
+mobile app UI
+Normal theme
+X theme
+scheduler
+ModeContext
+RevenueCat billing logic
+AI Diary
+Growth Report
+Curriculum AI
+Support AI implementation
+Partner metric instrumentation
+website actual generation
+curriculum AI generation
+
+Super Admin architecture only.
+
+==================================================
+42. DEPLOYMENT
+==================================================
+
+Super Admin web/client + server changes 가능.
+
+DB 추가는 incident 등
+실제 필요한 최소 범위만.
+
+migration:
+idempotent
+safe
+existing data preserved
+
+Render deploy 필요 시 진행.
+
+iOS OTA 불필요.
+Android OTA 불필요.
+
+==================================================
+43. FINAL REPORT
+==================================================
+
+EXISTING_SUPER_ADMIN_AUDITED =
+EXISTING_FUNCTION_COUNT =
+
+KEEP =
+MOVE =
+MERGE =
+RENAME =
+DEPRECATE =
+NEW =
+
+TOP_LEVEL_NAV =
+OVERVIEW_IMPLEMENTED =
+
+GLOBAL_POOL_SEARCH =
+POOL_OPERATIONS_DETAIL =
+
+BASIC_BILLING_SECTION =
+X_BILLING_SECTION =
+X_OPERATIONS_SECTION =
+
+AI_OPERATIONS_SECTION =
+CUSTOMER_SUPPORT_SECTION =
+
+SERVER_MANAGEMENT_SECTION =
+INCIDENT_MANAGEMENT_SECTION =
+PARTNER_ANALYTICS_SECTION =
+AUDIT_LOG_SECTION =
+SYSTEM_SETTINGS_SECTION =
+
+APP_API_STATUS =
+AI_ENGINE_STATUS =
+DATABASE_STATUS =
+STORAGE_STATUS =
+REVENUECAT_STATUS =
+OPENAI_STATUS =
+OTA_VERSION_STATUS =
+
+UNKNOWN_NOT_FAKE_ZERO =
+SECTION_ERROR_ISOLATION =
+
+INCIDENT_TABLE =
+INCIDENT_SEVERITY =
+INCIDENT_STATUS =
+
+REQUEST_TRACE_FOUNDATION =
+
+X03_REUSED =
+X04_REUSED =
+DUPLICATE_IMPLEMENTATION_CREATED =
+
+DANGEROUS_ACTION_CONFIRMATION =
+DANGEROUS_ACTION_AUDIT =
+
+NON_SUPER_ADMIN_ACCESS =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+UNIT_TEST =
+WEB_TEST =
+API_TEST =
+SECURITY_TEST =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+TOP_LEVEL_NAV =
+11개 운영 분류 체계
+
+GLOBAL_POOL_SEARCH = YES
+POOL_OPERATIONS_DETAIL = YES
+
+SERVER_MANAGEMENT_SECTION = YES
+INCIDENT_MANAGEMENT_SECTION = YES
+
+UNKNOWN_NOT_FAKE_ZERO = YES
+SECTION_ERROR_ISOLATION = YES
+
+X03_REUSED = YES
+X04_REUSED = YES
+DUPLICATE_IMPLEMENTATION_CREATED = NO
+
+NON_SUPER_ADMIN_ACCESS = DENIED
+
+MOBILE_CHANGED = NO
+
+기존 Super Admin 기능 손실 없음.
+
+완료:
+
+WP_SA0_SUPER_ADMIN_OPERATIONS_CONSOLE_REBUILD_COMPLETE ✅

@@ -1,0 +1,701 @@
+[SWIMNOTE X 관리자 운영허브 — PHASE 2 IMPLEMENT]
+
+승인된 전체 계획 중
+이번 작업은 PHASE 2 ONLY.
+
+대상:
+AI 학생리포트 발급현황
+route:
+`/(admin)/report-hub`
+
+중요:
+PHASE 3/4/5/6 시작 금지.
+계획 변경 금지.
+기능 추가 금지.
+이번 PHASE 계약 범위만 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. PHASE 2 고정 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 화면은
+"학생별 무료 월간 발급 eligibility"를 계산하는 화면이 아님.
+
+현재 V1은
+`growth_reports`에 실제 생성되어 있는 리포트 row만 기준으로 관리.
+
+따라서 표시 금지:
+
+- 이번 달 전체 발급 대상 학생 수
+- 재등록 대상 여부
+- source_event_count 충족/미충족
+- 학부모 열람 여부
+- 학생별 무료 발급 eligibility
+
+위 기능은 현재 로직이 없으므로 만들지 말 것.
+
+관리자용 별도 fake status / fake data 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제:
+
+`growth_reports`
+
+기준.
+
+실제 사용 컬럼을 repository에서 다시 확인하고 구현.
+
+주요 상태:
+
+- product_status
+- analysis_status
+- teacher_review_action
+- teacher_reviewed_at
+- published_at
+- file_url
+- period_start
+- period_end
+- student_id
+- swimming_pool_id
+
+실제 enum:
+
+NOT_OPEN
+OPEN
+PREANALYZING
+QUESTION_AVAILABLE
+READY_FOR_ANALYSIS
+ANALYZING
+REVIEW_REQUIRED
+APPROVED
+PUBLISHED
+PARTIAL
+FAILED
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. KPI 상태 매핑
+━━━━━━━━━━━━━━━━━━━━━━
+
+V1 KPI는 정확히 4개.
+
+1. 발행 완료
+`product_status = 'PUBLISHED'`
+
+2. 검토 대기
+`product_status = 'REVIEW_REQUIRED'`
+
+3. 분석 중
+아래 status 합산:
+
+OPEN
+PREANALYZING
+QUESTION_AVAILABLE
+READY_FOR_ANALYSIS
+ANALYZING
+
+4. 실패
+`product_status = 'FAILED'`
+
+NOT_OPEN은 KPI에서 제외.
+
+APPROVED/PARTIAL은
+목록 status chip에는 표시할 수 있으나
+새 KPI 추가 금지.
+
+화면에 "미시작" 문구 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 연결 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 관리자 화면의 데이터는
+기존 실제 Growth Report 흐름과 동일해야 함.
+
+연결:
+
+growth_reports
+→ Growth Engine
+→ Teacher Review
+→ Publish
+→ Parent Growth Report
+
+관리자에서 보여주는 상태가
+Parent/Teacher 실제 상태와 다르면 안 됨.
+
+별도 관리자 상태 컬럼 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. SERVER API
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Admin API 구현.
+
+권장:
+
+`GET /admin/reports/summary`
+
+단 실제 현재 server route 구조와 naming pattern 확인 후
+repository 기존 스타일에 맞출 것.
+
+요청 params 후보:
+
+- month
+- year
+- q
+- initial
+- class_group_id
+- teacher_id
+- status
+- page
+- limit
+
+반드시 pool_admin 권한.
+
+반드시 pool isolation:
+
+`growth_reports.swimming_pool_id = authenticated pool id`
+
+client가 임의 pool id를 넘겨
+다른 pool 조회할 수 있게 만들지 말 것.
+
+X entitlement도 현재 기존 resolver 방식 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. RESPONSE CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 응답은
+UI가 별도 계산하지 않아도 되도록
+서버에서 정규화.
+
+예시 구조:
+
+{
+  summary: {
+    published: number,
+    review_required: number,
+    analyzing: number,
+    failed: number
+  },
+
+  filters: {
+    year: number,
+    month: number
+  },
+
+  students: [
+    {
+      report_id,
+      student_id,
+      student_name,
+      class_group_id,
+      class_name,
+      teacher_id,
+      teacher_name,
+      period_start,
+      period_end,
+      product_status,
+      display_status,
+      analysis_status,
+      teacher_reviewed_at,
+      published_at,
+      has_file
+    }
+  ],
+
+  pagination: {
+    page,
+    limit,
+    total,
+    has_more
+  }
+}
+
+실제 repository 타입/response convention에 맞춰 조정 가능.
+
+하지만 화면에서 raw enum을 매번 재해석하지 않도록
+`display_status` 또는 이에 준하는 서버 정규화 권장.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 SQL / QUERY 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서의 SQL을 그대로 복붙 금지.
+
+반드시 현재 repository 실제 schema 확인 후 작성.
+
+확정된 주요 컬럼:
+
+`students.swimming_pool_id`
+`student_class_history.class_group_id`
+`student_class_history.enrolled_at`
+`student_class_history.left_at`
+`class_groups.teacher_user_id`
+
+학생의 현재 반 표시가 필요하면
+기존 active class history 규칙 재사용:
+
+`left_at IS NULL`
+
+단 동일 학생에 복수 active history 가능성이 있는지
+현재 repository 규칙 확인.
+
+임의 DISTINCT로 숨기지 말 것.
+
+반/선생님 join은
+현재 실제 데이터 관계 그대로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. MONTH INDEX
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 전체를 기본 상태에서 무한 나열하지 말 것.
+
+상단에 발급월 INDEX.
+
+구조:
+
+[연도 선택]
+2026
+
+[월 INDEX]
+1월
+2월
+3월
+...
+12월
+
+기본값:
+현재 로컬 월 또는 현재 report period 기준으로
+기존 앱 날짜 처리 패턴 사용.
+
+month 선택 시 API 재조회.
+
+period 기준은:
+
+`period_start`
+
+로 통일.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 학생 가나다 INDEX
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 목록은 반드시 INDEX 기반.
+
+공통 AdminIndexBar 신규 구현 가능:
+
+`components/admin/AdminIndexBar.tsx`
+
+단 이번 PHASE에서는
+실제로 report-hub에서 필요한 기능만 구현.
+
+지원:
+
+- 전체
+- ㄱ
+- ㄴ
+- ㄷ
+- ㄹ
+- ㅁ
+- ㅂ
+- ㅅ
+- ㅇ
+- ㅈ
+- ㅊ
+- ㅋ
+- ㅌ
+- ㅍ
+- ㅎ
+
+초성 filtering은
+한국어 이름 기준으로 정확히 동작하도록 구현.
+
+학생 전체를
+ScrollView + map으로 전부 렌더링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. SEARCH + FILTER
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생명 검색 제공.
+
+필터:
+
+- 반
+- 선생님
+- 상태
+
+상태 filter 예:
+
+전체
+발행 완료
+검토 대기
+분석 중
+승인 완료
+일부 완료
+실패
+
+필터와 가나다 index는 동시에 사용 가능.
+
+예:
+
+6월
++
+ㅅ
++
+파랑반
++
+검토 대기
+
+→ 해당 결과만 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. RESULT LIST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+FlatList
++
+pagination
+
+사용.
+
+기본 page size:
+30~50 범위.
+
+repository/API 성능 기준에 맞춰 선택.
+
+학생 row 예:
+
+서경민
+파랑반 · 김선생님
+2026.07
+[검토 대기] [파일 있음]
+
+또는 동일한 compact 구조.
+
+목록에서 필요한 정보:
+
+- 학생명
+- 반
+- 담당 선생님
+- 기준월
+- 상태
+- 파일 여부
+
+화면을 표처럼 지나치게 조밀하게 만들지 말 것.
+
+모바일 관리자 화면 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. DETAIL 연결
+━━━━━━━━━━━━━━━━━━━━━━
+
+학생 row tap:
+
+기존 `x-growth` / growth report 상세 흐름을
+실제 repository 기준으로 재사용.
+
+중요:
+
+신규 상세화면을 불필요하게 만들지 말 것.
+
+현재 기존 Growth Board / report detail 중
+관리자가 해당 report_id를 실제 조회할 수 있는
+정상 route를 찾아 연결.
+
+만약 기존 화면이 report_id 직접 진입을 지원하지 않으면:
+
+- 현재 가능한 최소 수정으로 연결
+- 별도 중복 detail UI 생성 금지
+
+구현 완료보고에
+실제 연결 route와 param 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. UI 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+`report-hub.tsx`
+
+최종 순서:
+
+[SubScreenHeader]
+AI 학생리포트
+
+[KPI]
+발행완료
+검토대기
+분석중
+실패
+
+[월 INDEX]
+
+[학생 검색]
+
+[가나다 INDEX]
+
+[FILTER]
+반 / 선생님 / 상태
+
+[결과 수]
+총 N건
+
+[FlatList]
+
+[Load more 또는 pagination]
+
+화면 하단까지 학생을 널부러지게 쌓는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. EMPTY / LOADING / ERROR
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 구현:
+
+LOADING
+- skeleton 또는 compact loading
+
+EMPTY
+- 해당 월 리포트 없음
+- 해당 필터 결과 없음
+
+ERROR
+- 조회 실패
+- 재시도
+
+빈 화면만 보여주지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 상태 CHIP
+━━━━━━━━━━━━━━━━━━━━━━
+
+product_status를
+사용자용 한국어로 일관되게 표시.
+
+예:
+
+OPEN → 분석 준비
+PREANALYZING → 분석 중
+QUESTION_AVAILABLE → 분석 중
+READY_FOR_ANALYSIS → 분석 중
+ANALYZING → 분석 중
+REVIEW_REQUIRED → 검토 대기
+APPROVED → 승인 완료
+PUBLISHED → 발행 완료
+PARTIAL → 일부 완료
+FAILED → 실패
+
+NOT_OPEN은 기본 목록에서 제외.
+
+색상은 기존 SWIMNOTE 디자인 토큰 사용.
+새 컬러 시스템 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. PERMISSION / SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+- pool_admin only
+- X mode entitlement 확인
+- authenticated pool isolation
+- 다른 수영장 report 조회 불가
+- student/report relationship 검증
+
+subadmin 권한 조건이 현재 존재한다면
+기존 관리자 permission architecture 확인 후 동일 적용.
+
+권한 구조 새로 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. NORMAL MODE REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 route는 X Admin 전용.
+
+하지만 shared:
+
+- growth report API
+- student query
+- class history
+- admin components
+
+를 수정할 경우
+Normal mode 영향 반드시 확인.
+
+Normal Admin / Teacher / Parent
+기존 Growth Report/학생 기능 깨지면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 이번 PHASE에서 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+구현 금지:
+
+- 학생별 재등록 eligibility
+- 매월 5일 자동발급
+- 학부모 열람 tracking
+- source_event threshold
+- 재발급 버튼
+- 수동 발급 버튼
+- 리포트 삭제
+- report schema 변경
+- 신규 growth report generation
+- PHASE 3 AI 일지
+- PHASE 4 커리큘럼
+- PHASE 5 X 관리
+
+이번에는
+"현재 존재하는 리포트를 관리자가 정확히 조회/탐색"
+하는 기능만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 테스트:
+
+T1.
+X 관리자
+AI 학생리포트
+→ report-hub 정상 진입
+
+T2.
+현재 월 KPI 실제 DB 집계와 동일
+
+T3.
+PUBLISHED 수치 정확
+
+T4.
+REVIEW_REQUIRED 수치 정확
+
+T5.
+분석중 5개 상태 aggregation 정확
+
+T6.
+FAILED 수치 정확
+
+T7.
+NOT_OPEN KPI 제외
+
+T8.
+월 변경 시 period_start 기준 결과 변경
+
+T9.
+학생 검색 정상
+
+T10.
+가나다 초성 filtering 정상
+
+T11.
+반 filter 정상
+
+T12.
+선생님 filter 정상
+
+T13.
+상태 filter 정상
+
+T14.
+복수 filter 조합 정상
+
+T15.
+pagination/load more 중복/누락 없음
+
+T16.
+학생 row → 기존 실제 report detail 정상 진입
+
+T17.
+다른 pool 데이터 노출 없음
+
+T18.
+Normal 관리자 기존 기능 영향 없음
+
+T19.
+API error 상태 UI 정상
+
+T20.
+empty state 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 server API가 생기므로:
+
+- server deploy 필요 여부 확인
+- migration 없는지 확인
+- Render deploy
+- health check
+- OTA production
+- runtimeVersion 기존 값 유지
+
+DB migration은 이번 PHASE에서 원칙적으로 없어야 함.
+
+migration 필요하다고 판단되면
+임의 실행하지 말고 STOP 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[PHASE 2 RESULT]
+
+[SERVER]
+- 신규/수정 route
+- 실제 query source
+- permission
+- pool isolation
+- migration 여부
+
+[INDEX]
+- month
+- 가나다
+- search
+- filters
+- pagination
+
+[CONNECTION]
+- growth_reports
+- Teacher Review
+- Parent Report
+- detail route
+실제 연결 결과
+
+[UI]
+- KPI
+- list
+- empty/loading/error
+
+[TEST]
+T1~T20 PASS/FAIL
+
+[CODE]
+- SHA
+- 수정 파일
+- 신규 파일
+
+[RENDER]
+- deploy status
+- deployed SHA
+- health
+
+[OTA]
+- rollback target
+- new OTA ID
+- runtimeVersion
+
+[REGRESSION]
+- Normal
+- 기존 X Growth Board
+- Parent Growth Report
+
+완료 후 STOP.
+
+PHASE 3 시작 금지.

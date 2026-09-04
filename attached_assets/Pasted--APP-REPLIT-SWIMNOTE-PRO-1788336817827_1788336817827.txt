@@ -1,0 +1,606 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE PRODUCTION KAKAO ENUM FIX — MINIMAL BACKPORT + DEPLOY
+#
+# 사용자 승인:
+# Production 카카오 enum 수정 배포 승인됨.
+#
+# 목적:
+# release/v2.0.0 commit 03973081에서 확인/수정 완료된
+# Kakao auth enum bug만 Production branch에 최소 backport하고
+# Render Production에 배포한다.
+#
+# 절대 원칙:
+# 이번 배포는 auth.ts의 Kakao 관련 3개 query에서
+# invalid enum literal 'sub_admin' 제거만 반영한다.
+#
+# 다른 2.0 기능, Kakao client policy, subscription, DB,
+# healthz, login diagnostics, 기타 서버 변경 절대 포함 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Source branch:
+release/v2.0.0
+
+Source fix commit:
+03973081
+fix(kakao-auth): remove invalid sub_admin enum literal from Kakao auth queries
+
+Production branch:
+deploy-photo-clone
+
+Production service:
+swimnote-api
+
+============================================================
+0. 허용된 Production 변경 범위
+============================================================
+
+허용:
+
+artifacts/api-server/src/routes/auth.ts
+
+Kakao auth 관련 정확히 3개 query:
+
+1.
+POST /auth/kakao-social-login
+Step 3 kakao_id lookup
+
+2.
+POST /auth/kakao-social-login
+Step 4 phone lookup
+
+3.
+POST /auth/kakao-link-teacher
+phone lookup
+
+각 위치에서:
+
+role IN ('teacher', 'pool_admin', 'sub_admin')
+
+→
+
+role IN ('teacher', 'pool_admin')
+
+이 변경만 허용.
+
+============================================================
+1. 절대 금지
+============================================================
+
+release/v2.0.0 전체 merge:
+NO
+
+03973081 전체 cherry-pick:
+NO
+(테스트/client/기타 변경까지 섞일 수 있으므로 금지)
+
+b9eed0dd client Kakao policy backport:
+NO
+
+1.6.3 client 수정:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+build:
+NO
+
+DB migration:
+NO
+
+Production DB write:
+NO
+
+RevenueCat:
+NO TOUCH
+
+Stage8:
+NO TOUCH
+
+healthz:
+NO TOUCH
+
+login diagnostics:
+NO TOUCH
+
+SERVER_BOOT:
+NO TOUCH
+
+AUTH_TRACE:
+NO TOUCH
+
+PROCESS_ERROR:
+NO TOUCH
+
+general unified login:
+NO TOUCH
+
+Kakao Developer Console:
+NO TOUCH
+
+============================================================
+2. Production preflight
+============================================================
+
+checkout:
+
+deploy-photo-clone
+
+확인:
+
+git status
+→ clean
+
+현재 Production HEAD 기록.
+
+Render가 실제 사용하는 branch가
+deploy-photo-clone인지 다시 확인.
+
+현재 Live commit도 가능한 범위에서 기록.
+
+중요:
+branch HEAD와 Render Live를 같다고 추측하지 말 것.
+
+============================================================
+3. source diff 확인
+============================================================
+
+source commit:
+
+03973081
+
+에서 auth.ts의 실제 diff를 확인.
+
+이번 Production backport에 필요한
+3개 enum literal 제거만 추출.
+
+테스트 파일:
+backport 금지.
+
+swim-app client:
+backport 금지.
+
+============================================================
+4. Production auth.ts 현재 상태 확인
+============================================================
+
+deploy-photo-clone 현재 auth.ts에서
+다음 3개 위치가 실제로 아직:
+
+'teacher', 'pool_admin', 'sub_admin'
+
+을 사용하는지 확인.
+
+각 위치별:
+
+BEFORE:
+정확한 query 기록
+
+만약 이미 수정돼 있다면
+중복 수정 금지하고 보고.
+
+============================================================
+5. 최소 수정
+============================================================
+
+실제로 남아 있는 경우만:
+
+'sub_admin'
+
+제거.
+
+최종 허용 role:
+
+teacher
+pool_admin
+
+주의:
+super_admin 추가 금지.
+parent 추가 금지.
+role semantics 재설계 금지.
+
+============================================================
+6. source scope 검증
+============================================================
+
+수정 후 git diff가
+오직 Production auth.ts의
+해당 3개 query 변경만 포함하는지 확인.
+
+허용되지 않은 diff가 하나라도 있으면
+commit/push 전에 중단.
+
+완료보고에 diff summary 포함.
+
+============================================================
+7. 테스트
+============================================================
+
+Production branch 기준으로
+관련 Kakao/auth 테스트 실행.
+
+최소 확인:
+
+A.
+Kakao auth query 내 invalid 'sub_admin' occurrence = 0
+
+B.
+teacher kakao_id direct lookup query
+→ enum runtime error 없음
+
+C.
+teacher phone lookup query
+→ enum runtime error 없음
+
+D.
+pool_admin kakao_id direct lookup query
+→ enum runtime error 없음
+
+E.
+parent Kakao route
+→ contract unchanged
+
+F.
+general unified-login
+→ contract unchanged
+
+G.
+safe invalid account request
+→ 기존 canonical status 유지
+
+Production DB write 없는 테스트만 허용.
+
+============================================================
+8. 기존 1.6.3 compatibility 확인
+============================================================
+
+이번 서버 수정 전후 request/response contract는
+동일해야 한다.
+
+확인:
+
+POST /api/auth/kakao-social-login
+request shape:
+UNCHANGED
+
+response schema:
+UNCHANGED
+
+POST /api/auth/kakao-link-teacher
+request shape:
+UNCHANGED
+
+response schema:
+UNCHANGED
+
+1.6.3 client:
+NO CHANGE
+
+따라서 기존 1.6.3 Kakao client가
+별도 OTA 없이 사용 가능해야 함.
+
+============================================================
+9. Production commit
+============================================================
+
+deploy-photo-clone에서 새 commit 생성.
+
+권장 message:
+
+fix(prod-kakao): remove invalid sub_admin enum literal
+
+정확한 SHA 기록.
+
+============================================================
+10. Push
+============================================================
+
+push:
+
+origin deploy-photo-clone
+
+main:
+NO TOUCH
+
+release/v2.0.0:
+NO TOUCH
+
+============================================================
+11. Render deploy
+============================================================
+
+push 후 자동 deploy가 발생하는지 확인.
+
+자동 deploy 안 되면:
+수동 deploy latest commit 허용됨.
+
+단,
+배포 대상 commit이
+이번 Production Kakao enum fix commit인지
+반드시 확인 후 실행.
+
+다른 commit 배포 금지.
+
+============================================================
+12. 배포 완료 확인
+============================================================
+
+Render:
+
+Deploy succeeded
+Live
+
+확인.
+
+Production health:
+
+GET /api/healthz
+
+HTTP 200 확인.
+
+이번 작업에서 health response 자체 수정 금지.
+
+============================================================
+13. Kakao Production smoke verification
+============================================================
+
+실제 Kakao 계정/토큰을 사용하여
+계정을 변경하는 테스트는 금지.
+
+대신 가능한 범위에서:
+
+- route startup 정상
+- enum 관련 500 없음
+- Render logs에
+  invalid input value for enum user_role: "sub_admin"
+  신규 발생 없음
+
+확인.
+
+실사용자가 이후 Kakao 로그인 확인할 수 있도록
+Production은 그대로 유지.
+
+============================================================
+14. 일반 로그인 smoke check
+============================================================
+
+safe invalid account로:
+
+POST /api/auth/unified-login
+
+Expected:
+기존 canonical 401
+5xx NO
+
+이번 Kakao fix가
+일반 로그인에 영향 없는지 확인.
+
+============================================================
+15. rollback 기준
+============================================================
+
+배포 전 Production SHA 기록.
+
+다음 중 하나 발생 시 즉시 rollback 검토:
+
+- server boot 실패
+- health 5xx
+- auth route crash
+- unified-login regression
+- Kakao route startup error
+- unrelated server regression
+- PII log 발생
+
+rollback 방식은
+Render previous successful deploy 우선.
+
+main force push 같은 방식 사용 금지.
+
+============================================================
+16. Production 이후 절대 하지 말 것
+============================================================
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+DB change:
+NO
+
+Kakao account data normalization:
+NO
+
+기존 Toykids teacher account 수정:
+NO
+
+provider relink:
+NO
+
+account merge:
+NO
+
+이번 배포 성공 후
+기존 Toykids Kakao teacher 데이터는
+그대로 유지.
+
+============================================================
+17. 완료보고 형식
+============================================================
+
+# SWIMNOTE PRODUCTION KAKAO ENUM FIX DEPLOY REPORT
+
+## SOURCE
+
+Source commit:
+03973081
+
+Production branch:
+deploy-photo-clone
+
+Production HEAD Before:
+...
+
+Production HEAD After:
+...
+
+Production commit:
+...
+
+## SCOPE
+
+Changed files:
+...
+
+Expected:
+artifacts/api-server/src/routes/auth.ts only
+
+Changed Kakao query count:
+3
+
+Client files included:
+NO
+
+Other server changes included:
+NO
+
+## ENUM FIX
+
+Before:
+role IN ('teacher','pool_admin','sub_admin')
+
+After:
+role IN ('teacher','pool_admin')
+
+Kakao invalid sub_admin occurrences:
+0
+
+Runtime enum error:
+NO
+
+## TESTS
+
+teacher direct query:
+PASS / FAIL
+
+teacher phone query:
+PASS / FAIL
+
+pool_admin direct query:
+PASS / FAIL
+
+parent Kakao contract:
+PASS / FAIL
+
+unified-login contract:
+PASS / FAIL
+
+## 1.6.3
+
+Client changed:
+NO
+
+OTA:
+NO
+
+Kakao server contract changed:
+NO
+
+Compatibility:
+PASS / FAIL
+
+## PUSH
+
+origin/deploy-photo-clone:
+SUCCESS / FAIL
+
+## RENDER
+
+Deploy detected:
+YES / NO
+
+Manual deploy required:
+YES / NO
+
+Production commit:
+...
+
+Status:
+LIVE / FAILED / PENDING
+
+## HEALTH
+
+/api/healthz:
+HTTP ...
+
+## LOGS
+
+invalid enum errors after deploy:
+0 / ...
+
+PROCESS/server crash:
+NO / YES
+
+PII exposure:
+NO / YES
+
+## GENERAL LOGIN
+
+Safe invalid unified-login:
+HTTP ...
+
+5xx:
+NO / YES
+
+## DATABASE
+
+Migration:
+NO
+
+DB write:
+NO
+
+Account data changed:
+NO
+
+## CLIENT
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+Build:
+NO
+
+## ROLLBACK
+
+Previous production SHA:
+...
+
+Rollback needed:
+NO / YES
+
+## FINAL
+
+다음 중 하나:
+
+PRODUCTION KAKAO ENUM FIX DEPLOYED — HEALTHY
+
+또는
+
+PRODUCTION KAKAO ENUM FIX DEPLOY PENDING
+
+또는
+
+PRODUCTION KAKAO ENUM FIX ROLLED BACK

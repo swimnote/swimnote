@@ -44,7 +44,7 @@
  * 수정 금지: useDiaryAIV2, DiaryAIService, API, 상태 전이, retry, requestId, AbortController
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   Platform,
@@ -140,7 +140,18 @@ export default function DiaryAIModalV2({
               value={hook.inputText}
               onChangeText={hook.setInputText}
               state={aiState}
-              placeholder="수업에서 있었던 일, 학생들의 특징이나 개선점 등을 자유롭게 입력해주세요."
+              placeholder={
+                '💡 AI 일지 작성 방법\n\n' +
+                '• 전체 + 내용\n→ 공통 일지 작성\n\n' +
+                '• 학생이름 + 내용\n→ 해당 학생 일지 작성\n\n' +
+                '• 다시 "전체" + 내용\n→ 공통 일지로 전환\n\n' +
+                '예)\n\n' +
+                '전체\n오늘은 자유형 호흡 연습\n\n' +
+                '서태웅\n호흡 타이밍이 많이 좋아졌어요.\n\n' +
+                '전체\n마무리 스트레칭 진행\n\n' +
+                '─────────────────\n' +
+                '템플릿에 없는 내용은\n선생님의 입력을 자연스러운 문장으로만 완성합니다.'
+              }
               onVoicePress={hook.handleVoicePress}
             />
           </View>
@@ -317,15 +328,13 @@ export default function DiaryAIModalV2({
               <View style={styles.handle} />
             </View>
 
-            {/* 헤더 — 고정 (flex 없음, 자연 높이) */}
+            {/* 헤더 — 타이틀 제거, X 버튼만 우측 정렬 */}
             <View style={styles.header}>
-              <Text style={styles.headerTitle}>AI 일지 작성</Text>
-              {/* ERROR 상태에서는 헤더 X 숨김 — AIErrorViewV2 내부 닫기 버튼 1개만 유지 */}
-              {!hook.isLocked && hook.v2State !== 'ERROR' && (
+              {!hook.isLocked && (
                 <Pressable
                   style={styles.closeButton}
                   onPress={hook.handleClose}
-                  hitSlop={8}
+                  hitSlop={12}
                 >
                   <Text style={styles.closeButtonText}>✕</Text>
                 </Pressable>
@@ -385,13 +394,11 @@ interface StudentNoteCardProps {
 }
 
 function StudentNoteCard({ student, onChange }: StudentNoteCardProps) {
-  const [inputHeight, setInputHeight] = useState(STUDENT_NOTE_MIN_H);
-
   return (
     <View style={cardStyles.container}>
       <Text style={cardStyles.name}>{student.studentName}</Text>
       <TextInput
-        style={[cardStyles.noteInput, { height: Math.max(STUDENT_NOTE_MIN_H, inputHeight) }]}
+        style={cardStyles.noteInput}
         value={student.note}
         onChangeText={onChange}
         multiline
@@ -400,9 +407,6 @@ function StudentNoteCard({ student, onChange }: StudentNoteCardProps) {
         placeholder="학생별 일지 내용"
         placeholderTextColor={AIThemeColor.textSub}
         textAlignVertical="top"
-        onContentSizeChange={(e) =>
-          setInputHeight(e.nativeEvent.contentSize.height)
-        }
       />
     </View>
   );
@@ -427,7 +431,8 @@ const cardStyles = StyleSheet.create({
   },
   noteInput: {
     ...AIThemeTypography.result,
-    color: AIThemeColor.text,
+    color:     AIThemeColor.text,
+    minHeight: STUDENT_NOTE_MIN_H,
   },
 });
 
@@ -492,22 +497,17 @@ const styles = StyleSheet.create({
     backgroundColor: AIThemeColor.border ?? '#E0E0E0',
   },
 
-  // 헤더 (고정, flex 없음)
+  // 헤더 (타이틀 제거 — X 버튼만 우측 정렬)
   header: {
     flexDirection:     'row',
     alignItems:        'center',
-    justifyContent:    'space-between',
+    justifyContent:    'flex-end',
     paddingHorizontal: AIThemeSpacing.section,
-    paddingVertical:   AIThemeSpacing.tight,
-    borderBottomWidth: 1,
-    borderBottomColor: AIThemeColor.border ?? '#F0F0F0',
-  },
-  headerTitle: {
-    ...AIThemeTypography.heading,
-    color: AIThemeColor.text,
+    paddingTop:        10,   // safe area 이후 추가 여백
+    paddingBottom:     4,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
   },
   closeButtonText: {
     fontSize:   18,

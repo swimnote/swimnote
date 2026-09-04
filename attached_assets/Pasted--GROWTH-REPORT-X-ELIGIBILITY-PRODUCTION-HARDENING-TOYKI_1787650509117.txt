@@ -1,0 +1,615 @@
+[앱] GROWTH REPORT / X ELIGIBILITY PRODUCTION HARDENING
++ TOYKIDS REAL GENERATION E2E
++ FUTURE PAID ENTRY SAFETY
+
+현재 확인된 사실:
+
+TOYKIDS:
+- pool_id = pool_1780849364252_l9k44rbk3
+- x_paid_entitlement = true
+- x_manual_entitlement = false
+- x_force_disabled = false
+- xmode_config_status = CURRICULUM_PENDING
+- x_pool_setups = []
+- x_pool_curricula = []
+
+현재 blocker:
+X Setup 제출 자체가 한 번도 없어서 READY 조건을 충족하지 않음.
+
+현재 commit:
+147b6581
+
+현재 shared eligibility:
+(paid OR manual)
+AND NOT force_disabled
+AND xmode_config_status='READY'
+
+중요:
+이 경로는 FREE Growth Report뿐 아니라
+향후 PAID Growth Report와 신규 X 가맹점의 핵심 진입 경로가 된다.
+
+이번 작업은 단순히 TOYKIDS 하나를 강제로 READY로 만드는 작업이 아니다.
+
+목표:
+
+정상 X Setup
+→ validation
+→ READY
+→ current-month cycle 자동 보충
+→ student report generation
+→ AI analysis
+→ review/publish lifecycle
+→ parent status/detail
+
+까지 실제 Production에서 1건 통과시키고,
+향후 신규/유료 가맹점에서도 수동 DB 작업 없이 재사용 가능한 구조로 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 147b6581 PRODUCTION DEPLOY 먼저
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render가 자동 배포되지 않은 상태.
+
+Render Dashboard의 정상 Manual Deploy로
+deploy-photo-clone HEAD 147b6581을 배포.
+
+RENDER_API_KEY 사용 금지.
+
+배포 후 확인:
+
+- deployed SHA
+- /health 200
+- startup error 없음
+- new super scheduler route registered
+- shared eligibility code live
+
+배포 완료 전 Production setup 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. X CONFIG STATE MACHINE 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 코드에서
+xmode_config_status 전체 상태와 전환 조건을 정리.
+
+최소 확인:
+
+- NOT_CONFIGURED
+- CURRICULUM_PENDING
+- READY
+- 기타 실제 enum
+
+반드시 확인:
+
+- 누가 상태를 변경할 수 있는가
+- READY validation이 어디에서 수행되는가
+- READY가 단순 PATCH 값인지
+- setup/curriculum 존재를 검증한 뒤 READY가 되는지
+
+가장 중요:
+
+x_pool_setups row가 없고
+필수 curriculum/config가 없는 pool은
+
+super_admin이라도
+단순히 xmode_config_status="READY"만 보내서
+READY로 만들 수 없어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. READY TRANSITION GUARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PATCH /super/operators/:id/xmode
+
+에서 READY 전환 요청 시
+서버가 실제 readiness를 검증하도록 확인/보강.
+
+예:
+
+validateXModeReadiness(poolId)
+
+결과:
+
+{
+  ready: boolean,
+  missing: [...],
+  blockers: [...]
+}
+
+READY=false면
+READY 전환 거부.
+
+예:
+HTTP 409 또는 현재 API error convention 사용.
+
+필수 조건은 실제 제품 계약/기존 schema를 authority로 사용.
+
+임의 필드 새로 만들지 말 것.
+
+목적:
+
+관리자 실수로
+미설정 가맹점이 READY 되는 것 방지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. TOYKIDS X SETUP — 정상 제품 경로 사용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TOYKIDS를 SQL로 설정하지 않는다.
+
+기존 WP-X03 앱/API의
+X Pool Setup 제출 flow를 사용.
+
+먼저 실제 필요한 입력값을 확인.
+
+사용자가 직접 선택해야 하는
+교육과정/운영정책 값이 있다면
+임의 추정하거나 생성하지 말고
+그 항목만 BLOCKER로 보고.
+
+이미 앱/DB에서 확정 가능한 값은 재사용.
+
+정상 흐름:
+
+X Setup submit
+→ x_pool_setups 생성
+→ curriculum/config 저장
+→ readiness validation
+→ super_admin review
+→ READY
+
+직접 SQL INSERT/UPDATE 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. ELIGIBILITY AUTHORITY 완전 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 생성한:
+
+growth-report-eligibility.ts
+
+를 authority로 유지.
+
+다음 소비자가 동일한 결과를 사용해야 함:
+
+- Parent Growth Report status
+- Monthly scheduler
+- Cycle creation
+- Report generation
+- Analysis worker에서 필요한 eligibility check
+- 향후 paid report base eligibility
+
+중복 eligibility SQL/조건식이 남아있으면
+관련 경로에서만 제거.
+
+단 repo-wide refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. BASE ELIGIBILITY와 PRODUCT ELIGIBILITY 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+향후 유료 리포트를 위해 구조 확인.
+
+Base X/Growth eligibility:
+
+- entitled
+- not force disabled
+- X config READY
+
+FREE MONTHLY REPORT eligibility:
+
+- base eligible
+- free monthly policy 충족
+
+향후 PAID REPORT eligibility:
+
+- base eligible
+- paid product/order/license 조건
+
+즉 paid 여부를
+현재 FREE 리포트 로직에 하드코딩하지 않는다.
+
+이번 Step에서
+PAID 상품 자체는 구현하지 않는다.
+
+확장 가능한 계약만 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. READY 전환 후 자동 RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+25일 이후 신규 가맹점이 READY가 되면
+관리자가 별도로:
+
+POST /super/growth-report-scheduler/run
+
+을 호출해야 cycle이 생성됨.
+
+이 구조를 상품화하지 않는다.
+
+최종 요구:
+
+pool이 READY로 정상 전환되었을 때
+
+AND
+현재 KST 날짜가 monthly cycle open date 이후라면
+
+→ 해당 pool의 현재 월 cycle/report eligibility를
+idempotent하게 즉시 보충.
+
+예:
+
+ensureCurrentMonthGrowthReportCycle(poolId)
+
+중요:
+
+- duplicate safe
+- restart safe
+- same month 재호출 safe
+- 이미 cycle 있으면 no-op
+- published report 훼손 없음
+
+Super scheduler run endpoint는
+운영 복구/관리 목적 보조수단으로 남겨도 됨.
+
+그러나 정상 신규 가맹점 onboarding에서는
+사람이 scheduler 버튼을 누를 필요가 없어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. DAILY SCHEDULER RECOVERY 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 daily 01:00 KST scheduler도 유지.
+
+25일 이후에는 매일:
+
+현재 월 cycle이 없는
+모든 READY eligible pool
+
+을 찾아서 보충할 수 있어야 함.
+
+검증:
+
+- 25일 cron miss
+- Render restart
+- 26일 READY
+- 29일 READY
+- scheduler 중복 실행
+
+모두 안전.
+
+25일 하루를 놓치면
+그 달 리포트를 영원히 잃는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. SUPER SCHEDULER ENDPOINT SECURITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+신규:
+
+POST /super/growth-report-scheduler/run
+
+확인:
+
+- super_admin only
+- 일반 operator 접근 불가
+- parent/teacher 접근 불가
+- idempotent
+- arbitrary SQL/period injection 없음
+- duplicate cycle 없음
+
+가능하면 기존 admin audit logging 구조가 있으면 사용.
+
+새 대형 audit system 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. TOYKIDS READY 후 REAL GENERATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TOYKIDS가 정상 설정 경로로 READY가 된 뒤
+실제 current-month pipeline 확인.
+
+정상 흐름:
+
+READY
+→ current-month cycle ensure
+→ eligible student selection
+→ report record
+→ snapshot
+→ analysis worker
+→ AI Engine
+→ result persist
+→ status API
+
+실제 테스트 학생 1명만 추적.
+
+AI Growth Report call 최대 1건.
+
+수업 근거 부족이면:
+DATA_ACCUMULATING 허용.
+
+근거가 충분하면:
+실제 analysis 결과 생성되어야 함.
+
+금지:
+
+- growth_reports 직접 INSERT
+- cycle 직접 INSERT
+- report_content 직접 입력
+- analysis_status 강제 변경
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. REAL REPORT CONTENT CONTRACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 생성된 report에서 확인:
+
+- correct student
+- correct pool
+- correct period
+- curriculum snapshot
+- diary/session evidence
+- longitudinal context if available
+- AI Engine endpoint = current Production engine
+- Parent Narrative V2 적용
+- parent_support contract 적용
+- internal AI language 미노출
+
+AI 품질 재튜닝 금지.
+
+이번에는 pipeline validation만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. REVIEW / PUBLISH LIFECYCLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 기준으로 확인:
+
+analysis completed
+→ review state
+→ APPROVED
+→ PUBLISHED
+→ parent feed/detail
+
+확인:
+
+- 누가 approve 가능한지
+- pool_admin / super_admin 권한
+- publish API
+- PUBLISHED 후 부모 status가 detail로 연결되는지
+- 이미 PUBLISHED된 report를 worker가 덮어쓰지 않는지
+
+실제 Production PUBLISH는
+현재 테스트 report에 대해
+정상 관리자 flow가 명확하고 안전한 경우에만 수행.
+
+임의 DB status 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. FAILURE / MONEY-PATH SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 관련 코드/테스트로 확인:
+
+A.
+entitlement 해제
+→ 신규 report 생성 차단
+
+B.
+x_force_disabled=true
+→ 즉시 eligibility false
+
+C.
+curriculum/config invalid
+→ READY 유지가 가능한지 확인
+→ invalid 상태에서 신규 생성 금지
+
+D.
+AI Engine timeout/error
+→ report LOST 금지
+→ FAILED/retry 가능한 기존 contract 유지
+
+E.
+worker 중복 실행
+→ 같은 report 중복 분석/중복 생성 방지
+
+F.
+scheduler 중복 실행
+→ cycle duplicate 방지
+
+G.
+이미 PUBLISHED
+→ 재생성/덮어쓰기 금지
+
+H.
+25일 이후 READY
+→ 당월 report 기회 자동 복구
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 신규 가맹점 SETUP LINE 연결점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업 결과로
+향후 가맹점 Setup Wizard가 호출해야 할
+backend 순서를 명시.
+
+예:
+
+1. pool 기본정보
+2. X entitlement
+3. X Pool Setup
+4. curriculum 선택
+5. curriculum mapping
+6. required config validation
+7. admin review
+8. READY
+9. Growth Report eligibility automatic
+10. current-month recovery if needed
+
+최종적으로 가맹점 세팅에서
+개발자가 DB를 직접 만지는 단계 = 0
+
+이 되어야 함.
+
+이번 Step에서 Setup Wizard UI 구현은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+X Setup / READY:
+
+TC1 no setup → READY rejected
+TC2 missing curriculum → READY rejected
+TC3 valid setup → READY accepted
+TC4 force disabled → ineligible
+TC5 paid entitlement → eligible when READY
+TC6 manual entitlement → eligible when READY
+
+Eligibility:
+
+TC7 parent status == scheduler
+TC8 generator same authority
+TC9 legacy bypass impossible
+TC10 free/paid base separation
+
+Scheduler:
+
+TC11 25th+ opens cycle
+TC12 missed 25th recovered
+TC13 READY after 25th auto recovered
+TC14 restart recovery
+TC15 duplicate run safe
+TC16 existing cycle no-op
+
+Generation:
+
+TC17 report record
+TC18 snapshot
+TC19 worker
+TC20 AI persistence
+TC21 status API consistency
+TC22 DATA_ACCUMULATING safe
+
+Publish/Safety:
+
+TC23 APPROVED→PUBLISHED authorization
+TC24 published preserved
+TC25 worker duplicate safe
+TC26 AI timeout safe
+TC27 entitlement removal safe
+TC28 super scheduler auth
+
+관련 테스트만.
+불필요한 전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Production real E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 1개 pool / 1개 student만.
+
+TOYKIDS:
+
+X Setup
+→ READY
+→ cycle
+→ report
+→ AI/status
+
+까지 실제 Production E2E.
+
+각 단계의 ID/status를 기록.
+
+실 모델 호출 최대 1.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT MONEY-PATH HARDENING REPORT
+
+DEPLOY
+- 147b6581 live YES/NO
+- actual deployed SHA
+- health
+
+X STATE MACHINE
+- states
+- transition rules
+- READY validator
+- missing setup READY rejected YES/NO
+
+TOYKIDS
+- setup submitted YES/NO
+- curriculum configured YES/NO
+- READY YES/NO
+- blocker if NO
+
+SHARED ELIGIBILITY
+- helper
+- consumers
+- free base
+- future paid extension point
+
+AUTO RECOVERY
+- READY-after-25th automatic behavior
+- daily recovery
+- duplicate protection
+
+SECURITY
+- super scheduler route authorization
+- invalid READY prevention
+
+REAL E2E
+- pool_id
+- student_id
+- cycle_id
+- report_id
+- AI calls
+- analysis_status
+- product_status
+- parent status response
+
+PUBLISH
+- lifecycle
+- authorization
+- published overwrite protection
+
+FAILURE SAFETY
+- entitlement removal
+- force disable
+- invalid curriculum
+- AI failure
+- duplicate scheduler
+- duplicate worker
+
+ONBOARDING REUSE
+- Setup Wizard backend steps
+- manual DB operations required: MUST BE 0
+
+SOURCE
+- changed files
+- commit SHA
+- tests/pass
+
+DEPLOY
+- API SHA
+- OTA only if actually needed
+
+Production manual SQL INSERT/UPDATE: NO
+migration: NO unless genuinely required
+RENDER_API_KEY used: NO
+
+Final Verdict:
+
+GROWTH REPORT MONEY PATH HARDENED
++ REAL PRODUCTION GENERATION VERIFIED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

@@ -1,4 +1,4 @@
-import { Check, MessageSquare, Phone, Repeat, UserMinus, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
@@ -62,14 +62,14 @@ function PhoneRow({ label, phone }: { label: string; phone: string | null | unde
           disabled={!valid}
           hitSlop={6}
         >
-          <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
+          <LucideIcon name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
           <Text style={[dm.infoValue, valid ? { color: CALL_COLOR } : { color: C.textSecondary }]}>
             {phone ? formatPhone(phone) : "미입력"}
           </Text>
         </Pressable>
         {valid && (
           <Pressable onPress={() => sendSms(phone)} hitSlop={8}>
-            <MessageSquare size={13} color={SMS_COLOR} />
+            <LucideIcon name="message-square" size={13} color={SMS_COLOR} />
           </Pressable>
         )}
       </View>
@@ -103,8 +103,8 @@ export function TeacherDetailModal({
           <View style={dm.handle} />
           <View style={dm.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[dm.headerAvatar, { backgroundColor: "#E6FFFA" }]}>
-                <Text style={[dm.headerAvatarText, { color: "#2EC4B6" }]}>{detail.name[0]}</Text>
+              <View style={[dm.headerAvatar, { backgroundColor: C.brandSoft }]}>
+                <Text style={[dm.headerAvatarText, { color: C.brandStrong }]}>{detail.name[0]}</Text>
               </View>
               <View>
                 <Text style={dm.headerName}>{detail.name}</Text>
@@ -112,7 +112,7 @@ export function TeacherDetailModal({
               </View>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
@@ -141,7 +141,7 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.actionBtn, { borderWidth: 1.5, borderColor: C.error, backgroundColor: "#fff" }]} onPress={onRejectOpen} disabled={processing}>
                     {processing ? <ActivityIndicator color={C.error} size="small" /> : (
                       <>
-                        <X size={14} color={C.error} />
+                        <LucideIcon name="x" size={14} color={C.error} />
                         <Text style={[dm.actionBtnText, { color: C.error }]}>거절</Text>
                       </>
                     )}
@@ -151,7 +151,7 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.actionBtn, { backgroundColor: C.success }]} onPress={onApprove} disabled={processing}>
                     {processing ? <ActivityIndicator color="#fff" size="small" /> : (
                       <>
-                        <Check size={14} color="#fff" />
+                        <LucideIcon name="check" size={14} color="#fff" />
                         <Text style={[dm.actionBtnText, { color: "#fff" }]}>승인</Text>
                       </>
                     )}
@@ -166,15 +166,15 @@ export function TeacherDetailModal({
                   <Pressable style={[dm.smBtn, { borderWidth: 1.5, borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }]} onPress={onRevoke} disabled={processing}>
                     {processing ? <ActivityIndicator color="#D96C6C" size="small" /> : (
                       <>
-                        <UserMinus size={13} color="#D96C6C" />
+                        <LucideIcon name="user-minus" size={13} color="#D96C6C" />
                         <Text style={[dm.smBtnText, { color: "#D96C6C" }]}>승인 해제</Text>
                       </>
                     )}
                   </Pressable>
                 )}
                 {onTransfer && (
-                  <Pressable style={[dm.smBtn, { backgroundColor: C.tint }]} onPress={onTransfer} disabled={processing}>
-                    <Repeat size={13} color="#fff" />
+                  <Pressable style={[dm.smBtn, { backgroundColor: C.primaryAction }]} onPress={onTransfer} disabled={processing}>
+                    <LucideIcon name="repeat" size={13} color="#fff" />
                     <Text style={[dm.smBtnText, { color: "#fff" }]}>수업 인수</Text>
                   </Pressable>
                 )}
@@ -190,7 +190,7 @@ export function TeacherDetailModal({
 const dm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "85%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   headerAvatar: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   headerAvatarText: { fontSize: 18, fontFamily: "Pretendard-Regular" },

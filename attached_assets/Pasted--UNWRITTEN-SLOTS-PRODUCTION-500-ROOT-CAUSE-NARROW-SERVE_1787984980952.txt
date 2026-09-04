@@ -1,0 +1,269 @@
+[앱]
+
+UNWRITTEN-SLOTS PRODUCTION 500 ROOT CAUSE
+NARROW SERVER TRACE ONLY
+
+현재 상태:
+
+APP SHA:
+5146990b
+
+OTA:
+01a04c33
+
+확정 수정 완료:
+- openGroup effectiveDate ReferenceError 수정
+- lastNavKeyRef에 lessonDate 추가
+
+남은 실제 기기 문제:
+
+1.
+HOME → 일지작성
+→ "목록을 불러오지 못했습니다."
+
+2.
+DIARY → 상단 수업 변경
+→ "목록을 불러오지 못했습니다."
+
+두 화면 모두
+/api/diaries/unwritten-slots
+계열을 사용.
+
+route 존재는 확인됨:
+unauthenticated request → 401
+
+하지만 authenticated production request의
+실제 실행 결과는 아직 미확정.
+
+==================================================
+1. DO NOT MODIFY CLIENT
+==================================================
+
+이번 Step에서:
+
+UnwrittenScheduleSheet 수정 금지
+SessionSelectorSheet 수정 금지
+diary.tsx 수정 금지
+
+두 화면이 동시에 실패하므로
+먼저 server endpoint의 production 실패지점을 확정.
+
+==================================================
+2. TRACE ONLY THIS ENDPOINT
+==================================================
+
+GET /diaries/unwritten-slots
+
+및:
+
+GET /diaries/unwritten-slots?includeWritten=true
+
+두 경우만 조사.
+
+endpoint 내부 실행 단계를 확인:
+
+A. authenticated user
+B. teacher identity resolve
+C. swimming pool resolve
+D. teacher class groups load
+E. schedule_days parsing
+F. date range generation
+G. diary lookup
+H. attendance / schedule-dependent processing
+I. normalizeLessonDate
+J. final response serialization
+
+==================================================
+3. ADD TEMPORARY NARROW ERROR TRACE IF NEEDED
+==================================================
+
+현재 서버 로그만으로 정확한 실패 위치를
+알 수 없다면 이 endpoint catch에만
+최소 diagnostic logging 추가.
+
+절대 secret/token/전화번호/학생 개인정보 출력 금지.
+
+로그 허용:
+
+[unwritten-slots]
+
+- request_id
+- includeWritten
+- authenticated role
+- teacher id
+- pool id
+- stage name
+- class group count
+- generated slot count
+- error name
+- error message
+- stack top
+
+예:
+
+[unwritten-slots] {
+  request_id,
+  stage: "LOAD_CLASS_GROUPS",
+  includeWritten,
+  teacher_id,
+  pool_id,
+  error_name,
+  error_message
+}
+
+각 주요 stage 진입 직전에
+stage 변수만 갱신해도 됨.
+
+광범위 logging 금지.
+
+==================================================
+4. PRODUCTION CONTRACT CHECK
+==================================================
+
+현재 Render swimnote-api의 실제 deployed SHA 확인.
+
+보고:
+
+SERVER_PRODUCTION_SHA
+
+현재 source HEAD와 비교.
+
+특히 현재 production server가 다음을 포함하는지 확인:
+
+- /diaries/unwritten-slots
+- includeWritten=true
+- normalizeLessonDate
+- today/KST handling
+
+앱은 최신인데
+서버가 이전 commit이면
+그 사실을 ROOT CAUSE로 명시.
+
+==================================================
+5. REAL AUTHENTICATED REQUEST
+==================================================
+
+실제 앱에서 selector를 딱 한 번 실행.
+
+그 시점 Render log에서
+같은 request의 [unwritten-slots] 확인.
+
+HOME selector:
+
+includeWritten = false/default
+
+DIARY selector:
+
+includeWritten = true
+
+각각:
+
+HTTP STATUS
+FAILED STAGE
+ERROR
+
+를 분리해서 보고.
+
+==================================================
+6. FIX ONLY CONFIRMED ROOT CAUSE
+==================================================
+
+로그로 원인이 확정되면
+그 한 부분만 수정.
+
+금지:
+
+- 새 endpoint 생성
+- frontend fallback 추가
+- 빈 배열로 오류 숨기기
+- try/catch로 500 삼키기
+- schedule 구조 재설계
+- DB schema 변경
+
+실제 500 원인을 고친다.
+
+==================================================
+7. MINIMAL TEST
+==================================================
+
+필수:
+
+CASE A
+authenticated teacher
+GET /diaries/unwritten-slots
+
+EXPECTED:
+200
+{ slots: [...] }
+
+CASE B
+authenticated teacher
+GET /diaries/unwritten-slots?includeWritten=true
+
+EXPECTED:
+200
+{ slots: [...] }
+
+CASE C
+미작성 회차:
+hasDiary=false
+
+CASE D
+작성된 회차(includeWritten=true):
+hasDiary=true
+diaryId 존재
+
+CASE E
+unauthenticated:
+401 유지
+
+==================================================
+8. DEPLOYMENT
+==================================================
+
+api-server를 수정했다면:
+
+RENDER_REQUIRED = YES
+
+앱 코드 수정 없음:
+
+OTA_REQUIRED = NO
+
+Render 자동 조작 금지.
+
+commit/push 후 STOP.
+사용자가 swimnote-api를 수동 Manual Deploy한다.
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+SERVER_PRODUCTION_SHA:
+
+HOME_REQUEST:
+- URL
+- STATUS
+- FAILED_STAGE
+- ERROR
+
+DIARY_SELECTOR_REQUEST:
+- URL
+- STATUS
+- FAILED_STAGE
+- ERROR
+
+ROOT_CAUSE:
+
+CHANGED_FILES:
+
+TESTS:
+
+RENDER_REQUIRED:
+YES / NO
+
+OTA_REQUIRED:
+NO
+
+NEW_SHA:
+
+완료 후 STOP.

@@ -1,0 +1,318 @@
+# SWIMNOTE X — WP2 설계서 정정 제출 지시
+
+WP2 설계서를 검수했습니다.
+
+Repository 조사 방향은 확인했지만, 확정 설계에 없던 capability와 해결되지 않은 권한 구조가 포함돼 있으므로 아직 구현을 승인하지 않습니다.
+
+이번에는 코드 수정 없이 아래 항목만 정정 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 설계 고정 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+새 기능, 새 상태, 새 capability를 임의로 추가하지 마십시오.
+
+WP2의 역할은 다음뿐입니다.
+
+* 수영장 X 상태 판정
+* X 상태 읽기 Contract
+* X 전용 API Guard 기반
+* 슈퍼어드민의 최소 상태 관리 기반
+
+다음 WP의 기능을 미리 설계하거나 활성화하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Capability 설계 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 제안한 다음 capability는 승인하지 않습니다.
+
+* curriculum_view
+* growth_write
+
+문제:
+
+1. 기존 최종 설계에서 이름이 확정되지 않음
+2. curriculum_view 활성화를 WP3로 적었으나 WP3은 앱 Mode Context 단계임
+3. growth_write를 PART 2로 적었으나 Growth Event는 PART 1 WP14임
+4. mode='x'이면 모두 true라는 설명과 WP2에서는 모두 false라는 설명이 충돌함
+
+WP2에서는 capability를 임의 확정하지 마십시오.
+
+다음 두 방식만 비교하여 제출하십시오.
+
+### 방식 A
+
+WP2 응답에 capabilities를 빈 객체로 유지:
+
+```json
+{
+  "capabilities": {}
+}
+```
+
+실제 기능이 구현되는 각 WP에서 확정된 capability만 추가.
+
+### 방식 B
+
+capabilities 필드를 WP2 응답에서 제외하고 WP3 앱 설계 전 최종 확정.
+
+각 방식의 기존 Contract 영향만 비교하십시오.
+
+새 capability 이름을 제안하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 학부모 다중 자녀·다중 수영장 권한 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계는 parent_accounts.swimming_pool_id 한 개만 기준으로 사용합니다.
+
+그러나 최종 실행계획은 여러 자녀가 서로 다른 수영장에 있을 때 상태 분리를 요구합니다.
+
+다음을 Repository와 실제 DB 구조에서 조사하십시오.
+
+1. parent_students 실제 컬럼
+2. parent_students에서 학생을 찾는 방식
+3. students.swimming_pool_id 존재 여부
+4. 학부모가 여러 수영장의 학생과 연결될 수 있는지
+5. 기존 학부모 API가 선택한 childId를 어떻게 받는지
+6. 학부모 홈에서 현재 선택된 자녀 식별자를 어떻게 저장하는지
+7. 자녀별 pool 접근 권한을 검증하는 기존 함수가 있는지
+8. parent_accounts.swimming_pool_id와 자녀 pool이 다를 때 현재 처리 방식
+9. 레거시 `parent` 역할의 실제 계정 수와 사용 Route
+10. `parent_account`와 `parent`의 차이
+
+결과를 다음으로 구분하십시오.
+
+* REPOSITORY_VERIFIED
+* ENVIRONMENT_VERIFIED
+* NOT_FOUND
+* NEEDS_VERIFICATION
+
+학부모 Mode API가 child_id 또는 pool_id를 받아야 하는지 조사 결과만 제출하십시오. 아직 확정하거나 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 슈퍼어드민 상태 변경 대상 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+제안한 Route:
+
+```text
+PATCH /super/operators/:id/xmode
+```
+
+에서 `:id`의 의미가 불명확합니다.
+
+기존 다음 Route를 실제 코드로 확인하십시오.
+
+* PATCH /super/operators/:id/subscription
+* PATCH /super/operators/:id/readonly
+* PATCH /super/operators/:id/block-upload
+
+각 Route에 대해 제출:
+
+1. `:id`가 user id인지 pool id인지
+2. swimming_pools row를 찾는 쿼리
+3. admin_user_id를 통한 매핑 여부
+4. 운영자 한 명이 여러 pool을 소유할 수 있는지
+5. 대상 pool이 없을 때 오류
+6. 동일한 Route 패턴을 X모드에 사용하는 것이 안전한지
+
+X 상태는 swimming_pools에 저장되므로, 최종적으로 수정되는 pool_id가 명확하게 하나로 결정돼야 합니다.
+
+아직 Route 경로를 확정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. X 상태 변경 Audit 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP1에서 생성된 다음 구조를 기준으로 조사하십시오.
+
+* audit_entity_versions
+* audit_logs
+* next_audit_version()
+
+현재 제안한 event_logs 기록은 아직 승인되지 않았습니다.
+
+확인:
+
+1. event_logs 실제 테이블 구조
+2. event_logs 기존 사용 목적
+3. audit_logs를 쓰는 helper 존재 여부
+4. writeAuditLog 함수 존재 여부
+5. X모드 상태 변경을 audit_logs에 기록하도록 v3.3.4에서 요구하는지
+6. 변경 전·후 값을 저장할 수 있는지
+7. actor_type='super_admin' 규칙
+8. entity_type과 entity_id 후보
+9. 동일 DB Transaction 안에서 상태 변경과 Audit 기록이 가능한지
+
+새 Audit 구조를 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 오류 처리 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계에는 DB 오류가 서로 다르게 적혀 있습니다.
+
+* requireXMode: 503
+* GET /pools/x-mode: 500
+
+기존 Repository의 DB 오류 응답 규칙을 조사하고 하나로 맞춘 설계를 제출하십시오.
+
+확인:
+
+* 기존 Route의 DB 장애 HTTP 코드
+* 기존 오류 JSON 형식
+* error 필드와 code 필드 사용 구분
+* Express error middleware 존재 여부
+* async Route 오류 처리 방식
+
+새 AppError 또는 XModeError 클래스를 임의 추가하지 마십시오.
+
+기존 구조로 충분한지 먼저 판단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Route 등록 순서 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+routes/pools.ts의 실제 Route 등록 순서를 제출하십시오.
+
+특히 다음을 확인하십시오.
+
+* GET /my
+* GET /my-pools
+* GET /:id
+* GET /x-mode
+* 기타 동적 Route
+
+`/x-mode`가 `/:id`보다 뒤에 등록되면 동적 Route에 잡히는지 확인하십시오.
+
+제출:
+
+* 실제 Route 목록과 라인
+* 신규 Route가 들어갈 정확한 위치
+* 충돌 가능성
+* 충돌 방지 방법
+
+코드는 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트 방식 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 데모 수영장의 X 상태를 직접 UPDATE하고 나중에 원복하는 테스트는 승인하지 않습니다.
+
+다음 방법을 비교하십시오.
+
+### 방식 A
+
+DB Transaction 안에서 상태 변경 후 테스트하고 항상 Rollback.
+
+### 방식 B
+
+이미 존재하는 전용 테스트 수영장 중 운영·심사·샘플에 사용되지 않는 대상 사용.
+
+### 방식 C
+
+resolvePoolMode의 판정 로직을 순수 함수로 분리해 DB 변경 없이 단위 검증하고, API는 읽기 상태만 검증.
+
+조건:
+
+* 신규 수영장 생성 금지
+* 토이키즈 상태 변경 금지
+* 샘플 수영장 상태 변경 금지
+* 심사용 수영장 상태 변경 금지
+* 원복에 의존하는 운영 DB 테스트 금지
+
+각 방식의 Repository 적용 가능성과 코드 추가 필요 여부를 제출하십시오.
+
+테스트 편의를 이유로 설계 외 기능을 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. getXModeCapabilities 중복 조회 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계는 다음 흐름을 제안했습니다.
+
+```text
+GET /pools/x-mode
+→ resolvePoolMode()
+→ getXModeCapabilities(poolId)
+→ 내부에서 resolvePoolMode() 다시 호출
+```
+
+이 경우 같은 요청에서 DB를 두 번 조회할 수 있습니다.
+
+다음을 정정하십시오.
+
+* Mode 결과를 capability 계산 함수에 전달하는 방식
+* 또는 단일 함수에서 한 번만 조회하는 방식
+
+단, capability 자체가 WP2에서 제외된다면 해당 함수도 이번 WP에서 만들지 않는 방안을 포함하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. requireXMode 권한 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+JWT의 req.user.poolId를 최종 권한 근거로 사용하지 마십시오.
+
+JWT는 30일 동안 유지되며 수영장 전환 후 오래된 값일 수 있습니다.
+
+설계서에 다음을 명확히 하십시오.
+
+```text
+인증
+→ 실제 DB에서 사용자 또는 학부모의 pool 접근 권한 확인
+→ 요청 pool_id 비교
+→ pool 존재 확인
+→ entitlement 확인
+→ config status 확인
+```
+
+확인되지 않은 역할은 허용하지 말고 차단하는 fail-closed 방식을 적용하십시오.
+
+super_admin도 X 상태 자체를 우회하지 않는 현재 설계를 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 수정된 WP2 설계서 제출 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 정정 제출하십시오.
+
+1. capabilities 처리안
+2. 학부모 다중 자녀·다중 pool 조사 결과
+3. 레거시 parent 역할 조사
+4. 슈퍼어드민 `:id` 실제 의미
+5. 상태 변경 대상 pool 결정 방식
+6. Audit 기록 방식
+7. DB 오류 처리 방식
+8. pools.ts Route 등록 순서
+9. 안전한 테스트 방식
+10. 동일 요청 DB 중복 조회 제거
+11. 최종 수정 파일
+12. 최종 신규 파일
+13. 최종 API Contract
+14. 일반모드 영향
+15. 남은 NEEDS_VERIFICATION
+16. 구현 승인 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+정정 설계서만 제출하고 멈추십시오.
+
+금지:
+
+* 코드 수정
+* DB 변경
+* 수영장 상태 변경
+* 신규 테스트 데이터 생성
+* Commit
+* Push
+* 서버 재시작
+* 배포
+* WP3 작업
+* capability 임의 추가
+* Audit 구조 임의 변경

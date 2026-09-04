@@ -1,0 +1,757 @@
+[긴급 최종 수정 — SWIMNOTE 로컬 미디어 영구저장 제거 + 기존 대용량 자동청소 + 전체 마무리]
+
+목적:
+
+현재 일부 사용자 iPhone에서:
+
+- SwimNote 앱 자체: 약 73MB
+- 문서 및 데이터: 22GB
+- 다른 사용자: 약 6GB
+
+등의 비정상적인 로컬 용량 증가가 확인되었다.
+
+전수 조사 결과,
+SWIMNOTE가 서버/R2의 사진·영상을 사용자가 저장할 때
+앱 documentDirectory에 temporary copy를 생성한 뒤
+MediaLibrary 저장 완료 후 해당 copy를 삭제하지 않는 경로가 확인됐다.
+
+이번 작업에서 한 번에 끝낸다.
+
+최종 원칙:
+
+SERVER/R2 = 서비스 사진/영상 영구 원본
+DB = URL + metadata
+DEVICE APP SANDBOX = 영구 사진/영상 저장 금지
+
+앱은 현재 작업에 필요한 temporary media만 허용하고
+작업이 끝나면 즉시 삭제한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 최우선 데이터 안전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+cleanup 코드를 작성하기 전에
+현재 일지/앨범 media source를 다시 검증한다.
+
+반드시 확인:
+
+A. 기존 class_diaries 사진/영상
+B. class_diary_student_notes 관련 media
+C. 앨범 photos/videos
+D. 학부모 feed media
+
+가 앱 내부:
+
+file://...
+documentDirectory/...
+
+경로를 DB 영구 source로 참조하지 않는지 확인.
+
+DB/서버가 실제로 저장하는 값이:
+
+R2 URL
+server file_url
+/uploads/...
+/videos/...
+https://...
+
+등 서버에서 재조회 가능한 값인지 확인한다.
+
+최소 실제 기존 일지/앨범 샘플을 조회해서 검증한다.
+
+Gate:
+
+기존 일지/앨범의 source of truth가
+R2/server임이 확인되면 cleanup 진행.
+
+하나라도 DB가 local file URI를 영구 참조하는 구조가 발견되면
+cleanup 실행 금지하고 먼저 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 3개를 동시에 해결한다.
+
+A. 기존 사용자:
+이미 앱 내부에 쌓인 수GB~수십GB legacy media 자동 삭제
+
+B. 신규 저장:
+앞으로 사진/영상 저장 시 documentDirectory에 파일을 남기지 않음
+
+C. 전체 정책:
+SWIMNOTE 앱 sandbox를 사진/영상 영구 저장소로 사용하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. DiaryPhotoStrip 신규 누적 차단
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+components/common/DiaryPhotoStrip.tsx
+
+현재 생성되는:
+
+diary_{id}.jpg
+diary_all_{id}.jpg
+diary_video_{id}.{ext}
+
+는 영구파일이 아니다.
+
+사용자가 "사진 저장 / 전체 저장 / 영상 저장"을 눌렀을 때:
+
+R2/server URL
+→ temporary local file
+→ MediaLibrary.saveToLibraryAsync()
+→ 앱 temporary local file DELETE
+
+로 변경한다.
+
+사진앱에 저장된 사용자 파일은 유지한다.
+
+삭제 대상은 앱 sandbox copy뿐이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 모든 성공/실패 경로 cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+성공했을 때만 삭제하는 구조로 만들지 않는다.
+
+다음 모든 종료 경로에서 temporary file을 정리:
+
+- MediaLibrary save 성공
+- MediaLibrary save 실패
+- download 성공 후 save 실패
+- 중간 exception
+- 사용자 작업 실패
+
+권장:
+
+let localPath: string | null = null;
+
+try {
+  localPath = ...
+  await download...
+  await MediaLibrary.save...
+} finally {
+  if (localPath) {
+    await deleteAsync(localPath, { idempotent: true }).catch(...)
+  }
+}
+
+실제 API 버전에 맞춰 구현.
+
+cleanup 실패가 사용자 사진 저장 성공 자체를
+실패 처리하게 만들지는 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. parent/photos 신규 누적 차단
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+app/(parent)/photos.tsx
+
+현재 생성되는:
+
+swim_{id}.jpg
+swim_video_{id}.{ext}
+
+도 동일 정책 적용.
+
+R2/server
+→ temporary local
+→ MediaLibrary
+→ DELETE
+
+사진/영상 저장 기능은 그대로 유지한다.
+
+사용자는 기존과 똑같이
+iPhone 사진앱 / Android gallery에서 파일을 볼 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. parent/home 정상 구현 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+app/(parent)/home.tsx는 조사 결과
+이미 MediaLibrary 저장 후 local copy cleanup을 수행하고 있다.
+
+불필요하게 수정하지 않는다.
+
+현재 정상 패턴을 참고만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 기존 22GB / 6GB 자동 Cleanup
+━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 설치 후
+기존 앱 sandbox에 남아 있는
+SWIMNOTE legacy media를 한 번 청소한다.
+
+사용자가 직접 앱 삭제/재설치하거나
+파일을 하나씩 지울 필요가 없어야 한다.
+
+허용된 legacy filename만 삭제.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Legacy 삭제 허용 패턴
+━━━━━━━━━━━━━━━━━━━━━━
+
+삭제 대상으로 확인된 파일:
+
+diary_{id}.jpg
+diary_all_{id}.jpg
+diary_video_{id}.{ext}
+swim_{id}.jpg
+swim_video_{id}.{ext}
+
+단순 startsWith만으로 대충 삭제하지 않는다.
+
+현재 실제 ID format과 extension 규칙을 반영한
+엄격한 matcher를 만든다.
+
+예:
+
+isLegacySwimnoteMediaFile(name)
+
+함수에서
+허용된 패턴만 true.
+
+허용되지 않은 파일은 절대 삭제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 절대 삭제 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 삭제하지 말 것:
+
+scheduleAudio_*
+
+선생님 수업 음성녹음
+
+AsyncStorage
+
+로그인/session
+
+JWT/token
+
+draft
+
+AI diary draft
+
+사용자 설정
+
+DB data
+
+R2 object
+
+server media
+
+MediaLibrary/Photos/Gallery에 저장된 파일
+
+picker 원본
+
+camera roll 원본
+
+위 legacy matcher에 포함되지 않는 documentDirectory 파일
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Cleanup helper
+━━━━━━━━━━━━━━━━━━━━━━
+
+미디어 cleanup 로직을
+화면마다 중복 작성하지 않는다.
+
+최소 공통 helper를 만든다.
+
+예:
+
+utils/mediaStorageCleanup.ts
+
+역할:
+
+- documentDirectory 목록 읽기
+- legacy media matcher
+- 대상 파일만 삭제
+- 삭제 성공/실패 개수 반환
+- 절대 throw로 앱 부팅을 막지 않음
+
+예상 반환:
+
+{
+  scanned: number,
+  matched: number,
+  deleted: number,
+  failed: number
+}
+
+단 개인정보/파일명 전체를 production log에
+과도하게 출력하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Cleanup 실행 위치
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 시작 흐름에서
+UI를 막지 않는 안전한 시점에 1회 실행.
+
+현재 root/session 초기화 구조를 조사해서
+가장 안전한 위치에 연결한다.
+
+중요:
+
+cleanup 때문에 Splash가 장시간 멈추면 안 된다.
+
+22GB의 파일 개수가 많을 수 있으므로
+UI thread를 막지 않고 async로 처리.
+
+앱 사용 자체를 cleanup 완료까지 기다리게 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 1회 실행 Flag
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+@swimnote:media_cleanup_v1
+
+AsyncStorage flag 사용.
+
+하지만 처음부터 completed=true 기록 금지.
+
+흐름:
+
+1. flag 확인
+2. 미완료면 directory scan
+3. legacy target 삭제
+4. 실패 파일 확인
+5. 안전하게 cleanup 완료됐을 때 flag=true
+
+partial failure면:
+
+completed=true로 확정하지 않고
+다음 앱 실행 때 실패 대상 재시도 가능하게 한다.
+
+단 무한 반복으로 앱 성능에 영향을 주지 않게 설계한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 대용량 Cleanup 안정성
+━━━━━━━━━━━━━━━━━━━━━━
+
+22GB라고 해서 파일을 전부 동시에
+Promise.all로 삭제하지 않는다.
+
+파일이 매우 많을 수 있다.
+
+적당한 batch 또는 순차 cleanup 사용.
+
+예:
+
+10~30개 단위 batch
+
+또는 안전한 순차 처리.
+
+메모리 폭증 금지.
+
+파일 내용은 읽지 않는다.
+filename/path만 읽고 삭제.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 삭제 전 R2 개별 HEAD 검사 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+수천 개 legacy 파일 각각마다
+R2 HEAD/API 요청을 보내는 방식은 기본적으로 사용하지 않는다.
+
+이번 legacy 파일은
+서버 media를 사용자 MediaLibrary에 저장하기 위해
+다운로드한 duplicate라는 코드 lifecycle이 확인됐다.
+
+따라서 §0 Gate에서
+DB/server source 구조를 검증한 뒤
+filename pattern 기반으로 정리한다.
+
+만약 특정 패턴이 업로드 전 draft에도 사용되는 것이 발견되면
+그 패턴은 cleanup 대상에서 제외한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 업로드 경로 임시 파일 조사 및 정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서 documentDirectory 문제를 먼저 확실히 고친다.
+
+추가로:
+
+compressImage.ts
+ImageManipulator 결과
+
+video thumbnail
+
+의 cleanup 가능성을 확인한다.
+
+중요:
+
+SWIMNOTE가 직접 생성한 temporary/cache file임이
+확실한 경우에만 업로드 성공/실패 후 삭제 가능.
+
+picker 원본 URI는 절대 삭제하지 않는다.
+
+ImageManipulator output URI의 directory/source를
+확정하지 못하면 이번 작업에서 강제 삭제하지 않는다.
+
+위험한 cleanup보다 안전 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 앞으로의 영구 저장 금지 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository 전체에서
+사진/영상 media를 대상으로 하는:
+
+FileSystem.documentDirectory
+Paths.document
+
+신규 사용을 조사한다.
+
+각 사용 목적을 분류:
+
+A. temporary MediaLibrary save
+→ 사용 후 즉시 삭제 필수
+
+B. 실제 앱 기능상 영구 파일 필요
+→ 명확한 이유 보고
+
+C. 불필요한 media persistence
+→ 제거
+
+사진/영상에 대해서는 기본적으로:
+
+documentDirectory permanent persistence 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 다운로드/조회 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모/선생님이 일지·앨범을 조회할 때:
+
+R2/server URL
+→ expo-image/video 표시
+
+로 유지.
+
+사진을 "보기만 하는 것" 때문에
+SWIMNOTE documentDirectory에 복사본 생성 금지.
+
+expo-image의 정상 OS-managed cache는 허용.
+
+그 cache를 service source of truth로 사용하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 앱 용량 목표
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책 목표:
+
+사용 기간이 길어지고
+사진/영상이 수천 개 쌓여도
+
+SWIMNOTE "문서 및 데이터"가
+업로드/저장된 전체 미디어 크기와 비례하여
+6GB / 22GB / 수십GB로 계속 증가해서는 안 된다.
+
+작은 cache/metadata/draft 등은 허용.
+
+대용량 media permanent accumulation은 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. iOS / Android 공통 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+동일 코드 경로가 양 플랫폼에서 사용되는지 확인.
+
+iOS:
+documentDirectory cleanup
+
+Android:
+documentDirectory cleanup
+
+둘 다 적용.
+
+플랫폼 차이가 있으면 분기하되
+Android에도 legacy file이 남지 않게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 데이터 손실 방지 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A
+R2에 있는 기존 일지 사진
++ documentDirectory duplicate 존재
+
+cleanup
+→ duplicate 삭제
+→ 학부모 일지 다시 열기
+→ R2에서 정상 표시
+
+CASE B
+기존 앨범 사진
+→ cleanup 후 정상 조회
+
+CASE C
+영상 일지
+→ cleanup 후 서버에서 정상 재생
+
+CASE D
+MediaLibrary에 사용자가 저장한 사진
+→ cleanup 후 사진앱에서 그대로 존재
+
+CASE E
+scheduleAudio 파일
+→ cleanup 후 그대로 존재
+
+CASE F
+작성 중 draft
+→ 그대로 존재
+
+CASE G
+로그인/session
+→ 그대로 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 신규 저장 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+일지 사진 1장 저장
+
+→ MediaLibrary 저장 성공
+→ 앱 documentDirectory에 diary_* 없음
+
+CASE 2
+전체 사진 저장
+
+→ 사진앱 정상 저장
+→ diary_all_* 없음
+
+CASE 3
+일지 영상 저장
+
+→ 사진앱 정상 저장
+→ diary_video_* 없음
+
+CASE 4
+앨범 사진 저장
+
+→ 사진앱 정상
+→ swim_* 없음
+
+CASE 5
+앨범 영상 저장
+
+→ 사진앱 정상
+→ swim_video_* 없음
+
+CASE 6
+저장 실패
+
+→ crash 없음
+→ 생성됐던 temp local 삭제
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. Cleanup 실제 용량 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 실기기에서 OTA 적용 전/후
+iOS Settings Storage를 확인.
+
+예:
+
+Before:
+Documents & Data = 22.21GB
+
+OTA 적용
+→ 앱 실행
+→ cleanup 완료
+→ iOS가 storage 수치를 갱신할 시간 부여
+→ Settings 재확인
+
+OS 저장공간 표시는 즉시 갱신되지 않을 수 있으므로
+삭제 직후 숫자가 바로 줄지 않아도
+FileSystem target file이 실제 없어졌는지 별도로 확인.
+
+Android도 가능하면 App storage에서 비교.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. Cleanup 완료 후 코드 뒷정리
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+이번 cleanup 코드를 영구적으로
+앱 부팅 때마다 들고 갈 필요가 없는지 설계한다.
+
+1차 OTA:
+- legacy cleanup helper 포함
+- cleanup v1 수행
+- 신규 누적 방지 포함
+
+이 상태는 당분간 유지하여
+기존 사용자들이 업데이트를 받을 시간을 확보한다.
+
+그 후 충분한 배포 기간이 지난 다음
+별도 승인하에:
+
+- legacy cleanup boot hook 제거 가능 여부 검토
+- 신규 누적 방지 코드는 영구 유지
+- filename cleanup matcher는 더 이상 필요 없으면 제거 가능
+
+하지만 이번 작업에서
+cleanup 코드를 바로 제거하지 않는다.
+
+기존 사용자가 아직 OTA를 받지 않았을 수 있기 때문이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. Production 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+cleanup 결과는 개인정보 없이 최소 로그만 허용.
+
+예:
+
+[media-cleanup-v1] matched=123 deleted=123 failed=0
+
+사용자 이름
+학생 이름
+실제 media URL
+JWT
+전체 filename
+
+production log 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. 수정 예상 파일
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 예상:
+
+components/common/DiaryPhotoStrip.tsx
+app/(parent)/photos.tsx
+
+신규 helper:
+utils/mediaStorageCleanup.ts
+
+초기 실행 연결:
+현재 root/session 구조상 가장 안전한 1개 파일
+
+필요하면 compressImage cleanup 관련 파일 추가 가능하나
+확실히 안전한 경우에만.
+
+불필요한 리팩터링 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. Server / DB / Native
+━━━━━━━━━━━━━━━━━━━━━━
+
+예상:
+
+Server = 0
+DB = 0
+Native config = 0
+Native Build = 0
+
+클라이언트 FileSystem 로직이므로
+OTA로 해결 가능해야 한다.
+
+만약 조사 중 Native 변경이 필요하다고 확인되면
+임의 수정하지 말고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+26. 구현 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+순서 엄수:
+
+1. §0 R2/server source Gate 검증
+2. legacy filename 안전성 재검증
+3. 신규 누적 방지 구현
+4. legacy cleanup helper 구현
+5. startup 1회 cleanup 연결
+6. TypeCheck
+7. 코드 CASE 검증
+8. commit
+9. 완료 보고
+10. STOP
+
+OTA는 아직 배포하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+27. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 형식:
+
+A. R2/server source Gate 결과
+B. DB에 local file URI 영구 참조 존재 여부
+C. cleanup 안전성 최종 판정
+D. 수정 파일 전체
+
+E. DiaryPhotoStrip:
+- 사진 저장 cleanup
+- 전체사진 cleanup
+- 영상 cleanup
+- failure cleanup
+
+F. parent/photos:
+- 사진 cleanup
+- 영상 cleanup
+- failure cleanup
+
+G. Legacy cleanup:
+- helper 위치
+- exact 허용 패턴
+- exact 제외 패턴
+- 실행 위치
+- flag key
+- batch size
+- partial failure 정책
+
+H. 보호:
+- R2
+- DB
+- MediaLibrary
+- scheduleAudio
+- draft
+- AsyncStorage
+- session
+- picker original
+
+I. 업로드 temporary:
+- compressImage cleanup 여부
+- thumbnail cleanup 여부
+- 건드리지 않았다면 이유
+
+J. CASE 1~20 결과
+
+K. TypeCheck
+
+L. Server 변경
+M. DB 변경
+N. Native 변경
+O. Native Build 필요 여부
+P. OTA 가능 여부
+
+Q. 기존 22GB/6GB 자동정리 가능 여부
+R. 앞으로 media permanent accumulation 차단 여부
+
+S. commit SHA
+
+마지막:
+
+CODE CHANGED = YES
+OTA CHANGED = 0
+RENDER CHANGED = 0
+DB CHANGED = 0
+NATIVE BUILD = 0
+
+구현 + commit 후 멈춘다.
+OTA 배포는 별도 승인 전 절대 금지.

@@ -1,4 +1,4 @@
-import { CircleX } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,7 +15,7 @@ export default function RejectedScreen() {
     <View style={[styles.container, { backgroundColor: C.background, paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0), paddingBottom: insets.bottom + 34 }]}>
       <View style={styles.content}>
         <View style={[styles.iconBox, { backgroundColor: "#F9DEDA" }]}>
-          <CircleX size={40} color="#D96C6C" />
+          <LucideIcon name="x-circle" size={40} color="#D96C6C" />
         </View>
         <Text style={[styles.title, { color: C.text }]}>가입 신청 반려</Text>
         <Text style={[styles.message, { color: C.textSecondary }]}>
@@ -30,7 +30,7 @@ export default function RejectedScreen() {
         ) : null}
 
         <Pressable
-          style={({ pressed }) => [styles.reapplyBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.reapplyBtn, { backgroundColor: C.primaryAction, opacity: pressed ? 0.85 : 1 }]}
           onPress={() => router.replace("/pool-apply")}
         >
           <Text style={styles.reapplyText}>다시 신청하기</Text>

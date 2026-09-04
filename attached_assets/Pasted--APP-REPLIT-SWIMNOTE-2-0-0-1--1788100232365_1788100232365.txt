@@ -1,0 +1,281 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — 선생님 학생정보 모자레벨 변경 실패 + 학부모 즉시반영 회귀 조사/수정]
+
+증상:
+
+1.
+선생님 모드
+학생정보 → 모자레벨 → 변경
+
+현재:
+실패 모달 발생
+
+2.
+예전에 수정했던
+“선생님이 학생 모자레벨을 변경하면
+학부모 화면에도 즉시 새 모자레벨이 표시되는 동작”
+이 깨진 것으로 보임.
+
+이번 작업은
+조사 → root cause 확정 → 최소 수정 → 회귀 테스트
+까지 한 번에 진행한다.
+
+Render deploy / OTA publish는 마지막에 하지 말고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 레벨 변경 전체 흐름 추적
+━━━━━━━━━━━━━━━━━━━━
+
+Teacher 학생정보 화면에서
+모자레벨 변경 버튼부터 시작해서 실제 저장까지 끝까지 추적.
+
+확인:
+
+APP UI
+→ level picker/modal
+→ mutation 함수
+→ API endpoint
+→ server route
+→ DB update
+→ response
+→ local cache/state invalidation
+→ teacher UI refresh
+→ parent UI refresh
+
+실제 파일명/함수명 기준으로 추적할 것.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 실패 모달 원인 확정
+━━━━━━━━━━━━━━━━━━━━
+
+실패 모달이 뜨는 실제 원인을 확인.
+
+반드시 확인:
+
+- 어떤 API 호출이 실패하는지
+- HTTP status
+- server error code
+- response body
+- request payload
+- student_id
+- pool_id
+- selected level id
+- auth/role validation
+- tenant scope validation
+- level belongs-to-pool validation
+- DB constraint
+- deprecated field/API 사용 여부
+- 2.0.0에서 contract가 바뀌었는지
+
+가능하면 실제 reproduce해서 로그 확보.
+
+개인정보/secret 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 수영장별 레벨 기준 확인
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE 글로벌 색상 상수로 처리하면 안 됨.
+
+관리자가 pool별로 설정한 level list가 source of truth인지 확인.
+
+확인:
+
+- level id
+- display name
+- color
+- order/index
+- active status
+
+Teacher가 선택한 level이
+해당 student.pool_id의 level인지 반드시 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 기존 “학부모 즉시 반영” 구현 추적
+━━━━━━━━━━━━━━━━━━━━
+
+git history / 기존 코드에서
+예전에 수정된 동작을 찾는다.
+
+목표:
+
+Teacher가 student.current_level을 변경하면
+Parent 화면에서도 앱 재설치/재로그인 없이
+새 레벨이 정상 표시되어야 함.
+
+확인:
+
+- parent student profile/home이 어느 endpoint를 읽는지
+- teacher 변경 endpoint와 같은 source field를 갱신하는지
+- query cache key
+- invalidation/refetch
+- staleTime
+- navigation focus refetch
+- optimistic update 여부
+- websocket/realtime event 여부
+- parent home/profile 각각 다른 cache를 쓰는지
+
+“예전에 됐었다”는 전제로
+현재 회귀 지점을 git history까지 확인할 것.
+
+━━━━━━━━━━━━━━━━━━━━
+5. source of truth 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 하나의 canonical student level source를 확인.
+
+예:
+students.current_level_id
+또는 실제 현재 schema의 equivalent
+
+Teacher 화면과 Parent 화면이
+서로 다른 legacy field를 읽고 있으면
+그게 root cause인지 확인.
+
+중복 필드 동기화 방식으로 땜질하지 말고
+canonical field 기준으로 정리.
+
+단:
+대규모 migration은 금지.
+현재 구조에서 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 수정 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+우선순위:
+
+A.
+Teacher level update 실패 원인 수정
+
+B.
+저장 성공 시 Teacher 화면 즉시 새 level 반영
+
+C.
+Parent가 다음 조회/focus/refetch 시
+동일 canonical level을 즉시 읽음
+
+D.
+가능하면 기존 cache invalidation/realtime 구조 재사용
+
+새로운 별도 상태 시스템 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 레벨 변경 기록 보존
+━━━━━━━━━━━━━━━━━━━━
+
+현재 기존 시스템에
+level history / growth event / audit가 이미 있다면
+이번 수정으로 빠지면 안 됨.
+
+확인:
+
+- 이전 level
+- 새 level
+- changed_by teacher/admin
+- changed_at
+- reason/manual 여부
+
+현재 구현되어 있는 범위는 그대로 보존.
+
+새 레벨테스트 자동승급 기능은
+이번 버그수정 범위에서 구현하지 말 것.
+그건 별도 2.0.0 설계 항목.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 테스트 시나리오
+━━━━━━━━━━━━━━━━━━━━
+
+최소 테스트:
+
+1.
+Teacher 학생정보
+현재 level A → B 변경
+→ 성공
+
+2.
+변경 직후 Teacher 학생정보
+→ B 표시
+
+3.
+Teacher 뒤로갔다 다시 진입
+→ B 유지
+
+4.
+Parent 동일 학생 화면 조회
+→ B 표시
+
+5.
+Parent 앱이 이미 열린 상태에서
+해당 화면 focus/refetch
+→ B 표시
+
+6.
+다른 pool level id 전달
+→ 차단
+
+7.
+존재하지 않는 level id
+→ 차단
+
+8.
+최고 level → 다른 level 수동 변경
+→ 기존 정책대로 정상
+
+9.
+동일 level 재선택
+→ 불필요 오류/중복 history 없는지 확인
+
+10.
+1.6.3 contract 영향 여부 확인
+
+━━━━━━━━━━━━━━━━━━━━
+9. 회귀 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+- teacher student detail
+- parent student detail/home
+- admin student management
+- level setup
+- level history
+- growth event 연계가 기존에 있으면 유지
+- tenant isolation
+- auth role
+
+새 failure 0 기준.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 금지사항
+━━━━━━━━━━━━━━━━━━━━
+
+- 새 레벨테스트 기능 구현 금지
+- 글로벌 WHITE/BLUE 하드코딩 금지
+- DB 대규모 변경 금지
+- legacy/current field 이중쓰기 새로 추가 금지
+- parent 화면만 강제 local patch 금지
+- Render deploy 금지
+- OTA publish 금지
+
+━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+
+1. 실제 root cause
+2. 실패 API/status/error
+3. canonical level source
+4. Teacher/Parent 각각 읽는 경로
+5. 기존 즉시반영 구현이 왜 깨졌는지
+6. 변경 파일
+7. 수정 내용
+8. Teacher 즉시반영 결과
+9. Parent 즉시반영 결과
+10. tenant/권한 검증 결과
+11. 테스트 수 / 새 실패
+12. commit SHA
+13. deploy 여부
+
+그리고 STOP.

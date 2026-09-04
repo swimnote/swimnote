@@ -235,6 +235,10 @@ export interface Operator {
   riskFlags: string[]
   authorityStructure: string
   memo: string
+
+  // X MODE 상태 (pools-summary에서 additive 반환)
+  xmode_entitlement?: boolean
+  xmode_config_status?: string
 }
 
 export interface SubscriptionPlan {

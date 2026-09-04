@@ -1,0 +1,463 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE 보강 기능 — PRODUCTION BASELINE 영구 고정 작업
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목적:
+
+현재 실기기에서 정상 작동 확인된 보강 시스템을
+향후 일지/AI/SWIMNOTE X/기타 리팩터링 작업이
+절대로 회귀시키지 못하도록 Production Baseline으로 고정한다.
+
+중요:
+
+이번 작업은 기능 개발이 아니다.
+현재 정상 상태의 Git/코드/테스트 기준선을 확정하는 작업이다.
+
+현재 사용자가 실기기에서 최종 확인:
+
+- 선생님별 보강 대상 분리 정상
+- 기간 지난 보강 표시 정상
+- 보강 가능 날짜 표시 정상
+- 날짜 재선택 정상
+- 보강 배정 확정 정상
+- 정원 5/5 반에도 보강 추가 가능
+- 보강으로 6명 이상이 되어도 배정 가능
+
+이 상태를 정상 기준으로 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 작업 시작 전 Git 실물 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 먼저 제출:
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git log --oneline -10
+git rev-parse origin/deploy-photo-clone
+
+그리고 아래 commit의 ancestry/존재를 확인:
+
+5c5c11a58c6e752ef0820c79a8db7fd4f3d22750
+  REQ-5 teacher visibility
+
+4b9656e5
+  날짜 다시 선택 state 정리
+
+baee4222
+  배정 확정 GestureResponderEvent 수정
+
+명령 예:
+
+git merge-base --is-ancestor 5c5c11a5 HEAD
+git merge-base --is-ancestor 4b9656e5 HEAD
+git merge-base --is-ancestor baee4222 HEAD
+
+각 exit code 제출.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 HEAD에 핵심 코드가 실제 존재하는지 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. Teacher visibility
+
+GET /teacher/makeups가 pool 전체를 반환하면 안 된다.
+
+현재 담당 학생 Source of Truth:
+
+student_class_history.left_at IS NULL
+→ current active class
+→ class_groups.teacher_user_id
+   OR co_teacher_ids
+
+handoff 예외:
+
+ms.handed_to_teacher_id = current user
+
+original_teacher_id는 현재 visibility 기준으로 사용 금지.
+
+Admin은 기존처럼 pool 전체.
+
+B. 날짜 정책
+
+현재 성공한 날짜 정책 유지:
+
+KST 오늘 기준
+-14일 ~ +28일
+
+MAKEUP_DATE_OUT_OF_RANGE 유지.
+
+eligible-occurrences 정상 유지.
+
+C. assign / complete-direct
+
+미래:
+PATCH /teacher/makeups/:id/assign
+
+오늘/과거:
+PATCH /teacher/makeups/:id/complete-direct
+
+분기 유지.
+
+D. expired
+
+waiting + expired 조회 유지.
+
+기간 지난 보강 UI 유지.
+
+MAKEUP_EXPIRED_CONFIRM_REQUIRED 유지.
+
+E. FULL CLASS OVERRIDE
+
+매우 중요.
+
+일반 class capacity가 5명이어도
+보강은 정원을 초과해서 추가 가능해야 한다.
+
+예:
+
+capacity = 5
+current_members = 5
+makeup +1
+→ 총 6명 허용.
+
+따라서:
+
+- CLASS_FULL로 보강 assign 차단 금지
+- eligible-classes에서 FULL 반 제거 금지
+- FULL 반 UI disabled 금지
+- FULL 반 onPress guard 금지
+
+단:
+
+is_full
+available_slots
+current_members
+
+등의 정보와
+"정원마감/정원초과" 뱃지는 표시용으로 유지 가능.
+
+F. 날짜 다시 선택
+
+현재:
+
+setSelectedDate(null)
+setSelectedOccurrence(null)
+
+두 state를 같이 초기화하는 코드 유지.
+
+G. 배정 확정
+
+반드시:
+
+onPress={() => doAssign()}
+
+유지.
+
+다시:
+
+onPress={doAssign}
+
+으로 되돌리는 것 금지.
+
+doAssign의 allowExpired 파라미터에
+GestureResponderEvent가 들어가면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 보강 회귀 방지 테스트 고정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 테스트를 삭제하거나 fake 테스트로 교체하지 않는다.
+
+가능한 기존 실제 route 테스트를 사용하여
+아래 회귀 조건을 고정한다.
+
+CASE 1
+Teacher A → 현재 A 담당 학생만 표시.
+
+CASE 2
+Teacher B → 현재 B 담당 학생만 표시.
+
+CASE 3
+A/B 학생 visibility 불필요한 중복 없음.
+
+CASE 4
+현재 담당 학생의 expired 보강 표시.
+
+CASE 5
+co_teacher 현재 담당 학생 표시.
+
+CASE 6
+handoff receiver 예외 유지.
+
+CASE 7
+Admin → pool 전체 보강 조회.
+
+CASE 8
+capacity=5 / members=5
+→ 미래 보강 assign 성공.
+
+CASE 9
+capacity=5 / members=5
+→ 오늘 complete-direct 성공.
+
+CASE 10
+capacity=5 / members=5
+→ 과거 complete-direct 성공.
+
+CASE 11
+FULL 반 eligible-classes에서 제거되지 않음.
+
+CASE 12
+-15일 → MAKEUP_DATE_OUT_OF_RANGE.
+
+CASE 13
+-14일 → 범위 통과.
+
+CASE 14
++28일 → 범위 통과.
+
+CASE 15
++29일 → MAKEUP_DATE_OUT_OF_RANGE.
+
+CASE 16
+오늘 날짜 assign
+→ ASSIGN_REQUIRES_FUTURE_DATE.
+
+CASE 17
+expired + 승인 없음
+→ MAKEUP_EXPIRED_CONFIRM_REQUIRED.
+
+CASE 18
+completed/cancelled 상태 차단 유지.
+
+CASE 19
+다른 pool 반 차단.
+
+CASE 20
+휴일/수업요일 검증 유지.
+
+테스트가 운영 코드를 복사한 fake 함수만 검사하면 안 된다.
+
+가능하면 운영 helper 직접 import 또는
+실제 Express route mount 방식으로 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 앱 정적 회귀 Gate 추가
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 문자열/구조가 향후 사라지거나 되돌아가면
+회귀로 판정할 수 있도록 검증한다.
+
+필수:
+
+onPress={() => doAssign()}
+
+setSelectedDate(null)
+setSelectedOccurrence(null)
+
+금지:
+
+onPress={doAssign}
+
+FULL 반을 막는:
+
+disabled={occ.is_full ...}
+if (occ.is_full ...) return
+
+등의 보강 UI 차단.
+
+단 기존 다른 기능에서 사용하는 capacity 로직까지
+무차별 삭제하지 않는다.
+
+보강 경로만 검사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Production Baseline 태그
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 검증 PASS 후 현재 정상 HEAD에
+annotated Git tag를 만든다.
+
+태그명:
+
+swimnote-makeup-production-stable-2026-08-08
+
+메시지:
+
+SWIMNOTE Makeup Production Stable Baseline
+- teacher visibility by current active class
+- expired makeup preserved
+- KST -14/+28 date range
+- future assign / today-past complete-direct
+- full-class makeup override allowed
+- date reselect fixed
+- assign confirm GestureResponderEvent regression fixed
+- verified on real device
+
+주의:
+
+태그를 만들기 전에 반드시 현재 HEAD가
+baee4222 수정까지 포함하는지 ancestry 검증할 것.
+
+잘못된 HEAD에 태그 생성 금지.
+
+태그 생성 후:
+
+git show --no-patch --decorate
+  swimnote-makeup-production-stable-2026-08-08
+
+git rev-list -n 1
+  swimnote-makeup-production-stable-2026-08-08
+
+결과 제출.
+
+태그는 origin에도 push한다.
+
+git push origin swimnote-makeup-production-stable-2026-08-08
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. BASELINE 문서 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Repository 안에 기존 개발 문서 저장 위치를 먼저 확인한다.
+
+기존 문서 구조를 따를 수 있으면 그 위치에:
+
+SWIMNOTE_MAKEUP_PRODUCTION_BASELINE_2026-08-08.md
+
+생성.
+
+내용:
+
+1. Baseline Git SHA
+2. Production tag
+3. 정상 확인 기능
+4. Teacher visibility 규칙
+5. Admin visibility 규칙
+6. expired 규칙
+7. 날짜 -14/+28 규칙
+8. assign/complete-direct 분기
+9. FULL CLASS 보강 초과 허용
+10. 날짜 다시 선택 state 규칙
+11. onPress={() => doAssign()} 고정 이유
+12. 회귀 테스트 목록
+13. 절대 되돌리면 안 되는 코드/정책
+14. 향후 보강 수정 시 필수 regression gate
+
+문서에는 반드시:
+
+"이 문서는 현재 Production에서 실기기 검증 완료된
+보강 시스템의 복구 기준선이다."
+
+라고 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 이후 작업 보호 규칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앞으로 다음 작업:
+
+- 일지 UI
+- AI 일지
+- 스케줄러 일지완료
+- 지난일지 사진
+- SWIMNOTE X
+- 기타 앱 수정
+
+을 진행할 때 보강 관련 파일이 diff에 나타나면
+자동으로 정상 변경이라고 판단하지 않는다.
+
+특히:
+
+artifacts/api-server/src/routes/teachers.ts
+artifacts/api-server/src/routes/admin.ts
+artifacts/swim-app/app/(teacher)/makeups.tsx
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+makeup-date-range 관련 파일
+
+이 변경되면
+보강 Regression Gate를 다시 실행한다.
+
+"리팩터링", "정리", "코드 단순화", "중복 제거"를 이유로
+현재 보강 정책을 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 이번 작업에서 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기능 코드 수정 금지.
+
+DB 변경 금지.
+Migration 금지.
+Render 배포 금지.
+OTA 금지.
+package.json/lockfile 변경 금지.
+Auth/JWT/Login 변경 금지.
+AI/Diary 변경 금지.
+SWIMNOTE X 변경 금지.
+
+허용:
+
+- 현재 상태 검증
+- 회귀 테스트 보존/필요 시 테스트 Gate 추가
+- Baseline 문서
+- Git annotated tag
+- 해당 문서/테스트가 신규 생성된 경우 별도 명확한 commit
+
+운영 코드가 달라지는 작업은 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. Branch
+2. 작업 전 HEAD
+3. 작업 후 HEAD
+4. origin SHA
+5. git status --short
+6. baee4222 ancestry 결과
+7. 5c5c11a5 ancestry 결과
+8. 4b9656e5 ancestry 결과
+9. 보강 핵심 코드 grep 증거
+10. Regression Gate 결과
+11. 변경 파일 목록
+12. 운영 코드 변경 0인지
+13. Baseline 문서 경로
+14. Production tag
+15. tag가 가리키는 SHA
+16. origin tag push 결과
+17. DB 변경 없음
+18. Render 없음
+19. OTA 없음
+20. 현재 Production 보강 복구 기준 SHA
+
+완료 후 중단.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+최상위 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 사용자가 실기기에서 정상 확인한 보강 시스템이
+Source of Truth다.
+
+과거 commit의 보강 구현을 보고
+"원래 코드가 이랬다"는 이유로 되돌리지 않는다.
+
+과거 코드는 조사 자료일 뿐이다.
+
+향후 회귀 발생 시:
+
+현재 Production Baseline
+→ regression tests
+→ 필요한 최소 diff
+
+순서로 복구한다.
+
+보강 시스템 전체를 과거 commit으로 rollback하거나
+과거 makeups.tsx / teachers.ts를 통째로 복원하는 행위 금지.

@@ -1,0 +1,705 @@
+[SWIMNOTE X V2.1 — 구현 전 Repository 조사 및 수정 설계서 제출 지시]
+
+첨부된 「SWIMNOTE X 구현 명세서 V2.1」은 제품 정책과 기능 기준 문서입니다.
+
+이번 단계에서는 코드를 구현하지 마십시오.
+
+먼저 실제 Repository, 현재 DB Schema, RevenueCat 구독 구조, AI 일지 파이프라인, 파일 저장 구조를 조사하고, V2.1과 충돌하거나 추가 설계가 필요한 부분을 증명한 뒤 수정 설계서를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인 전 다음 작업을 금지합니다.
+
+- 코드 수정
+- DB Migration 실행
+- RevenueCat 상품 생성
+- Commit
+- Push
+- OTA
+- Render 배포
+- Production 데이터 수정
+- 기존 일반 플랜 동작 변경
+- 기존 ai-v1.ts 핵심 파이프라인 변경
+- 샘플 수영장 생성
+
+이번 작업은 오직 다음 두 가지입니다.
+
+1. 실제 구조 조사
+2. 구현 가능한 최종 수정 설계서 제출
+
+추측으로 설계하지 말고 실제 파일·함수·테이블·API 기준으로 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 가장 먼저 확인할 핵심 질문
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 질문에 실제 코드와 DB를 근거로 답하십시오.
+
+1. swimming_pools 테이블에 현재 X모드 관련 컬럼이 존재하는가?
+2. RevenueCat entitlement와 앱 내부 구독 상태를 어디에서 저장·검증하는가?
+3. 서버가 RevenueCat webhook을 받고 있는가?
+4. 앱이 구독 상태를 언제 다시 조회하는가?
+5. diary_templates에 pool_id가 실제로 존재하는가?
+6. 기존 Template Search가 pool_id와 tenant를 어떻게 제한하는가?
+7. AI 일지 저장 완료 시점과 diary_id 생성 시점은 언제인가?
+8. 일지 수정·삭제 API는 어디에 있는가?
+9. 학생별 일지와 공통 일지가 어떤 테이블 구조로 저장되는가?
+10. 기존 파일 업로드가 R2 또는 다른 Object Storage를 어떻게 사용하는가?
+11. 슈퍼어드민 앱 또는 웹 관리 화면은 현재 어디에 있는가?
+12. 푸시 알림 시스템과 알림 저장 테이블은 현재 무엇인가?
+13. 홈페이지 slug 관련 컬럼·라우트·도메인 연결이 이미 있는가?
+14. 일반 플랜의 직접 등록 템플릿 기능이 실제로 존재하는가?
+15. 현재 AI 일지 Grounded Pipeline에서 Template와 Knowledge Search가 어떻게 분리돼 있는가?
+
+각 답변에 반드시 포함:
+
+- 실제 파일 경로
+- 함수명
+- 테이블명
+- 컬럼명
+- API Endpoint
+- 현재 동작
+- V2.1과의 차이
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 결제 상태와 X모드 상태 분리 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 V2.1은 다음 X 상태를 사용합니다.
+
+- OFF
+- PURCHASED
+- CURRICULUM_PENDING
+- ACTIVE
+
+그러나 RevenueCat 결제 상태와 교육 준비 상태가 혼합될 가능성이 있습니다.
+
+먼저 현재 RevenueCat 구조를 조사하십시오.
+
+확인 항목:
+
+- entitlement identifier
+- offering/package/product identifier
+- 구독 만료일 저장 위치
+- webhook 존재 여부
+- restore purchase 흐름
+- billing issue 처리
+- grace period 처리
+- refund 처리
+- cancellation과 expiration 구분
+- 앱 foreground 복귀 시 동기화 여부
+- 서버가 최종 권한 원본인지 앱이 원본인지
+
+그 후 아래 둘 중 어떤 구조가 Repository에 더 적합한지 비교 설계하십시오.
+
+A안
+- RevenueCat entitlement가 결제 원본
+- swimming_pools.xmode_status는 교육 준비 상태만 저장
+
+B안
+- 별도의 xmode_subscriptions 테이블 생성
+- 결제 이벤트와 교육 상태를 각각 저장
+
+설계서에 반드시 포함:
+
+- 최종 권장안
+- 상태 전이표
+- 허용 전환
+- 금지 전환
+- 결제 취소 후 잔여기간 처리
+- grace period 처리
+- refund 처리
+- 정상 만료 처리
+- webhook 중복 수신 멱등성
+- 슈퍼어드민 수동 변경 가능 범위
+- RevenueCat 상태와 DB 상태 불일치 복구 방식
+
+중요:
+
+PURCHASED의 의미를 다음 중 하나로 확정하십시오.
+
+- 결제 유효 + 의뢰 전
+또는
+- 결제 유효 + 슈퍼어드민 승인 완료
+
+4단계 상태만으로 승인을 표현할 수 없다면 APPROVAL_PENDING 추가 필요성을 보고하십시오.
+
+임의로 상태를 추가하지 말고 대안을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 커리큘럼 의뢰 시스템 저장 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+V2.1에는 다음 의뢰 상태가 있습니다.
+
+- 미제출
+- 대기중
+- 생성중
+- 완료
+- 반려
+- 취소
+
+하지만 현재 명세에는 이를 완전히 저장할 확정 테이블이 없습니다.
+
+실제 Repository의 기존 문의·업로드·상태 관리 패턴을 조사하고 다음을 설계하십시오.
+
+권장 검토 대상:
+
+curriculum_requests
+- id
+- pool_id
+- status
+- level_description
+- stroke_notes
+- submitted_by
+- reviewed_by
+- rejection_reason
+- submitted_at
+- generating_started_at
+- completed_at
+- created_at
+- updated_at
+
+curriculum_request_files
+또는 기존 파일 첨부 구조 재사용
+
+필수 설계 내용:
+
+- 신규 테이블 필요 여부
+- 기존 pool_events로 대체 가능한지
+- 의뢰 상태와 xmode_status의 관계
+- 의뢰 제출 시 트랜잭션
+- 중복 의뢰 방지
+- 완료된 의뢰의 수정 정책
+- 재의뢰 및 커리큘럼 개정 정책
+- 슈퍼어드민 반려 후 재제출 흐름
+- 파일 첨부 관계
+- tenant 격리
+- 권한 정책
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 커리큘럼과 템플릿 데이터 모델 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+V2.1은 다음을 분리합니다.
+
+A. curriculum_items
+- 성장판과 학부모 AI 검색의 기준
+
+B. diary_templates
+- AI 일지 생성 보조
+
+두 데이터의 관계를 실제 코드 기준으로 설계하십시오.
+
+확인할 사항:
+
+- 하나의 curriculum_item이 여러 diary_template을 가질 수 있는가?
+- diary_template.curriculum_item_id는 단일 연결로 충분한가?
+- 하나의 템플릿이 여러 curriculum_item과 연결될 수 있는가?
+- 다대다 관계가 필요하면 연결 테이블이 필요한가?
+- 커리큘럼 수정 시 기존 진도는 어떻게 보존하는가?
+- 항목 삭제 시 기존 growth_event와 report가 깨지지 않는가?
+- 커리큘럼 버전 관리가 필요한가?
+- ACTIVE 상태에서 커리큘럼을 수정하면 언제 반영되는가?
+
+다음 대안을 비교하십시오.
+
+A안
+- curriculum_items에 version 컬럼
+- 항목별 soft delete
+
+B안
+- curriculum_versions
+- curriculum_version_items
+- 수영장마다 활성 버전 지정
+
+장기적으로 학생 진도와 리포트의 재현성이 깨지지 않는 쪽을 추천하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 히든 2,000개 Template 검색 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 AI 일지 Pipeline을 바꾸지 않고 검색 범위만 확장해야 합니다.
+
+실제 파일 기준으로 다음을 조사하십시오.
+
+- Template Search 진입 파일
+- 현재 query 조건
+- similarity/rank 계산
+- pool tenant 조건
+- topK
+- threshold
+- Template 검증 단계
+- INPUT_ONLY 또는 POLISH_ONLY 결정 단계
+- 검색 결과 metadata 반환 구조
+
+V2.1 정책:
+
+ACTIVE
+- 수영장 전용 Template 우선
+- 히든 Template 보완
+
+CURRICULUM_PENDING
+- 히든 Template만 검색 가능
+
+PURCHASED / OFF
+- 수영장 직접 등록 Template만 검색
+- 없거나 관련성 미달이면 INPUT_ONLY 또는 POLISH_ONLY
+
+반드시 설계할 것:
+
+- pool_first를 실제 쿼리에서 구현하는 방식
+- 단순 UNION인지 2단계 검색인지
+- 수영장 Template가 관련성 미달일 때 Hidden으로 보완하는 규칙
+- 관련성 기준 미달 시 강제 TEMPLATE_ASSISTED 금지
+- Hidden Template의 tenant 누출 방지
+- Hidden Template가 앱 UI에 노출되지 않는 방식
+- 2,000개 검색 성능
+- 필요한 인덱스
+- 기존 응답 Contract 영향
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 성장판 Event와 멱등성 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+성장판은 저장된 일지 문장을 다시 파싱하는 방식이 아닙니다.
+
+기준:
+
+최종 저장된 diary
++ student_id
++ curriculum_item_id
++ 유효한 growth_event
+
+먼저 실제 일지 저장·수정·삭제 흐름을 조사하십시오.
+
+필수 설계:
+
+1. AI 결과 미리보기
+   → 진도 증가 금지
+
+2. 최종 일지 저장 성공
+   → growth_event 생성
+
+3. 같은 일지 수정
+   → 중복 증가 금지
+
+4. curriculum_item 연결 변경
+   → 기존 Event 무효화 또는 교체
+
+5. 일지 삭제
+   → 관련 Event 무효화 후 progress 재계산
+
+6. API 재시도
+   → 중복 Event 생성 금지
+
+다음 구조를 비교하십시오.
+
+A안
+- growth_events를 원본으로 사용
+- curriculum_progress는 매번 집계
+
+B안
+- growth_events는 원본
+- curriculum_progress는 트랜잭션으로 갱신하는 캐시
+
+필수 DB 제약 검토:
+
+UNIQUE(
+  diary_id,
+  student_id,
+  curriculum_item_id,
+  source
+)
+
+추가 검토:
+
+- common diary가 여러 학생에게 적용될 때 Event 생성 기준
+- 학생별 content와 common content 중 무엇을 인정하는가
+- 동일 일지에서 같은 항목 여러 번 발견 시 1회 인정
+- diary_id가 NULL인 Event 허용 여부
+- confidence가 낮은 AI 추천을 자동 진도로 인정할지
+- 교사가 curriculum_item 연결을 확인·수정할 UI가 필요한지
+- 수동 일지도 성장판에 반영할지
+- teacher_manual과 teacher_ai 중복 처리
+
+최종적으로 완전한 저장 Sequence Diagram을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 무료 월간 성장 리포트 지급권
+━━━━━━━━━━━━━━━━━━━━━━
+
+정책은 다음과 같습니다.
+
+- 학생 1명당 월 1회
+- ACTIVE 수영장의 학생만
+- 데이터 부족 시 생성하지 않음
+
+실제 DB와 결제 구조를 조사한 뒤 다음을 설계하십시오.
+
+growth_report_entitlements 또는 동등 구조:
+
+- pool_id
+- student_id
+- report_month
+- report_type
+- status
+- generated_report_id
+- reserved_at
+- generated_at
+- failure_reason
+
+필수 규칙:
+
+- 동일 학생·동일 월·동일 report_type 중복 생성 방지
+- 생성 중 중복 탭 방지
+- 생성 실패 시 무료 권한 복구
+- 수영장 이동 학생 처리
+- X모드 만료 후 기존 리포트 조회
+- 월 기준 timezone: Asia/Seoul
+- 월말·월초 경계
+- 자동 생성인지 학부모 요청 생성인지
+- 생성된 리포트 재다운로드 정책
+
+데이터 부족 기준도 추정하지 말고 설계안으로 제출하십시오.
+
+예시 후보:
+
+- 최소 수업 일수
+- 최소 유효 Diary 수
+- 최소 growth_event 수
+- 최소 관찰 기간
+- 최소 출결 데이터
+
+최종 임계값은 구현하지 말고 선택지와 추천값을 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 심층 리포트 결제 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+29,000원/건 소비성 인앱결제를 RevenueCat로 처리할 수 있는 현재 구조를 조사하십시오.
+
+확인 사항:
+
+- consumable product 지원 구조
+- 결제 영수증 검증
+- 한 번 결제로 한 번만 생성
+- 결제 성공 후 생성 실패
+- 복구·환불 처리
+- 동일 receipt 재사용 차단
+- 부모 계정과 학생 연결 검증
+- ACTIVE 수영장 검증
+- 수영장 이동 후 구매 권한
+- Apple/Google 상품 분리
+- RevenueCat customer identity
+
+결제 성공과 리포트 생성은 반드시 별도 상태로 설계하십시오.
+
+예:
+
+PURCHASED
+→ GENERATING
+→ COMPLETED
+
+실패 시:
+
+PURCHASED
+→ GENERATION_FAILED
+→ 재시도 가능
+
+결제는 성공했는데 생성이 실패한 경우 다시 결제시키면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. X모드 UI 즉시 반영 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+“앱 재시작 없이 즉시 반영”을 실제 구조로 구현 가능한지 조사하십시오.
+
+확인:
+
+- JWT에 xmode_status를 넣는가?
+- 현재 사용자 Context에서 swimming_pool을 언제 조회하는가?
+- 앱 foreground 복귀 시 refresh가 있는가?
+- 화면 focus 시 재조회하는가?
+- push 수신 시 상태 refresh가 가능한가?
+- 오래된 JWT 때문에 상태가 지연되는가?
+
+다음 중 최소 변경 구조를 추천하십시오.
+
+A. 서버 API 응답에서 최신 xmode_status 조회
+B. 앱 전역 Pool Context refresh
+C. Push event 수신 후 refresh
+D. JWT 재발급
+
+일반모드와 X모드 UI가 동시에 보이는 중간 상태를 방지하는 방법도 설계하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 파일 업로드와 이벤트 알림함
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 R2/Object Storage 구조와 업로드 API를 재사용할 수 있는지 조사하십시오.
+
+필수 보안 설계:
+
+- 허용 확장자
+- MIME type 검증
+- 파일별 최대 크기
+- 요청 전체 최대 크기
+- 다중 파일 개수 제한
+- 실행 파일 차단
+- ZIP 정책
+- 악성 파일 검사 가능 여부
+- 원본 파일명과 Object Key 분리
+- tenant/pool 권한 검증
+- Presigned URL 만료시간
+- 다운로드 권한
+- 파일 삭제
+- X모드 종료 후 파일 보존
+- Super Admin과 Pool Admin의 접근 범위
+- HEIC 미리보기 지원 여부
+- 대용량 영상 업로드 정책
+
+pool_events.file_urls JSONB가 적절한지,
+별도 pool_event_attachments 테이블이 필요한지 비교하십시오.
+
+메시지가 삭제돼도 파일이 남는 고아 객체 방지 정책도 포함하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 홈페이지 slug와 X모드 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 swimnote.kr/[slug] 구현 상태를 조사하십시오.
+
+확인:
+
+- slug 컬럼
+- slug unique 제약
+- 홈페이지 활성 상태
+- 공개 API
+- 캐시
+- 도메인 라우팅
+- X모드 OFF 처리 가능 여부
+
+권장 검토:
+
+homepage_status
+- INACTIVE
+- PENDING
+- ACTIVE
+- SUSPENDED
+
+xmode_status가 OFF가 됐다고 slug를 삭제하지 말고,
+홈페이지만 SUSPENDED 처리하는 구조가 가능한지 설계하십시오.
+
+기존 URL과 SEO 데이터 보존 여부도 검토하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 권한 및 Tenant 격리
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 작업별 권한을 표로 제출하십시오.
+
+- X모드 결제
+- xmode_status 조회
+- xmode_status 변경
+- 커리큘럼 의뢰 제출
+- 의뢰 취소
+- 파일 업로드
+- 파일 다운로드
+- 커리큘럼 생성 완료 처리
+- ACTIVE 전환
+- 성장판 조회
+- 무료 리포트 생성
+- 심층 리포트 구매
+- 수영장 이벤트 읽기
+- 수영장 이벤트 답장
+- 홈페이지 상태 변경
+
+역할:
+
+- super_admin
+- pool_admin
+- teacher
+- parent
+
+모든 API에서 pool_id를 Body 값만 신뢰하지 말고,
+인증 사용자와의 소속 관계를 검증해야 합니다.
+
+IDOR 취약점 검토 결과도 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Migration 및 기존 데이터 영향
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 운영 데이터에 영향을 주지 않는 Migration 계획을 제출하십시오.
+
+필수 내용:
+
+- 새 컬럼 DEFAULT
+- NOT NULL 적용 순서
+- backfill 필요 여부
+- 기존 diary_templates 분류
+- 기존 pool template의 is_hidden 값
+- 기존 일반 수영장의 xmode_status
+- rollback 방법
+- migration transaction 여부
+- 대용량 table lock 위험
+- index 생성 방식
+- Production 실행 순서
+- dry-run 방법
+- 운영 백업 방법
+
+기존 일반 수영장은 모두 OFF이고 기존 기능이 동일하게 동작해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 샘플 수영장 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈를 직접 개발 대상으로 사용하지 않습니다.
+
+별도 Sample Tenant를 설계하십시오.
+
+포함 데이터:
+
+- sample pool
+- pool_admin
+- teacher
+- parent
+- students
+- class groups
+- curriculum request
+- curriculum items
+- pool templates
+- hidden templates
+- diaries
+- growth events
+- reports
+
+샘플 데이터는 Production 실제 사용자와 완전히 분리해야 합니다.
+
+확인할 상태:
+
+- OFF
+- PURCHASED
+- CURRICULUM_PENDING
+- ACTIVE
+- 만료 후 OFF
+- 재결제
+- 의뢰 반려
+- 의뢰 재제출
+
+샘플 수영장을 생성하기 전 생성 계획만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 단계별 구현 재설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 V2.1 Phase 순서를 실제 의존성에 따라 재검토하십시오.
+
+특히 다음 의존성을 확인하십시오.
+
+- RevenueCat 상품보다 서버 entitlement 구조가 먼저 필요한가
+- Super Admin 화면보다 API와 DB가 먼저 필요한가
+- 히든 템플릿 2,000개 생성 전에 Schema와 검색 시험이 필요한가
+- 성장판 전에 diary 저장 Event 구조가 필요한가
+- 학부모 UI 전에 권한 API가 필요한가
+
+각 Phase마다 다음을 제출하십시오.
+
+- 목적
+- 수정 파일
+- 신규 파일
+- DB 변경
+- API Contract
+- 앱 영향
+- 서버 영향
+- AI 엔진 영향
+- 테스트
+- 완료 조건
+- rollback 기준
+
+한 Phase가 너무 크면 더 작은 WP로 분해하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 기존보다 더 단순한 구조 제안 의무
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 V2.1보다 더 단순하면서 같은 정책을 만족하는 구조가 있다면 반드시 별도 제안하십시오.
+
+단순화 검토 대상:
+
+- xmode_status와 curriculum_request 상태 관계
+- curriculum_progress 테이블 제거 가능성
+- pool_events와 기존 알림 시스템 통합
+- 별도 Provider 패턴 도입 시점
+- Homepage 기능 Phase 분리
+- 심층 리포트 완전 분리
+- 무료 리포트 entitlement 최소 구조
+
+단순화안은 기존안과 다음 기준으로 비교하십시오.
+
+- 구현량
+- 운영 안정성
+- 데이터 일관성
+- 기존 코드 영향
+- 향후 확장성
+- rollback 용이성
+
+임의로 단순화해서 구현하지 말고 제안만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 제출할 최종 설계 보고서
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 구조로 보고하십시오.
+
+1. Repository 현황 요약
+2. V2.1과 실제 코드 차이
+3. 확인된 충돌
+4. 확정 가능한 부분
+5. 추가 결정이 필요한 부분
+6. 추천 최종 DB ERD
+7. 상태 전이표
+8. API 목록 및 Request/Response Contract
+9. 권한표
+10. AI Pipeline 변경 지점
+11. 일지 저장 → 성장판 Sequence
+12. 결제 → X모드 활성 Sequence
+13. 커리큘럼 의뢰 Sequence
+14. 무료·유료 리포트 Sequence
+15. 파일 업로드 구조
+16. Migration 계획
+17. Phase/WP 실행 순서
+18. 테스트 계획
+19. Rollback 계획
+20. 기존보다 단순한 대안
+
+모든 내용에 실제 파일 경로·함수·테이블·Endpoint를 명시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 완료 후 멈춤
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계 보고서 제출 후 멈추십시오.
+
+아래 작업은 승인 전 금지합니다.
+
+- 코드 수정
+- Migration
+- Commit
+- Push
+- OTA
+- 배포
+- RevenueCat 상품 생성
+- 샘플 수영장 생성
+
+검증 등급은 다음으로 표시하십시오.
+
+- REPOSITORY_VERIFIED
+- DB_SCHEMA_VERIFIED
+- CONTRACT_DESIGNED
+- IMPLEMENTATION_NOT_STARTED
+
+추측한 내용은 VERIFIED로 표시하지 마십시오.

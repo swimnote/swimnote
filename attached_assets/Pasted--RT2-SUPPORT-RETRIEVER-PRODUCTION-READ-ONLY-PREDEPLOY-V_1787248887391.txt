@@ -1,0 +1,142 @@
+# [RT2 SUPPORT RETRIEVER — PRODUCTION READ-ONLY PREDEPLOY VERIFY]
+
+RT2 commit:
+09789cd1
+
+아직 Render deploy 금지.
+DB write 금지.
+status 변경 금지.
+
+목적:
+mock test가 아니라 현재 Production Support DB에서
+실제 자연어 질문이 canonical Knowledge까지 도달하는지 확인.
+
+==================================================
+1. 실제 Production DB 사용
+==================================================
+
+read-only로 SupportRetriever를 실행.
+
+대상 질문:
+
+1. 학부모리포트는 어떤기능이야?
+2. 성장리포트가 뭐야
+3. 알림끄는거 어디서해?
+4. 푸시 알림 설정
+5. 커리큘럼 등록은 되어있는데 검색이 안돼
+
+각 질문마다:
+
+- detected concept
+- candidate count
+- top KI id
+- top KI status
+- top KI answer_mode
+- score
+- final AnswerPolicy
+- retrieval method
+- excluded_by_status_count
+
+확인.
+
+실제 답변 생성/AI 호출은 하지 않는다.
+
+==================================================
+2. STATUS 현실 확인
+==================================================
+
+특히 관련 Knowledge가:
+
+active
+pending
+candidate
+archived
+
+중 어떤 상태인지 확인.
+
+관련 KI가 DB에는 존재하지만
+candidate/pending이라 Production evidence에서 제외된다면
+그 사실을 명확히 보고.
+
+임의 active 전환 금지.
+
+==================================================
+3. NO-CONCEPT FALLBACK 검증
+==================================================
+
+concept lexicon에 없는 자연어 질문 3개를
+현재 active Support Knowledge에서 골라 테스트.
+
+목적:
+
+concept alias가 없어도
+canonical Knowledge title/question/content 검색으로
+도달 가능한지 확인.
+
+특정 11개 concept에만 의존하면 안 됨.
+
+확인:
+
+- concept = NONE이어도 candidate 생성되는지
+- content에만 관련 단어가 있는 KI도 검색 가능한지
+- fallback LIMIT 50이 임의 50개인지 ranking/search 기반 50개인지
+
+==================================================
+4. ROUTE INTEGRATION 확인
+==================================================
+
+tryCanonicalRetriever() 결과가 실제 기존 resolver chain에서:
+
+- DB_DIRECT면 실제 direct response 경로로 전달되는지
+- GROUNDED_AI면 기존 grounded GPT 경로로 전달되는지
+- HUMAN_REQUIRED면 기존 escalation 경로로 전달되는지
+- INSUFFICIENT_EVIDENCE면 기존 fallback으로 진행되는지
+
+코드 trace로 확인.
+
+Retriever가 match를 찾아도
+뒤 Layer에서 버려지는 경로가 없어야 함.
+
+==================================================
+5. 기존 EXACT 우선 확인
+==================================================
+
+기존 active utterance exact hit 3건 확인.
+
+RT2 이후에도:
+
+existing exact result
+→ 동일 KI
+→ 동일 direct behavior
+
+유지되는지 read-only 확인.
+
+==================================================
+6. 보고
+==================================================
+
+[RT2 SUPPORT PRODUCTION PREDEPLOY REPORT]
+
+각 테스트 질문별:
+- query label:
+- concept:
+- candidates:
+- top KI:
+- status:
+- answer_mode:
+- score:
+- retrieval method:
+- policy:
+- excluded by status:
+
+추가:
+- no-concept fallback works:
+- content-only retrieval works:
+- exact behavior preserved:
+- resolver integration valid:
+- Production DB write: NO
+- AI call: NO
+- deployment ready: YES/NO
+- blockers:
+
+보고 후 멈춘다.

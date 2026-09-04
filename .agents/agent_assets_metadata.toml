@@ -48,3 +48,147 @@ id = "jXlnmc-agVTy34Z4fgzjc"
 uri = "file://screenshots/screenshot2.jpg"
 type = "image"
 title = "스크린샷 2 - 학부모 화면"
+
+[[outputs]]
+id = "ZiAk_4zO8ZniyMgCcZcbh"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step1 - 기본정보 입력"
+
+[[outputs]]
+id = "sYvEEaUP7YleLBAJ0IgBL"
+uri = "file://attached_assets/KakaoTalk_20260417_111740413_01_1776392331681.jpg"
+type = "image"
+title = "회원가입 Step2 - 휴대폰 인증"
+
+[[outputs]]
+id = "cGYypCsOOCeu9bkOgRRrg"
+uri = "file://attached_assets/IMG_1504_1776356970629.png"
+type = "image"
+title = "구독 관리 화면"
+
+[[outputs]]
+id = "0SYM_IKoVCZ6CAE-eaqEJ"
+uri = "file://artifacts/swim-app/assets/images/splash-new.png"
+type = "image"
+title = "새 스플래시 화면 (교체됨)"
+
+[[outputs]]
+id = "d0494CEHXfyhHY_0uIZpl"
+uri = "file://swimnote-structure.md"
+type = "text"
+title = "SwimNote 앱 기능 구조도"
+
+[[outputs]]
+id = "cycuVHWXILlOt1DPDAwwS"
+uri = "file://swimnote-pricing.md"
+type = "text"
+title = "SwimNote 플랜 가격표"
+
+[[outputs]]
+id = "Y5azGzoQvmdo5E_RfrV8L"
+uri = "file://swimnote_작업감사보고서.txt"
+type = "text"
+title = "SwimNote 작업 감사 보고서"
+
+[[outputs]]
+id = "Mi0V03QOwov6sVneSkDsc"
+uri = "file://swimnote_templates_export.txt"
+type = "text"
+title = "스윔노트 일지 템플릿 전체 (10개 카테고리 · 350개)"
+
+[[outputs]]
+id = "SDWbnK9OVkj3TQq5OUHkm"
+uri = "file://swimnote_x_design.txt"
+type = "text"
+title = "스윔노트 X 전체 설계 문서"
+
+[[outputs]]
+id = "E6r-JnY2fw0KBGO4udbQD"
+uri = "file://swimnote_작업로그_20260719.txt"
+type = "text"
+title = "SwimNote 오늘 작업 로그 (2026-07-19)"
+
+[[outputs]]
+id = "9kYCr_99A_t_njrPZ9CZs"
+uri = "file://attached_assets/ui_mockup_two_buttons.png"
+type = "image"
+title = "학부모 홈 UI 시안 — AI 리포트 + AI 커리큘럼 버튼"
+description = "헤더 우측에 버튼 2개 배치 시안"
+
+[[outputs]]
+id = "E1_Soa3ouvAgwRmFvNpdb"
+uri = "file://attached_assets/ui_mockup_v3.png"
+type = "image"
+title = "학부모 홈 UI 시안 v3"
+description = "원본 UI 그대로 + AI 리포트/AI 커리큘럼 버튼 2개 삽입"
+
+[[outputs]]
+id = "5z2YsC3tyW8rXR40diiiE"
+uri = "file://swimnote_makeup_schedule_full_source.zip"
+type = "unspecified"
+title = "swimnote_makeup_schedule_full_source.zip"
+description = "보강 시스템 전체 소스 코드 (45 files, 서버 라우트·앱·스키마·마이그레이션·Job)"
+
+[[outputs]]
+id = "RK3Bg8Qu7B4HWm0ufTKMh"
+uri = "file://swimnote_makeup_schedule_evidence.txt"
+type = "text"
+title = "swimnote_makeup_schedule_evidence.txt"
+description = "분석용 텍스트 — Git/Render/EAS 기준·API 라우트표·클라이언트 경로표·상태 전이표·DB 객체표·DB SELECT 결과"
+
+[[outputs]]
+id = "LvSUygD0huaC05mUUlKV9"
+uri = "file://swimnote_makeup_schedule_changes.patch"
+type = "unspecified"
+title = "swimnote_makeup_schedule_changes.patch"
+description = "Git diff: 651b1a95 → HEAD (보강 관련 파일 10개)"
+
+[[outputs]]
+id = "q92Yr1wO4B4ugv_B38LEb"
+uri = "file://swimnote_makeup_occurrence_actual_failure.txt"
+type = "text"
+title = "swimnote_makeup_occurrence_actual_failure.txt"
+description = "보강반 선택 실패 실제 데이터 확보 보고서"
+
+[[outputs]]
+id = "KThvFfwwVAmGU67_fs6rq"
+uri = "file://docs/WP-AI-00-AUDIT-REPORT.md"
+type = "text"
+title = "WP-AI-00 SWIMNOTE AI/API Architecture Audit Report"
+description = "전체 앱·서버·백그라운드 기능 AI/API 전수 감사 보고서. 외부 API 인벤토리, GPT 호출 전수, SYSTEM_MAINTENANCE 비용 위험, 4대 AI 기능 심층 평가, P0 TOP 10 포함."
+
+[[outputs]]
+id = "0u9ENecXzF_2svucUt9Wn"
+uri = "file://docs/WP-AI-01-COST-OBSERVABILITY-DESIGN-REPORT.md"
+type = "text"
+title = "WP-AI-01 Cost Observability Design Report"
+description = "AI/API 비용 관측가능성 설계 감사 보고서. event_logs 재사용 YES, trigger_type 누락, Whisper/SMS/R2/외부엔진 처리 방안, 3-Phase 구현 계획 포함."
+
+[[outputs]]
+id = "ipjDBTHSS7Cs6ZUihtoiT"
+uri = "file://artifacts/audit/pdf-v2-preview.html"
+type = "text"
+title = "PDF Template V2 — HTML Preview (CASE A fixture)"
+description = "2-page A4 layout preview: Page 1 이번 달 이야기 / Page 2 앞으로 어떻게 이어갈지. SWIMNOTE logo + system fonts (no network) + parent_support highlighted panel."
+
+[[outputs]]
+id = "ZDo4X0MiQfZ9joncW0gwz"
+uri = "file://artifacts/audit/pdf-v2-typography-caseA.html"
+type = "text"
+title = "PDF V2 Typography — CASE A Preview (12pt body)"
+description = "CASE A full 8-section, 2-page A4. body 12pt · heading 15pt · title 26pt · metadata 10pt. No Google Fonts."
+
+[[outputs]]
+id = "qiD4vbNRrEybzb65gcGWU"
+uri = "file://artifacts/audit/pdf-v2-typography-caseC.html"
+type = "text"
+title = "PDF V2 Typography — CASE C Preview (Long parent_support)"
+description = "CASE C long parent_support panel. page-break-inside:avoid 확인용."
+
+[[outputs]]
+id = "mLaOLKDt2SaUygxz0TX8m"
+uri = "file://attached_assets/%ED%86%A0%EC%9D%B4%ED%82%A4%EC%A6%88%EC%8A%A4%EC%9C%94%ED%81%B4%EB%9F%BD_%EC%BB%A4%EB%A6%AC%ED%81%98%EB%9F%BC_%EC%A0%84%EC%B2%B4%EB%AA%A9%EB%A1%9D.docx"
+type = "word_document"
+title = "토이키즈스윔클럽 커리큘럼 전체목록"
+description = "350개 항목 · 10개 기술 · 레벨별 분류 · 문구 포함"

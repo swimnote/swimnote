@@ -1,0 +1,438 @@
+[앱]
+
+PARENT HOME — FIXED TOP HEADER + FIXED BOTTOM FOOTER
++ SAFE AREA FIX
++ IMMEDIATE iOS PRODUCTION OTA
++ ROLLBACK READY
+
+==================================================
+0. 앞으로의 OTA 개발 운영 규칙
+==================================================
+
+현재 production 빌드는 사용자가 직접 실기기 1대로 검증 중.
+
+따라서 앞으로
+JS / TS / TSX / Expo OTA-compatible asset 수준의 수정은
+
+수정
+→ 최소 관련 테스트
+→ iOS production OTA 즉시 배포
+→ 실기기 확인
+
+순서로 진행한다.
+
+매번 OTA 전에 반드시
+"직전 정상 OTA"를 rollback point로 기록한다.
+
+잘못된 OTA가 확인되면
+새 코드를 급하게 다시 수정하기 전에
+필요 시 직전 정상 OTA로 즉시 rollback 가능해야 한다.
+
+native module / native config / runtimeVersion 변경이 있으면
+OTA 실행하지 말고 새 build 필요 여부를 보고 후 STOP.
+
+==================================================
+1. CURRENT UI PROBLEM
+==================================================
+
+실기기에서 확인:
+
+A.
+하단
+"Powered by SWIMNOTE AI with OpenAI GPT"
+footer가 성장리포트 본문 위를 덮고 있음.
+
+B.
+상단 navy header를 화면 상단에 고정하고 싶음.
+
+C.
+상단 왼쪽 수영장명이 위쪽 edge에 너무 붙어
+칼로 잘린 듯 보임.
+
+D.
+상단 header 내부의
+수영장명 / SWIMNOTE X / 우측 icons가
+세로 중심이 정확히 맞지 않음.
+
+이번 작업에서 위 4개를 같이 해결한다.
+
+==================================================
+2. FINAL SCREEN STRUCTURE
+==================================================
+
+Parent Home 구조:
+
+[FIXED TOP HEADER]
+SWIMNOTE X navy header
+
+[SCROLLABLE MAIN AREA]
+학생 selector
+AI 영역
+Growth Report feed
+일반 diary/feed
+기타 parent content
+
+[FIXED BOTTOM FOOTER]
+Powered by SWIMNOTE AI with OpenAI GPT
+
+중앙 main area만 scroll.
+
+중요:
+header/footer가 content 위를 overlay해서
+본문을 가리는 구조 금지.
+
+가능하면 root flex layout:
+
+root
+ ├ header
+ ├ scrollArea (flex: 1)
+ └ footer
+
+방식 우선.
+
+absolute overlay + 임의 padding 보정은
+필요한 경우가 아니면 사용하지 말 것.
+
+==================================================
+3. TOP HEADER FIXED
+==================================================
+
+현재 navy header를
+scroll과 무관하게 화면 상단에 고정.
+
+포함:
+- 수영장명
+- SWIMNOTE X
+- 우측 action icons
+
+학생 selector(서태웅 / +추가)는
+fixed header에 포함하지 말 것.
+
+학생 selector는 scroll area 시작부에 둔다.
+
+현재 header 디자인/색상은 유지.
+
+==================================================
+4. TOP HEADER VERTICAL ALIGNMENT
+==================================================
+
+현재 왼쪽 수영장명이
+top edge에 붙어 잘린 듯 보이는 문제 해결.
+
+header 내부:
+
+- 수영장명
+- SWIMNOTE X badge/text
+- 우측 icons
+
+모두 vertical center.
+
+alignItems / justifyContent / paddingVertical / lineHeight를
+정상적으로 사용.
+
+absolute top 위치로 억지 조정 금지.
+
+==================================================
+5. TOP SAFE AREA / PADDING
+==================================================
+
+iOS status bar/notch safe area 반영.
+
+목표:
+
+- 수영장명 상단 잘림 0
+- status bar overlap 0
+- header 내부 상/하 여백 균형
+- 전체 header가 너무 두꺼워지지 않음
+
+header height를 무작정 키우지 말 것.
+
+현재 높이 내에서
+top/bottom padding과 vertical alignment로 해결 우선.
+
+필요할 경우 최소 범위만 height 수정.
+
+==================================================
+6. BOTTOM FOOTER
+==================================================
+
+현재 footer는 고정 유지 가능.
+
+단 content를 절대 덮으면 안 됨.
+
+최종 구조에서:
+
+- "가정에서 함께해요"
+- Growth Report action row
+- 다음 feed item
+- 일반 diary text/photo
+
+모두 footer 위에서 완전히 노출되어야 함.
+
+iOS bottom safe area/home indicator도 정상 반영.
+
+==================================================
+7. SCROLL AREA
+==================================================
+
+ScrollView / FlatList 영역은
+
+viewport
+- top header
+- bottom footer
+- safe area
+
+를 제외한 실제 available space만 사용.
+
+본문 마지막까지 자연스럽게 scroll 가능해야 함.
+
+불필요한 huge bottom padding 금지.
+
+==================================================
+8. GROWTH REPORT TEST
+==================================================
+
+서태웅 실제 Growth Report 기준 확인.
+
+TOP:
+- header 고정
+- 수영장명 잘림 없음
+
+MIDDLE:
+- 긴 Growth Report 정상 scroll
+
+BOTTOM:
+- 가정에서 함께해요 전체 노출
+- 좋아요 / 댓글 / PDF·공유 전체 노출
+- footer overlap 0
+- 다음 feed item 연결 정상
+
+==================================================
+9. GENERAL FEED TEST
+==================================================
+
+일반 수업 feed도 확인:
+
+- 날짜
+- 선생님
+- 수업 내용
+- 사진
+- 다음 item
+
+모두 fixed header/footer 사이에서 정상.
+
+==================================================
+10. MINIMAL CODE TEST
+==================================================
+
+이번 변경 파일에 대해서만:
+
+- TS error 0
+- route/import 문제 0
+- scroll container 정상
+- safe-area 정상
+
+repo-wide audit 금지.
+불필요한 regression test 금지.
+
+==================================================
+11. OTA PRE-PUBLISH SAFETY SNAPSHOT
+==================================================
+
+코드 수정 완료 후 OTA 직전에
+현재 production channel의
+"직전 정상 OTA"를 반드시 조회하고 기록.
+
+기록 필수:
+
+- current production channel
+- branch
+- runtimeVersion
+- latest good update group ID
+- latest good update ID(s)
+- publish timestamp
+- message
+
+이 update group을
+ROLLBACK_TARGET으로 명시.
+
+현재 앱이 사용 중인 정상 OTA가 없고
+embedded build가 기준이면
+그 사실을 명확히 보고.
+
+==================================================
+12. OTA COMPATIBILITY CHECK
+==================================================
+
+이번 수정이:
+
+- JS/TS/TSX only
+- native module change 없음
+- native config change 없음
+- runtimeVersion change 없음
+
+이면 OTA 진행.
+
+하나라도 native 영향 있으면
+OTA 금지하고 STOP.
+
+==================================================
+13. iOS PRODUCTION OTA — 즉시 실행
+==================================================
+
+OTA compatibility PASS면
+사용자에게 다시 승인 요청하지 말고
+이번 작업 안에서 iOS production OTA까지 실행.
+
+현재 repo의 실제 production channel/branch 정책 사용.
+
+새 branch/channel 생성 금지.
+
+배포 전에 현재 EAS CLI help/config를 기준으로
+유효한 command를 사용.
+
+platform:
+iOS only
+
+Android OTA 금지.
+
+==================================================
+14. OTA POST-PUBLISH RECORD
+==================================================
+
+배포 후 반드시 기록:
+
+NEW_OTA:
+- update group ID
+- update ID
+- channel
+- branch
+- runtimeVersion
+- target git SHA
+- publish timestamp
+- message
+
+ROLLBACK_TARGET:
+- 이전 정상 update group ID
+- 이전 update timestamp
+
+둘 다 보고.
+
+==================================================
+15. ROLLBACK POLICY
+==================================================
+
+실기기 확인 후 문제가 생기면
+직전 정상 OTA로 즉시 되돌릴 수 있어야 한다.
+
+Expo 공식 rollback 기능 우선 사용.
+
+현재 EAS CLI에서 지원하는 경우:
+
+eas update:rollback <BAD_UPDATE_GROUP_ID>
+
+또는 명시적인 정상 group 복구가 더 안전하면:
+
+eas update:republish \
+  --group <ROLLBACK_TARGET_GROUP_ID> \
+  --destination-channel production \
+  --platform ios \
+  --message "rollback: restore previous stable iOS production update"
+
+정확한 command syntax는
+현재 설치된 EAS CLI help 기준으로 확인 후 사용.
+
+중요:
+rollback target을 추측하지 말 것.
+§11에서 기록한 실제 이전 정상 group ID만 사용.
+
+==================================================
+16. ROLLBACK 실행 조건
+==================================================
+
+아래 중 하나라도 실기기에서 확인되면
+사용자가 "롤백"이라고 지시했을 때
+추가 조사 최소화 후 즉시 직전 정상 OTA로 복구:
+
+- 앱 실행 불가
+- 화면 major layout 붕괴
+- feed 접근 불가
+- navigation fatal error
+- header/footer가 content를 심하게 가림
+- Growth Report 화면 사용 불가
+- 새 OTA로 명확히 발생한 치명 UI 문제
+
+단순 색상/간격 취향 수정은
+보통 새 OTA 수정으로 처리하고
+굳이 rollback하지 않아도 됨.
+
+==================================================
+17. 실기기 반영 방법 보고
+==================================================
+
+OTA 성공 후 사용자에게:
+
+1. 앱 완전 종료
+2. 재실행
+3. 필요하면 한 번 더 종료/재실행
+
+정도로 실기기 반영 절차만 알려줄 것.
+
+==================================================
+18. ABSOLUTE NO-CHANGE
+==================================================
+
+이번 작업에서 금지:
+
+- Growth Report 내용 수정
+- AI Engine 수정
+- PDF renderer 수정
+- DB write
+- Render deploy
+- Android OTA
+- native build
+- X palette 변경
+- Growth Report section redesign
+
+이번 작업 범위:
+Parent Home fixed header/footer/safe-area/vertical alignment
++ iOS production OTA
++ rollback point 확보.
+
+==================================================
+19. FINAL REPORT
+==================================================
+
+CODE:
+- SHA
+- 변경 파일
+- footer overlap root cause
+- final layout hierarchy
+- top header height
+- bottom footer height
+- safe-area 방식
+- vertical alignment 방식
+
+OTA:
+- compatibility PASS/FAIL
+- channel
+- branch
+- runtimeVersion
+- NEW update group ID
+- NEW update ID
+- publish timestamp
+
+ROLLBACK:
+- previous stable update group ID
+- rollback command 준비 여부
+
+DEVICE CHECK:
+- top header fixed
+- 수영장명 잘림 0
+- header vertical center
+- bottom footer fixed
+- top overlap 0
+- bottom overlap 0
+- Growth Report 마지막 section/action 노출
+
+완료 후 STOP.

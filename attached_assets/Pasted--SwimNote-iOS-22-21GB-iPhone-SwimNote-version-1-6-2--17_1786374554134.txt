@@ -1,0 +1,388 @@
+[긴급 감리 — SwimNote iOS 문서 및 데이터 22.21GB 원인 조사]
+
+현재 실제 iPhone 저장공간 확인:
+
+SwimNote version: 1.6.2
+앱 크기: 73.3MB
+문서 및 데이터: 22.21GB
+
+이 상태는 원인 조사가 필요하다.
+
+SWIMNOTE의 의도된 사진/영상 저장 정책:
+
+1. 사용자가 사진/영상을 선택 또는 촬영
+2. 서버/R2 업로드
+3. DB에는 서버상의 file URL / metadata 저장
+4. 업로드 성공 이후 기기에 원본 또는 업로드용 복사본을
+   영구적으로 계속 축적하지 않는다.
+5. 피드/앨범/일지 재조회는 서버 URL을 기준으로 한다.
+6. 로컬 캐시가 필요하다면 제한적·임시적으로만 사용한다.
+
+중요:
+현재 22.21GB의 원인을 아직 특정하지 않았다.
+
+추정으로 코드 수정하지 말고
+먼저 실제 저장 경로와 lifecycle을 전수 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. 사진 업로드 전체 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 모든 사진 업로드 기능을 찾는다.
+
+- 선생님 일지 사진
+- 앨범
+- 학부모 관련 사진 기능
+- 프로필 이미지
+- 기타 이미지 업로드
+- Instagram Story용 이미지 처리
+- 사진 복제/clone 관련 기능
+
+각 기능별로:
+
+선택된 asset URI
+→ 이미지 가공
+→ 로컬 파일 생성 여부
+→ upload
+→ 서버/R2
+→ DB 저장
+→ 업로드 성공
+→ 로컬 파일 cleanup
+
+전체 lifecycle을 표로 작성한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. 영상 업로드 전체 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진과 별도로 영상도 전수 조사한다.
+
+영상은 용량이 크기 때문에 특히 중요하다.
+
+각 영상에 대해:
+
+- picker URI
+- 촬영 URI
+- compression 여부
+- copyAsync 여부
+- FileSystem 이동/복사 여부
+- upload용 임시 파일
+- 업로드 성공 후 삭제 여부
+- 실패 시 삭제 여부
+- 앱 재시작 후 잔존 여부
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. FileSystem 쓰기 전수 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository 전체에서 다음을 검색:
+
+FileSystem
+expo-file-system
+copyAsync
+moveAsync
+downloadAsync
+createDownloadResumable
+writeAsStringAsync
+cacheDirectory
+documentDirectory
+Paths.cache
+Paths.document
+File
+Directory
+create
+download
+copy
+move
+
+그리고 이미지/영상 관련:
+
+ImageManipulator
+manipulateAsync
+captureRef
+react-native-view-shot
+ImagePicker
+launchImageLibraryAsync
+launchCameraAsync
+
+각 발견 위치를 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. documentDirectory 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+iOS "문서 및 데이터"에 남을 수 있는
+앱 sandbox 내부 persistent 파일을 조사한다.
+
+특히:
+
+FileSystem.documentDirectory
+
+또는 이에 해당하는 persistent directory에
+
+- 사진
+- 영상
+- thumbnail
+- resized image
+- compressed image
+- upload copy
+- downloaded media
+- Story image
+
+를 저장하는 코드가 있는지 확인한다.
+
+있다면:
+
+파일명
+저장 directory
+생성 함수
+삭제 함수
+삭제 시점
+
+전부 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. cacheDirectory 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+cacheDirectory도 조사한다.
+
+캐시라고 해서 무조건 안전하다고 판단하지 않는다.
+
+SWIMNOTE 자체에서:
+
+- cache 파일을 계속 생성하는지
+- 동일 사진을 중복 cache하는지
+- cache eviction 정책이 있는지
+- 최대 용량 제한이 있는지
+- TTL이 있는지
+- logout 시 삭제하는지
+- upload 성공 후 삭제하는지
+
+확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+F. 사진 clone/cache 기능 집중 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 프로젝트에서 과거 사진 clone/cache 관련 작업이 있었으므로
+해당 구현을 집중 조사한다.
+
+다음 구조가 있는지 확인:
+
+remote URL
+→ local download
+→ permanent local copy
+→ 이후 계속 보존
+
+특히 사진 여러 장을 일지마다 로컬로 복제하고 있다면
+22GB 증가의 직접 후보가 될 수 있다.
+
+그러나 코드 증거 없이 원인으로 확정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+G. Instagram Story Pipeline 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoryCapturePipeline에서 captureRef로 생성되는
+Story 이미지 파일 lifecycle 확인.
+
+확인:
+
+1. captureRef 결과 URI 위치
+2. cache인지 document인지
+3. Instagram 공유 성공 후 삭제 여부
+4. cancel 후 삭제 여부
+5. error 후 삭제 여부
+6. 반복 공유할 때 파일이 계속 누적되는지
+
+Story 기능 자체의 공유 로직은 수정하지 말고 조사만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+H. expo-image / 이미지 캐시 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+expo-image 사용 부분 조사.
+
+확인:
+
+- disk cache 사용 여부
+- memory-disk 정책
+- cachePolicy 명시 여부
+- prefetch 사용 여부
+- clearDiskCache 사용 여부
+- 동일 remote image의 캐시 누적 가능성
+
+단 expo-image가 원인이라고 추정하지 말고
+실제 설정과 사용 위치를 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+I. AsyncStorage 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+AsyncStorage에 이미지 자체가 들어가는지 확인.
+
+특히:
+
+- base64
+- data URI
+- blob 문자열
+- 사진 배열
+- 영상 데이터
+
+저장 여부 확인.
+
+일반 JSON metadata와 URL 저장은 별도 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+J. 업로드 구현 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+FormData 업로드 시:
+
+{
+ uri,
+ type,
+ name
+}
+
+형태로 기존 파일 URI를 참조만 하는지,
+
+아니면 업로드 전에 앱 sandbox로
+파일을 별도로 copy하고 있는지 확인한다.
+
+업로드 성공 후 temporary copy를 삭제하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+K. 실패/취소 경로 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+성공 경로만 보면 안 된다.
+
+다음 각각에서 temporary file cleanup 확인:
+
+- upload 성공
+- upload 실패
+- network timeout
+- retry
+- 사용자 취소
+- 화면 이탈
+- 앱 background
+- 앱 종료
+
+특히 실패할 때마다 새로운 복사본이 남는 구조가 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+L. 실제 저장 디렉터리 측정 가능 여부 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+개발/TestFlight 실기기에서 앱 sandbox 내부를
+코드 수정 없이 또는 최소 진단 코드로 확인할 방법을 조사한다.
+
+가능하다면:
+
+Documents
+Library
+Caches
+tmp
+
+각 directory의 실제 사용량을 구분해서 측정할 방법을 제시한다.
+
+지금 iOS Settings의 22.21GB만 보고
+어느 directory가 원인인지 단정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+M. 정상 목표 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 후 수정 설계는 다음 원칙을 만족해야 한다.
+
+SERVER/R2
+= 영구 media source
+
+DB
+= URL + 필요한 metadata
+
+DEVICE
+= 업로드 과정에서 필요한 임시 파일 또는 제한된 cache만 허용
+
+업로드 성공 후 불필요한 임시 파일:
+DELETE
+
+실패/취소 후 불필요한 임시 파일:
+DELETE
+
+cache:
+상한/정리 정책 필요
+
+persistent document directory:
+사용 이유가 명확한 파일 외 media 영구 축적 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+N. 기존 22.21GB 처리도 별도 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+앞으로 파일이 안 쌓이게 수정하는 것만으로는
+이미 사용자 기기에 쌓인 22.21GB가 없어지지 않을 수 있다.
+
+따라서 기존 버전에서 생성된 orphan/local media를
+안전하게 식별해서 삭제할 수 있는지 조사한다.
+
+절대 하면 안 되는 것:
+
+앱 document/cache 전체 무차별 삭제.
+
+로그인 정보,
+draft,
+필요한 설정,
+미업로드 자료 등까지 날릴 위험이 있다.
+
+SWIMNOTE가 생성한 불필요한 media만
+정확하게 식별할 수 있는 cleanup migration이 가능한지 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+O. 완료 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 사진 업로드 전체 lifecycle
+2. 영상 업로드 전체 lifecycle
+3. persistent 저장 경로 목록
+4. cache 저장 경로 목록
+5. FileSystem 생성 코드 전체 위치
+6. 삭제 코드 전체 위치
+7. 업로드 성공 후 잔존 파일
+8. 업로드 실패 후 잔존 파일
+9. Story capture 파일 lifecycle
+10. expo-image disk cache 정책
+11. AsyncStorage media 저장 여부
+12. 사진 clone/cache 구조
+13. 영상이 차지할 가능성이 있는 구조
+14. 22.21GB 직접 원인 후보별 코드 근거
+15. 가장 가능성 높은 직접 원인
+16. 원인 확정 YES/NO
+17. 신규 누적 방지 최소 수정안
+18. 기존 22.21GB 안전 cleanup 방안
+19. 수정 예상 파일
+20. Server 수정 필요 여부
+21. DB 수정 필요 여부
+22. Native 수정 필요 여부
+23. OTA만으로 해결 가능한 부분
+24. Native Build가 필요한 부분
+25. 데이터 손실 위험
+26. 회귀 위험
+
+이번 단계에서는 조사만 한다.
+
+CODE CHANGED = 0
+OTA = 0
+RENDER = 0
+DB = 0
+NATIVE BUILD = 0
+
+원인 확정 전 임의 cleanup 코드 작성 금지.

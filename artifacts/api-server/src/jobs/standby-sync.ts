@@ -8,12 +8,82 @@
  *
  * 스탠바이 DB = POOL_DATABASE_URL (pool backup DB)
  * 미설정이면 모든 작업 스킵 (안전하게 무시)
+ *
+ * [HOTFIX — STARTUP BLOCK 제거]
+ *   POOL_DATABASE_URL이 설정되어 있으나 실제 호스트가 삭제/불가 상태일 때
+ *   per-table DNS lookup이 반복되어 deploy/startup이 지연되는 문제 수정.
+ *
+ *   Preflight 정책:
+ *     - cycle 시작 전 backupDb에 3초 preflight ping 1회 실행
+ *     - ENOTFOUND / ECONNREFUSED / timeout → STANDBY_UNAVAILABLE
+ *       → 해당 cycle 전체 즉시 skip (per-table 시도 없음)
+ *       → 30분간 재시도 금지 (standbyUnavailableUntil 플래그)
+ *     - primary DB / startup critical path는 절대 영향받지 않음
+ *     - 로그: status=unavailable reason=ENOTFOUND cycle_skipped=true
+ *     - 민감 row dump (phone/email/user row) 출력 금지
  */
 
 import cron from "node-cron";
 import { superAdminDb, getBackupDb, isDbSeparated } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import crypto from "crypto";
+
+// ── 식별자 검증 정규식 ───────────────────────────────────────────────────────
+const IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Production에서 아직 생성되지 않은 lazy-init 테이블 — relation missing 시 graceful skip */
+const LAZY_SYNC_TABLES = new Set(["pool_credits"]);
+
+/**
+ * Drizzle/pg 에러에서 "relation does not exist"(PG 42P01) 여부 확인.
+ * DrizzleQueryError는 원래 PG 에러를 e.cause에 래핑하므로 두 레이어 모두 검사.
+ */
+function isPgRelationMissing(e: any): boolean {
+  const check = (msg: string) => (msg ?? "").toLowerCase().includes("does not exist");
+  if (e.code === "42P01" || check(e.message)) return true;
+  const cause = e.cause;
+  if (!cause) return false;
+  return cause.code === "42P01" || check(cause.message);
+}
+
+/**
+ * JavaScript 값을 drizzle/pg가 안전하게 파라미터화할 수 있는 형태로 변환.
+ *
+ * 근본 원인 (42804):
+ *   sql`${['a','b']}` → drizzle이 배열을 ($1,$2) "record" 문법으로 전개 →
+ *   text[] 컬럼과 타입 불일치
+ *
+ * 근본 원인 (22P02 — jsonb 배열 버그):
+ *   jsonb 컬럼의 JS 배열을 PG 배열 리터럴 {a,b}로 변환하면
+ *   invalid input syntax for type json 오류 발생.
+ *   students.assigned_class_ids / students.class_schedule 등이 해당.
+ *
+ * 해결:
+ *   pgType="jsonb"|"json"  → JSON.stringify (pg가 jsonb input function으로 파싱)
+ *   pgType=text[]|기타     → PostgreSQL 배열 리터럴 {a,b}
+ *   pgType 없이 Array      → PG 배열 리터럴 (text[] 가정, fallback)
+ *   Date                   → ISO 8601 문자열
+ *   non-Array Object       → JSON 문자열 (jsonb로 암묵 변환)
+ *   나머지                  → 그대로 전달 (null/boolean/number/string은 pg 네이티브)
+ */
+function serializeForPg(v: unknown, pgType?: string): unknown {
+  if (v === null || v === undefined) return null;
+  if (Array.isArray(v)) {
+    // jsonb / json 컬럼: JSON 배열 문자열로 전달 (PG jsonb input이 파싱)
+    if (pgType === "jsonb" || pgType === "json") return JSON.stringify(v);
+    // text[], int4[] 등 PG 네이티브 배열: 배열 리터럴 {a,b}
+    const elems = v.map(e => {
+      if (e === null || e === undefined) return "NULL";
+      if (typeof e === "number" || typeof e === "boolean") return String(e);
+      const s = String(e);
+      return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    });
+    return `{${elems.join(",")}}`;
+  }
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") return JSON.stringify(v);
+  return v;
+}
 
 // ── 핫 스탠바이 복제 대상 (30분 주기) ───────────────────────────────────────
 // 비교적 행 수가 적고 구독·결제·인증에 핵심인 테이블
@@ -159,6 +229,9 @@ export async function runDbHealthCheck(): Promise<void> {
     // ── 스탠바이 DB 체크 ─────────────────────────────────────
     if (!isDbSeparated) return;
 
+    // [HOTFIX] unavailable 플래그 먼저 확인 — 불필요한 연결 시도 방지
+    if (isStandbyUnavailable()) return;
+
     // 서킷브레이커 오픈 상태면 스킵 (연속 느림으로 30분 대기 중)
     if (!checkStandbyCircuit()) return;
 
@@ -166,6 +239,16 @@ export async function runDbHealthCheck(): Promise<void> {
     if (!backupDb) return;
 
     const standbyPing = await pingDb(backupDb, "standby");
+    // [HOTFIX] ping 실패 종류에 따라 unavailable 플래그 설정
+    if (!standbyPing.ok) {
+      const err = standbyPing.error ?? "";
+      if (err.includes("ENOTFOUND") || err.includes("ECONNREFUSED")) {
+        // 호스트 자체가 없거나 거부 → STANDBY_UNAVAILABLE 30분
+        markStandbyAvailability(false, err.includes("ENOTFOUND") ? "ENOTFOUND" : "ECONNREFUSED");
+      }
+    } else {
+      markStandbyAvailability(true);
+    }
     recordStandbyPingResult(standbyPing.latency_ms, standbyPing.ok);
 
     await writeHealthLog(
@@ -189,6 +272,88 @@ export async function runDbHealthCheck(): Promise<void> {
   } catch (e: any) {
     console.error("[standby-sync] 헬스 체크 오류:", e.message);
   }
+}
+
+// ── STANDBY_UNAVAILABLE 플래그 (preflight 실패 시 30분 skip) ─────────────────
+// Hotfix: per-table DNS lookup 반복 제거 — cycle 시작 전 1회 preflight 실패 시
+// 전체 cycle skip + 30분 재시도 금지
+let standbyUnavailableUntil = 0; // 0=정상, >0=skip-until(epoch ms)
+const UNAVAILABLE_BACKOFF_MS = 30 * 60 * 1000; // 30분
+const PREFLIGHT_TIMEOUT_MS   = 3_000;           // 3초
+
+/**
+ * 스탠바이 DB preflight — 1회 연결 시도.
+ *
+ * ENOTFOUND / ECONNREFUSED / timeout → { ok: false, reason }
+ * 성공 → { ok: true }
+ *
+ * 주의: 이 함수는 절대 throw하지 않는다.
+ */
+async function preflightStandby(backupDb: any): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    await Promise.race([
+      backupDb.execute(sql`SELECT 1`),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("preflight timeout")), PREFLIGHT_TIMEOUT_MS)
+      ),
+    ]);
+    return { ok: true };
+  } catch (e: any) {
+    const msg: string = String(e?.message ?? e ?? "unknown");
+    const reason =
+      msg.includes("ENOTFOUND")     ? "ENOTFOUND"     :
+      msg.includes("ECONNREFUSED")  ? "ECONNREFUSED"  :
+      msg.includes("timeout")       ? "TIMEOUT"       :
+      msg.includes("ECONNRESET")    ? "ECONNRESET"    :
+      "UNKNOWN";
+    return { ok: false, reason };
+  }
+}
+
+/**
+ * 테스트 전용: standby unavailable 플래그 초기화.
+ * production 코드에서 호출 금지.
+ */
+export function _resetStandbyAvailabilityForTest(): void {
+  standbyUnavailableUntil = 0;
+}
+
+/**
+ * standby preflight 결과에 따라 unavailable 플래그를 갱신.
+ * 실패 → 30분간 skip; 성공 → 플래그 초기화.
+ * @returns true=사용 가능, false=skip해야 함
+ */
+function markStandbyAvailability(ok: boolean, reason?: string): boolean {
+  if (ok) {
+    if (standbyUnavailableUntil > 0) {
+      standbyUnavailableUntil = 0;
+      console.log("[standby-sync] preflight 성공 — standby 복구");
+    }
+    return true;
+  }
+  // 이미 skip 중이면 타이머 유지 (갱신하지 않음)
+  if (standbyUnavailableUntil === 0) {
+    standbyUnavailableUntil = Date.now() + UNAVAILABLE_BACKOFF_MS;
+    console.warn(
+      `[standby-sync] status=unavailable reason=${reason} cycle_skipped=true ` +
+      `retry_after=${new Date(standbyUnavailableUntil).toISOString()}`,
+    );
+  }
+  return false;
+}
+
+/**
+ * 현재 standby가 unavailable 상태인지 확인.
+ * 플래그 만료 시 자동 초기화.
+ */
+function isStandbyUnavailable(): boolean {
+  if (standbyUnavailableUntil === 0) return false;
+  if (Date.now() >= standbyUnavailableUntil) {
+    standbyUnavailableUntil = 0;
+    console.log("[standby-sync] standby unavailable 기간 만료 — 다음 cycle에서 preflight 재시도");
+    return false;
+  }
+  return true;
 }
 
 // ── 서킷브레이커: 스탠바이 DB 연속 느림 → 30분 스킵 ────────────────────────
@@ -220,66 +385,205 @@ function recordStandbyPingResult(latency_ms: number, ok: boolean) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// Standby swimming_pools 스키마 보수
+// ════════════════════════════════════════════════════════════════
+/**
+ * Production에만 추가된 swimming_pools 컬럼을 standby(backupDb)에 멱등 추가.
+ *
+ * 근본 원인 (SCHEMA_MISMATCH):
+ *   pool-db-x-init / pool-db-x-payment-init / pool-db-x-lifecycle / super-db-init 마이그레이션은
+ *   superAdminDb(SUPABASE_DATABASE_URL)에만 실행됨.
+ *   backupDb(POOL_DATABASE_URL)는 동일 마이그레이션을 받지 못해
+ *   72컬럼 INSERT 시 "column does not exist" 오류 발생.
+ *
+ * 대원칙:
+ *   - ADD COLUMN IF NOT EXISTS → 완전 멱등
+ *   - x_slot_id: standby에 x_subscription_slots가 없으므로 FK 없이 bigint만
+ *   - xmode_config_status: ENUM 타입 먼저 생성 후 컬럼 추가
+ *   - 실패해도 throw하지 않음 — 개별 오류만 warn; 복제 시도는 계속됨
+ */
+async function repairStandbySwimmingPoolsSchema(backupDb: any): Promise<void> {
+  const exec = async (stmt: string, label: string) => {
+    try {
+      await backupDb.execute(sql.raw(stmt));
+    } catch (e: any) {
+      const cause = e?.cause?.message ?? e?.message ?? String(e);
+      console.warn(`[standby-sync] repairStandby warn (${label}): ${cause}`);
+    }
+  };
+
+  // ── 1. ENUM 타입 (xmode_config_status_enum) ──────────────────────────────
+  // PG 14 이전은 CREATE TYPE IF NOT EXISTS 미지원 → DO $$ 패턴 사용
+  await exec(`
+    DO $$ BEGIN
+      CREATE TYPE xmode_config_status_enum AS ENUM
+        ('NOT_CONFIGURED', 'CURRICULUM_PENDING', 'READY');
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$;
+  `, "xmode_config_status_enum");
+
+  // ── 2. xmode 컬럼 5개 (pool-db-x-init.ts) ────────────────────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_entitlement boolean NOT NULL DEFAULT false;`,
+    "xmode_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_config_status xmode_config_status_enum NOT NULL DEFAULT 'NOT_CONFIGURED';`,
+    "xmode_config_status",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_purchased_at timestamptz;`,
+    "xmode_purchased_at",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_subscription_end_at timestamptz;`,
+    "xmode_subscription_end_at",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS xmode_payment_failed_at timestamptz;`,
+    "xmode_payment_failed_at",
+  );
+
+  // ── 3. X 결제 컬럼 4개 (pool-db-x-payment-init.ts) ───────────────────────
+  // x_slot_id: FK 없이 bigint만 (standby에 x_subscription_slots 테이블 없을 수 있음)
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_slot_id bigint;`,
+    "x_slot_id",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_paid_entitlement boolean NOT NULL DEFAULT false;`,
+    "x_paid_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_manual_entitlement boolean NOT NULL DEFAULT false;`,
+    "x_manual_entitlement",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_force_disabled boolean NOT NULL DEFAULT false;`,
+    "x_force_disabled",
+  );
+
+  // ── 4. x_auto_renew_cancelled (pool-db-x-lifecycle.ts) ───────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS x_auto_renew_cancelled boolean NOT NULL DEFAULT false;`,
+    "x_auto_renew_cancelled",
+  );
+
+  // ── 5. homepage 컬럼 (super-db-init.ts) ──────────────────────────────────
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_slug text;`,
+    "homepage_slug",
+  );
+  await exec(
+    `ALTER TABLE swimming_pools ADD COLUMN IF NOT EXISTS homepage_enabled boolean NOT NULL DEFAULT false;`,
+    "homepage_enabled",
+  );
+
+  console.log("[standby-sync] repairStandbySwimmingPoolsSchema 완료");
+}
+
+// ════════════════════════════════════════════════════════════════
 // 테이블 단위 복제 (TRUNCATE + INSERT 방식, 30초 타임아웃)
 // ════════════════════════════════════════════════════════════════
 async function replicateTable(
   backupDb: any,
   tableName: string,
-): Promise<{ rows: number; error?: string }> {
+): Promise<{ rows: number; error?: string; lazy_skip?: boolean }> {
   const TABLE_TIMEOUT_MS = 30_000;
   const tableTimer = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error(`replicateTable timeout 30s: ${tableName}`)), TABLE_TIMEOUT_MS)
   );
 
+  // 식별자 검증: 허용된 패턴만 통과
+  if (!IDENT_RE.test(tableName)) {
+    return { rows: 0, error: `Invalid table identifier: ${tableName}` };
+  }
+
   try {
-    // 소스에서 전체 읽기 (타임아웃 경쟁)
-    const rows = (await Promise.race([
-      superAdminDb.execute(sql.raw(`SELECT * FROM "${tableName}"`)),
-      tableTimer,
-    ]) as any).rows as Record<string, unknown>[];
+    // ── 1. Production SELECT (타임아웃 경쟁) ─────────────────────────────
+    let rows: Record<string, unknown>[];
+    try {
+      rows = (await Promise.race([
+        superAdminDb.execute(sql.raw(`SELECT * FROM "${tableName}"`)),
+        tableTimer,
+      ]) as any).rows as Record<string, unknown>[];
+    } catch (e: any) {
+      // Lazy-init 테이블(pool_credits 등)은 Production에서 아직 없을 수 있음 → graceful skip
+      if (LAZY_SYNC_TABLES.has(tableName) && isPgRelationMissing(e)) {
+        return { rows: 0, lazy_skip: true };
+      }
+      throw e;
+    }
 
     if (rows.length === 0) {
       // 빈 테이블은 스킵 (TRUNCATE 하지 않음 — 데이터 없으면 그대로 유지)
       return { rows: 0 };
     }
 
-    // 컬럼 목록 추출
-    const cols = Object.keys(rows[0]).map(c => `"${c}"`);
-    const colList = cols.join(", ");
+    // ── 2. 컬럼 식별자 검증 ──────────────────────────────────────────────
+    const cols = Object.keys(rows[0]);
+    for (const c of cols) {
+      if (!IDENT_RE.test(c)) {
+        return { rows: 0, error: `Invalid column identifier: ${c}` };
+      }
+    }
+    const colIdents = cols.map(c => `"${c}"`).join(", ");
 
-    // 대상 테이블에 스키마 복사 시도 (없으면 생성)
-    await backupDb.execute(
-      sql.raw(`CREATE TABLE IF NOT EXISTS "${tableName}" AS SELECT * FROM (VALUES (NULL::text)) t WHERE false`)
-    ).catch(() => { /* 이미 있으면 무시 */ });
+    // ── 2.5 컬럼 타입 조회 (jsonb vs text[] 구분용) ──────────────────────
+    // Production information_schema에서 각 컬럼의 udt_name을 가져옴.
+    // Array.isArray() 만으로는 jsonb 배열과 text[] 배열을 구분 불가 (22P02 버그).
+    const colTypeRows = (await superAdminDb.execute(
+      sql.raw(
+        `SELECT column_name, udt_name FROM information_schema.columns ` +
+        `WHERE table_schema='public' AND table_name='${tableName}'`
+      )
+    )).rows as { column_name: string; udt_name: string }[];
+    const colTypes = new Map(colTypeRows.map(r => [r.column_name, r.udt_name]));
 
-    // TRUNCATE → INSERT (배치 100행)
-    await backupDb.execute(sql.raw(`TRUNCATE TABLE "${tableName}" CASCADE`)).catch(() => {
-      // TRUNCATE 실패 시 DELETE fallback
-      return backupDb.execute(sql.raw(`DELETE FROM "${tableName}"`)).catch(() => {});
-    });
+    // ── 3. TRUNCATE (stub 자동 생성 금지) ────────────────────────────────
+    // Backup 테이블이 없고 Production에 행이 있으면:
+    //   AUTO_CREATE_STUB 금지 — BACKUP_SCHEMA_MISSING 오류 + 알림
+    // (이전 코드의 CREATE TABLE IF NOT EXISTS column1 stub 방식 제거)
+    try {
+      await backupDb.execute(sql.raw(`TRUNCATE TABLE "${tableName}" CASCADE`));
+    } catch (truncErr: any) {
+      if (isPgRelationMissing(truncErr)) {
+        // Backup 스키마 미준비 → 알림 후 실패 반환
+        await fireAlert(
+          "critical",
+          "🔴 Backup 테이블 스키마 없음",
+          `${tableName}: Backup DB에 테이블 없음. Pool DB 수동 수리 필요 (BACKUP_SCHEMA_MISSING).`,
+        ).catch(() => {});
+        return { rows: 0, error: `BACKUP_SCHEMA_MISSING: ${tableName}` };
+      }
+      // 기타 TRUNCATE 오류 → DELETE fallback
+      await backupDb.execute(sql.raw(`DELETE FROM "${tableName}"`)).catch(() => {});
+    }
 
+    // ── 4. 파라미터화된 배치 INSERT ──────────────────────────────────────
+    // serializeForPg(v, pgType)로 값을 사전 변환 후 drizzle sql 파라미터로 전달.
+    // colTypes Map을 통해 jsonb/json vs text[] 등을 구분해 올바른 형식으로 직렬화.
+    // pg 드라이버가 모든 타입 직렬화를 처리하므로 SQL 인젝션 위험 없음.
     const BATCH = 100;
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
-      const valuesClause = chunk.map(row => {
-        const vals = Object.values(row).map(v => {
-          if (v === null || v === undefined) return "NULL";
-          if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
-          if (typeof v === "number" || typeof v === "bigint") return String(v);
-          // Dates and strings: escape single quotes
-          return `'${String(v).replace(/'/g, "''")}'`;
-        });
-        return `(${vals.join(", ")})`;
-      }).join(", ");
-
+      const rowSqls = chunk.map(row => {
+        const vals = cols.map(col => serializeForPg(row[col], colTypes.get(col)));
+        return sql`(${sql.join(vals.map(v => sql`${v}`), sql.raw(", "))})`;
+      });
+      const valuesSql = sql.join(rowSqls, sql.raw(", "));
       await backupDb.execute(
-        sql.raw(`INSERT INTO "${tableName}" (${colList}) VALUES ${valuesClause} ON CONFLICT DO NOTHING`)
+        sql`INSERT INTO ${sql.raw(`"${tableName}"`)} (${sql.raw(colIdents)}) VALUES ${valuesSql} ON CONFLICT DO NOTHING`
       );
     }
 
     return { rows: rows.length };
   } catch (e: any) {
-    return { rows: 0, error: e.message ?? String(e) };
+    // e.message는 drizzle 래핑 메시지 ("Failed query: INSERT INTO...")
+    // e.cause?.message가 실제 PG 오류 메시지 (예: "column 'x_paid_entitlement' does not exist")
+    const pgMsg = e?.cause?.message ?? "";
+    const errMsg = pgMsg ? `${e.message ?? ""} | PG: ${pgMsg}` : (e.message ?? String(e));
+    return { rows: 0, error: errMsg };
   }
 }
 
@@ -289,14 +593,30 @@ async function replicateTable(
 export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Promise<void> {
   if (!isDbSeparated) return;
 
+  const backupDb = getBackupDb();
+  if (!backupDb) return;
+
+  // [HOTFIX] Preflight 1회 — STANDBY_UNAVAILABLE이면 cycle 전체 skip
+  // per-table DNS lookup 반복 완전 차단
+  if (isStandbyUnavailable()) {
+    console.log("[standby-sync] status=unavailable cycle_skipped=true (retry after 30min)");
+    return;
+  }
+  const pf = await preflightStandby(backupDb);
+  if (!markStandbyAvailability(pf.ok, pf.reason)) return;
+
   // 서킷브레이커 오픈 상태면 싱크도 스킵
   if (!checkStandbyCircuit()) {
     console.log("[standby-sync] 서킷브레이커 오픈 중 — 핫 싱크 스킵");
     return;
   }
 
-  const backupDb = getBackupDb();
-  if (!backupDb) return;
+  // ── 스키마 보수: swimming_pools가 대상에 포함되면 standby 컬럼 불일치 먼저 수정 ──
+  // Root-cause fix: production-only migrations (x-init, x-payment-init, x-lifecycle,
+  // super-db-init)이 standby에 실행되지 않아 누적된 컬럼 불일치를 멱등 보정.
+  if (tables.includes("swimming_pools")) {
+    await repairStandbySwimmingPoolsSchema(backupDb);
+  }
 
   const logId = `bl_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const t0 = Date.now();
@@ -317,7 +637,10 @@ export async function runHotStandbySync(tables: string[] = HOT_SYNC_TABLES): Pro
 
   for (const table of tables) {
     const result = await replicateTable(backupDb, table);
-    if (result.error) {
+    if (result.lazy_skip) {
+      // Lazy-init 테이블(Production에 아직 없음) — 오류로 계산하지 않음
+      console.log(`[standby-sync] ${table} → LAZY_TABLE_NOT_CREATED (graceful skip)`);
+    } else if (result.error) {
       console.warn(`[standby-sync] ${table} 복제 실패: ${result.error}`);
       errors.push(`${table}: ${result.error}`);
     } else {

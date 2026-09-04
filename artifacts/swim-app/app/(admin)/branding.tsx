@@ -1,15 +1,15 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * branding.tsx — 수영장 브랜드 설정
  * 테마 색상, 로고 이모지, 로고 URL을 변경한다.
  * 저장 즉시 BrandContext가 업데이트되어 앱 전체에 반영된다.
  */
-import { Check, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator,
-} from "react-native";
+import {View, Text, StyleSheet, TouchableOpacity,
+  TextInput, ActivityIndicator} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { useBrand, APP_PLATFORM_NAME, DEFAULT_THEME_COLOR } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -26,15 +26,9 @@ const PALETTE = [
   { label: "틸",             color: "#0D9488" },
   { label: "사이언",         color: "#0284C7" },
   { label: "슬레이트",       color: "#475569" },
-  { label: "다크",           color: "#0F172A" },
+  { label: "다크",           color: "#14283D" },
 ];
 
-// ── 수영장 테마 이모지 ───────────────────────────────────────────────
-const EMOJI_LIST = [
-  "🏊", "🌊", "💧", "🌀", "⭐", "🔵", "🐠",
-  "🐬", "🐋", "🦈", "🌟", "💎", "🏅", "🎽",
-  "🥇", "🌈", "🏆", "✨", "🎯", "🔷",
-];
 
 function isValidHex(v: string) {
   return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(v);
@@ -42,11 +36,10 @@ function isValidHex(v: string) {
 
 export default function BrandingScreen() {
   const { token, pool, refreshPool } = useAuth();
-  const { themeColor: currentTheme, setBrand, poolName, logoEmoji: currentEmoji, logoUrl: currentLogoUrl } = useBrand();
+  const { themeColor: currentTheme, setBrand, poolName, logoUrl: currentLogoUrl } = useBrand();
 
   const [selectedColor, setSelectedColor] = useState(currentTheme ?? DEFAULT_THEME_COLOR);
   const [hexInput, setHexInput] = useState(currentTheme ?? DEFAULT_THEME_COLOR);
-  const [selectedEmoji, setSelectedEmoji] = useState<string | null>(currentEmoji);
   const [logoUrl, setLogoUrl] = useState(currentLogoUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [hexError, setHexError] = useState("");
@@ -61,9 +54,8 @@ export default function BrandingScreen() {
   useEffect(() => {
     setSelectedColor(currentTheme ?? DEFAULT_THEME_COLOR);
     setHexInput(currentTheme ?? DEFAULT_THEME_COLOR);
-    setSelectedEmoji(currentEmoji);
     setLogoUrl(currentLogoUrl ?? "");
-  }, [currentTheme, currentEmoji, currentLogoUrl]);
+  }, [currentTheme, currentLogoUrl]);
 
   const handleHexChange = useCallback((v: string) => {
     const val = v.startsWith("#") ? v : `#${v}`;
@@ -90,7 +82,7 @@ export default function BrandingScreen() {
         method: "PUT",
         body: JSON.stringify({
           theme_color: selectedColor,
-          logo_emoji:  selectedEmoji ?? "",
+          logo_emoji:  "",
           logo_url:    logoUrl.trim() || "",
         }),
       });
@@ -104,7 +96,7 @@ export default function BrandingScreen() {
       // BrandContext 즉시 업데이트
       setBrand({
         themeColor: data.theme_color ?? selectedColor,
-        logoEmoji:  data.logo_emoji  || null,
+        logoEmoji:  null,
         logoUrl:    data.logo_url    || null,
       });
       // AuthContext pool 정보도 갱신
@@ -117,14 +109,13 @@ export default function BrandingScreen() {
     } finally {
       setSaving(false);
     }
-  }, [token, selectedColor, selectedEmoji, logoUrl, setBrand, refreshPool]);
+  }, [token, selectedColor, logoUrl, setBrand, refreshPool]);
 
   // 초기화: 초록색 테마 + 로고 없음
   const doReset = () => {
     setSelectedColor(DEFAULT_THEME_COLOR);
     setHexInput(DEFAULT_THEME_COLOR);
     setHexError("");
-    setSelectedEmoji(null);
     setLogoUrl("");
     setResetConfirm(false);
   };
@@ -141,7 +132,7 @@ export default function BrandingScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── 실시간 미리보기 ─────────────────────────────────── */}
         <Section title="미리보기">
@@ -150,7 +141,7 @@ export default function BrandingScreen() {
             <View style={styles.previewHeader}>
               <View style={[styles.previewBadge, { backgroundColor: selectedColor }]}>
                 <Text style={styles.previewBadgeText}>
-                  {selectedEmoji ?? (poolName?.slice(0, 1) ?? "S")}
+                  {(pool?.name ?? poolName ?? "SN").slice(0, 2)}
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -169,7 +160,7 @@ export default function BrandingScreen() {
                   <LucideIcon
                     name={i === 0 ? "grid" : i === 1 ? "users" : "check-square"}
                     size={18}
-                    color={i === 0 ? selectedColor : "#64748B"}
+                    color={i === 0 ? selectedColor : C.textSecondary}
                   />
                   <Text style={[styles.previewTabLabel, i === 0 && { color: selectedColor }]}>{tab}</Text>
                 </View>
@@ -211,8 +202,8 @@ export default function BrandingScreen() {
               style={[styles.hexInput, hexError ? { borderColor: "#D96C6C" } : {}]}
               value={hexInput}
               onChangeText={handleHexChange}
-              placeholder="#2EC4B6"
-              placeholderTextColor="#64748B"
+              placeholder="#4F6F67"
+              placeholderTextColor={C.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
               maxLength={7}
@@ -224,48 +215,17 @@ export default function BrandingScreen() {
           </Text>
         </Section>
 
-        {/* ── 로고 이모지 ─────────────────────────────────────── */}
-        <Section title="로고 이모지">
-          <Text style={styles.sectionDesc}>
-            로고 이미지가 없을 때 이모지를 대신 표시합니다.
-          </Text>
-          <View style={styles.emojiGrid}>
-            {/* 없음 선택 */}
-            <TouchableOpacity
-              onPress={() => setSelectedEmoji(null)}
-              style={[
-                styles.emojiCell,
-                !selectedEmoji && { borderColor: selectedColor, borderWidth: 2 },
-              ]}
-            >
-              <Text style={styles.emojiNone}>없음</Text>
-            </TouchableOpacity>
-            {EMOJI_LIST.map((em) => (
-              <TouchableOpacity
-                key={em}
-                onPress={() => setSelectedEmoji(em === selectedEmoji ? null : em)}
-                style={[
-                  styles.emojiCell,
-                  selectedEmoji === em && { borderColor: selectedColor, borderWidth: 2, backgroundColor: selectedColor + "18" },
-                ]}
-              >
-                <Text style={styles.emoji}>{em}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Section>
-
         {/* ── 로고 URL ─────────────────────────────────────────── */}
         <Section title="로고 이미지 URL (선택)">
           <Text style={styles.sectionDesc}>
-            외부 이미지 URL을 입력하면 이모지 대신 로고 이미지를 표시합니다.
+            외부 이미지 URL을 입력하면 이니셜 대신 로고 이미지를 표시합니다.
           </Text>
           <TextInput
             style={styles.urlInput}
             value={logoUrl}
             onChangeText={setLogoUrl}
             placeholder="https://example.com/logo.png"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={C.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -278,7 +238,7 @@ export default function BrandingScreen() {
         {/* ── 앱 아이콘 안내 ─────────────────────────────────── */}
         <Section title="앱 아이콘 커스터마이징">
           <View style={styles.infoBox}>
-            <Info size={16} color="#2EC4B6" style={{ marginTop: 2 }} />
+            <LucideIcon name="info" size={16} color={C.brandStrong} style={{ marginTop: 2 }} />
             <Text style={styles.infoText}>
               앱스토어·구글플레이에서 다운로드되는 앱 아이콘은 항상 스윔노트 기본 아이콘으로 표시됩니다.{"\n\n"}
               수영장별 아이콘 변경은 별도의 화이트라벨 빌드가 필요합니다. 문의: support@swimnote.kr
@@ -296,7 +256,7 @@ export default function BrandingScreen() {
             <ActivityIndicator color="#fff" />
           ) : saveSuccess ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Check size={18} color="#fff" />
+              <LucideIcon name="check" size={18} color="#fff" />
               <Text style={styles.saveBtnText}>저장 완료!</Text>
             </View>
           ) : (
@@ -305,7 +265,7 @@ export default function BrandingScreen() {
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 초기화 확인 모달 */}
       <ConfirmModal
@@ -346,20 +306,20 @@ const styles = StyleSheet.create({
   content:         { padding: 16, gap: 8, paddingBottom: 100 },
 
   section:         { backgroundColor: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, gap: 12 },
-  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase" },
-  sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18 },
+  sectionTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase" },
+  sectionDesc:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
 
   // 미리보기
-  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden", backgroundColor: "#fff" },
-  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  previewCard:     { borderRadius: 12, borderWidth: 1, borderColor: C.border, overflow: "hidden", backgroundColor: "#fff" },
+  previewHeader:   { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: C.border },
   previewBadge:    { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
   previewBadgeText:{ color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },
-  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewPoolName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   previewPowered:  { fontSize: 10, fontFamily: "Pretendard-Regular", marginTop: 1 },
   previewTabBar:   { flexDirection: "row", backgroundColor: "#fff" },
   previewTab:      { flex: 1, alignItems: "center", paddingVertical: 10, gap: 3 },
-  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  previewNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center" },
+  previewTabLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  previewNote:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center" },
 
   // 팔레트
   palette:         { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -369,19 +329,13 @@ const styles = StyleSheet.create({
 
   // Hex 입력
   hexRow:          { flexDirection: "row", alignItems: "center", gap: 10 },
-  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: "#E5E7EB" },
-  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  hexPreview:      { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  hexInput:        { flex: 1, height: 40, borderWidth: 1.5, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
   hexError:        { fontSize: 12, color: "#D96C6C", fontFamily: "Pretendard-Regular" },
-  hint:            { fontSize: 12, color: "#64748B", fontFamily: "Pretendard-Regular" },
-
-  // 이모지
-  emojiGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  emojiCell:       { width: 48, height: 48, borderRadius: 10, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF", borderWidth: 2, borderColor: "transparent" },
-  emoji:           { fontSize: 24 },
-  emojiNone:       { fontSize: 11, color: "#64748B", fontFamily: "Pretendard-Regular" },
+  hint:            { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
 
   // URL 입력
-  urlInput:        { height: 44, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  urlInput:        { height: 44, borderWidth: 1.5, borderColor: C.border, borderRadius: 8, paddingHorizontal: 12, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
 
   // 안내 박스
   infoBox:         { flexDirection: "row", gap: 10, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 12 },

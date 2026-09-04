@@ -5,14 +5,11 @@
  * - TOTP 필요 시 /otp-verify?session=... 로 이동
  * - 역할 선택 → org-role-select.tsx로 분리
  */
-import { ArrowLeft, CircleAlert, Lock, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { LOGIN_LABELS } from "@/constants/auth";
@@ -65,11 +62,8 @@ export default function LoginPasswordScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
+    <View style={[styles.root, { backgroundColor: C.background }]}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[
           styles.container,
           { paddingTop: insets.top + (Platform.OS === "web" ? 70 : 50), paddingBottom: insets.bottom + 40 },
@@ -78,11 +72,11 @@ export default function LoginPasswordScreen() {
       >
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={22} color={C.text} />
+            <LucideIcon name="arrow-left" size={22} color={C.text} />
           </Pressable>
           <View style={styles.idChip}>
-            <User size={13} color={C.tint} />
-            <Text style={[styles.idChipText, { color: C.tint }]} numberOfLines={1}>{identifier}</Text>
+            <LucideIcon name="user" size={13} color={C.brandStrong} />
+            <Text style={[styles.idChipText, { color: C.brandStrong }]} numberOfLines={1}>{identifier}</Text>
             <Pressable onPress={() => router.replace("/")} style={{ marginLeft: 2 }}>
               <Text style={[styles.changeIdText, { color: C.textMuted }]}>{LOGIN_LABELS.backToId}</Text>
             </Pressable>
@@ -94,7 +88,7 @@ export default function LoginPasswordScreen() {
 
           {!!error && (
             <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -102,7 +96,7 @@ export default function LoginPasswordScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>{LOGIN_LABELS.passwordInput.label}</Text>
             <View style={[styles.inputRow, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Lock size={16} color={C.textMuted} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={password}
@@ -121,7 +115,7 @@ export default function LoginPasswordScreen() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: pressed ? C.textStrong : C.primaryAction }]}
             onPress={() => handleLogin()}
             disabled={loading}
           >
@@ -131,13 +125,13 @@ export default function LoginPasswordScreen() {
             }
           </Pressable>
 
-          <Pressable style={styles.forgotRow}>
+          <Pressable style={styles.forgotRow} onPress={() => router.push("/(auth)/forgot-password" as any)}>
             <Text style={[styles.forgotText, { color: C.textMuted }]}>{LOGIN_LABELS.forgotPw}</Text>
           </Pressable>
         </View>
 
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -148,7 +142,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   idChip: {
     flex: 1, flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#E6FFFA", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: C.brandSoft, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
   idChipText: { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
   changeIdText: { fontSize: 12, fontFamily: "Pretendard-Regular" },

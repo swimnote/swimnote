@@ -1,0 +1,586 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE INFRA COST AUDIT V3 — FINAL VERIFICATION
+
+V2 감사 결과를 기반으로 최종 가격결정에 사용할 숫자를 검증하는 작업입니다.
+
+이번 작업은 새로운 추정 보고서를 만드는 것이 아닙니다.
+
+V2에서 이미 나온 계산 중 불확실하거나 오래된 값만 검증하여
+“가격정책에 실제로 사용할 수 있는 확정 원가표”를 만드는 것이 목적입니다.
+
+코드 수정 금지.
+Production 변경 금지.
+AUDIT / VERIFY ONLY.
+
+---
+
+# 1. V2 결과를 기준선으로 사용
+
+V2에서 다음 결과가 나왔습니다.
+
+550 Pools / 150K Members:
+
+* Fixed Infra: 약 ₩534,750/month
+* Variable APP Infra: 약 ₩62,500/month
+* Total APP Platform: 약 ₩597,250/month
+* Per Pool: 약 ₩1,086/month
+* Per Member: 약 ₩3.98/month
+
+DATA100:
+
+* non-transaction cost 약 ₩2,370/month
+
+DATA300:
+
+* non-transaction cost 약 ₩7,110/month
+
+이번 감사에서는 이 값을 처음부터 다시 만들지 말고
+각 숫자의 근거를 검증하고 잘못된 값만 수정하십시오.
+
+---
+
+# 2. 가장 중요 — 2026-09 현재 공식 가격 재검증
+
+V2 보고서는 provider pricing source date가 2024-09였습니다.
+
+현재 날짜 기준 공식 가격을 다시 확인하십시오.
+
+반드시 공식 Source만 사용:
+
+* Render
+* Supabase
+* Cloudflare R2
+* RevenueCat
+* Apple App Store
+* Google Play
+
+각 서비스마다:
+
+Provider:
+Current official price:
+Billing unit:
+Source URL:
+Checked date:
+
+를 제출하십시오.
+
+검색 블로그/커뮤니티/예전 문서 금지.
+
+가격을 확인하지 못하면 UNKNOWN.
+
+---
+
+# 3. RevenueCat 비용 정확히 재검증
+
+다음을 현재 공식 정책으로 확인하십시오.
+
+* RevenueCat 무료 MTR 범위
+* 초과 시 fee
+* MTR 계산 방식
+* Apple/Google 매출 합산 여부
+* DATA PACK 매출도 MTR에 포함되는지
+* X 매출도 포함되는지
+* AI report IAP를 사용할 경우 포함 여부
+
+V2의 단순 “$2,500 이하 무료 / 초과 1%” 가정이
+현재 공식 정책과 정확히 일치하는지 검증하십시오.
+
+---
+
+# 4. Apple / Google Store Fee 재검증
+
+가격결정은 다음 두 시나리오를 유지합니다.
+
+A. 15%
+B. 30%
+
+하지만 실제 SWIMNOTE가 현재 어떤 수수료 조건에 들어갈 가능성이 높은지
+공식 정책 기준으로 설명하십시오.
+
+확인:
+
+* Apple Small Business Program
+* 일반 Apple commission
+* Google Play subscription commission
+* 한국 적용 여부
+* subscription / one-time IAP 차이
+
+실제 확정 자격을 알 수 없으면
+15% / 30% sensitivity를 그대로 유지하십시오.
+
+---
+
+# 5. 실제 Production Render 상태 확인
+
+`render.yaml`만 보고 현재 Production 상태라고 단정하지 마십시오.
+
+가능한 read-only 방법으로 실제 배포 상태를 확인하십시오.
+
+확인 대상:
+
+* swimnote-api
+* actual instance plan
+* region
+* instance count
+* autoscaling
+* actual Worker service existence
+* runtime command
+
+실제 Render 환경을 확인할 권한이 없으면:
+
+`PRODUCTION RENDER NOT VERIFIED`
+
+라고 명확히 적으십시오.
+
+코드 설정과 실제 Production을 구분하십시오.
+
+---
+
+# 6. 실제 Production Supabase 상태 확인
+
+가능한 read-only 방식으로 확인:
+
+* actual plan
+* compute size
+* DB storage
+* current DB size
+* current connections
+* connection pool
+* current row count
+* bandwidth
+
+접근 불가능하면 절대 추정값을 실제값처럼 쓰지 말고:
+
+`PRODUCTION SUPABASE NOT VERIFIED`
+
+로 기록하십시오.
+
+---
+
+# 7. 150K Traffic Model 신뢰도 분류
+
+V2의 다음 값:
+
+* 30% DAU
+* 45,000 DAU
+* 550 peak req/s
+* 2,700 DB q/s
+* 41,250 photo uploads/day
+* 55,000 pushes/day
+
+각각을 다음 중 하나로 표시하십시오.
+
+A. MEASURED
+B. CODE-DERIVED
+C. BUSINESS ASSUMPTION
+D. SPECULATIVE
+
+그리고 왜 그렇게 분류했는지 적으십시오.
+
+최종 비용표에서는
+C/D 값 때문에 발생하는 uncertainty range를 계산하십시오.
+
+---
+
+# 8. 150K 비용을 RANGE로 다시 제출
+
+단일값만 제출하지 마십시오.
+
+V2의 ₩597,250/month를 중심으로:
+
+## LOW
+
+낮은 실제 사용량
+
+## EXPECTED
+
+현재 가장 현실적인 사용량
+
+## HEAVY
+
+활성도가 높은 수영장
+
+## SAFE CAPACITY
+
+50% headroom 포함
+
+각각:
+
+* Render
+* Supabase
+* Worker
+* R2
+* Monitoring
+* monthly total
+
+제출.
+
+---
+
+# 9. 실제 Worker Architecture 재검증
+
+V2에서 현재 별도 Worker가 Render에 등록되지 않았다고 확인했습니다.
+
+다시 정확히 추적:
+
+* 현재 Production에서 WORKER_MODE process가 실제 존재하는지
+* 없다면 현재 background scheduler가 API server에서 무엇을 실행하는지
+* API와 Worker를 분리했을 때 필요한 실제 Render 비용
+
+특히:
+
+* parent-link
+* push
+* growth
+* backup
+* standby sync
+* billing
+* video cleanup
+
+을 확인하십시오.
+
+---
+
+# 10. 영상 정책 — 매우 중요
+
+V2에서 실제 retention이 14일로 확인됐습니다.
+
+정확히 재확인 후 다음을 제출하십시오.
+
+## CURRENT IMPLEMENTATION
+
+Retention:
+Upload limit:
+Client compression:
+Actual R2 object:
+Thumbnail:
+Cleanup:
+
+그리고 현재 100MB upload limit이:
+
+* Express/Multer 단계의 실제 hard limit인지
+* presigned direct upload에도 적용되는지
+* 모든 영상 업로드 경로에 적용되는지
+
+반드시 추적하십시오.
+
+즉:
+
+> SWIMNOTE에서 150MB / 300MB / 500MB 동영상을 실제로 업로드할 수 있는가?
+
+를 코드경로별로 명확히 답하십시오.
+
+---
+
+# 11. 영상 DATA PACK 계산 다시 검증
+
+영상 retention은 현재 14일 기준으로 계산하되
+향후 정책 변경 가능성이 있으므로:
+
+### 7-day
+
+### 14-day
+
+두 시나리오를 모두 제출하십시오.
+
+영상 파일 크기:
+
+* 25MB
+* 50MB
+* 100MB
+
+세 가지 기준.
+
+Pool당:
+
+* 100 members
+* 300 members
+* 500 members
+* 1000 members
+
+에서 회원당 주 1개 영상 업로드 시
+동시 점유량을 계산하십시오.
+
+표:
+
+| Members | File Size | 7-day | 14-day |
+| ------: | --------: | ----: | -----: |
+
+이를 통해:
+
+* Basic 10GB
+* DATA100
+* DATA300
+
+각 용량이 실제 어느 규모까지 커버하는지 보여주십시오.
+
+---
+
+# 12. R2 REQUEST 비용 재검증
+
+V2에서는 DATA100 추가 요청비 ₩300,
+DATA300 ₩900을 추정했습니다.
+
+이 숫자를 공식 R2 Class A/B 단가와
+실제 upload/read/delete operation 수를 이용해 다시 계산하십시오.
+
+추정으로 고정값을 넣지 마십시오.
+
+다음 패턴으로 계산:
+
+DATA100:
+
+* number of objects
+* PUT
+* GET
+* DELETE
+* LIST
+* monthly Class A
+* monthly Class B
+
+DATA300:
+동일.
+
+LOW / EXPECTED / HEAVY를 제출하십시오.
+
+---
+
+# 13. Free Pool 영향 재검증
+
+V2에서 Free Pool 증가 시 핵심 비용이 R2가 아니라
+모든 Pool을 순회하는 Worker 구조라고 판단했습니다.
+
+현재 scheduler가 정말 전체 Pool scan인지 확인하십시오.
+
+특히:
+
+* parent-link
+* push scheduler
+
+가 10,000 free pools에서 실제로 어떤 query complexity를 가지는지 확인.
+
+가능하면 Big-O와 DB query 수로 설명하십시오.
+
+---
+
+# 14. 비용 폭탄 시나리오
+
+다음 사고가 발생했을 때 월 비용을 계산하십시오.
+
+## CASE A
+
+550 Pools가 Basic 10GB 100% 사용
+
+## CASE B
+
+DATA100 구매 Pool 100개가 100% 사용
+
+## CASE C
+
+DATA300 구매 Pool 100개가 100% 사용
+
+## CASE D
+
+영상 cleanup이 30일 동안 실패
+
+## CASE E
+
+R2 orphan media가 월 1TB 추가 누적
+
+## CASE F
+
+API/DB 사용량이 EXPECTED의 2배
+
+각 경우:
+
+Base monthly cost:
+Additional cost:
+Total:
+Impact:
+
+를 제출.
+
+목적은 “최악에도 회사가 감당 가능한지” 확인하는 것입니다.
+
+---
+
+# 15. 최종 가격결정용 원가표
+
+최종적으로 아래 표 하나를 반드시 제출하십시오.
+
+# PRICE DECISION COST TABLE
+
+## BASIC
+
+Price candidate:
+₩5,900
+
+Platform Cost / Pool:
+₩_____
+
+Direct Usage Cost:
+₩_____
+
+15% Store + RC:
+₩_____
+
+30% Store + RC:
+₩_____
+
+Profit at 15%:
+₩_____
+
+Margin:
+___%
+
+Profit at 30%:
+₩_____
+
+Margin:
+___%
+
+---
+
+## DATA 100
+
+100% Storage Worst Cost:
+₩_____
+
+Heavy Request Cost:
+₩_____
+
+Total Non-Transaction Worst Cost:
+₩_____
+
+Minimum price for:
+
+30% margin @ Store15:
+₩_____
+
+30% margin @ Store30:
+₩_____
+
+40% margin @ Store30:
+₩_____
+
+---
+
+## DATA 300
+
+동일.
+
+---
+
+# 16. 출시단계 실제 서버비
+
+다음 단계별로
+현재 공식 가격으로 다시 계산하십시오.
+
+* 10 Pools
+* 50 Pools
+* 100 Pools
+* 200 Pools
+* 300 Pools
+* 550 Pools
+
+각각:
+
+Members:
+Recommended infra:
+Monthly cost:
+Upgrade trigger:
+
+---
+
+# 17. 최종 신뢰도 표시
+
+각 최종 숫자에:
+
+HIGH CONFIDENCE
+MEDIUM CONFIDENCE
+LOW CONFIDENCE
+
+를 표시하십시오.
+
+HIGH CONFIDENCE 조건:
+
+* official pricing verified
+* actual code path verified
+* no speculative traffic assumptions
+
+---
+
+# 18. 금지
+
+* 코드 수정 금지
+* Render 변경 금지
+* Supabase 변경 금지
+* R2 설정 변경 금지
+* RevenueCat 변경 금지
+* migration 금지
+* deploy 금지
+* OTA 금지
+* Production DB write 금지
+
+READ-ONLY VERIFY ONLY.
+
+---
+
+# 완료보고 형식
+
+# SWIMNOTE INFRA COST AUDIT V3 — FINAL VERIFICATION
+
+Branch:
+HEAD:
+Audit date:
+
+## OFFICIAL PRICE VERIFICATION
+
+...
+
+## ACTUAL PRODUCTION VERIFICATION
+
+...
+
+## TRAFFIC CONFIDENCE
+
+...
+
+## VIDEO PATH
+
+...
+
+## 7-DAY vs 14-DAY STORAGE
+
+...
+
+## COST BOMB SCENARIOS
+
+...
+
+## SCALE CURVE
+
+...
+
+## PRICE DECISION COST TABLE
+
+...
+
+## UNKNOWNS
+
+...
+
+## CONFIDENCE
+
+...
+
+Production changes:
+NONE
+
+Code changes:
+NONE
+
+FINAL:
+
+`INFRA COST V3 FINAL VERIFICATION COMPLETE`

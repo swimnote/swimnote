@@ -1,0 +1,281 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — X MODE LIVE ENTRY FINAL CHECK
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP11_CLOSED ✅
+WP12 = DEFERRED_AFTER_SKELETON ✅
+
+목적:
+새 기능 개발이 아니다.
+
+X Mode가 실제 Production 앱에서:
+
+구독/권한 확인
+→ X 상태 확인
+→ READY 진입
+→ X 전용 화면 진입
+→ AI Diary X 경로
+→ Growth 화면
+
+까지 정상 연결되는지 최종 확인한다.
+
+전체 Repository 재조사 금지.
+필요한 파일/route만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 X MODE SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+기존 구현 재사용:
+
+- RevenueCat entitlement
+- /pools/x-mode
+- ModeContext
+- XModeGuard
+- xmode_config_status
+
+새 판정 로직 만들지 말 것.
+
+상태:
+
+NORMAL
+X_PENDING
+X READY
+ERROR
+
+실제 기존 contract 기준으로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+2. SAMPLE X POOL
+━━━━━━━━━━━━━━━━━━━━
+
+기존 sample:
+
+pool_1784310621737_qryl1x79s
+
+Production READ ONLY 확인:
+
+xmode_entitlement
+xmode_config_status
+mode API response
+
+기대:
+
+entitlement = true
+config = READY
+mode = x
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. APP ENTRY
+━━━━━━━━━━━━━━━━━━━━
+
+실제 iOS Production 앱에서 확인:
+
+로그인
+→ 홈
+→ X 관련 진입점
+
+READY pool이면:
+
+준비중/Lock 화면이 아니라
+실제 X 화면으로 진입해야 함.
+
+확인:
+
+- XModeGuard children 렌더
+- redirect loop 없음
+- loading 무한 반복 없음
+- 뒤로가기 정상
+- 앱 crash 없음
+
+━━━━━━━━━━━━━━━━━━━━
+4. X 전용 화면
+━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 존재하는 X 화면만 확인.
+
+최소:
+
+- X Growth 화면
+- X 설정/상태 화면
+- AI Diary X mode 경로
+
+미래 WP 화면 새로 만들지 말 것.
+
+우리수영장 커리큘럼 검색:
+현재 준비중 모달 유지가 정상.
+
+리포트:
+현재 준비중 상태라면 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. AI DIARY X MODE
+━━━━━━━━━━━━━━━━━━━━
+
+실제 contract 1.3 사용 확인.
+
+X pool에서 AI Diary generate:
+
+pool_mode = x
+x_template_status 확인
+generation_mode 확인
+
+현재 ACTIVE global template set = 0이면:
+
+NOT_CONFIGURED
+INPUT_ONLY
+
+정상.
+
+500이면 FAIL.
+
+실제 일지 저장은 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+6. GROWTH
+━━━━━━━━━━━━━━━━━━━━
+
+X Growth 화면 진입 확인.
+
+현재 sample pool 학생 0명이라면:
+
+학생 없음 / empty state
+
+정상 표시.
+
+오류를 empty로 위장하는지 확인.
+
+API failure 발생 시:
+error + retry UI가 나와야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+7. NORMAL MODE REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+안전한 일반 pool에서:
+
+일반 앱 홈
+스케줄러
+회원관리
+일지
+
+정상.
+
+XModeGuard가 일반 기능을 막지 않아야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+8. LOCK STATES
+━━━━━━━━━━━━━━━━━━━━
+
+Production 상태 변경해서 테스트 금지.
+
+기존 tests 근거로 확인:
+
+entitlement 없음
+→ 구독 안내
+
+NOT_CONFIGURED
+→ 설정 안내
+
+CURRICULUM_PENDING
+→ 검토중
+
+API error
+→ fail-safe lock
+
+READY
+→ 진입
+
+새 테스트 pool 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. CURRENT DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+Git:
+branch
+HEAD
+origin
+
+API:
+Render Live SHA
+Deploy ID
+
+App:
+현재 production OTA
+runtimeVersion
+
+Worker:
+현재 Live SHA/status
+
+새 코드 변경이 없다면
+deploy/OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. HEALTH
+━━━━━━━━━━━━━━━━━━━━
+
+/api/health → 200
+/api/healthz → 200
+
+최근 로그:
+
+startup crash
+nonZeroExit
+RLS
+permission denied
+xmode
+queue-worker
+
+신규 치명 오류 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 수정 필요 시
+━━━━━━━━━━━━━━━━━━━━
+
+실제 X 진입을 막는 명확한 버그가 있을 때만
+최소 수정.
+
+금지:
+
+리팩터링
+WP13+
+WP12 상세 구현
+리포트 구현
+커리큘럼 DB 적재
+Backup/RLS 수정
+
+━━━━━━━━━━━━━━━━━━━━
+12. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+짧게 제출:
+
+1. X sample pool 현재 상태
+2. Mode API 결과
+3. iOS READY 진입 결과
+4. X Growth 진입 결과
+5. AI Diary X 결과
+6. 준비중 기능 상태
+7. Normal mode regression
+8. Git/Render/OTA/Worker 상태
+9. Health/log
+10. 수정 여부
+11. final verdict
+
+성공 시:
+
+X_MODE_LIVE_ENTRY_VERIFIED ✅
+X_MODE_CORE_RUNTIME_READY ✅
+
+STOP.
+
+그 다음 단계는 별도 승인 후 진행.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

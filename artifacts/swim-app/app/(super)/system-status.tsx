@@ -1,21 +1,30 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/system-status.tsx — 시스템 상태
- * DB·스토리지·PG·이메일·푸시·기타 연동 서비스 상태 표시.
- * 정상(normal) / 주의(warning) / 장애(error) 상태.
- * 오늘 처리할 일 · 리스크 요약과 연동 가능한 구조.
+ * 실제 API(/super/system-health)에서 각 서비스의 상태/지연/메모를 가져와 표시.
  */
-import { Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useMemo, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
-import { useAuditLogStore } from "@/store/auditLogStore";
-import { useAuth } from "@/context/AuthContext";
+import { useFocusEffect } from "expo-router";
+import { apiRequest, useAuth } from "@/context/AuthContext";
 
 const P = "#7C3AED";
 
 export type ServiceStatus = "normal" | "warning" | "error";
+
+export interface MemoryInfo {
+  rssBytes: number;
+  heapUsedBytes: number;
+  heapTotalBytes: number;
+  containerLimitBytes: number;
+  rssPct: number;
+  status: ServiceStatus;
+  note: string;
+}
 
 export interface ServiceItem {
   id: string;
@@ -29,22 +38,8 @@ export interface ServiceItem {
   note: string;
 }
 
-// ─── 시스템 상태 시드 데이터 ───────────────────────────────────────────────
-// 실제 운영에서는 각 서비스의 health endpoint 또는 모니터링 API 연동으로 대체.
-const INITIAL_SERVICES: ServiceItem[] = [
-  { id: "db",       name: "데이터베이스",     category: "인프라",  icon: "database",     status: "normal",  latencyMs: 12,   uptimePct: 99.98, lastChecked: new Date().toISOString(), note: "PostgreSQL 17 — 정상 운영 중" },
-  { id: "storage",  name: "파일 스토리지",    category: "인프라",  icon: "hard-drive",   status: "warning", latencyMs: 180,  uptimePct: 99.5,  lastChecked: new Date().toISOString(), note: "업로드 지연 감지 — 점검 중" },
-  { id: "pg",       name: "PG (결제)",        category: "외부",    icon: "credit-card",  status: "normal",  latencyMs: 65,   uptimePct: 99.95, lastChecked: new Date().toISOString(), note: "토스페이먼츠 — 정상" },
-  { id: "email",    name: "이메일 서비스",    category: "외부",    icon: "mail",         status: "normal",  latencyMs: 320,  uptimePct: 99.9,  lastChecked: new Date().toISOString(), note: "SendGrid — 정상 발송 중" },
-  { id: "push",     name: "푸시 알림",        category: "외부",    icon: "bell",         status: "normal",  latencyMs: 45,   uptimePct: 99.8,  lastChecked: new Date().toISOString(), note: "FCM/APNs — 정상" },
-  { id: "auth",     name: "인증 서버",        category: "인프라",  icon: "lock",         status: "normal",  latencyMs: 8,    uptimePct: 100,   lastChecked: new Date().toISOString(), note: "JWT/세션 정상 처리 중" },
-  { id: "cdn",      name: "CDN",              category: "인프라",  icon: "globe",        status: "normal",  latencyMs: 22,   uptimePct: 99.99, lastChecked: new Date().toISOString(), note: "Cloudflare — 전 리전 정상" },
-  { id: "sms_gw",   name: "SMS 게이트웨이",  category: "외부",    icon: "message-square", status: "warning", latencyMs: null, uptimePct: 97.2, lastChecked: new Date().toISOString(), note: "알림톡 연동 지연 — 자체 발송으로 전환" },
-  { id: "monitor",  name: "모니터링",         category: "내부",    icon: "activity",     status: "normal",  latencyMs: 5,    uptimePct: 100,   lastChecked: new Date().toISOString(), note: "Sentry/로그 수집 정상" },
-];
-
 const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
-  normal:  { label: "정상",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  normal:  { label: "정상",  color: C.brandStrong, bg: C.brandSoft, icon: "check-circle" },
   warning: { label: "주의",  color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:   { label: "장애",  color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
 };
@@ -63,7 +58,7 @@ const sb = StyleSheet.create({
   txt:   { fontSize: 11, fontFamily: "Pretendard-Regular" },
 });
 
-function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: string) => void }) {
+function ServiceCard({ item }: { item: ServiceItem }) {
   const cfg = STATUS_CFG[item.status];
   return (
     <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
@@ -84,45 +79,100 @@ function ServiceCard({ item, onToggle }: { item: ServiceItem; onToggle: (id: str
         </View>
         <View style={sc.metricItem}>
           <Text style={sc.metricLabel}>가동률</Text>
-          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : "#2EC4B6" }]}>
+          <Text style={[sc.metricVal, { color: item.uptimePct < 99 ? "#D96C6C" : C.brandStrong }]}>
             {item.uptimePct.toFixed(2)}%
           </Text>
         </View>
       </View>
       {item.note ? <Text style={sc.note}>{item.note}</Text> : null}
-      {item.status !== "normal" && (
-        <Pressable style={sc.fixBtn} onPress={() => onToggle(item.id)}>
-          <RefreshCw size={12} color={cfg.color} />
-          <Text style={[sc.fixTxt, { color: cfg.color }]}>정상으로 표시</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
 const sc = StyleSheet.create({
-  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:       { backgroundColor: "#fff", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   top:        { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   iconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  name:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  category:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   metrics:    { flexDirection: "row", gap: 16, marginBottom: 6 },
   metricItem: { gap: 2 },
-  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
-  fixBtn:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, padding: 6,
-                borderRadius: 6, backgroundColor: "#F1F5F9" },
-  fixTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
+  metricLabel:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  metricVal:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  note:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
+});
+
+function MemoryCard({ info }: { info: MemoryInfo }) {
+  const cfg = STATUS_CFG[info.status];
+  const pct = Math.min(info.rssPct, 100);
+  const barColor = info.status === "error" ? "#D96C6C" : info.status === "warning" ? "#D97706" : C.brandStrong;
+  const rssMB  = Math.round(info.rssBytes / (1024 * 1024));
+  const heapMB = Math.round(info.heapUsedBytes / (1024 * 1024));
+
+  return (
+    <View style={[sc.card, { borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
+      <View style={sc.top}>
+        <View style={[sc.iconWrap, { backgroundColor: cfg.bg }]}>
+          <LucideIcon name="cpu" size={16} color={cfg.color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={sc.name}>서버 메모리 (Render)</Text>
+          <Text style={sc.category}>서버</Text>
+        </View>
+        <View style={[sb.badge, { backgroundColor: cfg.bg }]}>
+          <LucideIcon name={cfg.icon} size={11} color={cfg.color} />
+          <Text style={[sb.txt, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+      </View>
+
+      {/* 게이지 바 */}
+      <View style={mem.track}>
+        <View style={[mem.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
+        <Text style={sc.note}>RSS {rssMB} MB  ·  힙 {heapMB} MB</Text>
+        <Text style={[sc.note, { color: cfg.color, fontFamily: "Pretendard-Regular" }]}>{pct.toFixed(1)}%</Text>
+      </View>
+      <Text style={[sc.note, { marginTop: 2 }]}>컨테이너 한도 2,048 MB  ·  주의 70% / 위험 85%</Text>
+    </View>
+  );
+}
+
+const mem = StyleSheet.create({
+  track: { height: 8, borderRadius: 4, backgroundColor: C.border, overflow: "hidden", marginTop: 8 },
+  fill:  { height: 8, borderRadius: 4 },
 });
 
 export default function SystemStatusScreen() {
   const insets = useSafeAreaInsets();
-  const { adminUser } = useAuth();
-  const actorName = adminUser?.name ?? "슈퍼관리자";
-  const createLog = useAuditLogStore(s => s.createLog);
+  const { token } = useAuth();
 
-  const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
+  const [services, setServices]     = useState<ServiceItem[]>([]);
+  const [memory, setMemory]         = useState<MemoryInfo | null>(null);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [checkedAt, setCheckedAt]   = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setFetchError(null);
+    try {
+      const res = await apiRequest(token, "/super/system-health");
+      const data = res instanceof Response ? await res.json() : res;
+      setServices(data.services ?? []);
+      setMemory(data.memory ?? null);
+      setCheckedAt(data.summary?.checkedAt ?? null);
+    } catch (e: any) {
+      setFetchError(e?.message ?? "헬스체크 요청 실패");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const normalCount  = useMemo(() => services.filter(s => s.status === "normal").length, [services]);
   const warningCount = useMemo(() => services.filter(s => s.status === "warning").length, [services]);
@@ -130,27 +180,6 @@ export default function SystemStatusScreen() {
 
   const overallStatus: ServiceStatus = errorCount > 0 ? "error" : warningCount > 0 ? "warning" : "normal";
   const overallCfg = STATUS_CFG[overallStatus];
-
-  function handleToggleNormal(id: string) {
-    const svc = services.find(s => s.id === id);
-    if (!svc) return;
-    setServices(prev => prev.map(s => s.id === id ? { ...s, status: "normal", lastChecked: new Date().toISOString() } : s));
-    createLog({
-      category: "시스템상태",
-      title: `${svc.name} 상태 정상으로 변경`,
-      actorName,
-      impact: "medium",
-      detail: `이전 상태: ${svc.status}`,
-    });
-  }
-
-  function handleRefresh() {
-    setRefreshing(true);
-    setTimeout(() => {
-      setServices(prev => prev.map(s => ({ ...s, lastChecked: new Date().toISOString() })));
-      setRefreshing(false);
-    }, 800);
-  }
 
   const categorized = useMemo(() => {
     const map: Record<string, ServiceItem[]> = {};
@@ -161,44 +190,78 @@ export default function SystemStatusScreen() {
     return map;
   }, [services]);
 
+  const checkedAtStr = useMemo(() => {
+    if (!checkedAt) return null;
+    return new Date(checkedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }, [checkedAt]);
+
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="시스템 상태" homePath="/(super)/more" />
+      <SubScreenHeader title="시스템 상태" homePath="/(super)/dashboard" />
 
       {/* 전체 상태 배너 */}
-      <View style={[s.overallBanner, { backgroundColor: overallCfg.bg }]}>
-        <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
+      <View style={[s.overallBanner, { backgroundColor: loading ? C.backgroundSoft : overallCfg.bg }]}>
+        {loading
+          ? <ActivityIndicator size="small" color={P} />
+          : <LucideIcon name={overallCfg.icon} size={20} color={overallCfg.color} />
+        }
         <View style={{ flex: 1 }}>
-          <Text style={[s.overallTitle, { color: overallCfg.color }]}>
-            {overallStatus === "normal" ? "모든 시스템 정상" : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
+          <Text style={[s.overallTitle, { color: loading ? C.textMuted : overallCfg.color }]}>
+            {loading
+              ? "점검 중..."
+              : fetchError
+                ? "헬스체크 실패"
+                : overallStatus === "normal" ? "모든 시스템 정상"
+                  : overallStatus === "warning" ? "일부 서비스 주의 필요" : "장애 감지됨"}
           </Text>
-          <Text style={[s.overallSub, { color: overallCfg.color }]}>
-            정상 {normalCount} · 주의 {warningCount} · 장애 {errorCount}
+          <Text style={[s.overallSub, { color: loading ? C.textMuted : overallCfg.color }]}>
+            {loading
+              ? "서버에서 실측 중..."
+              : fetchError
+                ? fetchError
+                : `정상 ${normalCount} · 주의 ${warningCount} · 장애 ${errorCount}${checkedAtStr ? `  ·  ${checkedAtStr} 기준` : ""}`}
           </Text>
         </View>
-        <Pressable style={s.refreshBtn} onPress={handleRefresh}>
-          <RefreshCw size={14} color={overallCfg.color} />
+        <Pressable style={s.refreshBtn} onPress={() => load(true)} disabled={loading || refreshing}>
+          <LucideIcon name="refresh-cw" size={14} color={loading ? C.textMuted : overallCfg.color} />
         </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={P} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={P} />}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
-        {Object.entries(categorized).map(([category, items]) => (
-          <View key={category} style={{ gap: 8 }}>
-            <Text style={s.categoryTitle}>{category}</Text>
-            {items.map(item => (
-              <ServiceCard key={item.id} item={item} onToggle={handleToggleNormal} />
-            ))}
+        {loading && services.length === 0 ? (
+          <View style={s.loadingBox}>
+            <ActivityIndicator color={P} />
+            <Text style={s.loadingTxt}>각 서비스 실측 중...</Text>
           </View>
-        ))}
+        ) : (
+          <>
+            {/* 서버 메모리 게이지 */}
+            {memory && (
+              <View style={{ gap: 8 }}>
+                <Text style={s.categoryTitle}>서버</Text>
+                <MemoryCard info={memory} />
+              </View>
+            )}
+
+            {Object.entries(categorized).map(([category, items]) => (
+              <View key={category} style={{ gap: 8 }}>
+                <Text style={s.categoryTitle}>{category}</Text>
+                {items.map(item => (
+                  <ServiceCard key={item.id} item={item} />
+                ))}
+              </View>
+            ))}
+          </>
+        )}
 
         <View style={s.noteBox}>
-          <Info size={12} color="#64748B" />
+          <LucideIcon name="info" size={12} color={C.textSecondary} />
           <Text style={s.noteTxt}>
-            서비스 상태는 1분 단위로 자동 점검됩니다. 이상 감지 시 슈퍼관리자에게 푸시 알림이 발송됩니다.
+            이 화면을 열거나 새로고침할 때 각 서비스에 실시간으로 연결해 상태를 확인합니다.
           </Text>
         </View>
       </ScrollView>
@@ -207,14 +270,16 @@ export default function SystemStatusScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:           { flex: 1, backgroundColor: C.backgroundSoft },
   overallBanner:  { flexDirection: "row", alignItems: "center", gap: 12, padding: 16, margin: 16,
                     borderRadius: 14 },
   overallTitle:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
   overallSub:     { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   refreshBtn:     { padding: 6 },
-  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", textTransform: "uppercase", marginTop: 4 },
+  categoryTitle:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, textTransform: "uppercase", marginTop: 4 },
   noteBox:        { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#FFFFFF",
                     borderRadius: 8, padding: 10 },
-  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  noteTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
+  loadingBox:     { alignItems: "center", gap: 10, paddingVertical: 40 },
+  loadingTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+import { useRole } from "@/context/auth/RoleContext";
 import { addTabResetListener } from "@/utils/tabReset";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
@@ -42,6 +43,7 @@ type ViewMode = "monthly" | "weekly" | "daily";
 export default function MyScheduleScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
+  const { isSwitchingRole } = useRole();
   const params = useLocalSearchParams<{ openDate?: string }>();
   const selfTeacher = adminUser ? { id: adminUser.id, name: adminUser.name || "나" } : undefined;
   const poolId = (adminUser as any)?.swimming_pool_id || "";
@@ -92,7 +94,7 @@ export default function MyScheduleScreen() {
     refreshing, setRefreshing,
     todayAttMap, todayDiarySet,
     load,
-  } = useMyScheduleData(token);
+  } = useMyScheduleData(token, isSwitchingRole);
 
   const {
     dayViewAttState, setDayViewAttState,
@@ -316,7 +318,7 @@ export default function MyScheduleScreen() {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
         <SubScreenHeader title="스케줄러" homePath="/(teacher)/today-schedule" />
-        <ActivityIndicator color={C.tint} style={{ marginTop: 80 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
   }
@@ -344,15 +346,15 @@ export default function MyScheduleScreen() {
             </Pressable>
           } />
         <View style={s.subHeader}>
-          <Pressable style={[s.subActionBtn, { backgroundColor: C.tintLight, flex: 1 }]}
+          <Pressable style={[s.subActionBtn, { backgroundColor: C.brandMist, flex: 1 }]}
             onPress={() => router.push(`/class-assign?classId=${g.id}` as any)}>
-            <Users size={13} color={C.tint} />
-            <Text style={[s.subActionText, { color: C.tint }]}>반배정</Text>
+            <Users size={13} color={C.brandStrong} />
+            <Text style={[s.subActionText, { color: C.brandStrong }]}>반배정</Text>
           </Pressable>
-          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? "#E6FFFA" : "#FFF1BF", flex: 1 }]}
-            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, backTo:"my-schedule"} } as any)}>
-            <Pencil size={13} color={diarDone ? "#2EC4B6" : "#D97706"} />
-            <Text style={[s.subActionText, { color: diarDone ? "#2EC4B6" : "#D97706" }]}>수업일지</Text>
+          <Pressable style={[s.subActionBtn, { backgroundColor: diarDone ? C.brandMist : "#FFF1BF", flex: 1 }]}
+            onPress={() => router.push({ pathname:"/(teacher)/diary", params:{classGroupId: g.id, className: g.name, lessonDate: todayDateStr(), backTo:"my-schedule"} } as any)}>
+            <Pencil size={13} color={diarDone ? C.brandStrong : "#D97706"} />
+            <Text style={[s.subActionText, { color: diarDone ? C.brandStrong : "#D97706" }]}>수업일지</Text>
           </Pressable>
         </View>
 
@@ -393,7 +395,11 @@ export default function MyScheduleScreen() {
 
             return (
               <View style={[s.studentRow, { backgroundColor: C.card }]}>
-                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {/* 학생 이름/정보 영역 tap → Student Detail */}
+                <Pressable
+                  style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}
+                  onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
+                >
                   {isAbsent && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#D96C6C" }} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[s.studentName,
@@ -401,16 +407,17 @@ export default function MyScheduleScreen() {
                     ]}>{item.name}</Text>
                     <Text style={s.studentSub}>주 {item.weekly_count || 1}회</Text>
                   </View>
-                </View>
+                  <ChevronRight size={14} color={C.textMuted} style={{ marginRight: 4 }} />
+                </Pressable>
 
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   <Pressable
                     disabled={saving}
-                    style={[s.stBtn, isPresent && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" }]}
+                    style={[s.stBtn, isPresent && { backgroundColor: C.brandSoft, borderColor: C.brandStrong }]}
                     onPress={() => markDayAtt(item.id, "present")}>
                     {saving && !isPresent
-                      ? <ActivityIndicator size="small" color="#2EC4B6" style={{ width: 20 }} />
-                      : <Text style={[s.stBtnTxt, { color: isPresent ? "#2EC4B6" : C.textMuted }]}>출석</Text>}
+                      ? <ActivityIndicator size="small" color={C.brandStrong} style={{ width: 20 }} />
+                      : <Text style={[s.stBtnTxt, { color: isPresent ? C.brandStrong : C.textMuted }]}>출석</Text>}
                   </Pressable>
                   <Pressable
                     disabled={saving}
@@ -425,17 +432,12 @@ export default function MyScheduleScreen() {
                     <Text style={[s.stBtnTxt, { color: C.textSecondary }]}>반이동</Text>
                   </Pressable>
                 </View>
-
-                <Pressable onPress={() => router.push({ pathname:"/(teacher)/student-detail", params:{id: item.id, backTo:"my-schedule"} } as any)}
-                  style={{ padding: 4 }}>
-                  <ChevronRight size={16} color={C.textMuted} />
-                </Pressable>
               </View>
             );
           }}
         />
 
-        <Modal visible={showMoveSheet} transparent animationType="slide"
+        <Modal visible={showMoveSheet} transparent animationType="slide" statusBarTranslucent
           onRequestClose={() => { setShowMoveSheet(false); setMoveStudent(null); }}>
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
             onPress={() => { setShowMoveSheet(false); setMoveStudent(null); }} />
@@ -459,7 +461,7 @@ export default function MyScheduleScreen() {
                   <Text style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{og.schedule_days} · {og.schedule_time}</Text>
                 </View>
                 {moveSheetSaving
-                  ? <ActivityIndicator size="small" color={C.tint} />
+                  ? <ActivityIndicator size="small" color={C.brandStrong} />
                   : <ChevronRight size={16} color={C.textMuted} />}
               </Pressable>
             ))}
@@ -504,11 +506,11 @@ export default function MyScheduleScreen() {
                   <SquareCheck size={13} color={C.textSecondary} />
                   <Text style={[s.selBtnText, { color: C.textSecondary }]}>선택</Text>
                 </Pressable>
-                <Pressable style={[s.mgmtBtn, { borderColor: C.tint }]} onPress={() => setShowManagement(true)}>
-                  <Users size={13} color={C.tint} />
-                  <Text style={[s.mgmtBtnText, { color: C.tint }]}>수강생관리</Text>
+                <Pressable style={[s.mgmtBtn, { borderColor: C.brandStrong }]} onPress={() => setShowManagement(true)}>
+                  <Users size={13} color={C.brandStrong} />
+                  <Text style={[s.mgmtBtnText, { color: C.brandStrong }]}>수강생관리</Text>
                 </Pressable>
-                <Pressable style={[s.createBtn, { backgroundColor: C.button }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
+                <Pressable style={[s.createBtn, { backgroundColor: C.primaryAction }]} onPress={() => { setCreateInitialDays([]); setCreateInitialStep(1); setShowCreate(true); }}>
                   <Plus size={14} color="#fff" />
                   <Text style={s.createBtnText}>반 등록</Text>
                 </Pressable>
@@ -524,17 +526,17 @@ export default function MyScheduleScreen() {
               const isActive = viewMode === mode;
               return (
                 <Pressable key={mode}
-                  style={[s.toggleBtn, isActive && { backgroundColor: C.tint, borderColor: C.tint }]}
+                  style={[s.toggleBtn, isActive && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
                   onPress={() => { setViewMode(mode); setSelectionMode(false); setSelectedIds(new Set()); setSelectedDates(new Set()); if (mode !== "monthly") setSelectedDate(null); }}>
                   <Text style={[s.toggleText, isActive && { color: "#fff" }]}>{labels[mode]}</Text>
                 </Pressable>
               );
             })}
           </View>
-          <Pressable style={[s.diaryIndexBtn, { borderColor: C.tint, backgroundColor: C.tintLight }]}
+          <Pressable style={[s.diaryIndexBtn, { borderColor: C.brandStrong, backgroundColor: C.brandMist }]}
             onPress={() => router.push("/(teacher)/diary-index?backTo=my-schedule" as any)}>
-            <BookOpen size={13} color={C.tint} />
-            <Text style={[s.diaryIndexBtnText, { color: C.tint }]}>수업 일지</Text>
+            <BookOpen size={13} color={C.brandStrong} />
+            <Text style={[s.diaryIndexBtnText, { color: C.brandStrong }]}>수업 일지</Text>
           </Pressable>
         </View>
       </View>
@@ -635,6 +637,8 @@ export default function MyScheduleScreen() {
             setGroups(prev => prev.map(g => g.id === id ? { ...g, capacity } : g))
           }
           studentsByDate={selectedDate ? (detailStudentsByDate ?? undefined) : undefined}
+          studentListMode={selectedDate ? "historical" : "current"}
+          classGroupsLoadState="loaded"
           onStudentsChanged={reloadDetailStudents}
         />
       )}
@@ -697,7 +701,7 @@ export default function MyScheduleScreen() {
 
 const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
-  titleArea:    { backgroundColor: C.card, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB",
+  titleArea:    { backgroundColor: C.card, borderBottomWidth: 0.5, borderBottomColor: C.border,
                   paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:     { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   title:        { fontSize: 19, fontFamily: "Pretendard-Regular", color: C.text },
@@ -711,12 +715,12 @@ const s = StyleSheet.create({
   createBtnText:{ color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   controlRow:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   viewToggle:   { flexDirection: "row", gap: 5 },
-  toggleBtn:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#E5E7EB", backgroundColor: C.card },
+  toggleBtn:    { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
   toggleText:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   diaryIndexBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   diaryIndexBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   subHeader:    { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12,
-                  backgroundColor: C.background, borderBottomWidth: 0.5, borderBottomColor: "#E5E7EB" },
+                  backgroundColor: C.background, borderBottomWidth: 0.5, borderBottomColor: C.border },
   subActionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                   gap: 5, paddingVertical: 9, borderRadius: 10 },
   subActionText:{ fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -726,10 +730,10 @@ const s = StyleSheet.create({
   studentName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   studentSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   stBtn:        { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8,
-                  backgroundColor: "#F8FAFC", borderWidth: 1, borderColor: "#E2DDD9" },
+                  backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: "#E2DDD9" },
   stBtnTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
   emptyBox:     { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
   emptyHintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

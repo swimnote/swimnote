@@ -2,8 +2,8 @@
  * (admin)/recovery.tsx — 백업·복구
  * 스냅샷 목록 보기 → 시점 선택 → 영향 범위 확인 → 복구 실행
  */
-import { Activity, Archive, CircleAlert, CircleCheck, Clock, GitBranch, Info, RotateCcw, Save, Trash2, TriangleAlert, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Activity, Archive, CircleCheck, Clock, Info, Save, Trash2 } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -48,14 +48,14 @@ function fmtSize(mb: number) {
 }
 
 const TYPE_CFG: Record<string, { color: string; bg: string; label: string; icon: string }> = {
-  auto:           { color: "#2EC4B6", bg: "#E6FFFA", label: "자동",    icon: "clock"      },
-  manual:         { color: "#2EC4B6", bg: "#E6FFFA", label: "수동",    icon: "save"       },
+  auto:           { color: C.brandStrong, bg: C.brandSoft, label: "자동",    icon: "clock"      },
+  manual:         { color: C.brandStrong, bg: C.brandSoft, label: "수동",    icon: "save"       },
   before_restore: { color: "#D97706", bg: "#FFF1BF", label: "복구 전", icon: "rotate-ccw" },
   before_delete:  { color: "#D96C6C", bg: "#F9DEDA", label: "삭제 전", icon: "alert-triangle" },
 };
 
 function snapTypeChip(snap: BackupSnapshot) {
-  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: "#64748B", bg: "#FFFFFF", label: "기타", icon: "archive" };
+  return TYPE_CFG[snap.snapshotType ?? "manual"] ?? { color: C.textSecondary, bg: "#FFFFFF", label: "기타", icon: "archive" };
 }
 
 // ── 스냅샷 삭제 확인 모달 (2단계) ────────────────────────────────
@@ -92,9 +92,9 @@ function SnapshotDeleteModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <Trash2 size={20} color="#D96C6C" />
+          <LucideIcon name="trash-2" size={20} color="#D96C6C" />
           <Text style={rm.title}>스냅샷 삭제</Text>
-          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+          <LucideIcon name="x" size={20} color={C.textSecondary} />
         </View>
 
         <View style={[rm.targetBox, { backgroundColor: "#F9DEDA" }]}>
@@ -109,7 +109,7 @@ function SnapshotDeleteModal({
         {step === 1 ? (
           <>
             <View style={[rm.checkRow, { backgroundColor: "#FEF2F2" }]}>
-              <TriangleAlert size={14} color="#D96C6C" />
+              <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
               <Text style={[rm.checkTxt, { color: "#991B1B" }]}>
                 데이터 유지를 위하여 백업 데이터를 삭제할 경우 이전 데이터는 영원히 복구할 수 없습니다.
               </Text>
@@ -119,14 +119,14 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable style={[rm.btn, { backgroundColor: "#F9DEDA", flex: 1.5 }]} onPress={() => setStep(2)}>
-                <Trash2 size={14} color="#D96C6C" />
+                <LucideIcon name="trash-2" size={14} color="#D96C6C" />
                 <Text style={[rm.btnTxt, { color: "#D96C6C" }]}>계속 (2/2)</Text>
               </Pressable>
             </View>
           </>
         ) : (
           <>
-            <View style={[rm.checkRow, { backgroundColor: "#F1F5F9" }]}>
+            <View style={[rm.checkRow, { backgroundColor: C.backgroundSoft }]}>
               <Switch value={confirmed} onValueChange={setConfirmed} />
               <Text style={rm.checkTxt}>
                 이 스냅샷이 영구 삭제됨을 이해했으며, 삭제 이후 이전 데이터 복구가 불가능함을 확인합니다.
@@ -137,11 +137,11 @@ function SnapshotDeleteModal({
                 <Text style={[rm.btnTxt, { color: C.textSecondary }]}>뒤로</Text>
               </Pressable>
               <Pressable
-                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : "#64748B", flex: 1.5 }]}
+                style={[rm.btn, { backgroundColor: confirmed ? "#D96C6C" : C.textSecondary, flex: 1.5 }]}
                 onPress={execDelete}
                 disabled={!confirmed}
               >
-                <Trash2 size={14} color="#fff" />
+                <LucideIcon name="trash-2" size={14} color="#fff" />
                 <Text style={[rm.btnTxt, { color: "#fff" }]}>영구 삭제</Text>
               </Pressable>
             </View>
@@ -200,30 +200,30 @@ function SnapshotCard({
             ))}
           </View>
           <View style={s.excludeBox}>
-            <CircleAlert size={12} color="#D97706" />
+            <LucideIcon name="alert-circle" size={12} color="#D97706" />
             <Text style={s.excludeTxt}>사진·영상 원본 복구 미보장</Text>
           </View>
           {/* 액션 버튼: 복구 / 비교 / 삭제 */}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: C.button, flex: 1 }]}
+              style={[s.restoreBtn, { backgroundColor: C.primaryAction, flex: 1 }]}
               onPress={() => onRestore(snap)}
             >
-              <RotateCcw size={14} color="#fff" />
+              <LucideIcon name="rotate-ccw" size={14} color="#fff" />
               <Text style={s.restoreBtnTxt}>이 시점으로 복구</Text>
             </Pressable>
             <Pressable
-              style={[s.restoreBtn, { backgroundColor: "#E6FFFA", flex: 0.65 }]}
+              style={[s.restoreBtn, { backgroundColor: C.brandSoft, flex: 0.65 }]}
               onPress={handleCompare}
             >
-              <GitBranch size={14} color="#2EC4B6" />
-              <Text style={[s.restoreBtnTxt, { color: "#2EC4B6" }]}>비교</Text>
+              <LucideIcon name="git-branch" size={14} color={C.brandStrong} />
+              <Text style={[s.restoreBtnTxt, { color: C.brandStrong }]}>비교</Text>
             </Pressable>
             <Pressable
               style={[s.restoreBtn, { backgroundColor: "#F9DEDA", flex: 0.55 }]}
               onPress={() => onDelete(snap)}
             >
-              <Trash2 size={14} color="#D96C6C" />
+              <LucideIcon name="trash-2" size={14} color="#D96C6C" />
               <Text style={[s.restoreBtnTxt, { color: "#D96C6C" }]}>삭제</Text>
             </Pressable>
           </View>
@@ -292,9 +292,9 @@ function RestoreModal({
       <Pressable style={rm.backdrop} onPress={onClose} />
       <View style={rm.sheet}>
         <View style={rm.header}>
-          <TriangleAlert size={20} color="#D96C6C" />
+          <LucideIcon name="alert-triangle" size={20} color="#D96C6C" />
           <Text style={rm.title}>복구 실행 확인</Text>
-          <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+          <LucideIcon name="x" size={20} color={C.textSecondary} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
@@ -322,7 +322,7 @@ function RestoreModal({
 
           {/* 전체 복구 안내 */}
           <View style={[rm.policyBox, { marginTop: 10 }]}>
-            <CircleAlert size={13} color="#D97706" />
+            <LucideIcon name="alert-circle" size={13} color="#D97706" />
             <Text style={rm.policyTxt}>
               전체 시점 복구만 허용됩니다. 부분 복구(항목별 선택 복구)는 지원하지 않습니다.
             </Text>
@@ -330,7 +330,7 @@ function RestoreModal({
 
           {/* 덮어쓰기 경고 */}
           <View style={[rm.overwriteBox, { marginTop: 8 }]}>
-            <TriangleAlert size={13} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={13} color="#D96C6C" />
             <Text style={rm.overwriteTxt}>
               복구 실행 시 현재 데이터가 모두 이 시점으로 덮어쓰여집니다. 이 시점 이후 입력·수정된 데이터는 복구되지 않습니다.
             </Text>
@@ -340,7 +340,7 @@ function RestoreModal({
           <Text style={[rm.sectionTitle, { marginTop: 12 }]}>복구 대상 데이터 종류</Text>
           {AFFECTED_ITEMS.map(item => (
             <View key={item.label} style={rm.affectedRow}>
-              <LucideIcon name={item.icon} size={13} color="#2EC4B6" />
+              <LucideIcon name={item.icon} size={13} color={C.brandStrong} />
               <View style={{ flex: 1 }}>
                 <Text style={rm.affectedLabel}>{item.label}</Text>
                 <Text style={rm.affectedDetail}>{item.detail}</Text>
@@ -380,14 +380,14 @@ function RestoreModal({
             <Text style={[rm.btnTxt, { color: C.textSecondary }]}>취소</Text>
           </Pressable>
           <Pressable
-            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : "#64748B", flex: 1.5 }]}
+            style={[rm.btn, { backgroundColor: check1 && check2 ? "#D96C6C" : C.textSecondary, flex: 1.5 }]}
             onPress={execRestore}
             disabled={running || !check1 || !check2}
           >
             {running
               ? <ActivityIndicator color="#fff" size="small" />
               : <>
-                  <RotateCcw size={14} color="#fff" />
+                  <LucideIcon name="rotate-ccw" size={14} color="#fff" />
                   <Text style={[rm.btnTxt, { color: "#fff" }]}>복구 실행</Text>
                 </>
             }
@@ -459,11 +459,11 @@ export default function RecoveryScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 상태 요약 */}
-        <View style={[s.statusCard, { backgroundColor: latestSnap ? "#E6FFFA" : "#F9DEDA" }]}>
+        <View style={[s.statusCard, { backgroundColor: latestSnap ? C.brandSoft : "#F9DEDA" }]}>
           <LucideIcon name={latestSnap ? "shield" : "alert-circle"} size={18}
-            color={latestSnap ? "#2EC4B6" : "#D96C6C"} />
+            color={latestSnap ? C.brandStrong : "#D96C6C"} />
           <View style={{ flex: 1 }}>
-            <Text style={[s.statusTitle, { color: latestSnap ? "#2EC4B6" : "#D96C6C" }]}>
+            <Text style={[s.statusTitle, { color: latestSnap ? C.brandStrong : "#D96C6C" }]}>
               {latestSnap ? "최근 백업 있음" : "백업 없음"}
             </Text>
             {latestSnap && (
@@ -471,7 +471,7 @@ export default function RecoveryScreen() {
             )}
           </View>
           <Pressable
-            style={[s.manualBtn, { backgroundColor: creating ? "#E6FFFA" : C.tint }]}
+            style={[s.manualBtn, { backgroundColor: creating ? C.textStrong : C.primaryAction }]}
             onPress={handleManualSnapshot}
             disabled={creating}
           >
@@ -488,7 +488,7 @@ export default function RecoveryScreen() {
         {/* 자동 백업 정책 안내 */}
         <View style={[s.autoBackupBox, { backgroundColor: "#DFF3EC" }]}>
           <View style={s.autoBackupRow}>
-            <Clock size={14} color="#2EC4B6" />
+            <Clock size={14} color={C.brandStrong} />
             <Text style={s.autoBackupTitle}>자동 백업 정책</Text>
           </View>
           <Text style={s.autoBackupLine}>• 자동 백업 주기: <Text style={{ fontFamily: "Pretendard-Regular" }}>1시간</Text></Text>
@@ -509,7 +509,7 @@ export default function RecoveryScreen() {
         {/* 복구 완료 배너 */}
         {doneSnap && (
           <View style={s.doneBanner}>
-            <CircleCheck size={14} color="#2EC4B6" />
+            <CircleCheck size={14} color={C.brandStrong} />
             <Text style={s.doneTxt}>복구가 실행 중입니다. 완료 후 화면을 새로고침하세요.</Text>
           </View>
         )}
@@ -523,7 +523,7 @@ export default function RecoveryScreen() {
         )}
 
         {/* 복구 원칙 안내 */}
-        <View style={[s.infoBox, { backgroundColor: "#E6FFFA" }]}>
+        <View style={[s.infoBox, { backgroundColor: C.brandSoft }]}>
           <Text style={s.infoTitle}>복구 데이터 정책</Text>
           <Text style={s.infoLine}>• 회원 정보·승인 상태·반/수업 설정·출결·일지 텍스트·설정값 복구 가능</Text>
           <Text style={s.infoLine}>• 사진·영상 원본 복구는 보장되지 않습니다</Text>
@@ -549,10 +549,10 @@ export default function RecoveryScreen() {
             {myJobs.slice(0, 3).map(job => (
               <View key={job.id} style={[s.jobRow, { backgroundColor: C.card }]}>
                 <View style={[s.jobStatus, {
-                  backgroundColor: job.status === "done" ? "#E6FFFA" : job.status === "running" ? "#E6FFFA" : "#FFF1BF",
+                  backgroundColor: job.status === "done" ? C.brandSoft : job.status === "running" ? C.brandSoft : "#FFF1BF",
                 }]}>
                   <Text style={[s.jobStatusTxt, {
-                    color: job.status === "done" ? "#2EC4B6" : job.status === "running" ? "#2EC4B6" : "#D97706",
+                    color: job.status === "done" ? C.brandStrong : job.status === "running" ? C.brandStrong : "#D97706",
                   }]}>{job.status === "done" ? "완료" : job.status === "running" ? "실행 중" : "대기"}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
@@ -585,7 +585,7 @@ export default function RecoveryScreen() {
             <Text style={s.sectionTitle}>최근 이벤트 로그</Text>
             {eventLogs.map(log => (
               <View key={log.id} style={[s.logRow, { backgroundColor: C.card }]}>
-                <Activity size={13} color={C.tint} />
+                <Activity size={13} color={C.brandStrong} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.logSummary} numberOfLines={1}>{log.summary}</Text>
                   <Text style={s.logMeta}>{fmtDateTime(log.createdAt)} · {log.actorName}</Text>
@@ -629,25 +629,25 @@ const s = StyleSheet.create({
 
   statusCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14 },
   statusTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginTop: 2 },
+  statusSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginTop: 2 },
   manualBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12,
                   paddingVertical: 8, borderRadius: 10 },
   manualBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   doneBanner:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 12,
-                  backgroundColor: "#E6FFFA", borderRadius: 12 },
+                  backgroundColor: C.brandSoft, borderRadius: 12 },
   doneTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#065F46", flex: 1 },
 
   infoBox:      { borderRadius: 12, padding: 14, gap: 4, flexDirection: "row" },
-  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
-  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  infoTitle:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  infoLine:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
 
   section:      { gap: 8 },
   sectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   autoBackupBox:  { marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, gap: 4 },
   autoBackupRow:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  autoBackupTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   autoBackupLine: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#166534", lineHeight: 18 },
 
   snapCard:     { backgroundColor: C.card, borderRadius: 14, overflow: "hidden" },
@@ -666,8 +666,8 @@ const s = StyleSheet.create({
   snapBody:     { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   includesTitle:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   tagsRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tag:          { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  tag:          { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  tagTxt:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   excludeBox:   { flexDirection: "row", alignItems: "center", gap: 6,
                   backgroundColor: "#FFF1BF", padding: 8, borderRadius: 8 },
   excludeTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E" },
@@ -702,7 +702,7 @@ const rm = StyleSheet.create({
   targetTime:   { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   targetNote:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B" },
 
-  previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", padding: 14, gap: 8 },
+  previewBox:   { backgroundColor: "#FFFFFF", borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, gap: 8 },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   previewKey:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flexShrink: 0 },
   previewVal:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "right", flex: 1 },
@@ -715,12 +715,12 @@ const rm = StyleSheet.create({
 
   sectionTitle: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
   affectedRow:  { flexDirection: "row", gap: 10, paddingVertical: 6,
-                  borderLeftWidth: 2, borderLeftColor: "#E6FFFA", paddingLeft: 10 },
+                  borderLeftWidth: 2, borderLeftColor: C.brandSoft, paddingLeft: 10 },
   affectedLabel:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
   affectedDetail:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 16 },
 
   checkRow:     { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4,
-                  backgroundColor: "#F1F5F9", borderRadius: 10, padding: 10 },
+                  backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 10 },
   checkTxt:     { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text, lineHeight: 18 },
 
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 6 },

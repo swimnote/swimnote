@@ -1,0 +1,169 @@
+[OTA 배포 승인 — Story Adaptive Collage Aspect Ratio 적용]
+
+현재 commit:
+1e3b2c4c
+
+Branch:
+deploy-photo-clone
+
+클라이언트 전용 변경이므로
+instagram-test OTA 배포 승인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion:
+1.6.2
+
+channel:
+instagram-test
+
+commit:
+1e3b2c4c
+
+Production channel 배포 금지.
+Production runtime 1.6.1 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. META_APP_ID 주입
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 OTA에서 META_APP_ID 누락 문제가 있었으므로
+반드시 성공했던 방식 유지.
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+shell env 직접 주입
+
++
+
+--environment preview
+
+병행.
+
+OTA 명령 전체를 완료 보고에 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 변경 범위 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일:
+
+- StoryPageRenderer.tsx
+- home.tsx
+
+변경 내용:
+
+- StoryPhoto width/height/aspectRatio 추가
+- Image.getSize 기반 실제 비율 확보
+- 5~10장 Adaptive Template 선택
+- crop penalty 기반 Template 결정
+- 10장 5×2 균등 grid 제거
+
+변경 없음:
+
+- Share.shareSingle
+- captureRef
+- Story Summary API
+- Prompt
+- Branding
+- 날짜
+- Footer
+- DB
+- Server
+- Native
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. OTA 후 실기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요:
+
+현재 문제를 일으켰던
+동일한 10장 사진으로 다시 테스트.
+
+CASE 1 — 기존 4장
+
+확인:
+- 기존 V3 2×2 그대로
+- 사진 크기/구도 회귀 없음
+- 한줄평/branding 정상
+
+CASE 2 — 문제됐던 10장
+
+확인:
+- 10장 모두 실제 표시
+- +N 없음
+- 기존 5×2 세로 띠 현상 없음
+- 가로사진이 넓은 셀에 자연스럽게 표시
+- 세로사진이 과도하게 잘리지 않음
+- 각 사진이 무엇인지 식별 가능
+- 전체 콜라주가 정돈되어 보임
+
+CASE 3 — 혼합 비율
+
+가로/세로/정사각 혼합 사진에서:
+
+- template 자동 선택 정상
+- 사진 누락 없음
+- 중복 없음
+- 순서 유지
+- 과도한 crop 없음
+
+CASE 4 — getSize 실패
+
+한 장의 size 조회가 실패해도:
+- 전체 Story 생성
+- fallback AR=1 적용
+- 앱 crash 없음
+
+CASE 5 — Instagram 공유
+
+- Story 생성
+- Instagram Composer 정상 진입
+- 공유 로직 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 디자인 성공 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정의 성공 기준은
+"10장을 다 넣었다"가 아니다.
+
+다음이 핵심:
+
+- 사진 하나하나가 알아볼 수 있어야 함
+- 가로사진이 세로 띠처럼 잘리지 않아야 함
+- 세로사진이 납작하게 잘리지 않아야 함
+- 전체가 하나의 세련된 photo collage처럼 보여야 함
+- 초등학생 사진 모음판처럼 보이면 실패
+
+비대칭 크기는 허용.
+사진 크기가 서로 달라도 정상.
+
+원본 비율 보존이 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. OTA Group ID
+2. iOS Update ID
+3. Android Update ID
+4. runtimeVersion
+5. channel
+6. commit SHA
+7. META_APP_ID 주입 방식
+8. Production 1.6.1 영향
+9. Server 변경
+10. DB 변경
+11. Native 변경
+12. 실기기 4장 결과
+13. 실기기 10장 결과
+14. 실제 선택된 Template
+15. 10장 각 photo aspectRatio
+16. crop 개선 여부
+17. Instagram Composer 진입 여부
+
+배포 후 추가 수정 없이 멈춘다.

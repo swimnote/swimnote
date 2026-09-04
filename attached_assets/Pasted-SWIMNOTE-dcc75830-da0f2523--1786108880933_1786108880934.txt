@@ -1,0 +1,297 @@
+SWIMNOTE 보강 회귀 복구 — 최소 복구 구현 승인
+
+최종 조사 결과 확인 완료.
+
+dcc75830 정상 버전과 현재 da0f2523의 실제 차이를 기준으로
+회귀가 확인된 부분만 최소 복구한다.
+
+새 기능 추가 금지.
+전체 파일 rollback 금지.
+dcc75830 checkout/revert 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 파일은 정확히 2개.
+
+1.
+artifacts/api-server/src/routes/teachers.ts
+
+수정 지점 A:
+waiting list ownership filter 삭제
+
+현재 존재하는 아래 ownership 제한 블록 전체 제거:
+
+AND (
+  ms.handed_to_teacher_id = '${userId}'
+  OR (
+    ms.handed_to_teacher_id IS NULL
+    AND (
+      ms.original_teacher_id = '${userId}'
+      OR EXISTS (
+        SELECT 1 FROM class_groups cg
+        WHERE cg.id = ms.original_class_group_id
+          AND cg.co_teacher_ids @> to_jsonb('${userId}'::text)
+      )
+    )
+  )
+)
+
+복구 후 dcc75830 정상 구조:
+
+WHERE ms.swimming_pool_id = '${poolId}'
+  ${statusClause}
+  AND ms.cancelled_at IS NULL
+ORDER BY ms.absence_date ASC, ms.created_at ASC
+
+목적:
+
+- 다른 반에서 발생한 이월 보강도 waiting 목록에 다시 노출
+- expired/carryover 누락 회귀 복구
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 지점 C:
+eligible-occurrences class lookup의 is_one_time 제한 제거
+
+현재:
+
+AND cg.is_deleted = false
+AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+
+변경:
+
+AND cg.is_deleted = false
+
+즉 다음 한 줄만 제거:
+
+AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+
+목적:
+
+선택된 class_group이 is_one_time=true인 경우에도
+eligible-occurrences 조회가 CLASS_NOT_FOUND 404로 실패하지 않도록
+dcc75830 정상 동작 복구.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. eligible-classes는 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요.
+
+GET /teacher/makeups/eligible-classes의
+
+AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+
+조건은 유지한다.
+
+이유:
+
+dcc75830 정상 버전에도 동일하게 존재함.
+
+이번 회귀 원인이 아니므로 삭제 금지.
+
+또한 현재 적용된 정원초과 허용 기능:
+
+HAVING 정원 조건 삭제
+
+는 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. teacher makeups.tsx 기간 지난 보강 구분선 복원
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+dcc75830 정상 버전의 waiting 렌더 구조 중
+expired separator 기능만 복원한다.
+
+복원:
+
+const firstExpiredIdx = sorted.findIndex(mk => mk.is_expired);
+const expiredCount =
+  firstExpiredIdx >= 0 ? sorted.length - firstExpiredIdx : 0;
+
+각 map에서:
+
+const showSeparator =
+  firstExpiredIdx >= 0 && idx === firstExpiredIdx;
+
+그리고:
+
+{showSeparator && (
+  <View style={s.expiredSection}>
+    <View style={s.expiredSectionLine} />
+    <Text style={s.expiredSectionTxt}>
+      기간 지난 보강 ({expiredCount}건)
+    </Text>
+    <View style={s.expiredSectionLine} />
+  </View>
+)}
+
+React.Fragment 구조 복원.
+
+StyleSheet:
+
+expiredSection
+expiredSectionLine
+expiredSectionTxt
+
+3개 복원.
+
+카드별 기존 is_expired 표시/뱃지는 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 절대 유지 — 날짜 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+한 줄도 되돌리지 않는다.
+
+- makeup-date-range.ts
+- KST 오늘 -14일 ~ +28일
+- validateMakeupDateRange()
+- getMakeupDateRange()
+- MAKEUP_DATE_OUT_OF_RANGE
+- 실제 존재 날짜 검증
+- 결석일 이전 선보강 허용
+- 결석 당일 허용
+- expire_at 날짜 제한 제거
+- 미래 → assign
+- 오늘/과거 → complete-direct
+- ASSIGN_REQUIRES_FUTURE_DATE
+- COMPLETE_DIRECT_REQUIRES_TODAY_OR_PAST
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 절대 유지 — 정원 마감 보강 허용
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음도 되돌리지 않는다.
+
+teachers.ts:
+- eligible-classes HAVING 정원 조건 제거 상태 유지
+- assign CLASS_FULL 차단 제거 상태 유지
+
+admin.ts:
+- .filter(r => r.is_eligible) 제거 상태 유지
+
+teacher makeups.tsx:
+- is_full && is_future disabled 제거 상태 유지
+- 정원마감/정원초과 뱃지는 유지
+
+ClassDetailSheet:
+- disabled={isSaving} 유지
+- is_full 차단 다시 추가 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기타 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- admin.ts 추가 수정 금지
+- ClassDetailSheet.tsx 추가 수정 금지
+- Auth
+- JWT
+- 로그인
+- DB schema
+- 일지
+- AI 일지
+- SWIMNOTE X
+- WP6
+- package.json
+- lockfile
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 구현 후 핵심 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 운영 Route 또는 운영 코드 연결 테스트 기준.
+
+A. waiting list ownership
+
+다른 original_teacher_id를 가진 동일 pool 보강이
+waiting 응답에서 제외되지 않는지 확인.
+
+B. expired
+
+expired 항목이 waiting 응답에 포함되는지 확인.
+
+C. eligible-occurrences
+
+is_one_time=true class_group_id로 요청했을 때
+CLASS_NOT_FOUND가 발생하지 않고
+정상 class lookup을 통과하는지 확인.
+
+D. 기존 보호
+
+다른 pool class_group_id
+→ CLASS_NOT_FOUND 유지
+
+삭제된 class
+→ 차단 유지
+
+E. 날짜
+
+-14일/+28일
+→ 기존 정책 유지
+
+-15일/+29일
+→ MAKEUP_DATE_OUT_OF_RANGE 유지
+
+F. 정원
+
+5/5 미래
+→ CLASS_FULL 없이 assign 가능 상태 유지
+
+G. expired confirm
+
+expired + allow_expired=false
+→ MAKEUP_EXPIRED_CONFIRM_REQUIRED 유지
+
+H. UI 정적
+
+waitingList 정렬:
+일반 보강 먼저
+expired 뒤
+
+첫 expired 앞에:
+
+기간 지난 보강 (N건)
+
+구분선 1회만 표시.
+
+카드별 기간 지난 표시 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 구현 후 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Branch / HEAD / origin
+2. git status --short
+3. git diff --name-status
+4. 실제 수정 파일 2개 확인
+5. waiting ownership filter 삭제 diff
+6. eligible-occurrences is_one_time 삭제 diff
+7. eligible-classes is_one_time 유지 증거
+8. expired separator 복원 diff
+9. 날짜 기능 무변경 증거
+10. 정원 기능 무변경 증거
+11. Auth/JWT/Login 무변경
+12. 테스트 결과
+13. 새 회귀 발견 여부
+14. Commit 여부
+15. Push 여부
+16. Render 여부
+17. OTA 여부
+18. 최종 배포 가능 여부
+
+구현 + 테스트까지만 진행.
+
+Commit 금지.
+Push 금지.
+Render 금지.
+OTA 금지.
+DB 변경 금지.
+
+결과 제출 후 중단한다.

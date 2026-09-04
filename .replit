@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16", "python-base-3.13"]
+modules = ["nodejs-24", "python-3.11", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -15,6 +15,7 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
+runButton = "Project"
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -27,6 +28,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["eas-cli", "pm2"]
 
 [userenv]
 
@@ -43,6 +45,15 @@ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_wRhyQHmIUxUhBvVHWaoGyUpwdMo"
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_iOSUEXOdIktvMemPmJEbTDelJXu"
 EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY = "aeafd08cc53e41b28efa52498136efa7"
 SMS_PROVIDER = "sens"
+VITE_API_BASE = "https://swimnote-api.onrender.com/api"
+EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL = "https://6f233dc5-6895-4ba0-9872-20f18b7cd5cc-00-1oorqtggrk5cm.pike.replit.dev"
+EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH = "/api/v1/teacher-diary/generate"
+EXPO_PUBLIC_SWIMNOTE_AI_MODE = "grounded"
+MATCH_TOKEN_KEY_ID = "v1"
+EXPO_PUBLIC_API_URL = "https://swimnote-api.onrender.com/api"
+EXPO_PUBLIC_DOMAIN = "swimnote-api.onrender.com"
+REVENUECAT_X_PRODUCT_IDS = "com.swimnote.x.monthly.tier1,com.swimnote.x.monthly.tier2,com.swimnote.x.monthly.tier3,com.swimnote.x.monthly.standard"
+PROFESSIONAL_ENGINE_BASE_URL = "https://swimnote-professional-engine.onrender.com"
 
 [userenv.development]
 SMS_DEV_EXPOSE_CODE = "true"

@@ -1,0 +1,196 @@
+[SWIMNOTE AI ENGINE RELEASE]
+[APP → ENGINE AUTH CONTRACT VERIFICATION ONLY]
+
+목적:
+
+SWIMNOTE APP Production 배포 전에
+APP Server가 AI ENGINE으로 보내는 Authorization Header가
+현재 aiJwtAuthMiddleware와 실제로 호환되는지 확정한다.
+
+현재 APP 구현:
+
+Growth Report:
+Authorization: Bearer <GROWTH_REPORT_ENGINE_SECRET raw string>
+
+Parent Curriculum:
+Authorization: Bearer <PARENT_CURRICULUM_ENGINE_SECRET raw string>
+
+APP은 JWT를 생성하지 않는다.
+
+ENGINE routes:
+
+POST /api/v1/growth-report/analyze
+POST /api/v1/parent-curriculum/search
+
+둘 다 aiJwtAuthMiddleware 사용.
+
+이번 작업은 코드 확인만 한다.
+
+코드 수정 금지.
+Production deploy 금지.
+Secret 변경 금지.
+DB write 금지.
+
+==================================================
+1. aiJwtAuthMiddleware 실제 구현
+==================================================
+
+실제 파일/함수 위치 확인.
+
+Authorization Bearer token에 대해
+정확히 어떤 검증을 하는지 코드 기준으로 보고.
+
+다음 중 판정:
+
+A.
+raw shared secret 허용
+
+B.
+HS256 JWT만 허용
+
+C.
+raw secret + JWT 둘 다 허용
+
+D.
+다른 방식
+
+추측 금지.
+
+==================================================
+2. JWT 검증이라면
+==================================================
+
+JWT를 요구한다면 다음 확인:
+
+- signing algorithm
+- secret env name
+- required claims
+- optional claims
+- issuer
+- audience
+- exp
+- sub
+- role
+- pool_id
+
+실제 middleware에서 검증하는 것만 보고.
+
+==================================================
+3. CURRENT PRODUCTION SECRET CONTRACT
+==================================================
+
+ENGINE Production에서 사용하는:
+
+JWT_SECRET
+
+이 APP의 어떤 secret과 동일해야 하는지 확인.
+
+실제 secret 값 출력 금지.
+
+다음 판정:
+
+GROWTH_REPORT_ENGINE_SECRET
+=
+ENGINE JWT_SECRET 원문을 raw Bearer로 보내도 되는가?
+
+YES / NO
+
+PARENT_CURRICULUM_ENGINE_SECRET
+=
+ENGINE JWT_SECRET 원문을 raw Bearer로 보내도 되는가?
+
+YES / NO
+
+==================================================
+4. SAFE LOCAL CONTRACT TEST
+==================================================
+
+실제 Production 데이터 없이
+개발 환경에서 인증 contract만 검증.
+
+Test 1:
+Authorization 없음
+→ 401
+
+Test 2:
+Authorization: Bearer <raw shared secret>
+→ 실제 status 확인
+
+Test 3:
+middleware contract에 맞는 signed JWT
+→ 실제 status 확인
+
+Request body는 route가 auth 이후 validation에서
+400/422가 되도록 최소 dummy payload 사용 가능.
+
+실제 분석 실행 금지.
+
+DB trace/write가 발생하지 않는 auth 단계까지만.
+
+==================================================
+5. APP CHANGE REQUIRED?
+==================================================
+
+결론:
+
+A.
+raw Bearer 방식 정상
+→ APP_CHANGE_REQUIRED = NO
+
+B.
+JWT 필요
+→ APP_CHANGE_REQUIRED = YES
+
+JWT 필요 시
+APP Server가 어떤 방식으로 token을 생성해야 하는지
+정확한 contract만 제시.
+
+예:
+
+jwt.sign(
+  {...required claims...},
+  ENGINE_SHARED_SECRET,
+  {
+    algorithm: "HS256",
+    expiresIn: ...
+  }
+)
+
+단 이번 단계에서 APP 코드 수정은 하지 않는다.
+
+==================================================
+6. SAME CONTRACT FOR BOTH ROUTES
+==================================================
+
+Growth Report와 Parent Curriculum이
+동일 aiJwtAuthMiddleware를 사용하는지 확인.
+
+둘의 auth contract가 같아야 하는지 보고.
+
+==================================================
+7. REPORT
+==================================================
+
+다음만 보고:
+
+1. AUTH MIDDLEWARE FILE
+2. AUTH METHOD
+3. RAW BEARER ACCEPTED? YES/NO
+4. JWT REQUIRED? YES/NO
+5. JWT ALGORITHM
+6. REQUIRED CLAIMS
+7. ENGINE SECRET ENV
+8. GROWTH REPORT CURRENT APP AUTH COMPATIBLE? YES/NO
+9. PARENT CURRICULUM CURRENT APP AUTH COMPATIBLE? YES/NO
+10. SAFE CONTRACT TEST RESULT
+11. APP CODE CHANGE REQUIRED? YES/NO
+12. PRODUCTION CHANGE
+13. DB WRITE
+
+성공적으로 계약 확인:
+
+APP_ENGINE_AUTH_CONTRACT_VERIFIED ✅
+
+현재 APP 방식이 불일치:
+
+APP_ENGINE_AUTH_CONTRACT_BLOCKED ❌

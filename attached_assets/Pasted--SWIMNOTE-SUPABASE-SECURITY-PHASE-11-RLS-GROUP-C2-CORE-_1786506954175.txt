@@ -1,0 +1,441 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 11
+RLS GROUP C2 — CORE POOL / SUBSCRIPTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 10 RLS_GROUP_C1_VERIFIED 승인.
+
+현재 Production 기준:
+
+TOTAL TABLES    = 105
+RLS ENABLED     = 46
+RLS DISABLED    = 59
+
+이번 단계에서는 핵심 Source of Truth 3개만 적용:
+
+1. swimming_pools
+2. subscription_plans
+3. subscriptions
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+POOL_DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 기존 46개 유지 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true 46개 전부
+relrowsecurity=true 유지 확인.
+
+하나라도 false이면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 대상 3개 PRE-STATE
+━━━━━━━━━━━━━━━━━━━━
+
+각각:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon SELECT/INSERT/UPDATE/DELETE
+- authenticated SELECT/INSERT/UPDATE/DELETE
+
+기존 policy가 하나라도 있으면 STOP.
+
+row 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. ROLE 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+같은 Production DB session:
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+current_user = postgres
+rolsuper = false
+rolbypassrls = true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 적용 전 코드 의존성 전수 확인
+━━━━━━━━━━━━━━━━━━━━
+
+RLS 적용 전에 Repository에서 세 테이블 사용처를
+먼저 전수 확인.
+
+A. swimming_pools
+
+특히 확인:
+
+- auth/login
+- pool_admin/teacher pool resolution
+- parent pool resolution
+- /pools/x-mode
+- ModeContext source
+- dashboard
+- billing
+- X entitlement
+- super admin pool list
+- scheduler/jobs
+
+B. subscription_plans
+
+특히:
+
+- billing plans
+- subscription screen
+- super admin plan management
+- RevenueCat tier mapping과의 관계
+- standby-sync
+
+C. subscriptions
+
+특히:
+
+- active subscription 판정
+- billing
+- readonly/deactivation
+- plan/tier 조회
+- RevenueCat sync
+- admin/super 조회
+
+각 경로의 DB client 제출.
+
+Supabase Data API 직접 호출이 하나라도 있으면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+5. RLS 적용
+━━━━━━━━━━━━━━━━━━━━
+
+정확히 아래 3개만:
+
+ALTER TABLE swimming_pools
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE subscription_plans
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE subscriptions
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+다른 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 즉시 READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+3개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+확인.
+
+row count 전후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. DIRECT POSTGRES SMOKE
+━━━━━━━━━━━━━━━━━━━━
+
+SUPABASE_DATABASE_URL로:
+
+swimming_pools COUNT
+subscription_plans COUNT
+subscriptions COUNT
+
+정상 조회.
+
+실제 수영장/구독 데이터 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 실제 LOGIN 검증
+━━━━━━━━━━━━━━━━━━━━
+
+정상 credential을 사용해:
+
+POST /api/auth/login
+
+HTTP 200 필수.
+
+super_admin 계정 사용 가능.
+
+하지만 swimming_pools는 실제 pool context와
+밀접하므로 가능한 경우 기존 안전한 pool_admin
+정상 로그인도 추가 확인.
+
+비밀번호/token 출력 금지.
+
+새 계정 생성 금지.
+비밀번호 변경 금지.
+reset-password 금지.
+JWT 직접 생성 금지.
+
+pool_admin 정상 credential이 없으면
+NOT_TESTED_NO_SAFE_POOL_ADMIN_CREDENTIAL 로 제출.
+
+super_admin login 200만으로 숨기지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+9. X MODE RUNTIME 필수
+━━━━━━━━━━━━━━━━━━━━
+
+정상 인증 token으로:
+
+GET /api/pools/x-mode
+또는 super_admin의 경우:
+
+GET /api/pools/x-mode?pool_id=pool_1784310621737_qryl1x79s
+
+HTTP 200 필수.
+
+기대 sample:
+
+pool_id:
+pool_1784310621737_qryl1x79s
+
+mode:
+x
+
+xmode_entitlement:
+true
+
+xmode_config_status:
+READY
+
+실제 response shape 확인.
+
+이건 swimming_pools RLS 회귀의 핵심 증거.
+
+━━━━━━━━━━━━━━━━━━━━
+10. BILLING / PLAN RUNTIME 필수
+━━━━━━━━━━━━━━━━━━━━
+
+subscription_plans / subscriptions와
+직접 연결되는 실제 READ ONLY API를
+Repository에서 찾아 최소 2개 호출.
+
+가능한 예시일 뿐이며 route 추측 금지:
+
+- billing plans
+- current subscription
+- super plan list
+- pool subscription status
+
+최소:
+
+1개는 subscription_plans 경유
+1개는 subscriptions 또는 실제 구독 판정 경유
+
+HTTP 200 확인.
+
+인증 role 때문에 403이면
+application-level role restriction인지 확인.
+
+401/403만으로 VERIFIED 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. WP2 RevenueCat 보호 검증
+━━━━━━━━━━━━━━━━━━━━
+
+WP2 코드는 수정하지 않는다.
+
+다만 C2 RLS 적용 이후 다음 경로가
+direct postgres로 정상 유지되는지 확인:
+
+- RevenueCat webhook user/pool lookup
+- applySubscriptionState
+- X entitlement handler
+- subscription tier update
+- pool subscription 조회
+
+실제 webhook write 테스트는 금지.
+
+기존 WP2 tests가 Repository에 있으므로
+가능하면 read-only/code-level 확인만.
+
+Production 결제 이벤트 발생시키지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. SUPER ADMIN POOL 조회
+━━━━━━━━━━━━━━━━━━━━
+
+인증된 super_admin token으로:
+
+GET /api/super/pools-summary?limit=2
+
+HTTP 200 확인.
+
+swimming_pools 기반 집계 정상 여부 확인.
+
+민감 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. RENDER 로그 검사
+━━━━━━━━━━━━━━━━━━━━
+
+적용 후 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고:
+
+swimming_pools
+subscription_plans
+subscriptions
+billing
+subscription
+x-mode
+
+관련 신규 오류 확인.
+
+기존 POOL_DB standby-sync 오류와 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+14. WORKER / SCHEDULER 영향
+━━━━━━━━━━━━━━━━━━━━
+
+특히:
+
+subscription
+billing
+readonly
+deactivation
+standby-sync
+backup
+scheduler
+
+에서 신규 RLS 오류 없는지 확인.
+
+주의:
+POOL_DB의 subscription_plans schema mismatch는
+기존 별도 문제.
+
+이번 Production RLS 문제로 오판 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 실패 시 즉시 ROLLBACK
+━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 신규 장애면:
+
+- login 이상
+- x-mode 조회 실패
+- billing plan 조회 실패
+- subscription 조회 실패
+- Render permission/RLS 오류
+
+이번 3개만:
+
+ALTER TABLE swimming_pools
+DISABLE ROW LEVEL SECURITY;
+
+ALTER TABLE subscription_plans
+DISABLE ROW LEVEL SECURITY;
+
+ALTER TABLE subscriptions
+DISABLE ROW LEVEL SECURITY;
+
+rollback 후 동일 Runtime 재검증.
+
+기존 46개는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 총계
+━━━━━━━━━━━━━━━━━━━━
+
+성공 예상:
+
+46 + 3 = 49
+
+하지만 실제 DB에서 다시 계산.
+
+제출:
+
+RLS enabled
+RLS disabled
+total
+
+━━━━━━━━━━━━━━━━━━━━
+17. 잔여 INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+C2 성공 후:
+
+relrowsecurity=false
+
+실제 전체 목록 다시 조회.
+
+예상 remaining = 56
+
+하지만 실제 count 기준으로 제출.
+
+Group D~H 목록과
+실제 disabled 목록 unique set이
+100% 일치하는지 확인.
+
+누락/중복 있으면 즉시 정정.
+
+━━━━━━━━━━━━━━━━━━━━
+18. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 기존 46개 유지
+3. 3개 pre-state
+4. policy count
+5. role/bypass
+6. 세 테이블 code path
+7. 실행 SQL
+8. post-state
+9. row count
+10. direct postgres smoke
+11. super_admin login
+12. pool_admin login 가능 여부
+13. x-mode authenticated runtime
+14. subscription_plans runtime
+15. subscriptions runtime
+16. super pools-summary runtime
+17. WP2 RevenueCat 영향
+18. Render 신규 RLS 오류
+19. worker/scheduler 영향
+20. rollback 여부
+21. RLS enabled total
+22. remaining disabled
+23. remaining inventory 정합성
+24. 최종 판정
+
+FINAL:
+
+RLS_GROUP_C2_VERIFIED
+
+또는
+
+RLS_GROUP_C2_ROLLED_BACK
+
+STOP.
+
+POOL_DB RLS 적용 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

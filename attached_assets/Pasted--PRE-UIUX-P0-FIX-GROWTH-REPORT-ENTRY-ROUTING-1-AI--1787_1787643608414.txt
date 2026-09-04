@@ -1,0 +1,172 @@
+[앱] PRE-UIUX P0 FIX — GROWTH REPORT ENTRY ROUTING
+
+실기기 확인에서 발견된 문제:
+
+1. 부모 홈 상단의 "AI 성장 리포트" 버튼이
+   실제 Growth Report 기능으로 연결되지 않음.
+
+2. 버튼 클릭 시 구형 소개/홍보 모달이 노출됨.
+
+현재 노출되는 구형 문구 예:
+- "130개의 평가 데이터"
+- "집중력, 논리적 사고, 문제 해결 과정"
+- "성장분석평가 리포트 라이센스는 최종 체결 후 서비스 제공예정"
+- "독점 시범 서비스 준비 중"
+
+이 모달은 현재 FREE Growth Report 제품과 맞지 않으므로
+부모 화면에서 더 이상 노출되면 안 된다.
+
+목적:
+
+"AI 성장 리포트" 버튼을
+현재 구현된 실제 Growth Report 흐름으로 직접 연결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 최소 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 부모 홈의
+"AI 성장 리포트" 버튼 onPress handler와
+구형 모달 component/state만 확인.
+
+관련 파일/함수만 읽기.
+
+repo-wide search/audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 구형 소개 모달 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+부모용 Growth Report 진입 경로에서
+구형 AI 성장 리포트 소개/준비중 모달을 제거.
+
+주의:
+다른 곳에서 재사용 중이면 component 자체 삭제는 하지 말고,
+부모 홈 버튼에서 더 이상 호출되지 않게 최소 수정.
+
+현재 제품과 충돌하는 구형 마케팅 문구가
+부모 홈 진입 시 절대 표시되지 않게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Growth Report routing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 선택된 student 기준으로
+기존 구현된 Growth Report status/data를 사용.
+
+버튼 클릭 시:
+
+A. PUBLISHED report 존재
+→ 기존 growth-report-detail 화면으로 진입
+
+B. DATA_ACCUMULATING / PARTIAL
+→ 기존 Growth Report status/accumulating UX로 진입
+
+C. report 없음 / NOT_AVAILABLE
+→ 기존 정상 안내 상태 사용
+
+D. 권한/X 조건이 별도로 존재하면
+→ 현재 확정된 기존 권한 정책 유지
+
+새 Growth Report 생성 금지.
+새 AI 호출 금지.
+새 API 설계 금지.
+
+기존 route/status contract 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 선택 학생 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 홈 상단에서 선택된 아이
+(예: 서태웅)
+
+의 studentId를 그대로 사용.
+
+다른 자녀 선택 후 Growth Report 버튼을 누르면
+선택된 그 자녀의 리포트로 연결되어야 한다.
+
+하드코딩 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 회귀 방지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"AI 커리큘럼 검색" 버튼은 건드리지 않는다.
+
+기존:
+- 일지 feed
+- 사진
+- 설정
+- child selector
+
+동작 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 관련 테스트만.
+
+TC1 Growth Report 버튼 onPress 연결됨
+TC2 구형 소개 모달 미노출
+TC3 selectedStudent.id 사용
+TC4 PUBLISHED → detail route
+TC5 non-PUBLISHED → existing status path
+TC6 새 AI call 없음
+TC7 새 DB write 없음
+TC8 Curriculum Search 버튼 영향 없음
+
+가능하면 기존 fixture/mock 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정은 실기기 P0 연결 수정이므로
+테스트 PASS 후 production OTA 반영 허용.
+
+native 변경 없으면 OTA만.
+
+Render/API deploy 불필요하면 하지 말 것.
+
+RENDER_API_KEY 사용 금지.
+DB migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT ENTRY P0 FIX REPORT
+
+- root cause
+- old modal caller
+- new routing behavior
+- selected student binding
+- PUBLISHED behavior
+- non-PUBLISHED behavior
+- old modal exposed: NO
+- tests/pass
+- changed files
+- commit SHA
+
+OTA
+- executed YES/NO
+- update ID
+- group ID
+- runtime
+
+AI calls: 0
+DB write: NO
+API change: NO
+native change: NO
+
+Final Verdict:
+
+GROWTH REPORT ENTRY ROUTING FIXED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

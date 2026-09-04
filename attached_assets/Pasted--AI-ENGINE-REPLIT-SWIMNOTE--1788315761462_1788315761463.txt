@@ -1,0 +1,1018 @@
+[보낼 곳: AI ENGINE REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 4 AI ENGINE CLOSE
+# PAID AI INSIGHT STRATEGIC REPORT
+# ADAPTIVE PARENT Q&A + DEEP ANALYSIS
+# ONE PASS: AUDIT → IMPLEMENT → TEST → COMMIT
+# ============================================================
+
+현재 APP Stage 4 상태:
+
+- Communication IA 완료
+- Admin Notice AI 완료
+- 무료 AI 성장리포트 기존 Engine 연결 확인 완료
+- 유료 AI 인사이트 전략 리포트 APP UX 골격 존재
+- Paid Report Parent Q&A backend 없음
+- Paid Report Analysis backend 없음
+
+이번 작업에서
+AI ENGINE 쪽 유료 리포트 기능을 한 번에 완성합니다.
+
+Production deploy:
+NO
+
+Production DB:
+NO
+
+APP repo 수정:
+NO
+
+Pricing / RevenueCat / Store:
+NO
+
+============================================================
+0. 제품 정의
+============================================================
+
+공식 상품명:
+
+AI 인사이트 전략 리포트
+
+정가:
+29,000원 / 1회
+
+구독상품:
+NO
+
+Normal/X:
+모두 사용 가능한 독립 상품
+
+무료 AI 성장리포트의 상위등급:
+NO
+
+별도의 심층분석 상품.
+
+목표:
+
+누적 수업데이터와
+학부모가 제공한 맥락을
+근거 기반으로 교차검증하여
+
+- 현재 성장상태
+- 반복 성장패턴
+- 잘 되는 조건
+- 성장 저해조건
+- 수업 전략
+- 가정 지원방법
+- 다음 성장방향
+- 4~12주 실행전략
+- 추가 관찰목표
+
+를 제공.
+
+============================================================
+1. 가장 중요한 아키텍처 규칙
+============================================================
+
+AI Engine이 APP 운영 DB를 직접 조회하지 않습니다.
+
+금지:
+
+POST /paid-report/questions/:studentId
+→ AI Engine이 studentId로 APP DB 조회
+
+같은 구조.
+
+정상 구조:
+
+SWIMNOTE APP
+→ APP API Server
+→ APP auth / parent-child / pool 검증
+→ APP가 GrowthDataSnapshot 생성
+→ Server-to-Server
+→ AI ENGINE
+→ 분석 결과 반환
+
+AI Engine의 student_id는
+추적용 reference일 수는 있지만
+운영 DB 조회 key가 아닙니다.
+
+============================================================
+2. APP / ENGINE 책임 분리
+============================================================
+
+APP API 책임:
+
+- 사용자 인증
+- parent-child relation
+- pool isolation
+- student enrollment
+- diary
+- curriculum
+- level
+- attendance
+- growth events
+- previous reports
+- video metadata
+- 기타 허용된 source
+
+수집
+
++
+snapshot 고정
+
++
+AI Engine 호출
+
+AI Engine 책임:
+
+- Evidence parsing
+- 질문 필요영역 탐색
+- adaptive question generation
+- answer interpretation
+- Evidence verification
+- deep analysis
+- claim-evidence 연결
+- report composition
+- confidence / limitation
+- result contract 반환
+
+============================================================
+3. 기존 Engine 전수감사 후 재사용
+============================================================
+
+수정 전 실제 repository에서 조사:
+
+- Growth Report pipeline
+- Evidence model
+- Verification layer
+- DTA
+- Curriculum retrieval
+- Observation
+- Longitudinal comparison
+- GPT adapter
+- prompt builder
+- claim validation
+- output schema
+- request_id
+- trace
+- auth/service-token pattern
+
+기존 모듈을 최대한 재사용.
+
+새 평행 AI Engine 구축 금지.
+
+Audit only 후 STOP 금지.
+
+조사
+→ 설계 매핑
+→ 구현
+→ 테스트
+→ commit
+
+까지 한 번에 수행.
+
+============================================================
+4. Paid Report Engine API는 2개
+============================================================
+
+AI Engine 내부 route naming convention을 조사한 뒤
+기존 API version 규칙에 맞춰 최종 endpoint를 확정하십시오.
+
+기능은 정확히 2개.
+
+A.
+Paid Insight Question Planning
+
+B.
+Paid Insight Analysis
+
+============================================================
+5. QUESTION PLANNING REQUEST CONTRACT
+============================================================
+
+예시 논리 contract:
+
+{
+  "request_id": "...",
+  "schema_version": "1.0",
+
+  "subject_ref": {
+    "pool_ref": "...",
+    "student_ref": "..."
+  },
+
+  "report_context": {
+    "analysis_goal": "...",
+    "requested_at": "...",
+    "previous_report_ref": null
+  },
+
+  "snapshot": {
+    "student_basic": {...},
+    "lesson_records": [...],
+    "attendance": {...},
+    "level": {...},
+    "level_history": [...],
+    "curriculum_progress": {...},
+    "growth_events": [...],
+    "previous_reports": [...],
+    "video_observations": [...],
+    "other_evidence": [...]
+  },
+
+  "existing_parent_answers": [...]
+}
+
+실제 repository convention이 있으면
+필드명을 일관되게 조정 가능.
+
+단 contract 의미는 유지.
+
+============================================================
+6. QUESTION PLANNING RESPONSE
+============================================================
+
+Response 목표:
+
+{
+  "request_id": "...",
+  "schema_version": "1.0",
+
+  "question_plan": {
+    "status": "READY | NEEDS_PARENT_INPUT | INSUFFICIENT_EVIDENCE",
+
+    "questions": [
+      {
+        "question_id": "...",
+        "construct": "...",
+        "text": "...",
+        "type": "single_choice | multi_choice | scale | short_text",
+        "options": [],
+        "required": true,
+        "reason": "...",
+        "evidence_gap_refs": [...]
+      }
+    ],
+
+    "answered": 0,
+    "total": 0
+  },
+
+  "meta": {
+    "evidence_summary": {...},
+    "limitations": [...]
+  }
+}
+
+============================================================
+7. 질문 수 6개 하드코딩 금지
+============================================================
+
+APP fixture의:
+
+0 / 6
+
+은 실제 정책이 아닙니다.
+
+질문 개수를 6개로 고정하지 마십시오.
+
+Adaptive Questioning 원칙:
+
+필요한 질문만.
+
+근거가 이미 충분한 영역:
+질문하지 않음.
+
+근거가 부족하지만
+학부모가 답할 수 있는 영역:
+질문 생성.
+
+학부모가 알 수 없는 전문영역:
+질문 생성 금지.
+
+============================================================
+8. 질문 목적
+============================================================
+
+질문은 진단검사가 아닙니다.
+
+질문의 목적:
+
+기존 수업 관찰만으로 알 수 없는
+생활/환경/반응 맥락을 보충.
+
+예:
+
+- 설명을 들을 때 반응
+- 새로운 동작을 접할 때 반응
+- 반복 연습에 대한 반응
+- 실패 후 다시 시도하는 방식
+- 가정에서 아이가 말한 수업경험
+
+등을
+실제 evidence gap과 연결.
+
+AI가 무작위 질문목록을 생성하면 FAIL.
+
+============================================================
+9. 금지 질문
+============================================================
+
+진단/판정 목적 질문 금지:
+
+- 지능
+- ADHD
+- 자폐
+- 우울증
+- 불안장애
+- 성격유형
+- 학업능력
+- 질환
+
+전문 임상검사처럼 보이는
+점수표 생성 금지.
+
+============================================================
+10. PARENT_REPORTED
+============================================================
+
+학부모 답변은 반드시:
+
+PARENT_REPORTED
+
+또는 기존 Engine의 동등한 evidence provenance
+
+로 별도 귀속.
+
+Teacher observation
+Video observation
+Tracked data
+
+와 섞어서 Direct evidence처럼 취급하지 마십시오.
+
+============================================================
+11. PAID ANALYSIS REQUEST
+============================================================
+
+분석 endpoint 입력:
+
+{
+  "request_id": "...",
+  "schema_version": "1.0",
+
+  "subject_ref": {...},
+
+  "report_context": {
+    "report_period": {...},
+    "previous_report_ref": null
+  },
+
+  "snapshot": {...},
+
+  "parent_answers": [
+    {
+      "question_id": "...",
+      "answer": ...,
+      "answered_at": "..."
+    }
+  ]
+}
+
+APP API가 모든 권한검증을 끝낸 snapshot만 전달.
+
+============================================================
+12. ANALYSIS PIPELINE
+============================================================
+
+가능한 기존 모듈을 사용해:
+
+Input
+→ Snapshot Validation
+→ Observation
+→ Evidence
+→ Parent Answer Evidence
+→ Verification
+→ Construct Candidate
+→ State
+→ Longitudinal Comparison
+→ Growth Opportunity
+→ Action Recommendation
+→ GPT Composition
+→ Claim-Evidence Validation
+→ Final Output
+
+구조.
+
+수영 전문 영역은 기존:
+
+Observation
+→ Mathematics
+→ Physics
+→ Human Anatomy
+→ Biomechanics
+→ Swimming Technique
+→ DTA
+→ Evidence
+→ Verified Facts
+
+경로 재사용.
+
+============================================================
+13. 무료 Growth Report pipeline 단순 복사 금지
+============================================================
+
+유료 리포트는 무료 리포트의
+"더 긴 GPT 요약"이 아닙니다.
+
+무료:
+
+최근 변화/성장 기록
+
+유료:
+
+왜 그런가
+어떤 조건에서 성장하는가
+무엇을 우선해야 하는가
+다음 전략
+
+을 분석.
+
+그러나 기존 Evidence/Verification/Core Engine은 재사용.
+
+============================================================
+14. HEIGHT / WEIGHT
+============================================================
+
+키/몸무게는
+유료 리포트 발급 필수조건이 아닙니다.
+
+값이 있으면 optional context.
+
+없으면:
+
+INSUFFICIENT
+또는 missing optional field
+
+로 처리하고
+리포트 전체를 차단하지 마십시오.
+
+새 키/몸무게 평가 logic 만들지 마십시오.
+
+============================================================
+15. 영상도 필수 아님
+============================================================
+
+Video evidence:
+
+있으면 분석 깊이 증가.
+
+없어도:
+리포트 가능.
+
+Video 없음 때문에
+analysis 전체 FAIL 금지.
+
+============================================================
+16. CLAIM / EVIDENCE
+============================================================
+
+최종 핵심 Claim마다
+가능한 evidence reference 연결.
+
+Evidence 종류는 기존 Engine 체계를 재사용.
+
+예:
+
+DIRECT
+TRACKED
+INFERRED
+UNKNOWN
+
+또는 repository의 canonical enum.
+
+근거 부족:
+
+추가 질문
+추가 관찰
+UNKNOWN
+
+중 하나.
+
+억지 생성 금지.
+
+============================================================
+17. 결과 구조
+============================================================
+
+최종 response에는 최소:
+
+report_id 또는 analysis_ref
+status
+generated_at
+engine_version
+snapshot_ref/hash
+
+summary
+
+swimming_progress
+learning_strengths
+growth_patterns
+effective_conditions
+growth_blockers
+lesson_strategy
+next_growth_direction
+home_support
+teacher_4week_plan
+parent_4week_plan
+roadmap_8_12_weeks
+next_observation_targets
+confidence
+limitations
+
+claim_evidence_map
+
+cost/usage metadata
+(trace용, user UI에 전부 노출할 필요 없음)
+
+포함.
+
+실제 기존 Output model과 합칠 수 있으면 합칠 것.
+
+============================================================
+18. 결과에 금지
+============================================================
+
+성격 단정
+지능 단정
+질환 추정
+학업능력 예측
+의학 진단
+근거 없는 심리상태
+
+금지.
+
+============================================================
+19. 이전 리포트가 있는 경우
+============================================================
+
+previous_report가 있으면:
+
+지난 리포트 이후
+새로 쌓인 데이터
+
+와
+
+이전 상태 대비 변화
+
+를 비교할 수 있어야 함.
+
+같은 내용을 반복 생성하는
+PDF 재판매 구조 금지.
+
+============================================================
+20. 질문 → 분석 연결 검증
+============================================================
+
+question_id가
+analysis 시 추적 가능해야 함.
+
+알 수 없는 question_id:
+reject 또는 ignore 정책을 명확히.
+
+다른 student/session question answer 섞임:
+FAIL.
+
+============================================================
+21. IDEMPOTENCY
+============================================================
+
+request_id 기반
+가능한 기존 idempotency 정책 적용.
+
+같은 분석 요청 retry가:
+
+새 analysis를 무한 중복 생성
+
+하지 않도록 함.
+
+============================================================
+22. AUTH
+============================================================
+
+AI Engine 외부 endpoint는
+기존 Server-to-Server 인증 방식 사용.
+
+APP JWT를 새로 직접 검증하는 구조를
+임의 생성하지 마십시오.
+
+현재 Engine의 service auth pattern을 재사용.
+
+============================================================
+23. TENANT
+============================================================
+
+AI Engine은
+APP가 전달한 pool_ref/student_ref를 trace하지만
+
+운영 DB 권한판정의 Source of Truth는
+APP API.
+
+AI Engine이 전화번호/이름으로
+다른 학생 데이터를 결합하면 FAIL.
+
+============================================================
+24. ERROR CONTRACT
+============================================================
+
+기존 표준 error contract 재사용.
+
+필요 코드 예:
+
+INVALID_REQUEST
+UNAUTHORIZED
+FORBIDDEN
+SNAPSHOT_INVALID
+EVIDENCE_INSUFFICIENT
+QUESTION_PLAN_FAILED
+ANALYSIS_FAILED
+CLAIM_VALIDATION_FAILED
+TIMEOUT
+INTERNAL_ERROR
+
+실제 Engine canonical naming에 맞춰 정리 가능.
+
+============================================================
+25. LOADING 단계 거짓 생성 금지
+============================================================
+
+실제 Engine이 진행 이벤트를 제공하지 않으면
+APP에 거짓 세부 progress를 제공하지 마십시오.
+
+단일 HTTP request이면
+PROCESSING 정도.
+
+실제 stage telemetry가 존재할 때만
+stage metadata 사용.
+
+============================================================
+26. TRACE
+============================================================
+
+최소 trace:
+
+request_id
+pipeline
+engine_version
+latency
+input evidence counts
+question count
+answer count
+claim count
+unknown count
+token/model usage
+error_code
+
+PII 원문 로그:
+NO
+
+학생 이름:
+NO
+
+parent answer full text production log:
+NO
+
+============================================================
+27. TRIGGER는 AI ENGINE 업무 아님
+============================================================
+
+유료 리포트 마케팅 Notification trigger는
+APP 운영 layer에서 처리.
+
+AI Engine에서:
+
+level-up notification
+withdrawal push
+marketing push
+
+구현 금지.
+
+AI Engine은 eligibility 판단에 필요한
+analysis readiness signal을
+response로 줄 수는 있음.
+
+============================================================
+28. 가격 / 할인 금지
+============================================================
+
+현재 확정 정가:
+29,000원
+
+하지만 AI Engine은 가격 계산하지 않음.
+
+특히 아래 미확정 후보 구현 금지:
+
+3개월 10%
+6개월 20/30%
+9개월 30%
+12개월 50%
+레벨업 24시간 50%
+퇴원 50%
+
+Pricing/Offer Engine:
+APP/Commerce 후속 영역.
+
+============================================================
+29. 테스트
+============================================================
+
+최소 unit/integration test:
+
+A.
+충분한 lesson evidence
+→ questions 적음/없음
+
+B.
+evidence gap
+→ adaptive questions
+
+C.
+parent answers 포함
+→ analysis
+
+D.
+parent answers 일부 누락
+
+E.
+video 없음
+
+F.
+previous report 없음
+
+G.
+previous report 있음
+
+H.
+unknown evidence
+
+I.
+conflicting teacher/video evidence
+
+J.
+wrong question id
+
+K.
+empty snapshot
+
+L.
+duplicate request_id
+
+M.
+timeout
+
+N.
+claim-evidence validation
+
+O.
+PII logging check
+
+============================================================
+30. 기존 무료 Growth Report 회귀
+============================================================
+
+이번 유료 리포트 구현 때문에
+
+기존 무료 Growth Report pipeline
+Teacher Diary
+Curriculum
+DTA
+Knowledge
+
+변경/회귀되면 FAIL.
+
+기존 shared module 확장은 가능하나
+behavior regression:
+0.
+
+============================================================
+31. Production
+============================================================
+
+Production deploy:
+NO
+
+Render deploy:
+NO
+
+Production DB:
+NO
+
+Secrets:
+NO
+
+Preview/Local test only.
+
+============================================================
+32. 크레딧 절약
+============================================================
+
+Audit report만 제출 후 STOP 금지.
+
+이번 한 작업에서:
+
+기존 구조 조사
+→ 재사용 설계
+→ Question API
+→ Analysis API
+→ tests
+→ commit
+
+완료.
+
+관련 없는 Engine 영역
+전수 리팩터링 금지.
+
+============================================================
+33. 완료보고
+============================================================
+
+# SWIMNOTE AI ENGINE
+# PAID INSIGHT Q&A + ANALYSIS REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## REUSED ENGINE COMPONENTS
+
+Growth:
+...
+
+Evidence:
+...
+
+Verification:
+...
+
+DTA:
+...
+
+GPT Adapter:
+...
+
+Claim Validation:
+...
+
+## FINAL ENDPOINTS
+
+Question Planning:
+...
+
+Analysis:
+...
+
+## AUTH
+
+Service auth:
+...
+
+## QUESTION CONTRACT
+
+Request:
+...
+
+Response:
+...
+
+Adaptive:
+PASS / FAIL
+
+Fixed question count:
+YES / NO
+
+Expected:
+NO
+
+## ANALYSIS CONTRACT
+
+Request:
+...
+
+Response:
+...
+
+## PARENT_REPORTED
+
+Separated provenance:
+PASS / FAIL
+
+## OPTIONAL DATA
+
+Height required:
+YES / NO
+
+Expected:
+NO
+
+Weight required:
+YES / NO
+
+Expected:
+NO
+
+Video required:
+YES / NO
+
+Expected:
+NO
+
+## CLAIM / EVIDENCE
+
+Mapping:
+...
+
+Unknown handling:
+...
+
+## PREVIOUS REPORT
+
+Longitudinal comparison:
+...
+
+## IDEMPOTENCY
+
+...
+
+## TRACE / PII
+
+Student names logged:
+YES / NO
+
+Parent answers raw logged:
+YES / NO
+
+Expected:
+NO / NO
+
+## TESTS
+
+Question tests:
+...
+
+Analysis tests:
+...
+
+Regression:
+...
+
+New failures:
+...
+
+## FREE REPORT REGRESSION
+
+...
+
+## APP INTEGRATION CONTRACT
+
+Final Question URL:
+...
+
+Final Analysis URL:
+...
+
+Authentication:
+...
+
+Timeout:
+...
+
+Request schema:
+...
+
+Response schema:
+...
+
+Error schema:
+...
+
+## PRODUCTION
+
+Deployed:
+YES / NO
+
+Expected:
+NO
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+PAID INSIGHT ENGINE COMPLETE
+or
+BLOCKED

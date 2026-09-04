@@ -1,0 +1,167 @@
+[SWIMNOTE 보강 회차 조회 실패 — 진단 배포 승인]
+
+현재 상태:
+
+- 직접 원인은 아직 미확정
+- 성공 응답 Contract 변경 없음
+- 서버 structured error code 추가 완료
+- 클라이언트 오류 코드 표시 추가 완료
+- 동일 반 중복 요청 차단 추가 완료
+- 신규 타입 오류 없음
+
+변경 파일:
+
+서버
+- artifacts/api-server/src/routes/teachers.ts
+
+클라이언트
+- artifacts/swim-app/app/(teacher)/makeups.tsx
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+아래 순서대로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. Push
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 branch 확인
+2. git status 확인
+3. 변경 파일 3개만 포함됐는지 확인
+4. 정상 commit 생성
+5. force push 금지
+6. 일반 push 진행
+
+권장 commit message:
+
+fix: add diagnostics for makeup occurrence loading failures
+
+제출:
+
+- commit SHA
+- origin SHA
+- push 결과
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. Render 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+teachers.ts 변경이 있으므로 Render 배포를 먼저 완료한다.
+
+확인:
+
+- build 성공
+- deployment live
+- health check 정상
+- 5xx 반복 없음
+- migration 없음
+- DB schema 변경 없음
+
+제출:
+
+- deployment ID
+- 배포 SHA
+- 상태
+- 완료 시각
+- health 결과
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. iOS OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 배포 정상 확인 후:
+
+- production
+- preview
+
+두 채널에 OTA 배포한다.
+
+메시지:
+
+fix: show detailed makeup occurrence loading errors
+
+runtime version 유지.
+새 native build 금지.
+
+제출:
+
+- production update group ID
+- preview update group ID
+- runtime
+- branch
+- channel
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 운영 앱 재현
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱 완전 종료 후 재실행.
+
+경로:
+
+보강 대기
+→ 보강반 배정
+→ 반 선택
+→ 회차 조회
+
+오류가 다시 발생하면 화면에 표시된 값을 그대로 제출한다.
+
+필수:
+
+- HTTP status
+- error code
+
+예:
+
+503 / DB_CONNECTION_LIMIT
+403 / POOL_NOT_FOUND
+403 / MAKEUP_POOL_MISMATCH
+404 / CLASS_NOT_FOUND
+500 / ELIGIBLE_OCCURRENCES_FAILED
+
+서버 로그에서는 같은 시점의 다음 값을 제출한다.
+
+- request_id
+- stage
+- code
+- elapsed_ms
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 오류별 즉시 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+503 / DB_CONNECTION_LIMIT
+
+→ DB 연결 제한 원인으로 확정
+→ pool singleton, 실제 connection count, 동시 요청 수 재점검
+→ 임의 pool_size 증가 금지
+
+403 / POOL_NOT_FOUND
+
+→ 사용자 계정의 수영장 연결 문제
+→ DB 수정 전 원인 보고
+
+403 / MAKEUP_POOL_MISMATCH
+
+→ 보강 세션과 로그인 교사의 pool 불일치
+→ handover 데이터 정합성 조사
+
+404 / CLASS_NOT_FOUND
+
+→ 선택한 반의 is_deleted 또는 pool 소속 불일치 조사
+
+500 / ELIGIBLE_OCCURRENCES_FAILED
+
+→ 서버 로그 stage와 stack 기준으로 직접 수정
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 오류 코드를 확인하기 전 추가 리팩터링 금지
+- DB pool_size 임의 증가 금지
+- 운영 DB 수정 금지
+- 오류를 빈 배열로 숨기기 금지
+- 무한 재시도 금지
+- X모드 재개 금지
+
+배포 후 오류 코드 1회 확보하고 멈춘다.

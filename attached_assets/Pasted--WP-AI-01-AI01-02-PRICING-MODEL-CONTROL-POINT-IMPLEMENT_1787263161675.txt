@@ -1,0 +1,321 @@
+# [WP-AI-01 / AI01-02 — PRICING + MODEL CONTROL POINT IMPLEMENTATION]
+
+목적:
+
+SWIMNOTE AI의 모델명과 가격 정보를 여러 route에 흩어놓지 않고
+최소한의 공통 설정으로 통합한다.
+
+이번 Step의 목표는:
+
+1. OpenAI 가격 정의를 `ai-pricing.ts` 한 곳에서 관리
+2. 모델명을 `ai-model-config.ts` 한 곳에서 관리
+3. 현재 모델 동작은 바꾸지 않고 hardcoding만 제거
+4. 이후 Quality / Latency / Cost 비교 결과에 따라 모델을 쉽게 교체 가능하게 함
+
+이다.
+
+이번 Step에서는 실제 모델 교체 금지.
+
+현재 동작 모델은 그대로 유지한다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 검색 금지.
+
+이미 확인된 대상만 사용:
+
+* `config/ai-pricing.ts`
+* `routes/ai.ts`
+* `routes/ai-v1.ts`
+* `routes/support-respond.ts`
+* `routes/story.ts`
+
+필요한 경우에만 위 파일 내에서 모델 literal 위치 확인.
+
+전체 regression 금지.
+
+관련 pricing/config 테스트만 실행한다.
+
+---
+
+# 1. ai-pricing.ts 확장
+
+기존 가격 구조를 최대한 유지한다.
+
+최소 추가:
+
+* cached input pricing
+* Whisper pricing
+* 현재 실제 사용 모델 가격 정의 보완
+
+중요:
+
+가격은 route에 하드코딩하지 않는다.
+
+현재 실제 사용하지 않는 모델을 불필요하게 대량 등록하지 않는다.
+
+필요한 모델만 정의한다.
+
+---
+
+# 2. cached input 가격
+
+기존:
+
+input_tokens
+output_tokens
+
+기반 계산에 더해
+`cached_input_tokens`를 별도로 계산할 수 있도록 한다.
+
+원칙:
+
+cached input이 있을 경우
+일반 input 가격으로 중복 계산하지 않는다.
+
+기존 `calculateAiCost()` 또는 대응 함수가 있다면
+그 함수만 최소 확장한다.
+
+새 pricing framework 만들지 않는다.
+
+---
+
+# 3. Whisper 가격
+
+Whisper 가격 정의를 `ai-pricing.ts`에 추가한다.
+
+단 이번 Step에서는
+실제 `audio_seconds`가 아직 연결되지 않았으므로
+
+가격 정의/계산 함수만 준비한다.
+
+Whisper route 수정 금지.
+
+실제 usage logging은 AI01-04에서 진행한다.
+
+---
+
+# 4. ai-model-config.ts 신규
+
+신규 파일:
+
+`artifacts/api-server/src/config/ai-model-config.ts`
+
+목적:
+
+모델명 single source of truth.
+
+예시 역할:
+
+```ts
+export const AI_MODEL = {
+  DIARY: 'gpt-4o-mini',
+  SUPPORT: 'gpt-4o-mini',
+  STORY: 'gpt-4o-mini',
+  STT: 'whisper-1',
+} as const;
+```
+
+실제 현재 route에서 사용 중인 값과 동일하게 설정한다.
+
+이번 Step에서는 모델 종류를 변경하지 않는다.
+
+---
+
+# 5. route hardcoding 최소 제거
+
+이미 확인된 파일만 수정:
+
+* `routes/ai.ts`
+* `routes/ai-v1.ts`
+* `routes/support-respond.ts`
+* `routes/story.ts`
+
+현재 모델 literal을:
+
+`AI_MODEL.*`
+
+import로 교체.
+
+기존 request payload, timeout, prompt, temperature, response format 등
+다른 AI 동작은 수정하지 않는다.
+
+---
+
+# 6. 모델별 목적 구분
+
+모델 config는 최소한 기능별로 분리한다.
+
+예:
+
+* DIARY
+* SUPPORT
+* STORY
+* STT
+
+같은 모델을 쓰더라도
+하나의 `DEFAULT_MODEL`만 두지 않는다.
+
+이유:
+
+향후 Support만 저가 모델로 변경하거나
+Diary만 상위 모델로 승격할 수 있어야 함.
+
+---
+
+# 7. 가성비 원칙 주석
+
+`ai-model-config.ts`에 짧게 원칙만 남긴다.
+
+내용:
+
+* 현재 값은 현재 Production 동작 유지용
+* 최적 모델이라고 가정하지 않음
+* 각 AI WP에서 Quality / Latency / Cost 비교 후 변경
+* 저비용/고속 후보 우선
+* 품질 부족할 때만 상위 모델 승격
+
+장문의 정책 문서는 코드에 넣지 않는다.
+
+---
+
+# 8. 테스트
+
+전체 regression 금지.
+
+최소 테스트만 실행.
+
+필수 확인:
+
+### TC1
+
+현재 사용 모델명이 config를 통해 동일하게 반환됨
+
+### TC2
+
+cached_input_tokens 비용 계산 정상
+
+### TC3
+
+cached input과 일반 input이 이중 과금되지 않음
+
+### TC4
+
+Whisper per-second 또는 대응 계산 함수 정상
+
+### TC5
+
+기존 pricing 계산이 깨지지 않음
+
+추가로 정적 확인:
+
+```bash
+grep -r "gpt-4o-mini" src/routes/
+```
+
+목표:
+
+route 파일에서 직접 literal 0건.
+
+단 테스트 fixture/comment까지 무리하게 제거하지 않는다.
+실제 production route literal만 제거하면 된다.
+
+---
+
+# 9. 절대 금지
+
+이번 Step에서:
+
+* 실제 모델 변경 금지
+* 새로운 OpenAI 호출 금지
+* benchmark 실행 금지
+* Support Nano 구현 금지
+* Whisper logging 연결 금지
+* saveAiTrace callsite 수정 금지
+* Curriculum/Growth engine 수정 금지
+* SMS/R2 수정 금지
+* Dashboard 수정 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-02만 구현한다.
+
+---
+
+# 10. 완료 보고 형식
+
+# [AI01-02 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만
+
+## 4. Pricing Changes
+
+* cached input
+* Whisper
+* 기존 모델 가격
+
+실제 추가한 것만 작성
+
+## 5. Model Config
+
+실제 `AI_MODEL` 항목
+
+## 6. Route Changes
+
+어느 파일에서 어떤 literal을 config import로 교체했는지
+
+## 7. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 8. Static Verification
+
+production route에 모델 literal이 남아 있는지
+
+## 9. Scope Check
+
+다음 미수정 확인:
+
+* saveAiTrace contract
+* Whisper route logic
+* external engines
+* SMS
+* R2
+* Super Admin
+* DB schema
+* deployment config
+
+## 10. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 11. STOP
+
+AI01-02 완료 보고 후 멈춘다.
+
+AI01-03 이상 임의 진행 금지.

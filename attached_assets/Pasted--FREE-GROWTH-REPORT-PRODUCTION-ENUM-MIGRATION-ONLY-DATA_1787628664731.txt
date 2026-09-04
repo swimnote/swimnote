@@ -1,0 +1,154 @@
+[앱] FREE GROWTH REPORT — PRODUCTION ENUM MIGRATION ONLY
+
+현재 상태:
+- DATA_ACCUMULATING contract fix commit: bf77ade3
+- startup migration: REMOVED
+- Production DB migration: NOT YET EXECUTED
+- code deploy: NOT YET
+- AI engine: LOCKED
+
+목적:
+Production DB의
+
+gr_analysis_status_enum
+
+에
+
+DATA_ACCUMULATING
+
+값 하나만 수동 추가한다.
+
+이번 Step은 DB ENUM MIGRATION ONLY.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. MIGRATION FILE 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+
+migrations/growth-report-gr1b-data-accumulating.ts
+
+실제 SQL 확인:
+
+ALTER TYPE gr_analysis_status_enum
+ADD VALUE IF NOT EXISTS 'DATA_ACCUMULATING';
+
+확인:
+
+- DROP 없음
+- DELETE 없음
+- UPDATE 없음
+- table recreate 없음
+- enum recreate 없음
+- column type 변경 없음
+- 기존 row rewrite 없음
+- destructive SQL 없음
+
+위 조건 중 하나라도 위반되면 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PRODUCTION TARGET 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Production DB인지 확인.
+
+보고:
+- database/environment
+- gr_analysis_status_enum 존재 여부
+- 현재 enum values
+- DATA_ACCUMULATING 이미 존재 여부
+
+credential/secret 출력 금지.
+
+이미 존재하면 재실행하지 말고
+ALREADY APPLIED로 종료.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. MANUAL MIGRATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+안전 확인 후
+해당 enum ADD VALUE만 수동 실행.
+
+금지:
+
+- startup migration
+- migration chain 전체 실행
+- 다른 schema 변경
+- 다른 enum 변경
+- 다른 DB write
+- application code deploy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. POST-MIGRATION READ-ONLY VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실행 후 확인:
+
+gr_analysis_status_enum values에:
+
+- COMPLETE
+- COMPLETE_WITH_QUESTIONS_AVAILABLE
+- COMPLETE_WITH_PARENT_EVIDENCE
+- PARTIAL
+- DATA_ACCUMULATING
+
+존재 여부.
+
+그리고:
+
+growth_reports.analysis_status
+column type이 여전히
+gr_analysis_status_enum인지 확인.
+
+기존 row 변경 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 코드 호환성 READ-ONLY 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+bf77ade3 기준으로:
+
+DATA_ACCUMULATING
+→ persistence enum cast 가능
+
+DATA_ACCUMULATING
+→ product_status PARTIAL
+
+parent status endpoint
+→ DATA_ACCUMULATING 우선 반환
+
+구조가 schema와 맞는지만 확인.
+
+실제 Growth Report 생성 호출 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT PRODUCTION ENUM MIGRATION REPORT
+
+- migration file
+- exact SQL
+- destructive SQL: YES/NO
+- production target confirmed: YES/NO
+- enum values before
+- already applied before: YES/NO
+- migration executed: YES/NO
+- enum values after
+- growth_reports.analysis_status type unchanged: YES/NO
+- existing production rows modified: NO
+- startup migration used: NO
+- code deploy: NO
+- AI call: 0
+- OTA: NO
+
+Final Verdict:
+
+GROWTH REPORT ENUM MIGRATION COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

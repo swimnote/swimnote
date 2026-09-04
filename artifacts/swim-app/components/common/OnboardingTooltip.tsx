@@ -2,9 +2,9 @@
  * OnboardingTooltip — 첫 방문 사용자를 위한 힌트 배너
  * AsyncStorage에 dismissed 상태를 저장하여 한 번만 표시
  */
-import { Lightbulb, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -21,10 +21,10 @@ export default function OnboardingTooltip({
   storageKey,
   title,
   message,
-  accentColor = C.tint,
+  accentColor = C.brandStrong,
 }: Props) {
   const [visible, setVisible] = useState(false);
-  const opacity = useState(new Animated.Value(0))[0];
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     AsyncStorage.getItem(storageKey).then(val => {
@@ -49,14 +49,14 @@ export default function OnboardingTooltip({
   return (
     <Animated.View style={[tt.wrap, { opacity, borderLeftColor: accentColor }]}>
       <View style={[tt.iconBox, { backgroundColor: accentColor + "15" }]}>
-        <Lightbulb size={16} color={accentColor} />
+        <LucideIcon name="lightbulb" size={16} color={accentColor} />
       </View>
       <View style={tt.textArea}>
         <Text style={[tt.title, { color: accentColor }]}>{title}</Text>
         <Text style={tt.msg}>{message}</Text>
       </View>
       <Pressable onPress={dismiss} hitSlop={12} style={tt.closeBtn}>
-        <X size={14} color={C.textMuted} />
+        <LucideIcon name="x" size={14} color={C.textMuted} />
       </Pressable>
     </Animated.View>
   );

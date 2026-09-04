@@ -1,0 +1,837 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# WP-M4 TEACHER MEMBER DETAIL CONSOLIDATION
+# SHARED CORE + COMMON COMPONENT EXTRACTION
+
+현재 상태:
+
+WP-M1:
+PASS
+
+WP-M2:
+PASS
+
+WP-M3:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Latest HEAD:
+9e27d811
+
+이번 WP의 목표는
+Teacher student-detail을
+Admin member-detail과 동일한 정보 구조 철학으로 정리하되,
+
+ROLE 권한에 맞게
+조회/수정 가능 범위를 제한하고
+
+중복 구현되어 있는 일반 회원관리 UI를
+공통 component로 추출하는 것입니다.
+
+==================================================
+0. GLOBAL RULE
+==================================================
+
+비-AI 회원관리 기능은
+
+SWIMNOTE 일반
++
+SWIMNOTE X
+
+공통입니다.
+
+Teacher detail 역시
+X 전용 별도 화면 생성 금지.
+
+==================================================
+1. TARGET
+==================================================
+
+현재:
+
+/(teacher)/student-detail
+
+을 재설계.
+
+목표:
+
+담당 학생 선택
+→ 단일 long-scroll Student Detail
+
+선생님이 한 학생에 대해
+필요한 정보를 대부분 한 화면에서 보고
+권한 범위 내에서 수정 가능.
+
+==================================================
+2. ADMIN 구조와 동일 정보 아키텍처
+==================================================
+
+가능하면 WP-M3 Admin Member Detail과
+동일한 Section 구조를 사용.
+
+Teacher 권한 기준:
+
+--------------------------------
+HEADER
+--------------------------------
+
+학생명
+상태
+현재 반
+현재 레벨
+
+--------------------------------
+SECTION A — 기본정보
+--------------------------------
+
+Teacher VIEW 중심.
+
+표시 후보:
+
+- 이름
+- 생년 관련 허용 정보
+- 메모
+- 기타 현재 teacher에게 이미 노출되던 정보
+
+관리자 전용 민감정보 추가 노출 금지.
+
+--------------------------------
+SECTION B — 수강정보
+--------------------------------
+
+VIEW:
+
+- 반
+- 담당 선생님
+- 수업 요일
+- 수업 시간
+- 주당 횟수
+
+Teacher가 현재 수정 권한이 없는 값은
+readonly.
+
+--------------------------------
+SECTION C — 수영 교육정보
+--------------------------------
+
+Teacher 권한으로:
+
+- 현재 개인 레벨 표시
+- 레벨 변경
+
+기존:
+
+PATCH /teacher/students/:id/level
+
+유지.
+
+SoT:
+
+students.current_level_order
+
+--------------------------------
+SECTION D — 출결 / 보강 요약
+--------------------------------
+
+표시:
+
+- 이번 달 출결 summary
+- 보강 summary
+
+담당 학생에 대해서만.
+
+전문 화면 shortcut 유지.
+
+--------------------------------
+SECTION E — 보호자 / 연락처
+--------------------------------
+
+현재 teacher 권한 유지.
+
+WP-M1 기준:
+
+parent_phone
+parent_phone2
+
+현재 teacher UI/API 지원.
+
+parent_phone3/4는
+현재 teacher contract에 없고
+의도적 제한으로 확인됨.
+
+이번 WP에서
+무단 확장 금지.
+
+--------------------------------
+SECTION F — 일지 / 사진 / 영상
+--------------------------------
+
+요약 + shortcut.
+
+전체 이력 즉시 로딩 금지.
+
+--------------------------------
+SECTION G — 학부모 공개 추가정보
+--------------------------------
+
+아직 student_links 미구현.
+
+WP-M5 전까지
+UI 노출 금지.
+
+--------------------------------
+SECTION H — 관리
+--------------------------------
+
+Teacher에게는
+Admin Danger Zone 노출 금지.
+
+즉:
+
+- purge
+- force-delete
+- permanent delete
+- 보호자 계정 해제
+- 관리자 상태 삭제
+
+HIDDEN.
+
+Teacher가 실제로 할 수 있는
+일반 업무 액션만 허용.
+
+==================================================
+3. PERMISSION LOCK
+==================================================
+
+Teacher에게 허용:
+
+VIEW:
+- 담당 학생 기본정보
+- 반/수업정보
+- 레벨
+- 출결
+- 보강
+- 보호자 연락처
+- 일지
+- 사진/영상
+
+EDIT/ACTION:
+- 레벨 변경
+- 현재 허용된 보호자 연락처 수정
+- 메모 수정
+- 담당 범위 내 출결
+- 담당 범위 내 보강
+- 담당 범위 내 일지
+
+HIDDEN:
+- 회원 영구삭제
+- force-delete
+- purge
+- 관리자용 회원 상태 삭제
+- 보호자 계정 연결/해제
+- 센터 구독
+- 다른 pool 정보
+- 관리자 전용 수강금액 정보
+
+기존 권한을 임의 확대하지 마십시오.
+
+==================================================
+4. ASSIGNED STUDENT SCOPE
+==================================================
+
+Teacher student-detail은
+담당 학생만 접근 가능해야 합니다.
+
+반드시 확인:
+
+- 다른 teacher 담당 학생
+- 다른 pool 학생
+
+접근 차단.
+
+UI hide만으로 끝내지 말고
+기존 API 권한도 유지.
+
+==================================================
+5. COMMON COMPONENT EXTRACTION
+==================================================
+
+WP-M3 Admin과
+WP-M4 Teacher에서
+중복되는 UI/로직 중 실제 공통 가능한 것만 추출.
+
+후보:
+
+MemberStatusBadge
+MemberBasicInfoSection
+MemberClassInfoSection
+LevelEditor
+GuardianContact
+AttendanceSummary
+MakeupSummary
+MemberDiaryShortcut
+MemberMediaShortcut
+
+단:
+
+권한 분기가 너무 다른 section을
+억지로 하나로 합치지 마십시오.
+
+목표:
+
+공통 데이터/표시 로직 공유
++
+role별 action 제어
+
+==================================================
+6. LEVEL EDITOR
+==================================================
+
+Admin:
+PATCH /admin/students/:id/level
+
+Teacher:
+PATCH /teacher/students/:id/level
+
+현재 endpoint는 다르지만
+UI component는 공통화 가능.
+
+공통 component 내부에서
+role에 따라 endpoint를 하드코딩하지 말고
+
+onChange / onSave callback 주입 방식 권장.
+
+==================================================
+7. GUARDIAN CONTACT
+==================================================
+
+Admin:
+
+phone1~4
+
+Teacher:
+
+현재 허용된 phone1~2
+
+같은 component를 사용하더라도:
+
+visibleFields
+editableFields
+
+같은 prop 기반으로 역할 차등.
+
+Teacher에게 phone3/4를
+이번 WP에서 새로 열지 마십시오.
+
+==================================================
+8. BASIC INFO EDIT
+==================================================
+
+Teacher가 현재 수정 가능한
+메모/notes만 edit 가능하면
+그 권한 그대로 유지.
+
+Admin과 동일한
+전체 기본정보 edit form을
+Teacher에게 노출하면 FAIL.
+
+==================================================
+9. STATUS / DELETE
+==================================================
+
+Teacher 화면에서:
+
+withdraw
+restore
+archive
+delete
+purge
+force-delete
+permanent
+
+관리자 전용 액션 노출 금지.
+
+만약 기존 teacher 화면에
+이런 액션이 있다면
+보고 후 제거.
+
+==================================================
+10. PERFORMANCE
+==================================================
+
+Admin과 동일 원칙:
+
+즉시:
+- 기본정보
+- 반
+- 레벨
+- 출결 summary
+- 보강 summary
+- 보호자 연락처
+
+lazy/shortcut:
+- 전체 출결
+- 전체 보강
+- 전체 일지
+- 전체 사진/영상
+
+==================================================
+11. BACK RULE
+==================================================
+
+Teacher Detail Back:
+
+항상 previous screen.
+
+예:
+
+Today Schedule
+→ Student Detail
+→ Back
+→ Today Schedule
+
+Class/Attendance
+→ Student Detail
+→ Back
+→ 직전 화면
+
+Home hardcoded 금지.
+
+==================================================
+12. KEYBOARD / SCROLL
+==================================================
+
+WP-M3과 동일한 현재 규칙 유지:
+
+- 단일 long-scroll
+- 마지막 Section까지 도달
+- Safe Area 확보
+- KeyboardAvoidingView
+- scroll 시 keyboard dismiss
+- 버튼 1회 tap
+
+단:
+
+빈 배경 tap keyboard dismiss
+전역 규칙은
+WP-M4 완료 후 별도 Global Keyboard Audit에서
+관리자/선생님 전체에 일괄 적용 예정.
+
+이번 WP에서 독자 hack 금지.
+
+==================================================
+13. MEMBER DETAIL ENTRY CLEANUP
+==================================================
+
+Teacher가 학생을 눌렀을 때
+중간에:
+
+회원정보 보기
+레벨 변경
+연락처 수정
+
+등 별도 선택지가 반복된다면
+Student Detail 내부로 통합.
+
+기본:
+
+학생 선택
+→ Student Detail
+
+==================================================
+14. SWIMNOTE / X SHARED CORE
+==================================================
+
+Teacher Member Detail:
+
+SWIMNOTE:
+동일
+
+X:
+동일
+
+AI/X 고유 기능만 별도 조건부.
+
+이번 WP에서는
+AI 기능 추가하지 않음.
+
+신규 mode gate:
+0
+
+이어야 함.
+
+==================================================
+15. TESTS
+==================================================
+
+CASE A
+담당 학생 → Student Detail 진입
+
+CASE B
+Back → 직전 화면
+
+CASE C
+기본정보 표시
+
+CASE D
+반/요일/시간 표시
+
+CASE E
+개인 레벨 표시
+
+CASE F
+레벨 변경
+
+CASE G
+출결 summary 표시
+
+CASE H
+보강 summary 표시
+
+CASE I
+parent phone1 표시
+
+CASE J
+parent phone2 표시
+
+CASE K
+phone3/4 미노출
+
+CASE L
+메모 수정
+
+CASE M
+일지 shortcut
+
+CASE N
+사진/영상 shortcut
+
+CASE O
+Admin Danger Zone 미노출
+
+CASE P
+delete/purge/force-delete 미노출
+
+CASE Q
+다른 teacher 담당 학생 접근 차단
+
+CASE R
+다른 pool 학생 접근 차단
+
+CASE S
+SWIMNOTE normal 동일
+
+CASE T
+X 동일
+
+CASE U
+신규 mode gate 0
+
+CASE V
+Admin과 공통 component 동작
+
+CASE W
+마지막 Section까지 scroll 가능
+
+==================================================
+16. REGRESSION REPORT RULE
+==================================================
+
+반드시:
+
+Baseline failures before WP-M4:
+N
+
+Failures after WP-M4:
+N
+
+New failures caused by WP-M4:
+N
+
+Pre-existing failures:
+N
+
+WP-M4 신규 실패가 0일 때만
+Regression PASS.
+
+==================================================
+17. 이번 WP에서 금지
+==================================================
+
+Admin Member Detail 대규모 재수정 금지
+Parent UI 변경 금지
+student_links 생성 금지
+DB migration 금지
+Delete API 변경 금지
+Restore API 변경 금지
+RevenueCat 변경 금지
+Pricing 변경 금지
+Subscription 변경 금지
+
+==================================================
+18. PRODUCTION 금지
+==================================================
+
+Production deploy 금지
+Render 변경 금지
+Production DB 변경 금지
+OTA 금지
+1.6.3 수정 금지
+Android 수정 금지
+
+release/v2.0.0 code + tests만.
+
+==================================================
+19. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# WP-M4 TEACHER MEMBER DETAIL CONSOLIDATION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## CURRENT TEACHER DETAIL
+
+Before structure:
+...
+
+After structure:
+...
+
+## TARGET STRUCTURE
+
+Header:
+...
+
+Section A:
+...
+
+Section B:
+...
+
+Section C:
+...
+
+Section D:
+...
+
+Section E:
+...
+
+Section F:
+...
+
+Section G:
+NOT EXPOSED
+
+Section H:
+...
+
+## PERMISSIONS
+
+Teacher VIEW:
+...
+
+Teacher EDIT/ACTION:
+...
+
+Teacher HIDDEN:
+...
+
+## ASSIGNED STUDENT SCOPE
+
+Other teacher student:
+BLOCKED / ALLOWED
+
+Expected:
+BLOCKED
+
+Cross-pool:
+BLOCKED / ALLOWED
+
+Expected:
+BLOCKED
+
+## LEVEL
+
+SoT:
+students.current_level_order
+
+Display:
+PASS / FAIL
+
+Change:
+PASS / FAIL
+
+## GUARDIAN
+
+phone1:
+PASS / FAIL
+
+phone2:
+PASS / FAIL
+
+phone3:
+VISIBLE / HIDDEN
+
+Expected:
+HIDDEN
+
+phone4:
+VISIBLE / HIDDEN
+
+Expected:
+HIDDEN
+
+## COMMON COMPONENTS
+
+Extracted:
+...
+
+Shared with Admin:
+...
+
+Role-specific props/callbacks:
+...
+
+## ATTENDANCE / MAKEUP
+
+Attendance summary:
+PASS / FAIL
+
+Makeup summary:
+PASS / FAIL
+
+## DIARY / MEDIA
+
+Diary shortcut:
+PASS / FAIL
+
+Media shortcut:
+PASS / FAIL
+
+## ADMIN-ONLY ACTIONS
+
+withdraw:
+HIDDEN / VISIBLE
+
+archive:
+HIDDEN / VISIBLE
+
+purge:
+HIDDEN / VISIBLE
+
+force-delete:
+HIDDEN / VISIBLE
+
+permanent:
+HIDDEN / VISIBLE
+
+Expected:
+ALL HIDDEN
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gates:
+0 / ...
+
+Expected:
+0
+
+## BACK
+
+Previous-screen-only:
+PASS / FAIL
+
+Home hardcoded:
+YES / NO
+
+Expected:
+NO
+
+## SCROLL
+
+Long-scroll:
+PASS / FAIL
+
+Bottom reachable:
+PASS / FAIL
+
+Keyboard overlap:
+PASS / FAIL
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+...
+CASE W:
+PASS / FAIL
+
+## REGRESSION
+
+Baseline failures before WP-M4:
+...
+
+Failures after WP-M4:
+...
+
+New failures caused by WP-M4:
+...
+
+Pre-existing failures:
+...
+
+Regression:
+PASS / FAIL
+
+## UNTOUCHED
+
+Admin UI:
+UNCHANGED or minimal shared-component adaptation only
+
+Parent UI:
+UNCHANGED
+
+student_links:
+NOT CREATED
+
+Delete APIs:
+UNCHANGED
+
+Restore APIs:
+UNCHANGED
+
+Pricing/Subscription:
+UNCHANGED
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+WP-M4 TEACHER MEMBER DETAIL CONSOLIDATION COMPLETE
+or
+BLOCKED

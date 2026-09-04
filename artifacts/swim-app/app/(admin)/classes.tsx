@@ -8,7 +8,7 @@
  * - 일간 뷰: WeeklySchedule 공용 컴포넌트 + 담당 선생님 표시
  * - AdminClassDetailSheet 사용 (관리자 기능)
  */
-import { Calendar, Check, ChevronLeft, ChevronRight, Plus, Repeat, RotateCcw, User, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +20,7 @@ import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { addTabResetListener } from "@/utils/tabReset";
+import { classColor } from "@/utils/classColor";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import OnboardingTooltip from "@/components/common/OnboardingTooltip";
 import ClassCreateFlow from "@/components/classes/ClassCreateFlow";
@@ -63,11 +64,6 @@ function getHourRange(groups: TeacherClassGroup[]): number[] {
   const minH = Math.max(6, Math.min(...hours));
   const maxH = Math.min(22, Math.max(...hours));
   return Array.from({ length: maxH - minH + 1 }, (_, i) => i + minH);
-}
-const COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-function classColor(id: string) {
-  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return COLORS[Math.abs(h) % COLORS.length];
 }
 
 
@@ -115,13 +111,13 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -179,8 +175,8 @@ function MonthlyCalendar({ groups, themeColor, selectedDate, onSelectDate }: {
                       const pillIsPast = isPast ||
                         (isToday && parseHour(cls[ti].schedule_time) < nowHour);
                       return (
-                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id) + "22" }]}>
-                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id) }]}>{label}</Text>
+                        <View key={ti} style={[mc.timePill, { backgroundColor: classColor(cls[ti].id, cls[ti].color) + "22" }]}>
+                          <Text style={[mc.timePillText, { color: classColor(cls[ti].id, cls[ti].color) }]}>{label}</Text>
                           {pillIsPast && (
                             <View style={mc.strikeOverlay} pointerEvents="none">
                               <View style={mc.strikeLine} />
@@ -267,7 +263,7 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                   <Text style={sl.title}>{slotLabel} 수업</Text>
                   <Text style={sl.sub}>담당 선생님 {grouped.length}명 · 총 {classes.length}개 반</Text>
                 </View>
-                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={onClose} style={sl.closeBtn}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
@@ -275,13 +271,13 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
                   <Pressable key={teacher} style={sl.teacherCard}
                     onPress={() => setSelectedTeacher(teacher)}>
                     <View style={sl.teacherIconWrap}>
-                      <User size={18} color="#1D4ED8" />
+                      <LucideIcon name="user" size={18} color="#1D4ED8" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={sl.teacherCardName}>{teacher}</Text>
                       <Text style={sl.teacherCardSub}>수업 진행 중 {grps.length}개 반</Text>
                     </View>
-                    <ChevronRight size={16} color={C.textSecondary} />
+                    <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -293,25 +289,25 @@ function SlotSheet({ day, hour, classes, themeColor, onClose, onSelectClass }: {
             <>
               <View style={sl.header}>
                 <Pressable onPress={() => setSelectedTeacher(null)} style={sl.backBtn}>
-                  <ChevronLeft size={20} color={themeColor} />
+                  <LucideIcon name="chevron-left" size={20} color={themeColor} />
                 </Pressable>
                 <View style={{ flex: 1 }}>
                   <Text style={sl.title}>{selectedTeacher} 선생님</Text>
                   <Text style={sl.sub}>{slotLabel} · {teacherClasses.length}개 반</Text>
                 </View>
-                <Pressable onPress={onClose} style={sl.closeBtn}><X size={20} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={onClose} style={sl.closeBtn}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 60, gap: 8 }}>
                 {teacherClasses.map(g => (
                   <Pressable key={g.id} style={sl.classCard}
                     onPress={() => { onClose(); setTimeout(() => onSelectClass(g), 250); }}>
-                    <View style={[sl.colorBar, { backgroundColor: classColor(g.id) }]} />
+                    <View style={[sl.colorBar, { backgroundColor: classColor(g.id, g.color) }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={sl.className}>{g.name}</Text>
                       <Text style={sl.classSub}>{g.student_count ?? 0}명 · {g.schedule_time}</Text>
                     </View>
-                    <ChevronRight size={15} color={C.textSecondary} />
+                    <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
                   </Pressable>
                 ))}
               </ScrollView>
@@ -337,15 +333,15 @@ const sl = StyleSheet.create({
   backBtn:         { padding: 4, marginRight: 2 },
 
   teacherCard:     { flexDirection: "row", alignItems: "center", gap: 12,
-                     backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14,
+                     backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14,
                      borderWidth: 1, borderColor: C.border },
-  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#EFF6FF",
+  teacherIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.backgroundSoft,
                      alignItems: "center", justifyContent: "center" },
   teacherCardName: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, fontWeight: "600" },
   teacherCardSub:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   classCard:       { flexDirection: "row", alignItems: "center", gap: 10,
-                     backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12,
+                     backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 12,
                      borderWidth: 1, borderColor: C.border },
   colorBar:        { width: 3, height: 36, borderRadius: 2 },
   className:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -377,12 +373,12 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <Text style={dy.dateSub}>{classes.length > 0 ? `수업 ${classes.length}개` : "수업 없음"}</Text>
             </View>
             <View style={dy.headerActions}>
-              <Pressable style={[dy.headerBtn, { backgroundColor: "#E6FFFA" }]} onPress={onOpenMakeup}>
-                <Repeat size={13} color="#4338CA" />
-                <Text style={[dy.headerBtnTxt, { color: "#4338CA" }]}>보강</Text>
+              <Pressable style={[dy.headerBtn, { backgroundColor: C.backgroundSoft }]} onPress={onOpenMakeup}>
+                <LucideIcon name="repeat" size={13} color={C.textSecondary} />
+                <Text style={[dy.headerBtnTxt, { color: C.textSecondary }]}>보강</Text>
               </Pressable>
               <Pressable onPress={onClose} style={dy.closeBtn}>
-                <X size={20} color={C.textSecondary} />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -392,10 +388,10 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
 
             {classes.length === 0 && (
               <View style={dy.emptyBox}>
-                <Calendar size={32} color={C.textMuted} />
+                <LucideIcon name="calendar" size={32} color={C.textMuted} />
                 <Text style={dy.emptyTxt}>이 날은 수업이 없습니다</Text>
                 <Pressable style={[dy.emptyAction, { borderColor: "#4338CA" }]} onPress={onOpenMakeup}>
-                  <Repeat size={13} color="#4338CA" />
+                  <LucideIcon name="repeat" size={13} color="#4338CA" />
                   <Text style={[dy.emptyActionTxt, { color: "#4338CA" }]}>보강 추가</Text>
                 </Pressable>
               </View>
@@ -405,7 +401,7 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
               <View style={{ paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
                 {classes.map(g => {
                   const attCnt = attMap[g.id] || 0;
-                  const color  = classColor(g.id);
+                  const color  = classColor(g.id, g.color);
                   return (
                     <Pressable key={g.id} style={dy.classCard} onPress={() => onSelectClass(g)}>
                       <View style={[dy.colorBar, { backgroundColor: color }]} />
@@ -418,19 +414,19 @@ function DaySheet({ dateStr, classes, attMap, themeColor, onClose, onSelectClass
                           <Text style={dy.classSub}>{g.student_count}명</Text>
                           {!!g.instructor && (
                             <View style={dy.instructorBadge}>
-                              <User size={9} color="#64748B" />
+                              <LucideIcon name="user" size={9} color={C.textSecondary} />
                               <Text style={dy.instructorTxt}>{g.instructor}</Text>
                             </View>
                           )}
                           {attCnt > 0 && (
                             <View style={dy.attBadge}>
-                              <Check size={9} color="#2EC4B6" />
+                              <LucideIcon name="check" size={9} color={C.brandStrong} />
                               <Text style={dy.attBadgeTxt}>출결 {attCnt}</Text>
                             </View>
                           )}
                         </View>
                       </View>
-                      <ChevronRight size={16} color={C.textSecondary} />
+                      <LucideIcon name="chevron-right" size={16} color={C.textSecondary} />
                     </Pressable>
                   );
                 })}
@@ -464,7 +460,7 @@ const dy = StyleSheet.create({
                     paddingVertical: 8, borderRadius: 10, borderWidth: 1.5 },
   emptyActionTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   classCard:      { flexDirection: "row", alignItems: "center", gap: 10,
-                    backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12,
+                    backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12,
                     borderWidth: 1, borderColor: C.border },
   colorBar:       { width: 3, height: 40, borderRadius: 2 },
   classTime:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
@@ -472,10 +468,10 @@ const dy = StyleSheet.create({
   classSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   instructorBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
                     paddingVertical: 2, borderRadius: 6, backgroundColor: "#FFFFFF" },
-  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  instructorTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   attBadge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6,
-                    paddingVertical: 2, borderRadius: 6, backgroundColor: "#E6FFFA" },
-  attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+                    paddingVertical: 2, borderRadius: 6, backgroundColor: C.brandSoft },
+  attBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
 });
 
 // ══════════════════ 메인 스크린 ══════════════════════════════════
@@ -499,6 +495,11 @@ export default function ClassesScreen() {
 
   // 반 상세 시트
   const [detailGroup, setDetailGroup] = useState<TeacherClassGroup | null>(null);
+
+  // 반 삭제
+  const [deletingClass, setDeletingClass] = useState<TeacherClassGroup | null>(null);
+  const [showDeleteClassConfirm, setShowDeleteClassConfirm] = useState(false);
+  const [deletingClassLoading, setDeletingClassLoading] = useState(false);
 
   // 주간 compact 슬롯 시트
   const [selectedSlot, setSelectedSlot] = useState<{ day: string; hour: number; classes: TeacherClassGroup[] } | null>(null);
@@ -539,6 +540,30 @@ export default function ClassesScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── 반 삭제 ──
+  const handleDeleteClass = useCallback(async () => {
+    if (!deletingClass || deletingClassLoading) return;
+    const target = deletingClass;
+    setDeletingClassLoading(true);
+    try {
+      const res = await apiRequest(token, `/class-groups/${target.id}`, { method: "DELETE" });
+      setShowDeleteClassConfirm(false);
+      setDeletingClass(null);
+      if (res.ok) {
+        setDetailGroup(null);
+        setSelectedDate(null);
+        setGroups(prev => prev.filter(g => g.id !== target.id));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "반 삭제에 실패했습니다.");
+      }
+    } catch (e) {
+      alert("반 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingClassLoading(false);
+    }
+  }, [deletingClass, deletingClassLoading, token, load]);
+
   // ── 날짜별 출결 로드 ──
   async function loadDayData(dateStr: string) {
     try {
@@ -571,9 +596,13 @@ export default function ClassesScreen() {
     setTimeout(navigate, 350);
   }
 
-  // ── 포커스 복귀: 날짜 팝업 복원 ──
+  // ── 포커스 복귀: 날짜 팝업 복원 + stuck Modal 초기화 ──
   useFocusEffect(useCallback(() => {
     if (!isMountedRef.current) { isMountedRef.current = true; return; }
+
+    // 탭 전환 후 복귀 시 invisible Modal이 화면을 막는 문제 방지
+    setDetailGroup(null);
+    setSelectedSlot(null);
 
     if (pendingRestoreDateRef.current) {
       const d = pendingRestoreDateRef.current;
@@ -643,19 +672,19 @@ export default function ClassesScreen() {
             </Text>
           </View>
           <View style={s.rightBtns}>
-            <Pressable style={[s.iconBtn, { backgroundColor: "#EEDDF5" }]}
+            <Pressable style={[s.iconBtn, { backgroundColor: C.backgroundSoft }]}
               onPress={() => router.push("/(admin)/makeups?backTo=classes" as any)}>
-              <RotateCcw size={13} color="#7C3AED" />
-              <Text style={[s.iconBtnTxt, { color: "#7C3AED" }]}>보강</Text>
+              <LucideIcon name="rotate-ccw" size={13} color={C.textSecondary} />
+              <Text style={[s.iconBtnTxt, { color: C.textSecondary }]}>보강</Text>
             </Pressable>
             <Pressable style={[s.mgmtBtn, { borderColor: themeColor }]}
               onPress={() => setShowManagement(true)}>
-              <Users size={13} color={themeColor} />
+              <LucideIcon name="users" size={13} color={themeColor} />
               <Text style={[s.mgmtBtnTxt, { color: themeColor }]}>수강생관리</Text>
             </Pressable>
-            <Pressable style={[s.createBtn, { backgroundColor: C.button }]}
+            <Pressable style={[s.createBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => setShowCreate(true)}>
-              <Plus size={14} color="#fff" />
+              <LucideIcon name="plus" size={14} color="#fff" />
               <Text style={s.createBtnTxt}>반 등록</Text>
             </Pressable>
           </View>
@@ -721,8 +750,7 @@ export default function ClassesScreen() {
             onNextWeek={() => setWeeklyViewStart(prev => addDaysStr(prev, 7))}
             statusMap={statusMap}
             students={allStudents}
-            compactMode={true}
-            onSelectSlot={(day, hour, cls) => setSelectedSlot({ day, hour, classes: cls })}
+            compactMode={false}
           />
         </View>
       )}
@@ -752,7 +780,10 @@ export default function ClassesScreen() {
           attMap={dayAttMap}
           themeColor={themeColor}
           onClose={() => setSelectedDate(null)}
-          onSelectClass={(g) => setDetailGroup(g)}
+          onSelectClass={(g) => {
+            setSelectedDate(null);
+            setTimeout(() => setDetailGroup(g), 350);
+          }}
           onOpenMakeup={() => navigateFromSheet(() => router.push("/(admin)/makeups?backTo=classes" as any))}
         />
       )}
@@ -780,6 +811,15 @@ export default function ClassesScreen() {
           onColorChange={(id, color) =>
             setGroups(prev => prev.map(g => g.id === id ? { ...g, color } : g))
           }
+          initialStudents={allStudents}
+          onDeleteClass={() => {
+            const target = detailGroup;
+            setDetailGroup(null);
+            setTimeout(() => {
+              setDeletingClass(target);
+              setShowDeleteClassConfirm(true);
+            }, 350);
+          }}
         />
       )}
 
@@ -797,6 +837,30 @@ export default function ClassesScreen() {
           load();
         }}
       />
+
+      {/* 반 삭제 확인 모달 */}
+      <Modal visible={showDeleteClassConfirm} transparent animationType="fade" onRequestClose={() => setShowDeleteClassConfirm(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.confirmBox}>
+            <LucideIcon name="trash-2" size={28} color="#E11D48" style={{ marginBottom: 12 }} />
+            <Text style={s.confirmTitle}>반을 삭제할까요?</Text>
+            <Text style={s.confirmSub}>
+              <Text style={{ fontFamily: "Pretendard-Bold", color: C.textStrong }}>{deletingClass?.name}</Text>
+              {" 반이 삭제됩니다.\n이 작업은 되돌릴 수 없습니다."}
+            </Text>
+            <View style={s.confirmBtnRow}>
+              <Pressable style={s.confirmCancelBtn} onPress={() => { setShowDeleteClassConfirm(false); setDeletingClass(null); }}>
+                <Text style={s.confirmCancelTxt}>취소</Text>
+              </Pressable>
+              <Pressable style={s.confirmDeleteBtn} onPress={handleDeleteClass} disabled={deletingClassLoading}>
+                {deletingClassLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={s.confirmDeleteTxt}>삭제</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 반 등록 */}
       {showCreate && (
@@ -821,8 +885,8 @@ const s = StyleSheet.create({
   titleArea:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border,
                  paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   titleRow:    { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  titleSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   rightBtns:   { flexDirection: "row", gap: 4, alignItems: "center" },
   iconBtn:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10 },
@@ -839,6 +903,16 @@ const s = StyleSheet.create({
 
   emptyBox:    { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
-  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
+  emptyHintBanner: { paddingVertical: 6, paddingHorizontal: 14, backgroundColor: C.backgroundSoft, borderBottomWidth: 1, borderBottomColor: "#F0EDE9", alignItems: "center" },
   emptyHintText:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+
+  modalOverlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center" },
+  confirmBox:     { backgroundColor: "#fff", borderRadius: 20, padding: 28, width: 300, alignItems: "center", gap: 4 },
+  confirmTitle:   { fontSize: 17, fontFamily: "Pretendard-Bold", color: C.textStrong, marginBottom: 6 },
+  confirmSub:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 16 },
+  confirmBtnRow:  { flexDirection: "row", gap: 10, width: "100%" },
+  confirmCancelBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: C.backgroundSoft, alignItems: "center" },
+  confirmCancelTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  confirmDeleteBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, backgroundColor: "#E11D48", alignItems: "center" },
+  confirmDeleteTxt: { fontSize: 15, fontFamily: "Pretendard-Bold", color: "#fff" },
 });

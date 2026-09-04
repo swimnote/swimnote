@@ -1,0 +1,572 @@
+[WP-X04-RESUME — DOCUMENT STRUCTURING / WEBSITE BUILD PACKAGE COMPLETION]
+
+현재 상황:
+
+WP-SA0-B가 예정 순서보다 먼저 구현되었다.
+
+중요:
+SA0-B 코드는 삭제/롤백하지 않는다.
+하지만 이번 작업에서 Super Admin 구조를 더 확장하지 않는다.
+
+현재 SA0-B 구현:
+- super_incidents
+- /super/incidents CRUD
+- /super/billing/list
+- /super/servers/status
+- /super/pools/search
+- SuperLayout global pool search
+- SuperOverview
+- SuperPoolDetail X/AI/support/incident sections
+- SuperBilling
+- SuperIncidents
+- SuperServers
+- SuperAI
+
+위 기능은 FREEZE.
+
+이번 WP의 목적은 원래 진행 중이던
+WP-X04를 완성하는 것이다.
+
+==================================================
+0. SCOPE LOCK
+==================================================
+
+이번 작업:
+
+X03 제출자료
+→ 구조화
+→ Super Admin 검토
+→ 홈페이지 제작 package 생성
+
+까지만 한다.
+
+SA0 메뉴 재설계 금지.
+서버관제 추가 금지.
+고객센터 AI 금지.
+Partner Analytics 금지.
+
+==================================================
+1. T1 FINAL VERIFY
+==================================================
+
+먼저 현재 Render 상태 확인.
+
+공식 DOCX 2개 production download:
+
+1.
+SWIMNOTE_X_커리큘럼_작성양식_v1.0.docx
+
+expected SHA-256:
+797339d9fe76880d21b33487325f7dde85053380c4367a46b592b56bb0e42753
+
+2.
+SWIMNOTE_X_홈페이지_제작자료_양식_v1.0.docx
+
+expected SHA-256:
+9921f96d11ee5a9d7c3b94563abf740ad3b3fdf9b6ccdf931646db230fe6507d
+
+검증:
+
+- production download 200
+- DOCX openable
+- MIME 정상
+- downloaded hash == official source hash
+
+통과하면:
+
+WP_X03_T1_FULL_PASS ✅
+
+실패 시 실제 원인만 수정.
+템플릿 내용 재생성 금지.
+
+==================================================
+2. ORIGINAL / STRUCTURED / GENERATED
+==================================================
+
+3계층 절대 분리:
+
+ORIGINAL
+= 수영장이 제출한 원본 DOCX / logo / photos
+
+STRUCTURED
+= 원본에서 추출한 정규화 데이터
+
+GENERATED
+= 향후 제작되는 홈페이지/커리큘럼 결과
+
+원본 overwrite 금지.
+
+==================================================
+3. CURRICULUM STRUCTURING
+==================================================
+
+공식 DOCX v1.0 기준 deterministic parsing 우선.
+
+지원:
+
+실제 작성된 단계만 구조화.
+
+예:
+
+1~5 → 5단계
+1~7 → 7단계
+1~10 → 10단계
+
+빈 레벨 자동 생성 금지.
+
+각 level:
+
+- order
+- level_name
+- level_color
+- target
+- strokes
+- skills
+- contents
+- objective
+- promotion_criteria
+- test_method
+- detailed_skills
+- common_errors
+- correction
+- drills
+- age_notes
+- teaching_focus
+- notes
+
+원본에 없는 정보 생성 금지.
+
+==================================================
+4. WEBSITE PROFILE STRUCTURING
+==================================================
+
+구조화 영역:
+
+basic_info
+brand
+strengths
+differentiation
+philosophy
+programs
+level_system
+education_process
+facilities
+safety
+vehicle_location
+usage_information
+coaches
+trust_credentials
+faq
+website_preferences
+restricted_information
+free_notes
+
+빈 항목:
+null / empty
+
+추측 생성 금지.
+
+==================================================
+5. PROVENANCE
+==================================================
+
+구조화 결과는 최소 다음 source 연결 유지:
+
+pool_id
+source_submission_id
+source_file_id
+source_version
+template_version
+processed_at
+processing_method
+review_status
+
+Super Admin 수정 시:
+
+edited_by
+edited_at
+
+승인 시:
+
+approved_by
+approved_at
+
+==================================================
+6. PARSER POLICY
+==================================================
+
+우리 공식 Word 양식이므로:
+
+table row label
+heading
+cell value
+
+기반 deterministic parsing 우선.
+
+LLM 호출을 기본 parser로 사용 금지.
+
+자유서술 때문에 LLM이 정말 필요하면
+이번 WP에서는 자동 사실 생성 없이
+별도 REVIEW_REQUIRED 대상으로 남겨도 됨.
+
+비용 증가 구조 금지.
+
+==================================================
+7. SUPER ADMIN — EXISTING SA0-B REUSE
+==================================================
+
+SA0-B에서 이미 추가한:
+
+SuperPoolDetail의 X04 section
+
+이 있으면 재사용.
+
+새 Super Admin 메뉴 생성 금지.
+
+Pool Detail에서:
+
+[원본 자료]
+[구조화 데이터]
+[검토]
+[수정]
+[승인]
+[홈페이지 제작 패키지 생성]
+
+가능하게 한다.
+
+SA0-B와 중복 component/API 생성 금지.
+
+==================================================
+8. STRUCTURED REVIEW
+==================================================
+
+Super Admin:
+
+원본 다운로드 가능
+
++
+
+구조화 데이터 확인 가능.
+
+STRUCTURED만 수정 가능.
+
+원본 수정 금지.
+
+상태:
+
+PROCESSING
+STRUCTURED
+REVIEW_REQUIRED
+APPROVED
+FAILED
+
+==================================================
+9. WEBSITE PACKAGE
+==================================================
+
+APPROVED website profile만:
+
+[홈페이지 제작 패키지 생성]
+
+가능.
+
+생성:
+
+SWIMNOTE_X_WEBSITE_PACKAGE_<POOL>_<DATE>.zip
+
+내부:
+
+website_spec.md
+website_data.json
+source_manifest.json
+
+original/
+  website_profile.docx
+
+branding/
+  logo.* (있을 경우)
+
+images/
+  최대 10장
+
+==================================================
+10. WEBSITE_SPEC.MD
+==================================================
+
+Replit에게 그대로 전달 가능한 제작지시서.
+
+섹션:
+
+POOL
+BRAND
+SLOGAN
+HERO
+INTRODUCTION
+STRENGTHS
+DIFFERENTIATION
+PHILOSOPHY
+PROGRAMS
+LEVEL SYSTEM
+EDUCATION
+FACILITIES
+SAFETY
+LOCATION
+USAGE INFORMATION
+COACHES
+TRUST
+FAQ
+WEBSITE PREFERENCES
+DO NOT INCLUDE
+IMAGE MANIFEST
+
+정보가 없으면:
+
+NOT PROVIDED
+
+임의 작성 금지.
+
+==================================================
+11. WEBSITE_DATA.JSON
+==================================================
+
+machine-readable.
+
+필수:
+
+schema_version
+pool_id
+generated_at
+source_submission_id
+source_version
+template_version
+data
+
+==================================================
+12. SOURCE_MANIFEST
+==================================================
+
+포함:
+
+pool_id
+submission ids
+source versions
+template versions
+original filenames
+logo filename
+photo filenames
+structured approval info
+package generation info
+
+==================================================
+13. PACKAGE VERSIONING
+==================================================
+
+새 자료 승인 후 package 재생성 가능.
+
+기존 package overwrite 금지.
+
+package_version
+generated_at
+generated_by
+source_version
+
+history 보존.
+
+==================================================
+14. CURRICULUM GENERATION — NOT YET
+==================================================
+
+이번 WP는:
+
+Original curriculum
+→ Structured curriculum
+→ Review
+→ Approved
+
+까지만.
+
+최종 AI 커리큘럼 생성 금지.
+
+==================================================
+15. ACTUAL WEBSITE — NOT YET
+==================================================
+
+실제 홈페이지 frontend 제작 금지.
+
+이번 단계는
+Replit 제작용 package 생성까지만.
+
+==================================================
+16. SECURITY
+==================================================
+
+기존 X03 보호 유지:
+
+private files
+pool isolation
+Super Admin authorization
+no raw public URL
+cross-pool denial
+sanitized ZIP filename
+
+package generation/download:
+Super Admin only.
+
+==================================================
+17. SA0-B REGRESSION CHECK
+==================================================
+
+이번 X04 때문에 기존 SA0-B:
+
+global pool search
+incidents
+billing
+servers
+AI traces
+pool detail
+
+깨지지 않았는지만 확인.
+
+SA0-B UI 개선 금지.
+
+==================================================
+18. TEST REQUIRED
+==================================================
+
+T1 official template hash verify
+
+Curriculum:
+5 levels
+7 levels
+10 levels
+blank optional
+no fabricated level
+
+Website:
+partial doc
+full doc
+FAQ
+missing fields
+no fabricated information
+
+Super Admin:
+view
+edit
+approve
+
+Package:
+ZIP
+spec.md
+data.json
+manifest
+logo optional
+1~10 photos
+version history
+
+Security:
+cross-pool deny
+non-super package generation deny
+
+Original:
+hash unchanged after structuring
+
+==================================================
+19. DEPLOYMENT
+==================================================
+
+Server/DB 변경 필요 시 production-safe.
+
+현재 Render 상태 확인.
+
+클라이언트 변경 시:
+
+iOS production OTA
+iOS preview OTA
+
+Android OTA 금지.
+Android는 최종 Android 단계에서 누적 반영.
+
+==================================================
+20. FINAL REPORT
+==================================================
+
+T1_FULL_PASS =
+T1_CURRICULUM_HASH =
+T1_WEBSITE_HASH =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+CURRICULUM_PARSER =
+WEBSITE_PARSER =
+PARSER_VERSION =
+
+VARIABLE_LEVEL_COUNT =
+FABRICATED_DATA =
+
+ORIGINAL_PRESERVED =
+PROVENANCE =
+
+STRUCTURED_VIEW =
+STRUCTURED_EDIT =
+STRUCTURED_APPROVAL =
+
+WEBSITE_PACKAGE =
+WEBSITE_SPEC_MD =
+WEBSITE_DATA_JSON =
+SOURCE_MANIFEST_JSON =
+
+PACKAGE_VERSIONING =
+LOGO_OPTIONAL =
+PHOTO_MAX =
+
+SUPER_ADMIN_PACKAGE_PERMISSION =
+CROSS_POOL_SECURITY =
+
+CURRICULUM_AI_GENERATION =
+ACTUAL_WEBSITE_GENERATION =
+
+SA0_B_CHANGED =
+SA0_B_REGRESSION =
+
+DB_CHANGED =
+SERVER_CHANGED =
+CLIENT_CHANGED =
+
+TEST_RESULT =
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+IOS_PRODUCTION_OTA =
+IOS_PREVIEW_OTA =
+
+성공 조건:
+
+T1_FULL_PASS = YES
+
+VARIABLE_LEVEL_COUNT = YES
+FABRICATED_DATA = NO
+
+ORIGINAL_PRESERVED = YES
+PROVENANCE = YES
+
+STRUCTURED_VIEW = YES
+STRUCTURED_EDIT = YES
+STRUCTURED_APPROVAL = YES
+
+WEBSITE_PACKAGE = YES
+WEBSITE_SPEC_MD = YES
+WEBSITE_DATA_JSON = YES
+SOURCE_MANIFEST_JSON = YES
+
+SUPER_ADMIN_PACKAGE_PERMISSION = SUPER_ADMIN_ONLY
+CROSS_POOL_SECURITY = PASS
+
+CURRICULUM_AI_GENERATION = NO
+ACTUAL_WEBSITE_GENERATION = NO
+
+SA0_B_CHANGED = NO
+SA0_B_REGRESSION = NO
+
+완료:
+
+WP_X04_DOCUMENT_STRUCTURING_WEBSITE_PACKAGE_COMPLETE ✅

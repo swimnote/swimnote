@@ -1,0 +1,1193 @@
+[WP-CS-PA0 — AI CUSTOMER SUPPORT + PARTNER ANALYTICS INTEGRATED FOUNDATION]
+
+목적:
+
+SWIMNOTE의 AI 고객센터와
+OpenAI Partner 제출용 AI Usage / Adoption / Reliability / Business Impact 계측을
+하나의 공통 운영 구조로 구축하기 위한 기반을 만든다.
+
+중요:
+
+고객센터와 Partner Analytics를 따로 만들어
+Super Admin / trace / usage / cost 구조를 두 벌로 만들지 않는다.
+
+공통 foundation:
+
+AI REQUEST TRACE
+SUPPORT EVENT
+POOL / USER / ROLE
+FEATURE
+MODEL
+TOKEN / COST
+RESULT
+ADOPTION
+ERROR
+LATENCY
+AUDIT
+
+를 공유한다.
+
+==================================================
+0. EXISTING CUSTOMER SUPPORT MASTER — LOCK
+==================================================
+
+기존 확정 고객센터 설계 원칙을 유지한다.
+
+핵심:
+
+1. Search First / LLM Second
+2. DB / Rule / Solution DB / FAQ / Known Issue / Semantic Cache 우선
+3. LLM은 복잡한 문의 / vision / 리포트 관련 등에 제한적으로 사용
+4. 근거 없는 답변 금지
+5. 답변 근거가 없으면 사람에게 escalation
+6. AI → 사람 메시지 상담 → 필요 시 전화 순서
+7. production DB를 AI가 임의 수정 금지
+8. 환불/결제/계정/분쟁은 audit 필수
+9. support events를 제품 개선 데이터로 재사용
+10. role / tenant / pool knowledge isolation
+11. 기존 support / inquiries / FAQ / notices / X 기능 최대 재사용
+12. 고객센터는 독립 모듈로 추가
+
+==================================================
+1. CORE TARGET
+==================================================
+
+최종적으로 다음 구조를 만든다.
+
+SUPER ADMIN
+│
+├─ AI 운영
+│   ├─ Feature Usage
+│   ├─ Model Usage
+│   ├─ Token / Cost
+│   ├─ Errors
+│   └─ Reliability
+│
+├─ 고객센터
+│   ├─ Conversations
+│   ├─ New / Open
+│   ├─ AI Resolved
+│   ├─ Human Required
+│   ├─ Escalated
+│   ├─ Refund / Billing
+│   ├─ Knowledge
+│   ├─ Known Issues
+│   ├─ Solution DB
+│   └─ Support Analytics
+│
+└─ Partner Analytics
+    ├─ Overview
+    ├─ Adoption
+    ├─ Usage
+    ├─ Business Impact
+    ├─ Reliability
+    ├─ Growth
+    ├─ Evidence
+    ├─ Export
+    └─ Snapshots
+
+==================================================
+2. FIRST — FULL REPOSITORY AUDIT
+==================================================
+
+수정 전에 반드시 감사.
+
+찾을 것:
+
+support
+support tickets
+inquiries
+faq
+notices
+known issues
+solution
+knowledge
+messages
+parent requests
+
+ai_traces
+request_id
+trace_id
+
+teacher AI diary
+parent curriculum AI
+growth report AI
+
+OpenAI call wrappers
+model config
+token usage
+usage response
+latency
+error handling
+retry
+
+Super Admin:
+SuperSupport
+SuperAI
+SuperPartner
+SuperPoolDetail
+
+DB:
+existing support tables
+existing trace tables
+audit_logs
+
+먼저 기존 자산 map 작성.
+
+==================================================
+3. NO DUPLICATE SYSTEM
+==================================================
+
+특히 확인:
+
+현재 ai_traces table/schema가
+공통 usage telemetry로 확장 가능한지.
+
+가능:
+→ 기존 trace 확장/재사용
+
+불가능:
+→ 최소 신규 common usage table
+
+새로운 AI trace system을
+무조건 별도 생성 금지.
+
+최종 보고:
+
+EXISTING_AI_TRACE =
+REUSABLE =
+GAPS =
+
+==================================================
+4. COMMON AI FEATURE ENUM
+==================================================
+
+모든 AI 호출을 최소 다음 feature로 분류.
+
+TEACHER_AI_DIARY
+PARENT_CURRICULUM_AI
+GROWTH_REPORT_AI
+SUPPORT_AI
+
+향후 확장 가능:
+
+VIDEO_ANALYSIS
+AI_SEARCH
+REPORT_SUMMARY
+OTHER
+
+feature 문자열을 화면마다 제각각 만들지 않는다.
+
+==================================================
+5. COMMON AI USAGE EVENT
+==================================================
+
+최소 개념:
+
+request_id
+trace_id
+
+created_at
+
+pool_id
+user_id or privacy-safe identifier
+user_role
+
+mode
+normal / x
+
+feature
+sub_feature
+
+provider
+model
+
+input_tokens
+output_tokens
+cached_tokens if available
+total_tokens
+
+estimated_cost
+
+latency_ms
+
+status
+error_code
+
+result_generated
+result_saved
+result_used
+
+source_app
+app_version
+
+metadata
+
+==================================================
+6. PRIVACY RULE
+==================================================
+
+Partner Analytics 때문에
+다음 원문을 기본 usage table에 저장 금지:
+
+이름
+전화번호
+이메일
+전체 prompt
+전체 AI conversation
+민감한 학생 정보
+
+통계 table은 metadata 중심.
+
+실제 고객센터 conversation은
+support module의 권한/보존정책으로 별도 관리.
+
+==================================================
+7. TOKEN DATA — SOURCE FIRST
+==================================================
+
+OpenAI/API 응답에서
+실제 usage가 제공되면
+그 값을 source of truth로 사용.
+
+추정 token을 실제 token처럼 저장 금지.
+
+없는 경우:
+
+NULL / UNKNOWN.
+
+==================================================
+8. COST
+==================================================
+
+비용은:
+
+provider
+model
+tokens
+pricing version
+
+기준.
+
+중요:
+
+실제 invoice 금액과
+estimated cost를 구분.
+
+필드/표시:
+
+estimated_cost
+
+처럼 명확하게 표시.
+
+==================================================
+9. PRICING VERSION
+==================================================
+
+모델 가격은 변할 수 있다.
+
+따라서 과거 비용을
+현재 가격으로 재계산해서 왜곡하지 않게:
+
+pricing_version
+pricing_effective_at
+
+또는 동일 목적의 구조 검토.
+
+==================================================
+10. CUSTOMER SUPPORT REQUEST CONTEXT
+==================================================
+
+AI 고객센터 진입 시 가능한 범위에서 자동 수집:
+
+role
+pool
+Normal/X
+app version
+current route
+platform
+feature context
+
+사용자가 다시:
+
+"저는 선생님이고..."
+"X모드인데..."
+
+설명하지 않게 한다.
+
+개인정보는 최소화.
+
+==================================================
+11. SUPPORT INPUT
+==================================================
+
+고객센터는 최소:
+
+text
+
+지원.
+
+기존 설계상 향후:
+
+screenshot
+photo
+
+지원 가능하게 file/message schema 확장 가능하게 한다.
+
+이번 WP에서 vision 전체 구현은 아직 하지 않아도 됨.
+
+==================================================
+12. KNOWLEDGE PRIORITY
+==================================================
+
+고객센터 답변 우선순위:
+
+1. Deterministic Rule
+2. Known Issue
+3. Solution DB
+4. Reviewed FAQ
+5. Product / Frontend Map
+6. Pool-specific approved knowledge
+7. Semantic Cache
+8. Search/Retrieval
+9. LLM
+
+즉 처음부터 GPT 호출 금지.
+
+==================================================
+13. FRONTEND MAP FOUNDATION
+==================================================
+
+SWIMNOTE 앱 기능을 고객센터가 이해할 수 있게:
+
+role
+mode
+screen
+route
+feature
+description
+common issue
+deep_link
+
+구조의 Frontend Map foundation 검토.
+
+기존 route/config에서
+자동 생성 가능한 부분 우선.
+
+수작업 중복 DB 최소화.
+
+==================================================
+14. KNOWN ISSUE DB
+==================================================
+
+운영 중 장애를 고객센터가 바로 알 수 있게:
+
+issue_id
+title
+affected_feature
+affected_role
+affected_mode
+affected_version
+status
+workaround
+started_at
+resolved_at
+
+Super Admin incidents와
+연결 가능한 구조.
+
+중복 장애 DB 금지.
+
+가능하면 super_incidents와 reference 연결.
+
+==================================================
+15. SOLUTION DB
+==================================================
+
+반복 문의의 검증된 해결책 저장.
+
+concept:
+
+problem_key
+category
+conditions
+solution_steps
+deep_link
+reviewed
+reviewed_at
+usage_count
+success_count
+
+AI가 자동으로 solution을 production 승인 금지.
+
+Super Admin review 후 활성.
+
+==================================================
+16. FAQ
+==================================================
+
+FAQ source:
+
+global SWIMNOTE FAQ
+feature FAQ
+X FAQ
+pool-specific approved FAQ
+
+X03/X04의 홈페이지 FAQ도
+향후 pool-specific source로 연결 가능.
+
+이번 WP에서는
+자동 연결 foundation까지만.
+
+==================================================
+17. SEMANTIC CACHE
+==================================================
+
+동일/유사 질문에서
+매번 LLM 호출하지 않기 위한 cache 구조 검토.
+
+cache key에는 최소:
+
+role
+mode
+pool scope if needed
+knowledge version
+intent/category
+
+반드시 포함.
+
+다른 수영장 답변 leakage 금지.
+
+==================================================
+18. LLM AVOIDANCE
+==================================================
+
+Partner / 운영 KPI로:
+
+LLM_AVOIDED
+LLM_USED
+
+구분 가능하게 한다.
+
+예:
+
+RULE
+KNOWN_ISSUE
+SOLUTION_DB
+FAQ
+CACHE
+
+에서 해결되면:
+
+llm_used = false
+
+이 지표는 이후:
+
+LLM Avoidance Rate
+
+계산에 사용.
+
+==================================================
+19. SUPPORT CASE STATE
+==================================================
+
+최소:
+
+NEW
+AI_PROCESSING
+AI_RESPONDED
+AI_RESOLVED
+HUMAN_REQUIRED
+HUMAN_RESPONDED
+ESCALATED
+RESOLVED
+CLOSED
+
+현재 support schema가 있으면
+그 상태체계와 충돌하지 않게 normalize.
+
+==================================================
+20. ESCALATION
+==================================================
+
+기본 흐름:
+
+AI
+↓
+해결 안 됨
+↓
+Super Admin / 사람 메시지 상담
+↓
+그래도 필요한 경우
+↓
+전화 또는 별도 직접 대응
+
+바로 전화 유도 남발 금지.
+
+==================================================
+21. ESCALATION REASONS
+==================================================
+
+최소:
+
+NO_KNOWLEDGE
+LOW_CONFIDENCE
+USER_REQUESTED_HUMAN
+ACCOUNT_ACTION_REQUIRED
+BILLING_REQUIRED
+REFUND_REQUIRED
+BUG_REPORT
+SAFETY_OR_PRIVACY
+OTHER
+
+==================================================
+22. REFUND / BILLING
+==================================================
+
+환불/결제 문의에서
+AI가 임의 환불 실행 금지.
+
+AI 가능:
+
+정책 설명
+현재 상태 설명
+필요 자료 안내
+담당자 전달
+
+실제 환불/구독 변경:
+
+기존 billing authority + human/admin action.
+
+모든 변경 audit.
+
+==================================================
+23. ACCOUNT
+==================================================
+
+AI가:
+
+계정 삭제
+권한 변경
+pool membership 변경
+비밀번호/인증 관련 production write
+
+자동 수행 금지.
+
+필요 시 안전한 existing flow로 deep link 안내.
+
+==================================================
+24. SUPPORT ANALYTICS EVENT
+==================================================
+
+고객센터 이벤트:
+
+SUPPORT_CREATED
+KNOWLEDGE_HIT
+RULE_HIT
+KNOWN_ISSUE_HIT
+SOLUTION_HIT
+FAQ_HIT
+CACHE_HIT
+LLM_CALLED
+AI_RESPONDED
+USER_FOLLOWUP
+AI_RESOLVED
+HUMAN_REQUIRED
+HUMAN_RESPONDED
+ESCALATED
+RESOLVED
+
+등을 analytics 가능하게 한다.
+
+==================================================
+25. SUPPORT BUSINESS IMPACT
+==================================================
+
+향후 계산:
+
+총 문의
+AI 답변
+AI 단독 해결
+사람 전달
+평균 turn
+평균 해결시간
+재문의율
+
+AUTO_RESOLVED_SUPPORT_CASES
+AI_AUTOMATION_RATE
+ESTIMATED_HUMAN_CASES_AVOIDED
+
+중요:
+
+"estimated" metric은
+추정치임을 표시.
+
+==================================================
+26. PARTNER ANALYTICS — CORE KPI
+==================================================
+
+Super Partner Overview:
+
+기간:
+오늘
+7일
+30일
+90일
+전체
+custom
+
+KPI:
+
+AI Requests
+AI Successful Requests
+Success Rate
+Error Rate
+
+Active AI Pools
+Active AI Users
+
+Teacher AI Users
+Parent AI Users
+
+Total Tokens
+Estimated OpenAI Cost
+
+Average Latency
+P50
+P95 가능하면
+
+AI Result Adoption
+Support AI Resolution
+
+==================================================
+27. ADOPTION
+==================================================
+
+최소:
+
+전체 활성 수영장
+AI 사용 수영장
+AI Pool Adoption %
+
+전체 선생님
+AI 사용 선생님
+Teacher Adoption %
+
+전체 학부모
+AI 사용 학부모
+Parent Adoption %
+
+X Pools
+AI Active X Pools
+X AI Adoption %
+
+==================================================
+28. FEATURE USAGE
+==================================================
+
+기능별:
+
+AI Diary
+Curriculum AI
+Growth Report
+Support AI
+
+각각:
+
+requests
+unique users
+active pools
+tokens
+estimated cost
+success
+error
+avg latency
+
+==================================================
+29. RESULT ADOPTION
+==================================================
+
+기능별 실제 사용 여부 추적.
+
+Teacher AI Diary:
+generated
+saved
+published/exposed if currently measurable
+
+Growth Report:
+generated
+saved
+downloaded/shared if measurable
+
+Curriculum AI:
+session
+follow-up
+return usage
+
+Support:
+response
+resolved
+reopened
+
+현재 source가 없는 event는
+fake 생성하지 않는다.
+
+==================================================
+30. RELIABILITY
+==================================================
+
+Partner Reliability:
+
+success rate
+error rate
+timeout
+retry
+latency
+
+가능하면:
+
+P50
+P95
+
+model/provider별.
+
+==================================================
+31. GROWTH
+==================================================
+
+기간별:
+
+AI Requests
+Active AI Users
+Active AI Pools
+Tokens
+Cost
+Result Adoption
+Support Resolution
+
+증가율:
+
+WoW
+MoM
+
+실제 데이터가 충분할 때만 계산.
+
+==================================================
+32. PARTNER EVIDENCE PAGE
+==================================================
+
+Super Admin:
+
+Partner Analytics
+→ Evidence
+
+제출용 요약.
+
+최소:
+
+Period
+Service Start
+Active Pools
+AI Active Pools
+AI Adoption
+
+AI Users
+AI Requests
+Total Tokens
+Estimated API Spend
+
+AI Diary Created
+Growth Reports Generated
+Curriculum AI Sessions
+Support AI Sessions
+
+AI Success Rate
+AI Result Adoption
+Support Resolution
+
+30d Growth
+90d Growth
+
+없는 metric은:
+NOT_AVAILABLE
+
+==================================================
+33. PARTNER SNAPSHOT
+==================================================
+
+제출 당시 숫자를 보존.
+
+concept:
+
+partner_analytics_snapshots
+
+id
+period_start
+period_end
+metrics_json
+created_at
+created_by
+
+snapshot 생성 후
+과거 snapshot 값을 자동 갱신 금지.
+
+==================================================
+34. EXPORT
+==================================================
+
+최소:
+
+CSV export
+
+Partner Evidence 기준.
+
+가능하면:
+
+JSON snapshot
+
+PDF는 후속 가능.
+
+==================================================
+35. SUPER ADMIN INTEGRATION
+==================================================
+
+기존 SA0 구조 재사용.
+
+§5 AI 운영
+→ 실시간 AI 운영
+
+§6 고객센터
+→ Support AI Operations
+
+§9 Partner Analytics
+→ 제출/증빙 통계
+
+같은 trace source를 읽는다.
+
+중복 집계 backend 금지.
+
+==================================================
+36. POOL OPERATIONS DETAIL
+==================================================
+
+수영장 상세에서도:
+
+AI Usage
+Recent AI Errors
+Support Cases
+
+summary 표시.
+
+Partner Analytics 전체를
+pool detail에 복제하지 않는다.
+
+==================================================
+37. PRODUCT INTELLIGENCE FOUNDATION
+==================================================
+
+Support 문의가 반복되면:
+
+category
+feature
+issue cluster
+frequency
+
+집계 가능하게 한다.
+
+향후:
+
+문의 cluster
+→ product issue
+→ fix
+→ release
+→ 문의 감소
+
+추적 가능하도록 foundation.
+
+이번 WP에서 자동 제품 변경 금지.
+
+==================================================
+38. AUTONOMOUS CHANGE ABSOLUTE BAN
+==================================================
+
+Support AI가:
+
+DB 수정
+refund
+subscription cancellation
+entitlement 변경
+account delete
+permission 변경
+production setting 변경
+
+자동 실행 금지.
+
+항상 검증된 deterministic existing action
+또는 human action.
+
+==================================================
+39. COST CONTROL
+==================================================
+
+고객센터 AI 비용 원칙:
+
+DB
+↓
+Rule
+↓
+Solution
+↓
+FAQ
+↓
+Known Issue
+↓
+Semantic Cache
+↓
+Search
+↓
+LLM
+
+LLM이 마지막.
+
+목표:
+
+문의량 증가가
+LLM 호출량과 1:1 비례하지 않게 한다.
+
+==================================================
+40. PHASE STRATEGY
+==================================================
+
+이번 WP-CS-PA0에서는
+모든 고객센터 화면을 완성하지 않는다.
+
+이번 단계 목표:
+
+A. repo audit
+B. common trace/usage schema 결정
+C. support foundation schema 결정
+D. Partner analytics metric contract 결정
+E. Super Admin integration contract
+F. 최소 DB/API foundation 구현
+G. 기존 AI 기능 instrumentation 연결 준비
+
+그 후:
+
+CS-PA1
+→ Common AI Usage Instrumentation
+
+CS-PA2
+→ Support Knowledge / Rules / FAQ / Known Issues
+
+CS-PA3
+→ Support Conversation Engine
+
+CS-PA4
+→ Human Escalation / Refund / Billing support
+
+CS-PA5
+→ Super Admin Support Operations
+
+CS-PA6
+→ Partner Analytics Dashboard / Evidence / Export
+
+CS-PA7
+→ Product Intelligence / Cost Optimization
+
+순서로 진행 가능하게 한다.
+
+==================================================
+41. DB SAFETY
+==================================================
+
+기존 schema 최대 재사용.
+
+새 table은
+audit 후 실제 필요한 것만.
+
+idempotent migration.
+
+production fake data 금지.
+
+==================================================
+42. SERVER SAFETY
+==================================================
+
+APP 서버와
+AI Engine 책임 분리 유지.
+
+수영 전문 판단:
+AI ENGINE
+
+앱/customer support 운영:
+APP API/support service
+
+AI Engine이 APP Supabase에
+직접 접근하는 구조 금지.
+
+==================================================
+43. OPENAI KEY SAFETY
+==================================================
+
+OpenAI secret:
+server only.
+
+client/Super Admin web에
+API key/token 노출 금지.
+
+==================================================
+44. TEST
+==================================================
+
+PA0-01
+existing AI trace audit
+
+PA0-02
+existing support schema audit
+
+PA0-03
+duplicate system prevention
+
+PA0-04
+feature enum contract
+
+PA0-05
+request_id/trace_id contract
+
+PA0-06
+privacy-safe usage event
+
+PA0-07
+token unknown handling
+
+PA0-08
+estimated cost distinction
+
+PA0-09
+support tenant isolation
+
+PA0-10
+pool knowledge isolation
+
+PA0-11
+no autonomous DB modification
+
+PA0-12
+Partner metric missing → NOT_AVAILABLE
+
+PA0-13
+Super Admin sections reuse SA0
+
+PA0-14
+non-super_admin analytics access denied
+
+PA0-15
+existing AI features no regression
+
+==================================================
+45. DO NOT TOUCH
+==================================================
+
+이번 foundation에서 관련 없으면 변경 금지:
+
+Normal/X theme
+scheduler
+ModeContext
+X billing
+X Setup
+X04 parser/package
+actual homepage generation
+final curriculum generation
+mobile navigation redesign
+
+==================================================
+46. DEPLOYMENT
+==================================================
+
+DB/server foundation 변경 가능.
+
+Super Admin web 변경 가능.
+
+모바일 기능을 아직 실제로 붙이지 않았다면
+OTA 불필요.
+
+Render deploy 필요 시 진행.
+
+==================================================
+47. FINAL REPORT
+==================================================
+
+EXISTING_SUPPORT_TABLES =
+EXISTING_SUPPORT_APIS =
+EXISTING_AI_TRACE_TABLE =
+EXISTING_AI_TRACE_FIELDS =
+
+AI_TRACE_REUSED =
+NEW_USAGE_TABLE_REQUIRED =
+
+COMMON_FEATURE_ENUM =
+
+TOKEN_TRACKING_AVAILABLE =
+COST_TRACKING_AVAILABLE =
+LATENCY_TRACKING_AVAILABLE =
+
+SUPPORT_RULE_SOURCE =
+FAQ_SOURCE =
+KNOWN_ISSUE_SOURCE =
+SOLUTION_DB_SOURCE =
+CACHE_SOURCE =
+
+NEW_SUPPORT_TABLES =
+NEW_ANALYTICS_TABLES =
+
+SUPPORT_TENANT_ISOLATION =
+POOL_KNOWLEDGE_ISOLATION =
+
+AUTONOMOUS_PRODUCTION_WRITE =
+REFUND_AUTOMATION =
+ACCOUNT_AUTOMATION =
+
+PARTNER_METRIC_CONTRACT =
+PARTNER_EVIDENCE_CONTRACT =
+SNAPSHOT_CONTRACT =
+EXPORT_CONTRACT =
+
+SUPER_AI_INTEGRATION =
+SUPER_SUPPORT_INTEGRATION =
+SUPER_PARTNER_INTEGRATION =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+SECURITY_TEST =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+AI_TRACE_REUSED =
+YES_IF_SAFE_ELSE_REASONED_NEW_SCHEMA
+
+AUTONOMOUS_PRODUCTION_WRITE = NO
+REFUND_AUTOMATION = NO
+ACCOUNT_AUTOMATION = NO
+
+SUPPORT_TENANT_ISOLATION = PASS
+POOL_KNOWLEDGE_ISOLATION = PASS
+
+Partner metric missing values:
+NOT_AVAILABLE / UNKNOWN
+
+SA0 구조 재사용.
+
+완료:
+
+WP_CS_PA0_SUPPORT_PARTNER_ANALYTICS_FOUNDATION_COMPLETE ✅

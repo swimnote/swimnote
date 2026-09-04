@@ -1,7 +1,6 @@
 /**
  * (super)/op-group.tsx — 운영 관리 그룹
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback } from "react";
@@ -18,26 +17,34 @@ const P = "#7C3AED";
 const MENUS = [
   {
     icon: "users" as const,
-    title: "운영자 관리",
-    sub: "운영자 목록·제한·해지·플랜 상태·로그",
+    title: "운영처 관리",
+    sub: "운영처 목록·제한·해지·플랜 상태·로그",
     path: "/(super)/pools",
     color: P,
     bg: "#EEDDF5",
+  },
+  {
+    icon: "zap" as const,
+    title: "X모드 관리",
+    sub: "운영처별 X 사용권 상태 확인 · 상세에서 수동 제어",
+    path: "/(super)/pools",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "hard-drive" as const,
     title: "저장공간 관리",
     sub: "사용량·급증·차단·삭제 큐·임시허용",
     path: "/(super)/storage",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "sliders" as const,
     title: "저장공간 정책",
     sub: "자동삭제·차단·급증 임계값 설정",
     path: "/(super)/storage-policy",
-    color: "#2EC4B6",
+    color: C.brandStrong,
     bg: "#ECFEFF",
   },
   {
@@ -45,8 +52,8 @@ const MENUS = [
     title: "공지·팝업 관리",
     sub: "공지 등록·수정·삭제, 대상별 팝업 설정",
     path: "/(super)/notices",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
 ];
 
@@ -65,7 +72,7 @@ export default function OpGroupScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="운영 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="운영 관리" homePath="/(super)/dashboard" />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }}>
         {/* 요약 — 탭하면 해당 목록으로 이동 */}
         <View style={s.summaryRow}>
@@ -74,7 +81,7 @@ export default function OpGroupScreen() {
             onPress={() => router.push("/(super)/pools?backTo=op-group" as any)}
           >
             <Text style={s.summaryNum}>{operators.length}</Text>
-            <Text style={s.summaryLabel}>전체 운영자</Text>
+            <Text style={s.summaryLabel}>전체 운영처</Text>
           </Pressable>
           <Pressable
             style={[s.summaryCard, pendingCount > 0 && s.summaryAlert]}
@@ -94,7 +101,7 @@ export default function OpGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>
@@ -106,13 +113,13 @@ const s = StyleSheet.create({
   safe:         { flex: 1, backgroundColor: C.background },
   summaryRow:   { flexDirection: "row", gap: 8, marginBottom: 6 },
   summaryCard:  { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center",
-                  borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderWidth: 1, borderColor: C.border },
   summaryAlert: { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3 },
+  summaryNum:   { fontSize: 22, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryLabel: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3 },
   card:         { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                  borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border },
   iconBox:      { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cardSub:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, lineHeight: 17 },
+  cardTitle:    { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3, lineHeight: 17 },
 });

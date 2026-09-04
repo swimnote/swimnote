@@ -382,15 +382,32 @@ router.get(
   requireRole("super_admin"),
   async (req: AuthRequest, res) => {
     const q = String(req.query.q ?? "").trim();
+    // 2글자 미만이면 빈 결과 반환 (전체 preload 금지)
+    if (q.length < 2) {
+      res.json({ pools: [] });
+      return;
+    }
     try {
-      const rows = (await superAdminDb.execute(sql`
-        SELECT id, name, owner_name, approval_status, subscription_status
-        FROM swimming_pools
-        WHERE name ILIKE ${"%" + q + "%"}
-           OR owner_name ILIKE ${"%" + q + "%"}
-        ORDER BY name
+      const rows = (await superAdminDb.execute(sql.raw(`
+        SELECT
+          sp.id,
+          sp.name,
+          sp.owner_name,
+          sp.approval_status,
+          sp.subscription_status,
+          (COALESCE(sp.x_paid_entitlement, false) OR COALESCE(sp.x_manual_entitlement, false))
+            AND NOT COALESCE(sp.x_force_disabled, false) AS xmode_active,
+          COALESCE(sp.xmode_config_status, 'NOT_CONFIGURED') AS xmode_config_status
+        FROM swimming_pools sp
+        LEFT JOIN users u ON u.id = sp.admin_user_id
+        WHERE sp.name        ILIKE '%${q.replace(/'/g, "''")}%'
+           OR sp.owner_name  ILIKE '%${q.replace(/'/g, "''")}%'
+           OR sp.id          ILIKE '%${q.replace(/'/g, "''")}%'
+           OR sp.phone       ILIKE '%${q.replace(/'/g, "''")}%'
+           OR u.email        ILIKE '%${q.replace(/'/g, "''")}%'
+        ORDER BY sp.name
         LIMIT 20
-      `)).rows;
+      `))).rows;
       res.json({ pools: rows });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

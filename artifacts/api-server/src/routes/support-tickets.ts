@@ -10,6 +10,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 
 const router = Router();
 
@@ -49,12 +50,30 @@ router.post("/support/tickets", requireAuth, async (req: AuthRequest, res) => {
   try {
     await ensureTicketTables();
 
-    const { ticket_type, subject, description, image_urls, consultation_requested, pool_id } = req.body as any;
+    // 기능 플래그: support_center가 비활성화된 경우 새 문의 차단
+    const supportEnabled = await isFeatureEnabled("support_center").catch(() => true);
+    if (!supportEnabled) {
+      res.status(503).json({
+        error: "현재 고객센터 문의 기능이 점검 중입니다. 잠시 후 다시 시도해주세요.",
+        code: "SUPPORT_CENTER_DISABLED",
+      });
+      return;
+    }
+
+    const { ticket_type, subject, description, image_urls, consultation_requested, pool_id: bodyPoolId } = req.body as any;
     if (!subject) { res.status(400).json({ error: "제목을 입력해주세요." }); return; }
 
     const userId   = req.user?.userId ?? "";
     const userName = req.user?.name   ?? "";
     const userRole = req.user?.role   ?? "";
+    const isSuper  = SUPER_ROLES.has(userRole);
+
+    // §P1 pool_id forgery prevention:
+    // non-super users may only submit tickets under their own pool (from JWT).
+    // Accepting an arbitrary client-supplied pool_id would allow cross-pool ticket injection.
+    const pool_id = isSuper
+      ? (bodyPoolId ?? null)                       // super can specify any pool
+      : ((req.user as any)?.poolId ?? null);       // non-super: always use JWT poolId
 
     let requesterType = "operator";
     if (userRole === "teacher") requesterType = "teacher";
@@ -116,8 +135,19 @@ router.get("/support/tickets/:id", requireAuth, async (req: AuthRequest, res) =>
     if (!rows.length) { res.status(404).json({ error: "문의를 찾을 수 없습니다." }); return; }
     const ticket = rows[0] as any;
 
-    if (!isSuper && ticket.submitter_user_id !== userId) {
-      res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+    if (!isSuper) {
+      // §CS13-1 User ownership check
+      if (ticket.submitter_user_id !== userId) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_OWNER_MISMATCH" }); return;
+      }
+      // §CS13-2 Explicit pool isolation (defense in depth):
+      // ticket.pool_id must match the JWT-derived poolId.
+      // This prevents a rogue user who somehow shares a userId from accessing
+      // tickets belonging to a different pool.
+      const jwtPool = (req.user as any)?.poolId ?? null;
+      if (jwtPool && ticket.pool_id && ticket.pool_id !== jwtPool) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_POOL_MISMATCH" }); return;
+      }
     }
 
     const replies = (await db.execute(sql`
@@ -149,8 +179,16 @@ router.post("/support/tickets/:id/replies", requireAuth, async (req: AuthRequest
     if (!rows.length) { res.status(404).json({ error: "문의를 찾을 수 없습니다." }); return; }
     const ticket = rows[0] as any;
 
-    if (!isSuper && ticket.submitter_user_id !== userId) {
-      res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+    if (!isSuper) {
+      // §CS13-1 User ownership check
+      if (ticket.submitter_user_id !== userId) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_OWNER_MISMATCH" }); return;
+      }
+      // §CS13-2 Explicit pool isolation
+      const jwtPool = (req.user as any)?.poolId ?? null;
+      if (jwtPool && ticket.pool_id && ticket.pool_id !== jwtPool) {
+        res.status(403).json({ error: "접근 권한이 없습니다.", code: "TICKET_POOL_MISMATCH" }); return;
+      }
     }
 
     const replyId    = `rep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

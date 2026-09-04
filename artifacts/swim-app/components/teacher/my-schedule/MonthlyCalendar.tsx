@@ -1,7 +1,7 @@
-import { Check, ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
 import {
@@ -13,6 +13,7 @@ const C = Colors.light;
 
 export default function MonthlyCalendar({
   groups, themeColor, selectedDate, onSelectDate, memoDateSet,
+  makeupDateSet,
   selectionMode, selectedDates,
 }: {
   groups: TeacherClassGroup[];
@@ -20,6 +21,7 @@ export default function MonthlyCalendar({
   selectedDate: string | null;
   onSelectDate: (dateStr: string) => void;
   memoDateSet: Set<string>;
+  makeupDateSet?: Set<string>;
   selectionMode?: boolean;
   selectedDates?: Set<string>;
 }) {
@@ -67,13 +69,13 @@ export default function MonthlyCalendar({
     <View style={mc.root}>
       <View style={mc.monthNav}>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <Pressable onPress={() => setOffset(0)}>
           <Text style={mc.monthTitle}>{year}년 {month}월</Text>
         </Pressable>
         <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}>
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -82,7 +84,7 @@ export default function MonthlyCalendar({
           <View key={wd} style={[mc.weekHeader, { width: CELL_W }]}>
             <Text style={[mc.weekHeaderText,
               i === 0 && { color: "#D96C6C" },
-              i === 6 && { color: C.tint },
+              i === 6 && { color: C.brandStrong },
             ]}>{wd}</Text>
           </View>
         ))}
@@ -102,6 +104,7 @@ export default function MonthlyCalendar({
             const isSun      = di === 0;
             const isSat      = di === 6;
             const hasMemo    = memoDateSet.has(dateStr);
+            const hasMakeup  = makeupDateSet?.has(dateStr) ?? false;
             const timePills  = cls.slice(0, 3).map(g => fmtHour(g.schedule_time));
             const extraCount = cls.length - timePills.length;
 
@@ -109,9 +112,9 @@ export default function MonthlyCalendar({
               <Pressable key={dateStr}
                 style={[
                   mc.dayCell, { width: CELL_W, height: CELL_H },
-                  isSelected && { backgroundColor: C.tintLight, borderRadius: 8 },
+                  isSelected && { backgroundColor: C.brandSoft, borderRadius: 8 },
                   isMultiPicked && { backgroundColor: "#2E9B6F" + "20", borderRadius: 8, borderWidth: 1.5, borderColor: "#2E9B6F" },
-                  isToday && !isSelected && !isMultiPicked && { backgroundColor: C.tintLight },
+                  isToday && !isSelected && !isMultiPicked && { backgroundColor: C.brandSoft },
                   isHoliday && !isMultiPicked && { backgroundColor: "#FEF2F2" },
                 ]}
                 onPress={() => onSelectDate(dateStr)}>
@@ -119,22 +122,25 @@ export default function MonthlyCalendar({
                 {isMultiPicked && (
                   <View style={{ position: "absolute", top: 3, right: 3, width: 14, height: 14, borderRadius: 7,
                     backgroundColor: "#2E9B6F", alignItems: "center", justifyContent: "center" }}>
-                    <Check size={9} color="#fff" />
+                    <LucideIcon name="check" size={9} color="#fff" />
                   </View>
                 )}
 
                 <View style={[mc.dayNumWrap,
-                  isToday && { backgroundColor: C.tint },
-                  isSelected && !isToday && { backgroundColor: C.tintLight },
+                  isToday && { backgroundColor: C.brandStrong },
+                  isSelected && !isToday && { backgroundColor: C.brandSoft },
                 ]}>
                   <Text style={[mc.dayNum,
-                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: C.tint } : {},
+                    isSun || isHoliday ? { color: "#D96C6C" } : isSat ? { color: C.brandStrong } : {},
                     isToday && { color: "#fff" },
                   ]}>{dayNum}</Text>
                 </View>
 
-                {hasMemo && !isHoliday && (
-                  <View style={mc.memoDot} />
+                {(hasMemo || hasMakeup) && !isHoliday && (
+                  <View style={{ flexDirection: "row", gap: 2, marginTop: 1 }}>
+                    {hasMemo   && <View style={mc.memoDot} />}
+                    {hasMakeup && <View style={[mc.memoDot, { backgroundColor: "#7C3AED" }]} />}
+                  </View>
                 )}
 
                 {isHoliday ? (

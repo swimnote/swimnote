@@ -1,0 +1,645 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# WP-M2 MEMBER DETAIL DATA CONTRACT
+# SHARED CORE API EXPANSION
+
+현재 상태:
+
+WP-M1 MEMBER MANAGEMENT FREEZE AUDIT:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+WP-M1 주요 확정사항:
+
+- 회원관리 전체 SWIMNOTE/X Shared Core
+- member-related mode gate 0건
+- Admin member-detail 현재 8탭 구조
+- parent_phone2~4 데이터 흐름 정상, type 미선언만 P1
+- Delete 3 endpoint는 서로 다른 목적
+- Restore 2 endpoint는 서로 다른 source status
+- students.current_level_order = 학생 개인 레벨 SoT
+- class_groups.level = 반 레벨 label
+- legacy members/classes/class_members 삭제 금지
+- WP-M2 SAFE
+
+이번 WP의 목적:
+
+향후 Admin Member Detail 통합과
+Teacher/Parent/Office PC 재사용을 위해
+
+기존:
+
+GET /admin/students/:id/detail
+
+응답을 additive 방식으로 확장하고
+명시적 Data Contract를 정리합니다.
+
+이번 WP에서는 UI 변경 금지.
+
+==================================================
+1. GLOBAL SHARED CORE RULE
+==================================================
+
+이번 Data Contract는:
+
+SWIMNOTE 일반모드
++
+SWIMNOTE X모드
+
+공통입니다.
+
+AI/X 고유 데이터가 아닌 일반 회원 데이터에
+mode gate를 넣지 마십시오.
+
+==================================================
+2. EXISTING ENDPOINT 보호
+==================================================
+
+기존:
+
+GET /admin/students/:id/detail
+
+을 유지합니다.
+
+기존 필드 삭제/rename 금지.
+
+새 필드는 additive only.
+
+기존 1.x/2.0 client가
+현재 필드를 그대로 사용할 수 있어야 합니다.
+
+==================================================
+3. TARGET DATA CONTRACT
+==================================================
+
+기존 detail response에 아래 데이터를
+정식 typed field로 포함하도록 확장합니다.
+
+--------------------------------
+A. BASIC INFO
+--------------------------------
+
+student id
+name
+name_korean
+phone
+birth_date
+birth_year
+gender
+school
+grade
+address
+memo
+notes
+status
+withdrawn_at
+deleted_at
+archived_reason
+class_enrolled_at
+
+현재 실제 DB에 존재하는 필드만 사용.
+
+없는 필드 임의 생성 금지.
+
+--------------------------------
+B. GUARDIAN INFO
+--------------------------------
+
+parent_name
+parent_phone
+parent_phone2
+parent_phone3
+parent_phone4
+
+반드시 type에 명시.
+
+any cast 제거 가능하도록
+Data Contract에 정식 선언.
+
+--------------------------------
+C. CLASS / ENROLLMENT INFO
+--------------------------------
+
+현재 반:
+
+class_group_id
+class_group_name
+
+담당 선생님:
+
+teacher_user_id
+teacher_name
+
+요일/시간:
+
+실제 class_groups schema 기준 field 사용.
+
+weekly_count
+
+assigned_class_ids가 존재하면
+기존 semantics 유지.
+
+--------------------------------
+D. LEVEL INFO
+--------------------------------
+
+반드시 학생 개인 레벨 SoT:
+
+students.current_level_order
+
+기반.
+
+추가 반환 가능:
+
+current_level_order
+current_level_name
+current_level_color
+next_level_order
+next_level_name
+
+단 실제 pool_levels 구조에 존재하는 범위만.
+
+class_groups.level은
+반 label로 별도 반환 가능하지만
+학생 개인 레벨과 혼동 금지.
+
+--------------------------------
+E. ATTENDANCE SUMMARY
+--------------------------------
+
+Member Detail 즉시 표시용
+가벼운 summary만 포함.
+
+예:
+
+current_month_attendance_count
+current_month_absence_count
+
+또는 현재 attendance schema에 맞는
+최소 summary.
+
+전체 attendance history를
+detail endpoint에 넣지 마십시오.
+
+--------------------------------
+F. MAKEUP SUMMARY
+--------------------------------
+
+전체 보강 목록을 넣지 않고:
+
+makeup_count
+pending_makeup_count
+available_makeup_count
+
+등 실제 의미가 명확한 count만.
+
+현재 endpoint/API 의미를 조사해서
+정확한 count만 추가.
+
+임의 추론 금지.
+
+--------------------------------
+G. PARENT ACCOUNT SUMMARY
+--------------------------------
+
+연결된 parent account가 있으면
+관리자 Member Detail에서 표시 가능한
+최소 summary 반환.
+
+예:
+
+parent_account_linked
+parent_account_id
+parent_account_name
+
+민감 인증정보 반환 금지.
+
+--------------------------------
+H. STATUS METADATA
+--------------------------------
+
+현재 실제 status:
+
+active
+withdrawn
+deleted
+archived
+pending_status_change
+
+및
+final-withdraw/access_blocked 관련 metadata가 있다면
+기존 값을 그대로 노출.
+
+새 status enum 창작 금지.
+
+==================================================
+4. TYPE DECLARATION
+==================================================
+
+현재 DetailData에 빠져있는:
+
+parent_phone2
+parent_phone3
+parent_phone4
+current_level_order
+
+등을 정식 선언.
+
+가능하면:
+
+MemberDetailData
+
+또는 기존 naming convention에 맞는
+명시적 contract type 생성/정리.
+
+any cast를 줄이되
+이번 WP에서 UI 파일 대규모 수정 금지.
+
+==================================================
+5. current_level_order 처리
+==================================================
+
+현재:
+
+students.current_level_order
+
+는 raw SQL + auto migration으로 실제 사용 중.
+
+이번 WP에서는:
+
+DB column 추가 migration 금지
+schema 구조 대규모 변경 금지
+
+다만 API/type에서는
+정식 field로 선언.
+
+Drizzle schema가 실제로 없는 구조라면
+억지로 ORM migration 만들지 말고
+현재 raw SQL architecture를 존중.
+
+==================================================
+6. DELETE / RESTORE 변경 금지
+==================================================
+
+이번 WP에서 아래 endpoint 변경 금지:
+
+/students/:id/purge
+/admin/students/:id/force-delete
+/admin/students/:id/permanent
+
+/admin/students/:id/restore
+/admin/students/:id/restore-archive
+
+WP-M1에서 의미가 다름을 확인했으므로
+통합/삭제/rename 금지.
+
+==================================================
+7. LEGACY TABLE 보호
+==================================================
+
+다음 table 변경/삭제 금지:
+
+members
+classes
+class_members
+
+restore.ts / super.ts 의존성이 존재함.
+
+==================================================
+8. DATA LOADING PRINCIPLE
+==================================================
+
+detail endpoint에 넣을 것:
+
+- 기본정보
+- 현재 수강정보
+- 현재 레벨
+- guardian summary
+- 이번 달 attendance summary
+- makeup summary
+
+detail endpoint에 넣지 않을 것:
+
+- 전체 출결 이력
+- 전체 일지
+- 전체 사진
+- 전체 영상
+- 전체 성장리포트
+- 전체 로그
+- 전체 보강 이력
+
+이런 데이터는 lazy/전용 endpoint 유지.
+
+==================================================
+9. OFFICE PC READY CONTRACT
+==================================================
+
+응답 구조는
+모바일 화면에 종속되지 않도록 설계.
+
+금지:
+
+tab1
+tab2
+sectionAVisible
+
+같은 UI-specific field.
+
+권장:
+
+student
+enrollment
+level
+guardian
+attendance_summary
+makeup_summary
+status
+
+또는 현재 API 스타일에 맞는
+도메인 중심 구조.
+
+기존 flat response 호환성이 중요하면
+flat + additive nested summary 방식도 가능.
+
+기존 client 깨지면 안 됨.
+
+==================================================
+10. AUTH / TENANT 보호
+==================================================
+
+기존:
+
+pool scope
+admin auth
+sub_admin auth
+
+정책 그대로 유지.
+
+다른 pool 학생 조회 가능해지면 FAIL.
+
+==================================================
+11. TESTS
+==================================================
+
+최소 테스트:
+
+CASE A
+기존 detail client 필드 유지
+
+CASE B
+parent_phone2~4 반환
+
+CASE C
+current_level_order 반환
+
+CASE D
+current_level_name mapping 정상
+
+CASE E
+class_group 정보 정상
+
+CASE F
+teacher 정보 정상
+
+CASE G
+attendance summary 정확
+
+CASE H
+makeup summary 정확
+
+CASE I
+parent account summary 안전
+
+CASE J
+다른 pool student 접근 차단
+
+CASE K
+SWIMNOTE mode 동일 응답
+
+CASE L
+X mode 동일 일반 회원 응답
+
+CASE M
+AI/X field 불필요 mode gate 없음
+
+==================================================
+12. NO UI CHANGES
+==================================================
+
+이번 WP에서:
+
+member-detail 탭→section 변환 금지
+teacher student-detail 변경 금지
+parent UI 변경 금지
+student_links 생성 금지
+route cleanup 금지
+
+UI 통합은 WP-M3 이후.
+
+==================================================
+13. PRODUCTION 보호
+==================================================
+
+금지:
+
+Production deploy
+Render deploy
+Production DB migration
+1.6.3 변경
+OTA
+RevenueCat
+App Store
+Google Play
+
+release/v2.0.0 코드 + 테스트까지만.
+
+==================================================
+14. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# WP-M2 MEMBER DETAIL DATA CONTRACT REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## ENDPOINT
+
+GET /admin/students/:id/detail
+
+Existing fields preserved:
+YES / NO
+
+Additive only:
+YES / NO
+
+## CONTRACT
+
+Basic info:
+...
+
+Guardian:
+...
+
+Class:
+...
+
+Teacher:
+...
+
+Level:
+...
+
+Attendance summary:
+...
+
+Makeup summary:
+...
+
+Parent account summary:
+...
+
+Status metadata:
+...
+
+## TYPES
+
+parent_phone2:
+DECLARED / NOT DECLARED
+
+parent_phone3:
+DECLARED / NOT DECLARED
+
+parent_phone4:
+DECLARED / NOT DECLARED
+
+current_level_order:
+DECLARED / NOT DECLARED
+
+any casts remaining:
+...
+
+## LEVEL SoT
+
+Student level:
+students.current_level_order
+
+Class level:
+class_groups.level
+
+PASS / FAIL
+
+## BACKWARD COMPATIBILITY
+
+Existing client broken:
+YES / NO
+
+Expected:
+NO
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+Mode gate added:
+YES / NO
+
+Expected:
+NO
+
+## SECURITY
+
+Cross-pool access:
+BLOCKED / ALLOWED
+
+Expected:
+BLOCKED
+
+## TESTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+CASE L:
+PASS / FAIL
+
+CASE M:
+PASS / FAIL
+
+Regression:
+PASS / FAIL
+
+## UNTOUCHED
+
+Delete endpoints:
+UNCHANGED
+
+Restore endpoints:
+UNCHANGED
+
+Legacy tables:
+UNCHANGED
+
+UI:
+UNCHANGED
+
+student_links:
+NOT CREATED
+
+## PRODUCTION CHANGES
+
+NONE
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+WP-M2 MEMBER DETAIL DATA CONTRACT COMPLETE
+or
+BLOCKED

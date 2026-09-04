@@ -178,7 +178,7 @@ export default function TeacherInquiriesScreen() {
         </View>
 
         {detailLoading ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
         ) : (
           <KeyboardAwareScrollView
             ref={scrollRef}
@@ -222,7 +222,7 @@ export default function TeacherInquiriesScreen() {
               maxLength={1000}
             />
             <TouchableOpacity
-              style={[s.sendBtn, { backgroundColor: input.trim() ? C.tint : C.border }]}
+              style={[s.sendBtn, { backgroundColor: input.trim() ? C.primaryAction : C.border }]}
               onPress={sendReply}
               disabled={!input.trim() || sending}
             >
@@ -239,12 +239,12 @@ export default function TeacherInquiriesScreen() {
       <SubScreenHeader title="문의하기" homePath="/(teacher)/today-schedule" />
 
       {listLoading && list.length === 0 ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadList(); }} tintColor={C.brandStrong} />}
         >
           {list.length === 0 && (
             <View style={s.empty}>
@@ -322,7 +322,7 @@ export default function TeacherInquiriesScreen() {
                 textAlignVertical="top"
               />
               <Pressable
-                style={[s.submitBtn, { backgroundColor: newTitle.trim() && newContent.trim() ? C.tint : C.border, marginTop: 16 }]}
+                style={[s.submitBtn, { backgroundColor: newTitle.trim() && newContent.trim() ? C.primaryAction : C.border, marginTop: 16 }]}
                 onPress={submitNewInquiry}
                 disabled={!newTitle.trim() || !newContent.trim() || submitting}
               >
@@ -343,34 +343,34 @@ const s = StyleSheet.create({
   detailHeader: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: "#F1F5F9",
+    borderBottomWidth: 1, borderBottomColor: C.backgroundSoft,
   },
   backBtn: { padding: 4 },
   detailTitle: { fontSize: 16, fontFamily: "Pretendard-Regular" },
   detailSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
   myBubbleWrap: { alignItems: "flex-end" },
   otherBubbleWrap: { alignItems: "flex-start" },
-  senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4, marginLeft: 4 },
+  senderName: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4, marginLeft: 4 },
   myBubble: {
-    backgroundColor: "#0F172A", borderRadius: 16, borderBottomRightRadius: 4,
+    backgroundColor: "#0F2742", borderRadius: 16, borderBottomRightRadius: 4,
     padding: 12, maxWidth: "80%",
   },
   otherBubble: {
-    backgroundColor: "#F1F5F9", borderRadius: 16, borderBottomLeftRadius: 4,
+    backgroundColor: C.backgroundSoft, borderRadius: 16, borderBottomLeftRadius: 4,
     padding: 12, maxWidth: "80%",
   },
   myText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff", lineHeight: 20 },
-  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
+  otherText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
   bubbleTime: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.55)", marginTop: 4, textAlign: "right" },
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
     paddingHorizontal: 16, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: "#F1F5F9", backgroundColor: "#fff",
+    borderTopWidth: 1, borderTopColor: C.backgroundSoft, backgroundColor: C.surface,
   },
   textInput: {
-    flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16,
+    flex: 1, borderWidth: 1, borderColor: C.border, borderRadius: 16,
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
-    fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A",
+    fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary,
     maxHeight: 100, minHeight: 42,
   },
   sendBtn: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
@@ -394,7 +394,7 @@ const s = StyleSheet.create({
   unreadBadgeText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" },
   fab: {
     position: "absolute", right: 20, width: 52, height: 52, borderRadius: 26,
-    backgroundColor: "#0F172A", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0F2742", alignItems: "center", justifyContent: "center",
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },

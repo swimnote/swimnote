@@ -1,24 +1,31 @@
-import { BookOpen, CircleAlert, CirclePlus, CircleX, Image, Save, User, Users, Video, Zap } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { MutableRefObject } from "react";
+import React, { MutableRefObject, useState } from "react";
+import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
+import type { DiaryInsertResult } from "@/components/ai/features/diary/useDiaryAI";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image as ExpoImage } from "expo-image";
 import Colors from "@/constants/colors";
 import SentencePicker from "@/components/teacher/SentencePicker";
-import { DiaryTemplate, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { AlbumPhotoInfo, AlbumVideoInfo, StudentNote, StudentOption, UploadedMedia } from "./types";
+import { API_BASE } from "@/context/AuthContext";
 import { TeacherClassGroup } from "@/components/teacher/types";
-import DiaryAIButton from "@/components/ai/features/diary/DiaryAIButton";
-import type { DiaryInsertResult } from "@/components/ai/services/DiaryAIService";
 
 const C = Colors.light;
 
 export default function DiaryWriteView({
   group, targetDate, themeColor, myDiaryExists,
-  templates, showTemplates, setShowTemplates,
+
   commonContent, setCommonContent,
   classStudents,
+  classStudentsLoading,
+  classStudentsLoaded,
+  classStudentsError,
+  onRetryLoadStudents,
   studentNotes,
   addNoteStudent, setAddNoteStudent,
   noteInput, setNoteInput,
@@ -32,12 +39,21 @@ export default function DiaryWriteView({
   onUploadGroupMedia, onUploadStudentMedia,
   onAddNote, onRemoveNote,
   insertAtCursor,
-  token, teacherId, poolId, onAIInsert,
+  token, onOpenAlbumPicker, selectedAlbumPhotos, onRemoveAlbumPhoto, selectedAlbumVideos, onRemoveAlbumVideo,
+  onOpenStudentAlbumPicker, studentAlbumPhotos, onRemoveStudentAlbumPhoto,
+  studentAlbumVideos, onRemoveStudentAlbumVideo,
+  onOpenGroupMyAlbum, onOpenStudentMyAlbum, videoEnabled,
+  poolId, teacherId, onAIInsert,
+  onRetryGroupPhotoItem, onRetryStudentPhotoItem,
 }: {
   group: TeacherClassGroup; targetDate: string; themeColor: string; myDiaryExists: boolean;
-  templates: DiaryTemplate[]; showTemplates: boolean; setShowTemplates: (v: boolean) => void;
+
   commonContent: string; setCommonContent: (v: string) => void;
   classStudents: StudentOption[];
+  classStudentsLoading?: boolean;
+  classStudentsLoaded?: boolean;
+  classStudentsError?: string | null;
+  onRetryLoadStudents?: () => void;
   studentNotes: StudentNote[];
   addNoteStudent: StudentOption | null; setAddNoteStudent: (v: StudentOption | null) => void;
   noteInput: string; setNoteInput: (v: string) => void;
@@ -58,26 +74,38 @@ export default function DiaryWriteView({
   onAddNote: () => void;
   onRemoveNote: (studentId: string) => void;
   insertAtCursor: (current: string, insert: string, cursorPos: number, setter: (v: string) => void) => void;
-  token?: string;
-  teacherId?: string;
+  token: string;
+  onOpenAlbumPicker: () => void;
+  selectedAlbumPhotos: AlbumPhotoInfo[];
+  onRemoveAlbumPhoto: (id: string) => void;
+  selectedAlbumVideos: AlbumVideoInfo[];
+  onRemoveAlbumVideo: (id: string) => void;
+  onOpenStudentAlbumPicker: (student: StudentOption) => void;
+  studentAlbumPhotos: Record<string, AlbumPhotoInfo[]>;
+  onRemoveStudentAlbumPhoto: (studentId: string, photoId: string) => void;
+  studentAlbumVideos: Record<string, AlbumVideoInfo[]>;
+  onRemoveStudentAlbumVideo: (studentId: string, videoId: string) => void;
+  onOpenGroupMyAlbum: (kind: "photo" | "video") => void;
+  onOpenStudentMyAlbum: (student: StudentOption, kind: "photo" | "video") => void;
+  videoEnabled: boolean;
+  // AI 연결
   poolId?: string;
+  teacherId?: string;
   onAIInsert?: (result: DiaryInsertResult) => void;
+  /** Retry a failed direct-upload photo item (group) */
+  onRetryGroupPhotoItem?: (clientId: string) => void;
+  /** Retry a failed direct-upload photo item (student) */
+  onRetryStudentPhotoItem?: (studentId: string, clientId: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-
-        {myDiaryExists && (
-          <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-            <CircleAlert size={13} color="#D97706" />
-            <Text style={s.infoText}>오늘 이미 일지가 작성되어 있습니다. 수정은 "지난 일지"에서 할 수 있습니다.</Text>
-          </View>
-        )}
+    <View style={{ flex: 1 }}>
+      <KeyboardAwareScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" bottomOffset={90}>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
             <View style={[s.cardIcon, { backgroundColor: themeColor + "20" }]}>
-              <BookOpen size={15} color={themeColor} />
+              <LucideIcon name="book-open" size={15} color={themeColor} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.cardTitle, { color: C.text }]}>반 공통 일지</Text>
@@ -98,27 +126,6 @@ export default function DiaryWriteView({
             )}
           </View>
 
-          {templates.length > 0 && (
-            <Pressable style={[s.templateBtn, { borderColor: themeColor }]} onPress={() => setShowTemplates(!showTemplates)}>
-              <Zap size={13} color={themeColor} />
-              <Text style={[s.templateBtnText, { color: themeColor }]}>템플릿 선택</Text>
-              <LucideIcon name={showTemplates ? "chevron-up" : "chevron-down"} size={13} color={themeColor} />
-            </Pressable>
-          )}
-          {showTemplates && (
-            <View style={s.templateList}>
-              {templates.map(t => (
-                <Pressable key={t.id} style={[s.templateItem, { backgroundColor: C.background }]} onPress={() => {
-                  setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n${t.template_text}` : t.template_text);
-                  setShowTemplates(false);
-                }}>
-                  <Text style={[s.templateText, { color: C.text }]} numberOfLines={2}>{t.template_text}</Text>
-                  {t.category !== "general" && <Text style={[s.templateCategory, { color: themeColor }]}>{t.category}</Text>}
-                </Pressable>
-              ))}
-            </View>
-          )}
-
           <TextInput style={[s.textarea, { borderColor: C.border, color: C.text }]}
             value={commonContent} onChangeText={setCommonContent}
             onSelectionChange={e => { commonCursorRef.current = e.nativeEvent.selection.start; }}
@@ -127,37 +134,118 @@ export default function DiaryWriteView({
           <View style={s.textareaFooter}>
             <Text style={s.charCount}>{commonContent.length}자</Text>
             <TouchableOpacity style={s.sentencePickBtn} onPress={() => setShowPickerFor("common")} activeOpacity={0.7}>
-              <BookOpen size={13} color={C.tint} />
-              <Text style={s.sentencePickBtnText}>문장 불러오기</Text>
+              <LucideIcon name="book-open" size={13} color={C.brandStrong} />
+              <Text style={s.sentencePickBtnText}>템플릿선택</Text>
             </TouchableOpacity>
           </View>
 
           <View style={s.mediaRow}>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#FFF1BF" }]} onPress={() => onUploadGroupMedia("photo")} disabled={mediaUploading === "group"}>
-              {mediaUploading === "group" ? <ActivityIndicator size="small" color="#E4A93A" /> : <><Image size={14} color="#E4A93A" /><Text style={[s.mediaBtnText, { color: "#E4A93A" }]}>반 사진 추가</Text></>}
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={onOpenAlbumPicker}>
+              <LucideIcon name="image" size={14} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
             </Pressable>
-            <Pressable style={[s.mediaBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => onUploadGroupMedia("video")} disabled={mediaUploading === "group"}>
-              <Video size={14} color="#2EC4B6" /><Text style={[s.mediaBtnText, { color: "#2EC4B6" }]}>반 영상 추가</Text>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenGroupMyAlbum("photo")}>
+              <LucideIcon name="image" size={14} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+            </Pressable>
+            <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenGroupMyAlbum("video")}>
+              <LucideIcon name="video" size={14} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
             </Pressable>
           </View>
           {groupMedia.length > 0 && (
             <View style={s.mediaPreviewRow}>
               {groupMedia.map((m, i) => (
-                <View key={i} style={s.mediaThumb}>
-                  {m.kind === "photo"
-                    ? <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "image"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#E4A93A"} />
-                    : <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={20} color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#2EC4B6"} />}
-                  {m.uploading && <ActivityIndicator size="small" color={C.tint} style={{ position: "absolute" }} />}
+                <View key={m.clientId ?? i} style={[s.mediaThumbWrap]}>
+                  <View style={s.mediaThumb}>
+                    {m.kind === "photo" ? (
+                      m.uploaded ? (
+                        <LucideIcon name="check-circle" size={20} color={C.success} />
+                      ) : m.error ? (
+                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
+                      ) : (
+                        <LucideIcon name="image" size={20} color="#E4A93A" />
+                      )
+                    ) : (
+                      m.uploaded ? (
+                        <LucideIcon name="check-circle" size={20} color={C.success} />
+                      ) : m.error ? (
+                        <LucideIcon name="alert-circle" size={20} color="#D96C6C" />
+                      ) : (
+                        <LucideIcon name="video" size={20} color={C.brandStrong} />
+                      )
+                    )}
+                    {m.uploading && <ActivityIndicator size="small" color={C.brandStrong} style={{ position: "absolute" }} />}
+                  </View>
+                  {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
+                    <Text style={s.mediaProgressText}>{m.progress}%</Text>
+                  )}
+                  {m.kind === "photo" && m.error && (
+                    <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
+                  )}
+                  {m.kind === "photo" && m.error && m.clientId && onRetryGroupPhotoItem && (
+                    <Pressable onPress={() => onRetryGroupPhotoItem(m.clientId!)} hitSlop={4}>
+                      <Text style={s.mediaRetryText}>재시도</Text>
+                    </Pressable>
+                  )}
                 </View>
               ))}
+            </View>
+          )}
+          {(selectedAlbumPhotos.length > 0 || selectedAlbumVideos.length > 0) && (
+            <View style={{ gap: 10 }}>
+              {selectedAlbumPhotos.length > 0 && (
+                <View>
+                  <Text style={[s.albumLabel, { color: C.brandStrong }]}>첨부 사진 {selectedAlbumPhotos.length}장</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.albumPreviewRow} alwaysBounceHorizontal={false}>
+                    {selectedAlbumPhotos.map(photo => (
+                      <View key={photo.id} style={s.albumThumb}>
+                        <ExpoImage
+                          source={{ uri: photo.presigned_url ?? `${API_BASE.replace(/\/api$/, "")}${photo.file_url}?token=${token}` }}
+                          style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                          contentFit="cover"
+                        />
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumPhoto(photo.id)} hitSlop={6}>
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+              {selectedAlbumVideos.length > 0 && (
+                <View>
+                  <Text style={[s.albumLabel, { color: C.brandStrong }]}>첨부 영상 {selectedAlbumVideos.length}개</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.albumPreviewRow} alwaysBounceHorizontal={false}>
+                    {selectedAlbumVideos.map(video => (
+                      <View key={video.id} style={s.albumThumb}>
+                        {video.thumbnail_presigned_url ? (
+                          <ExpoImage
+                            source={{ uri: video.thumbnail_presigned_url }}
+                            style={{ width: "100%", height: "100%", borderRadius: 6 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={{ width: "100%", height: "100%", borderRadius: 6, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                            <LucideIcon name="video" size={18} color="#94A3B8" />
+                          </View>
+                        )}
+                        <View style={{ position: "absolute", bottom: 3, left: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" }}>
+                          <LucideIcon name="video" size={8} color="#fff" />
+                        </View>
+                        <Pressable style={s.albumThumbRemove} onPress={() => onRemoveAlbumVideo(video.id)} hitSlop={6}>
+                          <LucideIcon name="x-circle" size={16} color="#fff" fill="#374151" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           )}
         </View>
 
         <View style={[s.card, { backgroundColor: C.card }]}>
           <View style={s.cardHeader}>
-            <View style={[s.cardIcon, { backgroundColor: "#8B5CF620" }]}>
-              <User size={15} color="#8B5CF6" />
+            <View style={[s.cardIcon, { backgroundColor: C.brandMist }]}>
+              <LucideIcon name="user" size={15} color={C.textSecondary} />
             </View>
             <Text style={[s.cardTitle, { color: C.text }]}>학생별 추가 일지</Text>
             <Text style={s.cardSub}>필요한 학생만 선택</Text>
@@ -167,29 +255,56 @@ export default function DiaryWriteView({
             const st: StudentOption = { id: note.student_id, name: note.student_name };
             const stMedia = studentMedia[note.student_id] || [];
             return (
-              <View key={note.student_id} style={[s.noteItem, { backgroundColor: "#EEDDF5" }]}>
+              <View key={note.student_id} style={[s.noteItem, { backgroundColor: C.brandSoft }]}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                     <Text style={s.noteName}>{note.student_name}</Text>
                     <Pressable onPress={() => onRemoveNote(note.student_id)}>
-                      <CircleX size={18} color={C.textMuted} />
+                      <LucideIcon name="x-circle" size={18} color={C.textMuted} />
                     </Pressable>
                   </View>
-                  <Text style={s.noteContent} numberOfLines={2}>{note.note_content}</Text>
-                  <View style={[s.mediaRow, { marginTop: 2 }]}>
-                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "photo")} disabled={mediaUploading === note.student_id}>
-                      {mediaUploading === note.student_id ? <ActivityIndicator size="small" color="#7C3AED" /> : <><Image size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 사진</Text></>}
+                  <Text style={s.noteContent}>{note.note_content}</Text>
+                  <View style={[s.mediaRow, { marginTop: 4 }]}>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]} onPress={() => onOpenStudentAlbumPicker(st)}>
+                      <LucideIcon name="image" size={13} color={C.brandStrong} /><Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범에서 선택</Text>
                     </Pressable>
-                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EEDDF5" }]} onPress={() => onUploadStudentMedia(st, "video")} disabled={mediaUploading === note.student_id}>
-                      <Video size={13} color="#7C3AED" /><Text style={[s.mediaBtnText, { color: "#7C3AED" }]}>개별 영상</Text>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]} onPress={() => onOpenStudentMyAlbum(st, "photo")}>
+                      <LucideIcon name="image" size={13} color="#C2410C" /><Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+                    </Pressable>
+                    <Pressable style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]} onPress={() => onOpenStudentMyAlbum(st, "video")}>
+                      <LucideIcon name="video" size={13} color="#5B21B6" /><Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
                     </Pressable>
                   </View>
                   {stMedia.length > 0 && (
                     <View style={s.mediaPreviewRow}>
                       {stMedia.map((m, i) => (
-                        <View key={i} style={s.mediaThumb}>
-                          <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : (m.kind === "photo" ? "image" : "video")} size={16}
-                            color={m.uploaded ? "#2EC4B6" : m.error ? "#D96C6C" : "#7C3AED"} />
+                        <View key={m.clientId ?? i} style={s.mediaThumbWrap}>
+                          <View style={s.mediaThumb}>
+                            {m.kind === "photo" ? (
+                              m.uploaded ? (
+                                <LucideIcon name="check-circle" size={16} color={C.success} />
+                              ) : m.error ? (
+                                <LucideIcon name="alert-circle" size={16} color="#D96C6C" />
+                              ) : (
+                                <LucideIcon name="image" size={16} color="#7C3AED" />
+                              )
+                            ) : (
+                              <LucideIcon name={m.uploaded ? "check-circle" : m.error ? "alert-circle" : "video"} size={16}
+                                color={m.uploaded ? C.success : m.error ? "#D96C6C" : "#7C3AED"} />
+                            )}
+                            {m.uploading && <ActivityIndicator size="small" color="#7C3AED" style={{ position: "absolute" }} />}
+                          </View>
+                          {m.kind === "photo" && m.uploading && typeof m.progress === "number" && (
+                            <Text style={s.mediaProgressText}>{m.progress}%</Text>
+                          )}
+                          {m.kind === "photo" && m.error && (
+                            <Text style={s.mediaErrorText} numberOfLines={1}>실패</Text>
+                          )}
+                          {m.kind === "photo" && m.error && m.clientId && onRetryStudentPhotoItem && (
+                            <Pressable onPress={() => onRetryStudentPhotoItem(note.student_id, m.clientId!)} hitSlop={4}>
+                              <Text style={s.mediaRetryText}>재시도</Text>
+                            </Pressable>
+                          )}
                         </View>
                       ))}
                     </View>
@@ -199,42 +314,111 @@ export default function DiaryWriteView({
             );
           })}
 
-          {classStudents.length === 0 ? (
+          {/* ── 학생 로딩 3-state 렌더 ────────────────────────────────────── */}
+          {(classStudentsLoading || (!classStudentsLoaded && !classStudentsError)) ? (
+            /* LOADING: API 응답 전 — false empty 방지 */
             <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
-              <Users size={16} color={C.textMuted} />
+              <ActivityIndicator size="small" color={C.textMuted} />
+              <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>학생 정보를 불러오는 중...</Text>
+            </View>
+          ) : classStudentsError ? (
+            /* ERROR: API 실패 — 오류 + 재시도 */
+            <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+              <LucideIcon name="alert-circle" size={16} color="#EF4444" />
+              <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>학생 정보를 불러오지 못했습니다.</Text>
+              {onRetryLoadStudents && (
+                <Pressable onPress={onRetryLoadStudents} hitSlop={8}>
+                  <Text style={{ fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 }}>다시 시도</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : classStudents.length === 0 ? (
+            /* LOADED_EMPTY: 로딩 완료 후 진짜 배정 학생 없음 */
+            <View style={[s.emptyStudents, { backgroundColor: C.background, borderColor: C.border }]}>
+              <LucideIcon name="users" size={16} color={C.textMuted} />
               <Text style={[s.emptyStudentsText, { color: C.textMuted }]}>이 수업에 배정된 학생이 없습니다</Text>
             </View>
           ) : (
+            /* LOADED_WITH_STUDENTS: 정상 */
             <View style={{ gap: 6 }}>
               <Text style={[s.sectionLabel, { color: C.textSecondary }]}>학생 선택</Text>
               {classStudents.filter(st => !studentNotes.some(n => n.student_id === st.id)).map(st => (
                 <Pressable key={st.id}
-                  style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border }, addNoteStudent?.id === st.id && { borderColor: "#8B5CF6", backgroundColor: "#EEDDF5" }]}
+                  style={[s.studentChip, { backgroundColor: C.background, borderColor: C.border }, addNoteStudent?.id === st.id && { borderColor: C.brandStrong, backgroundColor: C.brandSoft }]}
                   onPress={() => { if (addNoteStudent?.id === st.id) { setAddNoteStudent(null); setNoteInput(""); } else { setAddNoteStudent(st); setNoteInput(""); } }}>
-                  <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? "#8B5CF6" : C.text }]}>{st.name}</Text>
-                  <CirclePlus size={15} color={addNoteStudent?.id === st.id ? "#8B5CF6" : C.textMuted} />
+                  <Text style={[s.studentChipText, { color: addNoteStudent?.id === st.id ? C.brandStrong : C.text }]}>{st.name}</Text>
+                  <LucideIcon name="plus-circle" size={15} color={addNoteStudent?.id === st.id ? C.brandStrong : C.textMuted} />
                 </Pressable>
               ))}
             </View>
           )}
 
           {addNoteStudent && (
-            <View style={[s.noteInput, { backgroundColor: "#EEDDF5", borderColor: "#8B5CF6" }]}>
-              <Text style={[s.noteName, { color: "#8B5CF6", marginBottom: 6 }]}>{addNoteStudent.name} 추가 일지</Text>
-              <TextInput style={[s.noteTextarea, { borderColor: "#8B5CF6", color: C.text }]}
+            <View style={[s.noteInput, { backgroundColor: C.brandMist, borderColor: C.brandSoft }]}>
+              <Text style={[s.noteName, { color: C.brandStrong, marginBottom: 6 }]}>{addNoteStudent.name} 추가 일지</Text>
+              <TextInput style={[s.noteTextarea, { borderColor: C.brandSoft, color: C.text }]}
                 value={noteInput} onChangeText={setNoteInput}
                 onSelectionChange={e => { noteCursorRef.current = e.nativeEvent.selection.start; }}
                 placeholder="이 학생에게 전달할 추가 내용을 입력하세요"
-                placeholderTextColor={C.textMuted} multiline numberOfLines={3} textAlignVertical="top" autoFocus />
-              <TouchableOpacity style={[s.sentencePickBtn, { alignSelf: "flex-start", marginTop: 6 }]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
-                <BookOpen size={13} color="#8B5CF6" />
-                <Text style={[s.sentencePickBtnText, { color: "#8B5CF6" }]}>문장 불러오기</Text>
-              </TouchableOpacity>
+                placeholderTextColor={C.textMuted} multiline numberOfLines={6} textAlignVertical="top" autoFocus />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                <TouchableOpacity style={[s.sentencePickBtn]} onPress={() => setShowPickerFor("note")} activeOpacity={0.7}>
+                  <LucideIcon name="book-open" size={12} color={C.brandStrong} />
+                  <Text style={[s.sentencePickBtnText, { color: C.brandStrong }]}>템플릿</Text>
+                </TouchableOpacity>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#EFF6FF" }]}
+                  onPress={() => onOpenStudentAlbumPicker(addNoteStudent)}
+                >
+                  <LucideIcon name="image" size={12} color={C.brandStrong} />
+                  <Text style={[s.mediaBtnText, { color: C.brandStrong }]}>앨범선택</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#FFEDD5" }]}
+                  onPress={() => onOpenStudentMyAlbum(addNoteStudent, "photo")}
+                >
+                  <LucideIcon name="image" size={12} color="#C2410C" />
+                  <Text style={[s.mediaBtnText, { color: "#C2410C" }]}>내 사진앨범</Text>
+                </Pressable>
+                <Pressable
+                  style={[s.mediaBtn, { backgroundColor: "#EDE9FE" }]}
+                  onPress={() => onOpenStudentMyAlbum(addNoteStudent, "video")}
+                >
+                  <LucideIcon name="video" size={12} color="#5B21B6" />
+                  <Text style={[s.mediaBtnText, { color: "#5B21B6" }]}>내 영상앨범</Text>
+                </Pressable>
+              </View>
+              {((studentAlbumPhotos[addNoteStudent.id] ?? []).length > 0 || (studentAlbumVideos[addNoteStudent.id] ?? []).length > 0) && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false} contentContainerStyle={[s.mediaPreviewRow, { marginTop: 6 }]}>
+                  {(studentAlbumPhotos[addNoteStudent.id] ?? []).map((p) => (
+                    <Pressable key={p.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumPhoto(addNoteStudent.id, p.id)}>
+                      <ExpoImage source={{ uri: p.presigned_url || p.file_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
+                        <LucideIcon name="x-circle" size={14} color="#fff" />
+                      </View>
+                    </Pressable>
+                  ))}
+                  {(studentAlbumVideos[addNoteStudent.id] ?? []).map((v) => (
+                    <Pressable key={v.id} style={s.mediaThumb} onPress={() => onRemoveStudentAlbumVideo(addNoteStudent.id, v.id)}>
+                      {v.thumbnail_presigned_url ? (
+                        <ExpoImage source={{ uri: v.thumbnail_presigned_url }} style={{ width: "100%", height: "100%", borderRadius: 8 }} contentFit="cover" />
+                      ) : (
+                        <View style={{ width: "100%", height: "100%", borderRadius: 8, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center" }}>
+                          <LucideIcon name="video" size={14} color="#94A3B8" />
+                        </View>
+                      )}
+                      <View style={{ position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 8 }}>
+                        <LucideIcon name="x-circle" size={14} color="#fff" />
+                      </View>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                 <Pressable style={[s.noteBtn, { borderColor: C.border }]} onPress={() => { setAddNoteStudent(null); setNoteInput(""); }}>
                   <Text style={{ color: C.textSecondary, fontFamily: "Pretendard-Regular", fontSize: 13 }}>취소</Text>
                 </Pressable>
-                <Pressable style={[s.noteBtn, { backgroundColor: "#8B5CF6", borderColor: "#8B5CF6", flex: 1 }]} onPress={onAddNote} disabled={!noteInput.trim()}>
+                <Pressable style={[s.noteBtn, { backgroundColor: C.primaryAction, borderColor: C.primaryAction, flex: 1 }]} onPress={onAddNote} disabled={!noteInput.trim()}>
                   <Text style={{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 13 }}>추가</Text>
                 </Pressable>
               </View>
@@ -242,72 +426,73 @@ export default function DiaryWriteView({
           )}
         </View>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <View style={s.footer}>
-        {formError && (
-          <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={13} color={C.error} />
-            <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
+        <View style={[s.footer, { paddingBottom: insets.bottom }]}>
+          {formError && (
+            <View style={[s.inlineError, { backgroundColor: "#F9DEDA" }]}>
+              <LucideIcon name="alert-circle" size={13} color={C.error} />
+              <Text style={[s.inlineErrorText, { color: C.error }]}>{formError}</Text>
+            </View>
+          )}
+          {saveMsg && (
+            <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? C.iconGreenBg : "#F9DEDA" }]}>
+              <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
+                color={saveMsg.type === "success" ? C.success : C.error} />
+              <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? C.success : C.error }]}>{saveMsg.text}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
+              <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
+            </Pressable>
+            <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.5 : 1, flex: 2 }]}
+              onPress={() => {
+                console.log(`[PRESS SAVE] timestamp=${new Date().toISOString()}`);
+                onSave();
+              }} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <><LucideIcon name="save" size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
+            </Pressable>
           </View>
-        )}
-        {saveMsg && (
-          <View style={[s.inlineError, { backgroundColor: saveMsg.type === "success" ? "#E6FFFA" : "#F9DEDA" }]}>
-            <LucideIcon name={saveMsg.type === "success" ? "check-circle" : "alert-circle"} size={13}
-              color={saveMsg.type === "success" ? "#2EC4B6" : C.error} />
-            <Text style={[s.inlineErrorText, { color: saveMsg.type === "success" ? "#2EC4B6" : C.error }]}>{saveMsg.text}</Text>
-          </View>
-        )}
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Pressable style={[s.cancelBtnFt, { borderColor: C.border }]} onPress={onBack}>
-            <Text style={[s.cancelBtnFtText, { color: C.textSecondary }]}>나가기</Text>
-          </Pressable>
-          <Pressable style={[s.saveBtn, { backgroundColor: themeColor, opacity: saving || myDiaryExists ? 0.5 : 1, flex: 2 }]}
-            onPress={onSave} disabled={saving || myDiaryExists}>
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : <><Save size={16} color="#fff" /><Text style={s.saveBtnText}>저장</Text></>}
-          </Pressable>
         </View>
-      </View>
+
+      </KeyboardAwareScrollView>
 
       <SentencePicker
         visible={showPickerFor === "common" || showPickerFor === "note"}
         onClose={() => setShowPickerFor(null)}
         onInsert={text => {
           if (showPickerFor === "common") {
-            insertAtCursor(commonContent, text, commonCursorRef.current, setCommonContent);
-            commonCursorRef.current = commonCursorRef.current + text.length;
+            setCommonContent(commonContent.trim() ? `${commonContent.trim()}\n\n${text}` : text);
           } else if (showPickerFor === "note") {
-            insertAtCursor(noteInput, text, noteCursorRef.current, setNoteInput);
-            noteCursorRef.current = noteCursorRef.current + text.length;
+            setNoteInput(noteInput.trim() ? `${noteInput.trim()}\n\n${text}` : text);
           }
           setShowPickerFor(null);
         }}
       />
-    </KeyboardAvoidingView>
+
+    </View>
   );
 }
 
 export const s = StyleSheet.create({
-  form:          { padding: 14, gap: 14, paddingBottom: 80 },
+  form:          { padding: 14, gap: 14, paddingBottom: 8 },
   infoBox:       { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 12 },
   infoText:      { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   card:          { borderRadius: 16, padding: 14, gap: 12, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   cardHeader:    { flexDirection: "row", alignItems: "center", gap: 8 },
   cardIcon:      { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   cardTitle:     { fontSize: 14, fontFamily: "Pretendard-Regular", flex: 1 },
-  cardSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cardSub:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   templateBtn:   { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: "flex-start" },
   templateBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   templateList:  { gap: 6 },
   templateItem:  { borderRadius: 10, padding: 12, gap: 4 },
   templateText:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   templateCategory: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: "#fff" },
+  textarea:      { borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Pretendard-Regular", lineHeight: 22, minHeight: 140, textAlignVertical: "top", backgroundColor: C.surface },
   textareaFooter:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.tintLight, backgroundColor: "#F0F5FF" },
-  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.tint },
+  charCount:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  sentencePickBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.brandSoft, backgroundColor: "#F0F5FF" },
+  sentencePickBtnText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: Colors.light.brandStrong },
   emptyStudents: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   emptyStudentsText: { fontSize: 13, fontFamily: "Pretendard-Regular" },
   sectionLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -316,17 +501,25 @@ export const s = StyleSheet.create({
   noteItem:      { borderRadius: 10, padding: 10, gap: 4 },
   editNoteItem:  { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 8 },
   editNoteHeader:{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  noteName:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  noteContent:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
   noteInput:     { borderRadius: 12, borderWidth: 1.5, padding: 12, gap: 4 },
-  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 80, textAlignVertical: "top", backgroundColor: "#fff" },
+  noteTextarea:  { borderWidth: 1.5, borderRadius: 10, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20, minHeight: 130, textAlignVertical: "top", backgroundColor: C.surface },
   noteBtn:       { flex: 1, height: 38, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   mediaRow:      { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  mediaBtnText:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  mediaBtn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20 },
+  mediaBtnText:  { fontSize: 11, fontFamily: "Pretendard-Regular" },
   mediaPreviewRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 },
-  mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  footer:        { gap: 8, padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  mediaThumbWrap:{ alignItems: "center", gap: 2 },
+  mediaThumb:    { width: 36, height: 36, borderRadius: 8, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  mediaProgressText: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  mediaErrorText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
+  mediaRetryText:{ fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong, textDecorationLine: "underline" as const },
+  albumLabel:    { fontSize: 11, fontFamily: "Pretendard-Regular", marginBottom: 6 },
+  albumPreviewRow: { flexDirection: "row", gap: 6 },
+  albumThumb:    { width: 56, height: 56, borderRadius: 8, overflow: "hidden", backgroundColor: C.backgroundSoft },
+  albumThumbRemove: { position: "absolute", top: 2, right: 2 },
+  footer:        { gap: 8, padding: 12, backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.border },
   cancelBtnFt:   { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
   cancelBtnFtText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
   saveBtn:       { flexDirection: "row", height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 8 },
@@ -338,12 +531,12 @@ export const s = StyleSheet.create({
   infoCard:      { borderRadius: 14, borderWidth: 1.5, padding: 14, gap: 8 },
   infoCardRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
   infoCardText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  subHeader:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  subHeader:     { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:        { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1.5 },
-  tabBtnText:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  tabBtnText:    { fontSize: 12, lineHeight: 17 },
   diaryList:     { padding: 12, gap: 10, paddingBottom: 120 },
   diaryCard:     { borderRadius: 14, padding: 14, gap: 8 },
-  diaryCardEditable: { borderWidth: 1.5, borderColor: "#E6FFFA" },
+  diaryCardEditable: { borderWidth: 1.5, borderColor: C.brandSoft },
   badgeRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   diaryCardHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   diaryCardDate: { fontSize: 15, fontFamily: "Pretendard-Regular" },
@@ -351,12 +544,13 @@ export const s = StyleSheet.create({
   diaryContent:  { fontSize: 13, fontFamily: "Pretendard-Regular", lineHeight: 20 },
   iconBtn:       { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   emptyBox:      { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyText:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   delOverlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 24 },
   delSheet:      { width: "100%", borderRadius: 22, padding: 24, alignItems: "center", gap: 14 },
   delIconWrap:   { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   delTitle:      { fontSize: 18, fontFamily: "Pretendard-Regular" },
   delDesc:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   delBtn:        { height: 48, borderRadius: 14, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  safe:          { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:          { flex: 1, backgroundColor: C.surface },
 });
+

@@ -2,7 +2,6 @@
  * 데이터 관리 — 허브 화면
  * 데이터 보호(백업·복구) / 사용 현황 / 삭제·보존 / 기록 4개 섹션
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -47,8 +46,8 @@ const SECTIONS: { title: string; desc?: string; items: MenuItem[] }[] = [
         label: "저장공간 현황",
         desc: "총 사용량 · 제공 용량 · 게이지",
         icon: "pie-chart",
-        color: "#2EC4B6",
-        bg: "#E6FFFA",
+        color: C.brandStrong,
+        bg: C.brandSoft,
         route: "/(admin)/data-storage-overview",
       },
       {
@@ -77,7 +76,7 @@ const SECTIONS: { title: string; desc?: string; items: MenuItem[] }[] = [
         label: "삭제·보존 정책",
         desc: "보존 기간 설정 · 복구 가능 데이터 · 원본 삭제",
         icon: "archive",
-        color: "#64748B",
+        color: C.textSecondary,
         bg: "#FFFFFF",
         route: "/(admin)/data-delete",
         badge: "위험",
@@ -92,7 +91,7 @@ const SECTIONS: { title: string; desc?: string; items: MenuItem[] }[] = [
         label: "이벤트 기록",
         desc: "삭제 · 결제 · 구독 · 권한 · 선생님 이력",
         icon: "clock",
-        color: "#64748B",
+        color: C.textSecondary,
         bg: "#FFFFFF",
         route: "/(admin)/data-event-logs",
       },
@@ -143,7 +142,7 @@ export default function DataManagementScreen() {
                     </View>
                     <Text style={s.desc}>{item.desc}</Text>
                   </View>
-                  <ChevronRight size={16} color={C.textMuted} />
+                  <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
                 </Pressable>
               ))}
             </View>

@@ -1,0 +1,234 @@
+[SWIMNOTE Curriculum — 재정규화 DRAFT Version 실제 생성]
+
+목표:
+현재 확정된 재정규화 설계를 기준으로
+새 Curriculum DRAFT version을 실제 생성한다.
+
+현재 ACTIVE:
+cv_0l46tk5vmtdbwn3c
+
+현재 ACTIVE는 절대 수정하지 않는다.
+
+==================================================
+1. 확정 구조
+==================================================
+
+FINAL NODE COUNT = 388
+
+Level 분포:
+
+L1 흰색 = 154
+L2 파란색 = 114
+L3 빨간색 = 118
+L4 검정 = 2
+L5 금 = 0
+L6 챔피언 = 0
+L7 슈퍼챔피언 = 0
+
+FINAL DRILL COUNT = 500
+
+38 canonical skills:
+
+- water_adaptation 4 → L1
+- backstroke 10 → L2
+- freestyle 기초 4 → L2
+- freestyle 완성 3 → L3
+- breaststroke 11 → L3
+- butterfly 4 → L3
+- IM 전환 2 → L4
+
+==================================================
+2. 새 Version 생성
+==================================================
+
+새 curriculum_version을 DRAFT로 생성.
+
+기존 ACTIVE:
+cv_0l46tk5vmtdbwn3c
+
+는 그대로 유지.
+
+새 version_id를 생성하고 보고.
+
+==================================================
+3. 기존 L1~L3 350 Nodes 복사
+==================================================
+
+기존 L1~L3 350 Nodes를 새 DRAFT에 복사.
+
+이번 단계에서는
+L1~L3 내부 자연스러운 중복/교육 연속성은 삭제하지 않는다.
+
+==================================================
+4. 38 Canonical Nodes 추가
+==================================================
+
+현재 L4~L7 200 Nodes를 38 unique skill로 canonicalize.
+
+각 canonical skill을 확정된 level에 배정.
+
+추가 결과:
+
+L1 +4
+L2 +14
+L3 +18
+L4 +2
+
+총 Node = 388
+
+==================================================
+5. Drill 500개 전부 재귀속
+==================================================
+
+현재 Drill 500개는 삭제하지 않는다.
+
+잘못된 L4~L7 parent Node에서
+38 canonical parent Node로 전부 재귀속한다.
+
+검증:
+
+preserved = 500
+reassigned = 500
+removed = 0
+orphan = 0
+
+==================================================
+6. Relation 재구성
+==================================================
+
+기존 693 Relations는 그대로 복사 금지.
+
+새 Node 구조 기준으로
+NEXT_SKILL / PREREQUISITE 관계를 재생성한다.
+
+원칙:
+- 실제 교육 sequence 기준
+- 실제 선행 기술 기준
+- 단순 번호 연속 관계 금지
+
+relation count는 실제 재생성 결과를 보고.
+
+==================================================
+7. sequence/display 재정렬
+==================================================
+
+각 level에서:
+
+sequence_in_level = 1..N
+
+재번호.
+
+display_no:
+
+L1-001...
+L2-001...
+L3-001...
+L4-001...
+
+형태로 생성.
+
+stable node identity와 display_no는 분리 유지.
+
+==================================================
+8. DRAFT 검증
+==================================================
+
+새 DRAFT 기준 반드시 확인:
+
+Nodes = 388
+Drills = 500
+Orphan Drill = 0
+
+Level:
+L1 = 154
+L2 = 114
+L3 = 118
+L4 = 2
+L5 = 0
+L6 = 0
+L7 = 0
+
+그리고 다음 오류가 없어야 함:
+
+- "안전한 입수와 중심잡기"가 L4~L7 반복
+- "버블 내쉬기"가 L4~L7 반복
+- 동일 drill progression이 학생 level로 변환
+- 잘못된 parent_node 참조
+
+==================================================
+9. 대표 데이터 보고
+==================================================
+
+각 level에서 대표 Node 10개 보고.
+
+특히 L4는 전체 2개 전부 보고:
+
+- 4영법 스트림라인 전환
+- 4영법 박자 전환
+
+그리고 대표 canonical Node 5개에 대해
+연결된 Drill 목록도 보고.
+
+==================================================
+10. 영향 검증
+==================================================
+
+새 DRAFT 기준으로 dry-run:
+
+- 일지 템플릿 UI 조회
+- Normal AI Diary search
+- Growth Report grounding
+- Parent Curriculum Search
+
+실제 ACTIVE는 아직 기존 version을 유지.
+
+==================================================
+11. 절대 금지
+==================================================
+
+- 기존 ACTIVE 수정 금지
+- 기존 ACTIVE 삭제 금지
+- 새 DRAFT ACTIVE 전환 금지
+- Render 금지
+- OTA 금지
+- AI Engine Production 데이터 수정 금지
+
+==================================================
+12. 완료 보고
+==================================================
+
+NEW VERSION
+- version_id
+- status
+
+COUNTS
+- nodes
+- drills
+- relations
+
+LEVELS
+- L1~L7 count
+
+DRILLS
+- preserved
+- reassigned
+- removed
+- orphan
+
+RELATIONS
+- next_skill
+- prerequisite
+
+SAMPLES
+- 각 level 대표 nodes
+- canonical node별 연결 drills
+
+DRY RUN
+- Diary
+- Growth
+- Parent Search
+
+SAFETY
+- 기존 ACTIVE 무변경 여부
+
+완료 후 STOP.

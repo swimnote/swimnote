@@ -143,7 +143,7 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
         {/* 헤더 */}
         <View style={s.header}>
           <Pressable onPress={onClose} style={s.headerClose} accessibilityRole="button">
-            <LucideIcon name="x" size={22} color="#374151" />
+            <LucideIcon name="x" size={22} color={C.textPrimary} />
           </Pressable>
           <Text style={s.headerTitle} numberOfLines={1}>{title}</Text>
           <Pressable
@@ -276,8 +276,8 @@ export function FullAlbumPickerModal({ visible, mediaType, token, onClose, onSav
 }
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: "#F8FAFC" },
-  header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E2E8F0", gap: 8 },
+  root:         { flex: 1, backgroundColor: C.backgroundSoft },
+  header:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, gap: 8 },
   headerClose:  { padding: 6 },
   headerTitle:  { flex: 1, fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#1F2937" },
   saveBtn:      { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
@@ -287,17 +287,17 @@ const s = StyleSheet.create({
   errorBanner:  { margin: 12, padding: 10, backgroundColor: "#FEE2E2", borderRadius: 8 },
   errorText:    { fontSize: 13, color: "#DC2626", fontFamily: "Pretendard-Regular" },
   center:       { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  centerText:   { fontSize: 13, color: "#9CA3AF", fontFamily: "Pretendard-Regular" },
+  centerText:   { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular" },
   emptyTitle:   { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#6B7280" },
-  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
-  cell:         { backgroundColor: "#E5E7EB", overflow: "hidden" },
+  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  cell:         { backgroundColor: C.border, overflow: "hidden" },
   photoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center" },
   dateBadge:    { position: "absolute", bottom: 3, left: 3, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
   dateBadgeText:{ fontSize: 10, color: "#fff", fontFamily: "Pretendard-Regular" },
   checkCircle:  { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#fff", backgroundColor: "rgba(0,0,0,0.2)", alignItems: "center", justifyContent: "center" },
   checkCircleEmpty: { position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "rgba(255,255,255,0.7)", backgroundColor: "rgba(0,0,0,0.15)" },
-  videoRow:     { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 10, padding: 12, gap: 12, borderWidth: 1, borderColor: "#E5E7EB" },
+  videoRow:     { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderRadius: 10, padding: 12, gap: 12, borderWidth: 1, borderColor: C.border },
   videoThumb:   { width: 44, height: 44, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   videoLabel:   { fontSize: 14, fontFamily: "Pretendard-SemiBold", color: "#1F2937" },
-  videoMeta:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#9CA3AF" },
+  videoMeta:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });

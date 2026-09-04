@@ -1,0 +1,784 @@
+[WP-N3 — NORMAL SWIMNOTE BUTTON ROLE NORMALIZATION]
+
+목적:
+
+Normal SWIMNOTE 전반에 흩어진 버튼 색상을
+"기능명"이 아니라 "행동의 성격" 기준으로 통일한다.
+
+현재 문제:
+
+- 같은 저장/확인/등록 버튼이 화면마다 mint/navy/themeColor로 다름
+- 같은 선택 버튼도 화면마다 mint/blue/purple 등 중구난방
+- 일반 navigation 버튼과 semantic 버튼이 시각적으로 섞임
+- 개발단계 UI처럼 보이는 가장 큰 원인 중 하나
+
+이번 WP는
+버튼의 ROLE + COLOR SYSTEM만 정리한다.
+
+중요:
+
+버튼 위치
+버튼 그룹
+화면 레이아웃
+간격
+라우팅
+onPress
+API
+state
+disabled 조건
+
+은 변경 금지.
+
+==================================================
+0. SOURCE OF TRUTH
+==================================================
+
+Normal SWIMNOTE 현재 공식 palette:
+
+C.brandStrong  = #4F6F67
+C.brandPrimary = #6F9187
+C.brandMid     = #91ABA3
+C.brandSoft    = #DDE7E3
+C.brandMist    = #ECF2F0
+
+C.background   = #F4F7F6
+C.surface      = #FBFCFC
+
+C.textStrong    = #24302E
+C.textPrimary   = #35413F
+C.textSecondary = #5E6B68
+C.textMuted     = #74817E
+
+현재 old:
+
+C.primaryAction = #0F2742
+
+은 이번 WP에서 Normal 공식 Primary CTA 기준으로
+C.brandStrong에 맞게 전환한다.
+
+==================================================
+1. FINAL BUTTON ROLE SYSTEM
+==================================================
+
+모든 버튼을 다음 역할로 분류한다.
+
+PRIMARY_ACTION
+SECONDARY_ACTION
+NEUTRAL_ACTION
+NAVIGATION_ACTION
+SELECTION_ACTIVE
+SELECTION_INACTIVE
+DESTRUCTIVE
+WARNING
+SUCCESS_SEMANTIC
+DISABLED
+FEATURE_FIXED
+SEMANTIC_PROTECTED
+SCHEDULE_CLASSIFICATION_PROTECTED
+
+이 역할 외에
+화면마다 임의의 "예쁜 색"을 만들지 않는다.
+
+==================================================
+2. PRIMARY_ACTION
+==================================================
+
+대상:
+
+- 저장
+- 등록
+- 확인
+- 완료
+- 다음
+- 제출
+- 생성
+- 적용
+- 대표적인 1순위 CTA
+
+Normal:
+
+background
+→ C.brandStrong #4F6F67
+
+label/icon
+→ 충분한 대비를 가진 밝은 text token
+
+중요:
+
+pure white를 무조건 쓰지 말고
+현재 contrast 확인.
+
+하지만 가독성 우선.
+
+X:
+
+기존 mode-aware component에서는
+XT.primary 유지.
+
+X 변경 금지.
+
+==================================================
+3. SECONDARY_ACTION
+==================================================
+
+대상:
+
+- 보조 실행
+- 이전
+- 나중에
+- 추가 옵션
+- 같은 화면의 2순위 CTA
+
+Normal:
+
+background
+→ C.brandSoft 또는 neutral soft surface
+
+text
+→ C.brandStrong 또는 C.textPrimary
+
+border
+→ 필요 시 C.brandPrimary / C.border
+
+Primary보다 시각적 우선순위가 낮아야 한다.
+
+==================================================
+4. NEUTRAL_ACTION
+==================================================
+
+대상:
+
+- 닫기
+- 취소
+- 돌아가기
+- 일반 비강조 작업
+- 보조 modal action
+
+Normal:
+
+neutral surface
++ C.textPrimary / C.textSecondary
+
+brand color 과사용 금지.
+
+==================================================
+5. NAVIGATION_ACTION
+==================================================
+
+대상:
+
+- 자세히 보기
+- 화면 이동
+- 설정 열기
+- 목록 보기
+- 관리 화면 진입
+
+큰 filled primary CTA로 만들지 않는다.
+
+권장:
+
+text button
+또는 subtle bordered/soft button
+
+color:
+C.brandStrong / C.textPrimary
+
+중요:
+Navigation과 Primary business action을 시각적으로 구분.
+
+==================================================
+6. SELECTION STATE
+==================================================
+
+Normal active/selected:
+
+background
+→ C.brandSoft
+
+border/icon/text
+→ C.brandStrong 또는 C.brandPrimary
+
+작은 글자에서 contrast 부족하면
+C.brandStrong 사용.
+
+Normal inactive:
+
+neutral surface
++ C.textSecondary
+
+선택 상태를
+mint/blue/purple/orange 등으로 화면마다 다르게 만들지 않는다.
+
+단 FEATURE_FIXED / SEMANTIC_PROTECTED 제외.
+
+==================================================
+7. DESTRUCTIVE
+==================================================
+
+삭제
+연결 해제
+탈퇴
+영구 삭제
+취소가 실제 destructive 의미일 때만
+
+semantic red 사용.
+
+기존:
+
+C.error
+#D96C6C
+#DC2626
+
+혼재 감사.
+
+가능한 경우 공식 semantic destructive token으로 통일.
+
+단:
+
+강한 danger confirmation에서 별도 strong red가
+실제 semantic hierarchy로 사용 중이면
+무조건 제거하지 말고 의미 확인.
+
+"빨간색을 하나로 만들기"가 목적이 아니라
+역할 없는 중복을 제거하는 것이 목적.
+
+==================================================
+8. WARNING
+==================================================
+
+경고가 필요한 실제 행동만
+warning/amber.
+
+일반 중요 버튼을
+눈에 띄게 하려고 orange 사용 금지.
+
+==================================================
+9. SUCCESS
+==================================================
+
+success green은:
+
+- 성공 상태
+- 완료 상태
+- 출석/승인 등 이미 의미가 정해진 경우
+
+에만 사용.
+
+일반 "저장 완료 버튼"이란 이유만으로
+success green을 primary CTA 색으로 사용하지 않는다.
+
+==================================================
+10. DISABLED
+==================================================
+
+disabled는 별도 상태.
+
+- 흐릿해서 읽을 수 없으면 안 됨
+- active처럼 보여도 안 됨
+- C.textMuted를 무조건 disabled text로 쓰지 않는다
+
+기존 disabled token 체계를 감사하고 유지.
+
+==================================================
+11. LEGACY MINT SWEEP
+==================================================
+
+감사 결과:
+
+#2EC4B6 / TEAL / MINT / C.tint / C.primary
+
+가 많은 버튼에서
+Primary CTA나 selection으로 사용 중.
+
+이번 WP에서는
+버튼/선택 UI에 한해서 역할별로 정리.
+
+중요:
+
+#2EC4B6를 전체 repository에서 blind replace 금지.
+
+각 사용처 먼저 분류.
+
+예:
+
+mint + 저장 버튼
+→ PRIMARY_ACTION → C.brandStrong
+
+mint + 선택 chip
+→ SELECTION_ACTIVE → C.brandSoft + C.brandStrong
+
+mint + AI feature identity
+→ FEATURE_FIXED → 유지
+
+mint + scheduler classification
+→ PROTECTED → 유지
+
+==================================================
+12. COMMON COMPONENT FIRST
+==================================================
+
+먼저 공통 component 감사.
+
+우선순위:
+
+AppButton
+ConfirmModal
+FilterChips
+MainTabs
+NavigationListItem
+DatePickerModal
+ModalSheet action
+공통 IconButton
+공통 segmented/filter control
+
+공통 source에서 안전하게 해결 가능한 경우
+한 곳 수정.
+
+화면별 copy component 생성 금지.
+
+==================================================
+13. AppButton NORMAL FINAL CONTRACT
+==================================================
+
+Normal:
+
+primary
+→ C.brandStrong
+
+secondary
+→ Sage soft / neutral secondary style
+
+tertiary
+→ text/subtle style
+
+destructive
+→ semantic destructive
+
+X:
+
+기존:
+primary → XT.primary
+
+유지.
+
+AppButton variant 의미 변경 금지.
+
+==================================================
+14. ConfirmModal
+==================================================
+
+Normal 일반 confirm:
+→ C.brandStrong
+
+Normal cancel:
+→ neutral
+
+X confirm:
+→ XT.primary 유지
+
+destructive modal:
+→ destructive semantic color
+
+"확인"이라는 글자만 보고 무조건 Sage로 바꾸지 않는다.
+action 성격 확인.
+
+==================================================
+15. Filter / Chip / Tabs
+==================================================
+
+Normal 일반 selection:
+
+active:
+C.brandSoft + C.brandStrong/brandPrimary
+
+inactive:
+neutral
+
+X:
+기존 XT.* 유지.
+
+단:
+
+FEATURE_FIXED tabs
+SEMANTIC tabs
+scheduler classification
+
+보호.
+
+==================================================
+16. SCHEDULER ABSOLUTE PROTECTION
+==================================================
+
+다음 색상 절대 변경 금지:
+
+#4EA7D8
+#2E9B6F
+#E4A93A
+#D96C6C
+#8B5CF6
+#EC4899
+#06B6D4
+#84CC16
+
+classColor()
+storedColor
+요일/반/일정 식별색
+schedule bar
+monthly dot
+week-board class chip
+
+전부 보호.
+
+이번 WP에서는 scheduler 안에서도:
+
+저장
+추가
+필터
+일반 선택
+modal CTA
+
+같은 CONTROL UI 버튼만 Normal role system 적용 가능.
+
+단 WP-N4에서 별도 정리 예정이므로
+애매하면 이번 WP에서는 건드리지 말고 목록에 남긴다.
+
+==================================================
+17. PARENT FEATURE PROTECTION
+==================================================
+
+학부모:
+
+AI 성장리포트
+AI 커리큘럼
+Feed
+reaction
+LevelBadge
+Attendance semantic
+Photo/content color
+광고 콘텐츠
+
+고유색 유지.
+
+하지만 일반:
+
+저장
+확인
+설정
+아이 선택
+필터
+일반 modal
+일반 navigation
+
+은 Normal Sage button system 적용.
+
+==================================================
+18. ICON COLOR INSIDE BUTTONS
+==================================================
+
+이번 WP에서는 버튼 내부 icon만
+버튼 role에 맞게 정리 가능.
+
+일반 독립 icon/emoji 전수 정리는 WP-N5.
+
+예:
+
+Primary button icon
+→ primary label과 동일
+
+Secondary
+→ brandStrong / textPrimary
+
+Destructive
+→ semantic destructive
+
+임의 blue/purple/orange 금지.
+
+==================================================
+19. BUTTON POSITION ABSOLUTE LOCK
+==================================================
+
+이번 WP에서 절대 변경 금지:
+
+- x/y 위치
+- flex order
+- 화면 내 배치
+- 버튼 그룹 순서
+- sticky/fixed 여부
+- bottom CTA 위치
+- width 구조
+- navigation header action 위치
+
+버튼 UX 위치 정리는
+WP-N3B 별도 작업으로 진행한다.
+
+==================================================
+20. FUNCTIONAL ABSOLUTE LOCK
+==================================================
+
+절대 변경 금지:
+
+onPress
+onLongPress
+route
+router.push/replace
+API call
+mutation
+form submit
+state setter
+permission gate
+disabled condition
+loading
+inFlight guard
+double-tap guard
+modal state
+confirmation flow
+
+이번 작업은 visual role normalization only.
+
+==================================================
+21. SAME ROLE / SAME STYLE
+==================================================
+
+최종 핵심 원칙:
+
+같은 역할의 버튼은
+화면이 달라도 같은 visual language를 사용한다.
+
+예:
+
+저장
+등록
+완료
+
+모두 PRIMARY_ACTION이면
+같은 Sage Strong family.
+
+하지만:
+
+삭제
+경고
+출석
+AI Report
+
+처럼 의미가 다르면
+고유 semantic/feature 색 유지.
+
+==================================================
+22. ACCESSIBILITY
+==================================================
+
+특히 확인:
+
+C.brandStrong #4F6F67
++ label
+
+C.brandPrimary #6F9187
++ small text
+
+C.brandSoft #DDE7E3
++ C.brandStrong text
+
+small button/chip labels은
+contrast가 부족하면 C.brandStrong 사용.
+
+브랜드색을 유지하기 위해
+텍스트를 흐리게 만드는 것 금지.
+
+==================================================
+23. ROLE-BY-ROLE SWEEP
+==================================================
+
+Normal mode:
+
+ADMIN
+TEACHER
+PARENT
+
+모두 확인.
+
+먼저 common component 적용 후
+남은 screen-specific button만 sweep.
+
+각 버튼을 변경 전:
+
+SCREEN
+BUTTON
+CURRENT_STYLE
+ROLE
+TARGET_STYLE
+
+판정 후 수정.
+
+==================================================
+24. REPORT LEGACY REMAINS
+==================================================
+
+작업 후 남은 mint 버튼 사용처를 보고.
+
+남았다고 무조건 실패 아님.
+
+반드시 분류:
+
+FEATURE_FIXED
+SEMANTIC_PROTECTED
+SCHEDULER_PROTECTED
+NOT_A_BUTTON
+AMBIGUOUS
+
+==================================================
+25. X MODE PROTECTION
+==================================================
+
+xTheme.ts 변경 금지.
+
+Nautic/Yacht system 유지.
+
+Mode-aware common component를 수정할 때:
+
+Normal → Sage
+X → Nautic/Yacht
+
+분기 확인.
+
+X 안에서 Normal Sage가 leakage되면 실패.
+
+==================================================
+26. TEST MATRIX
+==================================================
+
+N3-1
+Normal AppButton.primary
+→ C.brandStrong
+
+N3-2
+Normal primary CTA 주요 화면
+→ Sage Strong
+
+N3-3
+Normal secondary
+→ Sage soft/neutral
+
+N3-4
+Normal selection
+→ Sage system
+
+N3-5
+Destructive semantics preserved
+
+N3-6
+Warning semantics preserved
+
+N3-7
+Scheduler classification preserved
+
+N3-8
+AI report/curriculum/feed protected
+
+N3-9
+Parent general controls normalized
+
+N3-10
+Teacher controls normalized
+
+N3-11
+Admin controls normalized
+
+N3-12
+X AppButton/MainTabs remain XT.*
+
+N3-13
+button positions unchanged
+
+N3-14
+onPress/routes/API unchanged
+
+N3-15
+TS 0 new errors
+
+==================================================
+27. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+28. FINAL REPORT
+==================================================
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+BUTTONS_CLASSIFIED =
+
+PRIMARY_ACTION_COUNT =
+SECONDARY_ACTION_COUNT =
+NEUTRAL_ACTION_COUNT =
+NAVIGATION_ACTION_COUNT =
+SELECTION_COUNT =
+DESTRUCTIVE_COUNT =
+WARNING_COUNT =
+FEATURE_FIXED_COUNT =
+PROTECTED_COUNT =
+
+PRIMARY_ACTION_OLD_STYLES =
+PRIMARY_ACTION_FINAL_STYLE =
+
+C_PRIMARY_ACTION_OLD =
+C_PRIMARY_ACTION_NEW =
+
+MINT_BUTTON_OCCURRENCES_BEFORE =
+MINT_BUTTON_OCCURRENCES_AFTER =
+
+COMMON_COMPONENTS_CHANGED =
+SCREEN_SPECIFIC_BUTTONS_CHANGED =
+
+ADMIN_RESULT =
+TEACHER_RESULT =
+PARENT_RESULT =
+
+SCHEDULER_PROTECTED_CHANGED =
+SEMANTIC_CHANGED =
+FEATURE_FIXED_CHANGED =
+X_THEME_CHANGED =
+
+BUTTON_POSITION_CHANGED =
+ONPRESS_CHANGED =
+ROUTE_CHANGED =
+API_CHANGED =
+
+READABILITY_RESULT =
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+BUTTON_POSITION_CHANGED = NO
+ONPRESS_CHANGED = NO
+ROUTE_CHANGED = NO
+API_CHANGED = NO
+
+SCHEDULER_PROTECTED_CHANGED = NO
+FEATURE_FIXED_CHANGED = NO
+X_THEME_CHANGED = NO
+
+그리고:
+
+WP_N3_NORMAL_BUTTON_ROLE_NORMALIZATION_COMPLETE ✅

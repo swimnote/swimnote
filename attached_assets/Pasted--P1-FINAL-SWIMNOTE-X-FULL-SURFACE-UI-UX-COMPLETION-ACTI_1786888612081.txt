@@ -1,0 +1,420 @@
+[P1 FINAL — SWIMNOTE X FULL-SURFACE UI/UX COMPLETION + ACTIVATION DEVICE REGRESSION]
+
+직전 작업 결과:
+
+P0 activation/persistence architecture = 코드 기준 완료.
+P1 X UI/UX = 핵심 shell 일부 적용 완료.
+
+그러나 현재 보고서 기준으로
+FULL X UI/UX 완료 선언은 아직 이르다.
+
+이번 작업은:
+
+1. X UI 적용 누락 전수검사
+2. X bottom navigation contrast 오류 수정
+3. admin/teacher/parent 실제 주요 화면 전체 X theme 적용
+4. Normal regression 보호
+5. 실기기 activation persistence 최종 검증
+
+만 수행한다.
+
+결제/RevenueCat/server/DB contract는 변경 금지.
+
+==================================================
+1. 현재 명백한 UI 오류부터 수정
+==================================================
+
+현재 보고:
+
+X tab bar background = #0F2742
+X tabActive          = #0F2742
+
+배경과 active가 동일하여
+활성 탭이 시각적으로 구분되지 않을 수 있다.
+
+admin / teacher / parent 모두 확인.
+
+원칙:
+
+X tab background = dark/navy
+X active icon/text = 배경과 확실히 대비되는 밝은 X accent 또는 white 계열
+X inactive = muted blue/gray
+
+semantic/accessibility contrast 확보.
+
+예시 색상은 기존 xTheme 안에서 결정.
+화면별 hex 하드코딩 금지.
+
+반드시:
+
+TAB_BACKGROUND =
+TAB_ACTIVE =
+TAB_INACTIVE =
+
+보고.
+
+==================================================
+2. PARENT BOTTOM NAV 확인
+==================================================
+
+직전 보고서에는:
+
+admin bottom nav
+teacher bottom nav
+
+만 존재하고 parent X bottom nav 적용 내용이 없다.
+
+parent layout/navigation을 실제 확인.
+
+paid X pool의 parent도
+전체 X visual language를 사용해야 한다.
+
+parent X에서 Normal mint bottom nav가 남아있으면 수정.
+
+==================================================
+3. X UI 전체 surface audit
+==================================================
+
+단순히 다음만 X화하면 완료가 아니다:
+
+- header
+- dashboard
+- settings
+- bottom tab
+
+X모드 사용자가 실제 이동하는 주요 화면을
+role별로 전수 확인한다.
+
+==================================================
+4. ADMIN X 적용 범위
+==================================================
+
+현재 admin이 실제 사용하는 주요 화면:
+
+- dashboard
+- 수업관리 관련 root/목록
+- 회원/인원관리 관련 root
+- 운영관리 관련 root
+- 메시지 관련 root
+- settings
+- AI diary 관련 화면
+- curriculum 관련 화면
+- growth/report 관련 화면
+- X setup
+- X hub/subscription
+- 공통 modal/sheet/card
+
+실제 repository에 존재하는 화면명 기준으로 확인.
+
+새 화면 만들지 말 것.
+
+각 화면을 분류:
+
+FULL_X_THEME
+PARTIAL_X_THEME
+NORMAL_THEME_REMAINS
+NOT_RELEVANT
+
+NORMAL_THEME_REMAINS만 필요한 범위 수정.
+
+==================================================
+5. TEACHER X 적용 범위
+==================================================
+
+직전 보고:
+
+teacher:
+- header
+- bottom nav
+
+수준이다.
+
+다음 실제 teacher 핵심 화면 확인:
+
+- today schedule
+- 수업관리
+- 반/학생 관련 화면
+- 출결/보강 관련 화면
+- AI 일지
+- 일지 작성/조회
+- 메시지
+- teacher settings/profile
+- 공통 modal/sheet
+
+X active일 때
+Normal mint/Normal card hierarchy가 그대로 남아있는지 확인.
+
+X mode에서는
+전체 핵심 teacher experience가 X design system을 사용해야 한다.
+
+기능/레이아웃을 새로 만들 필요는 없지만
+presentation hierarchy는 X여야 한다.
+
+==================================================
+6. PARENT X 적용 범위
+==================================================
+
+직전 보고:
+
+parent:
+- header
+- 기존 X growth banner 유지
+
+수준이다.
+
+다음 실제 parent 핵심 화면 확인:
+
+- home
+- 수업피드
+- 알림
+- 내 요청
+- 앨범/사진
+- 일정
+- curriculum search
+- AI 기능
+- growth report
+- 관련 detail/modal
+- bottom navigation
+
+X pool parent가 앱을 사용하는 동안
+Normal SWIMNOTE 화면으로 돌아온 것처럼 보여서는 안 된다.
+
+단:
+
+사진/콘텐츠 자체 색상
+semantic alert color
+
+등은 억지로 X색으로 바꾸지 않는다.
+
+==================================================
+7. MODE-AWARE COMMON COMPONENTS
+==================================================
+
+공통:
+
+Card
+Button
+Section
+Header
+Badge
+Sheet
+Modal
+Empty state
+Loading
+Bottom tab
+
+등에 이미 공통 source가 있으면
+개별 화면 복제 금지.
+
+mode-aware token/component로 처리.
+
+NORMAL/X가 같은 source를 공유하는 경우
+source of truth 한 곳 수정 후 양쪽 검증.
+
+==================================================
+8. X 디자인 기준
+==================================================
+
+SWIMNOTE X는:
+
+단순 Navy 도배 금지.
+단순 Mint→Navy 치환 금지.
+
+필요한 hierarchy:
+
+- X background
+- X surface
+- elevated surface
+- strong primary
+- secondary accent
+- X border
+- X CTA
+- X selected state
+- X AI/data emphasis
+
+전문적이고 프리미엄한
+AI + 교육 데이터 플랫폼의 visual hierarchy 유지.
+
+다만 기존 SWIMNOTE usability는 유지.
+
+==================================================
+9. NORMAL MODE 보호
+==================================================
+
+Normal SWIMNOTE는
+기존 디자인 그대로 유지.
+
+반드시 role별 확인:
+
+Normal admin
+Normal teacher
+Normal parent
+
+X theme leakage 금지.
+
+==================================================
+10. X_PENDING 정책 확인
+==================================================
+
+isXMode(mode) =
+mode === "x" || mode === "x_pending"
+
+현재 구조는 유지 가능.
+
+단 의미를 정확히 확인:
+
+paid + config NOT READY
+→ server mode=x
+→ X UI
+
+manual-only + config NOT READY
+→ x_pending
+→ X UI를 보여주되
+config-dependent feature만 준비 안내 가능.
+
+전체 앱을 Normal로 되돌리지 않는다.
+
+이번 작업에서 server mode policy 변경 금지.
+
+==================================================
+11. ACTIVATION PHYSICAL REGRESSION
+==================================================
+
+코드 구조 테스트만으로 완료 선언 금지.
+
+실제 TestFlight에서 확인 가능한 항목은
+DEVICE_VERIFIED / NOT_YET_VERIFIED로 분리한다.
+
+최소 다음 확인:
+
+DEVICE-1
+현재 결제 완료된 pool_admin
+앱 강제 종료
+→ 다시 실행
+→ 처음부터 X UI
+
+DEVICE-2
+앱 실행 시
+Normal dashboard flash 없음
+
+DEVICE-3
+admin → teacher 전환
+→ X 유지
+
+DEVICE-4
+다시 admin
+→ X 유지
+
+DEVICE-5
+가능한 테스트 계정으로 teacher 직접 로그인
+→ X
+
+DEVICE-6
+가능한 테스트 계정으로 parent 직접 로그인
+→ X
+
+계정이 준비되지 않은 항목은
+가짜 PASS 금지.
+NOT_YET_VERIFIED로 보고.
+
+==================================================
+12. PURCHASE FLOW는 건드리지 않는다
+==================================================
+
+금지:
+
+purchasePackage
+RevenueCat offering/product
+x-reserve-slot
+sync-x-subscription
+webhook
+slot
+franchise number
+discount tier
+server entitlement
+DB
+
+이번 작업에서 purchase flow 수정 금지.
+
+==================================================
+13. TYPE / TEST
+==================================================
+
+확인:
+
+- TypeScript
+- X theme token usage
+- Normal/X conditional render
+- navigation
+- no hook ordering regression
+- no duplicated source
+- no hardcoded X hex proliferation
+
+==================================================
+14. DEPLOY
+==================================================
+
+client-only 수정:
+
+production OTA
+preview OTA
+
+server deploy 금지.
+
+반복 polling 금지.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+TAB_BACKGROUND =
+TAB_ACTIVE =
+TAB_INACTIVE =
+TAB_CONTRAST_FIXED =
+
+ADMIN_SURFACES_AUDITED =
+ADMIN_FULL_X =
+ADMIN_PARTIAL_OR_MISSING =
+
+TEACHER_SURFACES_AUDITED =
+TEACHER_FULL_X =
+TEACHER_PARTIAL_OR_MISSING =
+
+PARENT_SURFACES_AUDITED =
+PARENT_FULL_X =
+PARENT_PARTIAL_OR_MISSING =
+
+PARENT_BOTTOM_NAV_X =
+
+COMMON_COMPONENTS_X_AWARE =
+NORMAL_ADMIN_REGRESSION =
+NORMAL_TEACHER_REGRESSION =
+NORMAL_PARENT_REGRESSION =
+
+DEVICE_ADMIN_KILL_RELAUNCH =
+DEVICE_NORMAL_FLASH =
+DEVICE_ROLE_SWITCH =
+DEVICE_TEACHER_LOGIN =
+DEVICE_PARENT_LOGIN =
+
+SERVER_CHANGE =
+DB_CHANGE =
+PURCHASE_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+완료 선언은 아래 두 개로 분리:
+
+P0_X_ACTIVATION_PERSISTENCE_CODE_COMPLETE ✅
+
+그리고 실제 DEVICE 검증까지 됐을 때만:
+
+P0_X_ACTIVATION_PERSISTENCE_DEVICE_VERIFIED ✅
+
+모든 주요 admin/teacher/parent surface의
+X theme audit에서 누락이 없을 때만:
+
+P1_SWIMNOTE_X_FULL_UI_UX_CONVERSION_COMPLETE ✅

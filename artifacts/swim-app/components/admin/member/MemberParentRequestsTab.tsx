@@ -1,4 +1,4 @@
-import { Inbox } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -24,7 +24,7 @@ export function MemberParentRequestsTab({ parentRequests }: MemberParentRequests
         <Text style={ms.sectionTitle}>학부모 요청 ({parentRequests.length}건)</Text>
         {parentRequests.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 30 }}>
-            <Inbox size={36} color={C.textMuted} />
+            <LucideIcon name="inbox" size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>요청 기록이 없습니다</Text>
           </View>
         ) : parentRequests.map((req: any, i: number) => (
@@ -37,8 +37,8 @@ export function MemberParentRequestsTab({ parentRequests }: MemberParentRequests
               <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>{req.content}</Text>
             )}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FFF1BF" : "#E6FFFA" }]}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : "#2EC4B6" }}>
+              <View style={[{ borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 }, { backgroundColor: req.status === "pending" ? "#FFF1BF" : C.brandSoft }]}>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: req.status === "pending" ? "#D97706" : C.brandStrong }}>
                   {req.status === "pending" ? "처리 대기" : "처리 완료"}
                 </Text>
               </View>

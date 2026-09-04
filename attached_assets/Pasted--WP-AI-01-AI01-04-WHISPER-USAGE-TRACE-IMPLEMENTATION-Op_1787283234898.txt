@@ -1,0 +1,341 @@
+# [WP-AI-01 / AI01-04 — WHISPER USAGE TRACE IMPLEMENTATION]
+
+목적:
+
+현재 비용이 전혀 기록되지 않는 OpenAI Whisper/STT 호출을
+기존 `saveAiTrace()` 기반 비용 관측 구조에 연결한다.
+
+이번 Step에서는 Whisper만 처리한다.
+
+다른 AI/API는 수정하지 않는다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 조사 금지.
+
+이미 확인된 대상만 사용:
+
+* `artifacts/api-server/src/routes/ai.ts`
+* `artifacts/api-server/src/lib/ai-feature-enum.ts`
+* 기존 AI trace 관련 test file
+
+실제 `handleWhisper()`와 관련 테스트만 확인한다.
+
+전체 regression 금지.
+
+---
+
+# 1. 대상 함수
+
+`routes/ai.ts`
+
+기존:
+
+`handleWhisper()`
+
+현재 상태:
+
+OpenAI Whisper 호출은 존재하지만
+`saveAiTrace()`가 없음.
+
+이번 Step에서 해당 함수에만 usage trace를 연결한다.
+
+---
+
+# 2. STT Feature 추가
+
+기존 `AI_FEATURE`에 STT가 없다면 최소 추가:
+
+```ts
+STT: 'stt'
+```
+
+Whisper/STT는 AI 기능이므로
+`AI_FEATURE`에 포함해도 된다.
+
+기존 enum 값은 변경하지 않는다.
+
+---
+
+# 3. Whisper 성공 Trace
+
+Whisper 호출 성공 시 다음 값을 기록한다.
+
+```text
+provider = openai
+service = whisper
+model = AI_MODEL.STT
+feature = STT
+trigger_type = USER_ACTION
+
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+
+audio_seconds = null
+estimated_cost_usd = null
+cost_source = UNKNOWN
+
+latency_ms = 실제 Whisper 호출 elapsed time
+success/status = 기존 saveAiTrace contract에 맞춤
+```
+
+중요:
+
+현재 audio duration을 신뢰성 있게 알 수 없으므로
+파일 크기로 duration을 추정하지 않는다.
+
+따라서 비용도 임의 계산하지 않는다.
+
+---
+
+# 4. 실패 Trace
+
+Whisper provider 호출이 실제 시작된 뒤 실패한 경우에도
+가능하면 trace를 남긴다.
+
+목표:
+
+* provider
+* service
+* feature
+* trigger_type
+* actual_call_count
+* latency
+* error
+* cost_source=UNKNOWN
+
+확인 가능.
+
+단:
+
+요청 validation 단계에서 Whisper provider를 전혀 호출하지 않았다면
+`actual_call_count=1`로 거짓 기록하지 않는다.
+
+실제 provider call 여부 기준으로 기록한다.
+
+---
+
+# 5. actual_call_count 원칙
+
+현재 Whisper route에는 retry가 없다고 확인돼 있다.
+
+따라서 실제 OpenAI 요청이 발생하면:
+
+```text
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 0
+```
+
+OpenAI 요청 전에 validation 실패하면
+provider usage event를 생성하지 않거나
+actual_call_count=0인 operational trace로 처리한다.
+
+기존 trace 설계 패턴에 맞춰 최소 변경한다.
+
+---
+
+# 6. audio_seconds
+
+이번 Step에서는:
+
+```text
+audio_seconds = null
+```
+
+고정.
+
+금지:
+
+* file.size 기반 추정
+* 파일 형식별 임의 계산
+* 평균 bitrate 가정
+* 임의 duration 값
+
+향후 실제 client `duration_ms` 전달 여부는 별도 판단한다.
+
+---
+
+# 7. 비용
+
+`ai-pricing.ts`에는 AI01-02에서 Whisper 가격 계산 함수가 이미 준비됐다.
+
+하지만 실제 `audio_seconds`가 없으므로 이번 Step에서는:
+
+```text
+estimated_cost_usd = null
+cost_source = UNKNOWN
+```
+
+으로 기록한다.
+
+가격 함수가 있다는 이유로 duration을 만들어 비용 계산하지 않는다.
+
+---
+
+# 8. Logging 실패 정책
+
+기존 원칙 유지:
+
+Whisper 호출 성공
++
+saveAiTrace 실패
+
+→ 사용자 STT 응답은 성공 유지.
+
+usage logging은 best-effort.
+
+trace 실패 때문에 STT 자체를 실패시키지 않는다.
+
+---
+
+# 9. 기존 STT 동작 보호
+
+이번 Step에서 수정 금지:
+
+* multipart contract
+* file validation
+* max size
+* MIME 처리
+* OpenAI request payload
+* transcript parsing
+* timeout
+* response format
+* 사용자 응답 구조
+
+오직 usage trace만 추가한다.
+
+---
+
+# 10. 테스트
+
+전체 regression 금지.
+
+Whisper usage trace 관련 최소 TC만 추가/실행한다.
+
+필수:
+
+### TC1
+
+Whisper 성공
+→ saveAiTrace 호출
+→ provider=openai
+→ service=whisper
+→ trigger_type=USER_ACTION
+
+### TC2
+
+성공 trace
+→ logical_request_count=1
+→ actual_call_count=1
+→ retry_count=0
+
+### TC3
+
+audio_seconds=null
+→ estimated cost 생성하지 않음
+→ cost_source=UNKNOWN
+
+### TC4
+
+provider 호출 후 실패
+→ 실패 trace에 실제 latency/error 기록
+
+### TC5
+
+provider 호출 전 validation 실패
+→ 실제 OpenAI call이 발생한 것처럼 actual_call_count=1 기록하지 않음
+
+---
+
+# 11. 절대 금지
+
+이번 Step에서:
+
+* client duration_ms 추가 금지
+* pricing 수정 금지
+* model config 수정 금지
+* 다른 saveAiTrace callsite 수정 금지
+* Curriculum/Growth engine 수정 금지
+* request_id propagation 수정 금지
+* SMS 수정 금지
+* R2 수정 금지
+* usage-recorder 생성 금지
+* Dashboard 수정 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-04만 수행한다.
+
+---
+
+# 12. 완료 보고
+
+# [AI01-04 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. Whisper Trace Contract
+
+실제 저장되는 필드.
+
+## 5. Success / Failure Handling
+
+provider 실제 호출 여부와 actual_call_count 처리 방식 설명.
+
+## 6. Cost Handling
+
+왜 UNKNOWN인지 명시.
+
+## 7. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 8. Scope Check
+
+다음 미수정 확인:
+
+* other AI routes
+* external engines
+* pricing/model config
+* SMS
+* R2
+* Super Admin
+* DB schema
+* deployment config
+
+## 9. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 13. STOP
+
+AI01-04 완료 보고 후 멈춘다.
+
+AI01-05 이상 선행 금지.

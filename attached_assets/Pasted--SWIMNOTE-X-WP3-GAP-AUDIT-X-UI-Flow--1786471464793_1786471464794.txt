@@ -1,0 +1,353 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP3 GAP AUDIT
+X 설정 UI / 설정 완료 Flow 재개 검수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목적:
+WP3를 처음부터 재구현하지 않는다.
+
+이미 존재하는:
+
+- ModeContext
+- ModeForegroundRefresh
+- XModeGuard
+- GET /pools/x-mode
+
+는 재구현 금지.
+
+현재 실제 GAP인
+"수영장 관리자 X 설정 UI 및
+xmode_config_status 전환 Flow"
+만 정확히 조사한다.
+
+이번 단계:
+코드 수정 금지.
+DB write 금지.
+Commit/Push/Render/OTA 금지.
+
+조사 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 현재 X 설정 관련 코드 전수 검색
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체에서 검색:
+
+xmode_config_status
+xmode_entitlement
+NOT_CONFIGURED
+READY
+x-mode
+xmode
+XMode
+ModeContext
+XModeGuard
+
+제출:
+
+- 서버 route
+- 앱 screen/component
+- 상태 enum
+- DB update 함수
+- 관련 tests
+
+파일명 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. GET /pools/x-mode 실제 Contract
+━━━━━━━━━━━━━━━━━━━━
+
+현재 route 전체 확인.
+
+제출:
+
+request 권한
+response JSON
+
+특히:
+
+mode
+xmode_entitlement
+xmode_config_status
+purchased_at
+subscription_end_at
+기타 필드
+
+앱 ModeContext가 실제로 어떤 필드를 소비하는지 비교.
+
+━━━━━━━━━━━━━━━━━━━━
+3. xmode_config_status 상태 정의
+━━━━━━━━━━━━━━━━━━━━
+
+Production schema / code 기준으로
+허용 상태 전부 확인.
+
+예:
+
+NOT_CONFIGURED
+READY
+SUSPENDED
+기타
+
+추측 금지.
+
+DB CHECK constraint 또는 코드 enum 근거 제출.
+
+각 상태 의미도 현재 코드/설계에서 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. config_status를 변경하는 현재 경로
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체에서:
+
+UPDATE swimming_pools
+SET xmode_config_status = ...
+
+검색.
+
+현재 존재하는 모든 write path 제출.
+
+예:
+
+- super admin 수동 설정
+- pool admin
+- API
+- script
+- migration
+- test
+
+현재 pool_admin이 자기 pool의
+NOT_CONFIGURED → READY를 직접 만들 수 있는지 확정.
+
+━━━━━━━━━━━━━━━━━━━━
+5. X 설정 UI 존재 여부
+━━━━━━━━━━━━━━━━━━━━
+
+관리자 앱에서 X 관련 화면/버튼 조사.
+
+확인:
+
+- 설정 화면
+- dashboard
+- subscription
+- x-growth
+- 기타
+
+수영장 관리자가 X entitlement를 가진 상태에서
+무엇을 보게 되는지 실제 navigation 흐름 제출.
+
+예:
+
+entitlement=false
+→ 일반 모드
+
+entitlement=true + NOT_CONFIGURED
+→ ?
+
+entitlement=true + READY
+→ X mode
+
+현재 실제 동작 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. READY가 되기 위한 설정 항목 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 설계/코드에서
+X 활성화 전 반드시 설정해야 하는 값이 있는지 확인.
+
+예:
+
+- 교육과정/template 선택
+- global template set
+- AI diary 설정
+- pool curriculum
+- 기타
+
+READY를 단순 버튼 하나로 바꿔도 되는지,
+아니면 필수 설정 완료 검증이 필요한지
+현재 설계 근거로 판정.
+
+임의 UX 설계 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. pool_admin 권한 확인
+━━━━━━━━━━━━━━━━━━━━
+
+config_status 변경 API가 생길 경우
+누가 호출 가능해야 하는지 기존 구조 확인.
+
+최소:
+
+- pool_admin 자기 pool
+- super_admin
+- teacher 금지?
+- parent 금지?
+
+현재 X 설계/기존 API 권한 기준 제출.
+
+다른 pool_id를 body로 보내서
+타 수영장 상태 변경 가능한 구조 금지.
+
+poolId는 authenticated user context에서 결정하는 것이
+현재 패턴인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. audit_logs 요구 확인
+━━━━━━━━━━━━━━━━━━━━
+
+xmode_config_status 변경 시
+audit_logs 기록이 현재 설계에 필요한지 확인.
+
+기존 super admin X 상태 변경 route의
+audit 패턴을 제출.
+
+READY 전환 시 최소:
+
+before
+after
+actor
+pool_id
+reason/source
+timestamp
+
+기록 여부 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+9. ModeContext mode 계산 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 resolvePoolMode / computeMode 기준 확인.
+
+특히:
+
+entitlement=false + READY
+entitlement=true + NOT_CONFIGURED
+entitlement=true + READY
+
+각 결과 mode 제출.
+
+X 설정 완료 직후 refreshMode()하면
+mode가 즉시 x로 변경되는 구조인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+10. foreground refresh 재확인만
+━━━━━━━━━━━━━━━━━━━━
+
+ModeForegroundRefresh는 이미 구현 완료로 간주.
+
+재구현 금지.
+
+다만:
+
+AppState background → active
+
+시 refreshMode()가 실제 호출되는지
+현재 코드 line만 제출.
+
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Production sample pool 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 SUPABASE_DATABASE_URL READ ONLY.
+
+pool:
+
+pool_1784310621737_qryl1x79s
+
+확인:
+
+xmode_entitlement
+xmode_config_status
+
+현재 기대:
+
+true / READY
+
+그리고 audit_logs의
+WP5 sample activation 기록 확인.
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. UI/서버 GAP 분리
+━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 다음 형식:
+
+A. Server completed
+B. Server missing
+C. App completed
+D. App missing
+E. Permission gap
+F. Audit gap
+G. Test gap
+
+으로 정리.
+
+━━━━━━━━━━━━━━━━━━━━
+13. WP3 최소 구현안
+━━━━━━━━━━━━━━━━━━━━
+
+실제 GAP만 기준으로:
+
+- 수정 파일
+- 신규 route 필요 여부
+- 신규 screen 필요 여부
+- 기존 settings 화면에 추가 가능한지
+- DB migration 필요 여부
+- Render 필요 여부
+- OTA 필요 여부
+- Store rebuild 필요 여부
+- 신규 tests
+
+제출.
+
+아직 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 보호 범위
+━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- WP1 DB
+- WP2 코드
+- RevenueCat
+- Global Template
+- WP4
+- WP5 기존 guard
+- WP6
+- WP7+
+- Diary
+- 보강
+- Parent Request
+- Instagram
+
+━━━━━━━━━━━━━━━━━━━━
+15. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. X status enum
+2. GET /pools/x-mode contract
+3. 현재 config_status write path
+4. pool_admin write 가능 여부
+5. 현재 X 설정 UI
+6. entitlement=true + NOT_CONFIGURED UX
+7. READY 필수조건
+8. 권한 구조
+9. audit 구조
+10. ModeContext 계산 결과
+11. foreground refresh
+12. sample pool 상태
+13. 정확한 GAP
+14. 최소 구현안
+15. DB migration 필요 여부
+16. Render/OTA/Build 필요 여부
+17. WP3 FINAL STATUS
+
+조사 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

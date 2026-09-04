@@ -1,0 +1,148 @@
+[앱] PRE-UIUX FINAL GROWTH REPORT ENTRY UX FIX
+
+실기기 확인 결과:
+
+- Parent Curriculum Search quota = 3/4 정상 ✅
+- Growth Report는 새 status screen으로 진입하지만
+  NOT_AVAILABLE 상태에서 안내 카드만 있고
+  사용자 입장에서는 "버튼이 안 눌리는 것처럼" 느껴짐.
+
+이번 Step은 Growth Report entry/status UX의
+최소 기능 연결 보강만 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. HOME ENTRY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+홈의 "AI 성장 리포트" 버튼:
+
+- selectedStudent 기준
+- 항상 growth-report-status 또는 detail로 진입
+- dead/no-op 금지
+
+현재 동작 유지하되
+실제 onPress가 항상 navigation을 발생시키는지 재확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. STATUS SCREEN ACTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-status.tsx에서
+상태별 최소 action을 제공.
+
+A. PUBLISHED
+→ 자동 detail redirect 유지
+
+B. DATA_ACCUMULATING / PARTIAL
+→ 상태 설명 표시
+→ 하단 버튼:
+  "홈으로 돌아가기"
+또는
+  "수업 기록 확인하기"
+
+기존 feed/detail route 재사용 가능.
+
+C. NOT_AVAILABLE
+현재 문구:
+"수업 기록이 쌓이면 이번 달 성장 리포트를 확인할 수 있어요."
+
+추가:
+- 짧은 설명 1줄
+- 하단 버튼 1개
+
+예:
+"수업 기록이 쌓이면 이번 달 성장 리포트를 확인할 수 있어요."
+"수업이 기록될수록 아이의 성장 흐름이 더 정확하게 정리됩니다."
+
+버튼:
+"홈으로 돌아가기"
+또는
+"수업 기록 보기"
+
+새 report 생성 버튼 금지.
+AI 호출 금지.
+
+D. FAILED
+→ 재시도 버튼 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. PRODUCT LANGUAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구형 출석/통계 성장리포트 용어 사용 금지.
+
+새 FREE Growth Report 문구만 사용.
+
+"성장분석평가"
+"130개 평가 데이터"
+"라이센스"
+"독점 시범 서비스"
+등 구형 문구 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. VISUAL PRIORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step은 최소 기능 UX만.
+
+대규모 디자인 리워크 금지.
+색상/폰트/카드 스타일은 오늘 뒤 UI/UX 단계에서 정리.
+
+지금은:
+- 화면이 dead하지 않게
+- 사용자가 현재 상태를 이해하고
+- 다음 행동을 할 수 있게
+
+만 만든다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 Home GR button always navigates
+TC2 NOT_AVAILABLE screen visible
+TC3 NOT_AVAILABLE has action button
+TC4 DATA_ACCUMULATING has action button
+TC5 PUBLISHED redirects to detail
+TC6 FAILED retry works
+TC7 no legacy screen route
+TC8 no AI call
+TC9 no DB write
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+JS-only이면 production OTA 1회.
+
+API deploy 금지 unless actually required.
+DB write 금지.
+RENDER_API_KEY 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT STATUS UX FIX REPORT
+
+- home entry behavior
+- NOT_AVAILABLE text/action
+- DATA_ACCUMULATING text/action
+- PUBLISHED behavior
+- FAILED behavior
+- legacy route used: NO
+- changed files
+- tests/pass
+- commit SHA
+- OTA update ID/group ID
+
+AI calls: 0
+DB write: NO
+API change: NO
+
+Final Verdict:
+GROWTH REPORT ENTRY UX READY
+또는
+BLOCKED + exact reason
+
+STOP.

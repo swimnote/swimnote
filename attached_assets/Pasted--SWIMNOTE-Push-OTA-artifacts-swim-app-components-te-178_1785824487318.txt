@@ -1,0 +1,179 @@
+[SWIMNOTE 반 상세 모달 제스처 충돌 수정 — Push·OTA 배포 승인]
+
+최종 검수 완료.
+
+수정 파일:
+
+- artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+- artifacts/swim-app/components/admin/AdminClassDetailSheet.tsx
+
+검수 완료 항목:
+
+1. 학생 목록 FlatList는 모달 dismiss gesture 영역 밖에 있음
+2. 모달 drag-to-dismiss는 상단 회색 손잡이 영역에서만 시작됨
+3. 학생 목록 맨 위·중간·맨 아래에서 드래그해도 모달 translateY가 변경되지 않는 구조
+4. 관리자 화면 ScrollView 중첩 0개
+5. 선생님·관리자 모두 dismiss 중복 실행 방지 ref 적용
+6. 서브시트가 열린 동안 메인 모달 drag 비활성
+7. X 버튼과 backdrop 닫기 유지
+8. FlatList·React.memo·학생별 pending 구조 유지
+9. 두 수정 파일 TypeScript 신규 오류 없음
+10. 서버·DB·API Contract 변경 없음
+
+아래 순서대로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. Push 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 브랜치 확인
+2. git status --short 확인
+3. 실제 변경 파일이 위 2개뿐인지 확인
+4. 의도하지 않은 첨부파일·임시파일 제외
+5. 현재 HEAD와 origin SHA 기록
+6. 두 파일의 최종 diff 확인
+7. force push, reset, rebase, squash 금지
+
+Replit 자동 checkpoint로 커밋이 생성됐다면 해당 커밋 SHA를 확인한다.
+미커밋이면 정상 커밋을 1개 생성한다.
+
+권장 메시지:
+
+fix: isolate class sheet dismiss gesture from student list
+
+그 후 현재 브랜치를 origin에 일반 Push한다.
+
+충돌 발생 시 임의 해결하지 말고 중단·보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. 서버 배포 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경은 앱 파일 2개뿐이다.
+
+- Render 서버 재배포 불필요
+- DB 변경 없음
+- Migration 없음
+- API 검증 불필요
+
+Push로 Render 자동 배포가 시작되더라도 앱 수정만 포함된 배포인지 확인하고,
+서버 변경 작업을 추가하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. iOS OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+Push 성공 후 기존 운영 앱과 동일한 runtime 및 channel에 OTA를 배포한다.
+
+배포 대상:
+
+- production
+- preview
+
+메시지:
+
+fix: isolate class sheet drag gesture from student list scrolling
+
+금지:
+
+- 새 네이티브 빌드 생성
+- runtime version 변경
+- API_BASE 변경
+- Android를 임의로 함께 배포
+- 다른 channel에 배포
+- 이전 FlatList 성능 개선 원복
+
+제출:
+
+1. Production update group ID
+2. Preview update group ID
+3. channel
+4. branch
+5. runtime version
+6. 포함 commit SHA
+7. 배포 시각
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 실기기 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+앱을 완전히 종료한 뒤 다시 실행해 OTA를 적용한다.
+
+선생님 반 상세 모달:
+
+1. 학생 목록 중간에서 아래 방향 스크롤 30회
+2. 목록 맨 위에서 아래로 당기기 20회
+3. 목록 맨 아래에서 계속 당기기 20회
+4. 빠른 위·아래 왕복 스크롤
+5. 모달 열기·닫기 20회
+6. 스크롤 직후 출석
+7. 스크롤 직후 결석
+8. 스크롤 직후 반이동
+9. 반이동 서브시트 정상
+10. 보충수업 서브시트 정상
+11. 미배정 서브시트 정상
+12. X 버튼 정상 닫기
+13. 바깥 영역 정상 닫기
+14. 상단 회색 손잡이를 충분히 내리면 정상 닫기
+15. 손잡이를 조금 내리면 원위치 복귀
+
+관리자 반 상세 모달:
+
+1. 학생 목록 빠른 스크롤
+2. 맨 위에서 아래로 당겨도 모달 고정
+3. 마지막 학생까지 접근
+4. 상단 손잡이에서만 드래그 닫기
+5. X·backdrop 정상
+6. 관리자 서브뷰 정상
+
+성공 기준:
+
+- 학생 명단 영역에서 모달이 딸려 내려오는 현상 0회
+- 목록 드래그 중 모달 translateY 변화 0회
+- 모달 닫기는 상단 손잡이·X·backdrop에서만 발생
+- 스크롤 및 버튼 터치 누락 없음
+- dismiss 한 번당 onClose 1회
+- 기존 FlatList 성능 개선 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 문제 발생 시 롤백
+━━━━━━━━━━━━━━━━━━━━━━
+
+문제가 발생하면 직전 정상 앱 커밋 기준으로
+동일 production·preview channel에 새 OTA를 발행한다.
+
+금지:
+
+- 기존 update 삭제만으로 롤백
+- force push
+- 서버 롤백
+- DB 수정
+
+롤백 전 기록:
+
+- 문제가 발생한 터치 시작 위치
+- 목록의 스크롤 위치
+- 모달이 움직였는지
+- 서브시트가 열려 있었는지
+- OTA update group ID
+- 현재 commit SHA
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. Push 결과
+2. origin 최종 SHA
+3. 포함 커밋
+4. Production OTA group ID
+5. Preview OTA group ID
+6. runtime/channel/branch
+7. 선생님 실기기 반복 결과
+8. 관리자 실기기 반복 결과
+9. 학생 목록에서 모달 dismiss 재발 횟수
+10. 남은 문제
+11. 롤백 기준점
+
+완료 후 X모드 작업은 자동 재개하지 말고 멈춘다.

@@ -1,0 +1,1007 @@
+[WP-CS15 — Traceability, Incident & Knowledge Conflict Governance]
+
+목적:
+SWIMNOTE AI Support 시스템에서
+사용자 질문이 어떤 Context와 어떤 Knowledge/Evidence를 거쳐
+어떤 답변/Action/Escalation으로 이어졌는지
+request 단위로 끝까지 추적 가능하게 만든다.
+
+동시에:
+
+- Known Issue / Incident
+- Knowledge freshness
+- conflicting ACTIVE knowledge
+- source authority
+- superseded knowledge
+
+를 통제하여
+서로 충돌하는 근거가 사용자 답변에 동시에 사용되지 않게 한다.
+
+이번 WP는
+"더 똑똑한 답변 생성"이 목적이 아니다.
+
+핵심은:
+
+TRACEABILITY
+INCIDENT AWARENESS
+KNOWLEDGE CONFLICT GOVERNANCE
+AUDITABILITY
+
+이다.
+
+==================================================
+0. 절대 원칙
+==================================================
+
+1. 새로운 OpenAI/LLM 호출 추가 금지.
+2. 기존 Support 답변 품질을 임의 변경하지 말 것.
+3. CS12 PENDING Candidate를 ACTIVE로 자동 승격하지 말 것.
+4. Production DB write 금지.
+5. 실제 Incident가 없는데 fixture를 production incident처럼 만들지 말 것.
+6. HTTP 응답에 내부 민감정보를 과다 노출하지 말 것.
+7. raw prompt, secret, token, 내부 stack trace, PII를 trace payload에 포함하지 말 것.
+8. trace 정보가 다른 tenant/user에게 노출되지 않도록 CS13 보안경계를 그대로 유지.
+9. conflicting knowledge를 임의 평균/병합하지 말 것.
+10. 불확실하면 PASS가 아니라 REVIEW_REQUIRED.
+
+==================================================
+1. END-TO-END TRACE 목표
+==================================================
+
+최종적으로 최소 다음 연결이 가능해야 함.
+
+request_id
+→ actor context
+→ pool/mode/role
+→ support intent/category
+→ selected evidence
+→ knowledge_id / source_id
+→ knowledge status/version
+→ confidence/quality state
+→ generated answer
+→ allowed action(s)
+→ escalation 여부
+→ support_case_id (있다면)
+
+목표:
+
+"이 답변이 왜 나왔는가?"
+
+를 request_id 하나로 설명 가능.
+
+==================================================
+2. TRACE DATA MODEL
+==================================================
+
+현재 context_json / audit_log / support event 구조를 우선 재사용.
+
+가능하면 최소 trace schema:
+
+{
+  request_id,
+  timestamp,
+  actor_role,
+  pool_id,
+  resolved_mode,
+  feature,
+  support_category,
+  evidence: [
+    {
+      knowledge_id,
+      source_id,
+      knowledge_type,
+      status,
+      version,
+      source_authority,
+      freshness_state
+    }
+  ],
+  answer_quality,
+  confidence,
+  actions,
+  fallback_reason,
+  escalation_reason,
+  support_case_id
+}
+
+주의:
+
+HTTP client response와
+internal audit trace는 분리 가능.
+
+모든 내부 필드를 client에 반환할 필요 없음.
+
+==================================================
+3. HTTP RESPONSE TRACE
+==================================================
+
+CS14에서 발견된 gap:
+
+source_id / knowledge_id가
+HTTP 응답에는 직접 포함되지 않고
+내부 context_json에만 존재.
+
+이번 WP에서 아래 중 하나를 구현.
+
+권장:
+
+response.meta.trace = {
+  request_id,
+  evidence_refs: [...]
+}
+
+또는:
+
+response.grounding = {
+  request_id,
+  knowledge_refs: [...]
+}
+
+단:
+
+- 내부 DB schema 전체 노출 금지
+- source text 전체 노출 금지
+- private file/path 노출 금지
+- tenant-sensitive metadata 노출 금지
+
+client에는 opaque reference 또는 safe public/internal ID만.
+
+==================================================
+4. REQUEST_ID CONSISTENCY
+==================================================
+
+다음 전체 경로에서 동일 request_id 유지 여부 검사.
+
+HTTP request
+→ RouterContext
+→ evidence gather
+→ LLM/generation path
+→ answer
+→ support case
+→ audit log
+→ escalation
+
+중간에 새 request_id를 임의 생성해서
+chain이 끊기지 않는지 확인.
+
+하위 operation id가 필요하면:
+
+parent_request_id
+operation_id
+
+형태로 연결.
+
+==================================================
+5. KNOWLEDGE VERSION TRACE
+==================================================
+
+답변에 사용된 Knowledge가
+나중에 수정되더라도
+
+"당시 어떤 version/content 상태가 사용되었는지"
+
+감사 가능해야 함.
+
+현재 version field가 있으면 사용.
+
+없으면 최소:
+
+knowledge_id
+updated_at
+source_id
+content hash
+
+중 가능한 조합을 기록.
+
+목표:
+
+현재 Knowledge와
+과거 답변 당시 Knowledge를 구분 가능.
+
+==================================================
+6. SOURCE AUTHORITY MODEL
+==================================================
+
+Knowledge source의 신뢰 우선순위를 명시적으로 정의.
+
+Repository 실제 구조에 맞게 조정하되
+개념적으로 최소:
+
+LEVEL 1
+AUTHORITATIVE_PRODUCT_STATE
+
+- server code
+- feature registry
+- DB authoritative state
+- official internal policy
+
+LEVEL 2
+APPROVED_KNOWLEDGE
+
+- ACTIVE FAQ
+- ACTIVE SOLUTION
+- ACTIVE GUIDE
+- ACTIVE POLICY
+
+LEVEL 3
+INCIDENT_STATE
+
+- confirmed active incident
+- incident resolution/update
+
+LEVEL 4
+DERIVED / SUPPORT CONTEXT
+
+- prior resolution
+- heuristic
+- non-authoritative diagnostic context
+
+PENDING / DRAFT / REJECTED는
+grounding authority = NONE.
+
+==================================================
+7. KNOWLEDGE FRESHNESS
+==================================================
+
+각 ACTIVE Knowledge가 오래되었거나
+기능 변경으로 stale 상태가 될 가능성 검사.
+
+가능하면 freshness state:
+
+CURRENT
+REVIEW_DUE
+SUPERSEDED
+STALE
+UNKNOWN
+
+필드/계산 구조가 기존에 있으면 재사용.
+
+없으면 대규모 CMS 구축 금지.
+
+최소한:
+
+updated_at
+source version
+app version/feature relation
+
+기준으로 audit 가능하도록 설계.
+
+==================================================
+8. CONFLICT DETECTION
+==================================================
+
+CS14 gap:
+
+일반 KB contradiction detector 없음.
+
+이번 WP에서 최소한
+"서로 동시에 적용되면 안 되는 ACTIVE Knowledge"
+를 탐지할 수 있어야 함.
+
+Conflict 예:
+
+A:
+알림 권한은 OS 설정에서 변경.
+
+B:
+알림 권한은 앱 내부에서 직접 변경.
+
+A:
+X mode에서만 사용 가능.
+
+B:
+Normal에서도 사용 가능.
+
+A:
+teacher allowed.
+
+B:
+parent only.
+
+Conflict detection 최소 축:
+
+- feature
+- role
+- mode
+- action
+- policy
+- platform
+- version
+- status
+- intent/category
+
+==================================================
+9. CONFLICT CLASSIFICATION
+==================================================
+
+충돌은 최소 다음으로 분류.
+
+HARD_CONFLICT
+두 Knowledge가 동시에 참일 수 없음.
+
+CONTEXT_CONFLICT
+role/mode/platform/version 조건이 달라
+문맥 분리하면 모두 참일 수 있음.
+
+VERSION_CONFLICT
+구버전 vs 신버전.
+
+AUTHORITY_CONFLICT
+낮은 authority source가
+높은 authority source와 충돌.
+
+NO_CONFLICT
+동시에 사용 가능.
+
+==================================================
+10. CONFLICT RESOLUTION
+==================================================
+
+중요:
+
+conflicting knowledge를
+단순 merge / average / concatenate 금지.
+
+우선순위:
+
+1. server authoritative state
+2. confirmed current incident
+3. current approved policy
+4. current active solution/guide/faq
+5. prior contextual resolution
+
+동일 authority 안에서는:
+
+- exact role/mode/platform/version match 우선
+- newest valid version 우선
+- exact feature match 우선
+
+그래도 해결되지 않으면:
+
+CONFLICT_UNRESOLVED
+→ LLM에 둘 다 넣지 말 것
+→ safe fallback
+→ REVIEW / escalation
+
+목표:
+
+UNRESOLVED_CONFLICT_EMITTED = 0
+
+==================================================
+11. SUPERSEDE / REPLACE RELATION
+==================================================
+
+Knowledge가 수정되었을 때
+구 knowledge가 ACTIVE로 그대로 남아
+동시 retrieval되는 문제 방지.
+
+가능하면:
+
+supersedes_id
+superseded_by_id
+
+또는 equivalent relation 지원 여부 검사.
+
+대규모 schema 변경이 부담되면
+현재 구조에서 최소한
+동일 feature/category/scope의 중복 ACTIVE 탐지라도 구현.
+
+AUTO DELETE 금지.
+
+자동 ACTIVE→ARCHIVED 변경도
+이번 WP에서는 하지 말 것.
+
+대신 conflict/review candidate로 표시.
+
+==================================================
+12. DUPLICATE ACTIVE KNOWLEDGE AUDIT
+==================================================
+
+전체 ACTIVE FAQ/SOLUTION/GUIDE/POLICY 중
+
+semantic/structural duplicate 가능성 검사.
+
+최소:
+
+same feature
+same role
+same mode
+same intent/category
+similar title/key
+
+중복이 있다고 자동 병합하지 말 것.
+
+분류:
+
+EXACT_DUPLICATE
+NEAR_DUPLICATE
+VALID_VARIANT
+REVIEW_REQUIRED
+
+==================================================
+13. INCIDENT DATA MODEL
+==================================================
+
+KNOWN ISSUE와 실제 Incident를 구분.
+
+KNOWN ISSUE:
+일반적으로 알려진 문제유형/해결방법.
+
+INCIDENT:
+특정 시간에 실제 발생한 운영 장애 상태.
+
+Incident 최소 필드:
+
+incident_id
+category
+status
+severity
+started_at
+resolved_at
+affected_features
+affected_modes
+affected_platforms
+affected_versions
+confirmed_by
+summary
+safe_user_message
+
+가능하면 기존 schema 사용.
+
+없으면 최소 migration/representation 설계.
+
+==================================================
+14. INCIDENT STATUS
+==================================================
+
+최소 상태:
+
+INVESTIGATING
+CONFIRMED
+MONITORING
+RESOLVED
+
+필요하면:
+
+FALSE_ALARM
+
+지원 답변에서
+INVESTIGATING과 CONFIRMED를 동일하게 표현하지 말 것.
+
+예:
+
+INVESTIGATING:
+"현재 관련 현상을 확인 중입니다."
+
+CONFIRMED:
+"현재 해당 기능에서 확인된 장애가 있습니다."
+
+RESOLVED:
+"해당 장애는 해결된 상태입니다."
+
+==================================================
+15. INCIDENT AUTHORITY
+==================================================
+
+중요:
+
+사용자:
+"서버 터졌지?"
+
+라고 말해도 incident가 생성되면 안 됨.
+
+AI/LLM이 incident status를
+CONFIRMED로 변경하면 안 됨.
+
+incident status 변경 권한은
+server/admin/human controlled path.
+
+LLM 역할:
+
+- existing incident 읽기
+- 사용자에게 safe summary 전달
+
+까지만.
+
+==================================================
+16. INCIDENT ↔ KNOWLEDGE
+==================================================
+
+KNOWN_ISSUE Knowledge와 Incident를 연결 가능하게 한다.
+
+예:
+
+KNOWN_ISSUE_PUSH
+→ incident_id = INC-2026-xxx
+
+Incident가 활성 상태이면
+일반 troubleshooting보다
+incident-specific safe message를 우선할 수 있음.
+
+단:
+
+role/mode/platform/feature scope가
+incident affected scope와 일치할 때만.
+
+==================================================
+17. INCIDENT FALLBACK
+==================================================
+
+사용자 문제가 incident와 유사하지만
+confirmed incident가 없으면:
+
+FAIL:
+"현재 서버 장애입니다."
+
+PASS:
+"현재 확인된 장애 정보는 없습니다.
+먼저 아래 항목을 확인해 주세요."
+
+또는
+
+"관련 현상 여부를 확인할 수 없어
+지원 요청으로 전달하겠습니다."
+
+FALSE_INCIDENT_CLAIM = 0 목표.
+
+==================================================
+18. INCIDENT RESOLUTION TRACE
+==================================================
+
+incident가 RESOLVED 된 경우
+
+기존 support case/answer와
+incident 관계 추적 가능 여부 검사.
+
+가능하면:
+
+request_id
+→ incident_id
+→ incident status at response time
+
+기록.
+
+후에 incident 상태가 바뀌어도
+당시 응답 시점 상태를 알 수 있게 함.
+
+==================================================
+19. SUPPORT CASE TRACE
+==================================================
+
+Human escalation 시:
+
+request_id
+→ support_case_id
+
+연결.
+
+Support Case에 최소:
+
+origin_request_id
+category
+role
+pool
+mode
+feature
+fallback reason
+incident_id (if any)
+
+가 추적 가능한지 확인.
+
+PII 최소화 원칙 유지.
+
+==================================================
+20. ANSWER TRACE SAFETY
+==================================================
+
+Trace API/response가 새 leakage 통로가 되지 않게 검사.
+
+negative tests:
+
+1. Pool A request_id → Pool B trace 접근
+2. User A → User B trace 접근
+3. parent → admin-only source metadata
+4. client가 임의 knowledge_id 요청
+5. client가 임의 incident_id 요청
+6. opaque ref brute force
+7. PENDING knowledge metadata exposure
+
+목표:
+
+TRACE_SCOPE_LEAKAGE = 0
+
+==================================================
+21. AUDIT LOG IMMUTABILITY
+==================================================
+
+기존 audit log가 있으면:
+
+일반 user가 수정/삭제 불가.
+
+Support answer가 생성된 후
+trace record가 사용자 입력으로 덮어써지지 않는지 확인.
+
+가능하면 append-only pattern.
+
+대규모 infra 변경 금지.
+
+현재 구조가 append-only가 아니면
+정확히 REVIEW_REQUIRED로 보고.
+
+==================================================
+22. TRACE DATA MINIMIZATION
+==================================================
+
+Trace에 넣지 말 것:
+
+- raw auth token
+- API key
+- password
+- payment details
+- full private message unless necessary
+- unnecessary parent/child PII
+- internal prompt full text
+- stack trace
+- DB credentials
+
+필요하면:
+
+hashed / opaque / reference ID
+
+사용.
+
+==================================================
+23. RETENTION
+==================================================
+
+Trace/Audit retention policy가 코드/정책에 존재하는지 확인.
+
+있으면 기록.
+
+없으면:
+
+NOT_IMPLEMENTED / POLICY_GAP
+
+으로 정직하게 보고.
+
+이번 WP에서 임의 retention 기간을 창작하지 말 것.
+
+==================================================
+24. CS12 PENDING CANDIDATE TRACE
+==================================================
+
+CS12 21 PENDING Candidate에 대해:
+
+- 검색 source로 사용되지 않는 것 재확인
+- trace에도 "grounding used"로 기록되지 않는 것 확인
+- review candidate 목록에는 존재 가능
+- ACTIVE와 혼동되지 않음
+
+==================================================
+25. CS13 SECURITY REGRESSION
+==================================================
+
+CS15 trace/incident 기능 추가 때문에
+CS13 경계가 깨지면 안 됨.
+
+재검증:
+
+ROLE_LEAKAGE
+MODE_LEAKAGE
+POOL_LEAKAGE
+CASE_IDOR
+INVALID_DEEPLINK_ALLOWED
+
+전부 0.
+
+==================================================
+26. CS14 QUALITY REGRESSION
+==================================================
+
+CS15 conflict resolution 때문에
+CS14 quality가 나빠지면 안 됨.
+
+재검증:
+
+UNSUPPORTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+PENDING_KNOWLEDGE_USED_AS_GROUNDING
+CONTRADICTORY_INSTRUCTION_EMITTED
+UNSAFE_OR_UNGROUNDED
+
+전부 0.
+
+==================================================
+27. REQUIRED TEST SCENARIOS
+==================================================
+
+최소 아래 포함.
+
+TRACE:
+
+1. answer with one knowledge source
+2. answer with multiple sources
+3. no-evidence fallback trace
+4. escalation trace
+5. request_id continuity
+6. support_case linkage
+7. source version trace
+8. cross-pool trace access deny
+9. cross-user trace access deny
+10. PENDING source excluded
+
+CONFLICT:
+
+11. exact hard conflict
+12. role context conflict
+13. mode context conflict
+14. platform context conflict
+15. version conflict
+16. source authority conflict
+17. unresolved same-authority conflict
+18. duplicate ACTIVE knowledge
+19. superseded knowledge
+20. stale knowledge
+
+INCIDENT:
+
+21. no incident
+22. investigating incident
+23. confirmed incident
+24. monitoring incident
+25. resolved incident
+26. user falsely claims outage
+27. incident wrong feature
+28. incident wrong mode
+29. incident wrong platform
+30. incident + support escalation
+
+==================================================
+28. METRICS
+==================================================
+
+최종 보고서에 반드시 포함.
+
+TRACE_REQUESTS_TOTAL
+TRACE_REQUESTS_PASS
+TRACE_MISSING_SOURCE_REF
+TRACE_BROKEN_REQUEST_CHAIN
+TRACE_SCOPE_LEAKAGE
+
+ACTIVE_KNOWLEDGE_CONFLICTS_FOUND
+HARD_CONFLICTS
+CONTEXT_CONFLICTS
+VERSION_CONFLICTS
+AUTHORITY_CONFLICTS
+UNRESOLVED_CONFLICTS
+UNRESOLVED_CONFLICT_EMITTED
+
+DUPLICATE_ACTIVE_FOUND
+SUPERSEDED_ACTIVE_FOUND
+STALE_ACTIVE_FOUND
+
+FALSE_INCIDENT_CLAIM
+INCIDENT_SCOPE_LEAKAGE
+INCIDENT_STATUS_MISREPRESENTATION
+
+PENDING_KNOWLEDGE_USED_AS_GROUNDING
+PENDING_KNOWLEDGE_EXPOSED_IN_TRACE
+
+목표:
+
+TRACE_MISSING_SOURCE_REF = 0
+TRACE_BROKEN_REQUEST_CHAIN = 0
+TRACE_SCOPE_LEAKAGE = 0
+UNRESOLVED_CONFLICT_EMITTED = 0
+FALSE_INCIDENT_CLAIM = 0
+INCIDENT_SCOPE_LEAKAGE = 0
+INCIDENT_STATUS_MISREPRESENTATION = 0
+PENDING_KNOWLEDGE_USED_AS_GROUNDING = 0
+PENDING_KNOWLEDGE_EXPOSED_IN_TRACE = 0
+
+==================================================
+29. ISSUE CLASSIFICATION
+==================================================
+
+P0:
+- cross-tenant trace leakage
+- sensitive trace leakage
+- incident 권한 우회
+- 잘못된 confirmed incident로 위험 action 유도
+
+P1:
+- answer-to-source chain 손실
+- unresolved hard conflict가 사용자에게 출력
+- false confirmed incident
+- stale/superseded knowledge 우선 사용
+
+P2:
+- trace 일부 누락
+- duplicate knowledge retrieval
+- freshness metadata 부족
+- version trace 부족
+
+P3:
+- UX/display level trace 개선
+- naming inconsistency
+
+P0/P1 남으면 CS15_CLOSE = NO.
+
+==================================================
+30. FIX POLICY
+==================================================
+
+우선순위:
+
+1. security leakage
+2. request/source trace break
+3. conflict resolution
+4. incident scope/status
+5. duplicate/freshness
+6. audit UX
+
+Knowledge 내용을
+이번 WP에서 임의 수정하지 말 것.
+
+충돌 Knowledge가 발견되면
+review list 생성.
+
+ACTIVE/PENDING status 자동 변경 금지.
+
+==================================================
+31. TEST LEVEL
+==================================================
+
+반드시 표시:
+
+UNIT
+MOCK
+INTEGRATION
+STAGING
+PRODUCTION
+
+Production에서 검증하지 않았다면
+production verified라고 쓰지 말 것.
+
+==================================================
+32. PRODUCTION WRITE
+==================================================
+
+기본 원칙: NO.
+
+rows inserted:
+rows modified:
+ACTIVE knowledge modified:
+PENDING candidate status modified:
+incident production rows:
+audit production rows:
+
+전부 정확히 보고.
+
+Migration 코드 추가만 있고
+미배포라면:
+
+PRODUCTION WRITE = NO
+
+로 명시.
+
+==================================================
+33. COMPLETE REPORT FORMAT
+==================================================
+
+WP-CS15 COMPLETE REPORT
+
+Git HEAD:
+
+Files changed:
+
+TRACE:
+  TRACE_REQUESTS_TOTAL:
+  TRACE_REQUESTS_PASS:
+  TRACE_MISSING_SOURCE_REF:
+  TRACE_BROKEN_REQUEST_CHAIN:
+  TRACE_SCOPE_LEAKAGE:
+
+KNOWLEDGE CONFLICT:
+  ACTIVE_KNOWLEDGE_CONFLICTS_FOUND:
+  HARD_CONFLICTS:
+  CONTEXT_CONFLICTS:
+  VERSION_CONFLICTS:
+  AUTHORITY_CONFLICTS:
+  UNRESOLVED_CONFLICTS:
+  UNRESOLVED_CONFLICT_EMITTED:
+
+KNOWLEDGE LIFECYCLE:
+  DUPLICATE_ACTIVE_FOUND:
+  SUPERSEDED_ACTIVE_FOUND:
+  STALE_ACTIVE_FOUND:
+
+INCIDENT:
+  INCIDENT_MODEL:
+  FALSE_INCIDENT_CLAIM:
+  INCIDENT_SCOPE_LEAKAGE:
+  INCIDENT_STATUS_MISREPRESENTATION:
+
+PENDING:
+  PENDING_KNOWLEDGE_USED_AS_GROUNDING:
+  PENDING_KNOWLEDGE_EXPOSED_IN_TRACE:
+
+TRACE RESPONSE:
+  request_id:
+  knowledge refs:
+  source refs:
+  support_case linkage:
+
+SECURITY REGRESSION:
+  ROLE_LEAKAGE:
+  MODE_LEAKAGE:
+  POOL_LEAKAGE:
+  CASE_IDOR:
+
+QUALITY REGRESSION:
+  UNSUPPORTED_CLAIMS:
+  HALLUCINATED_UI_PATH:
+  INVALID_ACTIONS:
+  CONTRADICTORY_INSTRUCTION_EMITTED:
+  UNSAFE_OR_UNGROUNDED:
+
+FIXES:
+  P0:
+  P1:
+  P2:
+  P3:
+
+REVIEW_REQUIRED:
+  items:
+
+TEST:
+  CS15:
+  FULL SUITE:
+  TEST LEVEL:
+
+PRODUCTION WRITE:
+  YES / NO
+  rows inserted:
+  rows modified:
+  ACTIVE rows modified:
+  PENDING status modified:
+  incident rows:
+  audit rows:
+
+Critical blockers:
+
+CS15_CLOSE: YES / NO
+
+WP_CS15_TRACEABILITY_INCIDENT_KNOWLEDGE_CONFLICT_GOVERNANCE_COMPLETE ✅
+
+==================================================
+34. 종료 조건
+==================================================
+
+아래 전부 충족해야 CLOSE.
+
+P0 = 0
+P1 = 0
+
+TRACE_MISSING_SOURCE_REF = 0
+TRACE_BROKEN_REQUEST_CHAIN = 0
+TRACE_SCOPE_LEAKAGE = 0
+
+UNRESOLVED_CONFLICT_EMITTED = 0
+
+FALSE_INCIDENT_CLAIM = 0
+INCIDENT_SCOPE_LEAKAGE = 0
+INCIDENT_STATUS_MISREPRESENTATION = 0
+
+PENDING_KNOWLEDGE_USED_AS_GROUNDING = 0
+PENDING_KNOWLEDGE_EXPOSED_IN_TRACE = 0
+
+CS13 security regression = 0
+CS14 quality regression = 0
+
+FULL SUITE PASS
+
+Production write = NO
+ACTIVE Knowledge automatic modification = 0
+CS12 PENDING automatic activation = 0

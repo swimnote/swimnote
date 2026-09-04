@@ -1,0 +1,496 @@
+[P0-CS09 — SUPPORT CASE MESSAGES GET EMPTY ARRAY DEFECT]
+
+목적:
+
+production Supabase에는 실제 support message가 정상 저장되어 있는데
+
+GET /support/cases/:id/messages
+
+가 빈 배열 []을 반환하는 실제 defect를 수정한다.
+
+현재 실제 device 검증 case:
+
+CASE_ID =
+sc_1787041523891_nz4say
+
+production DB 확인:
+
+user message EXISTS
+ai_deterministic reply EXISTS
+follow-up user message EXISTS
+ai_low_confidence reply EXISTS
+
+총 4개 message row 존재.
+
+하지만:
+
+GET /support/cases/:id/messages
+→ []
+
+이 상태는 허용하지 않는다.
+
+신규 기능 개발 금지.
+추측 수정 금지.
+
+==================================================
+0. TRUSTED FACTS
+==================================================
+
+WP_CS09 실제 기기 검증에서:
+
+USER_MESSAGE_STORED = YES
+REPLY_STORED = YES
+
+production Supabase에
+same case message rows 존재.
+
+따라서 이번 문제는
+"message insert failure"로 다시 조사하지 않는다.
+
+Primary DB:
+
+Supabase / SUPABASE_DATABASE_URL
+
+POOL_DATABASE_URL 사용 금지.
+
+==================================================
+1. ACTUAL ENDPOINT CONTRACT
+==================================================
+
+실제 route 확인:
+
+GET /support/cases/:id/messages
+
+또는 현재 등록된 정확한 endpoint.
+
+보고:
+
+ROUTE_FILE =
+ROUTE_PATH =
+HANDLER =
+SERVICE_FUNCTION =
+
+==================================================
+2. ACTUAL PRODUCTION ROW SHAPE
+==================================================
+
+CASE_ID:
+
+sc_1787041523891_nz4say
+
+기준으로 production Supabase read-only 조회.
+
+support_ticket_replies의 관련 row에서:
+
+id
+case_id
+ticket_id
+author_role
+message_type
+created_at
+
+만 확인.
+
+content 전문 출력 금지.
+
+보고:
+
+DB_ROW_COUNT =
+CASE_ID_ROWS =
+TICKET_ID_ROWS =
+
+각 row가:
+
+case_id only
+ticket_id only
+both
+
+중 무엇인지 확인.
+
+==================================================
+3. GET QUERY FORENSICS
+==================================================
+
+GET endpoint가 실제 사용하는 SQL/query 확인.
+
+특히 감사:
+
+WHERE ticket_id = ?
+WHERE case_id = ?
+OR 조건
+JOIN support_tickets
+INNER JOIN
+LEFT JOIN
+UNION
+legacy ticket replies
+author_role filter
+message_type filter
+pool isolation
+ORDER BY
+
+보고:
+
+GET_QUERY_CONDITION =
+
+==================================================
+4. ACTUAL CASE IDENTIFIERS
+==================================================
+
+support_cases row 확인:
+
+CASE_ID =
+TICKET_ID =
+POOL_ID =
+
+그리고 message rows와 비교.
+
+다음 defect 여부 확인:
+
+A.
+case_id-only message를
+ticket_id query만 해서 누락
+
+B.
+ticket_id=null row가
+INNER JOIN에서 탈락
+
+C.
+case id와 ticket id를 혼동
+
+D.
+route parameter parsing 오류
+
+E.
+DB result parsing/mock discrepancy
+
+F.
+다른 DB object 사용
+
+실제 증거로 하나만 확정.
+
+==================================================
+5. SAME DB VERIFY
+==================================================
+
+POST /support/respond write와
+GET /support/cases/:id/messages read가
+동일 DB object를 사용하는지 확인.
+
+보고:
+
+POST_MESSAGE_DB_OBJECT =
+GET_MESSAGE_DB_OBJECT =
+
+POST_DB_ENV =
+GET_DB_ENV =
+
+성공 조건:
+
+동일 Supabase primary DB.
+
+==================================================
+6. CASE OWNERSHIP / AUTH
+==================================================
+
+GET에서 auth tenant filter가
+정상 message까지 제거하고 있지 않은지 확인.
+
+실제 case:
+
+case.pool_id
+req.user.poolId
+
+비교.
+
+cross-pool 차단은 반드시 유지.
+
+다른 pool message 노출 금지.
+
+==================================================
+7. LEGACY + NEW MESSAGE MODEL
+==================================================
+
+현재 계약:
+
+AI-only/new case message:
+ticket_id = null
+case_id = support case id
+
+escalated:
+ticket_id = ticket id
+case_id = support case id
+
+legacy:
+ticket_id = ticket id
+case_id = null
+
+GET conversation은
+해당 support case에 속하는:
+
+new case messages
++
+연결된 legacy ticket messages
+
+를 중복 없이 반환해야 한다.
+
+==================================================
+8. CANONICAL QUERY
+==================================================
+
+실제 repository 구조에 맞게
+한 query 또는 안전한 merge로 통일.
+
+concept:
+
+case_id = current_case.id
+
+OR
+
+ticket_id = current_case.ticket_id
+when ticket exists
+
+단:
+
+ticket_id IS NULL row가
+절대 탈락하면 안 됨.
+
+중복 row 반환 금지.
+
+created_at ascending.
+
+==================================================
+9. EMPTY ARRAY FAILURE POLICY
+==================================================
+
+DB query 자체가 실패하면:
+
+[]
+
+로 성공 위장 금지.
+
+이미 DBSRC harden 원칙 유지:
+
+MSG_QUERY_FAILED
+
+등 non-2xx safe error.
+
+실제 query 성공 + 0 rows일 때만
+[] 허용.
+
+==================================================
+10. CLIENT CONTRACT
+==================================================
+
+SupportChatScreen이 사용하는
+conversation fetch endpoint도 확인.
+
+서버 fix 후 실제 response shape가
+client parser와 일치해야 함.
+
+보고:
+
+SERVER_MESSAGE_RESPONSE_SHAPE =
+CLIENT_EXPECTED_SHAPE =
+CONTRACT_MATCH =
+
+필요하지 않으면 mobile 수정 금지.
+
+==================================================
+11. SUPER ADMIN CONTRACT
+==================================================
+
+SuperSupport가 같은 message source를
+읽는지 확인.
+
+App conversation과
+Super Admin conversation이
+서로 다른 query implementation이면
+공통 service 재사용 검토.
+
+새 병렬 message query 금지.
+
+==================================================
+12. TEST MATRIX
+==================================================
+
+MSGGET-01
+case_id-only user message returned
+
+MSGGET-02
+case_id-only ai message returned
+
+MSGGET-03
+ticket_id=null row returned
+
+MSGGET-04
+escalated case both case/ticket messages returned
+
+MSGGET-05
+legacy ticket-only message returned
+
+MSGGET-06
+no duplicates
+
+MSGGET-07
+created_at ascending
+
+MSGGET-08
+cross-pool denied
+
+MSGGET-09
+DB query failure → non-2xx
+
+MSGGET-10
+successful empty case → []
+
+MSGGET-11
+SupportChat parser contract
+
+MSGGET-12
+SuperSupport regression
+
+MSGGET-13
+actual CS09 message shape regression
+
+MSGGET-14
+full suite
+
+==================================================
+13. REAL PRODUCTION VERIFY AFTER FIX
+==================================================
+
+배포 후 production에서 기존 case:
+
+sc_1787041523891_nz4say
+
+를 read-only 조회.
+
+기대:
+
+GET_MESSAGES_HTTP = 200
+GET_MESSAGES_COUNT >= 4
+
+그리고 최소:
+
+user
+ai_deterministic
+user
+ai_low_confidence
+
+message types/roles 존재.
+
+본문 전문 보고 금지.
+
+==================================================
+14. DEVICE PERSISTENCE QUICK VERIFY
+==================================================
+
+실제 iPhone에서:
+
+AI 문의 화면 나가기
+→ 다시 들어오기
+
+또는 앱 force quit → 재실행.
+
+기존 CS09 conversation이 다시 보여야 함.
+
+보고:
+
+DEVICE_CONVERSATION_RESTORED =
+
+==================================================
+15. DEPLOYMENT
+==================================================
+
+Server-only fix 예상.
+
+Render exact commit deploy 후:
+
+deploy id
+commit
+status=live
+
+실제 Render API로 확인.
+
+Mobile 수정이 없으면:
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+16. FINAL REPORT
+==================================================
+
+CASE_ID =
+DB_ROW_COUNT =
+
+ROUTE_PATH =
+GET_QUERY_CONDITION =
+
+POST_MESSAGE_DB_OBJECT =
+GET_MESSAGE_DB_OBJECT =
+SAME_PRIMARY_DB =
+
+ROOT_CAUSE =
+ROOT_CAUSE_CONFIDENCE =
+
+CASE_ID_ONLY_SUPPORTED =
+TICKET_ID_ONLY_SUPPORTED =
+NULL_TICKET_ID_SUPPORTED =
+LEGACY_SUPPORTED =
+
+QUERY_FAILURE_RETURNS_EMPTY_ARRAY =
+
+SERVER_MESSAGE_RESPONSE_SHAPE =
+CLIENT_EXPECTED_SHAPE =
+CONTRACT_MATCH =
+
+GET_MESSAGES_HTTP_AFTER =
+GET_MESSAGES_COUNT_AFTER =
+
+USER_MESSAGE_RETURNED =
+AI_DETERMINISTIC_RETURNED =
+FOLLOWUP_USER_RETURNED =
+AI_LOW_CONFIDENCE_RETURNED =
+
+SUPER_ADMIN_REGRESSION =
+
+DEVICE_CONVERSATION_RESTORED =
+
+FILES_CHANGED =
+DB_SCHEMA_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+production DB에 존재하는 case messages가
+GET /support/cases/:id/messages에서 반환됨.
+
+case_id-only AI rows 지원.
+
+ticket_id=null row 지원.
+
+legacy ticket rows 보존.
+
+중복 없음.
+
+DB failure를 []로 성공 위장하지 않음.
+
+cross-pool isolation 유지.
+
+실기기 재진입 시 conversation 복원.
+
+완료:
+
+P0_CS09_SUPPORT_MESSAGES_GET_FIXED ✅

@@ -1,0 +1,189 @@
+[SWIMNOTE 긴급 수정 — 반이동 버튼 미작동 실제 원인 확정]
+
+운영 OTA 적용 후에도 스케줄러 반 상세 모달에서
+학생별 [반이동] 버튼을 눌러도 아무 화면도 열리지 않는다.
+
+이전 보고에서 반 목록 부족 문제만 수정했으며,
+실제 버튼 클릭·상태 변경·서브모달 표시 여부는 해결되지 않았다.
+
+추정 수정 금지.
+먼저 운영 앱에서 어느 단계가 실패하는지 정확히 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 임시 진단 로그 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+대상 파일:
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+다음 4개 로그를 추가한다.
+
+A. 반이동 버튼 onPress 첫 줄
+
+console.log("[MOVE-1] button pressed", {
+  studentId: st.id,
+  studentName: st.name,
+  groupId: group.id,
+});
+
+B. setMoveStudent 호출 직후
+
+setMoveStudent(st);
+
+console.log("[MOVE-2] setMoveStudent called", {
+  studentId: st.id,
+});
+
+C. moveStudent 상태 변화 감시
+
+useEffect(() => {
+  console.log("[MOVE-3] moveStudent changed", {
+    studentId: moveStudent?.id ?? null,
+    studentName: moveStudent?.name ?? null,
+  });
+}, [moveStudent]);
+
+D. SubSheetModal 렌더 직전
+
+console.log("[MOVE-4] sub modal render", {
+  visible: Boolean(moveStudent),
+  targetCount:
+    moveTargetClasses === null
+      ? null
+      : moveTargetClasses.length,
+});
+
+개인정보 보호:
+- 운영 로그에서는 이름 전체 대신 앞 한 글자만 표시하거나 제거
+- studentId 전체 출력 금지, 뒤 6자리만 출력
+- JWT, 전화번호, 원문 데이터 출력 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 터치 가로채기 구조 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 항목의 실제 코드를 확인해서 보고한다.
+
+- 메인 시트 부모 View/Pressable의
+  onStartShouldSetResponder
+  onMoveShouldSetResponder
+  pointerEvents
+  onPress
+
+- 학생 행 전체 Pressable
+- 반이동 버튼 Pressable
+- ScrollView의
+  keyboardShouldPersistTaps
+  nestedScrollEnabled
+  scrollEnabled
+- 버튼 위에 겹치는 absolute View 존재 여부
+- zIndex / elevation / pointerEvents가 있는 overlay 존재 여부
+
+특히 현재 메인 시트에 아래 코드가 있으면 실제 영향 확인:
+
+onStartShouldSetResponder={() => true}
+
+이 코드가 자식 Pressable 터치를 가로채면
+반이동뿐 아니라 출석·결석 버튼도 영향을 받을 수 있다.
+
+임의 제거하지 말고 로그 결과와 responder 구조를 먼저 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Modal 구조 실제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 실제 JSX 구조로 제출한다.
+
+- 메인 Modal 시작·종료 위치
+- moveStudent 조건부 렌더 위치
+- SubSheetModal이 메인 Modal의 자식인지 sibling인지
+- iOS에서 동시에 Modal 두 개를 띄우는 구조인지
+- SubSheetModal의 visible 값
+- transparent / presentationStyle / animationType
+- zIndex 또는 portal 사용 여부
+
+중요:
+
+React Native iOS에서는 이미 표시 중인 Modal과
+형제 Modal을 동시에 띄우는 구조가 불안정할 수 있다.
+
+MOVE-1, MOVE-2, MOVE-3까지 출력되는데
+MOVE-4 이후 화면이 안 뜨면
+중첩·형제 Modal 표시 구조가 직접 원인이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 판정표
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그 결과에 따라 정확히 판정한다.
+
+MOVE-1 없음
+→ 터치가 버튼까지 도달하지 않음
+→ responder / overlay / pointerEvents 문제
+
+MOVE-1 있음, MOVE-3 없음
+→ 상태 갱신 또는 컴포넌트 생명주기 문제
+
+MOVE-3 있음, MOVE-4 없음
+→ 조건부 렌더 분기 문제
+
+MOVE-4 있음, 화면 안 뜸
+→ React Native Modal 표시 구조 문제
+
+MOVE-4 있고 targetCount=0
+→ 버튼 문제 아님
+→ 이동 대상 반 데이터 문제
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 수정안 제출 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확정 후 가장 작은 수정안만 제출한다.
+
+가능한 수정 방향:
+
+A. responder 문제라면
+- 메인 시트의 터치 가로채기 속성만 최소 수정
+- ScrollView와 버튼 터치 회귀 테스트
+
+B. sibling Modal 문제라면
+- SubSheetModal을 별도 React Native Modal로 중첩하지 않음
+- 메인 Modal 내부 absolute overlay로 표시
+또는
+- 메인 Modal을 잠시 숨기고 SubSheetModal 표시
+
+C. 데이터 0건 문제라면
+- 버튼은 정상
+- 오류/빈 목록 상태를 명확히 표시
+- 버튼 미작동으로 보고하지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 지금 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 원인 확인 전 추가 OTA
+- 추정으로 onStartShouldSetResponder 삭제
+- Modal 전체 리팩터링
+- 반이동 API 수정
+- 서버 students.ts 추가 수정
+- X모드 작업
+- 운영 DB 변경
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 제출물
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 로그 MOVE-1~MOVE-4 결과
+2. 실제 JSX Modal 구조
+3. responder·pointerEvents 조사표
+4. 직접 원인 판정
+5. 수정 파일·라인
+6. 최소 수정안
+7. 다른 버튼 영향
+8. iOS·Android 영향
+9. Rollback 방법
+
+진단 로그 OTA까지만 배포하고,
+사용자가 반이동 버튼을 한 번 누른 뒤
+로그를 수집해서 보고하고 멈춘다.

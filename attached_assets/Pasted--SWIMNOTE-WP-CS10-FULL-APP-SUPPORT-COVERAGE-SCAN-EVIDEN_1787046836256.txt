@@ -1,0 +1,381 @@
+[SWIMNOTE — WP-CS10 FULL APP SUPPORT COVERAGE SCAN / EVIDENCE VERIFICATION ONLY]
+
+목적:
+
+WP-CS10 구현 보고 SHA `0b05f397`의 실제 repository evidence를 확인하여
+WP-CS10을 PASS/HOLD 판정할 수 있게 한다.
+
+이번 작업은 검증 전용이다.
+
+CODE CHANGE NO
+NEW COVERAGE RECORD NO
+DB CHANGE NO
+DEPLOY NO
+OTA NO
+COMMIT NO
+
+현재 보고된 값이나 기존 완료보고를 그대로 재진술하지 말고
+actual repository evidence만 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Git commit 검증
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+실제 명령 결과를 확인한다.
+
+* current branch
+* current HEAD
+* `0b05f397` commit 존재 여부
+* current HEAD ancestry에 포함되는지
+* commit full SHA
+* commit subject
+* commit changed files
+
+반드시 다음을 구분한다.
+
+EXPECTED:
+
+* src/config/support/support-coverage.v1.ts
+* src/routes/**tests**/cov-registry.test.ts
+
+보고된 것 외 runtime source 변경이 있는지 확인한다.
+
+제출:
+
+GIT_COMMIT_EXISTS=YES/NO
+IN_CURRENT_ANCESTRY=YES/NO
+CHANGED_FILES=[...]
+RUNTIME_BEHAVIOR_FILE_CHANGED=YES/NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Coverage Registry 실제 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+`support-coverage.v1.ts` 실제 source를 읽고 다음을 제출한다.
+
+* registry export 이름
+* record 실제 총 개수
+* coverage_id uniqueness
+* domain 실제 총 개수
+* priority별 수
+* status별 수
+* role별 수
+* mode별 수
+* db_state_check_possible 수
+* known_issue_needed 또는 이에 해당하는 실제 field 기준 수
+* knowledge_needed 수
+* solution_needed 수
+
+숫자를 하드코딩한 보고서가 아니라
+registry를 실제 parse/count한 결과여야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Source Coverage 추적성 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS10의 핵심은 앱 전체 surface scan이다.
+
+Coverage Registry 각 record가 실제 repository source에
+추적 가능한지 확인한다.
+
+다음을 제출한다.
+
+A. scan source inventory
+
+* 실제 screens/routes를 어디에서 수집했는지
+* 어떤 directory/file들을 scan했는지
+* 제외 규칙이 있는지
+
+B. 실제 unique screen/route 수
+
+C. Coverage Registry의 `source_refs` 또는 실제 equivalent field로
+각 record가 source와 연결되는지
+
+D. source inventory 중 coverage record에 연결되지 않은 화면/route 수
+
+E. 연결되지 않은 항목 목록
+
+중요:
+
+110 screens라는 과거 보고값을 그대로 사용하지 말고
+actual repository에서 다시 계산한다.
+
+단 이번 검증 때문에 registry를 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기능/action surface 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+화면 숫자만 세고 끝낸 것이 아닌지 확인한다.
+
+최소 아래 영역이 registry에 실제 존재하는지
+coverage_id를 함께 제출한다.
+
+P0:
+
+* LOGIN_AUTH
+* SESSION_EXPIRED
+* PARENT_OTP
+* ATTENDANCE
+* DIARY_SAVE
+* TEACHER_AI_DIARY
+* PARENT_DIARY_VISIBILITY
+* PHOTO_VISIBILITY
+* PAYMENT
+* SUBSCRIPTION
+* X_MODE
+* NOTIFICATION
+* CHILD_LINK
+* PERMISSION
+* DATA_NOT_VISIBLE
+
+P1:
+
+* PHOTO_UPLOAD
+* VIDEO
+* SCHEDULE
+* MAKEUP
+* MEMBERS
+* CLASSES
+* GROWTH_REPORT
+* CURRICULUM
+
+없는 항목이 있으면 숨기지 말고 MISSING으로 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Role / Mode integrity
+━━━━━━━━━━━━━━━━━━━━━━
+
+Registry actual values를 기준으로 확인한다.
+
+Canonical roles:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+검증:
+
+* legacy `parent` exact value 존재 여부
+* 알 수 없는 role value
+* role 없는 record
+* parent_account가 admin-only source를 참조하는 record
+* teacher가 admin-only source를 참조하는 record
+
+Mode actual values도 제출한다.
+
+expected conceptual modes:
+
+normal
+x
+x_pending
+
+실제 repository contract가 다르면
+실제 값과 차이를 보고만 하고 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Support category / failure taxonomy 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Registry에서 실제 사용되는 support category 목록을 제출한다.
+
+Master taxonomy의 다음 영역이
+최소 하나 이상 표현되는지 확인한다.
+
+HOW_TO
+WHERE_IS
+PERMISSION
+STATE_CHECK
+ERROR
+FAILURE
+SLOW
+NOT_VISIBLE
+NOT_SAVED
+NOT_RECEIVED
+UPLOAD
+LOGIN_AUTH
+PAYMENT
+SUBSCRIPTION
+X_MODE
+AI_FAILURE
+DATA_INCONSISTENCY
+USER_MISUNDERSTANDING
+COMPLAINT
+KNOWN_ISSUE
+POLICY
+OTHER
+
+정확한 enum 이름이 다르면
+actual enum → conceptual taxonomy mapping을 제출한다.
+
+코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. ACTIVE/PENDING coverage 근거
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고된:
+
+ACTIVE cover = 4
+
+가 무엇을 의미하는지 실제 registry 기준으로 확인한다.
+
+각 ACTIVE-covered record에 대해:
+
+* coverage_id
+* feature
+* role
+* mode
+* linked knowledge/FAQ/solution ID
+* source status를 어떤 근거로 ACTIVE라고 판단했는지
+
+제출한다.
+
+주의:
+
+production DB를 이번 검증에서 수정하지 않는다.
+
+DB를 실제 조회하지 않았다면
+production ACTIVE라고 표현하지 말고:
+
+CODE_REFERENCE_ONLY
+또는
+UNVERIFIED_PRODUCTION_STATUS
+
+로 표시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트 실제 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 구분해서 제출한다.
+
+A. cov-registry.test.ts
+
+* test case count
+* PASS/FAIL
+* 어떤 invariant를 검증하는지
+
+B. 전체 suite
+
+* actual total
+* passed
+* failed
+* skipped
+
+C. 테스트 등급
+
+UNIT
+MOCK
+INTEGRATION
+PRODUCTION
+DEVICE
+
+이번 WP의 2031/2031이 UNIT/MOCK이면
+그대로 UNIT/MOCK이라고 기록한다.
+
+production/device PASS로 표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Scope violation 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+SHA `0b05f397`에서 다음이 발생하지 않았는지 확인한다.
+
+* Support runtime router 수정
+* Knowledge DB write
+* ACTIVE status 변경
+* API route 변경
+* schema migration
+* auth 변경
+* UI 변경
+* deployment configuration 변경
+* package dependency 변경
+
+각 항목:
+
+YES/NO
+
+로 제출한다.
+
+하나라도 YES면 어떤 파일/내용인지 정확히 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 Evidence Report
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 보고 형식:
+
+WP:
+WP-CS10 FULL APP SUPPORT COVERAGE SCAN FOUNDATION
+
+COMMIT: <full SHA>
+
+EVIDENCE:
+
+GIT:
+
+* commit exists:
+* in current ancestry:
+* changed files:
+
+REGISTRY:
+
+* source screens/routes:
+* coverage records:
+* domains:
+* P0:
+* P1:
+* P2:
+* uncovered source surfaces:
+* duplicate coverage_ids:
+
+ROLE:
+
+* canonical role violations:
+* legacy parent count:
+* role/screen security anomalies:
+
+MODE:
+
+* actual mode values:
+* anomalies:
+
+GAPS:
+
+* knowledge_needed:
+* solution_needed:
+* known_issue_needed:
+* top P0 missing items:
+
+TESTS:
+
+* registry:
+* full suite:
+* test classification:
+
+SCOPE:
+
+* runtime change:
+* DB change:
+* deploy:
+* OTA:
+* out-of-scope change:
+
+EVIDENCE CLASSIFICATION:
+각 핵심 주장별로
+PROVEN / OBSERVED / INFERRED / UNVERIFIED / CONTRADICTED
+
+FINAL SELF-ASSESSMENT:
+CS10_SUCCESS_CONTRACT_MET=YES/NO
+
+중요:
+
+본인이 PASS를 결정하지 않는다.
+증거만 제출한다.
+
+이번 검증에서 발견한 문제를 수정하지 않는다.
+수정 commit을 만들지 않는다.
+다음 WP를 시작하지 않는다.

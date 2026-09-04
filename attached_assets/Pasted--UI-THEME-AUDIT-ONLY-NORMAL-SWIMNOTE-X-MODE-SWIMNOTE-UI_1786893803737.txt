@@ -1,0 +1,614 @@
+[UI THEME AUDIT ONLY — NORMAL SWIMNOTE + X MODE]
+
+목적:
+
+현재 SWIMNOTE 전체 UI 색상 체계를 정확히 조사한다.
+
+이번 작업은 조사만 한다.
+
+코드 수정 금지.
+OTA 금지.
+서버 변경 금지.
+DB 변경 금지.
+
+다음 실제 변경 작업을 정확하게 설계하기 위한 사전 감사다.
+
+==================================================
+1. 조사 목표
+==================================================
+
+두 테마를 분리해서 조사한다.
+
+A. Normal SWIMNOTE
+B. SWIMNOTE X
+
+최종적으로 다음을 설계할 예정이다.
+
+NORMAL:
+Ocean Wave Green 기반
+밝고 편안하고 눈이 덜 피로한 테마
+
+X:
+현재 Nautic + Yacht Blue 배경계열 유지
+텍스트/아이콘 가독성 및 눈부심 개선
+
+==================================================
+2. 가장 중요한 보호 원칙
+==================================================
+
+모든 색상을 바꾸면 안 된다.
+
+각 색상 사용처를 반드시 다음 3종류로 분류한다.
+
+1) THEME_MUTABLE
+Normal/X 테마에 따라 변경 가능한 UI 색상
+
+예:
+- 일반 버튼
+- 일반 아이콘
+- 헤더
+- 일반 배경
+- 선택 상태
+- 일반 chip
+- 일반 border
+- 일반 modal CTA
+- bottom nav
+
+2) FEATURE_FIXED
+기능 자체의 고유색으로 유지해야 하는 색상
+
+예:
+- AI 성장리포트 고유색
+- AI 커리큘럼 고유색
+- 피드에서 사용되는 기능 고유색
+- 좋아요/감사 등 이미 의미가 정해진 반응색
+
+3) SEMANTIC_PROTECTED
+정보 의미를 전달하기 때문에 절대 테마색으로 덮으면 안 되는 색상
+
+예:
+- error/danger
+- warning
+- success
+- 스케줄러 요일별 구분색
+- 일정/반/상태 식별색
+- 차트 범례색
+- 데이터 상태색
+
+특히:
+
+스케줄러의 요일별 구분 색상은 절대 변경 대상에 넣지 않는다.
+
+요일별 색상 또는 일정 식별용 색을 Ocean Green으로 통일하면 안 된다.
+
+==================================================
+3. NORMAL SWIMNOTE COLOR AUDIT
+==================================================
+
+Normal mode에서 사용 중인 색상 source를 전수조사.
+
+찾을 것:
+
+- themeColor
+- PRIMARY
+- ACCENT
+- TEAL
+- MINT
+- GREEN
+- BLUE
+- 모든 #HEX
+- rgb()
+- rgba()
+- opacity 기반 색상
+- StyleSheet 내 직접 색상
+- inline style 색상
+- component default color
+
+보고:
+
+NORMAL_COLOR_SOURCE_FILES =
+NORMAL_THEME_TOKENS =
+NORMAL_HARDCODED_COLORS =
+
+각 색상을 다음 형식으로 분류:
+
+COLOR =
+FILES =
+USAGE =
+CLASS =
+  THEME_MUTABLE /
+  FEATURE_FIXED /
+  SEMANTIC_PROTECTED
+
+==================================================
+4. NORMAL BACKGROUND / TEXT AUDIT
+==================================================
+
+Normal SWIMNOTE에서 다음 확인:
+
+- 전체 화면 background
+- card surface
+- modal surface
+- header surface
+- section background
+- text primary
+- text secondary
+- text muted
+- placeholder
+- disabled text
+
+특히 가독성 문제 확인.
+
+금지해야 할 상태:
+
+- pure black #000000 과도 사용
+- 너무 밝은 white background로 눈부심
+- 너무 연한 gray text
+- 흐릿한 secondary text
+- 쨍한 high-saturation text/icon
+
+보고:
+
+NORMAL_BACKGROUND =
+NORMAL_SURFACE =
+NORMAL_TEXT_PRIMARY =
+NORMAL_TEXT_SECONDARY =
+NORMAL_TEXT_MUTED =
+NORMAL_READABILITY_ISSUES =
+
+==================================================
+5. BUTTON 전수조사 — 매우 중요
+==================================================
+
+모든 조작 버튼을 기능명이 아니라
+"행동 성격" 기준으로 분류한다.
+
+대상:
+
+- Button
+- Pressable
+- TouchableOpacity
+- TouchableHighlight
+- custom button components
+- modal buttons
+- action sheet
+- chips
+- segmented controls
+- filter buttons
+- icon buttons
+- floating buttons
+- save/add/edit buttons
+
+각 버튼을 아래 타입 중 하나로 분류:
+
+PRIMARY_ACTION
+SECONDARY_ACTION
+NEUTRAL_ACTION
+NAVIGATION_ACTION
+SELECTION
+DESTRUCTIVE
+WARNING
+DISABLED
+FEATURE_FIXED
+SEMANTIC_PROTECTED
+SCHEDULE_CLASSIFICATION_PROTECTED
+
+보고:
+
+BUTTON_COMPONENT =
+SCREEN =
+CURRENT_COLOR =
+ROLE =
+CLASS =
+COMMON_COMPONENT = YES / NO
+
+==================================================
+6. 버튼 색상 중구난방 조사
+==================================================
+
+같은 역할인데 서로 다른 색을 사용하는 사례를 찾는다.
+
+예:
+
+저장 버튼은 A 화면에서 mint,
+B 화면에서 blue,
+C 화면에서 purple
+
+처럼 되어 있으면 모두 보고.
+
+반드시 찾을 것:
+
+SAME_ROLE_DIFFERENT_COLOR_CASES =
+
+특히 scheduler / calendar 관련 화면에서:
+
+- 추가
+- 저장
+- 수정
+- 필터
+- 날짜 이동
+- 반 선택
+- chip
+- toggle
+- modal CTA
+- action sheet
+
+버튼 색상만 조사.
+
+요일별/일정별 구분 색상은 보호.
+
+==================================================
+7. SCHEDULER COLOR AUDIT
+==================================================
+
+스케줄러 색상을 두 종류로 정확히 분리한다.
+
+A. PROTECTED CLASSIFICATION COLORS
+변경 금지.
+
+예:
+- 요일별 색
+- 일정 종류
+- 반 식별
+- 상태 식별
+- 사용자에게 빠른 구분을 주는 기존 색
+
+B. CONTROL UI COLORS
+테마 정리 대상.
+
+예:
+- 추가 버튼
+- 저장
+- 수정
+- 선택
+- 필터
+- chip
+- 날짜 이동
+- 일반 아이콘
+- modal action
+- input focus
+
+보고:
+
+SCHEDULER_PROTECTED_COLORS =
+SCHEDULER_CONTROL_COLORS =
+SCHEDULER_MIXED_OR_AMBIGUOUS_CASES =
+
+애매하면 임의로 변경대상 판정하지 말고
+AMBIGUOUS로 남긴다.
+
+==================================================
+8. ICON / EMOJI AUDIT
+==================================================
+
+현재 앱에서 사용되는:
+
+- emoji
+- icon library
+- SVG
+- image icon
+- text emoji
+
+를 조사한다.
+
+다음 분류 사용:
+
+NORMAL_FUNCTION
+ACTIVE_FUNCTION
+DECORATIVE_COLOR
+FEATURE_FIXED
+SEMANTIC_FIXED
+
+목표 정책은 이후 적용 예정:
+
+일반 기능 아이콘
+→ 모노톤 딥 차콜/블루블랙
+
+active
+→ theme primary
+
+의미가 정해진 아이콘
+→ 기존 고유색 유지
+
+장식 목적으로 알록달록한 emoji
+→ 모노톤 vector icon 전환 후보
+
+보고:
+
+EMOJI_USAGE =
+COLORED_FUNCTION_ICONS =
+DECORATIVE_COLOR_ICONS =
+SEMANTIC_FIXED_ICONS =
+FEATURE_FIXED_ICONS =
+
+==================================================
+9. PARENT UI AUDIT
+==================================================
+
+학부모도 Normal/X 테마 전환 대상이다.
+
+다만 다음 기능 고유색은 보호:
+
+- AI 리포트
+- AI 커리큘럼
+- 피드
+- 반응 아이콘
+- 콘텐츠 내부 색상
+- semantic colors
+
+학부모에서 테마에 따라 바뀌어야 하는 것은:
+
+- app frame
+- header
+- general background
+- general buttons
+- general icons
+- selected state
+- tabs/navigation
+- general chips
+- general modal CTA
+
+보고:
+
+PARENT_THEME_MUTABLE =
+PARENT_FEATURE_FIXED =
+PARENT_SEMANTIC_PROTECTED =
+
+==================================================
+10. X MODE TEXT READABILITY AUDIT
+==================================================
+
+현재 X 배경:
+
+Nautic + Yacht Blue system
+
+배경색 자체는 유지할 예정이다.
+
+문제는:
+
+진한 blue 배경 위
+흰색 계열 글자/아이콘 tone hierarchy가 정리되지 않아
+눈이 피로하고 일부는 잘 안 보임.
+
+다음 실제 token/value를 전수조사:
+
+- header title
+- pool name
+- SWIMNOTE X label
+- role chip
+- buttons on blue
+- card title on blue
+- card description on blue
+- bottom tab active
+- bottom tab inactive
+- icons on blue
+- disabled text
+- muted text
+
+보고:
+
+X_DARK_BACKGROUND_TOKENS =
+X_TEXT_ON_DARK_VALUES =
+X_ICON_ON_DARK_VALUES =
+
+각 usage를:
+
+PRIMARY_TEXT
+SECONDARY_TEXT
+MUTED_TEXT
+ICON_PRIMARY
+ICON_SECONDARY
+DISABLED
+
+로 분류.
+
+==================================================
+11. X 가독성 문제 탐지
+==================================================
+
+다음 문제 찾기:
+
+- 모든 텍스트가 #FFFFFF 한 색으로 처리됨
+- white opacity만 제각각 사용
+- 너무 낮은 opacity
+- Yacht/Nautic 배경과 구분 안 되는 blue text
+- inactive tab 가독성 부족
+- light text가 지나치게 쨍해서 눈부심
+- 밝은 surface 위 pure black text 과다
+
+보고:
+
+X_READABILITY_ISSUES =
+
+SCREEN =
+ELEMENT =
+BACKGROUND =
+TEXT_OR_ICON_COLOR =
+ISSUE =
+
+==================================================
+12. TEXT TOKEN 구조 조사
+==================================================
+
+현재 Normal/X에 공통적으로
+텍스트 token source of truth가 있는지 확인.
+
+예:
+
+textPrimary
+textSecondary
+textMuted
+textOnNavy
+textOnNavySoft
+
+등.
+
+없거나 화면별 opacity로 흩어져 있으면 보고.
+
+TEXT_TOKEN_ARCHITECTURE =
+TEXT_HARDCODED_CASES =
+
+==================================================
+13. ACCESSIBILITY / CONTRAST
+==================================================
+
+실제 변경은 하지 말고
+현재 대비가 위험해 보이는 조합을 조사한다.
+
+특히:
+
+- body text
+- secondary text
+- button labels
+- header text
+- tab labels
+- disabled state
+
+WCAG contrast 관점에서
+명백히 부족하거나 지나치게 공격적인 조합을 표시.
+
+정확한 자동 측정이 가능한 경우 값 보고.
+
+단:
+이번 audit에서 색을 자동 변경하지 않는다.
+
+CONTRAST_RISK_CASES =
+
+==================================================
+14. 공통 컴포넌트 조사
+==================================================
+
+다음이 공통 source인지 확인:
+
+Button
+Card
+Chip
+Filter
+Header
+Modal
+Sheet
+EmptyState
+Input
+Tab
+IconButton
+
+각 컴포넌트가 mode-aware인지 확인.
+
+보고:
+
+COMMON_UI_COMPONENTS =
+MODE_AWARE_COMPONENTS =
+NORMAL_ONLY_COMPONENTS =
+X_ONLY_COMPONENTS =
+DUPLICATED_STYLE_SOURCES =
+
+==================================================
+15. 변경 우선순위 제안
+==================================================
+
+코드는 바꾸지 말고
+audit 결과를 기반으로 다음 실제 작업을
+작은 WP로 나눠 제안.
+
+원하는 큰 흐름:
+
+WP-N1
+Normal design tokens / Ocean Wave palette
+
+WP-N2
+Normal text/background readability
+
+WP-N3
+Button role normalization
+
+WP-N4
+Scheduler CONTROL UI normalization
+(PROTECTED schedule colors untouched)
+
+WP-N5
+Icon/emoji normalization
+
+WP-N6
+Parent Normal/X theme framing
+
+WP-X1
+X text/icon readability refinement
+(background colors unchanged)
+
+단 실제 repository 구조를 보고
+더 효율적인 순서가 있으면 제안 가능.
+
+==================================================
+16. ABSOLUTE NO-CHANGE
+==================================================
+
+이번 작업에서는 절대 수정 금지:
+
+- source code
+- theme values
+- colors
+- UI
+- server
+- DB
+- RevenueCat
+- entitlement
+- ModeContext
+- navigation
+- AI Engine
+- OTA
+
+AUDIT ONLY.
+
+==================================================
+17. FINAL REPORT FORMAT
+==================================================
+
+NORMAL_THEME_ARCHITECTURE =
+NORMAL_COLOR_SOURCES =
+NORMAL_HARDCODED_COLOR_COUNT =
+
+NORMAL_BACKGROUND =
+NORMAL_SURFACE =
+NORMAL_TEXT_PRIMARY =
+NORMAL_TEXT_SECONDARY =
+NORMAL_TEXT_MUTED =
+
+BUTTON_COUNT_AUDITED =
+BUTTON_ROLE_GROUPS =
+SAME_ROLE_DIFFERENT_COLOR_CASES =
+
+SCHEDULER_PROTECTED_COLORS =
+SCHEDULER_CONTROL_UI_COLORS =
+SCHEDULER_AMBIGUOUS_CASES =
+
+EMOJI_COUNT =
+DECORATIVE_COLOR_EMOJI =
+NORMAL_FUNCTION_ICON_COLORS =
+SEMANTIC_FIXED_ICONS =
+
+PARENT_THEME_MUTABLE =
+PARENT_FEATURE_FIXED =
+PARENT_SEMANTIC_PROTECTED =
+
+X_BACKGROUND_CURRENT =
+X_TEXT_ON_DARK =
+X_ICON_ON_DARK =
+X_READABILITY_ISSUES =
+
+TEXT_TOKEN_ARCHITECTURE =
+CONTRAST_RISK_CASES =
+
+COMMON_UI_COMPONENTS =
+MODE_AWARE_COMPONENTS =
+DUPLICATED_STYLE_SOURCES =
+
+PROPOSED_WP_ORDER =
+
+AUDIT_CODE_CHANGE = NO
+SERVER_CHANGE = NO
+DB_CHANGE = NO
+OTA = NO
+
+완료:
+
+SWIMNOTE_NORMAL_X_THEME_AUDIT_COMPLETE ✅

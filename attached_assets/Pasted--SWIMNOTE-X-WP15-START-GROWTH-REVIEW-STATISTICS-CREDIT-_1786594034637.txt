@@ -1,0 +1,567 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP15 START
+GROWTH REVIEW STATISTICS
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+WP14_CLOSED ✅
+current functional SHA:
+1ba01f57
+
+이번에는 WP15만 진행.
+
+WP15.5 광고 기반
+WP16 성장리포트
+커리큘럼 검색
+
+전부 자동 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP15 목적
+━━━━━━━━━━━━━━━━━━━━
+
+WP7~WP14에서 축적된 Growth Event의
+검토 상태를 Super Admin이 운영 통계로 확인할 수 있게 한다.
+
+이번 WP는:
+
+growth_events
+→ 검토 상태 집계
+→ 기간별 집계
+→ 수영장별 집계
+→ 검토 누락/처리현황 확인
+
+까지만 구현.
+
+이 통계는 "운영 workflow 통계"다.
+
+절대 다음 의미로 사용하지 말 것:
+
+- 학생 성장 점수
+- 학생 능력 점수
+- 교사 성과 점수
+- 수영장 품질 점수
+- 성장리포트 평가값
+
+━━━━━━━━━━━━━━━━━━━━
+2. CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━
+
+전체 Repository 전수조사 금지.
+
+관련 파일만 확인:
+
+- growth_events schema
+- growth event read/review service
+- WP13 review logic
+- WP14 SuperAdmin 구조
+- super route
+- 기존 stats/aggregate 패턴
+
+이미 검증된:
+
+RLS
+Backup
+Makeup
+Worker
+RevenueCat
+AI Diary
+
+재검사 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 먼저 짧은 PREFLIGHT 제출
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에 먼저 확인:
+
+A. growth_events 실제 timestamp fields
+B. reviewed_at 존재 여부
+C. 현재 status enum
+D. 기존 통계 API 존재 여부
+E. 재사용 가능한 query/service
+F. 수정 예정 파일
+
+그 다음 구현.
+
+━━━━━━━━━━━━━━━━━━━━
+4. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+통계 source:
+
+growth_events
+
+기본적으로:
+
+is_invalidated = false
+
+만 집계.
+
+실제 status enum 그대로 사용:
+
+AUTO_ACCEPTED
+PENDING_REVIEW
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+DISCARDED
+
+새 status 추가 금지.
+
+audit_logs를 통계 source로 사용 금지.
+
+audit_logs = 추적
+growth_events = 현재 상태
+
+역할 분리 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 필수 집계
+━━━━━━━━━━━━━━━━━━━━
+
+최소 다음 값을 반환:
+
+total_valid_events
+pending_review
+teacher_accepted
+teacher_rejected
+auto_accepted
+discarded
+
+추가 계산:
+
+reviewed_total =
+teacher_accepted + teacher_rejected
+
+review_rate =
+reviewed_total /
+(pending_review + teacher_accepted + teacher_rejected)
+
+accepted_rate =
+teacher_accepted / reviewed_total
+
+rejected_rate =
+teacher_rejected / reviewed_total
+
+단:
+
+분모 = 0이면 반드시 0 반환.
+
+NaN
+Infinity
+
+절대 금지.
+
+AUTO_ACCEPTED는 teacher review rate의
+분모에 임의 포함하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 기간 필터
+━━━━━━━━━━━━━━━━━━━━
+
+지원:
+
+from
+to
+
+growth event의 실제 schema 의미를 확인해서
+운영 통계에 맞는 timestamp 사용.
+
+무조건 created_at 가정하지 말 것.
+
+기존 timezone convention 유지.
+
+invalid ISO date는
+기존 API validation convention에 맞게 처리.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 수영장 필터
+━━━━━━━━━━━━━━━━━━━━
+
+Super Admin:
+
+전체 플랫폼 집계 가능.
+
+추가:
+
+pool_id filter
+
+그리고 가능하면 같은 query에서
+수영장별 breakdown 제공:
+
+pool_id
+pool_name
+total
+pending
+accepted
+rejected
+review_rate
+
+swimming_pools safe join 사용.
+
+N+1 query 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. PENDING AGE
+━━━━━━━━━━━━━━━━━━━━
+
+reviewed_at / created timestamp 의미가 명확하면
+READ ONLY 운영 지표 추가:
+
+pending_over_24h
+pending_over_48h
+
+중요:
+
+24h / 48h를 넘겼다고
+자동 reject / accept / expire
+
+절대 하지 말 것.
+
+WP11의 48시간 자동처리와 무관함.
+
+단순 COUNT만.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 검토 처리시간
+━━━━━━━━━━━━━━━━━━━━
+
+created/event timestamp + reviewed_at 의미가 명확하면:
+
+average_review_time_hours
+
+추가 가능.
+
+필드 의미가 애매하거나 query가 커지면
+이번 WP에서 생략.
+
+새 컬럼 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. API
+━━━━━━━━━━━━━━━━━━━━
+
+기존 SuperAdmin route convention 사용.
+
+최소:
+
+GET /super/growth-review-stats
+
+지원 query:
+
+from
+to
+pool_id
+
+응답 예시는 실제 repo convention 우선.
+
+하나의 endpoint로 충분하면
+불필요한 endpoint 분리 금지.
+
+Authorization:
+
+requireAuth
+requireRole("super_admin")
+
+non-super:
+403
+
+unauthenticated:
+401
+
+━━━━━━━━━━━━━━━━━━━━
+11. DB QUERY
+━━━━━━━━━━━━━━━━━━━━
+
+모든 growth_events row를 가져와
+JS에서 count 하는 방식 금지.
+
+Postgres aggregation 사용:
+
+COUNT
+FILTER
+GROUP BY
+
+등.
+
+가능하면 aggregate query 1~2개 이내.
+
+기존 index 사용.
+
+이번 WP만을 위한 migration/index 추가는
+명백한 필요가 없으면 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. SUPER ADMIN UI
+━━━━━━━━━━━━━━━━━━━━
+
+기존 SuperAdmin 안에
+"검토 통계" 영역/탭 추가.
+
+새 디자인 시스템 금지.
+
+최소:
+
+[Summary]
+
+전체 후보
+검토 대기
+승인
+제외
+검토율
+
+가능하면:
+
+24시간 이상 대기
+48시간 이상 대기
+
+[수영장별 표]
+
+수영장
+전체
+대기
+승인
+제외
+검토율
+
+[필터]
+
+기간
+수영장
+
+복잡한 차트 library 설치 금지.
+
+지금은 카드 + 표가 충분함.
+
+━━━━━━━━━━━━━━━━━━━━
+13. UI 상태
+━━━━━━━━━━━━━━━━━━━━
+
+loading
+empty
+error
+
+명확히 분리.
+
+Production에 데이터 0건이면:
+
+"아직 성장 이벤트 데이터가 없습니다."
+
+정상 상태.
+
+API 오류를
+0건처럼 표시 금지.
+
+retry 제공.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 의미 표시
+━━━━━━━━━━━━━━━━━━━━
+
+UI에서 오해 방지 문구 필요하면 짧게:
+
+"성장 이벤트 검토 처리 현황입니다."
+
+정도로 표시.
+
+TEACHER_ACCEPTED를
+학생이 성장했다는 의미로 표현 금지.
+
+TEACHER_REJECTED를
+학생 실패처럼 표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+최소 TC:
+
+A.
+0건
+→ 모든 count 0
+
+B.
+PENDING 2
+ACCEPTED 3
+REJECTED 1
+→ 정확한 집계
+
+C.
+is_invalidated=true
+→ 제외
+
+D.
+AUTO_ACCEPTED / DISCARDED
+→ 별도 정확 집계
+
+E.
+pool A / pool B
+→ pool별 정확
+
+F.
+from/to
+→ 기간 필터 정확
+
+G.
+review_rate / accepted_rate / rejected_rate
+→ denominator 정확
+
+H.
+0 denominator
+→ NaN / Infinity 없음
+
+I.
+pending >24h / >48h
+→ count만 변경
+→ event status 변경 없음
+
+J.
+unauthenticated → 401
+
+K.
+non-super → 403
+
+L.
+UI loading / empty / error 분리
+
+M.
+WP13 review regression 없음
+
+N.
+WP14 audit regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+16. PRODUCTION 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Production에 테스트용
+growth_event 생성 금지.
+
+실제 growth_events가 0건이면:
+
+GET stats
+→ HTTP 200
+→ zero statistics
+
+이면 runtime 검증 성공.
+
+non-zero aggregation은
+fixture/integration tests로 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+17. 코드 범위
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+- growth review stats query/service
+- super stats route
+- SuperAdmin stats UI
+- WP15 tests
+
+금지:
+
+- growth event write 변경
+- review transition 변경
+- audit redesign
+- WP15.5 광고 구현
+- WP16 성장리포트
+- 커리큘럼 검색
+- 학생 ranking
+- 교사 ranking
+- 성장 score
+- AI analysis
+- Billing
+- Worker
+- Backup/RLS
+- Scheduler
+
+━━━━━━━━━━━━━━━━━━━━
+18. GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 tests 통과 후:
+
+git diff --stat 확인.
+
+commit:
+
+feat(super): add growth review statistics
+
+push origin.
+
+HEAD = origin 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+19. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+Server/Web 변경:
+필요한 Render 배포만 진행.
+
+모바일 앱 코드 변경 없음:
+OTA 금지.
+
+Worker 변경 없음:
+worker 재배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+20. RUNTIME GATE
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후:
+
+/api/health → 200
+/api/healthz → 200
+
+Render:
+status live
+Live SHA = 새 commit
+
+Super Admin stats API:
+200
+
+Production row 0이면:
+zero response 정상
+
+확인:
+
+신규 500 없음
+startup crash 없음
+permission regression 없음
+
+━━━━━━━━━━━━━━━━━━━━
+21. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+짧게 제출:
+
+1. 통계 source/query
+2. 실제 timestamp 기준
+3. 집계 항목
+4. 계산식 denominator
+5. 기간/pool filter
+6. pending 24h/48h 여부
+7. authorization
+8. UI
+9. changed files
+10. tests
+11. commit/origin
+12. Render deploy
+13. Production runtime
+14. Production growth_events 실제 row 상태
+15. regression
+16. final verdict
+
+성공 시:
+
+WP15_GROWTH_REVIEW_STATS_VERIFIED ✅
+WP15_CLOSED ✅
+
+STOP.
+
+WP15.5 자동 시작 금지.
+WP16 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,359 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 SWIMNOTE EMERGENCY INCIDENT
+TEACHER SCHEDULER / MEMBERS DISAPPEARED
+READ ONLY DIAGNOSIS FIRST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+긴급 장애.
+
+실제 운영 선생님 앱에서:
+
+- 수업 스케줄러의 기존 수업들이 전부 사라져 보임
+- 회원관리도 비어 보인다는 현장 보고 있음
+
+WP4B 즉시 중단.
+새 기능 작업 금지.
+
+현재 목표는 오직:
+
+"Production 데이터가 실제 삭제됐는지"
+vs
+"API/권한/pool context 문제인지"
+
+구분하는 것.
+
+━━━━━━━━━━━━━━━━━━━━
+절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+Production INSERT/UPDATE/DELETE 금지.
+restore 금지.
+migration 금지.
+RLS 변경 금지.
+Backup sync 수동 실행 금지.
+WP4B 금지.
+코드 수정/배포 금지.
+
+원인 확인 전 어떤 복구도 하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+1. PRODUCTION DB IDENTITY
+━━━━━━━━━━━━━━━━━━━━
+
+반드시:
+
+SUPABASE_DATABASE_URL
+
+확인:
+
+host
+database
+current_user
+rolbypassrls
+
+POOL_DATABASE_URL과 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 가장 먼저 데이터 존재 여부 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production에서 READ ONLY COUNT:
+
+swimming_pools
+users
+students
+class_groups
+classes
+class_members
+student_class_history
+attendance
+class_diaries
+makeup_sessions
+
+각각 전체 COUNT 제출.
+
+그리고 수영장별 COUNT:
+
+SELECT swimming_pool_id, COUNT(*)
+FROM students
+GROUP BY swimming_pool_id;
+
+SELECT swimming_pool_id, COUNT(*)
+FROM class_groups
+GROUP BY swimming_pool_id;
+
+classes / class_members도
+pool 연결 구조에 맞게 실제 schema 기준 집계.
+
+개인정보 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 최근 기존 기준과 비교
+━━━━━━━━━━━━━━━━━━━━
+
+이전에 Production에서 확인된 대표 수치:
+
+students ≈ 297
+class_groups ≈ 120
+
+실제 현재 DB값과 비교.
+
+중요:
+
+현재 rows가 살아 있으면
+"데이터 삭제"라고 판정 금지.
+
+현재 rows가 비정상적으로 0 또는 급감이면
+즉시:
+
+POSSIBLE_PRODUCTION_DATA_LOSS
+
+로 표시하고 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 문제 선생님 계정 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현장 계정의 실제 user record를
+개인정보 마스킹해서 확인.
+
+확인:
+
+id
+role
+swimming_pool_id
+is_activated
+roles
+permissions
+
+특히:
+
+role = teacher 인지
+swimming_pool_id가 정상인지
+
+확인.
+
+계정의 swimming_pool_id가 NULL 또는
+잘못된 pool이면 매우 중요.
+
+WRITE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 문제 수영장의 실제 데이터
+━━━━━━━━━━━━━━━━━━━━
+
+해당 teacher.swimming_pool_id 기준으로:
+
+students count
+class_groups count
+class members count
+schedule 관련 데이터 count
+
+조회.
+
+수업 그룹명/학생 개인정보는
+필요 최소한으로 마스킹.
+
+DB에 데이터가 존재하는지만 먼저 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+6. TEACHER SCHEDULER API 실제 route 추적
+━━━━━━━━━━━━━━━━━━━━
+
+Repository에서 현재 선생님 스케줄러 화면이
+호출하는 실제 API를 찾는다.
+
+앱 화면:
+수업 스케줄러
+
+확인:
+
+frontend file
+API function
+HTTP method/path
+query parameters
+server route
+DB query
+poolId 결정 방식
+
+route 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. MEMBER MANAGEMENT API도 추적
+━━━━━━━━━━━━━━━━━━━━
+
+회원관리 화면이 호출하는 실제 API도 동일하게 확인:
+
+frontend
+API path
+server route
+pool filtering
+role checking
+
+스케줄러와 회원관리 둘 다
+같은 pool context 문제인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. ACTUAL PRODUCTION API RESPONSE
+━━━━━━━━━━━━━━━━━━━━
+
+안전한 기존 teacher credential이 있으면:
+
+POST /api/auth/login
+
+→ 로그인 후 실제 scheduler API 호출.
+
+응답:
+
+HTTP status
+response count
+error
+
+확인.
+
+credential 없으면
+임의 계정 생성/비밀번호 변경/JWT 생성 금지.
+
+그 경우 코드 + Render log로 진단.
+
+━━━━━━━━━━━━━━━━━━━━
+9. RENDER LOG 긴급 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 장애 시간대:
+
+2026-08-12 약 20:00 KST 전후
+
+검색:
+
+class
+class_groups
+students
+scheduler
+teacher
+permission denied
+row-level security
+pool_id
+소속 수영장
+403
+500
+database
+relation
+query failed
+
+신규 오류 시간순 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+10. RLS PATH 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+scheduler/member API가 사용하는 DB client가:
+
+superAdminDb / db
+
+중 무엇인지 확인.
+
+그리고 해당 실제 connection role이
+rolbypassrls=true인지 확인.
+
+만약 특정 route만
+Supabase Data API / non-bypass connection을 쓰고 있으면
+즉시 중요 원인 후보로 표시.
+
+RLS 변경은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 최근 변경과 영향 범위 확인
+━━━━━━━━━━━━━━━━━━━━
+
+최근 commit:
+
+WP4A:
+22886affb937f9eb34cf5cbf0aa7ae45ce934ec6
+
+Backup 관련:
+f22d6c47
+d0e034ed
+
+실제 git diff로 확인:
+
+scheduler
+classes
+class_groups
+students
+teacher schedule
+member management
+
+관련 기능 코드가
+최근 commit에서 변경됐는지 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. BACKUP 보호
+━━━━━━━━━━━━━━━━━━━━
+
+이번 장애 원인이 Production data loss일 가능성이
+조금이라도 있으면:
+
+standby-sync를 수동 실행 절대 금지.
+
+현재 자동 sync가 어떤 테이블을
+Backup에 덮어쓰는지 확인.
+
+class_groups / students / classes 등이
+자동 sync 대상인지 정확히 제출.
+
+Backup 데이터를 복원하거나
+Production에 쓰지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+13. INCIDENT CLASSIFICATION
+━━━━━━━━━━━━━━━━━━━━
+
+증거에 따라 정확히 하나 선택:
+
+A.
+DATA_EXISTS_API_FILTER_FAILURE
+
+B.
+DATA_EXISTS_POOL_CONTEXT_FAILURE
+
+C.
+DATA_EXISTS_AUTHORIZATION_FAILURE
+
+D.
+DATA_EXISTS_RLS_CONNECTION_FAILURE
+
+E.
+PRODUCTION_DATA_LOSS_CONFIRMED
+
+F.
+UNKNOWN_NEEDS_MORE_EVIDENCE
+
+━━━━━━━━━━━━━━━━━━━━
+14. 즉시 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. Production DB identity
+2. Production 핵심 table counts
+3. pool별 students/class_groups counts
+4. 문제 teacher pool_id 상태
+5. 문제 pool 실제 데이터 counts
+6. scheduler 실제 API route
+7. member management 실제 API route
+8. API response/status
+9. Render 오류
+10. DB client / BYPASSRLS
+11. 최근 commit 영향 여부
+12. backup sync 위험 여부
+13. INCIDENT CLASSIFICATION
+14. 다음 최소 수정안
+
+아직 수정하지 말 것.
+
+FINAL:
+INCIDENT_DIAGNOSIS_COMPLETE
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

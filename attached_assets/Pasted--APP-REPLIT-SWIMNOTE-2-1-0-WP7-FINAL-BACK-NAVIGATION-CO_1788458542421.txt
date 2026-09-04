@@ -1,0 +1,326 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0 — WP7 FINAL BACK NAVIGATION CORRECTION + IOS OTA
+
+대상:
+설정 → SWIMNOTE X 관련 하위 화면 전체
+
+WP7 기존 문제:
+설정/X모드 하위 화면에서 뒤로가기를 누르면
+논리적 상위 화면이 아니라 홈 또는 잘못된 화면으로 이동하는 문제.
+
+기존 수정에서 explicit backTo 전달은 추가했으나
+일부 handler가:
+
+1. canGoBack()
+2. backTo
+3. fallback
+
+순서로 처리되어
+명시적 logical parent보다 navigation stack이 우선되는 문제가 남아 있음.
+
+============================================================
+최종 원칙
+============================================================
+
+설정 계층에서 뒤로가기는 반드시:
+
+1. explicit backTo 존재
+   → backTo로 이동
+
+2. backTo 없음 + canGoBack() true
+   → router.back()
+
+3. 둘 다 불가
+   → settings fallback
+
+순서.
+
+즉:
+
+backTo > navigation stack > fallback
+
+반드시 이 우선순위로 고정.
+
+============================================================
+적용 대상
+============================================================
+
+기존 WP7에서 수정한 X 설정 계열:
+
+- x-mode-hub
+- x-subscription
+- x-setup
+- XInfoDetailPage
+- 기타 해당 설정 descendant
+
+실제 현재 파일/route 명을 다시 확인하고
+이미 backTo 전달이 구현된 구조는 그대로 유지.
+
+============================================================
+x-setup 진입 경로
+============================================================
+
+반드시 유지:
+
+Settings
+→ x-setup
+backTo = settings
+
+X Mode Hub
+→ x-setup
+backTo = x-mode-hub
+
+X Subscription
+→ x-setup
+backTo = x-subscription
+
+중요:
+x-setup 내부 Back handler는
+router.canGoBack()보다 backTo를 먼저 확인.
+
+============================================================
+예시
+============================================================
+
+잘못된 방식:
+
+if (router.canGoBack()) {
+  router.back();
+  return;
+}
+
+if (backTo) {
+  router.replace(backTo);
+  return;
+}
+
+금지.
+
+올바른 우선순위:
+
+if (backTo) {
+  router.replace(backTo);
+  return;
+}
+
+if (router.canGoBack()) {
+  router.back();
+  return;
+}
+
+router.replace("/(admin)/settings");
+
+실제 route 문자열은 현재 코드 기준 사용.
+
+============================================================
+홈 이동 원칙
+============================================================
+
+Back 버튼:
+한 단계 상위 화면
+
+Home 아이콘:
+진짜 Home
+
+Back 버튼에서 임의로 Home 이동 금지.
+
+============================================================
+검증 시나리오
+============================================================
+
+1.
+설정
+→ X Setup
+→ Back
+= 설정
+PASS / FAIL
+
+2.
+설정
+→ X Mode Hub
+→ X Setup
+→ Back
+= X Mode Hub
+PASS / FAIL
+
+3.
+설정
+→ X Subscription
+→ X Setup
+→ Back
+= X Subscription
+PASS / FAIL
+
+4.
+X 정보 화면
+→ 상세 화면
+→ Back
+= 직전 논리적 상위 화면
+PASS / FAIL
+
+5.
+설정 하위 2단계 이상 진입
+→ Back 반복
+= 한 단계씩 역순 이동
+PASS / FAIL
+
+6.
+Back이 Home으로 직접 이동하는 경우
+0건
+
+7.
+Home icon
+→ Home
+PASS / FAIL
+
+============================================================
+중요
+============================================================
+
+새 navigation architecture 만들지 말 것.
+
+기존 explicit backTo 구조 유지.
+
+이번 작업은 우선순위 교정 + 누락된 해당 handler만 최소 수정.
+
+다른 설정 UI 수정 금지.
+
+X 기능 변경 금지.
+
+SERVER:
+NO
+
+DB:
+NO
+
+Render:
+NO
+
+1.6.3:
+NO TOUCH
+
+다른 WP:
+NO TOUCH
+
+============================================================
+OTA 자동배포
+============================================================
+
+현재 사용자 규칙:
+수정작업 전체가 끝날 때까지
+APP 수정 완료 후 iOS OTA 자동배포.
+
+수정
+→ 테스트
+→ commit
+→ HEAD 확인
+→ iOS OTA publish
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+NOT PUBLISHED
+
+반드시:
+
+Current HEAD SHA
+=
+WP7 final fix commit SHA
+=
+OTA export source SHA
+
+동일해야 PASS.
+
+============================================================
+완료보고 형식
+============================================================
+
+# WP7 FINAL BACK NAVIGATION REPORT
+
+Current Working Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+Explicit backTo priority:
+PASS / FAIL
+
+Priority order:
+backTo → canGoBack → fallback
+PASS / FAIL
+
+Settings → X Setup → Back:
+PASS / FAIL
+
+X Mode Hub → X Setup → Back:
+PASS / FAIL
+
+X Subscription → X Setup → Back:
+PASS / FAIL
+
+X info detail → parent:
+PASS / FAIL
+
+Nested settings one-level back:
+PASS / FAIL
+
+Back → Home unintended:
+0 / ...
+
+Home icon → Home:
+PASS / FAIL
+
+Other navigation regression:
+0 / ...
+
+-------------------------
+OTA
+-------------------------
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+WP7 Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+FINAL:
+WP7 BACK NAVIGATION COMPLETE

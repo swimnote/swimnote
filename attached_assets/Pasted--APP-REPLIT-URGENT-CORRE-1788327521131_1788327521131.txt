@@ -1,0 +1,426 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# URGENT CORRECTION
+# PRODUCTION BRANCH MISMATCH FIX
+#
+# Render Production 실제 branch:
+# deploy-photo-clone
+#
+# 현재 Live:
+# 69d16bb...
+#
+# 잘못 push된 진단 commit:
+# main -> 26a7cc5b
+#
+# 목표:
+# deploy-photo-clone에 SERVER-SIDE 로그인 진단 변경만
+# 최소 backport 후 push
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Production Render branch:
+deploy-photo-clone
+
+Current Render Live commit:
+69d16bb...
+
+Diagnostic source:
+5a2d3dba
+
+Previously created but wrong-target production commit:
+26a7cc5b on main
+
+이번 작업은
+main에 이미 만든 진단 backport를
+Render가 실제 사용하는 deploy-photo-clone에
+SERVER-ONLY로 다시 적용하는 정정 작업입니다.
+
+============================================================
+1. 절대 금지
+============================================================
+
+release/v2.0.0 전체 merge:
+NO
+
+main 전체 merge:
+NO
+
+client SessionContext 변경:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+DB migration:
+NO
+
+Pricing/RevenueCat:
+NO TOUCH
+
+general app changes:
+NO
+
+============================================================
+2. 실제 Production branch 확인
+============================================================
+
+checkout:
+
+deploy-photo-clone
+
+확인:
+
+git status:
+clean
+
+HEAD:
+현재 Render Live 또는 그 이후 production-safe commit인지 확인
+
+Render 화면 기준 현재 Live:
+69d16bb...
+
+만약 branch HEAD가 이미 더 앞서 있다면
+그 HEAD를 기준으로 작업하되
+기존 production 변경을 되돌리지 마십시오.
+
+============================================================
+3. 적용할 SERVER 파일만
+============================================================
+
+진단 source에서 아래 server-side 변경만 적용:
+
+artifacts/api-server/src/lib/boot-state.ts
+
+artifacts/api-server/src/app.ts
+
+artifacts/api-server/src/index.ts
+
+artifacts/api-server/src/routes/auth.ts
+
+artifacts/api-server/src/routes/__tests__/login-diagnostics.test.ts
+
+Client 파일:
+
+artifacts/swim-app/context/auth/SessionContext.tsx
+
+절대 포함 금지.
+
+============================================================
+4. 기존 production 차이 보존
+============================================================
+
+deploy-photo-clone은
+main/release와 다른 production-specific 변경이 있을 수 있으므로
+
+파일 통째 덮어쓰기 금지.
+
+특히:
+
+app.ts
+index.ts
+auth.ts
+
+는 현재 deploy-photo-clone 내용을 기준으로
+진단 코드만 최소 병합.
+
+기존:
+
+- production auth fixes
+- kakao fixes
+- terminology fixes
+- production version
+- routes
+- middleware
+- environment behavior
+
+보존.
+
+============================================================
+5. HEALTHZ
+============================================================
+
+기존 healthz response 유지.
+
+additive only:
+
+boot_id
+uptime_seconds
+commit
+service_version
+
+기존 key 삭제/rename:
+NO.
+
+============================================================
+6. AUTH TRACE
+============================================================
+
+unified-login에:
+
+[AUTH_TRACE] received
+[AUTH_TRACE] response
+
+추가.
+
+PII 없음.
+
+request_id header가 없는 기존 1.6.3:
+정상 처리.
+
+============================================================
+7. SERVER BOOT / PROCESS ERROR
+============================================================
+
+추가:
+
+[SERVER_BOOT]
+
+[PROCESS_ERROR]
+
+기존 process behavior 변경 최소화.
+
+============================================================
+8. 테스트
+============================================================
+
+최소:
+
+login diagnostics tests PASS
+
+healthz existing contract PASS
+
+unified-login wrong user:
+401 canonical JSON
+
+server startup:
+PASS
+
+PII logging:
+0
+
+============================================================
+9. 커밋
+============================================================
+
+deploy-photo-clone에 새 commit 생성.
+
+권장 message:
+
+fix(prod): add login availability diagnostics
+
+정확한 SHA 보고.
+
+============================================================
+10. PUSH
+============================================================
+
+push:
+
+origin deploy-photo-clone
+
+이 branch가 Render Production source이므로
+push 후 자동 deploy가 시작되어야 함.
+
+main:
+추가 변경 금지.
+
+============================================================
+11. Render 자동배포 확인
+============================================================
+
+push 후 Render Deploys에:
+
+새 commit SHA
+
+가 나타나는지 확인.
+
+상태:
+
+Building
+→ Deploying
+→ Live
+
+로 진행.
+
+만약 새 deploy가 전혀 생성되지 않으면:
+
+RENDER AUTO-DEPLOY NOT TRIGGERED
+
+로 보고.
+
+============================================================
+12. 배포 완료 후 확인
+============================================================
+
+GET:
+https://swimnote-api.onrender.com/api/healthz
+
+Expected:
+
+HTTP 200
+
++
+boot_id
+uptime_seconds
+
+가능하면:
+commit
+service_version
+
+uptime은 새 process 시작 후 작은 값.
+
+============================================================
+13. 로그 확인
+============================================================
+
+Render Logs:
+
+[SERVER_BOOT]
+FOUND
+
+safe login test 후:
+
+[AUTH_TRACE] received
+FOUND
+
+[AUTH_TRACE] response
+FOUND
+
+[PROCESS_ERROR]
+반복 없음
+
+PII:
+없음
+
+============================================================
+14. safe login
+============================================================
+
+실제 사용자 credential 금지.
+
+invalid account로:
+
+POST /api/auth/unified-login
+
+Expected:
+401 user_not_found
+
+5xx:
+NO
+
+============================================================
+15. 완료보고
+============================================================
+
+# SWIMNOTE PRODUCTION BRANCH CORRECTION REPORT
+
+Repository:
+Production branch:
+
+HEAD Before:
+HEAD After:
+
+## BRANCH
+
+Render source branch:
+deploy-photo-clone
+
+Confirmed:
+YES / NO
+
+## SERVER-ONLY BACKPORT
+
+Files:
+...
+
+Client included:
+YES / NO
+
+Expected:
+NO
+
+## PUSH
+
+origin deploy-photo-clone:
+SUCCESS / FAIL
+
+## RENDER
+
+Deploy detected:
+YES / NO
+
+Commit:
+...
+
+Status:
+BUILDING / DEPLOYING / LIVE / FAILED
+
+## HEALTH
+
+HTTP:
+...
+
+boot_id:
+...
+
+uptime_seconds:
+...
+
+commit:
+...
+
+## AUTH TRACE
+
+SERVER_BOOT:
+...
+
+AUTH_TRACE received:
+...
+
+AUTH_TRACE response:
+...
+
+PROCESS_ERROR:
+...
+
+PII exposure:
+...
+
+## LOGIN SAFE TEST
+
+Status:
+...
+
+Expected:
+401 canonical auth error
+
+## DATABASE
+
+Migration:
+NO
+
+## CLIENT
+
+1.6.3 OTA:
+NO
+
+2.0 OTA:
+NO
+
+## FINAL
+
+PRODUCTION DIAGNOSTICS LIVE — HEALTHY
+
+or
+
+DEPLOY PENDING
+
+or
+
+DEPLOY FAILED

@@ -1,0 +1,150 @@
+[SWIMNOTE RELEASE]
+[AI ENGINE PRODUCTION MIGRATION VERIFICATION ONLY]
+
+목적:
+FULL RELEASE MANIFEST에서
+"AI ENGINE 전용 DB migration 없음"이라고 보고됐지만,
+기존 ENGINE WP5/WP13 설계와 충돌한다.
+
+이번 작업은 AI ENGINE Repository에서 조회/확인만 한다.
+
+코드 수정 금지.
+Migration 실행 금지.
+Deploy 금지.
+Production write 금지.
+
+==================================================
+1. REPOSITORY
+==================================================
+
+반드시 SWIMNOTE AI ENGINE Repository인지 확인한다.
+
+APP Repository에서 확인 금지.
+
+==================================================
+2. WP5 MIGRATION 확인
+==================================================
+
+WP5 Snapshot / Trace / Idempotency 구현 당시 생성한
+migration 파일을 실제 repository에서 찾는다.
+
+특히 검색:
+
+engine_analysis_trace
+growth.engine_analysis_trace
+analysis_trace
+idempotency
+request_id
+payload_hash
+
+확인:
+
+- migration filename
+- table/schema
+- columns
+- unique constraint/index
+- production 적용 여부
+
+==================================================
+3. WP13 DURABLE IDEMPOTENCY 확인
+==================================================
+
+WP13 GrowthReportEngineOrchestrator / route가
+durable idempotency를 실제 어디에 저장하는지 확인한다.
+
+다음 중 무엇인지 정확히 보고:
+
+A.
+growth.engine_analysis_trace
+
+B.
+다른 ENGINE internal table
+
+C.
+실제로 DB 저장 없이 in-memory
+
+D.
+APP growth_reports를 원격으로 참조
+
+정답을 코드 근거로 보고.
+
+D라면 architecture violation이므로 BLOCK.
+
+==================================================
+4. APP DB와 ENGINE DB 경계 확인
+==================================================
+
+확정 원칙:
+
+APP DB:
+growth_reports Product lifecycle
+
+ENGINE DB:
+internal analysis trace / idempotency
+
+ENGINE이 APP DB의
+growth_reports.analysis_request_id를
+durable idempotency store로 사용하는 구조는 금지.
+
+ENGINE은 APP DB에 직접 접근하지 않는다.
+
+==================================================
+5. PRODUCTION STATUS
+==================================================
+
+실제 Production Engine DB에서 read-only 확인 가능하면:
+
+- growth schema 존재?
+- engine_analysis_trace 존재?
+- migration applied?
+
+확인.
+
+잘못된 DB connection 사용 금지.
+
+Production write 금지.
+
+==================================================
+6. RELEASE DEPENDENCY 판정
+==================================================
+
+다음 중 하나로 결론:
+
+A.
+ENGINE migration 존재 + Production 미적용
+→ RELEASE 전에 migration 필요
+
+B.
+ENGINE migration 존재 + Production 적용됨
+→ 추가 실행 불필요
+
+C.
+최종 구현에서 migration이 실제 제거/대체됐음
+→ 어떤 commit에서 어떤 durable store로 대체됐는지 증명
+
+근거 없이
+"APP GR1 migration이 ENGINE schema도 완성"
+이라고 결론내리지 마라.
+
+==================================================
+7. REPORT
+==================================================
+
+1. ENGINE REPOSITORY IDENTITY
+2. WP5 MIGRATION FILE
+3. ENGINE TRACE TABLE
+4. DURABLE IDEMPOTENCY IMPLEMENTATION
+5. APP DB DEPENDENCY? YES/NO
+6. PRODUCTION ENGINE DB STATUS
+7. MIGRATION REQUIRED BEFORE DEPLOY? YES/NO
+8. EXACT MIGRATION COMMAND IF REQUIRED
+9. CODE CHANGE
+10. PRODUCTION WRITE
+
+마지막:
+
+AI_ENGINE_RELEASE_MIGRATION_VERIFIED ✅
+
+또는
+
+AI_ENGINE_RELEASE_MIGRATION_BLOCKED ❌

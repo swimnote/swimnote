@@ -1,0 +1,385 @@
+[앱]
+
+TEACHER DIARY DATE / SCHEDULE SLOT FIX
+EXACT SESSION DATE BINDING + REPLACE CONFIRMATION
+
+현재 실제 버그:
+
+1.
+2026-08-06 일지는 이미 작성되어 있음.
+
+2.
+스케줄에서 2026-08-13 수업을 선택하고
+"일지작성"을 눌렀는데
+"이미 일지를 작성했습니다"라고 표시됨.
+
+실제로 8/13 일지는 없음.
+
+3.
+8/13 스케줄에서 일지작성을 눌렀는데
+일지 작성 페이지에는
+8/6 일지작성으로 표시됨.
+
+즉 현재 일지 작성/중복판정이
+정확한 "날짜별 수업 슬롯"에 귀속되지 않고 있음.
+
+==================================================
+1. TARGET BEHAVIOR
+==================================================
+
+일지는 반드시:
+
+선택한 수업 날짜
++
+해당 시간표 / 수업 슬롯
+
+기준으로 정확히 구분한다.
+
+예:
+
+8/6 16:00 A반 일지
+≠
+8/13 16:00 A반 일지
+
+같은 반/같은 시간이어도
+날짜가 다르면 서로 다른 수업 일지다.
+
+==================================================
+2. FIRST — ROOT CAUSE TRACE
+==================================================
+
+다음 경로만 최소 확인:
+
+스케줄 화면
+→ 일지작성 버튼
+→ navigation params
+→ diary 작성 화면
+→ 기존 일지 조회
+→ 중복 판정
+→ 저장
+
+확인할 값:
+
+- selectedDate
+- scheduleId
+- classId
+- startTime / lesson slot
+- diaryDate / lessonDate
+- existing diary lookup condition
+
+특히 확인:
+
+왜 8/13에서 진입했는데
+diary 화면이 8/6을 표시하는지.
+
+날짜가:
+
+- navigation에서 누락되는지
+- diary 화면에서 무시되는지
+- latest diary 날짜로 fallback되는지
+- schedule 기본값으로 덮이는지
+
+정확한 root cause 확인 후 수정.
+
+repo-wide 조사 금지.
+
+==================================================
+3. SESSION SLOT IDENTITY
+==================================================
+
+기존 schema를 먼저 사용한다.
+
+가능하면 기존:
+
+schedule_id
+class_id
+lesson_date
+start_time
+
+등 실제 필드를 이용해서
+"한 번의 실제 수업 회차"를 식별한다.
+
+새 schema/migration은
+정말 필요할 때만.
+
+우선 목표:
+
+DIARY SESSION KEY =
+실제 schedule occurrence / lesson date + slot identity
+
+날짜 없는 classId 단독 중복판정 금지.
+
+==================================================
+4. NAVIGATION FIX
+==================================================
+
+스케줄에서 일지작성 진입 시
+반드시 선택한 실제 날짜를 넘긴다.
+
+예:
+
+2026-08-13 schedule
+→ diary page
+→ 2026-08-13
+
+일지 작성 페이지 상단에도
+선택한 날짜가 그대로 표시되어야 한다.
+
+8/13에서 들어갔는데
+8/6 표시되는 fallback 제거.
+
+화면 표시값과
+실제 저장 날짜는
+동일 source of truth를 사용.
+
+==================================================
+5. EXISTING DIARY LOOKUP
+==================================================
+
+"이미 일지를 작성했습니다" 판정은
+정확히 동일한 수업 슬롯일 때만 한다.
+
+예:
+
+8/6 A반 diary 존재
++
+8/13 A반 diary 없음
+
+→ 8/13:
+신규 작성 가능
+
+8/13 A반 diary 존재
+
+→ 8/13:
+기존 일지 존재로 판정
+
+다른 날짜 diary 때문에
+중복 차단되면 안 됨.
+
+==================================================
+6. EXISTING DIARY REPLACE UX
+==================================================
+
+동일 날짜 + 동일 수업 슬롯에
+이미 일지가 있는데
+사용자가 다시 "일지작성"을 누르면:
+
+기존처럼 단순 차단하지 않는다.
+
+ConfirmModal:
+
+"이 수업의 일지가 이미 작성되어 있습니다.
+새로 작성한 일지로 기존 일지를 바꾸시겠습니까?"
+
+버튼:
+
+취소
+새로 작성
+
+취소:
+기존 일지 유지.
+
+새로 작성:
+새 diary 작성 화면으로 진입.
+
+저장 시
+해당 SAME SESSION의 기존 diary만 교체.
+
+==================================================
+7. REPLACE SEMANTICS
+==================================================
+
+중요:
+
+다른 날짜 diary 삭제 금지.
+
+교체 대상은 정확히:
+
+same lesson date
++
+same schedule/session slot
+
+1건뿐.
+
+기존 데이터 구조에서
+update가 자연스러우면 기존 row UPDATE 우선.
+
+현재 diary 구조가
+새 row 생성 + 기존 row 비활성화 방식이면
+기존 convention 사용.
+
+불필요하게 duplicate active diary 2개 만들지 않는다.
+
+최종적으로 해당 수업 슬롯에는
+활성 diary 1개만 존재.
+
+==================================================
+8. DATA PRESERVATION
+==================================================
+
+교체할 때
+기존 diary와 연결된 데이터 구조 확인:
+
+- student diary contents
+- common text
+- photos/videos
+- parent feed
+- reactions/comments
+- notifications
+
+기존 diary row를 UPDATE하면
+연결관계 보존 가능 여부 확인.
+
+가능하면 UPDATE 방식 우선.
+
+만약 새 row replacement가 필수라면
+orphan/dead feed가 생기지 않게
+기존 구조에 맞게 처리.
+
+이번 작업에서
+대규모 diary architecture 변경 금지.
+
+==================================================
+9. REQUIRED REAL SCENARIO
+==================================================
+
+반드시 아래 케이스 검증:
+
+CASE A
+
+8/6 diary 존재
+8/13 diary 없음
+
+8/13 schedule → 일지작성
+
+EXPECTED:
+- "이미 작성" 표시 없음
+- diary page = 8/13
+- 저장 = 8/13 slot
+
+CASE B
+
+8/13 diary 저장 완료 후
+동일 8/13 schedule에서 다시 일지작성
+
+EXPECTED:
+- 기존 일지 교체 confirmation 표시
+- 취소 → 기존 유지
+- 새로 작성 → 작성 가능
+- 저장 → 기존 8/13 diary 교체
+- 활성 diary 1건
+
+CASE C
+
+8/13 diary 교체 후
+
+8/6 diary:
+UNCHANGED
+
+CASE D
+
+같은 반이어도 날짜 다름
+
+8/6
+8/13
+8/20
+
+각 날짜 diary 독립.
+
+==================================================
+10. UI
+==================================================
+
+일지 작성 화면에서 날짜를 명확히 표시.
+
+스케줄에서 진입했다면
+그 schedule occurrence의 날짜를 표시.
+
+기존 diary의 날짜나
+latest diary 날짜를 보여주지 않는다.
+
+==================================================
+11. DO NOT TOUCH
+==================================================
+
+수정 금지:
+
+- AI Engine
+- Teacher Diary AI parsing
+- curriculum DB
+- Growth Report
+- unrelated schedule logic
+- parent feed design
+- OTA logic
+- billing/auth
+
+이번 작업은
+"일지 날짜/수업슬롯 정확한 귀속 + 동일 슬롯 재작성"
+만.
+
+==================================================
+12. TESTS
+==================================================
+
+최소 관련 테스트:
+
+1. 다른 날짜 diary가 중복으로 오판되지 않음
+2. selected schedule date가 diary 화면에 정확히 표시
+3. 저장 날짜 정확
+4. 동일 slot 기존 diary detection
+5. replace cancel
+6. replace confirm
+7. 교체 후 active diary 1건
+8. 다른 날짜 diary unchanged
+9. 다른 class/slot diary unchanged
+
+repo-wide regression 금지.
+
+==================================================
+13. DEPLOY
+==================================================
+
+JS/TS UI 변경만으로 끝나고
+server 변경이 없으면 OTA-compatible 여부 확인.
+
+server API 수정이 있으면
+먼저 commit/push만 하고
+최종 보고에서 Render deploy 필요 여부 표시.
+
+임의 배포하지 말 것.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+A. ROOT CAUSE
+
+B. 기존 diary identity 조건
+
+C. 수정 후 session identity 조건
+
+D. navigation date fix
+
+E. duplicate detection fix
+
+F. replace semantics
+UPDATE / REPLACE 방식
+
+G. changed files
+
+H. CASE A-D 결과
+
+I. tests
+
+J. DB migration
+YES / NO
+
+K. Render deploy required
+YES / NO
+
+L. OTA required
+YES / NO
+
+M. SHA
+
+완료 후 STOP.

@@ -1,0 +1,526 @@
+[WP-N2 — NORMAL SWIMNOTE BACKGROUND / TEXT TOKEN SWEEP]
+
+목적:
+
+WP-N1에서 확정한 Normal SWIMNOTE Sage/Ocean 디자인 토큰을
+실제 admin / teacher / parent 화면의
+배경 / surface / border / 일반 텍스트에 일관되게 적용한다.
+
+이번 WP에서는:
+
+- 버튼 색상 역할 정규화 금지
+- Scheduler classification 색 변경 금지
+- 아이콘/이모지 변경 금지
+- X theme 변경 금지
+
+배경 / surface / border / 일반 텍스트만 정리한다.
+
+==================================================
+0. CURRENT NORMAL TOKENS — SOURCE OF TRUTH
+==================================================
+
+theme/colors.ts 현재 확정값:
+
+C.brandStrong  = #4F6F67
+C.brandPrimary = #6F9187
+C.brandMid     = #91ABA3
+C.brandSoft    = #DDE7E3
+C.brandMist    = #ECF2F0
+
+C.background   = #F4F7F6
+C.backgroundSoft = #ECF2F0
+
+C.card / C.surface = #FBFCFC
+
+C.textStrong    = #24302E
+C.text / C.textPrimary = #35413F
+C.textSecondary = #5E6B68
+C.textMuted     = #74817E
+
+C.border / divider = #DDE7E3
+
+이번 WP에서는 위 token을 재설계하지 않는다.
+
+==================================================
+1. CORE GOAL
+==================================================
+
+현재 repository에는 동일 의미인데 직접 hardcode된 색이 많다.
+
+예:
+
+#64748B
+#94A3B8
+#9CA3AF
+#14283D
+#374151
+
+#F7F9FB
+#F1F4F7
+#F8FAFC
+#F1F5F9
+#FFFFFF
+
+#E5E7EB
+#E6EAF0
+
+이 중 THEME_MUTABLE 역할만
+현재 C.* token으로 정리한다.
+
+중요:
+
+HEX 문자열을 기계적으로 전부 replace 금지.
+
+각 사용처의 의미를 확인한 후 변경한다.
+
+==================================================
+2. TEXT MAPPING RULE
+==================================================
+
+각 text usage를 먼저 분류한다.
+
+TITLE / STRONG HEADING
+→ C.textStrong
+
+NORMAL BODY / PRIMARY INFORMATION
+→ C.textPrimary
+
+SUPPORTING INFORMATION / SECONDARY
+→ C.textSecondary
+
+HINT / LOW PRIORITY / META
+→ C.textMuted
+
+DISABLED
+→ 기존 disabled token
+
+절대 규칙:
+
+C.textMuted를
+본문/버튼/중요 정보에 사용하지 않는다.
+
+textMuted는 contrast 3.5:1 수준이므로
+hint / metadata / low-priority 용도만.
+
+==================================================
+3. OLD TEXT HARDCODE MAPPING
+==================================================
+
+다음은 자동 치환 규칙이 아니라
+후보 매핑이다.
+
+#14283D
+→ 대부분 C.textPrimary 후보
+
+#0F2742
+→ heading이면 C.textStrong 후보
+단 button/background/feature color이면 임의 변경 금지
+
+#64748B
+→ 실제 역할 확인:
+secondary면 C.textSecondary
+hint면 C.textMuted
+
+#94A3B8 / #9CA3AF
+→ 실제 역할 확인:
+hint/meta면 C.textMuted
+disabled면 disabled token
+
+#374151
+→ body/heading 역할 확인 후
+C.textPrimary 또는 C.textStrong
+
+==================================================
+4. BACKGROUND / SURFACE MAPPING
+==================================================
+
+THEME_MUTABLE page background:
+
+→ C.background
+
+soft section / neutral grouped area:
+
+→ C.backgroundSoft 또는 C.brandMist
+
+card / modal / raised surface:
+
+→ C.surface / C.card
+
+selected soft area:
+
+→ C.brandSoft
+단 selection color change가 기능 의미와 연결되어 있으면 이번 WP에서 보류.
+
+==================================================
+5. WHITE USAGE RULE
+==================================================
+
+#FFFFFF를 전부 제거하지 않는다.
+
+다음은 white 유지 가능:
+
+- classColor chip 위 text
+- semantic colored button 위 text
+- image overlay
+- photo/lightbox overlay
+- feature-fixed component
+- contrast가 필요한 고유 UI
+
+일반 card/surface로 쓰는 #FFFFFF는
+현재 구조상 C.surface(#FBFCFC)로 바꾸는 것이 적절한지 확인.
+
+무조건 치환 금지.
+
+==================================================
+6. BORDER / DIVIDER
+==================================================
+
+일반적인:
+
+#E5E7EB
+#E6EAF0
+유사 neutral border
+
+가 THEME_MUTABLE이면:
+
+C.border 또는 C.borderSoft
+
+로 통일.
+
+하지만:
+
+semantic border
+selected state border
+feature-fixed border
+scheduler class-color border
+
+는 변경 금지.
+
+==================================================
+7. ROLE COVERAGE
+==================================================
+
+Normal mode 기준으로:
+
+ADMIN
+TEACHER
+PARENT
+
+모두 감사한다.
+
+우선순위:
+
+1. 공통 component
+2. layout/root
+3. 많이 사용하는 main screens
+4. detail screens
+
+가능하면 common source를 먼저 수정해
+중복 파일 수정 최소화.
+
+==================================================
+8. PARENT SPECIAL PROTECTION
+==================================================
+
+학부모 UI에서도 Normal Sage theme는 적용한다.
+
+단 다음은 변경 금지:
+
+AI 성장리포트 고유색
+AI 커리큘럼 고유색
+Feed 내부 고유색
+reaction colors
+사진/콘텐츠 자체 색상
+attendance/status colors
+level badges
+
+이번 WP에서는 parent의:
+
+- page background
+- normal surface
+- general text
+- general border
+
+만 정리.
+
+==================================================
+9. SCHEDULER ABSOLUTE PROTECTION
+==================================================
+
+다음 classColor() palette 절대 변경 금지:
+
+#4EA7D8
+#2E9B6F
+#E4A93A
+#D96C6C
+#8B5CF6
+#EC4899
+#06B6D4
+#84CC16
+
+이 색들은:
+
+요일/반/일정/상태 식별을 위한 정보색이다.
+
+일반 background/text sweep 중
+우연히 같은 색이 검색되어도 건드리지 않는다.
+
+Scheduler CONTROL UI는 WP-N4에서 별도 처리한다.
+
+==================================================
+10. SEMANTIC / FEATURE PROTECTION
+==================================================
+
+변경 금지:
+
+success
+warning
+error/danger
+present
+absent
+late
+approved
+rejected
+pending
+
+AI Report
+AI Curriculum
+Feed reaction
+LevelBadge
+Revenue/billing feature identity
+Super Admin identity
+chart legend
+pool logo emoji
+
+==================================================
+11. BUTTONS — THIS WP DO NOT NORMALIZE
+==================================================
+
+중요:
+
+이번 WP에서 버튼 역할별 색상 통일 금지.
+
+즉:
+
+mint CTA
+navy CTA
+themeColor CTA
+
+가 발견되어도
+WP-N3 대상 목록으로만 남긴다.
+
+button background / primaryAction
+변경 금지.
+
+단 버튼 내부 일반 text가
+명백한 잘못된 hardcoded neutral text이고
+버튼 의미색과 관계없는 경우만
+안전한 범위에서 token화 가능.
+
+==================================================
+12. X MODE PROTECTION
+==================================================
+
+xTheme.ts 수정 금지.
+
+isX mode일 때 사용되는:
+
+XT.*
+Nautic
+Yacht
+
+색상 변경 금지.
+
+공통 component 수정 시
+Normal branch만 달라지는지 반드시 검증.
+
+==================================================
+13. HARDCODE CLEANUP STRATEGY
+==================================================
+
+대량 blind replace 금지.
+
+파일별로:
+
+CURRENT_COLOR
+ELEMENT_ROLE
+CLASSIFICATION
+TARGET_TOKEN
+
+을 판단한 후 수정.
+
+예:
+
+#64748B
++ subtitle
++ THEME_MUTABLE
+→ C.textSecondary
+
+#64748B
++ hint
++ THEME_MUTABLE
+→ C.textMuted
+
+같은 HEX라도 의미가 다르면
+다른 token으로 매핑한다.
+
+==================================================
+14. SOFT SURFACE CONSOLIDATION
+==================================================
+
+현재 감사에서:
+
+#F1F4F7
+#F8FAFC
+#F1F5F9
+
+3종 유사 soft surface가 혼재.
+
+일반 neutral soft surface 역할이면
+C.backgroundSoft 기준으로 통합.
+
+단:
+
+input
+disabled
+special feature
+scheduler classification
+
+같이 다른 의미가 있으면 그대로 두거나
+적절한 별도 token 유지.
+
+==================================================
+15. VISUAL TARGET
+==================================================
+
+Normal SWIMNOTE 최종 느낌:
+
+- 눈부시지 않는 Sage-tinted background
+- card는 배경과 자연스럽게 구분
+- black 글씨처럼 과하게 쨍하지 않음
+- 하지만 흐릿하지 않음
+- supporting text hierarchy 명확
+- 화면마다 gray/white 톤이 제각각 보이지 않음
+- 고급스럽고 차분한 수영 운영앱
+
+과도하게 초록색으로 만들지 않는다.
+
+이번 WP에서 Sage brand 색 면적을 늘리는 게 목적이 아니다.
+
+배경/텍스트의 톤과 매너를 정돈하는 작업이다.
+
+==================================================
+16. ACCESSIBILITY
+==================================================
+
+변경 후 주요 조합 확인:
+
+C.textStrong on C.background
+C.textPrimary on C.surface
+C.textSecondary on C.surface
+C.textSecondary on C.backgroundSoft
+C.textMuted on C.surface
+
+원칙:
+
+본문/중요 정보 → AA 수준 유지
+
+C.textMuted는 hint/low-priority only.
+
+가독성 때문에 필요하면
+사용 token을 secondary로 올리지
+임의 새 hex를 만들지 않는다.
+
+==================================================
+17. TEST MATRIX
+==================================================
+
+N2-1
+Normal admin main screens
+→ Sage background/text hierarchy
+
+N2-2
+Normal teacher main screens
+→ 동일
+
+N2-3
+Normal parent main screens
+→ 동일
+
+N2-4
+hardcoded neutral text 감소
+
+N2-5
+duplicated neutral soft surfaces 감소
+
+N2-6
+semantic colors unchanged
+
+N2-7
+scheduler class colors unchanged
+
+N2-8
+feature-fixed colors unchanged
+
+N2-9
+button color normalization NOT performed
+
+N2-10
+X mode visual regression 없음
+
+N2-11
+TypeScript errors 0
+
+==================================================
+18. REPORT
+==================================================
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+HARDCODED_TEXT_BEFORE =
+HARDCODED_TEXT_AFTER =
+
+HARDCODED_SURFACE_BEFORE =
+HARDCODED_SURFACE_AFTER =
+
+TEXT_PRIMARY_MIGRATED =
+TEXT_SECONDARY_MIGRATED =
+TEXT_MUTED_MIGRATED =
+
+SOFT_SURFACE_VARIANTS_BEFORE =
+SOFT_SURFACE_VARIANTS_AFTER =
+
+ADMIN_RESULT =
+TEACHER_RESULT =
+PARENT_RESULT =
+
+BUTTON_COLORS_CHANGED =
+SCHEDULER_PROTECTED_CHANGED =
+SEMANTIC_CHANGED =
+FEATURE_FIXED_CHANGED =
+X_THEME_CHANGED =
+
+READABILITY_RESULT =
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+BUTTON_COLORS_CHANGED = NO
+SCHEDULER_PROTECTED_CHANGED = NO
+SEMANTIC_CHANGED = NO
+FEATURE_FIXED_CHANGED = NO
+X_THEME_CHANGED = NO
+
+그리고:
+
+WP_N2_NORMAL_BACKGROUND_TEXT_SWEEP_COMPLETE ✅

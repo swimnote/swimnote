@@ -14,12 +14,14 @@ import {
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import { BookOpen, ChevronLeft, ChevronRight, Download, ImageIcon, Play, Video, X } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import Colors from "@/constants/colors";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { API_BASE, apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
 
@@ -93,8 +95,16 @@ function photoFileUri(fileUrl: string) {
 
 export default function ParentAlbumScreen() {
   const { token } = useAuth();
-  const { selectedStudent } = useParent();
+  const { selectedStudent, students } = useParent();
+  const params = useLocalSearchParams<{ studentId?: string }>();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
+
+  // param이 있으면 그 학생, 없으면 selectedStudent (multi-child context leak 방지)
+  const activeStudent = params.studentId
+    ? (students?.find(s => s.id === params.studentId) ?? selectedStudent)
+    : selectedStudent;
 
   const [photos, setPhotos]   = useState<MediaItem[]>([]);
   const [videos, setVideos]   = useState<MediaItem[]>([]);
@@ -111,7 +121,7 @@ export default function ParentAlbumScreen() {
 
   const load = useCallback(async () => {
     try {
-      const sid = selectedStudent?.id;
+      const sid = activeStudent?.id;
       const q = sid ? `?student_id=${sid}` : "";
       const [pr, vr] = await Promise.all([
         apiRequest(token, `/photos/parent-view${q}`),
@@ -129,7 +139,7 @@ export default function ParentAlbumScreen() {
       setVideos(rawVideos);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  }, [token, selectedStudent?.id]);
+  }, [token, activeStudent?.id]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -206,21 +216,28 @@ export default function ParentAlbumScreen() {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setLbSaving(true);
+    let localUri: string | null = null;
     try {
-      const localUri = `${FileSystem.documentDirectory}swim_${item.id}.jpg`;
+      localUri = `${FileSystem.documentDirectory}swim_${item.id}.jpg`;
       await FileSystem.downloadAsync(photoFileUri(item.file_url), localUri, {
         headers: { Authorization: `Bearer ${token}` },
       });
       await MediaLibrary.saveToLibraryAsync(localUri);
       Alert.alert("저장 완료", "갤러리에 저장됐습니다.");
     } catch { Alert.alert("오류", "저장 중 오류가 발생했습니다."); }
-    finally { setLbSaving(false); }
+    finally {
+      if (localUri) {
+        FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      }
+      setLbSaving(false);
+    }
   }
 
   async function downloadVideo(item: MediaItem) {
     const { status } = await MediaLibrary.requestPermissionsAsync();
     if (status !== "granted") { Alert.alert("권한 필요", "갤러리 접근 권한이 필요합니다."); return; }
     setVdSaving(true);
+    let localUri: string | null = null;
     try {
       const BASE_ORIGIN = API_BASE.replace(/\/api$/, "");
       const presigned = (item as any).presigned_url as string | undefined;
@@ -235,7 +252,7 @@ export default function ParentAlbumScreen() {
       const lastSeg = pathPart.split("/").pop() ?? "";
       const extCandidate = lastSeg.includes(".") ? lastSeg.split(".").pop()?.toLowerCase() : undefined;
       const ext = (extCandidate && extCandidate.length <= 4) ? extCandidate : "mp4";
-      const localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
+      localUri = `${FileSystem.documentDirectory}swim_video_${item.id}.${ext}`;
       const headers: Record<string, string> = presigned ? {} : { Authorization: `Bearer ${token}` };
       const dl = await FileSystem.downloadAsync(finalUrl, localUri, { headers });
       if (dl.status !== 200) throw new Error(`다운로드 실패 (${dl.status})`);
@@ -245,7 +262,12 @@ export default function ParentAlbumScreen() {
       console.warn("[ParentAlbum] video download error:", e);
       Alert.alert("오류", "저장 중 오류가 발생했습니다.");
     }
-    finally { setVdSaving(false); }
+    finally {
+      if (localUri) {
+        FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
+      }
+      setVdSaving(false);
+    }
   }
 
   function goToDiary(journalId?: string | null) {
@@ -268,6 +290,7 @@ export default function ParentAlbumScreen() {
             source={{ uri, headers: { Authorization: `Bearer ${token}` } }}
             style={st.cellImg}
             contentFit="cover"
+            cachePolicy="memory"
           />
         </Pressable>
       );
@@ -277,12 +300,12 @@ export default function ParentAlbumScreen() {
     return (
       <Pressable key={item.id} onPress={() => setVideoDetail(item)} style={[st.cell, { width: CELL, height: CELL }]}>
         {thumbUri ? (
-          <ExpoImage source={{ uri: thumbUri }} style={st.cellImg} contentFit="cover" />
+          <ExpoImage source={{ uri: thumbUri }} style={st.cellImg} contentFit="cover" cachePolicy="memory" />
         ) : (
           <View style={[st.cellImg, st.videoPlaceholder]} />
         )}
         <View style={st.playBadge}>
-          <Play size={14} color="#fff" fill="#fff" />
+          <LucideIcon name="play" size={14} color="#fff" fill="#fff" />
         </View>
       </Pressable>
     );
@@ -313,7 +336,7 @@ export default function ParentAlbumScreen() {
   const hasNext = lightboxIdx !== null && lightboxIdx < photoOnlyItems.length - 1;
 
   return (
-    <View style={[st.root, { backgroundColor: C.background }]}>
+    <View style={[st.root, { backgroundColor: isX ? XT.background : C.background }]}>
       <ParentScreenHeader title="앨범" />
 
       {/* 탭 */}
@@ -321,19 +344,23 @@ export default function ParentAlbumScreen() {
         {TABS.map(t => (
           <Pressable
             key={t.key}
-            style={[st.tabBtn, tab === t.key && st.tabBtnActive]}
+            style={[
+              st.tabBtn,
+              tab === t.key && st.tabBtnActive,
+              tab === t.key && isX && { borderColor: XT.accent, backgroundColor: XT.accentSoft },
+            ]}
             onPress={() => setTab(t.key)}
           >
-            <Text style={[st.tabTxt, tab === t.key && st.tabTxtActive]}>{t.label}</Text>
+            <Text style={[st.tabTxt, tab === t.key && st.tabTxtActive, tab === t.key && isX && { color: XT.accent }]}>{t.label}</Text>
           </Pressable>
         ))}
       </View>
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={isX ? XT.accent : C.brandStrong} style={{ marginTop: 60 }} />
       ) : rows.length === 0 ? (
         <View style={st.empty}>
-          <ImageIcon size={44} color={C.textMuted} />
+          <LucideIcon name="image" size={44} color={C.textMuted} />
           <Text style={[st.emptyTitle, { color: C.text }]}>
             {tab === "video" ? "영상이 없습니다" : tab === "photo" ? "사진이 없습니다" : "사진/영상이 없습니다"}
           </Text>
@@ -357,13 +384,14 @@ export default function ParentAlbumScreen() {
         visible={lightboxIdx !== null}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={closeLightbox}
       >
-        <View style={st.lbBg} {...panResponderFixed.panHandlers}>
-          {/* 닫기 */}
+        <View style={st.lbBg}>
+          {/* 닫기 — panHandlers 밖에 배치해야 터치 정상 작동 */}
           <View style={[st.lbTop, { paddingTop: insets.top + 14 }]}>
             <Pressable onPress={closeLightbox} style={st.lbClose} hitSlop={10}>
-              <X size={26} color="#fff" />
+              <LucideIcon name="x" size={26} color="#fff" />
             </Pressable>
             {/* 인덱스 표시 */}
             {photoOnlyItems.length > 1 && lightboxIdx !== null && (
@@ -373,14 +401,16 @@ export default function ParentAlbumScreen() {
             )}
           </View>
 
-          {/* 이미지 */}
-          {lightboxItem ? (
-            <ExpoImage
-              source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
-              style={st.lbImage}
-              contentFit="contain"
-            />
-          ) : null}
+          {/* 이미지 영역에만 panHandlers 적용 */}
+          <View style={st.lbImageWrap} {...panResponderFixed.panHandlers}>
+            {lightboxItem ? (
+              <ExpoImage
+                source={{ uri: photoFileUri(lightboxItem.file_url), headers: { Authorization: `Bearer ${token}` } }}
+                style={st.lbImage}
+                contentFit="contain"
+              />
+            ) : null}
+          </View>
 
           {lightboxItem?.source_label ? (
             <Text style={st.lbSource}>{lightboxItem.source_label}</Text>
@@ -395,7 +425,7 @@ export default function ParentAlbumScreen() {
                 hitSlop={16}
                 disabled={!hasPrev}
               >
-                <ChevronLeft size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
+                <LucideIcon name="chevron-left" size={28} color={hasPrev ? "#fff" : "rgba(255,255,255,0.25)"} />
               </Pressable>
               <Pressable
                 onPress={goNext}
@@ -403,7 +433,7 @@ export default function ParentAlbumScreen() {
                 hitSlop={16}
                 disabled={!hasNext}
               >
-                <ChevronRight size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
+                <LucideIcon name="chevron-right" size={28} color={hasNext ? "#fff" : "rgba(255,255,255,0.25)"} />
               </Pressable>
             </View>
           )}
@@ -411,20 +441,20 @@ export default function ParentAlbumScreen() {
           {/* 다운로드 / 일지보기 버튼 */}
           <View style={st.lbBtnRow}>
             <Pressable
-              style={[st.lbBtn, { backgroundColor: C.tint }]}
+              style={[st.lbBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => lightboxItem && downloadPhoto(lightboxItem)}
               disabled={lbSaving}
             >
               {lbSaving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <><Download size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
+                : <><LucideIcon name="download" size={16} color="#fff" /><Text style={st.lbBtnTxt}>다운로드</Text></>}
             </Pressable>
             {lightboxItem?.journal_id && (
               <Pressable
-                style={[st.lbBtn, { backgroundColor: "#0F172A" }]}
+                style={[st.lbBtn, { backgroundColor: XT.primary }]}
                 onPress={() => goToDiary(lightboxItem?.journal_id)}
               >
-                <BookOpen size={16} color="#fff" />
+                <LucideIcon name="book-open" size={16} color="#fff" />
                 <Text style={st.lbBtnTxt}>해당 일지 보기</Text>
               </Pressable>
             )}
@@ -433,7 +463,7 @@ export default function ParentAlbumScreen() {
       </Modal>
 
       {/* 영상 상세 모달 */}
-      <Modal visible={!!videoDetail} transparent animationType="slide" onRequestClose={() => setVideoDetail(null)}>
+      <Modal visible={!!videoDetail} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setVideoDetail(null)}>
         <Pressable style={st.vdOverlay} onPress={() => setVideoDetail(null)}>
           <Pressable style={[st.vdSheet, { paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
             <View style={st.vdHandle} />
@@ -446,12 +476,12 @@ export default function ParentAlbumScreen() {
                   contentFit="cover"
                 />
                 <View style={st.vdPlayOverlay}>
-                  <Play size={36} color="#fff" fill="#fff" />
+                  <LucideIcon name="play" size={36} color="#fff" fill="#fff" />
                 </View>
               </View>
             ) : (
               <View style={[st.vdThumbWrap, st.vdThumbEmpty]}>
-                <Video size={40} color="#64748B" />
+                <LucideIcon name="video" size={40} color={C.textSecondary} />
                 <Text style={st.vdThumbEmptyTxt}>썸네일 없음</Text>
               </View>
             )}
@@ -462,25 +492,25 @@ export default function ParentAlbumScreen() {
 
             <View style={st.vdBtnCol}>
               <Pressable
-                style={[st.vdBtn, { backgroundColor: C.tint }]}
+                style={[st.vdBtn, { backgroundColor: C.primaryAction }]}
                 onPress={() => videoDetail && downloadVideo(videoDetail)}
                 disabled={vdSaving}
               >
                 {vdSaving
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <><Download size={16} color="#fff" /><Text style={st.vdBtnTxt}>영상 다운로드</Text></>}
+                  : <><LucideIcon name="download" size={16} color="#fff" /><Text style={st.vdBtnTxt}>영상 다운로드</Text></>}
               </Pressable>
               {videoDetail?.journal_id && (
                 <Pressable
-                  style={[st.vdBtn, { backgroundColor: "#0F172A" }]}
+                  style={[st.vdBtn, { backgroundColor: "#0F2742" }]}
                   onPress={() => goToDiary(videoDetail?.journal_id)}
                 >
-                  <BookOpen size={16} color="#fff" />
+                  <LucideIcon name="book-open" size={16} color="#fff" />
                   <Text style={st.vdBtnTxt}>해당 일지 보기</Text>
                 </Pressable>
               )}
-              <Pressable style={[st.vdBtn, { backgroundColor: "#F1F5F9" }]} onPress={() => setVideoDetail(null)}>
-                <Text style={[st.vdBtnTxt, { color: "#374151" }]}>닫기</Text>
+              <Pressable style={[st.vdBtn, { backgroundColor: C.backgroundSoft }]} onPress={() => setVideoDetail(null)}>
+                <Text style={[st.vdBtnTxt, { color: C.textPrimary }]}>닫기</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -493,14 +523,14 @@ export default function ParentAlbumScreen() {
 const st = StyleSheet.create({
   root: { flex: 1 },
 
-  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
-  tabBtnActive: { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
-  tabTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive: { color: "#2EC4B6" },
+  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  tabBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
+  tabBtnActive: { borderColor: C.brandStrong, backgroundColor: C.brandMist },
+  tabTxt: { fontSize: 13, lineHeight: 18, color: C.textSecondary },
+  tabTxtActive: { color: C.brandStrong },
 
   monthHeader: { paddingHorizontal: 14, paddingTop: 18, paddingBottom: 8 },
-  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  monthLabel: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   row: { flexDirection: "row", gap: 2, paddingHorizontal: 2 },
   cell: { borderRadius: 2, overflow: "hidden", backgroundColor: "#E2E8F0", marginBottom: 2 },
@@ -515,7 +545,7 @@ const st = StyleSheet.create({
 
   empty: { alignItems: "center", paddingTop: 80, gap: 10, paddingHorizontal: 28 },
   emptyTitle: { fontSize: 17, fontFamily: "Pretendard-Regular" },
-  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: "#64748B" },
+  emptySub: { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20, color: C.textSecondary },
 
   lbBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.96)", justifyContent: "center" },
   lbTop: {
@@ -529,8 +559,9 @@ const st = StyleSheet.create({
     color: "rgba(255,255,255,0.75)", fontSize: 14, fontFamily: "Pretendard-Regular",
     marginRight: 44,
   },
-  lbImage: { width: "100%", height: "60%" },
-  lbSource: { color: "#E6FFFA", fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
+  lbImageWrap: { width: "100%", height: "60%" },
+  lbImage: { width: "100%", height: "100%" },
+  lbSource: { color: C.brandSoft, fontSize: 13, textAlign: "center", paddingHorizontal: 24, paddingTop: 16, fontFamily: "Pretendard-Regular" },
 
   lbArrowRow: {
     position: "absolute", left: 0, right: 0,
@@ -551,13 +582,13 @@ const st = StyleSheet.create({
 
   vdOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   vdSheet: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, gap: 16 },
-  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  vdHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   vdThumbWrap: { width: "100%", height: 200, borderRadius: 14, overflow: "hidden", backgroundColor: "#E2E8F0" },
   vdThumb: { width: "100%", height: "100%" },
   vdThumbEmpty: { alignItems: "center", justifyContent: "center", gap: 8 },
-  vdThumbEmptyTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  vdThumbEmptyTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   vdPlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
-  vdLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center" },
+  vdLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
   vdBtnCol: { gap: 10 },
   vdBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 14 },
   vdBtnTxt: { color: "#fff", fontSize: 14, fontFamily: "Pretendard-Regular" },

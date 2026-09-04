@@ -1,0 +1,429 @@
+[WP-CS-08R-FINAL-DEVICE-ONLY — REAL IPHONE CLOSE]
+
+목적:
+
+더 이상 코드 감사/예상 결과 작성 금지.
+
+실제 TestFlight Build 246이 설치된 iPhone에서
+사용자가 직접 수행한 결과만 기준으로
+CS-08R을 최종 종료한다.
+
+이번 작업에서는 신규 기능 개발 금지.
+
+==================================================
+0. HARD RULE
+==================================================
+
+다음 표현은 PASS로 인정하지 않는다:
+
+- 코드 검증 PASS
+- 예상 흐름 PASS
+- 테스트상 PASS
+- repository 기준 PASS
+
+반드시 실제 사용자 실기기 결과만 기록.
+
+실기기에서 수행하지 않은 항목은:
+
+NOT_TESTED
+
+로 기록.
+
+REQUIRES_DEVICE 문구 반복 금지.
+
+==================================================
+1. SERVER BASELINE
+==================================================
+
+현재 baseline:
+
+commit = 74efb4e2
+Render = LIVE
+iOS OTA = 01a00fb3-b5c7-7478-842c-89066c0bb394
+branch = production
+channel = production
+runtime = 1.6.3
+TestFlight Build = 246
+
+이 baseline에서 테스트.
+
+코드 수정 금지 unless actual device defect.
+
+==================================================
+2. KNOWLEDGE MANUAL APPROVAL
+==================================================
+
+사용자가 Super Admin UI에서 직접 검토.
+
+실제 현재 앱 동작과 완전히 일치하는 항목만 ACTIVE.
+
+최소:
+
+A. FAQ/Knowledge 1개
+B. frontend_screen_id 연결된 항목 1개
+
+자동 승인 금지.
+SQL 직접 변경 금지.
+migration 변경 금지.
+
+승인된 실제 item 제목만 기록.
+
+==================================================
+3. REAL DEVICE TEST 1 — DB_STATE
+==================================================
+
+실제 iPhone
+실제 production pool_admin account.
+
+질문:
+
+"현재 구독 상태가 어떻게 되나요?"
+
+또는 현재 DB_STATE가 확실히 지원하는 질문.
+
+실제 화면에서 확인:
+
+USER_MESSAGE_VISIBLE =
+AI_REPLY_VISIBLE =
+REPLY_TEXT =
+SOURCE_TYPE =
+LLM_USED =
+
+스크린 결과를 추측하지 않는다.
+
+==================================================
+4. REAL DEVICE TEST 2 — FRONTEND MAP
+==================================================
+
+실제 iPhone에서:
+
+"출결 기록은 어떤 화면에서 하나요?"
+
+또는 실제 registry에 존재하는 위치 질문.
+
+기록:
+
+AI_REPLY_VISIBLE =
+ANSWER =
+SOURCE_TYPE =
+LLM_USED =
+WRONG_ROLE_SCREEN_SHOWN =
+
+PASS 조건:
+
+source_type=FRONTEND_MAP
+llm_used=false
+없는 메뉴/경로 생성 없음.
+
+==================================================
+5. REAL DEVICE TEST 3 — ACTIVE FAQ/KNOWLEDGE
+==================================================
+
+§2에서 사용자가 직접 ACTIVE한 항목 질문.
+
+기록:
+
+ACTIVE_ITEM =
+QUESTION =
+ANSWER =
+SOURCE_TYPE =
+LLM_USED =
+ANSWER_MATCHES_APPROVED_CONTENT =
+
+==================================================
+6. REAL DEVICE TEST 4 — NO EVIDENCE
+==================================================
+
+실제 없는 기능 질문:
+
+"스윔노트에서 라커룸 예약을 할 수 있나요?"
+
+기록:
+
+ANSWER =
+CONFIDENCE =
+REQUIRES_HUMAN =
+LLM_USED =
+MODEL =
+HALLUCINATED_FEATURE =
+
+PASS:
+
+llm_used=false
+model=null
+없는 기능을 있다고 설명하지 않음.
+
+==================================================
+7. REAL DEVICE TEST 5 — GROUNDED LLM
+==================================================
+
+복합 질문 사용.
+
+단 실제 Frontend Map / ACTIVE Knowledge에
+근거가 존재하는 질문으로 선정.
+
+예:
+
+"출결 화면에서 이미 기록한 내용을 수정하려면 어디에서 해야 하나요?"
+
+주의:
+
+현재 evidence가 지원하지 않는 사실
+("즉시 반영되나요?" 등)을 질문해서
+모델이 추측하도록 유도하지 않는다.
+
+실제 확인:
+
+ANSWER =
+LLM_USED =
+MODEL =
+SOURCE_IDS_COUNT =
+CONFIDENCE =
+UNSUPPORTED_CLAIM_FOUND =
+
+PASS:
+
+llm_used=true
+model=gpt-4o-mini
+source_ids > 0
+근거 밖 주장 없음.
+
+==================================================
+8. REAL DEVICE TEST 6 — PERSISTENCE
+==================================================
+
+실제 iPhone:
+
+질문
+→ 답변
+→ 추가 질문
+→ 답변
+→ 앱 force quit
+→ 앱 재실행
+→ AI 문의 재진입
+
+기록:
+
+MESSAGES_BEFORE_RESTART =
+MESSAGES_AFTER_RESTART =
+CONVERSATION_PERSISTENCE =
+
+==================================================
+9. REAL DEVICE TEST 7 — BUTTONS
+==================================================
+
+실제 iPhone에서 각각 수행.
+
+[해결됐어요]
+
+결과:
+RESOLVED_BUTTON =
+VISIBLE_STATE_AFTER_RESOLVE =
+
+별도 case 또는 안전한 테스트 case:
+
+[아직 안돼요]
+
+결과:
+NOT_RESOLVED_BUTTON =
+VISIBLE_STATE_AFTER_NOT_RESOLVED =
+
+==================================================
+10. REAL DEVICE TEST 8 — ROLE MATRIX
+==================================================
+
+실제 사용할 수 있는 production/test 계정만.
+
+admin:
+LOGIN =
+SUPPORT_OPEN =
+MESSAGE_SEND =
+AI_REPLY =
+
+teacher:
+LOGIN =
+SUPPORT_OPEN =
+MESSAGE_SEND =
+AI_REPLY =
+
+parent:
+LOGIN =
+SUPPORT_OPEN =
+MESSAGE_SEND =
+AI_REPLY =
+
+실제 안전 계정이 없으면:
+
+NO_SAFE_ACCOUNT
+
+허용.
+
+가짜 계정 생성 금지.
+
+==================================================
+11. REAL DEVICE TEST 9 — MODE MATRIX
+==================================================
+
+Normal 실제 계정:
+SUPPORT =
+WRONG_X_GUIDANCE =
+
+X 실제 계정:
+SUPPORT =
+X_CONTEXT_CORRECT =
+
+안전 계정 없으면 NO_SAFE_ACCOUNT.
+
+==================================================
+12. SUPER ADMIN REAL CHECK
+==================================================
+
+실제 테스트 case를 Super Admin에서 열어본다.
+
+확인:
+
+USER_MESSAGE_VISIBLE =
+AI_MESSAGE_VISIBLE =
+CASE_STATE =
+ROLE =
+MODE =
+POOL =
+
+SUPER_ADMIN_CASE_VISIBLE =
+
+==================================================
+13. TRACE REAL CHECK
+==================================================
+
+이번 실제 기기 테스트에서 발생한 request를
+실제 event_logs/AI trace에서 확인.
+
+최소 3건:
+
+A deterministic
+B no_evidence
+C llm_grounded
+
+기록:
+
+DETERMINISTIC_TRACE =
+NO_EVIDENCE_TRACE =
+LLM_GROUNDED_TRACE =
+
+LLM grounded 실제 token:
+
+INPUT_TOKENS =
+OUTPUT_TOKENS =
+TOTAL_TOKENS =
+
+실제 값만.
+가짜 값 금지.
+
+==================================================
+14. DEFECT POLICY
+==================================================
+
+기기에서 actual defect 발견 시에만:
+
+DEFECT =
+ROOT_CAUSE =
+MINIMAL_FIX =
+
+진행.
+
+Server-only 수정:
+Render만.
+
+Mobile 수정:
+iOS production OTA만.
+
+preview OTA 금지.
+Android OTA 금지.
+
+==================================================
+15. DO NOT CONTINUE
+==================================================
+
+다음 작업 금지:
+
+CS-09 Vision
+Task #30
+Task #31
+Semantic Cache
+Product Intelligence
+
+CS-08R이 실제 기기에서 닫히기 전까지
+다음 WP 시작 금지.
+
+==================================================
+16. FINAL REPORT
+==================================================
+
+KNOWLEDGE_APPROVED_ITEMS =
+
+DB_STATE_DEVICE =
+FRONTEND_MAP_DEVICE =
+FAQ_KNOWLEDGE_DEVICE =
+NO_EVIDENCE_DEVICE =
+LLM_FALLBACK_DEVICE =
+
+AI_MESSAGE_VISIBLE =
+CONVERSATION_PERSISTENCE =
+
+RESOLVED_BUTTON =
+NOT_RESOLVED_BUTTON =
+
+ADMIN_DEVICE =
+TEACHER_DEVICE =
+PARENT_DEVICE =
+
+NORMAL_DEVICE =
+X_DEVICE =
+
+SUPER_ADMIN_CASE_VISIBLE =
+
+DETERMINISTIC_TRACE =
+NO_EVIDENCE_TRACE =
+LLM_GROUNDED_TRACE =
+
+LLM_INPUT_TOKENS =
+LLM_OUTPUT_TOKENS =
+LLM_TOTAL_TOKENS =
+
+DEFECTS_FOUND =
+DEFECTS_FIXED =
+
+FILES_CHANGED =
+FULL_TEST_RESULT =
+
+RENDER_DEPLOYMENT_IF_FIX =
+IOS_PRODUCTION_OTA_IF_FIX =
+ANDROID_OTA = NO
+
+최종 성공 조건:
+
+DB_STATE_DEVICE = PASS
+FRONTEND_MAP_DEVICE = PASS
+FAQ_KNOWLEDGE_DEVICE = PASS
+NO_EVIDENCE_DEVICE = PASS
+LLM_FALLBACK_DEVICE = PASS
+
+AI_MESSAGE_VISIBLE = PASS
+CONVERSATION_PERSISTENCE = PASS
+
+RESOLVED_BUTTON = PASS
+NOT_RESOLVED_BUTTON = PASS
+
+SUPER_ADMIN_CASE_VISIBLE = PASS
+
+DETERMINISTIC_TRACE = PASS
+NO_EVIDENCE_TRACE = PASS
+LLM_GROUNDED_TRACE = PASS
+
+실행 가능한 계정의 role/mode 테스트 PASS.
+
+ANDROID_OTA = NO
+
+완료 문구는 실제 위 조건을 만족한 경우에만:
+
+WP_CS_08R_SUPPORT_AI_FULL_CLOSE ✅

@@ -1,0 +1,424 @@
+SWIMNOTE X — WP1 구현 승인 지시서
+
+WP1 백업 DB 차단사항 조사 보고서를 검수했습니다.
+
+다음 기준으로 WP1 구현을 승인합니다.
+
+이번 승인은 WP1에 한정됩니다.
+
+다음 WP 작업, 백업 DB 복구, API 구현, 화면 구현은 승인하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 최종 확정 사항
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+방식 C 채택
+
+WP1에서는 운영 DB의 PART 1 Migration 구조만 정리합니다.
+
+백업 DB에는 initXModeSchema()를 실행하지 않습니다.
+
+백업 DB 스키마 드리프트와 standby sync 실패는 현재 문제로 기록만 유지합니다.
+
+이번 WP에서 백업 DB 복구 기능, 전용 Migration, 신규 WP를 만들지 마십시오.
+
+운영 DB 실패 정책
+
+필수 운영 DB Migration 실패 시:
+
+오류 기록
+→ 서버 준비 상태 전환 금지
+→ 프로세스 종료
+
+백업 DB 실패 정책
+
+현재 기존 정책을 유지합니다.
+
+백업 DB 초기화 실패
+→ 경고 기록
+→ 운영 서버 계속 기동
+
+이번 WP에서 백업 DB 정책을 추가 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 중요 정정 — DB 파라미터화 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사 보고서에서는 다음 변경을 제안했습니다.
+
+initXModeSchema(db: Db)
+
+그러나 방식 C에서는 백업 DB에 X Migration을 실행하지 않습니다.
+
+따라서 DB 파라미터화는 불필요합니다.
+
+기존 구조를 유지하십시오.
+
+export async function initXModeSchema(): Promise<void> {
+  const db = superAdminDb;
+  // PART 1 Migration
+}
+
+금지:
+
+* initXModeSchema(db)로 시그니처 변경
+* backupDb 전달
+* getBackupDb import 추가
+* 백업 DB X 스키마 적용
+* 백업 DB 일반 스키마 수정
+
+변경 범위를 최소화하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. WP1 실제 구현 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일 1
+
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+
+허용된 변경:
+
+1. 기존 Group 4 Parent AI를 PART 1 진입점에서 제거
+2. 기존 Group 5를 다음 두 함수로 분리
+    * Growth Event
+    * Growth Reports
+3. initXModePart2Schema() 추가
+4. runGroup6_Curriculum() 추가
+5. Curriculum 테이블 5개 생성
+6. Growth Event Curriculum FK 2개 추가
+7. PART 1 실행순서 정리
+8. Group 실패 시 즉시 throw 유지
+
+파일 2
+
+artifacts/api-server/src/index.ts
+
+허용된 변경:
+
+* 필수 DB 초기화 오류를 삼키는 개별 .catch() 제거
+* DB 초기화 실패 시 setServerReady() 호출 차단
+* 오류 기록 후 process.exit(1)
+
+pool-db-init.ts
+
+현재 조사 결과대로라면 수정할 필요가 없습니다.
+
+기존 initXModeSchema() 호출을 유지하십시오.
+
+다음 변경 금지:
+
+* backupDb에 X Migration 호출
+* 백업 DB 초기화 범위 확장
+* 새로운 백업 Migration 추가
+* 기존 백업 정책 변경
+
+실제 타입이나 import 문제로 수정이 반드시 필요하다면 먼저 중단하고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PART 1·PART 2 진입점
+━━━━━━━━━━━━━━━━━━━━━━
+
+PART 1 진입점
+
+export async function initXModeSchema(): Promise<void> {
+  await runGroup1_EnumAndPools(db);
+  await runGroup2_GlobalTemplate(db);
+  await runGroup3_Audit(db);
+  await runGroup5a_GrowthEvents(db);
+  await runGroup6_Curriculum(db);
+}
+
+PART 2 진입점
+
+export async function initXModePart2Schema(): Promise<void> {
+  await runGroup4_ParentAiUsage(db);
+  await runGroup5b_GrowthReports(db);
+}
+
+initXModePart2Schema()는 이번 WP에서 어디에도 연결하지 마십시오.
+
+금지:
+
+* pool-db-init.ts에서 호출
+* index.ts에서 호출
+* Worker에서 호출
+* Route에서 호출
+* 테스트 시작 시 자동 호출
+
+현재 운영 DB에 이미 존재하는 PART 2 테이블은 DROP하거나 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Curriculum DDL 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인된 테이블은 다음 5개뿐입니다.
+
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+
+기존 WP1 정정 설계서 v2의 DDL을 그대로 사용하십시오.
+
+임의 변경 금지:
+
+* 컬럼 추가
+* 컬럼 삭제
+* 타입 변경
+* 상태값 추가
+* 테이블 추가
+* 진행률 컬럼 추가
+* 현재 커리큘럼 항목 컬럼 추가
+* 통계 컬럼 추가
+* JSONB 확장
+* 별도 History 테이블 추가
+
+student_curriculum_assignments에는 curriculum_item_id를 추가하지 마십시오.
+
+진행도는 향후 growth_events를 기준으로 계산합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. FK와 삭제 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 정책을 그대로 적용하십시오.
+
+curriculum_items.curriculum_version_id
+→ curriculum_versions.id
+→ ON DELETE RESTRICT
+student_curriculum_assignments.curriculum_version_id
+→ curriculum_versions.id
+→ ON DELETE RESTRICT
+curriculum_requests.result_version_id
+→ curriculum_versions.id
+→ ON DELETE RESTRICT
+curriculum_request_files.request_id
+→ curriculum_requests.id
+→ ON DELETE CASCADE
+growth_events.curriculum_item_id
+→ curriculum_items.id
+→ ON DELETE RESTRICT
+growth_events.curriculum_version_id
+→ curriculum_versions.id
+→ ON DELETE RESTRICT
+
+ON DELETE SET NULL 사용 금지.
+
+Growth Event의 두 Curriculum ID 컬럼은 NOT NULL을 유지합니다.
+
+Curriculum 버전과 항목은 물리 삭제하지 않는 정책을 유지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Migration 실행순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+PART 1 순서:
+
+Group 1
+ENUM + swimming_pools
+Group 2
+global_template_sets + diary_templates
+Group 3
+Audit
+Group 5a
+growth_events
+Group 6
+curriculum_versions
+→ curriculum_items
+→ student_curriculum_assignments
+→ curriculum_requests
+→ curriculum_request_files
+→ growth_events FK 2개
+
+어느 Group이든 실패하면 이후 Group을 실행하지 마십시오.
+
+다음 패턴 금지:
+
+.catch(() => {})
+.catch((error) => {
+  console.error(error);
+})
+
+오류를 기록한 뒤 반드시 다시 throw하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. index.ts 실패 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 개별 Promise 오류를 삼키는 구조를 제거하십시오.
+
+목표 동작:
+
+Promise.all([
+  initPoolDb(),
+  initSuperDb(),
+])
+  .then(() => {
+    setServerReady();
+    console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
+  })
+  .catch((error) => {
+    console.error("[FATAL] DB 초기화 실패 — 서버 기동 중단:", error);
+    process.exit(1);
+  });
+
+Repository의 기존 코드 형식에 맞춰 작성하되, 의미는 변경하지 마십시오.
+
+검증:
+
+* initPoolDb() 실패 시 setServerReady() 미호출
+* initSuperDb() 실패 시 setServerReady() 미호출
+* initXModeSchema() 실패 시 프로세스 종료
+* Worker 모드에서도 필수 Migration 실패 시 종료
+* 정상 실행 시 기존 서버 기동 흐름 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 백업 DB 관련 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 다음을 하지 마십시오.
+
+* 백업 DB 스키마 수정
+* backupDb에 initXModeSchema() 실행
+* users.web_pin_hash 추가
+* diary_templates 백업 스키마 확장
+* standby-sync 수정
+* HOT_SYNC_TABLES 수정
+* 백업 DB 전체 Migration 작성
+* 백업 데이터 TRUNCATE 또는 재복제
+* 백업 장애 알림 기능 추가
+
+현재 문제는 보고서에만 남깁니다.
+
+별도 승인 없이 SWIMNOTE X 실행순서에 새로운 WP를 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 구현 후 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제로 수행하십시오.
+
+정적 검사
+
+* TypeScript 타입체크
+* import 오류
+* 사용되지 않는 함수·변수
+* 함수명 충돌
+* SQL 문자열 문법
+
+Migration 검사
+
+* Group 1~3 멱등 재실행
+* Group 5a 멱등 재실행
+* Group 6 최초 실행
+* Group 6 재실행
+* Curriculum 테이블 5개 존재 확인
+* Growth Event FK 2개 존재 확인
+* PART 2 진입점 미호출 확인
+* PART 2 테이블 데이터 0건 유지
+* 기존 운영 데이터 건수 변경 없음
+
+일반모드 회귀검사
+
+* 서버 기동
+* health check 200
+* 기존 로그인
+* 일반 AI 일지 생성
+* 기존 Template 검색
+* 기존 Diary Save
+* 기존 구독 조회
+* 기존 swimming_pools 조회
+
+실패 처리 검사
+
+운영 DB에 실제 장애를 만들지 마십시오.
+
+테스트 또는 Mock으로 확인:
+
+* initPoolDb() reject
+* initSuperDb() reject
+* setServerReady() 미호출
+* 종료 경로 진입
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 중 즉시 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 상황이 발견되면 임의 처리하지 말고 중단하십시오.
+
+* 승인된 Curriculum DDL로 기존 DB와 충돌
+* Growth Event에 기존 데이터 존재
+* PART 2 테이블에 데이터 생성
+* 기존 Migration 함수명과 설계 불일치
+* pool-db-init.ts 수정이 필수로 판명
+* 일반 AI 일지 오류
+* 기존 Template 검색 변화
+* 일반 Diary Save 오류
+* 운영 DB Migration 실패
+* 설계에 없는 파일 수정 필요
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 구현 후 제출할 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료 보고서에 다음을 제출하십시오.
+
+1. 실제 수정 파일
+2. 실제 수정 함수
+3. 핵심 변경 코드
+4. 변경 전·후 실행순서
+5. Curriculum DDL 실제 코드
+6. FK 실제 코드
+7. PART 2 분리 실제 코드
+8. index.ts 실패 처리 실제 코드
+9. 실행한 명령 원문
+10. 타입체크 결과 원문
+11. 테스트 결과 원문
+12. 운영 DB Curriculum 테이블 조회 결과
+13. 운영 DB FK 조회 결과
+14. PART 2 row count
+15. 기존 데이터 건수 비교
+16. 일반모드 회귀테스트 결과
+17. 실패하거나 미실행한 테스트
+18. Commit 여부
+19. Push 여부
+20. 배포 여부
+21. 서버 재시작 여부
+22. 다음 WP 진입 가능 여부
+
+실행하지 않은 항목은 반드시 미실행으로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 배포 승인 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 승인 범위:
+
+* 코드 수정
+* TypeScript 타입체크
+* 로컬 또는 승인된 개발환경 테스트
+
+이번 승인에 포함되지 않는 것:
+
+* Production Migration 실행
+* 운영 DB 변경
+* 서버 재시작
+* Commit
+* Push
+* OTA
+* Render 배포
+* RevenueCat 변경
+* 토이키즈 설정 변경
+
+중요:
+
+운영 DB에는 현재 initXModeSchema()가 서버 시작 시 자동 실행되도록 연결돼 있습니다.
+
+따라서 코드 수정 후 서버를 재시작하면 Group 6이 운영 DB에 적용됩니다.
+
+사용자 별도 승인 전 서버를 재시작하지 마십시오.
+
+코드 작성과 테스트를 완료한 뒤 결과를 제출하고 멈추십시오.

@@ -1,0 +1,156 @@
+[SWIMNOTE 긴급 오류 수정 — STEP 1 최종 누락 보완]
+
+현재 정정본은 거의 완료됐지만 아래 4개를 반영해야 STEP 2를 승인한다.
+코드는 아직 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 관리자 withdraw 전용 경로 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+앞선 Repository 조사에서 다음 경로가 확인됐다.
+
+POST /students/:id/withdraw
+파일: artifacts/api-server/src/routes/admin.ts
+
+현재 동작:
+- class_group_id = NULL 처리
+- student_class_history.left_at 종료 없음
+
+이 경로를 최종 수정 대상에 반드시 포함한다.
+
+처리 순서:
+1. transaction
+2. students SELECT FOR UPDATE
+3. 활성 class history 종료
+4. class_group_id=NULL
+5. assigned_class_ids=[]
+6. schedule_labels=NULL
+7. withdrawn 상태 및 기존 필드 갱신
+8. commit
+
+PATCH /students/:id/status와 POST /students/:id/withdraw 중
+실제 앱에서 어떤 경로가 호출되는지도 호출처까지 명시한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. remove-from-class 기존 즉시 경로 KST 수정 복원
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기존 경로도 수정 대상에 포함한다.
+
+POST /:id/remove-from-class
+- new_status 없음
+- 즉시 처리
+- effective_date 미전달
+
+현재:
+req.body.effective_date || UTC 기반 today
+
+수정:
+req.body.effective_date가 유효한 YYYY-MM-DD이면 그대로 사용
+없으면 kstTodayStr() 사용
+
+즉, students.ts 최종 수정 지점은 최소 3곳이다.
+
+1. change-status immediate
+2. remove-from-class immediate + new_status
+3. remove-from-class immediate + effective_date 미전달 fallback
+
+응답 Contract는 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 전체 반 목록 error 상태를 빈 목록과 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 구조는 금지한다.
+
+allGroupsStatus === "error" ? [] : null
+
+이유:
+조회 실패와 실제 이동 가능한 반 0개가 구분되지 않는다.
+
+ClassDetailSheet에 아래 상태를 명시적으로 전달한다.
+
+classGroups: TeacherClassGroup[] | null
+classGroupsLoadState: "loading" | "loaded" | "error"
+onRetryClassGroups?: () => void
+
+표시 정책:
+
+loading:
+- 로딩 표시
+- 이동 대상 선택 불가
+
+loaded + 타 반 0개:
+- “이동 가능한 반이 없습니다”
+
+error:
+- “반 목록을 불러오지 못했습니다”
+- 재시도 버튼 표시
+
+sortedItems fallback은 계속 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. history 종료 기준을 활성 history 전체로 단순화 검토
+━━━━━━━━━━━━━━━━━━━━━━
+
+suspended, withdrawn, archived, unassigned처럼
+모든 반에서 이탈하는 상태라면 현재 students 필드에서 classIds를 조립하는 방식보다
+아래 SQL이 더 안전한지 검토한다.
+
+UPDATE student_class_history
+SET left_at = effectiveDate
+WHERE student_id = studentId
+  AND left_at IS NULL;
+
+장점:
+- assigned_class_ids와 history가 이미 불일치해도 활성 history를 빠짐없이 종료
+- JSON 파싱과 class ID 중복 제거 불필요
+- 전체 반 이탈 의미와 정확히 일치
+
+단, 특정 반 하나만 제거하는 경로에는 사용 금지.
+그 경우 class_group_id 조건을 유지한다.
+
+최종 유틸은 역할을 분리한다.
+
+A. 전체 반 이탈:
+closeAllActiveClassHistory(tx, studentId, effectiveDate)
+
+B. 특정 반 이탈:
+closeClassHistory(tx, studentId, classGroupId, effectiveDate)
+
+현재 각 endpoint가 A/B 중 어느 쪽인지 표로 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 최종 변경 파일 표 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음을 포함해 다시 제출한다.
+
+- historyUtils.ts
+- students.ts 수정 3곳 이상
+- admin.ts PATCH /students/:id/status
+- admin.ts POST /students/:id/withdraw
+- ClassDetailSheet.tsx
+- my-schedule.tsx
+- today-schedule.tsx
+
+각 경로별:
+- 전체 반 이탈인지
+- 특정 반 이탈인지
+- effectiveDate 출처
+- KST fallback 여부
+- UPDATE되는 students 컬럼
+- history 종료 SQL
+
+을 표로 제출한다.
+
+이 정정본 제출 후 멈춘다.
+
+금지:
+- 코드 수정
+- Commit
+- Push
+- 서버 배포
+- OTA
+- 운영 DB 수정
+- X모드 작업 재개

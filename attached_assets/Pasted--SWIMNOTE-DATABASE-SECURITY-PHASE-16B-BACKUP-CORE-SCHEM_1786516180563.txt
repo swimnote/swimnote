@@ -1,0 +1,538 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16B
+BACKUP CORE SCHEMA REPAIR
+EXACT PRODUCTION MATCH — WRITE PHASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 16A 승인:
+
+BACKUP_REPAIR_SOURCE_OF_TRUTH_VERIFIED ✅
+
+이번 단계부터 실제 POOL_DB WRITE 허용.
+
+단:
+
+Production DB WRITE 절대 금지.
+Production RLS 변경 금지.
+DROP TABLE 금지.
+DROP COLUMN 금지.
+기존 Backup row 삭제 금지.
+standby-sync 코드 변경 금지.
+WP4 금지.
+
+DB TARGET:
+POOL_DATABASE_URL ONLY
+
+━━━━━━━━━━━━━━━━━━━━
+1. 중요 — 이전 SQL 사용 금지
+━━━━━━━━━━━━━━━━━━━━
+
+Phase 16A 보고서에 작성한
+Phase 16C 예시 SQL을 그대로 실행하지 말 것.
+
+이유:
+
+Production에 존재하지 않는 DEFAULT가
+일부 Backup repair SQL에 임의 추가되어 있음.
+
+예:
+
+subscription_plans.tier
+Production DEFAULT = NONE
+
+그런데 제안 SQL:
+DEFAULT 'free'
+→ 금지
+
+platform_banners.title
+Production DEFAULT = NONE
+
+그런데 제안 SQL:
+DEFAULT ''
+→ 금지
+
+backup_logs.target
+Production DEFAULT = NONE
+
+그런데 제안 SQL:
+DEFAULT ''
+→ 금지
+
+payment_logs.swimming_pool_id
+Production DEFAULT = NONE
+
+그런데 제안 SQL:
+DEFAULT ''
+→ 금지
+
+원칙:
+
+BACKUP의 신규 컬럼 정의는
+Production catalog와 정확히 동일해야 한다.
+
+nullable/default/type까지 임의 보정 금지.
+
+Stub는 row=0이므로
+NOT NULL 컬럼도 DEFAULT 없이 ADD 가능하다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. PRE-WRITE DB IDENTITY
+━━━━━━━━━━━━━━━━━━━━
+
+POOL_DATABASE_URL 접속 후:
+
+database
+host
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+제출.
+
+반드시 Backup DB인지 확인.
+
+SUPABASE_DATABASE_URL이면 즉시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 기존 Stub 상태 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+다음 10개:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+각각:
+
+row_count = 0
+column = column1 only
+column1 nullable=true
+FK=0
+view dependency=0
+trigger=0
+
+다시 확인.
+
+하나라도 달라졌으면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. ENUM 4개 EXACT CLONE
+━━━━━━━━━━━━━━━━━━━━
+
+Backup에 다음 enum 존재 여부 확인:
+
+approval_status
+subscription_status
+user_role
+xmode_config_status_enum
+
+없을 경우에만 Production과 정확히 동일하게 생성.
+
+실제 Production 값:
+
+approval_status:
+pending
+approved
+rejected
+
+subscription_status:
+trial
+active
+expired
+suspended
+cancelled
+payment_failed
+pending_deletion
+deleted
+
+user_role:
+super_admin
+pool_admin
+parent
+teacher
+
+xmode_config_status_enum:
+NOT_CONFIGURED
+CURRICULUM_PENDING
+READY
+
+생성 후 pg_catalog read-back.
+
+순서까지 동일해야 함.
+
+global_template_status_enum
+growth_match_status_enum
+
+이번 Phase에서는 생성 금지.
+현재 repair 대상에 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 10개 STUB ADDITIVE REPAIR
+━━━━━━━━━━━━━━━━━━━━
+
+DROP 금지.
+
+column1을 그대로 둔 상태에서:
+
+ALTER TABLE ADD COLUMN
+ADD CONSTRAINT
+CREATE INDEX
+
+방식으로만 수리.
+
+대상:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+각 테이블의 컬럼 정의는
+Phase 16A에서 추출한 Production catalog를
+다시 직접 조회하여 SQL을 생성할 것.
+
+중요:
+
+- data type exact
+- enum exact
+- nullable exact
+- default exact
+- PK exact
+- UNIQUE exact
+- CHECK exact
+- index exact
+
+Production default가 NULL/없음이면
+Backup에도 DEFAULT 추가 금지.
+
+사람이 편의상 DEFAULT '' / 0 / free 등을
+추가하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+6. SQL GENERATION GATE
+━━━━━━━━━━━━━━━━━━━━
+
+실행 전에 생성된 repair SQL을 자체 검증.
+
+각 신규 컬럼:
+
+Production:
+type
+nullable
+default
+
+Backup proposed:
+type
+nullable
+default
+
+비교.
+
+MISMATCH COUNT가 반드시 0이어야 함.
+
+0이 아니면 SQL 실행 금지.
+
+제출:
+
+PROPOSED_COLUMN_COUNT
+TYPE_MISMATCH
+NULLABILITY_MISMATCH
+DEFAULT_MISMATCH
+
+기대:
+
+TYPE_MISMATCH = 0
+NULLABILITY_MISMATCH = 0
+DEFAULT_MISMATCH = 0
+
+━━━━━━━━━━━━━━━━━━━━
+7. APPLY
+━━━━━━━━━━━━━━━━━━━━
+
+Gate 통과 후에만
+POOL_DATABASE_URL에 실행.
+
+반드시 transaction 사용 가능한 범위는
+transaction으로 묶는다.
+
+한 테이블 실패 시
+오류 원인 제출 후 STOP.
+
+Production에는 어떤 SQL도 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. POST SCHEMA DIFF
+━━━━━━━━━━━━━━━━━━━━
+
+10개 테이블에 대해
+Production ↔ Backup 다시 비교.
+
+column1은 Backup에만 남는
+허용된 extra column이다.
+
+따라서 판정:
+
+REQUIRED_PRODUCTION_COLUMNS_MATCH
+
+기준으로 비교.
+
+각 테이블에서:
+
+MISSING_PRODUCTION_COLUMNS = 0
+TYPE_MISMATCH = 0
+NULLABILITY_MISMATCH = 0
+DEFAULT_MISMATCH = 0
+
+확인.
+
+PK/UNIQUE/CHECK/index도
+Production 필수 항목이 모두 존재하는지 확인.
+
+column1 하나만 EXTRA 허용.
+
+━━━━━━━━━━━━━━━━━━━━
+9. standby-sync INSERT COMPATIBILITY TEST
+━━━━━━━━━━━━━━━━━━━━
+
+아직 scheduler 코드 수정 금지.
+
+Production에서 실제 row를 읽고
+standby-sync가 사용하는 것과 동일한
+명시적 column list 구조가
+Backup schema에서 모두 유효한지 확인.
+
+실제 Production 데이터를
+임의로 변경하지 말 것.
+
+가능하면 기존 replicateTable을
+강제로 실행하지 말고 schema compatibility를
+먼저 검증.
+
+10개 각각:
+
+INSERT_COLUMN_COMPATIBLE YES/NO
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 실제 HOT_SYNC 검증
+━━━━━━━━━━━━━━━━━━━━
+
+schema compatibility가 모두 YES면
+기존 standby-sync의 정상 주기 또는
+안전한 기존 실행 함수로 HOT sync 1회 실행 가능.
+
+새로운 임시 sync 코드 작성 금지.
+
+확인 대상:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+feature_flag_overrides
+pool_credits
+
+pool_credits:
+
+Production에 아직 table이 없으므로
+현재는 오류가 발생할 수 있음.
+
+이 오류만 별도로:
+
+EXPECTED_LAZY_TABLE_MISSING
+
+으로 분류.
+
+pool_credits 때문에
+다른 6개 성공 여부를 실패 처리하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 핵심 ROW COUNT
+━━━━━━━━━━━━━━━━━━━━
+
+HOT sync 후:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+
+Production COUNT
+Backup COUNT
+
+비교.
+
+기대:
+
+동기화 직후 동일.
+
+단 sync 동작 방식상 차이가 있으면
+정확한 이유 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+12. FULL_SYNC 대상 compatibility
+━━━━━━━━━━━━━━━━━━━━
+
+이번에 수리한:
+
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+5개는 FULL_SYNC_EXTRA/관련 sync에서
+INSERT 가능 상태인지 확인.
+
+실제 6시간을 기다릴 필요 없음.
+
+기존 안전한 실행 함수가 있으면
+수동 1회 검증 가능.
+
+Production/Backup row count 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+13. students는 이번 Phase에서 수정 금지
+━━━━━━━━━━━━━━━━━━━━
+
+students는 stub가 아니며
+기존 Backup schema/data 구조가 따로 있음.
+
+이번 Phase에서는 건드리지 않는다.
+
+Phase 16C에서 별도 additive repair.
+
+━━━━━━━━━━━━━━━━━━━━
+14. RLS 아직 적용 금지
+━━━━━━━━━━━━━━━━━━━━
+
+Backup RLS는 아직 0/50 상태 유지.
+
+이유:
+
+schema repair가 끝나기 전 RLS 적용하면
+검증 단계가 섞임.
+
+이번 Phase에서는 RLS 변경 0.
+
+━━━━━━━━━━━━━━━━━━━━
+15. pool_credits 처리
+━━━━━━━━━━━━━━━━━━━━
+
+pool_credits는 dead reference가 아님.
+
+standby-sync 목록에서 삭제 금지.
+
+이번 Phase에서는 코드 수정도 금지.
+
+최종 보고에:
+
+POOL_CREDITS_LAZY_INIT_ACTIVE
+
+로 기록.
+
+graceful skip은 별도 Phase에서 수정.
+
+━━━━━━━━━━━━━━━━━━━━
+16. INVENTORY 분류 오류 정정
+━━━━━━━━━━━━━━━━━━━━
+
+Phase 16A의 Production-only 56 분류에서:
+
+audit_entity_versions가
+REGENERATABLE과 CURRENTLY_UNUSED에 중복됨.
+
+REGENERATABLE 표기 count도
+목록과 불일치.
+
+56개 unique table 기준으로
+분류를 다시 정리하되
+이번 작업의 핵심 수리를 방해하지 않도록
+짧게 정정만 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+17. RENDER LOG
+━━━━━━━━━━━━━━━━━━━━
+
+수리 및 sync 검증 후:
+
+standby-sync
+permission denied
+column does not exist
+relation does not exist
+duplicate
+constraint
+enum
+pool_credits
+
+검색.
+
+기존 오류와 신규 오류 구분.
+
+━━━━━━━━━━━━━━━━━━━━
+18. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. Backup DB identity
+2. stub 10개 pre-state
+3. enum 4개 before/after
+4. generated SQL exact-match gate
+5. 실제 실행 SQL 요약
+6. 10개 post schema
+7. missing Production columns
+8. type mismatch
+9. nullable mismatch
+10. default mismatch
+11. constraint/index mismatch
+12. INSERT compatibility
+13. HOT sync 결과
+14. 핵심 5개 row count
+15. FULL 대상 5개 상태
+16. pool_credits 상태
+17. Render 오류
+18. Production 변경 여부
+19. Backup RLS 변경 여부
+20. inventory 분류 정정
+21. rollback 여부
+22. 최종 판정
+
+성공 시:
+
+BACKUP_CORE_SCHEMA_REPAIRED ✅
+HOT_SYNC_CORE_REPLICATION_VERIFIED ✅
+
+pool_credits lazy-init 오류만 남으면:
+
+BACKUP_CORE_SCHEMA_REPAIRED ✅
+HOT_SYNC_CORE_REPLICATION_VERIFIED_WITH_POOL_CREDITS_PENDING ✅
+
+실패 시:
+
+BACKUP_CORE_SCHEMA_REPAIR_BLOCKED
+
+STOP.
+
+Production 변경 금지.
+DROP 금지.
+RLS 변경 금지.
+standby-sync 코드 변경 금지.
+WP4 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

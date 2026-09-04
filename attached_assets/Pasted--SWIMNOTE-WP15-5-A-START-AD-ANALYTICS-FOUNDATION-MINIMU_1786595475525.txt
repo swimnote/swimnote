@@ -1,0 +1,581 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE — WP15.5-A START
+AD ANALYTICS FOUNDATION
+MINIMUM SETTING ONLY
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+WP15_CLOSED ✅
+current functional SHA:
+d196d9fa
+
+이번에는 WP15.5-A만 진행.
+
+WP15.5-B SuperAdmin 광고 대시보드
+WP15.5-C Parent 광고 슬롯
+WP16 성장리포트
+커리큘럼 검색
+
+전부 자동 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 목적
+━━━━━━━━━━━━━━━━━━━━
+
+지금 광고 플랫폼을 만들지 않는다.
+
+향후 실제 광고주가 들어왔을 때:
+
+활성사용자
+→ 예상 도달
+→ 광고 노출
+→ Unique Reach
+→ Frequency
+→ Click
+→ CTR
+→ 지역/연령/기간 성과
+
+를 대규모 구조변경 없이 붙일 수 있도록
+데이터/이벤트 계약과 확장 위치만 고정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━
+
+전체 Repository 전수조사 금지.
+
+광고 analytics에 필요한 관련 영역만 확인:
+
+- users / parent accounts
+- students
+- swimming_pools
+- 로그인/접속 timestamp
+- notifications
+- feeds/diaries
+- photos/videos/albums
+- AI usage / ai traces
+- event_logs / analytics logger
+- SuperAdmin existing stats
+
+이미 검증된:
+RLS
+Backup
+Worker
+Makeup
+Growth Review
+Audit Viewer
+
+재검사 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 먼저 CAPABILITY AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+아래 지표 각각을 정확히 세 분류:
+
+A. AVAILABLE_NOW
+현재 DB에서 정확히 계산 가능
+
+B. NEEDS_EVENT_TRACKING
+이벤트 instrumentation이 있어야 정확히 계산 가능
+
+C. DEFERRED_AD_SYSTEM
+실제 광고 캠페인 시스템이 생겨야 계산 가능
+
+검토 대상:
+
+PLATFORM
+- 전체 수영장
+- 활성 수영장
+- BASIC 수영장
+- X 수영장
+- 전체 학생
+- 활성 학생
+- 전체 parent 계정
+- 활성 parent
+- 지역별 수영장 분포
+- 지역별 학생/parent 분포
+
+ACTIVITY
+- DAU
+- WAU
+- MAU
+- parent DAU/WAU/MAU
+- 평균 접속 횟수
+- 평균 세션 수
+- 재방문율
+- notification open/entry
+
+CONTENT
+- feed view
+- photo view
+- video view
+- notice view
+- report view
+- AI search/use
+- SNS share
+- Instagram Story share
+
+AD
+- impressions
+- unique reach
+- frequency
+- clicks
+- CTR
+- detail view
+- external open
+- promotion action
+- conversion
+
+근거 없는 값을
+AVAILABLE_NOW로 분류 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 활성 사용자 정의 확인
+━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+"활성 parent"를 임의 정의하지 말 것.
+
+현재 repo에:
+- last_login_at
+- last_active_at
+- session
+- event log
+- token refresh
+- app open
+등 실제 source가 있는지 확인.
+
+정확한 활동 source가 없으면:
+NEEDS_EVENT_TRACKING
+
+으로 분류.
+
+등록 계정 수를 활성사용자로 부르지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+5. ANALYTICS EVENT NAMESPACE 고정
+━━━━━━━━━━━━━━━━━━━━
+
+향후 SWIMNOTE analytics event 이름을
+문서/contract에 고정:
+
+APP_SESSION
+FEED_VIEW
+PHOTO_VIEW
+VIDEO_VIEW
+NOTICE_VIEW
+REPORT_VIEW
+AI_SEARCH
+SNS_SHARE
+INSTAGRAM_STORY_SHARE
+NOTIFICATION_OPEN
+
+향후 광고:
+
+AD_IMPRESSION
+AD_CLICK
+AD_DETAIL_VIEW
+AD_EXTERNAL_OPEN
+AD_PROMOTION_ACTION
+AD_CONVERSION
+
+이벤트 이름을 여러 방식으로 중복 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+6. EVENT COMMON CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+향후 analytics event 공통 필드:
+
+event_type
+occurred_at
+
+가능하면:
+user_id
+swimming_pool_id
+role
+
+optional:
+content_type
+content_id
+region_code
+child_age_band
+campaign_id
+creative_id
+placement
+metadata
+
+중요:
+
+metadata에 개인정보 원문 저장 금지.
+
+금지 예:
+parent_name
+student_name
+phone
+diary_text
+AI prompt 전체
+AI response 전체
+
+━━━━━━━━━━━━━━━━━━━━
+7. 사용자/자녀 관계 주의
+━━━━━━━━━━━━━━━━━━━━
+
+한 parent가 여러 child를 가질 수 있음.
+
+향후 age targeting에서
+parent를 child 수만큼 중복 count 하면 안 됨.
+
+예:
+
+"초등 저학년 자녀를 가진 active parent reach"
+
+는:
+조건을 만족하는 child가 2명이어도
+parent unique = 1
+
+이 원칙을 설계에 명시.
+
+━━━━━━━━━━━━━━━━━━━━
+8. AGE BAND 계약
+━━━━━━━━━━━━━━━━━━━━
+
+실제 생년월일/나이 source가 있는지 확인.
+
+있다면 향후 집계용 age band contract만 정의.
+
+예시는 실제 SWIMNOTE 요구에 맞게:
+
+preschool
+elementary_lower
+elementary_upper
+middle_school_plus
+
+또는 repo의 실제 age/grade 데이터 구조 기준.
+
+지금 hardcode 구현이 불필요하면
+문서 contract만.
+
+생년월일이 없는데 나이를 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. REGION 계약
+━━━━━━━━━━━━━━━━━━━━
+
+지역은 개인 주소가 아니라
+수영장 location을 기본 targeting source로 우선 검토.
+
+향후 최소:
+
+province
+city
+district
+
+또는 실제 DB 주소 구조 기준.
+
+정확히 parsing할 source가 없다면
+NEEDS_NORMALIZATION로 문서에 기록.
+
+이번 WP에서 주소 전체 정규화 migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 광고 KPI 공식 고정
+━━━━━━━━━━━━━━━━━━━━
+
+향후 공식 정의를 source-of-truth 문서에 기록:
+
+Impressions
+= 광고 creative가 실제 사용자 화면에
+노출 완료된 횟수
+
+Unique Reach
+= 지정 기간 내 해당 광고를
+1회 이상 노출받은 unique user 수
+
+Frequency
+= Impressions / Unique Reach
+
+Clicks
+= 광고 클릭 action 횟수
+
+CTR
+= Clicks / Impressions
+
+External Opens
+= destination URL 실제 open action
+
+Conversion
+= 향후 정의된 conversion event
+
+분모 0:
+항상 0
+
+NaN / Infinity 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 광고 슬롯 계약
+━━━━━━━━━━━━━━━━━━━━
+
+WP15.5-C에서 사용할 placement 이름만
+미리 contract로 정의.
+
+최소:
+
+PARENT_HOME_BANNER
+
+향후 확장 가능:
+
+PARENT_FEED_INLINE
+PARENT_REPORT
+PARENT_NOTICE
+
+단 이번 WP에서
+실제 광고 렌더링 금지.
+
+PARENT_HOME_BANNER를
+첫 프리미엄 슬롯 기준으로 기록.
+
+━━━━━━━━━━━━━━━━━━━━
+12. FUTURE AD DATA MODEL
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서는 DB table 생성 금지.
+
+문서상 future entities만 정의:
+
+advertisers
+ad_campaigns
+ad_creatives
+ad_placements
+ad_impressions
+ad_clicks
+ad_conversions
+
+최소 관계:
+
+Advertiser
+→ Campaign
+→ Creative
+→ Placement
+→ Impression / Click
+
+Campaign future fields:
+
+id
+advertiser_id
+name
+status
+start_at
+end_at
+target_region
+target_age_band
+budget/pricing future
+
+Creative:
+
+id
+campaign_id
+creative_type
+headline
+body_text
+image_url
+destination_url
+effect_type
+display_order
+is_active
+
+실제 migration은 광고사업 시작 시.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 소재/효과 contract
+━━━━━━━━━━━━━━━━━━━━
+
+향후 creative type:
+
+TEXT
+IMAGE
+IMAGE_WITH_TEXT
+ANIMATED
+SLIDESHOW
+SHORT_VIDEO
+
+향후 effect type:
+
+NONE
+FADE
+SLIDE
+CAROUSEL
+
+이번 WP에서는 enum/table 구현 금지.
+
+문서 contract만.
+
+━━━━━━━━━━━━━━━━━━━━
+14. MULTIPLE ADS 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+향후 DB/API는
+단일 광고 전제 금지.
+
+여러 Campaign/Creative 등록 가능.
+
+단 UX 원칙:
+
+한 화면에 광고 여러 개 도배 금지.
+
+한 placement에는
+프리미엄 광고 1개 중심으로 렌더.
+
+여러 광고는 향후:
+
+기간
+priority
+rotation
+지역
+연령
+
+등으로 선택.
+
+이번 WP에서 selection engine 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. EVENT INSTRUMENTATION 판단
+━━━━━━━━━━━━━━━━━━━━
+
+기존 event logger가 있고
+1~2줄 수준으로 아주 쉽게 연결 가능한
+핵심 이벤트가 있다면 후보를 보고.
+
+하지만 이번 WP에서
+앱 여러 화면 수정이 필요하면 하지 말 것.
+
+원칙:
+
+지금은 "어디에 붙일지"가 중요하다.
+
+대형 instrumentation 작업은
+WP15.5-B/C 또는 후속 광고 WP로 DEFER.
+
+━━━━━━━━━━━━━━━━━━━━
+16. SOURCE-OF-TRUTH 문서
+━━━━━━━━━━━━━━━━━━━━
+
+광고 analytics 설계 문서를
+프로젝트 memory/docs 위치에 저장.
+
+예:
+
+AD_ANALYTICS_FOUNDATION.md
+
+실제 repository convention 우선.
+
+문서에 반드시 포함:
+
+1. capability matrix
+2. event namespace
+3. event common contract
+4. KPI definitions
+5. region/age targeting rule
+6. unique parent counting rule
+7. future ad entities
+8. placement contract
+9. creative/effect contract
+10. deferred implementation list
+
+━━━━━━━━━━━━━━━━━━━━
+17. 코드 변경 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP는
+문서 + 최소 contract가 중심.
+
+코드 변경이 필요 없으면
+코드 수정하지 말 것.
+
+가짜 analytics table 생성 금지.
+가짜 event 생성 금지.
+더미 숫자 생성 금지.
+
+SuperAdmin UI 변경은
+WP15.5-B에서 진행.
+
+Parent UI 변경은
+WP15.5-C에서 진행.
+
+━━━━━━━━━━━━━━━━━━━━
+18. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+문서만 변경이면
+전체 test 재실행 금지.
+
+코드 contract/helper를 추가했다면
+관련 test만 실행.
+
+기존 371 TC 전체를
+이유 없이 다시 돌려 credit 낭비 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+19. GIT / DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+문서/memory only 변경이면:
+
+commit 가능.
+Render deploy 금지.
+OTA 금지.
+
+실제 runtime code 변경이 있을 때만
+필요한 deploy 판단.
+
+commit 예:
+
+docs(ad): define advertising analytics foundation
+
+또는 실제 변경 범위에 맞게.
+
+origin push.
+
+━━━━━━━━━━━━━━━━━━━━
+20. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 표로 제출:
+
+A. AVAILABLE_NOW
+B. NEEDS_EVENT_TRACKING
+C. DEFERRED_AD_SYSTEM
+
+그리고:
+
+1. 실제 activity source 확인 결과
+2. region source
+3. age source
+4. event namespace
+5. KPI contract
+6. placement contract
+7. future data model
+8. creative/effect contract
+9. 작성 문서
+10. changed files
+11. tests
+12. deploy 여부
+13. commit/origin
+14. 다음 WP에서 실제로 해야 할 것
+
+성공 시:
+
+AD_ANALYTICS_FOUNDATION_READY ✅
+
+AD_PLATFORM_IMPLEMENTATION = DEFERRED
+
+STOP.
+
+WP15.5-B 자동 시작 금지.
+WP15.5-C 자동 시작 금지.
+WP16 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

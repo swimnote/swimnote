@@ -1,0 +1,213 @@
+# [DIARY TEMPLATE MATERIALIZATION — PRODUCTION BACKFILL + ELIGIBILITY VERIFY]
+
+전제:
+
+Production migration PASS
+Render target SHA:
+9e8ef38d
+
+Render 배포 완료 후 이 단계 실행.
+
+목표:
+
+각 X 수영장별로
+실제 diary_templates를 curriculum_items로 materialize하고
+Parent Curriculum Search eligibility를 검증한다.
+
+==================================================
+1. 대상 X POOL 탐색
+==================================================
+
+Production에서 현재 X mode인 pool 목록 확인.
+
+각 pool마다:
+
+- pool_id
+- pool name
+- active effective diary_templates count
+- current curriculum_items count
+
+보고.
+
+Toykids만 하드코딩하지 않는다.
+
+==================================================
+2. GENERIC BACKFILL
+==================================================
+
+각 X pool에 대해 generic 함수 사용:
+
+syncDiaryTemplatesToCurriculumItems(poolId)
+
+반드시 pool별로 독립 실행.
+
+source 기준은 현재 구현된 effective diary template rule 그대로 사용.
+
+금지:
+
+- pool 간 합산
+- 다른 pool template 복사
+- Toykids default fallback
+- teacher/x_global 혼입
+- artificial item inflation
+
+==================================================
+3. BACKFILL 결과
+==================================================
+
+각 pool별 확인:
+
+- source template count
+- managed curriculum_version
+- curriculum_items total
+- active curriculum_items
+- source_template_id non-null count
+- duplicates
+
+기대:
+
+1 source template
+→ 1 curriculum_item
+
+동일 sync 재실행 시 count 불변.
+
+==================================================
+4. TOYKIDS 검증
+==================================================
+
+pool:
+pool_1780849364252_l9k44rbk3
+
+현재 예상:
+
+effective diary_templates = 350
+
+backfill 후 기대:
+
+active curriculum_items = 350
+
+확인:
+
+- 정확히 350인지
+- duplicate 0
+- teacher 12개 제외
+- title = level_name
+- description = template_text
+- source_template_id 연결 정상
+
+임의 20개 sample quality 확인.
+
+==================================================
+5. ELIGIBILITY 검증
+==================================================
+
+각 X pool별:
+
+active searchable curriculum_items >=300
+→ eligible=true
+
+<300
+→ eligible=false
+→ CURRICULUM_NOT_READY
+
+특히 Toykids:
+
+350 예상
+→ eligible=true 기대
+
+Normal pool:
+변경 없이 blocked 유지.
+
+==================================================
+6. SEARCH SMOKE
+==================================================
+
+Toykids eligible=true 확인 후
+최소 1회만 authenticated Parent Curriculum Search 실행.
+
+확인:
+
+- selected student의 pool_id 기준
+- Toykids curriculum_items만 사용
+- 다른 pool curriculum 혼입 없음
+- response 정상
+- raw error 없음
+- conversation/history 정상
+- quota 정책 정상
+
+불필요한 반복 AI 호출 금지.
+
+==================================================
+7. IDEMPOTENCY SMOKE
+==================================================
+
+Toykids sync를 한 번 더 실행.
+
+확인:
+
+before active item count = 350
+after active item count = 350
+duplicate = 0
+
+==================================================
+8. 금지
+==================================================
+
+- schema 추가 변경 금지
+- global_template_sets 사용 금지
+- diary_templates x_global 생성 금지
+- 300 threshold 변경 금지
+- quota 변경 금지
+- 전체 regression 금지
+- OTA 재배포 금지
+
+==================================================
+9. 완료 보고
+==================================================
+
+[DIARY TEMPLATE MATERIALIZATION PRODUCTION FINAL REPORT]
+
+A. RENDER
+- repo:
+- branch:
+- deployed SHA:
+- healthz:
+
+B. X POOLS
+각 pool별:
+- pool_id:
+- pool name:
+- source templates:
+- active curriculum_items:
+- eligible:
+- reason:
+
+C. TOYKIDS
+- source templates:
+- curriculum_items:
+- active:
+- teacher excluded:
+- duplicate count:
+- sample quality:
+- second sync count:
+- idempotent:
+
+D. SEARCH
+- authenticated smoke:
+- student:
+- pool authority:
+- answer mode:
+- other pool contamination:
+- quota charged:
+- raw error:
+
+E. SAFETY
+- Normal policy unchanged:
+- global template fallback used: NO
+- schema changed after migration: NO
+- Production data loss: NO
+
+FINAL STATUS:
+
+PASS이면:
+CURRICULUM SEARCH V1 = COMPLETE

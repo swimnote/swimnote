@@ -1,0 +1,268 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPLETED IOS BUILD AUTO SUBMIT TO TESTFLIGHT
+#
+# 중요:
+# iOS 빌드는 이미 완료됐다.
+# 새 빌드 생성 금지.
+#
+# 현재 완료된 Build ID:
+# 407992ed-2bae-441f-8c1e-061e60012f7e
+#
+# 목적:
+# 이 기존 완료 빌드를
+# App Store Connect / TestFlight로 제출한다.
+#
+# Production App Store Release:
+# NO
+#
+# TestFlight 제출만.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Version:
+2.0.0
+
+Build number:
+253
+
+Profile:
+production-v2
+
+Existing completed iOS Build ID:
+407992ed-2bae-441f-8c1e-061e60012f7e
+
+============================================================
+1. 절대 금지
+============================================================
+
+새 eas build:
+NO
+
+build number 변경:
+NO
+
+version 변경:
+NO
+
+source code 변경:
+NO
+
+OTA:
+NO
+
+1.6.3:
+NO TOUCH
+
+Render:
+NO
+
+Production DB:
+NO
+
+App Store Production Release:
+NO
+
+============================================================
+2. 현재 BUILD 상태 확인
+============================================================
+
+먼저 Build ID:
+
+407992ed-2bae-441f-8c1e-061e60012f7e
+
+의 실제 상태 확인.
+
+반드시:
+
+FINISHED / SUCCESS
+
+인지 확인.
+
+실패/취소 상태면 제출 금지하고 보고.
+
+============================================================
+3. 기존 완료 BUILD를 iOS SUBMIT
+============================================================
+
+새 build를 생성하지 말고
+기존 Build ID를 직접 사용해서 submit.
+
+권장 방식:
+
+eas submit --platform ios --id 407992ed-2bae-441f-8c1e-061e60012f7e
+
+현재 프로젝트에서 submit profile이 명시적으로 필요하면
+기존 production-v2 또는 기존 검증된 iOS submit profile 사용.
+
+새 submit profile 임의 생성 금지.
+
+============================================================
+4. AUTO SUBMIT / NON-INTERACTIVE
+============================================================
+
+가능하면 non-interactive 방식으로 완료.
+
+목표:
+
+EAS
+→ App Store Connect
+→ TestFlight
+
+까지 제출.
+
+Apple credential / ASC API key / App Store Connect 설정이
+이미 연결되어 있으면 기존 자격증명 재사용.
+
+새 credential 생성 금지.
+
+============================================================
+5. APP STORE CONNECT 확인
+============================================================
+
+submit 성공 후 확인:
+
+- Bundle ID
+- Version 2.0.0
+- Build 253
+- Processing 상태
+- TestFlight build 등록 여부
+
+중요:
+
+"uploaded"
+와
+"TestFlight processing"
+와
+"ready to test"
+
+를 구분해서 보고.
+
+============================================================
+6. INTERNAL TESTING
+============================================================
+
+기존 TestFlight internal tester group이
+자동 연결되는 현재 설정이 있으면 그대로 사용.
+
+기존 group이 없다면
+새 그룹을 임의 생성하지 말고 보고.
+
+이번 목적은
+사용자가 TestFlight에서 설치 가능한 상태까지 만드는 것.
+
+External Beta Review:
+NO
+
+Production Review:
+NO
+
+App Store Release:
+NO
+
+============================================================
+7. 자동 제출까지 완료 후 STOP
+============================================================
+
+TestFlight processing 이후
+사용자 설치 가능 상태가 되면 STOP.
+
+Production submission:
+절대 진행 금지.
+
+============================================================
+8. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 IOS SUBMIT REPORT
+
+## BUILD
+
+Build ID:
+407992ed-2bae-441f-8c1e-061e60012f7e
+
+Build status:
+...
+
+Version:
+2.0.0
+
+Build number:
+253
+
+New build created:
+NO
+
+## SUBMIT
+
+Submit command:
+...
+
+Submit profile:
+...
+
+Submit:
+SUCCESS / FAIL
+
+Submission ID:
+...
+
+## APP STORE CONNECT
+
+Bundle ID:
+...
+
+Version:
+2.0.0
+
+Build:
+253
+
+Upload received:
+YES / NO
+
+TestFlight processing:
+YES / NO
+
+Ready to test:
+YES / NO
+
+Internal tester group:
+...
+
+External review:
+NO
+
+Production review:
+NO
+
+## SAFETY
+
+1.6.3 touched:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+App Store Production Release:
+NO
+
+## FINAL
+
+SWIMNOTE 2.0 BUILD 253 SUBMITTED TO TESTFLIGHT
+
+또는
+
+TESTFLIGHT SUBMIT BLOCKED — EXACT ISSUE

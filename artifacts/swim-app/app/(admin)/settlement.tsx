@@ -3,7 +3,7 @@
  * 주간 횟수별 회원수 × 수업료 = 매출 상세
  * 총 수업시수 = Σ(회원수 × 주간횟수)
  */
-import { ChevronLeft, ChevronRight, CircleAlert, Clock, Settings, TriangleAlert } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -63,9 +63,9 @@ interface SummaryData {
 }
 
 const GROUP_COLORS: Record<string, { color: string; bg: string; border: string }> = {
-  weekly_1: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
-  weekly_2: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
-  weekly_3: { color: "#0F172A", bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_1: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_2: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
+  weekly_3: { color: C.textPrimary, bg: "#FFFFFF", border: "#CBD5E1" },
 };
 
 export default function SettlementScreen() {
@@ -97,7 +97,7 @@ export default function SettlementScreen() {
       {/* 월 선택 */}
       <View style={s.monthRow}>
         <Pressable style={s.monthBtn} onPress={() => setMonth(prevMonth(month))}>
-          <ChevronLeft size={20} color={C.text} />
+          <LucideIcon name="chevron-left" size={20} color={C.text} />
         </Pressable>
         <View style={{ alignItems: "center" }}>
           <Text style={s.monthTxt}>{fmtMonth(month)}</Text>
@@ -112,7 +112,7 @@ export default function SettlementScreen() {
           onPress={() => month < todayYM && setMonth(nextMonth(month))}
           disabled={month >= todayYM}
         >
-          <ChevronRight size={20} color={C.text} />
+          <LucideIcon name="chevron-right" size={20} color={C.text} />
         </Pressable>
       </View>
 
@@ -120,7 +120,7 @@ export default function SettlementScreen() {
         <ActivityIndicator style={{ flex: 1 }} color={themeColor} />
       ) : !data ? (
         <View style={s.empty}>
-          <CircleAlert size={40} color={C.border} />
+          <LucideIcon name="alert-circle" size={40} color={C.border} />
           <Text style={s.emptyTxt}>데이터를 불러올 수 없습니다</Text>
         </View>
       ) : (
@@ -135,9 +135,9 @@ export default function SettlementScreen() {
               style={s.warningCard}
               onPress={() => router.push("/(admin)/pool-settings?backTo=settlement" as any)}
             >
-              <TriangleAlert size={16} color="#D97706" />
+              <LucideIcon name="alert-triangle" size={16} color="#D97706" />
               <Text style={s.warningTxt}>수업 단가가 설정되지 않았습니다. 수업 설정에서 단가표를 등록하세요.</Text>
-              <ChevronRight size={16} color="#D97706" />
+              <LucideIcon name="chevron-right" size={16} color="#D97706" />
             </Pressable>
           )}
 
@@ -175,7 +175,7 @@ export default function SettlementScreen() {
             </View>
           ) : (
             data.groups.map(g => {
-              const palette = GROUP_COLORS[g.type_key] || { color: "#64748B", bg: "#FFFFFF", border: C.border };
+              const palette = GROUP_COLORS[g.type_key] || { color: C.textSecondary, bg: "#FFFFFF", border: C.border };
               return (
                 <View key={g.type_key} style={[s.groupCard, { borderColor: palette.border, backgroundColor: palette.bg }]}>
                   {/* 헤더 */}
@@ -197,7 +197,7 @@ export default function SettlementScreen() {
 
                   {/* 시수 */}
                   <View style={[s.sessionRow, { borderColor: palette.border }]}>
-                    <Clock size={13} color={palette.color} />
+                    <LucideIcon name="clock" size={13} color={palette.color} />
                     <Text style={[s.sessionTxt, { color: palette.color }]}>
                       수업시수 {g.student_count}명 × {g.weekly_count}시수 = <Text style={{ fontWeight: "800" }}>{g.sessions}시수</Text>
                     </Text>
@@ -230,9 +230,9 @@ export default function SettlementScreen() {
             style={[s.settingBtn, { borderColor: themeColor + "60" }]}
             onPress={() => router.push("/(admin)/pool-settings?backTo=settlement" as any)}
           >
-            <Settings size={15} color={themeColor} />
+            <LucideIcon name="settings" size={15} color={themeColor} />
             <Text style={[s.settingBtnTxt, { color: themeColor }]}>수업 단가표 설정하기</Text>
-            <ChevronRight size={15} color={themeColor} />
+            <LucideIcon name="chevron-right" size={15} color={themeColor} />
           </Pressable>
 
           {/* 계산 기준 안내 */}
@@ -253,13 +253,13 @@ export default function SettlementScreen() {
 function CalcCell({ label, value, color, bold }: { label: string; value: string; color: string; bold?: boolean }) {
   return (
     <View style={{ alignItems: "center", flex: 1 }}>
-      <Text style={{ fontSize: 10, color: "#64748B", marginBottom: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 10, color: C.textSecondary, marginBottom: 2 }}>{label}</Text>
       <Text style={{ fontSize: 13, fontWeight: bold ? "800" : "700", color }}>{value}</Text>
     </View>
   );
 }
 function CalcOp({ op }: { op: string }) {
-  return <Text style={{ fontSize: 16, color: "#64748B", paddingTop: 10 }}>{op}</Text>;
+  return <Text style={{ fontSize: 16, color: C.textSecondary, paddingTop: 10 }}>{op}</Text>;
 }
 
 const s = StyleSheet.create({
@@ -291,11 +291,11 @@ const s = StyleSheet.create({
   extraRow:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14 },
   extraName:      { fontSize: 14, fontWeight: "700", color: C.text },
   extraSub:       { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  extraCount:     { fontSize: 16, fontWeight: "700", color: "#64748B" },
+  extraCount:     { fontSize: 16, fontWeight: "700", color: C.textSecondary },
   settingBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, marginBottom: 16 },
   settingBtnTxt:  { fontSize: 14, fontWeight: "700" },
-  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
-  warningTxt:     { flex: 1, fontSize: 12, color: "#0F172A", fontWeight: "600" },
+  warningCard:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandMist, borderWidth: 1.5, borderColor: "#CBD5E1", borderRadius: 12, padding: 14, marginBottom: 14 },
+  warningTxt:     { flex: 1, fontSize: 12, color: C.textPrimary, fontWeight: "600" },
   infoCard:       { backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, gap: 5 },
   infoTitle:      { fontSize: 13, fontWeight: "700", color: C.text, marginBottom: 3 },
   infoItem:       { fontSize: 11, color: C.textSecondary, lineHeight: 17 },

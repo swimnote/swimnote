@@ -1,0 +1,282 @@
+# [SWIMNOTE AI DATA RUNTIME — ARCHITECTURE AUDIT]
+
+중요:
+
+현재 문제를 Support 질문 몇 개 추가,
+Curriculum 질문 몇 개 추가 방식으로 해결하지 않는다.
+
+목표는 SWIMNOTE 전체 AI 기능의:
+
+DB retrieval
+→ Evidence construction
+→ AI invocation
+→ validation
+→ response
+
+공통 실행 기반을 만드는 것이다.
+
+이번 단계는 ARCHITECTURE AUDIT ONLY.
+코드 수정 금지.
+DB write 금지.
+
+==================================================
+1. 대상 기능
+==================================================
+
+우선 현재 Production에서 실제 사용하는:
+
+1. Automated Support
+2. Parent Curriculum Search
+3. AI Diary
+
+세 기능 조사.
+
+Growth Report는 이후 이 Runtime 위에서 신규 제작.
+
+==================================================
+2. 기능별 현재 파이프라인 추적
+==================================================
+
+각 기능마다 실제 코드 기준으로:
+
+USER INPUT
+→ route
+→ parser
+→ matcher/retriever
+→ DB query
+→ result filtering
+→ AI call
+→ validation
+→ response
+
+정확한 파일/함수명을 작성.
+
+==================================================
+3. DB RETRIEVAL 조사
+==================================================
+
+각 기능에 대해:
+
+- exact match
+- keyword search
+- alias/synonym
+- semantic search
+- vector search
+- top-K
+- ranking
+- confidence threshold
+- fallback
+
+현재 무엇이 구현되어 있는지 조사.
+
+특히 Support에서:
+
+"학부모리포트는 어떤기능이야?"
+"알림끄는거 어디서해?"
+
+같은 자연어 질문이
+왜 canonical Knowledge까지 도달하지 못하고
+generic fallback으로 떨어지는지 확인.
+
+개별 utterance 추가로 해결하지 않는다.
+
+==================================================
+4. SOURCE OF TRUTH
+==================================================
+
+기능별 authoritative DB 확정:
+
+Support
+→ canonical Knowledge
+
+Curriculum
+→ pool-scoped curriculum_items
+
+AI Diary
+→ effective diary_templates
+   + professional KF
+
+utterance / alias / search index는
+source of truth가 아니라 retrieval aid로 취급.
+
+==================================================
+5. COMMON RETRIEVER CONTRACT 설계
+==================================================
+
+각 domain Retriever가
+동일 구조의 결과를 반환할 수 있는지 설계.
+
+예:
+
+{
+  domain,
+  tenant_id,
+  query,
+  matches: [
+    {
+      source_id,
+      source_type,
+      text,
+      score,
+      rank
+    }
+  ],
+  matched_count,
+  excluded_count,
+  confidence,
+  usable_for_ai,
+  missing_reason
+}
+
+실제 schema 이름은 구현 전에 확정.
+
+==================================================
+6. EVIDENCE PACK
+==================================================
+
+AI 호출 전 모든 기능이
+동일한 Evidence Pack 개념을 사용하도록 설계.
+
+포함:
+
+- verified facts
+- matched source IDs
+- tenant/student context
+- retrieved text
+- confidence
+- missing information
+- answer constraints
+
+AI에게 DB 직접 접근시키지 않는다.
+
+==================================================
+7. AI GATEWAY
+==================================================
+
+현재 Support / Curriculum / Diary에서
+AI 호출이 각각 어떻게 구현되어 있는지 조사.
+
+공통화 가능한 항목:
+
+- model
+- timeout
+- retry
+- max tokens
+- structured output
+- request id
+- cost accounting
+- grounding instructions
+- error handling
+
+기능별 prompt 내용은 유지할 수 있지만
+호출 실행 계층은 공통화 가능해야 한다.
+
+==================================================
+8. ANSWER POLICY
+==================================================
+
+공통 정책 설계:
+
+A. DB_DIRECT
+DB 근거 하나로 정확히 답할 수 있음
+→ AI 0회
+
+B. GROUNDED_AI
+여러 DB 근거를 조합/설명해야 함
+→ AI 1회
+
+C. INSUFFICIENT_EVIDENCE
+근거 부족
+→ 안전한 부족 안내 / Human
+
+"DB exact phrase와 질문이 다름"
+자체는 C가 되어서는 안 됨.
+
+semantic/keyword retrieval까지 실패했을 때만
+근거 부족 판단.
+
+==================================================
+9. OBSERVABILITY
+==================================================
+
+앞으로 요청 하나마다 내부적으로 최소:
+
+- request_id
+- domain
+- pool_id
+- intent
+- retrieval candidates
+- final match count
+- source ids
+- answer mode
+- AI called YES/NO
+- fallback reason
+
+을 추적 가능하도록 설계.
+
+개인정보/토큰/전체 원문 로그 금지.
+
+목적:
+
+"DB에 없어서 못 답한 것인지"
+"검색 실패인지"
+"status 필터 때문인지"
+"AI 실패인지"
+
+즉시 구분 가능해야 한다.
+
+==================================================
+10. 기존 기능 파괴 금지
+==================================================
+
+이번 Runtime은
+현재 AI 엔진/DB를 새로 만드는 프로젝트가 아니다.
+
+기존:
+
+- Support Knowledge
+- Support utterances
+- curriculum_items
+- growth_events
+- diary_templates
+- professional KF V2
+- quota
+- conversation
+
+자산을 재사용.
+
+광범위 재작성 금지.
+
+==================================================
+11. 보고
+==================================================
+
+[SWIMNOTE AI DATA RUNTIME ARCHITECTURE REPORT]
+
+A. SUPPORT CURRENT FLOW
+B. CURRICULUM CURRENT FLOW
+C. AI DIARY CURRENT FLOW
+
+D. DUPLICATED COMPONENTS
+E. RETRIEVAL WEAKNESSES
+F. AI CALL WEAKNESSES
+G. FALSE NO-DATA/FALLBACK PATHS
+
+H. PROPOSED COMMON RUNTIME
+- RequestContext
+- DomainRetriever contract
+- EvidencePack
+- AnswerPolicy
+- AiGateway
+- OutputValidator
+- Diagnostics
+
+I. EXISTING CODE REUSABLE
+J. NEW FILES REQUIRED
+K. FILES TO MODIFY
+L. DB MIGRATION REQUIRED
+M. PRODUCTION RISK
+
+N. IMPLEMENTATION WP ORDER
+
+코드 수정 없이 보고 후 멈춘다.

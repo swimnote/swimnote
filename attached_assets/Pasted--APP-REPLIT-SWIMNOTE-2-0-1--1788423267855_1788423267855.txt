@@ -1,0 +1,471 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0.1 — REAL DEVICE REPAIR WP1
+# ONE WP → ONE OTA → USER DEVICE CONFIRMATION
+#
+# 중요:
+# 이전 작업에서 "수정 완료 / PASS / 배포 완료"라고 보고했지만
+# 실제 2.0.1 실기기에서는 변경사항이 적용되지 않은 것이 확인됨.
+#
+# 따라서 지금부터 완료 판정 기준을 변경한다.
+#
+# SOURCE PASS ≠ COMPLETE
+# TEST PASS ≠ COMPLETE
+# OTA CREATED ≠ COMPLETE
+#
+# 최종 COMPLETE 조건:
+# 사용자가 실제 iPhone 2.0.1 앱에서 변경사항을 직접 확인한 뒤
+# "확인됨"이라고 말하는 것.
+#
+# 사용자 확인 전 다음 WP 진행 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target:
+SWIMNOTE iOS 2.0.1
+
+App version:
+2.0.1
+
+Runtime:
+2.0.1
+
+OTA channel:
+production-v2
+
+1.6.3:
+ABSOLUTELY NO TOUCH
+
+Android:
+NO TOUCH
+
+============================================================
+0. 이번 작업 범위
+============================================================
+
+이번에는 WP1 한 개만 한다.
+
+다른 WP:
+NO
+
+다른 UI:
+NO
+
+메신저:
+NO
+
+회원관리:
+NO
+
+선생님관리:
+NO
+
+설정/X navigation:
+NO
+
+Kakao:
+NO
+
+서버:
+NO
+
+DB:
+NO
+
+============================================================
+1. WP1 대상
+============================================================
+
+대상 화면:
+
+관리자
+→ 운영관리
+→ 보강 관리
+
+실제 문제:
+
+보강관리 상단 horizontal tab/filter에서
+글자가 잘려 실제 iPhone에서 정상적으로 읽히지 않음.
+
+특히:
+
+- 결석자 리스트
+- 담당 보강
+
+그리고 동일 row의:
+
+- 다른선생님
+- 완료 기록
+- 만료
+
+까지 전부 확인.
+
+이전에 수정했다고 보고했지만
+실기기에서는 적용된 것으로 신뢰하지 않는다.
+
+이번에는 실제 2.0.1 runtime source를 다시 확인하고
+필요하면 다시 수정한다.
+
+============================================================
+2. REAL RUNTIME SOURCE부터 확인
+============================================================
+
+먼저 2.0.1 EAS build가 실제 사용하는 Expo root 확인.
+
+보고:
+
+REAL_EXPO_ROOT:
+...
+
+실제 runtime makeups screen:
+...
+
+절대 단순히 이전 보고서의
+artifacts/swim-app 경로를 믿지 말 것.
+
+실제 route/import 기준으로
+보강관리 화면이 사용하는 파일을 증명.
+
+============================================================
+3. 현재 실제 코드 다시 검수
+============================================================
+
+실제 runtime source에서 다음 확인:
+
+- horizontal ScrollView
+- contentContainerStyle
+- chip width / minWidth
+- flexShrink
+- text lineHeight
+- numberOfLines
+- paddingHorizontal
+- edge padding
+- overflow
+- fontSize
+- alignItems
+- justifyContent
+
+이전에 존재한다고 보고한:
+
+flexShrink: 0
+lineHeight: 18
+numberOfLines={1}
+
+등이 실제 runtime file에 있는지 확인.
+
+있는데도 실기기에서 잘린다면
+"코드가 존재하므로 PASS" 처리 금지.
+
+왜 실제 iPhone에서 잘리는지 다시 판단하고
+실기기 화면폭 기준으로 수정.
+
+============================================================
+4. 최종 화면 요구
+============================================================
+
+상단 탭:
+
+결석자 리스트
+담당 보강
+다른선생님
+완료 기록
+만료
+
+전부:
+
+- 첫 글자 잘림 0
+- 마지막 글자 잘림 0
+- 세로 clipping 0
+- 한 줄 표시
+- 탭 영역 내부 중앙 정렬
+- horizontal scroll 정상
+- 첫 번째 탭 왼쪽 화면 경계 침범 0
+- 마지막 탭 오른쪽 scroll 가능
+
+이어야 한다.
+
+============================================================
+5. 글씨 축소로 때우지 말 것
+============================================================
+
+무작정 fontSize를 작게 만들어서
+눈에 안 띄게 해결하는 방식 금지.
+
+우선:
+
+- item shrink 방지
+- content width
+- padding
+- lineHeight
+- ScrollView layout
+- chip minWidth
+
+를 정상화.
+
+기존 디자인 언어 유지.
+
+============================================================
+6. 기능 회귀 금지
+============================================================
+
+변경 금지:
+
+- 탭 이름
+- 탭 순서
+- 각 탭 filter 조건
+- 결석자 데이터
+- 담당 보강
+- 다른선생님
+- 완료 처리
+- 만료 처리
+- 보강 배정
+- API
+
+UI clipping만 수정.
+
+============================================================
+7. 수정 후 SOURCE 증거
+============================================================
+
+완료보고 전에 반드시:
+
+실제 runtime file path:
+...
+
+변경 전 code:
+...
+
+변경 후 code:
+...
+
+git diff:
+...
+
+를 확인.
+
+"수정했다"는 문장만 보고 금지.
+
+============================================================
+8. TYPECHECK
+============================================================
+
+변경 파일 TypeScript 오류:
+0
+
+새 deterministic failure:
+0
+
+기존 unrelated 오류는 별도 표시.
+
+============================================================
+9. 2.0.1 OTA 실행
+============================================================
+
+WP1 수정 검증 후
+이 WP1만 포함해서 iOS OTA 배포.
+
+반드시:
+
+App version:
+2.0.1
+
+Runtime:
+2.0.1
+
+Channel:
+production-v2
+
+Platform:
+iOS
+
+Android:
+NO
+
+1.6.3:
+NO
+
+새 Build:
+NO
+
+============================================================
+10. OTA 실제 배포 정보 확인
+============================================================
+
+반드시 보고:
+
+Update ID:
+...
+
+Update Group:
+...
+
+Runtime:
+2.0.1
+
+Channel:
+production-v2
+
+Platform:
+iOS
+
+Source HEAD:
+...
+
+EAS update 실행 cwd:
+...
+
+실제 bundle source root:
+...
+
+============================================================
+11. OTA bundle에 WP1 코드 존재 증명
+============================================================
+
+가능한 범위에서
+실제 export/update bundle이
+수정한 runtime makeups source에서 생성됐는지 확인.
+
+단순 git HEAD 일치만으로 PASS 금지.
+
+다음을 증명:
+
+REAL_EXPO_ROOT
+==
+EAS UPDATE CWD
+
+그리고 WP1 수정 파일이
+그 root 안의 실제 route 파일임.
+
+============================================================
+12. 완료 상태 규칙
+============================================================
+
+Replit 자체 최종 상태는:
+
+WP1 OTA SENT — WAITING FOR USER DEVICE CONFIRMATION
+
+이어야 한다.
+
+절대:
+
+WP1 COMPLETE
+WP1 CLOSED
+ALL PASS
+
+라고 하지 말 것.
+
+사용자가 실제 iPhone에서 확인하기 전에는
+완료가 아니다.
+
+============================================================
+13. 다음 WP 절대 진행 금지
+============================================================
+
+OTA 후 STOP.
+
+WP2:
+진행 금지
+
+WP3:
+진행 금지
+
+기타 수정:
+진행 금지
+
+사용자가 직접 실기기에서 WP1을 확인하고
+ChatGPT에 결과를 전달한 뒤
+별도 지시를 받을 때까지 대기.
+
+============================================================
+14. 완료보고
+============================================================
+
+# SWIMNOTE 2.0.1 WP1 REAL-DEVICE REPORT
+
+## REAL SOURCE
+
+Expo root:
+...
+
+Runtime makeups file:
+...
+
+Previous reported file matched runtime:
+YES / NO
+
+## ROOT CAUSE
+
+실제 iPhone에서 여전히 clipping이 발생했던 이유:
+...
+
+## FIX
+
+Before:
+...
+
+After:
+...
+
+Files changed:
+...
+
+Commit:
+...
+
+## STATIC CHECK
+
+TypeScript:
+PASS / FAIL
+
+New deterministic failures:
+0 / ...
+
+## OTA
+
+Version:
+2.0.1
+
+Runtime:
+2.0.1
+
+Channel:
+production-v2
+
+Platform:
+iOS
+
+Update ID:
+...
+
+Update Group:
+...
+
+Source HEAD:
+...
+
+OTA cwd:
+...
+
+Runtime source root:
+...
+
+## WP1 STATUS
+
+SOURCE FIX:
+PASS / FAIL
+
+OTA DELIVERY:
+SENT / FAIL
+
+REAL DEVICE:
+NOT YET VERIFIED
+
+## FINAL
+
+WP1 OTA SENT — WAITING FOR USER DEVICE CONFIRMATION
+
+다음 WP 진행:
+NO

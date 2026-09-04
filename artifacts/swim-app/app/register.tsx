@@ -1,20 +1,18 @@
-import { ArrowLeft, Briefcase, CircleAlert, CircleCheck, Home, Key, Lock, Mail, MapPin, Phone, User } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
+import {ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
+const C = Colors.light; // module-level for StyleSheet
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { API_BASE, safeJson } from "@/context/auth/SessionContext";
 
@@ -22,16 +20,20 @@ type SmsState = "idle" | "sending" | "sent" | "verifying" | "verified" | "error"
 
 export default function RegisterScreen() {
   const { unifiedLogin } = useAuth();
-  const { id: prefillId } = useLocalSearchParams<{ id?: string }>();
+  const { id: prefillId, phone: prefillPhone, kakaoId, appleId } = useLocalSearchParams<{
+    id?: string; phone?: string; kakaoId?: string; appleId?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const C = Colors.light;
+
+  const hasSocialPhone = !!(prefillPhone && (kakaoId || appleId));
 
   const [form, setForm] = useState({
     email:           prefillId || "",
     password:        "",
     passwordConfirm: "",
     name:            "",
-    phone:           "",
+    phone:           prefillPhone || "",
     pool_name:       "",
     pool_address:    "",
     pool_phone:      "",
@@ -40,7 +42,7 @@ export default function RegisterScreen() {
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState("");
 
-  const [smsState,      setSmsState]      = useState<SmsState>("idle");
+  const [smsState,      setSmsState]      = useState<SmsState>(hasSocialPhone ? "verified" : "idle");
   const [smsCode,       setSmsCode]       = useState("");
   const [smsError,      setSmsError]      = useState("");
   const [timer,         setTimer]         = useState(0);
@@ -151,6 +153,8 @@ export default function RegisterScreen() {
           pool_address:    form.pool_address.trim(),
           pool_phone:      form.pool_phone.trim(),
           pool_owner_name: form.pool_owner_name.trim(),
+          ...(kakaoId ? { kakao_id: kakaoId } : {}),
+          ...(appleId ? { apple_id: appleId } : {}),
         }),
       });
       const data = await safeJson(res);
@@ -166,11 +170,8 @@ export default function RegisterScreen() {
   const phoneVerified = smsState === "verified";
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[
           styles.container,
           { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 20), paddingBottom: insets.bottom + 34 },
@@ -181,7 +182,7 @@ export default function RegisterScreen() {
           onPress={() => router.back()}
           style={[styles.backBtn, { top: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
         >
-          <ArrowLeft size={22} color={C.text} />
+          <LucideIcon name="arrow-left" size={22} color={C.text} />
         </Pressable>
 
         <View style={styles.header}>
@@ -194,7 +195,7 @@ export default function RegisterScreen() {
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           {!!error && (
             <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>
           )}
@@ -203,7 +204,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <User size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="user" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.name}
@@ -219,7 +220,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>아이디(이메일) *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Mail size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="mail" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.email}
@@ -236,8 +237,8 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>휴대폰 번호 *</Text>
             <View style={styles.phoneRow}>
-              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? "#2EC4B6" : C.border, backgroundColor: C.background }]}>
-                <Phone size={16} color={phoneVerified ? "#2EC4B6" : C.textMuted} style={styles.inputIcon} />
+              <View style={[styles.inputBox, { flex: 1, borderColor: phoneVerified ? C.brandStrong : C.border, backgroundColor: C.background }]}>
+                <LucideIcon name="phone" size={16} color={phoneVerified ? C.brandStrong : C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={[styles.input, { color: C.text }]}
                   value={form.phone}
@@ -250,11 +251,11 @@ export default function RegisterScreen() {
                   keyboardType="phone-pad"
                   editable={!phoneVerified}
                 />
-                {phoneVerified && <CircleCheck size={16} color="#2EC4B6" />}
+                {phoneVerified && <LucideIcon name="check-circle" size={16} color={C.brandStrong} />}
               </View>
               {!phoneVerified && (
                 <Pressable
-                  style={[styles.smsBtn, { backgroundColor: smsState === "sending" ? "#ccc" : C.tint }]}
+                  style={[styles.smsBtn, { backgroundColor: smsState === "sending" ? "#ccc" : C.primaryAction }]}
                   onPress={handleSendSms}
                   disabled={smsState === "sending" || smsState === "verifying"}
                 >
@@ -271,7 +272,7 @@ export default function RegisterScreen() {
               <View style={styles.codeSection}>
                 <View style={styles.codeRow}>
                   <View style={[styles.inputBox, { flex: 1, borderColor: C.border, backgroundColor: C.background }]}>
-                    <Key size={16} color={C.textMuted} style={styles.inputIcon} />
+                    <LucideIcon name="key" size={16} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={[styles.input, { color: C.text }]}
                       value={smsCode}
@@ -288,7 +289,7 @@ export default function RegisterScreen() {
                     )}
                   </View>
                   <Pressable
-                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : "#2EC4B6" }]}
+                    style={[styles.smsBtn, { backgroundColor: smsState === "verifying" ? "#ccc" : C.brandStrong }]}
                     onPress={handleVerifySms}
                     disabled={smsState === "verifying"}
                   >
@@ -298,7 +299,7 @@ export default function RegisterScreen() {
                     }
                   </Pressable>
                 </View>
-                <Text style={[styles.codeSent, { color: "#2EC4B6" }]}>
+                <Text style={[styles.codeSent, { color: C.brandStrong }]}>
                   인증번호를 {form.phone}으로 보냈습니다.
                 </Text>
                 {!!devCode && (
@@ -323,7 +324,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Lock size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.password}
@@ -340,7 +341,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>비밀번호 확인 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Lock size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="lock" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.passwordConfirm}
@@ -364,7 +365,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>수영장 이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <MapPin size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="map-pin" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_name}
@@ -379,7 +380,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>주소 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Home size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="home" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_address}
@@ -394,7 +395,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>수영장 전화번호 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Phone size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="phone" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_phone}
@@ -410,7 +411,7 @@ export default function RegisterScreen() {
           <View style={styles.field}>
             <Text style={[styles.label, { color: C.textSecondary }]}>대표자 이름 *</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Briefcase size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="briefcase" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: C.text }]}
                 value={form.pool_owner_name}
@@ -424,7 +425,7 @@ export default function RegisterScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.btn,
-              { backgroundColor: phoneVerified ? C.tint : "#B0B0B0", opacity: pressed ? 0.85 : 1 },
+              { backgroundColor: phoneVerified ? C.primaryAction : "#B0B0B0" },
             ]}
             onPress={handleRegister}
             disabled={loading || !phoneVerified}
@@ -439,11 +440,11 @@ export default function RegisterScreen() {
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: C.textSecondary }]}>이미 계정이 있으신가요?</Text>
           <Pressable onPress={() => router.replace("/login")}>
-            <Text style={[styles.footerLink, { color: C.tint }]}> 로그인</Text>
+            <Text style={[styles.footerLink, { color: C.brandStrong }]}> 로그인</Text>
           </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
   codeRow:      { flexDirection: "row", gap: 8, alignItems: "center" },
   timerTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", marginRight: 4 },
   codeSent:     { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  verifiedTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  verifiedTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   smsErrTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   devCodeBox:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6,
                     backgroundColor: "#FFF3CD", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6 },

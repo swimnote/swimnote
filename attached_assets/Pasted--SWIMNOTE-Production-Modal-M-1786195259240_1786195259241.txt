@@ -1,0 +1,254 @@
+[SWIMNOTE 업무 대화 실기기 오류 수정 — 바로 구현]
+
+현재 Production 실기기 확인 결과다.
+
+업무 대화 Modal 자체는 정상적으로 열린다.
+하지만 Modal에서 메시지를 입력하고 전송하면 새 메시지가 대화에 들어가지 않는다.
+
+추가로 학부모 요청 카드의
+"탭하여 업무 대화 보기"
+문구는 제거하고 명확한 [대화] 버튼으로 변경한다.
+
+이번 작업은 조사 보고만 하지 말고
+원인 확인 → 수정 → 검증 → Production 배포까지 바로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX-1. 업무 대화 메시지 전송 불가
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 증상:
+
+1. 업무 대화 Modal 정상 오픈
+2. 기존 요청 내용/대화 조회 가능
+3. TextInput 타이핑 가능
+4. 메시지 전송 시 새 메시지가 대화에 추가되지 않음
+
+반드시 실제 전체 경로를 추적한다.
+
+Teacher:
+RequestThreadModal.tsx
+→ POST /parent-requests/:requestId/messages
+→ 서버 route
+→ parent_request_messages INSERT
+→ response
+→ Modal state 반영 또는 GET 재조회
+
+Parent:
+ParentRequestThreadModal.tsx
+→ 동일 POST
+→ INSERT
+→ response
+→ state 반영 또는 GET 재조회
+
+다음 항목을 실제 코드로 확인한다.
+
+- requestId가 POST URL에 정상 전달되는가
+- POST body contract가 서버와 앱에서 일치하는가
+- Authorization/JWT가 정상 전달되는가
+- teacher/parent role 판별이 정상인가
+- request ownership/visibility 검사에서 차단되지 않는가
+- INSERT가 실제 실행되는가
+- INSERT 실패가 catch에서 숨겨지고 있지 않은가
+- 서버 response shape와 앱 파싱이 일치하는가
+- POST 성공 후 새 메시지를 local state에 추가하는가
+- 또는 POST 성공 후 messages GET을 다시 호출하는가
+- 전송 직후 TextInput만 비우고 메시지 목록 refresh를 안 하는 문제인지 확인
+- parent_request_messages 실제 컬럼과 INSERT contract 일치 여부 확인
+
+추측으로 한 줄 수정하지 말 것.
+
+POST → INSERT → RESPONSE → UI REFRESH
+전체 chain에서 최초 실패 지점을 확인하고 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX-2. 전송 UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정상 동작은 다음과 같아야 한다.
+
+메시지 입력
+→ 전송
+→ 서버 저장 성공
+→ 해당 메시지가 즉시 대화창 마지막에 표시
+→ 입력창 clear
+→ 마지막 메시지 위치로 scroll
+
+저장 실패 시:
+
+입력 내용을 임의로 삭제하지 않는다.
+사용자가 실패를 알 수 있게 오류 표시.
+
+중복 탭으로 동일 메시지가 여러 번 저장되지 않도록
+sending guard 유지/추가.
+
+Teacher와 Parent 양쪽 동일하게 적용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX-3. 학부모 요청 카드 UI 변경
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 notifications.tsx 요청 카드에 있는
+
+"탭하여 업무 대화 보기"
+
+문구를 완전히 제거한다.
+
+카드 전체 Pressable로 Modal을 여는 UX에 의존하지 않는다.
+
+대신 요청 카드 하단에 명확한 버튼:
+
+[대화]
+
+를 추가한다.
+
+버튼 탭:
+→ 해당 requestId
+→ ParentRequestThreadModal 오픈
+
+기존 요청 유형/내용/상태 표시를 깨지 않는다.
+
+버튼 디자인은
+비활성처럼 보이는 반투명 스타일 금지.
+
+SWIMNOTE 기존 UI 톤에 맞는
+명확한 활성 버튼으로 만든다.
+
+카드 내용 영역을 불필요하게 크게 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX-4. 선생님 측 대화 버튼 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+messages-inbox.tsx의 기존
+
+[업무 대화]
+
+기능은 유지한다.
+
+원한다면 버튼 표시명을
+학부모와 동일하게 [대화]로 통일 가능하지만,
+기능 자체는 제거하지 않는다.
+
+[업무 처리]와 [대화]는 서로 다른 기능이다.
+
+대화 버튼:
+메시지 Modal
+
+업무 처리:
+attendance / makeups 등 실제 업무 화면
+
+대화 전송만으로 status done 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX-5. 메시지 왕복 E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 코드 수준에서 반드시 검증:
+
+CASE 1
+선생님 대화 Modal 오픈
+
+CASE 2
+선생님 "확인했습니다" 입력 → 전송
+
+CASE 3
+parent_request_messages 실제 INSERT
+
+CASE 4
+전송 직후 선생님 Modal에 해당 메시지 표시
+
+CASE 5
+학부모 notification/push 생성
+
+CASE 6
+학부모 내 요청 → [대화]
+
+CASE 7
+학부모 Modal에서 선생님 메시지 표시
+
+CASE 8
+학부모 "네 감사합니다" 입력 → 전송
+
+CASE 9
+DB에 parent message INSERT
+
+CASE 10
+전송 직후 학부모 Modal에 메시지 표시
+
+CASE 11
+선생님이 다시 Modal을 열면 학부모 답변 표시
+
+CASE 12
+선생님 unread/new_message_count 반영
+
+CASE 13
+메시지 전송만으로 request status 변경 없음
+
+CASE 14
+기존 done/rejected 처리 정상
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+보호 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 오류 수정 때문에 다음 기능을 재작성하지 않는다.
+
+- 학부모 요청 작성
+- 요청 유형
+- Teacher Visibility
+- 확인 알림
+- 처리완료/거절 알림
+- 업무처리 navigation
+- 보강
+- 출결
+- 일반 Messenger
+- 공지
+- 일지
+- AI
+- 사진
+- 회원
+- Auth/JWT/API_BASE
+
+필요한 업무대화 관련 파일만 최소 수정.
+
+특히 동작하고 있는 Modal 전체를 다시 작성하지 말고
+전송 실패의 실제 원인을 고친다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 완료 후:
+
+1. TypeCheck
+2. git diff --stat
+3. 수정 파일 확인
+4. Commit
+5. Push
+6. 서버 수정이 있으면 Render Production 배포 및 Live SHA 확인
+7. 앱 수정은 Production OTA
+8. Preview OTA 금지
+9. Health 확인
+
+최종 보고에는 반드시:
+
+- 메시지가 안 들어갔던 정확한 원인
+- 실패 지점(POST/INSERT/response/UI 중 어디인지)
+- 수정 내용
+- Teacher POST contract
+- Parent POST contract
+- INSERT 확인
+- POST 성공 후 UI 갱신 방식
+- "탭하여 업무 대화 보기" 제거 확인
+- [대화] 버튼 구현 위치
+- 수정 파일
+- TypeCheck
+- Commit SHA
+- Render Live SHA
+- Production OTA ID
+- CASE 1~14 결과
+
+를 제출한다.
+
+조사만 하고 멈추지 말고
+원인이 확인되면 바로 구현·배포까지 완료한다.

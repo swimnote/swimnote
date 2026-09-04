@@ -1,4 +1,4 @@
-import { CircleAlert, CirclePlus, CircleX, Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -63,7 +63,7 @@ export function MemberClassTab({
         <Text style={ms.fieldLabel}>배정된 반 ({assignedIds.length}/{weeklyCount})</Text>
         {assignedClasses.length === 0 ? (
           <View style={ms.warnBox}>
-            <CircleAlert size={14} color="#D96C6C" />
+            <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
             <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>아직 배정된 반이 없습니다</Text>
           </View>
         ) : (
@@ -78,7 +78,7 @@ export function MemberClassTab({
                     {g.instructor && <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 }}>선생님: {g.instructor}</Text>}
                   </View>
                   <Pressable onPress={() => { setAssignedIds(p => p.filter(x => x !== g.id)); setClassChanged(true); }}>
-                    <CircleX size={18} color={C.error} />
+                    <LucideIcon name="x-circle" size={18} color={C.error} />
                   </Pressable>
                 </View>
               );
@@ -87,7 +87,7 @@ export function MemberClassTab({
         )}
 
         <Pressable style={[ms.outlineBtn, { borderColor: themeColor }]} onPress={onOpenPicker}>
-          <CirclePlus size={15} color={themeColor} />
+          <LucideIcon name="plus-circle" size={15} color={themeColor} />
           <Text style={[ms.outlineBtnText, { color: themeColor }]}>반 선택하기</Text>
         </Pressable>
 
@@ -97,7 +97,7 @@ export function MemberClassTab({
           disabled={saving || !classChanged}
         >
           {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-            <><Save size={16} color="#fff" /><Text style={ms.saveBtnText}>배정 저장</Text></>
+            <><LucideIcon name="save" size={16} color="#fff" /><Text style={ms.saveBtnText}>배정 저장</Text></>
           )}
         </Pressable>
       </View>
@@ -106,7 +106,7 @@ export function MemberClassTab({
         <Text style={ms.sectionTitle}>최근 출결 현황</Text>
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           {[
-            { label: "출석", color: "#2EC4B6", key: "present" },
+            { label: "출석", color: C.present, key: "present" },
             { label: "결석", color: "#D96C6C", key: "absent" },
             { label: "지각", color: "#D97706", key: "late" },
             { label: "공결", color: "#7C3AED", key: "excused" },
@@ -130,7 +130,7 @@ export function MemberClassTab({
         ) : (
           <View style={{ gap: 10 }}>
             {(data.recent_diaries || []).map(d => (
-              <View key={d.id} style={{ backgroundColor: "#F1F5F9", borderRadius: 12, padding: 12, gap: 6 }}>
+              <View key={d.id} style={{ backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 12, gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text }}>{d.lesson_date}</Text>
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted }}>{d.teacher_name}</Text>

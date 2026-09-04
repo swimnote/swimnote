@@ -1,0 +1,530 @@
+[SWIMNOTE 업무 대화 전송 실패 — Teacher/Parent 공통 API 경로 즉시 복구]
+
+현재 실기기 CONFIRMED:
+
+Teacher 업무 대화 Modal:
+- 열림 정상
+- 기존 요청 원문 표시 정상
+- TextInput 입력 정상
+- 전송 → 실패
+
+Parent 업무 대화 Modal:
+- 열림 정상
+- 기존 요청 원문 표시 정상
+- TextInput 입력 정상
+- 전송 → 실패
+
+실기기 오류:
+
+"전송 실패"
+"요청한 경로를 찾을 수 없습니다."
+
+Teacher / Parent 양쪽이 동일 증상.
+
+따라서 이번 작업은
+Modal/UI 재작성 작업이 아니다.
+
+업무 대화 POST API의 실제 Production 경로를
+서버와 두 클라이언트에서 정확히 일치시키는 작업이다.
+
+조사만 하고 멈추지 말고
+원인 확인 → 수정 → Production 배포 → 전송 성공까지 완료한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 절대 동결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정상인 다음 기능 수정 금지:
+
+- RequestThreadModal 레이아웃
+- ParentRequestThreadModal 레이아웃
+- 최초 요청 원문 표시
+- Teacher Visibility
+- 요청 확인 알림
+- done/rejected 결과 알림
+- 업무 처리 navigation
+- messages-inbox UI
+- 학부모 요청 작성 UI
+- 학부모 알림/내 요청 탭
+- 보강
+- 출결
+- Messenger
+- 일지
+- AI
+- Auth/JWT/API_BASE
+
+이번 작업은 메시지 API 전송 경로/Contract만 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 최초 확인 — 실제 Client 요청 URL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher:
+
+RequestThreadModal.tsx에서
+전송 버튼이 실제 호출하는 URL을 정확히 제출한다.
+
+Parent:
+
+ParentRequestThreadModal.tsx에서
+전송 버튼이 실제 호출하는 URL을 정확히 제출한다.
+
+반드시 실제 코드 문자열 기준.
+
+예상이라고 쓰지 말 것.
+
+확인:
+
+- API_BASE
+- path
+- requestId
+- HTTP method
+- body
+- headers
+
+Teacher/Parent가 서로 다른 endpoint를 호출하는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Server Route 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+parent-requests.ts에서 실제 등록된 메시지 route를 확인한다.
+
+확인:
+
+router.post(...)
+
+정확한 path.
+
+그리고 이 router가 server/app에서
+어떤 prefix로 mount되는지 끝까지 추적한다.
+
+예:
+
+app.use("/api", ...)
+router.use(...)
+parentRequestsRouter mount
+
+등.
+
+중요:
+
+파일 안에
+
+POST /parent-requests/:requestId/messages
+
+가 있다고 해서
+실제 Production URL이 자동으로 그 값이라고 판단 금지.
+
+router mount prefix까지 합친
+최종 URL을 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 404 직접 원인 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 메시지:
+
+"요청한 경로를 찾을 수 없습니다."
+
+가 실제로 어떤 HTTP status/code에서 생성되는지 확인한다.
+
+반드시 확보:
+
+Teacher POST:
+- final URL
+- HTTP status
+- content-type
+- raw JSON error/code
+
+Parent POST:
+- final URL
+- HTTP status
+- content-type
+- raw JSON error/code
+
+404라면:
+
+A. Client path 오류
+B. Server router mount 오류
+C. Production 서버에 신규 route 미배포
+D. route ordering/catch-all 문제
+
+중 무엇인지 실제 증거로 확정한다.
+
+추측 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. GET route도 같이 대조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Modal이 최초 요청/기존 메시지를 표시할 수 있다면
+GET messages가 실제로 성공하는지 확인한다.
+
+Teacher/Parent 각각:
+
+GET /.../:requestId/messages
+
+실제 URL
+HTTP status
+
+확인.
+
+가능한 경우:
+
+GET은 정상
+POST만 404
+
+인지,
+
+GET/POST 둘 다 잘못됐는데
+최초 요청은 parent_student_requests.content만
+로컬에서 보여주는 것인지 구분한다.
+
+이 구분 없이 완료 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 API Contract 하나로 통일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher와 Parent 모두 동일 resource 사용.
+
+최종 개념:
+
+GET
+/parent-requests/:requestId/messages
+
+POST
+/parent-requests/:requestId/messages
+
+POST body:
+
+{
+  content: string
+}
+
+sender_type
+sender_id
+recipient
+
+를 client body에서 신뢰하지 않는다.
+
+서버 JWT/session에서 role/user를 판단한다.
+
+단 실제 router prefix를 반영한
+Production final URL을 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. POST 성공 Response
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+성공 시 최소:
+
+HTTP 200 또는 201
+application/json
+
+{
+  success: true,
+  data: <inserted message>
+}
+
+형태로 Client가 새 message를 받을 수 있게 한다.
+
+현재 서버 response shape가 이미 있으면
+Client를 그 Contract에 맞춘다.
+
+불필요하게 API 전체를 재설계하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Teacher 전송 성공
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher:
+
+메시지 입력
+→ POST
+→ DB INSERT
+→ 200/201 JSON
+→ 새 메시지 즉시 thread에 표시
+→ 입력창 clear
+→ 최신 메시지 scroll
+→ Parent notification/push
+
+실패 시:
+
+입력 내용 유지
+오류 표시
+
+TextInput만 비우는 동작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Parent 전송 성공
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent:
+
+메시지 입력
+→ POST
+→ DB INSERT
+→ 200/201 JSON
+→ 새 메시지 즉시 thread에 표시
+→ 입력창 clear
+→ 최신 메시지 scroll
+→ Teacher unread 증가
+→ Home envelope badge 증가
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 실제 DB 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+parent_request_messages 실제 Production table 확인.
+
+확인:
+
+- table 존재
+- request_id
+- sender_type
+- sender_id
+- message_type
+- content
+- created_at
+
+POST 성공 후 test message가 실제 row로 저장되는지 확인.
+
+운영 데이터 임의 수정 금지.
+
+실제 테스트 요청에 대해서만 정상 API 경로로 INSERT.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Route Not Found 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 앱이 서버의 generic 404:
+
+"요청한 경로를 찾을 수 없습니다."
+
+를 받고 있다면
+그 오류를 숨기지 않는다.
+
+수정 후 Teacher/Parent POST가
+generic 404 handler에 도달하지 않는 것을 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Production Server 반영 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 작업에서 새 message route를 만들었지만
+Render Live SHA에 실제 포함되지 않았을 가능성도 확인한다.
+
+현재:
+
+Local HEAD
+Remote HEAD
+Render Live SHA
+
+비교.
+
+신규 POST route가 들어간 commit이
+현재 Render Live SHA에 포함됐는지 git show로 확인.
+
+미포함이면
+코드 수정 없이 올바른 commit을 Production Render에 배포.
+
+포함되어 있는데 404면
+route/mount 문제를 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 학부모 카드 UI 한 가지 추가 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 카드에 남아 있는:
+
+"탭하여 업무 대화 보기"
+
+문구는 삭제한다.
+
+카드 하단에:
+
+[대화]
+
+버튼만 사용.
+
+이미 수정됐다면 그대로 유지.
+
+이번 API 오류 때문에 카드 전체 UI를 재작성하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Navigation 순서 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+선생님 Home request tap:
+
+홈 봉투
+→ messages-inbox
+→ 학부모 요청
+→ [대화] 또는 [업무 처리]
+
+유지.
+
+홈 알림에서 attendance/makeups 직행으로
+다시 바꾸지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 이번 완료 CASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+Teacher thread Modal 오픈
+
+CASE 2
+Teacher "테스트 답변" 전송
+
+CASE 3
+Teacher POST HTTP 200/201
+
+CASE 4
+parent_request_messages INSERT
+
+CASE 5
+Teacher Modal 즉시 메시지 표시
+
+CASE 6
+Parent Push/notification
+
+CASE 7
+Parent thread Modal 오픈
+
+CASE 8
+Teacher 답변 표시
+
+CASE 9
+Parent "확인했습니다" 전송
+
+CASE 10
+Parent POST HTTP 200/201
+
+CASE 11
+DB INSERT
+
+CASE 12
+Parent Modal 즉시 메시지 표시
+
+CASE 13
+Teacher unread 증가
+
+CASE 14
+Teacher Home badge 증가
+
+CASE 15
+Teacher thread 재진입 → Parent 답변 표시
+
+CASE 16
+Teacher/Parent 어느 쪽도 404 없음
+
+CASE 17
+메시지 전송만으로 status done 안 됨
+
+CASE 18
+기존 업무 처리 navigation 정상
+
+CASE 19
+기존 done/rejected 정상
+
+CASE 20
+일반 Messenger 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 허용 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 원인에 따라 최소화.
+
+우선 후보:
+
+artifacts/api-server/src/routes/parent-requests.ts
+
+RequestThreadModal.tsx
+
+ParentRequestThreadModal.tsx
+
+서버 router mount 파일
+→ 실제 mount 오류가 CONFIRMED인 경우에만.
+
+notifications.tsx
+→ "탭하여..." 제거/[대화] 버튼이 아직 미반영된 경우만.
+
+다른 정상 파일 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 지시는 수정 + Production 배포 승인 포함.
+
+1. 최신 baseline 확인
+2. Client final URL 확인
+3. Server final route 확인
+4. 404 최초 원인 확정
+5. 최소 수정
+6. targeted HTTP test
+7. TypeCheck
+8. Diff Gate
+9. Clean Commit
+10. Push
+11. Server 변경 시 Render Production
+12. Live SHA 확인
+13. Health 200
+14. App 변경 시 Production OTA iOS + Android
+15. Preview OTA 금지
+16. 실기기 E2E 가능 상태까지 완료
+
+DB Migration은
+실제 schema 결함이 원인일 때만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. Teacher가 호출하던 실제 POST URL
+2. Parent가 호출하던 실제 POST URL
+3. Server router.post 실제 path
+4. Router mount prefix
+5. 최종 Production POST URL
+6. Teacher 실패 HTTP status/error
+7. Parent 실패 HTTP status/error
+8. 404 직접 원인
+9. GET messages 실제 상태
+10. 수정 파일
+11. Teacher POST 성공 증거
+12. Parent POST 성공 증거
+13. DB INSERT 증거
+14. Teacher 즉시 UI 반영
+15. Parent 즉시 UI 반영
+16. Parent notification/push
+17. Teacher unread/home badge
+18. 학부모 [대화] 버튼
+19. Home → messages-inbox 순서 유지
+20. CASE 1~20
+21. Commit SHA
+22. Push SHA
+23. Render Deploy ID
+24. Render Live SHA
+25. Health
+26. iOS OTA ID
+27. Android OTA ID
+28. Runtime
+29. 보호 영역 변경 여부
+
+이번 작업 완료 조건:
+
+Teacher → Parent 메시지 실제 전송 성공
+AND
+Parent → Teacher 메시지 실제 전송 성공
+
+두 방향 모두 실기기에서 사용할 수 있는 서버/앱 상태가 되어야 완료다.
+
+"코드상 정상"
+"route가 존재한다"
+만으로 완료 보고 금지.

@@ -1,0 +1,326 @@
+[SWIMNOTE AI ENGINE RELEASE]
+[PRODUCTION MIGRATION + ROUTE READINESS CHECK — ENGINE REPOSITORY ONLY]
+
+목적:
+
+SWIMNOTE APP Production Rollout 전에
+AI ENGINE Growth Report WP1~WP13의
+실제 Production 준비상태를 확인한다.
+
+이번 작업 장소:
+
+반드시 SWIMNOTE AI ENGINE Repository.
+
+APP Repository에서 수행 금지.
+
+이번 단계는 우선 확인만 한다.
+
+Production migration 실행 금지.
+Production deploy 금지.
+코드 수정 금지.
+
+==================================================
+1. ENGINE REPOSITORY IDENTITY
+==================================================
+
+현재 Repository가 실제 AI ENGINE인지 확인.
+
+최소 근거:
+
+- Growth Report WP1~WP13 코드 존재
+- src/lib/growth-report/*
+- WP13 Orchestrator 존재
+- Growth Report Engine route 존재
+- ENGINE internal DB/trace 코드 존재
+
+APP Repository라면 즉시 STOP.
+
+==================================================
+2. CURRENT ENGINE HEAD
+==================================================
+
+보고:
+
+branch
+actual HEAD SHA
+
+WP13 완료 commit 이후 추가 변경 존재 여부.
+
+Growth Report WP13 완료 당시 최신 코드가
+현재 HEAD에 포함되어 있는지 확인.
+
+==================================================
+3. WP5 TRACE MIGRATION
+==================================================
+
+실제 repository에서 검색:
+
+engine_analysis_trace
+growth.engine_analysis_trace
+run-wp5-trace-migration
+analysis_trace
+idempotency
+request_id
+payload_hash
+
+WP5에서 생성한 migration 파일을 정확히 찾는다.
+
+보고:
+
+- filename
+- schema/table
+- columns
+- unique constraints/index
+- migration command
+
+추측 금지.
+
+==================================================
+4. WP13 DURABLE IDEMPOTENCY
+==================================================
+
+실제 WP13 code에서
+공식 route가 사용하는 idempotency implementation을 추적한다.
+
+확인:
+
+request_id
+report_id
+payload_hash
+contract_version
+snapshot_version
+
+동일 request conflict를
+어디에 기록/조회하는지.
+
+다음 중 실제 구현을 판정:
+
+A.
+growth.engine_analysis_trace DB
+
+B.
+다른 ENGINE DB table
+
+C.
+in-memory only
+
+D.
+APP DB 직접 접근
+
+C라면 WP13 release blocker.
+D라면 architecture violation / release blocker.
+
+코드 파일/함수명으로 증명.
+
+==================================================
+5. ENGINE MIGRATION PRODUCTION STATUS
+==================================================
+
+반드시 ENGINE이 실제 사용하는
+Production DB connection을 확인.
+
+APP의 SUPABASE_DATABASE_URL 사용 금지.
+
+ENGINE Production DB에서 read-only 확인:
+
+- growth schema 존재 여부
+- engine_analysis_trace 존재 여부
+- expected columns
+- expected unique constraint/index
+
+Production write 금지.
+
+==================================================
+6. WP13 ROUTE
+==================================================
+
+공식 Engine route 확인:
+
+POST /api/v1/growth-report/analyze
+
+실제 route registration까지 확인.
+
+보고:
+
+- route file
+- registered path
+- auth middleware
+- orchestrator function
+- production에 현재 배포되어 있는지
+
+코드에 있다는 것과
+Production live를 구분.
+
+==================================================
+7. CURRENT ENGINE PRODUCTION DEPLOY
+==================================================
+
+현재 실제 AI ENGINE Production deployment 확인.
+
+가능하면:
+
+- service/provider
+- deployed branch
+- deployed SHA
+- deployment status
+- production base URL
+
+확인.
+
+추측 금지.
+
+==================================================
+8. SAFE RUNTIME READINESS
+==================================================
+
+현재 Production Engine에서
+Growth Report route가 이미 live라면:
+
+Production student data 사용 없이
+health/route existence 수준에서 안전하게 확인.
+
+실제 분석을 돌리기 위해 synthetic request가 필요하고
+DB write가 발생한다면 이번 단계에서는 실행하지 않는다.
+
+==================================================
+9. APP CONNECTION VALUE
+==================================================
+
+APP Render에 설정할:
+
+GROWTH_REPORT_ENGINE_URL
+
+의 정확한 base URL을 보고.
+
+중요:
+
+APP client 코드가 base URL 뒤에
+/api/v1/growth-report/analyze를 붙이는지,
+
+env 자체에 full endpoint를 넣는지
+
+growth-report-engine-client.ts Contract와
+정확히 맞춰야 한다.
+
+URL 형식까지 명시.
+
+==================================================
+10. LLM RUNTIME
+==================================================
+
+WP12/WP13에서 실제 LLM key가
+Production ENGINE 환경에 존재하는지 확인.
+
+키 값 자체 출력 금지.
+
+보고:
+
+configured = YES/NO
+
+DUMMY인지 여부 가능하면 확인.
+
+실제 Production 분석 가능 조건:
+
+- Engine route
+- Engine DB
+- durable idempotency
+- LLM provider credential
+
+모두 준비되어야 함.
+
+==================================================
+11. RELEASE CLASSIFICATION
+==================================================
+
+다음 중 하나로 판정:
+
+A.
+migration already applied
++
+WP13 route deployed
++
+LLM configured
+→ ENGINE_PRODUCTION_READY
+
+B.
+migration not applied
+→ ENGINE_MIGRATION_REQUIRED
+
+C.
+migration applied but WP13 not deployed
+→ ENGINE_DEPLOY_REQUIRED
+
+D.
+LLM credential missing
+→ ENGINE_LLM_CONFIG_REQUIRED
+
+복수 blocker면 모두 보고.
+
+==================================================
+12. IF MIGRATION REQUIRED
+==================================================
+
+아직 실행하지 말고 정확히 보고:
+
+- migration filename
+- exact command
+- target DB
+- expected schema changes
+- additive/destructive
+- estimated risk
+- verification SQL
+
+==================================================
+13. IF DEPLOY REQUIRED
+==================================================
+
+아직 deploy하지 말고 보고:
+
+- current production SHA
+- target HEAD SHA
+- exact service
+- environment variables required
+- migration must precede deploy? YES/NO
+
+==================================================
+14. PRODUCTION SAFETY
+==================================================
+
+이번 단계에서 절대 금지:
+
+Production DB write
+migration execution
+production deploy
+APP DB access
+APP code modification
+fake runtime result
+
+==================================================
+15. REPORT
+==================================================
+
+다음 순서로만 보고:
+
+1. ENGINE REPOSITORY
+2. BRANCH / HEAD
+3. WP5 MIGRATION FILE
+4. TRACE TABLE CONTRACT
+5. WP13 DURABLE IDEMPOTENCY IMPLEMENTATION
+6. ENGINE PRODUCTION DB STATUS
+7. WP13 ROUTE / AUTH
+8. CURRENT PRODUCTION ENGINE SHA
+9. PRODUCTION ENGINE URL
+10. GROWTH_REPORT_ENGINE_URL VALUE FORMAT
+11. LLM PRODUCTION CONFIG STATUS
+12. MIGRATION REQUIRED? YES/NO
+13. DEPLOY REQUIRED? YES/NO
+14. BLOCKERS
+15. PRODUCTION WRITE STATUS
+
+마지막:
+
+AI_ENGINE_PRODUCTION_READINESS_VERIFIED ✅
+
+또는
+
+AI_ENGINE_PRODUCTION_READINESS_BLOCKED ❌

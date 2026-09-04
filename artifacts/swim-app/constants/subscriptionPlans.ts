@@ -2,10 +2,15 @@
  * constants/subscriptionPlans.ts
  * 구독 플랜 단일 진실 원본 (Single Source of Truth)
  *
- * Coach (개인 선생님, 사진만): Free / Coach 30 / Coach 50 / Coach 100
- * Premier (수영장/센터, 사진+영상): Premier 200 / Premier 300 / Premier 500 / Premier 1000
+ * Legacy (1.6.3 grandfathered):
+ *   Coach (개인 선생님, 사진만): Free / Coach 30 / Coach 50 / Coach 100
+ *   Premier (수영장/센터, 사진+영상): Premier 200 / Premier 300 / Premier 500 / Premier 1000
  *
- * 이 파일의 값을 기준으로 모든 화면·로직·DB 시드가 동작한다.
+ * WP2A 신규 (2.0):
+ *   SWIMNOTE / X300 / X500 / X1000
+ *   DATA100 / DATA300 (add-on, not base plan)
+ *
+ * DB(subscription_plans) 실제값과 반드시 일치해야 함
  */
 
 export interface SubscriptionPlanDef {
@@ -29,8 +34,8 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     plan_id: "free_10",
     name: "Free",
     max_members: 10,
-    storage_limit_mb: 512,
-    display_storage: "500MB",
+    storage_limit_mb: 102,
+    display_storage: "100MB",
     price_monthly_krw: 0,
     sort_order: 0,
     is_enterprise: false,
@@ -45,7 +50,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 30,
     storage_limit_mb: 3072,
     display_storage: "3GB",
-    price_monthly_krw: 3500,
+    price_monthly_krw: 1900,
     sort_order: 1,
     is_enterprise: false,
     tier_group: "coach",
@@ -59,7 +64,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 50,
     storage_limit_mb: 5120,
     display_storage: "5GB",
-    price_monthly_krw: 6500,
+    price_monthly_krw: 2900,
     sort_order: 2,
     is_enterprise: false,
     tier_group: "coach",
@@ -73,7 +78,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 100,
     storage_limit_mb: 10240,
     display_storage: "10GB",
-    price_monthly_krw: 9500,
+    price_monthly_krw: 5900,
     sort_order: 3,
     is_enterprise: false,
     tier_group: "coach",
@@ -87,7 +92,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 200,
     storage_limit_mb: 51200,
     display_storage: "50GB",
-    price_monthly_krw: 69000,
+    price_monthly_krw: 19000,
     sort_order: 4,
     is_enterprise: false,
     tier_group: "premier",
@@ -101,7 +106,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 300,
     storage_limit_mb: 81920,
     display_storage: "80GB",
-    price_monthly_krw: 99000,
+    price_monthly_krw: 27000,
     sort_order: 5,
     is_enterprise: false,
     tier_group: "premier",
@@ -115,7 +120,7 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 500,
     storage_limit_mb: 133120,
     display_storage: "130GB",
-    price_monthly_krw: 149000,
+    price_monthly_krw: 43000,
     sort_order: 6,
     is_enterprise: false,
     tier_group: "premier",
@@ -129,11 +134,68 @@ export const SUBSCRIPTION_PLANS_DEF: SubscriptionPlanDef[] = [
     max_members: 1000,
     storage_limit_mb: 512000,
     display_storage: "500GB",
-    price_monthly_krw: 249000,
+    price_monthly_krw: 79000,
     sort_order: 7,
     is_enterprise: false,
     tier_group: "premier",
     color: "#7C3AED",
+    includes_video: true,
+  },
+  // ── WP2A: 신규 2.0 플랜 (additive — legacy 삭제 금지) ──────────────────
+  {
+    tier: "swimnote",
+    plan_id: "swimnote",
+    name: "SWIMNOTE",
+    max_members: 999999, // 사용자 표시: 무제한 (WP3에서 UI 처리)
+    storage_limit_mb: 10240,
+    display_storage: "10GB",
+    price_monthly_krw: 9900,
+    sort_order: 8,
+    is_enterprise: false,
+    tier_group: "premier" as const,
+    color: "#0A2540",
+    includes_video: true,
+  },
+  {
+    tier: "x300",
+    plan_id: "x300",
+    name: "SWIMNOTE X300",
+    max_members: 300,
+    storage_limit_mb: 307200,
+    display_storage: "300GB",
+    price_monthly_krw: 129000, // Amendment A1: 119000 → 129000 (SWIMNOTE 기본플랜 포함)
+    sort_order: 9,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
+    includes_video: true,
+  },
+  {
+    tier: "x500",
+    plan_id: "x500",
+    name: "SWIMNOTE X500",
+    max_members: 500,
+    storage_limit_mb: 512000,
+    display_storage: "500GB",
+    price_monthly_krw: 199000, // Amendment A1: 189000 → 199000 (SWIMNOTE 기본플랜 포함)
+    sort_order: 10,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
+    includes_video: true,
+  },
+  {
+    tier: "x1000",
+    plan_id: "x1000",
+    name: "SWIMNOTE X1000",
+    max_members: 1000,
+    storage_limit_mb: 1024000,
+    display_storage: "1TB",
+    price_monthly_krw: 359000, // Amendment A1: 349000 → 359000 (SWIMNOTE 기본플랜 포함)
+    sort_order: 11,
+    is_enterprise: true,
+    tier_group: "premier" as const,
+    color: "#1E3A5F",
     includes_video: true,
   },
 ];
@@ -148,4 +210,52 @@ export function getPlanByPlanId(planId: string): SubscriptionPlanDef | undefined
 
 export function getDisplayStorage(tier: string): string {
   return getPlanByTier(tier)?.display_storage ?? "";
+}
+
+/** WP3: max_members >= 999999 → "무제한" / 기타 숫자 그대로 */
+export function formatMemberLimit(max_members: number): string {
+  return max_members >= 999999 ? "무제한" : `최대 ${max_members.toLocaleString()}명`;
+}
+
+/** WP3: legacy Coach/Premier tier 판별 */
+const LEGACY_TIERS = new Set([
+  "free", "starter", "basic", "standard",
+  "center_200", "advance", "pro", "max",
+]);
+export function isLegacyTier(tier: string): boolean {
+  return LEGACY_TIERS.has(tier);
+}
+
+/** WP3: 신규 2.0 X plan 판별 */
+export const NEW_X_PLANS = ["x300", "x500", "x1000"] as const;
+export const NEW_2_PLANS = ["swimnote", ...NEW_X_PLANS] as const;
+
+/** WP3: DATA pack 정의 (add-on, 별도 purchase — WP4 연결) */
+export interface DataPackDef {
+  id: string;
+  name: string;
+  plus_gb: number;
+  price_monthly_krw: number;
+}
+export const DATA_PACKS: DataPackDef[] = [
+  { id: "data100", name: "DATA100", plus_gb: 100, price_monthly_krw: 7900 },
+  { id: "data300", name: "DATA300", plus_gb: 300, price_monthly_krw: 22900 },
+];
+
+/** WP3: active members 기준 X plan 추천 */
+export function recommendXPlanTier(activeMembers: number): "x300" | "x500" | "x1000" | "enterprise" {
+  if (activeMembers <= 300) return "x300";
+  if (activeMembers <= 500) return "x500";
+  if (activeMembers <= 1000) return "x1000";
+  return "enterprise";
+}
+
+/** WP3: storage 경고 레벨 */
+export function storageWarningLevel(usedMb: number, limitMb: number): "normal" | "warning" | "critical" | "full" {
+  if (limitMb <= 0) return "normal";
+  const pct = (usedMb / limitMb) * 100;
+  if (pct >= 100) return "full";
+  if (pct >= 90) return "critical";
+  if (pct >= 80) return "warning";
+  return "normal";
 }

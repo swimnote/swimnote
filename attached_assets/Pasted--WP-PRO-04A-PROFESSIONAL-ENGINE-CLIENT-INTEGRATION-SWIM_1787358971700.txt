@@ -1,0 +1,250 @@
+[앱] WP-PRO-04A — PROFESSIONAL ENGINE CLIENT INTEGRATION
+
+목적:
+SWIMNOTE APP/API 서버가
+배포 완료된 Professional AI Engine을
+HTTP service-to-service 방식으로 호출하도록 연결한다.
+
+중요:
+- APP에 KF subsystem 이식 금지
+- APP에서 Neon DB 직접 접근 금지
+- APP DB schema 변경 금지
+- AI retrieval/ranking 로직 복제 금지
+- AI Engine 코드 수정 금지
+- 전체 repo audit 금지
+- 관련 경로만 최소 수정
+- Render deploy 금지
+
+현재 AI Engine production:
+
+ENGINE_BASE_URL
+https://swimnote-professional-engine.onrender.com
+
+POST
+/api/professional/retrieve
+
+GET
+/api/professional/health
+
+Auth:
+Authorization: Bearer <PROFESSIONAL_ENGINE_API_SECRET>
+
+────────────────────────
+1. 기존 APP Professional 호출 경로 확인
+────────────────────────
+
+APP/API server에서 이미 존재하는
+Professional AI / curriculum / retrieval 관련
+external engine client 또는 adapter가 있는지
+관련 파일만 최소 검색.
+
+우선 식별자:
+- professional
+- engine
+- external
+- retrieval
+- curriculum
+- request_id
+
+기존 client가 있으면 재사용.
+중복 client 생성 금지.
+
+────────────────────────
+2. APP Server Env
+────────────────────────
+
+APP 서버에 다음 env contract 추가:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+secret은 절대 mobile bundle / EXPO_PUBLIC_* / frontend에 넣지 않는다.
+
+반드시 APP API server backend에서만 사용.
+
+────────────────────────
+3. Engine Client
+────────────────────────
+
+기존 client가 없을 경우에만
+얇은 server-side client 추가.
+
+호출:
+
+POST
+{PROFESSIONAL_ENGINE_BASE_URL}/api/professional/retrieve
+
+Headers:
+Authorization: Bearer <secret>
+Content-Type: application/json
+X-Request-Id: <APP request_id>
+
+Body:
+{
+  "query": "...",
+  "limit": 8,
+  "request_id": "same-request-id"
+}
+
+Timeout:
+5000ms
+
+────────────────────────
+4. request_id
+────────────────────────
+
+APP request_id를 새로 여러 개 만들지 않는다.
+
+기존 request trace가 있으면 동일 ID 재사용.
+
+APP
+→ Engine
+→ APP trace
+
+전체 동일 request_id 유지.
+
+────────────────────────
+5. Response Mapping
+────────────────────────
+
+Engine response:
+
+{
+  request_id,
+  results,
+  retrieval_meta
+}
+
+APP에서는 이걸 그대로 DB 전체 지식처럼 취급하지 않는다.
+
+필요한 evidence만 상위 기능에 전달:
+
+- knowledge_id
+- title
+- text
+- knowledge_type
+- score
+- evidence_id
+
+raw internal metadata 확장 금지.
+
+────────────────────────
+6. Failure Handling
+────────────────────────
+
+Engine timeout / 5xx / network error 시
+generic GPT로 조용히 성공 처리 금지.
+
+명확히 distinguish:
+
+- ENGINE_TIMEOUT
+- ENGINE_UNAVAILABLE
+- ENGINE_UNAUTHORIZED
+- ENGINE_RETRIEVAL_FAILED
+
+사용자-facing 처리 방식은
+기존 Professional 기능의 error contract를 따른다.
+
+재시도는 기존 정책이 없다면 자동 추가 금지.
+
+────────────────────────
+7. Cost / Observability
+────────────────────────
+
+WP-AI-01의 external engine usage 구조를 재사용.
+
+기록 가능 항목:
+- provider/service = professional_engine
+- feature
+- request_id
+- logical_request_count = 1
+- actual_call_count = 실제 HTTP attempt 기준
+- latency_ms
+- success
+- error_type
+
+Engine 내부 embedding cost를 APP에서 다시 추정하지 않는다.
+Engine이 반환하지 않으면 cost_source=UNKNOWN 또는 기존 contract 준수.
+
+────────────────────────
+8. Health Client
+────────────────────────
+
+필요한 경우에만:
+
+GET
+{BASE_URL}/api/professional/health
+
+앱 사용자 요청마다 health 선호출 금지.
+
+운영 점검용으로만 사용.
+
+────────────────────────
+9. Security
+────────────────────────
+
+반드시 확인:
+
+- secret frontend 노출 없음
+- secret mobile bundle 없음
+- logs에 Authorization header 없음
+- error response에 secret 없음
+- Engine URL은 노출돼도 무방하지만 secret은 server-only
+
+────────────────────────
+10. 최소 테스트
+────────────────────────
+
+관련 테스트만 실행.
+
+TC1 valid engine response mapping
+TC2 request_id pass-through
+TC3 Authorization header server-side only
+TC4 timeout → ENGINE_TIMEOUT
+TC5 401 → ENGINE_UNAUTHORIZED
+TC6 5xx/network → appropriate engine error
+TC7 no generic GPT fallback masquerading as grounded success
+TC8 external usage actual_call_count semantics 유지
+TC9 secret이 frontend/mobile config로 노출되지 않음
+
+Full regression 금지.
+
+────────────────────────
+11. Production Env 준비
+────────────────────────
+
+APP Render 환경에 필요한 env 이름만 보고:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+값 자체 보고 금지.
+
+실제 env 등록/배포는 사용자 승인 전 실행 금지.
+
+────────────────────────
+12. 완료 보고
+────────────────────────
+
+[앱] WP-PRO-04A ENGINE CLIENT INTEGRATION REPORT
+
+- Result
+- commit SHA
+- changed files
+- existing client reused: YES/NO
+- engine endpoint
+- timeout
+- request_id propagation
+- error mapping
+- observability mapping
+- tests/pass count
+- secret frontend exposure: NO
+- APP DB changed: NO
+- AI retrieval logic copied into APP: NO
+- deployed: NO
+- required APP Render env names
+
+Verification:
+APP PROFESSIONAL ENGINE CLIENT READY
+
+STOP.

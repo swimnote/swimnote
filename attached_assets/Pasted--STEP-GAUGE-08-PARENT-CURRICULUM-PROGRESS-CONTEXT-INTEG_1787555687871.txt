@@ -1,0 +1,371 @@
+[앱] STEP-GAUGE-08 — PARENT CURRICULUM PROGRESS CONTEXT INTEGRATION
+
+기준:
+- GAUGE-01~07 COMPLETE
+- latest commit: ed132f3c
+
+목적:
+Parent Curriculum AI가 학생의 실제 현재 교육과정 진행 위치를
+optional context로 받을 수 있도록
+student_curriculum_progress(SCP)를
+기존 Parent Curriculum scope에 연결한다.
+
+핵심 원칙:
+- Gauge 값은 설명용 context다.
+- Gauge가 Parent Curriculum 검색 결과를 강제로 바꾸는 authority가 아니다.
+- Professional V2 / GPT는 gauge를 수정할 수 없다.
+- Gauge source는 오직 SCP read-only.
+- 기존 Parent Curriculum pipeline/grounding/quota 동작을 깨뜨리지 않는다.
+
+이번 Step 범위:
+1. buildStudentProgress() 구현
+2. Parent Curriculum context에 optional progress 필드 연결
+3. 기존 engine request contract 최소 확장
+4. 테스트
+5. production DB write 금지
+
+중요:
+- CPO/SCP 계산 로직 수정 금지
+- Gauge 값 생성/보정 금지
+- Parent Home 수정 금지
+- Growth Report 수정 금지
+- AI Engine retrieval 구조 변경 금지
+- Professional V2 검색 로직 변경 금지
+- quota 정책 변경 금지
+- Render deploy 금지
+- OTA 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+우선 확인:
+
+artifacts/api-server/src/lib/parent-curriculum-scope-builder.ts
+
+현재 buildStudentProgress()가
+undefined 또는 미구현 상태인지 확인.
+
+Parent Curriculum engine client/request type에서
+student progress context를 전달하는 최소 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. buildStudentProgress()
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현:
+
+buildStudentProgress(db, studentId, poolId)
+
+조회:
+
+SELECT
+  display_confirmed_pct,
+  active_confirmed_pct,
+  active_confirmed_rank,
+  active_confirmed_total,
+  active_curriculum_version_id,
+  observation_session_count,
+  confirmed_at
+FROM student_curriculum_progress
+WHERE student_id = $studentId
+  AND swimming_pool_id = $poolId
+LIMIT 1
+
+return 예:
+
+{
+  confirmed_progress_pct,
+  active_progress_pct,
+  active_confirmed_rank,
+  active_total_count,
+  active_version_id,
+  observation_session_count,
+  confirmed_at
+}
+
+명칭은 기존 request contract에 맞게 최소 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. UI/display progress 의미
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI context에서 핵심 current progress는:
+
+confirmed_progress_pct
+= SCP.display_confirmed_pct
+
+즉 학부모에게 보이는
+cross-version monotonic education progress.
+
+active_progress_pct는
+현재 curriculum version 내부 factual position 참고용.
+
+두 값을 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. SCP 없음
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SCP row가 없으면:
+
+buildStudentProgress()
+→ undefined 또는 null
+
+기존 Parent Curriculum 동작을 그대로 유지.
+
+절대:
+0%라고 단정해서 보내지 말 것.
+
+이유:
+아직 교육과정 위치가 확인되지 않은 것과
+실제 시작점 0%는 의미가 다름.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Engine Context
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Parent Curriculum request/context 안에
+optional field로 추가.
+
+예:
+
+student_progress?: {
+  confirmed_progress_pct: number,
+  active_progress_pct: number,
+  active_confirmed_rank: number,
+  active_total_count: number,
+  active_version_id: string | null,
+  observation_session_count: number,
+  confirmed_at: string | null
+}
+
+기존 필드 삭제/rename 금지.
+
+기존 context 구조가 다른 경우
+그 구조 안에서 optional child object로 최소 확장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Parent Curriculum AI 사용 의미
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이 context는 다음 설명에 활용 가능:
+
+- 현재 확인된 교육과정 위치
+- 현재 이후에 무엇을 배우는지
+- 지금 어느 단계인지
+- 다음 교육과정 설명
+
+하지만 금지:
+
+- confirmed_progress_pct를 실력 점수로 표현
+- mastery로 표현
+- "42% 실력"
+- "42% 숙련"
+- Gauge를 근거로 lower curriculum mastery 추론
+- Gauge만 보고 이미 배운 모든 하위 item 완료 단정
+
+정확한 의미:
+"교육과정 진행 위치가 약 42% 지점으로 확인됨"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Existing Student Progress Evidence
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Parent Curriculum scope에
+다른 curriculum_state/current_curriculum_id/
+recent topics evidence가 이미 있다면
+삭제하지 않는다.
+
+Gauge context는 추가 evidence일 뿐.
+
+충돌 시:
+- 실제 pool curriculum
+- actual diary/growth evidence
+가 우선.
+
+Gauge는 요약된 confirmed position.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. Engine Contract Compatibility
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 AI service:
+swimnote-professional-engine
+
+Parent Curriculum endpoint:
+POST /api/v1/parent-curriculum/search
+
+기존 payload validation이 strict라면
+student_progress optional field를
+허용하도록 최소 수정이 필요할 수 있음.
+
+이 경우:
+[AI] 변경이 필요한지 먼저 정확히 확인.
+
+중요:
+앱 repo만 수정해서
+engine strict schema가 거부하는 구조면 안 됨.
+
+만약 AI Engine code 수정이 반드시 필요하면:
+이번 [앱] Step에서 임의 수정하지 말고
+정확한 파일/schema/필요 변경을 보고하고 BLOCKED.
+
+engine이 추가 optional field를 이미 허용하거나
+context passthrough 구조면 그대로 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. No New AI Call
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서:
+- 새 GPT call 금지
+- 새 reranker call 금지
+- embedding call 금지
+- Professional V2 추가 search 금지
+
+기존 Parent Curriculum 요청 1회에
+context만 추가.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Quota / Billing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 정책 그대로:
+
+GROUNDED_GPT만 quota consume
+DIRECT_DB / failure는 consume 안 함.
+
+Gauge context 추가 때문에
+quota/billing path 변경 금지.
+
+usage logging 구조 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Security
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+progress 조회는 반드시:
+
+student_id
++
+swimming_pool_id
+
+둘 다 사용.
+
+studentId 단독 조회 금지.
+
+Parent route에서 이미 검증된
+student/pool scope만 전달.
+
+다른 pool SCP leakage 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1
+SCP 있음:
+display=42, active=38
+→ student_progress.confirmed_progress_pct=42
+→ active_progress_pct=38
+
+TC2
+SCP 없음
+→ student_progress undefined/null
+→ 기존 Parent Curriculum 동작 유지
+
+TC3
+다른 pool SCP
+→ 조회되지 않음
+
+TC4
+display와 active 다름
+→ confirmed source는 display
+
+TC5
+observation_session_count 전달
+
+TC6
+active version/rank/total 전달
+
+TC7
+기존 context fields 유지
+
+TC8
+기존 Parent Curriculum request 성공
+
+TC9
+DIRECT_DB path 영향 없음
+
+TC10
+GROUNDED_GPT quota 정책 영향 없음
+
+TC11
+new AI call 없음
+
+TC12
+Professional V2 retrieval count 증가 없음
+
+TC13
+engine strict schema compatibility 확인
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. Production DB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production DB write 금지.
+
+SCP read-only sanity check 가능.
+
+테스트 row 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Deployment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서도 deploy 금지.
+
+GAUGE-08 COMPLETE 후
+GAUGE-06 + 07 + 08 변경을 묶어서:
+
+1. GitHub push
+2. Render manual/automatic production build 확인
+3. API smoke test
+4. 사용자 승인 후 OTA production 1회
+
+순서로 진행 예정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-08 PARENT CURRICULUM PROGRESS CONTEXT REPORT
+
+- scope builder file
+- buildStudentProgress implementation
+- SCP query
+- confirmed progress source
+- SCP missing behavior
+- request context field
+- existing context preserved: YES/NO
+- engine schema compatibility: YES/NO
+- AI Engine modification required: YES/NO
+- new AI call added: NO
+- quota behavior changed: NO
+- cross-pool isolation: YES/NO
+- tests + pass count
+- production DB write: NO
+- changed files
+- commit SHA
+- Render deploy now: NO
+
+Final Verdict:
+GAUGE-08 COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.

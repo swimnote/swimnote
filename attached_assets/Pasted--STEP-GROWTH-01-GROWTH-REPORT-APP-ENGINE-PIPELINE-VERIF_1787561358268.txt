@@ -1,0 +1,260 @@
+[앱] STEP-GROWTH-01 — GROWTH REPORT APP→ENGINE PIPELINE VERIFICATION
+
+기준:
+- CURRICULUM PROGRESS GAUGE RELEASE COMPLETE
+- GAUGE-07 immutable progress snapshot COMPLETE
+- Growth Report AI Engine route existing:
+  POST /api/v1/growth-report/analyze
+- 기존 70-item evaluation framework 유지
+- monthly 1 report/student 정책 유지
+
+목적:
+현재 APP Growth Report 생성 파이프라인에서
+GAUGE-07이 추가한 curriculum progress snapshot이
+실제로 AI Engine까지 전달되는지 정확히 검증하고,
+누락이 있으면 최소 수정한다.
+
+이번 Step은
+"전달 경로 검증 + contract alignment"만 한다.
+
+아직 prompt/output narrative 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 실제 생성 파이프라인 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 범위만 확인:
+
+Growth Report 생성 요청
+→ snapshot builder
+→ analysis worker
+→ growth-report engine client
+→ POST /api/v1/growth-report/analyze
+→ result handler
+→ growth_reports.report_content 저장
+
+보고:
+- route
+- worker
+- snapshot builder
+- engine client
+- result handler
+- 실제 request payload 생성 위치
+
+전체 repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. GAUGE-07 snapshot 필드 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 snapshot curriculum_state에:
+
+- confirmed_progress_pct
+- active_confirmed_rank
+- active_total_count
+- active_version_id
+- period_start_pct
+- progress_delta_pct
+- observation_session_count
+
+가 실제로 포함되는지 확인.
+
+중요:
+confirmed_progress_pct
+= SCP.display_confirmed_pct
+
+period_start_pct
+= 이전 PUBLISHED report의 immutable JSONB snapshot
+
+progress_delta_pct
+= current - previous (%p)
+
+이 의미 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Engine Request Contract 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+growth-report-engine-client.ts가
+snapshot의 curriculum_state를
+engine request에 그대로 포함하는지 확인.
+
+확인:
+
+A.
+타입에는 필드가 있는데 JSON serialization에서 빠지는지
+
+B.
+payload builder에서 curriculum_state 일부만 pick하는지
+
+C.
+undefined/null field가 의도치 않게 제거되는지
+
+D.
+engine request가 strict validation을 사용하는지
+
+필드가 이미 전부 전달되면 코드 수정 금지.
+
+누락이면 최소 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Engine-side schema compatibility
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 APP repo에서 확인 가능한 범위:
+
+- engine response/client contract
+- request payload shape
+
+AI Engine 자체 schema 수정이 반드시 필요하면
+이번 [앱] Step에서 수정하지 말고:
+
+[AI] CHANGE REQUIRED
+
+로 정확한 필드/contract만 보고.
+
+Professional retrieval와 혼동 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Existing Growth Report inputs 보존
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 아래 input은 절대 손실되면 안 됨:
+
+- diaries
+- growth_events
+- attendance
+- curriculum_state 기존 필드
+- longitudinal
+- parent_answers
+- teacher_review (존재 시)
+- payload_hash
+
+Gauge snapshot은 추가 input일 뿐.
+
+기존 field rename/delete 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. No New AI Calls
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step:
+- 새 GPT call 금지
+- 새 reranker 금지
+- embedding 금지
+- Azure Language 금지
+- Professional V2 call 추가 금지
+
+기존 Growth Report Engine 요청 1회 구조 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Monthly quota 정책 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 정책 최소 확인:
+
+- 월 1 report/student
+- 성공한 report만 consume
+- 실패 generation은 consume하지 않음
+
+이번 Step에서 정책 수정 금지.
+
+다만 현재 코드가 이 정책과 다르면
+정확한 mismatch만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1
+snapshot:
+confirmed=50
+period_start=40
+delta=10
+
+→ engine request curriculum_state에
+3개 값 모두 존재
+
+TC2
+active version/rank/total 전달
+
+TC3
+observation_session_count 전달
+
+TC4
+SCP 없음:
+confirmed=null
+period_start=null
+delta=null
+→ request 깨지지 않음
+
+TC5
+기존 diaries 유지
+
+TC6
+기존 growth_events 유지
+
+TC7
+기존 attendance 유지
+
+TC8
+기존 longitudinal 유지
+
+TC9
+기존 parent_answers 유지
+
+TC10
+payload_hash 유지
+
+TC11
+새 AI call 없음
+
+TC12
+기존 response handler 정상
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Production 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+production Growth Report 생성 금지.
+
+production DB write 금지.
+
+test/local 환경에서만 검증.
+
+Render deploy 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GROWTH-01 PIPELINE VERIFICATION REPORT
+
+- generation route
+- snapshot builder
+- analysis worker
+- engine client
+- result handler
+- engine endpoint
+- gauge fields present in snapshot: YES/NO
+- gauge fields present in engine request: YES/NO
+- existing inputs preserved: YES/NO
+- engine schema compatibility: YES/NO/UNKNOWN
+- AI Engine modification required: YES/NO
+- monthly quota policy match: YES/NO
+- new AI call added: NO
+- tests + pass count
+- production DB write: NO
+- changed files
+- commit SHA
+
+Final Verdict:
+APP→ENGINE PIPELINE READY
+또는
+[AI] CHANGE REQUIRED
+또는
+BLOCKED + exact reason
+
+STOP.

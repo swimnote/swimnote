@@ -1,0 +1,195 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 — WP7 FINAL CORRECTION
+# x-setup 뒤로가기 우선순위 1건만 수정
+
+Branch:
+release/v2.0.0
+
+현재 HEAD:
+bf151f22
+
+다른 코드 수정 금지.
+
+============================================================
+문제
+============================================================
+
+현재 x-setup back handler 우선순위:
+
+1. canGoBack() → router.back()
+2. backTo → logical parent
+3. settings fallback
+
+이 구조는 요구사항을 완전히 보장하지 못함.
+
+이번 WP의 목적은:
+
+"어디서 진입했는지 명확할 경우
+뒤로가기는 무조건 그 논리적 직전 페이지로 이동"
+
+하는 것.
+
+이미 모든 x-setup 진입점에서
+정확한 backTo를 전달하도록 수정했으므로
+backTo를 최우선으로 사용해야 한다.
+
+============================================================
+최종 우선순위
+============================================================
+
+x-setup Back:
+
+1. backTo 존재
+   → 해당 logical parent로 이동
+
+2. backTo 없음 + canGoBack()
+   → router.back()
+
+3. 둘 다 없음
+   → settings fallback
+
+즉:
+
+IF backTo === "settings"
+→ Settings
+
+IF backTo === "x-mode-hub"
+→ X Mode Hub
+
+IF backTo === "x-subscription"
+→ X Subscription
+
+여기서는 canGoBack() 결과보다
+명시적 backTo가 우선이다.
+
+============================================================
+중요
+============================================================
+
+현재 이미 수정된 진입점 유지:
+
+Settings → x-setup
+backTo=settings
+
+X Mode Hub → x-setup
+backTo=x-mode-hub
+
+X Subscription → x-setup
+backTo=x-subscription
+
+이 값 변경 금지.
+
+XInfoDetailPage / x-subscription의
+기존 정상 수정도 건드리지 말 것.
+
+Home icon:
+변경 금지.
+
+============================================================
+TEST
+============================================================
+
+W7F-01
+Settings → X Setup → Back
+= Settings
+
+W7F-02
+X Mode Hub → X Setup → Back
+= X Mode Hub
+
+W7F-03
+X Mode Hub → Subscription → X Setup → Back
+= X Subscription
+
+W7F-04
+위 화면에서 다시 Back
+= X Mode Hub
+
+W7F-05
+canGoBack()이 true여도
+backTo가 있으면 backTo가 우선
+PASS
+
+W7F-06
+backTo 없음 + stack 있음
+→ router.back()
+PASS
+
+W7F-07
+backTo 없음 + stack 없음
+→ Settings
+PASS
+
+W7F-08
+Back → Admin Home
+0
+
+W7F-09
+Home icon → Admin Home
+PASS
+
+============================================================
+범위
+============================================================
+
+다른 기능:
+NO TOUCH
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): prioritize explicit parent for x setup back navigation
+
+============================================================
+완료보고
+============================================================
+
+# WP7 FINAL BACK REPORT
+
+HEAD Before:
+bf151f22
+
+HEAD After:
+...
+
+Commit:
+...
+
+Back priority:
+1. backTo
+2. canGoBack
+3. settings fallback
+
+Settings → X Setup:
+PASS / FAIL
+
+X Mode Hub → X Setup:
+PASS / FAIL
+
+Subscription → X Setup:
+PASS / FAIL
+
+Back → Admin Home:
+0 / ...
+
+Home icon:
+PASS / FAIL
+
+FINAL:
+WP7 FULLY CLOSED / FAIL

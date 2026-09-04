@@ -1,0 +1,213 @@
+[FINAL ANDROID RELEASE — SPLASH WHITE RESTORE + PRODUCTION BUILD]
+
+현재 로그인 로고 레이아웃 수정은 완료되었다.
+
+완료 commit:
+809d2da9
+
+iOS OTA:
+01a0445e-4bee-773d-aea6-30d0525bf849
+runtimeVersion 1.6.3
+
+이제 다른 기능 수정 없이
+Splash 설정 하나만 최종 확인/복구한 뒤
+즉시 Android production build를 시작한다.
+
+==================================================
+1. SPLASH BACKGROUND 최종 확인
+==================================================
+
+이전 FULL CHANGE REPORT에서:
+
+app.json
+splash.backgroundColor
+#FFFFFF → #000000
+
+으로 변경되었다고 보고되었다.
+
+방금 LOGIN LOGO FIX에서는
+Splash를 변경하지 않았으므로,
+현재 repository에 #000000이 남아 있을 가능성이 있다.
+
+실제 현재 HEAD 기준으로
+Splash 설정을 직접 확인한다.
+
+FINAL REQUIREMENT:
+
+Splash backgroundColor = #FFFFFF
+
+반드시 흰색.
+
+현재 #000000이면
+#FFFFFF로 복구한다.
+
+==================================================
+2. SPLASH LOGO
+==================================================
+
+공식 새 SWIMNOTE 로고 asset은 유지한다.
+
+- 새 공식 로고 유지
+- 이미지 재교체 금지
+- crop 금지
+- resizeMode = contain 유지
+- 중앙 배치 유지
+
+오직 잘못 변경된 배경색만 복구한다.
+
+현재 실제 splash asset 경로와
+app.json/app.config 설정이 서로 일치하는지도 확인한다.
+
+==================================================
+3. LOGIN SCREEN
+==================================================
+
+방금 PASS된 로그인 로고 수정은 절대 다시 건드리지 않는다.
+
+현재 기준:
+
+logoWidth =
+Math.min(SCREEN_W * 0.49, 210)
+
+현재 commit:
+809d2da9
+
+이 상태 그대로 유지.
+
+==================================================
+4. 수정 범위 제한
+==================================================
+
+절대 수정 금지:
+
+- 가격
+- subscription
+- RevenueCat
+- X entitlement
+- X revoke
+- 관리자 hub
+- teacher UI
+- parent UI
+- superadmin UI
+- navigation
+- server
+- DB
+- video
+- 로그인 기능
+- 다른 디자인
+
+이번 마지막 수정은
+Splash backgroundColor 확인/복구만 허용.
+
+==================================================
+5. COMMIT
+==================================================
+
+#000000 → #FFFFFF 수정이 필요했다면
+별도 commit 생성 후 push.
+
+이미 #FFFFFF라면
+불필요한 commit 만들지 말 것.
+
+==================================================
+6. ANDROID RELEASE VERSION
+==================================================
+
+현재 Google Play production에서 사용 중인
+versionName / versionCode와
+repository 현재 값을 확인한다.
+
+새 AAB는 반드시
+기존 업로드된 Android build보다
+높은 versionCode를 사용한다.
+
+versionName은 현재 release convention에 맞춰 증가.
+
+중요:
+iOS runtimeVersion 1.6.3 변경 금지.
+
+==================================================
+7. PRE-BUILD CHECK
+==================================================
+
+빌드 직전 확인:
+
+- production API endpoint
+- production build profile
+- Android applicationId/package 기존 production과 동일
+- signing config 정상
+- dev/debug endpoint 없음
+- official logo asset 포함
+- Splash white background
+- login layout fix 809d2da9 포함
+- superadmin fixes 포함
+- X ModeContext fix 포함
+- 가격변경 commit은 revert되어 현재 코드에 없음
+
+가격/SKU/RevenueCat을 다시 수정하지 않는다.
+
+==================================================
+8. ANDROID PRODUCTION BUILD
+==================================================
+
+Pre-build PASS 후 즉시
+Android production AAB build 시작.
+
+Expo/EAS 현재 production 방식 그대로 사용.
+
+새 native build이므로
+공식 Splash asset 변경도 포함되도록 한다.
+
+==================================================
+9. BUILD 결과 확인
+==================================================
+
+반드시 확인:
+
+- build SUCCESS
+- AAB 생성
+- applicationId 정상
+- versionCode 정상 증가
+- signing 정상
+- production profile
+- artifact 다운로드 가능
+
+==================================================
+10. 완료보고
+==================================================
+
+ANDROID FINAL BUILD REPORT
+
+SPLASH CURRENT BEFORE =
+SPLASH FINAL =
+SPLASH FILE =
+SPLASH CONFIG FILE =
+
+LOGIN FIX COMMIT INCLUDED =
+SUPERADMIN FIX INCLUDED =
+X MODE FIX INCLUDED =
+PRICE RESET PRESENT = NO 확인 =
+
+SPLASH FIX COMMIT =
+FINAL BUILD COMMIT SHA =
+
+ANDROID
+VERSION NAME =
+VERSION CODE =
+APPLICATION ID =
+BUILD PROFILE =
+BUILD ID =
+BUILD STATUS =
+AAB ARTIFACT/LINK =
+
+FINAL:
+
+READY FOR GOOGLE PLAY CONSOLE UPLOAD
+
+or
+
+HOLD — exact blocker
+
+STOP.
+
+빌드 완료 후 다른 기능 수정 금지.

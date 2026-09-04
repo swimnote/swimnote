@@ -1,9 +1,9 @@
-import { CircleCheck, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -39,13 +39,13 @@ export function ClassTransferModal({
               <Text style={tm.sub}>{sourceName} 선생님의 담당 반·회원을 인수할 선생님을 선택하세요</Text>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {availableTeachers.length === 0 ? (
             <View style={tm.emptyBox}>
-              <Users size={32} color={C.textMuted} />
+              <LucideIcon name="users" size={32} color={C.textMuted} />
               <Text style={tm.emptyText}>인수 가능한 선생님이 없습니다</Text>
             </View>
           ) : (
@@ -53,19 +53,19 @@ export function ClassTransferModal({
               {availableTeachers.map(t => (
                 <Pressable
                   key={t.userId}
-                  style={[tm.teacherRow, selected === t.userId && { borderColor: C.tint, backgroundColor: C.tintLight }]}
+                  style={[tm.teacherRow, selected === t.userId && { borderColor: C.brandStrong, backgroundColor: C.brandSoft }]}
                   onPress={() => setSelected(t.userId)}
                 >
-                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.tint : "#E5E7EB" }]}>
+                  <View style={[tm.avatar, { backgroundColor: selected === t.userId ? C.brandStrong : C.border }]}>
                     <Text style={[tm.avatarText, { color: selected === t.userId ? "#fff" : C.textSecondary }]}>
                       {t.name[0]}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[tm.teacherName, selected === t.userId && { color: C.tint }]}>{t.name}</Text>
+                    <Text style={[tm.teacherName, selected === t.userId && { color: C.brandStrong }]}>{t.name}</Text>
                     <Text style={tm.teacherPhone}>{t.phone}</Text>
                   </View>
-                  {selected === t.userId && <CircleCheck size={20} color={C.tint} />}
+                  {selected === t.userId && <LucideIcon name="check-circle" size={20} color={C.brandStrong} />}
                 </Pressable>
               ))}
             </ScrollView>
@@ -76,7 +76,7 @@ export function ClassTransferModal({
               <Text style={[tm.btnText, { color: C.textSecondary }]}>취소</Text>
             </Pressable>
             <Pressable
-              style={[tm.btn, { backgroundColor: C.tint, opacity: (!selected || processing) ? 0.5 : 1 }]}
+              style={[tm.btn, { backgroundColor: C.primaryAction, opacity: (!selected || processing) ? 0.5 : 1 }]}
               onPress={() => { if (selected && selectedTeacher) onConfirm(selected, selectedTeacher.name); }}
               disabled={!selected || processing}
             >
@@ -94,7 +94,7 @@ export function ClassTransferModal({
 const tm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 16, maxHeight: "80%" },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   title: { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.text },
   sub: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4, maxWidth: "90%", lineHeight: 18 },

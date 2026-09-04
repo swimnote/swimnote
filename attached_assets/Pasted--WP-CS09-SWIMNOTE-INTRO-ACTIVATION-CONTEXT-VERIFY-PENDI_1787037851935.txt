@@ -1,0 +1,491 @@
+[WP-CS09-SWIMNOTE-INTRO-ACTIVATION + CONTEXT VERIFY]
+
+목적:
+
+현재 PENDING:
+
+ki_swimnote_intro
+
+를 실제 검증 후 ACTIVE 승인하고,
+
+production에서:
+
+"스윔노트 알려줘"
+
+질문이 LLM 없이 deterministic하게 해결되며,
+해결된 entity context가:
+
+context_json.resolution_context
+
+에 정상 저장되는지 검증한다.
+
+신규 기능 개발 금지.
+자동 ACTIVE 금지.
+대량 Knowledge 생성 금지.
+
+==================================================
+0. BASELINE
+==================================================
+
+현재 Render live:
+
+8ccf8fca5a12
+
+현재 context contract:
+
+기존 context_json 보존
++
+resolution_context sub-key만 merge
+
+LLM output에서 entity extraction 금지.
+
+==================================================
+1. MANUAL KNOWLEDGE REVIEW
+==================================================
+
+대상:
+
+ki_swimnote_intro
+
+Super Admin UI에서 실제 내용 검토.
+
+확인:
+
+id
+item_type
+category
+feature
+title
+question
+answer/content
+
+affected_roles
+affected_modes
+
+frontend_screen_id
+deep_link
+
+source_type
+source_ref
+status
+
+실제 구현된 SWIMNOTE 기능만 포함되어야 함.
+
+금지:
+
+미구현 기능
+임의 가격
+임의 정책
+임의 AI 기능
+임의 X 기능
+환불정책 창작
+
+실제 내용이 맞을 때만:
+
+PENDING → ACTIVE
+
+반드시 기존 Super Admin approval API/UI 사용.
+
+SQL 직접 UPDATE 금지.
+
+보고:
+
+USER_REVIEW_REQUIRED =
+KNOWLEDGE_REVIEWED =
+KNOWLEDGE_APPROVED =
+STATUS_AFTER =
+
+==================================================
+2. ROLE CONTRACT
+==================================================
+
+affected_roles가 실제 JWT role과 맞는지 확인.
+
+최소 실제 support role:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+존재하지 않는 alias만 들어가서
+실사용자가 누락되지 않도록 한다.
+
+이번 WP에서 전체 Knowledge role migration은 금지.
+
+==================================================
+3. NORMALIZATION VERIFY
+==================================================
+
+아래 질문이 하나의 SWIMNOTE intro Knowledge로
+매칭 가능한지 확인:
+
+"스윔노트 알려줘"
+"스윔노트가 뭐야"
+"스윔노트 설명해줘"
+"SWIMNOTE가 뭐야"
+
+FAQ row 복제 금지.
+
+기존 deterministic normalization/alias 구조 사용.
+
+==================================================
+4. REAL PRODUCTION DEVICE TEST
+==================================================
+
+실제 iPhone에서:
+
+"스윔노트 알려줘"
+
+전송.
+
+기록:
+
+USER_MESSAGE_VISIBLE =
+REPLY_VISIBLE =
+ANSWER_TEXT_PRESENT =
+
+예상값 금지.
+
+==================================================
+5. REAL TRACE VERIFY
+==================================================
+
+방금 request:
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+SCORE =
+
+EVIDENCE_COUNT =
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+성공 기대:
+
+RESOLUTION_STATUS = RESOLVED
+SOURCE_ID = ki_swimnote_intro
+
+LLM_START_OBSERVED = NO
+LLM_CALLED = false
+LLM_USED = false
+MODEL = null
+
+==================================================
+6. RESOLUTION CONTEXT VERIFY
+==================================================
+
+해당 case의 context_json을 read-only 확인.
+
+기존 top-level 값:
+
+user_role
+feature_id
+app_version
+service_mode
+xmode_enabled
+subscription_plan
+
+등이 존재했다면 그대로 보존되어야 함.
+
+그리고:
+
+context_json.resolution_context
+
+확인.
+
+최소:
+
+entity_key
+source_id/source_type
+feature/category if contract에 존재
+
+보고:
+
+TOP_LEVEL_CONTEXT_PRESERVED =
+RESOLUTION_CONTEXT_PRESENT =
+RESOLUTION_ENTITY_KEY =
+RESOLUTION_SOURCE_ID =
+
+성공 조건:
+
+기존 session metadata 손실 = NO
+
+==================================================
+7. FOLLOW-UP TEST
+==================================================
+
+같은 case에서 바로 다음 질문:
+
+"이거 어디서 볼 수 있어?"
+
+또는 현재 Knowledge/Frontend Map에서
+실제로 근거가 존재하는 안전한 follow-up을 선정.
+
+목적:
+
+previousContext가:
+
+sc.context_json.resolution_context
+
+에서 읽히는지 실제 확인.
+
+보고:
+
+FOLLOWUP_DETECTED =
+PREVIOUS_ENTITY =
+AUGMENTED_QUERY_USED =
+FOLLOWUP_RESOLUTION_STATUS =
+FOLLOWUP_SOURCE =
+
+근거가 없으면 억지 답변 금지.
+
+==================================================
+8. CREATOR QUESTION SAFETY
+==================================================
+
+creator Knowledge가 현재 NONE인 상태 유지.
+
+같은 case에서:
+
+"이거 만든사람 누구야"
+
+를 테스트한다면:
+
+followup_detected = YES
+
+이어도 creator Knowledge가 없으므로
+사람 이름을 추측하면 안 됨.
+
+기대:
+
+NO_MATCH / HUMAN_REQUIRED
+
+HALLUCINATED_CREATOR = NO
+
+실제 테스트는 선택사항.
+
+==================================================
+9. OMITTED-SUBJECT FOLLOWUP — RECORD ONLY
+==================================================
+
+현재 known limitation:
+
+"만든사람 누구야"
+
+처럼 referential pronoun 없이
+직전 entity를 생략한 질문은
+현재 followup signal로 잡히지 않음.
+
+이번 WP에서는 수정 금지.
+
+후속 항목 등록:
+
+SUPPORT_IMPLICIT_FOLLOWUP_INTENT
+
+향후 조건:
+
+previous resolution_context 존재
++
+관계형 intent(creator/가격/위치/사용자 등)
+
+일 때만 context augmentation 검토.
+
+==================================================
+10. X INTRO REGRESSION
+==================================================
+
+기존:
+
+"스윔노트X에 대해 알려줘"
+
+→ ki_x_mode_intro
+
+유지 확인.
+
+일반 SWIMNOTE intro가
+X 질문을 먹으면 FAIL.
+
+==================================================
+11. FRONTEND MAP REGRESSION
+==================================================
+
+위치 질문:
+
+"X모드 화면 어디야"
+
+→ FRONTEND_MAP
+
+유지.
+
+설명 질문과 화면 위치 질문 분리 유지.
+
+==================================================
+12. DB / SECURITY
+==================================================
+
+resolution_context는 해당 case에만 저장.
+
+다른:
+
+user
+pool
+case
+
+로 leakage 금지.
+
+actor_id/pool_id isolation 유지.
+
+==================================================
+13. TEST MATRIX
+==================================================
+
+SINTRO-01
+ki_swimnote_intro active after manual approval
+
+SINTRO-02
+"스윔노트 알려줘" deterministic hit
+
+SINTRO-03
+variation hit
+
+SINTRO-04
+LLM 0 on intro
+
+SINTRO-05
+resolution_context written
+
+SINTRO-06
+existing context_json preserved
+
+SINTRO-07
+same-case followup uses previous entity
+
+SINTRO-08
+other case cannot use context
+
+SINTRO-09
+other user cannot use context
+
+SINTRO-10
+other pool cannot use context
+
+SINTRO-11
+X intro regression none
+
+SINTRO-12
+Frontend Map navigation regression none
+
+SINTRO-13
+creator hallucination none
+
+SINTRO-14
+full regression
+
+==================================================
+14. DEPLOYMENT
+==================================================
+
+Knowledge approval only면:
+
+server deploy 없음.
+
+실제 code defect 발견 시에만
+server 최소 수정 + Render exact commit LIVE 확인.
+
+Mobile 변경 없음.
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+KNOWLEDGE_ID =
+KNOWLEDGE_REVIEWED =
+KNOWLEDGE_APPROVED =
+STATUS_AFTER =
+
+DEVICE_QUERY =
+REPLY_VISIBLE =
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+SCORE =
+
+LLM_START_OBSERVED =
+LLM_CALLED =
+LLM_USED =
+MODEL =
+
+TOP_LEVEL_CONTEXT_PRESERVED =
+RESOLUTION_CONTEXT_PRESENT =
+RESOLUTION_ENTITY_KEY =
+RESOLUTION_SOURCE_ID =
+
+FOLLOWUP_DETECTED =
+PREVIOUS_ENTITY =
+AUGMENTED_QUERY_USED =
+FOLLOWUP_RESOLUTION_STATUS =
+FOLLOWUP_SOURCE =
+
+CREATOR_ACTIVE_KNOWLEDGE =
+HALLUCINATED_CREATOR =
+
+X_INTRO_REGRESSION =
+FRONTEND_MAP_REGRESSION =
+
+IMPLICIT_FOLLOWUP_FOLLOWUP_TASK =
+SUPPORT_IMPLICIT_FOLLOWUP_INTENT
+
+CODE_CHANGED =
+DB_SCHEMA_CHANGED =
+DB_DATA_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+"스윔노트 알려줘"
+→ ki_swimnote_intro deterministic RESOLVED
+
+LLM call = 0
+
+resolution_context 정상 저장
+기존 context_json metadata 보존
+
+후속질문은 verified context만 사용
+
+creator Knowledge 없음:
+사람 이름 추측 = NO
+
+X intro / Frontend Map regression = NO
+
+완료:
+
+WP_CS09_SWIMNOTE_INTRO_CONTEXT_VERIFIED ✅

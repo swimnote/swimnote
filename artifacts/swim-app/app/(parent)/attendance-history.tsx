@@ -1,4 +1,3 @@
-import { Calendar } from "lucide-react-native";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -7,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
@@ -173,11 +173,12 @@ export default function AttendanceHistoryScreen() {
       <ParentScreenHeader title="출결 기록" subtitle={name || undefined} />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : allRecords.length === 0 ? (
         <View style={s.empty}>
-          <Calendar size={40} color={C.textMuted} />
+          <LucideIcon name="calendar" size={40} color={C.textMuted} />
           <Text style={[s.emptyText, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
+          <Text style={[s.emptySub, { color: C.textMuted }]}>수업에 참석하면{"\n"}여기에 출결 기록이 표시됩니다</Text>
         </View>
       ) : (
         <FlatList
@@ -191,7 +192,7 @@ export default function AttendanceHistoryScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchAll(); }}
-              tintColor={C.tint}
+              tintColor={C.brandStrong}
             />
           }
         />
@@ -202,8 +203,9 @@ export default function AttendanceHistoryScreen() {
 
 const s = StyleSheet.create({
   root:           { flex: 1 },
-  empty:          { alignItems: "center", gap: 10, paddingVertical: 80 },
-  emptyText:      { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  empty:          { alignItems: "center", gap: 10, paddingVertical: 80, paddingHorizontal: 32 },
+  emptyText:      { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  emptySub:       { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 20 },
   recordRow:      { flexDirection: "row", alignItems: "center", backgroundColor: C.card, borderRadius: 12, borderLeftWidth: 4, paddingVertical: 11, paddingHorizontal: 14, gap: 12 },
   recordLeft:     { flexDirection: "row", alignItems: "baseline", gap: 5, minWidth: 80 },
   recordDate:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -215,7 +217,7 @@ const s = StyleSheet.create({
   dividerRow:     { flexDirection: "row", alignItems: "center", marginVertical: 10, gap: 8 },
   dividerLine:    { height: 1, backgroundColor: C.border },
   dividerContent: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
-  dividerUpper:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.tint },
+  dividerUpper:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   dividerSep:     { fontSize: 11, color: C.border },
   dividerStats:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

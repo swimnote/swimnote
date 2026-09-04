@@ -1,0 +1,305 @@
+[Instagram Story Summary — 길이 제어 방식 수정]
+
+긴급 진단 결과는 확인했다.
+
+중요한 정정:
+
+현재 _STORY_CPL = 25 계산은 제거하거나 완화하지 않는다.
+
+React Native Text는 긴 문장을 실제 화면 폭에서 자동 줄바꿈하므로
+
+ceil(text.length / 25)
+
+방식은 Story 렌더 예상 줄 수를 계산하기 위한 근사치로 의미가 있다.
+
+LLM이 60자를 한 줄로 반환했다고 해서
+Story에서도 60자가 한 줄로 표시되는 것이 아니다.
+
+따라서 다음 방식은 금지:
+
+- CPL 25 → 35/40으로 단순 완화
+- overflow 허용
+- 강제 truncate
+- 25자마다 newline만 삽입
+- Renderer에서 잘리도록 방치
+
+현재 직접 원인은:
+
+AI summary 자체가 Story에 들어갈 정도로 충분히 짧아지지 않는 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. max_lines + max_chars 병행
+━━━━━━━━━━━━━━━━━━━━━━
+
+클라이언트에서 현재:
+
+maxLines = storyMaxLines(photoCount)
+
+를 계산하고 있으므로 추가로:
+
+maxChars = maxLines * STORY_CPL
+
+을 계산한다.
+
+단 실제 안전여유를 위해 90% 적용을 우선 검토:
+
+targetChars = floor(maxLines * STORY_CPL * 0.9)
+
+예:
+
+사진 1장:
+7줄 × 25 × 0.9
+≈ 157자
+
+사진 3~4장:
+8줄 → 약 180자
+
+사진 5~6장:
+9줄 → 약 202자
+
+사진 7~8장:
+10줄 → 약 225자
+
+사진 9~10장:
+11줄 → 약 247자
+
+정확한 값은 현재 상수를 사용해 계산한다.
+숫자 하드코딩을 중복해서 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. API contract 확장
+━━━━━━━━━━━━━━━━━━━━━━
+
+POST /diaries/:diaryId/story-summary
+
+Body:
+
+{
+  max_lines: number,
+  max_chars: number
+}
+
+서버에서 max_chars도 validation한다.
+
+비정상적으로 큰 값을 클라이언트가 보내도
+서버 자체 상한을 둔다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Prompt 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+"${maxLines}줄 이내"
+"한 줄 ≈ 25자"
+
+만으로 길이를 제어하지 않는다.
+
+다음처럼 명확하게 지시:
+
+- 반드시 ${maxChars}자 이내
+- 공백 포함 전체 글자 수 기준
+- 완성된 문장으로 끝낼 것
+- 줄임표 사용 금지
+- 원문 사실만 사용
+- 핵심 수업 내용 우선
+- 개인 피드백 핵심 유지
+- 반복 표현 제거
+- 불필요한 서론/결론 제거
+
+중요:
+"몇 줄"보다 "최대 글자 수"를 주요 제약으로 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 서버에서 결과 길이 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+OpenAI 응답 후 서버가 반드시 직접 검사:
+
+summary.trim().length <= maxChars
+
+PASS:
+→ 반환
+
+FAIL:
+→ 같은 원문을 대상으로 한 번 더 압축 요청
+
+재요청 Prompt에는:
+
+"이전 결과가 길이 제한을 초과했습니다.
+내용을 더 압축하여 반드시 ${retryMaxChars}자 이내로 작성하십시오."
+
+retryMaxChars는
+기존보다 10~20% 작은 값 사용.
+
+예:
+floor(maxChars * 0.85)
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 2차 결과도 서버 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+재요약 결과도:
+
+summary.trim().length <= retryMaxChars
+
+검사.
+
+PASS:
+→ 반환
+
+FAIL:
+→ summary_failed 반환
+
+임의 문자 자르기 금지.
+문장 중간 truncate 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 클라이언트 최종 fit 검증 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버에서 길이 검증했다고
+클라이언트 storyTextFits를 제거하지 않는다.
+
+최종 흐름:
+
+AI summary
+→ server maxChars PASS
+→ client storyTextFits(summary, photoCount)
+→ PASS
+→ StoryCapturePipeline
+→ Instagram
+
+client fit FAIL:
+→ 기존처럼 더 짧은 조건으로 1회 재요청 가능
+
+단 동일한 긴 결과가 반복되지 않도록
+두 번째 요청에서는 maxChars도 같이 줄인다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Cache 변경
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 cache:
+
+hash
+maxLines
+summary
+
+여기에 maxChars도 포함:
+
+{
+  hash,
+  maxLines,
+  maxChars,
+  summary
+}
+
+cache hit:
+
+hash 동일
+AND maxLines 동일
+AND maxChars 동일
+AND storyTextFits(summary, photoCount) PASS
+
+일 때만 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 사진 정책 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+사진 쪽은 수정하지 않는다.
+
+- 최대 10장 모두 실제 표시
+- +N 없음
+- 9~10장 = 5×2
+- 사진 우선
+- Story 1장
+- shareSingle 최대 1회
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 현재 극단 테스트 데이터로 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 등록한 긴 일지 + 많은 사진 그대로 사용.
+
+반드시 실제 서버에서 테스트:
+
+사진 1장 → target maxChars 확인
+사진 4장 → target maxChars 확인
+사진 6장 → target maxChars 확인
+사진 10장 → target maxChars 확인
+
+특히 사진 10장 + 100줄 이상 일지:
+
+1. 원문 길이
+2. maxLines
+3. maxChars
+4. AI 1차 summary chars
+5. 서버 1차 PASS/FAIL
+6. 재시도 여부
+7. 2차 summary chars
+8. client estimated lines
+9. storyTextFits 결과
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트 성공 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 결과는:
+
+사진 최대 10장 전부 표시
++
+일지 핵심 요약 전체 표시
++
+텍스트 잘림 0
++
+Story 1장
++
+검은 화면 0
+
+이어야 한다.
+
+원문 자체는 절대 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 수정 범위
+
+예상:
+
+api-server/src/routes/story.ts
+swim-app/app/(parent)/home.tsx
+
+Story Renderer의 사진 grid는 변경하지 않는다.
+
+DB 변경 금지.
+Native 변경 금지.
+
+수정 후 아직 Render/OTA 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+
+1. maxLines → maxChars 계산식
+2. 사진 수별 targetChars
+3. API Body Before/After
+4. 서버 maxChars validation
+5. Prompt 변경
+6. 1차 결과 길이 검사
+7. 서버 재요약 조건
+8. 2차 결과 길이 검사
+9. 임의 truncate 사용 여부 = NO
+10. client final fit 유지 여부
+11. cache 변경
+12. 실제 극단 일지 테스트 결과
+13. 수정 파일
+14. TypeCheck
+15. DB 변경 0
+16. Native 변경 0
+17. Render 필요 여부
+18. OTA 필요 여부
+19. commit SHA
+
+보고 후 멈춘다.

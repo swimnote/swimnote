@@ -1,0 +1,587 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP8 START
+GROWTH EVENT READ / GROWTH DATA QUERY
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP7_CLOSED ✅
+
+단:
+PRODUCTION_REAL_WRITE_NOT_EXECUTED
+Reason = NO_SAFE_TEST_CONTEXT
+
+이 미실측 항목은 유지한다.
+WP8에서 억지로 Production growth_event를 생성하지 않는다.
+
+WP8만 진행.
+WP9 자동 시작 금지.
+
+중요:
+Replit Suggested Task에 표시된
+"교사 일지 화면 성장 이벤트 후보 표시/승인"
+작업은 이번 WP8 범위가 아니다.
+
+승인/Review UI 구현 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP8 목적
+━━━━━━━━━━━━━━━━━━━━
+
+growth_events에 누적된 학생별 성장 데이터를
+다음 단계에서 사용할 수 있도록
+안전한 READ API / service로 제공한다.
+
+흐름:
+
+growth_events
+→ student 기준 조회
+→ invalidated 제외
+→ status/filter 적용
+→ curriculum/template/source linkage 포함
+→ 시간순/영역별 구조화
+→ API 반환
+
+이번 WP는 READ LAYER까지만.
+
+UI 없음.
+AI 분석 없음.
+리포트 생성 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 코드만 확인
+━━━━━━━━━━━━━━━━━━━━
+
+전체 Repository 전수조사 금지.
+
+확인:
+
+- growth_events schema
+- growth-event-service.ts
+- 기존 growth 관련 route
+- x-growth.tsx가 현재 어떤 API를 기대하는지
+- curriculum 관련 기존 table/schema
+- student/pool authorization helper
+- X mode resolver
+
+먼저 짧게 보고:
+
+A. 이미 구현된 READ 부분
+B. 부족한 부분
+C. 수정 파일
+
+기존 코드가 있으면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+Production DB:
+
+SUPABASE_DATABASE_URL
+
+growth_events 실제 schema를 기준으로만 구현.
+
+WP7에서 이미 catalog를 확인했으므로
+전체 schema audit 반복 금지.
+
+이번 WP에 필요한 컬럼만 확인.
+
+DB migration 원칙적으로 금지.
+
+schema 부족 발견 시:
+임의 migration 하지 말고 STOP/보고.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 기본 조회 조건
+━━━━━━━━━━━━━━━━━━━━
+
+기본 조회는 반드시:
+
+student_id = target student
+AND is_invalidated = false
+
+를 적용.
+
+다른 학생 데이터 혼입 금지.
+
+기본 정렬:
+
+실제 schema의 occurred_at / created_at 등
+성장 이벤트 시간 기준 최신순 또는
+기존 설계 기준.
+
+임의 timestamp 필드 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. STATUS 처리
+━━━━━━━━━━━━━━━━━━━━
+
+WP7에서 신규 event는:
+
+growth_match_status = PENDING_REVIEW
+
+로 저장된다.
+
+WP8은 status를 임의 승인하지 않는다.
+
+READ만 한다.
+
+필요한 경우 query/filter로:
+
+PENDING_REVIEW
+TEACHER_ACCEPTED
+TEACHER_REJECTED
+AUTO_ACCEPTED
+DISCARDED
+
+등 실제 enum을 지원할 수 있지만
+기존 enum 그대로 사용.
+
+새 status 생성 금지.
+
+Review/승인 API 생성 금지.
+그건 후속 WP.
+
+━━━━━━━━━━━━━━━━━━━━
+6. RESPONSE CONTRACT
+━━━━━━━━━━━━━━━━━━━━
+
+다음 단계 WP9 앱에서 바로 사용할 수 있는
+안정적인 구조로 반환.
+
+실제 schema 기준으로 최소:
+
+event_id
+student_id
+source
+status
+created/occurred time
+
+가능한 linkage:
+diary_note_id
+curriculum_item_id
+curriculum_version_id
+template_id
+global_template_set_id
+match_token_id
+
+실제 존재하는 필드만.
+
+그리고 표시 가능한 factual content/label이
+schema에 있으면 포함.
+
+없는 데이터를 JOIN으로 억지 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+7. OPTIONAL LINKED DATA
+━━━━━━━━━━━━━━━━━━━━
+
+실제 table이 존재할 때만:
+
+curriculum item
+template
+diary note
+
+등의 최소 표시 metadata를 join 가능.
+
+중요:
+
+이전 확인에서
+curriculum_versions/items 데이터가 현재 없거나
+일부 table 부재 가능성이 있었다.
+
+따라서 optional join 때문에
+전체 growth 조회가 실패하면 안 됨.
+
+없는 연관 데이터:
+→ null
+
+growth_event 자체 조회:
+→ 정상 유지
+
+━━━━━━━━━━━━━━━━━━━━
+8. AUTHORIZATION
+━━━━━━━━━━━━━━━━━━━━
+
+학생 성장 데이터는 민감한 운영 데이터이므로
+기존 auth/helper를 재사용.
+
+최소:
+
+pool_admin
+teacher
+
+는 자기 수영장 학생만 조회.
+
+parent 접근은
+이번 WP 범위에서 기존 명확한 contract가 없다면
+새로 열지 말 것.
+
+super_admin은 기존 정책이 허용하면 가능.
+
+절대:
+
+student_id만 알면
+다른 pool 학생 조회 가능
+
+구조가 되면 안 됨.
+
+authorization은 server-side 필수.
+
+━━━━━━━━━━━━━━━━━━━━
+9. X MODE 제한
+━━━━━━━━━━━━━━━━━━━━
+
+이번 Growth Data API는
+X Mode 서비스용이다.
+
+해당 pool의 X 사용 가능 여부는
+기존 resolver/helper를 재사용.
+
+새 판정 규칙 만들지 말 것.
+
+Non-X pool이 X Growth API를 직접 호출하면
+기존 X gate 정책에 맞는
+403/locked response 처리.
+
+일반 SWIMNOTE API에는 영향 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+10. EMPTY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production growth_events = 0일 수 있다.
+
+이건 정상 상태.
+
+따라서:
+
+학생은 존재하지만 event 없음
+→ HTTP 200
+→ events: []
+→ count: 0
+
+이어야 한다.
+
+500 금지.
+
+중요:
+DB/API 오류를
+정상 empty array로 위장하면 안 된다.
+
+DB failure:
+→ 명확한 error
+
+실제 event 0:
+→ 정상 empty response
+
+둘을 구분.
+
+━━━━━━━━━━━━━━━━━━━━
+11. PAGINATION
+━━━━━━━━━━━━━━━━━━━━
+
+성장 데이터는 장기간 누적되므로
+한 번에 무제한 조회 금지.
+
+기존 API pagination convention이 있으면 재사용.
+
+없다면 최소:
+
+limit
+cursor 또는 offset
+
+구조.
+
+합리적 기본 limit 사용.
+
+무조건 전체 history SELECT 금지.
+
+과도한 pagination framework는 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+12. FILTER
+━━━━━━━━━━━━━━━━━━━━
+
+WP9 성장판에서 필요할 최소 filter만 준비.
+
+실제 schema가 지원할 때:
+
+status
+source
+date range
+
+정도.
+
+새로운 수영 평가 category 체계
+WP8에서 만들지 말 것.
+
+필터가 없어도 다음 WP가 가능한 경우
+불필요하게 확장하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+13. API
+━━━━━━━━━━━━━━━━━━━━
+
+기존 route 구조를 확인한 뒤
+최소 endpoint 구현.
+
+예시일 뿐이며 실제 router convention 우선:
+
+GET /x-growth/students/:studentId/events
+
+또는 기존 growth route가 있으면 재사용.
+
+route 이름 임의 확정 금지.
+
+필요하면:
+
+GET student event list
+GET single event detail
+
+까지만.
+
+CRUD 생성 금지.
+승인 PATCH 금지.
+DELETE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. AGGREGATION
+━━━━━━━━━━━━━━━━━━━━
+
+WP8에서 복잡한 성장 분석/점수 산출 금지.
+
+허용되는 집계는 단순 factual count 정도:
+
+total_events
+pending_count
+accepted_count
+
+실제 필요할 경우만.
+
+금지:
+
+성장점수
+향상률
+AI 평가
+영법 점수
+심리 점수
+미래 예측
+
+이건 이후 분석/리포트 단계.
+
+━━━━━━━━━━━━━━━━━━━━
+15. TEST CASES
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+A.
+event 0개 학생
+→ 200 / []
+
+B.
+학생 A event
+→ A만 반환
+
+C.
+학생 B 데이터
+→ A 조회에 혼입 없음
+
+D.
+is_invalidated=true
+→ 기본 조회 제외
+
+E.
+PENDING_REVIEW
+→ status 그대로 반환
+
+F.
+status filter
+→ 정확히 필터
+
+G.
+다른 pool teacher
+→ 조회 거부
+
+H.
+Non-X pool
+→ X growth endpoint 차단
+
+I.
+DB error
+→ empty []로 위장하지 않음
+
+J.
+pagination
+→ limit 준수 / 중복·누락 없음
+
+기존 fixture/mock 사용.
+
+Production 데이터 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+16. CURRENT PRODUCTION EMPTY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production에 실제 growth_event가 없다면
+그 상태 그대로 Runtime 검증 가능.
+
+안전한 X student가 현재 없으므로
+새 학생 생성 금지.
+
+Production에서는:
+
+endpoint/server health
+empty/no-safe-context
+
+까지만 검증.
+
+실제 event list runtime은
+integration test fixture로 검증 가능.
+
+NO_SAFE_TEST_CONTEXT 상태를
+실패로 취급하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+17. WP7 REAL-WRITE FOLLOW-UP
+━━━━━━━━━━━━━━━━━━━━
+
+WP8 작업 중 우연히
+안전한 X + curriculum + student test context가
+실제 생성되더라도
+자동으로 Production write test 하지 말 것.
+
+기존 미실측 상태:
+
+WP7_PRODUCTION_REAL_WRITE_PENDING
+Reason: NO_SAFE_TEST_CONTEXT
+
+기록만 유지.
+
+향후 실제 안전한 첫 데이터 발생 시
+row 1건 read-back으로 닫는다.
+
+━━━━━━━━━━━━━━━━━━━━
+18. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+growth read service/repository
+growth read route
+authorization
+query/filter/pagination
+관련 tests
+
+금지:
+
+교사 승인 UI/API
+WP9 성장판 앱
+growth event write 재설계
+WP10 Trace
+WP12 Parent AI
+WP16 Report
+AI Engine 분석
+새 DB 평가 모델
+Backup/RLS
+Scheduler
+Members
+Makeup
+Billing
+
+━━━━━━━━━━━━━━━━━━━━
+19. TEST / GIT
+━━━━━━━━━━━━━━━━━━━━
+
+관련 tests만 실행.
+
+WP8 신규 오류 = 0.
+
+완료 후:
+
+changed files
+git diff --stat
+
+commit:
+
+feat(xmode): add growth event read API
+
+push origin.
+
+제출:
+
+HEAD
+origin
+commit SHA
+
+━━━━━━━━━━━━━━━━━━━━
+20. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+서버만 변경했다면:
+
+Render deploy만.
+
+앱 코드 변경 없으면:
+OTA 금지.
+
+DB migration 없으면:
+DB 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+21. RUNTIME
+━━━━━━━━━━━━━━━━━━━━
+
+Render 배포 후:
+
+/api/health → 200
+/api/healthz → 200
+
+Growth endpoint:
+인증/권한 정상.
+
+현재 Production에서
+안전한 X student가 없으면
+실제 학생 조회를 억지로 만들지 말 것.
+
+신규:
+
+500
+RLS
+FK
+startup crash
+
+없음 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+22. FINAL REPORT — 짧게
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 기존 growth READ 상태
+2. 구현 API
+3. authorization
+4. response contract
+5. invalidated/status 처리
+6. pagination/filter
+7. changed files
+8. tests
+9. commit/origin
+10. Render deploy
+11. Production runtime
+12. Production test data 생성 여부
+13. regression
+14. final verdict
+
+성공 시:
+
+WP8_GROWTH_EVENT_READ_VERIFIED ✅
+
+STOP.
+
+WP9 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -2,7 +2,6 @@
  * 이벤트 기록 타임라인
  * 카테고리 필터 + 무한 스크롤 FlatList
  */
-import { Clock, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -26,13 +25,13 @@ interface EventLogItem {
 
 const CAT_META: Record<string, { icon: string; color: string; bg: string }> = {
   "삭제":     { icon: "trash-2",     color: "#D96C6C", bg: "#F9DEDA" },
-  "결제":     { icon: "credit-card", color: "#2EC4B6", bg: "#E6FFFA" },
+  "결제":     { icon: "credit-card", color: C.brandStrong, bg: C.brandSoft },
   "구독":     { icon: "star",        color: "#7C3AED", bg: "#EEDDF5" },
   "해지":     { icon: "x-circle",    color: "#E4A93A", bg: "#FFF1BF" },
-  "권한":     { icon: "shield",      color: "#2EC4B6", bg: "#E6FFFA" },
+  "권한":     { icon: "shield",      color: C.brandStrong, bg: C.brandSoft },
   "선생님":   { icon: "user-check",  color: "#0D9488", bg: "#CCFBF1" },
   "저장공간": { icon: "hard-drive",  color: "#EC4899", bg: "#F6D8E1" },
-  "휴무일":   { icon: "calendar",    color: "#64748B", bg: "#FFFFFF" },
+  "휴무일":   { icon: "calendar",    color: C.textSecondary, bg: "#FFFFFF" },
 };
 const CATEGORIES = ["전체", "삭제", "결제", "구독", "해지", "권한", "선생님", "저장공간", "휴무일"] as const;
 
@@ -109,7 +108,7 @@ export default function DataEventLogsScreen() {
             <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
           ) : (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Clock size={40} color={C.textMuted} />
+              <LucideIcon name="clock" size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>이벤트 기록이 없습니다</Text>
             </View>
           )
@@ -152,7 +151,7 @@ export default function DataEventLogsScreen() {
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                <User size={11} color={C.textMuted} />
+                <LucideIcon name="user" size={11} color={C.textMuted} />
                 <Text style={s.actor}>{actorName}</Text>
               </View>
             </View>
@@ -164,15 +163,15 @@ export default function DataEventLogsScreen() {
 }
 
 const s = StyleSheet.create({
-  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#fff" },
+  chip:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, width: 76, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: "#fff" },
   chipText:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
   card:      { borderRadius: 16, padding: 14, gap: 6, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
   evtIcon:   { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
-  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 20 },
-  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  actor:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  desc:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 20 },
+  target:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  date:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  time:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  actor:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

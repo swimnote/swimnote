@@ -1,0 +1,317 @@
+# [SWIMNOTE AI DATA RUNTIME — ARCHITECTURE CORRECTION]
+
+ARCHITECTURE REPORT 검토 결과,
+큰 방향은 승인하지만 구현 전 아래 사항을 정정한다.
+
+아직 코드 수정 금지.
+DB write 금지.
+
+==================================================
+1. AI DIARY CURRENT PATH 재확인
+==================================================
+
+현재 보고서에는:
+
+AI Diary professional KF = 없음
+knowledge_ids = []
+
+이라고 되어 있으나,
+최신 SWIMNOTE 구현에서 이미:
+
+SwimnoteProfessionalRetrieval.ts
+retrieveSwimnoteProfessionalKnowledge()
+DiaryKfSearchAdapter
+kf.v2_search_index
+
+경로가 존재했던 이력이 있다.
+
+현재 checkout SHA/branch 기준으로
+실제 Production AI Diary 요청이 어느 route/path를 타는지 다시 추적.
+
+특히:
+
+POST /api/v1/teacher-diary/generate
+
+→ 실제 handler
+→ DiaryKfSearchAdapter 호출 여부
+→ retrieveSwimnoteProfessionalKnowledge 호출 여부
+→ kf.v2_search_index 조회 여부
+→ knowledge_ids 응답 여부
+
+확인.
+
+예전/legacy ai-v1.ts 일부만 보고
+"professional KF 없음"으로 결론내리지 않는다.
+
+==================================================
+2. SUPPORT KNOWLEDGE POLICY 정정
+==================================================
+
+SupportRetriever는 canonical Knowledge를
+자연어로 잘 찾도록 개선하되
+status/answer policy를 무시하지 않는다.
+
+Production retrieval:
+
+ACTIVE only.
+
+ACTIVE + DIRECT_DB
+→ DB_DIRECT 가능
+
+ACTIVE + GROUNDED_GPT
+→ Retrieval candidate로 허용
+→ GROUNDED_AI 가능
+
+ACTIVE + HUMAN_ONLY
+→ match 자체는 가능
+→ 자동 답변 금지
+→ HUMAN_REQUIRED
+
+PENDING / ARCHIVED / INACTIVE
+→ Production answer evidence 제외
+
+"answer_mode 무관"이라는 표현 폐기.
+
+==================================================
+3. UTTERANCE 역할
+==================================================
+
+utterance는 source of truth가 아니다.
+
+역할:
+
+- exact shortcut
+- alias
+- synonym
+- natural-language retrieval aid
+
+canonical answer authority:
+
+support_knowledge_items
+
+최종 구조:
+
+utterance exact
+→ keyword/alias
+→ canonical Knowledge retrieval
+→ ranking
+→ answer policy
+
+utterance miss 자체로 fallback 금지.
+
+==================================================
+4. COMMON RUNTIME CONTRACT
+==================================================
+
+공통화 대상:
+
+RequestContext
+RetrievalResult
+EvidencePack
+AnswerPolicy
+AiGateway
+Diagnostics
+
+유지.
+
+그러나 domain business logic 자체를
+하나로 합치지 않는다.
+
+Retriever:
+
+SupportRetriever
+CurriculumRetriever
+DiaryRetriever
+GrowthReportRetriever
+
+각각 유지.
+
+==================================================
+5. OUTPUT VALIDATOR 구조 정정
+==================================================
+
+하나의 generic validation rule로 합치지 않는다.
+
+공통 interface만 제공:
+
+OutputValidator
+  ├ SupportValidator
+  ├ CurriculumValidator
+  ├ DiaryValidator
+  └ GrowthReportValidator
+
+기존:
+
+validateDiaryOutput
+validateGrounding
+validateEngineResponse
+
+함수를 최대한 재사용.
+
+==================================================
+6. AI GATEWAY
+==================================================
+
+AiGateway는 공통 transport/execution layer.
+
+공통화:
+
+- OpenAI client
+- timeout
+- transient retry
+- structured output
+- token accounting
+- request_id
+- error classification
+- saveAiTrace
+
+domain prompt / evidence policy는 Gateway 밖에 유지.
+
+Retry는:
+
+- timeout
+- 429
+- retryable 5xx
+
+등 transient failure에만 적용.
+
+validation failure나 business error를
+무조건 재호출하지 않는다.
+
+retry_count 의미도:
+"추가 재시도 횟수"
+인지
+"총 attempt"
+인지 명확히 정의.
+
+==================================================
+7. DB MIGRATION 정정
+==================================================
+
+기존 보고서의:
+
+"DB MIGRATION REQUIRED = 없음"
+
+과
+
+"ai_traces ALTER TABLE 필요"
+
+는 모순.
+
+첫 Runtime implementation에서는
+ai_traces schema 변경을 필수로 만들지 않는다.
+
+기존 ai_traces 구조로 diagnostics를 저장 가능한지 먼저 확인.
+
+정말 컬럼 추가가 필요하면:
+별도 migration으로 보고 후 승인.
+
+startup migration 금지.
+
+==================================================
+8. CURRICULUM RETRIEVAL
+==================================================
+
+현재처럼 최대 2,000 curriculum_items를
+그대로 GPT에 보내는 구조는 개선 대상.
+
+하지만 처음부터 semantic/vector DB를 새로 만들 필요 없음.
+
+우선:
+
+pool-scoped items
+→ query normalize
+→ title/description keyword ranking
+→ level/order context
+→ top-K
+
+구조부터 설계.
+
+질문:
+
+"접영 언제 배워?"
+같은 경우 단순 문자열 하나만 찾는 것이 아니라
+접영 관련 curriculum items와
+앞뒤 curriculum order를 함께 Evidence로 구성해야 함.
+
+==================================================
+9. SUPPORT RETRIEVAL
+==================================================
+
+개별 utterance 추가 방식 금지.
+
+반드시 자연어 variation 처리 가능하도록:
+
+- normalization
+- 조사/어미 영향 완화
+- keyword/alias
+- canonical Knowledge text/title 검색
+- ranking
+
+단계를 사용.
+
+예:
+
+"알림끄는거 어디서해?"
+→ 알림/설정/끄기 계열 Knowledge 검색
+
+"학부모리포트는 어떤기능이야?"
+→ 학부모리포트/성장리포트 관련 canonical Knowledge 검색
+
+정확한 문장 등록 여부에 의존하지 않는다.
+
+==================================================
+10. IMPLEMENTATION ORDER 정정
+==================================================
+
+동시에 3개 Production route를 교체하지 않는다.
+
+최종 순서:
+
+RT0
+Current-path correction + contract freeze
+
+RT1
+공통 타입/RequestContext/EvidencePack/AiGateway 기반
+(Production behavior 변경 없음)
+
+RT2
+SupportRetriever + Support Runtime integration
+
+→ Production 실기기 검증
+→ 고객센터 자연어 검색 정상 확인
+
+RT3
+CurriculumRetriever integration
+
+→ Production 실기기 검증
+
+RT4
+AI Diary Runtime integration
+기존 KF V2 경로 반드시 보존
+
+RT5
+Diagnostics / Validator 정리
+
+RT6
+Growth Report를 처음부터 Runtime 위에서 구현
+
+==================================================
+11. 이번 보고서
+==================================================
+
+[AI DATA RUNTIME CORRECTED ARCHITECTURE REPORT]
+
+A. actual current AI Diary production path
+B. professional KF V2 connected YES/NO
+C. Support Knowledge status policy
+D. Support retrieval final layers
+E. Curriculum retrieval final layers
+F. common runtime contracts
+G. domain-specific components
+H. AiGateway retry/error policy
+I. diagnostics without migration possible YES/NO
+J. migration actually required YES/NO
+K. final WP implementation order
+
+코드 수정 없이 보고 후 멈춘다.

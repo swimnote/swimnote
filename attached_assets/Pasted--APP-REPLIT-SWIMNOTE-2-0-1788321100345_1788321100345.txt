@@ -1,0 +1,1520 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 6
+# FULL APP INTEGRATED QA + IMMEDIATE FIX
+#
+# NAVIGATION / BACK
+# + SCROLL / KEYBOARD / TOUCH / MODAL
+# + SCREEN TRANSITION
+# + CONTEXT LEAK
+# + DEEP LINK / PUSH
+# + ROLE / NORMAL-X FLOW
+# + APP-WIDE FUNCTION REGRESSION
+#
+# ONE PASS:
+# BASELINE NORMALIZE → AUDIT → FIX → TEST → COMMIT
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+92279ac9
+
+현재:
+
+STAGE 1 CLOSED
+STAGE 2 CLOSED
+STAGE 3 CLOSED
+STAGE 4 CODE CLOSED
+STAGE 5 CLOSED
+
+이번 Stage 6에서
+기존 계획의 Navigation/Back/Scroll/Keyboard/Touch/Modal/
+Screen Transition/Context/Full Regression을
+한 번에 끝냅니다.
+
+감사만 하고 STOP 금지.
+
+발견:
+→ 원인
+→ 최소수정
+→ 관련 테스트
+→ 전체 regression
+→ commit
+
+까지 한 번에 수행.
+
+============================================================
+0. CREDIT-SAVING ABSOLUTE RULE
+============================================================
+
+이미 완료된 기능을
+기능 설계 관점에서 처음부터 다시 조사하지 마십시오.
+
+금지:
+
+- Student Detail 재설계
+- Admin IA 재설계
+- Teacher IA 재설계
+- Parent IA 재설계
+- X Home inventory 재작성
+- Paid Insight pipeline 재설계
+- Notice AI 재설계
+- Growth Report 정책 재조사
+- Pricing/Subscription 조사
+
+이번에는
+"현재 구현이 실제 사용 흐름에서 깨지는가"
+만 검사.
+
+같은 파일을
+Back audit / Keyboard audit / Scroll audit로
+세 번 따로 읽지 말고
+
+한 화면을 볼 때:
+Navigation + Context + Touch + Scroll + Keyboard + Modal
+을 한 번에 검사.
+
+============================================================
+1. REGRESSION BASELINE 먼저 정상화
+============================================================
+
+직전 보고:
+
+Baseline:
+158
+
+Failures after:
+166
+
+설명:
+8 failures = pre-existing flaky
+
+이 상태는 숫자 표현이 불명확합니다.
+
+이번 Stage 시작 시
+기존 backend regression command를
+동일 environment에서 최소 2회 실행.
+
+Run 1:
+...
+
+Run 2:
+...
+
+공통으로 재현되는 failure:
+stable baseline
+
+실행마다 바뀌는 failure:
+flaky baseline
+
+로 분리.
+
+이후 이번 Stage 코드 수정 후
+동일 command로 비교.
+
+중요:
+
+기존 failure를
+새 failure라고 세지 말고,
+
+새로운 failure를
+"flaky"라고 숨기지도 마십시오.
+
+완료보고에:
+
+Stable baseline:
+Flaky known:
+After:
+New deterministic:
+New flaky introduced:
+
+정확히 작성.
+
+Expected:
+
+New deterministic:
+0
+
+New flaky introduced:
+0
+
+============================================================
+2. ROLE MATRIX
+============================================================
+
+다음 역할 실제 flow를 검사:
+
+ADMIN
+TEACHER
+PARENT
+
+Normal/X는
+일반업무 동일.
+
+X difference:
+AI additions only.
+
+새 X-specific core workflow:
+0.
+
+============================================================
+3. ADMIN 핵심 FLOW
+============================================================
+
+최소 실제 흐름:
+
+Admin Home
+→ 회원목록
+→ Student Detail
+→ Back
+→ 회원목록
+→ Back
+→ Admin Home
+
+Admin Home
+→ 회원등록
+→ 완료/취소
+→ Admin Home
+
+Admin Home
+→ Classes/Scheduler
+→ class
+→ Back
+
+Admin Home
+→ Makeups
+→ student
+→ Back
+
+Admin Home
+→ Requests/Approvals
+→ detail
+→ Back
+
+Admin Home
+→ Notice composer
+→ AI writing
+→ 적용/취소
+→ publish flow
+
+X Admin:
+→ report-hub
+→ diary-hub
+→ curriculum-hub
+→ x-hub
+
+각각 nested Back 정상.
+
+============================================================
+4. TEACHER 핵심 FLOW
+============================================================
+
+Today Schedule
+→ class/session
+→ attendance
+→ Back
+→ same Today context
+
+Today
+→ diary
+→ Back
+
+Today
+→ Student Detail
+→ Back
+
+Today
+→ makeups
+→ Back
+
+Today X
+→ AI Growth
+→ Growth Detail Modal
+→ Close
+→ AI Growth
+→ Back
+→ Today
+
+My Schedule
+→ diary
+→ Back
+→ same date/schedule context
+
+============================================================
+5. PARENT 핵심 FLOW
+============================================================
+
+Parent Home
+→ diary
+→ Back
+
+Parent Home
+→ photos
+→ exact selected student
+→ Back
+
+Parent Home
+→ notifications
+→ notice
+→ Back
+
+Parent Home
+→ requests
+→ exact request
+→ Back
+
+Parent Home
+→ curriculum chat
+→ exact selected student
+→ Back
+
+Parent Home
+→ terminology
+→ Back
+
+Parent Home
+→ AI 성장리포트
+→ detail
+→ PDF path
+→ Back
+
+Parent Home
+→ AI 인사이트 전략 리포트
+→ adaptive Q&A
+→ readiness
+→ history if exists
+→ Back
+
+Normal/X/x_pending:
+Paid Insight entry 동일.
+
+============================================================
+6. BACK ABSOLUTE RULE
+============================================================
+
+Back은:
+
+"역할 Home으로 강제 이동"
+
+이 아니라
+
+"실제 직전 업무 화면"
+
+이어야 함.
+
+예:
+
+Search
+→ Student Detail
+→ Back
+→ Search
+
+Members
+→ Student Detail
+→ Back
+→ Members
+
+Notifications
+→ Growth Report
+→ Back
+→ Notifications
+
+Today
+→ Diary
+→ Back
+→ Today
+
+금지:
+
+nested detail
+→ 강제 Home
+
+route stack이 불안정한 기존 flow는
+현재 사용 중인 backTo convention을 재사용.
+
+============================================================
+7. HOME ICON은 BACK이 아님
+============================================================
+
+Home icon:
+해당 role 실제 Home.
+
+Back:
+직전 화면.
+
+둘을 혼용하지 마십시오.
+
+기존 UI에서
+Back 버튼이 Home으로 작동하는 오류가 있으면 수정.
+
+============================================================
+8. CONTEXT LEAK
+============================================================
+
+모든 주요 route에서 확인:
+
+student:
+studentId
+
+class:
+classGroupId
+
+date:
+lessonDate/currentDate/effectiveDate
+
+session:
+schedule/session identity
+
+pool:
+authenticated pool
+
+role:
+actual role
+
+mode:
+AI visibility/entitlement only
+
+특히:
+
+Student A
+→ Detail/Diary/Photo/Report
+
+에서 Student B 데이터 노출:
+0.
+
+Class A
+→ Attendance
+
+에서 Class B:
+0.
+
+Parent selectedStudent 변경 후
+이전 학생 stale data:
+0.
+
+============================================================
+9. PARENT MULTI-CHILD
+============================================================
+
+다자녀 context 집중 테스트.
+
+Child A 선택
+→ photos
+→ diary
+→ curriculum
+→ free report
+→ paid insight
+
+모두 A.
+
+Home 복귀
+→ Child B 선택
+→ 동일 기능
+
+모두 B.
+
+stale query/cache로 A 데이터가 남으면 FAIL.
+
+============================================================
+10. TENANT / ROLE UI LEAK
+============================================================
+
+이번 Stage는 전체 Security Gate는 아니지만
+화면전환에서 명백한 leak 확인.
+
+Teacher가:
+Admin screen 노출 NO.
+
+Parent가:
+다른 parent/student NO.
+
+Normal user가:
+X AI screen을 route 조작으로 열었을 때
+기존 entitlement guard 작동.
+
+UI hide만을 security라 간주하지 않음.
+
+본격 서버 security는 Stage 7.
+
+============================================================
+11. SCREEN TRANSITION
+============================================================
+
+주요 navigation에서 다음 flash 검사:
+
+login screen flash
+wrong-role flash
+Normal/X flash
+Home flash
+blank screen
+error screen transient flash
+
+Expected:
+0.
+
+정상:
+
+loading
+→ target
+
+error:
+→ explicit error/retry/back
+
+============================================================
+12. KEYBOARD — 수정/핵심 INPUT 화면
+============================================================
+
+대상 최소:
+
+- Admin notice composer
+- Notice AI input
+- Parent curriculum chat
+- Terminology search
+- Paid Insight short_text Q&A
+- 회원/검색 input
+- 기타 이번 핵심 flow에서 실제 input screen
+
+규칙:
+
+blank background tap
+→ keyboard dismiss
+
+scroll drag
+→ dismiss 가능
+
+interactive button first tap
+→ 즉시 실행
+
+TextInput submit
+→ 의도한 action
+
+whole-screen Pressable이
+child button tap을 먹으면 FAIL.
+
+============================================================
+13. keyboardDismissMode 단독 PASS 금지
+============================================================
+
+`keyboardDismissMode="on-drag"`
+
+만 있다고 해서
+
+blank background tap dismiss
+PASS 처리하지 마십시오.
+
+blank tap은
+실제 safe event handling이 있어야 함.
+
+반대로 whole-screen touch wrapper 때문에
+첫 tap이 Keyboard dismiss만 되고
+버튼이 두 번째 tap에 실행되면 FAIL.
+
+============================================================
+14. SCROLL
+============================================================
+
+핵심 long screen:
+
+- Admin dashboard
+- Student Detail
+- Teacher Today
+- Teacher My Schedule
+- Parent Home
+- Notifications
+- Photos
+- Growth Report detail
+- Paid Insight
+- Paid Q&A
+- Curriculum Chat
+- Report/Admin hubs
+
+확인:
+
+top
+middle
+bottom
+footer
+final CTA
+
+도달 가능.
+
+Keyboard open 상태에서도
+필요 CTA 접근 가능.
+
+Nested scroll lock:
+0.
+
+============================================================
+15. TOUCH
+============================================================
+
+검사:
+
+- small icon-only buttons
+- card Pressable
+- inline quick actions
+- Modal close
+- CTA inside ScrollView
+- row actions
+
+첫 tap 즉시 동작.
+
+투명 overlay가 touch intercept:
+0.
+
+disabled가 active처럼 보임:
+0.
+
+active가 disabled처럼 보임:
+0.
+
+============================================================
+16. MODAL / SHEET
+============================================================
+
+핵심:
+
+- Member modal
+- ClassDetailSheet
+- GrowthEventDetail
+- Notice AI modal/sheet
+- Paid Insight preflight/Q&A sheet if used
+- 기타 핵심 flow에서 열린 modal
+
+검사:
+
+Close:
+원 화면
+
+Cancel:
+원 화면
+
+Android Back:
+원 화면
+
+background:
+의도된 dismiss만
+
+modal state:
+닫은 후 다음 student/screen으로 leak 0.
+
+internal scroll:
+정상.
+
+============================================================
+17. LOADING / EMPTY / ERROR / RETRY
+============================================================
+
+기능별로 상태 분리.
+
+LOADING:
+request in-flight
+
+EMPTY:
+성공 + 데이터 없음
+
+ERROR:
+실패
+
+NOT READY:
+상품/데이터 조건 미충족
+
+PAYMENT PENDING:
+결제 연결 전
+
+서로 섞이지 않음.
+
+Retry:
+
+GET:
+안전
+
+AI generation:
+sending guard
+
+Report analysis:
+idempotency
+
+Mutation:
+중복 실행 방지
+
+============================================================
+18. DEEP LINK / PUSH
+============================================================
+
+기존 코드/source 기준 + 가능한 test로 확인:
+
+Notice
+→ correct notice/notifications
+
+Parent request result
+→ requests
+
+Makeup
+→ makeup
+
+Free Growth Report
+→ exact reportId
+
+Paid Insight
+→ exact student/state
+
+wrong Home:
+0
+
+wrong student:
+0
+
+unknown/deleted target:
+safe fallback.
+
+============================================================
+19. DIRECT ROUTE ENTRY
+============================================================
+
+앱 내부 클릭뿐 아니라
+direct/deep-linked entry에서:
+
+missing param
+invalid param
+stale id
+unauthorized id
+
+때 blank/crash 금지.
+
+명확한:
+
+error
+back
+safe redirect
+
+기존 정책 사용.
+
+============================================================
+20. STUDENT DETAIL
+============================================================
+
+재설계 금지.
+
+검사만:
+
+Admin entry origins:
+Back 정상
+
+Teacher entry origins:
+Back 정상
+
+Section scroll:
+끝까지
+
+Danger Zone:
+Admin only
+
+wrong student:
+0
+
+force-delete server policy:
+이번 Stage 수정 금지
+→ Stage 7 carry-forward.
+
+============================================================
+21. PAID INSIGHT 특별 확인
+============================================================
+
+최근 수정됐으므로 집중 검사.
+
+Home
+→ Paid Insight
+
+Student context:
+정확
+
+Status API:
+정상
+
+History:
+free/paid 혼동 없음
+
+Questions:
+0~N
+
+short_text keyboard:
+정상
+
+answers:
+다른 질문/학생과 혼동 0
+
+Ready state:
+결제 전 Analysis 실행 불가
+
+payment_verified gate:
+유지
+
+사용자에게 fake success:
+0
+
+============================================================
+22. FREE AI GROWTH REPORT
+============================================================
+
+재구현 금지.
+
+회귀만 검사:
+
+월5일 policy code 유지
+
+previous month
+
+re-registration enrollment filter 유지
+
+withdrawn exclusion
+
+PDF
+
+push deep link
+
+correct student.
+
+============================================================
+23. ADMIN NOTICE AI
+============================================================
+
+회귀만.
+
+직접 작성:
+가능
+
+AI 작성:
+가능
+
+AI 결과:
+관리자가 적용해야 함
+
+auto publish:
+0
+
+generation fail:
+기존 text 보존
+
+first tap:
+정상.
+
+============================================================
+24. NORMAL / X
+============================================================
+
+대표 동일업무 비교:
+
+Member
+Student Detail
+Attendance
+Makeup
+Diary
+Photos
+Notice
+Requests
+Notifications
+Schedule
+
+Normal/X:
+
+same route/component/business semantics.
+
+Invalid X core branch:
+0.
+
+X-only:
+
+AI-specific entry/entitlement/theme only.
+
+============================================================
+25. FEATURE PRESERVATION
+============================================================
+
+기존 주요 route/source inventory를 이용해
+route 제거/깨진 import 탐지.
+
+새 목록을 수작업으로 처음부터 작성하지 말고
+router/files/static search 활용.
+
+확인:
+
+orphan route
+broken href
+missing route
+route typo
+
+0.
+
+============================================================
+26. STATIC SEARCH — 효율화
+============================================================
+
+크레딧 절약을 위해
+다음 패턴은 자동검색/grep 활용.
+
+router.push
+router.replace
+router.back
+backTo
+
+mode ===
+isX
+x_pending
+
+Keyboard
+keyboardDismissMode
+Pressable
+
+ScrollView
+FlatList
+SectionList
+
+studentId
+classGroupId
+lessonDate
+
+TODO
+FIXTURE
+placeholder
+mock
+
+검색결과 전체를 설명하지 말고
+실제 위험 occurrence만 검사.
+
+============================================================
+27. PLACEHOLDER / FIXTURE
+============================================================
+
+사용자 도달 가능한 route에:
+
+fixture result
+fake success
+debug placeholder
+
+0.
+
+의도적으로 hidden:
+
+parent x-growth placeholder
+
+는 user unreachable 상태 유지.
+
+삭제/구현 금지.
+
+============================================================
+28. MEDIA / VIDEO RELEASE READINESS
+============================================================
+
+기존 photo/video flow를 회귀검사.
+
+확인:
+
+photo upload
+photo read
+video upload if currently exposed
+video read
+student scoping
+quota/retention existing behavior
+
+중요:
+
+현재 2.0 Release 계획에서
+video compression/native build requirement가
+미완료인지 실제 코드 기준으로 확인.
+
+이미 구현:
+PASS.
+
+새 native dependency/build가 필요:
+이번 QA에서 무리하게 설치하지 말고
+
+VIDEO RELEASE GATE:
+REQUIRED
+
+로 정확히 보고.
+
+기능이 현재 노출되어 있는데
+출시 품질에 치명적이면
+Stage 7 Freeze 전에 반드시 처리할 blocker로 표시.
+
+============================================================
+29. STAGE 4 RELEASE GATES 유지
+============================================================
+
+현재 carry-forward:
+
+Paid Insight enum migration:
+PENDING
+
+Level-up trigger:
+DEFERRED — no canonical event
+
+Readiness trigger:
+DEFERRED — no canonical threshold
+
+Re-analysis trigger:
+DEFERRED — no canonical threshold
+
+이번 Stage에서 임의 구현/Production 실행 금지.
+
+단 regression으로 상태가 변했는지 확인만.
+
+============================================================
+30. PRICING / BILLING HOLD
+============================================================
+
+Pricing:
+NO TOUCH
+
+Subscription:
+NO TOUCH
+
+RevenueCat:
+NO TOUCH
+
+App Store:
+NO
+
+Google Play:
+NO
+
+1.6.3 subscription:
+NO TOUCH
+
+============================================================
+31. PRODUCTION
+============================================================
+
+Production deploy:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+Migration execution:
+NO
+
+OTA:
+NO
+
+Android build:
+NO
+
+iOS build:
+NO
+
+============================================================
+32. 수정 원칙
+============================================================
+
+발견한 문제는
+가능하면 이번 Stage에서 즉시 수정.
+
+허용:
+
+- wrong route
+- wrong back
+- wrong context params
+- stale state reset
+- touch interception
+- keyboard behavior
+- scroll reachability
+- modal state
+- loading/error handling
+- deep-link target
+- route typo
+- safe guard
+
+금지:
+
+대규모 IA redesign
+new feature
+new API family
+DB redesign
+pricing work.
+
+============================================================
+33. 테스트 방식
+============================================================
+
+가능한 자동 test 우선.
+
+Static:
+route/import/type
+
+Unit:
+changed logic
+
+Backend:
+same-command regression
+
+App:
+existing tests
+
+Real-device가 없어서
+물리 tap/keyboard behavior를
+source 기반으로만 판단한 항목은
+
+SOURCE VERIFIED — DEVICE CHECK REQUIRED
+
+라고 명시.
+
+거짓 PASS 금지.
+
+============================================================
+34. REGRESSION FINAL
+============================================================
+
+최종 실행:
+
+Backend regression
+TypeScript
+기존 relevant app tests
+Stage 4 paid insight 32 tests
+기타 수정 관련 tests
+
+Expected:
+
+New deterministic failures:
+0
+
+New flaky failures:
+0
+
+New TS errors:
+0
+
+Lost functions:
+0
+
+Broken routes:
+0
+
+============================================================
+35. 완료조건
+============================================================
+
+STAGE 6 FULLY CLOSED 조건:
+
+- wrong Back 0
+- wrong context 0
+- cross-student UI leak 0
+- wrong role navigation 0
+- broken deep link 0
+- keyboard first-tap known source issue 0
+- blank-tap known source issue 0
+- inaccessible bottom 0
+- modal state leak 0
+- route/import break 0
+- user-facing fake/fixture 0
+- Normal/X core divergence 0
+- new regression 0
+
+실기기에서만 확정 가능한 항목은
+목록화 허용.
+
+Production/Store 관련 항목은
+Stage 6 blocker 아님.
+
+============================================================
+36. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# COMPRESSED STAGE 6 INTEGRATED QA REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## REGRESSION BASELINE NORMALIZATION
+
+Command:
+...
+
+Pre-change Run 1:
+...
+
+Pre-change Run 2:
+...
+
+Stable baseline:
+...
+
+Known flaky:
+...
+
+Reason previous 158/166 difference:
+...
+
+## ISSUES FOUND / FIXED
+
+Area | Issue | Root Cause | Fix | Result
+
+...
+
+Total found:
+...
+
+Total fixed:
+...
+
+Remaining app-code bugs:
+...
+
+Expected:
+0
+
+## ADMIN FLOWS
+
+Members:
+...
+
+Student Detail:
+...
+
+Registration:
+...
+
+Schedule:
+...
+
+Makeup:
+...
+
+Requests:
+...
+
+Notice AI:
+...
+
+X AI:
+...
+
+## TEACHER FLOWS
+
+Today:
+...
+
+Attendance:
+...
+
+Diary:
+...
+
+Student:
+...
+
+Makeup:
+...
+
+X Growth:
+...
+
+## PARENT FLOWS
+
+Home:
+...
+
+Multi-child:
+...
+
+Diary:
+...
+
+Photos:
+...
+
+Notifications:
+...
+
+Requests:
+...
+
+Curriculum:
+...
+
+Terminology:
+...
+
+Free Growth Report:
+...
+
+Paid Insight:
+...
+
+## BACK
+
+Wrong nested back found:
+...
+
+Fixed:
+...
+
+Remaining:
+...
+
+Expected:
+0
+
+## CONTEXT
+
+Wrong student:
+...
+
+Wrong class:
+...
+
+Wrong date:
+...
+
+Wrong pool:
+...
+
+Stale selected child:
+...
+
+Expected:
+0
+
+## KEYBOARD
+
+Screens checked:
+...
+
+Blank tap issues found/fixed:
+...
+
+First tap issues found/fixed:
+...
+
+Device verification required:
+...
+
+## SCROLL
+
+Bottom inaccessible found:
+...
+
+Fixed:
+...
+
+Remaining:
+...
+
+Expected:
+0
+
+## TOUCH
+
+Intercept issues:
+...
+
+Disabled/active mismatch:
+...
+
+## MODAL
+
+State leaks:
+...
+
+Back/close issues:
+...
+
+Scroll issues:
+...
+
+Expected:
+0
+
+## SCREEN TRANSITIONS
+
+Wrong-role flashes:
+...
+
+Home flashes:
+...
+
+Blank/error flashes:
+...
+
+Expected:
+0
+
+## DEEP LINKS / PUSH
+
+Notice:
+...
+
+Request:
+...
+
+Makeup:
+...
+
+Free report:
+...
+
+Paid Insight:
+...
+
+Wrong target:
+...
+
+Expected:
+0
+
+## NORMAL / X
+
+Core divergence:
+...
+
+Expected:
+0
+
+Valid X-only additions:
+...
+
+## ROUTES
+
+Broken href:
+...
+
+Missing route:
+...
+
+Orphaned user entry:
+...
+
+Expected:
+0
+
+## PLACEHOLDER / FIXTURE
+
+User-reachable fake result:
+...
+
+Expected:
+0
+
+Parent x-growth:
+HIDDEN / ...
+
+## MEDIA / VIDEO
+
+Photo:
+...
+
+Video:
+...
+
+Compression status:
+...
+
+VIDEO RELEASE GATE:
+NONE
+or
+REQUIRED: ...
+
+## STAGE 4 CARRY-FORWARD
+
+Paid Insight migration:
+PENDING / ...
+
+Level-up trigger:
+DEFERRED / ...
+
+Readiness trigger:
+DEFERRED / ...
+
+Re-analysis trigger:
+DEFERRED / ...
+
+## DEVICE CHECK REQUIRED
+
+NONE
+or
+
+Screen:
+Behavior:
+Reason:
+
+...
+
+## FINAL REGRESSION
+
+Backend:
+...
+
+Stable baseline:
+...
+
+Known flaky:
+...
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky introduced:
+...
+
+TypeScript:
+...
+
+Paid Insight tests:
+...
+
+Expected:
+0 / 0 / 0 TS
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STAGE 6 FULLY CLOSED
+
+or
+
+STAGE 6 APP CODE CLOSED — DEVICE CHECK REQUIRED
+
+or
+
+BLOCKED

@@ -15,6 +15,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBrand, APP_PLATFORM_NAME } from "@/context/BrandContext";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 interface PoolHeaderProps {
   /** 우측 영역에 표시할 커스텀 버튼들 */
@@ -30,7 +33,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
   const paddingTop = Platform.OS === "web" ? 12 : Math.max(insets.top, 12);
 
   return (
-    <View style={[styles.container, { paddingTop, backgroundColor: "#fff" }]}>
+    <View style={[styles.container, { paddingTop, backgroundColor: C.surface }]}>
       <View style={styles.row}>
         {/* 좌측 버튼 (뒤로가기 등) */}
         {left ? <View style={styles.side}>{left}</View> : null}
@@ -46,7 +49,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
           <View style={styles.titles}>
             <Text style={styles.title} numberOfLines={1}>{headerTitle}</Text>
             {headerSubtitle ? (
-              <Text style={[styles.subtitle, { color: themeColor }]}>{headerSubtitle}</Text>
+              <Text style={[styles.subtitle, { color: themeColor }]} numberOfLines={1} ellipsizeMode="tail">{headerSubtitle}</Text>
             ) : null}
           </View>
         </View>
@@ -61,7 +64,7 @@ export function PoolHeader({ right, left }: PoolHeaderProps) {
   );
 }
 
-/** 로고 뱃지: 이미지 > 이모지 > 이니셜 순으로 표시 */
+/** 로고 뱃지: 이미지 > 이니셜(앞 2글자) > 이모지(하위 호환) 순으로 표시 */
 function LogoBadge({
   logoUrl, logoEmoji, poolName, themeColor,
 }: {
@@ -79,15 +82,15 @@ function LogoBadge({
       />
     );
   }
-  const label = logoEmoji
-    ? logoEmoji
-    : poolName
-      ? poolName.slice(0, 1)
-      : APP_PLATFORM_NAME.slice(0, 1);
+  // 이니셜(앞 2글자) 우선 — 없으면 logo_emoji 하위 호환 — 없으면 플랫폼 이니셜
+  const label = poolName
+    ? poolName.slice(0, 2)
+    : logoEmoji ?? APP_PLATFORM_NAME.slice(0, 1);
+  const isInitials = !!poolName;
 
   return (
     <View style={[styles.logo, styles.logoBadge, { backgroundColor: themeColor }]}>
-      <Text style={styles.logoText}>{label}</Text>
+      <Text style={[styles.logoText, isInitials && styles.logoTextInitials]}>{label}</Text>
     </View>
   );
 }
@@ -133,13 +136,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Pretendard-Regular",
   },
+  logoTextInitials: {
+    fontSize: 13,
+    letterSpacing: -0.5,
+  },
   titles: {
     flex: 1,
   },
   title: {
     fontSize: 15,
     fontFamily: "Pretendard-Regular",
-    color: "#0F172A"
+    color: C.textPrimary
   },
   subtitle: {
     fontSize: 10,
@@ -148,7 +155,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: C.border,
     marginHorizontal: 0,
   },
 });

@@ -1,0 +1,249 @@
+[P0 — GROUP8 EXACT DB OBJECT COLLISION TRACE]
+
+대상 확인 완료.
+
+현재부터:
+수정 금지
+빌드 금지
+commit 금지
+push 금지
+deploy 금지
+migration 실행 금지
+
+READ ONLY 조사만 한다.
+
+확정 대상:
+
+Repository:
+SWIMNOTE APP
+
+Branch:
+deploy-photo-clone
+
+Render production SHA:
+36cbb38b
+
+Runtime:
+tsx artifacts/api-server/src/index.ts
+
+Failure source:
+artifacts/api-server/src/migrations/pool-db-x-init.ts
+WP1 Group 8
+
+Database:
+SWIMNOTE APP Production Supabase
+
+==================================================
+1. CURRENT GROUP8 SQL
+==================================================
+
+Render SHA 36cbb38b 기준
+Group 8의 실제 코드를 그대로 확인.
+
+특히:
+
+parent_ai_daily_usage_feature_unique
+
+생성 전에 무엇을 검사하는지 보고.
+
+다음 구분:
+
+CHECKS_CONSTRAINT =
+CHECKS_INDEX =
+CHECKS_PG_CLASS =
+SCHEMA_QUALIFIED =
+
+==================================================
+2. PRODUCTION CONSTRAINT QUERY
+==================================================
+
+READ ONLY:
+
+SELECT
+    n.nspname AS schema_name,
+    c.relname AS table_name,
+    con.conname,
+    con.contype,
+    pg_get_constraintdef(con.oid) AS definition
+FROM pg_constraint con
+JOIN pg_class c ON c.oid = con.conrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE con.conname = 'parent_ai_daily_usage_feature_unique';
+
+결과 그대로 보고.
+
+==================================================
+3. PRODUCTION INDEX QUERY
+==================================================
+
+READ ONLY:
+
+SELECT
+    schemaname,
+    tablename,
+    indexname,
+    indexdef
+FROM pg_indexes
+WHERE indexname = 'parent_ai_daily_usage_feature_unique';
+
+결과 그대로 보고.
+
+==================================================
+4. PG_CLASS QUERY
+==================================================
+
+READ ONLY:
+
+SELECT
+    n.nspname AS schema_name,
+    c.relname,
+    c.relkind,
+    c.oid
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relname = 'parent_ai_daily_usage_feature_unique';
+
+relkind 의미도 함께 보고.
+
+==================================================
+5. TARGET TABLE CURRENT UNIQUENESS
+==================================================
+
+parent_ai_daily_usage 테이블의
+현재 UNIQUE constraint/index를 전부 조사.
+
+READ ONLY.
+
+반드시 다음을 보고:
+
+- constraint name
+- index name
+- columns
+- WHERE condition 여부
+- unique 여부
+
+목적:
+
+이미 같은 컬럼 조합의 uniqueness가
+다른 이름으로 존재하는지도 확인.
+
+==================================================
+6. EXACT RENDER ERROR
+==================================================
+
+Render production의 가장 최근 Group 8 실패 로그에서:
+
+SQLSTATE =
+ERROR MESSAGE =
+FAILING OBJECT =
+FAILING SQL =
+
+확보.
+
+가능하면 Postgres 원문:
+
+code
+detail
+schema
+table
+constraint
+routine
+
+까지 보고.
+
+==================================================
+7. RACE / DOUBLE EXECUTION CHECK
+==================================================
+
+동일 Render 인스턴스 startup에서
+Group 8가 동시에 두 번 실행될 가능성 확인.
+
+검색:
+
+initX...
+initialize...
+Promise.all
+startup migration
+duplicate invocation
+
+같은 process 안에서
+pool-db-x-init이 두 번 호출되는지 확인.
+
+보고:
+
+GROUP8_CALL_COUNT_PER_START =
+CONCURRENT_EXECUTION_POSSIBLE = YES / NO
+
+==================================================
+8. ROOT CAUSE CLASSIFICATION
+==================================================
+
+다음 중 하나로 확정:
+
+A.
+constraint already exists
+
+B.
+constraint 없음 +
+same-name index exists
+
+C.
+constraint/index 없음 +
+same-name pg_class relation exists
+
+D.
+동일 uniqueness가 다른 이름으로 이미 존재
+
+E.
+동시 실행 race
+
+F.
+schema mismatch
+
+G.
+기타
+
+반드시 하나만 선택.
+
+==================================================
+9. IMPORTANT
+==================================================
+
+현재 SQLSTATE 42P07은
+duplicate_table 계열이므로
+
+pg_constraint만 검사해서는
+same-name INDEX / relation 충돌을 방지하지 못할 수 있다.
+
+따라서 실제 Production DB 결과 없이
+추가 수정 금지.
+
+==================================================
+10. REPORT
+==================================================
+
+1. GROUP8 CURRENT PRECHECK
+2. CONSTRAINT RESULT
+3. INDEX RESULT
+4. PG_CLASS RESULT
+5. CURRENT UNIQUE OBJECTS ON TABLE
+6. EXACT SQLSTATE
+7. EXACT ERROR
+8. FAILING SQL
+9. GROUP8 CALL COUNT
+10. CONCURRENT RACE?
+11. ROOT CAUSE CLASS
+12. EXACT COLLISION OBJECT
+13. WHY CURRENT PRECHECK MISSED IT
+14. MINIMAL SAFE FIX PROPOSAL
+
+마지막:
+
+P0_GROUP8_EXACT_COLLISION_CONFIRMED ✅
+
+또는
+
+P0_GROUP8_EXACT_COLLISION_NOT_CONFIRMED ❌
+
+CONFIRMED 전
+어떠한 코드 수정/배포도 하지 말 것.

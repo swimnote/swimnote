@@ -1,0 +1,153 @@
+[앱]
+
+GROWTH REPORT FEED — PRODUCTION iOS OTA PUBLISH
+
+현재 OTA precheck PASS.
+
+TARGET:
+- branch HEAD: 71e789ac
+- runtimeVersion: 1.6.3
+- iOS buildNumber: 250
+- production channel
+- Growth Report Feed 최신 SWIMNOTE X UI 포함
+- logo static asset 포함
+- native rebuild 필요 없음
+
+이번 Step에서는 iOS production OTA를 실제 배포한다.
+
+==================================================
+1. COMMAND VALIDATION
+==================================================
+
+먼저 현재 설치된 EAS CLI에서:
+
+eas update --help
+
+기준으로
+--channel production
+--branch production
+
+동시 지정 가능 여부만 확인.
+
+불필요한 조사 금지.
+
+프로젝트의 기존 production OTA 정책을 우선한다.
+
+==================================================
+2. FINAL TARGET CHECK
+==================================================
+
+현재:
+
+git branch
+git rev-parse --short HEAD
+
+확인.
+
+필수:
+branch = deploy-photo-clone
+HEAD = 71e789ac
+
+다르면 OTA 실행 금지하고 STOP.
+
+==================================================
+3. OTA PUBLISH
+==================================================
+
+artifacts/swim-app에서 실행.
+
+현재 CLI에서 channel + branch 동시 사용이 유효하면:
+
+eas update \
+  --channel production \
+  --branch production \
+  --message "feat: growth report feed X color system + report UI" \
+  --platform ios
+
+만약 현재 EAS CLI에서 channel/branch 동시 지정이 허용되지 않으면
+기존 production channel이 연결된 branch 정책을 확인한 뒤
+production 앱이 실제 수신하는 올바른 한쪽만 사용.
+
+임의의 새 branch/channel 생성 금지.
+
+==================================================
+4. IMPORTANT
+==================================================
+
+이번 OTA에 포함되어야 하는 핵심:
+
+- GrowthReportFullFeed.tsx
+- GrowthReportFeedCard.tsx
+- swimnote-ai-report-logo.png
+
+확인:
+
+- SWIMNOTE X palette
+  #0F172A
+  #2EC4B6
+  #E6FAF8
+
+- 실제 SwimNote AI REPORT 로고
+- 긴 성장리포트 full feed
+- 4행 header
+- section A/B/C
+- progress strip
+- PDF/share action row
+
+==================================================
+5. 배포 후 확인
+==================================================
+
+OTA publish 성공 후 보고:
+
+- update ID
+- branch
+- channel
+- runtimeVersion
+- platform
+- target SHA
+- publish timestamp
+- asset upload 성공 여부
+
+실기기에서 앱을 완전히 종료 후 다시 실행하여
+production OTA가 적용되는지 확인.
+
+필요 시 앱 재시작 1회 추가.
+
+==================================================
+6. DEVICE CHECK
+==================================================
+
+실기기에서 서태웅 학생 피드 확인:
+
+- 최신 성장리포트 UI 표시
+- 실제 로고 표시
+- X NAVY / MINT / MINT LIGHT 적용
+- 내용 전체 스크롤
+- 마지막 "가정에서 함께해요" 표시
+- PDF·공유 버튼 표시
+
+그리고 PDF·공유 버튼 tap:
+
+- PDF 생성
+- 2페이지
+- 한글 정상
+- 로고 정상
+- iOS share sheet 정상
+
+==================================================
+7. 금지
+==================================================
+
+- Render deploy 금지
+- native build 금지
+- Android OTA 금지
+- DB write 금지
+- AI 호출 금지
+- 다른 코드 수정 금지
+- 새로운 OTA branch/channel 생성 금지
+
+이번 Step은
+현재 HEAD의 iOS production OTA publish만 수행.
+
+완료 후 STOP.

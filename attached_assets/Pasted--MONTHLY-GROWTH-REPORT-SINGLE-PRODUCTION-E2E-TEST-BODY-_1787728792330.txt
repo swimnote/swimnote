@@ -1,0 +1,354 @@
+[앱]
+
+MONTHLY GROWTH REPORT — SINGLE PRODUCTION E2E TEST
+대상: 토이키즈스윔클럽 / 서태웅 학생
+
+목표:
+BODY DESIGN POLISH 완료 후,
+Production에서 단 1명의 학생에게
+MONTHLY 성장 리포트를 실제 PUBLISHED 상태로 발급하고
+
+- 학부모 feed
+- report detail
+- PDF 생성
+- PDF 다운로드/공유 버튼
+- history
+
+까지 실제 사용자 흐름을 검증한다.
+
+중요:
+이번 작업은 서태웅 학생 1명만 대상.
+
+다른 학생 접근/분석/발급 금지.
+기존 OPEN report 253건 일괄 처리 금지.
+자동분석 전체 활성화 금지.
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false 유지.
+
+==================================================
+1. TARGET RESOLUTION
+==================================================
+
+Production DB에서 read-only로 정확히 확인:
+
+pool:
+토이키즈스윔클럽
+
+student:
+서태웅
+
+반드시 확인:
+- swimming_pool_id
+- student_id
+- student.status
+- parent 연결 존재 여부
+- 현재 parent_students approved 연결
+- 동일 이름 학생 중복 여부
+
+동명이인 또는 대상 불명확하면 STOP.
+
+학생 status가 active가 아니면 STOP.
+
+==================================================
+2. EXISTING REPORT CHECK
+==================================================
+
+서태웅 학생의 Growth Report를 read-only 확인:
+
+- 현재 MONTHLY report 존재 여부
+- report_period
+- cycle_id
+- product_status
+- analysis_status
+- PUBLISHED history
+- 동일 period report 존재 여부
+
+이미 동일 월 PUBLISHED report가 있으면
+새 report 중복 생성 금지.
+
+그 경우 기존 report를 테스트에 사용할지 보고 후 STOP.
+
+==================================================
+3. TEST REPORT PERIOD
+==================================================
+
+기본:
+현재 정책대로 previous month 사용.
+
+예:
+현재가 2026년 8월이면
+report_period = 2026-07
+
+데이터 범위:
+이전달 1일 00:00 KST
+~
+이전달 마지막날 23:59:59 KST
+
+current month 데이터 혼합 금지.
+
+==================================================
+4. SINGLE REPORT PIPELINE
+==================================================
+
+서태웅 학생 1건에 대해서만:
+
+cycle/report 준비
+→ snapshot
+→ AI analysis
+→ validation
+→ persistence
+→ REVIEW_REQUIRED
+
+진행.
+
+반드시 기존 공식 service/transition path 사용.
+
+직접 DB status 강제 UPDATE 금지.
+
+전체 worker 실행 금지.
+batch 실행 금지.
+
+AI 호출은 서태웅 report 1건에 필요한 호출만 허용.
+
+==================================================
+5. QUALITY GATE
+==================================================
+
+PUBLISHED 전 반드시 확인:
+
+- analysis_status ∈
+  COMPLETE
+  COMPLETE_WITH_QUESTIONS_AVAILABLE
+  COMPLETE_WITH_PARENT_EVIDENCE
+
+- product_status = REVIEW_REQUIRED
+- grounding_status = PASS 또는 REVISED_PASS
+- growth_framing_status = PASS 또는 REVISED_PASS
+- report_content 존재
+- report_fact_package 존재
+- sns_summary 존재
+- student.status = active
+- deleted_at IS NULL
+
+하나라도 실패하면 publish 금지하고 STOP.
+
+PARTIAL publish 금지.
+
+==================================================
+6. MANUAL TEST PUBLISH
+==================================================
+
+모든 safety gate PASS일 때만
+서태웅 report 1건을
+
+REVIEW_REQUIRED
+→ APPROVED
+→ PUBLISHED
+
+공식 transition/service path로 진행.
+
+teacher_reviewed_by 또는 system marker는
+기존 테스트/자동발급 convention 사용.
+
+직접 status update 금지.
+
+==================================================
+7. PUSH
+==================================================
+
+이번 E2E의 목적은 feed/detail/PDF 확인이므로
+push는 가능하면 SKIP.
+
+push를 반드시 타야 publish service가 정상 완료되는 구조라면:
+- 서태웅 학생의 연결된 approved parent에게만
+- 1회만
+- 기존 notification idempotency 사용
+
+다른 parent push 금지.
+
+==================================================
+8. PARENT FEED VERIFY
+==================================================
+
+PUBLISHED 후 실제 parent feed API에서 확인:
+
+서태웅 학생 선택 시
+
+MONTHLY 성장 리포트 item이
+정확히 1건 표시되는지 확인.
+
+보고:
+- report_id
+- report_period
+- published_at
+- feed item type
+- feed deep link
+
+중복 노출 0.
+
+OPEN/FAILED/REVIEW_REQUIRED item 노출 금지.
+
+==================================================
+9. DETAIL VERIFY
+==================================================
+
+feed item tap 기준 route:
+
+/(parent)/growth-report-detail?reportId=<report_id>
+
+detail API / 화면 확인:
+
+- 학생명 = 서태웅
+- 수영장명 = 토이키즈스윔클럽
+- report month 정상
+- curriculum progress 정상
+- summary
+- sections
+- PDF button 존재
+
+다른 학생 데이터 혼입 0.
+
+==================================================
+10. PDF VERIFY
+==================================================
+
+현재 최신 MONTHLY Growth Report 디자인 사용.
+
+필수 확인:
+
+HEADER:
+- 사용자 제공 SwimNote AI REPORT 가로형 로고
+- MONTHLY 성장 리포트
+- 토이키즈스윔클럽
+- 서태웅
+- 해당 월
+- 현재 커리큘럼 진도 완료율
+
+BODY:
+- empty section 자동 숨김
+- internal status text 0
+- 한글 깨짐 0
+- 2페이지 정상
+- 가정에서 함께해요 정상
+- 부모용 문구만 노출
+
+PDF 실제 생성.
+
+==================================================
+11. PDF DOWNLOAD / SHARE BUTTON
+==================================================
+
+실제 parent detail 화면에서:
+
+- PDF 다운로드/공유 버튼 표시 여부
+- 버튼 tap
+- PDF 생성 성공
+- OS share/download sheet 정상 호출
+- 파일 열림
+- 2페이지 정상
+- 로고 정상
+- 한글 정상
+
+확인.
+
+버튼이 없거나 route가 끊기면
+그 부분만 root cause 보고.
+이번 Step에서 대규모 UI 수정 금지.
+
+==================================================
+12. HISTORY VERIFY
+==================================================
+
+성장리포트 전체보기에서
+서태웅의 이번 PUBLISHED report가 표시되는지 확인.
+
+item tap
+→ 동일 report detail
+
+정상.
+
+==================================================
+13. IDEMPOTENCY
+==================================================
+
+동일 report를 다시 publish 시도했을 때:
+
+- duplicate report 생성 0
+- feed duplicate 0
+- notification duplicate 0
+- history duplicate 0
+
+확인.
+
+==================================================
+14. ABSOLUTE SAFETY
+==================================================
+
+절대 금지:
+
+- GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=true
+- 전체 monthly worker 실행
+- 253 OPEN report 처리
+- 다른 학생 AI 호출
+- 다른 학생 publish
+- direct production DB status UPDATE
+- bulk push
+- Render env 변경
+- deploy
+
+서태웅 학생 1건 외 Production 변경 금지.
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+보고:
+
+TARGET
+- pool_id
+- student_id
+- active status
+- linked parent count
+
+REPORT
+- report_id
+- report_period
+- analysis_status
+- product_status
+- grounding_status
+- growth_framing_status
+
+AI
+- AI calls 수
+- retries
+- failures
+
+FEED
+- item 표시 여부
+- 중복 여부
+- deep link
+
+DETAIL
+- 정상 여부
+
+PDF
+- 생성 여부
+- 페이지 수
+- 한글
+- 로고
+- curriculum progress
+- download/share 버튼
+- 실제 share/download flow 결과
+
+HISTORY
+- 표시 여부
+- detail 연결
+
+IDEMPOTENCY
+- duplicate report/feed/push/history 여부
+
+FINAL:
+PRODUCTION SINGLE E2E
+PASS / FAIL
+
+완료 후 STOP.

@@ -1,0 +1,198 @@
+[SWIMNOTE Production 백업 최종 무결성 검증 — Native Build 전 마지막 Gate]
+
+현재 백업은 생성됐지만
+실제 Production App/Server 상태와 정확히 동일한 복구점인지
+마지막으로 검증한다.
+
+이번 단계:
+CODE 수정 금지
+DB 변경 금지
+OTA 금지
+BUILD 금지
+RENDER 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. App Production OTA commit 정확히 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 최신 Production OTA:
+
+iOS Group:
+bbaa246a-ae1b-4c1a-b761-bfff4a49f133
+
+Android Group:
+41ac3ec3-990c-44cc-84dd-b745d12ab323
+
+Message:
+fix: 댓글 keyboard 수정 + 소식 diary_comment→diary-reactions
+
+보고상 app commit:
+e0c60798
+
+이 OTA bundle이 실제로 e0c60798 기준인지 다시 확인한다.
+
+확정 제출:
+- OTA Group
+- platform
+- actual Update ID
+- runtimeVersion
+- channel
+- commit SHA
+- published time
+
+Group ID와 Update ID를 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 backup SHA가 Production App commit을 포함하는지 증명
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 backup/tag:
+
+d73d8e4f
+
+Production App OTA commit:
+
+e0c60798
+
+Git ancestry를 실제 명령으로 확인:
+
+git merge-base --is-ancestor e0c60798 d73d8e4f
+
+exit code 0인지 제출.
+
+그리고:
+
+git diff --stat e0c60798 d73d8e4f -- artifacts/swim-app
+
+실행.
+
+목표:
+
+d73d8e4f가 e0c60798 이후 정상 변경을 포함한
+최신 Production-compatible 상태인지 확인.
+
+기능 파일 존재 여부만 보고 PASS 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Server Production SHA도 별도 고정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render Live:
+
+86c76188f46a
+
+이 SHA를 정확한 서버 복구점으로 별도 tag/branch 또는 기록한다.
+
+App backup SHA 하나만으로
+서버 Production까지 동일하다고 간주하지 않는다.
+
+최소한 다음을 확정:
+
+Production App baseline:
+<정확한 SHA>
+
+Production Server baseline:
+86c76188f46a
+
+Production OTA runtime:
+1.6.1
+
+Production channel:
+production
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 정확한 Production App tag 생성 여부 판단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+만약 d73d8e4f가 e0c60798을 정확히 포함하며
+그 이후 변경도 Production 정상 기능만 포함한다면
+현재 backup 유지 가능.
+
+하지만 d73d8e4f의 ancestry가 불확실하거나
+Instagram Native 작업이 이미 포함되어 있다면:
+
+기존 tag를 억지로 변경하지 말고
+
+별도의 exact tag 생성:
+
+production-app-ota-e0c60798
+
+→ 정확히 e0c60798을 가리키게 한다.
+
+이렇게 하면 실제 현재 사용자 App 상태를
+코드 수준에서 정확히 복원할 수 있다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 현재 개발 브랜치 상태
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+deploy-photo-clone:
+
+Local:
+96746fbb
+
+Remote:
+b8387c4a
+
+차이 commit:
+Add EAS build log for iOS and Android
+
+실제 changed files를 제출.
+
+기능 코드 0인지 확인.
+
+이 commit은 Production backup과 섞지 않는다.
+
+attached_assets untracked도
+commit/push하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Native Build 설정 기준도 별도 보존
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Instagram 작업 전 정상 eas.json:
+
+main/backup의 정상 Production 설정
+
+현재 Instagram 개발 eas.json:
+
+빌드 workaround가 섞인 상태
+
+둘을 혼동하지 않는다.
+
+Native Build 재개 전에
+eas.json을 Production 정상 기준에서
+Instagram에 필요한 변경만 다시 적용할 예정이다.
+
+지금은 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 복구 매트릭스 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 형태로 제출:
+
+A. Production App source exact SHA
+B. Production App backup branch/tag
+C. Latest iOS OTA Group ID
+D. Latest iOS Update ID
+E. Latest Android OTA Group ID
+F. Latest Android Update ID
+G. runtimeVersion
+H. Production channel
+I. Production Server exact SHA
+J. Render Deploy ID
+K. Existing Store iOS Build ID/#243
+L. Existing Store Android Build ID/versionCode 234
+
+그리고:
+
+"현재 Native Build 작업이 실패해도
+A~L을 이용해 Instagram 작업 전 Production 상태로
+복구 가능"
+
+여부를 YES/NO로 판정.
+
+YES가 아니면 Native Build 금지.
+
+보고 후 멈춘다.

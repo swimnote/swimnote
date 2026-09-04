@@ -1,0 +1,190 @@
+[SWIMNOTE RELEASE PRECHECK]
+[PARENT CURRICULUM SEARCH IMPLEMENTATION AUDIT ONLY]
+
+목적:
+
+다음 정식 빌드 전에
+“학부모 커리큘럼 검색” 기능이
+실제로 구현되어 있는지 정확히 확인한다.
+
+이번 작업은 조사만 한다.
+
+코드 수정 금지.
+DB 수정 금지.
+배포 금지.
+OTA 금지.
+빌드 금지.
+
+==================================================
+1. SEARCH TARGET
+==================================================
+
+다음 이름/개념을 repository 전체에서 검색:
+
+curriculum
+curriculum search
+parent curriculum
+AI curriculum
+교육과정 검색
+커리큘럼 검색
+우리수영장 커리큘럼
+parent ai
+curriculum_search
+curriculumSearch
+
+==================================================
+2. PARENT UI
+==================================================
+
+학부모 앱에 다음이 실제 존재하는지 확인:
+
+- 커리큘럼 검색 진입 버튼
+- 검색 화면
+- 검색 입력창
+- 결과 화면
+- 검색 히스토리
+- 준비중 placeholder 여부
+
+파일 경로와 route를 정확히 보고.
+
+==================================================
+3. APP SERVER
+==================================================
+
+커리큘럼 검색용 API가 존재하는지 확인.
+
+예:
+
+GET/POST /parent/...curriculum...
+POST /ai/curriculum-search
+POST /parent-ai/...
+
+실제 route가 있으면:
+
+- endpoint
+- auth
+- request
+- response
+- DB query
+- AI Engine 호출 여부
+
+보고.
+
+==================================================
+4. AI ENGINE CONNECTION
+==================================================
+
+APP 코드에서
+실제 AI ENGINE curriculum/search endpoint를 호출하는지 확인.
+
+확인:
+
+- client file
+- environment variable
+- endpoint
+- request contract
+- response contract
+
+일반 GPT endpoint를 대신 쓰는 구조면
+CURRICULUM_SEARCH_IMPLEMENTED로 판정하지 마라.
+
+==================================================
+5. DATA SOURCE
+==================================================
+
+검색 근거가 무엇인지 확인:
+
+A. pool-owned curriculum/template DB
+B. X global curriculum/template DB
+C. generic GPT
+D. static mock
+E. none
+
+일반 GPT만 호출하면 미구현으로 판정.
+
+==================================================
+6. MODE RULE
+==================================================
+
+기존 설계 기준 확인:
+
+NORMAL:
+- 현재 수영장 자체 curriculum/template data 기반
+
+X MODE:
+- SWIMNOTE X global curriculum 사용 가능
+
+다른 pool 데이터 사용 금지.
+
+현재 코드가 이 분기를 실제 구현하는지 확인.
+
+==================================================
+7. ACTUAL CALL CHAIN
+==================================================
+
+실제 사용 가능한 기능으로 판정하려면 반드시:
+
+Parent UI
+→ APP Client/API
+→ Server
+→ Curriculum Search
+→ Grounded Result
+
+전체 호출 chain이 연결돼 있어야 한다.
+
+중간 일부 코드만 존재하면 COMPLETE 판정 금지.
+
+==================================================
+8. PRODUCTION STATUS
+==================================================
+
+다음 중 하나로 판정:
+
+COMPLETE
+PARTIAL
+PLACEHOLDER
+NOT_IMPLEMENTED
+
+==================================================
+9. BUILD READINESS
+==================================================
+
+현재 다음 native build에
+이 기능이 실제 사용 가능한 상태로 포함될 수 있는지 판정.
+
+보고:
+
+BUILD_READY = YES/NO
+
+NO라면 빠진 작업을 정확히 나열.
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. PARENT CURRICULUM SEARCH STATUS
+2. UI FILES
+3. ROUTE
+4. SERVER API
+5. AI ENGINE CONNECTION
+6. DATA SOURCE
+7. NORMAL MODE SUPPORT
+8. X MODE SUPPORT
+9. PLACEHOLDER EXISTS?
+10. ACTUAL CALL CHAIN
+11. BUILD READY?
+12. MISSING PIECES
+
+마지막:
+
+CURRICULUM_SEARCH_COMPLETE ✅
+
+또는
+
+CURRICULUM_SEARCH_PARTIAL ⚠️
+
+또는
+
+CURRICULUM_SEARCH_NOT_IMPLEMENTED ❌

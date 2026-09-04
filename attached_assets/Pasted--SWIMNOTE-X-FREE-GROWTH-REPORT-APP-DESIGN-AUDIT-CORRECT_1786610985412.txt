@@ -1,0 +1,133 @@
+[SWIMNOTE X FREE GROWTH REPORT — APP DESIGN AUDIT CORRECTION]
+
+현재 Design Audit은 전체적으로 승인 가능하나,
+아래 4개 항목은 SWIMNOTE 확정 설계와 충돌하므로
+코드 수정 없이 설계 보고서만 교정하라.
+
+이번에도 CODE / DB / MIGRATION / DEPLOY / OTA 변경 금지.
+
+1. Parent Question은 Report 생성의 필수조건이 아니다.
+
+현재:
+QUESTION_REQUIRED
+→ Parent Answer
+→ READY_FOR_ANALYSIS
+
+구조를 수정하라.
+
+학부모 질문은 Evidence 보강 수단이다.
+부모가 답변하지 않아도 월간 FREE Report는
+현재 확보된 SWIMNOTE Evidence만으로 반드시 분석 가능해야 한다.
+
+권장 의미:
+
+PREANALYZING
+→ 질문가치 없음 → READY_FOR_ANALYSIS
+→ 질문가치 있음 → QUESTION_AVAILABLE
+
+QUESTION_AVAILABLE 상태에서도
+부모 답변은 optional enrichment이다.
+
+부모 답변 시:
+PARENT_REPORTED Evidence 추가 후 재분석.
+
+부모 미답변 시:
+기존 Evidence만으로 최종 분석.
+
+질문 미답변을 이유로 Report를 CLOSED 처리하지 마라.
+
+2. 다음달 5일은 Report 폐기일이 아니라
+Parent Input / Additional Evidence Window 종료일이다.
+
+5일 도달 시:
+
+Parent input window close
+→ unanswered questions close
+→ 확보된 Evidence로 final analysis
+→ REVIEW_REQUIRED / PARTIAL 등 정상 Report pipeline 진행
+
+이미 PUBLISHED된 Report는 영구 열람.
+
+월간 Report 자체가 부모 미응답 때문에 없어져서는 안 된다.
+
+Lifecycle과 growth_report_cycles 설계를 이에 맞춰 수정하라.
+
+필요하면
+report lifecycle status와
+parent input window status를 분리하는 방식을 제안하라.
+
+3. Report Period와 Analysis Cutoff를 분리하라.
+
+현재 Contract 예시의:
+
+period_start = 2026-08-01
+period_end = 2026-08-31
+
+은 8월 25일 Report Open과 논리적으로 충돌한다.
+
+최소 다음 개념을 분리하라:
+
+report_period
+analysis_from
+analysis_cutoff_at
+parent_input_open_at
+parent_input_close_at
+
+정확한 analysis_from 정책은 아직 제품정책 확정 전이므로
+APP Replit이 임의로 1일~31일로 결정하지 마라.
+
+25일 Open 시점 이후 미래 데이터를
+해당 Report 분석기간으로 가정해서는 안 된다.
+
+4. Longitudinal input을 previous_report 1개로 축소하지 마라.
+
+SWIMNOTE Growth Report는 누적 성장분석 시스템이다.
+
+ENGINE Context는 논리적으로:
+
+previous structured reports
+metric state history
+positive growth signal history
+success condition history
+support lever history
+parent answer history
+observation target history
+
+를 활용할 수 있어야 한다.
+
+매 요청마다 전체 raw history를 무조건 전송하라는 뜻은 아니다.
+
+APP SERVER에서 적절히 조회/요약해서 전달할 수 있으나,
+설계 자체가 `previous_report 1개만 참조`로 제한되어서는 안 된다.
+
+5. Metric vocabulary를 APP에서 창작하지 마라.
+
+현재 예시의:
+STROKE_TECHNIQUE_001
+METRIC_001
+PROGRESSING
+
+등은 제거하라.
+
+현재 Growth Report 설계의 Metric ID는 F001~F070이며,
+정확한 Metric State Enum 및 Result Schema는
+AI ENGINE Contract를 Source of Truth로 받아야 한다.
+
+APP DB/UI는 ENGINE Contract를 저장/표시할 뿐
+독자적인 평가 vocabulary를 생성하지 않는다.
+
+6. 위 수정 후 다음 항목만 다시 보고하라.
+
+A. corrected lifecycle
+B. corrected cycle/window model
+C. corrected APP→ENGINE longitudinal context
+D. corrected ENGINE→APP metric contract boundary
+E. DB schema에서 추가 수정이 필요한 부분
+F. 기존 WP-GR1~GR9 순서에 영향이 있는지
+G. NO-CODE-CONFIRMATION
+
+코드 변경하지 마라.
+
+마지막 줄:
+
+GROWTH_REPORT_APP_DESIGN_CORRECTION_COMPLETE ✅

@@ -1,0 +1,316 @@
+[앱]
+
+TEACHER DIARY UNWRITTEN COUNT / LIST FIX
+SINGLE SOURCE OF TRUTH
+
+현재 실제 버그:
+
+"일지 작성 → 미작성 수업 목록" 화면에서
+
+미작성 0건
+"모든 수업 일지를 작성했습니다!"
+
+라고 나오지만
+실제로는 아직 일지를 작성하지 않은 수업 회차가 존재함.
+
+목표:
+
+미작성 수업 목록
++
+상단 "미작성 N건"
+
+이 둘을 정확히 동일한 로직으로 계산한다.
+
+숫자만 임시 수정 금지.
+
+==================================================
+1. ROOT CAUSE TRACE
+==================================================
+
+현재 아래 흐름만 추적:
+
+- 현재 로그인 teacher의 schedule occurrence 조회
+- 미작성 대상 기간 계산
+- diary 작성 완료 조회
+- schedule ↔ diary matching
+- unwrittenSessions 생성
+- "미작성 N건" count 생성
+- empty state 조건
+
+반드시 확인:
+
+현재 count와 list가
+서로 다른 query/filter를 쓰고 있는지.
+
+그리고 실제 session matching key가 무엇인지 확인.
+
+==================================================
+2. TARGET SESSION IDENTITY
+==================================================
+
+작성 여부 판단은
+기존 diary 날짜 수정 기준과 동일하게 한다.
+
+최소:
+
+class_group_id
++
+lesson_date
+
+기존 데이터에 아래가 있다면 추가:
+
+schedule_id
+occurrence_id
+start_time / slot identifier
+
+즉:
+
+같은 반이라도
+8/6 != 8/13 != 8/20
+
+같은 날짜라도
+다른 반/다른 수업 슬롯이면 독립.
+
+==================================================
+3. SINGLE SOURCE OF TRUTH
+==================================================
+
+하나의 계산 결과만 만든다.
+
+예:
+
+const unwrittenSessions = ...
+
+그리고:
+
+미작성 건수:
+unwrittenSessions.length
+
+목록:
+unwrittenSessions
+
+empty state:
+unwrittenSessions.length === 0
+
+각각 별도 로직으로 계산 금지.
+
+==================================================
+4. SCHEDULE SOURCE
+==================================================
+
+"일지 바로쓰기"에서는
+현재 로그인한 선생님의 실제 수업 회차를 기준으로 한다.
+
+확인:
+
+- teacher ownership
+- class assignment
+- selected date
+- actual occurrence
+- cancelled/deleted schedule 제외
+- 수업이 실제 존재했던 날짜만 포함
+
+단순 class weekly template만 보고
+"작성 완료" 판단하지 않는다.
+
+==================================================
+5. DATE RANGE
+==================================================
+
+화면에 현재:
+
+"최근 8주간 미작성 일지가 없습니다."
+
+라고 표시되고 있으므로
+실제 미작성 조회 기간이 최근 8주인지 확인.
+
+최근 8주 안에 실제 미작성 session이 있으면
+반드시 목록에 나와야 함.
+
+날짜 비교에서:
+
+UTC/KST
+YYYY-MM-DD
+created_at
+lesson_date
+
+혼용 여부 확인.
+
+미작성 판단 기준은
+반드시 lesson_date / 실제 수업 날짜.
+
+created_at 사용 금지.
+
+==================================================
+6. WRITTEN DIARY MATCH
+==================================================
+
+이미 작성된 diary만 제외한다.
+
+조건:
+
+deleted diary는 작성 완료로 보지 않음.
+
+즉:
+
+is_deleted = false
+deleted_at IS NULL
+
+인 활성 diary만
+해당 session의 작성 완료로 인정.
+
+과거 삭제/교체된 diary가 남아있어서
+미작성 session을 막으면 안 됨.
+
+==================================================
+7. REQUIRED REAL CASE
+==================================================
+
+실제 케이스 재현:
+
+예:
+
+8/6 작성
+8/13 미작성
+8/20 미작성
+
+EXPECTED:
+
+미작성 2건
+
+목록:
+8/13
+8/20
+
+8/6:
+제외
+
+==================================================
+8. SAME CLASS / DIFFERENT DATE
+==================================================
+
+같은 목 19:00반:
+
+8/6 작성
+8/13 미작성
+
+8/6 diary 때문에
+8/13이 작성 완료 처리되면 FAIL.
+
+==================================================
+9. SAME DATE / DIFFERENT CLASS
+==================================================
+
+8/13 A반 작성
+8/13 B반 미작성
+
+EXPECTED:
+B반만 미작성 목록에 표시.
+
+==================================================
+10. UI
+==================================================
+
+현재 UI 구조는 유지 가능.
+
+상단:
+
+미작성 N건
+
+정렬:
+오래된 순
+
+목록이 0일 때만:
+
+"모든 수업 일지를 작성했습니다!"
+"최근 8주간 미작성 일지가 없습니다."
+
+표시.
+
+실제 미작성 1건 이상이면
+이 empty state 절대 표시 금지.
+
+==================================================
+11. DO NOT TOUCH
+==================================================
+
+- AI Engine
+- Growth Report
+- curriculum DB
+- OTA manager
+- diary AI parser
+- unrelated schedule UI
+- DB schema
+
+이번 작업은
+미작성 schedule 집계/list 정확성만.
+
+==================================================
+12. TESTS
+==================================================
+
+필수:
+
+1.
+8/6 작성 + 8/13 미작성
+→ count 1
+
+2.
+8/6 작성 + 8/13 + 8/20 미작성
+→ count 2
+
+3.
+same date different class
+→ 독립 판정
+
+4.
+deleted diary만 존재
+→ 미작성으로 표시
+
+5.
+active diary 존재
+→ 작성 완료로 제외
+
+6.
+count === list.length
+
+7.
+list 0일 때만 empty state
+
+8.
+KST 날짜 경계
+→ 잘못된 전날/다음날 매칭 없음
+
+==================================================
+13. FINAL REPORT
+==================================================
+
+A. ROOT CAUSE
+
+B. 기존 unwritten match key
+
+C. 수정 후 match key
+
+D. schedule source
+
+E. diary source
+
+F. date range / timezone
+
+G. single source of truth 위치
+
+H. 실제 케이스 결과
+
+I. tests
+
+J. changed files
+
+K. Render required
+YES / NO
+
+L. OTA required
+YES / NO
+
+M. SHA
+
+완료 후 STOP.

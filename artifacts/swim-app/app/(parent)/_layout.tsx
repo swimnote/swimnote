@@ -3,7 +3,6 @@
  * 미승인 학부모(pending / rejected)는 홈 진입 차단 → 대기 화면 표시
  * join_status는 로그인 응답(unified-login)에서 받아 SessionContext에 저장
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { Stack } from "expo-router";
 import React from "react";
@@ -47,14 +46,14 @@ function ApprovalPendingScreen({ status }: { status: string }) {
         {!isRejected && (
           <View style={[g.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <InfoRow icon="check-circle" color="#2E9B6F" text="자녀 정보 일치 시 즉시 자동 승인" />
-            <InfoRow icon="user-check"  color="#2EC4B6" text="관리자 수동 승인 시 알림 발송" />
+            <InfoRow icon="user-check"  color={C.brandStrong} text="관리자 수동 승인 시 알림 발송" />
             <InfoRow icon="clock"       color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}
 
-        <View style={[g.waitBanner, { backgroundColor: C.tintLight }]}>
-          <Info size={14} color={C.tint} />
-          <Text style={[g.waitTxt, { color: C.tint }]}>
+        <View style={[g.waitBanner, { backgroundColor: C.brandMist }]}>
+          <LucideIcon name="info" size={14} color={C.brandStrong} />
+          <Text style={[g.waitTxt, { color: C.brandStrong }]}>
             {isRejected
               ? "문의: 수영장에 직접 연락해 주세요"
               : "승인 후 자동으로 홈 화면으로 이동합니다"}
@@ -118,7 +117,17 @@ function ParentStack() {
       <Stack.Screen name="link-child" />
       <Stack.Screen name="requests" />
       <Stack.Screen name="growth-report" />
+      <Stack.Screen name="growth-report-history" options={{ headerShown: false }} />
+      <Stack.Screen name="growth-report-questions" />
+      {/* GR7: GROWTH_REPORT_PUBLISHED deep link target (GR8에서 상세 UI 구현 예정) */}
+      <Stack.Screen name="growth-report-detail" options={{ headerShown: false }} />
       <Stack.Screen name="add-child" />
+      {/* SWIMNOTE X — push로만 접근, XModeGuard로 보호 (WP4) */}
+      <Stack.Screen name="x-growth" />
+      {/* CS-02R — AI 문의 (고객센터) */}
+      <Stack.Screen name="support-chat" />
+      {/* PAID 성장리포트 허브 (학부모 리포트 Hub) */}
+      <Stack.Screen name="growth-report-paid" options={{ headerShown: false }} />
     </Stack>
   );
 }

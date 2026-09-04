@@ -1,0 +1,156 @@
+[앱]
+
+GROWTH REPORT MONTHLY DELIVERY — FINAL PRE-DEPLOY FIX AUDIT
+
+현재 SHA:
+07290b27
+branch:
+deploy-photo-clone
+
+아직 deploy 금지.
+
+이번 Step은 아래 3개 blocker만 최소 조사한다.
+repo-wide audit 금지.
+
+==================================================
+1. ANALYSIS STATUS PUBLISH-SAFE 범위 확인
+==================================================
+
+현재 autoPublishMonthlyReports SQL:
+
+analysis_status = 'COMPLETE'
+
+로 보고됨.
+
+실제 Growth Report AI 결과에서 존재하는 완료 계열:
+
+- COMPLETE
+- COMPLETE_WITH_QUESTIONS_AVAILABLE
+- COMPLETE_WITH_PARENT_EVIDENCE
+
+를 코드 기준으로 다시 확인.
+
+각 상태가:
+
+A. report_content 생성 완료
+B. grounding PASS 가능
+C. growth_framing PASS 가능
+D. REVIEW_REQUIRED까지 정상 도달 가능한 상태
+
+인지 확인.
+
+특히 FREE monthly에서
+COMPLETE_WITH_QUESTIONS_AVAILABLE이 발생했을 때
+질문을 받지 않아도 PUBLISHED 가능한 완성 결과인지 확인.
+
+만약 YES라면:
+
+analysis_status = 'COMPLETE'
+
+단일 조건은 버그이므로
+publish-safe COMPLETE 계열만 정확히 허용하도록
+최소 수정안 제시.
+
+PARTIAL은 절대 포함 금지.
+
+추측 금지.
+
+==================================================
+2. PUSH UNIQUE INDEX — PRODUCTION SAFETY
+==================================================
+
+코드에는:
+
+uq_notifications_gr_published
+
+partial unique index가 존재함.
+
+하지만 initPoolDb에서 생성 실패가 non-FATAL이라고 보고됨.
+
+확인:
+
+- 현재 production DB에 해당 index가 이미 존재하는지
+  read-only로 확인 가능한 구조인지
+- 기존 GROWTH_REPORT_PUBLISHED notification에
+  (type, ref_id, recipient_id) duplicate가 존재하는지
+  read-only query 가능 여부
+
+Production DB write 금지.
+duplicate 삭제 금지.
+
+만약 production 상태를 직접 확인할 수 없다면
+내가 실행하거나 확인해야 할 exact SQL만 보고.
+
+중요:
+index가 없는 상태에서 현재
+ON CONFLICT (type, ref_id, recipient_id)
+WHERE type='GROWTH_REPORT_PUBLISHED'
+가 어떤 동작을 하는지 코드/DB 기준으로 확인.
+
+배포 후 notification 경로가 500이 될 가능성이 있으면
+DEPLOY BLOCKED 판정.
+
+==================================================
+3. GROWTH REPORT HISTORY
+==================================================
+
+현재 main parent feed에서
+학생당 최근 5개 Growth Report만 projection.
+
+이 정책 자체는 유지 가능.
+
+단:
+6번째 이전 PUBLISHED report도
+부모가 다시 접근 가능해야 함.
+
+먼저 관련 파일만 최소 확인:
+
+- 기존 parent Growth Report list/history endpoint 존재 여부
+- growth-report detail 외에 report 목록 API 존재 여부
+- 앱에 "성장리포트 전체보기/기록" 화면 존재 여부
+
+이미 존재하면 재사용 설계.
+
+없으면 최소 구현안:
+
+GET parent growth-report history
+- student_id 기준
+- PUBLISHED only
+- deleted_at IS NULL
+- published_at DESC
+- pagination/cursor 또는 limit+offset
+
+메인 피드 LIMIT 5는 그대로 두고
+history endpoint에서 전체 과거 기록 접근 가능하게 하는 방식 우선.
+
+무한 feed로 변경하지 말 것.
+
+==================================================
+4. REPORT
+==================================================
+
+A. ANALYSIS STATUS
+- COMPLETE only가 맞는지
+- publish-safe 완료 상태 목록
+- 수정 필요 YES/NO
+
+B. PRODUCTION PUSH INDEX
+- 실제 존재 확인 여부
+- duplicate 존재 여부
+- deploy risk
+
+C. HISTORY
+- 기존 endpoint/UI 존재 여부
+- 없으면 최소 추가 구조
+
+D. DEPLOY READINESS
+- READY
+또는
+- BLOCKED + 정확한 blocker
+
+이번 Step에서는 코드 수정 금지.
+DB write 금지.
+AI 호출 금지.
+deploy 금지.
+
+보고 후 STOP.

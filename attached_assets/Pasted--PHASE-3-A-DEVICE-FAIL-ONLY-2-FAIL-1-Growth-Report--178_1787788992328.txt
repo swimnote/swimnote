@@ -1,0 +1,241 @@
+[앱] PHASE 3-A DEVICE FAIL — 원인 조사 및 수정계획서 ONLY
+
+실기기에서 아래 2개 FAIL 확인됨.
+
+1. Growth Report 좋아요를 눌러도 하트가 빨간색 filled 상태로 변경되지 않음
+2. 담당 선생님에게 Growth Report 좋아요 알림이 전달되지 않음
+
+이번 단계에서는 수정/배포하지 마십시오.
+원인 조사와 수정계획서만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 가장 먼저 Production API 배포 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이전 완료보고에서 Growth Report interaction server 코드는 구현했지만:
+
+Production Render deploy: 하지 않았음
+
+으로 보고되었습니다.
+
+반면 PHASE 3-A에서는 앱 TSX만 수정 후 iOS OTA했습니다.
+
+따라서 실제 Production 앱이 호출하는 API 서버에 아래 endpoint가
+현재 실제 배포되어 있는지 먼저 확인하십시오.
+
+GET /parent/growth-reports/:reportId/reactions
+
+POST /parent/growth-reports/:reportId/reactions
+
+그리고 서버 Production 배포 SHA와
+Growth Report interaction 코드가 들어간 SHA를 비교하십시오.
+
+보고:
+
+- 현재 Production API deployment SHA
+- 해당 SHA에 growth-report-interactions route 존재 여부
+- route가 index/server에 실제 mount되어 있는지
+- Production endpoint에서 GET/POST가 실제 응답 가능한 상태인지
+
+추측 금지.
+
+Render deploy는 아직 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실기기 Like 요청 실패 원인 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+GrowthReportFullFeed.tsx의 실제 onLike 경로를 추적하십시오.
+
+Pressable
+→ onLike
+→ apiRequest
+→ 실제 URL
+→ HTTP response
+→ JSON parse
+→ data.active
+→ setMyLiked
+→ render
+
+각 단계 확인.
+
+특히 확인:
+
+- onPress가 실제 호출되는지
+- reportId 값이 실제 존재하는지
+- token 존재 여부
+- 실제 요청 URL
+- HTTP status
+- response JSON
+- apiRequest 반환 shape
+- `data.active` 접근이 실제 contract와 맞는지
+- catch에서 오류를 완전히 삼키고 있는지
+
+현재 구현은 API 실패 시 catch에서 아무 표시 없이 상태를 유지한다고 보고되어 있으므로,
+실제 서버 호출이 실패해도 사용자 화면에서는
+“눌러도 아무 일도 안 일어나는 것”처럼 보일 수 있습니다.
+
+이 가능성을 실제 코드/로그 기준으로 확인하십시오.
+
+민감정보/JWT 값 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 하트 렌더링 자체도 별도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+API 성공 여부와 UI 렌더 문제를 분리하십시오.
+
+확인:
+
+myLiked = false
+→ empty heart
+
+myLiked = true
+→ color #E8003D
+→ fill #E8003D
+
+가 실제 LucideIcon wrapper에서 지원되는지 확인.
+
+기존 DiaryFeedItem의 filled heart가 실제로 어떻게 구현되어 있는지
+동일 컴포넌트/props 기준으로 비교하십시오.
+
+다음 둘을 구분해서 보고:
+
+A. POST 자체가 실패하여 myLiked=true가 되지 않음
+B. myLiked=true는 되지만 icon fill이 렌더되지 않음
+
+둘을 섞어서 추측하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Teacher 알림 미수신 원인 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+좋아요 요청이 실제 서버까지 성공했다는 전제에서만
+notification 경로를 조사하십시오.
+
+POST reaction
+→ reaction DB toggle
+→ 담당 teacher resolve
+→ notifications INSERT
+→ push send
+→ Teacher device/inbox
+
+각 단계 확인.
+
+특히:
+
+- Production 서버에 notification 코드가 배포되어 있는지
+- 담당 teacher_user_id resolve 성공 여부
+- notifications row 생성 여부
+- notification type
+- recipient_id
+- ref_id
+- ref_type
+- push 호출 여부
+- push token 존재 여부
+- Teacher inbox에서 해당 notification type을 조회하는지
+
+중요:
+
+좋아요 POST 자체가 Production에서 실행되지 않았다면
+Teacher notification이 안 온 것은 별도 두 번째 버그가 아닐 수 있습니다.
+
+먼저 같은 root cause인지 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 Diary 좋아요와 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 실기기/같은 Parent 계정에서 기존 Diary 좋아요가 정상 작동하는 구조와 비교하십시오.
+
+Diary:
+Parent App
+→ API
+→ DB
+→ notification
+→ Teacher
+
+Growth Report:
+Parent App
+→ API
+→ DB
+→ notification
+→ Teacher
+
+차이가 나는 정확한 지점을 찾으십시오.
+
+전체 repo audit 금지.
+관련 route/client/notification 흐름만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[DEVICE FAIL ROOT CAUSE]
+
+LIKE UI:
+- 실제 실패 지점
+- 근거
+
+PRODUCTION API:
+- 현재 deployed SHA
+- Growth Report interaction endpoint 배포 여부
+- 실제 GET/POST 상태
+
+REACTION:
+- request URL
+- HTTP status
+- response shape
+- myLiked state까지 도달 여부
+
+HEART RENDER:
+- state 문제인지
+- icon render 문제인지
+
+TEACHER NOTIFICATION:
+- reaction 성공 여부
+- DB notification 생성 여부
+- recipient resolve 여부
+- push/inbox 상태
+- 실패 지점
+
+[ROOT CAUSE SUMMARY]
+- 하나의 공통 원인인지
+- 좋아요 UI / notification 각각 별도 원인인지
+
+[FIX PLAN]
+원인이 확정된 부분만 수정 계획 작성.
+
+필요한 경우:
+- APP 수정
+- API server 수정
+- Production Render deploy
+- OTA
+
+를 각각 분리해서 제시.
+
+[TEST PLAN]
+수정 후 반드시 실기기에서 확인할 E2E:
+
+Parent Growth Report
+→ 좋아요
+→ 빨간 filled heart
+→ DB reaction
+→ Teacher notification
+→ Teacher inbox 확인
+
+다시 좋아요
+→ unlike
+→ empty heart
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- Render deploy 금지
+- OTA 금지
+- Production DB write 금지
+- PHASE 3-B 시작 금지
+
+원인 조사 + 수정계획서 제출 후 STOP.

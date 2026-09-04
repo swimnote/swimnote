@@ -1,0 +1,835 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE STAGE 8 RESUME
+# EXTERNAL SUBSCRIPTION CONFIGURATION FINALIZATION
+#
+# 목적:
+# 로그인 긴급 이슈 종료 후 Stage 8으로 복귀한다.
+#
+# 이번 작업에서는
+# Production 서버와 1.6.3을 절대 건드리지 않는다.
+#
+# 현재 구현된 2.0.0 구독/RevenueCat 코드 기준으로
+# App Store Connect / RevenueCat 외부 설정에 필요한
+# 정확한 상품 ID, entitlement, offering, webhook 경로,
+# legacy mapping, 구매 UI 노출 조건을 최종 확정한다.
+#
+# 코드 수정이 꼭 필요한 경우에도
+# 서버는 수정하지 말고
+# 2.0.0 APP 클라이언트 범위에서만 최소 수정한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Production server branch:
+deploy-photo-clone
+
+Production server current state:
+FROZEN
+
+============================================================
+0. 최우선 절대 규칙
+============================================================
+
+1.6.3 iOS:
+NO TOUCH
+
+1.6.3 Android:
+NO TOUCH
+
+Production server:
+NO TOUCH
+
+deploy-photo-clone:
+NO CHECKOUT
+NO EDIT
+NO COMMIT
+NO PUSH
+
+Render:
+NO DEPLOY
+
+Production auth:
+NO TOUCH
+
+/api/auth/unified-login:
+NO TOUCH
+
+/api/healthz:
+NO TOUCH
+
+SERVER_BOOT / AUTH_TRACE / PROCESS_ERROR:
+NO TOUCH
+
+DB migration:
+NO
+
+Production DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+Store submit:
+NO
+
+App Store 실제 생성/변경:
+NO
+
+RevenueCat 실제 생성/변경:
+NO
+
+Google Play 실제 생성/변경:
+NO
+
+이번 단계는
+"2.0 구독 외부 설정을 실행하기 전
+코드/상품구조/외부설정값을 최종 확정"
+하는 작업이다.
+
+============================================================
+1. 현재 Stage 8 구현 기준 재확인
+============================================================
+
+release/v2.0.0 현재 HEAD 기준으로
+이미 구현된 subscription 관련 코드만 조사한다.
+
+재구현 금지.
+
+확인:
+
+- subscription screen
+- pricing constants
+- product IDs
+- RevenueCat client
+- entitlement handling
+- offering/package mapping
+- subscription sync
+- webhook route reference
+- legacy plan mapping
+- member limits
+- storage limits
+- X mode entitlement
+- subscription required flow
+- X trial handling
+
+기존 Stage 8에서 이미 완료된 코드를
+다시 갈아엎지 말 것.
+
+============================================================
+2. 확정 가격 정책
+============================================================
+
+다음 가격은 LOCKED.
+
+SWIMNOTE
+월 9,900원
+
+회원 표시:
+무제한
+
+internal member_limit:
+999999
+
+기본 저장공간:
+10GB
+
+
+X300
+월 129,000원
+최대 active member 300명
+300GB
+
+
+X500
+월 199,000원
+최대 active member 500명
+500GB
+
+
+X1000
+월 359,000원
+최대 active member 1,000명
+1TB
+
+
+DATA100
+월 7,900원
++100GB
+
+
+DATA300
+월 22,900원
++300GB
+
+주의:
+
+기존 구형 가격:
+119,000
+189,000
+349,000
+
+신규 판매 금지.
+
+legacy migration/history 용도로만 유지.
+
+============================================================
+3. BASE PLAN 구조 확정
+============================================================
+
+동시에 유효한 BASE subscription은 하나만.
+
+가능 BASE:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+X는 SWIMNOTE 기본 기능을 포함.
+
+따라서:
+
+X + SWIMNOTE 이중 결제:
+NO
+
+X 활성 상태에서
+SWIMNOTE 별도 entitlement를 또 구매하게 만들기:
+NO
+
+X tier 자체가
+SWIMNOTE access를 포함해야 함.
+
+코드가 이 원칙과 다르면
+서버 수정 없이
+2.0 client-side mapping 범위에서만
+최소 수정 가능.
+
+============================================================
+4. PRODUCT ID 최종 확인
+============================================================
+
+현재 LOCKED target:
+
+com.swimnote.swimnote.monthly
+
+com.swimnote.x300.monthly
+
+com.swimnote.x500.monthly
+
+com.swimnote.x1000.monthly
+
+com.swimnote.data100.monthly
+
+com.swimnote.data300.monthly
+
+repository 전체를 검색하여:
+
+- typo
+- old product ID
+- duplicate product ID
+- obsolete ID
+- platform별 mismatch
+
+확인.
+
+최종적으로
+각 product ID가 실제 어떤 plan으로 매핑되는지
+표로 보고.
+
+============================================================
+5. RevenueCat entitlement 구조 확정
+============================================================
+
+기존 구현과 현재 정책을 비교.
+
+필수 원칙:
+
+X entitlement:
+x_mode
+
+legacy entitlement:
+solo
+center
+
+신규 SWIMNOTE base plan이
+별도 entitlement를 사용하는지
+현재 코드 기준으로 정확히 확인.
+
+다음 두 가지를 명확히 결정해서 보고:
+
+A.
+SWIMNOTE base 전용 entitlement 존재
+
+또는
+
+B.
+SWIMNOTE base access를
+product/package mapping으로 판정
+
+추측 금지.
+
+실제 코드 기준으로 설명.
+
+X300 / X500 / X1000은
+모두 x_mode entitlement에 연결하되
+
+실제 tier는
+active product ID 또는 customer info로
+구분하는 구조인지 확인.
+
+============================================================
+6. RevenueCat Offering 구조 확인
+============================================================
+
+기존 target:
+
+x_monthly
+
+legacy:
+solo_monthly
+center_monthly
+
+현재 코드가 어떤 offering identifier를 찾는지
+정확히 확인.
+
+신규 SWIMNOTE base plan이
+어떤 offering/package에서 노출되는지 확인.
+
+다음 화면 상태별
+실제 상품 노출을 연결:
+
+Normal SWIMNOTE active
+X trial
+X active
+x_pending
+subscription_required
+
+============================================================
+7. 구매 UI 상태별 최종 매트릭스
+============================================================
+
+반드시 표 작성.
+
+상태:
+
+A. 신규 / subscription_required
+B. SWIMNOTE active
+C. X trial
+D. X300 active
+E. X500 active
+F. X1000 active
+G. x_pending
+H. legacy active
+
+각 상태에서:
+
+- SWIMNOTE 카드 표시 여부
+- X300 표시 여부
+- X500 표시 여부
+- X1000 표시 여부
+- current 표시
+- upgrade 가능
+- downgrade 가능
+- cancellation
+- X → SWIMNOTE 전환
+- next billing 적용 여부
+
+확인.
+
+LOCKED UX:
+
+Normal:
+SWIMNOTE current + X upgrade options
+
+X trial:
+X300/X500/X1000 primary
+SWIMNOTE는 secondary
+"일반 SWIMNOTE 이용하기"
+
+X active:
+SWIMNOTE 신규구매 카드 숨김
+current X + 다른 X options
+
+X → SWIMNOTE:
+즉시 downgrade처럼 처리하지 말고
+next billing scheduled action
+
+subscription cancellation과
+X → SWIMNOTE는
+다른 행위로 유지.
+
+============================================================
+8. MEMBER LIMIT DOWNGRADE GUARD 확인
+============================================================
+
+X1000 → X500
+X500 → X300
+X → SWIMNOTE
+
+등에서
+
+현재 active member 수가
+목표 plan limit을 초과하면
+downgrade를 막는 guard가 있는지 확인.
+
+서버 수정 금지.
+
+현재 client/API contract로
+안전하게 동작하는지 보고.
+
+문제가 있다면
+수정하지 말고 BLOCKER로 보고.
+
+============================================================
+9. DATA100 / DATA300 중요 검증
+============================================================
+
+기존 Stage 8 보고에서:
+
+extra_storage_gb 단일 컬럼 때문에
+여러 DATA pack stacking이
+안전하게 표현되지 않는 문제가 있었음.
+
+이번 단계에서 반드시 다시 확인.
+
+질문:
+
+1.
+DATA100 단독 구매 가능?
+
+2.
+DATA300 단독 구매 가능?
+
+3.
+DATA100 + DATA300 동시 보유 가능?
+
+4.
+DATA100 두 개 stacking 가능?
+
+5.
+DATA300 두 개 stacking 가능?
+
+6.
+DATA100 → DATA300 switching 가능?
+
+7.
+현재 DB/API가 어떤 상태까지 안전하게 표현 가능한가?
+
+중요:
+
+Production DB 수정 금지.
+Migration 금지.
+Server 수정 금지.
+
+현재 구조가
+단일 add-on 1개만 안전하면
+
+그 사실을 그대로 보고.
+
+DATA 상품 외부 생성까지
+진행 가능한지 / 보류해야 하는지
+최종 판정.
+
+절대 임의로 stacking 지원을 구현하지 말 것.
+
+============================================================
+10. APP STORE CONNECT 구조 확정
+============================================================
+
+실제 콘솔 변경은 하지 않는다.
+
+코드 기준으로 필요한 외부 설정을
+정확히 작성.
+
+최소:
+
+Product
+- SWIMNOTE monthly
+- X300 monthly
+- X500 monthly
+- X1000 monthly
+
+DATA는 9번 판정에 따라
+READY / HOLD.
+
+각 항목에 대해:
+
+- product ID
+- display name
+- monthly duration
+- price
+- subscription group requirement
+- group 내 upgrade/downgrade 관계
+
+필요한 외부 설정값만 정리.
+
+중요:
+
+App Store subscription group 구조에서
+현재 정책과 충돌 가능성이 있으면
+BLOCKER로 표시.
+
+확인되지 않은 App Store 동작을
+사실처럼 단정하지 말 것.
+
+============================================================
+11. RevenueCat 외부 설정표
+============================================================
+
+반드시 아래 표 작성:
+
+Product ID
+→ Store Product
+→ Entitlement
+→ Offering
+→ Package
+→ App Plan
+→ Purchase UI state
+
+모든 신규 base product 포함.
+
+legacy product는 별도 표.
+
+============================================================
+12. WEBHOOK 정확한 경로 확인
+============================================================
+
+중요.
+
+기존 보고에서 webhook URL이
+placeholder 형태로 기록된 적이 있으므로
+이번에 반드시 코드에서 exact route chain 확인.
+
+repository에서:
+
+revenuecat-webhook
+
+검색.
+
+확인:
+
+- route file
+- router mount
+- /api prefix 여부
+- 실제 full path
+- auth/secret verification
+- HTTP method
+
+최종적으로 Production에서 사용해야 할
+정확한 PATH만 보고.
+
+예:
+
+/api/billing/revenuecat-webhook
+
+인지
+
+/billing/revenuecat-webhook
+
+인지
+
+실제 코드로 확정.
+
+중요:
+
+Production endpoint에
+실제 webhook test 요청 보내지 말 것.
+
+Production server 수정 금지.
+
+============================================================
+13. LEGACY PLAN 보존 확인
+============================================================
+
+기존:
+
+Coach
+Premier
+solo
+center
+구형 X plan
+
+등이 현재 active subscription일 경우
+
+기존 권한 유지.
+
+하지만:
+
+신규 판매:
+NO
+
+해지 후 재가입:
+NO
+
+신규 subscription screen 노출:
+NO
+
+legacy mapping이
+현재 code에서 보존되는지 확인.
+
+============================================================
+14. 1.6.3 완전 격리 검증
+============================================================
+
+이번 Stage 8 작업 결과가
+
+1.6.3 iOS
+1.6.3 Android
+
+에 영향을 주지 않는지 확인.
+
+반드시 보고:
+
+1.6.3 source modified:
+NO
+
+1.6.3 runtime:
+NO CHANGE
+
+production channel OTA:
+NO
+
+server:
+NO CHANGE
+
+Production auth:
+NO CHANGE
+
+============================================================
+15. 코드 수정 허용 범위
+============================================================
+
+원칙:
+가능하면 CODE CHANGE NONE.
+
+다만 release/v2.0.0에서
+단순한 subscription client mapping typo,
+상품 ID typo,
+UI visibility mismatch가
+명백하게 발견된 경우에만
+
+2.0 APP CLIENT 범위에서
+최소 수정 허용.
+
+수정 가능 영역:
+
+artifacts/swim-app
+subscription-related client files only
+
+수정 금지:
+
+artifacts/api-server
+database
+migrations
+auth
+1.6.3 tag/branch
+deploy-photo-clone
+
+수정 시 관련 테스트 수행.
+
+============================================================
+16. 테스트
+============================================================
+
+관련 subscription tests 실행.
+
+확인:
+
+- product ID mapping
+- pricing
+- entitlement mapping
+- plan visibility
+- X included base access
+- downgrade guard
+- legacy plan preservation
+- subscription_required
+- X trial
+- cancellation vs X→SWIMNOTE
+
+현재 전체 regression baseline:
+
+166 stable failures
+
+새 deterministic failure:
+0
+
+기존 166을
+Stage 8 문제로 고치지 말 것.
+
+============================================================
+17. 완료보고 형식
+============================================================
+
+# SWIMNOTE STAGE 8 EXTERNAL CONFIG FINALIZATION REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Code changed:
+YES / NO
+
+If changed:
+files:
+commit:
+
+## PRODUCTION FREEZE
+
+deploy-photo-clone touched:
+NO
+
+Production server changed:
+NO
+
+1.6.3 iOS changed:
+NO
+
+1.6.3 Android changed:
+NO
+
+OTA:
+NO
+
+DB migration:
+NO
+
+## PRICING
+
+| Plan | Price | Member limit | Storage | Product ID |
+|------|------:|-------------:|--------:|------------|
+
+## BASE PLAN STRUCTURE
+
+One active base:
+YES / NO
+
+X includes SWIMNOTE:
+YES / NO
+
+Double billing risk:
+...
+
+## ENTITLEMENTS
+
+SWIMNOTE:
+...
+
+X:
+x_mode
+
+Legacy:
+solo / center
+
+Tier determination:
+...
+
+## OFFERINGS
+
+...
+
+## PURCHASE UI MATRIX
+
+상태별 표 작성.
+
+## MEMBER LIMIT GUARD
+
+X1000 → X500:
+...
+
+X500 → X300:
+...
+
+X → SWIMNOTE:
+...
+
+## DATA ADD-ONS
+
+DATA100:
+READY / HOLD
+
+DATA300:
+READY / HOLD
+
+Stacking:
+SUPPORTED / NOT SUPPORTED
+
+Current safe model:
+...
+
+External store configuration recommendation:
+...
+
+## APP STORE CONNECT REQUIREMENTS
+
+정확한 product 목록 및 group 구조.
+
+## REVENUECAT REQUIREMENTS
+
+Product → Entitlement → Offering → Package 표.
+
+## WEBHOOK
+
+Route file:
+Router mount:
+HTTP method:
+Exact path:
+
+External production URL:
+host + exact path
+
+단,
+실제 호출/설정은 하지 않음.
+
+## LEGACY
+
+Existing legacy users preserved:
+YES / NO
+
+New legacy sale:
+NO
+
+Rejoin after expiration:
+NO
+
+## TESTS
+
+Subscription tests:
+...
+
+Regression:
+166 stable failures expected
+
+New deterministic failures:
+0 / ...
+
+## BLOCKERS
+
+외부 설정 전에 반드시 해결해야 하는 것만 작성.
+
+없으면:
+NONE
+
+## FINAL
+
+다음 중 하나:
+
+STAGE 8 EXTERNAL CONFIG READY
+
+또는
+
+STAGE 8 EXTERNAL CONFIG READY — DATA ADD-ONS HOLD
+
+또는
+
+STAGE 8 BLOCKED — EXTERNAL CONFIG NOT SAFE

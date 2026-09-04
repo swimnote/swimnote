@@ -1,0 +1,286 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 8
+RLS GROUP B1 — CLASS / ATTENDANCE / MAKEUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 7 RLS_GROUP_A_VERIFIED 승인.
+
+현재:
+RLS ENABLED = 23 / 105
+RLS DISABLED = 82
+
+이번 단계는 운영/수업 핵심 9개만 적용.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 금지.
+POOL_DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 대상 9개
+━━━━━━━━━━━━━━━━━━━━
+
+1. attendance
+2. classes
+3. class_groups
+4. class_members
+5. class_diaries
+6. makeup_sessions
+7. manual_handover_makeups
+8. student_class_history
+9. student_levels
+
+다른 테이블 적용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 23개 유지 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true 23개 전부 유지 확인.
+
+하나라도 false면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 적용 전 증거
+━━━━━━━━━━━━━━━━━━━━
+
+각 9개:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon CRUD grants
+- authenticated CRUD grants
+
+기존 policy 존재 시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. role 확인
+━━━━━━━━━━━━━━━━━━━━
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+postgres / false / true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+5. RLS 적용
+━━━━━━━━━━━━━━━━━━━━
+
+ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_diaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE makeup_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE manual_handover_makeups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_class_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_levels ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 즉시 READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+9개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+row count 전후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Direct postgres 검증
+━━━━━━━━━━━━━━━━━━━━
+
+9개 COUNT 정상 조회.
+
+개인 데이터 내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 실제 인증 Runtime
+━━━━━━━━━━━━━━━━━━━━
+
+실제 /api/auth/login HTTP 200 확보.
+
+그 후 가능한 READ ONLY API:
+
+- 오늘 일정 / 반 목록
+- 출결 관련 조회
+- 보강 관련 조회
+- 일지 목록 또는 상태
+- 학생 레벨 조회
+
+중 최소 3개 실제 인증 요청 HTTP 200 확인.
+
+401만으로 성공 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. Makeup Regression 중요
+━━━━━━━━━━━━━━━━━━━━
+
+makeup_sessions
+manual_handover_makeups
+student_class_history
+
+는 기존 안정 기능과 직접 연결됨.
+
+기존 Makeup Production Baseline 동작에
+영향 없는지 코드 경로 확인.
+
+특히:
+
+- 대기 보강
+- 선보강
+- 날짜 선택
+- 담당 선생님/인계
+- 현재 반 판정
+
+DB permission/RLS 신규 오류 없는지 확인.
+
+기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. Diary 영향
+━━━━━━━━━━━━━━━━━━━━
+
+class_diaries는 일지완료 및
+teacher diary history와 연결됨.
+
+일지 기능 신규 오류 없는지
+Render 로그/API에서 확인.
+
+일지 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Render 로그
+━━━━━━━━━━━━━━━━━━━━
+
+검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고 대상 9개 테이블명.
+
+신규 오류 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+12. Worker/Scheduler 영향
+━━━━━━━━━━━━━━━━━━━━
+
+attendance
+class_groups
+class_diaries
+makeup_sessions
+student_class_history
+
+관련 scheduler/job/backup에서
+신규 RLS 오류 없는지 확인.
+
+기존 standby-sync schema mismatch는
+별도 문제로 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 실패 시 rollback
+━━━━━━━━━━━━━━━━━━━━
+
+신규 회귀 발생 시 이번 9개만:
+
+ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
+ALTER TABLE classes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE class_groups DISABLE ROW LEVEL SECURITY;
+ALTER TABLE class_members DISABLE ROW LEVEL SECURITY;
+ALTER TABLE class_diaries DISABLE ROW LEVEL SECURITY;
+ALTER TABLE makeup_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE manual_handover_makeups DISABLE ROW LEVEL SECURITY;
+ALTER TABLE student_class_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE student_levels DISABLE ROW LEVEL SECURITY;
+
+rollback 후 runtime 재확인.
+
+기존 23개는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 총계
+━━━━━━━━━━━━━━━━━━━━
+
+성공 예상:
+
+23 + 9 = 32
+
+하지만 실제 DB COUNT 제출.
+
+remaining disabled도 실제 계산.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 다음 단계
+━━━━━━━━━━━━━━━━━━━━
+
+B1 성공 후에도 B2 자동 진행 금지.
+
+B2 후보:
+
+class_diary_audit_logs
+class_change_logs
+student_registration_requests
+teacher_absences
+teacher_daily_memos
+teacher_schedule_notes
+pool_holidays
+holiday_confirmations
+
+별도 승인 후 진행.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 기존 23개 유지
+3. 9개 pre-state
+4. policy count
+5. role/bypass
+6. 실행 SQL
+7. post-state
+8. row count
+9. direct postgres smoke
+10. login result
+11. authenticated API results
+12. makeup path 영향
+13. diary path 영향
+14. Render 신규 오류
+15. worker/scheduler 영향
+16. rollback 여부
+17. RLS enabled total
+18. remaining disabled
+19. 최종 판정
+
+FINAL:
+
+RLS_GROUP_B1_VERIFIED
+
+또는
+
+RLS_GROUP_B1_ROLLED_BACK
+
+STOP.
+
+POOL_DB RLS 적용 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

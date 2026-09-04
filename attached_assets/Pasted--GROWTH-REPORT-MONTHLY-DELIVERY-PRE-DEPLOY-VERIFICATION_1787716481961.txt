@@ -1,0 +1,156 @@
+[앱]
+
+GROWTH REPORT MONTHLY DELIVERY — PRE-DEPLOY VERIFICATION
+
+현재 구현 보고:
+SHA `07290b27`
+branch `deploy-photo-clone`
+
+테스트:
+142/142 PASS
+
+아직 Render deploy 금지.
+
+이번 Step은 코드 수정 없이
+배포 전 두 가지 안전조건만 확인한다.
+
+==================================================
+1. PUSH DB-LEVEL IDEMPOTENCY 확인
+==================================================
+
+현재 notify 쪽이:
+
+INSERT ...
+ON CONFLICT DO NOTHING
+RETURNING id
+
+로 변경됐다고 보고됨.
+
+반드시 확인:
+
+notifications 테이블에 실제로
+동일 Growth Report notification을 충돌로 판단할
+DB unique constraint/index가 존재하는지.
+
+확인 대상:
+
+(type, ref_id, recipient_id)
+
+또는
+GROWTH_REPORT_PUBLISHED 전용 partial unique index.
+
+보고:
+
+- schema 파일
+- migration 파일
+- 실제 index/constraint 이름
+- conflict target이 무엇인지
+- 기존 DB 초기화 코드에도 반영됐는지
+
+만약 unique constraint/index가 없다면:
+
+ON CONFLICT DO NOTHING이
+정확한 exact-once 보장을 하지 못하므로
+
+코드 수정하지 말고
+"MIGRATION REQUIRED"라고 보고 후 STOP.
+
+Production DB 변경 금지.
+
+==================================================
+2. AUTO-PUBLISH SAFETY 조건 확인
+==================================================
+
+5일 scheduler가 REVIEW_REQUIRED report를
+SYSTEM_MONTHLY_AUTO 승인하기 직전에
+실제로 확인하는 조건을 exact code 기준으로 보고.
+
+필수:
+
+- students.status = 'active'
+- report_period = 정확한 previous month
+- product_status = REVIEW_REQUIRED
+- deleted_at IS NULL 또는 동등한 삭제 제외
+- analysis_status가 완료 상태
+- grounding_status publish-safe
+- growth_framing_status = PASS
+- report_content/fact package 유효
+- sns_summary 존재 여부가 실제 publish 필수인지
+
+각 조건을:
+
+YES / NO
+
+로 표 작성.
+
+단순히
+`report_fact_package IS NOT NULL`
+`sns_summary IS NOT NULL`
+만 확인하고 있다면 안전조건 불충분.
+
+==================================================
+3. FEED 확인
+==================================================
+
+PUBLISHED growth report projection LIMIT 5가
+무엇을 의미하는지 확인.
+
+질문:
+
+- 학생당 최근 5개?
+- 부모 전체 feed에서 총 5개?
+- 전체 feed pagination 전에 growth report만 5개 제한?
+
+월간 history 정책상
+오래된 PUBLISHED report가
+feed pagination을 통해 계속 조회 가능한지 확인.
+
+만약 LIMIT 5 때문에
+6개월 이전 report가 영구적으로 feed에서 사라지는 구조라면
+정책 위반.
+
+수정 없이 보고.
+
+==================================================
+4. FREE QUESTIONS 차단 확인
+==================================================
+
+서버 403 조건이
+FREE monthly report만 차단하고
+향후 PAID/deep report용 질문 인프라를 막지 않는 구조인지 확인.
+
+보고:
+- 차단 조건
+- report type/product type 기준 여부
+- future paid reuse 가능 여부
+
+==================================================
+5. REPORT
+==================================================
+
+다음 형식으로 보고:
+
+A. PUSH UNIQUE INDEX
+- EXISTS / MISSING
+- exact index
+
+B. AUTO-PUBLISH SAFETY
+- required condition별 YES/NO
+
+C. FEED LIMIT 5
+- history 안전 여부
+
+D. FREE QUESTIONS
+- future paid reuse 안전 여부
+
+E. DEPLOY READINESS
+- READY
+또는
+- BLOCKED + 이유
+
+코드 수정 금지.
+DB write 금지.
+deploy 금지.
+AI 호출 금지.
+
+보고 후 STOP.

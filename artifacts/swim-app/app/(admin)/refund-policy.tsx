@@ -190,7 +190,7 @@ export default function RefundPolicyScreen() {
   }
 
   function handleBack() {
-    if (backTo) router.push((`/(admin)/${backTo}`) as any);
+    if (backTo) router.replace((`/(admin)/${backTo}`) as any);
     else router.back();
   }
 
@@ -331,7 +331,7 @@ const s = StyleSheet.create({
   root:             { flex: 1, backgroundColor: C.background },
   header:           { flexDirection: "row", alignItems: "center", gap: 8,
                       paddingHorizontal: 16, paddingVertical: 12,
-                      borderBottomWidth: 1, borderBottomColor: "#E5E7EB",
+                      borderBottomWidth: 1, borderBottomColor: C.border,
                       backgroundColor: C.card },
   backBtn:          { padding: 4 },
   headerTitle:      { flex: 1, fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
@@ -353,7 +353,7 @@ const s = StyleSheet.create({
                       borderWidth: 1, borderColor: "#DDD6FE" },
   infoRow:          { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   infoTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: PURPLE },
-  infoVersion:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  infoVersion:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   infoAgreed:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#16A34A", marginTop: 2 },
 
   reagreeBox:       { flexDirection: "row", alignItems: "flex-start", gap: 10,
@@ -363,7 +363,7 @@ const s = StyleSheet.create({
   reagreeDesc:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D97706", marginTop: 2 },
 
   coreSection:      { backgroundColor: "#FAFAFA", borderRadius: 12, padding: 14,
-                      borderWidth: 1, borderColor: "#E5E7EB", gap: 10 },
+                      borderWidth: 1, borderColor: C.border, gap: 10 },
   coreSectionHeader:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   coreSectionTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#9A3412" },
   corePolicyCard:   { borderRadius: 10, padding: 12, borderWidth: 1, gap: 4 },
@@ -371,7 +371,7 @@ const s = StyleSheet.create({
   corePolicyDesc:   { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
 
   sectionBox:       { backgroundColor: C.card, borderRadius: 12, padding: 14,
-                      borderWidth: 1, borderColor: "#E5E7EB", gap: 6 },
+                      borderWidth: 1, borderColor: C.border, gap: 6 },
   sectionTitle:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: PURPLE, marginBottom: 4 },
   policyLine:       { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   bullet:           { width: 5, height: 5, borderRadius: 3, backgroundColor: PURPLE,
@@ -386,9 +386,9 @@ const s = StyleSheet.create({
 
   footer:           { paddingHorizontal: 16, paddingTop: 12, gap: 8,
                       backgroundColor: C.card,
-                      borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+                      borderTopWidth: 1, borderTopColor: C.border },
   footerHint:       { fontSize: 11, fontFamily: "Pretendard-Regular",
-                      color: "#64748B", textAlign: "center" },
+                      color: C.textSecondary, textAlign: "center" },
   agreeBtn:         { backgroundColor: PURPLE, borderRadius: 12, paddingVertical: 14,
                       alignItems: "center" },
   agreeBtnTxt:      { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },

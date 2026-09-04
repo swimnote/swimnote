@@ -74,7 +74,9 @@ export default function DiaryReactionsScreen() {
   const { diaryId, lessonDate, source } = useLocalSearchParams<{ diaryId: string; lessonDate: string; source?: string }>();
 
   const handleBack = useCallback(() => {
-    if (source === "teacher_home_inbox") {
+    if (source === "news_inbox") {
+      router.navigate("/(teacher)/messages-inbox" as any);
+    } else if (source === "teacher_home_inbox") {
       router.replace("/(teacher)/today-schedule" as any);
     } else {
       router.back();
@@ -130,13 +132,13 @@ export default function DiaryReactionsScreen() {
   }
 
   const likeGroup = reactions["like"];
-  const thankGroup = reactions["thanks"];
   const displayDate = lessonDate ? fmtDate(lessonDate) : "";
 
   return (
     <KeyboardAvoidingView
       style={[s.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <SubScreenHeader
         title="반응 & 댓글"
@@ -145,7 +147,7 @@ export default function DiaryReactionsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -158,27 +160,15 @@ export default function DiaryReactionsScreen() {
           {/* ─── 반응 섹션 ─── */}
           <View style={[s.section, { backgroundColor: C.card }]}>
             <Text style={[s.sectionTitle, { color: C.text }]}>학부모 반응</Text>
-            <View style={s.reactionRow}>
-              {/* 좋아요 */}
-              <View style={[s.reactionCard, { borderColor: "#2EC4B620" }]}>
-                <Text style={s.reactionEmoji}>👍</Text>
-                <Text style={[s.reactionCount, { color: "#2EC4B6" }]}>{likeGroup?.count ?? 0}명</Text>
-                {(likeGroup?.users ?? []).length > 0 && (
-                  <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
-                    {likeGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
-                  </Text>
-                )}
-              </View>
-              {/* 감사합니다 */}
-              <View style={[s.reactionCard, { borderColor: "#BE185D20" }]}>
-                <Text style={s.reactionEmoji}>🙏</Text>
-                <Text style={[s.reactionCount, { color: "#BE185D" }]}>{thankGroup?.count ?? 0}명</Text>
-                {(thankGroup?.users ?? []).length > 0 && (
-                  <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
-                    {thankGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
-                  </Text>
-                )}
-              </View>
+            {/* 좋아요 — 단독 전체 폭 카드 */}
+            <View style={[s.reactionCard, { borderColor: "#EF444420" }]}>
+              <LucideIcon name="heart" size={22} color="#EF4444" />
+              <Text style={[s.reactionCount, { color: "#EF4444" }]}>{likeGroup?.count ?? 0}명</Text>
+              {(likeGroup?.users ?? []).length > 0 && (
+                <Text style={[s.reactionNames, { color: C.textSecondary }]} numberOfLines={2}>
+                  {likeGroup!.users.map(u => u.student_name ? `${u.parent_name}(${u.student_name})` : u.parent_name).join(", ")}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -186,7 +176,7 @@ export default function DiaryReactionsScreen() {
           <View style={[s.section, { backgroundColor: C.card }]}>
             <View style={s.sectionHeaderRow}>
               <Text style={[s.sectionTitle, { color: C.text }]}>댓글</Text>
-              <Text style={[s.commentCountBadge, { color: "#6366F1" }]}>{commentCount}개</Text>
+              <Text style={[s.commentCountBadge, { color: C.brandStrong }]}>{commentCount}개</Text>
             </View>
 
             {threads.length === 0 ? (
@@ -201,7 +191,7 @@ export default function DiaryReactionsScreen() {
                   <View style={[s.bubble, s.bubbleParent]}>
                     <View style={s.bubbleHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.bubbleName, { color: C.tint }]}>
+                        <Text style={[s.bubbleName, { color: C.brandStrong }]}>
                           {thread.display_name}
                           {thread.student_name ? <Text style={[s.bubbleStudentTag, { color: C.textMuted }]}>  {thread.student_name}</Text> : null}
                         </Text>
@@ -209,11 +199,11 @@ export default function DiaryReactionsScreen() {
                       </View>
                       {!thread.is_deleted && (
                         <Pressable
-                          style={[s.replyBtn, { backgroundColor: "#EEF2FF" }]}
+                          style={[s.replyBtn, { backgroundColor: C.brandMist }]}
                           onPress={() => { setReplyTarget(thread); setReplyInput(""); setTimeout(() => inputRef.current?.focus(), 100); }}
                         >
-                          <LucideIcon name="corner-down-right" size={12} color="#6366F1" />
-                          <Text style={[s.replyBtnText, { color: "#6366F1" }]}>답글</Text>
+                          <LucideIcon name="corner-down-right" size={12} color={C.brandStrong} />
+                          <Text style={[s.replyBtnText, { color: C.brandStrong }]}>답글</Text>
                         </Pressable>
                       )}
                     </View>
@@ -230,14 +220,14 @@ export default function DiaryReactionsScreen() {
                         s.bubble,
                         s.bubbleReply,
                         reply.author_role === "teacher" || reply.author_role === "pool_admin"
-                          ? { backgroundColor: "#F0F4FF" }
-                          : { backgroundColor: C.tint + "12" },
+                          ? { backgroundColor: C.backgroundSoft }
+                          : { backgroundColor: C.brandSoft },
                       ]}
                     >
                       <View style={s.bubbleHeader}>
                         <Text style={[s.bubbleName, {
                           color: reply.author_role === "teacher" || reply.author_role === "pool_admin"
-                            ? "#3B82F6" : C.tint,
+                            ? C.textPrimary : C.brandStrong,
                         }]}>
                           {reply.author_role === "teacher" || reply.author_role === "pool_admin" ? "📘 " : ""}{reply.author_name}
                         </Text>
@@ -258,8 +248,8 @@ export default function DiaryReactionsScreen() {
       {/* 답글 입력창 */}
       {replyTarget && (
         <View style={[s.inputBar, { borderTopColor: C.border, backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 8) }]}>
-          <View style={[s.replyContext, { backgroundColor: "#EEF2FF", borderLeftColor: "#6366F1" }]}>
-            <Text style={[s.replyContextText, { color: "#6366F1" }]} numberOfLines={1}>
+          <View style={[s.replyContext, { backgroundColor: C.brandMist, borderLeftColor: C.brandStrong }]}>
+            <Text style={[s.replyContextText, { color: C.brandStrong }]} numberOfLines={1}>
               {replyTarget.display_name}에게 답글
             </Text>
             <Pressable onPress={() => { setReplyTarget(null); setReplyInput(""); }} hitSlop={8}>
@@ -280,7 +270,7 @@ export default function DiaryReactionsScreen() {
             <Pressable
               onPress={sendReply}
               disabled={!replyInput.trim() || sending}
-              style={[s.sendBtn, { backgroundColor: !replyInput.trim() || sending ? C.border : "#6366F1" }]}
+              style={[s.sendBtn, { backgroundColor: !replyInput.trim() || sending ? C.border : C.primaryAction }]}
             >
               {sending
                 ? <ActivityIndicator size="small" color="#fff" />
@@ -312,7 +302,7 @@ const s = StyleSheet.create({
 
   threadWrap: { gap: 4 },
   bubble: { borderRadius: 12, padding: 12, gap: 6 },
-  bubbleParent: { backgroundColor: "#F8FAFC" },
+  bubbleParent: { backgroundColor: C.backgroundSoft },
   bubbleReply: { marginLeft: 20 },
   bubbleHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
   bubbleName: { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "600" },

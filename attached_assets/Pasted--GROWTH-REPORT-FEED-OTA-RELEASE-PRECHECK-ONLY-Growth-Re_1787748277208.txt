@@ -1,0 +1,108 @@
+[앱]
+
+GROWTH REPORT FEED — OTA RELEASE PRECHECK ONLY
+
+현재 실기기 앱에서 최신 Growth Report Feed UI가 보이지 않음.
+
+현재 최신 관련 SHA:
+7b8e88c9
+이후 E2E 검증은 read-only 기준 완료.
+
+이번 Step 목표:
+현재 앱 변경사항이 OTA로 안전하게 배포 가능한 상태인지 확인하고,
+필요한 OTA release command/target만 보고한다.
+
+중요:
+이번 Step에서는 실제 OTA publish 실행 금지.
+사용자 승인 후 배포한다.
+
+==================================================
+1. 변경사항 OTA 적합성 확인
+==================================================
+
+최근 Growth Report Feed 변경사항 확인:
+
+- GrowthReportFullFeed.tsx
+- GrowthReportFeedCard.tsx
+- swimnote-ai-report-logo.png
+- 관련 route/import
+
+확인:
+
+- native module 변경 여부
+- app.json/app.config native setting 변경 여부
+- iOS/Android native binary 변경 필요 여부
+- OTA로 처리 가능한 JS/UI/asset 변경인지
+
+==================================================
+2. ASSET 확인
+==================================================
+
+새 로고:
+
+assets/images/swimnote-ai-report-logo.png
+
+이 파일이 Expo OTA asset bundle에 정상 포함되는지 확인.
+
+확인:
+- require/import 방식 정상
+- metro bundle 포함
+- production build runtime에서 asset resolve 가능
+- 별도 native rebuild 필요 없음
+
+==================================================
+3. 현재 UPDATE CHANNEL 확인
+==================================================
+
+현재 production 앱이 실제로 사용하는:
+
+- EAS update channel
+- branch
+- runtimeVersion
+- current app version/build
+- update URL/config
+
+확인.
+
+추측 금지.
+현재 repo config 기준으로 정확히 보고.
+
+==================================================
+4. OTA 대상 commit 확인
+==================================================
+
+현재 deploy-photo-clone branch HEAD와
+실기기에 반영되어야 할 최종 SHA를 확인.
+
+Growth Report Feed 최신 변경이
+HEAD에 모두 포함됐는지 확인.
+
+==================================================
+5. PRECHECK
+==================================================
+
+OTA 전에 최소 확인:
+
+- TypeScript 관련 변경 파일 오류 0
+- Metro bundle 성공
+- asset resolution 성공
+- growth report feed route import 성공
+
+repo-wide broad test 금지.
+
+==================================================
+6. REPORT ONLY
+==================================================
+
+보고:
+
+- OTA 가능 여부: YES / NO
+- native rebuild 필요 여부
+- production update channel
+- runtimeVersion
+- target SHA
+- 포함될 Growth Report 변경 파일
+- logo asset 포함 여부
+- 실제 배포에 사용할 정확한 command
+
+실제 OTA publish는 하지 말고 STOP.

@@ -1,11 +1,11 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/cost-analytics.tsx — 비용·지출 분석
- * - 스토어 수수료·세금: 실 결제 API 기반 (실데이터)
- * - 스토리지: 실제 DB 사용량 집계 (실데이터)
- * - DB·기타: 고정 운영비 (실제 계약 비용 입력 필요)
- * - 트래픽: 측정 불가 (₩0 표시)
+ * - 스토어 수수료·세금: revenue_logs 실데이터 기반
+ * - 스토리지: 실제 DB 사용량
+ * - DB·기타: 고정 운영비
  */
-import { ChartBar, CircleAlert, PieChart } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -17,34 +17,29 @@ import { billingEnabled } from "@/config/billing";
 const P = "#7C3AED";
 type Period = "week" | "month" | "year";
 
-// ─── 고정 운영 단가 (실제 계약 비용으로 교체 가능) ──────────────────────────
+// ─── 고정 운영 단가 ──────────────────────────────────────────────────────────
 const UNIT_COSTS = {
-  db_monthly:      33750,  // Supabase Pro $25 × ₩1350
-  storage_per_gb:     20,  // R2 $0.015/GB × ₩1350 ≈ ₩20/GB
-  tax_rate:          0.10, // 세금 추정율 (10%)
-  other_monthly:   47250,  // 백업+인프라 $35 × ₩1350
-  store_fee_rate:   0.30,  // 앱스토어/구글플레이 수수료 30%
+  db_monthly:    33750,   // Supabase Pro $25 × ₩1350
+  storage_per_gb:   20,   // R2 $0.015/GB × ₩1350 ≈ ₩20/GB
+  tax_rate:       0.10,   // 세금 추정율 10%
+  other_monthly: 47250,   // 백업+인프라 $35 × ₩1350
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
 function fmtKRW(n: number): string {
   return `₩${Math.round(n).toLocaleString("ko-KR")}`;
 }
-
 function fmtGb(bytes: number): string {
   const gb = bytes / (1024 ** 3);
   if (gb < 1) return `${(bytes / (1024 ** 2)).toFixed(1)} MB`;
   return `${gb.toFixed(2)} GB`;
 }
-
 function getPeriodMultiplier(period: Period): number {
   if (period === "week")  return 7 / 30;
   if (period === "month") return 1;
   return 12;
 }
-
 function getDateRange(period: Period): { start: string; end: string } {
-  const now = new Date();
+  const now   = new Date();
   const today = now.toISOString().slice(0, 10);
   if (period === "week") {
     const s = new Date(now);
@@ -59,29 +54,24 @@ function getDateRange(period: Period): { start: string; end: string } {
 }
 
 interface CostItem {
-  label: string;
-  icon: string;
-  amount: number;
-  note: string;
-  color: string;
-  isReal?: boolean;
-  isFixed?: boolean;
+  label: string; icon: string; amount: number;
+  note: string; color: string; isReal?: boolean; isFixed?: boolean;
 }
-
 interface PlatformMetrics {
-  total_storage_bytes: number;
-  total_storage_gb: number;
-  total_pools: number;
-  approved_pools: number;
-  active_subscriptions: number;
+  total_storage_bytes: number; total_storage_gb: number;
+  total_pools: number; approved_pools: number; active_subscriptions: number;
+}
+interface RevenueSummary {
+  total_gross: number; total_charged: number; total_discount: number;
+  total_store_fee: number; total_net_revenue: number; total_refunded: number; count: number;
 }
 
 export default function CostAnalyticsScreen() {
   if (!billingEnabled) return null;
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
-  const [period, setPeriod] = useState<Period>("month");
-  const [apiRevenue, setApiRevenue] = useState(0);
+  const [period,  setPeriod]  = useState<Period>("month");
+  const [summary, setSummary] = useState<RevenueSummary | null>(null);
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -96,7 +86,7 @@ export default function CostAnalyticsScreen() {
       ]);
       if (revRes.ok) {
         const data = await revRes.json();
-        setApiRevenue(Number(data?.summary?.total_charged ?? 0));
+        setSummary(data?.summary ?? null);
       }
       if (metRes.ok) {
         setMetrics(await metRes.json());
@@ -107,67 +97,69 @@ export default function CostAnalyticsScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    fetchAll(period);
-  }, [period, fetchAll]);
+  useEffect(() => { fetchAll(period); }, [period, fetchAll]);
 
-  const mult = getPeriodMultiplier(period);
+  const mult           = getPeriodMultiplier(period);
   const actualStorageGb = metrics?.total_storage_gb ?? 0;
 
+  // 실결제 매출 (수수료 제외 전 청구액)
+  const apiRevenue   = summary?.total_charged    ?? 0;
+  // 실제 스토어 수수료 (revenue_logs DB 기반)
+  const realStoreFee = summary?.total_store_fee  ?? 0;
+  // 실제 순매출 (수수료 공제 후)
+  const realNet      = summary?.total_net_revenue ?? 0;
+  // 총 환불액
+  const totalRefund  = summary?.total_refunded   ?? 0;
+
   const costs = useMemo((): CostItem[] => {
-    const db       = UNIT_COSTS.db_monthly * mult;
-    const storage  = UNIT_COSTS.storage_per_gb * actualStorageGb * mult;
-    const storeFee = apiRevenue * UNIT_COSTS.store_fee_rate;
-    const tax      = apiRevenue * UNIT_COSTS.tax_rate;
-    const other    = UNIT_COSTS.other_monthly * mult;
+    const db      = UNIT_COSTS.db_monthly * mult;
+    const storage = UNIT_COSTS.storage_per_gb * actualStorageGb * mult;
+    // 스토어 수수료: revenue_logs 실데이터 우선, 없으면 0
+    const storeFee = realStoreFee > 0 ? realStoreFee : 0;
+    // 세금 추정: 실 순매출 기준 10%
+    const tax     = realNet * UNIT_COSTS.tax_rate;
+    const other   = UNIT_COSTS.other_monthly * mult;
+
     return [
       {
-        label: "데이터베이스",
-        icon: "database",
+        label: "데이터베이스", icon: "database",
         amount: db,
         note: `Supabase Pro 고정 비용 (${fmtKRW(UNIT_COSTS.db_monthly)}/월)`,
-        color: "#2EC4B6",
-        isFixed: true,
+        color: C.brandStrong, isFixed: true,
       },
       {
-        label: "스토리지 (R2)",
-        icon: "hard-drive",
+        label: "스토리지 (R2)", icon: "hard-drive",
         amount: storage,
         note: metrics
           ? `실제 ${fmtGb(metrics.total_storage_bytes)} × ${fmtKRW(UNIT_COSTS.storage_per_gb)}/GB`
           : "스토리지 데이터 로딩 중...",
-        color: "#7C3AED",
-        isReal: true,
+        color: "#7C3AED", isReal: true,
       },
       {
-        label: "스토어 수수료",
-        icon: "smartphone",
+        label: "스토어 수수료", icon: "smartphone",
         amount: storeFee,
-        note: "실결제 × 30% (앱스토어·구글플레이)",
-        color: "#D96C6C",
-        isReal: true,
+        note: `실결제 수수료 (앱스토어·구글플레이, revenue_logs 기준)`,
+        color: "#D96C6C", isReal: true,
       },
       {
-        label: "세금 추정",
-        icon: "percent",
+        label: "세금 추정", icon: "percent",
         amount: tax,
-        note: `실결제 × ${(UNIT_COSTS.tax_rate * 100).toFixed(0)}% 추정`,
-        color: "#D97706",
-        isReal: true,
+        note: `순매출 × ${(UNIT_COSTS.tax_rate * 100).toFixed(0)}% 추정`,
+        color: "#D97706", isReal: true,
       },
       {
-        label: "기타 운영비",
-        icon: "box",
+        label: "기타 운영비", icon: "box",
         amount: other,
         note: `백업 DB + 인프라·모니터링 고정비 (${fmtKRW(UNIT_COSTS.other_monthly)}/월)`,
-        color: "#64748B",
-        isFixed: true,
+        color: C.textSecondary, isFixed: true,
       },
     ];
-  }, [period, mult, apiRevenue, actualStorageGb, metrics]);
+  }, [period, mult, realStoreFee, realNet, actualStorageGb, metrics]);
 
   const totalCost = useMemo(() => costs.reduce((s, c) => s + c.amount, 0), [costs]);
-  const netProfit = apiRevenue - totalCost;
+  // 순이익 = 수수료·환불 제외 순매출 - 운영비(DB, 스토리지, 세금, 기타)
+  const opsCost   = costs.filter(c => !c.label.includes("수수료")).reduce((s, c) => s + c.amount, 0);
+  const netProfit = realNet - totalRefund - opsCost;
 
   const TABS: { key: Period; label: string }[] = [
     { key: "week",  label: "주간" },
@@ -177,7 +169,7 @@ export default function CostAnalyticsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="비용·지출" homePath="/(super)/more" />
+      <SubScreenHeader title="비용·지출" homePath="/(super)/dashboard" />
 
       <View style={s.tabRow}>
         {TABS.map(t => (
@@ -190,9 +182,9 @@ export default function CostAnalyticsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 14 }}>
 
         <View style={s.infoBanner}>
-          <CircleAlert size={12} color="#0369A1" />
+          <LucideIcon name="alert-circle" size={12} color="#0369A1" />
           <Text style={s.infoTxt}>
-            스토리지·스토어수수료·세금은 실데이터 기반. DB·기타 운영비는 실제 계약 고정 비용.
+            스토어수수료·세금은 revenue_logs 실데이터 기반. DB·기타 운영비는 실제 계약 고정 비용.
           </Text>
         </View>
 
@@ -220,19 +212,43 @@ export default function CostAnalyticsScreen() {
           </View>
         )}
 
+        {/* 매출 요약 카드 */}
+        {summary && (
+          <View style={s.metricsRow}>
+            <View style={[s.metricCard, { borderColor: C.brandSoft }]}>
+              <Text style={s.metricLabel}>청구 매출</Text>
+              <Text style={[s.metricValue, { color: P }]}>{fmtKRW(apiRevenue)}</Text>
+              <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>{summary.count}건</Text>
+            </View>
+            <View style={[s.metricCard, { borderColor: "#FFF1BF" }]}>
+              <Text style={s.metricLabel}>수수료 차감 후</Text>
+              <Text style={[s.metricValue, { color: C.brandStrong }]}>{fmtKRW(realNet)}</Text>
+              <Text style={{ fontSize: 9, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>환불 전 순매출</Text>
+            </View>
+            {totalRefund > 0 && (
+              <View style={[s.metricCard, { borderColor: "#F9DEDA" }]}>
+                <Text style={s.metricLabel}>환불</Text>
+                <Text style={[s.metricValue, { color: "#D96C6C" }]}>{fmtKRW(totalRefund)}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* 지출 합계 vs 순이익 */}
         <View style={s.summaryRow}>
           <View style={[s.summaryCard, { borderColor: "#EEDDF5" }]}>
             <Text style={s.summaryLabel}>총 지출</Text>
             <Text style={[s.summaryValue, { color: "#D96C6C" }]}>{fmtKRW(totalCost)}</Text>
           </View>
-          <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
+          <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
             <Text style={s.summaryLabel}>순이익</Text>
-            <Text style={[s.summaryValue, { color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>{fmtKRW(netProfit)}</Text>
+            <Text style={[s.summaryValue, { color: netProfit >= 0 ? C.brandStrong : "#D96C6C" }]}>{fmtKRW(netProfit)}</Text>
           </View>
         </View>
 
+        {/* 항목별 비용 */}
         <View style={s.sectionHdr}>
-          <PieChart size={14} color={P} />
+          <LucideIcon name="pie-chart" size={14} color={P} />
           <Text style={s.sectionTitle}>항목별 비용</Text>
         </View>
         {costs.map(c => (
@@ -243,16 +259,8 @@ export default function CostAnalyticsScreen() {
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <Text style={s.costLabel}>{c.label}</Text>
-                {c.isReal && (
-                  <View style={s.realBadge}>
-                    <Text style={s.realBadgeTxt}>실데이터</Text>
-                  </View>
-                )}
-                {c.isFixed && (
-                  <View style={s.fixedBadge}>
-                    <Text style={s.fixedBadgeTxt}>고정비</Text>
-                  </View>
-                )}
+                {c.isReal && <View style={s.realBadge}><Text style={s.realBadgeTxt}>실데이터</Text></View>}
+                {c.isFixed && <View style={s.fixedBadge}><Text style={s.fixedBadgeTxt}>고정비</Text></View>}
               </View>
               <Text style={s.costNote}>{c.note}</Text>
             </View>
@@ -263,8 +271,9 @@ export default function CostAnalyticsScreen() {
           </View>
         ))}
 
+        {/* 비용 구성비 바 */}
         <View style={s.sectionHdr}>
-          <ChartBar size={14} color={P} />
+          <LucideIcon name="bar-chart" size={14} color={P} />
           <Text style={s.sectionTitle}>비용 구성비</Text>
         </View>
         <View style={s.barWrap}>
@@ -284,69 +293,86 @@ export default function CostAnalyticsScreen() {
           ))}
         </View>
 
-        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? "#E6FFFA" : "#F9DEDA" }]}>
+        {/* 손익 계산 */}
+        <View style={[s.profitBox, { borderColor: netProfit >= 0 ? C.brandSoft : "#F9DEDA" }]}>
+          <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 10 }}>손익 계산</Text>
           <View style={s.profitRow}>
-            <Text style={s.profitLabel}>실결제 매출</Text>
-            <Text style={[s.profitVal, { color: "#2EC4B6" }]}>{fmtKRW(apiRevenue)}</Text>
+            <Text style={s.profitLabel}>청구 매출</Text>
+            <Text style={[s.profitVal, { color: P }]}>{fmtKRW(apiRevenue)}</Text>
           </View>
           <View style={s.profitRow}>
-            <Text style={s.profitLabel}>총 지출</Text>
-            <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalCost)}</Text>
+            <Text style={s.profitLabel}>스토어 수수료</Text>
+            <Text style={[s.profitVal, { color: C.textSecondary }]}>− {fmtKRW(realStoreFee)}</Text>
           </View>
-          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: "#E5E7EB", marginTop: 8, paddingTop: 8 }]}>
-            <Text style={s.profitLabel}>순이익</Text>
-            <Text style={[s.profitVal, { color: netProfit >= 0 ? "#2EC4B6" : "#D96C6C" }]}>
+          {totalRefund > 0 && (
+            <View style={s.profitRow}>
+              <Text style={s.profitLabel}>환불</Text>
+              <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(totalRefund)}</Text>
+            </View>
+          )}
+          <View style={[s.profitRow, { borderTopWidth: 1, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
+            <Text style={[s.profitLabel, { color: C.brandStrong }]}>수수료 후 순매출</Text>
+            <Text style={[s.profitVal, { color: C.brandStrong }]}>{fmtKRW(Math.max(0, realNet - totalRefund))}</Text>
+          </View>
+          <View style={s.profitRow}>
+            <Text style={s.profitLabel}>운영비 합계</Text>
+            <Text style={[s.profitVal, { color: "#D96C6C" }]}>− {fmtKRW(opsCost)}</Text>
+          </View>
+          <View style={[s.profitRow, { borderTopWidth: 2, borderTopColor: C.border, marginTop: 6, paddingTop: 8 }]}>
+            <Text style={[s.profitLabel, { fontFamily: "Pretendard-Regular", fontSize: 14 }]}>최종 순이익</Text>
+            <Text style={[s.profitVal, { fontSize: 16, color: netProfit >= 0 ? C.brandStrong : "#D96C6C" }]}>
               {netProfit >= 0 ? "" : "−"}{fmtKRW(Math.abs(netProfit))}
             </Text>
           </View>
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:          { flex: 1, backgroundColor: C.backgroundSoft },
   tabRow:        { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                   borderBottomWidth: 1, borderBottomColor: C.border },
   tab:           { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center", backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:  { color: "#fff" },
   infoBanner:    { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E0F2FE",
                    borderRadius: 8, padding: 10, marginTop: 4 },
   infoTxt:       { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1", flex: 1 },
   metricsRow:    { flexDirection: "row", gap: 8 },
   metricCard:    { flex: 1, backgroundColor: "#fff", borderRadius: 10, padding: 12, alignItems: "center",
-                   borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
-  metricLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  metricValue:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+                   borderWidth: 1, borderColor: C.border, gap: 3 },
+  metricLabel:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  metricValue:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   summaryRow:    { flexDirection: "row", gap: 10 },
   summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 14,
                    borderWidth: 1, alignItems: "center" },
-  summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  summaryLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   summaryValue:  { fontSize: 20, fontFamily: "Pretendard-Regular" },
   sectionHdr:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  sectionTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   costRow:       { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff",
-                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+                   borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
   costIcon:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  costLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  costLabel:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  costNote:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   costAmt:       { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  realBadge:     { backgroundColor: "#E6FFFA", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  fixedBadge:    { backgroundColor: "#F1F5F9", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  costPct:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  realBadge:     { backgroundColor: C.brandSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  realBadgeTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  fixedBadge:    { backgroundColor: C.backgroundSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  fixedBadgeTxt: { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   barWrap:       { flexDirection: "row", height: 14, borderRadius: 7, overflow: "hidden", backgroundColor: "#FFFFFF" },
   barSeg:        { height: 14 },
   legendRow:     { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   legendItem:    { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot:     { width: 8, height: 8, borderRadius: 4 },
-  legendTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  legendTxt:     { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   profitBox:     { backgroundColor: "#fff", borderRadius: 12, padding: 16, borderWidth: 1 },
   profitRow:     { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  profitLabel:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   profitVal:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
 });

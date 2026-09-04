@@ -1,0 +1,522 @@
+[P0-CS02R-2 — PRODUCTION MESSAGE SEND NETWORK/HTTP FAILURE ROOT CAUSE]
+
+실기기 TestFlight Build 246 + production OTA에서
+설정 → AI 문의 → "안녕" 전송 시 실제 실패 확인.
+
+화면:
+
+"전송 중 오류가 발생했습니다. 네트워크를 확인해주세요."
+
+현재 Wi-Fi/사용자 네트워크 문제라고 가정하지 마라.
+
+이 UI 문구가
+404 / 401 / 403 / 500 / fetch failure / response parse failure
+등을 generic network error로 표시하고 있을 수 있다.
+
+이번 작업은 실제 production request를 끝까지 추적하여
+정확한 root cause를 확정하고 최소 수정한다.
+
+========================================
+0. 현재 기준
+========================================
+
+App production API base:
+https://swimnote.kr/api
+
+TestFlight:
+Version 1.6.3
+Build 246
+Runtime 1.6.3
+Channel production
+
+현재 OTA:
+01a00e88-e1ab-73ae-bc15-fe85b79c389a
+branch/channel = production
+
+현재 예상 flow:
+
+POST /support/cases
+↓
+case id
+↓
+POST /support/cases/:id/messages
+
+최근 __new__ sentinel bug는
+commit 916ccf22에서 수정됨.
+
+그 문제를 다시 추측하지 마라.
+
+========================================
+1. CLIENT EXACT REQUEST TRACE
+========================================
+
+SupportChatScreen 실제 코드에서
+첫 메시지 전송 시 수행되는 HTTP request를 확인.
+
+실제 production 기준으로 보고:
+
+API_BASE_URL =
+CASE_CREATE_URL =
+MESSAGE_SEND_URL =
+
+각 URL이 최종적으로 정확히:
+
+https://swimnote.kr/api/support/cases
+
+https://swimnote.kr/api/support/cases/:id/messages
+
+형태인지 확인.
+
+double /api
+누락 /api
+잘못된 host
+localhost
+Render 직접 URL
+preview URL
+
+등 확인.
+
+========================================
+2. GENERIC ERROR MAPPING 확인
+========================================
+
+현재 사용자 화면의:
+
+"전송 중 오류가 발생했습니다. 네트워크를 확인해주세요."
+
+문구가 어떤 error path에서 발생하는지 확인.
+
+보고:
+
+ERROR_UI_SOURCE_FILE =
+ERROR_HANDLER =
+HTTP_STATUS_PRESERVED =
+SERVER_ERROR_BODY_PRESERVED =
+FETCH_ERROR_ONLY_OR_GENERIC =
+
+현재 모든 HTTP error를 network error로 변환한다면
+그 사실을 root cause와 별도로 명시.
+
+========================================
+3. PRODUCTION FRONT DOOR ROUTE 확인
+========================================
+
+실제 production front door:
+
+https://swimnote.kr/api
+
+에서 route 존재 여부 확인.
+
+인증 없는 요청으로 데이터 생성하지 말고
+safe route/OPTIONS 또는 code/runtime 기준으로 확인.
+
+반드시 다음 runtime 확인:
+
+swimnote.kr
+실제 실행 runtime에서
+
+/support/cases
+
+route가 등록되어 있는지.
+
+중요:
+
+Render source에는 존재하지만
+swimnote.kr Replit Published dist에는
+신규 route가 없는 source/dist divergence 가능성도 확인.
+
+========================================
+4. TWO SERVER RUNTIMES 반드시 비교
+========================================
+
+현재 APP API:
+
+A.
+https://swimnote.kr
+Replit Published
+runtime:
+node artifacts/api-server/dist/index.mjs
+
+B.
+https://swimnote-api.onrender.com
+Render
+runtime:
+tsx artifacts/api-server/src/index.ts
+
+모바일 production front door는 A다.
+
+따라서 Render 배포 성공만 확인하고 끝내지 마라.
+
+확인:
+
+SOURCE_ROUTE_EXISTS =
+DIST_ROUTE_EXISTS =
+REPLIT_PUBLISHED_ROUTE_EXISTS =
+RENDER_ROUTE_EXISTS =
+
+만약:
+
+Render = YES
+swimnote.kr = NO
+
+라면 root cause는
+production front-door stale dist/deployment.
+
+========================================
+5. PRODUCTION LOG TRACE
+========================================
+
+실기기에서 발생한 요청 시간대 기준으로
+서버 로그 확인.
+
+찾을 것:
+
+POST /api/support/cases
+
+또는
+
+POST /api/support/cases/:id/messages
+
+보고:
+
+REQUEST_REACHED_FRONT_DOOR =
+REQUEST_REACHED_ROUTE =
+HTTP_STATUS =
+SERVER_ERROR =
+PG_ERROR =
+AUTH_ERROR =
+
+raw JWT 출력 금지.
+
+사용자 메시지 "안녕" 원문도 로그 보고서에 복사하지 마라.
+
+========================================
+6. CREATE VS MESSAGE SEND 분리
+========================================
+
+첫 전송에는 두 단계가 있으므로
+어디서 실패했는지 정확히 구분.
+
+A.
+POST /support/cases
+
+B.
+POST /support/cases/:id/messages
+
+보고:
+
+CASE_CREATE_REQUEST_SENT =
+CASE_CREATE_STATUS =
+CASE_ID_RETURNED =
+
+MESSAGE_REQUEST_SENT =
+MESSAGE_STATUS =
+
+CASE 생성이 실패했는데
+message send 문제라고 부르지 마라.
+
+========================================
+7. AUTH 확인
+========================================
+
+실제 앱 요청의 Authorization header가
+기존 auth client 방식으로 붙는지 확인.
+
+확인:
+
+AUTH_HEADER_ATTACHED =
+TOKEN_SOURCE =
+SERVER_AUTH_MIDDLEWARE =
+AUTH_RESULT =
+
+JWT 값 출력 금지.
+
+신규 support client가
+기존 authenticated API wrapper를 우회해
+plain fetch를 쓰고 있는지 특히 확인.
+
+========================================
+8. RESPONSE CONTRACT
+========================================
+
+POST /support/cases 예상 응답과
+client parse contract 비교.
+
+POST /support/cases/:id/messages 예상:
+
+{
+  ok: true,
+  id: ...
+}
+
+실제 server response와 일치하는지 확인.
+
+HTTP 200인데 JSON contract mismatch로
+client가 실패하는 경우도 확인.
+
+========================================
+9. DB RUNTIME 확인
+========================================
+
+route까지 도달했다면:
+
+support_cases
+support_ticket_replies
+
+실제 어느 DB connection을 사용하는지 확인.
+
+최근 CS-01R에서:
+
+support_cases = Supabase
+support_ticket_replies = pool DB
+
+구조임.
+
+production env에서 두 DB 모두
+schema migration이 적용됐는지 확인:
+
+support_cases required columns
+support_ticket_replies.case_id
+support_ticket_replies.ticket_id nullable
+support_ticket_replies.message_type
+
+DB mismatch면 정확한 PG error 기준 수정.
+
+========================================
+10. 가장 중요한 배포 확인
+========================================
+
+최근 서버 변경 후 보고가:
+
+"Render 자동 배포 트리거"
+
+였음.
+
+하지만 mobile front door는
+swimnote.kr다.
+
+신규 support route/server build가
+실제로 swimnote.kr production runtime에도
+반영됐는지 반드시 확인.
+
+필요하면:
+
+source
+→ dist build
+→ Replit Published production deployment
+
+정상 반영.
+
+추측하지 말 것.
+
+========================================
+11. FIX RULE
+========================================
+
+ROOT CAUSE 확인 후 최소 수정.
+
+가능한 예:
+
+CASE A
+잘못된 API URL
+→ client URL만 수정
+
+CASE B
+auth wrapper 누락
+→ 기존 authenticated client 재사용
+
+CASE C
+swimnote.kr dist stale
+→ build/deploy 정합성 수정
+
+CASE D
+route mount 누락
+→ route registration 수정
+
+CASE E
+DB migration/schema mismatch
+→ 최소 idempotent repair
+
+CASE F
+response contract mismatch
+→ 정확한 한쪽 contract 수정
+
+원인 확인 전 여러 곳 동시에 수정 금지.
+
+========================================
+12. ERROR UX도 정확히 보정
+========================================
+
+실제 root cause 수정 후
+generic error mapping도 확인.
+
+최소 분리:
+
+network/fetch failure
+→ 네트워크 연결 오류
+
+401
+→ 로그인 정보가 만료되었습니다.
+
+403
+→ 접근 권한이 없습니다.
+
+4xx validation
+→ 요청 정보를 확인해주세요.
+
+5xx
+→ 서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.
+
+사용자에게 raw server error 노출 금지.
+
+이번 root cause와 관계 있다면 같이 최소 수정.
+
+========================================
+13. TEST
+========================================
+
+P0-2-01
+production base URL exact
+
+P0-2-02
+case create real route
+
+P0-2-03
+message send real route
+
+P0-2-04
+auth attached
+
+P0-2-05
+case create response parse
+
+P0-2-06
+message response parse
+
+P0-2-07
+Supabase case write
+
+P0-2-08
+pool DB message write
+
+P0-2-09
+swimnote.kr route live
+
+P0-2-10
+Render route live
+
+P0-2-11
+source/dist parity
+
+P0-2-12
+401 UX
+
+P0-2-13
+500 UX
+
+P0-2-14
+network UX
+
+P0-2-15
+existing 1440+ suite pass
+
+========================================
+14. DEPLOYMENT POLICY
+========================================
+
+Server 수정이면:
+
+GitHub push
+Render 필요 시 배포
+그리고 반드시
+swimnote.kr production front door runtime 반영 여부 확인.
+
+Mobile 수정이면:
+
+iOS OTA는 오직:
+production branch/channel
+
+Preview OTA 금지.
+
+Android OTA:
+NO
+
+========================================
+15. FINAL REPORT
+========================================
+
+ROOT_CAUSE =
+
+API_BASE_URL =
+CASE_CREATE_URL =
+MESSAGE_SEND_URL =
+
+CASE_CREATE_REQUEST_SENT =
+CASE_CREATE_STATUS =
+CASE_ID_RETURNED =
+
+MESSAGE_REQUEST_SENT =
+MESSAGE_STATUS =
+
+REQUEST_REACHED_FRONT_DOOR =
+REQUEST_REACHED_ROUTE =
+
+AUTH_HEADER_ATTACHED =
+AUTH_RESULT =
+
+SOURCE_ROUTE_EXISTS =
+DIST_ROUTE_EXISTS =
+REPLIT_PUBLISHED_ROUTE_EXISTS =
+RENDER_ROUTE_EXISTS =
+
+SOURCE_DIST_DIVERGENCE =
+
+SERVER_ERROR =
+PG_ERROR =
+
+ERROR_UI_WAS_GENERIC =
+ERROR_UI_FIXED =
+
+DB_SCHEMA_RESULT =
+
+FILES_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+
+RENDER_DEPLOYMENT =
+REPLIT_PUBLISHED_DEPLOYMENT =
+
+IOS_PRODUCTION_OTA_ID =
+IOS_OTA_BRANCH =
+IOS_OTA_CHANNEL =
+ANDROID_OTA = NO
+
+성공 조건:
+
+ROOT_CAUSE = CONFIRMED
+
+실제 TestFlight:
+첫 메시지 전송 성공
+
+CASE_CREATE_STATUS = 2xx
+MESSAGE_STATUS = 2xx
+
+MESSAGE_VISIBLE_UI = PASS
+
+swimnote.kr production front door에서
+신규 support route 실제 동작.
+
+generic network error로
+HTTP server error를 위장하지 않음.
+
+Android OTA = NO
+
+완료:
+
+P0_CS02R_PRODUCTION_MESSAGE_SEND_HTTP_FAILURE_RESOLVED ✅

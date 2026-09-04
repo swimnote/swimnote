@@ -1,0 +1,294 @@
+[앱]
+
+PHASE 3A — GROWTH REPORT FEED VISUAL
+REAL DEVICE DESIGN VALIDATION
+
+현재 상태:
+- PHASE 2 완료
+- SHA: 4bf9e665
+- branch: deploy-photo-clone
+- GrowthReportFeedImage 구현 완료
+- GrowthReportFeedCard 안에 visual renderer 연결 완료
+- Action Bar는 아직 placeholder
+- Instagram / PDF / like / comment 실제 동작 연결 전
+- PDF V3 / API / DB 변경 없음
+
+이번 Step의 목적은 기능 구현이 아니다.
+
+실제 iPhone 화면에서
+Growth Report Feed Card가
+정말 프리미엄하고 세련되게 보이는지
+디자인을 검증하고 미세조정하는 단계다.
+
+==================================================
+1. 실제 데이터 사용
+==================================================
+
+가능하면 실제 서태웅 2026-08 report 사용.
+
+report_id:
+gr_13330aa20377484685e91ed62b729929
+
+실제 report content만 사용.
+
+임의 문구 생성 금지.
+
+progressData가 실제로 없는 경우:
+fake progress를 만들지 말 것.
+
+대신 두 가지 상태를 각각 확인:
+
+A. progressData 없음
+B. 실제 progressData가 존재하는 테스트 fixture 또는 안전한 local fixture
+
+Production DB 수정 금지.
+
+==================================================
+2. 반드시 실제 iPhone 비율로 렌더
+==================================================
+
+최소 3개 viewport 확인:
+
+- small iPhone
+- 현재 일반 iPhone width
+- large iPhone / Pro Max
+
+각 viewport에서 확인:
+
+- 카드 좌우 여백
+- 카드 높이
+- 텍스트 크기
+- line wrapping
+- action bar 공간
+- visual image 비율
+- report header 밀도
+
+==================================================
+3. DESIGN REVIEW 핵심
+==================================================
+
+이번에는 "기능 PASS"가 아니라
+아래 시각 기준을 엄격하게 본다.
+
+A.
+처음 보자마자
+"성장리포트가 도착했다"는 느낌이 드는가
+
+B.
+일반 일지 카드보다 분명히 특별하지만
+앱과 이질적이지 않은가
+
+C.
+NAVY 헤더가 너무 무겁거나
+보험/은행/병원 문서처럼 보이지 않는가
+
+D.
+AQUA accent가 과하지 않은가
+
+E.
+학생명 / 월 / 수영장명 정보가
+복잡해 보이지 않는가
+
+F.
+headline과 summary가
+텍스트 덩어리처럼 답답하지 않은가
+
+G.
+growth point 영역이
+dashboard widget처럼 보이지 않는가
+
+H.
+카드 전체가
+"무료 앱의 기능 카드"가 아니라
+"저장하고 싶은 프리미엄 리포트"처럼 보이는가
+
+I.
+PDF 디자인과 같은 브랜드로 느껴지는가
+
+J.
+Instagram Story로 공유해도
+브랜드 이미지가 깨지지 않을 수준인가
+
+==================================================
+4. VISUAL DENSITY
+==================================================
+
+현재 구조:
+
+ZONE A:
+NAVY header
+
+ZONE B:
+summary
+progress
+growth points
+
+이 구조에서
+내용이 많을 때 너무 길어지지 않는지 확인.
+
+피드 카드 높이는
+사용자가 한 화면에서 카드의 대부분을 볼 수 있는 수준으로 유지.
+
+너무 긴 카드 금지.
+
+필요하면:
+
+- summary line clamp
+- key points 최대 3개
+- metadata 축소
+- spacing 조정
+
+가능.
+
+단,
+실제 내용 의미를 바꾸지 말 것.
+
+==================================================
+5. HEADER 미세조정
+==================================================
+
+현재:
+
+SwimNote AI | MONTHLY 성장리포트
+2026년 8월
+서태웅 / 토이키즈스윔클럽
+
+를 실제 화면에서 보고 조정.
+
+확인:
+
+- SwimNote AI가 너무 작지 않은가
+- MONTHLY 성장리포트가 너무 길거나 딱딱하지 않은가
+- 월 정보가 첫눈에 보이는가
+- 학생명과 수영장명이 정보 과밀을 만들지 않는가
+
+필요하면
+학생명 / 수영장명을 body 쪽으로 옮기거나
+metadata hierarchy만 미세조정 가능.
+
+==================================================
+6. TYPOGRAPHY REVIEW
+==================================================
+
+현재 font size가 실제 iPhone에서
+작거나 싸 보이지 않는지 확인.
+
+특히:
+
+- 14px headline
+- 13px key points
+- metadata
+- MONTHLY title
+
+실기기에서 너무 작아 보이면 조정.
+
+한글에서는 숫자 기준보다
+실제 시각 크기를 우선.
+
+==================================================
+7. ACTION BAR 공간만 검증
+==================================================
+
+이번 Step에서
+실제 onPress 연결 금지.
+
+하지만 하단에
+
+- 좋아요
+- 댓글
+- Instagram
+- PDF
+
+4개가 들어갔을 때
+답답하거나 toolbar처럼 보이지 않는지 확인.
+
+아이콘 간격과 텍스트 유무를
+visual only로 조정 가능.
+
+==================================================
+8. 실제 스크린샷 필수
+==================================================
+
+반드시 제출:
+
+1. small iPhone 전체 feed screenshot
+2. normal iPhone 전체 feed screenshot
+3. large iPhone 전체 feed screenshot
+4. Growth Report card 단독 crop
+5. 일반 diary card + Growth Report card가
+   같은 화면에 같이 보이는 screenshot
+6. progress 없음 상태
+7. progress 있음 상태
+
+==================================================
+9. BEFORE / AFTER
+==================================================
+
+PHASE 2 최초 상태와
+이번 미세조정 후 상태를
+side-by-side로 비교.
+
+보고:
+
+- header
+- spacing
+- typography
+- card height
+- visual density
+- action bar spacing
+
+==================================================
+10. 수정 허용 범위
+==================================================
+
+허용:
+
+- padding
+- margin
+- radius
+- font size
+- font weight
+- line-height
+- border
+- shadow
+- header/body spacing
+- line clamp
+- metadata 위치
+- progress visual 스타일
+- action bar 위치
+
+금지:
+
+- API
+- DB
+- Render
+- OTA
+- Instagram integration
+- R2
+- PDF export
+- AI
+- report content generation
+- Production write
+
+==================================================
+11. 완료 보고
+==================================================
+
+보고:
+
+- SHA
+- 변경 파일
+- 최종 card width / radius / padding
+- 최종 typography
+- card average height
+- progress 없음/있음 상태
+- viewport별 문제 여부
+- 실제 screenshot 경로
+
+중요:
+자체적으로 "예쁘다/PASS"라고 끝내지 말 것.
+
+최종 디자인 승인 여부는
+실제 screenshot을 사용자가 직접 보고 결정한다.
+
+완료 후 STOP.

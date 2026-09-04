@@ -1,0 +1,176 @@
+SWIMNOTE — 학부모 계정 삭제 로직 긴급 READ-ONLY 확인
+코드 수정 / DB 수정 / 실제 계정 삭제 금지
+
+목적:
+
+같은 전화번호로
+
+- pool_admin 관리자 계정
+- parent 학부모 계정
+
+이 동시에 존재할 때,
+학부모 계정 삭제가 관리자 계정까지 삭제하는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 삭제 Endpoint 찾기
+━━━━━━━━━━━━━━━━━━━━
+
+학부모 앱의:
+
+계정삭제
+회원탈퇴
+탈퇴하기
+
+버튼이 호출하는 API를 정확히 찾을 것.
+
+제출:
+
+- App 파일
+- 함수명
+- API method
+- API URL
+- request body
+
+━━━━━━━━━━━━━━━━━━━━
+2. 서버 삭제 로직 확인
+━━━━━━━━━━━━━━━━━━━━
+
+해당 endpoint가 실제로 DELETE/UPDATE 하는 모든 테이블 확인.
+
+특히:
+
+parent_accounts
+parent_students
+users
+students
+members
+push_tokens
+notifications
+
+확인.
+
+실제 SQL / ORM 조건을 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 가장 중요한 조건 확인
+━━━━━━━━━━━━━━━━━━━━
+
+삭제 기준이 무엇인지 정확히 확인:
+
+A.
+parent_account.id 기준
+
+B.
+phone 기준
+
+C.
+user.id 기준
+
+D.
+swimming_pool_id + phone 기준
+
+E.
+기타
+
+특히 다음 형태가 있는지 검색:
+
+DELETE FROM users WHERE phone = ?
+DELETE FROM parent_accounts WHERE phone = ?
+DELETE ... WHERE phone IN (...)
+phone 기준 cascade/helper
+
+전화번호 하나로 모든 role/account를 삭제하는 코드가 있는지
+정확히 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 관리자 영향 확인
+━━━━━━━━━━━━━━━━━━━━
+
+같은 전화번호가:
+
+users.role = pool_admin
+
+그리고
+
+parent_accounts.phone = 동일 전화번호
+
+인 상황을 가정.
+
+학부모 탈퇴 endpoint 실행 시:
+
+- parent_accounts만 삭제/비활성화되는지
+- parent_students만 해제되는지
+- users 관리자 row도 삭제되는지
+- swimming_pool 관리자 권한에 영향 있는지
+
+코드 기준으로 답할 것.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 수영장 단위 확인
+━━━━━━━━━━━━━━━━━━━━
+
+학부모 계정이 여러 수영장과 연결될 수 있는 구조인지 확인.
+
+예:
+
+같은 phone의 parent가
+SWIMNOTE 수영장 A
+토이키즈 수영장 B
+
+두 곳에 연결되어 있을 때
+
+한 곳에서 계정삭제하면:
+
+- 해당 pool 연결만 삭제되는지
+- parent 계정 전체가 삭제되는지
+- 다른 pool 연결도 삭제되는지
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 절대 실행 금지
+━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서는:
+
+Production DELETE 금지
+UPDATE 금지
+테스트 계정 생성 금지
+Migration 금지
+코드 수정 금지
+Deploy 금지
+
+READ ONLY 조사만.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 최종 답변 형식
+━━━━━━━━━━━━━━━━━━━━
+
+다음 표로 제출:
+
+1. 학부모 삭제 API
+2. 삭제 기준 key
+3. 삭제/비활성화되는 테이블
+4. phone 기준 삭제 여부
+5. users 관리자 계정 영향
+6. 다른 수영장 parent 연결 영향
+7. 같은 전화번호 multi-role 안전 여부
+
+마지막에 반드시 하나로 판정:
+
+SAFE:
+학부모 삭제 → 관리자 계정 영향 없음
+
+또는
+
+UNSAFE:
+학부모 삭제 → 동일 전화번호 다른 role/account 영향 가능
+
+또는
+
+CONDITIONAL:
+특정 조건에서만 영향
+
+코드 수정하지 말고 STOP.

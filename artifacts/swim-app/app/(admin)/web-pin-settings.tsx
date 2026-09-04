@@ -84,7 +84,7 @@ export default function WebPinSettingsScreen() {
   }
 
   async function handleDelete() {
-    Alert.alert("비밀번호 해제", "웹 접속 비밀번호를 해제하시겠습니까?", [
+    Alert.alert("PIN 해제", "PC 대시보드 PIN을 해제하시겠습니까?", [
       { text: "취소", style: "cancel" },
       {
         text: "해제",
@@ -108,7 +108,7 @@ export default function WebPinSettingsScreen() {
 
   return (
     <View style={[s.root, { paddingBottom: insets.bottom }]}>
-      <SubScreenHeader title="웹 접속 비밀번호" />
+      <SubScreenHeader title="PC 대시보드 PIN" />
       <KeyboardAwareScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
         {/* Info Card */}
@@ -117,22 +117,22 @@ export default function WebPinSettingsScreen() {
             <LucideIcon name="globe" size={20} color="#0369A1" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.infoTitle}>웹 관리자 전용 보안 비밀번호</Text>
+            <Text style={s.infoTitle}>PC 대시보드 전용 보안 PIN</Text>
             <Text style={s.infoDesc}>
-              swimnote.kr 웹 대시보드에 로그인할 때 이메일/비밀번호 외에 추가로 입력해야 하는 비밀번호입니다.
-              앱 로그인에는 영향을 주지 않습니다.
+              X모드 PIN을 설정하면 PC에서 SWIMNOTE 관리자 기능을 사용할 수 있습니다.
+              앱 로그인 비밀번호와 별개로 사용되는 PC 전용 추가 보안 PIN입니다.
             </Text>
           </View>
         </View>
 
         {/* Status Badge */}
         {loading ? (
-          <ActivityIndicator color={C.primary} style={{ marginVertical: 16 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginVertical: 16 }} />
         ) : (
           <View style={[s.statusBadge, { backgroundColor: webPinSet ? "#DCFCE7" : "#FEF9C3" }]}>
             <LucideIcon name={webPinSet ? "shield-check" : "alert-circle"} size={14} color={webPinSet ? "#16A34A" : "#CA8A04"} />
             <Text style={[s.statusText, { color: webPinSet ? "#16A34A" : "#CA8A04" }]}>
-              {webPinSet ? "웹 접속 비밀번호 설정됨" : "웹 접속 비밀번호 미설정"}
+              {webPinSet ? "PC 대시보드 PIN 설정됨" : "PC 대시보드 PIN 미설정"}
             </Text>
           </View>
         )}
@@ -140,7 +140,7 @@ export default function WebPinSettingsScreen() {
         {/* Form */}
         <View style={s.card}>
           <Text style={s.cardTitle}>
-            {webPinSet ? "웹 접속 비밀번호 변경" : "웹 접속 비밀번호 설정"}
+            {webPinSet ? "PC 대시보드 PIN 변경" : "PC 대시보드 PIN 설정"}
           </Text>
 
           <View style={s.fieldGroup}>
@@ -156,10 +156,10 @@ export default function WebPinSettingsScreen() {
           </View>
 
           <View style={s.fieldGroup}>
-            <Text style={s.label}>새 웹 접속 비밀번호 (4자리 이상)</Text>
+            <Text style={s.label}>새 PC 대시보드 PIN (4자리 이상)</Text>
             <TextInput
               style={s.input}
-              placeholder="새 웹 전용 비밀번호"
+              placeholder="새 PC 대시보드 PIN"
               secureTextEntry
               value={newPin}
               onChangeText={setNewPin}
@@ -167,7 +167,7 @@ export default function WebPinSettingsScreen() {
           </View>
 
           <View style={s.fieldGroup}>
-            <Text style={s.label}>새 웹 접속 비밀번호 확인</Text>
+            <Text style={s.label}>새 PC 대시보드 PIN 확인</Text>
             <TextInput
               style={s.input}
               placeholder="비밀번호 재입력"
@@ -193,7 +193,7 @@ export default function WebPinSettingsScreen() {
             ) : (
               <>
                 <LucideIcon name="lock" size={15} color="#fff" />
-                <Text style={s.saveBtnText}>{webPinSet ? "비밀번호 변경" : "비밀번호 설정"}</Text>
+                <Text style={s.saveBtnText}>{webPinSet ? "PIN 변경" : "PIN 설정"}</Text>
               </>
             )}
           </Pressable>
@@ -201,14 +201,14 @@ export default function WebPinSettingsScreen() {
           {webPinSet && (
             <Pressable style={s.deleteBtn} onPress={handleDelete} disabled={saving}>
               <LucideIcon name="trash-2" size={14} color="#DC2626" />
-              <Text style={s.deleteBtnText}>웹 접속 비밀번호 해제</Text>
+              <Text style={s.deleteBtnText}>PC 대시보드 PIN 해제</Text>
             </Pressable>
           )}
         </View>
 
         <Text style={s.hint}>
-          ※ 비밀번호를 분실한 경우 수영장 최고 관리자에게 문의하세요.{"\n"}
-          ※ 웹 대시보드에서는 더 상세한 정산 및 통계 기능을 제공합니다.
+          ※ PIN을 분실한 경우 수영장 최고 관리자에게 문의하세요.{"\n"}
+          ※ PC 대시보드에서는 더 상세한 정산 및 통계 기능을 제공합니다.
         </Text>
 
       </KeyboardAwareScrollView>
@@ -217,7 +217,7 @@ export default function WebPinSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8FAFC" },
+  root: { flex: 1, backgroundColor: C.backgroundSoft },
   scroll: { padding: 20 },
 
   infoCard: {
@@ -262,17 +262,17 @@ const s = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#1E293B", marginBottom: 20 },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: C.textStrong, marginBottom: 20 },
 
   fieldGroup: { marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: "600", color: "#64748B", marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: "600", color: C.textSecondary, marginBottom: 6 },
   input: {
     height: 48,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: C.backgroundSoft,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 14,
-    color: "#1E293B",
+    color: C.textStrong,
   },
 
   msg: { padding: 12, borderRadius: 10, marginBottom: 16 },
@@ -280,7 +280,7 @@ const s = StyleSheet.create({
 
   saveBtn: {
     height: 50,
-    backgroundColor: "#0F172A",
+    backgroundColor: "#0F2742",
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
@@ -303,7 +303,7 @@ const s = StyleSheet.create({
   hint: {
     marginTop: 24,
     fontSize: 12,
-    color: "#94A3B8",
+    color: C.textMuted,
     textAlign: "center",
     lineHeight: 18,
   },

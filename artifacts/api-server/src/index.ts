@@ -4,12 +4,25 @@ import { startBackupJobs } from "./jobs/backup-batch.js";
 import { startParentLinkScheduler } from "./jobs/parent-link-scheduler.js";
 import { startAutoAttendanceScheduler } from "./jobs/auto-attendance-scheduler.js";
 import { startPushScheduler } from "./jobs/push-scheduler.js";
+import { startDeactivationCleanupScheduler } from "./jobs/deactivation-cleanup.js";
+import { startReadonlyTriggerScheduler } from "./jobs/readonly-trigger.js";
+import { startStandbySyncJobs } from "./jobs/standby-sync.js";
+import { startVideoExpiryCleanup } from "./jobs/video-expiry-cleanup.js";
+import { startQueueWorker }         from "./jobs/queue-worker.js";
+import { startGrowthReportScheduler }      from "./jobs/growth-report-scheduler.js";
+import { startGrowthReportAnalysisWorker } from "./jobs/growth-report-analysis-worker.js";
+import { startGrowthReportBatchWorker }    from "./jobs/growth-report-batch-worker.js";
 import { initPoolDb } from "./migrations/pool-db-init.js";
 import { initSuperDb } from "./migrations/super-db-init.js";
+import { runGrInteractionsMigration } from "./migrations/pool-db-x-gr-interactions-init.js";
+import { initMembershipSchema } from "./migrations/pool-db-membership.js";
 import { initV2PendingTable } from "./lib/auto-link-v2.js";
 import { backfillPoolAdminRoles } from "./migrations/roles-backfill.js";
 import { backfillPoolSubscriptionFields } from "./lib/subscriptionService.js";
 import { isDbSeparated, isProtectDbConfigured, pool } from "@workspace/db";
+import { getRecentAvgResponseMs } from "./lib/responseTracker.js";
+import { createOpsAlert } from "./lib/opsAlerts.js";
+import { sendPushToSuperAdmins } from "./lib/push-service.js";
 
 const IS_WORKER = process.env.WORKER_MODE === "true";
 
@@ -60,10 +73,56 @@ if (!IS_WORKER && (Number.isNaN(port) || port <= 0)) {
 }
 
 // DB 초기화 (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS — 멱등)
-initPoolDb().catch((e) => console.error("[pool-db-init] 초기화 오류:", e.message));
-initSuperDb().catch((e) => console.error("[super-db-init] 초기화 오류:", e.message));
+// 핵심 2개 완료 시 헬스체크를 200으로 전환 (Render 헬스체크 실패 방지)
+// 헌법 원칙: 필수 DB Migration 실패 시 setServerReady() 미호출 + 프로세스 종료
+Promise.all([
+  initPoolDb(),
+  initSuperDb(),
+  runGrInteractionsMigration(),
+])
+  .then(() => {
+    setServerReady();
+    console.log("[server] DB 초기화 완료 — 헬스체크 200 응답 시작");
+  })
+  .catch((error) => {
+    console.error("[FATAL] DB 초기화 실패 — 서버 기동 중단:", error);
+    process.exit(1);
+  });
 initV2PendingTable().catch((e) => console.error("[v2-init] parent_v2_pending 테이블 초기화 오류:", e.message));
 backfillPoolAdminRoles().catch((e) => console.error("[roles-backfill] 오류:", e.message));
+// Multi-Pool Membership: 테이블 생성 + 기존 사용자 backfill (멱등, ON CONFLICT DO NOTHING)
+initMembershipSchema().catch((e) => console.error("[membership] 초기화 오류:", e.message));
+// 일회성: diary_templates에서 "오늘은 " 접두사 제거
+import("./migrations/strip-oneulun.js")
+  .then(m => m.stripOneulun())
+  .catch((e) => console.error("[strip-oneulun] 오류:", e.message));
+// CS23A: Direct DB Answer Engine — support_intent_utterances + intent_id/answer_mode
+import("./migrations/pool-db-cs-23a.js")
+  .then(m => m.runCs23aMigration())
+  .catch((e) => console.error("[cs23a] migration 오류:", e.message));
+// CS24A: Support Query Log
+import("./migrations/pool-db-cs-24a.js")
+  .then(m => m.runCs24aMigration())
+  .catch((e) => console.error("[cs24a] migration 오류:", e.message));
+// CS24B: Support Knowledge Candidates
+import("./migrations/pool-db-cs-24b.js")
+  .then(m => m.runCs24bMigration())
+  .catch((e) => console.error("[cs24b] migration 오류:", e.message));
+// CS26: autonomous escalation outcomes (normalized queries only; no PII)
+import("./migrations/pool-db-cs-26.js")
+  .then(m => m.runCs26Migration())
+  .catch((e) => console.error("[cs26] migration 오류:", e.message));
+// Curriculum APP MASTER: import_status/source_r2_key/import_meta 컬럼 + drills/relations 테이블
+import("./migrations/curriculum-app-master-init.js")
+  .then(async (m) => {
+    const { superAdminDb } = await import("@workspace/db");
+    return m.runCurriculumAppMasterMigration(superAdminDb);
+  })
+  .catch((e) => console.error("[curriculum-app-master] migration 오류:", e.message));
+// GR-Interactions: readiness-critical — Promise.all로 이동됨 (위 참조)
+// GR1B: gr_analysis_status_enum에 DATA_ACCUMULATING 추가 (additive, 멱등)
+// gr1b migration (DATA_ACCUMULATING enum)은 수동 실행 전용.
+// 스타트업 자동 실행 금지 — Render 재시작만으로 DB schema가 변경되어서는 안 됨.
 setTimeout(() => {
   backfillPoolSubscriptionFields().catch((e) => console.error("[backfill-pools] 오류:", e.message));
 }, 3000);
@@ -75,23 +134,100 @@ if (IS_WORKER) {
   startParentLinkScheduler();
   startAutoAttendanceScheduler();
   startPushScheduler();
-  console.log("[worker] 스케줄러 4개 등록 완료 (backup / parent-link / auto-attendance / push)");
+  startDeactivationCleanupScheduler();
+  startReadonlyTriggerScheduler();
+  startStandbySyncJobs();
+  startVideoExpiryCleanup();
+  startQueueWorker();
+  startGrowthReportScheduler();
+  startGrowthReportAnalysisWorker();
+  startGrowthReportBatchWorker();
+  console.log("[worker] 스케줄러 11개 등록 완료 (backup / parent-link / auto-attendance / push / readonly-trigger / standby-sync / video-expiry / queue-worker / growth-report / growth-report-analysis / growth-report-batch)");
   console.log("[worker] HTTP 서버 미실행 — DB 락으로 중복 실행 방지됨");
 } else {
-  // ── API 서버 모드: HTTP 실행, 스케줄러 없음 ─────────────────────────────
+  // ── API 서버 모드: HTTP 실행 + 비활성화 정리 스케줄러 ───────────────────
+  // queue-worker(retry-queue / makeup-expiry)는 WORKER_MODE=true 전용.
+  // API 서버는 HTTP/API 역할만 수행한다.
+  startDeactivationCleanupScheduler();
+  startReadonlyTriggerScheduler();
+  startStandbySyncJobs();
+  startVideoExpiryCleanup();
 
-  // Keep-Alive 자기 핑 (슬립 방지)
+  // ── 서버 성능 감시 + 푸시 알림 (5분마다) ───────────────────────────────────
+  const SLOW_CHECK_INTERVAL = 5 * 60 * 1000;
+  const WARN_THRESHOLD_MS   = 1500; // 경고: 평균 1.5초
+  const CRIT_THRESHOLD_MS   = 3000; // 위험: 평균 3초
+
+  setInterval(async () => {
+    try {
+      const { avg, count } = getRecentAvgResponseMs();
+      if (count < 5 || avg < WARN_THRESHOLD_MS) return;
+
+      const isCritical = avg >= CRIT_THRESHOLD_MS;
+      const severity   = isCritical ? "error" : "warning";
+      const emoji      = isCritical ? "🔴" : "🟡";
+      const label      = isCritical ? "위험" : "경고";
+      const bucketKey  = `server_slow:${new Date().toISOString().slice(0, 15)}0`; // 10분 버킷
+
+      await createOpsAlert({
+        type: "server_slow",
+        title: `서버 지연 ${label}`,
+        message: `최근 5분 평균 응답시간 ${avg}ms (${count}개 요청)`,
+        severity,
+        dedupeKey: bucketKey,
+      });
+
+      // 슈퍼관리자에게 푸시 알림
+      await sendPushToSuperAdmins(
+        `${emoji} 서버 응답 지연 ${label}`,
+        `최근 5분 평균 ${avg}ms · ${count}개 요청\n빠른 확인이 필요합니다.`,
+        { type: "server_perf", avg, count }
+      );
+      console.log(`[perf-monitor] 슬로우 감지 avg=${avg}ms count=${count} → 푸시 발송`);
+    } catch (e: any) {
+      console.error("[perf-monitor] 오류:", e?.message);
+    }
+  }, SLOW_CHECK_INTERVAL);
+
+  // ── Keep-Alive 자기 핑 (슬립 방지 + 다운 감지) ──────────────────────────
   if (process.env["NODE_ENV"] === "production") {
     const PING_INTERVAL_MS = 4 * 60 * 1000;
-    const selfBase = process.env["RENDER_EXTERNAL_URL"] || `http://localhost:${port}`;
+    // 외부 URL 대신 localhost 직접 핑 — 네트워크 왕복 없이 빠르게 체크
+    const selfBase = `http://localhost:${port}`;
+    let pingFailCount = 0;
+
     setInterval(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
       try {
-        const res = await fetch(`${selfBase}/api/healthz`, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!res.ok) console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
+        const pingStart = Date.now();
+        const res = await fetch(`${selfBase}/api/healthz`, { signal: controller.signal });
+        clearTimeout(timer);
+        const pingMs = Date.now() - pingStart;
+        pingFailCount = 0;
+
+        if (!res.ok) {
+          console.warn(`[keep-alive] ping 응답 이상: ${res.status}`);
+          await sendPushToSuperAdmins(
+            "🔴 서버 헬스체크 실패",
+            `HTTP ${res.status} 응답 — 서버 상태를 확인해 주세요.`,
+            { type: "server_health", status: res.status }
+          );
+        } else if (pingMs > CRIT_THRESHOLD_MS) {
+          console.warn(`[keep-alive] ping 응답 느림: ${pingMs}ms`);
+        }
       } catch (e: any) {
-        console.warn(`[keep-alive] ping 실패:`, e?.message ?? e);
+        clearTimeout(timer);
+        pingFailCount++;
+        console.warn(`[keep-alive] ping 실패 (${pingFailCount}회):`, e?.message ?? e);
+        // 2회 연속 실패시 푸시 (일시적 오류 제외)
+        if (pingFailCount >= 2) {
+          await sendPushToSuperAdmins(
+            "🚨 서버 응답 없음",
+            `헬스체크 ${pingFailCount}회 연속 실패\n서버가 다운됐을 수 있습니다.`,
+            { type: "server_down", failCount: pingFailCount }
+          ).catch(() => {});
+        }
       }
     }, PING_INTERVAL_MS);
     console.log(`[keep-alive] 자기 핑 스케줄러 시작 (4분 간격) target=${selfBase}`);

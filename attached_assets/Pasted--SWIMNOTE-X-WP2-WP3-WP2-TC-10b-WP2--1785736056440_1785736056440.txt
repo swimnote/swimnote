@@ -1,0 +1,581 @@
+# SWIMNOTE X — WP2 최종 승인 및 WP3 설계서 제출 지시
+
+WP2 TC-10b 최종 수정 보고서를 검수했습니다.
+
+WP2는 최종 완료로 승인합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. WP2 최종 완료 상태
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+완료:
+
+* `computeMode()`
+* `resolvePoolMode()`
+* `GET /pools/x-mode`
+* `requireXMode`
+* `PATCH /super/operators/:id/xmode`
+* X모드 상태 변경 Audit Transaction
+* 런타임 날짜 타입 검증
+* 단위 테스트
+* API 검증
+* DB 무변경 검증
+* 일반 Route 충돌 확인
+
+최종 테스트 결과:
+
+```text
+computeMode: 6/6 통과
+GET API: 전체 통과
+PATCH API: 전체 통과
+날짜 타입 검증: 전체 통과
+DB 상태 변경: 0건
+Audit 신규 기록: 0건
+```
+
+현재 상태:
+
+```text
+WP2 코드 구현: 완료
+WP2 API 검증: 완료
+실제 수영장 X상태 변경: 없음
+Commit: 추가 수동 Commit 없음
+Push: 미실행
+Render 배포: 미실행
+Rollback: 불필요
+```
+
+WP2 코드는 더 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 다음 작업
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 작업은 **WP3 앱 전역 Mode Context 설계서 제출**입니다.
+
+아직 코드를 수정하지 마십시오.
+
+WP3 목표:
+
+* 앱 로그인 후 현재 수영장의 X모드 상태 조회
+* 앱 전역에서 mode와 X 상태를 사용할 수 있도록 Context 구성
+* 수영장·계정·자녀 전환 시 상태 분리
+* 앱 foreground 복귀 시 서버 상태 재조회
+* 로그아웃 시 관련 캐시 제거
+* 일반모드와 X모드 화면 분기의 기반 마련
+
+WP3에서는 아직 X 외형·메뉴를 실제 적용하지 않습니다.
+
+X 로고·색상·메뉴·화면 분기는 WP4입니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. WP3 포함 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+조사·설계 대상:
+
+* 현재 앱 인증 Context
+* 현재 사용자 Context
+* 현재 Pool Context
+* React Query 구조
+* API GET 캐시 구조
+* 로그인 완료 후 초기 데이터 조회 흐름
+* 로그아웃 흐름
+* 계정 전환 흐름
+* 수영장 전환 흐름
+* parent 자녀 선택 흐름
+* 앱 foreground 감지 흐름
+* 토큰 교체 흐름
+* 다중 수영장·다중 자녀 상태 분리
+
+설계 대상:
+
+* Mode Context 위치
+* Mode 상태 타입
+* `/pools/x-mode` 호출 시점
+* loading/error/ready 상태
+* 재조회 조건
+* 캐시 key
+* 로그아웃 시 제거 대상
+* 수영장 변경 시 제거 대상
+* 자녀 변경 시 처리
+* 일반모드 fail-safe
+* WP4가 사용할 인터페이스
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. WP3 제외 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 제외:
+
+* X 로고 적용
+* X 색상 적용
+* X 메뉴 노출
+* 화면 실제 분기
+* X Route 이동
+* 커리큘럼 API 연결
+* 성장판 API 연결
+* Growth Event 연결
+* X 글로벌 템플릿 연결
+* 학부모 AI 검색
+* 성장리포트
+* RevenueCat 연동
+* 수영장 X 상태 변경
+* 토이키즈 X 전환
+
+WP4 이후 기능을 미리 구현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Repository 조사 — 인증 Context
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 앱 Repository에서 다음을 확인하십시오.
+
+1. 로그인 상태를 저장하는 Context 또는 Store
+2. JWT 저장 위치
+3. 사용자 역할 저장 위치
+4. 로그인 성공 후 실행되는 초기화 함수
+5. 앱 시작 시 토큰 복원 흐름
+6. 로그아웃 함수
+7. 토큰 갱신 또는 교체 함수
+8. 계정 전환 기능 존재 여부
+9. 현재 pool_id 저장 방식
+10. JWT payload.poolId를 앱이 사용하는 위치
+
+제출:
+
+* 파일 경로
+* 함수명
+* 상태 필드
+* 호출 순서
+* 실제 코드 라인
+* REPOSITORY_VERIFIED 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Repository 조사 — Pool Context
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 조사하십시오.
+
+* 현재 `PoolContext` 또는 유사 Context 존재 여부
+* 현재 선택 수영장 상태
+* `/pools/my` 호출 위치
+* `/pools/my-pools` 호출 위치
+* `/pools/switch/:poolId` 호출 위치
+* 수영장 전환 후 JWT 교체 방식
+* 수영장 전환 후 캐시 초기화 방식
+* 앱 재실행 후 현재 수영장 복원 방식
+* 운영자·선생님·학부모 역할별 차이
+
+Pool Context가 없다면 `NOT_FOUND`로 보고하십시오.
+
+새 Context를 바로 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Repository 조사 — React Query 및 API 캐시
+━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+* React Query 사용 여부
+* QueryClient 생성 위치
+* queryKey 규칙
+* pool_id가 queryKey에 포함되는지
+* 사용자 ID가 queryKey에 포함되는지
+* 로그아웃 시 `queryClient.clear()` 여부
+* 수영장 전환 시 invalidate/remove 여부
+* 앱 내부 `_apiCache` 구현 위치
+* `_apiCache` key 구조
+* 캐시 TTL
+* 토큰 교체 후 이전 캐시 제거 여부
+* `/pools/x-mode`가 캐시될 가능성
+* foreground 복귀 시 기존 캐시가 응답할 가능성
+
+특히 WP2 조사에서 확인된 30초 GET 인메모리 캐시의 실제 코드를 다시 확인하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Repository 조사 — AppState / foreground
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 확인하십시오.
+
+* React Native `AppState` 사용 위치
+* foreground 복귀 처리 함수
+* 로그인 상태 재검증 여부
+* 알림·구독·회원 상태 재조회 여부
+* 공통 foreground listener 존재 여부
+* listener 중복 등록 방지 방식
+* 화면별 listener인지 전역 listener인지
+
+WP3 Mode 재조회가 기존 listener에 들어가야 하는지, 별도 listener가 필요한지 비교하십시오.
+
+중복 listener를 임의로 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 학부모 자녀 선택 흐름 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2에서 남긴 `NV-01`을 WP3에서 실제로 조사합니다.
+
+확인:
+
+1. 학부모 홈에서 선택된 자녀 상태를 저장하는 파일
+2. 선택된 `student_id` 저장 방식
+3. 자녀 선택 변경 함수
+4. 자녀 목록 API
+5. 각 자녀의 `swimming_pool_id`가 앱 응답에 포함되는지
+6. parent_accounts의 단일 pool과 자녀 pool이 다를 수 있는지
+7. 다중 수영장 자녀를 앱이 현재 구분하는지
+8. 자녀 변경 시 관련 Query가 invalidate되는지
+9. 학부모 Mode 상태를 자녀 기준으로 분리할 수 있는지
+10. 현재 `/pools/x-mode` Contract만으로 가능한지
+
+다중 pool 지원을 임의로 구현하지 말고 현재 구조를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Mode 상태 타입 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP2 Contract 기준으로 앱 타입을 설계하십시오.
+
+서버 응답:
+
+```typescript
+type XModeStatus =
+  | "NOT_CONFIGURED"
+  | "CURRICULUM_PENDING"
+  | "READY";
+
+type PoolMode =
+  | "normal"
+  | "x_pending"
+  | "x";
+
+interface PoolModeResult {
+  pool_id: string;
+  mode: PoolMode;
+  xmode_entitlement: boolean;
+  xmode_config_status: XModeStatus;
+}
+```
+
+앱 전역 상태에는 최소 다음 상태가 필요할 수 있습니다.
+
+```text
+idle
+loading
+ready
+error
+```
+
+하지만 실제 Repository의 상태 관리 방식에 맞춰 설계하십시오.
+
+임의 상태값을 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Mode Context 책임
+━━━━━━━━━━━━━━━━━━━━━━
+
+Mode Context의 책임 후보:
+
+* 현재 pool의 Mode 조회
+* mode 결과 저장
+* loading/error 관리
+* `refreshMode()` 제공
+* 로그인 완료 후 최초 조회
+* foreground 복귀 시 재조회
+* 수영장 전환 후 재조회
+* 로그아웃 시 초기화
+* 계정 변경 시 초기화
+* WP4 화면 분기에 읽기 전용 값 제공
+
+Mode Context가 담당하면 안 되는 것:
+
+* X모드 직접 활성화
+* entitlement 로컬 변경
+* config status 로컬 변경
+* RevenueCat 호출
+* 메뉴 자체 생성
+* Route 이동
+* 커리큘럼 조회
+* 성장판 조회
+* X 디자인 적용
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 서버 상태 조회 실패 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 상황별 설계를 제출하십시오.
+
+* 401
+* 403
+* 404
+* 500
+* 네트워크 오류
+* 타임아웃
+* 응답 파싱 실패
+* 앱 캐시만 존재하는 상태
+* 이전 pool의 Mode 데이터가 남아 있는 상태
+
+원칙:
+
+```text
+오류가 발생했을 때
+이전 수영장의 X 상태를 새 수영장에 재사용하면 안 된다.
+```
+
+또한:
+
+```text
+서버 오류를 이유로 임의로 X모드를 활성화하면 안 된다.
+```
+
+일반모드 fallback 여부는 자동 확정하지 말고 다음을 구분하십시오.
+
+* UI 안전 기본값
+* 실제 서버 판정값
+* 오류 상태
+
+`error`를 숨기고 무조건 `normal`로 저장하는 설계는 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 캐시 Key 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+Mode 캐시가 필요하다면 최소 다음 식별자를 고려하십시오.
+
+```text
+userId
+role
+poolId
+selectedStudentId
+```
+
+다만 역할별로 실제 필요한 값을 Repository 기준으로 결정하십시오.
+
+금지:
+
+* 모든 계정이 동일한 `["x-mode"]` key 사용
+* pool_id 없이 mode 저장
+* 로그아웃 후 mode 유지
+* 자녀 전환 후 이전 자녀 mode 재사용
+* 토큰 교체 후 이전 응답 재사용
+
+React Query와 `_apiCache`가 동시에 존재하면 두 캐시의 제거 순서를 설계하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. API 호출 방식
+━━━━━━━━━━━━━━━━━━━━━━
+
+`GET /pools/x-mode` 호출 방식:
+
+일반 사용자:
+
+```text
+GET /pools/x-mode
+```
+
+super_admin:
+
+```text
+GET /pools/x-mode?pool_id=<poolId>
+```
+
+앱 super_admin 화면에서 어떤 poolId를 사용할지는 현재 선택된 관리 대상 수영장 구조를 조사한 뒤 설계하십시오.
+
+WP3에서 super_admin Mode Context가 실제로 필요한지 구분하십시오.
+
+필요 없다면 일반 앱 사용자 역할만 먼저 처리하는 더 단순한 구조를 제안할 수 있습니다.
+
+구현은 아직 하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 초기 조회 시점
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 후보를 실제 로그인 흐름과 비교하십시오.
+
+* JWT 복원 직후
+* 사용자 정보 조회 후
+* `/pools/my` 완료 후
+* 현재 pool_id 확인 후
+* 앱 Navigation 진입 전
+* 홈 화면 진입 후
+
+Mode 조회가 pool 확정 전에 실행되면 안 됩니다.
+
+다음 순서를 기본으로 검토하십시오.
+
+```text
+인증 복원
+→ 사용자·현재 pool 확정
+→ Mode 조회
+→ 앱 전역 ready
+```
+
+다만 기존 앱 초기화 구조를 우선하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 수영장 전환 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+`POST /pools/switch/:poolId` 이후 실제 흐름을 조사하십시오.
+
+확인:
+
+* 새 JWT 반환 여부
+* AsyncStorage 토큰 교체
+* 사용자 Context 업데이트
+* Pool Context 업데이트
+* Query invalidate
+* Navigation reset
+* Mode Context 초기화
+* 새 pool Mode 재조회
+
+원칙:
+
+```text
+수영장 전환 시작
+→ 이전 Mode 즉시 폐기
+→ 새 토큰·pool 적용
+→ 새 Mode 조회
+```
+
+이전 pool의 `mode="x"`가 새 일반 pool에 잠시 노출되지 않도록 설계하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 로그아웃 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그아웃 시 제거할 항목:
+
+* Mode 상태
+* Mode error
+* Mode loading 상태
+* Mode query cache
+* `_apiCache`의 `/pools/x-mode`
+* 현재 pool 관련 Mode key
+* 선택 자녀 관련 Mode key
+
+기존 로그아웃 함수 안에 추가할지, Context unmount로 처리할지 비교하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. foreground 재조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+foreground 복귀 시 요구사항:
+
+* 서버 X 상태 재조회
+* 30초 캐시 우회 여부
+* 중복 호출 방지
+* 로그인하지 않은 상태에서는 호출 금지
+* 현재 pool 미확정 상태에서는 호출 금지
+* 앱이 background에서 짧게 복귀한 경우 과도한 호출 방지 여부
+
+서버 상태 변경은 슈퍼어드민에 의해 언제든 일어날 수 있으므로, foreground 복귀 시 오래된 Mode를 그대로 쓰면 안 됩니다.
+
+다만 호출 빈도를 임의로 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 일반모드 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP3 설계에서 반드시 확인:
+
+* Mode Context 추가로 기존 로그인 지연이 생기는지
+* Mode 조회 실패로 일반 앱 전체가 차단되는지
+* 기존 `/pools/my` 응답 처리 영향
+* 기존 Navigation 영향
+* 기존 역할 분기 영향
+* 기존 부모 자녀 선택 영향
+* 기존 앱 캐시 영향
+* 일반모드에서 불필요한 X API 반복 호출 여부
+
+WP3는 앱 전역 상태 기반만 만들며, 실제 화면 변경은 WP4까지 하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. 테스트 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+최소 테스트:
+
+1. 일반 pool 로그인 → mode=normal
+2. entitlement=true + NOT_CONFIGURED → x_pending
+3. entitlement=true + CURRICULUM_PENDING → x_pending
+4. entitlement=true + READY → x
+5. 로그아웃 → mode 초기화
+6. pool 전환 → 이전 mode 제거
+7. foreground 복귀 → 재조회
+8. 401 → 인증 흐름 유지
+9. 404 → pool 오류 상태
+10. 500 → 이전 X 상태 재사용 금지
+11. 네트워크 오류 → error 상태
+12. 여러 계정 로그인 전환
+13. 여러 수영장 전환
+14. parent 자녀 전환
+15. parent 다중 pool 가능성
+16. React Query cache 제거
+17. `_apiCache` 제거
+18. WP4가 Context 값만 읽을 수 있는지
+
+실제 pool 상태 변경이나 샘플 생성은 아직 금지합니다.
+
+테스트 fixture 설계만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. WP3 설계서 제출 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. WP3 목표
+2. 포함 범위
+3. 제외 범위
+4. Repository 조사 결과
+5. 현재 로그인 초기화 흐름
+6. 현재 Pool 상태 흐름
+7. 현재 Query·API 캐시 구조
+8. 현재 foreground 처리
+9. 현재 parent 자녀 선택 흐름
+10. Mode Context 위치
+11. Mode Context 타입
+12. Mode 조회 시점
+13. refreshMode 흐름
+14. 수영장 전환 흐름
+15. 자녀 전환 흐름
+16. 로그아웃 흐름
+17. foreground 재조회
+18. 캐시 Key
+19. 오류 처리
+20. 역할별 처리
+21. 수정 예정 파일
+22. 신규 파일
+23. 기존 API 영향
+24. 일반모드 영향
+25. 테스트
+26. 위험요소
+27. NEEDS_VERIFICATION
+28. 더 단순한 대안
+29. 구현 후 제출할 증거
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP3 설계서만 제출하고 멈추십시오.
+
+아직 금지:
+
+* 앱 코드 수정
+* Context 생성
+* API 호출 추가
+* 캐시 변경
+* Navigation 변경
+* X 로고·색상·메뉴 적용
+* 서버 코드 수정
+* DB 변경
+* 수영장 상태 변경
+* Commit
+* Push
+* OTA
+* Render 배포
+* WP4 작업

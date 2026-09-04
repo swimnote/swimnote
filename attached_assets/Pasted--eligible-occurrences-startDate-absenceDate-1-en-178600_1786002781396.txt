@@ -1,0 +1,182 @@
+[수정 지시 - 기간 지난 보강 날짜 계산 수정]
+
+원인이 확정되었습니다.
+
+현재 eligible-occurrences는
+
+startDate = absenceDate + 1일
+endDate   = expire_at
+
+으로 고정되어 있습니다.
+
+이 때문에 expire_at이 이미 지난 보강은
+후보 회차가 모두 과거 날짜가 되어
+오늘 이후 보강 배정이 불가능합니다.
+
+========================================
+수정 범위
+========================================
+
+파일
+
+artifacts/api-server/src/routes/teachers.ts
+
+함수
+
+GET /teacher/makeups/:makeupId/eligible-occurrences
+
+========================================
+수정 원칙
+========================================
+
+절대 변경하지 않는 것
+
+- startDate 계산
+- 일반 보강 로직
+- assign API
+- complete-direct API
+- DB schema
+- 응답 JSON 구조
+
+변경하는 것은
+
+endDate 계산만.
+
+========================================
+현재 코드
+========================================
+
+startDate = absenceDate + 1일
+
+endDate =
+
+expire_at 존재
+→ expireAtDate
+
+없음
+→ absenceDate + 56일
+
+========================================
+수정 후
+========================================
+
+expire_at이 없는 경우
+
+기존 그대로
+
+endDate = absenceDate + 56일
+
+----------------------------
+
+expire_at이 오늘 이후
+
+기존 그대로
+
+endDate = expireAtDate
+
+----------------------------
+
+expire_at이 오늘 이전
+(기간 지난 보강)
+
+endDate = kstToday
+
+즉
+
+의사코드
+
+if (!expireAtDate) {
+    endDate = fallbackDate;
+} else if (expireAtDate >= kstToday) {
+    endDate = expireAtDate;
+} else {
+    endDate = kstToday;
+}
+
+========================================
+주의
+========================================
+
+startDate는
+
+absenceDate + 1일
+
+절대 변경하지 않는다.
+
+today 이전 날짜를 제거하지 않는다.
+
+기존 occurrence 생성 로직은 유지한다.
+
+endDate 계산만 변경한다.
+
+========================================
+회귀 테스트
+========================================
+
+1.
+
+일반 보강
+
+expire_at > today
+
+↓
+
+기존과 동일하게
+
+absence+1 ~ expire_at
+
+생성
+
+2.
+
+expire_at 없음
+
+↓
+
+기존과 동일하게
+
+absence+56일
+
+3.
+
+기간 지난 보강
+
+expire_at < today
+
+↓
+
+absence+1 ~ today
+
+생성
+
+4.
+
+assign API
+
+영향 없음
+
+5.
+
+directComplete
+
+영향 없음
+
+========================================
+제출
+========================================
+
+1. 변경 line
+
+2. 변경 diff
+
+3. commit SHA
+
+4. Render Deployment ID
+
+5. live commit SHA
+
+6. 회귀 테스트 결과
+
+Push → Render만 진행합니다.
+
+앱 코드 변경이 없으므로 OTA는 진행하지 않습니다.

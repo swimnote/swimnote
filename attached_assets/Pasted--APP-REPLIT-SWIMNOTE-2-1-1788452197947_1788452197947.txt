@@ -1,0 +1,248 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.1.0 — WP5 FINAL VISUAL FIX
+# 선생님 운영현황 탭 버튼 높이 강제 확보 + 즉시 OTA
+#
+# 실제 실기기 증상:
+#
+# 운영관리
+# → 선생님관리
+# → 선생님목록
+# → 선생님 이름 클릭
+# → "[선생님이름] 운영현황"
+#
+# 상단 탭:
+# - 담당 회원
+# - 출결
+# - 수업일지
+# - 보강
+#
+# 현재:
+# 탭 박스 높이가 너무 작아서
+# 글자가 거의 보이지 않음.
+#
+# 이번에는 ScrollView 추측 수정 반복 금지.
+# 버튼 자체의 실제 세로 크기를 명시적으로 확보해서
+# 글자가 무조건 보이게 만든다.
+# ============================================================
+
+Product:
+SWIMNOTE 2.1.0
+
+Target file:
+artifacts/swim-app/app/(admin)/teacher-hub.tsx
+
+1.6.3:
+NO TOUCH
+
+Android:
+NO TOUCH
+
+============================================================
+1. TAB BUTTON HEIGHT 명시
+============================================================
+
+현재 chip style을 실제 source에서 확인 후
+탭 버튼에 충분한 최소 높이를 명시.
+
+권장 방향:
+
+chip: {
+  minHeight: 40~44,
+  paddingHorizontal: 16,
+  paddingVertical: 0,
+  justifyContent: "center",
+  alignItems: "center",
+  borderRadius: 20,
+  borderWidth: 1.5,
+  flexShrink: 0,
+  ...
+}
+
+핵심:
+
+- 버튼 자체 minHeight 또는 height를 명시
+- 텍스트를 세로 중앙 정렬
+- Text가 들어갈 공간을 버튼 자체에서 보장
+
+이번에는 parent 높이에 맡기지 말 것.
+
+============================================================
+2. TEXT 높이도 명시적으로 안전 확보
+============================================================
+
+chipTxt는 다음 원칙:
+
+fontSize: 13
+lineHeight: 18~20
+fontWeight: "600"
+
+그리고 필요하면:
+
+includeFontPadding: false
+textAlignVertical: "center"
+
+를 iOS/RN 호환 범위에서 검토.
+
+단,
+fontSize를 줄여서 맞추는 방식 금지.
+
+============================================================
+3. CONTENT CONTAINER
+============================================================
+
+ScrollView:
+
+- horizontal 유지
+- contentContainerStyle에 paddingHorizontal 유지
+- paddingVertical은 있어도 됨
+- alignItems 추가 금지
+- style prop으로 높이 축소시키는 flexGrow/flexShrink 사용 금지
+
+============================================================
+4. 실제 목표
+============================================================
+
+실기기에서 다음이 눈으로 읽혀야 함:
+
+[담당 회원]
+[출결]
+[수업일지]
+[보강]
+
+버튼 박스 높이가 충분해야 하고
+글자가 상하로 잘리지 않아야 함.
+
+현재처럼:
+테두리만 보이고 글자가 점처럼 보임
+→ FAIL
+
+============================================================
+5. 비교 기준
+============================================================
+
+앱 내 정상 chip/button 중
+실기기에서 제대로 보이는 패턴을 참고.
+
+가능하면:
+보강관리 상단 탭
+회원관리 필터칩
+등 정상 chip의 실제 minHeight/height/justifyContent 패턴 재사용.
+
+============================================================
+6. 기능 변경 금지
+============================================================
+
+변경 금지:
+
+- 탭 순서
+- 탭 이름
+- 데이터
+- 통계
+- 선생님 정보
+- navigation
+- 서버
+- DB
+- 다른 화면
+
+오직:
+탭 버튼 높이 + 텍스트 가시성
+
+============================================================
+7. COMMIT
+============================================================
+
+권장:
+
+fix(v2.1.0): enforce visible height for teacher operation tabs
+
+============================================================
+8. 즉시 OTA
+============================================================
+
+수정/커밋 후 중간보고 없이
+바로 iOS OTA 게시.
+
+조건:
+
+Version:
+2.1.0
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Source SHA:
+방금 commit
+
+Android:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+1.6.3:
+NO TOUCH
+
+반드시:
+SOURCE HEAD == OTA SOURCE SHA
+
+============================================================
+9. 완료보고
+============================================================
+
+# WP5 TAB HEIGHT FIX + OTA REPORT
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+chip minHeight/height:
+...
+
+chip justifyContent:
+...
+
+chip alignItems:
+...
+
+chipTxt fontSize:
+...
+
+chipTxt lineHeight:
+...
+
+ScrollView flexGrow/flexShrink:
+NONE
+
+OTA runtime:
+2.1.0
+
+OTA channel:
+production-v2
+
+Source SHA:
+...
+
+OTA Source SHA:
+...
+
+Match:
+YES / NO
+
+iOS Update ID:
+...
+
+FINAL:
+OTA PUBLISHED — REAL DEVICE CHECK REQUIRED

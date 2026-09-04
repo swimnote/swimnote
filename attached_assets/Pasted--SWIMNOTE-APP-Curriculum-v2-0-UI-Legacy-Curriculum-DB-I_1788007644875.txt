@@ -1,0 +1,368 @@
+[SWIMNOTE APP — Curriculum v2.0 UI 최종 수정 / 관리자 Legacy 화면 제거]
+
+현재 Curriculum DB 및 Import는 정상 완료되어 있다.
+
+현재 ACTIVE:
+
+cv_bw6pee53qf4l2ipi
+
+Levels:
+L1=21
+L2=3
+L3=24
+L4=2
+
+Nodes=50
+Drills=500
+Relations=52
+
+중요:
+Curriculum DB / Node / Drill / Relation / AI Engine 데이터는 절대 수정하지 않는다.
+이번 작업은 APP UI/API 연결 오류만 수정한다.
+
+==================================================
+1. 현재 실기기에서 확인된 오류
+==================================================
+
+오류 A.
+
+새 [교육과정] 화면의 Curriculum Node 카드 본문에
+
+{"canonical_key": "...", "source_key": "...", ...}
+
+형태의 내부 JSON/metadata가 그대로 노출되고 있다.
+
+사용자 화면에 canonical_key/source_key/raw JSON을 표시하면 안 된다.
+
+오류 B.
+
+관리자 모드 > 일지 템플릿 화면이 아직 legacy global diary_templates 화면을 사용한다.
+
+실기기에서 다음 구버전 UI가 보임:
+
+- "내 항목"
+- "흰색: 물적응·호흡" category dropdown
+- 1,2,3... 번호의 기존 완성형 일지문장
+- 활성/비활성 switch
+- 수정 버튼
+
+이 화면은 기존 global diary_templates 350개 기반 legacy editor다.
+
+현재 Canonical Curriculum v2.0에서는
+관리자도 이 legacy global350을 교육과정 정본으로 사용하면 안 된다.
+
+==================================================
+2. 절대 금지
+==================================================
+
+금지:
+
+- Curriculum 재Import
+- Curriculum DB 수정
+- Node 수정
+- Drill 수정
+- Relation 수정
+- level 수정
+- AI Engine 수정
+- legacy global350 삭제
+- teacher templates 삭제
+- class_diaries 수정
+
+UI와 API source 연결만 수정한다.
+
+==================================================
+3. 모든 역할의 교육과정 Source 통일
+==================================================
+
+관리자/선생님이 보는 [교육과정]은 모두:
+
+ACTIVE Curriculum
+cv_bw6pee53qf4l2ipi
+
+의 metadata에서 동적으로 표시한다.
+
+source:
+
+/curriculum/diary/levels
+/curriculum/diary/nodes
+/curriculum/diary/facets
+
+기준.
+
+교육과정 표시 구조:
+
+Level
+→ Stroke
+→ Domain / Skill Group
+→ Curriculum Node
+
+관리자라고 해서 legacy global diary_templates를
+교육과정 source로 사용하지 않는다.
+
+==================================================
+4. 관리자 화면 수정
+==================================================
+
+관리자 > 일지 템플릿도 새 구조로 통일한다.
+
+상단:
+
+[교육과정]   [내 템플릿]
+
+교육과정:
+
+- read-only
+- ACTIVE Curriculum 50 Nodes
+- Level:
+  흰색모자 21
+  파란모자 3
+  빨간모자 24
+  검정모자 2
+
+- Stroke facet
+- Domain / Skill Group facet
+- Node 목록
+
+Canonical Node에는:
+
+수정 버튼 없음
+활성/비활성 switch 없음
+
+Canonical Curriculum 자체를 UI에서 편집하지 않는다.
+
+==================================================
+5. 내 템플릿
+==================================================
+
+[내 템플릿]에서는 실제 user/teacher-created templates만 표시.
+
+기존 teacher-created 12개 데이터는 그대로 보존.
+
+관리자 개인 템플릿 생성/수정 기능이 기존 정책상 지원된다면
+그 scope만 사용.
+
+legacy global 350개를
+[내 템플릿]으로 섞지 않는다.
+
+==================================================
+6. Legacy global 350
+==================================================
+
+현재 diary_templates global scope 약 350개는
+DB에서 아직 삭제하지 않는다.
+
+단 UI에서는 더 이상
+[교육과정] source로 사용하지 않는다.
+
+runtime reference가 남아 있는지 확인 후
+이번 완료보고에만 적는다.
+
+삭제는 별도 작업.
+
+==================================================
+7. Curriculum Node Card 표시 수정
+==================================================
+
+현재 카드에 raw JSON이 출력되는 원인을 찾는다.
+
+다음 값은 UI에 표시 금지:
+
+canonical_key
+source_key
+raw metadata JSON
+serialized object
+source_text 전체 JSON blob
+
+Node 카드에는 사용자에게 필요한 정보만 표시:
+
+display_no
+
+title
+
+선택적으로:
+goal 요약
+
+facet badge:
+stroke
+domain 또는 skill_group
+
+예:
+
+L1-001
+
+안전한 입수와 중심잡기
+
+물속에서 안정적으로 중심을 유지하며 안전하게 입수할 수 있습니다.
+
+[공통/물적응] [물적응]
+
+이 정도.
+
+==================================================
+8. Raw JSON 원인 확인
+==================================================
+
+현재 API가 goal/source_text/metadata 중
+어느 필드에 JSON string을 반환하는지 확인.
+
+가능한 원인:
+
+- description fallback이 metadata JSON 사용
+- source_text를 카드 subtitle로 잘못 사용
+- DTO serialization 결과를 String()으로 렌더링
+- importer raw metadata field를 UI description에 연결
+
+원인을 코드 기준으로 확인하고
+UI DTO mapping을 정상 필드로 고친다.
+
+DB 데이터를 수정해서 숨기지 않는다.
+
+==================================================
+9. Role별 route 감사
+==================================================
+
+다음 역할별로 일지 템플릿 route/component를 확인:
+
+admin
+teacher
+
+두 역할 모두 [교육과정] 탭은
+같은 ACTIVE Curriculum source를 사용해야 한다.
+
+legacy screen component로 이동하는 role branch가 있으면 제거/교체.
+
+단 권한 차이는 유지.
+
+==================================================
+10. 기대 UI
+==================================================
+
+관리자/선생님 공통:
+
+[교육과정] [내 템플릿]
+
+교육과정:
+
+흰색모자(21)
+파란모자(3)
+빨간모자(24)
+검정모자(2)
+
+전체 / 존재하는 stroke facets
+
+각 Node:
+
+Lx-xxx
+title
+goal 요약
+stroke/domain badges
+
+JSON 표시 = 0
+
+==================================================
+11. 테스트
+==================================================
+
+실행:
+
+A. Admin
+- 교육과정 4 Level
+- 총 50 Node
+- legacy sentence editor 미노출
+- raw JSON 미노출
+
+B. Teacher
+- 동일 4 Level
+- 동일 50 Node
+- raw JSON 미노출
+
+C. 내 템플릿
+- teacher-created templates 보존
+- Curriculum Node와 merge 안 됨
+
+D. API
+- levels 4
+- nodes 50
+- teacher templates 정상
+
+==================================================
+12. 회귀 금지
+==================================================
+
+다음 유지:
+
+Normal AI Diary Curriculum lookup
+50 Node
+500 Drill
+52 Relation
+class_diaries 314
+teacher-created templates
+학생/반/수업 데이터
+
+==================================================
+13. 배포
+==================================================
+
+UI 코드 수정이므로
+테스트 PASS 후 commit/push.
+
+Production 앱에 반영하기 위해 OTA가 필요한 경우
+production OTA까지 수행.
+
+서버 코드 수정이 없으면 Render 불필요.
+
+서버 API 수정이 실제로 필요한 경우에만
+Render 필요 여부를 보고하고
+임의 배포하지 않는다.
+
+==================================================
+14. 완료보고
+==================================================
+
+ROOT CAUSE
+- Admin legacy screen 원인
+- raw JSON 노출 원인
+
+FIX
+- 변경 파일
+- 변경 component/API mapping
+
+ADMIN
+- Levels 4
+- Nodes 50
+- JSON 0
+- legacy global UI 미노출
+
+TEACHER
+- Levels 4
+- Nodes 50
+- JSON 0
+
+MY TEMPLATES
+- 실제 user-created count
+- 보존 여부
+
+LEGACY GLOBAL350
+- DB 보존 여부
+- runtime reference 여부
+
+DATA
+- Curriculum DB unchanged
+- class_diaries unchanged
+- teacher templates unchanged
+
+TEST
+- 결과
+
+GIT
+- branch
+- SHA
+
+DEPLOY
+- OTA
+- Render 필요 여부
+
+FINAL
+PASS / FAIL
+
+완료 후 STOP.

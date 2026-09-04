@@ -1,0 +1,304 @@
+[SWIMNOTE APP RELEASE]
+[iOS BUILD 246 — FIX LOCKFILE → BUILD → SUBMIT TO TESTFLIGHT]
+
+현재 EAS iOS build 246 실패 원인:
+
+ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
+
+EAS install 단계:
+
+pnpm install --frozen-lockfile
+
+오류:
+
+current "overrides" configuration doesn't match
+the value found in the lockfile.
+
+중요:
+
+이전 build 246은 archive 생성 전 실패했으므로
+buildNumber 246을 그대로 재사용한다.
+
+현재 release target:
+
+app version = 1.6.3
+ios.buildNumber = 246
+android.versionCode = 236
+runtimeVersion policy = appVersion
+resolved runtime = 1.6.3
+
+이번 작업 목표:
+
+1. pnpm lockfile 불일치 수정
+2. frozen install 검증
+3. commit + push
+4. iOS production build 246 실행
+5. build 성공 시 App Store Connect / TestFlight 제출
+6. 정식 App Store 출시/심사 제출은 하지 않음
+
+==================================================
+1. ROOT CAUSE VERIFY
+==================================================
+
+workspace root와 swim-app 기준으로 확인:
+
+- package.json
+- pnpm-workspace.yaml
+- pnpm-lock.yaml
+- pnpm.overrides / overrides
+- packageManager
+- pnpm version
+
+어떤 overrides configuration이
+lockfile과 불일치하는지 정확히 확인.
+
+추측 금지.
+
+==================================================
+2. REQUIRED RELEASE STATE — MUST PRESERVE
+==================================================
+
+다음 값 절대 변경 금지:
+
+Expo SDK = 55
+
+expo-print:
+^55.0.17 / resolved 55.0.17
+
+expo-build-properties:
+^55.0.16 / resolved 55.0.16
+
+app version:
+1.6.3
+
+ios.buildNumber:
+246
+
+android.versionCode:
+236
+
+runtimeVersion:
+{ "policy": "appVersion" }
+
+resolved runtime:
+1.6.3
+
+==================================================
+3. REGENERATE LOCKFILE
+==================================================
+
+repository root에서
+현재 project canonical pnpm version으로:
+
+pnpm install --no-frozen-lockfile
+
+실행.
+
+dependency를 임의 업그레이드하지 말 것.
+
+==================================================
+4. FROZEN INSTALL VERIFY
+==================================================
+
+반드시 이어서:
+
+pnpm install --frozen-lockfile
+
+실행.
+
+SUCCESS 필수.
+
+다음 오류가 다시 나오면 즉시 STOP:
+
+ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
+ERR_PNPM_OUTDATED_LOCKFILE
+dependency resolution fatal error
+
+==================================================
+5. DIFF AUDIT
+==================================================
+
+변경 파일 확인.
+
+허용:
+
+pnpm-lock.yaml
+
+필요시 lockfile metadata 정상 변경.
+
+금지:
+
+unrelated dependency version 변경
+app feature code 변경
+app.json version/build 변경
+dependency 임의 추가/삭제
+
+package.json dependency version이 의도치 않게 바뀌면 STOP.
+
+==================================================
+6. EXPO DEPENDENCY RECHECK
+==================================================
+
+확인:
+
+expo-print = 55.0.17
+expo-build-properties = 55.0.16
+
+실행:
+
+npx expo install --check
+
+expo-print / expo-build-properties mismatch 없어야 함.
+
+react-native-view-shot 기존 warning은
+이번 release blocker로 취급하지 않는다.
+
+==================================================
+7. VERSION RECHECK
+==================================================
+
+반드시 확인:
+
+version = 1.6.3
+ios.buildNumber = 246
+android.versionCode = 236
+runtimeVersion policy = appVersion
+resolved runtime = 1.6.3
+
+246 → 247 변경 금지.
+
+==================================================
+8. COMMIT
+==================================================
+
+lockfile sync 변경만 commit.
+
+commit message:
+
+fix(build): sync pnpm lockfile for EAS
+
+commit SHA 보고.
+
+==================================================
+9. PUSH
+==================================================
+
+다음만 허용:
+
+git push origin deploy-photo-clone
+
+금지:
+
+force push
+rebase
+reset
+
+push 후:
+
+git fetch origin
+
+local HEAD
+origin/deploy-photo-clone
+
+동일 확인.
+
+==================================================
+10. PRE-BUILD FINAL CHECK
+==================================================
+
+확인:
+
+branch = deploy-photo-clone
+working tree production code clean
+local/origin sync
+version = 1.6.3
+ios.buildNumber = 246
+runtime = 1.6.3
+
+==================================================
+11. IOS BUILD 246 EXECUTE
+==================================================
+
+실행:
+
+cd artifacts/swim-app
+
+eas build --platform ios --profile production
+
+기존 EAS managed Apple credentials 사용.
+
+임의 certificate/provisioning 교체 금지.
+
+==================================================
+12. BUILD MONITOR
+==================================================
+
+다음 단계 정상 진행 확인:
+
+Install dependencies
+Prebuild/native configuration
+Pods
+Xcode compile
+Archive
+Export IPA
+EAS build finished
+
+실패하면 즉시 STOP.
+
+임의 dependency 수정 후 자동 재시도 금지.
+
+==================================================
+13. BUILD SUCCESS CONTRACT
+==================================================
+
+성공 시 반드시 확인:
+
+platform = ios
+app version = 1.6.3
+buildNumber = 246
+profile = production
+channel = production
+runtimeVersion = 1.6.3
+status = finished
+
+artifact 생성 확인.
+
+==================================================
+14. SUBMIT TO TESTFLIGHT
+==================================================
+
+Build 246 성공 후
+즉시 App Store Connect/TestFlight로 제출한다.
+
+사용 가능한 canonical 방식 사용:
+
+eas submit --platform ios --latest --profile production
+
+또는 repository/eas.json의 실제 submit profile이 별도 이름이면
+그 canonical profile 사용.
+
+중요:
+
+제출 대상은 반드시
+방금 성공한 iOS build 246.
+
+다른 이전 build 제출 금지.
+
+==================================================
+15. APP STORE CONNECT TARGET VERIFY
+==================================================
+
+제출 전 확인:
+
+bundleIdentifier:
+com.swimnote.app
+
+ascAppId:
+6761360360
+
+대상 App Store Connect 앱이 SWIMNOTE인지 확인.
+
+다른 앱이면 STOP.
+
+==================================================
+16. TESTFL

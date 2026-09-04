@@ -1,0 +1,352 @@
+[최우선 작업 — 현재 검증 완료 상태 영구 동결 백업 / 이후 작업 금지]
+
+중요:
+
+지금부터 Production Build 준비보다 먼저
+현재 실기기에서 검증 완료된 SWIMNOTE 1.6.2 상태를
+절대 손실되지 않는 복구 기준선으로 별도 보존한다.
+
+이 작업이 완료되기 전:
+
+- 코드 수정 금지
+- merge 금지
+- rebase 금지
+- reset 금지
+- checkout으로 작업상태 변경 금지
+- OTA 금지
+- Native Build 금지
+- Render 배포 금지
+- DB 변경 금지
+- app.json/eas.json 변경 금지
+
+현재 상태의 단 한 가지 기능도 손실되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 상태부터 정확히 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 다음을 조회하고 보고한다.
+
+A. 현재 branch
+B. Local HEAD SHA
+C. Remote HEAD SHA
+D. Local == Remote 여부
+E. git status --short
+F. Working Tree 변경 파일
+G. untracked 파일
+H. appVersion
+I. runtimeVersion
+J. iOS buildNumber
+K. Android versionCode
+L. 현재 instagram-test 최신 OTA Group ID
+M. iOS Update ID
+N. Android Update ID
+O. OTA message
+P. OTA runtimeVersion
+Q. OTA channel/branch
+
+현재 검증 완료 상태를 정확히 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 코드 기준선 Backup Branch 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 검증 완료 HEAD를 기준으로
+전용 backup branch를 생성한다.
+
+권장 이름:
+
+backup/swimnote-1.6.2-pre-production-final-20260809
+
+중요:
+
+- 현재 HEAD를 정확히 가리켜야 함
+- 다른 branch HEAD 사용 금지
+- main 기준으로 만들지 말 것
+- 과거 production 1.6.1 기준으로 만들지 말 것
+- 현재 실기기 검증된 최신 HEAD 기준
+
+remote origin에 반드시 push한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Immutable Git Tag 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 exact SHA에 tag도 만든다.
+
+권장:
+
+swimnote-1.6.2-pre-production-final-20260809
+
+또는 기존 tag naming 규칙이 있다면
+동일 의미로 맞춘다.
+
+tag는 반드시 현재 exact HEAD SHA를 가리켜야 한다.
+
+remote origin에 push한다.
+
+Backup branch SHA와 Tag SHA가
+현재 HEAD와 정확히 동일한지 다시 검증한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 현재 기능 목록 Manifest 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준선에 포함된 주요 기능을
+복구 확인용 manifest로 작성한다.
+
+최소 포함:
+
+[Instagram Story]
+
+- 학부모 일지 Instagram AI 버튼
+- Instagram 실제 glyph
+- Instagram 로고 우측하단 AI overlap
+- 하단 4개 액션 균등 배치
+- 좋아요 아이콘
+- 감사합니다 아이콘
+- 댓글 아이콘
+- Instagram AI 아이콘
+
+- Instagram 설치 선확인
+- Instagram Story Composer 직접 진입
+- META_APP_ID 처리
+- Share.shareSingle
+- Story 1장 생성
+
+- 사진 1~10장 지원
+- +N 없음
+- 1~4장 기존 V3 layout
+- 5~10장 aspectRatio 기반 Adaptive Collage
+- Image.getSize 기반 aspectRatio 확인
+- 사진 비율 기반 Template 선택
+- getSize 실패 fallback
+
+- 긴 일지 AI Story Summary
+- 짧은 일지 처리
+- 약 90자 한줄평
+- 자상한 선생님 말투
+- 원문 사실 기반
+- summary cache
+- maxChars/final fit 보호
+
+- 담당선생님 Story에서 제거
+- 반 이름 Story에서 제거
+- 날짜 표시
+- 하단 실제 수영장 이름
+- 하단 SWIMNOTE branding
+- Pretendard 적용
+
+[Teacher Diary 수정]
+
+- 학생 조회 loading state
+- API error/retry
+- stale response 방어
+- 출석학생 0명 저장 차단
+- 나가기 draft reset
+- 작성 중 취소 시 내용 유지
+- 저장 성공 기존 흐름 유지
+
+그리고 현재까지 이 작업 과정에서
+이미 검증 완료된 기타 최신 앱 기능들도
+현재 HEAD에 포함되어 있는지 확인한다.
+
+manifest를 repository에 새 기능 코드처럼 넣지 말고
+가능하면 attached_assets 또는 별도 audit 문서로만 보관한다.
+
+기능 코드 변경은 0이어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 설정 파일 Snapshot
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 다음 파일의 exact SHA256 또는 git blob SHA를 기록한다.
+
+- app.json
+- eas.json
+- package.json
+- pnpm-lock.yaml
+
+Instagram 관련 핵심 파일:
+
+- app/(parent)/home.tsx
+- components/common/LucideIcon.tsx
+- components/parent/StoryPageRenderer.tsx
+- components/parent/StoryCapturePipeline.tsx
+
+일지 관련 최근 수정 파일:
+
+- app/(teacher)/diary.tsx
+- components/teacher/diary/DiaryWriteView.tsx
+
+서버:
+
+- api-server/src/routes/story.ts
+- api-server/src/routes/index.ts
+
+나중에 Build 준비 과정에서
+이 파일들이 예상치 않게 바뀌었는지
+즉시 비교할 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Server 기준선도 별도 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render Live 상태 기록:
+
+- Render Service
+- 현재 Live Deploy ID
+- 현재 Live SHA
+- health
+- API_BASE
+
+현재 Story Summary 서버가 정상인 기준 SHA를
+Git 기준선과 별도로 기록한다.
+
+서버 기준선과 앱 기준선을 혼동하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 OTA 기준선 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서 검증된
+instagram-test / runtimeVersion 1.6.2 OTA를 별도 기록한다.
+
+특히 현재 최신 액션바 OTA까지 포함해서:
+
+- Group ID
+- iOS Update ID
+- Android Update ID
+- runtimeVersion
+- branch
+- channel
+- publishedAt
+- message
+
+를 기록.
+
+이 OTA는 Build 작업 중 삭제하거나 rollback하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 복구 명령까지 작성
+━━━━━━━━━━━━━━━━━━━━━━
+
+만약 이후 Production Build 준비 중 문제가 생기면
+현재 상태로 즉시 돌아오는 정확한 방법을 작성한다.
+
+예:
+
+git checkout <exact backup tag>
+
+또는 새 복구 branch:
+
+git switch -c recovery/swimnote-1.6.2 \
+  swimnote-1.6.2-pre-production-final-20260809
+
+중요:
+
+복구 절차에서
+기존 backup branch/tag를 강제로 이동시키지 않는다.
+
+force push 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Backup 무결성 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+current HEAD
+==
+backup branch SHA
+==
+backup tag SHA
+
+세 값이 완전히 동일해야 한다.
+
+그리고:
+
+git diff <backup-tag>..HEAD
+
+결과:
+
+0 files
+
+이어야 한다.
+
+설정 Snapshot도 동일해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Remote 존재 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+로컬에만 만들어놓고 끝내지 않는다.
+
+다음이 origin에 실제 존재하는지 확인:
+
+origin/backup/swimnote-1.6.2-pre-production-final-20260809
+
+tag:
+swimnote-1.6.2-pre-production-final-20260809
+
+remote 조회로 재확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 백업 완료 후에도 바로 Build 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+백업 완료 후에도
+Production Build를 즉시 시작하지 않는다.
+
+먼저 최종 보고하고 멈춘다.
+
+그 보고를 검토한 후
+별도의 Production Build 감리 지시를 받는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current exact HEAD
+3. Remote HEAD
+4. Local == Remote
+5. Working tree
+6. Backup branch
+7. Backup branch SHA
+8. Backup branch remote push 여부
+9. Backup tag
+10. Backup tag SHA
+11. Tag remote push 여부
+12. HEAD == branch == tag 검증
+13. git diff backup-tag..HEAD 결과
+14. appVersion
+15. runtimeVersion
+16. iOS buildNumber
+17. Android versionCode
+18. 최신 instagram-test OTA Group ID
+19. iOS Update ID
+20. Android Update ID
+21. Render Live Deploy ID
+22. Render Live SHA
+23. health 결과
+24. 설정 파일 Snapshot
+25. 핵심 기능 Manifest
+26. 복구 명령
+27. CODE CHANGED
+28. OTA CHANGED
+29. BUILD
+30. RENDER CHANGED
+31. DB CHANGED
+
+최종 값은 반드시:
+
+CODE CHANGED = 0
+OTA CHANGED = 0
+BUILD = 0
+RENDER CHANGED = 0
+DB CHANGED = 0
+
+이어야 한다.
+
+백업 완료 보고 후 멈춘다.

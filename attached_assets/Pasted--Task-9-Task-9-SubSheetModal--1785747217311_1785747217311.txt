@@ -1,0 +1,421 @@
+# Task #9 — 서브모달 공통 시트 구현 승인 지시
+
+Task #9 설계서를 검수했습니다.
+
+공통 `SubSheetModal` 방식으로 구현을 승인합니다.
+
+이번에는 설계서를 다시 제출하지 말고 아래 확정사항을 반영하여 Task #9만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 승인 범위
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+```text
+artifacts/swim-app/components/common/SubSheetModal.tsx
+```
+
+수정 파일:
+
+```text
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+```
+
+적용 대상은 다음 3개 서브모달뿐입니다.
+
+* 반이동
+* 보충수업
+* 적용시점
+
+다른 모달은 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Modal 레이아웃 구조 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계서의 다음 구조는 그대로 사용하지 마십시오.
+
+```tsx
+<Modal>
+  <Pressable style={styles.backdrop} />
+  <View style={styles.sheet} />
+</Modal>
+```
+
+`backdrop`과 `sheet`가 단순 형제이고 backdrop이 `flex: 1`이면 시트가 기존과 다르게 배치될 수 있습니다.
+
+다음처럼 전체 화면 컨테이너 안에서 겹쳐 배치하십시오.
+
+```tsx
+<Modal
+  visible={visible}
+  transparent
+  animationType="slide"
+  statusBarTranslucent
+  onRequestClose={onClose}
+>
+  <View style={styles.modalRoot}>
+    <Pressable
+      style={StyleSheet.absoluteFill}
+      onPress={onClose}
+    />
+
+    <View
+      style={[
+        styles.sheet,
+        height !== undefined
+          ? { height }
+          : maxHeight !== undefined
+            ? { maxHeight }
+            : null,
+      ]}
+      onStartShouldSetResponder={() => true}
+    >
+      <View style={styles.handle} />
+
+      <View
+        style={[
+          styles.sheetHeader,
+          headerPaddingBottom !== undefined
+            ? { paddingBottom: headerPaddingBottom }
+            : null,
+        ]}
+      >
+        <View style={styles.headerText}>
+          <Text style={styles.sheetTitle}>{title}</Text>
+          {subtitle ? (
+            <Text style={styles.sheetSub}>{subtitle}</Text>
+          ) : null}
+        </View>
+
+        <Pressable
+          onPress={onClose}
+          style={styles.closeBtn}
+          hitSlop={8}
+        >
+          <X size={20} color={C.textSecondary} />
+        </Pressable>
+      </View>
+
+      {children}
+    </View>
+  </View>
+</Modal>
+```
+
+스타일 의미:
+
+```typescript
+modalRoot: {
+  flex: 1,
+  justifyContent: "flex-end",
+  backgroundColor: "rgba(0,0,0,0.4)",
+}
+```
+
+Backdrop Pressable은 전체 화면에 절대 배치하고, sheet는 `modalRoot`의 하단에 위치시킵니다.
+
+중요:
+
+* 시트 컨테이너는 `Pressable`이 아닌 `View`
+* `onStartShouldSetResponder={() => true}` 유지
+* 시트 내부 터치가 backdrop 닫기로 전달되지 않는지 실제 확인
+* 기존 iOS ScrollView 스크롤 문제가 다시 발생하지 않아야 함
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Props 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 Props만 사용하십시오.
+
+```typescript
+interface SubSheetModalProps {
+  visible: boolean;
+  onClose: () => void;
+  height?: `${number}%`;
+  maxHeight?: `${number}%`;
+  title: string;
+  subtitle?: string;
+  headerPaddingBottom?: number;
+  children: React.ReactNode;
+}
+```
+
+검증:
+
+* `height`와 `maxHeight`가 동시에 전달되지 않도록 개발환경 경고 또는 단순 우선순위를 적용
+* 신규 validation 라이브러리 추가 금지
+* 불필요한 Props 추가 금지
+* ScrollView 관련 Props를 공통 컴포넌트에 넣지 않음
+* 확인 버튼 관련 Props를 넣지 않음
+
+단순 우선순위를 사용한다면:
+
+```text
+height 우선
+→ height가 없을 때 maxHeight 사용
+```
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 크기와 여백 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 값을 그대로 유지하십시오.
+
+```text
+반이동: height="55%"
+보충수업: height="60%"
+적용시점: maxHeight="45%"
+```
+
+기존 공통 시트 스타일도 그대로 유지하십시오.
+
+* 상단 radius: 20
+* 배경: #FFFFFF
+* 하단 padding: 32
+* handle: 36×4
+* handle 색상: #D1D5DB
+* backdrop: rgba(0,0,0,0.4)
+
+이번 Task에서 `paddingBottom: 32`를 ScrollView의 `contentContainerStyle`로 이동하지 마십시오.
+
+이유:
+
+* 적용시점 모달에는 ScrollView가 없음
+* 반이동과 보충수업의 내부 하단 구조가 다름
+* 공통화와 무관한 레이아웃 변경이 발생할 수 있음
+
+기존 `cds.sheet`의 시각적 결과를 그대로 재현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. ClassDetailSheet 교체 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 서브모달에서 다음 껍데기만 교체하십시오.
+
+기존:
+
+```text
+Modal
+→ backdrop Pressable
+→ sheet Pressable
+→ handle
+→ header
+→ 내부 콘텐츠
+```
+
+변경:
+
+```text
+SubSheetModal
+→ 기존 내부 콘텐츠
+```
+
+유지해야 할 내부 요소:
+
+### 반이동
+
+* 미배정으로 이동 버튼
+* 반 목록 ScrollView
+* 반 선택 상태
+* 이동 확정 버튼
+* 기존 이벤트 핸들러
+* 기존 loading 처리
+
+### 보충수업
+
+* 학생 선택 단계
+* 반 선택 단계
+* 각각의 ScrollView
+* 단계 전환 상태
+* 기존 이벤트 핸들러
+
+### 적용시점
+
+* now
+* next_week
+* week_after
+* timingRow
+* 선택 처리
+* 기존 닫기 처리
+
+비즈니스 로직은 한 줄도 변경하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 스타일 제거 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+`ClassDetailSheet.tsx`에서 공통 컴포넌트로 완전히 이동한 스타일만 제거하십시오.
+
+제거 후보:
+
+* backdrop
+* sheet
+* handle
+* sheetHeader
+* sheetTitle
+* sheetSub
+* closeBtn
+
+단, 같은 스타일 키가 메인 시트나 다른 영역에서도 사용되는지 실제 검색한 후 제거하십시오.
+
+하나라도 다른 UI에서 사용 중이면 제거하지 말고 이름 충돌 없이 유지하십시오.
+
+유지:
+
+* mainSheet
+* unassignBtn
+* moveClassRow
+* confirmBtn
+* timingRow
+* 내부 콘텐츠 전용 스타일
+* 기타 메인 ClassDetailSheet 스타일
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Task #6 수정 복원
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에서 Task #6의 수정이 덮어써진 상태이므로 이번 구현에서 반드시 복원하십시오.
+
+확정 패턴:
+
+```tsx
+<View onStartShouldSetResponder={() => true}>
+```
+
+금지 패턴:
+
+```tsx
+<Pressable onPress={() => {}}>
+```
+
+검증 대상:
+
+* 반이동 ScrollView가 iOS에서 스크롤됨
+* 보충수업 학생 목록이 iOS에서 스크롤됨
+* 보충수업 반 목록이 iOS에서 스크롤됨
+* 시트 내부 버튼 터치 정상
+* 시트 바깥 backdrop 터치 시 닫힘
+* 시트 내부 터치로 모달이 닫히지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+정적 검사:
+
+* 신규 파일 TypeScript 오류 0건
+* 수정 파일 TypeScript 오류 0건
+* 미사용 import 없음
+* 제거한 StyleSheet 키 참조 없음
+* `height`·`maxHeight` 타입 오류 없음
+
+기능 검사:
+
+### 공통
+
+* 열기
+* X 버튼 닫기
+* backdrop 닫기
+* Android 뒤로가기 닫기
+* 시트 내부 터치 시 유지
+* 시트가 화면 하단에 고정
+* 기존 높이 유지
+
+### 반이동
+
+* 목록 스크롤
+* 반 선택
+* 미배정 이동
+* 이동 확정 버튼
+* 로딩 상태
+
+### 보충수업
+
+* 학생 목록 스크롤
+* 학생 선택
+* 반 목록 스크롤
+* 반 선택
+* 단계 전환
+
+### 적용시점
+
+* 세 옵션 표시
+* 각 옵션 선택
+* maxHeight 45% 유지
+* 불필요한 빈 공간 증가 없음
+
+가능하면 iOS 개발환경에서 실제 터치·스크롤을 확인하십시오.
+
+실기기 또는 시뮬레이터 확인이 불가능하면 `미실행`으로 명시하고 통과했다고 표현하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 배포 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 승인에 포함:
+
+* 코드 구현
+* 타입 검사
+* 개발환경 UI 검증
+
+아직 포함하지 않음:
+
+* Commit
+* Push
+* OTA
+* production 배포
+
+설계서에는 `Commit → Push → OTA`까지 적혀 있지만, 이번 승인에서는 먼저 구현·검증 결과를 제출하고 멈추십시오.
+
+사용자 승인 없이 자동 Commit이 발생하면 실제 Commit ID를 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+* 다른 50개 이상 모달 공통화
+* 기존 ModalSheet.tsx 수정
+* ModalSheet와 SubSheetModal 통합
+* 새 애니메이션 추가
+* PanResponder 추가
+* SafeArea 구조 변경
+* KeyboardAvoidingView 추가
+* ScrollView 공통화
+* 비즈니스 로직 변경
+* 화면 전체 디자인 변경
+* 신규 상태관리 추가
+* Task #10 선행 작업
+* Push
+* OTA
+* production 배포
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 후 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출하고 멈추십시오.
+
+1. 실제 수정 파일
+2. 실제 신규 파일
+3. git diff 원문
+4. SubSheetModal.tsx 전체 코드
+5. ClassDetailSheet의 세 교체 구간
+6. 제거한 StyleSheet 목록
+7. 유지한 StyleSheet 목록
+8. Task #6 View responder 복원 증거
+9. TypeScript 결과
+10. 각 모달 기능 테스트
+11. iOS 스크롤 테스트
+12. backdrop 터치 테스트
+13. 시트 내부 터치 테스트
+14. 기존 UI 크기 비교
+15. 다른 모달 변경 여부
+16. Commit 여부
+17. Push 여부
+18. OTA 여부
+19. Task #9 완료 가능 여부
+
+추가 작업 없이 결과만 제출하십시오.

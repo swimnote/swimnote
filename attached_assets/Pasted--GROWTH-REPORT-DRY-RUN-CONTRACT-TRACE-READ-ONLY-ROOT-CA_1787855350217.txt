@@ -1,0 +1,243 @@
+[앱]
+
+GROWTH REPORT DRY-RUN CONTRACT TRACE
+READ-ONLY ROOT CAUSE CHECK
+
+현재 상태:
+
+report_id:
+gr_13330aa20377484685e91ed62b729929
+
+dry_run:
+HTTP 200
+analysis_status=COMPLETE
+grounding_result=PASS
+growth_framing_result=PASS
+has_content=true
+has_fact_package=true
+
+하지만 APP summary:
+summary_text=""
+8 sections 모두 MISSING
+
+APPLY 금지.
+
+목표:
+ENGINE 실제 응답이 빈 것인지,
+APP maintenance dry_run summarizer가
+잘못된 key/path를 읽는 것인지 구분한다.
+
+==================================================
+1. NO PRODUCTION WRITE
+==================================================
+
+금지:
+
+- mode=apply
+- DB write
+- report 수정
+- engine 코드 수정
+- prompt 수정
+- Stage B
+- 새 report 생성
+- push
+- deploy
+
+이번 Step은 READ-ONLY trace만.
+
+==================================================
+2. ENGINE RESPONSE CONTRACT 확인
+==================================================
+
+APP의 Growth Report Engine client에서
+POST /api/v1/growth-report/analyze 응답 타입/실제 parsing 경로 확인.
+
+보고:
+
+FILE
+FUNCTION
+RESPONSE TYPE
+
+그리고 content 구조를
+코드 기준으로 정확히 적는다.
+
+예:
+
+response.content.summary_text
+
+인지
+
+response.content.sections.core_growth
+
+인지
+
+response.result.content
+
+인지
+
+실제 repository contract만 보고.
+
+추측 금지.
+
+==================================================
+3. DRY-RUN RAW SHAPE TRACE
+==================================================
+
+동일 report에 대해 dry_run을 1회만 다시 실행하거나,
+직전 response object를 재사용할 수 있으면 재사용.
+
+민감한 본문 전체를 dump하지 말고
+shape/key만 출력.
+
+반드시 보고:
+
+top_level_keys
+
+content_type
+
+content_top_level_keys
+
+content.sections 존재 여부
+
+content.sections keys
+
+summary_text 위치 후보:
+
+- content.summary_text
+- content.summary
+- content.sections.summary_text
+- response.summary_text
+- 기타 실제 위치
+
+fact_package top-level keys
+
+verified_relationships 위치
+
+중요:
+본문 텍스트 전체 출력 필요 없음.
+key/path와 값 타입/length 정도만.
+
+==================================================
+4. summarizeSections() TRACE
+==================================================
+
+maintenance endpoint의
+summarizeSections() 또는 동일 helper가
+현재 어떤 path를 읽는지 확인.
+
+현재 추정:
+
+content[key]
+
+실제 ENGINE output이:
+
+content.sections[key]
+
+라면 즉시 CONTRACT MISMATCH로 판정.
+
+summary_text도 동일하게
+현재 helper가 읽는 path와
+실제 response path 비교.
+
+==================================================
+5. 기존 정상 Growth Report consumer 비교
+==================================================
+
+현재 APP에서 기존 growth report를
+정상 저장할 때 사용하는 production parser/mapper를 찾는다.
+
+maintenance endpoint가
+별도 임시 parsing logic을 만들었다면,
+
+기존 정상 경로와 비교:
+
+NORMAL ANALYZE RESPONSE PARSER
+vs
+MAINTENANCE DRY-RUN PARSER
+
+차이 보고.
+
+가능하면 maintenance가
+정상 parser를 재사용해야 하는 구조인지 판단.
+
+이번 Step에서는 아직 수정하지 않는다.
+
+==================================================
+6. ROOT CAUSE CLASSIFICATION
+==================================================
+
+다음 중 하나로 판정:
+
+A. ENGINE_EMPTY_CONTENT
+실제 engine content 내부도 정말 비어 있음.
+
+B. APP_CONTRACT_MISMATCH
+engine에는 내용이 있는데 maintenance parser가
+잘못된 path/key를 읽음.
+
+C. ENGINE_CLIENT_MAPPING_DEFECT
+client가 engine response를 APP contract로 변환하는 단계에서 유실.
+
+D. OTHER
+정확한 차단 지점 보고.
+
+==================================================
+7. IMPORTANT
+==================================================
+
+현재 다음 사실만으로
+ENGINE 품질 실패라고 판정하지 않는다:
+
+- summary_text=""
+- maintenance summary 0/8
+
+먼저 실제 raw shape 확인 필수.
+
+또한 기존 8월 report는
+그대로 PUBLISHED 유지.
+
+==================================================
+8. AI CALL
+==================================================
+
+가능하면 직전 response 재사용.
+
+재호출이 꼭 필요하면 dry_run 1회만.
+
+apply=0.
+
+==================================================
+9. FINAL REPORT
+==================================================
+
+A. ENGINE RESPONSE TYPE
+
+B. RAW TOP LEVEL KEYS
+
+C. CONTENT SHAPE
+
+D. ACTUAL SUMMARY PATH
+
+E. ACTUAL SECTION PATH
+
+F. MAINTENANCE PARSER PATH
+
+G. NORMAL PRODUCTION PARSER PATH
+
+H. ROOT CAUSE
+
+ENGINE_EMPTY_CONTENT
+APP_CONTRACT_MISMATCH
+ENGINE_CLIENT_MAPPING_DEFECT
+OTHER
+
+I. CODE CHANGE
+0
+
+J. DB WRITE
+0
+
+K. APPLY
+0
+
+완료 후 STOP.

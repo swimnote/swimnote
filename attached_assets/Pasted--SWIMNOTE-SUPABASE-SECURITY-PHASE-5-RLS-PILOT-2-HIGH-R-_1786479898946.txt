@@ -1,0 +1,250 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 5
+RLS PILOT 2 — HIGH RISK TABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PHASE 4 RLS_PILOT_1_VERIFIED 승인.
+
+이번 단계에서는 Production SUPABASE의
+민감도 높은 서버 전용 테이블 일부만
+RLS를 추가 적용한다.
+
+POOL_DB는 아직 건드리지 않는다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Pilot 2 대상
+━━━━━━━━━━━━━━━━━━━━
+
+이번 대상 7개:
+
+1. payment_cards
+2. phone_verifications
+3. push_tokens
+4. monthly_settlements
+5. revenue_logs
+6. audit_logs
+7. backup_settings
+
+이유:
+개인/결제/인증/운영 민감정보 포함.
+모바일 앱이 Supabase Data API로 직접 접근하지 않음.
+서버는 direct postgres + rolbypassrls=true.
+
+students / users / parent_accounts / members는
+이번 단계에서 아직 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 적용 전 READ ONLY 증거
+━━━━━━━━━━━━━━━━━━━━
+
+각 테이블:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon SELECT/INSERT/UPDATE/DELETE
+- authenticated SELECT/INSERT/UPDATE/DELETE
+
+기존 policy가 하나라도 있으면
+임의 변경 금지 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. role 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+같은 Production DB session에서:
+
+current_user
+rolsuper
+rolbypassrls
+
+기대:
+
+postgres
+rolsuper=false
+rolbypassrls=true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. RLS 적용
+━━━━━━━━━━━━━━━━━━━━
+
+다음 7개에만:
+
+ALTER TABLE payment_cards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE phone_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE monthly_settlements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE revenue_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_settings ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE ROW LEVEL SECURITY 금지.
+다른 테이블 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 적용 후 READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+각 테이블:
+
+relrowsecurity = true
+
+확인.
+
+policy count=0 확인.
+
+row count 전후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Runtime regression
+━━━━━━━━━━━━━━━━━━━━
+
+Render 재배포 금지.
+
+현재 Live 서버에서:
+
+GET /api/health → 200
+
+그리고 가능한 READ ONLY route smoke:
+
+- billing 관련 조회
+- audit/recent logs 관련 조회
+- backup settings/status 관련 조회
+- push scheduler 관련 상태
+
+인증 토큰이 없으면
+로그 기반 검증으로 대체.
+
+신규 로그 검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+테이블명별 오류도 검색.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Scheduler / Worker 영향
+━━━━━━━━━━━━━━━━━━━━
+
+특히 확인:
+
+push_tokens
+backup_settings
+revenue_logs
+audit_logs
+
+관련 scheduler/job가
+direct postgres에서 정상 동작하는지 확인.
+
+신규 오류 발생 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 실패 시 rollback
+━━━━━━━━━━━━━━━━━━━━
+
+하나라도 신규 회귀가 발생하면
+이번 7개만 즉시:
+
+ALTER TABLE payment_cards DISABLE ROW LEVEL SECURITY;
+ALTER TABLE phone_verifications DISABLE ROW LEVEL SECURITY;
+ALTER TABLE push_tokens DISABLE ROW LEVEL SECURITY;
+ALTER TABLE monthly_settlements DISABLE ROW LEVEL SECURITY;
+ALTER TABLE revenue_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_settings DISABLE ROW LEVEL SECURITY;
+
+rollback 후 runtime 재확인.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 기존 Pilot 1 유지 확인
+━━━━━━━━━━━━━━━━━━━━
+
+기존 5개:
+
+global_template_sets
+curriculum_requests
+curriculum_versions
+curriculum_items
+feature_flags
+
+RLS=true 유지 확인.
+
+변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 상태 기록
+━━━━━━━━━━━━━━━━━━━━
+
+보고서 마지막에:
+
+PILOT 1:
+5 tables RLS=true
+
+PILOT 2:
+7 tables RLS=true/rollback
+
+TOTAL RLS ENABLED:
+기존 diary_template_levels 포함 실제 count 제출
+
+그리고 Production 전체 테이블 수 대비
+remaining count 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+11. Security Advisor
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 Dashboard 확인.
+
+불가하면:
+MANUAL_CHECK_REQUIRED
+
+로 표시.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB source
+2. 대상 7개 pre-state
+3. policy count
+4. role/bypass 확인
+5. 실행 SQL
+6. post-state
+7. row count 변화
+8. /api/health
+9. Render 신규 오류
+10. scheduler/worker 영향
+11. rollback 여부
+12. Pilot 1 유지 여부
+13. 총 RLS enabled count
+14. remaining RLS-disabled count
+15. Security Advisor 상태
+16. 최종 판정
+
+FINAL STATUS:
+
+RLS_PILOT_2_VERIFIED
+
+또는
+
+RLS_PILOT_2_ROLLED_BACK
+
+STOP.
+
+students/users/parent_accounts/members는
+아직 적용 금지.
+POOL_DB RLS 적용 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

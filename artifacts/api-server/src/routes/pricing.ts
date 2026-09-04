@@ -29,7 +29,7 @@ router.get("/pricing", requireAuth, requireRole("pool_admin", "teacher", "super_
       const userPoolId = await getPoolId(userId!);
       if (userPoolId && userPoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
     }
-    const rows = await db.execute(sql`
+    const rows = await superAdminDb.execute(sql`
       SELECT * FROM pool_class_pricing WHERE pool_id = ${pool_id} ORDER BY 
         CASE type_key WHEN 'weekly_1' THEN 1 WHEN 'weekly_2' THEN 2 WHEN 'weekly_3' THEN 3 WHEN 'custom_1' THEN 4 WHEN 'custom_2' THEN 5 ELSE 6 END
     `);
@@ -53,7 +53,7 @@ router.put("/pricing/:poolId", requireAuth, requireRole("pool_admin", "super_adm
     if (!Array.isArray(items)) return err(res, 400, "items 배열이 필요합니다.");
 
     for (const item of items) {
-      await db.execute(sql`
+      await superAdminDb.execute(sql`
         INSERT INTO pool_class_pricing (id, pool_id, type_key, type_name, monthly_fee, sessions_per_month, is_active, updated_at)
         VALUES (gen_random_uuid()::text, ${poolId}, ${item.type_key}, ${item.type_name}, ${item.monthly_fee || 0}, ${item.sessions_per_month || 4}, ${item.is_active !== false}, now())
         ON CONFLICT (pool_id, type_key) DO UPDATE SET
@@ -65,7 +65,7 @@ router.put("/pricing/:poolId", requireAuth, requireRole("pool_admin", "super_adm
       `);
     }
 
-    const rows = await db.execute(sql`SELECT * FROM pool_class_pricing WHERE pool_id = ${poolId} ORDER BY type_key`);
+    const rows = await superAdminDb.execute(sql`SELECT * FROM pool_class_pricing WHERE pool_id = ${poolId} ORDER BY type_key`);
     return res.json({ success: true, pricing: rows.rows });
   } catch (e: any) {
     return err(res, 500, e.message);

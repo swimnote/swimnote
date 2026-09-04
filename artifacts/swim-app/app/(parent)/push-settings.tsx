@@ -1,7 +1,6 @@
 /**
  * (parent)/push-settings.tsx — 학부모 푸시 알림 설정
  */
-import { Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -9,23 +8,18 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 
-const C = {
-  background: "#FFFFFF",
-  card: "#FFFFFF",
-  border: "#E5E7EB",
-  text: "#1A1A1A",
-  textMuted: "#8A8A8A",
-  primary: "#2EC4B6",
-};
+const C = Colors.light;
 
 interface PushSettings {
   notice: boolean;
   class_reminder: boolean;
   diary_upload: boolean;
   photo_upload: boolean;
+  news: boolean;
 }
 
 const DEFAULT: PushSettings = {
@@ -33,13 +27,15 @@ const DEFAULT: PushSettings = {
   class_reminder: true,
   diary_upload: true,
   photo_upload: true,
+  news: true,
 };
 
 const ITEMS: { key: keyof PushSettings; label: string; desc: string; icon: string }[] = [
-  { key: "notice",        label: "공지사항 알림",    desc: "수영장 공지가 등록되면 알림",       icon: "bell" },
-  { key: "class_reminder",label: "수업 일정 알림",   desc: "전날/당일 수업 전 리마인더 알림",   icon: "calendar" },
-  { key: "diary_upload",  label: "수업 일지 알림",   desc: "선생님이 일지를 작성하면 알림",     icon: "book-open" },
-  { key: "photo_upload",  label: "사진 업로드 알림", desc: "새 사진이 업로드되면 알림",         icon: "camera" },
+  { key: "notice",        label: "공지사항 알림",    desc: "수영장 공지가 등록되면 알림",           icon: "bell" },
+  { key: "class_reminder",label: "수업 일정 알림",   desc: "전날/당일 수업 전 리마인더 알림",       icon: "calendar" },
+  { key: "diary_upload",  label: "수업 일지 알림",   desc: "선생님이 일지를 작성하면 알림",         icon: "book-open" },
+  { key: "photo_upload",  label: "사진 업로드 알림", desc: "새 사진이 업로드되면 알림",             icon: "camera" },
+  { key: "news",          label: "소식 알림",        desc: "선생님의 업무대화 메시지가 도착하면 알림", icon: "message-circle" },
 ];
 
 export default function ParentPushSettingsScreen() {
@@ -94,7 +90,7 @@ export default function ParentPushSettingsScreen() {
           <View style={s.card}>
             {ITEMS.map((item, idx) => (
               <View key={item.key} style={[s.row, idx > 0 && { borderTopWidth: 1, borderTopColor: C.border }]}>
-                <View style={[s.iconBox, { backgroundColor: themeColor + "15" }]}>
+                <View style={s.iconBox}>
                   <LucideIcon name={item.icon as any} size={16} color={themeColor} />
                 </View>
                 <View style={s.textBox}>
@@ -113,7 +109,7 @@ export default function ParentPushSettingsScreen() {
           </View>
 
           <View style={s.infoBox}>
-            <Info size={13} color={C.textMuted} />
+            <LucideIcon name="info" size={13} color={C.textMuted} />
             <Text style={s.infoText}>
               알림을 완전히 끄려면 기기의 알림 설정에서도 꺼주세요.
             </Text>

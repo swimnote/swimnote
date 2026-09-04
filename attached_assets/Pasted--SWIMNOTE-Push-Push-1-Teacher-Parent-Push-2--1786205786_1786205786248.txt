@@ -1,0 +1,330 @@
+[SWIMNOTE 양방향 업무대화 Push 단순화 + 소식 Push 설정 추가]
+
+이번 작업 목표:
+
+1. Teacher → Parent 업무대화 새 메시지 Push
+2. Parent → Teacher 업무대화 새 메시지 Push
+3. Push 본문은 내용 노출 없이 짧은 "새 소식" 문구로 통일
+4. Parent/Teacher 양쪽 푸시 설정에 "소식" ON/OFF 추가
+5. 기존 빨간점/대화 기록/업무 상태는 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Push 문구 최종 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher → Parent:
+
+title:
+"새로운 소식이 도착했습니다"
+
+body:
+"선생님에게서 새로운 소식이 도착했습니다."
+
+Parent → Teacher:
+
+title:
+"새로운 소식이 도착했습니다"
+
+body:
+"학부모에게서 새로운 소식이 도착했습니다."
+
+중요:
+
+Push에 다음 내용 노출 금지:
+
+- 실제 대화 내용
+- 학생 이름
+- 학부모 이름
+- 선생님 이름
+- 결석/보강/상담의 상세 내용
+
+잠금화면에서 개인정보/업무내용이 노출되지 않도록
+Push는 단순 도착 알림만 제공한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 내용은 앱 안에서만
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Push tap
+↓
+해당 request/thread
+↓
+업무대화 Modal
+
+에서 실제 내용을 확인한다.
+
+기존 ref_type=request
+ref_id=requestId
+navigation 구조를 재사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Teacher → Parent Push
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST /parent-requests/:requestId/messages
+
+sender = teacher일 때:
+
+message INSERT
+↓
+notification DB INSERT
+↓
+Parent Push 설정 확인
+↓
+ON이면 Push 1회
+↓
+OFF면 Push 생략
+
+notification DB 기록과
+업무대화 메시지 저장은 Push OFF와 무관하게 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Parent → Teacher Push
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+sender = parent일 때:
+
+message INSERT
+↓
+Teacher unread 증가
+↓
+Teacher Push 설정 확인
+↓
+ON이면 Push 1회
+↓
+OFF면 Push 생략
+
+기존 Home 빨간점/unread는 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 소식 Push 설정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Parent Mode:
+
+설정
+→ 푸시 알림 설정
+→ [소식] ON/OFF
+
+Teacher Mode:
+
+설정
+→ 푸시 알림 설정
+→ [소식] ON/OFF
+
+둘 다 추가.
+
+기존 설정 화면/API/DB 구조가 있으면 반드시 재사용.
+
+새 설정 시스템을 별도로 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 기본값
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+신규/기존 사용자 기본값:
+
+소식 Push = ON
+
+기존 사용자에게 preference row가 없으면
+ON으로 해석.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. OFF의 정확한 의미
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+"소식 OFF"는 Push만 끈다.
+
+OFF여도 유지:
+
+- 업무대화 메시지 저장
+- notification DB 기록
+- 앱 내부 빨간점/unread
+- 알림함/업무대화 기록
+- Parent/Teacher thread
+
+즉:
+
+Push OFF
+≠
+앱 내부 소식 숨김
+
+이 원칙으로 구현.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 기존 다른 Push와 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+소식 Push OFF가 다음까지 꺼버리면 안 된다:
+
+- 공지
+- 출결 관련 중요 Push
+- 학부모 요청 처리 결과
+- 결제/시스템 중요 알림
+- 기타 기존 Push
+
+소식 Push는 업무대화/소식성 이벤트 전용 설정.
+
+기존 전체 Push OFF 스위치가 있다면
+전체 OFF가 최상위.
+
+전체 ON 상태에서 개별 "소식" 설정 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 알림 타입
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 업무대화 notification type을 확인하고 재사용.
+
+예:
+
+parent_request_reply
+
+Teacher/Parent 방향을 payload 또는 sender role로 구분 가능하면 재사용.
+
+불필요하게 여러 notification type을 새로 만들지 않는다.
+
+하지만 Push preference 판단에
+명확한 category가 필요하면 현재 naming convention에 맞춰:
+
+category = news
+또는
+push_category = news
+
+같은 기존 구조를 우선 사용.
+
+DB schema 변경은 최소화.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 중복 Push 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+메시지 POST 1건
+→ Push 최대 1건.
+
+Polling GET
+→ Push 없음.
+
+Thread open/read
+→ Push 없음.
+
+같은 메시지 재조회
+→ Push 없음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Parent/Teacher 설정 저장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+설정 ON/OFF는 재실행 후에도 유지.
+
+반드시 서버 저장 또는 기존 persistent preference 구조 사용.
+
+로컬 state만으로 끝내지 않는다.
+
+다중 기기 사용 시에도 가능한 현재 설정 정책을 따른다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 CASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+Teacher → Parent 메시지
+Parent 소식 ON
+→ Push:
+"새로운 소식이 도착했습니다"
+"선생님에게서 새로운 소식이 도착했습니다."
+
+CASE 2
+Teacher → Parent 메시지
+Parent 소식 OFF
+→ Push 없음
+→ 앱 빨간점은 있음
+→ thread 메시지는 있음
+
+CASE 3
+Parent → Teacher 메시지
+Teacher 소식 ON
+→ Push:
+"새로운 소식이 도착했습니다"
+"학부모에게서 새로운 소식이 도착했습니다."
+
+CASE 4
+Parent → Teacher 메시지
+Teacher 소식 OFF
+→ Push 없음
+→ 홈 빨간점은 있음
+→ thread 메시지는 있음
+
+CASE 5
+Push에 실제 메시지 본문 없음
+
+CASE 6
+Push에 학생/학부모 개인정보 없음
+
+CASE 7
+Push tap → 해당 업무대화 진입
+
+CASE 8
+설정 재실행 후 유지
+
+CASE 9
+소식 OFF여도 다른 중요 Push 정상
+
+CASE 10
+일반 알림/쪽지/공지 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 금지:
+
+업무대화 메시지 저장 구조
+대화 polling
+빨간점 구조
+Teacher Visibility
+done/rejected
+업무처리 navigation
+보강
+출결
+일지
+AI
+사진
+Auth/JWT/API_BASE
+
+Push preference와 문구만 최소 확장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 구현 및 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 Parent/Teacher 푸시 설정 실제 구조 확인
+2. 업무대화 Push 현재 호출 위치 확인
+3. 양방향 Push 문구 단순화
+4. Parent "소식" setting 추가
+5. Teacher "소식" setting 추가
+6. 서버 preference 검사 연결
+7. TypeCheck
+8. Diff Gate
+9. Commit
+10. Push
+11. 서버 변경 시 Render Production
+12. Health 200
+13. 앱 변경 시 Production OTA iOS + Android
+14. Preview 금지
+
+최종 보고:
+
+- 기존 Push 설정 구조
+- Parent 소식 preference
+- Teacher 소식 preference
+- 기본값
+- Teacher→Parent Push 문구
+- Parent→Teacher Push 문구
+- OFF 시 서버 판단
+- 앱 내부 빨간점 유지 확인
+- 수정 파일
+- CASE 1~10
+- Commit SHA
+- Render Live SHA
+- OTA IDs

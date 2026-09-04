@@ -1,7 +1,6 @@
 /**
  * 계정별 사용량 — 선생님 리스트 + 사용량
  */
-import { ChevronRight, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -34,12 +33,12 @@ interface StaffStorage {
 interface AdminStorage { quota_bytes: number; staff: StaffStorage[]; [k: string]: any; }
 
 const CAT_ITEMS = [
-  { key: "photo_bytes",     icon: "image"          as const, bg: "#E6FAF8", color: "#EA580C", label: "사진"    },
-  { key: "video_bytes",     icon: "video"          as const, bg: "#E6FAF8", color: "#7C3AED", label: "영상"    },
-  { key: "messenger_bytes", icon: "message-square" as const, bg: "#E6FAF8", color: "#7C3AED", label: "메신저"  },
-  { key: "diary_bytes",     icon: "book-open"      as const, bg: "#E6FAF8", color: "#16A34A", label: "수업기록" },
-  { key: "notice_bytes",    icon: "bell"           as const, bg: "#E6FAF8", color: "#F59E0B", label: "공지"    },
-  { key: "system_bytes",    icon: "cpu"            as const, bg: "#E6FAF8", color: "#0369A1", label: "시스템"  },
+  { key: "photo_bytes",     icon: "image"          as const, bg: C.brandSoft, color: "#EA580C", label: "사진"    },
+  { key: "video_bytes",     icon: "video"          as const, bg: C.brandSoft, color: "#7C3AED", label: "영상"    },
+  { key: "messenger_bytes", icon: "message-square" as const, bg: C.brandSoft, color: "#7C3AED", label: "메신저"  },
+  { key: "diary_bytes",     icon: "book-open"      as const, bg: C.brandSoft, color: "#16A34A", label: "수업기록" },
+  { key: "notice_bytes",    icon: "bell"           as const, bg: C.brandSoft, color: "#F59E0B", label: "공지"    },
+  { key: "system_bytes",    icon: "cpu"            as const, bg: C.brandSoft, color: "#0369A1", label: "시스템"  },
 ];
 
 export default function DataStorageByAccountScreen() {
@@ -77,7 +76,7 @@ export default function DataStorageByAccountScreen() {
         >
           {staff.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
-              <Users size={40} color={C.textMuted} />
+              <LucideIcon name="users" size={40} color={C.textMuted} />
               <Text style={{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textMuted }}>계정 정보가 없습니다</Text>
             </View>
           ) : (
@@ -107,7 +106,7 @@ export default function DataStorageByAccountScreen() {
                       </View>
                       <Text style={s.pctText}>전체 대비 {pct.toFixed(1)}%</Text>
                     </View>
-                    <ChevronRight size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
+                    <LucideIcon name="chevron-right" size={14} color={C.textMuted} style={{ marginLeft: 8 }} />
                   </Pressable>
                 );
               })}
@@ -117,7 +116,7 @@ export default function DataStorageByAccountScreen() {
       )}
 
       {/* 상세 모달 */}
-      <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+      <Modal visible={!!selected} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setSelected(null)}>
         <Pressable style={sm.overlay} onPress={() => setSelected(null)}>
           <Pressable style={sm.sheet} onPress={e => e.stopPropagation()}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -126,7 +125,7 @@ export default function DataStorageByAccountScreen() {
                 <Text style={sm.sub}>{selected?.role === "pool_admin" ? "대표" : selected?.role === "sub_admin" ? "관리자" : "선생님"} · 저장공간 상세</Text>
               </View>
               <Pressable onPress={() => setSelected(null)} hitSlop={8}>
-                <X size={22} color={C.text} />
+                <LucideIcon name="x" size={22} color={C.text} />
               </Pressable>
             </View>
             <View style={{ gap: 10 }}>
@@ -157,12 +156,12 @@ export default function DataStorageByAccountScreen() {
 const sm = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 },
   sheet:       { backgroundColor: "#fff", borderRadius: 24, padding: 24, width: "100%", gap: 12 },
-  title:       { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 4 },
+  title:       { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 4 },
   catIcon:     { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   total:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, marginTop: 4 },
   closeBtn:    { marginTop: 4, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  closeBtnText:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const s = StyleSheet.create({
@@ -171,9 +170,9 @@ const s = StyleSheet.create({
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   avatar:       { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarText:   { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  bytes:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  miniGaugeWrap:{ height: 5, backgroundColor: "#E5E7EB", borderRadius: 3, overflow: "hidden" },
+  name:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  bytes:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  miniGaugeWrap:{ height: 5, backgroundColor: C.border, borderRadius: 3, overflow: "hidden" },
   miniGaugeBar: { height: 5, borderRadius: 3 },
-  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  pctText:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

@@ -1,0 +1,378 @@
+[SWIMNOTE DESIGN CORRECTION]
+[A1-3 — NAVY BRAND COLOR RESTORATION AUDIT + FIX]
+
+문제:
+
+현재 SWIMNOTE 전체 디자인에서
+사용자가 의도한 "NAVY 중심"이 아니라
+BLACK / CHARCOAL / TOO-DARK NAVY가 과도하게 사용되어
+앱이 검정색 위주의 무거운 화면처럼 보인다.
+
+이것은 디자인 방향과 다르다.
+
+SWIMNOTE는:
+
+BLACK THEME가 아니다.
+DARK THEME가 아니다.
+CHARCOAL THEME가 아니다.
+
+기본 브랜드 인상은
+깨끗하고 밝은 화면 + 고급스러운 NAVY 중심이다.
+
+==================================================
+1. FINAL BRAND RULE
+==================================================
+
+SWIMNOTE 기본:
+
+Primary Navy:
+#0F2742
+
+Strong Navy:
+#0B1F33
+
+Text Navy:
+#14283D
+
+Secondary Text:
+#64748B
+
+Background:
+#F7F9FB
+
+Surface:
+#FFFFFF
+
+Surface Secondary:
+#F1F4F7
+
+Divider:
+#E6EAF0
+
+Mint Accent:
+#2EC4B6
+
+중요:
+
+#000000
+#111111
+#171717
+#111827
+#0F172A
+
+등이 화면의 넓은 면적/버튼/헤더/텍스트에
+무분별하게 사용되고 있으면 전수 재검토한다.
+
+#0F172A는 완전히 금지하는 것이 아니라,
+현재 브랜드 네이비보다 검정에 가깝게 보이는 위치에서는
+새 Navy token으로 교체한다.
+
+==================================================
+2. PRIMARY CTA COLOR
+==================================================
+
+Primary CTA도 검정처럼 보여서는 안 된다.
+
+현재:
+#0F172A
+
+를 전역 Primary CTA로 사용 중이라면
+
+새 canonical Primary Navy:
+#0F2742
+
+로 변경 검토.
+
+버튼은:
+
+background #0F2742
+text #FFFFFF
+
+pressed:
+#0B1F33
+
+로 통일.
+
+==================================================
+3. TEXT COLOR
+==================================================
+
+모든 주요 제목/본문을
+검정색으로 만들지 않는다.
+
+Primary text:
+#14283D
+
+강조 title:
+#0F2742
+
+Secondary:
+#64748B
+
+Tertiary:
+#94A3B8
+
+실제 black #000 사용은
+특별한 이유가 없으면 제거.
+
+==================================================
+4. HEADER / NAVIGATION
+==================================================
+
+header/nav에서
+검정 또는 charcoal fill이 넓게 사용되는지 조사.
+
+기본은:
+
+White / Off-white surface
++
+Navy text/icon
+
+이어야 한다.
+
+전체 header를 검정 배경으로 칠하는 방향 금지.
+
+==================================================
+5. BUTTON AUDIT
+==================================================
+
+전체 버튼 중:
+
+#000000
+#111111
+#111827
+#0F172A
+기타 charcoal/dark gray
+
+사용처를 전수 조사.
+
+각 버튼을:
+
+PRIMARY_NAVY
+SECONDARY
+DESTRUCTIVE
+STATUS
+INVALID_DARK_FILL
+
+로 분류.
+
+INVALID_DARK_FILL은
+#0F2742 기반으로 정리.
+
+==================================================
+6. TEXT AUDIT
+==================================================
+
+전체 text color hardcode 전수 검색:
+
+#000
+#000000
+#111
+#111111
+#171717
+#111827
+#0F172A
+black
+
+각 사용처를:
+
+- brand navy로 교체
+- semantic dark 유지
+- system default
+- 제거
+
+로 분류.
+
+특히:
+title
+section header
+menu label
+button label
+tab label
+
+우선 처리.
+
+==================================================
+7. SURFACE RULE
+==================================================
+
+"묵직함"을 dark surface로 만들지 않는다.
+
+기본:
+
+배경 밝게
+카드 white
+divider subtle
+텍스트 Navy
+CTA Navy
+
+로 구성.
+
+Dark surface는
+정말 특별한 hero/preview 같은
+명확한 이유가 있을 때만 사용.
+
+==================================================
+8. NORMAL SWIMNOTE
+==================================================
+
+Normal SWIMNOTE 최종 인상:
+
+Bright
+Clean
+Navy dominant
+Mint accent
+Low saturation
+Calm
+Professional
+
+이어야 한다.
+
+"검정 앱"처럼 보이면 실패.
+
+==================================================
+9. SWIMNOTE X
+==================================================
+
+X도 동일한 밝은 기반 유지.
+
+Normal:
+Navy + Mint Accent
+
+X:
+Navy + Steel Blue Accent
+
+X에서도 Black/Charcoal theme 금지.
+
+==================================================
+10. DO NOT OVER-CORRECT
+==================================================
+
+이번 작업 때문에
+앱을 밝은 파란색 앱으로 만들지 않는다.
+
+Cyan/bright blue 남용 금지.
+
+목표는:
+
+BLACK → NAVY
+
+보정이지
+
+NAVY → BRIGHT BLUE
+
+가 아니다.
+
+==================================================
+11. AUDIT + FIX SCOPE
+==================================================
+
+전수 조사 대상:
+
+- Login
+- Signup
+- Onboarding
+- Admin
+- Teacher
+- Parent
+- Super Admin
+- Settings
+- Scheduler
+- Member
+- Diary
+- Album
+- Notifications
+- X
+- Modal
+- Bottom Sheet
+- Buttons
+- Tabs
+- Headers
+- Empty States
+
+==================================================
+12. GLOBAL TOKENS FIRST
+==================================================
+
+theme/colors.ts에서
+현재 dark 관련 token 구조를 먼저 정리.
+
+가능한 canonical token:
+
+primaryAction = #0F2742
+primaryActionPressed = #0B1F33
+
+textPrimary = #14283D
+textStrong = #0F2742
+
+background = #F7F9FB
+surface = #FFFFFF
+surfaceSecondary = #F1F4F7
+
+기존 token을 안전하게 재사용/변경할 수 있으면
+중복 token 생성 금지.
+
+==================================================
+13. REGRESSION SAFETY
+==================================================
+
+색상/UI만 수정.
+
+금지:
+
+API
+DB
+Navigation
+Business logic
+AI
+X mode
+Auth
+Scheduler logic
+Diary logic
+
+==================================================
+14. VALIDATION
+==================================================
+
+검증 기준:
+
+1. 첫 화면이 검정 앱처럼 보이지 않음
+2. Primary CTA가 명확한 Navy로 보임
+3. 제목/본문이 검정 대신 Navy 계열
+4. White/Off-white surface 유지
+5. Mint는 accent 역할
+6. X는 Steel Blue accent
+7. random black/charcoal fill 없음
+8. random bright blue 없음
+9. text contrast 충분
+10. 기존 기능 변화 없음
+
+==================================================
+15. FINAL REPORT
+==================================================
+
+보고:
+
+1. BLACK/DARK COLOR INVENTORY
+2. PRIMARY CTA BEFORE/AFTER
+3. TEXT COLOR BEFORE/AFTER
+4. GLOBAL TOKEN CHANGES
+5. NORMAL SWIMNOTE RESULT
+6. X RESULT
+7. SUPER ADMIN RESULT
+8. MODIFIED FILES
+9. HARD-CODED BLACK REMOVED COUNT
+10. DARK FILL REMOVED COUNT
+11. BUSINESS LOGIC CHANGED?
+12. NATIVE CHANGE?
+13. TEST RESULT
+14. COMMIT SHA
+15. OTA
+
+성공:
+
+A1_3_NAVY_BRAND_COLOR_RESTORATION_COMPLETE ✅
+
+중요:
+이번 작업 후에도
+A6 실기기 검증은 다시 필요하다.

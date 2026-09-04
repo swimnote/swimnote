@@ -1,0 +1,368 @@
+[P0-CS08-STALE-HUMAN-DEVICE-FAIL — ACTUAL CASE STATE FORENSIC]
+
+실제 production iPhone에서 stale human UI defect 재현됨.
+
+실제 화면 확인:
+
+1. "스윔노트 x에 대해 알려줘"
+   → 정상 답변 표시
+
+2. "커리큘럼 검색에대해 알려줘"
+   → 정상 답변 표시
+
+하지만 현재 화면에는 계속:
+
+- header: "상담사 연결 대기"
+- legacy ack:
+  "문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+- human card:
+  "상담사에게 문의하기"
+  "상담사가 확인 중입니다. 잠시 기다려주세요."
+
+가 표시됨.
+
+따라서:
+
+WP_CS08_STALE_HUMAN_DEVICE_VERIFIED = FAIL
+
+신규 기능 개발 금지.
+추측 수정 금지.
+
+==================================================
+1. FIND ACTUAL LATEST CASE
+==================================================
+
+방금 실제 parent_account production 요청 기준으로
+가장 최근 Support case/request를 찾는다.
+
+KST 기준으로 보고.
+
+CASE_ID =
+LATEST_REQUEST_ID =
+LATEST_REQUEST_AT_KST =
+
+==================================================
+2. ACTUAL CASE STATE — MOST IMPORTANT
+==================================================
+
+production Supabase에서 방금 case 직접 조회.
+
+보고:
+
+CASE_STATE =
+TICKET_ID =
+ESCALATION_REASON =
+
+그리고 최근 성공 답변 전후 trace에서:
+
+STATE_BEFORE =
+AI_PROCESSING_TRANSITION =
+STATE_AFTER =
+
+실제 DB/trace 값만.
+
+==================================================
+3. CLASSIFY THE DEFECT
+==================================================
+
+정확히 둘 중 하나로 분류.
+
+CASE A:
+
+STATE_AFTER = HUMAN_REQUIRED
+
+→ SERVER_STATE_TRANSITION_DEFECT
+
+CASE B:
+
+STATE_AFTER = AI_RESPONDED
+또는 non-human state
+
+→ MOBILE_STALE_PRESENTATION_DEFECT
+
+추측 금지.
+
+==================================================
+4. ACTUAL SUCCESS RESPONSE TRACE
+==================================================
+
+가장 최근 정상 답변 request 기준:
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+REQUIRES_HUMAN =
+
+AI_MESSAGE_INSERT =
+FINAL_STATE_START =
+FINAL_STATE_OK =
+HTTP_STATUS =
+
+확인.
+
+==================================================
+5. IF SERVER STATE DEFECT
+==================================================
+
+STATE_AFTER = HUMAN_REQUIRED인 경우만 조사.
+
+현재 구현:
+
+isAutoHumanRequired
+→ HUMAN_REQUIRED → AI_PROCESSING
+→ answer
+→ AI_RESPONDED
+
+왜 실제 production에서는
+AI_RESPONDED가 되지 않았는지 확인.
+
+특히:
+
+transitionSupportCase(
+  HUMAN_REQUIRED,
+  AI_PROCESSING
+)
+
+성공 여부.
+
+그 다음:
+
+AI_PROCESSING,
+AI_RESPONDED
+
+성공 여부.
+
+실제 transition failure reason을 trace/log에서 확인.
+
+silent catch 있으면 실제 error를 surface.
+
+==================================================
+6. IF MOBILE STATE DEFECT
+==================================================
+
+STATE_AFTER가 AI_RESPONDED인데
+화면이 HUMAN_REQUIRED라면:
+
+SupportChatScreen 실제 state flow 확인.
+
+방금 POST 성공 후:
+
+fetchCaseDetail()
+→ response.state
+→ setActiveCase
+→ master state normalization
+→ isHuman
+→ showHumanCta
+
+실제 값 흐름 감사.
+
+보고:
+
+SERVER_CASE_STATE =
+FETCHED_CASE_STATE =
+NORMALIZED_CASE_STATE =
+IS_HUMAN =
+SHOW_HUMAN_CTA =
+
+==================================================
+7. HEADER CONDITION
+==================================================
+
+현재 header subtitle:
+
+"상담사 연결 대기"
+
+표시 source 정확히 확인.
+
+보고:
+
+HEADER_STATE_SOURCE =
+HEADER_RAW_VALUE =
+
+현재 state가 AI_RESPONDED인데
+과거 local state 때문에 남는다면 defect.
+
+==================================================
+8. LEGACY ACK CONDITION
+==================================================
+
+실제 화면에서 legacy ack가 여전히 보임.
+
+현재 조건을 실제 코드로 확인:
+
+LEGACY_ACK_CONDITION =
+
+왜 정상 answer가 존재하는데도
+표시되는지 확인.
+
+중요:
+
+"system message 없음"만으로 표시한다면
+현재 설계가 잘못된 것.
+
+현재 human escalation이 active일 때만
+표시돼야 함.
+
+==================================================
+9. HUMAN CARD CONDITION
+==================================================
+
+현재:
+
+"상담사에게 문의하기"
+"상담사가 확인 중입니다"
+
+카드 표시 조건 확인.
+
+보고:
+
+HUMAN_CARD_CONDITION =
+HUMAN_WAITING_CONDITION =
+
+과거 HUMAN_REQUIRED message/history 존재 여부가
+현재 state처럼 사용되고 있는지 확인.
+
+==================================================
+10. HISTORY VS CURRENT STATE
+==================================================
+
+과거 NO_MATCH/HUMAN_REQUIRED 메시지는
+삭제하지 않는다.
+
+하지만 UI current state는
+가장 최근 case state를 사용해야 한다.
+
+금지:
+
+history에 human-required 응답이 하나라도 있으면
+영구 human UI 표시.
+
+==================================================
+11. MINIMAL FIX ONLY
+==================================================
+
+ROOT CAUSE 확정 후 하나만 수정.
+
+A. 서버 transition 문제면 server fix.
+
+B. case state는 정상인데 UI stale이면
+   SupportChatScreen current-state condition만 수정.
+
+둘 다 동시에 추측 수정 금지.
+
+==================================================
+12. TEST MATRIX
+==================================================
+
+SHF-01
+auto HUMAN_REQUIRED → next successful response
+
+SHF-02
+actual final state = AI_RESPONDED
+
+SHF-03
+header human waiting hidden
+
+SHF-04
+legacy ack hidden
+
+SHF-05
+human card hidden
+
+SHF-06
+old NO_MATCH message preserved
+
+SHF-07
+explicit USER_REQUESTED_HUMAN remains human
+
+SHF-08
+ticket case remains human
+
+SHF-09
+parent_account
+
+SHF-10
+teacher
+
+SHF-11
+pool_admin
+
+SHF-12
+full regression
+
+==================================================
+13. DEPLOYMENT
+==================================================
+
+Server-only fix:
+Render exact commit LIVE 확인.
+
+Mobile fix:
+iOS production OTA only.
+
+Preview 금지.
+Android OTA = NO.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+CASE_ID =
+LATEST_REQUEST_ID =
+LATEST_REQUEST_AT_KST =
+
+CASE_STATE =
+TICKET_ID =
+ESCALATION_REASON =
+
+STATE_BEFORE =
+AI_PROCESSING_TRANSITION =
+STATE_AFTER =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+REQUIRES_HUMAN =
+
+DEFECT_CLASS =
+  SERVER_STATE_TRANSITION_DEFECT
+  or
+  MOBILE_STALE_PRESENTATION_DEFECT
+
+SERVER_CASE_STATE =
+FETCHED_CASE_STATE =
+NORMALIZED_CASE_STATE =
+IS_HUMAN =
+SHOW_HUMAN_CTA =
+
+HEADER_STATE_SOURCE =
+LEGACY_ACK_CONDITION =
+HUMAN_CARD_CONDITION =
+
+ROOT_CAUSE =
+ROOT_CAUSE_CONFIDENCE = OBSERVED
+
+SERVER_FIX =
+MOBILE_FIX =
+
+FILES_CHANGED =
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_PRODUCTION_OTA =
+IOS_OTA_BRANCH =
+IOS_OTA_RUNTIME =
+ANDROID_OTA = NO
+
+사용자 실기기 확인 전에는:
+
+STALE_UI_FIXED = NOT_USER_VERIFIED
+
+완료 가능한 중간 문구:
+
+P0_CS08_STALE_HUMAN_ROOT_CAUSE_FIXED ✅
+AWAITING_USER_DEVICE_VERIFICATION

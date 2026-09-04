@@ -1,4 +1,4 @@
-import { ExternalLink, RotateCcw } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -9,9 +9,9 @@ const C = Colors.light;
 
 const MAKEUP_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   waiting:     { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  assigned:    { label: "배정",   color: "#2EC4B6", bg: "#E6FFFA" },
+  assigned:    { label: "배정",   color: C.brandStrong, bg: C.brandSoft },
   transferred: { label: "이동",   color: "#7C3AED", bg: "#EEDDF5" },
-  completed:   { label: "완료",   color: "#2EC4B6", bg: "#E6FFFA" },
+  completed:   { label: "완료",   color: C.brandStrong, bg: C.brandSoft },
   cancelled:   { label: "취소",   color: "#64748B", bg: "#FFFFFF" },
 };
 
@@ -27,7 +27,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
         <Text style={ms.sectionTitle}>보강 이력 ({makeups.length}건)</Text>
         {makeups.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 30 }}>
-            <RotateCcw size={36} color={C.textMuted} />
+            <LucideIcon name="rotate-ccw" size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, color: C.textMuted, marginTop: 10 }}>보강 기록이 없습니다</Text>
           </View>
         ) : makeups.map((mk: any) => {
@@ -46,7 +46,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
                   <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>배정반: {mk.assigned_class_group_name}</Text>
                 )}
                 {mk.is_substitute && mk.substitute_teacher_name && (
-                  <Text style={{ fontSize: 12, color: "#2EC4B6", marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
+                  <Text style={{ fontSize: 12, color: C.brandStrong, marginTop: 2, fontWeight: "600" }}>대리보강: {mk.substitute_teacher_name}</Text>
                 )}
                 {mk.transferred_to_teacher_name && (
                   <Text style={{ fontSize: 12, color: "#7C3AED", marginTop: 1 }}>이동→ {mk.transferred_to_teacher_name}</Text>
@@ -62,7 +62,7 @@ export function MemberMakeupTab({ makeups, themeColor }: MemberMakeupTabProps) {
           style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, justifyContent: "center" }}
           onPress={() => router.push("/(admin)/makeups")}
         >
-          <ExternalLink size={14} color={themeColor} />
+          <LucideIcon name="external-link" size={14} color={themeColor} />
           <Text style={{ fontSize: 13, color: themeColor, fontWeight: "600" }}>보강 관리 화면으로 이동</Text>
         </Pressable>
       </View>

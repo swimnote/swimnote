@@ -1,0 +1,143 @@
+[앱] KF-WORKER REMOTE-MAIN SOURCE CHECK
+
+목적:
+Render swimnote-kf-worker가 현재 GitHub main 브랜치를 사용하고 있으므로,
+현재 deploy-photo-clone workspace가 아니라
+origin/main에 KF V2 worker source가 존재하는지 read-only로 확인한다.
+
+현재 확인된 Render 정보:
+- service: swimnote-kf-worker
+- repo: swimnote-group/swimnote-project
+- branch: main
+- runtime log start command:
+  node --enable-source-maps ./artifacts/api-server/dist/v2-worker.mjs
+- fatal:
+  ETIMEDOUT
+  "KF V2 worker initialization failed"
+
+중요:
+- branch checkout/switch 금지
+- merge/rebase 금지
+- 코드 수정 금지
+- deploy 금지
+- production 변경 금지
+- Render 설정 변경 금지
+- GAUGE 코드 수정 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. origin/main 갱신
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 branch는 그대로 유지.
+
+read-only:
+
+git fetch origin main
+
+그 후 origin/main tree만 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. V2 worker source 검색
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+origin/main에서 다음 검색:
+
+- artifacts/api-server/src/v2-worker*
+- artifacts/api-server/dist/v2-worker.mjs
+- "KF V2 worker"
+- "KF V2 worker initialization failed"
+- ETIMEDOUT catch/startup 관련 코드
+
+예:
+git ls-tree -r origin/main
+git grep ... origin/main
+
+working tree 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 발견 시 startup path 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+origin/main에서 실제 source가 발견되면:
+
+보고:
+- source file
+- build source → dist/v2-worker.mjs 연결
+- startup function
+- initialization sequence
+- ETIMEDOUT이 발생 가능한 정확한 dependency call
+- 사용 env key 이름
+
+secret 값 출력 금지.
+
+특히 구분:
+
+A. PostgreSQL connect timeout
+B. Redis/queue connect timeout
+C. external HTTP/API timeout
+D. 기타
+
+추측하지 말고 코드 근거로 특정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. deploy-photo-clone과 비교
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+origin/main에 worker가 있고
+deploy-photo-clone에는 없다면:
+
+- worker 관련 파일이 어느 쪽에만 존재하는지
+- 두 branch가 worker architecture에서 어떻게 다른지
+- GAUGE commit과 worker 사이 직접 관계가 있는지
+
+최소 비교.
+
+전체 branch diff 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 production 사용 여부
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+origin/main worker source를 기준으로
+이 worker가 처리하는 job producer를 확인.
+
+확인:
+- 어떤 queue/job을 처리하는가
+- 현재 API가 job을 enqueue하는 코드가 있는가
+- Parent Curriculum 관련 여부
+- Growth Report 관련 여부
+- Gauge 관련 여부
+
+직접 참조만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] KF-WORKER REMOTE-MAIN SOURCE REPORT
+
+- current workspace branch
+- Render branch
+- origin/main fetched: YES/NO
+- v2-worker source in origin/main: YES/NO
+- exact source file
+- dist build path
+- startup function
+- timed-out dependency
+- exact operation
+- env key
+- GAUGE dependency: YES/NO
+- Parent Curriculum dependency: YES/NO
+- Growth Report dependency: YES/NO
+- production job producer found: YES/NO
+- deploy-photo-clone worker source exists: YES/NO
+- code changed: NO
+- branch changed: NO
+- production changed: NO
+
+Final Verdict:
+A) LEGACY/ISOLATED MAIN-BRANCH WORKER
+B) ACTIVE MAIN-BRANCH WORKER — ROOT CAUSE IDENTIFIED
+C) STILL BLOCKED — exact missing evidence
+
+STOP.

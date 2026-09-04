@@ -1,0 +1,1205 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — STAGE 2 FINAL CLOSING
+# NORMAL / X SHARED CORE LOCK
+# X HOME REAL FUNCTION VERIFICATION
+# PAID INSIGHT MODE-GATE CORRECTION
+# DO NOT REPEAT COMPLETED WORK
+# ============================================================
+
+현재 상태:
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+9d078772
+
+STAGE 1:
+MEMBER ENTRY / DUPLICATE ACTION CLEANUP
+= CLOSED
+
+STAGE 2:
+NORMAL / X SHARED CORE PARITY
++
+X HOME FULL FUNCTION RESTORATION
+
+= 대부분 완료
+= 최종 Closing만 남음
+
+============================================================
+0. 절대 실행 원칙
+============================================================
+
+SWIMNOTE X는 별도 운영앱이 아닙니다.
+
+정확한 구조:
+
+SWIMNOTE X
+=
+SWIMNOTE 일반 운영기능 전체
++
+X AI 기능
+
+따라서 다음 일반 기능은
+Normal / X가 동일해야 합니다.
+
+- 회원목록
+- 회원검색
+- 학생상세
+- 회원상세
+- 주당횟수
+- 반/시간표
+- 출결
+- 보강
+- 일지
+- 사진/영상
+- 공지
+- 요청
+- 알림
+- 레벨
+- 보호자
+- Navigation
+- Back
+- Modal
+- Keyboard
+- Scroll
+
+X라고 해서 별도 일반운영 route/API/component를 만들지 마십시오.
+
+X 차이는:
+
+AI 기능
+AI visibility
+AI entitlement
+
+만 추가됩니다.
+
+============================================================
+1. 이번 작업에서 절대 반복하지 말 것
+============================================================
+
+이미 완료된 아래 작업은
+다시 audit하거나 재구현하지 마십시오.
+
+- Normal/X Shared Core parity audit
+- 회원목록 parity
+- 학생상세 parity
+- 스케줄 parity
+- 출결 parity
+- 보강 parity
+- 일지 parity
+- 미디어 parity
+- X 전용 일반운영 복제파일 검사
+- X 일반기능 route 이상분기 검사
+- X Home 전체 button inventory
+- Teacher x-growth route 조사
+- Teacher Home AI 성장 보드 entry 추가
+- student/class/pool context 기본 audit
+- Student Detail 구조 재검토
+
+이번 작업은 DELTA CLOSING ONLY.
+
+============================================================
+2. 이번 작업에서 할 일은 정확히 3가지
+============================================================
+
+A.
+현재 visible AI 기능이
+단순 route 진입이 아니라
+
+Screen
+→ Hook/Service
+→ APP API
+→ Server Handler
+→ AI Engine if applicable
+→ Response
+→ UI
+
+까지 실제로 정상 연결되는지 확인.
+
+B.
+기존 연결이 끊긴 경우
+기존 route/API/contract 기준으로 최소 수정.
+
+C.
+AI 인사이트 전략 리포트의
+잘못된 X-only visibility gate 제거.
+
+============================================================
+3. MODE GATE 정정
+============================================================
+
+이전 보고:
+
+New mode gates:
+0
+
+하지만 실제 수정으로:
+
+Teacher Home
+AI 성장 보드
+isX 조건부 visibility
+
+가 1개 추가됨.
+
+정확한 보고:
+
+New valid AI visibility gates:
+1
+
+Invalid general-operation gates:
+0
+
+이어야 합니다.
+
+AI-only feature visibility gate는 정상.
+
+일반 운영기능을 Normal/X에서 다르게 만드는 gate는:
+0
+
+============================================================
+4. AI 인사이트 전략 리포트 정책 수정
+============================================================
+
+현재 Parent Home에서:
+
+AI 인사이트 전략 리포트
+
+가
+
+mode === x
+또는
+mode === x_pending
+
+일 때만 보이는 것으로 보고됨.
+
+이 조건은 잘못되었습니다.
+
+확정 정책:
+
+AI 인사이트 전략 리포트
+정가 29,000원 / 1회
+독립 구매형 심층 분석 상품
+Normal/X와 무관하게 접근 가능
+
+따라서:
+
+Normal:
+진입 가능
+
+X:
+진입 가능
+
+x_pending:
+진입 가능
+
+이어야 합니다.
+
+============================================================
+5. 결제 관련 절대 HOLD
+============================================================
+
+이번 작업에서:
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+App Store Product:
+NO
+
+Google Play Product:
+NO
+
+Purchase implementation:
+NO
+
+1.6.3 subscription UI:
+NO TOUCH
+
+이번 수정은:
+
+기존 paid report 화면/신청 경로를
+Normal에서도 접근 가능하게 하는 것
+
+까지만.
+
+============================================================
+6. X HOME 기능 실제 끝단 검증
+============================================================
+
+기존 inventory는 다시 만들지 않습니다.
+
+아래 이미 확인된 visible AI feature들의
+실제 기능 chain만 검증.
+
+ADMIN:
+
+- AI 학생리포트
+- AI 일지피드
+- AI 커리큘럼
+- SWIMNOTE X 관리
+
+TEACHER:
+
+- AI 성장 보드
+
+PARENT:
+
+- AI 인사이트 전략 리포트
+- AI 커리큘럼 검색
+- 수영·훈련용어 검색
+
+============================================================
+7. ADMIN — AI 학생리포트
+============================================================
+
+기존 route:
+
+/(admin)/report-hub
+
+확인:
+
+Route
+→ Screen
+→ Hook/Service
+→ APP API
+→ Server Handler
+→ Response
+→ UI
+
+검증:
+
+- auth
+- pool scope
+- loading
+- success
+- empty
+- error
+- Back
+- detail navigation if exists
+
+단순 route 존재:
+PASS 근거 아님.
+
+기존 연결 오류 발견 시
+최소 수정.
+
+새 report system:
+금지.
+
+============================================================
+8. ADMIN — AI 일지피드
+============================================================
+
+기존:
+
+/(admin)/diary-hub
+
+확인:
+
+- 실제 diary API
+- pool scope
+- loading
+- success
+- empty
+- error
+- Back
+- scroll
+
+route만 열리고
+실제 data 연결이 끊겨 있으면 수정.
+
+새 diary system:
+금지.
+
+============================================================
+9. ADMIN — AI 커리큘럼
+============================================================
+
+기존:
+
+/(admin)/curriculum-hub
+
+확인:
+
+- canonical curriculum source
+- existing APP API
+- existing AI bridge if applicable
+- pool/version context
+- loading
+- success
+- empty
+- error
+- detail navigation
+- Back
+- scroll
+
+기존 endpoint/path/param mismatch만
+최소 수정.
+
+새 curriculum system:
+금지.
+
+============================================================
+10. ADMIN — SWIMNOTE X 관리
+============================================================
+
+기존:
+
+/(admin)/x-hub
+
+확인:
+
+- current X state
+- entitlement/state API
+- existing configuration
+- loading
+- success
+- error
+- Back
+
+Pricing/RevenueCat/Store 영역으로
+범위 확장 금지.
+
+============================================================
+11. TEACHER — AI 성장 보드
+============================================================
+
+이미 entry 추가 완료:
+
+today-schedule
+→ /(teacher)/x-growth
+
+Entry를 다시 만들지 마십시오.
+
+확인:
+
+- screen mount
+- student list
+- student selection
+- /x-growth/students/:id/events
+- teacher permission
+- student scope
+- filter
+- GrowthEventDetail modal
+- modal scroll
+- modal close
+- loading
+- empty
+- error
+- Back → today-schedule
+
+기존 오류가 있으면 최소 수정.
+
+============================================================
+12. PARENT — AI 커리큘럼 검색
+============================================================
+
+기존:
+
+/(parent)/curriculum-chat?studentId=
+
+확인:
+
+- selectedStudent UUID 정확
+- parent-child permission
+- existing APP API
+- existing AI bridge
+- response rendering
+- loading
+- empty
+- error
+- chat input
+- keyboard
+- blank tap dismiss
+- send first tap
+- list scroll
+- Back
+
+Wrong student context:
+0
+
+새 chat system:
+금지.
+
+============================================================
+13. PARENT — 수영·훈련용어 검색
+============================================================
+
+기존:
+
+/(parent)/terminology-search
+
+확인:
+
+- existing API
+- request
+- result
+- no-result
+- server error
+- keyboard
+- blank tap dismiss
+- search first tap
+- scroll
+- Back
+
+기존 연결 문제만 수정.
+
+============================================================
+14. PARENT — AI 인사이트 전략 리포트
+============================================================
+
+X-only visibility 제거 후:
+
+Normal
+X
+x_pending
+
+세 상태 모두
+기존 동일 route로 진입 가능해야 함.
+
+확인:
+
+- route
+- selected student context
+- current screen mount
+- existing API
+- loading
+- success
+- empty/error
+- Back
+
+RevenueCat:
+건드리지 않음.
+
+Store:
+건드리지 않음.
+
+============================================================
+15. PARENT x-growth PLACEHOLDER
+============================================================
+
+현재:
+
+/(parent)/x-growth.tsx
+
+backend 없음
+user entry 없음
+
+그대로 유지.
+
+상태:
+
+HIDDEN PLACEHOLDER
+NOT USER REACHABLE
+
+신규 구현:
+NO
+
+삭제:
+NO
+
+============================================================
+16. 실제 기능 검증 기준
+============================================================
+
+각 기능은 아래 chain을 source 기준으로 확인.
+
+Button
+→ Route
+→ Screen
+→ Hook/Service
+→ APP API
+→ Server Handler
+→ AI Engine if applicable
+→ Response Contract
+→ UI Rendering
+
+다음만으로 PASS 금지:
+
+- route 파일 있음
+- onPress 있음
+- screen mount됨
+
+============================================================
+17. 외부 AI runtime 검증이 불가능한 경우
+============================================================
+
+Production 호출을 강행하지 마십시오.
+
+source 기준으로:
+
+- APP API bridge
+- AI endpoint
+- auth propagation
+- request contract
+- response contract
+- timeout
+- error handling
+
+까지 검증.
+
+실제 runtime이 꼭 필요한 경우:
+
+RUNTIME VERIFICATION REQUIRED
+
+로 명시.
+
+PASS라고 숨기지 마십시오.
+
+============================================================
+18. 허용 수정 범위
+============================================================
+
+허용:
+
+- wrong route
+- wrong param
+- missing studentId
+- endpoint path mismatch
+- auth propagation bug
+- response normalization bug
+- loading bug
+- empty/error state bug
+- Back bug
+- Modal close bug
+- Modal scroll bug
+- Keyboard first-tap bug
+- Scroll reachability bug
+
+금지:
+
+- 신규 대형 feature
+- 신규 AI pipeline
+- 신규 병렬 API family
+- 일반 GPT fallback
+- fake data
+- dummy result
+- placeholder를 정상 결과처럼 표시
+
+============================================================
+19. BACK 규칙
+============================================================
+
+ADMIN:
+
+Dashboard
+→ AI Feature
+→ Detail
+→ Back
+→ AI Feature
+→ Back
+→ Dashboard
+
+TEACHER:
+
+Today
+→ AI Growth
+→ Modal
+→ Close
+→ AI Growth
+→ Back
+→ Today
+
+PARENT:
+
+Home
+→ AI Feature
+→ Back
+→ Home
+
+잘못된 Home escape:
+0
+
+잘못된 role screen:
+0
+
+============================================================
+20. MODAL 규칙
+============================================================
+
+이번 DELTA에서 건드리는 Modal만 확인.
+
+Close:
+→ 원 feature screen
+
+Android Back:
+→ 원 feature screen
+
+internal scroll:
+정상
+
+SafeArea:
+정상
+
+first tap:
+정상
+
+전체 앱 Modal audit는
+후속 QA Stage에서 실시.
+
+============================================================
+21. KEYBOARD 규칙
+============================================================
+
+이번 대상 중 입력 화면만 확인.
+
+특히:
+
+curriculum-chat
+terminology-search
+
+필수:
+
+blank background tap
+→ keyboard dismiss
+
+scroll drag
+→ dismiss 가능
+
+send/search first tap
+→ 즉시 실행
+
+whole-screen dismiss wrapper가
+child interaction을 먹으면 FAIL.
+
+전체 앱 keyboard audit는
+후속 QA Stage.
+
+============================================================
+22. SCROLL 규칙
+============================================================
+
+이번 대상 AI 화면에서만:
+
+top
+middle
+bottom
+final CTA
+
+도달 확인.
+
+전체 앱 scroll audit는
+후속 QA Stage.
+
+============================================================
+23. LOADING / EMPTY / ERROR
+============================================================
+
+각 기능에서 구분.
+
+LOADING:
+실제 요청 중
+
+EMPTY:
+정상 응답 + 데이터 없음
+
+ERROR:
+권한/서버/네트워크 실패
+
+금지:
+
+infinite loading
+blank failure screen
+error를 empty로 표시
+
+============================================================
+24. RETRY
+============================================================
+
+기존 retry가 있다면
+정상 작동 확인.
+
+Retry로:
+
+중복 mutation
+중복 report generation
+중복 push
+
+발생 금지.
+
+새 retry architecture 만들지 마십시오.
+
+============================================================
+25. NORMAL / X SHARED CORE 재작업 금지
+============================================================
+
+이미 PASS한 일반기능 parity:
+
+- 회원
+- 학생상세
+- 스케줄
+- 출결
+- 보강
+- 일지
+- 미디어
+
+는 다시 수정하지 마십시오.
+
+새 regression이 발견된 경우만
+최소 수정.
+
+============================================================
+26. X 일반운영 분기 재확인
+============================================================
+
+이번 Closing에서 발견되는 범위 내에서만:
+
+일반 운영기능이 X라고 해서
+다른 route/API/component로 가는 신규/잔여 분기가 있으면 FAIL.
+
+Invalid general-operation mode gate:
+0
+
+을 유지.
+
+============================================================
+27. 1.6.3 보호
+============================================================
+
+작업 branch:
+
+release/v2.0.0
+
+1.6.3:
+
+UI 변경 금지
+OTA 금지
+구독 버튼 수정 금지
+
+Shared backend 수정 필요 시:
+backward-compatible additive only.
+
+============================================================
+28. PRODUCTION 금지
+============================================================
+
+Production Deploy:
+NO
+
+Render:
+NO
+
+Production DB:
+NO
+
+OTA:
+NO
+
+Android OTA:
+NO
+
+1.6.3 OTA:
+NO
+
+Code + test only.
+
+============================================================
+29. REGRESSION
+============================================================
+
+Known baseline:
+
+158 failures
+
+동일 command/environment 사용.
+
+Expected:
+
+New failures:
+0
+
+New TS errors:
+0
+
+============================================================
+30. 이번 Stage 종료조건
+============================================================
+
+모두 충족해야:
+
+STAGE 2 FULLY CLOSED
+
+A.
+Invalid Normal/X general-operation gate = 0
+
+B.
+Paid Insight X-only gate removed
+
+C.
+Paid Insight access:
+Normal / X / x_pending 모두 가능
+
+D.
+Admin visible AI features 실제 chain 정상
+
+E.
+Teacher AI Growth 실제 chain 정상
+
+F.
+Parent AI features 실제 chain 정상
+
+G.
+Visible feature 중 backend 없는 가짜 버튼 0
+
+H.
+Button/function mismatch 0
+
+I.
+Context leak 0
+
+J.
+Wrong Back 0
+
+K.
+이번 대상 Modal 오류 0
+
+L.
+이번 대상 Keyboard first-tap 오류 0
+
+M.
+이번 대상 Scroll 오류 0
+
+N.
+Infinite loading / blank error 0
+
+O.
+New regression 0
+
+============================================================
+31. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# STAGE 2 FINAL CLOSING REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## NO-DUPLICATE CONFIRMATION
+
+Normal/X parity audit repeated:
+YES / NO
+
+Expected:
+NO
+
+X Home inventory rebuilt:
+YES / NO
+
+Expected:
+NO
+
+Student Detail modified:
+YES / NO
+
+Expected:
+NO
+
+## MODE GATE
+
+New valid AI visibility gates:
+...
+
+Expected:
+1
+
+Invalid general-operation gates:
+...
+
+Expected:
+0
+
+Paid Insight X-only gate:
+REMOVED / REMAINS
+
+Expected:
+REMOVED
+
+## PAID INSIGHT ACCESS
+
+Normal:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+x_pending:
+PASS / FAIL
+
+RevenueCat touched:
+YES / NO
+
+Expected:
+NO
+
+## ADMIN AI 학생리포트
+
+Route:
+Hook/Service:
+APP API:
+Server Handler:
+AI Bridge if any:
+Loading:
+Empty:
+Error:
+Back:
+Result:
+
+## ADMIN AI 일지피드
+
+Route:
+Hook/Service:
+APP API:
+Server Handler:
+Loading:
+Empty:
+Error:
+Back:
+Scroll:
+Result:
+
+## ADMIN AI 커리큘럼
+
+Route:
+Hook/Service:
+APP API:
+Server Handler:
+AI Bridge if any:
+Loading:
+Empty:
+Error:
+Back:
+Scroll:
+Result:
+
+## ADMIN X 관리
+
+Route:
+APP API:
+Server Handler:
+Loading:
+Error:
+Back:
+Result:
+
+## TEACHER AI 성장 보드
+
+Route:
+APP API:
+Server Handler:
+Student Scope:
+Permission:
+Loading:
+Empty:
+Error:
+Modal:
+Modal Scroll:
+Back:
+Result:
+
+## PARENT AI 커리큘럼 검색
+
+Route:
+studentId:
+Hook/Service:
+APP API:
+AI Bridge:
+Permission:
+Loading:
+Error:
+Keyboard:
+Blank Tap:
+First Tap:
+Scroll:
+Back:
+Result:
+
+## PARENT 용어검색
+
+Route:
+APP API:
+Server Handler:
+Loading:
+Empty:
+Error:
+Keyboard:
+Blank Tap:
+First Tap:
+Scroll:
+Back:
+Result:
+
+## PARENT x-growth PLACEHOLDER
+
+Hidden:
+YES / NO
+
+Expected:
+YES
+
+User reachable:
+YES / NO
+
+Expected:
+NO
+
+## BROKEN CONNECTIONS FOUND
+
+Feature | Root Cause | Existing System | Minimal Fix | Result
+
+...
+
+## RUNTIME VERIFICATION REQUIRED
+
+Feature:
+Reason:
+Source-chain status:
+
+or
+
+NONE
+
+## BUTTON / FUNCTION MISMATCH
+
+Count:
+...
+
+Expected:
+0
+
+## CONTEXT
+
+Wrong student:
+...
+
+Wrong class:
+...
+
+Wrong pool:
+...
+
+Wrong mode:
+...
+
+Expected:
+0
+
+## BACK
+
+Wrong Home escapes:
+...
+
+Wrong role escapes:
+...
+
+Expected:
+0
+
+## MODAL
+
+Issues:
+...
+
+Expected:
+0
+
+## KEYBOARD
+
+Issues:
+...
+
+Expected:
+0
+
+## SCROLL
+
+Issues:
+...
+
+Expected:
+0
+
+## LOADING / EMPTY / ERROR
+
+Infinite loading:
+...
+
+Blank failure screens:
+...
+
+Error-as-empty:
+...
+
+Expected:
+0 / 0 / 0
+
+## REGRESSION
+
+Baseline:
+158
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+Normal/X Shared Core architecture:
+UNCHANGED
+
+Student Detail:
+UNCHANGED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STAGE 2 FULLY CLOSED
+or
+STAGE 2 RUNTIME VERIFICATION REQUIRED
+or
+STAGE 2 BLOCKED

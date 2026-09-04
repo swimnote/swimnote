@@ -1,0 +1,425 @@
+[앱] PRE-UIUX PRODUCTION CHECKPOINT
+DEPLOY + OTA + MINIMAL E2E
+
+현재 AI 상태:
+- Parent Narrative V2 Production LIVE
+- AI Engine deployed SHA: 0eb91fa
+- FREE Growth Report AI / Parent Narrative / Parent Guidance = LOCKED
+
+목적:
+
+UI/UX 작업을 시작하기 전에
+현재까지 완성한 APP/API 기능을 Production에 모두 반영하고,
+실제 앱에서 P0 오류가 없는 안정 기준점을 만든다.
+
+이 Step 완료 후:
+
+PRE_UIUX_STABLE_BASELINE
+
+으로 LOCK하고
+그 다음부터 UI/UX 작업에 들어간다.
+
+이번 Step은:
+
+DEPLOY
+→ OTA
+→ MINIMAL E2E
+→ STOP
+
+기능 추가 금지.
+UI/UX 수정 금지.
+리팩터링 금지.
+DB migration 금지.
+Production DB 직접 write 금지.
+AI 수정 금지.
+전체 repo audit 금지.
+광범위 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SOURCE / BRANCH 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP/API branch:
+
+deploy-photo-clone
+
+현재 HEAD와 실제 포함 history 확인.
+
+최소 다음 완료 작업들이
+현재 HEAD에 포함되어 있는지 확인:
+
+Parent Curriculum Search APP final:
+43ef68f1
+
+Growth Report Phase 1:
+c9c5ff95
+
+DATA_ACCUMULATING final contract:
+bf77ade3
+
+Growth Report reliability:
+9d57c8c7
+
+Growth Report PDF V2:
+91b7e689
+
+PDF Typography final:
+bfc5d517
+
+이미 포함된 commit은
+재적용 금지.
+
+보고:
+
+- branch
+- current HEAD
+- 위 commit 각각 included YES/NO
+- uncommitted relevant change 존재 여부
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. APP/API CURRENT WORK COMMIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PDF V2 관련 변경이
+아직 local/unpushed 상태라면
+
+현재 완료 작업만 정상 commit/push.
+
+관련 없는 파일 수정 금지.
+
+필요하면:
+
+git push origin deploy-photo-clone
+
+이후 기존 Render auto-deploy 사용.
+
+금지:
+
+- Render API deploy trigger
+- RENDER_API_KEY 사용
+- manual deploy API
+- startup migration
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. API PRODUCTION VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대상:
+swimnote-api
+
+확인:
+
+- deployed SHA
+- /health 정상
+- startup crash 없음
+- DB connection 정상
+
+관련 route 최소 확인:
+
+A. Growth Report status
+B. Growth Report feed/detail
+C. Parent Curriculum APP-facing route
+
+Production data 생성/수정 금지.
+
+read-only / safe request만.
+
+500 발생 시 P0.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. OTA COMPATIBILITY CHECK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 모바일 변경 사항이
+OTA 가능한 JS/assets-only 변경인지 확인.
+
+확인:
+
+- native dependency 추가 없음
+- Expo native module binary 변경 없음
+- runtime version 변경 필요 없음
+- app config native 변경 없음
+
+OTA incompatible 변경이 있으면
+OTA 강행 금지하고 BLOCKED 보고.
+
+호환되면 이번 요청으로
+Production OTA 승인됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PRODUCTION OTA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Production runtime/channel 정책 그대로 사용.
+
+현재 완료된 모바일 변경을
+Production OTA로 반영.
+
+이번 Step에서는
+새 Store build/bundle 생성 금지.
+
+그건 오늘 밤 UI/UX 작업 완료 후 진행.
+
+보고:
+
+- runtime version
+- production channel/branch
+- OTA update ID
+- group ID
+- source commit SHA
+- native change detected YES/NO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. MINIMAL REAL-APP E2E
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에 건드린 경로만 검사.
+
+전체 앱 regression 금지.
+
+────────────────────────────
+A. APP START / AUTH
+────────────────────────────
+
+확인:
+
+- 앱 정상 실행
+- 로그인 상태 정상
+- parent role 진입 정상
+- 기본 home crash 없음
+
+────────────────────────────
+B. PARENT CURRICULUM SEARCH
+────────────────────────────
+
+확인:
+
+- 화면 진입
+- 월 4회 quota 표시
+- used / remaining / resets_at 표시 crash 없음
+- Invalid Date 없음
+- 검색 입력 가능
+- 결과 화면 정상
+
+실제 AI 검색 호출이 필요하면
+최대 1회.
+
+반복 호출 금지.
+
+────────────────────────────
+C. GROWTH REPORT HOME
+────────────────────────────
+
+확인:
+
+- Growth Report status request 정상
+- NOT_AVAILABLE 정상
+- PARTIAL / DATA_ACCUMULATING contract 정상
+- FAILED 오표시 없음
+- PUBLISHED 카드 기존 동작 정상
+- non-X/X 권한 역전 없음
+
+새 report 생성 금지.
+
+────────────────────────────
+D. GROWTH REPORT DETAIL
+────────────────────────────
+
+기존 안전한 PUBLISHED report가 있으면
+read-only 조회.
+
+확인:
+
+- summary_text
+- canonical available sections
+- empty section 숨김
+- parent_support 표시
+- crash 없음
+
+없으면 억지 생성하지 말 것.
+
+────────────────────────────
+E. REAL DEVICE PDF
+────────────────────────────
+
+가능하면 실제 iOS 또는 Android에서
+기존 안전한 report로 PDF 1회 발급.
+
+여기서 처음 actual expo-print binary 확인.
+
+확인:
+
+- PDF 생성 성공
+- share sheet 정상
+- 실제 SWIMNOTE logo 표시
+- 제목 26pt 느낌 정상
+- body 12pt 가독성
+- section heading 15pt
+- 기본 2페이지 구조
+- section 잘림 없음
+- parent_support 마지막
+- parent_support 비정상 split 없음
+
+PDF 내용을 수정하지 않는다.
+
+디자인 미세 의견은
+UI/UX backlog에 기록만.
+
+────────────────────────────
+F. DIARY / PARENT FEED
+────────────────────────────
+
+Growth Report/PDF 변경 때문에
+기존 일지가 깨지지 않았는지만 확인.
+
+- feed open
+- diary open
+- crash 없음
+
+기능 전체 테스트 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. P0 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서 수정 가능한 것은
+출시 차단 P0만.
+
+P0:
+
+- 앱 crash
+- API 500
+- auth/role 문제
+- pool/tenant 격리 문제
+- X/non-X 권한 역전
+- DATA_ACCUMULATING 잘못 FAILED
+- Parent Curriculum 검색 불가
+- quota crash
+- Growth Report detail crash
+- PDF 생성 crash
+- 실제 데이터 손상 위험
+
+P0 발견 시:
+
+원인 파일/함수 최소 조사
+→ 최소 수정 1회
+→ 관련 경로만 재테스트
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. UI/UX ISSUE 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 이번 Step에서 수정 금지:
+
+- 여백
+- 폰트 취향
+- 카드 모양
+- 버튼 정렬
+- 설정 메뉴 구조
+- 색상
+- 로딩 디자인
+- Empty UI
+- Feed action 디자인
+
+발견하면:
+
+UIUX_BACKLOG
+
+에 짧게 기록만.
+
+오늘 바로 다음 Step에서 처리할 예정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 안정 기준점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+P0가 없고
+API + OTA + 최소 E2E가 통과하면
+
+현재 상태를:
+
+PRE_UIUX_STABLE_BASELINE
+
+으로 확정.
+
+다음 UI/UX 작업은
+이 commit/OTA 기준점 위에서만 진행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] PRE-UIUX PRODUCTION CHECKPOINT REPORT
+
+SOURCE
+- branch
+- HEAD SHA
+- required commits included
+- uncommitted relevant changes
+
+API PRODUCTION
+- deployed SHA
+- health
+- DB connection
+- Growth Report routes
+- Parent Curriculum route
+
+OTA
+- compatibility PASS/FAIL
+- runtime
+- channel/branch
+- source SHA
+- update ID
+- group ID
+- native change detected
+
+E2E
+
+APP START/AUTH:
+PASS/FAIL
+
+CURRICULUM SEARCH:
+PASS/FAIL
+- real AI calls
+
+GROWTH REPORT HOME:
+PASS/FAIL
+
+GROWTH REPORT DETAIL:
+PASS/FAIL/SKIPPED + reason
+
+PDF ACTUAL DEVICE:
+PASS/FAIL/SKIPPED + reason
+- pages
+- readability
+- logo
+- parent_support
+
+DIARY/FEED:
+PASS/FAIL
+
+P0
+- found YES/NO
+- issue
+- fix SHA if any
+
+UIUX_BACKLOG
+- 발견한 UI/UX 항목만 짧게 나열
+
+Production DB direct write: NO
+migration: NO
+RENDER_API_KEY used: NO
+broad regression: NO
+AI pipeline modified: NO
+
+Final Verdict:
+
+PRE_UIUX_STABLE_BASELINE READY
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

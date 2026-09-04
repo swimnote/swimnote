@@ -1,11 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { CircleAlert, LogOut } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
-import {
-  ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View,
-} from "react-native";
+import {ActivityIndicator, Platform, Pressable, StyleSheet, Text, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { ROLE_CONFIGS, ROLE_SELECT_LABELS, type RoleConfig } from "@/constants/auth";
@@ -33,7 +29,7 @@ function getRoleDisplay(roleKey: string) {
   if (roleKey === "parent" || roleKey === "parent_account") {
     return { label: "학부모", icon: "heart" as any, color: "#E4A93A", bg: "#FFFBEB" };
   }
-  return { label: roleKey, icon: "user" as any, color: "#64748B", bg: "#F1F5F9" };
+  return { label: roleKey, icon: "user" as any, color: C.textSecondary, bg: C.backgroundSoft };
 }
 
 export default function OrgRoleSelectScreen() {
@@ -112,29 +108,29 @@ export default function OrgRoleSelectScreen() {
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 68 : 16) }]}>
         <View style={styles.headerNameWrap} pointerEvents="none">
           <View style={styles.orgNameRow}>
-            <Ionicons name="water" size={16} color={C.tint} />
+            <LucideIcon name="droplet" size={16} color={C.brandStrong} />
             <Text style={[styles.orgName, { color: C.text }]} numberOfLines={1}>{orgName}</Text>
           </View>
         </View>
         <Pressable onPress={logout} style={styles.logoutBtn} hitSlop={8}>
-          <LogOut size={18} color={C.textMuted} />
+          <LucideIcon name="log-out" size={18} color={C.textMuted} />
         </Pressable>
       </View>
 
       <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator color={C.tint} size="large" />
+          <ActivityIndicator color={C.brandStrong} size="large" />
         ) : availableRoles.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconBox, { backgroundColor: "#FFF1BF" }]}>
-              <CircleAlert size={32} color="#D97706" />
+              <LucideIcon name="alert-circle" size={32} color="#D97706" />
             </View>
             <Text style={[styles.emptyTitle, { color: C.text }]}>이용 가능한 권한이 없습니다</Text>
             <Text style={[styles.emptyText, { color: C.textSecondary }]}>
               현재 승인된 역할이 없습니다.{"\n"}관리자에게 문의하거나 새로 가입해주세요.
             </Text>
             <Pressable
-              style={({ pressed }) => [styles.signupBtn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+              style={({ pressed }) => [styles.signupBtn, { backgroundColor: C.primaryAction, opacity: pressed ? 0.85 : 1 }]}
               onPress={() => router.push("/signup-role" as any)}
             >
               <Text style={styles.signupBtnText}>회원가입하기</Text>
@@ -153,7 +149,7 @@ export default function OrgRoleSelectScreen() {
                   <View style={[styles.roleIconBox, { backgroundColor: display.bg }]}>
                     <LucideIcon name={display.icon} size={36} color={display.color} />
                   </View>
-                  <Text style={[styles.roleTitle, { color: C.text }]}>{display.label}</Text>
+                  <Text style={[styles.roleTitle, { color: C.text }]} numberOfLines={2} adjustsFontSizeToFit>{display.label}</Text>
                 </Pressable>
               );
             })}
@@ -180,7 +176,7 @@ const styles = StyleSheet.create({
   signupBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
   rolesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "center" },
   roleCard: {
-    width: 140, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
+    flex: 1, minWidth: 120, maxWidth: 180, borderRadius: 24, paddingVertical: 36, paddingHorizontal: 16,
     alignItems: "center", gap: 16,
     shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4,
   },

@@ -1,0 +1,214 @@
+[긴급 지시 — 실제 서버 로그 파일 원문 제출]
+
+추가 코드 수정, OTA 배포, 진단 UI 작업을 중단하십시오.
+
+내가 확인하려는 것은 딱 두 가지입니다.
+
+1. 내가 실기기에서 ‘AI 생성’ 버튼을 눌렀을 때 요청이 SWIMNOTE 운영 서버에 실제로 들어왔는지
+2. 운영 서버가 그 요청을 SWIMNOTE AI Engine까지 실제로 전달했는지
+
+추측, 코드 분석, 임의 JWT curl 결과가 아니라
+내가 실제 버튼을 누른 시간대의 운영 로그 원문을 가져오십시오.
+
+기준 시간:
+사용자가 AI 생성 버튼을 누른 실제 한국시간 기준 최근 시도
+서버 UTC 시간으로 변환해서 전후 5분 범위를 조회하십시오.
+
+==================================================
+1. SWIMNOTE 운영 API 서버 로그 원문
+==================================================
+
+대상 서버:
+https://swimnote-api.onrender.com
+
+Render 서비스의 실제 운영 로그에서
+사용자가 AI 생성 버튼을 누른 시간 전후 5분을 조회하십시오.
+
+다음 문자열과 경로를 모두 검색하십시오.
+
+- /api/v1/teacher-diary/generate
+- /api/ai/diary/generate
+- API_REQUEST_RECEIVED
+- AUTH_SUCCESS
+- AUTH_FAILED
+- REQUEST_VALIDATED
+- REQUEST_REJECTED
+- TEACHER_DIARY_ROUTE_ENTERED
+- request_id
+- NETWORK_ERROR
+- TIMEOUT
+- 401
+- 403
+- 404
+- 422
+- 500
+
+제출할 것:
+
+A. 실제 로그가 있으면
+- timestamp
+- HTTP method
+- request path
+- HTTP status
+- request_id
+- 인증 결과
+- route 진입 여부
+- 오류 코드
+- 관련 로그 원문 전체
+
+B. 실제 로그가 없으면
+다음처럼 명확히 보고하십시오.
+
+“사용자가 AI 생성 버튼을 누른 시간대에
+SWIMNOTE 운영 API 서버에는 Teacher Diary 요청 로그가 0건입니다.”
+
+서버 Health Check나 임의 curl 로그를 대신 제출하지 마십시오.
+
+==================================================
+2. 운영 서버 → AI Engine 연결 로그 원문
+==================================================
+
+같은 시간대와 같은 request_id를 기준으로
+운영 API 서버가 AI Engine을 호출한 실제 로그를 조회하십시오.
+
+검색 항목:
+
+- AI_ENGINE_STARTED
+- AI_ENGINE_REQUEST
+- AI_ENGINE_COMPLETED
+- AI_ENGINE_FAILED
+- GroundedPipelineRunner
+- PARSER_COMPLETED
+- STUDENT_MATCH_COMPLETED
+- TEMPLATE_SEARCH_COMPLETED
+- KNOWLEDGE_SEARCH_COMPLETED
+- MODE_DECIDED
+- NATURALIZER_COMPLETED
+- GROUNDING_VALIDATED
+- RESPONSE_SENT
+- pipeline_mode
+- generation_mode
+- template_ids
+- knowledge_ids
+
+제출할 것:
+
+- AI Engine 최종 호출 URL
+- 호출 timestamp
+- request_id
+- HTTP status
+- 응답 시간
+- AI Engine 응답 여부
+- pipeline_mode
+- generation_mode
+- 실패 시 오류 코드
+- 관련 로그 원문 전체
+
+해당 로그가 없다면:
+
+“운영 API 서버에서 AI Engine 호출 로그가 0건입니다.”
+
+라고 명확히 보고하십시오.
+
+==================================================
+3. 실제 AI Engine 서버 로그 원문
+==================================================
+
+AI Engine이 별도 서버 또는 별도 Replit 프로젝트라면
+그 서버의 실제 로그도 같은 시간대와 request_id로 조회하십시오.
+
+제출:
+
+- 요청 수신 여부
+- request_id
+- V1 Teacher Diary Route 진입 여부
+- GroundedPipelineRunner 진입 여부
+- Template Search 결과 수
+- Knowledge Search 결과 수
+- Naturalizer 호출 여부
+- 최종 status
+- 응답 반환 여부
+- 관련 로그 원문
+
+로그가 없다면:
+
+“AI Engine 서버에는 해당 request_id의 수신 로그가 0건입니다.”
+
+라고 보고하십시오.
+
+==================================================
+4. 로그 파일 또는 로그 내보내기
+==================================================
+
+채팅 요약만 제출하지 마십시오.
+
+가능한 경우 다음 파일을 생성하여 첨부하십시오.
+
+- swimnote_api_teacher_diary_<timestamp>.log
+- swimnote_ai_engine_teacher_diary_<timestamp>.log
+
+로그 파일에는 해당 시간 전후 5분과 관련 request_id만 포함하십시오.
+
+마스킹:
+
+- JWT 전체 삭제
+- 학생 이름 삭제
+- 교사 입력 원문 삭제
+- 일지 내용 삭제
+- 전화번호 삭제
+
+유지:
+
+- timestamp
+- path
+- status
+- request_id
+- event
+- error_code
+- latency
+- generation_mode
+- template/knowledge 개수
+
+==================================================
+5. 판정
+==================================================
+
+실제 로그를 기준으로 아래 중 하나만 판정하십시오.
+
+A.
+운영 API 서버 요청 로그 0건
+→ 앱이 서버로 전송하지 않았거나 서버 도달 전에 실패
+
+B.
+API_REQUEST_RECEIVED 있음 + AUTH_FAILED
+→ 앱 JWT 인증 문제
+
+C.
+AUTH_SUCCESS 있음 + AI_ENGINE_STARTED 없음
+→ 운영 서버 Handler/Client 연결 문제
+
+D.
+AI_ENGINE_STARTED 있음 + AI Engine 수신 로그 없음
+→ 서버 간 URL/네트워크 문제
+
+E.
+AI Engine 수신 및 RESPONSE_SENT 있음 + 앱 오류
+→ 앱 응답 수신 또는 정규화 문제
+
+==================================================
+6. 금지
+==================================================
+
+- Health Check로 정상 선언
+- 임의 JWT curl로 실기기 연결을 대체
+- Xcode 로그 요구
+- Expo Go 요구
+- ping 엔드포인트 제안
+- 추가 OTA부터 배포
+- DNS/TLS 추정
+- 코드상 연결돼 있다는 설명
+- 실제 로그 없이 완료 보고
+
+먼저 최근 실기기 AI 생성 시도의
+운영 API 서버 로그와 AI Engine 로그 원문을 제출하십시오.
+그 로그로 실패 지점을 확정한 뒤 수정하십시오.

@@ -1,0 +1,128 @@
+SWIMNOTE — WP14 FINAL AUDIT COMPATIBILITY FIX
+MINIMUM CHANGE ONLY
+
+현재 Audit Viewer 구현/배포는 정상.
+
+발견된 문제:
+
+audit_logs CHECK constraint:
+action IN ('create','update','delete')
+
+그런데 WP13 growth review audit가
+GROWTH_EVENT_ACCEPTED / GROWTH_EVENT_REJECTED
+같은 값을 action에 저장하려 해서
+DB INSERT가 silent fail 하고 있음.
+
+목표:
+기존 DB schema를 변경하지 않고
+WP13 승인/거절 audit가 실제 audit_logs에 저장되게 수정.
+
+1. 먼저 확인
+
+growth_events 자체에 실제로:
+
+reviewed_by
+reviewed_at
+
+또는 동등한 reviewer/time field가 있는지 READ ONLY 확인.
+
+있다면 제출.
+
+없다면 audit_logs가 WP13 reviewer trace의 필수 근거임.
+
+2. audit_logs schema 변경 금지
+
+migration 금지.
+CHECK constraint 변경 금지.
+
+기존 action contract 사용:
+
+accept/reject 모두:
+action = 'update'
+
+그리고 실제 의미는 기존 가능한 field/metadata에 기록:
+
+entity_type = growth_event
+entity_id = event id
+
+before_data:
+growth_match_status = PENDING_REVIEW
+
+after_data:
+growth_match_status =
+TEACHER_ACCEPTED
+또는
+TEACHER_REJECTED
+
+metadata에 현재 schema가 허용하면:
+review_action = accept/reject
+actor_user_id
+student_id
+pool_id
+
+기존 audit helper contract 우선.
+
+3. silent failure 금지
+
+WP13 audit INSERT 실패가
+단순 warn 후 성공으로 사라지는 현재 경로 확인.
+
+감사로그 저장 실패를 어떻게 처리할지는
+기존 audit 시스템 convention을 따르되,
+최소한 실제 DB 저장 여부를 테스트로 검증.
+
+대규모 transaction 재설계 금지.
+
+4. 테스트
+
+필수:
+
+PENDING_REVIEW → accept
+→ audit_logs action='update' 1건
+
+PENDING_REVIEW → reject
+→ audit_logs action='update' 1건
+
+before/after status 정확
+
+actor/event/student/pool 추적 가능
+
+Audit Viewer list/detail에서
+해당 row 정상 표시
+
+기존 create/update/delete audit regression 없음
+
+5. Git / Deploy
+
+최소 변경.
+
+관련 tests 실행.
+
+commit:
+fix(audit): persist growth review audit events
+
+push origin.
+
+서버 변경이면 Render deploy.
+
+앱 변경 없으면 OTA 금지.
+
+6. Production runtime
+
+안전한 기존 audit row로 Viewer 정상 확인.
+
+Production growth_event가 0이면
+억지 review write 생성 금지.
+
+fixture/integration으로 WP13 audit persistence 검증 가능.
+
+7. Final
+
+성공 시:
+
+WP13_REVIEW_AUDIT_PERSISTENCE_VERIFIED ✅
+WP14_AUDIT_VIEWER_VERIFIED ✅
+WP14_CLOSED ✅
+
+STOP.
+WP15 자동 시작 금지.

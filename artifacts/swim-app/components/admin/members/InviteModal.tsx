@@ -1,6 +1,6 @@
-import { Copy, MessageCircle, Share2, X } from "lucide-react-native";
-import * as Clipboard from "expo-clipboard";
 import React from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import * as Clipboard from "expo-clipboard";
 import {
   Alert, Linking, Modal, Platform, Pressable, Share, StyleSheet, Text, View,
 } from "react-native";
@@ -23,7 +23,9 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
   const { adminUser, pool } = useAuth();
   const addRecord = useInviteRecordStore(s => s.addRecord);
 
-  const appUrl = "https://swimnote.kr";
+  const appUrl = Platform.OS === "ios"
+    ? "https://apps.apple.com/kr/app/%EC%8A%A4%EC%9C%94%EB%85%B8%ED%8A%B8/id6761360360"
+    : "https://play.google.com/store/apps/details?id=com.swimnote.app";
   const msg = buildInviteMessage({ poolName, studentName: student.name, appUrl });
 
   function makeRecordBase() {
@@ -82,7 +84,7 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
         <View style={inv.sheet}>
           <View style={inv.header}>
             <Text style={inv.title}>학부모 앱 초대</Text>
-            <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
           </View>
 
           {/* 학생 정보 */}
@@ -103,27 +105,32 @@ export function InviteModal({ student, poolName, onClose }: InviteModalProps) {
           </View>
 
           {/* 카카오톡 초대 버튼 (주 버튼) */}
-          <Pressable style={[inv.kakaoBtn]} onPress={openKakao}>
-            <Text style={inv.kakaoBtnIcon}>💬</Text>
-            <Text style={inv.kakaoBtnTxt}>카카오톡으로 초대하기</Text>
-          </Pressable>
+          <View>
+            <Pressable style={[inv.kakaoBtn]} onPress={openKakao}>
+              <Text style={inv.kakaoBtnIcon}>💬</Text>
+              <Text style={inv.kakaoBtnTxt}>카카오톡으로 초대하기</Text>
+            </Pressable>
+            <Text style={inv.kakaoNote}>* 카카오톡에 등록된 친구만 초대 가능</Text>
+          </View>
 
           {/* 문자 / 복사 / 공유 */}
           <View style={inv.btnRow}>
-            <Pressable style={[inv.btn, { backgroundColor: C.tintLight }]} onPress={openSms}>
-              <MessageCircle size={14} color={C.tint} />
-              <Text style={[inv.btnText, { color: C.tint }]}>문자</Text>
+            <Pressable style={[inv.btn, { backgroundColor: C.brandSoft }]} onPress={openSms}>
+              <LucideIcon name="message-circle" size={14} color={C.brandStrong} />
+              <Text style={[inv.btnText, { color: C.brandStrong }]}>문자</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={copyMessage}>
-              <Copy size={14} color={C.textSecondary} />
+              <LucideIcon name="copy" size={14} color={C.textSecondary} />
               <Text style={[inv.btnText, { color: C.textSecondary }]}>복사</Text>
             </Pressable>
             <Pressable style={[inv.btn, { backgroundColor: "#F3F4F6" }]} onPress={() => { addRecord({ ...makeRecordBase() }); Share.share({ message: msg }); }}>
-              <Share2 size={14} color={C.textSecondary} />
+              <LucideIcon name="share-2" size={14} color={C.textSecondary} />
               <Text style={[inv.btnText, { color: C.textSecondary }]}>공유</Text>
             </Pressable>
           </View>
         </View>
+        {/* WP4 VERIFY · PARENT-INVITE · 0903 */}
+        <Text style={inv.verifyMarker}>WP4 VERIFY · PARENT-INVITE · 0903</Text>
       </View>
     </Modal>
   );
@@ -134,7 +141,7 @@ const inv = StyleSheet.create({
   sheet:       { backgroundColor: C.card, borderRadius: 20, padding: 20, gap: 14 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title:       { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text },
-  studentRow:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.tintLight, padding: 12, borderRadius: 12, flexWrap: "wrap" },
+  studentRow:  { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brandSoft, padding: 12, borderRadius: 12, flexWrap: "wrap" },
   studentLabel:{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   studentName: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   msgBox:      { backgroundColor: C.background, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
@@ -142,7 +149,9 @@ const inv = StyleSheet.create({
   kakaoBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: KAKAO_YELLOW },
   kakaoBtnIcon:{ fontSize: 16 },
   kakaoBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: KAKAO_TEXT },
+  kakaoNote:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#999", textAlign: "center", marginTop: 5 },
   btnRow:      { flexDirection: "row", gap: 8 },
   btn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 11, borderRadius: 12 },
   btnText:     { fontSize: 13, fontFamily: "Pretendard-Regular" },
+  verifyMarker:{ fontSize: 9, color: "#C8C8C8", textAlign: "center", marginTop: 2 },
 });

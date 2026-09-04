@@ -1,0 +1,237 @@
+[앱]
+
+GROWTH REPORT FEED — SWIMNOTE X COLOR SYSTEM CORRECTION ONLY
+
+현재 Growth Report Feed의 구조/레이아웃은 유지한다.
+
+중요:
+현재 적용된 aqua/cyan 기반 일반 SWIMNOTE 색상은
+성장리포트에 사용하면 안 된다.
+
+성장리포트는 SWIMNOTE X 전용 기능이므로
+SWIMNOTE X 확정 브랜드 팔레트만 사용한다.
+
+이번 Step은 COLOR SYSTEM CORRECTION ONLY.
+
+절대 금지:
+- 레이아웃 재설계
+- section 순서 변경
+- typography 크기 변경
+- report content 변경
+- AI/API/PDF 로직 변경
+- DB 수정
+
+==================================================
+1. SWIMNOTE X 확정 팔레트
+==================================================
+
+Primary Navy
+#0F172A
+
+X Mint
+#2EC4B6
+
+X Mint Light
+#E6FAF8
+
+White
+#FFFFFF
+
+Neutral Gray
+기존 프로젝트 중성 gray 계열만 보조 사용 가능
+
+중요:
+새로운 cyan / aqua / blue 색상 생성 금지.
+일반 SWIMNOTE 팔레트 색상 재사용 금지.
+
+==================================================
+2. 현재 색상 폐기
+==================================================
+
+현재 Growth Report Feed에 사용된 아래 계열 제거:
+
+- aqua/cyan accent
+- #25B7CF 계열
+- #E8F7FB 계열
+- #C8EBF3 계열
+- #F0FAFC 계열
+- 기타 일반 SWIMNOTE용 aqua/mist 색상
+
+Growth Report Feed 안에서는
+SWIMNOTE X 컬러만 사용.
+
+==================================================
+3. HEADER
+==================================================
+
+현재 구조 유지:
+
+- SwimNote AI REPORT 로고
+- 월간 리포트 badge
+- 월간 성장 리포트
+- 학생 / 수영장 / 월
+- 커리큘럼 진도
+
+색상 규칙:
+
+메인 제목:
+#0F172A
+
+metadata:
+기존 neutral gray
+
+월간 리포트 badge:
+background = #E6FAF8
+border = #2EC4B6
+text = #0F172A
+
+==================================================
+4. PROGRESS AREA
+==================================================
+
+커리큘럼 진도 strip:
+
+background:
+#E6FAF8
+
+label:
+#0F172A
+
+percentage:
+#0F172A 또는 #2EC4B6 중
+가독성 높은 쪽 사용
+
+progress track:
+아주 연한 neutral 또는 mintLight
+
+progress fill:
+#2EC4B6
+
+새 cyan 사용 금지.
+
+==================================================
+5. SECTION TYPE A
+==================================================
+
+대상:
+- 이번 달 한눈에 보기
+- 가정에서 함께해요
+
+background:
+#E6FAF8
+
+accent bar:
+#2EC4B6
+
+title:
+#0F172A
+
+body:
+#0F172A 또는 기존 dark body text
+
+즉,
+“X Mint Light + X Mint + X Navy”
+조합으로 고정.
+
+==================================================
+6. SECTION TYPE B
+==================================================
+
+대상:
+- 수영 교육과정 진행
+- 이전 기간 비교
+- 다음 수업 방향
+- 기타 일반 분석
+
+background:
+#FFFFFF
+
+accent bar:
+#0F172A
+
+title:
+#0F172A
+
+body:
+기존 dark text
+
+divider:
+neutral gray
+
+여기에도 aqua/cyan 사용 금지.
+
+==================================================
+7. ACTION ROW
+==================================================
+
+좋아요 / 댓글 / PDF 공유:
+
+기본 icon/text:
+neutral gray
+
+active 또는 강조가 필요한 경우:
+#2EC4B6
+
+navy:
+#0F172A
+
+일반 SWIMNOTE blue/cyan 사용 금지.
+
+==================================================
+8. COLOR ROLE 규칙
+==================================================
+
+SWIMNOTE X Growth Report Feed에서는
+색 역할을 다음처럼 고정한다.
+
+NAVY #0F172A
+= 제목 / 구조 / 강한 정보
+
+MINT #2EC4B6
+= accent / active / progress / 강조선
+
+MINT LIGHT #E6FAF8
+= 핵심 영역 배경 / X badge 배경 / highlight
+
+WHITE
+= 일반 분석 section
+
+GRAY
+= metadata / divider / inactive utility
+
+section마다 임의 색상 변경 금지.
+
+==================================================
+9. 전체 확인
+==================================================
+
+Growth Report Feed 코드 내에서
+현재 사용 중인 color literal들을 audit하고
+
+일반 SWIMNOTE palette가 남아 있는지 확인.
+
+보고:
+- 제거한 기존 색상
+- 최종 사용 색상 목록
+- 각 색상의 role
+- hardcoded 일반 SWIMNOTE 색상 0건 여부
+
+==================================================
+10. SCREENSHOT
+==================================================
+
+375 / 390 / 430 full-page screenshot 제출.
+
+특히 확인:
+
+- 월간 리포트 badge
+- header title
+- progress strip
+- 이번 달 한눈에 보기
+- 일반 section
+- 가정에서 함께해요
+- action row
+
+모두 SWIMNOTE X 컬러 시스템으로 통일됐는지 확인.
+
+완료 후 STOP.

@@ -1,0 +1,210 @@
+[URGENT LOGIN SCREEN LOGO LAYOUT FIX]
+
+현재 OTA 이후 로그인 화면 레이아웃이 깨졌다.
+
+증상:
+- 앱 실행 후 로그인 화면 진입 시 화면 대부분이 흰색으로 보임
+- 아래로 스크롤해야 아이디/비밀번호 입력창이 나타남
+- 새 로고 교체 과정에서 LOGIN 화면의 로고 영역 높이/레이아웃이 과도하게 커진 것으로 보임
+
+중요:
+새 로고 파일 자체는 유지한다.
+Splash Screen의 현재 로고 크기/배치는 변경하지 않는다.
+LOGIN SCREEN 레이아웃만 수정한다.
+
+==================================================
+1. LOGIN 화면 구조 확인
+==================================================
+
+현재 로그인 화면에서 새 로고를 감싸는:
+
+- View
+- Image
+- flex
+- flexGrow
+- minHeight
+- height
+- percentage height
+- aspectRatio
+- marginTop / marginBottom
+- ScrollView contentContainerStyle
+- justifyContent
+
+를 전부 확인한다.
+
+특히 로고 영역에:
+
+- flex: 1
+- height: screenHeight 비례
+- 과도한 minHeight
+- width와 함께 잘못된 aspectRatio
+- 이미지 원본 canvas 크기에 의한 과도한 layout height
+
+가 적용되어 있는지 확인.
+
+ROOT CAUSE를 찾고 최소 수정한다.
+
+==================================================
+2. FINAL LOGIN LOGO SIZE
+==================================================
+
+로그인 화면 새 로고는 다음 기준으로 고정.
+
+visible logo target width:
+
+screenWidth 390dp 기준 약 190dp
+screenWidth 410dp 기준 약 200dp
+screenWidth 430dp 기준 약 210dp
+
+공식 규칙:
+
+logoWidth = min(screenWidth * 0.49, 210)
+
+Image:
+- width = logoWidth
+- resizeMode = contain
+- aspect ratio 유지
+
+중요:
+로고 Image나 wrapper에 flex:1 금지.
+
+==================================================
+3. LOGIN LOGO AREA HEIGHT
+==================================================
+
+로그인 화면에서 로고 영역 전체 높이가
+화면을 밀어내지 않도록 명확하게 제한한다.
+
+목표:
+
+- 상단 safe area 이후
+- 로고가 화면 상단 약 18~22% 지점부터 보이기 시작
+- 로고 하단과 "아이디" label 사이 간격 약 55~70dp
+- 아이디/비밀번호/로그인 버튼이
+  일반 iPhone 화면에서 스크롤 없이 첫 화면에 보여야 함
+
+로고 wrapper 권장:
+
+height 약 300~330dp 이내
+
+또는 정확한 기존 login layout 구조에 맞춰
+그보다 작은 값 사용 가능.
+
+절대:
+- 화면 높이의 50% 이상 차지 금지
+- flexGrow로 남은 화면을 먹게 하지 말 것
+- intrinsic image size로 wrapper 높이 결정 금지
+
+==================================================
+4. SCROLL POLICY
+==================================================
+
+일반 iPhone 화면에서는
+로그인 폼이 기본 상태에서 스크롤 없이 보여야 한다.
+
+스크롤은 다음 상황에서만 허용:
+
+- 작은 화면
+- 키보드 표시
+- 접근성 큰 글꼴
+
+즉 평상시:
+
+로고
+→ 아이디
+→ 비밀번호
+→ 로그인
+→ 비밀번호 찾기
+→ 회원가입
+→ Apple/Kakao
+
+가 자연스럽게 한 화면 안에 배치되어야 한다.
+
+==================================================
+5. SPLASH SCREEN
+==================================================
+
+현재 첨부된 Splash Screen 화면은
+크기와 중앙 배치가 정상적으로 보이므로
+
+이번 수정에서 Splash asset/size/layout 변경 금지.
+
+새 공식 로고 그대로 유지.
+
+==================================================
+6. OTHER UI
+==================================================
+
+변경 금지:
+
+- 로그인 input 디자인
+- 로그인 버튼
+- 회원가입 버튼
+- Apple 로그인
+- Kakao 로그인
+- 색상
+- 배경
+- 인증 로직
+- 로그인 API
+- splash config
+- native config
+- 가격/구독/X
+
+오직 LOGIN 로고 영역의
+크기/높이/spacing만 수정.
+
+==================================================
+7. TEST DEVICES
+==================================================
+
+최소 확인:
+
+- iPhone 13/14/15 계열 약 390dp
+- iPhone Plus/Max 약 430dp
+- Android 360~412dp
+
+PASS 조건:
+
+1. 최초 로그인 화면 진입
+2. 로고 정상 표시
+3. 아이디 입력창 첫 화면에 표시
+4. 비밀번호 입력창 첫 화면에 표시
+5. 로그인 버튼 첫 화면에 표시
+6. 아래로 강제 스크롤할 필요 없음
+7. 키보드 표시 시 필요한 경우만 ScrollView 정상
+8. 로고 비율/색상/잘림 정상
+
+==================================================
+8. OTA
+==================================================
+
+이 수정이 JS/TS layout 수정만이면
+iOS production OTA 재배포 가능.
+
+현재 잘못 배포된 OTA 위에
+수정 OTA를 즉시 배포한다.
+
+runtimeVersion 변경 금지.
+
+완료보고:
+
+LOGIN LOGO LAYOUT FIX
+
+ROOT CAUSE =
+SCREEN FILE =
+LOGO WIDTH RULE =
+LOGO WRAPPER HEIGHT =
+FLEX REMOVED =
+SCROLL BEHAVIOR =
+SPLASH UNCHANGED =
+FILES CHANGED =
+COMMIT =
+
+IOS OTA =
+UPDATE ID =
+RUNTIME VERSION =
+
+FINAL:
+PASS
+or
+HOLD

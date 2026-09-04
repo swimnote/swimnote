@@ -1,3 +1,5 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/backup.tsx — 백업/복구 관리 (실제 API 연동)
  *
@@ -10,21 +12,20 @@
  * POST /super/backups/:id/restore — 복구 기록
  * GET  /super/backups/:id/download — 다운로드
  */
-import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleAlert, CircleCheck, Clock, Download, FileText, HardDrive, Info, Layers, RefreshCw, RotateCcw, Save, Search, Server, Settings, Shield, TriangleAlert, User, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Anchor, Calendar, Check, ChevronLeft, ChevronRight, CircleCheck, Clock, HardDrive, Layers, RefreshCw, RotateCcw, Save, Search, Settings, TriangleAlert, X } from "lucide-react-native";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, Share, StyleSheet, Switch,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, Share, StyleSheet, Switch,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 
 const P = "#7C3AED";
-const GREEN = "#2EC4B6";
+const GREEN = C.brandStrong;
 const DANGER = "#D96C6C";
 const WARN = "#D97706";
 
@@ -98,7 +99,7 @@ function fmtSize(bytes: number | string | null | undefined): string {
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "대기 중", color: WARN,    bg: "#FFF1BF" },
   running: { label: "진행 중", color: GREEN,   bg: "#ECFEFF" },
-  done:    { label: "완료",    color: GREEN,   bg: "#E6FFFA" },
+  done:    { label: "완료",    color: GREEN,   bg: C.brandSoft },
   failed:  { label: "실패",    color: DANGER,  bg: "#F9DEDA" },
 };
 
@@ -160,14 +161,29 @@ interface BackupStatusData {
       pool_configured: boolean;
       protect_configured: boolean;
     };
+    hot_standby: {
+      label: string;
+      configured: boolean;
+      connected: boolean;
+      latency_ms: number | null;
+      status: CardStatus;
+      status_label: string;
+      last_sync_at: string | null;
+      last_sync_status: string | null;
+      lag_minutes: number | null;
+      lag_label: string | null;
+      error: string | null;
+      sync_schedule: string;
+      tables_synced: number;
+    };
   };
 }
 
 const DB_STATUS_CFG: Record<CardStatus, { color: string; bg: string; icon: string }> = {
-  normal:         { color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  normal:         { color: C.brandStrong, bg: C.brandSoft, icon: "check-circle" },
   warning:        { color: "#D97706", bg: "#FFF1BF", icon: "alert-circle" },
   error:          { color: "#D96C6C", bg: "#F9DEDA", icon: "alert-triangle" },
-  not_configured: { color: "#64748B", bg: "#FFFFFF", icon: "minus-circle" },
+  not_configured: { color: C.textSecondary, bg: "#FFFFFF", icon: "minus-circle" },
 };
 
 // ── 4개 DB 상태 카드 ──────────────────────────────────────────────────────────
@@ -219,7 +235,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
   if (error || !status) {
     return (
       <View style={dc.errorBox}>
-        <CircleAlert size={16} color={DANGER} />
+        <LucideIcon name="alert-circle" size={16} color={DANGER} />
         <Text style={dc.errorTxt}>{error ?? "상태 조회 실패"}</Text>
         <Pressable onPress={handleRefresh}>
           <Text style={dc.retryTxt}>다시 시도</Text>
@@ -228,7 +244,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     );
   }
 
-  const { operational_db, pool_backup, protect_backup, summary } = status.cards;
+  const { operational_db, pool_backup, protect_backup, summary, hot_standby } = status.cards;
 
   function DbCard({ label, status: st, statusLabel, sub1, sub2, errorMsg, icon }: {
     label: string;
@@ -267,10 +283,10 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
     <View style={dc.wrap}>
       {/* 헤더 + 갱신 버튼 */}
       <View style={dc.header}>
-        <Shield size={14} color={P} />
+        <LucideIcon name="shield" size={14} color={P} />
         <Text style={dc.headerTxt}>DB 백업 상태</Text>
         <Pressable onPress={handleRefresh} disabled={refreshing} style={dc.refreshBtn}>
-          <RefreshCw size={13} color={refreshing ? "#D1D5DB" : P} />
+          <LucideIcon name="refresh-cw" size={13} color={refreshing ? "#D1D5DB" : P} />
         </Pressable>
       </View>
 
@@ -322,6 +338,35 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         sub2={`pool ${summary.pool_configured ? "✓" : "✗"}  보호백업 ${summary.protect_configured ? "✓" : "✗"}`}
       />
 
+      {/* 카드 5: 핫 스탠바이 DB */}
+      {hot_standby && (
+        <DbCard
+          label="핫 스탠바이 DB"
+          status={hot_standby.status}
+          statusLabel={hot_standby.status_label}
+          icon="radio"
+          sub1={
+            !hot_standby.configured
+              ? "POOL_DATABASE_URL 미설정"
+              : !hot_standby.connected
+              ? `연결 실패${hot_standby.error ? ` — ${hot_standby.error.slice(0, 40)}` : ""}`
+              : hot_standby.lag_label
+              ? `${hot_standby.lag_label}${hot_standby.latency_ms !== null ? ` · ${hot_standby.latency_ms}ms` : ""}`
+              : "싱크 기록 없음"
+          }
+          sub2={
+            hot_standby.configured
+              ? `5분 헬스체크 · 30분 핫싱크 · 6시간 풀싱크 · ${hot_standby.tables_synced}개 테이블`
+              : undefined
+          }
+          errorMsg={
+            hot_standby.status === "error" && hot_standby.error
+              ? hot_standby.error.slice(0, 80)
+              : null
+          }
+        />
+      )}
+
       {/* 수동 백업 버튼 */}
       <View style={dc.btnRow}>
         <Pressable
@@ -331,7 +376,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
         >
           {backingUp
             ? <ActivityIndicator size="small" color="#fff" />
-            : <Save size={13} color="#fff" />}
+            : <LucideIcon name="save" size={13} color="#fff" />}
           <Text style={dc.manualBtnTxt}>{backingUp ? "백업 중..." : "전체 백업 실행"}</Text>
         </Pressable>
         <Pressable
@@ -339,7 +384,7 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
           onPress={() => onManualBackup("pool_only")}
           disabled={backingUp}
         >
-          <Server size={13} color={P} />
+          <LucideIcon name="server" size={13} color={P} />
           <Text style={dc.poolBtnTxt}>pool만</Text>
         </Pressable>
       </View>
@@ -350,21 +395,21 @@ function DbStatusCards({ token, onManualBackup, backingUp }: {
 }
 
 const dc = StyleSheet.create({
-  wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 4 },
+  wrap:       { backgroundColor: "#fff", borderRadius: 14, padding: 14, gap: 8, borderWidth: 1, borderColor: C.border, marginBottom: 4 },
   header:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  headerTxt:  { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   refreshBtn: { padding: 4 },
-  loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB" },
-  loadingTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  loadingBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 16, backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  loadingTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   errorBox:   { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, backgroundColor: "#FDE8E8", borderRadius: 12 },
   errorTxt:   { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
   retryTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: DANGER },
   card:       { backgroundColor: "#FAFAF9", borderRadius: 10, padding: 10, gap: 2 },
   cardTop:    { flexDirection: "row", alignItems: "center", gap: 8 },
   iconWrap:   { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cardSub:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
-  cardSub2:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: 40 },
+  cardLabel:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
+  cardSub2:   { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: 40 },
   statusBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   statusTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular" },
   errorLine:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER, marginLeft: 40, marginTop: 2 },
@@ -375,7 +420,7 @@ const dc = StyleSheet.create({
   poolBtn:    { flexDirection: "row", alignItems: "center", gap: 5,
                 backgroundColor: "#EEDDF5", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   poolBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
-  checkedAt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "right" },
+  checkedAt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "right" },
 });
 
 // ── 백업 카드 ─────────────────────────────────────────────────────────────────
@@ -413,27 +458,27 @@ function BackupCard({
       <View style={bc.meta}>
         {item.total_tables != null && (
           <View style={bc.metaItem}>
-            <Layers size={11} color="#64748B" />
+            <LucideIcon name="layers" size={11} color={C.textSecondary} />
             <Text style={bc.metaVal}>{item.total_tables}개 테이블</Text>
           </View>
         )}
         <View style={bc.metaItem}>
-          <HardDrive size={11} color="#64748B" />
+          <LucideIcon name="hard-drive" size={11} color={C.textSecondary} />
           <Text style={bc.metaVal}>{fmtSize(item.size_bytes)}</Text>
         </View>
         <View style={bc.metaItem}>
-          <Clock size={11} color="#64748B" />
+          <LucideIcon name="clock" size={11} color={C.textSecondary} />
           <Text style={bc.metaVal}>{fmtDateTime(item.created_at)}</Text>
         </View>
         {item.created_by && (
           <View style={bc.metaItem}>
-            <User size={11} color="#64748B" />
+            <LucideIcon name="user" size={11} color={C.textSecondary} />
             <Text style={bc.metaVal}>{item.created_by}</Text>
           </View>
         )}
         {item.note && (
           <View style={bc.metaItem}>
-            <FileText size={11} color="#64748B" />
+            <LucideIcon name="file-text" size={11} color={C.textSecondary} />
             <Text style={bc.metaVal} numberOfLines={1}>{item.note}</Text>
           </View>
         )}
@@ -441,12 +486,12 @@ function BackupCard({
 
       {item.status === "done" && (
         <View style={bc.actions}>
-          <Pressable style={[bc.btn, { backgroundColor: "#E6FAF8" }]} onPress={() => onDownload(item)}>
-            <Download size={12} color="#0284C7" />
+          <Pressable style={[bc.btn, { backgroundColor: C.brandSoft }]} onPress={() => onDownload(item)}>
+            <LucideIcon name="download" size={12} color="#0284C7" />
             <Text style={[bc.btnTxt, { color: "#0284C7" }]}>다운로드</Text>
           </Pressable>
           <Pressable style={[bc.btn, { backgroundColor: "#F9DEDA" }]} onPress={() => onRestore(item)}>
-            <RotateCcw size={12} color={DANGER} />
+            <LucideIcon name="refresh-ccw" size={12} color={DANGER} />
             <Text style={[bc.btnTxt, { color: DANGER }]}>복구</Text>
           </Pressable>
         </View>
@@ -456,15 +501,15 @@ function BackupCard({
 }
 
 const bc = StyleSheet.create({
-  card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:     { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border },
   top:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
   badge:    { borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   badgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  time:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  name:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+  time:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: "auto" },
+  name:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
   meta:     { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaVal:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaVal:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actions:  { flexDirection: "row", gap: 8 },
   btn:      { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 },
   btnTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -483,15 +528,15 @@ function CreateModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.backgroundSoft }} edges={["top"]}>
         <View style={cr.header}>
-          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
           <Text style={cr.title}>수동 백업 생성</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={cr.infoBox}>
-            <Info size={14} color="#0284C7" />
+            <LucideIcon name="info" size={14} color="#0284C7" />
             <Text style={cr.infoTxt}>
               슈퍼관리자 DB와 수영장 운영 DB 전체를 백업합니다.{"\n"}
               소요 시간: 약 10~30초 (DB 크기에 따라 다름)
@@ -500,30 +545,30 @@ function CreateModal({
           <View>
             <Text style={cr.label}>메모 (선택)</Text>
             <TextInput style={cr.input} value={note} onChangeText={setNote} editable={!busy}
-              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor="#64748B"
+              placeholder="이 백업에 대한 메모를 입력하세요" placeholderTextColor={C.textMuted}
               multiline numberOfLines={2} />
           </View>
           <Pressable style={[cr.confirmBtn, busy && { opacity: 0.5 }]} onPress={() => onCreate(note)} disabled={busy}>
             {busy
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Save size={16} color="#fff" />
+              : <LucideIcon name="save" size={16} color="#fff" />
             }
             <Text style={cr.confirmTxt}>{busy ? "백업 생성 중..." : "백업 생성"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
 }
 
 const cr = StyleSheet.create({
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   confirmBtn: { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
-  infoBox:    { flexDirection: "row", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 8, padding: 12, alignItems: "flex-start" },
+  infoBox:    { flexDirection: "row", gap: 8, backgroundColor: C.brandSoft, borderRadius: 8, padding: 12, alignItems: "flex-start" },
   infoTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0284C7", lineHeight: 18 },
 });
 
@@ -538,13 +583,13 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
   if (!target) return null;
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.backgroundSoft }} edges={["top"]}>
         <View style={rm.header}>
-          <Pressable onPress={onClose} disabled={busy}><X size={20} color="#64748B" /></Pressable>
+          <Pressable onPress={onClose} disabled={busy}><X size={20} color={C.textSecondary} /></Pressable>
           <Text style={rm.title}>데이터 복구</Text>
           <View style={{ width: 24 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+        <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
           <View style={rm.warningBox}>
             <TriangleAlert size={20} color={WARN} />
             <Text style={rm.warningTxt}>
@@ -566,7 +611,7 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
           <View>
             <Text style={rm.inputLabel}>복구 사유 (필수)</Text>
             <TextInput style={rm.input} value={reason} onChangeText={setReason} editable={!busy}
-              placeholder="복구 사유를 입력하세요" placeholderTextColor="#64748B"
+              placeholder="복구 사유를 입력하세요" placeholderTextColor={C.textMuted}
               multiline numberOfLines={3} textAlignVertical="top" />
           </View>
           <Pressable style={[rm.confirmBtn, (!reason.trim() || busy) && { opacity: 0.4 }]}
@@ -575,22 +620,22 @@ function RestoreModal({ target, onClose, onConfirm, busy }: {
             {busy ? <ActivityIndicator color="#fff" size="small" /> : <RotateCcw size={16} color="#fff" />}
             <Text style={rm.confirmTxt}>{busy ? "처리 중..." : "복구 실행"}</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     </Modal>
   );
 }
 
 const rm = StyleSheet.create({
-  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  header:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  title:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   warningBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14 },
   warningTxt: { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 20 },
-  infoBox:    { backgroundColor: "#F1F5F9", borderRadius: 10, padding: 14, gap: 4 },
-  infoLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
-  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 6 },
-  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", height: 90 },
+  infoBox:    { backgroundColor: C.backgroundSoft, borderRadius: 10, padding: 14, gap: 4 },
+  infoLabel:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  infoVal:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 6 },
+  inputLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 6 },
+  input:      { backgroundColor: "#fff", borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, height: 90 },
   confirmBtn: { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   confirmTxt: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -642,7 +687,7 @@ function AutoBackupPanel({ token }: { token: string | null }) {
           <Text style={ap.sub}>{draft.auto_enabled ? "매 스케줄마다 자동 실행" : "수동 백업만 가능"}</Text>
         </View>
         <Switch value={draft.auto_enabled} onValueChange={v => setDraft({ ...draft, auto_enabled: v })}
-          trackColor={{ true: P, false: "#E5E7EB" }} thumbColor="#fff" />
+          trackColor={{ true: P, false: C.border }} thumbColor="#fff" />
       </View>
 
       {draft.auto_enabled && (
@@ -663,11 +708,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>실행 시간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour - 1 + 24) % 24 })}>
-                <ChevronLeft size={16} color="#0F172A" />
+                <ChevronLeft size={16} color={C.textPrimary} />
               </Pressable>
               <Text style={ap.hourVal}>{p2(draft.run_hour)}:00</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, run_hour: (draft.run_hour + 1) % 24 })}>
-                <ChevronRight size={16} color="#0F172A" />
+                <ChevronRight size={16} color={C.textPrimary} />
               </Pressable>
             </View>
           </View>
@@ -677,11 +722,11 @@ function AutoBackupPanel({ token }: { token: string | null }) {
             <Text style={ap.label}>보관 기간</Text>
             <View style={ap.hourPicker}>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.max(1, draft.retention_days - 1) })}>
-                <ChevronLeft size={16} color="#0F172A" />
+                <ChevronLeft size={16} color={C.textPrimary} />
               </Pressable>
               <Text style={ap.hourVal}>{draft.retention_days}일</Text>
               <Pressable style={ap.hourBtn} onPress={() => setDraft({ ...draft, retention_days: Math.min(90, draft.retention_days + 1) })}>
-                <ChevronRight size={16} color="#0F172A" />
+                <ChevronRight size={16} color={C.textPrimary} />
               </Pressable>
             </View>
           </View>
@@ -699,19 +744,19 @@ function AutoBackupPanel({ token }: { token: string | null }) {
 }
 
 const ap = StyleSheet.create({
-  wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 10 },
+  wrap:        { backgroundColor: "#fff", borderRadius: 12, padding: 16, gap: 10, borderWidth: 1, borderColor: C.border, marginBottom: 10 },
   row:         { flexDirection: "row", alignItems: "center", gap: 10 },
-  label:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
-  sub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  label:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
+  sub:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   divider:     { height: 1, backgroundColor: "#FFFFFF" },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   seg:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt:{ color: "#fff" },
   hourPicker:  { flexDirection: "row", alignItems: "center", gap: 8 },
   hourBtn:     { width: 30, height: 30, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
-  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", minWidth: 50, textAlign: "center" },
+  hourVal:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, minWidth: 50, textAlign: "center" },
   saveBtn:     { backgroundColor: P, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, padding: 12, marginTop: 4 },
   saveTxt:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -774,10 +819,10 @@ function FullRestoreModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.backgroundSoft }} edges={["top"]}>
         <View style={fr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <X size={20} color="#64748B" />
+            <X size={20} color={C.textSecondary} />
           </Pressable>
           <Text style={fr.title}>전체 복구</Text>
           <View style={{ width: 24 }} />
@@ -787,7 +832,7 @@ function FullRestoreModal({
           /* 결과 화면 */
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? C.brandSoft : "#F9DEDA",
             }]}>
               <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
@@ -808,7 +853,7 @@ function FullRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}>
             {/* 1단계: 백업 시점 선택 */}
             <Text style={fr.stepTitle}>1단계 — 복구할 백업 시점 선택</Text>
             {backups.length === 0 ? (
@@ -816,7 +861,7 @@ function FullRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다. 먼저 백업을 생성하세요.</Text>
               </View>
             ) : (
-              <ScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={fr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id} style={[fr.backupItem, selectedBackup?.id === bk.id && fr.backupItemSel]}
                     onPress={() => setSelectedBackup(bk)}>
@@ -834,7 +879,7 @@ function FullRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {/* 선택된 백업 요약 */}
@@ -865,7 +910,7 @@ function FullRestoreModal({
               </Text>
               <TextInput style={[fr.input, confirmText === "전체 복구" && { borderColor: DANGER }]}
                 value={confirmText} onChangeText={setConfirmText}
-                placeholder="전체 복구" placeholderTextColor="#64748B"
+                placeholder="전체 복구" placeholderTextColor={C.textMuted}
                 editable={!busy} autoCapitalize="none" />
             </View>
 
@@ -878,7 +923,7 @@ function FullRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 실행 중..." : "전체 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -886,30 +931,30 @@ function FullRestoreModal({
 }
 
 const fr = StyleSheet.create({
-  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  backupList:     { maxHeight: 220, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  backupList:     { maxHeight: 220, borderWidth: 1, borderColor: C.border, borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  backupItemMeta: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
-  backupItemNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  backupItemDate: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  backupItemMeta: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
+  backupItemNote: { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   selectedBox:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
   warnBox:        { flexDirection: "row", gap: 10, backgroundColor: "#FFF1BF", borderRadius: 10, padding: 14, alignItems: "flex-start" },
   warnTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#92400E", marginBottom: 2 },
   warnTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 18 },
   emptyBox:       { backgroundColor: "#FFFFFF", borderRadius: 8, padding: 16, alignItems: "center" },
-  emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
-  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  emptyTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
+  input:          { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 8, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   execBtn:        { backgroundColor: DANGER, borderRadius: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 15 },
   execTxt:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   resultWrap:     { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 16 },
   resultIcon:     { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
   resultTitle:    { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  resultMsg:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 22 },
+  resultMsg:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 22 },
 });
 
 // ── 수영장별 복구 모달 ─────────────────────────────────────────────────────────
@@ -1002,10 +1047,10 @@ function PoolRestoreModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F1F5F9" }} edges={["top"]}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.backgroundSoft }} edges={["top"]}>
         <View style={pr.header}>
           <Pressable onPress={handleClose} disabled={busy}>
-            <X size={20} color="#64748B" />
+            <X size={20} color={C.textSecondary} />
           </Pressable>
           <Text style={pr.title}>수영장별 복구</Text>
           <View style={{ width: 24 }} />
@@ -1014,7 +1059,7 @@ function PoolRestoreModal({
         {result ? (
           <View style={fr.resultWrap}>
             <View style={[fr.resultIcon, {
-              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? "#E6FFFA" : "#F9DEDA",
+              backgroundColor: result.empty ? "#FEF3C7" : result.ok ? C.brandSoft : "#F9DEDA",
             }]}>
               <LucideIcon
                 name={result.empty ? "info" : result.ok ? "check-circle" : "x-circle"}
@@ -1035,17 +1080,17 @@ function PoolRestoreModal({
             </Pressable>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
+          <KeyboardAwareScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
             keyboardShouldPersistTaps="handled">
 
             {/* Step 1: 수영장 검색 */}
             <Text style={pr.stepTitle}>1단계 — 수영장 검색 및 선택</Text>
             <View style={pr.searchBox}>
-              <Search size={16} color="#64748B" />
+              <Search size={16} color={C.textSecondary} />
               <TextInput style={pr.searchInput} value={searchQ}
                 onChangeText={setSearchQ}
                 placeholder="수영장명 검색 (예: 토이키즈)"
-                placeholderTextColor="#64748B"
+                placeholderTextColor={C.textMuted}
                 autoCapitalize="none" editable={!busy} />
               {searching && <ActivityIndicator size="small" color={P} />}
             </View>
@@ -1092,7 +1137,7 @@ function PoolRestoreModal({
                 <Text style={fr.emptyTxt}>백업 기록이 없습니다.</Text>
               </View>
             ) : (
-              <ScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
+              <KeyboardAwareScrollView style={pr.backupList} nestedScrollEnabled showsVerticalScrollIndicator>
                 {backups.map(bk => (
                   <Pressable key={bk.id}
                     style={[pr.backupItem, selectedBackup?.id === bk.id && pr.backupItemSel]}
@@ -1110,7 +1155,7 @@ function PoolRestoreModal({
                     )}
                   </Pressable>
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             )}
 
             {selectedBackup && (
@@ -1143,7 +1188,7 @@ function PoolRestoreModal({
                 <TextInput style={[fr.input, confirmName === selectedPool.name && { borderColor: DANGER }]}
                   value={confirmName} onChangeText={setConfirmName}
                   placeholder={selectedPool.name}
-                  placeholderTextColor="#64748B"
+                  placeholderTextColor={C.textMuted}
                   editable={!busy} autoCapitalize="none" />
               </View>
             )}
@@ -1157,7 +1202,7 @@ function PoolRestoreModal({
               }
               <Text style={fr.execTxt}>{busy ? "복구 중..." : "수영장별 복구 실행"}</Text>
             </Pressable>
-          </ScrollView>
+          </KeyboardAwareScrollView>
         )}
       </SafeAreaView>
     </Modal>
@@ -1165,24 +1210,24 @@ function PoolRestoreModal({
 }
 
 const pr = StyleSheet.create({
-  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  header:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  title:          { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  stepTitle:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   searchBox:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#D1D5DB", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  resultList:     { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", maxHeight: 200 },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  resultList:     { borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", maxHeight: 200 },
   noResult:       { padding: 16, alignItems: "center" },
-  noResultTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  noResultTxt:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   poolItem:       { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 8 },
   poolItemSel:    { backgroundColor: "#F3EEFF" },
-  poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  poolSub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  poolName:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  poolSub:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   selectedPoolBox:{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F3EEFF", borderRadius: 8, padding: 10 },
   selectedPoolTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: P, flex: 1 },
-  backupList:     { maxHeight: 200, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10 },
+  backupList:     { maxHeight: 200, borderWidth: 1, borderColor: C.border, borderRadius: 10 },
   backupItem:     { padding: 12, borderBottomWidth: 1, borderBottomColor: "#FFFFFF", flexDirection: "row", alignItems: "center", gap: 10 },
   backupItemSel:  { backgroundColor: "#F3EEFF" },
-  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+  inputLabel:     { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
 });
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -1396,7 +1441,7 @@ export default function BackupScreen() {
             {showSettings && <AutoBackupPanel token={token} />}
 
             {/* 탭 */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 8, paddingHorizontal: 0 }}>
               {TABS.map(t => (
                 <Pressable key={t.key} style={[s.tab, activeTab === t.key && s.tabActive]}
@@ -1404,7 +1449,7 @@ export default function BackupScreen() {
                   <Text style={[s.tabTxt, activeTab === t.key && s.tabActiveTxt]}>{t.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         }
         ListEmptyComponent={
@@ -1452,11 +1497,11 @@ export default function BackupScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:          { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:          { flex: 1, backgroundColor: C.backgroundSoft },
   summaryRow:    { flexDirection: "row", gap: 8 },
-  summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: "#E5E7EB" },
-  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryKey:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  summaryCard:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 4, borderWidth: 1, borderColor: C.border },
+  summaryVal:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryKey:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   btnRow:        { flexDirection: "row", gap: 8 },
   actionBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: P, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
   actionBtnTxt:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -1464,9 +1509,9 @@ const s = StyleSheet.create({
   outlineBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: P },
   tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 12, lineHeight: 17, color: C.textSecondary },
   tabActiveTxt:  { color: "#fff" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  emptySubTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  emptySubTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

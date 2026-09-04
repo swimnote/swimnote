@@ -3,33 +3,32 @@
  * - 카드 누르면 상세 모달 (학생 반·레벨 정보)
  * - 전화걸기 / 문자보내기 버튼
  */
-import { HeartHandshake, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
-import {
-  ActivityIndicator,
+import {ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   Modal,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { RegisterModal } from "@/components/admin/members/RegisterModal";
 
 const C = Colors.light;
-const TEAL = "#2EC4B6";
-const TEAL_BG = "#E6FAF8";
+const TEAL = C.brandStrong;
+const TEAL_BG = C.brandSoft;
 
 type FilterKey = "all" | "app" | "guardian";
 
@@ -104,15 +103,20 @@ function ParentDetailModal({
   visible,
   onClose,
   token,
+  poolName,
+  onRefresh,
 }: {
   item: ParentRow | null;
   visible: boolean;
   onClose: () => void;
   token: string | null;
+  poolName: string;
+  onRefresh: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [detail, setDetail] = useState<ParentDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   React.useEffect(() => {
     if (!visible || !item) { setDetail(null); return; }
@@ -163,7 +167,7 @@ function ParentDetailModal({
             <Text style={md.phoneTxt}>{formatPhone(phone)}</Text>
           </View>
           <Pressable onPress={onClose} hitSlop={12}>
-            <X size={20} color={C.textMuted} />
+            <LucideIcon name="x" size={20} color={C.textMuted} />
           </Pressable>
         </View>
 
@@ -174,7 +178,7 @@ function ParentDetailModal({
             onPress={() => callPhone(phone)}
             disabled={!phone}
           >
-            <Phone size={18} color={TEAL} />
+            <LucideIcon name="phone" size={18} color={TEAL} />
             <Text style={[md.actionTxt, { color: TEAL }]}>전화걸기</Text>
           </Pressable>
           <Pressable
@@ -182,12 +186,12 @@ function ParentDetailModal({
             onPress={() => smsPhone(phone)}
             disabled={!phone}
           >
-            <MessageSquare size={18} color="#4F6EF7" />
+            <LucideIcon name="message-square" size={18} color="#4F6EF7" />
             <Text style={[md.actionTxt, { color: "#4F6EF7" }]}>문자보내기</Text>
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
+        <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, gap: 16 }}>
           {/* 기본 정보 */}
           <View style={md.section}>
             <Text style={md.sectionTitle}>기본 정보</Text>
@@ -234,6 +238,17 @@ function ParentDetailModal({
                             </View>
                           )}
                         </View>
+                        {/* 보호자 번호 전체 */}
+                        {([
+                          { label: "보호자1", val: st.parent_phone },
+                          { label: "보호자2", val: st.parent_phone2 },
+                          { label: "보호자3", val: st.parent_phone3 },
+                          { label: "보호자4", val: st.parent_phone4 },
+                        ] as { label: string; val: string | null }[]).filter(p => p.val).map(p => (
+                          <Text key={p.label} style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                            {p.label}: {formatPhone(p.val)}
+                          </Text>
+                        ))}
                       </View>
                     </View>
                   ))
@@ -247,8 +262,19 @@ function ParentDetailModal({
                     </View>
                   ))
                 ) : (
-                  <View style={[md.infoCard, { alignItems: "center", paddingVertical: 16 }]}>
-                    <Text style={{ color: C.textMuted, fontSize: 13 }}>연결된 자녀가 없습니다</Text>
+                  <View>
+                    <View style={[md.infoCard, { alignItems: "center", paddingVertical: 12, marginBottom: 10 }]}>
+                      <Text style={{ color: C.textMuted, fontSize: 13 }}>연결된 자녀가 없습니다</Text>
+                    </View>
+                    {isApp && (
+                      <Pressable
+                        style={({ pressed }) => [md.registerBtn, { opacity: pressed ? 0.8 : 1 }]}
+                        onPress={() => setShowRegister(true)}
+                      >
+                        <LucideIcon name="link-2" size={16} color="#fff" />
+                        <Text style={md.registerBtnTxt}>학생 등록 후 바로 연결</Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
               </View>
@@ -269,10 +295,79 @@ function ParentDetailModal({
                   </View>
                 </View>
               )}
+
+              {/* 계정/정보 삭제 — 앱 가입 + 보호자 모두 */}
+              <View style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, gap: 10 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#991B1B" }}>
+                  {isApp
+                    ? "계정을 삭제하면 앱 로그인이 불가능해지고 자녀 연결이 모두 해제됩니다. 복구할 수 없습니다."
+                    : "보호자 정보를 삭제하면 연결된 학생의 이름·연락처가 모두 지워집니다. 복구할 수 없습니다."}
+                </Text>
+                <Pressable
+                  style={({ pressed }) => [md.deleteBtn, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => {
+                    const title = isApp ? "학부모 계정 삭제" : "보호자 정보 삭제";
+                    const msg = isApp
+                      ? `${item.name || "이 학부모"}의 계정을 완전히 삭제하시겠습니까?\n아이디, 자녀 연결이 모두 삭제되며 복구할 수 없습니다.`
+                      : `${item.name || "이 보호자"}의 정보를 삭제하시겠습니까?\n연결된 학생의 보호자 이름·연락처가 모두 지워집니다.`;
+                    Alert.alert(title, msg, [
+                      { text: "취소", style: "cancel" },
+                      {
+                        text: "삭제", style: "destructive",
+                        onPress: async () => {
+                          try {
+                            const res = await apiRequest(token, `/admin/parents/${item.id}?source=${item.source}`, { method: "DELETE" });
+                            if (res.ok) {
+                              onClose();
+                              onRefresh();
+                            } else {
+                              const body = await res.json().catch(() => ({}));
+                              Alert.alert("오류", body.error || "삭제에 실패했습니다.");
+                            }
+                          } catch {
+                            Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+                          }
+                        },
+                      },
+                    ]);
+                  }}
+                >
+                  <Text style={md.deleteBtnTxt}>{isApp ? "계정 완전 삭제" : "보호자 정보 삭제"}</Text>
+                </Pressable>
+              </View>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
+
+      {/* 학생 등록 모달 — 전화번호 미리 입력 */}
+      {showRegister && item && (
+        <RegisterModal
+          token={token}
+          poolName={poolName}
+          initialParentPhone={item.phone || ""}
+          initialParentName={item.name || ""}
+          onClose={() => setShowRegister(false)}
+          onSuccess={async (student) => {
+            setShowRegister(false);
+            // 등록 후 바로 parent_students 연결
+            try {
+              await apiRequest(token, `/admin/parents/${item.id}/link-student`, {
+                method: "POST",
+                body: JSON.stringify({ student_id: student.id }),
+              });
+            } catch {}
+            onRefresh();
+            // 모달 데이터 새로고침
+            setLoading(true);
+            apiRequest(token, `/admin/parents/${encodeURIComponent(item.id)}?source=${item.source}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => setDetail(d))
+              .catch(() => {})
+              .finally(() => setLoading(false));
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -300,16 +395,22 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
         </View>
 
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={s.name}>{item.name || "(이름 없음)"}</Text>
+          {/* 학생 이름 — 메인 (크게) */}
+          <Text style={s.studentMain}>
+            {item.students.length > 0 ? item.students.map(st => st.name).join(", ") : "(자녀 미연결)"}
+          </Text>
+          {/* 학부모 이름 + 뱃지 — 서브 (작게) */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+            <Text style={s.parentSub}>{item.name || "(이름 없음)"}</Text>
             <View style={[s.badge, { backgroundColor: isApp ? "#DBEAFE" : "#F1F5F9" }]}>
               <Text style={[s.badgeTxt, { color: isApp ? "#1D4ED8" : "#64748B" }]}>
                 {isApp ? "앱 가입" : "보호자"}
               </Text>
             </View>
           </View>
+          {/* 전화번호 */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-            <Phone size={11} color={C.textMuted} />
+            <LucideIcon name="phone" size={11} color={C.textMuted} />
             <Text style={s.phone}>{formatPhone(item.phone)}</Text>
           </View>
         </View>
@@ -321,28 +422,20 @@ function ParentItem({ item, onPress }: { item: ParentRow; onPress: () => void })
             onPress={e => { e.stopPropagation?.(); callPhone(item.phone); }}
             hitSlop={4}
           >
-            <Phone size={14} color={TEAL} />
+            <LucideIcon name="phone" size={14} color={TEAL} />
           </Pressable>
           <Pressable
             style={[s.quickBtn, { backgroundColor: "#F0F4FF" }]}
             onPress={e => { e.stopPropagation?.(); smsPhone(item.phone); }}
             hitSlop={4}
           >
-            <MessageSquare size={14} color="#4F6EF7" />
+            <LucideIcon name="message-square" size={14} color="#4F6EF7" />
           </Pressable>
         </View>
 
         <Text style={s.date}>{formatDate(item.created_at)}</Text>
       </View>
 
-      {/* 자녀 목록 */}
-      {item.students.length > 0 && (
-        <View style={s.studentsRow}>
-          <Users size={11} color={C.textMuted} />
-          <Text style={s.studentsLabel}>자녀: </Text>
-          <Text style={s.studentsVal}>{item.students.map(st => st.name).join(", ")}</Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -410,7 +503,7 @@ export default function ParentsListScreen() {
 
       {/* 검색 */}
       <View style={s.searchBox}>
-        <Search size={15} color={C.textMuted} />
+        <LucideIcon name="search" size={15} color={C.textMuted} />
         <TextInput
           style={s.searchInput}
           placeholder="이름, 전화번호, 자녀 이름 검색"
@@ -421,7 +514,7 @@ export default function ParentsListScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} hitSlop={8}>
-            <X size={14} color={C.textMuted} />
+            <LucideIcon name="x" size={14} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -460,7 +553,7 @@ export default function ParentsListScreen() {
           }
           ListEmptyComponent={
             <View style={s.empty}>
-              <HeartHandshake size={40} color={C.textMuted} />
+              <LucideIcon name="heart-handshake" size={40} color={C.textMuted} />
               <Text style={s.emptyTxt}>{search ? "검색 결과가 없습니다" : "등록된 학부모가 없습니다"}</Text>
               <Text style={s.emptySub}>
                 {search ? "다른 검색어를 사용해 보세요" : "학부모가 앱에서 수영장을 선택하면\n자동으로 여기에 표시됩니다"}
@@ -480,6 +573,8 @@ export default function ParentsListScreen() {
         visible={!!selected}
         onClose={() => setSelected(null)}
         token={token}
+        poolName={pool?.name || "수영장"}
+        onRefresh={fetchParents}
       />
     </View>
   );
@@ -511,6 +606,8 @@ const s = StyleSheet.create({
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  studentMain: { fontSize: 16, fontWeight: "700", color: C.text } as any,
+  parentSub:   { fontSize: 12, color: C.textSecondary } as any,
   name: { fontSize: 15, fontWeight: "700", color: C.text },
   badge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeTxt: { fontSize: 11, fontWeight: "600" },
@@ -584,4 +681,13 @@ const md = StyleSheet.create({
 
   tag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: TEAL_BG },
   tagTxt: { fontSize: 11, color: TEAL, fontWeight: "600" },
+
+  registerBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 13, borderRadius: 12, backgroundColor: TEAL,
+  },
+  registerBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
+
+  deleteBtn:    { paddingVertical: 13, borderRadius: 12, alignItems: "center", backgroundColor: "#DC2626" },
+  deleteBtnTxt: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });

@@ -1,0 +1,294 @@
+[SWIMNOTE SUPPORT KNOWLEDGE + UTTERANCE FINAL IMPORT]
+
+PROJECT = SWIMNOTE
+
+목표:
+현재 확정된 고객센터 Master DB를 Production DB에 최종 적재한다.
+
+첨부 파일 2개:
+1) swimnote_support_knowledge_items_import_v1.1.json
+   - Canonical Knowledge 1,051개
+   - target: support_knowledge_items
+
+2) swimnote_support_intent_utterances_v1.3.json
+   - Utterance 13,700개
+   - target: support_intent_utterances
+
+중요:
+이번 작업은 DB 적재 및 최소 검증만 한다.
+내용 재작성, 고객지원 구조 변경, resolver 수정, AI 로직 수정, UI 수정은 하지 않는다.
+
+--------------------------------------------------
+1. Canonical Knowledge 상태
+--------------------------------------------------
+
+v1.1 Canonical 1,051개는 이미 Production support_knowledge_items에 import 완료된 상태다.
+
+기존 완료 상태:
+- NEW 1,051
+- INSERT 1,051
+- SAME 0
+- CONFLICT 0
+- duplicate intent_id 0
+- 신규 row 전부 status=pending
+- AUTO_ACTIVE = NO
+- ACTIVE overwrite = NO
+
+따라서 이번에는 Canonical 1,051개를 다시 중복 INSERT하지 않는다.
+
+먼저 Production DB에서 v1.1 intent_id 1,051개가 실제 존재하는지 확인한다.
+
+확인:
+- 1,051개 모두 존재
+- duplicate intent_id 0
+- 기존 imported row status가 예상대로 pending인지
+- knowledge_id 매핑에 사용할 id가 정상 존재하는지
+
+Canonical 파일은 이번 Utterance import의 참조 검증용으로 사용한다.
+
+--------------------------------------------------
+2. Utterance v1.3 사전 검증
+--------------------------------------------------
+
+첨부:
+swimnote_support_intent_utterances_v1.3.json
+
+기대값:
+- source canonical intents = 1,051
+- utterance records = 13,700
+- 모든 intent 최소 12개 이상 variant
+- status = pending
+- language = ko
+
+Import 전에 전체 JSON을 parse/validate한다.
+
+확인:
+- records = 13,700
+- required fields 누락 0
+- duplicate id 0
+- duplicate normalized_utterance 0
+- unknown intent_id 0
+- knowledge_id 누락 0
+- weight 범위 정상
+- status 전부 pending
+- 모든 intent_id가 Production support_knowledge_items에 실제 존재
+- 모든 knowledge_id가 Production의 해당 intent와 정상 매핑
+
+중요:
+파일의 normalized_utterance가 현재 Production normalizeQuery() 결과와 다를 가능성이 있으면
+Production normalizeQuery()로 다시 계산한 값을 기준으로 충돌 여부를 확인한다.
+
+단,
+원본 utterance 문구 자체는 수정하지 않는다.
+
+--------------------------------------------------
+3. 중복 / 충돌 처리
+--------------------------------------------------
+
+support_intent_utterances 현재 Production 데이터를 먼저 조회한다.
+
+각 첨부 row를 다음으로 분류:
+
+A. NEW
+- 동일 utterance 또는 동일 normalized_utterance가 없음
+→ INSERT
+
+B. SAME
+- 동일 intent_id + 동일 normalized_utterance가 이미 존재
+→ SKIP
+
+C. CONFLICT
+- 동일 normalized_utterance가 다른 intent_id에 연결되어 있음
+→ INSERT 금지
+→ conflict 목록으로 보고
+
+D. BROKEN_REFERENCE
+- intent_id 또는 knowledge_id가 Production Canonical과 맞지 않음
+→ INSERT 금지
+→ 목록으로 보고
+
+절대로 conflict를 임의로 다른 intent에 연결하지 말 것.
+
+--------------------------------------------------
+4. 실제 Import
+--------------------------------------------------
+
+가능하면 transaction 사용.
+
+BEGIN
+
+→ Canonical 1,051개 reference 검증
+→ Utterance 13,700개 parse
+→ Production normalizeQuery 기준 normalized 값 검증
+→ NEW / SAME / CONFLICT / BROKEN_REFERENCE 분류
+→ NEW만 support_intent_utterances에 INSERT
+→ 신규 row status=pending 유지
+→ 자동 ACTIVE 금지
+
+COMMIT
+
+중간 오류 발생 시 ROLLBACK.
+
+--------------------------------------------------
+5. 절대 금지
+--------------------------------------------------
+
+- Canonical 질문/답변 수정 금지
+- utterance 문구 임의 수정 금지
+- 새로운 intent 생성 금지
+- AI로 질문 표현 재작성 금지
+- conflict 자동 병합 금지
+- normalized collision을 임의로 한쪽 intent에 할당 금지
+- HUMAN_ONLY / GROUNDED_GPT / DIRECT_DB 변경 금지
+- pending 자동 ACTIVE 금지
+- support_query_log 수정 금지
+- support_knowledge_candidates 수정 금지
+- resolver 변경 금지
+- escalation 변경 금지
+- matcher 구조 리팩터링 금지
+- schema migration 금지
+- Production deploy 금지
+- OTA 금지
+- Device E2E 금지
+- 전체 regression 금지
+
+--------------------------------------------------
+6. Import 후 최소 검증
+--------------------------------------------------
+
+리플릿 크레딧 절약이 중요하다.
+전체 test suite 돌리지 않는다.
+
+아래만 확인한다.
+
+DB count:
+- Canonical reference 1,051/1,051
+- Utterance 입력 13,700
+- NEW
+- SAME
+- CONFLICT
+- BROKEN_REFERENCE
+- INSERT
+- 최종 support_intent_utterances row count
+
+무결성:
+- duplicate utterance id = 0
+- duplicate normalized_utterance = 0
+- dangling intent_id = 0
+- dangling knowledge_id = 0
+- 신규 row status=pending
+- AUTO_ACTIVE = NO
+
+--------------------------------------------------
+7. 샘플 검색 검증
+--------------------------------------------------
+
+전체 회귀테스트 대신 실제 matcher 기준으로 약 30~40개만 확인한다.
+
+반드시 포함:
+- X모드 가입
+- X모드 초기설정
+- X pending
+- X 가격/환불 질문
+- 무료 성장리포트
+- 성장리포트 분석력
+- SWIMNOTE AI
+- OpenAI Partner Network 질문
+- 특허 4건 질문
+- 로그인 오류
+- 사진 업로드 오류
+- AI 일지 오류
+- 출결 오류
+- 보강 신청
+- 학부모 자녀 연결
+- 개인정보/다른 학생 노출
+- 고객센터 3회 반복
+- 담당자 문의
+- 콜백 전화번호
+- 오타 표현
+- 반말 표현
+- 축약 표현
+- 띄어쓰기 오류
+
+예:
+"엑스 신청 어케함"
+"가입했는데 설정하래"
+"무료리포트 뭐임"
+"리포트 정확해?"
+"스윔노트 ai 그냥 챗지피티임?"
+"특허 진짜 있어?"
+"사진 안올라가는데"
+"일지 ai 왜 안됨"
+"우리애 보강 신청 안돼요"
+"다른애 정보 보여요"
+
+각 샘플에서 확인:
+- 예상 intent_id로 매칭
+- 잘못된 다른 intent로 매칭되지 않음
+- Canonical answer 정상 연결
+- HUMAN_ONLY 질문이 DIRECT_DB로 잘못 처리되지 않음
+
+--------------------------------------------------
+8. 이번 단계에서는 ACTIVE 승인하지 않는다
+--------------------------------------------------
+
+이번 작업 목표:
+"Utterance 13,700개를 Production support_intent_utterances에 안전하게 pending 적재하고 matcher 샘플 검증"
+
+여기까지만 한다.
+
+활성화는 import 결과 확인 후 별도 단계에서 진행한다.
+
+--------------------------------------------------
+9. 완료보고서 형식
+--------------------------------------------------
+
+[SWIMNOTE SUPPORT UTTERANCE V1.3 IMPORT REPORT]
+
+- Canonical reference expected: 1,051
+- Canonical reference found:
+- Utterance JSON parse: PASS/FAIL
+- Utterance input records: 13,700
+- Required field errors:
+- Input duplicate id:
+- Input duplicate normalized_utterance:
+- Unknown intent_id:
+- Broken knowledge_id:
+- Production normalized collision:
+- NEW:
+- SAME:
+- CONFLICT:
+- BROKEN_REFERENCE:
+- INSERT:
+- SKIP:
+- UPDATE: 0
+- TRANSACTION: COMMIT/ROLLBACK
+- Final support_intent_utterances rows:
+- New row status=pending:
+- AUTO_ACTIVE: NO
+- dangling intent_id:
+- dangling knowledge_id:
+- sample matcher tests:
+- wrong intent matches:
+- DIRECT_DB sample:
+- GROUNDED_GPT sample:
+- HUMAN_ONLY sample:
+- X sample:
+- report sample:
+- AI/company/IP sample:
+- incident/error sample:
+- typo/casual sample:
+- schema change: NO
+- code change: NO
+- resolver change: NO
+- escalation change: NO
+- full regression: NOT RUN
+- Production deploy: NOT RUN
+- OTA: NOT RUN
+- Device E2E: NOT RUN
+- current branch:
+- current HEAD:
+
+중요:
+사전검증만 하고 멈추지 말 것.
+Utterance 실제 DB import + 최소 matcher 샘플 검증까지 완료한 뒤 보고한다.

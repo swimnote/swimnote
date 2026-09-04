@@ -1,0 +1,635 @@
+[SWIMNOTE SUPER ADMIN]
+[UI REORGANIZATION ONLY — NO FUNCTIONAL CHANGES]
+
+MODE:
+UI ONLY
+NO BUSINESS LOGIC CHANGE
+NO API CHANGE
+NO DB CHANGE
+NO AUTH CHANGE
+NO ROUTE CONTRACT CHANGE
+
+목적:
+
+앞으로 Super Admin을 자주 사용할 예정이므로
+현재 흩어진 관리 UI를
+장기 운영 가능한 관리자 화면 구조로 정리한다.
+
+중요:
+
+이번 작업은 기능 개발이 아니다.
+
+절대 변경 금지:
+
+- API endpoint
+- API request/response contract
+- DB schema
+- migration
+- business logic
+- permissions
+- role checks
+- state transition
+- X mode logic
+- RevenueCat logic
+- Growth Report logic
+- curriculum logic
+- notification logic
+- existing server behavior
+
+기존 기능은 그대로 두고
+UI / navigation presentation만 정리한다.
+
+==================================================
+1. SUPER ADMIN 전체 방향
+==================================================
+
+Super Admin은 앞으로 다음을 자주 관리한다.
+
+- 운영처
+- X모드
+- 결제/구독
+- 커리큘럼
+- 홈페이지
+- 성장리포트
+- 향후 AI 사용량/비용
+- 기타 운영정보
+
+따라서 현재 화면을
+단순 기능 버튼 모음처럼 두지 말고
+
+“관리 콘솔”
+
+형태로 정리한다.
+
+==================================================
+2. TERMINOLOGY
+==================================================
+
+UI에서 무조건 “수영장”이라고 표현하지 않는다.
+
+가입 주체는:
+
+- 수영장
+- 수영클럽
+- 개인레슨 선생님
+- 개인 코치
+- 기타 운영자
+
+가 될 수 있다.
+
+Super Admin UI 공통 용어:
+
+“운영처”
+
+사용.
+
+기존 DB swimming_pools 이름은 변경 금지.
+
+==================================================
+3. SUPER ADMIN HOME 구조
+==================================================
+
+Super Admin 첫 화면을
+관리용 Dashboard 형태로 정리.
+
+상단:
+
+SUPER ADMIN
+운영 관리
+
+그 아래 주요 관리영역을
+큰 기능 버튼 여러 개 난립시키지 말고
+명확한 메뉴 구조로 정리.
+
+예:
+
+운영처 관리
+X모드 관리
+가입/승인 관리
+기타 기존 관리자 기능
+
+현재 존재하는 기능은 삭제하지 않는다.
+
+위치만 재정리.
+
+==================================================
+4. NAVIGATION UI
+==================================================
+
+Super Admin에서 자주 이동하게 되므로
+navigation hierarchy를 명확히 한다.
+
+예:
+
+Super Admin
+ ├ 운영처
+ ├ X모드 관리
+ ├ 승인 관리
+ └ 기타 기존 기능
+
+현재 Expo Router route는 유지.
+
+route 이름 변경 금지.
+
+화면 label / 메뉴 배치만 변경 가능.
+
+==================================================
+5. X MODE MANAGEMENT ENTRY
+==================================================
+
+Super Admin 메인에
+
+“X모드 관리”
+
+를 독립된 주요 메뉴로 배치.
+
+목적:
+
+향후
+
+- entitlement
+- 결제기간
+- 커리큘럼
+- 홈페이지
+- 성장리포트
+- AI 사용량
+
+등을 이곳에서 관리.
+
+이번 UI 작업에서
+새 기능을 구현하지 않는다.
+
+기존 기능이 있으면 연결만 유지.
+
+==================================================
+6. OPERATOR LIST UI
+==================================================
+
+운영처 목록 화면은
+500개 이상 사용을 전제로 UI 구성.
+
+필수 UI:
+
+- 상단 검색창
+- 상태 필터 영역
+- 목록
+- pagination 또는 기존 infinite list 표시
+
+중요:
+
+검색 기능 자체가 이미 있으면 그대로 사용.
+없으면 이번 UI 작업에서 server 검색 기능 새로 만들지 않는다.
+
+기능이 없는 search UI를 fake로 만들지 않는다.
+
+기존 지원 기능 범위만 표시.
+
+==================================================
+7. LIST ROW DESIGN
+==================================================
+
+각 운영처 row는
+옆에 버튼 여러 개를 붙이지 않는다.
+
+전체 row press 방식.
+
+표시 가능한 기존 데이터만 사용:
+
+운영처명
+관리자명
+승인 상태
+X 상태
+기타 현재 API가 주는 상태
+
+정보 계층:
+
+1. 운영처명
+2. 관리자/보조정보
+3. 상태 badge
+
+정도로 깔끔하게.
+
+==================================================
+8. DETAIL DASHBOARD UI
+==================================================
+
+운영처를 누르면
+상세를 “정보 대시보드”처럼 보이게 정리.
+
+기존 기능은 그대로.
+
+Section 형태로 정리:
+
+[기본정보]
+
+[X모드]
+
+[결제 / 구독]
+
+[커리큘럼]
+
+[홈페이지]
+
+[기타 기존정보]
+
+중요:
+
+해당 기능/데이터가 아직 없으면
+UI에서 fake section contents를 만들지 않는다.
+
+현재 존재하는 값만 표시.
+
+향후 붙이기 쉬운 layout structure만 잡는다.
+
+==================================================
+9. CARD / SECTION STYLE
+==================================================
+
+관리자 UI는 일반 사용자 앱보다
+정보 밀도가 조금 높아도 된다.
+
+하지만 카드 남발 금지.
+
+추천:
+
+- page background
+- section title
+- white surface
+- thin divider
+- status badge
+
+모든 줄을 각각 별도 카드로 만들지 않는다.
+
+한 section 안에 관련 데이터를 grouping.
+
+==================================================
+10. COLOR SYSTEM
+==================================================
+
+SWIMNOTE 기존 색상 규칙 유지.
+
+기본:
+NAVY
+
+accent:
+MINT
+
+상태색:
+기존 앱의 success / warning / error token 재사용.
+
+새 임의 색상 체계 만들지 않는다.
+
+==================================================
+11. STATUS BADGES
+==================================================
+
+관리정보를 빠르게 볼 수 있게
+badge 정리.
+
+예:
+
+X 활성
+X 비활성
+설정중
+READY
+승인완료
+정지
+
+기존 실제 status만 표시.
+
+상태 의미 변경 금지.
+
+==================================================
+12. SEARCH UI
+==================================================
+
+검색창은 관리자 화면에서 눈에 잘 보여야 한다.
+
+예:
+
+[ 운영처명 또는 관리자명 검색 ]
+
+기존 search handler/API가 있으면 연결 유지.
+
+없으면 입력창만 fake 구현하지 않는다.
+
+“검색 기능 미구현 상태”라면
+이번 UI 정리에서는 기존 화면 유지.
+
+==================================================
+13. FILTER UI
+==================================================
+
+현재 실제 지원되는 filter만 표시.
+
+향후:
+
+X 활성
+X 비활성
+커리큘럼 상태
+결제상태
+
+등이 추가될 수 있도록
+horizontal chips / filter button 영역을 설계 가능.
+
+하지만 backend가 지원하지 않는 filter를
+작동하는 것처럼 만들지 않는다.
+
+==================================================
+14. MOBILE ADMIN UX
+==================================================
+
+Super Admin도 현재 모바일 앱 기반이므로
+
+작은 화면에서:
+
+- 버튼 겹침
+- 가로 잘림
+- 텍스트 잘림
+- 너무 작은 touch target
+
+없게 한다.
+
+ScrollView / FlatList 적절히 사용.
+
+==================================================
+15. LONG TEXT
+==================================================
+
+운영처명/관리자명/주소 등이 길어도
+레이아웃 깨지지 않게.
+
+필요한 곳에서 wrap.
+
+핵심 정보가 1~2줄에서 잘려
+식별 불가능해지지 않도록 한다.
+
+==================================================
+16. HEADER 통일
+==================================================
+
+Super Admin 하위 화면 Header를 통일.
+
+예:
+
+←
+X모드 관리
+
+←
+운영처 상세
+
+기존 back navigation 유지.
+
+새 custom navigation system 만들지 않는다.
+
+==================================================
+17. EMPTY STATE
+==================================================
+
+기존 데이터가 없는 경우:
+
+“등록된 운영처가 없습니다”
+
+등 명확한 empty state.
+
+서버 오류를 empty state로 표현 금지.
+
+기존 error handling 유지.
+
+==================================================
+18. LOADING STATE
+==================================================
+
+기존 API loading 동작 유지.
+
+단순 UI 개선 가능:
+
+spinner
+skeleton
+loading text
+
+business logic 변경 금지.
+
+==================================================
+19. ERROR UI
+==================================================
+
+현재 error source를 그대로 사용.
+
+UI 표현만 정리.
+
+403 / network / server error를
+새 로직으로 합치지 않는다.
+
+==================================================
+20. EXISTING FUNCTIONS MUST REMAIN
+==================================================
+
+현재 Super Admin에서 가능한 기능은
+모두 그대로 동작해야 한다.
+
+특히:
+
+- 운영처 승인
+- suspend
+- 기존 상세조회
+- 기존 수정
+- X API
+- 기타 관리자 action
+
+삭제/동작변경 금지.
+
+==================================================
+21. NO SERVER CHANGE
+==================================================
+
+이번 작업에서
+artifacts/api-server 수정 금지.
+
+UI를 위해 API가 부족한 게 발견되면
+억지로 server 수정하지 말고
+FINAL REPORT에:
+
+SERVER_SUPPORT_MISSING
+
+으로 기록.
+
+이번 단계는 UI ONLY.
+
+==================================================
+22. NO DB / MIGRATION
+==================================================
+
+DB schema 변경 금지.
+migration 금지.
+
+==================================================
+23. NO NEW FUNCTIONALITY
+==================================================
+
+이번 작업에서 구현 금지:
+
+- 결제
+- RevenueCat
+- curriculum upload
+- homepage persistence
+- entitlement logic 변경
+- growth report logic
+- notification
+- analytics
+
+==================================================
+24. FILE SCOPE
+==================================================
+
+가능하면:
+
+artifacts/swim-app/app/(super)/*
+관련 Super Admin components
+기존 design tokens/components
+
+만 수정.
+
+api-server 변경 금지.
+
+==================================================
+25. UI TEST REQUIREMENTS
+==================================================
+
+최소 확인:
+
+1. Super Admin home 정상
+
+2. 기존 메뉴 모두 접근 가능
+
+3. X모드 관리 entry UI 위치 명확
+
+4. 운영처 용어 적용
+
+5. 목록 layout 정상
+
+6. row press UX 정상
+
+7. detail layout 정상
+
+8. section grouping 정상
+
+9. status badge 정상
+
+10. 작은 화면 overflow 없음
+
+11. 긴 운영처명 layout 정상
+
+12. loading UI
+
+13. empty UI
+
+14. error UI
+
+15. back navigation 정상
+
+16. 기존 approve 기능 정상
+
+17. 기존 suspend 기능 정상
+
+18. 기존 X API 관련 화면 동작 유지
+
+19. non-super UI 영향 없음
+
+20. Parent/Teacher/Admin 앱 회귀 없음
+
+==================================================
+26. VISUAL REVIEW
+==================================================
+
+수정 후 가능하면
+Super Admin 주요 화면 screenshot 기준으로 확인:
+
+A. Super Admin Home
+B. 운영처 목록
+C. X모드 관리
+D. 운영처 상세
+
+기능 변경 없이
+UI hierarchy가 개선됐는지 확인.
+
+==================================================
+27. REGRESSION
+==================================================
+
+기존 Super Admin test 유지.
+
+기능 test failure 발생하면
+UI 때문에 business logic을 수정하지 말고
+UI regression 원인만 수정.
+
+==================================================
+28. COMPLETE CONDITIONS
+==================================================
+
+[ ] UI only
+[ ] no server changes
+[ ] no DB changes
+[ ] no API contract changes
+[ ] no auth changes
+[ ] no business logic changes
+[ ] super admin navigation 정리
+[ ] 운영처 terminology
+[ ] X모드 관리 entry
+[ ] list UI 정리
+[ ] detail dashboard UI 정리
+[ ] responsive/mobile safe
+[ ] existing functions preserved
+[ ] tests pass
+[ ] TODO 0
+
+==================================================
+29. FINAL REPORT
+==================================================
+
+1. RESULT
+
+2. UI BEFORE / AFTER STRUCTURE
+
+3. MODIFIED APP FILES
+
+4. SUPER ADMIN HOME
+
+5. NAVIGATION
+
+6. OPERATOR LIST UI
+
+7. X MODE MANAGEMENT UI
+
+8. OPERATOR DETAIL DASHBOARD UI
+
+9. RESPONSIVE / LONG TEXT
+
+10. EXISTING FUNCTIONS PRESERVED
+
+11. SERVER FILE MODIFIED?
+    반드시 NO 여야 함
+
+12. DB / MIGRATION?
+    반드시 NO
+
+13. API CONTRACT CHANGE?
+    반드시 NO
+
+14. TEST RESULT
+
+15. VISUAL REVIEW
+
+16. TODO SCAN
+
+17. GIT HEAD
+
+18. DEPLOY / OTA STATUS
+
+완료 시:
+
+SUPER_ADMIN_UI_REORGANIZATION_COMPLETE ✅
+
+기능 변경이 발생했으면:
+
+SUPER_ADMIN_UI_REORGANIZATION_BLOCKED ❌

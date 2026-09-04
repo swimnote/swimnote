@@ -1,0 +1,414 @@
+# [WP-AI-01 / AI01-07 — R2 USAGE OBSERVABILITY]
+
+목적:
+
+Cloudflare R2의 실제 외부 사용량을
+AI01-06에서 만든 `saveExternalUsage()`에 연결한다.
+
+이번 Step에서는:
+
+* R2 PUT
+* R2 GET
+* R2 DELETE
+
+의 실제 operation count와 bytes를 기록한다.
+
+Dashboard는 아직 만들지 않는다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 감사 금지.
+
+이미 사용 중인 R2/storage 공통 모듈만 확인한다.
+
+필요한 파일:
+
+* 현재 R2 upload/put helper
+* 현재 R2 get/read helper
+* 현재 R2 delete helper
+* `external-usage-service.ts`
+* 관련 최소 테스트
+
+R2 사용처 전체 callsite 전수조사 금지.
+
+공통 storage helper 수준에서 계측한다.
+
+---
+
+# 1. ExternalUsageCategory 확장
+
+기존:
+
+```ts
+SMS
+```
+
+에 최소 추가:
+
+```ts
+R2
+```
+
+미래 서비스 enum 추가 금지.
+
+---
+
+# 2. service 값
+
+operation별로 명확히 구분한다.
+
+```text
+r2_put
+r2_get
+r2_delete
+```
+
+provider:
+
+```text
+cloudflare_r2
+```
+
+feature/category:
+
+```text
+R2
+```
+
+---
+
+# 3. PUT 기록
+
+실제 R2 PUT 요청이 발생한 경우:
+
+```text
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 실제 retry 수
+```
+
+가능하면 bytes 기록:
+
+```text
+units = {
+  bytes: <실제 업로드 payload byte size>
+}
+```
+
+임의 추정 금지.
+
+Buffer/string/file metadata 등 현재 코드에서 실제 크기를 확실히 아는 경우만 기록한다.
+
+알 수 없으면 null/absent.
+
+---
+
+# 4. GET 기록
+
+실제 R2 GET 요청이 발생한 경우:
+
+```text
+service = r2_get
+actual_call_count = 1
+```
+
+응답 body size를 신뢰성 있게 알 수 있으면:
+
+```text
+units.bytes
+```
+
+기록.
+
+Content-Length가 없거나 stream이라 확정할 수 없으면
+추정하지 않는다.
+
+---
+
+# 5. DELETE 기록
+
+실제 R2 DELETE 요청:
+
+```text
+service = r2_delete
+actual_call_count = 1
+```
+
+bytes는 DELETE에 필요 없음.
+
+---
+
+# 6. Trigger Type
+
+공통 R2 helper가 호출 목적을 알 수 없는 경우
+helper 내부에서 무조건 USER_ACTION으로 고정하지 않는다.
+
+가능하면 optional usage context:
+
+```ts
+{
+  poolId?,
+  requestId?,
+  actorId?,
+  triggerType?
+}
+```
+
+를 전달받는다.
+
+기존 callsite 수정이 대규모로 필요하면
+현재 Step에서는 전수 변경하지 않는다.
+
+default가 필요하다면 기존 SMS 패턴과 일관되게 하되,
+자동/background 경로가 있는 경우 거짓 USER_ACTION 기록이 생기지 않도록 주의한다.
+
+---
+
+# 7. Cost Handling
+
+현재 실제 R2 계약 단가가
+코드/env에서 확인되지 않으면:
+
+```text
+estimated_cost_usd = null
+cost_source = UNKNOWN
+```
+
+절대 금지:
+
+* Cloudflare 공개 기본 가격을 실제 계약가처럼 적용
+* storage 월 GB 비용을 operation 하나에 임의 배분
+* egress 단가 추정
+* 환율 계산
+
+이번 Step은 사용량 관측까지만 한다.
+
+---
+
+# 8. 실제 호출 여부
+
+중요:
+
+provider HTTP/API 호출 전에 validation/config 실패하면:
+
+```text
+actual_call_count = 0
+```
+
+또는 usage event 미생성.
+
+실제 SDK/API request가 발생한 경우에만
+actual call로 센다.
+
+---
+
+# 9. Retry
+
+현재 R2 helper에 retry가 없다면:
+
+```text
+retry_count = 0
+```
+
+실제 SDK 내부 retry가 애플리케이션 코드에서 관측되지 않는다면
+추측해서 카운트하지 않는다.
+
+APP이 직접 수행하는 retry만 기록한다.
+
+---
+
+# 10. 성공/실패
+
+성공:
+
+```text
+success = true
+latency_ms = actual elapsed
+```
+
+실패:
+
+실제 R2 요청 이후 실패 시:
+
+```text
+success = false
+actual_call_count = 1
+error_type = 실제 error 요약
+```
+
+usage recorder 실패는 storage 본 동작을 실패시키지 않는다.
+
+best-effort 유지.
+
+---
+
+# 11. 기존 R2 동작 보호
+
+수정 금지:
+
+* bucket name
+* key naming
+* signed URL 정책
+* object ACL
+* MIME
+* upload path
+* delete semantics
+* download/read semantics
+* provider credentials
+* timeout
+* storage architecture
+
+오직 usage observability만 추가한다.
+
+---
+
+# 12. 테스트
+
+전체 regression 금지.
+
+최소 테스트만 실행.
+
+필수:
+
+### TC1
+
+R2 PUT 성공
+→ provider=cloudflare_r2
+→ service=r2_put
+→ actual_call_count=1
+
+### TC2
+
+PUT bytes를 실제로 아는 경우
+→ units.bytes 정확
+
+### TC3
+
+R2 GET 성공
+→ service=r2_get
+→ actual_call_count=1
+
+### TC4
+
+R2 DELETE 성공
+→ service=r2_delete
+→ actual_call_count=1
+
+### TC5
+
+provider 호출 후 실패
+→ success=false
+→ actual_call_count=1
+
+### TC6
+
+provider 호출 전 config/validation 실패
+→ actual call로 거짓 기록하지 않음
+
+### TC7
+
+단가 미확정
+→ estimated_cost_usd=null
+→ cost_source=UNKNOWN
+
+### TC8
+
+saveExternalUsage 실패
+→ R2 본 동작 결과 불변
+
+---
+
+# 13. 절대 금지
+
+이번 Step에서:
+
+* SMS 수정 금지
+* AI routes 수정 금지
+* external engines 수정 금지
+* pricing/model config 수정 금지
+* Dashboard 수정 금지
+* R2 pricing 임의 등록 금지
+* R2 architecture 변경 금지
+* DB migration 금지
+* Production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-07만 수행한다.
+
+---
+
+# 14. 완료 보고
+
+# [AI01-07 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. R2 Integration
+
+표:
+
+Operation | provider | service | units | actual_call_count
+
+## 5. Trigger Type Handling
+
+어떻게 전달/기본 처리하는지.
+
+## 6. Cost Handling
+
+* configured unit price 존재 여부
+* estimated_cost_usd
+* cost_source
+
+## 7. Failure Handling
+
+provider 호출 전/후 차이.
+
+## 8. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 9. Scope Check
+
+다음 미수정 확인:
+
+* SMS
+* AI routes
+* external engines
+* pricing/model config
+* Super Admin
+* DB schema
+* deployment config
+
+## 10. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 15. STOP
+
+AI01-07 완료 보고 후 멈춘다.
+
+AI01-08 이상 선행 금지.

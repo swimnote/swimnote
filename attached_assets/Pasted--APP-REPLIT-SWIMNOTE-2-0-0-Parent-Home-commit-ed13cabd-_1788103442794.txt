@@ -1,0 +1,282 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — Parent Home 모자레벨 즉시 반영 최종 연결]
+
+현재 구현 commit:
+ed13cabd
+
+branch:
+release/v2.0.0
+
+현재 완료 상태:
+
+Teacher:
+PATCH /teacher/students/:id/level
+→ students.current_level_order 변경
+
+Parent:
+GET /parent/students/:id/level-info
+→ current level / badge_color 조회
+
+Parent Home:
+CurriculumProgressGauge header에
+현재 모자레벨 이름 + badge_color 표시 완료
+
+현재 부족한 점:
+
+학부모가 Parent Home을 보고 있는 상태에서
+선생님이 모자레벨을 변경해도
+화면을 나갔다 돌아오기 전까지 색상/레벨이 갱신되지 않는다.
+
+서버는 이미 level_change push notification을 전송한다.
+
+이번 작업 목표:
+
+기존 notification/push 수신 구조를 재사용해서
+
+Teacher level 변경
+→ level_change 이벤트 수신
+→ 현재 해당 학생 Parent Home level-info 즉시 fresh reload
+→ 모자레벨 이름/색상 즉시 변경
+
+까지 연결한다.
+
+새로운 realtime infrastructure는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 기존 push/event 흐름 조사
+━━━━━━━━━━━━━━━━━━━━
+
+실제 코드에서 먼저 확인:
+
+- Expo notification listener
+- foreground notification listener
+- notification response listener
+- ParentContext notification 처리
+- deep_link 처리
+- level_change notification payload
+- student_id 포함 여부
+- pool_id 포함 여부
+- notification type/event name
+
+추측하지 말 것.
+
+서버를 수정하기 전에
+현재 level_change payload에 필요한 식별자가 이미 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 가장 작은 연결 방식 사용
+━━━━━━━━━━━━━━━━━━━━
+
+우선순위:
+
+1.
+기존 foreground push listener에서
+level_change 감지
+
+2.
+해당 이벤트를 ParentContext 또는 기존 app event mechanism을 통해 전달
+
+3.
+Parent Home이 현재 선택 중인 student와
+level_change 대상 student가 같다면
+
+GET /parent/students/:id/level-info
+_noCache: true
+
+즉시 호출
+
+4.
+setCurrentLevel()
+→ 화면 레벨 이름/색상 즉시 변경
+
+새 WebSocket/SSE/polling 시스템 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 현재 홈이 열려 있지 않은 경우
+━━━━━━━━━━━━━━━━━━━━
+
+기존 useFocusEffect refresh는 그대로 유지.
+
+즉:
+
+Foreground + Home 열림
+→ level_change push로 즉시 refresh
+
+Home 안 열림
+→ 나중에 Home 진입 시 useFocusEffect로 fresh refresh
+
+앱 background 상태
+→ foreground 복귀 후 기존 상태 확인/refresh
+
+이렇게 이중 안전장치로 간다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 알림 payload 확인
+━━━━━━━━━━━━━━━━━━━━
+
+level_change push에
+student_id가 이미 있다면 그대로 사용.
+
+없다면:
+
+서버의 기존 notification payload 구조를 확인한 뒤
+최소 additive 변경으로 student_id 또는 deep_link 식별자를 추가하는 방안을 검토.
+
+단:
+
+공용 API contract 파괴 금지.
+1.6.3 영향 금지.
+
+서버 변경이 꼭 필요하지 않다면 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 중복 호출 방지
+━━━━━━━━━━━━━━━━━━━━
+
+level_change 이벤트 한 번에
+level-info GET이 여러 번 호출되지 않도록 한다.
+
+특히:
+
+push listener
++
+useFocusEffect
++
+AppState resume
+
+가 동시에 발생할 수 있으므로
+
+동일 student에 대해 아주 짧은 시간 내 중복 refresh가 발생하지 않도록
+기존 dedupe/in-flight guard가 있으면 재사용.
+
+새 복잡한 cache layer는 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Source of Truth 유지
+━━━━━━━━━━━━━━━━━━━━
+
+Push payload의 level 이름/색상을
+화면에 그대로 신뢰해서 그리지 않는다.
+
+Push는 "변경됐음"을 알려주는 trigger만 사용.
+
+실제 표시값은 항상:
+
+GET /parent/students/:id/level-info
+_noCache: true
+
+로 다시 받아온 서버값 사용.
+
+이 원칙 중요.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Parent Home UI는 그대로 유지
+━━━━━━━━━━━━━━━━━━━━
+
+ed13cabd에서 구현한:
+
+교육과정 진행도 + 현재 모자레벨 색상선
+
+디자인 변경하지 않는다.
+
+이번 작업은 데이터 갱신 연결만 한다.
+
+기존 CurriculumProgressGauge 계산도 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 테스트 시나리오
+━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+학부모 Parent Home 열어둠
+→ 선생님이 학생 레벨 변경
+→ 홈을 나가지 않아도 이름/색상 변경
+PASS 필요
+
+CASE 2
+학부모 다른 화면
+→ 선생님 레벨 변경
+→ Home 재진입
+→ 최신 레벨 표시
+
+CASE 3
+앱 background
+→ 선생님 레벨 변경
+→ 앱 foreground 복귀
+→ 최신 레벨 표시
+
+CASE 4
+자녀 A 화면을 보고 있을 때
+자녀 B level_change
+→ A 화면이 잘못 B 색상으로 바뀌지 않음
+
+CASE 5
+자녀 A level_change
+→ A만 refresh
+
+CASE 6
+동일 level_change 중복 알림
+→ 과도한 GET 반복 없음
+
+CASE 7
+push payload malformed
+→ crash 없음
+
+CASE 8
+push 권한 OFF
+→ Home 재진입 useFocusEffect를 통해 결국 최신 데이터 표시
+
+CASE 9
+기존 알림/딥링크 회귀 없음
+
+CASE 10
+1.6.3 영향 없음
+
+━━━━━━━━━━━━━━━━━━━━
+9. 완료 기준
+━━━━━━━━━━━━━━━━━━━━
+
+최종 완료 기준은:
+
+선생님이 모자레벨 변경
+→ 서버 저장 성공
+→ 학부모가 Parent Home을 현재 보고 있는 상태
+→ 화면 재진입 없이
+→ 해당 학생의 모자레벨 이름/색상이 최신 값으로 변경
+
+여기까지다.
+
+단순히 "다시 들어가면 바뀜"은 이번 작업 완료로 처리하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 배포
+
+조사 → 구현 → 테스트 → commit까지 진행.
+
+테스트 PASS하면
+2.0.0 production-v2 / release-2.0.0 대상으로
+OTA까지 진행한다.
+
+1.6.3 production OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 완료보고
+
+1. 기존 level_change push 실제 payload
+2. 기존 notification listener 위치
+3. 변경 파일
+4. 즉시 refresh 연결 방식
+5. source of truth
+6. 중복 refresh 방지 방식
+7. Home foreground 실시간 테스트 결과
+8. background/resume 결과
+9. 다중 자녀 결과
+10. 기존 notification 회귀 여부
+11. 전체 테스트 / 새 실패
+12. commit SHA
+13. iOS OTA ID
+14. Android OTA ID
+15. 1.6.3 영향 여부
+
+완료 후 STOP.

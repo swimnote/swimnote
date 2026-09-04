@@ -1,0 +1,897 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR7 — PUBLISHED PUSH NOTIFICATION + DEEP LINK FOUNDATION]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Integration ✅
+GR4 Parent Question / Answer Flow ✅
+GR5 Teacher Review / Approval / Reanalysis ✅
+GR6 Publish + Existing Parent Feed Integration ✅
+
+현재 GR6 확정:
+
+APPROVED
+→ PUBLISHED
+
+PUBLISHED Growth Report는
+기존 Parent Diary Feed에:
+
+type = GROWTH_REPORT
+
+로 노출된다.
+
+이번 GR7 목적:
+
+Growth Report가 PUBLISHED 되었을 때
+
+1. 연결된 학부모에게 Push Notification 생성/발송
+2. Notification Center에 저장
+3. Deep Link에 growth_report_id 포함
+4. Push 클릭 시 해당 Growth Report로 이동 가능한
+   canonical navigation contract 완성
+
+까지 구현한다.
+
+중요:
+
+GR8 Native Detail Screen 자체는
+이번 GR7에서 구현하지 않는다.
+
+==================================================
+0. 핵심 원칙
+==================================================
+
+Growth Report Push는:
+
+PUBLISHED가 실제 완료된 뒤에만 발송한다.
+
+금지:
+
+APPROVED 시 발송
+REVIEW_REQUIRED 시 발송
+ANALYZING 시 발송
+QUESTION_AVAILABLE 시 발송
+
+학부모에게 전달되는 공식 이벤트는:
+
+GROWTH_REPORT_PUBLISHED
+
+이다.
+
+==================================================
+1. EXISTING NOTIFICATION SYSTEM REUSE
+==================================================
+
+기존 SWIMNOTE:
+
+notifications table
+notification service
+Expo Push
+push token
+deep_link
+parent notification center
+read/unread
+
+구조를 먼저 확인하고 그대로 재사용.
+
+새 Notification 시스템 만들지 마라.
+
+특히 기존:
+
+notifications.deep_link
+
+및 기존 push sender / worker가 있다면 재사용.
+
+==================================================
+2. DOMAIN EVENT
+==================================================
+
+GR6 publishGrowthReport() 성공 후
+Growth Report Publication Event를 발생시킨다.
+
+예:
+
+GROWTH_REPORT_PUBLISHED
+
+payload 최소:
+
+report_id
+student_id
+pool_id
+report_period
+published_at
+
+PII 금지.
+
+가능하면 publish transaction이 완료된 후
+notification enqueue.
+
+DB rollback됐는데 Push만 발송되는 문제 금지.
+
+==================================================
+3. NOTIFICATION TYPE
+==================================================
+
+기존 Notification Type enum/convention에 맞춰
+additive하게:
+
+GROWTH_REPORT_PUBLISHED
+
+추가.
+
+기존 enum이 string/free-form이면
+동일 convention 사용.
+
+중복 Notification type system 생성 금지.
+
+==================================================
+4. TARGET RECIPIENTS
+==================================================
+
+수신 대상:
+
+해당 student와 연결되고
+승인된 Parent account.
+
+기존:
+
+parent_students
+guardian relation
+approved relation
+
+canonical relation 사용.
+
+금지:
+
+전화번호 기반 임의 recipient 추론
+request body parent_id 신뢰
+
+==================================================
+5. MULTIPLE GUARDIANS
+==================================================
+
+학생에게 승인된 보호자가 2명 이상이면
+각 Parent에게 개별 Notification 생성 가능.
+
+동일 Parent account가
+중복 relation 때문에 2번 받지 않도록 deduplicate.
+
+==================================================
+6. PUSH PREFERENCE
+==================================================
+
+기존 APP에:
+
+notification preference
+push enabled
+device token validity
+
+정책이 있다면 그대로 적용.
+
+Growth Report Push만
+기존 preference를 무시하면 안 된다.
+
+==================================================
+7. NOTIFICATION CONTENT
+==================================================
+
+Notification title/body는
+Product-level 문구만 사용.
+
+예:
+
+title:
+"새 성장리포트가 도착했어요"
+
+body:
+"{학생 표시이름}의 {M월} 성장리포트가 등록되었습니다."
+
+또는 기존 SWIMNOTE 알림 문체에 맞춤.
+
+중요:
+
+APP이 ENGINE 분석내용을 새로 해석해서
+Push body에 넣지 않는다.
+
+금지 예:
+
+"집중력이 크게 좋아졌어요!"
+"이번 달 인내심이 성장했습니다!"
+
+Push에서 새로운 평가 Claim 생성 금지.
+
+==================================================
+8. PII MINIMIZATION
+==================================================
+
+Lock-screen Push에
+민감한 분석내용 넣지 않는다.
+
+특히 금지:
+
+diagnosis
+parent answer
+teacher review note
+raw report summary
+negative behavior
+metric confidence
+internal evidence
+
+학생 이름 표시 정책은
+기존 Notification privacy convention 재사용.
+
+==================================================
+9. DEEP LINK CONTRACT
+==================================================
+
+Growth Report Notification의 canonical deep link:
+
+growth_report_id를 반드시 포함.
+
+예:
+
+/parent/growth-reports/<reportId>
+
+또는 현재 Expo Router convention에 맞는
+canonical app route.
+
+중요:
+
+GR8 Native Detail Screen이
+이 path를 실제 소비하게 될 것이다.
+
+GR7에서는 contract를 확정하고
+navigation parser/router가 해당 target을
+보존할 수 있게 한다.
+
+==================================================
+10. EXISTING DEEP LINK ARCHITECTURE
+==================================================
+
+현재 APP의:
+
+notifications.deep_link
+router.push(...)
+Expo Router
+notification tap handler
+
+를 확인하여 재사용.
+
+별도 custom URI parser를
+Growth Report 전용으로 만들지 마라.
+
+==================================================
+11. GR8 BOUNDARY
+==================================================
+
+GR7에서 상세 Report UI 구현 금지.
+
+가능:
+
+Growth Report deep-link target type 정의
+growth_report_id parse
+route registration foundation
+
+하지만 실제 화면 contents는 GR8.
+
+만약 아직 route file이 없어서
+Expo Router가 없는 path를 거부한다면:
+
+최소 safe bridge/route shell이 정말 필요한지
+기존 navigation architecture를 보고 결정.
+
+GR8 본문 UI 선행 구현은 금지.
+
+==================================================
+12. FEED CLICK COMPATIBILITY
+==================================================
+
+GR6 Feed Item:
+
+growth_report_id
+
+와 GR7 Deep Link의 report id는
+동일 canonical identifier를 사용.
+
+Feed click과 Push click이
+향후 GR8 동일 Detail Route로 가야 한다.
+
+두 종류의 ID/path 만들지 마라.
+
+==================================================
+13. NOTIFICATION CENTER
+==================================================
+
+Push만 보내고 끝내지 않는다.
+
+기존 Parent Notification Center에
+Growth Report Notification이 저장되어야 한다.
+
+최소:
+
+notification type
+recipient
+title
+body
+deep_link
+created_at
+read status
+
+기존 schema 활용.
+
+==================================================
+14. READ / UNREAD
+==================================================
+
+기존 Notification read 처리 재사용.
+
+Growth Report만 별도 read system 금지.
+
+Push tap 또는 Notification Center tap 시
+기존 read 처리 flow가 있다면 그대로 사용.
+
+==================================================
+15. IDEMPOTENCY
+==================================================
+
+매우 중요.
+
+같은 Growth Report publish event가
+retry되어도 같은 Parent에게
+동일 Notification이 중복 생성되지 않아야 한다.
+
+최소 idempotency identity:
+
+notification_type
+source_report_id
+recipient_parent_id
+
+또는 기존 canonical dedupe key.
+
+==================================================
+16. DB SUPPORT
+==================================================
+
+현재 notifications table에
+source entity reference가 없다면
+
+additive하게 최소:
+
+source_type
+source_id
+
+또는 metadata JSON
+
+사용 검토.
+
+하지만 Growth Report 때문에
+Notification schema를 과도하게 재설계하지 마라.
+
+기존 deep_link와 metadata로
+안전한 dedupe가 가능하면 재사용.
+
+==================================================
+17. PUBLISH / NOTIFICATION FAILURE ISOLATION
+==================================================
+
+Growth Report publish 자체와
+external Push delivery를 구분.
+
+권장:
+
+1. PUBLISHED DB commit
+2. Notification record/enqueue
+3. Worker가 Push delivery
+
+Expo Push 일시 실패 때문에
+Report publication 자체를 rollback하지 않는다.
+
+하지만 Notification 생성 실패를
+조용히 무시하지 않는다.
+
+retryable delivery 구조 사용.
+
+==================================================
+18. OUTBOX / WORKER
+==================================================
+
+기존 notification queue/worker가 있다면 재사용.
+
+이미:
+
+DB notification row
+→ worker
+→ Expo Push
+
+구조라면 그대로 연결.
+
+새 Growth Report 전용 worker 금지.
+
+==================================================
+19. PUSH RETRY
+==================================================
+
+기존 Push retry/backoff 정책 사용.
+
+invalid Expo token은
+기존 token cleanup 정책 적용.
+
+Growth Report만 무한 retry 금지.
+
+==================================================
+20. PUBLISHED IDEMPOTENCY 연계
+==================================================
+
+GR6:
+
+publishGrowthReport()
+
+repeated call은 idempotent.
+
+따라서:
+
+첫 publish:
+notification enqueue 가능
+
+두 번째 alreadyPublished:
+새 notification 다시 생성 금지.
+
+==================================================
+21. CONCURRENT PUBLISH
+==================================================
+
+동시에 publish 2개 요청이 와도
+
+Report:
+1회 publish
+
+Notification:
+각 Parent당 1건
+
+Push:
+각 valid device policy에 따라 정상 횟수
+
+보장.
+
+==================================================
+22. PARENT AUTHORIZATION ON DEEP LINK
+==================================================
+
+Deep Link에 report_id가 있다고 해서
+Parent가 아무 Report나 조회하면 안 된다.
+
+GR8 상세 API에서
+ownership auth를 다시 검사해야 한다.
+
+GR7에서는 최소:
+
+Deep Link가 authorization bypass가 아니라는
+route/service architecture 유지.
+
+client-side route만으로 보안 처리 금지.
+
+==================================================
+23. X EXPIRATION
+==================================================
+
+GR1/GR6 정책 유지:
+
+이미 PUBLISHED된 Report는
+X entitlement 만료 후에도 Parent 열람 가능.
+
+따라서 과거 Growth Report Notification의
+Deep Link도 X 만료 때문에 자동 무효화하지 않는다.
+
+신규 분석 entitlement와
+published viewing policy를 혼동하지 마라.
+
+==================================================
+24. NOTIFICATION LIST PREVIEW
+==================================================
+
+Notification Center에서 보여줄 정보는:
+
+성장리포트 도착
+학생
+report_period
+
+정도의 Product 정보.
+
+ENGINE summary 전체를
+Notification list에 복제할 필요 없음.
+
+==================================================
+25. BADGE / COUNTS
+==================================================
+
+기존 unread badge/count가 있다면
+Growth Report Notification도
+동일 방식으로 count에 포함.
+
+별도 Growth Report badge 금지.
+
+==================================================
+26. EVENT TIME
+==================================================
+
+Notification timestamp 기준:
+
+publication event 시각
+
+즉 published_at 근처.
+
+report_period 날짜로 과거 timestamp를 넣지 않는다.
+
+==================================================
+27. PUSH SEND TIME
+==================================================
+
+PUBLISHED 즉시 enqueue가 기본.
+
+GR7에서 별도 특정 시각 예약 정책 만들지 않는다.
+
+기존 Notification Worker delivery 정책 적용.
+
+==================================================
+28. ERROR HANDLING
+==================================================
+
+최소 구분:
+
+notification record creation failure
+push enqueue failure
+push provider failure
+invalid device token
+deep_link invalid
+
+기존 typed error/logging pattern 사용.
+
+Parent API에 provider stack trace 노출 금지.
+
+==================================================
+29. AUDIT / TRACE
+==================================================
+
+가능하면 기존 audit/logging에:
+
+GROWTH_REPORT_NOTIFICATION_CREATED
+GROWTH_REPORT_PUSH_ENQUEUED
+GROWTH_REPORT_PUSH_FAILED
+
+등 추적 가능.
+
+과도한 새 Audit system 생성 금지.
+
+raw report 내용 로그 금지.
+
+==================================================
+30. NO ENGINE CALL
+==================================================
+
+GR7에서 AI ENGINE 호출 금지.
+
+Push 생성은
+PUBLISHED Product event만 사용.
+
+==================================================
+31. NO GPT
+==================================================
+
+Push title/body 생성을 위해
+GPT 호출 금지.
+
+정적 Product template 사용.
+
+==================================================
+32. NO SNS
+==================================================
+
+SNS 공유는 GR9.
+
+GR7에서 share 구현 금지.
+
+==================================================
+33. NO REPORT DETAIL UI
+==================================================
+
+GR8.
+
+GR7에서는 Deep Link target foundation까지만.
+
+==================================================
+34. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. PUBLISHED event → notification 생성
+
+2. APPROVED만으로 notification 생성 금지
+
+3. REVIEW_REQUIRED notification 없음
+
+4. ANALYZING notification 없음
+
+5. Parent connected recipient 조회
+
+6. unapproved parent 제외
+
+7. Parent deduplicate
+
+8. multiple approved guardians 각각 notification
+
+9. notification type=GROWTH_REPORT_PUBLISHED
+
+10. report_id/source_id 유지
+
+11. report_period 유지
+
+12. title Product 문구
+
+13. body Product 문구
+
+14. ENGINE claim 임의 생성 없음
+
+15. raw summary Push body 미포함
+
+16. parent answer 미포함
+
+17. teacher note 미포함
+
+18. deep_link에 growth_report_id
+
+19. feed와 동일 report_id
+
+20. notification center row 저장
+
+21. unread 상태 정상
+
+22. existing mark-read flow 호환
+
+23. unread count 포함
+
+24. push preference off → push delivery 안 함
+
+25. preference off라도 notification center 정책이
+    기존 시스템과 동일하게 동작
+
+26. valid push token enqueue
+
+27. invalid token 기존 cleanup/reject 정책
+
+28. repeated publish → duplicate notification 없음
+
+29. repeated event → duplicate 없음
+
+30. concurrent publish → Parent당 notification 1개
+
+31. multiple devices 정책 기존과 동일
+
+32. publish DB 성공 + push provider 실패
+→ report PUBLISHED 유지
+
+33. provider failure retryable
+
+34. notification creation failure trace
+
+35. deep link parser target 유지
+
+36. malformed deep link 안전 처리
+
+37. old PUBLISHED report X expired 이후 deep link 유지
+
+38. Parent ownership security architecture 유지
+
+39. no Engine call
+
+40. no GPT
+
+41. no SNS share
+
+42. no GR8 detail content
+
+43. GR6 feed regression
+
+44. GR5 regression
+
+45. GR4 regression
+
+46. GR3 regression
+
+47. GR2 regression
+
+48. GR1 regression
+
+49. existing notifications regression
+
+50. existing push regression
+
+51. existing deep link regression
+
+52. Diary regression
+
+==================================================
+35. UI TEST
+==================================================
+
+Parent Notification Center에서:
+
+Growth Report notification이
+기존 알림들과 동일한 방식으로 보이고
+
+tap했을 때
+Growth Report deep link target이
+정확하게 전달되는지 테스트.
+
+GR8 screen 미구현 상태라면
+target parsing/routing까지만 검증하고
+내용 UI를 fake하지 마라.
+
+==================================================
+36. MIGRATION
+==================================================
+
+Notification enum/source fields 추가가
+필요한 경우 additive migration 작성 가능.
+
+Production migration 실행 금지.
+
+기존 Notification table destructive change 금지.
+
+==================================================
+37. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- Push만 보내고 notification center 저장 없음
+- notification만 만들고 deep link 없음
+- APPROVED에서 발송
+- duplicate Push
+- Parent relation 검증 없음
+- APP이 ENGINE 내용 재해석해 Push 작성
+- raw report 내용 lock screen 노출
+- Deep Link만 있고 report_id 없음
+- 새로운 Notification system 생성
+- GR8 detail 선행
+- SNS 선행
+- TODO
+- placeholder
+
+==================================================
+38. COMPLETE CONDITIONS
+==================================================
+
+[ ] PUBLISHED event 연결
+
+[ ] existing Notification system 재사용
+
+[ ] Parent recipient resolution
+
+[ ] multiple guardian support
+
+[ ] preferences respected
+
+[ ] notification center storage
+
+[ ] GROWTH_REPORT_PUBLISHED type
+
+[ ] canonical deep link
+
+[ ] growth_report_id
+
+[ ] idempotency
+
+[ ] concurrent publish safety
+
+[ ] push enqueue
+
+[ ] provider failure isolation
+
+[ ] existing read/unread
+
+[ ] badge count compatibility
+
+[ ] X expired published deep link 유지
+
+[ ] privacy
+
+[ ] no Engine call
+
+[ ] no GPT
+
+[ ] no SNS
+
+[ ] no GR8 detail implementation
+
+[ ] tests pass
+
+[ ] existing notification regression
+
+[ ] GR1~GR6 regression
+
+[ ] TODO 0
+
+[ ] Production migration 미실행
+
+[ ] Deploy/OTA 없음
+
+==================================================
+39. CREDIT SAVING
+==================================================
+
+GR6 publication
++
+existing notifications
++
+Expo push
++
+deep link handling
++
+Parent notification UI
+
+관련 파일만 검사.
+
+전체 repo 재감리 금지.
+
+GR8/GR9 선행 구현 금지.
+
+==================================================
+40. FINAL REPORT
+==================================================
+
+1. GR7 RESULT
+
+2. EXISTING NOTIFICATION/PUSH ASSETS REUSED
+
+3. IMPLEMENTED FILES
+
+4. PUBLISHED EVENT INTEGRATION
+
+5. RECIPIENT RESOLUTION
+
+6. NOTIFICATION CONTRACT
+
+7. PUSH CONTENT / PRIVACY
+
+8. DEEP LINK CONTRACT
+
+9. NOTIFICATION CENTER
+
+10. IDEMPOTENCY / CONCURRENCY
+
+11. PUSH FAILURE / RETRY
+
+12. X EXPIRATION POLICY
+
+13. UI / TAP ROUTING
+
+14. TEST RESULTS
+
+15. GR1~GR6 + NOTIFICATION REGRESSION
+
+16. TODO SCAN
+
+17. GIT
+    branch
+    actual HEAD SHA
+
+18. PRODUCTION SAFETY
+
+전부 완료:
+
+GROWTH_REPORT_APP_GR7_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR7_BLOCKED ❌
+
+작업을 시작하라.

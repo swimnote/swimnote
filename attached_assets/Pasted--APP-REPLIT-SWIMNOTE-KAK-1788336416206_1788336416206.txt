@@ -1,0 +1,495 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO AUTH ENUM BUG — MINIMAL FIX + VERIFICATION
+#
+# 목적:
+# 카카오 로그인 서버 쿼리에서
+# 실제 PostgreSQL enum에 존재하지 않는
+# 'sub_admin' literal 때문에 발생 가능한 500 오류를
+# 최소 수정으로 제거한다.
+#
+# 중요:
+# - 1.6.3 관리자 신규가입 차단 검증은 이번 작업에서 제외
+# - 1.6.3 client는 완전 동결
+# - 2.0 Kakao 정책 구현은 이미 완료되었으므로 다시 건드리지 않음
+# - Production 서버 배포는 이번 작업에서 하지 않음
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Work branch:
+release/v2.0.0
+
+Current expected HEAD:
+b9eed0dd
+
+Production branch:
+deploy-photo-clone
+
+Production server:
+FROZEN
+
+============================================================
+0. 절대 금지
+============================================================
+
+1.6.3 client 수정:
+NO
+
+1.6.3 관리자 정책 추가:
+NO
+
+1.6.3 OTA:
+NO
+
+2.0 Kakao policy 재설계:
+NO
+
+deploy-photo-clone 수정:
+NO
+
+Render deploy:
+NO
+
+Production DB write:
+NO
+
+migration:
+NO
+
+OTA:
+NO
+
+build:
+NO
+
+Kakao Developer Console:
+NO TOUCH
+
+RevenueCat / Stage8:
+NO TOUCH
+
+계정 삭제/병합/relink:
+NO
+
+============================================================
+1. 확인된 실제 버그
+============================================================
+
+Production DB user_role enum:
+
+super_admin
+pool_admin
+parent
+teacher
+
+확인된 문제 쿼리:
+
+role IN ('teacher', 'pool_admin', 'sub_admin')
+
+실제 테스트 결과:
+
+invalid input value for enum user_role: "sub_admin"
+
+따라서 해당 Kakao auth 쿼리는
+실행 시 500 오류를 만들 수 있다.
+
+이번 작업에서는 이 버그만 최소 수정한다.
+
+============================================================
+2. Kakao auth 내 sub_admin 전수 검색
+============================================================
+
+다음 영역에서:
+
+sub_admin
+
+검색.
+
+특히:
+
+POST /auth/kakao-social-login
+
+- Step 3 kakao_id lookup
+- Step 4 phone lookup
+
+POST /auth/kakao-link-teacher
+
+확인.
+
+Kakao auth query 안에서
+존재하지 않는 'sub_admin'을 사용하는 위치를
+전부 찾아라.
+
+============================================================
+3. 최소 수정
+============================================================
+
+기존:
+
+role IN ('teacher', 'pool_admin', 'sub_admin')
+
+수정:
+
+role IN ('teacher', 'pool_admin')
+
+주의:
+
+무조건 global replace 금지.
+
+Kakao auth 관련 query에서만 수정.
+
+다른 시스템/legacy/comment/test fixture의
+sub_admin 문자열은 임의 삭제 금지.
+
+============================================================
+4. 기존 로그인 의미 보존
+============================================================
+
+수정 후에도 아래는 그대로 유지되어야 함.
+
+A.
+기존 teacher kakao_id direct hit
+→ 정상 로그인
+
+B.
+기존 teacher kakao_id 없음 + phone match
+→ 최초 Kakao link 가능
+
+C.
+기존 pool_admin kakao_id direct hit
+→ 정상 로그인 유지
+
+D.
+parent Kakao login
+→ 영향 없음
+
+E.
+일반 unified login
+→ 영향 없음
+
+F.
+2.0 관리자 신규 Kakao 가입 차단
+→ 기존 client policy 유지
+
+============================================================
+5. 토이키즈 기존 Kakao 선생님 검수
+============================================================
+
+Production DB:
+READ ONLY ONLY
+
+기존 토이키즈:
+
+kakao_id PRESENT teacher
+→ 수정 후 Step 3 query가 enum error 없이 실행 가능한지 검수
+
+kakao_id MISSING teacher
+→ 수정 후 Step 4 query가 enum error 없이 실행 가능한지 검수
+
+계정 데이터 변경:
+NO
+
+kakao_id UPDATE 실제 실행:
+NO
+
+실제 로그인 시뮬레이션/테스트로만 검증.
+
+============================================================
+6. 1.6.3 보호
+============================================================
+
+1.6.3은 신규가입이 없으므로
+이번 작업에서 관리자 신규가입 차단 검증 자체를 하지 않는다.
+
+반드시:
+
+1.6.3 source changed:
+NO
+
+1.6.3 OTA:
+NO
+
+1.6.3 auth contract:
+UNCHANGED
+
+기존 1.6.3 Kakao 로그인 요청이
+수정 후 서버와 계속 호환되는지만 검증.
+
+============================================================
+7. 테스트
+============================================================
+
+반드시 실행:
+
+K01
+teacher kakao_id direct hit
+→ PASS
+
+K02
+teacher phone first-link query
+→ PASS
+
+K03
+pool_admin kakao_id direct hit
+→ PASS
+
+K04
+parent Kakao direct login
+→ PASS
+
+K05
+duplicate teacher Kakao guard
+→ PASS
+
+K06
+duplicate parent Kakao guard
+→ PASS
+
+K07
+Kakao auth production queries에
+invalid enum literal 'sub_admin'
+→ 0개
+
+K08
+teacher Step 3 query
+→ enum runtime error 없음
+
+K09
+teacher Step 4 query
+→ enum runtime error 없음
+
+K10
+pool_admin direct-hit query
+→ enum runtime error 없음
+
+K11
+general unified-login contract
+→ unchanged
+
+K12
+2.0 Kakao policy tests P01-P09
+→ 전부 유지 PASS
+
+============================================================
+8. Regression
+============================================================
+
+전체 regression 실행.
+
+현재 기준:
+
+166 stable failures
+
+New deterministic failures:
+0
+
+기존 166을 이번 작업에서 고치지 말 것.
+
+테스트 수 증가에 따라 passed 숫자는 달라질 수 있으나
+stable failures는 166 유지가 기준.
+
+============================================================
+9. 코드 수정 범위
+============================================================
+
+원칙상 예상 수정 파일:
+
+artifacts/api-server/src/routes/auth.ts
+
+테스트 파일은 필요한 경우만 수정.
+
+그 외 unrelated file 수정 금지.
+
+============================================================
+10. 커밋
+============================================================
+
+release/v2.0.0에서만 commit.
+
+권장 commit message:
+
+fix(kakao-auth): remove invalid sub_admin enum literal
+
+정확한 SHA 보고.
+
+============================================================
+11. Production 배포 금지
+============================================================
+
+이번 작업 완료 후에도:
+
+deploy-photo-clone:
+NO TOUCH
+
+Production server:
+NOT DEPLOYED
+
+Render:
+NOT DEPLOYED
+
+DB:
+NOT CHANGED
+
+1.6.3:
+NOT CHANGED
+
+OTA:
+NO
+
+실제 Production 반영은
+완료보고 검수 후 별도 승인받고 진행.
+
+============================================================
+12. 완료보고 형식
+============================================================
+
+# SWIMNOTE KAKAO ENUM BUG FIX REPORT
+
+## SOURCE
+
+Branch:
+HEAD Before:
+HEAD After:
+
+Commit:
+...
+
+## CHANGED FILES
+
+...
+
+## ENUM BUG
+
+Actual user_role enum:
+...
+
+Bad Kakao query locations before:
+...
+
+sub_admin removed from Kakao auth queries:
+YES / NO
+
+Remaining invalid Kakao auth occurrences:
+0 / ...
+
+Runtime enum error after fix:
+YES / NO
+
+Expected:
+NO
+
+## TEACHER
+
+Existing kakao_id direct login:
+PASS / FAIL
+
+Phone first-link:
+PASS / FAIL
+
+Duplicate Kakao guard:
+PASS / FAIL
+
+## POOL ADMIN
+
+Existing kakao_id direct login:
+PASS / FAIL
+
+New admin signup policy:
+NOT TESTED / OUT OF SCOPE
+
+## PARENT
+
+Existing Kakao login:
+PASS / FAIL
+
+First link:
+PASS / FAIL
+
+Duplicate guard:
+PASS / FAIL
+
+## TOYKIDS EXISTING KAKAO TEACHERS
+
+Existing accounts modified:
+NO
+
+Direct-hit path:
+SAFE / FAIL
+
+Phone first-link path:
+SAFE / FAIL
+
+Account treatment required:
+NO / YES
+
+## 1.6.3 SAFETY
+
+1.6.3 source changed:
+NO
+
+1.6.3 OTA:
+NO
+
+Auth contract changed:
+NO
+
+Compatibility:
+PASS / FAIL
+
+## 2.0 POLICY
+
+Existing b9eed0dd client policy:
+PRESERVED / BROKEN
+
+P01-P09:
+...
+
+## TESTS
+
+Kakao tests:
+...
+
+Regression:
+...
+
+Stable failures:
+166
+
+New deterministic failures:
+0
+
+## DEPLOYMENT
+
+Production server:
+NOT TOUCHED
+
+deploy-photo-clone:
+NOT TOUCHED
+
+Render:
+NOT DEPLOYED
+
+Production DB:
+NOT CHANGED
+
+OTA:
+NO
+
+Build:
+NO
+
+## BLOCKERS
+
+없으면:
+NONE
+
+## FINAL
+
+KAKAO ENUM BUG FIXED — SOURCE COMPLETE, PRODUCTION DEPLOY APPROVAL REQUIRED
+
+또는
+
+KAKAO ENUM BUG FIX BLOCKED

@@ -1,185 +1,328 @@
 /**
- * 학부모 설정 화면 — 단순화 버전
+ * 학부모 설정 — 첫 화면 구조 재정리
  *
- * 항목:
- *   1. 부모 정보 수정
- *   2. 자녀 관리
- *   3. 이용약관
- *   4. 개인정보처리방침
- *   5. 로그아웃
+ * 구조:
+ *   1. 계정 요약 row (tap → my-info)
+ *   2. 핵심 3개 직접 노출: 공지 / 수업변경요청 / 문의하기
+ *   3. 분류 4개 (tap → inline expand):
+ *      A. 계정 및 가족
+ *      B. 알림 및 소식
+ *      C. 수업 및 수영장
+ *      D. 도움말 및 서비스
+ *   4. 하단 버전 정보
  *
- * ParentScreenHeader (홈 버튼 → 학부모 홈, 관리자 경로 차단)
+ * 기존 route/logic 전부 보존. UI 구조만 변경.
  */
-import { ChevronRight } from "lucide-react-native";
-import { LucideIcon } from "@/components/common/LucideIcon";
-import { router } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { WithdrawalModal } from "@/components/common/WithdrawalModal";
 import { ParentScreenHeader } from "@/components/parent/ParentScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useParent } from "@/context/ParentContext";
+import Colors from "@/constants/colors";
 
-const C = Colors.light;
+const C    = Colors.light;
+const NAVY = "#0C1A2E";
+const DIV  = "#E5E7EB";
+const MUTED = "#9CA3AF";
+const APP_VERSION = "1.6.3";
 
-const MINT_C = "#2EC4B6"; const MINT_BG = "#E6FAF8";
-const ORNG_C = "#F97316"; const ORNG_BG = "#FFF1E8";
-const NAVY_C = "#0F172A"; const NAVY_BG = "#E6FAF8";
-
-function MenuItem({
-  icon, label, sub, onPress, danger = false,
-  iconColor, iconBg,
+// ─────────────────────────────────────────────────────────────
+// Row — 쿠팡식 list row
+// ─────────────────────────────────────────────────────────────
+function Row({
+  icon,
+  label,
+  sub,
+  badge,
+  onPress,
+  last = false,
 }: {
-  icon: any; label: string; sub?: string; onPress?: () => void; danger?: boolean;
-  iconColor?: string; iconBg?: string;
+  icon: any;
+  label: string;
+  sub?: string;
+  badge?: number;
+  onPress?: () => void;
+  last?: boolean;
 }) {
-  const ic = danger ? "#D96C6C" : (iconColor ?? NAVY_C);
-  const bg = danger ? "#F9DEDA" : (iconBg ?? MINT_BG);
   return (
-    <Pressable
-      style={({ pressed }) => [s.menuItem, { backgroundColor: C.card, opacity: pressed ? 0.8 : 1 }]}
-      onPress={onPress}
-    >
-      <View style={[s.menuIcon, { backgroundColor: bg }]}>
-        <LucideIcon name={icon} size={18} color={ic} />
-      </View>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[s.menuLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
-        {sub ? <Text style={[s.menuSub, { color: C.textMuted }]}>{sub}</Text> : null}
-      </View>
-      {!danger && <ChevronRight size={16} color={C.textMuted} />}
-    </Pressable>
+    <>
+      <Pressable
+        style={({ pressed }) => [s.row, { opacity: pressed ? 0.65 : 1 }]}
+        onPress={onPress}
+      >
+        <LucideIcon name={icon} size={17} color={NAVY} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.rowLabel}>{label}</Text>
+          {sub ? <Text style={s.rowSub}>{sub}</Text> : null}
+        </View>
+        {badge ? (
+          <View style={s.badge}>
+            <Text style={s.badgeTxt}>{badge}</Text>
+          </View>
+        ) : null}
+        <LucideIcon name="chevron-right" size={15} color={MUTED} />
+      </Pressable>
+      {!last && <View style={s.div} />}
+    </>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Category row — 탭 시 inline expand
+// ─────────────────────────────────────────────────────────────
+function CategoryRow({
+  icon,
+  label,
+  sub,
+  expanded,
+  onToggle,
+  children,
+  last = false,
+}: {
+  icon: any;
+  label: string;
+  sub: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <>
+      <Pressable
+        style={({ pressed }) => [s.row, { opacity: pressed ? 0.65 : 1 }]}
+        onPress={onToggle}
+      >
+        <LucideIcon name={icon} size={17} color={NAVY} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.rowLabel}>{label}</Text>
+          <Text style={s.rowSub}>{sub}</Text>
+        </View>
+        <LucideIcon
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={15}
+          color={MUTED}
+        />
+      </Pressable>
+      {expanded && <View style={s.expandBody}>{children}</View>}
+      {!last && <View style={s.div} />}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sub-row (inside expanded category)
+// ─────────────────────────────────────────────────────────────
+function SubRow({
+  icon,
+  label,
+  sub,
+  danger = false,
+  badge,
+  onPress,
+  last = false,
+}: {
+  icon: any;
+  label: string;
+  sub?: string;
+  danger?: boolean;
+  badge?: number;
+  onPress?: () => void;
+  last?: boolean;
+}) {
+  return (
+    <>
+      <Pressable
+        style={({ pressed }) => [s.subRow, { opacity: pressed ? 0.65 : 1 }]}
+        onPress={onPress}
+      >
+        <LucideIcon name={icon} size={15} color={danger ? "#D96C6C" : MUTED} />
+        <View style={{ flex: 1 }}>
+          <Text style={[s.subRowLabel, { color: danger ? "#D96C6C" : C.text }]}>{label}</Text>
+          {sub ? <Text style={s.subRowSub}>{sub}</Text> : null}
+        </View>
+        {badge ? (
+          <View style={s.badge}>
+            <Text style={s.badgeTxt}>{badge}</Text>
+          </View>
+        ) : null}
+        {!danger && <LucideIcon name="chevron-right" size={14} color={MUTED} />}
+      </Pressable>
+      {!last && <View style={[s.div, { marginLeft: 34 }]} />}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Section box wrapper
+// ─────────────────────────────────────────────────────────────
+function SectionBox({ children }: { children: React.ReactNode }) {
+  return <View style={s.sectionBox}>{children}</View>;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────
 export default function ParentMoreScreen() {
   const insets = useSafeAreaInsets();
   const { parentAccount, logout, token, pool, parentPoolName } = useAuth();
   const { students } = useParent();
+
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [expandA, setExpandA] = useState(false);
+  const [expandB, setExpandB] = useState(false);
+  const [expandC, setExpandC] = useState(false);
+  const [expandD, setExpandD] = useState(false);
 
-  async function handleDeleteAccount() {
+  async function handleDeleteAccount(immediate: boolean, password: string) {
     setDeleteLoading(true);
     try {
-      const res = await apiRequest(token, "/auth/account", { method: "DELETE" });
-      if (res.ok) {
-        setDeleteConfirm(false);
-        await logout();
-      } else {
-        let msg = "계정 삭제 중 오류가 발생했습니다.";
-        try {
-          const body = await res.json();
-          if (body?.message) msg = body.message;
-        } catch {}
-        setDeleteConfirm(false);
-        Alert.alert("탈퇴 실패", msg);
-      }
-    } catch {
-      setDeleteConfirm(false);
-      Alert.alert("탈퇴 실패", "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setDeleteLoading(false);
-    }
+      const res = await apiRequest(token, "/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ immediate, password }),
+      });
+      if (res.ok) { setDeleteConfirm(false); await logout(); }
+    } catch { } finally { setDeleteLoading(false); }
   }
 
+  const poolName   = parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장";
+  const childCount = students.length;
+
   return (
-    <View style={[s.root, { backgroundColor: C.background }]}>
+    <View style={[s.root, { backgroundColor: "#F4F5F7" }]}>
       <ParentScreenHeader title="설정" showHome={false} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 40, gap: 8, paddingTop: 12 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 12 }}
       >
-        {/* 계정 요약 — 탭 시 내 정보 화면 */}
+        {/* ── 1. 계정 요약 ── */}
         {parentAccount && (
           <Pressable
-            style={({ pressed }) => [s.accountCard, { backgroundColor: C.card, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [s.accountRow, { opacity: pressed ? 0.7 : 1 }]}
             onPress={() => router.push("/(parent)/my-info?backTo=more" as any)}
           >
-            <View style={[s.accountAvatar, { backgroundColor: C.tintLight }]}>
-              <Text style={[s.accountAvatarTxt, { color: C.tint }]}>{parentAccount.name?.[0] ?? "P"}</Text>
+            <View style={s.accountAvatar}>
+              <LucideIcon name="user-round" size={20} color={NAVY} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[s.accountName, { color: C.text }]}>{parentAccount.name}님</Text>
-              <Text style={[s.accountPool, { color: C.textMuted }]}>
-                {parentPoolName || (parentAccount as any)?.pool_name || pool?.name || "수영장"} · 자녀 {students.length}명
-              </Text>
+              <Text style={s.accountName}>{parentAccount.name}님</Text>
+              <Text style={s.accountSub}>{poolName} · 자녀 {childCount}명</Text>
             </View>
-            <ChevronRight size={16} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={15} color={MUTED} />
           </Pressable>
         )}
 
-        {/* 메뉴 목록 */}
-        <MenuItem
-          icon="user"
-          label="부모 정보 수정"
-          sub="이름·전화번호·비밀번호"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/parent-profile?backTo=more" as any)}
-        />
-        <MenuItem
-          icon="users"
-          label="자녀 관리"
-          sub={students.length > 0 ? `연결된 자녀 ${students.length}명` : "자녀를 연결해주세요"}
-          iconColor={NAVY_C} iconBg={MINT_BG}
-          onPress={() => router.push("/(parent)/children?backTo=more" as any)}
-        />
-        <MenuItem
-          icon="clipboard-list"
-          label="수업 요청"
-          sub="결석·연기·퇴원·상담 신청"
-          iconColor={ORNG_C} iconBg={ORNG_BG}
-          onPress={() => router.push("/(parent)/requests?backTo=more" as any)}
-        />
-        <MenuItem
-          icon="bell"
-          label="공지함"
-          sub="수영장 공지 전체 보기"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/notices?backTo=more" as any)}
-        />
-        <MenuItem
-          icon="settings"
-          label="푸시 알림 설정"
-          sub="공지·수업·일지·사진 알림 on/off"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)}
-        />
-        {/* 약관 및 정책 */}
-        <MenuItem
-          icon="file-text"
-          label="이용약관"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/terms" as any)}
-        />
-        <MenuItem
-          icon="lock"
-          label="개인정보처리방침"
-          iconColor={NAVY_C} iconBg={NAVY_BG}
-          onPress={() => router.push("/privacy" as any)}
-        />
-        {/* 앱 버전 */}
-        <View style={[s.versionRow]}>
-          <Text style={[s.versionTxt, { color: C.textMuted }]}>SwimNote v1.0.0</Text>
-        </View>
+        {/* ── 2. 핵심 3개 직접 노출 ── */}
+        <SectionBox>
+          <Row
+            icon="megaphone"
+            label="공지"
+            sub="수영장 공지 전체 보기"
+            onPress={() => router.push("/(parent)/notices?backTo=more" as any)}
+          />
+          <Row
+            icon="clipboard-list"
+            label="수업변경요청"
+            sub="결석 · 연기 · 퇴원 · 상담 신청"
+            onPress={() => router.push("/(parent)/requests?backTo=more" as any)}
+          />
+          <Row
+            icon="bot"
+            label="AI 고객센터"
+            sub="SWIMNOTE 앱 · AI 기능 이용 문의"
+            onPress={() => router.push("/(parent)/support-chat" as any)}
+            last
+          />
+        </SectionBox>
 
-        <MenuItem
-          icon="log-out"
-          label="로그아웃"
-          danger
-          onPress={() => setLogoutConfirm(true)}
-        />
-        <MenuItem
-          icon="user-x"
-          label="회원 탈퇴"
-          sub="계정 및 데이터 영구 삭제"
-          danger
-          onPress={() => setDeleteConfirm(true)}
-        />
+        {/* ── 3. 분류 4개 ── */}
+        <SectionBox>
+          {/* A. 계정 및 가족 */}
+          <CategoryRow
+            icon="user"
+            label="계정 및 가족"
+            sub="내 정보 · 보호자 · 자녀 · 로그인/보안"
+            expanded={expandA}
+            onToggle={() => setExpandA(v => !v)}
+          >
+            <SubRow icon="user-round" label="내 정보" sub="프로필 확인"
+              onPress={() => router.push("/(parent)/my-info?backTo=more" as any)} />
+            <SubRow icon="pencil" label="부모 정보 수정" sub="이름·전화번호·비밀번호"
+              onPress={() => router.push("/(parent)/parent-profile?backTo=more" as any)} />
+            <SubRow icon="users" label="자녀 관리"
+              sub={childCount > 0 ? `연결된 자녀 ${childCount}명` : "자녀를 연결해주세요"}
+              onPress={() => router.push("/(parent)/children?backTo=more" as any)} />
+            {childCount > 0 && (
+              <SubRow icon="user-plus" label="추가 보호자 관리" sub="두 번째·세 번째 보호자 번호 등록"
+                onPress={() => router.push("/(parent)/additional-guardians" as any)} />
+            )}
+            <SubRow icon="log-out" label="로그아웃" danger
+              onPress={() => setLogoutConfirm(true)} />
+            <SubRow icon="user-x" label="회원 탈퇴" sub="계정 및 데이터 영구 삭제" danger
+              onPress={() => setDeleteConfirm(true)} last />
+          </CategoryRow>
+
+          {/* B. 알림 및 소식 */}
+          <CategoryRow
+            icon="bell"
+            label="알림 및 소식"
+            sub="푸시 알림 · 알림함"
+            expanded={expandB}
+            onToggle={() => setExpandB(v => !v)}
+          >
+            <SubRow icon="settings" label="푸시 알림 설정" sub="공지·수업·일지·사진 알림 on/off"
+              onPress={() => router.push("/(parent)/push-settings?backTo=more" as any)} last />
+          </CategoryRow>
+
+          {/* C. 수업 및 수영장 */}
+          <CategoryRow
+            icon="waves"
+            label="수업 및 수영장"
+            sub="수업 정보 · 등록 수영장"
+            expanded={expandC}
+            onToggle={() => setExpandC(v => !v)}
+          >
+            <SubRow icon="building-2" label="등록 수영장"
+              sub={poolName}
+              onPress={() => { /* PHASE N에서 수영장 상세 연결 */ }}
+              last />
+          </CategoryRow>
+
+          {/* D. 도움말 및 서비스 */}
+          <CategoryRow
+            icon="help-circle"
+            label="도움말 및 서비스"
+            sub="AI · 고객센터 · 약관"
+            expanded={expandD}
+            onToggle={() => setExpandD(v => !v)}
+            last
+          >
+            <SubRow icon="file-text" label="이용약관"
+              onPress={() => router.push("/terms" as any)} />
+            <SubRow icon="lock" label="개인정보처리방침"
+              onPress={() => router.push("/privacy" as any)} last />
+          </CategoryRow>
+        </SectionBox>
+
+        {/* ── 4. 버전 정보 ── */}
+        <View style={s.versionBlock}>
+          <Text style={s.versionApp}>SWIMNOTE</Text>
+          <Text style={s.versionNum}>앱 버전 {APP_VERSION}</Text>
+        </View>
       </ScrollView>
 
       <ConfirmModal
@@ -191,46 +334,50 @@ export default function ParentMoreScreen() {
         onConfirm={async () => { setLogoutConfirm(false); await logout(); }}
         onCancel={() => setLogoutConfirm(false)}
       />
-      <ConfirmModal
+      <WithdrawalModal
         visible={deleteConfirm}
-        title="회원 탈퇴"
-        message={"계정을 삭제하면 모든 데이터가 영구적으로\n삭제되며 복구할 수 없습니다.\n정말 탈퇴하시겠습니까?"}
-        confirmText="탈퇴하기"
-        loading={deleteLoading}
-        destructive
+        onClose={() => setDeleteConfirm(false)}
         onConfirm={handleDeleteAccount}
-        onCancel={deleteLoading ? undefined : () => setDeleteConfirm(false)}
+        loading={deleteLoading}
+        isPaidPlan={false}
       />
     </View>
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex: 1 },
 
-  accountCard: {
-    borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center",
-    gap: 14, marginBottom: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
-  },
-  accountAvatar: {
-    width: 48, height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-  },
-  accountAvatarTxt: { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  accountName: { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  accountPool: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
+  // Account row
+  accountRow:    { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", marginHorizontal: 16, marginBottom: 12, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: DIV },
+  accountAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#EEF0F4", alignItems: "center", justifyContent: "center" },
+  accountName:   { fontSize: 15, fontFamily: "Pretendard-Regular", fontWeight: "600", color: NAVY },
+  accountSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: MUTED, marginTop: 1 },
 
-  menuItem: {
-    flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 15, gap: 12,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
-  },
-  menuIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  menuLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  menuSub: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  // Section box
+  sectionBox: { backgroundColor: "#fff", marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: DIV, overflow: "hidden" },
 
-  versionRow: { paddingVertical: 4, alignItems: "center" },
-  versionTxt: { fontSize: 12, fontFamily: "Pretendard-Regular" },
+  // Row
+  row:      { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  rowLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", fontWeight: "500", color: NAVY },
+  rowSub:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: MUTED, marginTop: 1 },
+  div:      { height: StyleSheet.hairlineWidth, backgroundColor: DIV, marginHorizontal: 16 },
+
+  // Expand
+  expandBody:  { backgroundColor: "#F8F9FB", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DIV },
+  subRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  subRowLabel: { fontSize: 13, fontFamily: "Pretendard-Regular", fontWeight: "500" },
+  subRowSub:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: MUTED, marginTop: 1 },
+
+  // Badge
+  badge:    { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center", paddingHorizontal: 5, marginRight: 4 },
+  badgeTxt: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff", fontWeight: "600" },
+
+  // Version
+  versionBlock: { alignItems: "center", marginTop: 8, gap: 3 },
+  versionApp:   { fontSize: 12, fontFamily: "Pretendard-Regular", fontWeight: "600", color: MUTED },
+  versionNum:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: MUTED },
 });

@@ -1,0 +1,429 @@
+[SWIMNOTE APP]
+[SUPER ADMIN — X MODE MANUAL ENTITLEMENT CONTROL UI]
+
+목적:
+
+슈퍼관리자가 특정 운영처에
+결제 없이 SWIMNOTE X 사용권을 직접 부여하거나 회수할 수 있도록
+현재 운영처 상세 > X모드 탭에 수동 제어 UI를 구현한다.
+
+현재 화면:
+
+운영처 상세
+→ X모드 탭
+
+현재 표시:
+
+SWIMNOTE X 상태
+
+X 사용권:
+X 활성 / 비활성
+
+설정 상태:
+심사 중 / READY 등
+
+구독 시작일
+구독 만료일
+
+그리고 하단에 현재:
+
+"X 사용권 수동 제어
+PATCH /super/operators/:id/xmode API로
+운영처별 X 사용권을 수동 활성/비활성 할 수 있습니다.
+수동 제어 UI는 다음 단계에서 추가됩니다."
+
+라는 placeholder가 존재함.
+
+이 placeholder를 실제 관리 UI로 교체한다.
+
+==================================================
+1. PRODUCT RULE
+==================================================
+
+이 기능은 RevenueCat 결제 기능이 아니다.
+
+목적:
+
+- 무료 체험 운영처
+- 파트너 운영처
+- 계약형 운영처
+- 내부 테스트 운영처
+- 프로모션/보상
+- 결제 없이 관리자가 직접 권한을 주는 경우
+
+에 슈퍼관리자가 X entitlement를 수동 부여하는 기능.
+
+RevenueCat Product/Offering/Purchase 상태 변경 금지.
+
+==================================================
+2. CANONICAL X MODE RULE
+==================================================
+
+기존 canonical rule 절대 변경 금지:
+
+xmode_entitlement = true
+AND
+xmode_config_status = READY
+
+→ mode = x
+
+xmode_entitlement = true
+AND
+xmode_config_status != READY
+
+→ mode = x_pending
+
+xmode_entitlement = false
+
+→ mode = normal
+
+수동 제어 UI는 원칙적으로:
+
+xmode_entitlement
+
+만 제어한다.
+
+xmode_config_status를 자동 READY로 바꾸지 마라.
+
+즉:
+
+사용권을 켜더라도
+설정 상태가 심사 중이면
+최종 모드는 x_pending 상태 유지.
+
+==================================================
+3. SERVER CONTRACT AUDIT
+==================================================
+
+먼저 기존 API 실제 구현 확인:
+
+PATCH /super/operators/:id/xmode
+
+또는 repository의 실제 canonical route.
+
+확인:
+
+- request payload
+- response payload
+- auth
+- audit logging
+- entitlement update field
+- config status 영향 여부
+
+API가 이미 entitlement 수동 변경을 지원하면
+서버 수정 금지.
+
+UI는 실제 기존 contract에 맞춰 구현.
+
+추측으로 payload 새로 만들지 말 것.
+
+==================================================
+4. UI LOCATION
+==================================================
+
+현재:
+
+슈퍼관리자
+→ 운영처 관리
+→ 운영처 상세
+→ X모드
+
+화면의 기존 placeholder card를 교체.
+
+카드 제목:
+
+X 사용권 수동 제어
+
+현재 상태 명확히 표시:
+
+현재 사용권
+X 활성 / X 비활성
+
+그리고 버튼:
+
+X 사용권 활성화
+
+또는 현재 활성 상태라면:
+
+X 사용권 비활성화
+
+한 화면에 두 버튼을 동시에 보여주지 않아도 됨.
+현재 상태에 맞는 action 하나만 보여주는 방식 권장.
+
+==================================================
+5. EXPLANATION TEXT
+==================================================
+
+관리자가 의미를 바로 알 수 있게 짧게 표시:
+
+"결제 여부와 관계없이 이 운영처에
+SWIMNOTE X 사용권을 직접 부여하거나 회수합니다."
+
+그리고 아래 보조 설명:
+
+"사용권이 활성화되어도 설정 상태가 READY가 아니면
+X모드는 심사 대기 상태로 유지됩니다."
+
+개발용 API 경로 텍스트는 사용자 화면에서 제거.
+
+==================================================
+6. ACTIVATE FLOW
+==================================================
+
+현재 entitlement=false 상태에서
+활성화 버튼 클릭:
+
+confirmation 표시:
+
+제목:
+X 사용권을 활성화할까요?
+
+내용:
+결제 없이 이 운영처에
+SWIMNOTE X 사용권이 부여됩니다.
+
+확인
+취소
+
+확인 후 기존 PATCH API 호출.
+
+성공 시:
+
+- 서버 응답 기준 화면 refresh
+- X 사용권 → X 활성
+- config READY가 아니면 설정 상태는 그대로 유지
+- 최종 mode도 서버 canonical 계산 결과 사용
+
+임의 local 계산으로 상태를 위조하지 말 것.
+
+==================================================
+7. DEACTIVATE FLOW
+==================================================
+
+현재 entitlement=true 상태에서:
+
+X 사용권 비활성화
+
+클릭 시 confirmation:
+
+제목:
+X 사용권을 비활성화할까요?
+
+내용:
+이 운영처의 SWIMNOTE X 사용 권한이 회수됩니다.
+운영 데이터는 삭제되지 않습니다.
+
+확인
+취소
+
+성공 후:
+
+xmode_entitlement=false
+
+서버 authoritative state를 다시 fetch.
+
+최종 mode=normal 확인.
+
+==================================================
+8. DATA SAFETY
+==================================================
+
+X 사용권 비활성화 시:
+
+삭제 금지:
+
+- curriculum data
+- diary data
+- growth_events
+- growth_reports
+- template data
+- X 설정 데이터
+- 회원/수업 데이터
+
+권한만 OFF.
+
+나중에 다시 entitlement=true가 되면
+기존 설정/데이터 재사용 가능해야 함.
+
+==================================================
+9. SUBSCRIPTION FIELDS
+==================================================
+
+수동 entitlement 부여라고 해서:
+
+구독 시작일
+구독 만료일
+
+RevenueCat billing 날짜를 임의 생성하지 마라.
+
+현재 값이 없으면 "—" 유지.
+
+수동 권한과 유료 구독 정보를 혼동하지 않는다.
+
+==================================================
+10. LOADING / DOUBLE TAP
+==================================================
+
+PATCH 진행 중:
+
+버튼 disabled
+loading 표시
+
+연속 탭으로 중복 PATCH 요청 금지.
+
+성공/실패 후 lock 해제.
+
+==================================================
+11. ERROR HANDLING
+==================================================
+
+실패 시 entitlement 화면을 임의 변경하지 말 것.
+
+서버 오류 메시지를 안전한 사용자 메시지로 표시:
+
+"X 사용권 변경에 실패했습니다.
+잠시 후 다시 시도해주세요."
+
+로그에는:
+
+operator/pool id
+HTTP status
+request id
+
+정도만.
+
+secret/token 출력 금지.
+
+==================================================
+12. AUDIT
+==================================================
+
+기존 PATCH API가 audit_logs를 작성한다면 그대로 사용.
+
+누가:
+super admin
+
+무엇을:
+X entitlement 활성 / 비활성
+
+어느 운영처에:
+
+변경했는지 기존 audit contract 유지.
+
+이미 서버 audit가 있으면 중복 audit 생성 금지.
+
+==================================================
+13. UI STYLE
+==================================================
+
+현재 Super Admin 화면 스타일 유지.
+
+새 디자인 시스템 만들지 말 것.
+
+현재:
+
+네이비/화이트
+라운드 카드
+민트 상태 badge
+보라 X MODE accent
+
+규칙 유지.
+
+활성화 버튼은 현재 디자인 톤 내에서 명확하게.
+
+비활성화는 destructive action임을 구분하되
+과도한 빨간 경고 UI 금지.
+
+==================================================
+14. TEST
+==================================================
+
+최소 확인:
+
+CASE 1
+entitlement=false
+→ 활성화 버튼 표시
+
+CASE 2
+활성화 성공
+→ entitlement=true 반영
+
+CASE 3
+entitlement=true + config_status != READY
+→ x_pending 유지
+
+CASE 4
+entitlement=true + config_status=READY
+→ x mode
+
+CASE 5
+비활성화 성공
+→ entitlement=false
+→ normal
+
+CASE 6
+PATCH 실패
+→ 기존 상태 유지
+
+CASE 7
+double tap
+→ API 1회만
+
+CASE 8
+비활성화 후 기존 X 데이터 삭제 없음
+
+==================================================
+15. NATIVE / RELEASE IMPACT
+==================================================
+
+이번 작업은 기존 React Native UI + 기존 HTTP API만 사용.
+
+새 native dependency 추가 금지.
+
+app.json native config 변경 금지.
+
+따라서 native change가 없다면:
+
+iOS build 246
+runtimeVersion 1.6.3
+
+에 OTA 가능한 변경으로 유지.
+
+새 build 247 만들지 말 것.
+
+==================================================
+16. REPORT
+==================================================
+
+다음만 보고:
+
+1. MODIFIED FILES
+2. EXISTING PATCH ROUTE
+3. ACTUAL REQUEST CONTRACT
+4. SERVER CHANGE REQUIRED?
+5. ACTIVATE UI
+6. DEACTIVATE UI
+7. CONFIRMATION FLOW
+8. DOUBLE TAP GUARD
+9. SERVER REFRESH AFTER PATCH
+10. X_PENDING RULE PRESERVED?
+11. READY RULE PRESERVED?
+12. REVENUECAT MODIFIED?
+13. SUBSCRIPTION DATES MODIFIED?
+14. DATA DELETE?
+15. AUDIT STATUS
+16. TEST RESULT
+17. NATIVE DEPENDENCY CHANGE?
+18. APP.JSON NATIVE CHANGE?
+19. OTA COMPATIBLE?
+20. COMMIT SHA
+21. BUILD CREATED?
+22. OTA PUBLISHED?
+
+완료:
+
+SWIMNOTE_X_MANUAL_ENTITLEMENT_UI_COMPLETE ✅
+
+문제:
+
+SWIMNOTE_X_MANUAL_ENTITLEMENT_UI_BLOCKED ❌

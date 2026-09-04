@@ -22,6 +22,14 @@ export const REVENUECAT_CENTER_ENTITLEMENT = "center";
 export const SOLO_OFFERING_ID              = "solo_monthly";
 export const CENTER_OFFERING_ID            = "center_monthly";
 
+// ── X모드 상수 ──────────────────────────────────────────────────────────────
+export const X_OFFERING_ID  = "x_monthly";
+export const X_ENTITLEMENT  = "x_mode";
+
+// ── SWIMNOTE 기본플랜 상수 ────────────────────────────────────────────────────
+// SWIMNOTE base plan은 별도 RC entitlement 없음 — 서버 DB tier authoritative
+export const SWIMNOTE_OFFERING_ID = "swimnote_monthly";
+
 export interface PlanMeta {
   name: string;
   memberLimit: number;
@@ -101,6 +109,20 @@ export function initializeRevenueCat() {
   console.log("[RevenueCat] 초기화 완료");
 }
 
+/**
+ * X 전용 Offering(x_monthly) 로드.
+ * 기존 solo/center offering 로직과 완전히 분리.
+ * 실패 시 throw — 호출처에서 핸들링.
+ */
+export async function getXOffering(): Promise<any | null> {
+  const all = await Purchases.getOfferings();
+  const offering = all.all[X_OFFERING_ID] ?? null;
+  if (!offering) {
+    console.warn(`[RevenueCat] X offering '${X_OFFERING_ID}' 없음 — RC 대시보드 확인 필요`);
+  }
+  return offering;
+}
+
 export async function loginRevenueCat(userId: string) {
   try {
     const { customerInfo } = await Purchases.logIn(userId);
@@ -132,10 +154,24 @@ function useSubscriptionContext() {
   const offeringsQuery = useQuery({
     queryKey: ["rc", "offerings"],
     queryFn:  async () => {
-      const all = await Purchases.getOfferings();
-      const solo   = all.all[SOLO_OFFERING_ID] ?? null;
-      const center = all.all["center_monthly"] ?? null;
-      return { solo, center, current: all.current };
+      try {
+        const all = await Purchases.getOfferings();
+        const allKeys = Object.keys(all.all);
+        console.log("[RevenueCat] offerings 로드 성공. 발견된 offering IDs:", allKeys);
+        const solo     = all.all[SOLO_OFFERING_ID]     ?? null;
+        const center   = all.all["center_monthly"]     ?? null;
+        const x        = all.all[X_OFFERING_ID]        ?? null;
+        const swimnote = all.all[SWIMNOTE_OFFERING_ID] ?? null;
+        if (!solo)     console.warn(`[RevenueCat] offering '${SOLO_OFFERING_ID}' 없음. App Store Connect에서 IAP 상품(solo_30, solo_50, solo_100) 생성 여부 확인 필요`);
+        if (!center)   console.warn("[RevenueCat] offering 'center_monthly' 없음. App Store Connect에서 IAP 상품(center_200 등) 생성 여부 확인 필요");
+        if (!x)        console.warn(`[RevenueCat] offering '${X_OFFERING_ID}' 없음 — RC 대시보드에서 x_monthly offering 생성 필요`);
+        if (!swimnote) console.warn(`[RevenueCat] offering '${SWIMNOTE_OFFERING_ID}' 없음 — RC 대시보드에서 swimnote_monthly offering 생성 필요`);
+        return { solo, center, x, swimnote, current: all.current };
+      } catch (e: any) {
+        console.error("[RevenueCat] offerings 로드 실패:", e?.message ?? e);
+        console.error("[RevenueCat] 원인 가능성: 1) App Store Connect IAP 상품 미생성/Draft 상태, 2) Paid Apps Agreement 미수락, 3) RevenueCat-ASC 연결 오류, 4) 네트워크 문제");
+        throw e;
+      }
     },
     staleTime: 300_000,
     retry: 3,
@@ -166,10 +202,17 @@ function useSubscriptionContext() {
       ? (entitlements[REVENUECAT_SOLO_ENTITLEMENT]?.productIdentifier ?? null)
       : null;
 
+  const offeringsErrorObj = offeringsQuery.error as any;
+  const offeringsErrorDetail = offeringsErrorObj
+    ? `[${offeringsErrorObj?.code ?? offeringsErrorObj?.underlyingErrorMessage ?? "unknown"}] ${offeringsErrorObj?.message ?? String(offeringsErrorObj)}`
+    : null;
+
   return {
     customerInfo:        customerInfoQuery.data ?? null,
     soloOffering:        offeringsQuery.data?.solo ?? null,
     centerOffering:      offeringsQuery.data?.center ?? null,
+    xOffering:           offeringsQuery.data?.x ?? null,
+    swimnoteOffering:    offeringsQuery.data?.swimnote ?? null,
     isSubscribed,
     isSoloSubscribed,
     isCenterSubscribed,
@@ -177,6 +220,7 @@ function useSubscriptionContext() {
     isLoading:           customerInfoQuery.isLoading || offeringsQuery.isLoading,
     offeringsLoading:    offeringsQuery.isLoading || offeringsQuery.isFetching,
     offeringsError:      offeringsQuery.isError,
+    offeringsErrorDetail,
     refetchOfferings:    offeringsQuery.refetch,
     purchase:            purchaseMutation.mutateAsync,
     restore:             restoreMutation.mutateAsync,

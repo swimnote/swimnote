@@ -1,0 +1,302 @@
+[긴급 수정 — Multi-Pool Parent 가입 실기기 FAIL]
+
+실기기 테스트 결과:
+
+같은 전화번호로 다른 수영장 가입을 시도했는데
+"이미 가입된 전화번호" 오류가 발생한다.
+
+따라서 기존 VALIDATION PASS 보고는 실기기 기준 무효다.
+
+현재 Production Multi-Pool 가입은 FAIL 상태다.
+
+이번 작업 목표:
+
+같은 전화번호/기존 계정이라도
+다른 수영장에는 정상 가입할 수 있도록
+학부모 가입 흐름을 실제로 수정한다.
+
+==================================================
+1. 실제 오류 경로 추적
+==================================================
+
+실기기에서 발생한:
+
+"이미 가입된 전화번호"
+
+문구의 실제 source를 repository 전체에서 검색한다.
+
+다음 모두 전수 조사:
+
+- simple-parent-register
+- parent signup
+- guardian signup
+- auth register
+- parent_accounts
+- users
+- phone duplicate validation
+- login_id duplicate validation
+- invitation / pool code flow
+
+문구가 생성되는 정확한 route와 조건을 보고.
+
+추측 금지.
+
+==================================================
+2. 정상 정책
+==================================================
+
+전화번호는 수영장 전역 unique key가 아니다.
+
+허용:
+
+같은 전화번호
++ 다른 pool
+→ 가입 가능
+
+금지:
+
+같은 user
++ 같은 pool
++ 같은 parent role
+→ 중복 membership 생성
+
+login_id는 전역 UNIQUE 유지.
+
+==================================================
+3. 기존 account가 있는 경우
+==================================================
+
+새 pool 가입 시 phone 또는 account 식별로
+기존 parent/account가 발견되면:
+
+409 "이미 가입된 전화번호"
+
+로 종료하지 않는다.
+
+대신:
+
+1. 기존 account 식별
+2. 해당 pool membership 존재 여부 확인
+3. membership 없으면 새 parent membership 추가
+4. 해당 pool의 student/guardian 인증 절차 진행
+5. pool-specific parent/student link 생성
+6. 가입 성공
+
+으로 처리한다.
+
+==================================================
+4. 같은 Pool인 경우만 중복 차단
+==================================================
+
+아래 경우만 중복 가입으로 처리:
+
+existing account
++
+same pool_id
++
+same role=parent_account
++
+active membership 존재
+
+이 경우:
+
+"이미 이 수영장에 가입되어 있습니다"
+
+로 안내.
+
+전화번호 자체 중복을 이유로 차단 금지.
+
+==================================================
+5. Pool별 Student 분리
+==================================================
+
+같은 부모/같은 실제 아이가 다른 수영장에 있어도:
+
+Pool A student_A
+Pool B student_B
+
+별도 record 유지.
+
+자동 merge 금지.
+
+각 pool의:
+
+- diary
+- attendance
+- photos
+- growth
+- requests
+
+서로 섞이지 않게 유지.
+
+==================================================
+6. 기존 parent_accounts 구조 확인
+==================================================
+
+현재 parent_accounts.swimming_pool_id가
+단일 pool을 전제로 한다면
+새 membership 구조와 충돌하는지 확인.
+
+중요:
+
+기존 parent_accounts row를 억지로 다른 pool로 UPDATE해서
+옮기는 방식 금지.
+
+Account identity와 pool membership을 분리해야 한다.
+
+필요하면 기존 parent_accounts는 legacy/fallback으로 유지하고
+새 pool 연결은 user_pool_memberships + pool-specific parent/student link로 처리.
+
+현재 schema에 맞는 가장 작은 안전 변경으로 구현.
+
+==================================================
+7. 전역 phone UNIQUE constraint 조사
+==================================================
+
+DB에서 다음 확인:
+
+users.phone UNIQUE
+parent_accounts.phone UNIQUE
+기타 guardian phone UNIQUE index/constraint
+
+전역 UNIQUE가 Multi-Pool을 막고 있으면
+실제 로그인/인증 구조 영향 검토 후 수정.
+
+단:
+
+DB constraint를 무작정 DROP 금지.
+
+먼저 어떤 table/constraint가 실제 오류를 만드는지 확인한 뒤
+필요 최소 변경.
+
+==================================================
+8. API 응답 수정
+==================================================
+
+기존 account + 다른 pool인 경우:
+
+409 PHONE_ALREADY_EXISTS
+
+반환 금지.
+
+정상 membership 추가 흐름으로 처리.
+
+같은 pool 중복일 때만
+명확한 same-pool duplicate 응답 사용.
+
+==================================================
+9. 실기기 재현 시나리오를 테스트로 추가
+==================================================
+
+반드시 자동 테스트:
+
+A.
+전화번호 010-1111-1111
+Pool A parent 가입
+→ PASS
+
+동일 전화번호
+Pool B parent 가입
+→ PASS
+
+membership:
+Pool A parent
+Pool B parent
+2개 존재
+
+B.
+동일 전화번호로 다시 Pool A 가입
+→ 중복 차단
+→ membership 추가 생성 없음
+
+C.
+Pool A 탈퇴/퇴원 미처리 상태에서도
+Pool B 가입
+→ PASS
+
+D.
+Pool A/B student data
+→ 서로 분리
+
+E.
+다른 pool API 임의 접근
+→ 403
+
+==================================================
+10. 기존 Admin / Teacher Multi-Pool도 회귀 확인
+==================================================
+
+이번 수정으로:
+
+- admin multi-pool
+- teacher multi-pool
+
+깨지지 않는지 확인.
+
+==================================================
+11. Production 데이터 보호
+==================================================
+
+users 삭제 금지
+parent_accounts 삭제 금지
+students 삭제 금지
+parent/student links 삭제 금지
+기존 memberships 삭제 금지
+
+필요한 membership/link 추가만 수행.
+
+==================================================
+12. 배포
+==================================================
+
+수정 + 테스트 PASS 후:
+
+SERVER 변경 있으면:
+Render 배포 필요
+
+APP 가입 UI/응답 처리 변경 있으면:
+production OTA 필요
+
+Native Build:
+NO
+
+배포 전 실제 변경 범위를 보고하지 말고,
+이번 작업은 수정/테스트/배포까지 한 번에 완료.
+
+단 DB destructive migration은 금지.
+
+==================================================
+13. 완료보고
+==================================================
+
+ROOT CAUSE
+- "이미 가입된 전화번호" 실제 발생 route
+- 실제 조건
+- DB constraint 여부
+
+FIX
+- 변경 파일
+- account 재사용 방식
+- membership 추가 방식
+
+TEST
+- Pool A 가입
+- 같은 phone Pool B 가입
+- same Pool 중복
+- 미퇴원 상태 Pool B 가입
+- tenant isolation
+- admin/teacher regression
+
+PRODUCTION
+- Render deployment
+- OTA update id
+- Native Build NO
+
+FINAL DEVICE EXPECTATION
+- 같은 전화번호 + 다른 pool = 가입 성공
+- 같은 전화번호 + 같은 pool = 중복 차단
+
+FINAL
+PASS / FAIL
+
+완료 후 STOP.

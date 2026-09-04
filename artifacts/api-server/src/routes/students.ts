@@ -11,6 +11,10 @@ import { eq, and, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { createSystemMessage } from "../utils/messenger-system.js";
 import { logChange } from "../utils/change-logger.js";
+import {
+  kstTodayStr, validateEffectiveDate,
+  closeAllActiveClassHistory, closeClassHistory,
+} from "../utils/historyUtils.js";
 
 const router = Router();
 
@@ -83,6 +87,7 @@ async function enrichWithClasses(student: any) {
 
 // ── GET / ──────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  const _stuListStartedAt = Date.now();
   try {
     const poolId = await getPoolId(req.user!.userId);
     if (!poolId && req.user!.role !== "super_admin") return err(res, 403, "소속된 수영장이 없습니다.");
@@ -138,7 +143,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       return withClasses;
     }));
 
-    res.json(enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    const sorted = enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    console.log("[PERF][students-list]", { elapsed_ms: Date.now() - _stuListStartedAt, pool_id: poolId, count: sorted.length });
+    res.json(sorted);
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
@@ -334,6 +341,10 @@ router.post("/batch", requireAuth, requireRole("super_admin", "pool_admin"), asy
         }
 
         logPoolEvent({ pool_id: poolId, event_type: "student.create", entity_type: "student", entity_id: id, actor_id: req.user!.userId, payload: { name: s.name.trim() } }).catch(() => {});
+        // V2 자동연결 트리거 (batch 신규 등록)
+        triggerAutoLinkOnStudentV2(id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+          console.error("[v2-admin-trigger] batch 트리거 오류:", e?.message)
+        );
         succeeded.push(s.name.trim());
         registeredCount++;
       } catch (innerErr: any) {
@@ -519,6 +530,10 @@ router.post("/", requireAuth, requireRole("super_admin", "pool_admin"), async (r
       `);
     }
 
+    // V2 자동연결 트리거 (단일 학생 등록)
+    triggerAutoLinkOnStudentV2(student.id, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+      console.error("[v2-admin-trigger] 단일등록 트리거 오류:", e?.message)
+    );
     const enriched = await enrichWithClasses({ ...student, class_group_name: null });
     await logChange({ tenantId: poolId!, tableName: "students", recordId: student.id, changeType: "create", payload: { name: student.name, status: student.status, class_group_id: student.class_group_id } });
     logPoolEvent({
@@ -696,6 +711,7 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
   if (new_status && !validNewStatuses.includes(new_status)) {
     return err(res, 400, "new_status는 pending, suspended, withdrawn 중 하나여야 합니다.");
   }
+  const _removeStartedAt = Date.now();
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -771,12 +787,24 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       } else if (new_status === "pending" || new_status === "suspended") {
         extraFields.archived_reason = new_status === "suspended" ? "suspended" : "pending";
       }
-      await db.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      const effDate = kstTodayStr();
+      await db.transaction(async (tx) => {
+        // SELECT FOR UPDATE: 최신 row 값 파생보다 동일 학생에 대한 동시 상태 변경을 직렬화하기
+        // 위한 잠금 목적이다. 실제 업데이트 데이터(extraFields)는 tx 진입 전 결정된 값을 사용한다.
+        const lockedRows = await tx.execute(sql`
+          SELECT id, status, class_group_id, assigned_class_ids
+          FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+        `);
+        const locked = lockedRows.rows[0];
+        if (!locked) throw new Error("STUDENT_NOT_FOUND");
+        await closeAllActiveClassHistory(tx, req.params.id, effDate);
+        await tx.update(studentsTable).set(extraFields).where(eq(studentsTable.id, req.params.id));
+      });
       return res.json({ success: true, new_status, remaining_classes: 0 });
     }
 
     // ── 제외 시점 계산 ───────────────────────────────────────────
-    const today = _toDateStr(new Date());
+    const today = kstTodayStr();
     const thisMonday = _getMondayOf(today);
     let effectiveDate = today;
     if (effective_timing === "next_week") effectiveDate = _addDays(thisMonday, 7);
@@ -809,43 +837,62 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
     }
 
     // 즉시 제거: 특정 반만 제거
-    const remEffectiveDate = (req.body as any).effective_date || today;
-    const newIds = currentIds.filter((id: string) => id !== class_group_id);
-    const newPrimaryId = newIds[0] || null;
-
-    let labels = "";
-    if (newIds.length > 0) {
-      const classes = await Promise.all(newIds.map(async (id: string) => {
-        const [cg] = await db.select({
-          schedule_days: classGroupsTable.schedule_days,
-          schedule_time: classGroupsTable.schedule_time,
-        }).from(classGroupsTable).where(eq(classGroupsTable.id, id)).limit(1);
-        return cg || null;
-      }));
-      labels = classes.filter(Boolean).map((c: any) => {
-        const days = c.schedule_days.split(",").map((d: string) => d.trim());
-        const hour = c.schedule_time.split(":")[0];
-        return days.map((d: string) => `${d}${hour}`).join("·");
-      }).join("·");
+    const rawRemEffDate = (req.body as any).effective_date;
+    if (rawRemEffDate !== undefined) {
+      if (!validateEffectiveDate(rawRemEffDate)) return err(res, 400, "INVALID_EFFECTIVE_DATE");
     }
+    const remEffectiveDate = rawRemEffDate || today;
 
     // ── 단일 트랜잭션: history 기록 + students 갱신 ──────────────────────
+    // 안 A: 동시 요청 시 lost update 방지를 위해 locked row 기준으로 모든 값 계산
+    // currentIds / newIds / newPrimaryId / schedule_labels 는 모두 tx 내에서 결정한다.
+    let txNewIds: string[] = []; // 응답 및 change_log에 사용하기 위해 외부로 전달
     await db.transaction(async (tx) => {
-      // 1) history left_at 설정
-      await tx.execute(sql`
-        UPDATE student_class_history
-        SET left_at = ${remEffectiveDate}::date
-        WHERE student_id = ${req.params.id}
-          AND class_group_id = ${class_group_id}
-          AND left_at IS NULL
+      // 1. SELECT FOR UPDATE: 잠금 확보 + 최신 row 읽기
+      const lockedRows = await tx.execute(sql`
+        SELECT id, status, class_group_id, assigned_class_ids
+        FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
       `);
+      const locked = lockedRows.rows[0] as any;
+      if (!locked) throw new Error("STUDENT_NOT_FOUND");
 
-      // 2) students 캐시 갱신
+      // 2. locked row 기준 currentIds 파싱
+      const lockedCurrentIds: string[] = Array.isArray(locked.assigned_class_ids)
+        ? locked.assigned_class_ids
+        : (typeof locked.assigned_class_ids === "string"
+            ? JSON.parse(locked.assigned_class_ids || "[]") : []);
+
+      // 3. 제거 대상 반 반영 → newIds / newPrimaryId
+      const lockedNewIds = lockedCurrentIds.filter((id: string) => id !== class_group_id);
+      const lockedNewPrimaryId = lockedNewIds[0] || null;
+      txNewIds = lockedNewIds;
+
+      // 4. 남은 반의 schedule_labels 재계산 (tx 내에서 class_groups 조회)
+      let lockedLabels = "";
+      if (lockedNewIds.length > 0) {
+        const cgDataList: Array<{ schedule_days: string; schedule_time: string }> = [];
+        for (const cid of lockedNewIds) {
+          const cgResult = await tx.execute(sql`
+            SELECT schedule_days, schedule_time FROM class_groups WHERE id = ${cid} LIMIT 1
+          `);
+          if (cgResult.rows[0]) cgDataList.push(cgResult.rows[0] as any);
+        }
+        lockedLabels = cgDataList.map((c: any) => {
+          const days = (c.schedule_days || "").split(",").map((d: string) => d.trim());
+          const hour = (c.schedule_time || "").split(":")[0];
+          return days.map((d: string) => `${d}${hour}`).join("·");
+        }).join("·");
+      }
+
+      // 5. history left_at 설정 (특정 반 이탈)
+      await closeClassHistory(tx, req.params.id, class_group_id, remEffectiveDate);
+
+      // 6. students 캐시 갱신 (locked row 기준 계산값 사용)
       await tx.execute(sql`
         UPDATE students SET
-          assigned_class_ids = ${JSON.stringify(newIds)}::jsonb,
-          class_group_id     = ${newPrimaryId},
-          schedule_labels    = ${labels || null},
+          assigned_class_ids = ${JSON.stringify(lockedNewIds)}::jsonb,
+          class_group_id     = ${lockedNewPrimaryId},
+          schedule_labels    = ${lockedLabels || null},
           updated_at         = NOW()
         WHERE id = ${req.params.id}
       `);
@@ -870,7 +917,9 @@ router.post("/:id/remove-from-class", requireAuth, requireRole("super_admin", "p
       });
     } catch (logErr) { console.error("[change_log] write error:", logErr); }
 
-    return res.json({ success: true, remaining_classes: newIds.length, effective_date: remEffectiveDate });
+    // 응답값도 잠금 후 계산한 txNewIds 기준 (잠금 전 계산값 반환 금지)
+    console.log("[PERF][remove-from-class]", { elapsed_ms: Date.now() - _removeStartedAt, student_id: req.params.id, effective_timing });
+    return res.json({ success: true, remaining_classes: txNewIds.length, effective_date: remEffectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });
 
@@ -981,6 +1030,9 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       updated_at: new Date(),
     };
 
+    // 전체 반 이탈 대상 상태 (history 종료 + 배정 필드 NULL 처리 필요)
+    const needsClassClear = new_status === "suspended" || new_status === "withdrawn" || new_status === "unassigned";
+
     if (new_status === "active") {
       update.status = "active";
       update.archived_reason = null;
@@ -1000,11 +1052,30 @@ router.post("/:id/change-status", requireAuth, requireRole("super_admin", "pool_
       }
     }
 
-    await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    if (needsClassClear) {
+      const effDate = kstTodayStr();
+      await db.transaction(async (tx) => {
+        // SELECT FOR UPDATE: 동일 학생에 대한 동시 상태 변경을 직렬화하기 위한 잠금 목적이다.
+        // 실제 업데이트 데이터(update 객체)는 tx 진입 전 new_status 기준으로 결정된 값을 사용한다.
+        const lockedRows = await tx.execute(sql`
+          SELECT id, status, class_group_id, assigned_class_ids
+          FROM students WHERE id = ${req.params.id} LIMIT 1 FOR UPDATE
+        `);
+        const locked = lockedRows.rows[0];
+        if (!locked) throw new Error("STUDENT_NOT_FOUND");
+        await closeAllActiveClassHistory(tx, req.params.id, effDate);
+        await tx.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+      });
+    } else {
+      await db.update(studentsTable).set(update).where(eq(studentsTable.id, req.params.id));
+    }
     const [updated] = await db.select().from(studentsTable).where(eq(studentsTable.id, req.params.id)).limit(1);
     console.log(`[change-status] ✅ 즉시 변경 완료 → status: ${(updated as any).status}`);
     return res.json({ success: true, new_status, student: updated });
-  } catch (e) { console.error("[change-status] ❌ 오류:", e); return err(res, 500, "서버 오류"); }
+  } catch (e: any) {
+    if (e?.message === "STUDENT_NOT_FOUND") return err(res, 404, "학생 없음");
+    console.error("[change-status] ❌ 오류:", e); return err(res, 500, "서버 오류");
+  }
 });
 
 router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_admin", "teacher"), async (req: AuthRequest, res) => {
@@ -1018,6 +1089,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
 
   // effective_date 기본값: 오늘
   const effectiveDate = effective_date || new Date().toISOString().slice(0, 10);
+  const _moveStartedAt = Date.now();
 
   try {
     const poolId = await getPoolId(req.user!.userId);
@@ -1134,6 +1206,7 @@ router.post("/:id/move-class", requireAuth, requireRole("super_admin", "pool_adm
       });
     }
 
+    console.log("[PERF][move-class]", { elapsed_ms: Date.now() - _moveStartedAt, student_id: req.params.id });
     return res.json({ success: true, assigned_class_ids: newIds, effective_date: effectiveDate });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류"); }
 });

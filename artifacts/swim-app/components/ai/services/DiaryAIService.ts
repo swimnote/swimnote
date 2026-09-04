@@ -7,8 +7,7 @@
  *   UI 상태 변경은 이 파일의 책임이 아닙니다.
  *
  * 담당:
- *   - POST /api/v1/teacher-diary/generate  (일지 생성 — grounded V1 정식 엔드포인트)
- *   - POST /api/ai/diary/generate          (legacy fallback — rollback 전용)
+ *   - POST /api/ai/diary/generate  (일지 생성)
  *   - POST /api/ai/whisper/transcribe (STT)
  *   - 요청 사전 검증 (validateDiaryRequest)
  *   - 응답 정규화 (normalizeDiaryResponse)
@@ -60,7 +59,12 @@ const ALLOW_LEGACY_RESPONSE_WITHOUT_REQUEST_ID = false;
 // ─── Contract 버전 관리 ───────────────────────────────────────────────────────
 //
 // 앱이 전송하는 contract_version — Request에 포함됩니다.
-export const APP_CONTRACT_VERSION = '1.0' as const;
+//
+// WP6: '1.0' → '1.3' 업그레이드
+//   contract 1.3이어야 서버에서 Phase 0(resolvePoolMode)가 실행되고
+//   X pool에서 x_global template search / curriculum candidate search가 활성화됩니다.
+//   contract 1.0은 poolMode 조회를 건너뛰므로 X mode가 미활성화됩니다.
+export const APP_CONTRACT_VERSION = '1.3' as const;
 
 /**
  * 앱이 수락하는 버전 집합.
@@ -70,7 +74,7 @@ export const APP_CONTRACT_VERSION = '1.0' as const;
  *
  * ★ 금지: 미검증 버전을 조용히 통과시키거나 강제 캐스팅하지 마십시오.
  */
-export const SUPPORTED_CONTRACT_VERSIONS = new Set<string>(['1.0']);
+export const SUPPORTED_CONTRACT_VERSIONS = new Set<string>(['1.0', '1.3']);
 export const SUPPORTED_SCHEMA_VERSIONS   = new Set<string>(['1.0']);
 /**
  * engine_version은 AI Engine 연결 후 실제 값 확인 후 추가하십시오.
@@ -137,27 +141,27 @@ export interface StudentDiaryNote {
   note:        string;
 }
 
-/** onInsert 콜백으로 앱 화면에 전달하는 최종 결과 */
-export interface DiaryInsertResult {
-  commonDiary: string;
-  students:    StudentDiaryNote[];
+/**
+ * AI Engine V1 curriculum match 결과 1건 (앱 노출용 — curriculum_item_id 미포함).
+ * match_token에 curriculum_item_id가 서명돼 있어 서버가 diary save 시 추출합니다.
+ */
+export interface CurriculumMatch {
+  student_ref:                string;
+  candidate_id:               string;
+  match_token:                string;
+  curriculum_version_id:      string;
+  confidence:                 number;
+  /** 'PENDING_REVIEW' | 기타 서버 정의 값 */
+  match_status:               string;
+  matching_algorithm_version: string;
 }
 
-/** 진단 정보 — __DEV__ UI 표시 및 서버 전송용 (PII 절대 포함 금지) */
-export interface DiagInfo {
-  causeCode:        string;
-  httpStatus:       number | null;
-  endpointHost:     string;
-  endpointPath:     string;
-  responseKeys:     string;
-  responsePreview:  string;
-  contentTypeRaw:   string;
-  contractVersion:  string;
-  schemaVersion:    string;
-  engineVersion:    string;
-  hasResult:        boolean;
-  commonType:       string;
-  studentsType:     string;
+/** onInsert 콜백으로 앱 화면에 전달하는 최종 결과 */
+export interface DiaryInsertResult {
+  commonDiary:        string;
+  students:           StudentDiaryNote[];
+  /** X mode + contract 1.3 일 때만 존재. 빈 배열이면 undefined로 처리. */
+  curriculumMatches?: CurriculumMatch[];
 }
 
 /** Service 오류 구조체 — Hook이 상태 전환에 사용 */
@@ -170,8 +174,6 @@ export interface DiaryServiceError {
   retryTarget: DiaryAIStateV2 | null;
   /** 디버그용 내부 코드 */
   causeCode?:  string;
-  /** 진단 정보 — __DEV__ UI 표시 및 서버 전송용 */
-  diagInfo?:   DiagInfo;
 }
 
 // ─── 생성 API 파라미터 / 결과 ─────────────────────────────────────────────────
@@ -215,6 +217,8 @@ export interface NormalizedDiaryResult {
   common:    string;
   students:  NormalizedDiaryStudentResult[];
   requestId?: string;
+  /** X mode + contract 1.3 전용. AI Engine V1 curriculum match 목록. */
+  curriculumMatches?: CurriculumMatch[];
   /** AI Engine V1 pipeline 메타 정보 (로깅·POLISH_ONLY 처리·grounding 검증용) */
   meta?: {
     pipelineMode?:        string;
@@ -241,7 +245,7 @@ interface NormalizedDiaryStudentResult {
 }
 
 interface TeacherDiaryAIRequest {
-  contract_version: '1.0';    // 앱이 사용하는 Contract 버전
+  contract_version: '1.0' | '1.3';    // 앱이 사용하는 Contract 버전
   request_id:       string;
   schema_version:   '1.0';
   feature:          'teacher_diary';
@@ -268,17 +272,10 @@ interface TeacherDiaryAIResponse {
   schema_version?:   unknown;
   engine_version?:   unknown;
   feature?:          unknown;
-  /** 신형 V1 Contract: 이 필드가 있으면 신형 구조로 처리 */
   result?: {
     common?:   unknown;
     students?: unknown;
   };
-  /**
-   * 구형 Contract 보조 필드 (legacy 모드 명시적 허용만)
-   * grounded 모드에서는 이 필드를 직접 사용하지 않습니다.
-   */
-  common?:   unknown;
-  students?: unknown;
   /** AI Engine V1 pipeline 메타 정보 */
   meta?: {
     pipeline_mode?:        unknown;
@@ -295,6 +292,8 @@ interface TeacherDiaryAIResponse {
     total_tokens?:  unknown;
     latency_ms?:    unknown;   // AI Engine V1: 서버 측 생성 레이턴시
   };
+  /** X mode + contract 1.3 전용. 원소 검증은 normalizeDiaryResponse에서 수행. */
+  curriculum_matches?: unknown;
 }
 
 interface AIEngineError {
@@ -349,15 +348,8 @@ export function normalizeDiaryResponse(params: {
   expectedRequestId: string;
   currentRequestId:  string;
   validStudentRefs:  Set<string>;
-  /**
-   * 파이프라인 모드 — 정규화 전략 결정 및 로깅에 사용.
-   * 'grounded': 신형 Contract만 허용 (resp.result.common + student_ref 필수)
-   * 'legacy'  : 신형 우선, 구형 보조 허용 (resp.common / student_id 폴백)
-   * 기본: 'grounded'
-   */
-  mode?: AIDiaryMode;
 }): NormalizeResult {
-  const { rawResponse, expectedRequestId, currentRequestId, validStudentRefs, mode = 'grounded' } = params;
+  const { rawResponse, expectedRequestId, currentRequestId, validStudentRefs } = params;
 
   if (typeof rawResponse !== 'object' || rawResponse === null) {
     return { ok: false, contractError: 'CONTRACT_INVALID_STRUCTURE' };
@@ -427,48 +419,20 @@ export function normalizeDiaryResponse(params: {
     }
   }
 
-  // ── result 추출 (신형 우선, legacy 보조) ─────────────────────────────────
-  // §4 임시 호환 범위:
-  //   신형: resp.result.common  + resp.result.students[].student_ref
-  //   구형: resp.common         + resp.students[].student_id  (legacy 모드에서만)
-  //
-  // 금지: 신형 응답 실패 시 조용히 구형으로 위장 (grounded 모드는 엄격 적용)
-  let rawCommon: unknown;
-  let rawStudentsRaw: unknown;
-  let usedLegacyCompat = false;
-
-  if (typeof resp.result === 'object' && resp.result !== null) {
-    // 신형 Contract (grounded V1 및 legacy V1 모두 이 경로 사용)
-    rawCommon      = resp.result.common;
-    rawStudentsRaw = resp.result.students;
-  } else if (mode === 'legacy') {
-    // 구형 보조: legacy 모드에서 명시적으로 허용
-    // grounded 모드에서는 절대 이 분기 사용 금지
-    const legacyResp = resp as Record<string, unknown>;
-    if ('common' in legacyResp) {
-      usedLegacyCompat = true;
-      rawCommon      = legacyResp['common'];
-      rawStudentsRaw = legacyResp['students'];
-      console.log('[DiaryAIService] normalizeDiaryResponse: legacy_compat_used', {
-        pipeline_mode: mode,
-        has_common:    typeof rawCommon === 'string',
-      });
-    } else {
-      return { ok: false, contractError: 'CONTRACT_RESULT_MISSING' };
-    }
-  } else {
-    // grounded 모드 — resp.result 없음은 즉시 실패 (조용한 위장 금지)
+  if (typeof resp.result !== 'object' || resp.result === null) {
     return { ok: false, contractError: 'CONTRACT_RESULT_MISSING' };
   }
 
+  const rawCommon = resp.result.common;
   if (typeof rawCommon !== 'string') {
     return { ok: false, contractError: `CONTRACT_COMMON_TYPE: type=${typeof rawCommon}` };
   }
 
-  if (rawStudentsRaw !== undefined && !Array.isArray(rawStudentsRaw)) {
+  const rawStudents = resp.result.students;
+  if (rawStudents !== undefined && !Array.isArray(rawStudents)) {
     return { ok: false, contractError: 'CONTRACT_STUDENTS_NOT_ARRAY' };
   }
-  const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudentsRaw) ? rawStudentsRaw : [];
+  const studentsArray: TeacherDiaryAIStudentResult[] = Array.isArray(rawStudents) ? rawStudents : [];
 
   const normalizedStudents: NormalizedDiaryStudentResult[] = [];
   const seenRefs = new Set<string>();
@@ -479,22 +443,14 @@ export function normalizeDiaryResponse(params: {
       return { ok: false, contractError: `CONTRACT_STUDENT_NOT_OBJECT: students[${i}]` };
     }
 
-    // V1 Contract (grounded): student_ref 필수. student_id 허용 안 함.
-    // 구형 호환 (legacy):     student_ref 없으면 student_id 폴백 허용.
+    // V1 Contract: student_ref 필수. student_id / feedback 더 이상 지원하지 않습니다.
     const studentRef =
       typeof item.student_ref === 'string' && item.student_ref
         ? item.student_ref
-        : (usedLegacyCompat && typeof (item as any).student_id === 'string' && (item as any).student_id)
-          ? (item as any).student_id as string
-          : null;
+        : null;
 
     if (!studentRef) {
-      return {
-        ok: false,
-        contractError: usedLegacyCompat
-          ? `CONTRACT_STUDENT_REF_OR_ID_MISSING: students[${i}]`
-          : `CONTRACT_STUDENT_REF_MISSING: students[${i}]`,
-      };
+      return { ok: false, contractError: `CONTRACT_STUDENT_REF_MISSING: students[${i}]` };
     }
 
     const content = typeof item.content === 'string' ? item.content : null;
@@ -558,63 +514,46 @@ export function normalizeDiaryResponse(params: {
     };
   }
 
+  // ── curriculum_matches 파싱 (contract 1.3 + X mode only) ─────────────────
+  let curriculumMatches: CurriculumMatch[] | undefined;
+  if (Array.isArray(resp.curriculum_matches)) {
+    const parsed = (resp.curriculum_matches as unknown[])
+      .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+      .map((m): CurriculumMatch | null => {
+        const student_ref   = typeof m.student_ref   === 'string' ? m.student_ref   : '';
+        const candidate_id  = typeof m.candidate_id  === 'string' ? m.candidate_id  : '';
+        const match_token   = typeof m.match_token   === 'string' ? m.match_token   : '';
+        const cv_id         = typeof m.curriculum_version_id === 'string' ? m.curriculum_version_id : '';
+        const confidence    = typeof m.confidence    === 'number' ? m.confidence    : 0;
+        const match_status  = typeof m.match_status  === 'string' ? m.match_status  : '';
+        const algo_ver      = typeof m.matching_algorithm_version === 'string' ? m.matching_algorithm_version : '';
+        if (!student_ref || !candidate_id || !match_token) return null;
+        return {
+          student_ref,
+          candidate_id,
+          match_token,
+          curriculum_version_id:      cv_id,
+          confidence,
+          match_status,
+          matching_algorithm_version: algo_ver,
+        };
+      })
+      .filter((m): m is CurriculumMatch => m !== null);
+
+    if (parsed.length > 0) curriculumMatches = parsed;
+  }
+
   return {
     ok:     true,
     result: {
       common:    rawCommon,
       students:  normalizedStudents,
       requestId: typeof resp.request_id === 'string' ? resp.request_id : undefined,
+      curriculumMatches,
       meta,
       usage,
     },
   };
-}
-
-// ─── 진단 헬퍼 ────────────────────────────────────────────────────────────────
-
-/** body 객체에서 PII 없는 진단 필드를 추출합니다. */
-function extractBodyInfo(body: unknown): Pick<DiagInfo, 'responseKeys' | 'responsePreview' | 'contractVersion' | 'schemaVersion' | 'engineVersion' | 'hasResult' | 'commonType' | 'studentsType'> {
-  if (body === null || body === undefined) {
-    return { responseKeys: '(null)', responsePreview: '', contractVersion: '-', schemaVersion: '-', engineVersion: '-', hasResult: false, commonType: '-', studentsType: '-' };
-  }
-  if (typeof body !== 'object' || Array.isArray(body)) {
-    return { responseKeys: '(non-object)', responsePreview: String(body).slice(0, 200), contractVersion: '-', schemaVersion: '-', engineVersion: '-', hasResult: false, commonType: '-', studentsType: '-' };
-  }
-  const b         = body as Record<string, unknown>;
-  const keys      = Object.keys(b).join(',');
-  const preview   = JSON.stringify(b).slice(0, 200);
-  const result    = b.result;
-  const hasResult = typeof result === 'object' && result !== null && !Array.isArray(result);
-  const r         = hasResult ? (result as Record<string, unknown>) : null;
-  const commonType   = r ? typeof r.common   : '-';
-  const studentsType = r
-    ? (Array.isArray(r.students) ? `Array(${(r.students as unknown[]).length})` : typeof r.students)
-    : '-';
-  return {
-    responseKeys:    keys,
-    responsePreview: preview,
-    contractVersion: typeof b.contract_version === 'string' ? b.contract_version : '-',
-    schemaVersion:   typeof b.schema_version   === 'string' ? b.schema_version   : '-',
-    engineVersion:   typeof b.engine_version   === 'string' ? b.engine_version   : '-',
-    hasResult,
-    commonType,
-    studentsType,
-  };
-}
-
-/** 진단 로그를 서버에 fire-and-forget으로 전송 (실패해도 앱 동작에 영향 없음) */
-function sendDiagLog(payload: Omit<DiagInfo, 'responsePreview'> & {
-  request_id:      string;
-  pipeline_mode:   string;
-  response_preview: string;
-}): void {
-  try {
-    fetch(`${SWIMNOTE_API_SERVER_BASE}/api/ai/diary/diagnose`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ts: Date.now(), ...payload }),
-    }).catch(() => { /* silent */ });
-  } catch { /* silent */ }
 }
 
 // ─── translateClientError ─────────────────────────────────────────────────────
@@ -626,8 +565,7 @@ function translateClientError(
   failure:   AIClientFailure,
   requestId: string,
 ): DiaryGenerateResult {
-  const { reason, httpStatus, body, mode, endpointHost, endpointPath,
-          contentTypeRaw, responsePreview } = failure;
+  const { reason, httpStatus, body, mode, endpointHost } = failure;
 
   // ── timeout ─────────────────────────────────────────────────────────────
   if (reason === 'TIMEOUT') {
@@ -645,48 +583,12 @@ function translateClientError(
 
   // ── content-type mismatch (HTML SPA fallback 등) ─────────────────────────
   if (reason === 'CONTENT_TYPE') {
-    const causeCode = `CONTENT_TYPE_${httpStatus ?? 0}`;
-    const di: DiagInfo = {
-      causeCode,
-      httpStatus,
-      endpointHost,
-      endpointPath:    endpointPath ?? '(unknown)',
-      responseKeys:    '(non-JSON)',
-      responsePreview: responsePreview ?? '',
-      contentTypeRaw:  contentTypeRaw ?? '',
-      contractVersion: '-',
-      schemaVersion:   '-',
-      engineVersion:   '-',
-      hasResult:       false,
-      commonType:      '-',
-      studentsType:    '-',
-    };
     console.error('[DiaryAIService] content_type_error', {
-      request_id:       requestId,
-      error_code:       reason,
-      http_status:      httpStatus,
-      endpoint_host:    endpointHost,
-      endpoint_path:    endpointPath,
-      content_type_raw: contentTypeRaw,
-      response_preview: (responsePreview ?? '').slice(0, 80),
-      pipeline_mode:    mode,
-    });
-    sendDiagLog({
-      request_id:       requestId,
-      pipeline_mode:    mode,
-      causeCode,
-      httpStatus,
-      endpointHost,
-      endpointPath:     endpointPath ?? '(unknown)',
-      responseKeys:     '(non-JSON)',
-      response_preview: responsePreview ?? '',
-      contentTypeRaw:   contentTypeRaw ?? '',
-      contractVersion:  '-',
-      schemaVersion:    '-',
-      engineVersion:    '-',
-      hasResult:        false,
-      commonType:       '-',
-      studentsType:     '-',
+      request_id:    requestId,
+      error_code:    reason,
+      http_status:   httpStatus,
+      endpoint_host: endpointHost,
+      pipeline_mode: mode,
     });
     return {
       ok:    false,
@@ -695,56 +597,19 @@ function translateClientError(
         message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
         retryable:   true,
         retryTarget: 'INPUT',
-        causeCode,
-        diagInfo:    di,
+        causeCode:   `CONTENT_TYPE_${httpStatus ?? 0}`,
       },
     };
   }
 
   // ── JSON parse 실패 ─────────────────────────────────────────────────────
   if (reason === 'PARSE_ERROR') {
-    const causeCode = 'RESPONSE_PARSE_ERROR';
-    const di: DiagInfo = {
-      causeCode,
-      httpStatus,
-      endpointHost,
-      endpointPath:    endpointPath ?? '(unknown)',
-      responseKeys:    '(parse-failed)',
-      responsePreview: responsePreview ?? '',
-      contentTypeRaw:  contentTypeRaw ?? '',
-      contractVersion: '-',
-      schemaVersion:   '-',
-      engineVersion:   '-',
-      hasResult:       false,
-      commonType:      '-',
-      studentsType:    '-',
-    };
     console.error('[DiaryAIService] parse_error', {
-      request_id:       requestId,
-      error_code:       reason,
-      http_status:      httpStatus,
-      endpoint_host:    endpointHost,
-      endpoint_path:    endpointPath,
-      content_type_raw: contentTypeRaw,
-      response_preview: (responsePreview ?? '').slice(0, 80),
-      pipeline_mode:    mode,
-    });
-    sendDiagLog({
-      request_id:       requestId,
-      pipeline_mode:    mode,
-      causeCode,
-      httpStatus,
-      endpointHost,
-      endpointPath:     endpointPath ?? '(unknown)',
-      responseKeys:     '(parse-failed)',
-      response_preview: responsePreview ?? '',
-      contentTypeRaw:   contentTypeRaw ?? '',
-      contractVersion:  '-',
-      schemaVersion:    '-',
-      engineVersion:    '-',
-      hasResult:        false,
-      commonType:       '-',
-      studentsType:     '-',
+      request_id:    requestId,
+      error_code:    reason,
+      http_status:   httpStatus,
+      endpoint_host: endpointHost,
+      pipeline_mode: mode,
     });
     return {
       ok:    false,
@@ -753,8 +618,7 @@ function translateClientError(
         message:     '응답 형식 오류가 발생했습니다. 다시 시도해주세요.',
         retryable:   false,
         retryTarget: 'INPUT',
-        causeCode,
-        diagInfo:    di,
+        causeCode:   'RESPONSE_PARSE_ERROR',
       },
     };
   }
@@ -772,31 +636,7 @@ function translateClientError(
       pipeline_mode: mode,
     });
 
-    // ── 401 인증 만료 ─────────────────────────────────────────────────────
-    if (httpStatus === 401) {
-      const bodyInfo = extractBodyInfo(body);
-      return {
-        ok:    false,
-        error: {
-          origin:      'UNKNOWN',
-          message:     '로그인 정보가 만료되었습니다. 다시 로그인해 주세요.',
-          retryable:   false,
-          retryTarget: null,
-          causeCode:   'AUTH_401',
-          diagInfo: {
-            causeCode:       'AUTH_401',
-            httpStatus:      401,
-            endpointHost,
-            endpointPath:    endpointPath ?? '(unknown)',
-            contentTypeRaw:  '',
-            ...bodyInfo,
-          },
-        },
-      };
-    }
-
-    // ── 403 권한 없음 ──────────────────────────────────────────────────────
-    if (httpStatus === 403) {
+    if (httpStatus === 401 || httpStatus === 403) {
       return {
         ok:    false,
         error: {
@@ -804,7 +644,7 @@ function translateClientError(
           message:     '인증이 만료되었습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
           retryable:   false,
           retryTarget: null,
-          causeCode:   `FORBIDDEN_${serverCode}`,
+          causeCode:   `AUTH_${httpStatus}_${serverCode}`,
         },
       };
     }
@@ -888,34 +728,6 @@ function translateClientError(
     };
   }
 
-  // ── AUTH_TOKEN_MISSING — 토큰 없이 요청 시도 ──────────────────────────
-  if (failure.errorDetail === 'AUTH_TOKEN_MISSING') {
-    return {
-      ok:    false,
-      error: {
-        origin:      'UNKNOWN',
-        message:     '로그인 정보가 없습니다. 앱을 재시작한 후 다시 로그인해 주세요.',
-        retryable:   false,
-        retryTarget: null,
-        causeCode:   'AUTH_TOKEN_MISSING',
-        diagInfo: {
-          causeCode:      'AUTH_TOKEN_MISSING',
-          httpStatus:     null,
-          endpointHost,
-          endpointPath:   endpointPath ?? '(unknown)',
-          contentTypeRaw: '',
-          responseKeys:   '—',
-          contractVersion: '—',
-          schemaVersion:   '—',
-          engineVersion:   '—',
-          hasResult:       false,
-          commonType:      '—',
-          studentsType:    '—',
-        },
-      },
-    };
-  }
-
   // ── 네트워크 오류 (fetch throw) ─────────────────────────────────────────
   console.error('[DiaryAIService] network_error', {
     request_id:    requestId,
@@ -984,29 +796,21 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   // ── 3. Feature flag 결정 ─────────────────────────────────────────────────
   const mode: AIDiaryMode = getAIDiaryMode();
 
-  // ── 4. 엔드포인트 host / path (로깅 및 진단용) ────────────────────────────
+  // ── 4. 엔드포인트 host (로깅용) ──────────────────────────────────────────
   let endpointHost = '(unknown)';
-  let endpointPath = '(unknown)';
-  let endpointUrl  = '(unknown)';
   try {
-    const ep = getDiaryEndpoint(mode);
-    endpointHost = ep.host;
-    endpointPath = ep.path;
-    endpointUrl  = ep.url;
+    endpointHost = getDiaryEndpoint(mode).host;
   } catch { /* grounded + URL 미설정 — sendRequest에서 처리 */ }
 
   // ── 5. 요청 시작 로그 (PII 미포함) ──────────────────────────────────────
   // 금지: 학생 이름, 교사 입력 원문, JWT, 전체 payload
-  // 허용: request_id, endpoint_host, endpoint_path, mode, student_count, text_length
+  // 허용: request_id, endpoint_host, status, student_count, text_length, pipeline_mode
   console.log('[DiaryAIService] generate_request', {
-    request_id:             requestId,
-    SWIMNOTE_AI_MODE_env:   process.env.EXPO_PUBLIC_SWIMNOTE_AI_MODE ?? '(not set)',
-    pipeline_mode:          mode,
-    endpoint_host:          endpointHost,
-    endpoint_path:          endpointPath,
-    endpoint_url:           endpointUrl,
-    student_count:          students.length,
-    text_length:            inputText.trim().length,
+    request_id:    requestId,
+    endpoint_host: endpointHost,
+    student_count: students.length,
+    text_length:   inputText.trim().length,
+    pipeline_mode: mode,
   });
 
   // ── 6. 진행 상태 알림 ────────────────────────────────────────────────────
@@ -1033,7 +837,6 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
   console.log('[DiaryAIService] generate_response', {
     request_id:    requestId,
     endpoint_host: clientResult.endpointHost,
-    endpoint_path: clientResult.endpointPath,
     ok:            clientResult.ok,
     http_status:   clientResult.ok ? clientResult.httpStatus : (clientResult.httpStatus ?? 'N/A'),
     pipeline_mode: mode,
@@ -1051,7 +854,6 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
     expectedRequestId: requestId,
     currentRequestId:  requestId,
     validStudentRefs,
-    mode,   // pipeline_mode 전달: grounded=신형 전용, legacy=구형 폴백 허용
   });
 
   if (!normalized.ok) {
@@ -1089,26 +891,10 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
       };
     }
 
-    const contractCause = normalized.contractError ?? 'CONTRACT_UNKNOWN';
-    const bodyInfo      = extractBodyInfo(clientResult.body);
     console.error('[DiaryAIService] contract_error', {
       request_id:    requestId,
-      error_code:    contractCause,
-      endpoint_host: endpointHost,
-      endpoint_path: endpointPath,
+      error_code:    normalized.contractError,
       pipeline_mode: mode,
-      response_keys: bodyInfo.responseKeys,
-    });
-    sendDiagLog({
-      request_id:       requestId,
-      pipeline_mode:    mode,
-      causeCode:        contractCause,
-      httpStatus:       clientResult.httpStatus,
-      endpointHost,
-      endpointPath,
-      contentTypeRaw:   '',
-      response_preview: bodyInfo.responsePreview,
-      ...bodyInfo,
     });
     return {
       ok:    false,
@@ -1117,15 +903,7 @@ export async function generateDiary(p: DiaryGenerateParams): Promise<DiaryGenera
         message:     '결과 생성에 실패했습니다. 다시 시도해주세요.',
         retryable:   false,
         retryTarget: 'INPUT',
-        causeCode:   contractCause,
-        diagInfo: {
-          causeCode:      contractCause,
-          httpStatus:     clientResult.httpStatus,
-          endpointHost,
-          endpointPath,
-          contentTypeRaw: '',
-          ...bodyInfo,
-        },
+        causeCode:   normalized.contractError,
       },
     };
   }

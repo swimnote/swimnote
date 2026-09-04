@@ -1,17 +1,12 @@
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 const SCREEN_W = Dimensions.get("window").width;
 const DAY_KO = ["일", "월", "화", "수", "목", "금", "토"];
-
-const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-function classColor(id: string) {
-  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return CLASS_COLORS[Math.abs(h) % CLASS_COLORS.length];
-}
 
 function todayDateStr() {
   const d = new Date();
@@ -21,7 +16,7 @@ function dateToKo(dateStr: string): string {
   return DAY_KO[new Date(dateStr + "T12:00:00Z").getUTCDay()];
 }
 
-interface ClassGroup { id: string; schedule_days: string; }
+interface ClassGroup { id: string; schedule_days: string; color?: string | null; }
 
 interface MonthlyCalendarProps {
   classGroups: ClassGroup[];
@@ -58,14 +53,14 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
   return (
     <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
-        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}><ChevronLeft size={20} color={C.text} /></Pressable>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o - 1)}><LucideIcon name="chevron-left" size={20} color={C.text} /></Pressable>
         <Text style={[mc.monthTitle, { color: C.text }]}>{year}년 {month}월</Text>
-        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}><ChevronRight size={20} color={C.text} /></Pressable>
+        <Pressable style={mc.navBtn} onPress={() => setOffset(o => o + 1)}><LucideIcon name="chevron-right" size={20} color={C.text} /></Pressable>
       </View>
       <View style={{ flexDirection: "row" }}>
         {DAY_KO.map((wd, i) => (
           <View key={wd} style={[mc.weekHeader, { width: CELL }]}>
-            <Text style={[mc.weekHeaderText, i === 0 && { color: "#D96C6C" }, i === 6 && { color: C.tint }]}>{wd}</Text>
+            <Text style={[mc.weekHeaderText, i === 0 && { color: "#D96C6C" }, i === 6 && { color: C.brandStrong }]}>{wd}</Text>
           </View>
         ))}
       </View>
@@ -78,17 +73,17 @@ export function MonthlyCalendar({ classGroups, onSelectDate }: MonthlyCalendarPr
             const dayNum = parseInt(dateStr.split("-")[2]);
             return (
               <Pressable key={dateStr}
-                style={[mc.dayCell, { width: CELL }, isToday && { backgroundColor: C.tintLight, borderRadius: 8 }]}
+                style={[mc.dayCell, { width: CELL }, isToday && { backgroundColor: C.brandSoft, borderRadius: 8 }]}
                 onPress={() => hasClasses(dateStr) ? onSelectDate(dateStr) : undefined}
               >
-                <View style={[mc.dayNumWrap, isToday && { backgroundColor: C.tint }]}>
-                  <Text style={[mc.dayNum, { color: di === 0 ? "#D96C6C" : di === 6 ? C.tint : C.text }, isToday && { color: "#fff" }]}>
+                <View style={[mc.dayNumWrap, isToday && { backgroundColor: C.brandStrong }]}>
+                  <Text style={[mc.dayNum, { color: di === 0 ? "#D96C6C" : di === 6 ? C.brandStrong : C.text }, isToday && { color: "#fff" }]}>
                     {dayNum}
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", gap: 1.5, marginTop: 3, flexWrap: "wrap", justifyContent: "center" }}>
                   {cls.slice(0, 4).map(g => (
-                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id) }]} />
+                    <View key={g.id} style={[mc.dot, { backgroundColor: classColor(g.id, g.color) }]} />
                   ))}
                   {cls.length > 4 && <Text style={[mc.moreText, { color: C.textMuted }]}>+{cls.length - 4}</Text>}
                 </View>

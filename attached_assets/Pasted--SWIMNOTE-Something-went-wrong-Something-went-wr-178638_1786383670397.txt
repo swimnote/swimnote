@@ -1,0 +1,166 @@
+[긴급 조사 — SWIMNOTE 앱 시작 시 "Something went wrong" 오류]
+
+실기기에서 현재 앱 실행 시 다음 화면이 발생함.
+
+"Something went wrong"
+"Please reload the app to continue."
+"Try Again"
+
+중요:
+직전 production OTA에는 Storage Diagnostic 관련 코드가 포함되어 있음.
+
+현재 상태에서 Cleanup V2 구현 금지.
+코드 수정 금지.
+OTA 추가 배포 금지.
+먼저 원인 조사만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Production OTA 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 확인:
+
+- 현재 production branch 최신 OTA
+- runtimeVersion
+- iOS Update ID
+- 최신 OTA source commit
+- 현재 App Store native version
+- native runtimeVersion과 OTA runtimeVersion 호환 여부
+
+특히 현재 설치된 1.6.2 앱이
+어떤 OTA를 실제로 받을 수 있는 상태인지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 직전 OTA diff 전수 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 Storage Diagnostic OTA에서 변경된:
+
+- app/(teacher)/settings.tsx
+- app/(parent)/more.tsx
+- utils/storageDiagnostic.ts
+- app/(super)/more.tsx
+
+및 해당 코드가 추가한 import를 전부 확인.
+
+다음 조사:
+
+A. import/export 오류
+B. 존재하지 않는 native module/API 호출
+C. Expo SDK 55에서 지원되지 않는 API
+D. module initialization 시점 exception
+E. circular dependency
+F. undefined/null 접근
+G. syntax/bundle 문제
+H. startup 시 실행되는 코드
+I. Storage Diagnostic 코드가 버튼을 누르기 전에도 module import만으로 실행되는 코드가 있는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 직전 Media Cleanup V1도 함께 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음도 확인:
+
+utils/mediaStorageCleanup.ts
+app/_layout.tsx
+
+특히:
+
+runLegacyMediaCleanup()
+
+이 RootNav mount 직후 실행되므로
+
+- 앱 시작 exception 가능성
+- FileSystem API exception
+- AsyncStorage exception
+- directory scan exception
+- OTA 적용 후 startup 영향
+
+확인.
+
+.catch(() => {}) 때문에 오류가 숨겨지는 부분도 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Expo Updates 자체 오류 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+이 화면이:
+
+- JS runtime crash인지
+- Expo Router ErrorBoundary인지
+- expo-updates emergency/error recovery 화면인지
+
+코드 및 로그로 정확히 구분.
+
+가능한 경우 EAS/Expo update 로그 및 crash/error 정보를 확인.
+
+"Something went wrong / Please reload the app to continue / Try Again"
+
+문구의 실제 생성 주체도 프로젝트 dependency/version 기준으로 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 가장 중요한 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+정상 작동했던 마지막 production OTA와
+현재 실패하는 production OTA 사이의 실제 JS diff를 추출.
+
+commit 메시지가 아니라 실제 코드 diff 기준.
+
+어떤 변경 이후부터 startup failure가 가능해졌는지 좁힌다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 복구 가능성 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확인 후 다음 중 무엇인지 판정만 한다.
+
+CASE A
+잘못된 OTA → 정상 commit으로 production OTA rollback/re-publish 가능
+
+CASE B
+현재 OTA 코드 최소 수정 후 새 OTA로 복구 가능
+
+CASE C
+OTA를 로드하기 전에 죽어서 OTA 복구 불가능 → Native Build 필요
+
+CASE D
+기타
+
+아직 실제 rollback / OTA / build 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 오류 화면 생성 주체
+2. 실제 startup failure 위치
+3. exception/error message
+4. failing file
+5. failing line/function
+6. 직전 정상 OTA
+7. 최초 문제 OTA
+8. runtimeVersion 상태
+9. Storage Diagnostic 관련 여부
+10. Cleanup V1 관련 여부
+11. 서버 관련 여부
+12. DB 관련 여부
+13. OTA만으로 복구 가능한지
+14. Native Build 필요한지
+15. 최소 복구 방법
+16. 데이터 손실 가능성
+17. 현재 3.26GB cache에는 손댔는지 여부
+18. 수정 없이 조사만 했는지
+
+마지막:
+
+CAUSE CONFIRMED = YES / NO
+CODE CHANGED = 0
+OTA = 0
+RENDER = 0
+DB = 0
+NATIVE BUILD = 0
+
+보고 후 STOP.

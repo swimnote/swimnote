@@ -1,0 +1,523 @@
+[SWIMNOTE RELEASE MASTER WORK ORDER]
+[PHASE A / A2 — NORMAL SWIMNOTE AI VISIBILITY CLEANUP]
+
+목적:
+
+일반 SWIMNOTE에서는 X 전용 AI 기능의 사용자 노출을 제거하고,
+SWIMNOTE X에서만 해당 AI 기능이 정상적으로 노출되도록 정리한다.
+
+중요:
+
+이번 작업은 AI 기능 삭제가 아니다.
+
+- AI ENGINE 삭제 금지
+- APP AI API 삭제 금지
+- DB 구조 삭제 금지
+- 기존 AI 결과 로직 변경 금지
+- Prompt 변경 금지
+- Knowledge 변경 금지
+- Growth Report 로직 변경 금지
+- Parent Curriculum 로직 변경 금지
+- X entitlement/config canonical rule 변경 금지
+- 현재 디자인 시스템 대규모 재수정 금지
+
+오직:
+
+NORMAL / X_PENDING / X
+
+상태에 따른
+AI 기능의 visibility / entry access를 정리한다.
+
+==================================================
+1. CANONICAL MODE — FIXED
+==================================================
+
+반드시 기존 canonical mode 사용:
+
+normal
+x_pending
+x
+
+판정 규칙은 기존 구현을 그대로 재사용한다.
+
+새로운 X mode 판정 함수 생성 금지.
+
+기존 resolvePoolMode 또는 현재 canonical resolver를 사용.
+
+==================================================
+2. NORMAL MODE
+==================================================
+
+normal에서는
+X 전용 AI 기능의 사용자 진입점을 노출하지 않는다.
+
+중요:
+
+기능 자체를 삭제하지 않는다.
+
+다음 전체 Role에서 조사:
+
+OWNER / ADMIN
+TEACHER
+PARENT
+
+normal 사용자가:
+
+- 홈
+- 대시보드
+- 설정
+- 하단탭
+- 메뉴
+- 바로가기
+- 카드
+- 버튼
+- empty state
+- modal
+- deep link
+
+등을 통해
+X 전용 AI 기능에 진입할 수 있는지 전수 확인한다.
+
+==================================================
+3. X MODE
+==================================================
+
+mode === "x"에서는
+현재 구현 완료된 X/AI 기능을 정상 노출한다.
+
+기존 노출 기능을 실수로 숨기지 않는다.
+
+X에서 현재 실제 존재하는 AI 기능만 유지.
+
+구현되지 않은 AI 기능을 새로 표시하지 않는다.
+
+==================================================
+4. X_PENDING
+==================================================
+
+mode === "x_pending"에서는
+실제 AI 기능을 사용할 수 있는 것처럼 노출하지 않는다.
+
+기존 정책에 맞게:
+
+- 설정 진행 필요
+- 심사 중
+- 준비 중
+
+등의 안내 entry가 필요한 경우만 유지.
+
+실제 AI 실행 버튼이 노출되어
+실패하게 만드는 구조 금지.
+
+기존 x_pending 안내 UX가 있다면 재사용.
+
+==================================================
+5. AI FEATURE INVENTORY
+==================================================
+
+코드 수정 전에 먼저
+현재 APP에 존재하는 AI entrypoint를 전수 조사한다.
+
+검색 대상 예:
+
+AI
+ai
+GPT
+growth
+curriculum
+report
+diary generation
+assistant
+search
+analysis
+
+단 이름으로 추정하지 말고
+실제 route/component/API 연결을 확인한다.
+
+각 기능을 다음 표로 분류:
+
+FEATURE
+ROLE
+ENTRY SCREEN
+ROUTE
+CURRENT NORMAL VISIBILITY
+CURRENT X_PENDING VISIBILITY
+CURRENT X VISIBILITY
+SHOULD CHANGE?
+NOTES
+
+실제 구현된 기능만 대상.
+
+==================================================
+6. TEACHER AI DIARY
+==================================================
+
+Teacher AI Diary 관련 모든 진입점을 확인한다.
+
+normal에서 X 전용이라면:
+
+UI entry 숨김.
+
+x에서는:
+
+기존 AI Diary 동작 그대로 유지.
+
+중요:
+
+수동 일지 작성 기능은
+normal에서도 절대 손상시키지 않는다.
+
+AI 기능을 숨긴다고
+일지 작성 자체를 숨기면 안 된다.
+
+==================================================
+7. PARENT CURRICULUM AI
+==================================================
+
+Parent Curriculum / Curriculum Search / Parent AI 관련
+현재 실제 entrypoint를 조사.
+
+normal에서 X 전용 정책이면 숨김.
+
+x_pending은 기존 안내 정책 적용.
+
+x에서는 정상 노출.
+
+대화 history / quota / conversation DB
+변경 금지.
+
+==================================================
+8. GROWTH REPORT
+==================================================
+
+Growth Report가
+Normal과 X에서 동일 제공되는 기존 Product 정책이 있는지
+현재 코드 기준으로 확인한다.
+
+중요:
+
+AI라는 이유만으로 무조건 X 전용으로 숨기지 말 것.
+
+현재 SWIMNOTE Product 정책상
+Normal에서도 제공되어야 하는 Growth Report 기능이면 유지한다.
+
+즉:
+
+"AI"라는 기술 구현 여부가 아니라
+"상품 정책상 X 전용 기능인가"
+
+를 기준으로 visibility를 결정한다.
+
+불확실한 항목은 코드 수정 전에 보고.
+
+==================================================
+9. X GROWTH / X-ONLY FEATURES
+==================================================
+
+명확한 X 전용 기능:
+
+X Growth
+X setup
+X-specific AI
+X-specific curriculum
+기타 실제 X 전용 route
+
+는 normal에서 직접 진입 불가능해야 한다.
+
+UI 숨김 + route guard 둘 다 확인.
+
+==================================================
+10. DIRECT ROUTE / DEEP LINK PROTECTION
+==================================================
+
+단순히 버튼만 숨기고 끝내지 않는다.
+
+normal 사용자가:
+
+deep link
+navigation push
+saved route
+notification link
+
+등으로 X 전용 화면에 직접 들어가는 경우도 확인.
+
+기존 XModeGuard가 존재하면 재사용.
+
+새 Guard 중복 생성 금지.
+
+==================================================
+11. HOME / DASHBOARD
+==================================================
+
+OWNER / ADMIN
+TEACHER
+PARENT
+
+각 Home/Dashboard에서
+AI/X 카드와 바로가기를 전수 확인.
+
+normal:
+X 전용 entry 제거
+
+x_pending:
+pending 안내만
+
+x:
+정상 entry
+
+==================================================
+12. SETTINGS / MORE
+==================================================
+
+Settings / More / Management menu 등에
+AI 또는 X 기능 entry가 남아있는지 확인.
+
+normal에 숨겨야 할 항목은
+빈 자리/이상한 divider가 남지 않도록 처리.
+
+디자인 재설계는 하지 않는다.
+
+==================================================
+13. BOTTOM TAB / NAVIGATION
+==================================================
+
+현재 X 관련 tab 또는 X-setup entry가
+normal에서도 route level에 노출되는지 확인.
+
+normal:
+노출 금지
+
+x_pending:
+기존 setup/pending 정책에 필요한 entry만
+
+x:
+정상 노출
+
+==================================================
+14. ROLE-SPECIFIC POLICY
+==================================================
+
+각 Role마다 동일하게
+"AI니까 숨긴다"라고 처리하지 않는다.
+
+실제 상품 기능 정책 기준으로 구분.
+
+예:
+
+Teacher에서 X 전용
+Parent에서도 X 전용
+Owner 설정은 X 가입/설정 목적으로 normal에서도 일부 필요
+
+같은 차이가 있을 수 있다.
+
+기존 Product contract를 확인 후 처리.
+
+==================================================
+15. SUPER ADMIN
+==================================================
+
+Super Admin은 이번 normal/X visibility 정책 대상에서 제외.
+
+Super Admin의:
+
+X entitlement
+config approval
+operator management
+
+기능은 그대로 유지.
+
+Super Admin이 운영 목적으로
+X 상태를 보는 기능을 숨기지 않는다.
+
+==================================================
+16. SERVER-SIDE ACCESS
+==================================================
+
+현재 서버에 X 전용 route authorization이 이미 있으면 유지/검증.
+
+UI visibility 정리를 위해
+API contract를 변경하지 않는다.
+
+만약 실제 보안상 normal 사용자가
+X 전용 API를 직접 호출할 수 있는 결함이 발견되면:
+
+즉시 수정하지 말고
+BLOCKER로 먼저 보고.
+
+visibility cleanup과
+authorization 변경을 임의로 섞지 않는다.
+
+==================================================
+17. NORMAL UI CLEANUP
+==================================================
+
+AI entry를 숨긴 후:
+
+- 빈 section
+- 빈 divider
+- 빈 card group
+- 잘못된 spacing
+- 제목만 남는 영역
+
+이 없어야 한다.
+
+단 현재 확정한 Global Design System을 유지하고
+새 디자인 작업으로 확장하지 않는다.
+
+==================================================
+18. NO PRODUCT FEATURE DELETION
+==================================================
+
+이번 작업에서
+코드/DB/API 자체 삭제 금지.
+
+조건부 visibility 또는 기존 guard로 처리.
+
+향후 X entitlement가 활성화되면
+동일 앱에서 기능이 즉시 복구되어야 한다.
+
+==================================================
+19. REGRESSION TEST
+==================================================
+
+최소 3가지 pool state 검증:
+
+CASE A — NORMAL
+
+확인:
+
+- normal 기능 정상
+- 수동 일지 정상
+- 회원/출결/스케줄 정상
+- X 전용 AI entry 숨김
+- 직접 X route 보호
+- UI 빈 공간 없음
+
+CASE B — X_PENDING
+
+확인:
+
+- 실제 X AI 실행 불가
+- pending/setup 안내 정상
+- 잘못된 AI CTA 없음
+
+CASE C — X
+
+확인:
+
+- 기존 X 기능 노출
+- AI Diary 정상 entry
+- Parent AI 정상 entry
+- X Growth 정상
+- X setup 정상
+- 기존 기능 regression 없음
+
+==================================================
+20. ROLE REGRESSION
+==================================================
+
+각 state에서 최소:
+
+ADMIN/OWNER
+TEACHER
+PARENT
+
+확인.
+
+==================================================
+21. DESIGN CHANGE LIMIT
+==================================================
+
+현재 디자인은 추후 계속 수정할 예정이므로
+이번 A2에서는 디자인 재작업 금지.
+
+허용:
+
+AI entry가 사라지면서 생기는
+spacing/divider 정도의 최소 정리.
+
+금지:
+
+색상 체계 재설계
+버튼 시스템 변경
+border system 변경
+전체 component redesign
+
+==================================================
+22. NATIVE / OTA
+==================================================
+
+JS/navigation visibility 수준으로 유지.
+
+Native dependency 추가 금지.
+native config 변경 금지.
+
+version:
+1.6.3
+
+runtime:
+1.6.3
+
+OTA compatible 유지.
+
+검증 전 Production OTA publish 금지.
+
+==================================================
+23. IMPLEMENTATION FLOW
+==================================================
+
+순서:
+
+1. AI FEATURE / ENTRYPOINT AUDIT
+2. X 전용 여부 분류
+3. 애매한 Product 정책 항목 보고
+4. 명확한 항목만 구현
+5. normal/x_pending/x 검증
+6. role별 regression
+7. commit
+8. 보고
+
+중요:
+
+Growth Report 등
+Normal에서도 제공될 가능성이 있는 기능을
+임의로 X 전용 처리하지 않는다.
+
+==================================================
+24. REPORT FORMAT
+==================================================
+
+다음 순서로 보고:
+
+1. AI FEATURE INVENTORY
+2. NORMAL-VISIBLE AI FEATURES BEFORE
+3. X-ONLY FEATURES CONFIRMED
+4. NORMAL FEATURES KEPT
+5. AMBIGUOUS FEATURES
+6. MODIFIED FILES
+7. NORMAL RESULT
+8. X_PENDING RESULT
+9. X RESULT
+10. ADMIN/OWNER RESULT
+11. TEACHER RESULT
+12. PARENT RESULT
+13. DIRECT ROUTE GUARD RESULT
+14. SERVER AUTH ISSUE FOUND?
+15. BUSINESS LOGIC CHANGED?
+16. DESIGN SYSTEM CHANGED?
+17. NATIVE CHANGE?
+18. TEST RESULT
+19. COMMIT SHA
+20. OTA PUBLISHED?
+
+성공:
+
+A2_NORMAL_SWIMNOTE_AI_VISIBILITY_CLEANUP_COMPLETE ✅
+
+실패:
+
+A2_NORMAL_SWIMNOTE_AI_VISIBILITY_CLEANUP_BLOCKED ❌
+
+A2 PASS 전
+A3_ONBOARDING_CLEANUP
+시작 금지.

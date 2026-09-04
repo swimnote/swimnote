@@ -11,13 +11,11 @@
  * API: /settlement/calculator, /settlement/save, /settlement/finalize
  *      /holidays (GET, POST, DELETE)
  */
-import { Calendar, ChevronLeft, ChevronRight, CircleAlert, CircleArrowRight, List, RotateCcw, Save, Users } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -78,9 +76,9 @@ function formatWon(n: number) { return n.toLocaleString("ko-KR") + "원"; }
 ──────────────────────────────────────────────── */
 const STATUS_COLOR: Record<SettlementStatus, { bg: string; text: string }> = {
   "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: "#E6FAF8", text: "#0F172A" },
-  "제출완료":  { bg: "#E6FAF8", text: "#0F172A" },
-  "관리자확인": { bg: "#E6FAF8", text: "#0F172A" },
+  "저장됨":    { bg: C.brandSoft, text: "#14283D" },
+  "제출완료":  { bg: C.brandSoft, text: "#14283D" },
+  "관리자확인": { bg: C.brandSoft, text: "#14283D" },
 };
 
 export default function AdminRevenueScreen() {
@@ -101,6 +99,7 @@ export default function AdminRevenueScreen() {
   const [savedMsg, setSavedMsg] = useState("");
   const [nextMonthModal, setNextMonthModal] = useState(false);
   const [holiModal, setHoliModal]           = useState(false);
+  const [confirmingId, setConfirmingId]     = useState<string | null>(null);
 
   const poolId = (adminUser as any)?.swimming_pool_id || "";
   const { backTo } = useLocalSearchParams<{ backTo?: string }>();
@@ -143,6 +142,19 @@ export default function AdminRevenueScreen() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
 
+  async function handleConfirmTeacher(teacherId: string) {
+    setConfirmingId(teacherId);
+    try {
+      await apiRequest(token, "/settlement/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pool_id: poolId, month, teacher_id: teacherId }),
+      });
+      await load();
+    } catch { }
+    finally { setConfirmingId(null); }
+  }
+
   async function handleSave() {
     setSaving(true); setSavedMsg("");
     try {
@@ -177,21 +189,21 @@ export default function AdminRevenueScreen() {
       <View style={[s.topBar, { borderBottomColor: C.border }]}>
         <View style={s.monthNav}>
           <Pressable style={s.monthArrow} onPress={() => changeMonth(-1)} hitSlop={8}>
-            <ChevronLeft size={20} color={themeColor} />
+            <LucideIcon name="chevron-left" size={20} color={themeColor} />
           </Pressable>
           <Text style={[s.monthLabel, { color: C.text }]}>
             {month.replace("-", "년 ")}월
           </Text>
           <Pressable style={s.monthArrow} onPress={() => changeMonth(1)} hitSlop={8}>
-            <ChevronRight size={20} color={themeColor} />
+            <LucideIcon name="chevron-right" size={20} color={themeColor} />
           </Pressable>
         </View>
 
         <Pressable
-          style={[s.holiBtn, { backgroundColor: "#E6FAF8", borderColor: "#CBD5E1" }]}
+          style={[s.holiBtn, { backgroundColor: C.brandSoft, borderColor: "#CBD5E1" }]}
           onPress={() => setHoliModal(true)}
         >
-          <Calendar size={14} color="#0F172A" />
+          <LucideIcon name="calendar" size={14} color="#14283D" />
           <Text style={s.holiBtnTxt}>휴무일 지정</Text>
         </Pressable>
       </View>
@@ -199,7 +211,7 @@ export default function AdminRevenueScreen() {
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           ref={scrollRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: pBottom }}
@@ -207,15 +219,15 @@ export default function AdminRevenueScreen() {
         >
           {/* ── 바로가기 버튼 ── */}
           <View style={s.quickRow}>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => router.push("/(admin)/makeups?backTo=admin-revenue" as any)}>
-              <RotateCcw size={16} color="#0F172A" />
-              <Text style={[s.quickLabel, { color: "#0F172A" }]}>보강 이월</Text>
+              <LucideIcon name="rotate-ccw" size={16} color="#14283D" />
+              <Text style={[s.quickLabel, { color: "#14283D" }]}>보강 이월</Text>
             </Pressable>
-            <Pressable style={[s.quickBtn, { backgroundColor: "#E6FAF8" }]}
+            <Pressable style={[s.quickBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => router.push("/(admin)/holidays?backTo=admin-revenue" as any)}>
-              <List size={16} color="#0F172A" />
-              <Text style={[s.quickLabel, { color: "#0F172A" }]}>휴무 목록</Text>
+              <LucideIcon name="list" size={16} color="#14283D" />
+              <Text style={[s.quickLabel, { color: "#14283D" }]}>휴무 목록</Text>
             </Pressable>
           </View>
 
@@ -272,7 +284,7 @@ export default function AdminRevenueScreen() {
 
           {teachers.length === 0 ? (
             <View style={s.emptyBox}>
-              <Users size={40} color={C.textMuted} />
+              <LucideIcon name="users" size={40} color={C.textMuted} />
               <Text style={[s.emptyTxt, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text>
             </View>
           ) : (
@@ -283,27 +295,52 @@ export default function AdminRevenueScreen() {
                 const status: SettlementStatus = apiStatusToUI(report?.status);
                 const statusStyle = STATUS_COLOR[status];
                 const isLast = idx === teachers.length - 1;
+                const isConfirming = confirmingId === t.id;
+                const canConfirm = report?.status === "submitted";
+                const isConfirmed = report?.status === "confirmed";
                 return (
-                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder]}>
-                    {/* 이름 + 상태 */}
-                    <View style={{ flex: 2, gap: 3 }}>
-                      <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
-                      <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
-                        <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
+                  <View key={t.id} style={[s.tableRow, !isLast && s.tableRowBorder, { flexDirection: "column", gap: 8 }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      {/* 이름 + 상태 */}
+                      <View style={{ flex: 2, gap: 3 }}>
+                        <Text style={[s.rowName, { color: C.text }]}>{t.name}</Text>
+                        <View style={[s.statusPill, { backgroundColor: statusStyle.bg }]}>
+                          <Text style={[s.statusPillTxt, { color: statusStyle.text }]}>{status}</Text>
+                        </View>
                       </View>
+                      {/* 매출 */}
+                      <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
+                        {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
+                      </Text>
+                      {/* 수업시수 */}
+                      <Text style={[s.rowVal, { flex: 1 }]}>
+                        {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
+                      </Text>
+                      {/* 추가수업비용 */}
+                      <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
+                        {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
+                      </Text>
                     </View>
-                    {/* 매출 */}
-                    <Text style={[s.rowAmt, { flex: 2, color: report?.total_revenue != null ? themeColor : C.textMuted }]}>
-                      {report?.total_revenue != null ? formatWon(report.total_revenue) : "미제출"}
-                    </Text>
-                    {/* 수업시수 */}
-                    <Text style={[s.rowVal, { flex: 1 }]}>
-                      {report?.total_sessions != null ? `${report.total_sessions}회` : "—"}
-                    </Text>
-                    {/* 추가수업비용 */}
-                    <Text style={[s.rowExtra, { flex: 2, color: (report?.extra_manual_amount || 0) > 0 ? "#C2410C" : C.textMuted }]}>
-                      {(report?.extra_manual_amount || 0) > 0 ? formatWon(report!.extra_manual_amount!) : "—"}
-                    </Text>
+                    {/* 관리자 확인 버튼 (제출완료 상태일 때만) */}
+                    {(canConfirm || isConfirmed) && (
+                      <Pressable
+                        style={[s.confirmBtn, {
+                          backgroundColor: isConfirmed ? "#F0FFF4" : themeColor,
+                          opacity: isConfirming ? 0.6 : 1,
+                        }]}
+                        onPress={() => !isConfirmed && handleConfirmTeacher(t.id)}
+                        disabled={isConfirming || isConfirmed}
+                      >
+                        {isConfirming ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <LucideIcon name="check-circle" size={14} color={isConfirmed ? "#16A34A" : "#fff"} />
+                        )}
+                        <Text style={[s.confirmBtnTxt, { color: isConfirmed ? "#16A34A" : "#fff" }]}>
+                          {isConfirmed ? "관리자 확인 완료" : "정산 확인"}
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 );
               })
@@ -334,23 +371,23 @@ export default function AdminRevenueScreen() {
           {/* ── 저장 / 다음 달 시작 ── */}
           <View style={s.actionRow}>
             <Pressable
-              style={[s.actionBtn, { backgroundColor: C.button, opacity: saving ? 0.7 : 1 }]}
+              style={[s.actionBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]}
               onPress={handleSave}
               disabled={saving}
             >
-              {saving ? <ActivityIndicator size={16} color="#fff" /> : <Save size={16} color="#fff" />}
+              {saving ? <ActivityIndicator size={16} color="#fff" /> : <LucideIcon name="save" size={16} color="#fff" />}
               <Text style={s.actionBtnTxt}>이번 달 저장</Text>
             </Pressable>
             <Pressable
-              style={[s.actionBtn, { backgroundColor: "#2EC4B6" }]}
+              style={[s.actionBtn, { backgroundColor: C.primaryAction }]}
               onPress={() => setNextMonthModal(true)}
             >
-              <CircleArrowRight size={16} color="#fff" />
+              <LucideIcon name="arrow-right-circle" size={16} color="#fff" />
               <Text style={s.actionBtnTxt}>다음 달 시작</Text>
             </Pressable>
           </View>
           {savedMsg ? <Text style={[s.savedMsg, { color: themeColor }]}>{savedMsg}</Text> : null}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {/* ── 다음 달 시작 확인 모달 ── */}
@@ -358,7 +395,7 @@ export default function AdminRevenueScreen() {
         <Pressable style={s.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={s.modalBox}>
           <View style={[s.modalCard, { backgroundColor: C.card }]}>
-            <CircleAlert size={32} color="#0F172A" style={{ alignSelf: "center", marginBottom: 8 }} />
+            <LucideIcon name="alert-circle" size={32} color="#14283D" style={{ alignSelf: "center", marginBottom: 8 }} />
             <Text style={[s.modalTitle, { color: C.text }]}>다음 달 수업 발생</Text>
             <Text style={[s.modalDesc, { color: C.textSecondary }]}>
               현재 월 정산을 마무리하고{"\n"}다음 달 수업 일정을 새로 생성합니다.{"\n"}보강 이월도 함께 처리됩니다.
@@ -368,7 +405,7 @@ export default function AdminRevenueScreen() {
                 <Text style={[s.modalBtnTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable
-                style={[s.modalBtn, { backgroundColor: "#2EC4B6" }]}
+                style={[s.modalBtn, { backgroundColor: C.primaryAction }]}
                 onPress={async () => {
                   try {
                     await apiRequest(token, "/settlement/finalize", {
@@ -411,7 +448,7 @@ const s = StyleSheet.create({
   monthArrow: { padding: 4 },
   monthLabel: { fontSize: 16, fontFamily: "Pretendard-Regular", minWidth: 90, textAlign: "center" },
   holiBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5 },
-  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  holiBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#14283D" },
 
   quickRow: { flexDirection: "row", gap: 8 },
   quickBtn: { flex: 1, flexDirection: "column", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 12, gap: 4 },
@@ -473,4 +510,8 @@ const s = StyleSheet.create({
   modalBtns: { flexDirection: "row", gap: 10, marginTop: 4 },
   modalBtn: { flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: "center" },
   modalBtnTxt: { fontSize: 15, fontFamily: "Pretendard-Regular" },
+
+  confirmBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                   paddingVertical: 9, borderRadius: 10 },
+  confirmBtnTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

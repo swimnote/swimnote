@@ -1,0 +1,391 @@
+==================================================
+[추가 CRITICAL — SAME PHONE / SIMILAR POOL NAME 완전 분리]
+==================================================
+
+현재 실기기 증상:
+
+- 스윔노트
+- 스윔노트2
+- 스윔노트3
+
+처럼 이름이 유사한 수영장을 각각 생성하고
+학부모 신규가입을 테스트하면
+
+선택한 수영장과 다르게
+기존 "스윔노트" 계정으로 연결되거나,
+
+같은 전화번호를 사용했을 때
+다른 수영장 계정/학생/리포트가 서로 겹치는 현상 발생.
+
+이 문제는 반드시 구조적으로 해결한다.
+
+==================================================
+A. Pool 결정에 Phone 사용 금지
+==================================================
+
+전화번호는 절대로 다음에 사용하지 않는다:
+
+- pool 결정
+- existing account 자동 선택
+- existing account 자동 재사용
+- membership 자동 연결
+- student 자동 연결
+- report/notification 자동 연결
+
+일반 신규가입에서:
+
+phone이 동일하더라도
+다른 pool이면 무조건 신규 account 생성.
+
+예:
+
+Pool A = 스윔노트
+phone 010-1111-1111
+→ account_A
+
+Pool B = 스윔노트2
+same phone
+→ account_B
+
+Pool C = 스윔노트3
+same phone
+→ account_C
+
+반드시:
+
+account_A != account_B != account_C
+
+==================================================
+B. Pool Name으로 Account 결정 금지
+==================================================
+
+수영장 이름은 display only.
+
+금지:
+
+- pool_name LIKE
+- pool_name ILIKE
+- startsWith
+- includes
+- prefix matching
+- searchResults[0]
+- first matching pool
+- default pool fallback
+
+로 account 귀속 결정.
+
+사용자가 선택한 row의 정확한:
+
+selectedPool.id
+
+만 사용.
+
+==================================================
+C. 선택한 Pool ID 불변성 검증
+==================================================
+
+가입 시 다음 값이 전부 동일해야 한다:
+
+UI_SELECTED_POOL_ID
+=
+REQUEST_POOL_ID
+=
+SERVER_POOL_ID
+=
+INSERT_PARENT_POOL_ID
+=
+INSERT_STUDENT_POOL_ID
+=
+MEMBERSHIP_POOL_ID
+
+하나라도 다르면 FAIL.
+
+중간에 pool_name으로 다시 resolve 금지.
+
+==================================================
+D. Same Phone 전역 Account Reuse 제거
+==================================================
+
+repository 전체에서 다음 패턴 전수 검색:
+
+WHERE phone = ?
+LIMIT 1
+
+find account by phone
+
+existingParentByPhone
+
+existingUserByPhone
+
+phone → account reuse
+
+phone → membership attach
+
+일반 signup/login 흐름에서
+pool_id 없이 phone으로 account를 찾는 코드 = 0
+
+단 예외:
+
+본인인증 후
+아이디/비밀번호 찾기 recovery flow에서
+해당 phone의 계정 목록 조회만 허용.
+
+==================================================
+E. Parent Account Identity
+==================================================
+
+parent account는 pool-scoped.
+
+최소 개념:
+
+account identity
+=
+pool_id + account_id/login identifier
+
+동일 phone이어도 pool이 다르면
+서로 완전 별개.
+
+==================================================
+F. Student도 반드시 Pool별 신규
+==================================================
+
+같은 부모 전화번호라도:
+
+스윔노트:
+student_A
+
+스윔노트2:
+student_B
+
+스윔노트3:
+student_C
+
+자동 merge 금지.
+
+student 이름/생년월일/전화번호가 같아도
+pool이 다르면 다른 record.
+
+==================================================
+G. 기존 데이터 섞임 원인 추적
+==================================================
+
+실제 현재 Production에서
+같은 phone을 가진 parent account들을 조사.
+
+보고:
+
+phone
+account_id
+pool_id
+pool_name
+student_id
+student_pool_id
+
+그리고 다음 이상 여부 확인:
+
+1.
+account pool != student pool
+
+2.
+same account_id가 여러 unrelated pool에 사용됨
+
+3.
+same parent account가 phone 때문에
+다른 pool membership을 자동 보유
+
+4.
+report가 다른 pool student/account에 노출 가능
+
+5.
+notification/feed가 account-global로 섞임
+
+데이터 수정은 먼저 하지 말고 audit.
+
+==================================================
+H. Similar Pool Name Fixture
+==================================================
+
+테스트용:
+
+Pool A
+name = 스윔노트
+id = pool_A
+
+Pool B
+name = 스윔노트2
+id = pool_B
+
+Pool C
+name = 스윔노트3
+id = pool_C
+
+동일 phone 사용:
+
+010-1111-1111
+
+테스트:
+
+1.
+스윔노트 선택
+→ account_A / student_A / pool_A
+
+2.
+스윔노트2 선택
+→ account_B / student_B / pool_B
+
+3.
+스윔노트3 선택
+→ account_C / student_C / pool_C
+
+4.
+A/B/C account id 모두 다름
+
+5.
+A/B/C student id 모두 다름
+
+6.
+어느 가입에서도
+pool_A fallback 발생 0
+
+==================================================
+I. 데이터 완전 분리 테스트
+==================================================
+
+각 pool에서 생성:
+
+- diary
+- feed
+- photo
+- notification
+- request
+- curriculum progress
+- growth report
+- AI report
+
+확인:
+
+Pool A 로그인
+→ A 데이터만
+
+Pool B 로그인
+→ B 데이터만
+
+Pool C 로그인
+→ C 데이터만
+
+cross-pool exposure = 0
+
+==================================================
+J. Direct Access 차단
+==================================================
+
+Pool C 로그인 상태에서:
+
+Pool A student_id
+Pool A report_id
+Pool A diary_id
+Pool A notification_id
+
+직접 호출.
+
+모두:
+
+403 또는 404
+
+반드시 차단.
+
+==================================================
+K. Client Cache 완전 분리
+==================================================
+
+같은 phone 계정을 번갈아 로그인해도
+이전 pool 데이터가 캐시에서 남지 않게 확인.
+
+query/cache key에:
+
+poolId
+accountId
+studentId
+
+필요한 tenant dimension 포함.
+
+logout:
+tenant cache clear
+
+pool/account 변경:
+invalidate/refetch
+
+서버 권한이 1차 방어선,
+cache는 2차 방어선.
+
+==================================================
+L. Login / Signup 구분
+==================================================
+
+일반 Signup:
+pool 선택 필수
+→ 해당 pool 신규/기존 account 판단
+
+일반 Login:
+pool 선택 필수
+→ 해당 pool account만 인증
+
+Recovery:
+phone 인증 후
+→ 해당 phone의 전체 account 목록 조회 가능
+→ 사용자가 정확한 pool/account 선택
+
+이 3개 flow를 섞지 않는다.
+
+==================================================
+M. Production Audit 결과 필수
+==================================================
+
+보고:
+
+SIMILAR NAME POOLS
+- 스윔노트 pool_id
+- 스윔노트2 pool_id
+- 스윔노트3 pool_id
+
+SAME PHONE ACCOUNTS
+- account 수
+- 각 account pool_id
+- shared account 발생 여부
+
+MISMATCH
+- parent pool != student pool
+- parent pool != report pool
+- account reused across unrelated pools
+- cross-pool membership auto-attached
+
+CROSS-POOL EXPOSURE CANDIDATES
+- count
+
+==================================================
+N. 최종 완료 조건
+==================================================
+
+반드시:
+
+스윔노트
+≠
+스윔노트2
+≠
+스윔노트3
+
+동일 phone이어도:
+
+ACCOUNT = 독립
+STUDENT = 독립
+DATA = 독립
+
+PHONE-BASED ACCOUNT REUSE = 0
+
+NAME-PREFIX POOL RESOLVE = 0
+
+DEFAULT POOL FALLBACK = 0
+
+CROSS-POOL DATA EXPOSURE = 0
+
+PASS / FAIL

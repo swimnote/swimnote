@@ -1,0 +1,160 @@
+[SWIMNOTE Cleanup V2 — 진단 UI 제거 Production OTA 배포 승인]
+
+대상 commit:
+cff8f86c
+
+목적:
+실기기 검증 완료 후 임시로 노출했던
+저장공간 진단 UI만 production에서 제거한다.
+
+Cleanup V1/V2 자동 정리 기능은 그대로 유지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 HEAD에 cff8f86c 포함 여부 확인.
+
+실제 기능 diff는 다음 3개 파일만:
+
+app/(teacher)/settings.tsx
+app/(parent)/more.tsx
+app/(super)/more.tsx
+
+확인.
+
+그리고 다음이 변경되지 않았는지 재확인:
+
+- utils/storageDiagnostic.ts
+- utils/mediaCleanupV2.ts
+- app/_layout.tsx startup cleanup
+- UploadQueueContext
+- cachePolicy="memory"
+- DiaryPhotoStrip cleanup
+
+하나라도 변경됐으면 OTA 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production OTA 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE:
+
+runtimeVersion = 1.6.2
+channel = production
+
+기준으로
+
+iOS
+Android
+
+둘 다 production OTA 배포.
+
+preview / instagram-test 배포 금지.
+
+기존 production 환경변수 그대로 유지.
+
+Native Build 금지.
+Render 배포 금지.
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 포함 내용
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 UI 제거만 포함:
+
+Teacher:
+설정 최하단 "저장공간 진단" 버튼 없음
+
+Parent:
+더보기 최하단 "저장공간 진단" 버튼 없음
+
+Super:
+Storage Diagnostic 메뉴 없음
+
+단:
+
+storageDiagnostic.ts는 코드상 보존.
+
+Cleanup V1/V2 startup 자동 실행은 그대로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 보호 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 변경 금지:
+
+- Cleanup V2
+- Image.clearDiskCache
+- ImagePicker cleanup
+- Upload temp cleanup
+- cachePolicy="memory"
+- R2
+- DB
+- MediaLibrary
+- session
+- scheduleAudio
+- 일지/앨범
+- Instagram Story
+- 보강
+- 알림
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포 후 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서:
+
+Teacher
+→ 설정
+→ 저장공간 진단 버튼 없음
+
+Parent
+→ 더보기
+→ 저장공간 진단 버튼 없음
+
+Super
+→ 시스템 상태/더보기
+→ Storage Diagnostic 없음
+
+그리고 앱 정상 실행/일지 정상 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. cff8f86c 포함 여부
+4. 실제 OTA diff
+5. iOS Group ID
+6. iOS Update ID
+7. Android Group ID
+8. Android Update ID
+9. runtimeVersion
+10. channel
+11. teacher 진단 UI 제거 확인
+12. parent 진단 UI 제거 확인
+13. super 진단 UI 제거 확인
+14. Cleanup V1 유지 확인
+15. Cleanup V2 유지 확인
+16. mediaCleanupV2 변경 0
+17. _layout startup cleanup 변경 0
+18. UploadQueueContext 변경 0
+19. cachePolicy 변경 0
+20. Server 변경 0
+21. DB 변경 0
+22. R2 변경 0
+23. Native Build 0
+
+마지막:
+
+CODE CHANGED = 0
+OTA CHANGED = YES
+RENDER CHANGED = 0
+DB CHANGED = 0
+R2 CHANGED = 0
+NATIVE BUILD = 0
+
+배포 후 STOP.

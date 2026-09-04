@@ -1,0 +1,603 @@
+# [WP-AI-01 / AI01-08 — SUPER ADMIN AI COST OVERVIEW API]
+
+목적:
+
+AI01-01~07에서 `event_logs`에 기록하기 시작한
+
+* AI usage
+* Whisper
+* Curriculum/Growth external engine
+* SMS
+* R2
+
+사용량을 Super Admin에서 조회할 수 있는
+**read-only 비용/사용량 집계 API**를 만든다.
+
+이번 Step은 API만 만든다.
+
+UI는 AI01-09에서 처리한다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 repository 전수조사 금지.
+
+필요한 최소 대상만 확인:
+
+* 기존 Super Admin route 등록 파일
+* 기존 `event_logs` query 패턴
+* `ai-trace-service.ts`
+* `external-usage-service.ts`
+* 관련 Super Admin auth middleware
+* 신규 AI01-08 test
+
+기존 Super Admin 구조를 재설계하지 않는다.
+
+전체 regression 금지.
+
+---
+
+# 1. Endpoint
+
+신규 read-only endpoint:
+
+```text
+GET /super/ai-cost-overview
+```
+
+현재 Super Admin route prefix가 다르면
+기존 프로젝트 convention에 맞춘 실제 최종 URL을 사용한다.
+
+반드시 기존 Super Admin 권한 middleware를 재사용한다.
+
+새 auth 체계 만들지 않는다.
+
+---
+
+# 2. 데이터 원천
+
+오직 local DB의:
+
+```text
+event_logs
+```
+
+를 사용한다.
+
+집계 대상:
+
+```text
+category = 'AI'
+category = 'EXTERNAL_USAGE'
+```
+
+외부 provider API 호출 금지.
+
+다음 API를 조회하지 않는다:
+
+* OpenAI Usage API
+* Cloudflare API
+* SMS provider billing API
+* Curriculum Engine billing API
+* Growth Engine billing API
+
+Dashboard 조회 자체가 추가 비용을 만들면 안 된다.
+
+---
+
+# 3. DB Schema 주의
+
+기존 `event_logs` 구조를 실제 코드 기준으로 사용한다.
+
+`request_id` 전용 column이 있다고 가정하지 않는다.
+
+현재 usage recorder 구조에서는 request correlation이
+`target` 및 metadata에 기록되어 있으므로
+실제 schema에 존재하지 않는 컬럼을 새로 사용하지 않는다.
+
+DB migration 금지.
+
+---
+
+# 4. 조회 기간
+
+최소 두 가지 aggregate 제공:
+
+```text
+today
+month
+```
+
+서버 기준 date handling은
+기존 프로젝트 timezone/date utility가 있다면 재사용한다.
+
+새 timezone framework 만들지 않는다.
+
+응답에는 실제 계산된:
+
+```text
+period_start
+period_end
+```
+
+를 포함한다.
+
+---
+
+# 5. Summary
+
+각 기간마다 최소:
+
+```text
+logical_requests
+actual_calls_known
+actual_calls_unknown_events
+retries
+
+known_cost_usd
+unknown_cost_calls
+
+success_count
+failure_count
+```
+
+를 반환한다.
+
+중요:
+
+`actual_call_count` field가 absent인 event가 존재할 수 있다.
+
+그 event를 임의로:
+
+```text
+actual_call_count = 0
+```
+
+으로 계산하지 않는다.
+
+따라서:
+
+```text
+actual_calls_known
+actual_calls_unknown_events
+```
+
+를 분리한다.
+
+---
+
+# 6. Cost 집계
+
+`estimated_cost_usd`가 실제 존재하는 event만:
+
+```text
+known_cost_usd
+```
+
+에 SUM 한다.
+
+`cost_source=UNKNOWN`
+또는 비용 field absent/null은:
+
+```text
+unknown_cost_calls
+```
+
+로 별도 집계한다.
+
+UNKNOWN을 $0로 간주해서
+“총비용 $0”처럼 보이게 하지 않는다.
+
+예:
+
+```json
+{
+  "known_cost_usd": 0.018,
+  "unknown_cost_calls": 34
+}
+```
+
+처럼 표현한다.
+
+---
+
+# 7. Trigger Type Breakdown
+
+최소 구분:
+
+```text
+USER_ACTION
+SYSTEM_MAINTENANCE
+ADMIN_MANUAL
+BATCH_JOB
+UNKNOWN
+```
+
+각 항목에:
+
+```text
+logical_requests
+actual_calls_known
+known_cost_usd
+unknown_cost_calls
+```
+
+제공.
+
+특히 `SYSTEM_MAINTENANCE`가 별도로 보여야 한다.
+
+---
+
+# 8. Feature Breakdown
+
+AI와 External Usage를 같이 볼 수 있어야 한다.
+
+예:
+
+```text
+teacher_diary
+SUPPORT_AI
+PARENT_CURRICULUM_AI
+GROWTH_REPORT_AI
+STORY_SUMMARY
+stt
+SMS
+R2
+```
+
+실제 저장된 feature 값을 그대로 group 한다.
+
+이름을 API에서 임의 rename하지 않는다.
+
+각 feature별:
+
+```text
+logical_requests
+actual_calls_known
+actual_calls_unknown_events
+retries
+known_cost_usd
+unknown_cost_calls
+success_count
+failure_count
+```
+
+---
+
+# 9. Provider / Service / Model Breakdown
+
+최소 group:
+
+```text
+provider
+service
+model
+```
+
+External usage는 model이 없을 수 있으므로:
+
+```text
+model = null
+```
+
+허용.
+
+예:
+
+```text
+openai / gpt / gpt-4o-mini
+openai / whisper / whisper-1
+curriculum_engine / search / null
+growth_engine / analysis / null
+sens / sms_send / null
+cloudflare_r2 / r2_put / null
+```
+
+실제 저장값 기준.
+
+하드코딩 목록으로 강제하지 않는다.
+
+---
+
+# 10. Pool Breakdown
+
+`pool_id`별 최소:
+
+```text
+logical_requests
+actual_calls_known
+known_cost_usd
+unknown_cost_calls
+```
+
+제공.
+
+Super Admin 전체 조회용이다.
+
+pool 이름 join이 기존 구조에서 매우 간단하면 포함 가능.
+
+하지만 이를 위해 unrelated table 구조를 새로 조사하거나
+복잡한 join을 만들지 않는다.
+
+우선 `pool_id`만으로 충분하다.
+
+---
+
+# 11. Unit Economics
+
+이번 Step에서는 **실제 관측값 기반 최소 단위경제성**만 제공한다.
+
+feature별:
+
+```text
+known_cost_per_logical_request_usd
+known_cost_per_actual_call_usd
+```
+
+단 denominator가 0이거나
+actual call이 unknown인 경우 null.
+
+UNKNOWN 비용을 포함해서 평균을 계산하지 않는다.
+
+따라서 명칭도:
+
+```text
+known_cost_per_...
+```
+
+처럼 명확히 한다.
+
+---
+
+# 12. SQL / 성능 원칙
+
+가능하면 SQL aggregate를 사용한다.
+
+금지:
+
+```text
+SELECT 모든 event_logs
+→ Node.js 메모리에서 전체 reduce
+```
+
+특히 장기간 event가 누적되므로
+DB에서:
+
+* COUNT
+* SUM
+* GROUP BY
+
+처리한다.
+
+단 현재 DB query builder 구조에 맞는 최소 구현으로 한다.
+
+이번 Step에서 index migration은 하지 않는다.
+
+---
+
+# 13. 응답 형태
+
+예시 구조:
+
+```json
+{
+  "generated_at": "...",
+  "today": {
+    "period_start": "...",
+    "period_end": "...",
+    "summary": {},
+    "by_trigger_type": [],
+    "by_feature": [],
+    "by_provider_service_model": [],
+    "by_pool": []
+  },
+  "month": {
+    "period_start": "...",
+    "period_end": "...",
+    "summary": {},
+    "by_trigger_type": [],
+    "by_feature": [],
+    "by_provider_service_model": [],
+    "by_pool": []
+  }
+}
+```
+
+프로젝트 convention에 맞게 약간 조정 가능.
+
+---
+
+# 14. Legacy / Missing Metadata
+
+AI01-01 이전 event_logs나
+부분 metadata event가 있을 수 있다.
+
+API가 crash하면 안 된다.
+
+다음 값이 없을 수 있음:
+
+* trigger_type
+* service
+* model
+* actual_call_count
+* retry_count
+* estimated_cost_usd
+* cost_source
+
+없는 값은:
+
+* group key → `UNKNOWN` 또는 null
+* numeric unknown → 의미에 따라 별도 unknown count
+
+처리.
+
+임의 기본값으로 비용/호출을 조작하지 않는다.
+
+---
+
+# 15. 테스트
+
+전체 regression 금지.
+
+신규 AI01-08 test만 중심으로 실행.
+
+필수 TC:
+
+### TC1
+
+Super Admin 아닌 사용자
+→ 접근 거부
+
+### TC2
+
+AI + EXTERNAL_USAGE event 혼합
+→ summary 정상 집계
+
+### TC3
+
+known cost + UNKNOWN cost 혼합
+→ known_cost_usd와 unknown_cost_calls 분리
+
+### TC4
+
+actual_call_count absent event
+→ actual_calls_known에 0으로 합산하지 않음
+→ unknown event로 별도 집계
+
+### TC5
+
+SYSTEM_MAINTENANCE
+→ USER_ACTION과 별도 group
+
+### TC6
+
+provider/service/model grouping 정상
+
+### TC7
+
+pool_id grouping 정상
+
+### TC8
+
+legacy metadata 일부 누락
+→ endpoint crash 없음
+
+### TC9
+
+조회 과정에서 외부 provider/API 호출 없음
+
+### TC10
+
+today/month 기간이 각각 독립적으로 집계됨
+
+---
+
+# 16. 절대 금지
+
+이번 Step에서:
+
+* Super Admin UI 수정 금지
+* OpenAI Usage API 호출 금지
+* Cloudflare billing API 호출 금지
+* SMS billing API 호출 금지
+* External Engine billing API 호출 금지
+* pricing 수정 금지
+* usage recorder 수정 금지
+* AI route 수정 금지
+* SMS/R2 수정 금지
+* DB migration/index 추가 금지
+* production DB write 금지
+* Render deploy 금지
+* Expo OTA 금지
+* Full regression 금지
+
+AI01-08 API만 구현한다.
+
+---
+
+# 17. 완료 보고
+
+# [AI01-08 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. Endpoint
+
+실제 최종 endpoint와 auth middleware.
+
+## 5. Data Source
+
+* event_logs category
+* 외부 provider API 사용 여부
+
+## 6. Aggregates
+
+실제 구현한:
+
+* summary
+* trigger
+* feature
+* provider/service/model
+* pool
+* unit economics
+
+## 7. Unknown Handling
+
+아래 각각 설명:
+
+* unknown cost
+* unknown actual_call_count
+* missing legacy metadata
+
+## 8. SQL Strategy
+
+DB aggregate인지,
+Node memory 전체 reduce가 아닌지 확인.
+
+## 9. Tests
+
+* 정확한 command
+* test file
+* PASS count
+* FAIL count
+
+## 10. Scope Check
+
+다음 미수정 확인:
+
+* Super Admin UI
+* AI routes
+* external engines
+* SMS
+* R2
+* pricing/model config
+* DB schema
+* deployment config
+
+## 11. Verification Level
+
+**UNIT TEST CONFIRMED**
+
+**PRODUCTION CONFIRMED 아님**
+
+---
+
+# 18. STOP
+
+AI01-08 완료 보고 후 멈춘다.
+
+AI01-09 UI를 선행하지 않는다.

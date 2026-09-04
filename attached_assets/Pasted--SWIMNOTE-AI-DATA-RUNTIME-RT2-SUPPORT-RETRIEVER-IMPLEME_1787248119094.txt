@@ -1,0 +1,428 @@
+# [SWIMNOTE AI DATA RUNTIME — RT2 SUPPORT RETRIEVER IMPLEMENTATION]
+
+RT1 PASS.
+
+현재 Runtime 기반:
+commit SHA 5ca35ced
+
+이제 RT2 진행.
+
+목표:
+
+Support에서 자연어 표현이
+exact utterance와 조금 달라도
+canonical active Knowledge까지 안정적으로 도달하도록 한다.
+
+개별 실패 문장을 하나씩 추가하는 방식 금지.
+
+==================================================
+1. SCOPE
+==================================================
+
+이번 RT2는 Support only.
+
+수정 가능:
+
+- lib/retrievers/support-retriever.ts 신규
+- Support normalization/tokenizer/lexicon helper 신규
+- routes/support-respond.ts 최소 integration
+- 필요 시 support-resolver.ts adapter 최소 수정
+- Runtime RT1 components 사용
+
+변경 금지:
+
+- Parent Curriculum
+- AI Diary
+- Growth Report
+- DB schema
+- quota
+- Support state machine 전체 재작성
+
+==================================================
+2. SOURCE OF TRUTH
+==================================================
+
+Support canonical authority:
+
+support_knowledge_items
+
+utterance 역할:
+
+- exact shortcut
+- alias
+- natural-language hint
+
+utterance miss 자체로
+NO_MATCH/HUMAN_REQUIRED 처리 금지.
+
+==================================================
+3. STATUS POLICY
+==================================================
+
+Production evidence 대상:
+
+status = active only.
+
+active + DIRECT_DB
+→ DB_DIRECT 가능
+
+active + GROUNDED_GPT
+→ GROUNDED_AI 가능
+
+active + HUMAN_ONLY
+→ HUMAN_REQUIRED
+
+pending / archived / inactive / candidate
+→ Production answer evidence 제외
+
+단 diagnostics에는
+"관련 candidate가 있었으나 status 때문에 제외"
+정보를 남길 수 있음.
+
+==================================================
+4. SUPPORT RETRIEVAL LAYERS
+==================================================
+
+최종 순서:
+
+L0. Exact Utterance
+L1. Normalized Keyword / Token
+L2. Product Concept Lexicon
+L3. Canonical Knowledge title/question/content search
+L4. Ranking / confidence
+L5. AnswerPolicy
+
+기존 Layer 0 exact 결과는
+가장 우선 유지.
+
+==================================================
+5. KOREAN NORMALIZATION
+==================================================
+
+한국어 자연어 variation 대응.
+
+최소:
+
+- punctuation 제거
+- 공백 정규화
+- 조사 영향 완화
+- 복합어 normalization
+- common conversational suffix 영향 완화
+
+예:
+
+학부모리포트는
+→ 학부모리포트
+
+어떤기능이야
+→ 어떤 기능
+
+알림끄는거
+→ 알림 + 끄기 의미 추출 가능
+
+단 무리한 형태소 분석 라이브러리 추가 금지.
+
+가벼운 deterministic normalization 우선.
+
+==================================================
+6. CONCEPT LEXICON
+==================================================
+
+특정 질문 문장 단위 alias 금지.
+
+제품 개념 단위로 관리.
+
+예:
+
+GROWTH_REPORT
+aliases:
+- 학부모 리포트
+- 학부모리포트
+- 성장 리포트
+- 성장리포트
+- AI 성장 리포트
+- 리포트
+
+NOTIFICATION_SETTINGS
+aliases:
+- 알림
+- 알림 설정
+- 푸시
+- 푸시 알림
+- 알림 끄기
+
+CURRICULUM_SEARCH
+aliases:
+- 커리큘럼 검색
+- AI 커리큘럼 검색
+- 커리큘럼 AI 검색
+- 진도 검색
+
+중요:
+실제 SWIMNOTE 제품 용어만 넣는다.
+
+무한 synonym 사전 만들지 않는다.
+
+==================================================
+7. CANONICAL KNOWLEDGE SEARCH
+==================================================
+
+active support_knowledge_items 대상으로:
+
+- title
+- question
+- content/answer
+
+실제 존재 컬럼 확인 후 검색.
+
+검색 방식:
+
+A. concept exact/alias hit
+B. normalized keyword overlap
+C. title/question stronger weight
+D. content weaker weight
+
+가능하면 SQL ILIKE로 candidate를 좁히고
+JS ranking 수행.
+
+active KI 전체 무조건 로드 금지
+(필요한 경우 제한된 fallback만).
+
+==================================================
+8. RANKING
+==================================================
+
+단일 token-overlap threshold 하나로
+hard fail시키지 않는다.
+
+score 구성 예:
+
+- exact concept match
+- alias match
+- title token match
+- question token match
+- content token match
+- utterance match weight
+
+최고 score candidate와
+2위 candidate 차이도 고려.
+
+기존처럼:
+"동점이면 무조건 null"
+금지.
+
+동점일 경우:
+
+- same canonical KI면 merge
+- 다른 KI면 confidence 낮춤
+- 충분한 Evidence가 있으면 GROUNDED_AI
+- 정책상 위험하면 HUMAN_REQUIRED
+
+==================================================
+9. ANSWER POLICY
+==================================================
+
+RetrievalResult 이후:
+
+DIRECT_DB KI + HIGH confidence
+→ DB_DIRECT
+
+GROUNDED_GPT KI
+또는 여러 active KI 조합 필요
+→ GROUNDED_AI
+
+HUMAN_ONLY KI
+→ HUMAN_REQUIRED
+
+실질적인 active match 없음
+→ INSUFFICIENT_EVIDENCE
+
+"utterance exact miss"
+자체는 INSUFFICIENT_EVIDENCE 아님.
+
+==================================================
+10. RUNTIME INTEGRATION
+==================================================
+
+RT1 사용:
+
+RequestContext
+→ SupportRetriever
+→ RetrievalResult
+→ EvidencePack
+→ AnswerPolicy
+→ 필요 시 AiGateway
+→ SupportValidator
+→ response
+
+단 기존 Support case/message/state transition은 유지.
+
+Support 전체 route 재작성 금지.
+
+기존 resolver layer 중
+정상 동작하는 RULE / DB_STATE / KNOWN_ISSUE는
+필요하면 유지 가능.
+
+목표는 canonical retrieval 개선이지
+지원 시스템 전체 갈아엎기 아님.
+
+==================================================
+11. GROUNDED AI
+==================================================
+
+GROUNDED_AI 호출 시
+EvidencePack의 active Knowledge만 사용.
+
+AI에게:
+
+- source KI text
+- policy constraints
+
+전달.
+
+GPT 자체 SWIMNOTE 정책/기능 창작 금지.
+
+근거에 없는 기능 설명 금지.
+
+==================================================
+12. HUMAN_ONLY
+==================================================
+
+HUMAN_ONLY Knowledge가 match되면:
+
+관련 내용을 찾았더라도
+자동 상세 답변 생성 금지.
+
+HUMAN_REQUIRED 상태 전환.
+
+기존 human escalation 흐름 유지.
+
+==================================================
+13. DIAGNOSTICS
+==================================================
+
+event_logs.metadata에:
+
+- runtime_version
+- domain=SUPPORT
+- retrieval_candidates
+- final_match_count
+- source_ids
+- match_methods
+- confidence
+- answer_mode
+- ai_called
+- fallback_reason
+- excluded_by_status_count
+
+저장 가능.
+
+raw user query 저장 금지.
+전체 answer/prompt 저장 금지.
+
+==================================================
+14. TEST
+==================================================
+
+전체 regression 금지.
+
+RT2 관련 최소 테스트만.
+
+필수:
+
+1.
+"학부모리포트는 어떤기능이야?"
+→ GROWTH_REPORT concept
+→ active canonical Knowledge 도달
+
+2.
+"성장리포트가 뭐야"
+→ 동일 canonical Knowledge
+
+3.
+"알림끄는거 어디서해?"
+→ NOTIFICATION_SETTINGS 관련 Knowledge 도달
+
+4.
+"푸시 알림 설정"
+→ 동일 concept
+
+5.
+"커리큘럼 등록은 되어있는데 검색이 안돼"
+→ CURRICULUM_SEARCH/문제해결 Knowledge 후보 도달
+
+6.
+utterance exact hit
+→ 기존 direct 결과 우선
+
+7.
+active DIRECT_DB
+→ DB_DIRECT
+
+8.
+active GROUNDED_GPT
+→ GROUNDED_AI
+
+9.
+active HUMAN_ONLY
+→ HUMAN_REQUIRED
+
+10.
+pending/candidate
+→ 자동 답변 evidence 제외
+
+11.
+tie with two KIs
+→ 무조건 null 금지
+
+12.
+cross-pool KI leak 없음
+
+13.
+raw query diagnostics 없음
+
+==================================================
+15. PRODUCTION
+==================================================
+
+이번 단계:
+
+코드 수정
+최소 테스트
+GitHub push
+
+까지만.
+
+Render deploy 금지.
+DB write 금지.
+migration 금지.
+
+==================================================
+16. REPORT
+==================================================
+
+[AI DATA RUNTIME RT2 SUPPORT IMPLEMENTATION REPORT]
+
+- new files:
+- modified files:
+- normalization:
+- concept lexicon:
+- canonical KI search:
+- ranking:
+- exact utterance preserved:
+- DIRECT_DB policy:
+- GROUNDED_GPT policy:
+- HUMAN_ONLY policy:
+- inactive/pending excluded:
+- tie handling:
+- Runtime integration:
+- AiGateway used:
+- diagnostics:
+- tests:
+- full regression:
+- DB migration:
+- Production DB write:
+- commit SHA:
+- final status:
+
+보고 후 멈춘다.

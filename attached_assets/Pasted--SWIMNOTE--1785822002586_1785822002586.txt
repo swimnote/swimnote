@@ -1,0 +1,393 @@
+[SWIMNOTE 긴급 수정 — 반 상세 모달 학생 목록 제스처 충돌 제거 구현 지시]
+
+현재 운영 앱에서 반 상세 모달의 학생 명단을 스크롤할 때
+간헐적으로 목록이 아니라 모달 전체가 아래로 끌려 내려가며 닫히는 문제가 발생한다.
+
+현상:
+
+- 어떤 때는 학생 목록이 정상 스크롤됨
+- 어떤 때는 같은 동작에서 모달 전체가 내려옴
+- 모달이 닫히고 이전 화면으로 이동함
+- 앱을 재시작하면 잠시 정상이나 반복 사용 시 재발함
+
+직접 원인:
+
+학생 목록 FlatList의 세로 스크롤 제스처와
+모달 drag-to-dismiss 제스처가 같은 영역에서 경쟁하고 있다.
+
+확정 정책:
+
+1. 학생 목록 영역에서 시작한 세로 드래그는 무조건 FlatList만 처리한다.
+2. 학생 목록 영역은 모달 drag-to-dismiss 범위에서 완전히 제외한다.
+3. 모달을 아래로 내려 닫는 제스처는 상단 회색 손잡이 영역에서만 허용한다.
+4. 제목·버튼·정원·색상·학생 목록 영역에서는 모달 drag를 시작하지 않는다.
+5. 목록이 맨 위에 있어도 아래로 당겨 모달이 닫히면 안 된다.
+6. 현재 FlatList, React.memo, 학생별 pending 구조는 유지한다.
+7. 기존 X 닫기 버튼과 바깥 영역 닫기 동작은 유지한다.
+
+이번 작업은 구현까지 진행한다.
+Commit·Push·OTA는 구현 보고와 승인 전 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 양쪽 모두 확인·수정한다.
+
+선생님:
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+관리자:
+
+artifacts/swim-app/components/admin/AdminClassDetailSheet.tsx
+
+관련 공통 컴포넌트가 있다면 함께 조사한다.
+
+검색 대상:
+
+- PanResponder
+- GestureDetector
+- Gesture.Pan
+- panHandlers
+- onPanResponderMove
+- onPanResponderRelease
+- translationY
+- translateY
+- velocityY
+- dismiss
+- dragToClose
+- swipeToDismiss
+- onStartShouldSetResponder
+- onMoveShouldSetResponder
+- presentation
+- gestureEnabled
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 현재 drag gesture 적용 범위 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 실제 코드에서 모달 drag-to-dismiss 제스처가 어디에 걸려 있는지 확인한다.
+
+다음 중 하나를 정확히 판정한다.
+
+A. mainSheet 전체에 PanResponder 적용
+B. backdrop와 sheet 전체에 적용
+C. 공통 BottomSheet 컴포넌트에서 전체 컨텐츠에 적용
+D. React Navigation/iOS modal 기본 swipe dismiss
+E. GestureDetector가 FlatList까지 감싸고 있음
+
+실제 적용 범위와 JSX 구조를 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 JSX 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 구조는 아래처럼 분리한다.
+
+<View style={styles.backdrop}>
+
+  <Pressable
+    style={StyleSheet.absoluteFill}
+    onPress={onClose}
+  />
+
+  <Animated.View style={[styles.mainSheet, animatedSheetStyle]}>
+
+    <GestureDetector gesture={headerDismissGesture}>
+      <View style={styles.dragHandleArea}>
+        <View style={styles.dragHandle} />
+      </View>
+    </GestureDetector>
+
+    <View style={styles.sheetHeader}>
+      ...
+      삭제 버튼
+      X 닫기 버튼
+    </View>
+
+    <View style={styles.actionArea}>
+      반배정
+      수업일지
+      보충수업
+      반 색상
+      정원
+    </View>
+
+    <FlatList
+      data={sortedStudents}
+      ...
+    />
+
+  </Animated.View>
+
+</View>
+
+중요:
+
+- GestureDetector 또는 PanResponder는 dragHandleArea만 감싼다.
+- mainSheet 전체를 GestureDetector로 감싸지 않는다.
+- FlatList는 GestureDetector 밖에 둔다.
+- 학생 row와 버튼도 drag gesture 영역 밖에 둔다.
+- translateY animated style은 mainSheet에 적용해도 되지만,
+  gesture 인식 시작 영역은 dragHandleArea로만 제한한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 드래그 가능 영역 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+드래그 가능:
+
+- 상단 회색 손잡이
+- 손잡이 주변 최소 터치 영역
+
+권장:
+
+dragHandleArea: {
+  minHeight: 36,
+  alignItems: "center",
+  justifyContent: "center",
+}
+
+dragHandle: {
+  width: 44,
+  height: 5,
+  borderRadius: 3,
+}
+
+드래그 불가:
+
+- 제목
+- 삭제 버튼
+- X 버튼
+- 반배정
+- 수업일지
+- 보충수업
+- 반 색상
+- 정원 조절
+- 학생 목록
+- 출석·결석·반이동 버튼
+- 학생 상세 화살표
+
+학생 목록에서 시작한 손가락 움직임은
+어떤 경우에도 mainSheet translateY를 변경하면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. dismiss 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+상단 손잡이에서 시작한 아래 방향 드래그만 처리한다.
+
+권장 기준:
+
+- translationY > 100
+또는
+- velocityY > 900
+
+기준 충족:
+
+onClose()
+
+기준 미달:
+
+spring 또는 timing으로 translateY = 0 복귀
+
+금지:
+
+- 위 방향 드래그 dismiss
+- 좌우 이동 dismiss
+- FlatList scrollY가 0일 때 자동으로 sheet drag 전환
+- simultaneous gesture로 FlatList와 sheet pan 동시 활성화
+- 학생 목록 pull-down dismiss
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. FlatList 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 FlatList 구조는 유지한다.
+
+필수 확인:
+
+<FlatList
+  data={sortedStudents}
+  keyExtractor={...}
+  renderItem={...}
+  style={{ flex: 1, minHeight: 0 }}
+  contentContainerStyle={{ paddingBottom: 64 }}
+  keyboardShouldPersistTaps="always"
+  keyboardDismissMode="on-drag"
+  showsVerticalScrollIndicator={false}
+/>
+
+추가 가능:
+
+- directionalLockEnabled
+- nestedScrollEnabled
+
+단, 핵심 해결은 옵션이 아니라
+FlatList를 dismiss gesture 영역 밖에 두는 것이다.
+
+FlatList를 세로 ScrollView 안에 넣지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 버튼 터치 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 버튼에서 시작한 터치가 모달 drag로 전환되면 안 된다.
+
+- 출석
+- 결석
+- 반이동
+- 삭제
+- X 닫기
+- 정원 +/-
+- 반배정
+- 수업일지
+- 보충수업
+- 학생 상세
+
+현재 hitSlop과 학생별 pending 구조는 유지한다.
+
+Pressable 내부에서 손가락이 조금 움직여도
+mainSheet drag gesture가 활성화되면 안 된다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 서브시트가 열렸을 때
+━━━━━━━━━━━━━━━━━━━━━━
+
+반이동·보강·미배정 서브시트가 열려 있는 동안:
+
+- 메인 모달 drag gesture 비활성화
+- 메인 모달 translateY 변경 금지
+- 서브시트 터치를 메인 모달이 받지 않음
+
+서브시트가 닫힌 뒤에만 상단 손잡이 drag를 다시 활성화한다.
+
+현재 iOS에서 작동 중인 서브시트 구조는 변경하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 관리자 화면 동일 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+AdminClassDetailSheet.tsx도 동일 정책 적용:
+
+- 학생 목록 영역 drag 제외
+- 상단 손잡이만 dismiss 가능
+- FlatList 스크롤 중 모달 이동 금지
+- 관리자 버튼 터치 보호
+- 마지막 학생까지 스크롤 정상
+
+한쪽만 수정하고 완료 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 개발 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+개발 환경에서만 제스처 시작 영역 로그 추가 가능:
+
+if (__DEV__) {
+  console.log("[CLASS-SHEET-GESTURE-START]", {
+    source: "drag-handle",
+    at: Date.now(),
+  });
+}
+
+FlatList 영역에서 sheet gesture 로그가 발생하면 실패다.
+
+운영 로그에는 학생 이름 등 개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 반복 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+선생님·관리자 양쪽에서 확인한다.
+
+1. 학생 목록 중간에서 아래로 드래그
+   → 목록만 움직임
+   → 모달 translateY 변화 없음
+
+2. 목록 맨 위에서 아래로 당기기
+   → 모달 닫히지 않음
+
+3. 목록 맨 아래에서 계속 드래그
+   → 모달 닫히지 않음
+
+4. 빠른 위아래 스크롤 30회 반복
+   → 모달 dismiss 0회
+
+5. 모달 열기·닫기 20회 반복
+   → 제스처 상태 꼬임 없음
+
+6. 출석 버튼 누르며 손가락이 약간 움직임
+   → 버튼 정상
+   → 모달 이동 없음
+
+7. 결석 버튼 동일
+
+8. 반이동 버튼 동일
+
+9. 상단 회색 손잡이를 아래로 충분히 드래그
+   → 모달 닫힘
+
+10. 손잡이를 조금만 드래그
+   → 원위치 복귀
+
+11. X 닫기 버튼
+   → 정상 닫힘
+
+12. 바깥 영역 터치
+   → 기존 정책대로 닫힘
+
+13. 반이동 서브시트 열림 상태
+   → 메인 모달 drag 비활성
+
+14. 보강·미배정 서브시트 동일
+
+15. iOS
+16. Android
+
+성공 기준:
+
+- 학생 목록 영역에서 mainSheet translateY 변화 0회
+- 모달 dismiss는 dragHandleArea에서 시작한 제스처에만 발생
+- 스크롤 누락 없음
+- 버튼 터치 누락 없음
+- 기존 FlatList 성능 개선 유지
+- 기존 서브시트 기능 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+제출:
+
+1. 기존 drag gesture 적용 범위
+2. 직접 충돌 원인
+3. 수정 후 gesture 적용 범위
+4. 실제 JSX 구조
+5. 실제 gesture 코드
+6. 선생님·관리자 적용 여부
+7. 서브시트 열림 시 비활성화 방식
+8. 반복 테스트 결과
+9. 타입체크
+10. 실제 diff
+11. git status
+12. HEAD/origin SHA
+13. Rollback 방법
+
+보고 후 멈춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- FlatList 원복 금지
+- React.memo 원복 금지
+- 학생별 pending 원복 금지
+- 서버 수정 금지
+- API Contract 변경 금지
+- Push 금지
+- Render 배포 금지
+- OTA 금지
+- 운영 DB 수정 금지
+- X모드 작업 재개 금지

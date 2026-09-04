@@ -1,0 +1,517 @@
+[WP-CS09 — SUPPORT FOLLOW-UP CONTEXT RESOLUTION FOUNDATION]
+
+목적:
+
+현재 Support AI는 각 사용자 메시지를 독립 query로 처리한다.
+
+실제 production 사례:
+
+Q1:
+"스윔노트 알려줘"
+
+→ SWIMNOTE 소개 Knowledge 정상 응답
+
+Q2:
+"이거 만든사람 누구야"
+
+사용자의 "이거"는 직전 답변의 SWIMNOTE를 가리키지만,
+현재 Router는 Q2를 독립 검색하여 NO_MATCH → HUMAN_REQUIRED.
+
+이번 WP 목표:
+
+직전 대화에서 확정된 feature/entity/source context를
+다음 질문 검색에 안전하게 이어주는
+Follow-up Context Resolution을 구현한다.
+
+핵심:
+
+CONTEXT FIRST
+→ SEARCH AGAIN
+→ LLM LAST
+
+LLM에게 근거 없는 coreference 추론을 맡기지 않는다.
+
+==================================================
+0. CURRENT PRODUCTION CASE AUDIT
+==================================================
+
+방금 실제 case/request trace 확인.
+
+질문 1:
+"스윔노트 알려줘"
+
+질문 2:
+"이거 만든사람 누구야"
+
+보고:
+
+CASE_ID =
+Q1_REQUEST_ID =
+Q1_RESOLUTION_SOURCE =
+Q1_SOURCE_ID =
+Q1_FEATURE =
+Q1_CATEGORY =
+
+Q2_REQUEST_ID =
+Q2_RESOLUTION_STATUS =
+Q2_EVIDENCE_COUNT =
+Q2_LLM_CALLED =
+Q2_CASE_STATE_AFTER =
+
+실제 trace만.
+
+==================================================
+1. FOLLOW-UP CONTEXT CONTRACT
+==================================================
+
+Support conversation에서
+직전 successful resolution의 최소 context를 재사용.
+
+최소:
+
+previous_source_type
+previous_source_id
+previous_feature
+previous_category
+previous_screen_id
+previous_entity_key
+
+예:
+
+Q1:
+SWIMNOTE intro
+
+context:
+
+feature = SWIMNOTE_INTRO
+entity_key = SWIMNOTE
+
+Q2:
+"이거 만든사람 누구야"
+
+"이거"를 SWIMNOTE context와 결합.
+
+==================================================
+2. DO NOT STORE RAW CONVERSATION IN ANALYTICS
+==================================================
+
+event_logs에는 여전히:
+
+raw user message
+raw AI answer
+전체 prompt
+
+저장 금지.
+
+Conversation message table의 실제 user message는 기존 정책대로 저장.
+
+Context metadata에는:
+
+feature
+source_id
+entity_key
+screen_id
+
+정도만.
+
+==================================================
+3. CONTEXT ELIGIBILITY
+==================================================
+
+모든 과거 메시지를 사용하지 않는다.
+
+기본:
+
+가장 최근 successful resolution 1건
+
+또는 필요 시 최근 2건 이하.
+
+다음 상태면 context reset 가능:
+
+새 문의
+새 case
+명확하게 다른 feature 질문
+사용자가 topic change
+오래된 conversation boundary
+
+과도한 장기 기억 금지.
+
+==================================================
+4. FOLLOW-UP SIGNAL
+==================================================
+
+deterministic follow-up signal 지원.
+
+예:
+
+이거
+그거
+이 기능
+이 서비스
+이 화면
+여기
+그 기능
+그 서비스
+아까 말한거
+그건
+그러면
+누가 만들었어
+가격은?
+어디서 해?
+학부모도 돼?
+
+단 단어 리스트만으로 모든 의미를 확정하지 않는다.
+
+previous context가 실제 존재할 때만 보강.
+
+==================================================
+5. QUERY AUGMENTATION
+==================================================
+
+예:
+
+raw query:
+"이거 만든사람 누구야"
+
+previous entity:
+SWIMNOTE
+
+internal augmented search concept:
+
+"SWIMNOTE 만든사람 누구야"
+
+사용자 원문은 변경/덮어쓰기 금지.
+
+검색용 내부 query만 생성.
+
+==================================================
+6. CONTEXT SOURCE OF TRUTH
+==================================================
+
+previous context는
+실제 이전 resolution 결과에서 가져온다.
+
+금지:
+
+AI가 과거 답변을 다시 읽고
+feature/entity를 새로 창작.
+
+가능하면:
+
+resolution_source
+source_id
+feature
+category
+screen_id
+
+를 support message/case metadata 또는
+existing event trace에서 재사용.
+
+새 table 기본 금지.
+
+==================================================
+7. KNOWLEDGE REQUIREMENT
+==================================================
+
+Context를 알아냈다고
+답 자체를 창작하면 안 된다.
+
+예:
+
+"SWIMNOTE 만든 사람 누구야"
+
+로 query가 보강돼도
+
+founder/creator Knowledge가 없으면:
+
+NO_MATCH
+
+또는 human fallback.
+
+절대로 이름 추측 금지.
+
+==================================================
+8. SWIMNOTE CREATOR KNOWLEDGE AUDIT
+==================================================
+
+현재 production Knowledge DB에서:
+
+SWIMNOTE creator
+founder
+developer
+회사
+운영주체
+
+관련 검증 Knowledge가 있는지 확인.
+
+보고:
+
+CREATOR_ACTIVE_KNOWLEDGE =
+CREATOR_PENDING_KNOWLEDGE =
+
+없으면:
+
+NO VERIFIED CREATOR KNOWLEDGE
+
+로 보고.
+
+==================================================
+9. CREATOR KNOWLEDGE CANDIDATE
+==================================================
+
+사용자가 실제 Support에서
+"누가 만들었어?" 질문에 답하게 하고 싶다면
+
+검증 source가 repository/company profile에 있을 때만
+PENDING candidate 생성 가능.
+
+예:
+
+feature = SWIMNOTE_CREATOR
+
+question examples concept:
+
+스윔노트 만든 사람 누구야
+누가 만들었어
+개발한 사람이 누구야
+
+하지만 실제 이름/회사 정보는
+repository에서 검증된 사실만.
+
+근거 없으면 candidate 생성 금지.
+
+자동 ACTIVE 금지.
+
+==================================================
+10. CONTEXT-AWARE SEARCH ORDER
+==================================================
+
+기존 Router 앞/안에
+Follow-up Context augmentation 추가.
+
+원칙:
+
+raw query deterministic search
+→ 명확한 follow-up + previous context 있으면
+   augmented deterministic search
+→ existing resolution layers
+→ evidence
+→ LLM last
+
+또는 repository 구조에 맞는 최소 구현.
+
+==================================================
+11. DO NOT BREAK EXACT QUESTIONS
+==================================================
+
+일반 독립 질문:
+
+"출결 어디서 해?"
+"스윔노트 알려줘"
+
+는 previous context 때문에 오염되면 안 됨.
+
+명확한 새 feature/entity가 query에 있으면
+previous context 무시.
+
+==================================================
+12. ROLE / MODE / POOL SECURITY
+==================================================
+
+context를 이어도
+기존 role/mode/pool 필터를 그대로 적용.
+
+예:
+
+이전 admin screen context를
+parent_account가 다른 세션에서 재사용 금지.
+
+case/user/pool boundary 넘어 context 재사용 금지.
+
+==================================================
+13. CASE BOUNDARY
+==================================================
+
+Follow-up context는 동일 case 안에서만.
+
+다른 support case의 previous feature를
+재사용 금지.
+
+==================================================
+14. EXPLICIT HUMAN CASE
+==================================================
+
+현재 case가 실제 USER_REQUESTED_HUMAN이라면
+follow-up AI resolution이 되더라도
+human ticket을 자동 취소하지 않는다.
+
+기존 stale-human 정책 유지.
+
+==================================================
+15. USER-FACING RESPONSE
+==================================================
+
+context augmentation은 내부 동작.
+
+사용자에게:
+
+"이거가 SWIMNOTE를 의미한다고 판단했습니다"
+
+같은 기술 설명 표시 금지.
+
+정상 답변만 반환.
+
+==================================================
+16. CONTEXT TRACE
+==================================================
+
+safe trace metadata:
+
+followup_detected
+context_used
+previous_source_id
+previous_feature
+previous_entity_key
+augmented_query_used
+
+단 augmented query raw text 전체 저장 금지.
+
+가능하면:
+
+augmented_feature/entity
+
+만 기록.
+
+==================================================
+17. TEST MATRIX
+==================================================
+
+CTX-01
+Q1 SWIMNOTE intro → context stored
+
+CTX-02
+Q2 "이거 만든사람 누구야" → SWIMNOTE context detected
+
+CTX-03
+context augmented search uses SWIMNOTE entity
+
+CTX-04
+creator Knowledge 없음 → hallucination NO
+
+CTX-05
+creator active Knowledge 있음 → deterministic hit
+
+CTX-06
+"그 기능 어디 있어?" → previous feature screen search
+
+CTX-07
+"학부모도 돼?" → previous feature context
+
+CTX-08
+new explicit topic ignores old context
+
+CTX-09
+different case cannot reuse context
+
+CTX-10
+different user cannot reuse context
+
+CTX-11
+different pool cannot reuse context
+
+CTX-12
+role/mode filtering preserved
+
+CTX-13
+explicit human ticket preserved
+
+CTX-14
+LLM 0 for deterministic context hit
+
+CTX-15
+no raw conversation analytics
+
+CTX-16
+full regression
+
+==================================================
+18. DEPLOYMENT
+==================================================
+
+Server-side expected.
+
+Mobile UI 변경 기본 NO.
+
+DB schema:
+새 table 기본 금지.
+
+Render exact commit LIVE 확인.
+
+iOS OTA = NO expected.
+Android OTA = NO.
+
+==================================================
+19. FINAL REPORT
+==================================================
+
+CASE_ID =
+
+Q1_SOURCE =
+Q1_SOURCE_ID =
+Q1_FEATURE =
+Q1_ENTITY_KEY =
+
+Q2_RAW_QUERY =
+FOLLOWUP_DETECTED =
+CONTEXT_USED =
+AUGMENTED_FEATURE =
+AUGMENTED_ENTITY =
+
+CREATOR_ACTIVE_KNOWLEDGE =
+CREATOR_PENDING_KNOWLEDGE =
+
+Q2_RESOLUTION_AFTER =
+Q2_SOURCE_AFTER =
+Q2_LLM_USED =
+
+HALLUCINATED_CREATOR =
+
+CASE_BOUNDARY =
+USER_BOUNDARY =
+POOL_BOUNDARY =
+ROLE_MODE_SECURITY =
+
+EXPLICIT_HUMAN_PRESERVED =
+
+FILES_CHANGED =
+DB_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+follow-up pronoun/context 질문이
+직전 verified feature/entity를 활용해 재검색.
+
+근거 없는 creator 정보 창작 = NO.
+
+Creator Knowledge 없으면 NO_MATCH 허용.
+
+Creator Knowledge가 ACTIVE라면
+deterministic resolution.
+
+다른 case/user/pool context leakage = NO.
+
+완료:
+
+WP_CS09_SUPPORT_FOLLOWUP_CONTEXT_FOUNDATION_COMPLETE ✅

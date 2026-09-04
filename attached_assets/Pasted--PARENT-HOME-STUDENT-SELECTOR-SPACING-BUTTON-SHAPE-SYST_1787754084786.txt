@@ -1,0 +1,211 @@
+[앱]
+
+PARENT HOME — STUDENT SELECTOR SPACING + BUTTON SHAPE SYSTEM
++ IMMEDIATE iOS PRODUCTION OTA
++ ROLLBACK READY
+
+현재 실기기에서 확인된 문제:
+
+1. fixed navy top header 바로 아래의
+   학생 selector(서태웅 / +추가)가 header와 너무 붙어 있어 답답함.
+
+2. 현재 학생 selector가 타원형 pill 형태인데
+   Parent Home 전체 UI와 시각적으로 잘 어울리지 않음.
+
+3. 앱 내 버튼/탭의 도형 규칙이 제각각 보여
+   UI consistency가 부족함.
+
+이번 Step에서는
+Parent Home의 학생 selector 영역을 기준으로
+공통 button shape rule을 정리한다.
+
+중요:
+이번 작업에서 전체 앱 버튼을 전부 수정하지 말 것.
+먼저 Parent Home 상단 selector 영역만 적용.
+
+==================================================
+1. HEADER ↔ STUDENT SELECTOR 간격
+==================================================
+
+현재 fixed navy header와
+학생 selector 영역이 맞닿아 보임.
+
+수정:
+
+- header bottom과 selector top 사이
+  12~16px visual spacing 확보
+
+권장:
+14px 전후
+
+중요:
+safe area나 absolute position으로 억지 보정 금지.
+scroll content 시작 padding/top spacing으로 정상 처리.
+
+==================================================
+2. STUDENT SELECTOR SHAPE 변경
+==================================================
+
+현재:
+타원형 pill
+
+변경:
+rounded rectangle tab
+
+권장:
+
+height:
+40~44px
+
+borderRadius:
+10~12px
+
+paddingHorizontal:
+16px 전후
+
+학생 선택 버튼:
+- active = X_NAVY bg
+- text = white
+
++추가 버튼:
+- bg = white
+- border = X_MINT_LIGHT 또는 neutral/X rule
+- text = muted/navy
+
+둘 다:
+- 같은 height
+- 같은 radius
+- 같은 vertical alignment
+
+==================================================
+3. BUTTON SHAPE SYSTEM — Parent Home 기준
+==================================================
+
+Parent Home에서 사용할 기본 규칙:
+
+A. Primary/Selectable Button
+- rounded rectangle
+- radius 10~12
+- 일정 height
+- X_NAVY 또는 X_MINT 계열
+
+B. Secondary Button
+- same radius
+- white/light bg
+- border 사용
+
+C. Badge / Status만
+- pill 허용
+
+즉:
+“버튼”은 rounded rectangle
+“상태 badge”만 pill
+
+이 규칙으로 정리.
+
+==================================================
+4. 현재 요소 적용
+==================================================
+
+이번 Step 적용 대상:
+
+- 서태웅 selector
+- +추가 button
+
+필요 시 같은 row의 spacing/alignment만 조정.
+
+적용 금지:
+- Growth Report 내부 버튼
+- 상단 action icons
+- 학부모 리포트 카드
+- AI 기능 아이콘
+- 기타 screen 버튼
+
+전체 앱 디자인 시스템 적용은 추후 별도 작업.
+
+==================================================
+5. ALIGNMENT
+==================================================
+
+학생 selector row:
+
+- left/right padding 기존 Parent Home content grid와 일치
+- 두 버튼 height 동일
+- baseline/vertical center 동일
+- 버튼 사이 gap 8~10px
+- 너무 넓거나 떠 보이지 않게
+
+==================================================
+6. VISUAL GOAL
+==================================================
+
+목표:
+
+- top header와 selector 사이 숨 쉴 공간이 생김
+- 학생 선택이 명확한 navigation element처럼 보임
+- pill 느낌 제거
+- 앱 전체가 더 정돈된 modern UI처럼 보임
+- SWIMNOTE X 브랜드 톤 유지
+
+==================================================
+7. NO-CHANGE
+==================================================
+
+금지:
+
+- top navy header 디자인 변경
+- Growth Report 디자인 변경
+- X color palette 변경
+- AI/API/DB/PDF 변경
+- 다른 screen 버튼 일괄 변경
+
+이번 Step:
+Student selector spacing + shape only.
+
+==================================================
+8. OTA 개발 헌법
+==================================================
+
+JS/TSX UI-only 수정이면:
+
+수정
+→ 관련 최소 테스트
+→ 직전 정상 OTA rollback point 기록
+→ iOS production OTA 즉시 배포
+→ 실기기 확인
+
+native/runtimeVersion 영향 있으면 OTA 금지 후 STOP.
+
+==================================================
+9. DEVICE CHECK
+==================================================
+
+실기기에서 확인:
+
+- header와 selector 사이 간격 자연스러움
+- 서태웅 / +추가 버튼이 더 이상 pill처럼 보이지 않음
+- 두 버튼 높이/radius 통일
+- active/inactive 상태 구분 명확
+- header와 맞닿은 느낌 0
+- horizontal overflow 0
+
+before/after screenshot 제출.
+
+==================================================
+10. REPORT
+==================================================
+
+보고:
+
+- SHA
+- 변경 파일
+- 적용한 top spacing
+- button height
+- borderRadius
+- gap
+- active/inactive style
+- OTA update group ID
+- rollback target
+- 실기기 screenshot
+
+완료 후 STOP.

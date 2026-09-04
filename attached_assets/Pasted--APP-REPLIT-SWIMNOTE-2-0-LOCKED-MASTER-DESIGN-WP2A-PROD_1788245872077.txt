@@ -1,0 +1,1234 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# WP2A — PRODUCT MODEL / STORAGE / MEMBER LIMIT / 1.6.3 BACKWARD COMPATIBILITY
+
+본 작업은 이미 승인된
+`SWIMNOTE 2.0 MASTER DESIGN V1.0 — LOCKED`
+기준으로만 수행합니다.
+
+중요:
+
+- LOCKED DESIGN의 정책 임의 변경 금지
+- 범위 확장 금지
+- 범위 축소 금지
+- 다른 상품구조 제안 금지
+- 다른 가격 제안 금지
+- 다른 Trial 정책 제안 금지
+- 다른 storage 정책 제안 금지
+- 1.6.3 legacy 계약 삭제 금지
+
+이번 WP2A의 범위는 오직:
+
+1. 신규 상품모델
+2. 저장공간 source of truth 통합
+3. 사진+영상 unified quota
+4. SWIMNOTE 회원수 무제한 내부처리
+5. 영상 플랜 gate 서버 측 제거 준비/적용
+6. 1.6.3 backward compatibility
+
+입니다.
+
+X Trial 상태머신은 WP2B.
+가격 UI는 WP3.
+RevenueCat 신규 상품 연결은 WP4.
+영상 1080p 압축은 WP5.
+학부모 피드/앨범/Story는 WP6.
+
+절대 미리 건드리지 마십시오.
+
+==================================================
+0. LOCKED PRODUCT POLICY
+==================================================
+
+최종 상품:
+
+--------------------------------
+SWIMNOTE
+--------------------------------
+
+가격:
+월 9,900원
+
+회원수:
+사용자 표시상 무제한
+
+내부 member_limit:
+999999
+
+저장공간:
+10GB
+
+영상:
+허용
+
+--------------------------------
+X300
+--------------------------------
+
+가격:
+월 119,000원
+
+회원수:
+최대 300명
+
+저장공간:
+300GB
+
+영상:
+허용
+
+--------------------------------
+X500
+--------------------------------
+
+가격:
+월 189,000원
+
+회원수:
+최대 500명
+
+저장공간:
+500GB
+
+영상:
+허용
+
+--------------------------------
+X1000
+--------------------------------
+
+가격:
+월 349,000원
+
+회원수:
+최대 1000명
+
+저장공간:
+1000GB
+
+영상:
+허용
+
+--------------------------------
+DATA100
+--------------------------------
+
+가격:
+월 7,900원
+
+추가 저장공간:
++100GB
+
+--------------------------------
+DATA300
+--------------------------------
+
+가격:
+월 22,900원
+
+추가 저장공간:
++300GB
+
+==================================================
+1. LEGACY GRANDFATHERING — 절대 유지
+==================================================
+
+기존 Coach/Premier 구독자는 계속 기존 구독을 사용할 수 있어야 합니다.
+
+기존:
+
+solo_30
+solo_50
+solo_100
+center_200
+center_300
+center_500
+center_1000
+
+및 기존 alias/legacy ID 전부 유지.
+
+기존 필드 삭제 금지:
+
+- plan_id
+- tier_group
+- includes_video
+- member_limit
+- storageGb
+- features.video
+- nextBillingAt
+- status
+- subscription_tier
+- entitlement "solo"
+- entitlement "center"
+
+기존 RevenueCat legacy mapping 삭제 금지.
+
+정책:
+
+- 기존 Coach/Premier 가입자는 renewal 가능
+- 기존 상품 신규 판매는 추후 RevenueCat Offering에서 제거
+- 기존 사용자가 해지/만료하면 기존 상품 재가입 불가
+- 신규 사용자는 신규 SWIMNOTE/X 상품만 가입
+- WP2A에서는 기존 RC Offering 실제 변경 금지
+
+==================================================
+2. 신규 PLAN ID 정의
+==================================================
+
+서버/DB 내부 신규 plan_id를 다음처럼 사용하십시오.
+
+권장 LOCKED ID:
+
+swimnote
+x300
+x500
+x1000
+
+DATA100 / DATA300은
+base subscription plan이 아니라 add-on 상품이므로
+subscription_plans의 일반 base tier로 처리하지 않는 방향을 우선합니다.
+
+단 현재 DB 구조상 DATA pack 레코드가 반드시 필요하다면
+add-on 전용 타입임을 명확히 구분하십시오.
+
+Replit이 임의로:
+
+basic
+standard
+premium
+enterprise
+
+같은 이름으로 바꾸면 안 됩니다.
+
+==================================================
+3. subscription_plans 신규 레코드
+==================================================
+
+다음 신규 플랜 정의를 추가하십시오.
+
+SWIMNOTE:
+
+plan_id = swimnote
+display_name = SWIMNOTE
+price_krw = 9900
+member_limit = 999999
+storage_gb = 10
+
+X300:
+
+plan_id = x300
+display_name = SWIMNOTE X300
+price_krw = 119000
+member_limit = 300
+storage_gb = 300
+
+X500:
+
+plan_id = x500
+display_name = SWIMNOTE X500
+price_krw = 189000
+member_limit = 500
+storage_gb = 500
+
+X1000:
+
+plan_id = x1000
+display_name = SWIMNOTE X1000
+price_krw = 349000
+member_limit = 1000
+storage_gb = 1000
+
+중요:
+
+기존 legacy plan row는 삭제 금지.
+
+신규 row additive 방식.
+
+==================================================
+4. APP CONSTANTS 신규 플랜 정의
+==================================================
+
+`artifacts/swim-app/constants/subscriptionPlans.ts`
+
+또는 실제 현재 source 구조에
+신규 plan 정의 추가.
+
+SWIMNOTE:
+
+- 9,900
+- 회원수 무제한 표시
+- 10GB
+- video = true
+
+X300:
+
+- 119,000
+- 300명
+- 300GB
+- video = true
+
+X500:
+
+- 189,000
+- 500명
+- 500GB
+- video = true
+
+X1000:
+
+- 349,000
+- 1000명
+- 1000GB
+- video = true
+
+중요:
+
+WP3 전이므로
+전체 pricing screen UI를 재설계하지 마십시오.
+
+이번 WP에서는
+신규 플랜 데이터 구조/상수 정의까지만.
+
+기존 1.6.3 legacy constants 삭제 금지.
+
+==================================================
+5. SWIMNOTE 회원수 무제한 내부처리
+==================================================
+
+정책:
+
+사용자 표시:
+회원수 무제한
+
+내부:
+member_limit = 999999
+
+현재:
+
+getEffectiveMemberLimit()
+
+에서 NULL fallback=5가 있으므로
+이번 WP에서 NULL 무제한 의미로 변경하지 마십시오.
+
+공용 로직 변경 최소화.
+
+확인:
+
+- 신규 학생 등록
+- 학생 재활성화
+- bulk import
+
+에서 swimnote plan이
+999999 제한으로 정상 처리되는지 테스트.
+
+2.0 UI에서 999999를 "무제한"으로 표시하는 것은 WP3 범위.
+
+이번 WP에서는 서버값만 정상화.
+
+==================================================
+6. STORAGE SOURCE OF TRUTH 통합
+==================================================
+
+LOCKED:
+
+추가 저장공간 Source of Truth =
+
+swimming_pools.extra_storage_gb
+
+입니다.
+
+현재:
+
+pool_subscriptions.extra_storage_gb
+
+가 별도로 존재하더라도
+향후 authoritative source로 사용하지 않습니다.
+
+최종 계산:
+
+effective_storage_gb
+=
+base_plan_storage_gb
++
+swimming_pools.extra_storage_gb
+
+==================================================
+7. 기존 extra_storage_gb BACKFILL
+==================================================
+
+현재:
+
+pool_subscriptions.extra_storage_gb
+swimming_pools.extra_storage_gb
+
+값이 다를 가능성이 있음.
+
+Production write 금지 상태이므로:
+
+1.
+현재 migration/backfill SQL 작성
+
+2.
+중복 데이터 발생 시 우선순위 정의
+
+권장:
+
+existing_effective_extra =
+MAX(
+  swimming_pools.extra_storage_gb,
+  pool_subscriptions.extra_storage_gb
+)
+
+단 이 방식이 데이터 구조상 안전한지 실제 schema 확인 후 적용.
+
+중요:
+
+- 값을 잃으면 안 됨
+- 기존 구매자가 가진 extra storage 감소 금지
+- migration은 idempotent 해야 함
+- Production migration 실행 금지
+- migration file 작성만 가능
+
+완료보고에:
+
+BACKFILL STRATEGY
+
+를 명시.
+
+==================================================
+8. UNIFIED PHOTO + VIDEO QUOTA
+==================================================
+
+현재 중대한 문제:
+
+uploads.ts는 photo only
+videos.ts는 video only
+
+로 사용량을 계산.
+
+이를 통합하십시오.
+
+목표:
+
+used_storage_bytes
+=
+ACTIVE PHOTO BYTES
++
+ACTIVE VIDEO BYTES
+
+단일 함수/서비스로 중앙화.
+
+가능하면:
+
+getPoolStorageUsage(poolId)
+
+또는 현재 프로젝트 naming convention에 맞는 helper 생성.
+
+모든 quota check가
+동일 helper를 사용하도록 변경.
+
+최소 적용 대상:
+
+- uploads.ts
+- photos.ts
+- videos.ts
+
+==================================================
+9. PHOTO BYTE 계산
+==================================================
+
+현재 실제 사용 중인 photo tables가 여러 개이므로
+중복 count가 발생하지 않게 반드시 확인하십시오.
+
+예:
+
+student_photos
+photo_assets_meta
+
+동일 asset이 두 테이블에 동시에 기록되는 경우
+두 번 합산하면 안 됩니다.
+
+실제 canonical source를 확인하십시오.
+
+사용량 source를 하나로 확정.
+
+완료보고에:
+
+PHOTO USAGE SOURCE:
+...
+
+를 명시.
+
+==================================================
+10. VIDEO BYTE 계산
+==================================================
+
+video 사용량:
+
+video_assets_meta.file_size
+
+조건:
+
+status = 'active'
+
+현재 14일 retention 유지.
+
+만료/soft-delete된 video는
+quota에서 제외.
+
+LOCKED:
+
+VIDEO RETENTION = 14 DAYS
+
+이 정책 변경 금지.
+
+==================================================
+11. THUMBNAIL QUOTA
+==================================================
+
+현재 thumbnail bytes는 별도 집계하지 않는 구조.
+
+이번 WP에서 변경하지 마십시오.
+
+정책:
+
+thumbnail bytes
+→ quota 미포함 유지
+
+향후 비용이 문제가 되면 별도 WP에서 판단.
+
+==================================================
+12. STORAGE WARNING
+==================================================
+
+통합 quota 기준:
+
+80%
+→ warning
+
+90%
+→ DATA pack 안내 상태
+
+100%
+→ 신규 media upload block
+
+WP2A에서는 서버에서
+80 / 90 / 100 threshold를 일관된 방식으로 계산 가능하게 하십시오.
+
+UI 실제 DATA pack 구매버튼은 WP3/WP4.
+
+서버 response에서 필요한 additive field가 있다면 추가 가능.
+
+예:
+
+storage_used_pct
+storage_warning_level
+storage_can_upload
+
+단 기존 field 삭제 금지.
+
+==================================================
+13. 100% quota 초과 정책
+==================================================
+
+100% 도달 시:
+
+막아야 하는 것:
+
+- 신규 사진 업로드
+- 신규 영상 업로드
+
+막으면 안 되는 것:
+
+- 기존 사진 조회
+- 기존 영상 조회
+- 회원관리
+- 반관리
+- 출결
+- 일지 텍스트 작성
+- 공지
+- 기존 학부모 콘텐츠 조회
+
+현재 upload_blocked가
+다른 기능까지 막는지 반드시 확인.
+
+필요하면 media upload only로 제한.
+
+==================================================
+14. DATA PACK 준비 구조
+==================================================
+
+WP4에서 RevenueCat webhook을 붙일 예정.
+
+WP2A에서는 server/storage layer가
+아래 연산을 지원하도록 준비:
+
+DATA100 purchase:
+extra_storage_gb += 100
+
+DATA300 purchase:
+extra_storage_gb += 300
+
+취소/만료:
+해당 add-on만큼 감소
+
+중요:
+
+DATA100 + DATA300 동시 보유 가능.
+
+예:
+
+base 10GB
++ DATA100
++ DATA300
+
+=
+410GB
+
+스택 가능.
+
+실제 RevenueCat purchase logic은 WP4.
+
+==================================================
+15. VIDEO PLAN GATE 서버 제거
+==================================================
+
+LOCKED POLICY:
+
+SWIMNOTE / X300 / X500 / X1000
+전부 video enabled.
+
+기존:
+
+VIDEO_ALLOWED_TIERS
+
+Premier-only 정책 제거.
+
+서버:
+
+videos.ts
+subscriptionResolver.ts
+billing/features
+
+에서 신규 플랜은 video=true.
+
+그리고 기존 Coach/Premier도
+정책상 영상 허용으로 확장합니다.
+
+즉:
+
+기존 Coach/Premier도
+video_enabled = true
+
+가 되도록 변경.
+
+주의:
+
+1.6.3 Coach 앱에 영상 버튼이 노출되는 것은
+의도된 정책입니다.
+
+반드시 서버 gate도 같이 제거해서
+버튼은 보이는데 업로드는 403인 상태가 생기지 않게 하십시오.
+
+==================================================
+16. APP 영상 gate는 아직 최소 변경
+==================================================
+
+WP5에서 최종 video pipeline 변경 예정.
+
+이번 WP2A에서는
+서버 video entitlement 결과가 전 플랜 true가 되도록 처리.
+
+APP `photos.tsx`의 기존
+planFeatures.video_enabled gate를
+지금 제거할지 WP5까지 유지할지는
+1.6.3/2.0 롤아웃 순서를 고려하여 최소 변경 선택.
+
+중요:
+
+버튼 노출과 server gate가 불일치하면 안 됨.
+
+현재 branch release/v2.0.0에서
+2.0 앱만 영향을 받는 변경은 가능.
+
+완료보고에 실제 선택 이유 명시.
+
+==================================================
+17. 1.6.3 LEGACY RESPONSE 보존
+==================================================
+
+기존 API response field 삭제 금지.
+
+반드시 유지:
+
+planCode
+tier
+status
+memberLimit
+storageGb
+features.video
+nextBillingAt
+subscriptionSource
+
+기존 legacy aliases 유지.
+
+예:
+
+growth
+premium
+enterprise
+advance
+pro
+max
+
+기존 resolver가 인식하던 alias 삭제 금지.
+
+신규:
+
+swimnote
+x300
+x500
+x1000
+
+을 additive mapping.
+
+==================================================
+18. subscriptionResolver 변경 원칙
+==================================================
+
+HIGH RISK SHARED CODE입니다.
+
+절대 대규모 rewrite 금지.
+
+현재 우선순위:
+
+manual
+>
+pool_subscriptions(active)
+>
+swimming_pools.subscription_tier
+>
+free
+
+유지.
+
+신규 plan만 additive support.
+
+기존 tier resolution 결과가 바뀌지 않게 regression test.
+
+==================================================
+19. 신규 X PLAN과 기존 X MODE 구분
+==================================================
+
+주의:
+
+현재 기존 X billing에는:
+
+com.swimnote.x.monthly.tier1
+tier2
+tier3
+standard
+
+등 선착순 할인/slot 구조가 존재.
+
+이번 신규:
+
+x300
+x500
+x1000
+
+상품체계와 혼동하지 마십시오.
+
+WP2A에서는 신규 plan model만 준비.
+
+RevenueCat 신규 Product ID mapping은 WP4.
+
+기존 X slot lifecycle 삭제 금지.
+
+기존 X entitlement 구조 삭제 금지.
+
+==================================================
+20. DB MIGRATION
+==================================================
+
+필요 migration 작성.
+
+예상:
+
+1.
+subscription_plans 신규 row
+
+2.
+extra_storage_gb backfill/SoT 정리
+
+3.
+필요한 index/constraint가 정말 필요할 경우만
+
+중요:
+
+- schema destructive change 금지
+- legacy row 삭제 금지
+- production 실행 금지
+
+Migration 작성 후:
+
+UP
+DOWN 또는 rollback 전략
+idempotency
+
+검증.
+
+==================================================
+21. PRICE FIELD
+==================================================
+
+서버 subscription_plans에 price 필드가 실제 존재한다면
+신규 가격값 저장.
+
+없다면 새 가격 컬럼을 억지로 추가하지 마십시오.
+
+현재 서버가 가격을 어떻게 쓰는지 확인 후
+필요 최소변경.
+
+RevenueCat 실제 결제가격 source of truth는
+WP4/manual store setup 이후 결정.
+
+APP 표시가격 최종 UI는 WP3.
+
+==================================================
+22. 테스트
+==================================================
+
+최소 아래 자동/수동 테스트 수행.
+
+--------------------------------
+CASE A
+Legacy Coach 30
+--------------------------------
+
+Expected:
+
+plan resolution unchanged
+member limit unchanged
+storage unchanged
+video = true
+purchase/restore contract unchanged
+
+--------------------------------
+CASE B
+Legacy Premier 300
+--------------------------------
+
+Expected:
+
+resolution unchanged
+tier alias unchanged
+storage unchanged
+video = true
+
+--------------------------------
+CASE C
+New SWIMNOTE
+--------------------------------
+
+member_limit = 999999
+storage = 10GB
+video = true
+
+--------------------------------
+CASE D
+New X300
+--------------------------------
+
+member_limit = 300
+storage = 300GB
+video = true
+
+--------------------------------
+CASE E
+New X500
+--------------------------------
+
+500
+500GB
+video true
+
+--------------------------------
+CASE F
+New X1000
+--------------------------------
+
+1000
+1000GB
+video true
+
+--------------------------------
+CASE G
+Storage unified quota
+--------------------------------
+
+Example:
+
+photo = 4GB
+video = 3GB
+
+used =
+7GB
+
+모든 photo/video upload 경로에서
+동일한 used_storage 반환.
+
+--------------------------------
+CASE H
+expired video
+--------------------------------
+
+active video:
+quota 포함
+
+expired/non-active video:
+quota 제외
+
+--------------------------------
+CASE I
+extra storage
+--------------------------------
+
+base 10GB
+extra 100GB
+
+quota =
+110GB
+
+--------------------------------
+CASE J
+100% quota
+--------------------------------
+
+photo upload:
+blocked
+
+video upload:
+blocked
+
+member management:
+works
+
+attendance:
+works
+
+diary text:
+works
+
+--------------------------------
+CASE K
+legacy restore
+--------------------------------
+
+기존 RC tier mapping 정상.
+
+==================================================
+23. 1.6.3 REGRESSION
+==================================================
+
+다음 반드시 확인:
+
+- 기존 plan id 유지
+- 기존 entitlement 유지
+- 기존 response shape 유지
+- 기존 subscription resolver 정상
+- 기존 restore 정상
+- 기존 renewal 정상
+- 기존 cancellation 정상
+- 기존 expiration 정상
+- 신규 plan 때문에 legacy plan이 신규 plan으로 자동변환되지 않음
+
+Grandfathering 깨지면 FAIL.
+
+==================================================
+24. 범위 밖 금지
+==================================================
+
+이번 WP에서 하지 마십시오:
+
+- X Trial 구현
+- x_trial DB 컬럼
+- X ModeContext 변경
+- 신규 pricing UI 완성
+- RevenueCat 신규 Product ID 실제 연결
+- RevenueCat dashboard 변경
+- App Store product 생성
+- Play Store product 생성
+- video compression 라이브러리 설치
+- EAS build
+- 영상 1080p 압축
+- 학부모 영상 피드
+- 학부모 앨범 영상
+- Story 영상-only 카드
+- AI ENGINE 변경
+
+==================================================
+25. PRODUCTION 금지
+==================================================
+
+Production DB migration 실행 금지.
+
+Render deploy 금지.
+
+OTA 금지.
+
+EAS production build 금지.
+
+Store deploy 금지.
+
+RevenueCat production 변경 금지.
+
+코드 수정 및 테스트까지만 수행.
+
+==================================================
+26. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 WP2A COMPLETION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## LOCKED DESIGN COMPLIANCE
+
+SWIMNOTE:
+999999 / 10GB / video true
+PASS / FAIL
+
+X300:
+300 / 300GB / video true
+PASS / FAIL
+
+X500:
+500 / 500GB / video true
+PASS / FAIL
+
+X1000:
+1000 / 1000GB / video true
+PASS / FAIL
+
+Legacy grandfathering:
+PASS / FAIL
+
+## PLAN MODEL
+
+New plan IDs:
+...
+
+Legacy IDs preserved:
+...
+
+## SUBSCRIPTION RESOLVER
+
+Changes:
+...
+
+Legacy behavior preserved:
+YES / NO
+
+## MEMBER LIMIT
+
+SWIMNOTE internal:
+...
+
+NULL fallback changed:
+YES / NO
+
+Expected:
+NO
+
+## STORAGE SOURCE OF TRUTH
+
+Authoritative:
+...
+
+Legacy source:
+...
+
+Backfill strategy:
+...
+
+## PHOTO USAGE SOURCE
+
+...
+
+## VIDEO USAGE SOURCE
+
+...
+
+## UNIFIED QUOTA
+
+Formula:
+...
+
+Central helper:
+...
+
+Photo route:
+PASS / FAIL
+
+Video route:
+PASS / FAIL
+
+## STORAGE WARNING
+
+80%:
+...
+
+90%:
+...
+
+100%:
+...
+
+## DATA PACK READINESS
+
++100GB:
+READY / NOT READY
+
++300GB:
+READY / NOT READY
+
+Stacking:
+READY / NOT READY
+
+Webhook:
+NOT IMPLEMENTED — WP4
+
+## VIDEO PLAN GATE
+
+Server legacy gate removed:
+YES / NO
+
+billing/features:
+...
+
+Legacy Coach video:
+PASS / FAIL
+
+Legacy Premier video:
+PASS / FAIL
+
+New SWIMNOTE video:
+PASS / FAIL
+
+New X plans video:
+PASS / FAIL
+
+## VIDEO RETENTION
+
+14 DAYS:
+UNCHANGED / CHANGED
+
+Expected:
+UNCHANGED
+
+## 1.6.3 COMPATIBILITY
+
+plan_id:
+PASS / FAIL
+
+tier_group:
+PASS / FAIL
+
+includes_video:
+PASS / FAIL
+
+entitlement:
+PASS / FAIL
+
+restore:
+PASS / FAIL
+
+renewal:
+PASS / FAIL
+
+cancellation:
+PASS / FAIL
+
+expiration:
+PASS / FAIL
+
+## MIGRATIONS CREATED
+
+...
+
+Production executed:
+NO
+
+## FILES CHANGED
+
+...
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+
+CASE B:
+PASS / FAIL
+
+CASE C:
+PASS / FAIL
+
+CASE D:
+PASS / FAIL
+
+CASE E:
+PASS / FAIL
+
+CASE F:
+PASS / FAIL
+
+CASE G:
+PASS / FAIL
+
+CASE H:
+PASS / FAIL
+
+CASE I:
+PASS / FAIL
+
+CASE J:
+PASS / FAIL
+
+CASE K:
+PASS / FAIL
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## RISKS
+
+...
+
+## BLOCKERS FOR WP2B
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## DEPLOY REQUIRED
+
+YES / NO
+
+배포가 필요해도 승인 전 절대 수행하지 마십시오.
+
+FINAL:
+
+SWIMNOTE 2.0 WP2A COMPLETE

@@ -1,0 +1,503 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# GLOBAL BACK / KEYBOARD FINAL
+# IOS TESTFLIGHT OTA PUBLISH + DEVICE VERIFICATION
+
+현재 상태:
+
+GLOBAL BACK / KEYBOARD:
+FULL PASS
+
+ADMIN MEMBER DETAIL EMPTY BACKGROUND KEYBOARD:
+PASS
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Latest app-code HEAD:
+b5a2bc6c
+
+이번 작업은
+완료된 Global Back / Keyboard Interaction 수정 전체를
+현재 SWIMNOTE 2.0 TestFlight Build 252에서
+실기기 확인할 수 있도록
+
+iOS OTA를 발행하는 작업입니다.
+
+==================================================
+1. SOURCE 확인
+==================================================
+
+현재 실제 Git 상태 확인.
+
+Expected:
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+HEAD:
+b5a2bc6c
+또는 이후 document-only commit
+
+만약 b5a2bc6c 이후 commit이 있다면:
+
+- 실제 app-code 변경 여부 확인
+- unrelated app-code 변경이 있으면 OTA 발행 중지
+- doc-only이면 현재 HEAD 사용 가능
+
+==================================================
+2. CURRENT TESTFLIGHT DELIVERY PATH
+==================================================
+
+LOCKED:
+
+TestFlight Build:
+252
+
+Runtime:
+2.0.0
+
+Embedded Channel:
+production-v2
+
+Channel Mapping:
+
+production-v2
+→
+release-2.0.0
+
+mapping 변경 금지.
+
+==================================================
+3. OTA TARGET
+==================================================
+
+Target EAS Update Branch:
+
+release-2.0.0
+
+Platform:
+
+iOS ONLY
+
+Runtime:
+
+2.0.0
+
+주의:
+
+production-v2라는 이름의 branch에
+잘못 발행하지 마십시오.
+
+Build 252가 실제로 보는 branch는:
+
+release-2.0.0
+
+입니다.
+
+==================================================
+4. 이번 OTA 포함 범위
+==================================================
+
+반드시 다음 수정 포함:
+
+A.
+WP-M3 Admin Member Detail long-scroll
+
+B.
+WP-M4 Teacher Student Detail long-scroll
+
+C.
+Terminology Search/Detail back context
+
+D.
+Teacher Settings → Terminology Search backTo
+
+E.
+Admin Settings → X Setup backTo
+
+F.
+잘못된 Admin/Teacher homePath 수정
+
+G.
+refund-policy router.replace
+
+H.
+Terminology Search keyboard background dismiss
+
+I.
+Curriculum Chat keyboard background dismiss
+
+J.
+Teacher Student Detail modal background dismiss
+
+K.
+Admin Member Detail inline-edit background dismiss
+
+L.
+Support Chat persist taps / scroll dismiss
+
+M.
+Diary Write / Feedback Settings persist taps
+
+N.
+Add Child autofocus 제거 + background dismiss
+
+==================================================
+5. OTA MESSAGE
+==================================================
+
+예:
+
+2.0.0 iOS device test: member detail + global back keyboard final
+
+동일 의미의 명확한 메시지 사용.
+
+==================================================
+6. DELIVERY PATH 검증
+==================================================
+
+발행 후 반드시 확인:
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Latest Update:
+방금 발행한 Update ID
+
+Platform:
+iOS
+
+Runtime:
+2.0.0
+
+Build 252 reachable:
+YES
+
+Source contains:
+b5a2bc6c
+
+==================================================
+7. USER DEVICE CHECK — BACK
+==================================================
+
+실기기에서 확인할 수 있도록 준비.
+
+[ ] Teacher Settings
+→ 용어검색
+→ 용어상세
+→ Back
+→ 용어검색
+
+[ ] 다시 Back
+→ Teacher Settings
+
+[ ] Parent 용어검색
+→ 상세
+→ Back
+→ 검색목록
+
+[ ] Settings
+→ X Setup
+→ Back
+→ Settings
+
+[ ] Settings
+→ X Mode
+→ Back
+→ Settings
+
+[ ] Settings
+→ Notification
+→ Back
+→ Settings
+
+[ ] 설정의 세부설정/세부내용에서
+Back으로 Home 강제 이동 없음
+
+==================================================
+8. USER DEVICE CHECK — KEYBOARD
+==================================================
+
+[ ] Curriculum Chat
+input tap
+→ keyboard visible
+
+[ ] 빈 배경 tap
+→ keyboard hidden
+
+[ ] keyboard visible 상태에서 result/button tap
+→ 첫 tap 실행
+
+[ ] Terminology Search
+빈 배경 tap
+→ keyboard hidden
+
+[ ] Terminology result
+→ 첫 tap으로 상세 이동
+
+[ ] scroll
+→ keyboard dismiss
+
+==================================================
+9. ADMIN MEMBER DETAIL 실기기 확인
+==================================================
+
+특히 이번 마지막 micro-fix 확인.
+
+Section A:
+
+[ ] 수정
+[ ] TextInput tap → keyboard visible
+[ ] 빈 배경 tap → keyboard hidden
+[ ] Save 첫 tap 실행
+[ ] Cancel 첫 tap 실행
+
+Section E:
+
+[ ] 보호자 연락처 수정
+[ ] keyboard visible
+[ ] 빈 배경 tap → keyboard hidden
+[ ] Save 첫 tap 실행
+
+다른 interactive target:
+
+[ ] 반 변경 첫 tap 정상
+[ ] 레벨 변경 첫 tap 정상
+[ ] 상태/Danger Zone 버튼 첫 tap 정상
+
+중요:
+
+부모 Pressable이
+자식 Pressable/TextInput interaction을
+가로채지 않아야 함.
+
+==================================================
+10. TEACHER STUDENT DETAIL 실기기 확인
+==================================================
+
+[ ] 전화번호 edit modal
+→ 빈 배경 tap
+→ keyboard hidden
+→ modal은 열린 상태
+
+[ ] Save 첫 tap
+
+[ ] Level 변경 첫 tap
+
+[ ] Back
+→ 직전 학생목록/스케줄
+
+==================================================
+11. MEMBER DETAIL 구조 회귀
+==================================================
+
+Admin:
+
+[ ] 단일 long-scroll 정상
+[ ] 마지막 Section H까지 scroll
+[ ] parent_phone1~4 정상
+[ ] attendance summary 정상
+[ ] makeup summary 정상
+
+Teacher:
+
+[ ] 단일 long-scroll 정상
+[ ] phone1/2만 표시
+[ ] phone3/4 미노출
+[ ] Danger Zone 없음
+
+==================================================
+12. SHARED CORE 확인
+==================================================
+
+일반 SWIMNOTE:
+
+Admin/Teacher Member Detail 정상
+
+X:
+
+동일 Member Detail 정상
+
+회원관리 mode gate 신규 생성 없음.
+
+==================================================
+13. PRICING / SUBSCRIPTION 보호
+==================================================
+
+이번 작업에서 변경 금지:
+
+SWIMNOTE 9,900
+X300 129,000
+X500 199,000
+X1000 359,000
+DATA100 7,900
+DATA300 22,900
+
+RevenueCat:
+NO
+
+App Store:
+NO
+
+Google Play:
+NO
+
+==================================================
+14. PRODUCTION 보호
+==================================================
+
+금지:
+
+1.6.3 OTA
+Android OTA
+production channel OTA
+Render 변경
+deploy-photo-clone 변경
+Production DB 변경
+RevenueCat 변경
+Store product 변경
+
+2.0 iOS OTA only.
+
+==================================================
+15. 추가 코드 수정 금지
+==================================================
+
+이번 단계는 OTA publish + delivery verification만.
+
+새로운 bug 발견 시:
+
+임의 수정 금지
+보고만.
+
+==================================================
+16. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# MEMBER + GLOBAL UX FINAL TESTFLIGHT OTA REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## SOURCE
+
+b5a2bc6c included:
+YES / NO
+
+Unrelated app-code after b5a2bc6c:
+YES / NO
+
+Expected:
+NO
+
+## OTA
+
+Published:
+YES / NO
+
+Target Branch:
+...
+
+Expected:
+release-2.0.0
+
+Platform:
+iOS
+
+Runtime:
+2.0.0
+
+Update ID:
+...
+
+Update Group:
+...
+
+Message:
+...
+
+## DELIVERY
+
+Build:
+252
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Reachable:
+YES / NO
+
+Expected:
+YES
+
+## INCLUDED
+
+WP-M3:
+PASS / FAIL
+
+WP-M4:
+PASS / FAIL
+
+Terminology Back:
+PASS / FAIL
+
+Settings Back:
+PASS / FAIL
+
+Keyboard Background Dismiss:
+PASS / FAIL
+
+Button One-Tap:
+PASS / FAIL
+
+Admin Member Detail Micro-Fix:
+PASS / FAIL
+
+## PRODUCTION SAFETY
+
+1.6.3 modified:
+NO
+
+Android OTA:
+NO
+
+Production OTA:
+NO
+
+Render modified:
+NO
+
+Production DB modified:
+NO
+
+RevenueCat modified:
+NO
+
+Store modified:
+NO
+
+## USER DEVICE TEST READY
+
+YES / NO
+
+## FINAL
+
+SWIMNOTE 2.0 MEMBER / GLOBAL UX DEVICE TEST READY
+or
+BLOCKED

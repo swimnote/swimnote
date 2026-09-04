@@ -1,0 +1,350 @@
+[앱] Teacher 알림 UX 2차 설계 — Back Stack + 홈 중간모달 소식 통합
+조사/구현계획서 ONLY
+
+코드 수정 금지.
+이번 단계는 실제 현재 구조 확인 + 최종 구현계획서 제출만.
+
+실기기에서 확인된 문제:
+
+1.
+알림함
+→ 좋아요/댓글 항목 탭
+→ 반응 & 댓글 화면
+→ 뒤로가기
+
+현재:
+Home으로 바로 이동
+
+목표:
+알림함으로 복귀
+→ 다시 뒤로가기
+→ Home
+
+2.
+Teacher Home 편지함 아이콘을 누르면 나오는 중간 Modal에는 현재:
+
+- 쪽지
+- 학부모 요청
+
+만 보임.
+
+하지만 실제 Teacher가 가장 자주 확인해야 하는:
+
+- 수업피드 좋아요
+- 수업피드 댓글
+- AI 성장 리포트 좋아요
+- AI 성장 리포트 댓글
+
+이 소식이 Modal에 보이지 않음.
+
+목표:
+Home 편지함 Modal에서
+최근 unread 소식까지 바로 확인 가능하게 만들 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. Back Navigation ROOT CAUSE 최종 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서:
+
+Home
+→ Modal
+→ 알림함(messages-inbox)
+→ 알림 선택
+→ diary-reactions 또는 growth-report-reactions
+→ Back
+→ Home
+
+으로 이동함.
+
+이전 Modal close → requestAnimationFrame → router.push 수정으로도 해결 안 됨.
+
+따라서 이제 Modal timing 가설은 폐기하고
+실제 navigation stack / target back handler를 확인.
+
+반드시 확인:
+
+1. messages-inbox에서
+diary_like / diary_comment 선택 시
+정확한 router 호출 방식
+
+2. growth_report_like / growth_report_comment 선택 시
+정확한 router 호출 방식
+
+3. diary-reactions.tsx
+- source param
+- handleBack
+- router.back / replace / push 여부
+
+4. growth-report-reactions.tsx
+- onBack 구현
+- custom home 버튼과 back 버튼 구분
+
+5. target 화면 진입 시
+messages-inbox route가 stack에 실제 남아 있는지
+
+6. Expo Router Tabs/Stack 구조에서
+해당 화면들이 어느 navigator에 속하는지
+
+최종적으로:
+
+왜 target Back이 messages-inbox가 아니라 Home으로 가는지
+한 가지 ROOT CAUSE로 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. 원하는 최종 Back 동작
+━━━━━━━━━━━━━━━━━━━━━━
+
+알림함에서 진입한 경우:
+
+Home
+→ messages-inbox
+→ notification target
+
+Back:
+notification target
+→ messages-inbox
+
+Back:
+messages-inbox
+→ Home
+
+이 순서가 반드시 유지.
+
+단,
+Diary 화면 등 다른 곳에서
+diary-reactions / growth-report-reactions로 직접 진입한 경우에는
+기존 source로 정상 복귀해야 함.
+
+따라서 target 화면의 back destination을
+무조건 Inbox로 하드코딩하지 말고
+"진입 source" 기반 최소 설계 우선.
+
+예:
+
+source=news_inbox
+→ back to messages-inbox
+
+source=teacher_diary
+→ back to diary
+
+등.
+
+현재 source param 체계가 이미 있다면 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. Home 중간 Modal 현재 구조 조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면:
+
+Teacher Home
+→ 편지함 아이콘
+→ UnreadMessagesModal
+
+현재 Modal 내용:
+
+- 쪽지
+- 학부모 요청
+- 전체보기 버튼
+
+실제 코드 기준으로 확인:
+
+- Modal component
+- 현재 props/state
+- 쪽지 데이터 source
+- 학부모 요청 데이터 source
+- unread count source
+- 알림함(messages-inbox)으로 이동하는 기존 경로
+- 현재 /teacher/overview 데이터 중 unread_news 값
+- GET /teacher/news를 Modal에서 이미 호출하는지 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. Home Modal에 "소식" 영역 추가 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+목표 UI 개념:
+
+[쪽지 · 학부모 요청]
+
+기존 내용 유지
+
++
+
+[새 소식]
+
+최근 unread notification 몇 건
+
+예:
+❤️ 새 좋아요
+서경민님이 8월 6일 수업피드에 좋아요를 눌렀습니다.
+
+💬 새 댓글
+서경민님이 AI 성장 리포트에 댓글을 남겼습니다.
+
+❤️ 새 좋아요
+서경민님이 AI 성장 리포트에 좋아요를 눌렀습니다.
+
+그리고 하단:
+
+[알림함 전체보기]
+
+→ 기존 messages-inbox 이동
+
+중요:
+새 notification system 만들지 말 것.
+
+기존:
+GET /teacher/news
+notifications.is_read
+unread_count
+
+를 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. Modal 소식 표시 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+설계 시 아래 기준 사용.
+
+Modal에는 unread 소식만 우선 표시.
+
+대상 type:
+
+- diary_like
+- diary_thanks
+- diary_comment
+- growth_report_like
+- growth_report_comment
+
+표시 개수:
+최근 3건 정도 권장.
+
+단 실제 UI 높이와 기존 Modal 구조를 보고
+2~3건 중 적절한 값 제안.
+
+표시 내용:
+서버 notification의 실제
+
+- type
+- title
+- body
+- ref_id
+- is_read
+- created_at
+
+를 사용.
+
+클라이언트에서 새로운 문구를 임의 생성하지 말 것.
+
+알림 항목 탭:
+→ 해당 notification read 처리
+→ 해당 target 화면으로 이동
+
+알림함 전체보기:
+→ messages-inbox
+
+━━━━━━━━━━━━━━━━━━━━━━
+F. Modal Read 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+Modal을 열었다는 이유만으로
+모든 소식을 읽음 처리하지 말 것.
+
+정책:
+
+Modal open
+→ unread 유지
+
+특정 소식 항목 tap
+→ 해당 notification만 read
+
+알림함 전체보기
+→ 기존 messages-inbox 정책 유지
+
+Home red dot:
+unread 1건 이상이면 유지
+해당 알림들을 실제 읽은 뒤 0이면 제거
+
+━━━━━━━━━━━━━━━━━━━━━━
+G. Modal 디자인 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계는 설계만.
+
+기존 쪽지·학부모 요청 Modal의 큰 구조는 유지.
+
+새 소식 영역은:
+
+- 너무 큰 카드 반복 금지
+- 최근 소식 2~3개 compact row
+- icon + title + body 일부
+- unread indicator
+- 전체보기
+
+정도로 설계.
+
+새로운 별도 full screen 만들지 말 것.
+기존 알림함 messages-inbox를 그대로 전체보기로 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+H. 제출할 구현계획서
+━━━━━━━━━━━━━━━━━━━━━━
+
+[BACK ROOT CAUSE]
+- messages-inbox → target 실제 routing
+- diary-reactions back 구조
+- growth-report-reactions back 구조
+- 왜 Home으로 빠지는지 확정 원인
+
+[BACK FIX PLAN]
+- 수정 파일
+- source param 사용 방식
+- inbox 진입 시 target back 동작
+- diary 등 다른 진입 경로 영향 여부
+
+[CURRENT MODAL]
+- component
+- 현재 data sources
+- 현재 unread/news 연결 여부
+
+[MODAL NEWS PLAN]
+- 사용할 API
+- 최근 unread 개수
+- 표시 notification types
+- item tap 동작
+- 전체보기 동작
+- read 처리 정책
+
+[RED DOT SYNC]
+- Modal에서 항목 읽음
+→ Home red dot 갱신 흐름
+
+[FILES]
+예상 수정 파일 목록
+
+[IMPLEMENTATION STEPS]
+Step 1
+Back navigation 수정
+
+Step 2
+Modal recent news 연결
+
+Step 3
+Red dot/read sync 확인
+
+각 단계별 targeted test 포함.
+
+이번 단계 절대 금지:
+
+- 코드 수정
+- OTA
+- Render deploy
+- DB migration
+- 새 notification table
+- 새 API 생성
+
+기존 API/state 재사용 우선.
+
+구현계획서 제출 후 STOP.
+사용자 승인 전 구현 시작 금지.

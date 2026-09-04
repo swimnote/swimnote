@@ -1,0 +1,152 @@
+SWIMNOTE 보강 — "날짜 다시 선택" 실제 파손 원인 재확인
+
+방금 제출한 수정안은 아직 승인하지 않는다.
+
+이유:
+
+현재 렌더 조건은
+
+단계2:
+selectedClassId && !selectedDate
+
+단계3:
+selectedClassId && selectedDate
+
+이다.
+
+따라서 현재 버튼의
+
+onPress={() => setSelectedDate(null)}
+
+이 실제 실행되기만 하면
+selectedOccurrence가 이전 값으로 남아 있더라도
+단계2로 복귀해야 한다.
+
+또 새 날짜를 선택하면
+
+setSelectedDate(...)
+setSelectedOccurrence(...)
+
+가 둘 다 새 값으로 덮어써진다.
+
+따라서
+"selectedOccurrence가 null이 아니라서 버튼이 작동하지 않는다"
+는 현재 증거만으로 원인 확정 불가다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 버튼 터치 자체 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 "날짜 다시 선택" Pressable이 실제로 터치를 받는지 조사한다.
+
+확인:
+
+- disabled 존재 여부
+- pointerEvents
+- 상위 View/Pressable이 터치 가로채는지
+- absolute View overlay 존재 여부
+- zIndex/elevation 문제
+- Modal/ScrollView/KeyboardAvoidingView 중첩
+- confirmBtn style에 터치 영역 문제
+- onPress가 실제 호출되는지
+
+최근 makeups.tsx UI refactor 전후 diff도 확인.
+
+특히 d7ee8f0e 이후
+모달/Pressable/ScrollView 구조 변경을 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. onPress 실행 후 실제 state transition 확인
+━━━━━━━━━━━━━━━━━━━━
+
+코드상 추정 말고 실제 state 흐름을 확인한다.
+
+버튼 클릭:
+
+BEFORE
+selectedClassId
+selectedDate
+selectedOccurrence
+
+ON_PRESS
+
+AFTER
+selectedClassId
+selectedDate
+selectedOccurrence
+
+그리고 어떤 JSX branch가 렌더되는지 확인.
+
+필요하면 개발 단계에서만 임시 로그 설계를 제안하되
+아직 코드 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 현재 버튼과 과거 정상 UI diff
+━━━━━━━━━━━━━━━━━━━━
+
+"날짜 다시 선택" 문자열 자체는 동일했다고 했으므로
+버튼 코드 한 줄만 비교하지 말고
+버튼을 감싸는 전체 단계3 UI 구조를 비교한다.
+
+비교 대상:
+
+- Pressable parent
+- View hierarchy
+- ScrollView
+- Modal
+- KeyboardAvoidingView
+- pointerEvents
+- disabled
+- style
+- absolute positioning
+
+마지막으로 실제 터치가 정상 동작했다고 확인된
+Production 시점과 현재 구조의 차이를 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. selectedOccurrence 초기화는 별도 판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 변경:
+
+setSelectedDate(null);
+setSelectedOccurrence(null);
+
+은 state 일관성 측면에서는 타당하다.
+
+그러나 이것을 "실제 버튼 파손 원인 수정"이라고
+단정하지 않는다.
+
+실제 터치 문제와 별개로
+안전성 보강이 필요한지 구분해서 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 절대 유지
+━━━━━━━━━━━━━━━━━━━━
+
+- 날짜 -14/+28
+- 선보강
+- 결석 당일
+- 미래 assign
+- 오늘/과거 complete-direct
+- 정원 5/5 초과 보강 허용
+  (기본 정원 5명이어도 보강으로 6명 이상 가능)
+- REQ-5 선생님별 visibility
+- expired
+- API_BASE
+
+모두 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 제출
+
+1. 버튼이 실제 터치를 받을 수 있는 구조인지
+2. disabled/pointerEvents/overlay 여부
+3. onPress 실행 여부를 방해할 코드
+4. 단계3 전체 View hierarchy
+5. 정상 시점 대비 UI 구조 diff
+6. selectedOccurrence stale이 실제 장애를 만들 수 있는 정확한 경로
+7. 실제 원인
+8. 최소 수정 diff
+
+조사만 하고 중단.

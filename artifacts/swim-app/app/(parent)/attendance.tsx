@@ -1,4 +1,4 @@
-import { Calendar } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -19,7 +19,7 @@ interface AttRecord {
 const C = Colors.light;
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
-  present: { label: "출석",  color: "#2EC4B6", bg: "#E6FFFA", icon: "check-circle" },
+  present: { label: "출석",  color: "#2EC4B6", bg: C.brandSoft, icon: "check-circle" },
   absent:  { label: "결석",  color: "#D96C6C", bg: "#F9DEDA", icon: "x-circle" },
   late:    { label: "지각",  color: "#D97706", bg: "#FFF1BF", icon: "clock" },
   makeup:  { label: "보강",  color: "#7C3AED", bg: "#EEDDF5", icon: "refresh-cw" },
@@ -53,6 +53,12 @@ export default function ParentAttendanceScreen() {
   useEffect(() => { load(); }, []);
 
   async function load() {
+    let hasCached = false;
+    try {
+      const raw = await AsyncStorage.getItem("@sn:parent_attendance");
+      if (raw) { setRecords(JSON.parse(raw)); hasCached = true; setLoading(false); }
+    } catch {}
+    if (!hasCached) setLoading(true);
     try {
       const res = await apiRequest(token, "/parent/attendance");
       const data = await res.json();
@@ -60,7 +66,8 @@ export default function ParentAttendanceScreen() {
         ? [...data].sort((a, b) => b.date.localeCompare(a.date))
         : [];
       setRecords(sorted);
-    } catch { setRecords([]); }
+      AsyncStorage.setItem("@sn:parent_attendance", JSON.stringify(sorted)).catch(() => {});
+    } catch { if (!hasCached) setRecords([]); }
     finally { setLoading(false); setRefreshing(false); }
   }
 
@@ -78,7 +85,7 @@ export default function ParentAttendanceScreen() {
       <ParentScreenHeader title="출결 기록" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={listData}
@@ -89,7 +96,7 @@ export default function ParentAttendanceScreen() {
             total > 0 ? (
               <View style={[styles.statsCard, { backgroundColor: C.card }]}>
                 <View style={styles.rateCol}>
-                  <Text style={[styles.rateNum, { color: C.tint }]}>{rate}%</Text>
+                  <Text style={[styles.rateNum, { color: C.brandStrong }]}>{rate}%</Text>
                   <Text style={[styles.rateLabel, { color: C.textSecondary }]}>출석률</Text>
                 </View>
                 <View style={[styles.divider, { backgroundColor: C.border }]} />
@@ -110,7 +117,7 @@ export default function ParentAttendanceScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Calendar size={40} color={C.textMuted} />
+              <LucideIcon name="calendar" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>출결 기록이 없습니다</Text>
             </View>
           }

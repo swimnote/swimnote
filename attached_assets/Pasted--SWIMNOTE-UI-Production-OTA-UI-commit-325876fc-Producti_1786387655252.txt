@@ -1,0 +1,159 @@
+[SWIMNOTE 학부모 홈 UI — Production OTA 배포]
+
+학부모 홈 UI 수정 commit `325876fc`를 Production OTA로 배포하십시오.
+
+이번 단계는 이미 완료된 UI 수정사항을 배포하는 작업입니다.
+추가 코드 수정은 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Gate
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 branch / HEAD를 확인하십시오.
+
+반드시 다음을 확인:
+
+1. commit `325876fc`가 현재 HEAD history에 포함되어 있는지
+2. `325876fc` 이후 앱 기능 코드 변경이 있는지
+3. 실제 OTA diff가 아래 2개 파일의 학부모 홈 UI 변경만 포함하는지
+
+- app/(parent)/home.tsx
+- components/parent/ParentPromoStrip.tsx
+
+attached_assets, txt, 로그 파일 등 비기능 파일은 별도 구분해서 보고하십시오.
+
+예상하지 않은 기능 코드 변경이 발견되면
+OTA를 진행하지 말고 STOP 후 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 저장공간 수정 보호 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 전에 현재 production에서 정상 작동 중인 저장공간 수정이 그대로 포함되는지 확인하십시오.
+
+반드시 유지:
+
+- Cleanup V1
+- Cleanup V2
+- mediaCleanupV2.ts
+- app startup cleanup
+- Image.clearDiskCache()
+- ImagePicker cleanup
+- UploadQueueContext upload temp cleanup
+- cachePolicy="memory"
+
+특히 학부모 home.tsx의 이미지에서
+cachePolicy="memory"가 유지되는지 확인하십시오.
+
+disk cache 방식으로 되돌아가면 안 됩니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 진단 UI 제거 상태 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production에서 제거 완료된
+
+- teacher 저장공간 진단 UI
+- parent 저장공간 진단 UI
+- super Storage Diagnostic UI
+
+가 다시 나타나지 않는지 확인하십시오.
+
+진단 UI를 복구하거나 다시 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+runtimeVersion 및 production channel을 먼저 확인한 뒤
+
+iOS Production
+Android Production
+
+양쪽에 동일 Source SHA 기준으로 OTA 배포하십시오.
+
+Preview 배포는 이번 작업에서 필요하지 않습니다.
+
+Native Build 금지.
+Render 배포 금지.
+DB 작업 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. OTA 포함 UI 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 bundle에 다음 변경이 실제 포함됐는지 확인하십시오.
+
+- 상단:
+  수영장 이름 + bell + SwimNote + images + settings
+
+- 학생 영역:
+  학생 선택 버튼 + 추가 버튼
+
+- AI 영역:
+  [AI 성장 리포트] [AI 커리큘럼 검색]
+  동일 row / flex:1 / 동일 비중
+
+- 안내 배너:
+  네이비 border
+  흰색 background
+  중앙 텍스트
+
+- 일지 시작 전 divider
+
+그리고 기존 handler가 유지되는지 다시 확인:
+
+학생 선택
++ 추가
+알림
+SwimNote
+사진/앨범
+설정
+AI 성장 리포트
+AI 커리큘럼 검색
+배너
+일지
+
+onPress/navigation을 이번 배포 과정에서 수정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+배포 후 아래 형식으로 보고하십시오.
+
+1. Current branch
+2. Current HEAD
+3. Source SHA
+4. `325876fc` 포함 여부
+5. `325876fc` 이후 기능 코드 변경 여부
+6. 실제 OTA diff 파일
+7. iOS Production Group ID
+8. iOS Update ID
+9. Android Production Group ID
+10. Android Update ID
+11. runtimeVersion
+12. channel
+13. 학부모 홈 UI 변경 포함 여부
+14. cachePolicy="memory" 유지 여부
+15. Cleanup V1 유지 여부
+16. Cleanup V2 유지 여부
+17. 진단 UI 제거 상태 유지 여부
+18. 기존 onPress/navigation 변경 = 0 확인
+19. Server 변경 = 0
+20. DB 변경 = 0
+21. R2 변경 = 0
+22. Native Build = 0
+
+마지막에 반드시:
+
+CODE CHANGED =
+OTA CHANGED =
+RENDER CHANGED =
+DB CHANGED =
+R2 CHANGED =
+NATIVE BUILD =
+
+를 기록하십시오.
+
+배포 완료 후 추가 수정하지 말고 STOP.

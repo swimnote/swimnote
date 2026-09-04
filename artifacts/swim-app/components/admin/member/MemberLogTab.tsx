@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import Colors from "@/constants/colors";
@@ -8,8 +8,8 @@ import type { ActivityLog } from "./memberDetailTypes";
 const C = Colors.light;
 
 const ACTION_META: Record<string, { label: string; color: string }> = {
-  update:  { label: "수정",  color: "#2EC4B6" },
-  create:  { label: "등록",  color: "#2EC4B6" },
+  update:  { label: "수정",  color: C.brandStrong },
+  create:  { label: "등록",  color: C.brandStrong },
   delete:  { label: "삭제",  color: "#D96C6C" },
   restore: { label: "복구",  color: "#7C3AED" },
   assign:  { label: "반배정", color: "#D97706" },
@@ -29,7 +29,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
       <ScrollView contentContainerStyle={ms.tabContent} showsVerticalScrollIndicator={false}>
         <View style={ms.section}>
           <View style={{ alignItems: "center", paddingVertical: 30, gap: 10 }}>
-            <Activity size={36} color={C.textMuted} />
+            <LucideIcon name="activity" size={36} color={C.textMuted} />
             <Text style={{ fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted }}>활동 기록이 없습니다</Text>
           </View>
         </View>
@@ -63,7 +63,7 @@ export function MemberLogTab({ logs }: MemberLogTabProps) {
                   {(log.before_value || log.after_value) && (
                     <View style={{ marginTop: 6, gap: 3 }}>
                       {log.before_value && <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C" }}>이전: {log.before_value}</Text>}
-                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#2EC4B6" }}>변경: {log.after_value}</Text>}
+                      {log.after_value  && <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong }}>변경: {log.after_value}</Text>}
                     </View>
                   )}
                   {log.note && (

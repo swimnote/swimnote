@@ -4,15 +4,12 @@
  * 이번 달 총 매출 / 회원별 수업 횟수 / 보강/체험/임시이동 카운팅
  * 기타 수기 정산 / 이번 달 정산 저장 / 다음 달 정산 시작
  */
-import { ChartBar, ChevronLeft, ChevronRight, CircleArrowRight, CircleCheck, CircleDollarSign, CircleMinus, CirclePlus, Pencil, Save } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -46,9 +43,9 @@ interface SettlementSummary {
 type SubmitStatus = "미정산" | "저장됨" | "제출완료" | "관리자확인";
 
 const STATUS_COLOR: Record<SubmitStatus, { bg: string; text: string }> = {
-  "미정산":    { bg: "#FFFFFF", text: "#64748B" },
-  "저장됨":    { bg: "#E6FFFA", text: "#2EC4B6" },
-  "제출완료":  { bg: "#E6FFFA", text: "#2EC4B6" },
+  "미정산":    { bg: C.surface, text: C.textSecondary },
+  "저장됨":    { bg: C.brandMist, text: C.brandStrong },
+  "제출완료":  { bg: C.brandMist, text: C.brandStrong },
   "관리자확인": { bg: "#EEDDF5", text: "#7C3AED" },
 };
 
@@ -189,7 +186,7 @@ export default function RevenueScreen() {
       <View style={[rv.tabHeader, { paddingTop: insets.top + 14 }]}>
         <Text style={[rv.tabHeaderTitle, { color: themeColor }]}>정산</Text>
       </View>
-      <ScrollView
+      <KeyboardAwareScrollView
         ref={scrollRef}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
@@ -198,11 +195,11 @@ export default function RevenueScreen() {
         {/* 월 선택 */}
         <View style={[rv.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={rv.navBtn}>
-            <ChevronLeft size={22} color={themeColor} />
+            <LucideIcon name="chevron-left" size={22} color={themeColor} />
           </Pressable>
           <Text style={[rv.monthText, { color: C.text }]}>{month.replace("-", "년 ")}월 정산</Text>
           <Pressable onPress={() => changeMonth(1)} style={rv.navBtn}>
-            <ChevronRight size={22} color={themeColor} />
+            <LucideIcon name="chevron-right" size={22} color={themeColor} />
           </Pressable>
         </View>
 
@@ -257,7 +254,7 @@ export default function RevenueScreen() {
             {/* ─── 정산 요약 카드 (상세 통계) ─────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <ChartBar size={15} color={themeColor} />
+                <LucideIcon name="chart-bar" size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>이번 달 정산 요약</Text>
               </View>
               <View style={rv.summaryGrid}>
@@ -265,8 +262,8 @@ export default function RevenueScreen() {
                   { label: "수업인원", val: students.length, color: C.text },
                   { label: "수업시간", val: summary?.total_sessions ?? 0, color: C.text },
                   { label: "보강", val: summary?.total_makeup_sessions ?? 0, color: "#7C3AED" },
-                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: "#2EC4B6" },
-                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: "#2EC4B6" },
+                  { label: "체험수업", val: summary?.total_trial_sessions ?? 0, color: C.brandStrong },
+                  { label: "이동", val: summary?.total_temp_transfer_sessions ?? 0, color: C.brandStrong },
                   { label: "연기", val: summary?.postpone_count ?? 0, color: "#D97706" },
                   { label: "탈퇴", val: summary?.withdrawn_count ?? students.filter(s => s.is_unregistered).length, color: "#D96C6C" },
                 ].map(item => (
@@ -287,23 +284,23 @@ export default function RevenueScreen() {
               return (
                 <View style={[rv.card, { backgroundColor: C.card }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
-                    <CircleDollarSign size={15} color={themeColor} />
+                    <LucideIcon name="circle-dollar-sign" size={15} color={themeColor} />
                     <Text style={[rv.sectionTitle, { color: C.text }]}>납부 수령 현황</Text>
                     <Pressable
                       style={{ marginLeft: "auto" as any, flexDirection: "row", alignItems: "center", gap: 4 }}
                       onPress={() => router.push("/(teacher)/fee-check?backTo=revenue" as any)}
                     >
                       <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: themeColor }}>관리</Text>
-                      <ChevronRight size={13} color={themeColor} />
+                      <LucideIcon name="chevron-right" size={13} color={themeColor} />
                     </Pressable>
                   </View>
                   <View style={rv.feeRow}>
                     <View style={[rv.feeChip, { backgroundColor: themeColor + "12" }]}>
-                      <CircleCheck size={14} color={themeColor} />
+                      <LucideIcon name="check-circle" size={14} color={themeColor} />
                       <Text style={[rv.feeChipText, { color: themeColor }]}>납부 {paidList.length}명</Text>
                     </View>
                     <View style={[rv.feeChip, { backgroundColor: "#FEF2F2" }]}>
-                      <CircleMinus size={14} color="#DC2626" />
+                      <LucideIcon name="circle-minus" size={14} color="#DC2626" />
                       <Text style={[rv.feeChipText, { color: "#DC2626" }]}>미납 {unpaidCount}명</Text>
                     </View>
                   </View>
@@ -326,7 +323,7 @@ export default function RevenueScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[rv.studentName, { color: C.text }]}>{s.student_name}</Text>
                       {s.is_trial && <View style={[rv.tag, { backgroundColor: "#FFF1BF" }]}><Text style={[rv.tagText, { color: "#D97706" }]}>체험</Text></View>}
-                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: "#FFFFFF" }]}><Text style={[rv.tagText, { color: "#64748B" }]}>미등록</Text></View>}
+                      {s.is_unregistered && <View style={[rv.tag, { backgroundColor: C.surface }]}><Text style={[rv.tagText, { color: C.textSecondary }]}>미등록</Text></View>}
                       {s.temp_transfer_sessions > 0 && <View style={[rv.tag, { backgroundColor: "#EEDDF5" }]}><Text style={[rv.tagText, { color: "#7C3AED" }]}>임시이동</Text></View>}
                     </View>
                     <Text style={[rv.studentSub, { color: C.textSecondary }]}>
@@ -352,7 +349,7 @@ export default function RevenueScreen() {
             {/* ─── 기타 수기 정산 ─────────────────────── */}
             <View style={[rv.card, { backgroundColor: C.card }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Pencil size={15} color={themeColor} />
+                <LucideIcon name="edit" size={15} color={themeColor} />
                 <Text style={[rv.sectionTitle, { color: C.text }]}>기타 수기 정산</Text>
               </View>
               <Text style={[rv.hint, { color: C.textMuted }]}>시간표에 없는 예외적인 항목에만 사용하세요.</Text>
@@ -376,7 +373,7 @@ export default function RevenueScreen() {
               />
               {extraAmount ? (
                 <View style={[rv.extraSummary, { backgroundColor: themeColor + "10" }]}>
-                  <CirclePlus size={14} color={themeColor} />
+                  <LucideIcon name="plus-circle" size={14} color={themeColor} />
                   <Text style={[rv.extraSummaryText, { color: themeColor }]}>
                     기타 정산 포함 총액: {formatWon(totalRevenue)}
                   </Text>
@@ -386,8 +383,8 @@ export default function RevenueScreen() {
 
             {/* ─── 저장 메시지 ─────────────────────────── */}
             {savedMsg ? (
-              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : "#E6FFFA" }]}>
-                <LucideIcon name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : "#2EC4B6"} />
+              <View style={[rv.msg, { backgroundColor: savedMsg.includes("실패") ? "#F9DEDA" : C.brandMist }]}>
+                <LucideIcon name={savedMsg.includes("실패") ? "alert-circle" : "check-circle"} size={14} color={savedMsg.includes("실패") ? "#D96C6C" : C.brandStrong} />
                 <Text style={[rv.msgText, { color: savedMsg.includes("실패") ? "#D96C6C" : "#065F46" }]}>{savedMsg}</Text>
               </View>
             ) : null}
@@ -398,23 +395,23 @@ export default function RevenueScreen() {
               onPress={handleSave} disabled={saving || submitting}
             >
               {saving ? <ActivityIndicator color="#fff" /> : <>
-                <Save size={16} color="#fff" />
+                <LucideIcon name="save" size={16} color="#fff" />
                 <Text style={rv.saveBtnText}>반영하기</Text>
               </>}
             </Pressable>
 
             <Pressable
-              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#E6FFFA" : themeColor, opacity: submitting ? 0.6 : 1 }]}
+              style={[rv.submitBtn, { backgroundColor: submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandMist : themeColor, opacity: submitting ? 0.6 : 1 }]}
               onPress={handleSubmit}
               disabled={submitting || saving || submitStatus === "관리자확인"}
             >
-              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? "#2EC4B6" : "#fff"} /> : <>
+              {submitting ? <ActivityIndicator color={submitStatus === "제출완료" ? C.brandStrong : "#fff"} /> : <>
                 <LucideIcon
                   name={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "check-circle" : "send"}
                   size={16}
-                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff"}
+                  color={submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandStrong : "#fff"}
                 />
-                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? "#2EC4B6" : "#fff" }]}>
+                <Text style={[rv.submitBtnText, { color: submitStatus === "제출완료" || submitStatus === "관리자확인" ? C.brandStrong : "#fff" }]}>
                   {submitStatus === "제출완료" ? "제출완료 (재제출 가능)" :
                    submitStatus === "관리자확인" ? "관리자 확인 완료" :
                    "이번 달 정산 제출"}
@@ -426,19 +423,19 @@ export default function RevenueScreen() {
               style={[rv.nextBtn, { borderColor: themeColor }]}
               onPress={() => setNextMonthModal(true)}
             >
-              <CircleArrowRight size={16} color={themeColor} />
+              <LucideIcon name="arrow-right-circle" size={16} color={themeColor} />
               <Text style={[rv.nextBtnText, { color: themeColor }]}>다음 달 정산 시작</Text>
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* ── 다음 달 시작 확인 모달 ─────────────────────── */}
       <Modal visible={nextMonthModal} transparent animationType="fade" onRequestClose={() => setNextMonthModal(false)}>
         <Pressable style={rv.overlay} onPress={() => setNextMonthModal(false)} />
         <View style={rv.confirmSheet}>
           <View style={rv.confirmHandle} />
-          <CircleArrowRight size={32} color={themeColor} style={{ alignSelf: "center" }} />
+          <LucideIcon name="arrow-right-circle" size={32} color={themeColor} style={{ alignSelf: "center" }} />
           <Text style={[rv.confirmTitle, { color: C.text }]}>다음 달 정산 시작</Text>
           <Text style={[rv.confirmSub, { color: C.textSecondary }]}>
             {month}월 정산을 확정하고{"\n"}{monthStr(1).replace("-", "년 ")}월 정산을 시작합니다.{"\n\n"}
@@ -446,7 +443,7 @@ export default function RevenueScreen() {
           </Text>
           <View style={{ gap: 8 }}>
             <Pressable
-              style={[rv.confirmBtn, { backgroundColor: C.button }]}
+              style={[rv.confirmBtn, { backgroundColor: C.primaryAction }]}
               onPress={async () => {
                 try {
                   await apiRequest(token, "/settlement/finalize", {
@@ -461,7 +458,7 @@ export default function RevenueScreen() {
             >
               <Text style={rv.confirmBtnText}>확정 후 다음 달 시작</Text>
             </Pressable>
-            <Pressable style={[rv.confirmBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setNextMonthModal(false)}>
+            <Pressable style={[rv.confirmBtn, { backgroundColor: C.surface }]} onPress={() => setNextMonthModal(false)}>
               <Text style={[rv.confirmBtnText, { color: C.text }]}>취소</Text>
             </Pressable>
           </View>
@@ -472,7 +469,7 @@ export default function RevenueScreen() {
 }
 
 const rv = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:             { flex: 1, backgroundColor: C.surface },
   tabHeader:        { backgroundColor: "#fff", paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
   tabHeaderTitle:   { fontSize: 20, fontFamily: "Pretendard-Regular" },
   monthRow:         { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
@@ -513,7 +510,7 @@ const rv = StyleSheet.create({
   statusTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular" },
   statusDesc:       { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
   summaryGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: "#F1F5F9", borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
+  summaryGridBox:   { minWidth: "28%", flex: 1, backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 10, alignItems: "center", gap: 2 },
   summaryGridVal:   { fontSize: 18, fontFamily: "Pretendard-Regular" },
   summaryGridLabel: { fontSize: 10, fontFamily: "Pretendard-Regular" },
   saveBtn:          { height: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
@@ -524,7 +521,7 @@ const rv = StyleSheet.create({
   nextBtnText:      { fontSize: 15, fontFamily: "Pretendard-Regular" },
   overlay:          { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   confirmSheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
-  confirmHandle:    { width: 36, height: 4, backgroundColor: "#E5E7EB", borderRadius: 2, alignSelf: "center" },
+  confirmHandle:    { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center" },
   confirmTitle:     { fontSize: 20, fontFamily: "Pretendard-Regular", textAlign: "center" },
   confirmSub:       { fontSize: 14, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 22 },
   confirmBtn:       { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },

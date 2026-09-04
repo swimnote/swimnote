@@ -1,0 +1,279 @@
+[SWIMNOTE APP RELEASE]
+[PRODUCTION DB MIGRATION — STEP 1]
+[APPLY GR1 ONLY]
+
+현재 REAL Supabase precheck 완료:
+
+Target:
+SWIMNOTE APP Production Supabase
+
+확인된 상태:
+
+growth_reports table                    EXISTS ✅
+
+growth_report_cycles                    NOT EXISTS
+growth_report_questions                 NOT EXISTS
+growth_report_answers                   NOT EXISTS
+growth_reports.product_status           NOT EXISTS
+GR1 ENUMs                               NOT EXISTS
+
+GR1 전체 미적용 상태 확인 완료.
+
+이번 단계에서는:
+
+GR1 migration 하나만 Production에 적용한다.
+
+GR3 실행 금지.
+GR5 실행 금지.
+Group 7/8 실행 금지.
+Render deploy 금지.
+API/Worker deploy 금지.
+OTA 금지.
+EAS build 금지.
+코드 수정 금지.
+
+==================================================
+1. TARGET DB 재확인
+==================================================
+
+반드시 APP Production Supabase.
+
+사용:
+
+SUPABASE_DATABASE_URL
++
+현재 repository canonical buildConfig() 방식
+
+AI ENGINE PROD_DATABASE_URL(Neon) 사용 금지.
+
+실행 직전 최소 확인:
+
+current_database()
+current_user
+swimming_pools count
+
+Known sample pool:
+
+pool_1784310621737_qryl1x79s
+
+존재 여부를 read-only로 확인.
+
+DB identity가 이전 REAL_SUPABASE_MIGRATION_PRECHECK와
+일치하지 않으면 즉시 STOP.
+
+==================================================
+2. MIGRATION TARGET
+==================================================
+
+오직:
+
+initGrowthReportGR1Schema()
+
+또는 실제 repository에서 이 함수가 실행되는
+GR1 전용 canonical migration entrypoint만 사용.
+
+대상 파일:
+
+src/migrations/growth-report-gr1-init.ts
+
+실제 export/function/runner 구조를 먼저 확인하고
+정확한 GR1 전용 실행 방법을 사용.
+
+다른 migration chain을 같이 실행하지 마라.
+
+==================================================
+3. GR1 EXPECTED CHANGES
+==================================================
+
+GR1 migration의 실제 코드 기준으로 적용.
+
+예상:
+
+GR1-A
+5개 Growth Report ENUM 생성
+
+GR1-B
+growth_report_cycles 생성
+
+GR1-C
+기존 growth_reports에 Product lifecycle 관련 컬럼 추가
+
+GR1-D
+GR1 관련 indexes 생성
+
+GR1-E
+growth_report_questions 생성
+
+GR1-F
+growth_report_answers 생성
+
+정확한 enum/column/index 이름은
+migration 파일 자체를 source of truth로 사용.
+
+==================================================
+4. SAFETY
+==================================================
+
+실행 전 migration 파일에서 확인:
+
+- 기존 production row DELETE 없음
+- TRUNCATE 없음
+- DROP TABLE 없음
+- DROP COLUMN 없음
+- 기존 unrelated column type destructive 변경 없음
+
+예상대로 additive-only가 아니면 STOP.
+
+==================================================
+5. EXECUTION
+==================================================
+
+가능하면 transaction + fail-fast 방식으로 실행.
+
+repository canonical runner가 transaction을
+내부 관리하면 그 방식을 우선.
+
+직접 실행이 필요한 경우에도
+중간 오류 후 다음 단계로 진행하지 않는다.
+
+GR1 성공 확인 전:
+
+GR3 금지.
+GR5 금지.
+
+==================================================
+6. POST-MIGRATION TABLE CHECK
+==================================================
+
+성공 후 Production Supabase에서 read-only 확인:
+
+growth_report_cycles EXISTS
+growth_report_questions EXISTS
+growth_report_answers EXISTS
+
+==================================================
+7. POST-MIGRATION COLUMN CHECK
+==================================================
+
+migration 파일 기준으로
+growth_reports에 GR1에서 추가한 컬럼이
+전부 실제 존재하는지 확인.
+
+최소 이전 설계상 주요 항목:
+
+product_status
+parent_input_status
+analysis_request_id
+snapshot_version
+snapshot_hash
+
+단 실제 GR1 migration에 존재하는 전체 컬럼 목록을
+파일 기준으로 검증.
+
+누락 1개라도 있으면 PASS 금지.
+
+==================================================
+8. ENUM CHECK
+==================================================
+
+GR1 migration에서 생성하는 5개 ENUM이
+모두 실제 Production에 존재하는지 확인.
+
+ENUM 이름과 values까지
+migration contract와 일치하는지 검증.
+
+==================================================
+9. INDEX / CONSTRAINT CHECK
+==================================================
+
+GR1에서 생성하는:
+
+- indexes
+- unique constraints
+- foreign keys
+- check constraints
+
+를 migration 파일 기준으로 확인.
+
+==================================================
+10. DATA SAFETY
+==================================================
+
+migration 전후:
+
+기존 growth_reports row count 비교.
+
+기존 row 삭제/감소 없어야 함.
+
+기존 swimming_pools/student/member 등
+unrelated Product data를 수정하지 않는다.
+
+Growth Report 신규 Product row 생성 금지.
+
+Cycle row 생성 금지.
+
+Question/Answer row 생성 금지.
+
+이번 단계는 schema only.
+
+==================================================
+11. FAILURE POLICY
+==================================================
+
+GR1 중 오류 발생 시:
+
+즉시 STOP.
+
+GR3/GR5 실행 금지.
+
+임의 DROP/rollback SQL 실행 금지.
+
+다음만 보고:
+
+- 어느 sub-step까지 적용됐는지
+- transaction rollback 여부
+- actual Production schema 상태
+
+==================================================
+12. NO DEPLOY
+==================================================
+
+GR1 성공 후에도:
+
+Render deploy 금지.
+Worker deploy 금지.
+OTA/build 금지.
+
+다음 단계는 GR3 migration 별도 승인 후 진행.
+
+==================================================
+13. REPORT
+==================================================
+
+다음만 보고:
+
+1. TARGET DB VERIFIED
+2. GR1 MIGRATION ENTRYPOINT
+3. ADDITIVE ONLY? YES/NO
+4. EXECUTION RESULT
+5. ENUM STATUS
+6. growth_report_cycles STATUS
+7. growth_report_questions STATUS
+8. growth_report_answers STATUS
+9. growth_reports GR1 COLUMNS STATUS
+10. INDEX / CONSTRAINT STATUS
+11. BEFORE growth_reports ROW COUNT
+12. AFTER growth_reports ROW COUNT
+13. DESTRUCTIVE OPERATION
+14. PRODUCTION DATA CREATED
+15. GR3 EXECUTED? YES/NO
+16. GR5 EXECUTED? YES/NO
+17. SERVER DEPLOY STATUS
+
+성공:
+
+SWIMNOTE_APP_GR1_PRODUCTION_MIGRATION_APPLIED ✅
+
+실패:
+
+SWIMNOTE_APP_GR1_PRODUCTION_MIGRATION_BLOCKED ❌

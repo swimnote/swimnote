@@ -1,0 +1,746 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 WP4 — MESSENGER COMMON CORE FINALIZATION
+#
+# 최신 WP 진행:
+#
+# WP1 = D + I → COMPLETE
+# WP2 = B + C → COMPLETE
+# WP3 = G     → COMPLETE
+# WP4 = F     → NOW
+#
+# F = Messenger
+#
+# 중요:
+# 메신저가 일반 SWIMNOTE와 SWIMNOTE X의 공통 기능이면
+# 반드시 Normal + X 동시에 검수/수정.
+#
+# X 전용 기능처럼 한쪽만 고치면 FAIL.
+#
+# 신규 메신저 기능 추가 금지.
+# 기존 기능/동선/알림/폴링/읽음/날짜/권한 안정화만.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+WP3 known commit:
+6a2f46ad
+
+현재 실제 HEAD를 먼저 확인하고
+source of truth로 사용.
+
+Known messenger stable baseline:
+1b03e716
+
+중요:
+1b03e716 이후 메신저를 새로 설계하지 말 것.
+
+Production:
+NO DEPLOY
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+0. COMMON CORE 판정
+============================================================
+
+먼저 Normal SWIMNOTE와 X에서
+메신저 진입 경로를 각각 추적.
+
+확인:
+
+Normal Admin → Messenger
+X Admin → Messenger
+
+Normal Teacher → Messenger
+X Teacher → Messenger
+
+가능하면 Parent-side 관련 messenger/talk route도 확인.
+
+각각 보고:
+
+ROUTE
+ACTIVE FILE
+SHARED COMPONENT
+SERVER ENDPOINT
+
+판정:
+
+A.
+Normal/X 동일 route/component/server core
+→ 공통 수정 1회
+
+B.
+별도 wrapper/path 존재
+→ 실제 기능 core가 동일한지 확인
+→ 공통 core는 shared 구현 유지
+→ 불필요한 duplicate 생성 금지
+
+============================================================
+1. EXISTING MESSENGER STRUCTURE AUDIT
+============================================================
+
+현재 source에서 다음을 전수 확인:
+
+- MessengerScreen.tsx
+- messenger.ts
+- messenger.test.ts
+- 관련 hooks
+- notification/push helper
+- polling/focus lifecycle
+- talk/notice 구분
+- admin/teacher directed messages
+- unread/read handling
+- date normalization
+- duplicate push prevention
+
+그리고 1b03e716에서 완료된 핵심 동작이
+현재 HEAD에도 그대로 포함되어 있는지 확인.
+
+============================================================
+2. 1b03e716 BASELINE 보호
+============================================================
+
+반드시 유지:
+
+- admin → teacher push
+- teacher → admin push
+- directed message
+- notice/talk separation
+- 7초 polling
+- focus cleanup
+- duplicate push prevention
+- KST date normalization
+- message ordering
+- stale live refresh date 방지
+
+1b03e716을 baseline으로
+현재 HEAD에서 회귀가 있는지만 확인.
+
+새 기능 추가:
+NO
+
+============================================================
+3. NORMAL + X 동일 동작
+============================================================
+
+Normal/X에서 각각:
+
+Admin → Teacher
+Teacher → Admin
+
+동일하게 동작해야 함.
+
+확인:
+
+- 동일 conversation 접근
+- 동일 상대 목록
+- 동일 unread count
+- 동일 message ordering
+- 동일 push behavior
+- 동일 polling behavior
+- 동일 read state
+- 동일 back behavior
+
+X에서만 별도 message store:
+금지
+
+Normal/X가 동일 tenant/pool core이면
+동일 data source 사용.
+
+============================================================
+4. ROLE / SCOPE
+============================================================
+
+최근 Teacher scope 수정과 충돌 금지.
+
+Teacher는:
+
+- 자기에게 허용된 대화/상대만
+- 다른 teacher private conversation leakage 0
+- admin 전체 scope와 혼동 0
+
+Admin→Teacher role switch 중:
+
+old pool_admin JWT로
+teacher messenger data가 먼저 fetch되지 않는지 확인.
+
+RoleContext의:
+
+isSwitchingRole
+
+현재 구조를 존중.
+
+필요하면 messenger fetch도
+기존 role transition semantics에 맞게 gate.
+
+단 새 권한 architecture 만들지 말 것.
+
+============================================================
+5. ADMIN → TEACHER
+============================================================
+
+검증:
+
+F01
+Admin에서 teacher 선택 가능
+
+F02
+메시지 전송 성공
+
+F03
+Teacher 수신
+
+F04
+Teacher unread 반영
+
+F05
+Push 1회
+
+F06
+동일 메시지 duplicate push 0
+
+F07
+Polling refresh에서 duplicate row 0
+
+F08
+날짜/시간 KST 정상
+
+============================================================
+6. TEACHER → ADMIN
+============================================================
+
+검증:
+
+F09
+Teacher에서 admin 대화 진입
+
+F10
+메시지 전송 성공
+
+F11
+Admin 수신
+
+F12
+Admin unread 반영
+
+F13
+Push 1회
+
+F14
+중복 push 0
+
+F15
+Polling duplicate 0
+
+F16
+role leakage 0
+
+============================================================
+7. NOTICE / TALK 분리
+============================================================
+
+중요:
+
+공지(notice)
+와
+대화(talk/message)
+
+가 섞이지 않아야 함.
+
+검증:
+
+- notice가 talk thread에 들어오지 않음
+- talk가 notice list에 들어오지 않음
+- push category 분리 유지
+- unread badge 분리 유지
+- deep link가 올바른 화면으로 이동
+
+기존 1b03e716 이후 구조 유지.
+
+============================================================
+8. POLLING / FOCUS LIFECYCLE
+============================================================
+
+기존 7초 polling 유지.
+
+확인:
+
+screen focus
+→ polling 시작
+
+screen blur/unmount
+→ polling cleanup
+
+중복 interval:
+0
+
+재진입:
+interval 하나만
+
+background에서 무한 polling:
+0
+
+foreground 복귀:
+정상 재개
+
+메모리 leak:
+0
+
+============================================================
+9. DATE / ORDER
+============================================================
+
+기존 KST normalization 유지.
+
+검증:
+
+- 오늘 메시지
+- 자정 전후
+- 최근 메시지
+- live refresh
+- 기존 저장 메시지
+
+에서:
+
+Invalid Date:
+0
+
+UTC/KST 뒤틀림:
+0
+
+message order:
+정상
+
+same-day grouping:
+정상
+
+============================================================
+10. DUPLICATE MESSAGE / PUSH
+============================================================
+
+확인:
+
+- 동일 request/message id 중복 insert 0
+- polling refresh duplicate append 0
+- push duplicate 0
+- rapid send double tap 중복 가능성
+- focus refresh + polling race
+
+현재 구현의 dedupe key를 source에서 확인.
+
+새 idempotency 시스템 만들지 말 것.
+
+기존 key/logic 유지 또는 최소 수정.
+
+============================================================
+11. BACK / NAVIGATION
+============================================================
+
+Messenger에서 Back:
+
+→ 직전 업무화면
+
+Home icon:
+→ true dashboard/home
+
+Back을 admin landing으로 replace:
+금지
+
+Normal/X 둘 다 동일.
+
+WP1에서 정한 back semantics 유지.
+
+============================================================
+12. PARENT-SIDE 영향
+============================================================
+
+현재 source에 parent-side messenger/talk가 존재하면
+active route만 확인.
+
+이번 WP의 핵심은 Admin/Teacher지만
+공통 messenger core 수정 때문에
+Parent flow가 깨지면 안 됨.
+
+Parent 관련 신규 기능:
+NO
+
+회귀 검수만.
+
+============================================================
+13. NORMAL SWIMNOTE EXTRA AUDIT
+============================================================
+
+이번 WP에서 반드시 확인:
+
+Normal-only messenger path:
+YES / NO
+
+X-only messenger path:
+YES / NO
+
+shared MessengerScreen:
+YES / NO
+
+shared server endpoints:
+YES / NO
+
+공통 기능인데
+X에서만 fix:
+FAIL
+
+Normal에서만 fix:
+FAIL
+
+필요하면 shared core에서 수정.
+
+============================================================
+14. SOURCE DIFF RULE
+============================================================
+
+중요:
+
+1b03e716과 현재 HEAD의
+messenger 관련 diff를 확인.
+
+현재 HEAD에서 messenger가
+정상 baseline보다 후퇴한 부분이 있으면
+그 차이만 최소 수정.
+
+1b03e716 전체 rollback/cherry-pick:
+NO
+
+현재 WP1~WP3 변경 덮어쓰기:
+NO
+
+============================================================
+15. 테스트
+============================================================
+
+F01 Admin teacher 선택
+F02 Admin send
+F03 Teacher receive
+F04 Teacher unread
+F05 Admin→Teacher push 1
+F06 duplicate push 0
+F07 polling duplicate 0
+F08 KST 정상
+
+F09 Teacher→Admin 진입
+F10 Teacher send
+F11 Admin receive
+F12 Admin unread
+F13 Teacher→Admin push 1
+F14 duplicate push 0
+F15 polling duplicate 0
+F16 scope leakage 0
+
+F17 notice/talk separation
+F18 notice deep link
+F19 talk deep link
+F20 focus polling start
+F21 blur polling cleanup
+F22 re-entry interval 1
+F23 background polling 0
+F24 foreground resume
+F25 Invalid Date 0
+F26 message ordering
+F27 live refresh ordering
+F28 duplicate row 0
+F29 role switch stale admin fetch 0
+F30 Normal/X same behavior
+F31 Parent regression 0
+F32 Back → previous screen
+F33 Home → dashboard
+
+============================================================
+16. 최근 완료 WP 회귀 보호
+============================================================
+
+반드시 유지:
+
+WP1
+member-detail + X back stack
+
+WP2
+members/common member core
+
+WP3
+parent auto-link create paths
+
+Teacher scope
+Media cleanup
+Kakao
+Apple auth
+
+위 기능 수정:
+NO
+
+============================================================
+17. PRODUCTION SAFETY
+============================================================
+
+이번 WP:
+
+SOURCE
+TEST
+COMMIT
+
+까지만.
+
+Render:
+NO
+
+deploy-photo-clone:
+NO TOUCH
+
+Production DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+18. REGRESSION BASELINE
+============================================================
+
+New deterministic failures:
+0
+
+기존 181 pre-existing failures를
+이번 WP에서 고치려고 범위 확대 금지.
+
+현재 historical discrepancy도
+이번 WP 범위 아님.
+
+============================================================
+19. COMMIT
+============================================================
+
+코드 변경이 필요하면:
+
+fix(v2.0): stabilize shared messenger flow
+
+또는 실제 변경에 맞는 명확한 commit.
+
+코드 변경 불필요하면:
+NO CODE CHANGE
+
+============================================================
+20. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 WP4 COMPLETION REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## COMMON CORE
+
+Normal Admin messenger route:
+...
+
+X Admin messenger route:
+...
+
+Normal Teacher messenger route:
+...
+
+X Teacher messenger route:
+...
+
+Shared MessengerScreen:
+YES / NO
+
+Shared server core:
+YES / NO
+
+Normal-only path found:
+YES / NO
+
+X-only path found:
+YES / NO
+
+## BASELINE
+
+1b03e716 messenger behaviors present:
+YES / NO
+
+Missing/regressed items:
+...
+
+## ADMIN → TEACHER
+
+Send:
+PASS / FAIL
+
+Receive:
+PASS / FAIL
+
+Unread:
+PASS / FAIL
+
+Push:
+PASS / FAIL
+
+Duplicate push:
+0 / ...
+
+Duplicate message:
+0 / ...
+
+## TEACHER → ADMIN
+
+Send:
+PASS / FAIL
+
+Receive:
+PASS / FAIL
+
+Unread:
+PASS / FAIL
+
+Push:
+PASS / FAIL
+
+Duplicate push:
+0 / ...
+
+Scope leakage:
+0 / ...
+
+## NOTICE / TALK
+
+Separated:
+PASS / FAIL
+
+Deep links:
+PASS / FAIL
+
+Unread separation:
+PASS / FAIL
+
+## POLLING
+
+7s:
+PASS / FAIL
+
+Focus start:
+PASS / FAIL
+
+Blur cleanup:
+PASS / FAIL
+
+Duplicate intervals:
+0 / ...
+
+Background polling:
+0 / ...
+
+## DATE / ORDER
+
+KST normalization:
+PASS / FAIL
+
+Invalid Date:
+0 / ...
+
+Ordering:
+PASS / FAIL
+
+Live refresh:
+PASS / FAIL
+
+## NAVIGATION
+
+Back:
+PASS / FAIL
+
+Home:
+PASS / FAIL
+
+Normal/X:
+PASS / FAIL
+
+## PARENT REGRESSION
+
+PASS / FAIL / N/A
+
+## TESTS
+
+F01-F33:
+...
+
+New deterministic failures:
+0 / ...
+
+## REGRESSION
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+Teacher scope:
+PASS
+
+Media:
+PASS
+
+Kakao:
+PASS
+
+## DEPLOY
+
+Render:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+Production:
+NO CHANGE
+
+## FINAL
+
+WP4 COMPLETE — NORMAL + X SHARED MESSENGER VERIFIED
+
+또는
+
+WP4 BLOCKED — EXACT MESSENGER GAP

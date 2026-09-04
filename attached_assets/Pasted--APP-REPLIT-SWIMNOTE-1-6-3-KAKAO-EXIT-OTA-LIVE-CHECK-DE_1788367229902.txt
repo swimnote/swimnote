@@ -1,0 +1,143 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 1.6.3 KAKAO EXIT — OTA LIVE CHECK + DEPLOY
+
+현재 최신 Kakao Exit 기능은 소스/테스트 PASS 보고됨.
+
+하지만 최신 1.6.3 변경분이 실제 iOS Production OTA에
+배포됐다는 증빙이 아직 없음.
+
+기존 과거 OTA:
+01a0629d-9f97-7eec-8c1f-69c6fd5b9836
+
+이 Update ID는 최신 Parent+Teacher Kakao Exit 작업 이전 것이므로
+최신 기능 배포 증거로 사용 금지.
+
+============================================================
+1. 최신 1.6.3 SOURCE 확인
+============================================================
+
+maintenance/v1.6.3-social-exit
+
+현재 실제 HEAD 확인.
+
+반드시 최신 기능 포함 확인:
+
+- Kakao 버튼 클릭 → SDK 호출 0
+- 안내 → 일반 회원가입 이동
+- Parent 전화번호 중복 Kakao 계정 → 일반계정 전환
+- Teacher 전화번호 중복 Kakao 계정 → 일반계정 전환
+- 기존정보 이전
+- rollback/idempotency
+
+============================================================
+2. 현재 Production OTA 확인
+============================================================
+
+iOS 1.6.3이 현재 어떤 Expo/EAS Update를 받고 있는지 확인.
+
+확인:
+
+runtimeVersion
+channel
+branch
+latest Update ID
+latest update commit/message
+
+현재 production OTA가
+최신 maintenance/v1.6.3-social-exit HEAD를 포함하는지 판정.
+
+결론:
+
+LATEST_KAKAO_EXIT_ALREADY_LIVE
+
+또는
+
+LATEST_KAKAO_EXIT_NOT_LIVE
+
+============================================================
+3. 안 올라가 있으면 즉시 OTA
+============================================================
+
+LATEST_KAKAO_EXIT_NOT_LIVE이면:
+
+최신 1.6.3 HEAD 기준으로
+iOS production OTA 실행.
+
+조건:
+
+JS-only
+runtime compatible
+native dependency/config 변경 없음
+
+Android OTA:
+NO
+
+============================================================
+4. OTA 후 검증
+============================================================
+
+반드시 새 Update ID 확보.
+
+확인:
+
+- production channel
+- 1.6.3 runtime
+- 최신 commit 반영
+- Kakao button → 안내
+- Kakao SDK call 0
+- 일반회원가입 route 이동
+
+실제 migration은 강제 실행 금지.
+
+============================================================
+5. 완료보고
+============================================================
+
+# SWIMNOTE 1.6.3 KAKAO EXIT OTA REPORT
+
+Source branch:
+maintenance/v1.6.3-social-exit
+
+Source HEAD:
+...
+
+Runtime:
+...
+
+Channel:
+...
+
+Previous Update ID:
+...
+
+Latest Kakao Exit already live:
+YES / NO
+
+OTA performed:
+YES / NO
+
+New Update ID:
+...
+
+Kakao button:
+NOTICE → GENERAL SIGNUP
+
+Kakao SDK call:
+0
+
+Parent conversion source:
+READY
+
+Teacher conversion source:
+READY
+
+Android:
+NO OTA
+
+FINAL:
+1.6.3 KAKAO EXIT OTA LIVE
+
+또는
+
+1.6.3 KAKAO EXIT OTA NOT LIVE — EXACT BLOCKER

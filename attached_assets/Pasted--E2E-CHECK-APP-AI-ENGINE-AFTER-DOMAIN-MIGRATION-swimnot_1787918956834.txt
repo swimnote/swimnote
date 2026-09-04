@@ -1,0 +1,137 @@
+# [E2E CHECK — APP → AI ENGINE AFTER DOMAIN MIGRATION]
+
+목표:
+`swimnote.ai.kr`을 `swimnote-professional-engine`으로 이전한 뒤
+SWIMNOTE 앱의 기존 AI Engine 호출이 그대로 정상 동작하는지 확인한다.
+
+IMPORTANT:
+NO CODE CHANGES.
+NO PUSH.
+NO DEPLOY.
+NO ENV CHANGES.
+NO DB CHANGES.
+NO ROUTE CHANGES.
+
+이번 작업은 연결 검증만 한다.
+
+==================================================
+1. APP CURRENT ENGINE CONFIG
+==================================================
+
+SWIMNOTE 앱/앱 API에서 현재 실제 사용 중인 AI Engine 설정 확인:
+
+- EXPO_PUBLIC_SWIMNOTE_AI_BASE_URL
+- EXPO_PUBLIC_SWIMNOTE_AI_DIARY_PATH
+- 서버측 AI Engine base URL이 있다면 해당 ENV key
+- 실제 최종 호출 URL
+
+특히 기존 Production 값이:
+
+https://swimnote.ai.kr
+
+을 사용하는지 확인.
+
+하드코딩된 과거 주소:
+- *.replit.app
+- *.replit.dev
+- old Render URL
+- swimnote-api.onrender.com
+
+가 Production 호출 경로에 남아 있는지 확인.
+
+==================================================
+2. ENGINE ROUTE EXISTENCE
+==================================================
+
+현재 `swimnote-professional-engine`에서 앱이 사용하는 엔진 route가
+그대로 존재하는지 확인.
+
+특히:
+
+POST /api/v1/teacher-diary/generate
+
+및 현재 앱이 실제 사용하는 다른 AI Engine production routes.
+
+Route path 변경 금지.
+
+==================================================
+3. AUTH CONTRACT
+==================================================
+
+앱 → AI Engine 호출의 현재 인증 방식 확인:
+
+- direct Bearer JWT
+또는
+- SWIMNOTE API proxy
+또는
+- server-to-server token
+
+도메인 이전 때문에 Authorization/CORS/origin 검증이
+깨지지 않았는지 확인.
+
+==================================================
+4. CORS
+==================================================
+
+현재 `swimnote-professional-engine`의 ALLOWED_ORIGINS가
+실제 앱/웹 호출 origin을 허용하는지 확인.
+
+주의:
+Native mobile app 호출과 browser origin을 구분해서 판단.
+
+임의 ENV 수정 금지.
+
+==================================================
+5. TARGETED PRODUCTION E2E
+==================================================
+
+실제 AI 비용을 최소화해서
+Teacher Diary 1건만 production endpoint로 검증.
+
+요청은 테스트용 최소 payload 사용.
+
+확인:
+
+- DNS resolves to new engine service
+- HTTPS 정상
+- status 200
+- request_id 정상
+- pipeline_mode=grounded_v1
+- response contract 정상
+- auth 정상
+- timeout 없음
+
+실제 OpenAI 호출은 이 테스트 1건을 초과하지 말 것.
+
+==================================================
+6. OTHER APP ENGINE FEATURES
+==================================================
+
+Teacher Diary 외 앱에서
+`swimnote.ai.kr`을 호출하는 기능들의 endpoint 목록만 확인.
+
+예:
+- curriculum search
+- growth report 관련
+- 기타 현재 Production AI 기능
+
+각 endpoint가 새 engine service에서 route 존재하는지만 확인.
+실제 유료 AI 호출은 하지 않는다.
+
+==================================================
+FINAL REPORT
+==================================================
+
+1. 앱 Production AI Base URL
+2. Teacher Diary 최종 호출 URL
+3. 인증 방식
+4. 새 domain에서 route 존재 YES/NO
+5. CORS/Auth 정상 YES/NO
+6. Teacher Diary E2E PASS/FAIL
+7. pipeline_mode
+8. 기타 앱→엔진 endpoint 목록 + route 존재 여부
+9. 앱 코드 수정 필요 YES/NO
+10. ENV 수정 필요 YES/NO
+11. actual paid AI calls count
+
+STOP.

@@ -1,0 +1,153 @@
+[배포 승인 — Instagram Story Summary 길이 제어 수정]
+
+현재 commit:
+8c2f8c3f
+
+Branch:
+deploy-photo-clone
+
+배포 승인.
+
+순서는 반드시:
+
+1. Render 서버 배포
+2. story-summary endpoint 실제 검증
+3. 서버 검증 PASS 후 instagram-test OTA
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경:
+
+artifacts/api-server/src/routes/story.ts
+
+변경 내용:
+
+- max_chars 입력 지원
+- maxChars 기반 Prompt
+- 1차 summary 길이 검증
+- 초과 시 0.85배 길이로 재요약
+- 2차 결과도 서버 길이 검증
+- 임의 truncate 없음
+
+DB 변경 없음.
+
+Render 배포 후:
+
+status = live
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 서버 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 극단 테스트 일지로 실제 endpoint 확인.
+
+사진 수별 maxChars 값을 사용:
+
+1장:
+maxLines 7 / maxChars 157
+
+4장:
+8 / 180
+
+6장:
+9 / 202
+
+10장:
+11 / 247
+
+특히 사진 10장 긴 일지:
+
+POST /api/diaries/:diaryId/story-summary
+
+{
+  "max_lines": 11,
+  "max_chars": 247
+}
+
+확인:
+
+- HTTP 200
+- summary 존재
+- summary.length <= 247
+- 원문에 없는 사실 추가 없음
+- 다른 학생 note 혼입 없음
+
+기존:
+401 / 403 / 404 권한 처리도 유지 확인.
+
+실패 시 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. App OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 검증 PASS 후:
+
+runtimeVersion:
+1.6.2
+
+channel:
+instagram-test
+
+commit:
+8c2f8c3f
+
+에만 OTA 배포.
+
+production channel OTA 금지.
+Production runtime 1.6.1 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실기기 최종 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 등록되어 있는
+사진 10장 + 긴 테스트 일지를 그대로 사용.
+
+Story 버튼 탭 후 확인:
+
+1. "스토리 요약을 만들지 못했습니다" Alert 없음
+2. Instagram Story Composer 정상 진입
+3. Story 이미지 1장
+4. 사진 10장 전부 실제 표시
+5. +N 표시 없음
+6. 요약문 전체 표시
+7. 요약문 하단 잘림 없음
+8. 검은 화면 없음
+9. SWIMNOTE branding 정상
+10. Story 최종 전체가 9:16 안에 정상 배치
+
+추가:
+
+같은 Story를 다시 공유
+→ cache hit
+→ AI 재호출 없음 확인 가능하면 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Render Deploy ID
+2. Render Live SHA
+3. Render status
+4. health
+5. 사진10장 max_lines/max_chars
+6. 실제 summary chars
+7. summary HTTP status
+8. 권한 테스트 결과
+9. OTA Group ID
+10. iOS Update ID
+11. Android Update ID
+12. runtimeVersion
+13. channel
+14. commit SHA
+15. Production 1.6.1 영향
+16. DB 변경
+17. Native Build
+18. 실기기 최종 결과
+
+배포 후 추가 수정 없이 멈춘다.

@@ -1,12 +1,13 @@
-import { CircleX, Info, Search, SquareCheck } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
   StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { DatePickerModal } from "@/components/common/DatePickerModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -30,7 +31,7 @@ import type { ClassGroup } from "@/components/admin/member/memberDetailTypes";
 
 const C = Colors.light;
 
-const _IC = "#0F172A"; const _IB = "#E6FAF8";
+const _IC = C.textPrimary; const _IB = C.brandSoft;
 const FILTER_CHIPS: FilterChipItem<StudentFilterKey>[] = [
   { key: "all",               label: "전체",       icon: "list" },
   { key: "normal",            label: "정상",       icon: "check-circle",  activeColor: _IC, activeBg: _IB },
@@ -83,16 +84,29 @@ export default function MembersScreen() {
   const [statusAction, setStatusAction] = useState<"suspended" | "withdrawn" | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
 
+  // ── 복귀 ────────────────────────────────────────────────────────────
+  const [resumeTarget, setResumeTarget] = useState<StudentMember | null>(null);
+  const [resumeDateVisible, setResumeDateVisible] = useState(false);
+  const [resumeDate, setResumeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [resumeSaving, setResumeSaving] = useState(false);
+
   const load = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem("@sn:admin_members");
+      if (raw) { const c = JSON.parse(raw); setStudents(c.students ?? []); setClassGroups(c.classGroups ?? []); setLoading(false); }
+    } catch {}
     try {
       const [res, reqRes, cgRes] = await Promise.all([
         apiRequest(token, "/students"),
         apiRequest(token, "/students/teacher-requests"),
         apiRequest(token, "/class-groups"),
       ]);
+      let freshStudents: any[] = [];
+      let freshClassGroups: any[] = [];
       if (res.ok) {
         const data = await res.json();
-        setStudents(Array.isArray(data) ? data : []);
+        freshStudents = Array.isArray(data) ? data : [];
+        setStudents(freshStudents);
       }
       if (reqRes.ok) {
         const reqData = await reqRes.json();
@@ -100,7 +114,11 @@ export default function MembersScreen() {
       }
       if (cgRes.ok) {
         const cgData = await cgRes.json();
-        setClassGroups(Array.isArray(cgData) ? cgData : []);
+        freshClassGroups = Array.isArray(cgData) ? cgData : [];
+        setClassGroups(freshClassGroups);
+      }
+      if (freshStudents.length > 0) {
+        AsyncStorage.setItem("@sn:admin_members", JSON.stringify({ students: freshStudents, classGroups: freshClassGroups })).catch(() => {});
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); setRefreshing(false); }
@@ -111,9 +129,17 @@ export default function MembersScreen() {
     try {
       const res = await apiRequest(token, `/students/teacher-requests/${id}/approve`, { method: "POST" });
       if (res.ok) {
+        const d = await res.json().catch(() => ({}));
         setTeacherRequests(prev => prev.filter(r => r.id !== id));
         setInfoModal(`${name} 학생이 정식 회원으로 등록됐습니다.`);
-        load();
+        if (d.student) {
+          setStudents(prev => [...prev, d.student]);
+        } else {
+          apiRequest(token, "/students")
+            .then(r2 => r2.ok ? r2.json() : null)
+            .then(data => { if (Array.isArray(data)) setStudents(data); })
+            .catch(() => {});
+        }
       } else {
         const d = await res.json();
         setInfoModal(d.message || "승인에 실패했습니다.");
@@ -167,7 +193,6 @@ export default function MembersScreen() {
       const res = await apiRequest(token, `/students/${id}`, { method: "DELETE" });
       if (res.ok) {
         setStudents(prev => prev.filter(s => s.id !== id));
-        load();
       } else {
         setInfoModal("삭제에 실패했습니다.");
       }
@@ -234,7 +259,6 @@ export default function MembersScreen() {
             ? { ...s, ...updated, assigned_class_ids: newIds, status: "active" }
             : s
         ));
-        load();
       } else {
         const d = await res.json().catch(() => ({}));
         setInfoModal(d.message || "반이동에 실패했습니다.");
@@ -273,7 +297,6 @@ export default function MembersScreen() {
               : s
           ));
         }
-        load();
       } else {
         const d = await res.json().catch(() => ({}));
         setInfoModal(d.message || "처리에 실패했습니다.");
@@ -282,11 +305,42 @@ export default function MembersScreen() {
     finally { setStatusSaving(false); }
   }
 
+  async function confirmResume(date: string) {
+    if (!resumeTarget) return;
+    const { id, name } = resumeTarget;
+    setResumeTarget(null);
+    setResumeSaving(true);
+    try {
+      const res = await apiRequest(token, `/students/${id}/change-status`, {
+        method: "POST",
+        body: JSON.stringify({ new_status: "active", effective_mode: "immediate", resume_date: date }),
+      });
+      if (res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setStudents(prev => prev.map(s =>
+          s.id === id
+            ? { ...s, status: "active", ...(body.student || {}) }
+            : s
+        ));
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setInfoModal(d.message || d.error || "복귀 처리에 실패했습니다.");
+      }
+    } catch { setInfoModal("네트워크 오류가 발생했습니다."); }
+    finally { setResumeSaving(false); }
+  }
+
   // "전체" 필터에서 퇴원 회원 제외 (withdrawn-members 화면에서 별도 관리)
   const baseStudents = filter === "all"
     ? students.filter(s => s.status !== "withdrawn")
     : students;
   const filtered = searchStudents(applyStudentFilter(baseStudents, filter), search);
+
+  const dupNames = useMemo(() => {
+    const counts: Record<string, number> = {};
+    students.forEach(s => { counts[s.name] = (counts[s.name] || 0) + 1; });
+    return new Set(Object.entries(counts).filter(([, v]) => v > 1).map(([k]) => k));
+  }, [students]);
 
   const chipsWithCount: FilterChipItem<StudentFilterKey>[] = FILTER_CHIPS.map(chip => ({
     ...chip,
@@ -347,13 +401,13 @@ export default function MembersScreen() {
                   }
                 </Pressable>
                 <Pressable
-                  style={[ms.pendingBtn, { backgroundColor: "#E6FFFA" }]}
+                  style={[ms.pendingBtn, { backgroundColor: C.brandSoft }]}
                   onPress={() => handleApprove(req.id, req.name)}
                   disabled={approvingId === req.id || rejectingId === req.id}
                 >
                   {approvingId === req.id
-                    ? <ActivityIndicator size="small" color="#2EC4B6" />
-                    : <Text style={[ms.pendingBtnTxt, { color: "#2EC4B6" }]}>승인</Text>
+                    ? <ActivityIndicator size="small" color={C.brandStrong} />
+                    : <Text style={[ms.pendingBtnTxt, { color: C.brandStrong }]}>승인</Text>
                   }
                 </Pressable>
               </View>
@@ -366,12 +420,12 @@ export default function MembersScreen() {
       <View style={ms.actionRow}>
         {!sel.selectionMode ? (
           <>
-            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? "#64748B" : "#2EC4B6" }]} onPress={handleAddMember}>
+            <Pressable style={[ms.actionBtn, { backgroundColor: isMemberLimitReached ? C.textSecondary : C.primaryAction }]} onPress={handleAddMember}>
               <LucideIcon name={isMemberLimitReached ? "lock" : "user-plus"} size={14} color="#fff" />
               <Text style={ms.actionBtnText}>어린이 직접 등록</Text>
             </Pressable>
             <Pressable style={[ms.selBtn]} onPress={sel.enterSelectionMode}>
-              <SquareCheck size={16} color={C.textSecondary} />
+              <LucideIcon name="check-square" size={16} color={C.textSecondary} />
             </Pressable>
           </>
         ) : (
@@ -384,7 +438,7 @@ export default function MembersScreen() {
       </View>
       {/* 검색 */}
       <View style={[ms.searchRow, { borderColor: C.border, backgroundColor: C.card }]}>
-        <Search size={16} color={C.textMuted} />
+        <LucideIcon name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[ms.searchInput, { color: C.text }]}
           value={search} onChangeText={setSearch}
@@ -393,7 +447,7 @@ export default function MembersScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")}>
-            <CircleX size={16} color={C.textMuted} />
+            <LucideIcon name="x-circle" size={16} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -417,18 +471,19 @@ export default function MembersScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={[ms.list, { paddingBottom: sel.selectionMode ? insets.bottom + 90 : insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
           ListHeaderComponent={filter === "suspended" ? (
             <View style={ms.suspendedBanner}>
-              <Info size={14} color="#B45309" />
+              <LucideIcon name="info" size={14} color="#B45309" />
               <Text style={ms.suspendedBannerTitle}>연기 회원도 정상 요금 100% 과금</Text>
             </View>
           ) : null}
           ListEmptyComponent={
             (!search && filter === "all") ? (
               <View style={{ alignItems: "center", paddingTop: 80, gap: 12 }}>
-                <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: C.tintLight, alignItems: "center", justifyContent: "center" }}>
+                <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: C.backgroundSoft, alignItems: "center", justifyContent: "center" }}>
                   <LucideIcon name="users" size={32} color={themeColor} />
                 </View>
                 <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>등록된 학생이 없습니다</Text>
@@ -466,43 +521,11 @@ export default function MembersScreen() {
                 onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "members" } } as any)}
                 showInvite={!item.parent_user_id}
                 onPressInvite={() => setInviteTarget(item)}
+                scheduleHint={dupNames.has(item.name) && item.schedule_labels ? item.schedule_labels : undefined}
                 selectionMode={sel.selectionMode}
                 isSelected={sel.isSelected(item.id)}
                 onToggle={() => sel.toggleItem(item.id)}
-                actions={[
-                  {
-                    label: "반이동",
-                    icon: "shuffle",
-                    color: themeColor,
-                    bg: themeColor + "15",
-                    onPress: () => handleTransfer(item),
-                    loading: transferSaving && transferTarget === null,
-                  },
-                  {
-                    label: "연기",
-                    icon: "pause-circle",
-                    color: "#64748B",
-                    bg: "#FFF1BF",
-                    onPress: () => openStatusAction(item, "suspended"),
-                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "suspended",
-                  },
-                  {
-                    label: "퇴원",
-                    icon: "log-out",
-                    color: "#D96C6C",
-                    bg: "#FEF2F2",
-                    onPress: () => openStatusAction(item, "withdrawn"),
-                    loading: statusSaving && statusTarget?.id === item.id && statusAction === "withdrawn",
-                  },
-                  {
-                    label: "삭제",
-                    icon: "trash-2",
-                    color: C.error,
-                    bg: "#F9DEDA",
-                    onPress: () => handleDelete(item.id, item.name),
-                    loading: deletingId === item.id,
-                  },
-                ]}
+                actions={[]}
               />
             </View>
           )}
@@ -537,7 +560,7 @@ export default function MembersScreen() {
           poolName={poolName}
           onSuccess={(s) => {
             setShowRegister(false);
-            load();
+            setStudents(prev => [s, ...prev]);
           }}
           onClose={() => setShowRegister(false)}
         />
@@ -549,6 +572,17 @@ export default function MembersScreen() {
           onClose={() => setInviteTarget(null)}
         />
       )}
+
+      {/* ── 복귀 날짜 선택 ── */}
+      <DatePickerModal
+        visible={resumeDateVisible}
+        value={resumeDate}
+        onConfirm={(date) => {
+          setResumeDateVisible(false);
+          confirmResume(date);
+        }}
+        onClose={() => { setResumeDateVisible(false); setResumeTarget(null); }}
+      />
 
       {/* ── 연기 확인 ── */}
       <ConfirmModal
@@ -625,28 +659,28 @@ export default function MembersScreen() {
 }
 
 const ms = StyleSheet.create({
-  pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: "#E6FAF8", borderWidth: 1.5, borderColor: "#CBD5E1", padding: 12, gap: 8 },
+  pendingSection:     { marginHorizontal: 16, marginBottom: 10, borderRadius: 14, backgroundColor: C.brandSoft, borderWidth: 1.5, borderColor: "#CBD5E1", padding: 12, gap: 8 },
   pendingHeader:      { flexDirection: "row", alignItems: "center", gap: 8 },
-  pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center" },
+  pendingBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: C.brandStrong, alignItems: "center", justifyContent: "center" },
   pendingBadgeTxt:    { color: "#fff", fontSize: 11, fontFamily: "Pretendard-Regular" },
-  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pendingSectionTitle:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   pendingCard:        { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#fff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#CBD5E1" },
   pendingCardLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FAF8", alignItems: "center", justifyContent: "center" },
-  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  pendingAvatar:      { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandSoft, alignItems: "center", justifyContent: "center" },
+  pendingAvatarTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   pendingName:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pendingMeta:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   pendingActions:     { flexDirection: "row", gap: 6 },
   pendingBtn:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
   pendingBtnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  actionRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 12 },
   actionBtnText: { color: "#fff", fontSize: 13, fontFamily: "Pretendard-Regular" },
   selBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border },
   searchRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginHorizontal: 16, marginBottom: 4 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular" },
   list: { paddingTop: 10 },
-  suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E6FAF8", borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
-  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
+  suspendedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: C.brandSoft, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: "#CBD5E1" },
+  suspendedBannerTitle: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  suspendedBannerBody: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
 });

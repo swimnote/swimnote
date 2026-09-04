@@ -156,7 +156,8 @@ export default function DiaryCommentsScreen() {
   return (
     <KeyboardAvoidingView
       style={[s.root, { backgroundColor: C.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
     >
       <ParentScreenHeader
         title="댓글"
@@ -175,7 +176,7 @@ export default function DiaryCommentsScreen() {
       ) : null}
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -195,9 +196,9 @@ export default function DiaryCommentsScreen() {
             threads.map(thread => (
               <View key={thread.id} style={s.threadWrap}>
                 {/* 원댓글 */}
-                <View style={[s.bubble, s.bubbleMine, { backgroundColor: C.tint + "18" }]}>
+                <View style={[s.bubble, s.bubbleMine, { backgroundColor: C.brandSoft }]}>
                   <View style={s.bubbleHeader}>
-                    <Text style={[s.bubbleName, { color: C.tint }]}>{thread.author_name}</Text>
+                    <Text style={[s.bubbleName, { color: C.brandStrong }]}>{thread.author_name}</Text>
                     <Text style={[s.bubbleTime, { color: C.textMuted }]}>{fmtTime(thread.created_at)}</Text>
                     {!thread.is_deleted && thread.author_role === "parent" && (
                       <TouchableOpacity
@@ -226,13 +227,13 @@ export default function DiaryCommentsScreen() {
                       reply.author_role === "teacher" ? s.bubbleTeacher : s.bubbleMine,
                       reply.author_role === "teacher"
                         ? { backgroundColor: "#F0F4FF" }
-                        : { backgroundColor: C.tint + "18" },
+                        : { backgroundColor: C.brandSoft },
                     ]}
                   >
                     <View style={s.bubbleHeader}>
                       <Text style={[
                         s.bubbleName,
-                        { color: reply.author_role === "teacher" ? "#3B82F6" : C.tint },
+                        { color: reply.author_role === "teacher" ? "#3B82F6" : C.brandStrong },
                       ]}>
                         {reply.author_role === "teacher" ? "📘 " : ""}{reply.author_name}
                       </Text>
@@ -265,7 +266,7 @@ export default function DiaryCommentsScreen() {
         <Pressable
           onPress={send}
           disabled={!input.trim() || sending}
-          style={[s.sendBtn, { backgroundColor: !input.trim() || sending ? C.border : C.tint }]}
+          style={[s.sendBtn, { backgroundColor: !input.trim() || sending ? C.border : C.primaryAction }]}
         >
           {sending
             ? <ActivityIndicator size="small" color="#fff" />

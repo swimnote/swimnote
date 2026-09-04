@@ -1,0 +1,180 @@
+# [WP-C iOS OTA START — CURRICULUM SEARCH UI]
+
+WP-C SERVER DEPLOY PASS 확인.
+
+Server live:
+repo: github.com/swimnote/swimnote
+branch: deploy-photo-clone
+SHA: e346fd39
+Render deploy: dep-da3bm7ou01pc738c104g
+healthz: 200
+
+이제 iOS OTA 진행 허용.
+
+이번 OTA 범위는 WP-C 앱 UI 변경만 반영한다.
+
+==================================================
+1. OTA TARGET
+==================================================
+
+반영 대상:
+
+artifacts/swim-app/app/(parent)/home.tsx
+
+artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+
+WP-C 구현 내용:
+
+- 모든 학부모에게 기존 "커리큘럼 검색" 버튼 표시
+- XModeGuard 제거
+- 서버 history GET의 eligible / reason을 authority로 사용
+- Normal / x_pending / X curriculum <300 → 안내 화면
+- 이용 불가 상태에서 입력창/추천질문 숨김
+- AI 호출 없음
+- 다자녀 switcher
+- studentId scoped request/ref guard
+- 답변 복사 버튼
+- 복사 완료 toast
+- retryable failure 안전 문구
+- quota 표시 UI
+
+==================================================
+2. 중요 정책
+==================================================
+
+Normal SWIMNOTE:
+
+버튼 표시:
+YES
+
+버튼 탭:
+YES
+
+AI chat 입력창:
+NO
+
+AI Engine/GPT 호출:
+NO
+
+안내:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+==================================================
+3. ELIGIBILITY
+==================================================
+
+앱에서 global mode를 authority로 사용하지 않는다.
+
+서버:
+
+GET /parent/students/:studentId/curriculum-search/history
+
+응답의:
+
+eligible
+reason
+
+을 기준으로 UI 결정.
+
+서버 응답 전까지
+AI 입력창을 먼저 노출하지 않는다.
+
+==================================================
+4. OTA SAFETY
+==================================================
+
+이번 작업에서 금지:
+
+- 서버 코드 추가 수정
+- Render 재배포
+- migration
+- Production DB 수정
+- X04 ingestion
+- quota 로직 수정
+- WP-D 시작
+- 전체 regression test
+
+앱 OTA만 진행.
+
+==================================================
+5. OTA PROJECT PATH
+==================================================
+
+Expo/EAS는 반드시 실제 SWIMNOTE 앱 프로젝트에서 실행.
+
+artifacts/swim-app
+
+루트의 다른 Expo project 사용 금지.
+
+현재 SWIMNOTE Expo projectId / production channel을 그대로 사용.
+
+runtime/version 호환성 확인 후 OTA.
+
+==================================================
+6. OTA 후 최소 확인
+==================================================
+
+전체 테스트 금지.
+
+OTA publish 성공 여부만 확인하고,
+실기기 검증은 사용자가 직접 진행한다.
+
+보고:
+
+- app project path
+- runtime/version
+- channel
+- OTA publish result
+- update id
+- server/code change: NO
+- DB mutation: NO
+
+==================================================
+7. 실기기 확인 항목
+==================================================
+
+사용자 직접 확인:
+
+A. Normal 학부모
+- 커리큘럼 검색 버튼 보임
+- 탭 가능
+- 이용 불가 안내
+- 입력창 없음
+- 추천질문 없음
+
+B. x_pending
+- 이용 불가 안내
+- AI 입력 불가
+
+C. eligible X
+- curriculum chat 화면 진입
+- 입력창 표시
+- quota 표시
+- 다자녀 전환
+- 답변 복사
+
+D. 오류
+- raw HTTP/stack/API URL 노출 없음
+
+==================================================
+8. 완료 보고
+==================================================
+
+[WP-C iOS OTA REPORT]
+
+- app path:
+- branch:
+- source SHA:
+- runtime/version:
+- channel:
+- OTA publish:
+- update id:
+- server changed: NO
+- DB changed: NO
+- final status:
+
+완료 후 멈춘다.
+
+WP-D는 아직 시작하지 않는다.

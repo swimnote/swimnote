@@ -1,0 +1,164 @@
+[수정 승인 — Story Summary parent student notes SQL 500 수정]
+
+원인 확정:
+
+story.ts parent_account 분기에서
+
+student_id = ANY(${studentIds}::text[])
+
+사용 시 Drizzle sql template이 JS 배열을 PostgreSQL array가 아니라
+ROW 형태 ($1, $2)로 직렬화하여 SQL ERROR 발생.
+
+결과:
+parent_account 정상 권한 diary → HTTP 500
+super_admin → 해당 query 미실행 → 정상 200
+
+이번 수정은 이 SQL 1곳만 최소 수정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 수정 대상
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/routes/story.ts
+
+현재:
+
+WHERE diary_id = ${diaryId}
+  AND student_id = ANY(${studentIds}::text[])
+  AND is_deleted = false
+
+이 부분을 Drizzle에서 안전한 IN 조건으로 변경한다.
+
+예:
+
+student_id IN (${sql.join(studentIds.map(id => sql`${id}`), sql`, `)})
+
+단 현재 프로젝트의 Drizzle/sql helper 사용 방식에 맞춰 구현.
+
+문자열 직접 조합 금지.
+SQL injection 위험 있는 interpolation 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. studentIds 빈 배열 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+studentIds.length === 0이면
+IN () 쿼리를 만들지 않는다.
+
+정책:
+
+parent visibility는 이미 통과했더라도
+조회 가능한 student note 대상이 0명이면
+student note query를 skip하고
+공통 일지만으로 summary 생성 가능해야 한다.
+
+예:
+
+let studentNotes = [];
+
+if (studentIds.length > 0) {
+  // IN (...) query 실행
+}
+
+빈 배열 때문에 500 발생 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 권한 로직 유지
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- parent_accounts
+- parent_students
+- student_class_history 권한 확인
+- class_group_id 제한
+- 다른 학생 note 차단
+- super_admin 분기
+- requireAuth
+
+studentIds는 반드시 권한 확인을 통과한 자녀 IDs만 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 검증 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+parent_account + studentIds 1개
+→ student note query 성공
+→ HTTP 200
+→ summary 반환
+
+CASE 2
+parent_account + studentIds 2개 이상
+→ IN (...) 정상
+→ HTTP 200
+
+CASE 3
+studentIds 0개
+→ query skip
+→ 공통 일지가 있으면 summary 생성
+→ SQL 500 없음
+
+CASE 4
+다른 학부모 diary
+→ 기존대로 403
+
+CASE 5
+미인증
+→ 401
+
+CASE 6
+존재하지 않는 diary
+→ 404
+
+CASE 7
+super_admin
+→ 기존 200 유지
+
+CASE 8
+다른 학생 note가 summary에 혼입되지 않음
+
+CASE 9
+사진4 긴 일지
+→ HTTP 200
+
+CASE 10
+사진10 긴 일지
+→ HTTP 200
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- DB
+- App 코드
+- OTA
+- Native Build
+- 다른 server route
+- Prompt/요약 길이 로직
+- max_chars 로직
+
+이번 작업은 story.ts SQL 1곳만 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 변경 전 SQL
+2. 변경 후 SQL
+3. 빈 studentIds 처리
+4. CASE 1~10 결과
+5. 수정 파일
+6. TypeCheck
+7. DB 변경 0
+8. App 변경 0
+9. Native 변경 0
+10. Render 재배포 필요 여부
+11. commit SHA
+
+수정 + 검증 + commit까지만 진행.
+Render 재배포는 별도 승인 전 금지.

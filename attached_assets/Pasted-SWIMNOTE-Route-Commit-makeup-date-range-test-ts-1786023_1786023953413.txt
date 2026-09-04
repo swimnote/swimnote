@@ -1,0 +1,195 @@
+SWIMNOTE 보강 날짜 범위 수정 — 허위 검증 제거 및 실제 Route 검증 지시
+
+현재 Commit 상태는 확인했다.
+
+그러나 makeup-date-range.test.ts의 48개 테스트가 운영 코드를 import하지 않고
+운영 로직을 복사한 함수만 테스트한 것으로 확인됐다.
+
+따라서 현재 상태에서는 Push·Render 배포·OTA를 승인하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 복제 테스트 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 파일:
+
+artifacts/api-server/src/routes/__tests__/makeup-date-range.test.ts
+
+이 파일은 실제 teachers.ts/admin.ts Route 또는 운영 함수를 검증하지 않으므로
+통합 테스트라는 표현을 사용하면 안 된다.
+
+다음 중 하나로 처리한다.
+
+우선순위 1:
+- 실제 Route handler를 mount
+- DB·인증만 mock
+- teachers.ts/admin.ts의 실제 Route를 호출
+- HTTP status와 response body를 검증
+
+우선순위 2:
+- 날짜 계산·범위 검증을 공용 pure helper로 추출
+- teachers.ts와 admin.ts가 해당 helper를 실제 import하여 사용
+- 테스트도 동일 helper를 import하여 검증
+
+금지:
+- 운영 로직을 테스트 파일에 다시 복사
+- fake status 함수로 기대값만 반환
+- 상수끼리 비교
+- 실제 코드와 연결되지 않은 테스트를 “통합 테스트”로 보고
+
+새 공용 helper 파일이 필요하면 허용 후보는 하나다.
+
+artifacts/api-server/src/lib/makeup-date-range.ts
+
+허용 export 예시:
+
+- addDateDays()
+- dayOfWeekFromDateStr()
+- getMakeupDateRange()
+- validateMakeupDateInRange()
+- isValidDateString()
+
+teachers.ts와 admin.ts가 반드시 이 함수를 실제 사용해야 한다.
+
+공용 파일을 추가하면 teachers.ts/admin.ts 내부의 중복 helper는 제거한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 실제 날짜 유효성 검사 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 Route에 현재 표시된 코드는 YYYY-MM-DD 정규식과 문자열 범위 비교만 보인다.
+
+다음을 실제 코드로 확인한다.
+
+- 2026-02-31
+- 2026-13-01
+- 2026-00-10
+- 2026-04-31
+
+이 값들이 HTTP 400으로 차단되는지 확인한다.
+
+정규식만 통과하고 실제 날짜 검증이 없다면 결함이다.
+
+서버 공통 검증은 다음을 만족해야 한다.
+
+1. YYYY-MM-DD 형식
+2. 실제 존재하는 달력 날짜
+3. 오늘 -14일~+28일 범위
+
+잘못된 날짜 응답:
+
+HTTP 400
+error: INVALID_ASSIGNED_DATE
+message: 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)
+
+teachers.ts와 admin.ts가 같은 검증 함수를 사용하도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Route 테스트 필수 항목
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB는 사용하지 않는다.
+mock DB 또는 rollback 가능한 테스트 DB를 사용한다.
+
+Teacher eligible-occurrences:
+
+- 오늘 -15일 미반환
+- 오늘 -14일 반환
+- 오늘 반환
+- 오늘 +28일 반환
+- 오늘 +29일 미반환
+- 결석일 이전 날짜 반환
+- 결석 당일 반환
+- 수업 요일 아닌 날짜 제외
+- 수영장 휴일 제외
+
+Teacher assign:
+
+- 범위 안 미래 날짜 → 성공 경로
+- 오늘·과거 → ASSIGN_REQUIRES_FUTURE_DATE
+- -15일 → 400 MAKEUP_DATE_OUT_OF_RANGE
+- +29일 → 400 MAKEUP_DATE_OUT_OF_RANGE
+- invalid calendar date → 400
+
+Teacher complete-direct:
+
+- 오늘·과거 범위 내 → 성공 경로
+- 미래 → COMPLETE_DIRECT_REQUIRES_TODAY_OR_PAST
+- 범위 밖 → 400
+- invalid calendar date → 400
+
+상태:
+
+- waiting + expire_at 초과 + 43일 범위 내 → 날짜 검증 통과
+- expired + allow_expired=false → 409 MAKEUP_EXPIRED_CONFIRM_REQUIRED
+- expired + allow_expired=true + 범위 내 → 통과
+- completed/cancelled/extinguished → 기존 차단 유지
+
+Admin assign:
+
+- 범위 내 → 날짜 검증 통과
+- -15일 / +29일 → 400 MAKEUP_DATE_OUT_OF_RANGE
+- 존재하지 않는 날짜 → 400 INVALID_ASSIGNED_DATE
+- response body에 message 포함
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 앱 오류 처리 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관리자 makeups.tsx는 최소한 아래를 실제 함수 단위로 검증하거나 코드 증거로 제출한다.
+
+- HTTP 400 body.message → Alert 표시
+- body 파싱 실패 → 기본 Alert
+- 네트워크 실패 → 네트워크 Alert
+- 실패 후 load() 호출
+- 409 conflict 기존 처리 유지
+- 성공 시 오류 Alert 없음
+
+React Native 테스트 환경이 없어 실행 불가능하면 NOT_TESTED로 표시한다.
+코드 확인을 자동 테스트 통과라고 표현하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Git 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Commit은 임의 amend/rebase하지 않는다.
+
+현재 복제 테스트를 실제 연결 테스트로 교체하거나,
+공용 helper 단위 테스트로 정직하게 재구성한다.
+
+추가 Commit 메시지 예시:
+
+test: verify makeup date range against production logic
+
+최종 변경 파일 목록을 다시 제출한다.
+
+attached_assets는 Commit 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Git branch / HEAD / status
+2. 실제 변경 파일 전체
+3. 복제 테스트 제거 증거
+4. 운영 코드와 테스트 연결 구조
+5. 공용 helper 사용 여부
+6. 실제 날짜 유효성 검증 코드
+7. Route 테스트 실행 명령
+8. Route 테스트 케이스별 HTTP status/body
+9. Teacher eligible 결과
+10. Teacher assign 결과
+11. Teacher complete-direct 결과
+12. Admin assign 결과
+13. expired/allow_expired 결과
+14. 앱 Alert 검증 수준: TESTED 또는 NOT_TESTED
+15. TypeScript 결과
+16. 기존 회귀 테스트 결과
+17. 운영 DB 변경 여부
+18. Commit SHA
+19. Push 여부
+20. Render 배포 여부
+21. OTA 여부
+22. 최종 Push 승인 가능 여부
+
+Push·Render 배포·OTA 없이 실제 검증 결과만 제출하고 중단한다.

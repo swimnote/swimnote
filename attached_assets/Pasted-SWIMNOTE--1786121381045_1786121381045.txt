@@ -1,0 +1,229 @@
+SWIMNOTE 보강 장애 — 실기기 진단 결과로 원인 경계 확정
+
+새로운 추측 금지.
+현재 실기기 진단 화면에서 실제 런타임 증거를 확보했다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. CONFIRMED 증거
+━━━━━━━━━━━━━━━━━━━━
+
+Production:
+
+API_BASE
+https://swimnote.kr/api
+
+waiting API:
+
+GET /teacher/makeups?status=waiting
+HTTP 200
+content-type = application/json
+total = 2
+expired = 0
+julyExpired = 0
+
+따라서 지난 보강 미표시는
+클라이언트 separator/render 문제가 아니다.
+
+서버가 반환한 waiting 결과에
+is_expired=true인 데이터가 0건이다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. eligible-occurrences 실제 장애
+━━━━━━━━━━━━━━━━━━━━
+
+실기기:
+
+finalType = NETWORK
+
+Error:
+
+SyntaxError
+JSON Parse error: Unexpected character: <
+
+즉 JSON parsing 전에 받은 실제 response body가
+JSON이 아닌 것으로 확인된다.
+
+가장 먼저 해야 할 일:
+
+Production의 정확한 URL에 대해
+실제 HTTP 응답을 조사한다.
+
+대상:
+
+GET
+https://swimnote.kr/api/teacher/makeups/{makeupId}/eligible-occurrences?class_group_id={classGroupId}
+
+현재 진단 화면의 실제 makeupId/classGroupId를 사용한다.
+
+반드시 확인:
+
+HTTP status
+content-type
+response headers
+response body 첫 500자
+redirect 여부
+최종 URL
+서버 route 도달 여부
+
+중요:
+
+response.json()부터 호출하지 마라.
+
+먼저 response.text()로 원문을 확보해서
+왜 "<"로 시작하는지 확인한다.
+
+HTML이면 HTML의 정체를 확인한다.
+
+404 HTML인지
+502/503 proxy HTML인지
+Google Frontend 오류인지
+redirect 결과인지
+Express error page인지
+
+증거로 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 서버 로그 대조
+━━━━━━━━━━━━━━━━━━━━
+
+동일 시각의 Production 서버 로그에서
+
+eligible-occurrences 요청이
+
+A. Express route까지 도달했는지
+B. route 내부에서 exception이 발생했는지
+C. route에 아예 도달하지 않았는지
+
+확인한다.
+
+route에 도달했다면
+발생한 실제 exception/stack을 제출한다.
+
+도달하지 않았다면
+swimnote.kr/api proxy/routing 경계를 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 지난 보강 별도 조사
+━━━━━━━━━━━━━━━━━━━━
+
+현재 Production waiting API:
+
+total=2
+expired=0
+
+따라서 UI 수정 금지.
+
+DB에서 해당 pool의 makeup_sessions를 직접 조회한다.
+
+최소 제출:
+
+id
+absence_date
+status
+expire_at
+cancelled_at
+original_teacher_id
+handed_to_teacher_id
+
+그리고 서버가 계산하는:
+
+is_expired
+
+값까지 비교한다.
+
+특히 지난달 미처리 데이터가
+
+1. DB에 존재하는지
+2. status가 무엇인지
+3. expire_at이 무엇인지
+4. waiting query에 포함되는지
+5. 포함됐다면 왜 is_expired=false인지
+
+경계를 정확히 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 정책은 변경 금지
+━━━━━━━━━━━━━━━━━━━━
+
+최종 정책:
+
+A.
+지난달 미처리 보강은 삭제/숨김하지 않고
+"기간 지난 보강"으로 계속 표시.
+
+B.
+보강 회차 선택 범위:
+KST today -14일 ~ +28일
+경계 포함.
+
+C.
+미래 결석 예정자의 선보강 허용.
+
+예:
+결석 8/20
+보강 8/17
+허용.
+
+D.
+보강은 정원이 꽉 찬 반에도 추가 가능.
+CLASS_FULL로 차단 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 지금 절대 하지 말 것
+━━━━━━━━━━━━━━━━━━━━
+
+makeups.tsx UI 재수정 금지
+separator 재수정 금지
+retry 추가 금지
+catch로 오류 숨기기 금지
+날짜 정책 변경 금지
+DB 임의 수정 금지
+Commit 금지
+Push 금지
+Render 금지
+OTA 금지
+
+현재는 원인 조사만 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+다음 두 장애를 별도로 제출한다.
+
+[장애 A — 지난 보강]
+
+DB 실제 rows
+→ waiting SQL 결과
+→ API JSON
+→ is_expired 계산
+
+어느 경계에서 지난 보강이 사라지는지
+최초 비정상 지점 하나를 특정.
+
+[장애 B — 날짜/회차]
+
+Request URL
+→ HTTP status
+→ content-type
+→ raw response body
+→ proxy
+→ Express route
+→ server exception
+
+어느 경계에서 JSON이 HTML/비JSON으로 바뀌는지
+최초 비정상 지점 하나를 특정.
+
+각 장애마다:
+
+ROOT CAUSE
+EVIDENCE
+EXACT FILE
+EXACT FUNCTION
+MINIMUM FIX
+
+를 제출한다.
+
+원인 특정 전 수정 금지.
+
+보고 후 멈춘다.

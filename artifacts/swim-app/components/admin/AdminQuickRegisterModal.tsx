@@ -1,4 +1,3 @@
-import { CircleAlert, CircleCheck, Info, X } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
@@ -9,6 +8,7 @@ import { apiRequest } from "@/context/AuthContext";
 import {
   WeeklyCount, WEEKLY_BADGE, normalizePhone, isValidPhone, isValidBirthYear,
 } from "@/utils/studentUtils";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -79,13 +79,13 @@ export function AdminQuickRegisterModal({
           <View style={qr.handle} />
           {done ? (
             <View style={qr.doneWrap}>
-              <View style={[qr.doneIcon, { backgroundColor: "#2EC4B6" + "18" }]}>
-                <CircleCheck size={36} color="#2EC4B6" />
+              <View style={[qr.doneIcon, { backgroundColor: C.primaryAction + "18" }]}>
+                <LucideIcon name="check-circle" size={36} color={C.primaryAction} />
               </View>
               <Text style={qr.doneTitle}>등록 완료</Text>
               <Text style={qr.doneSub}>{doneName} 학생이{"\n"}정식 회원으로 등록됐습니다.</Text>
               <Text style={[qr.doneSub, { fontSize: 12, color: C.textMuted }]}>회원 관리에서 초대코드를 확인할 수 있습니다.</Text>
-              <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6" }]} onPress={handleClose}>
+              <Pressable style={[qr.saveBtn, { backgroundColor: C.primaryAction }]} onPress={handleClose}>
                 <Text style={qr.saveBtnTxt}>확인</Text>
               </Pressable>
             </View>
@@ -93,11 +93,11 @@ export function AdminQuickRegisterModal({
             <>
               <View style={qr.header}>
                 <Text style={qr.title}>어린이 직접 등록</Text>
-                <Pressable onPress={handleClose}><X size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={handleClose}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
               </View>
               {error ? (
                 <View style={qr.errorRow}>
-                  <CircleAlert size={14} color={C.error} />
+                  <LucideIcon name="alert-circle" size={14} color={C.error} />
                   <Text style={qr.errorTxt}>{error}</Text>
                 </View>
               ) : null}
@@ -136,10 +136,10 @@ export function AdminQuickRegisterModal({
                 </View>
               </ScrollView>
               <View style={qr.notice}>
-                <Info size={13} color={C.textMuted} />
+                <LucideIcon name="info" size={13} color={C.textMuted} />
                 <Text style={qr.noticeTxt}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
-              <Pressable style={[qr.saveBtn, { backgroundColor: "#2EC4B6", opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>
+              <Pressable style={[qr.saveBtn, { backgroundColor: C.primaryAction, opacity: saving ? 0.7 : 1 }]} onPress={submit} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={qr.saveBtnTxt}>등록하기</Text>}
               </Pressable>
             </>
@@ -153,7 +153,7 @@ export function AdminQuickRegisterModal({
 const qr = StyleSheet.create({
   overlay:  { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:    { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, gap: 14, maxHeight: "92%" },
-  handle:   { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:   { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title:    { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
   errorRow: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10 },
@@ -164,7 +164,7 @@ const qr = StyleSheet.create({
   weekRow:  { flexDirection: "row", gap: 10 },
   weekBtn:  { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnTxt:{ fontSize: 14, fontFamily: "Pretendard-Regular" },
-  notice:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12 },
+  notice:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandMist, padding: 12, borderRadius: 12 },
   noticeTxt:{ flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
   saveBtn:  { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   saveBtnTxt:{ color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

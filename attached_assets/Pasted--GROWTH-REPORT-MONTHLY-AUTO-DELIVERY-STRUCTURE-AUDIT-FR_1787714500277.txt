@@ -1,0 +1,277 @@
+[앱]
+
+GROWTH REPORT MONTHLY AUTO DELIVERY — STRUCTURE AUDIT
+
+FREE 70-METRIC ENGINE은 FINAL LOCK 상태입니다.
+
+AI Engine 내부의:
+- 70 metric registry
+- metric gate
+- confidence
+- mapper
+- evidence logic
+- composition quality rules
+
+수정 금지.
+
+이번 Step은 코드 수정 없이
+무료 성장리포트의 "매월 자동발급" 구조만 조사한다.
+
+==================================================
+최종 제품 정책
+==================================================
+
+무료 성장리포트:
+
+- 매월 5일 자동 발급
+- 지난달 수업기록만 사용
+- 생성 버튼 없음
+- 신청 절차 없음
+- 학부모 피드에 자동 도착
+- 푸시 자동 발송
+
+예:
+9월 5일 발급
+→ 8월 1일 00:00 KST ~ 8월 31일 23:59:59 KST 데이터
+
+현재월 데이터 포함 금지.
+
+==================================================
+1. 1~4일 PREPARATION
+==================================================
+
+매월 1~4일 사이:
+
+cycle
+→ report
+→ snapshot
+→ AI analysis
+→ validation
+→ persistence
+→ publish-ready preparation
+
+구조를 자동 수행할 수 있어야 함.
+
+단:
+
+GROWTH_REPORT_ANALYSIS_AUTO_ENABLED=false
+현재 유지.
+
+이번 Step에서 true 변경 금지.
+
+현재 존재하는 나머지 OPEN report들
+일괄 분석 금지.
+
+AI 호출 금지.
+
+==================================================
+2. 5일 DELIVERY
+==================================================
+
+5일에는 최종 eligible + publish-safe report만:
+
+PUBLISHED
+→ parent feed item 생성
+→ push 발송
+
+각 단계 idempotent 필수.
+
+동일 report에 대해:
+
+publish 최대 1회
+feed 최대 1개
+push 최대 1회
+
+==================================================
+3. MEMBER LIFECYCLE ELIGIBILITY
+==================================================
+
+무료 발급 대상은
+5일 발급 시점에 정상 재원/수강 상태인 회원.
+
+제외:
+
+- 연기
+- 휴회
+- 퇴원
+- 수강 종료/비활성에 해당하는 기존 실제 상태
+
+중요:
+
+DB/code에 존재하는 실제 lifecycle source-of-truth와
+실제 enum/value를 먼저 조사할 것.
+
+상태 이름 추측 금지.
+
+퇴원 후 보강수업 일정이 남아 있어도
+무료 리포트 발급 대상 아님.
+
+scheduled lesson / makeup existence보다
+member lifecycle status가 우선.
+
+이미 과거 PUBLISHED 된 리포트는
+회원 상태 변경으로 삭제하지 않음.
+
+==================================================
+4. ELIGIBILITY RECHECK
+==================================================
+
+1~4일 preparation 전에
+명백히 비대상 상태를 제외할 수 있는지 조사.
+
+그러나 반드시 5일 publish 직전에
+eligibility를 다시 확인해야 함.
+
+이유:
+1~4일 사이 회원 상태가 바뀔 수 있음.
+
+==================================================
+5. REVIEW / PUBLISH STATE
+==================================================
+
+현재 Growth Report state transition을 실제 코드 기준으로 확인:
+
+OPEN
+PREANALYZING
+...
+COMPLETE
+REVIEW_REQUIRED
+PUBLISHED
+
+등 실제 존재하는 전체 상태.
+
+특히:
+
+현재 REVIEW_REQUIRED가 사람 검토 gate인지,
+자동 publication 경로가 이미 있는지 조사.
+
+REVIEW_REQUIRED를 임의로 제거하거나
+자동 PASS 처리하지 말 것.
+
+"5일 자동발급"과
+현재 review safety를 어떻게 연결할지
+설계안만 제시.
+
+==================================================
+6. PARENT FEED
+==================================================
+
+현재 학부모 feed 구조 조사.
+
+성장리포트를 기존 diary/feed stream 안에
+새 item type으로 넣을 수 있는지 확인.
+
+요구사항:
+
+- 매월 report history 유지
+- 새 report가 이전 report를 overwrite하지 않음
+- latest는 가장 최근 PUBLISHED 기준
+- 새달 report가 FAILED/OPEN/REVIEW_REQUIRED이면
+  이전 PUBLISHED가 latest에서 사라지면 안 됨
+
+필요:
+- 현재 feed table/model
+- item type 구조
+- parent feed query
+- deep link 구조
+- report detail route
+
+==================================================
+7. PUSH
+==================================================
+
+현재 push service / notification pipeline 조사.
+
+발급 문구:
+
+title:
+지난달 성장리포트가 도착했습니다
+
+body:
+지난 한 달 동안의 성장 모습을 확인해보세요.
+
+tap:
+해당 Growth Report detail로 deep link.
+
+push idempotency를 어디서 보장할 수 있는지 확인.
+
+==================================================
+8. UI
+==================================================
+
+현재:
+- growth report generate button
+- issuance/window UI
+- status screen
+- parent report entry
+
+실제 파일/route 확인.
+
+최종 제품에서는
+부모가 "생성"하는 UX는 제거 대상.
+
+이번 Step에서는 수정하지 말고
+삭제/변경 대상만 정확히 보고.
+
+==================================================
+9. SCHEDULER
+==================================================
+
+현재 프로젝트에 이미 존재하는:
+
+- cron
+- scheduler
+- background worker
+- Render cron/job
+- recurring service
+
+중 Growth Report 월간 작업에 재사용 가능한 구조가 있는지 확인.
+
+새 인프라를 먼저 만들지 말 것.
+
+Render API 사용 금지.
+Render env 변경 금지.
+deploy 금지.
+
+==================================================
+10. DB / MIGRATION
+==================================================
+
+아래를 구현하려면 DB migration이 필요한지 판정:
+
+- issue month uniqueness
+- publish idempotency
+- feed uniqueness
+- push uniqueness
+- monthly cycle uniqueness
+
+기존 unique key / idempotency key가 있으면 재사용.
+
+새 migration이 필요하면
+코드 수정하지 말고 정확한 이유와 최소 schema안 보고.
+
+==================================================
+보고 형식
+==================================================
+
+1. CURRENT MONTHLY PIPELINE
+2. CURRENT STATUS TRANSITIONS
+3. MEMBER LIFECYCLE SOURCE OF TRUTH
+4. CURRENT SCHEDULER
+5. CURRENT FEED/PUSH/DEEPLINK
+6. CURRENT PARENT UI
+7. IDEMPOTENCY EXISTING / MISSING
+8. DB MIGRATION REQUIRED? YES/NO
+9. REVIEW_REQUIRED → 5TH AUTO DELIVERY 설계안
+10. 최소 구현 Step 분할안
+11. 위험요소
+
+중요:
+- repo-wide audit 금지
+- 위 기능과 직접 관련된 파일만 read-only 조사
+- 코드 수정 금지
+- AI 호출 금지
+- DB write 금지
+- deploy 금지
+
+보고 후 STOP.

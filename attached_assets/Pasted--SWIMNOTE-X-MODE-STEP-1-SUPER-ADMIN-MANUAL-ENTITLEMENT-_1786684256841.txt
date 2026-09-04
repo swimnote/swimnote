@@ -1,0 +1,229 @@
+[SWIMNOTE X MODE]
+[STEP 1 — SUPER ADMIN MANUAL ENTITLEMENT CONTROL CHECK ONLY]
+
+목적:
+슈퍼관리자가 특정 수영장에
+SWIMNOTE X 사용권(entitlement)을
+직접 활성화 / 비활성화할 수 있는 기능이
+현재 실제로 구현되어 있는지 확인한다.
+
+이번 작업은 확인 우선.
+
+코드 수정은
+기능이 없거나 실제 버그가 확인된 경우에만 한다.
+
+결제 기능 작업 금지.
+RevenueCat 수정 금지.
+커리큘럼 설정 로직 수정 금지.
+Growth Report 수정 금지.
+
+==================================================
+1. EXISTING SUPER ADMIN UI 확인
+==================================================
+
+실제 SWIMNOTE APP Repository에서
+Super Admin 관련 화면을 확인한다.
+
+찾을 것:
+
+- 수영장 목록
+- 수영장 상세
+- 승인/상태 관리
+- X Mode 관련 toggle/button/action
+- xmode_entitlement 관련 UI
+
+확인 결과:
+
+A. 이미 활성/비활성 UI가 있음
+B. 서버 API만 있고 UI 없음
+C. 아무 기능도 없음
+
+중 하나로 명확히 보고.
+
+==================================================
+2. SERVER API 확인
+==================================================
+
+슈퍼관리자가 X entitlement를
+변경하는 기존 API가 있는지 확인.
+
+최소 확인:
+
+- route
+- method
+- auth middleware
+- super_admin role 제한
+- pool_id 검증
+- xmode_entitlement update
+- audit 기록 여부
+
+일반 pool_admin/teacher/parent가
+이 API를 호출할 수 있으면 보안 문제다.
+
+==================================================
+3. SOURCE OF TRUTH 확인
+==================================================
+
+현재 canonical X entitlement source는:
+
+swimming_pools.xmode_entitlement
+
+인지 확인.
+
+슈퍼관리자 수동 부여 기능도
+반드시 이 canonical 상태를 변경해야 한다.
+
+별도 fake field / UI-only flag 사용 금지.
+
+==================================================
+4. ACTIVATION FLOW 확인
+==================================================
+
+Super Admin:
+
+X 활성화
+
+→ swimming_pools.xmode_entitlement = true
+→ resolvePoolMode(poolId) 재평가
+→ config 상태에 따라:
+
+NOT_CONFIGURED / REQUESTED 등
+→ x_pending
+
+READY
+→ x
+
+가 되는지 확인.
+
+==================================================
+5. DEACTIVATION FLOW 확인
+==================================================
+
+Super Admin:
+
+X 비활성화
+
+→ xmode_entitlement = false
+→ resolvePoolMode(poolId) = normal
+
+이 되는지 확인.
+
+중요:
+
+이미 PUBLISHED된 Growth Report는
+삭제하지 않는다.
+
+신규 X 기능 접근만 차단.
+
+==================================================
+6. 현재 테스트 pool로 확인
+==================================================
+
+현재 pool:
+
+pool_1784865333802_mi7k4fsa4
+name: 스윔노트
+
+현재 상태:
+
+xmode_entitlement = true
+
+이 pool을 기준으로
+Super Admin UI/API에서
+실제로 ON/OFF 가능한 구조인지 확인.
+
+Production 상태를 무작정 바꾸지 말고
+기능 존재/경로 먼저 확인.
+
+실제 ON/OFF 테스트가 안전하면
+명시적으로 한 번:
+
+true → false → true
+
+복구까지 수행 가능.
+
+단,
+반드시 마지막 상태는 true로 원복.
+
+==================================================
+7. AUDIT
+==================================================
+
+수동 활성/비활성은
+관리자 권한 변경이므로 audit 필요.
+
+최소:
+
+actor super_admin
+pool_id
+before entitlement
+after entitlement
+timestamp
+
+기존 audit_logs 재사용 여부 확인.
+
+==================================================
+8. PAYMENT SOURCE와 분리
+==================================================
+
+이번 단계에서는 결제 구현 금지.
+
+다만 현재 schema에:
+
+manual grant
+payment/revenuecat grant
+
+를 구분하는 source field가 있는지 확인만 한다.
+
+예:
+
+xmode_entitlement_source
+manual / revenuecat
+
+같은 구조가 이미 있는지 확인.
+
+없다고 임의로 추가하지 말고 보고만.
+
+이 부분은 STEP 2 결제 설계에서 다룬다.
+
+==================================================
+9. RESULT 분류
+==================================================
+
+A.
+Super Admin UI + API + canonical DB update + auth + audit 모두 존재
+→ SUPER_ADMIN_X_CONTROL_READY ✅
+
+B.
+API는 있으나 UI 없음
+→ SUPER_ADMIN_X_CONTROL_PARTIAL
+
+C.
+UI는 있으나 실제 DB canonical update 안 됨
+→ BLOCKED
+
+D.
+기능 자체 없음
+→ NOT_IMPLEMENTED
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. RESULT
+2. SUPER ADMIN UI
+3. SERVER API
+4. AUTHORIZATION
+5. DB FIELD UPDATED
+6. ACTIVATION FLOW
+7. DEACTIVATION FLOW
+8. AUDIT
+9. ENTITLEMENT SOURCE FIELD EXISTENCE
+10. CURRENT TEST POOL FINAL STATE
+11. FILES MODIFIED
+12. DEPLOY / MIGRATION STATUS
+
+이번 단계 끝날 때까지
+결제 기능 작업 시작 금지.

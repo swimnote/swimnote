@@ -1,0 +1,318 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE Terminology — Production Gateway 연결 + iOS 2.0.0 E2E 배포]
+
+현재 APP terminology 최신 commit:
+
+b1888eb7
+→ initial implementation
+
+3fdf285d
+→ Production mock fallback 차단
+
+AI ENGINE Production terminology API가
+READY 상태로 배포 완료된 것을 전제로 진행한다.
+
+목표:
+
+Production Engine 실제 연결
+→ APP API Gateway Production 배포
+→ 실제 Gateway E2E
+→ 2.0.0 iOS OTA
+→ 실기기 검증 가능한 상태
+
+Android OTA 금지.
+1.6.3 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production Backend Branch 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 2.0.0 mobile branch는:
+
+release/v2.0.0
+
+하지만 공용 Production API는
+기존 Production deploy branch lineage를 사용한다.
+
+현재 실제 Render production backend branch/HEAD를
+코드와 git 상태에서 확인한다.
+
+release/v2.0.0 전체를
+그대로 Production backend에 merge하지 않는다.
+
+Terminology Gateway 관련 server 변경만
+additive/backward-compatible하게
+Production deploy branch에 backport한다.
+
+대상 server 변경:
+
+terminology-engine-client.ts
+routes/terminology.ts
+routes/index.ts
+관련 tests
+
+Mobile UI 파일은 Production API branch backport 대상 아님.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Engine 환경변수 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production APP API에서:
+
+PROFESSIONAL_ENGINE_BASE_URL
+PROFESSIONAL_ENGINE_API_SECRET
+
+이 실제 배포된
+swimnote-professional-engine을 가리키는지 확인.
+
+secret 값 출력 금지.
+
+환경변수 누락 시
+mock 사용 금지.
+
+반드시 503 fail-closed.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Gateway Contract 실제 연결
+━━━━━━━━━━━━━━━━━━━━
+
+Production APP API:
+
+GET /terminology/search?q=스트림라인&limit=30
+
+↓
+
+Professional Engine:
+
+GET /api/terminology/search
+
+실제 연결 확인.
+
+Detail:
+
+GET /terminology/terms/TERM-000001
+
+↓
+
+ENGINE actual detail.
+
+Status도 APP Gateway가 실제 사용 중이면
+service-auth 기반으로 정상 연결 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. Gateway Production Tests
+━━━━━━━━━━━━━━━━━━━━
+
+실제 APP API 인증된 test context에서:
+
+검색:
+스트림라인
+Streamline
+유선형
+DPS
+negative split
+
+상세:
+TERM-000001
+
+확인:
+
+- 200
+- 실제 ENGINE response
+- mock 아님
+- sections[].segments 존재
+- inline term_id 존재
+- related_terms 존재
+
+ENGINE 검색결과 0:
+200 + results []
+
+ENGINE 장애:
+503
+mock fallback 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+5. Production API Render Deploy
+━━━━━━━━━━━━━━━━━━━━
+
+Terminology Gateway server 변경만
+현재 실제 Production deploy branch에 안전하게 반영.
+
+기존 1.6.3 endpoint contract 변경 금지.
+
+배포 후:
+
+live backend SHA
+Render deploy status
+health
+terminology gateway live test
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━
+6. release/v2.0.0 Mobile 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+mobile branch:
+release/v2.0.0
+
+최신 terminology UI commit 포함 확인:
+
+3fdf285d 또는 그 이후 descendant.
+
+확인:
+
+Parent:
+AI 커리큘럼 검색 / 수영·훈련용어 검색 세로 2분할
+
+Teacher:
+settings → 수영·훈련용어 검색
+
+공통:
+Search
+Detail
+Segment Link
+Related Terms
+Back Stack
+
+━━━━━━━━━━━━━━━━━━━━
+7. iOS OTA ONLY
+━━━━━━━━━━━━━━━━━━━━
+
+Production Gateway 실제 연결 확인 후에만 OTA.
+
+대상:
+
+version: 2.0.0
+runtime: 2.0.0
+channel: production-v2
+OTA branch: release-2.0.0
+
+반드시:
+
+iOS ONLY
+
+Android OTA publish 금지.
+
+1.6.3 OTA 금지.
+
+publish 전 resolved config 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. OTA 후 실기기 E2E 체크리스트
+━━━━━━━━━━━━━━━━━━━━
+
+자동으로 실기기를 조작할 수 없다면
+코드/서버 검증 완료 후
+사용자가 직접 확인해야 할 정확한 체크리스트를 보고한다.
+
+Parent:
+
+1.
+X Home 진입
+
+2.
+AI 커리큘럼 검색 카드가
+세로 2분할로 정상 표시
+
+3.
+위 AI 커리큘럼 검색
+기존 기능 정상
+
+4.
+아래 수영·훈련용어 검색 탭
+
+5.
+"스트림라인" 검색
+
+6.
+TERM-000001 결과
+
+7.
+상세 진입
+
+8.
+본문 "글라이드" 탭
+
+9.
+글라이드 상세
+
+10.
+다른 linked term 탭
+
+11.
+뒤로가기
+→ 직전 term
+
+12.
+뒤로가기
+→ 스트림라인
+
+13.
+뒤로가기
+→ 검색
+
+Teacher:
+
+1.
+설정
+
+2.
+수영·훈련용어 검색
+
+3.
+DPS 검색
+
+4.
+상세
+
+5.
+inline link
+
+6.
+back stack
+
+Small iPhone:
+카드/검색/긴 텍스트/keyboard overlap 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 회귀 금지
+━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+AI Curriculum Search 정상
+Parent Home 정상
+Teacher Settings 정상
+기존 1.6.3 정상
+기존 API 정상
+
+Terminology 때문에
+다른 기능 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. Production backend branch/기존 SHA
+2. terminology backport commit SHA
+3. Production backend live SHA
+4. Engine env 연결 상태
+5. Gateway 실제 search 결과
+6. Gateway 실제 detail 결과
+7. mock 미사용 확인
+8. backend tests
+9. release/v2.0.0 mobile HEAD
+10. OTA resolved config
+11. iOS OTA update ID
+12. Android OTA 미수행 확인
+13. 1.6.3 미변경 확인
+14. 사용자가 확인할 실기기 E2E 항목
+
+Production backend deploy 및
+2.0.0 iOS OTA까지 수행.
+
+Android OTA 금지.
+
+완료 후 STOP.

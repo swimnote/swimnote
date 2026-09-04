@@ -1,0 +1,451 @@
+# [WP-AI-01 / AI01-09 — SUPER ADMIN AI COST DASHBOARD]
+
+목적:
+
+AI01-08의
+
+`GET /api/super/ai-cost-overview`
+
+응답을 기존 Super Admin 화면에 연결하여
+
+SWIMNOTE의 AI/API 사용량과 비용을
+운영자가 한 화면에서 확인할 수 있게 한다.
+
+이번 Step은 WP-AI-01의 마지막 Step이다.
+
+---
+
+# 0. 크레딧 절약 원칙
+
+전체 frontend repository 조사 금지.
+
+최소 확인:
+
+* 기존 Super Admin navigation/tab 구조
+* 기존 Super Admin API fetch 패턴
+* 기존 card/table component 패턴
+* AI01-08 endpoint response type
+
+기존 디자인 시스템을 그대로 재사용한다.
+
+새 chart library 설치 금지.
+
+전체 regression 금지.
+
+---
+
+# 1. 메뉴
+
+기존 Super Admin 영역에:
+
+```text
+AI 비용
+```
+
+메뉴 또는 tab 하나를 추가한다.
+
+새 별도 관리 앱이나 페이지 구조를 만들지 않는다.
+
+기존 Super Admin navigation convention을 그대로 따른다.
+
+---
+
+# 2. API
+
+오직:
+
+```text
+GET /api/super/ai-cost-overview
+```
+
+사용.
+
+클라이언트에서 OpenAI/Cloudflare/SMS/Engine API 직접 호출 금지.
+
+클라이언트에서 event_logs 직접 조회 금지.
+
+---
+
+# 3. 상단 기간
+
+최소:
+
+```text
+오늘
+이번 달
+```
+
+두 기간을 볼 수 있게 한다.
+
+API가 이미 today/month를 한 번에 반환하므로
+기간 변경 때 불필요하게 API를 재호출하지 않아도 된다.
+
+기존 frontend convention에 맞게 tab 또는 toggle 사용.
+
+---
+
+# 4. 핵심 Summary Cards
+
+선택 기간에 최소 표시:
+
+```text
+논리 요청
+확인된 실제 호출
+실제 호출 미확인 기록
+재시도
+확인된 비용
+비용 미확인 기록
+성공
+실패
+```
+
+중요:
+
+UNKNOWN을 0원으로 보이지 않는다.
+
+예:
+
+```text
+확인된 비용
+$0.0184
+
+비용 미확인 기록
+34건
+```
+
+처럼 별도 표현한다.
+
+---
+
+# 5. 비용 표현
+
+`known_cost_usd`만 금액으로 표시한다.
+
+원화 환산 금지.
+
+이유:
+
+환율 API를 추가하면 Dashboard 조회 자체에 외부 의존성이 생긴다.
+
+이번 WP에서는 USD 원가 기준만 사용한다.
+
+표시는 너무 긴 소수점이 나오지 않도록
+UI에서 적당한 자릿수만 format한다.
+
+원본 API 값은 변경하지 않는다.
+
+---
+
+# 6. Trigger Type 영역
+
+최소 표:
+
+| Trigger | 논리 요청 | 실제 호출 | 확인 비용 | 비용 미확인 |
+| ------- | ----: | ----: | ----: | -----: |
+
+특히:
+
+* USER_ACTION
+* SYSTEM_MAINTENANCE
+* ADMIN_MANUAL
+* BATCH_JOB
+* UNKNOWN
+
+을 API 결과대로 표시.
+
+`SYSTEM_MAINTENANCE`가 눈에 보이게 해야 한다.
+
+새 색상 체계를 과도하게 만들 필요 없음.
+
+---
+
+# 7. Feature 영역
+
+표:
+
+| Feature | 논리 요청 | 실제 호출 | 재시도 | 확인 비용 | 비용 미확인 | 요청당 확인비용 |
+| ------- | ----: | ----: | --: | ----: | -----: | -------: |
+
+API의 실제 feature 이름을 사용한다.
+
+이번 Step에서 feature rename/mapping layer를 새로 만들지 않는다.
+
+가능하면 기존 label helper가 있을 때만 사람이 읽기 좋은 label 적용.
+
+---
+
+# 8. Provider / Service / Model 영역
+
+표:
+
+| Provider | Service | Model | 논리 요청 | 실제 호출 | 확인 비용 | 비용 미확인 |
+| -------- | ------- | ----- | ----: | ----: | ----: | -----: |
+
+model=null이면:
+
+```text
+-
+```
+
+표시.
+
+예상되는 실제 데이터 예:
+
+* openai / gpt / gpt-4o-mini
+* openai / whisper / whisper-1
+* curriculum_engine / search / -
+* growth_engine / analysis / -
+* sens / sms_send / -
+* cloudflare_r2 / r2_put / -
+
+하드코딩 목록을 생성하지 않는다.
+
+API 결과만 렌더링한다.
+
+---
+
+# 9. Pool 영역
+
+표:
+
+| Pool ID | 논리 요청 | 실제 호출 | 확인 비용 | 비용 미확인 |
+| ------- | ----: | ----: | ----: | -----: |
+
+이번 Step에서는 복잡한 pool-name join 추가 금지.
+
+API에서 pool_id만 오면 그대로 사용한다.
+
+---
+
+# 10. Unknown 표현 정확성
+
+매우 중요.
+
+`unknown_cost_calls`는 UI에서:
+
+```text
+비용 미확인 기록
+```
+
+또는 동등한 의미로 표시한다.
+
+단순히:
+
+```text
+무료
+$0
+```
+
+로 표시 금지.
+
+`actual_calls_unknown_events`는:
+
+```text
+실제 호출 미확인 기록
+```
+
+으로 표시.
+
+UNKNOWN과 ZERO를 명확하게 구분한다.
+
+---
+
+# 11. Loading / Error / Empty
+
+최소 상태 지원:
+
+### Loading
+
+기존 Super Admin loading pattern 재사용.
+
+### Error
+
+API 실패 시:
+
+```text
+비용 데이터를 불러오지 못했습니다.
+```
+
+정도의 기존 UI style 사용.
+
+### Empty
+
+데이터 0건이면 crash하지 않고:
+
+```text
+기록된 사용량이 없습니다.
+```
+
+표시.
+
+---
+
+# 12. Refresh
+
+기존 Admin 화면에 refresh 패턴이 있으면 재사용.
+
+없다면 간단한:
+
+```text
+새로고침
+```
+
+버튼 하나는 허용.
+
+자동 polling 추가 금지.
+
+Dashboard를 열어두었다고 서버 조회가 계속 발생하지 않게 한다.
+
+---
+
+# 13. 금지
+
+이번 Step에서:
+
+* chart library 설치 금지
+* 그래프를 위해 복잡한 시각화 신규 구현 금지
+* API contract 변경 금지
+* event_logs query 변경 금지
+* AI route 수정 금지
+* SMS/R2 수정 금지
+* external engine 수정 금지
+* pricing/model 수정 금지
+* DB migration 금지
+* provider billing API 호출 금지
+* 자동 polling 금지
+* Render deploy 금지
+* Expo OTA 금지
+* full frontend regression 금지
+
+AI01-09 UI만 구현한다.
+
+---
+
+# 14. 테스트
+
+전체 regression 금지.
+
+관련 component/API 최소 테스트만 수행.
+
+필수:
+
+### TC1
+
+Super Admin AI 비용 화면 진입
+→ AI01-08 endpoint 1회 호출
+
+### TC2
+
+오늘/이번 달 전환
+→ 각각 올바른 API response section 표시
+
+### TC3
+
+known cost + unknown cost
+→ 금액과 `비용 미확인 기록` 분리 표시
+
+### TC4
+
+SYSTEM_MAINTENANCE
+→ 별도 row 표시
+
+### TC5
+
+model=null
+→ `-`로 정상 렌더링
+
+### TC6
+
+empty response
+→ crash 없이 empty state
+
+### TC7
+
+API error
+→ error state
+
+### TC8
+
+기간 toggle만으로 provider API 또는 다른 외부 API 호출 없음
+
+---
+
+# 15. 완료 보고
+
+# [AI01-09 IMPLEMENTATION REPORT]
+
+## 1. Result
+
+PASS / FAIL
+
+## 2. Commit
+
+* Branch
+* Before SHA
+* After SHA
+* Commit message
+
+## 3. Changed Files
+
+실제 변경 파일만.
+
+## 4. UI Location
+
+* Super Admin 어디에 추가했는지
+* menu/tab 명칭
+
+## 5. Displayed Metrics
+
+실제 화면에 표시되는 summary/table 항목.
+
+## 6. Unknown Handling
+
+* unknown cost
+* unknown actual calls
+
+UI에서 어떻게 구분했는지.
+
+## 7. API Behavior
+
+* endpoint
+* 최초 호출 횟수
+* 자동 polling 여부
+
+## 8. Tests
+
+* 정확한 command
+* test file
+* PASS
+* FAIL
+
+## 9. Scope Check
+
+다음 미수정 확인:
+
+* AI01-08 API
+* AI routes
+* external engines
+* SMS
+* R2
+* pricing/model config
+* DB schema
+* deployment config
+
+## 10. Verification Level
+
+`UNIT/COMPONENT TEST CONFIRMED`
+
+아직 Render 배포 전이면:
+
+`PRODUCTION CONFIRMED 아님`
+
+---
+
+# 16. STOP
+
+AI01-09 완료 후 멈춘다.
+
+이 Step까지 PASS가 나면
+**WP-AI-01 Cost Observability Foundation 구현 완료**로 판정한다.
+
+그 다음 WP를 임의로 시작하지 않는다.

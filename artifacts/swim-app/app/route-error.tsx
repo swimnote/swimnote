@@ -1,3 +1,6 @@
+import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
+const C = Colors.light;
 /**
  * route-error.tsx
  * 세션은 있으나 라우팅에 실패했을 때 표시되는 안전망 화면.
@@ -34,7 +37,7 @@ export default function RouteErrorScreen() {
 
   return (
     <View style={s.container}>
-      <Text style={s.emoji}>⚠️</Text>
+      <LucideIcon name="alert-triangle" size={48} color={C.textSecondary} style={{ marginBottom: 20 }} />
       <Text style={s.title}>화면 전환에 실패했습니다</Text>
       <Text style={s.desc}>
         서버 응답이 지연되거나 네트워크 오류가 발생했습니다.{"\n"}
@@ -42,7 +45,7 @@ export default function RouteErrorScreen() {
       </Text>
 
       {loading ? (
-        <ActivityIndicator color="#2EC4B6" style={{ marginTop: 32 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 32 }} />
       ) : (
         <View style={s.btnRow}>
           <TouchableOpacity style={s.retryBtn} onPress={handleRetry}>
@@ -64,21 +67,21 @@ const s = StyleSheet.create({
   },
   emoji: { fontSize: 48, marginBottom: 20 },
   title: {
-    fontSize: 18, fontWeight: "700", color: "#1E293B",
+    fontSize: 18, fontWeight: "700", color: C.textStrong,
     textAlign: "center", marginBottom: 12,
   },
   desc: {
-    fontSize: 14, color: "#64748B", textAlign: "center",
+    fontSize: 14, color: C.textSecondary, textAlign: "center",
     lineHeight: 22,
   },
   btnRow: { flexDirection: "column", gap: 12, marginTop: 36, width: "100%" },
   retryBtn: {
-    backgroundColor: "#2EC4B6", paddingVertical: 14,
+    backgroundColor: C.primaryAction, paddingVertical: 14,
     borderRadius: 12, alignItems: "center",
   },
   retryTxt: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
   logoutBtn: {
-    backgroundColor: "#F1F5F9", paddingVertical: 14,
+    backgroundColor: C.backgroundSoft, paddingVertical: 14,
     borderRadius: 12, alignItems: "center",
   },
   logoutTxt: { color: "#475569", fontSize: 15, fontWeight: "600" },

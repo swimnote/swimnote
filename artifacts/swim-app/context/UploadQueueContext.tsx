@@ -1,4 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
+import { deleteTempFileAfterUpload } from "@/utils/mediaCleanupV2";
+import { API_BASE } from "@/context/auth/SessionContext";
 
 export interface PhotoUploadJob {
   uri: string;
@@ -21,7 +23,7 @@ const UploadQueueCtx = createContext<UploadQueueCtxType>({
   addJobs: () => {}, dismiss: () => {},
 });
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
+const API_BASE_URL = API_BASE;
 const CONCURRENCY = 3;
 
 async function uploadOnce(job: PhotoUploadJob): Promise<boolean> {
@@ -66,8 +68,16 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
       await new Promise(r => setTimeout(r, 2000));
       ok = await uploadOnce(job);
     }
-    if (ok) setDone(d => d + 1);
-    else setFailed(f => f + 1);
+    if (ok) {
+      setDone(d => d + 1);
+      // 업로드 성공 후 cacheDirectory temp 파일 삭제 (ImageManipulator/ImagePicker temp copy)
+      // MediaLibrary 원본(ph://, assets-library://)은 건드리지 않음
+      deleteTempFileAfterUpload(job.uri).catch(() => {});
+    } else {
+      setFailed(f => f + 1);
+      // 최종 실패 후 temp 삭제 — 2회 재시도 모두 소진된 이후이므로 더 이상 URI 불필요
+      deleteTempFileAfterUpload(job.uri).catch(() => {});
+    }
   }
 
   async function runWorker() {

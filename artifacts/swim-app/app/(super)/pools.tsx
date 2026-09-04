@@ -1,14 +1,14 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
- * (super)/pools.tsx — 운영자 관리 (대규모 운영 콘솔)
+ * (super)/pools.tsx — 운영처 관리 (대규모 운영 콘솔)
  * 14개 실데이터 · 13개 필터칩 · 다중선택 · 일괄처리
  */
-import { Check, Inbox, Search, SquareCheck, X } from "lucide-react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import {
-  FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE } from "@/context/auth/SessionContext";
@@ -21,20 +21,21 @@ import { formatDateSafe, calcPercent } from "@/domain/formatters";
 const P = "#7C3AED";
 
 const FILTER_CHIPS: { key: OperatorFilter; label: string; color: string; bg: string }[] = [
-  { key: "all",              label: "전체",         color: "#0F172A", bg: "#FFFFFF" },
+  { key: "all",              label: "전체",         color: C.textPrimary, bg: "#FFFFFF" },
   { key: "pending",          label: "승인 대기",     color: "#D97706", bg: "#FFF1BF" },
   { key: "payment_failed",   label: "결제 실패",     color: "#D96C6C", bg: "#F9DEDA" },
   { key: "storage95",        label: "저장 95%↑",    color: P,         bg: "#EEDDF5" },
-  { key: "deletion_pending", label: "삭제 예정",     color: "#2EC4B6", bg: "#ECFEFF" },
-  { key: "credit",           label: "크레딧 보유",   color: "#2EC4B6", bg: "#E6FFFA" },
-  { key: "new_this_week",    label: "이번 주 신규", color: "#64748B", bg: "#FFFFFF" },
-  { key: "free_over10",      label: "무료 체험",     color: "#64748B", bg: "#FFFFFF" },
-  { key: "policy_unsigned",  label: "정책 미확인",   color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "deletion_pending", label: "삭제 예정",     color: C.brandStrong, bg: "#ECFEFF" },
+  { key: "credit",           label: "크레딧 보유",   color: C.brandStrong, bg: C.brandSoft },
+  { key: "new_this_week",    label: "이번 주 신규", color: C.textSecondary, bg: "#FFFFFF" },
+  { key: "free_over10",      label: "무료 체험",     color: C.textSecondary, bg: "#FFFFFF" },
+  { key: "policy_unsigned",  label: "정책 미확인",   color: C.brandStrong, bg: C.brandSoft },
   { key: "upload_spike",     label: "업로드 급증",   color: "#D97706", bg: "#FFF1BF" },
   { key: "refund_repeat",    label: "반복 환불",     color: "#D96C6C", bg: "#F9DEDA" },
-  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "solo_coach",       label: "🧑‍🏫 1인 코치",  color: C.brandStrong, bg: C.brandSoft },
   { key: "franchise",        label: "🏢 프랜차이즈", color: P,         bg: "#EEDDF5" },
   { key: "readonly",         label: "읽기전용",      color: "#7C3AED", bg: "#EEDDF5" },
+  { key: "xmode",            label: "⚡ X MODE",     color: C.brandStrong, bg: C.brandSoft },
 ];
 
 const SORT_OPTS = [
@@ -47,36 +48,36 @@ const SORT_OPTS = [
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
   pending:    { label: "대기",   color: "#D97706", bg: "#FFF1BF" },
-  active:     { label: "운영",   color: "#2EC4B6", bg: "#E6FFFA" },
+  active:     { label: "운영",   color: C.brandStrong, bg: C.brandSoft },
   rejected:   { label: "반려",   color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:  { label: "해지",   color: "#64748B", bg: "#FFFFFF" },
+  cancelled:  { label: "해지",   color: C.textSecondary, bg: "#FFFFFF" },
   readonly:   { label: "읽기전용", color: "#7C3AED", bg: "#EEDDF5" },
   restricted: { label: "제한",   color: "#D96C6C", bg: "#F9DEDA" },
 };
 
 const BILLING_CFG: Record<string, { label: string; color: string }> = {
-  active:                { label: "정상",  color: "#2EC4B6" },
+  active:                { label: "정상",  color: C.brandStrong },
   payment_failed:        { label: "실패",  color: "#D96C6C" },
   grace:                 { label: "유예",  color: "#D97706" },
-  cancelled:             { label: "해지",  color: "#64748B" },
-  auto_delete_scheduled: { label: "삭제예정", color: "#2EC4B6" },
+  cancelled:             { label: "해지",  color: C.textSecondary },
+  auto_delete_scheduled: { label: "삭제예정", color: C.brandStrong },
   readonly:              { label: "읽기전용", color: "#7C3AED" },
-  free:                  { label: "무료",  color: "#2EC4B6" },
+  free:                  { label: "무료",  color: C.brandStrong },
 };
 
 const TYPE_CFG: Record<string, { label: string; color: string }> = {
-  swimming_pool: { label: "수영장",    color: "#2EC4B6" },
-  solo_coach:    { label: "1인 코치",  color: "#2EC4B6" },
+  swimming_pool: { label: "수영장",    color: C.brandStrong },
+  solo_coach:    { label: "1인 코치",  color: C.brandStrong },
   rental_team:   { label: "대관팀",    color: "#D97706" },
   franchise:     { label: "프랜차이즈", color: P },
 };
 
 const BULK_ACTIONS = [
-  { key: "approve",         label: "승인",       color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "approve",         label: "승인",       color: C.brandStrong, bg: C.brandSoft },
   { key: "reject",          label: "반려",       color: "#D96C6C", bg: "#F9DEDA" },
   { key: "readonly_on",     label: "읽기전용",   color: "#7C3AED", bg: "#EEDDF5" },
   { key: "block_upload",    label: "업로드 차단", color: "#D97706", bg: "#FFF1BF" },
-  { key: "policy_reminder", label: "정책 재알림", color: "#2EC4B6", bg: "#E6FFFA" },
+  { key: "policy_reminder", label: "정책 재알림", color: C.brandStrong, bg: C.brandSoft },
   { key: "terminate",       label: "종료",       color: "#7F1D1D", bg: "#F9DEDA" },
 ];
 
@@ -111,13 +112,17 @@ export default function SuperPoolsScreen() {
 
   const { token } = useAuth();
 
-  // API에서 실데이터 로드
+  // API에서 실데이터 로드 (화면 포커스 복귀 시 재조회)
   const loadOperators = useCallback(async () => {
     if (!token) return;
     await fetchOperators(token, API_BASE);
   }, [token, fetchOperators]);
 
   useEffect(() => { loadOperators(); }, [loadOperators]);
+
+  useFocusEffect(useCallback(() => {
+    loadOperators();
+  }, [loadOperators]));
 
   // sync local filter to store
   useEffect(() => {
@@ -192,8 +197,8 @@ export default function SuperPoolsScreen() {
   const renderItem = ({ item }: { item: Operator }) => {
     const isSelected = selected.has(item.id);
     const sCfg   = STATUS_CFG[item.status] ?? STATUS_CFG.pending;
-    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: "#64748B" };
-    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: "#2EC4B6" };
+    const bCfg   = BILLING_CFG[item.billingStatus] ?? { label: item.billingStatus, color: C.textSecondary };
+    const tCfg   = TYPE_CFG[item.type] ?? { label: "수영장", color: C.brandStrong };
     const pct    = Math.round((item.storageUsedMb / Math.max(item.storageTotalMb, 1)) * 100);
     const pctStr = `${pct}%`;
     const isDanger  = item.storageBlocked95;
@@ -215,7 +220,7 @@ export default function SuperPoolsScreen() {
         {/* 체크박스 */}
         {multiSelect && (
           <View style={[s.checkbox, isSelected && s.checkboxChecked]}>
-            {isSelected && <Check size={12} color="#fff" />}
+            {isSelected && <LucideIcon name="check" size={12} color="#fff" />}
           </View>
         )}
 
@@ -228,7 +233,7 @@ export default function SuperPoolsScreen() {
             </View>
             {isDeletion && (
               <View style={[s.badge, { backgroundColor: "#ECFEFF" }]}>
-                <Text style={[s.badgeTxt, { color: "#2EC4B6" }]}>삭제예정</Text>
+                <Text style={[s.badgeTxt, { color: C.brandStrong }]}>삭제예정</Text>
               </View>
             )}
             {item.uploadSpikeFlag && (
@@ -254,7 +259,7 @@ export default function SuperPoolsScreen() {
               <View style={[s.storageBarFill,
                 { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
             </View>
-            <Text style={[s.storagePct, { color: isDanger ? "#D96C6C" : "#64748B" }]}>{pctStr}</Text>
+            <Text style={[s.storagePct, { color: isDanger ? "#D96C6C" : C.textSecondary }]}>{pctStr}</Text>
           </View>
 
           <View style={s.rowBottom}>
@@ -269,8 +274,8 @@ export default function SuperPoolsScreen() {
           <View style={s.actions}>
             {isPending && (
               <>
-                <Pressable style={[s.actBtn, { backgroundColor: "#E6FFFA" }]} onPress={() => quickAction(item, "approve")}>
-                  <Text style={[s.actTxt, { color: "#2EC4B6" }]}>승인</Text>
+                <Pressable style={[s.actBtn, { backgroundColor: C.brandSoft }]} onPress={() => quickAction(item, "approve")}>
+                  <Text style={[s.actTxt, { color: C.brandStrong }]}>승인</Text>
                 </Pressable>
                 <Pressable style={[s.actBtn, { backgroundColor: "#F9DEDA" }]} onPress={() => quickAction(item, "reject")}>
                   <Text style={[s.actTxt, { color: "#D96C6C" }]}>반려</Text>
@@ -280,7 +285,7 @@ export default function SuperPoolsScreen() {
             {!isPending && (
               <Pressable style={[s.actBtn, { backgroundColor: "#FFFFFF" }]}
                 onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=pools` as any)}>
-                <Text style={[s.actTxt, { color: "#0F172A" }]}>상세</Text>
+                <Text style={[s.actTxt, { color: C.textPrimary }]}>상세</Text>
               </Pressable>
             )}
           </View>
@@ -294,7 +299,7 @@ export default function SuperPoolsScreen() {
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* 일괄처리 모달 */}
-      <Modal visible={!!bulkModal} transparent animationType="fade" onRequestClose={() => setBulkModal(null)}>
+      <Modal visible={!!bulkModal} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setBulkModal(null)}>
         <Pressable style={s.overlay} onPress={() => setBulkModal(null)}>
           <Pressable style={s.sheet} onPress={() => {}}>
             <Text style={s.sheetTitle}>{BULK_ACTIONS.find(a => a.key === bulkModal)?.label} ({selected.size}건)</Text>
@@ -304,11 +309,11 @@ export default function SuperPoolsScreen() {
             )}
             <View style={s.sheetBtns}>
               <Pressable style={[s.sheetBtn, { backgroundColor: "#FFFFFF" }]} onPress={() => setBulkModal(null)}>
-                <Text style={{ color: "#0F172A", fontFamily: "Pretendard-Regular" }}>취소</Text>
+                <Text style={{ color: C.textPrimary, fontFamily: "Pretendard-Regular" }}>취소</Text>
               </Pressable>
               <Pressable style={[s.sheetBtn, { backgroundColor: BULK_ACTIONS.find(a => a.key === bulkModal)?.bg ?? "#FFFFFF" }]}
                 disabled={processing} onPress={() => executeBulk(bulkModal!)}>
-                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? "#0F172A", fontFamily: "Pretendard-Regular" }}>
+                <Text style={{ color: BULK_ACTIONS.find(a => a.key === bulkModal)?.color ?? C.textPrimary, fontFamily: "Pretendard-Regular" }}>
                   확인
                 </Text>
               </Pressable>
@@ -317,28 +322,28 @@ export default function SuperPoolsScreen() {
         </Pressable>
       </Modal>
 
-      <SubScreenHeader title="운영자 관리" homePath="/(super)/op-group" />
+      <SubScreenHeader title="운영처 관리" homePath="/(super)/dashboard" />
 
       {/* 검색 + 정렬 */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
-          <Search size={14} color="#64748B" />
+          <LucideIcon name="search" size={14} color={C.textSecondary} />
           <TextInput style={s.searchInput} value={search} onChangeText={setSearch}
-            placeholder="운영자명, 코드, 담당자 검색" placeholderTextColor="#64748B" />
+            placeholder="운영처명, 코드, 담당자 검색" placeholderTextColor={C.textMuted} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <X size={14} color="#64748B" />
+              <LucideIcon name="x" size={14} color={C.textSecondary} />
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
           {SORT_OPTS.map(o => (
             <Pressable key={o.key} style={[s.sortChip, sort === o.key && s.sortChipActive]}
               onPress={() => setSort(o.key)}>
               <Text style={[s.sortChipTxt, sort === o.key && s.sortChipTxtActive]}>{o.label}</Text>
             </Pressable>
           ))}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* 필터 칩 — 전체 표시 (wrap) */}
@@ -360,18 +365,18 @@ export default function SuperPoolsScreen() {
         </Text>
         <View style={s.listHeaderRight}>
           {multiSelect && selected.size > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               {BULK_ACTIONS.map(a => (
                 <Pressable key={a.key} style={[s.bulkBtn, { backgroundColor: a.bg }]}
                   onPress={() => setBulkModal(a.key)}>
                   <Text style={[s.bulkTxt, { color: a.color }]}>{a.label}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           )}
           <Pressable style={[s.multiBtn, multiSelect && s.multiBtnActive]}
             onPress={() => { setMultiSelect(!multiSelect); setSelected(new Set()); }}>
-            <SquareCheck size={14} color={multiSelect ? P : "#64748B"} />
+            <LucideIcon name="check-square" size={14} color={multiSelect ? P : C.textSecondary} />
             <Text style={[s.multiBtnTxt, multiSelect && { color: P }]}>
               {multiSelect ? "완료" : "다중선택"}
             </Text>
@@ -389,8 +394,8 @@ export default function SuperPoolsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.empty}>
-            <Inbox size={40} color="#D1D5DB" />
-            <Text style={s.emptyTxt}>해당 조건의 운영자가 없습니다</Text>
+            <LucideIcon name="inbox" size={40} color="#D1D5DB" />
+            <Text style={s.emptyTxt}>해당 조건의 운영처가 없습니다</Text>
           </View>
         }
       />
@@ -402,28 +407,28 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: "#fff" },
   overlay:           { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
   sheet:             { backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "85%", gap: 12 },
-  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: "#0F172A" },
-  sheetInput:        { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 8, padding: 10, color: "#0F172A", fontFamily: "Pretendard-Regular", minHeight: 60 },
+  sheetTitle:        { fontFamily: "Pretendard-Regular", fontSize: 16, color: C.textPrimary },
+  sheetInput:        { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10, color: C.textPrimary, fontFamily: "Pretendard-Regular", minHeight: 60 },
   sheetBtns:         { flexDirection: "row", gap: 10 },
   sheetBtn:          { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   searchRow:         { paddingHorizontal: 16, paddingVertical: 8, gap: 6 },
-  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: "#F1F5F9", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
-  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: "#0F172A" },
+  searchBox:         { flexDirection: "row", alignItems: "center", backgroundColor: C.backgroundSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 6 },
+  searchInput:       { flex: 1, fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textPrimary },
   sortChip:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: "#FFFFFF", marginRight: 6 },
   sortChipActive:    { backgroundColor: "#EEDDF5" },
-  sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  sortChipTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   sortChipTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
   chipsWrap:         { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingVertical: 8, gap: 6, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chip:              { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, backgroundColor: "#FFFFFF" },
-  chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  chipTxt:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   listHeader:        { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
-  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: "#0F172A" },
+  listCount:         { fontFamily: "Pretendard-Regular", fontSize: 13, color: C.textPrimary },
   listHeaderRight:   { flexDirection: "row", alignItems: "center", gap: 8 },
   bulkBtn:           { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 4 },
   bulkTxt:           { fontFamily: "Pretendard-Regular", fontSize: 11 },
   multiBtn:          { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#FFFFFF" },
   multiBtnActive:    { backgroundColor: "#EEDDF5" },
-  multiBtnTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  multiBtnTxt:       { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   row:               { backgroundColor: "#fff", marginHorizontal: 16, marginVertical: 4, borderRadius: 12, padding: 14, flexDirection: "row", alignItems: "flex-start", borderWidth: 1, borderColor: "#FFFFFF" },
   rowSelected:       { borderColor: P, backgroundColor: "#EEDDF5" },
   rowDanger:         { borderColor: "#BAE6FD" },
@@ -432,23 +437,23 @@ const s = StyleSheet.create({
   checkboxChecked:   { backgroundColor: P, borderColor: P },
   rowMain:           { flex: 1, gap: 4 },
   rowTop:            { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: "#0F172A", flex: 1 },
+  rowName:           { fontFamily: "Pretendard-Regular", fontSize: 15, color: C.textPrimary, flex: 1 },
   badge:             { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeTxt:          { fontFamily: "Pretendard-Regular", fontSize: 10 },
   rowMeta:           { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
-  rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#64748B" },
+  rowOwner:          { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textSecondary },
   rowDot:            { color: "#D1D5DB", fontSize: 10 },
-  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: "#0F172A" },
+  metaTag:           { fontFamily: "Pretendard-Regular", fontSize: 12, color: C.textPrimary },
   storageRow:        { flexDirection: "row", alignItems: "center", gap: 6 },
   storageBarBg:      { flex: 1, height: 4, backgroundColor: "#FFFFFF", borderRadius: 2, overflow: "hidden" },
   storageBarFill:    { height: 4, borderRadius: 2 },
   storagePct:        { fontFamily: "Pretendard-Regular", fontSize: 11, minWidth: 34, textAlign: "right" },
   rowBottom:         { flexDirection: "row", alignItems: "center", gap: 4 },
   billingBadge:      { fontFamily: "Pretendard-Regular", fontSize: 11 },
-  loginDate:         { fontFamily: "Pretendard-Regular", fontSize: 11, color: "#64748B" },
+  loginDate:         { fontFamily: "Pretendard-Regular", fontSize: 11, color: C.textSecondary },
   actions:           { flexDirection: "column", gap: 4, marginLeft: 8 },
   actBtn:            { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
   actTxt:            { fontFamily: "Pretendard-Regular", fontSize: 11 },
   empty:             { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:          { fontFamily: "Pretendard-Regular", fontSize: 14, color: "#64748B" },
+  emptyTxt:          { fontFamily: "Pretendard-Regular", fontSize: 14, color: C.textSecondary },
 });

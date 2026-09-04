@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight, Save, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -151,7 +150,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
           <View style={[hm.header, { borderBottomColor: C.border }]}>
             <Text style={[hm.headerTitle, { color: C.text }]}>휴무일 지정</Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <X size={22} color={C.textMuted} />
+              <LucideIcon name="x" size={22} color={C.textMuted} />
             </Pressable>
           </View>
 
@@ -180,11 +179,11 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
             {/* ── 월 네비게이션 ── */}
             <View style={[hm.monthNav, { backgroundColor: C.card }]}>
               <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(-1)} hitSlop={8}>
-                <ChevronLeft size={20} color={themeColor} />
+                <LucideIcon name="chevron-left" size={20} color={themeColor} />
               </Pressable>
               <Text style={[hm.monthTitle, { color: C.text }]}>{year}년 {month}월</Text>
               <Pressable style={hm.navBtn} onPress={() => changeHoliMonth(1)} hitSlop={8}>
-                <ChevronRight size={20} color={themeColor} />
+                <LucideIcon name="chevron-right" size={20} color={themeColor} />
               </Pressable>
             </View>
 
@@ -232,7 +231,7 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
                       const isSat   = di === 6;
                       return (
                         <Pressable key={dateStr} style={[hm.calCell, { width: CELL }]} onPress={() => toggleDay(dateStr)}>
-                          <View style={[hm.dayCircle, isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#0F172A" }]}>
+                          <View style={[hm.dayCircle, isHoli && { backgroundColor: isSun || isPubH ? "#D96C6C" : "#14283D" }]}>
                             <Text style={[hm.dayNum, isHoli ? { color: "#fff" } : isSun || isPubH ? { color: "#D96C6C" } : isSat ? { color: themeColor } : { color: C.text }]}>{dayNum}</Text>
                           </View>
                           {isHoli && <Text style={hm.holiLabel}>휴</Text>}
@@ -243,14 +242,14 @@ export function HolidayModal({ visible, onClose, poolId, token, themeColor }: Ho
                 ))}
                 <View style={hm.legend}>
                   <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#D96C6C" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>공휴일·일요일</Text></View>
-                  <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#0F172A" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text></View>
+                  <View style={hm.legendItem}><View style={[hm.legendDot, { backgroundColor: "#0F2742" }]} /><Text style={[hm.legendTxt, { color: C.textMuted }]}>지정 휴무일</Text></View>
                 </View>
               </View>
             )}
 
             {savedMsg ? <Text style={[hm.savedMsg, { color: themeColor }]}>{savedMsg}</Text> : null}
             <Pressable style={[hm.saveBtn, { backgroundColor: themeColor, opacity: saving ? 0.7 : 1 }]} onPress={handleSave} disabled={saving}>
-              {saving ? <ActivityIndicator size={18} color="#fff" /> : <Save size={18} color="#fff" />}
+              {saving ? <ActivityIndicator size={18} color="#fff" /> : <LucideIcon name="save" size={18} color="#fff" />}
               <Text style={hm.saveBtnTxt}>{month}월 휴무일 저장</Text>
             </Pressable>
           </ScrollView>

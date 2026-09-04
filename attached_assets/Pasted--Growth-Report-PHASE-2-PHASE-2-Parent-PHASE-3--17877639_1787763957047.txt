@@ -1,0 +1,266 @@
+[앱] Growth Report 좋아요·댓글 — PHASE 2 보완 검증
+
+PHASE 2는 아직 승인하지 않습니다.
+Parent 앱 PHASE 3로 넘어가지 마십시오.
+
+현재 구현은 유지하고 아래 3개만 보완하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Teacher 권한을 "담당선생님" 기준으로 제한
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 teacher interaction API가:
+
+requireRole("teacher","pool_admin","super_admin")
++ same pool
+
+수준이면 부족합니다.
+
+일반 teacher는 반드시:
+
+report.student_id
+→ students.current_class_id
+→ class_groups.teacher_user_id
+
+로 resolve한 현재 담당선생님과
+현재 로그인 user.id가 일치해야 합니다.
+
+즉:
+
+teacher:
+current user.id === resolved teacher_id
+
+일 때만 허용.
+
+pool_admin / super_admin:
+기존 관리자 정책에 따라 별도 허용 가능.
+
+적용 대상:
+
+GET /teacher/growth-reports/:reportId/interactions
+
+POST /growth-report-comments/:commentId/replies
+
+일반 teacher가 같은 pool에 있다는 이유만으로
+다른 선생님 담당 학생의 Growth Report interaction을
+조회하거나 reply할 수 있으면 FAIL.
+
+다른 pool은 기존대로 반드시 차단.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Migration readiness 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 initGrInteractionsSchema() fire-and-forget 유지안은 승인하지 않습니다.
+
+보고서상:
+
+setServerReady()가 API route 자체를 gate하지 않음
+
+이 확인되었으므로
+"실제 요청이 그 전에 거의 안 들어온다"는 가정에 의존하면 안 됩니다.
+
+Growth Report interaction API는
+해당 2개 table이 존재해야만 정상 동작하므로
+startup readiness-critical 흐름으로 변경하십시오.
+
+기존 Promise.all/init 패턴에 맞춰:
+
+interaction schema 초기화 성공
+→ API server ready
+
+순서를 보장하십시오.
+
+임의 sleep/retry 금지.
+
+Migration 실패 시
+interaction API가 깨진 상태로 서버가 정상 기동되는 것보다
+기동 실패로 명확하게 드러나는 쪽을 선택합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 인증된 실제 Target TC 수행
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 10/10은 대부분 unauthenticated 401 테스트이므로
+PHASE 2 기능 PASS 근거로 인정하지 않습니다.
+
+Production DB 사용 금지.
+개발/테스트 DB에서만 수행.
+
+기존 테스트 fixture 생성 방식 또는
+repo의 테스트용 auth 방식으로
+최소한의 parent / teacher / 다른 teacher fixture를 구성하십시오.
+
+광범위 fixture 구축 금지.
+이번 기능에 필요한 최소 계정/학생/반/report만 사용.
+
+필수 TC:
+
+[A Parent Like]
+
+A1.
+approved parent
+→ 자신의 학생 PUBLISHED report
+→ GET reactions = []
+
+A2.
+POST like
+→ active=true
+
+A3.
+DB growth_report_reactions 1건
+
+A4.
+GET reactions
+→ ["like"]
+
+A5.
+같은 POST 다시
+→ active=false
+
+A6.
+DB like 0건
+
+[B Parent Comment]
+
+B1.
+approved parent root comment 작성 성공
+
+B2.
+growth_report_comments 실제 INSERT 확인
+
+B3.
+GET comments에서 동일 comment 확인
+
+B4.
+empty / whitespace 차단
+
+B5.
+1000자 초과 차단
+
+B6.
+다른 parent가 삭제 시도 → 차단
+
+[C Authorization]
+
+C1.
+미승인 parent → 차단
+
+C2.
+다른 학생의 parent → 차단
+
+C3.
+다른 pool parent → 차단
+
+C4.
+unpublished report → 차단
+
+C5.
+deleted report → 차단
+
+[D Teacher Recipient]
+
+D1.
+student.current_class_id
+→ class_groups.teacher_user_id
+→ 실제 담당 teacher resolve 확인
+
+D2.
+parent like
+→ notifications recipient_id가 정확히 담당 teacher
+
+D3.
+parent comment
+→ notifications recipient_id가 정확히 담당 teacher
+
+D4.
+다른 teacher는
+GET teacher interactions → 차단
+
+D5.
+담당 teacher는
+GET teacher interactions → 성공
+
+[E Reply]
+
+E1.
+담당 teacher reply 성공
+
+E2.
+다른 teacher reply 차단
+
+E3.
+reply가 해당 root/report에 연결됨
+
+E4.
+parent push 호출 경로 확인
+
+[F Pool Isolation]
+
+F1.
+다른 pool teacher → 조회 차단
+
+F2.
+다른 pool teacher → reply 차단
+
+F3.
+notification recipient가 다른 pool user가 되는 경우 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 기존 Diary는 계속 LOCK
+━━━━━━━━━━━━━━━━━━━━━━
+
+수정 금지:
+
+routes/parent.ts
+routes/comments.ts
+diary_reactions
+diary_messages
+
+기존 Diary like/comment 핵심 smoke test만 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Parent 앱 수정 금지
+- Teacher 앱 수정 금지
+- messages-inbox 수정 금지
+- GrowthReportFullFeed 수정 금지
+- OTA 금지
+- Production Render deploy 금지
+- Production DB write 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[FIX]
+- SHA
+- 수정 파일
+- Teacher authorization 최종 조건
+- migration readiness 최종 구조
+
+[AUTHENTICATED TC]
+위 A~F 각각:
+- request
+- HTTP status
+- 핵심 response
+- 핵심 DB 결과
+- PASS/FAIL
+
+[NOTIFICATION]
+- like recipient
+- comment recipient
+- cross-pool recipient 0 확인
+
+[EXISTING DIARY]
+- 기존 코드 수정 없음
+- smoke test 결과
+
+[DEPLOY]
+- Production deploy 안 함
+- Production DB write 안 함
+
+완료 후 STOP.
+PHASE 3 시작 금지.

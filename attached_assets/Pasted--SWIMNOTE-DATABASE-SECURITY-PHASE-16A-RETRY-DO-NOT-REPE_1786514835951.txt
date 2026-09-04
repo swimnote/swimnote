@@ -1,0 +1,304 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16A RETRY
+DO NOT REPEAT PHASE 15 REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+방금 제출한 내용은 Phase 16A 결과가 아니다.
+Phase 15 보고서를 그대로 재출력했다.
+
+PHASE 15 재보고 금지.
+이미 알고 있는 Phase 15 내용을 다시 정리하지 말 것.
+
+이번 작업은 반드시 NEW EVIDENCE를 실제로 수집해야 한다.
+
+DB WRITE 금지.
+Production 변경 금지.
+POOL_DB 변경 금지.
+코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+A. 가장 먼저 제출해야 할 NEW EVIDENCE
+━━━━━━━━━━━━━━━━━━━━
+
+SUPABASE_DATABASE_URL의 pg_catalog에서
+다음 6개 enum 실제 값을 직접 조회:
+
+approval_status
+global_template_status_enum
+growth_match_status_enum
+subscription_status
+user_role
+xmode_config_status_enum
+
+반드시 실제 DB 결과를 제출.
+
+Phase 15에 적었던 추측값 사용 금지.
+
+특히:
+
+xmode_config_status_enum을
+('NOT_SET','READY','INCOMPLETE')라고 다시 쓰면 FAIL.
+
+DB catalog 실제 값만 사용.
+
+각 enum마다:
+
+enum_name
+sort_order
+enum_label
+사용 table.column
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━
+B. 핵심 11개 Production 실제 schema 추출
+━━━━━━━━━━━━━━━━━━━━
+
+다음 Production 테이블:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+students
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+각각 실제 Production catalog에서:
+
+- column 순서
+- column name
+- exact data type
+- enum type
+- nullable
+- default
+- identity/generated
+- PK
+- UNIQUE
+- CHECK
+- FK
+- indexes
+
+를 추출.
+
+Phase 15의 "MISSING 컬럼" 목록 반복 금지.
+
+이번에는 Production 실제 정의를 제출해야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+C. Backup stub 10개 dependency audit
+━━━━━━━━━━━━━━━━━━━━
+
+POOL_DATABASE_URL의 다음 stub:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+event_logs
+payment_logs
+backup_logs
+platform_backups
+ops_alerts
+
+각각 실제 확인:
+
+row_count
+columns
+inbound FK
+outbound FK
+dependent views
+triggers
+sequences
+indexes
+constraints
+
+분류:
+
+SAFE_ADDITIVE_REPAIR
+SAFE_TO_REPLACE
+NOT_SAFE_TO_REPLACE
+REQUIRES_REVIEW
+
+단 실제 DROP/ALTER 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+D. DROP 없는 수리 가능성
+━━━━━━━━━━━━━━━━━━━━
+
+각 stub에서 기존 column1을 남긴 채
+
+ALTER TABLE ADD COLUMN
+ADD CONSTRAINT
+CREATE INDEX
+
+만으로 standby-sync가 정상 동작 가능한지
+실제 replicateTable() INSERT 방식을 보고 판단.
+
+replicateTable()이 명시적 column list를 사용하고
+column1이 nullable/default 가능한 extra column이라면
+
+SAFE_ADDITIVE_REPAIR
+
+가능 여부를 증명.
+
+DROP TABLE을 기본 수리안으로 제시하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+E. pool_credits FINAL AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체 검색:
+
+pool_credits
+poolCredits
+pool-credit
+
+확인:
+
+schema definition
+migration
+route
+UI
+job
+runtime reference
+standby-sync reference
+
+Production DB 존재 여부
+Backup DB 존재 여부
+
+다음 조건 모두 만족 시에만:
+
+POOL_CREDITS_DEAD_REFERENCE_CONFIRMED
+
+- Production 없음
+- Backup 없음
+- active schema/migration 없음
+- runtime route 없음
+- standby-sync만 참조
+
+아니면 제거 금지.
+
+실제 코드 수정은 이번 Phase에서 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+F. unsafe stub auto-create 재발 방지
+━━━━━━━━━━━━━━━━━━━━
+
+replicateTable()의 실제 코드:
+
+CREATE TABLE IF NOT EXISTS ...
+SELECT * FROM (VALUES (NULL::text)) ...
+
+정확한 파일/함수/라인 범위 확인.
+
+그리고 세 방식 비교:
+
+1. missing table → fail closed + alert
+2. Production catalog introspection → exact schema create
+3. migration으로 Backup schema 사전 준비
+
+SWIMNOTE에 가장 안전한 방식 하나 추천.
+
+아직 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+G. Production-only 56개 필요도 분류
+━━━━━━━━━━━━━━━━━━━━
+
+56개 각각:
+
+DISASTER_RECOVERY_REQUIRED
+OPERATIONAL_BACKUP_REQUIRED
+REGENERATABLE
+CURRENTLY_UNUSED
+NEEDS_REVIEW
+
+중 하나로 분류.
+
+"Production 105개니까 Backup도 무조건 105개"
+라고 가정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+H. Backup의 실제 목적 판정
+━━━━━━━━━━━━━━━━━━━━
+
+현재 코드 기준으로 Backup이:
+
+complete disaster recovery replica
+partial operational standby
+selected critical-table backup
+mixed/inconsistent historical design
+
+중 무엇인지 판정.
+
+standby-sync.ts
+backup-batch.ts
+restore.ts
+backup 관련 routes
+
+실제 코드 근거 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+I. 다음 WRITE 단계 설계
+━━━━━━━━━━━━━━━━━━━━
+
+이번 NEW EVIDENCE를 기반으로만
+다음 수리 Phase를 다시 설계.
+
+잘못된 Phase 15의
+enum SQL / DROP TABLE 제안 복사 금지.
+
+예시:
+
+16B exact enum clone
+16C HOT stub additive repair
+16D FULL sync repair
+16E standby-sync code cleanup
+16F runtime replication verify
+16G Backup RLS
+
+실제 결과에 따라 조정.
+
+━━━━━━━━━━━━━━━━━━━━
+J. FINAL
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 항목을 제출:
+
+1. Production 6 enum 실제 catalog 결과
+2. enum usage mapping
+3. Production 핵심 11개 exact schema
+4. Backup stub 10개 dependency 결과
+5. DROP 없는 repair 가능 여부
+6. pool_credits repository 전체 검색 결과
+7. pool_credits 최종 판정
+8. stub auto-create 코드 위치
+9. 재발 방지 방식 비교
+10. Production-only 56개 필요도
+11. Backup 목적 판정
+12. safe repair phases
+13. 다음 WRITE 단계
+
+FINAL STATUS:
+
+BACKUP_REPAIR_SOURCE_OF_TRUTH_VERIFIED
+
+또는
+
+BACKUP_REPAIR_DESIGN_BLOCKED
+
+PHASE 15 보고서 재출력 금지.
+DB WRITE 금지.
+코드 변경 금지.
+WP4 금지.
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

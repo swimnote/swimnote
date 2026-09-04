@@ -10,13 +10,10 @@
  *  - 전체 공지 → [스윔노트] 공지사항
  *  - 수영장별  → [수영장명] 공지사항
  */
-import { BellOff, Bookmark, Check, ChevronDown, Globe, Home, PenLine, Plus, Send, Trash2 } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -24,7 +21,7 @@ import Colors from "@/constants/colors";
 const C = Colors.light;
 
 const P    = "#7C3AED";
-const TEAL = "#2EC4B6";
+const TEAL = C.brandStrong;
 const RED  = "#D96C6C";
 
 // ── 타입 ─────────────────────────────────────────────────────────────────────
@@ -69,7 +66,7 @@ function NoticeRow({
   const isGlobal  = notice.audience_scope === "global";
   const scopeLabel = isGlobal ? "전체" : (poolNameMap[notice.swimming_pool_id ?? ""] || "수영장별");
   const scopeColor = isGlobal ? P : TEAL;
-  const scopeBg    = isGlobal ? "#EEDDF5" : "#E6FFFA";
+  const scopeBg    = isGlobal ? "#EEDDF5" : C.brandSoft;
 
   return (
     <Pressable style={r.row} onPress={() => onEdit(notice)}>
@@ -77,7 +74,7 @@ function NoticeRow({
         <View style={r.top}>
           {notice.is_pinned && (
             <View style={r.pinBadge}>
-              <Bookmark size={9} color={P} />
+              <LucideIcon name="bookmark" size={9} color={P} />
               <Text style={r.pinTxt}>고정</Text>
             </View>
           )}
@@ -94,8 +91,8 @@ function NoticeRow({
         </View>
         <View style={r.pushRow}>
           <View style={[r.pushBadge, pushed ? r.pushSent : r.pushNot]}>
-            <LucideIcon name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : "#64748B"} />
-            <Text style={[r.pushTxt, { color: pushed ? TEAL : "#64748B" }]}>
+            <LucideIcon name={pushed ? "send" : "minus-circle"} size={9} color={pushed ? TEAL : C.textSecondary} />
+            <Text style={[r.pushTxt, { color: pushed ? TEAL : C.textSecondary }]}>
               {pushed ? `발송완료 (${pushCount}회)` : "미발송"}
             </Text>
           </View>
@@ -104,10 +101,10 @@ function NoticeRow({
       </View>
       <View style={r.actions}>
         <Pressable style={r.editBtn} onPress={() => onEdit(notice)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-          <PenLine size={14} color={P} />
+          <LucideIcon name="edit" size={14} color={P} />
         </Pressable>
         <Pressable style={r.delBtn} onPress={() => onDelete(notice.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-          <Trash2 size={14} color={RED} />
+          <LucideIcon name="trash-2" size={14} color={RED} />
         </Pressable>
       </View>
     </Pressable>
@@ -118,17 +115,17 @@ const r = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   main:      { flex: 1, gap: 4 },
   top:       { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  title:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
+  title:     { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
   meta:      { flexDirection: "row", alignItems: "center", gap: 4 },
-  author:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  author:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   dot:       { fontSize: 10, color: "#D1D5DB" },
-  date:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  date:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   pushRow:   { flexDirection: "row", alignItems: "center", gap: 6 },
   pushBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  pushSent:  { backgroundColor: "#E6FFFA" },
+  pushSent:  { backgroundColor: C.brandSoft },
   pushNot:   { backgroundColor: "#FFFFFF" },
   pushTxt:   { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  pushDate:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  pushDate:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   pinBadge:  { flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "#EEDDF5", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   pinTxt:    { fontSize: 9, fontFamily: "Pretendard-Regular", color: P },
   scopeBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -295,14 +292,14 @@ export default function PoolNoticesScreen() {
           style={[s.tab, activeScope === "global" && s.tabActive]}
           onPress={() => setActiveScope("global")}
         >
-          <Globe size={14} color={activeScope === "global" ? "#fff" : "#64748B"} />
+          <LucideIcon name="globe" size={14} color={activeScope === "global" ? "#fff" : C.textSecondary} />
           <Text style={[s.tabTxt, activeScope === "global" && s.tabTxtActive]}>전체 공지</Text>
         </Pressable>
         <Pressable
           style={[s.tab, activeScope === "pool" && s.tabActive]}
           onPress={() => setActiveScope("pool")}
         >
-          <Home size={14} color={activeScope === "pool" ? "#fff" : "#64748B"} />
+          <LucideIcon name="home" size={14} color={activeScope === "pool" ? "#fff" : C.textSecondary} />
           <Text style={[s.tabTxt, activeScope === "pool" && s.tabTxtActive]}>수영장별 공지</Text>
         </Pressable>
       </View>
@@ -310,15 +307,15 @@ export default function PoolNoticesScreen() {
       {/* ── 안내 배너 ── */}
       {activeScope === "global" ? (
         <View style={[s.banner, { backgroundColor: "#EEDDF5", borderBottomColor: "#C4B5FD" }]}>
-          <Globe size={12} color={P} />
+          <LucideIcon name="globe" size={12} color={P} />
           <Text style={[s.bannerTxt, { color: P }]}>
             전체 공지는 모든 수영장의 관리자·선생님·학부모 전체에 자동 발송됩니다.{"\n"}
             푸시 제목: [스윔노트] 공지사항
           </Text>
         </View>
       ) : (
-        <View style={[s.banner, { backgroundColor: "#E6FFFA", borderBottomColor: "#A7F3D0" }]}>
-          <Home size={12} color={TEAL} />
+        <View style={[s.banner, { backgroundColor: C.brandSoft, borderBottomColor: "#A7F3D0" }]}>
+          <LucideIcon name="home" size={12} color={TEAL} />
           <Text style={[s.bannerTxt, { color: TEAL }]}>
             수영장별 공지는 선택한 수영장 구성원에게만 발송됩니다.{"\n"}
             푸시 제목: [수영장명] 공지사항
@@ -330,14 +327,14 @@ export default function PoolNoticesScreen() {
       {activeScope === "pool" && (
         <View style={s.poolBar}>
           <Pressable style={s.poolSelect} onPress={() => setShowPoolPicker(true)}>
-            <Home size={14} color={TEAL} />
+            <LucideIcon name="home" size={14} color={TEAL} />
             <Text style={s.poolSelectTxt} numberOfLines={1}>
               {poolsLoading ? "수영장 로딩 중…" : (selectedPool?.name ?? "수영장 선택")}
             </Text>
-            <ChevronDown size={14} color="#64748B" />
+            <LucideIcon name="chevron-down" size={14} color={C.textSecondary} />
           </Pressable>
           <Pressable style={[s.addBtn, { backgroundColor: TEAL }]} onPress={openCreate}>
-            <Plus size={16} color="#fff" />
+            <LucideIcon name="plus" size={16} color="#fff" />
             <Text style={s.addBtnTxt}>공지 등록</Text>
           </Pressable>
         </View>
@@ -348,7 +345,7 @@ export default function PoolNoticesScreen() {
         <View style={s.globalBar}>
           <Text style={s.globalBarLabel}>플랫폼 전체 사용자 대상</Text>
           <Pressable style={[s.addBtn, { backgroundColor: P }]} onPress={openCreate}>
-            <Plus size={16} color="#fff" />
+            <LucideIcon name="plus" size={16} color="#fff" />
             <Text style={s.addBtnTxt}>전체 공지 등록</Text>
           </Pressable>
         </View>
@@ -377,7 +374,7 @@ export default function PoolNoticesScreen() {
           }
           ListEmptyComponent={
             <View style={s.empty}>
-              <BellOff size={32} color="#D1D5DB" />
+              <LucideIcon name="bell-off" size={32} color="#D1D5DB" />
               <Text style={s.emptyTxt}>
                 {activeScope === "pool" && !selectedPool
                   ? "수영장을 선택해주세요"
@@ -397,22 +394,22 @@ export default function PoolNoticesScreen() {
             <View style={pm.handle} />
             <Text style={pm.title}>수영장 선택</Text>
             <TextInput style={pm.search} value={poolSearch} onChangeText={setPoolSearch}
-              placeholder="수영장 이름 검색" placeholderTextColor="#64748B" />
-            <ScrollView showsVerticalScrollIndicator={false}>
+              placeholder="수영장 이름 검색" placeholderTextColor={C.textMuted} />
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               {filteredPools.map(p => (
                 <Pressable key={p.id}
                   style={[pm.item, selectedPool?.id === p.id && pm.itemActive]}
                   onPress={() => { setSelectedPool(p); setShowPoolPicker(false); setPoolSearch(""); }}>
-                  <Home size={14} color={selectedPool?.id === p.id ? TEAL : "#64748B"} />
+                  <LucideIcon name="home" size={14} color={selectedPool?.id === p.id ? TEAL : C.textSecondary} />
                   <View style={{ flex: 1 }}>
                     <Text style={[pm.itemName, selectedPool?.id === p.id && { color: TEAL }]}>{p.name}</Text>
                     {p.address ? <Text style={pm.itemAddr} numberOfLines={1}>{p.address}</Text> : null}
                   </View>
-                  {selectedPool?.id === p.id && <Check size={14} color={TEAL} />}
+                  {selectedPool?.id === p.id && <LucideIcon name="check" size={14} color={TEAL} />}
                 </Pressable>
               ))}
               {filteredPools.length === 0 && <Text style={pm.empty}>검색 결과 없음</Text>}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -427,7 +424,7 @@ export default function PoolNoticesScreen() {
 
             {/* 공지 범위 표시 */}
             {!editNotice && (
-              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA" }]}>
+              <View style={[fm.scopeTag, { backgroundColor: activeScope === "global" ? "#EEDDF5" : C.brandSoft }]}>
                 <LucideIcon name={activeScope === "global" ? "globe" : "home"} size={11}
                   color={activeScope === "global" ? P : TEAL} />
                 <Text style={[fm.scopeTagTxt, { color: activeScope === "global" ? P : TEAL }]}>
@@ -439,7 +436,7 @@ export default function PoolNoticesScreen() {
             {/* 수정 시 공지 범위 표시 */}
             {editNotice && (
               <View style={[fm.scopeTag, {
-                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : "#E6FFFA",
+                backgroundColor: editNotice.audience_scope === "global" ? "#EEDDF5" : C.brandSoft,
               }]}>
                 <LucideIcon name={editNotice.audience_scope === "global" ? "globe" : "home"} size={11}
                   color={editNotice.audience_scope === "global" ? P : TEAL} />
@@ -451,18 +448,18 @@ export default function PoolNoticesScreen() {
               </View>
             )}
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               <View>
                 <Text style={fm.label}>제목 *</Text>
                 <TextInput style={fm.input} value={form.title}
                   onChangeText={v => setForm(f => ({ ...f, title: v }))}
-                  placeholder="공지 제목" placeholderTextColor="#64748B" />
+                  placeholder="공지 제목" placeholderTextColor={C.textMuted} />
               </View>
               <View>
                 <Text style={fm.label}>내용 *</Text>
                 <TextInput style={[fm.input, { minHeight: 100 }]} value={form.content}
                   onChangeText={v => setForm(f => ({ ...f, content: v }))}
-                  multiline placeholder="공지 내용" placeholderTextColor="#64748B"
+                  multiline placeholder="공지 내용" placeholderTextColor={C.textMuted}
                   textAlignVertical="top" />
               </View>
 
@@ -479,9 +476,9 @@ export default function PoolNoticesScreen() {
               {/* 등록 시 푸시 안내 */}
               {!editNotice && (
                 <View style={[fm.infoBanner, {
-                  backgroundColor: activeScope === "global" ? "#EEDDF5" : "#E6FFFA",
+                  backgroundColor: activeScope === "global" ? "#EEDDF5" : C.brandSoft,
                 }]}>
-                  <Send size={12} color={activeScope === "global" ? P : TEAL} />
+                  <LucideIcon name="send" size={12} color={activeScope === "global" ? P : TEAL} />
                   <Text style={[fm.infoBannerTxt, { color: activeScope === "global" ? P : TEAL }]}>
                     {activeScope === "global"
                       ? "등록 즉시 모든 수영장 구성원에게 자동 푸시 발송됩니다."
@@ -524,7 +521,7 @@ export default function PoolNoticesScreen() {
                     : <Text style={fm.saveTxt}>{editNotice ? "저장" : "등록"}</Text>}
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -556,11 +553,11 @@ export default function PoolNoticesScreen() {
 const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: C.background },
   tabBar:        { flexDirection: "row", padding: 12, gap: 8, backgroundColor: "#fff",
-                   borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                   borderBottomWidth: 1, borderBottomColor: C.border },
   tab:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
                    gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
   tabActive:     { backgroundColor: P },
-  tabTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  tabTxt:        { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabTxtActive:  { color: "#fff" },
   banner:        { flexDirection: "row", gap: 8, alignItems: "flex-start",
                    paddingHorizontal: 16, paddingVertical: 10,
@@ -568,13 +565,13 @@ const s = StyleSheet.create({
   bannerTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", flex: 1, lineHeight: 17 },
   globalBar:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                    paddingHorizontal: 16, paddingVertical: 10,
-                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  globalBarLabel:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
+  globalBarLabel:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   poolBar:       { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 10,
-                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                   backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   poolSelect:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8,
                    backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  poolSelectTxt: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   addBtn:        { flexDirection: "row", alignItems: "center", gap: 5,
                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   addBtnTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
@@ -582,7 +579,7 @@ const s = StyleSheet.create({
   sep:           { height: 1, backgroundColor: "#FFFFFF" },
   center:        { flex: 1, alignItems: "center", justifyContent: "center" },
   empty:         { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const pm = StyleSheet.create({
@@ -590,14 +587,14 @@ const pm = StyleSheet.create({
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "70%" },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 16 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 12 },
-  search:    { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 10, marginBottom: 12,
-               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 12 },
+  search:    { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 10, marginBottom: 12,
+               fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   item:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 10 },
-  itemActive:{ backgroundColor: "#E6FFFA" },
-  itemName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  itemAddr:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  empty:     { textAlign: "center", fontSize: 13, color: "#64748B", padding: 20 },
+  itemActive:{ backgroundColor: C.brandSoft },
+  itemName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  itemAddr:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  empty:     { textAlign: "center", fontSize: 13, color: C.textSecondary, padding: 20 },
 });
 
 const fm = StyleSheet.create({
@@ -605,14 +602,14 @@ const fm = StyleSheet.create({
   sheet:        { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                   borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "90%" },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 12 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
   scopeTag:     { flexDirection: "row", alignItems: "center", gap: 6,
                   paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: "flex-start", marginBottom: 12 },
   scopeTagTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular" },
-  label:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
-  hint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  input:        { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-                  fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  hint:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  input:        { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 12,
+                  fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   switchRow:    { flexDirection: "row", alignItems: "center", gap: 12 },
   infoBanner:   { flexDirection: "row", gap: 8, alignItems: "flex-start",
                   borderRadius: 10, padding: 10 },
@@ -620,7 +617,7 @@ const fm = StyleSheet.create({
   error:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: RED, textAlign: "center" },
   btnRow:       { flexDirection: "row", gap: 10, marginTop: 4 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   saveBtn:      { flex: 1, padding: 13, borderRadius: 12, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });
@@ -628,11 +625,11 @@ const fm = StyleSheet.create({
 const dm = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
   card:      { backgroundColor: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 360 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
-  body:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 22, marginBottom: 20 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
+  body:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 22, marginBottom: 20 },
   btnRow:    { flexDirection: "row", gap: 10 },
   cancelBtn: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   delBtn:    { flex: 1, padding: 13, borderRadius: 12, backgroundColor: RED, alignItems: "center" },
   delTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

@@ -1,9 +1,11 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/db-status.tsx — DB 이원화 모니터링 (4탭)
  * 탭: DB 개요 / 수영장별 / 이벤트 로그 / 서비스 상태
  */
-import { CircleAlert, CircleCheck, CircleX, Database, Inbox, RefreshCw, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert, CircleCheck, Inbox, TriangleAlert } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
@@ -14,10 +16,10 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAuth, apiRequest } from "@/context/AuthContext";
 
 const P      = "#7C3AED";
-const GREEN  = "#2EC4B6";
+const GREEN  = C.brandStrong;
 const ORANGE = "#D97706";
 const RED    = "#D96C6C";
-const GRAY   = "#64748B";
+const GRAY   = C.textSecondary;
 const BLUE   = "#2563EB";
 
 // ── 타입 ──────────────────────────────────────────────────────────
@@ -93,7 +95,7 @@ function SectionTitle({ icon, title }: { icon: string; title: string }) {
 
 function StatusPill({ ok, label, latency }: { ok: boolean; label: string; latency?: number }) {
   return (
-    <View style={[s.pill, { backgroundColor: ok ? "#E6FFFA" : "#FDE8E8" }]}>
+    <View style={[s.pill, { backgroundColor: ok ? C.brandSoft : "#FDE8E8" }]}>
       <View style={[s.pillDot, { backgroundColor: ok ? GREEN : RED }]} />
       <Text style={[s.pillTxt, { color: ok ? GREEN : RED }]}>{label}</Text>
       {latency !== undefined && <Text style={s.pillLatency}>{latency}ms</Text>}
@@ -110,7 +112,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
     <View style={[s.card, { borderLeftColor: accent, borderLeftWidth: 4 }]}>
       <View style={s.cardHeader}>
         <View style={[s.dbIcon, { backgroundColor: accent + "18" }]}>
-          <Database size={18} color={accent} />
+          <LucideIcon name="database" size={18} color={accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.cardTitle}>{info.label}</Text>
@@ -138,7 +140,7 @@ function DbCard({ info, accent }: { info: DbInfo; accent: string }) {
                   <Text style={s.tableName} numberOfLines={1}>{t.table}</Text>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={s.tableSize}>{t.pretty}</Text>
-                    {t.index_size && <Text style={[s.tableSize, { fontSize: 9, color: "#64748B" }]}>idx {t.index_size}</Text>}
+                    {t.index_size && <Text style={[s.tableSize, { fontSize: 9, color: C.textSecondary }]}>idx {t.index_size}</Text>}
                   </View>
                 </View>
               ))}
@@ -194,7 +196,7 @@ function DlqCard({ item, onResend }: { item: DlqItem; onResend: (id: string) => 
           style={s.resendBtn}
           onPress={() => onResend(item.id)}
         >
-          <RefreshCw size={13} color={P} />
+          <LucideIcon name="refresh-cw" size={13} color={P} />
           <Text style={s.resendTxt}>재전송</Text>
         </Pressable>
       </View>
@@ -299,7 +301,7 @@ export default function DbStatusScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <SubScreenHeader title="DB 이원화 모니터링" homePath="/(super)/more" />
+      <SubScreenHeader title="DB 이원화 모니터링" homePath="/(super)/dashboard" />
 
       {/* 탭 바 */}
       <View style={s.tabBar}>
@@ -319,7 +321,7 @@ export default function DbStatusScreen() {
         <View style={s.center}><ActivityIndicator color={P} size="large" /></View>
       ) : error ? (
         <View style={s.center}>
-          <CircleAlert size={40} color={RED} />
+          <LucideIcon name="alert-circle" size={40} color={RED} />
           <Text style={s.errTxt}>{error}</Text>
           <Pressable style={s.retryBtn} onPress={onRefresh}>
             <Text style={s.retryTxt}>다시 시도</Text>
@@ -334,7 +336,7 @@ export default function DbStatusScreen() {
           {tab === "overview" && status && (
             <>
               {/* DB 분리 상태 배너 */}
-              <View style={[s.separationBanner, { backgroundColor: status.is_separated ? "#E6FFFA" : "#FFF8E6" }]}>
+              <View style={[s.separationBanner, { backgroundColor: status.is_separated ? C.brandSoft : "#FFF8E6" }]}>
                 <LucideIcon name={status.is_separated ? "check-circle" : "alert-circle"} size={16} color={status.is_separated ? GREEN : ORANGE} />
                 <Text style={[s.separationTxt, { color: status.is_separated ? GREEN : ORANGE }]}>
                   {status.is_separated
@@ -399,13 +401,13 @@ export default function DbStatusScreen() {
 
               {status.retry_queue.pending > 0 && (
                 <View style={s.warnBanner}>
-                  <TriangleAlert size={14} color={ORANGE} />
+                  <LucideIcon name="alert-triangle" size={14} color={ORANGE} />
                   <Text style={s.warnTxt}>재시도 대기 {status.retry_queue.pending}건 — 백그라운드에서 자동 재처리됩니다.</Text>
                 </View>
               )}
               {status.dead_letter_queue.pending > 0 && (
                 <View style={[s.warnBanner, { backgroundColor: "#FDE8E8" }]}>
-                  <CircleX size={14} color={RED} />
+                  <LucideIcon name="x-circle" size={14} color={RED} />
                   <Text style={[s.warnTxt, { color: RED }]}>
                     Dead-letter queue {status.dead_letter_queue.pending}건 — 서비스 상태 탭에서 수동 재전송하세요.
                   </Text>
@@ -461,7 +463,7 @@ export default function DbStatusScreen() {
                 <>
                   <SectionTitle icon="shield" title="시스템 진단 요약" />
                   <View style={[s.diagBanner, {
-                    backgroundColor: diag.status === "healthy" ? "#E6FFFA" : diag.status === "degraded" ? "#FFF8E6" : "#FDE8E8",
+                    backgroundColor: diag.status === "healthy" ? C.brandSoft : diag.status === "degraded" ? "#FFF8E6" : "#FDE8E8",
                   }]}>
                     <LucideIcon
                       name={diag.status === "healthy" ? "check-circle" : diag.status === "degraded" ? "alert-triangle" : "x-circle"}
@@ -558,7 +560,7 @@ export default function DbStatusScreen() {
               {/* Dead-letter Queue */}
               <SectionTitle icon="inbox" title={`Dead-letter Queue (${dlq.length}건 미처리)`} />
               {dlq.length === 0 ? (
-                <View style={[s.emptyWrap, { backgroundColor: "#E6FFFA", borderRadius: 12, paddingVertical: 20 }]}>
+                <View style={[s.emptyWrap, { backgroundColor: C.brandSoft, borderRadius: 12, paddingVertical: 20 }]}>
                   <CircleCheck size={28} color={GREEN} />
                   <Text style={[s.emptyTxt, { color: GREEN }]}>미처리 이벤트 없음</Text>
                 </View>
@@ -631,16 +633,16 @@ const s = StyleSheet.create({
   retryBtn:{ backgroundColor: P, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   retryTxt:{ color: "#fff", fontFamily: "Pretendard-Regular", fontSize: 14 },
 
-  tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabBar:    { flexDirection: "row", backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:       { flex: 1, paddingVertical: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 4 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: P },
-  tabTxt:    { fontSize: 12, color: GRAY, fontFamily: "Pretendard-Regular" },
-  tabTxtActive: { color: P, fontFamily: "Pretendard-Regular" },
+  tabTxt:    { fontSize: 12, lineHeight: 17, color: GRAY },
+  tabTxtActive: { color: P },
   badge:     { backgroundColor: RED, borderRadius: 8, minWidth: 16, height: 16, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeTxt:  { color: "#fff", fontSize: 9, fontFamily: "Pretendard-Regular" },
 
   sectionTitle:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  sectionTitleTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151" },
+  sectionTitleTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
 
   separationBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
   separationTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", flex: 1 },
@@ -658,7 +660,7 @@ const s = StyleSheet.create({
   card:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 8, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   dbIcon:    { width: 42, height: 42, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cardTitle: { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   cardSub:   { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular", marginTop: 1 },
   sizeLabel: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   barBg:     { height: 6, backgroundColor: "#F3F4F6", borderRadius: 3, overflow: "hidden" },
@@ -668,23 +670,23 @@ const s = StyleSheet.create({
   expandTxt: { fontSize: 12, color: P, fontFamily: "Pretendard-Regular" },
   tableList: { gap: 0, borderRadius: 8, overflow: "hidden", marginTop: 4 },
   tableRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6, paddingHorizontal: 8 },
-  tableName: { flex: 1, fontSize: 12, color: "#374151", fontFamily: "Pretendard-Regular" },
+  tableName: { flex: 1, fontSize: 12, color: C.textPrimary, fontFamily: "Pretendard-Regular" },
   tableSize: { fontSize: 12, color: GRAY, fontFamily: "Pretendard-Regular" },
 
   statsGrid: { flexDirection: "row", gap: 8 },
   statBox:   { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center", gap: 2, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  statNum:   { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   statLabel: { fontSize: 10, color: GRAY, fontFamily: "Pretendard-Regular" },
-  checkedAt: { fontSize: 11, color: "#64748B", textAlign: "center", fontFamily: "Pretendard-Regular" },
+  checkedAt: { fontSize: 11, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" },
 
   poolCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 14, elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 10 },
+  poolName:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 10 },
   poolStats: { flexDirection: "row" },
 
   logList: { gap: 0, backgroundColor: "#fff", borderRadius: 14, overflow: "hidden", elevation: 1, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
   logRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
   logDot:  { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  logType: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   logMeta: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
   logTime: { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular" },
 
@@ -699,7 +701,7 @@ const s = StyleSheet.create({
   diagSubTxt:    { fontSize: 11, color: GRAY, fontFamily: "Pretendard-Regular", marginTop: 2 },
 
   typeRow:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
-  typeLabel:{ flex: 1, fontSize: 12, color: "#374151", fontFamily: "Pretendard-Regular" },
+  typeLabel:{ flex: 1, fontSize: 12, color: C.textPrimary, fontFamily: "Pretendard-Regular" },
   typeCnt:  { fontSize: 13, fontFamily: "Pretendard-Regular" },
 
   recCard: { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFF8E6", padding: 12, borderRadius: 10 },

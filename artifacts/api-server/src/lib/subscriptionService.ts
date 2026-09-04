@@ -21,6 +21,8 @@ const db = superAdminDb;
 export const TIER_ORDER: Record<string, number> = {
   free: 0, starter: 1, basic: 2, standard: 3,
   center_200: 4, advance: 5, pro: 6, max: 7,
+  // WP2A: 신규 플랜 추가
+  swimnote: 3.5, x300: 8, x500: 9, x1000: 10,
 };
 export function getTierRank(tier: string): number {
   return TIER_ORDER[normalizeTier(tier)] ?? -1;
@@ -59,6 +61,27 @@ export const RC_PRODUCT_TIER_MAP: Record<string, string> = {
   "coach_30": "starter", "coach_50": "basic", "coach_100": "standard",
   "swimnote_coach_30": "starter", "swimnote_coach_50": "basic", "swimnote_coach_100": "standard",
   "coach_30:monthly": "starter", "coach_50:monthly": "basic", "coach_100:monthly": "standard",
+
+  // ── 대문자 레거시 제품 ID (RevenueCat 구콘솔) ────────────────────────────
+  "SWIMNOTE_30": "starter", "SWIMNOTE_50": "basic", "SWIMNOTE_100": "standard",
+  "SWIMNOTE_30:monthly": "starter", "SWIMNOTE_50:monthly": "basic", "SWIMNOTE_100:monthly": "standard",
+  "SWIMNOTE_200": "center_200", "SWIMNOTE_300": "advance", "SWIMNOTE_500": "pro", "SWIMNOTE_1000": "max",
+  "SWIMNOTE_200:monthly": "center_200", "SWIMNOTE_300:monthly": "advance",
+  "SWIMNOTE_500:monthly": "pro", "SWIMNOTE_1000:monthly": "max",
+
+  // ── WP2A: 신규 2.0 플랜 tier 매핑 (RC Product ID는 WP4에서 연결 예정) ──
+  "swimnote": "swimnote", "swimnote:monthly": "swimnote",
+  "x300": "x300", "x300:monthly": "x300",
+  "x500": "x500", "x500:monthly": "x500",
+  "x1000": "x1000", "x1000:monthly": "x1000",
+
+  // ── com.swimnote.* 형식 목표 Product ID (App Store / Google Play) ───────
+  "com.swimnote.swimnote.monthly": "swimnote",
+  "com.swimnote.x300.monthly":     "x300",
+  "com.swimnote.x500.monthly":     "x500",
+  "com.swimnote.x1000.monthly":    "x1000",
+  "com.swimnote.data100.monthly":  "data100",
+  "com.swimnote.data300.monthly":  "data300",
 };
 
 // ── 티어 정규화 (레거시 코드명 → 현행 코드명) ──────────────────────────
@@ -88,7 +111,7 @@ export interface ResolvedSubscription {
   displayStorage:      string;   // "500MB", "80GB", "500GB"
   videoEnabled:        boolean;
   whiteLabelEnabled:   boolean;
-  videoStorageLimitMb: number;   // 1048576 or 0
+  videoStorageLimitMb: number;   // = storageMb (unified quota; no separate video cap)
   startsAt:            string | null;
   endsAt:              string | null;
   trialEndsAt:         string | null;
@@ -170,14 +193,15 @@ export async function resolveSubscription(poolId: string): Promise<ResolvedSubsc
   const memberLimit    = overrideActive ? rawMemberLimit! : Number(plan?.member_limit ?? 10);
 
   // ── storage (항상 플랜 기준) ──
-  const storageMb      = Number(plan?.storage_mb    ?? 512);
-  const storageGb      = Number(plan?.storage_gb    ?? 0.5);
-  const displayStorage = String(plan?.display_storage ?? "500MB");
+  const storageMb      = Number(plan?.storage_mb    ?? 102);
+  const storageGb      = Number(plan?.storage_gb    ?? 0.1);
+  const displayStorage = String(plan?.display_storage ?? "100MB");
 
-  // ── video / whitelabel (플랜 storage_mb 기준: Premier200 = 51200MB 이상) ──
-  const videoEnabled        = storageMb >= 51200;
-  const whiteLabelEnabled   = storageMb >= 51200;
-  const videoStorageLimitMb = videoEnabled ? 1024 * 1024 : 0;
+  // ── video / whitelabel — WP2A: 모든 플랜 영상 허용 ──
+  // videoStorageLimitMb = plan storage MB (unified quota; no separate video 1TB cap)
+  const videoEnabled        = true; // WP2A LOCKED
+  const whiteLabelEnabled   = storageMb >= 5120; // Premier legacy 유지
+  const videoStorageLimitMb = storageMb; // unified quota limit in MB
 
   // ── 다운그레이드 예약 정보 ──
   const rawPendingTier = rcSub?.pending_tier ? normalizeTier(rcSub.pending_tier) : null;
@@ -227,11 +251,12 @@ export async function applySubscriptionState(
   const { startsAt, endsAt, trialEndsAt, memberLimitOverride, nextBillingAt, resetReadonly } = options;
 
   const plan = await fetchPlan(effectiveTier);
-  const storageMb         = Number(plan?.storage_mb ?? 512);
-  const storageGb         = Number(plan?.storage_gb ?? 0.5);
-  const videoEnabled      = storageMb >= 51200;
-  const whiteLabelEnabled = storageMb >= 51200;
-  const videoLimitMb      = videoEnabled ? 1024 * 1024 : 0;
+  const storageMb         = Number(plan?.storage_mb ?? 102);
+  const storageGb         = Number(plan?.storage_gb ?? 0.1);
+  // WP2A: all plans video enabled; videoLimitMb = plan storage MB (unified quota)
+  const videoEnabled      = true;
+  const whiteLabelEnabled = storageMb >= 5120; // Premier legacy 유지
+  const videoLimitMb      = storageMb; // unified quota, not separate 1TB cap
 
   // ── swimming_pools 주 상태 업데이트 (플랜 표시명/용량/회원한도 포함) ──
   const planName        = plan?.name ?? effectiveTier;
@@ -321,11 +346,13 @@ export async function applySubscriptionState(
 // ════════════════════════════════════════════════════════════════════
 export async function backfillPoolSubscriptionFields(): Promise<{ updated: number; errors: number }> {
   const rows = (await db.execute(sql`
-    SELECT id, subscription_tier, subscription_status, subscription_source
-    FROM swimming_pools
-    WHERE subscription_plan_name IS NULL
-       OR storage_mb = 0
-       OR storage_mb IS NULL
+    SELECT p.id, p.subscription_tier, p.subscription_status, p.subscription_source
+    FROM swimming_pools p
+    LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
+    WHERE p.subscription_plan_name IS NULL
+       OR p.storage_mb = 0
+       OR p.storage_mb IS NULL
+       OR (sp.storage_mb IS NOT NULL AND p.storage_mb IS DISTINCT FROM sp.storage_mb)
     LIMIT 500
   `)).rows as any[];
 
@@ -334,12 +361,12 @@ export async function backfillPoolSubscriptionFields(): Promise<{ updated: numbe
     try {
       const tier = normalizeTier(row.subscription_tier ?? "free");
       const plan = await fetchPlan(tier);
-      const storageMb     = Number(plan?.storage_mb ?? 512);
-      const storageGb     = Number(plan?.storage_gb ?? 0.5);
-      const displayStorage = String(plan?.display_storage ?? "500MB");
+      const storageMb     = Number(plan?.storage_mb ?? 102);
+      const storageGb     = Number(plan?.storage_gb ?? 0.1);
+      const displayStorage = String(plan?.display_storage ?? "100MB");
       const planName      = String(plan?.name ?? tier);
-      const videoLimitMb  = storageMb >= 51200 ? 1024 * 1024 : 0;
-      const whiteLabelEn  = storageMb >= 51200;
+      const videoLimitMb  = storageMb; // WP2A CORRECTION: unified quota (not a separate 1TB cap)
+      const whiteLabelEn  = storageMb >= 5120;
       await db.execute(sql`
         UPDATE swimming_pools SET
           subscription_plan_name = ${planName},

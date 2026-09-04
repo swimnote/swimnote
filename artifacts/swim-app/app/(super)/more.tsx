@@ -5,10 +5,9 @@
  * 5) 고객센터  6) 정책·컴플라이언스  7) 보안·통제
  * 8) 시스템 상태  9) 광고 관리
  */
-import { ChevronRight, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
@@ -17,13 +16,13 @@ import { apiRequest, useAuth } from "@/context/AuthContext";
 const C = Colors.light;
 const PURPLE = "#7C3AED";
 
-const IC = "#0F172A"; const IB = "#E6FAF8";
+const IC = C.textPrimary; const IB = C.brandSoft;
 
 const ICON_COLOR_MAP: Record<string, { bg: string; icon: string }> = {
   mint:    { bg: IB, icon: IC },
   orange:  { bg: IB, icon: IC },
   navy:    { bg: IB, icon: IC },
-  purple:  { bg: "#E6FAF8", icon: PURPLE },
+  purple:  { bg: C.brandSoft, icon: PURPLE },
   violet:  { bg: IB, icon: IC },
   blue:    { bg: IB, icon: IC },
   green:   { bg: IB, icon: IC },
@@ -58,7 +57,7 @@ function MenuItem({ icon, label, sub, onPress, color, badge }: MenuEntry) {
           <Text style={[s.badgeTxt, { color: cfg.icon }]}>{badge}</Text>
         </View>
       ) : null}
-      <ChevronRight size={18} color={C.textMuted} />
+      <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
     </Pressable>
   );
 }
@@ -82,6 +81,7 @@ export default function SuperMoreScreen() {
     storage_risk: 0, deletion_pending: 0, sla_overdue: 0,
   });
   const [totpEnabled, setTotpEnabled] = useState<boolean | null>(null);
+  const [unreadInquiries, setUnreadInquiries] = useState(0);
 
   const fetchRisk = useCallback(async () => {
     if (!token) return;
@@ -99,6 +99,14 @@ export default function SuperMoreScreen() {
   }, [token]);
 
   useEffect(() => { fetchRisk(); }, [fetchRisk]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest(token, "/inquiries/unread-count")
+      .then(r => r.json())
+      .then((d: any) => setUnreadInquiries(d.count ?? 0))
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -168,6 +176,12 @@ export default function SuperMoreScreen() {
           sub: "문의·복구·보안·SLA 관리",
           color: "navy", onPress: go("/(super)/support-group"),
           badge: risk.sla_overdue > 0 ? `SLA 초과 ${risk.sla_overdue}` : undefined,
+        },
+        {
+          icon: "inbox", label: "문의함",
+          sub: "고객 문의 수신 및 답변",
+          color: "navy", onPress: go("/(super)/inquiries"),
+          badge: unreadInquiries > 0 ? `미답변 ${unreadInquiries}` : undefined,
         },
       ],
     },
@@ -258,7 +272,7 @@ export default function SuperMoreScreen() {
               <Text style={s.profileRole}>슈퍼관리자</Text>
             </View>
             <Pressable style={s.securityBtn} onPress={() => router.push("/(super)/security-settings?backTo=more" as any)}>
-              <Shield size={16} color="#fff" />
+              <LucideIcon name="shield" size={16} color="#fff" />
               <Text style={s.securityBtnTxt}>보안</Text>
             </Pressable>
           </View>
@@ -284,7 +298,7 @@ export default function SuperMoreScreen() {
                 {totpEnabled ? "2단계 인증이 설정되어 있습니다" : "탭하여 2단계 인증을 등록하세요"}
               </Text>
             </View>
-            <ChevronRight size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
+            <LucideIcon name="chevron-right" size={16} color={totpEnabled ? "#16A34A" : "#D97706"} />
           </Pressable>
         )}
 

@@ -1,0 +1,131 @@
+{
+  "generated_at": "2026-07-29T07:20:00Z",
+  "investigation_by": "Replit Agent — read-only audit, no code modifications",
+  "current_head": "f3b1436eb0cfcdf5abfb1ca69165c0c792422dd2",
+  "backup_branch_created": "backup/pre-ai-recovery-376fa37",
+  "candidates": [
+    {
+      "source_type": "git_commit",
+      "source_id": "dfeddc1ddf58e01b5aa578160bdc39dc02cdaf6a",
+      "source_time": "2026-07-28T17:51:34Z",
+      "base_commit": "dfeddc1ddf58e01b5aa578160bdc39dc02cdaf6a",
+      "commit_message": "Implement diary AI logic updates and add supporting data asset",
+      "author": "Replit Agent <agent@replit.com>",
+      "parent": "a217487bd178325797759dcfb196057361a9dbf9",
+      "recovery_dir": "git-dfeddc1",
+      "status": "LAST_KNOWN_GOOD — 마지막으로 components/ai/ 전체가 존재한 커밋",
+      "files": [
+        "artifacts/swim-app/components/ai/DESIGN.md",
+        "artifacts/swim-app/components/ai/components/AIActionBar.tsx",
+        "artifacts/swim-app/components/ai/components/AIErrorView.tsx",
+        "artifacts/swim-app/components/ai/components/AIHeader.tsx",
+        "artifacts/swim-app/components/ai/components/AIInputArea.tsx",
+        "artifacts/swim-app/components/ai/components/AILoading.tsx",
+        "artifacts/swim-app/components/ai/components/AIPermissionView.tsx",
+        "artifacts/swim-app/components/ai/components/AIResultArea.tsx",
+        "artifacts/swim-app/components/ai/components/AIVoiceWaveform.tsx",
+        "artifacts/swim-app/components/ai/core/AIContext.tsx",
+        "artifacts/swim-app/components/ai/core/AIContracts.ts",
+        "artifacts/swim-app/components/ai/core/AIStateMachine.ts",
+        "artifacts/swim-app/components/ai/core/BaseAIModal.tsx",
+        "artifacts/swim-app/components/ai/features/diary/DiaryAIActionBar.tsx",
+        "artifacts/swim-app/components/ai/features/diary/DiaryAIButton.tsx",
+        "artifacts/swim-app/components/ai/features/diary/DiaryAIContent.tsx",
+        "artifacts/swim-app/components/ai/features/diary/useDiaryAI.ts",
+        "artifacts/swim-app/components/ai/hooks/useAIModal.ts",
+        "artifacts/swim-app/components/ai/hooks/useAIMotion.ts",
+        "artifacts/swim-app/components/ai/hooks/useAIReducedMotion.ts",
+        "artifacts/swim-app/components/ai/hooks/useAIStateMachine.ts",
+        "artifacts/swim-app/components/ai/hooks/useVoiceRecorder.ts",
+        "artifacts/swim-app/components/ai/motion/AIMotionPreset.ts",
+        "artifacts/swim-app/components/ai/theme/AIPersonality.ts",
+        "artifacts/swim-app/components/ai/theme/AITheme.ts"
+      ],
+      "sha256": {
+        "DESIGN.md": "67afa34ed9bf87a824b5fd464c5893c93e26a1a5293908830f68df6f33da455e",
+        "components/AIActionBar.tsx": "175888d6ceadca13f071f2417d29da38d381c188d13c25dc9dff48dcce2ff12e",
+        "components/AIErrorView.tsx": "21117ef10bdaec4d228c82a549a922a8abf787e93b444ea253d81be54c51c852",
+        "components/AIHeader.tsx": "4e920faa757d871e5304d43eb4dd5cbe77b6af20d5f41b99d8e279fff07fbe36",
+        "components/AIInputArea.tsx": "ae72719b098774d79af6d96364f0386c715a9a229758917231fbedfe26545a14",
+        "components/AILoading.tsx": "2be074a94115e87d04da06bef5bdfda6806ac147679c6a533e3064c41f2b79b3",
+        "components/AIPermissionView.tsx": "6329b000ad763a1e269cb1dd95fd5768dc943856fd117a89641547ac13f9236f",
+        "components/AIResultArea.tsx": "72c6e74e7be0d401ef3451921849284d9e6b8b4f4db94887e96e963a4e6b21cd",
+        "components/AIVoiceWaveform.tsx": "62f1980eeddebef5255cb5d0f97b7bafb54f23e3d8830781b53118b40eea6230",
+        "core/AIContext.tsx": "ff6aca8f5218b77bf7e6945bb6fefe86d3ace0801e8fbe6c9783484f22a943ff",
+        "core/AIContracts.ts": "421f2a43c6455b3a08fd897906475a9d77388e0b944cf254ac269d196393345a",
+        "core/AIStateMachine.ts": "9c61c426dc05c265a87a6fd675cb3576f826c7f0f35662e2abd26a3ef1ffc26a",
+        "core/BaseAIModal.tsx": "70fdc12ff399a9eabcadade959a79265932144ec51caebb74ec3103cfa595cca",
+        "features/diary/DiaryAIActionBar.tsx": "448ac755887f26a0161f310dadea53182b8f86c9d4f7f3e78c445e0ff133ebd6",
+        "features/diary/DiaryAIButton.tsx": "1efa140caca5b6c677aa4f4c7e640ef289af0255bd94edbb18b9fb6bf764de20",
+        "features/diary/DiaryAIContent.tsx": "9f184f6c3e6e1d75c4e426fc30fd08ffb598f0d983721c83d5e22317395a7d09",
+        "features/diary/useDiaryAI.ts": "8fb42cda999e32b42825774d713503ca28872f73c7af791aae06469e0b0cac2f",
+        "hooks/useAIModal.ts": "a28b19ea786fc7da402af8278afe68e5a7c136fc69850f8135f377fcc63ea817",
+        "hooks/useAIMotion.ts": "f6e3e9e6c3ed5dab0ebf1ad1638cede6537c2973fb9103a864f28965e64a8026",
+        "hooks/useAIReducedMotion.ts": "8d899639ef677daa827466aecbe1921575dba71c5f501520ba43de3cb696da17",
+        "hooks/useAIStateMachine.ts": "93935761dc22ee6e8d0529eea3c5087bb6f00e8be1180c4e516b424ae70e9e00",
+        "hooks/useVoiceRecorder.ts": "48e7e8b94e8073183db727ea6653e06d19ac312a7c12c28ea9ac7b54e3e78a35",
+        "motion/AIMotionPreset.ts": "2b6badd86634139ae4235807fe99782b51265bfb511205f2aa3cc5dd9e4ffbe9",
+        "theme/AIPersonality.ts": "f173bf1f2518d8c608e2af58f7f1fba7920656d35161bc092f1749b1e8cfb5e1",
+        "theme/AITheme.ts": "2eaca214d69791b37a6bacc3f4dda576eb4955fabaf9c6c39b4b5aee19c0a78e"
+      },
+      "notes": "dfeddc1과 6c0ea18의 git tree가 IDENTICAL — 두 커밋이 같은 components/ai/ 스냅샷을 가리킴. useDiaryAI.ts만 a63c7ee/5f0be03에서 차이남."
+    },
+    {
+      "source_type": "git_commit",
+      "source_id": "6c0ea18350f051c7222cc6a3d5f3006738b167cb",
+      "source_time": "2026-07-27T15:22:16Z",
+      "base_commit": "6c0ea18350f051c7222cc6a3d5f3006738b167cb",
+      "commit_message": "Implement AI voice recording features and backend route integration",
+      "author": "Replit Agent <agent@replit.com>",
+      "recovery_dir": "git-6c0ea18",
+      "status": "useVoiceRecorder.ts 최초 추가 커밋. components/ai/ tree는 dfeddc1과 동일",
+      "files": ["components/ai/ 전체 25개 — dfeddc1과 SHA 동일 (useDiaryAI.ts 제외, 해당 파일만 다름)"],
+      "notes": "실제 작업은 merge 부모 034756b에서 수행. useVoiceRecorder.ts 이 커밋에서 처음 등장."
+    },
+    {
+      "source_type": "git_commit",
+      "source_id": "a63c7ee3c5a7a0b5b5c5d5e5f5a5b5c5d5e5f5a5",
+      "source_time": "2026-07-27T20:10:20Z",
+      "base_commit": "a63c7ee",
+      "commit_message": "Implement diary AI features and update backend routes",
+      "author": "Replit Agent <agent@replit.com>",
+      "recovery_dir": "git-a63c7ee",
+      "status": "useDiaryAI.ts 이전 버전 (dfeddc1 대비 SHA 다름, 다른 파일들은 동일)",
+      "notes": "useDiaryAI.ts SHA: 72af23d9c0526c80dc5aabfd41c3ccf2399c4e071d050a898d4c6485ce5b053b"
+    },
+    {
+      "source_type": "git_commit",
+      "source_id": "5f0be03dfee579f9f31c617d779892d8c3fb1c77",
+      "source_time": "2026-07-28T03:37:27Z",
+      "base_commit": "5f0be03",
+      "commit_message": "Refactor diary AI logic in useDiaryAI hook",
+      "author": "Replit Agent <agent@replit.com>",
+      "recovery_dir": "git-5f0be03",
+      "status": "useDiaryAI.ts 중간 버전",
+      "notes": "useDiaryAI.ts만 다름, 나머지 24개 파일은 dfeddc1과 SHA 동일"
+    }
+  ],
+  "deletion_commit": {
+    "sha": "376fa3782086e5c74f210d26096bdc9984c435bf",
+    "time": "2026-07-29T06:07:23Z",
+    "author": "SwimNote <swimnote.admin@gmail.com>",
+    "message": "feat: AI diary safety guards — pipeline mode, GPT timeout, MODEL_TIMEOUT 504, STUDENT_RESOLUTION_REQUIRED, tenant isolation, structured log",
+    "deleted_files_count": 25,
+    "deletion_mechanism": "직접 삭제 (delete mode 100644) — merge parent 선택 누락 아님. 이 커밋이 직접 25개 파일을 index에서 제거."
+  },
+  "expo_go_source": {
+    "assessment": "PROBABLE — Expo Go 실행 출처는 deploy-photo-clone 브랜치의 dfeddc1 이전 작업 트리",
+    "evidence": [
+      "dfeddc1 이전 모든 커밋(6c0ea18, a63c7ee, 5f0be03 등)에 components/ai/ 존재",
+      "Expo dev server는 Replit workflow 'artifacts/swim-app: expo'로 실행",
+      "EXPO_PUBLIC_AI_ENGINE_URL 환경변수는 eas.json에 없음 → fallback URL 'https://swimnote.ai.kr' 사용",
+      "useDiaryAI.ts에 AI_ENGINE_BASE = EXPO_PUBLIC_AI_ENGINE_URL ?? 'https://swimnote.ai.kr' 확인",
+      "OTA channel: production (app.json updates.url = expo.dev projectId 7d0e0faa)"
+    ],
+    "cannot_confirm": [
+      "Replit 체크포인트/스냅샷 내부 기록 — Replit 지원팀 확인 필요",
+      "당시 QR 코드가 가리킨 정확한 개발 서버 URL — Replit 지원팀 확인 필요",
+      "Expo Go 앱 캐시에 남아있는 번들 — 기기 자체 확인 필요"
+    ]
+  }
+}

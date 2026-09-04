@@ -1,4 +1,4 @@
-import { CircleAlert, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
 import {
@@ -73,7 +73,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             },
           ]}
         >
-          <CircleAlert size={20} color={theme.text} />
+          <LucideIcon name="alert-circle" size={20} color={theme.text} />
         </Pressable>
       ) : null}
 
@@ -139,7 +139,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
-                  <X size={24} color={theme.text} />
+                  <LucideIcon name="x" size={24} color={theme.text} />
                 </Pressable>
               </View>
 

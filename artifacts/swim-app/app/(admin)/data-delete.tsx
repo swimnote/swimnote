@@ -2,14 +2,12 @@
  * 삭제·보존 정책 허브
  * A. 복구 가능 데이터   B. 보존 기간 정책   C. 원본 데이터 삭제 (킬 스위치)
  */
-import { ChevronRight, CircleCheck, Info, Search, Trash2, TriangleAlert, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -27,18 +25,18 @@ function fmtBytes(b: number) {
 }
 
 const KS_TYPES = [
-  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#EA580C", bg: "#E6FAF8" },
-  { key: "video",  label: "영상",      icon: "video"     as const, color: "#7C3AED", bg: "#E6FAF8" },
-  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#16A34A", bg: "#E6FAF8" },
+  { key: "photo",  label: "사진",      icon: "image"     as const, color: "#EA580C", bg: C.brandSoft },
+  { key: "video",  label: "영상",      icon: "video"     as const, color: "#7C3AED", bg: C.brandSoft },
+  { key: "record", label: "기록/일지", icon: "book-open" as const, color: "#16A34A", bg: C.brandSoft },
 ];
 
 const MONTH_OPTIONS = [1, 3, 6, 12];
 
 const RETENTION_TYPES = [
-  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#EA580C", bg: "#E6FAF8" },
-  { key: "video",     label: "영상",       icon: "video"      as const, color: "#7C3AED", bg: "#E6FAF8" },
-  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#16A34A", bg: "#E6FAF8" },
-  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#7C3AED", bg: "#E6FAF8" },
+  { key: "photo",     label: "사진",       icon: "image"      as const, color: "#EA580C", bg: C.brandSoft },
+  { key: "video",     label: "영상",       icon: "video"      as const, color: "#7C3AED", bg: C.brandSoft },
+  { key: "record",    label: "기록/일지",  icon: "book-open"  as const, color: "#16A34A", bg: C.brandSoft },
+  { key: "messenger", label: "메신저",     icon: "message-square" as const, color: "#7C3AED", bg: C.brandSoft },
 ];
 const RETENTION_OPTIONS = [6, 12, 24, 36, 0]; // 0 = 영구 보관
 
@@ -123,7 +121,7 @@ export default function DataDeleteScreen() {
     <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader title="삭제·보존 정책" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: insets.bottom + 40, gap: 28 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -132,7 +130,7 @@ export default function DataDeleteScreen() {
         {/* ═══ A. 복구 가능 데이터 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
+            <View style={[s.sectionDot, { backgroundColor: C.brandStrong }]} />
             <View>
               <Text style={s.sectionTitle}>복구 가능 데이터</Text>
               <Text style={s.sectionSub}>소프트 삭제된 회원·데이터 — 아직 복구 가능</Text>
@@ -143,18 +141,18 @@ export default function DataDeleteScreen() {
               style={({ pressed }) => [s.menuRow, { opacity: pressed ? 0.7 : 1 }]}
               onPress={() => router.push("/(admin)/withdrawn-members?backTo=data-delete" as any)}
             >
-              <View style={[s.menuIcon, { backgroundColor: "#E6FFFA" }]}>
-                <UserX size={20} color="#2EC4B6" />
+              <View style={[s.menuIcon, { backgroundColor: C.brandSoft }]}>
+              <LucideIcon name="user-x" size={20} color={C.brandStrong} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.menuLabel}>탈퇴·삭제 회원</Text>
                 <Text style={s.menuSub}>소프트 삭제 상태 — 원본 데이터 복구 가능</Text>
               </View>
-              <ChevronRight size={16} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
             </Pressable>
           </View>
           <View style={s.infoBox}>
-            <Info size={13} color="#2EC4B6" />
+            <LucideIcon name="info" size={13} color={C.brandStrong} />
             <Text style={s.infoText}>탈퇴 후 보존 기간 안에는 관리자가 데이터를 복구할 수 있습니다. 보존 기간 초과 시 자동 파기됩니다.</Text>
           </View>
         </View>
@@ -162,7 +160,7 @@ export default function DataDeleteScreen() {
         {/* ═══ B. 보존 기간 정책 ═══ */}
         <View>
           <View style={s.sectionHeader}>
-            <View style={[s.sectionDot, { backgroundColor: "#2EC4B6" }]} />
+            <View style={[s.sectionDot, { backgroundColor: C.brandStrong }]} />
             <View>
               <Text style={s.sectionTitle}>보존 기간 정책</Text>
               <Text style={s.sectionSub}>데이터 유형별 자동 파기 기간 설정</Text>
@@ -185,10 +183,10 @@ export default function DataDeleteScreen() {
                       onPress={() => { setRetention(prev => ({ ...prev, [rt.key]: m })); setRetentionSaved(false); }}
                       style={[
                         s.chip,
-                        retention[rt.key] === m && { backgroundColor: "#E6FFFA", borderColor: "#2EC4B6" },
+                        retention[rt.key] === m && { backgroundColor: C.brandSoft, borderColor: C.brandStrong },
                       ]}
                     >
-                      <Text style={[s.chipText, retention[rt.key] === m && { color: "#2EC4B6" }]}>
+                      <Text style={[s.chipText, retention[rt.key] === m && { color: C.brandStrong }]}>
                         {retentionLabel(m)}
                       </Text>
                     </Pressable>
@@ -198,7 +196,7 @@ export default function DataDeleteScreen() {
             ))}
           </View>
           <Pressable
-            style={[s.saveBtn, { backgroundColor: retentionSaved ? "#2EC4B6" : themeColor }]}
+            style={[s.saveBtn, { backgroundColor: retentionSaved ? C.brandStrong : themeColor }]}
             onPress={() => setRetentionSaved(true)}
           >
             <LucideIcon name={retentionSaved ? "check" : "save"} size={15} color="#fff" />
@@ -217,7 +215,7 @@ export default function DataDeleteScreen() {
           </View>
 
           <View style={s.warnBanner}>
-            <TriangleAlert size={16} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={16} color="#D96C6C" />
             <Text style={s.warnText}>삭제된 원본 파일은 복구할 수 없습니다. 이벤트 로그는 보존됩니다.</Text>
           </View>
 
@@ -235,7 +233,7 @@ export default function DataDeleteScreen() {
                     <LucideIcon name={kt.icon} size={20} color={kt.color} />
                   </View>
                   <Text style={[s.menuLabel, { color: ksType === kt.key ? kt.color : C.text }]}>{kt.label}</Text>
-                  {ksType === kt.key && <CircleCheck size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
+                  {ksType === kt.key && <LucideIcon name="check-circle" size={20} color={kt.color} style={{ marginLeft: "auto" }} />}
                 </Pressable>
               ))}
 
@@ -259,7 +257,7 @@ export default function DataDeleteScreen() {
               >
                 {previewLoading
                   ? <ActivityIndicator color="#fff" />
-                  : <><Search size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
+                  : <><LucideIcon name="search" size={16} color="#fff" /><Text style={s.primaryBtnText}>미리보기</Text></>
                 }
               </Pressable>
             </View>
@@ -308,7 +306,7 @@ export default function DataDeleteScreen() {
                 >
                   {execLoading
                     ? <ActivityIndicator color="#fff" />
-                    : <><Trash2 size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
+                    : <><LucideIcon name="trash-2" size={16} color="#fff" /><Text style={s.primaryBtnText}>영구 삭제</Text></>
                   }
                 </Pressable>
               </View>
@@ -319,19 +317,19 @@ export default function DataDeleteScreen() {
           {step === "done" && result && (
             <View style={{ gap: 12, marginTop: 12 }}>
               <View style={s.resultCard}>
-                <View style={[s.resultIcon, { backgroundColor: result.ok ? "#E6FFFA" : "#F9DEDA" }]}>
-                  <LucideIcon name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? "#2EC4B6" : "#D96C6C"} />
+                <View style={[s.resultIcon, { backgroundColor: result.ok ? C.brandSoft : "#F9DEDA" }]}>
+                  <LucideIcon name={result.ok ? "check-circle" : "alert-circle"} size={36} color={result.ok ? C.brandStrong : "#D96C6C"} />
                 </View>
-                <Text style={[s.resultMsg, { color: result.ok ? "#2EC4B6" : "#D96C6C" }]}>{result.message}</Text>
+                <Text style={[s.resultMsg, { color: result.ok ? C.brandStrong : "#D96C6C" }]}>{result.message}</Text>
               </View>
-              <Pressable style={[s.primaryBtn, { backgroundColor: C.button }]} onPress={resetKs}>
+              <Pressable style={[s.primaryBtn, { backgroundColor: C.primaryAction }]} onPress={resetKs}>
                 <Text style={s.primaryBtnText}>다시 시작</Text>
               </Pressable>
             </View>
           )}
         </View>
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -354,7 +352,7 @@ const s = StyleSheet.create({
   retentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, padding: 14 },
   rowBorder:    { borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   chipRow:      { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: "#F1F5F9" },
+  chip:         { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.backgroundSoft },
   chipText:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   saveBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 46, borderRadius: 14, marginTop: 10 },
@@ -363,7 +361,7 @@ const s = StyleSheet.create({
   warnBanner: { flexDirection: "row", alignItems: "flex-start", gap: 10, backgroundColor: "#FEF2F2", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#FECACA" },
   warnText:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C", lineHeight: 18 },
 
-  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  stepLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   typeRow:      { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 16, borderWidth: 1.5 },
   monthChip:    { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   monthChipText:{ fontSize: 14, fontFamily: "Pretendard-Regular" },
@@ -371,15 +369,15 @@ const s = StyleSheet.create({
   primaryBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 50, borderRadius: 16 },
   primaryBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
   secondaryBtn:   { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  secondaryBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   previewCard:  { backgroundColor: "#FEF2F2", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#FECACA" },
   previewRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  previewLabel: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   previewValue: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
 
-  pwInput:   { height: 50, borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: "#F1F5F9" },
-  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: "#F1F5F9", borderRadius: 18 },
+  pwInput:   { height: 50, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, paddingHorizontal: 16, fontSize: 15, fontFamily: "Pretendard-Regular", backgroundColor: C.backgroundSoft },
+  resultCard:{ alignItems: "center", gap: 16, paddingVertical: 32, backgroundColor: C.backgroundSoft, borderRadius: 18 },
   resultIcon:{ width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   resultMsg: { fontSize: 16, fontFamily: "Pretendard-Regular", textAlign: "center", paddingHorizontal: 16 },
 });

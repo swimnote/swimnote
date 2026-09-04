@@ -1,0 +1,482 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# TESTFLIGHT OTA MODAL NOT APPEARING — DIAGNOSIS ONLY
+
+현재 SWIMNOTE 2.0 개발 정책:
+
+TestFlight Build 252에서
+새 OTA update를 수신하면
+
+앱 내부 개발용 Update Modal이 표시되고
+
+사용자가:
+
+"앱 재실행하기"
+
+버튼을 눌러
+새 OTA를 적용하는 구조입니다.
+
+현재 문제:
+
+production-v2 OTA는 publish 되었다고 보고되었으나
+실기기에서 해당 Update Modal이 나타나지 않습니다.
+
+따라서 이번 작업은:
+
+"왜 2.0 TestFlight Build 252가
+production-v2 OTA를 감지하지 못하는지"
+
+진단하는 작업입니다.
+
+새 OTA 발행 금지.
+새 build 생성 금지.
+코드 수정 금지.
+
+==================================================
+1. 현재 기대 동작 확인
+==================================================
+
+현재 앱에서 OTA 처리 흐름을 실제 코드로 확인하십시오.
+
+확인할 것:
+
+- expo-updates 또는 Updates API 사용 여부
+- checkForUpdateAsync 호출 위치
+- fetchUpdateAsync 호출 위치
+- reloadAsync 사용 여부
+- update available modal을 띄우는 조건
+- 앱 시작 시 OTA 체크 시점
+- foreground 복귀 시 재확인 여부
+- update check 실패 시 로그 처리
+
+완료보고에 실제 파일/함수 기준으로 설명.
+
+==================================================
+2. Build 252 channel 확인
+==================================================
+
+TestFlight Build 252에 실제 embedded된 channel 확인.
+
+Expected:
+
+production-v2
+
+보고:
+
+EAS Build ID:
+Profile:
+Embedded Channel:
+RuntimeVersion:
+App Version:
+Build Number:
+
+Expected:
+
+Profile:
+production-v2
+
+Channel:
+production-v2
+
+RuntimeVersion:
+2.0.0
+
+App Version:
+2.0.0
+
+Build:
+252
+
+==================================================
+3. production-v2 channel mapping 확인
+==================================================
+
+실제 EAS Update 상태 확인.
+
+Expected:
+
+Channel:
+production-v2
+
+Mapped Branch:
+production-v2
+
+Latest update:
+
+01a05cb1-b7c0-711a-82c9-651aba313e1c
+
+확인:
+
+- branch
+- platform
+- runtimeVersion
+- createdAt
+- commit/SHA
+- message
+
+==================================================
+4. Runtime match 확인
+==================================================
+
+Binary runtime:
+
+2.0.0
+
+OTA runtime:
+
+2.0.0
+
+정확히 일치하는지 확인.
+
+문자열 차이도 허용하지 않음.
+
+==================================================
+5. OTA Update ID 내용 확인
+==================================================
+
+Update ID:
+
+01a05cb1-b7c0-711a-82c9-651aba313e1c
+
+이 실제로:
+
+release/v2.0.0
+HEAD 74ae1a4d
+
+내용으로 발행됐는지 확인.
+
+잘못된 commit/update면
+원인만 보고.
+
+재발행 금지.
+
+==================================================
+6. Update Modal 코드 감사
+==================================================
+
+현재 개발용 modal이
+어떤 조건에서 뜨는지 확인.
+
+예:
+
+if (update.isAvailable) {
+  fetchUpdateAsync()
+  setShowUpdateModal(true)
+}
+
+같은 구조인지 실제 코드 기준으로 확인.
+
+특히 확인:
+
+- __DEV__ 조건에 묶여 있는가
+- production/TestFlight에서는 modal code가 제거되는가
+- appVersion 2.0.0에서만 활성화되는가
+- 특정 channel에서만 활성화되는가
+- production-v2에서 정상 활성화되는가
+- AsyncStorage/local flag 때문에 이미 본 update로 처리되는가
+- update ID 비교 조건이 잘못되어 있는가
+
+==================================================
+7. TestFlight에서 modal이 실제 동작 가능한지 확인
+==================================================
+
+중요:
+
+TestFlight build는 일반적으로 __DEV__ = false일 수 있습니다.
+
+따라서 현재 "개발중 OTA modal"이
+
+__DEV__
+
+조건 내부에 있다면
+TestFlight에서는 절대 뜨지 않을 수 있습니다.
+
+반드시 실제 코드를 확인.
+
+만약 그렇다면:
+
+ROOT CAUSE:
+MODAL DISABLED IN TESTFLIGHT
+
+라고 보고.
+
+수정은 아직 하지 마십시오.
+
+==================================================
+8. expo-updates config 확인
+==================================================
+
+확인:
+
+updates.enabled
+
+updates.url
+
+runtimeVersion
+
+checkAutomatically
+
+fallbackToCacheTimeout
+
+launchWaitMs 또는 관련 설정
+
+channel
+
+Expo Updates 수신 자체를 막는 설정이 있는지 확인.
+
+==================================================
+9. 자동 update check 실행 여부
+==================================================
+
+TestFlight 앱 실행 시
+실제로:
+
+Updates.checkForUpdateAsync()
+
+가 호출되는지 확인.
+
+호출 조건이:
+
+- development build only
+- admin only
+- 특정 role only
+- 특정 env only
+
+등으로 제한되어 있지 않은지 확인.
+
+==================================================
+10. 로그 확인
+==================================================
+
+가능한 build/runtime logs에서:
+
+- update check start
+- update available
+- update unavailable
+- fetch success
+- fetch error
+- reload pending
+- modal show
+
+관련 로그 확인.
+
+로그가 없다면
+"LOGGING INSUFFICIENT"
+
+라고 보고.
+
+새 logging code 추가는 아직 금지.
+
+==================================================
+11. 이미 동일 update로 판단되는지 확인
+==================================================
+
+현재 앱의 embedded update 또는 cached update와
+01a05cb1 update가 동일/이전으로 판단될 가능성 확인.
+
+확인:
+
+- current update ID
+- embedded update ID
+- latest OTA update ID
+- createdAt
+- manifest metadata
+
+현재 Build 252가 이미 01a05cb1을 받고 있는 상태인데
+UI만 구버전처럼 보이는지도 확인.
+
+==================================================
+12. 캐시/rollback 여부 확인
+==================================================
+
+Expo Updates가 새 update를 fetch했지만
+launch 실패 후 rollback했는지 확인.
+
+가능한 경우:
+
+- failed launch count
+- rollback marker
+- rejected update
+- runtime error
+
+확인.
+
+==================================================
+13. Production 보호
+==================================================
+
+금지:
+
+- 새로운 OTA publish
+- production channel update
+- Android update
+- 새 TestFlight build
+- Render 수정
+- DB 수정
+- RevenueCat 수정
+- App Store 상품 수정
+- Google Play 수정
+
+==================================================
+14. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# TESTFLIGHT OTA MODAL DIAGNOSIS REPORT
+
+## BUILD 252
+
+EAS Build ID:
+...
+
+Profile:
+...
+
+Embedded Channel:
+...
+
+Runtime:
+...
+
+App Version:
+...
+
+Build:
+252
+
+## EAS UPDATE
+
+Channel:
+production-v2
+
+Mapped Branch:
+...
+
+Latest Update ID:
+...
+
+Runtime:
+...
+
+Platform:
+...
+
+Commit:
+...
+
+MATCH EXPECTED:
+YES / NO
+
+## UPDATE CHECK CODE
+
+File:
+...
+
+Function:
+...
+
+checkForUpdateAsync called:
+YES / NO
+
+fetchUpdateAsync called:
+YES / NO
+
+reloadAsync used:
+YES / NO
+
+Modal trigger condition:
+...
+
+## MODAL AVAILABILITY IN TESTFLIGHT
+
+Uses __DEV__:
+YES / NO
+
+Environment restriction:
+...
+
+TestFlight can show modal:
+YES / NO
+
+## EXPO UPDATES CONFIG
+
+Enabled:
+YES / NO
+
+URL:
+...
+
+Runtime:
+...
+
+Check Automatically:
+...
+
+Blocking config:
+NONE
+or
+...
+
+## CURRENT UPDATE STATE
+
+Current running update ID:
+...
+
+Latest available update ID:
+...
+
+Same:
+YES / NO
+
+## LOG RESULT
+
+Update check attempted:
+YES / NO
+
+Available:
+YES / NO / UNKNOWN
+
+Fetch attempted:
+YES / NO / UNKNOWN
+
+Fetch success:
+YES / NO / UNKNOWN
+
+Modal attempted:
+YES / NO / UNKNOWN
+
+Errors:
+...
+
+## ROOT CAUSE
+
+...
+
+## REQUIRED ACTION
+
+NO ACTION
+or
+
+MODAL CONDITION FIX
+or
+
+CHANNEL MAPPING FIX
+or
+
+NEW OTA REQUIRED
+or
+
+NEW TESTFLIGHT BUILD REQUIRED
+or
+
+OTHER:
+...
+
+## NEW DEPLOYMENTS
+
+NONE
+
+## PRODUCTION CHANGES
+
+NONE

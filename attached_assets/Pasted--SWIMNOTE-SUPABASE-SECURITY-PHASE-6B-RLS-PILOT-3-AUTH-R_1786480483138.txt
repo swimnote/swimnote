@@ -1,0 +1,216 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 6B
+RLS PILOT 3 AUTH RUNTIME VERIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 6 DB 적용은 유지한다.
+
+중요:
+RLS rollback 하지 않는다.
+추가 RLS 적용하지 않는다.
+DB write 하지 않는다.
+비밀번호 변경하지 않는다.
+reset-password 사용 금지.
+JWT 직접 sign 금지.
+
+현재 정확한 상태:
+
+RLS_PILOT_3_APPLIED
+RUNTIME_AUTH_VERIFICATION_PENDING
+
+목표:
+실제 정상 인증 경로가
+RLS 적용 후에도 정상인지 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production 상태 변경 금지
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true 유지:
+
+students
+users
+parent_accounts
+members
+
+추가 ALTER TABLE 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 정상 인증 가능한 기존 계정 탐색
+━━━━━━━━━━━━━━━━━━━━
+
+Repository / 기존 테스트 환경에서
+실제 정상 로그인이 가능한 공식 test/sample 계정이
+존재하는지만 확인.
+
+확인 대상:
+
+- pool_admin
+- teacher
+- parent
+
+중 최소 1개.
+
+중요:
+
+비밀번호 값 출력 금지.
+password hash 출력 금지.
+token 출력 금지.
+
+새 계정 생성 금지.
+비밀번호 변경 금지.
+reset-password endpoint 사용 금지.
+jwt.sign / signToken으로 가짜 인증 토큰 생성 금지.
+
+실제 /api/auth/login 경로만 사용.
+
+정상 credential을 안전하게 확보할 수 없으면:
+
+NO_SAFE_VALID_CREDENTIAL
+
+로 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 실제 login 성공 검증
+━━━━━━━━━━━━━━━━━━━━
+
+안전한 기존 계정이 있으면:
+
+POST /api/auth/login
+
+실제 Production Render 대상으로 호출.
+
+필수:
+
+HTTP 200
+
+확인.
+
+제출:
+
+role
+HTTP status
+poolId 존재 여부
+
+token 값은 출력 금지.
+
+401 / 400을 성공으로 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 인증된 API 검증
+━━━━━━━━━━━━━━━━━━━━
+
+정상 로그인으로 받은 토큰을
+메모리에만 사용.
+
+최소:
+
+GET /api/pools/x-mode
+
+실제 authenticated 요청.
+
+기대:
+HTTP 200
+
+그리고 response의:
+
+pool_id
+mode
+xmode_entitlement
+xmode_config_status
+
+shape 정상 여부만 제출.
+
+민감정보 출력 금지.
+
+가능하면 추가 READ ONLY API 1개 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 실제 앱 Runtime 검증
+━━━━━━━━━━━━━━━━━━━━
+
+Replit에서 정상 credential을 확보할 수 없다면
+사용자의 실제 앱 로그인 검증으로 대체 가능.
+
+이 경우 코드/DB 수정 없이 STOP하고
+다음 상태로 제출:
+
+NEEDS_REAL_DEVICE_LOGIN
+
+사용자가 실제 iOS 앱에서:
+
+1. pool_admin 정상 로그인
+2. 관리자 dashboard 표시
+3. 학생/회원 관련 기존 화면 1개 정상 조회
+4. 로그아웃하지 않아도 됨
+
+을 확인하면 Runtime 인증 검증 증거로 인정.
+
+teacher/parent도 가능하면 추가 확인하지만
+최소 pool_admin 1개는 필수.
+
+━━━━━━━━━━━━━━━━━━━━
+6. Render 로그
+━━━━━━━━━━━━━━━━━━━━
+
+정상 로그인/인증 API 수행 직후 확인:
+
+permission denied
+row-level security
+policy violation
+
+그리고:
+
+users
+students
+parent_accounts
+members
+
+관련 신규 오류.
+
+없으면 PASS.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 판정 기준
+━━━━━━━━━━━━━━━━━━━━
+
+다음이 모두 만족되면:
+
+[x] RLS 4개 true
+[x] direct postgres 정상
+[x] normal login HTTP 200
+[x] authenticated API HTTP 200
+[x] 신규 RLS 오류 없음
+
+FINAL:
+
+RLS_PILOT_3_VERIFIED
+
+정상 credential 확보 불가 시:
+
+RLS_PILOT_3_APPLIED
+RUNTIME_AUTH_VERIFICATION_PENDING
+
+으로 유지.
+
+실패한 401/400을 VERIFIED 근거로 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 제출
+
+1. RLS 4개 현재 상태
+2. valid credential 사용 가능 여부
+3. login HTTP result
+4. authenticated API result
+5. real-device 필요 여부
+6. Render RLS 오류
+7. rollback 여부
+8. 최종 판정
+
+추가 RLS 적용 금지.
+POOL_DB RLS 적용 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

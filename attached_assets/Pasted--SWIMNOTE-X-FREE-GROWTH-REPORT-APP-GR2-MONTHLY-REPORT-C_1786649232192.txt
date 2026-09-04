@@ -1,0 +1,666 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR2 — MONTHLY REPORT CYCLE SCHEDULER + 25TH OPEN / 5TH INPUT CLOSE]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+
+이번 GR2 목적:
+
+매월 Growth Report Cycle을
+Asia/Seoul 기준으로 자동 운영하는 Scheduler를 완성한다.
+
+핵심 Product Rule:
+
+매월 25일
+→ 해당 Growth Report Cycle OPEN
+
+다음달 5일
+→ Parent Input CLOSE
+
+중요:
+
+5일은 Report 종료일이 아니다.
+
+5일 이후에도:
+
+분석
+Teacher Review
+Approval
+Publish
+
+계속 진행 가능.
+
+==================================================
+1. TIMEZONE
+==================================================
+
+Canonical timezone:
+
+Asia/Seoul
+
+모든:
+
+- cycle open
+- parent input open
+- parent input close
+- analysis cutoff
+- scheduler run
+- push trigger
+
+계산은 Asia/Seoul 기준.
+
+UTC 기준 날짜를 그대로 사용해서
+한국 날짜가 하루 밀리는 버그 금지.
+
+==================================================
+2. MONTHLY CYCLE CONCEPT
+==================================================
+
+각 report_period는:
+
+YYYY-MM
+
+예:
+
+2026-08
+
+Cycle은 해당 report_period의 Growth Report 작업단위.
+
+중요:
+
+report_period와
+analysis window는 다른 개념.
+
+analysis_from은 여전히 nullable.
+
+GR2에서 임의로:
+
+1일~말일
+전월25일~당월24일
+
+중 하나로 확정하지 마라.
+
+==================================================
+3. 25TH OPEN RULE
+==================================================
+
+매월 25일
+Asia/Seoul 00:00 기준 이후:
+
+해당 report_period Cycle을 ACTIVE로 전환 가능.
+
+관련 Product Reports:
+
+NOT_OPEN
+→ OPEN
+
+필요 시 생성.
+
+Parent Input:
+
+NONE
+→ AVAILABLE
+
+가능.
+
+중요:
+
+25일 이전에는 OPEN 금지.
+
+==================================================
+4. 5TH CLOSE RULE
+==================================================
+
+다음달 5일
+Asia/Seoul 00:00 기준:
+
+해당 Cycle:
+
+ACTIVE
+→ INPUT_CLOSED
+
+Parent Input:
+
+AVAILABLE
+→ CLOSED
+
+ANSWERED
+→ CLOSED
+
+NONE인 경우 정책에 따라 CLOSED 가능.
+
+하지만 Product Report는 닫지 않는다.
+
+특히 금지:
+
+product_status=CLOSED
+
+존재하지 않음.
+
+==================================================
+5. QUESTION_AVAILABLE HANDLING AT CLOSE
+==================================================
+
+5일 Parent Input Close 시:
+
+product_status = QUESTION_AVAILABLE
+
+인 Report는:
+
+READY_FOR_ANALYSIS
+
+로 전환.
+
+즉 Parent가 답하지 않았더라도
+Engine 분석 계속 진행 가능.
+
+Parent answer가 이미 있으면
+역시 READY_FOR_ANALYSIS로 갈 수 있음.
+
+==================================================
+6. OTHER STATUS AT CLOSE
+==================================================
+
+PUBLISHED:
+그대로 유지.
+
+APPROVED:
+그대로 유지.
+
+REVIEW_REQUIRED:
+그대로 유지.
+
+ANALYZING:
+그대로 유지.
+
+FAILED:
+그대로 유지.
+재시도 가능 상태 유지.
+
+PARTIAL:
+그대로 유지 가능.
+
+Parent Input close가
+무관한 Product Status를 강제 변경하면 안 된다.
+
+==================================================
+7. REPORT CREATION POLICY
+==================================================
+
+25일 Cycle open 시
+모든 학생 Report를 무조건 미리 대량 생성할지,
+필요한 학생만 lazy-create할지는
+현재 APP 구조를 보고 가장 안전한 방식으로 결정.
+
+하지만 결과적으로:
+
+동일 student + cycle
+중복 report 생성 금지.
+
+GR1 unique constraint 재사용.
+
+==================================================
+8. ELIGIBILITY
+==================================================
+
+새 Growth Report Cycle 대상은
+X Mode 접근 가능한 pool만.
+
+기존:
+
+resolveReportXAccess()
+requireReportXAccess()
+
+또는 canonical X Mode service 재사용.
+
+비-X pool에
+신규 Growth Report cycle/report 자동 생성 금지.
+
+==================================================
+9. PUBLISHED HISTORY PRESERVATION
+==================================================
+
+X Mode가 이후 만료돼도
+이미 PUBLISHED된 과거 Report 삭제 금지.
+
+Scheduler는
+과거 Report를 삭제/invalid 처리하지 않는다.
+
+==================================================
+10. CYCLE STATUS
+==================================================
+
+Canonical:
+
+PENDING
+ACTIVE
+INPUT_CLOSED
+DONE
+
+GR2에서 최소:
+
+PENDING → ACTIVE
+ACTIVE → INPUT_CLOSED
+
+자동 처리.
+
+DONE 전환은
+후속 Product completion 정책에 따라
+명확한 기준이 있을 때만.
+
+임의로 5일에 DONE 처리 금지.
+
+==================================================
+11. TIMESTAMP FIELDS
+==================================================
+
+Cycle 생성 시 최소:
+
+parent_input_open_at
+parent_input_close_at
+analysis_cutoff_at
+
+값을 명확히 계산.
+
+주의:
+
+analysis_cutoff_at은
+향후 ENGINE Snapshot에서
+미래 데이터 차단 기준으로 사용.
+
+GR2에서 cutoff 정책을
+25일/5일 중 임의로 잘못 섞지 마라.
+
+현재 Product 정책과
+GR1 schema를 기준으로
+명확한 deterministic rule을 선택하고 보고.
+
+==================================================
+12. SCHEDULER ARCHITECTURE
+==================================================
+
+기존 APP Scheduler/Worker 자산 재사용.
+
+현재 Repository의:
+
+jobs/
+queue-worker
+push-scheduler
+cron
+worker
+
+등 실제 canonical background execution 경로를 먼저 확인.
+
+새 독립 cron system을 중복 생성하지 마라.
+
+==================================================
+13. IDEMPOTENCY
+==================================================
+
+Scheduler는 동일 날짜에 여러 번 실행돼도
+중복 Cycle/Report/상태변경이 생기지 않아야 한다.
+
+예:
+
+25일 job 3회 실행
+→ Cycle 1개
+→ 동일 Report 중복 없음
+
+5일 close job 3회 실행
+→ 상태 중복오류 없이 동일 최종상태
+
+==================================================
+14. MISSED RUN RECOVERY
+==================================================
+
+Scheduler가 25일 00:00에 정확히 못 돌 수 있다.
+
+예:
+
+25일 서버 다운
+→ 26일 복구
+
+이 경우 missed open을 회복해야 한다.
+
+즉 exact timestamp equality에만 의존 금지.
+
+조건:
+
+now >= open_at
+AND cycle still PENDING
+
+→ ACTIVE 가능.
+
+동일하게:
+
+now >= close_at
+AND cycle ACTIVE
+
+→ INPUT_CLOSED 가능.
+
+==================================================
+15. CLOCK SOURCE
+==================================================
+
+테스트 가능하도록
+Date.now() 직접 난사 금지.
+
+Clock abstraction 또는
+now parameter 주입 가능 구조.
+
+Synthetic date 테스트 가능해야 함.
+
+==================================================
+16. DST / TIMEZONE SAFETY
+==================================================
+
+한국은 DST가 없지만
+직접 UTC+9 숫자 하드코딩보다
+IANA timezone "Asia/Seoul" 기반 계산 권장.
+
+기존 date library 사용 가능.
+
+새 라이브러리 추가는 꼭 필요할 때만.
+
+==================================================
+17. PUSH BOUNDARY
+==================================================
+
+GR2는 Scheduler가 핵심.
+
+Push 실제 발송 구현은 GR7.
+
+다만 GR7이 사용할 수 있도록
+이벤트/상태 trigger hook 정도는 남겨도 됨.
+
+GR2에서 실제 Parent Push 발송 선행 구현 금지.
+
+==================================================
+18. AUDIT
+==================================================
+
+자동 lifecycle transition도 audit 남김.
+
+actor/system 구분.
+
+예:
+
+actor_type='system'
+reason='MONTHLY_CYCLE_OPEN'
+reason='PARENT_INPUT_WINDOW_CLOSED'
+
+기존 audit pattern 재사용.
+
+==================================================
+19. FAILURE HANDLING
+==================================================
+
+한 pool/report 실패 때문에
+전체 Scheduler가 중단되지 않도록
+pool/report 단위 isolation 고려.
+
+하지만 오류를 조용히 삼키지 마라.
+
+최소:
+
+processed
+opened
+closed
+skipped
+failed
+
+summary 반환/로그.
+
+==================================================
+20. JOB RESULT CONTRACT
+==================================================
+
+예:
+
+interface GrowthReportSchedulerRunResult {
+  run_at: string;
+  timezone: 'Asia/Seoul';
+
+  cycles_checked: number;
+  cycles_created: number;
+  cycles_opened: number;
+  cycles_input_closed: number;
+
+  reports_opened: number;
+  reports_ready_for_analysis: number;
+
+  skipped: number;
+  failed: number;
+
+  errors: Array<{
+    pool_id?: string;
+    cycle_id?: string;
+    report_id?: string;
+    code: string;
+  }>;
+}
+
+PII 금지.
+
+==================================================
+21. NO ENGINE CALL
+==================================================
+
+GR2에서 AI ENGINE 호출 금지.
+
+ENGINE integration은 GR3.
+
+GR2 역할:
+
+Cycle
++
+Lifecycle scheduling
+
+까지만.
+
+==================================================
+22. NO QUESTION UI
+==================================================
+
+Parent Question UI 금지.
+
+GR4.
+
+==================================================
+23. NO TEACHER REVIEW
+==================================================
+
+Teacher Review UI/API 선행 구현 금지.
+
+GR5.
+
+==================================================
+24. TEST REQUIREMENTS
+==================================================
+
+최소:
+
+1. Asia/Seoul timezone 사용
+
+2. 24일 23:59 KST
+→ open 안 됨
+
+3. 25일 00:00 KST
+→ ACTIVE 가능
+
+4. 25일 이후 missed run
+→ recovery open
+
+5. 5일 00:00 KST
+→ INPUT_CLOSED
+
+6. 5일 이후 missed run
+→ recovery close
+
+7. UTC 날짜 경계에서 KST 날짜 정확
+
+8. cycle duplicate 생성 없음
+
+9. repeated scheduler run idempotent
+
+10. non-X pool 신규 cycle 생성 금지
+
+11. X pool cycle 생성 가능
+
+12. NOT_OPEN → OPEN
+
+13. parent NONE → AVAILABLE
+
+14. parent AVAILABLE → CLOSED
+
+15. parent ANSWERED → CLOSED
+
+16. QUESTION_AVAILABLE → READY_FOR_ANALYSIS at close
+
+17. OPEN 상태가 5일에 임의 CLOSED로 변하지 않음
+
+18. ANALYZING 그대로
+
+19. REVIEW_REQUIRED 그대로
+
+20. APPROVED 그대로
+
+21. PUBLISHED 그대로
+
+22. FAILED 그대로
+
+23. PARTIAL 그대로
+
+24. PUBLISHED report 삭제 없음
+
+25. old published history 보존
+
+26. same student/cycle duplicate report 없음
+
+27. system audit 기록
+
+28. clock injection test
+
+29. scheduler process failure isolation
+
+30. job result counts 정확
+
+31. GR1 lifecycle regression
+
+32. X mode regression
+
+33. Diary regression
+
+34. Notifications import regression
+
+==================================================
+25. 허위 완료 방지
+==================================================
+
+COMPLETE 금지:
+
+- cron 문자열만 추가
+- 25일 exact equality만 검사
+- 5일에 report CLOSED
+- QUESTION_REQUIRED 사용
+- non-X pool 생성
+- UTC 날짜 그대로 사용
+- multiple run 중복 생성
+- missed-run recovery 없음
+- ENGINE 호출 선행
+- Push 선행
+- TODO
+- placeholder
+
+==================================================
+26. COMPLETE CONDITIONS
+==================================================
+
+[ ] Asia/Seoul
+[ ] 25th open
+[ ] 5th parent input close
+[ ] QUESTION_AVAILABLE → READY_FOR_ANALYSIS
+[ ] report 자체 close 안 함
+[ ] idempotent
+[ ] missed-run recovery
+[ ] X eligibility
+[ ] cycle/report duplicate 방지
+[ ] audit
+[ ] clock testability
+[ ] worker/scheduler integration
+[ ] no ENGINE call
+[ ] no push
+[ ] tests pass
+[ ] GR1 regression
+[ ] existing APP regression
+[ ] TODO 0
+[ ] Production migration 미실행
+[ ] Deploy 없음
+
+==================================================
+27. CREDIT SAVING / SAFETY
+==================================================
+
+GR1 + 기존 scheduler/worker/XMode 관련 파일만 검사.
+
+전체 repo 재감리 금지.
+
+Production DB write 금지.
+Production migration 금지.
+Deploy 금지.
+OTA 금지.
+
+GR3 이후 선행 구현 금지.
+
+==================================================
+28. FINAL REPORT
+==================================================
+
+1. GR2 RESULT
+
+2. EXISTING SCHEDULER/WORKER ASSETS REUSED
+
+3. IMPLEMENTED FILES
+
+4. TIMEZONE / DATE POLICY
+
+5. 25TH OPEN
+
+6. 5TH INPUT CLOSE
+
+7. QUESTION_AVAILABLE HANDLING
+
+8. X ELIGIBILITY
+
+9. IDEMPOTENCY / MISSED RUN RECOVERY
+
+10. AUDIT / FAILURE ISOLATION
+
+11. TEST RESULTS
+
+12. GR1 / EXISTING APP REGRESSION
+
+13. TODO SCAN
+
+14. GIT
+    branch
+    actual HEAD SHA
+
+15. PRODUCTION SAFETY
+
+전부 완료 시:
+
+GROWTH_REPORT_APP_GR2_COMPLETE ✅
+
+미완성:
+
+GROWTH_REPORT_APP_GR2_BLOCKED ❌
+
+작업을 시작하라.

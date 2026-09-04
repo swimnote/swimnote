@@ -1,0 +1,677 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP10-P1 — CURRICULUM KPI CONCURRENCY / IDEMPOTENCY HARDENING
+# SERVER ONLY
+# MINIMAL FIX BEFORE WP11
+
+============================================================
+절대 작업 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+CURRENT V2 LINE:
+release/v2.0.0 최신 HEAD
+
+WP10 latest commit:
+de8e16d4
+
+STEP 0:
+3fea9f6a
+
+반드시 CURRENT LATEST V2 HEAD에서 작업.
+
+de8e16d4 ancestor 확인.
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign KPI architecture
+
+1.6.3:
+NO TOUCH
+
+APP:
+NO CHANGE 예상
+
+AI ENGINE:
+NO CHANGE
+
+DB MIGRATION:
+NO
+
+Render production deploy:
+NO
+사용자가 수동 배포.
+
+============================================================
+현재 WP10 평가
+============================================================
+
+SERVER 500 root cause:
+
+sch.teacher_id
+→ cg.teacher_user_id
+
+수정은 PASS.
+
+학생 커리큘럼 목록:
+PASS.
+
+문제는 새로 연결한 monthly KPI update 방식.
+
+현재 보고된 구현:
+
+parent curriculum search 성공
+→ event_logs INSERT
+→ fire-and-forget recount
+→ COUNT(*)
+→ COUNT(DISTINCT actor_id)
+→ x_monthly_operational_snapshots UPSERT overwrite
+
+이 방식의 동시성/idempotency를
+이번에 보강한다.
+
+============================================================
+1. 실제 구현 코드부터 확인
+============================================================
+
+parent-curriculum.ts에서
+이번 WP10에 추가된 약 +40줄을 정확히 확인.
+
+반드시 보고:
+
+A.
+event_logs INSERT 함수/SQL
+
+B.
+monthly recount 함수/SQL
+
+C.
+fire-and-forget 호출 위치
+
+D.
+recount SELECT 완료 후 UPSERT까지
+하나의 DB transaction인지
+
+E.
+동일 pool/month에 동시 호출 시
+serialization/lock이 있는지
+
+F.
+event 자체에 request_id / trace_id /
+unique idempotency key가 있는지
+
+추측 금지.
+
+============================================================
+2. 현재 race condition 검증
+============================================================
+
+아래 시나리오를 실제 코드 기준으로 분석.
+
+Search A:
+event 1 INSERT
+recount 시작
+
+Search B:
+event 2 INSERT
+recount 시작
+
+B recount:
+COUNT = 2
+UPSERT = 2
+
+그 후 A recount:
+오래된 snapshot 결과 COUNT = 1
+UPSERT = 1
+
+이 stale overwrite가 현재 구현에서
+가능한지 확인.
+
+가능하면 반드시 수정.
+
+============================================================
+3. retry duplicate도 별도 검증
+============================================================
+
+현재 보고:
+
+"retry 시 재실행되나 recount로 보정"
+
+이 주장은 검증 필요.
+
+동일 사용자 요청 retry가:
+
+event_logs row를 2개 INSERT
+
+할 수 있다면
+
+COUNT(*) recount는
+2건을 그대로 세므로
+자동 보정되지 않는다.
+
+확인:
+
+- 동일 logical search가 retry로 두 번 기록 가능한가
+- request_id / trace_id가 있는가
+- event_logs에 동일 event 중복 방지 constraint가 있는가
+- 현재 parent curriculum search API에서
+  이미 request idempotency가 적용되는가
+
+정확히 보고.
+
+============================================================
+4. 최소 수정 원칙
+============================================================
+
+새 테이블 만들지 말 것.
+
+x_metric_events:
+NO
+
+새 KPI framework:
+NO
+
+기존:
+
+event_logs
+→ x_monthly_operational_snapshots
+
+경로 유지.
+
+단 동시 호출에도 snapshot이
+뒤로 감소하거나 틀어지지 않게 한다.
+
+============================================================
+5. concurrency-safe recount
+============================================================
+
+현재 코드베이스에 이미 존재하는
+DB advisory lock / transaction lock / mutex helper가 있으면
+우선 재사용.
+
+목표 lock scope:
+
+swimming_pool_id + KST year + month
+
+동일 pool/month recount만 직렬화.
+
+다른 pool:
+서로 block 금지.
+
+예:
+
+Pool A 2026-09 recount
+↔ 동일 key만 serialize
+
+Pool B 2026-09:
+동시에 처리 가능.
+
+500개 pool 전체를 하나의 global lock으로
+묶지 말 것.
+
+============================================================
+6. 권장 구조
+============================================================
+
+가능하면:
+
+event write 완료
+→ schedule/execute monthly recount
+
+recount:
+
+BEGIN
+→ pool/month scoped advisory lock 또는
+   현재 프로젝트의 동등한 durable DB lock 획득
+→ raw event_logs COUNT
+→ COUNT DISTINCT actor_id
+→ snapshot UPSERT
+→ COMMIT
+
+형태.
+
+중요:
+
+SELECT result와 UPSERT 사이에
+동일 pool/month stale writer가
+뒤늦게 덮어쓸 수 없어야 함.
+
+============================================================
+7. fire-and-forget 정책
+============================================================
+
+사용자 검색 API 응답 자체를
+KPI 갱신 때문에 오래 block하지 않는 방향은 유지 가능.
+
+하지만:
+
+void promise
++ unhandled rejection
++ stale write
+
+구조는 금지.
+
+fire-and-forget을 유지한다면:
+
+- rejection catch 필수
+- structured server log 필수
+- pool/month 식별 가능
+- lock 기반 recount 필수
+
+KPI 집계 실패 때문에
+학부모 검색 결과 자체를 실패시키지는 말 것.
+
+즉:
+
+business action success
+KPI refresh failure
+
+를 분리.
+
+============================================================
+8. event duplicate 정책
+============================================================
+
+이번 WP에서 새 migration은 금지.
+
+따라서 이미 존재하는:
+
+request_id
+trace_id
+event idempotency
+
+구조가 있으면 재사용.
+
+없다면
+임의 DB unique constraint 추가하지 말 것.
+
+대신 보고서에:
+
+CURRENT LOGICAL DUPLICATE PROTECTION:
+YES / NO
+
+를 정확히 기록.
+
+만약 retry가 실제 event 2건을 생성할 수 있다면
+이번 WP에서 기존 request/trace context만으로
+애플리케이션 레벨 중복 차단이 안전하게 가능한지 검토.
+
+안전하게 식별할 key가 없다면
+억지 dedupe 금지.
+
+그 경우:
+
+KPI는 실제 event row 기준 사용량으로 정의하고,
+향후 request idempotency 개선 필요성을 보고.
+
+============================================================
+9. actor_id NULL 처리
+============================================================
+
+parent_curriculum_user_count:
+
+COUNT(DISTINCT actor_id)
+
+actor_id가 정상 parent search에서
+항상 존재하는지 확인.
+
+NULL 가능하면:
+
+- search_count에는 포함
+- unique parent count에는 미포함
+
+이 의미가 맞는지 확인.
+
+임의 이름/전화번호 dedupe 금지.
+
+============================================================
+10. KST boundary
+============================================================
+
+반드시:
+
+Asia/Seoul 기준 현재 year/month
+
+created_at TIMESTAMPTZ는
+KST month start/end를 UTC boundary로 변환하거나
+현재 프로젝트의 안전한 KST helper 사용.
+
+서버 local timezone에 우연히 의존 금지.
+
+============================================================
+11. pool scope
+============================================================
+
+Raw recount:
+
+WHERE pool_id = authenticated/current pool
+
+반드시 포함.
+
+snapshot UPSERT:
+
+same swimming_pool_id
+same KST year
+same month
+
+만 수정.
+
+Pool A KPI update가
+Pool B snapshot을 수정할 가능성:
+0
+
+============================================================
+12. performance
+============================================================
+
+각 검색마다 raw event_logs 전체 history를
+COUNT하지 말 것.
+
+반드시 해당:
+
+pool
++
+current month
++
+category
++
+feature
+
+범위만 조회.
+
+현재 index 확인.
+
+새 index가 필요해 보여도
+이번에는 migration 금지.
+
+필요하면 PROPOSE ONLY.
+
+============================================================
+13. 테스트
+============================================================
+
+최소 테스트:
+
+A.
+단일 search
+→ raw event +1
+→ snapshot search_count 일치
+
+B.
+동일 parent 2회 search
+→ search_count 2
+→ unique parent count 1
+
+C.
+서로 다른 parent 2명
+→ unique parent count 2
+
+D.
+동일 pool 동시 search 10개
+→ 최종 snapshot
+   raw source recount와 정확히 일치
+
+E.
+동일 pool concurrent recount 다수
+→ snapshot 값이 뒤로 감소하지 않음
+
+F.
+Pool A / Pool B 동시에 search
+→ 각각 독립 snapshot
+
+G.
+KPI recount 의도적 failure
+→ parent curriculum search 본 기능은 성공
+→ server unhandled rejection 없음
+
+H.
+recount 재실행
+→ 동일 raw source 기준 동일 결과
+
+I.
+KST 월 경계 테스트
+→ 전월/당월 이벤트 혼합되지 않음
+
+============================================================
+14. APP / OTA
+============================================================
+
+이번 수정은 server-only 예상.
+
+APP modified:
+NO
+
+따라서:
+
+iOS OTA:
+NOT REQUIRED
+
+Android OTA:
+NOT PUBLISHED
+
+만약 예상 밖 APP 코드 수정이 정말 필요하면
+현재 사용자 고정 규칙:
+
+test
+→ commit
+→ immediate iOS OTA
+→ SHA match
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+Android:
+NO OTA
+
+============================================================
+15. SERVER
+============================================================
+
+V2 latest HEAD
+→ 최소 수정
+→ tests
+→ commit
+→ push
+
+Render production:
+NO
+
+사용자 수동 배포.
+
+============================================================
+완료보고
+============================================================
+
+# WP10-P1 KPI HARDENING REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+de8e16d4 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+============================================================
+CURRENT KPI IMPLEMENTATION
+============================================================
+
+Event insert location:
+...
+
+Recount location:
+...
+
+Fire-and-forget:
+YES / NO
+
+Transaction:
+...
+
+Existing lock:
+...
+
+Existing request/trace idempotency:
+...
+
+============================================================
+RACE ANALYSIS
+============================================================
+
+Stale overwrite was possible before:
+YES / NO
+
+Exact scenario:
+...
+
+Fix:
+...
+
+Lock scope:
+...
+
+Different pools blocked by each other:
+NO / YES
+
+============================================================
+DUPLICATE EVENT ANALYSIS
+============================================================
+
+Logical retry can create duplicate event:
+YES / NO
+
+Existing dedupe key:
+...
+
+Recount automatically fixes duplicate raw rows:
+YES / NO
+
+Final policy:
+...
+
+============================================================
+KST / POOL SCOPE
+============================================================
+
+KST boundary:
+PASS / FAIL
+
+Pool scope:
+PASS / FAIL
+
+Cross-pool mutation:
+0 / ...
+
+============================================================
+CONCURRENCY TEST
+============================================================
+
+Single search:
+PASS / FAIL
+
+Same parent repeated:
+PASS / FAIL
+
+Distinct parent:
+PASS / FAIL
+
+10 concurrent searches:
+PASS / FAIL
+
+Concurrent recount:
+PASS / FAIL
+
+Pool A/B concurrent:
+PASS / FAIL
+
+KPI refresh failure isolation:
+PASS / FAIL
+
+Recount idempotency:
+PASS / FAIL
+
+============================================================
+INDEX
+============================================================
+
+Current index sufficient:
+YES / NO
+
+Optional proposed index:
+...
+
+Migration executed:
+NO
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Boot:
+PASS / FAIL
+
+Render production:
+NO
+
+============================================================
+APP
+============================================================
+
+APP modified:
+NO / YES
+
+iOS OTA:
+NOT REQUIRED / ...
+
+Android OTA:
+NOT PUBLISHED
+
+============================================================
+FINAL
+============================================================
+
+WP10 server 500:
+FIXED
+
+Student curriculum:
+PASS
+
+Monthly KPI concurrency:
+PASS / FAIL
+
+Monthly KPI raw consistency:
+PASS / FAIL
+
+Pool isolation:
+PASS / FAIL
+
+Super-admin future aggregation:
+PASS / FAIL
+
+FINAL STATUS:
+WP10 FULLY CLOSED / BLOCKED

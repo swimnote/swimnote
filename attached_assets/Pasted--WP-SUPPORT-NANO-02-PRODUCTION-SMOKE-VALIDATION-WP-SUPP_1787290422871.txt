@@ -1,0 +1,191 @@
+# [WP-SUPPORT-NANO-02 — PRODUCTION SMOKE VALIDATION]
+
+목적:
+
+WP-SUPPORT-NANO-01 구현을 변경하지 않고,
+Render 배포 후 실제 Support 운영 경로에서 정상 작동하는지만 최소 검증한다.
+
+새 기능 구현 금지.
+
+---
+
+# 0. 전제
+
+사용자가 Render Dashboard에서 직접 최신 commit을 배포한 이후에만 실행한다.
+
+대상 SHA:
+
+`2d687db6`
+
+Replit이 Render deploy를 실행하지 않는다.
+
+---
+
+# 1. 조사 금지
+
+전체 repo 조사 금지.
+
+코드 수정부터 시작하지 않는다.
+
+다음 실제 경로만 검증:
+
+`Support request → retrieval → candidate → nanoResolve → validator → response → usage trace`
+
+---
+
+# 2. Smoke Case A — Grounded Match
+
+실제 Support DB에 근거가 존재하는 안전한 테스트 질문 1건 사용.
+
+확인:
+
+* HTTP 정상 응답
+* candidate KI 존재
+* LLM call 정확히 1회
+* selected_knowledge_ids 존재
+* selected IDs가 candidate 안에 존재
+* insufficient_knowledge=false
+* 답변이 선택된 KI 근거 범위 안에 있음
+
+---
+
+# 3. Smoke Case B — No Evidence
+
+Support DB에 명확한 근거가 없는 테스트 질문 1건.
+
+확인:
+
+* evidence/candidate 0
+* nanoResolve 호출 0회
+* `NO_EVIDENCE`
+* `ai_no_match`
+* generic GPT answer 생성 없음
+
+---
+
+# 4. Follow-up Case
+
+문맥이 필요한 2턴 질문 1세트.
+
+예시는 실제 Support DB에 존재하는 안전한 주제를 선택.
+
+확인:
+
+* 최근 context 전달
+* 두 번째 질문이 첫 질문 문맥과 연결됨
+* AI call은 두 번째 logical request에서도 1회 이하
+
+---
+
+# 5. Usage Trace
+
+실제 `event_logs` read-back으로 최소 확인:
+
+* feature = SUPPORT_AI
+* trigger_type = USER_ACTION
+* provider
+* service
+* model
+* request_id
+* latency_ms
+* logical_request_count
+* actual_call_count
+* retry_count
+* estimated_cost_usd / cost_source
+
+실제 저장값을 보고한다.
+
+추측 금지.
+
+---
+
+# 6. 모델 확인
+
+운영 trace에서 실제 사용 모델을 보고한다.
+
+현재 예상:
+
+`AI_MODEL.SUPPORT = gpt-4o-mini`
+
+그러나 코드 추정으로 보고하지 말고 실제 trace/model 값을 확인한다.
+
+이번 Step에서 모델 변경 금지.
+
+---
+
+# 7. 절대 금지
+
+* 코드 수정 금지
+* Support prompt 수정 금지
+* 모델 변경 금지
+* DB 데이터 수정 금지
+* Support Knowledge 추가/삭제 금지
+* 전체 regression 금지
+* Professional Engine 조사 금지
+* Curriculum/Diary/Growth 수정 금지
+* 별도 배포 실행 금지
+
+문제가 발견되면 원인만 특정하고 STOP.
+
+---
+
+# 8. 완료 보고
+
+# [WP-SUPPORT-NANO-02 PRODUCTION VALIDATION REPORT]
+
+## Result
+
+PASS / FAIL
+
+## Deployment
+
+* deployed SHA
+* health status
+
+## Grounded Match
+
+* request_id
+* candidate KI count
+* selected KI IDs
+* actual AI call count
+* validator result
+
+## No Evidence
+
+* request_id
+* candidate count
+* AI call count
+* fallback/result
+
+## Follow-up
+
+* context turns
+* selected KI
+* AI call count
+
+## Usage Trace
+
+* provider
+* service
+* model
+* feature
+* trigger_type
+* logical_request_count
+* actual_call_count
+* retry_count
+* latency
+* cost
+
+## Verification Level
+
+통과 시:
+
+**PRODUCTION PATH CONFIRMED**
+
+---
+
+# STOP
+
+검증 완료 후 멈춘다.
+
+모델 교체나 Professional Retrieval을 선행하지 않는다.

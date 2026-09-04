@@ -1,0 +1,159 @@
+[추가 지시 — 학부모 계정 Media Cache까지 동일 진단]
+
+중요:
+
+이번 저장공간 문제는
+선생님 업로드 사용자만의 문제가 아닐 가능성이 높다.
+
+학부모 사용자는 사진을 업로드하지 않더라도:
+
+- 홈 피드
+- 수업 일지
+- 앨범
+- 사진 확대
+- 댓글 진입 전후
+- Instagram Story 대상 일지 조회
+
+등에서 서버/R2 사진을 반복 조회한다.
+
+현재 expo-image가 기본 disk cache를 사용하므로
+학부모 계정에서도 앱 Documents & Data가
+사진 조회량에 따라 증가할 가능성이 있다.
+
+따라서 Storage Diagnostic은
+role 구분 없이 앱 전체를 대상으로 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 학부모 실기기 측정 필수
+━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 다음 3종을 측정:
+
+A. 사진을 많이 업로드한 선생님
+B. 사진을 많이 받아본 학부모
+C. 사용량이 적은 신규/저사용 계정
+
+각 기기:
+
+- iOS Settings 앱 전체 Documents & Data
+- documentDirectory bytes
+- cacheDirectory bytes
+- legacy file bytes
+- cleanup v1 flag
+
+비교.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 학부모 조회 경로 전수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 화면에서 사용하는 이미지 component를 확인:
+
+parent/home.tsx
+parent/diary.tsx
+parent/photos.tsx
+DiaryPhotoStrip
+기타 학부모 feed/album component
+
+각각:
+
+ExpoImage 사용 여부
+cachePolicy 명시 여부
+remote R2/server URL 여부
+
+보고.
+
+cachePolicy가 없으면
+설치된 expo-image 버전의 실제 default를 기준으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 학부모는 업로드 0이어도 Cache 증가 가능한지 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 사용자의 경우:
+
+업로드 파일 = 0
+
+이어도:
+
+서버 사진 A 조회
+→ disk cache
+
+서버 사진 B 조회
+→ disk cache
+
+서버 사진 C 조회
+→ disk cache
+
+...
+
+새로운 일지가 계속 추가되면
+새 media가 계속 cache에 추가될 수 있는지 확인.
+
+즉:
+
+업로드량과 앱 용량의 상관관계만 보지 말고
+
+"수신/조회한 media 총량"
+
+과도 비교한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 역할별 저장 정책은 동일해야 함
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 목표:
+
+선생님
+학부모
+운영자
+
+누구든:
+
+SERVER/R2 = 원본
+
+APP =
+- small metadata
+- draft
+- temporary processing files
+- bounded/controlled cache
+
+만 사용.
+
+역할에 따라
+몇 GB~수십GB media를 영구 또는 사실상 무기한 보관하면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Cache 정책 수정은 아직 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직:
+
+Image.clearDiskCache()
+cachePolicy="none"
+cacheDirectory 전체 삭제
+
+적용 금지.
+
+먼저 학부모 실기기에서
+실제 cache bytes 확인.
+
+그 뒤 cleanup v2에서
+선생님/학부모 공통으로 해결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 추가 보고 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Storage Diagnostic 보고에 추가:
+
+19. 학부모 home 이미지 cachePolicy
+20. 학부모 diary 이미지 cachePolicy
+21. 학부모 album 이미지 cachePolicy
+22. 학부모 업로드 없이 조회만으로 cache 증가 가능 여부
+23. 학부모 실기기 Documents bytes
+24. 학부모 실기기 Cache bytes
+25. 선생님 vs 학부모 cache 증가 원인 차이
+26. 최종 공통 cache 관리 필요 여부
+
+결과 확인 후에만 cleanup v2 설계.

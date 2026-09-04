@@ -1,0 +1,334 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE — WP-DIARY-1
+개별일지 장문 자동 확장 / 20명 전체 스크롤 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP-DIARY-0 Architecture Audit 결과 기준으로
+WP-DIARY-1 구현을 시작한다.
+
+이번 작업 범위는
+"개별일지 내용이 2~3줄에서 잘리는 UI 문제"
+하나뿐이다.
+
+원인 이미 확정:
+
+1. DiaryWriteView.tsx 개별일지 TextInput
+   numberOfLines={3}
+
+2. 학생 카드 미리보기
+   numberOfLines={2}
+
+3. 개별일지 입력창에
+   onContentSizeChange 기반 동적 높이 또는
+   scrollEnabled={false} 기반 자연 확장 구조가 없음
+
+AI Engine / API / state에서는
+학생별 content truncation이 발견되지 않았다.
+
+따라서 서버/AI 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 최종 목표 UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체일지와 개별일지 모두
+내용 전체를 한 번에 확인할 수 있어야 한다.
+
+개별일지:
+
+- multiline 유지
+- 내용 길이에 따라 TextInput 높이 자동 증가
+- TextInput 내부 작은 스크롤 사용하지 않음
+- 학생 카드 자체가 내용 길이만큼 아래로 늘어남
+- 학생별 내용 전체 표시
+- 학생별 개별 수정 가능
+- 학생 A 수정이 학생 B에 영향 없음
+- 학생 20명이어도 각 학생 카드가 순서대로 아래로 이어짐
+- 화면 전체 바깥 ScrollView를 내려
+  마지막 학생까지 전부 확인/수정 가능
+
+즉:
+
+학생1
+[전체 개별일지 내용]
+
+학생2
+[전체 개별일지 내용]
+
+학생3
+[전체 개별일지 내용]
+
+...
+
+학생20
+[전체 개별일지 내용]
+
+형태가 되어야 한다.
+
+학생마다 2~3줄짜리 작은 내부 스크롤창을 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 수정 대상 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수 확인/수정:
+
+artifacts/swim-app/components/teacher/diary/DiaryWriteView.tsx
+artifacts/swim-app/components/teacher/diary/DiaryEditView.tsx
+
+다른 파일은 원칙적으로 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DiaryWriteView 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A. 개별일지 TextInput
+
+현재:
+
+multiline
+numberOfLines={3}
+
+구조 확인.
+
+변경 목표:
+
+- numberOfLines={3} 제거
+- multiline 유지
+- scrollEnabled={false} 적용
+- textAlignVertical="top" 유지
+- maxHeight 강제 제한 금지
+- 고정 height 금지
+- 내용에 따라 자연스럽게 높이가 늘어나도록 구성
+
+현재 style에 minHeight가 있다면
+초기 입력 편의용 최소 높이만 유지.
+
+내용이 길어질수록
+TextInput 자체 높이가 증가해야 한다.
+
+B. 학생 카드 미리보기
+
+현재:
+
+<Text numberOfLines={2}>...</Text>
+
+→ numberOfLines={2} 제거.
+
+AI 개별일지 전체 내용이 카드에서도 잘리지 않고 보여야 한다.
+
+단 UI가 완전히 무너지지 않도록
+기존 padding / border / card 구분은 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DiaryEditView도 동일 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 일지 수정 화면에서도
+개별일지 장문이 똑같이 잘리면 안 된다.
+
+DiaryEditView의:
+
+- 개별 학생 TextInput
+- student note preview
+
+구조를 확인해서
+DiaryWriteView와 동일 정책 적용.
+
+새 UI를 별도로 만들지 말고
+두 화면의 동작 원칙을 동일하게 맞춘다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 전체일지 영역은 건드리지 않는다
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전체일지는 현재 실기기에서
+내용이 길어지면 정상적으로 늘어난다고 확인됐다.
+
+따라서 전체일지 TextInput 구조를
+불필요하게 리팩터링하지 않는다.
+
+개별일지 쪽만 전체일지와 같은 사용자 경험을 만든다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 학생 state 구조 절대 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+studentNotes는 현재 student_id 기반 upsert 구조다.
+
+이 구조 변경 금지.
+
+다음 유지:
+
+student_id
+note_content
+
+학생별 독립 state.
+
+index 기반 변환 금지.
+이름 문자열 기반 변환 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. AI Pipeline 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 수정 금지:
+
+useDiaryAI.ts
+useDiaryAIV2.ts
+DiaryAIContent.tsx
+ai-v1.ts
+ai-diary-utils.ts
+diary-parser.ts
+diary-template-search.ts
+diary-grounding.ts
+
+common/students Contract 변경 금지.
+
+최근 AI 문체 자연화 변경 rollback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 저장 구조 변경 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 기존 구조 유지:
+
+common
+→ class_diaries.common_content
+
+학생별 note
+→ class_diary_student_notes.note_content
+
+POST /diaries Contract 변경 금지.
+
+DB schema / Migration 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 보강 Production Baseline 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보강 Production Baseline:
+
+tag:
+swimnote-makeup-production-stable-2026-08-08
+
+baseline SHA:
+baee4222f51f6c25c295a110d1988efced28ebdd
+
+현재 보강 Regression Gate:
+109/109 PASS
+
+이번 Diary 작업에서 보강 관련 파일이 diff에 나오면
+즉시 중단하고 보고.
+
+특히 변경 금지:
+
+teachers.ts 보강 route
+admin.ts 보강 route
+makeups.tsx
+ClassDetailSheet.tsx
+makeup-date-range 관련 코드
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. SWIMNOTE X 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+X 관련 코드 변경 금지.
+
+ModeContext
+XModeGuard
+XModeBadge
+WP1~WP6
+match_token
+growth_events
+
+전부 범위 밖.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 후 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+CASE A
+학생 1명 / 짧은 개별일지
+→ 정상 표시
+
+CASE B
+학생 1명 / 매우 긴 개별일지
+→ 전체 내용 표시
+→ TextInput 높이 증가
+→ 내부 스크롤 없이 편집 가능
+
+CASE C
+학생 5명 / 모두 긴 일지
+→ 카드별 내용 독립
+→ 전체 화면 아래로 스크롤 가능
+
+CASE D
+학생 20명
+→ 마지막 학생까지 도달 가능
+→ 각 학생 카드 구분 유지
+
+CASE E
+학생 A 내용 수정
+→ B/C 내용 영향 없음
+
+CASE F
+기존 일지 수정 화면에서도 동일 동작
+
+CASE G
+AI 결과 삽입 후 긴 content
+→ 잘리지 않고 전체 표시
+
+CASE H
+저장 후 다시 열기
+→ 전체 note_content 유지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 정적 Gate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+DiaryWriteView 개별 TextInput:
+numberOfLines={3} 없음
+scrollEnabled={false} 존재
+multiline 존재
+
+학생 미리보기:
+numberOfLines={2} 없음
+
+DiaryEditView도 동일.
+
+단 다른 화면의 numberOfLines를
+무차별 삭제하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 배포 전 제출
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+먼저 구현 후 아래만 제출하고 중단.
+
+1. Branch
+2. 작업 전 HEAD
+3. git status
+4. 수정 파일
+5. 실제 diff
+6. DiaryWriteView 변경
+7. DiaryEditView 변경
+8. 학생 미리보기 변경
+9. state 구조 무변경 증거
+10. AI 파일 변경 0
+11. Diary API 변경 0
+12. DB 변경 0
+13. 보강 파일 변경 0
+14. X 파일 변경 0
+15. TypeScript 신규 오류
+16. 테스트 결과
+17. 20명 UI 구조 자체 판정
+18. OTA 배포 가능 여부
+
+아직 Commit / Push / OTA 금지.
+
+검수 후 배포 승인 받는다.

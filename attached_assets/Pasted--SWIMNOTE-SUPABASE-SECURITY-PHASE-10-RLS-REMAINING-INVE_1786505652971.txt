@@ -1,0 +1,330 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE SUPABASE SECURITY — PHASE 10
+RLS REMAINING INVENTORY + GROUP C1
+POOL CONFIG / LOGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 9 RLS_GROUP_B2_VERIFIED 승인.
+
+현재 Production 기준:
+
+TOTAL TABLES = 105
+RLS ENABLED  = 40
+RLS DISABLED = 65
+
+중요:
+Phase 9 잔여 그룹 목록에서
+pool_change_logs가 Group C와 Group H에 중복 기재됨.
+
+따라서 RLS 적용 전에
+실제 잔여 65개 목록 정합성을 먼저 확정한다.
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+
+executeSql production 사용 금지.
+POOL_DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 잔여 65개 INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+Production public schema에서:
+
+relrowsecurity = false
+
+인 실제 테이블 전체를 조회.
+
+제출:
+
+- 실제 disabled count
+- 실제 65개 전체 이름
+- 중복 없는 정렬 목록
+
+그리고 Phase 9 Group C~H 목록과 비교:
+
+A. DUPLICATED_IN_REPORT
+B. MISSING_FROM_REPORT
+C. EXTRA_IN_REPORT
+
+정확히 제출.
+
+특히 pool_change_logs 중복 확인.
+
+숫자가 65가 아니면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 40개 유지
+━━━━━━━━━━━━━━━━━━━━
+
+현재 RLS=true 40개 전부
+relrowsecurity=true 유지 확인.
+
+하나라도 false이면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Group C 재분리
+━━━━━━━━━━━━━━━━━━━━
+
+이번 C1 대상은 6개만:
+
+1. pool_level_settings
+2. pool_push_settings
+3. pool_class_pricing
+4. pool_event_logs
+5. pool_change_logs
+6. pool_subscriptions
+
+이번 단계에서 제외:
+
+swimming_pools
+subscription_plans
+subscriptions
+
+이 3개는 C2에서 별도 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+4. C1 적용 전 증거
+━━━━━━━━━━━━━━━━━━━━
+
+6개 각각:
+
+- relrowsecurity
+- relforcerowsecurity
+- owner
+- row count
+- policy count
+- anon CRUD grants
+- authenticated CRUD grants
+
+기존 policy가 하나라도 있으면 STOP.
+
+내용 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. role 확인
+━━━━━━━━━━━━━━━━━━━━
+
+current_user
+session_user
+rolsuper
+rolbypassrls
+
+기대:
+
+postgres
+false
+true
+
+다르면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+6. RLS 적용
+━━━━━━━━━━━━━━━━━━━━
+
+정확히 6개만:
+
+ALTER TABLE pool_level_settings
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE pool_push_settings
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE pool_class_pricing
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE pool_event_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE pool_change_logs
+ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE pool_subscriptions
+ENABLE ROW LEVEL SECURITY;
+
+policy 생성 금지.
+FORCE RLS 금지.
+GRANT 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 즉시 READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+6개 모두:
+
+relrowsecurity=true
+relforcerowsecurity=false
+policy count=0
+
+row count 전후 동일 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. Direct postgres smoke
+━━━━━━━━━━━━━━━━━━━━
+
+6개 COUNT 정상 조회.
+
+개별 운영/가격/로그 데이터 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 실제 Login
+━━━━━━━━━━━━━━━━━━━━
+
+기존 안전한 super_admin 계정으로:
+
+POST /api/auth/login
+→ HTTP 200
+
+token 값 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 인증 API Runtime
+━━━━━━━━━━━━━━━━━━━━
+
+실제 존재하는 READ ONLY route 기준으로
+최소 3개 HTTP 200.
+
+가능하면 대상:
+
+- pool level 설정 조회
+- pool push 설정 조회
+- class pricing 조회
+- subscription 상태 조회
+- pool event/change log 조회
+
+route를 추측하지 말고 Repository에서 확인 후 호출.
+
+super_admin role 제약으로 403이면
+application-level 403과 RLS 오류를 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 각 테이블 code path
+━━━━━━━━━━━━━━━━━━━━
+
+6개 각각:
+
+table
+→ route/job
+→ DB client
+
+확인.
+
+Supabase Data API 직접 호출 발견 시 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+12. Render 로그
+━━━━━━━━━━━━━━━━━━━━
+
+검색:
+
+permission denied
+row-level security
+policy violation
+relation access denied
+
+그리고 6개 테이블명.
+
+신규 오류 여부 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+13. worker / scheduler
+━━━━━━━━━━━━━━━━━━━━
+
+특히:
+
+pool_push_settings
+pool_event_logs
+pool_change_logs
+pool_subscriptions
+
+관련 worker/job에 신규 오류 없는지 확인.
+
+기존 standby-sync 오류와 분리.
+
+━━━━━━━━━━━━━━━━━━━━
+14. 실패 시 rollback
+━━━━━━━━━━━━━━━━━━━━
+
+신규 장애 발생 시 이번 6개만:
+
+ALTER TABLE pool_level_settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pool_push_settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pool_class_pricing DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pool_event_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pool_change_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pool_subscriptions DISABLE ROW LEVEL SECURITY;
+
+rollback 후 runtime 재확인.
+
+기존 40개는 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 총계
+━━━━━━━━━━━━━━━━━━━━
+
+성공 예상:
+
+40 + 6 = 46
+
+하지만 실제 DB COUNT 제출.
+
+remaining disabled도 실제 계산.
+
+━━━━━━━━━━━━━━━━━━━━
+16. C2는 자동 진행 금지
+━━━━━━━━━━━━━━━━━━━━
+
+다음 C2 후보:
+
+swimming_pools
+subscription_plans
+subscriptions
+
+이 3개는 앱/로그인/구독/X mode의
+핵심 Source of Truth라 별도 단계로 검증한다.
+
+이번 단계에서 건드리지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+17. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. 실제 disabled count
+2. 실제 65개 목록
+3. Phase 9 목록 중복/누락 정정
+4. 기존 40개 유지
+5. C1 6개 pre-state
+6. policy count
+7. role/bypass
+8. 실행 SQL
+9. post-state
+10. row counts
+11. direct postgres smoke
+12. login HTTP result
+13. authenticated API results
+14. code paths
+15. Render 신규 오류
+16. worker/scheduler 영향
+17. rollback 여부
+18. RLS enabled total
+19. remaining disabled
+20. 최종 판정
+
+FINAL:
+
+RLS_GROUP_C1_VERIFIED
+
+또는
+
+RLS_GROUP_C1_ROLLED_BACK
+
+STOP.
+
+swimming_pools RLS 적용 금지.
+subscription_plans RLS 적용 금지.
+subscriptions RLS 적용 금지.
+
+POOL_DB RLS 적용 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

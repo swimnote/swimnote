@@ -1,0 +1,281 @@
+[P0-CS08-NO-EVIDENCE-REGRESSION — LLM CALL CONTRACT VERIFY/FIX]
+
+목적:
+
+실제 parent production request:
+
+query = "스윔노트X에 대해 알려줘"
+role = parent
+mode = normal
+
+보고 결과:
+
+RESOLUTION_STATUS = NO_MATCH
+EVIDENCE_COUNT = 0
+LLM_CALLED = YES
+
+이 결과는 기존 확정 계약과 충돌한다.
+
+확정 계약:
+
+deterministic
+→ llm_used=false
+→ OpenAI call=0
+
+no_evidence
+→ llm_used=false
+→ model=null
+→ OpenAI call=0
+
+llm_grounded
+→ evidence > 0
+→ actual provider call
+→ llm_used=true
+
+이번 작업은 이 regression 원인만 조사/수정한다.
+
+X Knowledge ACTIVE 승인 금지.
+새 Knowledge 생성 금지.
+UI 수정 금지.
+
+==================================================
+1. ACTUAL TRACE VERIFY
+==================================================
+
+해당 실제 request의 SUPPORT_RESPOND_STAGE / AI_TRACE 조회.
+
+실제 값:
+
+REQUEST_ID =
+CASE_ID =
+
+EVIDENCE_DONE_COUNT =
+LLM_START_EXISTS =
+LLM_DONE_EXISTS =
+LLM_FAIL_EXISTS =
+
+AI_TRACE_GENERATION_MODE =
+AI_TRACE_LLM_USED =
+AI_TRACE_MODEL =
+
+실제 trace로 확인.
+
+"LLM_CALLED=YES"가 추정값이면 바로 정정.
+
+==================================================
+2. CODE PATH AUDIT
+==================================================
+
+support-respond.ts 현재 live commit 기준으로 확인:
+
+gatherEvidence()
+→ evidence.length
+
+그 다음 OpenAI 호출 분기.
+
+반드시:
+
+if evidence.length === 0:
+    provider call 금지
+
+이어야 한다.
+
+보고:
+
+NO_EVIDENCE_BRANCH =
+OPENAI_CALL_GUARD =
+REGRESSION_FOUND =
+
+==================================================
+3. LIVE COMMIT CHECK
+==================================================
+
+현재 Render actual live commit 확인.
+
+현재 기대:
+
+4124c1c9 또는 이후 실제 deploy commit
+
+중요:
+
+CS08H fix가 들어간 commit이
+현재 Render live ancestry에 포함되는지 git으로 확인.
+
+보고:
+
+RENDER_LIVE_COMMIT =
+CS08H_FIX_PRESENT_IN_LIVE =
+SUPPORT_RESPOND_VERSION =
+
+==================================================
+4. TRACE VS CODE CONSISTENCY
+==================================================
+
+가능성 분리:
+
+A.
+실제 LLM 호출 안 됐는데 보고가 잘못됨
+
+B.
+trace instrumentation이 llm_called를 잘못 기록
+
+C.
+현재 live server에서 regression으로 실제 호출됨
+
+D.
+다른 endpoint/server가 처리함
+
+실제 증거로 하나만 확정.
+
+==================================================
+5. NO-EVIDENCE CONTRACT FIX
+==================================================
+
+실제 regression이면 최소 수정.
+
+근거 0건:
+
+confidence = LOW
+requires_human = true
+
+llm_used = false
+llm_called = false
+model = null
+
+provider 호출 = 0
+
+반드시 유지.
+
+==================================================
+6. STATUS TERMINOLOGY CORRECTION
+==================================================
+
+다음 기존 표현 정정:
+
+STATUS_CONTRACT_MISMATCH = YES
+
+올바른 판정:
+
+KNOWLEDGE_ACTIVE_COUNT = 0
+KNOWLEDGE_APPROVAL_PENDING = YES
+STATUS_CONTRACT_MISMATCH = NO
+
+단 실제 enum/status spelling이
+코드와 DB에서 다를 때만 mismatch=YES.
+
+==================================================
+7. X KNOWLEDGE DATA PRESERVE
+==================================================
+
+현재 생성/수정된 pending 데이터:
+
+ki_x_mode_intro
+ki_seed_subscription_x_features
+
+그대로 보존.
+
+ACTIVE 전환 금지.
+
+추가 production data 변경 금지.
+
+==================================================
+8. TESTS
+==================================================
+
+NEVID-01
+evidence=0 → OpenAI mock invocation 0
+
+NEVID-02
+evidence=0 → llm_used=false
+
+NEVID-03
+evidence=0 → llm_called=false
+
+NEVID-04
+evidence=0 → model=null
+
+NEVID-05
+evidence>0 grounded fallback → provider invocation 1
+
+NEVID-06
+deterministic → provider invocation 0
+
+NEVID-07
+trace values equal actual invocation
+
+NEVID-08
+full regression
+
+==================================================
+9. DEPLOYMENT
+==================================================
+
+보고 오류만 발견:
+code change NO
+deploy NO
+
+실제 server regression:
+server-only fix
+Render exact commit LIVE 확인
+
+Mobile = NO
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+REQUEST_ID =
+CASE_ID =
+
+EVIDENCE_COUNT =
+LLM_START_OBSERVED =
+ACTUAL_PROVIDER_CALL =
+AI_TRACE_LLM_USED =
+AI_TRACE_MODEL =
+GENERATION_MODE =
+
+RENDER_LIVE_COMMIT =
+CS08H_FIX_PRESENT_IN_LIVE =
+
+REGRESSION_FOUND =
+ROOT_CAUSE =
+
+NO_EVIDENCE_OPENAI_CALL =
+NO_EVIDENCE_LLM_USED =
+NO_EVIDENCE_MODEL =
+
+STATUS_CONTRACT_MISMATCH =
+KNOWLEDGE_ACTIVE_COUNT =
+KNOWLEDGE_APPROVAL_PENDING =
+
+PENDING_XMODE_ITEMS_PRESERVED =
+
+FILES_CHANGED =
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT_AFTER =
+
+MOBILE_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+evidence=0:
+OPENAI_CALL = 0
+llm_used=false
+model=null
+
+STATUS_CONTRACT_MISMATCH = NO
+KNOWLEDGE_APPROVAL_PENDING = YES
+
+X MODE pending items 자동 ACTIVE = NO
+
+완료:
+
+P0_CS08_NO_EVIDENCE_LLM_CONTRACT_VERIFIED ✅

@@ -1,0 +1,750 @@
+[SWIMNOTE X V3.1 — 최종 수정·보완 설계 요청]
+
+현재 V3.1 설계는 구현 직전 단계입니다.
+
+이번 수정은 기능을 다시 기획하는 작업이 아니라,
+AI 결과의 신뢰성, 운영 추적성, 대규모 작업 안정성, 데이터 보존 정책을 최종 보완하는 작업입니다.
+
+아래 내용을 V3.2 설계서에 반영하십시오.
+
+코드 수정, Migration, Commit, Push, OTA, 배포, RevenueCat 상품 생성은 승인 전 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. GPT의 curriculum_item_id 직접 생성 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계에서는 GPT가 다음 값을 직접 반환하도록 되어 있습니다.
+
+- curriculum_item_id
+- confidence
+- evidence
+
+이 구조는 GPT가 실제 DB에 존재하지 않는 ID를 생성하거나
+잘못된 항목을 연결할 위험이 있습니다.
+
+반드시 아래 구조로 변경하십시오.
+
+처리 흐름:
+
+1. 서버 또는 AI Engine이 curriculum 후보를 검색
+2. 실제 DB에서 후보 목록 생성
+3. 후보마다 서버가 고정된 candidate_index 부여
+4. GPT에는 실제 ID 대신 후보 index와 설명만 전달
+5. GPT는 후보 중 선택한 candidate_index만 반환
+6. 서버가 candidate_index를 실제 curriculum_item_id로 다시 매핑
+7. 요청 후보 목록에 없는 값은 즉시 폐기
+
+예시:
+
+서버가 GPT에 전달:
+
+{
+  "candidates": [
+    {
+      "candidate_index": 0,
+      "skill_name": "자유형 측면 호흡",
+      "description": "호흡 시 머리를 과도하게 들지 않고 옆으로 회전"
+    },
+    {
+      "candidate_index": 1,
+      "skill_name": "자유형 팔 리커버리",
+      "description": "팔꿈치를 부드럽게 들어 앞으로 이동"
+    }
+  ]
+}
+
+GPT 반환:
+
+{
+  "selected_candidates": [
+    {
+      "candidate_index": 0,
+      "evidence_text": "호흡할 때 고개를 옆으로 돌리는 동작이 좋아졌습니다."
+    }
+  ]
+}
+
+서버 최종 변환:
+
+{
+  "curriculum_item_id": "ci_xxx",
+  "candidate_index": 0
+}
+
+절대 원칙:
+
+- GPT가 curriculum_item_id 직접 작성 금지
+- 후보 목록 밖 index 반환 시 무효
+- DB 매핑 실패 시 growth_event 생성 금지
+- curriculum_item이 해당 학생 배정 버전에 속하는지 서버에서 재검증
+- 다른 수영장 curriculum_item 연결 금지
+- archived curriculum version 항목 자동 연결 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Confidence 계산 책임 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+GPT가 confidence 숫자를 임의로 생성하면 안 됩니다.
+
+최종 confidence는 서버 또는 AI Engine이 계산합니다.
+
+권장 입력값:
+
+- template similarity
+- curriculum similarity
+- concept overlap
+- keyword overlap
+- parser confidence
+- evidence coverage
+- candidate rank
+- 학생 배정 curriculum version 일치 여부
+
+예시:
+
+final_confidence =
+  curriculum_similarity × 가중치
+  + concept_overlap × 가중치
+  + evidence_coverage × 가중치
+  + parser_confidence × 가중치
+
+정확한 수식과 가중치는 Repository 조사 및 파일럿 결과에 따라 확정하십시오.
+
+V3.2 설계서에 반드시 포함:
+
+- confidence 계산 위치
+- 사용 변수
+- 변수별 범위
+- normalization 방식
+- 최종 0.0~1.0 변환 방식
+- threshold 0.6 유지 여부
+- threshold 미달 처리
+- score 계산 실패 처리
+- 버전별 confidence 산식 추적 방법
+
+GPT는 다음만 반환할 수 있습니다.
+
+- 선택 candidate_index
+- evidence_text 또는 evidence span
+- 선택 이유에 해당하는 제한된 구조화 결과
+
+GPT가 최종 confidence를 직접 결정하지 않도록 하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Evidence 구조 개선
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 evidence가 자유 텍스트 한 줄로 되어 있습니다.
+
+장기적으로 근거 추적과 UI 강조 표시가 가능하도록 구조화하십시오.
+
+권장 구조:
+
+interface EvidenceSpan {
+  source_type: 'teacher_input' | 'generated_content';
+  student_ref: string;
+  sentence_index: number;
+  start_offset: number;
+  end_offset: number;
+  text: string;
+}
+
+또는 현재 파이프라인 구조상 offset 계산이 어렵다면 최소 구조:
+
+{
+  "source_type": "teacher_input",
+  "sentence_index": 2,
+  "text": "호흡 타이밍이 좋아졌어요."
+}
+
+정책:
+
+- evidence는 실제 입력 또는 최종 생성문 안에 존재해야 함
+- 존재하지 않는 문장을 GPT가 새로 만들어 근거로 사용하면 안 됨
+- evidence 검증 실패 시 curriculum match 폐기
+- 개인정보 로그에는 evidence 원문 전체를 남기지 않음
+- Debug 환경에서만 마스킹된 evidence 확인 가능
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. AI 응답 Contract V1.2
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 contract_version 1.1을 V1.2로 올리는 설계를 제출하십시오.
+
+권장 응답:
+
+{
+  "contract_version": "1.2",
+  "request_id": "diary_xxx",
+  "schema_version": "1.0",
+  "engine_version": "engine_xxx",
+  "prompt_version": "teacher_diary_xxx",
+  "knowledge_version": "knowledge_xxx",
+  "template_set_version": "global_template_xxx",
+  "feature": "teacher_diary",
+  "result": {
+    "common": "공통 일지",
+    "students": [
+      {
+        "student_ref": "student_xxx",
+        "content": "학생별 일지",
+        "curriculum_matches": [
+          {
+            "candidate_index": 0,
+            "curriculum_item_id": "ci_xxx",
+            "curriculum_version_id": "cv_xxx",
+            "confidence": 0.823,
+            "evidence": {
+              "source_type": "teacher_input",
+              "sentence_index": 1,
+              "text": "호흡 타이밍이 좋아졌어요."
+            },
+            "match_method": "curriculum_candidate_selection_v1"
+          }
+        ]
+      }
+    ]
+  },
+  "meta": {
+    "generation_mode": "TEMPLATE_ASSISTED | INPUT_ONLY | POLISH_ONLY",
+    "parser_confidence": 0.0,
+    "template_used": true,
+    "candidate_count": 0,
+    "grounding_validation": "pass | fail"
+  }
+}
+
+서버는 응답을 앱에 보내기 전에 다음을 재검증합니다.
+
+- student_ref가 요청 학생 목록에 존재
+- curriculum_item_id가 실제 DB에 존재
+- curriculum_item_id가 해당 pool 소속
+- curriculum_item_id가 학생 배정 curriculum version 소속
+- candidate_index와 curriculum_item_id 매핑 일치
+- confidence가 0~1 범위
+- evidence가 실제 source 문장에 존재
+- 중복 curriculum_item_id 제거
+- grounding_validation 실패 시 match 전체 폐기
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Growth Event 추적 버전 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_events에 다음 컬럼을 추가하는 설계를 제출하십시오.
+
+- engine_version
+- prompt_version
+- knowledge_version
+- template_set_version
+- matching_algorithm_version
+- contract_version
+- request_id
+- match_metadata JSONB
+
+예시:
+
+ALTER TABLE growth_events
+  ADD COLUMN engine_version TEXT,
+  ADD COLUMN prompt_version TEXT,
+  ADD COLUMN knowledge_version TEXT,
+  ADD COLUMN template_set_version TEXT,
+  ADD COLUMN matching_algorithm_version TEXT,
+  ADD COLUMN contract_version TEXT,
+  ADD COLUMN request_id TEXT,
+  ADD COLUMN match_metadata JSONB;
+
+목적:
+
+- 같은 입력이 나중에 왜 다른 결과를 냈는지 추적
+- 알고리즘 변경 전후 비교
+- 잘못된 자동 매칭 일괄 무효화
+- 리포트 생성 당시 사용된 AI 버전 재현
+- 품질 평가와 감사 대응
+
+request_id는 Teacher Diary 요청부터 growth_event 저장까지 동일하게 유지하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Global Template Set 버전 관리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 template_scope='global'만으로는
+히든 템플릿 2,000개 세트를 교체하거나 롤백하기 어렵습니다.
+
+다음 구조를 설계하십시오.
+
+global_template_sets
+
+- id
+- version_name
+- status: DRAFT | ACTIVE | ARCHIVED
+- description
+- created_by
+- activated_at
+- archived_at
+- created_at
+
+diary_templates
+
+- global_template_set_id nullable
+- template_scope='global'인 경우 set_id 필수
+- template_scope='pool'인 경우 set_id null
+
+제약:
+
+- ACTIVE global_template_set은 최대 1개
+- 파일럿 50개는 DRAFT 세트
+- 승인 후 ACTIVE 전환
+- 기존 ACTIVE는 ARCHIVED
+- 검색은 ACTIVE 세트만 대상
+- 과거 growth_event에는 사용된 template_set_version 저장
+- 문제 발생 시 이전 세트를 ACTIVE로 롤백 가능
+
+필수 제약 예시:
+
+CREATE UNIQUE INDEX ...
+ON global_template_sets(...)
+WHERE status='ACTIVE';
+
+정확한 PostgreSQL 문법과 실제 naming convention에 맞춰 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Parent AI 비용·사용량 추적 보완
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 parent_ai_daily_usage는 question_count만 저장합니다.
+
+다음 컬럼을 추가 검토하십시오.
+
+- input_tokens
+- output_tokens
+- total_tokens
+- estimated_cost
+- rejected_count
+- intent_blocked_count
+- grounding_failed_count
+- last_request_at
+
+일일 제한은 단순 질문 횟수만이 아니라 다음 중 조합 가능하도록 설계하십시오.
+
+- 질문 횟수 제한
+- 입력 글자 수 제한
+- 일일 토큰 제한
+- 일일 비용 제한
+- 요청당 최대 입력 길이
+
+예시 정책:
+
+- 질문 20회
+- 질문 1건 최대 1,000자
+- 일일 총 입력 토큰 상한
+- 일일 예상 비용 상한
+- 비수영 질문도 Intent Guard 비용이 발생하면 usage에 기록
+- 서버 오류로 답변을 만들지 못한 요청은 질문 횟수 차감 여부 명시
+
+V3.2에서 확정할 것:
+
+- 사용량 차감 시점
+- Intent Guard 차단 시 차감 여부
+- 생성 실패 시 차감 여부
+- 재시도 처리
+- 동시 요청 atomic 처리
+- Asia/Seoul 날짜 경계
+- 비용 계산 단위
+- 모델별 가격 변경 대응
+
+모델 가격은 코드에 고정하지 말고 versioned pricing config 또는 운영 설정으로 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. AI 검색·일지 추적 로그
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB 또는 별도 AI trace 테이블 구조를 설계하십시오.
+
+권장 테이블:
+
+ai_request_traces
+
+- id
+- request_id UNIQUE
+- feature
+- pool_id
+- user_role
+- student_count
+- input_length
+- candidate_count
+- selected_candidate_count
+- generation_mode
+- engine_version
+- prompt_version
+- knowledge_version
+- template_set_version
+- latency_ms
+- input_tokens
+- output_tokens
+- total_tokens
+- estimated_cost
+- grounding_result
+- error_code
+- created_at
+
+주의:
+
+- 학생 이름 저장 금지
+- 교사 원문 전체 저장 금지
+- 학부모 질문 전체 저장 여부는 개인정보 정책에 따라 별도 결정
+- JWT 저장 금지
+- 전체 LLM 응답 운영 로그 저장 금지
+- 필요하면 hash 또는 길이만 저장
+
+Parent AI Search에는 추가로 다음을 추적하십시오.
+
+- curriculum_item_ids
+- knowledge_ids
+- intent_result
+- grounding_result
+- conversation_id
+- answer_status
+
+대화 원문 테이블과 운영 trace 테이블을 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Background Job Queue 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 작업은 HTTP 요청 안에서 장시간 동기 실행하지 않도록 설계하십시오.
+
+- 기본 성장 리포트 생성
+- 심층 성장 리포트 생성
+- 커리큘럼 템플릿 생성
+- 히든 템플릿 배치 생성
+- PPT 생성
+- 대량 알림 발송
+- 대규모 재계산
+- AI 결과 재검증
+
+Repository에 기존 Queue가 있는지 먼저 조사하십시오.
+
+조사 항목:
+
+- BullMQ
+- Redis
+- DB Job Table
+- Cron Worker
+- Render Background Worker
+- 기존 jobs 디렉토리
+- 재시도 구조
+- dead-letter 처리
+- job lock
+
+기존 Queue가 없다면 아래 대안을 비교하십시오.
+
+A안
+- PostgreSQL job_queue 테이블
+- SKIP LOCKED 기반 Worker
+
+B안
+- Redis + BullMQ
+
+C안
+- 현재 배포 구조에 맞는 외부 Queue
+
+초기 추천은 Repository와 배포 환경을 보고 결정하십시오.
+
+필수 설계:
+
+job_type
+payload
+status
+attempt_count
+max_attempts
+run_after
+locked_at
+locked_by
+last_error
+idempotency_key
+created_at
+updated_at
+
+상태:
+
+PENDING
+RUNNING
+COMPLETED
+FAILED
+DEAD
+
+필수 기능:
+
+- 동일 작업 중복 등록 방지
+- Worker 재시작 후 복구
+- 지수 백오프
+- 최대 재시도
+- DEAD 상태 수동 재실행
+- 작업 취소
+- 학생·수영장 권한 검증
+- Job 결과와 report/order 연결
+- 결제 성공 후 생성 실패 시 재결제 없이 재처리
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. Audit Log 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+슈퍼어드민과 시스템의 중요 상태 변경을 영구 추적할 수 있도록 설계하십시오.
+
+audit_logs
+
+- id
+- actor_type: super_admin | pool_admin | system
+- actor_id nullable
+- pool_id
+- action
+- entity_type
+- entity_id
+- before_data JSONB
+- after_data JSONB
+- reason
+- request_id
+- ip_hash 또는 운영 가능한 최소 접속 정보
+- created_at
+
+반드시 기록할 작업:
+
+- xmode_config_status 변경
+- xmode_entitlement 수동 변경
+- curriculum request 승인·반려
+- curriculum version 활성화·보관
+- 학생 curriculum version 일괄 전환
+- homepage_enabled 변경
+- global template set 활성화·롤백
+- deep report 주문 상태 수동 변경
+- growth_event 수동 무효화
+- 데이터 삭제·복원
+- 슈퍼어드민 파일 다운로드
+
+정책:
+
+- audit_log 수정·삭제 금지
+- 민감정보 전체 원문 저장 금지
+- before/after 데이터는 허용 필드만 저장
+- system 변경도 actor_type=system으로 기록
+- 일반 조회 API와 분리
+- super_admin만 조회 가능
+- 보존기간 정책 제출
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. Soft Delete 및 Archive 정책
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 FK 삭제 정책만 있고 운영상 삭제 정책이 부족합니다.
+
+다음 엔티티마다 hard delete / soft delete / archive를 확정하십시오.
+
+- swimming_pools
+- students
+- curriculum_versions
+- curriculum_items
+- student_curriculum_assignments
+- curriculum_requests
+- diary_templates
+- growth_events
+- pool_events
+- parent_ai_conversations
+- reports
+- deep_report_orders
+- global_template_sets
+
+권장 기본 원칙:
+
+- 결제·리포트·성장 데이터는 hard delete 금지
+- curriculum_versions는 ARCHIVED
+- curriculum_items는 is_active=false 또는 archived_at
+- growth_events는 is_invalidated=true
+- 학생 삭제 요청 시 개인정보는 비식별화하되 통계·결제 무결성 유지
+- pool 삭제는 즉시 physical delete 금지
+- parent_ai_conversations는 개인정보 정책에 따른 삭제 가능
+- audit_logs는 삭제 금지
+- 첨부파일은 DB soft delete와 R2 실제 삭제 시점을 분리
+
+V3.2 설계서에 제출:
+
+- 엔티티별 삭제 정책표
+- 삭제 API 동작
+- 복원 가능 여부
+- 보존기간
+- R2 고아 객체 정리
+- 법적 삭제 요청 대응
+- FK 정책과 soft delete 충돌 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 성장 이벤트 자동 반영 안전장치
+━━━━━━━━━━━━━━━━━━━━━━
+
+confidence >= 0.6만으로 자동 성장판 반영 여부를 결정하면 부족할 수 있습니다.
+
+최소한 다음 조건을 모두 검증하십시오.
+
+- curriculum_item이 학생 배정 버전에 포함
+- 해당 pool 소속
+- match confidence threshold 충족
+- evidence 검증 통과
+- grounding_validation=pass
+- diary 최종 저장 성공
+- 같은 note/item/source 중복 아님
+- event_role=progress
+- curriculum item active
+- AI 응답 contract_version 지원
+- request_id 일치
+
+조건 중 하나라도 실패하면:
+
+- growth_event progress 생성 금지
+- 필요하면 observation event로만 저장
+- 실패 사유 trace 기록
+
+자동 반영 정책 후보를 비교하십시오.
+
+A안
+- 기준 통과 시 자동 progress 반영
+
+B안
+- 교사가 체크한 match만 progress 반영
+
+C안
+- 높은 confidence 자동, 중간 confidence 교사 확인, 낮은 confidence 폐기
+
+권장안은 C안 검토:
+
+- high threshold 이상: 자동
+- middle range: 교사 확인
+- low: 미반영
+
+정확한 threshold는 50개 파일럿 결과로 확정하십시오.
+
+0.6을 최종 고정값으로 구현하지 말고 설정값으로 분리하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. Phase 순서 최종 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 Phase 11의 히든 템플릿 2,000개는 파일럿 검증 이후로 유지하되,
+아래 의존성을 반영해 재정렬하십시오.
+
+권장:
+
+WP0 Repository 재확인 및 Contract 확정
+
+WP1 핵심 DB Migration
+- entitlement/config 분리
+- curriculum version
+- student assignment
+- template scope
+- event/trace/audit/job 기반
+
+WP2 RevenueCat X모드 결제
+- webhook
+- entitlement
+- cancellation/expiration/refund/grace 설계
+
+WP3 X모드 상태·의뢰·이벤트 Backend
+
+WP4 Global Template Set + 50개 파일럿
+
+WP5 AI Diary 검색 분기
+
+WP6 Curriculum Candidate Search + AI Contract V1.2
+
+WP7 Diary 최종 저장 + Growth Event 안전장치
+
+WP8 Growth API
+
+WP9 Parent AI Engine 연결 조사 및 Backend
+
+WP10 AI Usage/Trace/Cost 기록
+
+WP11 Background Job Queue
+
+WP12 무료 기본 Report Backend
+
+WP13 App UI
+- 슈퍼어드민
+- pool_admin
+- teacher match 확인
+- parent 성장판
+- parent AI 검색
+- 기본 리포트
+
+WP14 Sample Pool E2E
+
+WP15 Global Template 2,000개 확대
+
+WP16 Homepage UI 완성
+
+WP17 ToyKids 전환
+
+WP18 Deep Report 결제·생성
+
+각 WP에 다음을 제출하십시오.
+
+- 실제 변경 파일
+- 신규 파일
+- DB Migration
+- API Contract
+- 앱 영향
+- AI Engine 영향
+- 테스트
+- Rollback
+- 완료 조건
+- 선행 WP
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 반드시 Repository에서 다시 확인할 항목
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 추측으로 확정하지 마십시오.
+
+1. AI Engine에서 candidate search를 어디서 수행할 것인지
+2. GPT에 후보를 전달하는 Prompt Builder 위치
+3. ai-diary-utils.ts 실제 스키마 검증 방식
+4. diary 최종 저장 API의 정확한 파일·함수
+5. 학생 신규 등록 후 assignment를 생성할 정확한 위치
+6. 기존 Queue 또는 Worker 존재 여부
+7. 기존 Audit 또는 Activity Log 존재 여부
+8. 기존 Soft Delete 패턴
+9. 실제 parent_accounts 테이블명과 FK 가능 여부
+10. 실제 students 삭제 정책
+11. report 저장 테이블 존재 여부
+12. RevenueCat consumable transaction 식별자
+13. Knowledge Search의 실제 AI Engine 진입점
+14. Prompt/Knowledge/Engine version 현재 저장 방식
+
+확인하지 못한 것은 반드시 NEEDS_VERIFICATION으로 표시하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+V3.2 설계서는 다음 순서로 제출하십시오.
+
+1. Repository 추가 조사 결과
+2. 수정 ERD
+3. AI Contract V1.2
+4. Candidate Selection Sequence
+5. Confidence 계산 설계
+6. Evidence 검증 설계
+7. Growth Event 생성 안전 규칙
+8. Global Template Set 버전 구조
+9. Parent AI Usage·Token·Cost 구조
+10. AI Trace 구조
+11. Job Queue 구조
+12. Audit Log 구조
+13. Soft Delete·Archive 정책표
+14. 수정 Phase/WP
+15. 변경 파일
+16. Migration 계획
+17. API Contract
+18. 테스트
+19. Rollback
+20. 남은 NEEDS_VERIFICATION 항목
+
+설계서 제출 후 멈추십시오.
+
+코드 수정, Migration 실행, Commit, Push, OTA, 배포, RevenueCat 상품 생성, 샘플 데이터 생성은 승인 전 금지합니다.

@@ -1,0 +1,429 @@
+[P0-CS08-ANSWER-SOURCE-QUALITY — FAQ PRIORITY + SWIMNOTE INTRO KNOWLEDGE]
+
+실제 production iPhone screenshot에서 확인:
+
+QUERY 1:
+"스윔노트x에대해서알려줘"
+
+RESULT:
+답변 표시됨:
+"X 모드(수영장 X 서비스) 기능 전체를 소개하고
+진입점을 제공하는 허브 화면"
+
+즉 NO_MATCH는 해결됐으나
+사용자용 X 소개 FAQ가 아니라
+Frontend Map purpose처럼 보이는 내부 화면 설명이 반환됨.
+
+QUERY 2:
+"스윔노트알려줘"
+
+RESULT:
+NO_MATCH
+→ HUMAN_REQUIRED
+
+이번 작업 목표:
+
+1. 실제 Query 1이 어느 source에서 해결됐는지 trace로 확정
+2. X 소개 질문은 승인된 ki_x_mode_intro FAQ를 우선 사용
+3. 일반 SWIMNOTE 소개 Knowledge가 필요한지 검증 후 PENDING candidate 생성
+4. Frontend Map 내부 purpose를 일반 제품 설명처럼 반환하지 않도록 품질 경계 정리
+
+신규 LLM 기능 개발 금지.
+대량 FAQ 생성 금지.
+자동 ACTIVE 금지.
+
+==================================================
+1. ACTUAL QUERY 1 TRACE
+==================================================
+
+가장 최근:
+
+"스윔노트x에대해서알려줘"
+
+request를 production trace에서 찾는다.
+
+보고:
+
+REQUEST_ID =
+CASE_ID =
+USER_ROLE =
+SERVICE_MODE =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+SCORE =
+
+LLM_CALLED =
+LLM_USED =
+
+반드시 실제 trace 값.
+
+==================================================
+2. VERIFY SOURCE
+==================================================
+
+현재 화면 답변:
+
+"X 모드(수영장 X 서비스) 기능 전체를 소개하고
+진입점을 제공하는 허브 화면"
+
+이 문자열/내용이 어디에서 왔는지 찾는다.
+
+가능 source:
+
+Frontend Map purpose
+FAQ answer
+Knowledge content
+Solution
+기타
+
+보고:
+
+ANSWER_SOURCE_FILE_OR_ROW =
+ANSWER_SOURCE_TYPE =
+
+==================================================
+3. FAQ PRIORITY CHECK
+==================================================
+
+현재 ACTIVE:
+
+ki_x_mode_intro
+
+확인:
+
+status
+question
+aliases/keywords
+roles
+modes
+
+실제 query:
+
+"스윔노트x에대해서알려줘"
+
+가 ki_x_mode_intro와도 match 가능한지
+score를 확인.
+
+보고:
+
+X_INTRO_FAQ_SCORE =
+FRONTEND_MAP_SCORE =
+
+==================================================
+4. ROUTING QUALITY RULE
+==================================================
+
+사용자 질문이:
+
+"X가 뭐야"
+"X모드 알려줘"
+"스윔노트X 설명해줘"
+"스윔노트X에 대해서 알려줘"
+
+처럼 제품/기능 소개 intent이면
+
+Frontend Map보다
+검증된 FAQ/Knowledge 소개 항목이 우선되어야 한다.
+
+Frontend Map은:
+
+"X모드 화면 어디 있어?"
+"X설정은 어디에서 해?"
+"구독 화면 어디야?"
+
+같은 위치/화면 탐색 intent에 우선.
+
+즉:
+
+PRODUCT_EXPLANATION
+→ FAQ/Knowledge 우선
+
+SCREEN_LOCATION
+→ Frontend Map 우선
+
+==================================================
+5. DO NOT BREAK GLOBAL ROUTER ORDER BLINDLY
+==================================================
+
+기존 전체 Resolution Router 순서를
+무조건 뒤집지 않는다.
+
+필요하면 query intent/score 기준으로
+Frontend Map exact navigation intent와
+Knowledge explanatory intent를 구분.
+
+작은 최소 수정.
+
+==================================================
+6. FRONTEND MAP ANSWER QUALITY
+==================================================
+
+Frontend Map purpose는
+내부 registry metadata다.
+
+예:
+
+"기능 전체를 소개하고 진입점을 제공하는 허브 화면"
+
+같은 문장을
+제품 설명 질문의 최종 사용자 답변으로
+그대로 반환하지 않는다.
+
+Frontend Map 최종답변은
+위치/화면 질문일 때만 사용.
+
+==================================================
+7. QUERY 2 — GENERAL SWIMNOTE
+==================================================
+
+실제 query:
+
+"스윔노트알려줘"
+
+왜 NO_MATCH인지 확인.
+
+production active FAQ/Knowledge에서:
+
+SWIMNOTE
+APP_COMMON
+PRODUCT_INTRO
+
+관련 항목 조회.
+
+보고:
+
+GENERAL_SWIMNOTE_ACTIVE_ITEM =
+GENERAL_SWIMNOTE_PENDING_ITEM =
+MATCH_SCORE =
+
+==================================================
+8. SOURCE OF TRUTH FOR GENERAL SWIMNOTE
+==================================================
+
+일반 SWIMNOTE 소개를 새로 만들 필요가 있다면
+AI가 창작하지 않는다.
+
+실제 repository에서 검증된 source 찾기:
+
+login/onboarding copy
+settings/help
+app introduction
+existing marketing-neutral product copy
+actual implemented feature structure
+
+Support용으로 안전한 source만 선택.
+
+가격/정책/미구현 기능 창작 금지.
+
+==================================================
+9. GENERAL SWIMNOTE CANDIDATE
+==================================================
+
+기존 적절한 item이 없다면:
+
+PENDING candidate 1개만 생성 가능.
+
+예:
+
+ID:
+ki_swimnote_intro
+
+TYPE:
+FAQ 또는 KNOWLEDGE
+
+CATEGORY:
+APP_COMMON
+
+FEATURE:
+SWIMNOTE_INTRO
+
+canonical question:
+"스윔노트가 무엇인가요?"
+
+aliases/keywords concept:
+
+스윔노트 알려줘
+스윔노트가 뭐야
+SWIMNOTE가 뭐야
+스윔노트 설명해줘
+
+STATUS:
+pending
+
+ROLES:
+실제 모든 app role
+
+MODES:
+all
+
+frontend_screen_id:
+null unless genuinely common safe screen
+
+자동 ACTIVE 금지.
+
+==================================================
+10. ROLE ENUM
+==================================================
+
+실제 JWT roles 기준 확인:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+기타 실제 enum
+
+Knowledge affected_roles에서
+존재하지 않는 alias 때문에 검색 누락되지 않게 한다.
+
+이번 WP에서 전체 Knowledge role audit까지 확장하지 말고
+신규/관련 item만 실제 enum 사용.
+
+==================================================
+11. TEST
+==================================================
+
+ASQ-01
+"스윔노트X에 대해 알려줘" → ki_x_mode_intro
+
+ASQ-02
+"스윔노트x에대해서알려줘" → ki_x_mode_intro
+
+ASQ-03
+"X모드가 뭐야" → ki_x_mode_intro
+
+ASQ-04
+X explanation → Frontend Map purpose 반환 금지
+
+ASQ-05
+"X모드 화면 어디야" → Frontend Map 가능
+
+ASQ-06
+"구독 화면 어디야" → Frontend Map 가능
+
+ASQ-07
+general SWIMNOTE intro candidate remains pending
+
+ASQ-08
+pending item not used in production resolution
+
+ASQ-09
+role/mode security preserved
+
+ASQ-10
+LLM call 0 for active X intro FAQ
+
+ASQ-11
+unrelated query no false hit
+
+ASQ-12
+full regression
+
+==================================================
+12. CURRENT HUMAN UI
+==================================================
+
+방금 screenshot의 case가:
+
+ticket_id != null
+또는
+escalation_reason=USER_REQUESTED_HUMAN
+
+인지 확인만 한다.
+
+그렇다면:
+상담사 연결 UI 유지 = CORRECT
+
+이번 작업에서 human UI 수정 금지.
+
+보고:
+
+CURRENT_CASE_EXPLICIT_HUMAN =
+HUMAN_UI_EXPECTED =
+
+==================================================
+13. DEPLOYMENT
+==================================================
+
+Router/server 변경 시:
+Render exact commit LIVE 확인.
+
+Knowledge PENDING candidate 생성:
+DB data only.
+
+Mobile 변경 예상 NO.
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+QUERY1_REQUEST_ID =
+QUERY1_CASE_ID =
+QUERY1_ROLE =
+QUERY1_MODE =
+
+QUERY1_RESOLUTION_SOURCE =
+QUERY1_SOURCE_ID =
+QUERY1_SCORE =
+
+ANSWER_SOURCE_TYPE =
+ANSWER_SOURCE_FILE_OR_ROW =
+
+X_INTRO_FAQ_SCORE =
+FRONTEND_MAP_SCORE =
+
+ROOT_CAUSE_X_WRONG_ANSWER_SOURCE =
+
+EXPLANATION_INTENT_PRIORITY =
+NAVIGATION_INTENT_PRIORITY =
+
+GENERAL_SWIMNOTE_ACTIVE_ITEM =
+GENERAL_SWIMNOTE_PENDING_ITEM =
+GENERAL_SWIMNOTE_NO_MATCH_REASON =
+
+NEW_SWIMNOTE_INTRO_PENDING =
+PRODUCTION_AUTO_ACTIVATION = NO
+
+CURRENT_CASE_EXPLICIT_HUMAN =
+HUMAN_UI_EXPECTED =
+
+FILES_CHANGED =
+DB_SCHEMA_CHANGED =
+DB_DATA_CHANGED =
+SERVER_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+성공 조건:
+
+X 설명 질문:
+ki_x_mode_intro 사용.
+
+Frontend Map 내부 purpose를
+제품 소개 답변으로 반환하지 않음.
+
+위치 질문:
+Frontend Map 정상 유지.
+
+일반 SWIMNOTE 소개가 없다면
+검증 source 기반 PENDING candidate 1개만 생성.
+
+자동 ACTIVE = NO.
+
+완료:
+
+P0_CS08_ANSWER_SOURCE_QUALITY_FIXED ✅

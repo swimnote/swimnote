@@ -1,0 +1,703 @@
+# [SWIMNOTE 학부모 AI 커리큘럼 검색 — V0.4 수정 확정 설계서]
+
+목적:
+기존 V0.3 설계를 아래 정책으로 수정한다.
+
+아직 구현하지 않는다.
+현재 코드/DB 구조에서 아래 정책대로 구현 가능한지 최종 확인 후 WP 구현을 시작한다.
+
+절대 금지:
+- 코드 수정
+- DB 수정
+- migration
+- Production 배포
+- 전체 regression test
+- 광범위 refactor
+
+이번 단계는 설계 확정 및 구현 전 확인만 수행한다.
+
+==================================================
+1. 기능 정의
+==================================================
+
+AI 커리큘럼 검색은 학부모가 자연어로 자녀의 실제 수업 진행상황을 질문하면,
+
+1) 학생 실제 수업/일지/진도 기록
+2) 해당 수영장의 커리큘럼
+3) SWIMNOTE AI 전문 수영 Knowledge
+
+를 조합해
+
+- 현재 어디까지 배웠는지
+- 특정 영법/기술 진행 상태
+- 최근 무엇을 배우고 있는지
+- 다음 커리큘럼 단계
+- 현재 단계의 의미
+- 왜 현재 기술을 배우는지
+- 현재 레벨에서 남은 과정
+
+등을 근거 기반으로 설명하는 학부모용 대화형 AI 검색 시스템이다.
+
+GPT가 학생 진도를 추측하지 않는다.
+
+학생 진도:
+학생 실제 기록 + 커리큘럼 구조로 판정
+
+GPT:
+판정된 결과와 전문 수영 정보를 자연어로 설명
+
+==================================================
+2. 기존 진입 버튼 그대로 사용
+==================================================
+
+학부모 홈에 이미 존재하는:
+
+"커리큘럼 검색"
+
+버튼을 그대로 사용한다.
+
+신규 버튼 생성 금지.
+
+기존:
+
+home.tsx
+→ /(parent)/curriculum-chat
+→ studentId
+→ studentName
+
+구조를 최대한 재사용한다.
+
+==================================================
+3. 일반 SWIMNOTE 사용자 정책 — 수정 확정
+==================================================
+
+일반 SWIMNOTE 학부모에게
+AI 커리큘럼 검색을 실제 사용 가능하게 열지 않는다.
+
+즉:
+
+Normal SWIMNOTE
+→ AI curriculum search DISABLED
+
+사용자가 기존
+"커리큘럼 검색"
+버튼을 누르면 AI 질문 화면으로 진입시키지 않고 안내한다.
+
+안내 문구:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+또는 동일 의미의 자연스러운 문구 사용 가능.
+
+중요:
+
+이 상황에서는
+AI Engine / GPT 호출이 절대 발생하지 않는다.
+
+일반 사용자가 버튼을 여러 번 눌러도
+AI 비용이 발생하면 안 된다.
+
+==================================================
+4. 커리큘럼 검색 활성화 조건
+==================================================
+
+AI 커리큘럼 검색은
+해당 센터가 실제 검색 가능한 커리큘럼을 충분히 구축한 경우에만 활성화한다.
+
+기본 조건:
+
+SEARCHABLE CURRICULUM ITEMS >= 300
+
+즉:
+
+검색 가능 커리큘럼 300개 이상
+AND
+센터가 커리큘럼 검색 사용 대상 상태
+
+→ AI 검색 허용
+
+그 외:
+
+→ AI 검색 차단
+→ 커리큘럼 등록 필요 안내
+
+중요:
+
+단순히 X mode 여부만으로 search를 실행하지 않는다.
+
+실제 검색 가능한 커리큘럼이 존재해야 한다.
+
+단,
+Normal SWIMNOTE는 제품 정책상 AI 검색 비활성화 상태로 유지한다.
+
+==================================================
+5. 일반 사용자에게 버튼을 보여주는 이유
+==================================================
+
+일반 사용자가 기능 존재 자체는 확인할 수 있게 한다.
+
+버튼 탭 시:
+
+"현재 수영장에 AI 검색용 커리큘럼이 등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다."
+
+안내.
+
+즉:
+
+버튼 숨김
+→ NO
+
+버튼 노출 + 이용 불가 안내
+→ YES
+
+AI 호출
+→ NO
+
+이 구조를 사용한다.
+
+==================================================
+6. 학부모 AI 검색 월 사용 횟수 — 10회 확정
+==================================================
+
+AI 커리큘럼 검색 사용이 활성화된 센터에서도
+학부모는 무제한으로 GPT를 호출할 수 없다.
+
+정책:
+
+학부모 1명당
+월 최대 AI 커리큘럼 검색 10회
+
+기준:
+
+parent_account_id
++
+calendar month
+
+기본 quota:
+
+CURRICULUM_AI_MONTHLY_LIMIT = 10
+
+==================================================
+7. 횟수 차감 기준
+==================================================
+
+실제 AI 비용이 발생한 질문만 quota를 차감한다.
+
+GROUNDED_GPT
+→ 1회 차감
+
+DIRECT_DB
+→ 차감하지 않음
+
+HUMAN_ONLY
+→ GPT 호출이 없다면 차감하지 않음
+
+CURRICULUM_NOT_AVAILABLE
+→ 차감하지 않음
+
+ERROR
+→ 정상 AI 답변이 생성되지 않았다면 차감하지 않음
+
+즉:
+
+"질문 전송 횟수"가 아니라
+"실제 유료 AI 응답 생성 횟수"를 기준으로 한다.
+
+==================================================
+8. quota 표시
+==================================================
+
+AI 검색이 사용 가능한 경우
+학부모가 현재 사용량을 확인할 수 있게 한다.
+
+예:
+
+"이번 달 AI 커리큘럼 검색 3/10회"
+
+또는:
+
+"이번 달 남은 검색 7회"
+
+UI 디자인은 기존 SWIMNOTE 스타일에 맞춘다.
+
+너무 강조할 필요는 없지만
+사용자가 남은 횟수를 확인할 수 있어야 한다.
+
+==================================================
+9. 10회 소진 시
+==================================================
+
+월 10회의 AI 호출을 모두 사용하면
+추가 GROUNDED_GPT 요청을 차단한다.
+
+안내:
+
+"이번 달 AI 커리큘럼 검색 이용 횟수를 모두 사용했습니다.
+다음 달에 다시 이용할 수 있습니다."
+
+이 상태에서는 GPT 호출 금지.
+
+새 달이 되면 자동으로 다시 10회 사용 가능.
+
+==================================================
+10. 비용 통제 원칙
+==================================================
+
+커리큘럼 검색은
+호출비용을 최소화하는 구조로 구현한다.
+
+질문
+↓
+Intent Parser
+↓
+학생 Evidence
+↓
+Curriculum
+↓
+Progress Resolver
+
+까지는 가능한 한 자체 서버/DB에서 처리.
+
+명확한 DB 답변이면:
+
+DIRECT_DB
+→ GPT 호출하지 않음
+
+설명형 답변만:
+
+GROUNDED_GPT
+→ GPT 1회
+
+즉 모든 질문을 GPT에 보내는 구조 금지.
+
+==================================================
+11. UI 방향
+==================================================
+
+검색 사용이 허용된 학부모에게는
+기존 curriculum-chat.tsx를 확장해
+ChatGPT와 유사한 익숙한 대화 UX를 제공한다.
+
+필수:
+
+- 질문/AI 답변 연속 표시
+- 하단 고정 입력창
+- 전송 버튼
+- typing indicator
+- 자동 scroll
+- 추천 질문
+- AI 답변 복사
+- copy toast
+- 새 대화
+- 이전 대화 history
+- 다자녀 지원
+- 월 사용 횟수 표시
+
+ChatGPT 고유 로고/브랜드 복제 금지.
+
+SWIMNOTE 브랜드 유지.
+
+==================================================
+12. 일반 사용자 화면
+==================================================
+
+Normal SWIMNOTE 또는
+커리큘럼 미구축 센터에서 버튼을 누르면:
+
+ChatGPT형 입력창을 보여주지 않는다.
+
+안내 상태 화면만 표시.
+
+예:
+
+────────────────────
+AI 커리큘럼 검색
+
+현재 수영장에 AI 검색용 커리큘럼이
+등록되어 있지 않아
+커리큘럼 AI 검색을 이용할 수 없습니다.
+────────────────────
+
+질문 입력창:
+표시하지 않음
+
+GPT 호출:
+없음
+
+quota 차감:
+없음
+
+==================================================
+13. Parent → Student 권한
+==================================================
+
+기존 권한 체인을 그대로 사용한다.
+
+parent
+→ student relation
+→ student
+→ pool
+
+client studentId를 그대로 신뢰하지 않는다.
+
+학부모는 자신의 자녀만 조회 가능.
+
+==================================================
+14. 전체 검색 파이프라인
+==================================================
+
+Parent Question
+↓
+Parent/Student Authorization
+↓
+Service Eligibility Check
+↓
+Curriculum Available Check
+↓
+Monthly Quota Check
+↓
+Intent Parser
+↓
+Student Evidence Retrieval
+↓
+Pool Curriculum Retrieval
+↓
+Progress Resolver
+↓
+Optional Professional Knowledge Retrieval
+↓
+Answer Mode 결정
+
+DIRECT_DB
+or
+GROUNDED_GPT
+or
+HUMAN_ONLY
+
+↓
+GROUNDED_GPT인 경우에만 GPT 1회
+↓
+성공한 경우 quota +1
+↓
+Answer 저장
+↓
+Evidence Snapshot 저장
+
+==================================================
+15. quota check 위치
+==================================================
+
+기존:
+
+POST /parent/students/:studentId/curriculum-search
+
+API 진입부에서
+권한/서비스 eligibility 확인 후 quota를 확인한다.
+
+중요:
+
+quota 조회 때문에
+AI Engine을 먼저 호출하면 안 된다.
+
+순서:
+
+1. auth
+2. service availability
+3. curriculum availability
+4. quota
+5. evidence/search
+6. GPT
+
+==================================================
+16. quota 데이터 구조 확인
+==================================================
+
+현재 curriculum-search API에
+monthly quota check가 이미 존재한다고 보고됨.
+
+따라서 새 quota 시스템을 중복 구현하지 않는다.
+
+READ-ONLY 확인:
+
+- 현재 quota table
+- 현재 monthly limit 값
+- quota key
+- parent 기준인지 student 기준인지
+- reset 방식
+- usage 증가 시점
+- 실패 요청도 차감되는지
+- 현재 GPT 호출 전/후 어느 시점에 차감하는지
+
+목표:
+
+기존 quota 시스템을 최대한 재사용하고
+limit만 10회 정책에 맞춘다.
+
+==================================================
+17. quota 기준 사용자
+==================================================
+
+기본 정책:
+
+학부모 계정 1개당 월 10회
+
+parent_account_id 기준.
+
+자녀가 2명이어도:
+
+10회 + 10회가 아니라
+해당 부모 계정 전체 월 10회가 기본 정책.
+
+단,
+현재 기존 quota 구조가 student별로 되어 있다면
+변경 범위 보고 후 결정한다.
+
+현재 구조를 먼저 확인한다.
+
+==================================================
+18. 답변 복사
+==================================================
+
+각 AI 답변 아래:
+
+[복사]
+
+사용자가 실제 보는 답변 텍스트 전체를 클립보드 복사.
+
+복사 제외:
+
+metadata
+intent
+evidence
+source id
+prompt
+confidence
+model
+internal JSON
+
+복사 성공 toast:
+
+"복사되었습니다"
+
+==================================================
+19. Student Evidence
+==================================================
+
+학생 실제 진도는:
+
+diary_notes
++
+growth_events
++
+student_levels
++
+curriculum_items
+
+등 실제 학생 데이터에서 계산한다.
+
+growth_events는
+diary와 curriculum_item 연결 bridge로 사용.
+
+원본 diary evidence도 함께 보존한다.
+
+DIRECT
+TRACKED
+INFERRED
+UNKNOWN
+
+Evidence type 유지.
+
+==================================================
+20. Progress Resolver
+==================================================
+
+GPT가 학생 진도를 판단하지 않는다.
+
+서버에서:
+
+COMPLETED
+IN_PROGRESS
+REVIEW
+NOT_CONFIRMED
+NEXT
+
+상태 계산.
+
+GPT는 결과 설명만 담당.
+
+==================================================
+21. 전문 수영 Knowledge
+==================================================
+
+GPT 자체 수영 지식을
+학생 진도 판단의 근거로 사용하지 않는다.
+
+전문 수영 Knowledge가 연결 가능한 경우:
+
+SWIMNOTE AI 전문 DB/Engine
+→ 설명 보강
+
+해당 연결이 아직 미확정이라면
+현재 구현 전에 실제 AI Engine source를 추가 확인한다.
+
+==================================================
+22. Conversation
+==================================================
+
+V1:
+
+- 새 대화
+- 이전 대화 목록
+- 대화 선택
+- 대화 복원
+- title
+
+포함.
+
+현재:
+
+parent_curriculum_conversations
+UNIQUE(parent_account_id, student_id)
+
+제약이 존재하므로
+WP-D에서 migration 필요.
+
+migration 실행 전
+migration plan 별도 확인.
+
+==================================================
+23. Evidence Snapshot
+==================================================
+
+기존:
+
+parent_curriculum_messages.metadata JSONB
+
+재사용.
+
+신규 evidence table은 만들지 않는다.
+
+저장 후보:
+
+intent
+answer_mode
+evidence
+progress_state
+curriculum_current
+curriculum_next
+knowledge_refs
+quota_charged
+
+==================================================
+24. 오류 처리
+==================================================
+
+사용자에게 노출 금지:
+
+500
+502
+API URL
+stack
+Render
+OpenAI error
+DB error
+rawText
+
+표시:
+
+"답변을 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+AI 호출 실패 시 quota 차감 금지.
+
+==================================================
+25. 구현 전 최종 확인 요청
+==================================================
+
+아직 구현하지 않는다.
+
+현재 코드 기준으로 아래만 READ-ONLY 확인한다.
+
+A. SERVICE ACCESS
+
+- Normal user current button visibility:
+- Normal 버튼 노출 가능 여부:
+- Normal AI execution 차단 위치:
+- X/allowed pool service flag:
+- curriculum availability 판단 방식:
+
+B. CURRICULUM
+
+- searchable curriculum canonical source:
+- active item count 방식:
+- 300개 기준 적용 위치:
+- X curriculum → curriculum_items 연동 여부:
+
+C. CURRENT QUOTA
+
+- 현재 curriculum-search quota 존재 여부:
+- quota table:
+- quota key:
+- current monthly limit:
+- parent/student 기준:
+- reset method:
+- charge timing:
+- failed call charge 여부:
+- DIRECT_DB도 현재 charge되는지:
+
+D. TARGET QUOTA
+
+아래 정책 적용 가능 여부:
+
+parent account 월 10회
+GROUNDED_GPT 성공 시에만 +1
+DIRECT_DB +0
+HUMAN_ONLY +0
+blocked request +0
+failed GPT +0
+
+E. UI
+
+- current quota 표시 지원 여부:
+- copy 신규 필요:
+- history migration 필요:
+- multi-child UI 신규 필요:
+
+F. COST-SAFE PIPELINE
+
+- GPT 호출 전 quota check 가능:
+- GPT 호출 전 curriculum availability check 가능:
+- Normal user AI 호출 0회 보장 가능:
+- quota exhausted user AI 호출 0회 보장 가능:
+
+==================================================
+26. 최종 보고 형식
+==================================================
+
+[CURRICULUM SEARCH V0.4 POLICY CONFIRMATION REPORT]
+
+1. Normal AI access block:
+2. Normal button behavior:
+3. curriculum 300-item gate:
+4. allowed center condition:
+5. current quota implementation:
+6. current monthly limit:
+7. current quota key:
+8. target monthly limit 10 feasible:
+9. GPT-success-only charge feasible:
+10. DIRECT_DB free feasible:
+11. HUMAN_ONLY free feasible:
+12. failed request free feasible:
+13. quota exhausted pre-GPT block feasible:
+14. Normal pre-GPT block feasible:
+15. UI remaining-count display:
+16. required server changes:
+17. required app changes:
+18. required DB migration:
+19. blockers:
+20. final recommended WP order:
+
+아직 구현하지 않는다.
+보고 후 멈춘다.

@@ -1,0 +1,1215 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE X — FINAL PRODUCT DIRECTION DESIGN
+# APP X SETUP RESTRUCTURE
+# + PC DASHBOARD ACTIVATION
+# + WEB LOGIN FLOW REDESIGN MEMO
+# DESIGN ONLY — NO IMPLEMENTATION YET
+
+이번 지시는 기존에 요청했던
+"X모드 홈페이지 제작자료 제거 설계"
+를 포함하여 전체 방향을 다시 통합한 최종 설계 요청이다.
+
+이번 단계에서는 코드를 수정하지 말고,
+현재 APP + WEB 구조를 조사하여
+APP에서 먼저 무엇을 수정하고,
+향후 WEB에서 무엇을 수정할지
+정확한 실행 설계도를 제출한다.
+
+사용자 승인 전 실제 코드 수정 금지.
+
+============================================================
+0. 가장 중요한 제품 방향 변경
+============================================================
+
+기존 계획:
+
+X모드 사용 수영장마다
+SWIMNOTE가 개별 홈페이지를 제작
+
+→ 완전히 폐기.
+
+더 이상 X모드 서비스에
+수영장별 홈페이지 제작을 포함하지 않는다.
+
+대신:
+
+X모드 사용자에게
+PC용 SWIMNOTE 관리자 대시보드를 제공한다.
+
+기존 PC Dashboard 기능은 이미 구현되어 있으므로
+이를 재사용/업데이트한다.
+
+SWIMNOTE Office 개발 전까지
+기존 PC Dashboard가 X모드의 PC 관리자 기능 역할을 한다.
+
+============================================================
+1. 새 PC 이용 구조
+============================================================
+
+기존 구조:
+
+수영장별 내부 도메인 생성
+→ 각 수영장 도메인 접속
+→ 로그인
+→ PC Dashboard
+
+이 구조는 폐기 예정.
+
+새 구조:
+
+SWIMNOTE 공식 홈페이지
+→ "PC모드 로그인" 탭/버튼
+→ 관리자 계정 로그인
+→ X모드 PIN 인증
+→ 해당 관리자 swimming_pool_id context 확정
+→ PC Dashboard 바로 진입
+
+즉:
+
+SWIMNOTE WEBSITE
+        ↓
+PC모드 로그인
+        ↓
+관리자 계정 로그인
+        ↓
+X모드 PIN
+        ↓
+POOL / ADMIN CONTEXT
+        ↓
+PC DASHBOARD
+
+수영장별 별도 도메인을 사용자가 찾아 들어가는 구조가 아니라
+SWIMNOTE 홈페이지 하나에서 접속하는 구조로 변경.
+
+============================================================
+2. 로그인 후 바로가기 구조
+============================================================
+
+PC모드 사용성을 매우 간단하게 만든다.
+
+최초:
+
+SWIMNOTE 홈페이지
+→ PC모드 로그인
+→ 관리자 로그인
+→ PIN
+→ Dashboard
+
+이후에는 가능한 범위에서
+인증 세션이 유효하면
+PC모드 바로가기 URL을 통해
+곧바로 Dashboard에 접근할 수 있는 구조를 설계.
+
+중요:
+
+PIN 자체를 URL에 넣는 방식 금지.
+
+password/PIN/token을 query string에 노출 금지.
+
+안전한 session / cookie / JWT 구조를 사용.
+
+자동로그인 또는 세션 유지가 가능하다면
+기존 인증 구조를 재사용.
+
+로그아웃 / 세션 만료 시
+다시 로그인 화면으로 이동.
+
+============================================================
+3. PC모드 이용 대상
+============================================================
+
+PC Dashboard는 기본적으로
+X모드 사용자에게 제공하는 기능으로 설계.
+
+즉 APP에서
+PC Dashboard 사용을 위한 준비 영역도
+일반 설정이 아니라
+X모드 설정 안으로 이동.
+
+현재 PC모드 entitlement / X_ACTIVE 여부를
+어떻게 확인할 수 있는지 조사.
+
+현재 이미 존재하는 권한/구독 상태를 우선 재사용.
+
+새 entitlement 체계를 임의로 만들지 말 것.
+
+============================================================
+4. 현재 WEB PIN 설정 위치 변경
+============================================================
+
+현재 APP:
+
+설정
+→ 초대 및 계정
+
+안에
+웹 접속 비밀번호 / PIN 설정 기능이 존재.
+
+이 기능을 향후:
+
+X모드 설정
+→ PC 대시보드 활성화
+
+영역으로 이동한다.
+
+중요:
+
+기존 PIN 생성/변경 API와 저장 구조가 있다면
+그대로 재사용.
+
+PIN 인증 시스템을 새로 만들지 말 것.
+
+============================================================
+5. 기존 위치 처리
+============================================================
+
+"설정 → 초대 및 계정"에 있는
+웹 접속 PIN 설정 UI는
+새 X모드 PC 대시보드 설정으로 이동한 뒤
+기존 위치에서는 제거 예정.
+
+단:
+
+- API 삭제 금지
+- DB 삭제 금지
+- PIN 데이터 삭제 금지
+- 기존 사용자의 PIN 초기화 금지
+
+UI 진입 위치만 변경.
+
+현재 구현을 조사하여
+어떤 component / route / API를 이동 또는 재사용해야 하는지 보고.
+
+============================================================
+6. X모드 설정에 새 항목 추가
+============================================================
+
+새 X모드 설정에:
+
+"PC 대시보드 활성화"
+
+항목을 만든다.
+
+이번 단계에서는 구현하지 말고
+정확한 화면 구조를 설계.
+
+============================================================
+7. PC 대시보드 활성화 화면 목표
+============================================================
+
+사용자가 이 화면만 봐도
+PC에서 SWIMNOTE를 사용하는 방법을 이해할 수 있어야 한다.
+
+예상 구조:
+
+PC 대시보드 활성화
+
+[설명]
+
+"X모드 PIN 번호를 설정해야
+PC에서 SWIMNOTE 앱의 관리자 기능을 사용할 수 있습니다."
+
+※ 실제 최종 문구는
+SWIMNOTE 앱 UI 문체에 맞게 자연스럽게 정리 가능.
+
+------------------------------------------------------------
+
+① X모드 PIN 설정
+
+현재 PIN 상태:
+
+- 설정되지 않음
+또는
+- 설정 완료
+
+버튼:
+
+[PIN 설정]
+또는
+[PIN 변경]
+
+기존 web PIN 기능 재사용.
+
+------------------------------------------------------------
+
+② PC 접속 방법
+
+안내:
+
+SWIMNOTE 홈페이지
+→ PC모드 로그인
+→ 관리자 계정 로그인
+→ X모드 PIN 입력
+→ PC Dashboard 사용
+
+------------------------------------------------------------
+
+③ PC Dashboard 상태
+
+가능하면 기존 데이터만으로:
+
+PC 대시보드:
+사용 가능 / PIN 설정 필요 / X모드 필요
+
+형태로 상태 표시.
+
+새 서버 상태값을 불필요하게 만들지 말 것.
+
+------------------------------------------------------------
+
+④ PC모드 바로가기
+
+향후 WEB 업데이트 완료 후:
+
+[PC모드 바로가기]
+
+버튼 추가 가능.
+
+현재 WEB 개편 전에는
+비활성/미구현 상태로 억지로 노출하지 말 것.
+
+APP과 WEB 실제 배포 순서를 고려한 설계 필요.
+
+============================================================
+8. PIN 명칭
+============================================================
+
+현재 코드/DB/API에서 web_pin 등의 명칭을 사용하고 있어도
+사용자에게 보여주는 명칭은:
+
+"X모드 PIN"
+또는
+"PC 대시보드 PIN"
+
+중 어떤 것이 가장 일관적인지 제안할 것.
+
+사용자가 요청한 설명 핵심:
+
+"X모드 PIN 번호를 설정해야
+PC에서 SWIMNOTE 앱의 관리자 기능을 사용할 수 있습니다."
+
+내부 DB/API 명칭은
+불필요하게 변경하지 말 것.
+
+============================================================
+9. X모드 설정 전체 정보구조 재설계
+============================================================
+
+기존 홈페이지 자료 제출을 제거하고
+PC Dashboard 항목을 추가하므로
+X모드 설정 정보구조를 다시 정리.
+
+목표 예시:
+
+SWIMNOTE X 설정
+
+1. X모드 상태
+2. 구독 / 요금제 관리
+3. 커리큘럼 세팅
+4. PC 대시보드 활성화
+5. 기타 현재 필요한 X 운영 설정
+
+홈페이지 제작자료:
+제거
+
+로고/홍보사진:
+제거
+
+미래에 필요할지도 모르는 자료:
+지금 추가하지 않음
+
+============================================================
+10. 기존 홈페이지 제작자료 제거
+============================================================
+
+이전 조사 결과를 기준으로
+APP UI에서 제거 예정:
+
+x-setup:
+
+② 홈페이지 제작자료
+- 홈페이지 DOCX 양식
+- 홈페이지 자료 업로드
+- 홈페이지 상태
+- 재업로드
+
+③ 로고 / 홍보사진
+- 로고 업로드
+- 홍보사진 업로드
+- 사진 그리드
+- 사진 삭제
+- 관련 상태
+
+x-hub:
+
+setup_completion 중:
+
+- website
+- logo
+- photos
+
+표시 제거.
+
+curriculum만 유지.
+
+============================================================
+11. 홈페이지 관련 DATA는 보존
+============================================================
+
+중요:
+
+UI만 제거.
+
+삭제 금지:
+
+x_setup_submissions.website_status
+x_setup_submissions.logo_status
+x_setup_submissions.photos_status
+
+x_setup_files:
+website
+logo
+photo
+
+x_website_profiles
+x_website_packages
+
+관련 revision rows
+
+R2:
+
+x-setup/{poolId}/website/*
+x-setup/{poolId}/logo/*
+x-setup/{poolId}/photos/*
+
+과거 데이터 전체 보존.
+
+Server API도 지금 삭제하지 않는다.
+
+============================================================
+12. 커리큘럼 세팅을 핵심으로 정리
+============================================================
+
+x-setup은 앞으로
+커리큘럼 중심 화면으로 재정리.
+
+반드시 유지:
+
+- 커리큘럼 양식 다운로드
+- DOCX 업로드
+- 현재 업로드 파일
+- 재업로드
+- curriculum_status
+- revision request
+- 제출
+- 검토 상태
+- AI 적용 상태
+- Word(.docx) 안내
+
+현재 데이터/API만 활용.
+
+새 workflow 임의 생성 금지.
+
+============================================================
+13. 커리큘럼 상태 UX
+============================================================
+
+현재 실제 상태:
+
+NOT_STARTED
+IN_PROGRESS
+SUBMITTED
+UNDER_REVIEW
+REVISION_REQUESTED
+APPROVED
+READY
+
+현재 API에서 제공되는 값을 기준으로
+사용자가 이해하기 쉬운 상태 표시를 설계.
+
+예:
+
+미제출
+업로드 중
+제출 완료
+검토 중
+수정 요청
+승인 완료
+AI 적용 완료
+
+단 실제 backend 상태와 대응되는 경우만.
+
+============================================================
+14. 향후 APP 최종 구조
+============================================================
+
+X모드 사용자는 앱에서:
+
+X모드 설정
+    ↓
+
+[커리큘럼 세팅]
+교육과정 제출/검토/AI 적용
+
+[PC 대시보드 활성화]
+X모드 PIN 설정
+PC모드 접속 안내
+
+[구독관리]
+X모드 구독 상태/요금제
+
+등을 관리.
+
+개별 홈페이지 제작 설정은 없음.
+
+============================================================
+15. 기존 웹 Dashboard 조사
+============================================================
+
+현재 기존 PC Dashboard는 이미 존재.
+
+기존 조사 기준 위치:
+
+artifacts/swimnote-web/src/pages/admin/
+
+Dashboard.tsx
+Members.tsx
+Classes.tsx
+Revenue.tsx
+Settlement.tsx
+Teachers.tsx
+Parents.tsx
+Attendance.tsx
+Makeups.tsx
+Diary.tsx
+Notices.tsx
+Approvals.tsx
+Holidays.tsx
+Withdrawn.tsx
+settings/
+
+실제 현재 repository 상태 다시 확인.
+
+수정 금지.
+
+============================================================
+16. 기존 웹 인증 조사
+============================================================
+
+기존 구조:
+
+Login.tsx
+
+POST /auth/login
+email/password
+web_login:true
+
+→ web_pin_required
+
+→ POST /auth/web-pin/verify
+
+→ JWT
+(swimming_pool_id 포함)
+
+→ /admin
+
+현재 구조를 최대한 재사용.
+
+새 인증 체계를 처음부터 만들지 말 것.
+
+============================================================
+17. 기존 수영장별 도메인 구조 조사
+============================================================
+
+현재:
+
+?pool=:poolId
+또는
+수영장별 내부 도메인
+
+등으로 pool context를 잡는 코드가 존재하는지
+실제 구조 확인.
+
+향후에는:
+
+수영장별 별도 홈페이지/도메인 진입
+
+이 아니라
+
+관리자 계정 자체의 swimming_pool_id를 이용해
+로그인 후 해당 pool dashboard를 자동 결정하는 구조를 우선 검토.
+
+즉 사용자가 로그인할 때
+수영장을 별도로 찾아 선택하는 과정도
+가능하면 없애는 방향.
+
+단 multi-pool 관리자 구조가 존재한다면
+현재 권한 모델을 조사하여
+안전한 선택 방식 제안.
+
+============================================================
+18. 향후 SWIMNOTE 홈페이지 개편
+============================================================
+
+이 부분은 중요하지만
+지금 구현하지 않는다.
+
+APP의:
+
+- 버그 수정
+- X모드 설정 정리
+- 구독/가격 설정
+- 출시 전 APP 작업
+
+을 먼저 모두 완료한다.
+
+그 뒤 마지막 단계에서
+SWIMNOTE 홈페이지를 업데이트한다.
+
+============================================================
+19. 향후 홈페이지 변경 예정사항
+============================================================
+
+최종적으로 SWIMNOTE 공식 홈페이지에:
+
+"PC모드 로그인"
+
+진입점 추가.
+
+예:
+
+SWIMNOTE 홈페이지
+
+[서비스 소개]
+[SWIMNOTE X]
+[PC모드 로그인]
+
+PC모드 로그인:
+
+관리자 email/password
+→ PIN
+→ PC Dashboard
+
+로그인 성공 후
+해당 관리자 pool context로
+바로 Dashboard 진입.
+
+============================================================
+20. 수영장별 별도 도메인 폐기 방향
+============================================================
+
+기존 수영장별 내부 도메인이
+PC Dashboard 진입에만 필요했던 구조라면
+향후 사용자-facing 진입점에서 제거.
+
+다만:
+
+기존 코드 삭제부터 하지 말 것.
+
+기존 URL compatibility
+old bookmark
+existing tenant routing
+API dependency
+
+여부를 먼저 조사.
+
+필요하면 legacy route는 유지하면서
+새 SWIMNOTE 홈페이지 로그인만 기본 진입점으로 사용.
+
+============================================================
+21. PC모드 바로가기 설계
+============================================================
+
+사용자가 최초 로그인 후
+매번 복잡한 진입을 하지 않도록
+간편 구조를 설계.
+
+요구:
+
+SWIMNOTE 홈페이지의 PC모드 로그인
+또는 저장된 PC모드 URL을 통해
+접속.
+
+세션이 살아있다면
+바로 Dashboard.
+
+세션 만료라면
+로그인 화면.
+
+PIN/password를 URL에 포함하면 안 됨.
+
+보안 토큰을 장기 query parameter로 사용하는 방식 금지.
+
+기존 secure auth/session 방식을 우선 사용.
+
+============================================================
+22. X모드 체크
+============================================================
+
+향후 WEB 로그인 시
+PC Dashboard가 X모드 전용이라면:
+
+관리자 인증
++
+X모드 활성 상태
+
+를 확인하는 위치가 필요.
+
+현재 APP/server에서
+X_ACTIVE / xmode flags / subscription entitlement 중
+어떤 값을 source of truth로 사용하는지 조사.
+
+임의로 새로운 flag를 만들지 말 것.
+
+보고서에 추천 source of truth 명시.
+
+============================================================
+23. APP과 WEB의 역할 분리
+============================================================
+
+APP:
+
+- X모드 가입/상태
+- 커리큘럼 세팅
+- X모드 PIN 설정
+- PC Dashboard 이용 안내
+- 향후 PC 바로가기
+
+WEB:
+
+- PC모드 로그인
+- email/password
+- PIN verify
+- X entitlement 확인
+- pool context
+- PC Dashboard
+
+서버:
+
+- 기존 auth
+- web PIN
+- pool context
+- X access 검증
+
+이 역할 분리를 기준으로 설계.
+
+============================================================
+24. SWIMNOTE OFFICE
+============================================================
+
+별도 SWIMNOTE Office 개발 계획은 유지.
+
+하지만 지금은 개발하지 않는다.
+
+순서:
+
+1. 현재 APP 수정 완료
+2. X모드 설정 재구성
+3. 가격/구독 최종 완료
+4. APP 출시 준비 완료
+5. SWIMNOTE 홈페이지 PC모드 로그인 개편
+6. 기존 PC Dashboard 업데이트/재배포
+7. X모드 사용자 PC Dashboard 제공
+8. 이후 SWIMNOTE Office 별도 개발
+
+============================================================
+25. 이번 단계에서 코드 수정 금지
+============================================================
+
+이번 지시는 설계/audit만.
+
+APP CODE:
+NO CHANGE
+
+WEB CODE:
+NO CHANGE
+
+SERVER:
+NO CHANGE
+
+DB:
+NO CHANGE
+
+Migration:
+NO
+
+R2:
+NO TOUCH
+
+OTA:
+NO
+
+Render:
+NO
+
+Build:
+NO
+
+============================================================
+26. 반드시 조사할 APP 항목
+============================================================
+
+A.
+
+현재:
+
+설정
+→ 초대 및 계정
+→ 웹 접속 비밀번호/PIN
+
+실제 route/component 확인.
+
+B.
+
+PIN 생성/변경 API 확인.
+
+C.
+
+PIN DB 저장 구조 확인.
+
+D.
+
+X모드 설정으로 UI를 이동할 때
+공통 component를 그대로 재사용할 수 있는지 확인.
+
+E.
+
+기존 설정 위치에서 제거 시
+다른 기능 dependency 확인.
+
+F.
+
+X모드 상태 source of truth 확인.
+
+G.
+
+PC 대시보드 활성화 화면을
+어느 X settings route에 넣는 게 가장 자연스러운지 제안.
+
+============================================================
+27. 반드시 조사할 WEB 항목
+============================================================
+
+A.
+현재 PC Dashboard entry
+
+B.
+현재 Login.tsx
+
+C.
+web_login:true 동작
+
+D.
+web_pin_required
+
+E.
+web-pin verify
+
+F.
+JWT swimming_pool_id
+
+G.
+현재 pool selection/domain routing
+
+H.
+X모드 여부 검사 존재 여부
+
+I.
+세션 유지 방식
+
+J.
+로그아웃
+
+K.
+기존 수영장별 도메인을 제거/legacy 유지할 때 영향
+
+============================================================
+28. 최종 설계보고서
+============================================================
+
+아래 형식으로 답변.
+
+# SWIMNOTE X + PC DASHBOARD FINAL DESIGN REPORT
+
+Current APP Branch:
+...
+
+Current APP HEAD:
+...
+
+Current WEB Branch:
+...
+
+Current WEB HEAD:
+...
+
+============================================================
+A. CURRENT WEB PIN IMPLEMENTATION
+============================================================
+
+Current APP menu path:
+...
+
+Route:
+...
+
+Component:
+...
+
+PIN setup UI:
+...
+
+PIN API:
+...
+
+PIN DB field/table:
+...
+
+PIN hashing/storage method:
+...
+
+Used elsewhere:
+...
+
+Safe to remove from current menu:
+YES / NO
+
+Reusable in X setup:
+YES / NO
+
+============================================================
+B. PROPOSED APP X SETTINGS
+============================================================
+
+Proposed final structure:
+
+1.
+...
+
+2.
+...
+
+3. Curriculum Setup
+...
+
+4. PC Dashboard Activation
+...
+
+PC Dashboard Activation route:
+...
+
+Recommended component structure:
+...
+
+============================================================
+C. PC DASHBOARD ACTIVATION SCREEN
+============================================================
+
+Final proposed UI:
+
+Title:
+...
+
+Description:
+...
+
+PIN status:
+...
+
+PIN setup/change action:
+...
+
+PC access guide:
+...
+
+X-mode requirement:
+...
+
+Future PC shortcut position:
+...
+
+============================================================
+D. HOMEPAGE-RELATED APP REMOVAL
+============================================================
+
+Remove from x-setup:
+...
+
+Remove from x-hub:
+...
+
+Historical DB preserved:
+YES
+
+Historical R2 preserved:
+YES
+
+Server API preserved:
+YES
+
+============================================================
+E. CURRICULUM SETUP FINAL DESIGN
+============================================================
+
+Current flow:
+...
+
+Final proposed flow:
+...
+
+Status UI:
+...
+
+Revision flow:
+...
+
+AI applied state:
+...
+
+Server change required:
+YES / NO
+
+============================================================
+F. EXISTING PC DASHBOARD
+============================================================
+
+Dashboard path:
+...
+
+Pages:
+...
+
+Current login entry:
+...
+
+Current authentication flow:
+...
+
+Current web PIN flow:
+...
+
+Pool context source:
+...
+
+============================================================
+G. EXISTING DOMAIN / POOL ROUTING
+============================================================
+
+Current per-pool domain mechanism:
+...
+
+Current ?pool mechanism:
+...
+
+Dependencies:
+...
+
+Can new website login avoid per-pool URL:
+YES / NO
+
+Recommended transition:
+...
+
+Legacy route should remain:
+YES / NO
+
+Reason:
+...
+
+============================================================
+H. NEW WEBSITE PC MODE FLOW
+============================================================
+
+Proposed final flow:
+
+SWIMNOTE Website
+→ ...
+→ ...
+→ Dashboard
+
+Login route:
+...
+
+PIN route:
+...
+
+X-mode validation point:
+...
+
+Pool context resolution:
+...
+
+Multi-pool admin handling:
+...
+
+============================================================
+I. PC MODE SHORTCUT / SESSION DESIGN
+============================================================
+
+First login flow:
+...
+
+Repeat visit flow:
+...
+
+Session persistence:
+...
+
+Session expiration:
+...
+
+PIN in URL:
+NO
+
+Password in URL:
+NO
+
+Token in long-lived query:
+NO
+
+Recommended shortcut URL:
+...
+
+============================================================
+J. X MODE ACCESS CONTROL
+============================================================
+
+Current X-mode source of truth:
+...
+
+Recommended WEB access check:
+...
+
+General SWIMNOTE admin without X:
+Expected behavior:
+...
+
+X expired/cancelled:
+Expected behavior:
+...
+
+============================================================
+K. APP IMPLEMENTATION PLAN — DO FIRST
+============================================================
+
+APP STEP 1:
+Remove homepage/logo/photo setup UI
+
+APP STEP 2:
+Reorganize curriculum setup
+
+APP STEP 3:
+Move web PIN UI from Invite & Account
+
+APP STEP 4:
+Create PC Dashboard Activation item
+
+APP STEP 5:
+Connect existing PIN setup/change function
+
+APP STEP 6:
+Regression/navigation validation
+
+Expected APP files:
+...
+
+Server changes:
+...
+
+DB migration:
+...
+
+Risk:
+...
+
+============================================================
+L. WEB IMPLEMENTATION PLAN — DO LATER
+============================================================
+
+IMPORTANT:
+DO NOT IMPLEMENT NOW.
+
+This work starts only after:
+
+- APP bug fixes complete
+- X setup complete
+- subscription/pricing complete
+- final APP work complete
+
+WEB STEP 1:
+...
+
+WEB STEP 2:
+...
+
+WEB STEP 3:
+...
+
+WEB STEP 4:
+...
+
+WEB STEP 5:
+...
+
+Existing code reusable:
+...
+
+Expected WEB files:
+...
+
+Expected server changes:
+...
+
+Expected deployment work:
+...
+
+============================================================
+M. PRODUCT ROADMAP MEMO
+============================================================
+
+Individual Pool Website Service:
+CANCELLED
+
+X-mode PC Dashboard:
+PLANNED
+
+Entry:
+SWIMNOTE Website PC Mode Login
+
+Authentication:
+Admin account + X-mode PIN
+
+Pool Context:
+...
+
+SWIMNOTE Office:
+FUTURE SEPARATE PRODUCT/APP
+
+Implementation order:
+APP FIRST → WEBSITE/PC DASHBOARD LAST
+
+============================================================
+N. CURRENT ACTION RESULT
+============================================================
+
+APP Code modified:
+NO
+
+WEB Code modified:
+NO
+
+Server modified:
+NO
+
+DB modified:
+NO
+
+OTA:
+NO
+
+Render:
+NO
+
+FINAL:
+DESIGN READY — WAITING FOR APP IMPLEMENTATION APPROVAL

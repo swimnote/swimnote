@@ -3,13 +3,12 @@
  * 80%경고 / 95%차단예정(CTA) / 100%차단 — 과금 유도형 흐름
  * /super/storage-list API 실데이터 연결
  */
-import { CircleAlert, CircleArrowUp, CirclePlus, Clock, DollarSign, HardDrive, Lock, Settings, TrendingUp } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { CircleAlert } from "lucide-react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -17,7 +16,7 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 import Colors from "@/constants/colors";
 
 const C = Colors.light;
-const GREEN = "#2EC4B6";
+const GREEN = C.brandStrong;
 const WARN  = "#D97706";
 const DANGER= "#D96C6C";
 
@@ -219,7 +218,7 @@ export default function StorageScreen() {
                 : <Text style={[s.actionTxt, { color: GREEN }]}>24h허용</Text>}
             </Pressable>
           )}
-          <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
+          <Pressable style={[s.actionBtn, { backgroundColor: C.brandSoft }]}
             onPress={() => { setEditOp(r); setNewStorageGb("0"); }}>
             <Text style={[s.actionTxt, { color: GREEN }]}>용량↑</Text>
           </Pressable>
@@ -230,11 +229,11 @@ export default function StorageScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="저장공간 관리" homePath="/(super)/op-group"
+      <SubScreenHeader title="저장공간 관리" homePath="/(super)/dashboard"
         rightSlot={
           <Pressable onPress={() => router.push("/(super)/storage-policy?backTo=storage" as any)}
             style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
-            <Settings size={18} color="#64748B" />
+            <LucideIcon name="settings" size={18} color={C.textSecondary} />
           </Pressable>
         }
       />
@@ -245,7 +244,7 @@ export default function StorageScreen() {
         </Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 6, gap: 4 }}>
         {TABS.map(t => {
           const isActive = tab === t.key;
@@ -261,11 +260,11 @@ export default function StorageScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {tab === "blocked95" && (
         <View style={[s.spikeBanner, { backgroundColor: "#FFF3CD" }]}>
-          <CircleAlert size={13} color={WARN} />
+          <LucideIcon name="alert-circle" size={13} color={WARN} />
           <Text style={[s.spikeBannerTxt, { color: "#7C2D12" }]}>95% 초과 — 추가 용량 구매 또는 플랜 업그레이드를 유도하세요. 차단 예정 상태입니다.</Text>
         </View>
       )}
@@ -284,7 +283,7 @@ export default function StorageScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <HardDrive size={30} color="#D1D5DB" />
+              <LucideIcon name="hard-drive" size={30} color="#D1D5DB" />
               <Text style={s.emptyTxt}>{TABS.find(t2 => t2.key === tab)?.label} 운영자 없음</Text>
             </View>
           }
@@ -316,10 +315,10 @@ export default function StorageScreen() {
                   ))}
                 </View>
                 <TextInput style={m.input} value={newStorageGb} onChangeText={setNewStorageGb}
-                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor="#64748B" />
+                  keyboardType="decimal-pad" placeholder="직접 입력 (GB)" placeholderTextColor={C.textMuted} />
                 {parseFloat(newStorageGb) > 0 && (
                   <View style={m.costEstimate}>
-                    <DollarSign size={13} color={GREEN} />
+                    <LucideIcon name="dollar-sign" size={13} color={GREEN} />
                     <Text style={m.costTxt}>예상 추가 비용: {estimateCost(parseFloat(newStorageGb))}</Text>
                   </View>
                 )}
@@ -332,7 +331,7 @@ export default function StorageScreen() {
                 <Pressable style={[m.saveBtn, { opacity: saving ? 0.6 : 1 }]} onPress={() => setOtpVisible(true)} disabled={saving}>
                   {saving ? <ActivityIndicator color="#fff" size="small" /> : (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Lock size={13} color="#fff" />
+                      <LucideIcon name="lock" size={13} color="#fff" />
                       <Text style={m.saveTxt}>용량 추가</Text>
                     </View>
                   )}
@@ -361,36 +360,36 @@ export default function StorageScreen() {
               <Text style={m.sub}>{ctaModal.usage_pct.toFixed(0)}% 사용 — 차단 예정 상태</Text>
 
               <View style={m.ctaOption}>
-                <CirclePlus size={20} color={GREEN} />
+                <LucideIcon name="plus-circle" size={20} color={GREEN} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>추가 용량 구매</Text>
                   <Text style={m.ctaOptionDesc}>10GB 단위 추가 · 예상 ₩9,900/월 ~</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: GREEN }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { setCtaModal(null); setEditOp(ctaModal); setNewStorageGb("10"); }}>
                   <Text style={m.ctaBtnTxt}>구매</Text>
                 </Pressable>
               </View>
 
               <View style={m.ctaOption}>
-                <CircleArrowUp size={20} color="#7C3AED" />
+                <LucideIcon name="arrow-up-circle" size={20} color="#7C3AED" />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>상위 플랜 업그레이드</Text>
                   <Text style={m.ctaOptionDesc}>더 많은 저장공간 · 추가 기능 포함</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: C.button }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { setCtaModal(null); router.push("/(super)/subscriptions?backTo=storage" as any); }}>
                   <Text style={m.ctaBtnTxt}>업그레이드</Text>
                 </Pressable>
               </View>
 
               <View style={m.ctaOption}>
-                <Clock size={20} color="#2EC4B6" />
+                <LucideIcon name="clock" size={20} color={C.brandStrong} />
                 <View style={{ flex: 1 }}>
                   <Text style={m.ctaOptionTitle}>긴급 업로드 허용 24h</Text>
                   <Text style={m.ctaOptionDesc}>임시 1GB 추가 · 관리자 override</Text>
                 </View>
-                <Pressable style={[m.ctaBtn, { backgroundColor: "#2EC4B6" }]}
+                <Pressable style={[m.ctaBtn, { backgroundColor: "#7C3AED" }]}
                   onPress={() => { doEmergencyOverride(ctaModal); setCtaModal(null); }}>
                   <Text style={m.ctaBtnTxt}>허용</Text>
                 </Pressable>
@@ -411,13 +410,13 @@ const s = StyleSheet.create({
   safe:           { flex: 1, backgroundColor: "#DFF3EC" },
   policyBanner:   { flexDirection: "row", backgroundColor: "#F0F9FF", paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#BAE6FD" },
   policyBannerTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#0369A1" },
-  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  tabBar:         { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tab:            { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  tabActive:      { backgroundColor: "#E6FFFA" },
-  tabTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive:   { color: GREEN, fontFamily: "Pretendard-Regular" },
+  tabActive:      { backgroundColor: C.brandSoft },
+  tabTxt:         { fontSize: 13, lineHeight: 18, color: C.textSecondary },
+  tabTxtActive:   { color: GREEN },
   tabBadge:       { backgroundColor: "#F9DEDA", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 7 },
-  tabBadgeTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: DANGER },
+  tabBadgeTxt:    { fontSize: 10, lineHeight: 14, color: DANGER },
   spikeBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF1BF", paddingHorizontal: 14, paddingVertical: 9 },
   spikeBannerTxt: { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#92400E", lineHeight: 16 },
   row:            { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
@@ -426,7 +425,7 @@ const s = StyleSheet.create({
   rowWarn:        { borderLeftWidth: 3, borderLeftColor: "#FCD34D" },
   rowMain:        { flex: 1, gap: 4 },
   rowTop:         { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  opName:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   blockedTag:     { backgroundColor: "#F9DEDA", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   blockedTagTxt:  { fontSize: 9, fontFamily: "Pretendard-Regular", color: DANGER },
   dangerTag:      { backgroundColor: "#FFF1BF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
@@ -439,7 +438,7 @@ const s = StyleSheet.create({
   barMark:        { position: "absolute", top: 0, bottom: 0, width: 1.5, backgroundColor: WARN, opacity: 0.5 },
   pctTxt:         { fontSize: 12, fontFamily: "Pretendard-Regular", width: 34, textAlign: "right" },
   rowMeta:        { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   ctaBar:         { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FFF1BF",
                     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "#FED7AA" },
   ctaBarTxt:      { flex: 1, fontSize: 10, fontFamily: "Pretendard-Regular", color: "#9A3412" },
@@ -449,7 +448,7 @@ const s = StyleSheet.create({
   actionBtn:      { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, minWidth: 44, alignItems: "center" },
   actionTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular" },
   empty:          { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
@@ -457,28 +456,28 @@ const m = StyleSheet.create({
   sheet:          { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff",
                     borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "80%", gap: 14 },
   handle:         { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sub:            { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -8 },
+  title:          { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:            { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -8 },
   infoBar:        { marginVertical: 4 },
   barBg:          { height: 8, borderRadius: 4, backgroundColor: "#FFFFFF", overflow: "hidden" },
   barFill:        { height: 8 },
   section:        { gap: 8 },
-  label:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   qtyRow:         { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  qtyBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E5E7EB" },
+  qtyBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: C.backgroundSoft, borderWidth: 1, borderColor: C.border },
   qtyBtnActive:   { backgroundColor: GREEN, borderColor: GREEN },
-  qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  input:          { backgroundColor: "#F1F5F9", borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#E6FFFA", padding: 8, borderRadius: 8 },
+  qtyTxt:         { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  input:          { backgroundColor: C.backgroundSoft, borderRadius: 8, padding: 10, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  costEstimate:   { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brandSoft, padding: 8, borderRadius: 8 },
   costTxt:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#065F46" },
   btnRow:         { flexDirection: "row", gap: 10 },
   cancelBtn:      { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  saveBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: GREEN, alignItems: "center" },
+  cancelTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  saveBtn:        { flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#7C3AED", alignItems: "center" },
   saveTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
-  ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  ctaOptionDesc:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  ctaOption:      { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.backgroundSoft, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border },
+  ctaOptionTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  ctaOptionDesc:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   ctaBtn:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
   ctaBtnTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   cancelBtnFull:  { padding: 14, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },

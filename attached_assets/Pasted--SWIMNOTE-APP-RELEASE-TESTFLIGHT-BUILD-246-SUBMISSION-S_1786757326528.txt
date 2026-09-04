@@ -1,0 +1,164 @@
+[SWIMNOTE APP RELEASE]
+[TESTFLIGHT BUILD 246 — SUBMISSION STATUS VERIFY ONLY]
+
+현재:
+
+iOS Build:
+1.6.3 (246)
+
+EAS Build ID:
+b83f4435-8f81-4081-b3cb-e34aedc1fc99
+
+Build Status:
+finished ✅
+
+TestFlight Submission ID:
+511cb992-f74d-44c3-a043-1b5bb2ad7313
+
+현재 Submission Status:
+Scheduled
+
+Target ASC App:
+6761360360
+SWIMNOTE
+
+이번 단계 목적:
+
+방금 제출한 Build 246이
+실제로 App Store Connect/TestFlight에 업로드되어
+Apple processing 단계에 진입했는지만 확인한다.
+
+코드 수정 금지.
+새 build 금지.
+247 생성 금지.
+OTA 금지.
+App Store 정식 심사 제출 금지.
+App Store release 금지.
+Android 작업 금지.
+
+==================================================
+1. SUBMISSION STATUS
+==================================================
+
+Submission ID:
+
+511cb992-f74d-44c3-a043-1b5bb2ad7313
+
+현재 EAS submit 상태 확인.
+
+다음 중 정확한 상태 보고:
+
+Scheduled
+In progress
+Finished
+Errored
+Canceled
+
+==================================================
+2. UPLOAD RESULT
+==================================================
+
+App Store Connect upload가
+실제로 성공했는지 확인.
+
+성공 조건:
+
+- EAS submit finished
+또는
+- Apple upload accepted
+또는
+- Build 246가 App Store Connect/TestFlight processing에 나타남
+
+Scheduled 상태만으로 PASS 처리 금지.
+
+==================================================
+3. TARGET BUILD
+==================================================
+
+반드시:
+
+Version = 1.6.3
+Build = 246
+
+인지 확인.
+
+다른 build 제출 금지.
+
+==================================================
+4. APP STORE CONNECT STATUS
+==================================================
+
+가능한 범위에서 확인:
+
+SWIMNOTE
+ASC App ID = 6761360360
+
+Build 246:
+
+- uploaded?
+- processing?
+- processed?
+- invalid binary?
+- missing compliance?
+- rejected?
+
+정확한 현재 상태 보고.
+
+==================================================
+5. FAILURE POLICY
+==================================================
+
+Apple upload rejection 또는 submit error 발생 시:
+
+STOP.
+
+새 build 생성 금지.
+247 자동 bump 금지.
+재제출 자동 실행 금지.
+
+오류 원문만 보고.
+
+==================================================
+6. TESTFLIGHT ONLY
+==================================================
+
+이번 단계에서:
+
+App Store Review 제출 금지.
+정식 출시 금지.
+외부 테스터 배포 설정 변경 금지.
+
+TestFlight binary 도착 여부만 확인.
+
+==================================================
+7. REPORT
+==================================================
+
+다음만 보고:
+
+1. SUBMISSION ID
+2. EAS SUBMIT STATUS
+3. TARGET VERSION
+4. TARGET BUILD
+5. APP STORE CONNECT APP
+6. APPLE UPLOAD ACCEPTED?
+7. TESTFLIGHT BUILD 246 VISIBLE?
+8. PROCESSING STATUS
+9. UPLOAD ERROR?
+10. INVALID BINARY?
+11. APP STORE REVIEW SUBMITTED?
+12. APP STORE RELEASED?
+13. NEW BUILD CREATED?
+14. CODE CHANGE?
+
+성공:
+
+SWIMNOTE_IOS_1_6_3_BUILD_246_TESTFLIGHT_ACCEPTED ✅
+
+아직 Scheduled/In progress:
+
+SWIMNOTE_IOS_BUILD_246_TESTFLIGHT_PENDING ⏳
+
+실패:
+
+SWIMNOTE_IOS_BUILD_246_TESTFLIGHT_BLOCKED ❌

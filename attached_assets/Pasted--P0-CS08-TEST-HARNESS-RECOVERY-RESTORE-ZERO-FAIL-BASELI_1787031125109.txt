@@ -1,0 +1,399 @@
+[P0-CS08-TEST-HARNESS-RECOVERY — RESTORE ZERO-FAIL BASELINE + EXACT RENDER DEPLOY]
+
+목적:
+
+현재 Support CS line 전체 test suite:
+
+1801 discovered
+1718 passed
+83 failed
+
+상태를 정상화한다.
+
+현재 감사에서 확인된 원인:
+
+OBS commit 4124c1c9에서
+support-respond.ts가 support-trace.js를 import하기 시작했지만
+기존 test mocks가 새 dependency를 반영하지 않아
+83 failures 발생.
+
+중요:
+
+"accb2fae 이전부터 있었음"은
+branch regression이 아니라는 뜻이 아니다.
+
+현재 branch 전체 suite는 반드시
+0 failed 상태로 복구해야 한다.
+
+신규 product 기능 개발 금지.
+Production DB 변경 금지.
+Knowledge 변경 금지.
+Mobile 변경 금지.
+
+==================================================
+0. REPORTING CORRECTION
+==================================================
+
+기존 보고:
+
+"6개 test 파일 mock 미대응"
+
+정정.
+
+실제 failure files = 7:
+
+1. cs-08r.test.ts
+2. obs-support-trace.test.ts
+3. def2-support-chat-visibility.test.ts
+4. cs-08h.test.ts
+5. stale-human-ui-contract.test.ts
+6. nevid-no-evidence-contract.test.ts
+7. dbsrc-support-db-audit.test.ts
+
+합계 failures:
+
+19 + 22 + 10 + 10 + 9 + 7 + 6 = 83
+
+보고:
+
+FAILED_TEST_FILE_COUNT = 7
+FAILED_TEST_COUNT = 83
+
+==================================================
+1. BASELINE CONFIRM
+==================================================
+
+현재 HEAD 확인.
+
+보고:
+
+GIT_HEAD =
+ACCB2FAE_IS_ANCESTOR =
+
+현재:
+
+pnpm vitest run
+
+재실행하여 실제 baseline 기록:
+
+TOTAL =
+PASS =
+FAIL =
+
+기대:
+
+1801 / 1718 / 83
+
+다르면 실제 값 사용.
+
+==================================================
+2. FAILURE ROOT CAUSE PER FILE
+==================================================
+
+7개 test file 각각 실제 첫 failure 조사.
+
+단순히 전부 같은 원인이라고 추정 금지.
+
+각 파일:
+
+FILE =
+FIRST_FAILURE =
+ACTUAL_CAUSE =
+SUPPORT_TRACE_MOCK_MISSING = YES/NO
+
+특히:
+
+obs-support-trace.test.ts
+
+는 이미 support-trace mock이 있다고 보고됐으므로
+나머지 6개와 동일 원인이라고 묶지 않는다.
+
+이 파일의 22 failures는 별도로 정확히 조사.
+
+==================================================
+3. TEST MOCK ARCHITECTURE
+==================================================
+
+목표:
+
+Production code를 test 통과용으로 변경하지 않는다.
+
+가능하면 test harness만 수정.
+
+support-trace.js가 unit test에서 실제 DB를 호출하지 않도록
+명시적 deterministic mock 제공.
+
+기존 테스트가 확인하려던 support behavior를
+trace telemetry 때문에 깨뜨리지 않아야 한다.
+
+==================================================
+4. SHARED MOCK IF APPROPRIATE
+==================================================
+
+여러 test file에 동일:
+
+vi.mock("../lib/support-trace.js", ...)
+
+복제가 필요하면
+repository test convention 기준으로
+shared helper 검토 가능.
+
+단 과도한 test framework 리팩터링 금지.
+
+최소 수정 우선.
+
+==================================================
+5. OBS TEST SPECIAL CASE
+==================================================
+
+obs-support-trace.test.ts 22 failures는
+support-trace 자체를 테스트하는 파일이므로
+무조건 trace를 no-op mock으로 바꾸지 않는다.
+
+확인:
+
+STALE-HUMAN 이후 support-respond state contract 변경 때문에
+assertion이 오래된 것인지
+
+실제 production behavior regression인지
+
+분리.
+
+Production behavior가 맞고
+test expectation만 outdated라면
+실제 최신 contract에 맞게 테스트 수정.
+
+Production behavior가 틀렸다면
+작업 중지하고 보고.
+
+==================================================
+6. DO NOT HIDE FAILURES
+==================================================
+
+금지:
+
+.skip
+.todo
+.only
+test exclusion
+vitest config로 파일 제외
+failure catch/swallow
+assertion 삭제로 통과시키기
+
+83 failures를 실제 contract에 맞게 해결.
+
+==================================================
+7. RUN TARGETED TESTS
+==================================================
+
+먼저 7개 파일만 실행.
+
+보고:
+
+TARGET_TOTAL =
+TARGET_PASS =
+TARGET_FAIL =
+
+성공 조건:
+
+TARGET_FAIL = 0
+
+==================================================
+8. FULL SUITE
+==================================================
+
+그 후:
+
+pnpm vitest run
+
+실행.
+
+보고:
+
+FULL_TOTAL =
+FULL_PASS =
+FULL_FAIL =
+
+성공 조건:
+
+FULL_FAIL = 0
+
+현재 test 수가 1801 이상으로 변하면
+추가 test 개수와 이유 설명.
+
+"1776/1776" 같은 과거 잘못된 수치를 재사용 금지.
+
+==================================================
+9. KNORM PRESERVE
+==================================================
+
+accb2fae normalization contract 유지.
+
+반드시 재확인:
+
+"스윔노트X에 대해 알려줘"
+→ ki_x_mode_intro
+
+"스윔노트x에대해알려줘"
+→ ki_x_mode_intro
+
+"스윔노트 X에 대해 알려줘"
+→ ki_x_mode_intro
+
+"스윔노트x에대해서알려줘"
+→ ki_x_mode_intro
+
+OpenAI = 0
+
+현재 알려진:
+
+"X모드가 뭐야" score=0
+
+는 이번 WP에서 수정 금지.
+FOLLOW-UP으로 유지.
+
+==================================================
+10. COMMIT
+==================================================
+
+test harness 복구만 commit.
+
+보고:
+
+FILES_CHANGED =
+PRODUCTION_CODE_CHANGED =
+
+기본 기대:
+
+PRODUCTION_CODE_CHANGED = NO
+
+만약 production code 변경이 필요하다고 판단되면
+commit 전 작업 중지하고 이유 보고.
+
+==================================================
+11. EXACT RENDER DEPLOY
+==================================================
+
+test harness commit이 HEAD가 되면
+해당 HEAD에는 accb2fae가 ancestor로 포함되어야 한다.
+
+확인:
+
+git merge-base --is-ancestor accb2fae <HEAD>
+
+= true
+
+그 exact HEAD를 Render에 deploy.
+
+자동 webhook을 믿고 끝내지 않는다.
+
+필요하면 기존 안전한 manual Render deployment 방법 사용.
+
+보고:
+
+RENDER_DEPLOY_ID =
+RENDER_DEPLOY_COMMIT =
+RENDER_STATUS =
+RENDER_LIVE_AT_KST =
+
+성공 조건:
+
+RENDER_DEPLOY_COMMIT = exact HEAD
+RENDER_STATUS = live
+
+==================================================
+12. PRODUCTION ROUTE CHECK
+==================================================
+
+Render LIVE 후 safe route 확인.
+
+Support endpoint 존재:
+
+POST /api/support/respond
+without auth → expected 401
+
+보고:
+
+SUPPORT_ROUTE_LIVE =
+
+실제 support data 생성 금지.
+
+==================================================
+13. NO DEVICE TEST YET
+==================================================
+
+이번 WP에서는
+사용자 실기기 결과를 만들어내지 않는다.
+
+Render exact HEAD LIVE까지만.
+
+DEVICE_RESULT = NOT_OBSERVED
+
+로 종료.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+FAILED_TEST_FILE_COUNT =
+FAILED_TEST_COUNT =
+
+ROOT_CAUSE_BY_FILE =
+
+OBS_TEST_22_FAILURE_ROOT_CAUSE =
+
+TEST_FILES_CHANGED =
+PRODUCTION_CODE_CHANGED =
+
+TARGET_TOTAL =
+TARGET_PASS =
+TARGET_FAIL =
+
+FULL_TOTAL =
+FULL_PASS =
+FULL_FAIL =
+
+KNORM_25 =
+NEW_KNORM_REGRESSION =
+
+GIT_HEAD =
+ACCB2FAE_IS_ANCESTOR =
+
+RENDER_DEPLOY_ID =
+RENDER_DEPLOY_COMMIT =
+RENDER_STATUS =
+RENDER_LIVE_AT_KST =
+
+SUPPORT_ROUTE_LIVE =
+
+DB_CHANGED = NO
+PRODUCTION_DATA_CHANGED = NO
+MOBILE_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+DEVICE_RESULT = NOT_OBSERVED
+
+성공 조건:
+
+FAILED_TEST_FILE_COUNT = 7
+
+83 failures 실제 원인별 확인 완료.
+
+TARGET_FAIL = 0
+FULL_FAIL = 0
+
+KNORM tests PASS.
+
+Production behavior를
+test 통과 목적으로 약화하지 않음.
+
+accb2fae가 exact Render LIVE commit의 ancestor.
+
+RENDER_STATUS = live
+
+DB/Mobile/OTA 변경 없음.
+
+완료:
+
+P0_CS08_TEST_HARNESS_RECOVERY_AND_RENDER_LIVE ✅

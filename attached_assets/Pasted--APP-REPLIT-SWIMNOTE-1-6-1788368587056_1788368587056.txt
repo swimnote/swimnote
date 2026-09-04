@@ -1,0 +1,435 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 1.6.3 PRODUCTION SIGNUP — EMERGENCY FIX
+#
+# 실제 iOS Production 증상:
+#
+# 1. Kakao 버튼
+#    → 일반회원가입 안내
+#    → 일반회원가입 진입
+#    → "Something went wrong"
+#
+# 2. 로그인 화면의 일반 "회원가입" 버튼으로 직접 진입해도
+#    → "Something went wrong"
+#
+# 따라서 Kakao 전환만의 문제가 아님.
+#
+# 공통 signup flow 자체가 현재 Production 1.6.3에서 깨져 있음.
+#
+# 지금 다른 작업 전부 중지.
+# 실제 signup route + API request + Production response를 추적하여
+# 정확한 원인을 찾고 즉시 수정 → 테스트 → 필요한 OTA/server deploy까지
+# 이번 한 작업에서 완료.
+# ============================================================
+
+현재 iOS Production:
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+Latest OTA:
+01a0630e-86be-7daf-b3ae-75c124183c38
+
+Kakao Exit:
+유지 필수
+
+Maintenance fix:
+유지 필수
+
+============================================================
+1. 실제 signup 경로부터 확인
+============================================================
+
+로그인 화면의 일반 회원가입 버튼:
+
+→ 정확한 route
+→ 정확한 signup.tsx
+→ role 선택
+→ parent/teacher signup
+→ 실제 호출 endpoint
+
+을 추적.
+
+Kakao 안내에서 이동하는 signup route와
+일반 회원가입 버튼이 이동하는 signup route가
+동일한지 확인.
+
+반드시 보고:
+
+NORMAL SIGNUP ROUTE:
+...
+
+KAKAO REDIRECT SIGNUP ROUTE:
+...
+
+ACTIVE SIGNUP FILE:
+...
+
+============================================================
+2. "Something went wrong" 발생 위치 찾기
+============================================================
+
+코드 전체 검색:
+
+"Something went wrong"
+"something went wrong"
+
+해당 문구를 누가 띄우는지 찾기.
+
+반드시:
+
+FILE
+FUNCTION
+catch block
+API call
+error mapping
+
+확정.
+
+generic catch가 실제 server error body를 버리고 있는지도 확인.
+
+============================================================
+3. 실제 Production 요청 캡처
+============================================================
+
+1.6.3 signup에서 실제로 호출되는 request를 확인.
+
+Parent signup:
+endpoint
+method
+payload keys
+status
+response body
+
+Teacher signup:
+endpoint
+method
+payload keys
+status
+response body
+
+반드시 Production live server 기준 확인.
+
+중요:
+테스트 mock 결과로 PASS 처리 금지.
+
+실제 live endpoint 응답 확인.
+
+============================================================
+4. 가장 먼저 client/server contract 비교
+============================================================
+
+최근 작업에서 다음이 어긋났는지 확인:
+
+- 1.6.3 signup client payload
+- Production auth endpoint expected payload
+- route path
+- parent-register vs simple-parent-register vs v2/parent-register
+- teacher-self-signup
+- pool_id
+- phone normalization
+- role
+- PIN/password field
+- migration response shape
+
+특히 최근 Kakao Exit 작업에서
+signup.tsx를 수정하면서
+1.6.3 일반가입까지 2.0 contract로 바뀌지 않았는지 확인.
+
+============================================================
+5. NORMAL SIGNUP을 먼저 복구
+============================================================
+
+최우선 조건:
+
+Kakao와 아무 상관 없는
+완전 신규 전화번호의 일반 회원가입이
+정상적으로 성공해야 한다.
+
+테스트:
+
+새 Parent:
+PASS
+
+새 Teacher:
+PASS
+
+Kakao migration:
+그 다음.
+
+============================================================
+6. 기존 일반가입 동작 보존
+============================================================
+
+분기:
+
+A. 신규 전화번호
+→ 기존 일반가입 정상
+
+B. 기존 일반계정 전화번호
+→ 기존 duplicate 처리 정상
+
+C. 기존 Kakao계정 전화번호
+→ KAKAO_MIGRATION_REQUIRED
+→ 기존정보 이식
+
+세 분기 모두
+generic "Something went wrong" 금지.
+
+============================================================
+7. Kakao redirect 확인
+============================================================
+
+Kakao 버튼은 현재 정책 유지:
+
+→ 안내
+→ 일반 회원가입 화면
+
+여기서 별도 Kakao API:
+NO
+
+즉 Kakao 버튼에서 signup으로 이동한 경우와
+일반 회원가입 버튼에서 signup으로 이동한 경우가
+동일한 정상 signup flow를 사용해야 함.
+
+============================================================
+8. Error handling 정상화
+============================================================
+
+서버가 정상적인 4xx business response를 보낼 때:
+
+KAKAO_MIGRATION_REQUIRED
+DUPLICATE_ACCOUNT
+validation error
+
+등을 generic
+"Something went wrong"
+로 덮지 말 것.
+
+현재 앱의 기존 한국어 오류/안내 정책을 재사용.
+
+하지만 UI 새 설계 금지.
+
+============================================================
+9. Production server 확인
+============================================================
+
+현재 live server SHA 확인.
+
+필수 endpoints 존재 확인:
+
+parent signup endpoint
+teacher signup endpoint
+/auth/kakao-migration-register
+/auth/teacher-kakao-migration-register
+
+각 route:
+
+missing fields → safe 4xx
+5xx → 0
+
+만약 server source는 있지만 live deploy가 안 됐다면
+정확한 SHA를 Production에 배포.
+
+============================================================
+10. 절대 금지
+============================================================
+
+Kakao SDK 복구:
+NO
+
+Kakao login 재활성화:
+NO
+
+Maintenance fix rollback:
+NO
+
+2.0 수정:
+이번 emergency에서 NO
+
+RevenueCat:
+NO
+
+Scheduler:
+NO
+
+Media:
+NO
+
+DB schema migration:
+NO
+
+============================================================
+11. 실제 live smoke
+============================================================
+
+수정 후 반드시 Production 기준:
+
+SG01
+일반 회원가입 화면 진입 PASS
+
+SG02
+새 Parent signup request 정상
+
+SG03
+새 Teacher signup request 정상
+
+SG04
+기존 일반 Parent duplicate 정상
+
+SG05
+기존 일반 Teacher duplicate 정상
+
+SG06
+기존 Kakao Parent phone → migration branch
+
+SG07
+기존 Kakao Teacher phone → migration branch
+
+SG08
+Kakao 안내 → 동일 signup route
+
+SG09
+Kakao SDK call 0
+
+SG10
+"Something went wrong" 재현 0
+
+SG11
+maintenance screen 0
+
+SG12
+new 5xx 0
+
+============================================================
+12. OTA / SERVER DEPLOY
+============================================================
+
+원인이 client면:
+1.6.3 iOS production OTA 즉시 수행.
+
+새 Update ID 필수.
+
+원인이 server면:
+deploy-photo-clone 최소 hotfix 또는 기존 미배포 commit deploy.
+
+둘 다면:
+server 먼저
+→ client OTA
+→ 실제 smoke.
+
+Android:
+NO OTA.
+
+============================================================
+13. 완료보고
+============================================================
+
+# SWIMNOTE 1.6.3 SIGNUP INCIDENT REPORT
+
+## ROOT CAUSE
+
+Exact cause:
+...
+
+Actual signup route:
+...
+
+Actual signup file:
+...
+
+"Something went wrong" source:
+...
+
+Client/server contract mismatch:
+YES / NO
+
+## LIVE API
+
+Parent endpoint:
+...
+
+Status before:
+...
+
+Status after:
+...
+
+Teacher endpoint:
+...
+
+Status before:
+...
+
+Status after:
+...
+
+## NORMAL SIGNUP
+
+New Parent:
+PASS / FAIL
+
+New Teacher:
+PASS / FAIL
+
+Existing normal duplicate:
+PASS / FAIL
+
+## KAKAO CONVERSION
+
+Parent Kakao phone:
+PASS / FAIL
+
+Teacher Kakao phone:
+PASS / FAIL
+
+Kakao redirect:
+PASS / FAIL
+
+Kakao SDK call:
+0
+
+## MAINTENANCE
+
+Maintenance screen:
+0
+
+## DEPLOY
+
+Server deploy:
+YES / NO
+
+Live SHA:
+...
+
+iOS OTA:
+YES / NO
+
+New Update ID:
+...
+
+Runtime:
+1.6.3
+
+Channel:
+production
+
+## ERRORS
+
+Something went wrong:
+0 / STILL PRESENT
+
+New 5xx:
+0 / ...
+
+## FINAL
+
+1.6.3 SIGNUP RESTORED — NORMAL + KAKAO CONVERSION WORKING
+
+또는
+
+1.6.3 SIGNUP STILL BLOCKED — EXACT LIVE ERROR

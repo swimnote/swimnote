@@ -1,0 +1,275 @@
+[앱] P0 — PRODUCTION APP "SOMETHING WENT WRONG" READ-ONLY INCIDENT TRIAGE
+
+현재 실제 SWIMNOTE 앱 실행 시
+"Something went wrong" 화면이 표시됨.
+
+이 작업은 현재 진행 중인
+[AI] STEP-GROWTH-05E와 완전히 독립적으로 수행한다.
+
+중요:
+- AI repo / AI Engine 파일 읽기·수정 금지
+- swimnote-professional-engine 건드리지 말 것
+- swimnote-kf-worker 건드리지 말 것
+- Growth Report 코드 건드리지 말 것
+- production DB write 금지
+- Render deploy 금지
+- OTA 금지
+- RENDER_API_KEY 요청 금지
+- 전체 repo audit 금지
+- 원인 확정 전 코드 수정 금지
+
+목표:
+최소 read-only 조사만으로
+앱 실행 직후 어떤 단계에서 실패해서
+global fallback "Something went wrong" 화면으로 떨어지는지
+정확한 root cause를 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. "Something went wrong" 실제 발생 위치 찾기
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+repo에서 정확히:
+
+"Something went wrong"
+
+문구 검색.
+
+확인:
+
+- exact component/file
+- ErrorBoundary인지
+- 어떤 condition/exception에서 표시되는지
+- fallback 진입 전 어떤 startup path를 타는지
+- 실제 error 객체/message를 어디서 받는지
+- error가 logging되고 있는지
+
+관련 파일만 최소 조사.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. Startup 경로 최소 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+앱 실행 후 초기화 순서를 확인.
+
+필요 범위만:
+
+- app bootstrap
+- auth/session restore
+- persisted state hydration
+- user/profile load
+- swimming pool/context load
+- role routing
+- initial API calls
+- OTA/runtime bootstrap
+- global ErrorBoundary
+
+"어디까지 성공하고 어디서 실패하는지"를 찾는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Production API health read-only 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production swimnote-api health 확인.
+
+그리고 앱 startup에서 실제 사용하는
+필수 endpoint만 최소 read-only 확인.
+
+각 endpoint 보고:
+
+- endpoint
+- HTTP status
+- latency
+- content-type
+- response body shape
+- request_id 가능하면 포함
+
+특히 확인:
+
+- 500
+- 502
+- 503
+- timeout
+- HTML response
+- JSON parse failure
+- auth 401/403
+- malformed response
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 앱 startup API URL / ENV 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 production app bundle이
+어떤 API base URL을 사용하는지 확인.
+
+확인:
+
+- production API URL
+- environment selection
+- fallback URL 존재 여부
+- undefined env 가능성
+- stale/staging URL 가능성
+
+ENV value 자체에 secret이 있으면
+값 전체 노출 금지.
+
+URL/config만 필요한 범위에서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 최근 production 변경 correlation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 장애 시점 전에
+실제로 production에 반영된
+앱/API 변경만 확인.
+
+중요:
+
+아래 AI commits는
+AI repo 작업이며 deploy도 안 된 상태이므로
+원인 후보에서 제외:
+
+- ca20e44
+- fb7ae2b
+- 21daea6
+- f723628
+- 3f5e52c
+- 49c0ac6
+- aa17be0
+- 8feba6f
+
+앱/API에 실제 deploy/OTA된 변경만 본다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 현재 production 버전 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인 가능한 범위에서:
+
+- production app runtime
+- current OTA update/group
+- app source SHA
+- API source SHA
+- API deployment status
+
+기존 확인 사실을 불필요하게 다시 감사하지 말 것.
+
+목적은
+"현재 live가 무엇을 실행 중인지"만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Client JS Exception 가능성 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ErrorBoundary가 client exception을 잡는 구조라면
+
+기존 로그/console/error reporting에서
+실제 exception 확인.
+
+가능하면:
+
+- exact error name
+- exact message
+- stack top frames
+- file/function
+- startup step
+
+보고.
+
+진단을 위해 production OTA 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 원인 분류
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나로 분류:
+
+CLIENT_JS_EXCEPTION
+STARTUP_API_FAILURE
+AUTH_BOOTSTRAP_FAILURE
+STATE_HYDRATION_FAILURE
+INVALID_API_RESPONSE
+OTA_RUNTIME_MISMATCH
+BACKEND_OUTAGE
+ENV_CONFIG_FAILURE
+UNKNOWN
+
+UNKNOWN이면
+무엇이 부족해서 확정 못하는지 정확히 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Root Cause 확정 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 수준까지 확인돼야
+"확정"이라고 보고:
+
+예:
+
+- ErrorBoundary exact source found
+- startup call X fails
+- endpoint returns Y
+- code path throws Z
+- therefore fallback rendered
+
+또는
+
+- client function X throws TypeError
+- stack confirms exact file/function
+- startup before auth routing에서 발생
+- therefore fallback rendered
+
+추측 수준이면 확정이라고 쓰지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 수정 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서는 수정하지 않는다.
+
+Root cause가 확정되어도:
+
+- changed files = NONE
+- deploy = NO
+- OTA = NO
+
+로 STOP.
+
+다음 Step에서
+가장 작은 수정 1회만 별도로 진행한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] P0 SOMETHING-WENT-WRONG READ-ONLY INCIDENT REPORT
+
+- exact fallback component/file
+- trigger condition
+- startup sequence
+- failing startup step
+- production API health
+- failing endpoint if any
+- exact HTTP status/content-type
+- exact client/server error
+- stack/function if available
+- current production API URL
+- current app runtime/update
+- current API deployment/source
+- recent production change correlation
+- incident classification
+- root cause
+- confidence: HIGH / MEDIUM / LOW
+- changed files: NONE
+- production DB write: NO
+- Render deploy: NO
+- OTA: NO
+
+Final Verdict:
+
+ROOT CAUSE CONFIRMED — READY FOR MINIMAL FIX
+
+또는
+
+BLOCKED — exact missing evidence
+
+STOP.

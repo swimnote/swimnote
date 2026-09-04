@@ -1,0 +1,461 @@
+[P0-DEVICE-DEFECT-2 — SUPPORT RESPONSE RETURNED BUT CHAT NOT UPDATED]
+
+실제 production iPhone에서 동일 defect 재현됨.
+
+환경:
+
+TestFlight Build 246
+production channel
+runtime 1.6.3
+
+최근 server harden 배포 완료 후에도:
+
+"x모드 알려줘"
+
+전송
+→ loading
+→ 채팅창에 AI 답변이 올라오지 않음
+
+신규 기능 개발 금지.
+추측 수정 금지.
+
+이번에는 반드시
+"실제 방금 발생한 request 1건"
+기준으로 end-to-end trace한다.
+
+==================================================
+1. FIND EXACT DEVICE REQUEST
+==================================================
+
+가장 최근 production support request 추적.
+
+확인:
+
+request_id
+case_id
+HTTP started_at
+HTTP completed_at
+HTTP status
+response body shape
+latency
+
+보고:
+
+REQUEST_FOUND =
+REQUEST_ID =
+CASE_ID =
+HTTP_STATUS =
+HTTP_COMPLETED =
+HTTP_LATENCY =
+
+==================================================
+2. RESPONSE BODY EXACT STRUCTURE
+==================================================
+
+민감한 answer 전문은 보고서에 쓰지 말고
+field 존재 여부만 확인.
+
+POST /support/respond 실제 response:
+
+success =
+case_id_present =
+answer_present =
+message_present =
+ai_message_present =
+resolution_source_present =
+confidence_present =
+requires_human_present =
+llm_used_present =
+error_code =
+
+SupportChatScreen이 기대하는 field와
+실제 server response field를 비교.
+
+보고:
+
+CLIENT_EXPECTED_FIELDS =
+SERVER_RETURNED_FIELDS =
+CONTRACT_MISMATCH = YES/NO
+
+==================================================
+3. DB WRITE VERIFY
+==================================================
+
+해당 case 실제 DB 확인.
+
+user reply row:
+EXISTS =
+
+AI reply row:
+EXISTS =
+
+AI reply의:
+
+case_id
+ticket_id
+author_role
+message_type
+
+구조 확인.
+
+본문 전문 출력 금지.
+
+보고:
+
+USER_MESSAGE_STORED =
+AI_MESSAGE_STORED =
+AI_AUTHOR_ROLE =
+AI_CASE_ID_PRESENT =
+AI_TICKET_ID =
+AI_MESSAGE_TYPE =
+
+==================================================
+4. GET CONVERSATION VERIFY
+==================================================
+
+POST 직후 서버 측에서 같은 case에 대해
+기존 conversation GET 로직을 실행했을 때
+
+AI message가 조회되는지 확인.
+
+확인:
+
+GET /support/cases/:id/messages
+또는 실제 사용 endpoint.
+
+보고:
+
+GET_MESSAGES_STATUS =
+GET_MESSAGES_COUNT =
+AI_MESSAGE_RETURNED_BY_GET =
+
+중요:
+
+DB에는 있는데 GET에서 빠지면
+query filter defect.
+
+==================================================
+5. QUERY FILTER AUDIT
+==================================================
+
+support_ticket_replies 조회 조건 감사.
+
+특히:
+
+case_id
+ticket_id
+legacy ticket replies
+author_role
+message_type
+ORDER BY
+UNION/OR condition
+
+AI-only row:
+
+ticket_id = null
+case_id = support case id
+
+가 정상적으로 조회되는지 확인.
+
+다음 형태의 bug 확인:
+
+WHERE ticket_id = ...
+때문에 case_id-only AI reply 누락
+
+INNER JOIN ticket 때문에 ticket_id=null row 탈락
+
+message_type filter 때문에 AI reply 탈락
+
+==================================================
+6. SUPPORTCHAT HANDLE SEND TRACE
+==================================================
+
+SupportChatScreen.tsx 실제 handleSend 흐름 감사.
+
+실제 코드 기준으로 다음을 보고:
+
+A.
+POST /support/respond 호출
+
+B.
+res.ok 확인
+
+C.
+JSON parse
+
+D.
+response에서 어떤 field를 읽는지
+
+E.
+setMessages / append 여부
+
+F.
+reloadMessages 호출 여부
+
+G.
+loading=false 실행
+
+H.
+catch/finally
+
+보고:
+
+CLIENT_POST_RECEIVED =
+CLIENT_JSON_PARSED =
+CLIENT_APPEND_METHOD =
+CLIENT_REFRESH_METHOD =
+CLIENT_LOADING_FINALLY =
+
+==================================================
+7. CRITICAL CONTRACT CHECK
+==================================================
+
+현재 server가 AI reply를 DB에 저장만 하고
+response.answer를 주는 구조인지,
+
+또는 client가 POST 이후
+GET messages를 다시 불러오는 구조인지
+
+하나로 확정.
+
+둘을 애매하게 섞지 않는다.
+
+권장 source of truth:
+
+POST /support/respond 성공
+→ server stores messages
+→ client refreshes conversation from server
+
+또는
+
+POST returns canonical stored AI message
+→ client appends exact returned object
+
+둘 중 실제 repository 구조에 맞는 한 방식으로 통일.
+
+==================================================
+8. CASE ID CHECK
+==================================================
+
+새 case 생성 후 client의 activeCaseId가
+실제 새 case id로 갱신되는지 확인.
+
+이전 CS02R의 "__new__" defect와 유사한
+sentinel/stale case id 재발 여부 확인.
+
+보고:
+
+CASE_ID_BEFORE_SEND =
+CASE_ID_FROM_SERVER =
+CASE_ID_AFTER_SEND =
+
+불일치 여부:
+
+STALE_CASE_ID = YES/NO
+
+==================================================
+9. LOADING STATE CHECK
+==================================================
+
+현재 사용자가 말한 현상이
+"채팅이 안 올라감"이므로
+loading이 실제로 끝나는지 별도 확인.
+
+가능한 bug:
+
+loading false지만 새 message 없음
+
+또는
+
+loading true로 영구 유지
+
+실제 device/network trace 기준으로 분리.
+
+보고:
+
+LOADING_STUCK =
+MESSAGE_MISSING_ONLY =
+BOTH =
+
+==================================================
+10. HTTP ERROR HANDLING
+==================================================
+
+만약 server가 현재 500을 반환한다면:
+
+AI_MSG_INSERT_FAILED
+MSG_QUERY_FAILED
+기타
+
+SupportChatScreen이 non-2xx에서
+error UI를 표시하고 loading을 종료하는지 확인.
+
+silent catch 금지.
+
+==================================================
+11. MINIMAL FIX ONLY
+==================================================
+
+ROOT CAUSE 확인 후
+최소 수정.
+
+가능한 수정 범위 예:
+
+A.
+server/client response contract mismatch
+
+B.
+GET message query에서 case_id-only AI reply 누락
+
+C.
+client reloadMessages 미호출
+
+D.
+stale case id
+
+E.
+non-2xx silent handling
+
+실제 root cause 아닌 부분 수정 금지.
+
+==================================================
+12. TEST MATRIX
+==================================================
+
+DEF2-01
+POST respond returns canonical contract
+
+DEF2-02
+AI reply persisted
+
+DEF2-03
+AI case_id-only row returned by GET messages
+
+DEF2-04
+ticket_id=null AI row not filtered out
+
+DEF2-05
+new case id propagated to client
+
+DEF2-06
+client appends or reloads AI reply
+
+DEF2-07
+loading terminates success
+
+DEF2-08
+loading terminates non-2xx
+
+DEF2-09
+error UI visible on failure
+
+DEF2-10
+no duplicate AI reply
+
+DEF2-11
+conversation persistence
+
+DEF2-12
+admin/teacher/parent common source
+
+DEF2-13
+Normal/X common source
+
+DEF2-14
+full regression
+
+==================================================
+13. DEPLOYMENT
+==================================================
+
+Server-only root cause:
+Render deploy only.
+
+Mobile root cause:
+iOS production OTA only.
+
+Preview OTA 절대 금지.
+Android OTA = NO.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+REQUEST_FOUND =
+REQUEST_ID =
+CASE_ID =
+
+HTTP_STATUS =
+HTTP_COMPLETED =
+HTTP_LATENCY =
+
+SERVER_RETURNED_FIELDS =
+CLIENT_EXPECTED_FIELDS =
+CONTRACT_MISMATCH =
+
+USER_MESSAGE_STORED =
+AI_MESSAGE_STORED =
+AI_MESSAGE_RETURNED_BY_GET =
+
+AI_AUTHOR_ROLE =
+AI_CASE_ID_PRESENT =
+AI_TICKET_ID =
+AI_MESSAGE_TYPE =
+
+QUERY_FILTER_DEFECT =
+
+CLIENT_POST_RECEIVED =
+CLIENT_JSON_PARSED =
+CLIENT_APPEND_METHOD =
+CLIENT_REFRESH_METHOD =
+
+CASE_ID_BEFORE_SEND =
+CASE_ID_FROM_SERVER =
+CASE_ID_AFTER_SEND =
+STALE_CASE_ID =
+
+LOADING_STUCK =
+MESSAGE_MISSING_ONLY =
+
+FAILURE_LAYER =
+ROOT_CAUSE =
+
+SERVER_FIX =
+MOBILE_FIX =
+
+"x모드 알려줘"_AFTER_FIX =
+AI_REPLY_VISIBLE =
+LOADING_TERMINATES =
+CONVERSATION_PERSISTENCE =
+
+FILES_CHANGED =
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+
+IOS_PRODUCTION_OTA =
+IOS_OTA_BRANCH =
+IOS_OTA_RUNTIME =
+ANDROID_OTA = NO
+
+성공 조건:
+
+"x모드 알려줘"_AFTER_FIX = PASS
+
+AI_MESSAGE_STORED = YES
+AI_MESSAGE_RETURNED_BY_GET = YES
+
+AI_REPLY_VISIBLE = YES
+LOADING_TERMINATES = YES
+
+STALE_CASE_ID = NO
+
+silent non-2xx = NO
+
+ANDROID_OTA = NO
+
+완료:
+
+P0_SUPPORT_CHAT_RESPONSE_VISIBILITY_FIXED ✅

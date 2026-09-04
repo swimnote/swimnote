@@ -1,0 +1,185 @@
+[SWIMNOTE Instagram Story V1 — Meta App ID 적용 후 Native Test Build 진행]
+
+Gate 결과 확인 완료.
+
+선택:
+B안으로 진행한다.
+
+플레이스홀더:
+appId: "swimnote"
+
+상태로 Native Build하지 않는다.
+
+react-native-share 공식 Instagram Stories contract에 맞는
+실제 Meta/Facebook App ID를 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Meta App ID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Meta Developer App ID 확보 전까지
+TestFlight / Android Native Build 시작 금지.
+
+App ID 확보 후:
+
+- source code 하드코딩 금지
+- git commit에 App ID 직접 노출하지 않는 방식을 우선
+- 현재 EAS 환경변수/Secret 구조를 확인하여 사용
+- iOS/Android 동일 App ID 사용
+
+예:
+
+EXPO_PUBLIC_META_APP_ID
+
+또는 현재 프로젝트의 기존 env naming convention 사용.
+
+단 실제 client bundle에 들어가야 하는 공개 App ID이므로
+비밀번호/secret처럼 취급할 필요는 없지만
+플레이스홀더와 실제 값을 명확히 분리한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. StoryCapturePipeline 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+appId: "swimnote"
+
+제거.
+
+실제 환경변수/config에서 읽는다.
+
+값이 없으면 Instagram Story 공유를 실행하지 않는다.
+
+예:
+
+if (!META_APP_ID) {
+  Alert.alert(
+    "Instagram 공유 준비 중",
+    "Instagram Story 공유 설정이 완료되지 않았습니다."
+  );
+  return;
+}
+
+임의 문자열 fallback 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. react-native-share 공식 구조 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 확인된:
+
+social: Social.InstagramStories
+backgroundImage: uri
+appId: META_APP_ID
+
+구조 유지.
+
+일반 Instagram Feed share로 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Native config
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 공식 react-native-share Expo plugin 사용 상태 유지.
+
+확인:
+
+iOS:
+instagram
+instagram-stories
+
+Android:
+com.instagram.android
+
+custom withInstagramShare.js는 삭제 상태 유지.
+
+동일 scheme/query 중복 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Meta App ID 확보 후 Build Gate
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 App ID가 환경에 주입된 것을 확인한 뒤:
+
+iOS:
+TestFlight 검증용 EAS Native Build
+
+Android:
+내부 설치/테스트 가능한 Native Build
+
+생성.
+
+Production Store release 금지.
+
+Production OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+Instagram 설치 확인 성공
+
+CASE 2
+Story 이미지 1장 1080×1920 생성
+
+CASE 3
+Instagram Story Composer 직접 실행
+
+CASE 4
+생성된 SWIMNOTE Story 이미지가 Composer에 실제 표시
+
+CASE 5
+사진/본문/날짜 정상
+
+CASE 6
+좋아요/감사합니다/댓글 UI 미포함
+
+CASE 7
+SWIMNOTE 워터마크 정상
+
+CASE 8
+한글/Pretendard 깨짐 없음
+
+CASE 9
+긴 일지 2장 자동 생성
+
+CASE 10
+매우 긴 일지 3장 이상 생성
+
+CASE 11
+N장 전체 갤러리 저장
+
+CASE 12
+저장 순서 정상
+
+CASE 13
+Instagram 미설치 처리 정상
+
+CASE 14
+공유 취소 후 SWIMNOTE 복귀 정상
+
+CASE 15
+기존 Parent Feed 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Meta App ID 확보 여부
+2. 주입 방식
+3. 하드코딩 제거 확인
+4. 최종 share options
+5. iOS Build ID
+6. Android Build ID
+7. 실제 설치 결과
+8. Instagram Story Composer 실행 결과
+9. 1080×1920 실제 결과
+10. 긴 일지 2/3장 결과
+11. 갤러리 저장 결과
+12. CASE 1~15
+13. Production Store 배포 = 0
+14. Production OTA = 0
+
+실제 App ID가 없으면 Build하지 말고 멈춘다.

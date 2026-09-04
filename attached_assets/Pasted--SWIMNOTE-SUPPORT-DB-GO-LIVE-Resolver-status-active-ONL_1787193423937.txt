@@ -1,0 +1,172 @@
+[SWIMNOTE SUPPORT DB GO-LIVE]
+
+현재 원인 확인 완료:
+
+Resolver:
+status='active' ONLY
+
+현재:
+Canonical active 67
+Canonical pending 1,073
+
+Utterance active 572
+Utterance pending 13,735
+
+신규 SWIMNOTE 고객센터 import가 pending 상태라
+실제 Production resolver에서 거의 사용되지 않고 있음.
+
+목표:
+우리가 검증/import한 신규 고객센터 DB batch만
+Production에서 사용 가능하도록 활성화한다.
+
+중요:
+전체 pending 일괄 활성화 금지.
+legacy pending 데이터까지 건드리지 않는다.
+
+--------------------------------
+1. 활성화 대상
+--------------------------------
+
+기존에 import 완료한 SWIMNOTE 고객센터 신규 batch:
+
+Canonical:
+신규 1,051건
+
+Utterance:
+신규 13,697건
+
+위 import batch에 속하는 record만
+status='active'로 변경한다.
+
+기존 legacy pending:
+변경 금지.
+
+ID / source_ref / import batch 정보를 사용해서
+정확한 대상만 업데이트한다.
+
+--------------------------------
+2. HUMAN_ONLY 유지
+--------------------------------
+
+answer_mode=HUMAN_ONLY인 Knowledge Item도
+status는 active로 사용할 수 있다.
+
+단:
+HUMAN_ONLY의 동작은 기존 resolver 정책 유지.
+
+즉:
+매칭은 가능
+→ 자동 확정 답변 대신 문의/상담 연결
+
+answer_mode를 임의로 DIRECT_DB로 변경하지 않는다.
+
+--------------------------------
+3. 누락 utterance 추가
+--------------------------------
+
+A. SWIMNOTE X 가격 intent
+
+아래 표현 추가:
+
+x노트 가격
+x노트 얼마야
+x노트 한달 얼마야
+x노트 한 달 얼마야
+x노트 월 얼마야
+x노트 월요금
+x노트 구독료
+x노트 비용
+엑스노트 가격
+엑스노트 얼마야
+스윔노트 x 가격
+스윔노트x 얼마야
+
+기존 "SWIMNOTE X 가격" intent에 연결.
+
+B. AI 일지 품질/내용 부족 intent
+
+아래 표현 추가:
+
+일지에 ai 내용이 너무 부실해
+ai 일지 내용이 부실해
+일지가 너무 뻔해
+ai 일지가 너무 뻔해
+일지 내용이 딱딱해
+일지가 딱딱해
+수영 내용이 부족해
+수영정보가 부족해
+전문적인 내용이 부족해
+일지 내용이 너무 단순해
+매번 비슷한 내용이 나와
+ai 일지 내용이 별로야
+일지가 너무 짧아
+좀 더 전문적으로 써줬으면 좋겠어
+
+이 표현은
+"AI 일지 품질/내용 개선 문의"
+의 기존 가장 적합한 intent에 연결한다.
+
+적합한 intent가 없다면
+새 Canonical을 하나만 생성:
+
+intent_id:
+support_ai_diary_quality_feedback
+
+answer_mode:
+GROUNDED_GPT 또는 HUMAN_ONLY
+
+내용:
+AI 일지 내용이 단순하거나 수영 전문 정보가 부족한 경우에 대한
+사용자 피드백/개선 문의를 처리하는 intent.
+
+--------------------------------
+4. 활성화 후 최소 확인
+--------------------------------
+
+전체 regression 금지.
+
+Production matcher에서 아래 5개만 확인:
+
+1.
+"x노트 가격"
+
+2.
+"x노트 한달 얼마야"
+
+3.
+"스윔노트 x 가격"
+
+4.
+"일지에 ai 내용이 너무 부실해"
+
+5.
+"일지가 너무 뻔해"
+
+각각:
+- matched intent
+- matched utterance
+- knowledge_id
+- status=active
+- answer_mode
+- fallback 여부
+
+목표:
+5개 모두 generic fallback으로 떨어지지 않을 것.
+
+--------------------------------
+5. 완료보고
+
+[SUPPORT DB GO-LIVE REPORT]
+
+- canonical batch activated:
+- utterance batch activated:
+- legacy pending changed: 0
+- new X-note utterances:
+- new AI diary quality utterances:
+- query 1:
+- query 2:
+- query 3:
+- query 4:
+- query 5:
+- generic fallback:
+- final status:

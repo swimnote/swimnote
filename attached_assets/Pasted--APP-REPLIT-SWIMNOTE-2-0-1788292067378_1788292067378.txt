@@ -1,0 +1,581 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — STAGE 3 FINAL MICRO-CLOSE
+# ADMIN HOME RENDER ORDER ONLY
+# DO NOT REPEAT TEACHER / PARENT / MEMBER WORK
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+cf39ce62
+
+현재 상태:
+
+STAGE 1:
+CLOSED
+
+STAGE 2:
+CLOSED
+
+STAGE 3:
+Teacher IA = PASS
+Parent IA = PASS
+Admin IA = render order 1건 수정 필요
+
+이번 작업은
+ADMIN DASHBOARD의 render order만 수정하는
+MICRO-CLOSE입니다.
+
+============================================================
+0. 왜 수정하는가
+============================================================
+
+직전 Stage 3 보고서에서
+Admin current problem을 다음처럼 정확히 식별했습니다.
+
+- 핵심 퀵액션이 아래에 있어 첫 viewport 접근성이 나쁨
+- isX일 때 AI 섹션이 최상단이라 일반 운영업무를 아래로 밀어냄
+
+그런데 수정 후 보고된 순서는:
+
+1. X AI 섹션
+2. 퀵액션
+3. KPI
+4. KPI
+5. 사용량
+6. split stats
+7. 처리 필요 alerts
+
+로 되어 있어,
+
+"X AI가 일반 운영업무보다 위를 독점하지 않는다"
+
+는 Stage 3 목표가 아직 충족되지 않았습니다.
+
+또한 처리 필요 alerts도
+실제 업무 우선순위보다 너무 아래에 있습니다.
+
+============================================================
+1. 이번 작업 범위
+============================================================
+
+오직:
+
+ADMIN dashboard.tsx
+현재 존재하는 section의 render order
+
+만 수정합니다.
+
+기능 추가:
+NO
+
+기능 삭제:
+NO
+
+새 route:
+NO
+
+새 API:
+NO
+
+새 component:
+가급적 NO
+
+디자인 변경:
+NO
+
+Teacher:
+NO TOUCH
+
+Parent:
+NO TOUCH
+
+Student Detail:
+NO TOUCH
+
+Stage 2 X 기능:
+NO TOUCH
+
+============================================================
+2. 최종 ADMIN HOME 우선순위
+============================================================
+
+Header는 기존 그대로.
+
+Scroll content의 업무 우선순위는 다음을 기준으로 정리하십시오.
+
+1.
+빠른 실행 / 즉시 업무
+
+2.
+처리 필요 업무 / alerts
+
+3.
+보강 / 인원관리 등 현장 운영 핵심
+
+4.
+SWIMNOTE X AI 기능
+(isX일 때만 추가)
+
+5.
+매출 / 전체 회원 등 상태 KPI
+
+6.
+split stats
+
+7.
+통합 사용량 등 저빈도 정보
+
+핵심:
+
+일반 운영업무
+→ 먼저
+
+X AI
+→ 그 다음 추가 가치
+
+저빈도 상태/사용량
+→ 아래
+
+============================================================
+3. 실제 기존 SECTION 기준으로만 재배치
+============================================================
+
+현재 존재하는 section만 사용하십시오.
+
+새 section 만들지 마십시오.
+
+현재 보고된 요소:
+
+- X AI section
+- Quick Action 4 buttons
+- KPI row1
+- KPI row2
+- KPI row3 / usage
+- split stats
+- alerts
+
+을 실제 코드 semantic에 맞춰 재배치.
+
+============================================================
+4. QUICK ACTION
+============================================================
+
+현재 기존 4개:
+
+- 회원등록
+- 매출 확인
+- 스케줄러
+- 휴무일
+
+기능/route/onPress 변경 금지.
+
+위치만 상단으로 유지.
+
+============================================================
+5. ALERTS
+============================================================
+
+"처리 필요" 성격의 alerts가
+현재 맨 마지막이라면
+
+Quick Action 바로 다음 또는
+업무 핵심 section 상단에 배치.
+
+단 실제 alert section이
+조건부 렌더링이라면 조건 로직 변경 금지.
+
+render 위치만 이동.
+
+============================================================
+6. 보강 / 인원관리
+============================================================
+
+현장 운영 핵심 KPI/카드는
+저빈도 usage보다 위.
+
+기존 onPress/API/데이터:
+변경 금지.
+
+============================================================
+7. X AI SECTION
+============================================================
+
+X AI 기능 삭제:
+NO
+
+숨김:
+NO
+
+기능 변경:
+NO
+
+route 변경:
+NO
+
+Stage 2에서 정상화한 기능 그대로 유지.
+
+다만 위치는:
+
+Quick Action
++
+처리 필요
++
+핵심 현장운영
+
+보다 뒤로 이동.
+
+X가 일반 SWIMNOTE 업무를
+밀어내면 안 됩니다.
+
+============================================================
+8. 저빈도 정보
+============================================================
+
+통합 사용량 등
+상태 확인 성격의 저빈도 정보는
+하단으로 이동.
+
+데이터/API 변경 금지.
+
+============================================================
+9. NORMAL / X
+============================================================
+
+Normal:
+
+같은 Admin dashboard 구조 사용.
+
+X:
+
+같은 Admin dashboard
++
+AI section 추가.
+
+즉 X라는 이유로
+일반 업무 section 순서가 별도 구조가 되면 안 됩니다.
+
+공통 render tree 안에서
+AI section만 조건부 추가하십시오.
+
+============================================================
+10. FUNCTION PRESERVATION
+============================================================
+
+다음 모두 기존 그대로 작동해야 함:
+
+회원등록
+매출
+스케줄러
+휴무일
+alerts
+보강
+인원관리
+회원 KPI
+매출 KPI
+사용량
+split stats
+X AI 기능
+
+Lost:
+0
+
+============================================================
+11. NAVIGATION
+============================================================
+
+모든 onPress/route 기존 그대로.
+
+이번 작업에서:
+
+router.push 변경
+router.replace 변경
+backTo 변경
+
+금지.
+
+============================================================
+12. SCROLL
+============================================================
+
+render order 변경 후:
+
+첫 section
+중간
+마지막
+
+모두 접근 가능.
+
+기존 ScrollView 유지.
+
+새 nested ScrollView:
+NO
+
+============================================================
+13. DESIGN
+============================================================
+
+카드 크기
+색상
+폰트
+아이콘
+spacing
+버튼 스타일
+
+변경하지 마십시오.
+
+이번 작업은 순서만.
+
+============================================================
+14. 다른 완료 영역 재작업 금지
+============================================================
+
+Teacher IA:
+NO TOUCH
+
+Parent IA:
+NO TOUCH
+
+Parent photos studentId fix:
+NO TOUCH
+
+Paid Insight disabled:
+NO TOUCH
+
+Normal/X parity:
+NO RE-AUDIT
+
+X Home:
+NO RE-AUDIT
+
+Student Detail:
+NO TOUCH
+
+============================================================
+15. HOLD
+============================================================
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+Store:
+NO
+
+AI OFFICE:
+NO
+
+Growth Report backend:
+NO
+
+Admin Notice AI:
+아직 NO
+→ STAGE 4에서 수행
+
+Production:
+NO
+
+OTA:
+NO
+
+1.6.3:
+NO
+
+============================================================
+16. REGRESSION
+============================================================
+
+Known baseline:
+
+158 failures
+
+동일 command/environment.
+
+Expected:
+
+New failures:
+0
+
+New TS errors:
+0
+
+Route changes:
+0
+
+Feature loss:
+0
+
+============================================================
+17. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# STAGE 3 FINAL MICRO-CLOSE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## ADMIN ORDER BEFORE
+
+...
+
+## ADMIN ORDER AFTER
+
+1.
+...
+
+2.
+...
+
+3.
+...
+
+4.
+...
+
+5.
+...
+
+6.
+...
+
+7.
+...
+
+## QUICK ACTION
+
+Position:
+...
+
+Functions changed:
+YES / NO
+
+Expected:
+NO
+
+## ALERTS
+
+Position:
+...
+
+Logic changed:
+YES / NO
+
+Expected:
+NO
+
+## X AI
+
+Position:
+...
+
+Routes changed:
+YES / NO
+
+Expected:
+NO
+
+Stage 2 functionality changed:
+YES / NO
+
+Expected:
+NO
+
+## LOW FREQUENCY
+
+Usage position:
+...
+
+## NORMAL / X
+
+Shared general-operation structure:
+PASS / FAIL
+
+X-only difference:
+AI section only / ...
+
+## FUNCTION PRESERVATION
+
+Lost functions:
+...
+
+Expected:
+0
+
+## ROUTES
+
+Changed:
+...
+
+Expected:
+0
+
+## OTHER STAGE 3 AREAS
+
+Teacher modified:
+YES / NO
+
+Parent modified:
+YES / NO
+
+Student Detail modified:
+YES / NO
+
+Expected:
+NO / NO / NO
+
+## REGRESSION
+
+Baseline:
+158
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## FINAL
+
+STAGE 3 FULLY CLOSED
+or
+BLOCKED

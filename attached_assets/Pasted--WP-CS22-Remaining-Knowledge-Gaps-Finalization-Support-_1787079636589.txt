@@ -1,0 +1,729 @@
+[WP-CS22 — Remaining Knowledge Gaps Finalization & Support System Closure]
+
+목적:
+
+CS12~CS21에서 구축·검증·Production 활성화된
+SWIMNOTE Support System의 마지막 Knowledge Gap 3개를 정리한다.
+
+대상:
+
+P1 — XModeGuard 잠금/상태 오류 안내
+P2 — 학부모 앨범/사진 조회 오류
+P3 — 보강 신청 실패/신청 기간 초과
+
+이번 WP 완료 후
+고객센터 Support Knowledge 구축 사이클을 종료하고
+실기기 앱 검증 단계로 이동할 수 있어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 확정 상태
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS12~CS21 = CLOSED
+
+Production:
+
+ACTIVE Knowledge = 23
+Retrieval = 23/23
+Grounding = 10/10
+Cross-role leakage = 0
+Cross-mode leakage = 0
+Trace missing = 0
+Runtime import error = 0
+
+기존 ACTIVE 23개는
+명백한 regression이 없는 한 수정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. 기존 ACTIVE 23개 대규모 재감사 금지.
+
+3. 새로운 LLM 호출 코드 추가 금지.
+
+4. 근거 없는 정책/시간/SLA 창작 금지.
+
+5. Known Issue와 Confirmed Incident 혼동 금지.
+
+6. 존재하지 않는 UI/버튼/메뉴 안내 금지.
+
+7. Product Truth보다 Candidate 내용을 우선하지 말 것.
+
+8. 신규 Knowledge는 Human Approval Governance를 반드시 통과.
+
+9. SQL 직접 status='active' 변경 금지.
+
+10. Production insert 전 source/role/mode/UI/action 검증 필수.
+
+11. 이번 WP 범위는 Gap 3개 + 한글 검색 regression만.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. P1 — XModeGuard PRODUCT TRUTH 감사
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 DRAFT:
+
+ki_draft_xmodeguard_lock_states
+
+관련 실제 상태를 repository에서 확정.
+
+최소 조사:
+
+NO_ENTITLEMENT
+NOT_CONFIGURED
+CURRICULUM_PENDING
+API_ERROR
+
+실제 enum/state 이름이 다르면
+repository의 실제 이름을 우선한다.
+
+각 상태별:
+
+* 발생 조건
+* authoritative source
+* 사용자 role
+* mode
+* 실제 화면
+* 실제 버튼/action
+* safe troubleshooting
+* escalation 조건
+* incident 여부
+
+를 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. P1 — 근거 없는 TIMING 제거
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 DRAFT에 존재했던:
+
+"결제 후 5분 내"
+
+"1~3 영업일"
+
+"3 영업일 이상"
+
+은 명시적 Product/Policy source가 없으므로
+Knowledge에 포함 금지.
+
+실제 공식 정책 근거가 새로 발견되는 경우에만 사용 가능.
+
+근거가 없으면 시간 약속 없이 작성.
+
+예:
+
+"결제 후에도 상태가 반영되지 않으면 고객지원으로 문의해 주세요."
+
+"검토가 완료되기 전까지 일부 X 기능은 사용할 수 없습니다."
+
+단 이 문구도 실제 Product Truth와 대조.
+
+필수:
+
+UNSUPPORTED_TIMING_CLAIMS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. P1 — XModeGuard Knowledge 설계
+━━━━━━━━━━━━━━━━━━━━━━
+
+한 Candidate에 모든 상태를 넣는 것이 검색/grounding에 적절한지 검토.
+
+다음 중 선택:
+
+A. 상태 4개를 하나의 SOLUTION으로 구성
+
+또는
+
+B. 상태별 Candidate 분리
+
+선택 기준:
+
+* retrieval 정확도
+* 상태별 action 차이
+* role/mode 차이
+* 향후 유지보수성
+
+불필요하게 Candidate 수를 늘리지 말 것.
+
+각 Candidate:
+
+title
+item_type
+category
+feature
+source_ref
+affected_roles
+affected_modes
+frontend_screen_id
+answer
+content
+actions
+escalation
+incident_relation
+
+제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. P2 — 학부모 앨범/사진 조회 오류
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Product Truth 조사.
+
+대상 최소:
+
+parent photos
+album
+photo URL
+signed/public URL
+child ownership
+pool ownership
+visibility
+loading/error
+deleted/missing asset
+
+실제 repository 기준으로
+학부모에게 사진이 안 보이는 대표 원인을 분류.
+
+주의:
+
+원인을 무조건 하나로 단정하지 말 것.
+
+가능한 구조:
+
+1. 자녀 연결 확인
+2. 사진 게시/공개 상태 확인
+3. 네트워크/재시도
+4. 특정 사진만 문제인지 확인
+5. 지속 시 고객지원
+
+실제 구현이 지원하는 단계만 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. P2 — PHOTO SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+특별 검증.
+
+학부모 A가:
+
+다른 자녀
+다른 학부모
+다른 pool
+
+사진에 접근할 수 있는 안내/URL을
+Knowledge가 절대 제공하지 않도록 한다.
+
+Knowledge 자체에는:
+
+raw object key
+signed secret
+bucket path
+internal storage identifier
+
+노출 금지.
+
+필수:
+
+PHOTO_CROSS_CHILD_GUIDANCE = 0
+PHOTO_CROSS_POOL_GUIDANCE = 0
+RAW_STORAGE_REF_EXPOSED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. P3 — 보강 신청 실패/기간 초과
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 source:
+
+makeups.ts
+makeup-policy.ts
+관련 frontend route/component
+
+를 기준으로 확인.
+
+가능한 실패 사유:
+
+* 신청 기간
+* 대상 수업
+* 이미 신청됨
+* 정원
+* 권한
+* 상태
+* 취소/변경 제한
+
+중 실제 코드/정책에 존재하는 것만 사용.
+
+정책 숫자/기간은
+명시적인 source가 있을 때만 Knowledge에 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. P3 — ROLE / ACTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+teacher와 parent_account가
+각각 실제로 어떤 보강 action을 할 수 있는지 분리.
+
+금지:
+
+parent에게 teacher/admin action 안내
+
+teacher에게 parent-only UI 안내
+
+필수:
+
+MAKEUP_ROLE_MISMATCH = 0
+INVALID_MAKEUP_ACTION = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. UI REALITY CHECK
+━━━━━━━━━━━━━━━━━━━━━━
+
+P1/P2/P3에서 등장하는 모든:
+
+화면
+버튼
+메뉴
+route
+
+실제 frontend registry/component와 대조.
+
+필수:
+
+INVALID_FRONTEND_SCREEN_ID = 0
+HALLUCINATED_UI_PATH = 0
+
+표현 label이 다르면
+실제 앱 표시명을 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. CANDIDATE REVIEW
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Candidate마다:
+
+SOURCE_VALID
+IMPLEMENTATION_VALID
+ROLE_VALID
+MODE_VALID
+POOL_SCOPE_VALID
+UI_PATH_VALID
+ACTION_VALID
+POLICY_VALID
+SECURITY_VALID
+CONFLICT_FREE
+FRESHNESS_VALID
+
+검증.
+
+최종:
+
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+중 하나.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. CONFLICT 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ACTIVE 23개와 신규 Candidate 비교.
+
+검사:
+
+HARD_CONFLICT
+CONTEXT_CONFLICT
+VERSION_CONFLICT
+AUTHORITY_CONFLICT
+
+목표:
+
+HARD_CONFLICTS = 0
+
+Conflict 있으면 자동 활성화 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. HUMAN APPROVAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+READY Candidate만
+Super Admin Human Approval 경로로 처리.
+
+반드시:
+
+JWT reviewer
+status transition gate
+source validation
+conflict validation
+revision guard
+audit log
+
+통과.
+
+SQL 직접 ACTIVE 금지.
+
+REVIEW_REQUIRED/BLOCKED는
+승인하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. ACTIVATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+승인된 신규 Candidate만 Production ACTIVE.
+
+각 활성화 후:
+
+status
+revision
+approved_by
+approved_at
+audit
+source_ref
+
+확인.
+
+기존 ACTIVE 23개에는 영향 없어야 함.
+
+필수:
+
+EXISTING_ACTIVE_CHANGED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. RETRIEVAL SMOKE
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 Knowledge 각각에 대해
+최소 2개 질문.
+
+P1:
+
+* X 설정이 안 됨
+* X 상태 확인 오류
+
+P2:
+
+* 학부모 사진이 안 보임
+* 특정 앨범/사진 조회 오류
+
+P3:
+
+* 보강 신청이 안 됨
+* 신청 기간/조건 관련 문의
+
+검증:
+
+expected Knowledge
+role
+mode
+answer
+action
+trace
+
+목표:
+
+NEW_KNOWLEDGE_RETRIEVAL_FAIL = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. GROUNDING
+━━━━━━━━━━━━━━━━━━━━━━
+
+신규 활성 Knowledge 대상으로
+기존 Support generation path 최소 샘플.
+
+확인:
+
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+UNSUPPORTED_POLICY_CLAIM
+FALSE_INCIDENT_CLAIM
+UNSAFE_OR_UNGROUNDED
+
+목표:
+
+전부 0.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 한글 SEARCH QUERY REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS21에서 발견:
+
+GET /support/knowledge/search?q=한글
+
+raw request에서는 HTTP 400 가능.
+
+실제 앱 client query construction 확인.
+
+확인:
+
+URLSearchParams
+encodeURIComponent
+또는 동등한 안전한 URL encoding.
+
+실제 한글 검색 fixture:
+
+"일지"
+"출결"
+"보강"
+"사진"
+"성장 리포트"
+
+최소 5개.
+
+목표:
+
+KOREAN_QUERY_ENCODING_FAIL = 0
+KOREAN_SEARCH_HTTP_400 = 0
+
+fetch가 자동으로 처리할 것이라는 추정만으로 PASS 금지.
+
+실제 client/request를 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. SUPPORT COVERAGE FINAL
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP 완료 후
+현재 확인된 Gap을 다시 집계.
+
+P0_GAPS
+P1_GAPS
+P2_GAPS
+P3_GAPS
+
+목표:
+
+현재 식별된:
+
+XModeGuard
+Parent Photo
+Makeup Failure
+
+3개가 모두:
+
+ACTIVE
+또는 명확한 REVIEW_REQUIRED/BLOCKED 사유
+
+로 처리되어야 함.
+
+기능/정책 자체가 없는 경우에는
+억지 Knowledge 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. RUNTIME REGRESSION
+━━━━━━━━━━━━━━━━━━━━━━
+
+대규모 CS12~21 재검증 금지.
+
+최소:
+
+API boot
+support-respond import
+knowledge search
+knowledge approval
+typecheck
+full suite
+
+목표:
+
+RUNTIME_IMPORT_ERROR = 0
+SERVER_BOOT_ERROR = 0
+TYPECHECK_ERROR = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. PRODUCTION SAFETY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production write는
+검증 완료된 신규 Knowledge의:
+
+insert/edit/approve/activate
+
+에 한해서만 허용.
+
+기존 ACTIVE 23개 직접 변경 금지.
+
+보고:
+
+NEW_KNOWLEDGE_INSERTED
+NEW_KNOWLEDGE_ACTIVATED
+EXISTING_ACTIVE_CHANGED
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. REQUIRED METRICS
+━━━━━━━━━━━━━━━━━━━━━━
+
+P1_CANDIDATES_CREATED
+P2_CANDIDATES_CREATED
+P3_CANDIDATES_CREATED
+
+READY_FOR_HUMAN_REVIEW
+REVIEW_REQUIRED
+BLOCKED
+
+UNSUPPORTED_TIMING_CLAIMS
+INVALID_FRONTEND_SCREEN_ID
+HALLUCINATED_UI_PATH
+
+PHOTO_CROSS_CHILD_GUIDANCE
+PHOTO_CROSS_POOL_GUIDANCE
+RAW_STORAGE_REF_EXPOSED
+
+MAKEUP_ROLE_MISMATCH
+INVALID_MAKEUP_ACTION
+
+HARD_CONFLICTS
+
+NEW_KNOWLEDGE_RETRIEVAL_FAIL
+
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+INVALID_ACTIONS
+UNSUPPORTED_POLICY_CLAIM
+FALSE_INCIDENT_CLAIM
+UNSAFE_OR_UNGROUNDED
+
+KOREAN_QUERY_ENCODING_FAIL
+KOREAN_SEARCH_HTTP_400
+
+EXISTING_ACTIVE_CHANGED
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. COMPLETE REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS22 COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Deployed SHA:
+
+P1 XMODEGUARD
+
+Actual states:
+Timing claims removed:
+Candidate(s):
+Recommendation:
+Result:
+
+P2 PARENT PHOTO
+
+Root causes:
+Security:
+Candidate(s):
+Recommendation:
+Result:
+
+P3 MAKEUP
+
+Actual policy:
+Role/action:
+Candidate(s):
+Recommendation:
+Result:
+
+CANDIDATES
+
+P1 created:
+P2 created:
+P3 created:
+
+READY_FOR_HUMAN_REVIEW:
+REVIEW_REQUIRED:
+BLOCKED:
+
+HUMAN APPROVAL
+
+Approved:
+Held:
+Rejected:
+
+PRODUCTION
+
+NEW_KNOWLEDGE_INSERTED:
+NEW_KNOWLEDGE_ACTIVATED:
+EXISTING_ACTIVE_CHANGED:
+
+RETRIEVAL
+
+Tests:
+Failures:
+
+GROUNDING
+
+Scenarios:
+Pass:
+Fail:
+
+QUALITY
+
+UNSUPPORTED_TIMING_CLAIMS:
+INVALID_FRONTEND_SCREEN_ID:
+HALLUCINATED_UI_PATH:
+PHOTO_CROSS_CHILD_GUIDANCE:
+PHOTO_CROSS_POOL_GUIDANCE:
+RAW_STORAGE_REF_EXPOSED:
+MAKEUP_ROLE_MISMATCH:
+INVALID_MAKEUP_ACTION:
+HARD_CONFLICTS:
+UNSUPPORTED_CLAIMS:
+CONTRADICTED_CLAIMS:
+INVALID_ACTIONS:
+UNSUPPORTED_POLICY_CLAIM:
+FALSE_INCIDENT_CLAIM:
+UNSAFE_OR_UNGROUNDED:
+
+KOREAN SEARCH
+
+Queries:
+KOREAN_QUERY_ENCODING_FAIL:
+KOREAN_SEARCH_HTTP_400:
+
+FINAL COVERAGE
+
+P0_GAPS:
+P1_GAPS:
+P2_GAPS:
+P3_GAPS:
+
+RUNTIME
+
+API boot:
+Typecheck:
+Full suite:
+
+Critical blockers:
+
+CS22_CLOSE: YES / NO
+
+SUPPORT_SYSTEM_CORE_COMPLETE: YES / NO
+
+WP_CS22_REMAINING_KNOWLEDGE_GAPS_FINALIZATION_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+완료보고 후 멈춘다.
+
+CS22_CLOSE = YES
+그리고
+SUPPORT_SYSTEM_CORE_COMPLETE = YES
+
+이면 고객센터 Support 구축 사이클을 종료한다.
+
+다음 단계는:
+
+1. 10,000개 일지 문장 업로드/검색 인덱스 반영 확인
+2. 학부모 AI 커리큘럼 검색 실기기 점검
+3. 학부모 AI 성장리포트 내용 엔진 점검/구현
+4. 앱 자잘한 버그 수정
+5. 새 iOS/Android 안정화 빌드
+
+순으로 이동한다.

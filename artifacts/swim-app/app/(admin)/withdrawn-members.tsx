@@ -7,18 +7,16 @@
  *   → 복원: active로 복구
  *   → 영구삭제: 2단계 확인 후 복구 불가
  */
-import { Archive, Lock, RotateCcw, Search, Trash2, TriangleAlert, UserX, X } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -107,9 +105,17 @@ export default function WithdrawnMembersScreen() {
         return;
       }
       if (res.ok) {
+        const targetId = actionTarget.id;
+        const action = confirmAction;
         setConfirmAction(null);
         setActionTarget(null);
-        await load();
+        if (action === "final_withdraw") {
+          setMembers(prev => prev.map(m => m.id === targetId ? { ...m, status: "deleted" as const } : m));
+        } else if (action === "archive") {
+          setMembers(prev => prev.map(m => m.id === targetId ? { ...m, status: "archived" as const } : m));
+        } else if (action === "restore" || action === "permanent_delete") {
+          setMembers(prev => prev.filter(m => m.id !== targetId));
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         console.error("action failed:", err.error || res.status);
@@ -120,7 +126,7 @@ export default function WithdrawnMembersScreen() {
 
   const TABS: { key: MainTab; label: string; color: string }[] = [
     { key: "withdrawn", label: "퇴원자",  color: "#D96C6C" },
-    { key: "archived",  label: "아카이브", color: "#64748B" },
+    { key: "archived",  label: "아카이브", color: C.textSecondary },
   ];
 
   return (
@@ -155,7 +161,7 @@ export default function WithdrawnMembersScreen() {
             퇴원자는 과금에 포함되지 않습니다. 최종 퇴원 처리 시 학부모 앱 접근이 차단됩니다. 복구 가능 기간 내에는 관리자가 복구할 수 있습니다.
           </Text>
         ) : (
-          <Text style={[styles.infoText, { color: "#0F172A" }]}>
+          <Text style={[styles.infoText, { color: C.textPrimary }]}>
             아카이브는 과금 제외, 학부모 접근 차단, 기록 보존 상태입니다. 관리자만 열람 가능합니다.
           </Text>
         )}
@@ -163,7 +169,7 @@ export default function WithdrawnMembersScreen() {
 
       {/* 검색 */}
       <View style={[styles.searchBox, { borderColor: C.border, backgroundColor: C.card, marginHorizontal: 16 }]}>
-        <Search size={16} color={C.textMuted} />
+        <LucideIcon name="search" size={16} color={C.textMuted} />
         <TextInput
           style={[styles.searchInput, { color: C.text }]}
           value={search}
@@ -172,7 +178,7 @@ export default function WithdrawnMembersScreen() {
           placeholderTextColor={C.textMuted}
         />
         {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}><X size={15} color={C.textMuted} /></Pressable>
+          <Pressable onPress={() => setSearch("")}><LucideIcon name="x" size={15} color={C.textMuted} /></Pressable>
         )}
       </View>
 
@@ -183,11 +189,12 @@ export default function WithdrawnMembersScreen() {
           data={displayed}
           keyExtractor={m => m.id}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 60, gap: 8 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={themeColor} />}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <UserX size={40} color={C.textMuted} />
+              <LucideIcon name="user-x" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>
                 {search ? "검색 결과가 없습니다" : `${tab === "withdrawn" ? "퇴원자" : "아카이브 회원"}이 없습니다`}
               </Text>
@@ -255,7 +262,7 @@ export default function WithdrawnMembersScreen() {
             {deleteStep === 1 ? (
               <>
                 <View style={[styles.deleteIcon, { backgroundColor: "#FEF2F2" }]}>
-                  <TriangleAlert size={28} color="#D96C6C" />
+                  <LucideIcon name="alert-triangle" size={28} color="#D96C6C" />
                 </View>
                 <Text style={styles.deleteTitle}>영구 삭제 확인</Text>
                 <Text style={styles.deleteMsg}>
@@ -276,7 +283,7 @@ export default function WithdrawnMembersScreen() {
             ) : (
               <>
                 <View style={[styles.deleteIcon, { backgroundColor: "#D96C6C" }]}>
-                  <Trash2 size={28} color="#fff" />
+                  <LucideIcon name="trash-2" size={28} color="#fff" />
                 </View>
                 <Text style={styles.deleteTitle}>정말 삭제하시겠습니까?</Text>
                 <Text style={styles.deleteMsg}>
@@ -325,20 +332,20 @@ function MemberCard({
     <View style={[styles.card, { backgroundColor: C.card }]}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
         <View style={[styles.avatar, { backgroundColor: tab === "withdrawn" ? "#FEF2F2" : "#FFFFFF" }]}>
-          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#D96C6C" : "#64748B" }]}>{item.name[0]}</Text>
+          <Text style={[styles.avatarTxt, { color: tab === "withdrawn" ? "#D96C6C" : C.textSecondary }]}>{item.name[0]}</Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text style={styles.memberName}>{item.name}</Text>
             {tab === "withdrawn" && isAccessBlocked && (
               <View style={[styles.tagBadge, { backgroundColor: "#D96C6C" }]}>
-                <Lock size={9} color="#fff" />
+                <LucideIcon name="lock" size={9} color="#fff" />
                 <Text style={[styles.tagTxt, { color: "#fff" }]}>접근차단</Text>
               </View>
             )}
             {tab === "archived" && (
-              <View style={[styles.tagBadge, { backgroundColor: "#E5E7EB" }]}>
-                <Text style={[styles.tagTxt, { color: "#64748B" }]}>아카이브</Text>
+              <View style={[styles.tagBadge, { backgroundColor: C.border }]}>
+                <Text style={[styles.tagTxt, { color: C.textSecondary }]}>아카이브</Text>
               </View>
             )}
           </View>
@@ -363,31 +370,31 @@ function MemberCard({
       </View>
 
       {saving ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 8 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 8 }} />
       ) : (
         <View style={styles.actionRow}>
           {tab === "withdrawn" && (
             <>
               {!isAccessBlocked && (
                 <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onFinalWithdraw}>
-                  <Lock size={12} color="#D96C6C" />
+                  <LucideIcon name="lock" size={12} color="#D96C6C" />
                   <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>최종 퇴원처리</Text>
                 </Pressable>
               )}
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#F1F5F9", borderColor: "#E5E7EB" }]} onPress={onArchive}>
-                <Archive size={12} color="#64748B" />
-                <Text style={[styles.actionBtnTxt, { color: "#64748B" }]}>아카이브로 이동</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: C.backgroundSoft, borderColor: C.border }]} onPress={onArchive}>
+                <LucideIcon name="archive" size={12} color={C.textSecondary} />
+                <Text style={[styles.actionBtnTxt, { color: C.textSecondary }]}>아카이브로 이동</Text>
               </Pressable>
             </>
           )}
           {tab === "archived" && (
             <>
-              <Pressable style={[styles.actionBtn, { backgroundColor: "#E6FFFA", borderColor: "#E6FAF8" }]} onPress={onRestore}>
-                <RotateCcw size={12} color="#2EC4B6" />
-                <Text style={[styles.actionBtnTxt, { color: "#2EC4B6" }]}>복원</Text>
+              <Pressable style={[styles.actionBtn, { backgroundColor: C.brandSoft, borderColor: C.brandSoft }]} onPress={onRestore}>
+                <LucideIcon name="rotate-ccw" size={12} color={C.brandStrong} />
+                <Text style={[styles.actionBtnTxt, { color: C.brandStrong }]}>복원</Text>
               </Pressable>
               <Pressable style={[styles.actionBtn, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]} onPress={onPermanentDelete}>
-                <Trash2 size={12} color="#D96C6C" />
+                <LucideIcon name="trash-2" size={12} color="#D96C6C" />
                 <Text style={[styles.actionBtnTxt, { color: "#D96C6C" }]}>영구 삭제</Text>
               </Pressable>
             </>
@@ -399,9 +406,9 @@ function MemberCard({
 }
 
 const styles = StyleSheet.create({
-  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
   tab:         { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
-  tabText:     { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  tabText:     { fontSize: 14, lineHeight: 20 },
   infoBanner:  { paddingHorizontal: 16, paddingVertical: 8, marginBottom: 8 },
   infoText:    { fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18 },
   searchBox:   { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 10 },
@@ -416,7 +423,7 @@ const styles = StyleSheet.create({
   tagBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 },
   tagTxt:      { fontSize: 9, fontFamily: "Pretendard-Regular" },
   attBadge:    { alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 50 },
-  attNum:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.tint },
+  attNum:      { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   attLabel:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
   dateRow:     { marginBottom: 8 },
   dateText:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },

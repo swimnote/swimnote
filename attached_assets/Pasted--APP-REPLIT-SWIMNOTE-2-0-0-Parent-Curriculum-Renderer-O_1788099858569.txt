@@ -1,0 +1,172 @@
+[보낼 곳: APP REPLIT]
+
+[SWIMNOTE 2.0.0 — Parent Curriculum Renderer OTA 배포 + 실기기 확인 준비]
+
+현재 branch:
+release/v2.0.0
+
+현재 HEAD:
+a095e00c
+
+관련 renderer 안정화 commit:
+87371f4c
+
+Professional Engine Production:
+live SHA bc085793bbe08c49061528c3b87acbad57c3e874
+
+상태:
+Professional Engine에서 Parent Curriculum answer를
+plain text + 실제 \n\n 기반으로 반환하도록 Production 반영 완료.
+
+APP 2.0.0에는 이미:
+- \n\n 문단 spacer 처리
+- 기존 **...** 방어 처리
+- plain text 안전 렌더링
+- result.answer:string contract 유지
+가 87371f4c에 구현되어 있음.
+
+이번 작업 목적:
+앱 코드를 추가 수정하지 않고,
+현재 release/v2.0.0 상태를 검증한 뒤
+2.0.0 전용 OTA로 안전하게 배포한다.
+
+중요:
+1.6.3 OTA 금지.
+production 기존 채널 금지.
+Native build 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 resolved Expo config 확인:
+
+app version:
+2.0.0
+
+runtimeVersion:
+2.0.0
+
+channel:
+production-v2
+
+OTA branch:
+release-2.0.0
+
+현재 release/v2.0.0 branch인지 확인.
+
+87371f4c가 현재 HEAD의 ancestor인지 확인.
+
+curriculum-chat.tsx의 renderer 변경이 현재 HEAD에 유지되는지 확인.
+
+잘못 정리했던 attached_assets 파일 외
+예상치 못한 소스 변경이 없는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 코드 추가 수정 금지
+━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+- curriculum-chat.tsx 추가 수정 금지
+- API 수정 금지
+- AI ENGINE 수정 금지
+- response_format 추가 금지
+- navigation 수정 금지
+- 다른 2.0.0 기능 수정 금지
+
+현재 검증된 코드 그대로 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+배포 전에 Parent Curriculum 관련 테스트 및
+가능한 앱 타입체크/관련 테스트 실행.
+
+확인:
+
+- 한 문단 plain text
+- \n\n 포함 answer
+- 기존 **...** 포함 answer
+- 긴 answer
+- 짧은 answer
+- copy 기능
+- progress card
+- error state
+
+새 regression 0 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. OTA 배포
+━━━━━━━━━━━━━━━━━━━━
+
+모든 확인 PASS 시:
+
+2.0.0 전용 대상으로만 OTA publish.
+
+반드시:
+
+runtimeVersion = 2.0.0
+channel = production-v2
+branch = release-2.0.0
+
+1.6.3:
+runtimeVersion 1.6.3
+channel production
+branch production
+
+에는 전달되지 않는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 배포 후 확인
+━━━━━━━━━━━━━━━━━━━━
+
+보고:
+
+- OTA update id
+- runtimeVersion
+- channel
+- branch
+- git SHA
+- publish status
+
+그리고 사용자 실기기에서 확인할 질문으로
+아래 2개만 제시:
+
+1. 배영 어려워?
+2. 자유형에서 중요한 게 뭐야?
+
+실제 화면에서:
+- 긴 한 덩어리 문단이 아닌지
+- 문단 사이 간격이 보이는지
+- ** 마커가 노출되지 않는지
+- 내용이 잘리거나 사라지지 않는지
+
+확인할 수 있게 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 금지
+
+- Render deploy 금지
+- AI ENGINE deploy 금지
+- 1.6.3 OTA 금지
+- Android/iOS native build 금지
+- Production DB 변경 금지
+- 코드 추가 수정 금지
+
+━━━━━━━━━━━━━━━━━━━━
+7. 완료보고
+
+1. branch / HEAD SHA
+2. resolved app version
+3. resolved runtimeVersion
+4. OTA channel
+5. OTA branch
+6. 87371f4c 포함 여부
+7. 테스트 결과 / 새 실패
+8. OTA update id
+9. publish 상태
+10. 1.6.3 격리 확인
+
+그리고 STOP.

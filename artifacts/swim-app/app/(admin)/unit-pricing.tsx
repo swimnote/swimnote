@@ -2,17 +2,16 @@
  * (admin)/unit-pricing.tsx — 수업 단가표 설정
  * 주1회/주2회/주3회 월 수업료 설정 → 정산 자동계산에 반영
  */
-import { Check, DollarSign } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Platform,
+  Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -26,7 +25,7 @@ interface PricingItem {
 }
 
 const WEEKLY_TYPES = [
-  { key: "weekly_1", label: "주1회 수업", defaultSessions: 4, color: "#2EC4B6" },
+  { key: "weekly_1", label: "주1회 수업", defaultSessions: 4, color: C.brandStrong },
   { key: "weekly_2", label: "주2회 수업", defaultSessions: 8, color: "#7C3AED" },
   { key: "weekly_3", label: "주3회 수업", defaultSessions: 12, color: "#D97706" },
 ];
@@ -116,10 +115,7 @@ export default function UnitPricingScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.background }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={{ flex: 1, backgroundColor: C.background }}>
       <SubScreenHeader
         title="수업 단가표"
         rightSlot={
@@ -130,7 +126,7 @@ export default function UnitPricingScreen() {
           >
             {saving
               ? <ActivityIndicator color="#fff" size="small" />
-              : <><Check size={14} color="#fff" /><Text style={s.saveBtnTxt}>저장</Text></>
+              : <><LucideIcon name="check" size={14} color="#fff" /><Text style={s.saveBtnTxt}>저장</Text></>
             }
           </Pressable>
         }
@@ -139,14 +135,14 @@ export default function UnitPricingScreen() {
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 40 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {/* 안내 */}
           <View style={[s.infoBox, { backgroundColor: themeColor + "12", borderColor: themeColor + "30" }]}>
-            <DollarSign size={14} color={themeColor} />
+            <LucideIcon name="circle-dollar-sign" size={14} color={themeColor} />
             <Text style={[s.infoTxt, { color: C.text }]}>
               월 수업료를 설정하면 수업시수 × 수업당 단가로{"\n"}선생님 정산이 자동 계산됩니다.
             </Text>
@@ -199,8 +195,8 @@ export default function UnitPricingScreen() {
           {/* 저장 결과 메시지 */}
           {savedMsg ? (
             <View style={[s.msgBox, {
-              backgroundColor: savedMsg === "저장되었습니다." ? "#E6FFFA" : "#FEE2E2",
-              borderColor: savedMsg === "저장되었습니다." ? "#2EC4B6" : "#FCA5A5",
+              backgroundColor: savedMsg === "저장되었습니다." ? C.brandSoft : "#FEE2E2",
+              borderColor: savedMsg === "저장되었습니다." ? C.brandStrong : "#FCA5A5",
             }]}>
               <Text style={[s.msgTxt, { color: savedMsg === "저장되었습니다." ? "#0F766E" : "#DC2626" }]}>
                 {savedMsg}
@@ -217,9 +213,9 @@ export default function UnitPricingScreen() {
               + 추가수업비용 (별도 발생 시)
             </Text>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

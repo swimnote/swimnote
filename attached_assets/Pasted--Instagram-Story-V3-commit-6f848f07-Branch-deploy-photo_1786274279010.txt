@@ -1,0 +1,211 @@
+[배포 승인 — Instagram Story V3 최종 디자인]
+
+현재 commit:
+6f848f07
+
+Branch:
+deploy-photo-clone
+
+Instagram Story V3 최종 디자인 배포 승인.
+
+반드시 순서:
+
+1. Render 재배포
+2. story-summary endpoint 검증
+3. 서버 정상 확인 후 instagram-test OTA
+4. 실기기 최종 확인
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 재배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경 대상:
+
+artifacts/api-server/src/routes/story.ts
+
+변경 내용:
+
+- Story Summary 길이 약 90자 수준으로 축소
+- "자상한 선생님 한마디" 말투
+- 원문 사실만 사용
+- 보고서체 금지
+- 광고문구 금지
+- 이모지 자동 생성 금지
+
+기존 권한/visibility/SQL/maxChars 재시도 로직은 유지.
+
+DB 변경 금지.
+
+배포 후 확인:
+
+- Render live
+- /api/health 200
+- 실제 parent_account story-summary 200
+- summary.length <= 목표 maxChars
+- 타 학생 note 혼입 없음
+- 기존 401/403/404 유지
+
+서버 실패 시 OTA 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. App OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 검증 PASS 후:
+
+runtimeVersion:
+1.6.2
+
+channel:
+instagram-test
+
+commit:
+6f848f07
+
+에만 OTA 배포.
+
+중요:
+
+EXPO_PUBLIC_META_APP_ID 누락 재발 방지.
+
+배포 시 반드시 성공했던 방식으로:
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+shell env 직접 주입
+
++
+
+--environment preview
+
+병행.
+
+META_APP_ID가 빈값으로 인라인되는 OTA 재발 금지.
+
+production channel OTA 금지.
+runtime 1.6.1 변경 금지.
+Native Build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 최종 실기기 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1 — 사진 1장
+
+확인:
+- 사진이 Story의 주인공으로 크게 보임
+- 담당 선생님 이름 없음
+- 반 이름 없음
+- 날짜 간결
+- 한줄평 2~3줄
+- footer:
+  수영장 이름 / SWIMNOTE
+- Instagram Composer 정상
+
+CASE 2 — 사진 4장
+
+확인:
+- 4장이 자연스러운 collage
+- 버튼/카드 느낌 없음
+- 사진 영역 충분히 큼
+- 한줄평 과하지 않음
+
+CASE 3 — 사진 10장
+
+확인:
+- 10장 모두 실제 표시
+- +N 없음
+- 5×2 collage 정상
+- 사진이 지나치게 작거나 알아보기 어려운지 확인
+- 세로사진 crop이 과도하지 않은지 확인
+- 한줄평 2~3줄
+- footer 정상
+- Story 1장
+
+CASE 4 — 긴 원문
+
+확인:
+- 긴 보고서형 summary 아님
+- 자상한 선생님 한마디 느낌
+- 원문 사실 왜곡 없음
+- 90자 안팎
+- 잘림 없음
+
+CASE 5 — 브랜드
+
+확인:
+- 수영장 이름 충분히 읽힘
+- 중앙 광고 타이틀처럼 보이지 않음
+- footer 좌측에 자연스럽게 위치
+- SWIMNOTE 우측 branding 또렷함
+- 네이비 충분한 contrast
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 디자인 성공 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 Story가:
+
+"앱 UI 카드"
+처럼 보이면 실패.
+
+"수영장에서 편집해서 만든 깔끔한 Instagram Story"
+처럼 보여야 한다.
+
+특히 금지:
+
+- 버튼 느낌
+- pill 느낌
+- 과한 둥근 박스
+- 요소별 테두리
+- 보고서 느낌
+- 광고 배너 느낌
+- 너무 많은 글
+
+사진이 가장 먼저 보여야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- Share.shareSingle
+- captureRef
+- META_APP_ID 구조
+- Instagram 설치 확인
+- summary cache 구조
+- parent visibility
+- DB
+- Native
+- app.json
+- eas.json
+- 기존 일지
+- 사진 원본
+
+추가 수정 없이 현재 commit 그대로 배포한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Render Deploy ID
+2. Render Live SHA
+3. health
+4. parent summary HTTP status
+5. 실제 summary chars
+6. 실제 summary 예시 1개
+   ※ 개인정보 제거
+7. OTA Group ID
+8. iOS Update ID
+9. Android Update ID
+10. runtimeVersion
+11. channel
+12. commit SHA
+13. META_APP_ID 주입 방식
+14. Production 1.6.1 영향
+15. DB 변경
+16. Native Build
+17. 실기기 CASE 1~5 결과
+
+배포 후 추가 수정 없이 멈춘다.

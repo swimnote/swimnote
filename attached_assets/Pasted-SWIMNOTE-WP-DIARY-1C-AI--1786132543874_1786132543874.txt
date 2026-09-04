@@ -1,0 +1,207 @@
+SWIMNOTE — WP-DIARY-1C 즉시 정정
+
+실기기 캡처로 확인 완료.
+
+너는 지금까지 잘못된 화면을 수정/진단했다.
+
+사용자가 문제라고 한 화면:
+"AI 일지 작성"
+하단:
+"수정하기"
+"다시 생성"
+"일지에 삽입"
+
+여기에서 학생별 AI 일지가 길어질 때
+카드/편집영역이 늘어나지 않고
+입력 커서가 아래로 사라지는 것이 실제 문제다.
+
+그런데 네가 진단 패널을 붙인 화면은:
+
+"반 공통 일지"
+"학생별 추가 일지"
+"템플릿선택"
+
+이 있는 일반 일지 작성 화면이다.
+
+즉 현재 진단 위치가 잘못됐다.
+
+실기기 증거:
+- 문제 화면과 진단 화면이 서로 다름
+- 진단 화면에서 S.layout / S.content / S.parent = undefined
+- 따라서 현재 진단값은 실제 장애 분석에 사용할 수 없음
+
+━━━━━━━━━━━━━━━━━━━━
+1. 기존 원인 판정 전부 철회
+━━━━━━━━━━━━━━━━━━━━
+
+다음 이전 판정은 무효 처리:
+
+- DiaryWriteView가 문제 화면이라는 판정
+- DiaryEditView가 문제 화면이라는 판정
+- numberOfLines={3} 원인 확정
+- numberOfLines={6} 복사 적용 판정
+- scrollEnabled 관련 원인 판정
+
+실기기 문제 화면을 잘못 잡았으므로
+위 판정들은 실제 장애 증거가 아니다.
+
+단 기존 commit은 지금 바로 rollback하지 말고
+실제 문제 컴포넌트 확인 후 별도 판단.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 실제 문제 화면부터 정확히 찾기
+━━━━━━━━━━━━━━━━━━━━
+
+Repository 전체에서 다음 문자열 검색:
+
+"AI 일지 작성"
+"수정하기"
+"다시 생성"
+"일지에 삽입"
+"학생별 일지"
+"AI 작성 결과"
+
+이 문자열들이 실제 렌더되는 파일을 찾는다.
+
+반드시 제출:
+
+- 정확한 파일 경로
+- 컴포넌트명
+- 해당 JSX line
+- 이 화면을 여는 부모 컴포넌트
+- 수정 모드 state
+
+WP-DIARY-0에서 확인된
+DiaryAIContent.tsx
+가 실제 화면인지 코드로 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 실제 AI 결과 모달 내부 구조 조사
+━━━━━━━━━━━━━━━━━━━━
+
+같은 "AI 일지 작성" 모달 안에서:
+
+A. 전체일지 영역
+B. 학생별 일지 영역
+
+을 직접 비교.
+
+특히 학생별 일지 수정 시 사용하는
+실제 TextInput/Editable 컴포넌트 원문 제출:
+
+- value
+- onChangeText
+- multiline
+- numberOfLines
+- height
+- minHeight
+- maxHeight
+- scrollEnabled
+- overflow
+- flex
+- flexGrow
+- onContentSizeChange
+- parent height
+- parent overflow
+- ScrollView 구조
+
+━━━━━━━━━━━━━━━━━━━━
+4. 현재 실기기 증상 기준
+━━━━━━━━━━━━━━━━━━━━
+
+확인된 실제 증상:
+
+- 학생별 일지에 타이핑은 계속 입력됨
+- 뒷부분 텍스트는 화면에 안 보임
+- 커서도 아래로 사라짐
+- 카드 높이는 늘어나지 않음
+- 전체일지는 긴 내용이 화면에 보임
+
+따라서 실제 문제 모달 안에서:
+
+A. TextInput content는 늘어나는데 layout 고정인지
+B. TextInput은 늘어나지만 parent가 자르는지
+C. 내부 scroll만 되고 cursor follow가 안 되는지
+
+코드로 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 진단도 실제 문제 모달에만 붙일 것
+━━━━━━━━━━━━━━━━━━━━
+
+진단이 필요하면 반드시
+"AI 일지 작성" 모달 내부에 붙인다.
+
+COMMON:
+- common text length
+- common contentSize.height
+- common layout.height
+- common parent height
+
+STUDENT:
+- student_ref/student_id
+- student text length
+- student contentSize.height
+- student layout.height
+- student parent height
+
+일반 DiaryWriteView에는 더 이상 진단 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 목표 동작
+
+AI 일지 작성 결과 모달에서:
+
+전체일지
+[전체 내용 전부 표시]
+
+학생1
+[개별 내용 전부 표시/수정]
+
+학생2
+[개별 내용 전부 표시/수정]
+
+...
+학생20
+[개별 내용 전부 표시/수정]
+
+학생별 카드가 내용 길이만큼 늘어나고,
+모달 전체를 아래로 스크롤해서 마지막 학생까지 접근 가능.
+
+수정 중 커서가 항상 현재 입력 위치에 보여야 한다.
+
+작은 고정 높이 TextInput 내부에서
+텍스트/커서가 사라지는 구조 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 이번 조사에서 건드리지 말 것
+
+- AI Engine
+- common/students Contract
+- student_ref 매핑
+- Diary API
+- DB
+- scheduler
+- photos
+- 보강 Production Baseline
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━
+8. 제출
+
+1. 실제 문제 화면 파일
+2. 실제 컴포넌트
+3. "AI 일지 작성" 문자열 line
+4. 전체일지 영역 원문
+5. 학생별 일지 영역 원문
+6. 수정 모드 TextInput 원문
+7. 전체/개별 layout 차이
+8. 커서가 사라지는 정확한 원인
+9. 왜 기존 DiaryWriteView 진단이 잘못됐는지
+10. 최소 수정 diff
+11. 수정 예정 파일
+
+아직 코드 수정 금지.
+Commit / Push / OTA 금지.

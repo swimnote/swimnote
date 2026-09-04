@@ -1,0 +1,151 @@
+SWIMNOTE 보강 날짜 범위 수정 — Git 정리·최종 Commit·배포 전 증거 제출
+
+구현 및 테스트 결과는 승인한다.
+
+다만 현재 보고서의 변경 파일 수가 실제 Git 상태와 일치하지 않는다.
+
+실제 코드 변경 파일은 3개가 아니라 4개다.
+
+1. artifacts/api-server/src/routes/teachers.ts
+2. artifacts/api-server/src/routes/admin.ts
+3. artifacts/swim-app/app/(admin)/makeups.tsx
+4. artifacts/api-server/src/routes/__tests__/makeup-date-range.test.ts
+
+makeup-date-range.test.ts는 실제 테스트 코드이므로 허용 파일에 정식 포함한다.
+
+attached_assets 파일은 코드 Commit에 포함하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 Git 상태 재확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 원문을 제출한다.
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git show --stat --oneline HEAD
+git diff --name-status HEAD
+git diff -- artifacts/swim-app/app/\(admin\)/makeups.tsx
+git diff --no-index /dev/null artifacts/api-server/src/routes/__tests__/makeup-date-range.test.ts || true
+
+확인:
+
+- 자동 커밋 70ed2fd0에 teachers.ts·admin.ts 외 다른 코드가 섞였는지
+- makeups.tsx만 working tree 수정인지
+- 테스트 파일이 실제 48개 테스트를 포함하는지
+- attached_assets가 자동 커밋에 포함됐는지
+- package.json·lockfile·로그인·일지 파일 변경이 없는지
+
+예상과 다르면 즉시 중단한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 최종 허용 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업의 최종 허용 코드 파일은 아래 4개다.
+
+- artifacts/api-server/src/routes/teachers.ts
+- artifacts/api-server/src/routes/admin.ts
+- artifacts/swim-app/app/(admin)/makeups.tsx
+- artifacts/api-server/src/routes/__tests__/makeup-date-range.test.ts
+
+이 외 코드 파일 변경 금지.
+
+attached_assets는 Commit 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 테스트 파일 검수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+makeup-date-range.test.ts가 실제 운영 함수를 검증하는지 확인한다.
+
+금지되는 허위 테스트:
+
+- 운영 코드와 동일한 로직을 테스트 파일에 복사한 뒤 복사본만 검사
+- Route를 통과하지 않고 기대값을 상수 비교
+- status를 임의 반환하는 fake 함수만 테스트
+- 실제 teachers.ts/admin.ts 함수와 연결되지 않은 테스트
+
+다음을 제출한다.
+
+- 테스트 파일 전체 코드
+- import 대상
+- 실제 운영 함수 또는 Route와 연결되는 방식
+- 48개 테스트 목록
+- 날짜 기준 고정 방식
+- mocked 항목과 실제 실행 항목 구분
+
+운영 코드와 연결되지 않은 복제 테스트라면 145/145 결과를 통합 검증 증거로 인정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 최종 테스트 재실행
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Git 정리 전 다시 실행한다.
+
+- 4개 Test Files
+- 145개 Tests
+- 수정 파일 TypeScript 오류 0건
+
+실제 명령과 전체 요약 결과를 제출한다.
+
+추가로 grep 확인:
+
+grep -RIn "DATE_BEFORE_OR_ON_ABSENCE" \
+  artifacts/api-server/src/routes/teachers.ts \
+  artifacts/api-server/src/routes/admin.ts
+
+기존 차단 로직이 실행 코드에 남아 있지 않아야 한다.
+
+grep -RIn "MAKEUP_DATE_OUT_OF_RANGE" \
+  artifacts/api-server/src/routes/teachers.ts \
+  artifacts/api-server/src/routes/admin.ts \
+  artifacts/swim-app/app/\(admin\)/makeups.tsx
+
+서버 2개 경로와 관리자 오류 처리 경로가 모두 확인돼야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Commit 정책
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+자동 커밋 70ed2fd0은 되돌리거나 재작성하지 않는다.
+
+현재 미커밋 파일 중 아래 2개만 추가 Commit한다.
+
+- artifacts/swim-app/app/(admin)/makeups.tsx
+- artifacts/api-server/src/routes/__tests__/makeup-date-range.test.ts
+
+attached_assets는 제외한다.
+
+Commit 메시지 예시:
+
+fix: complete makeup date range validation
+
+Commit 후 제출:
+
+git rev-parse HEAD
+git show --stat --oneline HEAD
+git status --short
+git log --oneline -5
+
+attached_assets만 untracked로 남는 것은 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Push·배포 전 중단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+아직 Push하지 않는다.
+
+최종 Commit 증거와 테스트 파일의 실제 연결성을 먼저 제출하고 중단한다.
+
+그 보고서가 승인된 뒤 순서는 다음과 같다.
+
+1. 현재 브랜치 Push
+2. Render 서버 배포 완료 확인
+3. 서버 Health 확인
+4. 날짜 경계 API 확인
+5. Production·Preview OTA
+6. 실기기 확인
+
+이번 단계에서는 Commit까지만 수행하고 Push·Render·OTA는 금지한다.

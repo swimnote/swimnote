@@ -1,0 +1,844 @@
+[SWIMNOTE X PRODUCT COMPLETION]
+[X02-B — X PAYMENT IDENTITY + EARLY-BIRD SLOT FINAL DESIGN AUDIT]
+
+목적:
+
+App Store Connect / RevenueCat 외부 설정이 완료된 상태에서
+실제 X 결제 코드를 구현하기 전에
+
+1. 기존 SWIMNOTE 기본 플랜 RevenueCat identity
+2. X 구독의 pool ownership
+3. pool_admin 교체
+4. 구매 복원
+5. 선착순 X 가맹번호/할인 슬롯
+6. 결제 성공/실패/만료
+
+를 충돌 없이 처리할 최종 구조를 확정한다.
+
+이번 WP는 AUDIT / DESIGN ONLY.
+
+코드 수정 금지.
+DB migration 금지.
+DB write 금지.
+RevenueCat 변경 금지.
+Store 변경 금지.
+OTA 금지.
+Build 금지.
+Deploy 금지.
+
+==================================================
+0. EXTERNAL CONFIG — ALREADY DONE
+==================================================
+
+다음 외부 설정은 완료된 것으로 간주한다.
+
+App Store Connect:
+
+Subscription Group:
+SWIMNOTE X
+
+Products:
+
+com.swimnote.x.monthly.tier1
+→ 50% tier
+
+com.swimnote.x.monthly.tier2
+→ 30% tier
+
+com.swimnote.x.monthly.tier3
+→ 10% tier
+
+com.swimnote.x.monthly.standard
+→ standard
+
+모두:
+1 month auto-renewable subscription
+
+RevenueCat:
+
+Entitlement:
+x_mode
+
+4개 X product 모두 x_mode entitlement에 attach 완료.
+
+Offering:
+x_monthly
+
+Packages:
+
+$rc_custom_x_tier1
+→ com.swimnote.x.monthly.tier1
+
+$rc_custom_x_tier2
+→ com.swimnote.x.monthly.tier2
+
+$rc_custom_x_tier3
+→ com.swimnote.x.monthly.tier3
+
+$rc_custom_x_standard
+→ com.swimnote.x.monthly.standard
+
+Webhook:
+
+기존 RevenueCat webhook active.
+
+현재 URL:
+https://swimnote-api.onrender.com/api/billing/revenuecat-webhook
+
+Authorization header 설정됨.
+
+Both Production and Sandbox.
+All apps.
+All events.
+
+이번 작업에서 webhook URL 변경 금지.
+
+==================================================
+1. CORE PRODUCT CONTRACT
+==================================================
+
+SWIMNOTE 기본 플랜과
+SWIMNOTE X는 별도 subscription이다.
+
+BASIC
+≠
+X
+
+각각:
+
+- 별도 상품
+- 별도 결제 시작일
+- 별도 갱신일
+- 별도 해지
+- 별도 복원 상태
+
+X 해지 또는 만료가
+기본 SWIMNOTE subscription에 영향을 주면 안 된다.
+
+==================================================
+2. CURRENT REVENUECAT IDENTITY TRACE
+==================================================
+
+현재 실제 코드에서 다음 전수 조사:
+
+initializeRevenueCat
+loginRevenueCat
+logoutRevenueCat
+Purchases.logIn
+Purchases.logOut
+Purchases.configure
+appUserID
+CustomerInfo
+subscription.tsx
+x-subscription.tsx
+_layout.tsx
+billing routes
+
+정확히 보고:
+
+A. RevenueCat current App User ID가 무엇인지
+B. 언제 login되는지
+C. role별 동작
+D. 기본 플랜 결제가 어떤 ID에 귀속되는지
+E. 기본 플랜 restore가 어떤 ID를 사용 중인지
+
+추측 금지.
+
+==================================================
+3. CRITICAL QUESTION
+==================================================
+
+다음 구조가 가능한지 검증한다.
+
+OPTION A
+
+기존 기본 플랜:
+RC appUserID = adminUser.id
+
+X:
+RC appUserID = pool.id
+
+문제:
+
+RevenueCat SDK current user를
+결제 종류에 따라 login/logout 전환해야 하는가?
+
+그 경우:
+
+- 기본 subscription CustomerInfo 오염
+- restore
+- entitlement
+- purchase history
+- anonymous alias
+- user switching
+- race condition
+
+위험을 실제 현재 SDK 구조 기준으로 평가한다.
+
+==================================================
+4. ALTERNATIVE IDENTITY DESIGNS
+==================================================
+
+최소 다음 4개 비교.
+
+OPTION A
+모든 RevenueCat 구매를 기존처럼 user.id 유지
+
+OPTION B
+전체 RevenueCat identity를 pool-based ID로 migration
+
+OPTION C
+기존 basic은 user.id 유지,
+X ownership은 server-side pool mapping으로 별도 관리
+
+OPTION D
+별도의 deterministic billing owner ID 사용
+예:
+billing:<pool_id>
+
+단 SDK current customer 문제까지 포함하여 검토.
+
+각각:
+
+- 기본 플랜 영향
+- X 결제 안정성
+- pool_admin 교체
+- restore
+- account transfer
+- security
+- migration risk
+- implementation complexity
+
+평가.
+
+==================================================
+5. PREFERRED PRINCIPLE
+==================================================
+
+X는 개인 사용자의 서비스가 아니라
+수영장 운영처의 subscription이다.
+
+따라서 최종 business ownership은 반드시:
+
+swimming_pool
+
+에 귀속되어야 한다.
+
+단 이것이 반드시
+RC App User ID = pool.id
+라는 뜻은 아니다.
+
+기존 결제 구조를 깨지 않는 것이 더 중요하다.
+
+RevenueCat identity와
+APP-side subscription ownership을 구분해서 설계할 수 있는지 검토.
+
+==================================================
+6. POOL_ADMIN CHANGE
+==================================================
+
+시나리오:
+
+Pool A
+기존 owner user1이 X 구독 구매.
+
+이후 owner가 user2로 변경.
+
+요구사항:
+
+- Pool A의 X 구독이 사라지면 안 됨
+- 새로운 owner가 X 상태를 정상 확인 가능
+- 기본 플랜 상태 손상 금지
+- user2가 user1의 개인 정보에 의존하면 안 됨
+
+현재 architecture에서
+어떻게 해결해야 하는지 설계.
+
+==================================================
+7. PURCHASE RESTORE
+==================================================
+
+다음 시나리오 분석:
+
+A.
+동일 pool
+동일 Apple ID
+새 기기
+
+B.
+동일 pool
+owner 계정 변경
+
+C.
+다른 pool
+같은 Apple ID
+
+D.
+동일 owner가 여러 pool을 관리
+
+E.
+앱 로그아웃 후 다른 pool 로그인
+
+잘못된 pool로 X entitlement가 이동할 위험 분석.
+
+==================================================
+8. SERVER AS SOURCE OF TRUTH
+==================================================
+
+검토:
+
+X 사용 가능 여부의 최종 source를
+
+RevenueCat CustomerInfo 직접 판정
+
+vs
+
+APP SERVER
+swimming_pools.xmode_entitlement
+
+중 어디로 둘지.
+
+현재 canonical contract:
+
+RevenueCat purchase/webhook
+→ APP SERVER
+→ swimming_pools.xmode_entitlement
+→ xmode_config_status
+→ mode resolver
+
+이 구조 유지가 적절한지 판정.
+
+==================================================
+9. CUSTOMERINFO ROLE
+==================================================
+
+구매 직후 CustomerInfo는:
+
+- 결제 성공 UX 확인
+- entitlement 확인
+- server sync trigger
+
+정도로만 쓰고
+
+최종 앱 mode는
+APP SERVER 상태를 사용하도록 할지 평가.
+
+==================================================
+10. EARLY-BIRD POLICY — FIXED
+==================================================
+
+X 할인 정책:
+
+X 가입번호 1~100
+→ 50%
+
+101~300
+→ 30%
+
+301~500
+→ 10%
+
+501+
+→ 정상가
+
+중요:
+
+이 기준은
+결제 성공 순번이 아니라
+
+X 신청/예약 시 확정된 가맹번호
+
+를 기준으로 한다.
+
+==================================================
+11. RESERVATION POLICY
+==================================================
+
+기존 X 정책:
+
+예약 시 슬롯 차감.
+
+예약번호 = 가맹번호.
+
+예:
+x-0299
+
+가입년월 표기 정책 등이 존재할 수 있으므로
+현재 관련 코드/DB가 이미 있는지 먼저 조사.
+
+중복 DB 만들지 말 것.
+
+==================================================
+12. PAYMENT DEADLINE
+==================================================
+
+기존 제품 정책:
+
+예약 후 일정 시간 내 미결제 시
+슬롯 반환.
+
+현재 프로젝트 정책상
+1시간 미결제 반환 규칙이 존재하는지
+코드/DB/문서에서 확인.
+
+존재하면 그대로 사용.
+
+없으면 MISSING으로 보고.
+
+이번 audit에서 임의 구현 금지.
+
+==================================================
+13. SLOT LIFECYCLE
+==================================================
+
+최종 slot 상태 후보:
+
+RESERVED
+PAYMENT_PENDING
+PURCHASED
+RELEASED
+CANCELLED
+
+필요한 상태만 제안.
+
+흐름:
+
+reservation
+→ sequence 확정
+→ tier 확정
+→ product 확정
+→ payment deadline
+→ purchase
+
+실패/시간초과:
+→ release
+
+구매 성공:
+→ permanent assignment
+
+==================================================
+14. TIER MAPPING
+==================================================
+
+sequence 기준:
+
+1~100
+tier1
+com.swimnote.x.monthly.tier1
+
+101~300
+tier2
+com.swimnote.x.monthly.tier2
+
+301~500
+tier3
+com.swimnote.x.monthly.tier3
+
+501+
+standard
+com.swimnote.x.monthly.standard
+
+이 mapping을
+client가 임의 결정하면 안 된다.
+
+Server에서 확정해야 한다.
+
+==================================================
+15. CLIENT TRUST
+==================================================
+
+금지:
+
+client에서
+현재 가입자 수를 세고
+discount product 결정.
+
+금지:
+
+client가
+tier1 product ID를 직접 요청한다고
+server가 그대로 신뢰.
+
+Server가:
+
+pool
+slot
+sequence
+tier
+product
+
+일치 여부를 검증해야 한다.
+
+==================================================
+16. DB DESIGN REVIEW
+==================================================
+
+다음 두 구조 비교.
+
+A.
+
+swimming_pools 컬럼 추가
+
+x_subscription_sequence
+x_subscription_tier
+x_subscription_product_id
+...
+
+B.
+
+별도:
+
+x_subscription_slots
+
+예상 컬럼:
+
+id
+pool_id
+sequence_number
+franchise_number
+tier_key
+store_product_id
+status
+reserved_at
+payment_deadline_at
+purchased_at
+released_at
+created_at
+updated_at
+
+현재 DB 구조와 향후 audit/history 관점에서
+어느 쪽이 적합한지 판단.
+
+기본 원칙:
+
+결제/가맹 이력은 별도 business entity이면
+별도 테이블 우선.
+
+==================================================
+17. SEQUENCE ATOMICITY
+==================================================
+
+100 / 300 / 500 경계에서
+동시에 여러 운영처가 신청해도
+중복 sequence 발생하면 안 된다.
+
+PostgreSQL 기준:
+
+sequence
+transaction
+unique constraint
+
+등을 사용해
+원자 할당 구조를 제안.
+
+이번 audit에서 migration 금지.
+
+==================================================
+18. SLOT REUSE
+==================================================
+
+예:
+
+100번 예약자가 결제 안 하고
+1시간 후 RELEASED.
+
+그 슬롯을:
+
+A. 다음 신청자에게 다시 100번으로 배정
+
+vs
+
+B. 100번은 결번 처리하고 다음은 101
+
+기존 X 정책/프로젝트 자료를 조사하여
+현재 확정 정책이 있는지 확인.
+
+있으면 그대로 보고.
+
+없으면
+BUSINESS DECISION REQUIRED로 표시.
+
+임의 결정 금지.
+
+==================================================
+19. DISCOUNT PERSISTENCE
+==================================================
+
+구매 완료 후:
+
+tier1 고객은
+향후 가입 운영처가 500개를 넘어도
+tier1 subscription을 유지한다.
+
+renewal 때
+standard product로 자동 변경 금지.
+
+반대로:
+
+구독 해지 후 몇 개월 뒤 재가입하면
+
+기존 할인 tier 복원인지
+신규 순번 적용인지
+
+현재 정책이 존재하는지 조사.
+
+없으면 BUSINESS DECISION REQUIRED.
+
+==================================================
+20. PRODUCT CHANGE
+==================================================
+
+기존 tier 고객을
+다른 tier 상품으로 자동 이동시키는 로직 금지.
+
+단:
+
+refund
+billing issue
+Store product migration
+
+같은 특별 상황은
+별도 처리 필요 여부 보고.
+
+==================================================
+21. WEBHOOK IDENTITY
+==================================================
+
+현재 webhook:
+
+appUserId
+→ users.id
+→ swimming_pool_id
+
+구조가 확인되어 있다.
+
+X 결제 identity 구조를 바꿀 경우
+webhook mapping이 어떻게 달라지는지 분석.
+
+현재 basic subscription webhook
+손상 금지.
+
+==================================================
+22. SYNC ENDPOINT
+==================================================
+
+구매 직후:
+
+webhook 도착 전
+UI가 오래 x_pending으로 갱신되지 않는 gap이 있을 수 있다.
+
+따라서 X 전용:
+
+POST /billing/sync-x-subscription
+
+필요 여부 재검증.
+
+필요하면:
+
+- authenticated pool_admin
+- RC customer verification
+- expected product verification
+- pool slot verification
+- entitlement verification
+
+를 포함해야 함.
+
+이번 audit에서 생성 금지.
+
+==================================================
+23. SECURITY MODEL
+==================================================
+
+반드시 방어:
+
+- 다른 pool product 구매
+- 다른 tier 강제 요청
+- replay
+- duplicate webhook
+- duplicate purchase confirmation
+- owner 변경
+- restore cross-pool
+- client-modified product id
+- fake entitlement
+
+==================================================
+24. MANUAL SUPER ADMIN X
+==================================================
+
+Super Admin manual entitlement는
+RevenueCat subscription과 별도 유지.
+
+절대 customer payment sync에 사용 금지.
+
+manual entitlement ON/OFF와
+paid entitlement를 향후 어떻게 구분해야 하는지
+현재 DB 구조를 조사.
+
+둘이 같은 boolean을 공유하면
+paid 상태를 manual OFF로 끌 위험이 있는지도 분석.
+
+==================================================
+25. IMPORTANT — ENTITLEMENT SOURCE COLLISION
+==================================================
+
+특히 확인:
+
+현재:
+
+swimming_pools.xmode_entitlement
+
+하나의 boolean이
+
+A. RevenueCat paid subscription
+B. Super Admin manual entitlement
+
+둘 다에 의해 수정되는지.
+
+그렇다면:
+
+manual
+paid
+
+source를 구분하는 컬럼/상태가 필요한지 분석.
+
+예:
+
+x_entitlement_source
+x_paid_entitlement
+x_manual_entitlement
+
+등.
+
+임의 구현 금지.
+
+이 항목은 P0 수준으로 중요하게 평가.
+
+==================================================
+26. CONFIG STATE
+==================================================
+
+결제 성공:
+
+paid entitlement = active
+
+config READY:
+mode x
+
+config != READY:
+mode x_pending
+
+결제 상태가
+config_status를 수정하면 안 됨.
+
+==================================================
+27. CANCELLATION / EXPIRATION
+==================================================
+
+Store cancellation:
+
+기간 종료 전
+paid entitlement 유지.
+
+expiration:
+paid entitlement false.
+
+단 manual entitlement가 따로 살아 있다면
+최종 mode entitlement 계산은 어떻게 해야 하는지 설계.
+
+예:
+
+effective_x_entitlement =
+paid_active OR manual_active
+
+가능 여부 검토.
+
+==================================================
+28. RECOMMENDED FINAL MODEL
+==================================================
+
+Audit 후
+단 하나의 권장 모델을 제시.
+
+다음 포함:
+
+REVENUECAT APP USER ID
+BASIC OWNERSHIP
+X OWNERSHIP
+POOL MAPPING
+SLOT TABLE
+SEQUENCE RULE
+TIER RULE
+PRODUCT RULE
+PURCHASE SYNC
+WEBHOOK
+RESTORE
+MANUAL ENTITLEMENT
+EFFECTIVE ENTITLEMENT
+MODE RESOLUTION
+
+==================================================
+29. IMPLEMENTATION PLAN
+==================================================
+
+권장 모델 확정 후 다음 WP를
+작게 분할해 제안.
+
+예:
+
+X02-B1 DB foundation
+X02-B2 entitlement source separation
+X02-C server purchase contract
+X02-D app purchase UI
+X02-E webhook idempotency
+X02-F TestFlight E2E
+
+실제 repository에 필요한 단계만 제안.
+
+==================================================
+30. REPORT FORMAT
+==================================================
+
+A. CURRENT RC IDENTITY
+B. BASIC SUBSCRIPTION OWNERSHIP
+C. X OWNERSHIP REQUIREMENT
+D. 4 IDENTITY OPTIONS
+E. RECOMMENDED IDENTITY
+F. POOL_ADMIN CHANGE
+G. RESTORE MATRIX
+H. SERVER SOURCE OF TRUTH
+I. SLOT POLICY
+J. RESERVATION POLICY
+K. PAYMENT DEADLINE
+L. SLOT REUSE POLICY FOUND?
+M. TIER MAPPING
+N. DB DESIGN
+O. ATOMIC SEQUENCE
+P. DISCOUNT PERSISTENCE
+Q. REJOIN POLICY FOUND?
+R. WEBHOOK MAPPING
+S. SYNC ENDPOINT
+T. MANUAL VS PAID ENTITLEMENT COLLISION
+U. EFFECTIVE ENTITLEMENT MODEL
+V. SECURITY
+W. CONFIG/MODE CONTRACT
+X. REQUIRED DB CHANGES
+Y. REQUIRED SERVER CHANGES
+Z. REQUIRED APP CHANGES
+AA. IMPLEMENTATION SEQUENCE
+AB. BUSINESS DECISIONS REQUIRED
+AC. BLOCKERS
+
+마지막:
+
+X02_B_PAYMENT_IDENTITY_SLOT_DESIGN_COMPLETE ✅
+
+또는
+
+X02_B_PAYMENT_IDENTITY_SLOT_DESIGN_BLOCKED ❌
+
+이번 WP 완료 전:
+
+DB migration 금지.
+구매 UI 구현 금지.
+RevenueCat login 구조 변경 금지.
+X02 payment code 시작 금지.

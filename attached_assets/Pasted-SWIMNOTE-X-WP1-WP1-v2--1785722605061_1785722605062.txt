@@ -1,0 +1,445 @@
+SWIMNOTE X — WP1 최종 증거 제출 지시
+
+WP1 정정 설계서 v2의 방향은 확인했습니다.
+
+아직 구현은 승인하지 않습니다.
+
+현재 남은 문제는 설계 내용이 아니라, 문서에 표시된 ENVIRONMENT_VERIFIED와 DB 직접 조회 주장의 실제 근거가 첨부되지 않았다는 점입니다.
+
+이번 작업에서는 코드 수정이나 Migration 실행 없이, 아래 증거만 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 작업 범위
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업은 다음 네 가지의 실제 조회 증거 제출만 진행합니다.
+
+1. 운영 DB 실제 스키마
+2. PART 2 테이블 실제 데이터 건수
+3. 백업 DB 실제 스키마
+4. standby sync 실제 실패 원인
+
+이번 응답에서 설계를 다시 만들거나 변경하지 마십시오.
+
+다음 작업은 금지합니다.
+
+* 코드 수정
+* Migration 수정
+* 신규 파일 생성
+* DB 변경
+* INSERT
+* UPDATE
+* DELETE
+* ALTER
+* CREATE
+* DROP
+* 서버 재시작
+* Commit
+* Push
+* OTA
+* Render 배포
+
+읽기 전용 조회만 허용합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 운영 DB 실제 컬럼 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB 연결은 실제 서버가 사용하는 SUPABASE_DATABASE_URL 기준으로 확인하십시오.
+
+아래 SQL 또는 동일한 결과를 보장하는 조회를 직접 실행하십시오.
+
+2-1. swimming_pools X모드 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'swimming_pools'
+  AND column_name IN (
+    'xmode_entitlement',
+    'xmode_config_status',
+    'xmode_purchased_at',
+    'xmode_subscription_end_at',
+    'xmode_payment_failed_at'
+  )
+ORDER BY ordinal_position;
+
+제출:
+
+* 실행한 SQL 원문
+* 결과 원문
+* 결과 행 수
+* 조회 대상 DB 식별 방식
+* 민감한 연결 문자열은 마스킹
+
+2-2. ENUM 실제 값
+
+SELECT
+  t.typname AS enum_name,
+  e.enumsortorder,
+  e.enumlabel
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+JOIN pg_namespace n ON n.oid = t.typnamespace
+WHERE n.nspname = 'public'
+  AND t.typname IN (
+    'xmode_config_status_enum',
+    'global_template_status_enum',
+    'growth_match_status_enum'
+  )
+ORDER BY t.typname, e.enumsortorder;
+
+제출:
+
+* SQL 원문
+* 결과 원문
+* 각 ENUM별 실제 값
+* v3.3.4와 일치 여부
+
+2-3. global_template_sets 실제 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'global_template_sets'
+ORDER BY ordinal_position;
+
+2-4. audit_entity_versions 실제 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'audit_entity_versions'
+ORDER BY ordinal_position;
+
+2-5. audit_logs 실제 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'audit_logs'
+ORDER BY ordinal_position;
+
+2-6. growth_events 실제 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'growth_events'
+ORDER BY ordinal_position;
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 Constraint·Index 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+문서에 적은 CHECK, FK, UNIQUE, Partial Index가 실제 DB에 존재하는지 확인하십시오.
+
+3-1. diary_templates Constraint
+
+SELECT
+  conname,
+  contype,
+  pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.diary_templates'::regclass
+ORDER BY conname;
+
+3-2. global_template_sets Index
+
+SELECT
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename = 'global_template_sets'
+ORDER BY indexname;
+
+3-3. growth_events Constraint
+
+SELECT
+  conname,
+  contype,
+  pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.growth_events'::regclass
+ORDER BY conname;
+
+3-4. growth_events Index
+
+SELECT
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename = 'growth_events'
+ORDER BY indexname;
+
+제출 시 문서 요약만 적지 말고 실제 결과 원문을 포함하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. PART 2 테이블 실제 데이터 건수
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 SQL을 운영 DB에서 직접 실행하십시오.
+
+SELECT
+  'parent_ai_daily_usage' AS table_name,
+  COUNT(*)::bigint AS row_count
+FROM parent_ai_daily_usage
+UNION ALL
+SELECT
+  'parent_ai_usage_reservations',
+  COUNT(*)::bigint
+FROM parent_ai_usage_reservations
+UNION ALL
+SELECT
+  'growth_reports',
+  COUNT(*)::bigint
+FROM growth_reports;
+
+제출:
+
+* 실행 SQL
+* 결과 원문
+* 각 테이블 실제 건수
+* 조회 시각
+
+0건이라고 추정하지 말고 실제 결과를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. PART 2 코드 참조 실제 검색 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 문자열이 현재 Repository의 어디에서 참조되는지 실제 검색하십시오.
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+growth_reports
+initXModePart2Schema
+
+검색 범위:
+
+* artifacts/api-server/src
+* artifacts/swim-app
+* jobs
+* routes
+* lib
+* migrations
+
+제출:
+
+* 실행한 검색 명령
+* 검색 결과 원문
+* Migration 정의 외 참조 여부
+* routes 참조 여부
+* jobs 참조 여부
+* app 참조 여부
+
+검색 결과가 없으면 검색 결과 0건의 실제 출력도 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 백업 DB 실제 스키마 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+백업 DB 연결은 POOL_DATABASE_URL 기준으로 확인하십시오.
+
+민감한 URL은 마스킹하고, 운영 DB와 백업 DB를 혼동하지 마십시오.
+
+6-1. 백업 DB swimming_pools X 컬럼
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'swimming_pools'
+  AND column_name LIKE 'xmode_%'
+ORDER BY ordinal_position;
+
+6-2. 백업 DB X 테이블 존재 여부
+
+SELECT
+  table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'global_template_sets',
+    'audit_entity_versions',
+    'audit_logs',
+    'growth_events',
+    'parent_ai_daily_usage',
+    'parent_ai_usage_reservations',
+    'growth_reports',
+    'curriculum_versions',
+    'curriculum_items',
+    'student_curriculum_assignments',
+    'curriculum_requests',
+    'curriculum_request_files'
+  )
+ORDER BY table_name;
+
+6-3. 백업 DB diary_templates 구조
+
+SELECT
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'diary_templates'
+  AND column_name IN (
+    'swimming_pool_id',
+    'scope',
+    'global_template_set_id'
+  )
+ORDER BY ordinal_position;
+
+제출:
+
+* SQL 원문
+* 결과 원문
+* 운영 DB 결과와 백업 DB 결과 비교표
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. standby sync 실제 오류 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 내용을 실제 로그에서 제출하십시오.
+
+1. 실패 시각
+2. 실패한 테이블
+3. PostgreSQL 오류 코드
+4. PostgreSQL 오류 메시지
+5. 실행된 SQL 또는 SQL 요약
+6. 실패 컬럼명
+7. 재시도 횟수 또는 반복 주기
+8. 현재도 계속 실패 중인지
+
+특히 다음 가설을 검증하십시오.
+
+swimming_pools standby sync 실패
+=
+백업 DB에 xmode 컬럼이 없어서
+운영 DB의 xmode 컬럼 포함 INSERT가 실패
+
+로그에 실제로 다음과 같은 오류가 있는지 확인하십시오.
+
+column "xmode_entitlement" of relation "swimming_pools" does not exist
+
+정확한 오류 메시지가 다르면 원문 그대로 제출하십시오.
+
+원인을 추정해서 문장을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. index.ts Migration 실패 처리 실제 코드
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 index.ts의 DB 초기화 코드를 실제 라인 범위와 함께 제출하십시오.
+
+필수 확인:
+
+* Promise.all 사용 여부
+* initPoolDb().catch(...)
+* initSuperDb().catch(...)
+* catch 내부에서 rethrow하는지
+* catch 이후 setServerReady()가 호출되는지
+* HTTP 서버 시작 시점
+* Worker 모드 초기화 흐름
+* 실패 시 현재 프로세스가 종료되는지
+
+제출 형식:
+
+파일:
+라인:
+실제 코드:
+실패 시 실제 흐름:
+
+이 단계에서는 process.exit(1) 코드를 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 결과 판정 규칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 항목을 다음 중 하나로 표시하십시오.
+
+* ENVIRONMENT_VERIFIED
+* REPOSITORY_VERIFIED
+* NOT_FOUND
+* NEEDS_VERIFICATION
+* CONTRADICTED
+
+ENVIRONMENT_VERIFIED는 실제 DB 또는 실제 실행 로그 원문이 있는 경우에만 사용하십시오.
+
+코드에서 DDL을 읽은 결과는 REPOSITORY_VERIFIED이지 ENVIRONMENT_VERIFIED가 아닙니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 최종 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 순서로 제출하십시오.
+
+1. 운영 DB 컬럼 조회 원문
+2. ENUM 조회 원문
+3. Constraint 조회 원문
+4. Index 조회 원문
+5. PART 2 row count 원문
+6. PART 2 코드 검색 원문
+7. 백업 DB 컬럼·테이블 조회 원문
+8. standby sync 실패 로그 원문
+9. index.ts 실제 초기화 코드
+10. v3.3.4와 실제 환경 최종 차이표
+11. 기존 WP1 정정 설계서에서 수정해야 할 문장
+12. 구현 승인 가능 여부에 대한 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+증거만 제출하고 멈추십시오.
+
+아직 금지:
+
+* 코드 수정
+* Migration 수정
+* DB 변경
+* 서버 재시작
+* process.exit 추가
+* 백업 DB 스키마 생성
+* curriculum DDL 저장
+* Commit
+* Push
+* OTA
+* Render 배포
+
+이 증거를 검수한 뒤에만 WP1 구현 승인 여부를 결정합니다.

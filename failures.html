@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실패 목록</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; background: #f9fafb; color: #111; }
+  h2 { font-size: 18px; margin-top: 32px; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 24px; }
+  th { background: #f1f5f9; text-align: left; padding: 10px 14px; font-size: 13px; color: #475569; }
+  td { padding: 10px 14px; font-size: 13px; border-top: 1px solid #f1f5f9; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .badge-red { background: #fee2e2; color: #b91c1c; padding: 2px 8px; border-radius: 99px; font-size: 12px; white-space: nowrap; }
+  .badge-orange { background: #ffedd5; color: #c2410c; padding: 2px 8px; border-radius: 99px; font-size: 12px; white-space: nowrap; }
+  .copy-btn { display: inline-flex; align-items: center; gap: 6px; background: #0f172a; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; font-size: 14px; cursor: pointer; margin-bottom: 28px; }
+  .copy-btn:hover { background: #1e293b; }
+  .copy-btn.done { background: #16a34a; }
+  #raw { display: none; }
+</style>
+</head>
+<body>
+
+<h1 style="font-size:22px; margin-bottom:4px;">에이전트 실패 전체 목록</h1>
+<p style="color:#64748b; font-size:13px; margin-bottom:20px;">지난 1주일 기준 · git 히스토리 + 메모리 기반</p>
+
+<button class="copy-btn" onclick="copyAll(this)">📋 전체 복사</button>
+
+<h2>🔴 빌드 실패 (EAS 크레딧 낭비) — 총 23회</h2>
+<table>
+  <tr><th>날짜</th><th>실패 횟수</th><th>빌드 번호</th><th>원인</th></tr>
+  <tr><td>6/19~6/20</td><td><span class="badge-red">4회</span></td><td>204·205·207·209</td><td>빌드 설정 오류</td></tr>
+  <tr><td>6/26</td><td><span class="badge-red">2회</span></td><td>211·212</td><td>tarball 경로 구조 오류 — cd artifacts/swim-app && tar ... 하면 project/package.json 경로 불일치</td></tr>
+  <tr><td>7/1</td><td><span class="badge-red">3회</span></td><td>217·219·220</td><td>1.4.0 전환 설정 시행착오</td></tr>
+  <tr><td><b>7/2</b></td><td><span class="badge-red"><b>9회</b></span></td><td>222·223·224·225·226·227·228·229·230</td><td>1.5.0 빌드 — compactMode·pnpm 버전·eas.json·git.js 패치 등 원인 파악 없이 하나씩 바꾸며 반복 실패</td></tr>
+  <tr><td>7/3</td><td><span class="badge-red">5회</span></td><td>231·232·233·234·235</td><td>1.5.0→1.5.1 전환 중 계속 실패</td></tr>
+</table>
+
+<h2>🔴 OTA 전달 안 된 버전으로 배포</h2>
+<table>
+  <tr><th>날짜</th><th>배포 version</th><th>문제</th></tr>
+  <tr><td>6/26 이전 (복수)</td><td>여러 버전</td><td>production 브랜치만 배포 → TestFlight 바이너리는 preview 채널 수신 → OTA 전달 불가. 6/26에 발견</td></tr>
+  <tr><td>7/1 20:23~20:54</td><td>1.4.0</td><td>OTA 알림 기능 3번 수정·배포 (bd1f887 → c2619ab → 47b08c7) — 앱스토어엔 아직 1.3.x만 있어서 전달 불가</td></tr>
+</table>
+
+<h2>🔴 코드 버그 (배포 후 발견)</h2>
+<table>
+  <tr><th>발견 시점</th><th>내용</th></tr>
+  <tr><td>이번 세션</td><td>diary-write.tsx, diary-teacher-entries.tsx — API 실패해도 에러 표시 없음. 빈 화면만 보임. 에러 처리 코드 누락</td></tr>
+  <tr><td>이번 세션</td><td>admin/classes.tsx DaySheet — onDismissed 패턴이 조건부 렌더링에서 호출 안 됨. 날짜 클릭 후 반 설정 모달 연결 불가</td></tr>
+  <tr><td>이전 세션</td><td>영상 다운로드 — FileSystem.downloadAsync로 서버 URL 직접 호출 → 302 redirect 못 따라가서 다운로드 실패. fetch로 URL resolve 후 재시도해서 해결</td></tr>
+  <tr><td>이전 세션</td><td>API_BASE — process.env.EXPO_PUBLIC_API_URL || "/api" fallback 사용 → 실기기에서 /api로 연결 시도해서 API 전부 실패</td></tr>
+  <tr><td>이전 세션</td><td>탭 바 텍스트 — Pretendard fontFamily 적용 시 iOS 한글 받침 세로 클리핑. lineHeight 명시 후 해결</td></tr>
+</table>
+
+<h2>🔴 환경 오판</h2>
+<table>
+  <tr><th>발견 시점</th><th>내용</th></tr>
+  <tr><td>이전 세션</td><td>tsx --watch 서버 자동재시작 표시됐지만 구 버전 라우터 잔존 → 코드 맞는데 404 반환. 강제 재시작 후 해결</td></tr>
+  <tr><td>이전 세션</td><td>선생님 목록 — getPoolId 매번 DB 조회 + JS sort → 느림. 토큰 poolId 우선 사용 + SQL ORDER BY로 해결</td></tr>
+</table>
+
+<h2>🔴 이번 세션 실패</h2>
+<table>
+  <tr><th>내용</th></tr>
+  <tr><td>OTA 배포 — timeout 115s → 87.8%에서 강제 종료. timeout 180s로 재시도 후 성공</td></tr>
+</table>
+
+<textarea id="raw">
+[에이전트 실패 전체 목록 - 지난 1주일 기준]
+
+■ 빌드 실패 (EAS 크레딧 낭비) - 총 23회
+- 6/19~20: 4회 (빌드 204·205·207·209) - 빌드 설정 오류
+- 6/26: 2회 (빌드 211·212) - tarball 경로 구조 오류
+- 7/1: 3회 (빌드 217·219·220) - 1.4.0 전환 설정 시행착오
+- 7/2: 9회 (빌드 222~230) - 1.5.0 빌드, 원인 파악 없이 반복 실패 (최악)
+- 7/3: 5회 (빌드 231~235) - 1.5.0→1.5.1 전환 중 계속 실패
+
+■ OTA 전달 안 된 버전으로 배포
+- 6/26 이전: production 브랜치만 배포 → TestFlight preview 채널에 전달 안 됨 (복수 회)
+- 7/1 20:23~20:54: version 1.4.0으로 OTA 3번 배포 → 앱스토어엔 1.3.x만 있어서 전달 불가
+
+■ 코드 버그 (배포 후 발견)
+- diary-write.tsx, diary-teacher-entries.tsx: API 실패 시 에러 표시 없음 (이번 세션)
+- admin/classes.tsx DaySheet: onDismissed 패턴 조건부 렌더링에서 작동 안 함 (이번 세션)
+- 영상 다운로드: FileSystem.downloadAsync가 302 redirect 미처리 → 다운로드 실패
+- API_BASE fallback "/api": 실기기에서 API 전부 실패
+- 탭 바 Pretendard 폰트: iOS 한글 받침 세로 클리핑
+
+■ 환경 오판
+- tsx --watch 자동재시작 표시됐으나 구 라우터 잔존 → 404 반환
+- 선생님 목록 매번 DB 조회 + JS sort → 성능 저하
+
+■ 이번 세션
+- OTA 배포 115s 타임아웃 실패 → 180s로 재시도
+</textarea>
+
+<script>
+function copyAll(btn) {
+  const text = document.getElementById('raw').value.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✅ 복사됨';
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = '📋 전체 복사'; btn.classList.remove('done'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>

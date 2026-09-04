@@ -1,0 +1,453 @@
+[앱] STEP-GAUGE-07 — GROWTH REPORT CURRICULUM PROGRESS SNAPSHOT
+
+기준:
+- GAUGE-01~06 COMPLETE
+- latest commit: c55c921c
+
+목적:
+월간 Growth Report 생성 시점의
+Curriculum Progress Gauge 상태를
+리포트 snapshot에 immutable하게 포함한다.
+
+핵심 목적:
+
+이번 달 리포트에서:
+
+- 현재 교육과정 진행도
+- 이전 리포트 시점 진행도
+- 전월 대비 +N %p
+- 현재 active curriculum rank/total
+- 실제 progress observation session 수
+
+를 정확히 저장하여,
+
+나중에 SCP 값이 변경되어도
+이미 생성된 과거 리포트의 수치는 변하지 않게 한다.
+
+이번 Step은 Growth Report snapshot builder와
+저장 payload만 수정한다.
+
+중요:
+- Growth Report AI Engine 추론 로직 수정 금지
+- 70-item framework 수정 금지
+- Parent Home 수정 금지
+- Parent Curriculum 수정 금지
+- Gauge CPO/SCP 계산 로직 수정 금지
+- AI Engine 외부 route 수정 금지
+- Render deploy 금지
+- OTA 금지
+- 전체 repo audit 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 대상 파일 최소 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+artifacts/api-server/src/lib/growth-report-snapshot-builder.ts
+
+및 Growth Report 저장 경로에서
+content JSONB 생성/저장하는 최소 파일만 확인.
+
+전체 Growth Report 구조 재조사 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. curriculum_state 확장
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 curriculum_state를 유지하면서
+다음 필드 추가:
+
+curriculum_state: {
+  ...existingFields,
+
+  confirmed_progress_pct,
+  active_confirmed_rank,
+  active_total_count,
+  active_version_id,
+
+  period_start_pct,
+  progress_delta_pct,
+
+  observation_session_count
+}
+
+의미:
+
+confirmed_progress_pct
+= 리포트 생성 시점 SCP.display_confirmed_pct
+
+active_confirmed_rank
+= SCP.active_confirmed_rank
+
+active_total_count
+= SCP.active_confirmed_total
+
+active_version_id
+= SCP.active_curriculum_version_id
+
+observation_session_count
+= SCP.observation_session_count
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Current Snapshot Source
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 값은:
+
+student_curriculum_progress
+
+WHERE:
+student_id=$studentId
+AND swimming_pool_id=$poolId
+
+에서 READ.
+
+학부모 표시 기준 진행도는 반드시:
+
+display_confirmed_pct
+
+사용.
+
+active_confirmed_pct를
+confirmed_progress_pct로 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. SCP row 없음
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생에게 아직 SCP가 없으면:
+
+confirmed_progress_pct = null 또는 0
+
+현재 Growth Report snapshot convention을 확인해서
+더 자연스러운 값을 사용.
+
+중요:
+아직 3-session evidence가 없는 상태를
+"0% 실력"처럼 해석하면 안 됨.
+
+권장:
+
+confirmed_progress_pct = null
+active_confirmed_rank = 0
+active_total_count = 0
+active_version_id = null
+observation_session_count = 0
+
+단 기존 JSON contract가 nullable을 허용하지 않으면
+0 사용 가능하되 의미는 "미확정"으로 유지.
+
+보고서에 결정 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Previous Report Snapshot
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+period_start_pct는
+현재 SCP를 과거 날짜 기준으로 재계산해서 만들면 안 된다.
+
+반드시:
+
+이 학생의 직전 완료 Growth Report
+content JSONB에 저장된
+
+curriculum_state.confirmed_progress_pct
+
+를 직접 읽어서 사용.
+
+즉:
+
+previous report immutable JSONB
+→ previous confirmed_progress_pct
+→ current report period_start_pct
+
+현재 SCP 재조회로
+과거값을 복원하는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Previous Report 선택
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+동일:
+
+student_id
+swimming_pool_id
+
+기준.
+
+현재 생성 중 report 제외.
+
+직전 finalized/completed report 1개 선택.
+
+기존 Growth Report status/version convention 재사용.
+
+ORDER BY report period/date descending
+LIMIT 1.
+
+초안/실패/취소 report가 있다면
+previous snapshot source로 사용 금지.
+
+실제 기존 status 값을 최소 확인하고
+완료 리포트만 선택.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Delta 계산
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+둘 다 값이 있을 경우:
+
+progress_delta_pct =
+ROUND(
+  confirmed_progress_pct - period_start_pct,
+  1
+)
+
+예:
+
+지난 리포트:
+42.4
+
+현재:
+48.7
+
+→ progress_delta_pct = 6.3
+
+표현 의미:
++6.3 %p
+
+"6.3%"가 아니라
+percentage point 차이임.
+
+이 단계에서는 UI 문구 만들지 말고
+숫자만 snapshot에 저장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 첫 리포트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+직전 완료 report가 없으면:
+
+period_start_pct = null
+progress_delta_pct = null
+
+0으로 강제하지 않는다.
+
+이유:
+첫 Growth Report에서
+"이번 달 +42%p 성장"처럼 오해되는 결과 방지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. Immutable Snapshot
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 생성이 완료되어
+content JSONB에 저장된 뒤에는
+
+해당 리포트 조회 시
+SCP를 다시 JOIN하여
+progress 값을 덮어쓰면 안 된다.
+
+과거 report:
+
+content.curriculum_state.confirmed_progress_pct
+content.curriculum_state.period_start_pct
+content.curriculum_state.progress_delta_pct
+
+그대로 반환.
+
+SCP가 이후:
+40 → 70
+
+으로 변해도
+기존 report snapshot은 40 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Version Transition
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+리포트 snapshot에는:
+
+confirmed_progress_pct
+= lifetime display gauge
+
+active_version_id
+= 생성 당시 현재 curriculum version
+
+active_confirmed_rank
+= 해당 active version factual rank
+
+를 같이 저장.
+
+따라서:
+
+old display=70%
+new version active=50%
+
+이면 report에는:
+
+confirmed_progress_pct: 70
+active_confirmed_rank: new version rank
+active_version_id: new version ID
+
+가 들어갈 수 있음.
+
+이건 정상.
+
+두 의미를 섞지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Growth Report AI Input
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 snapshot이 그대로 AI Engine input으로 전달되는 구조라면
+새 필드도 curriculum_state 안에 포함 가능.
+
+단 이번 Step에서:
+
+- AI prompt 새로 작성 금지
+- 모델 변경 금지
+- 70-item evaluation 변경 금지
+- 새로운 AI call 추가 금지
+
+현재 snapshot 전달 구조만 유지.
+
+AI가 새 필드를 무시해도 이번 Step은 정상.
+
+서술 활용은 향후 Growth Report integration 단계에서 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Data Semantics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 의미 유지:
+
+confirmed_progress_pct
+= 교육과정 진행 위치
+
+NOT:
+- 실력 점수
+- 숙련도
+- 운동능력 점수
+- DTA 점수
+- AI 평가 점수
+
+Growth Report 내부 변수명/주석에도
+"curriculum progress" 의미 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1
+현재 SCP display=42
+→ current confirmed_progress_pct=42
+
+TC2
+active pct와 display pct가 다름:
+active=35 / display=50
+→ confirmed_progress_pct=50
+
+TC3
+직전 completed report:
+confirmed=40
+현재=50
+→ period_start=40
+→ delta=10
+
+TC4
+직전 report 없음
+→ period_start=null
+→ delta=null
+
+TC5
+실패/draft report 존재
+→ previous source에서 제외
+
+TC6
+다른 student report 제외
+
+TC7
+다른 pool report 제외
+
+TC8
+현재 report 생성 이후 SCP 변경
+→ 저장된 JSONB snapshot 값 불변
+
+TC9
+version transition:
+display=70
+new active pct=50
+→ report confirmed=70
+→ active version/rank는 new version 값
+
+TC10
+SCP 없음
+→ 미확정 상태 안전 처리
+
+TC11
+AI/Professional 신규 dependency 없음
+
+TC12
+기존 Growth Report fields 손실 없음
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. Production DB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step:
+
+production Growth Report 생성 금지.
+production content JSONB UPDATE 금지.
+
+test/local PostgreSQL만 사용.
+
+production DB read-only 확인 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. Deployment
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Render deploy 금지.
+
+GAUGE-08까지 완료 후
+GAUGE-06/07/08 변경을 묶어서
+한 번에 manual Render deploy 예정.
+
+OTA도 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-07 GROWTH REPORT SNAPSHOT REPORT
+
+- snapshot builder file
+- Growth Report storage path
+- current progress source
+- confirmed_progress_pct source
+- previous completed report selection
+- period_start_pct source
+- progress_delta_pct calculation
+- first-report behavior
+- SCP-missing behavior
+- immutable JSONB confirmed: YES/NO
+- version-transition semantics
+- existing report fields preserved: YES/NO
+- new AI call added: NO
+- tests + pass count
+- production DB write: NO
+- changed files
+- commit SHA
+- Render deploy now: NO
+
+Final Verdict:
+GROWTH REPORT PROGRESS SNAPSHOT COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.

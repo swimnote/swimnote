@@ -1,0 +1,1026 @@
+[WP-CS-05R — SUPPORT KNOWLEDGE + FAQ FOUNDATION]
+
+목적:
+
+SWIMNOTE AI CUSTOMER SUPPORT MASTER V2.0 기준으로
+AI 고객센터가 실제 SWIMNOTE의 검증된 사용법·정책·기능 설명을
+검색할 수 있도록 Knowledge / FAQ Foundation을 구축한다.
+
+중요:
+
+이번 WP는 Knowledge + FAQ까지만 한다.
+
+아직 하지 않는다:
+
+- Solution DB 본격 구현
+- Resolution Router
+- Support AI
+- OpenAI 호출
+- Semantic Cache
+- Vision
+- Product Intelligence
+
+기존 support_knowledge_items를 최대 재사용한다.
+
+==================================================
+0. CS-04R LIVE PRECHECK
+==================================================
+
+먼저 이전 WP Render deployment 확인.
+
+실제 production에서:
+
+GET /support/frontend-map/meta
+GET /support/frontend-map/search
+GET /support/frontend-map/screens/:screen_id
+
+3개 smoke test.
+
+보고:
+
+CS04R_RENDER_LIVE =
+FRONTEND_MAP_META_LIVE =
+FRONTEND_MAP_SEARCH_LIVE =
+FRONTEND_MAP_DETAIL_LIVE =
+
+문제 없으면 CS-04R FULL CLOSE.
+
+실제 defect 없으면 CS-04R 코드 수정 금지.
+
+==================================================
+1. MASTER KNOWLEDGE CATEGORIES
+==================================================
+
+MASTER V2.0 기준 Knowledge 영역:
+
+APP_COMMON
+ADMIN
+TEACHER
+PARENT
+X
+ONBOARDING
+REPORT
+PAYMENT
+TECH_SUPPORT
+
+현재 repository의 category 체계가 있으면
+중복 enum을 만들지 말고 mapping/확장 검토.
+
+Knowledge는 다음 질문에 답하기 위한 것이다.
+
+- 기능이 무엇인지
+- 어디서 사용하는지
+- 누가 사용할 수 있는지
+- 정책이 무엇인지
+- 기본 사용방법
+- 자주 묻는 질문
+
+복잡한 장애 진단/Root Cause 해결은
+다음 Solution DB WP 책임.
+
+==================================================
+2. EXISTING ASSET AUDIT
+==================================================
+
+수정 전 repository에서 실제 지식 source 조사.
+
+최소:
+
+기존 도움말
+FAQ
+공지
+정책 문구
+Settings 설명
+X Mode 설명
+구독/결제 안내
+Growth Report 설명
+AI Diary 설명
+Parent Curriculum 설명
+보강/결석/연기 설명
+사진/영상 정책
+알림
+회원/학생
+출결
+support 기존 문구
+X03/X04 구조화 자료
+
+각 source:
+
+REUSE
+IMPORT_CANDIDATE
+REFERENCE_ONLY
+NOT_RELEVANT
+
+판정.
+
+AI가 새 내용을 창작해서 Knowledge를 채우면 안 된다.
+
+==================================================
+3. EXISTING TABLE REUSE
+==================================================
+
+현재:
+
+support_knowledge_items
+
+재사용.
+
+현재 지원:
+
+FAQ
+RULE
+KNOWN_ISSUE
+SOLUTION
+
+중 이번 WP 대상:
+
+FAQ
+일반 Knowledge
+
+필요하면 KNOWLEDGE / PRODUCT_GUIDE / POLICY 같은
+item_type 추가를 검토할 수 있으나
+기존 구조로 표현 가능하면 enum 추가하지 않는다.
+
+Solution과 Known Issue는 이번 WP에서
+기존 데이터 보존만.
+
+==================================================
+4. KNOWLEDGE RECORD CONTRACT
+==================================================
+
+최소 표현 가능:
+
+id
+item_type
+
+scope
+pool_id
+
+category
+feature
+
+title
+content
+
+question
+answer
+
+role conditions
+mode conditions
+
+frontend_screen_id
+deep_link
+
+status
+priority
+
+source_type
+source_ref
+
+version
+created_at
+updated_at
+
+reviewed_by
+reviewed_at
+
+실제 schema는 repository 기준 최소 확장.
+
+==================================================
+5. STATUS
+==================================================
+
+Knowledge lifecycle:
+
+PENDING
+ACTIVE
+INACTIVE
+ARCHIVED
+
+기존 값이 lowercase라면
+DB 호환 유지 + API/UI normalize 가능.
+
+자동 생성/import된 Knowledge는:
+
+PENDING
+
+Super Admin 승인 후에만:
+
+ACTIVE
+
+AI/자동 프로세스가
+PENDING → ACTIVE 직접 변경 금지.
+
+==================================================
+6. GLOBAL / POOL SCOPE
+==================================================
+
+scope:
+
+GLOBAL
+POOL
+
+GLOBAL:
+SWIMNOTE 공통 기능/정책
+
+POOL:
+특정 수영장 승인 정보
+
+POOL item에는 pool_id 필수.
+
+다른 pool 검색에서 절대 반환 금지.
+
+==================================================
+7. ROLE CONDITIONS
+==================================================
+
+Knowledge는 역할별 조건 지원.
+
+pool_admin
+sub_admin
+teacher
+parent
+
+예:
+
+"일지는 어디서 작성하나요?"
+
+teacher용 Knowledge와
+parent용 Knowledge가 다를 수 있음.
+
+role 미일치 Knowledge 반환 금지.
+
+==================================================
+8. MODE CONDITIONS
+==================================================
+
+normal
+x
+x_pending
+
+지원.
+
+공통:
+normal+x
+
+X 전용 설명:
+x
+
+Normal 사용자에게
+X 전용 기능을 일반 기능처럼 안내 금지.
+
+==================================================
+9. FRONTEND MAP LINK
+==================================================
+
+CS-04R의 frontend-map.v1.ts를
+Knowledge와 연결.
+
+Knowledge item이 화면과 관련 있으면:
+
+screen_id
+route/deep_link
+
+reference.
+
+route 문자열을 Knowledge마다 중복 관리하지 말고
+가능하면 screen_id → Frontend Map lookup.
+
+Frontend Map이 source of truth.
+
+==================================================
+10. FAQ STRUCTURE
+==================================================
+
+FAQ 최소:
+
+question
+answer
+category
+feature
+scope
+pool_id?
+roles[]
+modes[]
+screen_id?
+priority
+status
+
+FAQ 답변은
+검토된 고정 답변.
+
+LLM 생성 답변 아님.
+
+==================================================
+11. KNOWLEDGE VS FAQ
+==================================================
+
+Knowledge:
+기능/정책/사용법을 설명하는 정보 단위.
+
+FAQ:
+실제 사용자 질문 → 검증 답변 형태.
+
+같은 내용을 무조건 두 번 복제 금지.
+
+FAQ가 Knowledge를 reference할 수 있으면
+reference 구조 우선.
+
+==================================================
+12. SEARCH ENDPOINT
+==================================================
+
+기존 /super/support/knowledge CRUD와 충돌하지 않게
+
+사용자 Support용 read-only 검색 endpoint 구현/확장.
+
+예:
+
+GET /support/knowledge/search
+?q=
+&role=
+&mode=
+&pool_id=
+&category=
+&feature=
+&screen_id=
+
+실제 repository convention 우선.
+
+==================================================
+13. SEARCH ELIGIBILITY
+==================================================
+
+Support 검색에는 반드시:
+
+status = ACTIVE
+
+만 사용.
+
+PENDING
+INACTIVE
+ARCHIVED
+
+절대 자동 답변 source에 포함 금지.
+
+Super Admin preview/search에서는
+상태별 조회 가능.
+
+==================================================
+14. SEARCH ORDER
+==================================================
+
+이번 WP는 deterministic search.
+
+우선:
+
+exact FAQ question
+exact title
+feature
+screen_id
+support keyword
+normalized keyword/token
+content match
+
+Frontend Map과 연결 가능하면
+screen context boost 가능.
+
+OpenAI/embedding 호출 금지.
+
+==================================================
+15. NO MATCH
+==================================================
+
+적합한 Active Knowledge가 없으면:
+
+NO_MATCH
+
+반환.
+
+낮은 점수의 문서를
+정답이라고 강제 선택 금지.
+
+==================================================
+16. RESPONSE CONTRACT
+==================================================
+
+최소:
+
+matched
+match_type
+score
+
+knowledge_id
+item_type
+category
+feature
+
+title
+content 또는 answer
+
+scope
+screen_id
+deep_link
+
+source
+version
+
+llm_required
+
+deterministic match가 충분하면:
+
+llm_required = false
+
+NO_MATCH:
+llm_required = true
+
+하지만 실제 LLM 호출은 하지 않는다.
+
+==================================================
+17. INITIAL GLOBAL KNOWLEDGE
+==================================================
+
+이번 WP에서 seed를 넣는다면
+repository에서 검증 가능한 사실만.
+
+최소 핵심 도메인을 우선:
+
+ACCOUNT / LOGIN
+ADMIN
+TEACHER
+PARENT
+
+ATTENDANCE
+MAKEUP
+SCHEDULE
+
+DIARY
+AI_DIARY
+
+CURRICULUM
+GROWTH_REPORT
+
+PHOTO_VIDEO
+NOTIFICATION
+
+SUBSCRIPTION
+BILLING
+X_MODE
+
+TECH_SUPPORT
+
+단 숫자/정책/경로가
+repository에서 확인되지 않으면 작성 금지.
+
+==================================================
+18. NO AI-GENERATED MASS SEED
+==================================================
+
+"FAQ 300개 자동 생성"
+같은 작업 금지.
+
+처음에는 정확한 검증 Knowledge가 중요.
+
+Quality > Quantity.
+
+근거 없는 SWIMNOTE 기능 설명 생성 금지.
+
+==================================================
+19. SOURCE PROVENANCE
+==================================================
+
+각 Knowledge가 가능하면
+어디서 왔는지 추적.
+
+예:
+
+FRONTEND_MAP
+CODE_POLICY
+EXISTING_HELP
+X_SETUP
+MANUAL_ADMIN
+OTHER
+
+source_ref 가능.
+
+향후 오래된 Knowledge 파악에 필요.
+
+==================================================
+20. KNOWLEDGE VERSION
+==================================================
+
+수정/승인 시 version/revision 추적.
+
+Frontend Map version과 혼동 금지.
+
+예:
+
+knowledge_version
+
+또는 existing updated_at + revision.
+
+Cache WP에서 invalidation 가능한 구조.
+
+==================================================
+21. SUPER SUPPORT TABS
+==================================================
+
+현재 SuperSupport의 상담 탭 유지.
+
+추가:
+
+Knowledge
+FAQ
+
+서브탭.
+
+향후:
+
+Solution DB
+Frontend Map
+Known Issues
+Report Support
+Refund
+
+추가 가능한 구조.
+
+==================================================
+22. KNOWLEDGE ADMIN UI
+==================================================
+
+Super Admin 기능:
+
+목록
+검색
+필터
+상세
+신규 작성
+수정
+
+PENDING → ACTIVE 승인
+ACTIVE → INACTIVE
+ARCHIVED
+
+필터:
+
+type
+status
+scope
+pool
+role
+mode
+category
+feature
+
+==================================================
+23. FAQ UI
+==================================================
+
+FAQ만 별도 편집하기 쉬운 화면.
+
+필수:
+
+question
+answer
+scope
+roles
+modes
+category
+feature
+screen
+
+승인 상태.
+
+==================================================
+24. APPROVAL
+==================================================
+
+ACTIVE 전환은:
+
+super_admin only.
+
+API server에서 강제.
+
+UI 숨김만으로 보안 처리 금지.
+
+==================================================
+25. AUDIT
+==================================================
+
+audit_logs 재사용.
+
+최소:
+
+KNOWLEDGE_CREATED
+KNOWLEDGE_UPDATED
+KNOWLEDGE_ACTIVATED
+KNOWLEDGE_DEACTIVATED
+KNOWLEDGE_ARCHIVED
+
+FAQ도 Knowledge event로 처리 가능.
+
+actor
+item id
+변경 상태
+
+기록.
+
+본문 전체를 audit metadata에 중복 저장하지 않는다.
+
+==================================================
+26. X03/X04 POOL KNOWLEDGE
+==================================================
+
+X04 structured website/profile 자료 중
+향후 Support에 쓸 수 있는:
+
+운영 정보
+FAQ
+시설
+위치
+프로그램
+
+등이 존재할 수 있다.
+
+이번 WP에서는
+자동 ACTIVE import 금지.
+
+가능하면:
+
+X04 → Knowledge Import Candidate
+
+foundation.
+
+Flow:
+
+X04 source
+→ preview
+→ PENDING
+→ Super Admin review
+→ ACTIVE
+
+POOL scope 필수.
+
+==================================================
+27. CURRICULUM SAFETY
+==================================================
+
+X Pool curriculum은
+Global Support Knowledge로 복제 금지.
+
+필요한 경우:
+
+scope=POOL
+pool_id
+
+그리고 해당 pool 사용자만 접근.
+
+이번 WP에서는 수영 전문 판단 Support를
+넣지 않는다.
+
+==================================================
+28. GROWTH REPORT KNOWLEDGE
+==================================================
+
+이번 WP의 REPORT Knowledge는
+기능/정책 설명까지만.
+
+예:
+
+리포트가 무엇인지
+어디서 보는지
+생성상태 안내
+
+개별 학생 리포트 분석/설명은
+향후 WP-CS-14 Report Support 책임.
+
+개별 평가 추론 금지.
+
+==================================================
+29. BILLING / REFUND
+==================================================
+
+Billing Knowledge:
+
+기능/상태/정책 안내 가능.
+
+Refund 자동판정/실행 금지.
+
+Refund/Dispute 상세 시스템은
+후속 WP.
+
+==================================================
+30. SECURITY
+==================================================
+
+Public support search에서
+사용자가 query param으로 다른 pool_id를 보내도
+서버 auth pool 기준으로 강제.
+
+client pool_id 신뢰 금지.
+
+Super Admin만 arbitrary pool 검색 가능.
+
+==================================================
+31. PRIVACY
+==================================================
+
+Knowledge DB에 금지:
+
+학생 개인정보
+학부모 개인정보
+전화번호
+개별 일지
+개별 성장리포트
+JWT
+결제 민감정보
+상담본문
+
+POOL operating information은 가능.
+
+==================================================
+32. ANALYTICS FOUNDATION
+==================================================
+
+검색 시 SUPPORT event를 기록한다면:
+
+FAQ_HIT
+KNOWLEDGE_HIT
+NO_KNOWLEDGE_MATCH
+
+정도.
+
+raw query 전체 저장 금지.
+
+가능하면:
+
+category
+feature
+screen_id
+role
+mode
+knowledge_id
+match_type
+
+만.
+
+==================================================
+33. LLM AVOIDANCE
+==================================================
+
+Knowledge/FAQ로 해결 가능한 결과는:
+
+llm_required = false
+
+이후 Resolution Router에서
+LLM Avoidance KPI에 사용 가능.
+
+이번 WP에서 KPI 계산은 하지 않는다.
+
+==================================================
+34. SOLUTION DB LOCK
+==================================================
+
+support_knowledge_items의
+item_type=SOLUTION 데이터는 보존.
+
+하지만 이번 WP에서:
+
+diagnostic_checks
+root_cause
+verification_method
+escalation_conditions
+
+본격 Solution 구조 구현 금지.
+
+다음 WP-CS-06R에서 한다.
+
+==================================================
+35. KNOWN ISSUE LOCK
+==================================================
+
+KNOWN_ISSUE 기존 구조 보존.
+
+Super Incidents와 연결도 보존.
+
+이번 WP에서 장애 시스템 재설계 금지.
+
+==================================================
+36. NO SUPPORT AI
+==================================================
+
+이번 WP:
+
+OpenAI = 0
+LLM = 0
+Embedding = 0
+Vision = 0
+
+저장된 Knowledge deterministic retrieval만.
+
+==================================================
+37. MOBILE LOCK
+==================================================
+
+SupportChatScreen 변경 금지.
+
+모바일 UI 변경 없음.
+
+iOS OTA = NO
+Android OTA = NO
+
+==================================================
+38. TEST MATRIX
+==================================================
+
+CS05R-01
+global active knowledge search
+
+CS05R-02
+exact FAQ
+
+CS05R-03
+role-specific FAQ
+
+CS05R-04
+mode-specific knowledge
+
+CS05R-05
+screen_id mapping
+
+CS05R-06
+frontend map deep link lookup
+
+CS05R-07
+pending excluded
+
+CS05R-08
+inactive excluded
+
+CS05R-09
+archived excluded
+
+CS05R-10
+pool-specific knowledge
+
+CS05R-11
+cross-pool denied
+
+CS05R-12
+normal excludes X-only
+
+CS05R-13
+parent excludes admin-only
+
+CS05R-14
+NO_MATCH
+
+CS05R-15
+llm_required=false on deterministic match
+
+CS05R-16
+llm_required=true on NO_MATCH
+
+CS05R-17
+knowledge approval super_admin only
+
+CS05R-18
+audit event
+
+CS05R-19
+X04 import candidate stays PENDING
+
+CS05R-20
+no PII
+
+CS05R-21
+OpenAI zero
+
+CS05R-22
+Frontend Map regression none
+
+CS05R-23
+Support Inbox regression none
+
+CS05R-24
+full suite pass
+
+==================================================
+39. DEPLOYMENT
+==================================================
+
+Server/Web 변경 가능.
+
+DB:
+기존 support_knowledge_items 확장에
+정말 필요한 최소 migration만.
+
+새 Knowledge table 생성 기본 금지.
+
+Render deploy.
+
+Mobile:
+NO
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+==================================================
+40. FINAL REPORT
+==================================================
+
+CS04R_RENDER_LIVE =
+
+EXISTING_KNOWLEDGE_SOURCES =
+REUSED_KNOWLEDGE_SOURCES =
+
+KNOWLEDGE_TABLE =
+NEW_KNOWLEDGE_TABLES =
+
+KNOWLEDGE_TYPES =
+KNOWLEDGE_CATEGORIES =
+KNOWLEDGE_STATUS =
+KNOWLEDGE_SCOPES =
+
+ROLE_AWARE =
+MODE_AWARE =
+SCREEN_AWARE =
+FRONTEND_MAP_LINK =
+
+FAQ =
+KNOWLEDGE_SEARCH_ENDPOINT =
+SEARCH_METHOD =
+NO_MATCH_SUPPORTED =
+LLM_REQUIRED_FLAG =
+
+INITIAL_GLOBAL_KNOWLEDGE_COUNT =
+INITIAL_FAQ_COUNT =
+
+AI_GENERATED_SEED =
+SOURCE_PROVENANCE =
+KNOWLEDGE_VERSIONING =
+
+SUPER_KNOWLEDGE_UI =
+SUPER_FAQ_UI =
+APPROVAL =
+AUDIT_LOG =
+
+X04_IMPORT_CANDIDATE =
+X04_AUTO_ACTIVE =
+
+POOL_ISOLATION =
+PII_STORED =
+
+SOLUTION_DB_CHANGED =
+KNOWN_ISSUE_CHANGED =
+
+OPENAI_CALLS_ADDED =
+EMBEDDING_CALLS_ADDED =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+MOBILE_CHANGED =
+
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+IOS_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+CS04R_RENDER_LIVE = YES
+
+기존 support_knowledge_items 최대 재사용.
+
+ACTIVE item만 Support search에 사용.
+
+POOL_ISOLATION = PASS
+PII_STORED = NO
+
+X04_AUTO_ACTIVE = NO
+
+AI_GENERATED_SEED = NO
+
+SOLUTION_DB_CHANGED = NO
+KNOWN_ISSUE_CHANGED = NO
+
+OPENAI_CALLS_ADDED = 0
+EMBEDDING_CALLS_ADDED = 0
+
+MOBILE_CHANGED = NO
+IOS_OTA = NO
+ANDROID_OTA = NO
+
+완료:
+
+WP_CS_05R_SUPPORT_KNOWLEDGE_FAQ_FOUNDATION_COMPLETE ✅

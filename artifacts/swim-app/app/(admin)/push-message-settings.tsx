@@ -5,12 +5,11 @@
  *  1. 수업 일정 알림 시간 (전날, 당일 X시간 전)
  *  2. 메시지 템플릿 (공지, 전날, 당일, 일지, 사진)
  */
-import { Clock, PenLine, Save } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
-  Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Pressable, StyleSheet,
+  Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
@@ -23,7 +22,7 @@ const C = {
   border: "#E5E7EB",
   text: "#1A1A1A",
   textMuted: "#8A8A8A",
-  primary: "#2EC4B6",
+  primary: "#1683A3",
 };
 
 const TIME_OPTIONS = [
@@ -46,11 +45,11 @@ interface PoolSettings {
 const DEFAULTS: PoolSettings = {
   prev_day_push_time: "20:00",
   same_day_push_offset: 1,
-  tpl_notice: "📢 새 공지사항이 등록되었습니다.",
-  tpl_prev_day: "📅 내일 수업이 있습니다. 준비하세요!",
-  tpl_same_day: "⏰ 오늘 수업 {offset}시간 전입니다.",
-  tpl_diary: "📒 새 수업 일지가 작성되었습니다.",
-  tpl_photo: "📸 새 사진이 업로드되었습니다.",
+  tpl_notice: "새 공지사항이 등록되었습니다.",
+  tpl_prev_day: "내일 수업이 있습니다. 준비하세요!",
+  tpl_same_day: "오늘 수업 {offset}시간 전입니다.",
+  tpl_diary: "새 수업 일지가 작성되었습니다.",
+  tpl_photo: "새 사진이 업로드되었습니다.",
 };
 
 export default function AdminPushMessageSettingsScreen() {
@@ -96,7 +95,7 @@ export default function AdminPushMessageSettingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/more" />
+        <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/dashboard" />
         <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
       </SafeAreaView>
     );
@@ -104,16 +103,16 @@ export default function AdminPushMessageSettingsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/more" />
+      <SubScreenHeader title="푸시 발송 설정" homePath="/(admin)/dashboard" />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 80 }}
       >
         {/* ── 수업 일정 알림 시간 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <Clock size={14} color={themeColor} />
+            <LucideIcon name="clock" size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>수업 일정 알림 시간</Text>
           </View>
           <View style={s.card}>
@@ -124,7 +123,7 @@ export default function AdminPushMessageSettingsScreen() {
                 <Text style={s.subDesc}>전날 이 시각에 내일 수업 학부모에게 발송</Text>
               </View>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8, flexDirection: "row" }}>
               {TIME_OPTIONS.map(t => (
                 <Pressable
@@ -135,7 +134,7 @@ export default function AdminPushMessageSettingsScreen() {
                   <Text style={[s.chipText, settings.prev_day_push_time === t && { color: "#fff" }]}>{t}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             <View style={[s.row, { borderTopWidth: 1, borderTopColor: C.border }]}>
               <View style={s.rowLeft}>
@@ -160,7 +159,7 @@ export default function AdminPushMessageSettingsScreen() {
         {/* ── 메시지 템플릿 ── */}
         <View>
           <View style={s.sectionHeader}>
-            <PenLine size={14} color={themeColor} />
+            <LucideIcon name="edit-2" size={14} color={themeColor} />
             <Text style={[s.sectionTitle, { color: themeColor }]}>메시지 템플릿</Text>
           </View>
           <View style={s.card}>
@@ -192,10 +191,10 @@ export default function AdminPushMessageSettingsScreen() {
           style={[s.saveBtn, { backgroundColor: C.primary }]}
           onPress={() => setConfirmVisible(true)}
         >
-          <Save size={16} color="#fff" />
+          <LucideIcon name="save" size={16} color="#fff" />
           <Text style={s.saveBtnText}>설정 저장</Text>
         </Pressable>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <ConfirmModal
         visible={confirmVisible}

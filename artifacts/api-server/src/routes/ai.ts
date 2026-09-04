@@ -39,6 +39,9 @@ import {
   logDiaryStructured,
   type PipelineMode,
 } from '../lib/ai-diary-utils.js';
+import { saveAiTrace }  from '../lib/ai-trace-service.js';
+import { AI_FEATURE }   from '../lib/ai-feature-enum.js';
+import { AI_MODEL }     from '../config/ai-model-config.js';
 
 export {
   getEffectivePipelineMode,
@@ -111,7 +114,7 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
 
     const transcription = await client.audio.transcriptions.create({
       file:     audioFile,
-      model:    'whisper-1',
+      model:    AI_MODEL.STT,
       language: 'ko',
     });
 
@@ -120,6 +123,34 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
     console.log(`[AI/whisper:${internalId}] 완료 elapsed=${elapsedMs}ms len=${transcript.length}chars`);
 
     res.json({ request_id: internalId, transcript });
+
+    // AI01-04: Whisper usage trace (best-effort — 응답 이후 비동기)
+    void saveAiTrace({
+      status:                'SUCCESS',
+      request_id:            internalId,
+      internal_id:           internalId,
+      pool_id:               (req as any).user?.poolId ?? '',
+      actor_id:              (req as any).user?.id,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.STT,
+      pool_mode:             null,
+      provider:              'openai',
+      trigger_type:          'USER_ACTION',
+      service:               'whisper',
+      cost_source:           'UNKNOWN',
+      generation_mode:       'stt',
+      model:                 AI_MODEL.STT,
+      latency_ms:            elapsedMs,
+      input_tokens:          null,
+      output_tokens:         null,
+      total_tokens:          null,
+      audio_seconds:         null,    // client duration_ms 미전송 → 추정 금지
+      logical_request_count: 1,
+      actual_call_count:     1,
+      retry_count:           0,
+      result_generated:      true,
+    }).catch((err) => console.error('[AI/whisper] trace save error:', err?.message));
+
   } catch (e: any) {
     const elapsedMs = Date.now() - startMs;
     const safeMsg   = String(e?.message ?? 'Whisper API 호출 실패').replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED]');
@@ -129,6 +160,28 @@ async function handleWhisper(req: Request, res: Response): Promise<void> {
       request_id: internalId,
       error: { code: e?.code ?? 'WHISPER_ERROR', message: safeMsg, retryable },
     });
+
+    // AI01-04: Whisper 실패 trace — provider 호출 후 실패이므로 actual_call_count=1
+    void saveAiTrace({
+      status:                'FAILED',
+      request_id:            internalId,
+      internal_id:           internalId,
+      pool_id:               (req as any).user?.poolId ?? '',
+      actor_id:              (req as any).user?.id,
+      contract_version:      '1.0',
+      feature:               AI_FEATURE.STT,
+      pool_mode:             null,
+      provider:              'openai',
+      trigger_type:          'USER_ACTION',
+      service:               'whisper',
+      cost_source:           'UNKNOWN',
+      error_stage:           'PROVIDER_CALL',
+      error_code:            e?.code ?? 'WHISPER_ERROR',
+      latency_ms:            elapsedMs,
+      audio_seconds:         null,
+      actual_call_count:     1,
+      retry_count:           0,
+    }).catch((traceErr) => console.error('[AI/whisper] fail-trace save error:', traceErr?.message));
   }
 }
 
@@ -167,10 +220,13 @@ router.post(
 
     // ── 2. contract_version ─────────────────────────────────────────────────
     // 앱이 전송하는 contract_version을 검증합니다.
-    // 지원하지 않는 버전의 요청은 즉시 거부하여 하위 호환성을 강제합니다.
-    const contractVersion = rawBody.contract_version;
+    // undefined/missing 은 '1.0'으로 허용 (구버전 앱 하위 호환).
+    const contractVersionRaw = rawBody.contract_version;
+    const contractVersion = (typeof contractVersionRaw === 'string' && contractVersionRaw)
+      ? contractVersionRaw
+      : '1.0';
     const SUPPORTED_REQUEST_CONTRACT_VERSIONS = new Set(['1.0']);
-    if (typeof contractVersion !== 'string' || !SUPPORTED_REQUEST_CONTRACT_VERSIONS.has(contractVersion)) {
+    if (!SUPPORTED_REQUEST_CONTRACT_VERSIONS.has(contractVersion)) {
       console.warn(`[AI/diary:${internalId}] unsupported_contract_version version=${contractVersion} ext_id=${externalRequestId}`);
       res.status(400).json({
         contract_version: '1.0',
@@ -178,7 +234,7 @@ router.post(
         schema_version:   '1.0',
         feature:          'teacher_diary',
         status:           'failed',
-        error: { code: 'UNSUPPORTED_CONTRACT', message: `Unsupported contract_version: ${contractVersion ?? '(missing)'}. Supported: 1.0`, retryable: false },
+        error: { code: 'UNSUPPORTED_CONTRACT', message: `Unsupported contract_version: ${contractVersion}. Supported: 1.0`, retryable: false },
       });
       return;
     }
@@ -425,7 +481,7 @@ router.post(
       try {
         completion = await client.chat.completions.create(
           {
-            model:           'gpt-4o-mini',
+            model:           AI_MODEL.DIARY,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user',   content: userPrompt   },
@@ -560,13 +616,51 @@ router.post(
           common:   validatedOutput.common,
           students: validatedOutput.students,
         },
-        meta:  {},
+        meta:  {
+          // ★ PROOF_TRACE: purge 전후 common 문자열 (운영 증명용 임시 필드)
+          // 검증 완료 후 제거 예정
+          proof_trace: {
+            commit:                   'b64389ad+TRACE',
+            p0_gpt_raw_common:        rawValidated.common,
+            p1_after_leak_purge:      purgedCommon,
+            p1_leak_removed_count:    leakRemovedCount,
+            p2_after_eval_purge:      evalPurgedCommon,
+            p2_eval_removed_count:    evalRemovedCommon,
+            p_final_response_common:  validatedOutput.common,
+            student_names_checked:    studentNames,
+            input_text_snippet:       inputText.slice(0, 80),
+          },
+        },
         usage: {
           input_tokens:  usage?.prompt_tokens     ?? 0,
           output_tokens: usage?.completion_tokens ?? 0,
           total_tokens:  usage?.total_tokens      ?? 0,
         },
       });
+
+      // CS-PA1: AI 사용 계측 (응답 전송 후 비동기 — 실패해도 AI 응답에 영향 없음)
+      void saveAiTrace({
+        status:           'SUCCESS',
+        request_id:       externalRequestId,
+        internal_id:      internalId,
+        pool_id:          poolId,
+        actor_id:         (req as any).user?.id,
+        contract_version: '1.0',
+        feature:          AI_FEATURE.TEACHER_AI_DIARY,
+        pool_mode:        null,              // 레거시 엔드포인트 — X mode 판정 없음
+        student_count:    normalizedStudents.length,
+        user_role:        (req as any).user?.role ?? null,
+        result_generated: true,
+        provider:         'openai',
+        trigger_type:     'USER_ACTION',
+        service:          'gpt',
+        generation_mode:  effectiveMode,
+        model:            AI_MODEL.DIARY,
+        latency_ms:       elapsedMs,
+        input_tokens:     usage?.prompt_tokens     ?? null,
+        output_tokens:    usage?.completion_tokens ?? null,
+        total_tokens:     usage?.total_tokens      ?? null,
+      }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
 
     } catch (e: any) {
       const elapsedMs = Date.now() - startMs;
@@ -594,6 +688,15 @@ router.post(
           status:           'failed',
           error: { code: 'MODEL_TIMEOUT', message: 'Teacher diary generation timed out.', retryable: true },
         });
+        void saveAiTrace({
+          status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+          pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+          feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+          student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+          result_generated: false, provider: 'openai',
+          trigger_type: 'USER_ACTION', service: 'gpt',
+          error_stage: 'PROVIDER_CALL', error_code: 'MODEL_TIMEOUT', latency_ms: elapsedMs,
+        }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
         return;
       }
 
@@ -627,6 +730,19 @@ router.post(
           status:           'failed',
           error: { code: 'OUTPUT_VALIDATION_FAILED', message: 'Teacher diary output validation failed.', retryable: false },
         });
+        void saveAiTrace({
+          status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+          pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+          feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+          student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+          result_generated: false, provider: 'openai',
+          trigger_type: 'USER_ACTION', service: 'gpt',
+          error_stage: 'OUTPUT_VALIDATION', error_code: 'OUTPUT_VALIDATION_FAILED', latency_ms: elapsedMs,
+          model: AI_MODEL.DIARY,
+          input_tokens:  (completion as any)?.usage?.prompt_tokens     ?? null,
+          output_tokens: (completion as any)?.usage?.completion_tokens ?? null,
+          total_tokens:  (completion as any)?.usage?.total_tokens      ?? null,
+        }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
         return;
       }
 
@@ -654,6 +770,15 @@ router.post(
         status:           'failed',
         error: { code: e?.code ?? 'INTERNAL_ERROR', message: 'Teacher diary generation failed.', retryable },
       });
+      void saveAiTrace({
+        status: 'FAILED', request_id: externalRequestId, internal_id: internalId,
+        pool_id: poolId, actor_id: (req as any).user?.id, contract_version: '1.0',
+        feature: AI_FEATURE.TEACHER_AI_DIARY, pool_mode: null,
+        student_count: normalizedStudents.length, user_role: (req as any).user?.role ?? null,
+        result_generated: false, provider: 'openai',
+        trigger_type: 'USER_ACTION', service: 'gpt',
+        error_stage: 'INTERNAL', error_code: e?.code ?? 'INTERNAL_ERROR', latency_ms: elapsedMs,
+      }).catch((err) => console.error('[AI/diary] trace save error:', err?.message));
     }
   },
 );

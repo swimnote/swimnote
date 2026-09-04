@@ -1,0 +1,107 @@
+[앱]
+
+PRODUCTION PUSH INDEX CHECK — TEMP READ-ONLY DIAGNOSTIC
+
+사용자가 운영 DB에서 SQL을 직접 실행하기 어려움.
+
+따라서 production DB에 write 없이
+Growth Report push unique index 상태를 확인할 수 있는
+임시 read-only diagnostic endpoint를 최소 구현.
+
+==================================================
+1. 목적
+==================================================
+
+운영 DB에서 아래 두 가지 확인:
+
+A.
+uq_notifications_gr_published index 존재 여부
+
+B.
+GROWTH_REPORT_PUBLISHED duplicate notification 존재 여부
+
+==================================================
+2. endpoint
+==================================================
+
+super admin / platform admin 전용으로
+임시 diagnostic GET endpoint 추가.
+
+예:
+GET /api/super-admin/growth-report/push-index-status
+
+실제 프로젝트의 기존 super-admin auth convention 재사용.
+새 auth 구조 만들지 말 것.
+
+==================================================
+3. 조회 내용
+==================================================
+
+read-only SQL만 사용.
+
+index 존재:
+
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'notifications'
+AND indexname = 'uq_notifications_gr_published';
+
+duplicate 확인:
+
+SELECT type, ref_id, recipient_id, COUNT(*) AS cnt
+FROM notifications
+WHERE type = 'GROWTH_REPORT_PUBLISHED'
+GROUP BY type, ref_id, recipient_id
+HAVING COUNT(*) > 1;
+
+==================================================
+4. 응답
+==================================================
+
+예:
+
+{
+  "index_exists": true,
+  "index_name": "uq_notifications_gr_published",
+  "duplicate_group_count": 0,
+  "safe_for_on_conflict": true
+}
+
+safe_for_on_conflict = true 조건:
+
+index_exists === true
+AND
+duplicate_group_count === 0
+
+==================================================
+5. 절대 금지
+==================================================
+
+DB write 금지
+index 생성 금지
+duplicate 삭제 금지
+migration 실행 금지
+AI 호출 금지
+
+read-only 진단만.
+
+==================================================
+6. TEST
+==================================================
+
+- index 있음 + duplicate 0 → safe true
+- index 없음 → safe false
+- duplicate 있음 → safe false
+- non admin 접근 차단
+
+==================================================
+7. REPORT
+==================================================
+
+- SHA
+- endpoint path
+- auth 조건
+- response contract
+- tests
+
+완료 후 STOP.

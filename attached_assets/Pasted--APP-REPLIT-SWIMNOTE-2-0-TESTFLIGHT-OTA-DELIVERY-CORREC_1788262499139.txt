@@ -1,0 +1,470 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# TESTFLIGHT OTA DELIVERY CORRECTION
+# PUBLISH TO CURRENT MAPPED BRANCH ONLY
+
+진단 결과 ROOT CAUSE가 확정되었습니다.
+
+현재 TestFlight Build 252:
+
+Embedded Channel:
+production-v2
+
+현재 실제 Channel Mapping:
+
+production-v2
+→
+release-2.0.0
+
+그런데 직전 OTA:
+
+01a05cb1-b7c0-711a-82c9-651aba313e1c
+
+는 잘못해서:
+
+production-v2 branch
+
+에 발행되었습니다.
+
+따라서 TestFlight Build 252가 해당 OTA를 볼 수 없었습니다.
+
+이번 수정은 Channel Mapping을 변경하지 않고
+현재 정상 운영 중인 2.0 OTA 경로:
+
+production-v2 channel
+→
+release-2.0.0 branch
+
+를 그대로 유지한 채
+
+현재 release/v2.0.0 최신 코드를
+release-2.0.0 OTA branch에 다시 발행하는 작업입니다.
+
+사용자가 이 2.0 iOS TestFlight용 OTA 재발행을 승인합니다.
+
+==================================================
+1. 절대 변경 금지
+==================================================
+
+다음은 절대 변경하지 마십시오.
+
+production-v2 channel mapping
+
+즉:
+
+production-v2
+→ release-2.0.0
+
+현재 mapping을 그대로 유지.
+
+금지:
+
+- channel remap
+- channel rename
+- production channel 변경
+- 1.6.3 OTA
+- Android OTA
+- Render Production 변경
+- deploy-photo-clone 변경
+- Production DB 변경
+- RevenueCat 변경
+- App Store subscription 상품 변경
+- Google Play 변경
+
+==================================================
+2. SOURCE 확인
+==================================================
+
+현재 실제 source repository 확인.
+
+Expected:
+
+Repository:
+swimnote/swimnote
+
+Source branch:
+release/v2.0.0
+
+현재 HEAD를 실제 Git에서 다시 확인.
+
+직전 보고 기준:
+
+74ae1a4d
+
+였지만
+임의로 가정하지 말고 현재 실제 HEAD 확인.
+
+코드 수정 없이
+현재 최신 release/v2.0.0 코드를 그대로 사용.
+
+==================================================
+3. 발행 대상
+==================================================
+
+OTA를 다음 EAS Update branch로 발행:
+
+release-2.0.0
+
+중요:
+
+production-v2 branch에 다시 발행하지 마십시오.
+
+현재 TestFlight binary가 보는 경로는:
+
+production-v2 channel
+→ release-2.0.0 branch
+
+이므로 반드시 해당 branch에 발행.
+
+==================================================
+4. Platform
+==================================================
+
+이번 OTA:
+
+iOS ONLY
+
+Android 발행 금지.
+
+==================================================
+5. Runtime
+==================================================
+
+Expected RuntimeVersion:
+
+2.0.0
+
+발행 전 확인:
+
+TestFlight Build 252 runtime:
+2.0.0
+
+New OTA runtime:
+2.0.0
+
+MATCH 필수.
+
+불일치하면 발행 중지.
+
+==================================================
+6. OTA 내용
+==================================================
+
+현재 release/v2.0.0 최신 코드가 포함해야 할 내용:
+
+- Social Login Phase 1
+- Amendment A1
+- 신규 가격 UI
+- SWIMNOTE 9,900원
+- X300 129,000원
+- X500 199,000원
+- X1000 359,000원
+- X includes SWIMNOTE
+- DATA100 7,900원
+- DATA300 22,900원
+- subscription_required
+- WP3 subscription UI
+- 999999 → 회원수 무제한 표시
+- Premier 전용 영상 문구 제거
+
+기존 코드 상태 그대로 발행.
+
+추가 코드 변경 금지.
+
+==================================================
+7. OTA Message
+==================================================
+
+명확한 메시지 사용.
+
+예:
+
+2.0.0 iOS device test: Phase1 auth + Amendment A1 + WP3 subscription UI
+
+기존 메시지를 재사용해도 됨.
+
+==================================================
+8. 발행 후 Channel 확인
+==================================================
+
+OTA 발행 후 반드시 실제 EAS 상태 다시 확인.
+
+Expected:
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Mapped branch latest update:
+방금 새로 발행한 Update ID
+
+Runtime:
+2.0.0
+
+Platform:
+iOS
+
+즉 TestFlight Build 252가
+실제로 새 OTA를 볼 수 있는 경로인지
+발행 후 다시 검증.
+
+==================================================
+9. 기존 잘못 발행된 OTA
+==================================================
+
+기존 잘못 발행된:
+
+01a05cb1-b7c0-711a-82c9-651aba313e1c
+
+production-v2 branch OTA는
+삭제하거나 수정하지 마십시오.
+
+그냥 사용되지 않는 update로 남겨둡니다.
+
+불필요한 history rewrite 금지.
+
+==================================================
+10. 실기기 기대 동작
+==================================================
+
+새 OTA 발행 후 사용자 iPhone:
+
+TestFlight Build 252 실행
+
+Expected:
+
+앱 시작
+→ Updates.checkForUpdateAsync()
+→ 새 update 감지
+→ fetchUpdateAsync()
+→ 개발중 OTA restart modal 표시
+
+Modal:
+
+"앱 재실행하기"
+
+버튼 표시.
+
+사용자가 버튼 클릭:
+
+Updates.reloadAsync()
+또는 현재 구현된 reload 흐름
+→ 최신 OTA 적용.
+
+==================================================
+11. 모달이 다시 안 뜨는 경우
+==================================================
+
+새 OTA가 release-2.0.0 branch latest로
+정상 노출된 것이 확인됐는데도
+
+실기기에서 modal이 안 뜬다면
+
+새 OTA 추가 발행 금지.
+
+그 경우 다음만 보고:
+
+- latest update ID
+- current branch mapping
+- runtime
+- update availability
+- current running update ID
+- modal trigger status
+
+원인 재진단.
+
+==================================================
+12. Production 보호
+==================================================
+
+이번 작업 후에도:
+
+1.6.3 iOS:
+변경 없음
+
+1.6.3 Android:
+변경 없음
+
+Production channel:
+변경 없음
+
+deploy-photo-clone:
+변경 없음
+
+Render:
+변경 없음
+
+Production DB:
+변경 없음
+
+RevenueCat:
+변경 없음
+
+==================================================
+13. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# TESTFLIGHT OTA DELIVERY CORRECTION REPORT
+
+## SOURCE
+
+Repository:
+...
+
+Source Branch:
+release/v2.0.0
+
+HEAD:
+...
+
+Code changed:
+YES / NO
+
+Expected:
+NO
+
+## CHANNEL
+
+Channel:
+production-v2
+
+Mapped Branch Before:
+...
+
+Mapped Branch After:
+...
+
+Expected:
+release-2.0.0
+→ release-2.0.0
+
+Channel mapping changed:
+YES / NO
+
+Expected:
+NO
+
+## NEW OTA
+
+Published:
+YES / NO
+
+Target Branch:
+...
+
+Expected:
+release-2.0.0
+
+Platform:
+iOS
+
+Runtime:
+...
+
+Update ID:
+...
+
+Update Group:
+...
+
+Message:
+...
+
+## DELIVERY PATH
+
+TestFlight Build:
+252
+
+Embedded Channel:
+production-v2
+
+Channel:
+production-v2
+
+Mapped Branch:
+release-2.0.0
+
+Latest Update ID:
+...
+
+New OTA reachable by Build 252:
+YES / NO
+
+Expected:
+YES
+
+## OLD WRONG-BRANCH OTA
+
+Update ID:
+01a05cb1-b7c0-711a-82c9-651aba313e1c
+
+Deleted:
+YES / NO
+
+Expected:
+NO
+
+Modified:
+YES / NO
+
+Expected:
+NO
+
+## PRODUCTION SAFETY
+
+1.6.3 OTA:
+NONE
+
+Android OTA:
+NONE
+
+Render modified:
+NO
+
+Production DB modified:
+NO
+
+RevenueCat modified:
+NO
+
+App Store products modified:
+NO
+
+Google Play modified:
+NO
+
+## USER ACTION
+
+사용자 iPhone에서:
+
+1.
+TestFlight Build 252 실행
+
+2.
+OTA 확인 대기
+
+3.
+Update modal 확인
+
+4.
+"앱 재실행하기" 선택
+
+5.
+최신 2.0 화면 확인
+
+## FINAL
+
+2.0 TESTFLIGHT OTA DELIVERY:
+
+READY FOR DEVICE
+or
+FAILED
+
+BLOCKERS:
+NONE
+or
+...

@@ -1,0 +1,404 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 15
+POOL_DB FULL SCHEMA DIFF + SECURITY AUDIT
+READ ONLY ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 14 최종 승인:
+
+PRODUCTION_RLS_105_OF_105_VERIFIED ✅
+
+Production SUPABASE RLS 작업 종료.
+Production RLS 추가 변경 금지.
+
+현재 다음 문제:
+
+POOL_DATABASE_URL Backup DB에서
+standby-sync schema mismatch가 실제 발생 중.
+
+기존 확인 오류 예:
+
+- swimming_pools
+- subscription_plans
+- backup_settings
+- platform_banners
+- pool_credits
+- feature_flags
+
+단 위 목록만 믿지 말고
+Production ↔ POOL_DB 전체를 실제 비교한다.
+
+이번 Phase는 READ ONLY AUDIT다.
+
+DDL 금지.
+INSERT/UPDATE/DELETE 금지.
+RLS 적용 금지.
+standby-sync 수정 금지.
+코드 수정 금지.
+배포 금지.
+WP4 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. DB SOURCE 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+A. Production:
+SUPABASE_DATABASE_URL
+
+B. Backup:
+POOL_DATABASE_URL
+
+각각 제출:
+
+host
+database
+current_user
+session_user
+rolsuper
+rolbypassrls
+PostgreSQL version
+
+password/전체 connection string 출력 금지.
+
+두 DB를 절대 혼동하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+2. TABLE INVENTORY
+━━━━━━━━━━━━━━━━━━━━
+
+Production public schema:
+
+- total table count
+- 전체 table name
+
+Backup public schema:
+
+- total table count
+- 전체 table name
+
+비교:
+
+PRODUCTION_ONLY_TABLES
+BACKUP_ONLY_TABLES
+COMMON_TABLES
+
+정확한 목록과 count 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+3. COLUMN SCHEMA FULL DIFF
+━━━━━━━━━━━━━━━━━━━━
+
+COMMON_TABLES 전체 대상으로
+Production ↔ Backup column schema 비교.
+
+각 column:
+
+- column_name
+- data_type
+- udt_name
+- nullable
+- default
+- identity
+- generated
+
+비교.
+
+테이블별로:
+
+MATCH
+MISSING_COLUMN_IN_BACKUP
+EXTRA_COLUMN_IN_BACKUP
+TYPE_MISMATCH
+NULLABILITY_MISMATCH
+DEFAULT_MISMATCH
+
+분류.
+
+절대 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+4. KEY / CONSTRAINT DIFF
+━━━━━━━━━━━━━━━━━━━━
+
+COMMON_TABLES 전체:
+
+- primary key
+- unique constraints
+- foreign keys
+- check constraints
+
+Production ↔ Backup 비교.
+
+분류:
+
+MISSING_CONSTRAINT_IN_BACKUP
+EXTRA_CONSTRAINT_IN_BACKUP
+CONSTRAINT_DEFINITION_MISMATCH
+
+━━━━━━━━━━━━━━━━━━━━
+5. INDEX DIFF
+━━━━━━━━━━━━━━━━━━━━
+
+Production ↔ Backup:
+
+- unique index
+- normal index
+- partial index
+
+비교.
+
+RLS/security와 직접 무관해도
+backup restore 정합성에 필요하므로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+6. ENUM / TYPE DIFF
+━━━━━━━━━━━━━━━━━━━━
+
+사용 중인 PostgreSQL enum/custom type 비교.
+
+특히:
+
+xmode_config_status
+request_status
+template status
+subscription 관련 enum
+
+Production에는 있는데 Backup에 없는 type,
+값 구성이 다른 type을 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+7. RLS / POLICY STATE
+━━━━━━━━━━━━━━━━━━━━
+
+Production:
+
+expected:
+105 tables RLS=true
+
+실제 다시 확인만.
+
+Backup:
+
+각 table:
+- relrowsecurity
+- relforcerowsecurity
+- policy count
+
+현재 상태 제출.
+
+이번 Phase에서는 Backup RLS 적용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+8. ROLE / GRANT SECURITY
+━━━━━━━━━━━━━━━━━━━━
+
+Backup DB에서:
+
+anon
+authenticated
+service_role
+postgres
+
+관련 실제 존재 role 확인.
+
+각 대표 민감 테이블에 대한
+SELECT/INSERT/UPDATE/DELETE privilege 확인.
+
+대표:
+
+users
+students
+parent_accounts
+swimming_pools
+payment_logs
+backup_settings
+platform_banners
+subscription_plans
+
+테이블이 Backup에 없으면
+MISSING_TABLE로 표시.
+
+Data API public 제거 상태는
+사용자 Dashboard 조치 완료로 기록하되,
+HTTP anon runtime은 별도 미검증 상태 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. STANDBY-SYNC SOURCE AUDIT
+━━━━━━━━━━━━━━━━━━━━
+
+jobs/standby-sync.ts를 읽고
+현재 동기화 대상 전체를 정확히 추출.
+
+제출:
+
+HOT_SYNC tables
+FULL_SYNC tables
+FULL_SYNC_EXTRA tables
+기타 sync 대상
+
+각 테이블별:
+
+Production 존재?
+Backup 존재?
+Schema compatible?
+현재 sync 가능?
+현재 known error?
+
+표로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 실제 오류와 SCHEMA DIFF 연결
+━━━━━━━━━━━━━━━━━━━━
+
+Render 기존 standby-sync 로그의
+실패 테이블을 수집.
+
+각 실패에 대해:
+
+TABLE
+ERROR MESSAGE 요약
+ROOT SCHEMA DIFFERENCE
+PRODUCTION READ 상태
+BACKUP WRITE 상태
+
+분석.
+
+추측 금지.
+실제 schema와 로그로만 연결.
+
+━━━━━━━━━━━━━━━━━━━━
+11. DATA COUNT 비교
+━━━━━━━━━━━━━━━━━━━━
+
+READ ONLY로 가능한 테이블은:
+
+Production COUNT
+Backup COUNT
+
+비교.
+
+특히 standby-sync 대상.
+
+분류:
+
+MATCH
+BACKUP_BEHIND
+BACKUP_EMPTY
+BACKUP_TABLE_MISSING
+COUNT_NOT_COMPARABLE
+
+주의:
+count 차이만으로 데이터 손실이라고 단정 금지.
+sync 주기/대상 차이를 고려해서 분류.
+
+━━━━━━━━━━━━━━━━━━━━
+12. BACKUP COMPLETENESS 판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 항목을 별도로 판정:
+
+SCHEMA_COMPLETENESS
+SYNC_COVERAGE
+DATA_COMPLETENESS
+SECURITY_STATE
+RESTORE_READINESS
+
+각각:
+
+PASS
+PARTIAL
+FAIL
+NOT_VERIFIED
+
+중 하나.
+
+근거 첨부.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 최소 수정 계획 작성
+━━━━━━━━━━━━━━━━━━━━
+
+아직 수정하지 않는다.
+
+감사 결과를 기반으로
+Backup DB에 필요한 변경만 설계.
+
+원칙:
+
+- Production 전체 schema를 무작정 clone 금지
+- additive migration 우선
+- 기존 Backup 데이터 삭제 금지
+- DROP TABLE 금지
+- DROP COLUMN 금지
+- destructive type change 금지
+- Production DB 변경 금지
+
+수정안을:
+
+PHASE 16A
+PHASE 16B
+...
+
+처럼 위험도/의존성별로 나눠 제안.
+
+━━━━━━━━━━━━━━━━━━━━
+14. RLS 적용 순서 제안
+━━━━━━━━━━━━━━━━━━━━
+
+Backup schema mismatch를 먼저 해결할지,
+Backup RLS를 먼저 할지
+실제 구조를 보고 판단.
+
+단 이번 Phase에서는 아무것도 적용하지 않는다.
+
+추천 순서와 이유만 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. Production DB identity
+2. Backup DB identity
+3. table counts
+4. Production-only tables
+5. Backup-only tables
+6. common tables
+7. column schema diffs
+8. constraints diffs
+9. indexes diffs
+10. enum/type diffs
+11. Backup RLS/policy state
+12. Backup grants/security
+13. standby-sync 대상 전체
+14. standby-sync 실패 테이블
+15. 각 실패의 정확한 schema 원인
+16. Production vs Backup row counts
+17. schema completeness 판정
+18. sync coverage 판정
+19. data completeness 판정
+20. security state 판정
+21. restore readiness 판정
+22. 최소 수정 계획
+23. Backup RLS 적용 권장 순서
+24. 최종 판정
+
+최종 상태는 정확히 하나:
+
+POOL_DB_AUDIT_COMPLETE
+BACKUP_FIX_REQUIRED
+
+또는
+
+POOL_DB_AUDIT_COMPLETE
+BACKUP_SCHEMA_OK
+
+STOP.
+
+절대 수정하지 말 것.
+
+Production 변경 금지.
+POOL_DB 변경 금지.
+RLS 변경 금지.
+standby-sync 수정 금지.
+WP4 재개 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

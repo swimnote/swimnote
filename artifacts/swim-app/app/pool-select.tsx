@@ -1,8 +1,8 @@
-import { ChevronRight, CircleAlert, Droplet, Layers, LogOut } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator, Pressable, ScrollView,
+  ActivityIndicator, Image, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import Colors from "@/constants/colors";
 import { useAuth, type OwnedPool } from "@/context/AuthContext";
 
 const C = Colors.light;
-const TINT = "#2EC4B6";
+const TINT = C.primaryAction;
 
 export default function PoolSelectScreen() {
   const insets = useSafeAreaInsets();
@@ -56,7 +56,7 @@ export default function PoolSelectScreen() {
       {/* 헤더 */}
       <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={[styles.logoBox, { backgroundColor: "#E8F7F6" }]}>
-          <Layers size={28} color={TINT} />
+          <LucideIcon name="layers" size={28} color={TINT} />
         </View>
         <Text style={[styles.title, { color: C.text }]}>수영장 선택</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -76,7 +76,7 @@ export default function PoolSelectScreen() {
         >
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-              <CircleAlert size={16} color="#DC2626" />
+              <LucideIcon name="alert-circle" size={16} color="#DC2626" />
               <Text style={[styles.errorTxt, { color: "#DC2626" }]}>{error}</Text>
             </View>
           ) : null}
@@ -100,10 +100,16 @@ export default function PoolSelectScreen() {
                 ]}
               >
                 <View style={[styles.poolIcon, { backgroundColor: isCurrent ? "#E8F7F6" : "#F3F0EE" }]}>
-                  {p.logo_emoji ? (
+                  {p.logo_url ? (
+                    <Image source={{ uri: p.logo_url }} style={styles.poolIconImg} resizeMode="cover" />
+                  ) : p.name ? (
+                    <View style={[styles.poolIconInitials, { backgroundColor: isCurrent ? TINT : "#94A3B8" }]}>
+                      <Text style={styles.poolIconInitialsText}>{p.name.slice(0, 2)}</Text>
+                    </View>
+                  ) : p.logo_emoji ? (
                     <Text style={styles.emoji}>{p.logo_emoji}</Text>
                   ) : (
-                    <Droplet size={24} color={isCurrent ? TINT : C.textMuted} />
+                    <LucideIcon name="droplet" size={24} color={isCurrent ? TINT : C.textMuted} />
                   )}
                 </View>
 
@@ -139,7 +145,7 @@ export default function PoolSelectScreen() {
                   {isSelecting ? (
                     <ActivityIndicator size="small" color={TINT} />
                   ) : (
-                    <ChevronRight size={22} color={isCurrent ? TINT : C.textMuted} />
+                    <LucideIcon name="chevron-right" size={22} color={isCurrent ? TINT : C.textMuted} />
                   )}
                 </View>
               </Pressable>
@@ -154,7 +160,7 @@ export default function PoolSelectScreen() {
           onPress={() => { logout(); router.replace("/"); }}
           style={styles.logoutBtn}
         >
-          <LogOut size={15} color={C.textMuted} />
+          <LucideIcon name="log-out" size={15} color={C.textMuted} />
           <Text style={[styles.logoutTxt, { color: C.textMuted }]}>다른 계정으로 로그인</Text>
         </Pressable>
       </View>
@@ -180,6 +186,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   poolIcon: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  poolIconImg: { width: 52, height: 52, borderRadius: 16 },
+  poolIconInitials: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  poolIconInitialsText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular", letterSpacing: -0.5 },
   emoji: { fontSize: 26 },
   poolInfo: { flex: 1, gap: 6 },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },

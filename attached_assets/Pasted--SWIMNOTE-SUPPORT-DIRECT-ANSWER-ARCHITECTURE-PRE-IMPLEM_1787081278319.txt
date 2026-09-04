@@ -1,0 +1,1471 @@
+# SWIMNOTE SUPPORT DIRECT ANSWER ARCHITECTURE
+
+## PRE-IMPLEMENTATION REVIEW ONLY
+
+### 중요
+
+이번 작업에서는 **코드를 수정하지 마십시오.**
+
+먼저 현재 SWIMNOTE Repository / Database / Support Pipeline을 실제로 조사하고,
+아래 설계가 현재 구조에 어떻게 들어가야 가장 안전하고 단순한지 검토하십시오.
+
+이번 단계의 목적은:
+
+> 구현 전에 Architecture / Schema / Migration / Routing / Cost / Security / Existing Code Reuse 여부를 확정하는 것
+
+입니다.
+
+코딩은 검토보고 승인 이후 별도 WP에서 진행합니다.
+
+---
+
+# 1. 최종 목표
+
+SWIMNOTE 고객지원은 최종적으로 다음 3단계로 동작해야 합니다.
+
+```text
+사용자 질문
+        ↓
+────────────────────────
+1차 — DIRECT DB ANSWER
+────────────────────────
+예상질문 / Intent 검색
+        ↓
+확실한 정답 존재
+        ↓
+Canonical Answer DB에서 즉시 반환
+        ↓
+GPT 호출 없음
+        ↓
+사용자에게 답변
+```
+
+Direct DB로 해결되지 않으면:
+
+```text
+────────────────────────
+2차 — GROUNDED GPT
+────────────────────────
+관련 SWIMNOTE Knowledge 검색
+        ↓
+검색된 근거만 GPT에 전달
+        ↓
+GPT가 자연어 답변 생성
+        ↓
+사용자에게 답변
+```
+
+그래도 해결하지 못하거나 사용자가 직접 상담을 원하면:
+
+```text
+────────────────────────
+3차 — HUMAN SUPPORT
+────────────────────────
+사용자 "직접 문의하기"
+        ↓
+Support Case 생성/연결
+        ↓
+Super Admin에게 알림
+        ↓
+Super Admin이 문의 확인
+        ↓
+직접 답변
+        ↓
+기존 동일 상담 Conversation에 답변 표시
+        ↓
+사용자 Push/알림
+```
+
+핵심 원칙:
+
+```text
+DB → GPT → HUMAN
+```
+
+GPT가 1차 답변기가 아닙니다.
+
+---
+
+# 2. 왜 이 구조를 만드는가
+
+현재 Support 시스템에는:
+
+* Support Knowledge
+* Grounding
+* GPT 답변
+* Human escalation
+* Case
+* Trace
+* Approval Governance
+* Super Admin Review
+
+등의 기반이 이미 존재합니다.
+
+하지만 단순한 질문까지 GPT를 사용하거나,
+Knowledge가 없으면 Human escalation으로 바로 내려갈 수 있습니다.
+
+앞으로는 다음처럼 구성합니다.
+
+예:
+
+사용자:
+
+> X모드 가격 얼마야?
+
+DB:
+
+```text
+INTENT = X_MODE_PRICE
+```
+
+정답이 존재하면:
+
+```text
+canonical_answer
+→ 즉시 반환
+```
+
+GPT 호출:
+
+```text
+0
+```
+
+---
+
+# 3. 전체 제작 순서
+
+구현 순서는 반드시 다음 순서를 따릅니다.
+
+## STEP A
+
+SWIMNOTE 전체 기능 Inventory 작성
+
+↓
+
+## STEP B
+
+각 기능별 Canonical Answer 작성
+
+↓
+
+## STEP C
+
+각 Canonical Answer에 대한 예상 질문 Variant 작성
+
+↓
+
+## STEP D
+
+Question / Intent DB 구축
+
+↓
+
+## STEP E
+
+Direct Answer Matcher 구축
+
+↓
+
+## STEP F
+
+기존 `/support/respond` 앞단에 Direct Answer Layer 연결
+
+↓
+
+## STEP G
+
+Direct Match 실패 시 기존 Grounded GPT 사용
+
+↓
+
+## STEP H
+
+사용자가 "직접 문의하기"를 선택하면 Super Admin Human Support 연결
+
+---
+
+# 4. 전체 기능 Inventory
+
+먼저 SWIMNOTE의 전체 실제 기능을 Repository에서 추출해야 합니다.
+
+기억이나 문서만 보고 기능을 만들면 안 됩니다.
+
+조사 대상:
+
+```text
+mobile app
+admin app
+teacher app
+parent app
+
+API routes
+frontend routes
+screen registry
+feature registry
+permission guards
+role guards
+mode guards
+X entitlement
+
+support
+billing
+notifications
+AI routes
+```
+
+최소 기능 Category 후보:
+
+```text
+PRODUCT
+
+ACCOUNT
+LOGIN
+SIGNUP
+INVITATION
+WITHDRAWAL
+
+POOL
+CLASS
+STUDENT
+
+ADMIN
+SUB_ADMIN
+TEACHER
+PARENT
+
+ROLE_PERMISSION
+
+ATTENDANCE
+
+DIARY
+AI_DIARY
+PHOTO
+ALBUM
+VIDEO
+
+NOTICE
+SCHEDULE
+NOTIFICATION
+
+MAKEUP
+
+CURRICULUM
+AI_CURRICULUM_SEARCH
+
+GROWTH_REPORT
+AI_GROWTH_REPORT
+
+SWIMNOTE_X
+X_PRICE
+X_SUBSCRIPTION
+X_SETUP
+X_STATE
+X_LOCK
+
+BILLING
+PAYMENT
+SUBSCRIPTION
+REFUND
+CANCELLATION
+
+APP_UPDATE
+DEVICE_PERMISSION
+
+NETWORK_ERROR
+SERVER_ERROR
+AI_ERROR
+
+PRIVACY
+DATA
+
+SUPPORT
+HUMAN_SUPPORT
+```
+
+실제 Repository에 더 많은 기능이 존재하면 모두 추가합니다.
+
+---
+
+# 5. Function Tree
+
+단순 메뉴명이 아니라 질문 가능한 기능 단위까지 분해합니다.
+
+예:
+
+```text
+DIARY
+
+DIARY.CREATE
+DIARY.EDIT
+DIARY.DELETE
+DIARY.PHOTO
+DIARY.VIDEO
+DIARY.AI_GENERATE
+DIARY.PARENT_VIEW
+DIARY.SAVE_FAILED
+DIARY.PHOTO_UPLOAD_FAILED
+```
+
+예:
+
+```text
+ATTENDANCE
+
+ATTENDANCE.VIEW
+ATTENDANCE.CREATE
+ATTENDANCE.EDIT
+ATTENDANCE.DELETE
+ATTENDANCE.PERMISSION
+ATTENDANCE.SAVE_FAILED
+```
+
+예:
+
+```text
+SWIMNOTE_X
+
+X.DESCRIPTION
+X.PRICE
+X.SIGNUP
+X.SETUP
+X.ENTITLEMENT
+X.NOT_CONFIGURED
+X.CURRICULUM_PENDING
+X.API_ERROR
+```
+
+---
+
+# 6. Canonical Answer
+
+전체 기능을 나열한 뒤
+각 기능에서 고객이 질문할 수 있는 **정답 단위**를 만듭니다.
+
+예:
+
+```text
+answer_id:
+X_MODE_PRICE
+
+category:
+SWIMNOTE_X
+
+function_id:
+X.PRICE
+
+canonical_question:
+"SWIMNOTE X 가격은 얼마인가요?"
+
+canonical_answer:
+[공식 확정 가격]
+
+source_type:
+APPROVED_POLICY
+
+source_ref:
+[...]
+
+roles:
+[...]
+
+modes:
+[...]
+
+answer_mode:
+DIRECT_DB
+
+risk:
+HIGH
+
+status:
+ACTIVE
+```
+
+---
+
+# 7. 중요한 구조 원칙
+
+예상 질문마다 답변을 복제하지 않습니다.
+
+잘못된 구조:
+
+```text
+X모드 얼마야 → 답변 A
+X모드 가격 → 답변 A
+X 가격 알려줘 → 답변 A
+X 이용료 → 답변 A
+X 구독료 → 답변 A
+```
+
+정답 문장이 다섯 번 저장되는 구조는 금지합니다.
+
+올바른 구조:
+
+```text
+X_MODE_PRICE
+    ↓
+Canonical Answer 1개
+```
+
+그리고:
+
+```text
+X모드 얼마야
+X모드 가격
+X 가격 알려줘
+X 이용료
+X 구독료
+```
+
+모두:
+
+```text
+intent_id = X_MODE_PRICE
+```
+
+를 가리킵니다.
+
+---
+
+# 8. 예상 질문 DB
+
+예상 질문은 상당히 많아질 예정입니다.
+
+예:
+
+```text
+intent:
+X_MODE_PRICE
+
+utterances:
+
+"x모드 가격 얼마야"
+"x 얼마야"
+"x모드 비용"
+"스윔노트x 가격 알려줘"
+"엑스모드 가격"
+"x 구독료 얼마야"
+"x 이용료"
+"x모드 한 달 얼마야"
+```
+
+한 Intent당 대략:
+
+```text
+5~20 variants
+```
+
+초기 예상:
+
+```text
+Canonical Answers:
+약 100~500개
+
+Expected Questions:
+약 1,000~10,000개
+```
+
+정확한 개수는 Function Inventory 이후 결정합니다.
+
+---
+
+# 9. 권장 DB 개념
+
+새 DB 구조를 그대로 만들라는 뜻이 아닙니다.
+
+먼저 현재 DB를 조사하고,
+기존 schema를 최대한 재사용하십시오.
+
+개념적으로 필요한 것은 두 가지입니다.
+
+## A. Canonical Knowledge
+
+가능하면 기존:
+
+```text
+support_knowledge_items
+```
+
+재사용.
+
+필요한 개념:
+
+```text
+knowledge_id
+intent_id
+category
+feature
+canonical_answer
+
+source_type
+source_ref
+
+affected_roles
+affected_modes
+
+answer_mode
+
+status
+revision
+```
+
+## B. Question Variants
+
+예:
+
+```text
+support_intent_utterances
+```
+
+개념:
+
+```text
+id
+intent_id
+
+utterance
+normalized_utterance
+
+keywords / aliases
+
+language
+
+weight
+
+status
+```
+
+단 현재 Repository에 동일 기능을 할 수 있는 table/schema가 이미 있다면
+새 테이블을 만들지 말고 재사용 가능성을 우선 검토하십시오.
+
+---
+
+# 10. Question Matching
+
+추천 검색 순서:
+
+```text
+사용자 질문
+    ↓
+
+1. normalize
+    ↓
+
+2. exact normalized match
+    ↓ 실패
+
+3. high-confidence variant/alias match
+    ↓ 실패
+
+4. keyword / full-text / trigram / existing semantic retrieval
+    ↓
+
+confidence 충분
+    ↓
+Canonical Intent
+```
+
+confidence가 충분하지 않으면
+틀린 Direct Answer를 주면 안 됩니다.
+
+그 경우 기존 Grounded GPT로 내려갑니다.
+
+---
+
+# 11. Normalization
+
+한국어 자연어 변형을 고려합니다.
+
+예:
+
+```text
+X모드
+x모드
+X 모드
+엑스모드
+스윔노트x
+스윔노트 X
+```
+
+가격 표현:
+
+```text
+가격
+비용
+얼마
+요금
+이용료
+구독료
+금액
+```
+
+띄어쓰기와 간단한 오타도 고려합니다.
+
+단 Normalizer가 의미를 변경하면 안 됩니다.
+
+---
+
+# 12. Direct Answer 조건
+
+다음은 Direct DB Answer를 우선합니다.
+
+```text
+상품 정의
+기능 설명
+권한
+사용방법
+UI 위치
+확정 가격
+확정 정책
+확정 이용조건
+오류에 대한 정형 해결절차
+```
+
+조건:
+
+```text
+SOURCE VERIFIED
++
+ANSWER UNAMBIGUOUS
++
+ROLE/MODE VERIFIED
+```
+
+---
+
+# 13. High-risk Answer
+
+다음은 특별 관리합니다.
+
+```text
+PRICE
+REFUND
+BILLING
+CANCELLATION
+ACCOUNT_DELETION
+DATA
+PRIVACY
+INCIDENT
+CONTRACT
+DISCOUNT
+```
+
+반드시:
+
+```text
+APPROVED_POLICY
+```
+
+또는 equivalent authoritative source가 있어야 Direct Answer 가능.
+
+소스가 없으면:
+
+```text
+HUMAN_ONLY
+```
+
+---
+
+# 14. 복합 질문
+
+예:
+
+> X모드 가격하고 일반버전과 뭐가 다른지도 알려줘.
+
+가능한 경우:
+
+```text
+X_MODE_PRICE
+X_MODE_COMPARE
+```
+
+두 Intent를 찾습니다.
+
+이 경우:
+
+### 방법 A
+
+Template/direct composition이 안전하면
+LLM 없이 두 정답 조합.
+
+### 방법 B
+
+자연어 설명이 필요한 경우:
+
+```text
+Canonical Answer A
+Canonical Answer B
+        ↓
+GPT
+```
+
+GPT에는 이 두 Knowledge만 제공합니다.
+
+---
+
+# 15. 기존 GPT 역할
+
+GPT는 제거하지 않습니다.
+
+GPT의 위치를:
+
+```text
+1차
+```
+
+가 아니라
+
+```text
+2차
+```
+
+로 변경합니다.
+
+최종:
+
+```text
+DIRECT DB
+    ↓ 실패
+
+GROUNDED GPT
+    ↓ 실패/사용자 요청
+
+HUMAN
+```
+
+---
+
+# 16. AI Grounding
+
+기존 Grounding Pipeline 유지.
+
+GPT는:
+
+```text
+DB에서 확보한 verified Knowledge 범위
+```
+
+안에서만 답변.
+
+금지:
+
+```text
+가격 창작
+정책 창작
+UI 창작
+환불 창작
+장애 단정
+```
+
+---
+
+# 17. Human Support
+
+DB도 해결하지 못하고
+GPT 답변 후에도 사용자가 해결되지 않았다면:
+
+사용자가:
+
+```text
+[직접 문의하기]
+```
+
+버튼 선택.
+
+그러면:
+
+```text
+Support Case 생성
+또는 existing open case 재사용
+```
+
+---
+
+# 18. Super Admin 알림
+
+직접 문의가 발생하면
+Super Admin에게 알림이 가야 합니다.
+
+검토해야 할 것:
+
+현재 Repository에 이미:
+
+```text
+support case notification
+super admin notification
+push
+badge
+web notification
+```
+
+중 무엇이 구현되어 있는지.
+
+최종 목표:
+
+```text
+Human Support Requested
+        ↓
+Super Admin notified
+```
+
+관리자가 확인할 정보:
+
+```text
+conversation_id
+case_id
+
+user role
+pool
+
+original question
+
+Direct DB attempt
+matched intent if any
+
+GPT answer
+GPT confidence
+
+user additional message
+
+created_at
+```
+
+PII 최소화.
+
+---
+
+# 19. 직접 문의 버튼
+
+GPT 답변 후:
+
+```text
+도움이 되었나요?
+
+[해결됐어요]
+[직접 문의하기]
+```
+
+형태 고려.
+
+이미 비슷한 UI가 있다면 재사용.
+
+사용자가 직접 문의를 선택하면
+그때 Human Case로 전환.
+
+AI가 모든 실패를 자동 Human case로 만들 필요는 없습니다.
+
+---
+
+# 20. 동일 Conversation 유지
+
+직접 문의로 넘어가도
+새 상담 UI를 열 필요가 없습니다.
+
+현재 AI 문의 Conversation을 유지.
+
+```text
+AI
+↓
+Human Pending
+↓
+Super Admin reply
+```
+
+가 같은 대화에서 이어지는 구조.
+
+---
+
+# 21. Case 중복 금지
+
+같은 conversation에 이미 open case가 있다면:
+
+```text
+새 case 생성 금지
+```
+
+사용자 추가 메시지는 기존 case에 append.
+
+목표:
+
+```text
+ONE OPEN CASE PER CONVERSATION
+```
+
+또는 현재 schema에 가장 적합한 equivalent.
+
+---
+
+# 22. Self-learning Knowledge Expansion
+
+이번 구현의 핵심 확장 구조.
+
+Human에게 들어온 새로운 질문이 반복된다면:
+
+```text
+Human Question
+    ↓
+Human Answer
+    ↓
+Admin marks:
+"Knowledge Candidate"
+    ↓
+Canonical Answer candidate
+    ↓
+Question Variant 추가
+    ↓
+Human Review
+    ↓
+ACTIVE
+```
+
+그 이후 같은 질문은
+DB에서 즉시 처리.
+
+자동 ACTIVE 금지.
+
+---
+
+# 23. 전체 Answer 제작 방식
+
+아직 코딩하지 않습니다.
+
+다음 단계에서:
+
+## 1차
+
+SWIMNOTE 전체 Function Tree 완성
+
+## 2차
+
+Canonical Answer Catalog 작성
+
+## 3차
+
+운영자에게 확인 필요한 Business Policy 목록 분리
+
+예:
+
+```text
+X 가격
+구독 조건
+환불
+할인
+계약
+```
+
+## 4차
+
+Canonical Answer 확정
+
+## 5차
+
+Question Variant Library 생성
+
+## 6차
+
+DB Import
+
+---
+
+# 24. Answer 품질
+
+Direct Answer는 짧고 직접적이어야 합니다.
+
+사용자:
+
+> 교사가 출결 수정할 수 있어?
+
+좋음:
+
+> 네. 교사는 담당 학생의 출결을 기록하고 수정할 수 있습니다.
+
+나쁨:
+
+> 문의해 주셔서 감사합니다. 출결과 관련된 부분은 여러 상황에 따라...
+
+불필요한 AI식 장문 금지.
+
+---
+
+# 25. 추적성
+
+Direct DB Answer도 trace가 필요합니다.
+
+예:
+
+```text
+request_id
+source = DIRECT_DB
+
+intent_id
+knowledge_id
+revision
+
+match_method
+match_confidence
+```
+
+이렇게 해야 잘못된 답변이 발생했을 때
+원인을 바로 추적할 수 있습니다.
+
+---
+
+# 26. Metrics
+
+향후 반드시 측정 가능해야 함.
+
+```text
+SUPPORT_REQUESTS_TOTAL
+
+DIRECT_DB_ANSWERS
+GROUNDED_AI_ANSWERS
+HUMAN_SUPPORT_REQUESTS
+
+DIRECT_MATCH_RATE
+AI_FALLBACK_RATE
+HUMAN_RATE
+
+WRONG_DIRECT_MATCH
+NO_MATCH
+
+AVERAGE_RESPONSE_TIME
+
+LLM_CALLS_AVOIDED
+```
+
+---
+
+# 27. 비용 구조
+
+Direct DB Answer:
+
+```text
+LLM cost = 0
+```
+
+Grounded GPT:
+
+```text
+LLM cost 발생
+```
+
+Human:
+
+```text
+관리자 업무 발생
+```
+
+따라서 시간이 지날수록:
+
+```text
+Direct DB ↑
+GPT ↓
+Human ↓
+```
+
+가 되어야 합니다.
+
+---
+
+# 28. 이번 PRE-IMPLEMENTATION REVIEW에서 반드시 확인할 것
+
+현재 Repository를 직접 조사하여 아래 질문에 답하십시오.
+
+### A. Existing Pipeline
+
+현재 `/support/respond`의 정확한 flow는?
+
+### B. Existing DB
+
+현재 `support_knowledge_items` schema는?
+
+Direct Answer를 그대로 지원 가능한가?
+
+### C. Existing Search
+
+현재 Knowledge search는:
+
+* exact
+* keyword
+* full text
+* semantic
+* vector
+
+중 무엇을 사용하는가?
+
+### D. Existing Intent System
+
+이미 intent/alias/question pattern 기능이 있는가?
+
+### E. New Table
+
+`support_intent_utterances`와 같은 별도 table이 필요한가?
+
+아니면 기존 schema로 가능한가?
+
+### F. Direct Answer Layer
+
+현재 resolver chain의 어디에 넣는 것이 가장 안전한가?
+
+### G. Composite Questions
+
+multi-intent detection을 현재 parser에서 지원 가능한가?
+
+### H. Human Case
+
+현재 사용자의 직접문의 → Case 생성은 어디까지 구현되어 있는가?
+
+### I. Super Admin Notification
+
+실제 관리자 알림 기능이 있는가?
+
+없다면 무엇이 최소 구현인가?
+
+### J. Same Conversation
+
+AI → Human 전환 후 동일 conversation에 답변을 이어갈 수 있는가?
+
+### K. Push
+
+Super Admin reply 후 사용자 Push가 현재 가능한가?
+
+### L. Security
+
+role / mode / pool scope를 Direct Answer에서도
+기존 resolver와 동일하게 enforce할 수 있는가?
+
+### M. Migration
+
+신규 예상질문 수천 건을 안전하게 저장할 DB/migration 전략은?
+
+### N. Performance
+
+1,000~10,000 utterance 규모에서
+현재 PostgreSQL만으로 충분한가?
+
+별도 Vector DB가 실제 필요한가?
+
+불필요한 외부 시스템 추가 금지.
+
+---
+
+# 29. 구현 전에 제안해야 할 최종 Architecture
+
+검토 후 아래 형식으로
+추천 architecture를 제출하십시오.
+
+```text
+USER QUESTION
+
+↓ normalize
+
+↓ Direct Matcher
+
+↓ Intent
+
+↓ Canonical Answer
+   ├ exact/high-confidence
+   │ → DIRECT DB
+   │
+   └ uncertain
+
+↓ Existing Knowledge Retrieval
+
+↓ Grounded GPT
+
+↓ User satisfied?
+   ├ YES → resolved
+   └ NO
+
+↓ Direct Inquiry
+
+↓ Support Case
+
+↓ Super Admin Notification
+
+↓ Human Reply
+
+↓ Same Conversation
+
+↓ Push
+```
+
+현재 코드 구조에 따라 더 적절한 흐름이 있으면
+근거와 함께 수정 제안 가능.
+
+---
+
+# 30. 변경 예상 파일 목록
+
+아직 수정하지 말고
+예상 변경 파일만 제출.
+
+예:
+
+```text
+routes/support-respond.ts
+
+lib/support-resolver.ts
+
+lib/support-direct-answer.ts
+
+schema/support...
+
+migrations/...
+
+Super Admin support UI
+
+mobile support-chat.tsx
+```
+
+실제 repository 조사 후
+정확한 경로로 작성.
+
+---
+
+# 31. 구현 WP 분할 제안
+
+한 번에 대규모 구현하지 않습니다.
+
+현재 repository를 본 후
+가장 안전한 WP 분할안을 제출.
+
+권장 예:
+
+```text
+CS23B
+DB Schema + Direct Matcher
+
+CS23C
+Function/Canonical Answer Dataset
+
+CS23D
+Question Variant Dataset
+
+CS23E
+Resolver Integration
+
+CS23F
+Human Direct Inquiry + Super Admin Notification
+
+CS23G
+Production Import + Device QA
+```
+
+단 실제 코드 상황에 따라 더 짧게 통합 가능하면 제안하십시오.
+
+쓸데없이 WP를 늘리지 마십시오.
+
+---
+
+# 32. 절대 금지
+
+이번 Review 단계에서:
+
+```text
+코드 수정
+migration 실행
+Production DB write
+Knowledge activation
+schema 변경
+GPT prompt 변경
+deploy
+```
+
+전부 금지.
+
+---
+
+# 33. COMPLETE REVIEW REPORT FORMAT
+
+## SWIMNOTE DIRECT ANSWER PRE-IMPLEMENTATION REVIEW
+
+### CURRENT ARCHITECTURE
+
+Support endpoint:
+
+Resolver:
+
+Knowledge DB:
+
+Search:
+
+GPT:
+
+Human case:
+
+Super Admin:
+
+Notification:
+
+Conversation:
+
+Push:
+
+---
+
+### REUSE ASSESSMENT
+
+Existing components reusable:
+
+New components required:
+
+New DB table required:
+
+Schema changes required:
+
+---
+
+### RECOMMENDED DB MODEL
+
+Canonical Answer storage:
+
+Question variant storage:
+
+Indexes:
+
+Normalization:
+
+Matching:
+
+---
+
+### RECOMMENDED PIPELINE
+
+1.
+2.
+3.
+4.
+5.
+
+---
+
+### DIRECT ANSWER
+
+Insertion point:
+
+Confidence strategy:
+
+Role enforcement:
+
+Mode enforcement:
+
+Pool enforcement:
+
+Trace:
+
+---
+
+### GPT FALLBACK
+
+Existing pipeline reusable:
+
+Required changes:
+
+---
+
+### HUMAN SUPPORT
+
+Existing case creation:
+
+Direct inquiry button:
+
+Duplicate case prevention:
+
+Super Admin notification:
+
+Admin reply:
+
+Same conversation:
+
+User push:
+
+---
+
+### SCALE
+
+Expected intents:
+
+Expected utterances:
+
+Postgres sufficient:
+
+Vector DB required:
+
+Reason:
+
+---
+
+### SECURITY
+
+Role:
+
+Mode:
+
+Pool:
+
+High-risk policy:
+
+Injection risk:
+
+---
+
+### EXPECTED FILE CHANGES
+
+1.
+2.
+3.
+
+---
+
+### IMPLEMENTATION GAPS
+
+P0:
+
+P1:
+
+P2:
+
+P3:
+
+---
+
+### RECOMMENDED WP PLAN
+
+WP1:
+WP2:
+WP3:
+...
+
+---
+
+### ESTIMATED COMPLEXITY
+
+LOW / MEDIUM / HIGH
+
+Reason:
+
+---
+
+### FINAL DECISION
+
+ARCHITECTURE_FEASIBLE:
+
+EXISTING_SYSTEM_REUSE_PERCENT:
+
+DIRECT_DB_LAYER_RECOMMENDED:
+
+HUMAN_SUPER_ADMIN_FLOW_FEASIBLE:
+
+PRODUCTION_BLOCKERS:
+
+READY_FOR_IMPLEMENTATION:
+
+---
+
+보고 후 멈추십시오.
+
+구현을 시작하지 마십시오.
+
+# END

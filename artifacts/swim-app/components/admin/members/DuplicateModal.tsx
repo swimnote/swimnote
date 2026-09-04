@@ -1,5 +1,5 @@
-import { TriangleAlert } from "lucide-react-native";
 import React from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -18,15 +18,15 @@ export function DuplicateModal({ candidates, onForceCreate, onCancel }: Duplicat
       <View style={dup.overlay}>
         <View style={dup.sheet}>
           <View style={dup.icon}>
-            <TriangleAlert size={28} color="#D97706" />
+            <LucideIcon name="alert-triangle" size={28} color="#D97706" />
           </View>
           <Text style={dup.title}>유사한 회원이 있습니다</Text>
           <Text style={dup.sub}>아래 회원과 동일한 학생일 수 있습니다.{"\n"}새 회원으로 등록할지 확인해 주세요.</Text>
           <View style={dup.list}>
             {candidates.slice(0, 3).map((c: any) => (
               <View key={c.id} style={dup.row}>
-                <View style={[dup.avatar, { backgroundColor: C.tintLight }]}>
-                  <Text style={[dup.avatarText, { color: C.tint }]}>{c.name[0]}</Text>
+                <View style={[dup.avatar, { backgroundColor: C.brandSoft }]}>
+                  <Text style={[dup.avatarText, { color: C.brandStrong }]}>{c.name[0]}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={dup.name}>{c.name}</Text>

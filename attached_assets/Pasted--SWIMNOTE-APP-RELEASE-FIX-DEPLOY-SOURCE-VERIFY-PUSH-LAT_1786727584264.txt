@@ -1,0 +1,186 @@
+[SWIMNOTE APP RELEASE]
+[FIX DEPLOY SOURCE — VERIFY/PUSH LATEST APP HEAD ONLY]
+
+현재 Production 검증 결과:
+
+Render swimnote-api deployed SHA:
+290a1fda
+
+현재 local branch:
+deploy-photo-clone
+
+현재 local HEAD:
+afab4921
+
+Production API는 live/healthy지만
+Render가 최신 APP HEAD가 아닌 과거 SHA를 실행 중.
+
+중요:
+
+Cloudflare 수정 금지.
+Proxy/DNS 수정 금지.
+Render deploy 금지.
+Production DB write 금지.
+코드 수정 금지.
+rebase/reset/force push 금지.
+
+이번 단계 목적은 오직:
+
+"현재 deploy-photo-clone의 최신 코드가 origin에 정상적으로 존재하는가?"
+
+를 확인하고, 없다면 안전하게 push하는 것.
+
+==================================================
+1. LOCAL GIT IDENTITY
+==================================================
+
+보고:
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+
+Expected:
+
+branch = deploy-photo-clone
+HEAD = afab4921 또는 현재 그 이후 최신 HEAD
+production code working tree clean
+
+untracked documentation/attached_assets는 별도 보고.
+
+==================================================
+2. REMOTE IDENTITY
+==================================================
+
+확인:
+
+git remote -v
+
+그리고 fetch 후:
+
+git rev-parse origin/deploy-photo-clone
+git log --oneline --decorate -10
+
+local HEAD와
+origin/deploy-photo-clone HEAD 비교.
+
+==================================================
+3. IMPORTANT CODE COMMITS
+==================================================
+
+다음 커밋들이 현재 local HEAD ancestry에 포함되는지 확인:
+
+290a1fda
+47831611
+7684e108
+b285ebb6
+
+그리고 Parent Curriculum 최신 server route가 들어간
+실제 가장 최근 code-changing commit SHA를 확정.
+
+다음 파일이 그 commit/현재 HEAD에 존재하는지도 확인:
+
+parent-curriculum route
+parent-curriculum-engine-client
+recent conversation support
+history safe projection
+
+정확한 경로는 repository 기준 보고.
+
+==================================================
+4. REMOTE STATUS DECISION
+==================================================
+
+CASE A:
+
+origin/deploy-photo-clone == local HEAD
+
+→ PUSH 필요 없음.
+
+CASE B:
+
+origin/deploy-photo-clone가 local HEAD보다 뒤처져 있고
+local branch가 정상 fast-forward push 가능한 상태
+
+→ 다음만 실행 허용:
+
+git push origin deploy-photo-clone
+
+force push 금지.
+rebase 금지.
+reset 금지.
+
+CASE C:
+
+remote divergence 존재
+
+→ PUSH 금지하고 BLOCK.
+
+==================================================
+5. POST-PUSH VERIFY
+==================================================
+
+push했다면:
+
+git fetch origin
+
+후
+
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+
+두 SHA가 동일한지 확인.
+
+==================================================
+6. NO RENDER DEPLOY
+==================================================
+
+이번 단계에서는 Render Deploy를 실행하지 않는다.
+
+Environment 수정도 하지 않는다.
+
+현재 Production swimnote-api는
+290a1fda 상태 그대로 유지.
+
+==================================================
+7. NO CLOUDFLARE CHANGE
+==================================================
+
+Cloudflare 문제로 아직 판정하지 않는다.
+
+이유:
+
+현재 Production Render SHA가 최신 APP HEAD와 불일치하므로
+먼저 올바른 서버 코드를 배포한 뒤 route를 재검증해야 한다.
+
+Cloudflare/Page Rule/Proxy/DNS 변경 절대 금지.
+
+==================================================
+8. REPORT
+==================================================
+
+다음만 보고:
+
+1. LOCAL BRANCH
+2. LOCAL HEAD
+3. WORKING TREE
+4. ORIGIN BRANCH HEAD BEFORE
+5. LOCAL/REMOTE SAME? YES/NO
+6. IMPORTANT COMMITS INCLUDED?
+7. LATEST CODE-CHANGING COMMIT
+8. PUSH REQUIRED? YES/NO
+9. PUSH RESULT
+10. ORIGIN BRANCH HEAD AFTER
+11. LOCAL/REMOTE SAME AFTER?
+12. FORCE/REBASE/RESET USED? YES/NO
+13. RENDER DEPLOY EXECUTED? YES/NO
+14. CLOUDFLARE MODIFIED? YES/NO
+15. PRODUCTION DB WRITE? YES/NO
+
+완료:
+
+SWIMNOTE_APP_LATEST_HEAD_READY_FOR_RENDER ✅
+
+문제:
+
+SWIMNOTE_APP_LATEST_HEAD_PUSH_BLOCKED ❌

@@ -2,7 +2,6 @@
  * ClassCreateFlow — 반 등록 단일 스크롤 폼
  * 모든 항목(요일·시간·선생님·색상)을 한 화면에서 입력
  */
-import { Calendar, Check, CircleAlert, CircleCheck, Layers, UserX, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -67,9 +66,9 @@ const sh = StyleSheet.create({
 
 function DayButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const isSat = label === "토";
-  const color = selected ? (isSat ? "#D96C6C" : C.tint) : C.text;
-  const bg = selected ? (isSat ? "#F9DEDA" : C.tintLight) : C.background;
-  const border = selected ? (isSat ? "#D96C6C" : C.tint) : C.border;
+  const color = selected ? (isSat ? "#D96C6C" : C.brandStrong) : C.text;
+  const bg = selected ? (isSat ? "#F9DEDA" : C.brandSoft) : C.background;
+  const border = selected ? (isSat ? "#D96C6C" : C.brandStrong) : C.border;
   return (
     <Pressable style={[db.btn, { backgroundColor: bg, borderColor: border }]} onPress={onPress}>
       <Text style={[db.lbl, { color }]}>{label}</Text>
@@ -84,7 +83,7 @@ const db = StyleSheet.create({
 function TimeButton({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
-      style={[tb.btn, selected && { backgroundColor: C.tint, borderColor: C.tint }]}
+      style={[tb.btn, selected && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
       onPress={onPress}
     >
       <Text style={[tb.lbl, { color: selected ? "#fff" : C.text }]}>{label}</Text>
@@ -99,10 +98,10 @@ const tb = StyleSheet.create({
 function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
-      style={[tr.row, { borderColor: selected ? C.tint : C.border, backgroundColor: selected ? C.tintLight : C.background }]}
+      style={[tr.row, { borderColor: selected ? C.brandStrong : C.border, backgroundColor: selected ? C.brandSoft : C.background }]}
       onPress={onPress}
     >
-      <View style={[tr.avatar, { backgroundColor: selected ? C.tint : C.border }]}>
+      <View style={[tr.avatar, { backgroundColor: selected ? C.brandStrong : C.border }]}>
         <Text style={[tr.init, { color: selected ? "#fff" : C.textSecondary }]}>{t.name[0]}</Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -112,7 +111,7 @@ function TeacherRow({ t, selected, onPress }: { t: Teacher; selected: boolean; o
       {!t.is_activated && (
         <View style={tr.badge}><Text style={tr.badgeTxt}>미활성</Text></View>
       )}
-      {selected && <CircleCheck size={18} color={C.tint} />}
+      {selected && <LucideIcon name="check-circle" size={18} color={C.brandStrong} />}
     </Pressable>
   );
 }
@@ -141,6 +140,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [selectedColor, setSelectedColor] = useState<string>("#FFFFFF");
   const [defaultCapacity, setDefaultCapacity] = useState<number>(20);
+  const [customCapacity, setCustomCapacity] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -148,7 +148,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
   useEffect(() => {
     apiRequest(token, "/admin/class-settings")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.default_capacity) setDefaultCapacity(d.default_capacity); })
+      .then(d => { if (d?.default_capacity) { setDefaultCapacity(d.default_capacity); setCustomCapacity(c => c === null ? d.default_capacity : c); } })
       .catch(() => {});
     if (isAdmin) {
       setTeachersLoading(true);
@@ -204,10 +204,10 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
         schedule_days: daysStr,
         schedule_time: selectedTime,
         teacher_user_id: isAdmin ? selectedTeacher?.id : selfTeacher?.id,
-        capacity: defaultCapacity,
+        capacity: customCapacity ?? defaultCapacity,
         is_one_time: isOneTime,
         one_time_date: isOneTime ? oneTimeDate : undefined,
-        color: selectedColor !== "#FFFFFF" ? selectedColor : undefined,
+        color: selectedColor,
       };
       const res = await apiRequest(token, "/class-groups", {
         method: "POST",
@@ -236,14 +236,14 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           <View style={fl.header}>
             <Text style={fl.title}>반 등록</Text>
             <Pressable onPress={onClose} hitSlop={10}>
-              <X size={22} color={C.textSecondary} />
+              <LucideIcon name="x" size={22} color={C.textSecondary} />
             </Pressable>
           </View>
 
           {/* 에러 */}
           {errorMsg && (
             <View style={fl.errorRow}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={fl.errorText}>{errorMsg}</Text>
             </View>
           )}
@@ -276,7 +276,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
             {isOneTime ? (
               <>
                 <View style={fl.dateBox}>
-                  <Calendar size={16} color={C.tint} />
+                  <LucideIcon name="calendar" size={16} color={C.brandStrong} />
                   <TextInput
                     style={fl.dateInput}
                     value={oneTimeDate}
@@ -289,7 +289,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 </View>
                 {getDayOfWeek(oneTimeDate) ? (
                   <View style={fl.chip}>
-                    <CircleCheck size={12} color="#7C3AED" />
+                    <LucideIcon name="check-circle" size={12} color="#7C3AED" />
                     <Text style={fl.chipTxt}>{oneTimeDate} ({getDayOfWeek(oneTimeDate)}요일)</Text>
                   </View>
                 ) : null}
@@ -303,7 +303,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 </View>
                 {selectedDays.length > 0 && (
                   <View style={fl.chip}>
-                    <Text style={fl.chipTxt}>선택: <Text style={{ color: C.tint }}>{selectedDays.join("·")}요일</Text></Text>
+                    <Text style={fl.chipTxt}>선택: <Text style={{ color: C.brandStrong }}>{selectedDays.join("·")}요일</Text></Text>
                   </View>
                 )}
               </>
@@ -338,24 +338,24 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 <View style={fl.divider} />
                 <SectionHeader label="담당 선생님" />
                 {teachersLoading ? (
-                  <ActivityIndicator color={C.tint} style={{ marginVertical: 12 }} />
+                  <ActivityIndicator color={C.brandStrong} style={{ marginVertical: 12 }} />
                 ) : teachers.length === 0 ? (
                   <View style={fl.emptyTeacher}>
-                    <UserX size={28} color={C.textMuted} />
+                    <LucideIcon name="user-x" size={28} color={C.textMuted} />
                     <Text style={fl.emptyTeacherTxt}>등록된 선생님이 없습니다</Text>
                   </View>
                 ) : (
                   <>
                     {!isOneTime && (
                       <Pressable
-                        style={[tr.row, { borderColor: C.border, backgroundColor: selectedTeacher === null ? C.tintLight : C.background }]}
+                        style={[tr.row, { borderColor: C.border, backgroundColor: selectedTeacher === null ? C.brandSoft : C.background }]}
                         onPress={() => setSelectedTeacher(null)}
                       >
                         <View style={[tr.avatar, { backgroundColor: C.border }]}>
-                          <UserX size={16} color={C.textMuted} />
+                          <LucideIcon name="user-x" size={16} color={C.textMuted} />
                         </View>
                         <Text style={[tr.name, { color: C.textSecondary }]}>미지정</Text>
-                        {selectedTeacher === null && <CircleCheck size={18} color={C.textSecondary} />}
+                        {selectedTeacher === null && <LucideIcon name="check-circle" size={18} color={C.textSecondary} />}
                       </Pressable>
                     )}
                     {teachers.map(t => (
@@ -377,21 +377,25 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
               <>
                 <View style={fl.divider} />
                 <SectionHeader label="반 개설 확인" />
-                <View style={[fl.summaryCard, { borderColor: (isOneTime ? "#7C3AED" : C.tint) + "50" }]}>
-                  <View style={[fl.summaryName, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#EDE9FE" : C.tintLight) }]}>
+                <View style={[fl.summaryCard, { borderColor: (isOneTime ? "#7C3AED" : C.brandStrong) + "50" }]}>
+                  <View style={[fl.summaryName, { backgroundColor: selectedColor !== "#FFFFFF" ? selectedColor : (isOneTime ? "#EDE9FE" : C.brandSoft) }]}>
                     {isOneTime && (
                       <View style={fl.oneTimeBadge}>
                         <Text style={fl.oneTimeBadgeTxt}>1회성</Text>
                       </View>
                     )}
-                    <Layers size={18} color={isOneTime ? "#7C3AED" : C.tint} />
-                    <Text style={[fl.summaryNameTxt, { color: isOneTime ? "#7C3AED" : C.tint }]}>{classLabel}</Text>
+                    <LucideIcon name="layers" size={18} color={isOneTime ? "#7C3AED" : C.brandStrong} />
+                    <Text style={[fl.summaryNameTxt, { color: isOneTime ? "#7C3AED" : C.brandStrong }]}>{classLabel}</Text>
                   </View>
                   <View style={fl.summaryRows}>
                     <SummaryRow icon="calendar" label={isOneTime ? "날짜" : "요일"} value={dayLabel} />
                     <SummaryRow icon="clock" label="시간" value={selectedTime} />
                     <SummaryRow icon="user" label="선생님" value={teacherName} />
-                    <SummaryRow icon="users" label="기본 정원" value={`${defaultCapacity}명`} last />
+                    <CapacityRow
+                      value={customCapacity ?? defaultCapacity}
+                      defaultValue={defaultCapacity}
+                      onChange={setCustomCapacity}
+                    />
                   </View>
                 </View>
               </>
@@ -402,7 +406,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
           {/* ── 하단 버튼 ── */}
           <View style={[fl.footer, { paddingBottom: insets.bottom + 8 }]}>
             <Pressable
-              style={[fl.createBtn, { backgroundColor: isOneTime ? "#7C3AED" : C.tint }]}
+              style={[fl.createBtn, { backgroundColor: isOneTime ? "#7C3AED" : C.brandStrong }]}
               onPress={handleCreate}
               disabled={saving}
             >
@@ -410,7 +414,7 @@ export default function ClassCreateFlow({ token, role, selfTeacher, onSuccess, o
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Check size={18} color="#fff" />
+                  <LucideIcon name="check" size={18} color="#fff" />
                   <Text style={fl.createBtnTxt}>{isOneTime ? "1회성 반 개설" : "반 개설하기"}</Text>
                 </>
               )}
@@ -431,11 +435,51 @@ function SummaryRow({ icon, label, value, last }: { icon: string; label: string;
     </View>
   );
 }
+
+function CapacityRow({ value, defaultValue, onChange }: { value: number; defaultValue: number; onChange: (v: number) => void }) {
+  const isModified = value !== defaultValue;
+  return (
+    <View style={[sr.row]}>
+      <LucideIcon name="users" size={13} color={C.textMuted} />
+      <Text style={sr.label}>정원</Text>
+      <View style={cp.stepper}>
+        <Pressable
+          style={[cp.btn, value <= 1 && { opacity: 0.35 }]}
+          onPress={() => onChange(Math.max(1, value - 1))}
+          hitSlop={8}
+        >
+          <Text style={cp.btnTxt}>−</Text>
+        </Pressable>
+        <View style={cp.valBox}>
+          <Text style={[cp.val, isModified && { color: C.brandStrong, fontFamily: "Pretendard-SemiBold" }]}>
+            {value}명
+          </Text>
+          {isModified && (
+            <Text style={cp.hint}>기본 {defaultValue}명</Text>
+          )}
+        </View>
+        <Pressable style={cp.btn} onPress={() => onChange(value + 1)} hitSlop={8}>
+          <Text style={cp.btnTxt}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const sr = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 9 },
   border: { borderBottomWidth: 1, borderBottomColor: C.border },
   label: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, width: 60 },
   value: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text, flex: 1 },
+});
+
+const cp = StyleSheet.create({
+  stepper: { flex: 1, flexDirection: "row", alignItems: "center", gap: 0 },
+  btn: { width: 30, height: 30, borderRadius: 8, backgroundColor: C.background, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  btnTxt: { fontSize: 18, lineHeight: 22, color: C.text, fontFamily: "Pretendard-Regular" },
+  valBox: { minWidth: 64, alignItems: "center" },
+  val: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
+  hint: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textMuted, marginTop: 1 },
 });
 
 const fl = StyleSheet.create({
@@ -474,7 +518,7 @@ const fl = StyleSheet.create({
   dateInput: { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text },
 
   // 선택 chip
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.tintLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, alignSelf: "flex-start" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.brandSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, alignSelf: "flex-start" },
   chipTxt: { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.text },
 
   // 선생님 없음

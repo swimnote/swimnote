@@ -1,0 +1,480 @@
+[SWIMNOTE X — Curriculum APP MASTER Word Import System 구현]
+
+이번 작업은 실제 구현 작업이다.
+
+목표:
+사용자가 GPT에서 생성한
+“SWIMNOTE X Curriculum APP MASTER” Word(.docx) 파일을
+Superadmin에서 특정 X MODE 수영장에 업로드하면,
+
+해당 문서의 Level / Curriculum Node / Drill / Relation / Test 정보를
+정확히 파싱하여 APP/API DB에 저장하고,
+해당 수영장 전용 Curriculum Version으로 즉시 사용할 수 있게 한다.
+
+중요:
+AI ENGINE으로 자동 전송하는 기능은 이번 작업에서 만들지 않는다.
+
+사용자가 APP용 Word와 AI ENGINE용 Word를 각각 직접 업로드한다.
+
+즉 APP은 APP 파일만 책임진다.
+
+절대로 APP → AI 자동 migration/sync 구조를 만들지 말 것.
+
+==================================================
+0. 구현 전 절대 원칙
+==================================================
+
+현재 Repository를 먼저 조사하고
+기존 데이터 모델/API/UI를 최대한 재사용한다.
+
+기존 기능을 깨뜨리지 않는다.
+
+기존 curriculum_items 및 과거 growth_events 참조 데이터 삭제 금지.
+
+새 Curriculum은 Version 방식으로 추가한다.
+
+현재 ACTIVE 버전은 새 파일 Import가 성공하기 전까지 유지한다.
+
+APP Curriculum DB가
+학생진도 / 학부모 Curriculum / Growth context 등
+APP측 Curriculum 정본이다.
+
+==================================================
+1. 입력 파일
+==================================================
+
+입력은 .docx 파일이다.
+
+GPT가 SWIMNOTE 표준 Curriculum APP MASTER 양식에 맞춰 생성한
+구조화 Word 문서만 받는다.
+
+파일 내용을 자유 텍스트로 대충 추론해서 넣지 말 것.
+
+문서의 명시적 heading / field / table / numbering 기준으로
+deterministic parser를 우선한다.
+
+필수 지원 데이터:
+
+DOCUMENT META
+- pool reference
+- curriculum release/version
+- document schema version
+
+LEVEL
+- level_order
+- level_name
+- description
+- badge/display metadata if present
+
+CURRICULUM NODE
+- sequence_in_level
+- display number
+- stroke
+- domain
+- skill_group
+- atomic_skill
+- title
+- goal
+- movement_sequence
+- observable_success
+- partial_success
+- error_signals
+- coaching_point
+- test 여부
+- completion 기준
+- source trace
+
+DRILL
+- target curriculum node
+- title
+- target aspect
+- movement sequence
+- repetitions
+- immediate feedback
+- integration
+- sprint validation
+- failure return relation
+
+RELATION
+- prerequisite
+- next skill
+- related skill
+- correction relation
+- test relation
+
+==================================================
+2. Level 규칙
+==================================================
+
+수영장별 레벨 이름/개수는 모두 다를 수 있다.
+
+WHITE / BLUE / BEGINNER 같은
+전역 레벨 체계를 강제하지 않는다.
+
+현재 APP 구조의:
+
+pool_level_settings.level_order
+pool_level_settings.level_name
+
+을 우선 재사용한다.
+
+진도순서는 반드시:
+
+level_order INTEGER ASC
+
+를 사용한다.
+
+예:
+
+수영장 A
+1 흰색
+2 파란색
+3 빨간색
+
+수영장 B
+1 초급
+2 중급
+3 상급
+4 마스터
+
+UI에서는 항상
+해당 pool의 level_name을 다시 표시한다.
+
+AI용 난이도 코드와 섞지 않는다.
+
+==================================================
+3. Curriculum Identity
+==================================================
+
+매우 중요.
+
+사람 표시번호와 DB 영구 식별자를 분리한다.
+
+예:
+
+display_no = L3-012
+sequence_in_level = 12
+
+이 값 자체를 DB PK로 사용하지 않는다.
+
+DB PK/node id는 시스템이 생성하거나
+기존 schema 방식에 맞춰 생성한다.
+
+순서가 바뀌어도
+과거 growth/event 참조가 깨지지 않아야 한다.
+
+가능하면 문서의 stable node key와
+DB node id mapping을 유지한다.
+
+==================================================
+4. 기존 테이블 재조사
+==================================================
+
+다음을 실제 Repository 기준으로 조사한 뒤 구현한다.
+
+pool_level_settings
+student_levels
+students
+x_curriculum_levels
+curriculum_versions
+curriculum_items
+student_curriculum_assignments
+student_curriculum_progress
+curriculum_progress_observations
+growth_events
+growth_reports
+diary_templates
+
+필요한 경우에만 최소 migration을 추가한다.
+
+새 테이블을 무조건 만들지 않는다.
+
+단,
+Node / Drill / Relation 구조를 기존 schema가 제대로 표현하지 못하면
+정규화 테이블을 최소 범위로 추가해도 된다.
+
+그 경우 기존 curriculum_items와의
+compatibility strategy를 반드시 같이 구현한다.
+
+==================================================
+5. Word Parser
+==================================================
+
+Parser 품질이 매우 중요하다.
+
+요구사항:
+
+- heading 순서 검증
+- table/field name 검증
+- level_order integer 검증
+- sequence 검증
+- 빈 atomic_skill 금지
+- duplicate node 금지
+- duplicate sequence 감지
+- drill target 확인
+- relation target 확인
+- 잘못된 level reference 감지
+- malformed Word 차단
+- schema version 검증
+
+파일 전체를 LLM에 보내서
+매번 다르게 해석하는 방식 금지.
+
+표준 Word 구조는 deterministic parser로 읽는다.
+
+필요하면 fallback parser를 둘 수 있으나
+fallback 발생 시 사용자에게 경고한다.
+
+==================================================
+6. Preview / Validation
+==================================================
+
+DB 저장 전에 반드시 Preview 단계를 만든다.
+
+Superadmin 화면에서:
+
+수영장명
+Curriculum version
+Level 수
+Node 수
+Drill 수
+Relation 수
+Test item 수
+
+표시.
+
+그리고:
+
+오류
+경고
+중복
+누락
+잘못된 참조
+
+를 보여준다.
+
+ERROR가 하나라도 있으면 Import 불가.
+
+WARNING은 사용자가 확인 후 진행 가능.
+
+==================================================
+7. Import Transaction
+==================================================
+
+Import는 transaction 기반으로 처리한다.
+
+중간 실패 시
+일부 Level만 들어가고
+일부 Node만 들어가는 상태 절대 금지.
+
+전체 성공 또는 전체 rollback.
+
+새 version을 먼저 생성하고
+검증/저장이 모두 성공한 뒤
+IMPORT_COMPLETE 상태로 둔다.
+
+기존 ACTIVE version을 바로 교체하지 않는다.
+
+==================================================
+8. Version 운영
+==================================================
+
+최소 상태:
+
+DRAFT
+VALIDATED
+IMPORTED
+ACTIVE
+ARCHIVED
+FAILED
+
+과도한 상태머신 만들지 않는다.
+
+사용자는 Import 완료 후
+새 Curriculum을 직접 확인한다.
+
+그리고 [활성화] 버튼으로 ACTIVE 전환한다.
+
+새 버전 ACTIVE 시
+기존 ACTIVE 버전은 ARCHIVED 처리하되
+DB row 삭제 금지.
+
+과거 성장기록/일지/리포트 참조 보존.
+
+==================================================
+9. Superadmin UI
+==================================================
+
+현재 X Admin Hub 구조에 통합한다.
+
+수영장별 화면:
+
+현재 Curriculum
+Version
+Active 여부
+Level 수
+Node 수
+Drill 수
+마지막 업데이트
+
+버튼:
+
+[APP MASTER Word 업로드]
+[검증]
+[Import]
+[내용 보기]
+[활성화]
+[버전 이력]
+[Archive]
+
+업로드 직후 파일을 서버에서 보관하여
+원본 Word도 다시 다운로드/확인 가능하게 한다.
+
+==================================================
+10. Curriculum 활용도 100%
+==================================================
+
+Import된 Curriculum을 단순 보관만 하지 않는다.
+
+현재 APP 기능에서 실제로 연결한다.
+
+반드시 조사 후 연결:
+
+1. Student Curriculum Progress
+2. Curriculum Progress Gauge
+3. 학부모 Curriculum 화면
+4. 학생 현재 Level
+5. 레벨별 Progress
+6. 승급/테스트 정보
+7. Growth Report용 Curriculum Snapshot
+8. Diary 저장 시 curriculum node reference
+9. 관리자/선생님 Curriculum 조회
+
+기존 기능이 아직 전체 Node를 활용하지 못하면
+필요한 selector/query/API를 추가한다.
+
+중요:
+Progress는 전체 문서 850개 단일 %만 보여주는 방식으로 고정하지 않는다.
+
+pool의 level_order 기준으로
+현재 Level 및 해당 Level 내 진행률을 계산할 수 있어야 한다.
+
+학부모에게는 level_order 숫자가 아니라
+해당 pool의 level_name을 표시한다.
+
+==================================================
+11. Drill과 Progress 분리
+==================================================
+
+Drill 수행 =
+Curriculum Node 완료가 아니다.
+
+Node 완료/확정은
+기존 student progress/observation 정책에 연결한다.
+
+Drill은 지도/교정 수단이다.
+
+Progress Gauge를 Drill 횟수로 올리지 않는다.
+
+==================================================
+12. 성능
+==================================================
+
+500 pools × 평균 850 nodes 이상을 전제로 한다.
+
+필요 index:
+
+pool/version
+level_order
+sequence
+node
+active version
+student progress
+
+확인.
+
+매 화면에서 전체 curriculum을 불필요하게
+모두 가져오는 구조 금지.
+
+pagination / filtered query / indexed lookup 사용.
+
+==================================================
+13. 안전
+==================================================
+
+tenant isolation 필수.
+
+다른 pool curriculum 조회/수정 절대 불가.
+
+Superadmin upload route는 superadmin 권한 검증.
+
+X MODE 권한/상태도 현재 정책 기준으로 검증.
+
+파일 크기/확장자/MIME 검증.
+
+DOCX 내부 비정상 파일 방어.
+
+==================================================
+14. 테스트
+==================================================
+
+반드시 테스트:
+
+A. 정상 7 Level 대형 Curriculum
+B. Level 3개인 다른 수영장
+C. 같은 level_order 중복
+D. Node sequence 중복
+E. Drill target 누락
+F. Relation target 누락
+G. malformed DOCX
+H. 동일 파일 재업로드
+I. 새 version import
+J. 기존 ACTIVE 유지
+K. 새 version activate
+L. old version archive
+M. 과거 growth_event 참조 유지
+N. tenant isolation
+
+대형 Curriculum에서도 성능 확인.
+
+==================================================
+15. 완료 보고
+==================================================
+
+완료 후 다음을 보고한다.
+
+CODE
+- commit SHA
+- 수정 파일
+- migration
+- 신규 route
+- parser
+- UI
+
+DB
+- 추가/변경 schema
+- index
+
+TEST
+- 테스트 결과
+
+DEVICE/UI
+- Superadmin 실제 동작
+
+SERVER
+- API 검증
+
+DEPLOY
+- 이번 작업에서 배포했다면 상태
+- 배포하지 않았다면 명확히 미배포
+
+그리고 반드시:
+
+“APP MASTER Word 한 개를 업로드했을 때
+어떤 데이터가 어디까지 실제 활용되는가”
+
+를 끝에 데이터 흐름으로 정리한다.
+
+중간에 임의로 AI Engine 자동 sync를 만들지 말 것.
+
+작업 완료 후 STOP.

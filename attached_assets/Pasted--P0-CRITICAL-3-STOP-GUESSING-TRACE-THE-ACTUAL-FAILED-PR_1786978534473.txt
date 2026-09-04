@@ -1,0 +1,467 @@
+[P0-CRITICAL-3 — STOP GUESSING / TRACE THE ACTUAL FAILED PRODUCTION REQUEST]
+
+실제 production iPhone에서
+SHA b8a13a90 Render 배포 완료 후에도
+
+"x모드 알려줘"
+
+전송 시 AI 답변이 채팅에 표시되지 않았다.
+
+중요:
+
+이번에는 코드 읽고 "될 것이다"라고 판정하지 않는다.
+mock test PASS로 production PASS 선언 금지.
+예상값 작성 금지.
+
+실제 방금 실패한 production request 하나를
+끝까지 추적한 결과만 보고한다.
+
+==================================================
+0. HARD STOP
+==================================================
+
+다음 행위 금지:
+
+- 원인 추측 후 바로 수정
+- 테스트 mock만 보고 PASS 선언
+- "배포 후 정상 표시됩니다"라고 예상 보고
+- 새 기능 개발
+- Knowledge ACTIVE 변경
+- OTA 배포
+
+먼저 실제 production 상태를 확인한다.
+
+==================================================
+1. ACTUAL PRODUCTION SCHEMA FIRST
+==================================================
+
+PRIMARY APP DB인 실제 Supabase production에서
+read-only schema 조회.
+
+반드시 실제 DB 결과 확인:
+
+support_ticket_replies.author_user_id
+
+확인:
+
+DATA_TYPE =
+IS_NULLABLE =
+COLUMN_DEFAULT =
+
+그리고:
+
+support_ticket_replies.case_id
+support_ticket_replies.ticket_id
+support_ticket_replies.author_role
+support_ticket_replies.message_type
+
+실제 schema도 확인.
+
+보고:
+
+PRODUCTION_DB_TARGET =
+AUTHOR_USER_ID_IS_NULLABLE =
+
+중요:
+
+코드에 ALTER 문이 있다는 것은 증거가 아니다.
+
+실제 production information_schema 결과만 인정.
+
+==================================================
+2. DID THE ALTER ACTUALLY RUN?
+==================================================
+
+b8a13a90 배포 startup 로그에서:
+
+ensureCs01rSchema()
+
+실행 여부 확인.
+
+특히:
+
+ALTER TABLE support_ticket_replies
+ALTER COLUMN author_user_id DROP NOT NULL
+
+실제 성공했는지 확인.
+
+보고:
+
+SCHEMA_ENSURE_STARTED =
+DROP_NOT_NULL_ATTEMPTED =
+DROP_NOT_NULL_SUCCEEDED =
+DDL_ERROR =
+
+console.error가 있었다면 실제 오류 전문에서
+secret 제거 후 error type/message만 보고.
+
+==================================================
+3. FIND THE EXACT FAILED DEVICE REQUEST
+==================================================
+
+Render production logs에서
+가장 최근 실제 Support request를 찾는다.
+
+사용자의 방금 실패한 테스트 건.
+
+보고:
+
+REQUEST_FOUND =
+REQUEST_ID =
+CASE_ID =
+REQUEST_STARTED_AT =
+REQUEST_FINISHED_AT =
+HTTP_STATUS =
+LATENCY =
+
+찾지 못하면:
+
+REQUEST_FOUND = NO
+
+로 보고하고 중지.
+
+추측 금지.
+
+==================================================
+4. HTTP RESPONSE BODY
+==================================================
+
+실제 해당 request의 response.
+
+본문 전체 답변은 출력할 필요 없음.
+
+다음 field만:
+
+success =
+code =
+message_present =
+answer_present =
+case_id_present =
+resolution_source =
+llm_used =
+
+보고:
+
+ACTUAL_RESPONSE_CODE =
+ACTUAL_SAFE_ERROR_CODE =
+
+==================================================
+5. SERVER PIPELINE — ACTUAL REQUEST ONLY
+==================================================
+
+방금 request가 실제 어디까지 갔는지:
+
+USER_INSERT =
+AI_PROCESSING_TRANSITION =
+RESOLUTION_CHAIN =
+EVIDENCE_GATHER =
+OPENAI_CALL =
+AI_INSERT =
+STATE_TRANSITION_AFTER =
+HTTP_RETURN =
+
+각각:
+
+PASS
+FAIL
+NOT_REACHED
+
+실제 로그/DB 근거만 사용.
+
+==================================================
+6. ACTUAL DB ROWS
+==================================================
+
+CASE_ID 기준 실제 primary Supabase에서 조회.
+
+support_ticket_replies:
+
+USER_ROWS =
+AI_ROWS =
+
+AI row가 있으면:
+
+AI_AUTHOR_ROLE =
+AI_AUTHOR_USER_ID =
+AI_CASE_ID =
+AI_TICKET_ID =
+AI_MESSAGE_TYPE =
+
+본문 출력 금지.
+
+==================================================
+7. IF AI INSERT FAILED
+==================================================
+
+AI_ROWS = 0이면
+
+실제 INSERT failure를 찾는다.
+
+반드시:
+
+SQLSTATE
+constraint/table/column
+safe error message
+
+보고.
+
+예:
+
+23502 NOT NULL
+42P01 relation missing
+23503 FK
+22P02 enum
+기타
+
+이번에는 예상 root cause 금지.
+
+ACTUAL_DB_ERROR =
+
+==================================================
+8. IF AI ROW EXISTS
+==================================================
+
+AI_ROWS > 0이면
+server storage는 성공.
+
+그러면 실제 GET conversation 확인:
+
+GET_STATUS =
+GET_MESSAGE_COUNT =
+AI_ROW_RETURNED =
+
+AI_ROW_RETURNED = YES인데 앱에 안 보이면
+그때만 client 문제로 이동.
+
+==================================================
+9. CLIENT NETWORK RESULT
+==================================================
+
+가능한 production/device 로그 또는
+현재 앱 코드와 실제 server response를 대조.
+
+중요:
+
+server가 500을 반환했는데
+앱이 오류 문구를 안 보여주는지 확인.
+
+보고:
+
+SERVER_HTTP =
+CLIENT_EXPECTED_SUCCESS =
+CLIENT_ERROR_HANDLER =
+USER_ERROR_VISIBLE =
+
+현재 사용자가 보는 현상은:
+
+"답변 없음"
+
+이므로
+
+A. 실제 500인데 error UX 없음
+B. 실제 200인데 message 없음
+C. 실제 200 + DB row 있음 + UI refresh 실패
+
+셋 중 하나로 반드시 분류.
+
+==================================================
+10. ROOT CAUSE GATE
+==================================================
+
+코드 수정 전에 반드시 먼저 출력:
+
+PRODUCTION_SCHEMA_CONFIRMED =
+ACTUAL_HTTP_STATUS =
+ACTUAL_DB_AI_ROWS =
+ACTUAL_DB_ERROR =
+FAILURE_LAYER =
+ROOT_CAUSE =
+
+이 6개가 실제 근거로 채워지지 않으면
+수정 금지.
+
+==================================================
+11. ONLY THEN MINIMAL FIX
+==================================================
+
+실제 root cause에 해당하는 것만 수정.
+
+가능한 예:
+
+A.
+DROP NOT NULL migration이 실제 production에서 실행되지 않음
+
+B.
+다른 constraint 존재
+
+C.
+AI INSERT 다른 컬럼 실패
+
+D.
+server 500은 정상인데 mobile error UX 누락
+
+E.
+DB row/GET 정상인데 mobile refresh defect
+
+실제 확인되지 않은 항목 수정 금지.
+
+==================================================
+12. PRODUCTION SCHEMA FIX POLICY
+==================================================
+
+만약 schema가 실제로 잘못돼 있다면:
+
+primary Supabase에
+정확한 idempotent migration/repair 적용.
+
+backup/POOL_DATABASE_URL 수정 금지.
+
+migration 적용 후
+information_schema를 다시 조회해서
+실제 결과 검증.
+
+"migration 코드 작성 완료"만으로 PASS 금지.
+
+==================================================
+13. FAILURE UX POLICY
+==================================================
+
+server가 non-2xx를 반환하면 앱은 반드시:
+
+loading 종료
++
+오류 표시
++
+다시 시도 또는 상담사 연결
+
+해야 한다.
+
+silent disappearance 금지.
+
+단 client defect가 실제 확인된 경우에만 수정.
+
+==================================================
+14. REAL PRODUCTION RETEST
+==================================================
+
+수정/배포 후 반드시 실제 iPhone에서 다시:
+
+"x모드 알려줘"
+
+전송.
+
+이번에는 Replit이 예상 결과 작성 금지.
+
+사용자 실제 확인 전:
+
+AI_REPLY_VISIBLE = NOT_USER_VERIFIED
+
+로만 보고.
+
+==================================================
+15. TESTS
+==================================================
+
+unit/integration 테스트는 보조 증거일 뿐.
+
+기존 full suite 실행.
+
+하지만:
+
+FULL_TEST_RESULT = PASS
+
+가 production/device PASS를 의미하지 않는다고
+최종 보고서에 명시.
+
+==================================================
+16. DEPLOYMENT
+==================================================
+
+Server-only면 Render.
+
+Mobile defect 실제 확인 시에만:
+iOS production OTA.
+
+preview OTA 금지.
+Android OTA = NO.
+
+==================================================
+17. FINAL REPORT
+==================================================
+
+PRODUCTION_DB_TARGET =
+
+AUTHOR_USER_ID_IS_NULLABLE =
+SCHEMA_ENSURE_STARTED =
+DROP_NOT_NULL_ATTEMPTED =
+DROP_NOT_NULL_SUCCEEDED =
+DDL_ERROR =
+
+REQUEST_FOUND =
+REQUEST_ID =
+CASE_ID =
+
+ACTUAL_HTTP_STATUS =
+ACTUAL_SAFE_ERROR_CODE =
+
+USER_INSERT =
+AI_PROCESSING_TRANSITION =
+RESOLUTION_CHAIN =
+OPENAI_CALL =
+AI_INSERT =
+HTTP_RETURN =
+
+USER_ROWS =
+AI_ROWS =
+ACTUAL_DB_ERROR =
+
+GET_STATUS =
+AI_ROW_RETURNED =
+
+SERVER_HTTP =
+USER_ERROR_VISIBLE =
+
+FAILURE_LAYER =
+ROOT_CAUSE =
+
+FIX_APPLIED =
+PRODUCTION_SCHEMA_AFTER_FIX =
+
+FILES_CHANGED =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOYMENT =
+
+MOBILE_CHANGED =
+IOS_PRODUCTION_OTA =
+ANDROID_OTA = NO
+
+DEVICE_RETEST_STATUS =
+AI_REPLY_VISIBLE = NOT_USER_VERIFIED
+
+중요 성공조건:
+
+실제 production schema 확인 완료.
+
+실제 실패 request 추적 완료.
+
+실제 HTTP status 확인 완료.
+
+실제 DB AI row 존재/실패 이유 확인 완료.
+
+ROOT_CAUSE가 실제 production evidence로 증명됨.
+
+수정 후에도
+사용자 본인이 iPhone에서 확인하기 전에는:
+
+AI_REPLY_VISIBLE = PASS
+
+라고 쓰지 않는다.
+
+완료 선언도 사용자 실기기 확인 전 금지.
+
+완료 가능한 중간 문구:
+
+P0_PRODUCTION_ROOT_CAUSE_CONFIRMED_AND_FIX_DEPLOYED ✅
+AWAITING_USER_DEVICE_VERIFICATION

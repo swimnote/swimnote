@@ -2,14 +2,13 @@
  * 미배정회원 화면
  * 반 배정이 안 된 학생 명단 관리 + CSV 업로드 + 학부모 초대
  */
-import { Check, Download, Search, Upload, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Platform, Pressable,
+  RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, safeJson, useAuth } from "@/context/AuthContext";
@@ -34,9 +33,9 @@ interface UnregItem {
 type ParseRow = { name: string; parent_phone: string; result: "ok" | "duplicate" | "error"; reason?: string };
 
 const INVITE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-  none:    { label: "초대 전",   color: "#64748B", bg: "#F1F5F9" },
-  invited: { label: "초대 완료", color: "#2EC4B6", bg: "#E6FFFA" },
-  joined:  { label: "가입 완료", color: "#2EC4B6", bg: "#E6FFFA" },
+  none:    { label: "초대 전",   color: C.textSecondary, bg: C.backgroundSoft },
+  invited: { label: "초대 완료", color: C.brandStrong, bg: C.brandSoft },
+  joined:  { label: "가입 완료", color: C.brandStrong, bg: C.brandSoft },
 };
 
 async function readFileText(uri: string): Promise<string> {
@@ -159,7 +158,7 @@ export default function PeoplePendingScreen() {
       {/* 액션 버튼 */}
       <View style={s.uploadRow}>
         <Pressable style={s.tplBtn} onPress={downloadTemplate}>
-          <Download size={13} color="#4338CA" />
+          <LucideIcon name="download" size={13} color="#4338CA" />
           <Text style={s.tplBtnTxt}>템플릿 다운로드</Text>
         </Pressable>
         <Pressable
@@ -169,14 +168,14 @@ export default function PeoplePendingScreen() {
         >
           {uploading
             ? <ActivityIndicator size="small" color={themeColor} />
-            : <><Upload size={13} color={themeColor} /><Text style={[s.tplBtnTxt, { color: themeColor }]}>CSV 업로드</Text></>
+            : <><LucideIcon name="upload" size={13} color={themeColor} /><Text style={[s.tplBtnTxt, { color: themeColor }]}>CSV 업로드</Text></>
           }
         </Pressable>
       </View>
 
       {/* 검색 */}
       <View style={s.searchBar}>
-        <Search size={15} color={C.textSecondary} />
+        <LucideIcon name="search" size={15} color={C.textSecondary} />
         <TextInput
           style={s.searchInput}
           value={q}
@@ -184,7 +183,7 @@ export default function PeoplePendingScreen() {
           placeholder="이름·전화번호 검색"
           placeholderTextColor={C.textSecondary}
         />
-        {!!q && <Pressable onPress={() => setQ("")}><X size={15} color={C.textSecondary} /></Pressable>}
+        {!!q && <Pressable onPress={() => setQ("")}><LucideIcon name="x" size={15} color={C.textSecondary} /></Pressable>}
       </View>
 
       {/* 전체 선택 */}
@@ -194,7 +193,7 @@ export default function PeoplePendingScreen() {
             ? { backgroundColor: themeColor, borderColor: themeColor } : {}
         ]}>
           {selectedIds.size > 0 && selectedIds.size === filteredUnreg.length &&
-            <Check size={10} color="#fff" />}
+            <LucideIcon name="check" size={10} color="#fff" />}
         </View>
         <Text style={s.allSelectTxt}>전체 선택 ({filteredUnreg.length}명)</Text>
         {unreg.length > 0 && (
@@ -225,14 +224,14 @@ export default function PeoplePendingScreen() {
               <Pressable style={s.card} onPress={() => toggleSelect(item.id)}>
                 <View style={s.row}>
                   <View style={[s.checkbox, selectedIds.has(item.id) ? { backgroundColor: themeColor, borderColor: themeColor } : {}]}>
-                    {selectedIds.has(item.id) && <Check size={10} color="#fff" />}
+                    {selectedIds.has(item.id) && <LucideIcon name="check" size={10} color="#fff" />}
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <Text style={s.name}>{item.name}</Text>
                       {hasParent && (
-                        <View style={[s.pill, { backgroundColor: "#E6FFFA" }]}>
-                          <Text style={[s.pillTxt, { color: "#2EC4B6" }]}>학부모 연결됨</Text>
+                        <View style={[s.pill, { backgroundColor: C.brandSoft }]}>
+                          <Text style={[s.pillTxt, { color: C.brandStrong }]}>학부모 연결됨</Text>
                         </View>
                       )}
                       {!hasParent && (
@@ -261,7 +260,7 @@ export default function PeoplePendingScreen() {
         <View style={[s.inviteBar, { bottom: TAB_BAR_H }]}>
           <Text style={s.inviteCount}>{selectedIds.size}명 선택됨</Text>
           <Pressable
-            style={[s.inviteBtn, { backgroundColor: C.button }]}
+            style={[s.inviteBtn, { backgroundColor: C.primaryAction }]}
             onPress={() => setShowInviteConfirm(true)}
             disabled={inviting}
           >
@@ -279,17 +278,17 @@ export default function PeoplePendingScreen() {
           <View style={s.validateSheet}>
             <View style={s.validateHeader}>
               <Text style={s.validateTitle}>업로드 검증 결과</Text>
-              <Pressable onPress={() => setShowValidate(false)}><X size={20} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={() => setShowValidate(false)}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
             </View>
             <View style={s.validateSummary}>
-              <SummaryChip label="정상" count={okCount} color="#2EC4B6" bg="#E6FFFA" />
+              <SummaryChip label="정상" count={okCount} color={C.brandStrong} bg={C.brandSoft} />
               <SummaryChip label="중복" count={dupCount} color="#D97706" bg="#FFF1BF" />
               <SummaryChip label="오류" count={errCount} color="#D96C6C" bg="#F9DEDA" />
             </View>
             {okCount > 0 && (
               <Text style={s.validateNote}>정상 {okCount}건이 미배정회원 명단에 추가되었습니다.</Text>
             )}
-            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
               {parseResults.map((row, i) => (
                 <View key={i} style={[s.validateRow,
                   row.result === "ok" ? s.rowOk : row.result === "duplicate" ? s.rowDup : s.rowErr
@@ -300,15 +299,15 @@ export default function PeoplePendingScreen() {
                     {row.reason && <Text style={s.validateReason}>{row.reason}</Text>}
                   </View>
                   <Text style={[s.validateBadge,
-                    row.result === "ok" ? { color: "#2EC4B6" } :
+                    row.result === "ok" ? { color: C.brandStrong } :
                     row.result === "duplicate" ? { color: "#D97706" } : { color: "#D96C6C" }
                   ]}>
                     {row.result === "ok" ? "정상" : row.result === "duplicate" ? "중복" : "오류"}
                   </Text>
                 </View>
               ))}
-            </ScrollView>
-            <Pressable style={[s.validateClose, { backgroundColor: C.button }]} onPress={() => setShowValidate(false)}>
+            </KeyboardAwareScrollView>
+            <Pressable style={[s.validateClose, { backgroundColor: C.primaryAction }]} onPress={() => setShowValidate(false)}>
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>확인</Text>
             </Pressable>
           </View>
@@ -340,12 +339,12 @@ const s = StyleSheet.create({
   root:           { flex: 1, backgroundColor: C.background },
 
   uploadRow:      { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 },
-  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: "#E6FFFA" },
+  tplBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: "#4338CA", backgroundColor: C.brandSoft },
   tplBtnTxt:      { fontSize: 12, fontWeight: "700", color: "#4338CA" },
 
   searchBar:      { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#FFFFFF", borderRadius: 10 },
   searchInput:    { flex: 1, fontSize: 14, color: C.text },
-  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
+  allSelectRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
   allSelectTxt:   { flex: 1, fontSize: 13, color: C.textSecondary },
   countBadge:     { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   countBadgeTxt:  { color: "#fff", fontSize: 11, fontWeight: "700" },
@@ -361,7 +360,7 @@ const s = StyleSheet.create({
   empty:          { paddingVertical: 40, alignItems: "center" },
   emptyTxt:       { color: C.textSecondary, fontSize: 14 },
 
-  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#E5E7EB" },
+  inviteBar:      { position: "absolute", left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: C.border },
   inviteCount:    { fontSize: 14, fontWeight: "600", color: C.text },
   inviteBtn:      { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   inviteBtnTxt:   { fontSize: 14, fontWeight: "700", color: "#fff" },
@@ -374,7 +373,7 @@ const s = StyleSheet.create({
   summaryChip:    { flex: 1, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
   summaryLabel:   { fontSize: 13, fontWeight: "700" },
   validateNote:   { fontSize: 12, color: "#4338CA", paddingHorizontal: 16, marginBottom: 8, fontWeight: "600" },
-  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" },
+  validateRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.backgroundSoft },
   rowOk:          { backgroundColor: "#DFF3EC" },
   rowDup:         { backgroundColor: "#FFFBEB" },
   rowErr:         { backgroundColor: "#FFF1F2" },

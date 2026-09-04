@@ -1,0 +1,744 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0.1 — FULL SOURCE VERIFICATION
+# NEW IOS BUILD + TESTFLIGHT SUBMISSION
+#
+# 사용자 명시 승인:
+#
+# 기존 2.0.0 OTA 수신/반영 상태를 더 이상 신뢰하지 않는다.
+#
+# 지금까지 수정했다고 보고한 WP1~WP7 및 Kakao migration 관련
+# 모든 변경이 실제 runtime source에 존재하는지 먼저 전수검증하고,
+# 누락/가짜 수정/비실행 복사본 수정이 있으면 실제 runtime source에
+# 정확히 반영한 뒤,
+#
+# SWIMNOTE 2.0.1 새 iOS 바이너리를 빌드하고
+# App Store Connect / TestFlight까지 자동 제출한다.
+#
+# 이번 작업은 "보고서 PASS"가 아니라
+# 실제 source + bundle + build 기준 검증이 핵심이다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Primary branch:
+release/v2.0.0
+
+Target release version:
+2.0.1
+
+Current known TestFlight:
+2.0.0 build 253
+
+1.6.3:
+ABSOLUTELY NO TOUCH
+
+Android:
+NO TOUCH
+
+Production DB:
+NO WRITE
+
+============================================================
+0. 최우선 원칙
+============================================================
+
+이번에는 절대:
+
+"commit 있음"
+"테스트 PASS"
+"OTA 생성됨"
+
+만으로 완료 처리하지 말 것.
+
+반드시 실제 EAS runtime source 기준으로
+각 WP 코드가 존재하는지 확인.
+
+특히 지금까지 보고서에서 수정 파일 경로가
+artifacts/swim-app/...
+형태였으므로
+
+그 경로가 실제 Expo/EAS build root인지
+최우선 검증.
+
+============================================================
+1. REAL EXPO SOURCE ROOT 확인
+============================================================
+
+다음 실제 경로를 찾아서 보고:
+
+- eas.json
+- package.json
+- app.json / app.config.*
+- expo-router app/
+- components/
+- metro config
+- EAS build 실행 cwd
+
+반드시:
+
+REAL_EXPO_APP_ROOT=...
+
+보고.
+
+artifacts/swim-app가
+실제 runtime source인지
+복사본인지
+정확히 판정.
+
+============================================================
+2. 중복 SOURCE TREE 전수검색
+============================================================
+
+repo 전체에서 다음 파일명 검색:
+
+makeups.tsx
+members.tsx
+teacher-hub.tsx
+MessengerScreen.tsx
+x-mode-hub.tsx
+x-setup.tsx
+x-subscription.tsx
+signup.tsx
+pool-join-request.tsx
+
+각 파일별로:
+
+PATH
+RUNTIME USED YES/NO
+LATEST WP CHANGE PRESENT YES/NO
+
+표로 제출.
+
+복사본 수정으로 판정되면
+그 즉시 실제 runtime file에 변경 이식.
+
+============================================================
+3. WP1 실제 코드 검증
+============================================================
+
+대상:
+보강관리 상단 탭 clipping
+
+실제 runtime makeups.tsx에서 최소 확인:
+
+- chip flexShrink: 0
+- chipTxt lineHeight 존재
+- numberOfLines={1}
+- horizontal contentContainerStyle 정상
+- 첫 탭 edge clipping 방지
+
+실제 source에 없으면
+WP1은 미적용으로 판정하고
+runtime source에 수정.
+
+============================================================
+4. WP2 실제 코드 검증
+============================================================
+
+대상:
+회원관리
+
+실제 runtime members.tsx에서 확인:
+
+A.
+"어린이 직접 등록" CTA가
+헤더와 붙지 않도록 top spacing 존재
+
+B.
+회원 카드에서:
+- 반이동
+- 연기
+- 퇴원
+- 삭제
+직접 quick action 제거
+
+C.
+상세 진입 유지
+
+D.
+member-detail에서:
+- 반이동
+- 연기
+- 퇴원
+- 삭제
+실제 사용 가능
+
+하나라도 없으면 수정.
+
+============================================================
+5. WP3 실제 서버 코드 포함 여부
+============================================================
+
+WP3는 client가 아니라 server 중심.
+
+실제 release source에서 확인:
+
+- admin.ts
+- diary.ts
+- parent.ts
+- growth-report-snapshot-builder.ts
+
+학생 등록일 이전 diary cutoff가
+실제 source에 존재하는지 확인.
+
+단 이번 iOS build에 server code는 포함되지 않으므로
+"client build 포함"과 혼동하지 말 것.
+
+완료보고에:
+SOURCE PRESENT / SERVER LIVE STATUS 분리.
+
+============================================================
+6. WP4 실제 코드 검증
+============================================================
+
+학부모 초대:
+
+- InviteModal 실제 runtime file 확인
+- iOS App Store URL이 canonical ID인지 확인
+- 초대 flow 진입 정상
+- Kakao login/OAuth 없음
+- 문자/복사/공유/카카오 share 구조 유지
+
+============================================================
+7. WP5 실제 코드 검증
+============================================================
+
+선생님 운영현황 상단 탭:
+
+실제 runtime teacher-hub.tsx에서 확인:
+
+- chipTxt lineHeight
+- flexShrink: 0
+- padding 위치 정상
+- 탭 label clipping 방지
+
+없으면 수정.
+
+============================================================
+8. WP6 실제 코드 검증
+============================================================
+
+메신저 실제 runtime source에서 확인:
+
+A.
+mention chip:
+"@나 언급"
+"@{이름} 언급"
+별도 UI 0
+
+B.
+sender display:
+teacher → "{이름} 선생님"
+admin → "{이름}"
+sender_role 기준
+
+C.
+성 1글자 원형 avatar 의존 제거
+
+D.
+내 메시지 long-press delete UI 존재
+
+E.
++ 버튼 attachment:
+iOS modal dismiss 후 picker 호출 timing fix 존재
+
+F.
+MemberCardBubble / AttachFileBubble에도 sender 표시 동일
+
+하나라도 없으면 runtime source 수정.
+
+============================================================
+9. WP7 실제 코드 검증
+============================================================
+
+설정/X 하위 navigation:
+
+실제 runtime source에서 확인:
+
+x-info pages:
+back → x-mode-hub fallback
+
+x-subscription:
+back → x-mode-hub
+
+x-setup:
+우선순위 반드시:
+
+1. explicit backTo
+2. canGoBack()
+3. settings fallback
+
+진입점:
+Settings → x-setup
+backTo=settings
+
+X Mode Hub → x-setup
+backTo=x-mode-hub
+
+X Subscription → x-setup
+backTo=x-subscription
+
+실제 source에 하나라도 다르면 수정.
+
+============================================================
+10. PARENT KAKAO MIGRATION CLIENT 검증
+============================================================
+
+2.0 client source에서 확인:
+
+- signup.tsx KAKAO_MIGRATION_REQUIRED handler
+- pool-join-request.tsx KAKAO_MIGRATION_REQUIRED handler
+- parent migration endpoint 호출
+- migration 성공 후 token/login 처리
+- Kakao login/OAuth UI 0
+
+없으면 수정.
+
+============================================================
+11. TEACHER KAKAO MIGRATION CLIENT 검증
+============================================================
+
+2.0 client source에서 확인:
+
+- teacher general signup
+- KAKAO_MIGRATION_REQUIRED 처리
+- teacher-kakao-migration-register 호출
+- migration 성공 후 즉시 login
+- approval 재요구 없음
+
+없으면 수정.
+
+============================================================
+12. SOURCE VERIFICATION TABLE
+============================================================
+
+반드시 빌드 전에 다음 표 제출:
+
+FEATURE | RUNTIME FILE | CODE PRESENT | FIX NEEDED | RESULT
+
+WP1
+WP2
+WP4
+WP5
+WP6
+WP7
+Parent migration
+Teacher migration
+
+모든 RESULT가 PASS여야 다음 단계 진행.
+
+============================================================
+13. VERSION BUMP
+============================================================
+
+위 검증 완료 후
+App version을:
+
+2.0.0
+→
+2.0.1
+
+로 변경.
+
+runtimeVersion policy가 appVersion이면
+runtime도 자동:
+
+2.0.1
+
+이 되어야 함.
+
+반드시 확인.
+
+============================================================
+14. IOS BUILD NUMBER
+============================================================
+
+현재 known build:
+253
+
+새 buildNumber:
+254 이상
+
+정확히 현재 App Store Connect보다 큰 값 사용.
+
+자동 increment 가능하면 사용.
+
+같은 build number 재사용 금지.
+
+============================================================
+15. NATIVE CONFIG 확인
+============================================================
+
+이번 release에서:
+
+- bundle identifier 변경 금지
+- entitlement 변경 금지
+- plugin 불필요 변경 금지
+- permissions 불필요 변경 금지
+- native dependency 임의 추가 금지
+
+버전/runtime/build number만 필요한 만큼 변경.
+
+============================================================
+16. PREBUILD / TYPECHECK / TEST
+============================================================
+
+빌드 전:
+
+- TypeScript check
+- Expo config check
+- route import check
+- production env check
+- iOS prebuild compatibility
+- required assets existence
+- app startup compile
+
+실패하면 build 진행 금지.
+
+============================================================
+17. 실제 BUNDLE 검증
+============================================================
+
+중요.
+
+가능하면 production export/bundle 기준으로
+최근 WP signature가 실제 bundle source에 포함되는지 확인.
+
+최소:
+
+WP2:
+회원 카드 quick action 제거 상태
+
+WP6:
+mention chip render code 없음
+sender_role logic 존재
+
+WP7:
+explicit backTo priority 존재
+
+이 3개는 반드시 bundle level에서 확인.
+
+============================================================
+18. EAS BUILD
+============================================================
+
+새 iOS build 실행.
+
+Version:
+2.0.1
+
+Runtime:
+2.0.1
+
+Build number:
+254 이상
+
+Distribution:
+store
+
+Target:
+App Store Connect / TestFlight
+
+기존 production-v2 build profile을
+2.0.1에 그대로 사용할 수 있으면 재사용.
+
+중요:
+새 build는 반드시
+이번 검증이 끝난 실제 runtime source root에서 실행.
+
+============================================================
+19. BUILD 완료 확인
+============================================================
+
+EAS build가 실제:
+
+FINISHED / SUCCESS
+
+될 때까지 확인.
+
+보고:
+
+Build ID:
+...
+
+Build URL:
+...
+
+Version:
+2.0.1
+
+Build number:
+...
+
+Runtime:
+2.0.1
+
+Source HEAD:
+...
+
+Source root:
+...
+
+============================================================
+20. 자동 제출
+============================================================
+
+빌드 성공 후
+같은 Build ID를 App Store Connect/TestFlight로 제출.
+
+새 build 재생성 금지.
+
+기존 App Store Connect credentials 재사용.
+
+명령 예:
+
+eas submit --platform ios --id <BUILD_ID>
+
+실제 configured submit profile이 있으면 사용.
+
+============================================================
+21. 제출 범위
+============================================================
+
+허용:
+
+App Store Connect upload:
+YES
+
+TestFlight processing:
+YES
+
+Internal tester availability:
+YES
+
+금지:
+
+App Review 제출:
+NO
+
+Production release:
+NO
+
+External review submit:
+NO
+
+자동 출시:
+NO
+
+============================================================
+22. VERSION ISOLATION
+============================================================
+
+2.0.1:
+
+runtime:
+2.0.1
+
+1.6.3:
+runtime 1.6.3
+
+2.0.0:
+runtime 2.0.0
+
+서로 OTA cross-delivery:
+0
+
+이번 build는
+기존 2.0.0 OTA 문제와 완전히 분리된
+새 runtime 2.0.1 바이너리여야 함.
+
+============================================================
+23. 1.6.3 절대 건드리지 말 것
+============================================================
+
+1.6.3 branch:
+NO TOUCH
+
+1.6.3 OTA:
+NO
+
+1.6.3 build:
+NO
+
+1.6.3 source:
+NO MODIFY
+
+============================================================
+24. ANDROID 절대 건드리지 말 것
+============================================================
+
+Android build:
+NO
+
+Android OTA:
+NO
+
+versionCode 변경:
+필요 없으면 NO
+
+============================================================
+25. 완료보고
+============================================================
+
+# SWIMNOTE 2.0.1 FULL BUILD + TESTFLIGHT REPORT
+
+## REAL SOURCE ROOT
+
+Expo root:
+...
+
+EAS build cwd:
+...
+
+artifacts/swim-app status:
+REAL SOURCE / COPY
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Final Source HEAD:
+...
+
+## WP VERIFICATION
+
+WP1:
+RUNTIME SOURCE PASS / FAIL
+
+WP2:
+RUNTIME SOURCE PASS / FAIL
+
+WP4:
+RUNTIME SOURCE PASS / FAIL
+
+WP5:
+RUNTIME SOURCE PASS / FAIL
+
+WP6:
+RUNTIME SOURCE PASS / FAIL
+
+WP7:
+RUNTIME SOURCE PASS / FAIL
+
+Parent Kakao migration:
+RUNTIME SOURCE PASS / FAIL
+
+Teacher Kakao migration:
+RUNTIME SOURCE PASS / FAIL
+
+## CORRECTIONS REQUIRED
+
+Were previous reports modifying non-runtime copies:
+YES / NO
+
+If YES:
+files corrected:
+...
+
+## VERSION
+
+App version:
+2.0.1
+
+Runtime:
+2.0.1
+
+iOS build number:
+...
+
+Bundle ID:
+...
+
+## BUNDLE VERIFICATION
+
+WP2 quick actions removed:
+YES / NO
+
+WP6 mention UI absent:
+YES / NO
+
+WP6 sender_role logic:
+YES / NO
+
+WP7 backTo priority:
+YES / NO
+
+## BUILD
+
+Build executed:
+YES / NO
+
+Build ID:
+...
+
+Build URL:
+...
+
+Status:
+FINISHED / FAILED
+
+Source HEAD:
+...
+
+## SUBMIT
+
+Same Build ID submitted:
+YES / NO
+
+App Store Connect upload:
+SUCCESS / FAIL
+
+TestFlight processing:
+PROCESSING / READY / FAIL
+
+Build visible in App Store Connect:
+YES / NO
+
+Version:
+2.0.1
+
+Build:
+...
+
+## ISOLATION
+
+1.6.3 touched:
+NO
+
+Android touched:
+NO
+
+Cross-runtime delivery:
+0
+
+## FINAL
+
+아래 조건 전부 만족 시에만:
+
+SWIMNOTE 2.0.1 BUILD + TESTFLIGHT SUBMISSION COMPLETE
+
+조건:
+- actual runtime source verified
+- WP1/WP2/WP4/WP5/WP6/WP7 실제 코드 존재
+- Kakao teacher/parent migration client 존재
+- version 2.0.1
+- runtime 2.0.1
+- new iOS build success
+- same build submitted
+- App Store Connect received build
+- 1.6.3 untouched
+- Android untouched
+
+하나라도 미충족이면:
+
+NOT CLOSED — EXACT FAILURE

@@ -104,6 +104,8 @@ function mapApiOperator(raw: any): Operator {
     riskFlags:            [],
     authorityStructure:   'single',
     memo:                 '',
+    xmode_entitlement:    Boolean(raw.xmode_entitlement ?? false),
+    xmode_config_status:  raw.xmode_config_status ?? 'NOT_CONFIGURED',
   };
 }
 
@@ -111,6 +113,7 @@ export type OperatorFilter =
   | 'all' | 'pending' | 'payment_failed' | 'storage95' | 'deletion_pending'
   | 'credit' | 'free_over10' | 'new_this_week' | 'solo_coach' | 'franchise'
   | 'refund_repeat' | 'upload_spike' | 'policy_unsigned' | 'readonly' | 'restricted'
+  | 'xmode'
 
 interface OperatorsState {
   operators: Operator[]
@@ -136,6 +139,7 @@ interface OperatorsState {
   selectAll: () => void
   clearSelected: () => void
   updateOperator: (id: string, patch: Partial<Operator>) => void
+  removeOperator: (id: string) => void
 
   // actions
   approveOperator: (id: string, actorName: string) => void
@@ -181,6 +185,8 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
       case 'policy_unsigned': list = list.filter(o => !o.policyRefundRead || !o.policyPrivacyRead); break
       case 'readonly':     list = list.filter(o => o.isReadOnly); break
       case 'restricted':   list = list.filter(o => o.status === 'restricted'); break
+      // canonical X MODE: entitlement=true AND config_status='READY' (resolvePoolMode 동일 기준)
+      case 'xmode':        list = list.filter(o => o.xmode_entitlement === true && o.xmode_config_status === 'READY'); break
     }
 
     if (search.trim()) {
@@ -217,6 +223,10 @@ export const useOperatorsStore = create<OperatorsState>((set, get) => ({
 
   updateOperator: (id, patch) => set(s => ({
     operators: s.operators.map(o => o.id === id ? { ...o, ...patch } : o),
+  })),
+
+  removeOperator: (id) => set(s => ({
+    operators: s.operators.filter(o => o.id !== id),
   })),
 
   approveOperator: (id, _actorName) => {

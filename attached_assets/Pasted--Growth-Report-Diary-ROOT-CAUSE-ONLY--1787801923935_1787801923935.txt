@@ -1,0 +1,228 @@
+[앱] Growth Report 댓글 알림 + 일반 Diary 좋아요 집계 — ROOT CAUSE 조사 ONLY
+
+이번 단계에서는 코드 수정하지 마십시오.
+
+현재 실기기에서 확인된 문제 2개를 함께 조사합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. Growth Report 댓글 알림 오표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 증상:
+
+Growth Report 댓글 작성
+→ 댓글 자체는 정상 저장
+→ Teacher 소식에도 항목 도착
+→ 하지만 소식 문구가 댓글이 아니라
+
+"새 좋아요"
+"{parentName}님이 성장리포트에 좋아요를 눌렀습니다."
+
+로 표시됨.
+
+조사:
+
+1. POST /parent/growth-reports/:reportId/comments
+   이후 notification INSERT 직전 실제 값 확인
+
+필수:
+- type
+- title
+- body
+- ref_id
+- ref_type
+- recipient_id
+
+2. GET /teacher/news에서
+notification row → response item 변환 과정 추적
+
+확인:
+- type 변환 여부
+- title/body 변환 여부
+- 같은 reportId의 기존 like notification 재사용 여부
+- 정렬/중복/필터 문제 여부
+
+3. messages-inbox.tsx는
+item.title / item.body raw 표시 구조가 맞는지 다시 확인만 하고
+클라이언트 수정은 금지
+
+최종적으로 아래 중 하나로 원인 확정:
+
+- INSERT type 오류
+- INSERT title/body 오류
+- teacher/news 변환 오류
+- notification 중복/정렬 오류
+- 기타
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. 기존 일반 Diary 좋아요가 Teacher 쪽 숫자에 반영되지 않는 문제
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기 증상:
+
+학부모 일반 일지피드에서 좋아요를 누름
+→ 학부모 UI에서는 좋아요가 눌린 상태로 보임
+→ 그런데 Teacher 쪽의 좋아요 숫자가 올라오지 않음
+
+기존 Diary 좋아요 전체 경로를 다시 실제 코드 기준으로 추적하십시오.
+
+Parent:
+
+DiaryFeedItem heart
+→ POST /parent/diary/:diaryId/reactions
+→ diary_reactions INSERT/DELETE
+
+Teacher:
+
+class_diaries / teacher diary list
+→ like_count 계산
+→ Teacher UI 표시
+
+확인할 것:
+
+1. 학부모 like POST 성공 시
+실제 diary_reactions row가 생성되는지
+
+2. 생성된다면:
+- diary_id
+- parent_id
+- student_id
+- reaction_type='like'
+
+가 올바른지
+
+3. Teacher like_count SQL이
+정확히 같은 diary_id를 조회하는지
+
+4. Teacher 화면이
+like_count를 어느 API response에서 받는지
+
+5. Teacher 화면이 stale cache / local state / pagination 때문에
+새 count를 갱신하지 못하는지
+
+6. Teacher 화면 진입/재진입/refresh 시
+API를 다시 호출하는지
+
+7. reaction INSERT는 정상인데
+Teacher list query의 WHERE / JOIN / filter 때문에 count가 빠지는지
+
+8. teacher diary-reactions 화면에서는
+누른 parent 이름이 보이는지
+또는 count만 안 보이는지
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. 실제 데이터 경로 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+한 개의 테스트 diaryId를 기준으로
+가능한 개발/테스트 환경에서:
+
+1. Parent like 전
+2. Parent like 후
+3. Teacher API 응답
+4. Teacher UI 표시값
+
+을 순서대로 비교.
+
+가능하면 제출:
+
+[BEFORE]
+- diaryId
+- diary_reactions count
+- teacher like_count
+
+[AFTER PARENT LIKE]
+- POST response
+- diary_reactions count
+- reaction row 핵심 필드
+
+[TEACHER API]
+- 해당 diaryId의 raw like_count
+
+[TEACHER UI]
+- 실제 표시값
+
+DB 직접 접근이 안 되면
+API response / server query result / 코드 tracing으로 최대한 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. 기존 Diary 알림도 함께 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Parent like 시:
+
+notifications INSERT type=diary_like
+
+가 실제 생성되는지 확인.
+
+그리고:
+
+- Teacher messages-inbox에 diary_like가 보이는지
+- 좋아요 숫자와 notification이 서로 독립적으로 동작하는지
+
+를 구분해서 보고.
+
+즉:
+
+"알림은 오는데 숫자만 안 오름"
+인지
+
+"reaction row 자체가 안 생김"
+인지
+
+"Teacher query가 count를 못 셈"
+인지
+
+정확히 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+E. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[GR COMMENT NOTIFICATION]
+- INSERT 실제 type/title/body
+- teacher/news 실제 type/title/body
+- ROOT CAUSE
+- 최소 수정계획
+
+[DIARY LIKE PARENT]
+- POST endpoint
+- response
+- reaction 저장 여부
+- 실제 저장 key
+
+[DIARY LIKE TEACHER]
+- like_count SQL
+- API raw like_count
+- UI 표시 경로
+- refresh/fetch 구조
+
+[DIARY LIKE ROOT CAUSE]
+아래 중 하나로 확정:
+1. reaction 저장 실패
+2. diary_id mismatch
+3. teacher count SQL 오류
+4. API projection 오류
+5. UI refresh/cache 오류
+6. 기타
+
+[MINIMAL FIX PLAN]
+문제별:
+- 수정 파일
+- 수정 함수
+- 변경 내용
+- 기존 Diary comment / Growth Report 기능 영향 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+이번 단계 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 코드 수정 금지
+- DB migration 금지
+- Render deploy 금지
+- OTA 금지
+- UI 수정 금지
+
+ROOT CAUSE + 최소 수정계획 제출 후 STOP.

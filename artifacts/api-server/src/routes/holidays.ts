@@ -1,8 +1,10 @@
 /**
  * holidays.ts — 수영장 휴무일 API
- * GET /holidays?pool_id=&month=YYYY-MM
+ * GET  /holidays?pool_id=&month=YYYY-MM
  * POST /holidays
  * DELETE /holidays/:id
+ * GET  /holidays/confirm-status?pool_id=&month=YYYY-MM
+ * POST /holidays/confirm
  */
 import { Router, type Response } from "express";
 import { db, superAdminDb } from "@workspace/db";
@@ -42,6 +44,49 @@ router.get("/holidays", requireAuth, requireRole("pool_admin", "teacher", "super
   }
 });
 
+// GET /holidays/confirm-status?pool_id=&month=YYYY-MM
+router.get("/holidays/confirm-status", requireAuth, requireRole("pool_admin", "teacher", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { month } = req.query as { month?: string };
+    const { userId, role, poolId: tokenPoolId } = req.user!;
+    const pool_id = (req.query.pool_id as string) || tokenPoolId || undefined;
+    if (!pool_id || !month) return err(res, 400, "pool_id, month가 필요합니다.");
+    if (role !== "super_admin") {
+      const effectivePoolId = tokenPoolId || (await getPoolId(userId!));
+      if (!effectivePoolId || effectivePoolId !== pool_id) return err(res, 403, "권한이 없습니다.");
+    }
+    const rows = await db.execute(sql`SELECT * FROM holiday_confirmations WHERE pool_id = ${pool_id} AND target_month = ${month} LIMIT 1`);
+    const row = rows.rows[0] as any;
+    return res.json({ success: true, confirmed: !!row, confirmed_at: row?.confirmed_at || null });
+  } catch (e: any) {
+    return err(res, 500, e.message);
+  }
+});
+
+// POST /holidays/confirm — 월 휴무일 확정
+router.post("/holidays/confirm", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
+  try {
+    const { pool_id, target_month } = req.body;
+    const { userId, role } = req.user!;
+    if (!pool_id || !target_month) return err(res, 400, "pool_id, target_month가 필요합니다.");
+    if (role !== "super_admin") {
+      const up = await getPoolId(userId!);
+      if (up !== pool_id) return err(res, 403, "권한이 없습니다.");
+    }
+    await db.execute(sql`
+      INSERT INTO holiday_confirmations (id, pool_id, target_month, confirmed_at, confirmed_by)
+      VALUES (gen_random_uuid()::text, ${pool_id}, ${target_month}, now(), ${userId!})
+      ON CONFLICT (pool_id, target_month) DO UPDATE SET confirmed_at = now(), confirmed_by = EXCLUDED.confirmed_by
+    `);
+    const actorRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`);
+    const actorName = (actorRow.rows[0] as any)?.name || "관리자";
+    logEvent({ pool_id, category: "휴무일", actor_id: userId!, actor_name: actorName, description: `${target_month} 휴무일 확정`, metadata: { target_month } }).catch(console.error);
+    return res.json({ success: true });
+  } catch (e: any) {
+    return err(res, 500, e.message);
+  }
+});
+
 // POST /holidays — 휴무일 등록 (관리자만)
 router.post("/holidays", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res: Response) => {
   try {
@@ -58,6 +103,9 @@ router.post("/holidays", requireAuth, requireRole("pool_admin", "super_admin"), 
       ON CONFLICT (pool_id, holiday_date) DO UPDATE SET reason = EXCLUDED.reason
       RETURNING *
     `);
+    // 해당 월 확정 해제 (수정됐으므로 재확정 필요)
+    const holidayMonth = (holiday_date as string).substring(0, 7);
+    await db.execute(sql`DELETE FROM holiday_confirmations WHERE pool_id = ${pool_id} AND target_month = ${holidayMonth}`).catch(() => {});
     const actorRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`);
     const actorName = (actorRow.rows[0] as any)?.name || "관리자";
     logEvent({ pool_id, category: "휴무일", actor_id: userId!, actor_name: actorName, description: `휴무일 등록 — ${holiday_date}${reason ? ` (${reason})` : ""}`, metadata: { holiday_date, reason } }).catch(console.error);
@@ -73,7 +121,7 @@ router.delete("/holidays/:id", requireAuth, requireRole("pool_admin", "super_adm
   try {
     const { id } = req.params;
     const { userId, role } = req.user!;
-    const existing = await db.execute(sql`SELECT pool_id FROM pool_holidays WHERE id = ${id}`);
+    const existing = await db.execute(sql`SELECT pool_id, holiday_date FROM pool_holidays WHERE id = ${id}`);
     const h = existing.rows[0] as any;
     if (!h) return err(res, 404, "휴무일을 찾을 수 없습니다.");
     if (role !== "super_admin") {
@@ -81,6 +129,9 @@ router.delete("/holidays/:id", requireAuth, requireRole("pool_admin", "super_adm
       if (up !== h.pool_id) return err(res, 403, "권한이 없습니다.");
     }
     await db.execute(sql`DELETE FROM pool_holidays WHERE id = ${id}`);
+    // 해당 월 확정 해제 (수정됐으므로 재확정 필요)
+    const holidayMonth = (h.holiday_date as string).substring(0, 7);
+    await db.execute(sql`DELETE FROM holiday_confirmations WHERE pool_id = ${h.pool_id} AND target_month = ${holidayMonth}`).catch(() => {});
     const actorRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`);
     const actorName = (actorRow.rows[0] as any)?.name || "관리자";
     logEvent({ pool_id: h.pool_id, category: "휴무일", actor_id: userId!, actor_name: actorName, description: `휴무일 삭제 — ${h.holiday_date}`, metadata: { holiday_date: h.holiday_date } }).catch(console.error);

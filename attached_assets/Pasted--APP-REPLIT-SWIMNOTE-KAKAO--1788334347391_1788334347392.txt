@@ -1,0 +1,622 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE KAKAO LOGIN STATUS + EXISTING TOYKIDS TEACHER AUDIT
+#
+# 목적:
+# 1) 현재 카카오 로그인 작업이 정확히 어디까지 되어 있는지 다시 확정
+# 2) 토이키즈스윔클럽에 기존 카카오 가입 선생님 1명이 있는데,
+#    이 계정이 현재 카카오 로그인 구조에서 정상 로그인 가능한지 확인
+# 3) 기존 계정이 중복 생성되거나 일반계정과 분리되거나
+#    phone normalization 때문에 계정 연결이 깨질 위험이 있는지 확인
+# 4) 필요한 경우 "가장 안전한 해결 방법"만 제안
+#
+# 중요:
+# 이번 단계는 READ-ONLY AUDIT ONLY.
+# 절대 수정/배포/DB write 금지.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Target pool:
+토이키즈스윔클럽
+
+Pool ID:
+pool_1780849364252_l9k44rbk3
+
+Known production branch:
+deploy-photo-clone
+
+Known recent Kakao production fix:
+69d16bb5
+"fix(kakao-link-account): phone normalization"
+
+============================================================
+0. 절대 금지
+============================================================
+
+Production server 수정:
+NO
+
+deploy-photo-clone edit:
+NO
+
+commit:
+NO
+
+push:
+NO
+
+Render deploy:
+NO
+
+1.6.3 client 수정:
+NO
+
+2.0.0 client 수정:
+NO
+
+OTA:
+NO
+
+build:
+NO
+
+DB UPDATE:
+NO
+
+DB INSERT:
+NO
+
+DB DELETE:
+NO
+
+migration:
+NO
+
+Kakao Developer Console 변경:
+NO
+
+실제 카카오 토큰 출력:
+NO
+
+실제 전화번호/이메일/비밀번호 원문 출력:
+NO
+
+이번 작업은 코드 + Production DB READ ONLY 확인만 한다.
+
+============================================================
+1. 현재 카카오 로그인 구현 상태 재확인
+============================================================
+
+다음 3개 클라이언트 기준으로 실제 카카오 로그인 체인을 다시 정리:
+
+A. 1.6.3 iOS
+B. 1.6.3 Android
+C. 2.0.0 iOS
+
+각각:
+
+- Kakao 로그인 버튼
+- 호출 함수
+- SDK / OAuth 방식
+- callback
+- access token 수신
+- profile 조회
+- phone/email 처리
+- SWIMNOTE server endpoint
+- request payload
+- server lookup
+- account linking
+- session/token 발급
+- post-login navigation
+
+실제 코드 파일/함수 기준으로 보고.
+
+============================================================
+2. 최근 Kakao 관련 production 변경 추적
+============================================================
+
+특히 commit:
+
+69d16bb5
+
+가 실제로 무엇을 수정했는지 정확히 확인.
+
+반드시 답:
+
+1. phone normalization이 적용되는 함수
+2. 어떤 endpoint에서 사용되는지
+3. Kakao 신규가입에 적용되는지
+4. Kakao 기존계정 로그인에 적용되는지
+5. Kakao link-account에만 적용되는지
+6. 일반계정 lookup에도 영향을 주는지
+7. +82 → 010 변환 규칙
+8. 010 → canonical form 변환 규칙
+9. null phone 처리
+10. phone 없는 Kakao 계정 처리
+
+============================================================
+3. 카카오 로그인 endpoint 전체 확인
+============================================================
+
+repository 전체에서 검색:
+
+kakao
+kakao-login
+link-account
+social
+oauth
+phone normalization
+
+실제 endpoint를 모두 표로 정리.
+
+예:
+
+| Endpoint | Purpose | Used by | DB read/write |
+|----------|---------|---------|---------------|
+
+각 endpoint에 대해:
+
+- route file
+- method
+- middleware
+- input
+- account lookup key
+- duplicate prevention
+- link behavior
+- response
+
+============================================================
+4. 기존 토이키즈 카카오 선생님 계정 찾기
+============================================================
+
+Production DB READ ONLY.
+
+Pool:
+pool_1780849364252_l9k44rbk3
+
+조건:
+토이키즈 소속 teacher 중
+Kakao provider / Kakao linked account를 가진 기존 계정 확인.
+
+개인정보 원문은 출력 금지.
+
+보고 시:
+
+- user_id 또는 내부 식별자
+- teacher membership 존재 여부
+- pool membership
+- role
+- account status
+- provider = kakao 여부
+- kakao provider id 존재 여부
+- linked account row 존재 여부
+- phone 존재 여부: YES/NO
+- phone canonicalization 상태만 표시
+  예:
+  LOCAL_010
+  INTERNATIONAL_82
+  NORMALIZED
+  NULL
+- email 존재 여부: YES/NO
+- 일반계정 password credential 병존 여부: YES/NO
+- 동일 phone/email의 다른 user row 존재 여부
+- duplicate candidate 존재 여부
+
+실제 전화번호/이메일 값은 절대 출력하지 말 것.
+
+============================================================
+5. 기존 선생님 계정 로그인 경로 추적
+============================================================
+
+그 기존 Kakao 선생님이 지금 로그인 버튼을 누르면
+서버가 어떤 순서로 계정을 찾는지 실제 코드 기준으로 추적.
+
+반드시 단계별로:
+
+Kakao auth success
+→ Kakao profile
+→ provider ID lookup
+→ phone normalization
+→ existing account lookup
+→ role/pool lookup
+→ account linking
+→ token issue
+
+각 단계에서
+현재 기존 선생님 row가 어떻게 매칭되는지 설명.
+
+============================================================
+6. 기존 선생님이 정상 로그인 가능한지 판정
+============================================================
+
+다음 중 하나:
+
+A.
+NORMAL LOGIN SHOULD WORK
+현재 구조 그대로 정상 로그인 가능
+
+B.
+LOGIN MAY FAIL
+특정 조건에서 실패 가능
+
+C.
+DUPLICATE ACCOUNT RISK
+새 user가 만들어질 위험
+
+D.
+ACCOUNT LINKING REQUIRED
+기존 user와 Kakao provider 재연결 필요
+
+E.
+DATA NORMALIZATION REQUIRED
+기존 데이터의 phone/provider 값 정리 필요
+
+F.
+SERVER LOGIC FIX REQUIRED
+코드 수정 필요
+
+G.
+UNCONFIRMED
+
+반드시 실제 코드 + DB 상태 근거로 판정.
+
+============================================================
+7. 중복계정 위험 집중 확인
+============================================================
+
+반드시 답:
+
+1. 기존 Kakao teacher user row와
+   동일 phone의 일반 user row가 따로 존재하는가?
+
+2. 동일 email의 user row가 따로 존재하는가?
+
+3. provider_id 기준으로는 unique하게 연결되는가?
+
+4. phone normalization 이후
+   과거와 다른 user를 찾을 가능성이 있는가?
+
+5. Kakao 로그인 시
+   기존 user를 찾지 못하면 신규 user 생성 경로로 들어가는가?
+
+6. 신규 user 생성 전에
+   duplicate phone/email 검사가 있는가?
+
+7. teacher role/pool membership가
+   새로 만들어진 user에 자동 승계되는 구조인가?
+   아니면 별도 계정으로 분리되는가?
+
+============================================================
+8. 기존 teacher 계정 보존 전략 제시
+============================================================
+
+현재 데이터를 기준으로
+가장 안전한 처리 방법을 하나 추천.
+
+가능한 전략:
+
+OPTION A
+아무것도 하지 않음
+→ 현재 계정 그대로 사용
+
+OPTION B
+Kakao provider link만 재정렬
+
+OPTION C
+phone normalization만 데이터 정리
+
+OPTION D
+일반계정 + Kakao 계정 병합
+
+OPTION E
+기존 Kakao 계정을 canonical user로 유지
+
+OPTION F
+기타
+
+중요:
+실행은 하지 말 것.
+
+각 옵션별로:
+
+- 장점
+- 위험
+- client 수정 필요 여부
+- server 수정 필요 여부
+- DB 수정 필요 여부
+- OTA 필요 여부
+- Production deploy 필요 여부
+
+보고.
+
+============================================================
+9. 실제 장애 원인과 기존 teacher 문제를 분리
+============================================================
+
+아래 두 개를 절대 섞지 말 것.
+
+A.
+현재 전체 Kakao 로그인 장애
+
+B.
+기존 토이키즈 Kakao teacher 계정의 데이터 상태
+
+전체 Kakao 로그인 장애가 코드 문제인지
+특정 legacy account 문제인지
+반드시 분리해서 판정.
+
+============================================================
+10. live failure evidence 확인 가능 여부
+============================================================
+
+현재 production에서 Kakao login 관련 로그가 있는지 확인.
+
+PII 없이 확인 가능한 범위에서:
+
+- Kakao auth request received
+- provider lookup
+- account lookup
+- link-account
+- normalization
+- response status
+- 4xx
+- 5xx
+
+현재 로그만으로
+최근 실패가 어느 단계인지 식별 가능한지 보고.
+
+로그가 부족하면:
+OBSERVABILITY GAP
+
+으로 보고만 하고 수정하지 말 것.
+
+============================================================
+11. 수정이 필요해도 이번 단계에서는 실행 금지
+============================================================
+
+문제 발견 시 아래만 보고:
+
+- 정확한 원인
+- affected version/platform
+- affected endpoint
+- affected account type
+- 기존 teacher 영향
+- 신규 Kakao 가입 영향
+- 기존 Kakao 가입자 전체 영향
+- 최소 수정안
+- client / server / DB 중 어디가 필요한지
+- OTA 필요 여부
+- deploy 필요 여부
+
+실행 금지.
+
+============================================================
+12. 완료보고 형식
+============================================================
+
+# SWIMNOTE KAKAO LOGIN + EXISTING TEACHER AUDIT REPORT
+
+## CURRENT KAKAO IMPLEMENTATION
+
+### 1.6.3 iOS
+Entry:
+Callback:
+Server endpoint:
+Lookup flow:
+Result:
+
+### 1.6.3 Android
+Entry:
+Callback:
+Server endpoint:
+Lookup flow:
+Result:
+
+### 2.0.0 iOS
+Entry:
+Callback:
+Server endpoint:
+Lookup flow:
+Result:
+
+## RECENT PRODUCTION KAKAO FIX
+
+Commit:
+69d16bb5
+
+Changed:
+...
+
+Applies to:
+...
+
+Does NOT apply to:
+...
+
+Regression risk:
+YES / NO / POSSIBLE
+
+## KAKAO ENDPOINTS
+
+| Endpoint | Purpose | Lookup Key | Write Risk |
+|----------|---------|------------|------------|
+
+## TOYKIDS EXISTING KAKAO TEACHER
+
+Internal user id:
+...
+
+Pool membership:
+YES / NO
+
+Role:
+teacher
+
+Provider:
+kakao
+
+Kakao provider id:
+PRESENT / MISSING
+
+Phone:
+NORMALIZED / LOCAL_010 / INTERNATIONAL_82 / NULL
+
+Email:
+PRESENT / MISSING
+
+Password credential:
+YES / NO
+
+Duplicate phone candidate:
+YES / NO
+
+Duplicate email candidate:
+YES / NO
+
+Duplicate user risk:
+LOW / MEDIUM / HIGH
+
+## EXISTING TEACHER LOGIN SIMULATION
+
+Kakao auth:
+PASS / RISK
+
+Provider lookup:
+PASS / RISK
+
+Phone normalization:
+PASS / RISK
+
+Existing user lookup:
+PASS / RISK
+
+Account linking:
+PASS / RISK
+
+Teacher membership:
+PASS / RISK
+
+Token/session:
+PASS / RISK
+
+Final:
+NORMAL LOGIN SHOULD WORK
+or
+LOGIN MAY FAIL
+or
+DUPLICATE ACCOUNT RISK
+or
+ACCOUNT LINKING REQUIRED
+or
+DATA NORMALIZATION REQUIRED
+or
+SERVER LOGIC FIX REQUIRED
+or
+UNCONFIRMED
+
+## ROOT CAUSE SEPARATION
+
+Overall Kakao login issue:
+...
+
+Existing Toykids teacher account issue:
+...
+
+Same root cause:
+YES / NO / UNCONFIRMED
+
+## RECOMMENDED TREATMENT FOR EXISTING TEACHER
+
+Recommended option:
+A / B / C / D / E / F
+
+Reason:
+...
+
+Server change required:
+YES / NO
+
+Client change required:
+YES / NO
+
+DB change required:
+YES / NO
+
+OTA required:
+YES / NO
+
+Production deploy required:
+YES / NO
+
+## IF FIX IS REQUIRED
+
+Exact file:
+...
+
+Exact function:
+...
+
+Exact data/logic problem:
+...
+
+Minimal fix:
+...
+
+Risk:
+LOW / MEDIUM / HIGH
+
+## OBSERVABILITY
+
+Can identify current Kakao failure stage from logs:
+YES / NO / PARTIAL
+
+Missing logs:
+...
+
+## CHANGE STATUS
+
+Code modified:
+NO
+
+DB changed:
+NO
+
+Production server changed:
+NO
+
+1.6.3 changed:
+NO
+
+2.0.0 changed:
+NO
+
+OTA:
+NO
+
+Deploy:
+NO
+
+## FINAL
+
+다음 중 하나:
+
+KAKAO LOGIN HEALTHY — EXISTING TEACHER SAFE
+
+또는
+
+KAKAO LOGIN ISSUE IDENTIFIED — EXISTING TEACHER SAFE
+
+또는
+
+KAKAO LOGIN ISSUE IDENTIFIED — EXISTING TEACHER REQUIRES ACCOUNT TREATMENT
+
+또는
+
+EXISTING TEACHER DATA ISSUE ONLY
+
+또는
+
+ROOT CAUSE UNCONFIRMED — LIVE FAILURE EVIDENCE REQUIRED

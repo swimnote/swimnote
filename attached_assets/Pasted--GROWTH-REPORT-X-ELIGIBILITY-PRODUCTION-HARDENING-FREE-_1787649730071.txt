@@ -1,0 +1,509 @@
+[앱] GROWTH REPORT / X ELIGIBILITY — PRODUCTION HARDENING
+FREE + FUTURE PAID ENTRY PATH
+
+목적:
+
+Growth Report 생성 경로를
+무료/향후 유료 리포트 모두 사용할 수 있는
+Production-grade eligibility + onboarding + generation 구조로 고정한다.
+
+이번 작업에서 해결할 것:
+
+1. X entitlement
+2. X configuration readiness
+3. curriculum readiness
+4. report eligibility
+5. monthly cycle creation
+6. student report generation
+7. status/detail exposure
+
+을 하나의 일관된 계약으로 통합.
+
+중요:
+단순히 토이키즈스윔클럽 한 곳만 강제로 READY 처리하는 작업이 아님.
+
+향후 신규 가맹점/유료 리포트까지
+같은 경로를 재사용할 수 있도록 구조를 확인하고
+필요한 최소 정리 수행.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CURRENT X ONBOARDING STATE MACHINE 분석
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 xmode_config_status의
+실제 enum/상태 전부 확인.
+
+예:
+- NOT_CONFIGURED
+- CURRICULUM_PENDING
+- READY
+- 기타 상태
+
+각 상태가 의미하는 것과
+어떤 조건에서 다음 상태로 이동하는지
+실제 코드 기준으로 정리.
+
+반드시 확인:
+
+- 누가 status를 계산/저장하는가
+- status가 DB 저장값인지 derived 값인지
+- READY 전환 API/function
+- curriculum config 외 다른 필수 조건
+- admin/manual setup과 자동 setup 경로
+
+이번 보고서에
+X CONFIG STATE MACHINE 표 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. CURRICULUM_PENDING 정확한 원인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽에 대해 read-only 진단:
+
+- pool_id
+- x_paid_entitlement
+- x_manual_entitlement
+- x_force_disabled
+- legacy xmode_entitlement
+- xmode_config_status
+- curriculum assigned YES/NO
+- curriculum version/id
+- level/stage mapping
+- teacher/class relation requirements
+- any required pool config
+- missing exact fields
+
+반드시:
+
+CURRICULUM_PENDING의
+정확한 missing requirement를 1개 이상 확정.
+
+"커리큘럼이 덜 됨" 같은 추상 보고 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. NORMAL READY TRANSITION PATH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽을
+정상 제품 경로로 READY로 만들 수 있는지 확인.
+
+기존 API/admin flow가 있으면
+그 경로 사용.
+
+예:
+pool setup
+→ curriculum assign
+→ config validation
+→ READY
+
+직접 SQL:
+UPDATE xmode_config_status='READY'
+
+금지.
+
+만약 정상 UI/API setup 경로가 없다면:
+그 자체를 PRODUCT GAP으로 보고.
+
+이 경우 최소한
+향후 가맹점 Setup Wizard가 호출할 수 있는
+idempotent setup API/service가 필요한지 제안.
+
+이번 Step에서는 대형 Wizard UI는 만들지 않음.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. ELIGIBILITY SHARED AUTHORITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report 관련 모든 곳에서
+같은 shared helper를 사용하도록 확인/정리.
+
+필수 사용처:
+
+- Parent Growth Report Status API
+- Monthly Scheduler eligible pool query
+- Report Generator
+- Analysis Worker
+- Review/Publish eligibility where relevant
+- 향후 Paid Growth Report entry gate
+
+예:
+resolveGrowthReportEligibility(pool)
+
+output 예:
+
+{
+  entitled: boolean,
+  configured: boolean,
+  eligible: boolean,
+  reason:
+    "NO_ENTITLEMENT" |
+    "FORCE_DISABLED" |
+    "CURRICULUM_PENDING" |
+    "READY"
+}
+
+실제 코드 스타일에 맞게 구현.
+
+중요:
+UI와 Scheduler가 서로 다른 rule을 갖지 않게 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. FREE / PAID 확장성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 FREE Growth Report의 eligibility와
+향후 PAID Report의 product eligibility를 분리 가능하게 설계.
+
+예:
+
+Base Growth Report Eligibility:
+- X entitlement
+- not force disabled
+- config READY
+
+FREE Product Eligibility:
+- base eligible
+- monthly free policy satisfied
+
+PAID Product Eligibility:
+- base eligible
+- paid report entitlement/order/license satisfied
+
+즉:
+X readiness와
+리포트 상품 종류 eligibility를
+한 덩어리로 하드코딩하지 말 것.
+
+이번 Step에서 paid product 구현은 하지 않지만
+현재 helper/API가 future paid 확장을 막지 않게 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. MONTHLY CYCLE PRODUCTION 동작 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 2026-08 cycle rows = 0 문제를
+Production 기준으로 끝까지 확인.
+
+READY pool이 이미 존재하므로
+cycle 0은 그냥 넘길 수 없음.
+
+확인:
+
+- scheduler actual production invocation log
+- startup recovery invocation log
+- eligible pools count
+- selected pool IDs
+- cycle open condition result
+- insert/create service invocation
+- transaction result
+- exception/error log
+- duplicate guard result
+
+정확한 root cause 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SCHEDULER RELIABILITY HARDENING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 구조:
+
+daily 01:00 KST
++
+startup recovery 30sec
+
+이 구조가 Render restart / missed cron에도
+25일 이후 cycle을 반드시 복구하는지 확인.
+
+요구:
+
+- idempotent
+- restart safe
+- missed-day recovery
+- duplicate safe
+- timezone safe
+
+25일 01:00을 놓쳐도
+26일/27일 재실행 때
+해당 월 cycle이 없으면 생성되어야 함.
+
+"25일 딱 한 번만 기회" 구조면 수정 필요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CYCLE CREATION REAL PRODUCTION VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+root cause 수정 후
+기존 production-safe scheduler/service를 1회 실행.
+
+manual SQL INSERT 금지.
+
+확인:
+
+- READY pool cycle 생성
+- duplicate 없이 1건
+- correct report_period = 2026-08
+- cycle status
+- created_at
+
+토이키즈가 READY 전환 완료되면
+토이키즈도 동일 scheduler에서 선택되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. STUDENT REPORT GENERATION REAL VERIFY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+토이키즈스윔클럽의 현재 테스트 학생 1명.
+
+확인:
+
+- diary/session count
+- curriculum snapshot
+- attendance if used
+- longitudinal source if used
+- evidence qualification
+
+정상 generator path로 1건 생성.
+
+절대 금지:
+- report row 직접 INSERT
+- report_content 직접 patch
+- status 직접 READY/PUBLISHED 변경
+
+정상 흐름:
+
+cycle
+→ report candidate/record
+→ snapshot
+→ analysis worker
+→ AI Engine
+→ result persist
+→ status API
+
+AI call 최대 1건.
+
+결과가:
+DATA_ACCUMULATING
+이어도 근거 부족이면 정상.
+
+근거 충분하면
+실제 분석 결과가 생성되어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. PUBLISH FLOW 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FREE report의 현재 publish lifecycle 확인:
+
+analysis complete
+→ review status
+→ APPROVED
+→ PUBLISHED
+
+확인:
+
+- 누가 approve 가능한지
+- pool_admin / super_admin 권한
+- publish API
+- parent feed/detail exposure
+- scheduler가 자동 publish하는지 아닌지
+
+향후 유료 리포트에도
+review/publish 단계 재사용 가능한지 기록.
+
+실제 Production publish는
+기존 안전 테스트 report가 있을 때만.
+
+사용자 승인 없이 임의 PUBLISHED 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. STATUS API UX REASON
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 부모 Status API가
+단순 NOT_AVAILABLE만 주는 대신
+내부적으로 reason을 구분 가능한지 확인.
+
+예:
+NOT_ELIGIBLE
+CONFIG_PENDING
+NO_CURRENT_CYCLE
+DATA_ACCUMULATING
+GENERATING
+READY
+PUBLISHED
+FAILED
+
+부모에게 기술문구를 그대로 보여주진 않더라도
+앱이 잘못된 상태를 숨기지 않도록
+internal reason을 유지.
+
+X 설정이 덜 된 pool인데
+"수업 기록만 더 쌓이면 됩니다"
+라고 잘못 안내하는 상태는 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 신규 가맹점 ONBOARDING 연결점 정의
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사 결과를 바탕으로
+향후 신규 가맹점 setup checklist 정의.
+
+최소:
+
+- pool base info
+- X entitlement
+- curriculum selection
+- curriculum mapping
+- levels/classes
+- teacher/admin
+- report eligibility
+- parent service enablement
+- final READY validation
+
+완료 시:
+
+READY CHECK
+→ Growth Report eligible
+
+이 구조를 향후
+Setup Wizard에서 호출 가능해야 함.
+
+이번 Step에서 Wizard UI 구현 금지.
+backend/service reuse point만 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. FAILURE SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 상황별 동작 확인:
+
+- entitlement removed
+- force disabled
+- curriculum deleted
+- config becomes invalid
+- scheduler reruns
+- analysis API timeout
+- duplicate worker
+- report already published
+- pool becomes READY after 25th
+
+특히:
+pool이 25일 이후 READY가 되어도
+그 달 cycle/report 생성 기회를 잃지 않아야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Eligibility:
+TC1 paid entitlement
+TC2 manual entitlement
+TC3 force disabled
+TC4 config pending
+TC5 READY
+TC6 status/scheduler same helper
+TC7 future paid extension separation
+
+Scheduler:
+TC8 25th+
+TC9 missed cron recovery
+TC10 restart recovery
+TC11 READY-after-25th
+TC12 duplicate prevention
+TC13 timezone KST
+
+Generation:
+TC14 cycle creation
+TC15 report creation
+TC16 snapshot
+TC17 worker
+TC18 AI response persistence
+TC19 status API consistency
+
+Safety:
+TC20 no manual SQL
+TC21 no duplicate
+TC22 invalid config excluded
+TC23 published report preserved
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT / X ELIGIBILITY HARDENING REPORT
+
+X CONFIG STATE MACHINE
+- states
+- transition conditions
+- READY authority
+
+TOYKIDS
+- pool_id
+- entitlement state
+- exact CURRICULUM_PENDING blocker
+- missing config
+- normal setup path
+- READY achieved YES/NO
+
+SHARED ELIGIBILITY
+- helper
+- file
+- output contract
+- consumers
+- free/paid separation
+
+SCHEDULER
+- exact RCA for 0 cycles
+- production execution proof
+- recovery behavior
+- READY-after-25th behavior
+- cycle created
+- cycle_id
+
+REAL STUDENT REPORT
+- student_id
+- evidence/session count
+- report_id
+- worker
+- AI calls
+- analysis_status
+- product_status
+
+PUBLISH
+- review/publish lifecycle
+- parent exposure
+
+ONBOARDING REUSE
+- required setup fields
+- READY validation function/API
+- future Setup Wizard reuse points
+
+FAILURE SAFETY
+- entitlement removal
+- config invalidation
+- missed cron
+- duplicate
+- AI failure
+
+SOURCE
+- changed files
+- commit SHA
+- tests/pass
+
+DEPLOY
+- API SHA
+- OTA if required
+
+Production manual SQL write: NO
+migration: NO unless truly required
+RENDER_API_KEY: NO
+
+Final Verdict:
+
+GROWTH REPORT / X ENTRY PATH PRODUCTION HARDENED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

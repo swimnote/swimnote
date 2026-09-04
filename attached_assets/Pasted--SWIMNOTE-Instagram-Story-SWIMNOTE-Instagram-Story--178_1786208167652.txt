@@ -1,0 +1,454 @@
+[SWIMNOTE Instagram Story 다중 이미지 직접 공유 기술 검증 확인서]
+
+목적:
+
+SWIMNOTE 학부모 수업피드를 Instagram Story에 공유할 때,
+긴 일지를 1장이 아니라 2~3장 이상의 Story 이미지로 자동 생성한 뒤
+Instagram Story 작성 화면으로 자연스럽게 전달할 수 있는지
+기술 가능성을 먼저 확정한다.
+
+이번 단계는 구현 단계가 아니다.
+
+코드 수정 금지.
+Commit 금지.
+Push 금지.
+Render 금지.
+OTA 금지.
+Native Build 금지.
+
+오직 현재 Repository / Expo / React Native / iOS / Android 환경을 기준으로
+“무엇이 실제로 가능한지”를 조사하고 증거와 함께 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 앱 환경 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 실제 Repository 기준으로 제출:
+
+- Expo SDK 버전
+- React Native 버전
+- runtimeVersion
+- app.json / app.config 사용 여부
+- iOS bundle identifier
+- Android package name
+- 현재 공유 관련 설치 라이브러리
+- 현재 Linking 관련 라이브러리
+- view capture 관련 라이브러리
+- native module / config plugin 사용 여부
+- current production binary가 managed/prebuild/bare 중 어떤 구조인지
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 조사할 핵심 질문
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 4개 방식을 각각 독립적으로 조사한다.
+
+A.
+SWIMNOTE 이미지 1장
+→ Instagram Story Composer 직접 전달
+
+B.
+SWIMNOTE 이미지 2~3장
+→ 한 번의 사용자 동작으로
+Instagram Story Composer에 여러 장 동시에 전달
+
+C.
+SWIMNOTE 이미지 2~3장
+→ 앱이 1장씩 순차적으로 Instagram Story Composer 호출
+
+D.
+SWIMNOTE 이미지 2~3장
+→ 시스템 Share Sheet를 통해 Instagram으로 전달
+
+각 방식별로:
+
+가능
+불가능
+조건부 가능
+공식 지원 불명확
+
+중 하나로 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. iOS 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS에서 Instagram Story 외부 공유 방식 확인.
+
+반드시 확인:
+
+- URL Scheme 방식
+- UIPasteboard 방식
+- Instagram Story용 pasteboard item format
+- background image / sticker image 지원 방식
+- 여러 UIImage를 한 번에 전달 가능한지
+- 여러 pasteboard items를 Instagram Story가 실제로 처리하는지
+- 2~3장을 Story 여러 장으로 인식하는지
+- 1장만 지원하는지
+- 앱에서 Instagram Story Composer를 여러 번 연속 호출할 수 있는지
+- 사용자가 매번 확인/복귀해야 하는지
+- iOS security/privacy 제한
+- LSApplicationQueriesSchemes 필요 여부
+- Info.plist 변경 필요 여부
+
+중요:
+
+“UIPasteboard가 여러 이미지를 지원한다”
+=
+“Instagram Story가 여러 장을 Story 여러 개로 받아준다”
+
+라고 결론 내리지 말 것.
+
+Instagram 수신 측 지원 여부를 별도로 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Android 조사
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Android에서 Instagram Story 직접 공유 방식 확인.
+
+반드시 확인:
+
+- Intent ACTION_SEND
+- ACTION_SEND_MULTIPLE
+- Instagram Stories 대상 Intent
+- setPackage("com.instagram.android") 방식
+- MIME type
+- content URI / FileProvider 요구
+- 여러 URI를 한 번에 전달 가능한지
+- Instagram Story Composer가 ACTION_SEND_MULTIPLE을 Story 여러 장으로 처리하는지
+- 일반 Instagram feed share와 Story share 차이
+- package visibility 설정 필요 여부
+- queries / manifest 변경 필요 여부
+- Android 11+ package visibility 제한
+
+중요:
+
+ACTION_SEND_MULTIPLE이 Android 자체에서 가능하다는 사실과
+Instagram Story가 여러 장을 실제 Story 여러 장으로 받는지는 별도 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 공식 지원 여부 구분
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 방식마다 반드시 다음을 구분해서 보고:
+
+1. Apple / Google 플랫폼 자체 지원
+2. Meta / Instagram 공식 외부 공유 지원
+3. Expo 공식 API 지원
+4. React Native community workaround
+5. 비공식 URL scheme / undocumented hack
+
+비공식 방식이면
+“가능”이라고만 쓰지 말고
+유지보수/스토어 심사/향후 깨질 위험까지 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Expo / React Native 구현 가능성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 SWIMNOTE 환경에서 다음을 각각 판정:
+
+- expo-sharing만으로 가능한지
+- expo-linking만으로 가능한지
+- expo-file-system 필요 여부
+- react-native-view-shot 또는 유사 capture 도구 필요 여부
+- native module 필요 여부
+- config plugin 필요 여부
+- prebuild 필요 여부
+- custom native code 필요 여부
+
+그리고 각 방식이:
+
+OTA만으로 가능
+새 Native Build 필요
+Store 재심사 필요
+
+중 어디에 해당하는지 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 현재 Production Binary에서 가능한 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+현재 App Store / Play Store에 설치된 Production binary 기준으로:
+
+A. 지금 당장 OTA만으로 구현 가능한 Instagram 공유 범위
+B. native 설정이 없어서 OTA만으로 불가능한 범위
+C. 새 build를 하면 가능한 범위
+
+를 분리해서 제출.
+
+“코드만 작성하면 된다” 식의 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 다중 이미지 Story 직접 전달 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 질문에 YES/NO/UNKNOWN으로 답한다.
+
+iOS:
+
+1. 외부 앱이 2장 이상 이미지를 Instagram Story Composer에 한 번에 전달 가능한가?
+2. 전달된 이미지가 Story 2장/3장으로 자동 분리되는가?
+3. 공식 문서상 보장되는가?
+4. 실제 알려진 구현 사례가 있는가?
+
+Android:
+
+5. ACTION_SEND_MULTIPLE로 Instagram Story에 여러 장 전달 가능한가?
+6. Story Composer가 여러 장을 Story 여러 개로 인식하는가?
+7. 공식 문서상 보장되는가?
+8. 실제 구현 사례가 있는가?
+
+UNKNOWN은 그대로 UNKNOWN이라고 작성.
+
+억지로 결론 내리지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 1장씩 순차 전달 방식 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+만약 한 번에 여러 장 direct share가 안 된다면:
+
+SWIMNOTE에서:
+
+Story 1 생성
+→ Instagram Story Composer 오픈
+→ 사용자가 게시/취소
+→ SWIMNOTE 복귀
+→ Story 2 전달
+
+같은 순차 공유가 가능한지 확인.
+
+확인:
+
+- Instagram에서 SWIMNOTE로 callback/return 보장 여부
+- 사용자가 직접 앱 전환해야 하는지
+- 자동으로 다음 장을 연속 호출할 수 있는지
+- iOS 제한
+- Android 제한
+- UX가 현실적으로 사용 가능한지
+
+자동 연속 호출이 불가능하거나 불안정하면
+명확히 불가/비권장 판정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Share Sheet 다중 이미지 fallback
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+시스템 Share Sheet에서는
+2~3장의 이미지 파일을 한 번에 공유하는 것이 가능한지 확인.
+
+iOS:
+- 여러 파일 sharing 지원 여부
+- Instagram 선택 시 어떤 공유 UI로 들어가는지
+
+Android:
+- ACTION_SEND_MULTIPLE
+- Instagram 선택 시 Story가 아닌 일반 공유로 갈 가능성
+
+중요:
+
+Share Sheet에서 Instagram이 보인다고
+Story Composer 직행이라고 간주하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Instagram 앱 설치 여부 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+iOS:
+
+- canOpenURL 가능 여부
+- scheme
+- LSApplicationQueriesSchemes 필요 여부
+
+Android:
+
+- package visibility
+- package check
+- Linking.canOpenURL 또는 native package query
+
+현재 Production binary에 필요한 설정이 이미 포함되어 있는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Story 이미지 생성 자체는 별도 판정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Instagram 전달과 별개로,
+SWIMNOTE에서 다음이 가능한지 확인:
+
+- 1080×1920 이미지 1장 생성
+- 1080×1920 이미지 2장 생성
+- 3장 이상 생성
+- 임시 파일 저장
+- 고해상도 PNG/JPEG 생성
+- 한글 폰트 유지
+- 여러 장 순서 보존
+
+이 부분은 Instagram 전달과 분리해서 판정한다.
+
+이미지 생성은 가능하지만 Instagram 다중 direct share가 안 되는 경우도 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 긴 일지 기준 최종 후보
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+조사 후 아래 후보를 비교한다.
+
+OPTION A
+일지는 최대 1 Story
+→ 한 장에 안 들어가면 공유 제한
+
+OPTION B
+일지는 1~N Story 자동 분할
+→ 여러 장 direct share 가능할 때 사용
+
+OPTION C
+1~N장 생성
+→ Instagram direct는 1장만
+→ 긴 피드는 Share Sheet fallback
+
+OPTION D
+1~N장 생성
+→ 사진첩 저장 후 사용자가 Instagram에서 선택
+
+각 옵션에 대해:
+
+- UX
+- 구현 난이도
+- 새 native build 필요 여부
+- iOS 지원
+- Android 지원
+- 안정성
+- 유지보수성
+
+을 비교.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 공식 근거 필수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+가능하면 다음 우선순위로 근거 제출:
+
+1. Meta / Instagram 공식 문서
+2. Apple 공식 문서
+3. Android 공식 문서
+4. Expo 공식 문서
+5. 신뢰 가능한 RN library 공식 문서
+
+블로그/StackOverflow/GitHub issue는
+공식 문서에서 확인되지 않는 보조 근거로만 사용.
+
+각 핵심 판정 옆에
+근거 출처를 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 판정 등급
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 기능을 반드시 아래 중 하나로 분류:
+
+CONFIRMED_SUPPORTED
+= 공식 문서 또는 실제 현재 환경에서 확실히 지원
+
+CONFIRMED_UNSUPPORTED
+= 명확히 미지원
+
+CONDITIONALLY_SUPPORTED
+= native build/config/plugin 등 조건 충족 시 가능
+
+UNOFFICIAL
+= 비공식 workaround
+
+UNKNOWN
+= 공식/실제 근거 부족
+
+“될 것 같다” 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 최종 제출 표
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 표 작성.
+
+기능 | iOS | Android | OTA-only | Native Build | 공식지원 | 최종판정
+
+항목:
+
+1. Story 이미지 1장 생성
+2. Story 이미지 여러 장 생성
+3. Instagram 앱 설치 확인
+4. Story 1장 직접 전달
+5. Story 여러 장 한 번에 직접 전달
+6. Story 여러 장 순차 전달
+7. Share Sheet 1장
+8. Share Sheet 여러 장
+9. Push 후 Instagram 복귀 callback
+10. 공유 완료 여부 확인
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 추천안
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+조사 결과를 바탕으로
+SWIMNOTE에 가장 적합한 구현을 1개 추천.
+
+단 추천은 반드시 실제 기술 가능성에 근거.
+
+예:
+
+“현재 Production binary에서 1장 direct Story share만 가능,
+긴 일지는 다중 이미지 Share Sheet fallback”
+
+또는
+
+“새 native build 시 iOS/Android 모두 다중 direct Story 가능”
+
+등 실제 결과 기반으로 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. 이번 단계 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 조사 중:
+
+- 코드 수정 금지
+- package 설치 금지
+- app.json 수정 금지
+- config plugin 추가 금지
+- native build 금지
+- Commit 금지
+- Push 금지
+- Render 금지
+- OTA 금지
+
+기술 가능성 확인만 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 최종 보고 항목
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. 현재 Expo/RN 환경
+2. 현재 공유 관련 library
+3. iOS Story 1장 direct 가능 여부
+4. Android Story 1장 direct 가능 여부
+5. iOS Story 여러 장 direct 가능 여부
+6. Android Story 여러 장 direct 가능 여부
+7. 1장씩 순차 전달 가능 여부
+8. Share Sheet 여러 장 가능 여부
+9. Instagram 설치 확인 가능 여부
+10. OTA-only 가능 범위
+11. Native Build 필요 범위
+12. Store 재배포 필요 여부
+13. 공식 문서 근거
+14. 위험 요소
+15. SWIMNOTE 최종 추천 방식
+16. 구현 예상 파일
+17. 코드 변경 0 확인
+18. Commit/Push/OTA 0 확인
+
+보고 후 멈춘다.

@@ -1,14 +1,14 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/notices.tsx — 공지 관리
  * 슈퍼관리자가 대상별 공지를 등록/수정/삭제.
  * 앱 실행 시 대상 역할에 해당하는 최신 공지가 팝업으로 노출됨(NoticePopup).
  */
-import { Bell, BellOff, Lock, Plus, Radio, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { type Notice, type NoticeTarget, type NoticeType, NOTICE_TYPE_CFG } from "@/store/noticeStore";
@@ -18,10 +18,10 @@ import { OtpGateModal } from "@/components/common/OtpGateModal";
 const P = "#7C3AED";
 
 const TARGET_CFG: Record<NoticeTarget, { label: string; color: string; bg: string }> = {
-  all:     { label: "전체",     color: "#2EC4B6", bg: "#E6FFFA" },
+  all:     { label: "전체",     color: C.brandStrong, bg: C.brandSoft },
   admin:   { label: "관리자",   color: P,         bg: "#EEDDF5" },
-  teacher: { label: "선생님",   color: "#2EC4B6", bg: "#E6FFFA" },
-  parent:  { label: "학부모",   color: "#2EC4B6", bg: "#E0F2FE" },
+  teacher: { label: "선생님",   color: C.brandStrong, bg: C.brandSoft },
+  parent:  { label: "학부모",   color: C.brandStrong, bg: "#E0F2FE" },
 };
 
 function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
@@ -39,7 +39,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
     <View style={[nc.card, isLatest && nc.cardLatest]}>
       {isLatest && (
         <View style={nc.latestBadge}>
-          <Radio size={9} color="#2EC4B6" />
+          <LucideIcon name="radio" size={9} color={C.brandStrong} />
           <Text style={nc.latestTxt}>현재 노출 중</Text>
         </View>
       )}
@@ -55,7 +55,7 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
         </View>
         {notice.forcedAck && (
           <View style={nc.forcedBadge}>
-            <Lock size={10} color="#D96C6C" />
+            <LucideIcon name="lock" size={10} color="#D96C6C" />
             <Text style={nc.forcedTxt}>강제 확인</Text>
           </View>
         )}
@@ -77,11 +77,11 @@ function NoticeCard({ notice, onEdit, onDelete, isLatest }: {
 }
 
 const nc = StyleSheet.create({
-  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
-  cardLatest:   { borderColor: "#2EC4B6", borderWidth: 1.5 },
+  card:         { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
+  cardLatest:   { borderColor: C.brandStrong, borderWidth: 1.5 },
   latestBadge:  { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
-                  backgroundColor: "#E6FFFA", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
-  latestTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+                  backgroundColor: C.brandSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, marginBottom: 6 },
+  latestTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   typeBadge:    { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   typeTxt:      { fontSize: 10, fontFamily: "Pretendard-Regular" },
   top:          { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8, flexWrap: "wrap" },
@@ -90,10 +90,10 @@ const nc = StyleSheet.create({
   forcedBadge:  { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA",
                   paddingHorizontal: 6, paddingVertical: 3, borderRadius: 7 },
   forcedTxt:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
-  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginLeft: "auto" },
-  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4 },
-  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", lineHeight: 18, marginBottom: 6 },
-  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 8 },
+  date:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginLeft: "auto" },
+  title:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4 },
+  content:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18, marginBottom: 6 },
+  by:           { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 8 },
   actions:      { flexDirection: "row", gap: 6 },
   btn:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   btnTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
@@ -231,11 +231,11 @@ export default function NoticesScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="공지 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="공지 관리" homePath="/(super)/dashboard" />
 
       {/* 안내 */}
       <View style={s.infoBanner}>
-        <Bell size={12} color="#2EC4B6" />
+        <LucideIcon name="bell" size={12} color={C.brandStrong} />
         <Text style={s.infoTxt}>
           최신 공지 1개가 대상 역할에 맞게 앱 실행 시 팝업으로 노출됩니다. 새 공지 등록 시 이전 공지는 대체됩니다.
         </Text>
@@ -243,7 +243,7 @@ export default function NoticesScreen() {
 
       {/* 필터 + 등록 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTER_ITEMS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filterType === f.key && s.filterActive]}
@@ -252,18 +252,18 @@ export default function NoticesScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>공지 등록</Text>
         </Pressable>
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <BellOff size={36} color="#D1D5DB" />
+            <LucideIcon name="bell-off" size={36} color="#D1D5DB" />
             <Text style={s.emptyTxt}>등록된 공지가 없습니다</Text>
           </View>
         ) : (
@@ -273,19 +273,19 @@ export default function NoticesScreen() {
               isLatest={idx === 0 && filterType === "all"} />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
-      <Modal visible={showModal} transparent animationType="slide">
+      <Modal visible={showModal} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setShowModal(false)}>
         <View style={m.overlay}>
           <View style={m.sheet}>
             <View style={m.header}>
               <Text style={m.title}>{editId ? "공지 수정" : "공지 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false}>
               <Text style={m.label}>제목 *</Text>
               <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))}
                 placeholder="공지 제목을 입력하세요" />
@@ -332,7 +332,7 @@ export default function NoticesScreen() {
                   <Text style={[m.segTxt, !form.forcedAck && m.segActiveTxt]}>선택 확인</Text>
                 </Pressable>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <View style={m.footer}>
               <Pressable style={m.cancelBtn} onPress={() => setShowModal(false)}>
                 <Text style={m.cancelTxt}>취소</Text>
@@ -340,7 +340,7 @@ export default function NoticesScreen() {
               <Pressable style={[m.saveBtn, (!form.title.trim() || !form.content.trim()) && { opacity: 0.4 }]}
                 onPress={() => setOtpVisible(true)} disabled={!form.title.trim() || !form.content.trim()}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Lock size={13} color="#fff" />
+                  <LucideIcon name="lock" size={13} color="#fff" />
                   <Text style={m.saveTxt}>{editId ? "저장" : "등록"}</Text>
                 </View>
               </Pressable>
@@ -359,11 +359,11 @@ export default function NoticesScreen() {
       />
 
       {/* 삭제 확인 */}
-      <Modal visible={!!deleteConfirm} transparent animationType="fade">
+      <Modal visible={!!deleteConfirm} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setDeleteConfirm(null)}>
         <View style={m.overlay}>
           <View style={[m.sheet, { maxHeight: 240 }]}>
             <Text style={[m.title, { marginBottom: 12 }]}>공지 삭제</Text>
-            <Text style={{ fontSize: 14, color: "#0F172A", marginBottom: 8 }}>
+            <Text style={{ fontSize: 14, color: C.textPrimary, marginBottom: 8 }}>
               이 공지를 삭제하면 앱에서 더 이상 노출되지 않습니다.
             </Text>
             <Text style={{ fontSize: 13, color: "#D96C6C", marginBottom: 20 }}>
@@ -385,39 +385,39 @@ export default function NoticesScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: "#F1F5F9" },
-  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: "#E6FFFA",
+  safe:         { flex: 1, backgroundColor: C.backgroundSoft },
+  infoBanner:   { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandSoft,
                   padding: 10, paddingHorizontal: 16 },
-  infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6", flex: 1 },
+  infoTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong, flex: 1 },
   filterRow:    { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterActive: { backgroundColor: P },
-  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  filterTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterActiveTxt: { color: "#fff" },
   addBtn:       { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P,
                   paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   addTxt:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   empty:        { alignItems: "center", paddingVertical: 48, gap: 10 },
-  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
   overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:        { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: "90%" },
   header:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 4, marginTop: 12 },
+  title:        { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 12 },
   input:        { borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 10, padding: 10, fontSize: 14,
-                  fontFamily: "Pretendard-Regular", color: "#0F172A", backgroundColor: "#F1F5F9" },
+                  fontFamily: "Pretendard-Regular", color: C.textPrimary, backgroundColor: C.backgroundSoft },
   segRow:       { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   segBtn:       { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   segActive:    { backgroundColor: P },
-  segTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt: { color: "#fff" },
   footer:       { flexDirection: "row", gap: 8, marginTop: 20 },
-  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 10, marginTop: -8 },
+  hint:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 10, marginTop: -8 },
   cancelBtn:    { flex: 1, padding: 13, borderRadius: 10, backgroundColor: "#FFFFFF", alignItems: "center" },
-  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:      { flex: 2, padding: 13, borderRadius: 10, backgroundColor: P, alignItems: "center" },
   saveTxt:      { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

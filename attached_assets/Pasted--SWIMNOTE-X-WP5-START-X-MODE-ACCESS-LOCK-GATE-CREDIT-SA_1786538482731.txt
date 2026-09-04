@@ -1,0 +1,387 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP5 START
+X MODE ACCESS LOCK / GATE
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 기준:
+
+WP4_CLOSED ✅
+기능 Production SHA:
+b729cd5ae7bd1a675f82d019ad9e3fc21af60998
+
+WP5만 진행.
+WP6 자동 시작 금지.
+
+중요:
+기존 WP5 관련 코드가 일부 존재할 수 있다.
+처음부터 다시 만들지 말고 현재 구현을 확인한 뒤
+필요한 부분만 수정한다.
+
+전체 Repository 전수조사 금지.
+관련 파일만 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+1. WP5 목적
+━━━━━━━━━━━━━━━━━━━━
+
+SWIMNOTE X 전용 기능에 접근할 때
+수영장의 X Mode 사용 가능 상태를 확인하고
+사용 불가능하면 정상 기능 대신
+명확한 잠금/안내 화면을 보여준다.
+
+목표:
+
+X 사용 가능
+→ X 기능 진입 허용
+
+X 사용 불가능
+→ X 기능 실행 금지
+→ Lock UI 표시
+
+일반 SWIMNOTE 기능은 영향 없어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 기존 구현 확인
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 관련 코드만 찾아라.
+
+확인 대상:
+
+- X Mode entitlement helper
+- xmode config/status helper
+- 기존 X lock/gate component
+- X 관련 route/screen
+- Super/Pool 설정에서 X 상태 읽는 코드
+- WP3에서 구현한 X 설정 UI 연결부
+
+보고:
+
+A. 이미 구현된 부분
+B. 빠진 부분
+C. 수정할 파일
+
+여기서 전체 repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━
+
+새로운 X 판정 규칙 만들지 말 것.
+
+기존 WP2/WP3에서 확정된
+X Mode entitlement/config resolver를 재사용.
+
+클라이언트에서 임의로:
+
+xmode_entitlement === true
+
+하나만 보고 판단하는 새 로직 금지.
+
+실제 기존 helper/API contract를 따른다.
+
+━━━━━━━━━━━━━━━━━━━━
+4. WP5 LOCK 상태
+━━━━━━━━━━━━━━━━━━━━
+
+실제 기존 상태 enum/contract를 확인한 뒤
+다음 의미를 구분한다.
+
+예:
+
+A. X entitlement 없음
+→ X 구독 필요
+
+B. entitlement 있음
++ config NOT_CONFIGURED
+→ X 설정 필요
+
+C. config CURRICULUM_PENDING
+→ 커리큘럼 준비/검토 중
+
+D. entitlement 있음
++ config READY
+→ X 기능 접근 허용
+
+실제 enum은 현재 DB/API 정의를 우선.
+
+새 상태값 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. LOCK UI
+━━━━━━━━━━━━━━━━━━━━
+
+기존 앱 디자인 시스템으로 구현.
+
+필수:
+
+- X 기능임을 명확히 표시
+- 현재 사용 불가 이유 표시
+- 상태에 맞는 행동 버튼
+
+예:
+
+구독 없음
+→ X Mode 이용 안내 / 구독 관련 기존 flow
+
+설정 안 됨
+→ X Mode 설정으로 이동
+
+CURRICULUM_PENDING
+→ 준비 중 안내
+→ 사용자가 반복 설정하지 않도록 함
+
+READY
+→ lock 없이 기능 진입
+
+새 디자인 시스템 도입 금지.
+대규모 UI 리디자인 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 적용 범위
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP5에서
+실제 Repository에 존재하는 X 전용 진입점만 보호한다.
+
+추측해서 미래 WP6~WP18 화면까지
+가짜 route 생성 금지.
+
+현재 존재하는 X 관련 entry point를 확인하여
+gate 적용.
+
+WP6 AI Diary V2 구현 금지.
+WP7 이후 기능 생성 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. SERVER-SIDE 보호
+━━━━━━━━━━━━━━━━━━━━
+
+UI 잠금만으로 끝내지 않는다.
+
+현재 X 전용 API가 이미 존재하고
+서버에서 entitlement/config validation이 있다면
+그것을 재사용/확인.
+
+없다면 이번 WP5 범위에서
+현재 존재하는 X-only API에 필요한 최소 guard만 추가.
+
+단:
+
+WP4B AI search의 정상 X 판정 로직
+중복 구현 금지.
+
+공통 resolver/helper 재사용.
+
+클라이언트 화면만 숨기고
+API 직접 호출은 허용되는 구조면 FAIL.
+
+━━━━━━━━━━━━━━━━━━━━
+8. FAIL-SAFE
+━━━━━━━━━━━━━━━━━━━━
+
+X 상태 조회 API 실패 시:
+
+X 기능을 허용하는 방향으로 fallback 금지.
+
+즉:
+
+상태 확인 실패
+→ X 전용 기능 잠금
+→ 재시도 안내
+
+하지만 일반 SWIMNOTE 기능까지
+막으면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+9. NON-X REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+매우 중요.
+
+일반 SWIMNOTE 사용자:
+
+회원관리
+스케줄러
+출결
+보강
+일지
+앨범
+공지
+
+등 기존 기능은
+WP5 gate 때문에 영향을 받으면 안 된다.
+
+특히 최근 장애가 있었으므로
+API 실패를 빈 데이터처럼 보이게 만드는
+새 처리 추가 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. TEST
+━━━━━━━━━━━━━━━━━━━━
+
+필수 상태만 테스트:
+
+1)
+entitlement 없음
+→ LOCK
+
+2)
+entitlement 있음
++ NOT_CONFIGURED
+→ LOCK / 설정 안내
+
+3)
+CURRICULUM_PENDING
+→ LOCK / 준비중
+
+4)
+READY
+→ 접근 허용
+
+5)
+X status API 실패
+→ fail-safe LOCK
+
+6)
+일반 SWIMNOTE 기능
+→ 기존 동작 유지
+
+가능하면 기존 test fixture/mock 사용.
+
+Production DB에 상태 변경용 테스트 write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. SAMPLE POOL
+━━━━━━━━━━━━━━━━━━━━
+
+기존 X sample pool:
+
+pool_1784310621737_qryl1x79s
+
+현재 알려진 상태:
+entitlement=true
+config=READY
+
+실제 현재 API로 READ ONLY 재확인 후
+READY 경로 runtime test에 사용 가능.
+
+pool 상태 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. CODE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 수정해야 하는 파일만 수정.
+
+금지:
+
+- WP4 코드 리팩터링
+- template search 재수정
+- Backup/RLS 수정
+- DB migration
+- RevenueCat 제품 생성
+- AI Engine 기능 확장
+- WP6 구현
+- unrelated cleanup
+
+━━━━━━━━━━━━━━━━━━━━
+13. GIT / TEST
+━━━━━━━━━━━━━━━━━━━━
+
+완료 후:
+
+관련 test
+typecheck
+
+WP5 신규 오류 = 0.
+
+그 다음:
+
+git status
+git diff --stat
+changed files
+
+commit:
+
+feat(xmode): complete X mode access gate
+
+push origin.
+
+문서/memory-only HEAD 차이는
+이번 실제 코드 push 때 같이 올라가도 됨.
+
+━━━━━━━━━━━━━━━━━━━━
+14. DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+앱 코드 변경이 있다면
+기존 배포 방식 기준으로 필요한 OTA 수행.
+
+서버 변경이 있다면
+Render deploy.
+
+변경되지 않은 레이어는
+괜히 재배포하지 말 것.
+
+제출:
+
+commit SHA
+origin SHA
+
+Server 변경 시:
+Render Deploy ID
+Live SHA
+
+App 변경 시:
+OTA update ID / branch/channel
+runtimeVersion
+
+━━━━━━━━━━━━━━━━━━━━
+15. RUNTIME VERIFICATION
+━━━━━━━━━━━━━━━━━━━━
+
+최소 실제 확인:
+
+READY X pool
+→ X 진입 가능
+
+잠금 상태는
+Production 상태를 임의 변경하지 말고
+test/mock 또는 안전한 기존 context로 검증.
+
+일반 앱:
+스케줄러/회원관리 등
+최소 smoke 정상.
+
+서버 변경 시:
+/api/health
+/api/healthz
+→ 200
+
+━━━━━━━━━━━━━━━━━━━━
+16. FINAL REPORT — 짧게
+━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 기존 WP5 구현 상태
+2. 수정한 내용
+3. changed files
+4. 상태별 gate 결과
+5. tests
+6. commit/origin SHA
+7. Render/OTA 필요 여부 및 결과
+8. READY runtime 결과
+9. 일반 앱 regression
+10. 최종 판정
+
+성공 시:
+
+WP5_XMODE_ACCESS_GATE_VERIFIED ✅
+
+STOP.
+
+WP6 자동 진행 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

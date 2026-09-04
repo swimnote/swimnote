@@ -1,0 +1,538 @@
+[WP-CS-04R — SWIMNOTE FRONTEND MAP REGISTRY FOUNDATION]
+
+목적:
+
+SWIMNOTE AI 고객센터가
+앱의 실제 화면 구조와 기능 위치를 정확히 이해하도록
+
+Frontend Map Registry를 구축한다.
+
+이번 WP에서는
+고객센터 AI 답변 생성은 하지 않는다.
+
+목표:
+
+APP ROUTES
+→ SCREEN REGISTRY
+→ ROLE / MODE
+→ FEATURE
+→ ACTION
+→ DEEP LINK
+→ VERSION
+
+구조를 확정한다.
+
+==================================================
+0. MASTER PRINCIPLE
+==================================================
+
+Frontend Map은 FAQ가 아니다.
+
+각 화면의 실제 구조를 표현한다.
+
+MASTER 최소 개념:
+
+screen_id
+screen_name
+route
+
+available_roles
+available_modes
+
+purpose
+
+buttons[]
+button_actions[]
+
+inputs[]
+
+permissions[]
+feature_flags[]
+
+next_routes[]
+previous_routes[]
+
+related_api[]
+related_features[]
+
+common_errors[]
+known_solutions[]
+support_keywords[]
+
+frontend_map_version
+
+==================================================
+1. FIRST — REPOSITORY ROUTE AUDIT
+==================================================
+
+수정 전 실제 Expo Router 구조 전체 감사.
+
+대상:
+
+app/(admin)/
+app/(teacher)/
+app/(parent)/
+공통 route
+modal
+settings
+notification/deep link route
+X mode 관련 route
+
+각 route에 대해:
+
+FILE =
+ROUTE =
+ROLE =
+MODE =
+SCREEN_COMPONENT =
+
+추출.
+
+dead route와 실제 production route 구분.
+
+==================================================
+2. AUTOMATIC SKELETON GENERATION
+==================================================
+
+수작업으로 모든 route를 처음부터 복붙하지 않는다.
+
+가능하면 repository 구조에서 자동 생성:
+
+screen_id candidate
+route
+role group
+file path
+
+를 추출하는 script 또는 build-time generator 작성.
+
+예:
+
+scripts/generate-frontend-map.ts
+
+단 자동생성 결과를 production truth로 바로 사용하지 않는다.
+
+생성된 skeleton + curated metadata 구조로 간다.
+
+==================================================
+3. REGISTRY SOURCE OF TRUTH
+==================================================
+
+Frontend Map은 DB에 무조건 넣지 않는다.
+
+우선 권장:
+
+versioned JSON/TS registry
+
+예:
+
+config/support/frontend-map.v1.ts
+또는
+data/frontend-map/*.json
+
+이유:
+
+route 구조는 코드와 함께 version control되어야 함.
+
+DB에 중복 route map을 따로 관리해서
+앱과 map이 쉽게 어긋나는 구조 금지.
+
+==================================================
+4. VERSION
+==================================================
+
+반드시:
+
+frontend_map_version
+
+관리.
+
+현재 app version:
+1.6.3
+
+초기 map version은
+실제 release 기준으로 명확히 지정.
+
+예:
+
+frontend_map_version = "1.6.3"
+
+향후 앱 버전 변경 시
+Map version도 추적 가능해야 함.
+
+==================================================
+5. SCREEN ID
+==================================================
+
+route 문자열을 그대로 screen_id로 쓰지 않아도 된다.
+
+안정적인 logical id 사용.
+
+예:
+
+ADMIN_SETTINGS
+TEACHER_SETTINGS
+PARENT_SETTINGS
+PARENT_REQUESTS
+ADMIN_MAKEUP
+TEACHER_DIARY
+PARENT_GROWTH_REPORT
+
+screen_id는
+route 변경에도 가능하면 의미 유지.
+
+==================================================
+6. ROLE
+==================================================
+
+최소:
+
+pool_admin
+sub_admin
+teacher
+parent
+
+Super Admin web은
+모바일 Frontend Map과 분리 가능.
+
+필요하면:
+
+super_admin
+
+지원.
+
+role을 route group만 보고
+무조건 확정하지 않는다.
+
+실제 guard/permission 확인.
+
+==================================================
+7. MODE
+==================================================
+
+available_modes:
+
+normal
+x
+x_pending
+
+또는 실제 현재 mode contract.
+
+공통 화면:
+normal + x
+
+X 전용:
+x
+
+설정 전용/준비 상태:
+필요 시 x_pending
+
+억지로 모든 화면을 X/Normal 둘로 복제 금지.
+
+==================================================
+8. SCREEN PURPOSE
+==================================================
+
+각 핵심 화면마다
+짧고 검증된 purpose 작성.
+
+예:
+
+PARENT_REQUESTS:
+학부모가 본인의 요청과 처리 결과를 확인하는 화면
+
+광고성 문구 금지.
+
+실제 기능 기준.
+
+==================================================
+9. BUTTON / ACTION MAP
+==================================================
+
+핵심 화면은 실제 버튼과 action 연결.
+
+concept:
+
+{
+  id,
+  label,
+  action_type,
+  target_route?,
+  required_permission?,
+  notes?
+}
+
+action_type 예:
+
+NAVIGATE
+SUBMIT
+OPEN_MODAL
+DOWNLOAD
+UPLOAD
+REQUEST
+CALL_API
+OTHER
+
+실제 존재하는 버튼만.
+
+==================================================
+10. INPUTS
+==================================================
+
+지원문의에 중요한 화면만 입력 구조 기록.
+
+예:
+
+field_id
+label
+input_type
+required
+
+전체 UI schema를 복제할 필요 없음.
+
+Support 진단에 필요한 수준만.
+
+==================================================
+11. PERMISSION MAP
+==================================================
+
+permission은 실제 코드 기준.
+
+예:
+
+role
+pool scope
+billing authority
+X entitlement
+feature flag
+
+임의 권한 생성 금지.
+
+==================================================
+12. FEATURE FLAGS
+==================================================
+
+현재 실제 flag가 있는 화면만 기록.
+
+없는 flag를 가짜로 만들지 않는다.
+
+==================================================
+13. RELATED API
+==================================================
+
+Support 진단에 의미 있는 화면은
+관련 API route 연결 가능.
+
+예:
+
+PARENT_REQUESTS
+→ /parent-requests
+
+하지만 secret/internal-only endpoint 노출 금지.
+
+Support registry 내부 metadata로만.
+
+==================================================
+14. COMMON ERRORS
+==================================================
+
+이번 WP에서
+새 오류 지식을 창작하지 않는다.
+
+현재 코드에 실제:
+
+error message
+known failure state
+validation error
+
+가 존재하는 것만 연결.
+
+없는 경우 [].
+
+==================================================
+15. KNOWN SOLUTIONS
+==================================================
+
+아직 Solution DB가 완성되지 않았으므로
+
+solution_id reference foundation만.
+
+가짜 해결책 생성 금지.
+
+==================================================
+16. SUPPORT KEYWORDS
+==================================================
+
+사용자가 실제로 말할 가능성이 높은
+기능명/화면명 키워드.
+
+예:
+
+보강
+내 요청
+성장리포트
+AI 일지
+출결
+사진
+알림
+
+과도한 자연어 synonym 대량 생성 금지.
+
+핵심 키워드만 curated.
+
+==================================================
+17. DEEP LINK CONTRACT
+==================================================
+
+Frontend Map에서
+화면 이동용 deep link/action을
+표현할 수 있어야 한다.
+
+예:
+
+target_route
+deep_link
+
+단 이번 WP에서
+사용자에게 실제 버튼 이동 기능까지 구현하지 않아도 됨.
+
+CS-10 단계에서 실제 활성화.
+
+==================================================
+18. CURRENT ROUTE SUPPORT
+==================================================
+
+향후 AI 문의가:
+
+"이 화면에서 뭐 눌러요?"
+
+를 처리하도록
+Support context의 current_route와
+Frontend Map route가 매칭 가능해야 한다.
+
+정확한 matcher 제공:
+
+route
+screen_id
+version
+role
+mode
+
+==================================================
+19. ROUTE NORMALIZATION
+==================================================
+
+동적 route:
+
+/students/[id]
+/reports/[reportId]
+
+같은 경로는
+template 기준으로 normalize.
+
+실제 ID를 map에 저장하지 않는다.
+
+예:
+
+/students/:id
+
+==================================================
+20. VERSION MATCH
+==================================================
+
+Support query 시:
+
+사용자 app_version
+frontend_map_version
+
+기준으로 적절한 map 선택 가능하게 한다.
+
+현재는 1.6.3 하나만 있어도 됨.
+
+향후 old map 보존 가능 구조.
+
+==================================================
+21. SEARCH API FOUNDATION
+==================================================
+
+Server에 최소 read-only 검색 endpoint 가능.
+
+예:
+
+GET /support/frontend-map/search
+?q=
+&role=
+&mode=
+&route=
+&version=
+
+결과:
+
+screen_id
+screen_name
+route
+purpose
+actions
+deep_link
+score/source
+
+이번 WP에서 OpenAI 호출 금지.
+
+deterministic search만.
+
+==================================================
+22. SEARCH PRIORITY
+==================================================
+
+우선:
+
+exact screen_id
+exact route
+exact label
+keyword
+feature
+
+그 다음 단순 token/normalized match.
+
+Semantic search는 아직 하지 않는다.
+
+==================================================
+23. NO MATCH
+==================================================
+
+일치하지 않으면:
+
+NO_MATCH
+
+억지로 가장 가까운 화면 반환 금지.
+
+==================================================
+24. ROLE / MODE FILTER
+==================================================
+
+같은 키워드가 여러 화면에 있어도
+
+role
+mode
+
+를 기준으로 filter.
+
+예:
+
+"설정"
+
+parent
+→ parent settings
+
+teacher
+→ teacher settings
+
+다른 role 화면 노출 금지.
+
+==================================================
+25. CROSS-ROLE SAFETY
+==================================================
+
+parent에게
+admin-only 화면을 해결 경로로 제시하지 않도록
+
+검색 결과 단계부터 제한

@@ -15,12 +15,21 @@
 import { Router } from "express";
 import multer from "multer";
 import { Client } from "@replit/object-storage";
-import { db, superAdminDb } from "@workspace/db";
+import { db, superAdminDb, pool as pgPool } from "@workspace/db";
+import { lookupAiOrigin }                   from "../lib/ai-origin-registry.js";
 import { sql, eq, and, desc, or } from "drizzle-orm";
 import { usersTable } from "@workspace/db/schema";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { logPoolEvent } from "../lib/pool-event-logger.js";
 import { SWIMNOTE_DEFAULT_TEMPLATES, insertDefaultTemplates } from "../lib/defaultTemplates.js";
+import { resolvePoolMode } from "../lib/xmode.js";
+import { insertGrowthEvents, type CurriculumMatchInput } from "../lib/growth-event-service.js";
+import { syncDiaryTemplatesToCurriculumItems } from "../lib/diary-template-sync.js";
+import {
+  upsertSessionObservation,
+  invalidateSessionObservation,
+} from "../lib/curriculum-progress-mapper.js";
+import { computeConfirmedProgress } from "../lib/curriculum-confirmation-engine.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
@@ -105,6 +114,27 @@ function getKSTNow(): Date {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
 }
 
+/**
+ * DB에서 lesson_date를 가져올 때 pg 드라이버가 Date 객체 또는 문자열로 반환할 수 있음.
+ * 항상 "YYYY-MM-DD" 형식 문자열로 정규화.
+ *
+ * - string "2026-08-06" → "2026-08-06"
+ * - string "2026-08-06T00:00:00.000Z" → "2026-08-06"
+ * - Date object → toISOString().slice(0, 10)
+ * - null/undefined → ""
+ */
+function normalizeLessonDate(raw: unknown): string {
+  if (!raw) return "";
+  if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+  const s = String(raw);
+  // "YYYY-MM-DD..." 형식이면 앞 10자만
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // Date.toString() 형식 "Thu Aug 06 2026 ..." → toISOString 변환
+  const fallback = new Date(s);
+  if (!isNaN(fallback.getTime())) return fallback.toISOString().slice(0, 10);
+  return "";
+}
+
 function isDiaryPushAllowed(kstNow: Date): boolean {
   const h = kstNow.getHours();
   return h >= DIARY_PUSH_START_H && h < DIARY_PUSH_END_H;
@@ -126,7 +156,8 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
     const classIdSafe = classId.replace(/'/g, "''");
     const lessonDateSafe = lessonDate.replace(/'/g, "''");
 
-    // lesson_date 기준 student_class_history에 유효한 학부모만 대상
+    // lesson_date 기준 student_class_history에 유효한 학부모 대상
+    // — 해당 날짜 결석(absent) 학생의 학부모는 발송 제외
     const parentRows = await db.execute(sql.raw(`
       SELECT DISTINCT pa.id AS parent_account_id
       FROM parent_students ps
@@ -138,6 +169,13 @@ async function sendDiaryPush(classId: string, diaryId: string, className: string
         AND (sch.left_at IS NULL OR sch.left_at > '${lessonDateSafe}')
       JOIN students s ON s.id = ps.student_id
       WHERE ps.status = 'approved' AND s.deleted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance a
+          WHERE a.student_id = ps.student_id
+            AND a.class_group_id = '${classIdSafe}'
+            AND a.date = '${lessonDateSafe}'
+            AND a.status = 'absent'
+        )
     `));
 
     // 인앱 알림 생성 (시간대 무관 즉시)
@@ -269,9 +307,15 @@ router.get("/diaries/index",
   async (req: AuthRequest, res) => {
     try {
       const { userId, role } = req.user!;
-      const { student_name, day, time } = req.query as Record<string, string>;
+      const { student_name, day, time, student_id: studentIdParam } = req.query as Record<string, string>;
       const poolId = await getUserPoolId(userId);
       if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+
+      // student_id 범위 제한: 지정된 학생이 같은 pool 소속인지 확인
+      if (studentIdParam) {
+        const chk = await db.execute(sql`SELECT 1 FROM students WHERE id = ${studentIdParam} AND swimming_pool_id = ${poolId} LIMIT 1`);
+        if ((chk.rows as any[]).length === 0) return apiErr(res, 403, "접근 권한이 없습니다.");
+      }
 
       // 선생님은 자신이 담당하는 반만
       let classFilter = sql`true`;
@@ -287,11 +331,25 @@ router.get("/diaries/index",
       // 시간 필터 (앞 5자 비교: '14:00')
       const timeFilter = time ? sql`AND LEFT(cg.schedule_time, 5) = ${time}` : sql``;
 
-      // 학생 이름 필터
-      const nameSearchCommon = student_name
+      // 학생 이름 필터 (student_id가 있으면 name 검색 비활성)
+      const nameSearchCommon = (!studentIdParam && student_name)
         ? sql`AND EXISTS (SELECT 1 FROM students s WHERE s.class_group_id = cd.class_group_id AND s.status NOT IN ('withdrawn','deleted') AND s.name ILIKE ${"%" + student_name + "%"})`
         : sql``;
-      const nameSearchNote = student_name ? sql`AND s.name ILIKE ${"%" + student_name + "%"}` : sql``;
+      const nameSearchNote = (!studentIdParam && student_name) ? sql`AND s.name ILIKE ${"%" + student_name + "%"}` : sql``;
+
+      // student_id 필터 — authoritative ID 기반, name search 대체
+      // ① 공통 일지: 해당 학생이 속했던 반(class_group_id)으로 범위 제한
+      //    + 등록일 이전 diary 차단: students.created_at KST cutoff 적용
+      const studentCommonFilter = studentIdParam
+        ? sql`AND cd.class_group_id IN (SELECT class_group_id FROM student_class_history WHERE student_id = ${studentIdParam} AND is_deleted = false)
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+        : sql``;
+      // ② 학생 노트: cdn.student_id = :studentId 직접 필터
+      //    + 동일 cutoff 적용
+      const studentNoteFilter = studentIdParam
+        ? sql`AND cdn.student_id = ${studentIdParam}
+              AND cd.lesson_date >= (SELECT (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date FROM students WHERE id = ${studentIdParam} LIMIT 1)`
+        : sql``;
 
       // ① 반 공통 일지
       const commonRows = await db.execute(sql`
@@ -318,6 +376,7 @@ router.get("/diaries/index",
           ${dayFilter}
           ${timeFilter}
           ${nameSearchCommon}
+          ${studentCommonFilter}
         ORDER BY cd.lesson_date DESC, cd.created_at DESC
         LIMIT 200
       `);
@@ -350,6 +409,7 @@ router.get("/diaries/index",
           ${dayFilter}
           ${timeFilter}
           ${nameSearchNote}
+          ${studentNoteFilter}
         ORDER BY cd.lesson_date DESC, cdn.created_at DESC
         LIMIT 200
       `);
@@ -444,6 +504,121 @@ router.get("/diaries",
   }
 );
 
+// ── WP9-P1: AI origin verification ────────────────────────────────────────
+// request_id가 실제 이 pool의 teacher AI diary generation에서 생성된 것인지
+// 서버 측에서 검증.
+//
+// 검증 순서:
+//   1. in-memory registry (registerAiOrigin이 res.json() 직전 동기 등록)
+//      → race condition 없음; pool_id 매칭으로 cross-pool 차단
+//   2. event_logs fallback (프로세스 재시작, 멀티인스턴스, 오래된 요청)
+//      → target = request_id, pool_id = pool_id, category='AI', feature='teacher_diary', status='SUCCESS'
+//
+// 검증 실패 시: ai_generated=FALSE, ai_trace_id=NULL (KPI 오염 방지)
+async function verifyAiOrigin(
+  requestId: string,
+  poolId:    string,
+  _actorId:  string,         // 향후 actor 검증 확장용 — 현재 미사용 (pool 검증으로 충분)
+): Promise<boolean> {
+  // 1. in-memory registry (fast path, no DB round-trip)
+  const entry = lookupAiOrigin(requestId);
+  if (entry !== null) {
+    const poolMatch = entry.poolId === poolId;
+    console.log(`[ai-origin-verify] registry hit request_id=${requestId.slice(0, 8)}... pool_match=${poolMatch}`);
+    return poolMatch;
+  }
+
+  // 2. event_logs fallback
+  //    대상: 프로세스 재시작 후 / 멀티인스턴스 / TTL 만료 후 오래된 요청
+  //    조건: target=requestId AND pool_id=poolId AND feature=teacher_diary AND status=SUCCESS
+  //    보안 주의: category='AI' + feature='teacher_diary' + status='SUCCESS' 모두 필요
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT 1 FROM event_logs
+      WHERE target    = ${requestId}
+        AND pool_id   = ${poolId}
+        AND category  = 'AI'
+        AND metadata->>'feature' = 'teacher_diary'
+        AND metadata->>'status'  = 'SUCCESS'
+      LIMIT 1
+    `);
+    const verified = result.rows.length > 0;
+    console.log(`[ai-origin-verify] event_logs fallback request_id=${requestId.slice(0, 8)}... verified=${verified}`);
+    return verified;
+  } catch (err) {
+    // event_logs 조회 실패 → 보안 우선 원칙: FALSE 반환 (KPI 오염 방지)
+    console.error("[ai-origin-verify] event_logs fallback failed", {
+      requestId: requestId.slice(0, 8) + "...", poolId,
+      error: (err as Error)?.message ?? err,
+    });
+    return false;
+  }
+}
+
+// ── WP9: AI diary snapshot refresh ────────────────────────────────────────
+// WP10의 refreshCurriculumSearchSnapshot과 동일 패턴.
+// raw source(class_diaries) recount → UPSERT overwrite (ai_diary_count, ai_diary_teacher_count만).
+// 다른 KPI 컬럼 덮어쓰기 금지 — ON CONFLICT DO UPDATE 특정 컬럼만 지정.
+function _kpiHashStr(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i);
+    h = h | 0;
+  }
+  return h;
+}
+
+async function refreshAiDiarySnapshot(poolId: string): Promise<void> {
+  const kst   = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const year  = kst.getFullYear();
+  const month = kst.getMonth() + 1;
+
+  // lesson_date는 TEXT 'YYYY-MM-DD' — ISO 형식 보장 → lexicographic range query 사용
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const nextMonth  = month === 12
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+
+  // advisory lock key: pool+year / month 기반 int4 pair
+  // 동일 pool/month만 직렬화; 다른 pool은 독립 실행
+  const lockKey1 = Math.abs(_kpiHashStr(poolId + String(year))) % 2147483647;
+  const lockKey2 = Math.abs(_kpiHashStr(String(month)))         % 2147483647;
+
+  const client = await pgPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1::int, $2::int)", [lockKey1, lockKey2]);
+    await client.query(
+      `INSERT INTO x_monthly_operational_snapshots
+         (swimming_pool_id, year, month, ai_diary_count, ai_diary_teacher_count)
+       SELECT
+         $1, $2, $3,
+         COUNT(*)::int,
+         COUNT(DISTINCT teacher_id)::int
+       FROM class_diaries
+       WHERE swimming_pool_id = $1
+         AND ai_generated = TRUE
+         AND is_deleted   = FALSE
+         AND lesson_date  >= $4
+         AND lesson_date  <  $5
+       ON CONFLICT (swimming_pool_id, year, month) DO UPDATE SET
+         ai_diary_count         = EXCLUDED.ai_diary_count,
+         ai_diary_teacher_count = EXCLUDED.ai_diary_teacher_count,
+         updated_at             = NOW()`,
+      [poolId, year, month, monthStart, nextMonth],
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("[ai-diary-kpi] snapshot refresh failed", {
+      poolId, year, month, error: (err as Error).message,
+    });
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ── POST /diaries ─────────────────────────────────────────────────────────
 // Body: { class_group_id, lesson_date?, common_content, student_notes?: [{student_id, note_content}] }
 router.post("/diaries",
@@ -451,12 +626,41 @@ router.post("/diaries",
   async (req: AuthRequest, res) => {
     try {
       const { userId, role } = req.user!;
-      const { class_group_id, lesson_date, common_content, student_notes } = req.body;
+      const {
+        class_group_id, lesson_date, common_content,
+        student_notes, curriculum_matches, ai_request_id,
+        ai_generated: clientAiGenerated,
+      } = req.body;
+
+      // WP9-P1: AI origin server verification
+      // - client가 보낸 ai_request_id를 서버가 in-memory registry + event_logs로 검증
+      // - fake "fake-id" → registry miss + event_logs miss → FALSE
+      // - cross-pool valid id → pool_id mismatch → FALSE
+      // - 정상 AI flow → registry hit (res.json() 직전 등록) → TRUE
+      // - 일반 저장(ai_request_id 없음) → FALSE
+      const candidateRequestId = typeof ai_request_id === "string" ? ai_request_id.trim() : "";
+      const isAiGenerated = candidateRequestId.length > 0
+        ? await verifyAiOrigin(candidateRequestId, poolId!, userId)
+        : false;
+      console.log(`[diary-create] ai_origin_verify request_id=${candidateRequestId ? candidateRequestId.slice(0,8)+"..." : "(none)"} pool=${poolId} verified=${isAiGenerated}`);
 
       const hasStudentNotes = Array.isArray(student_notes) && student_notes.some((n: any) => n.note_content?.trim());
       if (!class_group_id || (!common_content?.trim() && !hasStudentNotes)) {
         return apiErr(res, 400, "반 ID와 일지 내용은 필수입니다.");
       }
+
+      // curriculum_matches 유효성 사전 검사 (길이·타입 체크만, match_token 검증은 TX 내부)
+      const rawCurriculumMatches: CurriculumMatchInput[] = Array.isArray(curriculum_matches)
+        ? (curriculum_matches as any[]).filter(
+            (m): m is CurriculumMatchInput =>
+              m !== null &&
+              typeof m === "object" &&
+              typeof m.student_ref   === "string" && m.student_ref &&
+              typeof m.candidate_id  === "string" && m.candidate_id &&
+              typeof m.match_token   === "string" && m.match_token &&
+              typeof m.match_status  === "string",
+          )
+        : [];
 
       const [poolId, teacherName] = await Promise.all([
         getUserPoolId(userId),
@@ -480,6 +684,21 @@ router.post("/diaries",
       const dateStr = lesson_date || new Date().toISOString().slice(0, 10);
       const diaryId = genId("cd");
 
+      // ── WP7: X mode 확인 (curriculum_matches 있을 때만 DB 조회) ──────────────
+      let isXMode = false;
+      if (rawCurriculumMatches.length > 0) {
+        try {
+          const pmResult = await resolvePoolMode(poolId!);
+          isXMode = pmResult?.mode === "x";
+          console.log(
+            `[diary-create] X_MODE_CHECK poolId=${poolId} mode=${pmResult?.mode} isXMode=${isXMode}`,
+          );
+        } catch (e) {
+          console.error(`[diary-create] X_MODE_CHECK_FAILED poolId=${poolId}`, e);
+          // X mode 판정 실패 → growth_event 생성 안 함, diary 저장은 계속
+        }
+      }
+
       // 중복 방지: 같은 날 같은 반에 이미 일지 있으면 오류
       const dup = await db.execute(sql`
         SELECT id FROM class_diaries
@@ -489,17 +708,37 @@ router.post("/diaries",
         return apiErr(res, 409, "이미 해당 날짜에 일지가 작성되었습니다. 수정 기능을 사용해주세요.");
       }
 
-      // 학생별 추가 일지 저장
-      const notes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      // 결석(absent) 학생 ID 조회 — 결석자는 개인 일지 저장 및 발송 대상에서 제외
+      const absentRowsForDate = await db.execute(sql`
+        SELECT student_id FROM attendance
+        WHERE class_group_id = ${class_group_id}
+          AND date = ${dateStr}
+          AND status = 'absent'
+      `);
+      const absentStudentIds = new Set((absentRowsForDate.rows as any[]).map((r: any) => r.student_id));
+      if (absentStudentIds.size > 0) {
+        console.log(`[diary-create] 결석 학생 제외 count=${absentStudentIds.size} ids=[${[...absentStudentIds].join(",")}]`);
+      }
+
+      // 학생별 추가 일지 저장 — 결석 학생 제외
+      const allNotes: any[] = Array.isArray(student_notes) ? student_notes : [];
+      const notes: any[] = absentStudentIds.size > 0
+        ? allNotes.filter((n: any) => !absentStudentIds.has(n.student_id))
+        : allNotes;
+      if (notes.length < allNotes.length) {
+        console.log(`[diary-create] student_notes: input=${allNotes.length} after_absent_filter=${notes.length}`);
+      }
       console.log(`[diary-create] student_notes input count=${notes.length}`);
       const savedNotes: any[] = [];
 
       // 트랜잭션: 일지 + 학생별 노트 원자적 생성
       await db.transaction(async (tx) => {
-        console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id}`);
+        console.log(`[diary-create] INSERT class_diaries id=${diaryId} swimming_pool_id=${poolId} lesson_date=${dateStr} class_group_id=${class_group_id} ai_generated=${isAiGenerated}`);
+        const traceId: string | null = isAiGenerated && typeof ai_request_id === "string"
+          ? ai_request_id : null;
         await tx.execute(sql`
-          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content)
-          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()})
+          INSERT INTO class_diaries (id, class_group_id, teacher_id, teacher_name, swimming_pool_id, lesson_date, common_content, ai_generated, ai_trace_id)
+          VALUES (${diaryId}, ${class_group_id}, ${userId}, ${teacherName}, ${poolId}, ${dateStr}, ${(common_content || "").trim()}, ${isAiGenerated}, ${traceId})
         `);
         console.log(`[diary-create] class_diaries INSERT done`);
 
@@ -517,8 +756,50 @@ router.post("/diaries",
           console.log(`[diary-create] student_note INSERT done id=${noteId}`);
           savedNotes.push({ id: noteId, student_id: n.student_id, note_content: n.note_content.trim() });
         }
+
+        // ── WP7: X mode growth_events insert (TX 내부) ──────────────────────
+        if (isXMode && rawCurriculumMatches.length > 0) {
+          const geResult = await insertGrowthEvents({
+            tx,
+            poolId:            poolId!,
+            diaryId,
+            savedNotes,
+            curriculumMatches: rawCurriculumMatches,
+            requestId:         typeof ai_request_id === "string" ? ai_request_id : undefined,
+            contractVersion:   "1.3",
+          });
+          console.log(
+            `[diary-create] GROWTH_EVENTS diary=${diaryId}` +
+            ` inserted=${geResult.inserted} skipped=${geResult.skipped} errors=${geResult.errors}`,
+          );
+        }
       });
       console.log(`[diary-create] TX committed. savedNotes=${JSON.stringify(savedNotes.map(n => ({ id: n.id, student_id: n.student_id })))}`);
+
+      // ── WP9: AI diary 월 KPI snapshot refresh (fire-and-forget) ────────────
+      // AI 일지 저장 시에만 refresh. 일반 일지는 ai_diary_count 변화 없음.
+      if (isAiGenerated) {
+        void refreshAiDiarySnapshot(poolId!).catch((kpiErr: unknown) => {
+          console.error("[ai-diary-kpi] fire-and-forget failed", {
+            poolId, diaryId, error: (kpiErr as Error)?.message ?? kpiErr,
+          });
+        });
+      }
+
+      // ── GAUGE-04/05: CPO 매핑 → SCP 재계산 (TX 외부 — fail-safe) ──────────
+      // X mode일 때만 실행. 일지 저장은 항상 성공; CPO/SCP는 eventually consistent.
+      if (isXMode && savedNotes.length > 0) {
+        const uniqueStudentIds = [...new Set(savedNotes.map((n: any) => n.student_id))];
+        for (const studentId of uniqueStudentIds) {
+          upsertSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
+            .then((r) => {
+              console.log(`[diary-create] CPO mapper student=${studentId} status=${r.status} rank=${r.progressRank}`);
+              return computeConfirmedProgress(db, studentId, poolId!);
+            })
+            .then((c) => console.log(`[diary-create] SCP confirmed student=${studentId} status=${c.status} display=${c.displayConfirmedPct}`))
+            .catch((e) => console.error(`[diary-create] gauge pipeline error student=${studentId}:`, e));
+        }
+      }
 
       // 트랜잭션 외부: 감사 로그 (실패해도 일지 생성에 영향 없음)
       await logAudit({
@@ -616,6 +897,147 @@ router.get("/diaries/diagnostic/:id",
   }
 );
 
+// ════════════════════════════════════════════════════════════════════════
+// 미작성 수업 슬롯 목록 (선생님 모드 — 일지 작성 진입용)
+// GET /diaries/unwritten-slots
+// ⚠️ 반드시 /diaries/:id 보다 먼저 등록해야 함 (Express 라우트 순서)
+// ════════════════════════════════════════════════════════════════════════
+router.get("/diaries/unwritten-slots",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    const reqId = Math.random().toString(36).slice(2, 9);
+    const includeWritten = (req.query as any).includeWritten === "true";
+    // ── entry log: DB query 이전 무조건 기록 ──────────────────────────────
+    console.log(`[unwritten-slots-entry] { request_id: "${reqId}", includeWritten: ${includeWritten}, authenticated: true }`);
+    let stage = "INIT";
+    let teacherId = "";
+    let poolId = "";
+    let classGroupCount = 0;
+    try {
+      const { userId, role } = req.user!;
+      teacherId = userId.slice(-8); // 개인정보 미포함 — 마지막 8자만
+      stage = "RESOLVE_POOL";
+
+      poolId = (await getUserPoolId(userId)) ?? "";
+      if (!poolId) {
+        console.warn(`[unwritten-slots] { request_id: "${reqId}", stage: "RESOLVE_POOL", role: "${role}", teacher_id: "${teacherId}", error: "pool_not_found" }`);
+        return apiErr(res, 403, "수영장 정보가 없습니다.");
+      }
+
+      stage = "LOAD_CLASS_GROUPS";
+      // 선생님: 본인 반만, 관리자: 전체
+      let classRows;
+      if (role === "teacher") {
+        classRows = await db.execute(sql`
+          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
+            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+          FROM class_groups cg
+          WHERE (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+        `);
+      } else {
+        classRows = await db.execute(sql`
+          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
+            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
+          FROM class_groups cg
+          WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
+        `);
+      }
+      classGroupCount = (classRows.rows as any[]).length;
+
+      const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
+      const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+      stage = "KST_CLOCK";
+      // KST 기준 현재 시각 — getKSTNow()는 이 파일 상단에 정의된 기존 헬퍼
+      const now = getKSTNow();
+      const todayMidnight = new Date(now);
+      todayMidnight.setHours(0, 0, 0, 0);
+      // 8주 전부터 오늘까지의 날짜를 생성 (오늘 회차는 startTime 기준 필터)
+      const fromDate = new Date(todayMidnight);
+      fromDate.setDate(fromDate.getDate() - 56);
+
+      // 현재 시각을 "HH:MM" 문자열로 변환 (KST 기준)
+      const nowTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      const todayDateStr = `${todayMidnight.getFullYear()}-${String(todayMidnight.getMonth() + 1).padStart(2, "0")}-${String(todayMidnight.getDate()).padStart(2, "0")}`;
+
+      const slots: any[] = [];
+
+      stage = "GENERATE_SLOTS";
+      for (const cg of classRows.rows as any[]) {
+        const days: number[] = [];
+        for (const ch of (cg.schedule_days || "")) {
+          if (DAY_MAP[ch] !== undefined) days.push(DAY_MAP[ch]);
+        }
+        if (days.length === 0) continue;
+
+        stage = "DIARY_LOOKUP";
+        // 이 반의 기작성 일지 날짜 목록
+        const writtenRows = await db.execute(sql`
+          SELECT id, lesson_date FROM class_diaries
+          WHERE class_group_id = ${cg.id} AND is_deleted = false
+        `);
+        stage = "NORMALIZE_DATES";
+        // normalizeLessonDate: Date 객체/문자열 모두 "YYYY-MM-DD"로 정규화 (single source of truth)
+        const writtenDates = new Set((writtenRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
+        // diaryId 조회용 맵 (includeWritten 모드에서 사용)
+        const writtenDateToId = new Map<string, string>();
+        if (includeWritten) {
+          for (const r of writtenRows.rows as any[]) {
+            writtenDateToId.set(normalizeLessonDate(r.lesson_date), String(r.id));
+          }
+        }
+
+        const scheduleTime = (cg.schedule_time || "").slice(0, 5); // "HH:MM"
+
+        stage = "DATE_RANGE";
+        // fromDate ~ 오늘까지 schedule_days에 해당하는 날짜 생성
+        const cursor = new Date(fromDate);
+        while (cursor <= todayMidnight) {
+          if (days.includes(cursor.getDay())) {
+            const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+
+            // 오늘 회차: startTime이 현재 시각보다 미래이면 제외 (아직 시작 전)
+            if (dateStr === todayDateStr && scheduleTime && scheduleTime > nowTimeStr) {
+              cursor.setDate(cursor.getDate() + 1);
+              continue;
+            }
+
+            const hasDiary = writtenDates.has(dateStr);
+            if (includeWritten || !hasDiary) {
+              slots.push({
+                classGroupId: cg.id,
+                className: cg.name,
+                scheduleTime,
+                lessonDate: dateStr,
+                dayOfWeek: KO_DAYS[cursor.getDay()],
+                studentCount: Number(cg.student_count) || 0,
+                hasDiary,
+                ...(includeWritten && hasDiary ? { diaryId: writtenDateToId.get(dateStr) ?? null } : {}),
+              });
+            }
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+
+      stage = "SORT_RESPONSE";
+      // 날짜 오름차순, 같은 날짜면 시간 오름차순
+      slots.sort((a, b) => {
+        const dateCmp = a.lessonDate.localeCompare(b.lessonDate);
+        if (dateCmp !== 0) return dateCmp;
+        return a.scheduleTime.localeCompare(b.scheduleTime);
+      });
+
+      console.log(`[unwritten-slots] { request_id: "${reqId}", stage: "OK", role: "${role}", teacher_id: "${teacherId}", pool_id: "${poolId}", includeWritten: ${includeWritten}, class_group_count: ${classGroupCount}, slot_count: ${slots.length} }`);
+      res.json({ success: true, slots, total: slots.length });
+    } catch (e: any) {
+      console.error(`[unwritten-slots] { request_id: "${reqId}", stage: "${stage}", teacher_id: "${teacherId}", pool_id: "${poolId}", includeWritten: ${includeWritten}, class_group_count: ${classGroupCount}, error_name: "${e?.name ?? "unknown"}", error_message: "${String(e?.message ?? "").slice(0, 120)}", stack_top: "${String(e?.stack ?? "").split("\n")[1]?.trim().slice(0, 120) ?? ""}" }`);
+      apiErr(res, 500, "서버 오류");
+    }
+  }
+);
+
 router.get("/diaries/:id",
   requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
   async (req: AuthRequest, res) => {
@@ -700,7 +1122,7 @@ router.delete("/diaries/:id",
 
       // ── 삭제 대상 조회 ──
       const rows = await db.execute(sql`
-        SELECT id, is_deleted, teacher_id, class_group_id, common_content, swimming_pool_id
+        SELECT id, is_deleted, teacher_id, class_group_id, common_content, swimming_pool_id, ai_generated
         FROM class_diaries
         WHERE id = ${diaryId} AND swimming_pool_id = ${poolId}
       `);
@@ -799,6 +1221,20 @@ router.delete("/diaries/:id",
             AND is_clone = false
         `);
 
+        // 4. WP7: growth_events soft-invalidation (diary note와 연결된 성장 이벤트)
+        //    성장 이벤트는 hard-delete하지 않고 is_invalidated=true 로 무효화.
+        //    diary FK(diary_note_id)는 보존됨.
+        const geRes = await tx.execute(sql`
+          UPDATE growth_events
+          SET is_invalidated = true, invalidated_at = NOW()
+          WHERE diary_note_id IN (
+            SELECT id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+          )
+          AND is_invalidated = false
+        `);
+        const geRowCount = (geRes as any).rowCount ?? 0;
+        console.log(`[DELETE /diaries] TX step4: growth_events invalidated=${geRowCount}`);
+
         // 5. video_assets_meta detach — journal_id 직접 연결 영상
         console.log(`[DELETE /diaries] TX step5: UPDATE video_assets_meta SET journal_id=NULL`);
         const videoRes1 = await tx.execute(sql`
@@ -819,6 +1255,24 @@ router.delete("/diaries/:id",
         `);
         console.log(`[DELETE /diaries] TX step6: video(note) affectedRows=${(videoRes2 as any).rowCount ?? 0}`);
       });
+      // ── GAUGE-04/05: CPO invalidation → SCP 재계산 (TX 외부 — fail-safe) ──
+      // 노트가 있는 학생들의 CPO를 무효화 후 SCP 재계산.
+      {
+        const noteStudentRes = await db.execute(sql`
+          SELECT DISTINCT student_id FROM class_diary_student_notes WHERE diary_id = ${diaryId}
+        `).catch(() => ({ rows: [] }));
+        const noteStudentIds = (noteStudentRes.rows as any[]).map((r) => r.student_id).filter(Boolean);
+        for (const studentId of noteStudentIds) {
+          invalidateSessionObservation(db, { studentId, poolId: poolId!, lessonSessionId: diaryId })
+            .then((r) => {
+              console.log(`[diary-delete] CPO mapper student=${studentId} status=${r.status}`);
+              return computeConfirmedProgress(db, studentId, poolId!);
+            })
+            .then((c) => console.log(`[diary-delete] SCP confirmed student=${studentId} status=${c.status} display=${c.displayConfirmedPct}`))
+            .catch((e) => console.error(`[diary-delete] gauge pipeline error student=${studentId}:`, e));
+        }
+      }
+
       // ── POST-COMMIT 검증: 트랜잭션 커밋 후 실제 DB 상태 확인 ──────────────
       const verifyRow = await db.execute(sql`
         SELECT id, is_deleted, deleted_at, updated_at FROM class_diaries WHERE id = ${diaryId}
@@ -846,6 +1300,16 @@ router.delete("/diaries/:id",
         entity_id: diaryId, actor_id: userId,
         payload: { class_group_id: diary.class_group_id },
       }).catch(() => {});
+
+      // ── WP9: AI diary 삭제 시 월 KPI snapshot refresh (fire-and-forget) ───
+      // is_deleted=true 커밋 후 raw recount → snapshot 감소 반영
+      if (diary.ai_generated) {
+        void refreshAiDiarySnapshot(poolId!).catch((kpiErr: unknown) => {
+          console.error("[ai-diary-kpi] delete snapshot refresh failed", {
+            poolId, diaryId, error: (kpiErr as Error)?.message ?? kpiErr,
+          });
+        });
+      }
 
       console.log(`[DELETE /diaries] ◀ RESPONSE 200 — diaryId=${diaryId}`);
       res.json({
@@ -1200,6 +1664,21 @@ router.put("/diaries/student-notes/:noteId",
         beforeContent: note.note_content, afterContent: note_content.trim(),
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+
+      // ── GAUGE-04A/05: note 텍스트 변경 후 CPO 재계산 → SCP 재계산 ────────────
+      // growth_events는 그대로 유지; mapper가 새 note_content로 재분류.
+      upsertSessionObservation(db, {
+        studentId: note.student_id,
+        poolId:    poolId!,
+        lessonSessionId: note.diary_id,
+      })
+        .then((r) => {
+          console.log(`[student-note-edit] CPO mapper student=${note.student_id} diary=${note.diary_id} status=${r.status} rank=${r.progressRank}`);
+          return computeConfirmedProgress(db, note.student_id, poolId!);
+        })
+        .then((c) => console.log(`[student-note-edit] SCP confirmed student=${note.student_id} status=${c.status} display=${c.displayConfirmedPct}`))
+        .catch((e) => console.error(`[student-note-edit] gauge pipeline error student=${note.student_id}:`, e));
+
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1234,6 +1713,30 @@ router.delete("/diaries/student-notes/:noteId",
         beforeContent: note.note_content,
         actorId: userId, actorName, actorRole: role, poolId: poolId!,
       });
+
+      // ── GAUGE-04A/05: note 삭제 후 CPO 재계산 → SCP 재계산 ──────────────────
+      // 1. 삭제된 note에 연결된 growth_events invalidate (순서 보장 필요 → async chain)
+      // 2. 나머지 유효 evidence 기준으로 CPO 재계산
+      // 3. SCP confirmation 재계산
+      // 실패해도 Diary 응답은 그대로 유지 (fire-and-forget).
+      const noteId = req.params.noteId;
+      const _noteStudentId = note.student_id;
+      const _noteDiaryId   = note.diary_id;
+      const _notePoolId    = poolId!;
+      ;(async () => {
+        await db.execute(sql`
+          UPDATE growth_events
+          SET is_invalidated = true, invalidated_at = NOW()
+          WHERE diary_note_id = ${noteId} AND is_invalidated = false
+        `);
+        const r = await upsertSessionObservation(db, {
+          studentId: _noteStudentId, poolId: _notePoolId, lessonSessionId: _noteDiaryId,
+        });
+        console.log(`[student-note-delete] CPO mapper student=${_noteStudentId} diary=${_noteDiaryId} status=${r.status} rank=${r.progressRank}`);
+        const c = await computeConfirmedProgress(db, _noteStudentId, _notePoolId);
+        console.log(`[student-note-delete] SCP confirmed student=${_noteStudentId} status=${c.status} display=${c.displayConfirmedPct}`);
+      })().catch((e) => console.error(`[student-note-delete] gauge pipeline error student=${_noteStudentId}:`, e));
+
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1545,6 +2048,8 @@ router.post("/diary-templates/restore-default",
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
       await insertDefaultTemplates(poolId, req.user!.userId);
       console.log("[restore-default] 완료");
+      // curriculum_items sync: 기본 템플릿 복원 후 재sync (await — 실패 시 500 전파)
+      await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error("[restore-default] 오류:", e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1558,6 +2063,8 @@ router.post("/diary-templates/clear-all",
       const poolId = await getUserPoolId(req.user!.userId);
       await db.execute(sql`DELETE FROM diary_templates WHERE swimming_pool_id = ${poolId}`);
       await db.execute(sql`DELETE FROM diary_template_levels WHERE swimming_pool_id = ${poolId}`);
+      // curriculum_items sync: 전체 삭제 후 모든 item 비활성화 (await — 실패 시 500 전파)
+      if (poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1603,6 +2110,8 @@ router.post("/diary-templates",
         VALUES (${id}, ${poolId}, ${template_text.trim()}, ${level_id || null}, ${title?.trim() || null},
                 ${sort_order ?? 0}, ${scope}, ${teacherId}, ${req.user!.userId})
       `);
+      // curriculum_items sync: global template 추가 시만 (teacher 개인 추가는 제외, await — 실패 시 500 전파)
+      if (scope === "global" && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true, id });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1661,6 +2170,8 @@ router.patch("/diary-templates/:id",
             updated_at    = NOW()
         WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}
       `);
+      // curriculum_items sync: admin이 global 템플릿을 수정한 경우 (await — 실패 시 500 전파)
+      if (isAdmin && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1675,14 +2186,21 @@ router.delete("/diary-templates/:id",
       const poolId = await getUserPoolId(req.user!.userId);
       const isAdmin = ["super_admin", "pool_admin"].includes(req.user!.role);
       const userId = req.user!.userId;
+      let wasGlobal = false;
       if (!isAdmin) {
         const check = await db.execute(sql`SELECT scope, teacher_id FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
         const row = check.rows[0] as any;
         if (!row) return apiErr(res, 404, "템플릿을 찾을 수 없습니다.");
         if (row.scope === "global") return apiErr(res, 403, "공통 템플릿은 삭제할 수 없습니다.");
         if (row.teacher_id !== userId) return apiErr(res, 403, "본인 템플릿만 삭제할 수 있습니다.");
+      } else {
+        // admin 삭제: global 여부 확인 (curriculum sync 여부 결정)
+        const check = await db.execute(sql`SELECT scope FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+        wasGlobal = (check.rows[0] as any)?.scope === "global";
       }
       await db.execute(sql`DELETE FROM diary_templates WHERE id = ${req.params.id} AND swimming_pool_id = ${poolId}`);
+      // curriculum_items sync: global 템플릿 삭제 시 해당 item 비활성화 (await — 실패 시 500 전파)
+      if (wasGlobal && poolId) await syncDiaryTemplatesToCurriculumItems(poolId);
       res.json({ success: true });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -1780,7 +2298,7 @@ router.get("/teacher/overview",
       `);
       const classIds = (myClasses.rows as any[]).map(r => r.id);
       if (classIds.length === 0) {
-        res.json({ unread_messages: 0, pending_diaries_today: 0, pending_diaries_past: 0, makeup_count: 0 });
+        res.json({ unread_messages: 0, pending_diaries_today: 0, pending_diaries_past: 0, makeup_count: 0, unread_news: 0 });
         return;
       }
 
@@ -1818,9 +2336,44 @@ router.get("/teacher/overview",
           )
       `);
 
-      // NOTE: 어제까지 미작성 계산은 class_groups 스케줄 + 실제 날짜 비교가 필요하나
-      //       현재는 결석 기록 기반 근사치로 처리 (향후 schedule_dates 테이블로 고도화)
-      const pendingPastCount = 0; // TODO: 정확한 미작성 날짜 계산 구현
+      // 지난 미작성 일지 수 — class_groups 스케줄 + lesson_date 기반 정확히 계산
+      // unwritten-slots 엔드포인트와 동일한 로직 (single source of truth)
+      const DAY_MAP_OV: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
+      const nowKSTOv = getKSTNow();
+      const todayMidnightOv = new Date(nowKSTOv);
+      todayMidnightOv.setHours(0, 0, 0, 0);
+      const fromDateOv = new Date(todayMidnightOv);
+      fromDateOv.setDate(fromDateOv.getDate() - 56);
+      const todayStrOv = `${todayMidnightOv.getFullYear()}-${String(todayMidnightOv.getMonth() + 1).padStart(2, "0")}-${String(todayMidnightOv.getDate()).padStart(2, "0")}`;
+
+      // co-teacher도 포함한 전체 담당 반
+      const allMyClasses = await db.execute(sql`
+        SELECT id, schedule_days FROM class_groups
+        WHERE (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))
+          AND swimming_pool_id = ${poolId} AND is_deleted = false
+      `).catch(() => ({ rows: [] }));
+
+      let pendingPastCount = 0;
+      for (const cg of allMyClasses.rows as any[]) {
+        const cgDays: number[] = [];
+        for (const ch of (cg.schedule_days || "")) {
+          if (DAY_MAP_OV[ch] !== undefined) cgDays.push(DAY_MAP_OV[ch]);
+        }
+        if (cgDays.length === 0) continue;
+        const wRows = await db.execute(sql`
+          SELECT lesson_date FROM class_diaries
+          WHERE class_group_id = ${cg.id} AND is_deleted = false
+        `).catch(() => ({ rows: [] }));
+        const wDates = new Set((wRows.rows as any[]).map((r: any) => normalizeLessonDate(r.lesson_date)));
+        const cur = new Date(fromDateOv);
+        while (cur < todayMidnightOv) {
+          if (cgDays.includes(cur.getDay())) {
+            const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+            if (ds < todayStrOv && !wDates.has(ds)) pendingPastCount++;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
 
       // 보강 대기 수
       const makeupCount = await db.execute(sql`
@@ -1834,12 +2387,48 @@ router.get("/teacher/overview",
         WHERE teacher_user_id = ${userId} AND status = 'pending'
       `).catch(() => ({ rows: [{ cnt: 0 }] }));
 
+      // 학부모 재회신 미읽음 (parent_request_messages — 선생님이 안 읽은 학부모 메시지)
+      const unreadReqMsgs = await db.execute(sql`
+        SELECT COUNT(*) AS cnt FROM parent_request_messages prm
+        JOIN parent_student_requests psr ON psr.id = prm.request_id
+        WHERE psr.teacher_user_id = ${userId}
+          AND prm.sender_type = 'parent'
+          AND prm.is_read_by_teacher = false
+      `).catch(() => ({ rows: [{ cnt: 0 }] }));
+
+      // 소식 unread (push-settings enabled type만)
+      const psRows = await db.execute(sql`
+        SELECT notification_type, is_enabled FROM push_settings
+        WHERE user_id = ${userId} AND notification_type IN ('news_like', 'news_thanks', 'news_comment')
+      `).catch(() => ({ rows: [] }));
+      const newsSettings: Record<string, boolean> = {};
+      for (const r of (psRows.rows as any[])) newsSettings[r.notification_type] = Boolean(r.is_enabled);
+      // 기본값 ON
+      // news_like: diary_like + growth_report_like 동일 preference 공유
+      // news_comment: diary_comment + growth_report_comment 동일 preference 공유
+      const enabledNewsTypes: string[] = [];
+      if (newsSettings.news_like    !== false) enabledNewsTypes.push('diary_like', 'growth_report_like');
+      if (newsSettings.news_thanks  !== false) enabledNewsTypes.push('diary_thanks');
+      if (newsSettings.news_comment !== false) enabledNewsTypes.push('diary_comment', 'growth_report_comment');
+      let unreadNews = 0;
+      if (enabledNewsTypes.length > 0) {
+        const typeList = enabledNewsTypes.map(t => `'${t}'`).join(",");
+        const newsCount = await db.execute(sql`
+          SELECT COUNT(*) AS cnt FROM notifications
+          WHERE recipient_id = ${userId} AND recipient_type = 'user'
+            AND type IN (${sql.raw(typeList)}) AND is_read = false
+        `).catch(() => ({ rows: [{ cnt: 0 }] }));
+        unreadNews = Number((newsCount.rows[0] as any)?.cnt ?? 0);
+      }
+
       res.json({
         unread_messages: Number((unreadMsg.rows[0] as any)?.cnt ?? 0),
         pending_diaries_today: Number((pendingToday.rows[0] as any)?.cnt ?? 0),
         pending_diaries_past: pendingPastCount,
         makeup_count: Number((makeupCount.rows[0] as any)?.cnt ?? 0),
         pending_parent_requests: Number((pendingRequests.rows[0] as any)?.cnt ?? 0),
+        unread_parent_request_messages: Number((unreadReqMsgs.rows[0] as any)?.cnt ?? 0),
+        unread_news: unreadNews,
       });
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
   }
@@ -2035,93 +2624,6 @@ router.get("/teacher/messages/threads",
       `);
       res.json(rows.rows);
     } catch (e) { console.error(e); apiErr(res, 500, "서버 오류"); }
-  }
-);
-
-// ════════════════════════════════════════════════════════════════════════
-// 미작성 수업 슬롯 목록 (선생님 모드 — 일지 작성 진입용)
-// GET /diaries/unwritten-slots
-// ════════════════════════════════════════════════════════════════════════
-router.get("/diaries/unwritten-slots",
-  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
-  async (req: AuthRequest, res) => {
-    try {
-      const { userId, role } = req.user!;
-      const poolId = await getUserPoolId(userId);
-      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
-
-      // 선생님: 본인 반만, 관리자: 전체
-      let classRows;
-      if (role === "teacher") {
-        classRows = await db.execute(sql`
-          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
-            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
-          FROM class_groups cg
-          WHERE (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AND cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
-        `);
-      } else {
-        classRows = await db.execute(sql`
-          SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time,
-            (SELECT COUNT(*) FROM students s WHERE (s.class_group_id = cg.id OR s.assigned_class_ids @> to_jsonb(cg.id::text)) AND s.status NOT IN ('withdrawn','deleted')) AS student_count
-          FROM class_groups cg
-          WHERE cg.swimming_pool_id = ${poolId} AND cg.is_deleted = false
-        `);
-      }
-
-      const DAY_MAP: Record<string, number> = { 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6, 일: 0 };
-      const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      // 8주 전부터 어제까지의 날짜를 생성
-      const fromDate = new Date(today);
-      fromDate.setDate(fromDate.getDate() - 56);
-
-      const slots: any[] = [];
-
-      for (const cg of classRows.rows as any[]) {
-        const days: number[] = [];
-        for (const ch of (cg.schedule_days || "")) {
-          if (DAY_MAP[ch] !== undefined) days.push(DAY_MAP[ch]);
-        }
-        if (days.length === 0) continue;
-
-        // 이 반의 기작성 일지 날짜 목록
-        const writtenRows = await db.execute(sql`
-          SELECT lesson_date FROM class_diaries
-          WHERE class_group_id = ${cg.id} AND is_deleted = false
-        `);
-        const writtenDates = new Set((writtenRows.rows as any[]).map(r => r.lesson_date?.toString?.().slice(0, 10) || ""));
-
-        // fromDate ~ yesterday 기간 중 schedule_days에 해당하는 날짜 생성
-        const cursor = new Date(fromDate);
-        while (cursor < today) {
-          if (days.includes(cursor.getDay())) {
-            const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
-            if (!writtenDates.has(dateStr)) {
-              slots.push({
-                classGroupId: cg.id,
-                className: cg.name,
-                scheduleTime: (cg.schedule_time || "").slice(0, 5),
-                lessonDate: dateStr,
-                dayOfWeek: KO_DAYS[cursor.getDay()],
-                studentCount: Number(cg.student_count) || 0,
-              });
-            }
-          }
-          cursor.setDate(cursor.getDate() + 1);
-        }
-      }
-
-      // 날짜 오름차순, 같은 날짜면 시간 오름차순
-      slots.sort((a, b) => {
-        const dateCmp = a.lessonDate.localeCompare(b.lessonDate);
-        if (dateCmp !== 0) return dateCmp;
-        return a.scheduleTime.localeCompare(b.scheduleTime);
-      });
-
-      res.json({ success: true, slots, total: slots.length });
-    } catch (e) { console.error("[unwritten-slots]", e); apiErr(res, 500, "서버 오류"); }
   }
 );
 
@@ -2446,6 +2948,134 @@ router.get("/diaries/media-dashboard",
       });
     } catch (e) { console.error("[media-dashboard]", e); apiErr(res, 500, "서버 오류"); }
   }
+);
+
+// ════════════════════════════════════════════════════════════════════════
+// 11. Curriculum Diary API — ACTIVE Curriculum 기반 일지 템플릿
+// ════════════════════════════════════════════════════════════════════════
+
+import {
+  getActiveCurriculumVersion,
+  getCurriculumLevels,
+  getCurriculumNodes,
+  getCurriculumFacets,
+  STROKE_LABELS,
+  DOMAIN_LABELS,
+} from "../lib/curriculum-diary-service.js";
+
+/**
+ * GET /curriculum/diary/levels
+ * ACTIVE curriculum의 레벨 목록 + node_count.
+ * level_name은 pool_level_settings 기준.
+ * ACTIVE curriculum이 없으면 { has_curriculum: false }.
+ */
+router.get(
+  "/curriculum/diary/levels",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+      const { version, levels } = await getCurriculumLevels(poolId);
+      if (!version) {
+        return res.json({ has_curriculum: false, levels: [] });
+      }
+      return res.json({
+        has_curriculum: true,
+        version_id:     version.id,
+        version_name:   version.version_name,
+        levels,
+      });
+    } catch (e) { console.error("[curriculum/diary/levels]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/nodes
+ * ACTIVE curriculum의 노드 목록.
+ * Query: level_order?, stroke?, domain?, skill_group?, is_test_item?, limit?, offset?
+ */
+router.get(
+  "/curriculum/diary/nodes",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+      const {
+        level_order, stroke, domain, skill_group,
+        is_test_item, limit, offset,
+      } = req.query as Record<string, string | undefined>;
+
+      const filters = {
+        level_order:  level_order  != null ? parseInt(level_order,  10) : undefined,
+        stroke:       stroke       || undefined,
+        domain:       domain       || undefined,
+        skill_group:  skill_group  || undefined,
+        is_test_item: is_test_item != null ? is_test_item === "true" : false,
+        limit:        limit  != null ? Math.min(parseInt(limit,  10), 500) : 200,
+        offset:       offset != null ? parseInt(offset, 10)                : 0,
+      };
+
+      const { nodes, total } = await getCurriculumNodes(poolId, filters);
+      return res.json({ nodes, total });
+    } catch (e) { console.error("[curriculum/diary/nodes]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/facets
+ * level_order별 distinct stroke/domain/skill_group 목록.
+ * Query: level_order?
+ * 한글 레이블 포함.
+ */
+router.get(
+  "/curriculum/diary/facets",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId = await getUserPoolId(req.user!.userId);
+      if (!poolId) return apiErr(res, 403, "수영장 정보가 없습니다.");
+      const { level_order } = req.query as Record<string, string | undefined>;
+      const lo = level_order != null ? parseInt(level_order, 10) : undefined;
+      const facets = await getCurriculumFacets(poolId, lo);
+
+      return res.json({
+        strokes:      facets.strokes.map(s => ({ value: s, label: STROKE_LABELS[s] ?? s })),
+        domains:      facets.domains.map(d => ({ value: d, label: DOMAIN_LABELS[d] ?? d })),
+        skill_groups: facets.skill_groups,
+      });
+    } catch (e) { console.error("[curriculum/diary/facets]", e); apiErr(res, 500, "서버 오류"); }
+  },
+);
+
+/**
+ * GET /curriculum/diary/teacher-templates
+ * 교사 본인이 만든 scope='teacher' diary_templates.
+ * Curriculum Nodes와 별도 영역으로 노출.
+ */
+router.get(
+  "/curriculum/diary/teacher-templates",
+  requireAuth, requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res) => {
+    try {
+      const poolId  = await getUserPoolId(req.user!.userId);
+      const userId  = req.user!.userId;
+      const rows = await db.execute(sql`
+        SELECT dt.id, dt.level_id, dtl.level_name, dt.title, dt.template_text,
+               dt.sort_order, dt.is_active, dt.scope, dt.teacher_id,
+               dt.source_template_id, dt.created_at
+        FROM diary_templates dt
+        LEFT JOIN diary_template_levels dtl ON dtl.id = dt.level_id
+        WHERE dt.swimming_pool_id = ${poolId}
+          AND dt.scope = 'teacher'
+          AND dt.teacher_id = ${userId}
+          AND dt.is_active = true
+        ORDER BY dt.sort_order ASC, dt.created_at ASC
+      `);
+      return res.json({ templates: rows.rows });
+    } catch (e) { console.error("[curriculum/diary/teacher-templates]", e); apiErr(res, 500, "서버 오류"); }
+  },
 );
 
 export default router;

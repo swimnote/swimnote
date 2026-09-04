@@ -1,0 +1,238 @@
+[앱] FREE GROWTH REPORT — APP SERVICE COMPLETION PHASE 1
+
+현재 상태:
+- FREE REPORT AI ENGINE = LOCKED
+- PARENT CURRICULUM SEARCH = AI + APP COMPLETE
+- 이번 작업은 Growth Report 앱 서비스 연결만
+- AI reasoning/prompt/model/threshold 수정 금지
+
+목적:
+무료 성장리포트를 실제 학부모 서비스로 사용할 수 있게
+발행/상태/조회/기본 화면까지 연결한다.
+
+이번 Phase에서는 UI/UX 전면 리디자인 금지.
+기능 완성 우선.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. CURRENT FLOW 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+관련 파일만 최소 확인:
+
+- Growth Report API client
+- 생성 route
+- 발행/상태 필드
+- parent feed
+- detail screen
+- existing monthly quota/status
+- DATA_ACCUMULATING 처리 여부
+
+broad repo audit 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. MONTHLY REPORT POLICY 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+무료 성장리포트:
+
+- 학생당 월 1회
+- 성공적으로 생성/발행된 리포트만 월 사용 처리
+- 실패는 소진 금지
+- 같은 월 duplicate 생성 방지
+- 기존 contract/DB 구조 우선 재사용
+
+정확한 현재 구현 상태를 먼저 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. REPORT STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최소 상태를 기존 구조 기준으로 정리:
+
+- NOT_AVAILABLE
+- DATA_ACCUMULATING
+- GENERATING
+- READY
+- PUBLISHED
+- FAILED
+
+새 enum을 무조건 만들지 말고
+현재 실제 상태값에 매핑.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DATA_ACCUMULATING UX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AI engine이:
+
+analysis_status = DATA_ACCUMULATING
+
+반환 시
+
+학부모에게 빈 리포트/오류처럼 보이지 않게 처리.
+
+문구 예:
+
+“조금 더 수업 기록이 쌓이면
+이번 달 성장리포트를 만들어드릴게요.”
+
+재시도 버튼 남발 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PARENT FEED 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모 홈/피드에서
+성장리포트가 존재하면 카드로 표시.
+
+이번 단계에서는 디자인 고도화 금지.
+
+최소 표시:
+
+- 성장리포트
+- 기간
+- summary_text 또는 핵심 요약
+- 상세보기 CTA
+
+기존 feed component 재사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DETAIL SCREEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+정식 output contract:
+
+summary_text
+
+8 sections:
+- core_growth
+- swimming_progress
+- behavioral_strengths
+- longitudinal_comparison
+- success_conditions
+- parent_support
+- teacher_guidance
+- next_growth_direction
+
+APP는 없는 section을 억지 placeholder로 채우지 말 것.
+
+empty section은 숨김.
+
+SPARSE report에서 일부 section empty 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. SOURCE OF TRUTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+APP에서 리포트 내용을 재작성하거나
+추가 AI 호출하지 않는다.
+
+Published/fixed report JSON이 authority.
+
+같은 report_version은
+항상 동일 내용 표시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. PUBLISH FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 선생님 검토/승인/발행 구조가 있으면 재사용.
+
+없으면 이번 Phase에서는
+최소한:
+
+READY → PUBLISHED
+
+경로가 존재하도록 구현.
+
+중요:
+실제 production report 생성/발행 write는
+명시 승인 없이 하지 말 것.
+
+개발/test fixture로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. EMPTY / ERROR / LOADING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 처리:
+
+- 아직 리포트 없음
+- DATA_ACCUMULATING
+- GENERATING
+- FAILED
+- READY/PUBLISHED
+- network error
+- section 일부 empty
+
+crash/blank screen 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. PPT / INSTAGRAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Phase에서는 구현 금지.
+
+단 UI hook/버튼이 이미 존재하면
+깨지지 않게 유지.
+
+PPT / 인스타 공유는
+다음 Phase에서 별도 결정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 report 없음
+TC2 DATA_ACCUMULATING
+TC3 GENERATING
+TC4 READY
+TC5 PUBLISHED
+TC6 FAILED
+TC7 summary_text 표시
+TC8 8-section mapping
+TC9 empty section 숨김
+TC10 SPARSE report 일부 section empty
+TC11 same report JSON deterministic display
+TC12 duplicate monthly report 방지 구조 확인
+TC13 failed generation quota 미소진
+TC14 parent feed card
+TC15 detail screen open
+TC16 Growth Report AI pipeline untouched
+
+Production AI call: 0
+Production DB write: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT APP PHASE 1 REPORT
+
+- current flow
+- monthly policy
+- status mapping
+- DATA_ACCUMULATING UX
+- feed card
+- detail screen
+- section mapping
+- empty section behavior
+- publish flow
+- duplicate prevention
+- tests/pass
+- changed files
+- commit SHA
+- production AI calls: 0
+- production DB write: NO
+- AI pipeline change: NO
+- OTA: NO
+
+Final Verdict:
+
+FREE GROWTH REPORT APP PHASE 1 COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

@@ -1,0 +1,532 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16F-CONT
+FINAL REPLICATION BLOCKER REPAIR
+A1 + A2 + A3 + A4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 승인 상태:
+
+LEGACY_BACKUP_SCHEMA_REPAIR_PARTIAL ✅
+
+HOT core:
+swimming_pools       7/7 ✅
+users                19/19 ✅
+subscription_plans   8/8 ✅
+backup_settings      1/1 ✅
+platform_banners     3/3 ✅
+
+FULL core도 주요 테이블 정상.
+
+남은 실제 replication blocker는 4개:
+
+A1 parent_accounts.swimming_pool_id nullability
+A2 parent_accounts.phone nullability
+A3 diary_messages.id type
+A4 students jsonb serialization
+
+이번 Phase에서 이 4개만 해결한다.
+
+Production DB 변경 금지.
+Production RLS 변경 금지.
+다른 Backup schema 변경 금지.
+WP4 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. DB / GIT PRECHECK
+━━━━━━━━━━━━━━━━━━━━
+
+Backup DB:
+POOL_DATABASE_URL
+
+Production:
+SUPABASE_DATABASE_URL = READ ONLY
+
+각 DB identity 다시 확인.
+
+그리고 현재 코드:
+
+HEAD SHA
+origin SHA
+현재 branch
+
+제출.
+
+Phase 16E commit:
+4ba0a995...
+
+가 실제 현재 HEAD/origin에 포함되어 있는지 확인.
+
+포함 안 되어 있으면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. A1/A2 exact Production 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Production:
+
+parent_accounts.swimming_pool_id
+parent_accounts.phone
+
+각각:
+
+type
+nullable
+default
+
+재조회.
+
+Backup도 동일하게 조회.
+
+기대:
+
+Production nullable = YES
+Backup nullable = NO
+
+실제와 다르면 STOP.
+
+Backup 현재 row 4개 보존 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+3. A1/A2 Backup 수정
+━━━━━━━━━━━━━━━━━━━━
+
+Production 정의가 nullable임이 확인된 경우에만
+POOL_DATABASE_URL에서:
+
+ALTER TABLE parent_accounts
+ALTER COLUMN swimming_pool_id DROP NOT NULL;
+
+ALTER TABLE parent_accounts
+ALTER COLUMN phone DROP NOT NULL;
+
+다른 column 변경 금지.
+
+실행 후:
+
+type match
+nullable match
+default match
+
+확인.
+
+기존 4행 count 불변 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. parent_accounts replication verify
+━━━━━━━━━━━━━━━━━━━━
+
+Production parent_accounts COUNT
+Backup parent_accounts COUNT
+
+현재 safe sync 경로를 통해
+실제 1회 복제 검증.
+
+민감 정보 출력 금지.
+
+결과:
+
+PARENT_ACCOUNTS_REPLICATION_VERIFIED
+
+또는 정확한 오류.
+
+━━━━━━━━━━━━━━━━━━━━
+5. A3 diary_messages dependency gate
+━━━━━━━━━━━━━━━━━━━━
+
+Backup diary_messages에 대해 실제 확인:
+
+row count
+PK
+FK inbound
+FK outbound
+indexes
+sequence/default
+views
+triggers
+
+Production diary_messages.id:
+
+exact type
+default
+PK 여부
+
+Backup diary_messages.id:
+
+exact type
+default
+PK 여부
+
+현재 보고상:
+
+Production = text
+Backup = int8
+Backup rows = 0
+
+하지만 재확인 필수.
+
+━━━━━━━━━━━━━━━━━━━━
+6. A3 안전성 판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 조건 전부 만족해야 type 변경 허용:
+
+Backup diary_messages rows = 0
+dependent view = 0
+blocking FK dependency 없음
+sequence/default 의존성 안전
+Production id = text
+
+그때만:
+
+ALTER TABLE diary_messages
+ALTER COLUMN id TYPE text
+USING id::text;
+
+필요한 경우 sequence/default가
+Production과 다르면
+Production exact definition에 맞춰 별도 정정.
+
+추측 금지.
+
+조건 불충족 시:
+
+DIARY_MESSAGES_ID_REPAIR_BLOCKED
+
+로 STOP하고 다른 임의 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. diary_messages post-diff
+━━━━━━━━━━━━━━━━━━━━
+
+수정했다면 Production ↔ Backup:
+
+id type
+nullable
+default
+PK
+FK
+indexes
+
+비교.
+
+blocking mismatch = 0 확인.
+
+실제 replication 가능 여부 검증.
+
+━━━━━━━━━━━━━━━━━━━━
+8. A4 students jsonb root cause 확인
+━━━━━━━━━━━━━━━━━━━━
+
+현재 standby-sync serializer에서:
+
+users.roles = text[]
+students.assigned_class_ids = jsonb
+students.class_schedule = jsonb
+
+가 JS에서는 모두 Array로 보일 수 있음.
+
+따라서:
+
+Array.isArray(v)
+
+만으로 PG array로 처리하는 방식 금지.
+
+현재 Phase 16E serializer 코드를 실제로 열고
+현재 구현 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+9. TYPE-AWARE SERIALIZATION
+━━━━━━━━━━━━━━━━━━━━
+
+Production catalog에서
+각 column의 실제 PostgreSQL type을 조회하거나
+동일하게 신뢰 가능한 type map을 사용.
+
+최소 분기:
+
+json/jsonb
+→ JSON.stringify(value)
+→ PostgreSQL JSON/JSONB로 정상 전달
+
+text[]
+→ PostgreSQL text[]로 정상 전달
+
+scalar
+→ 기존 safe parameter binding/serializer
+
+중요:
+
+가능하면 values는
+parameter binding을 사용.
+
+문자열 직접 SQL literal 조립 최소화.
+
+jsonb와 PG array를 절대 같은 방식으로
+직렬화하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+10. TEST MATRIX
+━━━━━━━━━━━━━━━━━━━━
+
+필수 테스트:
+
+text[]:
+['pool_admin','teacher']
+[]
+
+jsonb:
+[]
+['cg_1','cg_2']
+{"a":1}
+{"nested":{"x":true}}
+
+null
+string
+quote 포함 string
+boolean
+integer
+timestamp
+
+그리고 실제 학생 구조 샘플:
+
+assigned_class_ids = []
+class_schedule = []
+
+assigned_class_ids = ["cg_x"]
+class_schedule = ["월 15:00"]
+
+모두 정상 serialize/insert 확인.
+
+Production 데이터 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. CODE CHANGE SCOPE
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면:
+
+artifacts/api-server/src/jobs/standby-sync.ts
+관련 test file
+
+만 수정.
+
+auth
+billing
+diary
+makeup
+X mode
+RevenueCat
+
+기능 코드 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+12. TEST / TYPECHECK
+━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+관련 unit tests
+serializer tests
+typecheck
+
+결과 제출.
+
+실패 상태로 commit 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. GIT GATE
+━━━━━━━━━━━━━━━━━━━━
+
+git status
+git diff --stat
+변경 파일
+
+확인.
+
+commit:
+
+fix(backup): handle jsonb replication types
+
+push origin.
+
+제출:
+
+HEAD SHA
+COMMIT SHA
+ORIGIN SHA
+
+일치 확인.
+
+force push/rebase/reset 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+14. RENDER DEPLOY GATE
+━━━━━━━━━━━━━━━━━━━━
+
+Production Render 서버에
+새 commit 배포.
+
+제출:
+
+Deploy ID
+Live SHA
+status
+
+Live SHA != commit SHA 이면
+runtime 검증 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. STUDENTS ACTUAL REPLICATION
+━━━━━━━━━━━━━━━━━━━━
+
+배포 후 실제 safe sync 실행.
+
+students:
+
+Production = 현재 실제 count
+Backup = 현재 실제 count
+
+기대 현재 보고 기준:
+
+297 / 297
+
+단 실제 DB count를 다시 사용.
+
+확인:
+
+missing required column = 0
+json/jsonb error = 0
+array error = 0
+constraint error = 0
+
+개인정보 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+16. FINAL LEGACY REPLICATION CHECK
+━━━━━━━━━━━━━━━━━━━━
+
+최소 확인:
+
+students
+parent_accounts
+diary_messages
+
+각각:
+
+Production count
+Backup count
+schema blocking mismatch
+replication status
+
+그리고 기존 HOT/FULL regression:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+event_logs
+payment_logs
+platform_backups
+ops_alerts
+
+회귀 없음 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+17. REMAINING SCHEMA DIFFERENCE
+━━━━━━━━━━━━━━━━━━━━
+
+모든 Production↔Backup diff를 다시
+"replication blocking"과
+"non-blocking/cosmetic"으로 분리.
+
+timestamp vs timestamptz처럼
+실제 sync를 막지 않는 차이는
+별도 표시.
+
+이번 목표:
+
+REPLICATION_BLOCKING_MISMATCH = 0
+
+이어야 한다.
+
+0이 아니면 Backup RLS 진행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+18. BACKUP RLS READINESS
+━━━━━━━━━━━━━━━━━━━━
+
+다음 모두 충족하면:
+
+students replication success
+parent_accounts replication success
+diary_messages replication success
+HOT/FULL regression none
+blocking mismatch = 0
+postgres BYPASSRLS=true
+
+최종:
+
+BACKUP_RLS_READY ✅
+
+아니면:
+
+BACKUP_RLS_NOT_READY
+
+━━━━━━━━━━━━━━━━━━━━
+19. ROLLBACK 원칙
+━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+"추가한 컬럼은 DROP COLUMN 하면 rollback 가능"
+같은 표현 금지.
+
+이미 sync 데이터가 들어간 이후
+DROP COLUMN은 destructive operation이다.
+
+DB 변경 문제 발생 시
+자동 DROP/DELETE 하지 말고 STOP 후 보고.
+
+코드 문제는 이번 commit revert 가능 상태 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+20. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. DB identity
+2. current git SHA
+3. A1/A2 pre-state
+4. A1/A2 SQL/result
+5. parent_accounts replication
+6. diary_messages dependency audit
+7. diary_messages repair/result
+8. current serializer code
+9. jsonb root cause
+10. type-aware fix
+11. tests
+12. changed files
+13. commit/origin SHA
+14. Render Deploy ID/Live SHA
+15. students replication
+16. parent_accounts replication
+17. diary_messages replication
+18. HOT/FULL regression
+19. remaining blocking mismatch
+20. Backup RLS readiness
+21. rollback 여부
+22. final verdict
+
+성공 시:
+
+STUDENTS_BACKUP_REPLICATION_VERIFIED ✅
+PARENT_ACCOUNTS_REPLICATION_VERIFIED ✅
+DIARY_MESSAGES_REPLICATION_VERIFIED ✅
+REPLICATION_BLOCKING_MISMATCH_0 ✅
+BACKUP_RLS_READY ✅
+
+STOP.
+
+이번 Phase에서 Backup RLS 적용 금지.
+WP4 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

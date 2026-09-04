@@ -1,0 +1,517 @@
+# [SWIMNOTE AI MASTER IMPLEMENTATION PLAN — CORRECTION REQUIRED]
+
+현재 MASTER IMPLEMENTATION PLAN의 전체 구조는 유지합니다.
+
+전체 재감사 금지.
+전체 계획 재작성 금지.
+코드 수정 금지.
+DB write 금지.
+Migration 금지.
+OpenAI 호출 금지.
+External API 호출 금지.
+Render deploy 금지.
+Expo OTA 금지.
+
+아래 항목만 수정한 뒤:
+
+[CORRECTED SWIMNOTE AI MASTER IMPLEMENTATION PLAN]
+
+을 제출하고 STOP하십시오.
+
+---
+
+## 1. request_id 외부 Engine 전파 Step 누락 수정
+
+현재 계획은:
+
+G3 = request_id 외부엔진 미전파
+
+라고 확인했지만,
+
+AI01-04는 실제로 trigger_type 추가 Step이며
+request_id 외부 Engine 전파 작업이 포함되어 있지 않습니다.
+
+다음 두 경로를 실제 코드 기준으로 명확히 별도 Step에 포함하십시오.
+
+* API Server → Parent Curriculum Engine
+* API Server → Growth Report Engine
+
+목표:
+
+동일 logical request에서
+
+APP/API request_id
+→ external engine request
+→ response
+→ usage event
+
+까지 동일 request_id 추적.
+
+각 실제 provider retry는 별도 actual call로 계측할 수 있어야 합니다.
+
+별도 STEP ID를 추가하십시오.
+
+---
+
+## 2. logical request와 actual provider calls 구분
+
+현재 retry_count만으로는 비용 추적이 충분하지 않을 수 있습니다.
+
+다음 두 개념을 분리하십시오.
+
+### logical_request_count
+
+사용자 또는 시스템이 요청한 기능 단위.
+
+예:
+
+Growth Report 생성 1건
+
+→ logical request = 1
+
+### actual_provider_call_count
+
+provider에 실제 전송된 호출 수.
+
+예:
+
+최초 호출 1
++
+retry 2
+
+→ actual provider calls = 3
+
+→ retry_count = 2
+
+Dashboard 비용은 실제 provider calls와 실제 usage 기준으로 계산되어야 합니다.
+
+Common Usage Contract 및 Implementation Plan에 이를 반영하십시오.
+
+기존 `request_count` 필드를 어느 의미로 사용할지 명확히 고정하십시오.
+
+필요하다면:
+
+logical_request_count
+actual_call_count
+
+처럼 의미를 분리하는 안을 제안하십시오.
+
+Migration 없이 JSONB 확장으로 처리합니다.
+
+---
+
+## 3. SMS 전체 실제 provider 확인
+
+현재 AI01-06은 SENS만 대상으로 작성되어 있습니다.
+
+기존 Audit에서:
+
+* Naver SENS
+* CoolSMS
+* Aligo
+
+가 확인 대상이었습니다.
+
+전체 repository를 다시 조사하지 말고
+실제 SMS provider wrapper/dispatcher만 확인하십시오.
+
+각 provider에 대해:
+
+* 실제 파일
+* 실제 함수
+* 현재 production 사용 여부
+* 공통 sendSms 레이어 존재 여부
+
+를 확인하십시오.
+
+가능하면 provider별 파일마다 instrumentation하지 말고
+공통 발송 계층 한 곳에서 usage logging할 수 있는지 우선 검토하십시오.
+
+실제 Production에서 사용하지 않는 provider는
+NOT USED / LEGACY라고 명시하십시오.
+
+---
+
+## 4. SMS 비용 계산 원칙 유지
+
+실제 계약 단가가 코드/config에서 확인되지 않는다면:
+
+estimated_cost_usd = null
+cost_source = UNKNOWN
+
+으로 시작합니다.
+
+일반적인 시장 SMS 단가,
+웹 검색 가격,
+임의 환율을 Production 비용 계산에 사용하지 마십시오.
+
+실제 계약 단가가 운영 설정으로 들어간 경우에만:
+
+CONFIGURED_UNIT_PRICE
+
+를 사용합니다.
+
+---
+
+## 5. R2 전체 Operation 범위 수정
+
+현재 AI01-07은:
+
+* upload
+* delete
+
+만 포함합니다.
+
+실제 `objectStorage.ts`의:
+
+* uploadToR2
+* downloadFromR2
+* deleteFromR2
+
+를 다시 기준으로 삼으십시오.
+
+R2 API usage 관측 범위에:
+
+PUT
+GET
+DELETE
+
+실제 사용 경로를 포함하십시오.
+
+단 비용 대비 의미가 없는 operation을 무조건 기록하라는 뜻은 아닙니다.
+
+각 operation에 대해:
+
+* 실제 production 사용 여부
+* 호출 빈도 예상
+* 계측 필요성
+
+을 판단하고 계획에 명시하십시오.
+
+---
+
+## 6. R2 units 의미 수정
+
+현재 계획:
+
+units = bytes
+
+는 Common Usage Contract의 operation count 의미와 혼동됩니다.
+
+R2 호출은 최소한:
+
+actual_call_count = 1
+
+을 기록해야 합니다.
+
+파일 크기도 비용/용량 분석에 필요하다면 별도로:
+
+bytes
+또는
+storage_bytes
+
+필드를 추가하십시오.
+
+예:
+
+provider = cloudflare_r2
+service = r2_put
+actual_call_count = 1
+bytes = uploaded bytes
+
+처럼 operation count와 데이터 크기를 분리하십시오.
+
+---
+
+## 7. AI_FEATURE에 비-AI 기능 강제 포함 금지
+
+현재 계획에서:
+
+AI_FEATURE.SMS_NOTIFICATION
+AI_FEATURE.R2_STORAGE
+
+추가를 제안했습니다.
+
+SMS와 R2는 AI feature가 아닙니다.
+
+기존 AI_FEATURE의 의미를 깨뜨리지 마십시오.
+
+다음 중 최소 변경안을 비교하여 하나를 추천하십시오.
+
+A.
+공통 `UsageFeature` 타입 신규
+
+B.
+기존 AI_FEATURE + ExternalUsageFeature union
+
+C.
+문자열 기반 provider-neutral feature contract
+
+목표:
+
+AI / SMS / Storage / future Video / Document API를
+같은 Usage Dashboard에서 집계할 수 있어야 하지만
+AI_FEATURE enum의 의미는 보존해야 합니다.
+
+대규모 리팩터링 금지.
+
+---
+
+## 8. service를 정식 공통 필드로 구현
+
+현재 기존 metadata의:
+
+generation_mode
+error_stage
+
+등을 service처럼 간주하지 않습니다.
+
+service는 provider operation을 의미합니다.
+
+예:
+
+openai / gpt
+openai / whisper
+curriculum_engine / search
+growth_engine / analysis
+naver_sens / sms
+cloudflare_r2 / r2_put
+
+Common UsageEvent에 정식 필드로 저장되도록 계획을 수정하십시오.
+
+---
+
+## 9. Worker pause 방식 수정
+
+현재 Cost Control Plan:
+
+GROWTH_REPORT_ENGINE_URL을 비워서 worker disable
+
+은 정상 운영 제어 방식으로 사용하지 않습니다.
+
+환경변수 제거로 오류를 유도하는 방식이 아니라:
+
+* 기존 feature_flag
+* worker enabled flag
+* explicit pause flag
+
+중 기존 구조를 가장 많이 재사용하는 방식으로
+정상적인 pause control을 제안하십시오.
+
+목표:
+
+Super Admin 또는 운영 설정에서
+Growth background 비용이 과도할 경우
+안전하게 중단 가능.
+
+Provider URL 자체를 망가뜨리는 방식은 emergency workaround로만 취급하십시오.
+
+---
+
+## 10. Worker frequency / batch / retry 통제
+
+SYSTEM_MAINTENANCE 비용의 핵심이므로
+향후 다음 항목을 조정 가능하게 할 계획을 포함하십시오.
+
+* enabled / pause
+* interval
+* batch size
+* retry max
+
+현재 hardcoded 값이 있다면
+실제 파일/상수 위치를 명시하십시오.
+
+단 WP-AI-01에서 전부 구현해야 한다는 뜻은 아닙니다.
+
+WP-AI-01에서는:
+
+비용을 관측하고
+향후 control point가 명확하게 연결될 구조까지 확보.
+
+실제 threshold tuning은 PHASE 8.
+
+---
+
+## 11. Model Config 목적 수정
+
+`ai-model-config.ts` 생성 목적은 단순 hardcoding 제거가 아닙니다.
+
+향후:
+
+Quality
+Latency
+Cost
+
+비교 후
+가성비가 더 좋은 모델로 빠르게 변경할 수 있는
+단일 control point가 되어야 합니다.
+
+현재 모델을 자동으로 최적 모델이라고 가정하지 마십시오.
+
+각 AI WP 시작 시:
+
+현재 사용 가능한 후보 중
+저비용/고속 모델부터 실제 테스트
+
+→ 품질 부족 시 상위 모델 승격
+
+원칙을 적용합니다.
+
+단 이번 계획 수정 단계에서
+외부 API 호출이나 모델 benchmark는 하지 않습니다.
+
+---
+
+## 12. Support Nano 정의 유지
+
+현재 gpt-4o-mini 사용 여부와
+Support Nano 완료 여부를 혼동하지 않습니다.
+
+PHASE 2 목표:
+
+Support DB Broad Retrieval
+→ Candidate Evidence
+→ 저비용 AI 1회
+→ follow-up/context 이해
+→ evidence selection
+→ irrelevant 제거
+→ 복수 KI 종합
+→ grounded final answer
+→ server validator
+
+기존 regex/facet scoring은 candidate retrieval 보조 역할로만 사용합니다.
+
+---
+
+## 13. Professional AI Engine 구분 유지
+
+다음은 서로 동일하다고 가정하지 마십시오.
+
+* Parent Curriculum Engine
+* Growth Report Engine
+* 별도 SWIMNOTE Professional AI Engine / 약 20k Professional DB
+
+실제 연결 관계가 확인되기 전에는:
+
+UNKNOWN / NOT CONFIRMED
+
+으로 유지합니다.
+
+Professional DB 자체의 Retrieval Audit는 PHASE 3에서
+별도 "리플릿 AI" 환경을 대상으로 수행합니다.
+
+APP repository만 보고 결론 내리지 마십시오.
+
+---
+
+## 14. AI01 Detailed Steps 다시 정렬
+
+수정된 WP-AI-01에는 최소 다음 목적이 빠짐없이 존재해야 합니다.
+
+### Contract Foundation
+
+* trigger_type
+* service
+* cost_source
+* retry_count
+* audio_seconds
+* cached_input_tokens
+* actual provider call count
+* 필요 시 logical request count
+
+### OpenAI
+
+* GPT
+* Whisper
+
+### External Engines
+
+* Curriculum
+* Growth
+* request_id propagation
+* UNKNOWN cost
+
+### Communication
+
+* 실제 사용 SMS providers
+
+### Infrastructure
+
+* R2 실제 operation usage
+
+### Dashboard
+
+* trigger
+* feature
+* provider/service/model
+* pool
+* logical requests
+* actual calls
+* retries
+* known cost
+* unknown calls
+* unit economics
+
+### Control Boundary
+
+* feature kill
+* worker pause
+* model control point
+* quota
+* future frequency/batch/retry control
+
+---
+
+## 15. 완료 증거 강화
+
+각 STEP 완료 증거는 최소:
+
+* commit SHA
+* 변경 파일
+* 변경 함수
+* 정확한 test command
+* PASS/FAIL 및 test count
+
+그리고 해당 Step이 usage/route와 관련되면 추가:
+
+* request_id
+* provider
+* service
+* feature
+* trigger_type
+* actual call count
+* retry_count
+* known/unknown cost
+
+실제 runtime 증거가 없는 경우:
+
+UNIT TEST CONFIRMED
+
+와
+
+PRODUCTION CONFIRMED
+
+를 구분하십시오.
+
+테스트 통과만으로 Production 연결 완료라고 보고하지 마십시오.
+
+---
+
+# 제출 형식
+
+전체 MASTER 설계도를 다시 작성하지 마십시오.
+
+다음만 제출:
+
+# [CORRECTED SWIMNOTE AI MASTER IMPLEMENTATION PLAN]
+
+1. Corrected Gap List
+2. Corrected Common Usage Contract
+3. Corrected WP-AI-01 Steps
+4. Corrected Cost Control Plan
+5. Updated Verification Matrix
+6. First Implementation Step
+
+그리고 STOP.
+
+아직 코드 수정하지 마십시오.

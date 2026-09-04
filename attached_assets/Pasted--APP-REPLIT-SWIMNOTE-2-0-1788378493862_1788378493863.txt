@@ -1,0 +1,818 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 WP5 — A + E + H UI FINALIZATION
+#
+# 최신 진행:
+#
+# WP1 = D + I → COMPLETE
+# WP2 = B + C → COMPLETE
+# WP3 = G     → COMPLETE
+# WP4 = F     → COMPLETE
+# WP5 = A + E + H → NOW
+#
+# 순서:
+# A → E → H
+#
+# A = ADMIN HOME POLISH
+# E = TEACHER TAB CLIPPING FIX
+# H = INVITE CTA
+#
+# 중요 원칙:
+#
+# 1. 신규 기능 추가 금지.
+# 2. 기존 기능의 UI/표현/접근성 정리만.
+# 3. 일반 SWIMNOTE와 X가 공통 component를 쓰는 영역은
+#    반드시 양쪽에 동시에 적용.
+# 4. X 전용 요소는 X에만 적용.
+# 5. Teacher에는 X mode가 없으므로
+#    E는 실제 teacher 공통 UI만 수정.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Known WP4 HEAD:
+aef1d149
+
+단 실제 현재 HEAD를 먼저 확인하고
+그 값을 source of truth로 사용.
+
+1.6.3:
+NO TOUCH
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+RevenueCat:
+NO TOUCH
+
+============================================================
+0. COMMON CORE / ACTIVE ROUTE AUDIT
+============================================================
+
+코드 수정 전에 각각 실제 route와 component 확인.
+
+A — Admin Home:
+Normal SWIMNOTE admin home
+X admin home
+
+E — Teacher tabs:
+Teacher bottom/tab layout
+Teacher screen shell
+
+H — Invite CTA:
+현재 초대 기능이 노출되는 admin/teacher 관련 실제 화면
+
+각 항목에서 보고:
+
+ROUTE
+ACTIVE FILE
+SHARED COMPONENT
+NORMAL/X SHARED 여부
+
+공통 기능이면 shared source 한 번 수정.
+
+한쪽 전용 wrapper에 중복 구현 금지.
+
+============================================================
+1. A — ADMIN HOME POLISH
+============================================================
+
+대상:
+현재 실제 /(admin)/dashboard 또는
+현재 active admin home component.
+
+최신 확정 A 항목:
+
+A-1.
+Premier 표시 삭제
+
+A-2.
+활성 badge 삭제
+
+A-3.
+X 카드 compact화
+
+A-4.
+AI 일지피드 아이콘 변경
+
+A-5.
+"이번 달 매출" → "현황"
+
+A-6.
+인원관리 명칭/아이콘 정리
+
+중요:
+위 6개만 작업.
+
+새 카드:
+NO
+
+새 기능:
+NO
+
+새 통계:
+NO
+
+layout 전면 redesign:
+NO
+
+============================================================
+2. A — NORMAL + X 구분
+============================================================
+
+관리자 dashboard가 Normal/X에서 동일 component라면
+한 파일 안에서 현재 mode/entitlement에 따라
+기존 분기만 유지.
+
+공통 요소:
+
+- 현황
+- 인원관리
+- 공통 admin home structure
+
+는 Normal/X 양쪽에서 일관되게 반영.
+
+X 전용 요소:
+
+- X 카드
+- X 관련 AI entry
+
+는 X mode에서만 표시되는 기존 정책 유지.
+
+Normal SWIMNOTE에
+X 전용 카드/CTA가 새로 노출되면 FAIL.
+
+============================================================
+3. A-1 PREMIER 삭제
+============================================================
+
+현재 dashboard에서
+Premier 텍스트/badge/label이 실제 어디에서 출력되는지 추적.
+
+Home surface에서 삭제.
+
+단:
+
+subscription entitlement
+DB plan value
+서버 billing logic
+RevenueCat
+subscription screen
+
+은 절대 수정하지 말 것.
+
+이번 작업은 홈 UI 표시만.
+
+============================================================
+4. A-2 활성 BADGE 삭제
+============================================================
+
+현재 홈에서 X 또는 subscription 상태에 붙는
+"활성" badge가 있다면 해당 visual badge 삭제.
+
+상태 판정 logic 자체:
+유지
+
+entitlement:
+유지
+
+X mode availability:
+유지
+
+UI badge만 제거.
+
+============================================================
+5. A-3 X CARD COMPACT
+============================================================
+
+현재 X 카드의 실제 구조를 먼저 확인.
+
+목적:
+
+불필요하게 세로 공간을 많이 차지하지 않도록
+기존 카드 안 요소를 compact하게 정리.
+
+금지:
+
+새 디자인 시스템
+완전 재설계
+기능 삭제
+X 진입점 제거
+
+유지:
+
+- X 식별
+- 기존 진입 동작
+- 필요한 상태 정보
+- tap target
+
+Normal mode에는 X 전용 카드가
+기존 정책 이상으로 노출되지 않게 유지.
+
+============================================================
+6. A-4 AI 일지피드 ICON
+============================================================
+
+현재 AI 일지피드 entry의 icon을
+기존 승인된 icon 체계에 맞는 것으로 변경.
+
+새 이미지 asset을 임의 제작하지 말 것.
+
+현재 프로젝트에 있는 icon library/asset 우선.
+
+label/function/navigation은 변경 금지.
+
+Normal과 X에서 같은 entry가 공유되면
+양쪽 동일 icon.
+
+X 전용 entry면 X만.
+
+============================================================
+7. A-5 이번 달 매출 → 현황
+============================================================
+
+홈 표시 문구:
+
+"이번 달 매출"
+
+→
+
+"현황"
+
+으로 변경.
+
+중요:
+
+실제 내부 data calculation/API는
+이번 WP에서 수정하지 말 것.
+
+해당 카드가 이미 복수 현황정보를 보여주는 구조인지 확인하고
+label만 확정안으로 정리.
+
+============================================================
+8. A-6 인원관리 명칭 / ICON
+============================================================
+
+현재 홈의 인원관리 entry를 확인.
+
+확정된 최종 명칭/아이콘이
+현재 source에 이미 정의돼 있으면 그것을 사용.
+
+과거 legacy 명칭이나
+기능과 맞지 않는 icon이 남아 있으면 정리.
+
+navigation target:
+변경 금지.
+
+회원관리 core:
+WP1/WP2 그대로 보호.
+
+============================================================
+9. A TEST
+============================================================
+
+A01 Normal admin home 정상
+A02 X admin home 정상
+A03 Premier 표시 0
+A04 활성 badge 0
+A05 X card compact
+A06 X card navigation 유지
+A07 Normal에 X-only leakage 0
+A08 AI 일지피드 icon 정상
+A09 AI 일지피드 navigation 유지
+A10 "이번 달 매출" 표시 0
+A11 "현황" 표시
+A12 인원관리 label/icon 정상
+A13 member route 회귀 0
+A14 home layout overflow 0
+
+============================================================
+10. E — TEACHER TAB CLIPPING
+============================================================
+
+목적:
+선생님 하단탭/탭 UI의 글자 또는 아이콘 clipping 제거.
+
+먼저 실제 active teacher layout 조사.
+
+확인:
+
+app/(teacher)/_layout.tsx
+또는 현재 실제 tab layout.
+
+문제 유형:
+
+- label 잘림
+- icon 잘림
+- tab height 부족
+- safe area 충돌
+- 긴 한글 label clipping
+- iPhone 화면폭별 overlap
+
+실제 원인만 수정.
+
+============================================================
+11. E — 수정 원칙
+============================================================
+
+Teacher navigation 구조 자체를 바꾸지 말 것.
+
+이번 작업:
+
+clipping/overflow만 수정.
+
+금지:
+
+탭 개수 변경
+탭 순서 변경
+새 tab 추가
+기능 이동
+screen route 변경
+teacher IA redesign
+
+기존 label과 route 유지.
+
+필요하면:
+
+- tabBar height
+- padding
+- font sizing
+- lineHeight
+- label container
+- safe-area inset
+
+중 실제 원인에 해당하는 최소 수정만.
+
+============================================================
+12. E — DEVICE WIDTH
+============================================================
+
+최소 정적 검증:
+
+small iPhone width
+standard iPhone width
+large iPhone width
+
+에서:
+
+아이콘 잘림 0
+텍스트 잘림 0
+탭 overlap 0
+
+Dynamic type 관련 현재 정책이 있으면
+그 범위도 회귀 확인.
+
+============================================================
+13. E TEST
+============================================================
+
+E01 Teacher tabs render
+E02 모든 icon visible
+E03 모든 label visible
+E04 small width clipping 0
+E05 standard width clipping 0
+E06 large width clipping 0
+E07 safe area 정상
+E08 tab route 정상
+E09 tab order unchanged
+E10 teacher scope unchanged
+E11 admin UI 영향 0
+E12 parent UI 영향 0
+
+============================================================
+14. H — INVITE CTA
+============================================================
+
+먼저 현재 "초대" 관련 기능 전수 조사.
+
+검색 대상 예:
+
+invite
+invitation
+teacher invite
+parent invite
+guardian invite
+초대
+초대코드
+
+실제 존재하는 기능만 source of truth로 사용.
+
+이번 WP에서 H는:
+
+기존 초대 기능에 대한
+명확한 CTA 노출/정리.
+
+새 초대 시스템을 만드는 작업이 아님.
+
+============================================================
+15. H — 기존 기능 재사용
+============================================================
+
+현재 초대 기능의:
+
+route
+modal
+API
+invite code
+share
+SMS
+button
+
+중 실제 구현된 entry를 확인.
+
+CTA는 반드시
+기존 기능으로 연결.
+
+새 API:
+NO
+
+새 server table:
+NO
+
+새 invite logic:
+NO
+
+새 인증 흐름:
+NO
+
+============================================================
+16. H — 위치
+============================================================
+
+초대 CTA가 어느 화면에 들어가야 하는지는
+현재 설계/source의 기존 초대 기능과
+사용자 workflow를 기준으로 판정.
+
+중요:
+
+이미 존재하는 동일 CTA가 충분하면
+중복 추가 금지.
+
+기존 기능은 있는데
+사용자가 찾기 어려운 경우에만
+확정된 WP H 범위에서 entry를 정리/추가.
+
+Normal/X 공통 admin 화면이면:
+양쪽 동일 적용.
+
+X 전용 이유가 없는데 X에만 CTA:
+FAIL.
+
+============================================================
+17. H — 권한
+============================================================
+
+초대 CTA는
+현재 허용된 role에게만 표시.
+
+Admin-only 기존 기능이면
+teacher에게 새로 노출 금지.
+
+Teacher invite capability가 실제 존재하면
+현재 권한 그대로.
+
+권한 architecture 변경:
+NO
+
+============================================================
+18. H TEST
+============================================================
+
+H01 기존 invite functionality 확인
+H02 CTA 표시 대상 role 정확
+H03 CTA tap → 기존 invite flow
+H04 duplicate CTA 0
+H05 dead button 0
+H06 Normal shared 화면 정상
+H07 X shared 화면 정상
+H08 X-only leakage 0
+H09 unauthorized role CTA 0
+H10 API/DB 신규 변경 0
+
+============================================================
+19. NORMAL SWIMNOTE EXTRA AUDIT
+============================================================
+
+이번 WP에서 특히 중요.
+
+A/H 작업 중:
+
+일반 SWIMNOTE와 X가 같은 화면을 쓰는데
+X만 polish 되어 있거나
+Normal에 legacy 표현이 남아 있으면
+같이 정리.
+
+보고:
+
+A Normal/X shared:
+YES / NO
+
+H Normal/X shared:
+YES / NO
+
+Normal-only regression:
+YES / NO
+
+X-only regression:
+YES / NO
+
+공통 UI gap 발견 시
+이번 WP 안에서 최소 수정.
+
+대규모 별도 문제면
+코드 범위 확대하지 말고 보고.
+
+============================================================
+20. 최근 WP 보호
+============================================================
+
+절대 회귀 금지:
+
+WP1
+- member-detail
+- X back stack
+
+WP2
+- member list/common core
+
+WP3
+- parent auto-link create paths
+
+WP4
+- messenger baseline 1b03e716
+
+Teacher scope
+Media cleanup
+Kakao
+Apple auth
+
+============================================================
+21. 금지 범위
+============================================================
+
+RevenueCat:
+NO
+
+Subscription logic:
+NO
+
+Pricing:
+NO
+
+Server business logic:
+NO
+
+Messenger:
+NO
+
+Media:
+NO
+
+AI pipeline:
+NO
+
+Growth report:
+NO
+
+Kakao:
+NO
+
+1.6.3:
+NO
+
+============================================================
+22. REGRESSION
+============================================================
+
+New deterministic failures:
+0
+
+기존 181 pre-existing failures는
+이번 WP 범위 아님.
+
+새 deterministic만 비교.
+
+============================================================
+23. COMMIT
+============================================================
+
+A/E/H를 한 commit으로 묶어도 되지만
+서로 독립 수정이므로
+논리적으로 명확하면 최대 3개 commit 허용.
+
+권장 예:
+
+fix(v2.0): polish shared admin home
+
+fix(v2.0): prevent teacher tab clipping
+
+fix(v2.0): expose existing invite flow clearly
+
+불필요한 변경이 없는 항목은
+NO CODE CHANGE 가능.
+
+============================================================
+24. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 WP5 COMPLETION REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commits:
+...
+
+## COMMON CORE AUDIT
+
+Normal admin home route:
+...
+
+X admin home route:
+...
+
+Same home component:
+YES / NO
+
+Teacher tab layout:
+...
+
+Invite routes/components:
+...
+
+A Normal/X shared:
+YES / NO
+
+H Normal/X shared:
+YES / NO
+
+## A — HOME POLISH
+
+Premier removed:
+PASS / FAIL
+
+Active badge removed:
+PASS / FAIL
+
+X card compact:
+PASS / FAIL
+
+X card navigation:
+PASS / FAIL
+
+Normal X-leakage:
+0 / ...
+
+AI diary feed icon:
+PASS / FAIL
+
+"이번 달 매출" → "현황":
+PASS / FAIL
+
+인원관리 label/icon:
+PASS / FAIL
+
+A01-A14:
+...
+
+## E — TEACHER TAB CLIPPING
+
+Root cause:
+...
+
+Files:
+...
+
+Small iPhone:
+PASS / FAIL
+
+Standard iPhone:
+PASS / FAIL
+
+Large iPhone:
+PASS / FAIL
+
+Icon clipping:
+0 / ...
+
+Label clipping:
+0 / ...
+
+Route/order unchanged:
+YES / NO
+
+E01-E12:
+...
+
+## H — INVITE CTA
+
+Existing invite function:
+...
+
+Existing route/API:
+...
+
+CTA location:
+...
+
+Roles:
+...
+
+Normal:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+Duplicate CTA:
+0 / ...
+
+New invite logic:
+NO
+
+H01-H10:
+...
+
+## NORMAL SWIMNOTE EXTRA AUDIT
+
+Normal-only regression found:
+YES / NO
+
+X-only regression found:
+YES / NO
+
+Common UI gap fixed:
+YES / NO / N/A
+
+WP plan adjustment required:
+YES / NO
+
+## REGRESSION
+
+WP1:
+PASS
+
+WP2:
+PASS
+
+WP3:
+PASS
+
+WP4:
+PASS
+
+Teacher scope:
+PASS
+
+Media:
+PASS
+
+Kakao:
+PASS
+
+New deterministic failures:
+0
+
+## DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+Production:
+NO CHANGE
+
+## FINAL
+
+WP5 COMPLETE — A + E + H NORMAL/X COMMON UI VERIFIED
+
+또는
+
+WP5 BLOCKED — EXACT UI/COMMON CORE GAP

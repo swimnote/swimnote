@@ -1,8 +1,8 @@
-import { X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { AuditLog } from "./types";
 
 const C = Colors.light;
@@ -32,15 +32,15 @@ export default function AuditModal({
         <View style={[a.sheet, { backgroundColor: C.card }]}>
           <View style={a.sheetHeader}>
             <Text style={[a.sheetTitle, { color: C.text }]}>변경 기록</Text>
-            <Pressable onPress={onClose}><X size={20} color={C.textSecondary} /></Pressable>
+            <Pressable onPress={onClose}><LucideIcon name="x" size={20} color={C.textSecondary} /></Pressable>
           </View>
-          {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} /> : (
+          {loading ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} /> : (
             <ScrollView contentContainerStyle={{ gap: 10, padding: 16, paddingBottom: 40 }}>
               {logs.length === 0 && <Text style={{ textAlign: "center", color: C.textMuted, marginTop: 20 }}>기록이 없습니다</Text>}
               {logs.map(log => (
                 <View key={log.id} style={[a.logCard, { backgroundColor: C.background }]}>
                   <View style={a.logHeader}>
-                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#F9DEDA" : log.action_type === "update" ? "#FFF1BF" : "#E6FFFA" }]}>
+                    <View style={[a.logBadge, { backgroundColor: log.action_type === "delete" ? "#F9DEDA" : log.action_type === "update" ? "#FFF1BF" : C.iconGreenBg }]}>
                       <Text style={[a.logBadgeText, { color: log.action_type === "delete" ? C.error : log.action_type === "update" ? C.warning : C.success }]}>
                         {actionLabel[log.action_type]}
                       </Text>

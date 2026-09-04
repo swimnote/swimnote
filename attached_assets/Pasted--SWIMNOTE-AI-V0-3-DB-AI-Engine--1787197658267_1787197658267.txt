@@ -1,0 +1,1176 @@
+# [SWIMNOTE 학부모 AI 커리큘럼 검색 — V0.3 구현 전 최종 설계기획서]
+
+목적:
+아직 구현하지 않는다.
+현재 코드/DB/AI Engine 구조에서 아래 설계대로 구현 가능한지 READ-ONLY로 확인한다.
+확인 후 실제 구현 WP를 시작한다.
+
+절대 금지:
+- 코드 수정
+- DB 수정
+- migration
+- 신규 table 생성
+- resolver 변경
+- 전체 regression test
+- 광범위 refactor
+- Production 배포
+
+이번 단계는 설계 확정용 확인만 수행한다.
+
+==================================================
+1. 기능 정의
+==================================================
+
+AI 커리큘럼 검색은 학부모가 자연어로
+자녀의 실제 수업 진행상황을 질문하면,
+
+1) 학생 실제 수업/일지/진도 기록
+2) 해당 수영장의 SWIMNOTE 커리큘럼
+3) SWIMNOTE AI의 수영 전문 DB
+
+를 조합하여
+
+- 현재 어떤 영법/기술을 배우고 있는지
+- 어디까지 진행됐는지
+- 특정 기술을 했는지
+- 최근 무엇을 배우고 있는지
+- 다음 커리큘럼 단계가 무엇인지
+- 왜 현재 단계를 연습하는지
+- 현재 레벨에서 무엇이 남았는지
+
+등을 근거 기반으로 설명하는
+학부모용 대화형 AI 검색 시스템이다.
+
+중요:
+
+GPT가 학생 진도를 추측하지 않는다.
+
+Progress 판정:
+학생 실제 데이터 + 커리큘럼 구조
+
+GPT 역할:
+판정된 결과와 전문 수영정보를 자연어로 설명
+
+==================================================
+2. 기존 진입점 — 신규 버튼 생성 금지
+==================================================
+
+학부모 홈에 이미 존재하는
+
+"커리큘럼 검색"
+
+버튼을 그대로 사용한다.
+
+현재 확인된 기존 navigation:
+
+artifacts/swim-app/app/(parent)/home.tsx
+
+→ /(parent)/curriculum-chat
+→ studentId
+→ studentName
+
+신규 홈 버튼을 추가하지 않는다.
+
+기존 버튼 디자인/위치를 변경하는 것이 목적이 아니다.
+
+==================================================
+3. 커리큘럼 검색 이용 조건 — 중요 수정
+==================================================
+
+AI 커리큘럼 검색은 X 모드 전용 기능으로 막지 않는다.
+
+일반 SWIMNOTE 학부모도 기존
+"커리큘럼 검색" 버튼을 볼 수 있어야 한다.
+
+다만 실제 AI 검색 실행 가능 여부는
+현재 수영장에 충분한 커리큘럼이 구축되어 있는지로 판단한다.
+
+기본 기준:
+
+CURRICULUM_AI_MIN_ITEMS = 300
+
+조건:
+
+해당 swimming_pool_id의
+검색 가능한 활성 커리큘럼 item >= 300
+
+이면:
+→ AI 커리큘럼 검색 사용 가능
+
+300 미만이면:
+→ AI 검색 화면을 정상 사용시키지 않고 이용 불가 안내
+
+안내 문구:
+
+"현재 수영장에 커리큘럼이 아직 충분히 등록되지 않아
+AI 커리큘럼 검색을 이용할 수 없습니다."
+
+중요:
+
+300이라는 숫자를 앱 UI에 직접 하드코딩하지 않는다.
+
+가능하면 서버 기준값으로 관리한다.
+
+확인 필요:
+
+- 현재 일반 SWIMNOTE의 커리큘럼 저장 구조
+- X 수영장의 커리큘럼 저장 구조
+- 두 구조에서 '검색 가능한 커리큘럼 item 수'를 어떤 기준으로 계산할지
+- active/status 등의 유효성 필터가 존재하는지
+
+==================================================
+4. X 모드의 역할
+==================================================
+
+SWIMNOTE X는 커리큘럼 검색 기능을 독점적으로 잠그는 조건이 아니다.
+
+X의 역할:
+
+- 구조화된 커리큘럼 제공
+- 대량 커리큘럼 구축
+- 영법/기술/단계 구조화
+- AI 검색에 충분한 데이터 확보
+
+즉 일반 SWIMNOTE도
+센터가 자체적으로 커리큘럼을 충분히 등록하면
+AI 커리큘럼 검색을 사용할 수 있다.
+
+다만 현실적으로 300개 이상의 구조화 커리큘럼 구축은
+일반 사용자가 직접 만들기 어렵고,
+X 모드는 이를 쉽게 충족시키는 상위 시스템이다.
+
+==================================================
+5. 앱 화면 — 기존 curriculum-chat.tsx 확장
+==================================================
+
+현재 존재:
+
+artifacts/swim-app/app/(parent)/curriculum-chat.tsx
+
+신규 screen을 새로 만들지 말고
+가능하면 기존 화면을 확장한다.
+
+UI 목표:
+
+ChatGPT와 유사한 익숙한 대화 UX
++
+SWIMNOTE 기존 브랜드/디자인 유지
+
+ChatGPT 고유 로고/브랜딩 복제 금지.
+
+사용감 기준:
+
+- 질문이 아래로 누적
+- AI 답변 누적
+- 하단 고정 입력창
+- 전송 버튼
+- typing/loading 표시
+- 답변 복사
+- 이전 대화
+- 새 대화
+- 자연스러운 scroll
+
+==================================================
+6. 초기 진입 UI
+==================================================
+
+AI 검색 이용 가능 수영장일 경우:
+
+상단:
+
+AI 커리큘럼 검색
+
+현재 선택 학생 표시
+
+다자녀일 경우:
+학생 선택 dropdown
+
+첫 진입 또는 빈 대화일 경우
+추천 질문 제공.
+
+예:
+
+- 지금 어디까지 배웠나요?
+- 최근에는 무엇을 배우고 있나요?
+- 자유형은 어디까지 했나요?
+- 다음 단계는 무엇인가요?
+
+추천 질문 클릭 시
+실제 질문 입력과 동일하게 처리한다.
+
+==================================================
+7. 커리큘럼 미구축 수영장 UX
+==================================================
+
+버튼 자체를 숨기는 것이 기본 설계가 아니다.
+
+학부모가 기존 "커리큘럼 검색" 버튼을 탭하면
+서버에서 해당 pool의 커리큘럼 유효 개수를 확인한다.
+
+300 미만일 경우:
+
+Chat UI 대신 안내 상태 표시.
+
+문구:
+
+"현재 수영장에 커리큘럼이 아직 충분히 등록되지 않아
+AI 커리큘럼 검색을 이용할 수 없습니다."
+
+개발자 오류,
+row count,
+X 가입 여부,
+DB 정보 등은 사용자에게 노출하지 않는다.
+
+확인 필요:
+
+이 eligibility check를
+home 버튼 클릭 시 먼저 할지
+curriculum-chat 진입 후 screen에서 확인할지
+현재 구조에서 최소 변경 방식 제안.
+
+==================================================
+8. 답변 복사 기능 — V1 필수
+==================================================
+
+각 AI 답변 하단에:
+
+[복사]
+
+기능 제공.
+
+복사 대상:
+
+사용자에게 실제 표시되는 AI 답변 전체 텍스트
+
+복사 제외:
+
+- metadata
+- intent
+- evidence JSON
+- source id
+- prompt
+- confidence
+- model name
+- 내부 markdown control syntax
+
+복사 성공 시:
+
+"복사되었습니다"
+
+정도의 짧은 toast.
+
+==================================================
+9. 새 대화 + 대화 히스토리 — V1 포함
+==================================================
+
+현재 기존 table:
+
+parent_curriculum_conversations
+parent_curriculum_messages
+
+재사용.
+
+V1에서 포함:
+
+- 새 대화
+- 기존 대화 목록
+- 대화 선택
+- 대화 내용 복원
+- 대화 제목
+- 필요 시 삭제
+
+ChatGPT식 sidebar까지 만들 필요 없음.
+
+간단한 modal/screen/list 형태면 충분.
+
+확인 필요:
+
+현재 conversation table에서
+이미 title/new conversation/history API가 어느 정도 구현되어 있는지.
+
+==================================================
+10. 대화 연속성
+==================================================
+
+사용자는 다음과 같이 연속 질문할 수 있다.
+
+Q:
+"자유형 어디까지 했어요?"
+
+다음 질문:
+"그럼 다음에는 뭐 배워?"
+
+두 번째 질문에서
+"그럼"이 기존 대화의 자유형 진행상태를 의미하는 것을
+이어갈 수 있어야 한다.
+
+기존:
+
+buildRecentConversationContext
+
+재사용 가능 여부 확인.
+
+과거 전체 대화를 무제한 GPT에 보내지 않는다.
+
+권장:
+
+- 최근 N turn
+- 필요 시 conversation summary
+- 현재 student progress context
+
+==================================================
+11. Parent → Student 권한
+==================================================
+
+client가 보낸 studentId를 그대로 신뢰하지 않는다.
+
+서버에서:
+
+parent account
+→ parent/student relation
+→ student
+→ pool
+
+을 검증한다.
+
+학부모는 자기 자녀 데이터만 조회 가능.
+
+절대 노출 금지:
+
+- 같은 반 다른 학생
+- 다른 pool 학생
+- teacher internal private memo
+- admin-only data
+
+현재 기존 parent/student 권한 체인을 그대로 재사용한다.
+
+==================================================
+12. 전체 질문 처리 파이프라인
+==================================================
+
+질문을 GPT에 바로 전달하지 않는다.
+
+최종 구조:
+
+QUESTION
+↓
+Parent/Student Authorization
+↓
+Curriculum Eligibility Check
+↓
+Student Context
+↓
+Intent Parser
+↓
+Student Evidence Retrieval
+↓
+Pool Curriculum Retrieval
+↓
+Progress Resolver
+↓
+SWIMNOTE AI Professional Knowledge Retrieval
+↓
+Grounded Answer Package
+↓
+DIRECT_DB / GROUNDED_GPT / HUMAN_ONLY
+↓
+GPT 1회 필요 시 호출
+↓
+Answer
+↓
+Conversation 저장
+↓
+Evidence Snapshot 저장
+
+==================================================
+13. Intent Parser
+==================================================
+
+신규 서버 레이어 필요.
+
+기본 intent:
+
+CURRENT_PROGRESS
+= 현재 전체 진행 위치
+
+STROKE_PROGRESS
+= 특정 영법 진행
+
+SKILL_STATUS
+= 특정 기술 실시/완료 여부
+
+NEXT_STEP
+= 커리큘럼상 다음 단계
+
+RECENT_LESSONS
+= 최근 배우는 내용
+
+LEVEL_PROGRESS
+= 현재 레벨 및 다음 레벨 관련
+
+PROGRESS_CHANGE
+= 이전 대비 변화
+
+WHY_CURRENT_STEP
+= 왜 해당 기술을 배우는지
+
+CURRICULUM_INFO
+= 커리큘럼 자체 설명
+
+HUMAN_ONLY
+= 교사 판단이 필요한 질문
+
+UNKNOWN
+
+예:
+
+"우리 아이 어디까지 했어요?"
+→ CURRENT_PROGRESS
+
+"평영킥 했어요?"
+→ SKILL_STATUS
+
+"다음은 뭐예요?"
+→ NEXT_STEP
+
+"요즘 뭐 배워요?"
+→ RECENT_LESSONS
+
+==================================================
+14. 학생 Evidence — 실제 source 먼저 확정
+==================================================
+
+현재 보고서에서 growth_events를 Evidence source로 제안했으나
+그 하나로 확정하지 않는다.
+
+실제 Production 데이터 흐름 확인 필요.
+
+특히:
+
+선생님이 수업 후 일지를 작성
+↓
+학생에게 귀속
+↓
+학부모 피드에 표시
+
+되는 실제 데이터가
+어떤 table/column에 저장되는지 확인한다.
+
+READ-ONLY 확인:
+
+- 실제 diary table
+- student relation
+- diary_template relation
+- stroke/skill relation
+- curriculum relation
+- growth_events 생성 구조
+- growth_events와 diary의 관계
+- level test 기록
+- student_levels 연동
+
+목표:
+
+학생이 실제 무엇을 배웠는지를 판단할
+가장 신뢰도 높은 DIRECT Evidence source를 확정.
+
+==================================================
+15. Evidence Type
+==================================================
+
+Evidence 종류와 날짜를 분리한다.
+
+DIRECT
+= 실제 학생 일지/수업 기록에서
+해당 영법/기술이 직접 확인됨
+
+TRACKED
+= 복수 실제 기록을 종합하여
+현재 계속 진행 중임을 추적할 수 있음
+
+INFERRED
+= 현재 실제 진행 위치와
+센터 커리큘럼의 순서를 통해 계산된 정보
+
+UNKNOWN
+= 확인 가능한 실제 근거 부족
+
+날짜는 Evidence type이 아니다.
+
+별도로:
+
+date
+age_days
+recency
+
+등으로 관리.
+
+예:
+
+{
+  type: "DIRECT",
+  skill: "자유형 호흡",
+  date: "...",
+  age_days: 8
+}
+
+최근 기록은 높은 가중치를 주되
+"30일 이내이므로 DIRECT"와 같은 판정은 하지 않는다.
+
+==================================================
+16. Progress Resolver
+==================================================
+
+신규 서버 레이어 필요.
+
+입력:
+
+- student_levels
+- 실제 학생 Evidence
+- 해당 pool curriculum
+
+출력:
+
+COMPLETED
+IN_PROGRESS
+REVIEW
+NOT_CONFIRMED
+NEXT
+
+예:
+
+자유형 킥
+→ COMPLETED
+
+자유형 팔동작
+→ COMPLETED
+
+자유형 호흡
+→ IN_PROGRESS
+
+자유형 연결
+→ NEXT
+
+중요:
+
+GPT가 이 상태를 자유롭게 판단하지 않는다.
+
+Progress Resolver가 먼저 계산하고
+GPT에는 결과를 설명하도록 전달한다.
+
+==================================================
+17. 커리큘럼 데이터 역할
+==================================================
+
+커리큘럼은
+"우리 아이가 어디까지 왔는가"를 판단하는 기준 구조다.
+
+확인 필요:
+
+일반 SWIMNOTE:
+어떤 table/structure가 실제 curriculum source인지
+
+X:
+x_curriculum_levels가 실제 curriculum source인지
+
+X curriculum 예:
+
+- level_name
+- strokes
+- skills
+- learning_contents
+- objectives
+- promotion_criteria
+
+일반 SWIMNOTE와 X가
+같은 canonical curriculum item 구조로 검색 가능한지 확인.
+
+필요하면 application layer에서 normalization할 수 있지만
+이번 audit에서는 구현하지 않는다.
+
+==================================================
+18. SWIMNOTE 전문 수영 DB — APP DB와 구분
+==================================================
+
+중요:
+
+diary_templates를
+SWIMNOTE 전문 수영 Knowledge DB로 취급하지 않는다.
+
+APP DB 역할:
+
+- 학생 실제 기록
+- pool curriculum
+- student level
+- conversation
+
+AI ENGINE / AI DB 역할:
+
+- 기술 설명
+- 수영 원리
+- 오류
+- 가능한 원인
+- 교정
+- 드릴
+- 감각
+- 타이밍
+- 전문 수영 Knowledge
+
+즉:
+
+APP DB
+= 이 아이가 무엇을 했는가
+
+AI DB
+= 그 기술이 수영에서 무엇을 의미하는가
+
+전문 DB는 학생 진도 판정용이 아니라
+답변 설명 보강용.
+
+현재 별도 AI Engine에서
+전문 DB 검색 endpoint/function이 실제 무엇인지 확인한다.
+
+==================================================
+19. diary_templates 역할
+==================================================
+
+diary_templates는
+전문 Knowledge 원본으로 사용하지 않는다.
+
+다만 실제 학생 일지에서:
+
+어떤 template이 사용되었고
+그 template이 어떤 영법/기술과 연결되는지
+
+학생 실제 Evidence 추출에 도움이 된다면 사용 가능.
+
+즉:
+
+diary_templates
+→ Evidence 해석 보조 가능
+
+diary_templates
+→ 전문 수영 Knowledge DB로 사용 금지
+
+==================================================
+20. Grounded Answer Package
+==================================================
+
+GPT 호출 전 서버가
+Grounded Package를 완성한다.
+
+예:
+
+{
+  student,
+  question,
+  intent,
+
+  evidence: [],
+  progress_state,
+
+  curriculum_current,
+  curriculum_next,
+
+  swimming_knowledge,
+
+  evidence_grade,
+
+  answer_mode,
+
+  output_rules
+}
+
+GPT에는 이 패키지 안의 근거를 기준으로 답변하도록 한다.
+
+==================================================
+21. 답변 모드
+==================================================
+
+DIRECT_DB
+
+명확한 DB 사실.
+
+예:
+
+- 현재 level
+- 최근 수업 날짜
+- 명확하게 완료된 기술
+
+
+GROUNDED_GPT
+
+설명/종합이 필요한 질문.
+
+예:
+
+- 어디까지 왔어요?
+- 다음 단계는 무엇인가요?
+- 왜 이걸 배우나요?
+- 최근 어떤 변화가 있나요?
+
+
+HUMAN_ONLY
+
+교사/센터의 미래 판단 또는 평가가 필요한 질문.
+
+예:
+
+- 다음주 진급할 수 있나요?
+- 왜 우리 아이 진급 안 시켜줘요?
+- 정확히 언제 다음 단계로 넘어가나요?
+
+AI가 확정 답변하지 않는다.
+
+==================================================
+22. 답변 표현 규칙
+==================================================
+
+DIRECT evidence:
+
+확정적으로 설명 가능.
+
+예:
+"최근 수업 기록에서 자유형 호흡 연습이 확인됩니다."
+
+
+INFERRED:
+
+커리큘럼 기준임을 표현.
+
+예:
+"현재 진행상태를 기준으로 SWIMNOTE 커리큘럼상 다음 단계는
+자유형 연결 과정입니다."
+
+
+UNKNOWN:
+
+확정 금지.
+
+예:
+"현재 확인 가능한 기록에서는 해당 과정의 완료 여부가 확인되지 않습니다."
+
+
+교사의 미래 수업:
+
+확정 금지.
+
+금지:
+"다음 수업부터 평영을 시작합니다."
+
+허용:
+"현재 진행상태와 커리큘럼을 기준으로 다음 과정은 평영으로 이어집니다.
+실제 전환 시점은 수업 진행상황과 담당 선생님의 판단에 따라 달라질 수 있습니다."
+
+==================================================
+23. 수영 전문 설명
+==================================================
+
+답변이 지나치게 단순해지지 않도록
+현재 영법/기술과 관련된 SWIMNOTE AI 전문 Knowledge를 검색한다.
+
+예:
+
+학생 현재 단계:
+자유형 호흡
+
+AI 전문 DB 검색:
+
+- 자유형 호흡 원리
+- 롤링
+- 머리 위치
+- 타이밍
+- 흔한 오류
+- 다음 단계와 관계
+
+그중 필요한 내용을 제한적으로 가져와
+GPT가 자연스럽게 설명하도록 한다.
+
+수영 전문 DB 정보가
+학생이 실제 수행했다는 Evidence로 변환되어서는 안 된다.
+
+==================================================
+24. 답변 UX
+==================================================
+
+답변은 보고서 형태보다
+ChatGPT처럼 자연스러운 설명형을 기본으로 한다.
+
+예:
+
+"현재 자유형에서는 팔동작과 호흡 연결을 중심으로 연습하고 있습니다.
+최근 수업 기록에서는 자유형 킥과 팔동작이 반복적으로 확인됐고,
+호흡 타이밍을 연결하는 과정도 진행 중인 것으로 확인됩니다.
+
+자유형 호흡에서는 고개를 단순히 옆으로 돌리는 것보다
+몸통 회전과 팔동작의 타이밍을 함께 맞추는 것이 중요합니다.
+
+현재 과정이 안정되면 SWIMNOTE 커리큘럼상
+자유형 전체 동작을 자연스럽게 연결하는 단계로 이어집니다."
+
+==================================================
+25. Loading UI
+==================================================
+
+질문 전송 후:
+
+"답변을 확인하고 있습니다..."
+
+또는 lightweight typing indicator.
+
+화면 전체를 막는 긴 loading modal 사용 지양.
+
+AI 호출이 비교적 짧으면 동기 응답.
+
+추후 처리 시간이 길어질 경우
+기존 AI Job Queue architecture와 연결 가능.
+
+V1부터 queue를 억지로 도입할 필요 없음.
+
+==================================================
+26. Error UI
+==================================================
+
+사용자에게 절대 노출 금지:
+
+- 500
+- 502
+- stack trace
+- API URL
+- Render
+- rawText
+- OpenAI error
+- DB error
+
+사용자 표시:
+
+"답변을 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+==================================================
+27. Evidence Snapshot
+==================================================
+
+신규 evidence table을 바로 만들지 않는다.
+
+기존:
+
+parent_curriculum_messages.metadata
+
+재사용 가능 여부 확인.
+
+저장 후보:
+
+- intent
+- evidence
+- progress_state
+- curriculum_current
+- curriculum_next
+- knowledge_refs
+- answer_mode
+- created_at context
+
+목적:
+
+나중에 학생 진도가 변경되어도
+당시 AI가 어떤 근거로 답했는지 확인 가능.
+
+==================================================
+28. student_progress_summary
+==================================================
+
+V1에서 신규 table 생성하지 않는다.
+
+우선 요청마다 필요한 범위를 계산한다.
+
+실제 Production 사용량과 성능 측정 후
+필요한 경우에만 추후:
+
+student_progress_summary
+
+또는 cache/materialized state 도입.
+
+이번 구현에서 미리 복잡하게 만들지 않는다.
+
+==================================================
+29. 성능 기본 원칙
+==================================================
+
+이상적인 요청:
+
+앱
+↓
+curriculum-search API 1회
+↓
+서버 내부에서
+학생 Evidence
++
+curriculum
++
+AI 전문 DB
+조합
+↓
+필요 시 GPT 1회
+↓
+응답
+
+앱이 여러 API를 순차적으로 직접 호출하는 구조는 피한다.
+
+기존:
+
+POST /parent/students/:studentId/curriculum-search
+
+를 핵심 API로 확장하는 방향 우선 검토.
+
+==================================================
+30. 기존 API
+==================================================
+
+현재 존재:
+
+POST /parent/students/:studentId/curriculum-search
+
+현재 flow:
+
+quota check
+↓
+ENGINE 호출
+↓
+결과 저장
+↓
+반환
+
+현재 문제:
+
+- Intent Parser 없음
+- Progress Resolver 없음
+- Evidence Retrieval 미흡
+- template search + GPT 위임 중심
+
+이 API를 유지하면서
+중간 엔진 레이어를 추가하는 방식이 가능한지 확인.
+
+==================================================
+31. 예상 신규 서버 파일
+==================================================
+
+아직 생성하지 않는다.
+
+검토 대상:
+
+curriculum-intent-parser.ts
+curriculum-evidence-retriever.ts
+curriculum-progress-resolver.ts
+
+필요하다면:
+
+curriculum-answer-builder.ts
+
+현재 프로젝트 구조상 더 적합한 위치/명칭이 있으면
+READ-ONLY 보고에서 제안.
+
+==================================================
+32. 기존 구조 우선 재사용
+==================================================
+
+현재 확인된 기존 구성:
+
+- curriculum-chat.tsx
+- curriculum-search API
+- parent_curriculum_conversations
+- parent_curriculum_messages
+- parent → student auth
+- buildRecentConversationContext
+- student_levels
+- x_curriculum_levels
+- diary_templates
+- growth_events
+
+신규 구현 전 반드시
+기존 것을 최대한 재사용한다.
+
+동일 기능 중복 구현 금지.
+
+==================================================
+33. V1 구현 범위
+==================================================
+
+V1에서 우선 처리:
+
+- 현재 전체 진도
+- 특정 영법 진도
+- 특정 기술 여부
+- 최근 수업
+- 커리큘럼상 다음 단계
+- 현재 level
+- 다음 level에 필요한 과정
+- 현재 기술에 대한 수영 전문 설명
+- 왜 현재 기술을 배우는지
+
+UI:
+
+- 기존 버튼 진입
+- curriculum eligibility check
+- ChatGPT형 대화 UI
+- 하단 입력
+- 추천 질문
+- typing
+- 답변 복사
+- 다자녀 선택
+- 새 대화
+- 이전 대화 히스토리
+
+==================================================
+34. 구현 전 최종 READ-ONLY 확인사항
+==================================================
+
+아래를 실제 코드/DB 기준으로 확인한다.
+
+1. 기존 커리큘럼 검색 버튼이 현재 어떤 조건으로 표시되는지
+
+2. 일반 SWIMNOTE 학부모에서도
+기존 버튼을 안전하게 표시 가능한지
+
+3. 기존 curriculum-chat.tsx 구조
+
+4. 기존 curriculum-search API 실제 flow
+
+5. 일반 SWIMNOTE의 curriculum source
+
+6. X의 curriculum source
+
+7. 수영장별 검색 가능한 curriculum item count 계산 방법
+
+8. 300개 eligibility 기준을 서버에서 적용할 적절한 위치
+
+9. 실제 학생 diary 저장 table
+
+10. diary와 student 연결
+
+11. diary와 skill/stroke/curriculum 연결 상태
+
+12. growth_events의 정확한 역할
+
+13. student_levels의 정확한 역할
+
+14. 가장 신뢰할 수 있는 DIRECT Evidence source
+
+15. parent_curriculum_messages.metadata 현재 schema/용량
+
+16. conversation/new conversation/history 기존 구현 여부
+
+17. buildRecentConversationContext 재사용 방식
+
+18. 별도 AI Engine의 SWIMNOTE 전문 DB 검색 endpoint/function
+
+19. AI Engine 입력 schema
+
+20. AI Engine 출력 schema
+
+21. APP server → AI Engine 현재 호출 방식
+
+22. 기존 curriculum-search에서 해당 AI Engine을 재사용 가능한지
+
+23. GPT 호출이 현재 어디서 실행되는지
+
+24. Intent Parser 삽입 위치
+
+25. Evidence Retriever 삽입 위치
+
+26. Progress Resolver 삽입 위치
+
+27. Grounded Package 생성 위치
+
+28. answer_mode 분기 위치
+
+29. required DB migration 존재 여부
+
+30. required new files
+
+31. required modified files
+
+32. 실제 blocker
+
+==================================================
+35. 최종 보고 형식
+==================================================
+
+[CURRICULUM SEARCH V0.3 PRE-IMPLEMENTATION REPORT]
+
+A. ENTRY / UI
+
+- current curriculum button visibility condition:
+- Normal parent visibility possible:
+- current curriculum-chat reuse:
+- existing copy support:
+- existing history support:
+- existing new conversation support:
+- multi-child support:
+
+B. CURRICULUM ELIGIBILITY
+
+- Normal curriculum source:
+- X curriculum source:
+- canonical searchable item definition:
+- active/searchable filter:
+- per-pool count query:
+- recommended location for 300-item gate:
+- app change required:
+- server change required:
+
+C. STUDENT EVIDENCE
+
+- actual diary table:
+- student linkage:
+- diary_template linkage:
+- stroke linkage:
+- skill linkage:
+- curriculum linkage:
+- growth_events role:
+- student_levels role:
+- recommended DIRECT source:
+- recommended TRACKED calculation:
+
+D. AI ENGINE
+
+- professional swimming DB location:
+- search endpoint/function:
+- input:
+- output:
+- APP → ENGINE connection:
+- reusable in existing curriculum-search: YES/NO
+
+E. SERVER PIPELINE
+
+- current curriculum-search flow:
+- Intent Parser insertion point:
+- Evidence Retriever insertion point:
+- Progress Resolver insertion point:
+- Grounded Package insertion point:
+- GPT call location:
+- DIRECT_DB branch possible:
+- HUMAN_ONLY branch possible:
+
+F. STORAGE
+
+- existing conversation tables:
+- metadata snapshot possible:
+- DB migration required:
+- student_progress_summary required for V1: NO unless unavoidable
+
+G. FILE PLAN
+
+- new files required:
+- modified files required:
+- duplicate implementation risks:
+- blockers:
+
+H. RECOMMENDED WP ORDER
+
+WP-A:
+WP-B:
+WP-C:
+WP-D:
+WP-E:
+
+아직 구현하지 않는다.
+보고 완료 후 멈춘다.

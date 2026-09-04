@@ -1,22 +1,41 @@
 /**
  * (teacher)/makeups.tsx — 결석자 리스트 / 배정된 보강 / 보강 현황
  */
-import { ArrowLeft, Calendar, Check, CircleAlert, CircleCheck, CircleX, Clock, UserCheck, UserPlus, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, View,
+  ActivityIndicator, Alert, Keyboard, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
+import { router, useFocusEffect } from "expo-router";
 import Colors from "@/constants/colors";
-import { apiRequest, useAuth } from "@/context/AuthContext";
+import { apiRequest, clearApiCache, useAuth, API_BASE } from "@/context/AuthContext";
+import * as Updates from "expo-updates";
+import Constants from "expo-constants";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { ConfirmModal } from "@/components/common/ConfirmModal";
 
 const C = Colors.light;
+
+/** eligible-occurrences API 응답 단일 회차 */
+interface MakeupOccurrence {
+  class_group_id: string;
+  class_name: string;
+  occurrence_date: string;   // YYYY-MM-DD (서버 계약 필드명 고정)
+  schedule_time: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  is_mine: boolean;
+  available_slots: number;
+  is_full: boolean;
+  is_past: boolean;
+  is_today: boolean;
+  is_future: boolean;
+}
 
 interface MakeupSession {
   id: string;
@@ -29,12 +48,16 @@ interface MakeupSession {
   absence_date: string | null;
   status: string;
   expire_at: string | null;
+  /** 서버가 계산한 기간 초과 여부 (status=expired 또는 expire_at < KST now) */
+  is_expired?: boolean;
   assigned_class_group_name: string | null;
   note: string | null;
+  handed_to_teacher_id: string | null;
+  handed_to_teacher_name: string | null;
 }
-
 interface MakeupRequest {
   id: string;
+  student_id: string;
   student_name: string;
   class_name: string;
   original_date: string;
@@ -44,51 +67,41 @@ interface MakeupRequest {
   makeup_date: string | null;
   makeup_class_name: string | null;
 }
-
 interface Teacher {
   id: string;
   name: string;
   email: string;
 }
-
 type TabKey = "waiting" | "assigned" | "history";
-
-// 기타 보강 바텀시트 단계
 type HandoverStep = "menu" | "teacher_select" | "done";
-
 const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
   pending:   { bg: "#FFF1BF", text: "#D97706" },
-  approved:  { bg: "#E6FFFA", text: "#2EC4B6" },
+  approved:  { bg: C.brandMist, text: C.brandStrong },
   rejected:  { bg: "#F9DEDA", text: "#D96C6C" },
   completed: { bg: "#EEDDF5", text: "#7C3AED" },
 };
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기", approved: "승인", rejected: "거절", completed: "완료",
 };
-
-function fmtDate(s: string | null) {
-  if (!s) return "-";
-  const d = new Date(s + "T00:00:00");
-  const days = ["일","월","화","수","목","금","토"];
+function fmtDate(dateStr: string | null) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr + "T00:00:00");
+  const days = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getMonth() + 1}/${d.getDate()} (${days[d.getDay()]})`;
 }
-
 function fmtMonthLabel(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
 }
-
 function formatExpireAt(expire_at: string | null) {
   if (!expire_at) return null;
   const d = new Date(expire_at);
   const diffDays = Math.ceil((d.getTime() - Date.now()) / 86400000);
   const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : "#64748B";
+  const col = diffDays <= 7 ? "#D96C6C" : diffDays <= 14 ? "#D97706" : C.textSecondary;
   const label = diffDays < 0 ? `만료됨(${ds})` : diffDays <= 14 ? `만료 D-${diffDays}(${ds})` : `만료일: ${ds}`;
   return { text: label, color: col };
 }
-
-// 앞으로 4주간 특정 요일의 날짜 목록 생성
 function getNextDates(scheduleDays: string): { date: string; label: string }[] {
   const dayMap: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
   const labels = ["일", "월", "화", "수", "목", "금", "토"];
@@ -108,61 +121,100 @@ function getNextDates(scheduleDays: string): { date: string; label: string }[] {
   }
   return results;
 }
-
 export default function MakeupsScreen() {
   const { token, adminUser } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
-
+  const { mode } = useMode();
+  const isX = isXMode(mode);
   const [tab, setTab] = useState<TabKey>("waiting");
-
-  // 결석자 리스트 (탭 1)
   const [waitingList,    setWaitingList]    = useState<MakeupSession[]>([]);
   const [waitingLoading, setWaitingLoading] = useState(true);
   const [waitingRefresh, setWaitingRefresh] = useState(false);
-
-  // 보강반 배정 모달
   const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
   const [eligibleClasses, setEligibleClasses] = useState<any[]>([]);
   const [classLoading,    setClassLoading]    = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedDate,    setSelectedDate]    = useState<string | null>(null);
   const [assigning,       setAssigning]       = useState(false);
-
-  // 기타 보강 모달
   const [handoverTarget,  setHandoverTarget]  = useState<MakeupSession | null>(null);
   const [handoverStep,    setHandoverStep]    = useState<HandoverStep>("menu");
   const [teachers,        setTeachers]        = useState<Teacher[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [handoverSubmitting, setHandoverSubmitting] = useState(false);
-  const [handoverDoneMsg, setHandoverDoneMsg] = useState<string>("");
-
-  // 보강 소멸 확인
-  const [selfExtTarget,     setSelfExtTarget]     = useState<MakeupSession | null>(null);
-  const [selfExtSubmitting, setSelfExtSubmitting] = useState(false);
-
-  // 배정된 보강 (탭 2)
-  const [assignedList,    setAssignedList]    = useState<any[]>([]);
+  const [handoverDoneMsg,    setHandoverDoneMsg]    = useState("");
+  const [selfExtTarget,    setSelfExtTarget]    = useState<MakeupSession | null>(null);
+  const [selfExtSubmitting,setSelfExtSubmitting]= useState(false);
+  const [assignedList,    setAssignedList]    = useState<MakeupSession[]>([]);
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [completeTarget,  setCompleteTarget]  = useState<any | null>(null);
-
-  // 보강 현황 (탭 3)
+  const [revertingId,     setRevertingId]     = useState<string | null>(null);
   const [historyList,    setHistoryList]    = useState<MakeupRequest[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-
-  // 공통 알림
+  const [directCompleteTarget, setDirectCompleteTarget] = useState<MakeupSession | null>(null);
+  const [directCompleting,     setDirectCompleting]     = useState(false);
   const [confirmMsg, setConfirmMsg] = useState<string | null>(null);
+  // ── 검색 ─────────────────────────────────────────────────────────────────
+  const [searchText, setSearchText] = useState("");
+  // eligible-occurrences 기반 날짜 선택
+  const [occurrences,    setOccurrences]    = useState<MakeupOccurrence[]>([]);
+  const [occLoading,     setOccLoading]     = useState(false);
+  const [occError,       setOccError]       = useState(false);
+  const [occErrorDetail, setOccErrorDetail] = useState<{ status: number; code: string } | null>(null);
+  const [selectedOccurrence, setSelectedOccurrence] = useState<MakeupOccurrence | null>(null);
+  // sequence ID — 늦게 도착한 이전 반 응답이 현재 반을 덮어쓰지 않도록
+  const occSeqRef     = useRef(0);
+  const occPendingRef = useRef<Set<string>>(new Set());
+  // ── [DIAG] 진단 패널 ──────────────────────────────────────────────────────
+  const [diagVisible, setDiagVisible] = useState(false);
+  const diagTapRef = useRef(0);
+  const diagTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diagWaiting, setDiagWaiting] = useState<{
+    url: string; status: number | null; ct: string | null;
+    total: number; expired: number; julyExpired: number; oldestDate: string | null; fetchedAt: string;
+  } | null>(null);
+  const [diagOcc, setDiagOcc] = useState<{
+    makeupId: string; classGroupId: string | null; url: string;
+    attempt1: { status: number; rawBody: string; code: string | null; message: string | null } | null;
+    attempt2: { status: number; rawBody: string; code: string | null; message: string | null } | null;
+    networkError: { name: string; message: string } | null;
+    finalType: "OK" | "HTTP" | "NETWORK" | null;
+    occCount: number | null; fetchedAt: string;
+  } | null>(null);
+  // ── [/DIAG] ───────────────────────────────────────────────────────────────
+  /** 정렬 + 검색 필터 적용 목록 */
+  const filteredStudents = useMemo(() => {
+    const sorted = [...waitingList].sort((a, b) => {
+      if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+      return 0;
+    });
+    const q = searchText.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(mk => (mk.student_name ?? "").toLowerCase().includes(q));
+  }, [waitingList, searchText]);
 
-  // ── 결석자 리스트 로드 ──────────────────────────────────────────────────
   const loadWaiting = useCallback(async () => {
     try {
-      const res = await apiRequest(token, `/admin/makeups?status=waiting`);
-      if (res.ok) setWaitingList(await res.json());
+      const res = await apiRequest(token, `/teacher/makeups?status=waiting`);
+      const ct = res.headers?.get?.("content-type") ?? null;
+      if (res.ok) {
+        const data: MakeupSession[] = await res.json();
+        setWaitingList(data);
+        // [DIAG] waiting 진단 수집
+        const exp = data.filter((x: any) => x.is_expired);
+        const julyExp = exp.filter((x: any) => x.absence_date >= "2026-07-01" && x.absence_date < "2026-08-01");
+        setDiagWaiting({
+          url: `${API_BASE}/teacher/makeups?status=waiting`,
+          status: res.status, ct, total: data.length,
+          expired: exp.length, julyExpired: julyExp.length,
+          oldestDate: exp.length > 0 ? (exp[0] as any).absence_date : null,
+          fetchedAt: new Date().toISOString(),
+        });
+      }
     } catch (e) { console.error(e); }
     finally { setWaitingLoading(false); setWaitingRefresh(false); }
   }, [token]);
-
   const loadAssigned = useCallback(async () => {
     setAssignedLoading(true);
     try {
@@ -171,7 +223,6 @@ export default function MakeupsScreen() {
     } catch (e) { console.error(e); }
     finally { setAssignedLoading(false); }
   }, [token]);
-
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
@@ -180,22 +231,67 @@ export default function MakeupsScreen() {
     } catch (e) { console.error(e); }
     finally { setHistoryLoading(false); }
   }, [token]);
-
+  async function handleRevert(mk: MakeupSession) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강 대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/teacher/makeups/${mk.id}/revert`, { method: "PATCH" });
+              const contentType = res.headers?.get?.("content-type") ?? "";
+              const isJson = contentType.includes("application/json");
+              const resBody = isJson ? await res.json().catch(() => ({})) : {};
+              console.log(`[revert] id=${mk.id} http=${res.status} isJson=${isJson}`, JSON.stringify(resBody));
+              if (res.ok && isJson && resBody?.success === true) {
+                clearApiCache();
+                setAssignedList(prev => prev.filter(m => m.id !== mk.id));
+                setTimeout(() => loadAssigned(), 300);
+              } else if (!res.ok && isJson) {
+                Alert.alert("오류", resBody?.error || "배정 취소에 실패했습니다.");
+              } else {
+                Alert.alert("오류", "서버 응답이 올바르지 않습니다. 잠시 후 다시 시도해주세요.");
+              }
+            } catch {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            } finally {
+              setRevertingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
   useEffect(() => { if (tab === "assigned") loadAssigned(); }, [tab, loadAssigned]);
   useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
-
-  // 화면 포커스 시 대기 목록 갱신 (다른 화면에서 출결 변경 후 돌아왔을 때)
   useFocusEffect(useCallback(() => {
+    setSearchText(""); // 화면 재진입 시 검색어 초기화
     loadWaiting();
     if (tab === "assigned") loadAssigned();
   }, [loadWaiting, loadAssigned, tab]));
-
-  // ── 보강반 배정 ─────────────────────────────────────────────────────────
-  const openAssignModal = async (mk: MakeupSession) => {
-    setAssignTarget(mk);
+  /** occurrence 관련 공유 상태 초기화 헬퍼
+   *  occSeqRef를 올려 진행 중인 모든 eligible-occurrences 요청을 무효화한다. */
+  const resetOccState = () => {
+    occSeqRef.current += 1;       // in-flight 요청 무효화
+    occPendingRef.current.clear(); // pending key 모두 해제
     setSelectedClassId(null);
     setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccLoading(false);
+    setOccError(false);
+    setOccErrorDetail(null);
+  };
+
+  const openAssignModal = async (mk: MakeupSession) => {
+    setAssignTarget(mk);
+    resetOccState();
     setClassLoading(true);
     try {
       const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
@@ -204,34 +300,212 @@ export default function MakeupsScreen() {
     setClassLoading(false);
   };
 
-  const doAssign = async () => {
-    if (!assignTarget || !selectedClassId || !selectedDate) return;
+  /** 지난 보강 직접 완료 모달 열기 */
+  const openDirectCompleteModal = async (mk: MakeupSession) => {
+    setDirectCompleteTarget(mk);
+    resetOccState();
+    setClassLoading(true);
+    try {
+      const r = await apiRequest(token, `/teacher/makeups/eligible-classes?all=true`);
+      if (r.ok) setEligibleClasses(await r.json());
+    } catch {}
+    setClassLoading(false);
+  };
+
+  /** 지난 보강 직접 완료 모달 닫기 */
+  const closeDirectCompleteModal = () => {
+    setDirectCompleteTarget(null);
+    resetOccState();
+  };
+  const selectClass = async (classId: string) => {
+    // 배정 모달(assignTarget) 또는 직접 완료 모달(directCompleteTarget) 어느 쪽이든 처리
+    const activeTarget = assignTarget ?? directCompleteTarget;
+    // ── [LOG 1] 함수 시작 ──────────────────────────────────────────────────
+    console.log(`[selectClass] START classId=${classId} activeTarget=${activeTarget?.id ?? 'NULL'} token=${token ? 'EXISTS' : 'NULL'}`);
+    if (!activeTarget) {
+      // ── [LOG 2] return 지점: activeTarget 없음 ──────────────────────────
+      console.log('[selectClass] RETURN: activeTarget is null — assignTarget/directCompleteTarget 모두 null');
+      return;
+    }
+    // STEP 5: 동일 반+보강 조합 요청 진행 중 재호출 방지
+    const occKey = `${activeTarget.id}:${classId}`;
+    if (occPendingRef.current.has(occKey)) {
+      // ── [LOG 3] return 지점: 중복 요청 차단 ────────────────────────────
+      console.log(`[selectClass] RETURN: duplicate request occKey=${occKey}`);
+      return;
+    }
+    occPendingRef.current.add(occKey);
+    occSeqRef.current += 1;
+    const mySeq = occSeqRef.current;
+    setSelectedClassId(classId);
+    setSelectedDate(null);
+    setSelectedOccurrence(null);
+    setOccurrences([]);
+    setOccError(false);
+    setOccErrorDetail(null);
+    setOccLoading(true);
+    const _occUrl = `${API_BASE}/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
+    // [DIAG] 요청 시작 즉시 저장
+    setDiagOcc({ makeupId: activeTarget.id, classGroupId: classId, url: _occUrl,
+      attempt1: null, attempt2: null, networkError: null, finalType: null,
+      occCount: null, fetchedAt: new Date().toISOString() });
+    const _doRequest = async () => {
+      const reqUrl = `/teacher/makeups/${activeTarget.id}/eligible-occurrences?class_group_id=${classId}`;
+      console.log(`[selectClass] apiRequest 직전 makeupId=${activeTarget.id} classGroupId=${classId} url=${reqUrl}`);
+      const r = await apiRequest(token, reqUrl);
+      console.log(`[selectClass] apiRequest 응답 status=${r.status} ok=${r.ok}`);
+      return r;
+    };
+    const _readAttempt = async (r: Response) => {
+      const rawBody = await r.text();
+      let body: any = null;
+      try { body = rawBody ? JSON.parse(rawBody) : null; } catch {}
+      return {
+        status: r.status,
+        rawBody: rawBody.slice(0, 400),
+        code: (body?.error ?? body?.message ?? null) as string | null,
+        message: (body?.message ?? body?.error ?? null) as string | null,
+      };
+    };
+    try {
+      let r = await _doRequest();
+      // ── 1차 실패 시 attempt1 저장 → 500ms 후 retry ──────────────────────
+      if (!r.ok) {
+        const a1 = await _readAttempt(r);
+        console.log(`[selectClass] 1차 실패 status=${a1.status} code=${a1.code} — 500ms 후 재시도`);
+        setDiagOcc(prev => prev ? { ...prev, attempt1: a1 } : prev);
+        // crash-report (1차)
+        try {
+          apiRequest(token, `/crash-report`, {
+            method: "POST",
+            body: JSON.stringify({
+              message: "ELIGIBLE_OCCURRENCES_FAILED_1ST",
+              stack: `status:${a1.status} code:${a1.code} mkId:${activeTarget.id} cgId:${classId} body:${a1.rawBody}`,
+              isFatal: false, source: "selectClass",
+            }),
+          }).catch(() => {});
+        } catch {}
+        await new Promise(resolve => setTimeout(resolve, 500));
+        r = await _doRequest();
+        // ── 2차 응답 ──────────────────────────────────────────────────────
+        if (!r.ok) {
+          const a2 = await _readAttempt(r);
+          console.log(`[selectClass] 2차 실패 status=${a2.status} code=${a2.code}`);
+          setDiagOcc(prev => prev ? { ...prev, attempt2: a2, finalType: "HTTP" } : prev);
+          // crash-report (2차)
+          try {
+            apiRequest(token, `/crash-report`, {
+              method: "POST",
+              body: JSON.stringify({
+                message: "ELIGIBLE_OCCURRENCES_FAILED_2ND",
+                stack: `status:${a2.status} code:${a2.code} mkId:${activeTarget.id} cgId:${classId} body:${a2.rawBody}`,
+                isFatal: false, source: "selectClass",
+              }),
+            }).catch(() => {});
+          } catch {}
+          if (occSeqRef.current === mySeq) {
+            setOccError(true);
+            setOccErrorDetail({ status: a2.status, code: a2.code ?? "UNKNOWN" });
+          }
+          return; // finally로 이동
+        }
+        // 2차 성공
+        if (occSeqRef.current !== mySeq) return;
+        const data2 = await r.json();
+        console.log(`[selectClass] 2차 성공 occurrences=${data2.occurrences?.length ?? 0}`);
+        setOccurrences((data2.occurrences || []) as MakeupOccurrence[]);
+        setDiagOcc(prev => prev ? { ...prev, finalType: "OK", occCount: (data2.occurrences || []).length } : prev);
+        return;
+      }
+      // ── 1차 성공 ────────────────────────────────────────────────────────
+      if (occSeqRef.current !== mySeq) return;
+      const data = await r.json();
+      console.log(`[selectClass] 1차 성공 occurrences=${data.occurrences?.length ?? 0}`);
+      setOccurrences((data.occurrences || []) as MakeupOccurrence[]);
+      setDiagOcc(prev => prev ? { ...prev, finalType: "OK", occCount: (data.occurrences || []).length } : prev);
+    } catch (e: any) {
+      console.log(`[selectClass] CATCH e.name=${e?.name} e.message=${e?.message} mkId=${activeTarget.id} cgId=${classId}`);
+      // crash-report (network)
+      try {
+        apiRequest(token, `/crash-report`, {
+          method: "POST",
+          body: JSON.stringify({
+            message: "ELIGIBLE_OCCURRENCES_NETWORK_ERROR",
+            stack: `${e?.name}:${e?.message ?? "unknown"} mkId:${activeTarget.id} cgId:${classId}`,
+            isFatal: false, source: "selectClass",
+          }),
+        }).catch(() => {});
+      } catch {}
+      if (occSeqRef.current === mySeq) setOccError(true);
+      setDiagOcc(prev => prev ? {
+        ...prev,
+        networkError: { name: (e as any)?.name ?? "Error", message: (e as any)?.message ?? String(e) },
+        finalType: "NETWORK",
+      } : prev);
+    } finally {
+      occPendingRef.current.delete(occKey);
+      if (occSeqRef.current === mySeq) setOccLoading(false);
+    }
+  };
+  const doAssign = async (allowExpired = false) => {
+    if (!assignTarget || !selectedClassId || !selectedOccurrence) return;
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (assignTarget.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        "보강 가능 기간이 지난 항목입니다.\n그래도 처리하시겠습니까?",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => doAssign(true) },
+        ]
+      );
+      return;
+    }
+    // occurrence_date를 신뢰 (selectedDate는 동기화 보조값)
+    const occDate = selectedOccurrence.occurrence_date;
     setAssigning(true);
     try {
-      const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ class_group_id: selectedClassId, assigned_date: selectedDate }),
-      });
-      if (r.ok) {
-        setAssignTarget(null);
-        setSelectedClassId(null);
-        setSelectedDate(null);
-        loadWaiting();
-        loadAssigned();
-        setTab("assigned");
-        setConfirmMsg(`보강이 ${selectedDate}에 배정되었습니다.`);
-      } else if (r.status === 409) {
-        setConfirmMsg("이미 해당 날짜에 보강이 배정되어 있습니다.");
+      // 서버 응답 occ 기준 class_group_id 사용 (selectedClassId는 화면 표시용)
+      const occClassId = selectedOccurrence.class_group_id;
+      if (selectedOccurrence.is_future) {
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/assign`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ class_group_id: occClassId, assigned_date: occDate, allow_expired: allowExpired }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok && isJson) {
+          resetOccState(); setAssignTarget(null);
+          loadWaiting(); loadAssigned(); setTab("assigned");
+          setConfirmMsg(`보강이 ${occDate}에 배정되었습니다.`);
+        } else if (r.status === 409) {
+          setConfirmMsg(body?.message || "이미 처리된 보강입니다.");
+        } else {
+          setConfirmMsg(body?.message || body?.error || "배정에 실패했습니다.");
+        }
       } else {
-        const body = await r.json().catch(() => ({}));
-        setConfirmMsg(body.error || "배정에 실패했습니다.");
+        // 당일 또는 과거 — complete-direct
+        const r = await apiRequest(token, `/teacher/makeups/${assignTarget.id}/complete-direct`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: occDate, class_group_id: occClassId, allow_expired: allowExpired }),
+        });
+        const ct = r.headers?.get?.("content-type") ?? "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await r.json().catch(() => ({})) : {};
+        if (r.ok) {
+          resetOccState(); setAssignTarget(null);
+          loadWaiting(); loadAssigned();
+          setConfirmMsg(`${occDate} 보강 완료 처리되었습니다.`);
+        } else {
+          setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
+        }
       }
     } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
     setAssigning(false);
   };
-
-  // ── 기타 보강: 인계 직접 진입 (메뉴 단계 생략) ──────────────────────────
   const openHandoverDirect = async (mk: MakeupSession) => {
     setHandoverTarget(mk);
     setHandoverStep("teacher_select");
@@ -244,76 +518,120 @@ export default function MakeupsScreen() {
     } catch { setConfirmMsg("선생님 목록을 불러오지 못했습니다."); }
     setTeachersLoading(false);
   };
-
-  // A. 다른 선생님에게 인계 확인
   const doHandover = async () => {
     if (!handoverTarget || !selectedTeacher) return;
+    const removedId = handoverTarget.id;
+    setWaitingList(prev => prev.filter(m => m.id !== removedId));
+    setHandoverStep("done");
+    setHandoverDoneMsg(`${selectedTeacher.name} 선생님에게 인계되었습니다.\n${selectedTeacher.name} 선생님 보강 대기 목록에 추가됩니다.`);
     setHandoverSubmitting(true);
     try {
-      const r = await apiRequest(token, `/admin/makeups/${handoverTarget.id}/handover`, {
+      const r = await apiRequest(token, `/teacher/makeups/${removedId}/handover`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ receiver_teacher_id: selectedTeacher.id }),
       });
-      if (r.ok) {
-        setHandoverDoneMsg(`${selectedTeacher.name} 선생님 정산에\n기타 1시수가 반영되었습니다.`);
-        setHandoverStep("done");
-        loadWaiting();
-      } else {
+      if (!r.ok) {
         const d = await r.json().catch(() => ({}));
+        setHandoverStep("teacher_select");
+        setWaitingList(prev => {
+          if (prev.some(m => m.id === removedId)) return prev;
+          return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
+        });
         setConfirmMsg(d.error || "처리에 실패했습니다.");
       }
-    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    } catch {
+      setHandoverStep("teacher_select");
+      setWaitingList(prev => {
+        if (prev.some(m => m.id === removedId)) return prev;
+        return [{ ...handoverTarget, handed_to_teacher_id: null, handed_to_teacher_name: null }, ...prev];
+      });
+      setConfirmMsg("네트워크 오류가 발생했습니다.");
+    }
     setHandoverSubmitting(false);
   };
-
-  // B. 보강 소멸 처리
   const doSelfExtinguish = async () => {
     if (!selfExtTarget) return;
     setSelfExtSubmitting(true);
     try {
       const r = await apiRequest(token, `/admin/makeups/${selfExtTarget.id}/self-extinguish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
       });
       if (r.ok) {
+        setWaitingList(prev => prev.filter(m => m.id !== selfExtTarget.id));
         setSelfExtTarget(null);
         setHandoverTarget(null);
-        loadWaiting();
         setConfirmMsg("보강이 소멸 처리되었습니다.\n내 정산에 기타 1시수가 반영됩니다.");
       } else {
-        const d = await r.json().catch(() => ({}));
-        setConfirmMsg(d.error || "처리에 실패했습니다.");
         setSelfExtTarget(null);
       }
-    } catch {
-      setConfirmMsg("네트워크 오류가 발생했습니다.");
-      setSelfExtTarget(null);
-    }
+    } catch { setSelfExtTarget(null); }
     setSelfExtSubmitting(false);
   };
-
   const closeHandover = () => {
     setHandoverTarget(null);
     setHandoverStep("menu");
-    setSelectedTeacher(null);
   };
-
-  // ── 배정된 보강 완료 ─────────────────────────────────────────────────────
+  /** 지난 보강 직접 완료 실행 (occ = 서버 응답 회차 기준) */
+  async function doDirectComplete(occ: MakeupOccurrence, allowExpired = false) {
+    if (!directCompleteTarget) return;
+    // 기간 지난 보강: 최초 시도 시 확인 Alert
+    if (directCompleteTarget.is_expired && !allowExpired) {
+      Alert.alert(
+        "기간 지난 보강",
+        "보강 가능 기간이 지난 항목입니다.\n그래도 완료 처리하시겠습니까?",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "처리하기", onPress: () => doDirectComplete(occ, true) },
+        ]
+      );
+      return;
+    }
+    const snapshot = { ...directCompleteTarget }; // 모달 닫기 전 캡처
+    const targetId = snapshot.id;
+    // 모달 즉시 닫고 목록에서 낙관적 제거
+    closeDirectCompleteModal();
+    setWaitingList(prev => prev.filter(m => m.id !== targetId));
+    setDirectCompleting(true);
+    try {
+      const r = await apiRequest(token, `/teacher/makeups/${targetId}/complete-direct`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: occ.occurrence_date, class_group_id: occ.class_group_id, allow_expired: allowExpired }),
+      });
+      const ct = r.headers?.get?.("content-type") ?? "";
+      const isJson = ct.includes("application/json");
+      const body = isJson ? await r.json().catch(() => ({})) : {};
+      if (r.ok) {
+        setConfirmMsg(`${occ.occurrence_date} 보강 완료 처리되었습니다.`);
+      } else {
+        setConfirmMsg(body?.message || body?.error || "처리에 실패했습니다.");
+        // 실패 시 목록 복원
+        setWaitingList(prev => {
+          if (prev.some(m => m.id === targetId)) return prev;
+          return [{ ...snapshot }, ...prev];
+        });
+      }
+      loadWaiting();
+    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    setDirectCompleting(false);
+  }
   async function handleTeacherComplete(id: string) {
     try {
       const res = await apiRequest(token, `/teacher/makeups/${id}/complete`, { method: "PATCH" });
-      if (res.ok) {
+      const contentType = res.headers?.get?.("content-type") ?? "";
+      const isJson = contentType.includes("application/json");
+      const resBody = isJson ? await res.json().catch(() => ({})) : {};
+      console.log(`[complete] id=${id} http=${res.status} isJson=${isJson}`, JSON.stringify(resBody));
+      if (res.ok && isJson) {
         setAssignedList(prev => prev.filter(m => m.id !== id));
-      } else {
-        const d = await res.json().catch(() => ({}));
-        setConfirmMsg(d.error || "처리에 실패했습니다.");
+      } else if (!res.ok && isJson) {
+        setConfirmMsg(resBody.error || "처리에 실패했습니다.");
+      } else if (!res.ok) {
+        setConfirmMsg("처리에 실패했습니다.");
       }
-    } catch { setConfirmMsg("네트워크 오류가 발생했습니다."); }
+    } catch {}
     setCompleteTarget(null);
   }
-
-  // ── 보강 현황 그룹화 ─────────────────────────────────────────────────────
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const prevMonth = (() => {
@@ -326,14 +644,15 @@ export default function MakeupsScreen() {
   const olderHist      = pendingHistory.filter(r =>
     !r.original_date.startsWith(thisMonth) && !r.original_date.startsWith(prevMonth)
   );
-
   function renderHistoryCard(item: MakeupRequest) {
     const sc = STATUS_COLOR[item.status] ?? STATUS_COLOR.pending;
     return (
       <View key={item.id} style={[s.card, { backgroundColor: C.card }]}>
         <View style={s.cardTop}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={s.studentName}>{item.student_name}</Text>
+            <Pressable onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.student_id, backTo: "makeups" } } as any)}>
+              <Text style={s.studentName}>{item.student_name}</Text>
+            </Pressable>
             <Text style={s.className}>{item.class_name}</Text>
           </View>
           <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
@@ -341,13 +660,13 @@ export default function MakeupsScreen() {
           </View>
         </View>
         <View style={s.infoRow}>
-          <Calendar size={13} color={C.textSecondary} />
+          <LucideIcon name="calendar" size={13} color={C.textSecondary} />
           <Text style={s.infoTxt}>결석일: {fmtDate(item.original_date)}</Text>
         </View>
         {item.makeup_date ? (
           <View style={s.infoRow}>
-            <CircleCheck size={13} color="#2EC4B6" />
-            <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>
+            <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
+            <Text style={[s.infoTxt, { color: C.brandStrong }]}>
               보강일: {fmtDate(item.makeup_date)}{item.makeup_class_name ? ` · ${item.makeup_class_name}` : ""}
             </Text>
           </View>
@@ -355,7 +674,6 @@ export default function MakeupsScreen() {
       </View>
     );
   }
-
   function renderHistoryGroup(label: string, items: MakeupRequest[]) {
     if (items.length === 0) return null;
     return (
@@ -365,21 +683,32 @@ export default function MakeupsScreen() {
       </View>
     );
   }
-
   return (
-    <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="결석자 리스트" homePath="/(teacher)/today-schedule" />
-
+    <SafeAreaView style={[s.safe, isX && { backgroundColor: XT.background }]} edges={[]}>
+      <SubScreenHeader title="보강 대기" homePath="/(teacher)/today-schedule" />
       {/* 탭 */}
       <View style={{ flexDirection: "row", paddingHorizontal: 10, paddingVertical: 10, gap: 6, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border }}>
         <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "waiting" && { backgroundColor: themeColor, borderColor: themeColor }]}
-          onPress={() => setTab("waiting")}
+          onPress={() => {
+            setTab("waiting");
+            // [DIAG] 7번 연속 탭 → 진단 패널
+            diagTapRef.current += 1;
+            if (diagTapTimerRef.current) clearTimeout(diagTapTimerRef.current);
+            if (diagTapRef.current >= 7) {
+              diagTapRef.current = 0;
+              setDiagVisible(true);
+            } else {
+              diagTapTimerRef.current = setTimeout(() => { diagTapRef.current = 0; }, 2000);
+            }
+          }}
+          onLongPress={() => setDiagVisible(true)}
+          delayLongPress={2000}
         >
           {waitingList.length > 0 && tab !== "waiting" && (
             <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{waitingList.length}</Text></View>
           )}
-          <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>결석자 리스트</Text>
+          <Text style={[s.tabTxt, tab === "waiting" && { color: "#fff" }]}>보강 대기</Text>
         </Pressable>
         <Pressable
           style={[s.tabBtn, { flex: 1, justifyContent: "center" }, tab === "assigned" && { backgroundColor: "#7C3AED", borderColor: "#7C3AED" }]}
@@ -397,87 +726,158 @@ export default function MakeupsScreen() {
           <Text style={[s.tabTxt, tab === "history" && { color: "#fff" }]}>보강 현황</Text>
         </Pressable>
       </View>
-
       {/* ── 탭 1: 결석자 리스트 ─────────────────────────────────────────── */}
       {tab === "waiting" && (
-        waitingLoading ? (
-          <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
-        ) : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
-            refreshControl={
-              <RefreshControl
-                refreshing={waitingRefresh}
-                onRefresh={() => { setWaitingRefresh(true); loadWaiting(); }}
-                tintColor={themeColor}
-              />
-            }
-          >
-            {waitingList.length === 0 ? (
-              <View style={s.empty}>
-                <CircleCheck size={36} color={C.textMuted} />
-                <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
-              </View>
-            ) : waitingList.map(mk => {
-              const expireInfo = formatExpireAt(mk.expire_at);
-              return (
-                <View key={mk.id} style={[s.card, { backgroundColor: C.card }]}>
-                  <View style={s.cardTop}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={s.studentName}>{mk.student_name || "-"}</Text>
-                      <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
-                    </View>
-                    <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
-                      <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
-                    </View>
-                  </View>
-                  <View style={s.infoRow}>
-                    <Calendar size={13} color={C.textSecondary} />
-                    <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
-                  </View>
-                  {expireInfo && (
-                    <View style={s.infoRow}>
-                      <Clock size={13} color={expireInfo.color} />
-                      <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
-                    </View>
-                  )}
-                  {mk.assigned_class_group_name && (
-                    <View style={s.infoRow}>
-                      <CircleCheck size={13} color="#2EC4B6" />
-                      <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
-                    </View>
-                  )}
-                  <View style={s.btnRow}>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: C.button }]}
-                      onPress={() => openAssignModal(mk)}
-                    >
-                      <Calendar size={14} color="#fff" />
-                      <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
-                      onPress={() => openHandoverDirect(mk)}
-                    >
-                      <UserPlus size={14} color="#4F46E5" />
-                      <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
-                      onPress={() => setSelfExtTarget(mk)}
-                    >
-                      <CircleX size={14} color="#DC2626" />
-                      <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
-                    </Pressable>
-                  </View>
+        <>
+          {/* 검색 인덱스 — 탭 바 아래 고정 */}
+          <View style={s.searchBar}>
+            <LucideIcon name="search" size={15} color={C.textSecondary} />
+            <TextInput
+              style={s.searchInput}
+              placeholder="학생 이름 검색"
+              placeholderTextColor={C.textSecondary}
+              value={searchText}
+              onChangeText={setSearchText}
+              returnKeyType="done"
+              clearButtonMode="while-editing"
+              onSubmitEditing={() => Keyboard.dismiss()}
+            />
+            {searchText.length > 0 && Platform.OS === "android" && (
+              <Pressable onPress={() => setSearchText("")} hitSlop={8}>
+                <LucideIcon name="x" size={15} color={C.textSecondary} />
+              </Pressable>
+            )}
+          </View>
+          {waitingLoading ? (
+            <ActivityIndicator color={themeColor} style={{ marginTop: 80 }} />
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 60 }]}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              refreshControl={
+                <RefreshControl
+                  refreshing={waitingRefresh}
+                  onRefresh={() => { setWaitingRefresh(true); loadWaiting(); }}
+                  tintColor={themeColor}
+                />
+              }
+            >
+              {waitingList.length === 0 ? (
+                <View style={s.empty}>
+                  <LucideIcon name="check-circle" size={36} color={C.textMuted} />
+                  <Text style={s.emptyTxt}>처리할 결석자가 없습니다</Text>
                 </View>
-              );
-            })}
-          </ScrollView>
-        )
+              ) : filteredStudents.length === 0 ? (
+                <View style={s.empty}>
+                  <Text style={s.emptyTxt}>검색 결과가 없습니다.</Text>
+                </View>
+              ) : (() => {
+                  const firstExpiredIdx = filteredStudents.findIndex(mk => mk.is_expired);
+                  const expiredCount = firstExpiredIdx >= 0 ? filteredStudents.length - firstExpiredIdx : 0;
+                  return filteredStudents.map((mk, idx) => {
+                    const showSeparator = firstExpiredIdx >= 0 && idx === firstExpiredIdx;
+                const expireInfo = formatExpireAt(mk.expire_at);
+                return (
+                  <React.Fragment key={mk.id}>
+                    {showSeparator && (
+                      <View style={s.expiredSection}>
+                        <View style={s.expiredSectionLine} />
+                        <Text style={s.expiredSectionTxt}>기간 지난 보강 ({expiredCount}건)</Text>
+                        <View style={s.expiredSectionLine} />
+                      </View>
+                    )}
+                  <View
+                    style={[
+                      s.card,
+                      { backgroundColor: C.card },
+                      mk.is_expired && { borderLeftWidth: 3, borderLeftColor: C.textMuted },
+                    ]}
+                  >
+                    <View style={s.cardTop}>
+                      {/* 학생 이름/반 → student-detail */}
+                      <Pressable
+                        style={{ flex: 1, gap: 2 }}
+                        onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: mk.student_id, backTo: "makeups" } } as any)}
+                      >
+                        <Text style={s.studentName}>{mk.student_name || "-"}</Text>
+                        <Text style={s.className}>{mk.original_class_group_name || "미배정"}</Text>
+                        {mk.handed_to_teacher_id === adminUser?.id && mk.original_teacher_name && (
+                          <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4F46E5" }}>
+                            인계 from {mk.original_teacher_name}
+                          </Text>
+                        )}
+                      </Pressable>
+                      {mk.is_expired ? (
+                        <View style={[s.statusBadge, { backgroundColor: C.backgroundSoft }]}>
+                          <Text style={[s.statusTxt, { color: C.textSecondary }]}>기간 지난 보강</Text>
+                        </View>
+                      ) : mk.handed_to_teacher_id === adminUser?.id ? (
+                        <View style={[s.statusBadge, { backgroundColor: "#EEF2FF" }]}>
+                          <Text style={[s.statusTxt, { color: "#4F46E5" }]}>이관받음</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.statusBadge, { backgroundColor: "#FFF1BF" }]}>
+                          <Text style={[s.statusTxt, { color: "#D97706" }]}>대기</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={s.infoRow}>
+                      <LucideIcon name="calendar" size={13} color={C.textSecondary} />
+                      <Text style={s.infoTxt}>결석일: {fmtDate(mk.absence_date)}</Text>
+                    </View>
+                    {expireInfo && (
+                      <View style={s.infoRow}>
+                        <LucideIcon name="clock" size={13} color={expireInfo.color} />
+                        <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
+                      </View>
+                    )}
+                    {mk.assigned_class_group_name && (
+                      <View style={s.infoRow}>
+                        <LucideIcon name="check-circle" size={13} color={C.brandStrong} />
+                        <Text style={[s.infoTxt, { color: C.brandStrong }]}>배정반: {mk.assigned_class_group_name}</Text>
+                      </View>
+                    )}
+                    <View style={s.btnRow}>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: C.primaryAction }]}
+                        onPress={() => openAssignModal(mk)}
+                      >
+                        <LucideIcon name="calendar" size={14} color="#fff" />
+                        <Text style={[s.actionTxt, { color: "#fff" }]}>보강반 배정</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: "#EEF2FF", flex: undefined, paddingHorizontal: 12 }]}
+                        onPress={() => openHandoverDirect(mk)}
+                      >
+                        <LucideIcon name="user-plus" size={14} color="#4F46E5" />
+                        <Text style={[s.actionTxt, { color: "#4F46E5" }]}>인계</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[s.actionBtn, { backgroundColor: "#FEF2F2", flex: undefined, paddingHorizontal: 12 }]}
+                        onPress={() => setSelfExtTarget(mk)}
+                      >
+                        <LucideIcon name="x-circle" size={14} color="#DC2626" />
+                        <Text style={[s.actionTxt, { color: "#DC2626" }]}>소멸</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable
+                      style={[s.actionBtn, { backgroundColor: "#ECFDF5", marginTop: 2 }]}
+                      onPress={() => openDirectCompleteModal(mk)}
+                    >
+                      <LucideIcon name="check-circle" size={14} color="#059669" />
+                      <Text style={[s.actionTxt, { color: "#059669" }]}>지난 보강 직접 완료</Text>
+                    </Pressable>
+                  </View>
+                  </React.Fragment>
+                );
+              });
+            })()}
+            </ScrollView>
+          )}
+        </>
       )}
-
       {/* ── 탭 2: 배정된 보강 ──────────────────────────────────────────────── */}
       {tab === "assigned" && (
         assignedLoading ? (
@@ -490,7 +890,7 @@ export default function MakeupsScreen() {
           >
             {assignedList.length === 0 ? (
               <View style={s.empty}>
-                <UserCheck size={36} color={C.textMuted} />
+                <LucideIcon name="user-check" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>배정된 대리 보강이 없습니다</Text>
               </View>
             ) : (
@@ -503,24 +903,24 @@ export default function MakeupsScreen() {
                         <View style={{ flex: 1, gap: 3 }}>
                           <Text style={[s.studentName, { color: "#7C3AED" }]}>{mk.student_name}</Text>
                           <View style={s.infoRow}>
-                            <Calendar size={12} color={C.textSecondary} />
+                            <LucideIcon name="calendar" size={12} color={C.textSecondary} />
                             <Text style={s.infoTxt}>결석일: {mk.absence_date}</Text>
                           </View>
                           {mk.original_class_group_name && (
                             <View style={s.infoRow}>
-                              <Users size={12} color={C.textSecondary} />
+                              <LucideIcon name="users" size={12} color={C.textSecondary} />
                               <Text style={s.infoTxt}>원반: {mk.original_class_group_name}  담당: {mk.original_teacher_name || "미배정"}</Text>
                             </View>
                           )}
                           {mk.assigned_class_group_name && (
                             <View style={s.infoRow}>
-                              <CircleCheck size={12} color="#2EC4B6" />
-                              <Text style={[s.infoTxt, { color: "#2EC4B6" }]}>배정반: {mk.assigned_class_group_name}</Text>
+                              <LucideIcon name="check-circle" size={12} color={C.brandStrong} />
+                              <Text style={[s.infoTxt, { color: C.brandStrong }]}>배정반: {mk.assigned_class_group_name}</Text>
                             </View>
                           )}
                           {expireInfo && (
                             <View style={s.infoRow}>
-                              <Clock size={12} color={expireInfo.color} />
+                              <LucideIcon name="clock" size={12} color={expireInfo.color} />
                               <Text style={[s.infoTxt, { color: expireInfo.color, fontFamily: "Pretendard-Regular" }]}>{expireInfo.text}</Text>
                             </View>
                           )}
@@ -529,13 +929,27 @@ export default function MakeupsScreen() {
                           <Text style={{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7C3AED" }}>대리보강</Text>
                         </View>
                       </View>
-                      <Pressable
-                        style={[s.actionBtn, { backgroundColor: "#EEDDF5", marginTop: 10, flex: undefined, paddingHorizontal: 16 }]}
-                        onPress={() => setCompleteTarget(mk)}
-                      >
-                        <CircleCheck size={15} color="#7C3AED" />
-                        <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Regular" }]}>보강 완료 확인</Text>
-                      </Pressable>
+                      <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                        <Pressable
+                          style={[s.actionBtn, { backgroundColor: "#EEDDF5", flex: 1, paddingHorizontal: 12 }]}
+                          onPress={() => setCompleteTarget(mk)}
+                        >
+                          <LucideIcon name="check-circle" size={15} color="#7C3AED" />
+                          <Text style={[s.actionTxt, { color: "#7C3AED", fontFamily: "Pretendard-Regular" }]}>완료 확인</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[s.actionBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", flex: 1, paddingHorizontal: 12, opacity: revertingId === mk.id ? 0.5 : 1 }]}
+                          onPress={() => handleRevert(mk)}
+                          disabled={revertingId === mk.id}
+                        >
+                          {revertingId === mk.id
+                            ? <ActivityIndicator size="small" color="#D97706" />
+                            : <>
+                                <LucideIcon name="rotate-ccw" size={14} color="#D97706" />
+                                <Text style={[s.actionTxt, { color: "#D97706", fontFamily: "Pretendard-Regular" }]}>배정 취소</Text>
+                              </>}
+                        </Pressable>
+                      </View>
                     </View>
                   );
                 })}
@@ -544,7 +958,6 @@ export default function MakeupsScreen() {
           </ScrollView>
         )
       )}
-
       {/* ── 탭 3: 보강 현황 ──────────────────────────────────────────────── */}
       {tab === "history" && (
         historyLoading ? (
@@ -557,7 +970,7 @@ export default function MakeupsScreen() {
           >
             {pendingHistory.length === 0 ? (
               <View style={s.empty}>
-                <Calendar size={36} color={C.textMuted} />
+                <LucideIcon name="calendar" size={36} color={C.textMuted} />
                 <Text style={s.emptyTxt}>보강 현황 내역이 없습니다</Text>
               </View>
             ) : (
@@ -570,12 +983,11 @@ export default function MakeupsScreen() {
           </ScrollView>
         )
       )}
-
       {/* ── 보강반 배정 모달 ──────────────────────────────────────────────── */}
       {assignTarget && (
-        <Modal visible animationType="slide" transparent onRequestClose={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} statusBarTranslucent>
-          <Pressable style={s.backdrop} onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }}>
-            <Pressable style={s.sheet} onPress={() => {}}>
+        <Modal visible animationType="slide" transparent onRequestClose={() => { resetOccState(); setAssignTarget(null); }} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={() => { resetOccState(); setAssignTarget(null); }}>
+            <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
               <View style={s.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -583,7 +995,7 @@ export default function MakeupsScreen() {
                     <>
                       <Text style={s.sheetTitle}>보강 날짜 선택</Text>
                       <Text style={s.sheetSub}>
-                        {eligibleClasses.find(c => c.id === selectedClassId)?.name} · 앞으로 4주
+                        {eligibleClasses.find(c => c.id === selectedClassId)?.name} · 날짜를 선택하세요
                       </Text>
                     </>
                   ) : (
@@ -594,24 +1006,23 @@ export default function MakeupsScreen() {
                   )}
                 </View>
                 {selectedClassId && !selectedDate ? (
-                  <Pressable onPress={() => setSelectedClassId(null)} style={{ padding: 4 }}>
-                    <ArrowLeft size={20} color={C.textSecondary} />
+                  <Pressable onPress={resetOccState} style={{ padding: 4 }}>
+                    <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { setAssignTarget(null); setSelectedClassId(null); setSelectedDate(null); }} style={{ padding: 4 }}>
-                    <X size={20} color={C.textSecondary} />
+                  <Pressable onPress={() => { resetOccState(); setAssignTarget(null); }} style={{ padding: 4 }}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
                   </Pressable>
                 )}
               </View>
-
-              {/* 단계 1: 반 선택 (내 반 우선, 다른 선생님 반 하단) */}
+              {/* 단계 1: 반 선택 */}
               {!selectedClassId && (
-                <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                   {classLoading ? (
                     <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                   ) : eligibleClasses.length === 0 ? (
                     <View style={s.empty}>
-                      <CircleAlert size={24} color={C.textMuted} />
+                      <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
                       <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
                     </View>
                   ) : (() => {
@@ -621,9 +1032,9 @@ export default function MakeupsScreen() {
                       <Pressable
                         key={cg.id}
                         style={s.classRow}
-                        onPress={() => { setSelectedClassId(cg.id); setSelectedDate(null); }}
+                        onPress={() => selectClass(cg.id)}
                       >
-                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : "#9CA3AF"} />
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? themeColor : C.textMuted} />
                         <View style={{ flex: 1 }}>
                           <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
                           <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
@@ -641,7 +1052,7 @@ export default function MakeupsScreen() {
                         )}
                         {otherClasses.length > 0 && (
                           <>
-                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: "#9CA3AF" }]}>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.textMuted }]}>
                               다른 선생님 반 (인계 처리)
                             </Text>
                             {otherClasses.map(renderClassRow)}
@@ -653,41 +1064,91 @@ export default function MakeupsScreen() {
                   <View style={{ height: 16 }} />
                 </ScrollView>
               )}
-
-              {/* 단계 2: 날짜 선택 */}
+              {/* 단계 2: 날짜 선택 (eligible-occurrences 기반) */}
               {selectedClassId && !selectedDate && (() => {
-                const selClass = eligibleClasses.find(c => c.id === selectedClassId);
-                const dates = selClass ? getNextDates(selClass.schedule_days || "") : [];
-                return (
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
-                    {dates.length === 0 ? (
-                      <View style={s.empty}>
-                        <CircleAlert size={24} color={C.textMuted} />
-                        <Text style={s.emptyTxt}>앞으로 4주간 해당 요일이 없습니다</Text>
+                if (occLoading) return (
+                  <ActivityIndicator color="#7C3AED" style={{ marginVertical: 40 }} />
+                );
+                if (occError) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>
+                      {"수업 회차를 불러오지 못했습니다"}
+                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
+                    </Text>
+                    <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
+                  </View>
+                );
+                if (occurrences.length === 0) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>배정 가능한 날짜가 없습니다</Text>
+                  </View>
+                );
+                const past   = occurrences.filter((o: MakeupOccurrence) => o.is_past);
+                const today  = occurrences.filter((o: MakeupOccurrence) => o.is_today);
+                const future = occurrences.filter((o: MakeupOccurrence) => o.is_future);
+                const days = ["일","월","화","수","목","금","토"];
+                function fmtOcc(dateStr: string) {
+                  const d = new Date(dateStr + "T00:00:00");
+                  return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
+                }
+                function renderOccRow(occ: MakeupOccurrence) {
+                  return (
+                    <Pressable
+                      key={occ.occurrence_date}
+                      style={[s.classRow]}
+                      onPress={() => {
+                        setSelectedDate(occ.occurrence_date);
+                        setSelectedOccurrence(occ);
+                      }}
+                    >
+                      <LucideIcon name="check-circle" size={16} color="#7C3AED" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{fmtOcc(occ.occurrence_date)}</Text>
                       </View>
-                    ) : dates.map(({ date, label }) => (
-                      <Pressable
-                        key={date}
-                        style={[s.classRow, { justifyContent: "space-between" }]}
-                        onPress={() => setSelectedDate(date)}
-                      >
-                        <LucideIcon name="check-circle" size={16} color="#7C3AED" />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>{label}</Text>
+                      {occ.is_full && (
+                        <View style={{ backgroundColor: occ.is_future ? "#F9DEDA" : "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: occ.is_future ? "#D96C6C" : "#D97706" }}>
+                            {occ.is_future ? "정원마감" : "정원초과"}
+                          </Text>
                         </View>
-                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
-                      </Pressable>
-                    ))}
+                      )}
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                    </Pressable>
+                  );
+                }
+                return (
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+                    {past.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>지난 수업</Text>
+                        {past.map(renderOccRow)}
+                      </>
+                    )}
+                    {today.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.brandStrong }]}>오늘</Text>
+                        {today.map(renderOccRow)}
+                      </>
+                    )}
+                    {future.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>예정 수업</Text>
+                        {future.map(renderOccRow)}
+                      </>
+                    )}
                     <View style={{ height: 16 }} />
                   </ScrollView>
                 );
               })()}
-
               {/* 단계 3: 확인 및 배정 확정 */}
               {selectedClassId && selectedDate && (
                 <>
                   <View style={{ padding: 16, gap: 10 }}>
-                    <View style={[s.assignedInfo]}>
+                    <View style={s.assignedInfo}>
                       <LucideIcon name="check-circle" size={18} color="#7C3AED" />
                       <Text style={s.assignedInfoTxt}>
                         {`${eligibleClasses.find(c => c.id === selectedClassId)?.name}\n${fmtDate(selectedDate)} 보강 수업`}
@@ -696,54 +1157,221 @@ export default function MakeupsScreen() {
                   </View>
                   <View style={{ paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 8 }}>
                     <Pressable
-                      style={[s.confirmBtn, { backgroundColor: C.button, opacity: assigning ? 0.6 : 1 }]}
-                      onPress={doAssign}
+                      style={[s.confirmBtn, { backgroundColor: C.primaryAction, opacity: assigning ? 0.6 : 1 }]}
+                      onPress={() => doAssign()}
                       disabled={assigning}
                     >
                       {assigning ? <ActivityIndicator color="#fff" /> : <Text style={s.confirmTxt}>배정 확정</Text>}
                     </Pressable>
                     <Pressable
                       style={[s.confirmBtn, { backgroundColor: C.card, borderWidth: 1, borderColor: C.border }]}
-                      onPress={() => setSelectedDate(null)}
+                      onPress={() => { setSelectedDate(null); setSelectedOccurrence(null); }}
                     >
                       <Text style={[s.confirmTxt, { color: C.textSecondary }]}>날짜 다시 선택</Text>
                     </Pressable>
                   </View>
                 </>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
+      {/* ── 지난 보강 직접 완료 모달 (새 3단계 흐름) ─────────────────────── */}
+      {directCompleteTarget && (
+        <Modal visible animationType="slide" transparent onRequestClose={closeDirectCompleteModal} statusBarTranslucent>
+          <Pressable style={s.backdrop} onPress={closeDirectCompleteModal}>
+            <View style={[s.sheet, { height: "70%" }]} onStartShouldSetResponder={() => true}>
+              <View style={s.sheetHandle} />
+              <View style={s.sheetHeader}>
+                <View style={{ flex: 1 }}>
+                  {selectedClassId ? (
+                    <>
+                      <Text style={s.sheetTitle}>보강 날짜 선택</Text>
+                      <Text style={s.sheetSub}>
+                        {eligibleClasses.find((c: any) => c.id === selectedClassId)?.name} · 지난 수업 / 오늘
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={s.sheetTitle}>지난 보강 직접 완료</Text>
+                      <Text style={s.sheetSub}>{directCompleteTarget.student_name} · 결석일: {fmtDate(directCompleteTarget.absence_date)}</Text>
+                    </>
+                  )}
+                </View>
+                {selectedClassId ? (
+                  <Pressable
+                    onPress={resetOccState}
+                    style={{ padding: 4 }}
+                  >
+                    <LucideIcon name="arrow-left" size={20} color={C.textSecondary} />
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={closeDirectCompleteModal} style={{ padding: 4 }}>
+                    <LucideIcon name="x" size={20} color={C.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
 
+              {/* 단계 1: 반 선택 */}
+              {!selectedClassId && (
+                <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+                  {classLoading ? (
+                    <ActivityIndicator color="#059669" style={{ marginVertical: 32 }} />
+                  ) : eligibleClasses.length === 0 ? (
+                    <View style={s.empty}>
+                      <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                      <Text style={s.emptyTxt}>배정 가능한 반이 없습니다</Text>
+                    </View>
+                  ) : (() => {
+                    const myClasses    = eligibleClasses.filter((cg: any) => cg.is_mine);
+                    const otherClasses = eligibleClasses.filter((cg: any) => !cg.is_mine);
+                    const renderDcClassRow = (cg: any) => (
+                      <Pressable key={cg.id} style={s.classRow} onPress={() => selectClass(cg.id)}>
+                        <LucideIcon name="calendar" size={16} color={cg.is_mine ? "#059669" : C.textMuted} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.className, { fontSize: 14, color: C.text }]}>{cg.name}</Text>
+                          <Text style={s.infoTxt}>{cg.schedule_days?.split(",").join("·")} · {cg.schedule_time}</Text>
+                        </View>
+                        <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                      </Pressable>
+                    );
+                    return (
+                      <>
+                        {myClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>내 반</Text>
+                            {myClasses.map(renderDcClassRow)}
+                          </>
+                        )}
+                        {otherClasses.length > 0 && (
+                          <>
+                            <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.textMuted }]}>
+                              다른 선생님 반 (인계 처리)
+                            </Text>
+                            {otherClasses.map(renderDcClassRow)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <View style={{ height: 16 }} />
+                </ScrollView>
+              )}
+
+              {/* 단계 2: 회차 선택 (과거·오늘만 표시, 미래 제외) */}
+              {selectedClassId && (() => {
+                if (occLoading) return (
+                  <ActivityIndicator color="#059669" style={{ marginVertical: 40 }} />
+                );
+                if (occError) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>
+                      {"수업 회차를 불러오지 못했습니다"}
+                      {occErrorDetail ? `\n오류 코드: ${occErrorDetail.status} / ${occErrorDetail.code}` : ""}
+                    </Text>
+                    <Pressable onPress={() => selectClass(selectedClassId)} style={{ marginTop: 8 }}>
+                      <Text style={{ color: C.textSecondary, fontSize: 13, fontFamily: "Pretendard-Regular" }}>재시도</Text>
+                    </Pressable>
+                  </View>
+                );
+                const pastAndToday = occurrences.filter(o => o.is_past || o.is_today);
+                if (pastAndToday.length === 0) return (
+                  <View style={s.empty}>
+                    <LucideIcon name="alert-circle" size={24} color={C.textMuted} />
+                    <Text style={s.emptyTxt}>완료 처리 가능한 날짜가 없습니다</Text>
+                  </View>
+                );
+                const days = ["일","월","화","수","목","금","토"];
+                function fmtOcc(dateStr: string) {
+                  const d = new Date(dateStr + "T00:00:00");
+                  return `${d.getMonth()+1}/${d.getDate()} (${days[d.getDay()]})`;
+                }
+                const todayOccs = pastAndToday.filter(o => o.is_today);
+                const pastOccs  = pastAndToday.filter(o => o.is_past);
+                function renderDcOccRow(occ: MakeupOccurrence) {
+                  const onConfirm = () => doDirectComplete(occ);
+                  const onPress = () => {
+                    if (occ.is_full) {
+                      Alert.alert(
+                        "정원 초과",
+                        "정원을 초과한 반입니다.\n실제로 보강 수업에 참여한 경우에만 처리해 주세요.",
+                        [{ text: "취소", style: "cancel" }, { text: "그래도 처리", onPress: onConfirm }],
+                      );
+                      return;
+                    }
+                    onConfirm();
+                  };
+                  return (
+                    <Pressable
+                      key={occ.occurrence_date}
+                      style={[s.classRow, directCompleting && { opacity: 0.5 }]}
+                      onPress={onPress}
+                      disabled={directCompleting}
+                    >
+                      <LucideIcon name="check-circle" size={16} color="#059669" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.className, { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}>
+                          {fmtOcc(occ.occurrence_date)}{occ.is_today ? " · 오늘" : ""}
+                        </Text>
+                      </View>
+                      {occ.is_full && (
+                        <View style={{ backgroundColor: "#FFF1BF", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 4 }}>
+                          <Text style={{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#D97706" }}>정원초과</Text>
+                        </View>
+                      )}
+                      <LucideIcon name="chevron-right" size={16} color={C.textMuted} />
+                    </Pressable>
+                  );
+                }
+                return (
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+                    {todayOccs.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12, color: C.brandStrong }]}>오늘</Text>
+                        {todayOccs.map(renderDcOccRow)}
+                      </>
+                    )}
+                    {pastOccs.length > 0 && (
+                      <>
+                        <Text style={[s.groupLabel, { paddingHorizontal: 16, paddingTop: 12 }]}>지난 수업</Text>
+                        {pastOccs.map(renderDcOccRow)}
+                      </>
+                    )}
+                    <View style={{ height: 16 }} />
+                  </ScrollView>
+                );
+              })()}
+            </View>
+          </Pressable>
+        </Modal>
+      )}
       {/* ── 기타 보강 모달 ──────────────────────────────────────────────── */}
       {handoverTarget && (
         <Modal visible animationType="slide" transparent onRequestClose={closeHandover} statusBarTranslucent>
           <Pressable style={s.backdrop} onPress={closeHandover}>
-            <Pressable style={[s.sheet, { maxHeight: "70%" }]} onPress={() => {}}>
+            <View style={s.sheet} onStartShouldSetResponder={() => true}>
               <View style={s.sheetHandle} />
-
               {/* ── 선생님 선택 단계 ── */}
               {handoverStep === "teacher_select" && (
                 <>
                   <View style={s.sheetHeader}>
                     <Pressable onPress={closeHandover} style={{ padding: 4, marginRight: 8 }}>
-                      <ArrowLeft size={20} color={C.text} />
+                      <LucideIcon name="arrow-left" size={20} color={C.text} />
                     </Pressable>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.sheetTitle}>다른 선생님한테 보내기</Text>
-                      <Text style={s.sheetSub}>선택한 선생님 정산에 기타 1시수가 반영됩니다.</Text>
+                      <Text style={s.sheetTitle}>담당선생님 인계</Text>
+                      <Text style={s.sheetSub}>선택한 선생님의 보강 대기 목록으로 이관됩니다.</Text>
                     </View>
                     <Pressable onPress={closeHandover} style={{ padding: 4 }}>
-                      <X size={20} color={C.textSecondary} />
+                      <LucideIcon name="x" size={20} color={C.textSecondary} />
                     </Pressable>
                   </View>
-                  <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
                     {teachersLoading ? (
                       <ActivityIndicator color={themeColor} style={{ marginVertical: 32 }} />
                     ) : teachers.length === 0 ? (
                       <View style={s.empty}>
-                        <CircleAlert size={24} color={C.textMuted} />
                         <Text style={s.emptyTxt}>등록된 선생님이 없습니다</Text>
                       </View>
                     ) : teachers.map(t => {
@@ -764,7 +1392,6 @@ export default function MakeupsScreen() {
                         </Pressable>
                       );
                     })}
-                    <View style={{ height: 16 }} />
                   </ScrollView>
                   {selectedTeacher && (
                     <View style={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 }}>
@@ -782,12 +1409,11 @@ export default function MakeupsScreen() {
                   )}
                 </>
               )}
-
               {/* ── 완료 단계 ── */}
               {handoverStep === "done" && (
                 <View style={{ alignItems: "center", padding: 32, gap: 16 }}>
-                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "#E6FFFA", alignItems: "center", justifyContent: "center" }}>
-                    <Check size={28} color="#2EC4B6" />
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: C.brandMist, alignItems: "center", justifyContent: "center" }}>
+                    <LucideIcon name="check" size={28} color={C.brandStrong} />
                   </View>
                   <Text style={{ fontSize: 16, fontFamily: "Pretendard-Regular", color: C.text }}>인계 완료</Text>
                   <Text style={{ fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 }}>
@@ -796,16 +1422,15 @@ export default function MakeupsScreen() {
                   <Text style={{ fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted, textAlign: "center" }}>
                     메신저 대화방에 자동 알림이 전송되었습니다.
                   </Text>
-                  <Pressable style={[s.confirmBtn, { backgroundColor: "#2EC4B6", alignSelf: "stretch" }]} onPress={closeHandover}>
+                  <Pressable style={[s.confirmBtn, { backgroundColor: C.primaryAction, alignSelf: "stretch" }]} onPress={closeHandover}>
                     <Text style={s.confirmTxt}>확인</Text>
                   </Pressable>
                 </View>
               )}
-            </Pressable>
+            </View>
           </Pressable>
         </Modal>
       )}
-
       {/* 보강 완료 확인 모달 */}
       <ConfirmModal
         visible={!!completeTarget}
@@ -815,7 +1440,6 @@ export default function MakeupsScreen() {
         onConfirm={() => completeTarget && handleTeacherComplete(completeTarget.id)}
         onCancel={() => setCompleteTarget(null)}
       />
-
       {/* 보강 소멸 확인 */}
       <ConfirmModal
         visible={!!selfExtTarget}
@@ -829,20 +1453,162 @@ export default function MakeupsScreen() {
         onConfirm={doSelfExtinguish}
         onCancel={() => setSelfExtTarget(null)}
       />
-
       <ConfirmModal
         visible={!!confirmMsg}
         title="알림"
         message={confirmMsg ?? ""}
         confirmText="확인"
         onConfirm={() => setConfirmMsg(null)}
+        onCancel={() => setConfirmMsg(null)}
       />
+
+      {/* ── [DIAG] 진단 패널 ─────────────────────────────────────────────── */}
+      <Modal visible={diagVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setDiagVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#0F2742", borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: "90%" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 }}>
+              <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", letterSpacing: 1 }}>SWIMNOTE DIAG — 화면 캡처 후 제출</Text>
+              <Pressable onPress={() => setDiagVisible(false)}>
+                <Text style={{ color: "#64748B", fontSize: 20 }}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }} showsVerticalScrollIndicator={false}>
+              {/* OTA/앱 정보 */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginBottom: 4 }}>① OTA / 앱</Text>
+              {([
+                ["runtimeVersion", Updates.runtimeVersion ?? "—"],
+                ["updateId", Updates.updateId ?? "—"],
+                ["channel", Updates.channel ?? "—"],
+                ["isEmbedded", String(Updates.isEmbeddedLaunch ?? "—")],
+                ["appVersion", Constants.expoConfig?.version ?? "—"],
+                ["build(iOS)", (Constants.expoConfig as any)?.ios?.buildNumber ?? "—"],
+                ["build(AOS)", String((Constants.expoConfig as any)?.android?.versionCode ?? "—")],
+                ["API_BASE", API_BASE],
+              ] as [string, string][]).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                  <Text style={{ color: "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={2}>{v}</Text>
+                </View>
+              ))}
+
+              {/* waiting API */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginTop: 12, marginBottom: 4 }}>② waiting API</Text>
+              {diagWaiting ? ([
+                ["url", diagWaiting.url],
+                ["status", String(diagWaiting.status)],
+                ["content-type", diagWaiting.ct ?? "—"],
+                ["total", String(diagWaiting.total)],
+                ["expired", String(diagWaiting.expired)],
+                ["julyExpired", String(diagWaiting.julyExpired)],
+                ["oldestExpDate", diagWaiting.oldestDate ?? "—"],
+                ["fetchedAt", diagWaiting.fetchedAt],
+              ] as [string, string][]).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                  <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                  <Text style={{ color: "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }} numberOfLines={3}>{v}</Text>
+                </View>
+              )) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 로드 전</Text>}
+
+              {/* sorted 진단 (렌더 직전) */}
+              {(() => {
+                const sorted = [...waitingList].sort((a, b) => {
+                  if (!!a.is_expired !== !!b.is_expired) return a.is_expired ? 1 : -1;
+                  return 0;
+                });
+                const sortedExp = sorted.filter(x => x.is_expired);
+                const sortedJulyExp = sortedExp.filter(x => (x as any).absence_date >= "2026-07-01" && (x as any).absence_date < "2026-08-01");
+                return (
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier" }}>sorted:</Text>
+                    {([
+                      ["sortedTotal", String(sorted.length)],
+                      ["sortedExpired", String(sortedExp.length)],
+                      ["sortedJulyExpired", String(sortedJulyExp.length)],
+                    ] as [string, string][]).map(([k, v]) => (
+                      <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                        <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 120 }}>{k}</Text>
+                        <Text style={{ color: v === "0" ? "#F87171" : "#86EFAC", fontSize: 11, fontFamily: "Courier" }}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+
+              {/* eligible-occurrences */}
+              <Text style={{ color: "#F8FAFC", fontSize: 13, fontFamily: "Courier", fontWeight: "bold", marginTop: 12, marginBottom: 4 }}>③ eligible-occurrences</Text>
+              {diagOcc ? (
+                <View style={{ gap: 2 }}>
+                  {/* 기본 정보 */}
+                  {([
+                    ["makeupId", diagOcc.makeupId],
+                    ["classGroupId", diagOcc.classGroupId ?? "—"],
+                    ["URL", diagOcc.url],
+                    ["finalType", diagOcc.finalType ?? "pending…"],
+                    ["occCount", String(diagOcc.occCount ?? "—")],
+                    ["fetchedAt", diagOcc.fetchedAt],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={k} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{
+                        color: k === "finalType" && v === "HTTP" ? "#F87171"
+                             : k === "finalType" && v === "NETWORK" ? "#FB923C"
+                             : k === "finalType" && v === "OK" ? "#86EFAC"
+                             : "#E2E8F0",
+                        fontSize: 11, fontFamily: "Courier", flex: 1,
+                      }}>{v}</Text>
+                    </View>
+                  ))}
+                  {/* attempt 1 */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 6 }}>— attempt 1 —</Text>
+                  {diagOcc.attempt1 ? ([
+                    ["status", String(diagOcc.attempt1.status)],
+                    ["code", diagOcc.attempt1.code ?? "—"],
+                    ["message", diagOcc.attempt1.message ?? "—"],
+                    ["rawBody", diagOcc.attempt1.rawBody || "—"],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`a1-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: k === "status" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음 (1차 성공)</Text>}
+                  {/* attempt 2 */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 4 }}>— attempt 2 —</Text>
+                  {diagOcc.attempt2 ? ([
+                    ["status", String(diagOcc.attempt2.status)],
+                    ["code", diagOcc.attempt2.code ?? "—"],
+                    ["message", diagOcc.attempt2.message ?? "—"],
+                    ["rawBody", diagOcc.attempt2.rawBody || "—"],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`a2-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: k === "status" ? "#F87171" : "#E2E8F0", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음</Text>}
+                  {/* network error */}
+                  <Text style={{ color: "#94A3B8", fontSize: 11, fontFamily: "Courier", marginTop: 4 }}>— network error —</Text>
+                  {diagOcc.networkError ? ([
+                    ["name", diagOcc.networkError.name],
+                    ["message", diagOcc.networkError.message],
+                  ] as [string, string][]).map(([k, v]) => (
+                    <View key={`ne-${k}`} style={{ flexDirection: "row", gap: 8 }}>
+                      <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier", width: 100 }}>{k}</Text>
+                      <Text style={{ color: "#FB923C", fontSize: 11, fontFamily: "Courier", flex: 1 }}>{v}</Text>
+                    </View>
+                  )) : <Text style={{ color: "#475569", fontSize: 11, fontFamily: "Courier" }}>없음</Text>}
+                </View>
+              ) : <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "Courier" }}>아직 회차 조회 전 (반 선택 후 재확인)</Text>}
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      {/* ── [/DIAG] ─────────────────────────────────────────────────────────── */}
     </SafeAreaView>
   );
 }
-
 const s = StyleSheet.create({
-  safe:            { flex: 1, backgroundColor: "#FFFFFF" },
+  safe:            { flex: 1, backgroundColor: C.surface },
   tabBtn:          { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
   tabTxt:          { fontSize: 13, lineHeight: 18, color: C.textSecondary },
   tabBadge:        { width: 16, height: 16, borderRadius: 8, backgroundColor: "#D96C6C", alignItems: "center", justifyContent: "center" },
@@ -865,7 +1631,7 @@ const s = StyleSheet.create({
   assignedInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#EEDDF5", borderRadius: 10, padding: 10, marginBottom: 10 },
   assignedInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#7C3AED", lineHeight: 18 },
   backdrop:        { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "65%", paddingBottom: 32 },
+  sheet:           { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, height: "65%" },
   sheetHandle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginTop: 10, marginBottom: 4 },
   sheetHeader:     { flexDirection: "row", alignItems: "flex-start", padding: 16, paddingTop: 8 },
   sheetTitle:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
@@ -877,4 +1643,29 @@ const s = StyleSheet.create({
   menuIcon:        { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   menuTitle:       { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text, marginBottom: 3 },
   menuDesc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 17 },
+  expiredSection:     { flexDirection: "row", alignItems: "center", gap: 8, marginVertical: 4 },
+  expiredSectionLine: { flex: 1, height: 1, backgroundColor: C.border },
+  expiredSectionTxt:  { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  // 검색 인덱스
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.backgroundSoft,
+    borderRadius: 10,
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 10,
+    height: 38,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Pretendard-Regular",
+    color: C.text,
+    paddingVertical: 0,
+  },
 });

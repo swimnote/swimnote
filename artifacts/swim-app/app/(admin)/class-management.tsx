@@ -1,4 +1,3 @@
-import { Calendar, CircleAlert, Grid2x2, Inbox, List, RefreshCw, RotateCcw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -92,7 +91,7 @@ export default function ClassManagementScreen() {
   if (loading) {
     return (
       <View style={[s.root, { backgroundColor: C.background, justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator color={C.tint} size="large" />
+        <ActivityIndicator color={C.brandStrong} size="large" />
       </View>
     );
   }
@@ -103,7 +102,7 @@ export default function ClassManagementScreen() {
         title="수업 관리"
         rightSlot={
           <Pressable onPress={load} style={s.refreshBtn} hitSlop={8}>
-            <RefreshCw size={18} color={C.textSecondary} />
+            <LucideIcon name="refresh-cw" size={18} color={C.textSecondary} />
           </Pressable>
         }
       />
@@ -115,7 +114,7 @@ export default function ClassManagementScreen() {
 
       {error ? (
         <View style={[s.errBox, { backgroundColor: "#F9DEDA", marginHorizontal: 16 }]}>
-          <CircleAlert size={14} color={C.error} />
+          <LucideIcon name="alert-circle" size={14} color={C.error} />
           <Text style={[s.errText, { color: C.error }]}>{error}</Text>
         </View>
       ) : null}
@@ -124,43 +123,43 @@ export default function ClassManagementScreen() {
         <>
           {/* 반 현황 */}
           <View style={s.sectionHeader}>
-            <Grid2x2 size={15} color={C.tint} />
+            <LucideIcon name="grid" size={15} color={C.brandStrong} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반 현황</Text>
           </View>
           <View style={s.statsRow}>
             <StatBox label="전체 반" value={data.totals.total_classes} />
             <StatBox label="1회성 반" value={data.totals.one_time_classes} color="#7C3AED" />
-            <StatBox label="전체 회원" value={data.totals.total_students} color={C.tint} />
+            <StatBox label="전체 회원" value={data.totals.total_students} color={C.brandStrong} />
             <StatBox label="평균 정원" value={`${Math.round(Number(data.totals.avg_capacity))}명`} />
           </View>
 
           {/* 이달 출결 */}
           <View style={s.sectionHeader}>
-            <Calendar size={15} color="#2EC4B6" />
+            <LucideIcon name="calendar" size={15} color={C.brandStrong} />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 출결</Text>
           </View>
           <View style={s.statsRow}>
-            <StatBox label="출석" value={data.attendance.month_present} color="#2EC4B6" />
+            <StatBox label="출석" value={data.attendance.month_present} color={C.brandStrong} />
             <StatBox label="결석" value={data.attendance.month_absent} color="#D96C6C" />
             <StatBox label="오늘 총" value={data.attendance.today_total} />
-            <StatBox label="오늘 출석" value={data.attendance.today_present} color={C.tint} />
+            <StatBox label="오늘 출석" value={data.attendance.today_present} color={C.brandStrong} />
           </View>
 
           {/* 보강 현황 */}
           <View style={s.sectionHeader}>
-            <RotateCcw size={15} color="#D97706" />
+            <LucideIcon name="rotate-ccw" size={15} color="#D97706" />
             <Text style={[s.sectionTitle, { color: C.text }]}>{monthLabel} 보강</Text>
           </View>
           <View style={s.statsRow}>
             <StatBox label="대기" value={data.makeups.pending} color={data.makeups.pending > 0 ? "#D96C6C" : C.textSecondary} />
             <StatBox label="배정됨" value={data.makeups.assigned} color="#D97706" />
-            <StatBox label="완료" value={data.makeups.completed} color="#2EC4B6" />
-            <StatBox label="소멸" value={data.makeups.extinguished} color="#64748B" />
+            <StatBox label="완료" value={data.makeups.completed} color={C.brandStrong} />
+            <StatBox label="소멸" value={data.makeups.extinguished} color={C.textSecondary} />
           </View>
 
           {/* 반 목록 */}
           <View style={[s.sectionHeader, { marginTop: 4 }]}>
-            <List size={15} color={C.tint} />
+            <LucideIcon name="list" size={15} color={C.brandStrong} />
             <Text style={[s.sectionTitle, { color: C.text }]}>반별 현황</Text>
           </View>
 
@@ -177,8 +176,8 @@ export default function ClassManagementScreen() {
               <Pressable
                 key={opt.key}
                 style={[s.chip, {
-                  backgroundColor: active ? C.tintLight : C.card,
-                  borderColor: active ? C.tint : C.border,
+                  backgroundColor: active ? C.brandSoft : C.card,
+                  borderColor: active ? C.brandStrong : C.border,
                 }]}
                 onPress={() => {
                   if (active) {
@@ -189,12 +188,12 @@ export default function ClassManagementScreen() {
                   }
                 }}
               >
-                <Text style={[s.chipText, { color: active ? C.tint : C.textSecondary }]}>{opt.label}</Text>
+                <Text style={[s.chipText, { color: active ? C.brandStrong : C.textSecondary }]}>{opt.label}</Text>
                 {active && (
                   <LucideIcon
                     name={sortAsc ? "chevron-up" : "chevron-down"}
                     size={13}
-                    color={C.tint}
+                    color={C.brandStrong}
                   />
                 )}
               </Pressable>
@@ -204,12 +203,12 @@ export default function ClassManagementScreen() {
 
           {sortedClasses.length === 0 ? (
             <View style={s.empty}>
-              <Inbox size={36} color={C.textMuted} />
+              <LucideIcon name="inbox" size={36} color={C.textMuted} />
               <Text style={[s.emptyText, { color: C.textMuted }]}>등록된 반이 없습니다</Text>
             </View>
           ) : sortedClasses.map(cls => {
             const fill = cls.capacity ? Math.min(1, cls.student_count / cls.capacity) : 0;
-            const fillColor = fill >= 1 ? "#D96C6C" : fill >= 0.8 ? "#D97706" : "#2EC4B6";
+            const fillColor = fill >= 1 ? "#D96C6C" : fill >= 0.8 ? "#D97706" : C.brandStrong;
             return (
               <View key={cls.id} style={[s.classCard, { backgroundColor: C.card }]}>
                 <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
@@ -217,7 +216,7 @@ export default function ClassManagementScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={[s.className, { color: C.text }]}>{cls.name}</Text>
                       {cls.is_one_time && (
-                        <View style={[s.oneTimeTag, { backgroundColor: "#E6FAF8" }]}>
+                        <View style={[s.oneTimeTag, { backgroundColor: C.brandSoft }]}>
                           <Text style={[s.oneTimeTagText, { color: "#7C3AED" }]}>1회성</Text>
                         </View>
                       )}
@@ -227,7 +226,7 @@ export default function ClassManagementScreen() {
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[s.studentCount, { color: C.tint }]}>
+                    <Text style={[s.studentCount, { color: C.brandStrong }]}>
                       {cls.student_count}{cls.capacity ? `/${cls.capacity}` : ""}명
                     </Text>
                     <Text style={[s.attCount, { color: C.textMuted }]}>이달 {cls.month_att_count}회 출석</Text>

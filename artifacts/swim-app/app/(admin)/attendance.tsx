@@ -1,13 +1,14 @@
-import { Calendar, ChevronLeft, ChevronRight, CircleCheck, CircleX, Clock, Info, Lock, RefreshCw, Search, TriangleAlert, Users, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
+import { Clock, Lock as LockIcon } from "lucide-react-native";
+const Lock = LockIcon as React.ComponentType<any>;
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  StyleSheet, Text, TextInput, TouchableOpacity, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
+import { router } from "expo-router";
 import { ScreenLayout } from "@/components/common/ScreenLayout";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { MainTabs }     from "@/components/common/MainTabs";
@@ -16,7 +17,7 @@ const C = Colors.light;
 
 // ── 타입 ───────────────────────────────────────────────────────
 interface ClassGroup { id: string; name: string; }
-interface Student    { id: string; name: string; class_group_id: string | null; }
+interface Student    { id: string; name: string; class_group_id: string | null; class_enrolled_at?: string | null; }
 interface WeeklyRow {
   student_id: string; student_name: string;
   class_group_id: string | null; class_name: string | null;
@@ -48,7 +49,7 @@ type AttStatus = "present" | "absent" | "late";
 type ViewMode  = "daily" | "weekly" | "monthly" | "search" | "makeup";
 
 const STATUS_CONFIG = {
-  present: { label: "출석", color: Colors.light.present, bg: "#E6FFFA", icon: "check-circle" as const },
+  present: { label: "출석", color: Colors.light.present, bg: C.brandSoft, icon: "check-circle" as const },
   absent:  { label: "결석", color: Colors.light.absent,  bg: "#F9DEDA", icon: "x-circle"    as const },
   late:    { label: "지각", color: Colors.light.late,    bg: "#FFF1BF", icon: "clock"        as const },
 };
@@ -123,8 +124,10 @@ export default function AttendanceScreen() {
   const [searchTriggered, setSearchTriggered] = useState(false);
 
   // 보강관리 상태
-  const [makeupList,    setMakeupList]    = useState<MakeupSession[]>([]);
-  const [loadingMakeup, setLoadingMakeup] = useState(false);
+  const [makeupList,         setMakeupList]         = useState<MakeupSession[]>([]);
+  const [assignedMakeupList, setAssignedMakeupList] = useState<MakeupSession[]>([]);
+  const [loadingMakeup,      setLoadingMakeup]      = useState(false);
+  const [revertingId,        setRevertingId]        = useState<string | null>(null);
 
   // 보강 지정 모달
   const [assignTarget,    setAssignTarget]    = useState<MakeupSession | null>(null);
@@ -225,16 +228,60 @@ export default function AttendanceScreen() {
     finally { setLoadingSearch(false); }
   }
 
-  // ── 보강 대기 목록 ────────────────────────────────────────────
+  // ── 보강 대기 + 배정됨 목록 ───────────────────────────────────
   const fetchMakeup = useCallback(async () => {
     setLoadingMakeup(true);
     try {
-      const res  = await apiRequest(token, "/admin/makeups/pending");
-      const data = await res.json();
-      setMakeupList(Array.isArray(data) ? data : []);
+      const [pendingRes, assignedRes] = await Promise.all([
+        apiRequest(token, "/admin/makeups/pending"),
+        apiRequest(token, "/admin/makeups?status=assigned"),
+      ]);
+      const pendingData = await pendingRes.json();
+      const serverList: MakeupSession[] = Array.isArray(pendingData) ? pendingData : [];
+      setMakeupList(prev => {
+        const serverKeys = new Set(serverList.map(m => `${m.student_id}_${m.absence_date}`));
+        const tempItems = prev.filter(m =>
+          m.id.startsWith("temp_") && !serverKeys.has(`${m.student_id}_${m.absence_date}`)
+        );
+        return [...serverList, ...tempItems];
+      });
+      if (assignedRes.ok) {
+        const assignedData = await assignedRes.json();
+        setAssignedMakeupList(Array.isArray(assignedData) ? assignedData : []);
+      }
     } catch (e) { console.error(e); }
     finally { setLoadingMakeup(false); }
   }, [token]);
+
+  async function handleRevert(mk: MakeupSession) {
+    Alert.alert(
+      "배정 취소",
+      `${mk.student_name}의 보강 배정을 취소하고 보강대기로 되돌리시겠습니까?\n\n결석 기록과 보강 권리는 유지되며, 현재 스케줄 배정만 취소됩니다.`,
+      [
+        { text: "닫기", style: "cancel" },
+        {
+          text: "배정 취소",
+          style: "destructive",
+          onPress: async () => {
+            setRevertingId(mk.id);
+            try {
+              const res = await apiRequest(token, `/admin/makeups/${mk.id}/revert`, { method: "PATCH" });
+              if (res.ok) {
+                setAssignedMakeupList(prev => prev.filter(m => m.id !== mk.id));
+                setMakeupList(prev => [...prev, { ...mk, status: "waiting" }]);
+              } else {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert("오류", err.error || "배정 취소에 실패했습니다.");
+              }
+            } catch (e) {
+              Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+            }
+            finally { setRevertingId(null); }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => {
     if (viewMode === "makeup") fetchMakeup();
@@ -306,18 +353,56 @@ export default function AttendanceScreen() {
     setSavingId(studentId);
     try {
       const prevStatus = dailyAtt[studentId] ?? null;
-      await apiRequest(token, "/attendance", {
+
+      // 1. 결석으로 변경 시 즉시 보강대기 목록에 반영 (낙관적 UI)
+      if (status === "absent" && prevStatus !== "absent") {
+        const st = students.find(s => s.id === studentId);
+        const cg = classGroups.find(g => g.id === selectedClass);
+        const tempId = `temp_${studentId}_${baseDate}`;
+        const tempSession: MakeupSession = {
+          id: tempId,
+          student_id: studentId,
+          student_name: st?.name ?? "",
+          original_class_group_id: selectedClass,
+          original_class_group_name: cg?.name ?? "",
+          original_teacher_id: null,
+          original_teacher_name: "",
+          absence_date: baseDate,
+          status: "waiting",
+        };
+        setMakeupList(prev => {
+          // 이미 같은 날짜의 항목이 있으면 추가 안함
+          const alreadyExists = prev.some(m => m.student_id === studentId && m.absence_date === baseDate);
+          if (alreadyExists) return prev;
+          return [...prev, tempSession];
+        });
+      }
+
+      // 2. 출결 취소(결석→출석/지각) 시 보강대기에서 즉시 제거
+      if (status !== "absent" && prevStatus === "absent") {
+        setMakeupList(prev => prev.filter(m => !(m.student_id === studentId && m.absence_date === baseDate)));
+      }
+
+      // 3. 서버에 출결 저장
+      const attRes = await apiRequest(token, "/attendance", {
         method: "POST",
         body: JSON.stringify({ student_id: studentId, class_group_id: selectedClass, date: baseDate, status }),
       });
+      const attData = attRes.ok ? await attRes.json().catch(() => ({})) : {};
       setDailyAtt(prev => ({ ...prev, [studentId]: status }));
-      // 결석 처리 → 보강대기 즉시 갱신
+
+      // 4. 서버에 보강세션 생성 요청 (백그라운드) + 서버 목록 동기화
       if (status === "absent" && prevStatus !== "absent") {
-        fetchMakeup();
+        const attId = attData?.data?.id ?? null;
+        apiRequest(token, "/admin/makeups/ensure", {
+          method: "POST",
+          body: JSON.stringify({ student_id: studentId, date: baseDate, class_group_id: selectedClass, attendance_id: attId }),
+        })
+          .then(() => fetchMakeup())   // 서버 확정 후 실제 ID로 갱신
+          .catch(() => fetchMakeup()); // 실패해도 서버 목록 갱신 시도
       }
-      // 결석 취소 → 보강대기에서 제거됨 → 즉시 갱신
       if (status !== "absent" && prevStatus === "absent") {
-        fetchMakeup();
+        fetchMakeup(); // 서버와 동기화
       }
     } finally { setSavingId(null); }
   }
@@ -341,14 +426,17 @@ export default function AttendanceScreen() {
     if (tab === "search") setTimeout(() => searchInputRef.current?.focus(), 100);
   }
 
-  const classStudents = students.filter(s => s.class_group_id === selectedClass);
+  const classStudents = students.filter(s =>
+    s.class_group_id === selectedClass &&
+    (!s.class_enrolled_at || s.class_enrolled_at <= baseDate)
+  );
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(getMonday(baseDate), i));
 
   // ── 날짜 탐색 바 ─────────────────────────────────────────────
   const DateNav = (
     <View style={[a.dateNav, { backgroundColor: C.card, borderColor: C.border }]}>
       <Pressable style={a.navArrow} onPress={() => navigateDate(-1)}>
-        <ChevronLeft size={20} color={C.textSecondary} />
+        <LucideIcon name="chevron-left" size={20} color={C.textSecondary} />
       </Pressable>
       <Text style={[a.dateLabel, { color: C.text }]}>
         {viewMode === "daily"   && formatDateLabel(baseDate)}
@@ -356,18 +444,18 @@ export default function AttendanceScreen() {
         {viewMode === "monthly" && formatMonthLabel(baseDate)}
       </Text>
       <Pressable style={a.navArrow} onPress={() => navigateDate(1)}>
-        <ChevronRight size={20} color={C.textSecondary} />
+        <LucideIcon name="chevron-right" size={20} color={C.textSecondary} />
       </Pressable>
     </View>
   );
 
   // ── 반 선택 탭 ───────────────────────────────────────────────
   const ClassTabs = (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 8 }}>
       {viewMode !== "monthly" && (
         <Pressable
-          style={[a.classTab, { backgroundColor: selectedClass === null ? C.tint : C.card, borderColor: selectedClass === null ? C.tint : C.border }]}
+          style={[a.classTab, { backgroundColor: selectedClass === null ? C.brandStrong : C.card, borderColor: selectedClass === null ? C.brandStrong : C.border }]}
           onPress={() => setSelectedClass(null)}
         >
           <Text style={[a.classTabText, { color: selectedClass === null ? "#fff" : C.textSecondary }]}>전체</Text>
@@ -376,13 +464,13 @@ export default function AttendanceScreen() {
       {classGroups.map(cg => (
         <Pressable
           key={cg.id}
-          style={[a.classTab, { backgroundColor: selectedClass === cg.id ? C.tint : C.card, borderColor: selectedClass === cg.id ? C.tint : C.border }]}
+          style={[a.classTab, { backgroundColor: selectedClass === cg.id ? C.brandStrong : C.card, borderColor: selectedClass === cg.id ? C.brandStrong : C.border }]}
           onPress={() => setSelectedClass(cg.id)}
         >
           <Text style={[a.classTabText, { color: selectedClass === cg.id ? "#fff" : C.textSecondary }]}>{cg.name}</Text>
         </Pressable>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   // ── 고정 상단 헤더 ───────────────────────────────────────────
@@ -414,7 +502,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>보강 반 지정</Text>
                 <Pressable onPress={() => setAssignTarget(null)}>
-                  <X size={22} color={C.textSecondary} />
+                  <LucideIcon name="x" size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {assignTarget && (
@@ -425,7 +513,7 @@ export default function AttendanceScreen() {
               {/* 날짜 선택 */}
               <Text style={[a.fieldLabel, { color: C.textSecondary }]}>보강 날짜</Text>
               <View style={[a.dateInput, { borderColor: C.border, backgroundColor: C.background }]}>
-                <Calendar size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
+                <LucideIcon name="calendar" size={16} color={C.textSecondary} style={{ marginRight: 8 }} />
                 <TextInput
                   style={[{ flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.text }]}
                   value={assignDate}
@@ -437,9 +525,9 @@ export default function AttendanceScreen() {
               {/* 반 목록 */}
               <Text style={[a.fieldLabel, { color: C.textSecondary, marginTop: 8 }]}>보강 가능 반 (정원 여유)</Text>
               {loadingEligible ? (
-                <ActivityIndicator color={C.tint} style={{ marginTop: 16 }} />
+                <ActivityIndicator color={C.brandStrong} style={{ marginTop: 16 }} />
               ) : (
-                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                <KeyboardAwareScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
                   {eligibleClasses.length === 0 ? (
                     <Text style={[{ color: C.textMuted, textAlign: "center", marginTop: 24, fontFamily: "Pretendard-Regular" }]}>
                       보강 가능한 반이 없습니다
@@ -451,8 +539,8 @@ export default function AttendanceScreen() {
                       <TouchableOpacity
                         key={ec.id}
                         style={[a.eligibleCard, {
-                          backgroundColor: selected ? C.tintLight : C.background,
-                          borderColor: selected ? C.tint : C.border,
+                          backgroundColor: selected ? C.brandSoft : C.background,
+                          borderColor: selected ? C.brandStrong : C.border,
                         }]}
                         onPress={() => setAssignClassId(ec.id)}
                       >
@@ -460,8 +548,8 @@ export default function AttendanceScreen() {
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                             <Text style={[a.eligibleName, { color: C.text }]}>{ec.name}</Text>
                             {isSame && (
-                              <View style={[a.sameTag, { backgroundColor: "#E6FFFA" }]}>
-                                <Text style={{ fontSize: 10, color: "#2EC4B6", fontFamily: "Pretendard-Regular" }}>담당</Text>
+                              <View style={[a.sameTag, { backgroundColor: C.brandSoft }]}>
+                                <Text style={{ fontSize: 10, color: C.brandStrong, fontFamily: "Pretendard-Regular" }}>담당</Text>
                               </View>
                             )}
                           </View>
@@ -470,21 +558,21 @@ export default function AttendanceScreen() {
                           </Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
-                          <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.tint : "#D96C6C" }]}>
+                          <Text style={[a.slotText, { color: ec.available_slots > 0 ? C.brandStrong : "#D96C6C" }]}>
                             여유 {ec.available_slots}명
                           </Text>
                           <Text style={[{ fontSize: 11, color: C.textMuted, fontFamily: "Pretendard-Regular" }]}>
                             {ec.current_members}/{ec.capacity ?? "∞"}명
                           </Text>
                         </View>
-                        {selected && <CircleCheck size={20} color={C.tint} style={{ marginLeft: 8 }} />}
+                        {selected && <LucideIcon name="check-circle" size={20} color={C.brandStrong} style={{ marginLeft: 8 }} />}
                       </TouchableOpacity>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               )}
               <Pressable
-                style={[a.confirmBtn, { backgroundColor: assignClassId ? C.tint : C.border, opacity: assigning ? 0.6 : 1 }]}
+                style={[a.confirmBtn, { backgroundColor: assignClassId ? C.primaryAction : C.border, opacity: assigning ? 0.6 : 1 }]}
                 onPress={doAssign}
                 disabled={!assignClassId || assigning}
               >
@@ -504,7 +592,7 @@ export default function AttendanceScreen() {
               <View style={a.modalHeader}>
                 <Text style={[a.modalTitle, { color: C.text }]}>결석 소멸</Text>
                 <Pressable onPress={() => setExtinguishTarget(null)}>
-                  <X size={22} color={C.textSecondary} />
+                  <LucideIcon name="x" size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
               {extinguishTarget && (
@@ -517,13 +605,13 @@ export default function AttendanceScreen() {
                 <TouchableOpacity
                   key={r.key}
                   style={[a.reasonRow, {
-                    backgroundColor: extReason === r.key ? C.tintLight : C.background,
-                    borderColor: extReason === r.key ? C.tint : C.border,
+                    backgroundColor: extReason === r.key ? C.brandSoft : C.background,
+                    borderColor: extReason === r.key ? C.brandStrong : C.border,
                   }]}
                   onPress={() => setExtReason(r.key)}
                 >
-                  <View style={[a.radio, { borderColor: extReason === r.key ? C.tint : C.border }]}>
-                    {extReason === r.key && <View style={[a.radioDot, { backgroundColor: C.tint }]} />}
+                  <View style={[a.radio, { borderColor: extReason === r.key ? C.brandStrong : C.border }]}>
+                    {extReason === r.key && <View style={[a.radioDot, { backgroundColor: C.brandStrong }]} />}
                   </View>
                   <Text style={[a.reasonLabel, { color: C.text }]}>{r.label}</Text>
                 </TouchableOpacity>
@@ -540,7 +628,7 @@ export default function AttendanceScreen() {
                 />
               )}
               <View style={[a.warnBox, { backgroundColor: "#FFF1BF" }]}>
-                <TriangleAlert size={14} color="#D97706" />
+                <LucideIcon name="alert-triangle" size={14} color="#D97706" />
                 <Text style={[{ fontSize: 12, fontFamily: "Pretendard-Regular", color: "#92400E", flex: 1 }]}>
                   소멸 처리 후 보강 기회가 사라집니다. 신중히 처리하세요.
                 </Text>
@@ -559,44 +647,96 @@ export default function AttendanceScreen() {
           </View>
         </Modal>
 
-        {/* 보강 대기 목록 */}
+        {/* 보강 대기 + 배정됨 목록 */}
         {loadingMakeup ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
-            data={makeupList}
-            keyExtractor={item => item.id}
+            data={[
+              ...(assignedMakeupList.length > 0 ? [{ _type: "assignedHeader" as const, id: "__ah" }] : []),
+              ...assignedMakeupList.map(m => ({ ...m, _type: "assigned" as const })),
+              ...[{ _type: "pendingHeader" as const, id: "__ph" }],
+              ...makeupList.map(m => ({ ...m, _type: "pending" as const })),
+            ]}
+            keyExtractor={(item: any) => item._type === "assignedHeader" ? "__ah" : item._type === "pendingHeader" ? "__ph" : item.id}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, paddingTop: 12, gap: 10 }}
             showsVerticalScrollIndicator={false}
-            ListHeaderComponent={
-              <View style={[a.makeupSummary, { backgroundColor: C.tintLight, borderColor: C.tint }]}>
-                <Clock size={16} color={C.tint} />
-                <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.tint }]}>
-                  보강 대기 {makeupList.length}명
-                </Text>
-                <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
-                  <RefreshCw size={14} color={C.tint} />
-                </Pressable>
-              </View>
-            }
-            ListEmptyComponent={
-              <View style={a.empty}>
-                <CircleCheck size={40} color={C.textMuted} />
-                <Text style={[a.emptyText, { color: C.textMuted }]}>보강 대기 중인 회원이 없습니다</Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const days = daysSince(item.absence_date);
+            renderItem={({ item }: any) => {
+              if (item._type === "assignedHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: "#FEF3C7", borderColor: "#D97706" }]}>
+                    <LucideIcon name="rotate-ccw" size={16} color="#D97706" />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: "#D97706", flex: 1 }]}>
+                      배정된 보강 {assignedMakeupList.length}명
+                    </Text>
+                  </View>
+                );
+              }
+              if (item._type === "pendingHeader") {
+                return (
+                  <View style={[a.makeupSummary, { backgroundColor: C.brandSoft, borderColor: C.brandStrong }]}>
+                    <Clock size={16} color={C.brandStrong} />
+                    <Text style={[{ fontFamily: "Pretendard-Regular", fontSize: 14, color: C.brandStrong, flex: 1 }]}>
+                      보강 대기 {makeupList.length}명
+                    </Text>
+                    <Pressable style={[a.refreshBtn]} onPress={fetchMakeup}>
+                      <LucideIcon name="refresh-cw" size={14} color={C.brandStrong} />
+                    </Pressable>
+                  </View>
+                );
+              }
+              if (item._type === "assigned") {
+                const mk: MakeupSession = item;
+                return (
+                  <View style={[a.mkCard, { backgroundColor: "#FFFBEB", borderColor: "#FDE68A" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <View style={[a.avatar, { backgroundColor: "#FEF3C7" }]}>
+                        <Text style={[a.avatarText, { color: "#D97706" }]}>{mk.student_name?.[0] ?? "?"}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Pressable onPress={() => mk.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: mk.student_id, backTo: "attendance" } } as any) : undefined}>
+                          <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                        </Pressable>
+                        <Text style={[a.mkSub, { color: C.textSecondary }]}>
+                          {mk.original_class_group_name} · {(mk as any).assigned_class_group_name || "반 배정됨"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[a.absDate, { color: C.textMuted }]}>
+                      결석일: {mk.absence_date}{(mk as any).assigned_date ? `  →  보강: ${(mk as any).assigned_date}` : ""}
+                    </Text>
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#FFF8EE", borderWidth: 1.5, borderColor: "#D97706", opacity: revertingId === mk.id ? 0.5 : 1 }]}
+                        disabled={revertingId === mk.id}
+                        onPress={() => handleRevert(mk)}
+                      >
+                        {revertingId === mk.id
+                          ? <ActivityIndicator size="small" color="#D97706" />
+                          : <>
+                              <LucideIcon name="rotate-ccw" size={14} color="#D97706" />
+                              <Text style={[a.mkBtnText, { color: "#D97706" }]}>배정 취소</Text>
+                            </>}
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+              // pending
+              const mk: MakeupSession = item;
+              const days = daysSince(mk.absence_date);
               return (
                 <View style={[a.mkCard, { backgroundColor: C.card, borderColor: days >= 14 ? "#FCA5A5" : C.border }]}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
-                      <Text style={[a.avatarText, { color: C.tint }]}>{item.student_name?.[0] ?? "?"}</Text>
+                    <View style={[a.avatar, { backgroundColor: C.brandSoft }]}>
+                      <Text style={[a.avatarText, { color: C.brandStrong }]}>{mk.student_name?.[0] ?? "?"}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                      <Pressable onPress={() => mk.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: mk.student_id, backTo: "attendance" } } as any) : undefined}>
+                        <Text style={[a.memberName, { color: C.text }]}>{mk.student_name}</Text>
+                      </Pressable>
                       <Text style={[a.mkSub, { color: C.textSecondary }]}>
-                        {item.original_class_group_name} · {item.original_teacher_name}
+                        {mk.original_class_group_name} · {mk.original_teacher_name}
                       </Text>
                     </View>
                     <View style={[a.daysTag, { backgroundColor: days >= 14 ? "#F9DEDA" : "#FFFFFF" }]}>
@@ -605,26 +745,34 @@ export default function AttendanceScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {item.absence_date}</Text>
-                  <View style={a.mkActions}>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: C.button }]}
-                      onPress={() => openAssign(item)}
-                    >
-                      <Calendar size={14} color="#fff" />
-                      <Text style={a.mkBtnText}>보강 지정</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
-                      onPress={() => openExtinguish(item)}
-                    >
-                      <CircleX size={14} color="#D96C6C" />
-                      <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
-                    </Pressable>
-                  </View>
+                  <Text style={[a.absDate, { color: C.textMuted }]}>결석일: {mk.absence_date}</Text>
+                  {mk.id.startsWith("temp_") ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                      <ActivityIndicator size="small" color={C.brandStrong} />
+                      <Text style={{ fontSize: 12, color: C.textMuted, fontFamily: "Pretendard-Regular" }}>서버 등록 중...</Text>
+                    </View>
+                  ) : (
+                    <View style={a.mkActions}>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: C.primaryAction }]}
+                        onPress={() => openAssign(mk)}
+                      >
+                        <LucideIcon name="calendar" size={14} color="#fff" />
+                        <Text style={a.mkBtnText}>보강 지정</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[a.mkBtn, { backgroundColor: "#F9DEDA", borderWidth: 1, borderColor: "#FCA5A5" }]}
+                        onPress={() => openExtinguish(mk)}
+                      >
+                        <LucideIcon name="x-circle" size={14} color="#D96C6C" />
+                        <Text style={[a.mkBtnText, { color: "#D96C6C" }]}>결석 소멸</Text>
+                      </Pressable>
+                    </View>
+                  )}
                 </View>
               );
             }}
+            ListEmptyComponent={null}
           />
         )}
       </ScreenLayout>
@@ -637,7 +785,7 @@ export default function AttendanceScreen() {
       <ScreenLayout header={header}>
         {/* 검색창 */}
         <View style={[a.searchBox, { backgroundColor: C.card, borderColor: C.border, marginTop: 10 }]}>
-          <Search size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
+          <LucideIcon name="search" size={16} color={C.textMuted} style={{ marginLeft: 12 }} />
           <TextInput
             ref={searchInputRef}
             style={[a.searchInput, { color: C.text }]}
@@ -650,33 +798,33 @@ export default function AttendanceScreen() {
           />
           {searchName.length > 0 && (
             <Pressable onPress={() => { setSearchName(""); setSearchResults([]); setSearchTriggered(false); }} style={{ padding: 8 }}>
-              <X size={16} color={C.textMuted} />
+              <LucideIcon name="x" size={16} color={C.textMuted} />
             </Pressable>
           )}
         </View>
 
         {/* 날짜 범위 필터 */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}>
           {SEARCH_DAY_OPTIONS.map(opt => (
             <Pressable
               key={opt.value}
-              style={[a.chip, { backgroundColor: searchDays === opt.value ? C.tintLight : C.card, borderColor: searchDays === opt.value ? C.tint : C.border }]}
+              style={[a.chip, { backgroundColor: searchDays === opt.value ? C.brandSoft : C.card, borderColor: searchDays === opt.value ? C.brandStrong : C.border }]}
               onPress={() => setSearchDays(opt.value)}
             >
-              <Text style={[a.chipText, { color: searchDays === opt.value ? C.tint : C.textSecondary }]}>{opt.label}</Text>
+              <Text style={[a.chipText, { color: searchDays === opt.value ? C.brandStrong : C.textSecondary }]}>{opt.label}</Text>
             </Pressable>
           ))}
-          <Pressable style={[a.chip, { backgroundColor: C.button, borderColor: C.button }]} onPress={runSearch}>
+          <Pressable style={[a.chip, { backgroundColor: C.primaryAction, borderColor: C.primaryAction }]} onPress={runSearch}>
             <Text style={[a.chipText, { color: "#fff" }]}>검색</Text>
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {loadingSearch ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : searchTriggered && searchResults.length === 0 ? (
           <View style={a.empty}>
-            <Search size={36} color={C.textMuted} />
+            <LucideIcon name="search" size={36} color={C.textMuted} />
             <Text style={[a.emptyText, { color: C.textMuted }]}>검색 결과가 없습니다</Text>
           </View>
         ) : (
@@ -693,7 +841,9 @@ export default function AttendanceScreen() {
               return (
                 <View style={[a.searchCard, { backgroundColor: C.card, borderColor: C.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[a.searchName, { color: C.text }]}>{item.student_name ?? "-"}</Text>
+                    <Pressable onPress={() => item.student_id ? router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "attendance" } } as any) : undefined}>
+                      <Text style={[a.searchName, { color: C.text }]}>{item.student_name ?? "-"}</Text>
+                    </Pressable>
                     <Text style={[a.searchSub, { color: C.textSecondary }]}>
                       {item.date}  {item.class_name ?? "반 미지정"}
                     </Text>
@@ -724,7 +874,7 @@ export default function AttendanceScreen() {
     return (
       <ScreenLayout header={<>{header}{commonSubHeader}</>}>
         {(loadingDaily || loadingInit) ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
             data={classStudents}
@@ -733,7 +883,7 @@ export default function AttendanceScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <View style={a.empty}>
-                <Users size={40} color={C.textMuted} />
+                <LucideIcon name="users" size={40} color={C.textMuted} />
                 <Text style={[a.emptyText, { color: C.textMuted }]}>
                   {classGroups.length === 0 ? "등록된 반이 없습니다" : "반에 배정된 회원이 없습니다"}
                 </Text>
@@ -741,7 +891,7 @@ export default function AttendanceScreen() {
             }
             ListHeaderComponent={
               <View style={a.readonlyBanner}>
-                <Info size={13} color="#64748B" />
+                <LucideIcon name="info" size={13} color={C.textSecondary} />
                 <Text style={a.readonlyBannerTxt}>출결 체크는 선생님 모드에서만 처리 가능합니다 (관리자: 읽기 전용)</Text>
               </View>
             }
@@ -749,11 +899,13 @@ export default function AttendanceScreen() {
               const status = dailyAtt[item.id];
               return (
                 <View style={[a.card, { backgroundColor: C.card }]}>
-                  <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
-                    <Text style={[a.avatarText, { color: C.tint }]}>{item.name[0]}</Text>
+                  <View style={[a.avatar, { backgroundColor: C.brandSoft }]}>
+                    <Text style={[a.avatarText, { color: C.brandStrong }]}>{item.name[0]}</Text>
                   </View>
                   <View style={a.memberInfo}>
-                    <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
+                    <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.id, backTo: "attendance" } } as any)}>
+                      <Text style={[a.memberName, { color: C.text }]}>{item.name}</Text>
+                    </Pressable>
                     {status ? (
                       <View style={[a.badge, { backgroundColor: STATUS_CONFIG[status].bg }]}>
                         <LucideIcon name={STATUS_CONFIG[status].icon} size={12} color={STATUS_CONFIG[status].color} />
@@ -764,7 +916,7 @@ export default function AttendanceScreen() {
                     )}
                   </View>
                   <View style={a.readonlyTag}>
-                    <Lock size={11} color="#64748B" />
+                    <Lock size={11} color={C.textSecondary} />
                     <Text style={a.readonlyTagTxt}>선생님 전용</Text>
                   </View>
                 </View>
@@ -781,10 +933,10 @@ export default function AttendanceScreen() {
     return (
       <ScreenLayout header={<>{header}{commonSubHeader}</>}>
         {loadingWeekly ? (
-          <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+          <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+            <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 <View style={[a.weekHeaderRow, { borderColor: C.border }]}>
                   <View style={[a.weekNameCell, { borderColor: C.border }]}>
@@ -796,9 +948,9 @@ export default function AttendanceScreen() {
                     const isSun = dt.getDay() === 0;
                     const isSat = dt.getDay() === 6;
                     return (
-                      <View key={d} style={[a.weekDateCell, { borderColor: C.border, backgroundColor: isToday ? C.tintLight : "transparent" }]}>
+                      <View key={d} style={[a.weekDateCell, { borderColor: C.border, backgroundColor: isToday ? C.brandSoft : "transparent" }]}>
                         <Text style={[a.weekDayLabel, { color: isSun ? "#D96C6C" : isSat ? "#4EA7D8" : C.textSecondary }]}>{DAYS_KO[dt.getDay()]}</Text>
-                        <Text style={[a.weekDateLabel, { color: isToday ? C.tint : C.text }]}>{dt.getDate()}</Text>
+                        <Text style={[a.weekDateLabel, { color: isToday ? C.brandStrong : C.text }]}>{dt.getDate()}</Text>
                       </View>
                     );
                   })}
@@ -810,7 +962,9 @@ export default function AttendanceScreen() {
                 ) : weeklyData.map(row => (
                   <View key={row.student_id} style={[a.weekRow, { borderColor: C.border }]}>
                     <View style={[a.weekNameCell, { borderColor: C.border }]}>
-                      <Text style={[a.weekStudentName, { color: C.text }]} numberOfLines={1}>{row.student_name}</Text>
+                      <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: row.student_id, backTo: "attendance" } } as any)}>
+                        <Text style={[a.weekStudentName, { color: C.text }]} numberOfLines={1}>{row.student_name}</Text>
+                      </Pressable>
                       {row.class_name && <Text style={[a.weekClassName, { color: C.textMuted }]} numberOfLines={1}>{row.class_name}</Text>}
                     </View>
                     {weekDates.map(d => {
@@ -830,8 +984,8 @@ export default function AttendanceScreen() {
                   </View>
                 ))}
               </View>
-            </ScrollView>
-          </ScrollView>
+            </KeyboardAwareScrollView>
+          </KeyboardAwareScrollView>
         )}
       </ScreenLayout>
     );
@@ -841,7 +995,7 @@ export default function AttendanceScreen() {
   return (
     <ScreenLayout header={<>{header}{commonSubHeader}</>}>
       {loadingMonthly ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={monthlyData}
@@ -850,17 +1004,19 @@ export default function AttendanceScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={a.empty}>
-              <Calendar size={40} color={C.textMuted} />
+              <LucideIcon name="calendar" size={40} color={C.textMuted} />
               <Text style={[a.emptyText, { color: C.textMuted }]}>이 달의 출결 데이터가 없습니다</Text>
             </View>
           }
           renderItem={({ item }) => (
             <View style={[a.monthCard, { backgroundColor: C.card, borderColor: C.border }]}>
-              <View style={[a.avatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[a.avatarText, { color: C.tint }]}>{item.student_name[0]}</Text>
+              <View style={[a.avatar, { backgroundColor: C.brandSoft }]}>
+                <Text style={[a.avatarText, { color: C.brandStrong }]}>{item.student_name[0]}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                <Pressable onPress={() => router.push({ pathname: "/(admin)/member-detail", params: { id: item.student_id, backTo: "attendance" } } as any)}>
+                  <Text style={[a.memberName, { color: C.text }]}>{item.student_name}</Text>
+                </Pressable>
                 {item.class_name && <Text style={[a.weekClassName, { color: C.textMuted }]}>{item.class_name}</Text>}
               </View>
               <View style={a.monthStats}>
@@ -907,10 +1063,10 @@ const a = StyleSheet.create({
   noStatus:   { fontSize: 12, fontFamily: "Pretendard-Regular" },
   attBtns:    { flexDirection: "row", gap: 8 },
   attBtn:     { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E5E7EB" },
-  readonlyTagTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  readonlyTag:     { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: C.border },
+  readonlyTagTxt:  { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   readonlyBanner:  { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF9E6", borderRadius: 10, padding: 10, marginHorizontal: 0, marginBottom: 8 },
-  readonlyBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", flex: 1 },
+  readonlyBannerTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, flex: 1 },
 
   empty:     { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, fontFamily: "Pretendard-Regular" },

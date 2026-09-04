@@ -1,0 +1,189 @@
+[SWIMNOTE SUPPORT V1 PRODUCTION DEPLOY]
+
+PROJECT = SWIMNOTE
+
+현재 완료 상태:
+- support_knowledge_items Canonical 1,051개 import 완료
+- support_intent_utterances 최종 14,307 rows
+- v1.3 신규 utterance 13,697건 import 완료
+- conflict 3건은 기존 legacy intent와 충돌하여 정상 SKIP
+- duplicate intent_id 0
+- duplicate normalized_utterance 0
+- dangling knowledge_id 0
+- 신규 dangling intent_id 0
+- matcher sample 35 PASS
+- wrong intent match 0
+- resolver / escalation / schema / UI 변경 없음
+
+이제 고객센터 V1을 실제 Production에 배포한다.
+
+1. Production deploy 실행
+
+현재 branch:
+deploy-photo-clone
+
+현재 HEAD:
+acd36fff
+
+코드 변경 여부를 먼저 확인한다.
+
+이번 고객센터 작업은 DB data import가 중심이었으므로
+불필요한 코드 수정은 하지 않는다.
+
+현재 HEAD 기준으로 Production deploy를 실행한다.
+
+2. 배포 후 Health 확인
+
+배포 완료 후:
+- API health 정상
+- support endpoint 응답 정상
+- Production DB 연결 정상
+- support_knowledge_items 접근 정상
+- support_intent_utterances 접근 정상
+
+확인한다.
+
+3. 고객센터 최소 Smoke Test
+
+전체 regression 금지.
+
+아래만 실제 Production에서 확인한다.
+
+A. DIRECT_DB
+예:
+"사진 안올라가는데"
+
+예상:
+- 올바른 incident/media intent
+- DIRECT_DB 또는 해당 Canonical answer 반환
+
+B. X 가입
+예:
+"엑스 신청 어케함"
+
+예상:
+- X_ONBOARDING 계열 intent
+
+C. 무료 성장리포트
+예:
+"무료리포트 뭐임"
+
+예상:
+- GROWTH_REPORT_FREE 계열 intent
+
+D. SWIMNOTE AI
+예:
+"스윔노트 ai 그냥 챗지피티임?"
+
+예상:
+- SWIMNOTE_AI 계열 intent
+
+E. 특허
+예:
+"특허 진짜 있어?"
+
+예상:
+- COMPANY_IP 계열 intent
+- “4건 출원 진행 중”
+- 등록특허라고 오답 금지
+
+F. OpenAI
+예:
+"오픈ai랑 파트너야?"
+
+예상:
+- 현재 Partner Network 승인 목표로 준비 중
+- 이미 공식 파트너라고 답하면 FAIL
+
+G. HUMAN_ONLY
+예:
+"X 환불돼?"
+
+예상:
+- HUMAN_ONLY
+- 임의 환불정책 생성 금지
+
+H. 오타/축약
+예:
+"보강신청 안되요"
+"업뎃 왜안됨"
+"리폿 안보여"
+
+예상:
+- 관련 intent 정상 매칭
+
+4. 3회 반복 escalation 최소 확인
+
+같은 의미 질문을 연속 3회 입력했을 때:
+- 문의사항 보내기 CTA가 정상 표시되는지 확인
+
+다른 intent로 질문을 바꾸면:
+- 반복 카운트가 초기화되는지 확인
+
+이번 단계에서는 실제 Human ticket까지 끝까지 만들 필요 없다.
+CTA 표시와 상태 흐름만 확인한다.
+
+5. Grounded GPT 최소 확인
+
+DB 답변으로 해결되지 않는 테스트 intent 1건만 사용한다.
+
+확인:
+- Grounded GPT 호출
+- 검색된 SWIMNOTE Knowledge 범위 안에서 답변
+- 이전 DB 답변을 그대로 반복하지 않는지 확인
+- 일반 ChatGPT식 임의 기능/정책 생성이 없는지 확인
+
+1건이면 충분하다.
+
+6. 절대 금지
+
+- 고객지원 구조 리팩터링 금지
+- DB 내용 대량 수정 금지
+- 신규 Canonical 생성 금지
+- 신규 utterance 생성 금지
+- 전체 regression 금지
+- schema migration 금지
+- 불필요한 테스트 반복 금지
+
+이번 작업은 “배포 + Production smoke”만 한다.
+
+7. 완료보고서
+
+[SWIMNOTE SUPPORT V1 PRODUCTION DEPLOY REPORT]
+
+- Branch:
+- HEAD:
+- Production deploy: PASS/FAIL
+- Deploy SHA:
+- API health:
+- support endpoint:
+- DB connection:
+- Canonical DB access:
+- Utterance DB access:
+- DIRECT_DB smoke:
+- X onboarding smoke:
+- free report smoke:
+- SWIMNOTE AI smoke:
+- patent smoke:
+- OpenAI status smoke:
+- HUMAN_ONLY smoke:
+- typo/casual smoke:
+- 3-repeat CTA:
+- intent reset:
+- Grounded GPT smoke:
+- wrong intent match:
+- unexpected policy generation:
+- Production error:
+- rollback needed:
+- final status:
+
+완료 기준:
+- Production deploy PASS
+- health PASS
+- 핵심 smoke PASS
+- wrong intent match 0
+- 치명적 오류 0
+
+이 조건이면
+SWIMNOTE SUPPORT V1 = PRODUCTION READY
+로 완료 처리한다.

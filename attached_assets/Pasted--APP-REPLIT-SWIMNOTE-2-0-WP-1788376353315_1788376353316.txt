@@ -1,0 +1,615 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 WP2 — MEMBER LIST + DETAIL ACTION CONSOLIDATION
+#
+# 기존 WP 계획:
+# WP1 = D + I 완료
+# WP2 = B + C
+#
+# B:
+# 회원목록 필터 정리
+# 어린이/회원 관련 버튼 배치 정리
+# 회원 카드 단순화
+#
+# C:
+# 회원상세 액션 통합
+#
+# 중요:
+# 이번 WP부터 공통 기능은
+# 일반 SWIMNOTE + SWIMNOTE X를 동시에 검수/수정한다.
+#
+# X 전용 화면만 보고 작업하면 FAIL.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current known WP1 state:
+87935a27
+
+단 현재 실제 HEAD를 먼저 확인하고
+그 값을 source of truth로 사용.
+
+WP1:
+FULLY CLOSED
+
+Production:
+NO DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+0. 공통 CORE 여부를 먼저 확인
+============================================================
+
+이번 대상:
+
+- members.tsx
+- MemberCard.tsx
+- member-detail.tsx
+
+먼저 일반 SWIMNOTE와 X에서
+실제 active route/component를 추적.
+
+확인:
+
+Normal 회원관리
+→ 회원목록
+→ 회원카드
+→ 회원정보보기
+
+X 회원관리
+→ 회원목록
+→ 회원카드
+→ 회원정보보기
+
+각각:
+
+ROUTE
+ACTIVE FILE
+COMPONENT
+
+확인.
+
+이미 WP1에서 member-detail은
+Normal/X 동일 파일임이 확인됨.
+
+members.tsx와 MemberCard.tsx도
+동일 공통 core인지 확인.
+
+판정:
+
+A.
+Normal/X 동일 component
+→ shared code 한 번 수정
+
+B.
+분리되어 있음
+→ 왜 분리되어 있는지 확인
+→ 기능적으로 공통인 부분은 동일 동작으로 맞춤
+→ 불필요한 duplicate 신규 생성 금지
+
+============================================================
+1. B — 회원목록 FILTER 정리
+============================================================
+
+현재 회원목록의 실제 filter 구조를 먼저 조사.
+
+현재 존재하는 filter만 source of truth로 사용.
+
+확인 대상 예:
+
+- 전체
+- 정상/재원
+- 연기
+- 퇴원/탈퇴
+- 반
+- 담당 선생님
+- 검색
+- 기타 현재 구현된 상태 필터
+
+중요:
+새 filter 기능을 발명하지 말 것.
+
+목표:
+
+1.
+중복되는 filter 제거/정리
+
+2.
+서로 충돌하는 filter state 제거
+
+3.
+검색 + 상태 + 반/선생님 필터가
+예측 가능한 순서로 적용
+
+4.
+filter 변경 후
+회원목록이 즉시 정확히 갱신
+
+5.
+Normal/X 동일 결과
+
+6.
+필터 때문에 다른 pool 회원이 섞이는 일 0
+
+============================================================
+2. FILTER 상태/RESET
+============================================================
+
+확인:
+
+- 화면 재진입
+- 검색 초기화
+- filter 변경
+- 탭 이동
+- member-detail 진입 후 back
+
+에서 filter state가
+의도치 않게 초기화되거나 남지 않는지 확인.
+
+기존 제품 설계에 맞는 상태 유지.
+
+새 global state architecture:
+NO
+
+============================================================
+3. B — MEMBER CARD 단순화
+============================================================
+
+MemberCard.tsx 현재 구조 조사.
+
+목표:
+
+회원목록 카드에서
+"목록에서 바로 봐야 하는 정보"와
+"상세에서 보는 정보"를 구분.
+
+현재 중복 표시되는 정보/버튼이 있다면 정리.
+
+중요:
+
+새 디자인 만들지 말 것.
+
+기존 승인된 디자인 언어 유지.
+
+회원카드에서
+상세 화면과 동일한 모든 정보를
+반복 표시하지 말 것.
+
+다만 현재 운영에 필요한 핵심 정보는 유지.
+
+실제 source에서 현재 카드 필드를 나열한 뒤
+불필요한 중복만 최소 정리.
+
+============================================================
+4. 어린이/회원 관련 BUTTON 배치
+============================================================
+
+기존 WP B에서 계획된
+어린이/회원 관련 버튼 배치를
+현재 active UI 기준으로 확인.
+
+중요:
+
+버튼의 기능을 새로 만드는 작업이 아니다.
+
+기존 action이 존재하는데
+위치가 분산되어 있거나
+중복 버튼이 있는 부분을 정리.
+
+목표:
+
+목록:
+선택/진입 중심
+
+상세:
+회원 개별 action 중심
+
+같은 action이
+목록카드 + 상세에 불필요하게 중복되면
+기존 WP 설계에 맞춰 정리.
+
+기존 기능 삭제는
+실제 대체 entry가 확인된 경우만 허용.
+
+============================================================
+5. C — MEMBER DETAIL ACTION 통합
+============================================================
+
+WP1에서 member-detail 기본 구조는 정상화 완료.
+
+이번 WP에서는
+상세 화면 안의 기존 action들을 검수.
+
+확인 가능한 현재 action 예:
+
+- 기본정보 수정
+- 반 변경
+- 회원 상태 관련 action
+- 메모
+- 보호자/연결 관련 action
+- 출결/보강/일지 등 현재 존재하는 이동 action
+
+단 실제 source에 존재하는 것만 작업.
+
+목표:
+
+관련 action이
+서로 다른 위치에 불규칙하게 흩어져 있다면
+기존 설계 기준으로 통합.
+
+중요:
+
+새 기능 추가:
+NO
+
+새 screen:
+NO
+
+기존 API 변경:
+가능하면 NO
+
+============================================================
+6. WP1 MEMBER DETAIL FLOW 보호
+============================================================
+
+WP1에서 완료한 아래 동작 절대 깨뜨리지 말 것:
+
+- 상세 진입 시 ClassPicker 자동 노출 0
+- "반 선택하기" 탭 시에만 picker
+- 현재 반 표시
+- weeklyCount maxSelect
+- sort/check 상태
+- PATCH /students/:id/assign
+- 저장 후 즉시 갱신
+- 취소 시 변경 0
+- back → 이전 업무화면
+- members.tsx legacy transfer flow 유지
+
+============================================================
+7. NORMAL + X 동시 검증
+============================================================
+
+이번 WP의 회원관리 기능은
+Normal/X 공통 core로 간주하되,
+실제 route를 검증한 뒤 확정.
+
+반드시 각각 테스트:
+
+NORMAL:
+회원목록
+필터
+검색
+카드
+상세
+상세 action
+back
+
+X:
+회원목록
+필터
+검색
+카드
+상세
+상세 action
+back
+
+결과가 달라야 할 X 전용 정책이
+명시적으로 존재하지 않는 한
+동일 동작이어야 함.
+
+============================================================
+8. 권한별 확인
+============================================================
+
+Admin:
+회원 전체 관리 권한 유지
+
+Teacher:
+현재 권한 범위 내 회원만
+
+Parent:
+이번 WP 대상 아님
+
+Teacher scope fix:
+절대 회귀 금지.
+
+특히 최근 수정된:
+
+isSwitchingRole
+/class-groups?mine=true
+teacher scope gate
+
+건드리지 말 것.
+
+============================================================
+9. NAVIGATION
+============================================================
+
+회원목록 → 상세 → back
+
+은 반드시
+원래 진입한 업무화면으로 복귀.
+
+WP1에서 확인된 backTo:
+
+members
+teacher-hub
+attendance
+makeups
+
+유지.
+
+Back을 Home으로 보내는 수정:
+NO
+
+Home icon은 true home만.
+
+============================================================
+10. 테스트
+============================================================
+
+WP2-B:
+
+B01 Normal 회원목록 진입
+B02 X 회원목록 진입
+B03 Normal/X 동일 active member core
+B04 검색 정상
+B05 상태 filter 정상
+B06 반/선생님 filter 현재 구현 기준 정상
+B07 복합 filter 결과 정확
+B08 filter reset 정상
+B09 detail→back 후 목록 context 정상
+B10 card 핵심정보 유지
+B11 card 중복정보/중복 action 정리
+B12 Normal/X card 동일
+B13 cross-pool leakage 0
+
+WP2-C:
+
+C01 member detail 진입
+C02 기존 edit 정상
+C03 기존 class change 정상
+C04 기존 메모/action 정상
+C05 상세 action 중복 없음
+C06 상세 action 기존 API 유지
+C07 backTo members 정상
+C08 backTo teacher-hub 정상
+C09 backTo attendance 정상
+C10 backTo makeups 정상
+C11 Normal/X detail 동일
+C12 WP1 D flow 회귀 0
+
+============================================================
+11. 공통기능 검수 결과에 따른 WP 조정 허용
+============================================================
+
+중요:
+
+이번 조사 중
+일반 SWIMNOTE 회원관리 쪽에
+X와 별도로 존재하는 회귀/legacy 구현이 발견되면:
+
+그 사실을 숨기고 X만 완료 처리하지 말 것.
+
+회원관리 공통 core에 해당하면
+이번 WP 범위 안에서 같이 최소 수정 가능.
+
+단 완전히 별개 기능/대규모 문제라면
+코드 확대 금지하고
+완료보고에:
+
+NORMAL CORE GAP
+
+으로 정확히 보고.
+
+다음 WP 전에 계획 수정할 수 있게 할 것.
+
+============================================================
+12. 범위 금지
+============================================================
+
+이번 WP에서 금지:
+
+RevenueCat
+Subscription pricing
+Kakao
+Apple auth
+1.6.3
+Production server
+Render
+Media
+Teacher scope 구조
+Messenger
+AI
+Growth Report
+새 기능
+
+============================================================
+13. REGRESSION
+============================================================
+
+New deterministic failures:
+0
+
+기존 181 pre-existing failure를
+이번 WP에서 고치려고 범위 확대 금지.
+
+변경 전/후 신규 실패만 비교.
+
+============================================================
+14. COMMIT
+============================================================
+
+변경이 필요하면 하나의 논리적 commit 권장:
+
+fix(v2.0): consolidate member list and detail actions
+
+공통 core 수정이면
+Normal/X 둘 다 같은 commit으로 반영.
+
+============================================================
+15. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 WP2 COMPLETION REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## COMMON CORE
+
+Normal members route:
+...
+
+X members route:
+...
+
+Same members component:
+YES / NO
+
+Same MemberCard:
+YES / NO
+
+Same member-detail:
+YES
+
+Normal/X common fix applied:
+YES / NO
+
+## B — MEMBER LIST
+
+Existing filters:
+...
+
+Filters cleaned:
+...
+
+Search:
+PASS / FAIL
+
+Combined filters:
+PASS / FAIL
+
+Reset/context:
+PASS / FAIL
+
+MemberCard simplified:
+PASS / FAIL
+
+Duplicated actions removed:
+...
+
+Core information preserved:
+YES / NO
+
+Normal:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+B01-B13:
+...
+
+## C — MEMBER DETAIL ACTIONS
+
+Actions found:
+...
+
+Actions consolidated:
+...
+
+WP1 class flow:
+PASS / FAIL
+
+Edit/save:
+PASS / FAIL
+
+Memo/current actions:
+PASS / FAIL
+
+BackTo:
+PASS / FAIL
+
+Normal:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+C01-C12:
+...
+
+## NORMAL SWIMNOTE EXTRA AUDIT
+
+Normal-only legacy/regression found:
+YES / NO
+
+If YES:
+...
+
+Fixed in WP2:
+YES / NO / NOT-IN-SCOPE
+
+WP plan adjustment required:
+YES / NO
+
+## REGRESSION
+
+Teacher scope:
+PASS
+
+Media:
+PASS
+
+Kakao:
+PASS
+
+New deterministic failures:
+0
+
+## DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+Production:
+NO CHANGE
+
+## FINAL
+
+WP2 COMPLETE — NORMAL + X MEMBER CORE VERIFIED
+
+또는
+
+WP2 BLOCKED — NORMAL/X COMMON CORE GAP REMAINS

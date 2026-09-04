@@ -1,0 +1,243 @@
+[URGENT V1.6.2 CRASH FIX — REPLACE FORCE MODAL WITH MINIMAL RETIREMENT SCREEN]
+
+현재 상태:
+
+1.6.2 retirement OTA는 성공했고
+"업데이트 필요" 화면도 표시된다.
+
+하지만 화면 표시 직후 또는 업데이트 흐름 중
+앱이 강제종료된다.
+
+목표:
+
+1.6.2에서는 기존 ForceModal / startup / auth / provider 흐름을
+최대한 우회하고,
+
+아주 단순한 전용 UPDATE-ONLY SCREEN만 렌더하여
+강제종료 원인을 제거한다.
+
+==================================================
+1. FIRST — CRASH ROOT CAUSE 확인
+==================================================
+
+가능하면 현재 1.6.2에서 강제종료 시:
+
+- JS exception
+- native crash
+- redbox/sentry/logcat
+- expo update error
+- modal render error
+- provider initialization error
+- router/navigation error
+- Linking.openURL 전후 오류
+
+를 확인한다.
+
+단,
+원인 분석 때문에 복구를 지연시키지 않는다.
+
+==================================================
+2. DO NOT REUSE EXISTING FORCE MODAL
+==================================================
+
+현재 1.6.2 retired flow에서
+기존 ForceModal을 재사용하지 않는다.
+
+기존 ForceModal은
+현재 앱의 startup/auth/navigation/provider 상태에
+의존할 수 있으므로 1.6.2에서는 사용 금지.
+
+==================================================
+3. MINIMAL RETIREMENT SCREEN
+==================================================
+
+app/_layout.tsx 또는
+실제 앱 최상위 진입점에서
+
+Constants.expoConfig?.version === "1.6.2"
+
+이면
+다른 startup 로직보다 먼저
+즉시 단순 화면을 return 한다.
+
+예상 구조:
+
+if (_IS_RETIRED) {
+  return <RetiredUpdateScreen />;
+}
+
+RetiredUpdateScreen은 최소 구성:
+
+- SafeAreaView 또는 View
+- Text
+- Pressable/Button
+- Linking.openURL
+
+외에는 사용 최소화.
+
+Router 이동 금지.
+Modal 사용 금지.
+Auth restore 금지.
+API 호출 금지.
+startup check 금지.
+X mode check 금지.
+RevenueCat init 의존 금지.
+DB/local state 의존 금지.
+
+==================================================
+4. SCREEN CONTENT
+==================================================
+
+문구:
+
+"새로운 SWIMNOTE가 출시되었습니다."
+
+"계속 사용하려면 최신 버전으로 업데이트해주세요."
+
+버튼:
+
+"업데이트하기"
+
+버튼 동작:
+
+Android:
+https://play.google.com/store/apps/details?id=com.swimnote.app
+
+iOS:
+https://apps.apple.com/app/id6761360360
+
+Linking.canOpenURL 확인 후 openURL.
+
+실패 시 fallback URL 동일 사용.
+
+==================================================
+5. NO AUTO CLOSE / NO TIMER
+==================================================
+
+1.6.2 화면에서는:
+
+- setTimeout 금지
+- 자동 navigation 금지
+- 자동 reload 금지
+- Updates.reloadAsync 금지
+- modal close 금지
+- background startup 작업 금지
+
+사용자가 버튼을 누를 때까지
+정적 화면으로 유지.
+
+==================================================
+6. NATIVE COMPATIBILITY
+==================================================
+
+반드시 1.6.2 binary에 이미 존재하는
+React Native 기본 컴포넌트만 사용.
+
+새 native dependency 사용 금지.
+
+새 라이브러리 import 금지.
+
+Expo SDK/native config 변경 금지.
+
+==================================================
+7. TEST
+==================================================
+
+실제 1.6.2 설치본 기준:
+
+CASE 1
+앱 실행
+→ OTA 수신
+
+CASE 2
+재실행
+→ minimal retirement screen 표시
+
+CASE 3
+30초 이상 화면 유지
+→ 앱 강제종료 없음
+
+CASE 4
+업데이트 버튼 탭
+→ Store 이동
+
+CASE 5
+Store에서 뒤로 돌아와도
+→ 앱 crash 없음
+
+CASE 6
+1.6.3 이상
+→ 기존 app flow 영향 없음
+
+==================================================
+8. OTA TARGET
+==================================================
+
+반드시 runtimeVersion 1.6.2만 대상으로 publish.
+
+production branch/channel.
+
+1.6.3 이상 runtime 영향 금지.
+
+==================================================
+9. DO NOT TOUCH
+==================================================
+
+수정 금지:
+
+- 최신 앱 코드 동작
+- 가격
+- subscription
+- X
+- AI
+- Growth Report
+- logo
+- splash
+- server
+- DB
+- Android new build
+- current 1.6.3 startup flow
+
+이번 작업은
+V1.6.2 CRASH-FREE RETIREMENT SCREEN ONLY.
+
+==================================================
+10. FINAL REPORT
+==================================================
+
+V1.6.2 CRASH FIX REPORT
+
+CRASH ROOT CAUSE =
+FORCEMODAL REMOVED FROM 1.6.2 FLOW =
+MINIMAL SCREEN FILE =
+STARTUP BYPASSED =
+AUTH BYPASSED =
+ROUTER BYPASSED =
+API CALLS =
+NATIVE DEPENDENCY CHANGE =
+
+COMMIT SHA =
+
+OTA
+RUNTIME =
+BRANCH =
+CHANNEL =
+iOS UPDATE ID =
+ANDROID UPDATE ID =
+UPDATE GROUP ID =
+PUBLISH RESULT =
+
+TEST
+SCREEN STAYS OPEN =
+NO CRASH 30s =
+ANDROID STORE OPEN =
+IOS STORE OPEN =
+1.6.3 UNAFFECTED =
+
+FINAL:
+PASS — 1.6.2 update-only screen stable
+
+or
+HOLD — exact blocker
+
+STOP.

@@ -1,0 +1,232 @@
+[OTA 배포 승인 — 보강 기능 UI 개선 + 소식알림 좋아요 라우팅 수정]
+
+이번 OTA에 포함할 완료 commit:
+
+1. bcf2de5d
+   - 선생님 보강대기 학생 이름 실시간 검색 인덱스
+
+2. d792326b
+   - 수강생관리 > 보강대기리스트 > 보강배정
+   - 기능 없는 날짜 좌우 이동 UI 제거
+   - 실제 assigned_date 로직은 유지
+
+3. 05db67d8
+   - 선생님 소식알림의 diary_like 클릭 destination 수정
+   - diary_like → diary-reactions
+   - historical diary_thanks → diary-reactions
+   - diary_comment 기존 정상 동작 유지
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 무결성 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 branch / HEAD를 먼저 확인한다.
+
+다음 세 commit이 현재 HEAD에 모두 포함되어 있는지 확인:
+
+bcf2de5d
+d792326b
+05db67d8
+
+각각:
+
+git merge-base --is-ancestor <commit> HEAD
+
+exit code 0 확인.
+
+하나라도 현재 HEAD에 포함되어 있지 않으면
+OTA 배포 금지.
+
+임의 merge / cherry-pick / 코드 수정하지 말고
+현재 상태만 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Diff 범위 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 변경의 핵심 파일:
+
+app/(teacher)/makeups.tsx
+
+components/teacher/StudentManagementSheet.tsx
+
+app/(teacher)/messages-inbox.tsx
+
+관련 없는 기능이 함께 변경되지 않았는지 확인.
+
+특히 다음 보호:
+
+- 보강 API
+- 보강배정 payload
+- assigned_date
+- 인계
+- 소멸
+- 직접완료
+- reaction API
+- notification 생성
+- 읽음 처리
+- diary-reactions
+- diary 수정 기능
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Production OTA
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Store Production 앱과 호환되는:
+
+appVersion
+runtimeVersion
+production channel
+
+을 실제 설정에서 확인한 뒤 배포.
+
+현재 기준이 계속 1.6.2라면:
+
+runtimeVersion = 1.6.2
+channel = production
+
+대상으로 iOS / Android 모두 OTA.
+
+instagram-test channel과 혼동 금지.
+
+preview는 이번 승인 대상이 아니다.
+필요한 명확한 이유가 없다면 production만 배포.
+
+기존 Production 환경변수 공급 방식 그대로 유지.
+
+Instagram Story 기능 보호를 위해
+EXPO_PUBLIC_META_APP_ID도 기존 정상 Production 방식으로
+번들에 포함되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 실기기 검증 — 보강대기 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+보강대기 진입
+→ 상단 경량 학생 이름 검색창 표시
+
+CASE 2
+이름 입력
+→ 검색 버튼 없이 즉시 필터
+
+CASE 3
+부분 이름 검색
+→ 정상
+
+CASE 4
+키보드 상태에서 학생 첫 탭
+→ 기존 액션 즉시 실행
+
+CASE 5
+리스트 드래그
+→ 키보드 내려감
+→ 스크롤 즉시 가능
+
+CASE 6
+검색 clear
+→ 전체 목록 복원
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실기기 검증 — 보강배정
+━━━━━━━━━━━━━━━━━━━━━━
+
+수강생관리
+→ 보강대기리스트
+→ 보강배정
+
+확인:
+
+- 날짜 좌우 이동 UI 없음
+- "보강 날짜를 선택하세요" 없음
+- 불필요한 빈 공간 없음
+- 보강 가능한 반 목록 정상
+- 보강반 선택 정상
+- 보강배정 정상
+- assigned_date는 기존 todayDateStr() 기준 정상 전달
+- 인계/소멸/직접완료 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 실기기 검증 — 소식알림
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 7
+신규 좋아요 알림 클릭
+
+→ 읽음 처리 정상
+→ /(teacher)/diary-reactions 이동
+→ 해당 diaryId 정상 표시
+→ "일지 수정" 화면으로 이동하지 않음
+
+CASE 8
+댓글 알림 클릭
+
+→ 기존과 동일하게 diary-reactions
+→ 회귀 없음
+
+CASE 9
+과거 diary_thanks 알림이 존재하면 클릭
+
+→ diary-reactions 이동
+→ thanks 신규 기능이 다시 활성화되는 것은 아님
+
+CASE 10
+다른 notification type
+
+→ 기존 else destination 유지
+→ 기존 diary/editDiaryId 동작 보호
+
+CASE 11
+diary-reactions 뒤로가기
+
+→ source="news_inbox" 기준 기존 복귀 정상
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 배포 과정에서:
+
+CODE 추가 수정 금지
+Render 배포 금지
+Server 수정 금지
+DB 변경 금지
+Native Build 금지
+app.json 변경 금지
+eas.json 변경 금지
+
+검증된 현재 HEAD를 그대로 OTA한다.
+
+문제 발견 시 즉석 수정하지 말고 중단 후 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Current branch
+2. Current HEAD
+3. bcf2de5d 포함 여부
+4. d792326b 포함 여부
+5. 05db67d8 포함 여부
+6. 실제 OTA 포함 diff 확인
+7. OTA Group ID
+8. iOS Update ID
+9. Android Update ID
+10. runtimeVersion
+11. channel
+12. META_APP_ID 주입 확인
+13. 보강대기 검색 결과
+14. keyboard 동작 결과
+15. 날짜 UI 제거 결과
+16. assigned_date 정상 여부
+17. 보강배정 회귀 여부
+18. diary_like 클릭 destination 결과
+19. diary_comment 회귀 여부
+20. historical diary_thanks 결과
+21. 다른 notification type 회귀 여부
+22. Server 변경 0
+23. DB 변경 0
+24. Native Build 0
+
+OTA 및 검증 완료 후
+추가 수정 없이 멈춘다.

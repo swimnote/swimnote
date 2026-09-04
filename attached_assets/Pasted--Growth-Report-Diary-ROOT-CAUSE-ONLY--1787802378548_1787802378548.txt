@@ -1,0 +1,419 @@
+[앱] Growth Report 댓글 알림 오표시 + 일반 Diary 좋아요 숫자 미갱신
+ROOT CAUSE 최종 확정 조사 ONLY
+
+아직 코드 수정하지 마십시오.
+
+현재까지 조사 결과를 바탕으로 두 문제를 한 번에 최종 확정합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A. Growth Report 댓글 알림 오표시
+━━━━━━━━━━━━━━━━━━━━━━
+
+[실기기 증상]
+
+Parent가 Growth Report에 댓글 작성
+→ 댓글 자체는 정상 저장
+→ Teacher 소식에도 관련 항목은 보임
+→ 그런데 소식에는 댓글이 아니라
+
+"새 좋아요"
+"{parentName}님이 성장리포트에 좋아요를 눌렀습니다."
+
+가 표시됨.
+
+현재 코드 조사 결과:
+
+POST /parent/growth-reports/:reportId/comments
+
+notification INSERT 예정값은:
+
+type = growth_report_comment
+title = 새 댓글
+body = {senderName}님이 AI 성장 리포트에 댓글을 남겼습니다.
+ref_id = reportId
+ref_type = growth_report
+recipient_id = resolveTeacherByStudent 결과
+
+GET /teacher/news는
+DB의 type/title/body를 변환하지 않고 그대로 반환.
+
+따라서 클라이언트 문구 변환 문제는 아님.
+
+현재 유력 가설:
+
+resolveTeacherByStudent()
+→ null
+→ notification INSERT 전 return
+→ growth_report_comment notification이 생성되지 않음
+→ 기존 growth_report_like notification만 Teacher news에 남아 있음
+
+하지만 아직 이것을 ROOT CAUSE로 확정하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A-1. 실제 실행 증거 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 Growth Report 댓글 작성 시점에
+Render 로그에서 다음 로그 존재 여부 확인:
+
+[gr-comments] recipient_not_found
+
+제출:
+- 존재 / 없음
+- 해당 reportId
+- 해당 studentId
+
+민감정보 전체 출력은 하지 말고 필요한 ID만 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A-2. resolveTeacherByStudent 실제 데이터 경로 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+
+이전 보고에서는:
+
+students.current_class_id
+
+라고 했고,
+
+최근 SQL에서는:
+
+students.class_group_id
+
+라고 보고했습니다.
+
+둘 중 어느 것이 실제 현재 repository schema인지
+반드시 코드/DDL 기준으로 확정하십시오.
+
+확인:
+
+students:
+- 실제 class 연결 column 이름
+- student.id
+- swimming_pool_id
+- 해당 class 연결값
+
+class_groups:
+- id
+- teacher_user_id
+- swimming_pool_id
+
+그리고 실제 문제가 발생한 학생이:
+
+student
+→ class group
+→ teacher_user_id
+
+로 정상 연결되는지 확인.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A-3. Like와 Comment의 Teacher resolve 비교
+━━━━━━━━━━━━━━━━━━━━━━
+
+Growth Report Like와 Comment가
+정말 동일한 resolveTeacherByStudent()를 호출하는지 확인.
+
+확인:
+
+Like:
+→ 어떤 studentId
+→ 어떤 poolId
+→ resolve 결과
+
+Comment:
+→ 어떤 studentId
+→ 어떤 poolId
+→ resolve 결과
+
+같은 report / 같은 student인데
+Like notification은 존재하고
+Comment notification만 없다면
+
+왜 두 호출의 결과가 달라질 수 있는지
+실제 코드/로그로 설명하십시오.
+
+"시간차로 반이 바뀌었을 수 있음"
+같은 추측만으로 확정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A-4. 댓글 요청 1건 실행 단계 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+댓글 1건을 기준으로 아래를 제출:
+
+1. growth_report_comments INSERT
+2. resolveTeacherByStudent 호출
+3. teacher row 반환
+4. notifications INSERT
+5. push 호출
+6. GET /teacher/news 반환
+
+각 단계:
+
+EXECUTED
+또는
+NOT EXECUTED
+
+로 표시.
+
+가능하면 Render log / 코드 실행 결과 근거 포함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+A-5. 관리자 fallback 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 계획서에 제안된:
+
+teacher 없음
+→ pool_admin / owner fallback
+
+은 사용하지 않습니다.
+
+SWIMNOTE 정책:
+
+담당선생님 resolve 성공
+→ 담당선생님에게 알림
+
+담당선생님 resolve 실패
+→ like/comment 데이터 저장은 유지 가능
+→ notification / push 생략
+→ recipient_not_found 로그
+
+담당선생님이 아닌 사람에게 임의 전달 금지.
+
+teacher_reviewed_by fallback도 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B. 일반 Diary 좋아요 숫자 미갱신
+━━━━━━━━━━━━━━━━━━━━━━
+
+[실기기 증상]
+
+Parent 일반 일지 Feed에서 좋아요 클릭
+→ Parent heart active
+→ 그런데 Teacher 일지 화면 like_count가 바로 올라오지 않음.
+
+현재 코드 조사 결과:
+
+Parent:
+POST /parent/diary/:diaryId/reactions
+
+DB:
+diary_reactions
+UNIQUE(diary_id, parent_id, reaction_type)
+
+Teacher count:
+SELECT COUNT(*)
+FROM diary_reactions dr
+WHERE dr.diary_id = cd.id
+AND dr.reaction_type = 'like'
+
+Teacher UI:
+GET /diaries
+→ diaries state
+→ DiaryHistoryList
+→ item.like_count
+
+그리고 현재 Teacher diary 화면은:
+
+- 최초 mount → fetch
+- 수업 선택 변경 → fetch
+- 일지 작성/수정/삭제 → fetch
+- pull-to-refresh → fetch
+- useFocusEffect 복귀 → diaries refetch 없음
+
+따라서 현재 유력 ROOT CAUSE:
+
+Teacher diary 화면의 stale state / refresh 문제.
+
+그러나 코드 수정 전에 실제 동작으로 한 번 더 확정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B-1. 동일 diaryId 기준 실제 흐름 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+하나의 diaryId로 확인:
+
+[BEFORE]
+- Parent like inactive
+- Teacher 화면 like_count
+
+[PARENT LIKE]
+- POST response = active:true 확인
+
+가능하면:
+- reaction row 존재 확인
+또는
+- reactions summary API에서 like 존재 확인
+
+[TEACHER — REFRESH 전]
+- 기존 화면 like_count
+
+[TEACHER — Pull-to-refresh 후]
+- like_count
+
+[TEACHER — 수업 재선택 후]
+- like_count
+
+만약:
+
+refresh 전 = 0
+refresh 후 = 1
+
+이면
+
+ROOT CAUSE = Teacher UI stale state
+
+로 확정.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B-2. Teacher reactions 상세 화면도 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+해당 diary의:
+
+diary-reactions 화면
+
+또는 reactions summary API에서
+
+- like_count
+- 좋아요 누른 parent
+
+가 실제로 정상 표시되는지 확인.
+
+정상이라면:
+
+DB 저장/API 집계는 정상
+→ Teacher diary list refresh 문제
+
+로 확정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━
+B-3. 수정안은 아직 구현하지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 후보 최소 수정안:
+
+artifacts/swim-app/app/(teacher)/diary.tsx
+
+useFocusEffect에서
+현재 선택된 class/group이 존재하면
+diaries를 다시 load.
+
+목적:
+
+Teacher가
+messages-inbox 등 다른 화면에서
+diary 화면으로 돌아왔을 때
+
+최신 like_count 자동 반영.
+
+단 아직 구현 금지.
+
+추가 확인:
+
+useFocusEffect에 loadDiaries를 넣을 경우
+
+기존 effect와 겹쳐
+화면 진입 시 duplicate API call이 발생하는지 확인.
+
+불필요한 debounce/throttle을 먼저 추가하지 말 것.
+
+최소 수정으로 해결 가능한지 설계만 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+C. 최종 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[GR COMMENT EVIDENCE]
+
+- recipient_not_found 로그 존재 여부
+- 실제 students class 연결 column명
+- 실제 student → class_group → teacher 연결값 존재 여부
+- Like resolve 함수/입력/결과
+- Comment resolve 함수/입력/결과
+
+댓글 요청 단계:
+
+1. comment INSERT:
+2. teacher resolve:
+3. teacher returned:
+4. notification INSERT:
+5. push:
+6. teacher/news:
+
+각각 EXECUTED / NOT EXECUTED
+
+[GR COMMENT ROOT CAUSE]
+
+한 가지로 확정:
+
+1. teacher resolve 실패
+2. notification INSERT 실패
+3. notification query/filter 문제
+4. 다른 notification을 잘못 보고 있음
+5. 기타
+
+근거 포함.
+
+[GR COMMENT MINIMAL FIX PLAN]
+
+- 수정 파일
+- 수정 함수
+- 변경 내용
+- 담당선생님 외 fallback 없음 확인
+- 기존 Diary 영향 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+[DIARY LIKE EVIDENCE]
+
+- Parent POST response
+- reaction 저장/summary 결과
+- Teacher refresh 전 like_count
+- pull-to-refresh 후 like_count
+- 수업 재선택 후 like_count
+- diary-reactions 상세 결과
+
+[DIARY LIKE ROOT CAUSE]
+
+아래 중 하나로 확정:
+
+1. reaction 저장 실패
+2. diary_id mismatch
+3. like_count SQL 오류
+4. API projection 오류
+5. Teacher UI stale state / refresh 오류
+6. 기타
+
+[DIARY LIKE MINIMAL FIX PLAN]
+
+- 수정 파일
+- 수정 함수/effect
+- focus 복귀 시 refetch 방식
+- duplicate API call 가능성
+- 기존 Diary comment / Growth Report 영향 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+D. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 단계에서는:
+
+- 코드 수정 금지
+- pool_admin fallback 구현 금지
+- owner fallback 구현 금지
+- teacher_reviewed_by fallback 금지
+- DB migration 금지
+- Production DB write 금지
+- Render deploy 금지
+- OTA 금지
+- UI 변경 금지
+
+ROOT CAUSE 2건을 실제 근거로 확정하고
+각각 최소 수정계획만 제출 후 STOP.
+
+사용자 승인 전 수정 작업 시작 금지.

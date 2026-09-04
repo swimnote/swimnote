@@ -1,0 +1,456 @@
+[앱] STEP-GAUGE-04 — CURRICULUM PROGRESS OBSERVATION MAPPER
+
+기준:
+- CURRICULUM PROGRESS GAUGE DESIGN V3 FINAL
+- STEP-GAUGE-02 PROGRESS RANK CALCULATOR COMPLETE
+- STEP-GAUGE-03 EVIDENCE CLASSIFIER COMPLETE
+
+목적:
+Teacher Diary 저장 시 생성되는 실제 growth_events를 이용해
+학생 1명 + 실제 lesson_session 1회당
+대표 curriculum progress observation(CPO) 1개를
+안전하게 생성/갱신/무효화하는 mapper를 구현한다.
+
+이번 Step은:
+- CPO mapper service 구현
+- diary CREATE / EDIT / DELETE 최소 연결
+- 관련 테스트
+까지만 한다.
+
+중요:
+- SCP confirmation engine은 아직 구현 금지
+- student_curriculum_progress INSERT/UPDATE 금지
+- Parent Home UI 수정 금지
+- Growth Report 수정 금지
+- Parent Curriculum 수정 금지
+- AI Engine 수정 금지
+- Professional V2 수정 금지
+- 전체 repo audit 금지
+- 자동 Render deploy 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 신규 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+권장:
+
+artifacts/api-server/src/lib/curriculum-progress-mapper.ts
+
+기존 repo convention에 맞게 최소 조정 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 핵심 함수
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+구현 권장:
+
+upsertSessionObservation(tx, {
+  studentId,
+  poolId,
+  lessonSessionId,
+  growthEvents
+})
+
+return:
+{
+  status:
+    'UPSERTED'
+    | 'INVALIDATED'
+    | 'NO_ELIGIBLE_EVIDENCE',
+
+  curriculumItemId?: string,
+  progressRank?: number,
+  totalCount?: number,
+  progressPct?: number,
+  observationType?: string,
+  isGaugeEligible?: boolean
+}
+
+필요하면 내부 diagnostic만 추가 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 입력 source
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CPO mapper가 사용할 수 있는 progress source:
+
+ONLY:
+- 현재 lesson_session/student의 유효 growth_events
+- 각 growth_event가 참조하는 pool curriculum_item
+- curriculum-rank-calculator
+- curriculum-evidence-classifier
+
+금지:
+- Professional V2
+- GPT output
+- swimming explanation DB
+- DTA
+- recommendation
+- next-step AI result
+- Parent Curriculum AI result
+
+게이지 근거는 계속
+POOL CURRICULUM + ACTUAL DIARY EVIDENCE ONLY.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Growth Events 필터
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+해당 session/student의 growth_events 중:
+
+- is_invalidated=false
+- curriculum_item_id 존재
+- curriculum_version_id 존재
+- source/evidence_source가 mapper가 허용하는 teacher 계열
+- 현재 pool과 curriculum version 관계 일치
+
+만 후보로 사용.
+
+parent_ai / video_ai 등
+Teacher Diary 실제 수업 observation이 아닌 source가 존재하면
+게이지 후보에서 제외.
+
+현재 실제 source semantics를 최소 확인하고
+teacher_ai / teacher_manual만 허용하도록 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 각 event 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 candidate growth_event에 대해:
+
+A.
+classifyObservationType({
+  evidenceText,
+  evidenceSource
+})
+
+B.
+computeItemRank(
+  tx,
+  curriculumVersionId,
+  curriculumItemId
+)
+
+C.
+pool/version guard
+
+item은 반드시
+해당 student pool의 curriculum version에 속해야 함.
+
+다른 pool/version이면 fail-closed skip 또는 error.
+현재 project error convention에 맞춰 선택.
+
+cross-pool 데이터가 CPO로 들어가면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Session 대표 observation 선택
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학생 1명 + lesson_session 1회에
+CPO 최대 1개.
+
+해당 session에서
+isGaugeEligible=true인 candidate가 여러 개면:
+
+가장 높은 progressRank item 1개를
+대표 observation으로 선택.
+
+예:
+
+rank 52 ACTUAL_TAUGHT
+rank 60 REVIEW
+rank 64 FUTURE_PLAN(false)
+
+→ 대표 = rank60
+
+future/ineligible item이 더 높은 rank여도
+대표값으로 선택 금지.
+
+eligible item끼리 rank가 같으면
+deterministic tie-breaker 사용.
+
+권장:
+progressRank DESC
+→ curriculumItemId ASC
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. Observation Type 대표값
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대표 item의 classifier 결과를
+CPO observation_type으로 저장.
+
+예:
+최고 eligible rank item이 CORRECTION이면
+CPO observation_type=CORRECTION.
+
+한 session에 여러 eligible type이 섞여도
+대표 item 기준으로 저장.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. CPO UPSERT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+키:
+
+UNIQUE(lesson_session_id, student_id)
+
+INSERT ... ON CONFLICT DO UPDATE.
+
+반드시 갱신:
+
+- swimming_pool_id
+- last_diary_note_id
+- curriculum_version_id
+- curriculum_item_id
+- observed_progress_rank
+- observed_total_count
+- observed_progress_pct
+- observation_type
+- is_gauge_eligible
+- evidence_source
+- evidence_text_snippet
+- mapping_confidence
+- is_invalidated=false
+- invalidated_at=NULL
+- invalidated_reason=NULL
+- updated_at=now()
+
+stale value 잔존 금지.
+
+evidence_text_snippet은 최대 200자.
+
+민감한 전체 diary text 저장 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. eligible item이 하나도 없을 때
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+해당 session/student에 기존 CPO가 있다면:
+
+UPDATE
+is_invalidated=true
+invalidated_at=now()
+invalidated_reason='diary_edit'
+또는 상황에 맞는 reason
+
+기존 CPO가 없으면:
+NO_ELIGIBLE_EVIDENCE
+로 종료.
+
+FUTURE_PLAN / PAST_REFERENCE / UNVERIFIED만 있는 session은
+게이지에 절대 지지표를 만들지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. Diary CREATE 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+artifacts/api-server/src/routes/diary.ts
+
+기존 insertGrowthEvents() 성공 이후
+같은 DB transaction 내에서 mapper 호출.
+
+중요:
+기존 diary 생성 / growth_events / feed 흐름 변경 금지.
+
+mapper failure 정책은 fail-safe하게 설계.
+
+단:
+CPO 오류 때문에 기존 Diary 저장 전체를 rollback할지,
+아니면 Diary 저장은 성공시키고 CPO만 실패 로그 남길지
+현재 production architecture를 최소 확인하여
+기존 부가파이프라인 원칙과 맞게 결정.
+
+이 결정은 보고서에 명시.
+
+데이터 무결성상 반드시 같이 성공해야 한다고 판단되면
+같은 TX rollback 가능.
+그러나 기존 Diary production stability를 우선 검토.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Diary EDIT 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EDIT 시:
+
+1. 기존 growth_events invalidation
+2. 새 growth_events 생성
+3. 해당 lesson_session/student의
+   현재 유효 growth_events 전체를 다시 조회
+4. upsertSessionObservation() 재실행
+5. 기존 CPO를 완전히 최신 상태로 UPDATE
+
+기존 rank가 70이었다가
+수정 후 실제 50이면
+CPO observed rank는 50으로 바뀌어야 함.
+
+단:
+SCP display 게이지 monotonic은
+다음 STEP-GAUGE-05에서 처리.
+이번 Step은 raw CPO 사실만 정확히 수정.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Diary DELETE 연결
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DELETE 시:
+
+해당 lesson_session/student별로
+현재 남아 있는 유효 teacher growth_event 재조회.
+
+A.
+잔존 eligible event 있음
+→ CPO 재계산/update
+
+B.
+잔존 eligible event 없음
+→ CPO invalidate:
+  is_invalidated=true
+  invalidated_at=now()
+  invalidated_reason='diary_delete'
+
+이번 단계에서는 SCP 재계산 호출 금지
+(STEP-GAUGE-05에서 연결).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. last_diary_note_id
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대표 observation이 선택된 growth_event의
+diary_note_id를 저장.
+
+여러 note/event가 같은 session에 있으면
+대표 item의 evidence source note를 trace로 보존.
+
+teacher_manual이 note 없이 생성되는 기존 경로가 있으면
+NULL 허용 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. mapping_confidence
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+대표 growth_event의 실제 confidence 사용.
+
+임의 confidence 생성 금지.
+
+teacher_manual에 confidence 값이 없으면
+기존 source contract를 확인해서
+고정값을 임의 생성하지 말고
+현재 DB/schema와 맞는 안전한 처리 제안.
+
+필요 시 BLOCKED 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+필수:
+
+TC1
+한 session에 rank 10 / 20 / 30
+모두 eligible
+→ CPO rank30 하나
+
+TC2
+rank30이 FUTURE_PLAN(false),
+rank20 ACTUAL_TAUGHT(true)
+→ CPO rank20
+
+TC3
+rank40 PAST_REFERENCE(false),
+rank35 CORRECTION(true)
+→ CPO rank35
+
+TC4
+eligible event 없음
+→ 기존 CPO 있으면 invalidate
+
+TC5
+동일 session/student 재실행
+→ INSERT 추가 행 없음
+→ 기존 row UPDATE
+
+TC6
+Diary EDIT:
+rank70 → 수정 후 rank50
+→ CPO observed rank50
+
+TC7
+Diary DELETE + no remaining evidence
+→ CPO invalidated
+
+TC8
+Diary DELETE + remaining eligible evidence
+→ CPO recomputed
+
+TC9
+cross-pool curriculum item
+→ CPO 생성 차단
+
+TC10
+inactive curriculum item
+→ CPO 생성 차단
+
+TC11
+teacher_ai null evidence
+→ UNVERIFIED → gauge 제외
+
+TC12
+teacher_manual explicit selection
+→ ACTUAL_TAUGHT eligible
+
+TC13
+Professional/AI DB dependency 없음
+
+TC14
+session-level UNIQUE 유지
+
+TC15
+evidence_text_snippet <= 200 chars
+
+전체 regression 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. Production DB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 Step에서는 production DB에
+실제 Diary/CPO 테스트 row 생성 금지.
+
+unit/test DB에서만 검증.
+
+production schema read-only 확인은 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] STEP-GAUGE-04 CPO MAPPER REPORT
+
+- mapper file
+- diary.ts changed locations
+- CREATE integration
+- EDIT integration
+- DELETE integration
+- session-level representative rule
+- eligible-only MAX rank: YES/NO
+- Professional/AI dependency: NO
+- cross-pool guard: YES/NO
+- inactive item guard: YES/NO
+- fail-closed evidence: YES/NO
+- diary transaction failure policy
+- tests + pass count
+- production DB write: NO
+- existing Diary behavior changed: NO
+- changed files
+- commit SHA
+- manual Render deploy required: YES/NO
+
+Final Verdict:
+CPO MAPPER COMPLETE
+또는
+BLOCKED + exact reason
+
+STOP.

@@ -1,0 +1,414 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — STAGE 7 SECURITY FREEZE MICRO-CLOSE
+# TEACHER ATTENDANCE CLASS-SCOPE SERVER GUARD ONLY
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current HEAD:
+5facdf7a
+
+현재 Stage 7 보고에서
+유일하게 Freeze 전에 닫아야 하는 보안 예외:
+
+Teacher Attendance cross-class access.
+
+현재 확인된 상태:
+
+GET /attendance
+- pool scope는 있음
+- teacher class ownership 검증 없음
+- 직접 API 호출 시 같은 pool 다른 teacher 반 조회 가능
+
+POST /attendance
+- teacher class ownership 검증 없음
+- 직접 API 호출 시 같은 pool 다른 teacher 반 출결 수정 가능
+
+Today Schedule에서 자기 반만 노출되는 것은
+UI-level indirect protection일 뿐이며
+server authorization으로 인정하지 않습니다.
+
+이번 작업은 이 1건만 수정합니다.
+
+============================================================
+1. 목표
+============================================================
+
+Teacher role이 attendance API를 호출할 때:
+
+자신에게 현재 허용된 class/session 범위
+→ READ/WRITE 가능
+
+같은 pool이지만
+다른 teacher가 담당하는 class
+→ 403
+
+Admin / authorized admin role:
+기존 same-pool 정책 유지
+
+============================================================
+2. 먼저 기존 canonical teacher-class scope 재사용
+============================================================
+
+새 권한체계 만들지 마십시오.
+
+repository에서 이미 사용 중인:
+
+- teacherOwnsClass()
+- teacher-class assignment helper
+- current class teacher relation
+- class permission middleware/helper
+
+중 canonical implementation을 찾아 재사용.
+
+Photos 등에서 이미 쓰는
+teacherOwnsClass()가 attendance contract에도 적합하면
+우선 재사용.
+
+중복 helper 생성:
+NO unless unavoidable.
+
+============================================================
+3. GET /attendance
+============================================================
+
+Teacher가 class_group_id를 지정한 요청:
+
+1.
+authenticated teacher
+
+2.
+same pool
+
+3.
+teacher가 해당 class에 접근 권한 있음
+
+검증 후 조회.
+
+권한 없는 same-pool class:
+403
+
+Admin:
+기존 same-pool 조회 정책 유지.
+
+class_group_id가 없는 aggregate endpoint가
+별도 의미를 갖는다면
+기존 contract를 조사하여
+teacher에게 허용되는 자신의 class 범위만 집계.
+
+다른 반 데이터가 aggregate에 섞이면 FAIL.
+
+============================================================
+4. POST /attendance
+============================================================
+
+Teacher mutation은
+반드시 server-side class ownership 검증.
+
+검증 순서:
+
+auth
+→ role
+→ pool
+→ class ownership
+→ student/class consistency if applicable
+→ mutation
+
+같은 pool 다른 teacher class:
+403
+
+UI에서 route를 못 찾는다는 이유로
+허용하지 마십시오.
+
+============================================================
+5. Student / class consistency
+============================================================
+
+attendance payload에 studentId가 있다면:
+
+student가 해당 class/context에 속하는지
+기존 attendance business rule로 확인.
+
+Teacher A의 classId
++
+Teacher A 권한 밖 studentId
+
+조합으로 mutation 가능하면 FAIL.
+
+기존 보강/temporary enrollment 등
+합법적인 예외가 있다면
+현재 canonical attendance rule을 유지하고
+임의로 막지 마십시오.
+
+============================================================
+6. ADMIN 영향 금지
+============================================================
+
+Admin의 same-pool attendance 관리 권한을
+실수로 제한하지 마십시오.
+
+Teacher-specific guard만 추가.
+
+============================================================
+7. NORMAL / X
+============================================================
+
+Attendance는 일반 운영기능.
+
+Normal/X:
+동일 server authorization.
+
+X-specific branch:
+NO.
+
+============================================================
+8. 1.6.3 호환
+============================================================
+
+Shared backend 변경이므로
+1.6.3 호출 contract를 깨지 마십시오.
+
+Request/response schema 변경:
+NO unless absolutely required.
+
+권한 검증 강화만.
+
+============================================================
+9. 테스트
+============================================================
+
+최소:
+
+A.
+Teacher own class GET
+→ 200
+
+B.
+Teacher other teacher class GET same pool
+→ 403
+
+C.
+Teacher own class POST
+→ success
+
+D.
+Teacher other teacher class POST same pool
+→ 403
+
+E.
+Teacher wrong student/class combination
+→ blocked by canonical rule
+
+F.
+Admin same-pool class GET
+→ success
+
+G.
+Admin same-pool class POST
+→ success
+
+H.
+Cross-pool teacher
+→ 403
+
+I.
+Normal/X behavior identical
+
+============================================================
+10. 다른 Stage 7 항목 재작업 금지
+============================================================
+
+다시 감사하지 말 것:
+
+- force delete
+- Paid Insight duplicate analysis
+- PII logs
+- scheduler N+1
+- migration review
+- media/video
+- AI cost
+- parent ownership
+- pricing/subscription
+
+이번 작업은 attendance server guard만.
+
+============================================================
+11. REGRESSION
+============================================================
+
+Stable baseline:
+
+166 failed
+5047 passed
+16 skipped
+
+또는 동일 command 현재 baseline.
+
+Command:
+
+cd artifacts/api-server && pnpm vitest run
+
+Expected:
+
+New deterministic:
+0
+
+New flaky:
+0
+
+New TS:
+0
+
+============================================================
+12. PRODUCTION
+============================================================
+
+Production deploy:
+NO
+
+Render:
+NO
+
+DB migration:
+NO
+
+OTA:
+NO
+
+Build:
+NO
+
+============================================================
+13. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# STAGE 7 SECURITY FREEZE MICRO-CLOSE REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## ATTENDANCE GET
+
+Canonical teacher scope helper:
+...
+
+Own class:
+PASS / FAIL
+
+Other teacher class same pool:
+...
+
+Expected:
+403
+
+Aggregate scope:
+...
+
+Admin behavior:
+...
+
+## ATTENDANCE POST
+
+Own class:
+PASS / FAIL
+
+Other teacher class same pool:
+...
+
+Expected:
+403
+
+Student/class consistency:
+...
+
+Admin behavior:
+...
+
+## NORMAL / X
+
+Same authorization:
+PASS / FAIL
+
+## 1.6.3
+
+Contract changed:
+YES / NO
+
+Expected:
+NO
+
+## TESTS
+
+Own GET:
+...
+
+Other GET:
+...
+
+Own POST:
+...
+
+Other POST:
+...
+
+Wrong student/class:
+...
+
+Admin:
+...
+
+Cross-pool:
+...
+
+## REGRESSION
+
+Baseline:
+...
+
+After:
+...
+
+New deterministic:
+...
+
+New flaky:
+...
+
+New TS:
+...
+
+Expected:
+0 / 0 / 0
+
+## OTHER STAGE 7 AREAS
+
+Modified:
+YES / NO
+
+Expected:
+NO
+
+## PRODUCTION
+
+Changed:
+YES / NO
+
+Expected:
+NO
+
+## FINAL
+
+APP PRODUCTIZATION FROZEN
+
+or
+
+FREEZE BLOCKED

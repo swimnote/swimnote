@@ -11,6 +11,9 @@ import {
 } from "react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { API_BASE } from "@/context/AuthContext";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 const { width: SW } = Dimensions.get("window");
 const CARD_W = SW - 48;
@@ -63,7 +66,7 @@ const SWIM_TIPS = [
 
 // 색상 테마 매핑
 const THEME_MAP: Record<string, { bg: string; tagColor: string; titleColor: string }> = {
-  teal:   { bg: "#E6FAF8", tagColor: "#2EC4B6", titleColor: "#0D6E68" },
+  teal:   { bg: C.brandSoft, tagColor: C.brandStrong, titleColor: "#0D6E68" },
   purple: { bg: "#EDE9FE", tagColor: "#7C3AED", titleColor: "#4C1D95" },
   orange: { bg: "#FFF7ED", tagColor: "#F97316", titleColor: "#9A3412" },
   blue:   { bg: "#DBEAFE", tagColor: "#2563EB", titleColor: "#1E40AF" },
@@ -137,7 +140,7 @@ export function ParentPromoBanner({ }: Props) {
   if (!fetched) {
     return (
       <View style={[s.wrap, { alignItems: "center", justifyContent: "center", height: CARD_H + 40 }]}>
-        <ActivityIndicator size="small" color="#2EC4B6" />
+        <ActivityIndicator size="small" color={C.brandStrong} />
       </View>
     );
   }
@@ -146,7 +149,7 @@ export function ParentPromoBanner({ }: Props) {
     <View style={s.wrap}>
       <View style={s.headerRow}>
         <View style={s.titleRow}>
-          <LucideIcon name={hasBanners ? "sparkles" : "lightbulb"} size={14} color={hasBanners ? "#F97316" : "#2EC4B6"} />
+          <LucideIcon name={hasBanners ? "sparkles" : "lightbulb"} size={14} color={hasBanners ? "#F97316" : C.brandStrong} />
           <Text style={s.sectionTitle}>{hasBanners ? "오늘의 추천" : "수영 꿀팁"}</Text>
         </View>
       </View>
@@ -259,5 +262,5 @@ const s = StyleSheet.create({
   cardImgFull:  { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: CARD_H },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 10 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#DDD" },
-  dotActive: { backgroundColor: "#2EC4B6", width: 18 },
+  dotActive: { backgroundColor: C.brandStrong, width: 18 },
 });

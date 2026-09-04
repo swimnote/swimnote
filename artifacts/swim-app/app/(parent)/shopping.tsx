@@ -1,8 +1,8 @@
-import { Clock, ShoppingBag } from "lucide-react-native";
 import React from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 
 const C = Colors.light;
 
@@ -14,15 +14,15 @@ export default function ShoppingScreen() {
         <Text style={[s.title, { color: C.text }]}>쇼핑</Text>
       </View>
       <View style={s.body}>
-        <View style={[s.icon, { backgroundColor: C.tintLight }]}>
-          <ShoppingBag size={48} color={C.tint} />
+        <View style={[s.icon, { backgroundColor: C.brandMist }]}>
+          <LucideIcon name="shopping-bag" size={48} color={C.brandStrong} />
         </View>
         <Text style={[s.heading, { color: C.text }]}>쇼핑 준비중</Text>
         <Text style={[s.sub, { color: C.textMuted }]}>
           곧 다양한 수영용품과 혜택이{"\n"}제공될 예정입니다.
         </Text>
         <View style={[s.badge, { backgroundColor: "#FFF1BF", borderColor: "#FDE68A" }]}>
-          <Clock size={14} color="#D97706" />
+          <LucideIcon name="clock" size={14} color="#D97706" />
           <Text style={[s.badgeTxt, { color: "#92400E" }]}>Coming Soon</Text>
         </View>
       </View>
@@ -37,7 +37,7 @@ const s = StyleSheet.create({
   body: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16, paddingBottom: 80 },
   icon: { width: 100, height: 100, borderRadius: 30, alignItems: "center", justifyContent: "center" },
   heading: { fontSize: 22, fontFamily: "Pretendard-Regular" },
-  sub: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24, color: "#64748B" },
+  sub: { fontSize: 15, fontFamily: "Pretendard-Regular", textAlign: "center", lineHeight: 24, color: C.textSecondary },
   badge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   badgeTxt: { fontSize: 13, fontFamily: "Pretendard-Regular" },
 });

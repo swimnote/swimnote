@@ -1,0 +1,177 @@
+[앱] Growth Report Reaction — Production 배포 전 최종 검증 ONLY
+
+DEVICE FAIL root cause 분석은 승인합니다.
+
+확인된 원인:
+Production API에 growth-report-interactions route가 아직 배포되지 않아
+GET/POST reactions가 404이며,
+이 때문에 Parent heart state와 Teacher notification이 모두 동작하지 않는 것으로 판단합니다.
+
+하지만 아직 Render Production deploy 하지 마십시오.
+
+배포 전에 아래 3가지를 최종 확인하여 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Production SHA → 배포 후보 SHA 전체 서버 변경범위 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 보고:
+
+Production SHA:
+6445a76a
+
+현재 repository HEAD:
+fc4265f7
+
+필요한 Growth Report server commits:
+7cdb784b
+17ecf112
+
+Production을 현재 HEAD로 배포할 경우
+6445a76a 이후 서버/API에 들어가는 모든 변경을 확인하십시오.
+
+목적:
+Growth Report interaction 외의
+미승인 server 변경이 Production에 같이 배포되는지 확인하기 위함.
+
+보고:
+
+- 6445a76a..fc4265f7 사이에서
+  artifacts/api-server 또는 실제 Production server에 영향을 주는 commit 목록
+- 각 commit의 한 줄 목적
+- Growth Report interaction과 관계없는 server 변경 존재 여부
+- 위험한 변경:
+  auth
+  permissions
+  payment
+  push
+  DB
+  migration
+  bulk operation
+  Growth Report auto-analysis
+  등이 포함되는지
+
+전체 repo audit는 하지 말고
+Production server deploy delta만 확인하십시오.
+
+그리고 최종적으로:
+
+A. 현재 HEAD 전체 배포가 안전한지
+
+또는
+
+B. Growth Report interaction 관련 서버 변경만 포함한
+안전한 release/deploy SHA가 필요한지
+
+판단하십시오.
+
+코드 수정은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. Production Migration 영향 정확히 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 server startup에서:
+
+runGrInteractionsMigration()
+
+이 readiness-critical Promise.all에 포함되어 있다고 보고되었습니다.
+
+따라서 Production Render deploy 시
+Production DB migration이 자동 실행될 수 있습니다.
+
+정확히 조사:
+
+- migration 파일 전체 경로
+- 실제 실행 SQL
+- CREATE TABLE / ALTER TABLE / CREATE INDEX 등 정확한 작업
+- 기존 table 수정 여부
+- 기존 데이터 UPDATE/DELETE 여부
+- lock 위험
+- destructive operation 여부
+- idempotent 여부
+- 재실행 안전 여부
+- 실패 시 rollback 가능 여부
+- 예상 실행 시간
+- 대상 DB가 어떤 pool DB들인지
+- 모든 pool DB에 실행되는지 / 특정 DB인지
+
+특히 다음을 명확히 보고:
+
+Production deploy 버튼을 누르는 순간
+어떤 DB write가 자동 발생하는가?
+
+사용자 승인 없이 migration 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. UI 디자인 불일치 별도 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기에서 추가 확인된 문제:
+
+기존 Diary Feed:
+- 하트 아이콘만
+- 댓글 아이콘만
+- 텍스트 "좋아요", "댓글" 없음
+
+Growth Report:
+- 하트 + "좋아요"
+- 댓글 + "댓글"
+
+따라서 Growth Report ActionRow가
+기존 Diary Feed와 동일 디자인이라는 이전 보고는 실제 화면 기준 FAIL.
+
+이번 Production API 배포와는 별도 문제이므로
+지금 수정하지 말고 후속 PHASE 3-A UI FIX 항목으로 기록하십시오.
+
+최종 목표:
+
+Diary:
+[heart icon] [comment icon] [Instagram Story]
+
+Growth Report:
+[heart icon] [comment icon] [PDF·공유]
+
+앞의 heart/comment는
+실제 Diary Feed와 동일한 디자인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 제출 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+[SERVER DEPLOY DELTA]
+- Production SHA
+- Candidate SHA
+- 서버 관련 변경 commit 목록
+- 관계없는 변경 존재 여부
+- 배포 안전성 판정
+
+[MIGRATION]
+- 파일
+- 실행 SQL 요약
+- 대상 DB
+- 기존 데이터 변경 여부
+- destructive 여부
+- idempotent 여부
+- rollback
+- Production deploy 시 자동 실행되는 정확한 작업
+
+[DEPLOY RECOMMENDATION]
+- 현재 HEAD 그대로 배포
+또는
+- 별도 안전 release SHA 필요
+
+중 하나를 근거와 함께 추천.
+
+[UI FOLLOW-UP]
+- Diary vs Growth Report ActionRow 차이만 기록
+- 아직 수정 금지
+
+이번 단계:
+코드 수정 금지
+Production DB write 금지
+Render deploy 금지
+OTA 금지
+PHASE 3-B 금지
+
+보고 후 STOP.

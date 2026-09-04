@@ -1,0 +1,884 @@
+[CS-PA1 — COMMON AI USAGE INSTRUMENTATION FOR EXISTING AI FEATURES]
+
+목적:
+
+현재 운영 중인 기존 AI 기능들에
+공통 usage instrumentation을 연결하여
+
+Partner Analytics와 Super Admin AI Operations에서
+실제 사용량 / 토큰 / 비용 / 성공률 / 사용자 역할 / 모드 / latency를
+정확하게 집계할 수 있게 한다.
+
+이번 WP는
+"계측 연결"만 한다.
+
+AI 기능의 판단 로직/프롬프트/결과 품질은
+변경하지 않는다.
+
+==================================================
+0. BASELINE — LOCK
+==================================================
+
+CS-PA0 완료 기준:
+
+공통 AI feature enum 존재.
+
+최소 feature:
+
+TEACHER_AI_DIARY
+PARENT_CURRICULUM_AI
+GROWTH_REPORT_AI
+SUPPORT_AI
+
+Partner Analytics foundation 존재.
+
+기존 event_logs 재사용.
+
+ai_traces 신규 중복 테이블 생성 금지.
+
+==================================================
+1. FIRST — FULL AI CALL AUDIT
+==================================================
+
+repository 전체에서
+실제 AI provider 호출부를 전수 감사.
+
+최소 확인:
+
+Teacher AI Diary
+Parent Curriculum AI
+Growth Report AI
+
+그리고 실제 존재하면:
+
+summary
+search
+report helper
+other GPT/OpenAI calls
+
+검색:
+
+OpenAI
+chat.completions
+responses
+model
+usage
+input_tokens
+output_tokens
+prompt_tokens
+completion_tokens
+request_id
+trace_id
+event_logs
+AI category
+latency
+retry
+
+각 호출부에 대해:
+
+FILE
+FUNCTION
+FEATURE
+MODEL SOURCE
+TOKEN SOURCE
+ERROR PATH
+RETURN PATH
+
+map 작성.
+
+==================================================
+2. NO FUNCTION CHANGE
+==================================================
+
+이번 WP에서 절대 변경 금지:
+
+AI prompt
+AI system instruction
+knowledge retrieval
+AI Engine 판단
+curriculum logic
+growth analysis logic
+diary generation output
+temperature
+model selection policy
+
+계측 때문에 AI 결과가 달라지면 FAIL.
+
+==================================================
+3. COMMON TRACE CONTRACT
+==================================================
+
+모든 기존 AI 호출이
+최소 다음 공통 필드를 event_logs에 남길 수 있어야 한다.
+
+request_id
+trace_id
+created_at
+
+pool_id
+user_role
+mode
+
+feature
+sub_feature
+
+provider
+model
+
+input_tokens
+output_tokens
+cached_tokens if available
+total_tokens
+
+estimated_cost_usd
+
+latency_ms
+
+status
+error_code
+
+result_generated
+
+source_app
+app_version
+
+metadata
+
+현재 event_logs schema에 없는 필드는
+metadata JSON 활용 우선.
+
+무조건 DB column 추가 금지.
+
+==================================================
+4. FEATURE MAPPING
+==================================================
+
+Teacher AI Diary
+→ TEACHER_AI_DIARY
+
+Parent Curriculum
+→ PARENT_CURRICULUM_AI
+
+Growth Report
+→ GROWTH_REPORT_AI
+
+Support AI는
+아직 실제 engine 없으면 instrumentation 대상 아님.
+
+임의로 fake support usage 생성 금지.
+
+==================================================
+5. USER ROLE
+==================================================
+
+현재 호출 context에서 실제 role 확보.
+
+허용:
+
+pool_admin
+sub_admin
+teacher
+parent
+super_admin
+
+role source 없으면 추정 금지.
+
+UNKNOWN / null.
+
+하지만 기존 auth context/server auth에서
+확실히 알 수 있으면 반드시 기록.
+
+==================================================
+6. MODE
+==================================================
+
+Normal / X 구분 기록.
+
+가능하면 server-confirmed pool mode/source 사용.
+
+허용:
+
+normal
+x
+x_pending
+
+알 수 없으면 null.
+
+client의 임시 UI state만으로
+server analytics mode를 확정하지 않는다.
+
+==================================================
+7. POOL ID
+==================================================
+
+pool-scoped AI 기능은
+pool_id 필수.
+
+swimming_pools.id = TEXT
+
+parseInt 금지.
+
+다른 pool id leakage 금지.
+
+==================================================
+8. REQUEST ID
+==================================================
+
+기존 request_id가 있으면 그대로 전달.
+
+특히 Teacher Diary는
+request_id contract를 보존.
+
+없는 AI 호출은
+server에서 UUID 생성 가능.
+
+하나의 user action에
+불필요하게 request_id 여러 개 생성 금지.
+
+==================================================
+9. TRACE ID
+==================================================
+
+복수 단계 호출이 있으면
+한 workflow를 묶을 trace_id.
+
+예:
+
+Growth report:
+request
+→ analysis
+→ final generation
+
+여러 provider call이 있으면
+trace_id 공유,
+request/event id는 개별 가능.
+
+과도한 distributed tracing 구현 금지.
+
+==================================================
+10. TOKEN SOURCE
+==================================================
+
+Provider가 usage 제공 시
+그 값을 그대로 기록.
+
+예:
+
+input_tokens
+output_tokens
+total_tokens
+
+cached tokens 제공 시 기록.
+
+Provider usage가 없으면:
+
+NULL
+
+토큰 문자수를 이용해
+실제 token인 척 추정 금지.
+
+==================================================
+11. COST CALCULATION
+==================================================
+
+estimated_cost_usd는
+실제 token usage가 있을 때만 계산 가능.
+
+모델별 가격표는
+서버 측 중앙 source로 관리.
+
+중요:
+
+가격이 변할 수 있으므로
+pricing version/effective date 기록 가능한 구조.
+
+하드코딩이 필요한 경우에도
+한 파일의 pricing map source of truth.
+
+각 AI 호출부에 가격 숫자 복붙 금지.
+
+==================================================
+12. MODEL NAME
+==================================================
+
+실제 provider에 전달된 model을 기록.
+
+UI label이나 alias가 아니라
+실제 model identifier.
+
+모델 변경 이후에도
+과거 usage는 원래 model로 남아야 한다.
+
+==================================================
+13. PROVIDER
+==================================================
+
+provider:
+
+openai
+
+등 실제 provider.
+
+향후 다른 provider 사용 가능하게 string/enum 확장성 유지.
+
+==================================================
+14. LATENCY
+==================================================
+
+provider/API 호출 직전 timestamp
+→ response/error 이후 timestamp
+
+실제 AI call latency 기록.
+
+전체 화면 렌더 시간과 혼동 금지.
+
+가능하면 ms.
+
+==================================================
+15. STATUS
+==================================================
+
+최소:
+
+SUCCESS
+ERROR
+TIMEOUT
+CANCELLED
+
+현재 error model과 충돌하지 않게 normalize.
+
+모든 에러를 ERROR 하나로 뭉쳐도 되지만
+timeout 구분 가능하면 기록.
+
+==================================================
+16. ERROR CODE
+==================================================
+
+민감한 error raw dump 금지.
+
+가능하면:
+
+provider status
+internal normalized code
+
+예:
+
+OPENAI_429
+OPENAI_5XX
+TIMEOUT
+PARSE_ERROR
+VALIDATION_ERROR
+
+사용자 prompt/PII를 error metadata에 넣지 않는다.
+
+==================================================
+17. RETRY ACCOUNTING
+==================================================
+
+retry가 있는 기능 확인.
+
+하나의 사용자 요청에서
+provider가 2번 호출되면:
+
+provider call usage는 2회 실제 비용으로 기록.
+
+하지만:
+
+USER_REQUEST_COUNT
+
+와
+
+PROVIDER_CALL_COUNT
+
+를 혼동하지 않도록 metadata/aggregation contract 작성.
+
+==================================================
+18. RESULT GENERATED
+==================================================
+
+AI response가 정상 생성되면:
+
+result_generated = true
+
+provider success라도
+parse/validation 실패로 결과 미생성:
+
+false
+
+정확히 구분.
+
+==================================================
+19. RESULT SAVED / USED FOUNDATION
+==================================================
+
+현재 측정 가능한 기능만 연결.
+
+Teacher Diary:
+생성 후 DB 저장 event가 실제 있으면
+result_saved 연결 검토.
+
+Growth Report:
+저장/완료 state가 있으면 연결.
+
+Curriculum:
+session result persisted 여부.
+
+이번 WP에서 새 사용자 행동 tracking 대규모 추가 금지.
+
+source가 없으면 null.
+
+==================================================
+20. TEACHER AI DIARY
+==================================================
+
+특히 확인:
+
+앱
+→ AI ENGINE
+→ LLM
+
+구조에서
+어디가 provider usage를 실제 알고 있는지.
+
+APP API가 토큰을 모르면
+AI ENGINE response contract로
+usage metadata 전달 가능한지 감사.
+
+중요:
+
+AI ENGINE이 APP Supabase 직접 기록 금지.
+
+Engine:
+usage metadata 반환
+
+APP:
+event_logs 기록
+
+또는 기존 안전한 telemetry path.
+
+역할 분리 유지.
+
+==================================================
+21. PARENT CURRICULUM AI
+==================================================
+
+현재 service token/JWT 흐름 유지.
+
+instrumentation 때문에
+auth contract 변경 금지.
+
+pool
+role=parent
+feature
+model
+token
+latency
+status
+
+가능 범위 연결.
+
+==================================================
+22. GROWTH REPORT AI
+==================================================
+
+Growth report가
+복수 AI stage를 사용하면:
+
+stage별 sub_feature 기록.
+
+예:
+
+ANALYSIS
+FINAL_REPORT
+SUMMARY
+
+실제 코드 기준.
+
+없는 stage를 추측해서 만들지 않는다.
+
+==================================================
+23. EVENT LOG CATEGORY
+==================================================
+
+기존 CS-PA0 contract대로:
+
+category = 'AI'
+
+재사용.
+
+새 category를 기능마다 생성하지 않는다.
+
+feature는 metadata/field로 구분.
+
+==================================================
+24. PRIVACY
+==================================================
+
+event_logs analytics record에 금지:
+
+전체 prompt
+학생 이름
+전화번호
+email
+AI 전체 출력
+민감한 수업 내용
+
+필요하면:
+
+counts
+ids
+feature
+model
+latency
+tokens
+status
+
+만.
+
+==================================================
+25. SUPER AI OPERATIONS
+==================================================
+
+SuperAI의 Usage / Errors가
+신규 instrumentation을 읽을 수 있게 업데이트.
+
+최소:
+
+기간
+feature
+pool
+model
+status
+
+필터.
+
+표시:
+
+requests
+success
+error
+tokens
+estimated cost
+avg latency
+
+없는 값은 UNKNOWN/—.
+
+==================================================
+26. PARTNER ANALYTICS
+==================================================
+
+SuperPartner 기존:
+
+Adoption
+AI Usage
+Evidence
+
+가 새 instrumentation 데이터를 읽도록 확인.
+
+이번 WP 이후 최소:
+
+feature breakdown
+model breakdown
+tokens
+estimated cost
+latency
+success/error
+
+실데이터로 채워져야 한다.
+
+==================================================
+27. USER_ROLE / MODE NULL REDUCTION
+==================================================
+
+Task #23 핵심.
+
+현재 Partner metrics에서:
+
+user_role
+mode
+
+미전달 때문에 null인 path를 감사.
+
+실제 context가 존재하는 호출은
+null 제거.
+
+단 추정 금지.
+
+최종 보고:
+
+ROLE_NULL_BEFORE
+ROLE_NULL_AFTER
+
+MODE_NULL_BEFORE
+MODE_NULL_AFTER
+
+가능한 코드 path 기준.
+
+==================================================
+28. STORY.TS / UNCONNECTED PATH
+==================================================
+
+CS-PA0 report에서
+story.ts 미연결 언급됨.
+
+정확히 어떤 AI 기능인지 확인.
+
+실제 production AI call이면
+공통 instrumentation 연결.
+
+dead/unused code면
+계측 추가하지 말고
+UNUSED라고 보고.
+
+==================================================
+29. FAILURE MUST NOT BREAK AI
+==================================================
+
+telemetry/event logging 실패 때문에
+AI 기능 자체가 실패하면 안 된다.
+
+AI result 성공
++
+event log insert 실패
+
+이면:
+
+사용자 결과는 정상 반환
+telemetry failure 별도 운영 로그
+
+가능하도록 best-effort.
+
+단 데이터 정합성상
+현재 architecture가 transaction을 요구하면
+그 이유 명확히 보고.
+
+==================================================
+30. PERFORMANCE
+==================================================
+
+계측 때문에 사용자 응답 latency가
+의미 있게 증가하지 않게 한다.
+
+가능하면 AI response 처리 후
+경량 event insert.
+
+불필요한 추가 provider/API call 금지.
+
+==================================================
+31. NO NEW PROVIDER CALL
+==================================================
+
+usage를 얻기 위해
+OpenAI에 추가 API 호출 금지.
+
+원래 response의 usage 사용.
+
+==================================================
+32. PRICING SOURCE
+==================================================
+
+central pricing module 예:
+
+lib/ai-pricing.ts
+
+가능.
+
+필수 기능:
+
+model → pricing
+effective date/version
+cost calculate
+
+정확한 current pricing을
+실제 코드/계약 기준 확인 후 사용.
+
+확실하지 않은 model:
+cost = null
+
+추측 금지.
+
+==================================================
+33. TEST MATRIX
+==================================================
+
+PA1-01
+Teacher AI Diary success trace
+
+PA1-02
+Teacher AI Diary error trace
+
+PA1-03
+Parent Curriculum success
+
+PA1-04
+Growth Report success
+
+PA1-05
+feature enum correct
+
+PA1-06
+pool_id TEXT preserved
+
+PA1-07
+role recorded when known
+
+PA1-08
+mode recorded when known
+
+PA1-09
+tokens actual usage
+
+PA1-10
+missing usage → null
+
+PA1-11
+estimated cost labeled
+
+PA1-12
+model recorded
+
+PA1-13
+latency recorded
+
+PA1-14
+error code privacy safe
+
+PA1-15
+request_id / trace_id
+
+PA1-16
+telemetry failure does not break AI result
+
+PA1-17
+no raw prompt in analytics
+
+PA1-18
+SuperAI metrics
+
+PA1-19
+SuperPartner metrics
+
+PA1-20
+non-superadmin denied
+
+PA1-21
+existing AI output unchanged
+
+PA1-22
+full existing tests pass
+
+==================================================
+34. DEPLOYMENT
+==================================================
+
+APP server 변경 가능.
+
+AI Engine 변경이 실제 usage metadata 전달에 필요하면
+별도 repository/runtime 변경사항 명확히 보고.
+
+APP:
+Render deploy
+
+AI ENGINE:
+현재 실제 deployment 방식 확인 후 필요한 경우만.
+
+모바일 변경이 없다면 OTA 없음.
+
+모바일에서 context 전달 변경이 정말 필요하면
+먼저 이유 보고하고 최소 수정.
+
+==================================================
+35. FINAL REPORT
+==================================================
+
+AI_CALL_SITES_AUDITED =
+AI_CALL_SITES_INSTRUMENTED =
+
+TEACHER_DIARY =
+PARENT_CURRICULUM =
+GROWTH_REPORT =
+STORY_TS_RESULT =
+
+EVENT_LOG_REUSED =
+NEW_AI_TRACE_TABLE =
+
+FEATURE_ENUM_USED =
+
+REQUEST_ID =
+TRACE_ID =
+
+POOL_ID_RECORDED =
+USER_ROLE_RECORDED =
+MODE_RECORDED =
+
+ROLE_NULL_BEFORE =
+ROLE_NULL_AFTER =
+MODE_NULL_BEFORE =
+MODE_NULL_AFTER =
+
+TOKEN_SOURCE =
+INPUT_TOKENS =
+OUTPUT_TOKENS =
+CACHED_TOKENS =
+TOTAL_TOKENS =
+
+MODEL_RECORDED =
+PROVIDER_RECORDED =
+
+PRICING_SOURCE =
+PRICING_VERSIONED =
+ESTIMATED_COST_USD =
+
+LATENCY_RECORDED =
+STATUS_RECORDED =
+ERROR_CODE_RECORDED =
+
+RAW_PROMPT_STORED =
+RAW_AI_OUTPUT_STORED =
+PII_IN_ANALYTICS =
+
+RESULT_GENERATED =
+RESULT_SAVED_TRACKING =
+RESULT_USED_TRACKING =
+
+TELEMETRY_FAILURE_BREAKS_AI =
+
+SUPER_AI_USAGE =
+SUPER_AI_ERRORS =
+SUPER_PARTNER_USAGE =
+
+APP_SERVER_CHANGED =
+AI_ENGINE_CHANGED =
+MOBILE_CHANGED =
+DB_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+SECURITY_TEST =
+REGRESSION_TEST =
+
+COMMIT_SHA =
+APP_SERVER_DEPLOYMENT =
+AI_ENGINE_DEPLOYMENT =
+IOS_OTA =
+ANDROID_OTA =
+
+성공 조건:
+
+EVENT_LOG_REUSED = YES
+NEW_AI_TRACE_TABLE = NO
+
+RAW_PROMPT_STORED = NO
+RAW_AI_OUTPUT_STORED = NO
+PII_IN_ANALYTICS = NO
+
+TELEMETRY_FAILURE_BREAKS_AI = NO
+
+existing AI output/logic unchanged.
+
+실제 context가 존재하는 경로의
+user_role/mode null 해소.
+
+완료:
+
+CS_PA1_COMMON_AI_USAGE_INSTRUMENTATION_COMPLETE ✅

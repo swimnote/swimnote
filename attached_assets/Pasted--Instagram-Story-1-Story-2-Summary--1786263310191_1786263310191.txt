@@ -1,0 +1,350 @@
+[긴급 감리 — Instagram Story 이미지 생성 중 종료 원인 확정 / 수정 금지]
+
+현재 실기기 증상:
+
+1. Story 버튼 탭
+2. 긴 일지 Summary 단계는 통과
+3. "이미지 생성 중..." 모달 표시
+4. 잠시 후 모달이 사라짐
+5. Instagram Story Composer는 열리지 않음
+
+즉 현재 실패 지점은
+Summary API 이전이 아니라
+StoryCapturePipeline의 이미지 생성/파일/Instagram 전달 단계 중 하나다.
+
+지금은 코드 수정하지 말고
+정확한 실패 stage만 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 전체 실행 경로 추적
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드 기준으로 다음 흐름을 끝까지 추적:
+
+handleInstagramShare
+→ summary/fit 완료
+→ setSharing(true)
+→ StoryCapturePipeline mount
+→ StoryPageRenderer render
+→ captureRef
+→ tmp image URI 생성
+→ 파일 존재 확인
+→ Share.shareSingle
+→ Instagram Stories 실행
+→ cleanup
+→ onDone
+→ setSharing(false)
+
+각 단계가 실제로 실행되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 진단 Stage 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 마지막 성공 지점을 확정할 수 있도록
+임시 진단 stage를 추가한다.
+
+A = handleInstagramShare 시작
+
+B = summary/cache/fit 처리 완료
+
+C = setSharing(true) 실행
+
+D = StoryCapturePipeline mount
+
+E = StoryPageRenderer render 준비 완료
+
+F = captureRef 시작
+
+G = captureRef 성공 + URI 생성
+
+H = 생성 파일 존재 확인 성공
+
+I = Share.shareSingle 직전
+
+J = Share.shareSingle 호출 완료/Promise resolve
+
+K = Instagram open 요청 완료
+
+L = cleanup 시작
+
+M = onDone / setSharing(false
+
+X = catch 진입
+
+실패 시 Alert에 다음만 표시:
+
+stage=<마지막 성공 stage>
+error=<sanitized error>
+uriExists=true/false
+fileSize=<숫자 또는 unknown>
+
+개인정보/JWT/학생이름/일지본문/전체 파일경로는 Alert 또는 로그에 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. captureRef 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoryCapturePipeline에서 확인:
+
+1. capture 대상 ref가 null인지
+2. capture 시작 전 View가 실제 mount됐는지
+3. layout 완료 전에 capture하는지
+4. captureRef 옵션:
+   - format
+   - quality
+   - result
+   - width
+   - height
+5. 반환 URI가 빈 문자열인지
+6. URI scheme:
+   file://
+   content://
+   기타
+7. capture 직후 파일이 실제 존재하는지
+8. 파일 크기가 0인지
+9. 1080×1920 결과가 실제 생성되는지
+
+capture 실패 시 exception 원문에서
+민감정보 제거 후 error code/message만 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Renderer 문제 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+StoryPageRenderer V2에서
+
+- 사진 10장 grid
+- summary text
+- Pretendard font
+- SWIMNOTE branding
+
+중 특정 요소 때문에 capture가 실패하는지 확인.
+
+특히:
+
+- remote image load 완료 전에 capture되는지
+- 10개 Image가 아직 loading 상태인데 capture되는지
+- onLoad/onLoadEnd 대기 구조가 있는지
+- 이미지 하나의 fetch 실패가 전체 capture를 중단시키는지
+- summary 적용 후 layout 계산이 완료되기 전에 capture되는지
+
+확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 사진 로딩 완료 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 증상은 사진이 많은 일지에서 발생하므로
+반드시 확인한다.
+
+StoryPageRenderer에 전달된 photos.length
+
+각 사진에 대해:
+
+loaded count
+failed count
+
+만 확인.
+
+예:
+
+photos=10
+loaded=10
+failed=0
+
+또는
+
+photos=10
+loaded=7
+failed=3
+
+개별 URL/학생정보는 로그 금지.
+
+capture 시작 조건이
+"모든 필요한 사진 load 완료"와 연결되어 있는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 생성된 tmp file 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+capture 성공 후 Share 호출 전에:
+
+- URI 존재
+- 파일 존재
+- file size > 0
+- 파일이 cleanup되지 않았음
+
+확인.
+
+특히 cleanup()이
+Share.shareSingle 이전에 실행되는 race가 있는지 확인.
+
+다음 순서를 실제 코드로 제출:
+
+capture
+→ URI push/set
+→ share
+→ cleanup
+
+cleanup이 finally/useEffect cleanup/onUnmount에서
+너무 일찍 실행되는지도 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Share.shareSingle 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 호출 옵션 전체 구조 확인:
+
+social
+backgroundImage
+appId
+
+특히:
+
+social === Social.InstagramStories
+
+인지 확인.
+
+backgroundImage가
+방금 생성된 실제 tmp URI인지 확인.
+
+META_APP_ID가 실제 runtime에서
+2093655621362240인지 확인.
+
+단 App ID 전체를 사용자 Alert에 노출할 필요 없음.
+보고서에서만 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Instagram 설치 확인 분기
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 home.tsx의:
+
+Linking.canOpenURL("instagram://")
+
+통과 여부 확인.
+
+이미 이미지 생성 단계까지 왔으므로
+선행 canOpenURL은 통과했을 가능성이 높지만
+실제 코드 흐름으로 확인한다.
+
+다음도 확인:
+
+Instagram 설치 확인 후
+StoryCapturePipeline 내부에서 다시 다른 scheme 검증을 하는지.
+
+"Instagram Story 공유 설정이 완료되지 않았습니다."
+Alert를 발생시키는 모든 코드 위치를 다시 검색한다.
+
+정확한 조건문 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. onDone / setSharing(false) 조기 실행 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 증상:
+
+"이미지 생성 중..."
+→ 모달 사라짐
+→ Instagram 안 열림
+
+이므로 다음을 집중 확인:
+
+- onDone이 share 성공 전에 호출되는지
+- catch에서 Alert 없이 onDone만 호출하는 경로
+- finally에서 setSharing(false) 되는 경로
+- Pipeline unmount가 share 이전 발생하는지
+- parent component state 변경으로 renderer가 사라지는지
+
+정확한 호출 순서를 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 실제 실패 시나리오 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+같은 기기/같은 앱에서 다음 비교:
+
+CASE A
+사진 1장 + 짧은 일지
+
+CASE B
+사진 4장 + 일반 일지
+
+CASE C
+사진 10장 + 짧은 일지
+
+CASE D
+사진 10장 + 긴 summary 일지
+
+각 CASE에서:
+
+마지막 성공 stage
+capture URI
+fileExists
+fileSize
+Share 호출 여부
+Instagram Composer 진입 여부
+
+비교한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+원인 확정 전:
+
+- timeout 임의 추가 금지
+- delay 임의 추가 금지
+- capture 옵션 변경 금지
+- 사진 수 다시 줄이기 금지
+- +N 방식 복원 금지
+- shareSingle 옵션 변경 금지
+- Meta App ID 변경 금지
+- Native Build 금지
+- app.json 변경 금지
+- eas.json 변경 금지
+- Render 변경 금지
+- DB 변경 금지
+- Production OTA 금지
+
+진단 stage 추가가 필요하면
+instagram-test runtime 1.6.2에만 사용할 수 있는
+최소 앱 진단 코드로 한정한다.
+
+진단 OTA도 별도 승인 전 배포 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. handleInstagramShare 시작 여부
+B. Summary/fit PASS 여부
+C. setSharing(true) 도달 여부
+D. Pipeline mount 여부
+E. Renderer mount 여부
+F. photos.length
+G. photo loaded count
+H. photo failed count
+I. captureRef 호출 여부
+J. capture 성공 여부
+K. 생성 URI 존재 여부
+L. 파일 존재 여부
+M. 파일 size
+N. Share.shareSingle 호출 여부
+O. Share Promise 결과
+P. Instagram scheme/open 결과
+Q. cleanup 실행 시점
+R. onDone 실행 시점
+S. 마지막 성공 stage
+T. 최초 실패 stage
+U. sanitized exception
+V. 직접 원인
+W. 원인 확정 YES/NO
+X. 최소 수정 파일
+Y. App OTA 필요 여부
+Z. Native Build 필요 여부
+AA. Render 수정 필요 여부
+
+원인 확정 후 멈춘다.
+수정하지 않는다.

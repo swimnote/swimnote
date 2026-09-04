@@ -1,0 +1,940 @@
+[SWIMNOTE 학부모 ↔ 선생님 요청 업무라인 최종 수정]
+IMPLEMENT → DEPLOY → DEVICE TEST
+
+현재 부분 구현을 다시 설계하지 않는다.
+
+이번 작업은 현재 구현된 학부모 요청 기능을 유지하면서
+잘못된 Navigation 순서와 업무대화 송수신 장애를 수정하여
+학부모↔선생님 업무 요청 흐름을 완성하는 작업이다.
+
+중간 조사 보고 후 승인 대기하지 말 것.
+
+현재 Repository를 확인
+→ 원인 확인
+→ 즉시 수정
+→ 정적 검증
+→ Production 배포
+까지 완료한다.
+
+단 기존 정상 기능을 파괴할 위험이 있는 경우에만 중단 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+0. 최종 업무 흐름 — 절대 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+최종 흐름은 반드시 다음 순서다.
+
+PARENT
+
+학부모
+↓
+알림
+↓
+내 요청
+↓
+요청 작성
+↓
+parent_student_requests
+↓
+담당 선생님 알림
+
+
+TEACHER
+
+홈 봉투 알림
+↓
+쪽지 · 학부모 요청 미리보기
+↓
+학부모 요청 선택
+↓
+★ 쪽지보관함 > 학부모 요청으로 이동
+↓
+요청 내용 확인
+↓
+업무 대화 확인/회신
+↓
+필요한 경우 [업무 처리]
+↓
+결석/보강 등의 실제 업무 화면
+
+
+절대 금지:
+
+홈 알림
+→ 결석 화면 직행
+
+홈 알림
+→ 보강 화면 직행
+
+Push/Bottom Sheet 알림은
+"업무가 있다는 것을 알려주는 진입점"이다.
+
+업무 실행 버튼이 아니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 홈 Bottom Sheet Navigation 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+UnreadMessagesModal에서 학부모 요청 row를 누르면
+
+absence
+→ /(teacher)/attendance
+
+makeup
+→ /(teacher)/makeups
+
+로 바로 이동한다.
+
+이 구조를 제거한다.
+
+홈의 모든 학부모 요청 row는
+요청 종류와 관계없이 우선:
+
+/(teacher)/messages-inbox?tab=requests
+
+로 이동해야 한다.
+
+가능하면 해당 requestId도 전달한다.
+
+예:
+
+router.push({
+  pathname: "/(teacher)/messages-inbox",
+  params: {
+    tab: "requests",
+    requestId: item.id
+  }
+});
+
+실제 expo-router Contract에 맞춰 구현한다.
+
+없는 param을 임의 생성하지 말고
+messages-inbox에서 수신 가능하도록 최소 구현한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 쪽지보관함이 업무의 중간 허브
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+선생님은 반드시:
+
+홈 알림
+↓
+쪽지보관함
+↓
+학부모 요청
+
+에서 요청을 먼저 확인한다.
+
+여기서:
+
+요청 유형
+학생명
+학부모명
+요청 원문
+날짜
+현재 상태
+새 대화 메시지 여부
+
+를 확인한다.
+
+그다음에만:
+
+[대화]
+[업무 처리]
+
+를 선택한다.
+
+즉:
+
+[대화]
+= 해당 업무 thread Modal
+
+[업무 처리]
+= 실제 업무 화면 이동
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. messages-inbox requestId 강조
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+홈에서 특정 요청을 눌러 들어왔으면
+쪽지보관함의 해당 학부모 요청을 바로 찾을 수 있어야 한다.
+
+useLocalSearchParams 등 현재 프로젝트 방식으로:
+
+tab=requests
+requestId=<id>
+
+처리.
+
+진입 시:
+
+학부모 요청 탭 선택
++
+해당 request 카드 강조.
+
+자동 scroll이 안전하게 가능하면 해당 카드로 이동.
+
+FlatList 구조상 불안정하면
+최소한 시각적 강조라도 반드시 한다.
+
+홈에서 눌렀는데 어느 요청인지 다시 찾아야 하는 UX 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 업무 처리 Navigation 위치
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 업무 화면 이동은
+messages-inbox의 요청 카드 안에 있는:
+
+[업무 처리]
+
+버튼에서만 한다.
+
+현재 mapping 유지:
+
+absence
+→ /(teacher)/attendance
+
+makeup
+→ /(teacher)/makeups
+
+postpone
+→ 전용 route 없음이면 이동 버튼 없음
+
+withdrawal
+→ 전용 route 없음이면 이동 버튼 없음
+
+counseling
+→ 전용 route 없음
+
+inquiry
+→ 전용 route 없음
+
+업무 화면 내부 로직 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 업무 처리 버튼과 읽음 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[업무 처리]를 누르면
+
+요청을 아직 읽지 않은 경우:
+
+read 처리
+↓
+학부모에게 요청유형별 확인 알림 1회
+↓
+업무 화면 이동
+
+이미 읽은 요청이면:
+
+재확인 Push 금지
+↓
+업무 화면만 이동
+
+중요:
+
+업무 화면 이동만으로
+status = done 금지.
+
+pending 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 업무 대화 현재 장애
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실기기 CONFIRMED:
+
+Teacher RequestThreadModal:
+열림 ✅
+TextInput 입력 ✅
+새 메시지 전송 ❌
+
+Parent ParentRequestThreadModal:
+열림 ✅
+TextInput 입력 가능
+새 메시지 왕복 동작 ❌
+
+즉 Modal UI 생성은 성공했으나
+실제 message transaction이 미완성이다.
+
+이번 작업에서 반드시 완성한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 업무 대화 전체 Chain 추적
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 양쪽 각각 실제 실행 경로 확인.
+
+TEACHER
+
+RequestThreadModal
+↓
+POST /parent-requests/:requestId/messages
+↓
+Auth
+↓
+Teacher visibility
+↓
+parent_request_messages INSERT
+↓
+HTTP response
+↓
+Modal messages state
+↓
+Scroll to latest
+↓
+Parent notification/push
+
+
+PARENT
+
+ParentRequestThreadModal
+↓
+POST /parent-requests/:requestId/messages
+↓
+Auth
+↓
+Parent ownership
+↓
+parent_request_messages INSERT
+↓
+HTTP response
+↓
+Modal messages state
+↓
+Scroll to latest
+↓
+Teacher unread count
+↓
+홈 봉투 badge
+
+
+다음 중 최초 실패 지점을 실제로 찾아 수정한다.
+
+- POST URL
+- requestId
+- body
+- JSON parsing
+- Authorization
+- role 판정
+- ownership
+- SQL INSERT
+- created_at 반환
+- response schema
+- Client data parsing
+- state append
+- GET reload
+- cache
+- sending guard
+
+Generic catch로 실패를 숨기지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 메시지 POST Contract 확정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Server와 두 Modal의 Contract를 동일하게 만든다.
+
+권장:
+
+POST /parent-requests/:requestId/messages
+
+body:
+
+{
+  content: string
+}
+
+sender_type / sender_id를
+클라이언트 body에서 받지 않는다.
+
+서버에서 JWT/session 기준으로 결정한다.
+
+성공 response는
+Client가 즉시 사용할 수 있는 명확한 JSON으로 통일한다.
+
+예:
+
+{
+  success: true,
+  data: {
+    id,
+    request_id,
+    sender_type,
+    sender_id,
+    message_type,
+    content,
+    created_at
+  }
+}
+
+단 현재 실제 구현과 최대한 맞춰
+불필요한 Contract 전체 재작성은 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. 전송 성공 UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전송 버튼:
+
+sending guard 필요.
+
+성공 시:
+
+1. DB 저장 성공
+2. 새 message를 현재 state에 즉시 append
+   또는 GET reload
+3. 입력창 clear
+4. 최신 메시지로 scroll
+
+순서.
+
+TextInput만 clear하고
+화면에 메시지가 추가되지 않는 상태 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. 전송 실패 UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+전송 실패 시:
+
+입력 텍스트 유지.
+
+사용자에게 오류 표시.
+
+응답 HTTP status/error code를
+진단 가능한 범위에서 처리.
+
+사용자가 메시지가 전송됐다고 오해하게
+입력창만 비우는 동작 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. Parent → Teacher 재회신
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+학부모가 업무 대화에서 재회신하면:
+
+message INSERT
+↓
+선생님 unread 발생
+↓
+홈 봉투 badge 증가
+↓
+UnreadMessagesModal에 해당 요청 표시
+↓
+tap
+↓
+messages-inbox 학부모 요청
+↓
+해당 request 강조
+↓
+대화 Modal에서 새 메시지 확인
+
+절대:
+
+학부모 답변
+→ Messenger 공지
+
+로 보내지 않는다.
+
+parent request thread 내부 데이터로 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. Teacher → Parent 회신
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+선생님이 업무 대화에서 회신하면:
+
+message INSERT
+↓
+학부모 notification DB
+↓
+Push
+↓
+학부모 알림
+
+알림 문구는 요청 type과 맞춘다.
+
+예:
+
+보강:
+"보강 요청에 답변이 도착했습니다."
+
+결석:
+"결석 신청에 답변이 도착했습니다."
+
+상담:
+"상담 요청에 답변이 도착했습니다."
+
+문의:
+"문의에 답변이 도착했습니다."
+
+Notification ref:
+request
+
+ref_id:
+requestId
+
+tap 시:
+
+학부모 알림
+→ 내 요청
+→ 해당 request thread Modal
+
+까지 연결한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. 학부모 카드 UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 요청 카드의:
+
+"탭하여 업무 대화 보기"
+
+문구 완전히 제거.
+
+카드 전체 터치에 의존하지 않는다.
+
+각 요청 카드 하단에 명확한:
+
+[대화]
+
+버튼 제공.
+
+대화 버튼
+→ ParentRequestThreadModal.
+
+목록 카드 자체는 작게 유지.
+
+긴 대화를 카드 안에 렌더링하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. 선생님 카드 UI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+선생님 요청 카드:
+
+[대화]
+[업무 처리]
+
+두 기능을 명확히 분리한다.
+
+[대화]
+→ RequestThreadModal
+
+[업무 처리]
+→ 기존 업무 route
+
+업무 처리 버튼:
+현재 확정한 네이비 + 흰색 스타일 유지.
+
+대화 버튼도 disabled처럼 보이지 않게
+기존 활성 버튼 스타일 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. 시스템 메시지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 구현된 system message 유지.
+
+최초 확인:
+
+"선생님이 보강 요청을 확인했습니다."
+
+처리 완료:
+
+"보강 요청이 처리됐습니다."
+
+거절:
+
+"보강 요청을 처리하지 못했습니다."
+
+system message는
+업무 thread에서도 시간순으로 보여야 한다.
+
+Push notification과 thread system message는
+목적이 다르므로 둘 다 유지 가능.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. 완료된 업무의 대화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 ParentRequestThreadModal이
+done/rejected에서 입력을 차단한다고 보고됐다.
+
+이번 최종 정책:
+
+과거 대화는 반드시 조회 가능.
+
+이번 작업에서는 우선 기존 정책을 유지해도 된다:
+
+done/rejected
+→ 읽기 가능
+→ 신규 재회신 제한
+
+단 실제 UI에서
+과거 모든 메시지와 system message가 보여야 한다.
+
+입력 차단 여부는 이번 송수신 장애 해결과 혼동하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. unread 모델
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+두 종류를 구분:
+
+A.
+is_read_by_teacher
+= 최초 요청 자체를 선생님이 확인했는지
+
+B.
+parent_request_messages unread
+= 요청 확인 후 새 대화 메시지가 도착했는지
+
+선생님이 이미 요청을 확인했어도
+학부모가 새 답장을 보내면
+홈 봉투 badge가 다시 올라와야 한다.
+
+messages API GET으로 thread를 실제 확인하면
+상대방 새 메시지 unread가 해제되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. Home Badge
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 overview:
+
+unread_parent_request_messages
+
+가 추가된 상태라고 보고됨.
+
+확인:
+
+홈 봉투 badge 조건에
+새 학부모 대화 메시지가 실제 포함되는가.
+
+학부모 재회신
+→ badge 증가
+
+thread 확인
+→ badge 감소
+
+실제 E2E로 검증.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. 자동 생성 DB Schema 검토
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 parent_request_messages가
+서버 재시작 시 auto-create 된다고 보고됐다.
+
+이번 전송 장애의 원인이
+table/schema 불일치인지 반드시 확인.
+
+확인:
+
+실제 Production table 존재
+columns
+constraints
+created_at default
+indexes
+
+단 이번 작업 중
+대규모 schema 재설계 금지.
+
+현재 동작 복구가 우선.
+
+스키마가 실제 장애 원인이면
+최소 수정으로 해결하고 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. diary.ts 변경 검토
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이전 작업에서 diary.ts도 수정됐다고 보고됐다.
+
+parent request thread 때문에
+왜 diary.ts가 변경됐는지 반드시 확인.
+
+관련 없는 수정이면 제거/원복.
+
+단 현재 최신 baseline 기준으로
+이번 thread 기능에 실제 필요한 코드라면 유지.
+
+일지 기능 자체의 로직을 변경하면 안 된다.
+
+최종 보고에서 diary.ts 변경 이유를 반드시 명시.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+21. 기존 정상 기능 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+절대 회귀 금지:
+
+학부모 요청 작성 Modal
+학부모 받은 알림/내 요청 탭
+Teacher Visibility
+확인 알림
+done/rejected 결과 알림
+업무 처리 네이비 버튼
+홈 쪽지보관함 전체보기
+쪽지함
+Messenger 공지
+보강
+출결
+일지
+AI
+사진
+회원
+Auth/JWT/API_BASE
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+22. 수정 예상 파일
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Repository 기준으로 최소화.
+
+후보:
+
+API:
+parent-requests.ts
+
+Teacher:
+RequestThreadModal.tsx
+messages-inbox.tsx
+UnreadMessagesModal.tsx
+
+Parent:
+ParentRequestThreadModal.tsx
+notifications.tsx
+
+Home badge:
+today-schedule 관련 실제 file
+
+diary.ts:
+thread 기능에 불필요하다면 수정 금지/기존 변경 검토.
+
+DB migration/file:
+실제 필요할 경우만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+23. E2E — 반드시 완성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FLOW A — Parent → Teacher
+
+CASE 1
+학부모 보강 요청 생성
+
+CASE 2
+선생님 홈 badge 증가
+
+CASE 3
+홈 Bottom Sheet request tap
+
+CASE 4
+attendance/makeup 직행 금지
+
+CASE 5
+messages-inbox requests 탭 진입
+
+CASE 6
+해당 request 강조
+
+CASE 7
+[대화] → Teacher thread
+
+CASE 8
+최초 요청 원문 표시
+
+
+FLOW B — Teacher → Parent
+
+CASE 9
+선생님 "8월 18일 5시 가능합니다" 입력
+
+CASE 10
+POST 성공
+
+CASE 11
+DB INSERT
+
+CASE 12
+전송 직후 Teacher Modal에 메시지 표시
+
+CASE 13
+학부모 Push/알림
+
+CASE 14
+학부모 [대화] → thread
+
+CASE 15
+선생님 메시지 표시
+
+
+FLOW C — Parent → Teacher
+
+CASE 16
+학부모 "네 그 시간으로 부탁드립니다" 입력
+
+CASE 17
+POST 성공
+
+CASE 18
+DB INSERT
+
+CASE 19
+학부모 Modal 즉시 표시
+
+CASE 20
+선생님 홈 badge 증가
+
+CASE 21
+선생님 Bottom Sheet tap
+
+CASE 22
+messages-inbox 해당 request 진입
+
+CASE 23
+Teacher Modal에 학부모 회신 표시
+
+
+FLOW D — Actual Work
+
+CASE 24
+[업무 처리] 클릭
+
+CASE 25
+makeup이면 기존 makeups 화면
+
+CASE 26
+absence면 attendance 화면
+
+CASE 27
+status 자동 done 금지
+
+CASE 28
+실제 done 처리 후 system message 표시
+
+CASE 29
+학부모 결과 알림 정상
+
+
+FLOW E — Regression
+
+CASE 30
+일반 쪽지 정상
+
+CASE 31
+공지 정상
+
+CASE 32
+학부모 요청 작성 정상
+
+CASE 33
+학부모 기존 알림 정상
+
+CASE 34
+보강/출결 내부 기능 변경 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+24. 구현/배포 순서
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 지시는 구현 + Production 배포 승인 포함.
+
+1. 최신 Branch/HEAD/Remote/Status 확인
+2. message POST 실제 실패 지점 확인
+3. Navigation 순서 수정
+4. Teacher message send 수정
+5. Parent message send 수정
+6. state refresh 수정
+7. notification/unread 수정
+8. 학부모 카드 [대화] 버튼 수정
+9. TypeCheck
+10. targeted API test
+11. git diff --name-status
+12. unrelated 변경 제거
+13. Clean Commit
+14. Push
+15. Server 수정 시 Render Production
+16. Live SHA 확인
+17. Health 200
+18. 필요한 DB 변경 적용
+19. Production OTA iOS + Android
+20. Preview OTA 금지
+21. 실기기 최종 검증 가능 상태 보고
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+25. 완료 판정 금지 조건
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 안 되면 완료 아님:
+
+- 홈 요청 tap이 바로 업무 화면으로 감
+- Teacher 메시지 POST 실패
+- Parent 메시지 POST 실패
+- DB에는 저장되지만 화면에 즉시 안 보임
+- 상대방에게 새 메시지 알림이 안 감
+- Parent 재회신 후 Teacher badge가 안 올라감
+- "탭하여 업무 대화 보기" 문구가 남아 있음
+- 카드에서 대화 전체가 늘어남
+- 대화 전송이 status를 done으로 바꿈
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+26. 최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 제출:
+
+1. 시작 Branch/HEAD/Remote
+2. 업무대화 전송 실패의 최초 직접 원인
+3. Teacher POST 실제 Contract
+4. Parent POST 실제 Contract
+5. DB INSERT 정상 증거
+6. POST response
+7. Teacher state 반영 방식
+8. Parent state 반영 방식
+9. Teacher→Parent notification/push
+10. Parent→Teacher unread 처리
+11. Home badge 반영
+12. Home Bottom Sheet navigation 수정
+13. messages-inbox requestId 강조
+14. 업무 처리 route 유지
+15. 학부모 "탭하여..." 제거
+16. 학부모 [대화] 버튼 구현
+17. system message 정상
+18. diary.ts 변경 이유/필요성
+19. 수정 파일
+20. TypeCheck
+21. CASE 1~34
+22. Commit SHA
+23. Push SHA
+24. DB 변경/Migration 결과
+25. Render Deploy ID
+26. Render Live SHA
+27. Health
+28. iOS OTA IDs
+29. Android OTA IDs
+30. Runtime
+31. 보호 영역 변경 여부
+
+최종 목표:
+
+학부모 요청
+→ 선생님이 쪽지보관함에서 먼저 확인
+→ 업무별 양방향 대화
+→ 필요 시 실제 업무 처리 화면
+→ 완료 결과
+→ 학부모 확인
+
+순서가 절대 뒤집히지 않는
+하나의 완성된 업무 흐름으로 만든다.
+
+조사만 하고 멈추지 말고
+확인된 문제는 바로 구현해서 Production까지 완료한다.

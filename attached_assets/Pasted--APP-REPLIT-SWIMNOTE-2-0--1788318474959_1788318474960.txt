@@ -1,0 +1,1777 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 — COMPRESSED STAGE 4 FINAL APP INTEGRATION
+#
+# PAID INSIGHT ENGINE CONNECTION
+# + FREE REPORT RE-REGISTRATION ELIGIBILITY
+# + PAID REPORT Q&A / ANALYSIS BRIDGE
+# + PAID REPORT HISTORY
+# + CONFIRMED EVENT NOTIFICATIONS
+#
+# ONE PASS:
+# AUDIT → CONNECT → MINIMAL IMPLEMENT → TEST → COMMIT
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Current APP HEAD:
+d6137010
+
+AI ENGINE STATUS:
+PAID INSIGHT ENGINE COMPLETE
+
+AI Engine endpoints:
+
+Question Planning:
+POST /api/v1/paid-insight/questions
+
+Analysis:
+POST /api/v1/paid-insight/analysis
+
+Authentication:
+Authorization: Bearer <JWT>
+existing aiJwtAuthMiddleware
+HS256
+JWT_SECRET contract
+tv=1 validation
+
+Question timeout:
+~5 sec expected
+
+Analysis timeout:
+150 sec
+
+Schema version:
+1.0
+
+Error contract:
+{
+  error_code,
+  message,
+  request_id,
+  retryable
+}
+
+============================================================
+0. 이번 작업 목표
+============================================================
+
+이번 작업으로 COMPRESSED STAGE 4를 최종 종료합니다.
+
+한 번에 처리:
+
+A.
+무료 AI 성장리포트
+per-student 재등록 eligibility 보완
+
+B.
+Paid Insight Question Planning
+APP API → AI Engine 연결
+
+C.
+Paid Insight Analysis
+APP API → AI Engine 연결
+
+D.
+growth-report-paid.tsx
+실제 adaptive Q&A 연결
+
+E.
+Paid Insight history / state
+기존 DB 구조를 최대한 재사용하여 연결
+
+F.
+확정된 이벤트 기반
+Paid Insight 안내 notification 연결
+
+G.
+전체 관련 regression
+
+조사만 하고 STOP 금지.
+
+============================================================
+1. 절대 HOLD
+============================================================
+
+Pricing:
+NO
+
+Subscription:
+NO
+
+RevenueCat:
+NO
+
+App Store:
+NO
+
+Google Play:
+NO
+
+실제 결제:
+NO
+
+1.6.3:
+NO
+
+Production deploy:
+NO
+
+Production DB migration 실행:
+NO
+
+OTA:
+NO
+
+AI Engine repo 수정:
+NO
+
+============================================================
+2. AI ENGINE AUTH — 추측 금지
+============================================================
+
+AI Engine 보고:
+
+aiJwtAuthMiddleware
+Bearer JWT HS256
+JWT_SECRET
+tv=1
+
+APP 서버에서 기존 AI Engine 호출이
+어떤 방식으로 JWT를 생성/전달하는지 먼저 조사하십시오.
+
+재사용 우선:
+
+- Growth Report engine client
+- Teacher Diary engine client
+- Curriculum engine bridge
+- existing service JWT helper
+- existing AI auth helper
+
+금지:
+
+- 모바일 APP JWT를 그대로 AI Engine에 임의 전달
+- 새로운 별도 인증방식 생성
+- JWT_SECRET을 client/app bundle에 노출
+- screen/component에서 AI Engine 직접 호출
+
+정상:
+
+Mobile App
+→ APP API
+→ auth / tenant / parent-child 검증
+→ APP server
+→ server-to-server JWT
+→ AI Engine
+
+============================================================
+3. Paid Insight APP API 구조
+============================================================
+
+기존 route convention에 맞춰
+Parent-facing APP API를 만드십시오.
+
+권장 의미:
+
+POST
+/parent/students/:studentId/paid-insight/questions
+
+POST
+/parent/students/:studentId/paid-insight/analysis
+
+GET
+/parent/students/:studentId/paid-insight/status
+
+GET
+/parent/students/:studentId/paid-insight/history
+
+실제 repository naming convention이 있으면 조정 가능.
+
+중요:
+
+AI Engine endpoint를
+mobile에서 직접 노출하지 마십시오.
+
+============================================================
+4. 모든 Parent Paid Insight route 권한
+============================================================
+
+각 endpoint:
+
+requireParent
+
++
+parent_students 관계
+
++
+studentId ownership
+
++
+pool isolation
+
+검증.
+
+다른 부모 자녀:
+403
+
+다른 pool:
+403
+
+존재하지 않는 student:
+404 또는 canonical error.
+
+학생 이름/전화번호로 ownership 판단:
+NO.
+
+============================================================
+5. GrowthDataSnapshot 조립
+============================================================
+
+AI Engine이 APP DB를 직접 조회하지 않으므로
+APP server에서 snapshot 생성.
+
+기존 Growth Report snapshot/data assembler를
+최대한 재사용하십시오.
+
+가능 source:
+
+- student basic
+- lesson / diary records
+- attendance
+- current level
+- level history
+- curriculum progress
+- growth events
+- previous growth reports
+- previous paid insight reports if existing
+- video observation metadata/results if existing
+- other existing verified evidence
+
+무조건 다 있어야 하는 것은 아님.
+
+없는 optional source:
+null / empty
+
+로 명시.
+
+============================================================
+6. Snapshot security
+============================================================
+
+Snapshot에는 반드시:
+
+pool/student ownership이 검증된 데이터만 포함.
+
+Cross-pool join:
+0
+
+phone/name based cross-center merge:
+0
+
+snapshot timestamp/hash/reference:
+기존 구조가 있으면 재사용.
+
+============================================================
+7. 무료 AI 성장리포트 — 재등록 정책
+============================================================
+
+현재 pool-level eligibility:
+
+isFreeGrowthReportEligiblePool
+
+은 유지.
+
+즉 무료 AI 성장리포트는
+현재 X eligible pool 정책을 그대로 유지.
+
+이번에 추가할 것은
+per-student 재등록 판정입니다.
+
+현재 단순:
+
+students.status === 'active'
+
+만으로 무료 발급하면 부족.
+
+============================================================
+8. 재등록의 구현 의미
+============================================================
+
+제품정책:
+
+지난달 수업기록
+→ 다음 달 재등록 완료 회원
+→ 다음 달 5일 무료 리포트 발급
+
+이번 구현에서 "재등록 완료"는
+새 결제시스템을 만들라는 뜻이 아닙니다.
+
+현재 SWIMNOTE 운영 DB에서
+수강 지속을 나타내는 canonical Source of Truth를 조사하십시오.
+
+우선 조사:
+
+- student_class_history
+- current class assignment
+- enrollment/start/end date
+- active assignment
+- existing status transition
+- existing re-enrollment related field/event
+
+============================================================
+9. 재등록 판정 원칙
+============================================================
+
+학생이 단순히:
+
+students.status = active
+
+라는 이유만으로 PASS하지 마십시오.
+
+발급월에 실제로
+유효한 수강/반 배정 상태가 존재하여
+
+"전월 수업 이후 다음 달에도 수강이 계속됨"
+
+을 DB에서 확인할 수 있어야 합니다.
+
+예:
+
+reportPeriod = 2026-08
+
+issueDate = 2026-09-05
+
+필요 의미:
+
+2026-08 수업 데이터 존재
++
+2026-09 실제 유효 enrollment/class assignment 존재
+
+→ eligible
+
+정확한 table/field는
+실제 repository SoT 기준으로 결정.
+
+============================================================
+10. 재등록 판정 금지사항
+============================================================
+
+새:
+
+payment completed
+tuition payment
+billing enrollment
+
+system 만들지 마십시오.
+
+기존 운영정보만 사용.
+
+DB상 확정적으로
+수강지속 판정이 불가능한 경우:
+
+임의 추측하지 말고
+최대한 강한 existing SoT를 사용하고
+완료보고에 정확히 명시.
+
+============================================================
+11. 무료 Report eligibility 최종조건
+============================================================
+
+무료 발급 최소 의미:
+
+pool eligible
+AND
+student active operationally
+AND
+previous-month source data exists
+AND
+issue-month valid enrollment/class continuation exists
+AND
+not withdrawn
+AND
+same cycle report not already issued
+
+중복:
+0
+
+============================================================
+12. PAID INSIGHT QUESTION BRIDGE
+============================================================
+
+APP endpoint:
+
+Parent Request
+→ validate
+→ snapshot assemble
+→ AI service JWT
+→ POST /api/v1/paid-insight/questions
+→ normalize/validate response
+→ Parent response
+
+AI request에는:
+
+schema_version = "1.0"
+
+request_id
+
+subject_ref
+
+report_context
+
+snapshot_request
+
+existing_parent_answers
+
+사용.
+
+============================================================
+13. QUESTIONS는 0~N
+============================================================
+
+중요:
+
+6개 고정:
+NO
+
+기존 fixture:
+
+0/6
+
+완전히 제거.
+
+Question Plan:
+
+READY
+NEEDS_PARENT_INPUT
+INSUFFICIENT_EVIDENCE
+
+등 AI Engine canonical status 사용.
+
+질문 개수:
+response 기준.
+
+============================================================
+14. Q&A UI
+============================================================
+
+growth-report-paid.tsx에서
+fixture parentObservation 제거.
+
+실제 questions response 렌더.
+
+지원 type:
+
+single_choice
+multi_choice
+scale
+short_text
+
+AI Engine response에 없는 type을
+임의 생성하지 말 것.
+
+============================================================
+15. Q&A 답변 상태
+============================================================
+
+사용자가 답변을 입력하면:
+
+question_id
+answer
+answered_at
+
+구조로 관리.
+
+가능하면 server에 draft/save 구조가
+이미 존재하는지 조사.
+
+없으면:
+
+Paid Report persistent state/history와 함께
+최소 구조로 저장.
+
+단 schema 변경이 반드시 필요하면
+§31 migration 규칙 적용.
+
+============================================================
+16. KEYBOARD / FIRST TAP
+============================================================
+
+short_text 질문 화면:
+
+blank background tap
+→ keyboard dismiss
+
+scroll drag
+→ dismiss
+
+답변 control first tap
+→ 즉시 반응
+
+다음 버튼 first tap
+→ 즉시 실행
+
+whole-screen wrapper가 child tap을 먹으면 FAIL.
+
+============================================================
+17. QUESTION ERROR
+============================================================
+
+Question API 실패:
+
+기존 입력 답변 삭제:
+NO
+
+retry 가능하면 retry 제공.
+
+중복 요청:
+sending guard.
+
+retryable=false:
+무한 retry CTA 금지.
+
+============================================================
+18. PAID ANALYSIS BRIDGE
+============================================================
+
+APP API:
+
+validated Parent
+→ snapshot
+→ saved/validated answers
+→ service JWT
+→ POST /api/v1/paid-insight/analysis
+→ validate response
+→ save report state/result
+→ client response
+
+Analysis timeout:
+150 sec contract 반영.
+
+Mobile client timeout도
+짧은 기본 timeout 때문에
+중간에 잘리지 않게 현재 API layer 조사 후 조정.
+
+============================================================
+19. ANALYSIS REQUEST
+============================================================
+
+최소:
+
+schema_version
+request_id
+subject_ref
+report_context
+snapshot_request
+parent_answers
+
+AI Engine contract 그대로.
+
+unknown question_id를
+APP에서 임의 변환하지 마십시오.
+
+============================================================
+20. ANALYSIS RESULT
+============================================================
+
+Engine response:
+
+summary
+swimming_progress
+learning_strengths
+growth_patterns
+effective_conditions
+growth_blockers
+lesson_strategy
+next_growth_direction
+home_support
+teacher_4week_plan
+parent_4week_plan
+roadmap_8_12_weeks
+next_observation_targets
+confidence
+limitations
+claim_evidence_map
+parent_reported
+trace
+
+수신.
+
+APP server에서 필요한 필드만
+UI contract로 정규화하되
+
+전문 판단 내용 변경:
+NO.
+
+============================================================
+21. APP에서 전문판단 생성 금지
+============================================================
+
+APP에서:
+
+성격 분석
+심리 해석
+기술 원인 생성
+훈련전략 생성
+claim 생성
+
+하지 마십시오.
+
+AI Engine response 표시만.
+
+============================================================
+22. Height / Weight
+============================================================
+
+기존 growth-report-paid.tsx:
+
+height=false
+weight=false
+
+때문에 report readiness를 막으면 수정.
+
+Height:
+OPTIONAL
+
+Weight:
+OPTIONAL
+
+없어도 Paid Insight flow 진행 가능.
+
+새 키/몸무게 입력시스템:
+NO.
+
+============================================================
+23. Video
+============================================================
+
+Video:
+OPTIONAL
+
+없다고 report blocking:
+NO
+
+있으면 snapshot evidence로 포함 가능.
+
+============================================================
+24. PAID REPORT HISTORY
+============================================================
+
+현재 FIXTURE_REPORTS=[] 제거.
+
+먼저 repository의 existing report storage를 조사:
+
+- growth_reports
+- growth_report_runs
+- report artifacts
+- report status/history
+- any paid-report capable field/type
+
+기존 schema로
+무료/유료 타입을 안전하게 분리 가능하면
+재사용.
+
+============================================================
+25. 무료/유료 데이터 혼동 금지
+============================================================
+
+무료 AI 성장리포트와
+Paid Insight는 서로 다른 상품.
+
+History에서:
+
+free report
+≠
+paid insight
+
+를 명확히 구분.
+
+기존 table을 재사용하더라도:
+
+report_type
+kind
+source
+pipeline
+
+등 기존 canonical 구분 수단을 사용.
+
+============================================================
+26. 기존 schema로 유료 history 저장이 불가능한 경우
+============================================================
+
+임시 JSON fixture:
+NO
+
+AsyncStorage를 서버 정본처럼 사용:
+NO
+
+무료 report row를 유료처럼 위장:
+NO
+
+필요한 additive schema migration code는
+작성 가능.
+
+하지만 Production DB migration:
+실행 금지.
+
+완료보고:
+
+MIGRATION APPROVAL REQUIRED:
+YES
+
++
+exact schema
++
+why
+
+를 보고.
+
+============================================================
+27. 분석 상태
+============================================================
+
+가능한 state:
+
+DATA_PREPARING
+QUESTIONS_REQUIRED
+READY_FOR_PAYMENT
+PAYMENT_REQUIRED
+PROCESSING
+PUBLISHED
+FAILED
+
+등을 기존 canonical states와 맞춰 사용.
+
+새 enum을 무조건 만들지 말 것.
+
+실제 repo에 이미 상태체계가 있으면 재사용.
+
+============================================================
+28. PAYMENT 경계
+============================================================
+
+이번 Stage에서는 Store 결제가 없습니다.
+
+따라서 사용자에게:
+
+결제가 완료되지 않았는데
+실제 유료 Analysis를 production flow에서 실행
+
+시키면 안 됩니다.
+
+현재 UI는:
+
+데이터 준비
+→ 질문
+→ 발급 준비 완료
+
+까지 실제로 사용 가능.
+
+최종 유료 analysis kickoff는
+후속 Payment Stage에서
+verified purchase 이후 호출하도록 연결점을 준비.
+
+============================================================
+29. Analysis endpoint 연결은 지금 완료
+============================================================
+
+결제가 아직 없더라도
+APP API ↔ AI Engine Analysis contract 연결코드와 테스트는
+이번 Stage에서 완성.
+
+단 실제 user production CTA:
+
+결제 전 analysis 실행:
+NO.
+
+Unit/integration test에서
+authorized internal call 검증 가능.
+
+============================================================
+30. Paid Insight CTA
+============================================================
+
+현재 "준비 중" placeholder를
+실제 데이터 준비/Q&A flow로 전환.
+
+상태 예:
+
+데이터 부족:
+분석 데이터 준비 중
+
+Q&A 필요:
+추가 정보 입력
+
+Q&A 완료:
+리포트 발급 준비 완료
+
+Payment not connected:
+결제 준비 중 / 후속 결제 연결 상태
+
+실제 구매완료처럼 표시:
+NO.
+
+============================================================
+31. MIGRATION
+============================================================
+
+Paid Insight answer/history/state 저장에
+schema 변경이 정말 필요한 경우:
+
+1.
+기존 schema 전수검색
+
+2.
+재사용 불가 근거 확인
+
+3.
+additive migration 작성
+
+4.
+local/test DB에서만 검증 가능하면 검증
+
+5.
+Production migration 실행:
+NO
+
+완료보고:
+
+MIGRATION APPROVAL REQUIRED
+
+명시.
+
+Destructive migration:
+NO.
+
+============================================================
+32. 확정 Paid Insight notification triggers
+============================================================
+
+할인율은 이번 Stage에서 구현하지 않습니다.
+
+알림 이벤트만 처리.
+
+확정 방향:
+
+A.
+공식 LEVEL UP
+
+교사가 실제로 확정한
+level-up event 발생 후
+
+→ 축하 우선
+→ Paid Insight 분석 제안 가능
+
+자동 레벨업:
+NO.
+
+============================================================
+33. 발급 가능 상태 최초 전환
+============================================================
+
+canonical Paid Insight readiness가:
+
+NOT_READY
+→ READY
+
+로 최초 전환하는 실제 기준이 존재할 경우
+
+→ 안내 notification 가능.
+
+하지만 이번에 임의로:
+
+3개월
+6개월
+9개월
+12개월
+
+threshold 만들지 마십시오.
+
+canonical readiness가 없다면
+trigger 구현하지 말고 보고.
+
+============================================================
+34. 퇴원 trigger
+============================================================
+
+student가 실제 withdrawn/terminated 상태로 전환될 때
+
+무료 Growth Report:
+마지막 무료 발급 NO
+
+Paid Insight:
+"그동안 쌓인 성장기록을 정밀 분석해 남기기"
+
+경로를 제공 가능.
+
+가격 할인:
+NO.
+
+퇴원 50%:
+NO.
+
+============================================================
+35. 재분석 가능 trigger
+============================================================
+
+이전 Paid Insight가 있고
+
+기존 canonical engine/readiness 로직상
+"새 분석이 가능한 수준의 신규 데이터가 쌓임"
+
+을 확정적으로 판정할 수 있을 때만
+notification.
+
+임의:
+
+수업 10회
+30일
+3개월
+
+등 숫자 하드코딩 금지.
+
+canonical threshold 없음:
+구현하지 않고 보고.
+
+============================================================
+36. Notification 메시지 원칙
+============================================================
+
+Level Up:
+
+축하가 먼저.
+
+판매압박:
+NO.
+
+예 의미:
+
+"○○이가 새로운 레벨로 성장했어요.
+지금까지의 성장과 다음 단계 전략을
+AI 인사이트 전략 리포트에서 확인할 수 있어요."
+
+퇴원:
+
+"그동안 쌓인 성장과정을
+마지막 인사이트 리포트로 남겨보세요."
+
+정확한 이름/문구는 기존 UI tone에 맞게.
+
+============================================================
+37. Notification 중복방지
+============================================================
+
+기존:
+
+isDuplicate(type, refId, recipientId)
+
+또는 canonical notification idempotency 사용.
+
+동일:
+
+level event
+readiness transition
+withdrawal event
+
+중복 Push:
+0
+
+============================================================
+38. Paid report deep link
+============================================================
+
+Paid Insight 관련 notification tap:
+
+→ 정확한 student
+→ paid insight screen/state
+
+로 이동.
+
+Parent Home으로만 이동:
+FAIL.
+
+wrong student:
+FAIL.
+
+필요 params:
+
+studentId
+notification/event context
+
+정확히 전달.
+
+============================================================
+39. FREE GROWTH REPORT 기존 기능 보존
+============================================================
+
+이미 PASS:
+
+매월 5일
+전월 데이터
+analysis cutoff
+withdrawn 제외
+idempotency
+PDF
+Push
+deep link
+Engine bridge
+
+재구현 금지.
+
+이번에는
+per-student 재등록 eligibility만 보완.
+
+============================================================
+40. REPORT TYPE CROSS-REGRESSION
+============================================================
+
+무료 report 작업 때문에
+Paid Insight 영향:
+0
+
+Paid Insight 작업 때문에
+무료 report 영향:
+0
+
+============================================================
+41. NOTICE AI
+============================================================
+
+Admin Notice AI는 이미 완료.
+
+다시 감사/수정:
+NO
+
+신규 regression 발견 시만 최소수정.
+
+============================================================
+42. BACK
+============================================================
+
+Parent Home
+→ Paid Insight
+→ Q&A
+→ Back
+→ Paid Insight
+
+Q&A
+→ 완료
+→ Paid Insight readiness
+
+History
+→ Paid Report Detail
+→ Back
+→ History
+
+Notification
+→ Paid Insight
+→ Back
+→ Notifications 또는 실제 origin
+
+Home 강제 replace:
+NO.
+
+============================================================
+43. LOADING
+============================================================
+
+Question:
+실제 요청 중
+
+Analysis:
+실제 처리 중
+
+History:
+실제 조회 중
+
+거짓 progress 단계:
+NO.
+
+Analysis가 150초 걸릴 수 있으므로
+UI freeze 금지.
+
+============================================================
+44. EMPTY / ERROR
+============================================================
+
+EMPTY:
+실제 report 없음
+
+NOT READY:
+데이터 부족
+
+QUESTIONS REQUIRED:
+질문 필요
+
+ERROR:
+API/Engine 실패
+
+서로 혼동 금지.
+
+============================================================
+45. RETRY
+============================================================
+
+Question retry:
+가능
+
+Analysis retry:
+request_id / idempotency 고려
+
+중복 analysis:
+0
+
+중복 paid report:
+0
+
+중복 push:
+0
+
+============================================================
+46. SECURITY
+============================================================
+
+최소 테스트:
+
+A.
+Parent own child
+PASS
+
+B.
+different parent's studentId
+403
+
+C.
+different pool student
+403
+
+D.
+report/history ID guessing
+403/404
+
+E.
+AI Engine request from mobile direct
+불가
+
+F.
+JWT_SECRET client exposure
+0
+
+============================================================
+47. PII / LOG
+============================================================
+
+Production-style logs에:
+
+student name:
+NO
+
+parent answer raw text:
+NO
+
+JWT:
+NO
+
+snapshot full payload:
+NO
+
+허용:
+
+request_id
+student/pool opaque ref
+status
+latency
+question_count
+answer_count
+report_id/ref
+error_code
+
+============================================================
+48. AI ENGINE SHA 기록
+============================================================
+
+AI Engine 완료보고에서
+HEAD After가 SHA가 아니라 commit message로 보고됨.
+
+이번 APP integration report에
+AI Engine contract source를 기록할 때:
+
+가능한 현재 AI Engine exact commit SHA를
+알 수 있는 연결 metadata/docs가 있으면 기록.
+
+APP repo에서 알 수 없다면:
+
+AI_ENGINE_COMMIT_SHA:
+NOT PROVIDED
+
+라고 정확히 보고.
+
+추측 금지.
+
+이 문제 때문에 작업 중단:
+NO.
+
+============================================================
+49. REGRESSION
+============================================================
+
+Known backend baseline:
+
+158 failures
+
+동일 command/environment.
+
+Expected:
+
+Failures after:
+158 또는 same-command verified baseline
+
+New failures:
+0
+
+New TS errors:
+0
+
+============================================================
+50. 관련 테스트
+============================================================
+
+최소:
+
+FREE REPORT
+
+1.
+previous month data + issue-month enrollment
+→ eligible
+
+2.
+previous month data + active status but no issue-month enrollment
+→ NOT eligible
+
+3.
+withdrawn
+→ NOT eligible
+
+4.
+same cycle rerun
+→ duplicate 0
+
+PAID QUESTIONS
+
+5.
+own child + questions required
+PASS
+
+6.
+0 questions READY
+PASS
+
+7.
+adaptive N questions
+PASS
+
+8.
+wrong child
+403
+
+9.
+retry
+PASS
+
+PAID ANALYSIS BRIDGE
+
+10.
+valid internal authorized request
+PASS
+
+11.
+150 sec timeout contract handled
+
+12.
+idempotent retry
+
+13.
+engine error mapping
+
+HISTORY
+
+14.
+free/paid separation
+
+15.
+correct student
+
+16.
+empty history
+
+NOTIFICATION
+
+17.
+level-up single notification
+
+18.
+withdrawal single notification
+
+19.
+wrong/duplicate event
+no duplicate
+
+20.
+deep link exact student
+
+============================================================
+51. CREDIT-SAVING RULE
+============================================================
+
+이번 작업 관련 source만 조사.
+
+다음 전수감사 다시 금지:
+
+- Student Detail
+- Admin Home IA
+- Teacher IA
+- Stage 2 X Home
+- Member flow
+- 전체 Navigation
+- 전체 Keyboard
+- 전체 Modal
+
+이번 기능에서 수정한 화면/API만 확인.
+
+Audit only 후 STOP 금지.
+
+가능한 한:
+
+audit
+→ fix
+→ tests
+→ logical commit
+
+한 번에 완료.
+
+============================================================
+52. 완료조건
+============================================================
+
+STAGE 4 FULL CLOSE 조건:
+
+A.
+Paid Question APP bridge 연결
+
+B.
+Paid Analysis APP bridge 연결
+
+C.
+0~N adaptive Q&A UI
+
+D.
+0/6 fixture 제거
+
+E.
+Height/Weight block 제거
+
+F.
+Paid History real backend 연결
+또는 migration code 준비 + approval gate
+
+G.
+Free Report re-registration eligibility 보완
+
+H.
+Level-up trigger 연결
+
+I.
+Withdrawal Paid Insight offer 연결
+
+J.
+Readiness/re-analysis trigger는
+canonical 판정이 있는 것만 구현
+
+K.
+Paid notification deep link 정상
+
+L.
+Parent-child / tenant security 정상
+
+M.
+New regression 0
+
+============================================================
+53. 완료보고
+============================================================
+
+# SWIMNOTE 2.0
+# COMPRESSED STAGE 4 FINAL APP INTEGRATION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## AI ENGINE CONTRACT
+
+Question endpoint:
+...
+
+Analysis endpoint:
+...
+
+Service auth:
+...
+
+AI Engine exact commit SHA:
+...
+
+or
+NOT PROVIDED
+
+## APP API
+
+Questions:
+...
+
+Analysis:
+...
+
+Status:
+...
+
+History:
+...
+
+## SNAPSHOT
+
+Assembler reused:
+...
+
+Included sources:
+...
+
+Optional/missing:
+...
+
+Cross-pool protection:
+...
+
+## FREE REPORT RE-REGISTRATION
+
+Previous logic:
+...
+
+Canonical SoT found:
+...
+
+New logic:
+...
+
+Example eligible:
+...
+
+Example ineligible active student:
+...
+
+Withdrawn:
+...
+
+Duplicate:
+...
+
+## PAID QUESTIONS
+
+Fixture 0/6 removed:
+YES / NO
+
+Question count:
+ADAPTIVE / FIXED
+
+Expected:
+ADAPTIVE
+
+Supported types:
+...
+
+Saved answers:
+...
+
+Retry:
+...
+
+## PAID ANALYSIS
+
+APP bridge:
+...
+
+Engine URL:
+...
+
+Timeout:
+...
+
+Idempotency:
+...
+
+User can run before verified payment:
+YES / NO
+
+Expected:
+NO
+
+Internal integration tested:
+YES / NO
+
+## PAID HISTORY
+
+Fixture removed:
+YES / NO
+
+Storage:
+...
+
+Free/paid separated:
+YES / NO
+
+## OPTIONAL DATA
+
+Height required:
+YES / NO
+
+Weight required:
+YES / NO
+
+Video required:
+YES / NO
+
+Expected:
+NO / NO / NO
+
+## PAID UI STATES
+
+Preparing:
+...
+
+Questions required:
+...
+
+Ready:
+...
+
+Payment pending:
+...
+
+Processing:
+...
+
+Published:
+...
+
+Error:
+...
+
+## TRIGGERS
+
+Level up:
+...
+
+Auto level-up created:
+YES / NO
+
+Expected:
+NO
+
+Readiness transition:
+...
+
+Threshold hardcoded:
+YES / NO
+
+Expected:
+NO
+
+Withdrawal:
+...
+
+Withdrawal discount implemented:
+YES / NO
+
+Expected:
+NO
+
+Re-analysis:
+...
+
+Hardcoded interval/count:
+YES / NO
+
+Expected:
+NO
+
+## NOTIFICATIONS
+
+Level-up duplicate:
+...
+
+Withdrawal duplicate:
+...
+
+Readiness duplicate:
+...
+
+Deep link:
+...
+
+Wrong student:
+...
+
+## SECURITY
+
+Own child:
+...
+
+Other child:
+...
+
+Cross-pool:
+...
+
+History/report ID guess:
+...
+
+Client direct AI Engine:
+...
+
+## BACK
+
+Issues:
+...
+
+Expected:
+0
+
+## KEYBOARD
+
+Q&A issues:
+...
+
+Expected:
+0
+
+## SCROLL
+
+Issues:
+...
+
+Expected:
+0
+
+## LOADING / EMPTY / ERROR
+
+Issues:
+...
+
+Expected:
+0
+
+## MIGRATION APPROVAL REQUIRED
+
+NO
+
+or
+
+YES
+
+Exact migration:
+...
+
+Reason:
+...
+
+Production executed:
+NO
+
+## TESTS
+
+Free eligibility:
+...
+
+Questions:
+...
+
+Analysis:
+...
+
+History:
+...
+
+Notifications:
+...
+
+Security:
+...
+
+## REGRESSION
+
+Baseline:
+158
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+Admin Notice AI:
+UNCHANGED
+
+Admin Home:
+UNCHANGED
+
+Student Detail:
+UNCHANGED
+
+Pricing:
+UNCHANGED
+
+Subscription:
+UNCHANGED
+
+RevenueCat:
+UNCHANGED
+
+Stores:
+UNCHANGED
+
+1.6.3:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+STAGE 4 FULLY CLOSED
+
+or
+
+STAGE 4 APP COMPLETE — MIGRATION APPROVAL REQUIRED
+
+or
+
+BLOCKED

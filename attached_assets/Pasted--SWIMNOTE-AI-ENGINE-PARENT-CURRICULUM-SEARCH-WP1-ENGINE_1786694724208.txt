@@ -1,0 +1,494 @@
+[SWIMNOTE AI ENGINE]
+[PARENT CURRICULUM SEARCH — WP1]
+[ENGINE API + GROUNDED SEARCH PIPELINE ONLY]
+
+목적:
+
+학부모용 “AI 커리큘럼 검색” 기능의
+AI ENGINE 측 파이프라인과 API를 구현한다.
+
+중요:
+
+이 기능은 일반 GPT 질문창이 아니다.
+
+반드시:
+
+질문 해석
+→ 허용된 Curriculum Scope
+→ Knowledge Search
+→ Grounded Evidence
+→ GPT 설명
+→ Grounding Validation
+→ 구조화 응답
+
+순서로 동작한다.
+
+APP DB를 AI ENGINE이 직접 읽는 구조는 금지한다.
+
+==================================================
+0. ARCHITECTURE CONSTITUTION
+==================================================
+
+역할 분리:
+
+SWIMNOTE APP / API SERVER:
+
+- Parent 인증
+- 학생 소유권/수영장 권한 확인
+- NORMAL / X MODE 판정
+- 사용 가능한 Curriculum/Template 범위 결정
+- APP DB에서 실제 Curriculum context 추출
+- ENGINE으로 immutable request 전달
+- 결과 저장/히스토리/UI
+
+AI ENGINE:
+
+- 학부모 질문 이해
+- 전달받은 Curriculum scope 분석
+- SWIMNOTE Knowledge DB 검색
+- 질문과 Curriculum 연관성 판단
+- Grounded facts 선택
+- GPT 자연어 설명
+- Grounding validation
+- 구조화된 답변 반환
+
+금지:
+
+- AI ENGINE이 APP DB 직접 접근
+- 다른 수영장 Curriculum 사용
+- 일반 GPT 자체 지식으로 수영 내용을 창작
+- 검색 근거 없이 답변 생성
+- APP Server에서 Prompt/Knowledge 판단 구현
+
+==================================================
+1. 기존 ENGINE 재사용 조사
+==================================================
+
+새 엔진을 만들기 전에 기존 코드를 조사.
+
+반드시 재사용 가능 여부 확인:
+
+- Question Understanding
+- Search Router
+- Hybrid Knowledge Search
+- Knowledge DB
+- Curriculum matching
+- Grounded Prompt Builder
+- GPTAdapter
+- Grounding Validator
+- Trace / request_id
+- 기존 Teacher Diary search modules
+
+먼저 실제 파일/함수 기준으로 조사하고
+최소 신규 코드만 추가한다.
+
+Core Engine 복제 금지.
+
+==================================================
+2. API ENDPOINT
+==================================================
+
+신규 공식 endpoint:
+
+POST /api/v1/parent-curriculum/search
+
+기존 routing convention과 충돌하면
+동등한 canonical path 사용 가능하지만
+최종 URL 하나로 확정.
+
+인증:
+
+현재 ENGINE의 aiJwtAuthMiddleware 또는
+기존 server-to-server 인증 규칙 재사용.
+
+무인증 호출은 401.
+
+==================================================
+3. REQUEST CONTRACT
+==================================================
+
+ENGINE은 APP에서 다음 정보를 받는다.
+
+예상 contract:
+
+{
+  "request_id": "curriculum_<uuid>",
+  "schema_version": "1.0",
+  "feature": "parent_curriculum_search",
+
+  "query": "우리 아이는 지금 평영을 어디까지 배우고 있나요?",
+
+  "context": {
+    "pool_id": "pool_xxx",
+    "pool_name": "OO수영장",
+    "student_id": "student_xxx",
+    "student_name": "홍길동",
+
+    "mode": "NORMAL | X",
+
+    "curriculum_scope": {
+      "source": "POOL | X_GLOBAL",
+      "template_set_id": "...",
+      "allowed_template_ids": ["..."],
+      "curriculum_items": [
+        {
+          "id": "...",
+          "title": "...",
+          "content": "...",
+          "level": "...",
+          "order": 0
+        }
+      ]
+    },
+
+    "student_progress": {
+      "current_level": "...",
+      "current_curriculum_id": "...",
+      "recent_completed_ids": [],
+      "recent_lesson_context": []
+    }
+  }
+}
+
+중요:
+
+APP DB의 실제 schema와 맞지 않는 필드는
+ENGINE이 임의로 요구하지 말 것.
+
+이번 WP에서는 ENGINE contract를 확정하되
+APP이 실제 제공 가능한 필드와 충돌하는 경우
+필수/선택을 명확히 구분.
+
+==================================================
+4. MODE PRINCIPLE
+==================================================
+
+ENGINE은 mode를 자체 판정하지 않는다.
+
+APP이 이미 판정한:
+
+NORMAL
+X
+
+을 전달받는다.
+
+NORMAL:
+
+- 현재 수영장 자체 Curriculum Scope만 허용
+- 다른 pool 데이터 사용 금지
+
+X:
+
+- APP이 전달한 X_GLOBAL Curriculum Scope만 허용
+
+ENGINE이 다른 수영장의 curriculum을 찾아 확장 금지.
+
+==================================================
+5. CURRICULUM SCOPE GATE
+==================================================
+
+검색 시작 전에:
+
+- curriculum_scope 존재
+- source 유효
+- allowed_template_ids 또는 curriculum_items 존재
+- pool/student/request contract 정상
+
+확인.
+
+허용 범위가 없으면:
+
+CURRICULUM_SCOPE_UNAVAILABLE
+
+반환.
+
+일반 Knowledge DB만으로
+Curriculum을 추측해서 답하지 않는다.
+
+==================================================
+6. QUESTION UNDERSTANDING
+==================================================
+
+학부모 질문을 최소 다음 유형으로 분류:
+
+- CURRENT_PROGRESS
+  현재 어디까지 배우는지
+
+- NEXT_STEP
+  다음에 무엇을 배우는지
+
+- CURRICULUM_EXPLANATION
+  특정 단계/영법/항목 설명
+
+- WHY_THIS_STEP
+  왜 이 순서/내용을 배우는지
+
+- RECENT_LEARNING
+  최근 무엇을 배우고 있는지
+
+- GENERAL_CURRICULUM
+  수영장 교육과정에 대한 질문
+
+분류 자체가 사용자에게 노출될 필요는 없으나
+trace/meta에 남길 수 있음.
+
+==================================================
+7. GROUNDED SEARCH
+==================================================
+
+검색 순서:
+
+1. Parent query
+2. Student progress
+3. Allowed Curriculum Scope
+4. Curriculum item selection
+5. Knowledge DB search
+6. Evidence relevance validation
+
+Knowledge 검색은
+선택된 Curriculum과 관련 있는 범위에서만 수행.
+
+예:
+
+평영 발차기 curriculum item 선택
+→ 평영 발차기 관련 Knowledge 검색
+
+다른 단계의 일반 수영 지식을
+마음대로 섞지 않는다.
+
+==================================================
+8. ANSWER RULE
+==================================================
+
+답변 주체:
+
+SWIMNOTE가 아니라
+해당 수영장의 교육과정을 설명하는 형태.
+
+예:
+
+“현재 OO수영장 교육과정에서는
+평영 발차기 단계를 진행하고 있습니다.”
+
+금지:
+
+“SWIMNOTE에서는...”
+(수영장 자체 교육과정처럼 보여야 하는 경우)
+
+단 실제 source/브랜드 표기가 필요한 운영 메타는
+별도 meta에서 관리 가능.
+
+==================================================
+9. GROUNDING RULE
+==================================================
+
+답변에 포함 가능한 내용:
+
+A.
+APP이 전달한 Curriculum facts
+
+B.
+Student progress facts
+
+C.
+ENGINE Knowledge Search에서
+선택된 verified facts
+
+이 세 범위 밖 수영 전문 주장 생성 금지.
+
+근거가 약하면:
+
+- 모르는 내용을 확정하지 말 것
+- 해당 수영장의 현재 기록 범위에서만 설명
+- 필요 시 “현재 기록으로 확인 가능한 범위”라고 제한
+
+==================================================
+10. RESPONSE CONTRACT
+==================================================
+
+성공 예:
+
+{
+  "request_id": "curriculum_<uuid>",
+  "schema_version": "1.0",
+  "feature": "parent_curriculum_search",
+
+  "result": {
+    "answer": "...",
+
+    "current_progress": {
+      "title": "...",
+      "summary": "..."
+    },
+
+    "next_step": {
+      "title": "...",
+      "summary": "..."
+    }
+  },
+
+  "grounding": {
+    "curriculum_ids": ["..."],
+    "knowledge_ids": ["..."],
+    "student_progress_used": true,
+    "validation": "PASS"
+  },
+
+  "meta": {
+    "intent": "CURRENT_PROGRESS",
+    "mode": "X",
+    "curriculum_source": "X_GLOBAL",
+    "engine_version": "...",
+    "model": "...",
+    "latency_ms": 0
+  }
+}
+
+중요:
+
+current_progress / next_step은
+근거가 실제 존재할 때만 반환.
+
+없는 값을 GPT가 만들어 채우지 않는다.
+
+==================================================
+11. ERROR CONTRACT
+==================================================
+
+필수 오류 코드:
+
+INVALID_REQUEST
+UNAUTHORIZED
+FORBIDDEN
+CURRICULUM_SCOPE_UNAVAILABLE
+CURRICULUM_NOT_FOUND
+KNOWLEDGE_UNAVAILABLE
+GROUNDING_VALIDATION_FAILED
+GENERATION_FAILED
+TIMEOUT
+INTERNAL_ERROR
+
+retryable 포함.
+
+Stack trace/DB 정보 노출 금지.
+
+==================================================
+12. TRACE
+==================================================
+
+request_id 기준 최소 trace:
+
+REQUEST_RECEIVED
+QUESTION_CLASSIFIED
+CURRICULUM_SCOPE_VALIDATED
+CURRICULUM_MATCHED
+KNOWLEDGE_SEARCH_COMPLETED
+EVIDENCE_VALIDATED
+PROMPT_BUILT
+LLM_COMPLETED
+GROUNDING_VALIDATED
+RESPONSE_RETURNED
+
+Production 로그에는:
+
+학생 이름
+질문 원문 전체
+답변 전체
+
+남기지 않는다.
+
+허용:
+
+request_id
+pool hash
+student hash
+intent
+curriculum ids
+knowledge ids
+mode
+latency
+error code
+
+==================================================
+13. HISTORY 책임
+==================================================
+
+검색 히스토리는 ENGINE DB 책임이 아니다.
+
+이번 WP에서 검색 히스토리 Product table 만들지 않는다.
+
+APP이 추후 저장/표시한다.
+
+ENGINE은 요청 1건 분석만 담당.
+
+==================================================
+14. TEST
+==================================================
+
+최소:
+
+A. NORMAL + valid pool curriculum
+B. X + valid x_global curriculum
+C. CURRENT_PROGRESS
+D. NEXT_STEP
+E. CURRICULUM_EXPLANATION
+F. scope 없음 → 차단
+G. 허용되지 않은 curriculum id → 차단
+H. Knowledge 부족 → 과장 생성 금지
+I. 다른 pool curriculum 혼입 차단
+J. student progress 없는 경우
+K. provider 401/429/500
+L. grounding validator 실패
+M. unknown curriculum id 생성 차단
+N. 무인증 401
+
+기존 Growth Report / Teacher Diary regression 깨지지 않아야 함.
+
+==================================================
+15. 이번 WP에서 하지 않는 것
+==================================================
+
+금지:
+
+- Parent APP UI
+- APP API endpoint
+- APP DB migration
+- 검색 히스토리
+- 알림
+- RevenueCat
+- Build/OTA
+- Production deploy
+
+이번 WP는 AI ENGINE만.
+
+==================================================
+16. REPORT
+==================================================
+
+다음만 보고:
+
+1. REUSED ENGINE MODULES
+2. NEW FILES
+3. MODIFIED FILES
+4. FINAL ENDPOINT
+5. AUTH
+6. REQUEST CONTRACT
+7. RESPONSE CONTRACT
+8. NORMAL MODE BEHAVIOR
+9. X MODE BEHAVIOR
+10. GROUNDING RULE
+11. ERROR CONTRACT
+12. TEST RESULT
+13. EXISTING ENGINE REGRESSION
+14. COMMIT SHA
+15. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_ENGINE_WP1_COMPLETE ✅
+
+실패/설계 충돌:
+
+PARENT_CURRICULUM_ENGINE_WP1_BLOCKED ❌
+
+Production deploy 하지 말 것.

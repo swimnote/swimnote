@@ -1,7 +1,15 @@
+/**
+ * EmptyState — 빈 상태 공통 컴포넌트 (mode-aware)
+ *
+ * X 모드: 아이콘 bg/color → XT.aiSoft / XT.ai (민트 제거)
+ * Normal 모드: 기존 동일
+ */
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 
 const C = Colors.light;
 
@@ -12,10 +20,16 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon = "inbox", title, subtitle }: EmptyStateProps) {
+  const { mode } = useMode();
+  const isX = isXMode(mode);
+
+  const iconBg    = isX ? XT.aiSoft   : C.brandMist;
+  const iconColor = isX ? XT.ai       : C.brandStrong;
+
   return (
     <View style={s.root}>
-      <View style={[s.iconWrap, { backgroundColor: C.tintLight }]}>
-        <LucideIcon name={icon} size={32} color={C.tint} />
+      <View style={[s.iconWrap, { backgroundColor: iconBg }]}>
+        <LucideIcon name={icon} size={32} color={iconColor} />
       </View>
       <Text style={[s.title, { color: C.text }]}>{title}</Text>
       {subtitle ? <Text style={[s.sub, { color: C.textMuted }]}>{subtitle}</Text> : null}

@@ -219,9 +219,9 @@ app.get(["/health", "/api/health", "/healthz", "/api/healthz"], (_req: Request, 
     ok: true,
     uptime: uptime_seconds,          // 기존 키 — 1.6.3 호환 유지
     timestamp: new Date().toISOString(),
-    version: "v2.5-2026-07-24",     // 기존 키 — 1.6.3 호환 유지 (production 버전 유지)
-    // ── additive metadata (진단용) — 1.6.3 parser 영향 없음 ──
-    uptime_seconds,
+    version: "v2.4-2026-07-20",     // 기존 키 — 1.6.3 호환 유지
+    // ── additive metadata (진단용) ──
+    uptime_seconds,                  // 명시적 초 단위 (uptime 별칭)
     boot_id: _bootMeta?.boot_id ?? "unknown",
     commit: _bootMeta?.commit ?? "unknown",
     service_version: _bootMeta?.version ?? "2.x",
@@ -251,6 +251,86 @@ app.get(["/report", "/api/report"], (_req: Request, res: Response) => {
   }
 });
 
+
+// ── /audit — AI 작업지시·완료보고 감사 문서 ─────────────────────────────
+app.get(["/audit", "/api/audit"], (_req: Request, res: Response) => {
+  const mdPath = path.join(__dirname, "../../../swimnote_AI_작업지시_완료보고_전체내역.md");
+  if (!fs.existsSync(mdPath)) {
+    res.status(404).send("감사 문서를 찾을 수 없습니다.");
+    return;
+  }
+  const md = fs.readFileSync(mdPath, "utf-8");
+  const mdJson = JSON.stringify(md);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>SWIMNOTE AI 작업지시·완료보고 전체 내역</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; color-scheme:light; }
+  body { background:#ffffff !important; color:#111827 !important; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:15px; line-height:1.75; padding:16px; }
+  #content { max-width:860px; margin:0 auto; }
+  h1 { font-size:1.45rem; color:#1d4ed8; border-bottom:2px solid #dbeafe; padding-bottom:10px; margin:24px 0 14px; }
+  h2 { font-size:1.15rem; color:#1d4ed8; margin:28px 0 10px; border-left:4px solid #3b82f6; padding-left:10px; background:#eff6ff; padding:8px 10px 8px 14px; border-radius:0 6px 6px 0; }
+  h3 { font-size:1rem; color:#92400e; font-weight:700; margin:20px 0 8px; background:#fffbeb; padding:6px 10px; border-radius:4px; border-left:3px solid #f59e0b; }
+  p { margin:8px 0; color:#111827; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid #e5e7eb; border-radius:6px; }
+  th { background:#f3f4f6; color:#374151; padding:8px 10px; text-align:left; border-bottom:2px solid #d1d5db; border-right:1px solid #e5e7eb; white-space:nowrap; font-size:12px; }
+  td { padding:7px 10px; border-bottom:1px solid #f3f4f6; border-right:1px solid #f3f4f6; color:#111827; vertical-align:top; font-size:13px; }
+  tr:last-child td { border-bottom:none; }
+  tr:nth-child(even) td { background:#f9fafb; }
+  code { background:#f3f4f6; color:#be185d; padding:2px 5px; border-radius:3px; font-size:12px; font-family:'SF Mono','Fira Code',monospace; word-break:break-all; }
+  pre { background:#1e1e2e; border-radius:8px; padding:14px; overflow-x:auto; margin:12px 0; }
+  pre code { background:none; padding:0; color:#cdd6f4; font-size:12px; word-break:normal; }
+  blockquote { border-left:3px solid #f59e0b; padding:8px 14px; background:#fffbeb; margin:12px 0; color:#78350f; border-radius:0 6px 6px 0; }
+  ul, ol { padding-left:22px; margin:8px 0; }
+  li { margin:5px 0; color:#111827; }
+  strong { color:#111827; font-weight:700; }
+  em { color:#6b7280; }
+  hr { border:none; border-top:1px solid #e5e7eb; margin:24px 0; }
+  a { color:#2563eb; }
+  .ok  { color:#059669 !important; font-weight:700; }
+  .bad { color:#dc2626 !important; font-weight:700; }
+  .warn{ color:#d97706 !important; font-weight:700; }
+  #toc { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 18px; margin:12px 0 24px; }
+  #toc p { font-weight:700; color:#1d4ed8; margin-bottom:8px; }
+  #toc a { display:block; color:#374151; padding:2px 0; font-size:13px; text-decoration:none; }
+  #toc a:hover { color:#2563eb; }
+</style>
+</head>
+<body>
+<div id="toc"><p>📋 목차</p></div>
+<div id="content"></div>
+<script>
+const raw = ${mdJson};
+document.getElementById('content').innerHTML = marked.parse(raw);
+
+// 목차 자동 생성
+const toc = document.getElementById('toc');
+document.querySelectorAll('h2').forEach((el, i) => {
+  const id = 'sec-' + i;
+  el.id = id;
+  const a = document.createElement('a');
+  a.href = '#' + id;
+  a.textContent = el.textContent;
+  toc.appendChild(a);
+});
+
+// ✅ ❌ ⚠️ 강조
+document.querySelectorAll('td, li, p').forEach(el => {
+  const t = el.innerHTML;
+  if (t.includes('❌')) el.classList.add('bad');
+  else if (t.includes('⚠️')) el.classList.add('warn');
+  else if (t.includes('✅') && !t.includes('❌') && !t.includes('⚠️')) el.classList.add('ok');
+});
+</script>
+</body>
+</html>`);
+});
 
 // ── swimnote-web SPA 서빙 (/api 이외 모든 경로) ─────────────────────────
 const webDistDir = path.join(__dirname, "../../swimnote-web/dist/public");

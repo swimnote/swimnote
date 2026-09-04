@@ -1,0 +1,207 @@
+# [X CURRICULUM PRODUCTION INGESTION — TOYKIDS]
+
+대상:
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+pool:
+토이키즈스윔클럽
+
+현재 curriculum source alignment hotfix:
+SHA 4b8d8fe0
+PASS
+
+목표:
+
+실제 토이키즈 X curriculum DOCX를 canonical ingestion 경로로 등록하여
+
+DOCX
+→ x_curriculum_profiles
+→ x_curriculum_levels
+→ curriculum_versions
+→ curriculum_items
+
+구조를 Production에서 실제 검증한다.
+
+==================================================
+1. INGESTION 전 PRECHECK
+==================================================
+
+먼저 READ-ONLY 확인:
+
+- 대상 pool_id 정확성
+- 현재 x_curriculum_profiles count
+- 현재 x_curriculum_levels count
+- 현재 curriculum_versions count
+- 현재 curriculum_items count
+- 기존 X managed active version 존재 여부
+
+현재 예상:
+모두 0
+
+실제 값 보고.
+
+==================================================
+2. 사용할 실제 DOCX
+==================================================
+
+사용자가 실제 토이키즈 X curriculum으로 등록한
+원본 DOCX만 사용.
+
+테스트용 synthetic DOCX 사용 금지.
+WP 테스트용 문서 사용 금지.
+
+원본 file/version 확인 후 진행.
+
+==================================================
+3. CANONICAL INGESTION
+==================================================
+
+반드시 기존 WP-X03 / WP-X04 경로 사용.
+
+금지:
+
+- curriculum_items 직접 INSERT
+- 300개 맞추기 위한 artificial split
+- comma split
+- sentence inflation
+- duplicate item 생성
+- 의미 없는 item 추가
+
+level 구조:
+x_curriculum_levels
+
+검색 최소 단위:
+curriculum_items
+
+==================================================
+4. VERSION SAFETY
+==================================================
+
+curriculum_versions:
+
+- 해당 pool의 X managed version만 처리
+- 다른 pool version 영향 금지
+- 다른 curriculum source 삭제 금지
+- pool-wide DELETE 금지
+
+기존 ingestion 로직의 scoped delete/upsert 규칙 유지.
+
+==================================================
+5. INGESTION 후 검증
+==================================================
+
+확인:
+
+- x_curriculum_profiles count
+- x_curriculum_levels count
+- curriculum_versions count
+- active curriculum version
+- curriculum_items total
+- curriculum_items active
+- 실제 의미 있는 searchable item count
+
+중요:
+
+active searchable items >= 300
+이어야 AI curriculum search eligible.
+
+300 미만이면:
+억지로 늘리지 않는다.
+그 상태 그대로 NOT_READY가 정상.
+
+==================================================
+6. SAMPLE QUALITY CHECK
+==================================================
+
+임의 20개 curriculum_items 확인.
+
+각 item이:
+
+- 실제 교육 내용 단위인지
+- 빈 문자열 아닌지
+- 동일 문장 중복 대량 생성 아닌지
+- level/title/content 연결이 정상인지
+- 원본 DOCX 의미를 보존하는지
+
+확인.
+
+==================================================
+7. ELIGIBILITY VERIFY
+==================================================
+
+ingestion 후 서버에서 대상 pool:
+
+GET curriculum history eligibility
+
+확인:
+
+- server mode = x
+- active searchable item count
+- eligible
+- reason
+
+기대:
+
+count >=300
+→ eligible=true
+
+count <300
+→ eligible=false
+→ CURRICULUM_NOT_READY
+
+==================================================
+8. SEARCH SMOKE
+==================================================
+
+eligible=true인 경우에만 최소 1회 검색.
+
+실제 test parent/student 사용.
+
+확인:
+
+- curriculum scope가 해당 pool curriculum_items 사용
+- 다른 pool 데이터 없음
+- DIRECT_DB 또는 GROUNDED_GPT 정상
+- raw error 없음
+
+quota는 실제 정책대로 처리되므로
+불필요한 반복 검색 금지.
+
+==================================================
+9. 금지
+==================================================
+
+- global_template_sets 생성/활성화 금지
+- diary_templates x_global 생성 금지
+- eligibility threshold 변경 금지
+- quota 변경 금지
+- 전체 regression 금지
+- 다른 pool ingestion 금지
+
+==================================================
+10. 완료 보고
+==================================================
+
+[X CURRICULUM PRODUCTION INGESTION REPORT]
+
+- pool_id:
+- source DOCX:
+- profiles before/after:
+- levels before/after:
+- versions before/after:
+- active version:
+- items before/after:
+- active searchable items:
+- sample quality check:
+- duplicate/artificial inflation:
+- eligibility:
+- reason:
+- search smoke:
+- quota charged:
+- other pool affected: NO
+- legacy global template used: NO
+- final status:
+
+보고 후 멈춘다.

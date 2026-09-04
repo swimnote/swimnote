@@ -1,0 +1,589 @@
+[SWIMNOTE APP]
+[PARENT CURRICULUM SEARCH — WP2]
+[APP SERVER API + CURRICULUM SCOPE BUILDER ONLY]
+
+AI ENGINE WP1 완료:
+
+ENGINE endpoint:
+POST /api/v1/parent-curriculum/search
+
+ENGINE commit:
+4552043
+
+Production deploy:
+아직 미실행
+
+이번 WP 목적:
+
+SWIMNOTE APP Server에서
+학부모 커리큘럼 검색 요청을 안전하게 받아
+
+Parent 인증
+→ 자녀 소유권 확인
+→ Pool 확인
+→ NORMAL / X mode 판정
+→ 실제 허용 Curriculum Scope 구성
+→ Student Progress 구성
+→ AI ENGINE 호출
+→ Grounded 결과 반환
+
+까지 구현한다.
+
+이번 WP에서는 Parent UI를 만들지 않는다.
+
+==================================================
+0. 절대 역할 분리
+==================================================
+
+APP Server 책임:
+
+- Parent JWT 인증
+- Parent ↔ Student 관계 확인
+- Student ↔ Pool 확인
+- 현재 Pool mode 확인
+- Curriculum 검색 사용 가능 여부 판정
+- APP DB에서 허용 Curriculum Scope 구성
+- Student progress 사실 구성
+- ENGINE Request Contract 생성
+- ENGINE 호출
+- ENGINE Response 검증
+- Product API Response 반환
+
+AI ENGINE 책임:
+
+- 질문 의미 분석
+- intent 분류
+- curriculum item 선택
+- Knowledge DB 검색
+- Evidence 판단
+- Prompt
+- GPT
+- Grounding validation
+
+APP Server에서 절대 금지:
+
+- GPT 직접 호출
+- Knowledge DB 검색
+- Prompt 작성
+- 수영 지식 판단
+- 질문 intent 분석
+- 다음 진도 자체 계산
+- 다른 수영장 curriculum 참조
+
+==================================================
+1. 먼저 실제 APP DB 구조 조사
+==================================================
+
+코드 수정 전에 실제 Repository를 조사한다.
+
+다음 항목을 실제 schema/route/service 기준으로 확인:
+
+A. Parent 인증 middleware
+
+B. Parent ↔ Student 승인 관계 테이블/함수
+
+C. Student의 swimming_pool_id 확인 방법
+
+D. Pool mode canonical resolver
+   반드시 기존 resolvePoolMode() 재사용
+
+현재 고정 canonical rule:
+
+mode = x
+iff:
+xmode_entitlement = true
+AND
+xmode_config_status = 'READY'
+
+그 외:
+x_pending / normal
+
+approval_status를 mode 계산에 넣지 않는다.
+
+E. Pool-owned curriculum/template 저장 위치
+
+F. X global curriculum/template 저장 위치
+
+G. active/current template set 판정 방법
+
+H. 학생 현재 curriculum/progress 저장 위치
+
+I. 기존 Teacher Diary에서 사용하는
+curriculum/template scope builder가 있다면 재사용 가능 여부
+
+J. 기존 AI ENGINE server-to-server client/auth 방식
+
+특히 기존 Growth Report:
+
+growth-report-engine-client.ts
+
+가 ENGINE을 어떻게 호출하고
+어떤 JWT/service auth를 사용하는지 먼저 확인.
+
+새 인증 체계를 임의로 만들지 않는다.
+
+조사 후 실제 schema에 맞춰 구현한다.
+
+==================================================
+2. APP PARENT ENDPOINT
+==================================================
+
+목표 endpoint:
+
+POST /parent/students/:studentId/curriculum-search
+
+기존 parent route convention에 맞는
+동등 endpoint 사용 가능.
+
+하지만 최종 endpoint 하나로 확정.
+
+Request:
+
+{
+  "request_id": "curriculum_<uuid>",
+  "query": "우리 아이는 지금 평영을 어디까지 배우고 있나요?"
+}
+
+원칙:
+
+- studentId는 URL/path에서 받음
+- pool_id를 client가 임의 전송하지 않음
+- mode를 client가 임의 전송하지 않음
+- curriculum IDs를 client가 임의 전송하지 않음
+- Parent App은 질문만 전달
+
+==================================================
+3. AUTH / OWNERSHIP
+==================================================
+
+반드시:
+
+1. Parent JWT 인증
+2. studentId 존재 확인
+3. 현재 Parent가 해당 student의 승인된 guardian인지 확인
+4. 학생의 실제 pool 확인
+
+권한 없으면:
+
+403
+
+다른 pool/student 데이터 노출 금지.
+
+==================================================
+4. MODE RESOLUTION
+==================================================
+
+기존:
+
+resolvePoolMode()
+
+를 반드시 재사용.
+
+결과:
+
+normal
+x_pending
+x
+
+처리 원칙:
+
+X mode 검색:
+
+mode === 'x'
+
+일 때만 X_GLOBAL 사용.
+
+x_pending은 X_GLOBAL 사용 금지.
+
+normal은 POOL curriculum만 사용.
+
+==================================================
+5. NORMAL MODE ELIGIBILITY
+==================================================
+
+기존 WP12 설계 원칙:
+
+NORMAL pool은
+해당 수영장이 직접 보유한 curriculum/template 데이터가
+최소 300개 이상일 때
+Parent Curriculum Search 활성화.
+
+중요:
+
+“300개”의 실제 계산 대상을
+Repository의 기존 curriculum/template 구조를 보고 확정.
+
+임의로:
+
+row 300개
+template 300개
+curriculum 300개
+
+중 하나를 추측하지 마라.
+
+기존 WP12 memory/design에서
+정의된 canonical counting rule이 있으면 그대로 사용.
+
+없으면 STOP 후 보고.
+
+다른 pool의 데이터로 300개를 채우지 않는다.
+
+조건 미충족 시 ENGINE 호출 금지.
+
+typed error 예:
+
+CURRICULUM_SEARCH_NOT_ELIGIBLE
+
+==================================================
+6. X MODE ELIGIBILITY
+==================================================
+
+mode === 'x'이면:
+
+수영장 자체 300개 조건 적용하지 않는다.
+
+대신 기존 X Global 구조에서:
+
+- ACTIVE
+- 현재 사용 가능한
+- canonical X global template/curriculum set
+
+만 선택.
+
+반드시 기존:
+
+global_template_sets
+diary_templates
+scope = x_global
+
+구조와 기존 helper를 우선 재사용.
+
+deprecated/inactive set 사용 금지.
+
+다른 pool-owned set 혼합 금지.
+
+==================================================
+7. CURRICULUM SCOPE BUILDER
+==================================================
+
+별도 service/helper로 분리.
+
+예:
+
+ParentCurriculumScopeBuilder
+
+책임:
+
+Pool mode + APP DB
+→ ENGINE curriculum_scope
+
+ENGINE WP1 contract:
+
+{
+  "source": "POOL | X_GLOBAL",
+  "template_set_id": "...",
+  "curriculum_items": [
+    {
+      "id": "...",
+      "title": "...",
+      "content": "...",
+      "level": "...",
+      "order": 0
+    }
+  ]
+}
+
+실제 APP DB에서 존재하는 필드만 사용.
+
+ENGINE contract에 없는 APP 내부 메타는 보내지 않아도 됨.
+
+중요:
+
+curriculum_items에는
+현재 요청에서 허용된 실제 범위만 포함.
+
+다른 pool data 금지.
+
+==================================================
+8. STUDENT PROGRESS BUILDER
+==================================================
+
+APP DB에서 이미 존재하는
+학생 progress/curriculum 관련 사실만 사용.
+
+가능한 contract:
+
+{
+  "current_curriculum_id": "...",
+  "current_level": "...",
+  "recent_completed_ids": [],
+  "recent_lesson_context": []
+}
+
+하지만 실제 schema가 지원하는 필드만 보낸다.
+
+금지:
+
+- APP이 다음 진도를 추론
+- APP이 최근 학습 내용을 GPT식으로 요약
+- 없는 current_curriculum_id 생성
+- 수영 지식으로 보충
+
+데이터가 없으면 optional field를 생략한다.
+
+==================================================
+9. ENGINE CLIENT
+==================================================
+
+기존 ENGINE client pattern을 재사용.
+
+Growth Report의:
+
+growth-report-engine-client.ts
+
+를 먼저 조사.
+
+가능하면 동일:
+
+- base URL
+- timeout
+- JWT/service auth
+- error normalization
+- request_id
+- logging/masking
+
+pattern 재사용.
+
+신규 client가 필요하면:
+
+parent-curriculum-engine-client.ts
+
+같이 분리.
+
+==================================================
+10. ENGINE URL CONTRACT
+==================================================
+
+Production ENGINE:
+
+https://swimnote.ai.kr
+
+Parent Curriculum endpoint:
+
+POST
+/api/v1/parent-curriculum/search
+
+단 이번 WP에서는 ENGINE Production에
+아직 WP1 endpoint가 deploy되지 않았으므로
+
+실제 Production 호출 테스트 금지.
+
+Client contract와 mock/integration test까지만 구현.
+
+ENGINE deploy는 별도 단계에서 한다.
+
+==================================================
+11. ENGINE REQUEST
+==================================================
+
+APP Server → ENGINE:
+
+{
+  "request_id": "...",
+  "schema_version": "1.0",
+  "feature": "parent_curriculum_search",
+  "query": "...",
+
+  "context": {
+    "pool_id": "...",
+    "pool_name": "...",
+    "student_id": "...",
+
+    "mode": "NORMAL | X",
+
+    "curriculum_scope": {
+      ...
+    },
+
+    "student_progress": {
+      ...
+    }
+  }
+}
+
+mode mapping:
+
+APP resolvePoolMode() === 'x'
+→ ENGINE "X"
+
+APP resolvePoolMode() === 'normal'
+→ ENGINE "NORMAL"
+
+x_pending:
+→ 검색 불가
+→ ENGINE 호출 금지.
+
+==================================================
+12. RESPONSE VALIDATION
+==================================================
+
+ENGINE response를 무조건 신뢰하지 않는다.
+
+검증:
+
+- request_id 일치
+- schema_version 지원
+- feature 일치
+- result.answer string
+- grounding.validation === PASS
+- grounding.curriculum_ids가
+  APP이 전송한 allowed curriculum IDs의 subset인지
+- 중복/unknown curriculum ID 없음
+
+ENGINE이 허용하지 않은 curriculum ID를 반환하면:
+
+정상 응답으로 Parent에게 전달 금지.
+
+typed internal error 처리.
+
+Knowledge IDs는 ENGINE Knowledge DB ID이므로
+APP DB와 비교하지 않는다.
+
+==================================================
+13. APP RESPONSE
+==================================================
+
+Parent UI에 필요한 안전한 정보만 반환.
+
+예:
+
+{
+  "request_id": "...",
+  "result": {
+    "answer": "...",
+    "current_progress": {...},
+    "next_step": {...}
+  },
+  "meta": {
+    "mode": "NORMAL | X"
+  }
+}
+
+Parent에게 노출 금지:
+
+- 전체 ENGINE prompt
+- raw knowledge documents
+- hidden grounding traces
+- JWT
+- internal DB IDs 중 불필요한 것
+- stack trace
+
+==================================================
+14. SEARCH HISTORY
+==================================================
+
+이번 WP에서는 아직 Product history UI를 만들지 않는다.
+
+다만 기존 WP12 설계에
+검색 history 저장 table/schema가 이미 확정돼 있다면 보고만 한다.
+
+새 DB migration은 이번 WP에서 만들지 않는다.
+
+History persistence는 별도 WP로 남긴다.
+
+==================================================
+15. RATE / USAGE
+==================================================
+
+기존 Parent AI usage 제한 구조가 존재하는지 조사.
+
+예:
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+
+이미 canonical usage limiter가 있으면
+Parent Curriculum Search에도 적용 가능한지 보고.
+
+이번 WP에서 임의의 새로운 과금/limit 정책 만들지 않는다.
+
+==================================================
+16. TEST
+==================================================
+
+최소 테스트:
+
+A. 승인된 Parent + NORMAL eligible
+B. NORMAL < canonical 300 condition → 차단
+C. 승인된 Parent + X active
+D. x_pending → X_GLOBAL 차단
+E. entitlement false → NORMAL
+F. 다른 Parent의 student 접근 → 403
+G. 다른 pool curriculum 혼입 없음
+H. X에서 POOL/X_GLOBAL 혼합 없음
+I. inactive x_global set 차단
+J. student progress 없음
+K. request_id mismatch response 차단
+L. unknown curriculum ID response 차단
+M. ENGINE 401
+N. ENGINE 429
+O. ENGINE 5xx
+P. timeout
+Q. grounding.validation != PASS 차단
+
+기존 APP server regression 깨지지 않아야 함.
+
+==================================================
+17. 이번 WP 금지
+==================================================
+
+이번에는 하지 않는다:
+
+- Parent UI
+- 검색 화면
+- 검색 히스토리 UI
+- GPT
+- Prompt
+- Knowledge Search
+- ENGINE Production deploy
+- APP Production deploy
+- DB migration
+- OTA
+- EAS build
+
+==================================================
+18. REPORT
+==================================================
+
+다음만 보고:
+
+1. ACTUAL APP DATA MODEL
+2. NORMAL 300 COUNT CANONICAL RULE
+3. X GLOBAL SOURCE
+4. REUSED HELPERS
+5. NEW FILES
+6. MODIFIED FILES
+7. FINAL PARENT ENDPOINT
+8. AUTH / OWNERSHIP
+9. MODE RESOLUTION
+10. NORMAL ELIGIBILITY
+11. X ELIGIBILITY
+12. CURRICULUM SCOPE CONTRACT
+13. STUDENT PROGRESS CONTRACT
+14. ENGINE AUTH/CLIENT CONTRACT
+15. RESPONSE VALIDATION
+16. TEST RESULT
+17. EXISTING REGRESSION
+18. HISTORY STATUS
+19. COMMIT SHA
+20. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_APP_WP2_COMPLETE ✅
+
+설계/DB의 canonical 300 rule이 불명확하면:
+
+PARENT_CURRICULUM_APP_WP2_BLOCKED ❌
+
+추측해서 구현하지 말 것.

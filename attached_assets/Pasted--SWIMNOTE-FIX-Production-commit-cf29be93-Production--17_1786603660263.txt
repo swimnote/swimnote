@@ -1,0 +1,188 @@
+[SWIMNOTE 학부모 연결 FIX — Production 배포]
+
+검증 완료된 commit:
+
+cf29be93
+
+을 기준으로 Production 배포를 진행합니다.
+
+이번 배포 범위는 이번 학부모 연결 승인 FIX에 한정합니다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 검증
+━━━━━━━━━━━━━━━━━━━━
+
+먼저 확인:
+
+- Current branch
+- Current HEAD
+- origin에 cf29be93 존재 여부
+- cf29be93 이후 기능 코드 변경 여부
+- Production Render 현재 SHA
+- production channel runtimeVersion
+- OTA 대상 diff
+
+cf29be93 이후 관련 없는 기능 코드 변경이 있다면
+즉시 STOP하고 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Render Production 배포
+━━━━━━━━━━━━━━━━━━━━
+
+api-server 변경사항을 Production Render에 배포합니다.
+
+대상 핵심:
+
+- auto-link-v2.ts
+- parent-requests.ts
+
+배포 후 반드시 확인:
+
+- Production SHA = cf29be93 또는 해당 commit을 포함한 검증된 배포 SHA
+- 서버 정상 기동
+- health 정상
+- startup error 없음
+- DB migration 실행 없음
+
+DB CHANGED = 0 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Production OTA
+━━━━━━━━━━━━━━━━━━━━
+
+앱 변경:
+
+artifacts/swim-app/app/(admin)/approvals.tsx
+
+를 production channel에 OTA 배포합니다.
+
+runtimeVersion은 현재 Production 호환값을 그대로 사용합니다.
+
+Native Build 금지.
+
+OTA에 이번 작업과 관계없는 앱 기능 변경이 포함되지 않는지
+diff를 먼저 검증하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 배포 후 실기기 검증
+━━━━━━━━━━━━━━━━━━━━
+
+관리자 → 승인 관리 → 학부모 연결에서 확인:
+
+CASE A
+matched_student_id 있는 대기건
+→ 승인
+→ 정상 연결
+
+CASE B
+학생 이름 확인 필요
+→ 승인
+→ 학생 검색 모달
+→ 실제 학생 선택
+→ 승인 성공
+
+CASE C
+거절됨 탭
+→ 승인 버튼 표시
+→ 다시 승인 가능
+
+CASE D
+동일 보호자 전화번호로 등록된 형제자매
+→ 한 명 승인
+→ 같은 pool의 해당 자녀들이 함께 연결
+
+CASE E
+다른 pool 학생
+→ 연결되지 않음
+
+CASE F
+기존 approved 학부모
+→ 기존 자녀 접근 정상
+
+CASE G
+승인관리 대기 숫자
+→ 처리 후 정상 갱신
+
+CASE H
+학생검색
+→ 현재 pool 학생만 검색
+→ 검색/선택 정상
+
+━━━━━━━━━━━━━━━━━━━━
+5. 기존 NULL pending 처리
+━━━━━━━━━━━━━━━━━━━━
+
+Production 배포가 정상임을 확인한 다음에만 진행합니다.
+
+기존 pending_reason=NULL 건에 대해
+신규 retry endpoint를 이용하여 재시도합니다.
+
+POST /admin/parent-v2-retry-all
+
+단:
+
+- 안전한 자동매칭 조건 충족 건만 자동연결
+- 불확실한 건 임의 승인 금지
+- 실패 건은 pending_reason 기록
+- 다른 pool 영향 금지
+
+실행 전 NULL 건수와
+실행 후 결과를 비교 보고하십시오.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+- DB Migration 금지
+- Native Build 금지
+- X 다른 기능 수정 금지
+- AI 수정 금지
+- 일지 수정 금지
+- 사진/R2 수정 금지
+- Cleanup 수정 금지
+- 추가 리팩터링 금지
+- 발견한 다른 문제 임의 수정 금지
+
+이번 배포 중 새로운 문제가 발견되면
+수정하지 말고 보고 후 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고
+━━━━━━━━━━━━━━━━━━━━
+
+다음 형식으로 보고:
+
+CODE CHANGED = 0
+(검증 완료 코드의 추가 수정 여부 기준)
+
+SOURCE SHA =
+RENDER SHA =
+RENDER CHANGED = YES
+
+iOS OTA Group ID =
+iOS OTA Update ID =
+
+Android OTA Group ID =
+Android OTA Update ID =
+
+runtimeVersion =
+channel = production
+OTA CHANGED = YES
+
+DB CHANGED = 0
+R2 CHANGED = 0
+NATIVE BUILD = 0
+
+그리고:
+
+- 실기기 CASE A~H 결과
+- NULL pending 실행 전 건수
+- 자동연결 성공 건수
+- pending 유지 건수
+- 각 pending_reason 건수
+- 형제자매 추가 연결 건수
+- 오류 발생 여부
+
+까지 보고하십시오.
+
+배포 및 검증 완료 후 STOP.

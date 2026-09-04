@@ -1,0 +1,320 @@
+[SWIMNOTE 보강반 선택 오류 — 코드·실행증거 원문 추출 전용 지시]
+
+현재 구독 회귀는 롤백 완료됐다.
+
+이제 보강반 선택 오류만 단독으로 조사한다.
+
+이번 작업에서는 절대 수정하지 않는다.
+
+금지:
+- 코드 수정
+- Commit
+- Push
+- Render 배포
+- OTA
+- DB UPDATE/DELETE/INSERT
+- 자동 checkpoint를 유도하는 파일 수정
+- 구독 코드 접근
+- X모드 접근
+
+목표는 현재 롤백 기준 코드와 실제 실패 요청 증거를 한 번에 추출하는 것이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 기준점 고정
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 원문 그대로 제출한다.
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+git log -10 --oneline
+git status --short
+
+Render 현재 live deployment:
+
+- deployment ID
+- commit SHA
+- 배포 완료 시각
+- health check
+
+EAS 현재 production:
+
+- 최신 Update Group ID
+- runtimeVersion
+- 포함 commit SHA
+
+현재 앱이 실제 사용 중인 API_BASE도 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실패 클라이언트 코드 전체 추출
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 파일에서 보강반 선택부터 회차 조회까지 관련 코드를 함수 단위로 생략 없이 제출한다.
+
+A.
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+반드시 포함:
+
+- MakeupOccurrence 타입
+- assignTarget 상태
+- selectedClassId 상태
+- occurrences 상태
+- occLoading
+- occError
+- occSeqRef
+- occPendingRef가 있다면 포함
+- openAssignModal
+- selectClass
+- doAssign
+- 재시도 함수
+- 반 선택 JSX
+- 회차 선택 JSX
+- 오류 UI
+- apiRequest 호출 원문
+
+B.
+
+artifacts/swim-app/components/teacher/my-schedule/ClassDetailSheet.tsx
+
+반드시 포함:
+
+- 보강 대기 조회 함수
+- openMakeupPicker
+- selectMakeupClass
+- eligible-occurrences 호출
+- completeMakeupWithDate
+- 오류 UI
+- SubSheetModal 관련 JSX
+- 상태 초기화 함수
+
+요약 금지.
+중간 생략 금지.
+실제 코드 원문 제출.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 서버 eligible-occurrences 전체 코드 추출
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/routes/teachers.ts
+
+다음 라우트를 시작부터 끝까지 원문 제출한다.
+
+GET /teacher/makeups/:makeupId/eligible-occurrences
+
+반드시 포함:
+
+- requireAuth
+- getMyPoolId
+- makeup_sessions 조회
+- class_groups 조회
+- 정원 계산
+- pool_holidays 조회
+- 결석일 계산
+- expire_at 계산
+- 날짜 반복 생성
+- 응답 JSON
+- catch
+- status code
+- error body
+
+관련 헬퍼도 모두 제출한다.
+
+- kstTodayStr
+- parseDayNums
+- 날짜 변환 함수
+- 해당 라우트에서 호출되는 모든 로컬 헬퍼
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. apiRequest 원문 추출
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/context/AuthContext.tsx
+
+apiRequest 함수 전체를 제출한다.
+
+반드시 포함:
+
+- URL 조합
+- API_BASE
+- Authorization header
+- timeout
+- AbortController
+- response 반환 방식
+- 401 처리
+- token refresh
+- error catch
+- retry
+
+보강 호출부에서 세 번째 options 인자를 전달하는 방식과 호환되는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실제 실패 응답 확보
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드를 수정하지 않고 가능한 기존 수단으로 확인한다.
+
+우선순위:
+
+1. Render 대시보드 로그
+2. 앱 기존 DEV 로그
+3. Replit 서버 로그
+4. 동일 사용자 JWT를 정상 로그인 흐름에서 확보할 수 있을 때만 curl
+5. JWT 임의 생성 금지
+
+필수 값:
+
+- 요청 시각 KST
+- 전체 endpoint 경로
+- makeupId
+- class_group_id
+- HTTP status
+- response body
+- 서버 stack trace
+- 서버 error code
+- 실패한 SQL 단계
+
+개인정보는 보고서에서 이름만 마스킹한다.
+
+HTTP status와 response body를 못 구했으면
+“확정 원인”이라고 쓰지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 관련 DB 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+운영 DB는 SELECT만 허용한다.
+
+문제가 발생한 보강 세션:
+
+SELECT
+  id,
+  swimming_pool_id,
+  student_id,
+  student_name,
+  status,
+  absence_date,
+  expire_at,
+  original_class_group_id,
+  assigned_class_group_id,
+  handed_to_teacher_id,
+  handed_to_teacher_name,
+  cancelled_at,
+  completed_at
+FROM makeup_sessions
+WHERE id = :makeupId;
+
+선택한 반:
+
+SELECT
+  id,
+  swimming_pool_id,
+  name,
+  schedule_days,
+  schedule_time,
+  capacity,
+  is_deleted,
+  is_one_time,
+  teacher_user_id
+FROM class_groups
+WHERE id = :classGroupId;
+
+로그인 교사:
+
+SELECT
+  id,
+  role,
+  swimming_pool_id,
+  email
+FROM users
+WHERE id = :userId;
+
+학생 정원 계산에 포함되는 학생:
+
+SELECT
+  id,
+  status,
+  class_group_id,
+  assigned_class_ids,
+  deleted_at
+FROM students
+WHERE class_group_id = :classGroupId
+   OR assigned_class_ids @> to_jsonb(:classGroupId::text);
+
+보고서에서 이름·이메일은 마스킹한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 조건별 판정표
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 코드와 DB 결과를 기준으로 아래를 판정한다.
+
+A. API_BASE가 롤백 과정에서 잘못된 서버를 가리킴
+B. 서버 live SHA에 eligible-occurrences 라우트가 없음
+C. makeupId가 undefined 또는 잘못됨
+D. class_group_id가 undefined 또는 잘못됨
+E. 로그인 교사 pool_id가 null
+F. makeup_sessions.pool_id와 사용자 pool_id 불일치
+G. class_groups.pool_id 불일치
+H. class_groups.is_deleted=true
+I. schedule_days 파싱 실패
+J. absence_date/expire_at 날짜 변환 예외
+K. pool_holidays 쿼리 예외
+L. DB connection 오류
+M. apiRequest가 응답 본문을 소비하거나 변형
+N. 롤백된 앱과 현재 서버 Contract 불일치
+
+각 항목을 다음 중 하나로 표시한다.
+
+- 확정 원인
+- 정상
+- 확인 불가
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 단일 자료 파일 생성
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 파일 하나로 저장한다.
+
+swimnote_makeup_occurrence_failure_bundle.txt
+
+포함 순서:
+
+1. Git/Render/EAS 기준점
+2. API_BASE
+3. makeups.tsx 관련 코드 전체
+4. ClassDetailSheet 관련 코드 전체
+5. eligible-occurrences 서버 코드 전체
+6. 관련 헬퍼 전체
+7. apiRequest 전체
+8. 실제 HTTP status와 response body
+9. 서버 로그/stack
+10. DB SELECT 결과
+11. A~N 판정표
+12. 최근 정상 버전과 현재 버전 diff
+13. 수정 후보 파일과 함수만 목록으로 작성
+
+수정 코드는 작성하지 않는다.
+
+자료 파일 생성 후 사용자에게 내용 전체를 복사 가능한 블록으로도 제공한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 최종 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- 원인 미확정 상태에서 수정안 제시 금지
+- DB pool_size 변경 금지
+- API 오류를 빈 배열로 처리 금지
+- allow_expired 추가·삭제 금지
+- 구독 코드 변경 금지
+- 회원·보강 데이터 변경 금지
+- Commit/Push/Render/OTA 금지
+- X모드 재개 금지
+
+자료 제출 후 즉시 멈춘다.

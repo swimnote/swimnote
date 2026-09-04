@@ -1,0 +1,214 @@
+[앱] FREE GROWTH REPORT PHASE 1 — FINAL CONTRACT CORRECTION
+
+현재 commit:
+2cd7a8d1
+
+현재 Production deploy:
+NO
+
+현재 Production DB migration:
+NO
+
+확인된 문제 2개:
+
+P0-1
+DATA_ACCUMULATING enum migration이
+startup migration으로 등록되어 있음.
+
+P0-2
+DATA_ACCUMULATING이 정상적인 데이터 축적 상태임에도
+product_status = FAILED 로 저장되도록 구현됨.
+
+이번 작업은 이 두 문제만 최소 수정한다.
+
+금지:
+- Production DB write
+- migration 실행
+- deploy
+- OTA
+- AI Engine 수정
+- prompt/model/threshold 변경
+- Growth Report reasoning 변경
+- UI redesign
+- broad audit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. STARTUP MIGRATION 제거
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+growth-report-gr1b-data-accumulating.ts
+
+의 migration SQL 자체는 유지 가능.
+
+단:
+
+index.ts 또는 startup migration runner에
+자동 등록된 gr1b 실행 경로를 제거.
+
+원칙:
+
+Production enum migration은
+별도 수동 migration Step에서 실행한다.
+
+Render 재시작/배포만으로
+DB schema가 자동 변경되어서는 안 됨.
+
+확인:
+
+- app startup 시 gr1b 실행 NO
+- migration file은 manual execution용으로 유지
+- 다른 기존 migration 동작 변경 금지
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. DATA_ACCUMULATING PRODUCT STATUS 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DATA_ACCUMULATING은 FAILED가 아님.
+
+현재 product_status enum/state machine에서
+기존 상태 중 가장 적절한 non-failure 상태를 사용.
+
+우선 검토 대상:
+
+PARTIAL
+
+기대 기본안:
+
+analysis_status = DATA_ACCUMULATING
+product_status = PARTIAL
+
+단,
+PARTIAL 사용이 기존 scheduler/retry/publish state machine에서
+부작용을 만드는지 관련 코드만 최소 확인.
+
+PARTIAL이 안전하면 그대로 사용.
+
+PARTIAL이 실제 의미/상태머신상 부적합하면
+새 product_status를 만들기 전에
+정확한 이유를 보고하고 BLOCKED.
+
+FAILED 사용은 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. EXPECTED PERSISTENCE FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+수정 후 목표:
+
+ENGINE
+analysis_status = DATA_ACCUMULATING
+
+→ validation PASS
+
+→ growth_reports.analysis_status
+   = DATA_ACCUMULATING
+
+→ product_status
+   = PARTIAL
+   또는 검증된 기존 non-failure 상태
+
+→ parent status endpoint가
+analysis_status를 우선 확인
+
+→ display_status
+   = DATA_ACCUMULATING
+
+→ APP:
+
+“조금 더 수업 기록이 쌓이면
+이번 달 성장리포트를 만들어드릴게요.”
+
+FAILED 카드 표시 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. FAILURE SEMANTICS 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+진짜 엔진/API/persistence 오류만
+product_status = FAILED 사용.
+
+다음은 FAILED 아님:
+
+- evidence 부족
+- DATA_ACCUMULATING
+- report generation을 의도적으로 보류한 정상 상태
+
+FAILED 통계/재시도 로직에
+DATA_ACCUMULATING이 섞이지 않도록 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. EXISTING FLOWS 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 변경 금지:
+
+- COMPLETE
+- COMPLETE_WITH_QUESTIONS_AVAILABLE
+- COMPLETE_WITH_PARENT_EVIDENCE
+- PARTIAL 기존 의미
+- NORMAL report
+- SPARSE report
+- APPROVED
+- PUBLISHED
+- 실제 FAILED path
+
+특히 PUBLISHED feed/detail gate 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 startup에서 gr1b migration 실행 안 됨
+TC2 migration file은 manual execution 가능
+TC3 DATA_ACCUMULATING → product_status != FAILED
+TC4 DATA_ACCUMULATING → expected non-failure status
+TC5 analysis_status persistence = DATA_ACCUMULATING
+TC6 parent endpoint → DATA_ACCUMULATING
+TC7 APP friendly card contract 유지
+TC8 real engine failure → FAILED 유지
+TC9 COMPLETE unaffected
+TC10 PARTIAL existing flow unaffected
+TC11 SPARSE unaffected
+TC12 NORMAL unaffected
+TC13 PUBLISHED unaffected
+TC14 production DB write 0
+TC15 AI call 0
+
+관련 테스트만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] DATA_ACCUMULATING FINAL CONTRACT CORRECTION REPORT
+
+- startup migration before/after
+- automatic DB schema write on startup: YES/NO
+- DATA_ACCUMULATING product_status before
+- DATA_ACCUMULATING product_status after
+- chosen non-failure status
+- why chosen status is safe
+- FAILED semantics preserved
+- expected persistence flow
+- parent display behavior
+- tests/pass
+- changed files
+- commit SHA
+
+- migration executed: NO
+- Production DB write: NO
+- deploy: NO
+- OTA: NO
+- AI call: 0
+
+Final Verdict:
+
+DATA_ACCUMULATING CONTRACT READY FOR MANUAL MIGRATION
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

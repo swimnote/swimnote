@@ -1,0 +1,427 @@
+[SWIMNOTE 핵심특허 작성용 APP ↔ AI 연결 기술자료 요청]
+
+목적:
+SWIMNOTE 앱 내부에서 AI Engine과 연결되는
+독자적인 데이터 흐름과 자동화 구조를
+특허 실시예 및 종속항 후보로 검토하기 위함.
+
+일반적인 CRUD/UI 설명은 제외하고
+AI/커리큘럼/학생진도/리포트/Context/자동화와
+직접 연결되는 구조만 실제 Repository 기준으로 정리.
+
+==================================================
+1. APP → AI ENGINE REQUEST FLOW
+==================================================
+
+앱에서 AI 요청이 발생할 때
+실제로 어떤 Context/Data가 Engine으로 전달되는지 정리.
+
+예:
+
+user_id
+pool_id
+user_role
+teacher_id
+student_id
+class_id
+curriculum_id
+current_progress
+lesson_context
+request_id
+feature_type
+
+각 필드:
+- 어디서 수집되는지
+- 필수/선택
+- AI Engine에서 어떤 용도로 쓰이는지
+
+실제 구현만.
+
+
+==================================================
+2. AI TEACHER DIARY — APP SIDE
+==================================================
+
+선생님이 한 번 입력한 내용을
+여러 학생에게 각각 생성하는 전체 앱 흐름.
+
+확인:
+
+- 입력 UI
+- 음성/STT
+- 현재 반/학생 자동 Context
+- 학생 목록 전달
+- Engine request 생성
+- common/student-specific 결과 수신
+- student_id 기반 결과 매칭
+- 각 학생 일지 필드 삽입
+- 선생님 검토
+- 기존 저장 flow 사용
+
+특히:
+
+한 번의 입력
+→ 복수 학생
+→ 개별 AI 결과
+
+구조를 상세히 정리.
+
+
+==================================================
+3. STUDENT ↔ CURRICULUM ↔ AI 연결
+==================================================
+
+학생별 현재 진도와
+수영장별 커리큘럼이
+AI 요청에 어떻게 연결되는지.
+
+실제 흐름:
+
+pool curriculum
+→ class/student
+→ current curriculum position
+→ AI request context
+→ Engine search scope
+→ result
+
+다음 포함:
+
+- curriculum ID 구조
+- student progress 구조
+- level / stage 관계
+- 다음 교육항목
+- 커리큘럼 변경 시 영향
+- 없는 진도/없는 curriculum 처리
+
+
+==================================================
+4. X MODE AI CONTEXT
+==================================================
+
+Normal / X Mode에서
+AI 요청이 어떻게 달라지는지.
+
+확인:
+
+- xmode_enabled
+- entitlement
+- pool curriculum
+- X 전용 AI 기능
+- 일반모드 fallback
+- X전용 data isolation
+
+단순 UI 차이 제외.
+
+
+==================================================
+5. AI RESULT INSERTION / SAVE
+==================================================
+
+AI 결과가 앱에 도착한 뒤
+
+어떤 방식으로:
+
+- 학생별 결과를 찾고
+- 기존 일지 입력필드에 넣고
+- 사용자가 검토하고
+- 최종 저장하는지
+
+특히 AI가 직접 DB 저장하는지,
+앱이 기존 save flow를 사용하는지 구분.
+
+AI Engine과 App의 책임 분리도 설명.
+
+
+==================================================
+6. GROWTH REPORT APP ↔ ENGINE FLOW
+==================================================
+
+성장리포트 기능이 현재 구현/설계된 만큼:
+
+- 대상 학생 결정
+- 분석 기간
+- 기존 수업기록 조회
+- report request
+- Engine response
+- report_id
+- Evidence/근거 표시
+- 학부모 화면
+- 다운로드/PPT
+- AI 문의 Context 연결
+
+구현 / 부분구현 / 설계 구분.
+
+
+==================================================
+7. PARENT AI CURRICULUM SEARCH
+==================================================
+
+학부모가
+
+"우리 아이 어디까지 했나요?"
+"다음에 뭘 배우나요?"
+
+같은 질문을 할 때
+
+실제 구조가 있다면:
+
+parent
+→ child authorization
+→ student_id
+→ pool curriculum
+→ current progress
+→ allowed knowledge scope
+→ AI answer
+
+전체 flow 정리.
+
+다른 학생/다른 pool 정보 접근 차단 방식 포함.
+
+
+==================================================
+8. CONTEXT-AWARE AI SUPPORT
+==================================================
+
+AI 고객지원에 향후 전달 가능한
+앱 Context 구조 정리.
+
+현재/설계:
+
+user_role
+service_mode
+subscription
+xmode_enabled
+app_version
+runtime_version
+os/device
+current_route
+current_screen
+previous_route
+feature_id
+
+그리고 향후:
+
+report_id
+student_id
+screen-specific context
+
+어떤 navigation contract로 전달되는지.
+
+현재 구현 / 계획 구분.
+
+
+==================================================
+9. DEEP LINK / ACTIONABLE AI RESPONSE
+==================================================
+
+AI가 단순 설명이 아니라
+특정 앱 화면으로 사용자를 이동시키는 구조.
+
+예:
+
+AI 답변
+→ action/deep link
+→ permission validation
+→ navigation
+→ target screen
+
+실제 navigation helper/deep link contract 정리.
+
+AI가 arbitrary route를 실행하지 못하도록
+허용된 action registry가 있으면 포함.
+
+
+==================================================
+10. AI FEATURE PERMISSION MATRIX
+==================================================
+
+AI 기능별 권한:
+
+ADMIN
+TEACHER
+PARENT
+
+NORMAL
+X
+
+각 AI feature에서:
+
+- 누가 사용 가능한지
+- 어떤 data scope를 볼 수 있는지
+- 어떤 Context를 Engine에 보낼 수 있는지
+
+Matrix 형태로 정리.
+
+
+==================================================
+11. MULTI-TENANT APP DATA BOUNDARY
+==================================================
+
+앱단에서
+
+pool_id
+student_id
+user_role
+
+기준으로 AI 요청에
+잘못된 tenant data가 들어가지 않도록
+어떤 filtering/authorization을 하는지.
+
+다른 수영장 커리큘럼이나
+다른 학생 정보가 AI context에
+섞이지 않는 구조.
+
+
+==================================================
+12. AI FEATURE REGISTRY
+==================================================
+
+앱에서 AI 기능을
+feature_type / feature_id 등으로
+구분하는 구조가 있는지.
+
+예:
+
+AI_DIARY
+PARENT_AI
+GROWTH_REPORT
+SUPPORT_AI
+KNOWLEDGE_PROCESSING
+
+각 기능이
+어떤 request contract를 공유하는지.
+
+
+==================================================
+13. AI REQUEST / RESPONSE CONTRACT
+==================================================
+
+App ↔ Server/Engine 사이
+실제 JSON contract.
+
+민감정보 제거 후 Schema만.
+
+Request:
+- context
+- students
+- lesson data
+- curriculum
+- feature type
+- request_id
+
+Response:
+- common
+- student-specific
+- warnings
+- generation mode
+- evidence/meta
+- errors
+
+실제 field만.
+
+
+==================================================
+14. FAILSAFE / FALLBACK UX
+==================================================
+
+AI가 실패했을 때 앱이 어떻게 처리하는지.
+
+예:
+
+- Engine error
+- no knowledge
+- POLISH_ONLY
+- student matching failure
+- partial result
+- timeout
+
+사용자에게 어떤 결과를 보여주고
+기존 일지 작성이 계속 가능한지.
+
+AI 실패 때문에 수업운영 자체가 막히지 않는 구조면 포함.
+
+
+==================================================
+15. EXISTING DATA REUSE
+==================================================
+
+SWIMNOTE AI가 새로운 별도 데이터베이스를
+사용자에게 다시 입력시키는 방식인지,
+
+기존:
+
+회원
+학생
+반
+스케줄
+수업기록
+커리큘럼
+진도
+피드
+
+데이터를 AI Context로 재사용하는지
+전체 연결관계 정리.
+
+
+==================================================
+16. APP에서 경쟁사가 복제하기 어려운 연결 구조
+==================================================
+
+개발자 관점에서
+
+일반 회원관리/출결/UI를 제외하고
+
+SWIMNOTE App + AI Engine을
+비슷하게 만들려면 반드시 구현해야 할 것 같은
+핵심 연결구조를 10개 이내 작성.
+
+특히:
+
+- 한 번 입력 → 다수 학생 개별 생성
+- 학생 진도 기반 curriculum constraint
+- pool별 curriculum isolation
+- Grounded result → 기존 diary save
+- role/context aware AI
+
+중 실제 구현된 것을 중심으로.
+
+
+==================================================
+17. IMPLEMENTATION STATUS
+==================================================
+
+다음 항목별:
+
+IMPLEMENTED
+PARTIAL
+DESIGNED
+PLANNED
+NOT_FOUND
+
+표 작성.
+
+- Multi-student AI Diary
+- Student matching
+- Common/student separation
+- Curriculum constraint
+- Student progress context
+- X Mode AI context
+- Parent curriculum AI
+- Growth Report
+- Context-aware Support
+- Deep link AI action
+- AI permission matrix
+- Tenant isolation
+- AI request trace
+- Fallback flow
+
+
+중요:
+
+일반적인 화면 디자인이나
+회원관리 CRUD 설명은 길게 작성하지 말 것.
+
+특허 작성에 필요한
+“데이터가 어떻게 AI와 연결되고,
+AI 결과가 다시 실제 앱 업무로 돌아오는가”
+에 집중.

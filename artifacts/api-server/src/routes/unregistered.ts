@@ -10,6 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { triggerAutoLinkOnStudentV2 } from "../lib/auto-link-v2.js";
 
 const router = Router();
 
@@ -120,15 +121,21 @@ router.post("/admin/unregistered/bulk", requireAuth, requireRole("admin", "platf
     // 정상 항목만 DB 삽입
     let inserted = 0;
     for (const item of toInsert) {
+      const newId = crypto.randomUUID();
       await db.insert(studentsTable).values({
-        id: crypto.randomUUID(),
+        id: newId,
         swimming_pool_id: poolId,
         name: item.name,
+        name_korean: item.name.replace(/[^가-힣]/g, ""),
         parent_phone: item.parent_phone,
         status: "unregistered",
         registration_path: "bulk_upload",
         invite_status: "none",
       });
+      // V2 자동연결 트리거 (미등록회원 bulk 업로드)
+      triggerAutoLinkOnStudentV2(newId, ["parent_phone", "name", "swimming_pool_id"]).catch(e =>
+        console.error("[v2-admin-trigger] unregistered bulk 트리거 오류:", e?.message)
+      );
       inserted++;
     }
 
@@ -255,6 +262,7 @@ router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole("teache
       : [...existingIds, class_group_id];
 
     // 정상회원으로 전환
+    const enrolledAt = new Date().toISOString().split("T")[0];
     await db
       .update(studentsTable)
       .set({
@@ -265,6 +273,13 @@ router.post("/teacher/unregistered/:id/assign", requireAuth, requireRole("teache
         updated_at: new Date(),
       })
       .where(eq(studentsTable.id, req.params.id));
+
+    // student_class_history 이력 기록 (미등록→정상 전환 시 배정 반 등록)
+    await db.execute(sql`
+      INSERT INTO student_class_history (student_id, class_group_id, swimming_pool_id, enrolled_at)
+      VALUES (${req.params.id}, ${class_group_id}, ${poolId}, ${enrolledAt}::date)
+      ON CONFLICT DO NOTHING
+    `);
 
     return res.json({ success: true, message: "정상회원으로 전환 완료" });
   } catch (e) {

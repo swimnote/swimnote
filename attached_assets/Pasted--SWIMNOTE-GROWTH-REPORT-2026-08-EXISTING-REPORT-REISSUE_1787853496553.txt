@@ -1,0 +1,536 @@
+[앱]
+
+SWIMNOTE GROWTH REPORT
+2026-08 EXISTING REPORT REISSUE
+ONE STUDENT ONLY — PRODUCTION CONTROLLED OPERATION
+
+목표:
+토이키즈스윔클럽 서태웅 학생의
+기존 2026-08 AI 성장 리포트를 안전하게 제거하고,
+
+FINAL LOCK된 AI ENGINE을 사용하여
+같은 2026-08 실제 수업 데이터를 기반으로
+새 AI 성장 리포트를 재생성한 뒤 다시 발행한다.
+
+이번 작업 대상은 반드시:
+
+1개 수영장
+1명 학생
+1개 월
+1개 리포트
+
+만 허용한다.
+
+==================================================
+0. IMPORTANT SAFETY
+==================================================
+
+이번 작업은 production data write가 포함된다.
+
+절대 bulk 작업 금지.
+
+금지:
+
+- 다른 학생 report 수정
+- 다른 월 report 수정
+- 전체 8월 regenerate
+- worker enable
+- monthly auto generation enable
+- Stage B enable
+- model 변경
+- AI ENGINE 코드 변경
+- metric/prompt/threshold 변경
+- bulk push
+
+대상:
+
+Pool:
+토이키즈스윔클럽
+
+pool_id:
+pool_1780849364252_l9k44rbk3
+
+Student:
+서태웅
+
+기존 확인 student_id 후보:
+student_1784491932941_n95eeew89
+
+Period:
+2026-08
+
+단 student_id는 production DB에서
+다시 확인 후 사용.
+
+동명이인/삭제 학생이 존재하므로
+이름만으로 처리 금지.
+
+==================================================
+1. PRE-FLIGHT — NO WRITE
+==================================================
+
+먼저 READ ONLY로 현재 상태 확인.
+
+확인:
+
+- 정확한 student row
+- pool_id
+- student status
+- deleted 여부
+- class membership
+- 2026-08 source diary count
+- lesson dates
+- curriculum/progress source
+- previous month history
+- 현재 2026-08 Growth Report row
+- report_id
+- status
+- published_at
+- analysis_status
+- content_json 존재
+- fact_package_json 존재
+- sns/share data 존재 여부
+- notification 존재 여부
+
+기존 2026-08 report가 정확히 1개인지 확인.
+
+여러 개면 삭제하지 말고 STOP.
+
+대상 student가 불명확하면 STOP.
+
+==================================================
+2. EXISTING REPORT BACKUP
+==================================================
+
+삭제 전에 기존 report의
+rollback 자료를 반드시 저장.
+
+백업할 것:
+
+- report_id
+- student_id
+- pool_id
+- period
+- status
+- published_at
+- content_json
+- fact_package_json
+- sns/share fields
+- analysis metadata
+- created_at
+- updated_at
+- related notification ids
+- 관련 artifact/R2 key가 있다면 key
+
+가능하면 local JSON artifact로 저장:
+
+growth-report-backup-seotaewoong-2026-08.json
+
+민감정보는 최소화.
+
+백업 완료 전 DELETE 금지.
+
+==================================================
+3. SOURCE SNAPSHOT
+==================================================
+
+기존 report를 지우기 전에
+APP의 실제 Growth Report request builder를 사용하여
+2026-08 ENGINE request snapshot을 구성.
+
+새 schema 임의 생성 금지.
+
+실제 production contract 사용.
+
+snapshot에 포함되는 실제 source 확인:
+
+- diaries
+- student notes
+- lesson dates/context
+- curriculum progress
+- previous report/history
+- 기타 현재 builder가 사용하는 evidence
+
+보고:
+
+diary_count
+date_range
+snapshot byte size
+
+snapshot을 local artifact로 저장:
+
+growth-report-source-seotaewoong-2026-08.json
+
+==================================================
+4. DRY RUN ENGINE ANALYSIS FIRST
+==================================================
+
+매우 중요.
+
+기존 report를 바로 삭제하지 않는다.
+
+먼저 현재 APP source snapshot으로
+FINAL LOCK AI ENGINE을 1회 호출하여
+새 결과가 정상 생성되는지 확인.
+
+AI ENGINE:
+현재 production FINAL LOCK version 사용.
+
+Stage B:
+OFF
+
+Auto worker:
+OFF
+
+이 호출은
+새 report row를 publish하지 않는
+isolated/dry-run 방식 우선.
+
+확인:
+
+analysis_status
+summary_text
+8 sections
+F065
+F068
+verified relationships
+grounding result
+growth framing result
+
+==================================================
+5. DRY RUN PASS CONDITION
+==================================================
+
+다음 조건 충족 시에만
+기존 report 교체 작업 진행.
+
+필수:
+
+analysis_status가 publish 가능한 정상 상태
+
+content 존재
+
+unsupported/grounding fatal 없음
+
+growth framing fatal 없음
+
+summary 존재
+
+최소 실제 evidence-backed section 존재
+
+ENGINE error 없음
+
+빈 report 아님
+
+DRY RUN이 실패하면:
+
+기존 8월 report 삭제 금지.
+
+현재 report 그대로 유지하고 STOP.
+
+==================================================
+6. OLD vs NEW QUICK REVIEW
+==================================================
+
+기존 report와 dry-run NEW를 간단 비교.
+
+보고:
+
+OLD non-empty sections
+NEW non-empty sections
+
+OLD summary
+NEW summary
+
+NEW:
+F065 count
+F068 count
+verified_relationship count
+
+명백한 품질 후퇴가 있으면
+삭제/재발행 금지하고 STOP.
+
+==================================================
+7. DELETE OLD AUGUST REPORT
+==================================================
+
+DRY RUN PASS 후에만 진행.
+
+삭제 대상:
+
+정확히 확인된
+서태웅 / 2026-08 report 1건.
+
+가능하면 현재 시스템의
+공식 delete/reissue service가 있으면
+직접 SQL보다 그 경로 우선.
+
+관련 projection/cache/reference가 있으면
+현재 repository의 정상 deletion semantics 따름.
+
+절대 다른 월/학생 touch 금지.
+
+삭제 직후 확인:
+
+해당 student + 2026-08 report count = 0
+
+==================================================
+8. RELATED OLD NOTIFICATION
+==================================================
+
+기존 8월 report 발행 알림이 존재할 수 있음.
+
+현재 notification 정책을 확인.
+
+재발행 시 duplicate push가 발생할 수 있으므로
+기존 exact-once 정책/index와 충돌 여부 확인.
+
+기존 notification을 무조건 삭제하지 않는다.
+
+현재 코드의 reissue semantics가 있으면 재사용.
+
+없으면 새 push를 보내기 전 STOP하고 보고.
+
+이번 작업의 핵심은 report 재발행이며
+불필요한 중복 push는 금지.
+
+==================================================
+9. REGENERATE
+==================================================
+
+같은 2026-08 source snapshot으로
+새 report 생성.
+
+반드시:
+
+FINAL LOCK Growth Report Engine 사용
+Stage B OFF
+현재 production composition model 유지
+새 metric/prompt 변경 없음
+
+새 report 생성 후 확인:
+
+student_id
+period=2026-08
+analysis_status
+content_json
+fact_package_json
+grounding
+growth framing
+
+==================================================
+10. PUBLISH
+==================================================
+
+현재 production publish-safe gate를
+그대로 통과해야 함.
+
+publish gate 우회 금지.
+
+정상 조건을 만족하면
+2026-08 report를 PUBLISHED 상태로 발행.
+
+published_at은
+새 발행 시점 정책을 현재 코드대로 사용.
+
+==================================================
+11. DUPLICATE CHECK
+==================================================
+
+발행 후 반드시 확인:
+
+해당 student:
+2026-08 Growth Report count = 1
+
+PUBLISHED count = 1
+
+2026-07 report:
+변경 없음
+
+다른 student:
+변경 없음
+
+==================================================
+12. PARENT FEED CHECK
+==================================================
+
+실제 parent feed projection에서
+새 2026-08 report가 한 번만 노출되는지 확인.
+
+확인:
+
+GET parent diary/feed actual route
+
+새 report feed id
+
+duplicate 없음
+
+기존 삭제 report가 feed에 남지 않음
+
+==================================================
+13. CONTENT QUALITY CHECK
+==================================================
+
+새 발행본에서 보고:
+
+summary_text
+
+section 상태:
+
+core_growth
+swimming_progress
+behavioral_strengths
+longitudinal_comparison
+success_conditions
+teacher_guidance
+next_growth_direction
+parent_support
+
+각각:
+
+NON_EMPTY
+GOOD_EMPTY
+BAD_EMPTY
+
+특히 확인:
+
+F065 count
+F068 count
+verified relationships count
+
+teacher_guidance 실제 생성 여부
+
+==================================================
+14. SAFETY CHECK
+==================================================
+
+새 report:
+
+unsupported claim = 0
+stable trait violation = 0
+context overgeneralization = 0
+contradiction overclaim = 0
+old evidence as current = 0
+future/speculation as fact = 0
+
+==================================================
+15. AI USAGE / COST
+==================================================
+
+이번 작업에서 실제 AI 호출 수 보고.
+
+구분:
+
+dry-run calls
+final generation calls
+retry calls
+Stage B calls
+
+Stage B calls는 반드시 0.
+
+보고:
+
+input tokens
+output tokens
+latency
+estimated USD
+
+==================================================
+16. ROLLBACK PLAN
+==================================================
+
+새 report 생성 또는 publish 과정에서
+문제가 발생하면:
+
+가능하면 기존 backup을 기준으로
+기존 published report 복구.
+
+임의 재작성 금지.
+
+rollback이 자동으로 안전하지 않다면
+추가 destructive action 하지 말고 STOP.
+
+==================================================
+17. ABSOLUTE PROHIBITIONS
+==================================================
+
+금지:
+
+- bulk regeneration
+- all-August delete
+- all students delete
+- monthly worker enable
+- Stage B enable
+- model change
+- engine code modification
+- APP unrelated code modification
+- push spam
+- duplicate report
+- 2026-07 report 수정
+
+==================================================
+18. FINAL REPORT
+==================================================
+
+A. TARGET RESOLUTION
+student_id / pool_id / status
+
+B. OLD REPORT
+report_id / status / published_at
+
+C. SOURCE
+diary count / dates / progress/history
+
+D. BACKUP
+CREATED / path
+
+E. DRY RUN
+PASS / FAIL
+sections
+F065
+F068
+verified relations
+
+F. OLD DELETE
+YES / NO
+
+G. NEW REPORT
+new report_id
+analysis_status
+
+H. PUBLISH
+PUBLISHED / NOT PUBLISHED
+
+I. DUPLICATE CHECK
+2026-08 count
+2026-07 unchanged
+
+J. PARENT FEED
+PASS / FAIL
+
+K. QUALITY
+section coverage
+teacher_guidance
+
+L. SAFETY
+all violation counts
+
+M. AI COST
+calls / retries / tokens / USD
+
+N. PUSH
+SENT / NOT SENT
+duplicate risk 여부
+
+O. ROLLBACK BACKUP
+available YES / NO
+
+P. CODE CHANGES
+원칙적으로 0
+
+Q. FINAL
+REISSUE COMPLETE
+또는
+BLOCKED + exact reason
+
+완료 후 STOP.

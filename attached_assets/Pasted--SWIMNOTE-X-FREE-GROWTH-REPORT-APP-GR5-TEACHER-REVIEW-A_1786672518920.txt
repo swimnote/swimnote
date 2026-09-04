@@ -1,0 +1,395 @@
+[SWIMNOTE X FREE GROWTH REPORT]
+[APP GR5 — TEACHER REVIEW + APPROVAL WORKFLOW]
+
+MODE:
+FINAL IMPLEMENTATION
+NOT MVP
+NOT PROTOTYPE
+NOT SAMPLE
+
+현재 완료:
+
+GR1 Product Storage + Lifecycle Foundation ✅
+GR2 Monthly Cycle Scheduler ✅
+GR3 APP ↔ AI ENGINE Integration ✅
+GR4 Parent Question / Answer / Second-Pass Flow ✅
+
+이번 GR5 목적:
+
+AI ENGINE 분석이 완료된 Growth Report를
+담당 선생님 또는 권한 있는 운영자가 검토하고,
+
+APP Product Lifecycle에서:
+
+REVIEW_REQUIRED
+→ APPROVED
+
+또는 필요한 경우
+
+REVIEW_REQUIRED
+→ ANALYZING
+
+재분석 흐름으로 보내는
+
+Teacher Review / Approval Workflow를 완성한다.
+
+중요:
+
+Teacher는 AI Report를 자유롭게 다시 작성하는
+새로운 분석엔진이 아니다.
+
+ENGINE이 만든 Fact Package / Report Content의
+근거체계를 보존한다.
+
+==================================================
+1. 핵심 원칙
+==================================================
+
+Teacher Review의 목적:
+
+- 학생이 맞는지 확인
+- 수업 맥락이 맞는지 확인
+- 부모에게 보여주면 안 되는 오해 가능성 확인
+- 명백한 사실 오류 확인
+- Report publication 승인
+
+Teacher가 하면 안 되는 것:
+
+- F001~F070 의미 재판정
+- evidence confidence 임의 변경
+- 새로운 AI 분석 생성
+- 근거 없는 문장 추가
+- Fact Package 변조
+- 수영 전문판단을 APP에서 새로 생성
+
+==================================================
+2. REVIEW ELIGIBILITY
+==================================================
+
+Teacher Review 가능 Product status:
+
+REVIEW_REQUIRED
+
+필요한 경우 PARTIAL도
+이미 GR3에서 REVIEW_REQUIRED로 들어오는 정책이면
+그 경로를 따른다.
+
+다음 상태에서는 review action 금지:
+
+NOT_OPEN
+OPEN
+PREANALYZING
+QUESTION_AVAILABLE
+READY_FOR_ANALYSIS
+ANALYZING
+APPROVED
+PUBLISHED
+
+==================================================
+3. WHO CAN REVIEW
+==================================================
+
+최소:
+
+담당 teacher
+pool_admin
+
+가능.
+
+super_admin은 기존 운영정책에 따라 허용 가능.
+
+Parent는 절대 review 불가.
+
+다른 pool teacher는 불가.
+
+담당 teacher 판정은
+기존 class/student/teacher assignment canonical 구조를 재사용.
+
+임의 teacher_id body 신뢰 금지.
+
+==================================================
+4. REVIEW READ API
+==================================================
+
+최소 canonical route:
+
+GET /teacher/growth-reports/:reportId/review
+
+또는 기존 teacher route convention.
+
+응답:
+
+report_id
+student
+report_period
+product_status
+analysis_status
+
+report_content
+sns_summary
+
+selected_metrics
+positive_growth_signals
+success_conditions
+support_levers
+next_growth_targets
+next_observation_targets
+
+swimming summary / fact package 중
+review에 필요한 structured data
+
+grounding_result
+growth_framing_result
+
+limitations
+
+teacher_reviewed_by
+teacher_reviewed_at
+
+중요:
+
+raw ENGINE debug trace 전체를
+Teacher UI에 노출할 필요 없음.
+
+==================================================
+5. REPORT FACT PACKAGE
+==================================================
+
+Fact Package는 Product DB에 보존.
+
+Teacher Review에서
+전체 JSON raw dump를 UI에 그대로 보여주지 않는다.
+
+필요한 trace를
+사람이 읽을 수 있는 형태로 제공 가능.
+
+예:
+
+- 이 문장이 어떤 관찰에 근거했는지
+- confidence/limitation
+- source count
+
+하지만 raw diary 전체 공개는 최소화.
+
+==================================================
+6. REVIEW ACTIONS
+==================================================
+
+최소 Action:
+
+APPROVE
+REQUEST_REANALYSIS
+
+필요하다면:
+REJECT_PUBLICATION
+
+별도 Product 상태를 새로 만들지 말고
+현재 lifecycle 안에서 처리.
+
+APPROVE:
+
+REVIEW_REQUIRED
+→ APPROVED
+
+REQUEST_REANALYSIS:
+
+REVIEW_REQUIRED
+→ ANALYZING
+
+또는
+READY_FOR_ANALYSIS
+→ ANALYZING
+
+현재 GR1 allowed transition과
+GR3 Worker 구조를 고려하여
+canonical transition 사용.
+
+==================================================
+7. REQUEST_REANALYSIS 의미
+==================================================
+
+Teacher가 재분석 요청했다고 해서
+ENGINE Fact를 직접 수정하지 않는다.
+
+Teacher는 최소 structured reason을 남긴다.
+
+예:
+
+WRONG_CONTEXT
+STUDENT_ATTRIBUTION_CONCERN
+INSUFFICIENT_CONTEXT
+PARENT_VISIBILITY_CONCERN
+TECHNICAL_FACT_CONCERN
+OTHER
+
+free text note optional.
+
+이 정보가 Engine Snapshot의
+teacher_review optional 필드로 들어갈 수 있도록 연결.
+
+단 APP이 Metric 판단은 하지 않는다.
+
+==================================================
+8. TEACHER REVIEW INPUT CONTRACT
+==================================================
+
+최소:
+
+{
+  action:
+    'APPROVE'
+    | 'REQUEST_REANALYSIS',
+
+  reason_code?: string,
+
+  note?: string
+}
+
+APPROVE에는 note optional.
+
+REQUEST_REANALYSIS에는
+reason_code 필수 권장.
+
+==================================================
+9. TEACHER REVIEW SNAPSHOT INTEGRATION
+==================================================
+
+GR3 Snapshot contract에 이미:
+
+teacher_review?: string | null
+
+이 존재.
+
+GR5에서는
+REQUEST_REANALYSIS note/reason을
+후속 ENGINE Snapshot에 전달할 수 있게
+명확한 structured representation을 만든다.
+
+가능하면 string 한 줄보다:
+
+teacher_review: {
+  reason_code,
+  note
+}
+
+가 ENGINE contract와 충돌한다면
+기존 contract를 깨지 말고
+safe serialization/adaptation 사용.
+
+Contract 변경이 필요하면
+backward-compatible하게.
+
+==================================================
+10. NO DIRECT CONTENT EDITING
+==================================================
+
+V1 FREE Report에서는
+Teacher가:
+
+summary_text 수정
+section 문장 수정
+sns_summary 수정
+
+하는 자유편집 기능을 만들지 않는다.
+
+이유:
+
+Grounding Validator를 통과한 ENGINE 결과를
+APP에서 수정하면
+Claim Trace가 깨질 수 있음.
+
+즉:
+
+Approve
+OR
+Request Reanalysis
+
+방식.
+
+==================================================
+11. REVIEW STATUS STORAGE
+==================================================
+
+GR1 fields:
+
+teacher_reviewed_by
+teacher_reviewed_at
+
+사용.
+
+추가 필요 시:
+
+teacher_review_action
+teacher_review_reason_code
+teacher_review_note
+
+additive migration 가능.
+
+Product source of truth는 APP DB.
+
+==================================================
+12. APPROVAL
+==================================================
+
+APPROVE 성공 시:
+
+teacher_reviewed_by
+teacher_reviewed_at
+teacher_review_action='APPROVE'
+
+저장.
+
+product_status:
+
+REVIEW_REQUIRED
+→ APPROVED
+
+이 시점에는 아직 PUBLISHED 아님.
+
+Publication은
+GR6/제품 flow에서 처리 가능.
+
+==================================================
+13. REQUEST REANALYSIS
+==================================================
+
+REQUEST_REANALYSIS 시:
+
+teacher review metadata 저장
+
+새 analysis request가 필요하도록
+상태 전환.
+
+중요:
+
+기존 report_content를 즉시 삭제하지 않는다.
+
+새 ENGINE result가 성공적으로 들어오기 전까지
+기존 결과는 audit/history/debug 목적으로 보존 가능.
+
+하지만 Parent에게 아직 publish되지 않았으므로
+current review UI에서는
+“재분석 중” 상태로 전환.
+
+==================================================
+14. NEW REQUEST ID
+==================================================
+
+재분석:
+
+새 request_id 필수.
+
+기존 request_id 재사용 금지.
+
+GR3 Worker가
+ANALYZING/READY flow에서
+새 Snapshot을 생성.
+
+==================================================
+15. LOOP PROTECTION
+==================================================
+
+Teacher가 계속 재분석 버튼을 눌러
+무한 비용 발생하지 않도록 보호.
+
+최소:

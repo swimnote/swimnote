@@ -1,0 +1,233 @@
+[앱] WP-CURRICULUM-PROGRESS-GAUGE-DESIGN-CORRECTION
+
+방금 제출한
+[앱] CURRICULUM PROGRESS GAUGE DESIGN REPORT
+기준으로 구현 전 필수 설계 수정만 한다.
+
+이번 Step도 READ-ONLY DESIGN ONLY.
+
+코드 수정 금지.
+DB migration 금지.
+production write 금지.
+deploy 금지.
+전체 repo audit 금지.
+
+아래 6개 항목만 수정 검토한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. GLOBAL ORDER / PERCENT 계산 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 curriculum_items.sort_order가
+0부터 시작할 수 있음이 이미 확인됨.
+
+따라서 raw sort_order를 그대로
+global_order로 사용하여
+
+sort_order / total_count * 100
+
+계산하는 방식 금지.
+
+active curriculum을 실제 표시 순서로 정렬한 뒤
+1-based progress_rank를 계산하는 방식으로 설계.
+
+예:
+350 items
+첫 item → rank 1
+마지막 item → rank 350
+
+progress_percent =
+progress_rank / total_active_items * 100
+
+반드시 마지막 item = 100%.
+
+sort_order가 0-based / gap 존재 / 비연속이어도
+정상 동작해야 함.
+
+DB에 progress_rank를 저장할지
+observation 당시 rank snapshot만 저장할지 제안.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. "3회 수업" 단위 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 설계의 lesson_date dedupe는 사용 금지.
+
+규칙:
+3-LESSON CONFIRMATION의 3회는
+"서로 다른 실제 수업 세션" 3회다.
+
+같은 날:
+- 오전 정규수업
+- 오후 보강수업
+
+이면 2회가 될 수 있음.
+
+반대로 같은 class diary에서 note가 여러 개 생겨도
+수업은 1회.
+
+현재 DB에서 실제 lesson/session 식별자로
+사용할 수 있는
+class_diary_id 또는 equivalent ID를 정확히 확인.
+
+CPO에는 diary_note_id와 별개로
+lesson_session_id를 보존하는 설계 제안.
+
+3회 confirmation은
+COUNT(DISTINCT lesson_session_id) 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. Diary EDIT / DELETE 무결성 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 제안:
+UNIQUE(diary_note_id, student_id)
++ ON CONFLICT DO NOTHING
+
+은 수정된 일지를 반영하지 못하므로 금지.
+
+요구:
+
+Diary 수정 시
+→ 기존 growth_events invalidation
+→ 해당 lesson/student CPO 재계산
+→ 기존 observation UPDATE/UPSERT
+→ confirmation 재계산
+
+Diary 삭제 시
+→ 관련 CPO도 is_invalidated=true
+→ confirmation 재계산
+
+CPO schema에
+is_invalidated boolean을 처음부터 포함하는 방향 검토.
+
+같은 note를 다시 저장해도 stale progress가 남으면 안 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. Curriculum Version 변경 정책 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+새 curriculum version 활성화 시
+학생 progress를 단순 0% RESET하는 방식은 금지.
+
+학부모에게 보이던 60~70% 게이지가
+커리큘럼 편집 때문에 갑자기 0%가 되면 안 됨.
+
+설계해야 할 것:
+
+- 기존 confirmed progress snapshot 보존
+- old version → new version 위치 이관 방법
+- item 대응 가능 시 migration
+- 대응 불가능 시 기존 confirmed progress 유지 정책
+- 새 version에서 실제 수업 observation 3회가 쌓인 뒤
+  자연스럽게 새 좌표계로 전환하는 방안
+
+절대:
+수영장 커리큘럼 version 변경만으로
+학부모 게이지 급락 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. Growth Report historical snapshot
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+student_curriculum_progress가 최신값 1행이면
+지난달 게이지를 정확히 복원할 수 없음.
+
+Growth Report에서:
+
+지난달 34%
+이번달 41%
++7%p
+
+를 안정적으로 표시하려면
+리포트 생성 시점의 confirmed progress를
+immutable snapshot으로 저장해야 함.
+
+현재 growth report storage 구조를 최소 확인하고:
+
+- report 시점 progress_percent
+- global/progress rank
+- total_count
+- curriculum_version_id
+
+중 필요한 최소 snapshot 필드를
+어디에 저장하는 게 가장 안전한지 설계.
+
+현재 최신 SCP를 나중에 조회해서
+지난달 값을 재구성하는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. Future Plan / Actual Lesson 구분
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+confidence threshold만으로
+실제 수업과 미래계획을 구분하는 방식 금지.
+
+예:
+"다음 시간에는 접영을 배울 예정"
+→ 접영 의미 confidence가 높아도
+오늘 progress observation 생성 금지.
+
+구분해야 할 최소 의미:
+
+- ACTUAL_TAUGHT / ACTUAL_PRACTICED
+- REVIEW / CORRECTION
+- FUTURE_PLAN
+- PAST_REFERENCE
+
+게이지 observation 허용:
+ACTUAL_TAUGHT / ACTUAL_PRACTICED
+및 실제 오늘 수행된 REVIEW/CORRECTION
+
+게이지 observation 금지:
+FUTURE_PLAN
+PAST_REFERENCE only
+추천/설명/AI suggestion
+
+현재 Teacher Diary / growth_event / match_token 구조에서
+이 구분을 어디에서 가장 안전하게 만들 수 있는지
+기존 코드 기준으로 제안.
+
+Professional V2 / GPT-generated swimming knowledge는
+계속 gauge source에서 완전 제외.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+추가 확인
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+기존 보고서에서 아래는 유지:
+
+- 전체 게이지 학생당 딱 1개
+- 레벨별 게이지 금지
+- pool curriculum only
+- 3-lesson confirmation
+- monotonic confirmed progress
+- Parent Home 기존 여백에 gauge
+- 큰 Growth Report 중복 버튼 삭제 예정
+- original AI 성장 리포트 버튼 보존
+- Parent Curriculum confirmed progress 연동
+- Growth Report 연동
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+최종 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] CURRICULUM PROGRESS GAUGE DESIGN V2 REPORT
+
+1. corrected progress rank calculation
+2. actual lesson session identifier
+3. diary edit/delete lifecycle
+4. CPO corrected schema
+5. curriculum version migration policy
+6. Growth Report immutable progress snapshot
+7. actual-vs-future evidence classification
+8. corrected 3-lesson algorithm
+9. updated implementation steps
+10. remaining user decisions only
+
+Final Verdict:
+READY FOR IMPLEMENTATION
+or
+BLOCKED + exact reason
+
+코드 수정 없이 STOP.

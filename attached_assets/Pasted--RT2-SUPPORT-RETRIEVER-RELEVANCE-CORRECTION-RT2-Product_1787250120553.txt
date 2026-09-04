@@ -1,0 +1,309 @@
+# [RT2 SUPPORT RETRIEVER — RELEVANCE CORRECTION]
+
+RT2 Production predeploy 결과 검토.
+
+현재 deployment ready 판정은 취소.
+
+이유:
+canonical KI에는 도달하지만
+질문 의도와 다른 KI가 top-1이 되는 false-positive가 존재.
+
+특히:
+
+Q1:
+"학부모리포트는 어떤기능이야?"
+→ top KI:
+"학부모가 성장 리포트를 보려면 어떤 조건이 필요한가요?"
+
+관련성은 있으나 기능 설명 질문과
+이용 조건 질문이 구분되지 않음.
+
+Q3:
+"알림끄는거 어디서해?"
+→ Android 알림 권한 설정 방법
+
+사용자 플랫폼을 확인하지 않고
+Android-specific KI를 top-1로 선택하면 안 됨.
+
+Q5:
+"커리큘럼 등록은 되어있는데 검색이 안돼"
+→ AI 커리큘럼 상담 월 사용횟수 KI
+
+명백한 intent mismatch.
+
+따라서 이번 수정 목표:
+
+"어떤 KI든 찾기"
+가 아니라
+"질문의 세부 의도와 맞는 KI를 top rank"
+하도록 ranking 개선.
+
+==================================================
+1. 개별 질문/utterance 추가 금지
+==================================================
+
+금지:
+
+- 위 5개 질문을 utterance에 추가
+- usage_count 인위적 증가
+- 특정 KI ID boost 하드코딩
+- 질문 문자열별 예외처리
+
+retrieval/ranking 자체를 고친다.
+
+==================================================
+2. QUERY INTENT FEATURES 추가
+==================================================
+
+SupportRetriever에서 concept만 보지 말고
+질문의 action/intent feature를 함께 추출.
+
+최소 예:
+
+DESCRIPTION
+- 뭐야
+- 어떤 기능
+- 설명
+- 무엇
+
+HOW_TO
+- 어떻게
+- 어디서
+- 방법
+
+DISABLE
+- 끄기
+- 끄는
+- 해제
+- 비활성
+
+ERROR_TROUBLESHOOT
+- 안돼
+- 안 됨
+- 오류
+- 등록됐는데
+- 작동 안함
+- 검색 안됨
+
+LIMIT_USAGE
+- 몇 번
+- 횟수
+- 한도
+- 월 몇 회
+
+REQUIREMENT
+- 조건
+- 필요
+- 언제 가능
+- 자격
+
+실제 구현은 deterministic lightweight 방식.
+
+==================================================
+3. KI INTENT FEATURES
+==================================================
+
+KI의:
+
+- title
+- question
+- category
+- feature
+- content
+
+에서 동일 intent feature 추출.
+
+Query intent와 KI intent가 맞으면 boost.
+
+불일치하면 penalty.
+
+예:
+
+query=ERROR_TROUBLESHOOT
+
+KI="월 몇 번 사용할 수 있나요?"
+→ LIMIT_USAGE
+→ 강한 penalty
+
+query=DESCRIPTION
+
+KI="어떤 조건이 필요한가요?"
+→ REQUIREMENT
+→ penalty
+
+==================================================
+4. PLATFORM-SPECIFIC POLICY
+==================================================
+
+질문에:
+
+Android
+안드로이드
+iPhone
+아이폰
+iOS
+
+등 플랫폼 힌트가 없으면
+platform-specific KI를 generic KI보다 우선하지 않는다.
+
+예:
+
+"알림끄는거 어디서해?"
+→ generic notification settings KI 우선.
+
+"안드로이드에서 알림 끄는 법"
+→ Android KI 우선.
+
+"아이폰 알림 끄는 법"
+→ iOS KI 우선.
+
+generic KI가 없고
+platform-specific KI만 있다면
+GROUNDED_AI에 여러 플랫폼 KI를 함께 전달하거나
+추가 조건을 묻는 방향으로 처리.
+
+임의 플랫폼 확정 금지.
+
+==================================================
+5. MULTI-EVIDENCE GROUNDED_AI
+==================================================
+
+현재 tryCanonicalRetriever가
+combinedText를 만들지만
+support-respond의 gatherEvidence()가
+source_id 하나만 재조회하는 문제 수정 검토.
+
+GROUNDED_AI에서는 가능하면:
+
+top relevant active KI 2~5개
+→ EvidencePack
+→ AiGateway
+
+구조로 전달.
+
+단:
+관련성 threshold 미달 KI는 포함 금지.
+
+source_ids[]를 실제 Evidence로 사용.
+
+DB_DIRECT는 단일 HIGH confidence KI일 때만.
+
+==================================================
+6. RANKING POLICY
+==================================================
+
+최종 score는 최소:
+
+- concept match
+- query intent match
+- title/question token relevance
+- content relevance
+- platform compatibility
+- contradiction / intent mismatch penalty
+
+를 반영.
+
+usage_count는 relevance의 핵심 점수가 되면 안 됨.
+
+usage_count는 동점 보조 정도만 허용.
+
+==================================================
+7. FALSE POSITIVE CONTROL
+==================================================
+
+top-1 score가 높아도:
+
+query intent와 KI intent가 충돌하면
+DB_DIRECT 금지.
+
+두 KI가 비슷하면
+GROUNDED_AI로 여러 근거 전달.
+
+관련 KI가 충분하지 않으면
+INSUFFICIENT_EVIDENCE.
+
+"아무 active KI나 선택"
+금지.
+
+==================================================
+8. PRODUCTION READ-ONLY RECHECK 필수
+==================================================
+
+수정 후 같은 질문 다시 검사:
+
+1. 학부모리포트는 어떤기능이야?
+2. 성장리포트가 뭐야
+3. 알림끄는거 어디서해?
+4. 푸시 알림 설정
+5. 커리큘럼 등록은 되어있는데 검색이 안돼
+6. X 모드 신청을 위한 자료는 어떻게 제출하나요?
+
+각 질문마다:
+
+- detected concept
+- query intent
+- candidate top 5
+- 각 KI intent
+- score
+- final selected KI(s)
+- policy
+
+확인.
+
+==================================================
+9. 기대 결과 기준
+==================================================
+
+Q1/Q2:
+성장리포트 "기능/정의" KI 우선.
+
+Q3:
+generic 알림 설정/끄기 KI 우선.
+플랫폼 미지정 상태에서 Android-only top-1 금지.
+
+Q4:
+generic notification settings 또는
+질문에 맞는 플랫폼 중립 KI.
+
+Q5:
+검색 오류/이용 불가/커리큘럼 검색 문제 해결 KI 우선.
+월 사용횟수 KI top selection 금지.
+
+Q6:
+X모드 자료 제출 방법 KI가 top relevant candidate에 들어와야 함.
+
+==================================================
+10. 금지
+==================================================
+
+Render deploy 금지.
+DB write 금지.
+utterance 추가 금지.
+KI status 변경 금지.
+usage_count 조작 금지.
+전체 regression 금지.
+
+==================================================
+11. REPORT
+==================================================
+
+[RT2 SUPPORT RELEVANCE CORRECTION REPORT]
+
+- query intent features:
+- KI intent features:
+- platform handling:
+- ranking changes:
+- usage_count role:
+- multi-evidence grounded path:
+- gatherEvidence source_ids support:
+- false-positive protection:
+- tests:
+- Production read-only six-query results:
+- incorrect top KI remaining:
+- DB write: NO
+- Render deploy: NO
+- commit SHA:
+- deployment ready: YES/NO
+- final status:
+
+보고 후 멈춘다.

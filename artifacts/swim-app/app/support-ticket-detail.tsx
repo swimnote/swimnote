@@ -2,16 +2,15 @@
  * support-ticket-detail.tsx — 문의 상세 + 대화
  * 사용자와 슈퍼관리자 모두 이 화면 사용
  */
-import { ChevronLeft, Image as ImageIcon, Send } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal,
-  Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Image, Modal,
+  Platform, Pressable, RefreshControl,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -24,14 +23,14 @@ const TYPE_LABELS: Record<string, { label: string; color: string; bg: string }> 
   emergency: { label: "긴급",  color: "#DC2626", bg: "#FEF2F2" },
   security:  { label: "보안",  color: "#7C3AED", bg: "#EEDDF5" },
   refund:    { label: "환불",  color: "#D97706", bg: "#FFF7ED" },
-  other:     { label: "기타",  color: "#64748B", bg: "#F8FAFC" },
+  other:     { label: "기타",  color: C.textSecondary, bg: C.backgroundSoft },
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   open:        { label: "답변 대기중",  color: "#D97706" },
   in_progress: { label: "처리중",       color: "#0284C7" },
   resolved:    { label: "해결됨",       color: "#16A34A" },
-  closed:      { label: "종료",         color: "#64748B" },
+  closed:      { label: "종료",         color: C.textSecondary },
 };
 
 interface Reply {
@@ -64,7 +63,7 @@ export default function SupportTicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token, kind, adminUser } = useAuth();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<any>(null);
 
   const [ticket,     setTicket]     = useState<Ticket | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -111,7 +110,7 @@ export default function SupportTicketDetailScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.35, base64: false,
+      mediaTypes: ["images"], quality: 0.35, base64: false,
     });
     if (result.canceled || !result.assets[0]) return;
     const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, {
@@ -155,21 +154,21 @@ export default function SupportTicketDetailScreen() {
   }
 
   const typeCfg   = TYPE_LABELS[ticket.ticket_type]  ?? TYPE_LABELS.other;
-  const statusCfg = STATUS_LABELS[ticket.status]     ?? { label: ticket.status, color: "#64748B" };
+  const statusCfg = STATUS_LABELS[ticket.status]     ?? { label: ticket.status, color: C.textSecondary };
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
       {/* 헤더 */}
       <View style={s.header}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
-          <ChevronLeft size={24} color={C.text} />
+          <LucideIcon name="chevron-left" size={24} color={C.text} />
         </Pressable>
         <Text style={s.headerTitle} numberOfLines={1}>{ticket.subject}</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <KeyboardAwareScrollView
           ref={scrollRef}
           contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: insets.bottom + 80 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
@@ -232,7 +231,7 @@ export default function SupportTicketDetailScreen() {
             );
           })}
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* 답변 입력 */}
         {ticket.status !== "resolved" && ticket.status !== "closed" && (
@@ -251,7 +250,7 @@ export default function SupportTicketDetailScreen() {
             )}
             <View style={s.inputRow}>
               <Pressable style={s.imgPickBtn} onPress={pickReplyImage}>
-                <ImageIcon size={20} color={C.textMuted} />
+                <LucideIcon name="image" size={20} color={C.textMuted} />
               </Pressable>
               <TextInput
                 style={s.textInput}
@@ -269,13 +268,13 @@ export default function SupportTicketDetailScreen() {
               >
                 {sending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Send size={18} color="#fff" />
+                  : <LucideIcon name="send" size={18} color="#fff" />
                 }
               </Pressable>
             </View>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       {/* 이미지 미리보기 모달 */}
       <Modal visible={!!previewImg} transparent animationType="fade" onRequestClose={() => setPreviewImg(null)}>
@@ -326,7 +325,7 @@ const s = StyleSheet.create({
                   backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
   inputRow:     { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   imgPickBtn:   { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  textInput:    { flex: 1, backgroundColor: "#F8FAFC", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+  textInput:    { flex: 1, backgroundColor: C.backgroundSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
                   fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, maxHeight: 100 },
   sendBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: P,
                   alignItems: "center", justifyContent: "center" },

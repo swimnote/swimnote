@@ -1,0 +1,208 @@
+[앱] FREE GROWTH REPORT PDF TEMPLATE V2 — TYPOGRAPHY FINAL CORRECTION
+
+현재 기준:
+- PDF V2 commit: 91b7e689
+- 전체 디자인/2페이지 구조/section order는 승인
+- 이번 Step은 PRINT TYPOGRAPHY + 실제 PDF 확인 ONLY
+- AI / 데이터 / layout architecture 변경 금지
+
+현재 문제:
+
+보고서에서 CSS px를 pt와 동일하게 판단함.
+
+실제 일반 CSS 기준:
+
+26px ≈ 19.5pt
+15px ≈ 11.25pt
+14px ≈ 10.5pt
+11px ≈ 8.25pt
+
+따라서 현재 body 14px은
+우리가 목표로 한 11.5~13pt보다 작다.
+
+모바일 PDF viewer에서
+확대하지 않고 읽기 좋은 리포트가 목표다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PRINT 단위 수정
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PDF print stylesheet에서는
+가능하면 px 대신 pt를 직접 사용.
+
+기본 시작값:
+
+Title:
+26pt 전후
+
+Section Heading:
+15pt 전후
+
+Body:
+12pt
+
+Metadata:
+9.5~10pt
+
+Parent Support Body:
+12~12.5pt 허용
+
+Line-height:
+1.55~1.65
+
+중요:
+본문을 11pt 이하로 내리지 말 것.
+
+2페이지를 맞추기 위해
+폰트를 줄이는 방식 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 디자인은 그대로 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 변경 금지:
+
+- 2페이지 역할
+- SWIMNOTE 로고 위치
+- 아이콘 없는 스타일
+- White/Navy/Aqua/Sand 방향
+- section order
+- parent_support 마지막 배치
+- parent_support 강조 방식
+- Hawaii 분위기
+- report JSON contract
+
+이번 작업은 가독성 수정만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. 실제 PDF 생성
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HTML preview만 보지 말고
+fixture CASE A로 실제 PDF binary를 1개 생성.
+
+가능하면 CASE C도 별도 PDF 1개 생성해서
+parent_support가 긴 경우 확인.
+
+Production report 사용 금지.
+
+확인:
+
+- A4 실제 출력
+- 페이지 수
+- 제목 크기
+- 본문 가독성
+- 소제목 위계
+- metadata가 너무 작지 않음
+- parent_support 읽기 편함
+- section 잘림 없음
+- 한 section이 페이지 경계에서 이상하게 갈라지지 않음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 2페이지 원칙
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CASE A 정상 fixture:
+2페이지 목표.
+
+글자가 커져 3페이지가 된다면
+우선 조정 순서:
+
+1. 과도한 vertical margin 제거
+2. section gap 조정
+3. padding 조정
+4. divider spacing 조정
+
+본문 폰트 축소는 마지막 수단이며
+11pt 아래 금지.
+
+내용 삭제/요약 금지.
+
+CASE C처럼 내용이 정말 길면
+3페이지 허용.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 모바일 가독성 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+목표:
+
+iPhone / Android 기본 PDF viewer에서
+A4 한 페이지 전체가 화면에 맞춰진 상태에서도
+소제목 구조가 분명하고,
+
+사용자가 약간만 확대하면
+본문을 편하게 읽을 수 있어야 함.
+
+극단적으로 작은 인쇄 문서 스타일 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 실제 단위 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+완료 보고에는 반드시
+px가 아니라 최종 실제 CSS 단위를 그대로 보고:
+
+- title: __pt
+- heading: __pt
+- body: __pt
+- metadata: __pt
+- parent_support body: __pt
+- line-height
+
+“px = pt” 환산 표기 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 body >= 11pt
+TC2 metadata >= 9pt
+TC3 section heading >= 14pt
+TC4 title >= 24pt
+TC5 CASE A actual PDF generated
+TC6 CASE A = 2 pages
+TC7 CASE C long content readable
+TC8 parent_support not split awkwardly
+TC9 icons remain absent
+TC10 actual SWIMNOTE logo unchanged
+TC11 deterministic unchanged
+TC12 AI calls 0
+TC13 temp cleanup unchanged
+
+관련 테스트만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] FREE GROWTH REPORT PDF V2 TYPOGRAPHY REPORT
+
+- title pt
+- heading pt
+- body pt
+- metadata pt
+- parent_support pt
+- line-height
+- CASE A pages
+- CASE C pages
+- actual PDF artifact
+- mobile readability result
+- changed files
+- tests/pass
+- commit SHA
+
+- AI call: 0
+- DB write: NO
+- deploy: NO
+- OTA: NO
+
+Final Verdict:
+
+FREE GROWTH REPORT PDF TEMPLATE V2 LOCKED
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

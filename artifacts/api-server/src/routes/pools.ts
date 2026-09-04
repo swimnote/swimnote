@@ -6,9 +6,11 @@ const db = superAdminDb;
 import { swimmingPoolsTable, usersTable, parentAccountsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
+import { resolvePoolMode } from "../lib/xmode.js";
 import { sanitizePoolName } from "../utils/filename.js";
 import { signToken } from "../lib/auth.js";
 import { resolveSubscription } from "../lib/subscriptionService.js";
+import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -72,21 +74,84 @@ router.get("/search", async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 주소 최소 지역 축약 (화면 표시용 — DB 저장값 변경 없음) ─────────────
+// swimming_pools.address 에는 city/district 별도 컬럼이 없으므로
+// address 문자열을 공백 split하여 시·군·구 단위까지만 반환한다.
+//
+// 패턴:
+//   "서울특별시 강남구 테헤란로 123"   → "서울특별시 강남구"
+//   "경기도 고양시 덕양구 화정로 10"   → "경기도 고양시 덕양구"
+//   "제주특별자치도 제주시 한림읍 ..."  → "제주특별자치도 제주시 한림읍"
+//   "인천광역시 남동구 ..."             → "인천광역시 남동구"
+//   파싱 불확실 → 처음 2토큰 (이름만보다 낫고 상세주소보다 안전)
+function abbreviateAddress(address: string | null | undefined): string {
+  if (!address) return "";
+  const parts = address.trim().split(/\s+/);
+  if (parts.length === 0) return "";
+  const first = parts[0];
+  // "도"·"특별자치도"로 끝나는 광역 단위 → 첫 3토큰 (도 + 시/군 + 구/면)
+  if (first.endsWith("도")) {
+    return parts.slice(0, Math.min(3, parts.length)).join(" ");
+  }
+  // "시"로 끝나는 단위 (서울특별시·광역시·특별자치시·일반시) → 첫 2토큰
+  if (first.endsWith("시")) {
+    return parts.slice(0, Math.min(2, parts.length)).join(" ");
+  }
+  // 그 외 (해외 주소 등 예외) → 첫 2토큰
+  return parts.slice(0, Math.min(2, parts.length)).join(" ");
+}
+
 // ── 수영장 이름 검색 (public-search — pool-join-request 호환) ────────────
+// 정책: 검색어가 없으면 빈 배열 반환. 전방일치(name ILIKE q%)만 허용.
+// 반환 필드: id, name, address (최소 지역 정보만 — phone·상세주소 제외)
 router.get("/public-search", async (req, res) => {
-  const name = (req.query.name as string || "").trim();
+  const q = (req.query.name as string || "").trim();
+  // 검색어 없음 → 전체 목록 반환 금지
+  if (!q) {
+    res.json({ success: true, data: [] });
+    return;
+  }
   try {
-    const q = name.length >= 1 ? name : "";
     const rows = await superAdminDb.execute(sql`
-      SELECT id, name, address, phone
+      SELECT id, name, address
       FROM swimming_pools
       WHERE approval_status = 'approved'
-        ${q ? sql`AND (name ILIKE ${"%" + q + "%"} OR address ILIKE ${"%" + q + "%"})` : sql``}
-      ORDER BY name
-      LIMIT 30
+        AND name ILIKE ${q + "%"}
+      ORDER BY
+        CASE WHEN LOWER(name) = LOWER(${q}) THEN 0 ELSE 1 END,
+        LENGTH(name),
+        name
+      LIMIT 20
     `);
-    res.json({ success: true, data: rows.rows });
+    // address를 최소 지역 단위로 축약하여 반환 (화면 표시용)
+    const data = (rows.rows as Array<{ id: string; name: string; address: string | null }>).map(r => ({
+      id: r.id,
+      name: r.name,
+      address: abbreviateAddress(r.address),
+    }));
+    res.json({ success: true, data });
   } catch (e) { console.error(e); res.status(500).json({ success: false, data: [] }); }
+});
+
+// ── 수영장 공개 페이지 조회 (인증 불필요) ─────────────────────────────
+router.get("/:id/public", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, address, phone, owner_name, approval_status, subscription_status
+      FROM swimming_pools
+      WHERE id = ${id}
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/:id/public]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
 });
 
 // ── 수영장 등록 신청 (기본 정보만 입력, JSON) ─────────────────────────
@@ -360,6 +425,78 @@ router.get("/my-pools", requireAuth, async (req: AuthRequest, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
 });
 
+// ── X 모드 상태 조회 ─────────────────────────────────────────────────────
+// GET /pools/x-mode
+//
+// 허용 역할: pool_admin, teacher, parent_account, super_admin (fail-closed)
+// poolId 결정: JWT poolId 신뢰 금지 — DB 직접 조회
+//   pool_admin / teacher   → users.swimming_pool_id
+//   parent_account         → parent_accounts.swimming_pool_id
+//   super_admin            → ?pool_id= query param 필수
+//
+// /pools/x-mode는 현재 Route path를 유지하기 위해 query parameter를 선택하였다.
+// (super.ts /super/event-logs의 pool_id query param 패턴과 동일)
+//
+router.get("/x-mode", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const role = req.user!.role;
+    const userId = req.user!.userId;
+    let poolId: string | null = null;
+
+    if (role === "pool_admin" || role === "teacher") {
+      const userRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+    } else if (role === "parent_account") {
+      const paRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (paRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+    } else if (role === "super_admin") {
+      const qPoolId = req.query.pool_id as string | undefined;
+      if (!qPoolId) {
+        res.status(400).json({ error: "pool_id 파라미터가 필요합니다." });
+        return;
+      }
+      poolId = qPoolId;
+    } else if (role === "sub_admin") {
+      // sub_admin: pool 소속 동일 — users.swimming_pool_id 조회 (pool_admin/teacher와 동일)
+      const userRow = await superAdminDb.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      poolId = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+        return;
+      }
+    } else {
+      // fail-closed: platform_admin, super_manager, 레거시 parent, 미확인 역할 모두 차단
+      res.status(403).json({ success: false, message: "권한이 없습니다.", error: "권한이 없습니다." });
+      return;
+    }
+
+    const result = await resolvePoolMode(poolId);
+    if (!result) {
+      res.status(404).json({ success: false, error: "POOL_NOT_FOUND", message: "수영장을 찾을 수 없습니다." });
+      return;
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("[GET /pools/x-mode]", err);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
+});
+
 // ── 수영장 전환 (새 토큰 발급, users.swimming_pool_id 기반) ──────────
 router.post("/switch/:poolId", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -414,6 +551,9 @@ router.post("/create-pool", requireAuth, requireRole("pool_admin", "super_admin"
         `);
       }
     }
+    // ── 기본 일지 템플릿 자동 삽입 ──────────────────────────────────────
+    insertDefaultTemplates(id, userId).catch((e: any) => console.error("[insertDefaultTemplates] create-pool:", e));
+
     const poolRow = await superAdminDb.execute(sql`SELECT * FROM swimming_pools WHERE id = ${id} LIMIT 1`);
     res.status(201).json(poolRow.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류가 발생했습니다." }); }
@@ -447,5 +587,376 @@ router.put("/white-label", requireAuth, requireRole("pool_admin", "super_admin")
     res.json(row.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
 });
+
+// ── 수영장 홈페이지 슬러그로 공개 조회 (인증 불필요) ──────────────────
+router.get("/by-slug/:slug", async (req, res) => {
+  const slug = decodeURIComponent(req.params.slug);
+  try {
+    const rows = await superAdminDb.execute(sql`
+      SELECT id, name, name_en, address, phone, owner_name,
+             theme_color, logo_url, logo_emoji,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             homepage_slug, homepage_enabled,
+             approval_status, subscription_status
+      FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND homepage_enabled = TRUE
+      LIMIT 1
+    `);
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "수영장 홈페이지를 찾을 수 없습니다." });
+      return;
+    }
+    res.json(rows.rows[0]);
+  } catch (e) {
+    console.error("[pools/by-slug]", e);
+    res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── 홈페이지 슬러그 중복 확인 (인증 필요) ────────────────────────────
+router.get("/homepage/check-slug", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { slug } = req.query as { slug: string };
+  if (!slug) { res.status(400).json({ error: "슬러그를 입력해주세요." }); return; }
+
+  // 슬러그 유효성 검사: 한글, 영문, 숫자, 하이픈만 허용
+  if (!/^[가-힣a-zA-Z0-9-]+$/.test(slug)) {
+    res.json({ available: false, message: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+  }
+
+  // 예약어 체크
+  const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+  if (reserved.includes(slug.toLowerCase())) {
+    res.json({ available: false, message: "사용할 수 없는 주소입니다." }); return;
+  }
+
+  try {
+    const existing = await superAdminDb.execute(sql`
+      SELECT id FROM swimming_pools
+      WHERE homepage_slug = ${slug} AND id != ${req.user!.poolId ?? ""}
+      LIMIT 1
+    `);
+    if (existing.rows.length) {
+      res.json({ available: false, message: "이미 사용 중인 주소입니다." });
+    } else {
+      res.json({ available: true, message: "사용 가능한 주소입니다." });
+    }
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 조회 (내 수영장) ────────────────────────────────
+router.get("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+    const row = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled,
+             introduction, tuition_info, level_test_info, event_info, equipment_info,
+             theme_color, logo_url, logo_emoji, name, phone, address
+      FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json(row.rows[0] ?? {});
+  } catch (e) { console.error(e); res.status(500).json({ error: "서버 오류" }); }
+});
+
+// ── 홈페이지 슬러그 설정 ──────────────────────────────────────────
+router.patch("/homepage/settings", requireAuth, requireRole("pool_admin", "super_admin"), async (req: AuthRequest, res) => {
+  const { homepage_slug, homepage_enabled } = req.body;
+  try {
+    const poolId = req.user!.poolId;
+    if (!poolId) { res.status(404).json({ error: "수영장 없음" }); return; }
+
+    if (homepage_slug !== undefined && homepage_slug !== null && homepage_slug !== "") {
+      if (!/^[가-힣a-zA-Z0-9-]+$/.test(homepage_slug)) {
+        res.status(400).json({ error: "한글, 영문, 숫자, 하이픈(-)만 사용할 수 있습니다." }); return;
+      }
+      const reserved = ["login", "super-admin", "pool", "education", "app", "support", "api", "admin"];
+      if (reserved.includes(homepage_slug.toLowerCase())) {
+        res.status(400).json({ error: "사용할 수 없는 주소입니다." }); return;
+      }
+      const dup = await superAdminDb.execute(sql`
+        SELECT id FROM swimming_pools WHERE homepage_slug = ${homepage_slug} AND id != ${poolId} LIMIT 1
+      `);
+      if (dup.rows.length) {
+        res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return;
+      }
+    }
+
+    const slug = homepage_slug === "" ? null : (homepage_slug ?? undefined);
+    const enabledVal = homepage_enabled !== undefined ? homepage_enabled : undefined;
+
+    if (slug !== undefined && enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, homepage_enabled = ${enabledVal}, updated_at = NOW()
+        WHERE id = ${poolId}
+      `);
+    } else if (slug !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_slug = ${slug}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    } else if (enabledVal !== undefined) {
+      await superAdminDb.execute(sql`
+        UPDATE swimming_pools SET homepage_enabled = ${enabledVal}, updated_at = NOW() WHERE id = ${poolId}
+      `);
+    }
+
+    const updated = await superAdminDb.execute(sql`
+      SELECT homepage_slug, homepage_enabled FROM swimming_pools WHERE id = ${poolId} LIMIT 1
+    `);
+    res.json({ success: true, ...(updated.rows[0] ?? {}) });
+  } catch (e: any) {
+    if (e?.code === "23505") { res.status(409).json({ error: "이미 사용 중인 주소입니다." }); return; }
+    console.error(e); res.status(500).json({ error: "서버 오류" });
+  }
+});
+
+// ── WP3: POST /pools/x-request ────────────────────────────────────────────
+//
+// pool_admin이 X 커리큘럼 설정 요청을 제출한다.
+//
+// 사전조건 (Transaction 내):
+//   A. pool 존재 (SELECT FOR UPDATE)
+//   B. xmode_entitlement = true
+//   C. xmode_config_status = 'NOT_CONFIGURED'  (READY/CURRICULUM_PENDING이면 거부)
+//   D. pending 또는 reviewing 상태 요청이 이미 없어야 함 (중복 방지)
+//
+// 성공 시 (같은 Transaction):
+//   1. curriculum_requests INSERT (request_status='pending')
+//   2. swimming_pools.xmode_config_status = 'CURRICULUM_PENDING' UPDATE
+//   3. audit_logs INSERT
+//
+// poolId는 request body에서 받지 않음 — authenticated userId → users.swimming_pool_id
+//
+router.post(
+  "/x-request",
+  requireAuth,
+  requireRole("pool_admin"),
+  async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    try {
+      // poolId: DB에서 결정 (JWT 신뢰 금지)
+      const userRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      const poolId: string | null = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(403).json({ error: "수영장 정보가 없습니다." });
+        return;
+      }
+
+      let resultRequest: Record<string, unknown> | null = null;
+      let resultPoolMode: Record<string, unknown> | null = null;
+
+      await db.transaction(async (tx) => {
+        // A. pool SELECT FOR UPDATE
+        // X02-B2: x_paid / x_manual / x_force 포함하여 effective 계산
+        const poolRows = await tx.execute(sql`
+          SELECT id, xmode_config_status,
+                 COALESCE(x_paid_entitlement,  false) AS x_paid_entitlement,
+                 COALESCE(x_manual_entitlement, false) AS x_manual_entitlement,
+                 COALESCE(x_force_disabled,    false) AS x_force_disabled
+          FROM swimming_pools
+          WHERE id = ${poolId}
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (!poolRows.rows.length) {
+          const e: any = new Error("POOL_NOT_FOUND");
+          e.status = 404; e.code = "POOL_NOT_FOUND";
+          throw e;
+        }
+        const pool = poolRows.rows[0] as any;
+        const effectiveEntitlement =
+          (Boolean(pool.x_paid_entitlement) || Boolean(pool.x_manual_entitlement))
+          && !Boolean(pool.x_force_disabled);
+
+        // B. entitlement 확인
+        if (!effectiveEntitlement) {
+          const e: any = new Error("X entitlement 없음");
+          e.status = 403; e.code = "NO_ENTITLEMENT";
+          throw e;
+        }
+
+        // C. config_status 확인
+        const configStatus: string = pool.xmode_config_status;
+        if (configStatus === "READY") {
+          const e: any = new Error("이미 X 설정 완료 상태입니다.");
+          e.status = 409; e.code = "ALREADY_READY";
+          throw e;
+        }
+        if (configStatus === "CURRICULUM_PENDING") {
+          // 중복 방지: 현재 진행 중 요청 반환
+          const activeRows = await tx.execute(sql`
+            SELECT id, request_status, title, created_at, updated_at
+            FROM curriculum_requests
+            WHERE swimming_pool_id = ${poolId}
+              AND request_status IN ('pending', 'reviewing')
+            ORDER BY created_at DESC
+            LIMIT 1
+          `);
+          const e: any = new Error("커리큘럼 요청이 이미 진행 중입니다.");
+          e.status = 409; e.code = "ALREADY_PENDING";
+          e.existingRequest = activeRows.rows[0] ?? null;
+          throw e;
+        }
+
+        // D. NOT_CONFIGURED 확인 후 pending/reviewing 중복 방지
+        const dupRows = await tx.execute(sql`
+          SELECT id FROM curriculum_requests
+          WHERE swimming_pool_id = ${poolId}
+            AND request_status IN ('pending', 'reviewing')
+          LIMIT 1
+          FOR UPDATE
+        `);
+        if (dupRows.rows.length) {
+          const e: any = new Error("커리큘럼 요청이 이미 존재합니다.");
+          e.status = 409; e.code = "DUPLICATE_REQUEST";
+          throw e;
+        }
+
+        // 1. curriculum_requests INSERT
+        const title = "SWIMNOTE X 커리큘럼 설정 요청";
+        const insertedRows = await tx.execute(sql`
+          INSERT INTO curriculum_requests (
+            swimming_pool_id, request_status, title, requested_by
+          ) VALUES (
+            ${poolId}, 'pending', ${title}, ${userId}
+          )
+          RETURNING id, request_status, title, created_at
+        `);
+        const inserted = insertedRows.rows[0] as any;
+
+        // 2. swimming_pools UPDATE → CURRICULUM_PENDING
+        // X02-B2: effective 조건으로 guard (AND 조건은 race condition 방지용)
+        await tx.execute(sql`
+          UPDATE swimming_pools
+          SET xmode_config_status = 'CURRICULUM_PENDING'
+          WHERE id = ${poolId}
+            AND (COALESCE(x_paid_entitlement, false) OR COALESCE(x_manual_entitlement, false))
+            AND NOT COALESCE(x_force_disabled, false)
+            AND xmode_config_status = 'NOT_CONFIGURED'
+        `);
+
+        // 3. audit_logs INSERT
+        const beforeData = {
+          xmode_entitlement: true,
+          xmode_config_status: "NOT_CONFIGURED",
+        };
+        const afterData = {
+          xmode_entitlement: true,
+          xmode_config_status: "CURRICULUM_PENDING",
+          source: "curriculum_request",
+          curriculum_request_id: inserted.id,
+        };
+        const versionRes = await tx.execute(sql`
+          SELECT next_audit_version('swimming_pool_xmode', ${poolId}) AS v
+        `);
+        const version = (versionRes.rows[0] as any)?.v ?? 1;
+        await tx.execute(sql`
+          INSERT INTO audit_logs (
+            entity_type, entity_id, entity_version,
+            action, actor_type, actor_id, pool_id,
+            before_data, after_data, reason
+          ) VALUES (
+            'swimming_pool_xmode', ${poolId}, ${version},
+            'update', 'pool_admin', ${userId}, ${poolId},
+            ${JSON.stringify(beforeData)}::jsonb,
+            ${JSON.stringify(afterData)}::jsonb,
+            'X curriculum setup requested'
+          )
+        `);
+
+        resultRequest = {
+          id: inserted.id,
+          request_status: inserted.request_status,
+          created_at: inserted.created_at,
+        };
+        // computeMode: entitlement=true + CURRICULUM_PENDING → x_pending
+        resultPoolMode = {
+          pool_id: poolId,
+          mode: "x_pending",
+          xmode_entitlement: true,
+          xmode_config_status: "CURRICULUM_PENDING",
+        };
+      });
+
+      res.status(201).json({
+        request: resultRequest,
+        pool_mode: resultPoolMode,
+      });
+    } catch (err: any) {
+      if (err.status === 404) { res.status(404).json({ error: err.message, code: err.code }); return; }
+      if (err.status === 403) { res.status(403).json({ error: err.message, code: err.code }); return; }
+      if (err.status === 409) {
+        res.status(409).json({
+          error: err.message,
+          code: err.code,
+          ...(err.existingRequest ? { existing_request: err.existingRequest } : {}),
+        });
+        return;
+      }
+      console.error("[POST /pools/x-request]", err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
+
+// ── WP3: GET /pools/x-request ─────────────────────────────────────────────
+//
+// pool_admin이 자기 pool의 현재 커리큘럼 요청 상태를 조회한다.
+//
+// 반환 우선순위:
+//   1. pending 또는 reviewing 상태 요청 (진행 중)
+//   2. 없으면 가장 최근 요청 1건 (approved/rejected/cancelled)
+//   3. 없으면 { request: null }
+//
+// 자기 pool 외 데이터 노출 금지 — poolId를 DB에서 결정.
+//
+router.get(
+  "/x-request",
+  requireAuth,
+  requireRole("pool_admin"),
+  async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    try {
+      const userRow = await db.execute(sql`
+        SELECT swimming_pool_id FROM users WHERE id = ${userId} LIMIT 1
+      `);
+      const poolId: string | null = (userRow.rows[0] as any)?.swimming_pool_id ?? null;
+      if (!poolId) {
+        res.status(403).json({ error: "수영장 정보가 없습니다." });
+        return;
+      }
+
+      // 진행 중 요청 우선
+      const activeRows = await db.execute(sql`
+        SELECT id, request_status, title, review_note, result_version_id,
+               created_at, updated_at, reviewed_at
+        FROM curriculum_requests
+        WHERE swimming_pool_id = ${poolId}
+          AND request_status IN ('pending', 'reviewing')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      if (activeRows.rows.length) {
+        res.json({ request: activeRows.rows[0] });
+        return;
+      }
+
+      // 없으면 가장 최근 완료/반려/취소 요청
+      const latestRows = await db.execute(sql`
+        SELECT id, request_status, title, review_note, result_version_id,
+               created_at, updated_at, reviewed_at
+        FROM curriculum_requests
+        WHERE swimming_pool_id = ${poolId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      res.json({ request: latestRows.rows[0] ?? null });
+    } catch (err) {
+      console.error("[GET /pools/x-request]", err);
+      res.status(500).json({ error: "서버 오류가 발생했습니다." });
+    }
+  }
+);
 
 export default router;

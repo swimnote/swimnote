@@ -16,7 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Colors from "@/constants/colors";
 
 export const APP_PLATFORM_NAME = "스윔노트";
-export const DEFAULT_THEME_COLOR = "#2EC4B6";
+export const DEFAULT_THEME_COLOR = "#1683A3";
 export const SUPER_ADMIN_COLOR   = "#7C3AED";
 
 export interface BrandState {

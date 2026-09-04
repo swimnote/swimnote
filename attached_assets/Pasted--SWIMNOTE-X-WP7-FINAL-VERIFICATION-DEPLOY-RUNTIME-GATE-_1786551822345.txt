@@ -1,0 +1,261 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP7 FINAL VERIFICATION
+DEPLOY + RUNTIME GATE
+CREDIT SAVING MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+WP7 implementation commit:
+16501ba7
+
+tests:
+234/234 ✅
+
+아직:
+WP7 VERIFIED 아님.
+
+WP8 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. IDEMPOTENCY 확인
+━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 전에 READ ONLY로 확인:
+
+growth_events에서
+ON CONFLICT DO NOTHING이 실제 어떤
+UNIQUE / PRIMARY constraint에 의해
+중복 방지되는지 제출.
+
+반드시 실제 catalog 기준:
+
+- constraint/index name
+- columns
+
+동일 diary/student/event 재시도 시
+중복 INSERT가 실제 DB 레벨에서 차단되는지 확인.
+
+만약 적절한 UNIQUE가 없다면
+배포 STOP 후 보고.
+
+추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. SKIP OBSERVABILITY 확인
+━━━━━━━━━━━━━━━━━━━━
+
+match_token:
+
+- expired
+- invalid
+- mismatch
+
+등으로 growth_event가 skip될 때
+
+최소한 서버에서 다음 중 하나로
+확인 가능한지 점검:
+
+- response meta/warning
+또는
+- structured server log
+
+필수 식별정보:
+
+request_id
+diary_id
+student_id
+skip_reason
+
+일지 원문/학생 이름 로그 금지.
+
+현재 이미 구현되어 있으면 수정 없음.
+
+완전히 silent skip이면
+최소 observability만 추가.
+
+대규모 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. GIT
+━━━━━━━━━━━━━━━━━━━━
+
+필요한 수정이 없으면
+16501ba7 그대로 사용.
+
+수정이 있다면 관련 test만 재실행 후
+추가 commit.
+
+최종 제출:
+
+HEAD
+origin
+functional commit SHA
+
+HEAD = origin 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+4. RENDER DEPLOY
+━━━━━━━━━━━━━━━━━━━━
+
+서버 변경 있으므로 Render 배포.
+
+제출:
+
+Deploy ID
+Live SHA
+status
+
+Live SHA = 최종 functional SHA 확인.
+
+/api/health → 200
+/api/healthz → 200
+
+startup crash 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+5. iOS PRODUCTION OTA
+━━━━━━━━━━━━━━━━━━━━
+
+앱 변경 있으므로 iOS OTA 필요.
+
+현재 실제 운영 기준과 동일하게:
+
+channel/branch:
+production / production
+
+runtimeVersion:
+1.6.2
+
+iOS only.
+
+Android 불필요.
+
+제출:
+
+Update group ID
+iOS update ID
+runtimeVersion
+
+━━━━━━━━━━━━━━━━━━━━
+6. RUNTIME — 핵심 검증
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 안전한 test context 사용.
+
+실제 운영 회원/일지를
+테스트 데이터로 오염시키지 말 것.
+
+필수:
+
+A. AI GENERATE ONLY
+→ diary 저장 전
+→ growth_event 생성 0
+
+B. X DIARY SAVE
+→ diary save 성공
+→ 해당 student growth_event 생성
+
+C. 동일 save/request 재시도
+→ growth_event 추가 중복 0
+
+D. NON-X diary
+→ 기존 diary 저장
+→ growth_event 생성 0
+
+E. invalid/expired match_token
+→ diary 정책대로 처리
+→ growth_event 생성 안 됨
+→ skip 이유 trace 확인
+
+F. diary 삭제 테스트가 안전한 test fixture에서 가능하면
+→ 연결 growth_event
+   is_invalidated=true
+
+운영 실제 일지를 삭제해서 테스트 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. DB READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Production:
+SUPABASE_DATABASE_URL
+
+테스트 이벤트에 대해 READ ONLY 확인:
+
+- student_id
+- source diary 연결
+- growth_match_status = PENDING_REVIEW
+- is_invalidated
+- template/curriculum linkage
+- duplicate count
+
+AI generate 단계에서는
+row가 생성되지 않았는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 앱 실기기
+━━━━━━━━━━━━━━━━━━━━
+
+OTA 적용 후 앱 완전 종료 → 재실행.
+
+X Mode AI 일지:
+
+AI 생성
+→ common/student 결과 표시
+→ 최종 저장
+
+기존 일지 저장 UX 정상 확인.
+
+새 Growth Event 때문에
+일지 저장 실패/멈춤/중복 저장 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+9. REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+최소:
+
+일반 일지 저장 정상
+X 일지 저장 정상
+스케줄러 정상
+회원관리 정상
+
+신규:
+
+500
+FK violation
+duplicate violation
+RLS error
+startup crash
+
+없음.
+
+━━━━━━━━━━━━━━━━━━━━
+10. FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━
+
+짧게 제출:
+
+1. idempotency constraint
+2. skip observability
+3. final SHA/origin
+4. Render Deploy ID / Live SHA
+5. OTA IDs
+6. generate-only → event 0
+7. X save → event 생성
+8. duplicate 재시도 결과
+9. NON-X → event 0
+10. DB read-back
+11. invalidation 확인
+12. regression
+13. final verdict
+
+모두 통과 시:
+
+WP7_GROWTH_EVENT_PERSISTENCE_VERIFIED ✅
+WP7_CLOSED ✅
+
+STOP.
+WP8 자동 시작 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -355,17 +355,40 @@ router.get("/settlement/reports", requireAuth, requireRole("pool_admin", "super_
 
 // ─── 정산 확정 ───────────────────────────────────────────────────────────────
 // POST /settlement/finalize
+// - 선생님: 본인 정산 확정 (status → confirmed)
+// - 관리자(pool_admin): teacher_id 지정 시 해당 선생님 확정, 없으면 해당 월 전체 submitted 확정
 router.post("/settlement/finalize", requireAuth, requireRole("pool_admin", "teacher"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, month } = req.body;
-      const { userId } = req.user!;
-      await db.execute(sql`
-        UPDATE monthly_settlements
-        SET is_finalized = true, finalized_at = now(), status = 'confirmed'
-        WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
-      `);
-      if (pool_id) await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: `${pool_id}_${month}`, changeType: "update", payload: { month, status: "confirmed", finalized: true } });
+      const { pool_id, month, teacher_id } = req.body;
+      const { userId, role } = req.user!;
+
+      if (role === "pool_admin" || role === "super_admin") {
+        if (teacher_id) {
+          // 관리자: 특정 선생님 정산만 확인 처리
+          await db.execute(sql`
+            UPDATE monthly_settlements
+            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            WHERE pool_id = ${pool_id} AND teacher_user_id = ${teacher_id} AND settlement_month = ${month}
+          `);
+        } else {
+          // 관리자: 해당 월 submitted 상태인 정산 전체 확정
+          await db.execute(sql`
+            UPDATE monthly_settlements
+            SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+            WHERE pool_id = ${pool_id} AND settlement_month = ${month} AND status = 'submitted'
+          `);
+        }
+      } else {
+        // 선생님: 본인 정산만 확정
+        await db.execute(sql`
+          UPDATE monthly_settlements
+          SET is_finalized = true, finalized_at = now(), status = 'confirmed'
+          WHERE pool_id = ${pool_id} AND teacher_user_id = ${userId} AND settlement_month = ${month}
+        `);
+      }
+
+      if (pool_id) await logChange({ tenantId: pool_id, tableName: "monthly_settlements", recordId: `${pool_id}_${month}`, changeType: "update", payload: { month, status: "confirmed", finalized: true, teacher_id: teacher_id ?? "all" } });
       return res.json({ success: true });
     } catch (e: any) {
       return err(res, 500, e.message);

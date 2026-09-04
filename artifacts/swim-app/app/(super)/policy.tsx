@@ -2,13 +2,11 @@
  * (super)/policy.tsx — 정책·컴플라이언스
  * operatorsStore (미동의 필터) + 로컬 버전 상태 — API 호출 없음
  */
-import { ChevronRight, CircleAlert, CircleCheck, CirclePlus, FileText, GitBranch, Plus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useOperatorsStore } from "@/store/operatorsStore";
@@ -94,25 +92,25 @@ export default function PolicyScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="정책·컴플라이언스" homePath="/(super)/more" />
+      <SubScreenHeader title="정책·컴플라이언스" homePath="/(super)/dashboard" />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.tabBar} contentContainerStyle={s.tabContent}>
         {TABS.map(t => (
           <Pressable key={t.key} style={[s.tab, tab === t.key && s.tabActive]} onPress={() => setTab(t.key)}>
             <Text style={[s.tabTxt, tab === t.key && s.tabTxtActive]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {POLICY_KEYS.includes(tab) && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 60 }}
           refreshControl={<RefreshControl refreshing={refreshing} tintColor={P}
             onRefresh={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 400); }} />}>
           <View style={s.policyCard}>
             <View style={s.policyHeader}>
               <View style={s.policyIconBg}>
-                <FileText size={16} color={P} />
+                <LucideIcon name="file-text" size={16} color={P} />
               </View>
               <Text style={s.policyTitle}>{policyLabel}</Text>
               <View style={s.activeBadge}>
@@ -124,29 +122,29 @@ export default function PolicyScreen() {
 
           <View style={s.actionCard}>
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setTab("versions"); }}>
-              <GitBranch size={16} color={P} />
+              <LucideIcon name="git-branch" size={16} color={P} />
               <Text style={s.actionTxt}>버전 이력 확인</Text>
-              <ChevronRight size={15} color="#64748B" />
+              <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setUnsignedKey(tab); setTab("unsigned"); }}>
-              <CircleAlert size={16} color="#D96C6C" />
+              <LucideIcon name="alert-circle" size={16} color="#D96C6C" />
               <Text style={[s.actionTxt, { color: "#D96C6C" }]}>미동의 운영자 확인</Text>
-              <ChevronRight size={15} color="#64748B" />
+              <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
             </Pressable>
             <View style={s.divider} />
             <Pressable style={s.actionRow} onPress={() => { setVersionKey(tab); setVersionModal(true); }}>
-              <CirclePlus size={16} color="#2EC4B6" />
-              <Text style={[s.actionTxt, { color: "#2EC4B6" }]}>새 버전 저장</Text>
-              <ChevronRight size={15} color="#64748B" />
+              <LucideIcon name="plus-circle" size={16} color={C.brandStrong} />
+              <Text style={[s.actionTxt, { color: C.brandStrong }]}>새 버전 저장</Text>
+              <LucideIcon name="chevron-right" size={15} color={C.textSecondary} />
             </Pressable>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       {tab === "versions" && (
         <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
             style={s.subTabBar} contentContainerStyle={s.subTabContent}>
             {POLICY_KEYS.map(k => (
               <Pressable key={k} style={[s.subTab, versionKey === k && s.subTabActive]}
@@ -156,14 +154,14 @@ export default function PolicyScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <FlatList
             data={versions}
             keyExtractor={i => i.id}
             contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 80 }}
             ListHeaderComponent={
               <Pressable style={s.addVerBtn} onPress={() => setVersionModal(true)}>
-                <Plus size={13} color="#fff" />
+                <LucideIcon name="plus" size={13} color="#fff" />
                 <Text style={s.addVerTxt}>현재 버전 저장</Text>
               </Pressable>
             }
@@ -178,7 +176,7 @@ export default function PolicyScreen() {
             )}
             ListEmptyComponent={
               <View style={s.empty}>
-                <GitBranch size={28} color="#D1D5DB" />
+                <LucideIcon name="git-branch" size={28} color="#D1D5DB" />
                 <Text style={s.emptyTxt}>저장된 버전이 없습니다</Text>
               </View>
             }
@@ -188,7 +186,7 @@ export default function PolicyScreen() {
 
       {tab === "unsigned" && (
         <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
             style={s.subTabBar} contentContainerStyle={s.subTabContent}>
             {POLICY_KEYS.map(k => (
               <Pressable key={k} style={[s.subTab, unsignedKey === k && s.subTabActive]}
@@ -198,7 +196,7 @@ export default function PolicyScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
           <FlatList
             data={unsignedOperators}
             keyExtractor={i => i.id}
@@ -206,7 +204,7 @@ export default function PolicyScreen() {
             ListHeaderComponent={
               unsignedOperators.length > 0 ? (
                 <View style={s.unsignedHeader}>
-                  <CircleAlert size={14} color="#D96C6C" />
+                  <LucideIcon name="alert-circle" size={14} color="#D96C6C" />
                   <Text style={s.unsignedHeaderTxt}>
                     {TABS.find(t => t.key === unsignedKey)?.label} 미동의 운영자 {unsignedOperators.length}명
                   </Text>
@@ -223,17 +221,17 @@ export default function PolicyScreen() {
                     <Text style={s.unsignedSub}>{item.representativeName} · {fmtDate(item.createdAt)} 가입</Text>
                   </View>
                 </View>
-                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? "#E6FFFA" : "#FFF1BF" }]}>
-                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? "#2EC4B6" : "#D97706" }]}>
+                <View style={[s.unsignedBadge, { backgroundColor: item.isApproved ? C.brandSoft : "#FFF1BF" }]}>
+                  <Text style={[s.unsignedBadgeTxt, { color: item.isApproved ? C.brandStrong : "#D97706" }]}>
                     {item.isApproved ? "승인" : "대기"}
                   </Text>
                 </View>
-                <ChevronRight size={14} color="#64748B" />
+                <LucideIcon name="chevron-right" size={14} color={C.textSecondary} />
               </Pressable>
             )}
             ListEmptyComponent={
               <View style={s.empty}>
-                <CircleCheck size={28} color="#2E9B6F" />
+                <LucideIcon name="check-circle" size={28} color="#2E9B6F" />
                 <Text style={s.emptyTxt}>모든 운영자가 동의했습니다</Text>
               </View>
             }
@@ -251,13 +249,13 @@ export default function PolicyScreen() {
               <View style={m.section}>
                 <Text style={m.label}>버전 번호 *</Text>
                 <TextInput style={m.input} value={newVer} onChangeText={setNewVer}
-                  placeholder="예: 2.1.0" placeholderTextColor="#64748B" />
+                  placeholder="예: 2.1.0" placeholderTextColor={C.textMuted} />
               </View>
               <View style={m.section}>
                 <Text style={m.label}>내용 *</Text>
                 <TextInput style={[m.input, { minHeight: 100 }]} value={newVal}
                   onChangeText={setNewVal} multiline placeholder="정책 내용"
-                  placeholderTextColor="#64748B" textAlignVertical="top" />
+                  placeholderTextColor={C.textMuted} textAlignVertical="top" />
               </View>
               <View style={m.btnRow}>
                 <Pressable style={m.cancelBtn} onPress={() => setVersionModal(false)}>
@@ -278,29 +276,29 @@ export default function PolicyScreen() {
 
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: C.background },
-  tabBar:          { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  tabBar:          { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   tabContent:      { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   tab:             { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   tabActive:       { backgroundColor: "#EEDDF5" },
-  tabTxt:          { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  tabTxtActive:    { color: P, fontFamily: "Pretendard-Regular" },
-  subTabBar:       { flexGrow: 0, backgroundColor: "#F1F5F9", borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  tabTxt:          { fontSize: 13, lineHeight: 18, color: C.textSecondary },
+  tabTxtActive:    { color: P },
+  subTabBar:       { flexGrow: 0, backgroundColor: C.backgroundSoft, borderBottomWidth: 1, borderBottomColor: C.border },
   subTabContent:   { paddingHorizontal: 12, paddingVertical: 6, gap: 4, flexDirection: "row" },
   subTab:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
   subTabActive:    { backgroundColor: "#EEDDF5" },
-  subTabTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  subTabTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   policyCard:      { backgroundColor: "#fff", borderRadius: 14, padding: 16, gap: 12,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderWidth: 1, borderColor: C.border },
   policyHeader:    { flexDirection: "row", alignItems: "center", gap: 10 },
   policyIconBg:    { width: 34, height: 34, borderRadius: 10, backgroundColor: "#EEDDF5",
                      alignItems: "center", justifyContent: "center" },
-  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  activeBadge:     { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  activeBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
-  policyBody:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 22 },
-  actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: "#E5E7EB", overflow: "hidden" },
+  policyTitle:     { flex: 1, fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  activeBadge:     { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  activeBadgeTxt:  { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.brandStrong },
+  policyBody:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 22 },
+  actionCard:      { backgroundColor: "#fff", borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: "hidden" },
   actionRow:       { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
-  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  actionTxt:       { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   divider:         { height: 1, backgroundColor: "#FFFFFF", marginHorizontal: 14 },
   addVerBtn:       { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: P,
                      borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
@@ -308,25 +306,25 @@ const s = StyleSheet.create({
   addVerTxt:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#fff" },
   verRow:          { flexDirection: "row", alignItems: "flex-start", gap: 10,
                      backgroundColor: "#fff", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderWidth: 1, borderColor: C.border },
   verBadge:        { backgroundColor: "#EEDDF5", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   verBadgeTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: P },
-  verPreview:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A", lineHeight: 18 },
-  verMeta:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 4 },
+  verPreview:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary, lineHeight: 18 },
+  verMeta:         { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 4 },
   unsignedHeader:  { flexDirection: "row", alignItems: "center", gap: 8,
                      backgroundColor: "#FEF2F2", borderRadius: 10, padding: 12, marginBottom: 6 },
   unsignedHeaderTxt:{ fontSize: 13, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   unsignedRow:     { flexDirection: "row", alignItems: "center", gap: 10,
                      backgroundColor: "#fff", borderRadius: 12, padding: 14,
-                     borderWidth: 1, borderColor: "#E5E7EB" },
+                     borderWidth: 1, borderColor: C.border },
   unsignedLeft:    { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   unsignedBullet:  { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#D96C6C", flexShrink: 0 },
-  unsignedName:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  unsignedSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  unsignedName:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  unsignedSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   unsignedBadge:   { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   unsignedBadgeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular" },
   empty:           { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:        { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
@@ -335,15 +333,15 @@ const m = StyleSheet.create({
                borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40,
                maxHeight: "80%", gap: 14 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -8 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -8 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12,
-               fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  input:     { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 12,
+               fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:   { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

@@ -1,0 +1,299 @@
+[STOP ALL CURRENT WORK + FULL CHANGE REPORT]
+
+지금 실행 중인 모든 작업을 즉시 중단한다.
+
+중요:
+- 추가 수정 금지
+- 추가 commit 금지
+- 추가 Render deploy 금지
+- 추가 OTA 배포 금지
+- 추가 Android/iOS build 금지
+- 가격/구독/RevenueCat/Store 변경 금지
+- DB migration 추가 실행 금지
+
+현재 상태를 그대로 보존하고
+지금까지 실행된 작업 전체를 정확히 보고한다.
+
+==================================================
+1. 기준점 확인
+==================================================
+
+먼저 아래 기준을 확인:
+
+- 현재 branch =
+- 현재 HEAD SHA =
+- 마지막 stable production SHA =
+- 현재 working tree dirty 여부 =
+- uncommitted files =
+- staged files =
+- 최근 commit 목록 =
+
+최근 작업 시작 이후 생성된 commit을
+시간순으로 전부 나열한다.
+
+각 commit마다:
+- SHA
+- message
+- files changed
+- 작업 목적
+
+==================================================
+2. 가격/구독 작업 상태
+==================================================
+
+이전
+[SWIMNOTE FINAL RELEASE — PRICE RESET + VIDEO FIX + BUILD/RELEASE]
+지시 이후 실제로 실행된 내용을 전부 보고.
+
+반드시 구분:
+
+PRICE CODE CHANGED =
+SUBSCRIPTION PLAN CODE CHANGED =
+PRODUCTION DB CHANGED =
+subscription_plans ROW CHANGED =
+SOLO30/50/100 CHANGED =
+PREMIER200 CHANGED =
+X PRICE CHANGED =
+RevenueCat CHANGED =
+Apple IAP CHANGED =
+Google Play product/price CHANGED =
+promotion logic CHANGED =
+
+변경이 있다면
+정확한 file/table/product ID와
+현재 값 / 이전 값을 보고.
+
+임의 rollback 금지.
+먼저 보고만 한다.
+
+==================================================
+3. VIDEO FIX 상태
+==================================================
+
+VIDEO BUG #1
+expired row quota 제외
+- 조사 여부 =
+- 수정 여부 =
+- file =
+- test =
+- commit =
+
+VIDEO BUG #2
+thumbnail orphan 삭제
+- 조사 여부 =
+- 수정 여부 =
+- file =
+- test =
+- commit =
+
+==================================================
+4. X 권한 회수 작업 상태
+==================================================
+
+다음 작업이 어디까지 진행됐는지 보고:
+
+- superadmin manual grant 조사 =
+- manual revoke 조사 =
+- revoke root cause =
+- paid entitlement 조사 =
+- RevenueCat sync 조사 =
+- X_ACCESS final condition 변경 여부 =
+- server guard 변경 =
+- client guard 변경 =
+- DB 변경 =
+- test matrix 실행 =
+- commit =
+- Render deploy =
+- iOS OTA =
+
+특히:
+시험용 X 수영장 권한 회수가
+현재 실제로 해결됐는지 여부를 명확히 보고.
+
+==================================================
+5. SUPERADMIN 작업 상태
+==================================================
+
+A. duplicate home bug
+- 정상 superadmin home route =
+- legacy "더보기" route =
+- X 관리 화면 HOME target =
+- 수정 여부 =
+- test =
+- commit =
+
+B. logout
+- 로그아웃 버튼 수정 여부 =
+- auth cleanup =
+- back navigation =
+- commit =
+
+==================================================
+6. LOGO 작업 상태
+==================================================
+
+사용자가 제공한 최종 로고 파일 기준:
+
+- login logo 교체 여부 =
+- splash logo 교체 여부 =
+- asset file =
+- login size rule =
+- splash size rule =
+- app.json/app.config/native splash 변경 여부 =
+- native build required =
+- commit =
+
+==================================================
+7. ADMIN 4 HUB 작업 상태
+==================================================
+
+각 버튼별로 정확히 보고:
+
+1. AI 학생리포트
+- route =
+- API =
+- current status =
+- error =
+- changes =
+- commit =
+
+2. AI 일지피드
+- route =
+- API =
+- current status =
+- data 0 원인 확인 여부 =
+- changes =
+- commit =
+
+3. AI 커리큘럼
+- route =
+- API =
+- server error 원인 =
+- NaN/NaN 원인 =
+- changes =
+- commit =
+
+4. SWIMNOTE X 관리
+- route =
+- API =
+- server error 원인 =
+- changes =
+- commit =
+
+어떤 버튼도 추가 수정하지 말고
+현재 상태만 보고.
+
+==================================================
+8. TEACHER AI 학생리포트 버튼
+==================================================
+
+- teacher home 버튼 제거 여부 =
+- route 유지 여부 =
+- API 유지 여부 =
+- layout 정상 여부 =
+- commit =
+
+==================================================
+9. SERVER / RENDER 상태
+==================================================
+
+최근 작업 이후 Render production에
+배포된 모든 deploy 나열:
+
+각 deploy:
+- deploy ID
+- SHA
+- timestamp
+- status
+
+현재 production running SHA =
+
+health check =
+API smoke =
+
+==================================================
+10. IOS OTA 상태
+==================================================
+
+최근 작업 이후 실행된 OTA 전부 보고:
+
+각 OTA:
+- update ID
+- group ID
+- branch/channel
+- runtimeVersion
+- commit SHA
+- timestamp
+
+현재 iOS production이
+어떤 commit/update를 받고 있는지 보고.
+
+==================================================
+11. ANDROID BUILD 상태
+==================================================
+
+- build started =
+- build profile =
+- versionName =
+- versionCode =
+- build ID =
+- AAB generated =
+- Play Console upload =
+- current status =
+
+==================================================
+12. DB 변경 전체
+==================================================
+
+최근 작업 시작 이후 실행된:
+
+- migration
+- ALTER
+- INSERT
+- UPDATE
+- DELETE
+
+전부 보고.
+
+특히:
+- subscription
+- X entitlement
+- swimming_pools
+- x_subscription
+- video_assets_meta
+
+관련 DB 변경을 빠짐없이 보고.
+
+==================================================
+13. 최종 요약
+==================================================
+
+아래 형식으로 정리:
+
+CURRENT CODE STATE =
+CURRENT PRODUCTION SERVER SHA =
+CURRENT IOS OTA STATE =
+CURRENT ANDROID BUILD STATE =
+
+SAFE CHANGES COMPLETED =
+PARTIAL CHANGES =
+FAILED CHANGES =
+UNCOMMITTED CHANGES =
+PRODUCTION-IMPACTING CHANGES =
+
+PRICE CHANGE PRESENT =
+YES / NO
+
+DB CHANGE PRESENT =
+YES / NO
+
+REVENUECAT/STORE CHANGE PRESENT =
+YES / NO
+
+NEXT RELEASE BLOCKERS =
+
+FINAL:
+REPORT ONLY — NO FURTHER ACTION
+
+STOP.
+사용자 승인 전까지 어떤 수정/배포/빌드도 진행하지 말 것.

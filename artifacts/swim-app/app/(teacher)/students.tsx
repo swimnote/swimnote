@@ -3,24 +3,24 @@
  *
  * 탭: 전체 / 미배정 / 연기예정 / 퇴원예정 / 연기 / 퇴원
  *
- * 카드 클릭 → WaitingActionSheet (반 배정 / 연기 / 퇴원)
- * 연기/퇴원 → MemberStatusChangeModal (기존 API 재사용)
- * 반 배정 → student-detail 이동
+ * 카드 클릭 → student-detail 바로 진입 (중간 Action Sheet 제거)
+ * 상태변경 → student-detail 내부 Section B / H (MemberStatusChangeModal)
  */
-import { ChevronRight, CircleCheck, CirclePause, Search, UserCheck, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, FlatList, Modal, Pressable,
+  ActivityIndicator, Animated, FlatList, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { useMode } from "@/context/ModeContext";
+import { X as XT, isXMode } from "@/constants/xTheme";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { UnifiedMemberCard } from "@/components/common/MemberCard";
-import { MemberStatusChangeModal } from "@/components/common/MemberStatusChangeModal";
 import type { StudentMember } from "@/utils/studentUtils";
 
 const C = Colors.light;
@@ -78,18 +78,20 @@ function toStudentMember(m: TeacherMember): StudentMember {
 type TabKey = "all" | "unassigned" | "suspend_pending" | "withdraw_pending" | "suspended" | "withdrawn";
 
 const TAB_CONFIG: { key: TabKey; label: string; color: string }[] = [
-  { key: "all",              label: "전체",    color: "#0F172A" },
+  { key: "all",              label: "전체",    color: C.textPrimary },
   { key: "unassigned",       label: "미배정",  color: "#D96C6C" },
   { key: "suspend_pending",  label: "연기예정", color: "#B45309" },
-  { key: "withdraw_pending", label: "퇴원예정", color: "#64748B" },
+  { key: "withdraw_pending", label: "퇴원예정", color: C.textSecondary },
   { key: "suspended",        label: "연기",    color: "#7C3AED" },
-  { key: "withdrawn",        label: "퇴원",    color: "#374151" },
+  { key: "withdrawn",        label: "퇴원",    color: C.textPrimary },
 ];
 
 export default function WaitingListScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const { mode } = useMode();
+  const isX = isXMode(mode);
 
   const [tab,        setTab]        = useState<TabKey>("all");
   const [list,       setList]       = useState<TeacherMember[]>([]);
@@ -99,11 +101,6 @@ export default function WaitingListScreen() {
   const [tabCounts,  setTabCounts]  = useState<Record<TabKey, number>>({
     all: 0, unassigned: 0, suspend_pending: 0, withdraw_pending: 0, suspended: 0, withdrawn: 0,
   });
-
-  // 하단 시트 (카드 클릭)
-  const [sheetTarget,  setSheetTarget]  = useState<TeacherMember | null>(null);
-  // 상태 변경 모달 (연기 / 퇴원)
-  const [statusTarget, setStatusTarget] = useState<TeacherMember | null>(null);
 
   // Toast
   const [toastMsg,    setToastMsg]    = useState("");
@@ -181,7 +178,7 @@ export default function WaitingListScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={[]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isX ? XT.background : C.background }} edges={[]}>
       <SubScreenHeader title="회원관리" homePath="/(teacher)/today-schedule" />
 
       {/* 탭 */}
@@ -208,7 +205,7 @@ export default function WaitingListScreen() {
 
       {/* 검색 */}
       <View style={s.searchRow}>
-        <Search size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
+        <LucideIcon name="search" size={15} color={C.textMuted} style={{ marginLeft: 10 }} />
         <TextInput
           style={s.searchInput}
           value={search}
@@ -218,7 +215,7 @@ export default function WaitingListScreen() {
         />
         {search.length > 0 && (
           <Pressable onPress={() => setSearch("")} style={{ paddingRight: 10 }}>
-            <X size={15} color={C.textMuted} />
+            <LucideIcon name="x" size={15} color={C.textMuted} />
           </Pressable>
         )}
       </View>
@@ -240,7 +237,7 @@ export default function WaitingListScreen() {
           }
           ListEmptyComponent={
             <View style={s.emptyBox}>
-              <Users size={36} color={C.textMuted} />
+              <LucideIcon name="users" size={36} color={C.textMuted} />
               <Text style={s.emptyText}>{getEmptyText()}</Text>
               {!search.trim() && tab === "all" && (
                 <Text style={[s.emptyHint, { color: C.textMuted }]}>
@@ -252,56 +249,16 @@ export default function WaitingListScreen() {
           renderItem={({ item }) => (
             <UnifiedMemberCard
               student={toStudentMember(item)}
-              onPress={() => setSheetTarget(item)}
+              onPress={() => router.push({ pathname: "/(teacher)/student-detail", params: { id: item.id, backTo: "students" } } as any)}
             />
           )}
-        />
-      )}
-
-      {/* 카드 클릭 → 하단 시트 */}
-      {sheetTarget && (
-        <WaitingActionSheet
-          member={sheetTarget}
-          onClose={() => setSheetTarget(null)}
-          onAssign={() => {
-            setSheetTarget(null);
-            router.push({ pathname: "/(teacher)/student-detail", params: { id: sheetTarget.id, backTo: "students" } } as any);
-          }}
-          onStatusChange={() => {
-            setStatusTarget(sheetTarget);
-            setSheetTarget(null);
-          }}
-        />
-      )}
-
-      {/* 연기 / 퇴원 → MemberStatusChangeModal */}
-      {statusTarget && (
-        <MemberStatusChangeModal
-          visible
-          studentId={statusTarget.id}
-          studentName={statusTarget.name}
-          currentStatus={statusTarget.status}
-          pendingStatusChange={statusTarget.pending_status_change}
-          pendingEffectiveMode={statusTarget.pending_effective_mode}
-          onClose={() => setStatusTarget(null)}
-          onChanged={({ status, mode }) => {
-            setStatusTarget(null);
-            load(tab);
-            if (mode === "immediate") {
-              const label = status === "withdrawn" ? "퇴원" : status === "suspended" ? "연기" :
-                            status === "active" ? "정상" : "미배정";
-              showToast(`${label} 처리되었습니다`);
-            } else {
-              showToast("다음 달부터 적용됩니다");
-            }
-          }}
         />
       )}
 
       {/* Toast */}
       {toastMsg.length > 0 && (
         <Animated.View style={[s.toast, { opacity: toastOpacity, bottom: insets.bottom + 28 }]}>
-          <CircleCheck size={14} color="#fff" />
+          <LucideIcon name="check-circle" size={14} color="#fff" />
           <Text style={s.toastText}>{toastMsg}</Text>
         </Animated.View>
       )}
@@ -309,71 +266,11 @@ export default function WaitingListScreen() {
   );
 }
 
-// ── 카드 클릭 하단 시트 ───────────────────────────────────────────
-function WaitingActionSheet({
-  member, onClose, onAssign, onStatusChange,
-}: {
-  member: TeacherMember;
-  onClose: () => void;
-  onAssign: () => void;
-  onStatusChange: () => void;
-}) {
-  const hasPending = !!member.pending_status_change;
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={sh.overlay} onPress={onClose} />
-      <View style={sh.sheet}>
-        {/* 헤더 */}
-        <View style={sh.handleBar} />
-        <Text style={sh.name}>{member.name}</Text>
-        {hasPending && (
-          <View style={sh.pendingBadge}>
-            <Text style={sh.pendingBadgeText}>
-              {member.pending_status_change === "suspended" ? "⏸ 연기예정" : "🚪 퇴원예정"}
-            </Text>
-          </View>
-        )}
-
-        <View style={sh.options}>
-          {/* 회원 정보보기 */}
-          <Pressable style={[sh.option, { borderColor: "#2EC4B620" }]} onPress={onAssign}>
-            <View style={[sh.optIcon, { backgroundColor: "#E6F9F7" }]}>
-              <UserCheck size={20} color="#2EC4B6" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#2EC4B6" }]}>회원 정보보기</Text>
-              <Text style={sh.optSub}>학생 상세 페이지로 이동합니다</Text>
-            </View>
-            <ChevronRight size={16} color="#64748B" />
-          </Pressable>
-
-          {/* 회원상태변경 */}
-          <Pressable style={[sh.option, { borderColor: "#B4530920" }]} onPress={onStatusChange}>
-            <View style={[sh.optIcon, { backgroundColor: "#FFF1BF" }]}>
-              <CirclePause size={20} color="#B45309" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[sh.optLabel, { color: "#B45309" }]}>회원상태변경</Text>
-              <Text style={sh.optSub}>연기 · 퇴원 · 정상 복귀 등 상태 선택</Text>
-            </View>
-            <ChevronRight size={16} color="#64748B" />
-          </Pressable>
-        </View>
-
-        <Pressable onPress={onClose} style={sh.cancelBtn}>
-          <Text style={sh.cancelText}>취소</Text>
-        </Pressable>
-      </View>
-    </Modal>
-  );
-}
-
 const s = StyleSheet.create({
   tabRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   tabBtn:      { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
-  tabTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
-  tabCount:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  tabTxt:      { fontSize: 12, lineHeight: 17, color: C.textSecondary },
+  tabCount:    { fontSize: 12, lineHeight: 17, color: C.textMuted },
   searchRow:   { flexDirection: "row", alignItems: "center", backgroundColor: C.background, borderBottomWidth: 1, borderBottomColor: C.border },
   searchInput: { flex: 1, height: 42, paddingHorizontal: 8, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   emptyBox:    { alignItems: "center", gap: 10, paddingVertical: 60 },
@@ -388,29 +285,3 @@ const s = StyleSheet.create({
   toastText: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff", flex: 1 },
 });
 
-const sh = StyleSheet.create({
-  overlay:   { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  sheet:     {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20, paddingBottom: 36,
-  },
-  handleBar: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 16 },
-  name:      { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text, textAlign: "center", marginBottom: 6 },
-  pendingBadge: {
-    alignSelf: "center", paddingHorizontal: 10, paddingVertical: 3,
-    borderRadius: 10, backgroundColor: "#FFF1BF", marginBottom: 14,
-  },
-  pendingBadgeText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#B45309" },
-  options:   { gap: 8, marginBottom: 6, marginTop: 8 },
-  option:    {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 14, padding: 14, borderWidth: 1.5,
-    backgroundColor: C.background,
-  },
-  optIcon:   { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  optLabel:  { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  optSub:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
-  cancelBtn: { alignItems: "center", marginTop: 14 },
-  cancelText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
-});

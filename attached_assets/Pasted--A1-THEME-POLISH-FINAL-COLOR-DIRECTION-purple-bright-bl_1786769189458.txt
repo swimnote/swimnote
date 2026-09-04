@@ -1,0 +1,141 @@
+[A1 THEME POLISH — FINAL COLOR DIRECTION]
+
+기존 purple / bright blue X color proposal은 폐기한다.
+
+SWIMNOTE의 실제 기본 visual identity는
+Mint 중심이 아니라 Navy 중심이다.
+
+Mint는 accent/status 역할로만 사용한다.
+
+이번 A1 최종 방향:
+
+==================================================
+NORMAL SWIMNOTE
+==================================================
+
+baseNavy:
+#0F172A
+
+surfaceNavy:
+#162033
+
+primaryAccent:
+#2EC4B6
+
+규칙:
+
+NORMAL SWIMNOTE
+→ Navy 중심
+→ Mint는 포인트/활성/강조에만 사용
+
+기존 일반 SWIMNOTE의 Navy 중심 화면은 유지한다.
+
+==================================================
+SWIMNOTE X
+==================================================
+
+X는 일반 SWIMNOTE보다
+더 고급스럽고 묵직하고 전문적인 느낌으로 구성한다.
+
+사용:
+
+xBase:
+#111827
+
+xSurface:
+#1B2433
+
+xAccent:
+#355C7D
+
+xAccentStrong:
+#23415C
+
+xAccentLight:
+#E9EEF3
+
+시각 방향:
+
+- Blue Black
+- Charcoal Navy
+- Steel Blue
+- Premium
+- Technical
+- Professional
+
+밝은 blue/cyan 사용 금지.
+purple 사용 금지.
+과도한 mint 사용 금지.
+
+==================================================
+X PENDING / REVIEW
+==================================================
+
+xPending:
+#B7791F
+
+xPendingLight:
+#F8EED8
+
+기존 밝은 orange보다
+조금 더 묵직한 gold/amber 계열로 사용.
+
+==================================================
+STATUS COLORS
+==================================================
+
+success:
+기존 green 유지
+
+error:
+기존 red 유지
+
+warning:
+상태 의미에 맞는 기존 warning 유지
+
+브랜드 accent와 status color를 혼동하지 않는다.
+
+==================================================
+FINAL VISUAL RULE
+==================================================
+
+NORMAL SWIMNOTE
+→ Navy + Mint Accent
+
+SWIMNOTE X
+→ Blue Black / Charcoal Navy + Steel Blue Accent
+
+X Pending
+→ Muted Gold / Amber
+
+Super Admin
+→ 기존 admin identity 유지
+
+==================================================
+IMPLEMENTATION SCOPE
+==================================================
+
+다음 X 전용 요소에 적용:
+
+XModeBadge
+XModeGuard
+X Growth
+X-setup
+Owner X section
+Teacher X section
+Parent X section
+
+중요:
+
+화면 전체를 어둡게 덮지 않는다.
+
+기존 white/card layout은 유지하면서
+X 전용 badge / header / section / action / border / icon 등에
+Steel Blue 계열을 적용한다.
+
+X를 일반 앱과 완전히 다른 앱처럼 만들지 말고,
+SWIMNOTE 안의 Premium Layer처럼 보여야 한다.
+
+기존 business logic / navigation / layout 변경 금지.
+
+A1 PASS 전 A2 시작 금지.

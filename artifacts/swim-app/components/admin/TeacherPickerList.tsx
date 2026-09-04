@@ -3,8 +3,8 @@
  * 수업탭(주간), 선생님관리(일간/월간) 세 흐름에서 재사용
  * 항상 표시 (선생님 1명이어도 자동 진입 금지)
  */
-import { ChevronLeft, ChevronRight, CircleAlert, Clock, Pencil, UserX } from "lucide-react-native";
 import React from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
 
@@ -38,27 +38,27 @@ export default function TeacherPickerList({
     <View style={{ flex: 1, backgroundColor: C.background }}>
       {/* 뒤로가기 */}
       <Pressable onPress={onBack} style={[t.backRow, { borderBottomColor: C.border }]}>
-        <ChevronLeft size={20} color={C.tint} />
-        <Text style={[t.backText, { color: C.tint }]}>
+        <LucideIcon name="chevron-left" size={20} color={C.brandStrong} />
+        <Text style={[t.backText, { color: C.brandStrong }]}>
           {day ? `${day}요일` : date ? dateLabel(date) : "시간표"}으로
         </Text>
       </Pressable>
 
       {/* 컨텍스트 헤더 */}
-      <View style={[t.contextBar, { backgroundColor: C.tintLight }]}>
-        {date && <Text style={[t.contextText, { color: C.tint }]}>{dateLabel(date)}</Text>}
-        {day && !date && <Text style={[t.contextText, { color: C.tint }]}>{day}요일</Text>}
-        <View style={[t.timePill, { backgroundColor: C.tint }]}>
-          <Clock size={12} color="#fff" />
+      <View style={[t.contextBar, { backgroundColor: C.brandSoft }]}>
+        {date && <Text style={[t.contextText, { color: C.brandStrong }]}>{dateLabel(date)}</Text>}
+        {day && !date && <Text style={[t.contextText, { color: C.brandStrong }]}>{day}요일</Text>}
+        <View style={[t.timePill, { backgroundColor: C.brandStrong }]}>
+          <LucideIcon name="clock" size={12} color="#fff" />
           <Text style={t.timePillText}>{time}</Text>
         </View>
-        <Text style={[t.contextText, { color: C.tint }]}>선생님 선택</Text>
+        <Text style={[t.contextText, { color: C.brandStrong }]}>선생님 선택</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: bottomInset, gap: 1 }} showsVerticalScrollIndicator={false}>
         {sorted.length === 0 ? (
           <View style={t.emptyBox}>
-            <UserX size={40} color={C.textMuted} />
+            <LucideIcon name="user-x" size={40} color={C.textMuted} />
             <Text style={[t.emptyText, { color: C.textMuted }]}>해당 시간에 배정된 선생님이 없습니다</Text>
           </View>
         ) : sorted.map((teacher, idx) => (
@@ -76,7 +76,7 @@ export default function TeacherPickerList({
             <View style={{ flex: 1 }}>
               <Text style={[t.name, { color: C.text }]}>{teacher.name}</Text>
               {teacher.position ? (
-                <Text style={[t.position, { color: C.tint }]}>{teacher.position}</Text>
+                <Text style={[t.position, { color: C.brandStrong }]}>{teacher.position}</Text>
               ) : null}
               <Text style={[t.sub, { color: C.textMuted }]}>{teacher.classCount}개 반 운영 중</Text>
             </View>
@@ -85,17 +85,17 @@ export default function TeacherPickerList({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               {teacher.uncheckedAtt > 0 && (
                 <View style={[t.badge, { backgroundColor: "#FFF1BF" }]}>
-                  <CircleAlert size={10} color="#D97706" />
+                  <LucideIcon name="alert-circle" size={10} color="#D97706" />
                   <Text style={[t.badgeText, { color: "#D97706" }]}>출결 {teacher.uncheckedAtt}</Text>
                 </View>
               )}
               {teacher.unwrittenDiary > 0 && (
                 <View style={[t.badge, { backgroundColor: "#F9DEDA" }]}>
-                  <Pencil size={10} color="#D96C6C" />
+                  <LucideIcon name="edit" size={10} color="#D96C6C" />
                   <Text style={[t.badgeText, { color: "#D96C6C" }]}>일지 {teacher.unwrittenDiary}</Text>
                 </View>
               )}
-              <ChevronRight size={18} color={C.textMuted} />
+              <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
             </View>
           </Pressable>
         ))}

@@ -2,7 +2,7 @@
  * 선생님 계정 활성화 화면
  * 로그인 시 needs_activation=true이면 이 화면으로 이동
  */
-import { CircleAlert, CircleCheck, Shield, Unlock } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -78,8 +78,8 @@ export default function TeacherActivateScreen() {
   if (success) {
     return (
       <View style={[styles.root, { backgroundColor: C.background, alignItems: "center", justifyContent: "center" }]}>
-        <View style={[styles.successIcon, { backgroundColor: "#E6FFFA" }]}>
-          <CircleCheck size={48} color="#2EC4B6" />
+        <View style={[styles.successIcon, { backgroundColor: C.brandSoft }]}>
+          <LucideIcon name="check-circle" size={48} color={C.brandStrong} />
         </View>
         <Text style={[styles.successTitle, { color: C.text }]}>계정 활성화 완료!</Text>
         <Text style={[styles.successSub, { color: C.textSecondary }]}>잠시 후 이동합니다...</Text>
@@ -90,8 +90,8 @@ export default function TeacherActivateScreen() {
   return (
     <KeyboardAvoidingView style={[styles.root, { backgroundColor: C.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 48) }]}>
-        <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-          <Shield size={32} color={C.tint} />
+        <View style={[styles.iconBox, { backgroundColor: C.brandSoft }]}>
+          <LucideIcon name="shield" size={32} color={C.brandStrong} />
         </View>
         <Text style={[styles.title, { color: C.text }]}>계정 활성화</Text>
         <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -100,7 +100,7 @@ export default function TeacherActivateScreen() {
 
         {error ? (
           <View style={[styles.errBox, { backgroundColor: "#F9DEDA" }]}>
-            <CircleAlert size={14} color={C.error} />
+            <LucideIcon name="alert-circle" size={14} color={C.error} />
             <Text style={[styles.errText, { color: C.error }]}>{error}</Text>
           </View>
         ) : null}
@@ -113,8 +113,8 @@ export default function TeacherActivateScreen() {
               style={[
                 styles.otpInput,
                 {
-                  borderColor: val ? C.tint : C.border,
-                  backgroundColor: val ? C.tintLight : C.card,
+                  borderColor: val ? C.brandStrong : C.border,
+                  backgroundColor: val ? C.brandSoft : C.card,
                   color: C.text,
                 }
               ]}
@@ -130,12 +130,12 @@ export default function TeacherActivateScreen() {
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed || loading ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.btn, { backgroundColor: C.primaryAction, opacity: pressed || loading ? 0.85 : 1 }]}
           onPress={handleActivate} disabled={loading}
         >
           {loading ? <ActivityIndicator color="#fff" size="small" /> : (
             <>
-              <Unlock size={18} color="#fff" />
+              <LucideIcon name="unlock" size={18} color="#fff" />
               <Text style={styles.btnText}>계정 활성화</Text>
             </>
           )}

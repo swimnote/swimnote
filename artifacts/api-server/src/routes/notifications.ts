@@ -55,6 +55,25 @@ router.post("/notifications/read-all", requireAuth, async (req: AuthRequest, res
   } catch (err) { res.status(500).json({ error: "서버 오류" }); }
 });
 
+// ── 선생님 소식 (diary_like / diary_thanks / diary_comment / growth_report_like) ─────────────
+router.get("/teacher/news", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.user!;
+    const rows = await db.execute(sql`
+      SELECT n.id, n.type, n.title, n.body, n.ref_id, n.is_read, n.created_at,
+        cd.lesson_date, cg.name AS class_name
+      FROM notifications n
+      LEFT JOIN class_diaries cd ON cd.id = n.ref_id AND n.ref_type = 'diary'
+      LEFT JOIN class_groups cg ON cg.id = cd.class_group_id
+      WHERE n.recipient_id = ${userId} AND n.recipient_type = 'user'
+        AND n.type IN ('diary_like', 'diary_thanks', 'diary_comment', 'growth_report_like', 'growth_report_comment')
+      ORDER BY n.created_at DESC LIMIT 100
+    `);
+    const unread = (rows.rows as any[]).filter((n: any) => !n.is_read).length;
+    res.json({ news: rows.rows, unread_count: unread });
+  } catch (err) { res.status(500).json({ error: "서버 오류" }); }
+});
+
 // ── 알림 삭제 ─────────────────────────────────────────────────────────
 router.delete("/notifications/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

@@ -1,0 +1,146 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP4A2
+FINAL AUTHORIZATION GATE
+NO FUNCTIONAL CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP4A 구현 상태:
+
+branch:
+deploy-photo-clone
+
+HEAD/origin:
+22886affb937f9eb34cf5cbf0aa7ae45ce934ec6
+
+Render:
+dep-d9u40s942hec739grkq0
+Live SHA = 22886affb937...
+
+WP4A 기능/DB/runtime 검증 완료.
+
+남은 검증:
+
+정상 인증된 non-super_admin 사용자가
+Global Template Set API에 접근할 때
+실제로 HTTP 403이 발생하는지 확인.
+
+코드 수정 금지.
+DB schema 변경 금지.
+Production test data 생성 금지.
+배포 금지.
+WP4B 시작 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. ROUTE GUARD 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+WP4A 모든 endpoint가 실제로:
+
+requireAuth
+requireRole("super_admin")
+
+두 middleware를 통과하는지 확인.
+
+대상:
+
+POST   /api/super/global-template-sets
+GET    /api/super/global-template-sets
+GET    /api/super/global-template-sets/:id
+PATCH  /api/super/global-template-sets/:id/activate
+PATCH  /api/super/global-template-sets/:id/archive
+
+GET    /api/super/global-template-sets/:id/templates
+POST   /api/super/global-template-sets/:id/templates
+PATCH  /api/super/global-template-sets/:id/templates/:templateId
+DELETE /api/super/global-template-sets/:id/templates/:templateId
+
+하나라도 guard 누락이면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+2. SAFE NON-SUPER CREDENTIAL
+━━━━━━━━━━━━━━━━━━━━
+
+이미 존재하는 정상 credential 중:
+
+pool_admin
+teacher
+parent
+
+하나라도 안전하게 사용할 수 있는지 확인.
+
+새 계정 생성 금지.
+비밀번호 변경 금지.
+JWT 임의 생성 금지.
+
+없으면:
+
+NO_SAFE_NON_SUPER_CREDENTIAL
+
+로 기록하고 code/test authorization 증거 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+3. ACTUAL RUNTIME — 가능할 경우
+━━━━━━━━━━━━━━━━━━━━
+
+정상 non-super 계정으로:
+
+POST /api/auth/login
+→ HTTP 200
+
+그 token으로 READ ONLY endpoint:
+
+GET /api/super/global-template-sets
+
+호출.
+
+기대:
+
+HTTP 403
+
+절대 200이면 안 됨.
+
+쓰기 API 테스트는 필요 없음.
+
+━━━━━━━━━━━━━━━━━━━━
+4. SUPER_ADMIN REGRESSION
+━━━━━━━━━━━━━━━━━━━━
+
+기존 super_admin login:
+
+→ HTTP 200
+
+GET /api/super/global-template-sets
+
+→ HTTP 200
+
+기존 archived test set 조회 가능 확인.
+
+DB write 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. FINAL
+━━━━━━━━━━━━━━━━━━━━
+
+다음이 확인되면:
+
+super_admin → 200
+authenticated non-super_admin → 403
+
+FINAL:
+
+WP4A_GLOBAL_TEMPLATE_MANAGEMENT_VERIFIED ✅
+
+안전한 non-super credential이 없다면:
+
+WP4A_FUNCTIONAL_VERIFIED ✅
+NON_SUPER_RUNTIME_AUTH_NOT_TESTED
+
+로 정확히 보고.
+
+코드 변경 금지.
+commit 금지.
+deploy 금지.
+WP4B 자동 시작 금지.
+
+STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

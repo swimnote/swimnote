@@ -1,0 +1,543 @@
+SWIMNOTE X — WP5-D·WP5-E POOL_B X 활성화 및 Mode API 검증 실행 지시
+
+WP5-B 읽기 전용 기준선 캡처를 승인합니다.
+
+확정 기준선:
+
+운영 DB:
+SUPABASE_DATABASE_URL / Supabase PostgreSQL
+POOL_B:
+pool_1784310621737_qryl1x79s
+샘플수영장
+현재 상태:
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+학생 = 0
+일지 = 0
+출결 = 0
+결제 = 0
+growth_events = 0
+x_global 템플릿 = 0
+POOL_B X Audit = 0
+
+이번 승인 범위는 다음 두 단계뿐입니다.
+
+WP5-D
+POOL_B를 X READY 상태로 변경
+WP5-E
+POOL_B 관리자 계정으로 Mode API 검증
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 이번 승인 범위
+    ━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* 기존 POOL_B 상태 재확인
+* 기존 POOL_B pool_admin 인증
+* 슈퍼어드민 인증
+* PATCH /super/operators/:id/xmode 1회
+* GET /pools/x-mode 조회
+* 변경 후 운영 DB 읽기 전용 검증
+* Audit 검증
+
+금지:
+
+* 코드 수정
+* Migration
+* 서버 재시작
+* Render 배포
+* Commit
+* Push
+* OTA
+* 신규 수영장 생성
+* teacher 생성
+* parent_account 생성
+* 학생 생성
+* 반 생성·수정
+* 기존 계정 이동
+* POOL_A 변경
+* 토이키즈 접근·변경
+* 다른 수영장 X 상태 변경
+* 날짜 필드 수정
+* WP5-F 이후 작업
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 실행 전 Git·서버 상태 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+읽기 전용으로 다음을 제출하십시오.
+
+git branch --show-current
+git rev-parse HEAD
+git status --short
+
+또한 현재 운영 API Health를 확인하십시오.
+
+GET https://swimnote-api.onrender.com/api/health
+
+기대:
+
+HTTP 200
+
+Health가 200이 아니면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 실행 직전 DB 상태 재확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 운영 DB에서 실행하십시오.
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at
+FROM swimming_pools
+WHERE id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+날짜 필드 = 전부 null
+
+전체 수영장 보호 확인:
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status
+FROM swimming_pools
+ORDER BY id;
+
+기대:
+
+전체 7개 수영장 모두
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+
+POOL_B 또는 다른 수영장의 상태가 기준선과 다르면 PATCH하지 말고 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 변경 전 Audit 기준선
+━━━━━━━━━━━━━━━━━━━━━━
+
+SELECT
+  COUNT(*) AS cnt,
+  COALESCE(MAX(entity_version), 0) AS max_version
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode'
+  AND entity_id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+cnt = 0
+max_version = 0
+
+다르면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 슈퍼어드민 인증
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존 슈퍼어드민 인증 방식만 사용하십시오.
+
+금지:
+
+* 신규 슈퍼어드민 생성
+* 비밀번호 변경
+* DB에서 토큰 직접 조작
+* 인증 우회
+* 토큰 원문 보고서 출력
+
+보고서에는 다음만 기록하십시오.
+
+super_admin 인증 성공 여부
+JWT role 확인 여부
+
+토큰 값은 마스킹하거나 출력하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. WP5-D POOL_B X 활성화
+━━━━━━━━━━━━━━━━━━━━━━
+
+API:
+
+PATCH /api/super/operators/pool_1784310621737_qryl1x79s/xmode
+
+인증:
+
+requireAuth
+requireRole("super_admin")
+
+Body는 정확히 다음만 사용하십시오.
+
+{
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY",
+  "reason": "WP5 sample activation"
+}
+
+금지:
+
+xmode_purchased_at 전송 금지
+xmode_subscription_end_at 전송 금지
+xmode_payment_failed_at 전송 금지
+entitlement 필드명 사용 금지
+config_status 필드명 사용 금지
+DB 직접 UPDATE 금지
+
+기대 응답:
+
+{
+  "ok": true,
+  "pool_id": "pool_1784310621737_qryl1x79s",
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+
+HTTP 200이 아니거나 응답 필드가 다르면 이후 작업을 중단하십시오.
+
+임의 재시도하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 변경 직후 DB 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status,
+  xmode_purchased_at,
+  xmode_subscription_end_at,
+  xmode_payment_failed_at
+FROM swimming_pools
+WHERE id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+xmode_entitlement = true
+xmode_config_status = READY
+xmode_purchased_at = null
+xmode_subscription_end_at = null
+xmode_payment_failed_at = null
+
+날짜 필드가 변경되었으면 설계 불일치이므로 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 다른 수영장 무변경 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+SELECT
+  id,
+  name,
+  xmode_entitlement,
+  xmode_config_status
+FROM swimming_pools
+WHERE id <> 'pool_1784310621737_qryl1x79s'
+ORDER BY id;
+
+기대:
+
+나머지 6개 수영장 전부
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+
+특히 다음 수영장은 반드시 불변이어야 합니다.
+
+pool_1780849364252_l9k44rbk3
+토이키즈스윔클럽
+
+다른 수영장 하나라도 변경됐으면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Audit 생성 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 SQL을 사용하십시오.
+
+SELECT
+  id,
+  entity_type,
+  entity_id,
+  entity_version,
+  action,
+  actor_type,
+  pool_id,
+  reason,
+  before_data,
+  after_data,
+  created_at
+FROM audit_logs
+WHERE entity_type = 'swimming_pool_xmode'
+  AND entity_id = 'pool_1784310621737_qryl1x79s'
+ORDER BY created_at DESC;
+
+기대:
+
+행 수 = 1
+entity_version = 1
+action = update
+actor_type = super_admin
+pool_id = pool_1784310621737_qryl1x79s
+reason = WP5 sample activation
+before_data:
+xmode_entitlement = false
+xmode_config_status = NOT_CONFIGURED
+after_data:
+xmode_entitlement = true
+xmode_config_status = READY
+
+actor_id와 토큰은 보고서에 원문 출력하지 마십시오.
+
+Audit가 없거나 2건 이상이면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. WP5-E POOL_B 관리자 로그인
+━━━━━━━━━━━━━━━━━━━━━━
+
+POOL_B의 기존 pool_admin만 사용하십시오.
+
+대상 내부 ID:
+
+user_1784310621737_ctasviw7j
+
+기존 공식 로그인 API를 사용하십시오.
+
+POST /api/auth/login
+
+금지:
+
+* 비밀번호 변경
+* 계정 수정
+* 신규 계정 생성
+* 로그인 정보를 보고서에 노출
+* DB에서 JWT 직접 생성
+* 다른 수영장 계정 사용
+
+보고서에는 다음만 기록하십시오.
+
+로그인 HTTP 상태
+JWT role
+JWT가 가리키는 swimming_pool_id
+
+토큰과 로그인 식별자는 원문 출력하지 마십시오.
+
+기대:
+
+role = pool_admin
+pool = pool_1784310621737_qryl1x79s
+
+다르면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. GET /pools/x-mode 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+POOL_B pool_admin 토큰으로 실행하십시오.
+
+GET /api/pools/x-mode
+Authorization: Bearer <POOL_B_ADMIN_TOKEN>
+Cache-Control: no-cache
+
+기대:
+
+{
+  "pool_id": "pool_1784310621737_qryl1x79s",
+  "mode": "x",
+  "xmode_entitlement": true,
+  "xmode_config_status": "READY"
+}
+
+검증:
+
+* HTTP 200
+* pool_id 일치
+* mode = x
+* entitlement = true
+* config status = READY
+* capabilities 필드 없음
+* 다른 pool 데이터 없음
+
+응답이 다르면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 인증·오류 회귀검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 읽기 요청만 추가 실행하십시오.
+
+인증 없음
+
+GET /api/pools/x-mode
+
+기대:
+
+HTTP 401
+
+super_admin pool_id 누락
+
+GET /api/pools/x-mode
+Authorization: Bearer <SUPER_ADMIN_TOKEN>
+
+기대:
+
+HTTP 400
+pool_id 파라미터가 필요합니다.
+
+super_admin POOL_B 조회
+
+GET /api/pools/x-mode?pool_id=pool_1784310621737_qryl1x79s
+Authorization: Bearer <SUPER_ADMIN_TOKEN>
+
+기대:
+
+HTTP 200
+mode = x
+
+이 테스트는 DB를 변경하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. X 기능 데이터 무변경 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+SELECT COUNT(*) AS cnt FROM growth_events;
+SELECT COUNT(*) AS cnt FROM global_template_sets;
+SELECT COUNT(*) AS cnt FROM curriculum_versions;
+SELECT COUNT(*) AS cnt FROM curriculum_items;
+SELECT COUNT(*) AS cnt FROM student_curriculum_assignments;
+SELECT COUNT(*) AS cnt FROM curriculum_requests;
+SELECT COUNT(*) AS cnt FROM curriculum_request_files;
+SELECT COUNT(*) AS cnt FROM parent_ai_daily_usage;
+SELECT COUNT(*) AS cnt FROM parent_ai_usage_reservations;
+SELECT COUNT(*) AS cnt FROM growth_reports;
+SELECT COUNT(*) AS cnt FROM diary_templates WHERE scope = 'x_global';
+
+기대:
+
+전부 0
+
+WP5-D 상태 변경만으로 이 테이블에 행이 생기면 즉시 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 일반 템플릿·기본 반 무변경 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+POOL_B 기본 반:
+
+SELECT COUNT(*) AS cnt
+FROM class_groups
+WHERE swimming_pool_id = 'pool_1784310621737_qryl1x79s';
+
+기대:
+
+3
+
+POOL_B 일반 템플릿:
+
+SELECT scope, COUNT(*) AS cnt
+FROM diary_templates
+WHERE swimming_pool_id = 'pool_1784310621737_qryl1x79s'
+GROUP BY scope
+ORDER BY scope;
+
+기대:
+
+global = 350
+teacher = 0 또는 기존 기준선
+x_global = 해당 pool 기반으로 존재하면 안 됨
+
+상태 변경 때문에 반이나 일반 템플릿 수가 달라지면 중단하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 실패 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 중 하나라도 발생하면 즉시 멈추십시오.
+
+Health Check 실패
+운영 DB 연결 실패
+POOL_B 기준선 불일치
+다른 수영장 X 상태 변경
+토이키즈 상태 변경
+PATCH HTTP 200 아님
+PATCH 응답 Contract 불일치
+Audit 미생성
+Audit 2건 이상 생성
+날짜 필드 예상 외 변경
+POOL_B 관리자 로그인 실패
+POOL_B 토큰 pool 불일치
+GET /pools/x-mode 응답 불일치
+X 기능 데이터 생성
+growth_events 생성
+x_global 템플릿 생성
+class_groups 또는 일반 템플릿 건수 변경
+앱·서버 코드 변경 발생
+
+실패 후 임의 수정·재시도·Rollback을 하지 말고 증거를 제출하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 이번 단계에서는 원복하지 않음
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5-D가 정상 통과하면 POOL_B를 다음 상태로 유지하십시오.
+
+xmode_entitlement = true
+xmode_config_status = READY
+
+이유:
+
+WP5-F 관리자 앱 UI 검증에 그대로 사용
+
+원복은 WP5-J에서 사용자 승인을 받아 실행합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 제출 보고서 목차
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 실행 전 Git 상태
+2. API Health
+3. 실행 전 POOL_B DB 상태
+4. 실행 전 전체 수영장 X 상태
+5. 실행 전 Audit 기준선
+6. 슈퍼어드민 인증 결과
+7. PATCH 요청 Body
+8. PATCH HTTP 상태와 응답
+9. 실행 후 POOL_B DB 상태
+10. 다른 수영장 무변경 확인
+11. Audit 생성 결과
+12. POOL_B 관리자 로그인 결과
+13. GET /pools/x-mode 결과
+14. 인증·오류 회귀검증 결과
+15. X 기능 테이블 사후 건수
+16. 반·일반 템플릿 사후 건수
+17. 코드·Commit·Push·OTA 여부
+18. 실패 중단 조건 발생 여부
+19. WP5-D 완료 가능 여부
+20. WP5-E 완료 가능 여부
+21. 다음 단계 진입 가능 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 제출 후 중단
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP5-D·WP5-E 결과만 제출하고 멈추십시오.
+
+아직 금지:
+
+teacher 생성
+parent_account 생성
+POOL_A 변경
+teacher 활성화
+앱 OTA
+실기기 검증
+WP5-F 이후 작업
+WP6 작업

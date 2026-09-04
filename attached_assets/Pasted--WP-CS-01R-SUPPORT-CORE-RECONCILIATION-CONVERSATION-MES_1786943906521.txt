@@ -1,0 +1,802 @@
+[WP-CS-01R — SUPPORT CORE RECONCILIATION / CONVERSATION · MESSAGE · EVENT · STATE]
+
+목적:
+
+현재 이미 존재하는
+
+support_cases
+support_tickets
+support_ticket_replies
+
+를 재사용하여
+
+SWIMNOTE AI CUSTOMER SUPPORT MASTER V2.0의
+
+Conversation
+Message
+Ticket
+Support Event
+Support State
+
+Core를 완성한다.
+
+새 Support 시스템을 병렬로 만들지 않는다.
+
+이번 WP는 AI 답변 엔진을 만드는 단계가 아니다.
+
+==================================================
+0. MASTER BASELINE — LOCK
+==================================================
+
+감사 결과:
+
+support_cases
+→ Conversation 역할로 재사용
+
+support_tickets
+→ Ticket 역할로 재사용
+
+support_ticket_replies
+→ Message 역할로 확장
+
+support_knowledge_items
+→ 이번 WP에서 기능 확장하지 않음
+
+super_incidents
+→ 이번 WP에서 변경하지 않음
+
+Partner Analytics
+→ 이번 WP에서 UI 확장하지 않음
+
+==================================================
+1. FIRST — VERIFY ACTUAL SCHEMA
+==================================================
+
+코드 수정 전 실제 schema와 runtime 사용처 확인.
+
+반드시 확인:
+
+support_cases columns
+support_tickets columns
+support_ticket_replies columns
+
+PK/FK
+pool_id type
+user_id type
+status values
+timestamps
+current APIs
+current SuperSupport queries
+mobile support ticket flow
+
+보고 후 같은 WP 안에서 구현 진행.
+
+추측 금지.
+
+==================================================
+2. CORE RESPONSIBILITY
+==================================================
+
+최종 역할:
+
+support_cases
+=
+AI/Human support Conversation orchestration
+
+support_tickets
+=
+Human escalation / operational Ticket
+
+support_ticket_replies
+=
+Conversation Message stream
+
+중요:
+
+Conversation이 항상 Ticket을 가져야 하는 것은 아니다.
+
+AI가 자체 해결하면
+support_case만 존재 가능.
+
+사람 상담 요청이 발생하면
+support_ticket과 연결.
+
+==================================================
+3. CASE ↔ TICKET LINK
+==================================================
+
+support_cases에
+ticket 연결이 현재 없거나 불완전하면
+
+최소:
+
+ticket_id
+
+또는 repository convention에 맞는 reference 추가.
+
+AI-only case:
+ticket_id = null
+
+Human escalation:
+ticket_id = actual support_ticket id
+
+cross-pool ticket 연결 금지.
+
+==================================================
+4. MESSAGE MODEL
+==================================================
+
+support_ticket_replies를 Message source로 확장한다.
+
+필요 author_role 최소:
+
+user
+ai
+agent
+system
+
+현재 enum/string 구조가 다르면
+repository 호환 방식으로 normalize.
+
+필요 필드 검토:
+
+message_type
+content
+image_urls
+created_at
+
+AI message와 human message가
+시간순으로 하나의 conversation에서 보이게 한다.
+
+==================================================
+5. NO RAW ANALYTICS DUPLICATION
+==================================================
+
+Conversation 본문은 support operational data.
+
+Partner Analytics/event_logs에
+본문을 복사하지 않는다.
+
+Analytics에는 metadata/event만 기록.
+
+==================================================
+6. MASTER STATE CONTRACT
+==================================================
+
+MASTER 표준 상태:
+
+AI_ACTIVE
+AGENT_REQUESTED
+WAITING
+AGENT_ACTIVE
+PHONE_REQUIRED
+RESOLVED
+REOPENED
+
+현재 DB enum/상태를 무리하게 전부 교체하지 않는다.
+
+기존 states:
+
+NEW
+AI_PROCESSING
+AI_RESPONDED
+AI_RESOLVED
+HUMAN_REQUIRED
+HUMAN_RESPONDED
+ESCALATED
+RESOLVED
+CLOSED
+
+와 호환해야 한다.
+
+==================================================
+7. STATE NORMALIZATION
+==================================================
+
+내부 DB 상태와
+MASTER presentation state를 분리할 수 있다.
+
+최소 mapping:
+
+NEW
+→ AI_ACTIVE 또는 pre-active
+
+AI_PROCESSING
+→ AI_ACTIVE
+
+AI_RESPONDED
+→ WAITING
+
+AI_RESOLVED
+→ RESOLVED
+
+HUMAN_REQUIRED
+→ AGENT_REQUESTED
+
+HUMAN_RESPONDED
+→ AGENT_ACTIVE
+
+ESCALATED
+→ escalation reason에 따라
+AGENT_ACTIVE 또는 PHONE_REQUIRED
+
+RESOLVED
+→ RESOLVED
+
+CLOSED
+→ RESOLVED/closed metadata
+
+REOPENED는 실제 지원 필요.
+
+==================================================
+8. REOPEN
+==================================================
+
+해결된 문의에
+사용자가 다시 답변하거나
+"아직 안돼요"를 선택할 경우
+
+REOPENED 상태를 표현할 수 있어야 한다.
+
+방법:
+
+기존 enum 확장
+또는 compatible transition field
+
+중 최소 변경.
+
+resolved ticket를 새 문의처럼
+조용히 새로 생성해서 history 분리 금지.
+
+==================================================
+9. WAITING
+==================================================
+
+WAITING 의미:
+
+AI 또는 상담사가 답변했고
+사용자 반응을 기다리는 상태.
+
+누가 기다리는지 모호하면
+metadata에 waiting_for:
+
+USER
+AGENT
+SYSTEM
+
+검토.
+
+별도 복잡한 workflow engine 금지.
+
+==================================================
+10. PHONE_REQUIRED
+==================================================
+
+전화는 최종 escalation.
+
+PHONE_REQUIRED를
+모든 ESCALATED와 동일시하지 않는다.
+
+명시적인 escalation condition일 때만.
+
+기본:
+
+AI
+→ Human Message
+→ Phone
+
+순서 유지.
+
+==================================================
+11. SUPPORT EVENT
+==================================================
+
+MASTER가 요구하는
+state/history 추적을 추가한다.
+
+새 support_events table을
+바로 만들기 전에 기존 event_logs 재사용 가능성 확인.
+
+권장:
+
+event_logs
+category = 'SUPPORT'
+
+metadata:
+
+case_id
+ticket_id
+event_type
+from_state
+to_state
+reason
+actor_role
+pool_id
+timestamp
+
+본문/PII 금지.
+
+==================================================
+12. SUPPORT EVENT TYPES
+==================================================
+
+최소:
+
+CASE_CREATED
+AI_STARTED
+AI_RESPONDED
+USER_RESPONDED
+RESOLUTION_CONFIRMED
+HUMAN_REQUESTED
+AGENT_RESPONDED
+PHONE_REQUIRED
+CASE_RESOLVED
+CASE_REOPENED
+CASE_CLOSED
+
+실제 구현 범위에 없는 이벤트를
+fake 발생시키지 않는다.
+
+==================================================
+13. EVENT FAILURE
+==================================================
+
+Support event logging 실패가
+사용자 메시지 저장이나 상담 흐름 자체를 깨면 안 된다.
+
+best-effort logging.
+
+단 actual state mutation audit가
+반드시 필요한 기존 security flow가 있다면
+그 부분은 기존 정책 유지.
+
+==================================================
+14. CONTEXT FOUNDATION
+==================================================
+
+Conversation에 현재 확보 가능한 context만 저장.
+
+감사 결과 AVAILABLE:
+
+user_id
+pool_id
+user_role
+service_mode
+feature_id
+request_id
+
+PARTIAL 중 안전하게 확보 가능한 것:
+
+subscription_plan
+xmode_enabled
+app_version
+
+이번 WP에서 모바일 context 전달 구조를
+대규모로 만들지 않는다.
+
+OS/device/current route 등은
+앱 AI 문의 UI WP에서 추가.
+
+==================================================
+15. TENANT ISOLATION
+==================================================
+
+가장 중요.
+
+pool A 사용자가:
+
+pool B case
+pool B ticket
+pool B replies
+
+조회/쓰기 금지.
+
+Super Admin만 전체 가능.
+
+API server에서 enforce.
+
+client filter만 믿지 않는다.
+
+==================================================
+16. ROLE ISOLATION
+==================================================
+
+user:
+자기 conversation/ticket만
+
+pool admin/teacher/parent:
+현재 제품 정책에 따라
+자기 제출 건만
+
+Super Admin:
+전체 조회
+
+현재 support ticket 권한 정책이 있으면
+그걸 우선 유지.
+
+==================================================
+17. SUPPORT CASE API
+==================================================
+
+현재 /super/support/cases API 최대 재사용.
+
+필요한 경우 server service/API에:
+
+case 상세
+case messages
+state transition
+ticket link
+
+를 추가.
+
+중복 endpoint 금지.
+
+==================================================
+18. STATE TRANSITION SERVICE
+==================================================
+
+상태 변경을 여러 route에서
+문자열로 직접 업데이트하지 않게 한다.
+
+가능하면 중앙 함수:
+
+transitionSupportCase(...)
+
+또는 기존 service pattern.
+
+여기에서:
+
+valid transition
+updated_at
+event log
+resolution data
+
+관리.
+
+==================================================
+19. VALID TRANSITIONS
+==================================================
+
+최소 안전 transition 정의.
+
+예:
+
+NEW
+→ AI_PROCESSING
+
+AI_PROCESSING
+→ AI_RESPONDED
+→ HUMAN_REQUIRED
+
+AI_RESPONDED
+→ AI_RESOLVED
+→ HUMAN_REQUIRED
+
+HUMAN_REQUIRED
+→ HUMAN_RESPONDED
+
+HUMAN_RESPONDED
+→ RESOLVED
+→ ESCALATED
+
+RESOLVED
+→ REOPENED
+
+REOPENED
+→ AI_PROCESSING 또는 HUMAN_REQUIRED
+
+실제 enum 최종 선택 기준으로 조정.
+
+잘못된 state jump는 4xx.
+
+==================================================
+20. HUMAN TICKET CREATION
+==================================================
+
+사용자가 상담사 요청:
+
+support_case
+→ HUMAN_REQUIRED / AGENT_REQUESTED
+
+필요하면 기존 support_ticket 생성.
+
+기존 ticket creation code 재사용.
+
+중복 ticket 생성 방지.
+
+같은 active case에서
+버튼 여러 번 눌러 ticket 여러 개 생성 금지.
+
+==================================================
+21. CONVERSATION HISTORY
+==================================================
+
+case 상세 API에서
+향후 앱/Super Admin이 사용할 수 있도록
+
+최소:
+
+case
+ticket
+messages
+state
+master_state
+context
+created_at
+updated_at
+
+구조 반환.
+
+==================================================
+22. ATTACHMENTS
+==================================================
+
+현재 image_urls TEXT[] 최대 3개 구조는
+이번 WP에서 유지 가능.
+
+새 attachment table 만들지 않는다.
+
+향후 Screenshot/Vision WP에서
+파일종류/metadata 필요할 때 확장.
+
+==================================================
+23. AUDIT / PRIVACY
+==================================================
+
+event_logs(SUPPORT)에 금지:
+
+question 본문
+reply 본문
+학생 이름
+전화번호
+email
+screenshot URL
+JWT
+
+허용:
+
+case_id
+ticket_id
+hashed/internal identifiers
+role
+mode
+state
+event
+latency/count
+
+==================================================
+24. EXISTING HUMAN SUPPORT REGRESSION
+==================================================
+
+현재 사용자 support ticket:
+
+생성
+조회
+Super Admin 답변
+상태
+
+기능을 깨지 않는다.
+
+기존 support ticket flow가
+AI conversation 구조에 강제로 종속되면 안 된다.
+
+Legacy human-only ticket도 계속 열려야 한다.
+
+==================================================
+25. NO AI ENGINE
+==================================================
+
+이번 WP:
+
+OpenAI 호출 = 0
+Support AI response generation = NO
+Knowledge search = NO
+Frontend Map = NO
+Semantic Cache = NO
+
+Core persistence/state만.
+
+==================================================
+26. NO MOBILE UI
+==================================================
+
+이번 WP에서
+설정 → AI 문의 UI 추가하지 않는다.
+
+mobile 변경 NO.
+
+OTA NO.
+
+==================================================
+27. DB MINIMALISM
+==================================================
+
+신규 table은 기본적으로 만들지 않는다.
+
+우선 기존:
+
+support_cases
+support_tickets
+support_ticket_replies
+event_logs
+
+확장/재사용.
+
+정말 신규 table 필요하면
+이유를 최종 보고.
+
+==================================================
+28. TEST MATRIX
+==================================================
+
+CS01R-01
+AI-only case create
+
+CS01R-02
+case detail
+
+CS01R-03
+human escalation creates/links one ticket
+
+CS01R-04
+double human request does not duplicate ticket
+
+CS01R-05
+AI message author_role
+
+CS01R-06
+agent reply existing flow
+
+CS01R-07
+state normalization
+
+CS01R-08
+valid transition
+
+CS01R-09
+invalid transition blocked
+
+CS01R-10
+resolved → reopened
+
+CS01R-11
+waiting state semantics
+
+CS01R-12
+phone required explicit only
+
+CS01R-13
+support event recorded
+
+CS01R-14
+no raw message in analytics event
+
+CS01R-15
+cross-pool read denied
+
+CS01R-16
+cross-pool write denied
+
+CS01R-17
+non-owner user denied
+
+CS01R-18
+super_admin allowed
+
+CS01R-19
+legacy human-only ticket works
+
+CS01R-20
+existing CS-PA0/PA1 regression
+
+CS01R-21
+full test suite pass
+
+==================================================
+29. DEPLOYMENT
+==================================================
+
+DB/server 변경 가능.
+
+Super Admin web 변경은
+상세 확인에 필요한 최소 범위만.
+
+Mobile:
+NO
+
+iOS OTA:
+NO
+
+Android OTA:
+NO
+
+Server 변경 시:
+GitHub push
+→ Render deploy
+→ migration/live 확인.
+
+==================================================
+30. FINAL REPORT
+==================================================
+
+SUPPORT_CASES_ROLE =
+SUPPORT_TICKETS_ROLE =
+SUPPORT_REPLIES_ROLE =
+
+NEW_SUPPORT_TABLES =
+
+CASE_TICKET_LINK =
+AI_ONLY_CASE_SUPPORTED =
+HUMAN_ESCALATION_LINK =
+
+MESSAGE_AUTHOR_ROLES =
+
+INTERNAL_STATES =
+MASTER_STATES =
+STATE_MAPPING =
+REOPENED_SUPPORTED =
+WAITING_SUPPORTED =
+PHONE_REQUIRED_SUPPORTED =
+
+STATE_TRANSITION_SERVICE =
+INVALID_TRANSITION_BLOCKED =
+
+SUPPORT_EVENT_STORAGE =
+SUPPORT_EVENT_CATEGORY =
+SUPPORT_EVENTS_IMPLEMENTED =
+
+CONTEXT_FIELDS_STORED =
+
+POOL_ISOLATION =
+ROLE_ISOLATION =
+
+RAW_MESSAGE_IN_ANALYTICS =
+PII_IN_SUPPORT_EVENTS =
+
+LEGACY_HUMAN_TICKET_REGRESSION =
+
+OPENAI_CALLS_ADDED =
+KNOWLEDGE_SEARCH_ADDED =
+MOBILE_CHANGED =
+
+FILES_AUDITED =
+FILES_CHANGED =
+
+DB_CHANGED =
+SERVER_CHANGED =
+WEB_CHANGED =
+
+UNIT_TEST =
+API_TEST =
+SECURITY_TEST =
+REGRESSION_TEST =
+
+COMMIT_SHA =
+SERVER_DEPLOYMENT =
+
+성공 조건:
+
+새 병렬 Support 시스템 없음.
+
+support_cases
++ support_tickets
++ support_ticket_replies
+재사용.
+
+AI-only case 가능.
+
+Human escalation 시
+기존 ticket과 정확히 1:1 연결.
+
+Pool isolation PASS.
+
+Raw conversation text가
+analytics event_logs에 저장되지 않음.
+
+기존 human support regression 없음.
+
+OpenAI 호출 추가 = 0.
+
+완료:
+
+WP_CS_01R_SUPPORT_CORE_RECONCILIATION_COMPLETE ✅

@@ -1,7 +1,6 @@
 /**
  * (super)/protect-group.tsx — 보호·통제 그룹
  */
-import { ChevronRight, TriangleAlert } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -28,8 +27,8 @@ const MENUS = [
     title: "백업/복구/스냅샷",
     sub: "스냅샷 목록·단일복구·비교복구·배치잡",
     path: "/(super)/backup",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandSoft,
   },
   {
     icon: "toggle-left" as const,
@@ -81,7 +80,7 @@ export default function ProtectGroupScreen() {
 
         {dangerActive > 0 && (
           <View style={s.warningBanner}>
-            <TriangleAlert size={14} color="#D96C6C" />
+            <LucideIcon name="alert-triangle" size={14} color="#D96C6C" />
             <Text style={s.warningTxt}>위험 플래그 {dangerActive}개가 활성화되어 있습니다. 기능 플래그 화면에서 확인하세요.</Text>
           </View>
         )}
@@ -95,7 +94,7 @@ export default function ProtectGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>
@@ -107,17 +106,17 @@ const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: C.background },
   summaryRow:       { flexDirection: "row", gap: 8, marginBottom: 6 },
   summaryCard:      { flex: 1, backgroundColor: "#fff", borderRadius: 12, padding: 12, alignItems: "center",
-                      borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderWidth: 1, borderColor: C.border },
   summaryAlertRed:  { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
   summaryAlertOrange:{ borderColor: "#FDE68A", backgroundColor: "#FFFBEB" },
-  summaryNum:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, textAlign: "center" },
+  summaryNum:       { fontSize: 22, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3, textAlign: "center" },
   warningBanner:    { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA",
                       padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#FCA5A5" },
   warningTxt:       { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#991B1B", lineHeight: 17 },
   card:             { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                      borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                      borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border },
   iconBox:          { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cardSub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, lineHeight: 17 },
+  cardTitle:        { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:          { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3, lineHeight: 17 },
 });

@@ -1,0 +1,185 @@
+SWIMNOTE — WP-DIARY-2A 실기기 원인 확정 진단
+
+현재 코드 조사 결과로는
+후보 A(DB/서버 매칭 문제)와 후보 B(즉시 이벤트 갱신 문제)를
+코드만으로 구분할 수 없다.
+
+수정 금지.
+실기기 진단만 추가한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 진단 위치
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 "오늘 수업 / 스케줄러" 실제 카드 화면에만 표시.
+
+다른 화면에 진단 패널 붙이지 말 것.
+
+각 ScheduleCard에 임시로 아주 작게 표시:
+
+[DIAG]
+group=<item.id>
+done=<item.diary_done>
+date=<현재 today/dateParam>
+
+━━━━━━━━━━━━━━━━━━━━
+2. 일지 저장 직후 진단
+━━━━━━━━━━━━━━━━━━━━
+
+POST /diaries 성공 직후
+실제 서버 response의 diary_id를 사용해서
+임시 진단 로그/Toast에 다음 표시:
+
+saved.diary_id
+saved.class_group_id
+saved.lesson_date
+
+주의:
+현재 emitDiaryChanged에 diaryId="" 빈 문자열을 보내고 있는데,
+이번 진단 표시에는 반드시 POST /diaries 응답의 실제 diary_id를 사용.
+
+단 emitDiaryChanged 동작 자체는 아직 수정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 서버 today-schedule 진단
+━━━━━━━━━━━━━━━━━━━━
+
+가능하면 개발용 로그로만 다음 확인:
+
+request:
+- userId
+- poolId
+- dateParam
+
+diaryRows:
+- class_group_id 목록
+
+schedule groups:
+- g.id 목록
+- 최종 diary_done
+
+개인정보/학생명 출력 금지.
+
+Production 사용자 화면에 서버 로그 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 실기기 판정 절차
+
+Case A
+
+1. 오늘 수업 카드의 group id 확인
+2. 그 카드에서 일지 작성
+3. 저장 직후 saved.class_group_id / saved.lesson_date 확인
+4. 스케줄러 복귀
+5. done 값 확인
+
+비교:
+
+saved.class_group_id === schedule group id
+saved.lesson_date === schedule date
+
+인데 done=false이면
+→ 서버/DB 조회 문제 후보 A.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 반드시 앱 재진입 테스트
+
+같은 상태에서:
+
+A. 다른 화면 갔다가 today-schedule 다시 진입
+B. 그래도 done=false인지 확인
+C. 앱 완전 종료 후 재실행해서 다시 확인
+
+판정:
+
+1.
+저장 직후 false
+→ 재진입 true
+= 후보 B 확정
+즉시 이벤트 갱신 문제
+
+2.
+저장 직후 false
+→ 재진입 false
+→ 앱 재실행 후에도 false
+= 후보 A 확정
+DB 또는 today-schedule 서버 매칭 문제
+
+3.
+saved.class_group_id !== schedule item.id
+= class group 전달 문제 확정
+
+4.
+saved.lesson_date !== schedule date
+= 날짜 전달 문제 확정
+
+━━━━━━━━━━━━━━━━━━━━
+6. 추가 DB 조회
+
+문제가 발생한 diary_id가 확보되면
+Production DB READ ONLY 조회:
+
+SELECT
+  id,
+  class_group_id,
+  swimming_pool_id,
+  lesson_date,
+  is_deleted
+FROM class_diaries
+WHERE id = '<실제 diary_id>';
+
+그리고 해당 schedule class_group 조회:
+
+SELECT
+  id,
+  swimming_pool_id,
+  is_deleted
+FROM class_groups
+WHERE id = '<schedule group id>';
+
+비교:
+
+- class_group_id
+- swimming_pool_id
+- lesson_date
+- is_deleted
+
+DB 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 보호 범위
+
+변경 금지:
+
+- AI Engine
+- Diary AI UI
+- common/student 분리
+- 사진
+- 보강
+- X mode
+- DB schema
+- Migration
+- today-schedule 판정 로직
+- emitDiaryChanged 로직
+
+이번 단계는 진단만.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 제출
+
+1. 진단 추가 파일
+2. 실제 저장 diary_id
+3. saved.class_group_id
+4. saved.lesson_date
+5. schedule item.id
+6. schedule date
+7. 저장 직후 diary_done
+8. focus 재진입 후 diary_done
+9. 앱 재실행 후 diary_done
+10. DB class_diaries 실제 row
+11. DB class_groups 실제 row
+12. A/B/C 중 최종 판정
+
+원인 확정 전 수정 금지.
+Commit 가능하나 기능 수정 금지.
+OTA는 진단용으로만 배포.

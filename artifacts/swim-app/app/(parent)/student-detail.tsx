@@ -1,4 +1,3 @@
-import { Bell, Calendar, ChevronRight } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -7,6 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 
@@ -56,7 +56,7 @@ export default function ParentStudentDetailScreen() {
     <View style={[styles.root, { backgroundColor: C.background }]}>
       <SubScreenHeader title={name as string || "학생 정보"} showHome={false} homePath="/(parent)/children" />
 
-      {loading ? <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} /> : (
+      {loading ? <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} /> : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, paddingTop: 4 }}
@@ -69,8 +69,8 @@ export default function ParentStudentDetailScreen() {
           {chips.length > 0 ? (
             <View style={styles.chipsRow}>
               {chips.map((chip, i) => (
-                <View key={i} style={[styles.chip, { backgroundColor: C.tint + "18" }]}>
-                  <Text style={[styles.chipText, { color: C.tint }]}>{chip}</Text>
+                <View key={i} style={[styles.chip, { backgroundColor: C.brandMist }]}>
+                  <Text style={[styles.chipText, { color: C.brandStrong }]}>{chip}</Text>
                 </View>
               ))}
             </View>
@@ -90,7 +90,7 @@ export default function ParentStudentDetailScreen() {
             </Pressable>
 
             <Pressable
-              style={({ pressed }) => [styles.bigCard, { backgroundColor: C.button, opacity: pressed ? 0.9 : 1 }]}
+              style={({ pressed }) => [styles.bigCard, { backgroundColor: C.primaryAction, opacity: pressed ? 0.9 : 1 }]}
               onPress={() => router.push({ pathname: "/(parent)/swim-diary", params: { id, name, backTo: "student-detail" } })}
             >
               <Text style={styles.bigCardEmoji}>📒</Text>
@@ -105,13 +105,13 @@ export default function ParentStudentDetailScreen() {
             onPress={() => router.push({ pathname: "/(parent)/attendance-history", params: { id, name, backTo: "student-detail" } })}
           >
             <View style={[styles.midIcon, { backgroundColor: C.success + "20" }]}>
-              <Calendar size={22} color={C.success} />
+              <LucideIcon name="calendar" size={22} color={C.success} />
             </View>
             <View style={styles.midText}>
               <Text style={[styles.midLabel, { color: C.text }]}>출결기록 보기</Text>
               <Text style={[styles.midSub, { color: C.textMuted }]}>월별 출결 현황 확인</Text>
             </View>
-            <ChevronRight size={18} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={18} color={C.textMuted} />
           </Pressable>
 
           {/* 공지사항 - 작은 카드 */}
@@ -119,9 +119,9 @@ export default function ParentStudentDetailScreen() {
             style={({ pressed }) => [styles.smallCard, { backgroundColor: C.card, borderColor: C.border, opacity: pressed ? 0.9 : 1 }]}
             onPress={() => router.push({ pathname: "/(parent)/notices", params: { backTo: "student-detail" } })}
           >
-            <Bell size={16} color={C.textSecondary} />
+            <LucideIcon name="bell" size={16} color={C.textSecondary} />
             <Text style={[styles.smallLabel, { color: C.textSecondary }]}>공지사항</Text>
-            <ChevronRight size={14} color={C.textMuted} />
+            <LucideIcon name="chevron-right" size={14} color={C.textMuted} />
           </Pressable>
         </ScrollView>
       )}

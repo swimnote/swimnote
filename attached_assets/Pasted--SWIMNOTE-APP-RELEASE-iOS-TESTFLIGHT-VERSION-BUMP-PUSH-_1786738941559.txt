@@ -1,0 +1,222 @@
+[SWIMNOTE APP RELEASE]
+[iOS TESTFLIGHT — VERSION BUMP + PUSH ONLY]
+
+현재 완료:
+
+SDK55 native dependency alignment ✅
+commit:
+1460cd8eca586fabb194de27f1163c88741905be
+
+중요 정정:
+
+현재 App Store Connect / TestFlight에는
+iOS build 245가 이미 업로드되어 있다.
+
+따라서 이번 신규 iOS TestFlight build는:
+
+buildNumber = 246
+
+으로 올려야 한다.
+
+현재 source:
+
+app version = 1.6.2
+ios.buildNumber = 244
+android.versionCode = 235
+runtimeVersion policy = appVersion
+
+이번 release target:
+
+app version = 1.6.3
+ios.buildNumber = 246
+android.versionCode = 236
+runtimeVersion resolves to 1.6.3
+
+이번 단계에서는:
+
+버전 변경 + commit + push만 허용.
+
+EAS build 금지.
+TestFlight upload 금지.
+OTA publish 금지.
+Render/Replit Publish 금지.
+Server/DB 변경 금지.
+다른 dependency 변경 금지.
+기능 코드 수정 금지.
+
+==================================================
+1. PRECHECK
+==================================================
+
+branch:
+deploy-photo-clone
+
+현재 HEAD 확인.
+
+commit 1460cd8e가 ancestry에 포함되어야 함.
+
+working tree에서 production code 변경 여부 확인.
+
+==================================================
+2. VERSION CHANGE
+==================================================
+
+실제 source of truth인 app.json에서 정확히:
+
+version:
+1.6.2 → 1.6.3
+
+ios.buildNumber:
+244 → 246
+
+android.versionCode:
+235 → 236
+
+runtimeVersion:
+현재
+{ "policy": "appVersion" }
+유지.
+
+runtimeVersion을 literal string으로 바꾸지 마라.
+
+따라서 resolved runtime:
+1.6.3
+
+그 외 app.json 설정 변경 금지.
+
+==================================================
+3. IMPORTANT BUILD NUMBER RULE
+==================================================
+
+iOS buildNumber 245는 이미 TestFlight에 존재하므로
+절대 다시 사용하지 않는다.
+
+이번 build target:
+
+1.6.3 (246)
+
+App Store Connect/TestFlight에서
+동일 version 내 buildNumber는 반드시 증가해야 함.
+
+==================================================
+4. DIFF CHECK
+==================================================
+
+버전 변경 후 diff 확인.
+
+이번 commit에 허용되는 신규 변경:
+
+- app.json version
+- ios.buildNumber
+- android.versionCode
+
+package.json / pnpm-lock.yaml은
+이전 SDK55 dependency alignment commit 상태 그대로 유지.
+
+이번 단계에서 추가 dependency 변경 금지.
+
+==================================================
+5. RELEASE SOURCE SYNC
+==================================================
+
+현재 local branch가 origin보다 앞서 있더라도:
+
+force push 금지.
+rebase 금지.
+reset 금지.
+
+정상 fast-forward push만 허용.
+
+==================================================
+6. COMMIT
+==================================================
+
+version bump만 별도 commit.
+
+commit message:
+
+chore(release): bump app to 1.6.3 ios 246 android 236
+
+commit SHA 보고.
+
+==================================================
+7. PUSH
+==================================================
+
+다음만 허용:
+
+git push origin deploy-photo-clone
+
+force push 금지.
+rebase 금지.
+reset 금지.
+
+==================================================
+8. POST-PUSH VERIFY
+==================================================
+
+git fetch origin
+
+확인:
+
+local HEAD
+origin/deploy-photo-clone
+
+동일해야 함.
+
+그리고 최종 source:
+
+version = 1.6.3
+ios.buildNumber = 246
+android.versionCode = 236
+runtimeVersion policy = appVersion
+resolved runtime = 1.6.3
+
+확인.
+
+==================================================
+9. IOS BUILD READINESS
+==================================================
+
+아직 build 실행 금지.
+
+다음 단계에서 사용할 정확한 command만 확정:
+
+cd artifacts/swim-app
+eas build --platform ios --profile production
+
+이번 단계에서는 실행하지 않는다.
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. BRANCH
+2. PRE-CHANGE HEAD
+3. VERSION BEFORE
+4. VERSION AFTER
+5. IOS BUILD BEFORE
+6. IOS BUILD AFTER
+7. ANDROID CODE BEFORE
+8. ANDROID CODE AFTER
+9. RUNTIME POLICY
+10. RESOLVED RUNTIME
+11. UNRELATED FILE CHANGES?
+12. VERSION COMMIT SHA
+13. PUSH RESULT
+14. LOCAL HEAD AFTER
+15. ORIGIN HEAD AFTER
+16. LOCAL/ORIGIN SAME?
+17. FORCE/REBASE/RESET USED?
+18. BUILD EXECUTED?
+19. EXACT NEXT BUILD COMMAND
+
+성공:
+
+SWIMNOTE_1_6_3_BUILD_246_RELEASE_SOURCE_READY ✅
+
+실패:
+
+SWIMNOTE_1_6_3_BUILD_246_RELEASE_SOURCE_BLOCKED ❌

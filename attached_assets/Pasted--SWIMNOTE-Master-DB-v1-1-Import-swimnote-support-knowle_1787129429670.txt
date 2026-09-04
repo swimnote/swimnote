@@ -1,0 +1,170 @@
+[SWIMNOTE 고객센터 Master DB v1.1 Import 작업]
+
+첨부한 파일:
+swimnote_support_knowledge_items_import_v1.1.json
+
+목표:
+첨부 JSON에 들어있는 SWIMNOTE 고객센터 Canonical Knowledge Master 1,051개를
+현재 Production 고객지원 DB 구조에 맞게 안전하게 import한다.
+
+중요:
+이번 작업은 "내용 작성" 작업이 아니다.
+첨부 JSON의 질문/답변/intent/content를 임의로 수정하거나 새로 만들지 말고,
+현재 support_knowledge_items schema에 맞춰 그대로 적재하는 작업만 수행한다.
+
+1. 대상
+- target table: support_knowledge_items
+- import_scope: knowledge_master_only
+- support_query_log / support_knowledge_candidates에는 넣지 않는다.
+- 기존 Learning Loop 로직은 수정하지 않는다.
+- 기존 고객지원 resolver / escalation / GPT / Human ticket 로직도 수정하지 않는다.
+
+2. JSON import 규칙
+첨부 파일의 import_format.rules를 그대로 지킨다.
+
+필수:
+- status = pending
+- auto activate 금지
+- import 후 자동 ACTIVE 전환 금지
+- human review 이전 ACTIVE 금지
+- raw PII 저장 금지
+- raw user message 저장 금지
+- scope=global이면 pool_id=NULL 유지
+- scope=pool이면 pool_id 필수
+- 기존 answer_mode 값 유지
+  - DIRECT_DB
+  - GROUNDED_GPT
+  - HUMAN_ONLY
+
+3. 중복 처리
+절대로 1,051개를 무조건 INSERT해서 중복을 만들지 말 것.
+
+우선 현재 DB를 조회해서 아래 기준으로 비교한다.
+- id
+- intent_id
+- conflict_group
+- 기존 support_knowledge_items row
+
+기존 동일 intent_id가 이미 존재하면:
+- 조용히 새 row를 중복 생성하지 말 것.
+- 기존 row와 첨부본의 차이를 비교한다.
+- 동일 내용이면 skip
+- 기존 seed/구버전이고 첨부 v1.1이 최신 Master라면 안전하게 update 가능한지 판단
+- ACTIVE 기존 row를 임의 overwrite 하지 말 것.
+- 충돌이 있으면 목록으로 보고할 것.
+
+4. 절대 금지
+- 질문 문구를 임의 변경
+- 답변 문구를 임의 변경
+- 비슷한 intent를 새로 생성
+- GPT로 답변 재작성
+- 가격/환불/계약 정책 임의 보완
+- OpenAI 파트너십을 이미 체결된 것으로 변경
+- 특허 4건을 등록특허라고 변경
+- HUMAN_ONLY를 임의로 DIRECT_DB로 변경
+- GROUNDED_GPT를 임의로 DIRECT_DB로 변경
+- pending을 자동 ACTIVE로 변경
+- 기존 고객센터 전체 구조 리팩터링
+- 불필요한 전체 테스트 실행
+
+5. 특히 사실관계 유지
+첨부본에 포함된 아래 표현은 의미를 바꾸지 말 것.
+
+OpenAI:
+- 현재 공식 파트너라고 단정하지 않는다.
+- OpenAI Partner Network 승인을 목표로 준비 중인 상태로 유지한다.
+
+특허:
+- SWIMNOTE 관련 핵심 기술 4건 "특허 출원 진행 중"
+- 등록특허라고 표현하지 않는다.
+- 출원만으로 모든 모방이 법적으로 불가능하다고 과장하지 않는다.
+
+AI:
+- SWIMNOTE AI = 단순 ChatGPT wrapper가 아님
+- 자체 수영 전문 데이터 + 검증 구조 + 검색/분석 파이프라인 + 생성형 AI 결합 구조
+- AI가 절대 틀리지 않는다고 표현하지 않는다.
+- 근거 없는 사실 생성 금지 원칙 유지
+
+성장리포트:
+- 실제 학생 기록과 확인 가능한 근거 중심
+- 수영기술은 평가영역 중 하나
+- 근거 없는 내용 임의 생성 금지
+- 무료 리포트도 단순 템플릿 문장 생성이 아니라 실제 기록 기반 분석 구조라는 설명 유지
+
+6. Import 전 검증
+첨부 JSON 전체를 먼저 parse/validate한다.
+
+확인:
+- 총 records = 1,051
+- required fields 누락 0
+- duplicate id 0
+- duplicate intent_id 0
+- status가 전부 pending인지
+- global row의 pool_id가 전부 null인지
+- answer_mode enum 유효한지
+- conflict_group 형식 유효한지
+
+여기서 오류가 나오면 import하지 말고 먼저 보고한다.
+
+7. Import 방식
+가능하면 transaction으로 처리한다.
+
+권장 순서:
+BEGIN
+→ JSON validation
+→ existing intent_id 조회
+→ duplicate/conflict 분리
+→ 신규 pending rows insert
+→ 안전한 update 대상만 update
+→ count 검증
+COMMIT
+
+중간 오류 발생 시 ROLLBACK.
+
+8. 테스트 범위
+리플릿 크레딧 절약이 중요하다.
+전체 regression 돌리지 말 것.
+
+이번 작업에서는 아래만 한다.
+- JSON schema/record validation
+- import count 확인
+- duplicate/conflict 확인
+- 임의 sample 10~20개 DB 조회
+- DIRECT_DB / GROUNDED_GPT / HUMAN_ONLY 각각 몇 개 샘플 조회
+- X_ONBOARDING / GROWTH_REPORT_FREE / SWIMNOTE_AI / COMPANY_IP / INCIDENT 계열 샘플 확인
+
+전체 3천개 테스트 suite 실행 금지.
+Production deploy도 이번 지시만으로 하지 말 것.
+OTA도 하지 말 것.
+Device E2E도 하지 말 것.
+
+9. 완료보고서
+작업 완료 후 아래 형식으로만 보고한다.
+
+[SWIMNOTE SUPPORT MASTER V1.1 IMPORT REPORT]
+
+- JSON parse: PASS/FAIL
+- JSON records: 1,051
+- 신규 INSERT:
+- 기존 동일 intent skip:
+- UPDATE:
+- conflict:
+- 최종 support_knowledge_items 총 row:
+- 신규 row status=pending 확인:
+- ACTIVE 자동변경 여부: NO
+- duplicate intent_id:
+- schema validation:
+- sample retrieval:
+- DIRECT_DB sample:
+- GROUNDED_GPT sample:
+- HUMAN_ONLY sample:
+- Production deploy: NOT RUN
+- OTA: NOT RUN
+- Device E2E: NOT RUN
+- 변경 파일:
+- DB migration/schema change 여부:
+- 현재 commit/SHA:
+
+중요:
+작업 중 발견한 기존 구조 문제를 핑계로 범위를 확대하지 말 것.
+이번 WP는 첨부한 v1.1 Master DB를 안전하게 import하고 검증하는 데서 종료한다.

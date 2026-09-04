@@ -1,0 +1,198 @@
+[SUPER ADMIN DASHBOARD]
+[X MODE KPI + POOL FILTER SERVER SUPPORT ONLY]
+
+현재 Super Admin Dashboard IA 재구성은 완료되었다.
+
+현재 blocker:
+
+1.
+Dashboard X MODE KPI가 "—" 표시
+
+원인:
+GET /super/dashboard-stats
+응답에 X Mode 수영장 count가 없음.
+
+2.
+수영장 목록 X MODE filter 미지원
+
+원인:
+GET /super/pools-summary
+응답/필터에 canonical X Mode 상태가 없음.
+
+이번 작업은 이 두 가지 SERVER SUPPORT만 추가한다.
+
+중요:
+
+- Dashboard UI 재설계 금지
+- Global Menu 수정 금지
+- 기존 X entitlement logic 변경 금지
+- fake count 금지
+- RevenueCat 수정 금지
+- Growth Report 수정 금지
+- DB migration 금지
+- 다른 Super Admin 기능 수정 금지
+
+==================================================
+1. CANONICAL X MODE SOURCE 확인
+==================================================
+
+현재 APP Server의 실제 canonical X Mode 판정 구조를 사용한다.
+
+먼저 확인:
+
+- swimming_pools.xmode_entitlement
+- xmode_config_status
+- approval_status
+- resolvePoolMode()
+- 현재 repository에서 "X Mode 활성 수영장"의 정확한 판정 기준
+
+새 판정식을 임의 생성하지 마라.
+
+Dashboard / Pool filter 모두
+동일 canonical rule을 사용해야 한다.
+
+==================================================
+2. DASHBOARD X MODE KPI
+==================================================
+
+GET /super/dashboard-stats
+
+응답에 additive field 추가.
+
+예:
+
+stats.xmode_operators
+또는 기존 naming convention에 맞는 이름.
+
+의미:
+
+현재 canonical X Mode 활성 상태인 수영장 수.
+
+단순 xmode_entitlement=true만으로
+실제 X active가 아닌 경우가 있다면
+canonical rule 전체를 적용한다.
+
+예:
+entitlement=true
++
+config READY
++
+approved
+
+등 실제 resolvePoolMode 규칙과 일치시킨다.
+
+Dashboard의 현재 X MODE KPI "—"를
+실제 count로 교체한다.
+
+==================================================
+3. POOLS SUMMARY X MODE DATA
+==================================================
+
+GET /super/pools-summary
+
+각 pool summary에 최소:
+
+xmode_entitlement
+xmode_config_status
+resolved_mode 또는 실제 equivalent
+
+중 UI/filter에 필요한 최소 정보만 additive 반환.
+
+PII 추가 금지.
+
+==================================================
+4. X MODE FILTER
+==================================================
+
+기존 pools list filter에:
+
+filter=xmode
+
+지원.
+
+결과:
+
+canonical X Mode 활성 pool만 반환하거나,
+현재 endpoint가 client-side filtering 구조라면
+필요한 canonical fields를 제공하여
+동일한 결과를 만든다.
+
+가능하면 server-side filter 우선.
+
+==================================================
+5. CONSISTENCY
+==================================================
+
+매우 중요.
+
+다음 세 곳이 서로 다른 기준을 사용하면 안 된다.
+
+- resolvePoolMode()
+- dashboard X MODE count
+- pools?filter=xmode
+
+동일 pool에 대해:
+
+resolvePoolMode = X
+
+이면:
+
+Dashboard count 포함
++
+X MODE filter 결과 포함
+
+이어야 한다.
+
+반대로 X가 아니면 둘 다 제외.
+
+==================================================
+6. TEST
+==================================================
+
+최소:
+
+1. entitlement false → X count 제외
+2. entitlement true + config not ready → canonical rule에 따라 제외
+3. entitlement true + config ready + approved → 포함
+4. resolvePoolMode X와 dashboard count 일치
+5. resolvePoolMode X와 filter=xmode 결과 일치
+6. multiple pools count 정확
+7. non-X filter 기존 동작 유지
+8. pools-summary 기존 contract regression
+9. dashboard-stats regression
+10. Super Admin Dashboard regression
+11. 기존 968 TC regression
+
+==================================================
+7. RUNTIME
+==================================================
+
+코드/테스트 완료 후
+현재 실제 DB에서 가능한 경우:
+
+- 전체 수영장 수
+- 실제 X Mode 수영장 수
+- filter=xmode 결과
+
+를 read-only로 확인.
+
+Production write 금지.
+
+==================================================
+8. REPORT
+==================================================
+
+1. CANONICAL X MODE RULE
+2. MODIFIED SERVER FILES
+3. DASHBOARD-STATS CHANGE
+4. POOLS-SUMMARY CHANGE
+5. X FILTER
+6. TEST RESULT
+7. REGRESSION
+8. ACTUAL X MODE COUNT
+9. GIT HEAD SHA
+10. PRODUCTION SAFETY
+
+완료 시:
+
+SUPER_ADMIN_XMODE_SERVER_SUPPORT_COMPLETE ✅

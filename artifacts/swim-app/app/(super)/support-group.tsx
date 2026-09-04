@@ -2,7 +2,6 @@
  * (super)/support-group.tsx — 지원 센터 그룹
  * 스펙 섹션 9: 고객센터 / 정책·컴플라이언스
  */
-import { ChevronRight } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React from "react";
@@ -79,7 +78,7 @@ export default function SupportGroupScreen() {
               <Text style={s.cardTitle}>{m.title}</Text>
               <Text style={s.cardSub}>{m.sub}</Text>
             </View>
-            <ChevronRight size={16} color="#D1D5DB" />
+            <LucideIcon name="chevron-right" size={16} color="#D1D5DB" />
           </Pressable>
         ))}
       </ScrollView>
@@ -91,15 +90,15 @@ const s = StyleSheet.create({
   safe:              { flex: 1, backgroundColor: C.background },
   summaryRow:        { flexDirection: "row", gap: 5, marginBottom: 6, flexWrap: "wrap" },
   summaryCard:       { flex: 1, minWidth: "18%", backgroundColor: "#fff", borderRadius: 12, padding: 10,
-                       alignItems: "center", borderWidth: 1, borderColor: "#E5E7EB" },
+                       alignItems: "center", borderWidth: 1, borderColor: C.border },
   summaryAlertBlue:  { borderColor: "#BAE6FD", backgroundColor: "#F0F9FF" },
   summaryAlertPurple:{ borderColor: "#C4B5FD", backgroundColor: "#EEDDF5" },
   summaryAlertRed:   { borderColor: "#FCA5A5", backgroundColor: "#FFF5F5" },
-  summaryNum:        { fontSize: 18, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryLabel:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, textAlign: "center" },
+  summaryNum:        { fontSize: 18, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryLabel:      { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, textAlign: "center" },
   card:              { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#fff",
-                       borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#E5E7EB" },
+                       borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border },
   iconBox:           { width: 48, height: 48, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  cardTitle:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  cardSub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 3, lineHeight: 17 },
+  cardTitle:         { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  cardSub:           { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 3, lineHeight: 17 },
 });

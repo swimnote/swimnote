@@ -2,15 +2,13 @@
  * (super)/strip-banner.tsx — 가로줄 배너 관리
  * 학부모 홈 상단 가로 스트립 배너 등록/수정/상태 변경/삭제 + 이미지 업로드
  */
-import { Camera, Plus, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, Modal, Pressable,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { compressImageIfNeeded } from "../../utils/compressImage";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { useAdsStore, type Ad, type AdStatus } from "@/store/adsStore";
 import { useAuth } from "@/context/AuthContext";
@@ -23,7 +21,7 @@ const P = "#7C3AED";
 const STATUS_CFG: Record<AdStatus, { label: string; dot: string; badge: string }> = {
   active:    { label: "노출 중",  dot: "#22C55E", badge: "#DCFCE7" },
   scheduled: { label: "예약됨",  dot: "#D97706", badge: "#FEF9C3" },
-  inactive:  { label: "비활성",  dot: "#94A3B8", badge: "#F1F5F9" },
+  inactive:  { label: "비활성",  dot: C.textMuted, badge: C.backgroundSoft },
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -32,11 +30,11 @@ const TARGET_LABELS: Record<string, string> = {
 
 const THEMES = ["teal","purple","orange","blue","green","red","pink"] as const;
 const THEME_COLORS: Record<string, string> = {
-  teal: "#2EC4B6", purple: "#7C3AED", orange: "#F97316",
+  teal: C.brandStrong, purple: "#7C3AED", orange: "#F97316",
   blue: "#2563EB", green: "#059669", red: "#DC2626", pink: "#DB2777",
 };
 const THEME_BG: Record<string, string> = {
-  teal: "#E6FAF8", purple: "#EDE9FE", orange: "#FFF7ED",
+  teal: C.brandSoft, purple: "#EDE9FE", orange: "#FFF7ED",
   blue: "#DBEAFE", green: "#D1FAE5", red: "#FEE2E2", pink: "#FCE7F3",
 };
 
@@ -88,7 +86,7 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
       {ad.description ? <Text style={ac.desc} numberOfLines={2}>{ad.description}</Text> : null}
 
       <View style={ac.dateRow}>
-        <LucideIcon name="calendar" size={11} color="#94A3B8" />
+        <LucideIcon name="calendar" size={11} color={C.textMuted} />
         <Text style={ac.dateTxt}>
           {ad.displayStart.slice(0, 10)} ~ {ad.displayEnd.slice(0, 10)}
         </Text>
@@ -101,8 +99,8 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
           </Pressable>
         )}
         {ad.status === "active" && (
-          <Pressable style={[ac.btn, { backgroundColor: "#F1F5F9" }]} onPress={() => onStatusChange(ad.id, "inactive")}>
-            <Text style={[ac.btnTxt, { color: "#64748B" }]}>중지</Text>
+          <Pressable style={[ac.btn, { backgroundColor: C.backgroundSoft }]} onPress={() => onStatusChange(ad.id, "inactive")}>
+            <Text style={[ac.btnTxt, { color: C.textSecondary }]}>중지</Text>
           </Pressable>
         )}
         <Pressable style={[ac.btn, { backgroundColor: "#EDE9FE" }]} onPress={() => onEdit(ad)}>
@@ -117,24 +115,34 @@ function AdCard({ ad, onEdit, onStatusChange, onDelete }: {
 }
 
 const ac = StyleSheet.create({
-  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#E5E7EB" },
+  card:        { backgroundColor: "#fff", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border },
   top:         { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 },
   statusDot:   { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  title:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  target:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  title:       { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  target:      { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   badge:       { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   badgeTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular" },
   previewStrip:{ flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, height: 36, paddingHorizontal: 10, marginBottom: 8 },
   stripIconWrap:{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   stripTitle:  { flex: 1, fontSize: 11, fontFamily: "Pretendard-SemiBold" },
   previewImg:  { width: "100%", height: 60, borderRadius: 8, marginBottom: 8 },
-  desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginBottom: 6, lineHeight: 18 },
+  desc:        { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginBottom: 6, lineHeight: 18 },
   dateRow:     { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 10 },
-  dateTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  dateTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   actions:     { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   btn:         { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   btnTxt:      { fontSize: 12, fontFamily: "Pretendard-Regular" },
 });
+
+// ── 배너 제목 검증 (서버와 동일한 규칙) ──────────────────────────────────
+function validateBannerTitle(title: string, bannerType: "strip" | "slider"): string | null {
+  const newlineCount = (title.match(/\n/g) || []).length;
+  if (bannerType === "strip") {
+    if (newlineCount > 0)  return "가로 배너 제목에는 줄바꿈을 사용할 수 없습니다.";
+    if (title.length > 15) return "제목은 최대 15자입니다.";
+  }
+  return null;
+}
 
 interface FormState {
   title: string; description: string; linkUrl: string; linkLabel: string;
@@ -173,6 +181,7 @@ export default function StripBannerScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (filter === "all") return stripAds;
@@ -188,11 +197,13 @@ export default function StripBannerScreen() {
   function openCreate() {
     setEditId(null);
     setForm(BLANK);
+    setTitleError(null);
     setShowModal(true);
   }
 
   function openEdit(ad: Ad) {
     setEditId(ad.id);
+    setTitleError(null);
     setForm({
       title: ad.title, description: ad.description,
       linkUrl: ad.linkUrl, linkLabel: ad.linkLabel,
@@ -211,19 +222,23 @@ export default function StripBannerScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [8, 1],
       quality: 0.85,
     });
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      setForm(f => ({ ...f, imageUri: asset.uri, imageKey: "", imageUrl: "" }));
+      const uri = await compressImageIfNeeded(asset.uri, asset.fileSize ?? undefined);
+      setForm(f => ({ ...f, imageUri: uri, imageKey: "", imageUrl: "" }));
     }
   }
 
   async function handleSave() {
     if (!form.title.trim() || !token) return;
+    const validationError = validateBannerTitle(form.title.trim(), "strip");
+    if (validationError) { setTitleError(validationError); return; }
+    setTitleError(null);
     setSaving(true);
     try {
       let finalKey = form.imageKey;
@@ -281,27 +296,27 @@ export default function StripBannerScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="가로 배너 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="가로 배너 관리" homePath="/(super)/dashboard" />
 
       {/* 요약 */}
       <View style={s.summaryRow}>
-        <View style={[s.summaryCard, { borderColor: "#E6FFFA" }]}>
-          <Text style={[s.sumNum, { color: "#2EC4B6" }]}>{counts.active}</Text>
+        <View style={[s.summaryCard, { borderColor: C.brandSoft }]}>
+          <Text style={[s.sumNum, { color: C.brandStrong }]}>{counts.active}</Text>
           <Text style={s.sumLabel}>노출 중</Text>
         </View>
         <View style={[s.summaryCard, { borderColor: "#FFF1BF" }]}>
           <Text style={[s.sumNum, { color: "#D97706" }]}>{counts.scheduled}</Text>
           <Text style={s.sumLabel}>예약됨</Text>
         </View>
-        <View style={[s.summaryCard, { borderColor: "#F1F5F9" }]}>
-          <Text style={[s.sumNum, { color: "#64748B" }]}>{counts.inactive}</Text>
+        <View style={[s.summaryCard, { borderColor: C.backgroundSoft }]}>
+          <Text style={[s.sumNum, { color: C.textSecondary }]}>{counts.inactive}</Text>
           <Text style={s.sumLabel}>비활성</Text>
         </View>
       </View>
 
       {/* 안내 + 필터 */}
       <View style={s.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {FILTERS.map(f => (
               <Pressable key={f.key} style={[s.filterBtn, filter === f.key && s.filterBtnActive]} onPress={() => setFilter(f.key)}>
@@ -309,15 +324,15 @@ export default function StripBannerScreen() {
               </Pressable>
             ))}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         <Pressable style={s.addBtn} onPress={openCreate}>
-          <Plus size={16} color="#fff" />
+          <LucideIcon name="plus" size={16} color="#fff" />
           <Text style={s.addTxt}>등록</Text>
         </Pressable>
       </View>
 
       {/* 목록 */}
-      <ScrollView showsVerticalScrollIndicator={false}
+      <KeyboardAwareScrollView showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}>
         {loading && filtered.length === 0 ? (
           <View style={{ padding: 40, alignItems: "center" }}>
@@ -337,7 +352,7 @@ export default function StripBannerScreen() {
             />
           ))
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* 등록/수정 모달 */}
       <Modal visible={showModal} transparent animationType="slide">
@@ -346,10 +361,10 @@ export default function StripBannerScreen() {
             <View style={m.header}>
               <Text style={m.title}>{editId ? "가로 배너 수정" : "가로 배너 등록"}</Text>
               <Pressable onPress={() => setShowModal(false)}>
-                <X size={20} color="#64748B" />
+                <LucideIcon name="x" size={20} color={C.textSecondary} />
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
               {/* 미리보기 */}
               <Text style={m.label}>미리보기</Text>
@@ -370,7 +385,7 @@ export default function StripBannerScreen() {
               {/* 이미지 업로드 */}
               <Text style={m.label}>배너 이미지 (선택)</Text>
               <Pressable style={m.imgBtn} onPress={handlePickImage}>
-                <Camera size={16} color="#7C3AED" />
+                <LucideIcon name="camera" size={16} color="#7C3AED" />
                 <Text style={m.imgBtnTxt}>
                   {previewImg ? "이미지 변경하기" : "이미지 선택하기"}
                 </Text>
@@ -378,13 +393,29 @@ export default function StripBannerScreen() {
               {previewImg ? (
                 <Pressable onPress={() => setForm(f => ({ ...f, imageUri: "", imageKey: "", imageUrl: "" }))}
                   style={m.removeImg}>
-                  <X size={12} color="#DC2626" />
+                  <LucideIcon name="x" size={12} color="#DC2626" />
                   <Text style={m.removeImgTxt}>이미지 제거</Text>
                 </Pressable>
               ) : null}
 
-              <Text style={m.label}>제목 *</Text>
-              <TextInput style={m.input} value={form.title} onChangeText={v => setForm(f => ({ ...f, title: v }))} placeholder="배너 제목" />
+              <View style={m.labelRow}>
+                <Text style={m.label}>제목 *</Text>
+                <Text style={[m.charCount, form.title.length > 15 && m.charCountOver]}>
+                  {form.title.length}/15
+                </Text>
+              </View>
+              <TextInput
+                style={[m.input, titleError ? m.inputError : null]}
+                value={form.title}
+                onChangeText={v => {
+                  const stripped = v.replace(/\n/g, "");
+                  setForm(f => ({ ...f, title: stripped }));
+                  setTitleError(null);
+                }}
+                placeholder="배너 제목 (최대 15자)"
+                maxLength={15}
+              />
+              {titleError ? <Text style={m.errorTxt}>{titleError}</Text> : null}
 
               <Text style={m.label}>설명 (선택)</Text>
               <TextInput style={[m.input, { height: 64, textAlignVertical: "top" }]}
@@ -443,7 +474,7 @@ export default function StripBannerScreen() {
                   : <Text style={m.saveTxt}>{editId ? "수정 완료" : "등록하기"}</Text>
                 }
               </Pressable>
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </View>
       </Modal>
@@ -453,10 +484,10 @@ export default function StripBannerScreen() {
         <View style={m.overlay}>
           <View style={[m.sheet, { gap: 14 }]}>
             <Text style={[m.title, { textAlign: "center" }]}>배너를 삭제할까요?</Text>
-            <Text style={{ fontSize: 13, color: "#64748B", textAlign: "center", fontFamily: "Pretendard-Regular" }}>삭제 후 복구가 불가합니다.</Text>
+            <Text style={{ fontSize: 13, color: C.textSecondary, textAlign: "center", fontFamily: "Pretendard-Regular" }}>삭제 후 복구가 불가합니다.</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#F1F5F9" }]} onPress={() => setDeleteConfirm(null)}>
-                <Text style={[m.saveTxt, { color: "#64748B" }]}>취소</Text>
+              <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: C.backgroundSoft }]} onPress={() => setDeleteConfirm(null)}>
+                <Text style={[m.saveTxt, { color: C.textSecondary }]}>취소</Text>
               </Pressable>
               <Pressable style={[m.saveBtn, { flex: 1, backgroundColor: "#DC2626" }]} onPress={() => deleteConfirm && handleDelete(deleteConfirm)}>
                 <Text style={m.saveTxt}>삭제</Text>
@@ -470,34 +501,34 @@ export default function StripBannerScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:             { flex: 1, backgroundColor: "#F1F5F9" },
+  safe:             { flex: 1, backgroundColor: C.backgroundSoft },
   summaryRow:       { flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "#fff",
-                      borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+                      borderBottomWidth: 1, borderBottomColor: C.border },
   summaryCard:      { flex: 1, borderRadius: 10, padding: 10, borderWidth: 1, alignItems: "center" },
   sumNum:           { fontSize: 20, fontFamily: "Pretendard-Regular" },
-  sumLabel:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  sumLabel:         { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterRow:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterBtn:        { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#FFFFFF" },
   filterBtnActive:  { backgroundColor: P },
-  filterTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  filterTxt:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   filterTxtActive:  { color: "#fff" },
   addBtn:           { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: P, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   addTxt:           { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff" },
   empty:            { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#94A3B8" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textMuted },
 });
 
 const m = StyleSheet.create({
   overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:       { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%", gap: 12 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  label:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#374151", marginBottom: 4, marginTop: 8 },
-  input:       { borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111", marginBottom: 4 },
+  title:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  label:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 4, marginTop: 8 },
+  input:       { borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#111", marginBottom: 4 },
   segRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 4 },
-  segBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: "#F1F5F9" },
+  segBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: C.backgroundSoft },
   segActive:   { backgroundColor: P },
-  segTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  segTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   segActiveTxt:{ color: "#fff" },
   colorChip:   { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   colorDot:    { width: 10, height: 10, borderRadius: 5 },
@@ -512,4 +543,9 @@ const m = StyleSheet.create({
   previewTxt:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-SemiBold" },
   saveBtn:     { backgroundColor: P, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveTxt:     { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff" },
+  labelRow:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4, marginTop: 8 },
+  charCount:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textMuted },
+  charCountOver:{ color: "#DC2626" },
+  inputError:  { borderColor: "#DC2626" },
+  errorTxt:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#DC2626", marginTop: 2, marginBottom: 4 },
 });

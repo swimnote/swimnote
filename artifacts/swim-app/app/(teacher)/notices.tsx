@@ -4,7 +4,6 @@
  * 소속 수영장의 공지를 열람한다.
  * 작성·삭제 권한 없음.
  */
-import { BellOff, Pin, User } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useEffect, useState } from "react";
 import {
@@ -13,8 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
+
+const C = Colors.light;
 
 interface Notice {
   id: string;
@@ -61,7 +63,7 @@ export default function TeacherNoticesScreen() {
   const regular = notices.filter(n => !n.is_pinned);
 
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: "#FFFFFF" }]} edges={[]}>
+    <SafeAreaView style={[s.safe, { backgroundColor: C.surface }]} edges={[]}>
       <SubScreenHeader title="공지함" homePath="/(teacher)/today-schedule" />
 
       {loading ? (
@@ -78,7 +80,7 @@ export default function TeacherNoticesScreen() {
           {pinned.length > 0 && (
             <>
               <View style={s.sectionRow}>
-                <Pin size={13} color={themeColor} />
+                <LucideIcon name="pin" size={13} color={themeColor} />
                 <Text style={[s.sectionLabel, { color: themeColor }]}>고정 공지</Text>
               </View>
               {pinned.map(n => (
@@ -86,7 +88,7 @@ export default function TeacherNoticesScreen() {
               ))}
               {regular.length > 0 && (
                 <View style={s.sectionRow}>
-                  <Text style={[s.sectionLabel, { color: "#64748B" }]}>일반 공지</Text>
+                  <Text style={[s.sectionLabel, { color: C.textSecondary }]}>일반 공지</Text>
                 </View>
               )}
             </>
@@ -96,7 +98,7 @@ export default function TeacherNoticesScreen() {
           ))}
           {notices.length === 0 && (
             <View style={s.empty}>
-              <BellOff size={40} color="#D1D5DB" />
+              <LucideIcon name="bell-off" size={40} color="#D1D5DB" />
               <Text style={s.emptyTxt}>등록된 공지사항이 없습니다</Text>
             </View>
           )}
@@ -119,10 +121,10 @@ function NoticeCard({
     >
       <View style={s.cardHeader}>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {n.is_pinned && <Pin size={12} color={themeColor} />}
+          {n.is_pinned && <LucideIcon name="pin" size={12} color={themeColor} />}
           <Text style={s.noticeTitle} numberOfLines={isOpen ? undefined : 1}>{n.title}</Text>
         </View>
-        <LucideIcon name={isOpen ? "chevron-up" : "chevron-down"} size={16} color="#64748B" />
+        <LucideIcon name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={C.textSecondary} />
       </View>
 
       {isOpen && (
@@ -132,7 +134,7 @@ function NoticeCard({
       <View style={s.meta}>
         {n.notice_type === "individual" && n.student_name && (
           <View style={s.indiBadge}>
-            <User size={10} color="#7C3AED" />
+            <LucideIcon name="user" size={10} color="#7C3AED" />
             <Text style={s.indiBadgeTxt}>{n.student_name} 개인공지</Text>
           </View>
         )}
@@ -153,13 +155,13 @@ const s = StyleSheet.create({
                 shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05,
                 shadowRadius: 4, elevation: 2 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1 },
+  noticeTitle:{ fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1 },
   content:    { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#4B5563", lineHeight: 22 },
   meta:       { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   indiBadge:  { flexDirection: "row", alignItems: "center", gap: 3,
                 backgroundColor: "#EEDDF5", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   indiBadgeTxt:{ fontSize: 10, fontFamily: "Pretendard-Regular", color: "#7C3AED" },
-  metaTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   empty:      { alignItems: "center", paddingTop: 80, gap: 12 },
-  emptyTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

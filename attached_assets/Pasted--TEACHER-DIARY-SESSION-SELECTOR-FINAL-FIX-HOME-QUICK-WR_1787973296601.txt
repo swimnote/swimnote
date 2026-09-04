@@ -1,0 +1,390 @@
+[앱]
+
+TEACHER DIARY SESSION SELECTOR FINAL FIX
+HOME QUICK WRITE LOAD + IN-DIARY SCHEDULE SWITCHER
+
+현재 실제 iPhone 문제:
+
+A.
+홈 화면의 "일지작성" 버튼
+→ "작성할 수업 선택" sheet는 열림
+→ "목록을 불러오지 못했습니다."
+→ 실제 미작성 스케줄 조회 실패
+
+B.
+일지작성 화면 진입 후
+현재 상단에:
+
+목 19:00반
+2026-08-27 · 19:00
+
+가 표시되지만
+여기서 다른 수업시간표/회차로 바로 변경할 수 없음.
+
+C.
+앞선 실제 버그:
+스케줄러에서 8/13을 선택했는데
+일지작성 화면이 8/27로 열림.
+
+목표:
+모든 일지작성 진입/변경 경로를
+정확한 "선택된 수업 회차" 하나로 통일한다.
+
+==================================================
+1. SESSION OBJECT = SINGLE SOURCE OF TRUTH
+==================================================
+
+일지작성 화면에서 사용하는 현재 수업회차는
+반드시 하나의 session object로 관리.
+
+실제 기존 필드 기준으로:
+
+- classGroupId
+- className
+- lessonDate
+- startTime
+- schedule/slot identifier if available
+
+이 묶음이 동시에 변경되어야 함.
+
+금지:
+
+- 날짜만 따로 latest로 재계산
+- class만 바꾸고 날짜 유지
+- today fallback
+- most recent lesson fallback
+- latest diary date fallback
+
+==================================================
+2. FIX HOME QUICK WRITE LOAD FAILURE
+==================================================
+
+현재 홈 화면:
+
+일지작성
+→ UnwrittenScheduleSheet
+→ "목록을 불러오지 못했습니다."
+
+이 실제 경로만 추적.
+
+확인:
+
+- 호출 endpoint
+- auth
+- teacher id / pool id
+- X mode / general mode context
+- API URL
+- response status
+- response shape
+- client parser
+
+기존 정상 endpoint:
+
+GET /diaries/unwritten-slots
+
+를 실제로 호출하는지 확인.
+
+Quick Write 다른 진입점에서는 정상인데
+홈에서만 실패한다면
+새 API 만들지 말고
+정상 동작하는 동일 client/helper를 재사용.
+
+==================================================
+3. HOME QUICK WRITE REQUIRED RESULT
+==================================================
+
+홈 "일지작성" 클릭 시:
+
+작성 가능한 미작성 수업 목록 표시.
+
+각 row:
+
+날짜
+요일
+시간
+반 이름
+
+예:
+
+8월 13일 (목)
+19:00 · 목 19:00반
+
+사용자가 선택하면:
+
+session = {
+  classGroupId,
+  className,
+  lessonDate,
+  startTime,
+  existing slot id if available
+}
+
+전체를 diary 화면으로 전달.
+
+==================================================
+4. IN-DIARY SESSION SWITCHER
+==================================================
+
+일지작성 화면 상단의:
+
+반 이름
+날짜 · 시간
+
+영역을 탭 가능하게 만든다.
+
+예:
+
+[ 목 19:00반          ▼ ]
+  2026-08-27 · 19:00
+
+탭:
+→ "수업 변경" selector 열기.
+
+새 대형 화면 만들지 말고
+기존 UnwrittenScheduleSheet 또는
+공용 schedule selector를 최대한 재사용.
+
+==================================================
+5. SELECTOR SCOPE INSIDE DIARY
+==================================================
+
+일지작성 중 수업 변경 selector는
+미작성 수업만 볼 필요는 없음.
+
+목적:
+현재 작성 대상을 다른 내 수업회차로 변경.
+
+기본적으로:
+
+- 내 담당 수업
+- 실제 schedule occurrence
+- 날짜 + 시간 + 반 명확히 표시
+
+과거 작성 가능한 범위는
+기존 diary 정책 유지.
+
+이미 일지가 있는 회차를 선택하면
+기존 replace 정책 사용.
+
+즉:
+
+existing diary 있음
+→ "이 수업의 일지가 이미 작성되어 있습니다.
+   새로 작성한 일지로 기존 일지를 바꾸시겠습니까?"
+
+==================================================
+6. STUDENT LIST MUST FOLLOW SELECTED SESSION
+==================================================
+
+가장 중요.
+
+시간표/회차를 변경하면
+학생 목록도 반드시 새 session 기준으로 다시 로드.
+
+예:
+
+현재:
+8/27 목 19:00반
+학생: 서태웅
+
+→ selector에서
+8/13 다른 반 선택
+
+그러면:
+
+- classGroupId 변경
+- lessonDate 변경
+- startTime 변경
+- header 변경
+- student list 재조회
+- 기존 학생 선택/state 초기화
+- 새 반 소속 학생만 표시
+
+이전 반 학생이 남아 있으면 FAIL.
+
+==================================================
+7. STUDENT DATA SOURCE
+==================================================
+
+학생 목록은
+선택된 classGroupId / 실제 schedule session 기준
+기존 정상 학생 조회 로직 재사용.
+
+새 student API 만들지 않는다.
+
+확인:
+
+- active student
+- class membership
+- schedule-specific exclusions/attendance policy가 기존에 있으면 유지
+
+==================================================
+8. UNSAVED CONTENT SAFETY
+==================================================
+
+일지작성 중 텍스트/사진/학생별 추가일지 등을 입력한 상태에서
+상단 시간표를 변경하려 하면
+내용이 조용히 사라지면 안 됨.
+
+dirty state가 있으면 confirm:
+
+"작성 중인 내용이 있습니다.
+수업을 변경하면 현재 작성 내용이 초기화됩니다.
+변경하시겠습니까?"
+
+취소
+수업 변경
+
+변경 승인 시:
+
+- common diary text reset
+- selected students reset
+- student-specific drafts reset
+- selected media reset only if current form policy requires session-bound reset
+
+기존 저장된 서버 diary는 건드리지 않음.
+
+==================================================
+9. FIX 8/13 → 8/27 BUG IN SAME PASS
+==================================================
+
+반드시 실제 경로 재검증:
+
+스케줄러
+→ 8/13
+→ 목 19:00반
+→ 수업일지
+
+EXPECTED:
+
+HEADER:
+2026-08-13 · 19:00
+
+CURRENT SESSION:
+lessonDate = 2026-08-13
+
+STUDENT LIST:
+8/13 목19반 소속
+
+절대 8/27로 변경되면 안 됨.
+
+selected schedule occurrence가
+끝까지 source of truth.
+
+==================================================
+10. X MODE / GENERAL MODE
+==================================================
+
+이 기능은 반드시 양쪽 동일.
+
+X MODE:
+PASS
+
+GENERAL SWIMNOTE:
+PASS
+
+공용 component/helper 사용 우선.
+
+한쪽만 수정 금지.
+
+==================================================
+11. REQUIRED DEVICE/LOGIC SCENARIOS
+==================================================
+
+CASE 1
+홈 → 일지작성
+→ 미작성 목록 정상 표시
+
+CASE 2
+8/13 회차 선택
+→ diary header 8/13
+→ 해당 반 학생 표시
+
+CASE 3
+diary 상단 시간표 탭
+→ selector 열림
+
+CASE 4
+8/20 회차 선택
+→ header 8/20
+→ class/time 변경
+→ 학생 목록도 8/20 반 기준으로 변경
+
+CASE 5
+작성 중 내용 있음
+→ 수업 변경
+→ confirmation
+→ 취소 시 내용 유지
+→ 승인 시 새 session으로 초기화
+
+CASE 6
+이미 diary 있는 회차 선택
+→ replace confirmation
+
+CASE 7
+X MODE 동일
+
+CASE 8
+GENERAL MODE 동일
+
+==================================================
+12. DO NOT TOUCH
+==================================================
+
+- AI Engine
+- Growth Report
+- curriculum DB
+- OTA manager
+- billing
+- auth architecture
+- DB schema
+- unrelated schedule UI
+
+==================================================
+13. DEPLOY
+==================================================
+
+server 수정이 필요하면:
+Render required = YES
+
+앱 JS/TS 수정:
+OTA required = YES
+
+이번 Step에서는
+commit + push까지만.
+
+Render/OTA 실제 배포는 하지 말고 STOP.
+
+==================================================
+14. FINAL REPORT
+==================================================
+
+A. HOME QUICK WRITE FAIL ROOT CAUSE
+
+B. SESSION SOURCE OF TRUTH
+
+C. 8/13→8/27 ROOT CAUSE
+
+D. HEADER SWITCHER IMPLEMENTATION
+
+E. STUDENT RELOAD SOURCE
+
+F. UNSAVED CONTENT POLICY
+
+G. X MODE RESULT
+
+H. GENERAL MODE RESULT
+
+I. CHANGED FILES
+
+J. TESTS
+
+K. RENDER REQUIRED
+YES / NO
+
+L. OTA REQUIRED
+YES / NO
+
+M. NEW SHA
+
+완료 후 STOP.

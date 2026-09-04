@@ -1,4 +1,4 @@
-import { BellOff, Eye, Pin, Plus } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -49,10 +49,10 @@ export default function CommunityScreen() {
   }
 
   const NOTICE_TYPE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    general:    { label: "일반",     color: "#0F172A", bg: "#FFFFFF" },
+    general:    { label: "일반",     color: C.textPrimary, bg: "#FFFFFF" },
     important:  { label: "중요",     color: "#D96C6C", bg: "#F9DEDA" },
-    event:      { label: "이벤트",   color: "#7C3AED", bg: "#E6FAF8" },
-    class_info: { label: "수업 안내", color: "#2EC4B6", bg: "#E6FFFA" },
+    event:      { label: "이벤트",   color: "#7C3AED", bg: C.brandSoft },
+    class_info: { label: "수업 안내", color: C.brandStrong, bg: C.brandSoft },
     fee:        { label: "요금 안내", color: "#D97706", bg: "#FFF1BF" },
   };
 
@@ -62,28 +62,28 @@ export default function CommunityScreen() {
         title="공지/알림"
         rightSlot={
           <Pressable
-            style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.button, alignItems: "center", justifyContent: "center" }}
+            style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: C.primaryAction, alignItems: "center", justifyContent: "center" }}
             onPress={() => router.push("/(admin)/notices?backTo=community" as any)}
           >
-            <Plus size={18} color="#fff" />
+            <LucideIcon name="plus" size={18} color="#fff" />
           </Pressable>
         }
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} size="large" style={{ marginTop: 40 }} />
+        <ActivityIndicator color={C.brandStrong} size="large" style={{ marginTop: 40 }} />
       ) : (
         <FlatList
           data={notices}
           keyExtractor={n => n.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.tint} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.brandStrong} />}
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: insets.bottom + 100 }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <BellOff size={40} color={C.textMuted} />
+              <LucideIcon name="bell-off" size={40} color={C.textMuted} />
               <Text style={s.emptyText}>공지사항이 없습니다</Text>
-              <Pressable style={[s.emptyBtn, { backgroundColor: C.button }]} onPress={() => router.push("/(admin)/notices?backTo=community" as any)}>
-                <Plus size={16} color="#fff" />
+              <Pressable style={[s.emptyBtn, { backgroundColor: C.primaryAction }]} onPress={() => router.push("/(admin)/notices?backTo=community" as any)}>
+                <LucideIcon name="plus" size={16} color="#fff" />
                 <Text style={s.emptyBtnText}>첫 공지 작성</Text>
               </Pressable>
             </View>
@@ -101,9 +101,9 @@ export default function CommunityScreen() {
                     <Text style={[s.typeBadgeText, { color: type.color }]}>{type.label}</Text>
                   </View>
                   {n.is_pinned && (
-                    <View style={[s.typeBadge, { backgroundColor: "#E6FFFA" }]}>
-                      <Pin size={11} color="#2EC4B6" />
-                      <Text style={[s.typeBadgeText, { color: "#2EC4B6" }]}>고정</Text>
+                    <View style={[s.typeBadge, { backgroundColor: C.brandSoft }]}>
+                      <LucideIcon name="pin" size={11} color={C.brandStrong} />
+                      <Text style={[s.typeBadgeText, { color: C.brandStrong }]}>고정</Text>
                     </View>
                   )}
                   <Text style={s.noticeDate}>
@@ -115,7 +115,7 @@ export default function CommunityScreen() {
                 <View style={s.noticeFooter}>
                   <Text style={s.noticeAuthor}>{n.author_name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Eye size={12} color={C.textMuted} />
+                    <LucideIcon name="eye" size={12} color={C.textMuted} />
                     <Text style={s.noticeView}>{n.view_count || 0}</Text>
                   </View>
                 </View>

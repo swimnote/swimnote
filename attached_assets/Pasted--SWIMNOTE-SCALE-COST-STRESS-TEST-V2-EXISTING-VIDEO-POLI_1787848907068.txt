@@ -1,0 +1,577 @@
+[SWIMNOTE SCALE COST STRESS TEST V2
+— EXISTING VIDEO POLICY + SUPABASE + CLOUDFLARE]
+
+목적:
+SWIMNOTE / SWIMNOTE X 가격정책 출시 전에 남아 있는 핵심 비용 리스크를 최종 검증한다.
+
+이번 조사는 새 영상정책을 설계하는 작업이 아니다.
+
+SWIMNOTE에는 이미 과거에 정한 영상 업로드/저장/삭제 관련 정책이 존재하므로,
+반드시 repository / 문서 / 설정 / 기존 구현에서 그 정책을 먼저 찾아 복원하고,
+그 정책이 실제로 적용된다는 전제에서 비용 스트레스 테스트를 수행한다.
+
+조사 대상은 정확히 아래 2개다.
+
+1) 전체 활성 회원이 최대 200,000명까지 증가했을 때
+   Supabase 비용이 어떻게 증가할 수 있는가
+
+2) 기존 SWIMNOTE 영상정책을 준수하는 PREMIER 수영장들이
+   영상을 적극적으로 사용했을 때
+   Cloudflare + Supabase 비용이 비정상적으로 폭증할 수 있는가
+
+중요:
+- 코드 수정 금지
+- 배포 금지
+- DB schema 수정 금지
+- 가격정책 수정 금지
+- 영상정책 임의 변경 금지
+- 새 제한 임의 추가 금지
+- 조사/계산만 수행
+- Secret/API KEY/DB PASSWORD 출력 금지
+- 추정과 MEASURED를 명확히 분리
+- 기존 영상정책이 발견되면 반드시 그 정책을 우선 적용
+- 기존 영상정책과 현재 코드 구현이 다르면 둘을 따로 보고
+- 확인되지 않은 정책은 임의로 채우지 말고 MISSING 표시
+- 현재 vendor 가격 확인 가능 시 공식 가격 사용
+
+==================================================
+A. 기존 SWIMNOTE 영상정책 먼저 복원
+==================================================
+
+가장 먼저 해야 할 작업이다.
+
+과거에 확정한 영상 관련 정책을
+repository / docs / comments / constants / server routes /
+storage quota logic / UI validation / DB schema / admin settings 등에서
+전부 찾아서 하나의 정책표로 정리해라.
+
+다음 항목을 확인:
+
+1. 어떤 플랜에서 영상 업로드가 가능한가
+2. SOLO는 영상 업로드가 가능한가/불가능한가
+3. PREMIER 각 플랜의 저장용량 한도
+4. 영상 1개 최대 파일크기
+5. 영상 1개 최대 길이
+6. 피드 1개당 영상 개수 제한
+7. 회원/반/선생님 단위 업로드 제한 존재 여부
+8. 일/월 업로드 횟수 제한 존재 여부
+9. 업로드 후 보관기간
+10. 자동삭제 정책
+11. 사용자 직접 삭제 가능 여부
+12. 삭제 시 실제 object가 즉시 삭제되는지
+13. soft delete인지 hard delete인지
+14. 삭제 후 metadata가 남는지
+15. storage quota 계산 방식
+16. quota가 현재 저장된 object size 기준인지
+17. 삭제 시 quota가 즉시 반환되는지
+18. 영상 재업로드/교체 정책
+19. 중복 업로드 방지 여부
+20. orphan object 정리 정책
+21. thumbnail/preview 별도 생성 여부
+22. transcoding 여부
+23. 압축 여부
+24. 업로드 전 client-side compression 여부
+25. server-side processing 여부
+26. 다운로드/스트리밍 방식
+27. signed URL 사용 여부
+28. parent playback 방식
+29. CDN/cache 사용 여부
+30. 영상 관련 abuse/rate-limit 기존 정책 존재 여부
+
+반드시 최종적으로:
+
+EXISTING VIDEO POLICY
+
+- eligible plans =
+- quota PREMIER 300 =
+- quota PREMIER 500 =
+- quota PREMIER 1000 =
+- max video size =
+- max duration =
+- videos per feed =
+- upload frequency limit =
+- retention =
+- delete behavior =
+- quota recovery behavior =
+- playback method =
+- transcoding =
+- compression =
+- rate limit =
+- source files / code paths =
+
+형식으로 정리.
+
+현재 알고 있는 기존 플랜 저장용량 기준:
+- PREMIER 300 = 10GB
+- PREMIER 500 = 20GB
+- PREMIER 1000 = 50GB
+
+repository 실제 값이 다르면
+production 기준 실제 값을 우선하고 차이를 보고할 것.
+
+==================================================
+B. 실제 VIDEO 저장 경로 확인
+==================================================
+
+다음 흐름을 실제 코드로 추적:
+
+APP
+→ upload route
+→ server
+→ Cloudflare / Supabase
+→ metadata DB
+→ playback
+→ delete
+
+확인:
+
+CLOUDFLARE
+- R2 실제 사용 여부
+- Stream 사용 여부
+- 영상 binary 저장 위치
+- thumbnail 위치
+- upload operation
+- multipart 여부
+- delete operation
+- download/playback operation
+- Class A
+- Class B
+- egress
+- cache
+- overwrite
+- re-upload
+
+SUPABASE
+- 영상 binary가 Supabase Storage에도 저장되는지
+- 아니면 metadata/database만 Supabase인지
+- video_assets_meta 구조
+- file_size
+- object key/path
+- owner/pool relation
+- upload 1건당 DB write 수
+- delete 1건당 DB operation 수
+- feed/notification/relation row 생성 수
+- storage/bandwidth가 영상으로 실제 발생하는지
+
+중요:
+“Cloudflare와 Supabase 두 개를 사용한다”는 사실만으로
+영상 binary가 두 곳에 중복 저장된다고 가정하지 말고
+실제 코드로 확인할 것.
+
+==================================================
+C. SUPABASE 200,000 ACTIVE STUDENTS SCALE TEST
+==================================================
+
+전체 활성학생 최대:
+
+200,000명
+
+센터:
+최대 약 550곳
+
+단순 students row만 계산하지 말고
+실제 production schema와 현재 데이터 증가율을 사용한다.
+
+대상:
+- students
+- guardians
+- parent users
+- teachers
+- class_groups
+- student_class_history
+- attendance
+- class_diaries
+- diary student/common data
+- notifications
+- parent requests
+- comments/reactions
+- growth_reports
+- growth related rows
+- curriculum assignment
+- event_logs
+- video_assets_meta
+- photo_assets_meta
+- auth users
+- 기타 주요 대량 테이블
+
+규모별:
+
+10K
+50K
+100K
+200K students
+
+각각 계산:
+
+- total expected rows
+- DB size
+- indexes size
+- auth MAU
+- DB compute need
+- connection/concurrency
+- storage
+- bandwidth
+- Realtime
+- backup/PITR/log
+- 예상 Supabase plan/tier
+- estimated monthly cost
+- 다음 비용 jump trigger
+
+반드시:
+
+STUDENTS 10K
+- expected DB size =
+- expected MAU =
+- compute =
+- monthly cost =
+- limiting factor =
+
+STUDENTS 50K
+...
+
+STUDENTS 100K
+...
+
+STUDENTS 200K
+...
+
+그리고 20만 명에서 Supabase가:
+
+- 월 10만원대
+- 50만원대
+- 100만원대
+- 수백만원대
+- 수천만원대
+
+중 어느 구간으로 갈 가능성이 있는지 근거와 함께 판단.
+
+RISK:
+LOW / MEDIUM / HIGH
+
+==================================================
+D. 기존 영상정책 적용 NORMAL COST TEST
+==================================================
+
+여기서는 임의의 악용 상황부터 만들지 말고,
+A에서 복원한 “기존 SWIMNOTE 영상정책”을 그대로 적용한다.
+
+각 PREMIER:
+
+300
+500
+1000
+
+최대 회원수까지 사용한다고 가정.
+
+그리고 해당 플랜의 저장용량 quota를
+정상적인 실제 운영자가 사용하는 시나리오로 계산.
+
+SCENARIO N1
+- 저장용량 25% 사용
+- 정상적인 추가/삭제
+
+SCENARIO N2
+- 저장용량 50% 사용
+- 월 1회 정도 일부 콘텐츠 교체
+
+SCENARIO N3
+- 저장용량 100% 사용
+- 기존 정책이 허용하는 범위 내 적극적 교체
+
+각 시나리오:
+
+Cloudflare storage =
+Cloudflare Class A =
+Cloudflare Class B =
+Cloudflare egress =
+Supabase DB =
+Supabase Storage =
+Supabase bandwidth =
+metadata churn =
+thumbnail/transcoding =
+TOTAL =
+
+==================================================
+E. 기존 정책으로 VIDEO CHURN 비용폭증이 막히는지
+==================================================
+
+핵심 질문:
+
+“현재 확정되어 있는 SWIMNOTE 영상정책만으로
+사용자가 quota를 넘지 않으면서
+영상을 계속 올리고 지우고 재업로드해
+월 누적 traffic/request 비용을 크게 만들 수 있는가?”
+
+먼저 기존 정책이 실제로 허용하는 최대 churn을 계산한다.
+
+예를 들어 20GB quota라도
+기존 정책에 업로드 제한/파일 제한/피드 제한이 있으면
+그 제한을 반드시 반영한다.
+
+그 후에만 아래 hypothetical stress test를 한다.
+
+STRESS S1
+quota 100%
+월 4회 전체 turnover
+
+STRESS S2
+quota 100%
+매일 1회 전체 turnover
+
+STRESS S3
+quota 이하 유지
+기존 정책이 허용하는 최대 upload/delete 반복
+
+STRESS S4
+기존 정책에 rate-limit이 없다면
+기술적으로 가능한 비정상적 churn
+
+중요:
+S4는 실제 정상 비용과 분리해서
+“ABUSE CASE”로 표시한다.
+
+각 플랜:
+PREMIER 300
+PREMIER 500
+PREMIER 1000
+
+각각 계산:
+
+- monthly upload GB
+- monthly delete GB
+- monthly playback/download GB
+- Class A count
+- Class B count
+- DB write/delete count
+- storage GB-month
+- egress
+- total Cloudflare
+- total Supabase
+- total cost
+
+==================================================
+F. 저장용량 QUOTA만으로 충분한가?
+==================================================
+
+기존 정책을 분석한 뒤 답한다.
+
+Q1.
+현재 기존 영상정책 + storage quota만으로
+비용폭증 방어가 충분한가?
+
+YES / NO
+
+Q2.
+기존 정책 중 이미 비용폭증을 방어하는 장치가 무엇인가?
+
+예:
+- max video size
+- max duration
+- videos/feed
+- compression
+- retention
+- quota
+- rate limit
+- upload limit
+- delete behavior
+
+실제로 존재하는 것만 기술.
+
+Q3.
+부족하다면 어떤 구멍 때문에 비용이 터질 수 있는가?
+
+예:
+“20GB를 저장하는 것 자체는 안전하지만
+삭제 후 quota가 바로 복구되고
+월 upload 총량 제한이 없어서
+20GB × 30회 turnover 가능”
+
+처럼 실제 경로를 설명.
+
+Q4.
+새 가드레일이 필요하다면
+가격을 올리는 것보다 먼저
+최소한으로 필요한 것만 제안.
+
+단:
+이번 조사에서는 구현하지 않는다.
+
+각 항목:
+
+- monthly upload GB cap
+- upload count cap
+- daily cap
+- max file size
+- playback cap
+- bandwidth cap
+- churn protection
+- rate limiting
+
+REQUIRED / RECOMMENDED / NOT NEEDED
+
+==================================================
+G. 550 CENTER / 200K MEMBER REALISTIC HIGH CASE
+==================================================
+
+가정:
+
+- 550 centers
+- 200,000 active students
+- PREMIER 중심
+- 기존 영상정책 적용
+- 정상보다 높은 사용량
+- 악성 공격 제외
+- 적극적 실제 고객 사용 포함
+
+월 전체:
+
+Supabase =
+Cloudflare R2 storage =
+Cloudflare requests =
+Cloudflare egress =
+video metadata DB =
+thumbnail/transcoding =
+other infra =
+
+TOTAL MONTHLY NON-AI INFRA COST =
+
+센터당 평균 =
+회원 1명당 =
+
+==================================================
+H. 현재 가격모델과 비교
+==================================================
+
+현재 내부 X 보수원가 기준:
+
+회원 1명당 월 100원
+
+200,000명:
+
+₩20,000,000/month
+
+단,
+이 100원에는 AI 원가도 포함되어 있으므로
+AI에서 이미 사용되는 금액을 먼저 제외하고
+Supabase + Cloudflare + 영상에 쓸 수 있는
+실제 잔여 buffer를 계산해야 한다.
+
+기존 AI 원가 조사값을 사용해:
+
+AI average per member =
+AI conservative per member =
+
+잔여 infra buffer/member =
+잔여 infra buffer total at 200K =
+
+실제 예상 Supabase + Cloudflare 비용이
+이 안에 들어오는지 판정.
+
+RESULT:
+SAFE / BORDERLINE / UNSAFE
+
+==================================================
+I. DANGER LINE
+==================================================
+
+현재 X 정상가 기준:
+
+300명
+= 90,000원
+
+500명
+= 150,000원
+
+1000명
+= 300,000원
+
+즉:
+회원당 X 매출 = 300원
+
+사업계획 계산:
+수수료 + VAT 등 40% 차감
+
+300원 × 60%
+= 180원/member available
+
+여기에서 실제 총 운영원가가:
+
+100원/member → +80원 margin
+120원/member → +60원
+150원/member → +30원
+180원/member → break-even
+200원/member → loss
+
+이 구조가 맞는지 검증한다.
+
+그리고 200K 전체 기준으로:
+
+총 실제 원가/member =
+현재 가격에서 margin/member =
+월 전체 margin =
+연 전체 margin =
+
+계산.
+
+DANGER LINE:
+실제 총 운영원가가
+₩____ / member / month를 넘으면
+현재 X 가격이 적자로 전환.
+
+==================================================
+J. 최종 답변 형식
+==================================================
+
+1. EXISTING VIDEO POLICY
+   기존 정책을 먼저 완전히 정리
+
+2. VIDEO ARCHITECTURE
+   Cloudflare / Supabase 각각 정확히 무엇을 저장/처리하는지
+
+3. SUPABASE 200K RESULT
+   10K / 50K / 100K / 200K
+   예상 비용 및 scale trigger
+
+4. VIDEO NORMAL COST
+   PREMIER 300
+   PREMIER 500
+   PREMIER 1000
+
+5. VIDEO CHURN STRESS
+   normal
+   aggressive
+   extreme
+   abuse
+
+6. EXISTING POLICY PROTECTION
+   현재 정책만으로 비용폭증 방어 가능 여부
+
+7. 550 CENTERS / 200K MEMBERS
+   Supabase =
+   Cloudflare =
+   video-related =
+   total non-AI infra =
+   per member =
+
+8. ₩100/MEMBER BUFFER
+   AI 포함 후 실제로 안전한지
+   SAFE / BORDERLINE / UNSAFE
+
+9. DANGER LINE
+   현재 가격이 적자로 변하는 실제 원가/member
+
+10. REQUIRED GUARDRAILS
+    정말 필요한 것만 최대 5개
+
+11. FINAL VERDICT
+    PASS / CONDITIONAL PASS / FAIL
+
+12. 가격정책 유지 가능 여부
+    “현재 가격 유지 가능”
+    또는
+    “원가 때문에 조정 필요”
+
+코드 수정 금지.
+배포 금지.
+정책 변경 금지.
+조사와 계산만 수행하고 STOP.

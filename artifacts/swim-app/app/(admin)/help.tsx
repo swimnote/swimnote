@@ -1,7 +1,6 @@
 /**
  * help.tsx — 앱 내 도움말 / FAQ
  */
-import { ChevronDown, ChevronUp } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState } from "react";
 import {
@@ -78,7 +77,7 @@ function FaqRow({ item }: { item: FaqItem }) {
     <Pressable onPress={() => setOpen(p => !p)}>
       <View style={f.qRow}>
         <Text style={f.q}>{item.q}</Text>
-        {open ? <ChevronUp size={16} color={C.textMuted} /> : <ChevronDown size={16} color={C.textMuted} />}
+        {open ? <LucideIcon name="chevron-up" size={16} color={C.textMuted} /> : <LucideIcon name="chevron-down" size={16} color={C.textMuted} />}
       </View>
       {open && <Text style={f.a}>{item.a}</Text>}
     </Pressable>
@@ -141,8 +140,8 @@ const s = StyleSheet.create({
   container: { padding: 16, gap: 16 },
 
   banner: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#EFF6FF", borderRadius: 16, padding: 16 },
-  bannerTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  bannerSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  bannerTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  bannerSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 
   section: { gap: 8 },
   secHeader: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 },
@@ -151,13 +150,14 @@ const s = StyleSheet.create({
   secCard: { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", paddingHorizontal: 16, shadowColor: "#00000010", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
 
   contactCard: { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#F5F0FF", borderRadius: 16, padding: 16 },
-  contactTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  contactSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  contactTitle: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  contactSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
 });
 
 const f = StyleSheet.create({
   qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, gap: 10 },
-  q: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", flex: 1, lineHeight: 21 },
+  q: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, flex: 1, lineHeight: 21 },
   a: { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#475569", lineHeight: 21, paddingBottom: 14, paddingRight: 24 },
   divider: { height: 1, backgroundColor: C.border },
 });
+

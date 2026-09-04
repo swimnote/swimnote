@@ -1,0 +1,301 @@
+[SWIMNOTE APP RELEASE]
+[STEP 3 — SWIMNOTE-API PRODUCTION DEPLOY VERIFICATION ONLY]
+
+현재:
+
+swimnote-api Render Production 재배포 완료.
+
+이번 배포에서 설정된 ENV:
+
+PARENT_CURRICULUM_ENGINE_URL
+PARENT_CURRICULUM_ENGINE_SECRET
+
+이번 단계 목적:
+
+swimnote-api Production 배포가 정상인지,
+startup migration Group 6/7/8이 실제 적용됐는지,
+Parent Curriculum APP route가 살아있는지만 검증한다.
+
+이번 단계에서:
+
+코드 수정 금지.
+추가 Render deploy 금지.
+Worker deploy 금지.
+OTA/build 금지.
+Production 데이터 생성 금지.
+AI ENGINE 수정 금지.
+
+==================================================
+1. DEPLOYED SHA
+==================================================
+
+현재 Render swimnote-api에 실제 배포된 SHA 확인.
+
+Repository:
+deploy-photo-clone
+
+현재 release HEAD와 일치하는지 보고.
+
+==================================================
+2. SERVICE STATUS
+==================================================
+
+swimnote-api:
+
+- Live/Deployed 상태
+- crash loop 없음
+- restart 반복 없음
+- startup 완료
+
+확인.
+
+==================================================
+3. HEALTH
+==================================================
+
+Production API health endpoint 실제 호출.
+
+repository에 등록된 canonical health route 사용.
+
+예:
+
+GET /api/healthz
+
+→ 200
+
+정확한 endpoint가 다르면 실제 코드 기준 사용.
+
+==================================================
+4. STARTUP LOG
+==================================================
+
+이번 배포 startup log에서:
+
+initXModeSchema()
+
+실행 결과 확인.
+
+특히:
+
+Group 6
+Group 7
+Group 8
+
+각각 SUCCESS 여부 확인.
+
+로그에 명확하지 않으면 DB post-check로 판정.
+
+==================================================
+5. GROUP 6 POST-CHECK
+==================================================
+
+Production Supabase read-only 확인:
+
+curriculum_versions EXISTS
+curriculum_items EXISTS
+student_curriculum_assignments EXISTS
+curriculum_requests EXISTS
+curriculum_request_files EXISTS
+
+관련 FK/index도 migration contract 기준 존재 확인.
+
+신규 데이터 row 생성 여부는 count로만 확인.
+
+==================================================
+6. GROUP 7 POST-CHECK
+==================================================
+
+Production Supabase:
+
+parent_curriculum_conversations EXISTS
+parent_curriculum_messages EXISTS
+
+확인.
+
+그리고:
+
+parent_curriculum_conversations
+UNIQUE(parent_account_id, student_id)
+
+parent_curriculum_messages
+UNIQUE(request_id, role)
+
+role CHECK USER/ASSISTANT
+
+존재 확인.
+
+==================================================
+7. GROUP 8 POST-CHECK
+==================================================
+
+확인:
+
+parent_ai_daily_usage.feature EXISTS
+
+type/default/nullability:
+migration contract와 일치
+
+parent_ai_usage_reservations.feature EXISTS
+
+기존 unique:
+
+(parent_account_id, usage_date)
+
+→ 제거됨
+
+신규 unique:
+
+(parent_account_id, feature, usage_date)
+
+→ 존재
+
+반드시 실제 Production DB constraint 기준으로 확인.
+
+==================================================
+8. EXISTING ROW SAFETY
+==================================================
+
+다음 row count 확인:
+
+parent_ai_daily_usage
+parent_ai_usage_reservations
+parent_curriculum_conversations
+parent_curriculum_messages
+
+이번 검증에서 row 생성 금지.
+
+startup migration 때문에 기존 unrelated row가 삭제/감소하지 않았는지만 확인.
+
+==================================================
+9. PARENT CURRICULUM ROUTES
+==================================================
+
+Production APP API에서 실제 route 존재 확인:
+
+POST /parent/students/:studentId/curriculum-search
+
+GET /parent/students/:studentId/curriculum-search/history
+
+무인증 요청으로 확인.
+
+기대:
+
+404가 아니어야 함.
+
+인증 middleware 때문에
+401 또는 403이면 route alive로 판정 가능.
+
+500이면 BLOCK.
+
+실제 parent account 사용 금지.
+실제 질문 실행 금지.
+
+==================================================
+10. ENGINE ENV RUNTIME
+==================================================
+
+swimnote-api runtime에서 다음 ENV 존재 여부만 확인:
+
+PARENT_CURRICULUM_ENGINE_URL = PRESENT
+PARENT_CURRICULUM_ENGINE_SECRET = PRESENT
+
+값 출력 금지.
+
+URL은:
+
+https://swimnote.ai.kr
+
+로 해석되는지 확인.
+
+==================================================
+11. ENGINE CALL NOT YET REQUIRED
+==================================================
+
+이번 단계에서는 실제 Parent Curriculum 질문을 보내지 않는다.
+
+실제 APP → ENGINE E2E는
+인증된 테스트 계정/실기기 단계에서 별도로 진행.
+
+따라서 Production DB에:
+
+conversation
+message
+usage reservation
+
+생성 금지.
+
+==================================================
+12. GROWTH REPORT REGRESSION
+==================================================
+
+이번 API 배포로 기존 Growth Report APP routes가
+등록 상태를 유지하는지만 확인.
+
+404 여부만 최소 확인 가능.
+
+실제 report 생성/analysis 실행 금지.
+
+==================================================
+13. SUPER ADMIN ROUTE REGRESSION
+==================================================
+
+다음 route가 production에서 404가 아닌지만 확인:
+
+GET /super/dashboard-stats
+GET /super/pools-summary?filter=xmode
+
+무인증이면 인증 실패 status는 정상.
+
+500/404면 BLOCK.
+
+==================================================
+14. NO WORKER
+==================================================
+
+이번 단계에서:
+
+swimnote-worker 설정/배포 금지.
+
+Growth Report Scheduler/Analysis Worker가
+API service에서 실행되지 않는 것도 확인.
+
+WORKER_MODE != true
+
+확인.
+
+==================================================
+15. REPORT
+==================================================
+
+다음만 보고:
+
+1. DEPLOYED SHA
+2. SERVICE STATUS
+3. HEALTH STATUS
+4. STARTUP STATUS
+5. GROUP 6 STATUS
+6. GROUP 7 STATUS
+7. GROUP 8 STATUS
+8. OLD 2-COL UNIQUE REMOVED?
+9. NEW 3-COL UNIQUE PRESENT?
+10. USAGE ROW COUNTS
+11. CONVERSATION ROW COUNTS
+12. PARENT SEARCH ROUTE STATUS
+13. PARENT HISTORY ROUTE STATUS
+14. PARENT ENGINE URL ENV PRESENT?
+15. PARENT ENGINE SECRET ENV PRESENT?
+16. GROWTH REPORT APP ROUTES STATUS
+17. SUPER ADMIN ROUTES STATUS
+18. WORKER_MODE ON API
+19. WORKER RUNNING ON API? YES/NO
+20. PRODUCTION DATA CREATED DURING CHECK?
+21. CODE CHANGE
+22. EXTRA DEPLOY
+
+전부 정상:
+
+SWIMNOTE_API_PRODUCTION_DEPLOY_VERIFIED ✅
+
+문제 발생:
+
+SWIMNOTE_API_PRODUCTION_DEPLOY_BLOCKED ❌

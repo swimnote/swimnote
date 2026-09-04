@@ -1,0 +1,197 @@
+[앱] Teacher Red Dot + Back Navigation — 승인된 최소 구현
+
+구현계획서 검수 완료.
+아래 범위만 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. Teacher Home Red Dot 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/api-server/src/routes/diary.ts
+
+/teacher/overview 의 unread_news 계산 수정.
+
+현재 누락된:
+- growth_report_like
+- growth_report_comment
+
+를 추가.
+
+단, push_settings와 무관하게 무조건 포함하지 마십시오.
+
+기존 설정 정책을 그대로 재사용:
+
+news_like !== false
+→ diary_like
+→ growth_report_like
+
+news_thanks !== false
+→ diary_thanks
+
+news_comment !== false
+→ diary_comment
+→ growth_report_comment
+
+즉 개념별로 동일 preference를 공유.
+
+새 push setting 추가 금지.
+DB schema 수정 금지.
+
+목표:
+
+읽지 않은
+- 일반 일지 좋아요
+- 일반 일지 감사
+- 일반 일지 댓글
+- 성장리포트 좋아요
+- 성장리포트 댓글
+
+중 현재 활성화된 news preference 대상이 하나라도 있으면
+overview.unread_news > 0
+→ Home 편지함 red dot 표시.
+
+개별 알림을 읽으면 기존 is_read 정책 그대로 감소.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. Home → Inbox Navigation 최소 수정
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+artifacts/swim-app/components/teacher/today-schedule/UnreadMessagesModal.tsx
+
+현재 Modal 내부에서 messages-inbox로 이동하는 모든 경로를 확인.
+
+수정:
+
+1. Modal을 먼저 닫음
+2. Modal dismiss 이후 navigation 실행
+3. /(teacher)/messages-inbox 는 router.push 유지
+
+기존 repository/RN 패턴에 맞춰
+requestAnimationFrame 또는 안전한 next-tick 방식을 사용.
+
+목표 stack:
+
+Teacher Home
+→ Messages Inbox
+→ Notification Target
+
+Target Back
+→ Messages Inbox
+
+Inbox Back
+→ Teacher Home
+
+━━━━━━━━━━━━━━━━━━━━━━
+중요 — 아직 건드리지 말 것
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 작업에서:
+
+diary-reactions.tsx의
+teacher_home_inbox / news_inbox back 로직 수정 금지.
+
+growth-report-reactions.tsx back 로직 수정 금지.
+
+messages-inbox의 notification target routing 구조도
+필요 없는 변경 금지.
+
+먼저 Modal → Inbox 진입 구조만 고친 뒤
+실기기에서 Back stack을 확인합니다.
+
+즉 계획서의 STEP 3는 이번 작업에서 HOLD.
+
+━━━━━━━━━━━━━━━━━━━━━━
+Targeted Test
+━━━━━━━━━━━━━━━━━━━━━━
+
+Red Dot:
+
+1.
+growth_report_like unread 1건
+→ overview.unread_news 반영
+
+2.
+growth_report_comment unread 1건
+→ overview.unread_news 반영
+
+3.
+news_like=false일 때
+diary_like + growth_report_like 모두 해당 설정 정책대로 제외되는지 확인
+
+4.
+news_comment=false일 때
+diary_comment + growth_report_comment 동일 확인
+
+5.
+기존 diary_like / diary_thanks / diary_comment regression 없음
+
+Navigation:
+
+Home
+→ 편지함
+→ Inbox
+→ diary_like 또는 diary_comment 선택
+→ diary-reactions
+→ Back
+→ Inbox
+→ Back
+→ Home
+
+그리고:
+
+Home
+→ 편지함
+→ Inbox
+→ growth_report_like 또는 growth_report_comment 선택
+→ growth-report-reactions
+→ Back
+→ Inbox
+→ Back
+→ Home
+
+━━━━━━━━━━━━━━━━━━━━━━
+배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버 변경:
+Render deploy 필요 여부 보고.
+
+앱 변경:
+OTA-compatible이면 iOS production OTA 진행.
+rollback target 기록.
+
+━━━━━━━━━━━━━━━━━━━━━━
+완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[RED DOT]
+- 변경 코드
+- 각 notification type → preference mapping
+- targeted test
+
+[NAVIGATION]
+- Modal close 순서
+- Inbox push 방식
+- Diary target Back 결과
+- Growth Report target Back 결과
+
+[CODE]
+- SHA
+- 변경 파일
+
+[OTA]
+- rollback target
+- new OTA ID
+
+[SERVER]
+- Render deploy 필요 여부
+
+실기기에서 Back이 여전히 Home으로 바로 빠지면
+그 결과만 보고하고 STOP.
+
+그 경우에만 STEP 3의 target back/source 로직을 별도로 수정합니다.
+
+추가 navigation 구조 변경 금지.
+완료 후 STOP.

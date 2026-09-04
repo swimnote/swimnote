@@ -1,0 +1,783 @@
+[WP-N6 — PARENT NORMAL/X THEME FRAME FINALIZATION]
+
+목적:
+
+학부모 앱에서도
+Normal SWIMNOTE와 SWIMNOTE X가
+테마 수준에서 명확히 구분되도록 정리한다.
+
+단,
+기능 고유색 / semantic color / 콘텐츠 색상은 보호한다.
+
+이번 WP의 핵심:
+
+Normal Parent
+→ Sage/Ocean theme frame
+
+X Parent
+→ Nautic/Yacht theme frame
+
+하지만:
+
+AI 리포트
+AI 커리큘럼
+Feed
+Reaction
+Attendance
+Level
+Photo/content
+
+등 기능/의미 색상은 모드가 바뀌어도 유지한다.
+
+==================================================
+0. CORE PRINCIPLE
+==================================================
+
+Normal/X 테마는:
+
+"앱의 프레임과 조작 UI"
+
+를 구분한다.
+
+기능의 의미를 전달하는 색상은
+모드와 관계없이 유지한다.
+
+즉:
+
+THEME_MUTABLE
+→ mode에 따라 변경
+
+FEATURE_FIXED
+→ 고유색 유지
+
+SEMANTIC_PROTECTED
+→ 의미색 유지
+
+==================================================
+1. NORMAL PARENT THEME
+==================================================
+
+Normal Parent 공식 theme:
+
+C.brandStrong  = #4F6F67
+C.brandPrimary = #6F9187
+C.brandMid     = #91ABA3
+C.brandSoft    = #DDE7E3
+C.brandMist    = #ECF2F0
+
+C.background   = #F4F7F6
+C.surface      = #FBFCFC
+
+C.textStrong    = #24302E
+C.textPrimary   = #35413F
+C.textSecondary = #5E6B68
+C.textMuted     = #74817E
+
+Normal Parent는
+밝고 차분한 Sage/Ocean frame.
+
+==================================================
+2. X PARENT THEME
+==================================================
+
+X Parent는 현재 확정된:
+
+Nautic + Yacht Blue
+
+system 사용.
+
+xTheme.ts source of truth 유지.
+
+X mode에서는:
+
+header
+general navigation
+general selection
+general button
+general chip
+general modal CTA
+general active state
+
+등이 XT.* 사용.
+
+==================================================
+3. FIRST — PARENT SCREEN AUDIT
+==================================================
+
+학부모 전체 화면을 실제 repository 기준으로 감사.
+
+최소:
+
+home
+diary
+swim-diary
+photos
+notifications
+requests
+attendance
+attendance-history
+notices
+notice-detail
+children
+add-child
+link-child
+child-profile
+my-info
+additional-guardians
+parent-profile
+messages
+inquiries
+more
+push-settings
+curriculum-chat
+growth-report
+growth-report-detail
+growth-report-questions
+x-growth
+program
+swim-info
+shopping
+
+실제 파일명 기준으로 확인.
+
+각 color/style 사용처를:
+
+THEME_MUTABLE
+FEATURE_FIXED
+SEMANTIC_PROTECTED
+CONTENT_COLOR
+USER_CONFIGURED
+AMBIGUOUS
+
+로 분류.
+
+AMBIGUOUS 자동 변경 금지.
+
+==================================================
+4. PARENT THEME_MUTABLE
+==================================================
+
+다음은 Normal/X에 따라 전환 가능:
+
+- app/page background
+- header
+- 일반 navigation
+- 일반 버튼
+- 일반 icon
+- 일반 tabs
+- 일반 chips
+- 일반 selected state
+- 일반 borders
+- 일반 modal confirm
+- 일반 sheet controls
+- general empty state
+- input focus
+- child selector UI
+- general section emphasis
+
+==================================================
+5. FEATURE_FIXED — ABSOLUTE PROTECTION
+==================================================
+
+다음 기능 고유색 보호:
+
+AI 성장리포트
+AI 커리큘럼
+Feed 기능 identity
+Feed reaction
+Photo/content identity
+ParentAdBanner
+Promo/feature content
+AI-specific cards
+Report graph identity
+
+mode에 따라 색을 바꾸지 않는다.
+
+==================================================
+6. AI REPORT
+==================================================
+
+AI Growth Report:
+
+카드/그래프/레벨/분석 영역의
+고유 visual identity 유지.
+
+Normal이라고 Sage로 덮지 않는다.
+
+X라고 Nautic/Yacht로 덮지 않는다.
+
+단:
+
+화면 frame:
+
+header
+page background
+general close/back
+general navigation
+
+만 mode theme 적용.
+
+==================================================
+7. AI CURRICULUM
+==================================================
+
+curriculum-chat의:
+
+AI bubble
+user bubble
+feature identity
+AI-specific controls
+
+현재 고유 설계가 있으면 보호.
+
+단:
+
+screen frame
+header
+generic navigation
+general modal/sheet
+
+만 mode theme 적용.
+
+==================================================
+8. FEED / DIARY
+==================================================
+
+Feed에서:
+
+reaction colors
+teacher/parent role identity
+사진/영상
+content-specific colors
+comment semantic
+
+유지.
+
+단:
+
+page background
+general header
+general tab
+general selection
+generic action controls
+
+Normal → Sage
+X → Nautic/Yacht
+
+==================================================
+9. PARENT HOME
+==================================================
+
+Parent home은 가장 중요.
+
+현재 audit에서 확인된:
+
+TEAL hardcode
+NAVY hardcode
+IB mint bg
+general child selector
+general icon
+general tabs/chips
+
+를 다시 확인.
+
+Normal:
+
+general frame
+→ C.* Sage/Ocean
+
+X:
+
+general frame
+→ XT.*
+
+단:
+
+X growth banner
+AI report
+AI curriculum
+feed feature card
+
+고유색 유지.
+
+==================================================
+10. CHILD SELECTOR
+==================================================
+
+자녀 선택 UI는
+일반 theme control로 본다.
+
+Normal active:
+→ C.brandStrong / C.brandSoft
+
+X active:
+→ XT.accent / XT.accentSoft
+
+아이별 고유 식별색이 실제 존재하면
+그 부분은 별도 보호.
+
+==================================================
+11. PARENT HEADER
+==================================================
+
+ParentScreenHeader는 이미 X-aware.
+
+확인:
+
+Normal:
+Sage/Ocean frame
+
+X:
+Nautic/Yacht frame
+
+텍스트 가독성 유지.
+
+Normal에서 X color leakage 금지.
+X에서 Sage leakage 금지.
+
+==================================================
+12. PARENT NAVIGATION
+==================================================
+
+Parent layout/navigation이
+bottom tab이 없거나 Stack 기반이면
+현재 구조 그대로.
+
+있는 navigation component만 mode-aware.
+
+Normal active:
+→ C.brandStrong
+
+X active:
+→ XT.accent
+
+FEATURE_FIXED nav는 보호.
+
+==================================================
+13. GENERAL BUTTONS
+==================================================
+
+WP-N3 button role system 유지.
+
+Normal:
+primary → C.primaryAction / C.brandStrong
+selection → C.brandStrong + C.brandSoft
+
+X:
+primary → XT.primary
+selection → XT.accent + XT.accentSoft
+
+Parent-specific custom button이
+legacy TEAL/mint로 남아있으면
+역할 확인 후 정리.
+
+==================================================
+14. GENERAL ICONS
+==================================================
+
+WP-N5 icon policy 유지.
+
+Normal:
+general icon → C.textPrimary / C.textSecondary
+active → Sage
+
+X:
+general icon → XT.* hierarchy
+
+semantic/feature icon 보호.
+
+==================================================
+15. ATTENDANCE / STATUS PROTECTION
+==================================================
+
+다음 유지:
+
+present
+absent
+late
+approved
+pending
+rejected
+status badge
+attendance history colors
+
+Normal/X theme가
+semantic state를 덮으면 안 된다.
+
+==================================================
+16. LEVEL / BADGE PROTECTION
+==================================================
+
+LevelBadge
+badge_color
+curriculum level identity
+progress semantic
+
+고유색 유지.
+
+일반 UI chip과
+level badge를 혼동하지 않는다.
+
+==================================================
+17. PHOTO / CONTENT PROTECTION
+==================================================
+
+사진
+영상
+lightbox
+content overlay
+media identity
+
+는 feature/content 영역.
+
+theme 때문에 색조를 바꾸지 않는다.
+
+단 generic close/back action은
+mode theme 적용 가능.
+
+==================================================
+18. PARENT REQUEST / NOTIFICATION
+==================================================
+
+requests / notifications의:
+
+일반 tabs
+general unread navigation
+filter/chip
+generic CTA
+
+는 mode theme 적용.
+
+하지만:
+
+status
+unread semantic dot가 FEATURE_FIXED로 정의되어 있으면
+유지.
+
+현재 audit에서 unread dot는 FEATURE_FIXED로 분류됨.
+변경 금지.
+
+==================================================
+19. NORMAL/X SWITCH CONSISTENCY
+==================================================
+
+같은 parent screen에서:
+
+Normal pool
+→ Sage frame
+
+X pool
+→ Nautic/Yacht frame
+
+이어야 한다.
+
+앱 mode 변경 시
+일부 화면만 Normal mint가 남는 구조 금지.
+
+==================================================
+20. THEME OVERUSE 금지
+==================================================
+
+중요.
+
+Parent X라고:
+
+- 모든 카드 파랑
+- 모든 content 파랑
+- AI report 파랑
+- feed 파랑
+
+금지.
+
+Parent Normal이라고:
+
+- 모든 카드 Sage
+- 모든 content 초록
+
+금지.
+
+테마는 FRAME / GENERAL CONTROLS까지만.
+
+==================================================
+21. BACKGROUND / SURFACE
+==================================================
+
+Normal:
+
+page background
+→ C.background
+
+general surface
+→ C.surface
+
+soft section
+→ C.backgroundSoft / C.brandMist
+
+X:
+
+현재 XT.background / XT.surface hierarchy 사용.
+
+feature card는 feature identity 보호.
+
+==================================================
+22. TEXT
+==================================================
+
+Normal:
+
+C.textStrong
+C.textPrimary
+C.textSecondary
+C.textMuted
+
+X light surface:
+
+XT.text*
+또는 현재 X light-surface token 사용.
+
+X dark header:
+
+XT.textOnNavy hierarchy 유지.
+
+이번 WP에서는
+X text 전체 readability 재설계 금지.
+그건 WP-X1.
+
+==================================================
+23. COMMON COMPONENT FIRST
+==================================================
+
+ParentScreenHeader
+MainTabs
+FilterChips
+AppButton
+ConfirmModal
+EmptyState
+NavigationListItem
+
+등 공통 component가 이미 mode-aware면 재사용.
+
+개별 screen에서 중복 theme logic 생성 금지.
+
+==================================================
+24. LEGACY HARDCODE CLEANUP
+==================================================
+
+Parent-specific legacy:
+
+#2EC4B6
+TEAL
+MINT
+NAVY #1B3A70
+IB #E6FAF8
+
+등을 검색.
+
+각 사용처를 분류 후:
+
+THEME_MUTABLE
+→ C.* / XT.* mode-aware
+
+FEATURE_FIXED
+→ 유지
+
+SEMANTIC
+→ 유지
+
+blind replace 금지.
+
+==================================================
+25. FUNCTION LOCK
+==================================================
+
+절대 변경 금지:
+
+onPress
+route
+API
+state
+permissions
+child linking logic
+requests logic
+notifications logic
+AI logic
+report logic
+feed logic
+photo logic
+subscription
+ModeContext behavior
+
+visual theme only.
+
+==================================================
+26. LAYOUT LOCK
+==================================================
+
+이번 WP에서는 큰 layout 재설계 금지.
+
+허용:
+
+theme wrapper
+background
+border
+color
+mode-aware style
+
+금지:
+
+card reorder
+button reposition
+navigation 구조 변경
+section 이동
+new UX flow
+
+==================================================
+27. TEST MATRIX
+==================================================
+
+N6-1
+Normal parent home → Sage frame
+
+N6-2
+X parent home → Nautic/Yacht frame
+
+N6-3
+Normal diary → Sage frame
+
+N6-4
+X diary → X frame
+
+N6-5
+Normal notifications/requests → Sage controls
+
+N6-6
+X notifications/requests → XT controls
+
+N6-7
+AI report colors unchanged
+
+N6-8
+AI curriculum colors unchanged
+
+N6-9
+Feed colors/reactions unchanged
+
+N6-10
+Attendance semantics unchanged
+
+N6-11
+Level colors unchanged
+
+N6-12
+Photo/content unchanged
+
+N6-13
+Unread dot feature-fixed unchanged
+
+N6-14
+Normal/X mode leakage 없음
+
+N6-15
+onPress/API/route unchanged
+
+N6-16
+TS 0 new errors
+
+==================================================
+28. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+29. FINAL REPORT
+==================================================
+
+PARENT_FILES_AUDITED =
+PARENT_FILES_CHANGED =
+
+THEME_MUTABLE_FOUND =
+FEATURE_FIXED_FOUND =
+SEMANTIC_PROTECTED_FOUND =
+AMBIGUOUS_FOUND =
+
+LEGACY_TEAL_FOUND =
+LEGACY_NAVY_FOUND =
+LEGACY_MINT_BG_FOUND =
+
+NORMAL_PARENT_FRAME =
+X_PARENT_FRAME =
+
+HOME_RESULT =
+DIARY_RESULT =
+NOTIFICATIONS_RESULT =
+REQUESTS_RESULT =
+CHILD_SELECTOR_RESULT =
+HEADER_RESULT =
+NAV_RESULT =
+
+AI_REPORT_CHANGED =
+AI_CURRICULUM_CHANGED =
+FEED_CHANGED =
+REACTIONS_CHANGED =
+ATTENDANCE_SEMANTIC_CHANGED =
+LEVEL_COLOR_CHANGED =
+PHOTO_CONTENT_CHANGED =
+UNREAD_DOT_CHANGED =
+
+NORMAL_X_THEME_LEAKAGE =
+
+LAYOUT_CHANGED =
+ONPRESS_CHANGED =
+ROUTE_CHANGED =
+API_CHANGED =
+STATE_LOGIC_CHANGED =
+
+MODE_CONTEXT_CHANGED =
+X_THEME_CHANGED =
+
+NORMAL_REGRESSION =
+X_REGRESSION =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+AI_REPORT_CHANGED = NO
+AI_CURRICULUM_CHANGED = NO
+FEED_CHANGED = NO
+REACTIONS_CHANGED = NO
+ATTENDANCE_SEMANTIC_CHANGED = NO
+LEVEL_COLOR_CHANGED = NO
+PHOTO_CONTENT_CHANGED = NO
+UNREAD_DOT_CHANGED = NO
+
+NORMAL_X_THEME_LEAKAGE = NO
+
+LAYOUT_CHANGED = NO
+ONPRESS_CHANGED = NO
+ROUTE_CHANGED = NO
+API_CHANGED = NO
+STATE_LOGIC_CHANGED = NO
+
+MODE_CONTEXT_CHANGED = NO
+
+완료:
+
+WP_N6_PARENT_NORMAL_X_THEME_FRAME_COMPLETE ✅

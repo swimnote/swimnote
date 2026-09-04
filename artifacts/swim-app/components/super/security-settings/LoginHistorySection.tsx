@@ -7,6 +7,9 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SectionTitle } from "./SectionTitle";
 import { LOGIN_HISTORY } from "./types";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 
 export function LoginHistorySection() {
   return (
@@ -52,9 +55,9 @@ export function LoginHistorySection() {
 }
 
 const s = StyleSheet.create({
-  section: { backgroundColor: "#fff", borderRadius: 16, padding: 16, gap: 10,
-             borderWidth: 1, borderColor: "#E5E7EB" },
+  section: { backgroundColor: C.surface, borderRadius: 16, padding: 16, gap: 10,
+             borderWidth: 1, borderColor: C.border },
   row:     { borderRadius: 10, padding: 10, flexDirection: "column", alignItems: "flex-start", gap: 3 },
-  label:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  value:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  label:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  value:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });

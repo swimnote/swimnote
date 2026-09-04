@@ -12,9 +12,9 @@
  * - 섹션별 접기/펼치기
  * - ParentScreenHeader (홈 → 학부모 홈)
  */
-import { Info, MapPin, Phone } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View,
 } from "react-native";
@@ -52,15 +52,15 @@ const SECTIONS: Section[] = [
     key: "introduction",
     icon: "map-pin",
     label: "수영장 소개",
-    color: "#2EC4B6",
-    bg: "#E6FFFA",
+    color: C.brandStrong,
+    bg: C.brandMist,
     placeholder: "수영장 소개 정보가 등록되면 여기에 표시됩니다.",
   },
   {
     key: "tuition_info",
     icon: "credit-card",
     label: "수업료 안내",
-    color: "#2EC4B6",
+    color: C.brandStrong,
     bg: "#DFF3EC",
     placeholder: "수업료 안내 정보가 등록되면 여기에 표시됩니다.",
   },
@@ -114,7 +114,7 @@ function SectionCard({ section, content }: { section: Section; content?: string 
             <Text style={[cs.content, { color: C.text }]}>{content}</Text>
           ) : (
             <View style={cs.placeholder}>
-              <Info size={14} color={C.textMuted} />
+              <LucideIcon name="info" size={14} color={C.textMuted} />
               <Text style={[cs.placeholderTxt, { color: C.textMuted }]}>{section.placeholder}</Text>
             </View>
           )}
@@ -134,12 +134,13 @@ export default function SwimInfoScreen() {
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadInfo = useCallback(() => {
+    setLoading(true);
     (async () => {
       try {
         const [poolRes, lvRes] = await Promise.all([
           apiRequest(token, "/parent/pool-info"),
-          selectedStudent?.id ? apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`) : Promise.resolve(null),
+          selectedStudent?.id ? apiRequest(token, `/parent/students/${selectedStudent.id}/level-info`, { _noCache: true }) : Promise.resolve(null),
         ]);
         if (poolRes.ok) setInfo(await poolRes.json());
         else setInfo({});
@@ -147,14 +148,16 @@ export default function SwimInfoScreen() {
       } catch { setInfo({}); }
       finally { setLoading(false); }
     })();
-  }, [selectedStudent?.id]);
+  }, [token, selectedStudent?.id]);
+
+  useFocusEffect(loadInfo);
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
       <ParentScreenHeader title="수영정보" />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -167,12 +170,12 @@ export default function SwimInfoScreen() {
             const phone = info?.phone || pool?.phone;
             if (!poolName && !address && !phone) return null;
             return (
-              <View style={[s.poolCard, { backgroundColor: C.tint }]}>
+              <View style={[s.poolCard, { backgroundColor: C.brandStrong }]}>
                 {poolName && <Text style={s.poolName}>{poolName}</Text>}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
                   {address && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <MapPin size={13} color="rgba(255,255,255,0.8)" />
+                      <LucideIcon name="map-pin" size={13} color="rgba(255,255,255,0.8)" />
                       <Text style={s.poolMeta}>{address}</Text>
                     </View>
                   )}
@@ -181,7 +184,7 @@ export default function SwimInfoScreen() {
                       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 5, opacity: pressed ? 0.7 : 1 })}
                       onPress={() => Linking.openURL(`tel:${phone.replace(/[^0-9]/g, "")}`)}
                     >
-                      <Phone size={13} color="rgba(255,255,255,0.8)" />
+                      <LucideIcon name="phone" size={13} color="rgba(255,255,255,0.8)" />
                       <Text style={[s.poolMeta, { textDecorationLine: "underline" }]}>{phone}</Text>
                     </Pressable>
                   )}
@@ -240,7 +243,7 @@ export default function SwimInfoScreen() {
 
           {/* 안내 문구 */}
           <View style={[s.notice, { backgroundColor: C.card }]}>
-            <Info size={14} color={C.textMuted} />
+            <LucideIcon name="info" size={14} color={C.textMuted} />
             <Text style={[s.noticeTxt, { color: C.textMuted }]}>
               수영장 정보는 관리자가 업데이트합니다.{"\n"}
               문의사항은 수영장으로 직접 연락해 주세요.
@@ -272,7 +275,7 @@ const sl = StyleSheet.create({
   levelCard: {
     borderRadius: 16, padding: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    borderWidth: 1, borderColor: "#E5E7EB",
+    borderWidth: 1, borderColor: C.border,
   },
 });
 

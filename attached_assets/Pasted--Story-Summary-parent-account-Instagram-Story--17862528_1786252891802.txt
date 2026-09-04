@@ -1,0 +1,179 @@
+[긴급 감리 — 실기기 Story Summary 실패 원인 확정 / 수정 금지]
+
+현재 실기기에서 실제 parent_account로
+긴 일지 Instagram Story 버튼을 누르면:
+
+"스토리 요약을 만들지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+Alert 발생.
+
+중요:
+서버 배포 전 정상 summary 테스트는
+super_admin JWT로 수행했었다.
+
+지금은 수정하지 말고 실제 실패 원인만 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. Render 실제 요청 로그 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 방금 발생한:
+
+POST /api/diaries/:diaryId/story-summary
+
+요청을 Render 로그에서 찾는다.
+
+다음 보고:
+
+A. 요청 자체가 서버에 도착했는가
+B. HTTP status
+C. response error code
+D. diaryId 마스킹값
+E. JWT role
+F. max_lines 값
+G. OpenAI 호출 전 실패인가
+H. OpenAI 호출 후 실패인가
+
+JWT/token/학생 개인정보 원문은 로그에 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. parent_account 정상 권한 경로 직접 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+super_admin 테스트 말고
+실제 테스트 학부모 계정과 실제 자녀가 볼 수 있는
+해당 diary를 기준으로 검증한다.
+
+POST /api/diaries/<실제 diaryId>/story-summary
+Authorization: Bearer <parent_account JWT>
+Body:
+{ "max_lines": 현재 실기기에서 계산된 값 }
+
+확인:
+
+- HTTP status
+- response body
+- summary 존재 여부
+- access_denied 여부
+- diary_not_found 여부
+- empty_content 여부
+- summary_failed 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. visibility JOIN 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 실패 diary에 대해 다음 연결을 확인:
+
+parent_accounts
+→ parent_students
+→ student_class_history
+→ class_diaries
+→ class_diary_student_notes
+
+확인값:
+
+A. JWT userId가 parent_accounts.id와 실제 동일한가
+B. parent_students.parent_id 연결 PASS인가
+C. 해당 student_id 연결 PASS인가
+D. diary.class_group_id와 history.class_group_id 일치하는가
+E. lesson_date가 history enrolled_at/left_at 범위 PASS인가
+F. 해당 학부모에게 허용되는 student note만 조회되는가
+
+특히 requireAuth의 user.userId가
+parent_accounts.id인지
+users.id인지 반드시 확인한다.
+
+ID namespace가 다르면 정확한 mismatch 위치를 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 클라이언트 실패 단계 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+home.tsx handleInstagramShare에서
+Alert로 들어갈 수 있는 모든 경로를 구분한다.
+
+최소 다음을 각각 확인:
+
+1. 첫 summary API HTTP 실패
+2. 첫 summary JSON parsing 실패
+3. 첫 summary 빈 문자열
+4. 첫 summary storyTextFits FAIL
+5. retry summary API 실패
+6. retry summary storyTextFits FAIL
+7. cache 관련 실패
+8. 최종 finalText storyTextFits FAIL
+
+현재 Alert 하나로 모두 합쳐져 있다면
+코드를 수정하지 말고 코드 흐름 + 서버 로그로
+어느 경로인지 확정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. max_lines 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 화면은 사진이 많은 일지다.
+
+실제 photoCount와
+storyMaxLines(photoCount)가 반환한 값을 보고한다.
+
+특히:
+
+photoCount
+maxLines
+1차 summary 예상 line count
+1차 storyTextFits 결과
+retryMaxLines
+2차 summary 예상 line count
+2차 storyTextFits 결과
+
+를 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. OpenAI 실패 여부
+━━━━━━━━━━━━━━━━━━━━━━
+
+서버가 OpenAI까지 호출했다면:
+
+- model
+- HTTP 성공/실패
+- timeout 여부
+- response 존재 여부
+- summary_failed 발생 위치
+
+만 보고한다.
+
+API KEY 및 prompt 원문 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 최종 보고 형식
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 실기기 request 서버 도착 여부
+B. HTTP status
+C. server error code
+D. JWT role
+E. parent visibility PASS/FAIL
+F. 실패한 JOIN 조건
+G. OpenAI 호출 여부
+H. OpenAI 성공/실패
+I. photoCount
+J. maxLines
+K. 1차 summary 생성 여부
+L. 1차 fit 결과
+M. retry 실행 여부
+N. retry fit 결과
+O. 최종 실패 코드 위치
+P. 직접 원인
+Q. 원인 확정 YES/NO
+R. 최소 수정 파일
+S. Server 수정 필요 여부
+T. App 수정 필요 여부
+U. DB 수정 필요 여부
+V. Render 재배포 필요 여부
+W. OTA 필요 여부
+
+원인 확정 전 코드 수정 금지.
+Render 재배포 금지.
+OTA 금지.

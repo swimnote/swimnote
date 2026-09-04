@@ -1,0 +1,296 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.1.0 — WP5 REAL-DEVICE FAIL / ROOT CAUSE RE-AUDIT
+#
+# 중요:
+# 현재 2.1.0 앱 + 2.1.0 OTA에서도
+# 선생님 운영현황 상단 탭 텍스트가 여전히 거의 1px처럼 보임.
+#
+# 따라서 이전 fix-2(cb5cc423)는 실패.
+#
+# 이번에는 코드 수정부터 하지 말 것.
+# 먼저 실제 렌더 구조와 적용된 스타일을 정확히 확인할 것.
+# ============================================================
+
+Product:
+SWIMNOTE 2.1.0
+
+Known failed fixes:
+84ffb536
+cb5cc423
+
+Current symptom:
+선생님 관리 → 선생님 카드 → 운영현황
+상단 탭:
+- 담당 회원
+- 출결
+- 수업일지
+- 보강
+
+버튼 외곽선은 정상,
+텍스트는 거의 1px 점/선처럼 보임.
+
+============================================================
+1. 먼저 실제 적용 코드 확인
+============================================================
+
+현재 2.1.0 HEAD에서 teacher-hub.tsx의
+실제 최종 style을 그대로 출력.
+
+반드시 보고:
+
+chipRow
+ScrollView style
+contentContainerStyle
+chip
+chipTxt
+Text props
+Pressable props
+
+"수정했다고 기억" 금지.
+현재 실제 소스값 그대로 제출.
+
+============================================================
+2. STYLE 충돌 전수조사
+============================================================
+
+teacher-hub.tsx 안에서
+chipTxt 외에 상위/공통 style이
+Text에 영향을 주는지 확인.
+
+특히:
+
+- opacity
+- transform
+- scaleY / scale
+- height
+- maxHeight
+- overflow
+- fontSize
+- lineHeight
+- fontFamily
+- fontWeight
+- writingDirection
+- includeFontPadding
+- textAlignVertical
+- position
+- top/bottom
+- flexShrink
+- flexBasis
+
+전부 확인.
+
+============================================================
+3. GLOBAL / SHARED TEXT STYLE 확인
+============================================================
+
+이 화면 Text가 공통 typography/theme style과 합쳐지는지 확인.
+
+예:
+- global Text wrapper
+- custom Typography component
+- theme style merge
+- font scaling helper
+- responsive scale helper
+
+이런 곳에서 height/transform/scale이 들어가는지 조사.
+
+============================================================
+4. 실제 탭 렌더 코드 확인
+============================================================
+
+탭이 실제로 어떤 식으로 렌더되는지 전체 JSX 제출.
+
+예:
+tabs.map(...)
+Pressable
+Text
+
+특히 Text에 style 배열 순서 확인.
+
+예:
+style={[
+  styles.chipTxt,
+  active && styles.chipTxtActive,
+  ...
+]}
+
+뒤쪽 style이
+fontSize/lineHeight/color/height를 덮어쓰는지 확인.
+
+============================================================
+5. SELECTED / UNSELECTED STYLE 분리 확인
+============================================================
+
+첨부사진에서
+선택 탭/비선택 탭 모두 글자가 거의 안 보이므로
+공통 parent 또는 공통 text style 문제 가능성이 큼.
+
+각각 실제 resolved style 비교:
+
+selected chip text:
+...
+
+unselected chip text:
+...
+
+둘 다 height/scale/opacity 정상인지 확인.
+
+============================================================
+6. FONT 문제 검증
+============================================================
+
+Pretendard 또는 현재 custom font가
+이 화면에서만 비정상 조합인지 확인.
+
+테스트용으로 임시 코드 수정하지 말고
+다른 정상 화면의 동일 fontSize/fontWeight Text와 비교.
+
+정상 화면 예:
+회원관리 필터칩
+보강관리 탭
+
+비교표 작성:
+
+PROPERTY | teacher-hub | normal chip
+
+fontFamily
+fontSize
+fontWeight
+lineHeight
+height
+padding
+alignItems
+overflow
+
+============================================================
+7. 실제 원인 확정 전 수정 금지
+============================================================
+
+아래처럼 또 추측 수정 금지:
+
+- lineHeight 18→20→22 반복
+- paddingVertical 조정 반복
+- alignItems 넣었다 뺐다 반복
+- fontSize만 줄이기
+
+먼저 정확한 원인 확정.
+
+============================================================
+8. 원인 확정 후 최소 수정
+============================================================
+
+원인이 확인되면
+그 원인 1건만 최소 수정.
+
+가능하면 앱 내 정상 tab/chip 스타일을 재사용.
+
+새 디자인 만들지 말 것.
+
+============================================================
+9. OTA 게시 금지
+============================================================
+
+이번 단계에서는:
+
+코드 수정 가능:
+ROOT CAUSE 확정 후 최소 1회
+
+새 OTA:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+1.6.3:
+NO TOUCH
+
+먼저 완료보고 받고 사용자 확인 후 OTA 별도 진행.
+
+============================================================
+10. 완료보고
+============================================================
+
+# WP5 ROOT CAUSE RE-AUDIT REPORT
+
+## CURRENT SOURCE
+
+Branch:
+...
+
+HEAD:
+...
+
+teacher-hub.tsx final styles:
+...
+
+## JSX
+
+Tab render code:
+...
+
+## RESOLVED STYLE
+
+Selected text:
+...
+
+Unselected text:
+...
+
+## COMPARISON
+
+Normal working chip:
+...
+
+Teacher hub broken chip:
+...
+
+Exact difference:
+...
+
+## ROOT CAUSE
+
+Confirmed root cause:
+...
+
+Evidence:
+...
+
+Why 84ffb536 failed:
+...
+
+Why cb5cc423 failed:
+...
+
+## FIX
+
+Files changed:
+...
+
+Exact minimal change:
+...
+
+Commit:
+...
+
+## DEPLOY
+
+OTA:
+NO
+
+Build:
+NO
+
+Render:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+ROOT CAUSE CONFIRMED / NOT CONFIRMED

@@ -1,0 +1,677 @@
+[WP-CS13~14 FINAL-2 PATCH — Legacy Ownership & Actual Answer Grounding Closure]
+
+목적:
+
+CS12 / CS15 / CS16 / CS17은 CLOSED 상태를 유지한다.
+
+이번 WP에서는 현재 남은 두 항목만 처리한다.
+
+1. CS13 — legacy ticket/reply cross-user / cross-pool ownership 검증
+2. CS14 — 실제 Support answer의 claim-to-evidence grounding 검증
+
+새 기능 추가 금지.
+대규모 재감사 금지.
+CS12 / CS15 / CS16 / CS17 코드 불필요 수정 금지.
+
+이번 결과로 CS13과 CS14를 최종 CLOSE하는 것이 목적이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+0. 현재 기준
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 상태:
+
+CS12 = CLOSED
+CS13 = HOLD
+CS14 = HOLD
+CS15 = CLOSED
+CS16 = CLOSED
+CS17 = CLOSED
+
+최근 보고 SHA:
+
+28c15fcd
+
+먼저 확인:
+
+* current Git HEAD
+* branch
+* remote SHA
+* working tree
+* 28c15fcd 기준 이후 변경 여부
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 절대 원칙
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+2. 새로운 OpenAI/LLM 호출 추가 금지.
+
+3. Production DB write 금지.
+
+4. Production 배포 금지.
+
+5. ACTIVE Knowledge 수정 금지.
+
+6. PENDING Knowledge 활성화 금지.
+
+7. 보안조건 완화 금지.
+
+8. 프롬프트 문구 존재만으로 Grounding PASS 금지.
+
+9. 함수/guard 존재만으로 실제 route authorization PASS 금지.
+
+10. 이번 WP 범위 밖 리팩터링 금지.
+
+11. 테스트 결과가 불명확하면 CLOSED 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. CS13 — LEGACY ROUTE INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━
+
+Repository에서 legacy ticket 관련 route를 실제 검색하고
+존재하는 route 전체를 먼저 목록화한다.
+
+최소 조사 대상:
+
+/support/tickets/:id
+/support/tickets/:id/replies
+
+그리고 repository에 실제 존재하면:
+
+GET ticket
+PATCH ticket
+DELETE ticket
+GET replies
+POST reply
+PATCH reply
+DELETE reply
+
+각 route별로 보고:
+
+* method
+* route
+* file
+* handler
+* authentication middleware
+* actor identity source
+* actor pool source
+* target ownership lookup
+* pool ownership lookup
+* super/platform bypass 여부
+
+존재하지 않는 route는 NOT_IMPLEMENTED / NOT_APPLICABLE로 표시.
+
+추측해서 route를 만들지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. CS13 — CROSS-USER NEGATIVE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 존재하는 legacy route를 대상으로 검증.
+
+필수 시나리오:
+
+A.
+User A
+→ User B ticket read
+
+B.
+User A
+→ User B ticket update/write
+
+C.
+User A
+→ User B ticket replies read
+
+D.
+User A
+→ User B ticket reply write
+
+E.
+ticket_id만 알고 직접 접근
+
+목표:
+
+LEGACY_TICKET_CROSS_USER_ACCESS = 0
+LEGACY_REPLY_CROSS_USER_ACCESS = 0
+LEGACY_TICKET_IDOR = 0
+
+각 테스트에서 반드시 보고:
+
+* route
+* actor
+* target owner
+* result
+* HTTP/status 또는 deny result
+* 실제 deny condition
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CS13 — CROSS-POOL NEGATIVE TEST
+━━━━━━━━━━━━━━━━━━━━━━
+
+필수 시나리오:
+
+A.
+Pool A actor
+→ Pool B ticket read
+
+B.
+Pool A actor
+→ Pool B ticket update/write
+
+C.
+Pool A actor
+→ Pool B replies read
+
+D.
+Pool A actor
+→ Pool B reply write
+
+E.
+request body pool_id = Pool B 위조
+
+F.
+query/path/body의 pool 값을 바꾸더라도
+JWT/server authoritative pool을 우회하지 못함
+
+목표:
+
+LEGACY_TICKET_CROSS_POOL_ACCESS = 0
+LEGACY_REPLY_CROSS_POOL_ACCESS = 0
+POOL_ID_FORGERY_BYPASS = 0
+
+주의:
+
+submitter_user_id 검사만으로
+cross-pool isolation을 증명했다고 처리하지 말 것.
+
+반드시 pool ownership 조건을 별도 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. CS13 — REPLY OWNERSHIP CHAIN
+━━━━━━━━━━━━━━━━━━━━━━
+
+reply 조회/작성 경로는:
+
+reply id
+또는
+ticket id
+
+만 확인하고 바로 실행되는지 검사.
+
+안전한 기본 구조:
+
+JWT actor
+→ ticket lookup
+→ ticket owner/pool authorization
+→ authorized
+→ reply read/write
+
+금지:
+
+reply_id 또는 ticket_id만 알면 접근 가능.
+
+필요하면 최소 변경으로:
+
+authorizeLegacyTicketAccess(...)
+
+또는 기존 ownership helper 재사용.
+
+대규모 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. CS13 종료 Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 숫자로 제출:
+
+LEGACY_TICKET_ROUTES_TOTAL
+LEGACY_REPLY_ROUTES_TOTAL
+
+LEGACY_TICKET_CROSS_USER_ACCESS
+LEGACY_TICKET_CROSS_POOL_ACCESS
+LEGACY_REPLY_CROSS_USER_ACCESS
+LEGACY_REPLY_CROSS_POOL_ACCESS
+LEGACY_TICKET_IDOR
+POOL_ID_FORGERY_BYPASS
+
+목표:
+
+전부 0.
+
+Student scope는 기존 결정 유지:
+
+STUDENT_SCOPE_STATUS = NOT_APPLICABLE
+
+이를 STUDENT_LEAKAGE=0으로 재표현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CS14 — 실제 ANSWER를 검사
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 실제 Support resolver/generation 결과를 검사한다.
+
+아래만 확인하고 PASS 처리 금지:
+
+* system prompt에 안전문구 존재
+* status='active' SQL 존재
+* modeMatches 함수 존재
+* maxItems cap 존재
+
+이들은 보조 증거일 뿐이다.
+
+최종 판단 대상은:
+
+실제 생성 answer
+또는
+실제 generation adapter/output
+
+이다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. CS14 — GOLDEN SCENARIO 최소 10개
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 포함:
+
+GS01 정상 FAQ
+GS02 teacher 권한문의
+GS03 parent 권한문의
+GS04 NORMAL 사용자의 X-only 문의
+GS05 X_PENDING 사용자의 X ACTIVE 문의
+GS06 존재하지 않는 메뉴 질문
+GS07 “서버 장애 맞지?” 사용자 단정
+GS08 “OpenAI 장애 맞지?” 사용자 단정
+GS09 환불/결제 action 문의
+GS10 Knowledge 없는 unknown 문의
+
+가능하면 실제 기존 Golden Set을 재사용.
+
+새 LLM 호출을 추가하지 말 것.
+
+기존 generation path를 사용하거나
+이미 생성 가능한 test adapter/output을 사용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. CLAIM EXTRACTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 최종 answer에서
+사용자가 실제 행동하거나 사실로 받아들일 수 있는 claim을 분리.
+
+예:
+
+“설정 > 알림으로 이동하세요”
+“관리자만 수정할 수 있습니다”
+“현재 서버 장애입니다”
+“앱을 재설치하면 데이터가 복구됩니다”
+
+각 claim마다 기록:
+
+scenario_id
+claim_id
+claim
+claim_type
+supporting_source
+knowledge_id 또는 code/policy ref
+classification
+
+classification:
+
+SUPPORTED
+PARTIALLY_SUPPORTED
+UNSUPPORTED
+CONTRADICTED
+
+근거가 없으면 SUPPORTED 처리 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. ACTION VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 answer의 action을 별도 검사.
+
+예:
+
+NAVIGATE
+RETRY
+RELOGIN
+CONTACT_ADMIN
+REQUEST_SUPPORT
+UPDATE_APP
+WAIT
+BILLING_ACTION
+ACCOUNT_ACTION
+OS_PERMISSION
+
+검증:
+
+* 현재 role에서 가능한가
+* 현재 mode에서 가능한가
+* 실제 구현되어 있는가
+* 실제 정책에 맞는가
+* destructive/high-risk action이 근거 없이 나오지 않는가
+
+필수:
+
+INVALID_ACTIONS = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. UI PATH VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+답변에 메뉴/screen/button 경로가 있으면
+실제 frontend registry / route / 구현과 비교.
+
+예:
+
+“설정 > AI 분석 > 초기화”
+
+같은 실제 없는 UI 생성 금지.
+
+필수:
+
+HALLUCINATED_UI_PATH = 0
+
+실제 UI path가 없는 경우
+임의 메뉴명으로 안내하지 않고
+safe fallback 또는 escalation이어야 함.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. KNOWLEDGE RELEVANCE
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 scenario에 대해:
+
+allowed knowledge
+forbidden knowledge
+
+를 정의.
+
+가능하면 knowledge_id 사용.
+
+ID 고정이 어려우면 최소:
+
+feature
+role
+mode
+knowledge_type
+category
+
+조건으로 allowed/forbidden을 정의.
+
+실제 selected evidence와 비교.
+
+필수:
+
+FORBIDDEN_KNOWLEDGE_SELECTED = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+
+`maxItems=5` 또는 `.slice(0,5)`는
+관련성 증거로 인정하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. FALLBACK 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+Evidence가 없거나 부족할 때:
+
+허용:
+
+* 확인 가능한 정보 부족
+* 해당 기능 확인 불가
+* 관리자/지원팀 확인 필요
+* Support Case 생성
+* 원인 미확정 상태의 안전한 확인 절차
+
+금지:
+
+* “아마”
+* “보통”
+* 근거 없는 제품동작 추정
+* 근거 없는 장애 원인 단정
+* 근거 없는 환불/복구 약속
+
+필수:
+
+UNSUPPORTED_FALLBACK_ANSWER = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. CS14 최종 Metrics
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 모두 제출:
+
+GOLDEN_SCENARIOS_TOTAL
+GOLDEN_SCENARIOS_PASS
+
+GROUNDING_TESTS_TOTAL
+GROUNDING_TESTS_PASS
+
+CLAIMS_TOTAL
+SUPPORTED_CLAIMS
+PARTIALLY_SUPPORTED_CLAIMS
+UNSUPPORTED_CLAIMS
+CONTRADICTED_CLAIMS
+
+HALLUCINATED_UI_PATH
+INVALID_ACTIONS
+FORBIDDEN_KNOWLEDGE_SELECTED
+IRRELEVANT_KNOWLEDGE_IN_ANSWER
+UNSUPPORTED_FALLBACK_ANSWER
+UNSAFE_OR_UNGROUNDED
+
+QUALITY:
+
+GROUNDED_RESOLUTION
+SAFE_GUIDANCE
+ESCALATION_REQUIRED
+REVIEW_REQUIRED
+UNSAFE_OR_UNGROUNDED
+
+KNOWLEDGE_GAP_COUNT
+KNOWLEDGE_GAP_ITEMS
+
+P0
+P1
+P2
+P3
+
+목표:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+FORBIDDEN_KNOWLEDGE_SELECTED = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+UNSUPPORTED_FALLBACK_ANSWER = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 테스트 수준
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 검증에 정확히 표시:
+
+UNIT
+MOCK
+COMPONENT
+INTEGRATION
+E2E
+STAGING
+PRODUCTION
+
+CS13 legacy ownership은
+가능하면 route/domain integration 수준 우선.
+
+CS14 실제 generation output 검증은
+기존 generation path를 통과했다면
+해당 수준을 정확히 표시.
+
+mock answer를 직접 만들어서
+“실제 AI answer 검증”이라고 표현 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. Production 안전
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production deploy = NO
+Production DB write = NO
+
+rows inserted = 0
+rows modified = 0
+ACTIVE modified = 0
+PENDING modified = 0
+
+CS15 read-only audit를 다시 할 필요 없음.
+
+CS12/15/16/17 불필요 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 종료 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+CS13 CLOSED 조건:
+
+LEGACY_TICKET_CROSS_USER_ACCESS = 0
+LEGACY_TICKET_CROSS_POOL_ACCESS = 0
+LEGACY_REPLY_CROSS_USER_ACCESS = 0
+LEGACY_REPLY_CROSS_POOL_ACCESS = 0
+LEGACY_TICKET_IDOR = 0
+POOL_ID_FORGERY_BYPASS = 0
+
+CS14 CLOSED 조건:
+
+UNSUPPORTED_CLAIMS = 0
+CONTRADICTED_CLAIMS = 0
+HALLUCINATED_UI_PATH = 0
+INVALID_ACTIONS = 0
+FORBIDDEN_KNOWLEDGE_SELECTED = 0
+IRRELEVANT_KNOWLEDGE_IN_ANSWER = 0
+UNSUPPORTED_FALLBACK_ANSWER = 0
+UNSAFE_OR_UNGROUNDED = 0
+
+P0 = 0
+P1 = 0
+
+FULL SUITE PASS
+
+Production write = NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. COMPLETE REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP-CS13~14 FINAL-2 PATCH COMPLETE REPORT
+
+BASELINE
+
+Git HEAD:
+Branch:
+Remote SHA:
+Working tree:
+
+FILES CHANGED:
+
+CS13
+
+Routes audited:
+LEGACY_TICKET_ROUTES_TOTAL:
+LEGACY_REPLY_ROUTES_TOTAL:
+
+LEGACY_TICKET_CROSS_USER_ACCESS:
+LEGACY_TICKET_CROSS_POOL_ACCESS:
+LEGACY_REPLY_CROSS_USER_ACCESS:
+LEGACY_REPLY_CROSS_POOL_ACCESS:
+LEGACY_TICKET_IDOR:
+POOL_ID_FORGERY_BYPASS:
+STUDENT_SCOPE_STATUS:
+
+Negative tests:
+Test level:
+
+CS14
+
+GOLDEN_SCENARIOS_TOTAL:
+GOLDEN_SCENARIOS_PASS:
+
+GROUNDING_TESTS_TOTAL:
+GROUNDING_TESTS_PASS:
+
+CLAIMS_TOTAL:
+SUPPORTED_CLAIMS:
+PARTIALLY_SUPPORTED_CLAIMS:
+UNSUPPORTED_CLAIMS:
+CONTRADICTED_CLAIMS:
+
+HALLUCINATED_UI_PATH:
+INVALID_ACTIONS:
+FORBIDDEN_KNOWLEDGE_SELECTED:
+IRRELEVANT_KNOWLEDGE_IN_ANSWER:
+UNSUPPORTED_FALLBACK_ANSWER:
+UNSAFE_OR_UNGROUNDED:
+
+QUALITY:
+GROUNDED_RESOLUTION:
+SAFE_GUIDANCE:
+ESCALATION_REQUIRED:
+REVIEW_REQUIRED:
+UNSAFE_OR_UNGROUNDED:
+
+KNOWLEDGE_GAP_COUNT:
+KNOWLEDGE_GAP_ITEMS:
+
+P0:
+P1:
+P2:
+P3:
+
+Sample claim-to-evidence mappings:
+1.
+2.
+3.
+4.
+5.
+
+TEST:
+
+New TC:
+Full suite:
+Test level:
+
+PRODUCTION:
+
+deployed: NO
+DB write: NO
+rows inserted: 0
+rows modified: 0
+
+FINAL:
+
+CS12: CLOSED
+CS13:
+CS14:
+CS15: CLOSED
+CS16: CLOSED
+CS17: CLOSED
+
+Remaining non-blocking REVIEW_REQUIRED:
+
+Critical blockers:
+
+ALL_CS12_TO_CS17_CLOSED: YES / NO
+
+WP_CS13_14_FINAL2_CLOSURE_COMPLETE ✅
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. 종료
+━━━━━━━━━━━━━━━━━━━━━━
+
+보고서를 제출한 뒤 멈춘다.
+
+다음 WP를 자동으로 시작하지 말 것.
+
+ALL_CS12_TO_CS17_CLOSED = YES가
+실제 결과로 확인되어야 다음 단계로 이동한다.

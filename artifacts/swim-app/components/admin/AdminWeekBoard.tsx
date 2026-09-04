@@ -5,6 +5,7 @@
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Colors from "@/constants/colors";
+import { classColor } from "@/utils/classColor";
 
 const C = Colors.light;
 
@@ -13,19 +14,11 @@ const COL_W = 56;
 const TIME_W = 44;
 const ROW_H = 60;
 
-const CLASS_COLORS = ["#4EA7D8","#2E9B6F","#E4A93A","#D96C6C","#8B5CF6","#EC4899","#06B6D4","#84CC16"];
-
-function classColor(id: string) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return CLASS_COLORS[Math.abs(h) % CLASS_COLORS.length];
-}
-
 function parseHour(t: string): number { return parseInt(t.split(/[:-]/)[0]) || 0; }
 
 export interface ClassGroupItem {
   id: string; name: string; schedule_days: string; schedule_time: string;
-  student_count: number; teacher_user_id?: string | null;
+  student_count: number; teacher_user_id?: string | null; color?: string | null;
 }
 
 interface Props {
@@ -60,7 +53,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
       <View>
         {/* 요일 헤더 */}
         <View style={wb.headerRow}>
-          <View style={[wb.timeCell, { backgroundColor: "#F1F5F9" }]} />
+          <View style={[wb.timeCell, { backgroundColor: C.backgroundSoft }]} />
           {COLS.map(day => (
             <View key={day} style={[wb.dayHeader, { width: COL_W }]}>
               <Text style={wb.dayHeaderText}>{day}</Text>
@@ -79,11 +72,11 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
               return (
                 <Pressable
                   key={day}
-                  style={[wb.cell, { width: COL_W }, cls.length > 0 && { backgroundColor: "#F0F9FF" }]}
+                  style={[wb.cell, { width: COL_W }, cls.length > 0 && { backgroundColor: C.backgroundSoft }]}
                   onPress={() => onCellPress(day, `${String(h).padStart(2, "0")}:00`)}
                 >
                   {cls.map(g => (
-                    <View key={g.id} style={[wb.classChip, { backgroundColor: classColor(g.id) }]}>
+                    <View key={g.id} style={[wb.classChip, { backgroundColor: classColor(g.id, g.color) }]}>
                       <Text style={wb.chipName} numberOfLines={2}>{g.name}</Text>
                       <Text style={wb.chipCount}>{g.student_count}명</Text>
                     </View>
@@ -105,7 +98,7 @@ export default function AdminWeekBoard({ classGroups, onCellPress }: Props) {
 
 const wb = StyleSheet.create({
   headerRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.border },
-  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: "#F1F5F9" },
+  dayHeader: { height: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: C.border, backgroundColor: C.backgroundSoft },
   dayHeaderText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.text },
   row: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   timeCell: { width: TIME_W, alignItems: "center", justifyContent: "flex-start", paddingTop: 4, borderRightWidth: 1, borderRightColor: C.border },

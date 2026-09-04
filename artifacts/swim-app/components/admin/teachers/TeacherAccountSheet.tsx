@@ -1,11 +1,12 @@
-import { CircleCheck, Eye, PenLine, Plus, User, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
   ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/context/AuthContext";
+import { validateName, validatePhone, normalizePhone } from "@/utils/validation";
 
 const C = Colors.light;
 
@@ -37,6 +38,7 @@ export function TeacherAccountSheet({
   const [editPhone, setEditPhone]     = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [editSaving, setEditSaving]   = useState(false);
+  const [editErrors, setEditErrors]   = useState({ name: "", phone: "" });
   const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
 
   function resetForm() { setForm({ name: "", email: "", phone: "", password: "", is_admin_self_teacher: false }); setAddError(""); }
@@ -66,25 +68,55 @@ export function TeacherAccountSheet({
   }
 
   function openTeacherEdit(t: Teacher) {
-    setSelectedDetail(t); setEditName(t.name); setEditPhone(t.phone || ""); setEditPosition(t.position || "");
+    setSelectedDetail(t);
+    setEditName(t.name);
+    setEditPhone(t.phone || "");
+    setEditPosition(t.position || "");
+    setEditErrors({ name: "", phone: "" });
   }
 
   async function handleSaveTeacher() {
     if (!selectedDetail) return;
+
+    const errors = { name: "", phone: "" };
+    if (!validateName(editName)) {
+      errors.name = "이름을 입력해주세요";
+    }
+    if (editPhone && !validatePhone(editPhone)) {
+      errors.phone = "전화번호 형식이 올바르지 않습니다";
+    }
+    setEditErrors(errors);
+    if (errors.name || errors.phone) return;
+
+    const normalizedPhone = editPhone ? normalizePhone(editPhone) : editPhone;
+
     setEditSaving(true);
     try {
       const res = await apiRequest(token, `/teachers/${selectedDetail.id}`, {
-        method: "PATCH", body: JSON.stringify({ name: editName, phone: editPhone, position: editPosition }),
+        method: "PATCH", body: JSON.stringify({ name: editName, phone: normalizedPhone, position: editPosition }),
       });
       if (res.ok) { onRefresh(); setSelectedDetail(null); }
     } finally { setEditSaving(false); }
   }
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   async function confirmDeleteTeacher() {
     if (!deleteTarget) return;
-    const res = await apiRequest(token, `/teachers/${deleteTarget.id}`, { method: "DELETE" });
-    setDeleteTarget(null);
-    if (res.ok) { onRefresh(); setSelectedDetail(null); }
+    setDeletingId(deleteTarget.id);
+    try {
+      const res = await apiRequest(token, `/teachers/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      if (res.ok) { onRefresh(); setSelectedDetail(null); }
+      else {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+      }
+    } catch {
+      Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -97,44 +129,65 @@ export function TeacherAccountSheet({
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 12 }}>
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 관리</Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable style={[ts.addBtn, { backgroundColor: C.tint }]} onPress={() => { resetForm(); setShowAdd(true); }}>
-                  <Plus size={16} color="#fff" />
+                <Pressable style={[ts.addBtn, { backgroundColor: C.brandStrong }]} onPress={() => { resetForm(); setShowAdd(true); }}>
+                  <LucideIcon name="plus" size={16} color="#fff" />
                   <Text style={ts.addBtnText}>계정 추가</Text>
                 </Pressable>
                 <Pressable onPress={onClose}>
-                  <X size={22} color={C.textSecondary} />
+                  <LucideIcon name="x" size={22} color={C.textSecondary} />
                 </Pressable>
               </View>
             </View>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, gap: 10 }} showsVerticalScrollIndicator={false}>
               {teachers.length === 0 ? (
-                <View style={ts.emptyBox}><Users size={36} color={C.textMuted} /><Text style={[ts.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
+                <View style={ts.emptyBox}><LucideIcon name="users" size={36} color={C.textMuted} /><Text style={[ts.emptyText, { color: C.textMuted }]}>등록된 선생님이 없습니다</Text></View>
               ) : teachers.map(t => (
                 <View key={t.id} style={[ts.teacherCard, { backgroundColor: C.background }]}>
-                  <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
-                    <View style={[ts.avatar, { backgroundColor: C.tintLight }]}><User size={18} color={C.tint} /></View>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
-                        {t.is_admin_self_teacher && (
-                          <View style={[ts.selfBadge, { backgroundColor: "#7C3AED15" }]}>
-                            <Text style={[ts.selfBadgeText, { color: "#7C3AED" }]}>내 계정</Text>
-                          </View>
-                        )}
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }} onPress={() => openTeacherEdit(t)}>
+                      <View style={[ts.avatar, { backgroundColor: C.brandSoft }]}><LucideIcon name="user" size={18} color={C.brandStrong} /></View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={[ts.teacherName, { color: C.text }]}>{t.name}</Text>
+                          {t.is_admin_self_teacher && (
+                            <View style={[ts.selfBadge, { backgroundColor: "#7C3AED15" }]}>
+                              <Text style={[ts.selfBadgeText, { color: "#7C3AED" }]}>내 계정</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
+                        {t.position && <Text style={[ts.teacherSub, { color: C.brandStrong }]}>{t.position}</Text>}
                       </View>
-                      <Text style={[ts.teacherSub, { color: C.textMuted }]}>{t.email}</Text>
-                      {t.position && <Text style={[ts.teacherSub, { color: C.tint }]}>{t.position}</Text>}
-                    </View>
-                    <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? "#E6FFFA" : "#FFF1BF" }]}>
-                      <Text style={[ts.statusText, { color: t.is_activated ? "#2EC4B6" : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
-                    </View>
-                    <PenLine size={14} color={C.textMuted} />
-                  </Pressable>
+                      <View style={[ts.statusBadge, { backgroundColor: t.is_activated ? C.brandSoft : "#FFF1BF" }]}>
+                        <Text style={[ts.statusText, { color: t.is_activated ? C.brandStrong : "#D97706" }]}>{t.is_activated ? "활성" : "인증 대기"}</Text>
+                      </View>
+                      <LucideIcon name="edit-2" size={14} color={C.textMuted} style={{ marginLeft: 6 }} />
+                    </Pressable>
+                    <Pressable
+                      hitSlop={8}
+                      style={ts.trashBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          "선생님 삭제",
+                          `${t.name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+                          [
+                            { text: "취소", style: "cancel" },
+                            { text: "삭제", style: "destructive", onPress: () => setDeleteTarget(t) },
+                          ]
+                        );
+                      }}
+                      disabled={deletingId === t.id}
+                    >
+                      {deletingId === t.id
+                        ? <ActivityIndicator size="small" color="#E11D48" />
+                        : <LucideIcon name="trash-2" size={15} color="#E11D48" />}
+                    </Pressable>
+                  </View>
                   {!t.is_activated && (
                     <Pressable style={[ts.codeBtn, { borderTopColor: C.border }]} onPress={() => handleViewCode(t.id)} disabled={loadingCode === t.id}>
-                      {loadingCode === t.id ? <ActivityIndicator size={14} color={C.tint} />
-                        : codeVisible[t.id] ? <Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드: {codeVisible[t.id]}</Text>
-                        : <><Eye size={13} color={C.tint} /><Text style={[ts.codeBtnText, { color: C.tint }]}>인증코드 보기</Text></>}
+                      {loadingCode === t.id ? <ActivityIndicator size={14} color={C.brandStrong} />
+                        : codeVisible[t.id] ? <Text style={[ts.codeBtnText, { color: C.brandStrong }]}>인증코드: {codeVisible[t.id]}</Text>
+                        : <><LucideIcon name="eye" size={13} color={C.brandStrong} /><Text style={[ts.codeBtnText, { color: C.brandStrong }]}>인증코드 보기</Text></>}
                     </Pressable>
                   )}
                 </View>
@@ -152,9 +205,14 @@ export function TeacherAccountSheet({
               <View style={ts.sheetHandle} />
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 계정 추가</Text>
-                <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><X size={22} color={C.textSecondary} /></Pressable>
+                <Pressable onPress={() => { setShowAdd(false); resetForm(); }}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
               </View>
-              {addError ? <View style={[ts.errBox, { backgroundColor: "#F9DEDA" }]}><Text style={[ts.errText, { color: "#D96C6C" }]}>{addError}</Text></View> : null}
+              {addError ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10, marginBottom: 4 }}>
+                  <LucideIcon name="alert-circle" size={15} color="#DC2626" />
+                  <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>{addError}</Text>
+                </View>
+              ) : null}
               <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름 *</Text>
                 <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} placeholder="선생님 이름" placeholderTextColor={C.textMuted} /></View>
               <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이메일 *</Text>
@@ -165,13 +223,13 @@ export function TeacherAccountSheet({
                 <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={form.password} onChangeText={v => setForm(f => ({ ...f, password: v }))} placeholder="6자 이상" placeholderTextColor={C.textMuted} secureTextEntry /></View>
               <View style={[ts.switchRow, { borderTopColor: C.border }]}>
                 <Text style={[ts.switchLabel, { color: C.text }]}>관리자 본인용 선생님 계정</Text>
-                <Switch value={form.is_admin_self_teacher} onValueChange={v => setForm(f => ({ ...f, is_admin_self_teacher: v }))} trackColor={{ true: C.tint }} />
+                <Switch value={form.is_admin_self_teacher} onValueChange={v => setForm(f => ({ ...f, is_admin_self_teacher: v }))} trackColor={{ true: C.brandStrong }} />
               </View>
               <View style={ts.modalActions}>
                 <Pressable style={[ts.cancelBtn, { borderColor: C.border }]} onPress={() => { setShowAdd(false); resetForm(); }}>
                   <Text style={[ts.cancelText, { color: C.textSecondary }]}>취소</Text>
                 </Pressable>
-                <Pressable style={[ts.submitBtn, { backgroundColor: saving ? C.textMuted : C.tint }]} onPress={handleCreate} disabled={saving}>
+                <Pressable style={[ts.submitBtn, { backgroundColor: saving ? C.textMuted : C.brandStrong }]} onPress={handleCreate} disabled={saving}>
                   <Text style={ts.submitText}>{saving ? "생성 중…" : "계정 생성"}</Text>
                 </Pressable>
               </View>
@@ -184,15 +242,15 @@ export function TeacherAccountSheet({
       <Modal visible={!!newTeacher} animationType="fade" transparent presentationStyle="overFullScreen">
         <View style={[ts.overlay, { justifyContent: "center" }]}>
           <View style={[ts.successCard, { backgroundColor: C.card }]}>
-            <View style={[ts.successIcon, { backgroundColor: "#E6FFFA" }]}><CircleCheck size={36} color="#2EC4B6" /></View>
+            <View style={[ts.successIcon, { backgroundColor: C.brandSoft }]}><LucideIcon name="check-circle" size={36} color={C.brandStrong} /></View>
             <Text style={[ts.sheetTitle, { color: C.text, textAlign: "center" }]}>계정 생성 완료</Text>
             <Text style={[ts.label, { color: C.textSecondary, textAlign: "center" }]}>
               {newTeacher?.teacher.name} 선생님 계정이 생성되었습니다.{"\n"}아래 인증코드를 전달해 주세요.
             </Text>
-            <View style={[ts.codeBox, { backgroundColor: C.tintLight, borderRadius: 12 }]}>
-              <Text style={[ts.codeText, { color: C.tint }]}>{newTeacher?.code}</Text>
+            <View style={[ts.codeBox, { backgroundColor: C.brandSoft, borderRadius: 12 }]}>
+              <Text style={[ts.codeText, { color: C.brandStrong }]}>{newTeacher?.code}</Text>
             </View>
-            <Pressable style={[ts.submitBtn, { backgroundColor: C.tint, width: "100%" }]} onPress={() => setNewTeacher(null)}>
+            <Pressable style={[ts.submitBtn, { backgroundColor: C.brandStrong, width: "100%" }]} onPress={() => setNewTeacher(null)}>
               <Text style={ts.submitText}>확인</Text>
             </Pressable>
           </View>
@@ -206,14 +264,49 @@ export function TeacherAccountSheet({
             <View style={ts.sheetHandle} />
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={[ts.sheetTitle, { color: C.text }]}>선생님 정보 수정</Text>
-              <Pressable onPress={() => setSelectedDetail(null)}><X size={22} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={() => setSelectedDetail(null)}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
             </View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editName} onChangeText={setEditName} placeholderTextColor={C.textMuted} /></View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>연락처</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" placeholderTextColor={C.textMuted} /></View>
-            <View style={ts.field}><Text style={[ts.label, { color: C.textSecondary }]}>직급</Text>
-              <TextInput style={[ts.input, { borderColor: C.border, color: C.text }]} value={editPosition} onChangeText={setEditPosition} placeholder="예: 수석코치" placeholderTextColor={C.textMuted} /></View>
+            {(editErrors.name || editErrors.phone) ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", padding: 12, borderRadius: 10, marginBottom: 4 }}>
+                <LucideIcon name="alert-circle" size={15} color="#DC2626" />
+                <Text style={{ flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#DC2626" }}>입력 오류가 있습니다. 아래 항목을 확인해주세요.</Text>
+              </View>
+            ) : null}
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>이름</Text>
+              <TextInput
+                style={[ts.input, { borderColor: editErrors.name ? "#D96C6C" : C.border, color: C.text }]}
+                value={editName}
+                onChangeText={v => { setEditName(v); setEditErrors(e => ({ ...e, name: "" })); }}
+                placeholderTextColor={C.textMuted}
+              />
+              {editErrors.name ? (
+                <Text style={ts.fieldErr}>{editErrors.name}</Text>
+              ) : null}
+            </View>
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>연락처</Text>
+              <TextInput
+                style={[ts.input, { borderColor: editErrors.phone ? "#D96C6C" : C.border, color: C.text }]}
+                value={editPhone}
+                onChangeText={v => { setEditPhone(v); setEditErrors(e => ({ ...e, phone: "" })); }}
+                keyboardType="phone-pad"
+                placeholderTextColor={C.textMuted}
+              />
+              {editErrors.phone ? (
+                <Text style={ts.fieldErr}>{editErrors.phone}</Text>
+              ) : null}
+            </View>
+            <View style={ts.field}>
+              <Text style={[ts.label, { color: C.textSecondary }]}>직급</Text>
+              <TextInput
+                style={[ts.input, { borderColor: C.border, color: C.text }]}
+                value={editPosition}
+                onChangeText={setEditPosition}
+                placeholder="예: 수석코치"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
             <View style={[ts.field, { borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10 }]}>
               <Text style={[ts.label, { color: C.textMuted }]}>이메일: {selectedDetail?.email}</Text>
             </View>
@@ -221,7 +314,7 @@ export function TeacherAccountSheet({
               <Pressable style={[ts.cancelBtn, { borderColor: "#D96C6C" }]} onPress={() => { const t = selectedDetail; setSelectedDetail(null); setDeleteTarget(t); }}>
                 <Text style={[ts.cancelText, { color: "#D96C6C" }]}>삭제</Text>
               </Pressable>
-              <Pressable style={[ts.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.tint }]} onPress={handleSaveTeacher} disabled={editSaving}>
+              <Pressable style={[ts.submitBtn, { backgroundColor: editSaving ? C.textMuted : C.brandStrong }]} onPress={handleSaveTeacher} disabled={editSaving}>
                 <Text style={ts.submitText}>{editSaving ? "저장 중…" : "저장"}</Text>
               </Pressable>
             </View>
@@ -273,7 +366,8 @@ const ts = StyleSheet.create({
   cancelText: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   submitBtn: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   submitText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
-  teacherCard: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, padding: 14, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  teacherCard: { flexDirection: "column", borderRadius: 14, padding: 14, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  trashBtn:    { padding: 8, borderRadius: 8, backgroundColor: "#FEF2F2", marginLeft: 8 },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   teacherName: { fontSize: 15, fontFamily: "Pretendard-Regular" },
   teacherSub: { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 2 },
@@ -287,4 +381,5 @@ const ts = StyleSheet.create({
   codeText: { fontSize: 28, fontFamily: "Pretendard-Regular" },
   emptyBox: { alignItems: "center", paddingVertical: 48, gap: 10 },
   emptyText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  fieldErr: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#D96C6C", marginTop: 2 },
 });

@@ -2,7 +2,6 @@
  * pending.tsx — 수영장 등록 신청 대기 화면 (pool_admin 전용)
  * 학부모는 회원가입 후 홈 화면에서 자동 연결됩니다.
  */
-import { Info, RefreshCw } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -68,7 +67,7 @@ export default function PendingScreen() {
         {!isRejected && (
           <View style={[styles.infoCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <InfoRow icon="check-circle" color="#2E9B6F" text="신청 내용 검토 완료 시 즉시 이용 가능" />
-            <InfoRow icon="mail"         color="#2EC4B6" text="승인 후 이메일/앱 알림 발송" />
+            <InfoRow icon="mail"         color={C.brandStrong} text="승인 후 이메일/앱 알림 발송" />
             <InfoRow icon="clock"        color="#E4A93A" text="일반적으로 1~2 영업일 이내 처리" />
           </View>
         )}
@@ -79,20 +78,20 @@ export default function PendingScreen() {
           </View>
         )}
 
-        <View style={[styles.waitBanner, { backgroundColor: isRejected ? "#FEF2F2" : C.tintLight }]}>
-          <Info size={14} color={isRejected ? "#D96C6C" : C.tint} />
-          <Text style={[styles.waitTxt, { color: isRejected ? "#D96C6C" : C.tint }]}>
+        <View style={[styles.waitBanner, { backgroundColor: isRejected ? "#FEF2F2" : C.brandSoft }]}>
+          <LucideIcon name="info" size={14} color={isRejected ? "#D96C6C" : C.brandStrong} />
+          <Text style={[styles.waitTxt, { color: isRejected ? "#D96C6C" : C.brandStrong }]}>
             {isRejected ? "문의: 플랫폼 운영팀에 연락해 주세요" : "승인 후 자동으로 홈 화면으로 이동합니다"}
           </Text>
         </View>
 
         <Pressable
-          style={({ pressed }) => [styles.refreshBtn, { backgroundColor: C.tintLight, opacity: pressed ? 0.8 : 1 }]}
+          style={({ pressed }) => [styles.refreshBtn, { backgroundColor: C.brandSoft, opacity: pressed ? 0.8 : 1 }]}
           onPress={handleCheckStatus}
           disabled={checking}
         >
-          {checking ? <ActivityIndicator size="small" color={C.tint} /> : <RefreshCw size={16} color={C.tint} />}
-          <Text style={[styles.refreshText, { color: C.tint }]}>승인 상태 확인</Text>
+          {checking ? <ActivityIndicator size="small" color={C.brandStrong} /> : <LucideIcon name="refresh-cw" size={16} color={C.brandStrong} />}
+          <Text style={[styles.refreshText, { color: C.brandStrong }]}>승인 상태 확인</Text>
         </Pressable>
 
         <Pressable onPress={handleLogout} hitSlop={12} style={styles.logoutBtn}>

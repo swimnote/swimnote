@@ -1,0 +1,406 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.1.0 — WP5 FINAL FIX + IMMEDIATE OTA
+#
+# 이번 건은 root cause 확정 완료.
+# 수정 후 중간보고 없이 바로 iOS OTA 게시까지 진행한다.
+#
+# 대상:
+# 관리자 → 선생님 관리 → 선생님 카드 → 운영현황
+#
+# 문제:
+# 상단 탭(담당 회원 / 출결 / 수업일지 / 보강) 텍스트가
+# 실기기 iPhone에서 거의 1px처럼 잘려 보임.
+#
+# 확정 ROOT CAUSE:
+# horizontal ScrollView에
+#
+# style={s.chipRow}
+# chipRow: { flexGrow: 0, paddingVertical: 8 }
+#
+# 가 적용되어 ScrollView 높이가 padding 수준으로 붕괴.
+# 약 41px 높이의 chip 내부 Text가 clipping됨.
+#
+# 이전 lineHeight / alignItems 수정은 원인이 아니었음.
+# ============================================================
+
+Product:
+SWIMNOTE 2.1.0
+
+Branch:
+현재 2.1.0 실제 release branch 확인 후 작업
+2.0.0 기준 사용 금지
+
+Runtime:
+2.1.0
+
+OTA channel/branch:
+현재 2.1.0 TestFlight build가 실제 수신하는 production-v2
+실제 EAS metadata로 확인 후 동일값 사용
+
+1.6.3:
+NO TOUCH
+
+Android OTA:
+NO
+
+============================================================
+1. SOURCE FIX
+============================================================
+
+파일:
+
+artifacts/swim-app/app/(admin)/teacher-hub.tsx
+
+현재:
+
+<ScrollView
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  style={s.chipRow}
+  contentContainerStyle={{
+    paddingHorizontal: 16,
+    gap: 8
+  }}
+>
+
+수정:
+
+<ScrollView
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  contentContainerStyle={{
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8
+  }}
+>
+
+============================================================
+2. chipRow STYLE 제거
+============================================================
+
+현재:
+
+chipRow: {
+  flexGrow: 0,
+  paddingVertical: 8,
+}
+
+완전히 제거.
+
+빈 style object로 남기지 말 것.
+
+ScrollView style prop도 제거.
+
+============================================================
+3. 유지해야 할 값
+============================================================
+
+chip:
+
+flexShrink: 0
+유지
+
+chipTxt:
+
+fontSize: 13
+fontWeight: "600"
+lineHeight: 20
+
+유지
+
+contentContainerStyle에:
+
+alignItems
+추가 금지
+
+============================================================
+4. 절대 추가 수정 금지
+============================================================
+
+이번 WP에서 건드리지 말 것:
+
+- fontSize
+- lineHeight 추가 변경
+- chip padding
+- 탭 이름
+- 탭 순서
+- 데이터
+- 통계
+- navigation
+- 서버
+- DB
+- 다른 화면
+
+오직 확정된 ScrollView sizing root cause만 수정.
+
+============================================================
+5. COMMIT
+============================================================
+
+수정 후 commit.
+
+권장:
+
+fix(v2.1.0): remove collapsed scrollview sizing from teacher tabs
+
+반드시 OTA 전에 출력:
+
+git branch --show-current
+git rev-parse HEAD
+
+그리고 이 HEAD가 방금 수정 commit인지 확인.
+
+============================================================
+6. OTA PRE-FLIGHT
+============================================================
+
+OTA 게시 전에 반드시 실제 설치된
+2.1.0 TestFlight build metadata 확인.
+
+확인:
+
+Installed app version:
+2.1.0
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+또는 실제 build가 사용하는 exact channel
+
+Profile:
+현재 2.1.0 production-v2 profile
+
+하나라도 다르면 STOP.
+
+============================================================
+7. IMMEDIATE IOS OTA
+============================================================
+
+중간보고 기다리지 말고
+source fix + commit 완료 후 바로 iOS OTA 게시.
+
+조건:
+
+Platform:
+iOS only
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+또는 현재 2.1.0 build의 exact matching channel
+
+Source SHA:
+방금 WP5 final fix commit
+
+Android:
+NO
+
+1.6.3:
+NO TOUCH
+
+새 native build:
+NO
+
+============================================================
+8. OTA SOURCE SHA 검증
+============================================================
+
+이번에는 반드시:
+
+SOURCE HEAD
+=
+OTA EXPORT/PUBLISH SOURCE SHA
+
+여야 함.
+
+옛날 commit으로 export 금지.
+
+반드시 완료보고에:
+
+Source HEAD:
+...
+
+OTA Source SHA:
+...
+
+MATCH:
+YES
+
+를 제출.
+
+MATCH가 아니면 COMPLETE 금지.
+
+============================================================
+9. OTA 완료 후
+============================================================
+
+반드시 보고:
+
+Version:
+2.1.0
+
+Runtime:
+2.1.0
+
+Channel:
+...
+
+Source SHA:
+...
+
+Group ID:
+...
+
+Full iOS Update ID:
+...
+
+Created at:
+...
+
+============================================================
+10. 최종 검증 대상
+============================================================
+
+사용자가 OTA 수신 후 실기기에서 직접 확인할 항목:
+
+- 담당 회원 전체 글자 표시
+- 출결 전체 글자 표시
+- 수업일지 전체 글자 표시
+- 보강 전체 글자 표시
+- selected/unselected 모두 정상
+- 탭 클릭 정상
+- 데이터 전환 정상
+
+실기기 확인 전까지
+"REAL-DEVICE PASS"라고 표현 금지.
+
+완료보고에서는:
+
+SOURCE FIX COMPLETE
+OTA PUBLISHED
+REAL-DEVICE VERIFICATION PENDING
+
+이라고 명시.
+
+============================================================
+11. 금지
+============================================================
+
+Render:
+NO
+
+DB:
+NO
+
+Build:
+NO
+
+Android OTA:
+NO
+
+1.6.3:
+NO TOUCH
+
+다른 WP:
+NO TOUCH
+
+============================================================
+12. 완료보고
+============================================================
+
+# WP5 FINAL FIX + OTA REPORT
+
+## SOURCE
+
+Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## FIX
+
+ScrollView style removed:
+YES / NO
+
+flexGrow:0 removed:
+YES / NO
+
+paddingVertical moved to contentContainer:
+YES / NO
+
+alignItems:
+ABSENT / PRESENT
+
+Other UI changes:
+0 / ...
+
+## OTA PREFLIGHT
+
+Installed version:
+2.1.0
+
+Installed runtime:
+...
+
+Installed channel:
+...
+
+Eligible:
+YES / NO
+
+## OTA
+
+Source HEAD:
+...
+
+OTA Source SHA:
+...
+
+Source match:
+YES / NO
+
+Runtime:
+...
+
+Channel:
+...
+
+Group ID:
+...
+
+iOS Update ID:
+...
+
+Android:
+NO
+
+## DEPLOY
+
+Render:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+SOURCE FIX COMPLETE
+OTA PUBLISHED
+REAL-DEVICE VERIFICATION PENDING

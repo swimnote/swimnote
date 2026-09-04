@@ -1,0 +1,314 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.1.0 — BACK NAVIGATION FINAL 1-CASE FIX + IOS OTA
+
+현재 뒤로가기 관련 버그는 대부분 수정 완료.
+
+실기기에서 마지막으로 남은 1개 케이스만 수정한다.
+
+============================================================
+문제
+============================================================
+
+경로:
+
+설정 / X모드
+→ 구독관리
+→ 구독내용을 보는 상세 화면
+→ Back
+
+현재:
+Home으로 이동함
+
+정상:
+바로 이전 논리적 상위 화면인
+"구독관리" 화면으로 돌아가야 함.
+
+이 1개 케이스만 수정.
+
+============================================================
+1. 실제 route 먼저 확인
+============================================================
+
+사용자가 말한:
+
+"구독관리 눌러서 구독내용 보는 화면"
+
+의 실제 현재 route/component를 코드에서 확인.
+
+추측해서 다른 화면 수정 금지.
+
+확인할 것:
+
+- 구독관리 목록/메인 route
+- 구독내용 상세 route
+- 상세 화면 진입 코드
+- 상세 화면 Back handler
+- 현재 backTo 전달 여부
+- router.back / router.replace / fallback 구조
+
+============================================================
+2. 최종 Back 동작
+============================================================
+
+상세 화면 Back:
+
+explicit backTo가 있으면
+→ 구독관리 route로 이동
+
+우선순위는 기존 WP 기준 그대로:
+
+1. backTo
+2. canGoBack()
+3. logical fallback
+
+즉:
+
+backTo > navigation stack > fallback
+
+============================================================
+3. 진입 시 backTo 명시
+============================================================
+
+구독관리 화면에서
+구독내용 상세 화면으로 진입할 때
+
+반드시:
+
+backTo = 구독관리 화면
+
+을 명시적으로 전달.
+
+예:
+
+구독관리
+→ 구독내용 상세
+   ?backTo=x-subscription
+
+실제 route명은 현재 코드 기준 사용.
+
+하드코딩된 예시 route를 그대로 쓰지 말고
+실제 존재하는 route 확인 후 적용.
+
+============================================================
+4. 상세 화면 Back handler
+============================================================
+
+상세 화면에서:
+
+잘못된 형태:
+
+if (router.canGoBack()) {
+  router.back();
+}
+
+또는:
+
+router.replace("/home")
+
+금지.
+
+반드시:
+
+if (backTo) {
+  router.replace(resolvedBackTo);
+  return;
+}
+
+if (router.canGoBack()) {
+  router.back();
+  return;
+}
+
+router.replace(LOGICAL_SUBSCRIPTION_PARENT);
+
+형태.
+
+실제 현재 프로젝트 navigation helper가 있으면
+그 패턴을 재사용.
+
+============================================================
+5. 수정 범위
+============================================================
+
+이번 작업은 이 마지막 구독 상세 Back 1건만 수정.
+
+다른 navigation 수정 금지.
+
+다른 X모드 UI 수정 금지.
+
+구독 기능 자체 수정 금지.
+
+결제 로직 수정 금지.
+
+RevenueCat 수정 금지.
+
+SERVER:
+NO
+
+DB:
+NO
+
+Render:
+NO
+
+Migration:
+NO
+
+1.6.3:
+NO TOUCH
+
+============================================================
+6. PASS 시나리오
+============================================================
+
+실기기 기준:
+
+구독관리
+→ 구독내용 상세
+→ Back
+→ 구독관리
+
+PASS / FAIL
+
+Back → Home:
+0건
+
+구독내용 표시:
+PASS / FAIL
+
+구독관리 기존 기능:
+PASS / FAIL
+
+Home icon:
+기존 동작 유지
+PASS / FAIL
+
+다른 WP navigation regression:
+0
+
+============================================================
+7. IOS OTA 자동배포
+============================================================
+
+현재 사용자 규칙:
+
+수정작업 전체가 끝날 때까지
+APP 수정 후 iOS OTA 자동배포.
+
+수정
+→ 테스트
+→ commit
+→ HEAD 확인
+→ iOS OTA publish
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android OTA:
+NOT PUBLISHED
+
+반드시:
+
+Current HEAD SHA
+=
+Final back fix commit SHA
+=
+OTA export source SHA
+
+동일해야 PASS.
+
+============================================================
+완료보고
+============================================================
+
+# FINAL SUBSCRIPTION BACK FIX REPORT
+
+Current Working Branch:
+...
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+Subscription management route:
+...
+
+Subscription detail route:
+...
+
+Previous Back behavior:
+Home
+
+Final Back target:
+...
+
+Explicit backTo passed:
+YES / NO
+
+Priority:
+backTo → canGoBack → fallback
+PASS / FAIL
+
+Subscription management
+→ detail
+→ Back
+→ subscription management:
+PASS / FAIL
+
+Back → Home unintended:
+0 / ...
+
+Subscription functionality regression:
+0 / ...
+
+Other navigation regression:
+0 / ...
+
+-------------------------
+OTA
+-------------------------
+
+Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+Fix Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+FINAL:
+BACK NAVIGATION BUGS COMPLETE

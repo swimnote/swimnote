@@ -1,0 +1,155 @@
+[앱] FREE GROWTH REPORT — STATUS ENDPOINT RELIABILITY FIX
+
+현재 상태:
+- FREE GROWTH REPORT APP PHASE 1 = PRODUCTION COMPLETE
+- 현재 known issue:
+  GET /parent/students/:studentId/growth-report-status
+  catch block이 DB/server exception까지 NOT_AVAILABLE로 반환
+
+목적:
+정상적인 NOT_AVAILABLE과
+실제 server/DB failure를 분리한다.
+
+이번 Step은 reliability fix ONLY.
+
+금지:
+- AI Engine 수정
+- Growth Report reasoning 변경
+- DB migration
+- production DB write
+- UI redesign
+- OTA
+- broad audit
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 정상 NOT_AVAILABLE 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 HTTP 200 + status=NOT_AVAILABLE 유지:
+
+- 비X pool
+- 해당 월 report 없음
+- 정상적으로 제공 대상 아님
+
+현재 ownership/auth behavior 유지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 진짜 서버 오류 분리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음은 NOT_AVAILABLE로 숨기지 말 것:
+
+- DB query failure
+- DB connection error
+- unexpected server exception
+- internal mapping exception
+
+이 경우 기존 API error convention을 재사용하여
+적절한 5xx 응답 반환.
+
+새 error framework 만들지 말 것.
+
+권장:
+HTTP 500
+code = INTERNAL_ERROR
+또는 현재 프로젝트의 기존 표준 코드.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. APP 처리
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 home.tsx status load에서
+5xx/network error가 발생해도 crash 금지.
+
+단,
+이를 NOT_AVAILABLE로 오인하지 말 것.
+
+현재 화면 구조에 맞춰
+조용한 retry/fallback 또는 기존 error handling 재사용.
+
+이번 Step에서 새 디자인 카드 만들지 말 것.
+
+중요:
+- 정상 NOT_AVAILABLE
+- 서버 오류
+
+를 내부 상태상 구분.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. LOGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+server exception 발생 시:
+
+- endpoint
+- request_id가 있으면 포함
+- studentId는 기존 logging/privacy 기준 준수
+- error type/message
+
+기존 logger 재사용.
+
+secret/token 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 기존 상태 보호
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음 변경 금지:
+
+- DATA_ACCUMULATING
+- GENERATING
+- READY
+- PUBLISHED
+- FAILED
+- feed/detail
+- publish flow
+- monthly policy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 최소 테스트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TC1 non-X → 200 NOT_AVAILABLE
+TC2 no report → 200 NOT_AVAILABLE
+TC3 DB failure → 5xx
+TC4 unexpected exception → 5xx
+TC5 auth/ownership unchanged
+TC6 DATA_ACCUMULATING unchanged
+TC7 PUBLISHED unchanged
+TC8 APP 5xx does not crash
+TC9 APP does not convert 5xx into NOT_AVAILABLE
+TC10 Production DB write 0
+TC11 AI call 0
+
+관련 테스트만.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[앱] GROWTH REPORT STATUS RELIABILITY REPORT
+
+- previous catch behavior
+- new normal NOT_AVAILABLE behavior
+- new server error behavior
+- HTTP/error code
+- APP handling
+- logging behavior
+- tests/pass
+- changed files
+- commit SHA
+
+- Production DB write: NO
+- AI call: 0
+- deploy: NO
+- OTA: NO
+
+Final Verdict:
+
+GROWTH REPORT STATUS RELIABILITY COMPLETE
+
+또는
+
+BLOCKED + exact reason
+
+STOP.

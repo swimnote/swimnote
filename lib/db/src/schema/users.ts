@@ -21,6 +21,7 @@ export const usersTable = pgTable("users", {
   roles: text("roles").array().notNull().default([]),
   totp_secret: text("totp_secret"),
   totp_enabled: boolean("totp_enabled").notNull().default(false),
+  withdrawal_requested_at: timestamp("withdrawal_requested_at"),
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

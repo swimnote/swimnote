@@ -1,0 +1,253 @@
+SWIMNOTE X PART 1 - WP0 작업지시서
+
+이번 작업은 WP0 Repository 조사 및 일반모드 기준선 확정만 진행합니다.
+
+아직 구현 단계가 아닙니다.
+
+다음 작업은 절대 금지합니다.
+
+* 코드 수정
+* 신규 파일 생성
+* Migration 작성
+* Migration 실행
+* Commit
+* Push
+* OTA
+* Render 배포
+* 서버 재시작
+* 샘플 데이터 생성
+
+이번 WP의 목적은 현재 Repository의 실제 상태를 확인하고, WP1 설계를 위한 기준선을 확보하는 것입니다.
+
+⸻
+
+1. Repository 실제 조사
+
+실제 Repository를 직접 확인한 결과만 보고하십시오.
+
+추정이나 기억으로 답변하지 마십시오.
+
+각 항목은 반드시 아래 상태 중 하나로 표시하십시오.
+
+* REPOSITORY_VERIFIED
+* NOT_FOUND
+* NEEDS_VERIFICATION
+
+⸻
+
+A. Migration 구조
+
+확인 항목
+
+* 현재 Migration 진입점
+* pool-db-init.ts 위치
+* 기존 Migration 실행 순서
+* initPoolDb 호출 위치
+* 기존 transaction 구조
+* Migration 실패 처리 방식
+
+⸻
+
+B. swimming_pools
+
+실제 컬럼 확인
+
+특히
+
+* xmode_entitlement
+* xmode_config_status
+* xmode_purchased_at
+* xmode_subscription_end_at
+* xmode_payment_failed_at
+
+존재 여부
+
+⸻
+
+C. diary_templates
+
+실제 확인
+
+* scope 타입
+* scope 기본값
+* CHECK 존재 여부
+* swimming_pool_id NULL 여부
+* global_template_set_id 존재 여부
+* 기존 Index
+* 기존 FK
+
+⸻
+
+D. Curriculum 관련
+
+실제 존재 테이블
+
+* curriculum_versions
+* curriculum_items
+* student_curriculum_assignments
+* curriculum_requests
+* curriculum_request_files
+
+각각 존재 여부
+
+⸻
+
+E. Audit
+
+실제 존재
+
+* audit_logs
+* audit_entity_versions
+* class_diary_audit_logs
+
+차이점 설명
+
+⸻
+
+F. Growth
+
+실제 존재
+
+* growth_events
+* growth_reports
+
+존재 여부
+
+⸻
+
+G. Parent AI
+
+실제 존재
+
+* parent_ai_daily_usage
+* parent_ai_usage_reservations
+
+존재 여부
+
+⸻
+
+H. 기존 AI Diary
+
+실제 호출 흐름
+
+다음 순서를 Repository 기준으로 설명하십시오.
+
+* Route
+* Service
+* AI Engine 호출
+* Prompt
+* Template Search
+* 저장
+* Response
+
+실제 함수명까지 포함하십시오.
+
+⸻
+
+I. Template Search
+
+기존 템플릿 검색
+
+* Route
+* Service
+* 함수
+* 검색 순서
+
+Repository 기준으로 설명하십시오.
+
+⸻
+
+J. Worker
+
+Worker 구조 확인
+
+* Worker 진입점
+* start:worker
+* Job 구조
+* Queue 구조
+
+⸻
+
+2. 일반모드 기준선
+
+현재 일반모드 기능을 실제 Repository 기준으로 정리하십시오.
+
+포함
+
+* 로그인
+* 회원관리
+* 학생관리
+* 반관리
+* 선생님관리
+* 학부모
+* 출결
+* 일정
+* 공지
+* 앨범
+* AI 일지
+* 템플릿
+* 구독
+* 저장공간
+
+각 기능이 현재 정상 동작하는 기준을 설명하십시오.
+
+⸻
+
+3. 회귀테스트 기준선
+
+WP1 이후 반드시 다시 확인해야 하는 회귀테스트 목록 작성
+
+구분
+
+* 앱
+* 서버
+* DB
+* AI Diary
+* Template
+* Subscription
+
+⸻
+
+4. WP1 사전 검토
+
+다음 내용을 Repository 기준으로 검토하십시오.
+
+1. WP1에서 수정될 파일
+2. 신규 파일
+3. 수정 함수
+4. 신규 테이블
+5. 신규 컬럼
+6. 기존 영향도
+7. Migration 실행 순서
+8. Rollback 가능 여부
+9. 일반모드 영향
+10. 위험 요소
+
+아직 구현하지 마십시오.
+
+⸻
+
+5. 더 단순한 구조
+
+현재 설계를 변경하지 않는 범위 안에서
+
+더 단순하게 구현할 수 있는 부분이 있다면
+
+반드시 구현 전에 제안만 하십시오.
+
+사용자 승인 전에는 적용하지 않습니다.
+
+⸻
+
+6. 이번 WP 완료 조건
+
+이번 WP 완료는 다음만 제출하면 됩니다.
+
+* Repository 조사 결과
+* 기준선
+* 회귀테스트 목록
+* WP1 설계
+
+여기서 멈추십시오.
+
+코드 수정은 하지 마십시오.

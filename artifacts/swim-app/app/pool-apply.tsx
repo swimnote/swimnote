@@ -1,18 +1,14 @@
-import { CircleAlert, Info, MapPin, Send, Type } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
+import {ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from "react-native";
+  View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Colors from "@/constants/colors";
@@ -80,14 +76,14 @@ export default function PoolApplyScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView
+    <View style={{ flex: 1, backgroundColor: C.background }}>
+      <KeyboardAwareScrollView
         contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 24), paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.iconBox, { backgroundColor: C.tintLight }]}>
-            <MapPin size={28} color={C.tint} />
+          <View style={[styles.iconBox, { backgroundColor: C.brandSoft }]}>
+            <LucideIcon name="map-pin" size={28} color={C.brandStrong} />
           </View>
           <Text style={[styles.title, { color: C.text }]}>수영장 등록 신청</Text>
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
@@ -98,7 +94,7 @@ export default function PoolApplyScreen() {
         <View style={[styles.card, { backgroundColor: C.card, shadowColor: C.shadow }]}>
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: "#F9DEDA" }]}>
-              <CircleAlert size={14} color={C.error} />
+              <LucideIcon name="alert-circle" size={14} color={C.error} />
               <Text style={[styles.errorText, { color: C.error }]}>{error}</Text>
             </View>
           ) : null}
@@ -115,7 +111,7 @@ export default function PoolApplyScreen() {
           <View style={styles.fieldWrap}>
             <Text style={[styles.label, { color: C.textSecondary }]}>영문표시명 (파일명용)</Text>
             <View style={[styles.inputBox, { borderColor: C.border, backgroundColor: C.background }]}>
-              <Type size={16} color={C.textMuted} style={styles.inputIcon} />
+              <LucideIcon name="type" size={16} color={C.textMuted} style={styles.inputIcon} />
               <TextInput style={[styles.input, { color: C.text }]} value={form.name_en}
                 onChangeText={v => setF("name_en")(v.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
                 placeholder="예: toykids_hwajeong" placeholderTextColor={C.textMuted} autoCapitalize="none" />
@@ -161,20 +157,20 @@ export default function PoolApplyScreen() {
               placeholder="010-0000-0000" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
           </Field>
 
-          <View style={[styles.notice, { backgroundColor: C.tintLight, borderRadius: 10, padding: 12 }]}>
-            <Info size={14} color={C.tint} />
-            <Text style={[styles.noticeText, { color: C.tint }]}>
+          <View style={[styles.notice, { backgroundColor: C.brandSoft, borderRadius: 10, padding: 12 }]}>
+            <LucideIcon name="info" size={14} color={C.brandStrong} />
+            <Text style={[styles.noticeText, { color: C.brandStrong }]}>
               신청 내용은 플랫폼 운영자가 검토 후 승인합니다.{"\n"}승인 후 입력한 아이디로 로그인할 수 있습니다.
             </Text>
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.btn, { backgroundColor: C.button, opacity: pressed ? 0.85 : 1 }]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: C.primaryAction, opacity: pressed ? 0.85 : 1 }]}
             onPress={handleApply} disabled={loading}
           >
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
               <View style={styles.btnContent}>
-                <Send size={18} color="#fff" />
+                <LucideIcon name="send" size={18} color="#fff" />
                 <Text style={styles.btnText}>신청서 제출하기</Text>
               </View>
             )}
@@ -184,8 +180,8 @@ export default function PoolApplyScreen() {
         <Pressable onPress={logout} style={styles.logoutBtn}>
           <Text style={[styles.logoutText, { color: C.textMuted }]}>다른 계정으로 로그인</Text>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 

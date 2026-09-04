@@ -1,0 +1,1674 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 LOCKED MASTER DESIGN
+# WP3 — APP PRICING UI / X TRIAL UX / STORAGE UI / DATA PACK 안내
+
+본 작업은 이미 승인된
+`SWIMNOTE 2.0 MASTER DESIGN V1.0 — LOCKED`
+기준으로만 수행합니다.
+
+WP2A / WP2A CORRECTION / WP2B / WP2B CORRECTION은 최종 PASS 상태입니다.
+
+이번 WP3의 범위는 오직:
+
+1. 신규 가격/플랜 UI
+2. SWIMNOTE / X300 / X500 / X1000 상품 표시
+3. X 3일 Trial 진입 UX
+4. Trial 상태/남은 기간/잠금 UX
+5. X_SETUP_PENDING / X_SETUP_ACTIVE 사용자 표시
+6. 저장공간 표시
+7. DATA100 / DATA300 안내 UI
+8. 회원수 표시 및 플랜 추천
+9. legacy 구독자 UI 호환
+10. 다음 MANUAL STEP용 RevenueCat / App Store / Play Store 상품 준비자료 산출
+
+입니다.
+
+이번 WP에서 하지 않는 것:
+
+- RevenueCat 신규 Product ID 실제 연결
+- RevenueCat Dashboard 실제 변경
+- App Store Connect 실제 상품 생성
+- Google Play Console 실제 상품 생성
+- 실제 신규 결제 연결
+- DATA pack 실제 purchase
+- DATA pack webhook
+- video compression
+- EAS build
+- parent feed video
+- parent album video
+- Story CASE C
+- AI ENGINE 수정
+- Production deploy
+- OTA
+
+==================================================
+0. LOCKED PRODUCT DISPLAY
+==================================================
+
+최종 상품표시:
+
+--------------------------------
+SWIMNOTE
+--------------------------------
+
+월 9,900원
+
+회원수:
+무제한
+
+저장공간:
+10GB
+
+영상:
+가능
+
+핵심 표시:
+
+- 회원관리
+- 반관리
+- 출결
+- 보강
+- 일정
+- 공지
+- 일지
+- 사진
+- 영상
+- 앨범
+- 학부모 피드
+- 10GB 저장공간
+
+--------------------------------
+X300
+--------------------------------
+
+월 119,000원
+
+최대 300명
+
+300GB 포함
+
+SWIMNOTE 일반기능 전체
++
+X AI/교육/성장 기능
+
+--------------------------------
+X500
+--------------------------------
+
+월 189,000원
+
+최대 500명
+
+500GB 포함
+
+--------------------------------
+X1000
+--------------------------------
+
+월 349,000원
+
+최대 1,000명
+
+1TB 포함
+
+--------------------------------
+DATA100
+--------------------------------
+
+월 7,900원
+
++100GB
+
+--------------------------------
+DATA300
+--------------------------------
+
+월 22,900원
+
++300GB
+
+==================================================
+1. UI 기본 원칙
+==================================================
+
+일반 SWIMNOTE를 일부러 약한 상품처럼 표현하지 마십시오.
+
+SWIMNOTE:
+
+"수영장을 편리하게 운영하는 앱"
+
+으로 독립적인 완성 상품.
+
+X:
+
+"수영장의 교육 데이터를 축적하고
+회원 성장과 학부모 피드백을 연결하는 AI 교육 시스템"
+
+으로 구분.
+
+금지:
+
+- SWIMNOTE 기능 의도적 축소
+- X 판매를 위해 일반 기능 숨김
+- 과도한 마케팅 문구
+- 전체 앱 디자인 재설계
+- navigation 재설계
+
+기존 SWIMNOTE 디자인 언어 안에서 최소 변경.
+
+==================================================
+2. 현재 WP3 코드 상태 먼저 확인
+==================================================
+
+완료보고 전에 현재 release/v2.0.0에
+WP3 관련 변경이 이미 일부 존재하는지 먼저 확인하십시오.
+
+특히:
+
+- subscription.tsx
+- subscriptionPlans.ts
+- UpgradeModal.tsx
+- ModeContext
+- XModeGuard
+- storage 관련 UI
+- x-mode-hub
+- x-subscription
+
+확인.
+
+이미 구현된 내용은 중복 작성하지 말고
+LOCKED DESIGN과 비교하여 누락분만 최소 수정.
+
+완료보고에:
+
+PRE-EXISTING WP3 CODE:
+...
+
+NEW WP3 CHANGES:
+...
+
+구분해서 제출.
+
+==================================================
+3. 신규 가입자 가격화면
+==================================================
+
+현재:
+
+`(admin)/subscription.tsx`
+
+및 실제 pricing/paywall 관련 컴포넌트를 기준으로 수정.
+
+신규 가입자에게 판매 대상으로 보여줄 플랜:
+
+SWIMNOTE
+X300
+X500
+X1000
+
+legacy 신규 판매 대상:
+
+Coach 30
+Coach 50
+Coach 100
+Premier 200
+Premier 300
+Premier 500
+Premier 1000
+
+→ 신규 가입 CTA에서 숨김.
+
+중요:
+
+legacy plan 정의 자체 삭제 금지.
+
+==================================================
+4. LEGACY GRANDFATHERING UI
+==================================================
+
+기존 Coach/Premier 구독자에게는:
+
+- 현재 플랜명 유지
+- 현재 구독 상태 유지
+- nextBillingAt 유지
+- 만료 예정 상태 유지
+- restore purchase 기존 기능 유지
+
+하지만:
+
+기존 legacy 상품을 신규 구매/재가입하는 CTA는 노출하지 않음.
+
+신규 플랜으로 변경하고 싶은 경우:
+
+SWIMNOTE/X 신규 상품 선택 화면으로 이동 가능.
+
+기존 legacy 데이터를 신규 플랜으로 자동변환 금지.
+
+==================================================
+5. SWIMNOTE 회원수 무제한 표시
+==================================================
+
+내부:
+
+member_limit = 999999
+
+사용자 UI:
+
+"회원수 무제한"
+
+로만 표시.
+
+999999 숫자 직접 노출 금지.
+
+조건:
+
+member_limit >= 999999
+→ "무제한"
+
+legacy numeric limit:
+
+30
+50
+100
+200
+300
+500
+1000
+
+은 기존 방식 유지.
+
+==================================================
+6. 신규 플랜 카드
+==================================================
+
+반드시 다음 정보가 한눈에 보여야 합니다.
+
+--------------------------------
+SWIMNOTE
+--------------------------------
+
+SWIMNOTE
+
+9,900원 / 월
+
+회원수 무제한
+10GB 저장공간
+
+일반 운영기능 전체
+
+--------------------------------
+X300
+--------------------------------
+
+SWIMNOTE X300
+
+119,000원 / 월
+
+최대 300명
+300GB 포함
+
+--------------------------------
+X500
+--------------------------------
+
+SWIMNOTE X500
+
+189,000원 / 월
+
+최대 500명
+500GB 포함
+
+--------------------------------
+X1000
+--------------------------------
+
+SWIMNOTE X1000
+
+349,000원 / 월
+
+최대 1,000명
+1TB 포함
+
+==================================================
+7. SWIMNOTE와 X 기능 구분 UI
+==================================================
+
+SWIMNOTE 카드에는 일반 운영기능을 명확히 표시.
+
+예:
+
+- 회원/반 관리
+- 출결/보강
+- 일지
+- 사진/영상
+- 앨범
+- 공지/일정
+- 학부모 피드
+
+X 카드에는:
+
+"SWIMNOTE 전체 기능 포함"
+
+후 X 차별기능을 짧게 표시.
+
+예:
+
+- AI 일지
+- 교육 데이터 연결
+- 성장 데이터
+- AI 성장리포트
+- 학부모 AI
+- 센터 교육체계 연결
+
+존재하지 않는 기능을 새로 만들어 표시 금지.
+
+현재 구현/LOCKED 기능만 사용.
+
+==================================================
+8. X 플랜 추천
+==================================================
+
+현재 active member count 기준.
+
+0~300:
+X300 추천
+
+301~500:
+X500 추천
+
+501~1000:
+X1000 추천
+
+UI:
+
+"추천"
+
+badge 정도만.
+
+강제 자동선택 금지.
+
+1001명 이상:
+
+새 enterprise 상품 임의 생성 금지.
+
+표시:
+
+"별도 문의"
+
+또는 현재 제품 구조에 맞는 중립 안내.
+
+==================================================
+9. X 3일 Trial CTA
+==================================================
+
+다음 조건일 때:
+
+- 일반 SWIMNOTE/normal 상태
+- x_trial_used = false
+- x_trial_active = false
+- paid X 없음
+- manual X 없음
+- 과거 X 구매이력 없음
+
+CTA 표시:
+
+"3일 AI 기능 무료체험"
+
+반드시 함께 표시:
+
+- 자동결제 없음
+- 결제정보 등록 필요 없음
+- 센터 맞춤 X 세팅은 결제 후 제공
+
+==================================================
+10. Trial activation confirmation
+==================================================
+
+Trial 버튼 터치 시
+즉시 API 호출하지 않고
+간단한 확인 UI 사용.
+
+표시:
+
+- 3일간 체험
+- 센터당 최초 1회
+- 자동결제 없음
+- 결제정보 등록 없음
+- 센터 맞춤 설정은 체험에 포함되지 않음
+
+확인 후:
+
+POST /billing/x-trial-activate
+
+호출.
+
+중복 탭 방지.
+
+loading state 필수.
+
+==================================================
+11. Trial activation success
+==================================================
+
+성공 시:
+
+1. ModeContext/refetch
+2. mode=x_trial 확인
+3. Trial 활성 UI 표시
+
+표시 예:
+
+"X AI 기능 무료체험 중"
+
+종료일 표시 가능.
+
+예:
+
+2026.09.04까지
+
+또는 남은 기간 표시.
+
+중요:
+
+권한 판단은 서버.
+
+클라이언트 countdown은 표시용만.
+
+local clock만으로 Trial 권한을 연장/종료하지 마십시오.
+
+==================================================
+12. Trial active UI
+==================================================
+
+Trial active 중:
+
+무료체험 CTA 재노출 금지.
+
+표시:
+
+- 무료체험 중
+- 종료일
+- X AI 체험 가능 기능
+- 정식 X 플랜 선택 CTA
+
+정식 결제를 아직 연결하지 않았으므로
+구매 버튼은 WP4 전까지 실제 purchase 금지.
+
+플랜 선택 UI 이동은 가능.
+
+==================================================
+13. Trial already used / expired
+==================================================
+
+x_trial_used = true
+x_trial_active = false
+
+이면:
+
+무료체험 CTA 숨김.
+
+표시:
+
+"무료체험 사용 완료"
+
+그리고:
+
+X300
+X500
+X1000
+
+선택 UI 제공.
+
+Trial 재활성화 버튼 금지.
+
+==================================================
+14. 과거 X 구매자
+==================================================
+
+과거 X 구매 이력이 있는 경우
+무료체험 CTA 노출 금지.
+
+서버 endpoint가
+TRIAL_NOT_AVAILABLE_FOR_PREVIOUS_X_BUYER
+를 반환해도 raw code 노출 금지.
+
+X 플랜 선택 UI로 유도.
+
+==================================================
+15. Trial 허용 기능 route 감사
+==================================================
+
+현재 구현된 X 관련 route/screen을 실제 감사하여
+다음 표를 작성.
+
+TRIAL ALLOWED
+TRIAL BLOCKED
+
+LOCKED 원칙:
+
+TRIAL ALLOWED:
+
+별도 센터 구축 없이 즉시 사용 가능한 기능만.
+
+예:
+
+- AI 일지
+- 즉시 사용 가능한 공통 AI
+- 학부모 AI 체험
+- 기존 데이터 기반 분석
+- X Preview
+
+TRIAL BLOCKED:
+
+- 센터 커리큘럼 설정
+- 커리큘럼 업로드
+- 교육체계 설정
+- 센터 맞춤 템플릿
+- 정식 성장리포트 설정
+- 센터별 X 구축 UI
+
+중요:
+
+존재하지 않는 화면/route를 새로 만들지 마십시오.
+
+==================================================
+16. XModeGuard trialAllowed 적용
+==================================================
+
+현재 기본:
+
+trialAllowed=false
+
+정책 유지.
+
+실제로 Trial에서 허용해야 하는 화면에만:
+
+trialAllowed={true}
+
+적용.
+
+전체 X 화면에 일괄 true 금지.
+
+완료보고에 실제 적용한 route/component 전부 제출.
+
+==================================================
+17. Trial blocked UX
+==================================================
+
+trialAllowed=false 화면에
+x_trial 사용자가 접근하면:
+
+기존:
+
+trial_setup_blocked
+
+상태 사용.
+
+문구:
+
+"이 기능은 X 정식 이용 후 사용할 수 있습니다."
+
+보조:
+
+"센터 맞춤 X 세팅은 결제 후 진행됩니다."
+
+raw 403 노출 금지.
+
+==================================================
+18. X_PENDING UX
+==================================================
+
+mode = x_pending
+
+의 의미:
+
+정식 X 결제/권한은 있지만
+센터 맞춤 세팅이 완료되지 않음.
+
+표시 예:
+
+"SWIMNOTE X 활성화 완료"
+
+"센터 맞춤 설정을 준비하고 있습니다."
+
+config status 표시:
+
+NOT_CONFIGURED
+→ 초기 설정 대기
+
+CURRICULUM_PENDING
+→ 센터 맞춤 설정 진행 중
+
+READY
+→ 사용 가능
+
+내부 enum 그대로 사용자 노출 금지.
+
+x_pending 상태에서:
+
+- Trial CTA 금지
+- 신규 X 구매 CTA 중복 금지
+
+==================================================
+19. X ACTIVE UX
+==================================================
+
+mode = x
+
+표시:
+
+"SWIMNOTE X 사용 중"
+
+가능하면:
+
+현재 플랜
+회원한도
+저장공간
+설정상태
+
+표시.
+
+Trial CTA 금지.
+
+==================================================
+20. STORAGE UI
+==================================================
+
+서버 unified quota 기준 사용.
+
+사진/영상 따로 분리하지 마십시오.
+
+표시 예:
+
+32.4GB / 300GB
+
+또는 기존 SWIMNOTE storage UI 형식을 유지.
+
+플랜별:
+
+SWIMNOTE:
+10GB
+
+X300:
+300GB
+
+X500:
+500GB
+
+X1000:
+1TB
+
+extra storage 존재 시:
+
+전체 quota는 base + extra 기준 표시.
+
+예:
+
+SWIMNOTE 10GB
++ DATA100 100GB
+
+→ 110GB
+
+==================================================
+21. STORAGE WARNING UI
+==================================================
+
+서버:
+
+storage_warning_level
+
+사용.
+
+--------------------------------
+<80%
+--------------------------------
+
+일반 표시.
+
+--------------------------------
+80% 이상
+--------------------------------
+
+안내:
+
+"저장공간을 많이 사용하고 있습니다."
+
+--------------------------------
+90% 이상
+--------------------------------
+
+DATA pack 안내.
+
+--------------------------------
+100%
+--------------------------------
+
+안내:
+
+"저장공간이 가득 찼습니다."
+
+"추가 저장공간을 구매하면 다시 업로드할 수 있습니다."
+
+그리고:
+
+"기존 자료는 계속 확인할 수 있습니다."
+
+표시.
+
+==================================================
+22. DATA PACK UI
+==================================================
+
+카드:
+
+DATA100
+
++100GB
+7,900원 / 월
+
+DATA300
+
++300GB
+22,900원 / 월
+
+이번 WP에서는 구매 연결 금지.
+
+버튼:
+
+"준비 중"
+
+또는 disabled state.
+
+fake purchase success 금지.
+
+handler에서 임의로 extra_storage_gb 증가 금지.
+
+==================================================
+23. DATA PACK 표시 위치
+==================================================
+
+최소 다음 중 적절한 위치 사용:
+
+- subscription 화면
+- storage warning 90% 영역
+- 저장공간 상세 화면
+
+중복 과다 노출 금지.
+
+현재 디자인에 가장 자연스러운 위치를 사용.
+
+==================================================
+24. UpgradeModal legacy 영상 문구 제거
+==================================================
+
+현재:
+
+"Premier 전용"
+"영상 업로드"
+
+등 영상 플랜제한과 관련된 문구가 남아 있다면 제거.
+
+LOCKED 정책:
+
+SWIMNOTE 및 모든 유료/X 플랜
+영상 사용 가능.
+
+따라서 영상 때문에 Premier/X 업그레이드를 요구하는 문구 금지.
+
+다른 feature upgrade 문구는 필요하면 유지.
+
+==================================================
+25. FREE 상태
+==================================================
+
+현재 free plan/무료 운영상태는
+이번 WP에서 삭제하지 마십시오.
+
+free user에게:
+
+SWIMNOTE 9,900
+X Trial
+
+CTA 표시 가능.
+
+하지만 free plan 자체 구조를 재설계하는 작업은 범위 밖.
+
+==================================================
+26. 실제 구매 버튼 정책
+==================================================
+
+신규:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+RevenueCat 실제 상품이 아직 생성/연결되지 않았으므로
+이번 WP에서 실제 신규 purchase 호출 금지.
+
+구매 CTA는:
+
+준비 중
+또는
+WP4 연결 전용 disabled state
+
+사용.
+
+기존 legacy restore/status 기능은 유지.
+
+==================================================
+27. Trial API 오류 처리
+==================================================
+
+raw error code 노출 금지.
+
+매핑:
+
+TRIAL_ALREADY_USED
+→ "이 센터는 무료체험을 이미 사용했습니다."
+
+TRIAL_ALREADY_ACTIVE
+→ mode refetch 후 현재 Trial 화면 표시
+
+TRIAL_NOT_AVAILABLE_FOR_PAID_X
+→ 현재 X 이용 상태 표시
+
+TRIAL_NOT_AVAILABLE_FOR_PREVIOUS_X_BUYER
+→ 무료체험 숨김 + X 플랜 선택
+
+TRIAL_FORCE_DISABLED
+→ "현재 X 체험을 이용할 수 없습니다."
+
+FORBIDDEN
+→ 일반 권한 오류 UI
+
+POOL_NOT_FOUND
+→ 안전한 오류 + retry
+
+==================================================
+28. LOADING / ERROR
+==================================================
+
+subscription data
+x-mode data
+trial activation
+storage data
+
+모두:
+
+- 무한 spinner 금지
+- finally 보장
+- retry 가능
+- API 오류 시 사용자 플랜을 free로 임의 덮어쓰기 금지
+- X entitlement를 local state로 추측 금지
+
+==================================================
+29. 신규 가격 단일 Source
+==================================================
+
+신규 2.0 상품 데이터는:
+
+subscriptionPlans.ts
+
+또는 현재 적절한 단일 constants source를 우선 사용.
+
+subscription.tsx 등에:
+
+119000
+189000
+349000
+7900
+22900
+
+가격을 다시 중복 하드코딩하지 마십시오.
+
+Legacy 값은 호환을 위해 유지.
+
+==================================================
+30. MANUAL CONSOLE STEP 준비
+==================================================
+
+WP3 완료 후 사용자가 직접:
+
+RevenueCat
+App Store Connect
+Google Play Console
+
+작업을 해야 합니다.
+
+따라서 완료보고에 정확한 신규 상품 준비표를 제출.
+
+아직 실제 콘솔 변경 금지.
+
+목표 Product IDs:
+
+SWIMNOTE:
+com.swimnote.swimnote.monthly
+
+X300:
+com.swimnote.x300.monthly
+
+X500:
+com.swimnote.x500.monthly
+
+X1000:
+com.swimnote.x1000.monthly
+
+DATA100:
+com.swimnote.data100.monthly
+
+DATA300:
+com.swimnote.data300.monthly
+
+단 실제 App Store / Play Store의
+기존 ID 충돌 여부는 다음 MANUAL STEP 직전 최종 확인.
+
+임의로 다른 ID를 코드에 연결하지 마십시오.
+
+==================================================
+31. RevenueCat 준비안
+==================================================
+
+완료보고에 코드 수정 없이
+추천 매핑만 제출.
+
+예상:
+
+Entitlement:
+
+swimnote
+x_mode
+data_pack 또는 storage_addon
+
+Offering:
+
+swimnote_monthly
+x_monthly
+storage_monthly
+
+Package/Product mapping:
+
+SWIMNOTE
+X300
+X500
+X1000
+DATA100
+DATA300
+
+중요:
+
+DATA100과 DATA300이 동시에 스택 가능한 구조여야 하므로
+RevenueCat entitlement 하나만 보고
+둘 중 하나만 보유 가능한 설계가 되면 안 됩니다.
+
+실제 WP4 전에
+RevenueCat entitlement/product 구조를 다시 검증하여
+stacking 가능한 구조로 설계.
+
+이번 WP에서는 제안만.
+
+==================================================
+32. App Store 준비표
+==================================================
+
+완료보고에 각 상품:
+
+Display name
+Product ID
+Billing period
+Price
+Subscription group 제안
+기존 legacy group과의 관계
+
+제출.
+
+주의:
+
+DATA100 / DATA300은
+X/SWIMNOTE 기본구독과 동시에 보유 가능해야 하므로
+App Store subscription group 설계가 중요합니다.
+
+같은 subscription group 안에 넣으면
+동시 구독이 불가능할 수 있으므로
+MANUAL STEP 전에 구조를 반드시 명시.
+
+이번 WP에서는 콘솔 변경 금지.
+
+==================================================
+33. Google Play 준비표
+==================================================
+
+각 상품:
+
+Product ID
+Base plan
+Monthly
+Price
+Offer 필요 여부
+기존 legacy 상품 처리
+
+제출.
+
+DATA pack이 base subscription과
+동시 보유 가능한 구조인지 반드시 검토하여 보고.
+
+==================================================
+34. TEST CASES
+==================================================
+
+반드시 수행.
+
+CASE A
+신규 일반 사용자
+
+Expected:
+
+SWIMNOTE 9,900
+X300
+X500
+X1000
+Trial CTA
+
+legacy 신규 CTA 없음
+
+CASE B
+SWIMNOTE member_limit=999999
+
+Expected:
+"회원수 무제한"
+
+999999 노출:
+NO
+
+CASE C
+X300
+
+Expected:
+119,000
+300명
+300GB
+
+CASE D
+X500
+
+Expected:
+189,000
+500명
+500GB
+
+CASE E
+X1000
+
+Expected:
+349,000
+1000명
+1TB
+
+CASE F
+Trial unused
+
+Expected:
+"3일 AI 기능 무료체험"
+자동결제 없음
+결제정보 없음
+세팅은 결제 후
+
+CASE G
+Trial activate
+
+Expected:
+loading
+duplicate tap blocked
+success
+mode refetch
+x_trial
+
+CASE H
+Trial active
+
+Expected:
+Trial CTA 없음
+체험 중 표시
+종료일 표시
+
+CASE I
+Trial expired/used
+
+Expected:
+Trial CTA 없음
+X plan 선택
+
+CASE J
+paid + NOT_CONFIGURED
+
+Expected:
+x_pending
+setup pending UI
+Trial CTA 없음
+
+CASE K
+paid + READY
+
+Expected:
+x
+X 사용 중 UI
+
+CASE L
+storage 79%
+
+Expected:
+normal
+
+CASE M
+storage 80%
+
+Expected:
+warning
+
+CASE N
+storage 90%
+
+Expected:
+DATA100/300 안내
+purchase 미연결
+
+CASE O
+storage 100%
+
+Expected:
+업로드 제한 안내
+기존 자료 조회 가능 안내
+
+CASE P
+legacy Coach subscriber
+
+Expected:
+현재 plan/status 정상
+restore 정상
+legacy 신규 구매 CTA 없음
+
+CASE Q
+legacy Premier subscriber
+
+Expected:
+동일
+
+CASE R
+UpgradeModal
+
+Expected:
+영상 Premier 전용 문구 없음
+
+CASE S
+trialAllowed=true 화면
+
+Expected:
+x_trial에서 진입 가능
+
+CASE T
+trialAllowed=false setup 화면
+
+Expected:
+trial_setup_blocked
+
+CASE U
+Trial API errors
+
+Expected:
+raw code 미노출
+
+CASE V
+DATA100 card
+
+Expected:
+7900 / +100GB / purchase disabled
+
+CASE W
+DATA300 card
+
+Expected:
+22900 / +300GB / purchase disabled
+
+CASE X
+X pending internal enum
+
+Expected:
+NOT_CONFIGURED 같은 raw enum 사용자 미노출
+
+CASE Y
+legacy restore
+
+Expected:
+기존 RC restore flow 회귀 없음
+
+CASE Z
+new purchase
+
+Expected:
+실제 purchase 호출되지 않음
+
+==================================================
+35. 회귀검증
+==================================================
+
+특히:
+
+- 기존 subscription status
+- legacy restore
+- ModeContext
+- XModeGuard
+- normal mode
+- x_pending
+- x
+- x_trial
+- storage display
+- UpgradeModal
+
+검증.
+
+기존 테스트 실패 수와 비교하여
+WP3 신규 실패가 있는지 보고.
+
+==================================================
+36. 범위 밖 절대 금지
+==================================================
+
+RevenueCat 실제 상품 생성 금지
+RevenueCat Offering 변경 금지
+RevenueCat Entitlement 변경 금지
+App Store product 생성 금지
+Google Play product 생성 금지
+
+신규 purchase 연결 금지
+DATA pack webhook 금지
+extra_storage_gb 실제 증가 금지
+
+video compression library 설치 금지
+EAS build 금지
+video 1080p 구현 금지
+
+parent feed video 금지
+parent album video 금지
+Story CASE C 금지
+
+AI ENGINE 변경 금지
+
+Production deploy 금지
+Production DB migration 금지
+OTA 금지
+
+==================================================
+37. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 WP3 COMPLETION REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## PRE-EXISTING WP3 CODE
+
+...
+
+## NEW WP3 CHANGES
+
+...
+
+## LOCKED DESIGN COMPLIANCE
+
+SWIMNOTE 9,900:
+PASS / FAIL
+
+SWIMNOTE unlimited UI:
+PASS / FAIL
+
+X300 119,000 / 300 / 300GB:
+PASS / FAIL
+
+X500 189,000 / 500 / 500GB:
+PASS / FAIL
+
+X1000 349,000 / 1000 / 1TB:
+PASS / FAIL
+
+DATA100 7,900 / +100GB:
+PASS / FAIL
+
+DATA300 22,900 / +300GB:
+PASS / FAIL
+
+Legacy sales hidden:
+PASS / FAIL
+
+Legacy subscribers preserved:
+PASS / FAIL
+
+## PRICING UI
+
+Files:
+...
+
+New user view:
+...
+
+Legacy subscriber view:
+...
+
+## PLAN DATA SOURCE
+
+...
+
+Duplicate new-price hardcoding:
+YES / NO
+
+Expected:
+NO
+
+## TRIAL UX
+
+Unused:
+...
+
+Confirmation:
+...
+
+Activation:
+...
+
+Active:
+...
+
+Expired/used:
+...
+
+Previous X buyer:
+...
+
+Paid:
+...
+
+## TRIAL ALLOWED ROUTES
+
+...
+
+## TRIAL BLOCKED ROUTES
+
+...
+
+## X PENDING UX
+
+...
+
+## X ACTIVE UX
+
+...
+
+## STORAGE UI
+
+Normal:
+...
+
+80%:
+...
+
+90%:
+...
+
+100%:
+...
+
+Unified photo+video quota displayed:
+YES / NO
+
+## DATA PACK UI
+
+DATA100:
+...
+
+DATA300:
+...
+
+Purchase connected:
+YES / NO
+
+Expected:
+NO
+
+## MEMBER LIMIT UI
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+999999 exposed:
+YES / NO
+
+Expected:
+NO
+
+## LEGACY UI
+
+Coach:
+...
+
+Premier:
+...
+
+Restore:
+PASS / FAIL
+
+Status:
+PASS / FAIL
+
+Legacy purchase CTA:
+VISIBLE / HIDDEN
+
+Expected:
+HIDDEN
+
+## UPGRADE MODAL
+
+Video-specific Premier gate text removed:
+YES / NO
+
+Other behavior preserved:
+YES / NO
+
+## ERROR HANDLING
+
+Trial errors:
+...
+
+Loading:
+...
+
+Retry:
+...
+
+Raw error code exposed:
+YES / NO
+
+Expected:
+NO
+
+## MANUAL CONSOLE PREP
+
+### RevenueCat
+
+Entitlements:
+...
+
+Offerings:
+...
+
+Packages:
+...
+
+Stacking considerations:
+...
+
+### App Store Connect
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Subscription group strategy:
+...
+
+DATA pack simultaneous subscription:
+POSSIBLE / BLOCKED / NEEDS SEPARATE GROUP
+
+### Google Play Console
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Base plan strategy:
+...
+
+DATA pack simultaneous subscription:
+POSSIBLE / BLOCKED / NEEDS SEPARATE PRODUCT STRUCTURE
+
+## TEST RESULTS
+
+CASE A:
+PASS / FAIL
+CASE B:
+PASS / FAIL
+CASE C:
+PASS / FAIL
+CASE D:
+PASS / FAIL
+CASE E:
+PASS / FAIL
+CASE F:
+PASS / FAIL
+CASE G:
+PASS / FAIL
+CASE H:
+PASS / FAIL
+CASE I:
+PASS / FAIL
+CASE J:
+PASS / FAIL
+CASE K:
+PASS / FAIL
+CASE L:
+PASS / FAIL
+CASE M:
+PASS / FAIL
+CASE N:
+PASS / FAIL
+CASE O:
+PASS / FAIL
+CASE P:
+PASS / FAIL
+CASE Q:
+PASS / FAIL
+CASE R:
+PASS / FAIL
+CASE S:
+PASS / FAIL
+CASE T:
+PASS / FAIL
+CASE U:
+PASS / FAIL
+CASE V:
+PASS / FAIL
+CASE W:
+PASS / FAIL
+CASE X:
+PASS / FAIL
+CASE Y:
+PASS / FAIL
+CASE Z:
+PASS / FAIL
+
+## REGRESSION
+
+Existing test failures before:
+...
+
+Existing test failures after:
+...
+
+New failures caused by WP3:
+...
+
+## FILES CHANGED
+
+...
+
+## OUT OF SCOPE CHANGES
+
+NONE
+or
+...
+
+## RISKS
+
+...
+
+## BLOCKERS FOR MANUAL STORE STEP
+
+NONE
+or
+...
+
+## PRODUCTION CHANGES
+
+NONE
+
+## DEPLOY REQUIRED
+
+YES / NO
+
+승인 전 deploy/OTA/build 금지.
+
+FINAL:
+
+SWIMNOTE 2.0 WP3 COMPLETE

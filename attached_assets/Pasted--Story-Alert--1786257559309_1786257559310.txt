@@ -1,0 +1,228 @@
+[긴급 — Story 실패 원인 실기기 계측 감리]
+
+현재 실기기에서 여전히:
+
+"스토리 요약을 만들지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+Alert 발생.
+
+중요:
+지금부터 코드 로직 수정 금지.
+원인 추정으로 수정하지 말 것.
+먼저 실제 실패 지점을 계측해서 확정한다.
+
+현재 확인된 사실:
+
+- Render story-summary 테스트 HTTP 200
+- 서버 summary 길이 제한 테스트 PASS
+- 실기기에서는 Instagram Composer 진입 전 앱 Alert 발생
+- 따라서 handleInstagramShare의 summary 처리 구간에서 실패하고 있음
+- 하지만 어떤 throw/catch인지 아직 실기기 증거 없음
+
+━━━━━━━━━━━━━━━━━━
+1. catch 원인 숨기지 말 것
+━━━━━━━━━━━━━━━━━━
+
+현재 handleInstagramShare의 catch가 모든 오류를
+
+"스토리 요약을 만들지 못했습니다."
+
+하나로 덮고 있다.
+
+개발용 instagram-test에서만 실제 error reason을 console에 남겨라.
+
+개인정보/본문/JWT 출력 금지.
+
+예:
+
+console.error("[StoryShare]", {
+  stage,
+  errorCode,
+  photoCount,
+  maxLines,
+  maxChars,
+  summaryChars,
+  estimatedLines,
+  fits
+});
+
+본문/summary 문자열 자체는 로그 금지.
+
+━━━━━━━━━━━━━━━━━━
+2. stage를 단계별 기록
+━━━━━━━━━━━━━━━━━━
+
+최소 다음 stage를 구분:
+
+A instagram availability check
+B original storyTextFits
+C cache lookup
+D summary request #1 start
+E summary response #1 status
+F summary #1 received
+G summary #1 client fit
+H summary request #2 start
+I summary response #2 status
+J summary #2 received
+K summary #2 client fit
+L finalText fit
+M setSharing(true)
+N capture start
+O shareSingle start
+
+실패 시 마지막 성공 stage와
+정확한 error를 보고.
+
+━━━━━━━━━━━━━━━━━━
+3. 실기기에서 반드시 확인할 값
+━━━━━━━━━━━━━━━━━━
+
+현재 실패하는 8월 6일 동일 일지로 측정:
+
+- photoCount
+- maxLines
+- maxChars
+- cache hit/miss
+- cache schema
+- request #1 HTTP status
+- response error code 또는 summary 존재 여부
+- summaryChars
+- estimatedLines
+- storyTextFits 결과
+- retry 발생 여부
+- retry maxLines
+- retry maxChars
+- retry HTTP status
+- retry summaryChars
+- retry estimatedLines
+- retry storyTextFits
+- finalText estimatedLines
+- final fit
+- 실제 catch error.message
+
+━━━━━━━━━━━━━━━━━━
+4. 특히 캐시 확인
+━━━━━━━━━━━━━━━━━━
+
+이전 버전에서 저장된 Story summary cache가
+실기기에 남아 있을 수 있다.
+
+현재 cache hit 조건이:
+
+hash
+maxLines
+maxChars
+storyTextFits
+
+전부 검사되는지 실제 실행값으로 확인.
+
+구버전 cache에 maxChars가 없는 경우
+반드시 MISS가 되는지도 확인.
+
+캐시 때문에 이전 summary가 사용되는지
+실측할 것.
+
+━━━━━━━━━━━━━━━━━━
+5. API 요청도 실기기 기준 확인
+━━━━━━━━━━━━━━━━━━
+
+서버를 별도 테스트한 결과가 아니라
+실제 iPhone 요청을 확인해야 한다.
+
+실제 요청 body:
+
+max_lines = ?
+max_chars = ?
+
+실제 response:
+
+HTTP = ?
+error code = ?
+summaryChars = ?
+
+확인.
+
+━━━━━━━━━━━━━━━━━━
+6. 서버 200인데 client fit FAIL이면
+
+그때만 다음을 원인으로 확정:
+
+summary_too_long
+
+그리고 반드시 실제 수치를 보고:
+
+예:
+photoCount = 10
+maxLines = 11
+maxChars = 247
+summaryChars = 201
+estimatedLines = ??
+fits = false
+
+처럼 증거를 제시.
+
+━━━━━━━━━━━━━━━━━━
+7. 서버 요청 자체가 실패하면
+
+HTTP status와 server error를 기준으로
+별도 원인 판정.
+
+401 / 403 / 404 / 500 / summary_failed 등을
+구분하지 않고 동일 Alert로 뭉개지 말 것.
+
+━━━━━━━━━━━━━━━━━━
+8. 중요한 확인
+
+현재 화면에 보이는 일지는
+8월 6일 일지다.
+
+이전에 서버 검증에 사용한 diary와
+실기기에서 지금 공유하는 diary가
+정확히 동일한 diaryId인지 확인.
+
+다르면 이전 "201자 PASS"는
+현재 실패 건의 직접 검증 증거가 아니다.
+
+ID는 보고서에서 마스킹.
+
+━━━━━━━━━━━━━━━━━━
+9. 수정 범위
+
+진단 로그 추가 외 기능 수정 금지.
+
+DB 변경 금지.
+Render 변경 금지.
+Story layout 변경 금지.
+summary 알고리즘 변경 금지.
+
+필요하면 instagram-test OTA에
+진단 로그만 배포.
+
+━━━━━━━━━━━━━━━━━━
+10. 최종 보고
+
+A. 실제 실패 diaryId 마스킹
+B. photoCount
+C. maxLines
+D. maxChars
+E. cache hit/miss
+F. request #1 HTTP
+G. summary #1 chars
+H. estimatedLines #1
+I. fit #1
+J. retry 여부
+K. retry maxLines/maxChars
+L. request #2 HTTP
+M. summary #2 chars
+N. estimatedLines #2
+O. fit #2
+P. final fit
+Q. 마지막 성공 stage
+R. 실제 catch error.message
+S. Instagram capture 진입 여부
+T. 직접 원인
+U. 원인 확정 YES/NO
+
+원인 확정 후 멈출 것.
+수정 금지.

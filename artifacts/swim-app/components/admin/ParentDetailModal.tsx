@@ -2,7 +2,6 @@
  * ParentDetailModal — 학부모 상세 조회 (읽기 전용)
  * 승인은 ParentApproveModal에서 처리
  */
-import { Info, MessageSquare, Phone, RefreshCw, UserX, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -13,7 +12,7 @@ import type { ParentJoinRequest, JoinStatus, MatchStatus } from "@/store/parentJ
 const C = Colors.light;
 
 const MATCH_CFG: Record<MatchStatus, { label: string; color: string; bg: string; icon: string }> = {
-  full_match:  { label: "자동 일치",  color: "#2EC4B6", bg: "#E6FFFA", icon: "zap"         },
+  full_match:  { label: "자동 일치",  color: C.brandStrong, bg: C.brandSoft, icon: "zap"         },
   phone_only:  { label: "번호만 일치", color: "#D97706", bg: "#FFF1BF", icon: "phone"       },
   no_match:    { label: "미일치",     color: "#64748B", bg: "#F8FAFC", icon: "alert-circle" },
 };
@@ -47,14 +46,14 @@ function PDPhoneRow({ label, phone }: { label: string; phone: string | null | un
           disabled={!valid}
           hitSlop={6}
         >
-          <Phone size={13} color={valid ? CALL_COLOR : C.textMuted} />
+          <LucideIcon name="phone" size={13} color={valid ? CALL_COLOR : C.textMuted} />
           <Text style={[pd.infoValue, valid ? { color: CALL_COLOR } : {}]}>
             {phone ? formatPhone(phone) : "미입력"}
           </Text>
         </Pressable>
         {valid && (
           <Pressable onPress={() => sendSms(phone)} hitSlop={8}>
-            <MessageSquare size={13} color={SMS_COLOR} />
+            <LucideIcon name="message-square" size={13} color={SMS_COLOR} />
           </Pressable>
         )}
       </View>
@@ -86,8 +85,8 @@ export function ParentDetailModal({
           <View style={pd.handle} />
           <View style={pd.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={[pd.avatar, { backgroundColor: C.tintLight }]}>
-                <Text style={[pd.avatarTxt, { color: C.tint }]}>{req.parentName[0]}</Text>
+              <View style={[pd.avatar, { backgroundColor: C.brandSoft }]}>
+                <Text style={[pd.avatarTxt, { color: C.brandStrong }]}>{req.parentName[0]}</Text>
               </View>
               <View>
                 <Text style={pd.name}>{req.parentName}</Text>
@@ -95,7 +94,7 @@ export function ParentDetailModal({
               </View>
             </View>
             <Pressable onPress={onClose} style={{ padding: 4 }}>
-              <X size={20} color={C.textSecondary} />
+              <LucideIcon name="x" size={20} color={C.textSecondary} />
             </Pressable>
           </View>
 
@@ -121,8 +120,8 @@ export function ParentDetailModal({
               <Text style={pd.sTitle}>신청 자녀 정보 ({req.children.length}명)</Text>
               {req.children.map((c, i) => (
                 <View key={i} style={pd.childRow}>
-                  <View style={[pd.childNum, { backgroundColor: C.tintLight }]}>
-                    <Text style={[pd.childNumTxt, { color: C.tint }]}>{i + 1}</Text>
+                  <View style={[pd.childNum, { backgroundColor: C.brandSoft }]}>
+                    <Text style={[pd.childNumTxt, { color: C.brandStrong }]}>{i + 1}</Text>
                   </View>
                   <View>
                     <Text style={pd.childName}>{c.name || "이름 미입력"}</Text>
@@ -137,7 +136,7 @@ export function ParentDetailModal({
             {isPending && (
               <View style={pd.btnRow}>
                 <Pressable style={[pd.btn, pd.btnReject]} onPress={onOpenReject}>
-                  <X size={14} color={C.error} />
+                  <LucideIcon name="x" size={14} color={C.error} />
                   <Text style={[pd.btnTxt, { color: C.error }]}>거절</Text>
                 </Pressable>
                 <Pressable style={[pd.btn, pd.btnApprove]} onPress={onApprove}>
@@ -147,18 +146,18 @@ export function ParentDetailModal({
             )}
             {isApproved && (
               <Pressable style={[pd.btn, pd.btnRevoke, { flex: 1 }]} onPress={onRevoke}>
-                <UserX size={14} color="#D96C6C" />
+                <LucideIcon name="user-x" size={14} color="#D96C6C" />
                 <Text style={[pd.btnTxt, { color: "#D96C6C" }]}>승인 해제</Text>
               </Pressable>
             )}
             {req.status === "rejected" && (
               <>
                 <View style={pd.rejectInfo}>
-                  <Info size={13} color="#D96C6C" />
+                  <LucideIcon name="info" size={13} color="#D96C6C" />
                   <Text style={pd.rejectInfoTxt}>거절 상태입니다. 재승인하면 가입을 허용합니다.</Text>
                 </View>
                 <Pressable style={[pd.btn, pd.btnApprove, { flex: 1 }]} onPress={onReApprove}>
-                  <RefreshCw size={14} color="#fff" />
+                  <LucideIcon name="refresh-cw" size={14} color="#fff" />
                   <Text style={[pd.btnTxt, { color: "#fff" }]}>재승인</Text>
                 </Pressable>
               </>
@@ -174,7 +173,7 @@ const pd = StyleSheet.create({
   overlay:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
   sheet:         { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26,
                    padding: 22, gap: 14, maxHeight: "88%" },
-  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:        { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   avatar:        { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   avatarTxt:     { fontSize: 18, fontFamily: "Pretendard-Regular" },
@@ -182,8 +181,8 @@ const pd = StyleSheet.create({
   nameSub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   matchBadge:    { flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12, marginBottom: 8 },
   matchTxt:      { fontSize: 13, fontFamily: "Pretendard-Regular" },
-  autoChip:      { backgroundColor: "#E6FAF8", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  autoChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#2EC4B6" },
+  autoChip:      { backgroundColor: C.brandSoft, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  autoChipTxt:   { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   section:       { gap: 8, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 12 },
   sTitle:        { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary,
                    textTransform: "uppercase", marginBottom: 2 },

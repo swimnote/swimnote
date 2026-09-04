@@ -1,0 +1,970 @@
+[SWIMNOTE X PAYMENT]
+[X02-D — iOS PURCHASE UI + REVENUECAT OFFERING CONNECTION]
+
+목적:
+
+X02-C에서 완성된 서버 결제 계약:
+
+- POST /api/billing/x-reserve-slot
+- POST /api/billing/sync-x-subscription
+- RevenueCat V2 server verification
+- slot / tier / product server-side 결정
+- transaction binding
+- cross-pool defense
+- webhook idempotency
+- paid/manual entitlement separation
+
+위에 실제 iOS 구매 UI를 연결한다.
+
+이번 WP는 APP + RevenueCat client purchase flow.
+
+서버 정책 재설계 금지.
+DB schema 변경 금지.
+RevenueCat Dashboard 변경 금지.
+App Store Connect 변경 금지.
+
+==================================================
+0. CURRENT FIXED CONTRACT
+==================================================
+
+RevenueCat:
+
+Entitlement:
+x_mode
+
+Offering:
+x_monthly
+
+Packages:
+
+$rc_custom_x_tier1
+→ com.swimnote.x.monthly.tier1
+
+$rc_custom_x_tier2
+→ com.swimnote.x.monthly.tier2
+
+$rc_custom_x_tier3
+→ com.swimnote.x.monthly.tier3
+
+$rc_custom_x_standard
+→ com.swimnote.x.monthly.standard
+
+Server:
+
+POST /api/billing/x-reserve-slot
+
+→ server가 반환:
+
+slotId
+sequenceNumber
+franchiseNumber
+tierKey
+discountPercent
+storeProductId
+paymentDeadlineAt
+
+POST /api/billing/sync-x-subscription
+
+→ RevenueCat V2 server verification 후
+paid entitlement / slot / transaction 확정.
+
+최종 mode:
+
+effective=false
+→ normal
+
+effective=true + config READY
+→ x
+
+effective=true + config != READY
+→ x_pending
+
+==================================================
+1. GLOBAL COMMON-FIX RULE
+==================================================
+
+본 작업은 X 전용 결제 기능이므로
+X subscription 관련 범위만 수정한다.
+
+단 기존 shared RevenueCat wrapper를 수정할 경우:
+
+기존 SWIMNOTE Basic subscription에
+regression이 없는지 반드시 확인.
+
+기본 플랜 결제 흐름 변경 금지.
+
+==================================================
+2. TARGET SCREEN
+==================================================
+
+현재:
+
+app/(admin)/x-subscription.tsx
+
+X01에서 만든 UI-only 화면을
+실제 X 결제 화면으로 연결한다.
+
+기존 구조:
+
+Settings
+→ SWIMNOTE X모드
+→ 정기결제 신청하기
+
+유지.
+
+==================================================
+3. ROLE
+==================================================
+
+실제 구매 가능:
+
+pool_admin only.
+
+sub_admin:
+X 정보 열람 가능
+구매 불가.
+
+teacher:
+구매 불가.
+
+parent:
+구매 불가.
+
+client UI에서도 막되
+server role guard가 최종 권한 source.
+
+==================================================
+4. DO NOT TRUST CLIENT
+==================================================
+
+클라이언트는 절대:
+
+sequence
+tier
+discountPercent
+storeProductId
+
+를 자체 계산하지 않는다.
+
+반드시:
+
+POST /billing/x-reserve-slot
+
+응답을 source of truth로 사용.
+
+==================================================
+5. REVENUECAT OFFERING LOAD
+==================================================
+
+lib/revenuecat.tsx 또는 기존 RevenueCat wrapper에서
+X Offering을 안전하게 로드할 helper 추가.
+
+Offering Identifier:
+
+x_monthly
+
+예:
+
+getXOffering()
+
+반환:
+
+RevenueCat Offering
+packages
+
+중요:
+
+기존 basic getOfferings / purchase flow를
+깨지 않는다.
+
+==================================================
+6. PACKAGE LOOKUP
+==================================================
+
+reserve-slot 응답의:
+
+storeProductId
+
+를 기준으로
+Offering packages 중 정확히 일치하는 product를 찾는다.
+
+절대:
+
+tierKey만 보고 임의 package 선택 금지.
+
+비교:
+
+package.product.identifier
+또는 현재 SDK의 실제 product identifier field
+
+== server storeProductId
+
+일치하는 package 1개만 구매 대상으로 사용.
+
+없으면:
+
+PRODUCT_NOT_AVAILABLE
+
+friendly error.
+
+==================================================
+7. LOCALIZED PRICE
+==================================================
+
+현재 x-subscription.tsx의:
+
+월 150,000원
+75,000원
+105,000원
+135,000원
+
+등 실제 결제 가격 hardcode 제거.
+
+실제 구매 화면 가격 source:
+
+RevenueCat package.product.priceString
+또는 SDK의 localized price field.
+
+즉 Store localized price가 source of truth.
+
+==================================================
+8. EARLY-BIRD DISPLAY
+==================================================
+
+서버가 반환한:
+
+sequenceNumber
+franchiseNumber
+tierKey
+discountPercent
+
+기준으로 사용자에게 표시.
+
+예:
+
+X 가맹번호
+X-0029
+
+선착순 할인
+50%
+
+월 결제 가격
+₩75,000
+
+단 가격은 RevenueCat localized price.
+
+할인율은 server response.
+
+==================================================
+9. RESERVATION TIMING
+==================================================
+
+x-subscription 화면 진입 즉시
+무조건 slot 예약하지 않는다.
+
+중요:
+
+단순 정보 열람만 했는데
+번호가 소비되면 안 된다.
+
+권장 흐름:
+
+사용자가 실제:
+
+[정기결제 신청하기]
+
+CTA를 누름
+
+→ 그 시점에
+POST /billing/x-reserve-slot
+
+호출.
+
+그 후:
+
+예약정보 + 실제 Store 가격 확인
+→ 최종 구매 확인 UI
+→ purchasePackage
+
+==================================================
+10. RESERVATION CONFIRM STEP
+==================================================
+
+첫 CTA:
+
+정기결제 신청하기
+
+누른 후 바로 Store purchase를 띄우지 말고
+서버 reservation 결과를 먼저 보여준다.
+
+최소 표시:
+
+SWIMNOTE X
+
+가맹번호:
+x-XXXX
+
+선착순 할인:
+XX%
+
+월 정기결제:
+localizedPrice
+
+결제 기한:
+1시간
+
+안내:
+
+"예약 후 1시간 이내 결제가 완료되지 않으면
+해당 가맹번호는 자동으로 만료됩니다."
+
+그리고:
+
+[결제 계속하기]
+
+==================================================
+11. BASIC PLAN SEPARATION COPY
+==================================================
+
+X 화면에서 명확히:
+
+"SWIMNOTE 기본 플랜과 SWIMNOTE X는 별도 정기결제입니다."
+
+필요하면 짧은 보조문구:
+
+"기본 플랜의 결제일과 X모드 결제일은 서로 다를 수 있습니다."
+
+합산 월 금액 표시 금지.
+
+==================================================
+12. PURCHASE FLOW
+==================================================
+
+[결제 계속하기]
+
+→ package 확보 확인
+→ purchasePackage(package)
+
+사용.
+
+실제 RevenueCat SDK current method 재사용.
+
+새 purchase wrapper를 만들더라도
+기존 basic flow와 공통화 가능한 부분만 공유.
+
+==================================================
+13. PURCHASE STATE
+==================================================
+
+최소 상태:
+
+IDLE
+RESERVING
+RESERVED
+LOADING_PRODUCT
+READY_TO_PURCHASE
+PURCHASING
+USER_CANCELLED
+PURCHASE_FAILED
+SYNCING
+PURCHASED_X_PENDING
+X_ACTIVE
+
+필요하면:
+
+PRODUCT_NOT_AVAILABLE
+
+추가.
+
+상태 중복/복잡화 금지.
+
+==================================================
+14. DOUBLE TAP DEFENSE
+==================================================
+
+다음 모두 중복 실행 방지:
+
+reserve
+purchase
+sync
+
+버튼 double tap 차단.
+
+useRef/inFlight 등 기존 앱 convention 사용.
+
+동시에 두 purchasePackage 호출 금지.
+
+==================================================
+15. USER CANCEL
+==================================================
+
+RevenueCat purchase에서 사용자가 취소한 경우:
+
+기술 오류 Alert 금지.
+
+friendly 상태:
+
+"결제가 취소되었습니다."
+
+reservation 자체는 서버에서 1시간 동안 RESERVED 유지 가능.
+
+사용자가 같은 화면에서 다시 결제할 수 있어야 한다.
+
+새 slot 예약 금지.
+기존 reservation 재사용.
+
+==================================================
+16. PURCHASE FAILURE
+==================================================
+
+네트워크/Store 오류:
+
+raw RevenueCat error
+raw code
+stack
+
+사용자에게 노출 금지.
+
+예:
+
+"결제를 완료하지 못했습니다. 잠시 후 다시 시도해주세요."
+
+reservation은 deadline 전까지 유지.
+
+==================================================
+17. PURCHASE SUCCESS
+==================================================
+
+purchasePackage 성공 직후:
+
+CustomerInfo에서
+x_mode 또는 product 존재를 UX 참고로 확인 가능.
+
+하지만 여기서:
+
+mode = x
+
+로 client가 직접 확정 금지.
+
+반드시 다음 단계:
+
+POST /billing/sync-x-subscription
+
+호출.
+
+==================================================
+18. SYNC CALL
+==================================================
+
+purchase 성공 후:
+
+POST /api/billing/sync-x-subscription
+
+호출.
+
+client가 body에:
+
+entitlement=true
+tier
+poolId
+productId
+
+를 임의로 보내지 않는다.
+
+현재 서버 contract가 body 없이 authenticated context로 처리한다면
+그대로 사용.
+
+필요한 최소 식별자만 현재 API contract에 맞춰 전송.
+
+==================================================
+19. SYNC RETRY
+==================================================
+
+Store purchase는 성공했는데
+sync endpoint가 일시 실패할 수 있다.
+
+이 경우 절대:
+
+"결제 실패"
+
+라고 표시하지 않는다.
+
+실제 결제는 성공했을 수 있기 때문.
+
+표시:
+
+"결제는 완료되었지만 X모드 활성화 확인이 지연되고 있습니다.
+잠시 후 다시 확인해주세요."
+
+그리고:
+
+[활성화 다시 확인]
+
+버튼 제공 가능.
+
+이 버튼은:
+
+sync-x-subscription
+
+만 재호출.
+
+purchasePackage 다시 호출 금지.
+
+==================================================
+20. MODE REFRESH
+==================================================
+
+sync 성공 후:
+
+ModeContext / 기존 refreshMode()
+
+호출.
+
+서버 mode 재조회.
+
+결과:
+
+x_pending
+→ "X모드 설정 진행 중"
+
+x
+→ "X모드 사용 중"
+
+normal
+→ 비정상 상황이므로 generic processing state 또는 error.
+
+client CustomerInfo로 mode 직접 결정 금지.
+
+==================================================
+21. X_PENDING
+==================================================
+
+구매 성공 + config != READY:
+
+x_pending.
+
+화면:
+
+"X모드 신청이 완료되었습니다."
+
+"현재 수영장 커리큘럼 및 X모드 설정을 준비하고 있습니다."
+
+CTA:
+
+[X모드 설정 진행하기]
+
+기존 x-setup route로 이동.
+
+재결제 CTA 제거.
+
+==================================================
+22. X ACTIVE
+==================================================
+
+구매 성공 + config READY:
+
+x.
+
+화면:
+
+"SWIMNOTE X 사용 중"
+
+가능하면:
+
+- 가맹번호
+- 현재 X 상태
+- 다음 결제 관련 Store 관리 안내
+
+표시.
+
+신규 구매 CTA 금지.
+
+==================================================
+23. EXISTING PAID SLOT
+==================================================
+
+x-reserve-slot이:
+
+ALREADY_SUBSCRIBED / 409
+
+반환하면:
+
+새 예약 시도 금지.
+
+현재 mode/state 재조회.
+
+paid active 상태라면
+X 사용 중 또는 x_pending 화면으로 전환.
+
+==================================================
+24. VALID EXISTING RESERVATION
+==================================================
+
+reserve API가
+기존 RESERVED slot을 반환하면:
+
+새 번호가 아니라
+기존:
+
+sequence
+franchiseNumber
+tier
+deadline
+
+표시.
+
+현재 남은 시간을 계산할 수 있으면 표시.
+
+정확한 server deadline 기준.
+
+==================================================
+25. DEADLINE EXPIRED
+==================================================
+
+사용자가 화면을 오래 열어둔 상태에서
+deadline이 지났다면:
+
+purchase 버튼 누르기 전
+server reserve endpoint 재호출 또는
+현재 contract 기준 validation.
+
+expired slot product로 purchase 시도 금지.
+
+새 reservation을 server가 발급한 경우
+새 번호/tier/package로 UI 갱신.
+
+==================================================
+26. COUNTDOWN
+==================================================
+
+1시간 countdown UI는 선택.
+
+이번 WP에서 꼭 필요하지 않으면
+복잡한 timer 구현 금지.
+
+최소:
+
+"결제 기한: HH:MM"
+
+또는:
+
+"예약 후 1시간 이내"
+
+면 충분.
+
+==================================================
+27. RESTORE PURCHASE
+==================================================
+
+이번 X02-D에서는
+restore UI를 무리하게 같이 구현하지 않는다.
+
+이유:
+
+X는 pool-level ownership + transaction binding + cross-pool 방어가 있으므로
+restore는 별도 X02-D2에서
+실기기 시나리오까지 포함해 검증한다.
+
+이번 단계:
+
+restore button 구현 금지.
+
+단 기존 basic restore 코드 수정 금지.
+
+==================================================
+28. SUBSCRIPTION MANAGEMENT
+==================================================
+
+이번 WP에서
+App Store subscription management deep link까지
+필수 아님.
+
+해지/관리 UI는 X02-D2 또는 후속 WP.
+
+현재 구매 완료 상태만 정확히.
+
+==================================================
+29. X01 HARDCODE CLEANUP
+==================================================
+
+x-subscription.tsx 및 X Hub에서
+
+실제 결제 가격을 hardcode한 곳 전수 검색.
+
+정책 설명용:
+
+50% / 30% / 10%
+
+은 유지 가능.
+
+하지만 실제:
+
+₩75,000
+₩105,000
+₩135,000
+₩150,000
+
+결제 금액을 Store source처럼 표시하는 부분은 제거/대체.
+
+실제 가격은 RevenueCat localized price.
+
+==================================================
+30. PRODUCT AVAILABILITY FAILURE
+==================================================
+
+Offering x_monthly가 없거나
+server product와 matching package가 없으면:
+
+결제 버튼 disable.
+
+표시:
+
+"현재 결제 상품 정보를 불러오지 못했습니다.
+잠시 후 다시 시도해주세요."
+
+RevenueCat Dashboard 문제를 사용자에게 노출 금지.
+
+==================================================
+31. OFFERING LOAD RETRY
+==================================================
+
+화면 최초 진입 시 Offering load 실패:
+
+자동 무한 retry 금지.
+
+사용자 [다시 시도] 1회 action 제공.
+
+==================================================
+32. NATIVE BUILD
+==================================================
+
+현재 react-native-purchases가
+iOS build 246에 이미 포함된 것이 X02 audit에서 확인됨.
+
+따라서 이번 JS purchase flow는
+원칙적으로 OTA 가능.
+
+단 실제 코드에서
+새 native dependency/plugin 추가 필요가 발생하면:
+
+임의 추가 금지.
+BLOCKED 보고.
+
+==================================================
+33. TESTFLIGHT
+==================================================
+
+이번 구현 후:
+
+코드/테스트 완료
+→ OTA production/preview 가능.
+
+하지만 실제 Store purchase E2E는
+TestFlight 실기기에서 해야 한다.
+
+Replit은 실제 구매 성공을
+코드 테스트만으로 PASS 주장 금지.
+
+==================================================
+34. TEST CASES
+==================================================
+
+UI-1
+normal pool_admin
+→ X subscription 화면 진입
+
+UI-2
+sub_admin
+→ purchase CTA 없음
+
+UI-3
+첫 신청
+→ reserve API 1회 호출
+
+UI-4
+reserve success
+→ franchise/tier/discount/deadline 표시
+
+UI-5
+server product
+→ exact RevenueCat package 매칭
+
+UI-6
+localized price 표시
+
+UI-7
+double tap
+→ reserve/purchase 중복 없음
+
+PURCHASE-1
+purchase success
+→ sync 호출
+
+PURCHASE-2
+user cancelled
+→ purchase 재호출 없이 재시도 가능
+
+PURCHASE-3
+purchase error
+→ friendly message
+
+PURCHASE-4
+purchase success + sync transient fail
+→ 결제 실패로 표시하지 않음
+→ activation retry 제공
+
+SYNC-1
+sync x_pending
+→ setup CTA
+
+SYNC-2
+sync x
+→ active UI
+
+RESERVE-1
+기존 valid reservation
+→ 같은 franchise number
+
+RESERVE-2
+expired reservation
+→ 새 server reservation 반영
+
+PRODUCT-1
+Offering 없음
+→ purchase disabled
+
+PRODUCT-2
+matching product 없음
+→ purchase disabled
+
+REGRESSION-1
+기존 Basic subscription screen 정상
+
+REGRESSION-2
+기존 RevenueCat login/logout 정상
+
+REGRESSION-3
+Normal SWIMNOTE 기본 기능 영향 없음
+
+==================================================
+35. DEVICE TEST CHECKLIST OUTPUT
+==================================================
+
+구현 완료 보고에
+실 iPhone에서 나중에 확인할 체크리스트도 생성.
+
+최소:
+
+1. X subscription screen 진입
+2. 서버 예약번호 발급
+3. Store localized price
+4. Apple purchase sheet
+5. Sandbox/TestFlight purchase
+6. purchase cancel
+7. purchase success
+8. sync
+9. x_pending
+10. x setup
+11. 재진입 시 중복 구매 CTA 없음
+
+단 이번 코드 WP PASS와
+실기기 Store E2E PASS는 분리해서 보고.
+
+==================================================
+36. DO NOT CHANGE
+==================================================
+
+금지:
+
+DB migration
+server X02-C contract 변경
+RevenueCat V2 server verification 변경
+webhook 변경
+slot sequence 정책 변경
+discount 36개월 정책 변경
+App Store Connect
+RevenueCat dashboard
+Android
+AI ENGINE
+Growth
+Parent Curriculum
+Diary AI
+Super Admin entitlement logic
+
+==================================================
+37. DEPLOYMENT
+==================================================
+
+APP 변경이므로:
+
+1. tests
+2. commit
+3. push origin/deploy-photo-clone
+4. production OTA
+5. preview OTA
+
+서버 변경이 없으면
+Render deploy 불필요.
+
+반복 polling 금지.
+
+==================================================
+38. REPORT
+==================================================
+
+보고:
+
+1. X OFFERING HELPER
+2. TARGET SCREEN
+3. ROLE GATE
+4. RESERVE FLOW
+5. SERVER PRODUCT MATCH
+6. LOCALIZED PRICE
+7. EARLY-BIRD DISPLAY
+8. CONFIRM STEP
+9. PURCHASE FLOW
+10. DOUBLE TAP DEFENSE
+11. USER CANCEL
+12. PURCHASE FAILURE
+13. PURCHASE SUCCESS
+14. SYNC FLOW
+15. SYNC RETRY
+16. MODE REFRESH
+17. X_PENDING UI
+18. X_ACTIVE UI
+19. EXISTING RESERVATION
+20. DEADLINE HANDLING
+21. HARDCODE PRICE REMOVAL
+22. OFFERING FAILURE
+23. RESTORE IMPLEMENTED? = NO
+24. BASIC BILLING REGRESSION
+25. MODIFIED FILES
+26. SERVER CHANGE?
+27. DB CHANGE?
+28. NATIVE CHANGE?
+29. TEST RESULT
+30. COMMIT SHA
+31. PRODUCTION OTA
+32. PREVIEW OTA
+33. DEVICE TEST STILL REQUIRED?
+
+성공:
+
+X02_D_IOS_PURCHASE_UI_COMPLETE ✅
+
+그리고 반드시:
+
+TESTFLIGHT_PURCHASE_E2E = NOT_YET_VERIFIED
+
+라고 별도 표기.
+
+실패:
+
+X02_D_IOS_PURCHASE_UI_BLOCKED ❌
+
+X02-D PASS 후 다음:
+
+X02-D2
+Restore / Subscription management / TestFlight purchase E2E
+
+시작 가능.

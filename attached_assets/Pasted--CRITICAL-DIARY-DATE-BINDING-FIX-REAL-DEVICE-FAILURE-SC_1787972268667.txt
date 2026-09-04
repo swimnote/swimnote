@@ -1,0 +1,251 @@
+[앱]
+
+CRITICAL DIARY DATE BINDING FIX
+REAL DEVICE FAILURE — SCHEDULE SELECTED DATE MUST WIN
+
+현재 실제 iPhone 증거:
+
+1. 스케줄러에서
+2026-08-13 선택
+
+2. 8월 13일 (목)
+목 19:00반 선택
+
+3. Class Detail에서
+"수업일지" 탭
+
+4. 실제 diary 화면:
+2026-08-27 · 19:00
+
+FAIL.
+
+이전 테스트/감사 PASS는 실제 기기 결과와 충돌하므로
+실제 기기 결과를 우선한다.
+
+==================================================
+1. REQUIRED BEHAVIOR
+==================================================
+
+절대 규칙:
+
+SCHEDULE에서 선택한 occurrence date
+=
+DIARY의 lessonDate
+
+예:
+
+8/13 schedule
+→ diary = 8/13
+
+8/20 schedule
+→ diary = 8/20
+
+8/27 schedule
+→ diary = 8/27
+
+다음 값으로 변경/대체 금지:
+
+- latest schedule date
+- most recent lesson date
+- latest diary date
+- today
+- todayStr()
+- todayDateStr()
+- 최근 출결일
+- 최근 수업일
+
+==================================================
+2. TRACE ONLY THIS REAL PATH
+==================================================
+
+다른 Quick Write 경로 조사 금지.
+
+이번 실제 경로만 추적:
+
+Monthly Scheduler
+→ 날짜 8/13 선택
+→ Date/Class bottom sheet
+→ 목 19:00반 선택
+→ ClassDetailSheet
+→ "수업일지"
+→ diary.tsx
+
+각 단계에서 실제 값 확인:
+
+A. calendar selectedDate
+B. 첫 sheet가 가진 date
+C. ClassDetailSheet에 전달된 date
+D. ClassDetailSheet의 effectiveDate
+E. router.push의 lessonDate
+F. diary.tsx params.lessonDate
+G. diary targetDate
+
+8/13이 어느 단계에서 8/27로 바뀌는지
+정확히 한 지점만 찾는다.
+
+==================================================
+3. IMPORTANT
+==================================================
+
+이전 보고에서:
+
+ClassDetailSheet는
+lessonDate: effectiveDate
+
+를 이미 전달한다고 했지만
+실제 기기에서는 실패했다.
+
+따라서 단순히
+"코드에 lessonDate가 있다"
+라고 PASS 금지.
+
+effectiveDate 자체가
+왜 8/27이 되는지 확인해야 한다.
+
+==================================================
+4. SOURCE OF TRUTH
+==================================================
+
+스케줄러에서 날짜를 직접 선택해서 들어온 경우:
+
+selected calendar date가
+절대 source of truth.
+
+ClassDetailSheet가
+반의 가장 최근 schedule occurrence를 다시 찾거나
+현재 날짜를 기준으로 effectiveDate를 재계산하면 안 된다.
+
+필요하면:
+
+selectedLessonDate
+또는 기존 selectedDate
+
+를 명시적으로 끝까지 전달.
+
+새 schema 필요 없음.
+
+==================================================
+5. FIX SCOPE
+==================================================
+
+수정은 실제 원인 위치만.
+
+예상 가능 위치:
+
+- scheduler selected date → sheet props
+- Date sheet → ClassDetailSheet props
+- ClassDetailSheet effectiveDate calculation
+- "수업일지" router params
+
+실제 root cause 확인 후
+최소 수정.
+
+Quick Write 재설계 금지.
+Diary DB 수정 금지.
+Server 수정 금지.
+AI 수정 금지.
+
+==================================================
+6. REQUIRED REAL SCENARIO TEST
+==================================================
+
+CASE 1
+
+calendar:
+8/13 선택
+
+class:
+목 19:00반
+
+수업일지 클릭
+
+EXPECTED:
+diary header:
+2026-08-13 · 19:00
+
+targetDate:
+2026-08-13
+
+--------------------------------------------------
+
+CASE 2
+
+calendar:
+8/20 선택
+
+같은 반
+
+EXPECTED:
+2026-08-20
+
+--------------------------------------------------
+
+CASE 3
+
+calendar:
+8/27 선택
+
+EXPECTED:
+2026-08-27
+
+--------------------------------------------------
+
+CASE 4
+
+8/13에 기존 diary가 있으면
+
+8/13 diary만 existing/replace 대상으로 판단.
+
+8/27 diary를 가져오면 FAIL.
+
+==================================================
+7. NO FALLBACK WHEN SCHEDULE DATE EXISTS
+==================================================
+
+params.lessonDate가 존재하면:
+
+targetDate = params.lessonDate
+
+무조건.
+
+이후 별도 로직으로
+가장 최근 schedule date 등으로 overwrite 금지.
+
+==================================================
+8. FINAL REPORT
+==================================================
+
+ROOT_CAUSE:
+8/13이 8/27로 바뀐 정확한 함수/라인
+
+SELECTED_DATE:
+8/13
+
+CLASS_DETAIL_DATE:
+실제 값
+
+ROUTER_LESSON_DATE:
+수정 전 / 수정 후
+
+DIARY_TARGET_DATE:
+수정 전 / 수정 후
+
+CHANGED_FILES:
+
+TESTS:
+
+SERVER_CHANGE:
+NO 이어야 함
+
+DB_CHANGE:
+NO
+
+RENDER:
+NO
+
+OTA:
+YES
+
+NEW_SHA:
+
+완료 후 STOP.

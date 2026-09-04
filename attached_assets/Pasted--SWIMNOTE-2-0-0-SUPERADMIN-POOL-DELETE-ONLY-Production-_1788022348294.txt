@@ -1,0 +1,342 @@
+[SWIMNOTE 2.0.0 — SUPERADMIN POOL DELETE 오류 원인 조사 ONLY]
+
+현재 Production에서 실제 현상 발생.
+
+대상 수영장:
+"스윔노트"
+
+현상:
+
+1. Superadmin에서 수영장 삭제 실행
+2. UI에서는 "삭제 중 오류가 발생했습니다" 계열 오류 표시
+3. Superadmin 수영장 목록에는 해당 수영장이 계속 남아 있음
+4. 하지만 해당 수영장 계정으로 실제 로그인 시도하면
+   수영장이 존재하지 않아 로그인 불가
+5. 즉 실제 core pool 삭제는 수행된 것으로 보이는데,
+   Superadmin UI/API는 삭제 실패로 판단하고 있음
+
+추가 조건:
+해당 수영장은 X MODE를 활성화했던 이력이 있음.
+
+이번 작업은 수정 금지.
+배포 금지.
+DB 변경 금지.
+원인 조사만 수행하고 STOP.
+
+==================================================
+1. 실제 Production DB 상태 확인
+==================================================
+
+삭제 대상 "스윔노트"의 실제 pool_id를 특정.
+
+다음 확인:
+
+swimming_pools
+→ 해당 pool_id 존재 YES/NO
+
+users/admin
+→ 해당 pool 관련 row
+
+user_pool_memberships
+→ 해당 pool 관련 row
+
+X MODE 관련:
+→ xmode subscription/status
+→ X 설정
+→ curriculum
+→ reports
+→ 기타 tenant rows
+
+각각 남아 있는 row 수 보고.
+
+중요:
+
+어떤 테이블에서도 DELETE/UPDATE 하지 말 것.
+
+==================================================
+2. Superadmin 삭제 Endpoint 추적
+==================================================
+
+현재 Superadmin UI의 삭제 버튼이
+실제로 호출하는 endpoint 확인.
+
+다음 전체 trace:
+
+UI delete press
+→ client function
+→ API request
+→ server route
+→ delete service
+→ DB operations
+→ X MODE cleanup
+→ response
+→ UI state update
+
+실제 코드 순서 그대로 작성.
+
+==================================================
+3. 어디까지 성공했고 어디서 실패했는지 확인
+==================================================
+
+특히 다음 구간을 단계별로 확인:
+
+A. dependent data 삭제
+B. memberships 삭제
+C. users/admin 삭제
+D. swimming_pools 삭제
+E. X MODE cleanup
+F. Curriculum cleanup
+G. subscription/entitlement cleanup
+H. audit log
+I. external storage cleanup
+J. response 생성
+
+실제 삭제 작업 중:
+
+"swimming_pools DELETE 성공 이후"
+예외가 발생하는 코드가 있는지 확인.
+
+이 경우:
+
+DB에서는 pool 삭제 성공
+→ 후처리 에러
+→ endpoint 500
+→ UI는 실패 표시
+
+가 가능한지 확인.
+
+==================================================
+4. Transaction 여부 확인
+==================================================
+
+삭제 endpoint가 DB transaction을 사용하는지 확인.
+
+중요:
+
+- 하나의 transaction인가?
+- 일부 DELETE가 transaction 밖인가?
+- swimming_pools 삭제 후 외부 cleanup에서 실패해도
+  rollback이 불가능한 구조인가?
+- catch에서 무조건 500을 반환하는가?
+
+현재 실제 동작을 정확히 보고.
+
+==================================================
+5. X MODE 영향 조사
+==================================================
+
+X MODE 활성화 수영장일 때만 실행되는
+삭제/후처리 로직이 있는지 검색.
+
+대상:
+
+xmode
+x_mode
+subscription
+entitlement
+global_template
+curriculum
+growth
+ai
+report
+revenue
+homepage
+slug
+
+등.
+
+확인:
+
+1. X MODE 활성 pool 삭제 시 추가 cleanup 존재 여부
+2. FK/reference 때문에 오류 가능 여부
+3. 이미 pool이 삭제된 뒤
+   X 관련 row를 조회/삭제하면서 예외 발생 가능 여부
+4. X MODE inactive pool과 delete flow 차이
+
+X MODE가 원인이 아니면 명확히 NO라고 보고.
+
+==================================================
+6. Superadmin 목록 Source 확인
+==================================================
+
+왜 실제 swimming_pools에서 삭제된 pool이
+Superadmin 목록에 계속 보이는지 조사.
+
+확인:
+
+- 목록 API
+- DB source
+- cache
+- React Query
+- Zustand
+- local state
+- pagination cache
+- optimistic update
+- staleTime
+- refetch 여부
+
+특히:
+
+삭제 성공 후
+list invalidate/refetch가 실행되는지 확인.
+
+그리고 현재 목록이 정말 DB에서 온 것인지,
+삭제 전 client cache에 남아 있는 것인지 구분.
+
+==================================================
+7. 목록 API 직접 확인
+==================================================
+
+Superadmin 목록 endpoint를
+Production 기준 직접 조회.
+
+삭제된 "스윔노트" pool이:
+
+A. API 응답에도 존재
+또는
+B. API에는 없는데 UI에만 존재
+
+둘 중 무엇인지 확정.
+
+A이면:
+server/query 문제.
+
+B이면:
+client cache/state 문제.
+
+==================================================
+8. 오류 응답 실제 확인
+==================================================
+
+삭제 당시 또는 재현 가능한 동일 flow에서:
+
+HTTP status
+response body
+server error message
+stack trace
+
+확인.
+
+가능하면 Render production logs에서
+해당 삭제 시간대 로그 검색.
+
+정확한 exception 위치와 메시지 보고.
+
+==================================================
+9. FK / Orphan 상태 확인
+==================================================
+
+삭제된 pool_id를 참조하면서 남아 있는
+orphan rows 조사.
+
+특히:
+
+- X MODE
+- curriculum
+- growth reports
+- memberships
+- parent accounts
+- notifications
+- subscriptions
+
+FK가 없어서 orphan이 남았는지,
+FK가 있어서 후처리 오류가 났는지 구분.
+
+데이터 수정 금지.
+
+==================================================
+10. 다른 Pool 영향 확인
+==================================================
+
+"스윔노트" 삭제 시
+다른 pool 데이터가 변경되었는지 최소 audit.
+
+다른 pool:
+
+row count
+membership
+students
+reports
+
+영향 여부 확인.
+
+==================================================
+11. 현재 삭제 기능의 실제 의미 확인
+==================================================
+
+기존 Superadmin 삭제가:
+
+- hard delete
+- soft delete
+- deactivate
+- partial cleanup
+
+중 어떤 방식인지 명확히 보고.
+
+UI 문구와 실제 server 동작이 일치하는지도 확인.
+
+==================================================
+12. 향후 Superadmin 개선 후보는 기록만
+==================================================
+
+지금 구현 금지.
+
+향후 별도 작업 대상으로만 기록:
+
+- 삭제 후 목록 즉시 반영
+- 실시간 refetch/invalidate
+- 삭제 진행상태
+- 실제 성공/부분실패 구분
+- orphan 표시
+- X MODE 상태 실시간 반영
+- admin/pool 상태 동기화
+
+이번 조사에서는 수정하지 않는다.
+
+==================================================
+13. 최종 조사보고
+==================================================
+
+TARGET
+- pool_name
+- pool_id
+
+DB CURRENT STATE
+- swimming_pools 존재 여부
+- remaining tenant rows
+- remaining X rows
+
+DELETE FLOW
+- endpoint
+- 실제 실행 순서
+
+FAIL POINT
+- 정확한 파일
+- 함수
+- 코드 단계
+- exception
+
+X MODE
+- 원인 YES/NO
+- 근거
+
+SUPERADMIN LIST
+- API에도 남음 / UI cache만 남음
+- 정확한 원인
+
+TRANSACTION
+- YES/NO
+- partial delete 가능 여부
+
+ACTUAL RESULT
+- core pool deleted YES/NO
+- dependent cleanup completed YES/NO
+
+ROOT CAUSE
+한 문장으로 명확히 작성.
+
+FIX PLAN
+수정하지 말고
+향후 최소 수정안만 작성.
+
+이번에는 조사만 하고 STOP.

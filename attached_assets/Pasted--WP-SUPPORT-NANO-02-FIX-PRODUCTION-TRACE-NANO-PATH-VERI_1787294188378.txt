@@ -1,0 +1,270 @@
+# [WP-SUPPORT-NANO-02 FIX — PRODUCTION TRACE + NANO PATH VERIFICATION]
+
+목적:
+
+현재 Production Validation에서 발견된 두 가지 미확인 사항만 해결한다.
+
+1. 실제 Nano LLM production path 1회 검증
+2. 코드에 설정된 usage metadata가 실제 event_logs에서 null인 원인 확인
+
+새 기능 추가 금지.
+
+---
+
+# 0. 크레딧 절약
+
+전체 repository 조사 금지.
+
+확인 대상만:
+
+* `routes/support-respond.ts`
+* `lib/support-nano-resolver.ts`
+* `lib/ai-trace-service.ts`
+* 실제 해당 request의 `event_logs`
+
+필요한 경우에만 관련 테스트 1개 수정/추가.
+
+전체 regression 금지.
+
+---
+
+# 1. 먼저 TRACE NULL 원인만 조사
+
+실제 Production DB에서 다음이 null이었다.
+
+```text
+service
+trigger_type
+logical_request_count
+actual_call_count
+retry_count
+cost_source
+```
+
+그런데 코드에는 일부 값이 설정되어 있다고 보고됐다.
+
+다음을 최소 확인:
+
+### A.
+
+`support-respond.ts`에서 해당 deterministic path가
+실제로 어떤 `saveAiTrace()` payload를 전달하는지.
+
+### B.
+
+`buildTraceMetadata()`가 해당 필드를 실제 JSONB metadata에 넣는지.
+
+### C.
+
+실제 deployed SHA에 AI01-01/03 변경이 포함돼 있는지.
+
+### D.
+
+DB 조회 SQL/보고 코드가 잘못된 JSON key를 읽은 것은 아닌지.
+
+추측하지 말고 원인 하나를 확정한다.
+
+---
+
+# 2. deterministic path 의미 확인
+
+LLM이 실제 호출되지 않은 Support request에서:
+
+```text
+provider=openai
+```
+
+가 기록되는 현재 동작의 코드 원인을 확인한다.
+
+실제 provider call이 0인데 OpenAI provider usage처럼 기록된다면
+비용 observability 의미상 부정확하다.
+
+원인만 먼저 보고한다.
+
+수정이 필요하면 최소 수정:
+
+* 실제 OpenAI 호출 발생 → provider=openai
+* deterministic only → provider를 실제 contract에 맞는 null/internal 값으로 처리
+
+단 기존 event schema를 재설계하지 않는다.
+
+---
+
+# 3. Nano Production Path 1회 검증
+
+Production DB를 수정하지 않는다.
+
+기존 Support KB 안에서:
+
+* DIRECT_DB가 바로 잡지 못하지만
+* broad retrieval candidate는 1개 이상 나오는
+
+안전한 표현 변형 질문 1건을 선택한다.
+
+전체 1,104 KI를 전수조사하지 않는다.
+
+기존 unit test에서 사용한 표현 변형/동의어 사례 중
+production DB에도 존재하는 KI 하나를 재사용하는 것을 우선한다.
+
+목표 경로:
+
+```text
+DIRECT_DB miss
+→ broad retrieval candidate > 0
+→ nanoResolve
+→ OpenAI actual call = 1
+→ validator
+→ grounded answer
+```
+
+---
+
+# 4. Nano 실제 Trace 확인
+
+실제 request_id 하나를 기준으로 event_logs read-back.
+
+반드시 확인:
+
+```text
+provider
+service
+model
+feature
+trigger_type
+logical_request_count
+actual_call_count
+retry_count
+latency_ms
+estimated_cost_usd
+cost_source
+selected KI
+validator result
+```
+
+기대 의미:
+
+```text
+provider = openai
+service = gpt
+model = 실제 AI_MODEL.SUPPORT 값
+feature = support_ai
+trigger_type = USER_ACTION
+logical_request_count = 1
+actual_call_count = 1
+retry_count = 실제 값
+```
+
+가격 정보가 계산 가능하면 실제 저장값을 보고하고,
+불가능하면 UNKNOWN/null 그대로 보고한다.
+
+---
+
+# 5. 중요
+
+Nano path를 만들기 위해:
+
+* Production KI 추가 금지
+* Production KI 수정 금지
+* threshold 임의 변경 금지
+* DIRECT_DB 약화 금지
+* 테스트용 backdoor 금지
+
+기존 정상 데이터 안에서 자연스럽게 Nano를 타는 query를 찾는다.
+
+2~3개의 후보 표현만 시도하고,
+그래도 Nano path가 안 나오면 무한 탐색하지 말고 STOP.
+
+그 경우:
+
+`PRODUCTION NANO PATH NOT EXERCISED`
+
+로 명확하게 보고한다.
+
+---
+
+# 6. 수정 허용 범위
+
+Trace null 원인이 명백한 코드 defect인 경우에만
+해당 defect를 한 번 수정한다.
+
+허용 파일:
+
+* `support-respond.ts`
+* `ai-trace-service.ts`
+* 관련 최소 test
+
+`support-nano-resolver.ts`는 Nano 자체 defect가 발견되지 않는 한 수정하지 않는다.
+
+---
+
+# 7. 테스트
+
+코드 수정이 발생한 경우에만 관련 최소 테스트 실행.
+
+Full regression 금지.
+
+---
+
+# 8. 완료 보고
+
+# [WP-SUPPORT-NANO-02 FIX REPORT]
+
+## 1. Result
+
+PASS / PARTIAL / FAIL
+
+## 2. Trace Null Root Cause
+
+각 필드가 왜 null이었는지 실제 원인.
+
+## 3. Deterministic Provider Semantics
+
+LLM 0회인데 provider=openai가 찍힌 이유와 최종 처리.
+
+## 4. Nano Production Request
+
+* request_id
+* query
+* DIRECT_DB result
+* candidate count
+* selected KI
+* actual AI call count
+* validator result
+
+## 5. Actual event_logs Read-back
+
+* provider
+* service
+* model
+* feature
+* trigger_type
+* logical_request_count
+* actual_call_count
+* retry_count
+* latency
+* cost_source
+* estimated_cost_usd
+
+## 6. Changed Files
+
+수정이 있었을 때만.
+
+## 7. Tests
+
+수정이 있었을 때만.
+
+## 8. Verification
+
+Nano 실제 호출까지 성공한 경우에만:
+
+**SUPPORT NANO PRODUCTION PATH CONFIRMED**
+
+그 외에는:
+
+**PRODUCTION VALIDATION INCOMPLETE**
+
+---
+
+# STOP
+
+다음 Professional Retrieval WP를 선행하지 않는다.

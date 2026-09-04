@@ -1,0 +1,262 @@
+[SWIMNOTE — WP-CS10 FINAL CLOSURE EVIDENCE CHECK ONLY]
+
+목적:
+
+방금 완료한 WP-CS10 Closure 수정이 실제 Git source에 존재하며,
+최종 성공조건인
+
+UNMAPPED_CORE_SURFACES = 0
+
+을 실제 repository 기준으로 증명한다.
+
+이번 작업은 검증만 한다.
+
+CODE CHANGE NO
+NEW COMMIT NO
+DB CHANGE NO
+DEPLOY NO
+OTA NO
+NEXT WP NO
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. Closure Commit
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+실제 Git에서 제출:
+
+CLOSURE_COMMIT_FULL_SHA=
+BRANCH=
+CURRENT_HEAD=
+COMMIT_EXISTS=YES/NO
+IN_CURRENT_ANCESTRY=YES/NO
+COMMIT_SUBJECT=
+
+`git show --name-status <closure commit>` 기준:
+
+CHANGED_FILES=[...]
+
+기존 WP-CS10 base:
+
+0b05f39711d238c4b57fbf8e08399e4d2d78b3f7
+
+이후 forward commit인지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 24개 Surface 전수 Evidence
+━━━━━━━━━━━━━━━━━━━━━━
+
+24개 모두 실제 registry에서 읽어 표로 제출한다.
+
+각 row:
+
+surface
+classification
+coverage_id
+source_ref
+exclusion_reason_code
+exclusion_reason
+launch_relevant
+evidence
+
+classification은 정확히:
+
+MAPPED_TO_EXISTING
+NEW_COVERAGE
+EXCLUDED_WITH_REASON
+
+중 하나.
+
+총계:
+
+TOTAL_PREVIOUSLY_UNMAPPED=24
+MAPPED_TO_EXISTING=
+NEW_COVERAGE=
+EXCLUDED_WITH_REASON=
+
+합계가 반드시 24인지 계산한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. Core Surface Zero 검증
+━━━━━━━━━━━━━━━━━━━━━━
+
+actual registry/source scan으로 다시 계산:
+
+UNMAPPED_CORE_ROUTES=
+UNMAPPED_CORE_ACTIONS=
+UNMAPPED_CORE_SURFACES=
+UNMAPPED_SCREENS_COUNT=
+
+그리고 실제:
+
+UNMAPPED_SCREENS=[...]
+
+를 제출한다.
+
+성공조건:
+
+UNMAPPED_CORE_ROUTES=0
+UNMAPPED_CORE_ACTIONS=0
+UNMAPPED_CORE_SURFACES=0
+UNMAPPED_SCREENS_COUNT=0
+
+하나라도 0이 아니면 숨기지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Registry 실제 Counts
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 source parse 결과:
+
+TOTAL_RECORDS=
+UNIQUE_IDS=
+DOMAINS=
+P0=
+P1=
+P2=
+DB_STATE_CHECK_POSSIBLE=
+KNOWLEDGE_REQUIRED=
+SOLUTION_REQUIRED=
+KNOWN_ISSUE_POSSIBLE=
+SCANNED_SOURCE_COUNT=
+
+그리고:
+
+REGISTRY_STATISTICS_MATCH_ACTUAL=YES/NO
+
+를 제출한다.
+
+보고된 상수를 그대로 복사하지 말고 실제 계산한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. Exclusion Integrity
+━━━━━━━━━━━━━━━━━━━━━━
+
+12개 EXCLUDED_WITH_REASON에 대해:
+
+MISSING_SOURCE_REF=
+MISSING_REASON_CODE=
+MISSING_REASON=
+LAUNCH_RELEVANT_BUT_EXCLUDED_COUNT=
+
+마지막 값은 반드시 0이어야 한다.
+
+일반 사용자:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+가 launch에서 실제 사용하는 핵심 기능을
+편의상 EXCLUDED 처리한 것이 없는지 확인한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. Role / Mode Security
+━━━━━━━━━━━━━━━━━━━━━━
+
+LEGACY_PARENT_COUNT=
+UNKNOWN_ROLE_COUNT=
+EMPTY_ROLE_COUNT=
+ROLE_SECURITY_ANOMALIES=
+UNKNOWN_MODE_COUNT=
+
+Canonical user roles:
+
+pool_admin
+sub_admin
+teacher
+parent_account
+
+현재 contract상 필요한 super_admin은 별도 허용하되
+일반 앱 surface와 잘못 혼합됐는지 검사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Tests
+━━━━━━━━━━━━━━━━━━━━━━
+
+Closure tests:
+
+COV_CLOSE_TESTS_TOTAL=
+COV_CLOSE_PASSED=
+COV_CLOSE_FAILED=
+
+Full suite:
+
+TEST_FILES=
+TOTAL_TESTS=
+PASSED=
+FAILED=
+SKIPPED=
+
+CLASSIFICATION=UNIT/MOCK
+
+production/device 검증이라고 표현하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Scope Check
+━━━━━━━━━━━━━━━━━━━━━━
+
+RUNTIME_ROUTER_CHANGE=
+API_CHANGE=
+AUTH_CHANGE=
+DB_CHANGE=
+SCHEMA_CHANGE=
+KNOWLEDGE_WRITE=
+ACTIVE_CHANGE=
+UI_CHANGE=
+DEPENDENCY_CHANGE=
+DEPLOY=
+IOS_OTA=
+ANDROID_OTA=
+
+모두 YES/NO.
+
+YES가 하나라도 있으면 파일과 이유를 제출한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. Final Evidence Classification
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 각각:
+
+PROVEN
+OBSERVED
+INFERRED
+UNVERIFIED
+CONTRADICTED
+
+중 하나로 제출.
+
+* closure commit
+* 75 registry records
+* 24/24 classification
+* 12 exclusions
+* unmapped core routes zero
+* unmapped core actions zero
+* unmapped core surfaces zero
+* role/security integrity
+* statistics consistency
+* test result
+* no runtime change
+* no deployment
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 마지막 출력
+━━━━━━━━━━━━━━━━━━━━━━
+
+WP=WP-CS10
+
+CS10_SUCCESS_CONTRACT_MET=YES/NO
+
+UNMAPPED_CORE_SURFACES=
+
+SCOPE_VIOLATION=YES/NO
+
+BLOCKERS=[...]
+
+본인이 PASS/HOLD 결정하지 않는다.
+
+수정하지 않는다.
+새 commit 만들지 않는다.
+다음 WP 시작하지 않는다.

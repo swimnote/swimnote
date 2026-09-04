@@ -4,11 +4,11 @@
  * - rejected → teacher-pending-detail (승인관리 상세, 재승인 가능)
  * - approved → teacher-hub (일반 상세)
  */
-import { ArrowRight, Check, ChevronRight, CircleX, Clock, MessageSquare, Phone, Search, Users, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Platform, Pressable,
   RefreshControl, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,6 +65,7 @@ export default function PeopleTeachersScreen() {
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("전체");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -90,6 +91,35 @@ export default function PeopleTeachersScreen() {
     return true;
   });
 
+  function handleDelete(t: Teacher) {
+    Alert.alert(
+      "선생님 삭제",
+      `${t.name} 계정을 삭제하시겠습니까?\n삭제된 계정은 복구할 수 없습니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제", style: "destructive",
+          onPress: async () => {
+            setDeletingId(t.id);
+            try {
+              const r = await apiRequest(token, `/teachers/${t.id}`, { method: "DELETE" });
+              if (r.ok) {
+                setTeachers(prev => prev.filter(x => x.id !== t.id));
+              } else {
+                const body = await r.json().catch(() => ({}));
+                Alert.alert("삭제 실패", body?.error ?? "삭제 중 오류가 발생했습니다.");
+              }
+            } catch {
+              Alert.alert("오류", "삭제 중 오류가 발생했습니다.");
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function onPress(t: Teacher) {
     if (needsApprovalPage(t) && t.invite_id) {
       router.push({
@@ -110,7 +140,7 @@ export default function PeopleTeachersScreen() {
 
       {/* 검색 */}
       <View style={s.searchBar}>
-        <Search size={15} color={C.textSecondary} />
+        <LucideIcon name="search" size={15} color={C.textSecondary} />
         <TextInput
           style={s.searchInput}
           value={q}
@@ -120,7 +150,7 @@ export default function PeopleTeachersScreen() {
         />
         {!!q && (
           <Pressable onPress={() => setQ("")}>
-            <X size={15} color={C.textSecondary} />
+            <LucideIcon name="x" size={15} color={C.textSecondary} />
           </Pressable>
         )}
       </View>
@@ -148,7 +178,7 @@ export default function PeopleTeachersScreen() {
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Users size={36} color={C.textMuted} />
+              <LucideIcon name="users" size={36} color={C.textMuted} />
               <Text style={s.emptyTxt}>
                 {filter === "미승인" ? "승인 대기 또는 거절된 선생님이 없습니다" : "선생님이 없습니다"}
               </Text>
@@ -183,19 +213,19 @@ export default function PeopleTeachersScreen() {
                       {/* 상태 뱃지 */}
                       {status === "pending" && (
                         <View style={s.pendingBadge}>
-                          <Clock size={10} color="#D97706" />
+                          <LucideIcon name="clock" size={10} color="#D97706" />
                           <Text style={s.pendingBadgeTxt}>승인 대기</Text>
                         </View>
                       )}
                       {status === "rejected" && (
                         <View style={s.rejectedBadge}>
-                          <CircleX size={10} color="#D96C6C" />
+                          <LucideIcon name="x-circle" size={10} color="#D96C6C" />
                           <Text style={s.rejectedBadgeTxt}>거절됨</Text>
                         </View>
                       )}
                       {status === "approved" && (
                         <View style={s.activeBadge}>
-                          <Check size={10} color="#2EC4B6" />
+                          <LucideIcon name="check" size={10} color={C.brandStrong} />
                           <Text style={s.activeBadgeTxt}>승인됨</Text>
                         </View>
                       )}
@@ -208,14 +238,14 @@ export default function PeopleTeachersScreen() {
                           disabled={!isValidPhone(item.phone)}
                           hitSlop={6}
                         >
-                          <Phone size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
+                          <LucideIcon name="phone" size={11} color={isValidPhone(item.phone) ? CALL_COLOR : C.textMuted} />
                           <Text style={[s.sub, isValidPhone(item.phone) ? { color: CALL_COLOR } : {}]}>
                             {formatPhone(item.phone)}
                           </Text>
                         </Pressable>
                         {isValidPhone(item.phone) && (
                           <Pressable onPress={(e) => { e.stopPropagation?.(); sendSms(item.phone); }} hitSlop={8}>
-                            <MessageSquare size={13} color={SMS_COLOR} />
+                            <LucideIcon name="message-square" size={13} color={SMS_COLOR} />
                           </Pressable>
                         )}
                       </View>
@@ -231,18 +261,30 @@ export default function PeopleTeachersScreen() {
                     </View>
                     {status === "pending" && (
                       <View style={s.hintRow}>
-                        <ArrowRight size={11} color={C.tint} />
-                        <Text style={[s.hintTxt, { color: C.tint }]}>탭하여 승인/거절 처리</Text>
+                        <LucideIcon name="arrow-right" size={11} color={C.brandStrong} />
+                        <Text style={[s.hintTxt, { color: C.brandStrong }]}>탭하여 승인/거절 처리</Text>
                       </View>
                     )}
                     {status === "rejected" && (
                       <View style={s.hintRow}>
-                        <ArrowRight size={11} color="#D96C6C" />
+                        <LucideIcon name="arrow-right" size={11} color="#D96C6C" />
                         <Text style={[s.hintTxt, { color: "#D96C6C" }]}>탭하여 재승인 또는 이력 확인</Text>
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={18} color={C.textSecondary} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={(e) => { e.stopPropagation?.(); handleDelete(item); }}
+                      disabled={deletingId === item.id}
+                      style={s.deleteBtn}
+                    >
+                      {deletingId === item.id
+                        ? <ActivityIndicator size="small" color="#E11D48" />
+                        : <LucideIcon name="trash-2" size={15} color="#E11D48" />}
+                    </Pressable>
+                    <LucideIcon name="chevron-right" size={18} color={C.textSecondary} />
+                  </View>
                 </View>
               </Pressable>
             );
@@ -283,8 +325,8 @@ const s = StyleSheet.create({
   pendingBadgeTxt:  { fontSize: 11, fontWeight: "600", color: "#D97706" },
   rejectedBadge:    { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#F9DEDA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   rejectedBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#D96C6C" },
-  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E6FFFA", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: "#2EC4B6" },
+  activeBadge:      { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.brandSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  activeBadgeTxt:   { fontSize: 11, fontWeight: "600", color: C.brandStrong },
   adminRoleBadge:    { backgroundColor: "#FFF7ED", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#FED7AA" },
   adminRoleBadgeTxt: { fontSize: 11, fontWeight: "600", color: "#C2410C" },
   teacherRoleBadge:  { backgroundColor: "#EFF6FF", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "#BFDBFE" },
@@ -293,4 +335,5 @@ const s = StyleSheet.create({
   hintTxt:          { fontSize: 11, fontWeight: "500" },
   empty:            { paddingVertical: 60, alignItems: "center", gap: 10 },
   emptyTxt:         { color: C.textSecondary, fontSize: 14 },
+  deleteBtn:        { padding: 6, borderRadius: 8, backgroundColor: "#FEF2F2" },
 });

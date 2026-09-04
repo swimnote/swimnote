@@ -13,7 +13,21 @@
  */
 import { Router, Response } from "express";
 import multer from "multer";
-import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl } from "../lib/objectStorage.js";
+import { uploadToR2, downloadFromR2, deleteFromR2, getPresignedUrl, getPresignedPutUrl, headObject } from "../lib/objectStorage.js";
+import crypto from "crypto";
+import {
+  signUploadToken,
+  verifyUploadToken,
+  isSafeClientId,
+  validateFileSize,
+  validateHeadMetadata,
+  extFromMime,
+  DIRECT_UPLOAD_MIME_ALLOWLIST,
+  MAX_FILES_PER_SESSION,
+  SESSION_TTL_SECONDS,
+  MAX_CAPTION_LENGTH,
+  type UploadSessionPayload,
+} from "../lib/directUploadToken.js";
 import { db, superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, parentAccountsTable } from "@workspace/db/schema";
@@ -62,36 +76,12 @@ async function getPoolSlug(poolId: string): Promise<string> {
   return pool?.name_en || sanitizePoolName(pool?.name || "pool");
 }
 
-/** 저장공간 실시간 체크 — 100% 초과 시 upload_blocked 자동 설정, 여유 시 자동 해제 */
+/** 저장공간 실시간 체크 (WP2A: unified photo+video quota)
+ *  — 100% 초과 시 upload_blocked 자동 설정, 여유 시 자동 해제 */
 async function checkStorageLimit(poolId: string): Promise<{ blocked: boolean; pct: number }> {
-  const [meta] = (await superAdminDb.execute(sql`
-    SELECT p.upload_blocked, p.is_readonly, p.extra_storage_gb,
-           COALESCE(sp.storage_gb, 0.5) AS storage_gb
-    FROM swimming_pools p
-    LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
-    LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
-    WHERE p.id = ${poolId} LIMIT 1
-  `)).rows as any[];
-
-  const [usage] = (await db.execute(sql`
-    SELECT COALESCE(SUM(file_size), 0) AS used_bytes
-    FROM photo_assets_meta
-    WHERE pool_id = ${poolId}
-      AND is_clone = false
-  `)).rows as any[];
-  const quotaBytes = (Number(meta?.storage_gb ?? 0.5) + Number(meta?.extra_storage_gb ?? 0)) * 1024 ** 3;
-  const usedBytes  = Number(usage?.used_bytes ?? 0);
-  const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
-
-  if (pct >= 100) {
-    await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}`);
-    return { blocked: true, pct };
-  }
-  // 용량 여유 있으면 upload_blocked 자동 해제 (is_readonly 인 경우는 유지)
-  if (meta?.upload_blocked && !meta?.is_readonly) {
-    await superAdminDb.execute(sql`UPDATE swimming_pools SET upload_blocked = false WHERE id = ${poolId}`);
-  }
-  return { blocked: false, pct };
+  const { checkAndUpdateUploadBlocked } = await import("../lib/storageQuota.js");
+  const result = await checkAndUpdateUploadBlocked(poolId);
+  return { blocked: result.blocked, pct: result.pct };
 }
 
 // ── 권한 헬퍼 ──────────────────────────────────────────────────────────
@@ -145,6 +135,9 @@ router.get("/photos/:photoId/file", requireAuth, async (req: AuthRequest, res: R
     `);
     const photo = rows.rows[0] as any;
     if (!photo) { res.status(404).json({ error: "사진을 찾을 수 없습니다." }); return; }
+    if (photo.media_status === "uploading") {
+      res.status(404).json({ error: "사진을 찾을 수 없습니다." }); return;
+    }
 
     // 권한 검사
     if (role === "parent_account") {
@@ -345,6 +338,7 @@ router.get("/photos/private/:studentId", requireAuth, async (req: AuthRequest, r
       FROM photo_assets_meta sp
       LEFT JOIN students s ON s.id = sp.student_id
       WHERE sp.album_type = 'private' AND sp.student_id = ${studentId}
+      AND sp.media_status <> 'uploading'
       ${date ? sql`AND (
         (sp.lesson_date IS NOT NULL AND sp.lesson_date = ${date as string})
         OR (sp.lesson_date IS NULL AND DATE(sp.created_at AT TIME ZONE 'Asia/Seoul') = ${date as string})
@@ -675,6 +669,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         LEFT JOIN class_diaries cd_sn ON cd_sn.id = csn.diary_id
         WHERE sp.album_type = 'group'
           AND sp.pool_id = ${poolId}
+          AND sp.media_status <> 'uploading'
         ORDER BY sp.created_at DESC
       `);
       photos = await batchPresign(rows.rows as any[]);
@@ -691,6 +686,7 @@ router.get("/photos/teacher-all", requireAuth, requireRole("teacher", "pool_admi
         JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
         LEFT JOIN class_groups cg ON cg.id = sp.class_id
         WHERE tsp.teacher_id = ${userId}
+          AND sp.media_status <> 'uploading'
         ORDER BY tsp.created_at DESC
       `);
       photos = await batchPresign(rows.rows as any[]);
@@ -713,6 +709,7 @@ router.get("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "s
       JOIN photo_assets_meta sp ON sp.id = tsp.photo_id
       LEFT JOIN class_groups cg ON cg.id = sp.class_id
       WHERE tsp.teacher_id = ${userId}
+        AND sp.media_status <> 'uploading'
       ORDER BY tsp.created_at DESC
     `);
     const photos = rows.rows as any[];
@@ -733,7 +730,9 @@ router.post("/photos/saved", requireAuth, requireRole("teacher", "pool_admin", "
     const photoIdsLiteral = `{${photo_ids.join(',')}}`;
     const checkRow = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt FROM photo_assets_meta
-      WHERE id = ANY(${photoIdsLiteral}::text[]) AND pool_id = ${poolId}
+      WHERE id = ANY(${photoIdsLiteral}::text[])
+        AND pool_id = ${poolId}
+        AND media_status <> 'uploading'
     `);
     if (Number((checkRow.rows[0] as any)?.cnt ?? 0) !== photo_ids.length) {
       res.status(403).json({ error: "일부 사진에 대한 접근 권한이 없습니다." }); return;
@@ -779,7 +778,11 @@ router.delete("/photos/bulk", requireAuth, requireRole("pool_admin", "teacher", 
       const { role, userId } = req.user!;
       let deletedCount = 0;
       for (const id of ids) {
-        const rows = await db.execute(sql`SELECT * FROM photo_assets_meta WHERE id = ${id}`);
+        const rows = await db.execute(sql`
+          SELECT * FROM photo_assets_meta
+          WHERE id = ${id}
+            AND media_status <> 'uploading'
+        `);
         const photo = rows.rows[0] as any;
         if (!photo) continue;
         if (role === "teacher" && photo.uploaded_by !== userId) continue;
@@ -833,7 +836,9 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
             AND sch.student_id = ${child.id}
             AND sch.enrolled_at <= cd.lesson_date::date
             AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
-          WHERE sp.album_type = 'group' AND cd.class_group_id = ${child.class_group_id}
+          WHERE sp.album_type = 'group'
+            AND sp.media_status = 'attached'
+            AND cd.class_group_id = ${child.class_group_id}
           ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
         `)).rows as any[];
         for (const row of groupRows) {
@@ -864,7 +869,9 @@ router.get("/photos/parent-view", requireAuth, requireRole("parent_account"), as
           AND sch.student_id = ${child.id}
           AND sch.enrolled_at <= cd.lesson_date::date
           AND (sch.left_at IS NULL OR sch.left_at > cd.lesson_date::date)
-        WHERE sp.album_type = 'private' AND sp.student_id = ${child.id}
+        WHERE sp.album_type = 'private'
+          AND sp.media_status = 'attached'
+          AND sp.student_id = ${child.id}
         ORDER BY cd.lesson_date DESC, sp.created_at DESC LIMIT 200
       `)).rows as any[];
       for (const row of privRows) {
@@ -891,7 +898,11 @@ router.delete("/photos/:photoId", requireAuth,
       const { photoId } = req.params;
       const { role, userId } = req.user!;
 
-      const rows = await db.execute(sql`SELECT * FROM photo_assets_meta WHERE id = ${photoId}`);
+      const rows = await db.execute(sql`
+        SELECT * FROM photo_assets_meta
+        WHERE id = ${photoId}
+          AND media_status <> 'uploading'
+      `);
       const photo = rows.rows[0] as any;
       if (!photo) { res.status(404).json({ error: "사진을 찾을 수 없습니다." }); return; }
 
@@ -1288,5 +1299,565 @@ router.post("/photos/note-attach", requireAuth, requireRole("teacher", "pool_adm
     res.status(500).json({ error: "서버 오류" });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Direct-Upload (R2 Presigned PUT) — Task #44
+// POST /photos/direct-upload/session   → issue presigned PUT URLs
+// POST /photos/direct-upload/finalize  → verify objects & create DB rows
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Diary-route semantics: teacher owns class if they are the primary teacher
+ * OR listed in co_teacher_ids JSON array, within the same pool.
+ */
+async function teacherOwnsClassForUpload(
+  userId: string,
+  poolId: string,
+  classId: string,
+): Promise<boolean> {
+  const rows = await db.execute(sql`
+    SELECT id FROM class_groups
+    WHERE id = ${classId}
+      AND swimming_pool_id = ${poolId}
+      AND (teacher_user_id = ${userId} OR co_teacher_ids @> to_jsonb(${userId}::text))
+  `);
+  return rows.rows.length > 0;
+}
+
+async function discardDirectUploadReservation(
+  poolId: string,
+  userId: string,
+  objectKey: string,
+): Promise<void> {
+  const deleted = await db.execute(sql`
+    DELETE FROM photo_assets_meta
+    WHERE pool_id = ${poolId}
+      AND uploaded_by = ${userId}
+      AND object_key = ${objectKey}
+      AND media_status = 'uploading'
+    RETURNING object_key
+  `);
+  if (deleted.rows.length > 0) {
+    await deleteFromR2(objectKey, "photo");
+  }
+}
+
+// ── POST /photos/direct-upload/session ────────────────────────────────────
+router.post(
+  "/photos/direct-upload/session",
+  requireAuth,
+  requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId, role } = req.user!;
+      const body = req.body as {
+        album_type?: string;
+        class_id?: string;
+        student_id?: string;
+        lesson_date?: string;
+        caption?: string;
+        files?: Array<{
+          client_id?: string;
+          file_name?: string;
+          file_type?: string;
+          file_size?: unknown;
+        }>;
+      };
+
+      // ── Basic body validation ─────────────────────────────────────────
+      const { album_type } = body;
+      const class_id = body.class_id === undefined ? undefined : body.class_id;
+      const student_id = body.student_id === undefined ? undefined : body.student_id;
+      const lesson_date = body.lesson_date === undefined ? undefined : body.lesson_date;
+      const caption = body.caption === undefined ? undefined : body.caption;
+
+      if (album_type !== "group" && album_type !== "private") {
+        res.status(400).json({ error: "album_type은 'group' 또는 'private'이어야 합니다." }); return;
+      }
+      if (class_id !== undefined && (typeof class_id !== "string" || class_id.length === 0)) {
+        res.status(400).json({ error: "class_id가 유효하지 않습니다." }); return;
+      }
+      if (student_id !== undefined && (typeof student_id !== "string" || student_id.length === 0)) {
+        res.status(400).json({ error: "student_id가 유효하지 않습니다." }); return;
+      }
+      // group: class_id is optional (pool-wide saved-album upload)
+      // private: class_id + student_id are required
+      if (album_type === "private") {
+        if (!class_id) {
+          res.status(400).json({ error: "개인 앨범은 class_id가 필요합니다." }); return;
+        }
+        if (!student_id) {
+          res.status(400).json({ error: "개인 앨범은 student_id가 필요합니다." }); return;
+        }
+      }
+      if (lesson_date !== undefined && (typeof lesson_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(lesson_date))) {
+        res.status(400).json({ error: "lesson_date 형식은 YYYY-MM-DD이어야 합니다." }); return;
+      }
+      if (caption !== undefined && typeof caption !== "string") {
+        res.status(400).json({ error: "caption이 유효하지 않습니다." }); return;
+      }
+      if (caption !== undefined && caption.length > MAX_CAPTION_LENGTH) {
+        res.status(400).json({ error: `caption은 최대 ${MAX_CAPTION_LENGTH}자까지 허용됩니다.` }); return;
+      }
+
+      // ── File list validation ──────────────────────────────────────────
+      if (!Array.isArray(body.files) || body.files.length === 0) {
+        res.status(400).json({ error: "files 배열이 필요합니다." }); return;
+      }
+      if (body.files.length > MAX_FILES_PER_SESSION) {
+        res.status(400).json({ error: `파일은 최대 ${MAX_FILES_PER_SESSION}개까지 업로드할 수 있습니다.` }); return;
+      }
+
+      const clientIdsSeen = new Set<string>();
+      for (const f of body.files) {
+        if (!isSafeClientId(f.client_id)) {
+          res.status(400).json({ error: "client_id가 유효하지 않습니다." }); return;
+        }
+        if (clientIdsSeen.has(f.client_id as string)) {
+          res.status(400).json({ error: "client_id가 중복되었습니다." }); return;
+        }
+        clientIdsSeen.add(f.client_id as string);
+
+        if (!f.file_type || !DIRECT_UPLOAD_MIME_ALLOWLIST.has(f.file_type)) {
+          res.status(400).json({ error: `허용되지 않는 파일 형식: ${f.file_type}` }); return;
+        }
+        const sizeCheck = validateFileSize(f.file_size);
+        if (!sizeCheck.ok) {
+          res.status(400).json({ error: sizeCheck.error }); return;
+        }
+      }
+
+      // ── User / pool lookup ────────────────────────────────────────────
+      const [user] = await superAdminDb.select({
+        name: usersTable.name,
+        role: usersTable.role,
+        swimming_pool_id: usersTable.swimming_pool_id,
+      })
+        .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!user) { res.status(403).json({ error: "사용자를 찾을 수 없습니다." }); return; }
+
+      const poolId = user.swimming_pool_id;
+      if (!poolId) { res.status(403).json({ error: "수영장 정보를 찾을 수 없습니다." }); return; }
+
+      // ── Class ownership checks (when class_id is provided) ────────────
+      if (class_id) {
+        const classRows = await db.execute(sql`
+          SELECT id, swimming_pool_id FROM class_groups WHERE id = ${class_id}
+        `);
+        const classRow = classRows.rows[0] as any;
+        if (!classRow) { res.status(400).json({ error: "반을 찾을 수 없습니다." }); return; }
+
+        // The metadata row must never combine one pool with another pool's class.
+        if (classRow.swimming_pool_id !== poolId) {
+          res.status(403).json({ error: "다른 수영장의 반에 접근할 수 없습니다." }); return;
+        }
+
+        // A pool admin can switch the client into teacher mode. Match the diary
+        // route: only actual teachers are restricted to primary/co-teacher classes.
+        if (role === "teacher" && user.role !== "pool_admin") {
+          const ok = await teacherOwnsClassForUpload(userId, poolId, class_id);
+          if (!ok) { res.status(403).json({ error: "담당 반이 아닙니다." }); return; }
+        }
+
+        // Private: verify student belongs to class
+        if (album_type === "private" && student_id) {
+          const studentRows = await db.execute(sql`
+            SELECT id FROM students WHERE id = ${student_id} AND class_group_id = ${class_id}
+          `);
+          if (!studentRows.rows.length) {
+            res.status(400).json({ error: "해당 반에 소속된 학생이 아닙니다." }); return;
+          }
+        }
+      }
+
+      // ── Storage quota ─────────────────────────────────────────────────
+      const totalIncoming = (body.files as Array<{ file_size: number }>).reduce((s, f) => s + f.file_size, 0);
+      const [quotaRow] = (await superAdminDb.execute(sql`
+        SELECT COALESCE(sp.storage_gb, 0.5) AS storage_gb, COALESCE(p.extra_storage_gb, 0) AS extra_storage_gb
+        FROM swimming_pools p
+        LEFT JOIN pool_subscriptions ps ON ps.swimming_pool_id = p.id AND ps.status = 'active'
+        LEFT JOIN subscription_plans sp ON sp.tier = COALESCE(ps.tier, 'free')
+        WHERE p.id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      const quotaBytes = (Number(quotaRow?.storage_gb ?? 0.5) + Number(quotaRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
+
+      // ── Generate UUID-based object keys and presigned PUT URLs ────────
+      // All direct uploads live under a session-scoped prefix. A future
+      // cleanup job can list this prefix and remove keys with no metadata row.
+      const nonce = crypto.randomUUID();
+      const keysMap: Record<string, string> = {};
+      const sizesMap: Record<string, number> = {};
+      const typesMap: Record<string, string> = {};
+
+      const uploads: Array<{
+        client_id: string;
+        object_key: string;
+        upload_url: string;
+        headers: { "Content-Type": string };
+      }> = [];
+
+      for (const f of body.files as Array<{ client_id: string; file_type: string; file_size: number }>) {
+        const ext = extFromMime(f.file_type);
+        // UUID-based key — server generated, never derived from client-supplied filename
+        const uuid = crypto.randomUUID();
+        const objectKey = `photos/direct-staging/${poolId}/${nonce}/${uuid}.${ext}`;
+
+        // ContentLength is part of the signature. R2 rejects a PUT whose
+        // actual byte length differs from the validated declaration.
+        const { ok, url, error } = await getPresignedPutUrl(
+          objectKey,
+          f.file_type,
+          f.file_size,
+          SESSION_TTL_SECONDS,
+        );
+        if (!ok || !url) {
+          res.status(500).json({ error: `presigned URL 생성 실패: ${error}` }); return;
+        }
+
+        keysMap[f.client_id] = objectKey;
+        sizesMap[f.client_id] = f.file_size;
+        typesMap[f.client_id] = f.file_type;
+
+        uploads.push({
+          client_id: f.client_id,
+          object_key: objectKey,
+          upload_url: url,
+          headers: { "Content-Type": f.file_type },
+        });
+      }
+
+      // ── Build and sign session token ─────────────────────────────────
+      const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
+      const sessionPayload: UploadSessionPayload = {
+        nonce,
+        userId,
+        poolId,
+        album_type: album_type as "group" | "private",
+        class_id,
+        student_id: student_id ?? undefined,
+        lesson_date: lesson_date ?? undefined,
+        caption: caption ?? undefined,
+        keys: keysMap,
+        sizes: sizesMap,
+        types: typesMap,
+        exp,
+      };
+
+      const upload_token = signUploadToken(sessionPayload);
+      const expires_at = new Date(exp * 1000).toISOString();
+
+      // Reserve declared bytes before returning writable URLs. The existing
+      // metadata table is reused with an internal `uploading` state, so no
+      // schema migration is needed. Storage accounting already includes these
+      // rows, which closes concurrent-session and abandoned-upload quota gaps.
+      let quotaExceeded = false;
+      let projectedPct = 0;
+      let expiredObjectKeys: string[] = [];
+      const visibility = album_type === "group" ? "class" : "private";
+
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtext(${"photo-direct-quota:" + poolId}))
+        `);
+
+        // PUT URLs expire after five minutes. Keep a small grace period for
+        // in-flight native uploads, then clean stale reservations on demand.
+        const expiredRows = await tx.execute(sql`
+          DELETE FROM photo_assets_meta
+          WHERE pool_id = ${poolId}
+            AND media_status = 'uploading'
+            AND created_at < NOW() - INTERVAL '15 minutes'
+          RETURNING object_key
+        `);
+        expiredObjectKeys = (expiredRows.rows as any[]).map((row) => String(row.object_key));
+
+        const [usageRow] = (await tx.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0) AS used_bytes
+          FROM photo_assets_meta
+          WHERE pool_id = ${poolId}
+            AND is_clone = false
+        `)).rows as any[];
+        const usedBytes = Number(usageRow?.used_bytes ?? 0);
+        projectedPct = quotaBytes > 0 ? ((usedBytes + totalIncoming) / quotaBytes) * 100 : 0;
+
+        if (quotaBytes > 0 && usedBytes + totalIncoming > quotaBytes) {
+          quotaExceeded = true;
+          return;
+        }
+
+        for (const f of body.files as Array<{ client_id: string; file_type: string; file_size: number }>) {
+          const photoId = `photo_${crypto.randomUUID()}`;
+          await tx.execute(
+            album_type === "group"
+              ? sql`
+                INSERT INTO photo_assets_meta
+                  (id, student_id, pool_id, uploaded_by, uploaded_by_name,
+                   object_key, file_type, file_size,
+                   album_type, visibility, class_id,
+                   lesson_date, caption, media_status)
+                VALUES
+                  (${photoId}, NULL, ${poolId}, ${userId}, ${user.name},
+                   ${keysMap[f.client_id]}, ${f.file_type}, ${f.file_size},
+                   'group', ${visibility}, ${class_id ?? null},
+                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading')
+              `
+              : sql`
+                INSERT INTO photo_assets_meta
+                  (id, student_id, pool_id, uploaded_by, uploaded_by_name,
+                   object_key, file_type, file_size,
+                   album_type, visibility, class_id,
+                   lesson_date, caption, media_status)
+                VALUES
+                  (${photoId}, ${student_id ?? null}, ${poolId}, ${userId}, ${user.name},
+                   ${keysMap[f.client_id]}, ${f.file_type}, ${f.file_size},
+                   'private', ${visibility}, ${class_id ?? null},
+                   ${lesson_date ?? null}, ${caption ?? null}, 'uploading')
+              `,
+          );
+        }
+      });
+
+      // Delete stale staging objects only after their reservation rows commit.
+      await Promise.allSettled(
+        expiredObjectKeys.map((key) => deleteFromR2(key, "photo")),
+      );
+
+      if (quotaExceeded) {
+        res.status(403).json({
+          error: "저장공간이 부족합니다.",
+          code: "STORAGE_LIMIT_EXCEEDED",
+        });
+        return;
+      }
+
+      if (projectedPct >= 80) {
+        res.setHeader("X-Storage-Pct", `${Math.round(projectedPct)}`);
+      }
+      // Never log upload_token or upload_url (contains credentials)
+      res.status(200).json({ upload_token, expires_at, uploads });
+    } catch (err: any) {
+      console.error("[direct-upload/session]", err?.message ?? err);
+      if (err?.message?.startsWith("DIRECT_UPLOAD_SECRET_MISSING")) {
+        res.status(500).json({ error: "서버 설정 오류: 업로드 세션을 생성할 수 없습니다." }); return;
+      }
+      res.status(500).json({ error: "업로드 세션 생성 중 오류" });
+    }
+  }
+);
+
+// ── POST /photos/direct-upload/finalize ───────────────────────────────────
+router.post(
+  "/photos/direct-upload/finalize",
+  requireAuth,
+  requireRole("super_admin", "pool_admin", "teacher"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { userId } = req.user!;
+      const body = req.body as {
+        upload_token?: string;
+        completed?: Array<{ client_id?: string; object_key?: string }>;
+      };
+
+      if (!body.upload_token || typeof body.upload_token !== "string") {
+        res.status(400).json({ error: "upload_token이 필요합니다." }); return;
+      }
+      if (!Array.isArray(body.completed) || body.completed.length === 0) {
+        res.status(400).json({ error: "completed 배열이 필요합니다." }); return;
+      }
+      if (body.completed.length > MAX_FILES_PER_SESSION) {
+        res.status(400).json({ error: `completed는 최대 ${MAX_FILES_PER_SESSION}개까지 허용됩니다.` }); return;
+      }
+
+      // ── Verify token (HMAC + expiry) ──────────────────────────────────
+      let session: UploadSessionPayload;
+      try {
+        session = verifyUploadToken(body.upload_token);
+      } catch (e: any) {
+        const code = e.message === "token_expired" ? "TOKEN_EXPIRED" : "INVALID_TOKEN";
+        res.status(400).json({ error: "업로드 토큰이 유효하지 않습니다.", code }); return;
+      }
+
+      // Caller must match the token's userId
+      if (session.userId !== userId) {
+        res.status(403).json({ error: "업로드 토큰의 사용자와 일치하지 않습니다." }); return;
+      }
+
+      // ── Validate completed list: no duplicates, all in session ─────────
+      const completedClientIds = new Set<string>();
+      const completedObjectKeys = new Set<string>();
+      for (const item of body.completed) {
+        if (!item.client_id || typeof item.client_id !== "string" || !item.object_key || typeof item.object_key !== "string") {
+          res.status(400).json({ error: "completed 항목에 client_id와 object_key가 필요합니다." }); return;
+        }
+        if (completedClientIds.has(item.client_id)) {
+          res.status(400).json({ error: `completed에 중복된 client_id: ${item.client_id}` }); return;
+        }
+        if (completedObjectKeys.has(item.object_key)) {
+          res.status(400).json({ error: `completed에 중복된 object_key: ${item.object_key}` }); return;
+        }
+        completedClientIds.add(item.client_id);
+        completedObjectKeys.add(item.object_key);
+
+        const expected = session.keys[item.client_id];
+        if (!expected) {
+          res.status(400).json({ error: `알 수 없는 client_id: ${item.client_id}` }); return;
+        }
+        if (expected !== item.object_key) {
+          res.status(400).json({ error: `object_key 불일치: ${item.client_id}` }); return;
+        }
+      }
+
+      // ── Verify each object exists in R2 with exact metadata ──────────
+      const verifiedItems: Array<{
+        client_id: string;
+        object_key: string;
+        file_size: number;
+        file_type: string;
+      }> = [];
+
+      for (const item of body.completed as Array<{ client_id: string; object_key: string }>) {
+        const declaredSize = session.sizes[item.client_id];
+        const declaredType = session.types[item.client_id];
+
+        let head: { contentLength: number; contentType: string } | null;
+        try {
+          head = await headObject(item.object_key, "photo");
+        } catch (e: any) {
+          res.status(502).json({ error: `R2 오브젝트 확인 실패: ${item.object_key}` }); return;
+        }
+
+        if (!head) {
+          await discardDirectUploadReservation(session.poolId, userId, item.object_key);
+          res.status(400).json({ error: `업로드된 파일을 찾을 수 없습니다: ${item.client_id}` }); return;
+        }
+
+        // Strict exact-byte and exact-type validation (jpeg/jpg alias only)
+        const metaErr = validateHeadMetadata(
+          item.client_id,
+          declaredSize,
+          declaredType,
+          head.contentLength,
+          head.contentType,
+        );
+        if (metaErr) {
+          // The signed Content-Length should prevent this in normal clients.
+          // If storage metadata is still invalid, remove its reservation and key.
+          await discardDirectUploadReservation(session.poolId, userId, item.object_key);
+          res.status(400).json({ error: metaErr }); return;
+        }
+
+        verifiedItems.push({
+          client_id: item.client_id,
+          object_key: item.object_key,
+          file_size: head.contentLength,
+          file_type: declaredType,
+        });
+      }
+
+      // ── Finalize reserved rows atomically with race-safe idempotency ──
+      // Preserve the order of verifiedItems in the response.
+      const photos: Array<{
+        client_id: string;
+        id: string;
+        file_url: string;
+        created_at: string;
+        uploaded_by_name: string;
+        media_status: string;
+        journal_id: string | null;
+      }> = [];
+      let missingReservationKeys: string[] = [];
+
+      try {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            SELECT pg_advisory_xact_lock(hashtext(${"photo-direct-quota:" + session.poolId}))
+          `);
+
+          const resolvedItems: Array<{
+            item: typeof verifiedItems[number];
+            existing?: any;
+          }> = [];
+
+          for (const item of verifiedItems) {
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${item.object_key}))`);
+            const existingRows = await tx.execute(sql`
+              SELECT id, created_at, uploaded_by_name, media_status, journal_id,
+                     file_size, file_type
+              FROM photo_assets_meta
+              WHERE object_key = ${item.object_key}
+                AND pool_id = ${session.poolId}
+                AND uploaded_by = ${userId}
+                AND is_clone = false
+              LIMIT 1
+            `);
+            if (existingRows.rows.length === 0) {
+              missingReservationKeys.push(item.object_key);
+              throw new Error("DIRECT_UPLOAD_RESERVATION_MISSING");
+            }
+            resolvedItems.push({
+              item,
+              existing: existingRows.rows[0] as any | undefined,
+            });
+          }
+
+          for (const { item, existing } of resolvedItems) {
+            if (existing.media_status !== "uploading") {
+              photos.push({
+                client_id: item.client_id,
+                id: existing.id,
+                file_url: `/api/photos/${existing.id}/file`,
+                created_at: existing.created_at,
+                uploaded_by_name: existing.uploaded_by_name,
+                media_status: existing.media_status,
+                journal_id: existing.journal_id ?? null,
+              });
+              continue;
+            }
+
+            const finalizedRows = await tx.execute(sql`
+              UPDATE photo_assets_meta
+              SET media_status = 'draft',
+                  file_size = ${item.file_size},
+                  file_type = ${item.file_type}
+              WHERE id = ${existing.id}
+                AND media_status = 'uploading'
+              RETURNING id, created_at, uploaded_by_name, media_status, journal_id
+            `);
+            const row = finalizedRows.rows[0] as any;
+            photos.push({
+              client_id: item.client_id,
+              id: row.id,
+              file_url: `/api/photos/${row.id}/file`,
+              created_at: row.created_at,
+              uploaded_by_name: row.uploaded_by_name,
+              media_status: row.media_status,
+              journal_id: row.journal_id ?? null,
+            });
+          }
+        });
+      } catch (err: any) {
+        if (err?.message === "DIRECT_UPLOAD_RESERVATION_MISSING") {
+          await Promise.allSettled(
+            missingReservationKeys.map((key) => deleteFromR2(key, "photo")),
+          );
+          res.status(409).json({
+            error: "업로드 세션 예약을 찾을 수 없습니다. 다시 업로드해주세요.",
+            code: "UPLOAD_RESERVATION_MISSING",
+          });
+          return;
+        }
+        throw err;
+      }
+
+      res.status(200).json({ photos });
+    } catch (err: any) {
+      console.error("[direct-upload/finalize]", err?.message ?? err);
+      if (err?.message?.startsWith("DIRECT_UPLOAD_SECRET_MISSING")) {
+        res.status(500).json({ error: "서버 설정 오류" }); return;
+      }
+      res.status(500).json({ error: "업로드 완료 처리 중 오류" });
+    }
+  }
+);
 
 export default router;

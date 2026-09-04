@@ -1,0 +1,1007 @@
+[SWIMNOTE / SWIMNOTE X — 300명·500명 월간 UNIT ECONOMICS 전수조사]
+
+목적:
+
+현재 X 프로모션 가격을 수정하기 전에
+SWIMNOTE를 실제 운영할 때 발생하는 월간 원가를 정확히 계산한다.
+
+대상 수영장 규모:
+
+A. 재원 300명
+B. 재원 500명
+
+각각:
+
+1. 일반 SWIMNOTE만 사용
+2. 일반 SWIMNOTE + SWIMNOTE X 사용
+
+총 4개 시나리오의 월간 직접원가를 계산한다.
+
+중요:
+
+이번 작업은 조사/계산 ONLY.
+
+코드 수정 금지.
+가격 수정 금지.
+프로모션 수정 금지.
+DB migration 금지.
+결제 상품 수정 금지.
+
+실제 repository + Production telemetry + 현재 vendor 가격을 기준으로 조사한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 현재 판매가격부터 확정
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository에서 현재 실제 판매 중인 가격을 확인한다.
+
+반드시 확인:
+
+- 300명 SWIMNOTE 플랜 월 가격
+- 500명 SWIMNOTE 플랜 월 가격
+- X mode 월 추가금액
+- X mode가 별도 add-on인지
+- base plan 포함 상품인지
+- 36개월 약정 적용 위치
+- 현재 promo 할인 tier
+- 실제 결제 금액
+- App Store / Google Play IAP 여부
+- Web/PG/RevenueCat 결제 여부
+
+문서나 기억값이 아니라
+Production billing source of truth를 제출.
+
+보고:
+
+300 base = ₩?
+500 base = ₩?
+X addon = ₩?
+300 + X 실제 월 결제액 = ₩?
+500 + X 실제 월 결제액 = ₩?
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 비용을 "고정비"와 "회원수 비례비"로 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+A. 플랫폼 고정비
+
+예:
+
+- Render API server
+- AI Engine Render service
+- PostgreSQL
+- background worker
+- cron/worker
+- monitoring/logging
+- DNS
+- Cloudflare
+- 기타 월 고정 서비스
+
+각 서비스마다:
+
+service
+current plan
+monthly price
+현재 전체 SWIMNOTE가 공유하는지
+pool별 전용인지
+
+확인.
+
+중요:
+
+한 수영장 원가를 계산할 때
+전체 플랫폼 고정비를 수영장 한 곳에 전액 넣지 말 것.
+
+대신:
+
+1. 전체 회사 고정비
+2. 수영장 1곳 incremental cost
+3. 향후 수영장 N곳 운영 시 allocation
+
+을 분리해서 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. DB 원가
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 PostgreSQL provider/plan 확인.
+
+조사:
+
+- DB 월 기본료
+- storage
+- compute
+- connection
+- backup
+- bandwidth
+- PITR 등이 추가 유료인지
+
+그리고 회원 300/500명이 한 달 사용할 때
+대략 추가되는 DB row/data 양 계산.
+
+포함:
+
+students
+attendance
+class_diaries
+class_diary_student_notes
+diary_messages
+diary_reactions
+growth_events
+growth_reports
+event_logs
+notifications
+curriculum events
+parent requests
+audit logs
+AI traces
+
+월별 증가량 추정.
+
+300명:
+rows/month
+MB/month
+cost/month
+
+500명:
+rows/month
+MB/month
+cost/month
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 파일 STORAGE 원가
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 object storage provider 확인.
+
+예:
+Cloudflare R2 등.
+
+확인:
+
+- GB-month 가격
+- Class A operation
+- Class B operation
+- egress
+- 무료 구간
+- 현재 plan
+
+사진/영상 각각 계산.
+
+현재 앱 실제 제약 확인:
+
+- 일지 사진 최대 수
+- 영상 최대 수
+- 앨범
+- 공지 이미지
+- 프로필
+- 리포트 PDF
+- 기타 media
+
+300명 / 500명 기준으로:
+
+LOW
+BASE
+HIGH
+
+3개 사용량 모델을 만든다.
+
+예를 들어 반드시 실제 코드 제한과 telemetry를 이용해:
+
+월 신규 사진 개수
+평균 사진 file_size
+월 신규 영상 개수
+평균 영상 file_size
+PDF 생성량
+
+→ GB/month
+→ 저장비
+→ upload/download operation 비용
+
+계산.
+
+보관 누적으로:
+
+1개월
+12개월
+36개월
+
+storage 누적비도 별도 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. AI TEACHER DIARY 원가
+━━━━━━━━━━━━━━━━━━━━━━
+
+Teacher AI Diary의 실제 production 호출 chain을 추적.
+
+반드시 확인:
+
+Teacher input
+→ STT 여부
+→ SWIMNOTE API
+→ Professional AI Engine
+→ 검색
+→ model call(s)
+→ grounding/validation
+→ response
+
+각 단계별 외부 유료 API 호출 확인.
+
+특히:
+
+- 사용 model 이름
+- provider
+- input token 평균
+- output token 평균
+- cached input 사용 여부
+- reasoning token 여부
+- 한 일지 생성당 LLM 호출 횟수
+- validator가 별도 LLM인지
+- embedding call 여부
+- STT model 및 audio minute
+
+event_logs / engine usage log에서
+실제 production sample을 최대한 집계.
+
+가능하면 최근 실제 성공 호출:
+
+N >= 30
+
+기준으로:
+
+평균
+P50
+P90
+최대
+
+토큰/원가를 제출.
+
+그리고 300/500 회원 수영장 기준 월 일지 생성량 계산.
+
+추정 기준은 실제 수업 횟수 구조를 조사.
+
+예:
+
+학생 1명당 주 평균 수업 횟수
+한 반당 학생 수
+일지 생성이 반 단위 1회인지
+학생별 호출인지
+
+를 정확히 구분.
+
+절대로
+300명 × 수업횟수 × 학생별 GPT 호출
+이라고 임의 계산하지 말 것.
+
+실제 호출 단위를 기준으로 계산.
+
+결과:
+
+AI Diary:
+300명 LOW / BASE / HIGH
+500명 LOW / BASE / HIGH
+
+calls/month
+tokens/month
+STT minutes/month
+USD/month
+KRW/month
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. STT / 음성 입력 비용
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Teacher Diary 음성입력과
+기타 AI 음성입력의 실제 transcription provider/model 확인.
+
+기능별:
+
+- Teacher Diary
+- Parent report 추가정보
+- AI 고객센터
+- 기타
+
+실제 STT API가 유료 호출되는 곳만 포함.
+
+각 기능별:
+
+평균 audio seconds
+월 호출수
+총 minutes
+단가
+월 비용
+
+300/500 각각 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 무료 AI 성장리포트 월간 원가
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 무료:
+
+AI 성장리포트
+
+의 전체 생성 pipeline 조사.
+
+실제 정책 기준:
+
+전월 조건 충족/재등록 대상에게
+다음 달 자동 생성되는 리포트.
+
+이번 원가모델에서는
+발급 대상률을 시나리오화:
+
+LOW = 재원생 70%
+BASE = 85%
+HIGH = 100%
+
+300명:
+210 / 255 / 300 reports
+
+500명:
+350 / 425 / 500 reports
+
+단 실제 eligibility 정책이 코드에서 다르면
+repository 기준을 우선하고 차이를 보고.
+
+리포트 1건 생성에 대해:
+
+- engine 호출 횟수
+- GPT 모델별 호출
+- input tokens
+- output tokens
+- reasoning
+- embedding/search
+- validator
+- PDF renderer
+- storage
+- 기타 외부 API
+
+전부 추적.
+
+실제 event_logs의:
+
+estimated_cost_usd
+
+가 있다면
+실측 평균과 계산식 둘 다 제출.
+
+리포트 1건 원가:
+
+AVG
+P90
+
+300명 월 비용:
+LOW / BASE / HIGH
+
+500명 월 비용:
+LOW / BASE / HIGH
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. 유료 AI 인사이트 전략 리포트
+━━━━━━━━━━━━━━━━━━━━━━
+
+이것은 월 X 기본원가와 분리.
+
+현재 one-time 상품이면
+X 월 구독원가에 넣지 말 것.
+
+다만 별도 unit economics 제출:
+
+판매가
+1건 AI 비용
+PDF/storage
+payment fee
+gross profit
+gross margin
+
+현재 실제 구현되지 않은 부분은
+MISSING으로 표시하고 추측 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. PARENT AI 커리큘럼 검색
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 실제 quota 확인.
+
+현재 알려진 기준은:
+학생/Parent 기준 월 최대 4회.
+
+repository에서 실제 enforcement 확인.
+
+실제 pipeline:
+
+intent
+→ curriculum/progress retrieval
+→ professional retrieval
+→ GPT supplement
+→ verification/merge
+
+각 검색 1회당:
+
+- model(s)
+- 호출 횟수
+- average input/output token
+- embedding/search cost
+- actual estimated_cost_usd
+
+집계.
+
+사용률:
+
+LOW:
+가능 quota의 20%
+
+BASE:
+50%
+
+HIGH:
+100%
+
+300명일 경우 최대 1,200회/month
+500명일 경우 최대 2,000회/month
+
+단 quota owner가
+학생 단위인지 parent account 단위인지
+실제 코드 확인 후 정확히 계산.
+
+월 비용:
+300 LOW/BASE/HIGH
+500 LOW/BASE/HIGH
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. AI 고객센터 원가
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 Parent support는
+"AI 고객센터" 하나를 유지할 예정.
+
+현재 또는 구현 예정인 AI 고객센터의
+실제 backend/model/usage limit 조사.
+
+있다면:
+
+1회 문의가:
+
+- 몇 번 model 호출
+- context 크기
+- 평균 tokens
+- retrieval 여부
+- follow-up conversation 구조
+- conversation history 재전송 여부
+
+계산.
+
+아직 실제 AI backend가 없다면:
+
+MISSING
+
+으로 명확히 보고.
+
+원가 추정이 가능하면:
+
+LOW:
+회원 10%가 월 1회
+
+BASE:
+회원 25%가 월 1회
+
+HIGH:
+회원 50%가 월 2회
+
+기준으로 계산.
+
+단 이 부분은
+[PROJECTED]라고 표시.
+
+실측과 섞지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 기타 AI 호출 전수조사
+━━━━━━━━━━━━━━━━━━━━━━
+
+repository와 event_logs에서
+외부 AI provider가 호출되는 모든 feature를 찾는다.
+
+예:
+
+teacher_diary
+growth_report
+parent_curriculum_search
+customer_support
+report_question
+summary
+classification
+embedding
+validation
+STT
+기타
+
+feature별 표:
+
+feature
+provider
+model
+calls
+avg input token
+avg output token
+avg USD/call
+monthly projected calls 300
+monthly projected calls 500
+monthly cost
+
+누락이 없어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. NON-AI API 호출 / SERVER COMPUTE
+━━━━━━━━━━━━━━━━━━━━━━
+
+회원 300/500 규모에서 발생하는:
+
+- 로그인
+- 출결
+- feed
+- notifications
+- photo metadata
+- album
+- schedules
+- requests
+- report 조회
+- curriculum 조회
+- admin dashboards
+
+등 일반 API 트래픽이
+현재 Render plan에 추가 과금 또는 scale-up을 요구하는지 조사.
+
+특히:
+
+- CPU
+- memory
+- instance
+- autoscaling
+- bandwidth
+- request count
+
+현재 plan에서 300명 1개 pool,
+500명 1개 pool이 추가될 때
+즉시 추가비가 생기는지 판단.
+
+결과:
+
+NO INCREMENTAL COST
+LOW
+SCALE-UP REQUIRED
+
+로 분류.
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. PUSH / EMAIL / SMS / 기타 외부 서비스
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제로 사용하는 provider 전수 확인:
+
+- Expo Push
+- APNs
+- FCM
+- SMS
+- Kakao
+- email
+- OTP
+- phone verification
+- analytics
+- crash reporting
+- monitoring
+- logging
+
+무료라면 0원.
+
+유료면 300/500 월 예상비 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+14. 결제비용
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 별도 계산.
+
+현재 결제 경로 확인:
+
+- Apple IAP
+- Google Play Billing
+- RevenueCat
+- Web PG
+- 카드결제
+- 기타
+
+실제 판매가에서 떼이는:
+
+- App Store commission
+- Google commission
+- PG %
+- RevenueCat fee
+- VAT 처리
+
+를 확인.
+
+중요:
+
+"서비스 제공 원가"
+와
+"결제수수료"
+를 반드시 분리.
+
+예:
+
+매출 ₩150,000
+payment/platform fee ₩XX
+service COGS ₩XX
+실제 contribution margin ₩XX
+
+형태.
+
+━━━━━━━━━━━━━━━━━━━━━━
+15. 환율
+━━━━━━━━━━━━━━━━━━━━━━
+
+USD 기반 vendor 비용은:
+
+현재 분석일 환율
+
++
+안전 환율
+
+두 개 사용.
+
+예:
+
+SPOT RATE
+STRESS RATE = spot + 10%
+
+현재 환율 source와 날짜 기재.
+
+━━━━━━━━━━━━━━━━━━━━━━
+16. 300명 월간 COST SHEET
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 아래 형식.
+
+[300 — BASE SWIMNOTE]
+
+Revenue:
+₩
+
+COST:
+Infrastructure
+DB
+Storage
+Bandwidth
+Push/etc
+Payment fee
+Other
+
+Total monthly cost:
+₩
+
+Contribution:
+₩
+Margin:
+%
+
+[300 — SWIMNOTE + X]
+
+위 base cost
++
+
+Teacher Diary AI
+Teacher Diary STT
+Growth Report AI
+Growth Report PDF/storage
+Parent Curriculum AI
+AI Customer Center
+Growth Event processing
+AI Engine hosting
+Extra logs/storage
+Other X AI
+
+AI subtotal:
+₩
+
+Total monthly COGS:
+₩
+
+Revenue:
+₩
+
+Contribution:
+₩
+Contribution margin:
+%
+
+그리고:
+
+LOW
+BASE
+HIGH
+
+3개 모두.
+
+━━━━━━━━━━━━━━━━━━━━━━
+17. 500명 월간 COST SHEET
+━━━━━━━━━━━━━━━━━━━━━━
+
+300과 동일하게:
+
+[500 — BASE SWIMNOTE]
+LOW / BASE / HIGH
+
+[500 — SWIMNOTE + X]
+LOW / BASE / HIGH
+
+모두 작성.
+
+━━━━━━━━━━━━━━━━━━━━━━
+18. 회원 1명당 UNIT COST
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 시나리오마다:
+
+월 회원 1명당:
+
+Base infrastructure
+Storage
+AI diary
+Growth report
+Curriculum AI
+Customer support AI
+Other
+
+원가를 계산.
+
+예:
+
+300 X:
+₩___ / member / month
+
+500 X:
+₩___ / member / month
+
+그리고:
+
+추가 회원 1명당 marginal cost
+
+도 계산.
+
+━━━━━━━━━━━━━━━━━━━━━━
+19. AI 기능별 UNIT COST
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 별도 표:
+
+AI Diary 1회
+₩
+
+STT 1분
+₩
+
+무료 Growth Report 1건
+₩
+
+Parent Curriculum Search 1회
+₩
+
+AI Customer Center 1 conversation
+₩
+
+유료 Insight Report 1건
+₩
+
+이 숫자가 앞으로
+가격 정책의 핵심 기준이 됨.
+
+━━━━━━━━━━━━━━━━━━━━━━
+20. WORST-CASE 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+X에서 quota 안에서
+사용자가 최대한 많이 사용했을 때 계산.
+
+예:
+
+- curriculum search quota 100%
+- 성장리포트 대상 100%
+- AI diary 매우 높은 사용
+- STT 높은 사용
+- 고객센터 높은 사용
+- 사진/영상 높은 사용
+
+300명 MAX
+500명 MAX
+
+한 달에 회사가 부담할 수 있는
+최대 현실적 비용을 계산.
+
+비현실적인 DDoS/abuse는 제외.
+
+정상 사용 범위의 P90~P95 수준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+21. TELEMETRY 신뢰도
+━━━━━━━━━━━━━━━━━━━━━━
+
+각 원가 숫자에는 반드시:
+
+MEASURED
+CALCULATED
+PROJECTED
+
+중 하나 태그.
+
+MEASURED:
+실제 Production event_logs / usage
+
+CALCULATED:
+실제 모델+토큰 기반 계산
+
+PROJECTED:
+향후 사용량 가정
+
+세 종류를 섞어서
+"실제 비용"이라고 표현하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+22. 모델 가격
+━━━━━━━━━━━━━━━━━━━━━━
+
+OpenAI 등 AI vendor의 현재 공식 가격을
+분석일 현재 공식 pricing 기준으로 확인.
+
+모델마다:
+
+input
+cached input
+output
+audio
+embedding
+
+단가 제출.
+
+코드에 하드코딩된 오래된 가격과
+공식 현재 가격이 다르면 반드시 표시.
+
+[PRICING MISMATCH]
+
+형태로 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+23. 최종 결과
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종적으로 아래 표를 반드시 작성.
+
+                 300 BASE   300+X   500 BASE   500+X
+------------------------------------------------------
+현재 판매가
+LOW 원가
+BASE 원가
+HIGH 원가
+P95 원가
+회원당 원가
+AI 원가
+Storage 원가
+Infra 원가
+Payment fee
+공헌이익
+공헌이익률
+
+그리고 현재 X 프로모션 가격에 대해:
+
+SAFE
+MARGINAL
+UNSAFE
+
+만 판정.
+
+아직 새 가격을 결정하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+24. BREAK-EVEN 분석
+━━━━━━━━━━━━━━━━━━━━━━
+
+300+X / 500+X 각각:
+
+공헌이익률:
+
+70%
+60%
+50%
+40%
+
+를 확보하기 위해 필요한
+최소 월 판매가를 역산.
+
+또한 현재 promo:
+
+50% 할인
+30% 할인
+10% 할인
+정가
+
+각각에 대해:
+
+300명
+500명
+
+수영장 1곳당 월:
+
+매출
+원가
+공헌이익
+공헌이익률
+
+표 작성.
+
+이걸 보고 프로모션을 다시 결정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+25. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[COST AUDIT DATE]
+
+[CURRENT PRODUCT PRICES]
+
+[AI MODEL MAP]
+
+[AI OFFICIAL PRICES]
+
+[ACTUAL TELEMETRY]
+
+[INFRA]
+
+[DB]
+
+[STORAGE]
+
+[PAYMENT FEES]
+
+[FEATURE UNIT COST]
+- Diary
+- STT
+- Growth Report
+- Curriculum Search
+- AI Customer Center
+- Insight Report
+
+[300 BASE]
+
+[300 + X]
+
+[500 BASE]
+
+[500 + X]
+
+[WORST CASE]
+
+[UNIT COST PER MEMBER]
+
+[BREAK-EVEN]
+
+[CURRENT PROMO PROFITABILITY]
+50%
+30%
+10%
+정가
+
+[DATA CONFIDENCE]
+MEASURED / CALCULATED / PROJECTED
+
+[RISKS]
+
+[FINAL JUDGMENT]
+현재 promo:
+SAFE / MARGINAL / UNSAFE
+
+코드 수정 금지.
+가격 변경 금지.
+프로모션 변경 금지.
+
+보고 후 STOP.

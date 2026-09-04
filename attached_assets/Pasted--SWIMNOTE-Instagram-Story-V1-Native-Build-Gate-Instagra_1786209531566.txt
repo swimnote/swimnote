@@ -1,0 +1,184 @@
+[SWIMNOTE Instagram Story V1 — Native Build 전 최종 Gate]
+
+현재 Instagram Story V1 구현 완료 상태에서
+Production Store 제출 전에 아래 항목만 최종 검증한다.
+
+코드 기능 재설계 금지.
+Feed/Story UI 재작성 금지.
+
+1. react-native-share Expo config 확인
+
+현재 별도:
+plugins/withInstagramShare.js
+
+를 만들었는데,
+react-native-share 자체 Expo config plugin이 현재 설치 버전에서
+iOS LSApplicationQueriesSchemes 및
+Android <queries> 설정을 지원하는지 확인한다.
+
+공식 plugin으로 완전히 대체 가능하면
+중복 custom plugin을 유지하지 않는다.
+
+단 현재 custom plugin이 추가로 반드시 필요한 native 설정이 있으면
+그 차이를 정확히 보고한다.
+
+중복:
+- instagram scheme
+- instagram-stories scheme
+- com.instagram.android query
+
+가 native output에 두 번 들어가지 않게 한다.
+
+2. Meta/Facebook App ID 확인
+
+react-native-share Instagram Stories는 appId를 요구한다.
+
+반드시 확인:
+
+- 현재 Meta/Facebook App ID 존재 여부
+- StoryCapturePipeline이 실제 appId를 어디서 받는지
+- 하드코딩 여부
+- 환경변수/config 여부
+- iOS/Android 동일 App ID 사용 여부
+
+appId가 UNKNOWN 또는 비어 있으면
+Instagram Story direct share를 완료로 판정하지 않는다.
+
+사용 가능한 App ID가 아직 없다면
+Native Build 전에 보고한다.
+
+3. 실제 Share 옵션 확인
+
+Story 1장 direct 시 실제 코드가:
+
+social: Share.Social.INSTAGRAM_STORIES
+
+를 사용하는지 확인.
+
+그리고:
+- backgroundImage
+- appId
+- 필요한 mime/file URI 처리
+
+가 react-native-share 현재 버전 Contract와 맞는지 확인한다.
+
+일반:
+Share.Social.INSTAGRAM
+
+으로 보내고 Story라고 부르는 구조 금지.
+
+4. Native config output 검증
+
+EAS Build 전에 config 결과를 검사한다.
+
+iOS:
+- LSApplicationQueriesSchemes
+- instagram
+- instagram-stories
+
+Android:
+- <queries>
+- com.instagram.android
+
+react-native-view-shot
+react-native-share
+
+두 native module이 autolinking 대상에 포함되는지 확인.
+
+5. 현재 변경 파일 확인
+
+git diff --name-status
+git diff --stat
+
+Instagram Story 관련 허용 파일 외
+변경이 섞이지 않았는지 확인.
+
+기존:
+학부모 요청
+업무대화
+댓글
+알림
+보강
+출결
+일지 저장
+Auth/JWT/API_BASE
+
+기능 코드 변경 0 확인.
+
+6. Gate 통과 후 테스트 Native Build
+
+위 검증 통과 시:
+
+Production Store 제출하지 말고
+
+iOS:
+TestFlight 검증 가능한 EAS build
+
+Android:
+internal/preview installation 가능한 native build
+
+까지만 생성.
+
+기존 Production OTA 배포 금지.
+
+7. 실제 기기 테스트 필수
+
+새 binary에서:
+
+CASE 1
+1장 Story 생성 → 실제 1080×1920
+
+CASE 2
+Instagram 설치 확인
+
+CASE 3
+1장 → Instagram Story Composer 직접 실행
+
+CASE 4
+실제 이미지가 Story Composer에 정상 표시
+
+CASE 5
+긴 일지 2장 생성
+
+CASE 6
+매우 긴 일지 3장 생성
+
+CASE 7
+전체 원문 누락/중복 없음
+
+CASE 8
+N장 사진첩 저장
+
+CASE 9
+저장 순서 정상
+
+CASE 10
+Instagram 미설치 fallback
+
+CASE 11
+한글/Pretendard 깨짐 없음
+
+CASE 12
+사진 화질 정상
+
+CASE 13
+워터마크 위치 정상
+
+CASE 14
+기존 Feed UI 회귀 없음
+
+8. 최종 보고
+
+- react-native-share 공식 plugin 사용 여부
+- custom plugin 필요 여부
+- Meta App ID 상태
+- 실제 Instagram Story share options
+- native config 결과
+- Build IDs
+- 설치 결과
+- CASE 1~14
+- Production Store 제출 = 0
+- Production OTA = 0
+
+TestFlight/Internal 실기기 검증 후
+Production Store 제출 여부를 별도 승인받는다.

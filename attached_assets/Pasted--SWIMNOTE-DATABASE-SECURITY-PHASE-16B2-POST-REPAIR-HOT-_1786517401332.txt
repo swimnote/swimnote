@@ -1,0 +1,205 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE DATABASE SECURITY — PHASE 16B2
+POST-REPAIR HOT SYNC RUNTIME VERIFICATION
+READ-ONLY VERIFICATION ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 승인 상태:
+
+BACKUP_CORE_SCHEMA_REPAIRED ✅
+
+하지만:
+
+HOT_SYNC_CORE_REPLICATION_VERIFIED
+아직 아님.
+
+이유:
+Phase 16B 보고서의 마지막 hot_sync 증거는
+수리 이전 06:30 실패 로그였음.
+
+이번 Phase 목적:
+
+수리 이후 실제 standby-sync가
+Backup DB에 핵심 데이터를 정상 복제했는지
+runtime evidence로 확인.
+
+코드 변경 금지.
+Production 변경 금지.
+Backup schema 변경 금지.
+RLS 변경 금지.
+WP4 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 최신 Render 로그 확인
+━━━━━━━━━━━━━━━━━━━━
+
+standby-sync 관련 최신 실행 로그를 조회.
+
+반드시 Phase 16B repair 완료 시각 이후의
+실행만 증거로 사용.
+
+확인:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+feature_flag_overrides
+pool_credits
+
+각 테이블별:
+
+- 실행 시각
+- Production rows
+- Backup insert rows
+- success/fail
+- error
+
+수리 전 06:30 실패 로그 재사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 핵심 5개 실제 row count
+━━━━━━━━━━━━━━━━━━━━
+
+현재 시점에서:
+
+Production COUNT
+Backup COUNT
+
+비교:
+
+swimming_pools
+users
+subscription_plans
+backup_settings
+platform_banners
+
+반드시 실제 DB에서 새로 조회.
+
+기대:
+
+Backup > 0
+그리고 sync 직후라면 Production과 동일.
+
+정확히 동일하지 않으면
+sync 주기/변경 시점까지 확인하고 원인 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 실제 데이터 존재 검증
+━━━━━━━━━━━━━━━━━━━━
+
+민감 데이터 내용은 출력하지 말 것.
+
+각 핵심 테이블에서
+Backup에 실제 row 존재 여부만 확인.
+
+예:
+
+COUNT
+MIN/MAX created_at 가능한 경우
+PK NULL 여부
+duplicate PK 여부
+
+개인정보 값 출력 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. schema-related 오류 확인
+━━━━━━━━━━━━━━━━━━━━
+
+repair 이후 로그에서:
+
+column does not exist
+invalid input value for enum
+null value violates not-null
+duplicate key
+constraint violation
+permission denied
+row-level security
+
+검색.
+
+핵심 5개에서 신규 오류가 없어야 함.
+
+━━━━━━━━━━━━━━━━━━━━
+5. pool_credits 분리
+━━━━━━━━━━━━━━━━━━━━
+
+pool_credits는:
+
+Production table 없음
+lazy-init active
+standby-sync SELECT 시 relation missing 가능
+
+이 오류는 별도 분류:
+
+EXPECTED_LAZY_TABLE_MISSING
+
+핵심 5개 sync 성공 여부와 분리.
+
+pool_credits 때문에 전체 HOT sync를
+실패 판정하지 말 것.
+
+코드 수정은 아직 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. feature_flag_overrides
+━━━━━━━━━━━━━━━━━━━━
+
+Production row count
+Backup row count
+
+확인.
+
+현재 0행이면
+0→0 정상 skip으로 기록.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 최종 판정
+━━━━━━━━━━━━━━━━━━━━
+
+다음 조건 충족 시:
+
+[ ] swimming_pools Backup 실제 복제
+[ ] users Backup 실제 복제
+[ ] subscription_plans Backup 실제 복제
+[ ] backup_settings Backup 실제 복제
+[ ] platform_banners Backup 실제 복제
+[ ] 신규 schema/constraint/enum 오류 없음
+
+FINAL:
+
+HOT_SYNC_CORE_REPLICATION_VERIFIED ✅
+
+pool_credits lazy-init 오류가 남으면:
+
+HOT_SYNC_CORE_REPLICATION_VERIFIED ✅
+POOL_CREDITS_GRACEFUL_SKIP_PENDING
+
+핵심 테이블 중 하나라도 실제 복제 실패면:
+
+HOT_SYNC_CORE_REPLICATION_FAILED
+
+그리고 정확한 오류 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. repair 완료 이후 최신 sync 시각
+2. 핵심 5개 sync 결과
+3. Production vs Backup row count
+4. feature_flag_overrides 상태
+5. pool_credits 상태
+6. 신규 schema 오류
+7. 신규 enum 오류
+8. constraint 오류
+9. final runtime 판정
+
+STOP.
+
+코드 변경 금지.
+DB schema 변경 금지.
+RLS 변경 금지.
+WP4 금지.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

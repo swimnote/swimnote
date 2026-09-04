@@ -1,0 +1,155 @@
+# [WP-D PHASE 1 — BACKWARD COMPATIBILITY SMOKE]
+
+WP-D implementation pushed.
+
+SHA:
+724e226d
+
+이번 단계는 PHASE 1 smoke only.
+
+아직:
+- migration 실행 금지
+- Supabase production schema 변경 금지
+- iOS OTA 금지
+- WP-D 추가 기능 수정 금지
+- 전체 regression test 금지
+
+==================================================
+1. DEPLOY TARGET
+==================================================
+
+정확한 SHA:
+
+724e226d
+
+Render swimnote-api에 반영.
+
+배포 전 확인:
+
+- repo
+- branch
+- SHA
+- Render source
+
+source/branch 변경 금지.
+env 변경 금지.
+secret 변경 금지.
+
+==================================================
+2. PHASE 1 목적
+==================================================
+
+기존 Production 앱은
+conversation_id를 보내지 않는다.
+
+따라서 migration 전 상태에서도:
+
+POST /parent/students/:studentId/curriculum-search
+
+기존 request body 그대로
+→ 정상 동작해야 한다.
+
+신규 WP-D server code가
+기존 앱 계약을 깨지 않았는지 확인한다.
+
+==================================================
+3. 최소 smoke
+==================================================
+
+전체 regression 금지.
+
+아래만 확인:
+
+1.
+GET /api/healthz
+→ 200
+
+2.
+기존 auth route
+→ 정상 JSON
+
+3.
+GET /parent/students/:studentId/curriculum-search/history
+conversation_id 없이 호출
+→ 기존 동작 유지
+→ 500/502 아님
+
+4.
+POST /parent/students/:studentId/curriculum-search
+conversation_id 없이 기존 body
+→ 기존 getOrCreateConversation fallback 사용
+→ 서버 오류 없음
+
+5.
+신규 endpoint import/startup 확인:
+
+POST /conversations
+GET /conversations
+
+미인증 요청
+→ 정상 auth rejection
+→ 500/502 아님
+
+6.
+buildRecentConversationContext
+→ 기존 conversation 범위 정상
+
+==================================================
+4. 중요: migration 전 신규 다중대화 endpoint
+==================================================
+
+현재 UNIQUE(parent_account_id, student_id)가 아직 존재하므로
+migration 전에는 실제 복수 conversation 생성을 강제로 테스트하지 않는다.
+
+즉:
+
+- 신규 endpoint import 정상 여부만 확인
+- 실제 Production에서 두 번째 conversation 생성 금지
+- constraint error를 일부러 발생시키지 않는다
+
+==================================================
+5. 기존 데이터 보호
+==================================================
+
+Production DB mutation:
+NO
+
+새 conversation 생성:
+NO
+
+message 생성:
+NO
+
+migration:
+NO
+
+schema change:
+NO
+
+==================================================
+6. 완료 보고
+==================================================
+
+[WP-D PHASE 1 SMOKE REPORT]
+
+- repo:
+- branch:
+- deployed SHA:
+- Render deploy id:
+- live:
+- healthz:
+- auth smoke:
+- legacy history without conversation_id:
+- legacy search without conversation_id:
+- new conversation endpoint import/auth smoke:
+- new list endpoint import/auth smoke:
+- startup/import error:
+- Production DB mutation: NO
+- env changed: NO
+- final status:
+
+PHASE 1 PASS이면:
+PHASE 2 migration ready = YES
+
+보고 후 멈춘다.
+migration은 아직 실행하지 않는다.

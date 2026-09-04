@@ -1,0 +1,335 @@
+[SWIMNOTE — FINAL MOBILE RESPONSIVE LAYOUT FIX / iOS + Android]
+
+목표:
+아이폰 X/11 계열 포함 모든 주요 모바일 화면비율에서
+헤더 / 카드 / 버튼 / 하단탭 / 텍스트가 틀어지거나 잘리지 않도록
+전체 모바일 반응형 레이아웃을 최종 정리한다.
+
+첨부 실기기 문제:
+- 좁은 화면에서 상단 헤더 요소가 압축/잘림
+- 역할 전환 버튼 및 뱃지 영역이 과밀
+- 카드 너비/간격이 기기폭에 비해 고정적으로 보임
+- 하단 탭/콘텐츠 영역 높이 계산이 기기별로 다르게 보임
+- 긴 텍스트/수영장명에서 overflow 발생 가능
+
+중요:
+기능/색상/디자인 컨셉 변경 금지.
+레이아웃과 반응형만 수정.
+
+==================================================
+1. 원인 조사
+==================================================
+
+repository 전체 모바일 UI에서 아래 패턴 전수 확인:
+
+- 고정 width / height
+- fixed px margin/padding
+- position:absolute 남용
+- top/bottom 수동 offset
+- Dimensions.get('window') 고정 캐싱
+- header height hardcode
+- tab bar height hardcode
+- minWidth 때문에 overflow
+- flexShrink 누락
+- flexWrap 누락
+- text numberOfLines 미설정
+- SafeArea 미처리
+- notch / home indicator 미처리
+
+특히 우선 확인:
+
+- Admin Home
+- Teacher Home
+- Parent Home
+- 상단 공통 Header
+- role switch UI
+- pool switch UI
+- bottom tab
+- X dashboard cards
+- schedule / diary home
+- settings
+
+==================================================
+2. 기준 반응형 구조
+==================================================
+
+화면폭을 절대 px 기준으로 맞추지 말고
+부모 container 기반 flex layout으로 변경.
+
+권장:
+
+width: '100%'
+flex: 1
+flexDirection
+gap 또는 일관된 spacing
+flexShrink: 1
+minWidth: 0
+
+2열 카드:
+각 카드 width hardcode 금지.
+
+예:
+flex: 1
+동일 row에서 2개 분배
+gap만 고정
+
+필요한 화면만
+폭이 매우 좁을 경우 1열 fallback 허용.
+
+==================================================
+3. 화면폭 breakpoint
+==================================================
+
+useWindowDimensions() 기반으로
+최소 3단계 대응:
+
+SMALL:
+width < 360
+
+NORMAL:
+360 <= width < 430
+
+LARGE:
+width >= 430
+
+단, breakpoint는 layout 보정용으로만 사용.
+각 기기 모델명 hardcode 금지.
+
+==================================================
+4. Header 재정비
+==================================================
+
+현재 첨부 사진처럼
+수영장명 + X badge + role + switch + icon들이
+좁은 화면에서 몰리지 않게 정리.
+
+필수:
+
+- 왼쪽 title 영역 flexShrink: 1
+- 수영장명 numberOfLines={1}
+- ellipsizeMode="tail"
+- badge는 shrink되지 않도록
+- action icons는 고정 touch target 유지
+- role switch 버튼은 화면폭에 따라 label 축약 가능
+- overflow 금지
+
+Header 전체 높이는
+SafeArea inset 포함해서 계산.
+
+기기별 수동 top padding 금지.
+
+==================================================
+5. Safe Area
+==================================================
+
+iOS notch / Dynamic Island / home indicator
+Android status/navigation bar 모두 대응.
+
+react-native-safe-area-context 사용.
+
+필수 확인:
+
+top:
+SafeArea inset.top
+
+bottom:
+SafeArea inset.bottom
+
+콘텐츠가 bottom tab 뒤로 숨지 않게
+하단 padding 계산.
+
+==================================================
+6. Bottom Tab
+==================================================
+
+하단 탭 높이를 절대값 하나로 고정하지 말고
+safeArea bottom 포함.
+
+아이콘/라벨:
+- 잘림 0
+- home indicator 겹침 0
+- Android navigation bar 겹침 0
+
+각 탭:
+flex: 1
+동일 폭
+
+==================================================
+7. 카드 레이아웃
+==================================================
+
+X Dashboard 포함 모든 2열 카드:
+
+- 부모 row width 100%
+- 카드 flex:1
+- minWidth:0
+- 고정 width 제거
+- 내부 text flexShrink
+- 아이콘/숫자/설명 줄바꿈 제어
+
+좁은 화면에서도
+카드가 화면 밖으로 나가지 않아야 함.
+
+==================================================
+8. Typography
+==================================================
+
+폰트 자체 디자인은 변경 금지.
+
+하지만 좁은 화면에서만:
+
+- 제목 maxFontSizeMultiplier 확인
+- numberOfLines 설정
+- flexShrink
+- lineHeight 정상화
+
+긴 수영장명 / 사용자명 / role명이
+레이아웃을 밀어내지 않게 한다.
+
+==================================================
+9. Vertical Layout
+==================================================
+
+화면 높이가 짧은 기기에서도
+아래가 잘리지 않도록:
+
+ScrollView / FlatList 영역
+flex:1
+
+고정 height 카드 남용 제거.
+
+콘텐츠 높이는 내용 기반.
+
+==================================================
+10. 테스트 기기 matrix
+==================================================
+
+최소 아래 viewport 기준 검증:
+
+iOS:
+- 320 x 568
+- 375 x 812 (iPhone X/11 Pro 계열)
+- 390 x 844
+- 393 x 852
+- 430 x 932
+
+Android:
+- 360 x 640
+- 360 x 800
+- 384 x 854
+- 412 x 915
+
+font scale:
+- 1.0
+- 1.2
+
+orientation:
+세로만 대상.
+가로 지원은 이번 범위 제외.
+
+==================================================
+11. 필수 화면 회귀
+==================================================
+
+각 viewport에서 스크린샷/렌더 확인:
+
+ADMIN
+- Home
+- SWIMNOTE X Dashboard
+- 회원관리
+- 설정
+
+TEACHER
+- Home
+- 오늘수업
+- 일지
+- 메시지
+
+PARENT
+- Home
+- Feed
+- 알림
+- 설정
+
+필수 조건:
+- horizontal overflow 0
+- clipped text 0
+- tab overlap 0
+- header overlap 0
+- safe area violation 0
+
+==================================================
+12. 기능 비변경
+==================================================
+
+절대 수정 금지:
+
+- auth
+- multi-pool logic
+- membership
+- API
+- DB
+- Curriculum
+- AI Diary
+- Growth Report
+- notifications logic
+- payment
+- X entitlement
+
+UI layout only.
+
+==================================================
+13. 배포
+==================================================
+
+JS/TS 스타일 수정만이면:
+production OTA 진행.
+
+Native Build:
+NO
+
+Render:
+NO
+
+단 native config 수정이 생기면
+배포하지 말고 보고 후 STOP.
+
+==================================================
+14. 완료보고
+==================================================
+
+ROOT CAUSE
+- 고정값/overflow 원인
+
+FILES CHANGED
+- 화면별 파일
+
+RESPONSIVE FIX
+- header
+- cards
+- safe area
+- bottom tab
+- typography
+
+TEST MATRIX
+- 각 viewport PASS/FAIL
+
+REGRESSION
+- admin
+- teacher
+- parent
+
+OTA
+- update id
+- runtime
+
+NATIVE BUILD
+- NO
+
+RENDER
+- NO
+
+FINAL
+PASS / FAIL
+
+완료 후 STOP.

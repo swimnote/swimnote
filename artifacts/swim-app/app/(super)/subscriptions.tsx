@@ -1,21 +1,21 @@
+import Colors from "@/constants/colors";
+const C = Colors.light;
 /**
  * (super)/subscriptions.tsx — 구독·결제 관리
  * 실 API 기반: GET /super/pools-summary, GET /billing/revenue-logs
  */
-import { Clock, CreditCard, Eye, Lock, OctagonAlert, TriangleAlert, User } from "lucide-react-native";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator, FlatList, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 import { OtpGateModal } from "@/components/common/OtpGateModal";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import { billingEnabled } from "@/config/billing";
 
-const P = "#2EC4B6";
+const P = C.brandStrong;
 
 const TABS = [
   { key: "all",        label: "전체" },
@@ -41,11 +41,11 @@ const TIER_NAME: Record<string, string> = {
 };
 
 const SUB_STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  active:      { label: "구독 중",   color: "#2EC4B6", bg: "#E6FFFA" },
-  trial:       { label: "무료 체험", color: "#2EC4B6", bg: "#ECFEFF" },
+  active:      { label: "구독 중",   color: C.brandStrong, bg: C.brandSoft },
+  trial:       { label: "무료 체험", color: C.brandStrong, bg: "#ECFEFF" },
   expired:     { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
   suspended:   { label: "결제 실패", color: "#D96C6C", bg: "#F9DEDA" },
-  cancelled:   { label: "해지",      color: "#64748B", bg: "#FFFFFF" },
+  cancelled:   { label: "해지",      color: C.textSecondary, bg: "#FFFFFF" },
   readonly:    { label: "읽기전용",  color: "#0284C7", bg: "#E0F2FE" },
   deletion:    { label: "삭제 예정", color: "#D96C6C", bg: "#F9DEDA" },
 };
@@ -270,7 +270,7 @@ export default function SubscriptionsScreen() {
 
   const renderItem = ({ item }: { item: PoolRow }) => {
     const status = displayStatus(item);
-    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: "#64748B", bg: "#FFFFFF" };
+    const cfg = SUB_STATUS_CFG[status] ?? { label: status, color: C.textSecondary, bg: "#FFFFFF" };
     const failed = isFailed(item);
 
     return (
@@ -282,7 +282,7 @@ export default function SubscriptionsScreen() {
               <Text style={[s.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
             {refundIds.has(item.id) && (
-              <View style={[s.badge, { backgroundColor: "#E6FAF8" }]}>
+              <View style={[s.badge, { backgroundColor: C.brandSoft }]}>
                 <Text style={[s.badgeTxt, { color: "#9333EA" }]}>환불</Text>
               </View>
             )}
@@ -305,7 +305,7 @@ export default function SubscriptionsScreen() {
         </View>
         <View style={s.rowActions}>
           {failed && (
-            <Pressable style={[s.actionBtn, { backgroundColor: "#E6FFFA" }]}
+            <Pressable style={[s.actionBtn, { backgroundColor: C.brandSoft }]}
               onPress={() => triggerAction("retry", item)}>
               <Text style={[s.actionTxt, { color: P }]}>재시도</Text>
             </Pressable>
@@ -318,7 +318,7 @@ export default function SubscriptionsScreen() {
           )}
           <Pressable style={[s.actionBtn, { backgroundColor: "#E0F2FE" }]}
             onPress={() => router.push(`/(super)/operator-detail?id=${item.id}&backTo=subscriptions` as any)}>
-            <Eye size={13} color="#0284C7" />
+            <LucideIcon name="eye" size={13} color="#0284C7" />
           </Pressable>
         </View>
       </Pressable>
@@ -328,7 +328,7 @@ export default function SubscriptionsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe} edges={[]}>
-        <SubScreenHeader title="구독·결제 관리" homePath="/(super)/more" />
+        <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={P} />
         </View>
@@ -338,9 +338,9 @@ export default function SubscriptionsScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={[]}>
-      <SubScreenHeader title="구독·결제 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="구독·결제 관리" homePath="/(super)/dashboard" />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+      <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false}
         style={s.summaryBar} contentContainerStyle={s.summaryContent}>
         {TABS.map(t => {
           const isActive = tab === t.key;
@@ -355,23 +355,23 @@ export default function SubscriptionsScreen() {
             </Pressable>
           );
         })}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {tab === "failed" && (
         <View style={s.bannerRow}>
-          <TriangleAlert size={13} color="#D96C6C" />
+          <LucideIcon name="alert-triangle" size={13} color="#D96C6C" />
           <Text style={s.bannerTxt}>결제 실패 운영자는 자동으로 읽기전용 전환 후 30일 내 삭제됩니다</Text>
         </View>
       )}
       {tab === "deletion" && (
         <View style={[s.bannerRow, { backgroundColor: "#FFF1BF" }]}>
-          <Clock size={13} color="#D97706" />
+          <LucideIcon name="clock" size={13} color="#D97706" />
           <Text style={[s.bannerTxt, { color: "#92400E" }]}>자동삭제 예정 운영자입니다. 유예 버튼으로 48시간 연장 가능합니다</Text>
         </View>
       )}
       {tab === "chargeback" && (
         <View style={[s.bannerRow, { backgroundColor: "#F9DEDA" }]}>
-          <OctagonAlert size={13} color="#D96C6C" />
+          <LucideIcon name="alert-octagon" size={13} color="#D96C6C" />
           <Text style={[s.bannerTxt, { color: "#7F1D1D" }]}>차지백·분쟁 발생 운영자입니다. 운영자 상세에서 제한 조치를 권고합니다</Text>
         </View>
       )}
@@ -385,7 +385,7 @@ export default function SubscriptionsScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#FFFFFF" }} />}
         ListEmptyComponent={
           <View style={s.empty}>
-            <CreditCard size={30} color="#D1D5DB" />
+            <LucideIcon name="credit-card" size={30} color="#D1D5DB" />
             <Text style={s.emptyTxt}>{TABS.find(t => t.key === tab)?.label} 운영자가 없습니다</Text>
           </View>
         }
@@ -403,7 +403,7 @@ export default function SubscriptionsScreen() {
 
               <View style={m.section}>
                 <Text style={m.label}>구독 상태 변경</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <KeyboardAwareScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {SUB_STATUS_KEYS.map(k => {
                     const sc = SUB_STATUS_CFG[k];
                     return (
@@ -414,19 +414,19 @@ export default function SubscriptionsScreen() {
                       </Pressable>
                     );
                   })}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </View>
 
               <View style={m.section}>
                 <Text style={m.label}>크레딧 지급 (원)</Text>
                 <TextInput style={m.input} value={newCredit} onChangeText={setNewCredit}
-                  keyboardType="numeric" placeholder="0" placeholderTextColor="#64748B" />
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={C.textMuted} />
               </View>
 
               <View style={m.linkRow}>
                 <Pressable style={m.linkBtn}
                   onPress={() => { setEditOp(null); router.push(`/(super)/operator-detail?id=${editOp.id}&backTo=subscriptions` as any); }}>
-                  <User size={14} color={P} />
+                  <LucideIcon name="user" size={14} color={P} />
                   <Text style={m.linkTxt}>운영자 상세 전체 보기</Text>
                 </Pressable>
               </View>
@@ -439,7 +439,7 @@ export default function SubscriptionsScreen() {
                   onPress={() => triggerAction("save", editOp)} disabled={saving}>
                   {saving
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <><Lock size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
+                    : <><LucideIcon name="lock" size={13} color="#fff" /><Text style={m.saveTxt}>OTP 인증 후 저장</Text></>}
                 </Pressable>
               </View>
             </Pressable>
@@ -461,50 +461,50 @@ export default function SubscriptionsScreen() {
 
 const s = StyleSheet.create({
   safe:             { flex: 1, backgroundColor: "#F0FDFE" },
-  summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E5E7EB", flexGrow: 0 },
+  summaryBar:       { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
   summaryContent:   { paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: "row" },
   summaryChip:      { alignItems: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: "#FFFFFF", position: "relative" },
   summaryChipActive:{ backgroundColor: P },
   alertDot:         { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#D96C6C" },
-  summaryNum:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 1 },
+  summaryNum:       { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  summaryLabel:     { fontSize: 9, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 1 },
   bannerRow:        { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F9DEDA", paddingHorizontal: 14, paddingVertical: 9 },
   bannerTxt:        { flex: 1, fontSize: 11, fontFamily: "Pretendard-Regular", color: "#7F1D1D", lineHeight: 16 },
   row:              { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#fff" },
   rowAlert:         { borderLeftWidth: 3, borderLeftColor: "#D96C6C" },
   rowMain:          { flex: 1, gap: 3 },
   rowTop:           { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  opName:           { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  opName:           { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   badge:            { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   badgeTxt:         { fontSize: 10, fontFamily: "Pretendard-Regular" },
   rowMeta:          { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  metaTxt:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  metaTxt:          { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   metaDot:          { fontSize: 10, color: "#D1D5DB" },
   deletionWarn:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   rowActions:       { flexDirection: "row", gap: 6 },
   actionBtn:        { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, minWidth: 36, alignItems: "center" },
   actionTxt:        { fontSize: 11, fontFamily: "Pretendard-Regular" },
   empty:            { alignItems: "center", paddingTop: 80, gap: 10 },
-  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  emptyTxt:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 });
 
 const m = StyleSheet.create({
   backdrop:  { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
   sheet:     { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40, maxHeight: "85%", gap: 12 },
   handle:    { width: 36, height: 4, borderRadius: 2, backgroundColor: "#D1D5DB", alignSelf: "center", marginBottom: 4 },
-  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: -6 },
+  title:     { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  sub:       { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: -6 },
   section:   { gap: 6 },
-  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB" },
-  chipTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  input:     { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  label:     { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  chip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: C.border },
+  chipTxt:   { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  input:     { borderWidth: 1.5, borderColor: C.border, borderRadius: 10, padding: 12, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   linkRow:   { flexDirection: "row" },
   linkBtn:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#E0F2FE", borderRadius: 10, padding: 12, flex: 1 },
   linkTxt:   { fontSize: 13, fontFamily: "Pretendard-Regular", color: P },
   btnRow:    { flexDirection: "row", gap: 10, justifyContent: "flex-end" },
   cancelBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: "#FFFFFF" },
-  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  cancelTxt: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   saveBtn:   { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: P },
   saveTxt:   { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#fff" },
 });

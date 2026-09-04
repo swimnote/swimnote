@@ -1,0 +1,129 @@
+[SWIMNOTE AI ENGINE]
+[PARENT CURRICULUM SEARCH — WP1.1]
+[CONTRACT COMPATIBILITY PATCH ONLY]
+
+APP WP2 실제 DB 조사 결과
+ENGINE WP1 Request Contract와
+APP 실제 schema 사이에 1개 호환성 문제가 확인됐다.
+
+이번 작업은 Parent Curriculum Search Contract의
+level 필드 optional 처리만 한다.
+
+Production deploy 금지.
+다른 기능 수정 금지.
+
+==================================================
+1. CANONICAL DECISION
+==================================================
+
+curriculum_items[].level은
+필수 정보가 아니다.
+
+실제 APP DB:
+
+NORMAL curriculum_items:
+- id
+- title
+- description
+- sort_order
+- is_active
+
+level 컬럼 없음.
+
+X diary_templates:
+- id
+- template_text
+- category
+- level_name nullable
+- sort_order
+
+따라서 ENGINE Contract:
+
+level?: string | null
+
+로 수정한다.
+
+금지:
+
+- curriculum_version.version_name을 level로 위장
+- sort_order를 level로 사용
+- category를 level로 복제
+- 임의 문자열 생성
+
+==================================================
+2. NORMAL CONTRACT
+==================================================
+
+NORMAL item 예:
+
+{
+  "id": "...",
+  "title": "...",
+  "content": "...",
+  "order": 10
+}
+
+level 생략 허용.
+
+==================================================
+3. X CONTRACT
+==================================================
+
+X item 예:
+
+{
+  "id": "...",
+  "title": "<diary_templates.category>",
+  "content": "<diary_templates.template_text>",
+  "level": "<level_name 또는 null/생략>",
+  "order": "<sort_order>"
+}
+
+==================================================
+4. PIPELINE BEHAVIOR
+==================================================
+
+QuestionClassifier
+ScopeGate
+SearchPipeline
+PromptBuilder
+Grounding Validator
+
+모두 level 부재를 정상 입력으로 처리해야 한다.
+
+level이 없다고:
+- scope invalid 처리 금지
+- curriculum 제외 금지
+- GPT가 level 추측 금지
+
+==================================================
+5. TEST
+==================================================
+
+추가/수정 테스트:
+
+A. NORMAL item에 level 없음 → 정상
+B. X item level_name 있음 → 정상
+C. X item level_name null → 정상
+D. level 부재 상태에서도 grounding PASS
+E. 기존 WP1 27개 regression 전부 PASS
+F. Growth Report WP12/WP13 regression 영향 없음
+
+==================================================
+6. REPORT
+==================================================
+
+다음만 보고:
+
+1. CONTRACT CHANGE
+2. FILES CHANGED
+3. LEVEL REQUIRED BEFORE? YES/NO
+4. LEVEL REQUIRED AFTER? YES/NO
+5. TEST RESULT
+6. EXISTING REGRESSION
+7. COMMIT SHA
+8. PRODUCTION DEPLOY STATUS
+
+성공:
+
+PARENT_CURRICULUM_ENGINE_WP1_1_COMPLETE ✅

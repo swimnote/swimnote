@@ -134,15 +134,31 @@ router.post(
         RETURNING *
       `);
 
-      // 특정 유저 멘션(@) 메시지 → 해당 유저에게 푸시
-      if (target_user_id && target_user_id !== userId) {
-        sendPushToUser(
-          target_user_id, false, "messenger",
-          `💬 ${senderName}님의 메시지`,
-          content.trim().slice(0, 100),
-          { type: "messenger", poolId: pool_id },
-          `msg_${pool_id}`
-        ).catch(() => {});
+      const PUSH_TITLE = "SWIMNOTE 메신저";
+      const PUSH_BODY = "새 메시지가 도착했습니다.";
+      const pushData = { type: "messenger", poolId: pool_id };
+
+      if (msgType === "directed_message") {
+        // @멘션: 지정 유저에게만 push (기존 동작 유지, pool-wide push 없음)
+        if (target_user_id && target_user_id !== userId) {
+          sendPushToUser(
+            target_user_id, false, "messenger",
+            PUSH_TITLE,
+            PUSH_BODY,
+            pushData,
+            `msg_${pool_id}`,
+            { subtitle: "SwimNote", channelId: "messenger", priority: "high" }
+          ).catch(() => {});
+        }
+      } else {
+        // 일반 talk 메시지: 상대 역할 전체에게 push (발신자는 다른 role이므로 자동 제외)
+        if (role === "pool_admin") {
+          // 관리자 발신 → 해당 pool의 teacher들에게 push
+          sendPushToPoolTeachers(pool_id, "messenger", PUSH_TITLE, PUSH_BODY, pushData, `msg_${pool_id}`).catch(() => {});
+        } else if (role === "teacher") {
+          // 선생님 발신 → 해당 pool의 pool_admin에게 push
+          sendPushToPoolAdmins(pool_id, "messenger", PUSH_TITLE, PUSH_BODY, pushData, `msg_${pool_id}`).catch(() => {});
+        }
       }
 
       return res.status(201).json({ success: true, message: rows.rows[0] });
@@ -195,7 +211,7 @@ router.post(
   upload.single("photo"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { pool_id, content } = req.body;
+      const { pool_id, content, batch_id } = req.body;
       const { userId, role } = req.user!;
       const file = req.file;
 
@@ -219,13 +235,14 @@ router.post(
 
       const msgId = `wmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const photoApiUrl = `/api/messenger/photo/${msgId}`;
+      const extraData = batch_id ? JSON.stringify({ batch_id }) : null;
 
       const rows = await db.execute(sql`
         INSERT INTO work_messages
-          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, photo_url, photo_key)
+          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, photo_url, photo_key, extra_data)
         VALUES
           (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'photo', 'talk', 'normal',
-           ${content?.trim() || null}, ${photoApiUrl}, ${key})
+           ${content?.trim() || null}, ${photoApiUrl}, ${key}, ${extraData ? sql`${extraData}::jsonb` : sql`NULL`})
         RETURNING *
       `);
 
@@ -583,8 +600,9 @@ router.post(
       const { ok, error: uploadErr } = await client.uploadFromBytes(key, file.buffer, {} as any);
       if (!ok) throw new Error(uploadErr?.message || "파일 업로드 실패");
 
-      const domain = process.env.REPLIT_DEV_DOMAIN || "localhost";
-      const fileApiUrl = `https://${domain}/api/messenger/attachment/${key}`;
+      // pre-generate ID so download URL can reference it
+      const msgId = `wmsg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+      const fileApiUrl = `/api/messenger/attachment-file/${msgId}`;
 
       const extraData = JSON.stringify({
         attachment_key: key,
@@ -597,9 +615,9 @@ router.post(
       const content = `[파일] ${file.originalname}`;
       const rows = await db.execute(sql`
         INSERT INTO work_messages
-          (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
+          (id, pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content, extra_data)
         VALUES
-          (${pool_id}, ${userId}, ${senderName}, ${role}, 'file', 'talk', 'attachment_file', ${content}, ${extraData}::jsonb)
+          (${msgId}, ${pool_id}, ${userId}, ${senderName}, ${role}, 'file', 'talk', 'attachment_file', ${content}, ${extraData}::jsonb)
         RETURNING *
       `);
 
@@ -638,6 +656,78 @@ router.get(
       return void res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
     } catch (e: any) {
       console.error("[messenger/photo GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 14. 첨부 파일 다운로드 (인증 프록시) ─────────────────────────────
+// GET /messenger/attachment-file/:msgId
+router.get(
+  "/messenger/attachment-file/:msgId",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { msgId } = req.params;
+      const { userId, role } = req.user!;
+
+      const rows = await db.execute(sql`
+        SELECT pool_id, extra_data FROM work_messages
+        WHERE id = ${msgId} AND message_type = 'attachment_file'
+        LIMIT 1
+      `);
+      const msg = rows.rows[0] as any;
+      if (!msg) return err(res, 404, "파일을 찾을 수 없습니다.");
+      if (!(await checkPoolAccess(userId!, role, msg.pool_id))) return err(res, 403, "권한이 없습니다.");
+
+      const extra = typeof msg.extra_data === "string" ? JSON.parse(msg.extra_data) : msg.extra_data;
+      const key: string = extra?.attachment_key;
+      if (!key) return err(res, 404, "파일 키가 없습니다.");
+
+      const client = getClient();
+      const { ok, value: bytes, error } = await client.downloadAsBytes(key);
+      if (!ok || !bytes) return err(res, 404, "파일을 찾을 수 없습니다.");
+
+      const mime = extra.attachment_mime || "application/octet-stream";
+      const filename = encodeURIComponent(extra.attachment_name || "file");
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${filename}`);
+      res.setHeader("Cache-Control", "private, max-age=3600");
+      const buf = Array.isArray(bytes) ? bytes[0] : bytes;
+      return void res.send(Buffer.isBuffer(buf) ? buf : Buffer.from(buf as any));
+    } catch (e: any) {
+      console.error("[messenger/attachment-file GET]", e);
+      return err(res, 500, e.message || "서버 오류");
+    }
+  }
+);
+
+// ─── 11. 내 메시지 삭제 ───────────────────────────────────────────────
+// DELETE /messenger/messages/:id — 본인 메시지만 삭제 가능
+// 보안: DB에서 sender_id = userId 조건 재검증 (클라이언트 단 버튼 숨김만으론 불충분)
+router.delete(
+  "/messenger/messages/:id",
+  requireAuth,
+  requireRole("pool_admin", "teacher", "super_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { userId } = req.user!;
+
+      const rows = await db.execute(sql`
+        SELECT id, sender_id FROM work_messages WHERE id = ${Number(id)} LIMIT 1
+      `);
+      const msg = rows.rows[0] as any;
+
+      if (!msg) return err(res, 404, "메시지를 찾을 수 없습니다.");
+      if (msg.sender_id !== userId) return err(res, 403, "본인이 보낸 메시지만 삭제할 수 있습니다.");
+
+      await db.execute(sql`
+        DELETE FROM work_messages WHERE id = ${Number(id)} AND sender_id = ${userId}
+      `);
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error("[messenger/messages DELETE]", e);
       return err(res, 500, e.message || "서버 오류");
     }
   }

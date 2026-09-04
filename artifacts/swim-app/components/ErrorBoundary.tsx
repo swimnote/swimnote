@@ -33,6 +33,21 @@ export class ErrorBoundary extends Component<
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }
+    // 서버로 크래시 리포트 전송
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (apiUrl) {
+      fetch(`${apiUrl}/crash-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          isFatal: false,
+          message: error?.message ?? "(no msg)",
+          stack: ((error?.stack ?? "") + "\n\nComponent Stack:\n" + info.componentStack).substring(0, 3000),
+          source: "error_boundary",
+        }),
+      }).catch(() => {});
+    }
   }
 
   resetError = (): void => {

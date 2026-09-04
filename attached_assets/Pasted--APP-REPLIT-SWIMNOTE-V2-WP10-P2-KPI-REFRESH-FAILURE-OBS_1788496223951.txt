@@ -1,0 +1,319 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP10-P2 — KPI REFRESH FAILURE OBSERVABILITY
+# FINAL MICRO FIX BEFORE WP11
+# SERVER ONLY
+
+============================================================
+절대 작업 기준
+============================================================
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+CURRENT V2:
+release/v2.0.0 최신 HEAD
+
+Latest WP10-P1 commit:
+9a92618b
+
+반드시 current latest V2 HEAD에서 작업.
+
+9a92618b ancestor:
+MUST BE YES
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign KPI path
+- change advisory lock design
+- add migration
+
+APP:
+NO CHANGE
+
+DB:
+NO CHANGE
+
+AI ENGINE:
+NO CHANGE
+
+Render:
+NO
+사용자 수동 배포.
+
+============================================================
+현재 상태
+============================================================
+
+WP10-P1에서 다음은 이미 PASS:
+
+- curriculum students 500 fix
+- cg.teacher_user_id 사용
+- pool isolation
+- monthly snapshot recount
+- raw event_logs source
+- pg_advisory_xact_lock
+- pool/month concurrency serialization
+- snapshot UPSERT overwrite
+- KST month boundary
+- super-admin future aggregate path
+
+이 구조는 변경하지 않는다.
+
+남은 문제 딱 1개:
+
+현재 fire-and-forget KPI refresh가
+
+void refresh...().catch(() => {})
+
+형태로 실패를 완전히 삼키고 있음.
+
+이것만 수정.
+
+============================================================
+1. EMPTY CATCH 제거
+============================================================
+
+금지:
+
+.catch(() => {})
+
+KPI refresh 실패 시
+parent curriculum search 자체는 성공 유지하되
+서버 로그에는 반드시 실패 정보를 남길 것.
+
+============================================================
+2. 로그 필수 정보
+============================================================
+
+로그에 최소 포함:
+
+- feature:
+  parent_curriculum_search_snapshot_refresh
+
+- swimming_pool_id
+
+- year
+
+- month
+
+- error message
+
+- stack 가능 시 stack
+
+민감정보:
+
+- parent name
+- phone
+- prompt content
+- curriculum response content
+
+로그 금지.
+
+============================================================
+3. 기존 logger 우선 사용
+============================================================
+
+현재 프로젝트에 structured logger가 있으면
+그것을 재사용.
+
+없으면 현재 server logging convention 사용.
+
+새 logging framework 만들지 말 것.
+
+============================================================
+4. business failure isolation 유지
+============================================================
+
+중요:
+
+KPI refresh 실패 때문에
+학부모 curriculum search API를
+500으로 만들면 안 됨.
+
+흐름:
+
+search success
+→ response success
+
+KPI refresh failure
+→ log error
+→ response에는 영향 없음
+
+유지.
+
+============================================================
+5. snapshot stale recovery
+============================================================
+
+이번 WP에서 retry queue 새로 만들지 말 것.
+
+월 snapshot은 raw source recount 기반이라
+다음 정상 recount 때 복구 가능.
+
+즉 이번 작업은
+observability만 추가.
+
+============================================================
+6. duplicate event 의미 명확화
+============================================================
+
+완료보고에서 다음 문구 수정.
+
+이전:
+"Recount auto-fixes raw duplicates = YES"
+
+이 표현은 부정확함.
+
+정확한 정의:
+
+- recount는 raw event_logs의 현재 실제 row 수를 정확히 반영함
+- raw event 자체가 논리적으로 중복 생성됐다면 그 row도 count됨
+- COMPLETED request는 request_id 캐시로 재기록 방지
+- FAILED retry는 새 실제 AI/search attempt로 집계될 수 있음
+
+따라서:
+
+RAW CONSISTENCY:
+YES
+
+LOGICAL DEDUPE:
+COMPLETED YES / FAILED RETRY NOT GUARANTEED
+
+로 보고.
+
+이번에 dedupe migration 추가 금지.
+
+============================================================
+7. 테스트
+============================================================
+
+A.
+정상 KPI refresh
+→ snapshot 정상
+
+B.
+의도적 refresh failure
+→ curriculum search response 정상
+
+C.
+의도적 refresh failure
+→ server error log 존재
+
+D.
+로그에 pool/year/month 존재
+
+E.
+민감정보 로그 없음
+
+F.
+unhandled rejection 없음
+
+============================================================
+8. SERVER
+============================================================
+
+current latest V2
+→ 최소 수정
+→ test
+→ commit
+→ push
+
+Render production:
+NO
+
+============================================================
+9. OTA
+============================================================
+
+APP:
+NO CHANGE
+
+iOS OTA:
+NOT REQUIRED
+
+Android OTA:
+NOT PUBLISHED
+
+============================================================
+완료보고
+============================================================
+
+# WP10-P2 OBSERVABILITY REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+9a92618b ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+Files Changed:
+...
+
+Empty catch removed:
+YES / NO
+
+Structured failure log:
+YES / NO
+
+Log fields:
+- pool:
+- year:
+- month:
+- error:
+
+Sensitive data logged:
+NO / YES
+
+Parent search fails when KPI refresh fails:
+NO / YES
+
+Unhandled rejection:
+NO / YES
+
+RAW CONSISTENCY:
+PASS / FAIL
+
+LOGICAL DEDUPE:
+COMPLETED:
+PASS / FAIL
+
+FAILED RETRY:
+GUARANTEED / NOT GUARANTEED
+
+APP modified:
+NO
+
+DB migration:
+NO
+
+AI ENGINE:
+NO
+
+Render:
+NO
+
+iOS OTA:
+NOT REQUIRED
+
+Android OTA:
+NOT PUBLISHED
+
+FINAL:
+WP10 FULLY CLOSED / BLOCKED

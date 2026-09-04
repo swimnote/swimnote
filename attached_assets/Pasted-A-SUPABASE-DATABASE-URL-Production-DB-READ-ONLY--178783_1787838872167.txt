@@ -1,0 +1,296 @@
+A 방식으로 진행 승인합니다.
+
+단, SUPABASE_DATABASE_URL의 실제 값은 출력/로그/응답에 절대 노출하지 마십시오.
+
+Production DB는 READ ONLY 조사 목적으로만 사용합니다.
+
+금지:
+- INSERT
+- UPDATE
+- DELETE
+- ALTER
+- DROP
+- CREATE
+- TRUNCATE
+- migration
+- function 실행
+- trigger 실행
+- secret 출력
+- connection string 출력
+
+가능하면 transaction을 READ ONLY로 설정하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+중요: 기존 제안 SQL을 그대로 실행하지 마십시오.
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 제안에 실제 SWIMNOTE schema와 맞지 않는 항목이 있습니다.
+
+확인된 사항:
+
+- class_schedules 테이블 없음
+- students.current_class_id 기준 사용 금지
+- media_files 사용 금지
+- 실제 class/enrollment:
+  student_class_history
+  class_groups
+
+- 실제 media:
+  photo_assets_meta
+  video_assets_meta
+
+- AI 원가:
+  event_logs.metadata.estimated_cost_usd가 실제 production에서 사용됨
+  ai_traces가 실제 존재하는지는 먼저 확인 필요
+
+따라서 먼저 READ ONLY schema introspection을 수행하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. SCHEMA CONFIRM
+━━━━━━━━━━━━━━━━━━━━━━
+
+information_schema / pg_catalog SELECT만 사용하여
+아래 실제 존재 여부와 컬럼을 확인하십시오.
+
+- subscription_plans
+- event_logs
+- ai_traces
+- students
+- student_class_history
+- class_groups
+- class_diaries
+- photo_assets_meta
+- video_assets_meta
+- growth_reports
+- student_curriculum_assignments
+
+보고 후 바로 이어서
+실제 존재하는 schema 기준으로만 cost query 실행.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. BASE PLAN
+━━━━━━━━━━━━━━━━━━━━━━
+
+subscription_plans에서 실제 컬럼 확인 후:
+
+300명 플랜
+500명 플랜
+
+각각:
+
+- member_limit
+- price
+- storage quota
+- active 여부
+
+조회.
+
+컬럼명은 실제 schema 기준.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. AI TELEMETRY
+━━━━━━━━━━━━━━━━━━━━━━
+
+ai_traces가 실제 존재하고
+토큰/원가가 실제 기록된다면 사용.
+
+없으면 event_logs 사용.
+
+event_logs에서는 실제 확인된:
+
+- category
+- feature / metadata.feature
+- model
+- token usage
+- estimated_cost_usd
+- created_at
+- pool_id
+
+컬럼/metadata key를 먼저 조사.
+
+Teacher Diary
+Parent Curriculum Search
+Growth Report
+Support
+
+기능별 최근 60~90일:
+
+- count
+- avg
+- p50
+- p90
+- total cost
+
+가능한 항목만 계산.
+
+없는 token field를 임의 생성하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. CLASS / DIARY VOLUME
+━━━━━━━━━━━━━━━━━━━━━━
+
+class_schedules 사용 금지.
+
+실제:
+
+student_class_history
+WHERE left_at IS NULL
+
++
+class_groups
+
+를 사용.
+
+확인:
+
+- 현재 재원 학생 수
+- 반 수
+- 반당 DISTINCT 학생 수 평균/P50/P90
+- class_groups.schedule_days 기준 주 수업일 수
+- 실제 class_diaries 최근 60~90일 생성량
+
+가장 중요한 것은
+예상 호출량을 schedule만으로 추정하지 말고
+
+실제 class_diaries:
+- pool별
+- 월별
+- 반별
+
+생성량도 함께 측정할 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. MEDIA
+━━━━━━━━━━━━━━━━━━━━━━
+
+media_files 사용 금지.
+
+photo_assets_meta:
+- count
+- AVG(file_size)
+- P50
+- P90
+- 최근 90일 신규 bytes
+
+video_assets_meta:
+동일.
+
+가능하면 pool별 분포도 계산:
+
+P50 pool
+P90 pool
+
+300명/500명 수영장 원가 모델에 활용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. GROWTH REPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+growth_reports에서 최근 실제 생성량 확인.
+
+가능하면 event_logs/engine telemetry와 연결해:
+
+- report count
+- AI cost
+- 평균 cost/report
+- P90 cost/report
+
+PREANALYSIS + FINAL_ANALYSIS가
+별도 로그로 존재한다면 합산.
+
+외부 engine 비용을 DB에서 확인할 수 없으면
+OPAQUE / MISSING으로 표시.
+
+임의 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. CURRICULUM SEARCH
+━━━━━━━━━━━━━━━━━━━━━━
+
+실제 production 기준:
+
+event_logs
+category='AI'
+metadata.feature='parent_curriculum_search'
+
+사용.
+
+최근 90일:
+
+- total search
+- unique parent/student
+- estimated_cost_usd
+- avg cost
+- P90 cost
+
+GROUNDED_GPT / DIRECT_DB 구분 필드가
+실제로 존재할 경우에만 비율 계산.
+
+없으면 추정 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. SUPPORT
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 AI 고객센터 실제 telemetry source 확인.
+
+support-chat가 실제 GPT를 호출하고
+event_logs 또는 ai_traces가 있다면 측정.
+
+아직 production usage가 거의 없으면:
+
+MEASURED sample 부족
+
+으로 표시하고
+PROJECTED 모델로 분리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+절대 출력 금지:
+
+- DATABASE URL
+- DB password
+- JWT
+- API key
+- 학생 이름
+- 학부모 개인정보
+- 원문 diary
+- support 대화내용
+
+집계값만 보고.
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 완료보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+[SCHEMA CONFIRMED]
+
+[BASE PLAN PRICE]
+
+[AI TELEMETRY SOURCE]
+
+[TEACHER DIARY MEASURED]
+
+[GROWTH REPORT MEASURED]
+
+[CURRICULUM SEARCH MEASURED]
+
+[SUPPORT MEASURED]
+
+[CLASS / DIARY VOLUME]
+
+[PHOTO / VIDEO STORAGE]
+
+[MISSING / OPAQUE]
+
+[DATA CONFIDENCE]
+MEASURED
+CALCULATED
+PROJECTED
+
+그 다음 원래 요청한
+300명 / 500명 월간 원가 계산으로 이어서 진행.
+
+Production DB write는 절대 금지.

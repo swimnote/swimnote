@@ -20,7 +20,7 @@ interface Banner {
 }
 
 const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = {
-  teal:   { bg: "#E6FAF8", accent: "#2EC4B6", text: "#065F46" },
+  teal:   { bg: "#EEF9FB", accent: "#1683A3", text: "#163842" },
   purple: { bg: "#EDE9FE", accent: "#7C3AED", text: "#4C1D95" },
   orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412" },
   blue:   { bg: "#DBEAFE", accent: "#2563EB", text: "#1E40AF" },
@@ -29,7 +29,7 @@ const THEME_MAP: Record<string, { bg: string; accent: string; text: string }> = 
   pink:   { bg: "#FCE7F3", accent: "#DB2777", text: "#831843" },
 };
 
-const DEFAULT = { bg: "#E6FAF8", accent: "#2EC4B6", text: "#065F46" };
+const DEFAULT = { bg: "#FFFFFF", accent: "#1B3A70", text: "#1B3A70" };
 
 const FALLBACK = {
   title: "스윔노트 — 우리 아이 수영 성장을 기록해보세요",
@@ -82,14 +82,9 @@ export function ParentPromoStrip() {
         if (src.link_url) Linking.openURL(src.link_url).catch(() => {});
       }}
     >
-      <View style={[s.iconWrap, { backgroundColor: th.accent + "22" }]}>
-        <LucideIcon name="megaphone" size={14} color={th.accent} />
-      </View>
-      <Text style={[s.txt, { color: th.text }]} numberOfLines={1}>{src.title}</Text>
-      {src.link_url ? (
+      <Text style={[s.txt, { color: th.text }]} numberOfLines={2}>{src.title}</Text>
+      {!!src.link_url && (
         <LucideIcon name="chevron-right" size={14} color={th.accent} />
-      ) : (
-        <View style={{ width: 14 }} />
       )}
     </Pressable>
   );
@@ -98,28 +93,28 @@ export function ParentPromoStrip() {
 const s = StyleSheet.create({
   strip: {
     marginHorizontal: 20,
-    borderRadius: 10,
-    height: 42,
+    borderRadius: 12,
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    gap: 8,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
   },
   stripImg: {
     marginHorizontal: 20,
-    borderRadius: 10,
-    height: 42,
+    borderRadius: 12,
+    height: 80,
     overflow: "hidden",
   },
-  imgFull: { width: "100%", height: 42 },
-  iconWrap: {
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: "center", justifyContent: "center",
-  },
+  imgFull: { width: "100%", height: 80 },
   txt: {
-    flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Pretendard-SemiBold",
-    lineHeight: 16,
+    lineHeight: 18,
+    textAlign: "center",
   },
 });

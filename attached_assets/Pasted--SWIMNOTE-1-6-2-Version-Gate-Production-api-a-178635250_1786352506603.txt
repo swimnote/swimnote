@@ -1,0 +1,160 @@
+[승인 — SWIMNOTE 1.6.2 업데이트 버전 서버 수정]
+
+원인 확정 완료.
+
+앱의 Version Gate 로직은 정상이며,
+문제는 Production /api/app-version 서버 값이 구버전인 것입니다.
+
+이번 작업은 서버 버전 상수만 수정합니다.
+
+중요:
+App Store 1.6.2가 아직 실제 공개 전이므로
+지금은 강제 차단하지 않습니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 1단계 — 지금 즉시 적용
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/routes/app-version.ts
+
+iOS:
+
+IOS_LATEST_VERSION:
+1.6.1 또는 기존값
+→ 1.6.2
+
+IOS_MIN_VERSION:
+1.3.12 유지
+
+Android:
+
+Android 1.6.2가 Google Play에서 아직 공개되지 않았다면
+AOS_LATEST_VERSION / AOS_MIN_VERSION은 현재 상태 유지.
+
+플랫폼별 실제 Store 공개 상태를 기준으로 처리.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. iOS 현재 목표 응답
+━━━━━━━━━━━━━━━━━━━━━━
+
+GET /api/app-version
+
+iOS:
+
+{
+  "min_version": "1.3.12",
+  "latest_version": "1.6.2"
+}
+
+결과:
+
+1.6.1 사용자
+→ 업데이트 가능 Alert 표시
+→ 취소 가능
+→ 기존 앱 계속 사용 가능
+
+1.6.2 사용자
+→ Alert 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. 지금 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+아직:
+
+IOS_MIN_VERSION = "1.6.2"
+
+로 변경하지 말 것.
+
+App Store에서 실제 1.6.2 다운로드가 가능해지기 전에
+강제 업데이트를 걸면 안 됩니다.
+
+또한 변경 금지:
+
+- 앱 코드
+- OTA
+- Native Build
+- DB
+- Story 기능
+- Teacher Diary
+- app.json
+- eas.json
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. Render 배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+app-version.ts 최소 수정만 commit/push.
+
+Render 자동 배포.
+
+배포 후 반드시 확인:
+
+GET /api/app-version
+
+iOS latest_version = 1.6.2
+iOS min_version = 1.3.12
+
+HTTP 200
+
+기존 health도 HTTP 200.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 실기기 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+Production 1.6.1 앱 완전 종료 → 재실행.
+
+확인:
+
+- 업데이트 Alert 표시
+- 취소 가능
+- App Store 버튼 정상 이동
+- 앱 계속 사용 가능
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 2단계 — App Store 공개 후
+━━━━━━━━━━━━━━━━━━━━━━
+
+App Store에서 SWIMNOTE 1.6.2가
+실제로 다운로드 가능한 상태가 된 것을 확인한 뒤에만:
+
+IOS_MIN_VERSION:
+1.3.12
+→ 1.6.2
+
+IOS_LATEST_VERSION:
+1.6.2 유지
+
+그때부터:
+
+1.6.1 이하
+→ cancelable:false
+→ 강제 업데이트
+→ 구버전 사용 차단
+
+이 2단계 수정은 별도 승인 전 진행하지 말 것.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. 변경 전/후 값
+3. commit SHA
+4. Render Deploy ID
+5. Render Live SHA
+6. /api/health 결과
+7. /api/app-version 실제 응답
+8. iOS latest_version
+9. iOS min_version
+10. Android 값 변경 여부
+11. App 변경 0
+12. OTA 0
+13. Native Build 0
+14. DB 0
+
+1단계 배포 완료 후 멈춘다.
+강제 업데이트(min_version=1.6.2)는 별도 승인 전 금지.

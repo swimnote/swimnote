@@ -1,0 +1,939 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0
+# MEMBER ENTRY / DUPLICATE ACTION FINAL CLEANUP
+# PRODUCTIZATION CLEANUP ONLY
+# AFTER STUDENT DETAIL HUB COMPLETE
+# BEFORE PRICING / SUBSCRIPTION FINAL
+
+현재 상태:
+
+STUDENT DETAIL SINGLE MANAGEMENT HUB:
+FULLY COMPLETE
+
+Student-scoped Attendance:
+PASS
+
+Student-scoped Diary:
+PASS
+
+Student-scoped Media:
+PASS
+
+Weekly Count:
+PASS
+
+Class / Schedule Move:
+PASS
+
+Status:
+PASS
+
+Level:
+PASS
+
+Guardian:
+PASS
+
+Latest HEAD:
+17d69e40
+
+이번 작업은 새로운 회원관리 기능 개발이 아닙니다.
+
+목표:
+
+앱 곳곳에 남아 있는
+
+- 회원정보보기
+- 회원상태변경
+- 별도 기본정보 수정
+- 별도 레벨변경
+- 별도 연락처 수정
+- 의미 불명확한 > 버튼
+- 학생 선택 후 다시 무엇을 할지 고르는 중간 Modal/ActionSheet
+
+등의 중복 진입을 제거하고,
+
+학생/회원 이름을 누르면:
+
+→ Student Detail / Member Detail
+
+로 직접 들어가도록 최종 정리하는 것입니다.
+
+Student Detail 자체 기능은 이미 완료되었으므로
+이번 WP에서 다시 재설계하지 마십시오.
+
+==================================================
+0. PRODUCTIZATION RULE
+==================================================
+
+이번 단계 이후 회원관리 UX는 다음으로 고정:
+
+"학생을 찾는다"
+→
+"학생 이름/정보 영역을 누른다"
+→
+"Student Detail"
+→
+"학생 관련 조회/변경은 여기서 처리"
+
+다른 화면에서는
+현재 업무에 필요한 quick action만 유지.
+
+==================================================
+1. STUDENT DETAIL 수정 금지
+==================================================
+
+이번 작업에서 다음 구조 변경 금지:
+
+Section A
+Section B
+Section C
+Section D
+Section E
+Section F
+
+Weekly Count
+Class Move
+Status
+Level
+Guardian
+Attendance
+Diary
+Media
+
+Student Detail 내부는
+버그가 발견되지 않는 한 수정하지 마십시오.
+
+==================================================
+2. 전체 MEMBER / STUDENT ENTRY 전수검색
+==================================================
+
+Admin / Teacher에서
+학생 또는 회원 이름이 표시되는 화면 전수검색.
+
+특히:
+
+ADMIN:
+
+- members
+- people
+- class management
+- attendance
+- makeups
+- withdrawn members
+- search
+- dashboard member widgets
+- 기타 student/member list
+
+TEACHER:
+
+- students
+- my-schedule
+- attendance
+- makeups
+- today schedule
+- class/student lists
+- search
+- 기타 학생 카드/list
+
+각 화면에서 학생을 누를 때
+어디로 가는지 정확히 확인.
+
+==================================================
+3. DIRECT ENTRY 최종 원칙
+==================================================
+
+일반적인 학생 정보 영역:
+
+학생 이름
+학생 프로필 영역
+회원 기본정보 영역
+
+tap:
+
+→ Student Detail / Member Detail
+
+중간:
+
+"회원정보보기"
+"회원상태변경"
+
+ActionSheet / Modal:
+
+원칙적으로 제거.
+
+==================================================
+4. 중간 ACTION SHEET 제거
+==================================================
+
+다음 목적으로만 존재하는 ActionSheet:
+
+- 회원정보보기
+- 회원상태변경
+
+은 caller에서 제거.
+
+왜냐하면:
+
+회원정보보기
+→ Detail 직접 진입
+
+회원상태변경
+→ Detail Section B에서 처리
+
+하면 되기 때문.
+
+공용 component가
+다른 업무에 사용 중이면
+component 자체 삭제 금지.
+
+해당 caller만 정리.
+
+==================================================
+5. 작은 CHEVRON 의존 제거
+==================================================
+
+다음 형태 금지:
+
+학생 이름은 눌러도 아무 반응 없음
+우측 작은 > 만 눌러야 상세
+
+최종:
+
+학생 이름/정보 영역 전체 Pressable.
+
+Chevron은:
+
+- visual only
+또는
+- 동일 Pressable 내부
+
+로만 사용.
+
+==================================================
+6. CLASS-SCOPED QUICK ACTION은 유지
+==================================================
+
+중요:
+
+모든 버튼을 Student Detail로 보내는 것이 아님.
+
+현재 업무를 즉시 처리하는:
+
+- 출석
+- 결석
+- 반이동
+- 수업일지
+- 보충수업
+
+등은 해당 수업/반 화면에서 유지 가능.
+
+예:
+
+Teacher Time Slot Student Row
+
+학생 이름
+→ Student Detail
+
+출석
+→ 현재수업 출석
+
+결석
+→ 현재수업 결석
+
+반이동
+→ 현재 기존 반이동 workflow
+
+이 구조 유지.
+
+==================================================
+7. 제거 대상 — 학생 일반정보 변경
+==================================================
+
+Student Detail에서 이미 가능한 일반 학생 변경을
+다른 곳에서 중복으로 제공하는 UI 조사.
+
+예:
+
+- 회원상태 변경
+- 기본정보 수정
+- 보호자 연락처 수정
+- weekly count
+- 반/시간표 변경
+- 레벨 변경
+
+이런 기능이
+학생목록의 부가 메뉴 등에서 중복 노출된다면
+
+기본적으로:
+
+학생 이름 → Detail
+
+로 수렴.
+
+==================================================
+8. 전문화면은 삭제 금지
+==================================================
+
+다음 전문 업무 화면은 유지:
+
+- 전체 출결
+- 반 출결
+- 보강관리
+- 일지관리
+- 사진/앨범
+- 회원목록
+- 반관리
+
+이번 작업은
+화면 자체 삭제가 아니라
+
+"학생 개인 관리 진입점"
+
+중복만 정리.
+
+==================================================
+9. ROUTE 삭제 금지
+==================================================
+
+상품화 MASTER 원칙:
+
+기존 route
+deep link
+push target
+
+를 임의 삭제하지 않습니다.
+
+UI에서 중복 entry를 제거해도
+route 자체는 유지.
+
+삭제/redirect 통합은
+actual caller / deep-link / push payload 확인 없이 금지.
+
+==================================================
+10. ADMIN MEMBER FLOW
+==================================================
+
+Admin 회원목록에서:
+
+회원 이름 tap
+→ Member Detail
+
+이 기본.
+
+다음 중간 선택이 남아있으면 정리:
+
+회원정보보기
+회원상태변경
+
+Member Detail 안에서
+상태변경 가능하므로
+중간 선택 불필요.
+
+==================================================
+11. TEACHER MEMBER FLOW
+==================================================
+
+Teacher 학생목록/수업관리/출결/보강에서:
+
+학생 이름/정보 영역 tap
+→ Student Detail
+
+다만 quick action은 독립 유지.
+
+==================================================
+12. WITHDRAWN / ARCHIVED MEMBER
+==================================================
+
+퇴원/보관 회원의 경우
+기존 status별 별도 workflow가 있으므로
+
+무리하게 일반 active detail로
+전부 강제 통합하지 마십시오.
+
+기존:
+
+restore
+restore-archive
+permanent
+
+semantics 유지.
+
+단 "회원정보 보기" 진입 자체가
+Detail과 안전하게 호환되면 direct entry 가능.
+
+==================================================
+13. FORCE DELETE P1 SAFETY
+==================================================
+
+기존 감사에서:
+
+DELETE /admin/students/:id/force-delete
+
+가 active 회원도 HARD DELETE 가능하다는
+P1 위험이 확인되어 있음.
+
+이번 중복정리 단계에서
+UI가 force-delete를 쉽게 노출하지 않는지 최종 확인.
+
+원칙:
+
+active 일반회원 관리 flow에서
+force-delete 노출 금지.
+
+Danger Zone 밖:
+NO
+
+만약 현재 active 회원에서
+force-delete가 실제로 실행 가능한 UI가 남아있다면
+기존 계획대로 최소 guard 필요 여부를 보고.
+
+단:
+
+delete endpoint semantics를
+임의 통합하거나 새 delete system 만들지 말 것.
+
+필요한 server guard가 명확하면
+현재 WP 완료보고에서 BLOCKER로 보고하고
+멋대로 확장하지 마십시오.
+
+==================================================
+14. STUDENT CONTEXT 보존
+==================================================
+
+학생 이름 → Detail 진입 시:
+
+studentId
+
+정확히 전달.
+
+현재 list의:
+
+classId
+scheduleId
+lessonDate
+
+등을 studentId 대신 사용해서
+잘못된 학생/반 정보가 열리면 FAIL.
+
+==================================================
+15. BACK CONTEXT 보존
+==================================================
+
+예:
+
+Teacher Time Slot
+→ Student Detail
+→ Back
+
+Expected:
+같은 Time Slot
+
+Admin Member List
+→ Member Detail
+→ Back
+
+Expected:
+같은 Member List
+
+Attendance
+→ Student Detail
+→ Back
+
+Expected:
+Attendance
+
+Makeups
+→ Student Detail
+→ Back
+
+Expected:
+Makeups
+
+Home:
+NO
+
+==================================================
+16. 목록 FILTER / SCROLL CONTEXT
+==================================================
+
+가능하면 기존 navigation stack을 사용해
+Back 후:
+
+- 검색어
+- 선택 요일
+- 선택 반
+- 현재 목록
+- scroll position
+
+이 불필요하게 초기화되지 않도록
+기존 navigation 구조 보존.
+
+이번 WP에서 새로운 global state 만들지 마십시오.
+
+==================================================
+17. NORMAL / X
+==================================================
+
+비-AI 일반 회원관리 기능.
+
+SWIMNOTE:
+동일
+
+X:
+동일
+
+신규 mode gate:
+0
+
+==================================================
+18. PARENT 제외
+==================================================
+
+이번 WP에서는
+Parent 학생정보 IA 재설계하지 않습니다.
+
+Parent는 별도 상품화/Feedback IA 단계에서 검토.
+
+현재 parent route가 깨지는 변경 금지.
+
+==================================================
+19. MEMBER SEARCH
+==================================================
+
+학생 검색 결과가 존재하는 경우:
+
+검색 결과 학생 이름 tap
+→ Detail
+
+Expected.
+
+작은 상세 아이콘만 누르는 구조가 있다면 정리.
+
+검색 결과에서:
+상태변경/레벨변경 등
+별도 중복 menu를 새로 만들지 마십시오.
+
+==================================================
+20. UI 원칙
+==================================================
+
+학생 이름이 눌리는 영역은
+사용자가 알아볼 수 있는 적절한 tap target 확보.
+
+금지:
+
+너무 작은 이름 텍스트만 Pressable
+1px chevron 영역
+투명한 작은 icon hitbox
+
+기존 카드/row 디자인은 최대한 유지.
+
+대규모 디자인 변경 금지.
+
+==================================================
+21. 구현 전 MATRIX 작성
+==================================================
+
+실제 source 기준으로:
+
+Role
+Screen
+Student display
+Current tap
+Current intermediate modal
+Quick actions
+Target behavior
+
+를 먼저 확인 후 수정.
+
+추측 금지.
+
+==================================================
+22. 테스트
+==================================================
+
+CASE A
+
+Admin Member List
+→ 이름 tap
+→ Member Detail
+
+PASS
+
+CASE B
+
+Admin 중간
+회원정보보기/회원상태변경 modal
+
+Expected:
+NONE
+
+CASE C
+
+Teacher students
+→ 이름 tap
+→ Student Detail
+
+PASS
+
+CASE D
+
+Teacher my-schedule
+→ 이름 tap
+→ Student Detail
+
+PASS
+
+CASE E
+
+Teacher attendance
+→ 이름 tap
+→ Student Detail
+
+PASS
+
+CASE F
+
+Teacher makeups
+→ 이름 tap
+→ Student Detail
+
+PASS
+
+CASE G
+
+Chevron-only detail entry:
+0
+
+CASE H
+
+출석 quick action:
+기존 수업 처리
+
+PASS
+
+CASE I
+
+결석 quick action:
+기존 수업 처리
+
+PASS
+
+CASE J
+
+반이동 quick action:
+기존 workflow
+
+PASS
+
+CASE K
+
+Member List
+→ Detail
+→ Back
+→ Member List
+
+PASS
+
+CASE L
+
+Time Slot
+→ Detail
+→ Back
+→ same Time Slot
+
+PASS
+
+CASE M
+
+Attendance
+→ Detail
+→ Back
+→ Attendance
+
+PASS
+
+CASE N
+
+Makeups
+→ Detail
+→ Back
+→ Makeups
+
+PASS
+
+CASE O
+
+studentId wrong context:
+0
+
+CASE P
+
+SWIMNOTE:
+PASS
+
+CASE Q
+
+X:
+PASS
+
+CASE R
+
+New mode gate:
+0
+
+==================================================
+23. DUPLICATE ACTION RESULT
+==================================================
+
+완료 후 다음을 구분:
+
+REMOVED:
+중복 일반회원관리 entry/action
+
+KEPT:
+수업 현장 quick action
+
+KEPT:
+전문 운영 screen
+
+KEPT:
+deep-link compatibility route
+
+==================================================
+24. REGRESSION
+==================================================
+
+현재 known backend baseline:
+
+158 failures
+(previous run)
+
+반드시 동일 test command 사용.
+
+Expected:
+
+New failures:
+0
+
+New TS errors:
+0
+
+==================================================
+25. 금지
+==================================================
+
+Student Detail 기능 추가 금지
+
+WP-M5 student_links 시작 금지
+
+새 DB migration 금지
+새 API family 금지
+
+Pricing 변경 금지
+Subscription 변경 금지
+RevenueCat 변경 금지
+Store 변경 금지
+
+Parent IA 변경 금지
+
+Diary/Media 재설계 금지
+
+Production deploy 금지
+OTA 금지
+Render 변경 금지
+
+==================================================
+26. 완료보고
+==================================================
+
+# SWIMNOTE 2.0
+# MEMBER ENTRY / DUPLICATE ACTION FINAL CLEANUP REPORT
+
+Repository:
+Branch:
+HEAD Before:
+HEAD After:
+
+## ENTRY AUDIT MATRIX
+
+Role | Screen | Before | After | Intermediate Modal | Quick Actions
+
+...
+
+## ADMIN
+
+Member List direct detail:
+PASS / FAIL
+
+Intermediate info/status modal:
+REMOVED / REMAINS
+
+Other duplicate edit actions:
+...
+
+## TEACHER
+
+students:
+...
+
+my-schedule:
+...
+
+attendance:
+...
+
+makeups:
+...
+
+Other:
+...
+
+## CHEVRON
+
+Chevron-only entry occurrences before:
+...
+
+After:
+...
+
+Expected:
+0
+
+## QUICK ACTIONS KEPT
+
+Attendance:
+...
+
+Absence:
+...
+
+Class Move:
+...
+
+Diary:
+...
+
+Makeup:
+...
+
+## DUPLICATE GENERAL ACTIONS
+
+Found:
+...
+
+Removed:
+...
+
+Remaining:
+...
+
+Reason:
+...
+
+## BACK CONTEXT
+
+Admin Member List -> Detail -> Back:
+PASS / FAIL
+
+Teacher Time Slot -> Detail -> Back:
+PASS / FAIL
+
+Attendance -> Detail -> Back:
+PASS / FAIL
+
+Makeups -> Detail -> Back:
+PASS / FAIL
+
+Home escape:
+YES / NO
+
+Expected:
+NO
+
+## STUDENT CONTEXT
+
+Wrong studentId:
+0 / ...
+
+Wrong class context:
+0 / ...
+
+## FORCE DELETE SAFETY
+
+Active member UI exposure:
+YES / NO
+
+Danger Zone only:
+YES / NO
+
+Server guard required:
+YES / NO
+
+If YES:
+exact reason only, no unrelated redesign
+
+## SHARED CORE
+
+SWIMNOTE:
+PASS / FAIL
+
+X:
+PASS / FAIL
+
+New mode gates:
+...
+
+Expected:
+0
+
+## REGRESSION
+
+Baseline:
+158 or verified same-command baseline
+
+Failures after:
+...
+
+New failures:
+...
+
+New TS errors:
+...
+
+Expected:
+0 / 0
+
+## UNTOUCHED
+
+Student Detail:
+UNCHANGED
+
+Parent IA:
+UNCHANGED
+
+student_links:
+NOT CREATED
+
+Pricing/Subscription:
+UNCHANGED
+
+RevenueCat/Stores:
+UNCHANGED
+
+Production:
+UNCHANGED
+
+## BLOCKERS
+
+NONE
+or
+...
+
+## FINAL
+
+MEMBER ENTRY / DUPLICATE ACTION CLEANUP COMPLETE
+or
+BLOCKED

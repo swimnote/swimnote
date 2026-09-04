@@ -1,4 +1,4 @@
-import { Check, Trash2, X } from "lucide-react-native";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import {
   ActivityIndicator, Platform, Pressable, StyleSheet, Text, View,
@@ -39,8 +39,8 @@ export function SelectionActionBar({
       <View style={s.row}>
         {/* 전체선택 / 전체해제 */}
         <Pressable style={s.checkRow} onPress={isAllSelected ? onClearSelection : onSelectAll}>
-          <View style={[s.checkbox, isAllSelected && { backgroundColor: C.tint, borderColor: C.tint }]}>
-            {isAllSelected && <Check size={12} color="#fff" />}
+          <View style={[s.checkbox, isAllSelected && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}>
+            {isAllSelected && <LucideIcon name="check" size={12} color="#fff" />}
           </View>
           <Text style={s.checkLabel}>{isAllSelected ? "전체해제" : "전체선택"}</Text>
         </Pressable>
@@ -58,7 +58,7 @@ export function SelectionActionBar({
         >
           {deleting
             ? <ActivityIndicator size={14} color="#fff" />
-            : <Trash2 size={14} color="#fff" />
+            : <LucideIcon name="trash-2" size={14} color="#fff" />
           }
           <Text style={s.deleteBtnText}>
             {deleting ? "삭제 중..." : `삭제 (${selectedCount})`}
@@ -67,7 +67,7 @@ export function SelectionActionBar({
 
         {/* 선택모드 종료 */}
         <Pressable style={s.exitBtn} onPress={onExit}>
-          <X size={18} color={C.textSecondary} />
+          <LucideIcon name="x" size={18} color={C.textSecondary} />
         </Pressable>
       </View>
     </View>
@@ -101,10 +101,10 @@ const s = StyleSheet.create({
   checkLabel: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   countBadge: {
     flex: 1,
-    backgroundColor: C.tintLight, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: C.brandSoft, paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 8, alignItems: "center",
   },
-  countText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.tint },
+  countText: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.brandStrong },
   deleteBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: "#D96C6C", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,

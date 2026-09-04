@@ -21,6 +21,8 @@ import {
   isSmsConfigured,
   getSmsConfigError,
 } from "../lib/sms/sendSms.js";
+import { logEvent } from "../lib/event-logger.js";
+import { insertDefaultTemplates } from "../lib/defaultTemplates.js";
 
 const router = Router();
 
@@ -31,21 +33,62 @@ function err(res: any, status: number, message: string) {
 // ── 관리자/선생님 로그인 ──────────────────────────────────────────────
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return err(res, 400, "이메일과 비밀번호를 입력해주세요.");
+  if (!email || !password) return err(res, 400, "아이디(이메일)와 비밀번호를 입력해주세요.");
+  const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket?.remoteAddress ?? "unknown";
+  const identifier = email.trim();
   try {
-    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
-    if (!user) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    // 이메일 형식이면 이메일로 조회, 아니면 수영장 슬러그(name_en)로 pool_admin 조회
+    let user: typeof usersTable.$inferSelect | undefined;
+    if (identifier.includes("@")) {
+      [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.email, identifier.toLowerCase())).limit(1);
+    } else {
+      // 슬러그로 수영장 찾아서 pool_admin 유저 조회
+      const poolRows = (await superAdminDb.execute(sql`
+        SELECT u.* FROM users u
+        JOIN swimming_pools sp ON u.swimming_pool_id = sp.id
+        WHERE (sp.name_en = ${identifier.toLowerCase()} OR u.email = ${identifier.toLowerCase()})
+          AND u.role = 'pool_admin'
+        LIMIT 1
+      `)).rows as any[];
+      if (poolRows[0]) user = poolRows[0] as any;
+    }
+    if (!user) {
+      logEvent({ pool_id: "system", category: "보안", actor_name: "미인증", description: `로그인 실패 — 존재하지 않는 계정: ${identifier}`, metadata: { ip: clientIp } }).catch(() => {});
+      return err(res, 401, "아이디 또는 비밀번호가 올바르지 않습니다.");
+    }
 
     const valid = await comparePassword(password, user.password_hash);
-    if (!valid) return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    if (!valid) {
+      logEvent({ pool_id: user.swimming_pool_id ?? "system", category: "보안", actor_id: user.id, actor_name: user.name ?? email, description: `로그인 실패 — 비밀번호 불일치: ${email}`, metadata: { ip: clientIp, role: user.role } }).catch(() => {});
+      return err(res, 401, "이메일 또는 비밀번호가 올바르지 않습니다.");
+    }
 
-    // pool_admin 역할은 수영장 승인 상태 확인
+    // pool_admin 역할은 수영장 상태 확인
     if (user.role === "pool_admin" && user.swimming_pool_id) {
-      const [pool] = await superAdminDb.select({ approval_status: swimmingPoolsTable.approval_status })
-        .from(swimmingPoolsTable).where(eq(swimmingPoolsTable.id, user.swimming_pool_id)).limit(1);
-      
+      const [pool] = (await superAdminDb.execute(sql`
+        SELECT approval_status, deactivated_at, deletion_scheduled_at
+        FROM swimming_pools WHERE id = ${user.swimming_pool_id} LIMIT 1
+      `)).rows as any[];
+
       if (!pool) return err(res, 403, "소속된 수영장을 찾을 수 없습니다.");
-      
+
+      // 비활성화 수영장 (구독 취소 후 90일 유예)
+      if (pool.deactivated_at) {
+        const deletionAt = pool.deletion_scheduled_at
+          ? new Date(pool.deletion_scheduled_at)
+          : new Date(new Date(pool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        return res.status(403).json({
+          success: false,
+          error: "pool_deactivated",
+          error_code: "pool_deactivated",
+          message: `구독이 취소되어 서비스 이용이 중단되었습니다. ${daysLeft}일 이내 재구독 시 모든 데이터가 복구됩니다.`,
+          days_until_deletion: daysLeft,
+          deletion_scheduled_at: deletionAt.toISOString(),
+          deactivated_at: pool.deactivated_at,
+        });
+      }
+
       if (pool.approval_status === "pending") {
         return res.status(403).json({
           success: false, message: "수영장이 아직 승인되지 않았습니다. 플랫폼 운영자의 승인을 기다려주세요.",
@@ -56,6 +99,28 @@ router.post("/login", async (req, res) => {
         return res.status(403).json({
           success: false, message: "수영장 신청이 반려되었습니다. 플랫폼 운영자에게 문의하세요.",
           error: "pool_approval_rejected", pool_status: "rejected",
+        });
+      }
+    }
+
+    // teacher 역할 — 소속 수영장 비활성화 확인
+    if (user.role === "teacher" && user.swimming_pool_id) {
+      const [teacherPool] = (await superAdminDb.execute(sql`
+        SELECT deactivated_at, deletion_scheduled_at FROM swimming_pools
+        WHERE id = ${user.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+      `)).rows as any[];
+      if (teacherPool?.deactivated_at) {
+        const deletionAt = teacherPool.deletion_scheduled_at
+          ? new Date(teacherPool.deletion_scheduled_at)
+          : new Date(new Date(teacherPool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        return res.status(403).json({
+          success: false,
+          error: "pool_deactivated",
+          error_code: "pool_deactivated",
+          message: `소속 수영장의 구독이 취소되어 서비스 이용이 중단되었습니다. 관리자에게 문의해주세요.`,
+          days_until_deletion: daysLeft,
+          deletion_scheduled_at: deletionAt.toISOString(),
         });
       }
     }
@@ -88,6 +153,21 @@ router.post("/login", async (req, res) => {
       return;
     }
 
+    // 웹 로그인 시 TOTP 확인 (totp_enabled 설정된 모든 역할)
+    if (req.body.web_login === true && (user as any).totp_enabled && (user as any).totp_secret) {
+      const totpSession = signTotpSession(user.id);
+      return res.json({ success: true, totp_required: true, totp_session: totpSession });
+    }
+
+    // 웹 로그인 시 pool_admin 웹 접속 비밀번호 확인
+    if (req.body.web_login === true && user.role === "pool_admin") {
+      const webPinHash = (user as any).web_pin_hash;
+      if (webPinHash) {
+        const webSession = signTotpSession(user.id);
+        return res.json({ success: true, web_pin_required: true, web_session: webSession });
+      }
+    }
+
     // platform_admin: permissions를 JWT에 포함
     let permissions;
     if ((user.role as string) === "platform_admin") {
@@ -96,14 +176,90 @@ router.post("/login", async (req, res) => {
 
     const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id, permissions });
     const { password_hash: _, ...safeUser } = user;
+
+    // 로그인 성공 기록
+    logEvent({
+      pool_id:    user.swimming_pool_id ?? "system",
+      category:   "로그인",
+      actor_id:   user.id,
+      actor_name: user.name ?? user.email,
+      description: `로그인 성공 — ${user.role}: ${user.email}`,
+      metadata:   { ip: clientIp, role: user.role },
+    }).catch(() => {});
+
     res.json({ success: true, token, user: safeUser });
   } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 웹 접속 비밀번호 검증 (pool_admin 웹 로그인 2단계) ──────────────
+router.post("/web-pin/verify", async (req, res) => {
+  const { web_session, web_pin } = req.body;
+  if (!web_session || !web_pin) return err(res, 400, "필수 정보를 입력해주세요.");
+  try {
+    const { userId } = verifyTotpSession(web_session);
+    const rows = (await superAdminDb.execute(sql`SELECT * FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+    const user = rows[0];
+    if (!user || !user.web_pin_hash) return err(res, 401, "올바르지 않은 세션입니다.");
+    const valid = await comparePassword(web_pin, (user as any).web_pin_hash);
+    if (!valid) return err(res, 401, "웹 접속 비밀번호가 올바르지 않습니다.");
+    const token = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id });
+    const { password_hash: _ph, web_pin_hash: _wph, ...safeUser } = user as any;
+    logEvent({
+      pool_id: user.swimming_pool_id ?? "system",
+      category: "로그인",
+      actor_id: user.id,
+      actor_name: user.name ?? user.email,
+      description: `웹 로그인 성공 — ${user.role}: ${user.email}`,
+      metadata: {},
+    }).catch(() => {});
+    res.json({ success: true, token, user: safeUser });
+  } catch { return err(res, 401, "세션이 만료되었습니다. 다시 로그인해주세요."); }
+});
+
+// ── 웹 접속 비밀번호 설정/삭제 ───────────────────────────────────────
+router.patch("/web-pin", requireAuth, async (req: AuthRequest, res) => {
+  const { current_password, web_pin } = req.body;
+  const userId = req.user?.userId;
+  if (!userId) return err(res, 401, "인증이 필요합니다.");
+  try {
+    const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) return err(res, 404, "계정을 찾을 수 없습니다.");
+    // 현재 비밀번호는 선택사항 — 입력된 경우에만 검증
+    if (current_password) {
+      const validPw = await comparePassword(current_password, user.password_hash);
+      if (!validPw) return err(res, 401, "현재 비밀번호가 올바르지 않습니다.");
+    }
+    if (web_pin) {
+      if (String(web_pin).length < 4) return err(res, 400, "웹 접속 비밀번호는 4자리 이상이어야 합니다.");
+      const hash = await hashPassword(String(web_pin));
+      await superAdminDb.execute(sql`UPDATE users SET web_pin_hash = ${hash} WHERE id = ${userId}`);
+      res.json({ success: true, message: "웹 접속 비밀번호가 설정되었습니다.", web_pin_set: true });
+    } else {
+      await superAdminDb.execute(sql`UPDATE users SET web_pin_hash = NULL WHERE id = ${userId}`);
+      res.json({ success: true, message: "웹 접속 비밀번호가 해제되었습니다.", web_pin_set: false });
+    }
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 웹 접속 비밀번호 설정 여부 확인 ──────────────────────────────────
+router.get("/web-pin/status", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.user?.userId;
+  if (!userId) return err(res, 401, "인증이 필요합니다.");
+  try {
+    const result = await superAdminDb.execute(sql`
+      SELECT (web_pin_hash IS NOT NULL) AS web_pin_set FROM users WHERE id = ${userId} LIMIT 1
+    `);
+    const row = result.rows[0] as any;
+    const webPinSet = row?.web_pin_set === true || row?.web_pin_set === "t" || row?.web_pin_set === 1;
+    res.json({ success: true, web_pin_set: webPinSet });
+  } catch { return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 // ── 관리자 계정 가입 ──────────────────────────────────────────────────
 router.post("/register", async (req, res) => {
   const { email, password, name, phone, role,
-          pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en } = req.body;
+          pool_name, pool_address, pool_phone, pool_owner_name, pool_name_en,
+          kakao_id, apple_id } = req.body;
   if (!email || !password || !name) return err(res, 400, "필수 정보를 입력해주세요.");
   if (password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
   const isPoolAdmin = role === "pool_admin";
@@ -113,7 +269,29 @@ router.post("/register", async (req, res) => {
   try {
     const [existing] = await superAdminDb.select().from(usersTable)
       .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
-    if (existing) return err(res, 400, "이미 사용 중인 이메일입니다.");
+    if (existing) {
+      // 비활성화된 수영장 계정 → 90일 이내 재가입 불가 안내
+      if (existing.swimming_pool_id) {
+        const [deactivatedPool] = (await superAdminDb.execute(sql`
+          SELECT deactivated_at, deletion_scheduled_at FROM swimming_pools
+          WHERE id = ${existing.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+        `)).rows as any[];
+        if (deactivatedPool?.deactivated_at) {
+          const deletionAt = deactivatedPool.deletion_scheduled_at
+            ? new Date(deactivatedPool.deletion_scheduled_at)
+            : new Date(new Date(deactivatedPool.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          return res.status(400).json({
+            success: false,
+            error: "deactivated_account_reregistration",
+            error_code: "deactivated_account_reregistration",
+            message: `해당 이메일은 탈퇴 후 ${daysLeft}일 이내 재가입이 불가합니다.\n기존 계정으로 재구독하면 모든 데이터가 복구됩니다.`,
+            days_until_deletion: daysLeft,
+          });
+        }
+      }
+      return err(res, 400, "이미 사용 중인 이메일입니다.");
+    }
 
     const password_hash = await hashPassword(password);
     const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -143,12 +321,13 @@ router.post("/register", async (req, res) => {
         INSERT INTO users
           (id, email, password_hash, name, phone, role,
            swimming_pool_id, is_activated, is_admin_self_teacher,
-           phone_verified, roles, created_at, updated_at)
+           phone_verified, roles, kakao_id, apple_id, created_at, updated_at)
         VALUES
           (${userId}, ${email.trim().toLowerCase()}, ${password_hash}, ${name.trim()},
            ${phone || null}, 'pool_admin'::user_role,
            ${poolId}, true, true,
-           true, '{"pool_admin","teacher"}'::TEXT[], now(), now())
+           true, '{"pool_admin","teacher"}'::TEXT[],
+           ${kakao_id || null}, ${apple_id || null}, now(), now())
       `);
 
       // ── 3) 선생님 엔티티 자동 생성 (teacher_invites — approved 상태) ─
@@ -164,7 +343,23 @@ router.post("/register", async (req, res) => {
            now(), ${userId}, ${'teacher'}, now(), now())
       `);
 
+      // ── 4) 기본 일지 템플릿 자동 삽입 ──────────────────────────────────
+      insertDefaultTemplates(poolId, userId).catch((e: any) => console.error("[insertDefaultTemplates] pool_admin signup:", e));
+
       const token = signToken({ userId, role: "pool_admin", poolId });
+
+      // ── 슈퍼관리자 운영 알림: 수영장 관리자 신규 가입 ──────────────────
+      import("../lib/opsAlerts.js").then(({ createOpsAlert }) => {
+        createOpsAlert({
+          type: "new_pool_admin_signup",
+          title: "수영장 관리자 신규 가입",
+          message: `${pool_name.trim()} 관리자 계정이 새로 가입했습니다`,
+          severity: "info",
+          relatedPoolId: poolId,
+          relatedUserId: userId,
+        }).catch(console.error);
+      }).catch(console.error);
+
       res.status(201).json({
         success: true,
         token,
@@ -262,15 +457,22 @@ router.post("/activate-teacher", async (req, res) => {
 
 // ── 학부모 로그인 ─────────────────────────────────────────────────────
 router.post("/parent-login", async (req, res) => {
-  const { identifier, loginId, phone, pin, password } = req.body;
+  const { identifier, loginId, phone, pin, password, pool_id } = req.body;
   const id = (identifier || loginId || phone || "").trim();
   const pw = (password || pin || "").trim();
+  // [2.0.0] pool_id: 제공 시 해당 pool 안에서만 조회 (pool-first). 미제공 시 1.6.3 호환 동작.
+  const scopedPoolId = (pool_id || "").trim() || null;
   if (!id || !pw) return err(res, 400, "아이디와 비밀번호를 입력해주세요.");
   try {
     // login_id 기반 조회 먼저, 없으면 phone 기반 조회
-    const byLoginId = await db.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    const loginIdQuery = scopedPoolId
+      ? sql`SELECT * FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${scopedPoolId} LIMIT 1`
+      : sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`;
+    const byLoginId = await db.execute(loginIdQuery);
     const byPhone = byLoginId.rows.length === 0
-      ? await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id))
+      ? (scopedPoolId
+          ? (await db.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${scopedPoolId} LIMIT 1`)).rows
+          : await db.select().from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)))
       : [];
     const accounts: any[] = byLoginId.rows.length > 0 ? byLoginId.rows : byPhone;
     if (accounts.length === 0) {
@@ -298,6 +500,14 @@ router.post("/parent-login", async (req, res) => {
       }
     }
     if (!matched) return err(res, 401, "비밀번호가 올바르지 않습니다.");
+
+    // 탈퇴 예정 계정 체크
+    if (matched.withdrawal_requested_at) {
+      const deletionAt = new Date(new Date(matched.withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+      const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+      return res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft });
+    }
+
     // 수영장 이름 조회 (swimming_pool_id 없으면 join_request에서 poolId 추출)
     let resolvedPoolId: string | null = matched.swimming_pool_id || null;
     let poolDisplayName: string | null = null;
@@ -320,6 +530,19 @@ router.post("/parent-login", async (req, res) => {
       }
     }
     const token = signToken({ userId: matched.id, role: "parent_account", poolId: matched.swimming_pool_id });
+
+    // WP15.5-B/C Fix: LOGIN_SESSION_START → analytics_events (event_logs 사용 금지)
+    // "parent-login 성공" = session proxy. 중복 방지는 rate-limit 수준 (로그인 자체가 트리거).
+    import("../lib/analytics-logger.js").then(({ logAnalyticsEvent }) =>
+      logAnalyticsEvent({
+        event_type:       "LOGIN_SESSION_START",
+        user_id:          matched.id,
+        swimming_pool_id: matched.swimming_pool_id ?? null,
+        role:             "parent_account",
+        metadata:         { source: "parent_login" },
+      }).catch(() => {})
+    ).catch(() => {});
+
     res.json({
       success: true, token,
       parent: { id: matched.id, name: matched.name, phone: matched.phone, swimming_pool_id: matched.swimming_pool_id, login_id: matched.login_id, pool_name: poolDisplayName },
@@ -328,13 +551,67 @@ router.post("/parent-login", async (req, res) => {
 });
 
 // ── 내 정보 조회 ──────────────────────────────────────────────────────
+// parent_account role: parent_accounts 테이블 조회 (users 테이블에 없음)
+// 그 외 role: 기존 users 테이블 조회 유지
+// memberships[]: Multi-Pool Membership 목록 (backward-compatible, 기존 클라이언트 영향 없음)
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const { getMemberships } = await import("../migrations/pool-db-membership.js");
+    if (req.user!.role === "parent_account") {
+      const [pa] = await db
+        .select({
+          id: parentAccountsTable.id,
+          name: parentAccountsTable.name,
+          nickname: parentAccountsTable.nickname,
+          phone: parentAccountsTable.phone,
+          swimming_pool_id: parentAccountsTable.swimming_pool_id,
+          login_id: parentAccountsTable.login_id,
+        })
+        .from(parentAccountsTable)
+        .where(eq(parentAccountsTable.id, req.user!.userId))
+        .limit(1);
+      if (!pa) return err(res, 404, "사용자를 찾을 수 없습니다.");
+      let pool_name: string | null = null;
+      if (pa.swimming_pool_id) {
+        const [pool] = await db
+          .select({ name: swimmingPoolsTable.name })
+          .from(swimmingPoolsTable)
+          .where(eq(swimmingPoolsTable.id, pa.swimming_pool_id))
+          .limit(1);
+        pool_name = pool?.name ?? null;
+      }
+      // Multi-Pool Membership 목록 (backward-compatible)
+      const memberships = await getMemberships(req.user!.userId).catch(() => []);
+      return res.json({ ...pa, pool_name, memberships });
+    }
     const [user] = await superAdminDb.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) return err(res, 404, "사용자를 찾을 수 없습니다.");
     const { password_hash: _, ...safeUser } = user;
-    res.json(safeUser);
+    // Multi-Pool Membership 목록 (backward-compatible)
+    const memberships = await getMemberships(req.user!.userId).catch(() => []);
+    res.json({ ...safeUser, memberships });
   } catch (e) { return err(res, 500, "서버 오류가 발생했습니다."); }
+});
+
+// ── 권한 상태 경량 조회 (roles 실시간 폴링용) ────────────────────────
+// /auth/me 대비 최소 컬럼만 SELECT — 15초 폴링에 적합
+// parent_account는 roles 개념 없으므로 400 반환
+router.get("/role-status", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role === "parent_account") {
+      return res.status(400).json({ success: false, message: "parent_account는 role-status를 사용할 수 없습니다." });
+    }
+    const [row] = await superAdminDb
+      .select({ role: usersTable.role, roles: usersTable.roles })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.userId))
+      .limit(1);
+    if (!row) return err(res, 404, "사용자를 찾을 수 없습니다.");
+    const roles: string[] = Array.isArray(row.roles) && row.roles.length > 0
+      ? row.roles
+      : [row.role];
+    return res.json({ success: true, role: row.role, roles });
+  } catch (e) { console.error(e); return err(res, 500, "서버 오류가 발생했습니다."); }
 });
 
 // ── 내 정보 수정 (이름/전화번호) ────────────────────────────────────
@@ -448,7 +725,7 @@ router.post("/simple-parent-register", async (req, res) => {
   // child_names: string[] — 자녀 이름 배열 (선택한 수영장 내에서 이름 매칭에 사용)
   // child_ids: string[]   — 직접 선택한 학생 ID 배열 (검색 후 확인한 경우 우선 사용)
   // pool_id: string       — 학부모가 선택한 수영장 ID
-  const { parent_name, phone, loginId, password, child_names, child_ids, pool_id } = req.body;
+  const { parent_name, phone, loginId, password, child_names, child_ids, pool_id, kakao_id, apple_id } = req.body;
   const name      = (parent_name || "").trim();
   const ph        = (phone || "").trim().replace(/[^0-9]/g, "");
   const lid       = (loginId || "").trim() || null;
@@ -468,20 +745,12 @@ router.post("/simple-parent-register", async (req, res) => {
   if (pw.length < 4) return err(res, 400, "비밀번호는 4자리 이상이어야 합니다.");
   if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
 
-  // pool_id 미제공 시 전화번호로 수영장 자동 해결 (없으면 null로 진행 — 홈에서 온보딩)
-  if (!requestedPoolId && ph) {
-    const autoPool = await db.execute(sql`
-      SELECT swimming_pool_id FROM students
-      WHERE REGEXP_REPLACE(COALESCE(parent_phone,''),'[^0-9]','','g') = ${ph}
-        AND status NOT IN ('withdrawn','archived','deleted')
-        AND swimming_pool_id IS NOT NULL
-      LIMIT 1
-    `);
-    if ((autoPool.rows as any[]).length > 0) {
-      requestedPoolId = (autoPool.rows[0] as any).swimming_pool_id;
-    }
+  // [2.0.0 POOL-FIRST] pool_id 필수.
+  // 전화번호·이름으로 수영장을 추측하거나 fallback하는 것은 금지.
+  // pool_id 미제공 시 즉시 400 반환.
+  if (!requestedPoolId) {
+    return err(res, 400, "수영장을 선택해주세요. pool_id는 필수 항목입니다.");
   }
-  // pool_id 없어도 가입 허용 — 홈 온보딩에서 수영장 선택
 
   try {
     let matched: any[] = [];
@@ -520,29 +789,19 @@ router.post("/simple-parent-register", async (req, res) => {
       }
     }
 
-    // ── STEP 2: 전화번호로 학생 매칭 ─────────────────────────────────────
-    // pool 없으면 전체 DB에서 매칭 (실시간 연결), pool 있으면 해당 pool만
-    if (ph) {
-      const r = resolvedPoolId
-        ? await db.execute(sql`
-            SELECT id, swimming_pool_id, name FROM students
-            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-              AND swimming_pool_id = ${resolvedPoolId}
-              AND status NOT IN ('withdrawn', 'archived', 'deleted')
-            LIMIT 20
-          `)
-        : await db.execute(sql`
-            SELECT id, swimming_pool_id, name FROM students
-            WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
-              AND status NOT IN ('withdrawn', 'archived', 'deleted')
-            LIMIT 20
-          `);
+    // ── STEP 2: 전화번호로 학생 매칭 (해당 pool 안에서만) ───────────────
+    // [2.0.0 POOL-FIRST] resolvedPoolId는 body.pool_id만 사용 (필수값).
+    // 전화번호 매칭 결과로 pool을 변경하거나 결정하는 것은 금지.
+    if (ph && resolvedPoolId) {
+      const r = await db.execute(sql`
+        SELECT id, swimming_pool_id, name FROM students
+        WHERE REGEXP_REPLACE(COALESCE(parent_phone, ''), '[^0-9]', '', 'g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND status NOT IN ('withdrawn', 'archived', 'deleted')
+        LIMIT 20
+      `);
       addUnique(matched, r.rows as any[]);
       markMatchedNames(r.rows as any[]);
-      // pool 미선택 시 첫 번째 매칭 학생의 pool을 resolvedPoolId로 사용
-      if (!resolvedPoolId && (r.rows as any[]).length > 0) {
-        resolvedPoolId = (r.rows[0] as any).swimming_pool_id;
-      }
     }
 
     // ── STEP 3: 자녀 이름으로 매칭 (pool 있을 때만) ─────────────────────
@@ -590,11 +849,31 @@ router.post("/simple-parent-register", async (req, res) => {
       const dupId = await db.execute(sql`SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1`);
       if ((dupId.rows as any[]).length > 0) return err(res, 409, "이미 사용 중인 아이디입니다.");
     }
-    // 전화번호 중복 확인 (수영장 있을 때만 같은 수영장 체크, 없을 때는 전체 체크)
+    // 전화번호 + 수영장 중복 확인 — Multi-Pool Membership: 다른 수영장 가입은 허용
+    // 동일 수영장에 동일 전화번호 계정이 이미 존재하면 "이미 가입"으로 처리
     if (resolvedPoolId) {
-      const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id = ${resolvedPoolId} LIMIT 1`);
-      if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      const dupRows = (await db.execute(sql`
+        SELECT id, kakao_id, is_active FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${resolvedPoolId}
+          AND phone != ''
+        LIMIT 1
+      `)).rows as any[];
+      if (dupRows.length > 0) {
+        const dup = dupRows[0];
+        // C. 기존 Kakao 계정 → KAKAO_MIGRATION_REQUIRED (1.6.3 임시 전환 flow)
+        if (dup.kakao_id && dup.is_active !== false) {
+          return res.status(409).json({
+            error: "이미 카카오로 가입된 전화번호입니다.",
+            error_code: "KAKAO_MIGRATION_REQUIRED",
+            old_parent_id: dup.id,
+          });
+        }
+        // B. 기존 일반 계정 → 기존 정책 그대로
+        return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
+      }
     } else {
+      // 수영장 미지정인 경우: phone + pool IS NULL 기준만 중복 체크 (다른 수영장 계정은 OK)
       const dupPhone = await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${ph} AND swimming_pool_id IS NULL LIMIT 1`);
       if ((dupPhone.rows as any[]).length > 0) return err(res, 409, "이미 가입된 전화번호입니다. 로그인 화면에서 로그인해주세요.");
     }
@@ -603,8 +882,8 @@ router.post("/simple-parent-register", async (req, res) => {
     const parentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     await db.execute(sql`
-      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
-      VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, now(), now())
+      INSERT INTO parent_accounts (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, kakao_id, apple_id, created_at, updated_at)
+      VALUES (${parentId}, ${resolvedPoolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, ${kakao_id || null}, ${apple_id || null}, now(), now())
     `);
 
     // ── 매칭된 학생 전체 연결 (DELETE+INSERT로 항상 approved 보장) ─────────
@@ -636,16 +915,38 @@ router.post("/simple-parent-register", async (req, res) => {
     }
 
     // ── 자녀 이름을 제공했지만 이름 매칭이 안 된 경우 → placeholder 생성 ──
-    // (매칭 여부와 무관하게, 이름 미매칭 자녀는 placeholder로 관리자에게 노출)
+    // 단, 이미 같은 이름의 활성 학생이 있으면 새 학생 생성 금지 (중복 방지)
     const unmatchedNames = childNamesArr.filter(n => !matchedByName.has(n));
-    // 전체 매칭이 0명이어도 자녀 이름이 없으면 placeholder를 만들지 않음
     if (unmatchedNames.length > 0 && resolvedPoolId) {
       for (const cName of unmatchedNames) {
+        // 중복 방지: 이름이 같은 active/unregistered 학생이 이미 있으면 placeholder 생성 스킵
+        const [existingByName] = (await db.execute(sql`
+          SELECT id FROM students
+          WHERE swimming_pool_id = ${resolvedPoolId}
+            AND name = ${cName}
+            AND status NOT IN ('withdrawn', 'deleted', 'archived')
+          LIMIT 1
+        `)).rows as any[];
+        if (existingByName) {
+          console.log(`[simple-parent-register] 이름 중복 → placeholder 생성 스킵: ${cName} (기존=${existingByName.id})`);
+          // 해당 학생에 pending 연결 생성 (자동승인은 triggerAutoLinkOnStudentV2 처리)
+          const psId = `ps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await db.execute(sql`
+            INSERT INTO parent_students (id, parent_id, student_id, swimming_pool_id, status)
+            VALUES (${psId}, ${parentId}, ${existingByName.id}, ${resolvedPoolId}, 'pending')
+            ON CONFLICT DO NOTHING
+          `);
+          const { triggerAutoLinkOnStudentV2 } = await import("../lib/auto-link-v2.js");
+          triggerAutoLinkOnStudentV2(existingByName.id, ["parent_phone", "name"]).catch(() => {});
+          matched.push({ id: existingByName.id, swimming_pool_id: resolvedPoolId });
+          continue;
+        }
+
         const sId = `student_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await db.execute(sql`
-          INSERT INTO students (id, swimming_pool_id, name, parent_name, parent_phone, parent_user_id,
+          INSERT INTO students (id, swimming_pool_id, name, name_korean, parent_name, parent_phone, parent_user_id,
             status, registration_path, weekly_count, assigned_class_ids, created_at, updated_at)
-          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${name}, ${ph}, ${parentId},
+          VALUES (${sId}, ${resolvedPoolId}, ${cName}, ${cName.replace(/[^가-힣]/g, "")}, ${name}, ${ph}, ${parentId},
             'unregistered', 'parent_signup', 1, '[]'::jsonb, NOW(), NOW())
           ON CONFLICT DO NOTHING
         `);
@@ -657,10 +958,25 @@ router.post("/simple-parent-register", async (req, res) => {
         `);
         matched.push({ id: sId, swimming_pool_id: resolvedPoolId });
       }
-      console.log(`[simple-parent-register] placeholder ${unmatchedNames.length}명 생성: ${unmatchedNames.join(", ")}`);
+      console.log(`[simple-parent-register] placeholder 처리 완료: ${unmatchedNames.join(", ")}`);
     }
 
     console.log(`[simple-parent-register] 학부모 가입: poolId=${resolvedPoolId} matched=${matched.length}명`);
+
+    // 수영장 관리자에게 push 알림 (수영장 지정된 경우)
+    if (resolvedPoolId) {
+      try {
+        const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+        const childSummary = childNamesArr.length > 0 ? `자녀: ${childNamesArr.join(", ")}` : "자녀 미입력";
+        await sendPushToPoolAdmins(
+          resolvedPoolId, "parent_join",
+          "새 학부모 가입",
+          `${name} 학부모님이 가입했습니다. ${childSummary}`,
+          { screen: "parent-requests" },
+          `parent_join_${parentId}`
+        );
+      } catch (pushErr) { console.error("[simple-parent-register] push 오류:", pushErr); }
+    }
 
     const token = signToken({ userId: parentId, role: "parent_account", poolId: resolvedPoolId });
     return res.status(201).json({
@@ -678,17 +994,20 @@ router.post("/simple-parent-register", async (req, res) => {
 
 // ── 아이디 존재 여부 확인 ───────────────────────────────────────────────
 router.post("/check-id", async (req, res) => {
-  const { identifier } = req.body;
+  const { identifier, pool_id } = req.body;
   if (!identifier) return res.json({ exists: false, type: null });
   const id = identifier.trim();
+  // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환.
+  const ciPoolId = (pool_id || "").trim() || null;
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id })
       .from(usersTable).where(eq(usersTable.email, id.toLowerCase())).limit(1);
     if (user) return res.json({ exists: true, type: "admin" });
 
-    const [parent] = await db.select({ id: parentAccountsTable.id })
-      .from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)).limit(1);
-    if (parent) return res.json({ exists: true, type: "parent" });
+    const parentRows = ciPoolId
+      ? (await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${ciPoolId} LIMIT 1`)).rows
+      : await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable).where(eq(parentAccountsTable.phone, id)).limit(1);
+    if (parentRows.length > 0) return res.json({ exists: true, type: "parent" });
 
     return res.json({ exists: false, type: null });
   } catch (e) {
@@ -765,6 +1084,26 @@ router.post("/unified-login", async (req, res) => {
       if (!valid) {
         wrongPwCount++;
       } else {
+        // ── 탈퇴 예정 계정 체크 (90일 유예 중) ────────────────────────
+        if ((user as any).withdrawal_requested_at) {
+          // 이메일 익명화 여부로 즉시삭제(차단) vs 90일유예(읽기전용) 구분
+          const isAnonymized = String((user as any).email ?? "").startsWith("deleted_") && String((user as any).email ?? "").endsWith("@deleted.local");
+          if (isAnonymized) {
+            res.status(401).json({ success: false, error: "탈퇴 처리된 계정입니다.", error_code: "account_withdrawn" }); return;
+          }
+          // 90일 유예 → 읽기 전용 토큰 발급 허용
+          const deletionAt = new Date(new Date((user as any).withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+          const wToken = signToken({ userId: user.id, role: user.role, poolId: user.swimming_pool_id, withdrawing: true });
+          const { password_hash: _pw2, ...safeWUser } = user as any;
+          const wKind = user.role === "pool_admin" ? "admin" : "teacher";
+          res.json({
+            success: true, withdrawing: true, days_until_deletion: daysLeft,
+            available_accounts: [{ kind: wKind, token: wToken, withdrawing: true, days_until_deletion: daysLeft, user: { ...safeWUser, withdrawing: true, days_until_deletion: daysLeft } }],
+            token: wToken, kind: wKind,
+            user: { ...safeWUser, withdrawing: true, days_until_deletion: daysLeft },
+          }); return;
+        }
         // teacher 활성화 체크
         if (user.role === "teacher") {
           const rawRows = await superAdminDb.execute(sql`SELECT is_activated FROM users WHERE id = ${user.id} LIMIT 1`);
@@ -778,6 +1117,29 @@ router.post("/unified-login", async (req, res) => {
               res.status(403).json({ success: false, error: "관리자 승인 대기 중입니다.", error_code: "pending_teacher_approval" }); return;
             }
             res.status(403).json({ success: false, error: "계정이 아직 활성화되지 않았습니다.", error_code: "needs_activation", needs_activation: true, teacher_id: user.id }); return;
+          }
+        }
+        // ── 수영장 비활성화(90일 유예) 체크 ───────────────────────────
+        if (user.swimming_pool_id && user.role !== "super_admin") {
+          const poolStatus = (await superAdminDb.execute(sql`
+            SELECT deactivated_at, deletion_scheduled_at
+            FROM swimming_pools
+            WHERE id = ${user.swimming_pool_id} AND deactivated_at IS NOT NULL LIMIT 1
+          `)).rows[0] as any;
+          if (poolStatus?.deactivated_at) {
+            const scheduledAt = poolStatus.deletion_scheduled_at
+              ? new Date(poolStatus.deletion_scheduled_at)
+              : new Date(new Date(poolStatus.deactivated_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+            const daysLeft = Math.max(0, Math.ceil((scheduledAt.getTime() - Date.now()) / 86400000));
+            res.status(403).json({
+              success: false,
+              error_code: "pool_deactivated",
+              error: "구독이 만료되어 계정이 비활성화되었습니다.",
+              message: "구독이 만료되어 계정이 비활성화되었습니다.",
+              days_until_deletion: daysLeft,
+              deletion_scheduled_at: scheduledAt.toISOString(),
+              deactivated_at: poolStatus.deactivated_at,
+            }); return;
           }
         }
         // TOTP 2단계 인증 체크 (App Store 리뷰 데모 계정은 우회)
@@ -799,10 +1161,16 @@ router.post("/unified-login", async (req, res) => {
     }
 
     // ── 2) parent_accounts 테이블 (login_id → phone) ──────────────
-    const parentByLoginId = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
+    // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환(LIMIT 1).
+    const uPoolId = ((req.body as any).pool_id || "").trim() || null;
+    const parentByLoginId = uPoolId
+      ? await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} AND swimming_pool_id = ${uPoolId} LIMIT 1`)
+      : await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE login_id = ${id} LIMIT 1`);
     let parentRow: any = parentByLoginId.rows[0] ?? null;
     if (!parentRow) {
-      const byPhoneRaw = await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} LIMIT 1`);
+      const byPhoneRaw = uPoolId
+        ? await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} AND swimming_pool_id = ${uPoolId} LIMIT 1`)
+        : await superAdminDb.execute(sql`SELECT * FROM parent_accounts WHERE phone = ${id} LIMIT 1`);
       parentRow = byPhoneRaw.rows[0] ?? null;
     }
 
@@ -811,6 +1179,12 @@ router.post("/unified-login", async (req, res) => {
       if (!valid) {
         wrongPwCount++;
       } else {
+        // 탈퇴 예정 계정 체크
+        if (parentRow.withdrawal_requested_at) {
+          const deletionAt = new Date(new Date(parentRow.withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+          const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+          res.status(403).json({ success: false, error: `탈퇴 처리 중인 계정입니다. ${daysLeft}일 후 완전히 삭제됩니다.`, error_code: "withdrawal_in_progress", days_until_deletion: daysLeft }); return;
+        }
         let poolName: string | null = null;
         try {
           const [pool] = await superAdminDb.select({ name: swimmingPoolsTable.name })
@@ -956,8 +1330,9 @@ router.get("/verify-role", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── 역할 전환 ─────────────────────────────────────────────────────────
-// requireDbRoleCheck: 현재 JWT 역할이 DB에 유효한지 먼저 검증
-router.post("/switch-role", requireAuth, requireDbRoleCheck, async (req: AuthRequest, res) => {
+// requireDbRoleCheck 제거: ROLE_REVOKED 후에도 teacher 복귀가 가능해야 함
+// 핸들러 내부에서 targetRole이 DB roles에 있는지 직접 검증하므로 보안 동일하게 유지
+router.post("/switch-role", requireAuth, async (req: AuthRequest, res) => {
   const { role } = req.body;
   if (!role) return err(res, 400, "전환할 역할을 지정해주세요.");
   try {
@@ -1006,9 +1381,11 @@ router.post("/switch-role", requireAuth, requireDbRoleCheck, async (req: AuthReq
 
 // ── 비밀번호 재설정 (MVP: 이메일 확인 → 바로 변경) ────────────────────
 router.post("/reset-password", async (req, res) => {
-  const { identifier, new_password } = req.body;
+  const { identifier, new_password, pool_id } = req.body;
   if (!identifier || !new_password) return err(res, 400, "아이디와 새 비밀번호를 입력해주세요.");
   if (new_password.length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+  // [2.0.0] pool_id 제공 시 해당 pool만 조회. 미제공 시 1.6.3 호환.
+  const rpPoolId = (pool_id || "").trim() || null;
   try {
     const [user] = await superAdminDb.select({ id: usersTable.id }).from(usersTable)
       .where(eq(usersTable.email, identifier.trim().toLowerCase())).limit(1);
@@ -1017,8 +1394,10 @@ router.post("/reset-password", async (req, res) => {
       await superAdminDb.execute(sql`UPDATE users SET password_hash = ${hash}, updated_at = now() WHERE id = ${user.id}`);
       res.json({ success: true, message: "비밀번호가 변경되었습니다." }); return;
     }
-    const [parent] = await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable)
-      .where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    const parentQuery = rpPoolId
+      ? await db.execute(sql`SELECT id FROM parent_accounts WHERE phone = ${identifier.trim()} AND swimming_pool_id = ${rpPoolId} LIMIT 1`)
+      : await db.select({ id: parentAccountsTable.id }).from(parentAccountsTable).where(eq(parentAccountsTable.phone, identifier.trim())).limit(1);
+    const [parent] = rpPoolId ? (parentQuery as any).rows : parentQuery;
     if (parent) {
       const hash = await hashPassword(new_password);
       await db.execute(sql`UPDATE parent_accounts SET pin_hash = ${hash}, updated_at = now() WHERE id = ${parent.id}`);
@@ -1047,7 +1426,7 @@ router.post("/change-password", requireAuth, async (req: AuthRequest, res) => {
 
 // ── 선생님 자체 회원가입 (풀 검색 후 등록, PENDING 상태) ───────────────
 router.post("/teacher-self-signup", async (req, res) => {
-  const { name, email, loginId, password, phone, pool_id } = req.body;
+  const { name, email, loginId, password, phone, pool_id, kakao_id, apple_id } = req.body;
   // loginId = 실제 로그인 식별자 (email 컬럼에 저장), email = 연락용 (현재 저장 안 함)
   const identifier = (loginId?.trim() || email?.trim() || "").toLowerCase();
   if (!name?.trim() || !identifier || !password || !pool_id) {
@@ -1088,11 +1467,29 @@ router.post("/teacher-self-signup", async (req, res) => {
       }
     }
 
+    // Kakao-linked teacher 존재 여부 확인 → KAKAO_MIGRATION_REQUIRED
+    if (cleanedPhone) {
+      const kakaoTeacher = (await superAdminDb.execute(sql`
+        SELECT id FROM users
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${cleanedPhone.replace(/[^0-9]/g, "")}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NOT NULL
+          AND is_activated IS NOT false
+        LIMIT 1
+      `)).rows as any[];
+      if (kakaoTeacher.length > 0) {
+        return res.status(409).json({
+          error: "이미 카카오로 연결된 계정이 있습니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+        });
+      }
+    }
+
     // 유저 생성 (자동승인이면 is_activated=true)
     await superAdminDb.execute(sql`
-      INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, created_at, updated_at)
+      INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, kakao_id, apple_id, created_at, updated_at)
       VALUES (${userId}, ${identifier}, ${hash}, ${name.trim()}, ${cleanedPhone || null},
-              'teacher', ${pool_id}, ${autoApproved}, now(), now())
+              'teacher', ${pool_id}, ${autoApproved}, ${kakao_id || null}, ${apple_id || null}, now(), now())
     `);
 
     if (autoApproved && matchedInviteId) {
@@ -1196,6 +1593,9 @@ router.post("/solo-teacher-signup", async (req, res) => {
          ${inviteId}, ${"approved"}, ${userId}, ${userId},
          now(), ${userId}, ${"teacher"}, now(), now())
     `);
+
+    // ── 기본 일지 템플릿 자동 삽입 ──────────────────────────────────────
+    insertDefaultTemplates(poolId, userId).catch((e: any) => console.error("[insertDefaultTemplates] solo-teacher signup:", e));
 
     const token = signToken({ userId, role: "pool_admin", poolId });
     res.status(201).json({
@@ -1556,26 +1956,31 @@ router.post("/find-identifier-by-phone", async (req, res) => {
   if (!phone) return err(res, 400, "전화번호를 입력해주세요.");
   const cleaned = (phone as string).replace(/[-\s]/g, "");
   try {
+    // 하이픈 있는 형식도 함께 검색 (010-1234-5678 OR 01012345678)
+    const withHyphen = cleaned.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+
     // users 테이블 (superAdminDb) — 관리자·선생님 계정
     const userRows = (await superAdminDb.execute(sql`
       SELECT u.email AS identifier, u.name, u.role, u.is_activated,
+             u.kakao_id, u.apple_id,
              sp.name AS pool_name
       FROM users u
       LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
-      WHERE u.phone = ${cleaned}
+      WHERE (u.phone = ${cleaned} OR u.phone = ${withHyphen})
         AND u.role != 'super_admin'
       ORDER BY u.created_at ASC
     `)).rows as any[];
 
     // parent_accounts 테이블 (db — pool별 DB)
     const parentRows = (await db.execute(sql`
-      SELECT pa.phone AS identifier, pa.name, pa.swimming_pool_id
+      SELECT pa.phone, pa.login_id, pa.name, pa.swimming_pool_id,
+             pa.kakao_id, pa.apple_id
       FROM parent_accounts pa
-      WHERE pa.phone = ${cleaned}
+      WHERE pa.phone = ${cleaned} OR pa.phone = ${withHyphen}
       ORDER BY pa.created_at ASC
     `)).rows as any[];
 
-    // 학부모 계정 pool_name: pool_id 목록을 쉼표 구분 IN 절로 조회
+    // 학부모 계정 pool_name: pool_id 목록 조회
     const poolMap: Record<string, string> = {};
     const parentPoolIds = [...new Set(parentRows.map((r: any) => r.swimming_pool_id).filter(Boolean))];
     for (const pid of parentPoolIds) {
@@ -1585,20 +1990,30 @@ router.post("/find-identifier-by-phone", async (req, res) => {
       if (poolRows.length > 0) poolMap[pid] = poolRows[0].name;
     }
 
+    function socialProvider(row: any): "kakao" | "apple" | null {
+      if (row.kakao_id) return "kakao";
+      if (row.apple_id) return "apple";
+      return null;
+    }
+
     const accounts = [
       ...userRows.map((r: any) => ({
         type: "admin",
-        identifier: r.identifier,
+        identifier: r.identifier,        // 아이디(email 필드 = 로그인 아이디)
         name: r.name,
         role: r.role,
         pool_name: r.pool_name || null,
         is_activated: r.is_activated,
+        social_provider: socialProvider(r),
       })),
       ...parentRows.map((r: any) => ({
         type: "parent",
-        identifier: r.identifier,
+        identifier: r.phone,             // reset-password는 phone으로 계정 찾음
+        login_id: r.login_id || null,    // 표시용 아이디
         name: r.name,
+        pool_id: r.swimming_pool_id || null,   // [2.0.0] pool-scoped reset-password용
         pool_name: poolMap[r.swimming_pool_id] || null,
+        social_provider: socialProvider(r),
       })),
     ];
 
@@ -1610,37 +2025,98 @@ router.post("/find-identifier-by-phone", async (req, res) => {
 });
 
 // ── 카카오 소셜 로그인 ────────────────────────────────────────────────
+// Lookup order:
+//   1) parent_accounts.kakao_id  (exact match)
+//   2) parent_accounts.phone     (pool-scoped → single-unscoped → AMBIGUOUS)
+//   3) users.kakao_id            (teacher/pool_admin, existing link only)
+//   4) users.phone               (teacher/pool_admin, first-time link)
+//   5) 계정 없음 → kakao_no_account (신규 가입 유도)
+//
+// enum 제약: user_role에 sub_admin 없음 → role IN ('teacher','pool_admin') 고정
 router.post("/kakao-social-login", async (req, res) => {
-  const { accessToken } = req.body;
+  const { accessToken, pool_id: requestPoolId } = req.body;
   if (!accessToken) return err(res, 400, "카카오 액세스 토큰이 필요합니다.");
+  // pool_id: 2.0.0 앱이 현재 선택된 수영장 id를 전달 (1.6.3은 미전달 → undefined)
+  const hasPoolId = !!requestPoolId;
+  console.log(`[kakao-social-login][KAKAO_REQUEST_RECEIVED] pool_id=${requestPoolId ?? "none"} hasPoolId=${hasPoolId}`);
 
   try {
-    // 카카오 사용자 정보 조회
-    const kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-      },
-    });
-    if (!kakaoRes.ok) {
-      return err(res, 401, "카카오 토큰이 유효하지 않습니다.");
+    // 카카오 사용자 정보 조회 — 8초 타임아웃
+    const kakaoController = new AbortController();
+    const kakaoAbortTimer = setTimeout(() => kakaoController.abort(), 8000);
+    let kakaoRes: Response;
+    try {
+      kakaoRes = await fetch("https://kapi.kakao.com/v2/user/me", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+        },
+        signal: kakaoController.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(kakaoAbortTimer);
+      const isTimeout = fetchErr?.name === "AbortError";
+      console.error(`[kakao-social-login] Kakao API ${isTimeout ? "timeout" : "fetch error"}: ${fetchErr?.message}`);
+      return res.status(504).json({
+        success: false,
+        error_code: isTimeout ? "KAKAO_API_TIMEOUT" : "KAKAO_API_ERROR",
+        error: isTimeout
+          ? "카카오 서버가 응답하지 않습니다. 잠시 후 다시 시도해주세요."
+          : "카카오 서버에 연결할 수 없습니다. 네트워크를 확인해주세요.",
+      });
+    } finally {
+      clearTimeout(kakaoAbortTimer);
     }
+
+    if (!kakaoRes.ok) {
+      let kakaoErrBody: any = {};
+      try { kakaoErrBody = await kakaoRes.json(); } catch {}
+      console.error(`[kakao-social-login] Kakao API error status=${kakaoRes.status} code=${kakaoErrBody?.code} msg=${kakaoErrBody?.msg}`);
+      if (kakaoRes.status === 401 || kakaoRes.status === 403) {
+        return res.status(401).json({
+          success: false,
+          error_code: "KAKAO_INVALID_TOKEN",
+          error: "카카오 인증이 만료되었습니다. 다시 시도해주세요.",
+        });
+      }
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_API_ERROR",
+        error: "카카오 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+      });
+    }
+
     const kakaoUser: any = await kakaoRes.json();
     const kakaoId = String(kakaoUser.id);
+    if (!kakaoId || kakaoId === "undefined" || kakaoId === "null") {
+      console.error(`[kakao-social-login] Kakao user id is invalid: ${kakaoId}`);
+      return res.status(502).json({
+        success: false,
+        error_code: "KAKAO_PROFILE_FAILED",
+        error: "카카오 프로필 정보를 가져올 수 없습니다.",
+      });
+    }
+
     const kakaoNickname = kakaoUser.kakao_account?.profile?.nickname || null;
     const kakaoProfileImage = kakaoUser.kakao_account?.profile?.profile_image_url || null;
-    const kakaoPhone = kakaoUser.kakao_account?.phone_number
-      ? kakaoUser.kakao_account.phone_number.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
+    const rawPhone = kakaoUser.kakao_account?.phone_number;
+    const kakaoPhone = rawPhone
+      ? rawPhone.replace(/^\+82\s*/, "0").replace(/[^0-9]/g, "")
       : null;
+    // phone 없음 = 카카오 전화번호 scope 미동의 상태 (정상 케이스, phone_missing 플래그로 앱에 알림)
+    const phoneMissing = !kakaoPhone;
+    console.log(`[kakao-social-login][KAKAO_PROFILE_OK] kakaoId=MASKED phone_scope=${!phoneMissing}`);
 
-    // 1) kakao_id로 기존 계정 조회
+    // 1) kakao_id로 기존 parent 계정 조회 — exact external identity match
     const byKakaoId = await db.execute(sql`
       SELECT * FROM parent_accounts WHERE kakao_id = ${kakaoId} LIMIT 1
     `);
 
     if ((byKakaoId.rows as any[]).length > 0) {
       const account = byKakaoId.rows[0] as any;
+      console.log(`[kakao-social-login][KAKAO_ID_MATCH] poolId=${account.swimming_pool_id}`);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+      console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=kakao_id_match`);
       return res.json({
         success: true,
         token,
@@ -1656,52 +2132,277 @@ router.post("/kakao-social-login", async (req, res) => {
       });
     }
 
-    // 2) 전화번호로 기존 계정 매칭 후 kakao_id 연결
-    // Phase 1 backport: 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
+    // 2) 전화번호로 기존 parent 계정 매칭 후 kakao_id 연결
+    // 하이픈 형식 fallback (010-1234-5678 / 01012345678 모두 지원)
+    if (kakaoPhone) {
+      const kakaoPhoneHyphenP = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+
+      if (hasPoolId) {
+        // 2-A) 2.0.0: pool_id 있음 → 해당 pool로 범위 좁히기
+        const byPhonePool = await db.execute(sql`
+          SELECT * FROM parent_accounts
+          WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP})
+          AND swimming_pool_id = ${requestPoolId}
+          LIMIT 1
+        `);
+        if ((byPhonePool.rows as any[]).length > 0) {
+          const account = byPhonePool.rows[0] as any;
+          console.log(`[kakao-social-login][KAKAO_PHONE_MATCH] method=pool_scoped poolId=${requestPoolId}`);
+          await db.execute(sql`
+            UPDATE parent_accounts
+            SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+            WHERE id = ${account.id}
+          `);
+          const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+          console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=phone_pool_match`);
+          return res.json({
+            success: true,
+            token,
+            parent: {
+              id: account.id,
+              name: account.name,
+              nickname: account.nickname || null,
+              phone: account.phone,
+              login_id: account.login_id || null,
+              swimming_pool_id: account.swimming_pool_id,
+              kakao_profile_image: kakaoProfileImage,
+            },
+          });
+        }
+        // pool_id로 지정한 pool에 계정 없음 → 신규 가입 유도로 낙하
+      } else {
+        // 2-B) 1.6.3: pool_id 없음 → 전체 조회, 2개 이상이면 AMBIGUOUS
+        const byPhone = await db.execute(sql`
+          SELECT * FROM parent_accounts
+          WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphenP})
+          LIMIT 2
+        `);
+        const phoneMatches = byPhone.rows as any[];
+
+        if (phoneMatches.length === 1) {
+          const account = phoneMatches[0];
+          console.log(`[kakao-social-login][KAKAO_PHONE_MATCH] method=single_unscoped poolId=${account.swimming_pool_id}`);
+          await db.execute(sql`
+            UPDATE parent_accounts
+            SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
+            WHERE id = ${account.id}
+          `);
+          const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+          console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=phone_single_match`);
+          return res.json({
+            success: true,
+            token,
+            parent: {
+              id: account.id,
+              name: account.name,
+              nickname: account.nickname || null,
+              phone: account.phone,
+              login_id: account.login_id || null,
+              swimming_pool_id: account.swimming_pool_id,
+              kakao_profile_image: kakaoProfileImage,
+            },
+          });
+        } else if (phoneMatches.length >= 2) {
+          // 임의 LIMIT 1 선택 금지 → 앱에서 pool 선택 후 재시도하도록 pools[] 반환
+          const poolIds = phoneMatches.map((a: any) => a.swimming_pool_id).filter(Boolean);
+          let poolList: { id: string; name: string }[] = [];
+          if (poolIds.length > 0) {
+            const poolRows = await db.execute(
+              sql`SELECT id, name FROM swimming_pools WHERE id = ANY(${poolIds}) ORDER BY name`
+            );
+            poolList = (poolRows.rows as any[]).map((r: any) => ({ id: String(r.id), name: r.name }));
+          }
+          console.warn(`[kakao-social-login][KAKAO_PARENT_AMBIGUOUS] phone_matches=${phoneMatches.length} pools=${poolList.map(p => p.id).join(",")}`);
+          return res.status(409).json({
+            success: false,
+            error_code: "KAKAO_PARENT_AMBIGUOUS",
+            error: "동일 전화번호로 여러 수영장에 계정이 있습니다. 어느 수영장으로 로그인할지 선택해주세요.",
+            pools: poolList,
+          });
+        }
+        // 0개 → 신규 가입 유도로 낙하
+      }
+    } else {
+      // phone scope 미동의
+      console.log(`[kakao-social-login][KAKAO_PHONE_MISSING] kakaoPhone=null`);
+    }
+
+    // 3) users 테이블(선생님/코치) kakao_id로 조회 — 기존 연결 계정 로그인
+    // pool_admin/teacher만 허용; super_admin/platform_admin/super_manager 제외
+    // Note: 'sub_admin'은 user_role enum 미존재 → 절대 사용 금지 (runtime 500 오류)
+    const byKakaoIdTeacher = await db.execute(sql`
+      SELECT * FROM users WHERE kakao_id = ${kakaoId} AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byKakaoIdTeacher.rows as any[]).length > 0) {
+      console.log(`[kakao-social-login][KAKAO_ID_MATCH] role=teacher/admin`);
+      const u = byKakaoIdTeacher.rows[0] as any;
+      if (!u.is_activated) {
+        return res.status(403).json({
+          success: false,
+          error_code: "needs_activation",
+          needs_activation: true,
+          teacher_id: u.id,
+          message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+        });
+      }
+      const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+      console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=teacher_kakao_id role=${u.role}`);
+      return res.json({
+        success: true,
+        kind: "admin",
+        token,
+        user: {
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          role: u.role,
+          roles: u.roles || [u.role],
+          swimming_pool_id: u.swimming_pool_id,
+          is_activated: u.is_activated,
+          kakao_profile_image: u.kakao_profile_image || null,
+        },
+      });
+    }
+
+    // 4) users 테이블(선생님/코치) 전화번호로 조회 후 kakao_id 연결 (first-time)
+    // 하이픈 형식 fallback; sub_admin 제거 (enum에 없는 값)
     if (kakaoPhone) {
       const kakaoPhoneHyphen = kakaoPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
-      const byPhone = await db.execute(sql`
-        SELECT * FROM parent_accounts WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphen}) LIMIT 1
+      const byPhoneTeacher = await db.execute(sql`
+        SELECT * FROM users WHERE (phone = ${kakaoPhone} OR phone = ${kakaoPhoneHyphen}) AND role IN ('teacher', 'pool_admin') LIMIT 1
       `);
-      if ((byPhone.rows as any[]).length > 0) {
-        const account = byPhone.rows[0] as any;
+      if ((byPhoneTeacher.rows as any[]).length > 0) {
+        const u = byPhoneTeacher.rows[0] as any;
         await db.execute(sql`
-          UPDATE parent_accounts 
+          UPDATE users
           SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage}, updated_at = NOW()
-          WHERE id = ${account.id}
+          WHERE id = ${u.id}
         `);
-        const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
+        if (!u.is_activated) {
+          return res.status(403).json({
+            success: false,
+            error_code: "needs_activation",
+            needs_activation: true,
+            teacher_id: u.id,
+            message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+          });
+        }
+        const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+        console.log(`[kakao-social-login][KAKAO_LOGIN_SUCCESS] method=teacher_phone_match role=${u.role}`);
         return res.json({
           success: true,
+          kind: "admin",
           token,
-          parent: {
-            id: account.id,
-            name: account.name,
-            nickname: account.nickname || null,
-            phone: account.phone,
-            login_id: account.login_id || null,
-            swimming_pool_id: account.swimming_pool_id,
-            kakao_profile_image: kakaoProfileImage,
+          user: {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            role: u.role,
+            roles: u.roles || [u.role],
+            swimming_pool_id: u.swimming_pool_id,
+            is_activated: u.is_activated,
+            kakao_profile_image: kakaoProfileImage || null,
           },
         });
       }
     }
 
-    // 3) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    // 5) 계정 없음 → 신규 가입 유도 (kakao_id + 정보 반환)
+    // phone_missing=true: 카카오 전화번호 scope 미동의 → 앱에서 사용자가 직접 입력 안내
+    console.log(`[kakao-social-login][KAKAO_NO_ACCOUNT] phoneMissing=${phoneMissing} hasPoolId=${hasPoolId}`);
     return res.status(404).json({
       success: false,
       error_code: "kakao_no_account",
-      message: "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
+      message: phoneMissing
+        ? "카카오 계정 전화번호를 확인할 수 없습니다. 수영장에 등록된 전화번호로 직접 계정을 연결해주세요."
+        : "연결된 수영장 계정이 없습니다. 수영장에서 등록된 전화번호로 계정을 연결해주세요.",
       kakao_info: {
         kakao_id: kakaoId,
         name: kakaoNickname,
-        phone: kakaoPhone,
+        phone: kakaoPhone,          // null이면 앱에서 phone_missing=true 처리
         profile_image: kakaoProfileImage,
+        phone_missing: phoneMissing, // 앱이 "전화번호 직접 입력" UI 표시 여부 결정에 사용
       },
     });
   } catch (e) {
     console.error("[kakao-social-login]", e);
     return err(res, 500, "카카오 로그인 처리 중 오류가 발생했습니다.");
+  }
+});
+
+// ── 카카오 선생님/코치 계정 연결 (전화번호로 본인 확인 후 kakao_id 연결) ──
+router.post("/kakao-link-teacher", async (req, res) => {
+  const { kakaoId, phone, kakaoProfileImage } = req.body;
+  if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
+
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  const cleanPhoneHyphen = cleanPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+  try {
+    // 하이픈 형식 fallback; sub_admin 제거 (enum에 없는 값)
+    const byPhone = await db.execute(sql`
+      SELECT * FROM users WHERE (phone = ${cleanPhone} OR phone = ${cleanPhoneHyphen}) AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return err(res, 404, "입력하신 전화번호로 등록된 선생님/코치 계정이 없습니다. 수영장 관리자에게 문의하세요.");
+    }
+    const u = byPhone.rows[0] as any;
+
+    // ── 정책: pool_admin 신규 카카오 연결 차단 ─────────────────────────────
+    // pool_admin(관리자)은 PC 모드 연동 특성상 카카오 신규연결 불가.
+    // 이미 kakao_id가 설정된 관리자의 로그인은 kakao-social-login Step 3에서 정상 처리됨.
+    if (u.role === "pool_admin") {
+      return res.status(403).json({
+        success: false,
+        error_code: "admin_kakao_link_blocked",
+        message: "관리자 계정은 PC 모드 연동으로 인해 소셜계정 가입이 불가합니다. 일반 계정으로 가입해 주세요.",
+      });
+    }
+
+    const existing = await db.execute(sql`
+      SELECT id FROM users WHERE kakao_id = ${kakaoId} AND id != ${u.id} LIMIT 1
+    `);
+    if ((existing.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 카카오 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE users
+      SET kakao_id = ${kakaoId}, kakao_profile_image = ${kakaoProfileImage || null}, updated_at = NOW()
+      WHERE id = ${u.id}
+    `);
+
+    if (!u.is_activated) {
+      return res.status(403).json({
+        success: false,
+        error_code: "needs_activation",
+        needs_activation: true,
+        teacher_id: u.id,
+        message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+      });
+    }
+
+    const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+    return res.json({
+      success: true,
+      kind: "admin",
+      token,
+      user: {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        roles: u.roles || [u.role],
+        swimming_pool_id: u.swimming_pool_id,
+        is_activated: u.is_activated,
+        kakao_profile_image: kakaoProfileImage || null,
+      },
+    });
+  } catch (e) {
+    console.error("[kakao-link-teacher]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
   }
 });
 
@@ -1714,18 +2415,37 @@ router.post("/apple-social-login", async (req, res) => {
     // Apple JWT 검증: apple-auth 라이브러리 없이 직접 페이로드 파싱 (신뢰된 환경)
     // identityToken은 Apple이 서명한 JWT. sub 클레임이 고유 사용자 ID(apple_id)
     const parts = identityToken.split(".");
-    if (parts.length !== 3) return err(res, 400, "유효하지 않은 Apple identity token 형식입니다.");
-    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    if (parts.length !== 3) {
+      console.error("[apple-social-login] 잘못된 JWT 형식 (parts=" + parts.length + ")");
+      return err(res, 400, "유효하지 않은 Apple identity token 형식입니다.");
+    }
+    let payload: any;
+    try {
+      payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    } catch (parseErr) {
+      console.error("[apple-social-login] JWT 페이로드 파싱 실패:", parseErr);
+      return err(res, 400, "Apple identity token 페이로드를 파싱할 수 없습니다.");
+    }
     const appleId = payload.sub as string;
     const appleEmail = payload.email as string | null;
-    if (!appleId) return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
+    const tokenIss = payload.iss as string | null;
+    const tokenAud = payload.aud as string | null;
+    console.log("[apple-social-login] 시작 — appleId:", appleId ? appleId.substring(0, 8) + "***" : "없음",
+      "| email:", appleEmail ? "있음" : "없음",
+      "| fullName:", fullName ? "있음" : "없음",
+      "| iss:", tokenIss, "| aud:", tokenAud);
+    if (!appleId) {
+      console.error("[apple-social-login] sub 클레임 없음. payload keys:", Object.keys(payload));
+      return err(res, 400, "Apple 사용자 ID를 확인할 수 없습니다.");
+    }
 
-    // 1) apple_id로 기존 계정 조회
+    // 1) parent_accounts에서 apple_id로 기존 계정 조회
     const byAppleId = await db.execute(sql`
       SELECT * FROM parent_accounts WHERE apple_id = ${appleId} LIMIT 1
     `);
     if ((byAppleId.rows as any[]).length > 0) {
       const account = byAppleId.rows[0] as any;
+      console.log("[apple-social-login] 기존 계정(parent apple_id) 로그인 성공:", account.id);
       const token = signToken({ userId: account.id, role: "parent_account", poolId: account.swimming_pool_id });
       return res.json({
         success: true,
@@ -1742,13 +2462,25 @@ router.post("/apple-social-login", async (req, res) => {
       });
     }
 
-    // 2) 이메일로 기존 계정 매칭 후 apple_id 연결
+    // 2) users(관리자/선생님)에서 apple_id로 기존 계정 조회
+    const byAppleIdUser = await db.execute(sql`
+      SELECT * FROM users WHERE apple_id = ${appleId} LIMIT 1
+    `);
+    if ((byAppleIdUser.rows as any[]).length > 0) {
+      const u = byAppleIdUser.rows[0] as any;
+      console.log("[apple-social-login] 기존 users 계정(apple_id) 로그인 성공:", u.id, "role:", u.role);
+      const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+      return res.json({ success: true, token, user: { id: u.id, name: u.name, role: u.role, swimming_pool_id: u.swimming_pool_id } });
+    }
+
+    // 3) 이메일로 parent_accounts 매칭 후 apple_id 연결
     if (appleEmail) {
       const byEmail = await db.execute(sql`
         SELECT * FROM parent_accounts WHERE login_id = ${appleEmail} LIMIT 1
       `);
       if ((byEmail.rows as any[]).length > 0) {
         const account = byEmail.rows[0] as any;
+        console.log("[apple-social-login] 이메일 매칭 후 parent apple_id 연결:", account.id);
         await db.execute(sql`
           UPDATE parent_accounts SET apple_id = ${appleId}, updated_at = NOW()
           WHERE id = ${account.id}
@@ -1768,30 +2500,32 @@ router.post("/apple-social-login", async (req, res) => {
           },
         });
       }
+
+      // 4) 이메일로 users 매칭 후 apple_id 연결
+      const byEmailUser = await db.execute(sql`
+        SELECT * FROM users WHERE email = ${appleEmail} LIMIT 1
+      `);
+      if ((byEmailUser.rows as any[]).length > 0) {
+        const u = byEmailUser.rows[0] as any;
+        console.log("[apple-social-login] 이메일 매칭 후 users apple_id 연결:", u.id, "role:", u.role);
+        await db.execute(sql`
+          UPDATE users SET apple_id = ${appleId}, updated_at = NOW() WHERE id = ${u.id}
+        `);
+        const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+        return res.json({ success: true, token, user: { id: u.id, name: u.name, role: u.role, swimming_pool_id: u.swimming_pool_id } });
+      }
     }
 
-    // 3) 계정 없음 → Apple ID로 신규 학부모 계정 자동 생성 (수영장 연결 대기)
-    const newParentId = `pa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const displayName = fullName || (appleEmail ? appleEmail.split("@")[0] : "Apple 사용자");
-    const randomPinHash = await hashPassword(randomUUID()); // Apple로만 로그인하므로 실제 사용 안 됨
-    await db.execute(sql`
-      INSERT INTO parent_accounts
-        (id, swimming_pool_id, phone, pin_hash, name, login_id, apple_id, created_at, updated_at)
-      VALUES
-        (${newParentId}, NULL, NULL, ${randomPinHash}, ${displayName}, ${appleEmail || null}, ${appleId}, now(), now())
-    `);
-    const token = signToken({ userId: newParentId, role: "parent_account", poolId: null });
-    return res.json({
-      success: true,
-      token,
-      parent: {
-        id: newParentId,
-        name: displayName,
-        nickname: null,
-        phone: null,
-        login_id: appleEmail || null,
-        swimming_pool_id: null,
-        kakao_profile_image: null,
+    // 5) 계정 없음 → 프론트에서 역할 선택 후 가입하도록 에러 반환
+    console.log("[apple-social-login] 계정 없음 → apple_no_account 반환 appleId:", appleId?.substring(0, 8) + "***");
+    return res.status(400).json({
+      success: false,
+      error_code: "apple_no_account",
+      message: "Apple 계정으로 가입된 정보가 없습니다. 역할을 선택하고 가입해주세요.",
+      apple_info: {
+        apple_id: appleId,
+        email: appleEmail || null,
+        name: fullName || null,
       },
     });
   } catch (e) {
@@ -1805,12 +2539,9 @@ router.post("/kakao-link-account", async (req, res) => {
   const { kakaoId, phone, kakaoProfileImage } = req.body;
   if (!kakaoId || !phone) return err(res, 400, "kakaoId와 전화번호가 필요합니다.");
 
-  // Phase 1 backport: 입력 전화번호 digits 정규화 + 하이픈 fallback
-  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
-  const cleanPhoneHyphen = cleanPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
   try {
     const byPhone = await db.execute(sql`
-      SELECT * FROM parent_accounts WHERE (phone = ${cleanPhone} OR phone = ${cleanPhoneHyphen}) LIMIT 1
+      SELECT * FROM parent_accounts WHERE phone = ${phone} LIMIT 1
     `);
     if ((byPhone.rows as any[]).length === 0) {
       return err(res, 404, "입력하신 전화번호로 등록된 계정이 없습니다. 수영장 관리자에게 문의하세요.");
@@ -1896,65 +2627,183 @@ router.post("/apple-link-account", async (req, res) => {
     console.error("[apple-link-account]", e);
     return err(res, 500, "서버 오류가 발생했습니다.");
   }
+
 });
 
+// ── Apple 선생님/관리자 계정 연결 ────────────────────────────────────────
+router.post("/apple-link-teacher", async (req, res) => {
+  const { appleId, phone } = req.body;
+  if (!appleId || !phone) return err(res, 400, "appleId와 전화번호가 필요합니다.");
+
+  const cleanPhone = String(phone).replace(/[^0-9]/g, "");
+  try {
+    const byPhone = await db.execute(sql`
+      SELECT * FROM users WHERE phone = ${cleanPhone} AND role IN ('teacher', 'pool_admin') LIMIT 1
+    `);
+    if ((byPhone.rows as any[]).length === 0) {
+      return res.status(404).json({
+        success: false,
+        error_code: "phone_not_registered",
+        message: "입력하신 전화번호로 등록된 계정이 없습니다.",
+      });
+    }
+    const u = byPhone.rows[0] as any;
+
+    const existing = await db.execute(sql`
+      SELECT id FROM users WHERE apple_id = ${appleId} AND id != ${u.id} LIMIT 1
+    `);
+    if ((existing.rows as any[]).length > 0) {
+      return err(res, 409, "이미 다른 계정에 연결된 Apple 계정입니다.");
+    }
+
+    await db.execute(sql`
+      UPDATE users SET apple_id = ${appleId}, updated_at = NOW() WHERE id = ${u.id}
+    `);
+
+    if (!u.is_activated) {
+      return res.status(403).json({
+        success: false,
+        error_code: "needs_activation",
+        needs_activation: true,
+        teacher_id: u.id,
+        message: "계정이 아직 활성화되지 않았습니다. 관리자의 승인을 기다려주세요.",
+      });
+    }
+
+    const token = signToken({ userId: u.id, role: u.role, poolId: u.swimming_pool_id });
+    return res.json({
+      success: true,
+      kind: "admin",
+      token,
+      user: {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        roles: u.roles || [u.role],
+        swimming_pool_id: u.swimming_pool_id,
+        is_activated: u.is_activated,
+      },
+    });
+  } catch (e) {
+    console.error("[apple-link-teacher]", e);
+    return err(res, 500, "서버 오류가 발생했습니다.");
+  }
+});
+
+// ── users 테이블에 apple_id 컬럼 추가 (마이그레이션에서 처리되지만 안전장치) ──
+
 // ════════════════════════════════════════════════════════════════
-// DELETE /auth/account — 계정 영구 탈퇴 (Apple 5.1.1(v) 필수 요건)
+// DELETE /auth/account — 계정 탈퇴 요청
+// body: { immediate?: boolean }
+//   immediate=false (기본): 90일 유예 후 완전 삭제 (기간 내 재가입 시 데이터 복구 가능)
+//   immediate=true : 즉시 개인정보 익명화 — 재가입 가능, 데이터 복구 불가
 // ════════════════════════════════════════════════════════════════
 router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
-  const userId = req.user!.userId;
-  const role   = req.user!.role;
+  const userId   = req.user!.userId;
+  const role     = req.user!.role;
+  let immediate = req.body?.immediate === true;
 
   try {
     if (role === "parent_account" || role === "parent") {
-      // 학부모 계정 영구 삭제
+      // ── 학부모 탈퇴: 항상 즉시 삭제 (구독 없음) ───────────────
+      // 비밀번호 재확인 필수 (보안 실수 방지)
+      const password = req.body?.password;
+      if (!password || typeof password !== "string" || !password.trim()) {
+        return err(res, 400, "비밀번호를 입력해주세요.");
+      }
+
       const rows = (await db.execute(sql`
-        SELECT id, login_id FROM parent_accounts WHERE id = ${userId} LIMIT 1
+        SELECT id, login_id, pin_hash FROM parent_accounts WHERE id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
+      if (rows[0].login_id === "demo_parent") return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
 
-      // 데모 계정 보호 (로그인 ID: demo_parent)
-      if (rows[0].login_id === "demo_parent") {
-        return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
+      // 비밀번호 서버 검증 — 불일치 시 탈퇴 차단
+      const isMatch = await comparePassword(password, rows[0].pin_hash || "");
+      if (!isMatch) {
+        return err(res, 401, "비밀번호가 올바르지 않습니다.");
       }
 
+      // 탈퇴: parent_accounts 행만 삭제
+      // 학생(students) 정보는 수영장 tenant 데이터이므로 절대 삭제하지 않음
+      // student, attendance, diary, report 등은 관리자만 삭제/퇴원 처리 가능
       await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${userId}`);
-      return res.json({ success: true, message: "계정이 삭제되었습니다." });
+      return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
 
     } else {
-      // 관리자/선생님 계정 익명화 처리 (데이터 영구 삭제)
+      // ── 관리자/선생님 탈퇴 ──────────────────────────────────
       const rows = (await superAdminDb.execute(sql`
-        SELECT id, email, role FROM users WHERE id = ${userId} LIMIT 1
+        SELECT u.id, u.email, u.role, u.withdrawal_requested_at, u.swimming_pool_id,
+               COALESCE(sp.subscription_tier, 'free') AS subscription_tier
+        FROM users u
+        LEFT JOIN swimming_pools sp ON sp.id = u.swimming_pool_id
+        WHERE u.id = ${userId} LIMIT 1
       `)).rows as any[];
 
       if (!rows.length) return err(res, 404, "계정을 찾을 수 없습니다.");
+      if (rows[0].email === "demo@swimnote.app") return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
+      if (rows[0].role === "super_admin") return err(res, 403, "슈퍼관리자 계정은 앱에서 삭제할 수 없습니다.");
 
-      // 데모 계정 보호
-      if (rows[0].email === "demo@swimnote.app") {
-        return err(res, 403, "데모 계정은 삭제할 수 없습니다.");
+      // 무료 플랜(teacher 포함)은 항상 즉시 삭제
+      const isPaidPlan = rows[0].role === "pool_admin" && rows[0].subscription_tier !== "free";
+      if (!isPaidPlan) immediate = true;
+
+      if (rows[0].withdrawal_requested_at && !immediate) {
+        const deletionAt = new Date(new Date(rows[0].withdrawal_requested_at).getTime() + 90 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.max(0, Math.ceil((deletionAt.getTime() - Date.now()) / 86400000));
+        return res.json({ success: true, already_requested: true, days_until_deletion: daysLeft, message: `이미 탈퇴 처리 중입니다. ${daysLeft}일 후 완전히 삭제됩니다.` });
       }
 
-      // super_admin은 삭제 불가
-      if (rows[0].role === "super_admin") {
-        return err(res, 403, "슈퍼관리자 계정은 앱에서 삭제할 수 없습니다.");
+      const poolId = rows[0].swimming_pool_id;
+      const isPoolAdmin = rows[0].role === "pool_admin";
+
+      if (immediate) {
+        // 즉시 익명화: deactivation-cleanup.ts 와 동일한 처리를 즉시 수행
+        await superAdminDb.execute(sql`
+          UPDATE users SET
+            email         = ${`deleted_${userId}@deleted.local`},
+            name          = '탈퇴한 사용자',
+            phone         = NULL,
+            password_hash = '',
+            apple_id      = NULL,
+            kakao_id      = NULL,
+            totp_secret   = NULL,
+            totp_enabled  = false,
+            is_activated  = false,
+            withdrawal_requested_at = NOW(),
+            updated_at    = NOW()
+          WHERE id = ${userId}
+        `);
+        // pool_admin 탈퇴 시: 연결된 학부모 계정 전체 즉시 삭제
+        if (isPoolAdmin && poolId) {
+          await db.execute(sql`
+            DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}
+          `);
+          console.log(`[DELETE /auth/account] pool_admin 탈퇴(즉시) → 학부모 cascade 삭제: poolId=${poolId}`);
+        }
+        return res.json({ success: true, immediate: true, message: "계정이 즉시 삭제되었습니다. 언제든지 재가입하실 수 있습니다." });
+      } else {
+        // 90일 유예: 개인정보 일부 보존, 읽기 전용 허용
+        await superAdminDb.execute(sql`
+          UPDATE users SET
+            phone        = NULL,
+            is_activated = false,
+            withdrawal_requested_at = NOW(),
+            updated_at   = NOW()
+          WHERE id = ${userId}
+        `);
+        // pool_admin 탈퇴 시: 연결된 학부모 계정 전체 즉시 삭제 (학부모는 구독 없음)
+        if (isPoolAdmin && poolId) {
+          await db.execute(sql`
+            DELETE FROM parent_accounts WHERE swimming_pool_id = ${poolId}
+          `);
+          console.log(`[DELETE /auth/account] pool_admin 탈퇴(90일유예) → 학부모 cascade 삭제: poolId=${poolId}`);
+        }
+        return res.json({ success: true, days_until_deletion: 90, message: "탈퇴 요청이 접수되었습니다. 90일 후 모든 데이터가 완전히 삭제됩니다. 이 기간 동안 읽기 전용으로 로그인하실 수 있습니다." });
       }
-
-      const deletedId = randomUUID();
-      await superAdminDb.execute(sql`
-        UPDATE users SET
-          email        = ${`deleted_${deletedId}@deleted.local`},
-          name         = '탈퇴한 사용자',
-          phone        = NULL,
-          password_hash = '',
-          is_activated = false,
-          totp_secret  = NULL,
-          totp_enabled = false,
-          updated_at   = NOW()
-        WHERE id = ${userId}
-      `);
-
-      return res.json({ success: true, message: "계정이 삭제되었습니다." });
     }
   } catch (e) {
     console.error("[DELETE /auth/account]", e);
@@ -1967,7 +2816,7 @@ router.delete("/account", requireAuth, async (req: AuthRequest, res) => {
 // POST /auth/v2/parent-register
 // ══════════════════════════════════════════════════════════════════════
 router.post("/v2/parent-register", async (req, res) => {
-  const { parent_name, phone, password, pool_id, child_name, loginId } = req.body;
+  const { parent_name, phone, password, pool_id, child_name, loginId, apple_id, kakao_id } = req.body;
 
   const name     = (parent_name || "").trim();
   const ph       = normPhoneV2(phone || "");
@@ -1975,9 +2824,12 @@ router.post("/v2/parent-register", async (req, res) => {
   const poolId   = (pool_id || "").trim();
   const childRaw = (child_name || "").trim();
   const lid      = (loginId || "").trim() || null;
+  // 소셜 로그인 식별자 (Apple Sign In / Kakao)
+  const appleId  = (apple_id  || "").trim() || null;
+  const kakaoId  = (kakao_id  || "").trim() || null;
 
   const phoneMaskLog = ph.length > 6 ? ph.slice(0, 3) + "****" + ph.slice(-4) : "****";
-  console.log(`[v2-register] 입력: name="${name}" phone=${phoneMaskLog} pool_id=${poolId} child_name="${childRaw}" loginId=${lid ?? "없음"}`);
+  console.log(`[v2-register] 요청 수신: name="${name}" phone=${phoneMaskLog} pool_id=${poolId} child_name="${childRaw}" loginId=${lid ?? "없음"} social=${appleId ? "apple" : kakaoId ? "kakao" : "none"}`);
 
   // 필수값 검증
   if (!name)    return err(res, 400, "학부모 이름을 입력해주세요.");
@@ -1989,20 +2841,59 @@ router.post("/v2/parent-register", async (req, res) => {
 
   const childNorm = normNameV2(childRaw);
 
-  try {
-    // 중복 전화번호 확인
-    const [existingPhone] = (await db.execute(sql`
-      SELECT id FROM parent_accounts
-      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph} LIMIT 1
-    `)).rows as any[];
-    if (existingPhone) return err(res, 409, "이미 가입된 전화번호입니다.");
+  // 생성된 계정 ID — 오류 시 롤백에 사용
+  let createdParentId: string | null = null;
 
-    // 중복 아이디 확인
+  try {
+    // ── [2.0.0 POOL-FIRST] 동일 pool 안에서만 phone 중복 체크 ───────────────
+    // 정책: 전화번호는 global identity가 아님.
+    // 같은 pool 안에 동일 phone이 있으면 중복 차단.
+    // 다른 pool에 동일 phone이 있어도 → 무시 → 이 pool용 신규 account 생성.
+    const [existingInPool] = (await db.execute(sql`
+      SELECT id, kakao_id, is_active FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${poolId}
+        AND phone != ''
+      LIMIT 1
+    `)).rows as any[];
+
+    if (existingInPool) {
+      // 기존 Kakao 계정 → KAKAO_MIGRATION_REQUIRED (자동 migration flow 트리거)
+      if (existingInPool.kakao_id && existingInPool.is_active !== false) {
+        return res.status(409).json({
+          error: "이미 카카오로 가입된 전화번호입니다.",
+          error_code: "KAKAO_MIGRATION_REQUIRED",
+          old_parent_id: existingInPool.id,
+        });
+      }
+      // 기존 일반 계정
+      return err(res, 409, "이미 이 수영장에 가입되어 있습니다.");
+    }
+
+    // ── 신규 계정 가입 흐름 (이 pool에 해당 phone 미존재) ────────────────────
+
+    // 중복 아이디 확인 (login_id는 전역 unique 유지)
     if (lid) {
       const [existingLid] = (await db.execute(sql`
         SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
       `)).rows as any[];
       if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
+    // 소셜 아이디 중복 확인 (Apple)
+    if (appleId) {
+      const [existingApple] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE apple_id = ${appleId} LIMIT 1
+      `)).rows as any[];
+      if (existingApple) return err(res, 409, "이미 Apple 계정으로 가입된 사용자입니다.");
+    }
+
+    // 소셜 아이디 중복 확인 (Kakao)
+    if (kakaoId) {
+      const [existingKakao] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE kakao_id = ${kakaoId} LIMIT 1
+      `)).rows as any[];
+      if (existingKakao) return err(res, 409, "이미 카카오 계정으로 가입된 사용자입니다.");
     }
 
     // 수영장 존재 확인
@@ -2014,14 +2905,17 @@ router.post("/v2/parent-register", async (req, res) => {
     // 계정 생성
     const parentId = `pa_v2_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const pin_hash = await hashPassword(pw);
+    createdParentId = parentId;  // 롤백 대상 등록
 
     await db.execute(sql`
       INSERT INTO parent_accounts
-        (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+        (id, swimming_pool_id, phone, pin_hash, name, login_id,
+         apple_id, kakao_id, is_active, created_at, updated_at)
       VALUES
-        (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+        (${parentId}, ${poolId}, ${ph}, ${pin_hash}, ${name}, ${lid},
+         ${appleId}, ${kakaoId}, true, NOW(), NOW())
     `);
-    console.log(`[v2-register] 계정 생성 완료: parentId=${parentId}`);
+    console.log(`[v2-register] 신규 계정 생성 완료: parentId=${parentId}`);
 
     // V2 매칭 시도 (3개 조건: pool_id + phone + child_name)
     const { matched, studentId, studentName } = await tryMatchStudentV2(parentId, poolId, ph, childNorm);
@@ -2037,10 +2931,36 @@ router.post("/v2/parent-register", async (req, res) => {
     }
 
     if (status === "waiting") {
-      // 연결 실패 → pending 저장
-      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph);
-      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId}`);
+      // 연결 실패 → pending 저장 (reason 포함)
+      const pendingReason = matched ? undefined : (await (async () => {
+        // 이름만으로 학생이 있는지 확인해서 reason 결정
+        const nameOnlyRows = await db.execute(sql`
+          SELECT id FROM students
+          WHERE swimming_pool_id = ${poolId}
+            AND REPLACE(LOWER(TRIM(COALESCE(name,''))), ' ', '') = ${childNorm}
+            AND status NOT IN ('withdrawn','archived','deleted')
+          LIMIT 1
+        `);
+        return nameOnlyRows.rows.length > 0 ? "phone_mismatch" : "name_mismatch";
+      })());
+      // §5 원자성: pending 저장 실패 시 아래 catch에서 계정 롤백됨
+      await upsertParentV2Pending(parentId, poolId, childRaw, childNorm, ph, pendingReason);
+      console.log(`[v2-register] 대기 상태로 저장: child="${childRaw}" pool=${poolId} reason=${pendingReason}`);
+      // 수영장 관리자에게 push 알림 (실패해도 가입은 성공)
+      try {
+        const { sendPushToPoolAdmins } = await import("../lib/push-service.js");
+        await sendPushToPoolAdmins(
+          poolId, "parent_join",
+          "새 학부모 가입 대기",
+          `${name} 학부모님이 가입을 요청했습니다. 자녀(${childRaw}) 연결을 확인해주세요.`,
+          { screen: "parent-requests" },
+          `parent_join_${parentId}`
+        );
+      } catch (pushErr) { console.error("[v2-register] push 오류:", pushErr); }
     }
+
+    // 계정이 성공적으로 완성됐으므로 롤백 불필요
+    createdParentId = null;
 
     const token = signToken({ userId: parentId, role: "parent_account", poolId });
     console.log(`[v2-register] 완료: status=${status} parentId=${parentId}`);
@@ -2053,8 +2973,597 @@ router.post("/v2/parent-register", async (req, res) => {
       parent: { id: parentId, name, phone: ph, swimming_pool_id: poolId },
     });
   } catch (e: any) {
-    console.error("[v2-register] 오류:", e?.message, e);
-    return err(res, 500, "서버 오류가 발생했습니다.");
+    console.error("[v2-register] 오류:", e?.message, e?.stack ?? e);
+
+    // §5 원자성 롤백: 계정이 생성됐으나 후속 처리(pending 저장 등)가 실패한 경우 계정 삭제
+    if (createdParentId) {
+      try {
+        await db.execute(sql`DELETE FROM parent_accounts WHERE id = ${createdParentId}`);
+        console.warn(`[v2-register] 롤백 완료: parentId=${createdParentId}`);
+      } catch (rollbackErr: any) {
+        console.error(`[v2-register] 롤백 실패 (부분 계정 존재): parentId=${createdParentId}`, rollbackErr?.message);
+      }
+      createdParentId = null;
+    }
+
+    return err(res, 500, "가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── Kakao → 일반계정 Migration Endpoint ──────────────────────────────────────
+// POST /auth/kakao-migration-register
+//
+// 1.6.3 임시 기능: 카카오로 가입된 기존 학부모가 일반 가입 시
+// 기존 데이터를 새 일반계정으로 원자적으로 이전.
+//
+// 요청:
+//   { phone, pool_id, name, pin, login_id? }
+//
+// 응답:
+//   201 { token, parent, migrated: true }
+//   409 { error_code: "KAKAO_NOT_FOUND" | "NO_KAKAO_ACCOUNT" | "ALREADY_MIGRATED" }
+//   500 (rollback 보장)
+//
+// 아카이브 전략: 기존 Kakao account의 phone을 ''(빈 문자열)로 교체.
+//   - unique index 조건: WHERE phone != '' → 빈 문자열은 인덱스 제외됨
+//   - NOT NULL 충족: 빈 문자열은 NOT NULL 충족
+//   - 기존 phone은 새 account에 그대로 이전됨
+//   - kakao_id는 history용 old account에 보존
+//
+// 이전 대상 테이블 (parent_id):
+//   parent_students, notice_reads, student_registration_requests,
+//   member_activity_logs, parent_student_requests, diary_reactions,
+//   parent_content_reads, growth_report_reactions, parent_v2_pending
+// NOTE: growth_report_interactions는 Production schema에 존재하지 않음 (제외됨)
+// 이전 대상 테이블 (parent_account_id):
+//   push_settings, push_tokens, parent_pool_requests,
+//   parent_ai_daily_usage, parent_ai_usage_reservations,
+//   parent_curriculum_conversations, growth_report_answers
+// 이전 대상 테이블 (parent_user_id):
+//   students, members
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/kakao-migration-register", async (req, res) => {
+  const { phone, pool_id, name: rawName, pin, login_id } = req.body;
+  if (!phone || !pool_id || !rawName || !pin) {
+    return err(res, 400, "phone, pool_id, name, pin은 필수입니다.");
+  }
+  if (String(pin).length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+
+  const ph   = phone.replace(/[^0-9]/g, "");
+  const name = rawName.trim();
+  const lid  = (login_id || "").trim().toLowerCase() || null;
+
+  if (lid && lid.length < 3) return err(res, 400, "아이디는 3자 이상이어야 합니다.");
+
+  try {
+    // ── 0. login_id 전역 중복 확인 ──────────────────────────────────────────
+    if (lid) {
+      const [existingLid] = (await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE login_id = ${lid} LIMIT 1
+      `)).rows as any[];
+      if (existingLid) return err(res, 409, "이미 사용 중인 아이디입니다.");
+    }
+
+    // ── 1. 기존 Kakao account 확인 (정규화 phone + pool_id) ──────────────────
+    const [oldAcc] = (await db.execute(sql`
+      SELECT id, phone, kakao_id, is_active, withdrawal_requested_at
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!oldAcc) {
+      // Migration이 이미 완료됐을 수 있음 (old account phone이 '' 처리됨).
+      // 동일 phone+pool의 새 general account를 찾아 반환.
+      const [recoveredAcc] = (await db.execute(sql`
+        SELECT id, name, phone, swimming_pool_id, login_id
+        FROM parent_accounts
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NULL
+          AND (is_active IS NULL OR is_active = true)
+        LIMIT 1
+      `)).rows as any[];
+      if (recoveredAcc) {
+        // 이미 migration 완료된 계정 발견 → 토큰 반환
+        const recoveredToken = signToken({ userId: recoveredAcc.id, role: "parent_account", poolId: pool_id });
+        return res.status(200).json({ token: recoveredToken, parent: recoveredAcc, migrated: true, already_migrated: true });
+      }
+      return res.status(409).json({ error_code: "KAKAO_NOT_FOUND", error: "해당 전화번호로 등록된 계정을 찾을 수 없습니다." });
+    }
+    if (!oldAcc.kakao_id) {
+      return res.status(409).json({ error_code: "NO_KAKAO_ACCOUNT", error: "카카오 연결 계정이 아닙니다. 로그인 화면에서 로그인해주세요." });
+    }
+
+    // ── 2. Idempotency: 이미 migration된 경우 (같은 pool + phone 새 account 존재) ──
+    // old account가 phone='' 상태면 이미 이전된 것
+    // → 새 account를 찾아 반환
+    const [alreadyMigrated] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id
+      FROM parent_accounts
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND phone != ''
+        AND kakao_id IS NULL
+        AND (is_active IS NULL OR is_active = true)
+      LIMIT 1
+    `)).rows as any[];
+    // Note: after migration, old account has phone='', so the above finds the NEW account only
+
+    // If old account phone is already '' (archived), migration already happened
+    if (String(oldAcc.phone).trim() === "") {
+      if (alreadyMigrated) {
+        const token = signToken({ userId: alreadyMigrated.id, role: "parent_account", poolId: pool_id });
+        return res.json({ token, parent: alreadyMigrated, migrated: true, already_migrated: true });
+      }
+      return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요." });
+    }
+
+    const oldParentId = oldAcc.id;
+
+    // ── 3. Atomic transaction ────────────────────────────────────────────────
+    const newParentId = `pa_migrated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const pin_hash    = await hashPassword(String(pin));
+
+    await db.execute(sql`BEGIN`);
+    try {
+      // 3-a. Lock old account
+      await db.execute(sql`
+        SELECT id FROM parent_accounts WHERE id = ${oldParentId} FOR UPDATE
+      `);
+
+      // 3-b. Re-verify (race condition guard)
+      const [recheck] = (await db.execute(sql`
+        SELECT id, kakao_id, phone FROM parent_accounts WHERE id = ${oldParentId}
+      `)).rows as any[];
+      if (!recheck?.kakao_id || String(recheck.phone).trim() === "") {
+        await db.execute(sql`ROLLBACK`);
+        return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다." });
+      }
+
+      // 3-c. Archive old Kakao account: phone → '' (빈 문자열로 unique index 제외)
+      //      is_active=false, withdrawal_requested_at=NOW() (retirement timestamp)
+      await db.execute(sql`
+        UPDATE parent_accounts
+        SET phone = '', is_active = false, withdrawal_requested_at = NOW(), updated_at = NOW()
+        WHERE id = ${oldParentId}
+      `);
+
+      // 3-d. Create new general parent account
+      await db.execute(sql`
+        INSERT INTO parent_accounts
+          (id, swimming_pool_id, phone, pin_hash, name, login_id, is_active, created_at, updated_at)
+        VALUES
+          (${newParentId}, ${pool_id}, ${ph}, ${pin_hash}, ${name}, ${lid}, true, NOW(), NOW())
+      `);
+
+      // ── 3-e. Migrate all parent_id references ────────────────────────────
+      // Tables using parent_id column
+      // NOTE: growth_report_interactions는 Production schema에 존재하지 않으므로 제외
+      // NOTE: growth_report_reactions, parent_v2_pending는 dry-run 감사에서 발견된 추가 테이블
+      for (const tbl of [
+        "parent_students", "notice_reads", "student_registration_requests",
+        "parent_student_requests", "diary_reactions", "parent_content_reads",
+        "growth_report_reactions", "parent_v2_pending",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          // table may not exist in this pool's DB — non-fatal if table missing
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+      // member_activity_logs: nullable parent_id
+      await db.execute(sql.raw(
+        `UPDATE member_activity_logs SET parent_id = '${newParentId}' WHERE parent_id = '${oldParentId}'`
+      )).catch(() => {});
+
+      // Tables using parent_account_id column
+      for (const tbl of [
+        "push_settings", "push_tokens", "parent_pool_requests",
+        "parent_ai_daily_usage", "parent_ai_usage_reservations",
+        "parent_curriculum_conversations", "growth_report_answers",
+      ]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_account_id = '${newParentId}' WHERE parent_account_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      // Tables using parent_user_id column
+      for (const tbl of ["students", "members"]) {
+        await db.execute(sql.raw(
+          `UPDATE ${tbl} SET parent_user_id = '${newParentId}' WHERE parent_user_id = '${oldParentId}'`
+        )).catch((e: any) => {
+          console.warn(`[kakao-migration] ${tbl} update warn:`, e?.message);
+        });
+      }
+
+      await db.execute(sql`COMMIT`);
+      console.log(`[kakao-migration] 완료: old=${oldParentId} new=${newParentId} pool=${pool_id}`);
+
+    } catch (txErr: any) {
+      await db.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[kakao-migration] ROLLBACK:", txErr?.message);
+      throw txErr;
+    }
+
+    // ── 4. 응답 ─────────────────────────────────────────────────────────────
+    const [newAcc] = (await db.execute(sql`
+      SELECT id, name, phone, swimming_pool_id, login_id FROM parent_accounts WHERE id = ${newParentId}
+    `)).rows as any[];
+
+    const token = signToken({ userId: newParentId, role: "parent_account", poolId: pool_id });
+    return res.status(201).json({
+      token,
+      parent: newAcc,
+      migrated: true,
+      old_parent_id: oldParentId,
+    });
+
+  } catch (e: any) {
+    console.error("[kakao-migration-register]", e?.message, e?.stack);
+    return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── POST /auth/teacher-kakao-migration-register ──────────────────────────────
+//
+// 1.6.3 임시 기능: 카카오로 연결된 기존 선생님이 일반 가입 시
+// 기존 데이터를 새 일반계정으로 원자적으로 이전.
+//
+// 요청: { phone, pool_id, name, loginId, password }
+// 응답:
+//   201 { token, user, migrated: true }
+//   409 { error_code: "TEACHER_KAKAO_NOT_FOUND" | "NO_KAKAO_TEACHER" | "ALREADY_MIGRATED" }
+//   500 (rollback 보장)
+//
+// 아카이브 전략: 기존 Kakao teacher의 email = '__archived_kakao_' + old_user_id
+//   - users.email unique 충족: archived prefix + UUID 조합으로 충돌 없음
+//   - is_activated = false: 로그인 불가
+//   - kakao_id: history용 old account에 보존
+//
+// 이전 대상 (ACTIVE OWNERSHIP):
+//   class_groups.teacher_user_id
+//   makeup_classes.assigned_teacher_id / transferred_to_teacher_id
+//   teacher_invites.user_id
+//   push_settings.user_id
+//   push_tokens.user_id
+//
+// 이전 제외 (IMMUTABLE HISTORY):
+//   diary_messages.teacher_user_id  (과거 작성 일지)
+//   teacher_absences.teacher_user_id (역사 기록)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post("/teacher-kakao-migration-register", async (req, res) => {
+  const { phone, pool_id, name: rawName, loginId, password } = req.body;
+  if (!phone || !pool_id || !rawName || !loginId || !password) {
+    return err(res, 400, "phone, pool_id, name, loginId, password는 필수입니다.");
+  }
+  if (String(password).length < 4) return err(res, 400, "비밀번호는 4자 이상이어야 합니다.");
+
+  const ph         = phone.replace(/[^0-9]/g, "");
+  const name       = rawName.trim();
+  const identifier = loginId.trim().toLowerCase();
+
+  if (identifier.length < 4) return err(res, 400, "아이디는 4자 이상이어야 합니다.");
+
+  try {
+    // ── 0. loginId 전역 중복 확인 ────────────────────────────────────────────
+    const [existingLogin] = (await superAdminDb.execute(sql`
+      SELECT id FROM users WHERE email = ${identifier} LIMIT 1
+    `)).rows as any[];
+    if (existingLogin) return err(res, 409, "이미 사용 중인 아이디입니다.");
+
+    // ── 1. Kakao 연결된 teacher 확인 (phone + pool_id) ────────────────────────
+    const [oldTeacher] = (await superAdminDb.execute(sql`
+      SELECT id, email, phone, kakao_id, is_activated, role, swimming_pool_id
+      FROM users
+      WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+        AND swimming_pool_id = ${pool_id}
+        AND kakao_id IS NOT NULL
+        AND role IN ('teacher', 'pool_admin')
+      LIMIT 1
+    `)).rows as any[];
+
+    if (!oldTeacher) {
+      return res.status(409).json({
+        error_code: "TEACHER_KAKAO_NOT_FOUND",
+        error: "해당 전화번호로 등록된 카카오 선생님 계정을 찾을 수 없습니다.",
+      });
+    }
+    if (!oldTeacher.kakao_id) {
+      return res.status(409).json({
+        error_code: "NO_KAKAO_TEACHER",
+        error: "카카오 연결 계정이 아닙니다. 로그인 화면에서 로그인해주세요.",
+      });
+    }
+
+    // ── 2. Idempotency: 이미 migration 완료 여부 확인 ─────────────────────────
+    // archived email prefix '__archived_kakao_' 확인
+    if (String(oldTeacher.email).startsWith("__archived_kakao_")) {
+      // Migration이 이미 실행됐음. 새 general teacher를 찾아 상태 복구 후 반환.
+      const [existingNew] = (await superAdminDb.execute(sql`
+        SELECT id, email, is_activated, role, swimming_pool_id
+        FROM users
+        WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+          AND swimming_pool_id = ${pool_id}
+          AND kakao_id IS NULL
+          AND email NOT LIKE '__archived_kakao_%'
+          AND role IN ('teacher', 'pool_admin')
+        LIMIT 1
+      `)).rows as any[];
+      if (existingNew) {
+        // 잘못 비활성화된 상태라면 복구
+        if (existingNew.is_activated === false) {
+          await superAdminDb.execute(sql`
+            UPDATE users SET is_activated = true, updated_at = NOW() WHERE id = ${existingNew.id}
+          `).catch(() => {});
+        }
+        // joinedPendingApproval invite가 있으면 approved로 수정
+        await superAdminDb.execute(sql`
+          UPDATE teacher_invites
+          SET invite_status = 'approved', approved_at = NOW(), updated_at = NOW()
+          WHERE user_id = ${existingNew.id} AND invite_status = 'joinedPendingApproval'
+        `).catch(() => {});
+
+        // 기존 archived Kakao teacher ID 찾기 (phone + pool + archived email prefix)
+        const [oldArchived] = (await superAdminDb.execute(sql`
+          SELECT id FROM users
+          WHERE REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+            AND swimming_pool_id = ${pool_id}
+            AND kakao_id IS NOT NULL
+            AND email LIKE '__archived_kakao_%'
+          LIMIT 1
+        `)).rows as any[];
+
+        // 누락된 active ref를 idempotent하게 이전 (기존 old ID 참조가 남아있는 경우만 업데이트)
+        if (oldArchived) {
+          const oldId = oldArchived.id;
+          const newId = existingNew.id;
+          await superAdminDb.execute(sql.raw(`UPDATE class_groups SET teacher_user_id = '${newId}', updated_at = NOW() WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE class_groups SET co_teacher_ids = REPLACE(co_teacher_ids::text, '"${oldId}"', '"${newId}"')::jsonb, updated_at = NOW() WHERE co_teacher_ids IS NOT NULL AND co_teacher_ids::text LIKE '%"${oldId}"%'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE makeup_classes SET assigned_teacher_id = '${newId}' WHERE assigned_teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE makeup_classes SET transferred_to_teacher_id = '${newId}' WHERE transferred_to_teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE teacher_invites SET user_id = '${newId}', invite_status = 'approved', approved_at = NOW() WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE push_settings SET user_id = '${newId}' WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE push_tokens SET user_id = '${newId}' WHERE user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE class_diaries SET teacher_id = '${newId}', updated_at = NOW() WHERE teacher_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE extra_classes SET teacher_user_id = '${newId}', updated_at = NOW() WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          await superAdminDb.execute(sql.raw(`UPDATE parent_student_requests SET teacher_user_id = '${newId}' WHERE teacher_user_id = '${oldId}'`)).catch(() => {});
+          // synthetic invite if still none
+          const [inv] = (await superAdminDb.execute(sql`SELECT id FROM teacher_invites WHERE user_id = ${newId} LIMIT 1`)).rows as any[];
+          if (!inv) {
+            const synId = `ti_migrated_rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await superAdminDb.execute(sql`INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, approved_at, created_at) VALUES (${synId}, ${pool_id}, ${name}, ${ph || null}, 'approved', ${newId}, ${newId}, NOW(), NOW())`).catch(() => {});
+          }
+        }
+
+        const recoveredToken = signToken({ userId: existingNew.id, role: (existingNew.role || "teacher") as any, poolId: pool_id });
+        return res.status(200).json({
+          token: recoveredToken,
+          user: { ...existingNew, is_activated: true },
+          migrated: true,
+          recovered: true,
+        });
+      }
+      return res.status(409).json({
+        error_code: "ALREADY_MIGRATED",
+        error: "이미 일반계정으로 전환된 계정입니다. 로그인해주세요.",
+      });
+    }
+
+    const oldTeacherId = oldTeacher.id;
+    const newTeacherId = `u_teacher_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const hash         = await hashPassword(password);
+    const archivedEmail = `__archived_kakao_${oldTeacherId}`;
+
+    await superAdminDb.execute(sql`BEGIN`);
+    try {
+      // 2-a. 재검증 (SELECT FOR UPDATE)
+      const [recheck] = (await superAdminDb.execute(sql`
+        SELECT id, email, kakao_id FROM users WHERE id = ${oldTeacherId} FOR UPDATE
+      `)).rows as any[];
+      if (!recheck || !recheck.kakao_id || String(recheck.email).startsWith("__archived_kakao_")) {
+        await superAdminDb.execute(sql`ROLLBACK`);
+        return res.status(409).json({ error_code: "ALREADY_MIGRATED", error: "이미 일반계정으로 전환된 계정입니다." });
+      }
+
+      // 2-b. Archive old Kakao teacher
+      await superAdminDb.execute(sql`
+        UPDATE users
+        SET email = ${archivedEmail}, is_activated = false, updated_at = NOW()
+        WHERE id = ${oldTeacherId}
+      `);
+
+      // 2-c. Create new general teacher account
+      // invite 여부 확인 (기존 초대가 있으면 자동 승인)
+      let autoApproved = false;
+      let matchedInviteId: string | null = null;
+      if (ph) {
+        const inviteMatch = (await superAdminDb.execute(sql`
+          SELECT id FROM teacher_invites
+          WHERE swimming_pool_id = ${pool_id}
+            AND REGEXP_REPLACE(COALESCE(phone,''),'[^0-9]','','g') = ${ph}
+            AND invite_status IN ('invited', 'active', 'pending', 'approved')
+          LIMIT 1
+        `)).rows as any[];
+        if (inviteMatch.length > 0) {
+          autoApproved = true;
+          matchedInviteId = (inviteMatch[0] as any).id;
+        }
+      }
+      // 기존 Kakao teacher가 is_activated 상태였으면 자동 승인
+      if (oldTeacher.is_activated !== false) autoApproved = true;
+
+      await superAdminDb.execute(sql`
+        INSERT INTO users (id, email, password_hash, name, phone, role, swimming_pool_id, is_activated, kakao_id, apple_id, created_at, updated_at)
+        VALUES (${newTeacherId}, ${identifier}, ${hash}, ${name}, ${ph || null},
+                ${oldTeacher.role || 'teacher'}, ${pool_id}, ${autoApproved}, NULL, NULL, NOW(), NOW())
+      `);
+
+      // 2-d. ACTIVE OWNERSHIP 이전
+      // class_groups.teacher_user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_groups SET teacher_user_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] class_groups warn:", e?.message));
+
+      // makeup_classes.assigned_teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE makeup_classes SET assigned_teacher_id = '${newTeacherId}' WHERE assigned_teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] makeup assigned_teacher warn:", e?.message));
+
+      // makeup_classes.transferred_to_teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE makeup_classes SET transferred_to_teacher_id = '${newTeacherId}' WHERE transferred_to_teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] makeup transferred_teacher warn:", e?.message));
+
+      // teacher_invites.user_id (new invite 레코드 업데이트 또는 신규 생성)
+      if (matchedInviteId) {
+        await superAdminDb.execute(sql`
+          UPDATE teacher_invites
+          SET invite_status = 'approved', user_id = ${newTeacherId}, approved_at = NOW(), approved_by = ${newTeacherId}
+          WHERE id = ${matchedInviteId}
+        `).catch(() => {});
+      } else {
+        // 기존 Kakao teacher의 invite 레코드를 새 ID로 이전
+        await superAdminDb.execute(sql.raw(
+          `UPDATE teacher_invites SET user_id = '${newTeacherId}', invite_status = 'approved', approved_at = NOW() WHERE user_id = '${oldTeacherId}'`
+        )).catch(() => {});
+      }
+
+      // autoApproved 상태인데 invite 레코드가 없으면 synthetic approved invite 생성
+      // → login 시 state consistency 보장, 관리자 승인대기 목록 미노출
+      if (autoApproved) {
+        const [existingInvite] = (await superAdminDb.execute(sql`
+          SELECT id FROM teacher_invites WHERE user_id = ${newTeacherId} LIMIT 1
+        `)).rows as any[];
+        if (!existingInvite) {
+          const syntheticId = `ti_migrated_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          await superAdminDb.execute(sql`
+            INSERT INTO teacher_invites (id, swimming_pool_id, name, phone, invite_status, invited_by, user_id, approved_at, created_at)
+            VALUES (${syntheticId}, ${pool_id}, ${name}, ${ph || null}, 'approved', ${newTeacherId}, ${newTeacherId}, NOW(), NOW())
+          `).catch(() => {});
+        }
+      }
+
+      // push_settings.user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE push_settings SET user_id = '${newTeacherId}' WHERE user_id = '${oldTeacherId}'`
+      )).catch(() => {});
+
+      // push_tokens.user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE push_tokens SET user_id = '${newTeacherId}' WHERE user_id = '${oldTeacherId}'`
+      )).catch(() => {});
+
+      // class_groups.co_teacher_ids (JSONB 배열 내 old ID 교체)
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_groups SET co_teacher_ids = REPLACE(co_teacher_ids::text, '"${oldTeacherId}"', '"${newTeacherId}"')::jsonb, updated_at = NOW() WHERE co_teacher_ids IS NOT NULL AND co_teacher_ids::text LIKE '%"${oldTeacherId}"%'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] co_teacher_ids warn:", e?.message));
+
+      // class_diaries.teacher_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE class_diaries SET teacher_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] class_diaries warn:", e?.message));
+
+      // extra_classes.teacher_user_id
+      await superAdminDb.execute(sql.raw(
+        `UPDATE extra_classes SET teacher_user_id = '${newTeacherId}', updated_at = NOW() WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] extra_classes warn:", e?.message));
+
+      // parent_student_requests.teacher_user_id (active request reviewer/owner)
+      await superAdminDb.execute(sql.raw(
+        `UPDATE parent_student_requests SET teacher_user_id = '${newTeacherId}' WHERE teacher_user_id = '${oldTeacherId}'`
+      )).catch((e: any) => console.warn("[teacher-kakao-migration] parent_student_requests warn:", e?.message));
+
+      await superAdminDb.execute(sql`COMMIT`);
+      console.log(`[teacher-kakao-migration] 완료: old=${oldTeacherId} new=${newTeacherId} pool=${pool_id}`);
+
+    } catch (txErr: any) {
+      await superAdminDb.execute(sql`ROLLBACK`).catch(() => {});
+      console.error("[teacher-kakao-migration] ROLLBACK:", txErr?.message);
+      throw txErr;
+    }
+
+    const [newUser] = (await superAdminDb.execute(sql`
+      SELECT id, email, name, phone, role, swimming_pool_id, is_activated
+      FROM users WHERE id = ${newTeacherId}
+    `)).rows as any[];
+
+    const token = signToken({ userId: newTeacherId, role: (newUser?.role || "teacher") as any, poolId: pool_id });
+    return res.status(201).json({
+      token,
+      user: newUser,
+      migrated: true,
+      old_teacher_id: oldTeacherId,
+    });
+
+  } catch (e: any) {
+    console.error("[teacher-kakao-migration-register]", e?.message, e?.stack);
+    return err(res, 500, "계정 전환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
+});
+
+// ── GET /auth/kakao-remaining-count ──────────────────────────────────────────
+// 2.0 cutover 준비: 아직 일반계정으로 전환되지 않은 Kakao 계정 수 조회 (super_admin 전용)
+// PII: 마스킹, 수량만 반환
+// ─────────────────────────────────────────────────────────────────────────────
+router.get("/kakao-remaining-count", async (req, res) => {
+  // 인증 없이 접근 가능한 민감 엔드포인트이므로 Authorization 헤더 필수
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return err(res, 401, "인증이 필요합니다.");
+
+  let decoded: any;
+  try { decoded = verifyToken(token); } catch { return err(res, 401, "유효하지 않은 토큰입니다."); }
+  if (!["super_admin", "pool_admin"].includes(decoded?.role)) {
+    return err(res, 403, "접근 권한이 없습니다.");
+  }
+
+  try {
+    const { pool_id } = req.query;
+    const poolFilter = pool_id ? `AND swimming_pool_id = '${pool_id}'` : "";
+
+    // Active Kakao parents (phone != '' = not yet archived)
+    const parentRows = (await superAdminDb.execute(sql.raw(`
+      SELECT swimming_pool_id, COUNT(*) AS cnt
+      FROM parent_accounts
+      WHERE kakao_id IS NOT NULL AND phone != '' AND (is_active IS NULL OR is_active = true)
+      ${poolFilter}
+      GROUP BY swimming_pool_id
+      ORDER BY cnt DESC
+    `))).rows as any[];
+
+    // Active Kakao teachers
+    const teacherRows = (await superAdminDb.execute(sql.raw(`
+      SELECT swimming_pool_id, COUNT(*) AS cnt
+      FROM users
+      WHERE kakao_id IS NOT NULL
+        AND email NOT LIKE '__archived_kakao_%'
+        AND is_activated IS NOT false
+        AND role IN ('teacher', 'pool_admin')
+      ${poolFilter}
+      GROUP BY swimming_pool_id
+      ORDER BY cnt DESC
+    `))).rows as any[];
+
+    const parentTotal  = parentRows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+    const teacherTotal = teacherRows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+
+    return res.json({
+      parent_kakao_remaining:  parentTotal,
+      teacher_kakao_remaining: teacherTotal,
+      by_pool: {
+        parents:  parentRows.map((r: any) => ({ pool_id: r.swimming_pool_id, count: Number(r.cnt) })),
+        teachers: teacherRows.map((r: any) => ({ pool_id: r.swimming_pool_id, count: Number(r.cnt) })),
+      },
+    });
+  } catch (e: any) {
+    console.error("[kakao-remaining-count]", e?.message);
+    return err(res, 500, "조회 중 오류가 발생했습니다.");
   }
 });
 

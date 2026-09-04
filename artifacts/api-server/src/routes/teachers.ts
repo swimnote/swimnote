@@ -11,6 +11,10 @@ import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireRole, type AuthRequest } from "../middlewares/auth.js";
 import { hashPassword } from "../lib/auth.js";
 import { sendPushToUser } from "../lib/push-service.js";
+import {
+  addDateDays, dayOfWeekFromDateStr, getMakeupDateRange,
+  isValidDateFormat, isValidCalendarDate, validateMakeupDateRange,
+} from "../lib/makeup-date-range.js";
 
 const router = Router();
 
@@ -253,6 +257,158 @@ router.delete("/teachers/:id", requireAuth, requireRole("pool_admin", "super_adm
 //  선생님 자기관리 API (teacher 본인 전용)
 // ══════════════════════════════════════════════════════════════════
 
+/** KST 기준 오늘 날짜 YYYY-MM-DD */
+function kstTodayStr(): string {
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === "year")!.value;
+  const m = parts.find(p => p.type === "month")!.value;
+  const d = parts.find(p => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
+/** timestamptz or date → KST YYYY-MM-DD (UTC 변환 없이 Asia/Seoul 기준) */
+function toKstDateStr(d: Date | string): string {
+  const dt = typeof d === "string" ? new Date(d) : d;
+  const parts = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(dt);
+  const y = parts.find(p => p.type === "year")!.value;
+  const mo = parts.find(p => p.type === "month")!.value;
+  const dy = parts.find(p => p.type === "day")!.value;
+  return `${y}-${mo}-${dy}`;
+}
+
+// addDateDays · dayOfWeekFromDateStr → ../lib/makeup-date-range.js 에서 import
+
+/** schedule_days("월,수,금") → 요일 번호 Set */
+function parseDayNums(scheduleDays: string): Set<number> {
+  const map: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+  const nums = new Set<number>();
+  scheduleDays.split(",").map(d => d.trim()).forEach(d => { if (map[d] !== undefined) nums.add(map[d]); });
+  return nums;
+}
+
+// ── 보강 회차 공통 타입 ───────────────────────────────────────────
+interface MakeupSessionRow {
+  absence_date: string;
+  expire_at: string | null;
+  swimming_pool_id: string;
+  status: string;
+}
+interface MakeupClassGroupRow {
+  id: string;
+  name: string;
+  schedule_days: string;
+  schedule_time: string;
+  capacity: number | null;
+  teacher_user_id: string;
+  teacher_name?: string | null;
+  swimming_pool_id: string;
+}
+interface OccurrenceValidationResult {
+  classGroup: MakeupClassGroupRow;
+  occurrenceDate: string;
+  kstToday: string;
+  availableSlots: number;
+  isFull: boolean;
+  isPast: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+/**
+ * 보강 회차 공통 검증 함수
+ * assign / complete-direct 양쪽에서 동일하게 사용한다.
+ * 검증 실패 시 { code, message, status } 형태의 오류를 throw한다.
+ * 클라이언트가 전송한 is_future/is_full/available_slots는 신뢰하지 않고 서버에서 재계산한다.
+ */
+async function validateMakeupOccurrence(params: {
+  makeupSession: MakeupSessionRow;
+  classGroupId: string;
+  occurrenceDate: string;
+  poolId: string;
+  /** true 이면 expire_at 초과 검사를 건너뜀 (기간 지난 보강 명시적 처리 허용) */
+  allowExpired?: boolean;
+}): Promise<OccurrenceValidationResult> {
+  const { makeupSession: mk, classGroupId, occurrenceDate, poolId } = params;
+
+  // 1. 날짜 형식 YYYY-MM-DD — lib/makeup-date-range.ts 공용 helper 사용
+  if (!isValidDateFormat(occurrenceDate)) {
+    throw { code: "INVALID_ASSIGNED_DATE", message: "날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)", status: 400 };
+  }
+  // 2. 실제 존재하는 날짜인지 (UTC 기반, 서버 로컬 timezone 독립)
+  if (!isValidCalendarDate(occurrenceDate)) {
+    throw { code: "INVALID_ASSIGNED_DATE", message: "존재하지 않는 날짜입니다.", status: 400 };
+  }
+
+  // 3. KST 오늘 기준 43일 범위 검증 (오늘 -14일 ~ 오늘 +28일)
+  //    - absence_date 제한 제거: 결석 이전·당일·이후 모두 허용
+  //    - expire_at 제한 제거: 날짜 범위가 유일한 날짜 기준
+  //    - expired 상태 확인 절차(allow_expired)는 라우트 수준에서 별도 유지
+  const kstToday = kstTodayStr();
+  validateMakeupDateRange(occurrenceDate, kstToday);  // 범위 밖이면 throws MAKEUP_DATE_OUT_OF_RANGE
+
+  // 4. 반 존재·같은 수영장·삭제 여부 (구 5~6)
+  const cgRows = (await superAdminDb.execute(sql`
+    SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+           cg.teacher_user_id, u.name AS teacher_name, cg.swimming_pool_id
+    FROM class_groups cg
+    LEFT JOIN users u ON cg.teacher_user_id = u.id
+    WHERE cg.id = ${classGroupId}
+      AND cg.swimming_pool_id = ${poolId}
+      AND cg.is_deleted = false
+      AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
+    LIMIT 1
+  `)).rows as any[];
+  if (!cgRows.length) {
+    throw { code: "CLASS_NOT_FOUND", message: "반을 찾을 수 없습니다.", status: 404 };
+  }
+  const cg = cgRows[0] as MakeupClassGroupRow;
+
+  // 7. 수업 요일 검증 (YYYY-MM-DD 문자열 기준, UTC 변환 없음)
+  if (cg.schedule_days) {
+    const targetDays = parseDayNums(cg.schedule_days);
+    if (!targetDays.has(dayOfWeekFromDateStr(occurrenceDate))) {
+      throw { code: "CLASS_NOT_SCHEDULED_ON_DATE", message: "해당 날짜는 반의 수업 요일이 아닙니다.", status: 400 };
+    }
+  }
+
+  // 8. 풀 휴일 검증
+  const holidayRows = (await db.execute(sql`
+    SELECT 1 FROM pool_holidays
+    WHERE pool_id = ${poolId} AND holiday_date = ${occurrenceDate}::date LIMIT 1
+  `)).rows;
+  if (holidayRows.length > 0) {
+    throw { code: "POOL_HOLIDAY", message: "해당 날짜는 수영장 휴일입니다.", status: 400 };
+  }
+
+  // 9. 정원 계산 (eligible-classes 표준과 동일 — class_group_id + assigned_class_ids 모두 포함)
+  const memberRows = (await db.execute(sql`
+    SELECT COUNT(s.id)::int AS cnt FROM students s
+    WHERE (s.class_group_id = ${classGroupId} OR s.assigned_class_ids @> to_jsonb(${classGroupId}::text))
+      AND s.status IN ('active', 'pending_parent_link', 'unregistered')
+      AND s.deleted_at IS NULL
+  `)).rows as any[];
+  const currentMembers = (memberRows[0] as any)?.cnt ?? 0;
+  const capacity: number = (cg.capacity as number) ?? 0;
+  const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
+  const isFull = capacity > 0 && availableSlots <= 0;
+
+  // 10. KST 오늘 기준 past/today/future (kstToday는 조건 3에서 선언)
+  return {
+    classGroup: cg,
+    occurrenceDate,
+    kstToday,
+    availableSlots,
+    isFull,
+    isPast:   occurrenceDate < kstToday,
+    isToday:  occurrenceDate === kstToday,
+    isFuture: occurrenceDate > kstToday,
+  };
+}
+
 /** 현재 로그인한 사용자의 pool_id 조회 */
 async function getMyPoolId(userId: string): Promise<string | null> {
   const [me] = await superAdminDb.select({ swimming_pool_id: usersTable.swimming_pool_id })
@@ -357,39 +513,53 @@ router.get("/teacher/me/stats", requireAuth,
 );
 
 // ── 미디어 사용량 ──────────────────────────────────────────────
+// photo_assets_meta / video_assets_meta 가 실제 사진·영상 저장 테이블
+// (구 student_photos / student_videos 는 사용하지 않음)
+// 집계 기준: uploaded_by = 로그인 선생님, media_status != 'deleted' (삭제 완료 제외)
 router.get("/teacher/me/media-usage", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const photos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_photos WHERE uploader_id = ${userId}
-      `);
-      const videos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes, COUNT(*) as count
-        FROM student_videos WHERE uploader_id = ${userId}
-      `);
-      const photoRow = photos.rows[0] as any;
-      const videoRow = videos.rows[0] as any;
-      const photoBytes  = Number(photoRow?.total_bytes || 0);
-      const videoBytes  = Number(videoRow?.total_bytes || 0);
-      const photoCount  = Number(photoRow?.count || 0);
-      const videoCount  = Number(videoRow?.count || 0);
 
-      // 이번 달
-      const monthPhotos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_photos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthVideos = await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) as total
-        FROM student_videos
-        WHERE uploader_id = ${userId}
-          AND date_trunc('month', created_at) = date_trunc('month', now())
-      `);
-      const monthBytes = Number((monthPhotos.rows[0] as any)?.total || 0) + Number((monthVideos.rows[0] as any)?.total || 0);
+      const [photoRow, videoRow, monthPhotoRow, monthVideoRow] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT
+            COALESCE(SUM(file_size), 0)::bigint AS total_bytes,
+            COUNT(*)::int                       AS count
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM photo_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+        db.execute(sql`
+          SELECT COALESCE(SUM(file_size), 0)::bigint AS total
+          FROM video_assets_meta
+          WHERE uploaded_by = ${userId}
+            AND media_status != 'deleted'
+            AND created_at >= date_trunc('month', now())
+        `),
+      ]);
+
+      const photoBytes = Number((photoRow.rows[0] as any)?.total_bytes ?? 0);
+      const videoBytes = Number((videoRow.rows[0] as any)?.total_bytes ?? 0);
+      const photoCount = Number((photoRow.rows[0] as any)?.count ?? 0);
+      const videoCount = Number((videoRow.rows[0] as any)?.count ?? 0);
+      const monthBytes = Number((monthPhotoRow.rows[0] as any)?.total ?? 0)
+                       + Number((monthVideoRow.rows[0] as any)?.total ?? 0);
 
       res.json({
         photo_bytes: photoBytes, photo_count: photoCount,
@@ -425,21 +595,56 @@ router.get("/teacher/makeups", requireAuth,
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { status = "waiting" } = req.query as any;
-      const dbStatus = status === "pending" ? "waiting" : status;
+      const { status } = req.query as any;
+      // status=waiting(또는 미지정/pending) → waiting + expired 모두 반환
+      // 기간 지난 보강도 목록에서 계속 표시
+      const isWaitingQuery = !status || status === "waiting" || status === "pending";
+      const dbStatus = isWaitingQuery ? null : (status === "pending" ? "waiting" : status);
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
 
-      const rows = await db.execute(sql`
+      const statusClause = isWaitingQuery
+        ? `AND ms.status IN ('waiting', 'expired')`
+        : `AND ms.status = '${dbStatus}'`;
+
+      // REQ-5: 현재 담당반 학생 기준 필터
+      // Source of Truth: student_class_history.left_at IS NULL (현재 재적)
+      //   + class_groups.teacher_user_id / co_teacher_ids (현재 담임/부담임)
+      // handoff 예외: handed_to_teacher_id = 나 → 인계받은 보강도 표시
+      const rows = ((await (db as any).execute(sql.raw(`
         SELECT ms.*, u.name AS student_name_from_user
         FROM makeup_sessions ms
         LEFT JOIN users u ON u.id = ms.student_id
-        WHERE ms.swimming_pool_id = ${poolId}
-          AND ms.status = ${dbStatus}
+        WHERE ms.swimming_pool_id = '${poolId}'
+          ${statusClause}
           AND ms.cancelled_at IS NULL
+          AND (
+            ms.student_id IN (
+              SELECT sch.student_id
+              FROM student_class_history sch
+              JOIN class_groups cg ON cg.id = sch.class_group_id
+              WHERE sch.left_at IS NULL
+                AND cg.swimming_pool_id = '${poolId}'
+                AND (cg.is_deleted IS NULL OR cg.is_deleted = false)
+                AND (
+                  cg.teacher_user_id = '${userId}'
+                  OR cg.co_teacher_ids @> to_jsonb('${userId}'::text)
+                )
+            )
+            OR ms.handed_to_teacher_id = '${userId}'
+          )
         ORDER BY ms.absence_date ASC, ms.created_at ASC
-      `);
-      res.json(rows.rows);
+      `))) as any).rows as any[];
+
+      // is_expired 필드 추가: status=expired 또는 expire_at이 KST 현재 시각 이전
+      const kstNow = toKstDateStr(new Date());
+      const result = rows.map((r: any) => ({
+        ...r,
+        is_expired:
+          r.status === "expired" ||
+          (r.expire_at != null && toKstDateStr(new Date(r.expire_at)) < kstNow),
+      }));
+      res.json(result);
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
@@ -471,7 +676,6 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
           AND (cg.is_one_time = false OR cg.is_one_time IS NULL)
           AND (${showAll} OR cg.teacher_user_id = ${userId})
         GROUP BY cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity, cg.teacher_user_id, cg.co_teacher_ids, u.name
-        HAVING GREATEST(0, cg.capacity - COUNT(s.id) FILTER (WHERE s.status IN ('active', 'pending_parent_link', 'unregistered') AND s.deleted_at IS NULL)) > 0
         ORDER BY is_mine DESC, cg.schedule_days, cg.schedule_time
       `);
       res.json(rows.rows);
@@ -479,40 +683,252 @@ router.get("/teacher/makeups/eligible-classes", requireAuth,
   }
 );
 
-// ── 보강 지정 (teacher용) ──────────────────────────────────────
+// ── 보강 가능 수업 회차 목록 (teacher용) ──────────────────────
+// in-memory 요청/오류 저장소 (최근 30건)
+const _occErrLog: Array<{ts: string; stage: string; code: string|null; message: string|null; makeup_id: string; class_group_id: string|null; user_id: string}> = [];
+const _occReqLog: Array<{ts: string; makeup_id: string; class_group_id: string|null; user_id: string; status: number; elapsed_ms: number; error?: string}> = [];
+
+// 인증 없이 super admin 비밀번호로 조회
+router.get("/teacher/makeups/debug-occ-log", (req, res) => {
+  const pw = req.query.pw as string | undefined;
+  if (!pw || pw !== process.env.SUPER_ADMIN_PASSWORD) {
+    res.status(401).json({ error: "unauthorized" }); return;
+  }
+  res.json({ requests: _occReqLog.slice(-30), errors: _occErrLog.slice(-20) });
+});
+
+router.get("/teacher/makeups/debug-occ-errors", requireAuth, (req, res) => {
+  res.json(_occErrLog.slice(-20));
+});
+
+// GET /teacher/makeups/:makeupId/eligible-occurrences?class_group_id=...
+router.get("/teacher/makeups/:makeupId/eligible-occurrences", requireAuth,
+  async (req: AuthRequest, res) => {
+    const requestId = String(req.headers["x-request-id"] || crypto.randomUUID());
+    const startedAt = Date.now();
+    let stage = "start";
+    const { makeupId } = req.params;
+    const { class_group_id } = req.query as { class_group_id?: string };
+    const userId = req.user!.userId;
+    try {
+
+      // STEP 3: 오류 코드 명확화
+      stage = "get_pool";
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "POOL_NOT_FOUND" }); return; }
+      if (!class_group_id) { res.status(400).json({ error: "class_group_id가 필요합니다." }); return; }
+
+      // 1. 보강 세션 조회
+      stage = "load_makeup";
+      const mkRows = (await db.execute(sql`
+        SELECT absence_date, expire_at, swimming_pool_id
+        FROM makeup_sessions WHERE id = ${makeupId} LIMIT 1
+      `)).rows as any[];
+      if (!mkRows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      const mk = mkRows[0];
+      if (mk.swimming_pool_id !== poolId) { res.status(403).json({ error: "MAKEUP_POOL_MISMATCH" }); return; }
+
+      // 2. 반 정보 조회 (수영장 소속·삭제되지 않은 반)
+      stage = "load_class";
+      const cgRows = (await superAdminDb.execute(sql`
+        SELECT cg.id, cg.name, cg.schedule_days, cg.schedule_time, cg.capacity,
+          cg.teacher_user_id, u.name AS instructor,
+          (cg.teacher_user_id = ${userId} OR cg.co_teacher_ids @> to_jsonb(${userId}::text)) AS is_mine
+        FROM class_groups cg
+        LEFT JOIN users u ON cg.teacher_user_id = u.id
+        WHERE cg.id = ${class_group_id}
+          AND cg.swimming_pool_id = ${poolId}
+          AND cg.is_deleted = false
+        LIMIT 1
+      `)).rows as any[];
+      if (!cgRows.length) { res.status(404).json({ error: "CLASS_NOT_FOUND" }); return; }
+      const cg = cgRows[0];
+
+      // 3. 정원 계산 (eligible-classes 표준 — class_group_id + assigned_class_ids 모두 포함)
+      stage = "count_members";
+      const memberRows = (await db.execute(sql`
+        SELECT COUNT(s.id)::int AS cnt FROM students s
+        WHERE (s.class_group_id = ${class_group_id} OR s.assigned_class_ids @> to_jsonb(${class_group_id}::text))
+          AND s.status IN ('active', 'pending_parent_link', 'unregistered')
+          AND s.deleted_at IS NULL
+      `)).rows as any[];
+      const currentMembers = (memberRows[0] as any)?.cnt ?? 0;
+      const capacity: number = cg.capacity ?? 0;
+      const availableSlots = capacity > 0 ? Math.max(0, capacity - currentMembers) : 999;
+      const isFull = capacity > 0 && availableSlots <= 0;
+
+      // 4. 범위 계산: KST 오늘 기준 -14일 ~ +28일 (총 43일)
+      //    - absence_date·expire_at 기반 날짜 제한 제거
+      //    - 서버 로컬 timezone 독립 순수 UTC 날짜 연산
+      const absenceDate: string = mk.absence_date; // YYYY-MM-DD (응답 포함용, 범위 계산과 무관)
+      const kstToday = kstTodayStr();
+      const { rangeStart, rangeEnd } = getMakeupDateRange(kstToday);
+
+      // 5. 풀 휴일 조회 (범위 내 전체)
+      stage = "load_holidays";
+      const holidayRows = (await db.execute(sql`
+        SELECT TO_CHAR(holiday_date, 'YYYY-MM-DD') AS hd
+        FROM pool_holidays
+        WHERE pool_id = ${poolId}
+          AND holiday_date >= ${rangeStart}::date
+          AND holiday_date <= ${rangeEnd}::date
+      `)).rows as any[];
+      const holidaySet = new Set(holidayRows.map((r: any) => r.hd as string));
+
+      // 6. 요일 파싱 및 occurrence 생성 (순수 YYYY-MM-DD UTC 연산, 로컬 timezone 미사용)
+      const targetDays = parseDayNums((cg.schedule_days as string) || "");
+      const occurrences: any[] = [];
+      let currentDate = rangeStart;
+      while (currentDate <= rangeEnd) {
+        if (targetDays.has(dayOfWeekFromDateStr(currentDate)) && !holidaySet.has(currentDate)) {
+          occurrences.push({
+            class_group_id: cg.id,
+            class_name: cg.name,
+            occurrence_date: currentDate,
+            schedule_time: cg.schedule_time,
+            teacher_id: cg.teacher_user_id,
+            teacher_name: cg.instructor,
+            is_mine: Boolean(cg.is_mine),
+            available_slots: availableSlots,
+            is_full: isFull,
+            is_past: currentDate < kstToday,
+            is_today: currentDate === kstToday,
+            is_future: currentDate > kstToday,
+          });
+        }
+        currentDate = addDateDays(currentDate, 1);
+      }
+
+      const elapsed = Date.now() - startedAt;
+      console.log("[PERF][eligible-occurrences]", {
+        request_id: requestId,
+        user_id: userId,
+        pool_id: poolId,
+        makeup_id: makeupId,
+        class_group_id,
+        occurrences_count: occurrences.length,
+        status: 200,
+        elapsed_ms: elapsed,
+      });
+      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 200, elapsed_ms: elapsed });
+      if (_occReqLog.length > 30) _occReqLog.shift();
+
+      res.json({
+        makeup_id: makeupId,
+        absence_date: absenceDate,
+        expire_at: mk.expire_at,
+        class_group_id: cg.id,
+        class_name: cg.name,
+        is_mine: Boolean(cg.is_mine),
+        occurrences,
+      });
+    } catch (err: any) {
+      // STEP 3: DB 연결 한도 오류 구별
+      const isDbConnLimit =
+        err?.code === "EMAXCONNSESSION" ||
+        (typeof err?.message === "string" && (
+          err.message.includes("max clients reached") ||
+          err.message.includes("EMAXCONNSESSION")
+        ));
+      const errEntry = {
+        ts: new Date().toISOString(),
+        stage,
+        code: err?.code ?? null,
+        message: err?.message ?? null,
+        makeup_id: makeupId,
+        class_group_id: class_group_id ?? null,
+        user_id: userId,
+      };
+      _occErrLog.push(errEntry);
+      if (_occErrLog.length > 20) _occErrLog.shift();
+      _occReqLog.push({ ts: new Date().toISOString(), makeup_id: makeupId, class_group_id: class_group_id ?? null, user_id: userId, status: 500, elapsed_ms: Date.now() - startedAt, error: err?.message ?? "unknown" });
+      if (_occReqLog.length > 30) _occReqLog.shift();
+      console.error("[ERROR][eligible-occurrences]", {
+        request_id: requestId,
+        ...errEntry,
+        elapsed_ms: Date.now() - startedAt,
+      });
+      if (isDbConnLimit) {
+        res.status(503).json({ error: "DB_CONNECTION_LIMIT", message: "잠시 후 다시 시도해 주세요." });
+      } else {
+        res.status(500).json({ error: "ELIGIBLE_OCCURRENCES_FAILED" });
+      }
+    }
+  }
+);
+
+// ── 보강 지정 (teacher용) — 미래 날짜 전용 ────────────────────
 router.patch("/teacher/makeups/:id/assign", requireAuth,
   async (req: AuthRequest, res) => {
     try {
-      const { class_group_id, assigned_date } = req.body;
+      const { class_group_id, assigned_date, allow_expired } = req.body;
       const sessionId = req.params.id;
+      const userId = req.user!.userId;
+
       if (!class_group_id || !assigned_date) {
-        res.status(400).json({ error: "반과 날짜를 선택해주세요." }); return;
+        res.status(400).json({ error: "INVALID_REQUEST", message: "반과 날짜를 선택해주세요." }); return;
       }
 
-      // 기존 보강 세션 조회 (신규 배정 vs 변경 판단)
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
       const prevRows = (await db.execute(sql`
-        SELECT student_id, student_name, status, assigned_class_group_id
+        SELECT student_id, student_name, status, assigned_class_group_id,
+               absence_date, expire_at, swimming_pool_id
         FROM makeup_sessions WHERE id = ${sessionId} LIMIT 1
       `)).rows as any[];
       if (!prevRows.length) { res.status(404).json({ error: "보강 세션을 찾을 수 없습니다." }); return; }
       const prev = prevRows[0];
-      const isChange = prev.status === "assigned" && !!prev.assigned_class_group_id;
 
-      const cls = await superAdminDb.execute(sql`
-        SELECT cg.name, u.name AS teacher_name, cg.teacher_user_id
-        FROM class_groups cg LEFT JOIN users u ON cg.teacher_user_id = u.id
-        WHERE cg.id = ${class_group_id}
-      `);
-      if (!cls.rows.length) { res.status(404).json({ error: "반을 찾을 수 없습니다." }); return; }
-      const clsRow = cls.rows[0] as any;
+      if (prev.swimming_pool_id !== poolId) { res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (prev.status === "completed") {
+        res.status(409).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강 건입니다." }); return;
+      }
+      if (prev.status === "cancelled") {
+        res.status(409).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소된 보강 건입니다." }); return;
+      }
+      // expired 상태는 allow_expired=true 없이는 차단
+      if (prev.status === "expired" && !allow_expired) {
+        res.status(409).json({
+          code: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          error: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          message: "보강 가능 기간이 지난 항목입니다. 그래도 처리하려면 allow_expired: true 를 포함하여 다시 요청하세요.",
+        }); return;
+      }
+
+      // 공통 회차 검증 (날짜형식·결석일·만료일·반·요일·휴일·정원)
+      let validation: OccurrenceValidationResult;
+      try {
+        validation = await validateMakeupOccurrence({
+          makeupSession: prev as MakeupSessionRow,
+          classGroupId: class_group_id,
+          occurrenceDate: assigned_date,
+          poolId,
+          allowExpired: !!allow_expired,
+        });
+      } catch (e: any) {
+        if (e.code && e.status) { res.status(e.status).json({ error: e.code, message: e.message }); return; }
+        throw e;
+      }
+
+      // assign은 미래 날짜 전용 — 오늘·과거는 complete-direct로 처리
+      if (!validation.isFuture) {
+        res.status(400).json({
+          error: "ASSIGN_REQUIRES_FUTURE_DATE",
+          message: "배정 예약은 미래 날짜만 선택할 수 있습니다. 오늘 또는 과거 날짜는 '직접 완료'로 처리해주세요.",
+        }); return;
+      }
+
+      const isChange = prev.status === "assigned" && !!prev.assigned_class_group_id;
+      const clsRow = validation.classGroup;
 
       await db.execute(sql`
         UPDATE makeup_sessions SET
-          status = 'assigned',
+          status                    = 'assigned',
           assigned_class_group_id   = ${class_group_id},
           assigned_class_group_name = ${clsRow.name},
           assigned_teacher_id       = ${clsRow.teacher_user_id},
-          assigned_teacher_name     = ${clsRow.teacher_name},
+          assigned_teacher_name     = ${clsRow.teacher_name ?? null},
           assigned_date             = ${assigned_date},
           updated_at                = now()
         WHERE id = ${sessionId}
@@ -547,6 +963,68 @@ router.patch("/teacher/makeups/:id/assign", requireAuth,
   }
 );
 
+// ── 보강 인계 (담당선생님 → 다른 선생님) ─────────────────────
+router.post("/teacher/makeups/:id/handover", requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { receiver_teacher_id } = req.body as { receiver_teacher_id: string };
+      if (!receiver_teacher_id) { res.status(400).json({ error: "receiver_teacher_id 필수" }); return; }
+
+      const poolId = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      // 보강 세션 확인
+      const mkRows = (await db.execute(sql`
+        SELECT id, student_name, absence_date, status, swimming_pool_id, original_teacher_id, original_class_group_id
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      const mk = mkRows[0];
+      if (!mk)                          { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      if (mk.swimming_pool_id !== poolId){ res.status(403).json({ error: "접근 권한 없음" }); return; }
+      if (mk.status !== "waiting")       { res.status(409).json({ error: "이미 처리된 보강 건입니다." }); return; }
+
+      // 권한 확인: 내가 담당 또는 co-teacher인지
+      const isOriginal = mk.original_teacher_id === userId;
+      let isCo = false;
+      if (!isOriginal && mk.original_class_group_id) {
+        const coRows = (await superAdminDb.execute(sql`
+          SELECT 1 FROM class_groups WHERE id = ${mk.original_class_group_id}
+            AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+        `)).rows;
+        isCo = coRows.length > 0;
+      }
+      if (!isOriginal && !isCo) { res.status(403).json({ error: "담당 선생님만 인계할 수 있습니다." }); return; }
+
+      // 수신 선생님 정보
+      const [receiverRow] = (await superAdminDb.execute(sql`
+        SELECT id, name FROM users WHERE id = ${receiver_teacher_id} AND swimming_pool_id = ${poolId} LIMIT 1
+      `)).rows as any[];
+      if (!receiverRow) { res.status(404).json({ error: "선생님을 찾을 수 없습니다." }); return; }
+
+      // 인계 처리 — status 유지(waiting), handed_to 업데이트
+      await db.execute(sql`
+        UPDATE makeup_sessions SET
+          handed_to_teacher_id   = ${receiver_teacher_id},
+          handed_to_teacher_name = ${receiverRow.name as string},
+          updated_at             = now()
+        WHERE id = ${req.params.id}
+      `);
+
+      // 메신저 자동 알림
+      const [actorRow] = (await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId} LIMIT 1`)).rows as any[];
+      const actorName: string = (actorRow as any)?.name || "선생님";
+      await db.execute(sql`
+        INSERT INTO work_messages (pool_id, sender_id, sender_name, sender_role, msg_type, channel_type, message_type, content)
+        VALUES (${poolId}, ${userId}, ${actorName}, ${req.user!.role}, 'text', 'talk', 'normal',
+          ${`보강 인계\n학생: ${mk.student_name || "미상"}\n결석일: ${mk.absence_date || "-"}\n인계 → ${receiverRow.name as string} 선생님`})
+      `);
+
+      res.json({ success: true, handed_to_teacher_name: receiverRow.name as string });
+    } catch (err) { console.error("[teacher/makeups/handover]", err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
 // ── 배정된 보강 목록 (풀 전체) ────────────────────────────────
 router.get("/teacher/makeups/assigned", requireAuth,
   async (req: AuthRequest, res) => {
@@ -575,6 +1053,37 @@ router.get("/teacher/makeups/by-class", requireAuth,
       if (!class_group_id || !date) {
         res.status(400).json({ error: "class_group_id와 date가 필요합니다." }); return;
       }
+
+      // 1. 날짜 형식 검증: YYYY-MM-DD 실존 날짜만 허용
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRe.test(date)) {
+        res.status(400).json({ error: "INVALID_DATE", message: "날짜는 YYYY-MM-DD 형식이어야 합니다." }); return;
+      }
+      const [y, m, d] = date.split("-").map(Number);
+      const parsed = new Date(y, m - 1, d);
+      if (parsed.getFullYear() !== y || parsed.getMonth() !== m - 1 || parsed.getDate() !== d) {
+        res.status(400).json({ error: "INVALID_DATE", message: "존재하지 않는 날짜입니다." }); return;
+      }
+
+      // 2. 요청자의 poolId 확인
+      const poolId = await getMyPoolId(req.user!.userId);
+      if (!poolId) {
+        res.status(403).json({ error: "POOL_MISMATCH", message: "소속 수영장이 없습니다." }); return;
+      }
+
+      // 3. class_group이 해당 풀 소속인지 검증
+      const cgRows = (await db.execute(sql`
+        SELECT id FROM class_groups
+        WHERE id = ${class_group_id}
+          AND swimming_pool_id = ${poolId}
+          AND is_deleted = false
+        LIMIT 1
+      `)).rows;
+      if (!cgRows.length) {
+        res.status(404).json({ error: "CLASS_NOT_FOUND", message: "해당 수영장에서 찾을 수 없는 반입니다." }); return;
+      }
+
+      // 4. 동일 풀 소속 보강 세션만 조회
       const rows = (await db.execute(sql`
         SELECT ms.*
         FROM makeup_sessions ms
@@ -582,28 +1091,30 @@ router.get("/teacher/makeups/by-class", requireAuth,
           AND ms.assigned_date = ${date}
           AND ms.status = 'assigned'
           AND ms.cancelled_at IS NULL
+          AND ms.swimming_pool_id = ${poolId}
         ORDER BY ms.student_name ASC
       `)).rows;
       res.json(rows);
-    } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+    } catch (err) { console.error(err); res.status(500).json({ error: "SERVER_ERROR", message: "서버 오류" }); }
   }
 );
 
-// ── 배정된 보강 완료 처리 (teacher용) ─────────────────────────
-// ── 스케줄표에서 보강 직접 완료 (원래 담당 선생님이 당일 처리) ─────────────
+// ── 스케줄표에서 보강 직접 완료 (오늘·과거 날짜 전용) ────────────
 router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
   requireRole("teacher", "pool_admin", "sub_admin"),
   async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
       const { date, class_group_id } = req.body as { date?: string; class_group_id?: string };
-      if (!date) { res.status(400).json({ error: "date가 필요합니다." }); return; }
 
-      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
-      const userName = (userRow.rows[0] as any)?.name || "";
+      if (!date) { res.status(400).json({ error: "INVALID_ASSIGNED_DATE", message: "date가 필요합니다." }); return; }
+      if (!class_group_id) { res.status(400).json({ error: "CLASS_NOT_FOUND", message: "class_group_id가 필요합니다." }); return; }
 
       const poolId = await getMyPoolId(userId);
       if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      const userRow = await superAdminDb.execute(sql`SELECT name FROM users WHERE id = ${userId}`);
+      const userName = (userRow.rows[0] as any)?.name || "";
 
       const rows = (await db.execute(sql`
         SELECT * FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
@@ -611,16 +1122,49 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
       if (!rows.length) { res.status(404).json({ error: "보강 없음" }); return; }
       const mk = rows[0];
 
-      // 같은 수영장 소속 선생님이면 누구나 보충수업 처리 가능
       if (mk.swimming_pool_id && mk.swimming_pool_id !== poolId) {
         res.status(403).json({ error: "처리 권한이 없습니다." }); return;
       }
-      if (!["waiting", "assigned"].includes(mk.status)) {
-        res.status(400).json({ error: "이미 처리된 보강입니다." }); return;
+      if (mk.status === "completed") {
+        res.status(400).json({ error: "MAKEUP_ALREADY_COMPLETED", message: "이미 완료된 보강입니다." }); return;
+      }
+      if (!["waiting", "assigned", "expired"].includes(mk.status)) {
+        res.status(400).json({ error: "MAKEUP_ALREADY_CANCELLED", message: "취소된 보강입니다." }); return;
+      }
+      // expired 상태는 allow_expired=true 없이는 차단
+      const { allow_expired } = req.body as { date?: string; class_group_id?: string; allow_expired?: boolean };
+      if (mk.status === "expired" && !allow_expired) {
+        res.status(409).json({
+          code: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          error: "MAKEUP_EXPIRED_CONFIRM_REQUIRED",
+          message: "보강 가능 기간이 지난 항목입니다. 그래도 처리하려면 allow_expired: true 를 포함하여 다시 요청하세요.",
+        }); return;
       }
 
-      // 보충수업 배정 반 결정 (명시적으로 전달된 class_group_id 우선)
-      const targetClassId = class_group_id || mk.original_class_group_id || null;
+      // 공통 회차 검증 (날짜형식·결석일·만료일·반·요일·휴일·정원)
+      let validation: OccurrenceValidationResult;
+      try {
+        validation = await validateMakeupOccurrence({
+          makeupSession: mk as MakeupSessionRow,
+          classGroupId: class_group_id,
+          occurrenceDate: date,
+          poolId,
+          allowExpired: !!allow_expired,
+        });
+      } catch (e: any) {
+        if (e.code && e.status) { res.status(e.status).json({ error: e.code, message: e.message }); return; }
+        throw e;
+      }
+
+      // complete-direct는 오늘·과거 날짜 전용 — 미래는 assign으로 처리
+      if (validation.isFuture) {
+        res.status(400).json({
+          error: "COMPLETE_DIRECT_REQUIRES_TODAY_OR_PAST",
+          message: "직접 완료는 오늘 또는 과거 날짜만 처리할 수 있습니다. 미래 날짜는 '보강반 배정'으로 예약해주세요.",
+        }); return;
+      }
+
+      // 오늘·과거 정원 초과는 실제 참여 기록이므로 허용 (isFull 체크 없음)
 
       await db.execute(sql`
         UPDATE makeup_sessions SET
@@ -629,7 +1173,8 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
           substitute_teacher_id     = ${userId},
           substitute_teacher_name   = ${userName},
           assigned_date             = ${date},
-          assigned_class_group_id   = ${targetClassId},
+          assigned_class_group_id   = ${class_group_id},
+          assigned_class_group_name = ${validation.classGroup.name},
           completed_at              = now(),
           updated_at                = now()
         WHERE id = ${req.params.id}
@@ -642,16 +1187,111 @@ router.patch("/teacher/makeups/:id/complete-direct", requireAuth,
            class_group_id, teacher_user_id, teacher_name, created_by, created_by_name)
         VALUES
           (${attId}, ${poolId}, ${mk.student_id}, ${date}, 'present', 'makeup',
-           ${targetClassId}, ${userId}, ${userName}, ${userId}, ${userName})
+           ${class_group_id}, ${userId}, ${userName}, ${userId}, ${userName})
         ON CONFLICT (student_id, date) DO UPDATE SET
           status = 'present', session_type = 'makeup',
-          class_group_id = ${targetClassId},
+          class_group_id = ${class_group_id},
           teacher_user_id = ${userId}, teacher_name = ${userName},
           updated_at = now()
       `);
 
       res.json({ success: true });
     } catch (err) { console.error(err); res.status(500).json({ error: "서버 오류" }); }
+  }
+);
+
+// ── 보강 배정 취소 (assigned → waiting) ──────────────────────────────
+// 담당 수업(assigned_teacher_id 일치)의 보강 건만 취소 가능
+router.patch("/teacher/makeups/:id/revert", requireAuth,
+  requireRole("teacher", "pool_admin", "sub_admin"),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId   = req.user!.userId;
+      const userRole = req.user!.role;
+      const poolId   = await getMyPoolId(userId);
+      if (!poolId) { res.status(403).json({ error: "소속 수영장 없음" }); return; }
+
+      console.log(`[teacher/makeups/revert] userId=${userId} role=${userRole} poolId=${poolId} mkId=${req.params.id}`);
+
+      const rows = (await db.execute(sql`
+        SELECT id, status, swimming_pool_id,
+               assigned_class_group_id, assigned_class_group_name,
+               assigned_teacher_id, assigned_teacher_name,
+               assigned_date, absence_date, absence_time,
+               student_name, created_at, updated_at
+        FROM makeup_sessions WHERE id = ${req.params.id} LIMIT 1
+      `)).rows as any[];
+      if (!rows.length) { res.status(404).json({ error: "보강 건을 찾을 수 없습니다." }); return; }
+      const mk = rows[0];
+      console.log(`[teacher/makeups/revert] BEFORE:`, JSON.stringify(mk));
+
+      console.log(`[teacher/makeups/revert] mk.status=${mk.status} mk.swimming_pool_id=${mk.swimming_pool_id} mk.assigned_teacher_id=${mk.assigned_teacher_id}`);
+
+      // 다른 센터 데이터 접근 차단
+      if (mk.swimming_pool_id !== poolId) {
+        console.log(`[teacher/makeups/revert] pool mismatch: mk=${mk.swimming_pool_id} user=${poolId}`);
+        res.status(403).json({ error: "접근 권한이 없습니다." }); return;
+      }
+
+      // 상태 검사
+      if (mk.status === "completed") {
+        res.status(400).json({ error: "완료된 보강은 배정 취소할 수 없습니다." }); return;
+      }
+      if (mk.status === "waiting") {
+        res.status(400).json({ error: "이미 보강대기 상태입니다." }); return;
+      }
+      if (!["assigned", "transferred"].includes(mk.status)) {
+        res.status(400).json({ error: "배정 취소할 수 없는 상태입니다." }); return;
+      }
+
+      // pool_admin / sub_admin: 소속 수영장 확인만으로 충분 (소유권 검사 면제)
+      const isAdmin = userRole === "pool_admin" || userRole === "sub_admin";
+      if (!isAdmin) {
+        // teacher: assigned_teacher_id가 본인이거나 co-teacher여야 함
+        const isAssignedTeacher = mk.assigned_teacher_id === userId;
+        let isCo = false;
+        if (!isAssignedTeacher && mk.assigned_class_group_id) {
+          const coRows = (await superAdminDb.execute(sql`
+            SELECT 1 FROM class_groups WHERE id = ${mk.assigned_class_group_id}
+              AND co_teacher_ids @> to_jsonb(${userId}::text) LIMIT 1
+          `)).rows;
+          isCo = coRows.length > 0;
+        }
+        if (!isAssignedTeacher && !isCo) {
+          console.log(`[teacher/makeups/revert] ownership fail: assigned_teacher=${mk.assigned_teacher_id} user=${userId}`);
+          res.status(403).json({ error: "담당 수업의 보강만 취소할 수 있습니다." }); return;
+        }
+      }
+
+      const updated = (await db.execute(sql`
+        UPDATE makeup_sessions SET
+          status                      = 'waiting',
+          assigned_class_group_id     = NULL,
+          assigned_class_group_name   = NULL,
+          assigned_teacher_id         = NULL,
+          assigned_teacher_name       = NULL,
+          assigned_date               = NULL,
+          transferred_to_teacher_id   = NULL,
+          transferred_to_teacher_name = NULL,
+          is_substitute               = FALSE,
+          substitute_teacher_id       = NULL,
+          substitute_teacher_name     = NULL,
+          updated_at                  = now()
+        WHERE id = ${req.params.id}
+        RETURNING id, status,
+                  assigned_class_group_id, assigned_class_group_name,
+                  assigned_teacher_id, assigned_teacher_name,
+                  assigned_date, updated_at
+      `)).rows as any[];
+
+      console.log(`[teacher/makeups/revert] rowCount=${updated.length} AFTER:`, JSON.stringify(updated[0] || null));
+
+      if (!updated.length) {
+        res.status(500).json({ error: "업데이트 실패 (0 rows affected)" }); return;
+      }
+
+      res.json({ success: true, rowCount: updated.length, before: mk, after: updated[0] });
+    } catch (err) { console.error("[teacher/makeups/revert]", err); res.status(500).json({ error: "서버 오류" }); }
   }
 );
 
@@ -762,6 +1402,14 @@ router.get("/teacher/makeup-requests", requireAuth,
         FROM makeup_sessions
         WHERE swimming_pool_id = ${poolId}
           AND cancelled_at IS NULL
+          AND (
+            original_teacher_id = ${userId}
+            OR EXISTS (
+              SELECT 1 FROM class_groups cg
+              WHERE cg.id = original_class_group_id
+                AND cg.co_teacher_ids @> to_jsonb(${userId}::text)
+            )
+          )
         ORDER BY absence_date DESC, created_at DESC
       `)).rows as any[];
 

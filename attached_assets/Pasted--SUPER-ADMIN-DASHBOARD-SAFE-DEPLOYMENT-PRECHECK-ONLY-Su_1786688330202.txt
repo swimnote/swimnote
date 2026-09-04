@@ -1,0 +1,141 @@
+[SUPER ADMIN DASHBOARD]
+[SAFE DEPLOYMENT PRECHECK ONLY]
+
+목적:
+Super Admin Dashboard 수정사항이 현재 실제 iPhone에 적용되지 않은 이유를 확인하고,
+Dashboard 관련 변경만 안전하게 배포할 준비를 한다.
+
+현재 관련 commit:
+
+1a9c6a45
+- Super Admin 5탭 제거
+- Dashboard + Global Menu IA
+
+e78705c2
+- Dashboard X MODE KPI
+- pools-summary X MODE filter/server support
+
+현재 보고상:
+Render deploy 없음
+EAS OTA 없음
+
+중요:
+아직 배포하지 마라.
+이번 단계는 현재 Production 기준 확인만 한다.
+
+==================================================
+1. CURRENT PRODUCTION SERVER
+==================================================
+
+현재 Render.com에서 실제 실행 중인:
+
+- branch
+- deployed commit SHA
+- deployment status
+
+를 확인.
+
+추측 금지.
+
+==================================================
+2. CURRENT PRODUCTION APP
+==================================================
+
+현재 production channel에서 실제 앱이 받는:
+
+- EAS Update branch/channel
+- runtimeVersion
+- latest production update ID
+- latest production update commit/SHA 또는 message
+- 현재 iPhone build가 해당 OTA를 받을 수 있는 runtime인지
+
+확인.
+
+==================================================
+3. DIFF SCOPE
+==================================================
+
+현재 Production 기준 SHA와:
+
+1a9c6a45
+e78705c2
+
+사이에서 Dashboard 작업에 실제 필요한 변경 파일만 식별.
+
+대상 예상:
+
+SWIM APP
+- app/(super)/_layout.tsx
+- app/(super)/dashboard.tsx
+- app/(super)/global-menu.tsx
+- pools 관련 X MODE filter UI/store 변경
+
+API SERVER
+- routes/super.ts
+- X MODE KPI/filter 관련 최소 server change
+
+정확한 파일은 git diff로 확인.
+
+==================================================
+4. GROWTH REPORT EXCLUSION
+==================================================
+
+매우 중요.
+
+GR1~GR9 Growth Report 미배포 변경을
+Dashboard 배포에 섞지 않는다.
+
+다음이 Dashboard deployment diff에 포함되면 BLOCK:
+
+- growth report migrations
+- growth report routes/services
+- growth report screens
+- AI Engine integration
+- GR1~GR9 관련 server/app code
+
+==================================================
+5. SAFE DEPLOY PLAN
+==================================================
+
+현재 Production baseline에서
+Dashboard 변경만 가져오는
+clean deployment/hotfix 방법을 제시.
+
+예:
+
+Production baseline
+→ dashboard-only clean branch
+→ 필요한 commit/file만 cherry-pick
+→ tests
+→ server deploy
+→ production OTA
+
+단 실제 실행은 아직 하지 않는다.
+
+==================================================
+6. REPORT
+==================================================
+
+다음만 보고:
+
+1. CURRENT RENDER SHA
+2. CURRENT EAS PRODUCTION UPDATE
+3. CURRENT APP RUNTIME VERSION
+4. DASHBOARD REQUIRED FILES
+5. GROWTH REPORT FILES MIXED? YES/NO
+6. SAFE DEPLOYMENT METHOD
+7. SERVER DEPLOY REQUIRED? YES/NO
+8. OTA REQUIRED? YES/NO
+9. NEW NATIVE BUILD REQUIRED? YES/NO
+
+마지막:
+
+DASHBOARD_SAFE_DEPLOY_READY
+
+또는
+
+DASHBOARD_SAFE_DEPLOY_BLOCKED + 이유
+
+코드 수정 금지.
+배포 금지.
+OTA 금지.

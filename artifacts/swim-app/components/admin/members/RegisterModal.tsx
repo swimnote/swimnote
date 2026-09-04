@@ -1,5 +1,5 @@
-import { CircleAlert, Info, X } from "lucide-react-native";
 import React, { useRef, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -20,13 +20,15 @@ interface RegisterModalProps {
   poolName: string;
   onSuccess: (student: StudentMember) => void;
   onClose: () => void;
+  initialParentPhone?: string;
+  initialParentName?: string;
 }
 
-export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterModalProps) {
-  const [name,        setName]        = useState("");
+export function RegisterModal({ token, poolName, onSuccess, onClose, initialParentPhone, initialParentName }: RegisterModalProps) {
+  const [names,       setNames]       = useState(["", "", ""]);
   const [birthYear,   setBirthYear]   = useState("");
-  const [parentName,  setParentName]  = useState("");
-  const [parentPhone, setParentPhone] = useState("");
+  const [parentName,  setParentName]  = useState(initialParentName || "");
+  const [parentPhone, setParentPhone] = useState(initialParentPhone || "");
   const [weekly,      setWeekly]      = useState<WeeklyCount>(1);
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");
@@ -34,8 +36,13 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
   const [showInvite,  setShowInvite]  = useState<StudentMember | null>(null);
   const pendingBody = useRef<any>(null);
 
+  function updateName(i: number, v: string) {
+    setNames(prev => { const n = [...prev]; n[i] = v; return n; });
+  }
+
   function validate(): string | null {
-    if (!name.trim()) return "학생 이름을 입력해주세요.";
+    const validNames = names.map(n => n.trim()).filter(Boolean);
+    if (validNames.length === 0) return "학생 이름을 한 명 이상 입력해주세요.";
     if (birthYear && !isValidBirthYear(birthYear)) return "출생년도가 올바르지 않습니다. (예: 2015)";
     if (parentPhone && !isValidPhone(parentPhone)) return "학부모 전화번호 형식이 올바르지 않습니다.";
     return null;
@@ -45,23 +52,58 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
     const e = validate();
     if (e) { setError(e); return; }
     setSaving(true); setError("");
-    const body = {
-      name: name.trim(), birth_year: birthYear || undefined,
+
+    const validNames = names.map(n => n.trim()).filter(Boolean);
+    const commonFields = {
+      birth_year: birthYear || undefined,
       parent_name: parentName || undefined,
       parent_phone: parentPhone ? normalizePhone(parentPhone) : undefined,
-      weekly_count: weekly, registration_path: "admin_created", force_create: forceCreate,
+      weekly_count: weekly,
+      registration_path: "admin_created",
+      force_create: forceCreate,
     };
-    pendingBody.current = body;
+
+    let firstSuccess: StudentMember | null = null;
+    let dupFound: any[] | null = null;
+
     try {
-      const res = await apiRequest(token, "/students", { method: "POST", body: JSON.stringify(body) });
-      const data = await res.json();
-      if (res.status === 409 && data.duplicate) { setDupCandidates([data.existing]); setSaving(false); return; }
-      if (res.status === 200 && data.possible_duplicate) { setDupCandidates(data.candidates); setSaving(false); return; }
-      if (!res.ok) { setError(data.message || "오류가 발생했습니다."); return; }
-      setShowInvite(data);
-      onSuccess(data);
-    } catch { setError("네트워크 오류가 발생했습니다."); }
-    finally { setSaving(false); }
+      for (const name of validNames) {
+        const body = { name, ...commonFields };
+        pendingBody.current = body;
+        const res = await apiRequest(token, "/students", { method: "POST", body: JSON.stringify(body) });
+        const data = await res.json();
+
+        if (res.status === 409 && data.duplicate) {
+          dupFound = [data.existing];
+          break;
+        }
+        if (res.status === 200 && data.possible_duplicate) {
+          dupFound = data.candidates;
+          break;
+        }
+        if (!res.ok) {
+          setError(data.message || "오류가 발생했습니다.");
+          setSaving(false);
+          return;
+        }
+        if (!firstSuccess) firstSuccess = data;
+      }
+    } catch {
+      setError("네트워크 오류가 발생했습니다.");
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+
+    if (dupFound) {
+      setDupCandidates(dupFound);
+      return;
+    }
+    if (firstSuccess) {
+      setShowInvite(firstSuccess);
+      onSuccess(firstSuccess);
+    }
   }
 
   if (showInvite) {
@@ -89,11 +131,11 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
             <View style={reg.handle} />
             <View style={reg.header}>
               <Text style={reg.title}>어린이 직접 등록</Text>
-              <Pressable onPress={onClose}><X size={22} color={C.textSecondary} /></Pressable>
+              <Pressable onPress={onClose}><LucideIcon name="x" size={22} color={C.textSecondary} /></Pressable>
             </View>
             {error ? (
               <View style={reg.errorRow}>
-                <CircleAlert size={14} color={C.error} />
+                <LucideIcon name="alert-circle" size={14} color={C.error} />
                 <Text style={reg.errorText}>{error}</Text>
               </View>
             ) : null}
@@ -102,17 +144,23 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
               keyboardShouldPersistTaps="handled"
               bounces={false}
             >
-              <View style={reg.field}>
-                <Text style={reg.label}>학생 이름 *</Text>
-                <TextInput
-                  style={reg.input}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="홍길동"
-                  placeholderTextColor={C.textMuted}
-                  returnKeyType="next"
-                />
-              </View>
+              {/* 자녀 이름 슬롯 3개 */}
+              {names.map((name, i) => (
+                <View key={i} style={reg.field}>
+                  <Text style={reg.label}>
+                    학생 이름 {i + 1}{i === 0 ? " *" : " (선택)"}
+                  </Text>
+                  <TextInput
+                    style={reg.input}
+                    value={name}
+                    onChangeText={v => updateName(i, v)}
+                    placeholder={i === 0 ? "홍길동" : "형제 이름 입력 (선택)"}
+                    placeholderTextColor={C.textMuted}
+                    returnKeyType={i < 2 ? "next" : "done"}
+                  />
+                </View>
+              ))}
+
               <View style={reg.field}>
                 <Text style={reg.label}>출생년도 (중복 체크에 사용)</Text>
                 <TextInput
@@ -167,10 +215,10 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
                 </View>
               </View>
               <View style={reg.notice}>
-                <Info size={13} color={C.textMuted} />
+                <LucideIcon name="info" size={13} color={C.textMuted} />
                 <Text style={reg.noticeText}>등록 후 초대코드가 생성됩니다. 학부모에게 전달하여 앱 연결을 유도할 수 있습니다.</Text>
               </View>
-              <Pressable style={[reg.saveBtn, { backgroundColor: C.tint }]} onPress={() => submit(false)} disabled={saving}>
+              <Pressable style={[reg.saveBtn, { backgroundColor: C.primaryAction }]} onPress={() => submit(false)} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={reg.saveBtnText}>등록하기</Text>}
               </Pressable>
               <View style={{ height: 16 }} />
@@ -185,7 +233,7 @@ export function RegisterModal({ token, poolName, onSuccess, onClose }: RegisterM
 const reg = StyleSheet.create({
   backdrop:    { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet:       { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingBottom: 32, maxHeight: "85%" },
-  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: "#E5E7EB", alignSelf: "center", marginBottom: 4 },
+  handle:      { width: 40, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: "center", marginBottom: 4 },
   header:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   title:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.text },
   errorRow:    { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "#F9DEDA", padding: 10, borderRadius: 10, marginBottom: 10 },
@@ -196,7 +244,7 @@ const reg = StyleSheet.create({
   weekRow:     { flexDirection: "row", gap: 10 },
   weekBtn:     { flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, alignItems: "center" },
   weekBtnText: { fontSize: 14, fontFamily: "Pretendard-Regular" },
-  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.tintLight, padding: 12, borderRadius: 12, marginBottom: 14 },
+  notice:      { flexDirection: "row", gap: 6, alignItems: "flex-start", backgroundColor: C.brandMist, padding: 12, borderRadius: 12, marginBottom: 14 },
   noticeText:  { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, lineHeight: 18 },
   saveBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   saveBtnText: { color: "#fff", fontSize: 16, fontFamily: "Pretendard-Regular" },

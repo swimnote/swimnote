@@ -1,10 +1,8 @@
-import { Check, Info } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Pressable,
+  StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -123,7 +121,7 @@ export default function LevelSettingsScreen() {
         title="레벨 설정"
         rightSlot={
           <Pressable
-            style={[s.saveBtn, { backgroundColor: changed ? C.tint : C.border }]}
+            style={[s.saveBtn, { backgroundColor: changed ? C.primaryAction : C.border }]}
             onPress={save}
             disabled={saving || !changed}
           >
@@ -136,16 +134,16 @@ export default function LevelSettingsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, paddingTop: 12 }}
         >
           {/* 안내 카드 */}
           <View style={[s.infoCard, { backgroundColor: "#EEF9F8", borderColor: "#C2E8E5" }]}>
-            <Info size={16} color={C.tint} />
-            <Text style={[s.infoTxt, { color: C.tint }]}>
+            <LucideIcon name="info" size={16} color={C.brandStrong} />
+            <Text style={[s.infoTxt, { color: C.brandStrong }]}>
               레벨 1~10의 표시명·설명·뱃지를 자유롭게 설정할 수 있습니다.{"\n"}설정하지 않은 항목은 기본값(숫자)으로 표시됩니다.
             </Text>
           </View>
@@ -166,14 +164,14 @@ export default function LevelSettingsScreen() {
           ))}
 
           {changed && (
-            <Pressable style={[s.bottomSave, { backgroundColor: C.button }]} onPress={save} disabled={saving}>
+            <Pressable style={[s.bottomSave, { backgroundColor: C.primaryAction }]} onPress={save} disabled={saving}>
               {saving
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Text style={s.bottomSaveTxt}>변경사항 저장</Text>
               }
             </Pressable>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       )}
 
       <ConfirmModal
@@ -255,11 +253,11 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
           )}
         </View>
         <Pressable
-          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : "#E6FFFA", borderColor: inactive ? C.border : "#A7D9D6" }]}
+          style={[s.activeToggle, { backgroundColor: inactive ? "#F3F4F6" : C.brandSoft, borderColor: inactive ? C.border : "#A7D9D6" }]}
           onPress={(e) => { e.stopPropagation(); onToggleActive(); }}
           hitSlop={8}
         >
-          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? "#64748B" : C.tint} />
+          <LucideIcon name={inactive ? "toggle-left" : "toggle-right"} size={18} color={inactive ? C.textSecondary : C.brandStrong} />
         </Pressable>
         <LucideIcon name={expanded ? "chevron-up" : "chevron-down"} size={18} color={C.textSecondary} style={{ marginLeft: 4 }} />
       </Pressable>
@@ -336,7 +334,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
               {BADGE_TYPES.map(bt => (
                 <Pressable
                   key={bt.key}
-                  style={[s.typeBtn, lv.badge_type === bt.key && { backgroundColor: C.tint, borderColor: C.tint }]}
+                  style={[s.typeBtn, lv.badge_type === bt.key && { backgroundColor: C.brandStrong, borderColor: C.brandStrong }]}
                   onPress={() => setBadgeType(bt.key)}
                 >
                   <Text style={[s.typeBtnTxt, lv.badge_type === bt.key && { color: "#fff" }]}>{bt.label}</Text>
@@ -375,7 +373,7 @@ function LevelCard({ lv, expanded, onToggle, onUpdate, onBadgeLabelUpdate, onTog
                   onPress={() => setBadgeColor(col.value)}
                 >
                   {lv.badge_color === col.value && (
-                    <Check size={12} color={isDarkColor(col.value) ? "#fff" : "#333"} />
+                    <LucideIcon name="check" size={12} color={isDarkColor(col.value) ? "#fff" : "#333"} />
                   )}
                 </Pressable>
               ))}
@@ -427,7 +425,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
     backgroundColor: "#F3F4F6", borderWidth: 1, borderColor: "#D1D5DB",
   },
-  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  inactiveBadgeTxt: { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   activeToggle: {
     width: 32, height: 32, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", marginLeft: 8,

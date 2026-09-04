@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
+import Colors from "@/constants/colors";
+
+const C = Colors.light;
 import {
   ActivityIndicator, Dimensions, FlatList, Modal,
   Pressable, StyleSheet, Text, View,
@@ -84,27 +87,20 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 
   const renderPhoto = ({ item }: { item: AlbumPhotoInfo }) => {
     const isSel = selPhotos.has(item.id);
-    const isAttached = item.media_status === "attached";
     const uri = item.presigned_url ?? ((item.file_url?.startsWith("http")) ? item.file_url : "");
     return (
       <Pressable
-        onPress={() => { if (!isAttached) togglePhoto(item.id); }}
-        style={[s.item, isSel && s.itemSelected, isAttached && s.itemAttached]}
+        onPress={() => { togglePhoto(item.id); }}
+        style={[s.item, isSel && s.itemSelected]}
       >
         {uri ? (
-          <ExpoImage source={{ uri }} style={[s.image, isAttached && s.imageAttached]} contentFit="cover" />
+          <ExpoImage source={{ uri }} style={s.image} contentFit="cover" />
         ) : (
-          <View style={[s.image, { backgroundColor: "#F1F5F9" }]} />
+          <View style={[s.image, { backgroundColor: C.backgroundSoft }]} />
         )}
-        {isAttached && (
-          <View style={s.attachedOverlay}>
-            <LucideIcon name="link" size={11} color="#fff" />
-            <Text style={s.attachedText}>사용 중</Text>
-          </View>
-        )}
-        {isSel && !isAttached && (
+        {isSel && (
           <View style={s.checkOverlay}>
-            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill={C.brandStrong} />
           </View>
         )}
       </Pressable>
@@ -128,7 +124,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         </View>
         {isSel && (
           <View style={s.checkOverlay}>
-            <LucideIcon name="check-circle" size={22} color="#fff" fill="#2EC4B6" />
+            <LucideIcon name="check-circle" size={22} color="#fff" fill={C.brandStrong} />
           </View>
         )}
       </Pressable>
@@ -158,7 +154,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
       <View style={s.container}>
         <View style={[s.header, { paddingTop: insets.top + 14 }]}>
           <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
-            <LucideIcon name="x" size={20} color="#374151" />
+            <LucideIcon name="x" size={20} color={C.textPrimary} />
           </Pressable>
           <Text style={s.title}>앨범에서 선택</Text>
           <Text style={s.countText}>{totalSelected}/20</Text>
@@ -179,7 +175,7 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
         </View>
 
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 60 }} color="#2EC4B6" />
+          <ActivityIndicator style={{ marginTop: 60 }} color={C.brandStrong} />
         ) : isEmpty ? (
           <View style={s.empty}>
             <Text style={s.emptyText}>
@@ -224,33 +220,29 @@ export default function AlbumPickerModal({ visible, token, initialSelected = [],
 }
 
 const s = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: "#fff" },
-  header:             { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  container:          { flex: 1, backgroundColor: C.surface },
+  header:             { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: C.border },
   closeBtn:           { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  title:              { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  countText:          { width: 44, textAlign: "right", fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  filterRow:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
-  filterBtn:          { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: "#E5E7EB", backgroundColor: "#F8FAFC" },
-  filterBtnActive:    { borderColor: "#2EC4B6", backgroundColor: "#E6FFFA" },
-  filterBtnText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  filterBtnTextActive:{ color: "#2EC4B6" },
+  title:              { flex: 1, textAlign: "center", fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  countText:          { width: 44, textAlign: "right", fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  filterRow:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: C.backgroundSoft },
+  filterBtn:          { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.backgroundSoft },
+  filterBtnActive:    { borderColor: C.brandStrong, backgroundColor: C.brandSoft },
+  filterBtnText:      { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  filterBtnTextActive:{ color: C.brandStrong },
   grid:               { padding: 2 },
   item:               { width: ITEM_SIZE, height: ITEM_SIZE, margin: 2, borderRadius: 4, overflow: "hidden", borderWidth: 2, borderColor: "transparent" },
-  itemSelected:       { borderColor: "#2EC4B6" },
-  itemAttached:       { borderColor: "#CBD5E1", opacity: 0.75 },
+  itemSelected:       { borderColor: C.brandStrong },
   image:              { width: "100%", height: "100%" },
-  imageAttached:      {},
-  checkOverlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(46,196,182,0.18)", alignItems: "flex-end", justifyContent: "flex-start", padding: 4 },
-  attachedOverlay:    { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.52)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingVertical: 4 },
-  attachedText:       { fontSize: 10, color: "#fff", lineHeight: 14 },
+  checkOverlay:       { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(79,111,103,0.18)", alignItems: "flex-end", justifyContent: "flex-start", padding: 4 },
   videoPlayBadge:     { position: "absolute", bottom: 5, left: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   empty:              { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 32 },
-  emptyText:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#374151", textAlign: "center" },
-  emptySubText:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#64748B", textAlign: "center", lineHeight: 20 },
-  footer:             { flexDirection: "row", gap: 10, paddingHorizontal: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "#E5E7EB" },
-  cancelBtn:          { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: "#E5E7EB", alignItems: "center", justifyContent: "center" },
-  cancelText:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  confirmBtn:         { flex: 2, height: 50, borderRadius: 14, backgroundColor: "#2EC4B6", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  emptyText:          { fontSize: 15, fontFamily: "Pretendard-Regular", color: C.textPrimary, textAlign: "center" },
+  emptySubText:       { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textSecondary, textAlign: "center", lineHeight: 20 },
+  footer:             { flexDirection: "row", gap: 10, paddingHorizontal: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border },
+  cancelBtn:          { flex: 1, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: "center", justifyContent: "center" },
+  cancelText:         { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  confirmBtn:         { flex: 2, height: 50, borderRadius: 14, backgroundColor: C.primaryAction, alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
   confirmDisabled:    { opacity: 0.45 },
   confirmText:        { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#fff", textAlign: "center" },
 });

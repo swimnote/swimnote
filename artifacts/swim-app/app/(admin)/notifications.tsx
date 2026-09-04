@@ -1,4 +1,3 @@
-import { BellOff, X } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -23,10 +22,10 @@ interface Notification {
 }
 
 const TYPE_CONFIG: Record<string, { icon: "message-circle" | "image" | "book-open" | "bell"; color: string; bg: string }> = {
-  photo_comment:  { icon: "message-circle", color: C.tint, bg: C.tintLight },
-  diary_comment:  { icon: "message-circle", color: "#7C3AED", bg: "#E6FAF8" },
-  diary_upload:   { icon: "book-open", color: "#2EC4B6", bg: "#E6FFFA" },
-  photo_upload:   { icon: "image", color: C.warning, bg: "#FFF1BF" },
+  photo_comment:  { icon: "message-circle", color: C.brandStrong, bg: "#F1F5F9" },
+  diary_comment:  { icon: "message-circle", color: "#7C3AED", bg: "#F1F5F9" },
+  diary_upload:   { icon: "book-open", color: C.brandStrong, bg: "#F1F5F9" },
+  photo_upload:   { icon: "image", color: C.warning, bg: "#F1F5F9" },
 };
 
 function timeAgo(iso: string): string {
@@ -93,7 +92,7 @@ export default function AdminNotificationsScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={C.tint} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.brandStrong} style={{ marginTop: 60 }} />
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
@@ -102,7 +101,7 @@ export default function AdminNotificationsScreen() {
         >
           {notifications.length === 0 && (
             <View style={styles.empty}>
-              <BellOff size={40} color={C.textMuted} />
+              <LucideIcon name="bell-off" size={40} color={C.textMuted} />
               <Text style={[styles.emptyText, { color: C.textMuted }]}>알림이 없습니다</Text>
             </View>
           )}
@@ -112,7 +111,7 @@ export default function AdminNotificationsScreen() {
             return (
               <Pressable
                 key={n.id}
-                style={[styles.card, { backgroundColor: n.is_read ? C.card : C.tintLight + "60", shadowColor: C.shadow }]}
+                style={[styles.card, { backgroundColor: n.is_read ? C.card : C.brandMist, shadowColor: C.shadow }]}
                 onPress={() => !n.is_read && markRead(n.id)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cfg.bg }]}>
@@ -124,9 +123,9 @@ export default function AdminNotificationsScreen() {
                   <Text style={[styles.cardTime, { color: C.textMuted }]}>{timeAgo(n.created_at)}</Text>
                 </View>
                 <View style={styles.cardRight}>
-                  {!n.is_read && <View style={[styles.dot, { backgroundColor: C.tint }]} />}
+                  {!n.is_read && <View style={[styles.dot, { backgroundColor: C.tint }]} />}{/* KEEP: notification unread dot identity */}
                   <Pressable onPress={() => deleteNotif(n.id)} hitSlop={8}>
-                    <X size={14} color={C.textMuted} />
+                    <LucideIcon name="x" size={14} color={C.textMuted} />
                   </Pressable>
                 </View>
               </Pressable>

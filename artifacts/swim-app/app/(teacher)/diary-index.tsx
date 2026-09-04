@@ -7,23 +7,21 @@
  * - 최신순 정렬
  * - 항목 클릭 → diary.tsx 로 이동 (해당 반)
  */
-import { BookOpen, Calendar, Check, ChevronDown, ChevronRight, CircleX, Clock, Layers, Pencil, Search, Share2, User, Users, X } from "lucide-react-native";
-import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { shareDiaryEntry } from "@/utils/diaryShare";
-import {
-  ActivityIndicator, FlatList, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, FlatList, Pressable,
+  StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
 import { useBrand } from "@/context/BrandContext";
 import { SubScreenHeader } from "@/components/common/SubScreenHeader";
+import { UnwrittenScheduleSheet } from "@/components/teacher/diary/UnwrittenScheduleSheet";
 
 const C = Colors.light;
 const KO_DAYS = ["월", "화", "수", "목", "금", "토"];
-
 /* ── 타입 ────────────────────────────────────────────────────────── */
 interface DiaryIndexEntry {
   diary_id: string;
@@ -41,40 +39,46 @@ interface DiaryIndexEntry {
   source_diary_id: string;
   source_note_id: string | null;
 }
-
 /* ── 날짜 포맷 ───────────────────────────────────────────────────── */
 function formatDate(iso: string) {
   const d = new Date(iso + "T12:00:00");
   const days = ["일", "월", "화", "수", "목", "금", "토"];
   return `${d.getMonth() + 1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
 }
-
 /* ════════════════════════════════════════════════════════════════
    메인 컴포넌트
    ════════════════════════════════════════════════════════════════ */
 export default function DiaryIndexScreen() {
   const { token } = useAuth();
   const { themeColor } = useBrand();
+  const insets = useSafeAreaInsets();
+  // student-scoped mode: studentId + studentName from Student Detail
+  const { studentId: paramStudentId, studentName: paramStudentName } = useLocalSearchParams<{ studentId?: string; studentName?: string }>();
+  const studentScopeId   = paramStudentId   || null;
+  const studentScopeName = paramStudentName || null;
 
   const [entries, setEntries]       = useState<DiaryIndexEntry[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-
   /* ── 필터 상태 ── */
   const [searchText,  setSearchText]  = useState("");
   const [activeDay,   setActiveDay]   = useState<string | null>(null);
   const [activeTime,  setActiveTime]  = useState<string | null>(null);
   const [showDayPicker,  setShowDayPicker]  = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-
+  const [showQuickWrite, setShowQuickWrite] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   /* ── 데이터 로드 ── */
   const load = useCallback(async (sName = "", day: string | null = null, time: string | null = null) => {
     if (!token) return;
     const params = new URLSearchParams();
-    if (sName.trim()) params.set("student_name", sName.trim());
+    // student-scoped mode: student_id가 있으면 authoritative ID 필터 사용, name search 비활성
+    if (studentScopeId) {
+      params.set("student_id", studentScopeId);
+    } else if (sName.trim()) {
+      params.set("student_name", sName.trim());
+    }
     if (day) params.set("day", day);
     if (time) params.set("time", time);
     try {
@@ -83,9 +87,7 @@ export default function DiaryIndexScreen() {
         const d = await res.json();
         const list: DiaryIndexEntry[] = Array.isArray(d.entries) ? d.entries : [];
         setEntries(list);
-
-        // 활성 수업 시간 목록 추출 (중복 제거, 정렬)
-        if (!day && !sName && !time) {
+        if (!day && !sName && !time && !studentScopeId) {
           const times = Array.from(new Set(list.map(e => (e.schedule_time || "").slice(0, 5)).filter(Boolean))).sort();
           setAvailableTimes(times);
         }
@@ -96,10 +98,8 @@ export default function DiaryIndexScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
-
+  }, [token, studentScopeId]);
   useEffect(() => { load(); }, [load]);
-
   /* ── 검색어 변경 시 디바운스 ── */
   const handleSearchChange = useCallback((text: string) => {
     setSearchText(text);
@@ -108,21 +108,18 @@ export default function DiaryIndexScreen() {
       load(text, activeDay, activeTime);
     }, 300);
   }, [load, activeDay, activeTime]);
-
   /* ── 요일 필터 변경 ── */
   const handleDaySelect = useCallback((day: string | null) => {
     setActiveDay(day);
     setShowDayPicker(false);
     load(searchText, day, activeTime);
   }, [searchText, activeTime, load]);
-
   /* ── 시간 필터 변경 ── */
   const handleTimeSelect = useCallback((time: string | null) => {
     setActiveTime(time);
     setShowTimePicker(false);
     load(searchText, activeDay, time);
   }, [searchText, activeDay, load]);
-
   /* ── 항목 클릭 → diary.tsx 수정 뷰 ── */
   const handlePress = useCallback((entry: DiaryIndexEntry) => {
     router.push({
@@ -130,8 +127,7 @@ export default function DiaryIndexScreen() {
       params: { editDiaryId: entry.source_diary_id, backTo: "diary-index" },
     } as any);
   }, []);
-
-  /* ── 렌더 ── */
+  /* ── 공유 ── */
   const handleShare = useCallback((item: DiaryIndexEntry, e: any) => {
     e.stopPropagation();
     shareDiaryEntry({
@@ -147,7 +143,6 @@ export default function DiaryIndexScreen() {
         : undefined,
     });
   }, []);
-
   const renderItem = useCallback(({ item }: { item: DiaryIndexEntry }) => {
     const isNote = item.entry_type === "student_note";
     return (
@@ -156,10 +151,10 @@ export default function DiaryIndexScreen() {
         <View style={di.cardTop}>
           <Text style={di.cardDate}>{formatDate(item.lesson_date)}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={[di.typeBadge, { backgroundColor: "#E6FAF8" }]}>
+            <View style={[di.typeBadge, { backgroundColor: C.brandMist }]}>
               {isNote
-                ? <><User size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>{item.student_name} 추가</Text></>
-                : <><Users size={10} color="#0F172A" /><Text style={[di.typeBadgeText, { color: "#0F172A" }]}>반 공통</Text></>
+                ? <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>{item.student_name} 추가</Text></>
+                : <><LucideIcon name="user" size={10} color={C.textPrimary} /><Text style={[di.typeBadgeText, { color: C.textPrimary }]}>반 공통</Text></>
               }
             </View>
             <Pressable
@@ -167,54 +162,60 @@ export default function DiaryIndexScreen() {
               hitSlop={8}
               onPress={(e) => handleShare(item, e)}
             >
-              <Share2 size={13} color="#4EA7D8" />
+              <LucideIcon name="share-2" size={13} color="#4EA7D8" />
               <Text style={di.shareBtnText}>공유</Text>
             </Pressable>
           </View>
         </View>
-
         {/* 반/시간 */}
         <View style={di.cardMeta}>
-          <Layers size={11} color={C.textSecondary} />
+          <LucideIcon name="layers" size={11} color={C.textSecondary} />
           <Text style={di.cardMetaText}>{item.class_name}</Text>
-          <Clock size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
+          <LucideIcon name="clock" size={11} color={C.textSecondary} style={{ marginLeft: 8 }} />
           <Text style={di.cardMetaText}>{(item.schedule_time || "").slice(0, 5)}</Text>
           {item.schedule_days && (
             <Text style={di.cardMetaText}> · {item.schedule_days}</Text>
           )}
         </View>
-
         {/* 내용 미리보기 */}
         <Text style={di.cardContent} numberOfLines={2}>{item.content}</Text>
-
-        <ChevronRight size={15} color={C.textMuted} style={di.chevron} />
+        <LucideIcon name="chevron-right" size={15} color={C.textMuted} style={di.chevron} />
       </Pressable>
     );
   }, [handlePress, handleShare]);
-
   const keyExtractor = useCallback((item: DiaryIndexEntry, index: number) => `${item.diary_id}-${item.entry_type}-${item.student_id || "x"}-${index}`, []);
-
   const activeFilterCount = [activeDay, activeTime].filter(Boolean).length;
-
   return (
     <SafeAreaView style={di.safe} edges={[]}>
-      <SubScreenHeader title="수업 일지" subtitle="학생에게 노출된 전체 이력" homePath="/(teacher)/today-schedule" />
-
-      {/* 일지 작성 버튼 */}
+      <SubScreenHeader
+        title={studentScopeName ? `${studentScopeName} · 일지` : "수업 일지"}
+        subtitle={studentScopeName ? "개인 일지 이력" : "학생에게 노출된 전체 이력"}
+        homePath="/(teacher)/today-schedule"
+      />
+      {/* 일지 작성 카드 — 미작성 수업 선택 sheet 오픈 */}
       <Pressable
-        style={[di.writeBtn, { backgroundColor: C.button }]}
-        onPress={() => router.push("/(teacher)/diary-unwritten?backTo=diary-index" as any)}
+        style={[di.writeCard, { backgroundColor: C.primaryAction }]}
+        onPress={() => setShowQuickWrite(true)}
       >
-        <Pencil size={15} color="#fff" />
-        <Text style={di.writeBtnText}>일지 작성</Text>
-        <View style={di.writeBtnBadgeWrap}>
-          <ChevronRight size={15} color="rgba(255,255,255,0.7)" />
+        <View style={di.writeCardIcon}>
+          <LucideIcon name="edit" size={18} color="#fff" />
         </View>
+        <View style={di.writeCardBody}>
+          <Text style={di.writeCardTitle}>일지 작성</Text>
+          <Text style={di.writeCardSub}>아직 작성하지 않은 수업을 선택해 일지를 작성합니다.</Text>
+        </View>
+        <LucideIcon name="chevron-right" size={16} color="rgba(255,255,255,0.7)" />
       </Pressable>
+
+      {/* 지난 일지 섹션 헤더 */}
+      <View style={di.sectionHeader}>
+        <Text style={di.sectionTitle}>지난 일지</Text>
+        <Text style={di.sectionSub}>작성한 수업 일지를 확인하고 수정할 수 있습니다.</Text>
+      </View>
 
       {/* 검색창 */}
       <View style={di.searchRow}>
-        <Search size={15} color={C.textSecondary} />
+        <LucideIcon name="search" size={15} color={C.textSecondary} />
         <TextInput
           style={di.searchInput}
           value={searchText}
@@ -225,51 +226,46 @@ export default function DiaryIndexScreen() {
         />
         {searchText.length > 0 && (
           <Pressable onPress={() => handleSearchChange("")}>
-            <CircleX size={15} color={C.textSecondary} />
+            <LucideIcon name="x-circle" size={15} color={C.textSecondary} />
           </Pressable>
         )}
       </View>
-
       {/* 필터 바 */}
       <View style={di.filterBar}>
         {/* 요일 필터 버튼 */}
         <Pressable
-          style={[di.filterBtn, activeDay && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
+          style={[di.filterBtn, activeDay ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowDayPicker(v => !v); setShowTimePicker(false); }}
         >
-          <Calendar size={12} color={activeDay ? themeColor : C.textSecondary} />
-          <Text style={[di.filterBtnText, activeDay && { color: themeColor }]}>
+          <LucideIcon name="calendar" size={12} color={activeDay ? themeColor : C.textSecondary} />
+          <Text style={[di.filterBtnText, activeDay ? { color: themeColor } : undefined]}>
             {activeDay ? `${activeDay}요일` : "요일"}
           </Text>
-          <ChevronDown size={11} color={activeDay ? themeColor : C.textSecondary} />
+          <LucideIcon name="chevron-down" size={11} color={activeDay ? themeColor : C.textSecondary} />
         </Pressable>
-
         {/* 시간 필터 버튼 */}
         <Pressable
-          style={[di.filterBtn, activeTime && { backgroundColor: themeColor + "18", borderColor: themeColor }]}
+          style={[di.filterBtn, activeTime ? { backgroundColor: themeColor + "18", borderColor: themeColor } : undefined]}
           onPress={() => { setShowTimePicker(v => !v); setShowDayPicker(false); }}
         >
-          <Clock size={12} color={activeTime ? themeColor : C.textSecondary} />
-          <Text style={[di.filterBtnText, activeTime && { color: themeColor }]}>
+          <LucideIcon name="clock" size={12} color={activeTime ? themeColor : C.textSecondary} />
+          <Text style={[di.filterBtnText, activeTime ? { color: themeColor } : undefined]}>
             {activeTime || "시간"}
           </Text>
-          <ChevronDown size={11} color={activeTime ? themeColor : C.textSecondary} />
+          <LucideIcon name="chevron-down" size={11} color={activeTime ? themeColor : C.textSecondary} />
         </Pressable>
-
         {/* 필터 초기화 */}
         {activeFilterCount > 0 && (
           <Pressable
             style={di.resetBtn}
             onPress={() => { setActiveDay(null); setActiveTime(null); load(searchText, null, null); }}
           >
-            <X size={12} color="#D96C6C" />
+            <LucideIcon name="x" size={12} color="#D96C6C" />
             <Text style={di.resetBtnText}>초기화</Text>
           </Pressable>
         )}
-
         <Text style={di.resultCount}>{entries.length}건</Text>
       </View>
-
       {/* 요일 선택 드롭다운 */}
       {showDayPicker && (
         <View style={di.picker}>
@@ -279,12 +275,11 @@ export default function DiaryIndexScreen() {
           {KO_DAYS.map(d => (
             <Pressable key={d} style={di.pickerItem} onPress={() => handleDaySelect(d)}>
               <Text style={[di.pickerItemText, activeDay === d && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{d}요일</Text>
-              {activeDay === d && <Check size={14} color={themeColor} />}
+              {activeDay === d && <LucideIcon name="check" size={14} color={themeColor} />}
             </Pressable>
           ))}
         </View>
       )}
-
       {/* 시간 선택 드롭다운 */}
       {showTimePicker && (
         <View style={di.picker}>
@@ -296,12 +291,11 @@ export default function DiaryIndexScreen() {
           ) : availableTimes.map(t => (
             <Pressable key={t} style={di.pickerItem} onPress={() => handleTimeSelect(t)}>
               <Text style={[di.pickerItemText, activeTime === t && { color: themeColor, fontFamily: "Pretendard-Regular" }]}>{t}</Text>
-              {activeTime === t && <Check size={14} color={themeColor} />}
+              {activeTime === t && <LucideIcon name="check" size={14} color={themeColor} />}
             </Pressable>
           ))}
         </View>
       )}
-
       {/* 목록 */}
       {loading ? (
         <ActivityIndicator color={themeColor} style={{ marginTop: 60 }} />
@@ -310,44 +304,57 @@ export default function DiaryIndexScreen() {
           data={entries}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-          contentContainerStyle={di.listContent}
+          contentContainerStyle={[di.listContent, { paddingBottom: insets.bottom + 32 }]}
           showsVerticalScrollIndicator={false}
           onRefresh={() => { setRefreshing(true); load(searchText, activeDay, activeTime); }}
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={di.empty}>
-              <BookOpen size={36} color={C.textMuted} />
-              <Text style={di.emptyTitle}>일지가 없습니다</Text>
+              <LucideIcon name="book-open" size={36} color={C.textMuted} />
+              <Text style={di.emptyTitle}>작성된 수업 일지가 없습니다.</Text>
               <Text style={di.emptyDesc}>
                 {searchText || activeDay || activeTime
                   ? "검색/필터 조건을 변경해보세요."
-                  : "아직 작성된 수업 일지가 없습니다."}
+                  : "새 일지를 작성하면 여기에 표시됩니다."}
               </Text>
             </View>
           }
         />
       )}
+
+      {/* 미작성 수업 선택 바텀시트 */}
+      <UnwrittenScheduleSheet
+        visible={showQuickWrite}
+        token={token}
+        onClose={() => setShowQuickWrite(false)}
+        backTo="diary-index"
+      />
     </SafeAreaView>
   );
 }
-
 const di = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.background },
-
-  writeBtn: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginHorizontal: 16, marginBottom: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
-    borderRadius: 12,
+  writeCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    marginHorizontal: 16, marginBottom: 20,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderRadius: 14,
   },
-  writeBtnText: { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#fff", flex: 1 },
-  writeBtnBadgeWrap: { opacity: 0.7 },
-
+  writeCardIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  writeCardBody: { flex: 1, gap: 2 },
+  writeCardTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: "#fff" },
+  writeCardSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "rgba(255,255,255,0.8)" },
+  sectionHeader: { paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: "Pretendard-SemiBold", color: C.text },
+  sectionSub: { fontSize: 12, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
   backBtn: { marginBottom: 6, width: 32 },
   headerTitle: { fontSize: 20, fontFamily: "Pretendard-Regular" },
   headerSub: { fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular", marginTop: 2 },
-
   searchRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     marginHorizontal: 16, marginBottom: 10,
@@ -355,7 +362,6 @@ const di = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 9,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text, padding: 0 },
-
   filterBar: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingBottom: 10,
@@ -373,7 +379,6 @@ const di = StyleSheet.create({
   },
   resetBtnText: { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#D96C6C" },
   resultCount: { marginLeft: "auto", fontSize: 12, color: C.textSecondary, fontFamily: "Pretendard-Regular" },
-
   picker: {
     marginHorizontal: 16, backgroundColor: "#fff",
     borderWidth: 1, borderColor: C.border, borderRadius: 12,
@@ -387,7 +392,6 @@ const di = StyleSheet.create({
   },
   pickerItemText: { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.text },
   pickerEmptyText: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center", padding: 12 },
-
   listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
   card: {
     borderRadius: 14, padding: 14, shadowColor: "#000",
@@ -405,7 +409,6 @@ const di = StyleSheet.create({
   empty: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.textSecondary },
   emptyDesc: { fontSize: 13, color: C.textMuted, fontFamily: "Pretendard-Regular", textAlign: "center" },
-
   shareBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 9, paddingVertical: 3,

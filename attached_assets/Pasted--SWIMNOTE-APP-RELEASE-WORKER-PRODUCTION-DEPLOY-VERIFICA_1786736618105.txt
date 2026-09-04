@@ -1,0 +1,185 @@
+[SWIMNOTE APP RELEASE]
+[WORKER PRODUCTION DEPLOY VERIFICATION ONLY]
+
+현재:
+Render swimnote-worker 재배포 완료.
+
+이번 단계 목적:
+Growth Report Scheduler / Analysis Worker가
+Production에서 실제로 정상 기동했는지 확인한다.
+
+코드 수정 금지.
+추가 deploy 금지.
+DB migration 금지.
+Production 데이터 생성 금지.
+OTA/build 금지.
+
+==================================================
+1. DEPLOY STATUS
+==================================================
+
+swimnote-worker:
+
+- Live
+- crash loop 없음
+- restart 반복 없음
+- deployed SHA 확인
+
+==================================================
+2. ENV STATUS
+==================================================
+
+값 출력 금지.
+
+다음 존재 여부 확인:
+
+WORKER_MODE = true
+
+GROWTH_REPORT_ENGINE_URL = PRESENT
+→ https://swimnote.ai.kr
+
+GROWTH_REPORT_ENGINE_SECRET = PRESENT
+
+GROWTH_REPORT_ENGINE_TIMEOUT_MS
+→ 120000 또는 default
+
+GROWTH_REPORT_MAX_HISTORY_PERIODS
+→ 12 또는 default
+
+==================================================
+3. WORKER ROLE
+==================================================
+
+실제 runtime에서:
+
+WORKER_MODE === "true"
+
+확인.
+
+HTTP API server가 worker service에서
+실행되지 않는지 확인.
+
+==================================================
+4. GROWTH REPORT SCHEDULER
+==================================================
+
+startup log에서:
+
+startGrowthReportScheduler()
+
+실제 시작 여부 확인.
+
+에러 없이 scheduler loop가 등록됐는지 확인.
+
+==================================================
+5. GROWTH REPORT ANALYSIS WORKER
+==================================================
+
+startup log에서:
+
+startGrowthReportAnalysisWorker()
+
+실제 시작 여부 확인.
+
+다음 오류가 없어야 함:
+
+ENGINE_URL_NOT_CONFIGURED
+UNAUTHORIZED
+JWT error
+DB connection error
+startup crash
+
+==================================================
+6. OTHER WORKERS REGRESSION
+==================================================
+
+기존 worker jobs도 startup error 없이 유지되는지 확인.
+
+특히:
+
+backup
+parent-link
+auto-attendance
+push
+readonly-trigger
+standby-sync
+video-expiry
+queue-worker
+
+중 startup fatal error가 없는지 확인.
+
+==================================================
+7. ENGINE AUTH SAFE CHECK
+==================================================
+
+가능하면 실제 Growth Report 생성 없이
+worker runtime의 GROWTH_REPORT_ENGINE_SECRET이
+ENGINE auth contract와 맞는지만 검증.
+
+실제 report row 생성 금지.
+실제 LLM 분석 금지.
+
+이미 발급된 service JWT를 사용한
+auth-only/minimal invalid-body check가 가능하면:
+
+ENGINE → 401이 아닌 422/validation 단계
+
+도달 여부 확인.
+
+불필요한 Production write가 생길 가능성이 있으면
+이 테스트는 생략하고
+TOKEN_PRESENT + 기존 발급 검증 결과를 사용.
+
+==================================================
+8. DB CONNECTION
+==================================================
+
+worker가 APP Production Supabase에
+정상 연결되는지 startup/runtime 근거로 확인.
+
+AI ENGINE Neon DB 직접 접근 금지.
+
+==================================================
+9. NO JOB DATA CREATION
+==================================================
+
+이번 검증 때문에:
+
+growth_reports
+growth_report_cycles
+growth_report_questions
+growth_report_answers
+
+테스트 row 생성 금지.
+
+기존 scheduler가 시간 조건에 따라
+자연 실행된 경우는 별도 보고.
+
+==================================================
+10. REPORT
+==================================================
+
+다음만 보고:
+
+1. WORKER DEPLOYED SHA
+2. SERVICE STATUS
+3. WORKER_MODE
+4. GROWTH ENGINE URL ENV
+5. GROWTH ENGINE SECRET ENV
+6. SCHEDULER STARTED?
+7. ANALYSIS WORKER STARTED?
+8. ENGINE AUTH ERROR?
+9. DB CONNECTION STATUS
+10. OTHER WORKER STARTUP STATUS
+11. CRASH/RESTART LOOP?
+12. PRODUCTION TEST DATA CREATED?
+13. CODE CHANGE
+14. EXTRA DEPLOY
+
+성공:
+
+SWIMNOTE_WORKER_PRODUCTION_DEPLOY_VERIFIED ✅
+
+실패:
+
+SWIMNOTE_WORKER_PRODUCTION_DEPLOY_BLOCKED ❌

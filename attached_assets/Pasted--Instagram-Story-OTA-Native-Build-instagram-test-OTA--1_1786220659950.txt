@@ -1,0 +1,139 @@
+[Instagram Story OTA 환경변수 정상화 + 재배포 승인]
+
+원인 확정 확인.
+
+이번 오류는 Native Build 문제가 아니라
+instagram-test OTA 생성 시 preview EAS environment에
+EXPO_PUBLIC_META_APP_ID가 없어서 발생한 것으로 확정한다.
+
+새 Native Build 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. EAS preview 환경변수 정식 등록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 EAS project:
+
+swimnote/swim-app
+projectId:
+7d0e0faa-32d8-4f40-88c4-2c99e0613afc
+
+preview environment에 다음 변수가 실제 존재하는지 먼저 확인:
+
+EXPO_PUBLIC_META_APP_ID
+
+없으면 생성:
+
+EXPO_PUBLIC_META_APP_ID=2093655621362240
+
+visibility:
+plaintext 또는 sensitive
+
+EXPO_PUBLIC 값이므로 secret visibility로 만들지 않는다.
+
+등록 후:
+
+eas env:list --environment preview
+
+에서 존재 확인.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 다른 EXPO_PUBLIC 변수 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 instagram-test build/OTA가 필요로 하는
+기존 EXPO_PUBLIC_* 값도 preview environment와
+build profile 값이 일치하는지 확인한다.
+
+특히:
+
+EXPO_PUBLIC_API_URL
+EXPO_PUBLIC_DOMAIN
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
+EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
+EXPO_PUBLIC_META_APP_ID
+
+중요:
+
+이번 작업에서 임의 값을 새로 만들지 않는다.
+기존 정상 build/profile에 존재하는 값만 EAS preview environment와 대조한다.
+
+값이 불일치하면 OTA하지 말고 보고한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. OTA 재배포
+━━━━━━━━━━━━━━━━━━━━━━
+
+환경변수 확인 완료 후:
+
+runtimeVersion:
+1.6.2
+
+branch/channel:
+instagram-test
+
+에만 OTA 재배포.
+
+명령은 EAS environment를 사용:
+
+eas update \
+  --branch instagram-test \
+  --environment preview \
+  --message "fix(story): restore Meta App ID in OTA bundle [1.6.2]" \
+  --non-interactive
+
+가능하면 shell에 EXPO_PUBLIC_META_APP_ID를 일회성으로 직접 붙이지 않는다.
+
+EAS preview environment를 Source of Truth로 사용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 절대 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+- Production OTA 금지
+- runtime 1.6.1 변경 금지
+- 새 Native Build 금지
+- Render 변경 금지
+- DB 변경 금지
+- app.json 변경 금지
+- eas.json 변경 금지
+- Story 코드 추가 수정 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 배포 전 확인
+━━━━━━━━━━━━━━━━━━━━━━
+
+반드시 확인:
+
+eas env:list --environment preview
+
+에서:
+
+EXPO_PUBLIC_META_APP_ID
+= 2093655621362240
+
+존재.
+
+그 후 OTA.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. preview environment META_APP_ID 존재 여부
+2. API_URL 일치 여부
+3. DOMAIN 일치 여부
+4. RevenueCat env 일치 여부
+5. OTA Group ID
+6. iOS Update ID
+7. Android Update ID
+8. runtimeVersion = 1.6.2
+9. branch/channel = instagram-test
+10. commit SHA
+11. Production 1.6.1 영향 = 0
+12. Production channel 영향 = 0
+13. Native Build = 0
+14. Render = 0
+15. DB = 0
+
+배포 후 멈춘다.

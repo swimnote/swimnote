@@ -1,0 +1,363 @@
+[P0-CS08-STALE-HUMAN-UI — RESOLVED RESPONSE MUST CLEAR OLD HUMAN_REQUIRED PRESENTATION]
+
+실제 production iPhone / parent_account / normal mode 검증 결과:
+
+첫 질문:
+"스윔노트X에 대해 알려줘"
+→ 당시 Knowledge 없음
+→ NO_MATCH
+→ HUMAN_REQUIRED
+
+이후 ki_x_mode_intro ACTIVE 승인.
+
+두 번째 같은 질문:
+→ 승인된 X MODE FAQ 답변이 실제 앱에 정상 표시됨.
+
+실제 화면:
+- FAQ 답변 표시 = YES
+- 그런데 이전 HUMAN_REQUIRED UI가 그대로 남음:
+  1. "문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+  2. "상담사에게 문의하기"
+  3. "상담사가 확인 중입니다. 잠시 기다려주세요."
+
+목적:
+
+정상 deterministic/FAQ 답변으로 해결된 이후
+이전 HUMAN_REQUIRED 상태/legacy presentation이
+현재 conversation UI에 stale하게 남지 않도록 수정한다.
+
+신규 AI 기능 개발 금지.
+Knowledge 수정 금지.
+X Mode Knowledge 변경 금지.
+
+==================================================
+1. ACTUAL CASE TRACE FIRST
+==================================================
+
+방금 실제 두 번째 성공 요청의 case/request 확인.
+
+보고:
+
+CASE_ID =
+REQUEST_ID =
+
+RESOLUTION_STATUS =
+RESOLUTION_SOURCE =
+SOURCE_ID =
+
+CASE_STATE_BEFORE =
+CASE_STATE_AFTER =
+
+실제 DB/trace 값만.
+
+==================================================
+2. STATE MACHINE AUDIT
+==================================================
+
+현재 case가 첫 실패 후:
+
+HUMAN_REQUIRED
+
+였던 상태에서
+
+두 번째 FAQ exact RESOLVED가 발생했을 때
+어떤 transition이 수행되는지 확인.
+
+기대:
+
+정상 AI/deterministic answer가 생성되면
+현재 case state가 HUMAN_REQUIRED에 영구 고정되면 안 됨.
+
+기존 transitionSupportCase() contract 확인.
+
+가능한 정상 상태:
+
+AI_RESPONDED
+
+또는 현재 state machine에서 정의된
+동등한 resolved-by-AI response state.
+
+직접 UPDATE 금지.
+
+==================================================
+3. HUMAN ESCALATION SEMANTICS
+==================================================
+
+중요:
+
+사용자가 실제로 상담사 연결을 요청해서
+human ticket이 이미 활성 상태인 경우와
+
+자동 NO_MATCH 때문에
+HUMAN_REQUIRED가 된 경우를 구분.
+
+사용자가 실제 상담사를 요청한 상태를
+AI 답변 하나로 임의 취소하면 안 됨.
+
+따라서 확인:
+
+HUMAN_REQUESTED_BY_USER =
+ACTIVE_HUMAN_TICKET =
+AUTO_HUMAN_REQUIRED_ONLY =
+
+자동 fallback만 있었고
+human agent workflow가 실제 시작되지 않았다면
+정상 FAQ 응답 후 AI_RESPONDED 복구 가능.
+
+==================================================
+4. SUPPORTCHAT UI SOURCE
+==================================================
+
+SupportChatScreen.tsx에서
+다음 UI 표시 조건 확인:
+
+A.
+상단 "상담사 연결 대기"
+
+B.
+"문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+
+C.
+"상담사에게 문의하기" 카드
+
+D.
+"상담사가 확인 중입니다"
+
+각각 어떤 값에 종속되는지 보고:
+
+case.state
+system message 존재
+ticket 상태
+local fallback
+기타
+
+==================================================
+5. LEGACY ACK
+==================================================
+
+현재 legacy 문구:
+
+"문의가 접수되었습니다. 운영팀이 확인 후 답변드립니다."
+
+가 단순히
+system message 없음 → fallback
+
+조건으로 표시되는지 확인.
+
+정상 AI/FAQ response가 이미 존재하면
+이 fallback을 표시하지 않는다.
+
+추천 조건 concept:
+
+showLegacyAck =
+human escalation이 실제 active
+AND
+현재 conversation에 successful AI/deterministic response가
+escalation 이후 존재하지 않음
+
+실제 구조에 맞게 최소 수정.
+
+==================================================
+6. HUMAN CARD
+==================================================
+
+"상담사에게 문의하기"
+
+카드는 다음 경우만 표시:
+
+- 현재 answer가 LOW/no_evidence
+- requires_human=true
+- 실제 current case state가 HUMAN_REQUIRED
+
+정상 FAQ RESOLVED 후에는 숨김.
+
+과거 message 하나가 LOW였다는 이유만으로
+영구 표시 금지.
+
+==================================================
+7. HEADER STATE
+==================================================
+
+현재 화면 상단:
+
+AI 문의
+상담사 연결 대기
+
+정상 FAQ 응답 후에도 남는지 확인.
+
+현재 case state 기반이면
+state transition fix와 함께 정상 복구되어야 함.
+
+하드코딩 UI 숨김으로 덮지 않는다.
+
+==================================================
+8. MESSAGE HISTORY PRESERVE
+==================================================
+
+과거 NO_MATCH 메시지는 삭제 금지.
+
+사용자에게 과거에:
+
+"정확한 정보를 찾지 못했습니다."
+
+라고 응답했던 기록은 conversation history로 보존.
+
+단 현재 상태를 나타내는:
+
+상담사 연결 대기
+접수 안내
+human CTA
+
+만 현재 state에 맞게 갱신.
+
+==================================================
+9. REAL USER-REQUESTED HUMAN CASE
+==================================================
+
+반드시 regression 방지.
+
+사용자가 실제로:
+
+[아직 안돼요]
+또는
+[상담사에게 문의하기]
+
+를 눌러 human escalation을 명시적으로 요청한 case라면
+
+새 AI 답변이 왔다고
+상담사 요청을 자동 취소하지 않는다.
+
+필요하면:
+
+human_requested_at
+ticket 존재
+escalation source
+
+등 기존 데이터로 구분.
+
+새 schema 기본 금지.
+
+==================================================
+10. TEST MATRIX
+==================================================
+
+STALE-01
+NO_MATCH → HUMAN_REQUIRED
+
+STALE-02
+same case subsequent FAQ exact → AI_RESPONDED
+
+STALE-03
+FAQ success clears auto HUMAN_REQUIRED presentation
+
+STALE-04
+old NO_MATCH message remains in history
+
+STALE-05
+legacy ack hidden after successful FAQ
+
+STALE-06
+human CTA hidden after successful FAQ
+
+STALE-07
+header no longer says 상담사 연결 대기
+
+STALE-08
+explicit user human request remains active
+
+STALE-09
+actual human ticket not cancelled
+
+STALE-10
+parent_account regression
+
+STALE-11
+admin/teacher regression
+
+STALE-12
+full suite
+
+==================================================
+11. DEPLOYMENT
+==================================================
+
+State transition server fix:
+Render deploy.
+
+UI condition fix required:
+iOS production OTA only.
+
+Preview OTA 금지.
+
+Android OTA = NO.
+
+==================================================
+12. FINAL REPORT
+==================================================
+
+CASE_ID =
+REQUEST_ID =
+
+RESOLUTION_STATUS =
+SOURCE_ID =
+
+CASE_STATE_BEFORE =
+CASE_STATE_AFTER =
+
+AUTO_HUMAN_REQUIRED_ONLY =
+HUMAN_REQUESTED_BY_USER =
+ACTIVE_HUMAN_TICKET =
+
+HEADER_STATE_SOURCE =
+LEGACY_ACK_SOURCE =
+HUMAN_CARD_SOURCE =
+
+STATE_MACHINE_DEFECT =
+UI_CONDITION_DEFECT =
+
+SERVER_FIX =
+MOBILE_FIX =
+
+OLD_NO_MATCH_MESSAGE_PRESERVED =
+
+FAQ_SUCCESS_HEADER =
+FAQ_SUCCESS_LEGACY_ACK_VISIBLE =
+FAQ_SUCCESS_HUMAN_CARD_VISIBLE =
+
+EXPLICIT_HUMAN_REQUEST_PRESERVED =
+
+FILES_CHANGED =
+TEST_RESULT =
+FULL_TEST_RESULT =
+
+COMMIT_SHA =
+RENDER_DEPLOY_ID =
+RENDER_LIVE_COMMIT =
+
+IOS_PRODUCTION_OTA =
+IOS_OTA_BRANCH =
+IOS_OTA_RUNTIME =
+ANDROID_OTA = NO
+
+성공 조건:
+
+정상 FAQ 응답 이후:
+
+case의 현재 상태가
+auto HUMAN_REQUIRED에 stale하게 남지 않음.
+
+상단:
+상담사 연결 대기 = NO
+
+legacy 접수 안내 = NO
+
+상담사 문의 카드 = NO
+
+과거 NO_MATCH 메시지 자체는 보존.
+
+실제 사용자가 명시적으로 요청한
+human escalation/ticket은 보존.
+
+완료:
+
+P0_CS08_STALE_HUMAN_PRESENTATION_FIXED ✅

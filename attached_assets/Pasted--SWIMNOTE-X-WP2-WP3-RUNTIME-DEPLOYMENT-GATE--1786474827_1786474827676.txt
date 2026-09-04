@@ -1,0 +1,385 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP2 + WP3 RUNTIME DEPLOYMENT GATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP3 구현 검수 승인.
+
+현재 Git 상태:
+HEAD / intended deploy SHA:
+e4a739a5
+
+WP2 commit:
+07335f67
+
+WP3 commit:
+e4a739a5
+
+현재 HEAD를 배포하면 WP2 + WP3가 함께 포함되는 것을
+명확히 기록하고 진행한다.
+
+이번 목표:
+"코드가 있다"가 아니라
+Render / Expo / Production Supabase까지
+실제 적용 위치를 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 HEAD 재확인
+━━━━━━━━━━━━━━━━━━━━
+
+실행:
+
+git rev-parse HEAD
+git status
+git log -3 --oneline
+
+확인 조건:
+
+HEAD = e4a739a5
+branch = deploy-photo-clone
+origin과 동기화
+
+기능성 미커밋 파일이 있으면 배포 금지.
+
+attached_assets 사용자 명세 파일은
+배포 코드와 무관한 untracked 여부만 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+2. WP3 DB 판정 정정
+━━━━━━━━━━━━━━━━━━━━
+
+이전 보고서:
+
+DB [x] not applicable
+
+표현을 수정한다.
+
+정확한 상태:
+
+DB MIGRATION:
+NOT_REQUIRED
+
+DB RUNTIME WRITE:
+APPLICABLE
+
+WP3 실제 실행 시 반드시 Production Supabase에:
+
+1. curriculum_requests INSERT
+2. swimming_pools.xmode_config_status
+   NOT_CONFIGURED → CURRICULUM_PENDING
+3. audit_logs INSERT
+
+가 발생한다.
+
+따라서 최종 WP3 DONE 판정에는
+SUPABASE_DATABASE_URL READ-BACK이 필수.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Render 배포
+━━━━━━━━━━━━━━━━━━━━
+
+현재 intended SHA e4a739a5를 Render에 배포.
+
+배포 후 제출:
+
+- Render Deploy ID
+- Render Live SHA
+- intended Git SHA
+- Live SHA == e4a739a5 여부
+- /api/health HTTP status
+
+다른 SHA가 Live이면 STOP.
+
+━━━━━━━━━━━━━━━━━━━━
+4. WP2 배포 영향 확인
+━━━━━━━━━━━━━━━━━━━━
+
+이번 Render에는 WP2도 포함됨.
+
+배포 직후 확인:
+
+REVENUECAT_WEBHOOK_SECRET = EXISTS
+REVENUECAT_X_PRODUCT_IDS = MISSING
+
+secret 값 출력 금지.
+
+확인할 것:
+
+- webhook secret 없는 상태가 아님
+- 따라서 기존 RevenueCat webhook이 503으로 막히지 않음
+- X product IDs 미설정 → isXProduct=false
+- 일반 solo/center webhook 기존 흐름 유지
+
+Production RevenueCat 상품 생성/설정은 이번에 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+5. WP3 API Runtime Smoke
+━━━━━━━━━━━━━━━━━━━━
+
+실제 Live Render 대상으로 확인.
+
+GET /pools/x-request
+
+A. unauthenticated
+→ 401
+
+B. teacher 계정
+→ 403
+
+C. parent 계정
+→ 403
+
+D. pool_admin 계정
+→ 실제 자기 pool 결과 반환
+
+단 POST는 Production DB write이므로
+아무 실제 수영장에서 임의 실행 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 안전한 WP3 Runtime Test Pool 탐색
+━━━━━━━━━━━━━━━━━━━━
+
+SUPABASE_DATABASE_URL READ ONLY로
+다음 조건을 만족하는 테스트 가능한 pool이 있는지 찾는다:
+
+xmode_entitlement = true
+AND
+xmode_config_status = 'NOT_CONFIGURED'
+
+기존 실제 운영 수영장을 임의 변경하지 않는다.
+
+특히 기존 샘플:
+
+pool_1784310621737_qryl1x79s
+
+은 현재 READY이므로
+NOT_CONFIGURED로 되돌려 테스트하지 않는다.
+
+상태 변경 금지.
+
+안전하게 사용할 수 있는
+기존 테스트/샘플 pool이 없다면:
+
+POST runtime test는 보류하고
+"NO_SAFE_TEST_POOL"로 보고.
+
+임의 Production 데이터 조작 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+7. Expo OTA 배포
+━━━━━━━━━━━━━━━━━━━━
+
+WP3 앱 변경:
+
+- x-setup.tsx
+- dashboard x_pending navigation
+- WP2 refreshMode()
+
+를 현재 runtimeVersion에 맞게
+Production + Preview OTA 배포.
+
+제출:
+
+Production:
+- Update Group ID
+- iOS Update ID
+- Android Update ID
+- runtimeVersion
+
+Preview:
+- Update Group ID
+- iOS Update ID
+- Android Update ID
+- runtimeVersion
+
+배포 bundle이 현재 HEAD 기준인지
+확인 가능한 근거 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 실제 Runtime 검증
+━━━━━━━━━━━━━━━━━━━━
+
+안전한 NOT_CONFIGURED 테스트 pool/account가 있을 경우에만:
+
+실기기 pool_admin 로그인
+
+확인:
+
+1. mode = x_pending
+2. dashboard에서 X 준비 영역 표시
+3. 영역 탭
+4. /(admin)/x-setup 진입
+5. "커리큘럼 설정 요청하기" 표시
+6. 버튼 실행
+7. POST /pools/x-request 실제 HTTP 201
+8. 화면이 준비 중 상태로 변경
+9. refreshMode 후:
+   xmode_config_status = CURRICULUM_PENDING
+   mode = x_pending
+
+여기까지 실제 앱에서 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 가장 중요한 Production DB READ-BACK
+━━━━━━━━━━━━━━━━━━━━
+
+실제 POST를 수행했다면
+반드시 SUPABASE_DATABASE_URL로 다시 조회.
+
+절대 executeSql production 사용 금지.
+
+제출:
+
+DB SOURCE:
+SUPABASE_DATABASE_URL
+host:
+aws-1-ap-south-1.pooler.supabase.com (masked 가능)
+database:
+postgres
+
+A. curriculum_requests
+
+실제 생성된 request_id 기준:
+
+SELECT
+  id,
+  swimming_pool_id,
+  request_status,
+  requested_by,
+  result_version_id,
+  created_at
+FROM curriculum_requests
+WHERE id = '<actual request id>';
+
+기대:
+
+request_status = pending
+pool_id = 실제 테스트 pool
+
+B. swimming_pools
+
+SELECT
+  id,
+  xmode_entitlement,
+  xmode_config_status
+FROM swimming_pools
+WHERE id = '<test pool>';
+
+기대:
+
+xmode_entitlement = true
+xmode_config_status = CURRICULUM_PENDING
+
+C. audit_logs
+
+동일 pool/request 기준 실제 audit 확인.
+
+기대:
+
+entity_type = swimming_pool_xmode
+actor_type = pool_admin
+after_data.xmode_config_status = CURRICULUM_PENDING
+after_data.curriculum_request_id = actual request id
+
+이 3개 READ-BACK이 없으면
+WP3 DB 적용 완료로 판정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 저장 위치 증명
+━━━━━━━━━━━━━━━━━━━━
+
+WP3 최종 보고서에 반드시 다음 4개를 따로 표시:
+
+CODE SOURCE
+origin/deploy-photo-clone
+SHA=e4a739a5
+
+SERVER SOURCE
+Render Live SHA=<actual>
+
+DB SOURCE
+SUPABASE_DATABASE_URL
+Supabase Production
+actual request row=<id>
+
+APP SOURCE
+Expo OTA production/preview
+runtimeVersion=<actual>
+
+각 Source of Truth가 실제로 어디인지 명시.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 안전한 테스트 pool이 없을 경우
+━━━━━━━━━━━━━━━━━━━━
+
+임의로 기존 pool 상태를 바꾸지 않는다.
+
+그 경우 상태:
+
+CODE:
+PUSHED
+
+SERVER:
+DEPLOYED + API SMOKE VERIFIED
+
+APP:
+DEPLOYED
+
+DB RUNTIME:
+NOT_VERIFIED — NO_SAFE_TEST_POOL
+
+REAL DEVICE:
+PARTIAL / NOT_VERIFIED
+
+FINAL:
+DEPLOYED_NOT_RUNTIME_VERIFIED
+
+로 남긴다.
+
+DONE이라고 쓰지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 테스트 pool이 있어 전체 검증 성공 시
+━━━━━━━━━━━━━━━━━━━━
+
+최종 증거표:
+
+CODE
+[x] implemented
+[x] 246/246
+[x] committed
+[x] pushed
+SHA=e4a739a5
+
+SERVER
+[x] Render deployed
+[x] Live SHA=e4a739a5
+[x] API runtime verified
+
+DB
+[x] SUPABASE_DATABASE_URL verified
+[x] curriculum_requests row read-back
+[x] pool config_status read-back
+[x] audit_logs read-back
+
+APP
+[x] OTA deployed
+[x] real-device request verified
+
+FINAL STATUS:
+DONE
+
+━━━━━━━━━━━━━━━━━━━━
+13. 절대 금지
+━━━━━━━━━━━━━━━━━━━━
+
+- executeSql production을 DB 증거로 사용
+- 기존 READY sample pool 상태 변경
+- 실제 운영 pool 임의 X 활성화
+- WP4 시작
+- DB migration
+- X product ID 임의 설정
+- RevenueCat Dashboard 임의 변경
+- Store rebuild
+
+배포 및 검증 결과 제출 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

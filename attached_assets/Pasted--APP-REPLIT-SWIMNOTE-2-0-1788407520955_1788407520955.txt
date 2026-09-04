@@ -1,0 +1,553 @@
+[보낼 곳: APP REPLIT]
+
+# ============================================================
+# SWIMNOTE 2.0 HOTFIX — KAKAO TEACHER → GENERAL TEACHER
+# APPROVAL BYPASS / IMMEDIATE ACTIVATION
+#
+# 긴급 버그:
+#
+# 기존 Kakao 선생님 계정
+# 예: 유지훈
+#
+# → 일반가입 전환
+# → 새 일반 선생님 계정 생성
+# → "선생님 계정 승인이 필요합니다"
+# → 관리자 승인 시도
+# → "승인 처리가 가능한 상태가 아닙니다"
+#
+# 이 흐름은 잘못됨.
+#
+# 최종 정책:
+#
+# 기존에 이미 승인되어 사용 중이던 Kakao 선생님이
+# 일반계정으로 전환하는 경우
+#
+# "신규 선생님 가입"으로 취급하지 않는다.
+#
+# 관리자 재승인:
+# NO
+#
+# 승인대기:
+# NO
+#
+# 기존 선생님 권한/소속/담당정보를
+# 새 일반계정으로 그대로 승계하고
+# 즉시 사용 가능하게 한다.
+# ============================================================
+
+Repository:
+swimnote/swimnote
+
+Branch:
+release/v2.0.0
+
+Production:
+현재 임의 배포 금지
+소스 + 테스트 + 커밋까지만
+
+1.6.3:
+NO TOUCH
+
+============================================================
+1. 현재 TEACHER KAKAO MIGRATION FLOW 추적
+============================================================
+
+다음 실제 경로를 확인:
+
+- teacher general signup
+- Kakao-linked teacher duplicate phone detection
+- POST /auth/teacher-kakao-migration-register
+- teacher-self-signup
+- teacher approval / activation state
+- admin approval list
+- admin approve endpoint
+
+현재 migration 시
+새 teacher row가 어떤 값으로 생성되는지 확인:
+
+- is_activated
+- approval status
+- pool membership
+- swimming_pool_id
+- role
+- teacher_invites
+- 기타 현재 실제 필드
+
+추측 금지.
+실제 schema/source 기준.
+
+============================================================
+2. 최종 정책
+============================================================
+
+기존 Kakao teacher가
+일반가입 전환을 하는 경우:
+
+기존 계정이 이미
+해당 pool의 정상 승인 teacher였다면
+
+새 일반계정도 즉시:
+
+- 동일 pool 소속
+- role=teacher
+- 승인 완료 상태
+- 활성 상태
+- 로그인 가능
+- teacher mode 진입 가능
+
+이어야 함.
+
+절대:
+
+pending approval
+approval required
+waiting approval
+
+상태로 보내지 말 것.
+
+============================================================
+3. 신규 TEACHER 가입과 구분
+============================================================
+
+중요:
+
+이 수정은
+"Kakao → General migration teacher"
+에만 적용.
+
+완전 신규 일반 선생님 가입은
+기존 승인정책 그대로 유지.
+
+즉:
+
+A.
+기존 Kakao teacher migration
+→ 즉시 활성화
+
+B.
+신규 일반 teacher
+→ 기존 승인절차 유지
+
+두 경로를 절대 섞지 말 것.
+
+============================================================
+4. 기존 KAKAO TEACHER 상태 기준
+============================================================
+
+migration 대상 old Kakao teacher가
+기존에 실제 승인/활성 teacher였는지 확인.
+
+예:
+
+oldTeacher.is_activated === true
+또는 현재 시스템의 승인 완료 상태
+
+이면:
+
+newTeacher에 동일 승인 상태 승계.
+
+old teacher가 승인대기/비활성 상태였다면
+임의로 활성화하지 말고
+기존 상태 semantics 유지.
+
+핵심:
+기존 승인된 teacher만 approval bypass.
+
+============================================================
+5. 기존 정보 이전 유지
+============================================================
+
+기존 teacher migration에서 이미 이전하던 active refs 유지:
+
+- class_groups.teacher_user_id
+- makeup_classes.assigned_teacher_id
+- makeup_classes.transferred_to_teacher_id
+- teacher_invites.user_id
+- push_settings.user_id
+- push_tokens.user_id
+
+현재 실제 코드가 더 있으면
+그 목록 기준.
+
+Immutable history는 기존 정책 유지:
+
+- diary_messages.teacher_user_id
+- teacher_absences.teacher_user_id
+
+이번 hotfix에서 history ownership 재작성 금지.
+
+============================================================
+6. OLD KAKAO ACCOUNT ARCHIVE
+============================================================
+
+기존 정책 유지:
+
+old Kakao teacher
+→ archived/disabled
+
+예:
+email = __archived_kakao_${oldId}
+is_activated = false
+
+새 일반 teacher만 active.
+
+중복 활성계정 2개:
+0
+
+============================================================
+7. APPROVAL QUEUE에서 제거
+============================================================
+
+migration 완료된 새 일반 teacher가
+관리자 "승인대기" 목록에 나타나면 안 됨.
+
+확인:
+
+approval list query가
+어떤 조건으로 pending teacher를 가져오는지 조사.
+
+migration teacher가
+그 조건에 걸리지 않도록
+정상 승인 상태로 생성/전환.
+
+UI에서 억지로 숨기는 방식:
+NO
+
+서버 상태 자체가 올바르게 확정되어야 함.
+
+============================================================
+8. 관리자 APPROVE ENDPOINT
+============================================================
+
+이번 정책상 migration teacher는
+approve endpoint를 탈 필요가 없어야 함.
+
+따라서:
+
+"승인 처리가 가능한 상태가 아닙니다"
+
+문구를 없애려고
+approve endpoint validation을 느슨하게 만들지 말 것.
+
+문제의 원인은
+migration teacher가 approval queue로 들어가는 것.
+
+승인 endpoint는
+신규 teacher approval 용도로 기존 정책 유지.
+
+============================================================
+9. 로그인 / ROLE 진입
+============================================================
+
+migration 성공 직후
+새 일반계정으로:
+
+- 로그인 성공
+- teacher role
+- 해당 pool 접근
+- teacher home 진입
+- 담당 반 정상
+- 담당 학생 정상
+- 기존 권한 정상
+
+확인.
+
+관리자 재승인 없이 가능해야 함.
+
+============================================================
+10. NORMAL/X 공통
+============================================================
+
+Teacher account는 X mode 전용이 아님.
+
+Normal SWIMNOTE teacher에서 동일 적용.
+
+X는 admin mode feature이므로
+teacher migration에 별도 X 분기 만들지 말 것.
+
+공통 auth/server flow 한 번 수정.
+
+============================================================
+11. 이름 유지
+============================================================
+
+예:
+
+기존 Kakao:
+유지훈
+
+새 일반:
+유지훈
+
+name이 그대로 유지되는지 확인.
+
+단 이름을 기준으로 migration 매칭하지 말 것.
+
+매칭 기준은 기존 구현대로:
+phone + pool
+및 현재 확정된 Kakao migration 조건.
+
+============================================================
+12. TEST
+============================================================
+
+KT01
+기존 승인된 Kakao teacher
+→ 일반가입 전환
+→ 새 일반 teacher 생성
+
+KT02
+새 일반 teacher is_activated/approved
+→ 즉시 사용 가능
+
+KT03
+approval required 화면
+→ 0
+
+KT04
+admin approval queue
+→ migration teacher 0
+
+KT05
+admin 재승인 필요
+→ NO
+
+KT06
+새 일반계정 login
+→ PASS
+
+KT07
+teacher mode 진입
+→ PASS
+
+KT08
+pool 유지
+→ PASS
+
+KT09
+담당 반 유지
+→ PASS
+
+KT10
+담당 학생 유지
+→ PASS
+
+KT11
+push settings/token 이전
+→ PASS
+
+KT12
+old Kakao teacher disabled
+→ PASS
+
+KT13
+중복 active teacher account
+→ 0
+
+KT14
+완전 신규 일반 teacher
+→ 기존 approval flow 유지
+
+KT15
+기존 미승인 Kakao teacher migration
+→ 임의 active 금지
+
+KT16
+idempotent retry
+→ duplicate account 0
+
+KT17
+teacher invite/reference orphan
+→ 0
+
+KT18
+cross-pool migration
+→ 0
+
+KT19
+Kakao SDK/UI
+→ 2.0에서 0 유지
+
+KT20
+일반 parent migration
+→ 회귀 0
+
+============================================================
+13. 이미 잘못 migration된 계정 처리 확인
+============================================================
+
+중요:
+
+현재 실기기에서 이미 발생한
+"유지훈" 일반 teacher 계정이
+pending/invalid approval 상태로 존재할 수 있음.
+
+먼저 실제 DB write는 하지 말고
+코드 기준으로 recovery가 가능한지 설계.
+
+필요한 경우
+migration endpoint를 idempotent하게 만들어:
+
+이미 생성된 migration 일반계정이 있고
+old Kakao teacher와 연결관계가 확인되면
+
+→ 해당 새 일반 teacher를
+기존 승인 상태로 정상화할 수 있게 한다.
+
+단 Production DB 직접 수정:
+NO
+
+완료보고에
+CURRENT BROKEN ACCOUNT RECOVERY
+가능 여부를 명시.
+
+============================================================
+14. PRODUCTION SAFETY
+============================================================
+
+이번 단계:
+
+SOURCE
+TEST
+COMMIT
+
+까지만.
+
+Render Production:
+NO
+
+Production DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+완료보고 검수 후
+Production server backport/deploy 여부 별도 결정.
+
+============================================================
+15. COMMIT
+============================================================
+
+권장:
+
+fix(v2.0): preserve approved teacher state during kakao migration
+
+============================================================
+16. 완료보고
+============================================================
+
+# SWIMNOTE 2.0 KAKAO TEACHER MIGRATION HOTFIX REPORT
+
+## SOURCE
+
+Branch:
+release/v2.0.0
+
+HEAD Before:
+...
+
+HEAD After:
+...
+
+Commit:
+...
+
+## ROOT CAUSE
+
+Why migrated teacher entered approval pending:
+...
+
+Why admin approve failed:
+...
+
+## FINAL BEHAVIOR
+
+Approved Kakao teacher
+→ General teacher:
+PASS / FAIL
+
+Approval required:
+NO / YES
+
+Approval queue:
+NOT PRESENT / PRESENT
+
+Immediate login:
+PASS / FAIL
+
+Teacher mode:
+PASS / FAIL
+
+Pool:
+PRESERVED / FAIL
+
+Assigned classes:
+PRESERVED / FAIL
+
+Students:
+PRESERVED / FAIL
+
+## NEW TEACHER REGRESSION
+
+Brand-new general teacher:
+Existing approval flow preserved:
+PASS / FAIL
+
+## OLD ACCOUNT
+
+Old Kakao teacher disabled:
+PASS / FAIL
+
+Duplicate active teacher:
+0 / ...
+
+## RECOVERY
+
+Already-broken migrated account recovery:
+POSSIBLE / NOT POSSIBLE
+
+Recovery mechanism:
+...
+
+Production DB manual edit required:
+YES / NO
+
+## TESTS
+
+KT01-KT20:
+...
+
+New deterministic failures:
+0 / ...
+
+## DEPLOY
+
+Render:
+NO
+
+Production DB:
+NO WRITE
+
+OTA:
+NO
+
+Build:
+NO
+
+1.6.3:
+NO TOUCH
+
+## FINAL
+
+KAKAO APPROVED TEACHER → GENERAL TEACHER IMMEDIATE MIGRATION READY
+
+또는
+
+HOTFIX BLOCKED — EXACT ISSUE

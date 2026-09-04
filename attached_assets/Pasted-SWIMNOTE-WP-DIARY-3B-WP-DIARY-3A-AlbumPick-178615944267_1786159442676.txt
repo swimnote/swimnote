@@ -1,0 +1,263 @@
+SWIMNOTE — WP-DIARY-3B
+일지 상세 "등록된 사진이 없습니다" 원인 확정 조사
+
+현재 상태:
+- 사진 중복사용 허용 WP-DIARY-3A 완료
+- AlbumPicker에서 기존 사용 사진 재선택 가능 확인
+- 서버 clone 구조는 기존 구현 그대로 유지
+
+이번 WP의 목표:
+일지 저장 시 사진을 첨부했는데
+일지 상세 화면에서 "등록된 사진이 없습니다"가 뜨는 원인을
+실제 diary_id 기준으로 확정한다.
+
+이번 단계에서는 원인 확정 전 코드 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 실제 문제 일지 1건 확보
+━━━━━━━━━━━━━━━━━━━━
+
+실기기에서 사진을 첨부한 일지 1건을 새로 저장한다.
+
+반드시 확보:
+
+- diary_id
+- class_group_id
+- lesson_date
+- selected photo_id
+- /photos/diary-attach HTTP status
+- /photos/diary-attach response body
+
+저장 성공 response의 실제 diary_id를 사용.
+
+추측값/빈 문자열 사용 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+2. 저장 직후 attach 요청 추적
+━━━━━━━━━━━━━━━━━━━━
+
+앱 diary.tsx에서:
+
+POST /diaries
+→ response.diary_id
+→ POST /photos/diary-attach
+
+실제 실행 순서를 확인.
+
+제출:
+
+- diary_id 전달값
+- photo_ids 전달값
+- token/pool context
+- HTTP status
+- response body
+- errors 배열에 들어가는지 여부
+
+attach 요청 자체가 호출되지 않는 경로가 있는지도 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+3. Production DB READ ONLY 조회
+━━━━━━━━━━━━━━━━━━━━
+
+문제 diary_id 기준:
+
+SELECT
+  id,
+  class_group_id,
+  swimming_pool_id,
+  lesson_date,
+  is_deleted
+FROM class_diaries
+WHERE id = '<actual diary_id>';
+
+그리고 photo_assets_meta:
+
+SELECT
+  id,
+  pool_id,
+  journal_id,
+  student_note_id,
+  student_id,
+  media_status,
+  source_photo_id,
+  is_clone,
+  object_key,
+  lesson_date
+FROM photo_assets_meta
+WHERE journal_id = '<actual diary_id>'
+   OR id IN (<actual selected photo ids>)
+   OR source_photo_id IN (<actual selected photo ids>);
+
+DB 수정 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. attach 결과 판정
+━━━━━━━━━━━━━━━━━━━━
+
+아래 중 하나로 확정:
+
+A.
+photo row가 존재하고
+journal_id = diary_id
+media_status = attached
+pool_id 정상
+
+→ DB attach는 성공.
+상세 조회/API 문제.
+
+B.
+selected photo 원본은 존재하지만
+journal_id가 다른 diary
+clone row 없음
+
+→ attachPhotosToDiary clone 생성 실패.
+
+C.
+journal_id = diary_id인데
+media_status != attached
+
+→ media_status 갱신 문제.
+
+D.
+journal_id/media_status 정상인데
+pool_id != diary swimming_pool_id
+
+→ pool mismatch.
+
+E.
+photo row 자체 없음
+
+→ picker/photo id 전달 문제.
+
+━━━━━━━━━━━━━━━━━━━━
+5. GET /photos/diary/:id 실측
+━━━━━━━━━━━━━━━━━━━━
+
+실제 diary_id로 API 직접 호출.
+
+확인:
+
+GET /photos/diary/<actual diary_id>
+
+제출:
+
+- HTTP status
+- response body
+- photos 배열 개수
+
+DB에는 사진이 있는데 API가 []를 반환하면
+getDiaryPhotos SQL 조건별로 대조.
+
+조건:
+
+pam.journal_id = diaryId
+pam.pool_id = poolId
+pam.media_status = 'attached'
+class_diaries.id = pam.journal_id
+class_diaries.is_deleted = false
+
+각 조건의 실제 값을 비교.
+
+━━━━━━━━━━━━━━━━━━━━
+6. 앱 상세 화면 데이터 경로 확인
+━━━━━━━━━━━━━━━━━━━━
+
+diary.tsx 상세 진입 시:
+
+- 실제 diaryId param
+- GET /photos/diary/:id에 전달되는 id
+- API response photos
+- state에 저장되는 배열
+- "등록된 사진이 없습니다" 렌더 조건
+
+을 전부 확인.
+
+특히:
+
+저장된 diary_id와
+상세 화면에서 사용하는 diary id가
+동일한지 확인.
+
+다른 id/옛 id/학생 note id를 사용하는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+7. clone 사진도 확인
+━━━━━━━━━━━━━━━━━━━━
+
+WP-DIARY-3A 이후
+다른 일지에서 이미 사용된 사진을 새 일지에 재사용했을 경우:
+
+원본:
+is_clone=false
+journal_id=D1
+
+새 일지:
+is_clone=true
+journal_id=D2
+source_photo_id=<root id>
+
+가 되어야 함.
+
+D2 상세 조회에서
+clone row가 정상 반환되는지 확인.
+
+━━━━━━━━━━━━━━━━━━━━
+8. 원인 확정 기준
+━━━━━━━━━━━━━━━━━━━━
+
+반드시 다음 중 하나 이상으로 확정해서 제출:
+
+1. attach API 미호출
+2. attach API 실패
+3. clone INSERT 실패
+4. journal_id 불일치
+5. media_status 불일치
+6. pool_id 불일치
+7. class_diaries.is_deleted 문제
+8. GET /photos/diary/:id SQL 문제
+9. 상세 화면 diary_id 전달 문제
+10. API response는 정상인데 앱 state/render 문제
+
+"가능성이 높다" 수준으로 종료하지 말 것.
+
+실제 diary_id + 실제 DB row + 실제 API response로 확정.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 보호 범위
+
+변경 금지:
+
+- AI Engine
+- Diary AI Parser
+- common/student
+- today-schedule
+- 보강
+- X mode
+- photo clone architecture
+- DB schema/migration
+
+이번 단계는 조사만.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 제출 보고서
+
+1. 실제 diary_id
+2. 실제 selected photo_id
+3. /photos/diary-attach request
+4. /photos/diary-attach response
+5. class_diaries DB row
+6. photo_assets_meta DB row
+7. clone 생성 여부
+8. GET /photos/diary/:id response
+9. 상세 화면에서 사용한 diary id
+10. 실제 실패 지점
+11. 정확한 원인
+12. 최소 수정 diff
+13. 수정 예정 파일
+14. regression test 계획
+
+코드 수정 금지.
+DB 변경 금지.
+Commit / Push / Render / OTA 금지.
+
+조사 보고 후 중단.

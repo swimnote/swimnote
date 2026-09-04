@@ -3,12 +3,15 @@
  * security-settings 화면의 공유 타입·상수·헬퍼
  */
 import type { SuperAdminAccount, SuperAdminSession } from "@/domain/types";
+import Colors from "@/constants/colors";
+
+const _C = Colors.light;
 
 // ─── 색상 상수 ──────────────────────────────────────────────────────────────
 export const P      = "#7C3AED";
 export const DANGER = "#D96C6C";
 export const WARN   = "#D97706";
-export const GREEN  = "#2EC4B6";
+export const GREEN  = _C.brandStrong;
 
 // ─── 2차 인증 ───────────────────────────────────────────────────────────────
 export type TwoFAMode = "disabled" | "otp" | "sms" | "email" | "otp_sms_backup";
@@ -58,7 +61,7 @@ export interface ExtService {
 }
 
 export const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; bg: string; icon: string }> = {
-  normal:       { label: "정상",       color: GREEN,    bg: "#E6FFFA", icon: "check-circle" },
+  normal:       { label: "정상",       color: GREEN,    bg: _C.brandSoft, icon: "check-circle" },
   caution:      { label: "주의",       color: "#D97706", bg: "#FEF3C7", icon: "alert-circle" },
   warning:      { label: "경고",       color: "#DC6803", bg: "#FFF1BF", icon: "alert-triangle" },
   error:        { label: "작동 안 됨", color: DANGER,   bg: "#FEE2E2", icon: "x-circle" },
@@ -69,7 +72,7 @@ export const STATUS_CFG: Record<ServiceStatus, { label: string; color: string; b
 };
 
 export const CATEGORY_CFG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  data:      { label: "데이터/인프라",  icon: "database",    color: GREEN,    bg: "#E6FFFA" },
+  data:      { label: "데이터/인프라",  icon: "database",    color: GREEN,    bg: _C.brandSoft },
   payment:   { label: "결제/정산",      icon: "credit-card", color: P,        bg: "#EEDDF5" },
   messaging: { label: "알림/메시징",    icon: "bell",        color: "#D97706", bg: "#FEF3C7" },
   appstore:  { label: "앱스토어/배포",  icon: "package",     color: "#0284C7", bg: "#E0F2FE" },

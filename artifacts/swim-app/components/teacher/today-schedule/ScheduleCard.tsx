@@ -1,4 +1,3 @@
-import { Book, CheckCircle2, Pencil, SquareCheck, UserX } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -32,52 +31,52 @@ export default function ScheduleCard({
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={[card.name, allDone && { color: "#059669" }]}>{item.name}</Text>
-            {allDone && <CheckCircle2 size={14} color="#059669" />}
+            {allDone && <LucideIcon name="check-circle" size={14} color="#059669" />}
           </View>
           <Text style={card.sub}>학생 {item.student_count}명{item.level ? ` · ${item.level}` : ""}</Text>
         </View>
         {item.has_note && (
           <View style={[card.noteBadge, { backgroundColor: "#FFF1BF" }]}>
-            <Pencil size={10} color="#D97706" />
+            <LucideIcon name="edit" size={10} color="#D97706" />
             <Text style={card.noteBadgeText}>메모</Text>
           </View>
         )}
       </View>
       <View style={card.statusRow}>
-        <View style={[card.badge, { backgroundColor: attDone ? "#E6FFFA" : attPartial ? "#FFF1BF" : "#F8FAFC" }]}>
+        <View style={[card.badge, { backgroundColor: attDone ? C.brandSoft : attPartial ? "#FFF1BF" : C.backgroundSoft }]}>
           <LucideIcon name={attDone ? "check-circle" : "circle"} size={11}
-            color={attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B"} />
-          <Text style={[card.badgeText, { color: attDone ? "#2EC4B6" : attPartial ? "#D97706" : "#64748B" }]}>
+            color={attDone ? C.brandStrong : attPartial ? "#D97706" : C.textSecondary} />
+          <Text style={[card.badgeText, { color: attDone ? C.brandStrong : attPartial ? "#D97706" : C.textSecondary }]}>
             {noAtt ? "출결 미시작" : `출결 ${item.att_present}/${item.att_total}`}
           </Text>
         </View>
-        <View style={[card.badge, { backgroundColor: item.diary_done ? "#E6FFFA" : "#FFF8E1" }]}>
-          <LucideIcon name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? "#2EC4B6" : "#D97706"} />
-          <Text style={[card.badgeText, { color: item.diary_done ? "#2EC4B6" : "#D97706" }]}>
+        <View style={[card.badge, { backgroundColor: item.diary_done ? C.brandSoft : "#FFF8E1" }]}>
+          <LucideIcon name={item.diary_done ? "check-circle" : "edit"} size={11} color={item.diary_done ? C.brandStrong : "#D97706"} />
+          <Text style={[card.badgeText, { color: item.diary_done ? C.brandStrong : "#D97706" }]}>
             {item.diary_done ? "일지 완료" : "일지 미작성"}
           </Text>
         </View>
       </View>
       <View style={card.btnRow}>
         <Pressable
-          style={({ pressed }) => [card.actionBtn, { borderColor: attDone ? "#2EC4B6" : C.border }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
+          style={({ pressed }) => [card.actionBtn, { borderColor: attDone ? C.brandStrong : C.border }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
           onPress={() => { haptic.light(); onAttendance(); }}
         >
-          <SquareCheck size={14} color={attDone ? "#2EC4B6" : C.textSecondary} />
-          <Text style={[card.actionText, { color: attDone ? "#2EC4B6" : C.textSecondary }]}>출결</Text>
+          <LucideIcon name="check-square" size={14} color={attDone ? C.brandStrong : C.textSecondary} />
+          <Text style={[card.actionText, { color: attDone ? C.brandStrong : C.textSecondary }]}>출결</Text>
         </Pressable>
         <Pressable
-          style={({ pressed }) => [card.actionBtn, { borderColor: item.diary_done ? "#2EC4B6" : C.border }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
+          style={({ pressed }) => [card.actionBtn, { borderColor: item.diary_done ? C.brandStrong : C.border }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
           onPress={() => { haptic.light(); onDiary(); }}
         >
-          <Book size={14} color={item.diary_done ? "#2EC4B6" : C.textSecondary} />
-          <Text style={[card.actionText, { color: item.diary_done ? "#2EC4B6" : C.textSecondary }]}>일지</Text>
+          <LucideIcon name="book" size={14} color={item.diary_done ? C.brandStrong : C.textSecondary} />
+          <Text style={[card.actionText, { color: item.diary_done ? C.brandStrong : C.textSecondary }]}>일지</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [card.actionBtn, { borderColor: item.has_note ? "#D97706" : C.border }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
           onPress={() => { haptic.light(); onMemo(); }}
         >
-          <Pencil size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
+          <LucideIcon name="edit" size={14} color={item.has_note ? "#D97706" : C.textSecondary} />
           <Text style={[card.actionText, { color: item.has_note ? "#D97706" : C.textSecondary }]}>
             {item.has_note ? "메모 수정" : "개인메모"}
           </Text>
@@ -86,7 +85,7 @@ export default function ScheduleCard({
           style={({ pressed }) => [card.actionBtn, { borderColor: "#D96C6C", backgroundColor: "#FEF2F2" }, pressed && { opacity: 0.7, transform: [{ scale: 0.97 }] }]}
           onPress={() => { haptic.medium(); onAbsence(); }}
         >
-          <UserX size={14} color="#D96C6C" />
+          <LucideIcon name="user-x" size={14} color="#D96C6C" />
           <Text style={[card.actionText, { color: "#D96C6C" }]}>결근</Text>
         </Pressable>
       </View>

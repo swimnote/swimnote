@@ -1,0 +1,214 @@
+SWIMNOTE 보강 오류 — 어제 사용한 진단 방식 그대로 즉시 복원 및 배포
+
+더 이상 추가 조사하지 않는다.
+어제 실제 실기기 오류를 잡았던 진단 방식 그대로 복원한다.
+
+목표:
+현재 보강 기능 로직을 바꾸는 것이 아니라
+진단 패널과 실패 요청 로그만 복원해서
+실기기에서 실제 실패 makeupId/classGroupId/status/body를 한 번에 잡는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. 기준
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+진단 패널이 정상 존재했던 기준 commit:
+
+29170b7b
+"diag: add hidden diagnostic panel to makeups"
+
+현재 Production의 새 기능은 절대 되돌리지 않는다.
+
+반드시 유지:
+
+- 오늘 -14일 ~ +28일 보강 날짜 범위
+- 선보강 허용
+- 오늘/과거 complete-direct
+- 미래 assign
+- 정원 마감 반 보강 허용
+- 정원마감/정원초과 뱃지
+- expired 확인 흐름
+- 날짜/요일/휴일 검증
+
+29170b7b 전체 파일로 rollback 금지.
+
+29170b7b에서 "진단 기능 부분만" 현재 makeups.tsx에 다시 적용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. 복원할 진단 기능
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+29170b7b에서 다음만 복원한다.
+
+A. 숨김 진단 패널
+
+활성화:
+
+- "보강 대기" 탭 7번 빠르게 탭
+또는
+- 2초 long press
+
+패널 표시 항목:
+
+① OTA / 앱
+
+- runtimeVersion
+- updateId
+- channel
+- isEmbedded
+- appVersion
+- API_BASE
+
+② waiting
+
+- total
+- expired
+- julyExpired
+- oldestExpDate
+
+③ sorted
+
+- sortedTotal
+- sortedExpired
+- sortedJulyExpired
+
+④ eligible-occurrences
+
+- makeupId
+- classGroupId
+- URL
+- HTTP status
+- response body
+- error code
+- errMsg
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. selectClass 로그 복원
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+29170b7b에 있던 실제 요청 추적 로그도 복원한다.
+
+최소:
+
+[selectClass] START
+[selectClass] activeTarget
+[selectClass] makeupId
+[selectClass] classGroupId
+[selectClass] URL
+[selectClass] response status
+[selectClass] response body
+[selectClass] ERROR
+
+실패했을 때 진단 패널에도 동일 값을 저장한다.
+
+다른 makeupId로 curl 테스트해서 정상 판정하지 않는다.
+
+실기기에서 실제 실패한 요청만 잡는다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. 재시도 유지
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+현재 복원되어 있는 eligible-occurrences 1회 재시도 로직은 유지한다.
+
+500ms 후 1회 retry.
+
+삭제 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. 수정 범위
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번 수정 허용 파일:
+
+artifacts/swim-app/app/(teacher)/makeups.tsx
+
+가능하면 이 1파일만 수정한다.
+
+다음 수정 금지:
+
+- teachers.ts
+- admin.ts
+- makeup-date-range.ts
+- ClassDetailSheet.tsx
+- Auth
+- JWT
+- 로그인
+- DB
+- 일지
+- AI
+- SWIMNOTE X
+
+즉 진단 기능만 복원한다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. 구현 검증
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+확인:
+
+- 기존 보강 UI 그대로
+- 날짜 -14/+28 그대로
+- 정원초과 허용 그대로
+- expired separator 그대로
+- 기존 retry 그대로
+- 진단 패널만 추가됨
+- TypeScript 신규 오류 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. 바로 배포
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+이번에는 진단 목적이므로 검증 후 바로 진행한다.
+
+순서:
+
+1. Commit
+2. Push
+3. Production OTA
+4. Preview OTA
+
+서버 코드 변경이 없으므로 Render 재배포는 필요 없음.
+
+제출:
+
+- Commit SHA
+- Origin SHA
+- Production Update Group ID
+- Production iOS Update ID
+- Preview Update Group ID
+- runtimeVersion
+- bundle SHA
+- git status
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. 배포 후 중단
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OTA 배포가 끝나면 더 조사하지 말고 중단한다.
+
+사용자가 앱에서:
+
+1. 보강 대기 진입
+2. 문제 카드에서 보강반 배정
+3. "수업 회차를 불러오지 못했습니다" 재현
+4. 보강 대기 탭 7회 또는 2초 long press
+5. 진단 패널 전체 캡처
+
+이 캡처 하나로 실제
+
+makeupId
+classGroupId
+HTTP status
+error body
+waiting expired 상태
+OTA 적용 여부
+
+를 한 번에 확인한다.
+
+어제 했던 방식 그대로 진행.
+추가 설계/추측 금지.

@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { uploadToR2, downloadFromR2 } from "../lib/objectStorage.js";
-import { db, superAdminDb } from "@workspace/db";
+import { superAdminDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../middlewares/auth.js";
+import { isFeatureEnabled } from "../lib/featureFlags.js";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -14,14 +15,12 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
     if (!files || files.length === 0) { res.status(400).json({ error: "파일을 선택해주세요." }); return; }
     if (files.length > 5) { res.status(400).json({ error: "사진은 최대 5장까지 첨부 가능합니다." }); return; }
 
-    // ── 스토리지 초과 차단 체크 ──────────────────────────────────────
+    // ── 스토리지 초과 차단 체크 (WP2A: unified photo+video quota) ──────
     const poolId = req.user?.poolId;
     if (poolId) {
+      // Fast-path: check upload_blocked flag first
       const [poolRow] = (await superAdminDb.execute(sql`
-        SELECT p.upload_blocked, p.extra_storage_gb, sp.storage_gb
-        FROM swimming_pools p
-        LEFT JOIN subscription_plans sp ON sp.tier = p.subscription_tier
-        WHERE p.id = ${poolId} LIMIT 1
+        SELECT upload_blocked FROM swimming_pools WHERE id = ${poolId} LIMIT 1
       `)).rows as any[];
 
       if (poolRow?.upload_blocked) {
@@ -33,18 +32,13 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
         return;
       }
 
-      const [usageRow] = (await db.execute(sql`
-        SELECT COALESCE(SUM(file_size_bytes), 0) AS used_bytes
-        FROM student_photos WHERE swimming_pool_id = ${poolId}
-      `)).rows as any[];
-      const quotaBytes = (Number(poolRow?.storage_gb ?? 0.1) + Number(poolRow?.extra_storage_gb ?? 0)) * 1024 ** 3;
-      const usedBytes  = Number(usageRow?.used_bytes ?? 0);
-      const pct = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+      // Unified quota check (photo_assets_meta + student_photos + video_assets_meta)
+      const { checkAndUpdateUploadBlocked, getPoolStorageUsage } = await import("../lib/storageQuota.js");
+      const usage = await getPoolStorageUsage(poolId);
+      const pct   = usage.pct;
 
       if (pct >= 100) {
-        await superAdminDb.execute(sql`
-          UPDATE swimming_pools SET upload_blocked = true WHERE id = ${poolId}
-        `);
+        await checkAndUpdateUploadBlocked(poolId);
         res.status(403).json({
           error: "저장공간이 가득 차 업로드가 제한됩니다.",
           code: "UPLOAD_BLOCKED",
@@ -56,12 +50,38 @@ router.post("/", requireAuth, upload.array("images", 5), async (req: AuthRequest
 
       if (pct >= 80) res.setHeader("X-Storage-Warning", `${pct}`);
       if (pct >= 80) res.setHeader("X-Storage-Pct", `${pct}`);
+
+      // 업로드 급증 감지: 24h 동안 300건 초과 시 경고 플래그
+      const spikeEnabled = await isFeatureEnabled("upload_spike_detection", poolId).catch(() => false);
+      if (spikeEnabled) {
+        const [spikeRow] = (await db.execute(sql`
+          SELECT COUNT(*)::int AS cnt
+          FROM student_photos
+          WHERE swimming_pool_id = ${poolId}
+            AND created_at >= NOW() - INTERVAL '24 hours'
+        `)).rows as any[];
+        const cnt24h = Number(spikeRow?.cnt ?? 0);
+        if (cnt24h > 300) {
+          await superAdminDb.execute(sql`
+            UPDATE swimming_pools
+            SET metadata = COALESCE(metadata, '{}'::jsonb) ||
+              jsonb_build_object('upload_spike_detected', true, 'spike_at', NOW()::text, 'spike_24h_count', ${cnt24h})
+            WHERE id = ${poolId}
+          `).catch(() => {});
+          res.setHeader("X-Upload-Spike", "true");
+          console.warn(`[upload-spike] pool ${poolId}: ${cnt24h}건/24h 급증 감지`);
+        }
+      }
     }
+
+    // new_upload_structure 플래그: v2 경로 사용 (notices → uploads/v2)
+    const useV2Path = await isFeatureEnabled("new_upload_structure", poolId ?? null).catch(() => false);
+    const pathPrefix = useV2Path ? `uploads/v2` : `notices`;
 
     const urls: string[] = [];
     for (const file of files) {
       const ext = file.originalname.split(".").pop() || "jpg";
-      const key = `notices/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
+      const key = `${pathPrefix}/${Date.now()}_${Math.random().toString(36).substr(2, 8)}.${ext}`;
       const { ok, error } = await uploadToR2(key, file.buffer, file.mimetype || "image/jpeg", "photo");
       if (!ok) throw new Error(error || "업로드 실패");
       urls.push(key);

@@ -1,0 +1,322 @@
+[긴급 수정 승인 — 일지 작성 학생 로딩 Race / False Empty 방지]
+
+DB 감리 결과:
+
+- student_class_history 정상
+- attendance = present
+- students.class_group_id 정상
+- assigned_class_ids 정상
+- status = active
+- deleted_at = null
+- today-schedule 포함 조건 PASS
+- diary absent filter PASS
+- fallback 포함 조건 PASS
+
+따라서 DB/서버 데이터 수정 금지.
+
+직접 수정 범위는
+artifacts/swim-app/app/(teacher)/diary.tsx
+학생 로딩 상태 처리로 한정한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+1. 핵심 원칙
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 문제:
+
+classStudents 초기값 = []
+↓
+loadClassStudents() async 실행
+↓
+응답 전 write view 진입
+↓
+[]를 실제 "학생 없음"으로 오판
+↓
+"이 수업에 배정된 학생이 없습니다"
+↓
+저장까지 누르면 "출석 학생 없음"으로 잘못 차단
+
+이 구조를 제거한다.
+
+반드시 상태를 3개로 구분:
+
+1. LOADING
+2. LOADED_EMPTY
+3. LOADED_WITH_STUDENTS
+
+[] 하나만으로 LOADING과 EMPTY를 동시에 표현하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. loading state 추가
+━━━━━━━━━━━━━━━━━━━━━━
+
+예:
+
+const [classStudentsLoading, setClassStudentsLoading] = useState(false);
+const [classStudentsLoaded, setClassStudentsLoaded] = useState(false);
+const [classStudentsError, setClassStudentsError] = useState<string | null>(null);
+
+정확한 이름은 현재 코드 스타일에 맞게 결정.
+
+loadClassStudents(classId) 시작:
+
+setClassStudentsLoading(true)
+setClassStudentsLoaded(false)
+setClassStudentsError(null)
+
+성공:
+
+setClassStudents(...)
+setClassStudentsLoaded(true)
+
+finally:
+
+setClassStudentsLoading(false)
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. loadClassStudents 오류 처리
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 catch {} 빈 catch 제거.
+
+단 Production 로그에 개인정보를 남기지 않는다.
+
+오류 시:
+
+- 기존 classStudents를 임의로 [] 확정하지 않는다.
+- classStudentsLoaded = false
+- classStudentsError 설정
+- 사용자에게 "학생 정보를 불러오지 못했습니다." 상태 표시 가능
+- 재시도 경로 제공
+
+console logging이 필요하다면:
+
+- endpoint
+- HTTP status
+- classGroupId hash/축약값
+- error code
+
+정도만 허용.
+
+학생 이름/전체 응답/JWT 로그 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. 일지작성 화면 렌더 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+기존:
+
+classStudents.length === 0
+→ "이 수업에 배정된 학생이 없습니다"
+
+금지.
+
+다음으로 변경:
+
+A. classStudentsLoading === true
+→ 학생 영역에 로딩 표시
+→ "배정된 학생 없음" 표시 금지
+
+B. classStudentsLoaded === true
+AND classStudents.length === 0
+→ 그때만
+"이 수업에 배정된 학생이 없습니다"
+
+C. classStudentsLoaded === true
+AND classStudents.length > 0
+→ 학생별 일지 정상 표시
+
+D. classStudentsError 존재
+→ "학생 정보를 불러오지 못했습니다."
+→ 재시도 UI
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. 저장 버튼 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+가장 중요.
+
+학생 로딩 중에는 저장 로직이
+classStudents.length === 0을 보고
+"출석 학생 없음"으로 판정하면 안 된다.
+
+저장 버튼 탭 시:
+
+if (classStudentsLoading || !classStudentsLoaded) {
+  Alert:
+  "학생 정보를 불러오는 중입니다."
+  또는
+  "잠시 후 다시 시도해주세요."
+  return;
+}
+
+학생 조회 실패 상태라면:
+
+"학생 정보를 불러오지 못했습니다.
+다시 시도해주세요."
+
+로 차단.
+
+실제로 로딩 완료 후 학생 0명일 때만
+기존 "출석한 학생이 없어..." 정책 적용.
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. openGroup 흐름
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재:
+
+openGroup(found)
+→ setSelectedGroup(group)
+→ loadClassStudents(id) // await 없음
+
+구조를 조사해서
+가능하면 학생 데이터가 필요한 write 진입 시점과
+loadClassStudents 완료 시점을 명확하게 연결한다.
+
+단 전체 화면을 불필요하게 블로킹하지 않는다.
+
+권장:
+
+History/그룹 화면은 먼저 보여줄 수 있음.
+
+하지만 사용자가 "일지 작성"으로 들어갈 때:
+
+- 이미 로딩 완료 → 즉시 진입
+- 로딩 중 → write view 진입은 가능하되 학생 영역 Loading
+  또는
+- 작성 버튼에서 await 후 진입
+
+현재 UX에 가장 적은 변경 방식 선택.
+
+중요:
+어떤 방식을 쓰더라도 false empty는 절대 없어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. stale response 보호
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 빠르게 다른 반으로 이동할 경우:
+
+반 A loadClassStudents 시작
+→ 반 B로 전환
+→ A 응답이 늦게 도착
+→ B 화면에 A 학생이 들어가는
+
+stale response 가능성도 확인한다.
+
+현재 방어가 없다면
+request sequence / classId 비교 등 최소한의 보호를 추가한다.
+
+예:
+
+요청 시작 classId를 캡처
+응답 시 현재 selectedGroup.id와 일치할 때만 setClassStudents
+
+또는 requestId/ref 방식.
+
+불필요한 대규모 refactor 금지.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Draft reset과 분리
+━━━━━━━━━━━━━━━━━━━━━━
+
+직전 0e827258의:
+
+resetWriteSession
+handleExitDiary
+draft cleanup
+
+로직은 유지한다.
+
+이번 학생 로딩 상태를 resetWriteSession과 섞지 않는다.
+
+단 다른 반으로 이동할 때:
+classStudents 관련 loading/error/loaded 상태는
+정상적으로 새 요청 기준으로 초기화되어야 한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 테스트 CASE
+━━━━━━━━━━━━━━━━━━━━━━
+
+CASE 1
+서태웅 1명 배정 + present
+→ 일지 작성 즉시 진입
+→ 로딩 중이면 "학생 없음" 금지
+→ 로딩 완료 후 서태웅 표시
+
+CASE 2
+CASE 1에서 로딩 완료 전 저장 버튼 연타
+→ "출석 학생 없음" 오류 금지
+→ 학생 로딩 중 안내
+
+CASE 3
+실제로 배정 학생 0명
+→ 로딩 완료 후에만
+"이 수업에 배정된 학생이 없습니다"
+
+CASE 4
+/student 또는 today-schedule API 실패
+→ 학생 0명으로 위장 금지
+→ 명확한 로딩 실패 상태
+
+CASE 5
+API 재시도 성공
+→ 학생 정상 표시
+
+CASE 6
+attendance = absent인 학생
+→ 기존 정책대로 학생별 일지 대상 제외
+→ 이번 작업에서 정책 변경 금지
+
+CASE 7
+반 A → 반 B 빠르게 전환
+→ A 학생이 B에 섞이지 않음
+
+CASE 8
+뒤로가기 → 나가기 → draft reset
+→ 0e827258 기능 정상
+
+CASE 9
+정상 저장
+→ 기존 저장 로직 정상
+
+CASE 10
+사진/영상/AI 일지
+→ 회귀 없음
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 보호 영역
+━━━━━━━━━━━━━━━━━━━━━━
+
+변경 금지:
+
+- DB
+- student_class_history
+- attendance
+- today-schedule 서버
+- students 서버 API
+- 출결 정책
+- 일지 저장 API
+- Instagram Story
+- Auth/JWT
+- API_BASE
+- Native 설정
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 완료 보고
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. 추가 state
+3. 기존 empty 판정 Before
+4. 수정 후 empty 판정
+5. 저장 버튼 loading guard
+6. API error 처리
+7. 재시도 처리
+8. stale response 방어 여부
+9. CASE 1~10 결과
+10. TypeCheck
+11. DB 변경 0
+12. Server 변경 0
+13. Native 변경

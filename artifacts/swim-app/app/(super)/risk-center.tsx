@@ -3,7 +3,6 @@
  * Zustand 완전 제거 → GET /super/risk-center 실 API 연동
  * 모크 데이터(RECOVERY_FAILURES, SMS) 제거 / external_services API 반환값 사용
  */
-import { CircleCheck, Database, MessageCircle, Shield } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -207,7 +206,7 @@ export default function RiskCenterScreen() {
         {/* 요약 헤더 */}
         <View style={s.summaryCard}>
           <View style={s.summaryRow}>
-            <Shield size={20} color={totalRisk > 0 ? "#F87171" : "#34D399"} />
+            <LucideIcon name="shield" size={20} color={totalRisk > 0 ? "#F87171" : "#34D399"} />
             <Text style={[s.summaryTitle, totalRisk > 0 && { color: "#F87171" }]}>
               {totalRisk > 0 ? `리스크 ${totalRisk}건 처리 필요` : "현재 리스크 없음 ✓"}
             </Text>
@@ -222,14 +221,14 @@ export default function RiskCenterScreen() {
               { label: "SLA 초과",   count: support.overdue_count,   color: "#F87171" },
             ].map(item => (
               <View key={item.label} style={s.riskTile}>
-                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : "#64748B" }]}>{item.count}</Text>
+                <Text style={[s.riskNum, { color: item.count > 0 ? item.color : C.textSecondary }]}>{item.count}</Text>
                 <Text style={s.riskLbl}>{item.label}</Text>
               </View>
             ))}
           </View>
           {support.open_count > 0 && (
             <View style={s.supportRow}>
-              <MessageCircle size={13} color="#38BDF8" />
+              <LucideIcon name="message-circle" size={13} color="#38BDF8" />
               <Text style={s.supportTxt}>
                 고객센터 미처리 {support.open_count}건
                 {support.overdue_count > 0 && ` · SLA 초과 ${support.overdue_count}건`}
@@ -257,7 +256,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => setReadonly(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>RO</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#7C3AED" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -290,7 +289,7 @@ export default function RiskCenterScreen() {
                   <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === op.id} onPress={() => blockUpload(op)}>
                     <Text style={[g.btnTxt, { color: "#D96C6C" }]}>차단</Text>
                   </Pressable>
-                  <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
+                  <Pressable style={[g.btn, { backgroundColor: "#7C3AED" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                     <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                   </Pressable>
                 </View>
@@ -300,7 +299,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 자동삭제 예정 ── */}
-        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color="#2EC4B6" bg="#ECFEFF"
+        <RiskGroup title="자동삭제 예정 (48h)" icon="trash-2" color={C.brandStrong} bg="#ECFEFF"
           count={deletionPending.length} onViewAll={() => router.push("/(super)/kill-switch?backTo=risk-center" as any)}>
           {deletionPending.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -312,10 +311,10 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => deferDeletion(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>유예</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
-                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>해제</Text>
+                <Pressable style={[g.btn, { backgroundColor: C.brandSoft }]} disabled={processing === op.id} onPress={() => cancelDeletion(op)}>
+                  <Text style={[g.btnTxt, { color: C.brandStrong }]}>해제</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#7C3AED" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -336,7 +335,7 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#F9DEDA" }]} disabled={processing === (op.pool_id ?? op.id)} onPress={() => limitUpload(op)}>
                   <Text style={[g.btnTxt, { color: "#D96C6C" }]}>제한</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: C.button }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}&backTo=risk-center` as any)}>
+                <Pressable style={[g.btn, { backgroundColor: "#7C3AED" }]} onPress={() => router.push(`/(super)/operator-detail?id=${op.pool_id ?? op.id}&backTo=risk-center` as any)}>
                   <Text style={[g.btnTxt, { color: P }]}>상세</Text>
                 </Pressable>
               </View>
@@ -345,7 +344,7 @@ export default function RiskCenterScreen() {
         </RiskGroup>
 
         {/* ── 정책 미확인 ── */}
-        <RiskGroup title="정책 미확인 운영자" icon="file-text" color="#2EC4B6" bg="#E6FFFA"
+        <RiskGroup title="정책 미확인 운영자" icon="file-text" color={C.brandStrong} bg={C.brandSoft}
           count={policyUnsigned.length} onViewAll={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
           {policyUnsigned.slice(0, 5).map((op: any) => (
             <View key={op.id} style={g.item}>
@@ -357,8 +356,8 @@ export default function RiskCenterScreen() {
                 <Pressable style={[g.btn, { backgroundColor: "#FFF1BF" }]} disabled={processing === op.id} onPress={() => sendPolicyReminder(op)}>
                   <Text style={[g.btnTxt, { color: "#D97706" }]}>재알림</Text>
                 </Pressable>
-                <Pressable style={[g.btn, { backgroundColor: "#E6FFFA" }]} onPress={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
-                  <Text style={[g.btnTxt, { color: "#2EC4B6" }]}>상세</Text>
+                <Pressable style={[g.btn, { backgroundColor: C.brandSoft }]} onPress={() => router.push("/(super)/policy?backTo=risk-center" as any)}>
+                  <Text style={[g.btnTxt, { color: C.brandStrong }]}>상세</Text>
                 </Pressable>
               </View>
             </View>
@@ -384,14 +383,14 @@ export default function RiskCenterScreen() {
             </View>
           ))}
           <View style={s.backupRow}>
-            <Database size={13} color="#64748B" />
+            <LucideIcon name="database" size={13} color={C.textSecondary} />
             <Text style={s.backupTxt}>마지막 백업 이벤트: {fmtAgo(backup.last_at)}</Text>
           </View>
         </View>
 
         {totalRisk === 0 && support.open_count === 0 && (
           <View style={s.allClear}>
-            <CircleCheck size={32} color="#2E9B6F" />
+            <LucideIcon name="check-circle" size={32} color="#2E9B6F" />
             <Text style={s.allClearTxt}>오늘 처리할 리스크가 없습니다</Text>
           </View>
         )}
@@ -404,27 +403,27 @@ const s = StyleSheet.create({
   safe:          { flex: 1, backgroundColor: C.background },
   summaryCard:   { backgroundColor: "#1F1235", borderRadius: 14, padding: 16, gap: 12 },
   summaryRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  summaryTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: "#F1F5F9" },
+  summaryTitle:  { fontSize: 16, fontFamily: "Pretendard-Regular", color: C.backgroundSoft },
   riskGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   riskTile:      { flex: 1, minWidth: "28%", backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 10, padding: 10, alignItems: "center" },
-  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: "#64748B" },
-  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2, textAlign: "center" },
+  riskNum:       { fontSize: 20, fontFamily: "Pretendard-Regular", color: C.textSecondary },
+  riskLbl:       { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2, textAlign: "center" },
   supportRow:    { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(2,132,199,0.12)", borderRadius: 8, padding: 8 },
   supportTxt:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#38BDF8" },
   supportLink:   { backgroundColor: "#0284C7", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   supportLinkTxt:{ fontSize: 11, fontFamily: "Pretendard-Regular", color: "#fff" },
 
   serviceCard:   { backgroundColor: "#fff", borderRadius: 14, padding: 14,
-                   borderWidth: 1, borderColor: "#E5E7EB", gap: 4 },
-  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#0F172A", marginBottom: 8 },
+                   borderWidth: 1, borderColor: C.border, gap: 4 },
+  serviceTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: C.textPrimary, marginBottom: 8 },
   serviceRow:    { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6,
                    borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   serviceDot:    { width: 8, height: 8, borderRadius: 4 },
-  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  serviceName:   { flex: 1, fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   serviceStatus: { fontSize: 12, fontFamily: "Pretendard-Regular" },
   serviceActions:{ flexDirection: "row", gap: 4 },
   backupRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
-  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B" },
+  backupTxt:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary },
 
   allClear:      { alignItems: "center", paddingVertical: 40, gap: 12 },
   allClearTxt:   { fontSize: 15, fontFamily: "Pretendard-Regular", color: "#2E9B6F" },
@@ -432,10 +431,10 @@ const s = StyleSheet.create({
 
 const g = StyleSheet.create({
   group:       { backgroundColor: "#fff", borderRadius: 14, padding: 12,
-                 borderWidth: 1, borderColor: "#E5E7EB" },
+                 borderWidth: 1, borderColor: C.border },
   groupHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
   groupIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  groupTitle:  { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   countBadge:  { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   countTxt:    { fontSize: 12, fontFamily: "Pretendard-Regular" },
   viewAll:     { fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -443,12 +442,12 @@ const g = StyleSheet.create({
   item:        { flexDirection: "row", alignItems: "center", gap: 8,
                  paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#FFFFFF" },
   itemLeft:    { flex: 1 },
-  itemName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: "#0F172A" },
-  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#64748B", marginTop: 2 },
+  itemName:    { fontSize: 13, fontFamily: "Pretendard-Regular", color: C.textPrimary },
+  itemSub:     { fontSize: 11, fontFamily: "Pretendard-Regular", color: C.textSecondary, marginTop: 2 },
   itemActions: { flexDirection: "row", gap: 4 },
 
   barRow:      { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: "#E5E7EB", overflow: "hidden" },
+  barBg:       { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.border, overflow: "hidden" },
   barFill:     { height: 6, borderRadius: 3 },
   pctTxt:      { fontSize: 11, fontFamily: "Pretendard-Regular", minWidth: 30 },
 

@@ -1,0 +1,511 @@
+# SWIMNOTE X — WP2 구현 최종 승인 지시
+
+WP2 최종 확정 설계서를 검수했습니다.
+
+**WP2 구현을 승인합니다.**
+
+이번에는 설계서를 다시 작성하거나 추가 제안하지 말고, 승인된 WP2 범위만 실제 코드로 구현하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+1. 승인된 구현 범위
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+신규 파일:
+
+```text
+artifacts/api-server/src/lib/xmode.ts
+```
+
+수정 파일:
+
+```text
+artifacts/api-server/src/routes/pools.ts
+artifacts/api-server/src/routes/super.ts
+artifacts/api-server/src/middlewares/auth.ts
+```
+
+그 외 파일은 수정하지 마십시오.
+
+승인된 기능:
+
+* `computeMode()`
+* `resolvePoolMode()`
+* `GET /pools/x-mode`
+* `requireXMode`
+* `PATCH /super/operators/:id/xmode`
+* X모드 상태 변경 Audit Transaction
+
+━━━━━━━━━━━━━━━━━━━━━━
+2. 구현 전 코드 예시 오류 정정
+━━━━━━━━━━━━━━━━━━━━━━
+
+최종 설계서의 Transaction 예시에는 변수·반환 타입 오류가 있습니다.
+
+## 오류 1
+
+다음 코드는 금지합니다.
+
+```typescript
+let result: PoolModeResult;
+
+result = computeMode(
+  after.xmode_entitlement,
+  after.xmode_config_status
+);
+```
+
+`computeMode()`의 반환값은 `PoolMode` 문자열입니다.
+
+다음처럼 실제 응답 객체를 구성하십시오.
+
+```typescript
+const mode = computeMode(
+  Boolean(after.xmode_entitlement),
+  after.xmode_config_status as XModeStatus
+);
+
+result = {
+  pool_id: after.id,
+  mode,
+  xmode_entitlement: Boolean(after.xmode_entitlement),
+  xmode_config_status: after.xmode_config_status as XModeStatus,
+};
+```
+
+Transaction 안에서 `UPDATE ... RETURNING` 결과로 `PoolModeResult`를 구성하십시오.
+
+PATCH 처리 후 `resolvePoolMode()`를 다시 호출하지 마십시오.
+
+이유:
+
+* 같은 요청에서 불필요한 DB 재조회 방지
+* UPDATE 직후 반환된 확정값 사용
+* 응답과 Audit의 after 상태 일치
+
+## 오류 2
+
+설계 예시에는 다음 변수명이 혼재합니다.
+
+```text
+before
+beforeData
+
+after
+afterData
+```
+
+하나로 통일하십시오.
+
+권장:
+
+```typescript
+const beforeData = { ... };
+const afterData = { ... };
+```
+
+Audit INSERT에서도 같은 변수를 사용하십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+3. lib/xmode.ts 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음만 구현하십시오.
+
+```typescript
+export type XModeStatus =
+  | "NOT_CONFIGURED"
+  | "CURRICULUM_PENDING"
+  | "READY";
+
+export type PoolMode =
+  | "normal"
+  | "x_pending"
+  | "x";
+
+export interface PoolModeResult {
+  pool_id: string;
+  mode: PoolMode;
+  xmode_entitlement: boolean;
+  xmode_config_status: XModeStatus;
+}
+```
+
+판정 함수:
+
+```typescript
+export function computeMode(
+  entitlement: boolean,
+  configStatus: XModeStatus,
+): PoolMode {
+  if (!entitlement) return "normal";
+  if (configStatus === "READY") return "x";
+  return "x_pending";
+}
+```
+
+조회 함수:
+
+```typescript
+export async function resolvePoolMode(
+  poolId: string,
+): Promise<PoolModeResult | null>
+```
+
+규칙:
+
+* `superAdminDb`에서 `swimming_pools` 조회
+* pool 미존재 시 `null`
+* JWT나 앱 전달 mode 사용 금지
+* 캐시 추가 금지
+* capability 추가 금지
+* fallback 추가 금지
+* 별도 오류 클래스 생성 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+4. GET /pools/x-mode 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+```text
+artifacts/api-server/src/routes/pools.ts
+```
+
+위치:
+
+```text
+GET /my-pools 직후
+POST /switch/:poolId 이전
+```
+
+허용 역할:
+
+* pool_admin
+* teacher
+* parent_account
+* super_admin
+
+그 외 역할은 fail-closed 403.
+
+poolId 결정:
+
+```text
+pool_admin / teacher
+→ users.swimming_pool_id DB 조회
+
+parent_account
+→ parent_accounts.swimming_pool_id DB 조회
+
+super_admin
+→ req.query.pool_id 필수
+```
+
+JWT의 `poolId`는 최종 권한 근거로 사용하지 마십시오.
+
+성공 응답:
+
+```json
+{
+  "pool_id": "pool_xxx",
+  "mode": "normal",
+  "xmode_entitlement": false,
+  "xmode_config_status": "NOT_CONFIGURED"
+}
+```
+
+`capabilities` 필드를 추가하지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+5. requireXMode 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+```text
+artifacts/api-server/src/middlewares/auth.ts
+```
+
+기존 미들웨어 구조에 맞춰 추가하십시오.
+
+역할:
+
+* 요청 사용자의 실제 DB 기준 pool 접근권한 확인
+* 대상 pool의 `resolvePoolMode()` 호출
+* pool 미존재 차단
+* entitlement 미보유 차단
+* READY 미완료 차단
+* `mode === "x"`일 때만 다음 미들웨어 진행
+
+오류:
+
+```text
+POOL_NOT_FOUND
+POOL_ACCESS_DENIED
+XMODE_NOT_ENTITLED
+XMODE_NOT_READY
+```
+
+주의:
+
+* super_admin도 X 상태를 우회하지 않음
+* 앱 전달 mode 신뢰 금지
+* JWT poolId 신뢰 금지
+* 아직 실제 X API Route에는 연결하지 않음
+* Guard만 준비
+* 기존 일반 API에 적용 금지
+
+━━━━━━━━━━━━━━━━━━━━━━
+6. PATCH /super/operators/:id/xmode 구현
+━━━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+```text
+artifacts/api-server/src/routes/super.ts
+```
+
+인증:
+
+```text
+requireAuth
+requireRole("super_admin")
+```
+
+`:id`는 `swimming_pool_id`입니다.
+
+허용 Body:
+
+```typescript
+{
+  xmode_entitlement?: boolean;
+  xmode_config_status?:
+    | "NOT_CONFIGURED"
+    | "CURRICULUM_PENDING"
+    | "READY";
+  xmode_purchased_at?: string | null;
+  xmode_subscription_end_at?: string | null;
+  reason?: string;
+}
+```
+
+`reason`을 제외한 변경 필드가 최소 1개 있어야 합니다.
+
+`xmode_payment_failed_at`은 받지 마십시오.
+
+## 입력 검증
+
+반드시 검증:
+
+* `xmode_entitlement`는 boolean만 허용
+* `xmode_config_status`는 확정 ENUM 3개만 허용
+* 날짜는 `null` 또는 유효한 날짜 문자열만 허용
+* invalid date가 DB에 전달되지 않도록 차단
+* 설계에 없는 Body 필드는 UPDATE에 사용하지 않음
+
+새 검증 라이브러리를 추가하지 말고 기존 Route 검증 방식에 맞추십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+7. Transaction 고정 순서
+━━━━━━━━━━━━━━━━━━━━━━
+
+Transaction 밖:
+
+```text
+Body 검증
+→ 변경 필드 0개면 400
+```
+
+Transaction 안:
+
+```text
+1. SELECT ... FOR UPDATE
+2. pool 미존재면 throw
+3. beforeData 구성
+4. UPDATE ... RETURNING
+5. afterData 구성
+6. next_audit_version 발급
+7. audit_logs INSERT
+8. PoolModeResult 구성
+9. Commit
+```
+
+Audit INSERT 실패 시 UPDATE도 Rollback되어야 합니다.
+
+동적 UPDATE는 승인된 필드만 사용하십시오.
+
+값이 제공되지 않은 필드는 기존 값을 유지해야 합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+8. Audit 고정 구조
+━━━━━━━━━━━━━━━━━━━━━━
+
+```text
+entity_type: swimming_pool_xmode
+entity_id: swimming_pool_id
+action: update
+actor_type: super_admin
+actor_id: req.user.userId
+pool_id: swimming_pool_id
+request_id: null
+correlation_id: null
+ip_hash: null
+```
+
+`before_data`와 `after_data`:
+
+```text
+xmode_entitlement
+xmode_config_status
+xmode_purchased_at
+xmode_subscription_end_at
+```
+
+JSONB 저장:
+
+```typescript
+${JSON.stringify(beforeData)}::jsonb
+${JSON.stringify(afterData)}::jsonb
+```
+
+`xmode_payment_failed_at`은 포함하지 마십시오.
+
+별도 Audit helper 파일을 만들지 마십시오.
+
+━━━━━━━━━━━━━━━━━━━━━━
+9. 금지사항
+━━━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서 금지:
+
+* 설계서 재작성
+* capability 추가
+* 앱 코드 수정
+* WP3 구현
+* DB Migration 작성
+* DB 스키마 변경
+* 테스트 수영장 생성
+* 기존 수영장 X 상태 변경
+* 토이키즈 상태 변경
+* RevenueCat 연동
+* 캐시 시스템 추가
+* child_id 또는 다중 pool 기능 추가
+* 서버 재시작
+* Push
+* OTA
+* Render 배포
+
+━━━━━━━━━━━━━━━━━━━━━━
+10. 테스트
+━━━━━━━━━━━━━━━━━━━━━━
+
+코드 수정 후 다음을 수행하십시오.
+
+## 정적 확인
+
+* 신규·수정 파일 TypeScript 오류
+* import 오류
+* Route 등록 충돌
+* 사용되지 않는 변수
+* Transaction 결과 타입
+* `computeMode()` 반환 타입
+* `PoolModeResult` 구성 타입
+
+## 단위 테스트
+
+```text
+false + NOT_CONFIGURED → normal
+false + CURRICULUM_PENDING → normal
+false + READY → normal
+true + NOT_CONFIGURED → x_pending
+true + CURRICULUM_PENDING → x_pending
+true + READY → x
+```
+
+## API 읽기 테스트
+
+안전한 기존 계정이 있을 때만:
+
+* 일반 pool의 `GET /pools/x-mode`
+* 인증 없음 401
+* 불허 역할 403
+* super_admin pool_id 누락 400
+* 존재하지 않는 pool 조회 404
+
+## PATCH 테스트
+
+운영 수영장 상태를 변경하지 마십시오.
+
+허용되는 안전한 검증:
+
+* 변경 필드 없음 → 400
+* 존재하지 않는 pool_id → 404
+* 인증 없음 → 401
+* 권한 없음 → 403
+
+실제 존재하는 pool의 X 상태 변경 테스트는 별도 승인 전 금지합니다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+11. 구현 중 중단 조건
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음 상황이면 임의 처리하지 말고 즉시 중단하십시오.
+
+* 설계 외 파일 수정 필요
+* 기존 auth.ts 구조와 requireXMode 추가가 충돌
+* Transaction 결과 타입이 설계와 다름
+* 기존 super Route의 `:id`가 pool_id가 아닌 것으로 확인됨
+* 기존 일반 API에 영향 발생
+* DB 변경이 필요해짐
+* 테스트를 위해 기존 pool 상태 변경이 필요함
+* 서버 재시작이 필요함
+
+━━━━━━━━━━━━━━━━━━━━━━
+12. 구현 후 제출 증거
+━━━━━━━━━━━━━━━━━━━━━━
+
+다음을 제출하고 멈추십시오.
+
+1. 실제 수정 파일 목록
+2. 실제 신규 파일 목록
+3. `git diff` 원문
+4. `lib/xmode.ts` 전체 코드
+5. `GET /pools/x-mode` 전체 코드
+6. `requireXMode` 전체 코드
+7. `PATCH /super/operators/:id/xmode` 전체 코드
+8. Transaction 순서
+9. Audit INSERT 코드
+10. 입력 검증 코드
+11. 실행한 명령
+12. 타입체크 결과
+13. 단위 테스트 결과
+14. API 테스트 결과
+15. 미실행 테스트
+16. DB 변경 여부
+17. 수영장 상태 변경 여부
+18. Commit 여부
+19. Push 여부
+20. 서버 재시작 여부
+21. 배포 여부
+22. 일반모드 영향
+23. 다음 WP 진입 가능 여부 자체 판단
+
+━━━━━━━━━━━━━━━━━━━━━━
+13. 승인 범위
+━━━━━━━━━━━━━━━━━━━━━━
+
+허용:
+
+* WP2 코드 구현
+* 정적 검사
+* DB 변경 없는 테스트
+
+불허:
+
+* 실제 수영장 상태 변경
+* 서버 재시작
+* Push
+* 배포
+* WP3 작업
+
+구현과 검증을 완료한 뒤 보고서를 제출하고 멈추십시오.

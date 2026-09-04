@@ -3,7 +3,6 @@
  * API: /super/sync/stats, /super/sync/tenants, /super/sync/snapshots
  *      /super/sync/run, /super/sync/snapshot
  */
-import { Archive, Clock, RefreshCw, Table } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -157,7 +156,7 @@ export default function SuperSyncScreen() {
   if (loading) {
     return (
       <View style={[s.root, { backgroundColor: C.background }]}>
-        <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
+        <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/dashboard" />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator color={ACCENT} size="large" />
         </View>
@@ -167,7 +166,7 @@ export default function SuperSyncScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: C.background }]}>
-      <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/more" />
+      <SubScreenHeader title="데이터 동기화" subtitle="서버 기반 변경분 수집 및 스냅샷 관리" homePath="/(super)/dashboard" />
 
       <ScrollView showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={ACCENT} />}
@@ -178,7 +177,7 @@ export default function SuperSyncScreen() {
           <Text style={[s.sectionTitle, { color: C.text }]}>동기화 현황</Text>
           <View style={s.statRow}>
             <StatCard label="대기중"  value={stats?.pending ?? 0}   icon="clock"         color="#D97706" sub="sync_status=pending" />
-            <StatCard label="완료"    value={stats?.synced ?? 0}    icon="check-circle"  color="#2EC4B6" sub="sync_status=synced" />
+            <StatCard label="완료"    value={stats?.synced ?? 0}    icon="check-circle"  color={C.brandStrong} sub="sync_status=synced" />
           </View>
           <View style={s.statRow}>
             <StatCard label="총 변경분" value={stats?.total ?? 0}     icon="database"  color={ACCENT}   sub="누적 기록" />
@@ -187,19 +186,19 @@ export default function SuperSyncScreen() {
 
           <View style={[s.infoBox, { backgroundColor: C.card }]}>
             <View style={s.infoRow}>
-              <RefreshCw size={13} color={C.textMuted} />
+              <LucideIcon name="refresh-cw" size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 동기화</Text>
               <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats?.last_synced_at ?? null)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
-              <Archive size={13} color={C.textMuted} />
+              <LucideIcon name="archive" size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>마지막 전체 스냅샷</Text>
               <Text style={[s.infoVal, { color: C.text }]}>{fmtDate(stats?.last_snapshot_at ?? null)}</Text>
             </View>
             <View style={[s.divider, { backgroundColor: C.border }]} />
             <View style={s.infoRow}>
-              <Clock size={13} color={C.textMuted} />
+              <LucideIcon name="clock" size={13} color={C.textMuted} />
               <Text style={[s.infoLabel, { color: C.textMuted }]}>자동 실행</Text>
               <Text style={[s.infoVal, { color: C.text }]}>증분 매일 03:00 · 전체 매주 일 02:00</Text>
             </View>
@@ -214,14 +213,14 @@ export default function SuperSyncScreen() {
               style={({ pressed }) => [s.runBtn, { backgroundColor: "#D97706", opacity: pressed || runningSync ? 0.8 : 1, flex: 1 }]}
               onPress={() => setConfirmSync(true)} disabled={runningSync}>
               {runningSync ? <ActivityIndicator color="#fff" size="small" />
-                : <RefreshCw size={16} color="#fff" />}
+                : <LucideIcon name="refresh-cw" size={16} color="#fff" />}
               <Text style={s.runBtnTxt}>증분 동기화</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [s.runBtn, { backgroundColor: "#0EA5E9", opacity: pressed || runningSnapshot ? 0.8 : 1, flex: 1 }]}
               onPress={() => setConfirmSnapshot(true)} disabled={runningSnapshot}>
               {runningSnapshot ? <ActivityIndicator color="#fff" size="small" />
-                : <Archive size={16} color="#fff" />}
+                : <LucideIcon name="archive" size={16} color="#fff" />}
               <Text style={s.runBtnTxt}>전체 스냅샷</Text>
             </Pressable>
           </View>
@@ -241,11 +240,11 @@ export default function SuperSyncScreen() {
                   {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                   <View style={s.tableRow}>
                     <View style={[s.tableIcon, { backgroundColor: "#FFF1BF" }]}>
-                      <Table size={13} color="#D97706" />
+                      <LucideIcon name="table" size={13} color="#D97706" />
                     </View>
                     <Text style={[s.tableName, { color: C.text }]}>{row.table_name}</Text>
-                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : "#E6FFFA" }]}>
-                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : "#2EC4B6" }]}>
+                    <View style={[s.pendingBadge, { backgroundColor: row.pending > 0 ? "#FFF1BF" : C.brandSoft }]}>
+                      <Text style={[s.pendingBadgeTxt, { color: row.pending > 0 ? "#D97706" : C.brandStrong }]}>
                         {fmtNum(row.pending)}건
                       </Text>
                     </View>
@@ -289,7 +288,7 @@ export default function SuperSyncScreen() {
           <Text style={[s.sectionTitle, { color: C.text }]}>스냅샷 이력</Text>
           {snapshots.length === 0 ? (
             <View style={[s.emptyBox, { backgroundColor: C.card }]}>
-              <Archive size={22} color={C.textMuted} />
+              <LucideIcon name="archive" size={22} color={C.textMuted} />
               <Text style={[s.emptyTxt, { color: C.textMuted }]}>생성된 스냅샷이 없습니다</Text>
             </View>
           ) : (
@@ -300,8 +299,8 @@ export default function SuperSyncScreen() {
                   <View key={snap.id}>
                     {idx > 0 && <View style={[s.divider, { backgroundColor: C.border }]} />}
                     <View style={s.snapRow}>
-                      <View style={[s.snapIcon, { backgroundColor: isFull ? "#E6FFFA" : "#DFF3EC" }]}>
-                        <LucideIcon name={isFull ? "archive" : "git-commit"} size={13} color="#2EC4B6" />
+                      <View style={[s.snapIcon, { backgroundColor: isFull ? C.brandSoft : "#DFF3EC" }]}>
+                        <LucideIcon name={isFull ? "archive" : "git-commit"} size={13} color={C.brandStrong} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[s.snapType, { color: C.text }]}>

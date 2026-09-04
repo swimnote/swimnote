@@ -1,0 +1,130 @@
+SWIMNOTE REQ-5 — 선생님별 보강 대상 분리 Production 배포 승인
+
+검증 결과 승인한다.
+
+대상 Commit:
+5c5c11a5
+
+목표:
+Teacher 보강 waiting/expired 목록을
+현재 담당반 학생 기준으로 분리한다.
+
+확정 정책:
+
+- student_class_history.left_at IS NULL = 현재 소속
+- class_groups.teacher_user_id = 주담임
+- class_groups.co_teacher_ids = 공동담당
+- handed_to_teacher_id = handoff 예외
+- original_teacher_id = history only, visibility 기준 아님
+- Admin = pool 전체 유지
+- eligible-classes = pool 전체 보강 대상반 유지
+
+━━━━━━━━━━━━━━━━━━━━
+1. 배포 전 Git 확인
+━━━━━━━━━━━━━━━━━━━━
+
+다음 제출:
+
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/deploy-photo-clone
+git status --short
+git show --stat --oneline 5c5c11a5
+
+5c5c11a5 외 의도하지 않은 운영 코드가 섞였으면 중단.
+
+━━━━━━━━━━━━━━━━━━━━
+2. Render 배포
+━━━━━━━━━━━━━━━━━━━━
+
+5c5c11a5가 포함된 deploy-photo-clone 기준으로 Push/Render 배포.
+
+이미 origin에 Push되어 있다면 불필요한 새 Commit 금지.
+
+Render Live까지 대기.
+
+제출:
+
+- Render Deploy ID
+- 배포 SHA
+- status=Live
+- 시작/완료 시각
+
+━━━━━━━━━━━━━━━━━━━━
+3. Health
+━━━━━━━━━━━━━━━━━━━━
+
+GET /api/health
+GET /api/healthz
+
+둘 다 HTTP 200 확인.
+
+실패 시 중단.
+
+━━━━━━━━━━━━━━━━━━━━
+4. 배포 후 읽기 전용 검증
+━━━━━━━━━━━━━━━━━━━━
+
+운영 DB 변경 없이 실제 API/SELECT로 확인:
+
+- teacher A → 자기 담당 학생 보강만
+- teacher B → 자기 담당 학생 보강만
+- A/B 겹침 없음
+- expired 포함
+- co_teacher 포함
+- pool_admin teacher-mode 자신의 담당반 포함
+- admin API는 pool 전체 유지
+
+가능한 기존 테스트 자격증명만 사용.
+JWT 직접 생성 금지.
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+5. 절대 변경 금지
+━━━━━━━━━━━━━━━━━━━━
+
+- 보강 날짜 -14/+28
+- 선보강
+- 오늘/과거 complete-direct
+- 미래 assign
+- expired confirmation
+- 정원 5/5 보강 허용
+- eligible-classes
+- eligible-occurrences
+- API_BASE
+- Auth/JWT/Login
+- DB schema
+- 일지/AI
+- SWIMNOTE X
+
+━━━━━━━━━━━━━━━━━━━━
+6. OTA
+━━━━━━━━━━━━━━━━━━━━
+
+이번 REQ-5는 서버 waiting API visibility만 변경한다.
+
+앱 코드 변경 없음.
+
+따라서 REQ-5만을 위한 OTA는 하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━
+
+1. 배포 SHA
+2. Render Deploy ID
+3. Live 여부
+4. Health 결과
+5. teacher A 결과
+6. teacher B 결과
+7. expired 결과
+8. co_teacher 결과
+9. admin 무변경 결과
+10. DB 변경 여부
+11. 추가 코드 수정 여부
+
+배포 후 중단.
+
+다음 작업은 별도 Task:
+"보강확정 날짜 다시 선택" 버튼 복구.
+REQ-5와 섞어서 수정하지 않는다.

@@ -1,0 +1,287 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — RESTART STATE RECONCILIATION
+WP-X-RESTART-1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+중요:
+WP-X-RESTART-0의 §15 X 상태 판정은
+과거 Production 검증 결과와 충돌한다.
+
+따라서 X 개발 시작 금지.
+먼저 실제 Production + Repository 기준으로
+기존 X 작업 상태를 재검증한다.
+
+특히 과거에 Replit local/helium DB를 조회하여
+WP1 migration이 없다고 잘못 판정한 전례가 있었으므로
+이번에는 DB SOURCE를 반드시 증명한다.
+
+━━━━━━━━━━━━━━━━━━━━
+1. Production DB 연결원 확인
+━━━━━━━━━━━━━━━━━━━━
+
+절대 heliumdb / Replit local DB를
+Production 판단 근거로 사용하지 말 것.
+
+현재 사용 가능한 DB env를 확인하고:
+
+SUPABASE_DATABASE_URL
+
+이 실제 Production Supabase를 가리키는지 확인.
+
+비밀번호/전체 URL 출력 금지.
+
+제출:
+
+- 사용한 env key 이름
+- DB host 일부(masked)
+- database name
+- SSL 사용 여부
+- 이 연결이 Production Supabase라는 근거
+
+Production DB는 READ ONLY 조회만 한다.
+
+━━━━━━━━━━━━━━━━━━━━
+2. WP1 실제 Production DB 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+swimming_pools에서 다음 X 컬럼 존재 여부 확인:
+
+xmode_entitlement
+xmode_config_status
+xmode_purchased_at
+xmode_subscription_started_at
+xmode_subscription_expires_at
+기타 기존 X migration 컬럼
+
+그리고 다음 X 관련 테이블 실제 존재 여부 확인:
+
+global_template_sets
+audit_logs
+parent_ai_daily_usage
+growth_events
+growth_reports
+
+diary_templates의 scope 관련 constraint도 확인.
+
+각 항목:
+
+EXISTS / MISSING
+
+실제 information_schema 또는 pg catalog 조회 결과 제출.
+
+DB 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 과거 샘플 X 활성화 상태 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+과거 검증 대상 pool:
+
+pool_1784310621737_qryl1x79s
+
+Production READ ONLY 조회.
+
+제출:
+
+- pool name
+- xmode_entitlement
+- xmode_config_status
+- purchased/subscription/payment 관련 일시
+- X activation audit log 존재 여부
+
+과거 기대 상태:
+
+xmode_entitlement = true
+xmode_config_status = READY
+
+실제 현재 값과 비교.
+
+다른 pool 데이터 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+4. WP2 실제 Repository 구현 확인
+━━━━━━━━━━━━━━━━━━━━
+
+단순히 범용 subscription 파일이 있다는 이유로
+PARTIAL 판정하지 말 것.
+
+X Entitlement Sync 관련 실제 코드 검색:
+
+- RevenueCat entitlement
+- X entitlement mapping
+- xmode_entitlement update
+- subscription sync
+- server/client contract
+- 관련 tests
+
+파일/함수/테스트를 제출하고
+
+NOT_STARTED
+PARTIAL
+IMPLEMENTED
+TESTED
+PRODUCTION_APPLIED
+
+중 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+5. WP3 실제 X 설정 UI 확인
+━━━━━━━━━━━━━━━━━━━━
+
+"x-settings.tsx"라는 파일명이 없다는 이유로
+NOT_STARTED 판정 금지.
+
+Repository 전체에서 검색:
+
+xmode
+XMode
+x-mode
+ModeContext
+xmode_config_status
+READY
+NOT_CONFIGURED
+
+실제 X 설정/상태 UI가 어느 화면에 구현되어 있는지 확인.
+
+파일명보다 기능 기준으로 판정.
+
+━━━━━━━━━━━━━━━━━━━━
+6. WP4/WP5 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+WP4:
+Global Template 기능과
+XModeBadge를 혼동하지 말 것.
+
+Global Template:
+- global_template_sets
+- diary_templates scope
+- 관리 API/UI
+
+실제 구현 여부 별도 판정.
+
+WP5:
+X 활성화/잠금/ModeContext/foreground refresh 등
+실제 코드 확인.
+
+특히:
+
+ModeForegroundRefresh
+
+존재 여부 확인.
+
+과거 검증에서 foreground refresh가 구현된 것으로 확인된 적 있음.
+
+━━━━━━━━━━━━━━━━━━━━
+7. WP6 AI Diary V2 재검증
+━━━━━━━━━━━━━━━━━━━━
+
+UI 파일 존재만 보고 PARTIAL 판정 금지.
+
+API SERVER에서 다음 실제 파일/구조 검색:
+
+growth-confidence-config.ts
+ai-pricing.ts
+curriculum-confidence.ts
+curriculum-candidate-search.ts
+match-token.ts
+ai-v1.ts
+wp6.test.ts
+
+확인:
+
+- contract_version 1.3
+- MATCH_TOKEN_SECRET
+- MATCH_TOKEN_KEY_ID
+- HMAC-SHA256 match_token
+- candidate IDs
+- curriculum matching
+- PENDING_REVIEW response
+- DB write 없음
+- 관련 테스트
+
+현재 Repository에 실제 존재하는지 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+8. WP7 현재 상태 확인
+━━━━━━━━━━━━━━━━━━━━
+
+Growth 화면 존재만 보고 PARTIAL 판정하지 말 것.
+
+확인:
+
+- growth_events INSERT 실제 구현 여부
+- growth_match_status 저장값
+- match_token 소비 여부
+- PENDING_REVIEW 명시 insert 여부
+- API route
+- tests
+- app 화면
+
+중요:
+growth_events.growth_match_status DB default가
+AUTO_ACCEPTED인지 실제 schema에서 확인.
+
+WP7 구현 시 명시적으로
+PENDING_REVIEW를 넣어야 하는 구조인지 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+9. WP8 이후
+
+WP8부터는 현재 Repository 실제 구현만 확인.
+
+UI 껍데기와
+서버/DB까지 연결된 구현을 구분한다.
+
+━━━━━━━━━━━━━━━━━━━━
+10. 최종 상태표
+
+다음 형식으로 제출:
+
+WP1
+- DB:
+- Server:
+- App:
+- Tests:
+- Production:
+- FINAL STATUS:
+
+WP2
+...
+
+WP8
+
+각 FINAL STATUS는 반드시
+실제 증거를 근거로 판정.
+
+과거 보고서 복사 금지.
+현재 Production/Repository 실측만 사용.
+
+━━━━━━━━━━━━━━━━━━━━
+11. 재개 지점 제안
+
+검증 후:
+
+- 이미 완료된 WP 재구현 금지
+- Migration 재실행 금지
+- 기존 Production X 데이터를 덮어쓰지 말 것
+
+현재 상태 기준으로
+"다음 실제 미완료 작업 1개"만 제안.
+
+아직 구현하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 절대 금지
+
+- 코드 수정
+- DB write
+- migration 실행
+- Render deploy
+- OTA
+- commit
+- push
+- tag 수정
+
+조사 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

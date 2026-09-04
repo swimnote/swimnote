@@ -1,0 +1,670 @@
+[WP-X1 — SWIMNOTE X TEXT / ICON READABILITY REFINEMENT]
+
+목적:
+
+현재 SWIMNOTE X의 Nautic + Yacht Blue 배경 자체는 유지한다.
+
+이번 작업은 X모드에서:
+
+- 흰색 텍스트가 너무 쨍해서 눈이 피로한 문제
+- 보조 텍스트가 너무 흐린 문제
+- 화면마다 white opacity 사용 규칙이 다른 문제
+- dark blue 위 icon/label 대비 불균형
+- X light surface 위 text hierarchy가 Normal과 섞여 보이는 문제
+
+를 정리한다.
+
+중요:
+
+배경색 / X palette 자체는 변경하지 않는다.
+
+==================================================
+0. CURRENT X PALETTE — LOCK
+==================================================
+
+현재 확정된 X palette:
+
+XT.primary              = #1A4070
+XT.primaryStrong        = #0E2A4E
+XT.surfaceNavySoft      = #1F4C80
+
+XT.accent               = #2A5EA8
+XT.ai                   = #4878BC
+
+XT.tabInactive          = #72A0CC
+
+X background:
+light screen bg         = #EEF3FA
+card surface            = #FFFFFF
+
+이번 WP에서 위 색상 구조 변경 금지.
+
+==================================================
+1. CORE READABILITY PRINCIPLE
+==================================================
+
+목표:
+
+"잘 보이지만 눈이 아프지 않게"
+
+금지:
+
+- 모든 텍스트 #FFFFFF
+- pure white 과다 사용
+- opacity만 제각각 적용
+- 너무 흐린 gray/blue text
+- blue 배경 위 blue text
+- 가독성 때문에 모든 글자를 극단적으로 밝게 처리
+
+X모드는 dark mode가 아니다.
+
+짙은 블루 surface 위에서
+읽기 편한 text hierarchy를 만든다.
+
+==================================================
+2. FINAL DARK-SURFACE TEXT HIERARCHY
+==================================================
+
+현재:
+
+textOnNavy       = #FFFFFF
+textOnNavySoft   = rgba(255,255,255,0.80)
+textOnNavyMuted  = rgba(255,255,255,0.55)
+textOnNavyFaint  = rgba(255,255,255,0.35)
+
+이 구조를 실제 화면 기준으로 재검토한다.
+
+목표 usage:
+
+PRIMARY
+→ title / pool name / 핵심 label
+
+SECONDARY
+→ role / subtitle / 설명
+
+MUTED
+→ 보조 metadata / 낮은 우선순위
+
+DISABLED
+→ 비활성 전용
+
+중요:
+
+textOnNavyFaint는 disabled/decorative 외 사용 금지.
+
+==================================================
+3. PURE WHITE REDUCTION
+==================================================
+
+현재 #FFFFFF primary가 너무 많이 사용되어
+눈이 쨍할 수 있다.
+
+검토:
+
+textOnNavy를
+완전 #FFFFFF 대신
+아주 살짝 눌린 off-white로 조정 가능한지 평가.
+
+예시 방향:
+
+cool white / soft white
+단 contrast 충분히 유지.
+
+정확한 값은 실제 배경:
+
+#1A4070
+#0E2A4E
+#1F4C80
+
+위에서 contrast 계산 후 결정.
+
+중요:
+
+흐릿해지면 안 된다.
+
+==================================================
+4. SECONDARY TEXT REBALANCE
+==================================================
+
+textOnNavySoft 80%가
+일부 화면에서 primary처럼 보이거나
+반대로 white hierarchy가 너무 강하면
+적절한 off-white/blue-white token으로 정리 가능.
+
+opacity-only 방식보다
+가능하면 실제 색 token으로 분리.
+
+예:
+
+textOnDarkPrimary
+textOnDarkSecondary
+textOnDarkMuted
+textOnDarkDisabled
+
+구조로 정리 가능.
+
+단 기존 naming 유지가 더 안전하면
+value만 정리.
+
+==================================================
+5. MUTED TEXT PROTECTION
+==================================================
+
+textOnNavyMuted 55%는
+body text에 사용 금지.
+
+사용 가능:
+
+- timestamp
+- meta
+- low priority hint
+
+중요한 설명
+버튼 label
+role label
+tab label
+
+에는 사용하지 않는다.
+
+==================================================
+6. FAINT TEXT PROTECTION
+==================================================
+
+textOnNavyFaint 35%는
+contrast 부족.
+
+다음 전수조사:
+
+FILES =
+ELEMENTS =
+USAGE =
+
+DISABLED / DECORATIVE 외 사용되면
+상위 token으로 교체.
+
+이번 WP에서
+faint token 자체를 삭제할 필요는 없음.
+
+==================================================
+7. HEADER TEXT AUDIT
+==================================================
+
+모든 X header 확인:
+
+admin
+sub_admin
+teacher
+parent
+
+항목:
+
+pool name
+SWIMNOTE X
+role chip
+Premier
+대표
+switch control
+search/logout
+subtitle
+section label
+
+각각:
+
+PRIMARY
+SECONDARY
+MUTED
+ICON
+
+로 분류 후 통일.
+
+예:
+
+pool name
+→ primary
+
+SWIMNOTE X
+→ primary or accent identity
+
+role / representative
+→ secondary
+
+low-priority helper
+→ muted
+
+==================================================
+8. HEADER ICON AUDIT
+==================================================
+
+현재 header icon 대부분:
+
+XT.textOnNavy
+
+사용.
+
+확인:
+
+- search
+- logout
+- notifications
+- messages
+- switch
+- back
+
+모두 pure white일 필요는 없음.
+
+PRIMARY action icon
+→ dark-primary icon token
+
+SECONDARY icon
+→ secondary dark token
+
+단 actionable icon은
+흐릿하게 만들지 않는다.
+
+==================================================
+9. TAB BAR READABILITY
+==================================================
+
+현재:
+
+tab bar bg
+→ XT.primaryStrong #0E2A4E
+
+active
+→ white 계열
+
+inactive
+→ #72A0CC
+
+실기기 기준으로:
+
+active는 너무 쨍하지 않은지
+inactive는 너무 흐리지 않은지 확인.
+
+조건:
+
+active/inactive 즉시 구분 가능
+inactive도 label/icon 인지 가능
+눈부심 없음
+
+필요 시 token만 미세 조정.
+
+==================================================
+10. X STRONG CARD TEXT
+==================================================
+
+dark Nautic/Yacht feature cards에서:
+
+title
+description
+icon
+badge
+
+text hierarchy 확인.
+
+문제:
+
+title / description 둘 다 white 100%
+또는 description 너무 흐림
+
+금지.
+
+권장:
+
+title
+→ primary dark-surface text
+
+description
+→ secondary
+
+metadata
+→ muted
+
+==================================================
+11. BUTTON TEXT
+==================================================
+
+X Primary CTA:
+
+background
+→ XT.primary
+
+label/icon:
+
+가독성 높은 soft-white 계열.
+
+일반 button label을
+100% pure white로 일괄 처리하지 않는다.
+
+하지만 contrast가 부족하면
+primary text 우선.
+
+==================================================
+12. X LIGHT SURFACE TEXT
+==================================================
+
+X 화면의:
+
+#EEF3FA background
+#FFFFFF cards
+
+위에서는 dark-surface text token 사용 금지.
+
+현재 X light tokens:
+
+XT.text
+XT.textStrong
+XT.textSecondary
+XT.textMuted
+XT.textHint
+
+사용 구조 확인.
+
+X light surface에서도
+Normal C.*와 임의 혼용하지 않게 정리.
+
+목표:
+
+X visual language는 유지하되
+가독성 우선.
+
+==================================================
+13. NORMAL MODE PROTECTION
+==================================================
+
+Normal Sage/Ocean:
+
+C.*
+
+변경 금지.
+
+Normal 텍스트 값 수정 금지.
+
+이번 WP는 X-only.
+
+==================================================
+14. FEATURE / SEMANTIC PROTECTION
+==================================================
+
+변경 금지:
+
+AI Report
+AI Curriculum
+Feed
+Reaction
+Success
+Warning
+Error
+Attendance
+LevelBadge
+Scheduler classification
+User branding
+
+단 그 기능 내부에서도
+일반 설명 text가 X theme text 역할이라면
+해당 text만 mode-aware 가능.
+
+feature identity 자체는 유지.
+
+==================================================
+15. COMMON COMPONENT FIRST
+==================================================
+
+우선 확인:
+
+SubScreenHeader
+ParentScreenHeader
+AppButton
+MainTabs
+FilterChips
+ConfirmModal
+EmptyState
+XModeBadge
+X dashboard cards
+teacher header
+
+공통 component에서
+text/icon hierarchy 수정 가능하면
+source of truth 한 곳 수정.
+
+화면별 opacity 하드코딩 금지.
+
+==================================================
+16. HARDCODE AUDIT
+==================================================
+
+X 관련 화면에서 검색:
+
+#FFFFFF
+rgba(255,255,255,...)
+#72A0CC
+old navy text
+inline opacity
+
+각 사용처 분류:
+
+DARK_PRIMARY
+DARK_SECONDARY
+DARK_MUTED
+DARK_DISABLED
+LIGHT_PRIMARY
+LIGHT_SECONDARY
+FEATURE_FIXED
+SEMANTIC
+AMBIGUOUS
+
+AMBIGUOUS 자동 변경 금지.
+
+==================================================
+17. ACCESSIBILITY
+==================================================
+
+반드시 contrast 측정.
+
+dark backgrounds:
+
+#1A4070
+#0E2A4E
+#1F4C80
+
+위에서:
+
+primary text
+secondary text
+muted text
+action icon
+tab labels
+
+확인.
+
+목표:
+
+primary/body actionable text
+→ AA 수준
+
+secondary
+→ 가능한 AA
+
+muted
+→ low-priority 전용
+
+disabled
+→ 명확히 disabled
+
+==================================================
+18. VISUAL ACCEPTANCE
+==================================================
+
+FAIL:
+
+- 눈에 쨍한 pure white가 화면 전체에 많음
+- secondary가 너무 흐림
+- blue 위 blue라 안 보임
+- header hierarchy 없음
+- tab inactive 안 보임
+- 화면마다 opacity 제각각
+
+PASS:
+
+- title은 선명
+- secondary는 부드럽지만 잘 읽힘
+- muted는 낮은 우선순위
+- icon도 hierarchy가 있음
+- 오래 봐도 눈이 덜 피로함
+- Nautic/Yacht 배경은 그대로 고급스럽게 유지
+
+==================================================
+19. SCOPE LOCK
+==================================================
+
+변경 금지:
+
+X background palette
+layout
+navigation
+ModeContext
+entitlement
+billing
+RevenueCat
+API
+DB
+server
+AI logic
+
+text/icon visual only.
+
+==================================================
+20. TEST MATRIX
+==================================================
+
+X1-1
+admin header readability
+
+X1-2
+teacher header readability
+
+X1-3
+parent header readability
+
+X1-4
+role chip readability
+
+X1-5
+header action icons readability
+
+X1-6
+bottom nav active/inactive
+
+X1-7
+dark feature card title/description
+
+X1-8
+X primary button label
+
+X1-9
+light X card body text
+
+X1-10
+textOnNavyFaint disabled-only
+
+X1-11
+Normal C.* unchanged
+
+X1-12
+feature-fixed unchanged
+
+X1-13
+semantic unchanged
+
+X1-14
+TS 0 new errors
+
+==================================================
+21. DEPLOYMENT
+==================================================
+
+client-only.
+
+server deploy 금지.
+DB 변경 금지.
+
+완료 후:
+
+production OTA
+preview OTA
+
+반복 polling 금지.
+
+==================================================
+22. FINAL REPORT
+==================================================
+
+X_FILES_AUDITED =
+X_FILES_CHANGED =
+
+OLD_TEXT_ON_NAVY =
+NEW_TEXT_ON_NAVY =
+
+OLD_TEXT_ON_NAVY_SOFT =
+NEW_TEXT_ON_NAVY_SOFT =
+
+OLD_TEXT_ON_NAVY_MUTED =
+NEW_TEXT_ON_NAVY_MUTED =
+
+OLD_TEXT_ON_NAVY_FAINT =
+NEW_TEXT_ON_NAVY_FAINT =
+
+PURE_WHITE_USAGE_BEFORE =
+PURE_WHITE_USAGE_AFTER =
+
+FAINT_NON_DISABLED_BEFORE =
+FAINT_NON_DISABLED_AFTER =
+
+HEADER_PRIMARY_STYLE =
+HEADER_SECONDARY_STYLE =
+HEADER_MUTED_STYLE =
+HEADER_ICON_STYLE =
+
+TAB_ACTIVE_STYLE =
+TAB_INACTIVE_STYLE =
+
+DARK_CARD_TITLE_STYLE =
+DARK_CARD_DESCRIPTION_STYLE =
+
+X_BUTTON_LABEL_STYLE =
+X_LIGHT_SURFACE_TEXT_STYLE =
+
+CONTRAST_RESULTS =
+
+NORMAL_CHANGED =
+FEATURE_FIXED_CHANGED =
+SEMANTIC_CHANGED =
+X_BACKGROUND_CHANGED =
+
+LAYOUT_CHANGED =
+MODE_CONTEXT_CHANGED =
+BUSINESS_LOGIC_CHANGED =
+
+SERVER_CHANGE =
+DB_CHANGE =
+
+TEST_RESULT =
+COMMIT_SHA =
+PRODUCTION_OTA =
+PREVIEW_OTA =
+
+성공 조건:
+
+NORMAL_CHANGED = NO
+FEATURE_FIXED_CHANGED = NO
+SEMANTIC_CHANGED = NO
+X_BACKGROUND_CHANGED = NO
+LAYOUT_CHANGED = NO
+MODE_CONTEXT_CHANGED = NO
+BUSINESS_LOGIC_CHANGED = NO
+
+FAINT_NON_DISABLED_AFTER = 0
+
+완료:
+
+WP_X1_X_TEXT_ICON_READABILITY_REFINEMENT_COMPLETE ✅

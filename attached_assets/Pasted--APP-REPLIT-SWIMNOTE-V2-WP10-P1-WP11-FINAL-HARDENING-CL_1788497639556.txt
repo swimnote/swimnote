@@ -1,0 +1,864 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE V2
+# WP10-P1 + WP11 FINAL HARDENING / CLOSURE
+# SERVER DATA CONSISTENCY + X OPERATIONS PARTIAL FAILURE VALIDATION
+# MINIMAL FIX ONLY
+
+============================================================
+절대 작업 기준
+============================================================
+
+PROJECT:
+SWIMNOTE
+
+PRODUCT:
+SWIMNOTE V2
+
+APP RUNTIME:
+2.1.0
+
+WORK FROM:
+CURRENT LATEST V2 HEAD ONLY
+
+Known lineage:
+
+STEP 0:
+3fea9f6a
+
+WP10:
+de8e16d4
+
+WP11 latest:
+67515a67
+
+반드시 현재 HEAD에서
+위 commit들이 ancestor인지 확인.
+
+브랜치명 release/v2.0.0만 보고
+과거 commit으로 이동하지 말 것.
+
+DO NOT:
+- checkout old commit
+- revert
+- reset
+- touch 1.6.3
+- redesign current architecture
+
+1.6.3:
+NO TOUCH
+
+============================================================
+현재 목적
+============================================================
+
+WP11 기능 방향은 승인됨.
+
+이번 작업은 새 기능 추가가 아니라
+
+A.
+WP10 monthly KPI concurrency/idempotency 최종 검증 및 필요 시 최소 보강
+
+B.
+WP11 safeXMetric partial failure 구조의 실제 안정성 검증
+
+만 수행.
+
+두 작업 PASS 후:
+
+WP10:
+CLOSED
+
+WP11:
+CLOSED
+
+처리할 예정.
+
+============================================================
+500개 수영장 공통 원칙
+============================================================
+
+두 가지 모두 만족해야 한다.
+
+1.
+각 pool 데이터 격리
+
+2.
+향후 super_admin에서
+500개 pool 전체 월별 KPI를
+x_monthly_operational_snapshots에서
+단일 aggregate query로 조회 가능
+
+모든 pool 데이터 source:
+
+authenticated server context
+→ swimming_pool_id
+→ SQL pool condition
+
+client supplied pool_id:
+source of truth 금지.
+
+Cross-pool 1건:
+P0 FAIL.
+
+============================================================
+PART A
+WP10 MONTHLY KPI HARDENING
+============================================================
+
+현재 구현:
+
+parent curriculum search 성공
+→ event_logs 기록
+→ fire-and-forget monthly recount
+→ COUNT raw events
+→ x_monthly_operational_snapshots UPSERT overwrite
+
+현재 코드 그대로 실제 구현을 확인.
+
+------------------------------------------------------------
+A1. stale overwrite 확인
+------------------------------------------------------------
+
+동일 pool/month에서:
+
+Search A event insert
+→ recount A
+
+Search B event insert
+→ recount B
+
+B COUNT=2
+→ UPSERT 2
+
+그 뒤 A가 오래된 COUNT=1을
+UPSERT 할 가능성이 있는지 검증.
+
+가능하면 수정 필수.
+
+목표:
+
+동일 pool/month concurrent recount에서도
+snapshot 값이 raw source보다 뒤로 감소하지 않음.
+
+------------------------------------------------------------
+A2. lock 방식
+------------------------------------------------------------
+
+현재 프로젝트에 기존:
+
+- PostgreSQL advisory lock
+- transaction lock
+- distributed DB lock
+
+helper가 있으면 재사용.
+
+새 framework 만들지 말 것.
+
+필요한 lock scope:
+
+swimming_pool_id
++
+KST year
++
+month
+
+동일 pool/month만 serialize.
+
+Pool A와 Pool B는
+서로 block하면 안 됨.
+
+------------------------------------------------------------
+A3. recount transaction
+------------------------------------------------------------
+
+권장:
+
+BEGIN
+
+→ pool/month scoped lock
+
+→ raw event_logs COUNT(*)
+
+→ COUNT(DISTINCT actor_id)
+
+→ snapshot UPSERT overwrite
+
+→ COMMIT
+
+목표:
+
+SELECT와 UPSERT 사이 stale writer 차단.
+
+------------------------------------------------------------
+A4. fire-and-forget
+------------------------------------------------------------
+
+학부모 검색 API를 KPI 때문에
+불필요하게 느리게 만들 필요는 없음.
+
+fire-and-forget 유지 가능.
+
+하지만 반드시:
+
+.catch(...)
+structured error log
+
+필수.
+
+KPI refresh 실패가
+학부모 curriculum search 본 기능 실패로
+전파되면 안 됨.
+
+------------------------------------------------------------
+A5. retry duplicate 검증
+------------------------------------------------------------
+
+중요:
+
+recount는
+raw event_logs에 실제 중복 row가 있으면
+그 row까지 COUNT한다.
+
+따라서:
+
+"retry여도 recount가 자동 보정"
+
+이라고 가정하지 말 것.
+
+확인:
+
+logical search retry가
+event_logs를 두 번 생성할 수 있는가?
+
+request_id:
+...
+
+trace_id:
+...
+
+existing dedupe:
+...
+
+stable event idempotency:
+...
+
+안전한 기존 dedupe key가 없으면
+이번 WP에서 억지 unique constraint 만들지 말 것.
+
+정확한 현재 정책을 보고.
+
+------------------------------------------------------------
+A6. concurrency test
+------------------------------------------------------------
+
+반드시 development에서 검증:
+
+1.
+동일 parent 검색 2회
+
+expected:
+search_count = 2
+unique parent = 1
+
+2.
+다른 parent 2명
+
+expected:
+unique parent = 2
+
+3.
+동일 pool concurrent search 10회
+
+expected:
+snapshot == raw source recount
+
+4.
+concurrent recount 여러 번
+
+expected:
+최종 snapshot 감소 없음
+
+5.
+Pool A + Pool B 동시
+
+expected:
+각각 독립
+
+6.
+recount failure 강제
+
+expected:
+parent search 정상
+unhandled rejection 0
+
+============================================================
+PART B
+WP11 X OPERATIONS FINAL VALIDATION
+============================================================
+
+현재 구현:
+
+GET /api/admin/x-hub/summary
+
+Promise.all atomic failure 제거
+
+→ safeXMetric 기반
+→ individual metric failure isolation
+→ HTTP 200 partial response
+
+APP:
+
+SWIMNOTE X 운영현황
+
+unavailable[]
+null → —
+partial warning banner
+
+이 구조를 유지.
+
+새 redesign 금지.
+
+------------------------------------------------------------
+B1. 실제 13 metric 목록 제출
+------------------------------------------------------------
+
+safeXMetric로 감싼
+실제 metric 13개를 전부 보고.
+
+각 항목:
+
+Metric:
+...
+
+Source:
+...
+
+Pool condition:
+...
+
+Monthly snapshot / LIVE:
+...
+
+Failure fallback:
+...
+
+운영 화면에서 같은 KPI를
+다른 source로 중복 계산하지 않는지 확인.
+
+------------------------------------------------------------
+B2. monthly snapshot 사용
+------------------------------------------------------------
+
+현재 monthly KPI 중:
+
+parent curriculum search count
+parent curriculum user count
+
+는:
+
+x_monthly_operational_snapshots
+
+를 source로 사용.
+
+확인:
+
+pool admin:
+WHERE swimming_pool_id = authenticated pool
+AND year
+AND month
+
+super admin future:
+WHERE year/month
+GROUP BY / SUM
+
+N+1:
+NO
+
+pool API loop:
+NO
+
+------------------------------------------------------------
+B3. AI diary null 유지
+------------------------------------------------------------
+
+현재 class_diaries에
+정확한 ai_generated 식별이 아직 없으므로
+
+AI diary count:
+null / unavailable
+
+유지.
+
+0으로 표시 금지.
+
+WP9 완료 후
+동일 metric을 실제 monthly snapshot에 연결할 예정.
+
+이번 WP에서
+추정 데이터 생성 금지.
+
+------------------------------------------------------------
+B4. partial failure 테스트
+------------------------------------------------------------
+
+실제로 metric 하나씩 또는 test 가능한 query 하나를
+의도적으로 failure/mock하여 검증.
+
+expected:
+
+HTTP:
+200
+
+정상 metric:
+그대로 반환
+
+실패 metric:
+null
+
+unavailable:
+해당 metric 포함
+
+APP:
+—
++
+partial 안내
+
+전체 서버오류 화면:
+NO
+
+------------------------------------------------------------
+B5. full failure 테스트
+------------------------------------------------------------
+
+모든 metric이 실패하는 극단 상황도 확인.
+
+이 경우 현재 response contract상:
+
+HTTP 200 partial
+
+이 맞는지
+
+아니면
+핵심 base/auth query 자체가 실패할 경우에는
+HTTP 5xx가 맞는지
+
+구분.
+
+원칙:
+
+인증 실패:
+401/403
+
+pool context failure:
+ERROR
+
+DB 자체 unavailable:
+ERROR 가능
+
+개별 통계 query failure:
+200 PARTIAL
+
+모든 오류를 무조건 200으로 삼키지 말 것.
+
+------------------------------------------------------------
+B6. query timeout
+------------------------------------------------------------
+
+safeXMetric에
+query timeout이 실제 존재하는지 확인.
+
+YES:
+값 보고.
+
+NO:
+현재 DB driver/query 구조에서
+개별 3초 timeout 등을 추가하는 것이
+안전한지 검토.
+
+중요:
+
+timeout framework 새로 만들지 말 것.
+
+기존 timeout helper가 있으면 재사용.
+
+없고 필요성이 낮다면
+이번에 과설계하지 말고 보고만.
+
+------------------------------------------------------------
+B7. query fan-out
+------------------------------------------------------------
+
+현재 13개 query 병렬 구조가
+월 snapshot 도입 이후에도 필요한지 확인.
+
+이번 WP에서 대형 리팩터링 금지.
+
+하지만 보고:
+
+Monthly snapshot으로 이미 통합 가능한 metric:
+...
+
+Live query가 반드시 필요한 metric:
+...
+
+향후 WP9/WP8 완료 후
+snapshot 1회 조회로 줄일 수 있는 metric:
+...
+
+현재 구조가 정상이라면 그대로 유지.
+
+============================================================
+SUPER ADMIN 경로
+============================================================
+
+반드시 다시 확인.
+
+x_monthly_operational_snapshots:
+
+(swimming_pool_id, year, month)
+
+pool별 row
+
+↓
+
+super_admin:
+
+WHERE year = ?
+AND month = ?
+
+SUM(...)
+GROUP BY year,month
+
+한 query.
+
+WP11 구현이
+이를 우회하는 별도 KPI 저장소를
+새로 만들었으면 FAIL.
+
+새 metric table:
+0
+
+새 duplicate KPI path:
+0
+
+============================================================
+APP / OTA 규칙
+============================================================
+
+이번 hardening에서
+APP 코드 변경이 없다면:
+
+OTA:
+NOT REQUIRED
+
+WP11 기존 APP OTA:
+
+latest reported commit:
+67515a67
+
+iOS OTA:
+01a06ac2...
+
+runtime:
+2.1.0
+
+production-v2
+
+현재 Replit에서
+정확한 full OTA Group ID / Update ID /
+Export Source SHA를 확인하여
+완료보고에 넣을 것.
+
+WP11 APP OTA source SHA가
+67515a67 또는 실제 WP11 APP commit과
+일치하는지 검증.
+
+만약 이번 hardening 중
+APP 코드 변경 발생:
+
+test
+→ commit
+→ 즉시 iOS OTA
+→ SHA match
+
+Runtime:
+2.1.0
+
+Channel/Branch:
+production-v2
+
+Android:
+NOT PUBLISHED
+
+============================================================
+SERVER 배포
+============================================================
+
+SERVER:
+
+current V2 HEAD
+→ minimal fix
+→ test
+→ commit
+→ push
+
+Render production:
+NO
+
+사용자 수동 배포.
+
+============================================================
+DB
+============================================================
+
+새 migration:
+NO
+
+STEP 0 table:
+유지
+
+DROP:
+NO
+
+RENAME:
+NO
+
+DELETE:
+NO
+
+============================================================
+완료보고
+============================================================
+
+# WP10-P1 + WP11 FINAL CLOSURE REPORT
+
+Current Branch:
+...
+
+HEAD Before:
+...
+
+3fea9f6a ancestor:
+YES / NO
+
+de8e16d4 ancestor:
+YES / NO
+
+67515a67 ancestor:
+YES / NO
+
+HEAD After:
+...
+
+Commit:
+...
+
+============================================================
+WP10 KPI CONCURRENCY
+============================================================
+
+Current recount implementation:
+...
+
+Fire-and-forget:
+YES / NO
+
+Rejection handled:
+YES / NO
+
+Stale overwrite previously possible:
+YES / NO
+
+Final lock:
+...
+
+Lock key scope:
+...
+
+Different pools block each other:
+NO / YES
+
+Transaction:
+...
+
+Retry duplicate possible:
+YES / NO
+
+Existing dedupe key:
+...
+
+Recount fixes duplicated raw events:
+YES / NO
+
+Final event policy:
+...
+
+10 concurrent search:
+PASS / FAIL
+
+Concurrent recount:
+PASS / FAIL
+
+Pool A/B:
+PASS / FAIL
+
+Failure isolation:
+PASS / FAIL
+
+Raw vs snapshot consistency:
+PASS / FAIL
+
+============================================================
+WP11 METRICS
+============================================================
+
+Metric 1:
+source:
+scope:
+snapshot/live:
+fallback:
+
+...
+
+Metric 13:
+...
+
+============================================================
+WP11 PARTIAL FAILURE
+============================================================
+
+Single metric failure:
+PASS / FAIL
+
+HTTP:
+...
+
+Other metrics preserved:
+YES / NO
+
+Failed metric null:
+YES / NO
+
+unavailable populated:
+YES / NO
+
+APP partial banner:
+PASS / FAIL
+
+All-error semantics:
+...
+
+Auth semantics:
+...
+
+============================================================
+WP11 PERFORMANCE
+============================================================
+
+Monthly snapshot metrics:
+...
+
+Live metrics:
+...
+
+Future snapshot-convertible:
+...
+
+N+1:
+NO / YES
+
+Cross-pool:
+0 / ...
+
+Super-admin single aggregate path:
+PASS / FAIL
+
+============================================================
+APP
+============================================================
+
+APP modified this hardening:
+YES / NO
+
+WP11 title:
+SWIMNOTE X 운영현황
+
+AI diary unavailable before WP9:
+PASS / FAIL
+
+null shown as —:
+PASS / FAIL
+
+============================================================
+OTA
+============================================================
+
+WP11 Platform:
+iOS
+
+Runtime:
+2.1.0
+
+Channel:
+production-v2
+
+OTA Group ID:
+...
+
+iOS Update ID:
+...
+
+WP11 APP Commit SHA:
+...
+
+OTA Export Source SHA:
+...
+
+SHA Match:
+PASS / FAIL
+
+Android OTA:
+NOT PUBLISHED
+
+If new APP change:
+new OTA:
+...
+
+============================================================
+SERVER
+============================================================
+
+Tests:
+PASS / FAIL
+
+Boot:
+PASS / FAIL
+
+Pushed:
+YES / NO
+
+Render production:
+NO
+
+============================================================
+FINAL
+============================================================
+
+WP10 server 500:
+CLOSED
+
+WP10 monthly KPI:
+CLOSED / BLOCKED
+
+WP11 partial failure:
+CLOSED / BLOCKED
+
+WP11 operations dashboard:
+CLOSED / BLOCKED
+
+Super-admin aggregation path:
+PASS / FAIL
+
+FINAL STATUS:
+WP10 + WP11 FULLY CLOSED / BLOCKED

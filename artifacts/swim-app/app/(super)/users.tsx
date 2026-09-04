@@ -2,15 +2,12 @@
  * (super)/users.tsx — 플랫폼 관리자 계정 관리
  * 실 API 연결: GET/POST/PATCH /super/platform-users
  */
-import { Shield, SlidersHorizontal, UserPlus, Users } from "lucide-react-native";
 import { LucideIcon } from "@/components/common/LucideIcon";
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+const C = Colors.light;
 import { useAuth, apiRequest } from "@/context/AuthContext";
 import { ModalSheet } from "@/components/common/ModalSheet";
 import { useAuditLogStore } from "@/store/auditLogStore";
@@ -50,8 +47,8 @@ const PERM_LABELS: { key: keyof Permissions; label: string; desc: string; icon: 
 ];
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
-  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: "#E6FAF8" },
-  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: "#E6FFFA" },
+  super_admin:    { label: "슈퍼관리자",  color: "#7C3AED", bg: C.brandSoft },
+  platform_admin: { label: "플랫폼관리자",color: "#4EA7D8", bg: C.brandSoft },
 };
 
 
@@ -164,8 +161,8 @@ export default function UsersScreen() {
       <View style={{ gap: 8 }}>
         {PERM_LABELS.map(({ key, label, desc, icon }) => (
           <View key={key} style={[ps.row, { opacity: disabled ? 0.5 : 1 }]}>
-            <View style={[ps.icon, { backgroundColor: perms[key] ? "#E6FFFA" : "#FFFFFF" }]}>
-              <LucideIcon name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : "#64748B"} />
+            <View style={[ps.icon, { backgroundColor: perms[key] ? C.brandSoft : "#FFFFFF" }]}>
+              <LucideIcon name={icon as any} size={15} color={perms[key] ? "#4EA7D8" : C.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[ps.permLabel, { color: C.text }]}>{label}</Text>
@@ -208,9 +205,9 @@ export default function UsersScreen() {
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>계정 및 권한 관리</Text>
         </View>
         {isSuperAdmin && (
-          <Pressable style={[styles.addBtn, { backgroundColor: C.button }]}
+          <Pressable style={[styles.addBtn, { backgroundColor: "#7C3AED" }]}
             onPress={() => { setShowCreate(true); setError(""); }}>
-            <UserPlus size={16} color="#fff" />
+            <LucideIcon name="user-plus" size={16} color="#fff" />
             <Text style={styles.addBtnText}>추가</Text>
           </Pressable>
         )}
@@ -234,7 +231,7 @@ export default function UsersScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Users size={40} color={C.textMuted} />
+            <LucideIcon name="users" size={40} color={C.textMuted} />
             <Text style={[styles.emptyText, { color: C.textMuted }]}>등록된 관리자가 없습니다</Text>
           </View>
         }
@@ -260,13 +257,13 @@ export default function UsersScreen() {
                   <Pressable
                     style={({ pressed }) => [styles.editBtn, { opacity: pressed ? 0.6 : 1 }]}
                     onPress={() => openEdit(item)}>
-                    <SlidersHorizontal size={16} color="#4EA7D8" />
+                    <LucideIcon name="sliders" size={16} color="#4EA7D8" />
                   </Pressable>
                 )}
               </View>
               {isSelf ? (
                 <View style={ps.superTag}>
-                  <Shield size={12} color="#7C3AED" />
+                  <LucideIcon name="shield" size={12} color="#7C3AED" />
                   <Text style={[ps.superTagText, { color: "#7C3AED" }]}>모든 권한 보유</Text>
                 </View>
               ) : (
@@ -302,7 +299,7 @@ export default function UsersScreen() {
           <Text style={[styles.permSectionTitle, { color: C.text }]}>초기 권한 설정</Text>
           <PermToggle perms={formPerms} setPerms={setFormPerms} />
         </View>
-        <Pressable style={[styles.saveBtn, { backgroundColor: C.button, opacity: creating ? 0.6 : 0.85 }]}
+        <Pressable style={[styles.saveBtn, { backgroundColor: "#7C3AED", opacity: creating ? 0.6 : 0.85 }]}
           onPress={handleCreate} disabled={creating}>
           {creating
             ? <ActivityIndicator color="#fff" size="small" />
@@ -337,8 +334,8 @@ const ps = StyleSheet.create({
   icon:         { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   permLabel:    { fontSize: 13, fontFamily: "Pretendard-Regular" },
   permDesc:     { fontSize: 11, fontFamily: "Pretendard-Regular", marginTop: 1 },
-  badge:        { backgroundColor: "#E6FFFA", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: "#0F172A" },
+  badge:        { backgroundColor: C.brandSoft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeText:    { fontSize: 10, fontFamily: "Pretendard-Regular", color: C.textPrimary },
   noPerm:       { fontSize: 12, fontFamily: "Pretendard-Regular", marginTop: 6, fontStyle: "italic" },
   superTag:     { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
   superTagText: { fontSize: 11, fontFamily: "Pretendard-Regular" },
@@ -363,7 +360,7 @@ const styles = StyleSheet.create({
   userEmail:       { fontSize: 12, fontFamily: "Pretendard-Regular" },
   roleBadge:       { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
   roleText:        { fontSize: 10, fontFamily: "Pretendard-Regular" },
-  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#E6FFFA",
+  editBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: C.brandSoft,
                      alignItems: "center", justifyContent: "center" },
   empty:           { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
   emptyText:       { fontSize: 15, fontFamily: "Pretendard-Regular" },

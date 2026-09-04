@@ -1,0 +1,331 @@
+[WP-PRO-01 — PROFESSIONAL RETRIEVAL ONE-SHOT AUDIT]
+
+목적:
+약 20,000건의 SWIMNOTE Professional Knowledge DB에서
+검색 실패/누락이 발생하는 실제 원인을 분류하고,
+다음 수정 Step에서 손댈 지점을 정확히 하나씩 확정한다.
+
+이번 Step에서는 코드 수정 금지.
+진단만 수행한다.
+
+──────────────────────────────────
+0. 작업 환경
+
+반드시 Professional AI Engine이 있는
+별도 Replit AI 환경에서 수행한다.
+
+APP repo에서 Professional DB를 새로 찾거나
+복제하려 하지 않는다.
+
+Professional DB가 APP repo에 없다는 이유로
+"DB 없음" 판정 금지.
+
+──────────────────────────────────
+1. 크레딧 절약
+
+전체 repo 감사 금지.
+20k DB 전체 내용 덤프 금지.
+전수 LLM 분석 금지.
+
+최소 확인 대상:
+
+- Professional retrieval entry function
+- normalization 함수
+- keyword/lexical search
+- semantic/vector search가 있다면 해당 함수
+- filter
+- threshold
+- ranking
+- 최종 top-k 생성부
+- 실제 knowledge store/index 연결부
+
+이미 retrieval 경로를 찾으면
+주변 unrelated 파일 조사하지 않는다.
+
+──────────────────────────────────
+2. 먼저 현재 Pipeline Map 작성
+
+실제 코드 기준으로 다음 흐름만 작성:
+
+query
+→ normalization
+→ lexical/keyword retrieval
+→ semantic retrieval (존재 시)
+→ merge
+→ filter
+→ threshold
+→ ranking
+→ top-k
+→ output
+
+없는 단계는 억지로 만들어 쓰지 않는다.
+
+각 단계에:
+- 실제 파일
+- 함수명
+- candidate 수 변화
+
+만 기록.
+
+──────────────────────────────────
+3. DB / Index 상태 최소 확인
+
+전체 20k row를 읽지 않는다.
+
+다음 숫자만 확인:
+
+- active professional knowledge count
+- searchable/indexed count
+- lexical index 존재 여부
+- semantic/vector index 존재 여부
+- embedding coverage가 있다면 indexed count / missing count
+- 비활성/제외 건수
+
+목표:
+DB에는 있는데 검색 대상에서 빠지는 데이터가 있는지 확인.
+
+──────────────────────────────────
+4. 실패 원인 분류 체계
+
+모든 실패는 아래 중 하나의 PRIMARY CAUSE로만 분류한다.
+
+1. INDEX_MISSING
+   DB에는 있으나 검색 index/searchable set에 없음
+
+2. NORMALIZATION_MISS
+   query 또는 knowledge normalization 문제
+
+3. KEYWORD_MISS
+   lexical/keyword matching 실패
+
+4. SEMANTIC_MISS
+   의미상 관련 있지만 semantic retrieval이 못 찾음
+
+5. FILTER_DROP
+   candidate까지 올라왔으나 filter에서 제거
+
+6. THRESHOLD_DROP
+   candidate이나 threshold 때문에 제거
+
+7. RANKING_DROP
+   후보에는 있으나 ranking에서 top-k 밖으로 밀림
+
+한 query에 여러 문제가 보여도
+가장 앞단의 실제 실패 원인 하나를 PRIMARY로 지정.
+
+"검색이 안 됨" 같은 모호한 판정 금지.
+
+──────────────────────────────────
+5. Diagnostic Query Set
+
+무작위 20k 전수 테스트 금지.
+
+기존 Professional DB에서
+실제 존재하는 knowledge를 기준으로
+최소 12~20개 진단 query만 만든다.
+
+다음 유형을 골고루 포함:
+
+A. exact terminology
+B. 띄어쓰기/표기 변형
+C. 현장 선생님식 짧은 메모
+D. 동의어/표현 변형
+E. 증상 중심 질문
+F. 원인 중심 질문
+G. 교정/드릴 중심 질문
+H. 복합 질문
+I. 영법/기술명이 생략된 문맥형 표현
+
+중요:
+정답 knowledge_id가 실제 DB에 존재하는 query만
+ground-truth 진단에 사용한다.
+
+AI가 정답을 창작하지 않는다.
+
+──────────────────────────────────
+6. Query별 추적
+
+각 query마다 아래만 기록:
+
+- query
+- expected knowledge_id
+- normalization result
+- lexical candidate rank
+- semantic candidate rank (있으면)
+- filter 전 존재 여부
+- threshold 전 score
+- final rank
+- final top-k 포함 여부
+- PRIMARY CAUSE
+
+목표는 "왜 빠졌는지"를 찾는 것.
+
+──────────────────────────────────
+7. Candidate 수 추적
+
+가능하면 각 단계별:
+
+raw candidates
+→ normalized candidates
+→ lexical
+→ semantic
+→ merged
+→ filtered
+→ threshold passed
+→ final top-k
+
+개수를 기록한다.
+
+대량 로그 출력 금지.
+count와 expected KI의 위치만 보면 된다.
+
+──────────────────────────────────
+8. 성능 기준
+
+이번 Step에서 새로운 목표 threshold를 정하지 않는다.
+
+우선 현재 시스템의 실제:
+
+- hit@k
+- expected KI final 포함률
+- exact query 성공률
+- semantic variation 성공률
+- average retrieval latency
+
+를 진단 세트에서 측정.
+
+가능하면:
+Hit@5
+Hit@10
+Hit@20
+
+정도만 기록.
+
+새 benchmark framework 만들지 않는다.
+
+──────────────────────────────────
+9. LLM 사용
+
+이번 audit 자체를 위해
+20k DB를 LLM에 보내지 않는다.
+
+현재 retrieval pipeline 내부에서 이미 AI가 사용된다면
+그 부분은 현행 그대로 관찰만 한다.
+
+새 Nano reranker 추가 금지.
+새 embedding API 호출 금지.
+
+──────────────────────────────────
+10. 결과 우선순위
+
+마지막에 실패 원인별 개수:
+
+INDEX_MISSING
+NORMALIZATION_MISS
+KEYWORD_MISS
+SEMANTIC_MISS
+FILTER_DROP
+THRESHOLD_DROP
+RANKING_DROP
+
+를 집계한다.
+
+그리고 다음 Step에서 수정할 우선순위 TOP 1~3만 제시한다.
+
+중요:
+한 번에 여러 구조를 뜯는 계획 금지.
+
+예:
+
+1위 SEMANTIC_MISS 7건
+2위 RANKING_DROP 3건
+3위 NORMALIZATION_MISS 1건
+
+→ 다음 Step은 SEMANTIC_MISS 하나만 수정
+
+방식.
+
+──────────────────────────────────
+11. 절대 금지
+
+- APP repo 수정
+- Professional DB 내용 변경
+- DB migration
+- index rebuild
+- embedding 재생성
+- threshold 변경
+- ranking 변경
+- regex 대량 추가
+- synonym dictionary 대량 추가
+- 새로운 vector DB
+- 새로운 AI model
+- Nano reranker 구현
+- 전체 20k LLM 전송
+- production deploy
+
+이번 Step은 READ-ONLY AUDIT다.
+
+──────────────────────────────────
+12. 완료 보고
+
+[WP-PRO-01 PROFESSIONAL RETRIEVAL AUDIT REPORT]
+
+## 1. Result
+PASS / FAIL
+
+## 2. Environment
+- AI Engine branch/SHA
+- Professional DB active count
+
+## 3. Current Retrieval Pipeline
+Stage | file | function | 역할
+
+## 4. Index Coverage
+- searchable count
+- lexical index
+- semantic/vector index
+- missing coverage
+
+## 5. Diagnostic Set
+- query count
+- 유형 분포
+
+## 6. Retrieval Metrics
+- Hit@5
+- Hit@10
+- Hit@20
+- semantic variation success
+- avg latency
+
+## 7. Failure Classification
+
+Cause | Count
+INDEX_MISSING |
+NORMALIZATION_MISS |
+KEYWORD_MISS |
+SEMANTIC_MISS |
+FILTER_DROP |
+THRESHOLD_DROP |
+RANKING_DROP |
+
+## 8. Failed Cases
+
+각 실패마다:
+- query
+- expected KI
+- 실제 candidate/rank
+- PRIMARY CAUSE
+- 근거
+
+## 9. Top Priorities
+수정 우선순위 최대 3개.
+
+## 10. Changed Files
+NONE
+
+## 11. Verification
+READ-ONLY AUDIT CONFIRMED
+
+STOP.
+
+코드 수정 및 다음 단계 선행 금지.

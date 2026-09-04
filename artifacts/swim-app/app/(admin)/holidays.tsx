@@ -3,14 +3,13 @@
  * 
  * 달력에서 휴무일 선택/취소
  * 선택된 날짜는 다음 달 수업 생성 시 제외
+ * 월별 휴무일 확정 기능 포함
  */
-import { ChevronLeft, ChevronRight, Info, X } from "lucide-react-native";
-import { router } from "expo-router";
+import { LucideIcon } from "@/components/common/LucideIcon";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
-} from "react-native";
+import {ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View} from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import { apiRequest, useAuth } from "@/context/AuthContext";
@@ -20,26 +19,49 @@ import { SubScreenHeader } from "@/components/common/SubScreenHeader";
 const C = Colors.light;
 
 interface Holiday { id: string; holiday_date: string; reason: string | null; }
+interface ConfirmStatus { confirmed: boolean; confirmed_at: string | null; }
 
 function monthStr(y: number, m: number) { return `${y}-${String(m).padStart(2, "0")}`; }
 function getDaysInMonth(y: number, m: number) { return new Date(y, m, 0).getDate(); }
 function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m - 1, 1).getDay(); }
 function dateStr(y: number, m: number, d: number) { return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
+function fmtConfirmedAt(iso: string) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
 
 export default function HolidaysScreen() {
   const { token, adminUser } = useAuth();
   const poolId = (adminUser as any)?.swimming_pool_id || "";
   const { themeColor } = useBrand();
   const insets = useSafeAreaInsets();
+  const { month: monthParam } = useLocalSearchParams<{ month?: string }>();
+
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
+  const initYear  = monthParam ? parseInt(monthParam.split("-")[0]) : today.getFullYear();
+  const initMonth = monthParam ? parseInt(monthParam.split("-")[1]) : today.getMonth() + 1;
+
+  const [year, setYear] = useState(initYear);
+  const [month, setMonth] = useState(initMonth);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [reasonModal, setReasonModal] = useState(false);
   const [reason, setReason] = useState("");
+  const [confirmStatus, setConfirmStatus] = useState<ConfirmStatus>({ confirmed: false, confirmed_at: null });
+  const [confirming, setConfirming] = useState(false);
+
+  const loadConfirmStatus = useCallback(async (y: number, m: number) => {
+    try {
+      const ym = monthStr(y, m);
+      const res = await apiRequest(token, `/holidays/confirm-status?pool_id=${poolId}&month=${ym}`);
+      if (res.ok) {
+        const d = await res.json();
+        setConfirmStatus({ confirmed: d.confirmed, confirmed_at: d.confirmed_at });
+      }
+    } catch (e) { console.error(e); }
+  }, [token, poolId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +72,7 @@ export default function HolidaysScreen() {
     finally { setLoading(false); }
   }, [token, poolId, year, month]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadConfirmStatus(year, month); }, [load, loadConfirmStatus]);
 
   function isHoliday(d: string) { return holidays.some(h => h.holiday_date === d); }
   function getHoliday(d: string) { return holidays.find(h => h.holiday_date === d); }
@@ -62,6 +84,7 @@ export default function HolidaysScreen() {
       try {
         await apiRequest(token, `/holidays/${existing.id}`, { method: "DELETE" });
         setHolidays(prev => prev.filter(h => h.id !== existing.id));
+        setConfirmStatus({ confirmed: false, confirmed_at: null });
       } finally { setSaving(null); }
     } else {
       setSelectedDate(d);
@@ -72,6 +95,7 @@ export default function HolidaysScreen() {
 
   async function handleAddHoliday() {
     if (!selectedDate) return;
+    Keyboard.dismiss();
     setSaving(selectedDate);
     setReasonModal(false);
     try {
@@ -83,56 +107,81 @@ export default function HolidaysScreen() {
       if (res.ok) {
         const d = await res.json();
         setHolidays(prev => [...prev, d.holiday].filter(Boolean));
+        setConfirmStatus({ confirmed: false, confirmed_at: null });
       }
     } finally { setSaving(null); setSelectedDate(null); }
   }
 
+  async function handleConfirm() {
+    setConfirming(true);
+    try {
+      const ym = monthStr(year, month);
+      const res = await apiRequest(token, "/holidays/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pool_id: poolId, target_month: ym }),
+      });
+      if (res.ok) {
+        await loadConfirmStatus(year, month);
+      } else {
+        Alert.alert("오류", "확정 처리 중 오류가 발생했습니다.");
+      }
+    } catch (e) {
+      Alert.alert("오류", "네트워크 오류가 발생했습니다.");
+    } finally { setConfirming(false); }
+  }
+
   function changeMonth(delta: number) {
     const d = new Date(year, month - 1 + delta, 1);
-    setYear(d.getFullYear()); setMonth(d.getMonth() + 1);
+    const ny = d.getFullYear();
+    const nm = d.getMonth() + 1;
+    setYear(ny); setMonth(nm);
+    loadConfirmStatus(ny, nm);
   }
 
   const days = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
   const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  const currentYM = monthStr(year, month);
+  const isAdminRole = (adminUser as any)?.role === "pool_admin" || (adminUser as any)?.role === "sub_admin" || (adminUser as any)?.role === "super_admin";
 
   return (
     <View style={s.safe}>
       <SubScreenHeader title="휴무일 관리" />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 월 선택 */}
         <View style={[s.monthRow, { backgroundColor: C.card }]}>
           <Pressable onPress={() => changeMonth(-1)} style={s.navBtn}>
-            <ChevronLeft size={22} color={themeColor} />
+            <LucideIcon name="chevron-left" size={22} color={themeColor} />
           </Pressable>
           <Text style={[s.monthText, { color: C.text }]}>{year}년 {month}월 휴무일</Text>
           <Pressable onPress={() => changeMonth(1)} style={s.navBtn}>
-            <ChevronRight size={22} color={themeColor} />
+            <LucideIcon name="chevron-right" size={22} color={themeColor} />
           </Pressable>
         </View>
 
         {/* 안내 */}
         <View style={[s.infoBox, { backgroundColor: "#FFF1BF" }]}>
-          <Info size={14} color="#D97706" />
+          <LucideIcon name="info" size={14} color="#D97706" />
           <Text style={s.infoText}>날짜를 누르면 휴무일로 등록됩니다. 다시 누르면 취소됩니다.{"\n"}휴무일에는 수업이 생성되지 않으며, 빠진 수업은 미실시(수영장) 보강으로 이월됩니다.</Text>
         </View>
 
         {/* 달력 */}
         <View style={[s.calCard, { backgroundColor: C.card }]}>
-          {/* 요일 헤더 */}
           <View style={s.weekRow}>
             {weekdays.map(w => (
               <Text key={w} style={[s.weekLabel, { color: w === "일" ? "#D96C6C" : w === "토" ? "#4EA7D8" : C.textSecondary }]}>{w}</Text>
             ))}
           </View>
-          {/* 날짜 그리드 */}
           <View style={s.grid}>
             {Array.from({ length: firstDay }).map((_, i) => <View key={`e${i}`} style={s.cell} />)}
             {Array.from({ length: days }).map((_, i) => {
               const d = i + 1;
               const ds = dateStr(year, month, d);
               const isHol = isHoliday(ds);
-              const hol = getHoliday(ds);
               const dayOfWeek = (firstDay + i) % 7;
               const isSat = dayOfWeek === 6;
               const isSun = dayOfWeek === 0;
@@ -140,7 +189,7 @@ export default function HolidaysScreen() {
               return (
                 <Pressable
                   key={d}
-                  style={[s.cell, { }]}
+                  style={[s.cell]}
                   onPress={() => handleDayPress(ds)}
                   disabled={!!saving}
                 >
@@ -154,10 +203,9 @@ export default function HolidaysScreen() {
                     ) : (
                       <Text style={[s.dayNum, {
                         color: isHol ? "#D96C6C" : isSun ? "#D96C6C" : isSat ? "#4EA7D8" : C.text,
-                        fontFamily: isHol ? "Pretendard-Regular" : "Pretendard-Regular",
                       }]}>{d}</Text>
                     )}
-                    {isHol && <X size={8} color="#D96C6C" />}
+                    {isHol && <LucideIcon name="x" size={8} color="#D96C6C" />}
                   </View>
                 </Pressable>
               );
@@ -184,73 +232,143 @@ export default function HolidaysScreen() {
                     try {
                       await apiRequest(token, `/holidays/${h.id}`, { method: "DELETE" });
                       setHolidays(prev => prev.filter(x => x.id !== h.id));
+                      setConfirmStatus({ confirmed: false, confirmed_at: null });
                     } finally { setSaving(null); }
                   }}
                   style={s.deleteBtn}
                   disabled={!!saving}
                 >
-                  <X size={16} color="#D96C6C" />
+                  <LucideIcon name="x" size={16} color="#D96C6C" />
                 </Pressable>
               </View>
             ))}
           </View>
         )}
-      </ScrollView>
+
+        {/* ── 휴무일 확정 영역 (관리자만) ── */}
+        {isAdminRole && !loading && (
+          confirmStatus.confirmed ? (
+            <View style={s.confirmedCard}>
+              <LucideIcon name="check-circle" size={20} color="#16A34A" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.confirmedTitle}>{month}월 휴무일 확정 완료</Text>
+                {confirmStatus.confirmed_at && (
+                  <Text style={s.confirmedSub}>확정 일시: {fmtConfirmedAt(confirmStatus.confirmed_at)}</Text>
+                )}
+              </View>
+              <Pressable
+                style={s.reconfirmBtn}
+                onPress={handleConfirm}
+                disabled={confirming}
+              >
+                <Text style={s.reconfirmBtnTxt}>{confirming ? "처리 중..." : "재확정"}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={s.confirmSection}>
+              <View style={s.confirmInfo}>
+                <LucideIcon name="info" size={14} color="#DC2626" />
+                <Text style={s.confirmInfoTxt}>
+                  휴무일이 없어도 확정 버튼을 눌러야 합니다. 확정 후 수정하면 재확정이 필요합니다.
+                </Text>
+              </View>
+              <Pressable
+                style={[s.confirmBtn, { opacity: confirming ? 0.7 : 1 }]}
+                onPress={handleConfirm}
+                disabled={confirming}
+              >
+                {confirming
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <>
+                      <LucideIcon name="check-circle" size={16} color="#fff" />
+                      <Text style={s.confirmBtnTxt}>{month}월 휴무일 확정</Text>
+                    </>
+                }
+              </Pressable>
+            </View>
+          )
+        )}
+      </KeyboardAwareScrollView>
 
       {/* 사유 입력 모달 */}
-      <Modal visible={reasonModal} transparent animationType="fade" onRequestClose={() => setReasonModal(false)}>
-        <Pressable style={s.overlay} onPress={() => setReasonModal(false)} />
-        <View style={s.modalCard}>
-          <Text style={[s.modalTitle, { color: C.text }]}>휴무 사유 입력</Text>
-          <Text style={[s.modalDate, { color: themeColor }]}>{selectedDate}</Text>
-          <TextInput
-            style={[s.reasonInput, { borderColor: C.border, color: C.text }]}
-            value={reason}
-            onChangeText={setReason}
-            placeholder="예: 수영장 정기점검, 공휴일 (선택사항)"
-            placeholderTextColor={C.textMuted}
-          />
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#FFFFFF", flex: 1 }]} onPress={() => setReasonModal(false)}>
-              <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
-            </Pressable>
-            <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
-              <Text style={s.modalBtnText}>휴무일 등록</Text>
-            </Pressable>
+      <Modal
+        visible={reasonModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { Keyboard.dismiss(); setReasonModal(false); }}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={s.overlay} onPress={() => { Keyboard.dismiss(); setReasonModal(false); }} />
+          <View style={[s.modalCard, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <Text style={[s.modalTitle, { color: C.text }]}>휴무 사유 입력</Text>
+            <Text style={[s.modalDate, { color: themeColor }]}>{selectedDate}</Text>
+            <TextInput
+              style={[s.reasonInput, { borderColor: C.border, color: C.text }]}
+              value={reason}
+              onChangeText={setReason}
+              placeholder="예: 수영장 정기점검, 공휴일 (선택사항)"
+              placeholderTextColor={C.textMuted}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable
+                style={[s.modalBtn, { backgroundColor: "#FFFFFF", flex: 1 }]}
+                onPress={() => { Keyboard.dismiss(); setReasonModal(false); }}
+              >
+                <Text style={[s.modalBtnText, { color: C.text }]}>취소</Text>
+              </Pressable>
+              <Pressable style={[s.modalBtn, { backgroundColor: "#D96C6C", flex: 1 }]} onPress={handleAddHoliday}>
+                <Text style={s.modalBtnText}>휴무일 등록</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#FFFFFF" },
-  monthRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
-  navBtn:      { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  monthText:   { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
-  infoBox:     { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
-  infoText:    { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, color: "#92400E" },
-  calCard:     { borderRadius: 18, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  weekRow:     { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
-  weekLabel:   { width: "14.28%" as any, textAlign: "center", fontSize: 12, fontFamily: "Pretendard-Regular" },
-  grid:        { flexDirection: "row", flexWrap: "wrap" },
-  cell:        { width: "14.28%" as any, alignItems: "center", paddingVertical: 5 },
-  dayBox:      { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  dayNum:      { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  listCard:    { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  listTitle:   { fontSize: 15, fontFamily: "Pretendard-Regular" },
-  emptyText:   { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 16 },
-  holidayRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
-  redDot:      { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
-  holidayDate: { fontSize: 14, fontFamily: "Pretendard-Regular" },
+  safe:         { flex: 1, backgroundColor: "#FFFFFF" },
+  monthRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 16, padding: 12 },
+  navBtn:       { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  monthText:    { fontSize: 17, fontFamily: "Pretendard-Regular", color: C.text },
+  infoBox:      { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 14 },
+  infoText:     { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", lineHeight: 18, color: "#92400E" },
+  calCard:      { borderRadius: 18, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  weekRow:      { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: "#E5E7EB" },
+  weekLabel:    { width: "14.28%" as any, textAlign: "center", fontSize: 12, fontFamily: "Pretendard-Regular" },
+  grid:         { flexDirection: "row", flexWrap: "wrap" },
+  cell:         { width: "14.28%" as any, alignItems: "center", paddingVertical: 5 },
+  dayBox:       { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  dayNum:       { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  listCard:     { borderRadius: 16, padding: 16, gap: 10, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  listTitle:    { fontSize: 15, fontFamily: "Pretendard-Regular" },
+  emptyText:    { fontSize: 13, fontFamily: "Pretendard-Regular", textAlign: "center", paddingVertical: 16 },
+  holidayRow:   { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
+  redDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: "#D96C6C" },
+  holidayDate:  { fontSize: 14, fontFamily: "Pretendard-Regular" },
   holidayReason:{ fontSize: 12, fontFamily: "Pretendard-Regular" },
-  deleteBtn:   { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#F9DEDA" },
-  overlay:     { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
-  modalCard:   { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
-  modalTitle:  { fontSize: 18, fontFamily: "Pretendard-Regular" },
-  modalDate:   { fontSize: 16, fontFamily: "Pretendard-Regular" },
-  reasonInput: { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 14, fontFamily: "Pretendard-Regular" },
-  modalBtn:    { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  modalBtnText:{ color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
+  deleteBtn:    { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#F9DEDA" },
+  overlay:      { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  modalCard:    { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 16 },
+  modalTitle:   { fontSize: 18, fontFamily: "Pretendard-Regular" },
+  modalDate:    { fontSize: 16, fontFamily: "Pretendard-Regular" },
+  reasonInput:  { borderWidth: 1.5, borderRadius: 12, padding: 14, fontSize: 14, fontFamily: "Pretendard-Regular" },
+  modalBtn:     { height: 50, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  modalBtnText: { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
+
+  confirmSection: { gap: 10 },
+  confirmInfo:    { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, borderRadius: 12, backgroundColor: "#FEE2E2" },
+  confirmInfoTxt: { flex: 1, fontSize: 12, fontFamily: "Pretendard-Regular", color: "#B91C1C", lineHeight: 18 },
+  confirmBtn:     { height: 52, borderRadius: 14, backgroundColor: "#DC2626", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, shadowColor: "#DC2626", shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  confirmBtnTxt:  { color: "#fff", fontSize: 15, fontFamily: "Pretendard-Regular" },
+
+  confirmedCard:   { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0" },
+  confirmedTitle:  { fontSize: 14, fontFamily: "Pretendard-Regular", color: "#15803D" },
+  confirmedSub:    { fontSize: 11, fontFamily: "Pretendard-Regular", color: "#4ADE80", marginTop: 2 },
+  reconfirmBtn:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#DCFCE7", borderWidth: 1, borderColor: "#BBF7D0" },
+  reconfirmBtnTxt: { fontSize: 12, fontFamily: "Pretendard-Regular", color: "#15803D" },
 });

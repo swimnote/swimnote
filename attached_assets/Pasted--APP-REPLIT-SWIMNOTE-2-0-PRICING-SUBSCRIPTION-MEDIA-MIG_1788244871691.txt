@@ -1,0 +1,897 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE 2.0 PRICING / SUBSCRIPTION / MEDIA MIGRATION
+# WP1 — CURRENT STATE FREEZE AUDIT
+
+본 작업은
+`SWIMNOTE 2.0 MASTER DESIGN V1.0 — LOCKED`
+를 절대 기준으로 합니다.
+
+설계 변경 금지.
+범위확장 금지.
+범위축소 금지.
+대체설계 금지.
+겸사겸사 리팩터링 금지.
+
+이번 WP는 실제 구현 전
+현재 코드/DB/구독/미디어/1.6.3 계약 상태를 정확히 동결하는
+READ-ONLY 감사 단계입니다.
+
+==================================================
+0. ABSOLUTE REGRESSION-SAFETY RULE
+==================================================
+
+최우선 원칙:
+
+"기존 정상기능 보존 > 신규 기능 구현"
+
+이번 WP는 코드 수정이 없지만,
+향후 변경영향을 정확히 파악하기 위해
+공통 helper / middleware / schema / API contract 의존성을 반드시 추적하십시오.
+
+금지:
+
+- 코드 수정
+- DB write
+- migration
+- deploy
+- OTA
+- EAS build
+- RevenueCat 수정
+- App Store 수정
+- Google Play 수정
+- unrelated refactor
+- 임의 정책변경
+
+추측 금지.
+
+모든 결론은 실제:
+
+- file path
+- route
+- schema
+- function
+- constant
+- mapping
+
+근거로 제출.
+
+==================================================
+1. REPOSITORY / BRANCH FREEZE
+==================================================
+
+보고:
+
+Repository:
+Branch:
+HEAD:
+
+현재 작업 기준:
+
+release/v2.0.0
+
+확인.
+
+현재 HEAD를 WP1 기준점으로 기록하십시오.
+
+==================================================
+2. CURRENT SUBSCRIPTION PLAN SOURCE OF TRUTH
+==================================================
+
+현재 실제 구독 플랜 정보가 존재하는 모든 위치를 찾으십시오.
+
+확인:
+
+- DB subscription_plans
+- schema
+- seed
+- constants
+- app pricing constants
+- billing helpers
+- RevenueCat mapping
+- server plan lookup
+- super-admin display
+- feature helpers
+
+각 위치마다 현재:
+
+plan_id
+display_name
+price
+member_limit
+storage_gb
+tier_group
+video_enabled
+other feature flags
+
+전부 표로 제출.
+
+특히:
+
+같은 플랜인데
+서버/앱/constants에서
+가격·저장공간·회원수 값이 서로 다르면
+반드시 CONFLICT로 보고.
+
+형식:
+
+SOURCE:
+PATH:
+
+VALUES:
+...
+
+CONFLICT:
+YES / NO
+
+==================================================
+3. LEGACY 1.6.3 PLAN CONTRACT
+==================================================
+
+현재 1.6.3 앱이 실제로 기대하는:
+
+- plan_id
+- tier_group
+- member_limit
+- storage
+- video_enabled
+- includes_video
+- entitlement
+- subscription response shape
+
+를 찾으십시오.
+
+목표:
+
+신규 2.0 상품 추가 후에도
+기존 1.6.3 Coach/Premier 사용자가 깨지지 않도록
+어떤 legacy field와 mapping을 반드시 유지해야 하는지 확정.
+
+각 field:
+
+FIELD
+USED BY 1.6.3:
+YES / NO
+
+REMOVAL SAFE:
+YES / NO
+
+==================================================
+4. CURRENT MEMBER LIMIT ENFORCEMENT
+==================================================
+
+현재 회원수 제한이 실제로 enforced되는 모든 경로 조사.
+
+확인:
+
+- 신규 학생 등록
+- 학생 재활성화
+- import
+- 관리자 등록
+- 반 배정
+- 기타 회원 증가 경로
+
+각 경로:
+
+UI-only
+SERVER-ENFORCED
+DB CONSTRAINT
+NONE
+
+구분.
+
+현재 함수:
+
+getEffectiveMemberLimit()
+
+및 관련 함수 전체 호출경로 확인.
+
+중요:
+
+일반 SWIMNOTE를 member_limit=NULL 또는 동등한 방식으로
+무제한 처리할 경우
+1.6.3 UI/API가 깨질 가능성 확인.
+
+수정 금지.
+
+==================================================
+5. CURRENT STORAGE QUOTA — FULL PATH AUDIT
+==================================================
+
+현재 실제 quota 계산 경로를 전수 확인.
+
+목표 식:
+
+effective_storage
+=
+base_storage_gb
++
+extra_storage_gb
+
+현재 실제 코드가 이와 동일한지 확인.
+
+확인 대상:
+
+- swimming_pools.base_storage_gb
+- extra_storage_gb
+- subscription_plans.storage_gb
+- used bytes
+- upload_blocked
+- 80% warning
+- 100% block
+
+특히 사진과 영상의 byte 계산 경로를 각각 확인.
+
+PHOTO:
+어떤 table/field가 합산되는가
+
+VIDEO:
+어떤 table/field가 합산되는가
+
+THUMBNAIL:
+포함 여부
+
+ORPHAN:
+포함 여부
+
+uploads.ts
+storage.ts
+videos.ts
+관련 quota helper
+
+전부 추적.
+
+매우 중요:
+
+이전 설계검토에서
+`video_assets_meta`는 일부 계산에 포함되지만
+`uploads.ts` 일부 경로가 photo_assets_meta만 볼 가능성이 확인됨.
+
+반드시 경로별로 정확히 검증.
+
+==================================================
+6. CURRENT REVENUECAT STRUCTURE FREEZE
+==================================================
+
+현재 앱 코드가 알고 있는 RevenueCat 구조를 정확히 동결.
+
+확인:
+
+ENTITLEMENTS:
+...
+
+OFFERINGS:
+...
+
+PACKAGES:
+...
+
+PRODUCT IDS:
+...
+
+IOS:
+...
+
+ANDROID:
+...
+
+현재 확인대상:
+
+solo
+center
+x_mode
+
+및 기존:
+
+solo_30
+solo_50
+solo_100
+center_200
+center_300
+center_500
+center_1000
+
+X 관련 product IDs
+
+각 Product ID가 실제 어디에서 mapping되는지 제출.
+
+절대 신규 Product ID를 생성/추측하지 마십시오.
+
+==================================================
+7. CURRENT PURCHASE / RESTORE FLOW
+==================================================
+
+현재:
+
+구매
+→ RevenueCat
+→ entitlement
+→ app state
+→ server state
+
+흐름 추적.
+
+확인:
+
+- purchasePackage
+- restorePurchases
+- customerInfo
+- entitlement check
+- webhook
+- server subscription sync
+
+legacy subscriber가
+현재 어떤 조건으로 유료 사용자로 인정되는지 정확히 확인.
+
+==================================================
+8. CURRENT PRICE UI INVENTORY
+==================================================
+
+사용자에게 가격/플랜을 보여주는 모든 UI를 찾으십시오.
+
+예:
+
+- subscription screen
+- upgrade modal
+- settings subscription
+- storage screen
+- super admin
+- onboarding
+- paywall
+
+각 화면:
+
+PATH
+CURRENT PLAN NAME
+CURRENT PRICE
+CURRENT MEMBER LIMIT
+CURRENT STORAGE
+CURRENT VIDEO TEXT
+
+제출.
+
+하드코딩된 가격이 여러 파일에 있으면
+모두 보고.
+
+==================================================
+9. CURRENT X MODE STATE
+==================================================
+
+현재 X 상태 표현을 실제 코드 기준으로 동결.
+
+확인:
+
+- x_paid_entitlement
+- xmode_subscription_end_at
+- x_slot_id
+- config state
+- mode
+- x_pending
+- xmode fields
+
+현재 개념상:
+
+BASIC
+X_ACTIVE
+X_EXPIRED
+X_PAYMENT_PENDING
+X_SETUP_PENDING
+X_SETUP_ACTIVE
+
+가 실제 어떤 DB/코드 조합으로 표현되는지 표로 제출.
+
+X_TRIAL은 현재 미구현임을 다시 확인하되
+구현하지 마십시오.
+
+==================================================
+10. CURRENT VIDEO PLAN GATING — FULL TRACE
+==================================================
+
+영상 기능이 현재 어떤 조건으로 제한되는지 전부 추적.
+
+SERVER:
+
+VIDEO_ALLOWED_TIERS
+billing/features
+videos.ts
+feature helpers
+
+APP:
+
+photos.tsx
+upload button
+feature checks
+planFeatures.video_enabled
+
+다음 질문에 명확히 답:
+
+1.
+어떤 플랜이 현재 영상 가능?
+
+2.
+UI에서 막는가?
+
+3.
+서버에서도 막는가?
+
+4.
+1.6.3에서 video_enabled=true가 되면 어떤 UI가 열리는가?
+
+5.
+2.0에서 gate 제거 시 영향받는 파일은?
+
+==================================================
+11. CURRENT VIDEO UPLOAD PIPELINE
+==================================================
+
+전체 흐름:
+
+media selection
+↓
+client processing
+↓
+multipart/presigned
+↓
+API
+↓
+multer
+↓
+R2
+↓
+thumbnail
+↓
+DB
+↓
+retention cleanup
+
+확인:
+
+- client compression 존재 여부
+- resize 여부
+- codec conversion
+- resolution conversion
+- max file size
+- 100MB hard limit
+- original file 저장 여부
+- thumbnail 생성 방식
+- R2 bucket
+- file_size 기록
+- duration 기록
+- cleanup
+- retention period
+
+수정 금지.
+
+==================================================
+12. CURRENT PHOTO PIPELINE
+==================================================
+
+사진:
+
+selection
+compression
+resize
+upload
+R2
+thumbnail
+album
+diary
+
+전부 확인.
+
+영상과 공통되는 media abstraction이 있는지 확인.
+
+==================================================
+13. CURRENT ALBUM MEDIA MODEL
+==================================================
+
+확인:
+
+pool_diary_media
+media_type
+file_url
+thumbnail_url
+
+실제 관계:
+
+photo
+video
+
+동일 table인지 확인.
+
+또한:
+
+교사 앨범
+관리자 앨범
+학부모 앨범
+
+각각 video 처리 여부 확인.
+
+DB가 지원한다고
+UI까지 지원한다고 간주하지 마십시오.
+
+==================================================
+14. CURRENT PARENT DIARY FEED
+==================================================
+
+학부모 일지 API와 UI를 추적.
+
+확인:
+
+- photos field
+- videos field
+- media relation
+- response shape
+- parent feed component
+
+다음 구분:
+
+A.
+서버에 video가 있는데 앱이 안 보여줌
+
+B.
+서버 response 자체에 video 없음
+
+현재 설계검토에서는 B로 판단됨.
+
+실제 코드로 확정.
+
+==================================================
+15. CURRENT INSTAGRAM STORY FLOW
+==================================================
+
+Story 공유 전체 경로 추적.
+
+CASE A:
+사진-only
+
+CASE B:
+사진 + 영상
+
+CASE C:
+영상-only
+
+현재 각각:
+
+- renderer input
+- generated image
+- share payload
+- native share
+- Instagram-specific logic
+
+이 어떻게 작동하는지 제출.
+
+특히:
+
+영상이 payload에 절대 포함되지 않는지
+코드 근거로 확정.
+
+영상-only CASE C에서 현재 동작도 정확히 보고.
+
+==================================================
+16. DATA PACK IMPLEMENTATION READINESS
+==================================================
+
+현재:
+
+extra_storage_gb
+
+구조를 기반으로
+
+DATA100
+DATA300
+
+을 붙이기 위해 필요한 부분을 분석.
+
+이번에는 구현 금지.
+
+확인:
+
+- add-on entitlement 필요 위치
+- webhook
+- purchase
+- cancellation
+- expiration
+- restore
+- stacking 가능 여부
+
+특히:
+
+DATA100 + DATA300
+동시구매가 가능한 구조인지
+
+같은 DATA pack 중복구매가 가능한 구조인지
+
+현재 RevenueCat subscription 상품 특성상
+어떤 제약이 있는지 코드 관점에서 분석.
+
+콘솔 정책 추측 금지.
+
+==================================================
+17. LEGACY SUBSCRIBER GRANDFATHERING READINESS
+==================================================
+
+LOCKED 정책:
+
+기존 Coach/Premier 사용자는
+기존 상품/가격/권한 유지.
+
+확인:
+
+이를 구현하려면
+현재 서버/앱에서 어떤 mapping을 유지해야 하는가.
+
+다음 시나리오 분석:
+
+A.
+기존 구독 계속 유지
+
+B.
+기존 구독 해지
+
+C.
+완전 만료
+
+D.
+재가입 시도
+
+E.
+기존 사용자가 X 신규 상품 구매
+
+각 경우 현재 코드가 어떻게 반응하는지
+그리고 향후 어디를 수정해야 하는지만 제출.
+
+구현 금지.
+
+==================================================
+18. CHANGE IMPACT MAP
+==================================================
+
+향후 WP별 실제 변경 예상 파일을 정리.
+
+형식:
+
+WP2A
+
+SERVER:
+PATH
+WHY
+RISK
+
+APP:
+PATH
+WHY
+RISK
+
+DB:
+...
+
+WP2B:
+...
+
+WP3:
+...
+
+WP4:
+...
+
+WP5-PRE:
+...
+
+WP5:
+...
+
+WP6:
+...
+
+WP7:
+...
+
+불필요한 파일은 넣지 마십시오.
+
+==================================================
+19. HIGH-RISK SHARED CODE
+==================================================
+
+특히 공통 수정 시
+다른 기능을 깨뜨릴 가능성이 높은 코드를 분리해서 제출.
+
+예:
+
+billing helper
+subscription middleware
+member limit helper
+storage quota helper
+ModeContext
+media serializer
+parent diary serializer
+
+각 항목:
+
+PATH
+DEPENDENTS
+RISK
+REQUIRED REGRESSION TESTS
+
+==================================================
+20. WP2A PRECONDITIONS
+==================================================
+
+WP1 완료 후
+WP2A를 안전하게 시작하기 위한 필수 조건을 제출.
+
+예:
+
+- legacy fields 유지목록
+- source of truth 확정
+- quota 식 확정
+- plan IDs 구분
+- migration 필요 여부
+
+BLOCKER가 있으면 명시.
+
+없으면:
+
+WP2A READY:
+YES
+
+==================================================
+21. ABSOLUTE NO-CHANGE RULE
+==================================================
+
+이번 WP에서:
+
+NO CODE CHANGE
+NO DB WRITE
+NO MIGRATION
+NO DEPLOY
+NO OTA
+NO EAS BUILD
+NO REVENUECAT CHANGE
+NO STORE CHANGE
+
+git working tree도 수정하지 마십시오.
+
+==================================================
+22. 완료보고 형식
+==================================================
+
+# SWIMNOTE 2.0 WP1 CURRENT STATE FREEZE AUDIT REPORT
+
+Repository:
+Branch:
+HEAD:
+
+## PLAN SOURCE OF TRUTH
+...
+
+## PLAN CONFLICTS
+...
+
+## 1.6.3 LEGACY CONTRACT
+...
+
+## MEMBER LIMIT
+...
+
+## STORAGE QUOTA
+
+PHOTO:
+...
+
+VIDEO:
+...
+
+QUOTA FORMULA:
+...
+
+INCONSISTENCIES:
+...
+
+## REVENUECAT CURRENT STATE
+...
+
+## PURCHASE / RESTORE
+...
+
+## PRICE UI
+...
+
+## X CURRENT STATE
+...
+
+## VIDEO GATING
+...
+
+## VIDEO PIPELINE
+...
+
+## PHOTO PIPELINE
+...
+
+## ALBUM MEDIA
+
+Teacher:
+...
+
+Admin:
+...
+
+Parent:
+...
+
+## PARENT DIARY FEED
+...
+
+## STORY
+
+CASE A:
+...
+
+CASE B:
+...
+
+CASE C:
+...
+
+## DATA PACK READINESS
+...
+
+## LEGACY GRANDFATHERING READINESS
+
+A:
+...
+
+B:
+...
+
+C:
+...
+
+D:
+...
+
+E:
+...
+
+## HIGH-RISK SHARED CODE
+...
+
+## CHANGE IMPACT MAP
+...
+
+## WP2A PRECONDITIONS
+...
+
+WP2A READY:
+YES / NO
+
+If NO:
+BLOCKER only.
+
+## REGRESSION SAFETY
+
+Out-of-scope files changed:
+NONE
+
+Existing API contracts changed:
+NONE
+
+1.6.3 compatibility:
+NOT CHANGED
+
+Known regression risk:
+...
+
+## CODE CHANGES
+NONE
+
+## DB CHANGES
+NONE
+
+## PRODUCTION CHANGES
+NONE
+
+FINAL:
+
+SWIMNOTE 2.0 WP1 CURRENT STATE FREEZE AUDIT COMPLETE

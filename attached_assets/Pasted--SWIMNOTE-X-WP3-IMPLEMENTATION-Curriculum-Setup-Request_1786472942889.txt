@@ -1,0 +1,488 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SWIMNOTE X — WP3 IMPLEMENTATION
+Curriculum Setup Request Flow
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WP3-1B DESIGN RECONCILIATION 승인.
+
+이번 WP3의 범위는:
+
+1. pool_admin이 X 커리큘럼 설정을 요청
+2. NOT_CONFIGURED → CURRICULUM_PENDING
+3. 요청 상태 확인
+4. 앱에서 "준비 중" 표시
+
+까지다.
+
+커리큘럼 실제 구축/편집 기능은 구현하지 않는다.
+pool_admin READY 강제 전환 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+1. 서버 POST /pools/x-request
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+artifacts/api-server/src/routes/pools.ts
+
+신규:
+
+POST /pools/x-request
+
+권한:
+
+requireRole("pool_admin")
+
+poolId:
+request body에서 받지 않는다.
+
+authenticated userId
+→ users.swimming_pool_id
+
+로 서버에서 결정.
+
+━━━━━━━━━━━━━━━━━━━━
+2. POST 사전조건
+━━━━━━━━━━━━━━━━━━━━
+
+Transaction 시작 전/내에서 확인:
+
+A.
+pool 존재
+
+B.
+xmode_entitlement = true
+
+false이면:
+403
+X entitlement 없음
+
+C.
+xmode_config_status 확인
+
+READY:
+새 요청 생성 금지.
+이미 X 설정 완료 상태.
+
+CURRICULUM_PENDING:
+중복 요청 생성 금지.
+현재 진행 중 요청 반환 또는 conflict 처리.
+
+NOT_CONFIGURED:
+요청 생성 가능.
+
+━━━━━━━━━━━━━━━━━━━━
+3. 중복 요청 방지
+━━━━━━━━━━━━━━━━━━━━
+
+같은 pool에서 다음 상태의 요청이 이미 있으면
+새 curriculum_requests row 생성 금지:
+
+pending
+reviewing
+
+현재 DB에 unique constraint가 없다면
+이번 WP에서 임의 migration 만들지 말 것.
+
+Transaction + SELECT FOR UPDATE 등
+기존 DB 구조 안에서 가능한 안전한 방식 사용.
+
+동시 요청에도 중복이 생기지 않는지 검토.
+
+DB migration이 정말 필요하다고 판단되면
+구현 중단하고 보고.
+
+━━━━━━━━━━━━━━━━━━━━
+4. curriculum_requests INSERT
+━━━━━━━━━━━━━━━━━━━━
+
+생성 필드:
+
+swimming_pool_id = authenticated pool
+request_status = 'pending'
+requested_by = authenticated pool_admin userId
+
+title / description:
+
+앱에서 사용자가 자유롭게 작성하게 할지,
+시스템 기본값으로 생성할지는
+기존 UI 최소화 원칙을 따른다.
+
+이번 WP에서는 별도 복잡한 요청폼 금지.
+
+권장 최소:
+
+title = "SWIMNOTE X 커리큘럼 설정 요청"
+
+description = null 또는 선택 입력
+
+단 현재 schema/API 스타일에 맞춰 구현.
+
+━━━━━━━━━━━━━━━━━━━━
+5. config_status 전환
+━━━━━━━━━━━━━━━━━━━━
+
+같은 Transaction 안에서:
+
+INSERT curriculum_requests
+
+성공 후
+
+UPDATE swimming_pools
+SET xmode_config_status = 'CURRICULUM_PENDING'
+
+WHERE id = authenticated poolId
+AND xmode_entitlement = true
+AND xmode_config_status = 'NOT_CONFIGURED'
+
+둘 중 하나만 성공하는 상태 금지.
+
+요청 생성 + status 변경 원자성 보장.
+
+━━━━━━━━━━━━━━━━━━━━
+6. audit_logs
+━━━━━━━━━━━━━━━━━━━━
+
+같은 Transaction에서 기록.
+
+entity_type:
+swimming_pool_xmode
+
+entity_id:
+poolId
+
+actor_type:
+pool_admin
+
+actor_id:
+userId
+
+before_data:
+{
+  xmode_entitlement,
+  xmode_config_status
+}
+
+after_data:
+{
+  xmode_entitlement,
+  xmode_config_status: "CURRICULUM_PENDING",
+  source: "curriculum_request",
+  curriculum_request_id
+}
+
+reason:
+"X curriculum setup requested"
+
+기존 next_audit_version() 패턴 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+7. POST response
+━━━━━━━━━━━━━━━━━━━━
+
+앱이 별도 추가 호출 없이 상태를 갱신할 수 있도록
+최소 다음 반환:
+
+{
+  request: {
+    id,
+    request_status,
+    created_at
+  },
+  pool_mode: {
+    pool_id,
+    mode,
+    xmode_entitlement,
+    xmode_config_status
+  }
+}
+
+expected:
+
+mode = "x_pending"
+xmode_config_status = "CURRICULUM_PENDING"
+
+기존 PoolModeResult와 shape 최대한 재사용.
+
+━━━━━━━━━━━━━━━━━━━━
+8. GET /pools/x-request
+━━━━━━━━━━━━━━━━━━━━
+
+권한:
+
+pool_admin
+
+자기 pool만 조회.
+
+반환:
+
+현재 진행 중인 요청 우선:
+
+pending
+reviewing
+
+없으면 가장 최근 요청 1건:
+
+approved
+rejected
+cancelled
+
+최소 필드:
+
+id
+request_status
+title
+review_note
+result_version_id
+created_at
+updated_at
+reviewed_at
+
+다른 pool 데이터 노출 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+9. 앱 x-setup 화면
+━━━━━━━━━━━━━━━━━━━━
+
+신규:
+
+artifacts/swim-app/app/(admin)/x-setup.tsx
+
+기존 SWIMNOTE UI 색상/컴포넌트 규칙 사용.
+새 디자인 시스템 만들지 않는다.
+
+ModeContext 사용.
+
+상태별 화면:
+
+━━━━━━━━━━
+NOT_CONFIGURED
+━━━━━━━━━━
+
+제목:
+SWIMNOTE X 설정
+
+내용:
+X 모드를 사용하기 위해
+수영장의 교육과정 설정이 필요하다는 안내.
+
+버튼:
+"커리큘럼 설정 요청하기"
+
+버튼 탭:
+POST /pools/x-request
+
+성공:
+refreshMode()
+GET /pools/x-request 재조회
+
+화면:
+CURRICULUM_PENDING 상태로 전환.
+
+━━━━━━━━━━
+CURRICULUM_PENDING
+━━━━━━━━━━
+
+제목:
+SWIMNOTE X 준비 중
+
+표시:
+"커리큘럼 설정 요청이 접수되었습니다."
+
+request_status에 따라:
+
+pending
+→ 요청 접수
+
+reviewing
+→ 커리큘럼 준비 중
+
+rejected
+→ 반려 안내 + review_note 표시
+
+주의:
+xmode_config_status가 CURRICULUM_PENDING인데
+request가 rejected/cancelled 상태라면
+현재 설계상 config_status 복귀 경로가 없을 수 있다.
+
+이 불일치가 발견되면 임의 처리하지 말고 보고.
+
+━━━━━━━━━━
+READY
+━━━━━━━━━━
+
+x-setup에서 직접 설정 기능 제공 금지.
+
+READY라면:
+dashboard 또는 X 메인 화면으로 redirect.
+
+━━━━━━━━━━━━━━━━━━━━
+10. dashboard 연결
+━━━━━━━━━━━━━━━━━━━━
+
+파일:
+
+app/(admin)/dashboard.tsx
+
+현재 mode="x_pending" 영역의
+잠금 안내를 Pressable로 변경.
+
+탭:
+router.push("/(admin)/x-setup")
+
+단 entitlement=false / mode=normal일 때는
+X 설정 화면 진입 버튼 노출 금지.
+
+기존 mode=x UI 변경 금지.
+
+━━━━━━━━━━━━━━━━━━━━
+11. super_admin READY 흐름
+━━━━━━━━━━━━━━━━━━━━
+
+이번 WP에서는 신규 super route 만들지 않는다.
+
+기존:
+
+PATCH /super/operators/:id/xmode
+
+유지.
+
+super admin이 커리큘럼 구축 완료 후
+READY로 전환하는 현재 운영 override 경로 유지.
+
+curriculum_requests approved 자동화는
+이번 WP3 범위 아님.
+
+단 향후 WP에서 연결할 수 있도록
+현재 request row/result_version_id 구조는 보존.
+
+━━━━━━━━━━━━━━━━━━━━
+12. 중요 상태 불변
+━━━━━━━━━━━━━━━━━━━━
+
+절대 변경 금지:
+
+xmode_entitlement
+
+WP3은 config flow만 담당.
+
+또한:
+
+EXPIRATION
+REFUND
+
+등 WP2 이벤트가
+xmode_config_status를 초기화하지 않는 기존 설계 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+13. 테스트
+━━━━━━━━━━━━━━━━━━━━
+
+신규 WP3 테스트 추가.
+
+최소:
+
+1. unauthenticated → 401
+2. teacher → 403
+3. parent → 403
+4. pool_admin entitlement=false → 403
+5. NOT_CONFIGURED → request 생성
+6. request_status=pending
+7. config_status → CURRICULUM_PENDING
+8. mode → x_pending
+9. audit log 생성
+10. request + status update 원자성
+11. pending 요청 존재 시 duplicate 방지
+12. reviewing 요청 존재 시 duplicate 방지
+13. READY pool → 새 request 금지
+14. GET 자기 pool 요청만 반환
+15. 다른 pool 요청 노출 없음
+16. GET latest/current request 판정
+17. 기존 GET /pools/x-mode regression
+18. WP2 tests regression
+
+전체 regression 실행.
+
+━━━━━━━━━━━━━━━━━━━━
+14. Production DB
+━━━━━━━━━━━━━━━━━━━━
+
+Production write 금지.
+
+SUPABASE_DATABASE_URL READ ONLY 확인만 허용.
+
+sample pool:
+
+pool_1784310621737_qryl1x79s
+
+상태 변경 금지.
+
+현재 READY 유지.
+
+━━━━━━━━━━━━━━━━━━━━
+15. 구현 후 배포 금지
+━━━━━━━━━━━━━━━━━━━━
+
+아직:
+
+Commit
+Push
+Render
+OTA
+
+금지.
+
+먼저 구현 검수 보고 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+16. 구현 중 반드시 확인할 예외
+━━━━━━━━━━━━━━━━━━━━
+
+특히 아래를 보고:
+
+A.
+request_status=rejected일 때
+xmode_config_status를 어떻게 NOT_CONFIGURED로 돌릴지
+현재 기존 설계/코드가 있는지
+
+B.
+request_status=cancelled일 때
+동일 문제
+
+C.
+CURRICULUM_PENDING인데
+active request가 없는 비정상 상태
+
+현재 근거가 없으면 임의 구현 금지.
+
+보고서에 별도 GAP으로 제출.
+
+━━━━━━━━━━━━━━━━━━━━
+17. 제출 보고
+━━━━━━━━━━━━━━━━━━━━
+
+1. 수정 파일
+2. 신규 파일
+3. POST /pools/x-request contract
+4. GET /pools/x-request contract
+5. poolId tenant protection
+6. entitlement validation
+7. duplicate request protection
+8. Transaction 구조
+9. CURRICULUM_PENDING 전환
+10. audit log
+11. x-setup UI 상태별 동작
+12. dashboard navigation
+13. READY redirect
+14. rejected/cancelled 상태 처리 현황
+15. 신규 테스트 결과
+16. 전체 regression 결과
+17. TypeScript 신규 오류
+18. DB migration 필요 여부
+19. Render 필요 여부
+20. OTA 필요 여부
+21. Store build 필요 여부
+22. WP3 현재 상태
+
+구현 후 STOP.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,221 @@
+[SWIMNOTE 보강반 선택 실패 — 실시간 재현 증거 수집]
+
+정적 검증은 종료한다.
+
+현재까지 확인:
+
+- 해당 수영장 교사 8명 모두 swimming_pool_id 존재
+- 최근 보강 세션들의 pool_id 정상
+- 일반 class_groups의 pool_id, is_deleted, is_one_time 정상
+- students 정원 SQL 정상
+- pool_holidays SQL 정상
+- parseDayNums 및 occurrence 생성 시뮬레이션 정상
+- db와 superAdminDb는 동일 인스턴스
+- 실패 요청의 실제 HTTP status와 response body만 미확보
+
+이번에는 코드 수정 없이 실제 오류 한 건만 수집한다.
+
+금지:
+
+- 코드 수정
+- Commit
+- Push
+- Render 배포
+- OTA
+- DB 수정
+- 서버 재시작
+- Replit 개발 서버 재시작
+- 진단 라우트 추가
+- 원인 추정 보고
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 1. 서버 재시작 금지
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 Render 프로세스의 in-memory 로그가 유지되어야 한다.
+
+작업 중 다음을 실행하지 않는다.
+
+- Manual Deploy
+- Restart Service
+- 환경변수 저장
+- 서버 코드 변경
+- Push
+
+현재 debug-occ-log가 빈 상태인지 먼저 확인한다.
+
+비밀번호 값은 채팅·보고서·스크린샷에 절대 노출하지 않는다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 2. 사용자 재현 대기
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 운영 앱에서 다음 경로를 1회 실행할 예정이다.
+
+보강 대기
+→ 학생 선택
+→ 보강반 선택
+→ 특정 반 터치
+
+사용자가 “지금 눌렀다”라고 알리기 전까지 아무 작업도 하지 않는다.
+
+재현 시각은 Asia/Seoul 기준으로 기록한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 3. 재현 직후 로그 즉시 수집
+━━━━━━━━━━━━━━━━━━━━━━
+
+사용자가 반을 누른 직후 30초 이내에 현재 Render live 서버의
+debug-occ-log를 조회한다.
+
+제출할 항목:
+
+requests 배열의 가장 최근 항목:
+
+- ts
+- makeup_id
+- class_group_id
+- user_id
+- status
+- elapsed_ms
+- error
+
+errors 배열의 가장 최근 항목:
+
+- ts
+- stage
+- code
+- message
+- makeup_id
+- class_group_id
+- user_id
+
+비밀번호는 결과에서 완전히 제거한다.
+
+로그가 계속 비어 있다면 다음 중 하나로 판정한다.
+
+A. 운영 앱이 Render 서버를 호출하지 않음
+B. 해당 요청이 서버 라우트에 도달하지 않음
+C. 운영 앱에서 실제로 eligible-occurrences가 호출되지 않음
+
+이 경우 현재 앱의 API_BASE와 Render access log에서
+요청 경로 존재 여부만 확인한다. 코드 수정은 금지한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 4. 로그에 나온 실제 ID로 DB 조회
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그에서 얻은 makeup_id, class_group_id, user_id를 그대로 사용한다.
+
+A. 보강 세션
+
+SELECT
+  id,
+  swimming_pool_id,
+  status,
+  absence_date,
+  expire_at,
+  original_class_group_id,
+  handed_to_teacher_id,
+  cancelled_at,
+  completed_at
+FROM makeup_sessions
+WHERE id = :makeupId;
+
+B. 선택 반
+
+SELECT
+  id,
+  name,
+  swimming_pool_id,
+  schedule_days,
+  schedule_time,
+  capacity,
+  is_deleted,
+  is_one_time,
+  teacher_user_id,
+  co_teacher_ids
+FROM class_groups
+WHERE id = :classGroupId;
+
+C. 로그인 사용자
+
+SELECT
+  id,
+  role,
+  swimming_pool_id
+FROM users
+WHERE id = :userId;
+
+SELECT만 허용한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 5. 상태별 판정
+━━━━━━━━━━━━━━━━━━━━━━
+
+로그 status가 다음이면 그대로 판정한다.
+
+403 / POOL_NOT_FOUND
+→ users 조회 결과와 getMyPoolId 불일치 확인
+
+403 / MAKEUP_POOL_MISMATCH
+→ makeup_sessions.swimming_pool_id와 users.swimming_pool_id 비교
+
+404 / CLASS_NOT_FOUND
+→ class row 존재, pool_id, is_deleted, is_one_time 비교
+
+500 / ELIGIBLE_OCCURRENCES_FAILED
+→ errors.stage와 message가 직접 원인
+
+503 / DB_CONNECTION_LIMIT
+→ code/message가 EMAXCONNSESSION인지 확인
+
+200
+→ occurrences_count 확인
+
+200 + occurrences_count=0
+→ 실패가 아니라 빈 회차 결과
+→ schedule_days, absence_date, expire_at, 휴일 범위를 계산
+
+debug 로그가 전혀 없음
+→ 앱과 Render 서버 연결 경로 문제로 확정 범위를 이동
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 6. 진단 엔드포인트 보안 기록
+━━━━━━━━━━━━━━━━━━━━━━
+
+현재 다음 라우트는 진단 완료 후 제거 대상이다.
+
+GET /teacher/makeups/debug-occ-log?pw=...
+GET /teacher/makeups/debug-occ-errors
+
+이유:
+
+- 관리자 비밀번호를 URL query로 전달
+- URL 로그에 비밀번호가 남을 위험
+- 보강 ID, 반 ID, user ID 노출 가능
+- 인증 없는 진단 엔드포인트 존재
+
+이번 재현 중에는 제거하지 않는다.
+원인 확정 및 복구 후 별도 승인으로 삭제한다.
+
+━━━━━━━━━━━━━━━━━━━━━━
+STEP 7. 최종 제출
+━━━━━━━━━━━━━━━━━━━━━━
+
+아래 정보만 제출한다.
+
+1. 재현 KST 시각
+2. request status
+3. request error
+4. error stage
+5. error code
+6. error message
+7. makeup_id
+8. class_group_id
+9. user_id
+10. 세 DB row의 pool_id 비교
+11. 직접 원인 한 줄
+
+수정안은 작성하지 않는다.
+자료 제출 후 즉시 멈춘다.
