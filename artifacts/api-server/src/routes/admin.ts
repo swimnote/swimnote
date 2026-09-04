@@ -4228,7 +4228,34 @@ router.get(
 // ════════════════════════════════════════════════════════════════════════
 // X Admin — X Hub 운영 대시보드
 // GET /x-hub/summary → /api/admin/x-hub/summary
+// WP11: partial-failure hardening + monthly KPI dashboard
 // ════════════════════════════════════════════════════════════════════════
+
+/** metric별 독립 safe wrapper. 실패 시 structured log + null 반환, 절대 throw 안 함. */
+async function safeXMetric<T>(
+  metricName: string,
+  poolId: string,
+  fn: () => Promise<T>,
+): Promise<{ value: T | null; failed: boolean }> {
+  try {
+    return { value: await fn(), failed: false };
+  } catch (e) {
+    console.error("[x-hub/summary] metric failed", {
+      feature:          "x_hub_summary",
+      metric:           metricName,
+      swimming_pool_id: poolId,
+      error:            (e as Error).message,
+    });
+    return { value: null, failed: true };
+  }
+}
+
+const X_TIER_LABEL: Record<string, string> = {
+  tier1:    "Standard",
+  tier2:    "Plus",
+  tier3:    "Pro",
+  standard: "Standard",
+};
 
 router.get(
   "/x-hub/summary",
@@ -4238,148 +4265,138 @@ router.get(
       const poolId = await getAdminPoolId(req);
       if (!poolId) return res.status(403).json({ error: "수영장 정보가 없습니다." });
 
-      const today        = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-      const thisMonthStart = today.slice(0, 8) + "01";             // YYYY-MM-01
+      // KST 기준 현재 연/월/일
+      const kst   = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      const year  = kst.getFullYear();
+      const month = kst.getMonth() + 1;
+      const mm    = String(month).padStart(2, "0");
+      const today          = `${year}-${mm}-${String(kst.getDate()).padStart(2, "0")}`;
+      const thisMonthStart = `${year}-${mm}-01`;
 
-      // ── 병렬 조회 ─────────────────────────────────────────────────────
+      // ── 13 독립 병렬 queries — 각 metric 실패가 다른 metric에 영향 없음 ──
       const [
-        poolRow,
-        setupRow,
-        reviewRequired,
-        unassigned,
-        diariesToday,
-        growthWeek,
-        parentAiMonth,
-        publishedMonth,
-        assignedStudents,
-        activeStudents,
-        activeTeachers,
-        connectedParents,
-        aiUsage,
-        storageSub,
+        poolM,          // X 상태 + 플랜
+        snapshotM,      // 월별 KPI snapshot (WP10 parent_curriculum 연결 완료)
+        reviewM,        // 검토 대기 리포트 (REVIEW_REQUIRED)
+        unassignedM,    // 커리큘럼 미배정 학생
+        diariesTodayM,  // 오늘 일지 수 (WP9 전: AI 여부 미구분)
+        growthWeekM,    // 이번 주 성장이벤트
+        publishedMonthM,// 이번 달 발행(발송 완료) 리포트
+        assignedM,      // 커리큘럼 배정 학생
+        studentsM,      // 현재 재원 학생
+        teachersM,      // 선생님 수
+        parentsM,       // 연결 학부모
+        aiCallsM,       // AI 호출 수 (이번 달)
+        storageSubM,    // 저장공간 quota
       ] = await Promise.all([
-        // X 상태: swimming_pools LEFT JOIN x_subscription_slots (최신 PURCHASED slot)
-        superAdminDb.execute(sql`
+        // 1. X 상태 + 플랜
+        safeXMetric("pool_status", poolId, () => superAdminDb.execute(sql`
           SELECT sp.x_paid_entitlement, sp.x_manual_entitlement, sp.x_force_disabled,
                  COALESCE(sp.x_auto_renew_cancelled, false) AS x_auto_renew_cancelled,
                  sp.xmode_subscription_end_at, sp.xmode_payment_failed_at,
                  sp.xmode_purchased_at,
-                 xs.tier_key,
-                 xs.purchased_at AS slot_purchased_at
+                 xs.tier_key
           FROM swimming_pools sp
           LEFT JOIN x_subscription_slots xs
             ON xs.pool_id = sp.id AND xs.status = 'PURCHASED'
           WHERE sp.id = ${poolId}
           ORDER BY xs.purchased_at DESC NULLS LAST
           LIMIT 1
-        `),
-        // X Setup 완성도
-        superAdminDb.execute(sql`
-          SELECT setup_status, curriculum_status, website_status,
-                 logo_status, photos_status
-          FROM x_setup_submissions
-          WHERE pool_id = ${poolId}
+        `)),
+        // 2. 월별 KPI snapshot — parent_curriculum WP10 연결, others NULL until each WP
+        safeXMetric("monthly_snapshot", poolId, () => superAdminDb.execute(sql`
+          SELECT
+            parent_curriculum_search_count,
+            parent_curriculum_user_count,
+            growth_report_sent_count
+          FROM x_monthly_operational_snapshots
+          WHERE swimming_pool_id = ${poolId}
+            AND year  = ${year}
+            AND month = ${month}
           LIMIT 1
-        `),
-        // 오늘 확인: 검토 대기 리포트 (REVIEW_REQUIRED) — report-hub 동일 기준
-        db.execute(sql`
+        `)),
+        // 3. 검토 대기 리포트 (이번 달 REVIEW_REQUIRED)
+        safeXMetric("review_required", poolId, () => db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM growth_reports
           WHERE swimming_pool_id = ${poolId}
             AND product_status = 'REVIEW_REQUIRED'
             AND period_start >= ${thisMonthStart}::date
             AND deleted_at IS NULL
-        `),
-        // 오늘 확인: 미배정 학생 — curriculum-hub 동일 기준
-        db.execute(sql`
+        `)),
+        // 4. 커리큘럼 미배정 학생
+        safeXMetric("unassigned_students", poolId, () => db.execute(sql`
           SELECT COUNT(DISTINCT s.id)::int AS cnt
           FROM students s
           JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
           WHERE s.swimming_pool_id = ${poolId}
             AND NOT EXISTS (
               SELECT 1 FROM student_curriculum_assignments sca
-              WHERE sca.student_id = s.id
+              WHERE sca.student_id       = s.id
                 AND sca.swimming_pool_id = ${poolId}
-                AND sca.is_active = true
+                AND sca.is_active        = true
             )
-        `),
-        // X 기능: 오늘 일지 — admin dashboard 동일 기준
-        db.execute(sql`
+        `)),
+        // 5. 오늘 일지 수 (AI 일지 식별 컬럼 없음 — WP9 이전)
+        safeXMetric("diaries_today", poolId, () => db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM class_diaries
           WHERE swimming_pool_id = ${poolId}
             AND lesson_date = ${today}::date
-            AND is_deleted = false
-        `),
-        // X 기능: 이번 주 성장 이벤트
-        db.execute(sql`
+            AND is_deleted  = false
+        `)),
+        // 6. 이번 주 성장이벤트
+        safeXMetric("growth_events_week", poolId, () => db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM growth_events
           WHERE swimming_pool_id = ${poolId}
-            AND is_invalidated = false
+            AND is_invalidated   = false
             AND created_at >= date_trunc('week', now())
-        `),
-        // X 기능: Parent AI 이번 달 검색 — curriculum-hub 동일 기준
-        db.execute(sql`
-          SELECT COUNT(*)::int AS cnt
-          FROM event_logs
-          WHERE pool_id = ${poolId}
-            AND category = 'AI'
-            AND metadata->>'feature' = 'parent_curriculum_search'
-            AND created_at >= date_trunc('month', now())
-        `),
-        // X 기능: 이번 달 발행 리포트 — report-hub 동일 기준
-        db.execute(sql`
+        `)),
+        // 7. 이번 달 발행(발송 완료) 리포트
+        safeXMetric("published_month", poolId, () => db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM growth_reports
           WHERE swimming_pool_id = ${poolId}
             AND product_status = 'PUBLISHED'
             AND period_start >= ${thisMonthStart}::date
             AND deleted_at IS NULL
-        `),
-        // X 기능: 커리큘럼 배정 학생 — curriculum-hub 동일 기준
-        db.execute(sql`
+        `)),
+        // 8. 커리큘럼 배정 학생
+        safeXMetric("assigned_students", poolId, () => db.execute(sql`
           SELECT COUNT(DISTINCT student_id)::int AS cnt
           FROM student_curriculum_assignments
           WHERE swimming_pool_id = ${poolId} AND is_active = true
-        `),
-        // 운영: 현재 재원 학생 — student_class_history.left_at IS NULL (curriculum-hub 동일)
-        db.execute(sql`
+        `)),
+        // 9. 현재 재원 학생 (student_class_history.left_at IS NULL)
+        safeXMetric("active_students", poolId, () => db.execute(sql`
           SELECT COUNT(DISTINCT s.id)::int AS cnt
           FROM students s
           JOIN student_class_history sch ON sch.student_id = s.id AND sch.left_at IS NULL
           WHERE s.swimming_pool_id = ${poolId}
-        `),
-        // 운영: 선생님 수 — admin dashboard 동일 기준
-        db.execute(sql`
+        `)),
+        // 10. 선생님 수
+        safeXMetric("active_teachers", poolId, () => db.execute(sql`
           SELECT COUNT(*)::int AS cnt
           FROM users
           WHERE swimming_pool_id = ${poolId} AND role = 'teacher'
-        `),
-        // 운영: 연결 학부모 — parent_students.status='approved' DISTINCT parent_id
-        db.execute(sql`
+        `)),
+        // 11. 연결 학부모 (parent_students.status='approved')
+        safeXMetric("connected_parents", poolId, () => db.execute(sql`
           SELECT COUNT(DISTINCT parent_id)::int AS cnt
           FROM parent_students
           WHERE swimming_pool_id = ${poolId} AND status = 'approved'
-        `),
-        // AI 사용량/비용 — event_logs category='AI' 이번 달
-        db.execute(sql`
-          SELECT COUNT(*)::int AS calls,
-                 COALESCE(
-                   SUM(
-                     CASE WHEN metadata->>'estimated_cost_usd' IS NOT NULL
-                          THEN (metadata->>'estimated_cost_usd')::numeric
-                          ELSE 0
-                     END
-                   ), 0
-                 ) AS estimated_cost_usd
+        `)),
+        // 12. AI 호출 수 이번 달
+        safeXMetric("ai_calls_month", poolId, () => db.execute(sql`
+          SELECT COUNT(*)::int AS calls
           FROM event_logs
-          WHERE pool_id = ${poolId}
+          WHERE pool_id  = ${poolId}
             AND category = 'AI'
             AND created_at >= date_trunc('month', now())
-        `),
-        // 저장공간 quota — subscription_plans JOIN (admin/storage 동일 기준)
-        superAdminDb.execute(sql`
+        `)),
+        // 13. 저장공간 quota
+        safeXMetric("storage_quota", poolId, () => superAdminDb.execute(sql`
           SELECT COALESCE(sp.subscription_tier, 'free') AS tier,
                  plans.storage_mb                        AS plan_storage_mb,
                  COALESCE(sp.extra_storage_gb, 0)        AS extra_storage_gb
@@ -4388,29 +4405,28 @@ router.get(
             ON plans.tier = COALESCE(sp.subscription_tier, 'free')
           WHERE sp.id = ${poolId}
           LIMIT 1
-        `),
+        `)),
       ]);
 
-      // 저장공간 usage (photo + video)
-      let photoBytes = 0, videoBytes = 0;
-      try {
-        const [rp] = (await db.execute(sql`
-          SELECT COALESCE(SUM(file_size), 0) AS used FROM photo_assets_meta WHERE pool_id = ${poolId}
-        `)).rows as any[];
-        photoBytes = Number(rp?.used ?? 0);
-      } catch {}
-      try {
-        const [rv] = (await db.execute(sql`
-          SELECT COALESCE(SUM(file_size), 0) AS used FROM video_assets_meta WHERE pool_id = ${poolId}
-        `)).rows as any[];
-        videoBytes = Number(rv?.used ?? 0);
-      } catch {}
-      const totalBytes = photoBytes + videoBytes;
+      // ── 저장공간 사용량 (photo + video, 독립 try-catch) ──────────────────
+      let photoBytes = 0, videoBytes = 0, storageByteFailed = false;
+      if (!storageSubM.failed) {
+        try {
+          const [rp] = (await db.execute(sql`
+            SELECT COALESCE(SUM(file_size), 0) AS used FROM photo_assets_meta WHERE pool_id = ${poolId}
+          `)).rows as any[];
+          photoBytes = Number(rp?.used ?? 0);
+        } catch { storageByteFailed = true; }
+        try {
+          const [rv] = (await db.execute(sql`
+            SELECT COALESCE(SUM(file_size), 0) AS used FROM video_assets_meta WHERE pool_id = ${poolId}
+          `)).rows as any[];
+          videoBytes = Number(rv?.used ?? 0);
+        } catch { storageByteFailed = true; }
+      }
 
-      // X 상태 계산 — billing.ts 동일 로직
-      const p    = (poolRow.rows[0] as any) ?? {};
-      const setup = (setupRow.rows[0] as any) ?? null;
-
+      // ── X 상태 계산 ───────────────────────────────────────────────────────
+      const p = (poolM.value?.rows[0] as any) ?? {};
       const paid             = Boolean(p.x_paid_entitlement);
       const manual           = Boolean(p.x_manual_entitlement);
       const forceDisabled    = Boolean(p.x_force_disabled);
@@ -4418,68 +4434,91 @@ router.get(
       const paymentFailed    = p.xmode_payment_failed_at != null;
       const endAt: string | null = p.xmode_subscription_end_at ?? null;
 
-      let subscription_status: string;
-      if (forceDisabled)        subscription_status = "UNKNOWN";
-      else if (paid) {
-        if (paymentFailed)      subscription_status = "BILLING_ISSUE";
-        else if (autoRenewCancelled) subscription_status = "CANCELLED_BUT_ACTIVE";
-        else                    subscription_status = "ACTIVE";
+      let subscription_status = "UNKNOWN";
+      if (!poolM.failed) {
+        if (forceDisabled)             subscription_status = "UNKNOWN";
+        else if (paid) {
+          if (paymentFailed)           subscription_status = "BILLING_ISSUE";
+          else if (autoRenewCancelled) subscription_status = "CANCELLED_BUT_ACTIVE";
+          else                         subscription_status = "ACTIVE";
+        }
+        else if (manual)               subscription_status = "ACTIVE";
+        else if (endAt && new Date(endAt) > new Date()) subscription_status = "CANCELLED_BUT_ACTIVE";
+        else if (p.xmode_purchased_at) subscription_status = "EXPIRED";
       }
-      else if (manual)          subscription_status = "ACTIVE";
-      else if (endAt && new Date(endAt) > new Date()) subscription_status = "CANCELLED_BUT_ACTIVE";
-      else if (p.xmode_purchased_at) subscription_status = "EXPIRED";
-      else                      subscription_status = "UNKNOWN";
 
-      // Storage quota
-      const storRow   = (storageSub.rows[0] as any) ?? null;
-      const planMb    = Number(storRow?.plan_storage_mb ?? 102);
-      const extraMb   = Number(storRow?.extra_storage_gb ?? 0) * 1024;
+      // ── Storage 계산 ─────────────────────────────────────────────────────
+      const storRow    = (storageSubM.value?.rows[0] as any) ?? null;
+      const planMb     = Number(storRow?.plan_storage_mb ?? 102);
+      const extraMb    = Number(storRow?.extra_storage_gb ?? 0) * 1024;
       const quotaBytes = (planMb + extraMb) * 1024 * 1024;
-      const usedPct   = quotaBytes > 0 ? Math.round((totalBytes / quotaBytes) * 100) : null;
+      const totalBytes = photoBytes + videoBytes;
+      const usedPct    = (!storageSubM.failed && !storageByteFailed && quotaBytes > 0)
+        ? Math.round((totalBytes / quotaBytes) * 100) : null;
 
-      const aiRow = (aiUsage.rows[0] as any) ?? {};
+      // ── Snapshot 값 ───────────────────────────────────────────────────────
+      const snap = snapshotM.failed ? null : ((snapshotM.value?.rows[0] as any) ?? null);
+
+      // ── unavailable 목록 ─────────────────────────────────────────────────
+      const unavailable: string[] = [];
+      if (poolM.failed)          unavailable.push("x_status");
+      if (snapshotM.failed)      unavailable.push("monthly_snapshot");
+      if (reviewM.failed)        unavailable.push("review_required_reports");
+      if (unassignedM.failed)    unavailable.push("unassigned_students");
+      if (diariesTodayM.failed)  unavailable.push("diaries_today");
+      if (growthWeekM.failed)    unavailable.push("growth_events_week");
+      if (publishedMonthM.failed) unavailable.push("growth_report_sent_count");
+      if (assignedM.failed)      unavailable.push("curriculum_assigned_students");
+      if (studentsM.failed)      unavailable.push("active_students");
+      if (teachersM.failed)      unavailable.push("active_teachers");
+      if (parentsM.failed)       unavailable.push("connected_parents");
+      if (aiCallsM.failed)       unavailable.push("ai_calls_month");
+      if (storageSubM.failed || storageByteFailed) unavailable.push("storage");
 
       res.json({
-        x_status: {
-          enabled:             paid || manual,
-          subscription_status,
+        // 현재 X 플랜
+        plan: {
+          enabled:             poolM.failed ? null : (paid || manual),
+          subscription_status: poolM.failed ? null : subscription_status,
           tier_key:            p.tier_key ?? null,
+          tier_label:          p.tier_key ? (X_TIER_LABEL[p.tier_key] ?? p.tier_key) : null,
           started_at:          p.xmode_purchased_at ?? null,
           expires_at:          endAt,
-          setup_completion: setup ? {
-            overall:    setup.setup_status,
-            curriculum: setup.curriculum_status,
-            website:    setup.website_status,
-            logo:       setup.logo_status,
-            photos:     setup.photos_status,
-          } : null,
         },
-        attention: {
-          review_required_reports: Number((reviewRequired.rows[0] as any)?.cnt ?? 0),
-          unassigned_students:     Number((unassigned.rows[0] as any)?.cnt ?? 0),
+        // 이번 달 AI 활용 (snapshot + live)
+        monthly: {
+          // parent_curriculum — WP10 snapshot 연결 완료
+          parent_curriculum_search_count: snap ? Number(snap.parent_curriculum_search_count ?? 0) : null,
+          parent_curriculum_user_count:   snap ? Number(snap.parent_curriculum_user_count   ?? 0) : null,
+          // AI 일지 — UNAVAILABLE_UNTIL_WP9 (class_diaries에 ai_generated 컬럼 없음)
+          ai_diary_count:         null,
+          ai_diary_teacher_count: null,
+          // 성장리포트
+          growth_report_sent_count:    publishedMonthM.failed ? null : Number((publishedMonthM.value?.rows[0] as any)?.cnt ?? 0),
+          growth_report_pending_count: reviewM.failed         ? null : Number((reviewM.value?.rows[0]          as any)?.cnt ?? 0),
         },
-        features: {
-          diaries_today:                Number((diariesToday.rows[0] as any)?.cnt ?? 0),
-          growth_events_week:           Number((growthWeek.rows[0] as any)?.cnt ?? 0),
-          parent_ai_searches_month:     Number((parentAiMonth.rows[0] as any)?.cnt ?? 0),
-          reports_published_month:      Number((publishedMonth.rows[0] as any)?.cnt ?? 0),
-          curriculum_assigned_students: Number((assignedStudents.rows[0] as any)?.cnt ?? 0),
+        // 현재 운영현황 (실시간)
+        live: {
+          diaries_today:                diariesTodayM.failed ? null : Number((diariesTodayM.value?.rows[0] as any)?.cnt ?? 0),
+          growth_events_week:           growthWeekM.failed   ? null : Number((growthWeekM.value?.rows[0]   as any)?.cnt ?? 0),
+          curriculum_assigned_students: assignedM.failed     ? null : Number((assignedM.value?.rows[0]     as any)?.cnt ?? 0),
+          unassigned_students:          unassignedM.failed   ? null : Number((unassignedM.value?.rows[0]   as any)?.cnt ?? 0),
+          active_students:              studentsM.failed     ? null : Number((studentsM.value?.rows[0]     as any)?.cnt ?? 0),
+          active_teachers:              teachersM.failed     ? null : Number((teachersM.value?.rows[0]     as any)?.cnt ?? 0),
+          connected_parents:            parentsM.failed      ? null : Number((parentsM.value?.rows[0]      as any)?.cnt ?? 0),
+          ai_calls_month:               aiCallsM.failed      ? null : Number((aiCallsM.value?.rows[0]      as any)?.calls ?? 0),
         },
-        operations: {
-          active_students:   Number((activeStudents.rows[0] as any)?.cnt ?? 0),
-          active_teachers:   Number((activeTeachers.rows[0] as any)?.cnt ?? 0),
-          connected_parents: Number((connectedParents.rows[0] as any)?.cnt ?? 0),
-        },
-        ai_usage: {
-          calls_month:              Number(aiRow.calls ?? 0),
-          estimated_cost_usd_month: Number(aiRow.estimated_cost_usd ?? 0),
-        },
+        // 저장공간
         storage: {
-          total_bytes:  totalBytes,
-          quota_bytes:  quotaBytes,
-          used_pct:     usedPct,
-          tier:         storRow?.tier ?? "free",
+          total_bytes: (storageSubM.failed || storageByteFailed) ? null : totalBytes,
+          quota_bytes: storageSubM.failed ? null : quotaBytes,
+          used_pct:    usedPct,
+          tier:        storRow?.tier ?? null,
         },
+        // 집계 기간
+        period: { year, month },
+        // 실패한 metric 목록 (observability용)
+        unavailable,
       });
     } catch (e) {
       console.error("[admin/x-hub/summary]", e);
