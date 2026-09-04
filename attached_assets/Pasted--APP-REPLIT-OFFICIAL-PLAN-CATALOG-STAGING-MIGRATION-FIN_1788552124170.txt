@@ -1,0 +1,452 @@
+[보낼 곳: APP REPLIT]
+
+# OFFICIAL PLAN CATALOG — STAGING MIGRATION FINAL VERIFY
+# BRANCH: release/v2.0.0
+# BASELINE: 73fe63bd
+#
+# 목표:
+# 신규 플랜이 코드에만 존재하는 상태를 끝내고,
+# Staging DB + API + Super Admin까지 동일한 canonical catalog를 사용함을 검증한다.
+#
+# 이번 단계에서는 Production DB 변경 금지.
+# Render Production 배포 금지.
+# OTA 금지.
+# 추가 기능 개발 금지.
+
+============================================================
+1. GIT 확인
+============================================================
+
+Branch:
+release/v2.0.0
+
+HEAD:
+73fe63bd 또는 이를 포함한 latest HEAD
+
+확인:
+
+73fe63bd ancestor:
+YES / NO
+
+============================================================
+2. STAGING에 공식 migration 적용
+============================================================
+
+적용 대상:
+
+migrations/2026-09-05-official-plan-catalog.sql
+
+반드시 STAGING DB에만 실행.
+
+Production DB:
+절대 실행 금지.
+
+Migration 전 snapshot:
+
+subscription_plans의
+
+plan key
+display name
+price
+member limit
+active/is_active
+
+전체 관련 row를 기록.
+
+============================================================
+3. Migration 후 신규 공식 catalog 검증
+============================================================
+
+Staging DB에서 정확히 다음 신규 상품 확인:
+
+SWIMNOTE
+9,900원
+type=base
+
+X300
+119,000원
+member_limit=300
+type=x
+
+X500
+189,000원
+member_limit=500
+type=x
+
+X1000
+349,000원
+member_limit=1000
+type=x
+
+DATA100
+7,900원
+type=data_addon
+
+DATA300
+22,900원
+type=data_addon
+
+구형:
+
+Free
+Coach30
+Coach50
+Coach100
+Premier200
+Premier300
+Premier500
+Premier1000
+
+은 신규 선택용 active catalog에서 제외.
+
+historical row 삭제:
+0
+
+============================================================
+4. 가격 이중 source 제거 확인
+============================================================
+
+중요:
+
+Migration 이후 아래 세 곳이 동일해야 함.
+
+A. Staging DB subscription_plans
+B. officialPlanCatalog.ts
+C. GET /super/official-plan-catalog
+
+비교:
+
+SWIMNOTE = 9,900
+X300 = 119,000
+X500 = 189,000
+X1000 = 349,000
+DATA100 = 7,900
+DATA300 = 22,900
+
+불일치:
+0이어야 함.
+
+129,000
+199,000
+359,000
+
+이 값이 신규 authoritative runtime path에서 남아 있는지 repository 전체 검색.
+
+신규 플랜 판정/가격표시/저장 로직에서 사용되면 FAIL.
+
+historical migration/old fixture/comment에만 존재하면 분류하여 보고.
+
+============================================================
+5. STAGING SUPER ADMIN E2E
+============================================================
+
+Staging에서 실제 Super Admin 화면/API 검증.
+
+Base selector:
+
+SWIMNOTE — 9,900원
+
+X selector:
+
+X300 — 119,000원 / 300명
+X500 — 189,000원 / 500명
+X1000 — 349,000원 / 1,000명
+
+Data:
+
+DATA100 — 7,900원
+DATA300 — 22,900원
+
+구형 Coach/Premier:
+선택 불가.
+
+============================================================
+6. MANUAL X 실제 저장 검증
+============================================================
+
+Staging test pool 사용.
+
+결제 없이:
+
+X300 직접 부여
+
+검증:
+
+x_manual_entitlement=true
+x_paid_entitlement=false
+x_force_disabled=false
+x_plan_key=x300
+x_plan_member_limit=300
+effective=true
+source=MANUAL
+
+그 다음:
+
+X500 변경
+
+검증:
+
+x_plan_key=x500
+x_plan_member_limit=500
+
+그 다음:
+
+X1000 변경
+
+검증:
+
+x_plan_key=x1000
+x_plan_member_limit=1000
+
+RevenueCat purchase row 생성:
+0
+
+fake paid entitlement:
+0
+
+============================================================
+7. X 회수 검증
+============================================================
+
+Manual X revoke:
+
+x_manual_entitlement=false
+
+paid field:
+변경 금지
+
+x_plan_key 처리 정책은 현재 구현된 공식 정책대로 검증하고 보고.
+
+============================================================
+8. IDEMPOTENCY
+============================================================
+
+동일 migration을 Staging에서 두 번째 실행해도:
+
+중복 plan row:
+0
+
+가격 변형:
+0
+
+불필요한 row 증가:
+0
+
+migration error:
+0
+
+============================================================
+9. Production 적용 예정 DIFF 작성
+============================================================
+
+Production에는 아직 실행하지 말 것.
+
+현재 Production DB를 READ ONLY로 조회해서
+migration 적용 시 예상 변경만 작성.
+
+반드시 보고:
+
+Rows INSERT:
+...
+
+Rows UPDATE:
+...
+
+Legacy rows deactivate:
+...
+
+Rows DELETE:
+0
+
+Schema DDL:
+YES / NO
+
+Historical billing rows affected:
+0
+
+Toykids member/class/diary rows affected:
+0
+
+============================================================
+10. Render 배포 준비
+============================================================
+
+Target SHA:
+
+73fe63bd 또는 해당 commit을 포함하는 정확한 latest safe SHA
+
+보고:
+
+Render current SHA:
+...
+
+Target SHA:
+...
+
+Production migration required:
+YES
+
+Render deploy:
+NOT EXECUTED
+
+OTA:
+NOT REQUIRED
+
+============================================================
+11. 완료보고
+============================================================
+
+# OFFICIAL PLAN STAGING MIGRATION VERIFY REPORT
+
+GIT
+
+Branch:
+HEAD:
+73fe63bd ancestor:
+
+--------------------------------
+
+STAGING MIGRATION
+
+Executed:
+YES / NO
+
+Idempotent:
+YES / NO
+
+Historical rows deleted:
+0 / ...
+
+--------------------------------
+
+DB CATALOG
+
+SWIMNOTE:
+...
+
+X300:
+...
+
+X500:
+...
+
+X1000:
+...
+
+DATA100:
+...
+
+DATA300:
+...
+
+Legacy active/selectable:
+...
+
+--------------------------------
+
+SOURCE CONSISTENCY
+
+DB vs officialPlanCatalog.ts:
+MATCH / MISMATCH
+
+DB vs API:
+MATCH / MISMATCH
+
+Old 129k/199k/359k authoritative references:
+0 / ...
+
+--------------------------------
+
+SUPER ADMIN E2E
+
+Base selector:
+PASS / FAIL
+
+X300:
+PASS / FAIL
+
+X500:
+PASS / FAIL
+
+X1000:
+PASS / FAIL
+
+Data add-ons:
+PASS / FAIL
+
+Legacy hidden:
+PASS / FAIL
+
+--------------------------------
+
+MANUAL X
+
+X300 grant:
+PASS / FAIL
+
+X500 change:
+PASS / FAIL
+
+X1000 change:
+PASS / FAIL
+
+Paid untouched:
+PASS / FAIL
+
+RevenueCat fake row:
+0 / ...
+
+--------------------------------
+
+PRODUCTION EXPECTED DIFF
+
+INSERT:
+...
+
+UPDATE:
+...
+
+DELETE:
+0 / ...
+
+DDL:
+...
+
+Historical billing affected:
+0 / ...
+
+--------------------------------
+
+DEPLOY
+
+Render current SHA:
+...
+
+Target SHA:
+...
+
+Production migration executed:
+NO
+
+Render production deployed:
+NO
+
+OTA required:
+NO
+
+--------------------------------
+
+FINAL
+
+Staging DB/API/UI canonical catalog aligned:
+YES / NO
+
+Safe to request Production migration approval:
+YES / NO
+
+Safe to deploy Target SHA after approved migration:
+YES / NO
+
+STOP.
+DO NOT MODIFY PRODUCTION.
+WAIT FOR USER APPROVAL.
