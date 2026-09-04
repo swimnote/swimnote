@@ -1,0 +1,875 @@
+[보낼 곳: APP REPLIT]
+
+# SWIMNOTE STAGING INFRASTRUCTURE PROVISIONING GATE
+# 최우선 목표: Production과 완전히 분리된 안전한 DEV/TEST 환경 구축
+# DO NOT START WP8-P2 YET
+# DO NOT START WP9
+# DO NOT MUTATE PRODUCTION
+# DO NOT DEPLOY RENDER
+# DO NOT PUBLISH OTA
+
+============================================================
+0. 목적
+============================================================
+
+현재 확인된 구조:
+
+- Replit DEV API가 Production Supabase DB를 사용 중
+- 별도 TEST DB 없음
+- 일부 integration/preflight가 과거 Production DB에 fixture를 삽입한 적 있음
+- Production R2와 test object도 동일 bucket + prefix만 분리되어 있음
+
+따라서 기능개발을 계속하기 전에
+Production과 완전히 격리된 STAGING/TEST 환경부터 구축한다.
+
+최종 목표:
+
+REPLIT DEV / TEST
+→ STAGING SUPABASE
+
+RENDER PRODUCTION
+→ PRODUCTION SUPABASE
+
+를 완전히 분리.
+
+이번 작업은 인프라 분리만 수행한다.
+
+============================================================
+1. 우선순위
+============================================================
+
+가장 안전한 방식 우선순위:
+
+1순위:
+완전히 별도의 Supabase Project 생성
+
+예:
+swimnote-staging
+
+2순위:
+별도 Supabase Project 생성 권한/계정/비용 문제로 불가능할 경우
+생성하지 말고 정확한 blocker와 사용자 UI 작업만 보고.
+
+기존 Production Supabase 안에
+임의 table/schema namespace만 만들어서
+staging처럼 사용하는 방식:
+금지.
+
+Production DB clone 안에서 테스트:
+금지.
+
+============================================================
+2. 절대 금지
+============================================================
+
+기존 Production Supabase에서:
+
+INSERT:
+NO
+
+UPDATE:
+NO
+
+DELETE:
+NO
+
+DDL:
+NO
+
+migration:
+NO
+
+fixture:
+NO
+
+cleanup:
+NO
+
+Production Auth 사용자 생성:
+NO
+
+Production Storage object 생성:
+NO
+
+Render deploy:
+NO
+
+main merge:
+NO
+
+Production environment variable 변경:
+NO
+
+OTA:
+NO
+
+============================================================
+3. CURRENT PRODUCTION IDENTITY
+============================================================
+
+먼저 현재 Production Supabase를
+secret 없이 fingerprint.
+
+보고:
+
+project ref
+DB host fingerprint
+API host
+database name
+storage project identity
+
+비밀번호/connection string 전체:
+절대 출력 금지.
+
+이 fingerprint는 이후
+"절대 mutation 금지 대상"으로 사용한다.
+
+============================================================
+4. SUPABASE ACCESS 확인
+============================================================
+
+현재 Replit environment에서:
+
+Supabase CLI 존재 여부
+로그인 상태
+사용 가능한 organization
+project creation 권한
+
+확인.
+
+토큰/secret 값 출력 금지.
+
+다음 중 하나로 판정:
+
+CAN_CREATE_STAGING_PROJECT
+CANNOT_CREATE_STAGING_PROJECT
+REQUIRES_USER_ACTION
+
+============================================================
+5. 비용 / PLAN 확인
+============================================================
+
+새 Supabase project 생성이
+현재 account/organization에서
+추가 유료비용 또는 명시적 결제 승인을 요구하는지 확인.
+
+무료/이미 포함:
+진행 가능.
+
+새 과금/결제 승인이 필요한 경우:
+임의 생성 금지.
+
+STOP하고:
+
+- 필요한 plan
+- 예상 발생 비용
+- 사용자가 눌러야 할 위치
+
+만 보고.
+
+비용을 임의 승인하지 말 것.
+
+============================================================
+6. STAGING PROJECT 생성
+============================================================
+
+권한과 비용 조건이 안전하면
+완전히 별도 Supabase Project 생성.
+
+권장 이름:
+
+swimnote-staging
+
+또는 기존 naming convention이 있으면
+그 convention 사용.
+
+중요:
+
+Production project와
+project ref가 반드시 달라야 한다.
+
+region:
+Production과 동일 또는 가장 가까운 동일 region 선호.
+
+목적:
+환경 차이 최소화.
+
+============================================================
+7. STAGING DATABASE
+============================================================
+
+새 project 생성 후
+STAGING DB identity 확인.
+
+보고:
+
+staging project ref
+DB host fingerprint
+database name
+region
+
+검증:
+
+STAGING fingerprint
+!=
+PRODUCTION fingerprint
+
+필수.
+
+같으면 즉시 FAIL.
+
+============================================================
+8. DATA POLICY
+============================================================
+
+Production 회원/교사/학부모 데이터를
+Staging으로 복사하지 말 것.
+
+Production dump:
+NO
+
+Production PII clone:
+NO
+
+Production Auth clone:
+NO
+
+Production Storage clone:
+NO
+
+Staging은:
+
+synthetic fixture only.
+
+============================================================
+9. SCHEMA 복제 방식
+============================================================
+
+Production DATA를 복사하는 것이 아니라
+repository의 explicit migrations/schema를 이용하여
+Staging schema를 구축한다.
+
+먼저 현재 repository에서
+schema/migration source-of-truth를 조사.
+
+사용:
+
+existing migrations
+Drizzle schema
+explicit migration scripts
+known init scripts
+
+금지:
+
+Production pg_dump --data
+
+가능하면 schema-only도
+repository migration이 정확하다면 사용하지 않음.
+
+목표:
+"새 환경을 코드만으로 재현 가능"하게.
+
+============================================================
+10. RUNTIME DDL은 아직 실행하지 말 것
+============================================================
+
+현재 repository에 남아 있는
+boot-time/request-time DDL이 있음.
+
+이번 단계에서는
+기존 runtime server를 Staging에 바로 연결해
+자동으로 schema를 만들게 하지 말 것.
+
+먼저 migration source를 inventory.
+
+WP8-P2에서 runtime DDL을 제거한 후
+최종 staging migration을 수행하는 것이 원칙.
+
+단 Staging project 생성 자체는 진행 가능.
+
+============================================================
+11. ENVIRONMENT VARIABLE CONTRACT
+============================================================
+
+다음 환경변수 역할을 분리.
+
+Production runtime:
+
+DATABASE_URL / SUPABASE_DATABASE_URL
+→ Production only
+
+Test/integration:
+
+TEST_DATABASE_URL
+→ Staging only
+
+필요하면:
+
+TEST_SUPABASE_URL
+TEST_SUPABASE_ANON_KEY
+TEST_SUPABASE_SERVICE_ROLE_KEY
+
+등 현재 architecture에 맞춰 정의.
+
+중요:
+
+mutation test가
+TEST_DATABASE_URL 없을 때
+SUPABASE_DATABASE_URL로 fallback:
+절대 금지.
+
+============================================================
+12. REPLIT DEV 연결 정책
+============================================================
+
+가장 안전한 최종 목표:
+
+Replit DEV API
+→ Staging DB
+
+Render Production API
+→ Production DB
+
+하지만 이번 단계에서
+Replit dev server env를 바로 바꾸기 전에
+현재 dev server가 어떤 production-dependent 기능을 갖는지 조사.
+
+변경 영향:
+
+Auth
+Storage
+R2
+push
+AI
+RevenueCat
+server startup
+
+분석.
+
+안전하면 Staging으로 전환 가능.
+
+위험하면
+TEST runner만 먼저 TEST_DATABASE_URL로 분리하고
+dev server 전환은 다음 단계에서 수행.
+
+완료보고에 추천안을 제출.
+
+============================================================
+13. STAGING AUTH
+============================================================
+
+Supabase Auth를 앱에서 직접 사용하는지
+서버 자체 auth/JWT만 사용하는지 조사.
+
+Staging에 별도 Supabase Auth가 필요한 경우:
+
+synthetic users only.
+
+Production user 복제:
+NO.
+
+Production JWT secret 재사용:
+NO if environment-specific.
+
+현재 SWIMNOTE 자체 JWT 구조에 맞게
+필요한 최소 설정만 준비.
+
+============================================================
+14. STAGING SEED 정책
+============================================================
+
+나중에 WP9에서 사용할
+synthetic fixture 설계만 준비.
+
+예:
+
+POOL_A
+POOL_B
+
+Super Admin test user
+
+Pool Admin
+Teacher
+Parent
+
+Student
+Class
+
+Notification
+AI trace
+Growth report
+Curriculum
+
+실제 생성은
+safe mutation guard와 schema 준비 후.
+
+이번 provisioning 단계에서
+대규모 seed 금지.
+
+============================================================
+15. TEST DATABASE SAFETY
+============================================================
+
+기존:
+
+src/lib/db-safety.ts
+
+와 연동 가능한
+Staging fingerprint를 기록할 준비.
+
+최종 구조:
+
+PRODUCTION fingerprint
+→ ALWAYS DENY mutation tests
+
+STAGING fingerprint
++
+ALLOW_TEST_DB_MUTATIONS=true
+→ ALLOW
+
+unknown DB
+→ DENY
+
+fail closed.
+
+============================================================
+16. PRODUCTION FALLBACK 금지
+============================================================
+
+향후 모든 mutation integration script는:
+
+TEST_DATABASE_URL required.
+
+환경변수가 없으면:
+
+REFUSING TO MUTATE: TEST_DATABASE_URL NOT CONFIGURED
+
+로 종료.
+
+Production URL로 fallback:
+0.
+
+============================================================
+17. R2 / STORAGE 전략
+============================================================
+
+현재:
+
+Test R2 bucket == Production R2 bucket
+prefix cc-test/
+
+이번 provisioning 단계에서
+Cloudflare R2에 별도 test bucket을
+현재 credentials로 추가 생성 가능한지 조사.
+
+권장:
+
+swimnote-test
+또는
+swimnote-staging
+
+별도 bucket.
+
+그러나:
+
+추가 비용/권한 필요 시
+임의 생성 금지.
+
+보고만.
+
+새 bucket이 안전하게 무료/허용 범위면
+생성 가능.
+
+Production bucket object:
+절대 수정 금지.
+
+============================================================
+18. STAGING R2가 아직 없다면
+============================================================
+
+WP9 전까지 최소:
+
+cc-test/ prefix guard
+
+를 유지할 수 있지만
+
+최종 권장:
+
+Staging bucket 별도.
+
+이번 보고에서:
+
+SEPARATE TEST R2:
+AVAILABLE / CREATED / REQUIRES USER ACTION
+
+명시.
+
+============================================================
+19. MIGRATION REHEARSAL 계획
+============================================================
+
+Staging project가 생성되면
+다음 단계 WP8-P2에서:
+
+1.
+runtime DDL 제거
+
+2.
+explicit migrations 정리
+
+3.
+empty Staging DB에 migrations 실행
+
+4.
+schema 검증
+
+5.
+synthetic fixture 생성
+
+6.
+WP8 regression
+
+7.
+WP9 real integration
+
+순서로 진행.
+
+이번 단계에서
+아직 runtime DDL cleanup 전이라면
+전체 migration 실행을 서두르지 말 것.
+
+============================================================
+20. CONNECTION SAFETY CHECK
+============================================================
+
+Staging 생성 후
+read-only connectivity 확인.
+
+예:
+
+SELECT current_database()
+SELECT version()
+
+정도의 safe query.
+
+그리고 Production에도
+mutation 없이 identity만 비교.
+
+검증:
+
+STAGING != PRODUCTION
+
+필수.
+
+============================================================
+21. SECRET 관리
+============================================================
+
+새 Staging credential을:
+
+source code:
+절대 commit 금지
+
+README:
+secret 값 기록 금지
+
+chat/report:
+full secret 금지
+
+Replit secret/environment:
+사용.
+
+보고에는:
+
+SET / NOT SET
+
+만.
+
+============================================================
+22. .env 안전성
+============================================================
+
+git tracked .env에
+Staging/Production secret을 넣지 말 것.
+
+.gitignore 확인.
+
+새 credential이
+git status에 노출되지 않는지 확인.
+
+============================================================
+23. RENDER 안전성
+============================================================
+
+Render Production environment는
+이번 작업에서 변경하지 않는다.
+
+현재:
+
+branch=main
+autoDeploy=NO
+
+유지.
+
+Production DB URL:
+그대로.
+
+============================================================
+24. APP 안전성
+============================================================
+
+APP production config:
+변경 금지.
+
+Production API:
+그대로 Render.
+
+이번 작업은 backend/test infrastructure.
+
+APP/shared runtime:
+NO expected.
+
+OTA:
+NO.
+
+============================================================
+25. SUCCESS CONDITION
+============================================================
+
+이번 단계 완료 기준:
+
+Separate Supabase Staging:
+CREATED
+
+또는
+USER ACTION REQUIRED가 정확히 식별됨.
+
+Production fingerprint:
+KNOWN
+
+Staging fingerprint:
+KNOWN
+
+Production != Staging:
+PASS
+
+TEST_DATABASE_URL contract:
+READY
+
+Production fallback:
+FORBIDDEN
+
+Secret isolation:
+PASS
+
+Render untouched:
+PASS
+
+Production DB mutation:
+0
+
+============================================================
+26. 사용자 ACTION이 필요한 경우
+============================================================
+
+다음이 필요하면
+작업을 중단하고 정확히 보고:
+
+Supabase login
+organization selection
+billing approval
+project password
+region selection
+manual project creation
+
+보고에는:
+
+1.
+Supabase Dashboard에서 어디를 클릭
+2.
+어떤 값 선택
+3.
+어떤 값은 Replit에 입력해야 하는지
+
+만 설명.
+
+사용자에게 secret 자체를
+채팅으로 보내라고 요구하지 말 것.
+
+Replit Secrets에 직접 입력하게 안내.
+
+============================================================
+27. 완료보고
+============================================================
+
+# SWIMNOTE STAGING INFRASTRUCTURE REPORT
+
+============================================================
+PRODUCTION
+============================================================
+
+Production Supabase project ref:
+...
+
+Production DB fingerprint:
+...
+
+Production mutated:
+NO
+
+Render changed:
+NO
+
+============================================================
+SUPABASE ACCESS
+============================================================
+
+CLI:
+AVAILABLE / NOT AVAILABLE
+
+Authenticated:
+YES / NO
+
+Organization access:
+YES / NO
+
+Project create permission:
+YES / NO
+
+Billing approval required:
+YES / NO
+
+============================================================
+STAGING
+============================================================
+
+Project:
+CREATED / NOT CREATED / USER ACTION REQUIRED
+
+Name:
+...
+
+Project ref:
+...
+
+Region:
+...
+
+DB fingerprint:
+...
+
+Production != Staging:
+PASS / FAIL
+
+============================================================
+STAGING DATABASE
+============================================================
+
+Connectivity:
+PASS / FAIL
+
+Schema:
+EMPTY / PARTIAL / READY
+
+Production data copied:
+NO
+
+Production PII copied:
+NO
+
+============================================================
+ENV CONTRACT
+============================================================
+
+TEST_DATABASE_URL:
+READY / NOT READY
+
+Production fallback:
+DISABLED / NOT YET
+
+Production fingerprint deny:
+READY / NOT READY
+
+Staging allowed fingerprint:
+READY / NOT READY
+
+============================================================
+REPLIT
+============================================================
+
+Current DEV uses Production:
+YES / NO
+
+Recommended next state:
+DEV→STAGING / TEST-ONLY→STAGING / OTHER
+
+Safe to switch now:
+YES / NO
+
+Reason:
+...
+
+============================================================
+R2
+============================================================
+
+Production bucket:
+...
+
+Separate Staging bucket:
+CREATED / AVAILABLE / USER ACTION REQUIRED / NOT CREATED
+
+Same bucket currently:
+YES / NO
+
+Recommended:
+...
+
+============================================================
+SECRETS
+============================================================
+
+Staging DB secret stored in code:
+NO
+
+Stored in Replit Secrets:
+YES / NO
+
+Git exposure:
+NO / YES
+
+============================================================
+NEXT STEP
+============================================================
+
+Ready for WP8-P2:
+YES / NO
+
+Ready for migration rehearsal:
+YES / NO
+
+Ready for WP9 real fixtures:
+NO
+
+User action required:
+...
+
+============================================================
+FINAL
+============================================================
+
+Production remained untouched:
+YES / NO
+
+Staging isolation established:
+YES / NO
+
+Safe development path established:
+YES / NO
+
+Remaining blocker:
+...
+
+DO NOT START WP8-P2.
+DO NOT START WP9.
+WAIT FOR NEXT INSTRUCTION.
